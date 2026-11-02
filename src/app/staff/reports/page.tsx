@@ -16,7 +16,7 @@ export default function StaffReportsPage() {
         Character reports
       </h1>
       <p className="mb-6 text-sm text-text-muted">
-        Characters clans have asked Anvil to look at: disputed links, claims they vouch for, wrong owners.
+        Characters clans have asked Anvil to look at — disputed links, claims they vouch for, wrong owners — and players saying they’re in the wrong clan.
       </p>
       <ReportsClient />
     </div>

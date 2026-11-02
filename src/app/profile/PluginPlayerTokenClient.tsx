@@ -2,107 +2,81 @@
 
 import { useEffect, useState } from 'react';
 import { useDialog } from '@/components/Confirm';
+import NewPluginToken from '@/components/NewPluginToken';
 
+/**
+ * The person's plugin tokens. There is nothing to reveal: tokens are stored only as hashes, so each
+ * is shown once, when it is made. What lives here is making another (for one more client) and the
+ * panic button — revoking every token, which signs every client out.
+ */
 export default function PluginPlayerTokenClient() {
-  const [token, setToken] = useState<string | null>(null);
   const { confirm } = useDialog();
-  const [loading, setLoading] = useState(true);
-  const [rotating, setRotating] = useState(false);
-  const [revealed, setRevealed] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [count, setCount] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let alive = true;
     fetch('/api/profile/plugin-token')
       .then((r) => r.json())
-      .then((d) => {
-        if (!alive) return;
-        if (d.token) setToken(d.token);
-        else setError(d.error || 'Failed to load token');
-      })
-      .catch(() => alive && setError('Failed to load token'))
-      .finally(() => alive && setLoading(false));
-    return () => { alive = false; };
+      .then((d) => alive && setCount(typeof d.tokens === 'number' ? d.tokens : 0))
+      .catch(() => alive && setError('Could not load your tokens'));
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  async function rotate() {
+  async function revokeAll() {
     const ok = await confirm({
-      title: 'Rotate your plugin token?',
-      body: 'The old one stops working immediately, so your RuneLite plugin goes quiet until you sign in from its sidebar panel again (or paste the new token into its config).',
-      confirmLabel: 'Rotate it',
+      title: 'Sign every RuneLite client out?',
+      body: 'Every plugin token you hold stops working immediately. Each client goes quiet until you sign in from its sidebar panel again.',
+      confirmLabel: 'Revoke all',
+      tone: 'danger',
     });
     if (!ok) return;
-    setRotating(true);
+    setBusy(true);
     setError('');
-    setCopied(false);
-    const res = await fetch('/api/profile/plugin-token', { method: 'POST' });
+    const res = await fetch('/api/profile/plugin-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'revoke' }),
+    });
+    setBusy(false);
     if (!res.ok) {
-      setError('Rotate failed');
-      setRotating(false);
+      setError('Could not revoke them — try again.');
       return;
     }
-    const data = await res.json();
-    setToken(data.token);
-    setRevealed(true);
-    setRotating(false);
+    setCount(0);
   }
-
-  async function copy() {
-    if (!token) return;
-    try {
-      await navigator.clipboard.writeText(token);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setError('Copy failed — select and copy manually');
-    }
-  }
-
-  if (loading) return <p className="text-sm text-text-muted">Loading…</p>;
 
   return (
     <div>
       <p className="text-sm text-text-muted mb-3">
-        The plugin normally fills this in for you when you click <span className="text-foreground">Sign in with Discord</span> in
-        its sidebar panel. If that doesn&rsquo;t work, copy it and use{' '}
+        The plugin fills this in for you when you click <span className="text-foreground">Sign in with Discord</span> in
+        its sidebar panel. If that doesn&rsquo;t work, make a token and use{' '}
         <span className="text-foreground">Paste a token instead</span> in that panel. It works across every event
-        you&rsquo;re signed up for. Rotate if you ever suspect it&rsquo;s leaked.
+        you&rsquo;re signed up for, and is shown only once.
+        {count != null && (
+          <>
+            {' '}
+            You have <span className="text-foreground">{count}</span> active {count === 1 ? 'token' : 'tokens'}.
+          </>
+        )}
       </p>
-      <div className="flex flex-wrap gap-2 items-center">
-        <code
-          className={`flex-1 min-w-0 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm font-mono break-all ${
-            revealed ? 'text-foreground' : 'text-text-muted select-all'
-          }`}
-          style={revealed ? undefined : { filter: 'blur(5px)' }}
-          onClick={() => setRevealed(true)}
-          title={revealed ? '' : 'Click to reveal'}
-        >
-          {token ?? '—'}
-        </code>
-        <button
-          type="button"
-          onClick={() => setRevealed((r) => !r)}
-          className="px-3 py-2 text-sm border border-card-border rounded-lg hover:border-gold/40 transition-colors"
-        >
-          {revealed ? 'Hide' : 'Reveal'}
-        </button>
-        <button
-          type="button"
-          onClick={copy}
-          disabled={!token}
-          className="px-3 py-2 text-sm border border-gold/30 text-gold rounded-lg hover:bg-gold/10 transition-colors disabled:opacity-50"
-        >
-          {copied ? 'Copied' : 'Copy'}
-        </button>
-        <button
-          type="button"
-          onClick={rotate}
-          disabled={rotating}
-          className="px-3 py-2 text-sm border border-red-500/30 text-red-400 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-50"
-        >
-          {rotating ? 'Rotating…' : 'Rotate'}
-        </button>
+      <div className="flex flex-wrap gap-3 items-start">
+        <div className="flex-1 min-w-[260px]">
+          <NewPluginToken />
+        </div>
+        {count != null && count > 0 && (
+          <button
+            type="button"
+            onClick={revokeAll}
+            disabled={busy}
+            className="px-3 py-2 text-sm border border-red-500/30 text-red-400 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-50"
+          >
+            {busy ? 'Revoking…' : 'Revoke all'}
+          </button>
+        )}
       </div>
       {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
     </div>

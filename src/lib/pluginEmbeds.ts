@@ -2,7 +2,7 @@
 //
 // THE CONTRACT. A plugin that sees the `site-embeds` capability POSTs /api/plugin/notify with
 //
-//   { channel, kind, facts: {...}, seasonal? }          (+ the screenshot as multipart `file`)
+//   { channel, kind, facts: {...}, seasonal?, world? }  (+ the screenshot as multipart `file`)
 //
 // instead of a finished `embed`. The plugin keeps every decision about WHETHER to post (toggles,
 // channel flags, tier floors, dedup, rarity floors) and anything only the client can know (kill

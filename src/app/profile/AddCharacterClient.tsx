@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ClanLink from '@/components/ClanLink';
+import NewPluginToken from '@/components/NewPluginToken';
 import LinkAccountClient from './LinkAccountClient';
 
 // Adding a character, plugin FIRST.
@@ -34,11 +35,6 @@ export default function AddCharacterClient({
   detectedCount?: number;
 }) {
   const router = useRouter();
-  const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [revealed, setRevealed] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState('');
   const [showManual, setShowManual] = useState(Boolean(suggestedRsn));
   const [heard, setHeard] = useState(false);
   // Both outcomes count. A safe first-use play becomes linked immediately; a protected roster row
@@ -50,22 +46,6 @@ export default function AddCharacterClient({
   // clanless person — so comparing that against the character count tripped on the first poll and
   // parked the card on "loading…" for good.
   const baseline = useRef({ linked: linkedCount, detected: detectedCount });
-
-  useEffect(() => {
-    let alive = true;
-    fetch('/api/profile/plugin-token')
-      .then((r) => r.json())
-      .then((d) => {
-        if (!alive) return;
-        if (d.token) setToken(d.token);
-        else setError(d.error || 'Could not load your token');
-      })
-      .catch(() => alive && setError('Could not load your token'))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   useEffect(() => {
     baseline.current = { linked: linkedCount, detected: detectedCount };
@@ -124,18 +104,6 @@ export default function AddCharacterClient({
     };
   }, [heard, router]);
 
-  const copy = useCallback(async () => {
-    if (!token) return;
-    setRevealed(true);
-    try {
-      await navigator.clipboard.writeText(token);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setError('Copy failed — reveal it and copy manually');
-    }
-  }, [token]);
-
   return (
     <div>
       <p className="mb-3 max-w-[62ch] text-sm text-text-muted">
@@ -145,37 +113,12 @@ export default function AddCharacterClient({
         new accounts link immediately, while an account already on a roster asks for a one-time XP or moderator check.
       </p>
 
-      <div className="flex max-w-[640px] flex-wrap gap-2">
-        <code
-          onClick={() => setRevealed(true)}
-          title={revealed ? undefined : 'Click to reveal'}
-          className={`min-w-[220px] flex-1 truncate rounded-lg border border-card-border bg-brown-dark px-3 py-2.5 font-mono text-sm ${
-            revealed ? 'text-foreground' : 'cursor-pointer select-none text-text-muted'
-          }`}
-          style={revealed ? undefined : { filter: 'blur(5px)' }}
-        >
-          {loading ? 'loading…' : token ?? '—'}
-        </code>
-        <button
-          type="button"
-          onClick={() => setRevealed((r) => !r)}
-          className="rounded-lg border border-card-border px-3 py-2.5 text-sm font-semibold transition-colors hover:border-gold/40"
-        >
-          {revealed ? 'Hide' : 'Reveal'}
-        </button>
-        <button
-          type="button"
-          onClick={copy}
-          disabled={!token}
-          className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
-        >
-          {copied ? 'Copied' : 'Copy token'}
-        </button>
+      <div className="max-w-[640px]">
+        <NewPluginToken primary cta="Make a token to paste" />
       </div>
-      {error && <p className="mt-1 text-sm text-red-400">{error}</p>}
 
       <p className="mt-2 text-xs text-text-muted">
-        Sign-in not working? Copy this, then use <b className="text-foreground">Paste a token instead</b>{' '}
+        Sign-in not working? Make a token, copy it, then use <b className="text-foreground">Paste a token instead</b>{' '}
         under the sign-in button in the Anvil panel — you never re-paste it.{' '}
         <ClanLink href="/guide/plugin" className="text-gold hover:text-gold-light">
           Setup guide →

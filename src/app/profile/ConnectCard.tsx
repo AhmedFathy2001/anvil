@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ClanLink from '@/components/ClanLink';
+import NewPluginToken from '@/components/NewPluginToken';
 
 // The one job of a member's first visit: get the plugin talking to us.
 //
@@ -21,6 +22,16 @@ interface Props {
   verifiedCount: number;
   detectedCount: number;
   connected: boolean;
+  /**
+   * Where a brand-new person was heading when they first signed in (lib/firstLogin), offered as a
+   * way past this card. Only set on a first landing.
+   */
+  continueTo?: string | null;
+  /**
+   * Where "Verify by XP" goes. The locker opens its drawer through the #link-account anchor; the
+   * setup flow has no drawer and switches to its character step instead.
+   */
+  onVerifyByXp?: () => void;
 }
 
 type Beacon = { connected: boolean; linked: number; verified: number; detected: number };
@@ -32,13 +43,10 @@ export default function ConnectCard({
   verifiedCount,
   detectedCount,
   connected,
+  continueTo = null,
+  onVerifyByXp,
 }: Props) {
   const router = useRouter();
-  const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [revealed, setRevealed] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState('');
   const [heard, setHeard] = useState(false);
   // Seeded from what the server just rendered, so a ping that lands between paint and the first
   // poll still counts as a change rather than becoming the baseline it's compared against.
@@ -48,22 +56,6 @@ export default function ConnectCard({
     verified: verifiedCount,
     detected: detectedCount,
   });
-
-  useEffect(() => {
-    let alive = true;
-    fetch('/api/profile/plugin-token')
-      .then((r) => r.json())
-      .then((d) => {
-        if (!alive) return;
-        if (d.token) setToken(d.token);
-        else setError(d.error || 'Could not load your token');
-      })
-      .catch(() => alive && setError('Could not load your token'))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   // A server refresh updates these props without necessarily remounting this client component. Re-arm
   // the beacon from that new truth so detecting the account is not the last update we ever observe.
@@ -134,18 +126,6 @@ export default function ConnectCard({
     };
   }, [heard, router]);
 
-  const copy = useCallback(async () => {
-    if (!token) return;
-    setRevealed(true);
-    try {
-      await navigator.clipboard.writeText(token);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setError('Copy failed — reveal it and copy manually');
-    }
-  }, [token]);
-
   const accountSeen = linkedCount > 0 || detectedCount > 0;
   const tokenDone = connected || verifiedCount > 0 || accountSeen;
 
@@ -167,9 +147,17 @@ export default function ConnectCard({
         {linkedCount > 0 ? 'Finish connecting your account' : 'Connect your account'}
       </h2>
       <p className="text-sm text-text-muted mt-1.5 mb-5 max-w-[62ch]">
-        Install the Anvil plugin, sign in from its side panel, and play — the account appears here automatically.
-        New accounts link immediately; an account already on a roster needs one quick XP or moderator check first.
+        Install the Anvil plugin, sign in from its side panel, and play — your character shows up here by itself.
+        If a clan on Anvil already lists that character, we&rsquo;ll ask for one quick check that it&rsquo;s really
+        you before it&rsquo;s linked.
       </p>
+      {continueTo && (
+        <p className="text-sm text-text-muted -mt-3 mb-5">
+          <a href={/* clan-prefix: platform -- the literal path they signed in from */ continueTo} className="font-semibold text-gold hover:text-gold-light">
+            Skip for now — continue where you were going →
+          </a>
+        </p>
+      )}
 
       <ol className="grid">
         <Step n={1} done title="Signed in with Discord" last={false}>
@@ -179,55 +167,18 @@ export default function ConnectCard({
         <Step n={2} done={tokenDone} title="Install the plugin and sign in" last={false}>
           Install <b className="text-foreground">Anvil</b> from the RuneLite Plugin Hub, open the{' '}
           <b className="text-foreground">Anvil</b> panel in the RuneLite sidebar and click{' '}
-          <b className="text-foreground">Sign in with Discord</b>. Approve the code in the browser tab that opens — the plugin
-          fills in its token by itself.{' '}
+          <b className="text-foreground">Sign in with Discord</b>. Approve the code in the browser tab that opens — that&rsquo;s
+          it.{' '}
           <ClanLink href="/guide/plugin" className="text-gold hover:text-gold-light">
             Setup guide with screenshots →
           </ClanLink>
-          <details className="mt-2.5 max-w-[640px]">
-            <summary className="cursor-pointer text-xs text-text-muted hover:text-foreground">
-              Sign-in not working? Paste your token by hand instead
-            </summary>
-            <p className="mt-2 text-xs text-text-muted">
-              Copy it, then click <b className="text-foreground">Paste a token instead</b> under the sign-in
-              button in the Anvil panel. It works for every event — you never re-paste it.
-            </p>
-            <div className="flex flex-wrap gap-2 mt-2">
-              <code
-                onClick={() => setRevealed(true)}
-                title={revealed ? undefined : 'Click to reveal'}
-                className={`flex-1 min-w-[220px] px-3 py-2.5 bg-brown-dark border border-card-border rounded-lg text-sm font-mono truncate ${
-                  revealed ? 'text-foreground' : 'text-text-muted select-none cursor-pointer'
-                }`}
-                style={revealed ? undefined : { filter: 'blur(5px)' }}
-              >
-                {loading ? 'loading…' : token ?? '—'}
-              </code>
-              <button
-                type="button"
-                onClick={() => setRevealed((r) => !r)}
-                className="px-3 py-2.5 text-sm font-semibold border border-card-border rounded-lg hover:border-gold/40 transition-colors"
-              >
-                {revealed ? 'Hide' : 'Reveal'}
-              </button>
-              <button
-                type="button"
-                onClick={copy}
-                disabled={!token}
-                className="px-4 py-2.5 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors disabled:opacity-50"
-              >
-                {copied ? 'Copied' : 'Copy token'}
-              </button>
-            </div>
-            {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
-          </details>
         </Step>
 
         <Step n={3} done={accountSeen} title={detectedCount > 0 ? 'Verify the character we found' : 'Log in to the game'} last>
           {detectedCount > 0 ? (
             <>
               RuneLite reached Anvil. Confirm the detected character under <b className="text-foreground">Your accounts</b>{' '}
-              below; a rostered character may need the quick XP check.
+              below. If a clan already lists it, you may need the quick XP check.
             </>
           ) : (
             <>Log in to the account you want tracked and play — it shows up here on its own.</>
@@ -248,13 +199,50 @@ export default function ConnectCard({
         </Step>
       </ol>
 
-      <p className="text-xs text-text-muted mt-4">
-        Playing on mobile or the official client?{' '}
-        <a href="#account-security" className="text-gold hover:text-gold-light">
-          Link by name instead
-        </a>{' '}
-        — gain a little XP and we&rsquo;ll verify it from the hiscores.
+      {/* ONE DEFAULT. The plugin is the way; the XP check is the one honest alternative for somebody
+          who isn't at their PC; everything else is for the rare case and stays folded away, so a
+          first-timer is not choosing between five doors. */}
+      <p className="text-sm text-text-muted mt-4">
+        Not on RuneLite right now?{' '}
+        {onVerifyByXp ? (
+          <button type="button" onClick={onVerifyByXp} className="text-gold hover:text-gold-light">
+            Verify by XP
+          </button>
+        ) : (
+          <a href="#link-account" className="text-gold hover:text-gold-light">
+            Verify by XP
+          </a>
+        )}{' '}
+        — we pick one of your skills, and you gain 1,000 XP in it within 30 minutes.
       </p>
+
+      <details className="mt-3 max-w-[640px]">
+        <summary className="cursor-pointer text-xs text-text-muted hover:text-foreground">Something else</summary>
+        <div className="mt-2.5 grid gap-3 text-xs text-text-muted">
+          <div>
+            <div className="font-semibold text-foreground/85">Plugin sign-in not working?</div>
+            <p className="mt-0.5">
+              Make a token, copy it, then click <b className="text-foreground">Paste a token instead</b> under the
+              sign-in button in the Anvil panel. You only paste it once.
+            </p>
+            <div className="mt-2">
+              <NewPluginToken />
+            </div>
+          </div>
+          {!onVerifyByXp && (
+            <div>
+              <div className="font-semibold text-foreground/85">On mobile, or not on the hiscores?</div>
+              <p className="mt-0.5">
+                <a href="#link-account" className="text-gold hover:text-gold-light">
+                  Link by name
+                </a>{' '}
+                with the XP check, or ask for a manual check if your character is too low level to show on the
+                hiscores.
+              </p>
+            </div>
+          )}
+        </div>
+      </details>
     </section>
   );
 }

@@ -6,6 +6,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 import type { Node } from '../src/lib/pluginUi/nodes.ts';
 
 const DB = useTestDatabase('moment-reactions');
@@ -32,7 +33,7 @@ before(async () => {
   const [luckyAcc] = await db.insert(s.accounts).values({ playerId: lucky.id, rsn: 'Lucky One', rsnNormalized: 'lucky one' }).returning();
   const [seat] = await db.insert(s.clanMemberships).values({ clanId: clan.id, accountId: luckyAcc.id, kind: 'member' }).returning();
   const [fan] = await db.insert(s.players).values({ displayName: 'Fan' }).returning();
-  const [fanUser] = await db.insert(s.users).values({ displayName: 'fan', discordId: 'disc-fan', pluginToken: 'fan-token', playerId: fan.id }).returning();
+  const [fanUser] = await db.insert(s.users).values({ displayName: 'fan', discordId: 'disc-fan', pluginTokenHash: tokenHash('fan-token'), playerId: fan.id }).returning();
   fanUserId = fanUser.id;
   const [fanAcc] = await db.insert(s.accounts).values({ playerId: fan.id, rsn: 'Big Fan', rsnNormalized: 'big fan' }).returning();
   await db.insert(s.clanMemberships).values({ clanId: clan.id, accountId: fanAcc.id, kind: 'member' });
@@ -103,7 +104,7 @@ test('a reaction can only land on this clan’s own drops', async () => {
 
 test('someone outside the clan can read a public feed but never GZ it', async () => {
   const [outsider] = await db.insert(s.players).values({ displayName: 'Outsider' }).returning();
-  await db.insert(s.users).values({ displayName: 'out', discordId: 'disc-out', pluginToken: 'out-token', playerId: outsider.id });
+  await db.insert(s.users).values({ displayName: 'out', discordId: 'disc-out', pluginTokenHash: tokenHash('out-token'), playerId: outsider.id });
   await db.insert(s.accounts).values({ playerId: outsider.id, rsn: 'Outsider', rsnNormalized: 'outsider' });
   const asOut = () => new Request('http://site/api/plugin/ui', { headers: { Authorization: 'Bearer out-token', 'X-RSN': 'Outsider' } });
   const v = await V.pluginView(asOut(), 'moments', { slug: 'gz-clan' });

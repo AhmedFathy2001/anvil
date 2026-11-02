@@ -126,7 +126,11 @@ export async function chooseHomeClan(playerId: number, seatId: number, actorUser
  * said it was must not keep holding the members it synced, or the real clan's roster can only ever
  * seat them as guests. The real clan's next sync promotes them.
  */
-export async function releaseRosterMemberships(clanId: number, actorUserId: number | null): Promise<number> {
+export async function releaseRosterMemberships(
+  clanId: number,
+  actorUserId: number | null,
+  notes = 'verification withdrawn by platform staff',
+): Promise<number> {
   const seats = await db
     .select({ id: clanMemberships.id })
     .from(clanMemberships)
@@ -147,7 +151,7 @@ export async function releaseRosterMemberships(clanId: number, actorUserId: numb
       eventType: 'roster_memberships_released',
       actorUserId,
       newValue: JSON.stringify({ seats: seats.length }),
-      notes: 'verification withdrawn by platform staff',
+      notes,
     })
     .catch(() => {});
   return seats.length;

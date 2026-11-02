@@ -270,7 +270,7 @@ export async function PATCH(
             displayName: user?.displayName ?? account?.rsn ?? 'A member',
             discordId: user?.discordId ?? null,
             rsn: account?.rsn ?? '—',
-            feeAmount: event.signupFee ?? null,
+            feeAmount: fee?.amount ?? event.signupFee ?? null,
             feeAlreadyPaid: fee?.status === 'collected' || fee?.status === 'confirmed',
           });
         } catch {

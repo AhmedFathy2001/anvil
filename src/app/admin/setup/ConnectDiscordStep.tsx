@@ -8,9 +8,10 @@ import type { BroadcastChannel } from '@/lib/discord-broadcast';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { quickSetupLabel, QUICK_SETUP_GROUPS, type QuickSetupLayout } from '@/lib/discordQuickSetup';
 
-// The setup wizard's Discord step, for someone who has never heard the word "webhook": add the bot
-// (one Discord screen, then straight back here), then one button makes every channel. Pasting links
-// by hand is still possible for a server that can't take a bot, folded away where nobody trips on it.
+// The setup wizard's Discord step, for someone who has never heard the word "webhook": "Connect your
+// bot" leads (one Discord screen, then straight back here), then one button makes every channel.
+// Pasting links by hand ("Post without a bot") is still possible for a server that can't take a bot,
+// folded away at the bottom where nobody trips on it.
 
 interface BotStatus {
   configured: boolean;
@@ -119,6 +120,7 @@ export default function ConnectDiscordStep({
 
       {!ready && (
         <div className="space-y-3">
+          <h3 className="text-base font-semibold">Connect your bot</h3>
           <p className="text-sm text-text-muted leading-relaxed">
             Anvil posts your events, drops and achievements in your Discord. First, let its bot in.
           </p>
@@ -220,11 +222,12 @@ export default function ConnectDiscordStep({
 
       <details className="group rounded-lg border border-card-border/60 px-3 py-2">
         <summary className="cursor-pointer text-xs text-text-muted hover:text-foreground">
-          Can’t add a bot to your server?
+          Post without a bot
         </summary>
         <div className="space-y-4 pt-3">
           <p className="text-xs text-text-muted leading-relaxed">
-            You can give Anvil a channel’s link instead. In Discord, open the channel’s settings →{' '}
+            Can’t add a bot to your server? You can give Anvil a channel’s link instead and it posts there.
+            It can’t make channels or sync roles this way. In Discord, open the channel’s settings →{' '}
             <strong className="text-foreground">Integrations</strong> →{' '}
             <strong className="text-foreground">Webhooks</strong> →{' '}
             <strong className="text-foreground">New Webhook</strong> →{' '}

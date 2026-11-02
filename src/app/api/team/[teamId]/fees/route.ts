@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { chargesFee, feeLabel } from '@/lib/entryFeeMath';
 import { db } from '@/db';
 import { clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -72,14 +73,17 @@ async function feeContext(eventId: number, teamId: number) {
     db.query.teams.findFirst({ where: eq(teams.id, teamId) }),
   ]);
   const signupFee = event?.signupFee ?? 0;
+  const fees = { signupFee: event?.signupFee ?? null, guestSignupFee: event?.guestSignupFee ?? null };
   const cashPolicy = event?.cashPolicy ?? 'host-holds';
   // A team with no clan tag is the host's own — lib/coHostSettlement reads it the same way.
   const isHostTeam = team?.clanId == null || team.clanId === event?.clanId;
   return {
     signupFee,
+    /** The fee(s) in words — "5,000,000 gp" or "Members 5,000,000 gp · guests 10,000,000 gp". */
+    feeText: feeLabel(fees),
     cashPolicy,
     isHostTeam,
-    collects: signupFee > 0 && (isHostTeam || cashPolicy !== 'host-holds'),
+    collects: chargesFee(fees) && (isHostTeam || cashPolicy !== 'host-holds'),
   };
 }
 

@@ -23,6 +23,7 @@ import { log } from '@/lib/logger';
 import { ttlMemo } from '@/lib/ttlMemo';
 import { labQuarantine } from '@/lib/lab';
 import { notifyTeamTiles } from '@/lib/pushNotify';
+import { worldModeIgnored } from '@/lib/worldModeRequest';
 
 // Real-time boss-KC / skill-XP / activity ingest. The plugin posts {stats:[{name,kc}],
 // skills:[{name,xp}], activities:[{key,value}]} with
@@ -34,6 +35,10 @@ import { notifyTeamTiles } from '@/lib/pushNotify';
 // hiscores catches up. See lib/liveStats + lib/statTracking + the cron/stats sweep.
 
 export async function POST(request: Request) {
+  // Kills, drops, XP and logs from a game-mode world (Leagues, Deadman, hardcore, …) are another
+  // save's progress, never this one's (lib/worldModeRequest).
+  const otherSave = worldModeIgnored(request);
+  if (otherSave) return otherSave;
   const clan = await resolvePluginClan(request);
   // No clan is not "nowhere to put it": the stats are the PERSON's, and their profile keeps them
   // with or without a clan. The account-only path takes the push when the token owns the character.

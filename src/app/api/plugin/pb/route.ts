@@ -6,6 +6,7 @@ import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { MAX_BESTS_PER_PUSH, normalizeBests, savePersonalBests, type IncomingBest } from '@/lib/personalBests';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { labQuarantine } from '@/lib/lab';
+import { worldModeIgnored } from '@/lib/worldModeRequest';
 
 // Personal-best ingest. Times are CENTISECONDS — the game separates runs by hundredths, and a
 // leaderboard in whole seconds would tie times the game itself doesn't.
@@ -14,6 +15,10 @@ import { labQuarantine } from '@/lib/lab';
 // only auth + request shape. Profile data only — never scoring.
 
 export async function POST(request: Request) {
+  // Kills, drops, XP and logs from a game-mode world (Leagues, Deadman, hardcore, …) are another
+  // save's progress, never this one's (lib/worldModeRequest).
+  const otherSave = worldModeIgnored(request);
+  if (otherSave) return otherSave;
   // The seat when there is one, else a character the token owns: bests are the person's, clan or not.
   const member = await resolvePluginCharacter(request);
   if (!member) {

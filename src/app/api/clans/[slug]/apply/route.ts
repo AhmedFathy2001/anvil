@@ -6,7 +6,7 @@ import { accounts } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { applyChoices } from '@/lib/clanApply';
 import { resolveClanBySlug } from '@/lib/clanContext';
-import { admit } from '@/lib/guestAdmission';
+import { admit, doorStates } from '@/lib/guestAdmission';
 import { rateLimitByKey } from '@/lib/rate-limit';
 
 /**
@@ -36,8 +36,20 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   if (!session?.playerId) return NextResponse.json({ signedIn: false, options: [] });
 
   const { alreadyIn, options } = await applyChoices(clan.id, session.playerId);
+  // Each character's standing at this door, so the page survives a reload: "asked" stays asked, and
+  // a decline says so with its date instead of quietly offering the button again.
+  const doors = await doorStates(clan.id, options.map((o) => o.id));
 
-  return NextResponse.json({ signedIn: true, guestPolicy: clan.guestPolicy, alreadyIn, options });
+  return NextResponse.json({
+    signedIn: true,
+    guestPolicy: clan.guestPolicy,
+    alreadyIn,
+    options: options.map((o) => ({
+      ...o,
+      pending: doors.get(o.id)?.pending ?? false,
+      declinedAt: doors.get(o.id)?.declinedAt ?? null,
+    })),
+  });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {

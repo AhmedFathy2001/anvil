@@ -16,7 +16,7 @@ import {
   monthLabel,
 } from '@/lib/monthlyWrappedRules';
 import { siteCard, wrappedCard } from '@/lib/ogCard';
-import { cachedCard, remoteSprite, showingAccounts } from '@/lib/ogKit';
+import { cachedCard, cardParam, remoteSprite, showingAccounts } from '@/lib/ogKit';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +38,9 @@ async function load(_request: Request, { params }: { params: Promise<Params> }):
   const month = p.month;
   // Nothing until the period is over (a year: 1 December). The owner's preview is a page, not a card.
   if (!(isMonthKey(month) || isYearKey(month)) || !wrappedIsOpen(month)) return siteCard();
-  const character = await apexCharacter(decodeURIComponent(p.rsn), null);
+  const rsn = cardParam(p.rsn, 12);
+  if (!rsn) return siteCard();
+  const character = await apexCharacter(rsn, null);
   if (!character) return siteCard();
 
   const year = isYearKey(month) ? await getYearlyWrapped(character.accountId, character.rsn, month) : null;
@@ -62,5 +64,5 @@ async function load(_request: Request, { params }: { params: Promise<Params> }):
 }
 
 export function GET(request: Request, ctx: { params: Promise<Params> }) {
-  return cachedCard(new URL(request.url).pathname, () => load(request, ctx));
+  return cachedCard(new URL(request.url).pathname, () => load(request, ctx), { request, scope: 'monthly' });
 }

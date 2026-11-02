@@ -79,6 +79,7 @@ export async function loadRulesFacts(eventId: number): Promise<RulesFacts | null
     rules: parseEventRules(row.rules),
     pool,
     fee: row.signupFee ?? null,
+    guestFee: row.guestSignupFee ?? null,
     missionCounts: { total: missionPool.length, announced: missionPool.filter((t) => t.revealedAt).length },
     boardTiles: boardTiles(allTiles),
     rulesMessage: row.rulesMessage?.trim() || null,

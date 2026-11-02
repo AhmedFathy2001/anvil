@@ -2,6 +2,7 @@ import { ImageResponse } from 'next/og';
 
 import { OG_CACHE_CONTROL } from '@/lib/ogCard';
 import { configuredOrigin } from '@/lib/request-origin';
+import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 /**
  * A clan's crest as a raster image — the mark the embeds hang on the author line.
@@ -69,6 +70,21 @@ export function logoFetchUrl(logoUrl: string): URL | null {
   const origin = configuredOrigin();
   if (logoUrl.startsWith('/') && !logoUrl.startsWith('//') && origin) return new URL(logoUrl, origin);
   return null;
+}
+
+/**
+ * The per-IP budget the mark routes share. Each request fetches and re-encodes a logo (or draws a
+ * crest) with no cache of its own, so it is not free; Cloudflare caches the answer (OG_CACHE_CONTROL)
+ * and Discord's media proxy fetches a mark once, so a real client never comes near this. Past it, a
+ * fast no-store 429 rather than more image work.
+ */
+export async function markRateLimited(request: Request, scope: string): Promise<Response | null> {
+  const rl = await rateLimit(request, `og-mark:${scope}`, { limit: 120, windowMs: 60_000 });
+  if (rl.ok) return null;
+  return new Response('Too many requests', {
+    status: 429,
+    headers: { ...rateLimitHeaders(rl), 'Cache-Control': 'no-store' },
+  });
 }
 
 export async function clanMark(name: string, logoUrl: string | null | undefined): Promise<Response> {

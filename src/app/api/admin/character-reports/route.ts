@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 
 import { verifyAdminOrModerator } from '@/lib/auth';
-import { fileCharacterReport, isReportKind } from '@/lib/characterReports';
+import { isReportKind } from '@/lib/characterReports';
+import { raiseCharacterReport } from '@/lib/characterReportActions';
+import { atLeast } from '@/lib/clanRoles';
 import { seatForRequest } from '@/lib/roster';
 import { rateLimitByKey } from '@/lib/rate-limit';
 
@@ -12,6 +14,10 @@ import { rateLimitByKey } from '@/lib/rate-limit';
  * moderators and up, about a seat on THEIR roster: the seat is resolved against the requesting clan,
  * so an id from another clan's roster answers 404 rather than letting one clan file on another's
  * members.
+ *
+ * From the clan OWNER, the change asked for (wrong owner → taken off them, rename → renamed) is made
+ * at once and the report waits on /staff as "applied" for staff to approve or revert
+ * (lib/characterReportActions). The response says whether it was applied and, if not, why.
  */
 export async function POST(request: Request) {
   const session = await verifyAdminOrModerator();
@@ -23,7 +29,9 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const seatId = Number(body?.seatId);
   if (!Number.isInteger(seatId) || seatId <= 0) return NextResponse.json({ error: 'seatId is required' }, { status: 400 });
-  const kind = isReportKind(body?.kind) ? body.kind : 'other';
+  // 'wrong_clan' is the player's own report (lib/wrongClan) — a clan saying "they're ours" would be
+  // a clan pulling members off another, so a clan can't file one.
+  const kind = isReportKind(body?.kind) && body.kind !== 'wrong_clan' ? body.kind : 'other';
   const text = typeof body?.body === 'string' ? body.body.trim() : '';
   if (!text) return NextResponse.json({ error: 'Say what is wrong, so Anvil can act on it.' }, { status: 400 });
 
@@ -31,13 +39,19 @@ export async function POST(request: Request) {
   if (!seat) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const requestedRsn = kind === 'rename' && typeof body?.requestedRsn === 'string' ? body.requestedRsn.trim().slice(0, 12) || null : null;
-  const report = await fileCharacterReport({
-    accountId: seat.accountId,
-    clanId: seat.clanId,
-    reportedByUserId: session.userId > 0 ? session.userId : null,
-    kind,
-    body: text,
-    requestedRsn,
-  });
-  return NextResponse.json({ ok: true, reportId: report.id, created: report.created });
+  if (kind === 'rename' && !requestedRsn) {
+    return NextResponse.json({ error: 'Say what the new name is.' }, { status: 400 });
+  }
+  const report = await raiseCharacterReport(
+    {
+      accountId: seat.accountId,
+      clanId: seat.clanId,
+      reportedByUserId: session.userId > 0 ? session.userId : null,
+      kind,
+      body: text,
+      requestedRsn,
+    },
+    { apply: atLeast(session.role, 'owner') },
+  );
+  return NextResponse.json({ ok: true, reportId: report.id, created: report.created, applied: report.applied, why: report.why });
 }

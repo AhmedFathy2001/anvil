@@ -171,6 +171,7 @@ const fi: PartialDiscordDict = {
     opensIn: 'Se aukeaa {when}.',
     fee: 'Osallistuminen maksaa {amount} — staff kertoo, minne lähetät sen.',
     feePerAccount: 'Osallistuminen maksaa {amount} per tili — staff kertoo, minne lähetät sen.',
+    feeSplit: '{member} klaanin jäsenille, {guest} vieraille',
     signUpAt: '**Ilmoittaudu:** {url}',
     noAccountUrl:
       '-# Anvil ei vielä tunne tiliäsi. Yhdistä RSN:si ensin osoitteessa {url}/profile — ilmoittautumiset kiinnittyvät tiliin, eivät Discord-nimeen.',

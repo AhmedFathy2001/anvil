@@ -563,6 +563,9 @@ export const events = pgTable('events', {
   // Sign-up flow. signupFee is in gp; null = free event. Deadlines are ISO UTC strings;
   // null = signups open as soon as the event exists / no captain-selection cutoff.
   signupFee: integer('signup_fee'),
+  // What a GUEST pays instead — an entrant with no member seat in the host or an accepted co-host
+  // clan (lib/entryFee). Null = guests pay signupFee like everyone else.
+  guestSignupFee: integer('guest_signup_fee'),
   // Host-added bonus to the prize pool, in gp; null = nothing added. The displayed
   // total pool is this plus signupFee × (count of approved signups) — see lib/prizePool.ts.
   addedPrizePool: integer('added_prize_pool'),
@@ -1312,10 +1315,12 @@ export const users = pgTable('users', {
   // Extra credentials for the same person live in `plugin_links` — device links, and the tokens
   // inherited from separate instances at import. They resolve to the same person, and are meant to
   // be retired once that person's client has been handed this one.
+  // RETIRED: never written or read any more — tokens live only as pluginTokenHash. Rows from before
+  // still hold a plain value until the follow-up erase migration (shipped one release after 0166, so
+  // the older slot mid-switch is already hash-only). Dropping the column is a later contract.
   pluginToken: text('plugin_token'),
-  // SHA-256 (hex) of pluginToken — what a request is looked up by. A token is a password: storing it
-  // in the clear meant a database or backup leak handed out every account's plugin access. The plain
-  // column is still written while blue-green slots overlap (an older slot reads it); 0139 empties it.
+  // SHA-256 (hex) of the person's account token — what a request is looked up by. A token is a
+  // password: stored in the clear, a database or backup leak handed out every account's plugin access.
   pluginTokenHash: text('plugin_token_hash'),
   // FIRST RUN. Two columns and no step counter, because every step's done-ness is a fact that
   // already exists elsewhere — an accounts row, a live seat, a plugin ping — and storing a number
@@ -1567,7 +1572,8 @@ export const platformActAs = pgTable('platform_act_as', {
  * here and decided by platform staff in /staff/reports.
  *
  * `kind`: 'wrong_owner' | 'rename' | 'merge' | 'claim_review' (a plugin/XP link a mod disputes) |
- * 'claim_request' (someone asked the clan to vouch for them) | 'other'.
+ * 'claim_request' (someone asked the clan to vouch for them) | 'wrong_clan' (the player says their
+ * character is a member of the wrong clan; clan_id = the clan they're really in) | 'other'.
  */
 export const characterReports = pgTable('character_reports', {
   id: serial('id').primaryKey(),
@@ -1582,7 +1588,7 @@ export const characterReports = pgTable('character_reports', {
   // For a 'rename': the name the character should take. Staff apply it in one click
   // (lib/characterRename, which also absorbs a duplicate a roster sync made under that name).
   requestedRsn: text('requested_rsn'),
-  status: text('status').notNull().default('open'), // 'open' | 'resolved' | 'dismissed'
+  status: text('status').notNull().default('open'), // 'open' | 'applied' | 'resolved' | 'dismissed' | 'reverted' (lib/characterReports)
   resolution: text('resolution'),
   resolvedByUserId: integer('resolved_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   resolvedAt: text('resolved_at'),
@@ -1864,8 +1870,9 @@ export const accountPluginSeen = pgTable('account_plugin_seen', {
 export const pluginLinks = pgTable('plugin_links', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  token: text('token').notNull(),
-  // SHA-256 (hex) of token; see users.pluginTokenHash.
+  // RETIRED: never written (nullable since 0166); old values erased by the follow-up. See users.pluginToken.
+  token: text('token'),
+  // SHA-256 (hex) of the device token; see users.pluginTokenHash.
   tokenHash: text('token_hash'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   lastUsedAt: text('last_used_at'),
@@ -1927,6 +1934,9 @@ export const signupFees = pgTable('signup_fees', {
   id: serial('id').primaryKey(),
   signupId: integer('signup_id').notNull().references(() => eventSignups.id, { onDelete: 'cascade' }),
   amount: integer('amount').notNull(),
+  // A staff member set this amount by hand (an invite discount, a comp). Fee changes on the event
+  // re-price untouched pending rows to the new member/guest fee, and leave these alone.
+  customAmount: boolean('custom_amount').notNull().default(false),
   status: text('status').notNull().default('pending'),
   // Mod/admin who claims they collected the fee. Site role (moderator/admin) is what
   // grants this ability — clan rank is irrelevant.

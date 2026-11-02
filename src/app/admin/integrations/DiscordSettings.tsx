@@ -72,8 +72,10 @@ export default function DiscordSettings({
         </p>
       ) : (
         <section className="border border-card-border rounded-xl p-5 bg-card-bg space-y-4">
+          <h2 className="display text-lg font-semibold">Connect your bot</h2>
           <p className="text-sm text-text-muted">
-            Once your server is connected, Anvil sets up the channels and posts for you.
+            Once your server is connected, Anvil sets up the channels and posts for you. Can&rsquo;t add a
+            bot? See <strong className="text-foreground">Post without a bot</strong> at the bottom of this page.
           </p>
           <DiscordBotSettings />
         </section>
@@ -100,7 +102,7 @@ export default function DiscordSettings({
         {botEnabled && (
           <>
             <p className="text-sm text-text-muted">
-              One bot creates channels’ webhooks, syncs roles and nicknames, and makes team channels. Use the shared Anvil
+              One bot connects your channels, syncs roles and nicknames, and makes team channels. Use the shared Anvil
               bot or bring your own; either way it has to be <strong className="text-foreground">invited to your server</strong>.
               The status below says whether it is, and the invite asks Discord for exactly the permissions it needs.
             </p>
@@ -198,15 +200,6 @@ export default function DiscordSettings({
         <EventPostDefaultsPanel />
       </FoldSection>
 
-      <FoldSection
-        id="discord-by-hand"
-        sprite="clue"
-        title="Webhook URLs by hand"
-        summary="Paste webhook links yourself, guests' posts, and the Leagues icon."
-      >
-        <WebhooksPanel key={panelKey} channels={channels} botEnabled={botEnabled} />
-      </FoldSection>
-
       <FoldSection sprite="bandos" title="Roles & nicknames" summary="Who gets pinged, and keeping Discord roles and names in step with the clan.">
         <RoleSetting
           settingKey="discord_member_ping_role_id"
@@ -244,6 +237,17 @@ export default function DiscordSettings({
 
       <FoldSection sprite="hammer" title="Commands" summary="Slash commands work by themselves. Switch off any your server doesn’t need.">
         <DiscordCommandToggles />
+      </FoldSection>
+
+      {/* Last on purpose: pasting channel links by hand is the fallback for a server that can't take
+          the bot, not a step anyone should start with. */}
+      <FoldSection
+        id="discord-by-hand"
+        sprite="clue"
+        title="Post without a bot"
+        summary="Can’t add the bot? Paste a channel’s link from Discord instead. Also guests’ posts and the Leagues icon."
+      >
+        <WebhooksPanel key={panelKey} channels={channels} botEnabled={botEnabled} />
       </FoldSection>
     </div>
   );

@@ -14,6 +14,8 @@ import { eventPoolGp } from '@/lib/coffer';
 import { parseEventRules } from '@/lib/eventRules';
 import PrizePoolHero from '@/components/PrizePoolHero';
 import SignupForm from './SignupForm';
+import { memberAccounts } from '@/lib/entryFee';
+import { standardFee } from '@/lib/entryFeeMath';
 import { toQuestionView } from '@/lib/survey';
 
 export const dynamic = 'force-dynamic';
@@ -162,6 +164,19 @@ export default async function EventSignupPage({
 
   const eventRules = parseEventRules(event.rules);
 
+  // The fee THIS viewer owes: what their entry was charged once they've entered, else the member or
+  // guest fee by whether any character of theirs holds a member seat in a clan running the board.
+  let viewerFee = fee?.amount ?? event.signupFee;
+  if (!fee && event.guestSignupFee != null) {
+    const theirs =
+      session.playerId == null
+        ? []
+        : // clan-scope: global -- the subject is a PERSON, whose characters span clans by design; scoped to their own.
+          (await db.select({ id: accounts.id }).from(accounts).where(eq(accounts.playerId, session.playerId))).map((a) => a.id);
+    const members = await memberAccounts(event, theirs);
+    viewerFee = standardFee(event, members.size === 0);
+  }
+
   // The board's own questions. Same model as the post-event survey, asked at the other end of the
   // event — scoped to this stage, or the wrap-up survey would appear on the entry form.
   const signupQuestions = (
@@ -223,6 +238,7 @@ export default async function EventSignupPage({
         signupFee={event.signupFee}
         addedPrizePool={event.addedPrizePool}
         approvedCount={paid.count}
+        paidFeesGp={paid.gp}
       />
 
       <SignupForm
@@ -238,7 +254,7 @@ export default async function EventSignupPage({
             : null
         }
         event={{
-          signupFee: event.signupFee,
+          signupFee: viewerFee,
           signupOpensAt: event.signupOpensAt,
           signupDeadline: event.signupDeadline,
           captainSelectionDeadline: event.captainSelectionDeadline,

@@ -116,8 +116,8 @@ async function seed() {
 
     const [person] = await q(`INSERT INTO players (display_name) VALUES ($1) RETURNING id`, [RSN]);
     const [user] = await q(
-      `INSERT INTO users (display_name, discord_id, plugin_token, player_id)
-       VALUES ($1, 'harness-discord', $2, $3) RETURNING id`,
+      `INSERT INTO users (display_name, discord_id, plugin_token_hash, player_id)
+       VALUES ($1, 'harness-discord', encode(sha256(convert_to($2, 'UTF8')), 'hex'), $3) RETURNING id`,
       [RSN, TOKEN, person.id],
     );
     // Staff of alpha only — so /plugin/me and clan-sync must say yes for alpha and no for bravo.

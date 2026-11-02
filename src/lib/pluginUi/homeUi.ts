@@ -330,7 +330,8 @@ export function homeUi(d: HomeData): Node {
 const suffix = (label: string | null) => (label ? ` · ${label[0].toLowerCase()}${label.slice(1)}` : '');
 
 function yourWeeklyLine(w: ScheduleWeekly, s: { top: WeeklyStanding[]; you: WeeklyStanding | null } | undefined): string {
-  if (s?.you) return `You: #${s.you.rank} · +${weeklyGain(w, s.you.gained)}`;
+  // On +0 the rank is only an alphabetical place among everyone else on +0 — not worth a number.
+  if (s?.you) return s.you.gained > 0 ? `You: #${s.you.rank} · +${weeklyGain(w, s.you.gained)}` : `You: +${weeklyGain(w, 0)} so far`;
   return !s || !s.top.length ? 'Standings unavailable' : 'You’re not on the board yet';
 }
 
@@ -639,12 +640,18 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
       for (const r of s.top) {
         if (shown >= WEEKLY_SHOWN && !r.self) continue;
         if (shown >= WEEKLY_SHOWN) parts.push(gap(3), muted('…'));
-        parts.push(gap(3), row(text(String(r.rank), 'muted', { w: 22, align: 'r' }), text(clip(r.rsn, 16), r.self ? 'brand' : 'text', { tip: r.rsn, who: r.rsn }), text(`+${weeklyGain(w, r.gained)}`, r.self ? 'brand' : 'muted', { align: 'r' })));
+        parts.push(gap(3), standingRow(w, r));
         shown++;
       }
+      // Ranked past what the route sends: your own row still closes the list.
+      if (s.you && !s.top.some((r) => r.self)) parts.push(gap(3), muted('…'), gap(3), standingRow(w, s.you));
     }
   }
   return parts;
+}
+
+function standingRow(w: ScheduleWeekly, r: WeeklyStanding): Node {
+  return row(text(String(r.rank), 'muted', { w: 22, align: 'r' }), text(clip(r.rsn, 16), r.self ? 'brand' : 'text', { tip: r.rsn, who: r.rsn }), text(`+${weeklyGain(w, r.gained)}`, r.self ? 'brand' : 'muted', { align: 'r' }));
 }
 
 function scheduledPage(d: HomeData, s: ScheduleBingo): Node[] {

@@ -1,5 +1,5 @@
 import { requireClanFromRequest } from '@/lib/clanContext';
-import { clanMark } from '@/lib/crestImage';
+import { clanMark, markRateLimited } from '@/lib/crestImage';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +12,8 @@ export const dynamic = 'force-dynamic';
  * See crestImage for how the mark is drawn (the by-slug variant lives at ./[slug]).
  */
 export async function GET(request: Request) {
+  const limited = await markRateLimited(request, 'crest');
+  if (limited) return limited;
   let name = 'Anvil';
   let logoUrl: string | null = null;
   try {

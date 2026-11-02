@@ -6,8 +6,6 @@ import { SKILL_LABELS } from '@/lib/constants';
 import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
 
-type Tab = 'no-plugin' | 'manual';
-
 interface AttemptState {
   attemptId: number;
   rsn: string;
@@ -50,49 +48,24 @@ export default function LinkAccountClient({
   initialRsn?: string;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>('no-plugin');
 
   if (!manualReview) return <StatDeltaPath router={router} initialRsn={initialRsn} />;
 
+  // The XP check is the way; a manual check is for the character that can't do it (too low to be
+  // on the hiscores, or the check keeps failing), so it sits folded underneath rather than as an
+  // equal tab a first-timer has to choose between.
   return (
     <div>
-      <div className="flex border border-card-border rounded-lg overflow-hidden mb-4 text-xs sm:text-sm">
-        <TabButton active={tab === 'no-plugin'} onClick={() => setTab('no-plugin')}>
-          Verify by XP
-        </TabButton>
-        <TabButton active={tab === 'manual'} onClick={() => setTab('manual')} bordered>
-          Manual review
-        </TabButton>
-      </div>
-
-      {tab === 'no-plugin' && <StatDeltaPath router={router} initialRsn={initialRsn} />}
-      {tab === 'manual' && <ManualReviewPath router={router} />}
+      <StatDeltaPath router={router} initialRsn={initialRsn} />
+      <details className="mt-4">
+        <summary className="cursor-pointer text-xs text-text-muted hover:text-foreground">
+          Something else — not on the hiscores, or the XP check won&apos;t work?
+        </summary>
+        <div className="mt-3">
+          <ManualReviewPath router={router} />
+        </div>
+      </details>
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  bordered,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  bordered?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex-1 px-3 py-2 transition-colors ${bordered ? 'border-l border-card-border' : ''} ${
-        active
-          ? 'bg-gold/15 text-gold font-medium'
-          : 'text-text-muted hover:bg-brown-light hover:text-foreground'
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -186,6 +159,8 @@ function StatDeltaPath({
   const [rsn, setRsn] = useState(initialRsn);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set when the name is already somebody else's: the page offers to report it rather than stopping.
+  const [conflictRsn, setConflictRsn] = useState<string | null>(null);
   const [attempt, setAttempt] = useState<AttemptState | null>(null);
   const [check, setCheck] = useState<CheckResult | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
@@ -210,19 +185,24 @@ function StatDeltaPath({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt, check?.status]);
 
-  async function start() {
+  // Also the re-roll: starting again for the same name cancels the open attempt server-side and
+  // picks a fresh skill, with a fresh 30 minutes.
+  async function start(name: string = rsn.trim()) {
     setLoading(true);
     setError(null);
+    setConflictRsn(null);
     try {
       const res = await fetch('/api/auth/verify-stat-delta/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rsn: rsn.trim() }),
+        body: JSON.stringify({ rsn: name }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || 'Could not start verification');
+        if (data.code === 'claimed_by_other') setConflictRsn(name);
       } else {
+        setCheck(null);
         setAttempt({
           attemptId: data.attemptId,
           rsn: data.rsn,
@@ -270,19 +250,24 @@ function StatDeltaPath({
           className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/30"
           maxLength={12}
         />
+        {/* SAY THE DEAL BEFORE THE CLOCK STARTS. The skill is picked at random when they press Start
+            (it has to be — a skill known in advance could be pre-trained), so what can be said up
+            front is everything else: one skill, 1,000 XP, 30 minutes from the press. */}
+        <p className="text-xs text-text-muted mt-2 leading-relaxed">
+          When you press Start, we pick one of your skills at random and a{' '}
+          <b className="text-foreground">30-minute timer starts</b>. Gain{' '}
+          <b className="text-foreground">1,000 XP in that skill</b> before it runs out and the character is yours.
+          Be ready to log in first. Don&apos;t like the skill? You can re-roll it.
+        </p>
         <button
-          onClick={start}
+          onClick={() => start()}
           disabled={loading || rsn.trim().length === 0}
           className="mt-3 bg-gold hover:bg-gold-light text-brown-dark font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
         >
-          {loading ? 'Snapshotting Hiscores…' : 'Start verification'}
+          {loading ? 'Checking the hiscores…' : 'Start the 30-minute check'}
         </button>
         {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
-        <p className="text-xs text-text-muted mt-3 leading-relaxed">
-          We&apos;ll snapshot your Hiscores XP and pick a random skill for you to train. Gain ≥1,000 XP
-          in that <em>specific</em> skill within 30 minutes and your account is verified and ready to use.
-          It&apos;s flagged for a moderator to look over, which changes nothing for you.
-        </p>
+        {conflictRsn && <ReportConflict rsn={conflictRsn} />}
       </div>
     );
   }
@@ -309,9 +294,11 @@ function StatDeltaPath({
         <div className="text-red-400 font-semibold mb-1">Verification failed</div>
         <div className="text-sm text-foreground/80">
           {check.reason === 'expired' && 'The 30-minute window expired. Try again whenever you can play.'}
-          {check.reason === 'ownership_conflict' && 'Another user claimed this account during verification.'}
+          {check.reason === 'ownership_conflict' &&
+            'Someone else on Anvil linked this character while you were verifying. If it’s yours, report it below and Anvil staff will sort it out.'}
           {!check.reason && 'Try again or use the plugin path.'}
         </div>
+        {check.reason === 'ownership_conflict' && <ReportConflict rsn={attempt.rsn} />}
         <button
           onClick={() => {
             setAttempt(null);
@@ -356,6 +343,13 @@ function StatDeltaPath({
           Check now
         </button>
         <button
+          onClick={() => start(attempt.rsn)}
+          disabled={loading}
+          className="text-sm text-gold hover:text-gold-light underline-offset-2 hover:underline disabled:opacity-50"
+        >
+          {loading ? 'Picking…' : 'Re-roll skill'}
+        </button>
+        <button
           onClick={() => {
             setAttempt(null);
             setCheck(null);
@@ -365,9 +359,75 @@ function StatDeltaPath({
           Cancel
         </button>
       </div>
+      {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
       <p className="text-[11px] text-text-muted mt-3">
-        Auto-polls every 30s. If your assigned skill is locked behind a quest, cancel and start over to re-roll.
+        We check the hiscores every 30 seconds. Re-rolling picks a new skill and restarts the 30 minutes.
       </p>
+    </div>
+  );
+}
+
+/**
+ * "This is my character — report it". The way out of "somebody else has linked it": files a
+ * wrong-owner report with Anvil staff, with the signed-in person as the claimant
+ * (/api/profile/claim-dispute — the website's twin of the plugin's "It's mine").
+ */
+function ReportConflict({ rsn }: { rsn: string }) {
+  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'already'>('idle');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  async function report() {
+    setState('sending');
+    setError(null);
+    try {
+      const res = await fetch('/api/profile/claim-dispute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rsn, note: note.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || 'Could not send the report');
+        setState('idle');
+      } else {
+        setState(data.alreadyOpen ? 'already' : 'sent');
+      }
+    } catch {
+      setError('Network error — try again');
+      setState('idle');
+    }
+  }
+
+  if (state === 'sent' || state === 'already') {
+    return (
+      <div className="mt-3 rounded-lg border border-gold/30 bg-gold/5 p-3 text-sm text-foreground/85">
+        {state === 'sent' ? 'Reported.' : 'You’ve already reported this one — we added to it.'} Anvil staff will look
+        at who <b className="text-foreground">{rsn}</b> belongs to. Signing in to the plugin on that character is the
+        fastest proof you can give them.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-card-border bg-brown-dark/40 p-3">
+      <Textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Anything that helps (optional) — e.g. I changed my Discord account"
+        rows={2}
+        maxLength={500}
+        className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-gold resize-y"
+      />
+      <button
+        type="button"
+        onClick={report}
+        disabled={state === 'sending'}
+        className="mt-2 rounded-lg border border-gold/45 px-3 py-1.5 text-sm font-semibold text-gold hover:bg-gold/10 disabled:opacity-50"
+      >
+        {state === 'sending' ? 'Sending…' : 'This is my character — report it'}
+      </button>
+      {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
     </div>
   );
 }

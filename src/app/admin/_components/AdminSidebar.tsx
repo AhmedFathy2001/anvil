@@ -20,6 +20,8 @@ export interface SidebarItem {
   matchPrefix?: boolean; // highlight when pathname starts with href
   /** Sub-paths that have their own item, so this one shouldn't light up there too. */
   exclude?: string[];
+  /** Other path prefixes that belong to this item — a hub whose tabs live at other addresses. */
+  alsoMatch?: string[];
 }
 
 export interface SidebarGroup {
@@ -152,7 +154,8 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
                   {group.items.map((item) => {
                     // Compared clan-RELATIVE: item.href is a bare path and the browser is at
                     // /c/<slug>/… , so a direct comparison never matches and nothing looks active.
-                    const active = (item.matchPrefix ? here.startsWith(item.href) : here === item.href)
+                    const active = ((item.matchPrefix ? here.startsWith(item.href) : here === item.href)
+                      || !!item.alsoMatch?.some((x) => here.startsWith(x)))
                       && !item.exclude?.some((x) => here.startsWith(x));
                     return (
                       <li key={item.href}>

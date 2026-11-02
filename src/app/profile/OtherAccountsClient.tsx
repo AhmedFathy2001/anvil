@@ -5,13 +5,19 @@ import { useRouter } from 'next/navigation';
 
 import type { LockerOtherAccount } from '@/lib/profileLocker';
 import Checkbox from '@/components/Checkbox';
+import { parseStamp } from '@/lib/dbTime';
+
+function shortDate(stamp: string | null): string {
+  const ms = parseStamp(stamp);
+  return ms == null ? '' : new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
 /**
  * Your characters that this clan holds no seat for.
  *
  * TWO DIFFERENT QUESTIONS LIVE ON EACH ROW, and for a long time one switch was asked to answer both.
  *
- *   Public on Anvil — whether this character appears on its own profile and the cross-clan boards.
+ *   Show on my public profile — whether this character appears on its own profile and the cross-clan boards.
  *     The platform's question, on by default, and nothing to do with any particular clan. Turning it
  *     off is how an ironman or a PK alt stays out of the public pages.
  *
@@ -94,9 +100,9 @@ export default function OtherAccountsClient({
       </div>
       <p className="text-xs text-text-muted mb-2.5">
         {clanName} holds no seat for these, so nothing here counts them and nobody here can see them.
-        Offer one as a guest and they can &mdash; and it can play their events. Public on Anvil is a
-        separate thing: it decides whether the character shows on its own profile and the cross-clan
-        boards, anywhere on the site.
+        Offer one as a guest and they can &mdash; and it can play their events. &ldquo;Show on my public
+        profile&rdquo; is a separate thing: it decides whether the character shows on its own profile and the
+        cross-clan boards, anywhere on the site.
       </p>
       {error && <p className="text-xs text-red-300 mb-2">{error}</p>}
       <div className="space-y-1.5">
@@ -113,14 +119,21 @@ export default function OtherAccountsClient({
               ) : a.guestRequestPending ? (
                 <span className="text-xs text-text-muted">Asked &mdash; waiting on a moderator</span>
               ) : clanSlug && a.verified ? (
-                <button
-                  type="button"
-                  onClick={() => guestHere(a)}
-                  disabled={busyId === a.accountId}
-                  className="rounded-lg border border-card-border px-2.5 py-1 text-xs text-text-muted transition-colors hover:border-gold/40 hover:text-gold disabled:opacity-50"
-                >
-                  Guest here
-                </button>
+                <>
+                  {/* A "no" is an answer, and it used to vanish: the row just went back to the
+                      button. Say it, and still let them ask again — clans change their minds. */}
+                  {a.guestDeclinedAt && (
+                    <span className="text-xs text-red-300/90">Declined on {shortDate(a.guestDeclinedAt)}</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => guestHere(a)}
+                    disabled={busyId === a.accountId}
+                    className="rounded-lg border border-card-border px-2.5 py-1 text-xs text-text-muted transition-colors hover:border-gold/40 hover:text-gold disabled:opacity-50"
+                  >
+                    {a.guestDeclinedAt ? 'Ask again' : 'Guest here'}
+                  </button>
+                </>
               ) : clanSlug ? (
                 // A clan's door only considers a character whose ownership is proven, which is the
                 // same bar the sign-up form and the event door apply.
@@ -131,7 +144,7 @@ export default function OtherAccountsClient({
                 checked={a.shared}
                 disabled={busyId === a.accountId}
                 onChange={(next) => setShared(a.accountId, next)}
-                label="Public on Anvil"
+                label="Show on my public profile"
               />
             </span>
           </div>

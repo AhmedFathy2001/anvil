@@ -6,6 +6,7 @@ import { getClanFeatures } from '@/lib/clanFeatures';
 import { clanHref } from '@/lib/clanPath';
 import { FEATURES } from '@/lib/features';
 import FeaturesClient from './FeaturesClient';
+import ClanSettingsHeader from '../clan/ClanSettingsHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,5 +19,11 @@ export default async function FeaturesPage() {
   if (!(await verifyAdmin())) redirect(await clanHref('/admin/dashboard'));
   const clan = await requireClan();
   const flags = await getClanFeatures(clan.id);
-  return <FeaturesClient initial={FEATURES.map((f) => ({ key: f.key, on: flags.on(f.key) }))} />;
+  // Tabbed with the rest of the clan settings (see ClanSettingsHeader), which names the page.
+  return (
+    <div>
+      <ClanSettingsHeader isAdmin />
+      <FeaturesClient initial={FEATURES.map((f) => ({ key: f.key, on: flags.on(f.key) }))} />
+    </div>
+  );
 }

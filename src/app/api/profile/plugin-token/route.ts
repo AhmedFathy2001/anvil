@@ -1,31 +1,49 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { users } from '@/db/schema';
-import { eq } from 'drizzle-orm';
-import crypto from 'crypto';
-import { pluginTokenColumns, verifyUser } from '@/lib/auth';
+import { and, count, eq, isNull } from 'drizzle-orm';
 
-// GET — returns the caller's plugin token, generating one on first read so legacy
-// users get a token without an explicit "create" step. POST rotates it.
+import { db } from '@/db';
+import { pluginLinks, users } from '@/db/schema';
+import { mintDeviceToken, verifyUser } from '@/lib/auth';
+
+// The person's plugin tokens, from their profile.
+//
+// SHOWN ONCE. Tokens are stored only as hashes (0138/0166), so the site can no longer show a token it
+// issued earlier — it never kept it. What it can do is tell you whether you have any, mint another
+// (shown this once, for pasting into a client), or revoke them all.
+
+/** GET — how many live tokens this person has. Never the tokens themselves. */
 export async function GET() {
   const session = await verifyUser();
   if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  if (user.pluginToken) return NextResponse.json({ token: user.pluginToken });
-
-  const token = crypto.randomUUID();
-  await db.update(users).set(pluginTokenColumns(token)).where(eq(users.id, user.id));
-  return NextResponse.json({ token });
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, session.userId),
+    columns: { pluginTokenHash: true },
+  });
+  const [links] = await db
+    .select({ n: count() })
+    .from(pluginLinks)
+    .where(and(eq(pluginLinks.userId, session.userId), isNull(pluginLinks.revokedAt)));
+  return NextResponse.json({ tokens: (user?.pluginTokenHash ? 1 : 0) + Number(links?.n ?? 0) });
 }
 
-export async function POST() {
+/**
+ * POST { action: 'new' }    — mint a token for one more client and return it, once.
+ * POST { action: 'revoke' } — end every token this person holds: every client signs out.
+ */
+export async function POST(request: Request) {
   const session = await verifyUser();
   if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const body = (await request.json().catch(() => null)) as { action?: unknown } | null;
 
-  const token = crypto.randomUUID();
-  await db.update(users).set(pluginTokenColumns(token)).where(eq(users.id, session.userId));
-  return NextResponse.json({ token });
+  if (body?.action === 'revoke') {
+    await db.update(users).set({ pluginToken: null, pluginTokenHash: null }).where(eq(users.id, session.userId));
+    await db
+      .update(pluginLinks)
+      .set({ revokedAt: new Date().toISOString() })
+      .where(and(eq(pluginLinks.userId, session.userId), isNull(pluginLinks.revokedAt)));
+    return NextResponse.json({ ok: true, tokens: 0 });
+  }
+
+  return NextResponse.json({ token: await mintDeviceToken(session.userId) });
 }

@@ -171,6 +171,7 @@ const de: PartialDiscordDict = {
     opensIn: 'Sie öffnet {when}.',
     fee: 'Die Teilnahme kostet {amount} — das Staff-Team sagt dir, wohin damit.',
     feePerAccount: 'Die Teilnahme kostet {amount} pro Account — das Staff-Team sagt dir, wohin damit.',
+    feeSplit: '{member} für Clanmitglieder, {guest} für Gäste',
     signUpAt: '**Anmelden:** {url}',
     noAccountUrl:
       '-# Anvil kennt deinen Account noch nicht. Verknüpfe zuerst deinen RSN auf {url}/profile — Anmeldungen hängen an einem Account, nicht an einem Discord-Namen.',

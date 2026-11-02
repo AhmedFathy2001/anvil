@@ -30,6 +30,8 @@ import { atLeast } from '@/lib/clanRoles';
 import { supporterForUser } from '@/lib/supporter';
 import { supporterView } from '@/components/SupporterSection';
 import ClanLink from '@/components/ClanLink';
+import { onboardingNext } from '@/lib/firstLogin';
+import { characterStandings, clanOptionsFor } from '@/lib/characterStandingRead';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +48,7 @@ export const dynamic = 'force-dynamic';
 export default async function ProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ welcome?: string; connect?: string; account?: string }>;
+  searchParams: Promise<{ welcome?: string; connect?: string; account?: string; next?: string }>;
 }) {
   // NOT requireClan(). This page is the person's, and a person has no clan on the apex — so the one
   // surface the identity model insists follows you between clans answered 404 there, and a signed-in
@@ -114,13 +116,24 @@ export default async function ProfilePage({
     const detected = detectedRows
       .filter((d) => !ownedRsns.has(d.rsnNormalized) && !(d.accountHash && ownedHashes.has(d.accountHash)))
       .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
+    const standings = await characterStandings(characters.map((a) => a.id), Date.now());
+    const rsnById = new Map(characters.map((a) => [a.id, a.rsn]));
     return (
       <PersonProfile
         // The Discord display name, and this is the one page it belongs on: /profile is private,
         // signed-in and yours. It is deliberately absent from /u/ and /p/, which are public.
         displayName={user.displayName}
         clans={myClans}
-        characters={characters.map((a) => ({ id: a.id, rsn: a.rsn, shared: !!a.shared }))}
+        characters={characters.map((a) => ({
+          id: a.id,
+          rsn: a.rsn,
+          shared: !!a.shared,
+          standing: standings.lineByAccount.get(a.id),
+          clanOptions: clanOptionsFor(standings.seats, a.id),
+        }))}
+        guestSeats={standings.seats
+          .filter((s) => s.kind === 'guest')
+          .map((s) => ({ seatId: s.seatId, rsn: rsnById.get(s.accountId) ?? '', clanName: s.clanName, clanSlug: s.clanSlug }))}
         detected={detected}
         linked={person?.linkAccountsPublicly ?? false}
         emission={emission}
@@ -132,11 +145,15 @@ export default async function ProfilePage({
   }
 
   const welcome = params.welcome === '1';
+  // A first sign-in from a deep link (lib/firstLogin): offer the way back to it on the connect card.
+  const continueTo = welcome ? onboardingNext(params.next) : null;
   const [locker, clanName, supporterState] = await Promise.all([
     buildLocker(clan.id, session.playerId, session.userId, new Date(), params.account ?? null),
     getClanDisplayName(clan.id),
     supporterForUser(session.userId),
   ]);
+  // Nothing left to set up (the plugin got there first): no card to put the link on, so just go.
+  if (continueTo && !locker.setupNeeded) redirect(continueTo); // clan-prefix: platform -- literal path they signed in from
 
   // Quest points, combat achievements and diaries for the account they play most — the primary one,
   // falling back to the first linked. A person with several accounts sees the one this profile is
@@ -201,6 +218,8 @@ export default async function ProfilePage({
 
   // Two in-game rosters listing one of their characters: theirs to settle (lib/homeClan).
   const homeConflicts = await membershipConflicts(session.playerId);
+  // Per character: member of which clan (and how fresh its list is), guest where — lib/characterStanding.
+  const lockerStandings = await characterStandings(locker.accounts.map((a) => a.accountId), Date.now());
 
   // Their characters played through somebody else's plugin (lib/accountSightings) — a shared PC, a
   // visit, or a character linked to the wrong person. Shown so they can Remove it if it isn't theirs.
@@ -272,6 +291,7 @@ export default async function ProfilePage({
           verifiedCount={locker.accounts.filter((a) => a.verified).length}
           detectedCount={detected.length}
           connected={locker.connection.connected}
+          continueTo={continueTo}
         />
       )}
 
@@ -354,7 +374,7 @@ export default async function ProfilePage({
             {locker.accounts.length > 0 && (
               <p className="mb-3 text-[12.5px] text-text-muted">
                 On this clan&rsquo;s roster, so it sees these whatever you choose.{' '}
-                <span className="text-foreground/80">Public on Anvil</span> is the other question:
+                <span className="text-foreground/80">Show on my public profile</span> is the other question:
                 whether the character shows on its own profile and the cross-clan boards.
               </p>
             )}
@@ -382,6 +402,8 @@ export default async function ProfilePage({
                   shared: a.shared,
                   accountId: a.accountId,
                   alsoPlayedFrom: alsoPlayedFrom.get(a.accountId),
+                  standing: lockerStandings.lineByAccount.get(a.accountId),
+                  clanOptions: clanOptionsFor(lockerStandings.seats, a.accountId),
                 }))}
               />
             )}

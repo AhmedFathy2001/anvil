@@ -46,6 +46,7 @@ export async function POST(
       // Money/sign-up configuration carries over; the WINDOW does not (all deadlines cleared below
       // with the other dates), so the clone can't accidentally open sign-ups the moment it exists.
       signupFee: source.signupFee,
+      guestSignupFee: source.guestSignupFee,
       addedPrizePool: source.addedPrizePool,
       maxAccountsPerPerson: source.maxAccountsPerPerson,
       accountSlotMode: source.accountSlotMode,

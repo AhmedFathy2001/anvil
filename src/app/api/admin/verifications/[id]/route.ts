@@ -3,7 +3,8 @@ import { seatForRequest } from '@/lib/roster';
 import { db } from '@/db';
 import { clanAuditLog } from '@/db/schema';
 import { updateAccountOfSeat } from '@/lib/roster';
-import { fileCharacterReport } from '@/lib/characterReports';
+import { raiseCharacterReport } from '@/lib/characterReportActions';
+import { atLeast } from '@/lib/clanRoles';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
@@ -11,7 +12,9 @@ import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 // POST /api/admin/verifications/[id] { action: 'approve' | 'reject', note? }
 // Approve clears the review flag — nothing about the account changes but that.
 // Reject REPORTS the link to Anvil (lib/characterReports); only platform staff take a character off
-// someone. Both actions log to clan_audit_log.
+// someone — except that the clan OWNER's report is carried out at once and waits on /staff as
+// "applied" for staff to approve or revert (lib/characterReportActions). Both actions log to
+// clan_audit_log.
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -85,24 +88,32 @@ export async function POST(
   if (!member.provisional) {
     return NextResponse.json({ error: 'Member is not provisional' }, { status: 400 });
   }
-  const report = await fileCharacterReport({
-    accountId: member.accountId,
-    clanId: member.clanId,
-    reportedByUserId: session.userId > 0 ? session.userId : null,
-    kind: 'claim_review',
-    body: body.note || `Clan staff dispute this link (${member.verificationMethod ?? 'unknown method'}).`,
-  });
+  const report = await raiseCharacterReport(
+    {
+      accountId: member.accountId,
+      clanId: member.clanId,
+      reportedByUserId: session.userId > 0 ? session.userId : null,
+      kind: 'claim_review',
+      body: body.note || `Clan staff dispute this link (${member.verificationMethod ?? 'unknown method'}).`,
+    },
+    { apply: atLeast(session.role, 'owner') },
+  );
 
   db.insert(clanAuditLog)
     .values({
       clanMemberId: memberId,
       eventType: 'mod_reported',
       oldValue: JSON.stringify({ provisional: 1, method: member.verificationMethod }),
-      newValue: JSON.stringify({ reportId: report.id }),
+      newValue: JSON.stringify({ reportId: report.id, applied: report.applied }),
       actorUserId: session.userId > 0 ? session.userId : null,
       notes: body.note || null,
     })
     .catch(() => {});
 
-  return NextResponse.json({ success: true, status: 'reported', reportId: report.id });
+  return NextResponse.json({
+    success: true,
+    status: report.applied ? 'applied' : 'reported',
+    reportId: report.id,
+    why: report.why,
+  });
 }

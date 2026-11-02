@@ -15,7 +15,9 @@ export async function PUT(
   { params }: { params: Promise<{ teamId: string }> },
 ) {
   const session = await verifyUser();
-  if (!session || (!atLeast(session.role, 'admin') && session.role !== 'moderator')) {
+  // Moderator tier and up. Treasurer TIES with moderator in lib/clanRoles but is money-only, and
+  // this is a moderation surface, so it stays out — explicitly, as it always was.
+  if (!session || !atLeast(session.role, 'moderator') || session.role === 'treasurer') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

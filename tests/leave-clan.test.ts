@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('leave-clan');
 
@@ -79,7 +80,7 @@ before(async () => {
   visitor = v.id;
   await db
     .insert(s.users)
-    .values({ displayName: 'Visitor', discordId: 'disc-visitor', pluginToken: TOKEN, playerId: visitor })
+    .values({ displayName: 'Visitor', discordId: 'disc-visitor', pluginTokenHash: tokenHash(TOKEN), playerId: visitor })
     .returning();
   await seatedCharacter(visitor, 'Drop In', { kind: 'guest', source: 'admin' });
   await seatedCharacter(visitor, 'Drop In Alt', { kind: 'guest', source: 'application' });

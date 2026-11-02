@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Checkbox from '@/components/Checkbox';
 import { useDialog } from '@/components/Confirm';
+import WrongClanReport, { type WrongClanOption } from './WrongClanReport';
 
 export type LinkedAccount = {
   id: number;
@@ -26,6 +27,10 @@ export type LinkedAccount = {
    * A shared PC or a visit — or a sign it's linked to the wrong person.
    */
   alsoPlayedFrom?: { name: string; lastSeenAt: string }[];
+  /** Where it stands with the clans: "Member of X · list synced 3h ago", "Guest in Y"… */
+  standing?: string;
+  /** The clans that have it on their list — what "Wrong clan? Tell Anvil" offers (lib/wrongClan). */
+  clanOptions?: WrongClanOption[];
 };
 
 // EVERY method that exists in the column, because the fallback used to print the raw value and the
@@ -176,6 +181,10 @@ export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAcc
                 <> · last seen {ago(m.lastPingAt, nowMs)}</>
               ) : null}
             </div>
+            {m.standing && <div className="text-xs text-text-muted mt-0.5">{m.standing}</div>}
+            {m.clanOptions && m.clanOptions.length > 0 && (
+              <WrongClanReport accountId={m.accountId} rsn={m.rsn} options={m.clanOptions} />
+            )}
             {m.alsoPlayedFrom && m.alsoPlayedFrom.length > 0 && (
               <div className="text-xs text-yellow-400 mt-0.5">
                 Also logged in through the Anvil plugin of another account ({m.alsoPlayedFrom[0].name}
@@ -199,7 +208,7 @@ export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAcc
                 checked={m.shared}
                 disabled={sharingId === m.accountId}
                 onChange={(next) => setShared(m.accountId, next)}
-                label="Public on Anvil"
+                label="Show on my public profile"
               />
             </span>
             {/* Only offered when there's something to switch to — a lone account is already primary. */}

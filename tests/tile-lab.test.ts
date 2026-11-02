@@ -15,6 +15,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('tile-lab');
 
@@ -65,7 +66,7 @@ before(async () => {
   const [person] = await db.insert(s.players).values({ displayName: RSN }).returning();
   [{ id: userId }] = await db
     .insert(s.users)
-    .values({ displayName: RSN, discordId: 'disc-lab', pluginToken: TOKEN, playerId: person.id })
+    .values({ displayName: RSN, discordId: 'disc-lab', pluginTokenHash: tokenHash(TOKEN), playerId: person.id })
     .returning();
   const [acct] = await db.insert(s.accounts).values({ playerId: person.id, rsn: RSN, rsnNormalized: RSN.toLowerCase() }).returning();
   accountId = acct.id;
@@ -75,7 +76,7 @@ before(async () => {
     .returning();
 
   const [otherPerson] = await db.insert(s.players).values({ displayName: OTHER_RSN }).returning();
-  await db.insert(s.users).values({ displayName: OTHER_RSN, discordId: 'disc-other', pluginToken: OTHER_TOKEN, playerId: otherPerson.id });
+  await db.insert(s.users).values({ displayName: OTHER_RSN, discordId: 'disc-other', pluginTokenHash: tokenHash(OTHER_TOKEN), playerId: otherPerson.id });
   const [otherAcct] = await db
     .insert(s.accounts)
     .values({ playerId: otherPerson.id, rsn: OTHER_RSN, rsnNormalized: OTHER_RSN.toLowerCase() })

@@ -160,6 +160,7 @@ const ja: PartialDiscordDict = {
     opensIn: '{when}に開きます。',
     fee: '参加費は {amount} —— 送り先は運営が教えてくれます。',
     feePerAccount: '参加費はアカウントごとに {amount} —— 送り先は運営が教えてくれます。',
+    feeSplit: 'クランメンバーは {member}、ゲストは {guest}',
     signUpAt: '**参加登録：** {url}',
     noAccountUrl:
       '-# Anvil はまだあなたのアカウントを知りません。先に {url}/profile で RSN を紐づけてください —— 登録は Discord 名ではなくアカウントに紐づきます。',

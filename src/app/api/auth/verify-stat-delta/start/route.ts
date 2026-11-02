@@ -78,7 +78,12 @@ export async function POST(request: Request) {
   const conflict = await claimBlockedBy(rsnNormalized, session.playerId);
   if (conflict) {
     return NextResponse.json(
-      { error: 'This account is already linked to a different user. Ask a moderator if you think this is wrong.' },
+      {
+        // `code` lets the page offer "This is my character — report it" (/api/profile/claim-dispute)
+        // right beside the message, instead of a dead end.
+        error: 'Someone else on Anvil has already linked this character. If it’s yours, report it below and Anvil staff will sort it out.',
+        code: 'claimed_by_other',
+      },
       { status: 409 },
     );
   }

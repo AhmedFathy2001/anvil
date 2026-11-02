@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { eventSignups, signupFees } from '@/db/schema';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, notInArray, sql } from 'drizzle-orm';
 
 // "Entries" that count toward the pool are APPROVED signups. We deliberately do NOT
 // gate on whether the fee was actually collected — an approved entry is treated as
@@ -43,6 +43,26 @@ export async function countPaidEntries(eventId: number): Promise<{ count: number
       ),
     );
   return { count: row?.count ?? 0, gp: row?.gp ?? 0 };
+}
+
+/**
+ * What approved entries still owe: their fee rows not yet collected, settled or written off. Summed
+ * from each row's own amount, so a guest's fee and a hand-priced entry count at what they really owe.
+ */
+export async function owedEntryFeesGp(eventId: number): Promise<number> {
+  const [row] = await db
+    .select({ gp: sql<number>`coalesce(sum(${signupFees.amount}), 0)::int` })
+    .from(signupFees)
+    .innerJoin(eventSignups, eq(eventSignups.id, signupFees.signupId))
+    .where(
+      and(
+        eq(eventSignups.eventId, eventId),
+        eq(eventSignups.status, 'approved'),
+        eq(eventSignups.excludeFromPrizePool, false),
+        notInArray(signupFees.status, ['collected', 'confirmed', 'closed']),
+      ),
+    );
+  return row?.gp ?? 0;
 }
 
 // The pot arithmetic lives in lib/prizePoolMath, which is free of `@/db`; re-exported so every
