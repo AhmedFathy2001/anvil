@@ -234,6 +234,7 @@ const CLAN_DEFINITIONS = [
           { name: 'Clan vs clan', value: 'clanvsclan' },
           { name: 'Slash commands', value: 'commands' },
           { name: 'Switching from Dink / WOM', value: 'switching' },
+          { name: 'Tile rules & limitations', value: 'tiles' },
         ],
       },
       {

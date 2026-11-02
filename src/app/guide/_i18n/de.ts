@@ -52,6 +52,12 @@ const de: PartialGuideDict = {
       clear: 'Suche zurücksetzen',
     },
     cards: {
+      tiles: {
+        eyebrow: 'Für Spieler',
+        title: 'Feldregeln und Grenzen',
+        blurb: 'Was ein Feld von dir braucht, bevor du loslegst (eine Spieleinstellung, das Plugin, ein synchronisiertes Log, ein Hiscores-Rang), und was es nicht erfassen kann.',
+        minutes: '~4 Min.',
+      },
       discord: {
         eyebrow: 'Für alle, die den Server betreuen',
         title: 'Anvil in Discord',
@@ -2327,6 +2333,19 @@ const de: PartialGuideDict = {
         tip: 'Eine der Spielanleitungen des Clans (Raids, Bossing, Money Making…): tippe den Namen an und wähle sie aus der Liste.',
       },
     },
+  },
+
+  tiles: {
+    metaTitle: 'Feldregeln und Grenzen — Anvil',
+    metaDescription:
+      'Was jede Art von Bingo-Feld von dir braucht (Spieleinstellungen, das RuneLite-Plugin, ein synchronisiertes Collection Log, ein Hiscores-Rang) und wo die Grenzen dessen liegen, was es erfassen kann.',
+    eyebrow: 'Anvil · für Spieler',
+    title: 'Feldregeln und Grenzen',
+    dek: 'Jedes Feld zeigt, was es von dir braucht und was es nicht kann. Diese Seite erklärt jede Zeile; die **Why?**-Links auf einem Feld führen hierher.',
+    needs: 'Braucht',
+    limit: 'Gut zu wissen',
+    checked: 'Das Feld prüft das für dich',
+    englishOnly: 'Die Regeln unten sind vorerst auf Englisch, damit sie immer genau dem entsprechen, was die Seite tatsächlich tut.',
   },
 };
 

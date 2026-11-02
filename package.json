@@ -155,6 +155,7 @@
     "test:bossgen": "npx tsx --test tests/boss-tile-gen.test.ts",
     "test:kills": "npx tsx --test tests/kill-source.test.ts tests/kill-csv.test.ts",
     "test:taskmatch": "npx tsx --test tests/task-match.test.ts tests/task-suggest.test.ts",
+    "test:tilereqs": "npx tsx --test tests/tile-requirements.test.ts",
     "test:moments": "npx tsx --test tests/moments.test.ts && npx tsx --test tests/moments-analytics.test.ts",
     "test:history": "npx tsx --test tests/stat-history.test.ts",
     "test:totalxp": "npx tsx --test tests/total-xp-milestones.test.ts",

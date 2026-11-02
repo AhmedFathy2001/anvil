@@ -28,6 +28,7 @@ const CARD_KEY = {
   coffer: 'coffer',
   commands: 'commands',
   switching: 'switching',
+  tiles: 'tiles',
 } as const;
 
 const ITEMS = (Object.keys(SEARCH_TERMS) as (keyof typeof SEARCH_TERMS)[]).map((page) => {

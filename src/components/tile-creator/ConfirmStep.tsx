@@ -17,6 +17,7 @@ import { tileTierKey, tierColor, type TierBand } from '@/lib/tileFilter';
 import { deriveTileIcon } from '@/lib/tileIcons';
 import { formatTileAmount } from '@/lib/tileKinds';
 import { clogTileSetupNote } from '@/lib/clogTileWords';
+import TileBeforeYouStart from '@/components/TileBeforeYouStart';
 import { AmountField, ChoiceButton, CountsBanner, Eyebrow, PrimaryButton, SecondaryButton, StepHeader } from './parts';
 
 interface Suggestion {
@@ -215,6 +216,9 @@ function SingleConfirm({
         {candidate.config.tileType === 'clog' && (
           <p className="mt-2 text-xs leading-relaxed text-amber-200/90">{clogTileSetupNote(candidate.config.countMode === 'complete' ? 'complete' : 'slots')}</p>
         )}
+        <div className="mt-2">
+          <TileBeforeYouStart tile={{ ...config, trackingMode: showTracking ? trackingMode : 'team' }} compact />
+        </div>
       </div>
 
       {!pointsMode && original.points != null && (
@@ -452,6 +456,9 @@ function ComboConfirm(props: ConfirmProps) {
 
       <div className="mb-5">
         <CountsBanner engine={how.engine} text={how.text} />
+        <div className="mt-2">
+          <TileBeforeYouStart tile={{ ...combo.config, comboRule: rule }} compact />
+        </div>
       </div>
 
       {!pointsMode && original.points != null && (

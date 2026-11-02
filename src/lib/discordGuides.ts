@@ -12,6 +12,7 @@ import { EMBED_COLOR, LIMIT, clamp, statField } from '@/lib/discordEmbeds';
 import { fmt } from '@/lib/discordI18n';
 import { getDict, guideHref, type GuidePage } from '@/app/guide/_i18n';
 import type { ClanCommandCtx, ClanResult } from '@/lib/discordClanCommands';
+import { GUIDE_NEED_ENTRIES, NEED_GROUPS } from '@/lib/tileRequirements';
 
 interface GuideOutline {
   /** Top-level key in the guide dictionary (getDict()[ns]). */
@@ -22,10 +23,24 @@ interface GuideOutline {
   sections: string[];
   /** Where an anchor id and its dictionary key differ (the coffer's `#in` is `coffer.inbound`). */
   keys?: Record<string, string>;
+  /**
+   * Sections come from the tile-requirements registry (lib/tileRequirements), not the dictionary —
+   * the /guide/tiles page renders the same entries. English in every language, like the page.
+   */
+  registry?: boolean;
+}
+
+/** One /guide/tiles section as a dictionary-shaped entry: its group title, and one line per entry. */
+export function tileRulesSection(id: string): { title: string; body: string[] } | undefined {
+  const group = NEED_GROUPS.find((g) => g.key === id);
+  if (!group) return undefined;
+  const body = GUIDE_NEED_ENTRIES.filter((e) => e.group === group.key).map((e) => `**${e.title}**: ${e.text}`);
+  return { title: group.title, body };
 }
 
 /** The dictionary entry for one section, following an anchor → key rename where there is one. */
 function sectionDict(g: Record<string, unknown>, outline: GuideOutline, id: string): Record<string, unknown> | undefined {
+  if (outline.registry) return tileRulesSection(id);
   return g[outline.keys?.[id] ?? id] as Record<string, unknown> | undefined;
 }
 
@@ -46,6 +61,13 @@ export const GUIDE_OUTLINES: Record<string, GuideOutline> = {
   // Mirrors COMMANDS_SECTIONS in _pages/CommandsGuide.
   commands: { ns: 'commands', page: 'commands', sections: ['using', 'bingo', 'clan', 'options', 'who', 'trouble'] },
   switching: { ns: 'switching', page: 'switching', sections: ['staff', 'player', 'questions'] },
+  // Mirrors TilesGuide: one section per registry group that has entries.
+  tiles: {
+    ns: 'tiles',
+    page: 'tiles',
+    sections: NEED_GROUPS.filter((g) => GUIDE_NEED_ENTRIES.some((e) => e.group === g.key)).map((g) => g.key),
+    registry: true,
+  },
 };
 
 export const GUIDE_TOPICS = Object.keys(GUIDE_OUTLINES);

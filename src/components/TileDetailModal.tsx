@@ -13,6 +13,7 @@ import ManualOnlyBadge from './ManualOnlyBadge';
 import ClanLink from '@/components/ClanLink';
 import TileTargets from './TileTargets';
 import LapCounterTip from './LapCounterTip';
+import TileBeforeYouStart from './TileBeforeYouStart';
 import { statLabel, parseJsonArray, howTileCounts, tileKindKey, TILE_KIND_BADGES } from '@/lib/tileKinds';
 import { killSourceOf } from '@/lib/killSource';
 import { lapUnitNoun } from '@/lib/constants';
@@ -736,6 +737,10 @@ export default function TileDetailModal({
 
           {/* Course laps only (the Sepulchre prints its own floor lines, no counter to toggle). */}
           {isLap && countNoun === 'lap' && !manualOnly && <LapCounterTip />}
+
+          {/* What this tile needs from a player and what it can't do (lib/tileRequirements), with the
+              viewer's own problems on top ("you haven't synced your collection log yet"). */}
+          <TileBeforeYouStart tile={tile} eventId={eventId} />
 
           {/* Completion status */}
           {completedBy.length > 0 && (

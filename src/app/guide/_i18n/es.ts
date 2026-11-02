@@ -52,6 +52,12 @@ const es: PartialGuideDict = {
       clear: 'Borrar la búsqueda',
     },
     cards: {
+      tiles: {
+        eyebrow: 'Para jugadores',
+        title: 'Reglas y límites de las casillas',
+        blurb: 'Lo que una casilla necesita de ti antes de empezar (un ajuste del juego, el plugin, un registro sincronizado, un puesto en los hiscores) y lo que no puede seguir.',
+        minutes: '~4 min',
+      },
       discord: {
         eyebrow: 'Para quien lleva el servidor',
         title: 'Anvil en Discord',
@@ -2327,6 +2333,19 @@ const es: PartialGuideDict = {
         },
       ],
     },
+  },
+
+  tiles: {
+    metaTitle: 'Reglas y límites de las casillas — Anvil',
+    metaDescription:
+      'Lo que cada tipo de casilla de bingo necesita de ti (ajustes del juego, el plugin de RuneLite, un collection log sincronizado, un puesto en los hiscores) y los límites de lo que puede seguir.',
+    eyebrow: 'Anvil · para jugadores',
+    title: 'Reglas y límites de las casillas',
+    dek: 'Cada casilla muestra lo que necesita de ti y lo que no puede hacer. Esta página explica cada línea; los enlaces **Why?** de una casilla llevan aquí.',
+    needs: 'Necesita',
+    limit: 'Conviene saber',
+    checked: 'La casilla lo comprueba por ti',
+    englishOnly: 'Las reglas de abajo están en inglés por ahora, para que siempre coincidan con lo que el sitio hace de verdad.',
   },
 };
 

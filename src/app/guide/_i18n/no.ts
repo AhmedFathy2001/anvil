@@ -51,6 +51,12 @@ const no: PartialGuideDict = {
       clear: 'Tøm søket',
     },
     cards: {
+      tiles: {
+        eyebrow: 'For spillere',
+        title: 'Ruteregler og begrensninger',
+        blurb: 'Hva en rute krever av deg før du starter (en spillinnstilling, pluginet, en synkronisert logg, en hiscores-plassering) og hva den ikke kan spore.',
+        minutes: '~4 min',
+      },
       discord: {
         eyebrow: 'For den som styrer serveren',
         title: 'Anvil i Discord',
@@ -2326,6 +2332,19 @@ const no: PartialGuideDict = {
         },
       ],
     },
+  },
+
+  tiles: {
+    metaTitle: 'Ruteregler og begrensninger — Anvil',
+    metaDescription:
+      'Hva hver type bingorute krever av deg (spillinnstillinger, RuneLite-pluginet, en synkronisert collection log, en hiscores-plassering) og grensene for hva den kan spore.',
+    eyebrow: 'Anvil · for spillere',
+    title: 'Ruteregler og begrensninger',
+    dek: 'Hver rute viser hva den krever av deg og hva den ikke får til. Denne siden forklarer hver linje; rutens **Why?**-lenker havner her.',
+    needs: 'Krever',
+    limit: 'Greit å vite',
+    checked: 'Ruten sjekker dette for deg',
+    englishOnly: 'Reglene nedenfor er på engelsk inntil videre, så de alltid stemmer med det nettstedet faktisk gjør.',
   },
 };
 
