@@ -1,10 +1,12 @@
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanMemberships, detectedAccounts, users } from '@/db/schema';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { claimAccountForPerson } from '@/lib/accountClaim';
 import { fileCharacterReport } from '@/lib/characterReports';
+import { applyCharacterReport, noteNotApplied } from '@/lib/characterReportActions';
+import { atLeast } from '@/lib/clanRoles';
 
 /**
  * Mod-approve: the other way an unclaimed roster member links, when self-verify is a poor fit.
@@ -116,6 +118,7 @@ export async function approveClaimRequest(
   clanId: number,
   requestId: number,
   modUserId: number,
+  notes = 'mod vouch',
 ): Promise<ApproveOutcome> {
   const [req] = await pendingByIdInClan(clanId, requestId);
   if (!req) return { ok: false, code: 'not_found', error: 'That request is no longer open.' };
@@ -152,7 +155,7 @@ export async function approveClaimRequest(
       eventType: 'claim_request_approved',
       actorUserId: modUserId,
       newValue: JSON.stringify({ requestId, accountId: claim.accountId, playerId: requester.playerId }),
-      notes: 'mod vouch',
+      notes,
     })
     .catch(() => {});
 
@@ -204,6 +207,75 @@ export async function forwardClaimRequest(
     .catch(() => {});
 
   return { ok: true, reportId: report.id };
+}
+
+/**
+ * Is this character the clan's alone to settle? Unclaimed (no person has it) and no seat — current
+ * or past — in any other clan. Then binding it changes nobody's standing anywhere else, so the
+ * clan's own "yes, that's them" is enough.
+ */
+export async function characterOnlyInClan(accountId: number, clanId: number): Promise<boolean> {
+  const account = await db.query.accounts.findFirst({ where: eq(accounts.id, accountId), columns: { claimedAt: true } });
+  if (!account || account.claimedAt) return false;
+  // clan-scope: global -- the point is to look for this character's seats in OTHER clans.
+  const elsewhere = await db
+    .select({ id: clanMemberships.id })
+    .from(clanMemberships)
+    .where(and(eq(clanMemberships.accountId, accountId), ne(clanMemberships.clanId, clanId)))
+    .limit(1);
+  return elsewhere.length === 0;
+}
+
+export type VouchOutcome =
+  /** Single-clan character: linked here and now by the clan's admin. */
+  | { ok: true; outcome: 'linked'; accountId: number }
+  /** Clan owner: linked now, filed with Anvil to double-check (and undo if wrong). */
+  | { ok: true; outcome: 'applied'; reportId: number }
+  /** Sent to Anvil to decide; `why` says why it was not done right away, when that is worth saying. */
+  | { ok: true; outcome: 'sent'; reportId: number; why: string | null }
+  | { ok: false; code: 'not_found' | 'no_person' | 'owned_by_other'; error: string };
+
+/**
+ * "Yes, that's them" — decided by who is asking and whose character it is:
+ *   - only ever on THIS clan's roster, nobody's yet → an admin links it directly (approveClaimRequest),
+ *     logged in the clan's history; nobody else has a say in it.
+ *   - otherwise the clan OWNER's vouch is carried out at once and filed with Anvil as applied, so
+ *     staff can undo it (lib/characterReportActions);
+ *   - anyone else's goes to Anvil to decide, as before.
+ */
+export async function vouchForClaim(
+  clanId: number,
+  requestId: number,
+  actor: { userId: number; role: string | null | undefined },
+  note?: string | null,
+): Promise<VouchOutcome> {
+  const [req] = await pendingByIdInClan(clanId, requestId);
+  if (!req) return { ok: false, code: 'not_found', error: 'That request is no longer open.' };
+
+  if (atLeast(actor.role, 'admin') && (await characterOnlyInClan(req.accountId, clanId))) {
+    const res = await approveClaimRequest(clanId, requestId, actor.userId, 'approved by the clan — only ever on this clan');
+    if (res.ok) return { ok: true, outcome: 'linked', accountId: res.accountId };
+    if (res.code !== 'owned_by_other') return res;
+    // Lost a race to another claim: let Anvil sort it out below.
+  }
+
+  const fwd = await forwardClaimRequest(clanId, requestId, actor.userId, note);
+  if (!fwd.ok) return fwd;
+  if (!atLeast(actor.role, 'owner')) {
+    return {
+      ok: true,
+      outcome: 'sent',
+      reportId: fwd.reportId,
+      why: atLeast(actor.role, 'admin') ? 'This character is also in another clan, so Anvil makes the link.' : null,
+    };
+  }
+  const applied = await applyCharacterReport(fwd.reportId, actor.userId);
+  if (applied.ok) {
+    await db.update(detectedAccounts).set({ status: 'dismissed' }).where(eq(detectedAccounts.id, requestId));
+    return { ok: true, outcome: 'applied', reportId: fwd.reportId };
+  }
+  await noteNotApplied(fwd.reportId, applied.reason);
+  return { ok: true, outcome: 'sent', reportId: fwd.reportId, why: applied.reason };
 }
 
 /** Reject: the suggestion is dismissed, nothing is bound. The requester can still self-verify by XP. */
