@@ -171,6 +171,7 @@ const fr: PartialDiscordDict = {
     opensIn: 'Elles ouvrent {when}.',
     fee: 'La participation coûte {amount} — le staff te dira où l’envoyer.',
     feePerAccount: 'La participation coûte {amount} par compte — le staff te dira où l’envoyer.',
+    feeSplit: '{member} pour les membres du clan, {guest} pour les invités',
     signUpAt: '**S’inscrire :** {url}',
     noAccountUrl:
       '-# Anvil ne connaît pas encore ton compte. Relie d’abord ton RSN sur {url}/profile — les inscriptions se rattachent à un compte, pas à un pseudo Discord.',

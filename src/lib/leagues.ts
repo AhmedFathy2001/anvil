@@ -4,15 +4,8 @@ import { proxyWikiUrl } from '@/lib/assetUrls';
 import { absoluteAssetUrl } from '@/lib/seo';
 
 /**
- * Seasonal (Leagues) support for plugin notifications.
- *
- * A league is a separate game mode on separate worlds: the drops are absurd by main-game standards,
- * the kill counts are meaningless next to them, and mixing the two in one channel makes both
- * useless to read. So a clan can point seasonal posts at their own channel, and every seasonal post
- * is marked as one whether or not they have.
- *
- * The plugin only reports WHERE the player is (a seasonal world flag); which channel that means and
- * what it looks like is decided here, so a clan can change it without a plugin release.
+ * Leagues' thumbnail for plugin notifications. Routing and marking for every game mode, Leagues
+ * included, lives in lib/worldModes.
  */
 
 /** Clan override for the seasonal thumbnail — paste the current league's logo. */
@@ -21,8 +14,8 @@ const LEAGUES_ICON_SETTING = 'leagues_icon_url';
 const LEAGUES_ICON_CACHE_SETTING = 'leagues_icon_cached';
 const LEAGUES_ICON_CACHED_AT_SETTING = 'leagues_icon_cached_at';
 
-/** Every league so far has used this; it's the mode's own icon, not a season's. */
-const GENERIC_LEAGUES_ICON = 'https://oldschool.runescape.wiki/images/League_icon.png'; // stored form; served via proxyWikiUrl
+/** The mode's own icon, not a season's. (It was League_icon.png until the wiki renamed it; that 404s.) */
+const GENERIC_LEAGUES_ICON = 'https://oldschool.runescape.wiki/images/Leagues_icon.png'; // stored form; served via proxyWikiUrl
 
 /** Re-check the wiki at most this often — a league's art changes once a season, if that. */
 const ICON_TTL_MS = 24 * 60 * 60 * 1000;
@@ -100,25 +93,4 @@ async function resolveLeagueIconFromWiki(): Promise<string | null> {
   } catch {
     return null;
   }
-}
-
-/**
- * Mark an embed as seasonal: "[Seasonal]" on the title and the league's art as the thumbnail.
- *
- * Applied server-side to whatever the plugin composed, so every notification kind — drops, deaths,
- * CAs, pets, clog slots — is marked without the plugin knowing about any of them individually, and
- * an already-released plugin gets it on deploy. A thumbnail the embed already set is left alone:
- * the item's own sprite says more than the league's does.
- */
-export function markSeasonal(
-  embed: Record<string, unknown> | null,
-  iconUrl: string,
-): Record<string, unknown> | null {
-  if (!embed) return embed;
-  const title = typeof embed.title === 'string' ? embed.title : '';
-  return {
-    ...embed,
-    title: title.startsWith('[Seasonal]') ? title : `[Seasonal] ${title}`.trim(),
-    ...(embed.thumbnail ? {} : { thumbnail: { url: iconUrl } }),
-  };
 }

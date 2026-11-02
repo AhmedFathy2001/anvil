@@ -114,6 +114,12 @@ export const PLUGIN_CAPABILITIES = [
   // Seasonal routing: /api/plugin/notify accepts `seasonal: true` and posts to the clan's Leagues
   // channel (falling back to the normal one), marking the embed as seasonal.
   'leagues-channel',
+  // Game modes (lib/worldModes): every plugin request may carry X-World-Types / X-World-Activity, and
+  // a notification a `world` block. The site maps that to Leagues, Deadman, hardcore, Grid Master or
+  // a mode it names itself, routes the post per the clan's Game modes settings, and drops credit
+  // (tiles, competitions, profile) from any of them. Informational: the plugin sends the headers
+  // regardless, and an older site ignores them.
+  'world-modes',
   // Starting shot (lib/startProof): /api/plugin/config carries a `startProof` block and
   // POST /api/events/:id/start-proof accepts the capture, so the plugin can show its button.
   'start-proof',
@@ -159,6 +165,9 @@ export const PLUGIN_CAPABILITIES = [
   // Tile lab (lib/lab): GET /api/plugin/lab/scenarios hands platform staff's dev client the replay
   // scenarios authored on /staff/lab. Only the test harness reads it; the hub plugin never does.
   'lab-scenarios',
+  // Game-mode events (lib/modeLines): on a game-mode world the plugin forwards highlighted game
+  // messages to POST /api/plugin/mode-lines, and the site decides which are relics, unlocks or tasks.
+  'mode-lines',
   // Ghost clans (lib/gameClans): POST /api/plugin/game-clan takes the character's OWN row from the
   // in-game clan settings — clan name, rank, rank title, join date — on login and on change. Never
   // the member list. Works with no Anvil clan; feeds the profile's clan line and the hidden page.

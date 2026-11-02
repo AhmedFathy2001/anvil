@@ -22,6 +22,7 @@ export interface Event {
   forceEndedAt: string | null;
   originalEndDate: string | null;
   signupFee: number | null;
+  guestSignupFee: number | null;
   addedPrizePool?: number | null;
   signupOpensAt: string | null;
   signupDeadline: string | null;

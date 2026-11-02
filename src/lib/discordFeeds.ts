@@ -5,11 +5,17 @@
 //
 // Pure (no db): the page, its API route and the tests read it.
 
-export type FeedTab = 'clan' | 'game' | 'staff';
+export type FeedTab = 'clan' | 'game' | 'modes' | 'staff';
 
 export const FEED_TABS: { id: FeedTab; label: string; blurb: string }[] = [
   { id: 'clan', label: 'Clan & events', blurb: 'What the site posts about events, weekly competitions and your calendar.' },
   { id: 'game', label: 'In-game (plugin)', blurb: 'What members do in game, sent by the Anvil plugin. Filters apply to the whole clan.' },
+  {
+    id: 'modes',
+    label: 'Game modes',
+    blurb:
+      'Leagues, Deadman, hardcore and other modes run on their own worlds with their own characters. Posts from them are always labelled, and never count toward boards or competitions. A new mode is added here the first time a member plays it.',
+  },
   { id: 'staff', label: 'Staff only', blurb: 'Admin information. Point these at a private staff channel.' },
 ];
 
@@ -50,7 +56,6 @@ export const DISCORD_FEEDS: readonly DiscordFeed[] = [
   { id: 'diaries', tab: 'game', label: 'Achievement diaries', help: 'Diary tier completions.', key: 'webhook_diaries', fallback: [GAME_CATCH_ALL, 'webhook_combat_achievements'], off: 'feeds' },
   { id: 'deaths', tab: 'game', label: 'Deaths', help: 'Deaths, with your fun lines.', key: 'webhook_deaths', fallback: [GAME_CATCH_ALL], off: 'feeds', filters: 'deaths' },
   { id: 'pvpKills', tab: 'game', label: 'PvP kills', help: 'Player kills, with a screenshot.', key: 'webhook_pvp_kills', fallback: [GAME_CATCH_ALL], off: 'feeds' },
-  { id: 'leagues', tab: 'game', label: 'Leagues', help: 'While a member is on a Leagues world, all their posts go here instead. Blank keeps them in the normal channels.', key: 'webhook_leagues', fallback: [], off: 'feeds' },
   { id: 'roster', tab: 'staff', label: 'Roster changes', help: 'Joins, leaves and rank changes from the in-game roster sync.', key: 'discord_webhook_roster', fallback: [SITE_CATCH_ALL], off: 'feeds' },
   { id: 'signups', tab: 'staff', label: 'Sign-up approved', help: 'Pings the player, with a reminder to pay the fee.', key: 'discord_webhook_signups', fallback: [SITE_CATCH_ALL], off: 'feeds' },
   { id: 'coffer', tab: 'staff', label: 'Coffer ledger', help: 'Every gp in or out, with the balance it leaves. Has no fallback: blank posts nothing.', key: 'discord_webhook_coffer', fallback: [], off: 'feeds' },
@@ -79,10 +84,17 @@ export function effectiveKey(feed: DiscordFeed, isSet: (key: string) => boolean)
 export function parseFeedsOff(raw: string | null | undefined): Set<string> {
   try {
     const v = JSON.parse(raw ?? '[]');
-    return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && BY_ID.has(x)) : []);
+    return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && (BY_ID.has(x) || LEGACY_OFF_IDS.has(x))) : []);
   } catch {
     return new Set();
   }
 }
 
 export const FEEDS_OFF_KEY = 'discord_feeds_off';
+
+/**
+ * Ids that are no longer feeds on this page but still mean something when stored. `leagues` moved to
+ * the Game modes tab (lib/worldModes); a clan that switched it off here asked for Leagues posts to
+ * stay in the normal channels, and pluginConfig still honours that until the mode is switched on.
+ */
+const LEGACY_OFF_IDS = new Set(['leagues']);

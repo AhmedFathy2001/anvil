@@ -563,6 +563,9 @@ export const events = pgTable('events', {
   // Sign-up flow. signupFee is in gp; null = free event. Deadlines are ISO UTC strings;
   // null = signups open as soon as the event exists / no captain-selection cutoff.
   signupFee: integer('signup_fee'),
+  // What a GUEST pays instead — an entrant with no member seat in the host or an accepted co-host
+  // clan (lib/entryFee). Null = guests pay signupFee like everyone else.
+  guestSignupFee: integer('guest_signup_fee'),
   // Host-added bonus to the prize pool, in gp; null = nothing added. The displayed
   // total pool is this plus signupFee × (count of approved signups) — see lib/prizePool.ts.
   addedPrizePool: integer('added_prize_pool'),
@@ -1947,6 +1950,9 @@ export const signupFees = pgTable('signup_fees', {
   id: serial('id').primaryKey(),
   signupId: integer('signup_id').notNull().references(() => eventSignups.id, { onDelete: 'cascade' }),
   amount: integer('amount').notNull(),
+  // A staff member set this amount by hand (an invite discount, a comp). Fee changes on the event
+  // re-price untouched pending rows to the new member/guest fee, and leave these alone.
+  customAmount: boolean('custom_amount').notNull().default(false),
   status: text('status').notNull().default('pending'),
   // Mod/admin who claims they collected the fee. Site role (moderator/admin) is what
   // grants this ability — clan rank is irrelevant.
@@ -3879,3 +3885,33 @@ export const chatPatternOverrides = pgTable('chat_pattern_overrides', {
   updatedBy: integer('updated_by').references(() => users.id, { onDelete: 'set null' }),
   updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 });
+
+// Game-mode event lines (lib/modeLines). Staff patterns that turn a game-mode world's chat line into
+// a post ("Relic unlocked: …"), tried before the built-ins, and the queue of lines no pattern knew,
+// one row per numbers-blanked template, counted, so the ones worth a pattern rise to the top.
+export const modeLinePatterns = pgTable('mode_line_patterns', {
+  id: serial('id').primaryKey(),
+  /** Null = every game mode. */
+  modeKey: text('mode_key'),
+  kind: text('kind').notNull(),
+  regex: text('regex').notNull(),
+  title: text('title').notNull().default(''),
+  note: text('note'),
+  updatedBy: integer('updated_by').references(() => users.id, { onDelete: 'set null' }),
+  updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+});
+
+export const modeLineSamples = pgTable('mode_line_samples', {
+  id: serial('id').primaryKey(),
+  modeKey: text('mode_key').notNull(),
+  template: text('template').notNull(),
+  /** The most recent real line with this template. */
+  sample: text('sample').notNull(),
+  count: integer('count').notNull().default(1),
+  /** It went out as a generic milestone post (lib/modeLines). */
+  autoPosted: boolean('auto_posted').notNull().default(false),
+  firstSeen: text('first_seen').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  lastSeen: text('last_seen').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (t) => [
+  uniqueIndex('mode_line_samples_mode_template_unique').on(t.modeKey, t.template),
+]);

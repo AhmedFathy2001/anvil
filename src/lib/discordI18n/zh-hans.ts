@@ -160,6 +160,7 @@ const zhHans: PartialDiscordDict = {
     opensIn: '{when}开放。',
     fee: '参加费用为 {amount} —— 管理组会告诉你交到哪里。',
     feePerAccount: '每个账号 {amount} —— 管理组会告诉你交到哪里。',
+    feeSplit: '公会成员 {member}，访客 {guest}',
     signUpAt: '**报名：** {url}',
     noAccountUrl:
       '-# Anvil 还不认识你的账号。请先在 {url}/profile 绑定你的 RSN —— 报名挂在账号上，而不是 Discord 名字上。',

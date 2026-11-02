@@ -286,9 +286,10 @@ async function homeView(request: Request, a: Args): Promise<View> {
     Promise.all(
       liveWeeklies.map(async (w) => {
         const url = new URL(request.url);
-        url.search = `?id=${w.id}`;
+        url.search = `?id=${w.id}${me ? `&rsn=${encodeURIComponent(me.rsn)}` : ''}`;
         const r = await weeklyRoute(new Request(url, { headers: request.headers }));
-        return [w.id, r.ok ? ((await r.json()) as { total: number; entries: { rank: number; rsn: string; gained: number }[] }) : null] as const;
+        type Row = { rank: number; rsn: string; gained: number };
+        return [w.id, r.ok ? ((await r.json()) as { total: number; entries: Row[]; you?: Row | null }) : null] as const;
       }),
     ),
     !open && slug ? ownClanCard(request, slug) : Promise.resolve(null),
@@ -305,7 +306,8 @@ async function homeView(request: Request, a: Args): Promise<View> {
   for (const [id, b] of boards) {
     if (!b) continue;
     const top = (b.entries ?? []).map((e) => ({ ...e, self: !!me && norm(e.rsn) === norm(me.rsn) }));
-    weekly.set(id, { total: b.total, top, you: top.find((e) => e.self) ?? null });
+    // Past the top 50 the route still names your own row.
+    weekly.set(id, { total: b.total, top, you: top.find((e) => e.self) ?? (b.you ? { ...b.you, self: true } : null) });
   }
   const data: HomeData = {
     cfg,

@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { events, payouts, eventParticipants } from '@/db/schema';
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
-import { countApprovedSignups, countPaidEntries, computePrizePool } from '@/lib/prizePool';
+import { countApprovedSignups, countPaidEntries, computePrizePool, owedEntryFeesGp } from '@/lib/prizePool';
 import { eventPoolGp } from '@/lib/coffer';
 import { getTeamStandings } from '@/lib/statStandings';
 import { notifyPayout } from '@/lib/discord';
@@ -48,13 +48,16 @@ export async function getEventPrizePool(eventId: number): Promise<{
   /** Entries whose fee is actually in, and what they paid — the part of the pot that is real. */
   paidCount: number;
   paidFeesGp: number;
+  /** What approved entries still owe, at each entry's own fee. */
+  owedFeesGp: number;
 }> {
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
-  const [approvedCount, paid, cofferFunded] = await Promise.all([
+  const [approvedCount, paid, cofferFunded, owedFeesGp] = await Promise.all([
     countApprovedSignups(eventId),
     countPaidEntries(eventId),
     eventPoolGp(eventId),
+    owedEntryFeesGp(eventId),
   ]);
   const added = event?.addedPrizePool ?? 0;
   const signupFee = event?.signupFee ?? 0;
@@ -66,6 +69,7 @@ export async function getEventPrizePool(eventId: number): Promise<{
     approvedCount,
     paidCount: paid.count,
     paidFeesGp: paid.gp,
+    owedFeesGp,
   };
 }
 

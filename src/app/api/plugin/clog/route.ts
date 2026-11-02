@@ -11,6 +11,7 @@ import { creditClogUnlocks, recheckClogPageTiles } from '@/lib/clogTileCredit';
 import { track } from '@/lib/analytics';
 import { parseStamp } from '@/lib/dbTime';
 import { labQuarantine } from '@/lib/lab';
+import { worldModeIgnored } from '@/lib/worldModeRequest';
 
 // Collection-log ingest. The plugin sends pages the player has actually OPENED — the game only hands
 // the client a page once it has drawn one — so a log arrives in pieces over days rather than whole.
@@ -50,6 +51,10 @@ const int = (v: unknown, max: number): number | null => {
 };
 
 export async function POST(request: Request) {
+  // Kills, drops, XP and logs from a game-mode world (Leagues, Deadman, hardcore, …) are another
+  // save's progress, never this one's (lib/worldModeRequest).
+  const otherSave = worldModeIgnored(request);
+  if (otherSave) return otherSave;
   // The seat when there is one, else a character the token owns: a log is the person's, clan or not.
   const member = await resolvePluginCharacter(request);
   if (!member) {

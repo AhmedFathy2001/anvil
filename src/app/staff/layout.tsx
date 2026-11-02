@@ -102,6 +102,9 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         { href: '/staff/lab', label: 'Tile lab', icon: '⚗', matchPrefix: true },
         // The chat lines every plugin parses, and their live overrides (lib/chatPatterns).
         { href: '/staff/chat-patterns', label: 'Chat patterns', icon: '✎', matchPrefix: true },
+        // Game-mode events (lib/modeLines): which chat lines are relics, unlocks or tasks, and the
+        // lines nobody has a pattern for yet.
+        { href: '/staff/mode-lines', label: 'Game-mode lines', icon: '✦', matchPrefix: true },
       ],
     },
   ];
