@@ -33,7 +33,8 @@ import { FEED_MAX, FEED_STEP, type FeedItem, momentsFeedUi } from './momentsUi';
 import { type BoardContext, type BoardState, type BoardTile, STATUSES, type Status, boardRowsUi, boardUi } from './boardUi';
 import { clanCardUi, clanCompareUi, clanSearchUi } from './clanUi';
 import { type HomeConfig, type HomeData, eventUi, homeUi } from './homeUi';
-import { lookupPlayerCard, viewerPlayerId, visibleClan } from './load';
+import { lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
+import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { type Node, type View, applyFlair, backRow, button, col, gap, message, namesIn, text } from './nodes';
 import { notFoundUi, playerCardUi } from './playerCardUi';
 import { casUi, clogPageUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from './playerMoreUi';
@@ -147,7 +148,7 @@ async function clanCompareView(request: Request, a: Args): Promise<View> {
 }
 
 /** Public, listed clans only (the directory's own rule) — an unlisted clan is not something to search for. */
-async function clansView(q: string): Promise<View> {
+async function clansView(request: Request, q: string): Promise<View> {
   const query = q.trim().slice(0, 60);
   if (query.length < 2) return message('Search a clan by name.');
   const like = `%${query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -159,6 +160,10 @@ async function clansView(q: string): Promise<View> {
     .where(and(listedClanWhere(), or(ilike(clans.name, like), ilike(clans.slug, like))))
     .orderBy(clans.name)
     .limit(8);
+  // Staff can find the hidden lab clan (its test drops, /staff/lab/supporter); nobody else ever sees it.
+  if ('anvil tile lab'.includes(query.toLowerCase()) || LAB_CLAN_SLUG.includes(query.toLowerCase())) {
+    if (await pluginStaff(request)) found.unshift({ slug: LAB_CLAN_SLUG, name: 'Anvil Tile Lab (staff)' });
+  }
   return { ui: clanSearchUi(query, found) };
 }
 
@@ -378,6 +383,12 @@ async function flaired(view: View | null): Promise<View | null> {
   return view;
 }
 
+/** Clanmates react; in the lab clan, so does staff testing it. */
+async function canReactIn(request: Request, userId: number, clan: { id: number; slug: string }): Promise<boolean> {
+  if (await isClanMember(userId, clan.id)) return true;
+  return clan.slug === LAB_CLAN_SLUG && (await pluginStaff(request));
+}
+
 /** The clan's Recent drops with their reactions: never cached, the counts are the point. */
 async function momentsView(request: Request, a: Args, note?: string): Promise<View> {
   const clan = await visibleClan(request, a.slug ?? '');
@@ -389,7 +400,7 @@ async function momentsView(request: Request, a: Args, note?: string): Promise<Vi
   const [summaries, supporter, member] = await Promise.all([
     reactionSummaries(shown.map((m) => m.id), viewer?.userId ?? null),
     viewer ? supporterForUser(viewer.userId) : Promise.resolve(null),
-    viewer ? isClanMember(viewer.userId, clan.id) : Promise.resolve(false),
+    viewer ? canReactIn(request, viewer.userId, clan) : Promise.resolve(false),
   ]);
   const items: FeedItem[] = shown.map((m) => ({
     id: m.id,
@@ -412,7 +423,7 @@ async function reactAct(request: Request, a: Args): Promise<View> {
   if (!viewer || !clan || !id || !kind) return momentsView(request, a, 'Couldn’t react to that.');
   const rl = await rateLimit(request, `plugin-react:${viewer.userId}`, { limit: 40, windowMs: 60_000 });
   if (!rl.ok) return momentsView(request, a, 'Slow down a little — try again in a minute.');
-  if (!(await isClanMember(viewer.userId, clan.id))) return momentsView(request, a, 'Only clanmates can GZ these drops.');
+  if (!(await canReactIn(request, viewer.userId, clan))) return momentsView(request, a, 'Only clanmates can GZ these drops.');
   if (kind === 'gold' && !(await supporterForUser(viewer.userId))) {
     return momentsView(request, a, 'Gold GZs are an Anvil Supporter reaction.');
   }
@@ -442,7 +453,7 @@ async function viewFor(request: Request, v: string, a: Args): Promise<View | nul
     case 'clan-compare':
       return clanCompareView(request, a);
     case 'clans':
-      return clansView(a.q ?? '');
+      return clansView(request, a.q ?? '');
     case 'goals':
       return goalsView(request);
     case 'goal-new':
