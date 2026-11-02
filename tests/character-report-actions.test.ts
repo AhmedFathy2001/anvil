@@ -24,7 +24,9 @@ let R: typeof import('../src/lib/characterReports.ts');
 
 let clanA: number;
 let clanB: number;
+let clanT: number; // a throwaway clan: anyone can make one, never verified
 let ownerUser: number; // clan A's owner (a login)
+let ownerPerson: number;
 let adminUser: number;
 let modUser: number;
 let staffUser: number;
@@ -37,11 +39,19 @@ before(async () => {
   A = await import('../src/lib/characterReportActions.ts');
   R = await import('../src/lib/characterReports.ts');
 
-  clanA = (await db.insert(s.clans).values({ slug: 'a', name: 'A', status: 'active' }).returning())[0].id;
+  // Clan A has proven its in-game name; B and the throwaway T have not.
+  clanA = (
+    await db
+      .insert(s.clans)
+      .values({ slug: 'a', name: 'A', status: 'active', inGameName: 'Clan A', ingameNameVerifiedAt: new Date().toISOString() })
+      .returning()
+  )[0].id;
   clanB = (await db.insert(s.clans).values({ slug: 'b', name: 'B', status: 'active' }).returning())[0].id;
+  clanT = (await db.insert(s.clans).values({ slug: 't', name: 'T', status: 'active' }).returning())[0].id;
   // Push the person/login id spaces apart.
   await db.insert(s.players).values([{ displayName: 'd1' }, { displayName: 'd2' }, { displayName: 'd3' }]);
-  ownerUser = (await db.insert(s.users).values({ displayName: 'Owner' }).returning())[0].id;
+  ownerPerson = (await db.insert(s.players).values({ displayName: 'Owner' }).returning())[0].id;
+  ownerUser = (await db.insert(s.users).values({ displayName: 'Owner', playerId: ownerPerson }).returning())[0].id;
   adminUser = (await db.insert(s.users).values({ displayName: 'Admin' }).returning())[0].id;
   modUser = (await db.insert(s.users).values({ displayName: 'Mod' }).returning())[0].id;
   staffUser = (await db.insert(s.users).values({ displayName: 'Op' }).returning())[0].id;
@@ -136,35 +146,123 @@ test('B: a moderator’s vouch still goes to Anvil, even for a single-clan chara
 
 // ── C + D: claim vouch ──────────────────────────────────────────────────────────────────────
 
-test('C/D: the owner’s cross-clan vouch is linked at once; staff revert puts it back, once', async () => {
+test('C: the owner’s vouch for a character also in another clan is NOT applied — Anvil decides', async () => {
   const x = await claimSetup({ alsoInB: true });
   const res = await C.vouchForClaim(clanA, x.requestId, { userId: ownerUser, role: 'owner' });
-  assert.equal(res.ok && res.outcome, 'applied');
-  const reportId = res.ok && res.outcome === 'applied' ? res.reportId : 0;
-  assert.equal((await report(reportId)).status, 'applied');
-  assert.equal((await account(x.accountId)).playerId, x.person);
-  assert.ok((await R.listCharacterReports()).some((r) => r.id === reportId), 'still in the staff queue');
+  assert.equal(res.ok && res.outcome, 'sent');
+  assert.match(res.ok && res.outcome === 'sent' ? res.why ?? '' : '', /another clan/);
+  assert.equal((await account(x.accountId)).claimedAt, null, 'not linked');
+});
 
-  const undo = await A.revertCharacterReport(reportId, staffUser, 'not them after all');
+/** A person with a character seated in clan A (so they are on the roster). */
+async function rosterPerson() {
+  n++;
+  const [p] = await db.insert(s.players).values({ displayName: `Rightful ${n}` }).returning();
+  const [a] = await db.insert(s.accounts).values({ playerId: p.id, rsn: `Alt ${n}`, rsnNormalized: `alt ${n}`, claimedAt: new Date().toISOString() }).returning();
+  await db.insert(s.clanMemberships).values({ clanId: clanA, accountId: a.id, kind: 'member' });
+  return p.id;
+}
+
+test('C/D: the owner gives a single-clan character to a rostered person at once; revert gives it back, once', async () => {
+  const h = await heldSetup();
+  const rightful = await rosterPerson();
+  const out = await A.raiseCharacterReport(
+    { accountId: h.accountId, clanId: clanA, reportedByUserId: ownerUser, kind: 'claim_request', claimantPlayerId: rightful, body: 'it is theirs' },
+    { apply: true },
+  );
+  assert.equal(out.applied, true, out.why ?? '');
+  assert.equal((await report(out.id)).status, 'applied');
+  assert.equal((await account(h.accountId)).playerId, rightful);
+  assert.ok((await R.listCharacterReports()).some((r) => r.id === out.id), 'still in the staff queue');
+
+  const undo = await A.revertCharacterReport(out.id, staffUser, 'not them after all');
   assert.deepEqual(undo, { ok: true, already: false });
-  const acct = await account(x.accountId);
-  assert.equal(acct.claimedAt, null, 'unclaimed again');
-  assert.notEqual(acct.playerId, x.person);
-  assert.equal(acct.verificationMethod, null);
-  const r = await report(reportId);
+  const back = await account(h.accountId);
+  assert.equal(back.playerId, h.holder, 'back with the holder');
+  assert.equal(back.claimedAt, h.before.claimedAt);
+  assert.equal(back.accountHash, h.before.accountHash);
+  const r = await report(out.id);
   assert.equal(r.status, 'reverted');
   assert.equal(r.resolvedByUserId, staffUser, 'who reverted');
   assert.equal(r.resolution, 'not them after all');
-  const dismissed = await db.query.detectedAccounts.findFirst({ where: eq(s.detectedAccounts.userId, x.login) });
-  assert.equal(dismissed?.status, 'dismissed', 'their plugin does not just take it again');
 
-  assert.deepEqual(await A.revertCharacterReport(reportId, staffUser), { ok: true, already: true }, 'idempotent');
+  assert.deepEqual(await A.revertCharacterReport(out.id, staffUser), { ok: true, already: true }, 'idempotent');
 
-  // The clan sees it, with the note.
-  const seen = (await R.clanReports(clanA)).find((v) => v.id === reportId);
+  // The clan sees it, with the note; another clan does not.
+  const seen = (await R.clanReports(clanA)).find((v) => v.id === out.id);
   assert.equal(seen?.status, 'reverted');
   assert.equal(seen?.note, 'not them after all');
-  assert.equal((await R.clanReports(clanB)).length, 0, 'another clan does not see it');
+  assert.equal((await R.clanReports(clanB)).length, 0);
+});
+
+// ── C: refusals — the owner's word is only enough where the clan alone has a stake ─────────────
+
+test('C refuses: a throwaway (unverified) clan’s owner cannot take a character', async () => {
+  const h = await heldSetup();
+  await db.update(s.clanMemberships).set({ clanId: clanT }).where(eq(s.clanMemberships.id, h.seatId));
+  const out = await A.raiseCharacterReport(
+    { accountId: h.accountId, clanId: clanT, reportedByUserId: ownerUser, kind: 'wrong_owner', body: 'mine now' },
+    { apply: true },
+  );
+  assert.equal(out.applied, false);
+  assert.match(out.why ?? '', /proven its in-game name/);
+  assert.equal((await report(out.id)).status, 'open');
+  assert.equal((await account(h.accountId)).playerId, h.holder, 'untouched');
+});
+
+test('C refuses: a character also seated (even departed) in another clan', async () => {
+  const h = await heldSetup();
+  await db.insert(s.clanMemberships).values({ clanId: clanB, accountId: h.accountId, kind: 'guest', leftAt: new Date().toISOString() });
+  const out = await A.raiseCharacterReport(
+    { accountId: h.accountId, clanId: clanA, reportedByUserId: ownerUser, kind: 'wrong_owner', body: 'x' },
+    { apply: true },
+  );
+  assert.equal(out.applied, false);
+  assert.match(out.why ?? '', /another clan's roster/);
+  assert.ok((await account(h.accountId)).claimedAt, 'untouched');
+});
+
+test('C refuses: a holder who plays in another clan (on a different character)', async () => {
+  const h = await heldSetup();
+  const [alt] = await db.insert(s.accounts).values({ playerId: h.holder, rsn: `HAlt ${n}`, rsnNormalized: `halt ${n}` }).returning();
+  await db.insert(s.clanMemberships).values({ clanId: clanB, accountId: alt.id, kind: 'member' });
+  const out = await A.raiseCharacterReport(
+    { accountId: h.accountId, clanId: clanA, reportedByUserId: ownerUser, kind: 'wrong_owner', body: 'x' },
+    { apply: true },
+  );
+  assert.equal(out.applied, false);
+  assert.match(out.why ?? '', /also plays in another clan/);
+});
+
+test('C refuses: the owner giving a character to themselves', async () => {
+  const h = await heldSetup();
+  const [own] = await db.insert(s.accounts).values({ playerId: ownerPerson, rsn: 'Owner Main', rsnNormalized: 'owner main' }).returning();
+  await db.insert(s.clanMemberships).values({ clanId: clanA, accountId: own.id, kind: 'member' });
+  const out = await A.raiseCharacterReport(
+    { accountId: h.accountId, clanId: clanA, reportedByUserId: ownerUser, kind: 'claim_request', claimantPlayerId: ownerPerson, body: 'mine' },
+    { apply: true },
+  );
+  assert.equal(out.applied, false);
+  assert.match(out.why ?? '', /yourself/);
+  assert.equal((await account(h.accountId)).playerId, h.holder);
+});
+
+test('C refuses: giving it to someone not on this clan’s roster', async () => {
+  const h = await heldSetup();
+  const [stranger] = await db.insert(s.players).values({ displayName: 'Stranger' }).returning();
+  const out = await A.raiseCharacterReport(
+    { accountId: h.accountId, clanId: clanA, reportedByUserId: ownerUser, kind: 'claim_request', claimantPlayerId: stranger.id, body: 'theirs' },
+    { apply: true },
+  );
+  assert.equal(out.applied, false);
+  assert.match(out.why ?? '', /isn't on your roster/);
+});
+
+test('B: an admin cannot link a claim request that is their own', async () => {
+  const x = await claimSetup();
+  const res = await C.vouchForClaim(clanA, x.requestId, { userId: x.login, role: 'owner' });
+  assert.equal(res.ok && res.outcome, 'sent');
+  assert.equal((await account(x.accountId)).claimedAt, null);
 });
 
 // ── C + D: wrong owner ──────────────────────────────────────────────────────────────────────

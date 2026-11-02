@@ -88,8 +88,8 @@ export default async function ClanNeedsReviewPage() {
         People who linked a character — by gaining XP on it, by asking, or just by playing it with the
         plugin. They can already play and lose nothing while they wait. Check the Discord name matches the
         character and approve. If it looks wrong, report it — taking a character off someone is
-        Anvil&rsquo;s call, since it is theirs in every clan. A report from your clan owner is done
-        straight away, and Anvil double-checks it.
+        Anvil&rsquo;s call, since it is theirs in every clan. A report from your clan owner about a
+        character that is only in your clan is done straight away, and Anvil double-checks it.
       </p>
       <p className="mb-3.5 ml-4">
         <GuideLink href="/guide/moderator#verify">What to check before you approve</GuideLink>

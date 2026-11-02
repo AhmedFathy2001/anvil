@@ -1,11 +1,11 @@
-import { and, desc, eq, isNull, ne } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanMemberships, detectedAccounts, users } from '@/db/schema';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { claimAccountForPerson } from '@/lib/accountClaim';
 import { fileCharacterReport } from '@/lib/characterReports';
-import { applyCharacterReport, noteNotApplied } from '@/lib/characterReportActions';
+import { applyCharacterReport, noteNotApplied, seatedOnlyInClan } from '@/lib/characterReportActions';
 import { atLeast } from '@/lib/clanRoles';
 
 /**
@@ -217,13 +217,7 @@ export async function forwardClaimRequest(
 export async function characterOnlyInClan(accountId: number, clanId: number): Promise<boolean> {
   const account = await db.query.accounts.findFirst({ where: eq(accounts.id, accountId), columns: { claimedAt: true } });
   if (!account || account.claimedAt) return false;
-  // clan-scope: global -- the point is to look for this character's seats in OTHER clans.
-  const elsewhere = await db
-    .select({ id: clanMemberships.id })
-    .from(clanMemberships)
-    .where(and(eq(clanMemberships.accountId, accountId), ne(clanMemberships.clanId, clanId)))
-    .limit(1);
-  return elsewhere.length === 0;
+  return seatedOnlyInClan(accountId, clanId);
 }
 
 export type VouchOutcome =
@@ -240,7 +234,8 @@ export type VouchOutcome =
  *   - only ever on THIS clan's roster, nobody's yet → an admin links it directly (approveClaimRequest),
  *     logged in the clan's history; nobody else has a say in it.
  *   - otherwise the clan OWNER's vouch is carried out at once and filed with Anvil as applied, so
- *     staff can undo it (lib/characterReportActions);
+ *     staff can undo it — only where this clan alone has a stake (characterReportActions
+ *     ownerApplyBlocked: verified clan, no other clan's seats, no self-dealing);
  *   - anyone else's goes to Anvil to decide, as before.
  */
 export async function vouchForClaim(
@@ -252,7 +247,14 @@ export async function vouchForClaim(
   const [req] = await pendingByIdInClan(clanId, requestId);
   if (!req) return { ok: false, code: 'not_found', error: 'That request is no longer open.' };
 
-  if (atLeast(actor.role, 'admin') && (await characterOnlyInClan(req.accountId, clanId))) {
+  // Never your own claim: linking a character to yourself is not a vouch.
+  const [own] = await db
+    .select({ userId: detectedAccounts.userId })
+    .from(detectedAccounts)
+    .where(eq(detectedAccounts.id, requestId));
+  const selfDealing = own?.userId === actor.userId;
+
+  if (!selfDealing && atLeast(actor.role, 'admin') && (await characterOnlyInClan(req.accountId, clanId))) {
     const res = await approveClaimRequest(clanId, requestId, actor.userId, 'approved by the clan — only ever on this clan');
     if (res.ok) return { ok: true, outcome: 'linked', accountId: res.accountId };
     if (res.code !== 'owned_by_other') return res;

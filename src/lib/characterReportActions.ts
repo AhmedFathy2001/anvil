@@ -27,6 +27,7 @@ import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { detachCharacter, fileCharacterReport, mergeCharacterReportBody, reassignCharacter, settleRenameRequests } from '@/lib/characterReports';
 import { renameCharacter } from '@/lib/characterRename';
 import { mergeEmptyPersonInto } from '@/lib/mergePeople';
+import { verificationOf } from '@/lib/clanVerification';
 
 export const APPLIED_EVENT = 'character_report_applied';
 export const REVERTED_EVENT = 'character_report_reverted';
@@ -88,6 +89,70 @@ async function formerLoginState(a: typeof accounts.$inferSelect): Promise<OwnerS
   return { userId: login.id, rsnNormalized: a.rsnNormalized, row: row ?? null };
 }
 
+/** Is this character seated (live or departed) ONLY in `clanId` — no seat in any other clan? */
+export async function seatedOnlyInClan(accountId: number, clanId: number): Promise<boolean> {
+  // clan-scope: global -- the point is to look for this character's seats in OTHER clans.
+  const elsewhere = await db
+    .select({ id: clanMemberships.id })
+    .from(clanMemberships)
+    .where(and(eq(clanMemberships.accountId, accountId), ne(clanMemberships.clanId, clanId)))
+    .limit(1);
+  return elsewhere.length === 0;
+}
+
+/** Does any character of this person hold a seat (live or departed) in a clan other than `clanId`? */
+async function personSeatedElsewhere(playerId: number, clanId: number): Promise<boolean> {
+  // clan-scope: global -- looking for this person's stake in OTHER clans.
+  const rows = await db
+    .select({ id: clanMemberships.id })
+    .from(clanMemberships)
+    .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
+    .where(and(eq(accounts.playerId, playerId), ne(clanMemberships.clanId, clanId)))
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
+ * WHO MAY SKIP THE QUEUE. Anyone can make a clan and own it, so "the owner said so" is only enough
+ * where that clan is the only one with a stake — otherwise a throwaway clan's owner could take any
+ * character, or give it to themselves. Returns why not (plain words for the clan), or null to go ahead.
+ *   (a) the clan has proven its in-game name;
+ *   (b) the character has no seat, live or departed, in any other clan;
+ *   (c) whoever holds it now plays in no other clan; a claimant has a seat on this clan's roster;
+ *   (d) the owner is not handing the character to themselves.
+ */
+async function ownerApplyBlocked(
+  report: typeof characterReports.$inferSelect,
+  account: typeof accounts.$inferSelect,
+  actorUserId: number,
+): Promise<string | null> {
+  if (report.clanId == null) return 'Anvil looks at this one by hand.';
+  if (!(await verificationOf(report.clanId)).verified) {
+    return "Your clan hasn't proven its in-game name yet, so Anvil checks this first.";
+  }
+  if (!(await seatedOnlyInClan(account.id, report.clanId))) {
+    return "This character is also on another clan's roster, so Anvil decides.";
+  }
+  if (account.claimedAt && (await personSeatedElsewhere(account.playerId, report.clanId))) {
+    return 'The player who has it now also plays in another clan, so Anvil decides.';
+  }
+  if (report.kind === 'claim_request' && report.claimantPlayerId != null) {
+    const actor = await db.query.users.findFirst({ where: eq(users.id, actorUserId), columns: { playerId: true } });
+    if (actor?.playerId != null && actor.playerId === report.claimantPlayerId) {
+      return 'You can’t give a character to yourself, so Anvil checks this one.';
+    }
+    // clan-scope: this clan -- the claimant must be on THIS clan's roster.
+    const [onRoster] = await db
+      .select({ id: clanMemberships.id })
+      .from(clanMemberships)
+      .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
+      .where(and(eq(accounts.playerId, report.claimantPlayerId), eq(clanMemberships.clanId, report.clanId)))
+      .limit(1);
+    if (!onRoster) return "The person you vouched for isn't on your roster, so Anvil decides.";
+  }
+  return null;
+}
+
 /**
  * Carry out an OPEN report's request now, keep what is needed to undo it, and mark it 'applied'.
  * Refuses — leaving the report open for staff — with a reason in plain words when the change is
@@ -98,6 +163,8 @@ export async function applyCharacterReport(reportId: number, actorUserId: number
   if (!report || report.status !== 'open') return { ok: false, reason: 'That report is not waiting any more.' };
   const account = await db.query.accounts.findFirst({ where: eq(accounts.id, report.accountId) });
   if (!account) return { ok: false, reason: 'That character no longer exists.' };
+  const blocked = await ownerApplyBlocked(report, account, actorUserId);
+  if (blocked) return { ok: false, reason: blocked };
   const note = `Applied by the clan owner (report #${report.id})`;
 
   let snapshot: Snapshot;

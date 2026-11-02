@@ -8,7 +8,8 @@ import { rejectClaimRequest, vouchForClaim } from '@/lib/claimRequests';
 //
 // 'forward' is the clan's "yes, that's them" (lib/claimRequests vouchForClaim): a character only ever
 // on this clan's roster is linked right away by an admin; a clan owner's vouch is linked at once and
-// filed with Anvil to double-check; anyone else's goes to Anvil to decide. The response says which,
+// filed with Anvil to double-check only where this clan alone has a stake (lib/characterReportActions
+// ownerApplyBlocked); anything else goes to Anvil to decide. The response says which,
 // so the page can tell them. 'approve' is accepted as an alias of 'forward'.
 //
 // A moderator vouching that a person really is the member they claim to be — the human half of the

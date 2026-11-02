@@ -16,8 +16,9 @@ export default function SentToAnvil({ reports }: { reports: ClanReportView[] }) 
         <h2 className="text-[16.5px] font-semibold">Sent to Anvil</h2>
       </div>
       <p className="mb-3.5 ml-4 max-w-[64ch] text-[13.5px] text-text-muted">
-        What you asked Anvil about a character, and what came of it. Your owner&rsquo;s requests are done
-        straight away and Anvil double-checks them; anything Anvil reverts shows here with its note.
+        What you asked Anvil about a character, and what came of it. Once your clan has proven its in-game
+        name, your owner&rsquo;s requests about characters that are only in your clan are done straight
+        away and Anvil double-checks them; anything Anvil reverts shows here with its note.
       </p>
       <ul className="divide-y divide-card-border/50 rounded-xl border border-card-border bg-card-bg">
         {reports.map((r) => (
