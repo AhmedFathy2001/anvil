@@ -255,13 +255,13 @@ async function recordVerified(
 const OWNER_CONFIRMED_EVENT = 'ingame_name_owner_confirmed';
 
 /**
- * An owner or deputy owner synced an ALREADY verified clan. Unless its verification is already
- * protected (owner tier or staff), record that the owner tier now stands behind it, which ends its
+ * An owner or deputy owner synced an ALREADY verified clan. If its verification is open to a
+ * takeover (a recorded lower rank), record that the owner tier now stands behind it, which ends its
  * exposure to an owner-tier takeover from another Anvil clan. Writes once; later syncs do nothing.
  */
 export async function confirmOwnerTier(clanId: number, rank: string | null, accountId: number | null): Promise<void> {
   if (!isOwnerTierRank(rank)) return;
-  if ((await holderVerification(clanId)).protectedByRecord) return;
+  if (!(await holderVerification(clanId)).openToTakeover) return;
   await db.insert(clanAuditLog).values({
     clanId,
     eventType: OWNER_CONFIRMED_EVENT,
@@ -271,16 +271,18 @@ export async function confirmOwnerTier(clanId: number, rank: string | null, acco
 }
 
 /**
- * What the holder's own record says about its verification.
+ * What the holder's own record says about its verification. FAILS CLOSED.
  *
- * `protectedByRecord` — the latest verification/confirmation row says staff verified it, its owner
- * tier confirmed it, or it recorded an owner-tier rank. Anything else (a recorded lower rank, a legacy
- * row with no rank, an unrecognised rank, no row at all) is NOT presumed lower-rank from the row
- * alone: it is merely open to a takeover that the holder's roster corroborates.
+ * `openToTakeover` only when the latest name event on the clan is an `ingame_name_verified` row,
+ * from no staff actor, that EXPLICITLY records `ownerTier: false` with a non-owner rank string —
+ * which only this file's recordVerified writes. Everything else is protected and goes to staff: no
+ * row, a parse failure, a legacy row without the flag, an unrecognised rank, a staff verification,
+ * an owner-tier confirmation, or a latest event that is a withdrawal (the record and the clan row
+ * disagree — e.g. a best-effort write was lost).
  */
 async function holderVerification(
   clanId: number,
-): Promise<{ protectedByRecord: boolean; verifierAccountId: number | null }> {
+): Promise<{ openToTakeover: boolean; verifierAccountId: number | null }> {
   const [row] = await db
     .select({
       eventType: clanAuditLog.eventType,
@@ -291,59 +293,121 @@ async function holderVerification(
     .where(
       and(
         eq(clanAuditLog.clanId, clanId),
-        inArray(clanAuditLog.eventType, ['ingame_name_verified', OWNER_CONFIRMED_EVENT]),
+        inArray(clanAuditLog.eventType, [
+          'ingame_name_verified',
+          OWNER_CONFIRMED_EVENT,
+          'ingame_name_unverified',
+          'ingame_name_released',
+        ]),
       ),
     )
     .orderBy(desc(clanAuditLog.id))
     .limit(1);
-  const clan = await db.query.clans.findFirst({
-    where: eq(clans.id, clanId),
-    columns: { ingameNameClaimedByAccountId: true },
-  });
-  let v: { rank?: unknown; accountId?: unknown } | null = null;
+  const closed = { openToTakeover: false, verifierAccountId: null };
+  if (!row || row.eventType !== 'ingame_name_verified' || row.actorUserId != null) return closed;
+  let v: { rank?: unknown; ownerTier?: unknown; accountId?: unknown };
   try {
-    v = row?.newValue ? (JSON.parse(row.newValue) as { rank?: unknown; accountId?: unknown }) : null;
+    v = JSON.parse(row.newValue ?? '') as typeof v;
   } catch {
-    v = null;
+    return closed;
   }
-  const verifierAccountId =
-    typeof v?.accountId === 'number' ? v.accountId : (clan?.ingameNameClaimedByAccountId ?? null);
-  const protectedByRecord =
-    row != null &&
-    (row.actorUserId != null ||
-      row.eventType === OWNER_CONFIRMED_EVENT ||
-      isOwnerTierRank(typeof v?.rank === 'string' ? v.rank : null));
-  return { protectedByRecord, verifierAccountId };
+  if (!v || v.ownerTier !== false || typeof v.rank !== 'string' || !v.rank.trim() || isOwnerTierRank(v.rank)) {
+    return closed;
+  }
+  return { openToTakeover: true, verifierAccountId: typeof v.accountId === 'number' ? v.accountId : null };
+}
+
+/** How recently the holder's own sync must have seen a corroborating seat. */
+const CORROBORATION_FRESH_MS = 14 * 24 * 60 * 60_000;
+
+/**
+ * The rank the holder's IN-GAME SYNC last attested for each of these seats — from the `joined` /
+ * `rank_changed` rows only clan-sync writes (actor-less), never the seat's `rank` column, which the
+ * admin roster endpoints can set by hand (api/admin/clan POST reactivation and [id] PATCH).
+ */
+async function syncAttestedRanks(clanId: number, seatIds: number[]): Promise<Map<number, string | null>> {
+  const out = new Map<number, string | null>();
+  if (seatIds.length === 0) return out;
+  const rows = await db
+    .select({ seat: clanAuditLog.clanMemberId, newValue: clanAuditLog.newValue })
+    .from(clanAuditLog)
+    .where(
+      and(
+        eq(clanAuditLog.clanId, clanId),
+        inArray(clanAuditLog.clanMemberId, seatIds),
+        inArray(clanAuditLog.eventType, ['joined', 'rank_changed']),
+        isNull(clanAuditLog.actorUserId),
+      ),
+    )
+    .orderBy(desc(clanAuditLog.id));
+  for (const r of rows) {
+    if (r.seat == null || out.has(r.seat)) continue;
+    let rank: string | null = null;
+    try {
+      const v = JSON.parse(r.newValue ?? '') as { rank?: unknown };
+      rank = typeof v?.rank === 'string' ? v.rank : null;
+    } catch {
+      rank = null;
+    }
+    out.set(r.seat, rank);
+  }
+  return out;
 }
 
 /**
  * May an owner-tier pusher take this holder's name? Only with CORROBORATION the server already holds
- * from the HOLDER'S OWN syncs — two independent clients agreeing is the proof, since either alone is
- * client-attested:
- *   - the holder's live roster lists the pusher's character at an owner-tier rank, and
- *   - the holder's original verifier, when known, is absent from that roster or below owner tier.
- * Fails closed on everything else.
+ * from the HOLDER'S OWN in-game syncs — two independent clients agreeing is the proof, since either
+ * alone is client-attested:
+ *   - the holder's record is open to it at all (holderVerification — fails closed),
+ *   - the holder's roster has the pusher on a live MEMBER seat its sync wrote (source 'roster'),
+ *     seen by a sync within CORROBORATION_FRESH_MS, whose sync-attested rank AND current rank are
+ *     both owner tier (so a hand edit of the rank column can neither forge nor be needed), and
+ *   - the holder's original verifier, when known, shows no owner-tier rank there by either measure.
  */
 async function takeoverCorroboration(
   holderClanId: number,
   pusherRsnNormalized: string,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   const holder = await holderVerification(holderClanId);
-  if (holder.protectedByRecord) return { ok: false, reason: 'the holder was verified by owner tier or staff' };
+  if (!holder.openToTakeover) {
+    return { ok: false, reason: 'the holder was not verified by a recorded lower rank (owner tier, staff, or unknown)' };
+  }
 
   const roster = await db
-    .select({ accountId: clanRoster.accountId, rsnNormalized: clanRoster.rsnNormalized, rank: clanRoster.rank })
+    .select({
+      id: clanRoster.id,
+      accountId: clanRoster.accountId,
+      rsnNormalized: clanRoster.rsnNormalized,
+      rank: clanRoster.rank,
+      kind: clanRoster.kind,
+      source: clanRoster.source,
+      lastSeenInClan: clanRoster.lastSeenInClan,
+    })
     .from(clanRoster)
     .where(and(eq(clanRoster.clanId, holderClanId), isNull(clanRoster.leftAt)));
+
   const pusherThere = roster.find((r) => r.rsnNormalized === pusherRsnNormalized);
-  if (!pusherThere || !isOwnerTierRank(pusherThere.rank)) {
-    return { ok: false, reason: "the holder's own roster does not show the pusher at an owner-tier rank" };
+  const verifierThere =
+    holder.verifierAccountId != null ? roster.find((r) => r.accountId === holder.verifierAccountId) : undefined;
+  const attested = await syncAttestedRanks(
+    holderClanId,
+    [pusherThere?.id, verifierThere?.id].filter((x): x is number => x != null),
+  );
+
+  const seen = pusherThere ? parseStamp(pusherThere.lastSeenInClan) : null;
+  const pusherOk =
+    pusherThere != null &&
+    pusherThere.kind === 'member' &&
+    pusherThere.source === 'roster' &&
+    seen != null &&
+    Date.now() - seen <= CORROBORATION_FRESH_MS &&
+    isOwnerTierRank(pusherThere.rank) &&
+    isOwnerTierRank(attested.get(pusherThere.id));
+  if (!pusherOk) {
+    return { ok: false, reason: "the holder's own recent sync does not show the pusher at an owner-tier rank" };
   }
-  if (holder.verifierAccountId != null) {
-    const verifierThere = roster.find((r) => r.accountId === holder.verifierAccountId);
-    if (verifierThere && isOwnerTierRank(verifierThere.rank)) {
-      return { ok: false, reason: "the holder's verifier is owner tier in its own roster" };
-    }
+  if (verifierThere && (isOwnerTierRank(verifierThere.rank) || isOwnerTierRank(attested.get(verifierThere.id)))) {
+    return { ok: false, reason: "the holder's verifier is owner tier in its own roster" };
   }
   return { ok: true };
 }
@@ -451,21 +515,22 @@ export async function verifyManually(
   });
   if (taken) return { ok: false, error: `"${name}" is already verified for ${taken.slug}` };
 
-  await db
-    .update(clans)
-    .set({ inGameName: name, ingameNameVerifiedAt: new Date().toISOString() })
-    .where(eq(clans.id, clanId));
-
-  await db
-    .insert(clanAuditLog)
-    .values({
+  // ONE TRANSACTION, not a best-effort audit write: the staff row is what protects this verification
+  // from an owner-tier takeover (holderVerification). A lost row would leave an older lower-rank row
+  // as the latest record, so the name and its protection land together or not at all.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(clans)
+      .set({ inGameName: name, ingameNameVerifiedAt: new Date().toISOString() })
+      .where(eq(clans.id, clanId));
+    await tx.insert(clanAuditLog).values({
       clanId,
       eventType: 'ingame_name_verified',
       actorUserId: byUserId,
-      newValue: JSON.stringify({ inGameName: name }),
+      newValue: JSON.stringify({ inGameName: name, staff: true }),
       notes: 'verified by platform staff',
-    })
-    .catch(() => {});
+    });
+  });
 
   return { ok: true };
 }

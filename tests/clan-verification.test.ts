@@ -317,8 +317,17 @@ test('…while a clan that signed up this week keeps its unverified name: the pr
 // pushing the same name from another Anvil clan takes it over. One an owner-tier rank (or staff)
 // made keeps first-claim-wins.
 
-/** A live seat in `clanId` for a character named `rsn`, at an in-game rank, as a roster sync makes. */
-async function rosterSeat(clanId: number, rsn: string, rank: string | null) {
+/**
+ * A live seat in `clanId` for a character named `rsn`, as the IN-GAME SYNC writes one: member,
+ * source 'roster', seen now, with the actor-less `joined` audit row that attests its rank.
+ * `seatRank` overrides the seat's rank column alone — what an admin hand edit does.
+ */
+async function rosterSeat(
+  clanId: number,
+  rsn: string,
+  rank: string | null,
+  opts: { seatRank?: string | null; lastSeen?: string; source?: string } = {},
+) {
   const { db, schema: s } = await loadDb();
   const { eq } = await import('drizzle-orm');
   let acct = (await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, rsn)))[0];
@@ -326,9 +335,83 @@ async function rosterSeat(clanId: number, rsn: string, rank: string | null) {
     const [pl] = await db.insert(s.players).values({ displayName: rsn }).returning();
     [acct] = await db.insert(s.accounts).values({ playerId: pl.id, rsn, rsnNormalized: rsn }).returning();
   }
-  await db.insert(s.clanMemberships).values({ clanId, accountId: acct.id, kind: 'member', source: 'roster', rank });
+  // One live member seat per account platform-wide: each test's holder gets the character fresh.
+  await db.delete(s.clanMemberships).where(eq(s.clanMemberships.accountId, acct.id));
+  const [seat] = await db
+    .insert(s.clanMemberships)
+    .values({
+      clanId,
+      accountId: acct.id,
+      kind: 'member',
+      source: opts.source ?? 'roster',
+      rank: opts.seatRank !== undefined ? opts.seatRank : rank,
+      lastSeenInClan: opts.lastSeen ?? new Date().toISOString(),
+    })
+    .returning();
+  await db.insert(s.clanAuditLog).values({
+    clanId,
+    clanMemberId: seat.id,
+    eventType: 'joined',
+    newValue: JSON.stringify({ rsn, rank }),
+    notes: 'Detected via clan-sync',
+  });
   return acct.id;
 }
+
+/** A clan verified by 'a grunt' (Recruit) for `name`, and a rival clan; returns both ids. */
+async function lowerRankHolder(slug: string, name: string) {
+  const { db, schema: s } = await loadDb();
+  const [held] = await db.insert(s.clans).values({ slug, name: slug }).returning();
+  const [rival] = await db.insert(s.clans).values({ slug: `${slug}-rival`, name: `${slug} rival` }).returning();
+  const r = await V.claimFromRoster({
+    clanId: held.id,
+    reportedClanName: name,
+    pusherRsnNormalized: 'a grunt',
+    pusherAccountId: null,
+    roster: ROSTER,
+  });
+  assert.equal(r.outcome, 'verified');
+  return { held: held.id, rival: rival.id };
+}
+
+const ownerPush = (clanId: number, name: string) =>
+  V.claimFromRoster({
+    clanId,
+    reportedClanName: name,
+    pusherRsnNormalized: 'the boss',
+    pusherAccountId: ownerAccount,
+    roster: ROSTER,
+  });
+
+test('a hand-edited rank column cannot forge corroboration: only the sync-attested rank counts', async () => {
+  const { held, rival } = await lowerRankHolder('forged-rank', 'Forged Rank');
+  // The sync saw the boss as a Recruit; an admin then typed "Owner" into the seat.
+  await rosterSeat(held, 'the boss', 'Recruit', { seatRank: 'Owner' });
+  assert.deepEqual(await ownerPush(rival, 'Forged Rank'), { outcome: 'taken', byClanSlug: 'forged-rank' });
+});
+
+test('a seat the sync has not seen recently does not corroborate', async () => {
+  const { held, rival } = await lowerRankHolder('stale-seat', 'Stale Seat');
+  await rosterSeat(held, 'the boss', 'Owner', { lastSeen: new Date(Date.now() - 30 * 86_400_000).toISOString() });
+  assert.deepEqual(await ownerPush(rival, 'Stale Seat'), { outcome: 'taken', byClanSlug: 'stale-seat' });
+});
+
+test('an admin-placed seat does not corroborate, whatever its rank', async () => {
+  const { held, rival } = await lowerRankHolder('admin-seat', 'Admin Seat');
+  await rosterSeat(held, 'the boss', 'Owner', { source: 'admin' });
+  assert.deepEqual(await ownerPush(rival, 'Admin Seat'), { outcome: 'taken', byClanSlug: 'admin-seat' });
+});
+
+test('a verified holder with NO verification record is protected (fails closed)', async () => {
+  const { db, schema: s } = await loadDb();
+  const [held] = await db
+    .insert(s.clans)
+    .values({ slug: 'no-record', name: 'No Record', inGameName: 'No Record Clan', ingameNameVerifiedAt: '2025-01-01T00:00:00Z' })
+    .returning();
+  await rosterSeat(held.id, 'the boss', 'Owner');
+  const [rival] = await db.insert(s.clans).values({ slug: 'no-record-rival', name: 'NR Rival' }).returning();
+  assert.deepEqual(await ownerPush(rival.id, 'No Record Clan'), { outcome: 'taken', byClanSlug: 'no-record' });
+});
 
 test('an owner-tier claim the holder roster does NOT corroborate is refused', async () => {
   // The pusher's rank is client-attested: alone it must never move a name.
@@ -424,6 +507,8 @@ test('a legacy verification (no rank recorded) is not presumed lower-rank withou
     eventType: 'ingame_name_verified',
     newValue: JSON.stringify({ inGameName: 'Old Guard' }),
   });
+  // Even fully corroborated by its roster: a legacy record is never presumed lower-rank.
+  await rosterSeat(legacy.id, 'the boss', 'Owner');
   const [rival] = await db.insert(s.clans).values({ slug: 'legacy-rival', name: 'Legacy Rival' }).returning();
   const r = await V.claimFromRoster({
     clanId: rival.id,
@@ -494,6 +579,7 @@ test('a staff verification is not open to takeover either', async () => {
   const [a] = await db.insert(s.clans).values({ slug: 'staff-made', name: 'Staff Made' }).returning();
   const [b] = await db.insert(s.clans).values({ slug: 'staff-rival', name: 'Staff Rival' }).returning();
   assert.equal((await V.verifyManually(a.id, 'Staff Clan', staffUser)).ok, true);
+  await rosterSeat(a.id, 'the boss', 'Owner');
   const r = await V.claimFromRoster({
     clanId: b.id,
     reportedClanName: 'Staff Clan',
