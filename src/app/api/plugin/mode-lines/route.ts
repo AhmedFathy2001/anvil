@@ -77,12 +77,12 @@ export async function POST(request: Request) {
     const verdict = classifyLine(line, mode, patterns);
     if (verdict.kind === 'ignore') continue;
     if (verdict.kind === 'unknown') {
-      await recordSample(mode.key, line, false);
+      await recordSample(mode, line, false);
       continue;
     }
     if (verdict.kind === 'generic') {
       // Posted as it stands, and queued so staff can give it a proper pattern.
-      await recordSample(mode.key, line, true);
+      await recordSample(mode, line, true);
       events.push({ kind: 'modeMilestone', title: verdict.title });
     } else {
       events.push({ kind: verdict.kind, title: verdict.title });

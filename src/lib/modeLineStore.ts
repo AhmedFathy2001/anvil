@@ -5,15 +5,19 @@ import { asc, desc, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { modeLinePatterns, modeLineSamples } from '@/db/schema';
 import { log } from '@/lib/logger';
+import { WORLD_MODES, type WorldMode } from '@/lib/worldModes';
 import { MODE_LINE_KINDS, lineTemplate, type ModeLineKind, type ModeLinePattern } from '@/lib/modeLines';
 
 /** Rows kept per mode. Past this a new template is dropped; the ones already queued keep counting. */
 export const MAX_SAMPLES_PER_MODE = 1000;
 /**
- * Rows kept across every mode. The mode comes off the client's world headers, and a tampered client
- * can name a new "mode" with every request; the per-mode cap alone wouldn't bound that.
+ * Rows kept across every mode the catalogue DOESN'T know. The mode comes off the client's world
+ * headers, so a tampered client can name a new "mode" with every request; this bounds that, and
+ * because catalogued modes (Leagues, Deadman, …) never count against it, junk can't crowd them out.
  */
 export const MAX_SAMPLES_TOTAL = 5000;
+
+const KNOWN_KEYS = WORLD_MODES.map((m) => m.key);
 
 export type StoredPattern = typeof modeLinePatterns.$inferSelect;
 
@@ -45,7 +49,8 @@ export function forgetPatternCache(): void {
  * Count one line on the review queue. Best effort: the queue is for staff, and a failure here must
  * never cost the post.
  */
-export async function recordSample(modeKey: string, line: string, autoPosted: boolean): Promise<void> {
+export async function recordSample(mode: Pick<WorldMode, 'key' | 'known'>, line: string, autoPosted: boolean): Promise<void> {
+  const modeKey = mode.key;
   const template = lineTemplate(line);
   try {
     // Insert only while the mode is under its cap; an existing template keeps counting either way.
@@ -60,13 +65,16 @@ export async function recordSample(modeKey: string, line: string, autoPosted: bo
       .where(sql`${modeLineSamples.modeKey} = ${modeKey} and ${modeLineSamples.template} = ${template}`)
       .returning({ id: modeLineSamples.id });
     if (bumped.length > 0) return;
-    const [{ n, total }] = await db
+    const [{ n, unknownTotal }] = await db
       .select({
         n: sql<number>`count(*) filter (where ${modeLineSamples.modeKey} = ${modeKey})::int`,
-        total: sql<number>`count(*)::int`,
+        unknownTotal: sql<number>`count(*) filter (where ${modeLineSamples.modeKey} not in ${KNOWN_KEYS})::int`,
       })
       .from(modeLineSamples);
-    if (n >= MAX_SAMPLES_PER_MODE || total >= MAX_SAMPLES_TOTAL) return;
+    if (n >= MAX_SAMPLES_PER_MODE || (!mode.known && unknownTotal >= MAX_SAMPLES_TOTAL)) {
+      log.info('mode-lines.queue-full', { modeKey, known: mode.known, n, unknownTotal });
+      return;
+    }
     await db
       .insert(modeLineSamples)
       .values({ modeKey, template, sample: line, autoPosted })

@@ -96,9 +96,12 @@ test('easy tasks stay quiet until a clan turns them on; a saved list is the whol
 
 test('the review queue counts a wording once, newest line kept, capped per mode', async () => {
   const lines = await import('../src/lib/modeLineStore.ts');
-  await lines.recordSample('leagues', 'You have 12 of 40 echoes.', false);
-  await lines.recordSample('leagues', 'You have 13 of 40 echoes.', true);
-  await lines.recordSample('deadman', 'You have 13 of 40 echoes.', false);
+  const LG = { key: 'leagues', known: true };
+  const DMM = { key: 'deadman', known: true };
+  const BETA = { key: 'beta', known: true };
+  await lines.recordSample(LG, 'You have 12 of 40 echoes.', false);
+  await lines.recordSample(LG, 'You have 13 of 40 echoes.', true);
+  await lines.recordSample(DMM, 'You have 13 of 40 echoes.', false);
   const rows = await lines.listSamples();
   const lg = rows.find((r) => r.modeKey === 'leagues')!;
   assert.equal(lg.count, 2);
@@ -112,16 +115,19 @@ test('the review queue counts a wording once, newest line kept, capped per mode'
   await db.insert(s.modeLineSamples).values(
     Array.from({ length: lines.MAX_SAMPLES_PER_MODE }, (_, i) => ({ modeKey: 'beta', template: name(i), sample: name(i) })),
   );
-  await lines.recordSample('beta', 'A brand new line', false);
+  await lines.recordSample(BETA, 'A brand new line', false);
   assert.equal((await lines.listSamples(5000)).filter((r) => r.modeKey === 'beta').length, lines.MAX_SAMPLES_PER_MODE);
-  await lines.recordSample('beta', name(3), false);
+  await lines.recordSample(BETA, name(3), false);
   assert.equal((await lines.listSamples(5000)).find((r) => r.template === name(3))!.count, 2, 'a queued one still counts');
 
-  // A client inventing a new mode name per request is bounded by the total.
-  const room = lines.MAX_SAMPLES_TOTAL - (await lines.listSamples(lines.MAX_SAMPLES_TOTAL)).length;
+  // A client inventing a new mode name per request is bounded by the total for unknown modes…
   await db.insert(s.modeLineSamples).values(
-    Array.from({ length: room }, (_, i) => ({ modeKey: `junk-${name(i)}`, template: 'x', sample: 'x' })),
+    Array.from({ length: lines.MAX_SAMPLES_TOTAL }, (_, i) => ({ modeKey: `junk-${name(i)}`, template: 'x', sample: 'x' })),
   );
-  await lines.recordSample('yet-another-mode', 'Another line', false);
-  assert.equal((await lines.listSamples(lines.MAX_SAMPLES_TOTAL + 10)).length, lines.MAX_SAMPLES_TOTAL);
+  await lines.recordSample({ key: 'yet-another-mode', known: false }, 'Another line', false);
+  const all = await lines.listSamples(20000);
+  assert.ok(!all.some((r) => r.modeKey === 'yet-another-mode'), 'unknown modes share one capped pool');
+  // …and that pool never crowds out a catalogued mode.
+  await lines.recordSample({ key: 'deadman', known: true }, 'A real Deadman line', false);
+  assert.ok((await lines.listSamples(20000)).some((r) => r.sample === 'A real Deadman line'));
 });
