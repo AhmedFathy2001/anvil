@@ -116,4 +116,12 @@ test('the review queue counts a wording once, newest line kept, capped per mode'
   assert.equal((await lines.listSamples(5000)).filter((r) => r.modeKey === 'beta').length, lines.MAX_SAMPLES_PER_MODE);
   await lines.recordSample('beta', name(3), false);
   assert.equal((await lines.listSamples(5000)).find((r) => r.template === name(3))!.count, 2, 'a queued one still counts');
+
+  // A client inventing a new mode name per request is bounded by the total.
+  const room = lines.MAX_SAMPLES_TOTAL - (await lines.listSamples(lines.MAX_SAMPLES_TOTAL)).length;
+  await db.insert(s.modeLineSamples).values(
+    Array.from({ length: room }, (_, i) => ({ modeKey: `junk-${name(i)}`, template: 'x', sample: 'x' })),
+  );
+  await lines.recordSample('yet-another-mode', 'Another line', false);
+  assert.equal((await lines.listSamples(lines.MAX_SAMPLES_TOTAL + 10)).length, lines.MAX_SAMPLES_TOTAL);
 });

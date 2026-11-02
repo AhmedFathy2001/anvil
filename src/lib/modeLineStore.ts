@@ -1,6 +1,6 @@
 // The stored half of lib/modeLines: staff patterns and the review queue of lines no pattern knew.
 
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { asc, desc, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { modeLinePatterns, modeLineSamples } from '@/db/schema';
@@ -9,6 +9,11 @@ import { MODE_LINE_KINDS, lineTemplate, type ModeLineKind, type ModeLinePattern 
 
 /** Rows kept per mode. Past this a new template is dropped; the ones already queued keep counting. */
 export const MAX_SAMPLES_PER_MODE = 1000;
+/**
+ * Rows kept across every mode. The mode comes off the client's world headers, and a tampered client
+ * can name a new "mode" with every request; the per-mode cap alone wouldn't bound that.
+ */
+export const MAX_SAMPLES_TOTAL = 5000;
 
 export type StoredPattern = typeof modeLinePatterns.$inferSelect;
 
@@ -55,11 +60,13 @@ export async function recordSample(modeKey: string, line: string, autoPosted: bo
       .where(sql`${modeLineSamples.modeKey} = ${modeKey} and ${modeLineSamples.template} = ${template}`)
       .returning({ id: modeLineSamples.id });
     if (bumped.length > 0) return;
-    const [{ n }] = await db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(modeLineSamples)
-      .where(eq(modeLineSamples.modeKey, modeKey));
-    if (n >= MAX_SAMPLES_PER_MODE) return;
+    const [{ n, total }] = await db
+      .select({
+        n: sql<number>`count(*) filter (where ${modeLineSamples.modeKey} = ${modeKey})::int`,
+        total: sql<number>`count(*)::int`,
+      })
+      .from(modeLineSamples);
+    if (n >= MAX_SAMPLES_PER_MODE || total >= MAX_SAMPLES_TOTAL) return;
     await db
       .insert(modeLineSamples)
       .values({ modeKey, template, sample: line, autoPosted })
