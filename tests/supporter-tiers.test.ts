@@ -83,3 +83,17 @@ test('tenure flair steps at 3, 6 and 12 months', () => {
   assert.deepEqual(tenureStep(5), { reached: 3, next: 6 });
   assert.deepEqual(tenureStep(12), { reached: 12, next: null });
 });
+
+test('a supporter\'s Discord post gets their star on the author line, and nothing else changes', async () => {
+  const { withSupporterAuthor } = await import('../src/lib/supporterTiers.ts');
+  const e = { title: 'Rare drop!', author: { name: 'Zezima' } };
+  assert.deepEqual(withSupporterAuthor(e, 'champion', 'https://anvilosrs.com').author, {
+    name: 'Zezima',
+    icon_url: 'https://anvilosrs.com/icons/supporter-champion.png',
+  });
+  assert.equal(withSupporterAuthor(e, null, 'https://anvilosrs.com'), e, 'not a supporter: untouched');
+  const noAuthor = { title: 'Level 99!' };
+  assert.equal(withSupporterAuthor(noAuthor, 'patron', 'https://anvilosrs.com'), noAuthor);
+  const own = { author: { name: 'x', icon_url: 'https://cdn/x.png' } };
+  assert.equal(withSupporterAuthor(own, 'patron', 'https://anvilosrs.com'), own, 'an icon already there stays');
+});

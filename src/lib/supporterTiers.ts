@@ -125,3 +125,14 @@ export function tenureStep(months: number): { reached: number; next: number | nu
   const next = TENURE_STEPS.find((s) => months < s) ?? null;
   return { reached, next };
 }
+
+/**
+ * Put a supporter's star on a Discord embed's author line (Discord can't colour a name; the author
+ * icon is the one place a small picture sits beside it). Only an embed with an author and no icon
+ * of its own; returns a copy. `origin` is the apex, since Discord fetches the picture itself.
+ */
+export function withSupporterAuthor<T extends Record<string, unknown>>(embed: T, tier: SupporterTierId | null | undefined, origin: string): T {
+  const author = embed.author as { name?: unknown; icon_url?: unknown } | undefined;
+  if (!tier || !author || typeof author.name !== 'string' || author.icon_url) return embed;
+  return { ...embed, author: { ...author, icon_url: `${origin}/icons/supporter-${tier}.png` } };
+}
