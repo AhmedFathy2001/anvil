@@ -150,7 +150,11 @@ export function signLabViewAs(by: number, as: number): string {
  * request, never trusted from the cookie: it was signed for THIS session's user, it is fresh, that
  * user is platform staff right now, and the target is a lab test login (never a real person).
  */
-export async function labViewAsTarget(token: string | undefined, sessionUserId: number): Promise<{ id: number; name: string } | null> {
+export async function labViewAsTarget(
+  token: string | undefined,
+  sessionUserId: number,
+  sessionVersion = 0,
+): Promise<{ id: number; name: string } | null> {
   if (!token) return null;
   const raw = verify(token, ADMIN_SESSION_SECRET);
   if (!raw) return null;
@@ -163,8 +167,18 @@ export async function labViewAsTarget(token: string | undefined, sessionUserId: 
   if (v.by !== sessionUserId || !Number.isInteger(v.as) || typeof v.iat !== 'number') return null;
   const age = Date.now() - v.iat;
   if (age < -5 * 60_000 || age > LAB_VIEW_AS_MAX_MS) return null;
-  const staff = await db.query.users.findFirst({ where: eq(users.id, sessionUserId), columns: { platformRole: true, banned: true } });
+  // The REAL session must pass everything verifyUser would ask of it before anyone is swapped in:
+  // not banned (login or person), not force-logged-out (session version), and staff right now.
+  const staff = await db.query.users.findFirst({
+    where: eq(users.id, sessionUserId),
+    columns: { platformRole: true, banned: true, sessionVersion: true, playerId: true },
+  });
   if (!staff || staff.banned || !hasPlatformRole(staff.platformRole, 'staff')) return null;
+  if (sessionVersion < (staff.sessionVersion ?? 0)) return null;
+  if (staff.playerId != null) {
+    const person = await db.query.players.findFirst({ where: eq(players.id, staff.playerId), columns: { banned: true } });
+    if (person?.banned) return null;
+  }
   const target = await db.query.users.findFirst({ where: eq(users.id, v.as as number), columns: { id: true, discordId: true, displayName: true, banned: true } });
   if (!target || target.banned || !target.discordId?.startsWith(LAB_DUMMY_LOGIN)) return null;
   return { id: target.id, name: target.displayName };
@@ -212,7 +226,11 @@ async function verifyUserUncached(): Promise<UserPayload | null> {
     const data = JSON.parse(payload);
     if (!data.userId || !isFreshIat(data.iat)) return null;
     // Staff viewing as a lab test user: from here on the request is that test user's.
-    const viewAs = await labViewAsTarget(cookieStore.get(LAB_VIEW_AS_COOKIE)?.value, data.userId);
+    const viewAs = await labViewAsTarget(
+      cookieStore.get(LAB_VIEW_AS_COOKIE)?.value,
+      data.userId,
+      typeof data.sessionVersion === 'number' ? data.sessionVersion : 0,
+    );
     const staffUserId = data.userId;
     if (viewAs) {
       data.userId = viewAs.id;

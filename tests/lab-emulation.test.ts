@@ -63,9 +63,26 @@ test('viewing as: only a fresh, signed grant from current staff, and only onto a
   assert.equal(await A.labViewAsTarget(tampered, staffId), null, 'tampered');
   assert.equal(await A.labViewAsTarget('garbage', staffId), null);
 
+  // A force-logout (session version bump) or a platform ban ends it too.
+  await db.update(s.users).set({ sessionVersion: 1 }).where(eq(s.users.id, staffId));
+  assert.equal(await A.labViewAsTarget(A.signLabViewAs(staffId, tester!.userId), staffId, 0), null, 'a revoked session cannot view as');
+  assert.equal((await A.labViewAsTarget(A.signLabViewAs(staffId, tester!.userId), staffId, 1))?.id, tester!.userId);
+  await db.update(s.users).set({ sessionVersion: 0 }).where(eq(s.users.id, staffId));
+  const [{ playerId }] = await db.select({ playerId: s.users.playerId }).from(s.users).where(eq(s.users.id, staffId));
+  await db.update(s.players).set({ banned: true }).where(eq(s.players.id, playerId!));
+  assert.equal(await A.labViewAsTarget(A.signLabViewAs(staffId, tester!.userId), staffId), null, 'a platform-banned person cannot view as');
+  await db.update(s.players).set({ banned: false }).where(eq(s.players.id, playerId!));
+
   await db.update(s.users).set({ platformRole: 'none' }).where(eq(s.users.id, staffId));
   assert.equal(await A.labViewAsTarget(A.signLabViewAs(staffId, tester!.userId), staffId), null, 'no longer staff, no longer allowed');
   await db.update(s.users).set({ platformRole: 'staff' }).where(eq(s.users.id, staffId));
+});
+
+test('reading your lab clan role changes nothing', async () => {
+  const [p] = await db.insert(s.players).values({ displayName: 'Support' }).returning();
+  const [u] = await db.insert(s.users).values({ displayName: 'Support', discordId: 'd-support', playerId: p.id, platformRole: 'support' }).returning();
+  assert.equal(await C.labClanRole(u.id), 'member');
+  assert.equal((await db.select().from(s.clanStaff).where(eq(s.clanStaff.userId, u.id))).length, 0, 'no grant made by a read');
 });
 
 test('your lab clan role sticks, even through starting a new session', async () => {

@@ -12,7 +12,7 @@ import { db } from '@/db';
 import { accounts, clanMemberships, clanStaff, players, supporterSubscriptions, users } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { CLAN_ROLES, type ClanRole } from '@/lib/clanRoles';
-import { ensureLabClan } from '@/lib/lab';
+import { ensureLabClan, labClanId } from '@/lib/lab';
 import { LAB_DUMMY_LOGIN } from '@/lib/labRules';
 import { supporterState, type SupporterTierId } from '@/lib/supporterTiers';
 
@@ -107,7 +107,9 @@ export async function setLabClanRole(actorUserId: number, role: ClanRole): Promi
 
 /** Your role in the lab clan right now ('member' when you hold no grant). */
 export async function labClanRole(actorUserId: number): Promise<ClanRole> {
-  const clanId = await ensureLabClan(actorUserId);
+  // A read: never creates the lab clan or grants anything (that is ensureLabClan's, on a write).
+  const clanId = await labClanId();
+  if (clanId == null) return 'member';
   const row = await db.query.clanStaff.findFirst({ where: and(eq(clanStaff.clanId, clanId), eq(clanStaff.userId, actorUserId)), columns: { role: true } });
   return (row?.role as ClanRole) ?? 'member';
 }
