@@ -395,15 +395,19 @@ export async function POST(
   // with its event, so a proof pointing at another person's upload (another clan's proof, a banner)
   // would get that file deleted. Web: the picture must be this person's own upload. Plugin: an upload
   // on record as another person's never comes from an honest plugin, which uploads its own frame
-  // first; a missing record stays a flag below (honest retries from before provenance existed).
+  // first; nor does one with no record at all once records have been kept long enough.
   if (imageUrlValue && !pluginAuth) {
     const webUserId = (await verifyUser())?.userId ?? null;
     if (!upload || upload.via !== 'web' || (upload.userId ?? null) !== webUserId) {
       return NextResponse.json({ error: 'Upload the screenshot here yourself, then submit it' }, { status: 400 });
     }
   }
-  if (pluginAuth && upload && upload.userId != null && upload.userId !== pluginAuth.userId) {
-    return NextResponse.json({ error: 'That screenshot was uploaded by someone else' }, { status: 403 });
+  if (pluginAuth && imageUrlValue) {
+    // Every upload since PROVENANCE_REQUIRED_FROM has a record whatever the plugin version (the upload
+    // route writes it), so past that date a picture with none is not an honest plugin's.
+    if (upload ? upload.userId != null && upload.userId !== pluginAuth.userId : receivedAt >= PROVENANCE_REQUIRED_FROM) {
+      return NextResponse.json({ error: 'Upload the screenshot through Anvil, then submit it' }, { status: 403 });
+    }
   }
   const claims = pluginAuth && imageUrlValue ? parseProofClaims(proof) : null;
   if (pluginAuth && imageUrlValue) {
