@@ -139,8 +139,9 @@ export async function POST(
   const replay = await replayOutsideLab(request, scopedEvent.id);
   if (replay) return replay;
   // A kill or drop on a game-mode world (Leagues, Deadman, hardcore, …) is another save's, never
-  // this board's (lib/worldModeRequest). Only the plugin stamps the world; a web upload is untouched.
-  const otherSave = worldModeIgnored(request);
+  // this board's (lib/worldModeRequest) — unless the board counts that mode (rules.worldModes).
+  // Only the plugin stamps the world; a web upload is untouched.
+  const otherSave = worldModeIgnored(request, parseEventRules(scopedEvent.rules).worldModes);
   if (otherSave) return otherSave;
   const clan = { id: scopedEvent.clanId };
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).

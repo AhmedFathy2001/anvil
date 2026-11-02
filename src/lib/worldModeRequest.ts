@@ -32,10 +32,11 @@ export function worldModeOf(
  * For routes that CREDIT something — a tile, a competition, the live-stats overlay, a profile.
  * A separate-save world's kills, drops, XP and collection log are not the player's main-game
  * progression, so they're accepted and dropped: 202 with the reason, so the plugin neither retries
- * nor shows an error, and a person debugging sees why nothing moved.
+ * nor shows an error, and a person debugging sees why nothing moved. `counted` is a board's opt-in
+ * (rules.worldModes): those modes count like the main game.
  */
-export function worldModeIgnored(request: Request): NextResponse | null {
+export function worldModeIgnored(request: Request, counted: readonly string[] = []): NextResponse | null {
   const mode = worldModeOf(request);
-  if (!mode) return null;
+  if (!mode || counted.includes(mode.key)) return null;
   return NextResponse.json({ ok: true, ignored: 'world-mode', mode: mode.label }, { status: 202 });
 }

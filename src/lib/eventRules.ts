@@ -1,6 +1,7 @@
 // The daily-schedule maths lives in lib/missionSchedule; the import is one-way (that file takes
 // only the TYPE from here), so there is no runtime cycle.
 import { nextSlotAfter } from '@/lib/missionSchedule';
+import { isModeKey } from '@/lib/worldModes';
 
 // Per-event game rules — the third axis on top of (format, scoringMode). Stored as JSON in
 // `events.rules` (NULL = classic behaviour). Rules decide HOW tiles become playable (the reveal
@@ -212,6 +213,13 @@ export type BalanceMode = 'off' | 'advisory' | 'tiered-snake' | 'dynamic-order' 
 
 export interface EventRules {
   revealPolicy: RevealPolicy;
+  /**
+   * Game modes (lib/worldModes keys: 'leagues', 'deadman', …) whose worlds COUNT on this board.
+   * Empty, the default: a kill or drop on any game-mode world is another save's, and the board
+   * ignores it. A clan running its bingo on Leagues names Leagues here, and then only Leagues counts
+   * alongside the main game.
+   */
+  worldModes: string[];
   /** Standings curtain. Default live; see StandingsVisibility. */
   standings: StandingsRule;
   /** 'interval' policy: minutes between draws. */
@@ -331,6 +339,7 @@ export function parseSignupFields(raw: unknown): SignupFields {
 }
 
 export const DEFAULT_EVENT_RULES: EventRules = {
+  worldModes: [],
   signupFields: DEFAULT_SIGNUP_FIELDS,
   monthlyAward: null,
   revealPolicy: 'all',
@@ -492,6 +501,12 @@ const clampInt = (v: unknown, min: number, max: number, fallback: number): numbe
   return Number.isNaN(n) ? fallback : Math.max(min, Math.min(max, n));
 };
 
+/** The counted game modes: valid keys only, each once, bounded. */
+function parseWorldModesRule(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return [...new Set(v.filter(isModeKey))].slice(0, 20);
+}
+
 /** Tolerant parse of the stored `events.rules` JSON. Anything missing/malformed → defaults. */
 export function parseEventRules(raw: string | null | undefined): EventRules {
   if (!raw) return DEFAULT_EVENT_RULES;
@@ -563,6 +578,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     };
   }
   return {
+    worldModes: parseWorldModesRule(obj.worldModes),
     monthlyAward,
     signupFields,
     revealPolicy: policy,
@@ -616,6 +632,11 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     }
     if (st.visibility === 'at-date' && !isoOrNull(st.revealAt)) {
       return { error: 'rules.standings.revealAt must be a date and time when standings are hidden until a date' };
+    }
+  }
+  if (o.worldModes !== undefined && o.worldModes !== null) {
+    if (!Array.isArray(o.worldModes) || !o.worldModes.every(isModeKey)) {
+      return { error: 'rules.worldModes must be a list of game modes' };
     }
   }
   if (o.revealOrder !== undefined && o.revealOrder !== 'random' && o.revealOrder !== 'sequential') {
@@ -765,6 +786,7 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   // Canonicalise through the parser so what we store is exactly what reads produce.
   const canonical = parseEventRules(JSON.stringify(o));
   const isDefault =
+    canonical.worldModes.length === 0 &&
     canonical.revealPolicy === 'all' &&
     canonical.standings.visibility === 'live' &&
     canonical.firstBonus === 0 &&

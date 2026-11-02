@@ -112,3 +112,25 @@ test('marking: label once, the mode art only when the post has none', () => {
   assert.deepEqual(markMode({ title: 'x', thumbnail: { url: 'item' } }, 'Leagues', 'I')?.thumbnail, { url: 'item' });
   assert.equal(markMode(null, 'Deadman', 'I'), null);
 });
+
+test('a board counts only the game modes it names', async () => {
+  const { parseEventRules, validateEventRules, mergeEventRulesPatch } = await import('../src/lib/eventRules.ts');
+  const { worldModeIgnored } = await import('../src/lib/worldModeRequest.ts');
+  assert.deepEqual(parseEventRules(null).worldModes, [], 'default: none count');
+  const saved = validateEventRules({ worldModes: ['leagues', 'leagues', 'deadman'] });
+  assert.ok('rules' in saved && saved.rules);
+  assert.deepEqual(parseEventRules(saved.rules).worldModes, ['leagues', 'deadman']);
+  assert.ok('error' in validateEventRules({ worldModes: ['../x'] }));
+  assert.ok('error' in validateEventRules({ worldModes: 'leagues' }));
+  // Clearing it leaves nothing stored; an unrelated edit keeps it.
+  const cleared = validateEventRules(mergeEventRulesPatch(saved.rules, { worldModes: null }));
+  assert.ok('rules' in cleared && cleared.rules === null);
+  const kept = validateEventRules(mergeEventRulesPatch(saved.rules, { firstBonus: 5 }));
+  assert.ok('rules' in kept && kept.rules);
+  assert.deepEqual(parseEventRules(kept.rules).worldModes, ['leagues', 'deadman']);
+
+  const onLeagues = new Request('http://x', { headers: { 'X-World-Types': 'MEMBERS,SEASONAL' } });
+  assert.equal(worldModeIgnored(onLeagues, ['leagues']), null, 'counted');
+  assert.equal(worldModeIgnored(onLeagues, ['deadman'])?.status, 202, 'another mode: ignored');
+  assert.equal(worldModeIgnored(new Request('http://x'), []), null, 'the main game always counts');
+});
