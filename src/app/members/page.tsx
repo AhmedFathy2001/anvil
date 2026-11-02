@@ -10,6 +10,7 @@ import { requireClan } from '@/lib/clanContext';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { clanSectionMetadata } from '@/lib/seoPages';
 import { getSetting } from '@/lib/settings';
+import { RANK_ORDER_KEY, effectiveRankOrder, parseRankOrder } from '@/lib/rankRules';
 import MembersTabs from './MembersTabs';
 import { getLuckBoards } from '@/lib/clogLuckBoard';
 import { momentsForClan } from '@/lib/momentsStore';
@@ -38,6 +39,14 @@ export default async function MembersPage() {
   const members = await listMembers(clan.id);
   // Guests are listed but not counted, unless this clan says otherwise — see getClanAnalytics.
   const countGuests = (await getSetting(clan.id, 'members_count_guests')) === '1';
+  // The clan's rank ladder (its Roles page order, filled out with the standard titles), so the Rank
+  // column sorts by seniority rather than alphabetically.
+  const rankCounts = new Map<string, number>();
+  for (const m of members) if (m.rank && !m.isGuest) rankCounts.set(m.rank, (rankCounts.get(m.rank) ?? 0) + 1);
+  const rankOrder = effectiveRankOrder(
+    parseRankOrder(await getSetting(clan.id, RANK_ORDER_KEY)),
+    [...rankCounts].map(([rank, count]) => ({ rank, count })),
+  );
   // Analytics reuses the list rather than re-querying it, so the whole page is a handful of
   // statements. The activity read is its own query, but a narrow one — two columns off the roster,
   // where the alternative was every member's full hiscores snapshot.
@@ -68,6 +77,7 @@ export default async function MembersPage() {
         rosterLog={rosterLog}
         activities={activities}
         movement={movement}
+        rankOrder={rankOrder}
         luck={luck}
         lately={
           <MomentsFeed
