@@ -1,145 +1,116 @@
-// "What's the task?" — turn what an admin types into tiles that are already set up to track.
+// "What should players do?" — turn what an admin types into tiles that are already set up to track.
 //
 // The tile editor used to open on a grid of fifteen tile kinds, before the admin had said what the
 // task was. People think "Zenyte shard" or "100 Zulrah", not "drop pool" or "boss KC stat tile", so
 // a first board was mostly Standard tiles — the kind that never tracks — with real names on them.
 // This answers the question the other way round: type the task, pick a suggestion, and the kind and
-// its fields arrive filled in. The kind grid stays in the editor for anything this doesn't cover.
+// its fields arrive filled in.
 //
-// Sources, best first: the clan's own task library and the starter tasks (already fully configured,
-// including raids, pets and diaries), bosses (hiscores kill count), skills (XP gained), then single item drops.
+// The matching itself is pure (lib/taskMatch) and covers every kind; this module only gathers what it
+// searches: the clan's own task library and the starter tasks (already fully configured), the item
+// catalogue, the collection-log pages, and which items a monster drops.
 
-import { BOSSES, SKILLS, SKILL_LABELS, SKILL_ALIASES } from '@/lib/constants';
 import { getItemMapping, isDroppableItem, type MappingItem } from '@/lib/osrsItems';
 import { listLibrary } from '@/lib/tileLibrary';
 import { listAnvilTasks } from '@/lib/libraryTasks';
-import { normalizeSearch } from '@/lib/tileSearch';
 import { rowToTileConfig, splitAmount } from '@/lib/taskSuggestRows';
+import { clogPages, isMonsterDrop } from '@/lib/itemObtain';
+import {
+  classifyMatches,
+  libraryCandidate,
+  matchTasks,
+  parseBulkLine,
+  parseTaskQuery,
+  screenshotCandidate,
+  type LineStatus,
+  type MatchContext,
+  type TaskCandidate,
+} from '@/lib/taskMatch';
 
 export { rowToTileConfig, splitAmount };
-import type { TileConfig } from '@/lib/types';
 
-export interface TaskSuggestion {
-  key: string;
-  source: 'library' | 'boss' | 'skill' | 'item';
-  /** What the tile will be called. */
-  title: string;
-  /** How it counts, in a few words. */
-  hint: string;
-  /** The editor fields this fills in; everything not named keeps the tile's current value. */
-  config: Partial<TileConfig>;
-}
+/** One suggestion: a tile that is already set up to track (see lib/taskMatch TaskCandidate). */
+export type TaskSuggestion = TaskCandidate;
 
-
-function matchesAll(haystack: string, words: string[]): boolean {
-  const h = normalizeSearch(haystack);
-  return words.every((w) => h.includes(w));
-}
-
-function shortNumber(n: number): string {
-  if (n >= 1_000_000 && n % 100_000 === 0) return `${n / 1_000_000}M`;
-  if (n >= 1_000 && n % 100 === 0) return `${n / 1_000}k`;
-  return n.toLocaleString('en-US');
-}
-
-
-export async function suggestTasks(clanId: number, query: string): Promise<TaskSuggestion[]> {
-  const { amount, rest } = splitAmount(query);
-  const words = normalizeSearch(rest).split(' ').filter(Boolean);
-  if (words.length === 0 || words.join('').length < 2) return [];
-
-  const [library, anvil, items] = await Promise.all([
+/** Everything the matcher searches, for one clan. */
+async function contextFor(clanId: number): Promise<MatchContext> {
+  const [library, anvil, mapping] = await Promise.all([
     listLibrary(clanId),
     listAnvilTasks(),
     getItemMapping().catch(() => [] as MappingItem[]),
   ]);
   const byName = new Map<string, MappingItem>();
-  for (const it of items) if (!byName.has(it.name.toLowerCase())) byName.set(it.name.toLowerCase(), it);
-
-  const out: TaskSuggestion[] = [];
+  for (const it of mapping) if (!byName.has(it.name.toLowerCase())) byName.set(it.name.toLowerCase(), it);
 
   // The clan's own library first, then every Anvil task they haven't imported — so the box is useful
   // on a brand-new clan's first board too.
   const taken = new Set(library.map((t) => t.seedKey).filter(Boolean));
-  const pool = [
-    ...library.map((t) => ({ id: `library-${t.id}`, label: t.label, category: t.category, points: t.points, config: t.config })),
+  const rows = [
+    ...library.map((t) => ({ key: `library-${t.id}`, label: t.label, category: t.category ?? null, points: t.points ?? null, config: t.config })),
     ...anvil
       .filter((t) => !taken.has(t.key) && !library.some((l) => l.sourceTaskId === t.id))
-      .map((t) => ({ id: `anvil-${t.id}`, label: t.label, category: t.category, points: t.points, config: t.config })),
+      .map((t) => ({ key: `anvil-${t.id}`, label: t.label, category: t.category ?? null, points: t.points ?? null, config: t.config })),
   ];
-  for (const t of pool) {
-    if (out.length >= 5) break;
-    if (!matchesAll(`${t.label} ${t.category ?? ''}`, words)) continue;
-    const config = rowToTileConfig(t.config, byName);
-    if (!config) continue;
-    out.push({
-      key: t.id,
-      source: 'library',
-      title: t.label,
-      hint: `Ready-made task${t.category ? ` · ${t.category}` : ''}`,
-      config: { ...config, label: t.label, points: t.points, category: t.category },
-    });
+  const resolved: NonNullable<MatchContext['library']> = [];
+  for (const r of rows) {
+    const config = rowToTileConfig(r.config, byName);
+    if (config) resolved.push({ key: r.key, label: r.label, category: r.category, points: r.points, config });
   }
 
-  for (const b of BOSSES) {
-    if (out.filter((s) => s.source === 'boss').length >= 3) break;
-    if (!matchesAll(`${b.label} ${(b.aliases ?? []).join(' ')}`, words)) continue;
-    const goal = amount ?? 25;
-    out.push({
-      key: `boss-${b.key}`,
-      source: 'boss',
-      title: `${goal.toLocaleString('en-US')} ${b.label} kills`,
-      hint: 'Kill count, read off the hiscores — works without the plugin',
-      config: { tileType: 'standard', statType: 'boss', trackedStat: b.key, statGoal: goal, statBasis: 'gain', label: `${goal.toLocaleString('en-US')} ${b.label} kills` },
-    });
+  // One entry per name, preferring the id something actually drops (the mapping lists bank
+  // placeholders and renamed variants under the same name).
+  const items: MappingItem[] = [];
+  const seen = new Map<string, number>();
+  for (const it of mapping) {
+    const k = it.name.toLowerCase();
+    const at = seen.get(k);
+    if (at == null) {
+      seen.set(k, items.length);
+      items.push(it);
+    } else if (!isDroppableItem(items[at]) && isDroppableItem(it)) {
+      items[at] = it;
+    }
   }
 
-  for (const s of SKILLS) {
-    if (s === 'overall' && !words.some((w) => ['total', 'overall', 'xp'].includes(w))) continue;
-    const name = SKILL_LABELS[s] ?? s;
-    if (!matchesAll(`${name} ${(SKILL_ALIASES[s] ?? []).join(' ')} xp`, words)) continue;
-    if (out.filter((x) => x.source === 'skill').length >= 2) break;
-    const goal = amount ?? 1_000_000;
-    const label = `${shortNumber(goal)} ${s === 'overall' ? 'total' : name} XP`;
-    out.push({
-      key: `skill-${s}`,
-      source: 'skill',
-      title: label,
-      hint: 'XP gained during the event, read off the hiscores',
-      config: { tileType: 'standard', statType: 'skill', trackedStat: s, statGoal: goal, statBasis: 'gain', label },
-    });
-  }
+  return { items, library: resolved, clogPages: clogPages(), itemIsMonsterDrop: isMonsterDrop };
+}
 
-  const want = words.join(' ');
-  const itemHits = items
-    .filter((it) => matchesAll(it.name, words) && isDroppableItem(it))
-    .sort((a, b) => {
-      const an = normalizeSearch(a.name);
-      const bn = normalizeSearch(b.name);
-      return (an === want ? 0 : an.startsWith(want) ? 1 : 2) - (bn === want ? 0 : bn.startsWith(want) ? 1 : 2) || an.length - bn.length;
-    })
-    .filter((it, i, arr) => arr.findIndex((o) => o.name === it.name) === i)
-    .slice(0, 5);
-  // A ready-made task for the same item already says it better ("Zenyte shard" twice was noise).
-  const offered = new Set(out.map((o) => normalizeSearch(o.title)));
-  for (const it of itemHits) {
-    if (amount == null && offered.has(normalizeSearch(it.name))) continue;
-    const n = amount ?? 1;
-    const label = n > 1 ? `${n.toLocaleString('en-US')} × ${it.name}` : it.name;
-    out.push({
-      key: `item-${it.id}`,
-      source: 'item',
-      title: label,
-      hint: 'Drop — the plugin spots it when it lands',
-      config: { tileType: 'drop', trackedItemIds: [it.id], itemRequirements: null, requiredAmount: n, statType: null, trackedStat: null, statGoal: null, targetNpcs: null, label },
-    });
-  }
+export async function suggestTasks(clanId: number, query: string): Promise<TaskSuggestion[]> {
+  const q = parseTaskQuery(query);
+  if (q.text.replace(/[^a-z0-9]/gi, '').length < 2) return [];
+  return matchTasks(query, await contextFor(clanId));
+}
 
-  // A typed amount ("100 zulrah") is honoured by the boss, skill and item suggestions, not by a
-  // ready-made task with its own fixed number — so those go first when there is one.
-  if (amount != null) {
-    const rank: Record<TaskSuggestion['source'], number> = { boss: 0, skill: 0, item: 1, library: 2 };
-    out.sort((a, b) => rank[a.source] - rank[b.source]);
-  }
-  return out.slice(0, 12);
+export interface BulkLineResult {
+  line: string;
+  text: string;
+  points: number | null;
+  status: LineStatus;
+  /** The tile this line becomes when it's ready, or the options when it isn't. */
+  choices: TaskSuggestion[];
+  /** What a "screenshot" line becomes — always available as the last resort. */
+  fallback: TaskSuggestion;
+}
+
+/** "Quick add: paste your list" — every line through the same matcher, with a verdict per line. */
+export async function suggestBulk(clanId: number, lines: string[]): Promise<BulkLineResult[]> {
+  const ctx = await contextFor(clanId);
+  return lines.map((line) => {
+    const { text, points } = parseBulkLine(line);
+    const verdict = classifyMatches(matchTasks(text, ctx));
+    return { line, text, points, status: verdict.status, choices: verdict.choices, fallback: screenshotCandidate(text) };
+  });
+}
+
+/** A few tasks off the clan's past boards (its library), for the creator's start screen. */
+export async function starterTasks(clanId: number, limit = 6): Promise<TaskSuggestion[]> {
+  const ctx = await contextFor(clanId);
+  const own = (ctx.library ?? []).filter((t) => t.key.startsWith('library-'));
+  const pool = own.length > 0 ? own : ctx.library ?? [];
+  return pool.slice(0, 40)
+    // Spread across kinds rather than six drop tiles in a row.
+    .sort((a, b) => (a.config.tileType ?? '').localeCompare(b.config.tileType ?? ''))
+    .filter((t, i, arr) => arr.findIndex((o) => o.config.tileType === t.config.tileType) === i || i % 3 === 0)
+    .slice(0, limit)
+    .map(libraryCandidate);
 }
