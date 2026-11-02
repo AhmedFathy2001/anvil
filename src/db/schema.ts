@@ -1312,8 +1312,9 @@ export const users = pgTable('users', {
   // Extra credentials for the same person live in `plugin_links` — device links, and the tokens
   // inherited from separate instances at import. They resolve to the same person, and are meant to
   // be retired once that person's client has been handed this one.
-  // RETIRED (0166): always null now. Tokens are stored only as pluginTokenHash. Kept as a column so an
-  // older blue-green slot mid-switch still has somewhere to write; dropping it is a later contract.
+  // RETIRED: never written or read any more — tokens live only as pluginTokenHash. Rows from before
+  // still hold a plain value until the follow-up erase migration (shipped one release after 0166, so
+  // the older slot mid-switch is already hash-only). Dropping the column is a later contract.
   pluginToken: text('plugin_token'),
   // SHA-256 (hex) of the person's account token — what a request is looked up by. A token is a
   // password: stored in the clear, a database or backup leak handed out every account's plugin access.
@@ -1860,7 +1861,7 @@ export const accountPluginSeen = pgTable('account_plugin_seen', {
 export const pluginLinks = pgTable('plugin_links', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  // RETIRED (0166): always null; see users.pluginToken.
+  // RETIRED: never written (nullable since 0166); old values erased by the follow-up. See users.pluginToken.
   token: text('token'),
   // SHA-256 (hex) of the device token; see users.pluginTokenHash.
   tokenHash: text('token_hash'),
