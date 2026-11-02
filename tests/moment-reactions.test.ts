@@ -101,6 +101,20 @@ test('a reaction can only land on this clan’s own drops', async () => {
   assert.ok(texts(unknown!.ui).includes('Couldn’t react to that.'));
 });
 
+test('someone outside the clan can read a public feed but never GZ it', async () => {
+  const [outsider] = await db.insert(s.players).values({ displayName: 'Outsider' }).returning();
+  await db.insert(s.users).values({ displayName: 'out', discordId: 'disc-out', pluginToken: 'out-token', playerId: outsider.id });
+  await db.insert(s.accounts).values({ playerId: outsider.id, rsn: 'Outsider', rsnNormalized: 'outsider' });
+  const asOut = () => new Request('http://site/api/plugin/ui', { headers: { Authorization: 'Bearer out-token', 'X-RSN': 'Outsider' } });
+  const v = await V.pluginView(asOut(), 'moments', { slug: 'gz-clan' });
+  assert.ok(texts(v!.ui).includes('Pet snakeling · pet'));
+  assert.ok(!JSON.stringify(v!.ui).includes('"act":"react"'), 'no buttons for an outsider');
+  const before = (await db.select().from(s.momentReactions)).length;
+  const refused = await V.pluginAct(asOut(), 'react', { slug: 'gz-clan', id: String(petId), kind: 'gz' }, {});
+  assert.ok(texts(refused!.ui).includes('Only clanmates can GZ these drops.'));
+  assert.equal((await db.select().from(s.momentReactions)).length, before, 'nothing stored');
+});
+
 test('without a plugin login a public clan’s feed shows, but nothing can be pressed', async () => {
   const v = await V.pluginView(new Request('http://site/api/plugin/ui'), 'moments', { slug: 'gz-clan' });
   assert.ok(texts(v!.ui).includes('Pet snakeling · pet'));

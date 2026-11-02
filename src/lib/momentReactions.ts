@@ -1,11 +1,11 @@
-// Reactions on a clan's moments from the plugin panel's Recent drops: a "GZ" anyone can give, and a
+// Reactions on a clan's moments from the plugin panel's Recent drops: a "GZ" any clanmate can give, and a
 // gold one that is an Anvil Supporter perk. Counts only, never text, so there is nothing to moderate.
 // One of each kind per person per moment; pressing it again takes it back.
 
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanMemberships, momentReactions, moments } from '@/db/schema';
+import { accounts, clanMemberships, momentReactions, moments, users } from '@/db/schema';
 
 export type ReactionKind = 'gz' | 'gold';
 export const REACTION_KINDS: ReactionKind[] = ['gz', 'gold'];
@@ -48,6 +48,22 @@ export async function reactionSummaries(momentIds: number[], viewerUserId: numbe
     out.set(r.momentId, s);
   }
   return out;
+}
+
+/**
+ * Does this login hold a live MEMBER seat in the clan (any of the person's characters)? Reacting is
+ * for clanmates: a public clan's feed can be read by anyone, but a GZ comes from inside.
+ */
+export async function isClanMember(userId: number, clanId: number): Promise<boolean> {
+  // clan-scope: global -- the join pins the seat to this one clan.
+  const [row] = await db
+    .select({ id: clanMemberships.id })
+    .from(users)
+    .innerJoin(accounts, eq(accounts.playerId, users.playerId))
+    .innerJoin(clanMemberships, eq(clanMemberships.accountId, accounts.id))
+    .where(and(eq(users.id, userId), eq(clanMemberships.clanId, clanId), eq(clanMemberships.kind, 'member'), isNull(clanMemberships.leftAt)))
+    .limit(1);
+  return !!row;
 }
 
 /** Is this moment one of this clan's (a member's, not a guest's on some board)? */

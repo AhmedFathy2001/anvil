@@ -27,7 +27,7 @@ import { claimTile, cleanNote, unclaimTile } from '@/lib/tileClaims';
 import { normalizeRsn, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { SUPPORTER_INK, type SupporterTierId, supporterForUser, supporterTiersForRsns } from '@/lib/supporter';
 import { momentsForClan } from '@/lib/momentsStore';
-import { NO_REACTIONS, REACTION_KINDS, momentInClan, reactionSummaries, toggleReaction } from '@/lib/momentReactions';
+import { NO_REACTIONS, REACTION_KINDS, isClanMember, momentInClan, reactionSummaries, toggleReaction } from '@/lib/momentReactions';
 import { FEED_MAX, FEED_STEP, type FeedItem, momentsFeedUi } from './momentsUi';
 
 import { type BoardContext, type BoardState, type BoardTile, STATUSES, type Status, boardRowsUi, boardUi } from './boardUi';
@@ -386,9 +386,10 @@ async function momentsView(request: Request, a: Args, note?: string): Promise<Vi
   const viewer = await verifyPluginTokenUser(request);
   const rows = (await momentsForClan(clan.id, n + 12)).filter((m) => FEED_KINDS.has(m.kind));
   const shown = rows.slice(0, n);
-  const [summaries, supporter] = await Promise.all([
+  const [summaries, supporter, member] = await Promise.all([
     reactionSummaries(shown.map((m) => m.id), viewer?.userId ?? null),
     viewer ? supporterForUser(viewer.userId) : Promise.resolve(null),
+    viewer ? isClanMember(viewer.userId, clan.id) : Promise.resolve(false),
   ]);
   const items: FeedItem[] = shown.map((m) => ({
     id: m.id,
@@ -399,7 +400,7 @@ async function momentsView(request: Request, a: Args, note?: string): Promise<Vi
     at: m.occurredAt,
     ...(summaries.get(m.id) ?? NO_REACTIONS),
   }));
-  const feed = momentsFeedUi(items, { slug: clan.slug, n, more: rows.length > n, canGold: !!supporter, signedIn: !!viewer });
+  const feed = momentsFeedUi(items, { slug: clan.slug, n, more: rows.length > n, canGold: !!supporter, canReact: member });
   return { ui: note ? col([text(note, 'error', { wrap: true }), gap(4), feed]) : feed };
 }
 
@@ -411,6 +412,7 @@ async function reactAct(request: Request, a: Args): Promise<View> {
   if (!viewer || !clan || !id || !kind) return momentsView(request, a, 'Couldn’t react to that.');
   const rl = await rateLimit(request, `plugin-react:${viewer.userId}`, { limit: 40, windowMs: 60_000 });
   if (!rl.ok) return momentsView(request, a, 'Slow down a little — try again in a minute.');
+  if (!(await isClanMember(viewer.userId, clan.id))) return momentsView(request, a, 'Only clanmates can GZ these drops.');
   if (kind === 'gold' && !(await supporterForUser(viewer.userId))) {
     return momentsView(request, a, 'Gold GZs are an Anvil Supporter reaction.');
   }

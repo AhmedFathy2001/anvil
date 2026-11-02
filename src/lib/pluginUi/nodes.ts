@@ -100,6 +100,8 @@ export type Node =
       w?: number;
       /** Gradient stops drawn across the text (Supporter flair); `color` is the fallback. */
       grad?: `#${string}`[];
+      /** The gradient slides along the text (Patron). */
+      move?: boolean;
       /** A player's name: the route gives it their Supporter flair, then drops this. Never sent. */
       who?: string;
     })
@@ -240,7 +242,7 @@ export const nameText = (rsn: string, color: Color = 'white', extra: Partial<Ext
   text(rsn, color, { ...extra, who: rsn });
 
 type TextNode = Extract<Node, { t: 'text' }>;
-type Ink = { color: `#${string}`; grad?: `#${string}`[] };
+type Ink = { color: `#${string}`; grad?: `#${string}`[]; move?: boolean };
 
 function eachChild(n: Node, f: (c: Node) => void): void {
   const any = n as unknown as Record<string, unknown>;
@@ -277,6 +279,7 @@ export function applyFlair(root: Node, ink: (name: string) => Ink | null): Node 
       if (found) {
         t.color = found.color;
         if (found.grad) t.grad = found.grad;
+        if (found.move) t.move = true;
         if (!t.icon) {
           t.icon = { t: 'icon', glyph: 'star', w: 10, h: 10, color: '#ffd35c' };
           t.iconAfter = true;

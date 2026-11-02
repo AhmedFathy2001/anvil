@@ -42,4 +42,6 @@ test('a name with its own icon keeps it (a team swatch is information)', () => {
   assert.equal(boaty.color, SUPPORTER_INK.supporter.color);
   assert.equal((boaty.icon as Extract<Node, { t: 'icon' }>).glyph, 'swatch');
   assert.equal(boaty.grad, undefined, 'the base tier is a solid gold');
+  assert.equal(boaty.move, undefined);
+  assert.equal((applyFlair(nameText('P'), () => SUPPORTER_INK.patron) as Extract<Node, { t: 'text' }>).move, true, 'Patron moves');
 });
