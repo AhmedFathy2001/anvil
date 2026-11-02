@@ -1,4 +1,5 @@
 import type { ComboRule } from '@/lib/combo';
+import type { ProofAttachment } from '@/lib/proofAttachments';
 import type { MissionReward } from '@/lib/eventRules';
 // Canonical shared types used across client components
 
@@ -199,6 +200,8 @@ export interface Submission {
    * counters, which never counts toward (or proves) the tile's own progress.
    */
   goal?: string | null;
+  /** Extra screenshots and links on this proof (lib/proofAttachments), start shots first. */
+  attachments?: ProofAttachment[];
 }
 
 export interface ItemRequirement {

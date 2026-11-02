@@ -35,6 +35,8 @@ import { put, clanMediaKey } from '@/lib/storage';
 import { parseStamp } from '@/lib/dbTime';
 import crypto from 'crypto';
 import { standingsScopeForRequest } from '@/lib/standingsAccess';
+import { parseAttachments } from '@/lib/proofAttachments';
+import { addAttachments, adoptDrafts, attachmentsFor } from '@/lib/proofAttachmentsDb';
 
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
 // 'unverified_counter': credited off an in-game signal nobody has checked yet (lib/gameCounters,
@@ -101,8 +103,10 @@ export async function GET(
   const allPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eId));
   const playerMap = new Map(allPlayers.map((p) => [p.id, p.name]));
 
+  const extras = await attachmentsFor(filtered.map((s) => s.id));
   const result = filtered.map((s) => ({
     ...s,
+    attachments: extras.get(s.id) ?? [],
     uploaderName: s.playerId ? playerMap.get(s.playerId) || 'Unknown' : null,
     creditPlayerName: s.creditPlayerId ? playerMap.get(s.creditPlayerId) || 'Unknown' : null,
   }));
@@ -141,7 +145,7 @@ export async function POST(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId: rawTileId, teamId, amount, imageUrl, note, creditPlayerId, itemId: rawItemId, durationSeconds, coopGroup, coopPartySize, inferred, proof } = await request.json();
+  const { tileId: rawTileId, teamId, amount, imageUrl, note, creditPlayerId, itemId: rawItemId, durationSeconds, coopGroup, coopPartySize, inferred, proof, attachments: rawAttachments } = await request.json();
 
   // CAPPED counter tiles (lib/tileCaps): the plugin config hands out VIRTUAL negative tile ids for a
   // tile's cap counters (slots 1..n). Every plugin build credits them like any kill tile, so they
@@ -166,6 +170,10 @@ export async function POST(
       return NextResponse.json({ error: 'note must be a string of at most 500 characters' }, { status: 400 });
     }
   }
+
+  // Extra screenshots and links (lib/proofAttachments): the web form's before/after, a clip.
+  const extrasParsed = parseAttachments(rawAttachments, isManagedMediaUrl);
+  if (!extrasParsed.ok) return NextResponse.json({ error: extrasParsed.error }, { status: 400 });
 
   // Check auth. Legacy captain/player cookies + plugin bearer token still work; the
   // unified My Team page authenticates via the Discord web session (membership), which is
@@ -642,6 +650,19 @@ export async function POST(
       goal: goalValue,
     })
     .returning();
+
+  // The extras sent with it, and the start screenshot this person saved on the tile before the grind
+  // (a draft) — both ride on this proof. Web only: a plugin token speaks for a character, not a person
+  // with drafts. Never fatal: the credit is in, and a lost extra is a re-upload, not a lost drop.
+  if (!pluginAuth && !isCap) {
+    try {
+      const actor = await verifyUser();
+      await addAttachments({ submissionId: inserted.id, tileId, teamId, userId: actor?.userId ?? null }, extrasParsed.items);
+      if (actor) await adoptDrafts(inserted.id, tileId, teamId, actor.userId);
+    } catch (e) {
+      console.warn('[submissions] attachments not saved', (e as Error).message);
+    }
+  }
 
   // SITE-DRAWN STAMP. A current plugin uploads the clean frame and says what the banner should read;
   // draw it here, after the insert, so it can carry the proof id. The stamped copy becomes imageUrl,

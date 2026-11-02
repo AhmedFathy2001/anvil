@@ -1148,6 +1148,27 @@ export const submissions = pgTable('submissions', {
   index('submissions_tile_team_idx').on(table.tileId, table.teamId),
 ]);
 
+// More proof on one submission: extra screenshots and links (lib/proofAttachments). `imageUrl` on the
+// submission stays THE proof every view and Discord post shows; these ride along for the reviewer —
+// a starting counter and an ending one, a second angle, a clip. A row with no submission yet is a
+// DRAFT: a player saved their starting screenshot on a tile before the grind, and it moves onto the
+// submission they send at the end (same tile, team and person). Web only; the plugin sends one frame.
+export const submissionAttachments = pgTable('submission_attachments', {
+  id: serial('id').primaryKey(),
+  submissionId: integer('submission_id').references(() => submissions.id, { onDelete: 'cascade' }),
+  tileId: integer('tile_id').notNull().references(() => tiles.id, { onDelete: 'cascade' }),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  // Who added it. A draft belongs to this person alone.
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  kind: text('kind').notNull(), // 'image' | 'link'
+  url: text('url').notNull(),
+  label: text('label'), // 'start' | 'end' | null
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  index('submission_attachments_submission_idx').on(table.submissionId),
+  index('submission_attachments_draft_idx').on(table.tileId, table.teamId, table.userId),
+]);
+
 // Per-clan configuration.
 //
 // The key is unique only WITHIN a clan, so the primary key is the pair. That single change is what

@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { eventParticipants, submissions, teams, tiles } from '@/db/schema';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { eventForRequest } from '@/lib/eventScope';
+import { attachmentsFor } from '@/lib/proofAttachmentsDb';
 import { PROOF_FEED_PAGE_SIZE, parseProofFeedQuery } from '@/lib/proofFeedQuery';
 
 /**
@@ -87,9 +88,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   const teamName = new Map(teamRows.map((t) => [t.id, t.name]));
   const playerName = new Map(playerRows.map((p) => [p.id, p.name]));
 
+  const extras = await attachmentsFor(rows.map((r) => r.id));
   return NextResponse.json({
     rows: rows.map((r) => ({
       ...r,
+      attachments: extras.get(r.id) ?? [],
       tileLabel: tileLabel.get(r.tileId) ?? 'Tile',
       teamName: teamName.get(r.teamId) ?? 'Team',
       playerName:

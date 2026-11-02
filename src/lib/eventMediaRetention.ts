@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { db } from '@/db';
-import { eventSignups, eventStartProofs, events, payouts, signupFees, submissions, tiles } from '@/db/schema';
+import { eventSignups, eventStartProofs, events, payouts, signupFees, submissionAttachments, submissions, tiles } from '@/db/schema';
 import { del, isManagedMediaUrl } from '@/lib/storage';
 import { log } from '@/lib/logger';
 import { EXPIRED_PROOF_URL, effectivePurgeAt, isPurgeDue } from '@/lib/eventMediaRetentionRules';
@@ -26,6 +26,8 @@ export interface EventMediaUrls {
   fees: { id: number; url: string }[];
   payouts: { id: number; url: string }[];
   startProofs: { id: number; url: string }[];
+  /** Extra screenshots on proofs and saved start shots (lib/proofAttachments); links are not files. */
+  attachments: { id: number; url: string }[];
 }
 
 const isStored = (u: string | null): u is string => !!u && u !== EXPIRED_PROOF_URL;
@@ -33,7 +35,7 @@ const isStored = (u: string | null): u is string => !!u && u !== EXPIRED_PROOF_U
 /** Every stored image an event holds, by where it is referenced. Already-expired URLs are skipped. */
 export async function eventMediaUrls(eventId: number): Promise<EventMediaUrls> {
   // clan-scope: global -- one event's own rows, by id; the caller settled which event.
-  const [subs, fees, pays, starts] = await Promise.all([
+  const [subs, fees, pays, starts, extras] = await Promise.all([
     db
       .select({ id: submissions.id, url: submissions.imageUrl })
       .from(submissions)
@@ -52,17 +54,22 @@ export async function eventMediaUrls(eventId: number): Promise<EventMediaUrls> {
       .select({ id: eventStartProofs.id, url: eventStartProofs.imageUrl })
       .from(eventStartProofs)
       .where(eq(eventStartProofs.eventId, eventId)),
+    db
+      .select({ id: submissionAttachments.id, url: submissionAttachments.url })
+      .from(submissionAttachments)
+      .innerJoin(tiles, eq(tiles.id, submissionAttachments.tileId))
+      .where(and(eq(tiles.eventId, eventId), eq(submissionAttachments.kind, 'image'))),
   ]);
   const keep = <T extends { url: string | null }>(rows: T[]) =>
     rows.filter((r): r is T & { url: string } => isStored(r.url));
-  return { submissions: keep(subs), fees: keep(fees), payouts: keep(pays), startProofs: keep(starts) };
+  return { submissions: keep(subs), fees: keep(fees), payouts: keep(pays), startProofs: keep(starts), attachments: keep(extras) };
 }
 
 export interface PurgeResult {
   eventId: number;
   eventName: string;
   files: number;
-  bySource: { submissions: number; fees: number; payouts: number; startProofs: number };
+  bySource: { submissions: number; fees: number; payouts: number; startProofs: number; attachments: number };
   dryRun: boolean;
 }
 
@@ -81,8 +88,9 @@ export async function purgeEventMedia(eventId: number, opts: { dryRun?: boolean 
     fees: media.fees.length,
     payouts: media.payouts.length,
     startProofs: media.startProofs.length,
+    attachments: media.attachments.length,
   };
-  const files = bySource.submissions + bySource.fees + bySource.payouts + bySource.startProofs;
+  const files = bySource.submissions + bySource.fees + bySource.payouts + bySource.startProofs + bySource.attachments;
   if (opts.dryRun) return { eventId, eventName: event.name, files, bySource, dryRun: true };
 
   const ids = (rows: { id: number }[]) => rows.map((r) => r.id);
@@ -102,11 +110,17 @@ export async function purgeEventMedia(eventId: number, opts: { dryRun?: boolean 
         .set({ imageUrl: EXPIRED_PROOF_URL })
         .where(inArray(eventStartProofs.id, ids(media.startProofs)));
     }
+    if (media.attachments.length) {
+      await tx
+        .update(submissionAttachments)
+        .set({ url: EXPIRED_PROOF_URL })
+        .where(inArray(submissionAttachments.id, ids(media.attachments)));
+    }
     await tx.update(events).set({ mediaPurgedAt: new Date().toISOString() }).where(eq(events.id, eventId));
   });
 
   // Only files we stored ourselves: an external link someone pasted is not ours to delete.
-  const urls = [...media.submissions, ...media.fees, ...media.payouts, ...media.startProofs]
+  const urls = [...media.submissions, ...media.fees, ...media.payouts, ...media.startProofs, ...media.attachments]
     .map((r) => r.url)
     .filter((u) => isManagedMediaUrl(u));
   for (let i = 0; i < urls.length; i += 100) {
