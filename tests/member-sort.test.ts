@@ -40,3 +40,26 @@ test('names go A→Z first, then Z→A', () => {
   assert.deepEqual(names('name', false), ['alpha', 'bravo', 'charlie', 'delta']);
   assert.deepEqual(names('name', true), ['delta', 'charlie', 'bravo', 'alpha']);
 });
+
+test('in-game rank numbers order custom titles exactly; titles without one follow the ladder', async () => {
+  const { rankNumbersFrom, rankOrderWithNumbers, parseRankNumbers } = await import('../src/lib/rankRules.ts');
+  const numbers = rankNumbersFrom([
+    { rank: 'Commander', rankNum: 90 },
+    { rank: 'Officer', rankNum: 40 },
+    { rank: 'Recruit', rankNum: 0 },
+    { rank: 'Deputy_Owner', rankNum: 125 },
+    { rank: 'Imp', rankNum: 999 }, // out of range: ignored
+    { rank: 'Marshal' }, // an older plugin: no number
+  ]);
+  assert.deepEqual(numbers, { commander: 90, officer: 40, recruit: 0, 'deputy owner': 125 });
+  assert.deepEqual(parseRankNumbers(JSON.stringify(numbers)), numbers);
+  assert.deepEqual(
+    rankOrderWithNumbers(numbers, ['owner', 'deputy owner', 'recruit', 'marshal']),
+    ['deputy owner', 'commander', 'officer', 'recruit', 'owner', 'marshal'],
+  );
+  const sorted = sortMembers(
+    [row(1, 'a', { rank: 'Recruit' }), row(2, 'b', { rank: 'Officer' }), row(3, 'c', { rank: 'Commander' })],
+    { key: 'rank', desc: true, movement: {}, rankOrder: rankOrderWithNumbers(numbers, []) },
+  ).map((r) => r.rsn);
+  assert.deepEqual(sorted, ['c', 'b', 'a']);
+});

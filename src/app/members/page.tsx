@@ -10,7 +10,7 @@ import { requireClan } from '@/lib/clanContext';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { clanSectionMetadata } from '@/lib/seoPages';
 import { getSetting } from '@/lib/settings';
-import { RANK_ORDER_KEY, effectiveRankOrder, parseRankOrder } from '@/lib/rankRules';
+import { RANK_NUMBERS_KEY, RANK_ORDER_KEY, effectiveRankOrder, parseRankNumbers, parseRankOrder, rankOrderWithNumbers } from '@/lib/rankRules';
 import MembersTabs from './MembersTabs';
 import { getLuckBoards } from '@/lib/clogLuckBoard';
 import { momentsForClan } from '@/lib/momentsStore';
@@ -39,13 +39,17 @@ export default async function MembersPage() {
   const members = await listMembers(clan.id);
   // Guests are listed but not counted, unless this clan says otherwise — see getClanAnalytics.
   const countGuests = (await getSetting(clan.id, 'members_count_guests')) === '1';
-  // The clan's rank ladder (its Roles page order, filled out with the standard titles), so the Rank
-  // column sorts by seniority rather than alphabetically.
+  // Rank sorts by seniority, not alphabetically.
   const rankCounts = new Map<string, number>();
   for (const m of members) if (m.rank && !m.isGuest) rankCounts.set(m.rank, (rankCounts.get(m.rank) ?? 0) + 1);
-  const rankOrder = effectiveRankOrder(
-    parseRankOrder(await getSetting(clan.id, RANK_ORDER_KEY)),
-    [...rankCounts].map(([rank, count]) => ({ rank, count })),
+  // The game's own order where the plugin has reported rank numbers (custom titles included); the
+  // ladder for anything it hasn't.
+  const rankOrder = rankOrderWithNumbers(
+    parseRankNumbers(await getSetting(clan.id, RANK_NUMBERS_KEY)),
+    effectiveRankOrder(
+      parseRankOrder(await getSetting(clan.id, RANK_ORDER_KEY)),
+      [...rankCounts].map(([rank, count]) => ({ rank, count })),
+    ),
   );
   // Analytics reuses the list rather than re-querying it, so the whole page is a handful of
   // statements. The activity read is its own query, but a narrow one — two columns off the roster,
