@@ -22,7 +22,7 @@ interface ModeRow {
 }
 
 interface View {
-  modes: { split: boolean; kinds: { id: string; label: string }[]; rows: ModeRow[] };
+  modes: { split: boolean; kinds: { id: string; label: string; event: boolean }[]; rows: ModeRow[] };
   feeds: DiscordFeed[];
   catchAlls: { site: string; game: string };
   keys: Record<string, { set: boolean; channelId: string | null }>;
@@ -226,20 +226,32 @@ export default function DiscordFeedsPanel({ filters }: { filters?: Partial<Recor
               </div>
               {pasteRow(m.hookKey, m.label)}
               {open === m.id && (
-                <div className="grid gap-2 border-t border-card-border-soft bg-brown-light px-5 py-4 sm:grid-cols-2">
-                  {kinds.map((k) => (
-                    <Checkbox
-                      key={k.id}
-                      checked={!m.kindsOff.includes(k.id)}
-                      disabled={busy !== null}
-                      onChange={(on) =>
-                        void put(m.id, {
-                          mode: m.key,
-                          kindsOff: on ? m.kindsOff.filter((x) => x !== k.id) : [...m.kindsOff, k.id],
-                        })
-                      }
-                      label={k.label}
-                    />
+                <div className="space-y-4 border-t border-card-border-soft bg-brown-light px-5 py-4">
+                  {[
+                    { event: false, title: 'The usual posts' },
+                    { event: true, title: `${m.label}'s own events` },
+                  ].map((group) => (
+                    <div key={group.title}>
+                      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">{group.title}</div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {kinds
+                          .filter((k) => k.event === group.event)
+                          .map((k) => (
+                            <Checkbox
+                              key={k.id}
+                              checked={!m.kindsOff.includes(k.id)}
+                              disabled={busy !== null}
+                              onChange={(on) =>
+                                void put(m.id, {
+                                  mode: m.key,
+                                  kindsOff: on ? m.kindsOff.filter((x) => x !== k.id) : [...m.kindsOff, k.id],
+                                })
+                              }
+                              label={k.label}
+                            />
+                          ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}

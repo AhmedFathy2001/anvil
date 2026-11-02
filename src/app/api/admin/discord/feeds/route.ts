@@ -19,7 +19,8 @@ import {
   modeWebhookKey,
   parseStringList,
 } from '@/lib/worldModes';
-import { clanModeRows, splitIsOn } from '@/lib/worldModeStore';
+import { clanModeRows, modeKindsOff, splitIsOn } from '@/lib/worldModeStore';
+import { MODE_EVENT_KINDS } from '@/lib/modeLines';
 
 /**
  * "What goes where" on Admin → Discord (lib/discordFeeds): every feed with the channel it posts to
@@ -52,7 +53,11 @@ async function webhookChannelId(url: string): Promise<string | null> {
 const CATCH_ALLS = [SITE_CATCH_ALL, GAME_CATCH_ALL];
 
 /** The in-game kinds a game mode can switch off one by one: the game tab's feeds. */
-const MODE_KINDS = DISCORD_FEEDS.filter((f) => f.tab === 'game').map((f) => ({ id: f.id, label: f.label }));
+// Then the mode's own events (lib/modeLines): relics, areas, pacts, tasks…
+const MODE_KINDS = [
+  ...DISCORD_FEEDS.filter((f) => f.tab === 'game').map((f) => ({ id: f.id, label: f.label, event: false })),
+  ...MODE_EVENT_KINDS.map((k) => ({ id: k.id, label: k.label, event: true })),
+];
 const MODE_KIND_IDS = new Set(MODE_KINDS.map((k) => k.id));
 
 async function view(clanId: number) {
@@ -95,7 +100,9 @@ async function view(clanId: number) {
         hookKey: modeWebhookKey(m.key),
         off: modesOff.has(m.key),
         ownChannelIgnored: m.key === 'leagues' && legacyLeaguesOff,
-        kindsOff: parseStringList(map.get(modeKindsOffKey(m.key))).filter((k) => MODE_KIND_IDS.has(k)),
+        kindsOff: modeKindsOff(map.has(modeKindsOffKey(m.key)) ? map.get(modeKindsOffKey(m.key)) : undefined).filter((k) =>
+          MODE_KIND_IDS.has(k),
+        ),
       })),
     },
     feeds: DISCORD_FEEDS,

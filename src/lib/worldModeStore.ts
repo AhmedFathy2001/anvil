@@ -3,6 +3,7 @@ import { absoluteAssetUrl } from '@/lib/seo';
 import { proxyWikiUrl } from '@/lib/assetUrls';
 import { leaguesIconUrl } from '@/lib/leagues';
 import { log } from '@/lib/logger';
+import { DEFAULT_MODE_KINDS_OFF } from '@/lib/modeLines';
 import { getSetting, getSettingMap, setSetting } from '@/lib/settings';
 import {
   WORLD_MODES,
@@ -18,6 +19,14 @@ import {
   type ModeRouting,
   type WorldMode,
 } from '@/lib/worldModes';
+
+/**
+ * The kinds a mode drops. A clan that never touched the list gets the defaults (easy tasks off,
+ * lib/modeLines); once it saves a list, that list is the whole answer.
+ */
+export function modeKindsOff(raw: string | null | undefined): string[] {
+  return raw === undefined ? [...DEFAULT_MODE_KINDS_OFF] : parseStringList(raw);
+}
 
 /** The master switch reads as on unless the clan turned it off. */
 export function splitIsOn(raw: string | null | undefined): boolean {
@@ -43,7 +52,7 @@ export async function getModeRouting(
   return {
     split: splitIsOn(map.get(WORLD_MODES_SPLIT_KEY)),
     modeOff: parseStringList(map.get(WORLD_MODES_OFF_KEY)).includes(modeKey),
-    kindsOff: new Set(parseStringList(map.get(kindsKey))),
+    kindsOff: new Set(modeKindsOff(map.has(kindsKey) ? map.get(kindsKey) : undefined)),
     modeHook,
   };
 }
