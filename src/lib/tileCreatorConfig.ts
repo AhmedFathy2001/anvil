@@ -367,6 +367,10 @@ export function howItCountsLine(config: Partial<TileConfig>): { engine: CountEng
     case 'diary':
     case 'ca':
       return { engine: 'plugin', text: 'Counts by itself off the completion message in chat.' };
+    case 'clog':
+      return config.countMode === 'complete'
+        ? { engine: 'plugin', text: 'Read off each player’s synced collection log; finished pages need a screenshot (open the page in game with the plugin running).' }
+        : { engine: 'plugin', text: 'Counts by itself off the game’s “New item added to your collection log” message — only first-time unlocks.' };
     case 'deathless':
       return { engine: 'plugin', text: 'Counts by itself: the plugin watches for deaths in the raid.' };
     case 'lms':
@@ -437,7 +441,7 @@ export const KIND_FIELDS_NULL = {
 /** Kinds where "as a team" vs "one player alone" means something (the full editor shows the toggle). */
 export function supportsTrackingMode(config: Partial<TileConfig>): boolean {
   const kind = configKind(config);
-  return ['skill', 'boss', 'kill', 'lap', 'pvp', 'diary', 'ca', 'gain'].includes(kind);
+  return ['skill', 'boss', 'kill', 'lap', 'pvp', 'diary', 'ca', 'gain', 'clog'].includes(kind);
 }
 
 /**

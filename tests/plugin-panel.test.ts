@@ -165,3 +165,15 @@ test('a one-of-several-sets tile names its closest set, and the set the last pie
   assert.equal(rows[0].current, 3);
   assert.equal(rows[0].sets, "Guthan's 3/4 · last Dharok's 2/4");
 });
+
+test('collection-log tiles get a row: new slots toward the goal, done when the site says so', () => {
+  const base = { label: 'Clog', points: 1, position: 0, description: null };
+  const rows = panelTiles({
+    completedTiles: [{ tileId: 2 }],
+    trackedClog: [
+      { ...base, tileId: 1, currentAmount: 3, requiredAmount: 10, completed: false },
+      { ...base, tileId: 2, currentAmount: 1, requiredAmount: 1, completed: true },
+    ],
+  });
+  assert.deepEqual(rows.map((r) => [r.tileId, r.current, r.goal, r.complete]), [[1, 3, 10, false], [2, 1, 1, true]]);
+});
