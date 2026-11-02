@@ -150,6 +150,7 @@ export async function GET(request: Request) {
         trackedDeathless: [],
         trackedDiaries: [],
         trackedCombatTasks: [],
+        trackedClog: [],
         noActiveEvent: true,
         rollTables: pluginRollTables,
         schedule,

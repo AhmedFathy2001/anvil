@@ -11,6 +11,8 @@ import { isIndividualMode } from '@/lib/statTracking';
 import { parseJsonArray } from '@/lib/tileKinds';
 import { evaluateCollection, type CollectionRequirement } from '@/lib/collectionSets';
 import { altProgress, parseAltGoal, ALT_GOAL_KEY, type AltGoal } from '@/lib/altGoal';
+import { clogTileSpec } from '@/lib/clogTiles';
+import { clogPagesProgress } from '@/lib/clogTileCredit';
 
 /**
  * A team's progress on one submission-backed count tile, under that tile's tracking mode
@@ -221,6 +223,22 @@ export async function syncDropTileCompletion(
     finisherPlayerId = progress.finisherPlayerId;
     isComplete = totalAmount >= tile.requiredAmount;
     soloShortfall = !isComplete && progress.teamTotal >= tile.requiredAmount;
+  } else if (tile.tileType === 'clog') {
+    // Collection-log tiles (lib/clogTiles). New slots: distinct (member, item) credits, summed for a
+    // Team tile, best member on a Solo one. Whole pages: each member's own log, read now.
+    const spec = clogTileSpec(tile);
+    if (spec.mode === 'complete') {
+      const pages = await clogPagesProgress(tile, teamId);
+      totalAmount = pages.current;
+      finisherPlayerId = pages.finisherPlayerId;
+      isComplete = pages.complete;
+    } else {
+      const progress = await countTileProgress(tileId, teamId, tile.trackingMode, { countMode: 'slots' });
+      totalAmount = progress.current;
+      finisherPlayerId = progress.finisherPlayerId;
+      isComplete = totalAmount >= spec.required;
+      soloShortfall = !isComplete && progress.teamTotal >= spec.required;
+    }
   } else if (tile.tileType === 'drop' && tile.requiredAmount) {
     // Simple drop pool (no per-item requirements — collections are handled by the branch above).
     // Drop tiles have no Team/Solo toggle in the editor, so this is always the team sum; it goes

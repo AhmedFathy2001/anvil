@@ -72,7 +72,11 @@ export function countProgress(
 ): CountProgress {
   // Alt-goal rows (lib/altGoal) are a different goal entirely: 100 searches are not 100 items.
   const primary = subsIn.filter(isPrimaryCredit);
-  const subs = countMode === 'distinct' ? distinctOnly(primary, isIndividualMode(trackingMode)) : primary;
+  // 'slots' (collection-log tiles, lib/clogTiles): a slot is (member, item), so it is distinct PER
+  // MEMBER on a Team tile too — a teammate unlocking the same item is a new slot for them.
+  const subs = countMode === 'distinct'
+    ? distinctOnly(primary, isIndividualMode(trackingMode))
+    : countMode === 'slots' ? distinctOnly(primary, true) : primary;
   const teamTotal = subs.reduce((sum, s) => sum + s.amount, 0);
   if (!isIndividualMode(trackingMode)) {
     return { current: teamTotal, finisherPlayerId: null, teamTotal };
@@ -105,7 +109,7 @@ export function countProgress(
  */
 export function memberProgress(subsIn: CountedSubmission[], playerId: number | null, countMode?: string | null): number {
   const primary = subsIn.filter(isPrimaryCredit);
-  const subs = countMode === 'distinct' ? distinctOnly(primary, true) : primary;
+  const subs = countMode === 'distinct' || countMode === 'slots' ? distinctOnly(primary, true) : primary;
   const key = playerId ?? UNATTRIBUTED_CREDIT;
   return subs.reduce((sum, s) => (submissionCreditKey(s) === key ? sum + s.amount : sum), 0);
 }
