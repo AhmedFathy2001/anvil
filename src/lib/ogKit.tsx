@@ -847,15 +847,20 @@ export async function cachedCard(
   // which case its answer may be the very thing that was forgotten.
   const running = routeInFlight.get(path);
   let pending = running && running.since === forgetTick ? running.done : undefined;
+  if (!pending && missLimit) {
+    // The budget first, BEFORE the cap check below: an await between that check and `loading++`
+    // would let concurrent misses all pass it and overshoot MAX_LOADING.
+    const rl = await rateLimit(missLimit.request, `og-miss:${missLimit.scope}`, {
+      limit: missLimit.limit ?? 30,
+      windowMs: 60_000,
+    });
+    if (!rl.ok) return busy();
+    // Someone may have started this very load while we waited; join it.
+    const started = routeInFlight.get(path);
+    if (started && started.since === forgetTick) pending = started.done;
+  }
   if (!pending) {
     if (loading >= MAX_LOADING) return busy();
-    if (missLimit) {
-      const rl = await rateLimit(missLimit.request, `og-miss:${missLimit.scope}`, {
-        limit: missLimit.limit ?? 30,
-        windowMs: 60_000,
-      });
-      if (!rl.ok) return busy();
-    }
     loading++;
     const started = generation;
     const since = forgetTick;
