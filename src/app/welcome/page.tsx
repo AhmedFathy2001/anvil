@@ -6,6 +6,7 @@ import { accounts, users } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { onboardingState } from '@/lib/onboarding';
 import { clansOfPerson } from '@/lib/myClans';
+import { onboardingNext } from '@/lib/firstLogin';
 import WelcomeClient from './WelcomeClient';
 
 export const dynamic = 'force-dynamic';
@@ -21,9 +22,16 @@ export const dynamic = 'force-dynamic';
  * back a month later to finish setting up, should be able to type it. Its state is derived from
  * facts (lib/onboarding), so arriving mid-way shows exactly what is left rather than starting over.
  */
-export default async function WelcomePage() {
+export default async function WelcomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[] }>;
+}) {
+  // Where they were heading when they signed in for the first time (lib/firstLogin). Offered as a
+  // way out of the flow at every step, and where finishing lands.
+  const next = onboardingNext((await searchParams).next);
   const session = await verifyUser();
-  if (!session?.userId) redirect('/login?return=%2Fwelcome');
+  if (!session?.userId) redirect(`/login?return=${encodeURIComponent(next ? `/welcome?next=${encodeURIComponent(next)}` : '/welcome')}`);
 
   const [state, user, myClans, characters] = await Promise.all([
     onboardingState(session.userId, session.playerId),
@@ -41,7 +49,7 @@ export default async function WelcomePage() {
   // send them where the flow would have ended. The bare path is the person page, which spans their
   // clans rather than being any one clan's locker — the right destination for somebody who has just
   // finished setting up across all of them.
-  if (state.completedAt) redirect('/profile'); // clan-prefix: platform -- apex-only page
+  if (state.completedAt) redirect(next ?? '/profile'); // clan-prefix: platform -- apex-only page
 
   return (
     <WelcomeClient
@@ -50,6 +58,7 @@ export default async function WelcomePage() {
       discordUsername={user?.discordUsername ?? null}
       clans={myClans.map((c) => ({ slug: c.slug, name: c.name }))}
       characters={characters.map((a) => a.rsn)}
+      next={next}
     />
   );
 }

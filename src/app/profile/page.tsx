@@ -28,6 +28,7 @@ import SecurityDrawer from './SecurityDrawer';
 import { emissionSettingsView } from '@/lib/emissionSettings';
 import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
+import { onboardingNext } from '@/lib/firstLogin';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +45,7 @@ export const dynamic = 'force-dynamic';
 export default async function ProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ welcome?: string; connect?: string; account?: string }>;
+  searchParams: Promise<{ welcome?: string; connect?: string; account?: string; next?: string }>;
 }) {
   // NOT requireClan(). This page is the person's, and a person has no clan on the apex — so the one
   // surface the identity model insists follows you between clans answered 404 there, and a signed-in
@@ -128,10 +129,14 @@ export default async function ProfilePage({
   }
 
   const welcome = params.welcome === '1';
+  // A first sign-in from a deep link (lib/firstLogin): offer the way back to it on the connect card.
+  const continueTo = welcome ? onboardingNext(params.next) : null;
   const [locker, clanName] = await Promise.all([
     buildLocker(clan.id, session.playerId, session.userId, new Date(), params.account ?? null),
     getClanDisplayName(clan.id),
   ]);
+  // Nothing left to set up (the plugin got there first): no card to put the link on, so just go.
+  if (continueTo && !locker.setupNeeded) redirect(continueTo); // clan-prefix: platform -- literal path they signed in from
 
   // Quest points, combat achievements and diaries for the account they play most — the primary one,
   // falling back to the first linked. A person with several accounts sees the one this profile is
@@ -266,6 +271,7 @@ export default async function ProfilePage({
           verifiedCount={locker.accounts.filter((a) => a.verified).length}
           detectedCount={detected.length}
           connected={locker.connection.connected}
+          continueTo={continueTo}
         />
       )}
 
