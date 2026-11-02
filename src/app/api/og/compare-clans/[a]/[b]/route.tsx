@@ -8,7 +8,7 @@ import { compareClans } from '@/lib/compare';
 import { ourImageAsDataUrl } from '@/lib/crestImage';
 import { headToHeadValue, headToHeadVerdict, plural } from '@/lib/linkText';
 import { headToHeadCard, siteCard } from '@/lib/ogCard';
-import { cachedCard } from '@/lib/ogKit';
+import { cachedCard, cardParam } from '@/lib/ogKit';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +24,10 @@ async function resolveClan(slug: string) {
 /** /compare/clans's card: two crests facing off, the clan numbers with each leader lit. */
 async function load(_request: Request, { params }: { params: Promise<{ a: string; b: string }> }): Promise<Response> {
   const p = await params;
-  const [a, b] = await Promise.all([resolveClan(decodeURIComponent(p.a)), resolveClan(decodeURIComponent(p.b))]);
+  const slugA = cardParam(p.a, 64);
+  const slugB = cardParam(p.b, 64);
+  if (!slugA || !slugB) return siteCard();
+  const [a, b] = await Promise.all([resolveClan(slugA), resolveClan(slugB)]);
   if (!a || !b) return siteCard();
 
   const [cardA, cardB, logoA, logoB] = await Promise.all([
@@ -48,5 +51,5 @@ async function load(_request: Request, { params }: { params: Promise<{ a: string
 
 export function GET(request: Request, ctx: { params: Promise<{ a: string; b: string }> }) {
   // Keyed by path alone: the card never depends on who is asking.
-  return cachedCard(new URL(request.url).pathname, () => load(request, ctx));
+  return cachedCard(new URL(request.url).pathname, () => load(request, ctx), { request, scope: 'compare-clans' });
 }

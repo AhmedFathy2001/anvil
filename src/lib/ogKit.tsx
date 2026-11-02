@@ -13,6 +13,7 @@ import { ImageResponse } from 'next/og';
 import type { ReactElement, ReactNode } from 'react';
 
 import { getAssetByPath } from '@/lib/assetCache';
+import { rateLimit } from '@/lib/rate-limit';
 import { isAssetPath, proxyWikiUrl } from '@/lib/assetUrls';
 
 /** The palette, lifted from globals.css. */
@@ -820,7 +821,16 @@ let loading = 0;
  *
  * Only for the anonymous card routes: what they return depends on the path alone, never on who asks.
  */
-export async function cachedCard(path: string, load: () => Promise<Response>): Promise<Response> {
+export async function cachedCard(
+  path: string,
+  load: () => Promise<Response>,
+  /**
+   * A per-IP budget for MISSES only. Every distinct path is a fresh load, so a scraper walking made-up
+   * names or ids was bounded only by the global MAX_LOADING — it could keep every slot busy and starve
+   * real unfurls. A cache hit (the same link fetched by Discord in five channels) never spends it.
+   */
+  missLimit?: { request: Request; scope: string; limit?: number },
+): Promise<Response> {
   const hit = routeCache.get(path);
   const answer = (v: { body: Buffer; headers: [string, string][] }) =>
     new Response(new Uint8Array(v.body), { headers: v.headers });
@@ -839,6 +849,13 @@ export async function cachedCard(path: string, load: () => Promise<Response>): P
   let pending = running && running.since === forgetTick ? running.done : undefined;
   if (!pending) {
     if (loading >= MAX_LOADING) return busy();
+    if (missLimit) {
+      const rl = await rateLimit(missLimit.request, `og-miss:${missLimit.scope}`, {
+        limit: missLimit.limit ?? 30,
+        windowMs: 60_000,
+      });
+      if (!rl.ok) return busy();
+    }
     loading++;
     const started = generation;
     const since = forgetTick;
@@ -872,6 +889,29 @@ export async function cachedCard(path: string, load: () => Promise<Response>): P
   // The render queue turned it away inside the load: same preference.
   if (recent && v.headers.some(([k]) => k.toLowerCase() === OVERFLOW_HEADER.toLowerCase())) return answer(recent);
   return answer(v);
+}
+
+/**
+ * A path segment as the card routes read it: URL-decoded, trimmed, and at most `max` characters —
+ * else null. Malformed escapes (`%E0%A4%A`) used to throw out of decodeURIComponent as a 500, and an
+ * unbounded segment was a free lookup key of any size.
+ */
+export function cardParam(raw: string | undefined, max: number): string | null {
+  if (raw == null || raw.length > max * 3 + 16) return null;
+  let v: string;
+  try {
+    v = decodeURIComponent(raw).trim();
+  } catch {
+    return null;
+  }
+  return v.length > 0 && v.length <= max ? v : null;
+}
+
+/** A positive int4 id from a path segment, else null — never NaN, and never past Postgres' int range. */
+export function cardId(raw: string | undefined): number | null {
+  if (raw == null || !/^\d{1,10}$/.test(raw)) return null;
+  const n = Number(raw);
+  return n > 0 && n <= 2_147_483_647 ? n : null;
 }
 
 /**
