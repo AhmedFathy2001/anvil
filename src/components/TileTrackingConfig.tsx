@@ -35,6 +35,7 @@ import { AuthoringApiContext } from '@/components/AuthoringApi';
 import NumberInput from '@/components/NumberInput';
 import { clanFetch } from '@/lib/clanFetch';
 import AltGoalField from '@/components/AltGoalField';
+import ClogTileFields from '@/components/ClogTileFields';
 import { parseAltGoal, type AltGoal } from '@/lib/altGoal';
 import { RAID_EFFORT_MODES, parseTileEffortConfig } from '@/lib/tileEffortConfig';
 
@@ -91,7 +92,7 @@ interface Props {
 // hold a nonsensical combo (e.g. a 10M-XP goal on a drop tile).
 // 'kills' is ONE authoring kind over two stored shapes — a hiscores boss-stat tile or a plugin kill
 // tile — and the shape is picked from the monsters chosen (lib/killSource), not by the admin.
-type TileKind = 'standard' | 'skill' | 'kills' | 'drop' | 'collection' | 'lap' | 'pvp' | 'timed' | 'lms' | 'value' | 'diary' | 'ca' | 'gain' | 'deathless';
+type TileKind = 'standard' | 'skill' | 'kills' | 'drop' | 'collection' | 'lap' | 'pvp' | 'timed' | 'lms' | 'value' | 'diary' | 'ca' | 'gain' | 'deathless' | 'clog';
 
 const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'standard', label: 'Standard', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
@@ -107,6 +108,7 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'lms', label: 'LMS placement', blurb: 'Place top-N in Last Man Standing (1 = win), M times. Plugin-detected at game end, baked screenshot.' },
   { key: 'value', label: 'Loot value', blurb: 'Loot worth X gp — one big haul, or hauls summing to a target. Loot keys, PvP kills, any drop. Plugin prices the haul and bakes proof.' },
   { key: 'diary', label: 'Diary', blurb: 'Complete achievement-diary tiers during the event — a specific diary or any diary of a tier. Plugin-detected off the completion message.' },
+  { key: 'clog', label: 'Collection log', blurb: 'New collection log slots during the event — from any page, chosen pages or hand-picked items — or finish whole pages / own every chosen item. Credited off the in-game "New item added to your collection log" message.' },
   { key: 'ca', label: 'Combat task', blurb: 'Complete Combat Achievement tasks during the event — specific tasks or any task of a tier. Players who already own a task can re-trigger it via the in-game "Repeat completion" setting. Plugin-detected off the completion message.' },
 ];
 
@@ -376,6 +378,7 @@ function deriveKind(initial: TileConfig): TileKind {
   if (initial.tileType === 'value' || initial.tileType === 'valuetotal') return 'value';
   if (initial.tileType === 'diary') return 'diary';
   if (initial.tileType === 'ca') return 'ca';
+  if (initial.tileType === 'clog') return 'clog';
   if (initial.statType === 'skill') return 'skill';
   if (initial.statType === 'boss') return 'kills';
   return 'standard';
@@ -693,6 +696,10 @@ function TileTrackingEditor({
   const [label, setLabel] = useState<string>(initial.label);
   const [description, setDescription] = useState<string>(initial.description || "");
   const [requiredAmount, setRequiredAmount] = useState<string>(initial.requiredAmount?.toString() || "");
+  // Collection-log tiles (lib/clogTiles): mode, the pages items were picked from, and the items.
+  const [clogMode, setClogMode] = useState<'slots' | 'complete'>(initial.tileType === 'clog' && initial.countMode === 'complete' ? 'complete' : 'slots');
+  const [clogPages, setClogPages] = useState<string[]>(initial.tileType === 'clog' ? initial.targetNpcs || [] : []);
+  const [clogItemIds, setClogItemIds] = useState<number[]>(initial.tileType === 'clog' ? initial.trackedItemIds || [] : []);
   const [trackedStat, setTrackedStat] = useState<string>(initial.trackedStat || "");
   const [statGoal, setStatGoal] = useState<string>(initial.statGoal?.toString() || "");
   // Whether that goal is an in-event GAIN (every stat tile before milestones existed) or a LIFETIME
@@ -1051,6 +1058,7 @@ function TileTrackingEditor({
   const isValue = kind === 'value';
   const isDiary = kind === 'diary';
   const isCa = kind === 'ca';
+  const isClog = kind === 'clog';
   // Kinds that complete from submissions — the ones an "or …" alternative can ride (lib/altGoal).
   const altEligible = isDrop || isKill || isLap || isPvp || isGain || isTimed || isDeathless || isLms || isValue || isDiary || isCa;
 
@@ -1327,6 +1335,18 @@ function TileTrackingEditor({
       setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
+    } else if (next === 'clog') {
+      // Keeps requiredAmount; the clog fields are its own state and only reach a clog payload.
+      setTrackedStat("");
+      setStatGoal("");
+      setTrackedItems([]);
+      setSourceNpcsText("");
+      setKillPicks([]);
+      setDiarySelectors([]);
+      setCaSelectors([]);
+      setLapCourses([]);
+      setTimedActivity("");
+      setTimeThresholdClock("");
     } else if (next === 'ca') {
       // Keeps caSelectors + requiredAmount — the CA kind's whole config.
       setTrackedStat("");
@@ -1431,6 +1451,17 @@ function TileTrackingEditor({
       if (diarySelectors.length === 0) return 'Add at least one diary (or "Any") to count completions for.';
       const amt = parseInt(requiredAmount, 10);
       if (!Number.isInteger(amt) || amt < 1) return 'Set a required completion count of at least 1.';
+    }
+    if (kind === 'clog') {
+      const amt = requiredAmount.trim() ? parseInt(requiredAmount, 10) : null;
+      if (clogMode === 'complete') {
+        if (clogItemIds.length === 0) return 'Add a collection log page (or tick at least one item) to complete.';
+        if (amt != null && (!Number.isInteger(amt) || amt < 1 || amt > Math.max(1, clogPages.length))) return `Pages needed must be between 1 and ${Math.max(1, clogPages.length)} (blank = all).`;
+      } else {
+        if (amt == null || !Number.isInteger(amt) || amt < 1) return 'Set how many new slots are needed (at least 1).';
+        if (clogPages.length > 0 && clogItemIds.length === 0) return 'Every item is unticked — tick at least one, or remove the page to count any page.';
+        if (clogItemIds.length > 0 && amt > clogItemIds.length) return `Only ${clogItemIds.length} items are chosen — ask for at most ${clogItemIds.length} new slots.`;
+      }
     }
     if (kind === 'ca') {
       if (caSelectors.length === 0) return 'Add at least one combat task (or an "Any <tier>" wildcard) to count completions for.';
@@ -1546,7 +1577,7 @@ function TileTrackingEditor({
         mission,
         missionRules: buildMissionRules(),
         // defaults — overridden per kind below
-        tileType: isDrop ? 'drop' : isKill ? 'kill' : isLap ? 'lap' : isPvp ? 'pvp' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : isCa ? 'ca' : 'standard',
+        tileType: isDrop ? 'drop' : isKill ? 'kill' : isLap ? 'lap' : isPvp ? 'pvp' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : isCa ? 'ca' : isClog ? 'clog' : 'standard',
         trackedStat: null,
         statType: null,
         statGoal: null,
@@ -1638,6 +1669,13 @@ function TileTrackingEditor({
         // Diary selectors ride in the targetNpcs column — the diary tileType reinterprets it.
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.targetNpcs = diarySelectors;
+        payload.trackingMode = trackingMode;
+      } else if (kind === 'clog') {
+        // Collection log (lib/clogTiles): the chosen items ARE the pool; pages are kept as labels.
+        payload.countMode = clogMode;
+        payload.targetNpcs = clogPages.length > 0 ? clogPages : null;
+        payload.trackedItemIds = clogItemIds.length > 0 ? clogItemIds : null;
+        payload.requiredAmount = requiredAmount.trim() ? parseInt(requiredAmount, 10) : null;
         payload.trackingMode = trackingMode;
       } else if (kind === 'ca') {
         // CA selectors (task names / "Any <Tier>") likewise ride in targetNpcs.
@@ -3139,6 +3177,25 @@ function TileTrackingEditor({
           </div>
 
           <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="diary completions" goal="count" teamPlay={teamPlay} />
+        </div>
+      )}
+
+      {/* ---- COLLECTION LOG KIND ---- */}
+      {isClog && (
+        <div className="space-y-3">
+          <ClogTileFields
+            lookupApi={lookupApi}
+            mode={clogMode}
+            onMode={setClogMode}
+            pages={clogPages}
+            onPages={setClogPages}
+            itemIds={clogItemIds}
+            onItemIds={setClogItemIds}
+            amount={requiredAmount}
+            onAmount={setRequiredAmount}
+            locked={locked}
+          />
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit={clogMode === 'complete' ? 'finished pages' : 'new slots'} goal="count" teamPlay={teamPlay} />
         </div>
       )}
 
