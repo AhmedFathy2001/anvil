@@ -82,3 +82,35 @@ export function isPurgeDue(e: RetentionState, now: Date): boolean {
   const at = effectivePurgeAt(e, now);
   return at != null && at.getTime() <= now.getTime();
 }
+
+/**
+ * Which stored files a purge may delete: only what the event owns, and nothing another event still
+ * shows. A row's URL is something a client sent, so "our storage, named by this event" is not
+ * ownership. Never deleted while any OTHER event's live row names it (a player in two clans' bingos
+ * may file one screenshot to both — purged rows stop naming it, so the last event out deletes it).
+ *   proofUrls (proofs, clean frames, extras, starting shots) — the upload record's claim
+ *     (lib/uploadClaims) is this event, or an event already purged; or there is no record at all
+ *     (files from before records). Recorded but claimed by no event — a banner, say — is never ours.
+ *   moneyUrls (fees, payouts) — under this clan's own folder (the write paths require it).
+ */
+export function deletableMedia(input: {
+  eventId: number;
+  proofUrls: string[];
+  moneyUrls: string[];
+  owner: Map<string, number | null>;
+  unrecorded: Set<string>;
+  purgedEvents: Set<number>;
+  inClanFolder: (url: string) => boolean;
+  usedElsewhere: Set<string>;
+}): string[] {
+  const { eventId, proofUrls, moneyUrls, owner, unrecorded, purgedEvents, inClanFolder, usedElsewhere } = input;
+  const ownsProof = (u: string) => {
+    if (unrecorded.has(u)) return true;
+    const by = owner.get(u);
+    return by != null && (by === eventId || purgedEvents.has(by));
+  };
+  return [
+    ...proofUrls.filter((u) => !usedElsewhere.has(u) && ownsProof(u)),
+    ...moneyUrls.filter((u) => !usedElsewhere.has(u) && inClanFolder(u)),
+  ];
+}

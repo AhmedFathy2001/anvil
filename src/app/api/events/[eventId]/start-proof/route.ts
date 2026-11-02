@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { eventForPluginRequest } from '@/lib/eventScope';
 import { personOf, seatsOwnedByAnywhere } from '@/lib/roster';
 import { db } from '@/db';
-import { events, eventParticipants, clanRoster, eventStartProofs, accountStatSnapshots, accounts } from '@/db/schema';
+import { events, eventParticipants, clanRoster, eventStartProofs, accountStatSnapshots, accounts, proofUploads } from '@/db/schema';
 import { parseStamp } from '@/lib/dbTime';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -10,6 +10,7 @@ import { verifyAdmin, verifyUser, verifyPluginToken } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { isManagedMediaUrl } from '@/lib/storage';
+import { claimUploads } from '@/lib/uploadClaims';
 import { parseEventRules } from '@/lib/eventRules';
 import { startBaselineFromLiveStats } from '@/lib/liveSnapshot';
 import { needsBaselineRecapture } from '@/lib/statTracking';
@@ -127,6 +128,14 @@ export async function POST(
       { status: 400 },
     );
   }
+  // The caller's own upload, on record (proof_uploads). The media purge deletes a starting shot's file
+  // with its event, so naming someone else's file — another clan's proof, a banner — must not pass.
+  const uploader = (await verifyPluginToken(request))?.userId ?? (await verifyUser())?.userId ?? null;
+  const upload = await db.query.proofUploads.findFirst({ where: eq(proofUploads.url, imageUrl.trim()) });
+  if (!upload || uploader == null || upload.userId !== uploader) {
+    return NextResponse.json({ error: 'Upload the screenshot here yourself, then file it' }, { status: 400 });
+  }
+  await claimUploads([imageUrl.trim()], eId);
   if (keyword != null && (typeof keyword !== 'string' || keyword.length > 64)) {
     return NextResponse.json({ error: 'keyword must be a string' }, { status: 400 });
   }

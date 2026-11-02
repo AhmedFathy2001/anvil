@@ -8,6 +8,7 @@ import Select from '@/components/Select';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch } from '@/lib/clanFetch';
 import { pageCount, proofFeedSearch, type ProofFeedQuery, type ProofFlagFilter } from '@/lib/proofFeedQuery';
+import { linkHost, type ProofAttachment } from '@/lib/proofAttachments';
 import { FLAG_TEXT } from '../EventNextStep';
 
 /**
@@ -36,6 +37,8 @@ interface FeedRow {
   tileLabel: string;
   teamName: string;
   playerName: string | null;
+  /** Extra screenshots/links (lib/proofAttachments), start shots first. */
+  attachments?: ProofAttachment[];
 }
 
 interface Filters {
@@ -354,6 +357,27 @@ export default function ProofFeedClient({ eventId }: { eventId: number }) {
                   <div className="text-sm text-text-muted mt-0.5">
                     {s.playerName || 'Someone'} · {s.teamName} · {when(s.createdAt)}
                   </div>
+                  {!!s.attachments?.length && (
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {s.attachments.map((a) => (
+                        <a
+                          key={a.id}
+                          href={a.url}
+                          target="_blank"
+                          rel={a.kind === 'link' ? 'noopener noreferrer nofollow ugc' : 'noreferrer'}
+                          title={a.kind === 'link' ? a.url : undefined}
+                          className="relative shrink-0"
+                        >
+                          {a.kind === 'image' ? (
+                            <img src={a.url} alt={a.label ? `${a.label} screenshot` : 'Extra screenshot'} loading="lazy" className="w-14 h-10 object-cover rounded border border-tile-border" />
+                          ) : (
+                            <span className="inline-flex h-10 items-center px-2 rounded border border-tile-border text-xs text-gold">🔗 {linkHost(a.url)}</span>
+                          )}
+                          {a.label && <span className="absolute -top-1 -left-1 px-1 rounded bg-black/80 text-[9px] font-semibold uppercase text-gold">{a.label}</span>}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                   {s.flaggedReason ? (
                     <div className="text-sm text-yellow-400 mt-1">{FLAG_TEXT[s.flaggedReason] ?? 'Flagged for a look'}</div>
                   ) : (

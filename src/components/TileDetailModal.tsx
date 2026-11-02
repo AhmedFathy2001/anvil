@@ -30,6 +30,8 @@ import { clogTileLooseSpec, clogTileSetupNote } from '@/lib/clogTileWords';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { comboSentence, comboWeightOf, isComboTile, parseComboRule } from '@/lib/combo';
 import { partProgressText, type ComboView } from '@/lib/comboProgress';
+import { ProofExtrasEditor, ProofExtrasList, StartShotDraft } from './ProofExtras';
+import type { ProofAttachmentInput } from '@/lib/proofAttachments';
 
 // mm:ss / h:mm:ss / bare-seconds → seconds. Returns null for unparseable input.
 function clockToSeconds(value: string): number | null {
@@ -98,7 +100,7 @@ interface Props {
   canSubmit: boolean;
   canManage: boolean;
   canToggle: boolean;
-  onSubmit?: (data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number; itemId?: number }) => Promise<void>;
+  onSubmit?: (data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number; itemId?: number; attachments?: ProofAttachmentInput[] }) => Promise<void>;
   onDelete?: (submissionId: number, reason: string) => Promise<void>;
   onToggle?: (tileId: number) => Promise<void>;
   onClose: () => void;
@@ -152,6 +154,10 @@ export default function TileDetailModal({
   const [expandedTeamId, setExpandedTeamId] = useState<number | null>(null);
   const [amount, setAmount] = useState('1');
   const [imageUrls, setImageUrls] = useState<string[]>(['']);
+  // Extra screenshots/links on the proof being sent (lib/proofAttachments), and a nudge for the saved
+  // start shot to reload once a submit has carried it off.
+  const [extras, setExtras] = useState<ProofAttachmentInput[]>([]);
+  const [draftKey, setDraftKey] = useState(0);
   const [note, setNote] = useState('');
   // Timed-tile clear time entered as mm:ss.
   const [clearTime, setClearTime] = useState('');
@@ -433,8 +439,10 @@ export default function TileDetailModal({
           note,
           creditPlayerId: creditPlayerId ? parseInt(creditPlayerId, 10) : null,
           durationSeconds: secs,
+          attachments: extras,
         });
         setImageUrls(['']);
+        setExtras([]);
         setNotice(submittedNotice);
         setNote('');
         setClearTime('');
@@ -487,6 +495,7 @@ export default function TileDetailModal({
           note,
           creditPlayerId: parseInt(creditPlayerId, 10),
           itemId: submittedItemId,
+          attachments: extras,
         });
       } else {
         // Multiple images = multiple submissions
@@ -504,6 +513,8 @@ export default function TileDetailModal({
       }
       setAmount('1');
       setImageUrls(['']);
+      setExtras([]);
+      setDraftKey((k) => k + 1);
       setNotice(submittedNotice);
       setNote('');
       setCreditPlayerId('');
@@ -586,9 +597,11 @@ export default function TileDetailModal({
         imageUrl: img,
         note,
         creditPlayerId: parseInt(creditPlayerId, 10),
+        attachments: extras,
       });
       setValueGp('');
       setImageUrls(['']);
+      setExtras([]);
       setNotice(submittedNotice);
       setNote('');
     } catch (err) {
@@ -1240,6 +1253,13 @@ export default function TileDetailModal({
                           />
                         </button>
                       )}
+                      <ProofExtrasList
+                        eventId={eventId}
+                        submissionId={s.id}
+                        initial={s.attachments ?? []}
+                        canAdd={canDeleteSubmission(s) || (currentPlayerId != null && s.creditPlayerId === currentPlayerId)}
+                        canRemove={canDeleteSubmission(s)}
+                      />
                     </div>
                   ))}
                 </div>
@@ -1482,6 +1502,15 @@ export default function TileDetailModal({
                 )}
               </div>
 
+              {/* One proof per screenshot for real drops, so extras only ride on a single-proof tile —
+                  the cumulative grinds ("100 golems") that want a start and an end counter. */}
+              {!perUnitProof && (
+                <>
+                  <StartShotDraft eventId={eventId} tileId={tile.id} teamId={teamId} refreshKey={draftKey} />
+                  <ProofExtrasEditor value={extras} onChange={setExtras} />
+                </>
+              )}
+
               <div>
                 <label className="block text-xs text-text-muted mb-1">Note (optional)</label>
                 <Input
@@ -1553,6 +1582,8 @@ export default function TileDetailModal({
                   currentUrl={imageUrls[0] || undefined}
                 />
               </div>
+
+              <ProofExtrasEditor value={extras} onChange={setExtras} />
 
               <div>
                 <label className="block text-xs text-text-muted mb-1">Note (optional)</label>
@@ -1628,6 +1659,8 @@ export default function TileDetailModal({
                   currentUrl={imageUrls[0] || undefined}
                 />
               </div>
+
+              <ProofExtrasEditor value={extras} onChange={setExtras} />
 
               <div>
                 <label className="block text-xs text-text-muted mb-1">Note (optional)</label>

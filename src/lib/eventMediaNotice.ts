@@ -89,7 +89,7 @@ export async function sendPurgeNotice(
   opts: { dryRun?: boolean } = {},
 ): Promise<NoticeResult> {
   const media = await eventMediaUrls(e.id);
-  const files = media.submissions.length + media.fees.length + media.payouts.length + media.startProofs.length;
+  const files = media.submissions.length + media.fees.length + media.payouts.length + media.startProofs.length + media.attachments.length + media.cleanFrames.length;
   // Stamping first fixes the date this reminder promises (the grace runs from now).
   const stamped: RetentionState =
     e.stage === 'first' ? { ...e, mediaPurgeNoticeAt: now.toISOString() } : { ...e, mediaPurgeFinalNoticeAt: now.toISOString() };

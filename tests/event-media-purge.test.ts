@@ -86,7 +86,7 @@ test('a week after the reminder, only the old event is due', async () => {
 
 test('a dry run counts every kind of proof and changes nothing', async () => {
   const r = await lib.purgeEventMedia(oldEvent, { dryRun: true });
-  assert.deepEqual(r?.bySource, { submissions: 1, fees: 1, payouts: 1, startProofs: 1 });
+  assert.deepEqual(r?.bySource, { submissions: 1, fees: 1, payouts: 1, startProofs: 1, attachments: 0, cleanFrames: 0 });
   const [sub] = await db.select().from(s.submissions).where(eq(s.submissions.id, subId));
   assert.equal(sub.imageUrl, IMG);
   const [ev] = await db.select().from(s.events).where(eq(s.events.id, oldEvent));

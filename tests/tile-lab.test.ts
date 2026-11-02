@@ -153,6 +153,8 @@ test('a plugin submission credits the lab tile; a replay aimed at the real board
     );
   };
 
+  // The plugin uploads its frame first; the upload route records whose it is (proof_uploads).
+  await db.insert(s.proofUploads).values({ url: `${R2_BASE}/proofs/pet.png`, sha256: 'x', via: 'plugin', userId });
   const res = await post(labEventId, { tileId: tile.id, teamId: team.id, amount: 1, note: 'Vorki', imageUrl: `${R2_BASE}/proofs/pet.png` }, 'boss-pet');
   assert.ok(res.status < 300, `lab submission accepted (${res.status} ${await res.clone().text()})`);
   const subs = await db.select().from(s.submissions).where(eq(s.submissions.tileId, tile.id));

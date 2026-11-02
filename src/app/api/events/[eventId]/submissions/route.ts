@@ -35,6 +35,9 @@ import { put, clanMediaKey } from '@/lib/storage';
 import { parseStamp } from '@/lib/dbTime';
 import crypto from 'crypto';
 import { standingsScopeForRequest } from '@/lib/standingsAccess';
+import { parseAttachments } from '@/lib/proofAttachments';
+import { addAttachments, adoptDrafts, attachmentsFor, ownsAttachmentImages } from '@/lib/proofAttachmentsDb';
+import { claimUploads } from '@/lib/uploadClaims';
 import { worldModeIgnored } from '@/lib/worldModeRequest';
 
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
@@ -102,8 +105,10 @@ export async function GET(
   const allPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eId));
   const playerMap = new Map(allPlayers.map((p) => [p.id, p.name]));
 
+  const extras = await attachmentsFor(filtered.map((s) => s.id));
   const result = filtered.map((s) => ({
     ...s,
+    attachments: extras.get(s.id) ?? [],
     uploaderName: s.playerId ? playerMap.get(s.playerId) || 'Unknown' : null,
     creditPlayerName: s.creditPlayerId ? playerMap.get(s.creditPlayerId) || 'Unknown' : null,
   }));
@@ -147,7 +152,7 @@ export async function POST(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId: rawTileId, teamId, amount, imageUrl, note, creditPlayerId, itemId: rawItemId, durationSeconds, coopGroup, coopPartySize, inferred, proof } = await request.json();
+  const { tileId: rawTileId, teamId, amount, imageUrl, note, creditPlayerId, itemId: rawItemId, durationSeconds, coopGroup, coopPartySize, inferred, proof, attachments: rawAttachments } = await request.json();
 
   // CAPPED counter tiles (lib/tileCaps): the plugin config hands out VIRTUAL negative tile ids for a
   // tile's cap counters (slots 1..n). Every plugin build credits them like any kill tile, so they
@@ -172,6 +177,10 @@ export async function POST(
       return NextResponse.json({ error: 'note must be a string of at most 500 characters' }, { status: 400 });
     }
   }
+
+  // Extra screenshots and links (lib/proofAttachments): the web form's before/after, a clip.
+  const extrasParsed = parseAttachments(rawAttachments, isManagedMediaUrl);
+  if (!extrasParsed.ok) return NextResponse.json({ error: extrasParsed.error }, { status: 400 });
 
   // Check auth. Legacy captain/player cookies + plugin bearer token still work; the
   // unified My Team page authenticates via the Discord web session (membership), which is
@@ -389,6 +398,24 @@ export async function POST(
   const upload = imageUrlValue
     ? await db.query.proofUploads.findFirst({ where: eq(proofUploads.url, imageUrlValue) })
     : null;
+  // SOMEONE ELSE'S FILE IS REFUSED, not just flagged. The 90-day media purge deletes a proof's file
+  // with its event, so a proof pointing at another person's upload (another clan's proof, a banner)
+  // would get that file deleted. Web: the picture must be this person's own upload. Plugin: an upload
+  // on record as another person's never comes from an honest plugin, which uploads its own frame
+  // first; nor does one with no record at all once records have been kept long enough.
+  if (imageUrlValue && !pluginAuth) {
+    const webUserId = (await verifyUser())?.userId ?? null;
+    if (!upload || upload.via !== 'web' || (upload.userId ?? null) !== webUserId) {
+      return NextResponse.json({ error: 'Upload the screenshot here yourself, then submit it' }, { status: 400 });
+    }
+  }
+  if (pluginAuth && imageUrlValue) {
+    // Every upload since PROVENANCE_REQUIRED_FROM has a record whatever the plugin version (the upload
+    // route writes it), so past that date a picture with none is not an honest plugin's.
+    if (upload ? upload.userId != null && upload.userId !== pluginAuth.userId : receivedAt >= PROVENANCE_REQUIRED_FROM) {
+      return NextResponse.json({ error: 'Upload the screenshot through Anvil, then submit it' }, { status: 403 });
+    }
+  }
   const claims = pluginAuth && imageUrlValue ? parseProofClaims(proof) : null;
   if (pluginAuth && imageUrlValue) {
     const foreign = upload
@@ -628,6 +655,16 @@ export async function POST(
     }
   }
 
+  // Extras are a web thing, and their screenshots must be the sender's own uploads (the media purge
+  // deletes attachment files — lib/proofAttachmentsDb ownsAttachmentImages).
+  const webActor = pluginAuth || isCap ? null : await verifyUser();
+  const extraItems = webActor ? extrasParsed.items : [];
+  if (extraItems.length && !(await ownsAttachmentImages(extraItems, webActor!.userId))) {
+    return NextResponse.json({ error: 'Upload screenshots here yourself before attaching them' }, { status: 400 });
+  }
+  // File the pictures under this event (lib/uploadClaims) — what the media purge goes by.
+  await claimUploads([...(upload && imageUrlValue ? [imageUrlValue] : []), ...extraItems.filter((a) => a.kind === 'image').map((a) => a.url)], eId);
+
   const [inserted] = await db
     .insert(submissions)
     .values({
@@ -648,6 +685,18 @@ export async function POST(
       goal: goalValue,
     })
     .returning();
+
+  // The extras sent with it, and the start screenshot this person saved on the tile before the grind
+  // (a draft) — both ride on this proof. Web only: a plugin token speaks for a character, not a person
+  // with drafts. Never fatal: the credit is in, and a lost extra is a re-upload, not a lost drop.
+  if (webActor) {
+    try {
+      await addAttachments({ submissionId: inserted.id, tileId, teamId, userId: webActor.userId }, extraItems);
+      await adoptDrafts(inserted.id, tileId, teamId, webActor.userId);
+    } catch (e) {
+      console.warn('[submissions] attachments not saved', (e as Error).message);
+    }
+  }
 
   // SITE-DRAWN STAMP. A current plugin uploads the clean frame and says what the banner should read;
   // draw it here, after the insert, so it can carry the proof id. The stamped copy becomes imageUrl,
@@ -671,7 +720,7 @@ export async function POST(
       const { url } = await put(clanMediaKey(slug, `submissions/${crypto.randomUUID()}-stamped.webp`), stamped, 'image/webp');
       // Registered as a stamp, so posting this copy back as a fresh proof reads as foreign above.
       await db.insert(proofUploads).values({
-        url, sha256: crypto.createHash('sha256').update(stamped).digest('hex'), via: 'stamp', userId: upload.userId,
+        url, sha256: crypto.createHash('sha256').update(stamped).digest('hex'), via: 'stamp', userId: upload.userId, eventId: eId,
       }).onConflictDoNothing();
       [submission] = await db.update(submissions)
         .set({ imageUrl: url, cleanImageUrl: imageUrlValue, proofFacts: JSON.stringify(facts) })
