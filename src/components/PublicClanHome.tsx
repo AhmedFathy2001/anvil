@@ -276,8 +276,9 @@ export default function PublicClanHome({
             <ClanLink href="/members" className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium hover:bg-brown-light">
               👥 Members
             </ClanLink>
-            <ClanLink href="/leaderboard" className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium hover:bg-brown-light">
-              📊 Leaderboard
+            {/* The apex's all-clans table, not this clan's: `from` lets it say so (app/leaderboard). */}
+            <ClanLink href={`/leaderboard?from=${encodeURIComponent(view.slug)}`} className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium hover:bg-brown-light">
+              📊 Leaderboard · all clans
             </ClanLink>
             {/* The apex's side-by-side page, with this clan already filled in as one side. ClanLink
                 leaves /compare unprefixed (it is a platform path), so this lands on the apex from a
