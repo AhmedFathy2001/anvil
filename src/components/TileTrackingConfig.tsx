@@ -80,6 +80,8 @@ interface Props {
    * mission is promising more than the pot holds — the board still drops either way.
    */
   cofferAvailable?: number | null;
+  /** The tile creator already asked "what's the task?" — don't ask again above the editor. */
+  hideTaskFinder?: boolean;
 }
 
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
@@ -640,7 +642,7 @@ export default function TileTrackingConfig(props: Props) {
     : props.initial;
   return (
     <>
-      {!props.eventStarted && !outsideClan && (
+      {!props.eventStarted && !outsideClan && !props.hideTaskFinder && (
         <TaskFinder
           picked={applied?.title ?? null}
           onPick={(s) => setApplied((a) => ({ n: (a?.n ?? 0) + 1, title: s.title, config: s.config }))}

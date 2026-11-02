@@ -6,6 +6,9 @@ import type { Event, Tile, ItemRequirement } from '@/lib/types';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
+import TileCreator from '@/components/tile-creator/TileCreator';
+import BulkQuickAdd from '@/components/tile-creator/BulkQuickAdd';
+import { draftToTileConfig } from '@/lib/tileCreatorConfig';
 import ClogGenerator from './ClogGenerator';
 import BoardBalancePanel from './BoardBalancePanel';
 import TileHistoryPanel from './TileHistoryPanel';
@@ -152,6 +155,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   // no geometry to show, so it opens on the list.
   const [viewMode, setViewMode] = useState<AuthoringView>(() => model.views[0]);
   const [pasteOpen, setPasteOpen] = useState(false);
+  // "Quick add: paste your list" — the matcher-backed bulk add (components/tile-creator).
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
 
   // Multi-select for bulk edits. Shift-click extends from the last tile you touched, so "these
@@ -473,6 +478,22 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     } finally {
       setAdding(false);
     }
+  }
+
+  // The tile creator filled a blank tile. "Add & another" goes straight to the next blank: a new one
+  // on a list board, the next placeholder on a fixed grid.
+  function handleCreatorSaved(updated: Tile, another: boolean) {
+    setLocalTiles((prev) => prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)));
+    setEditingFresh((prev) => (prev && prev.id === updated.id ? { ...prev, ...updated } : prev));
+    router.refresh();
+    if (!another) {
+      setEditingTileId(null);
+      return;
+    }
+    const nextBlank = localTiles.find((t) => t.id !== updated.id && isPlaceholderTile(t) && !t.mission);
+    if (nextBlank) setEditingTileId(nextBlank.id);
+    else if (dynamicBoard && !eventStarted) void handleAddTile();
+    else setEditingTileId(null);
   }
 
   // Bulk-create N blank tiles (or one per pasted label) for the Quick Build list. Sequential so
@@ -975,6 +996,9 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       ) : null
     }
     onClose={() => setEditingTileId(null)}
+    onCreated={handleCreatorSaved}
+    onOpenBulk={canAddTiles ? () => { setEditingTileId(null); setBulkOpen(true); } : undefined}
+    canAddAnother={(dynamicBoard && !eventStarted) || localTiles.filter((t) => isPlaceholderTile(t) && !t.mission).length > 1}
     onDelete={() => handleDeleteTile(editingTile.id, true)}
     onSaved={(updated) => {
       handleTileConfigSaved(editingTile.id, updated);
@@ -1064,7 +1088,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             <ActionMenu
               label={`＋ Add ${model.nounPlural}`}
               items={[
-                { label: 'Draw from task library…', onClick: () => setGenerator('library'), disabled: !canAddTiles, variant: 'gold' },
+                { label: 'Quick add: paste your list…', onClick: () => setBulkOpen(true), disabled: !canAddTiles, variant: 'gold' },
+                { label: 'Draw from task library…', onClick: () => setGenerator('library'), disabled: !canAddTiles },
                 { label: 'From a collection log page…', onClick: () => setGenerator('clog'), disabled: !canAddTiles },
                 { label: 'Skill XP tiles…', onClick: () => setGenerator('skill'), disabled: !canAddTiles },
                 { label: 'Boss KC / kill tiles…', onClick: () => setGenerator('boss'), disabled: !canAddTiles },
@@ -1892,6 +1917,24 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       {editingTile && (viewMode !== 'cards' ? viewMode !== 'grid' : !inspectorDocked) && renderInspector(false)}
 
       {/* Paste-labels bulk create (Quick Build) */}
+      {bulkOpen && (
+        <BulkQuickAdd
+          eventId={event.id}
+          pointsMode={pointsMode}
+          tierBands={tierBands}
+          teamPlay={teamPlay}
+          onClose={() => setBulkOpen(false)}
+          onUploadFile={() => { setBulkOpen(false); fileInputRef.current?.click(); }}
+          onCreated={async (summary) => {
+            setBulkOpen(false);
+            setImportMsg({
+              type: 'success',
+              text: `Added ${summary.created + summary.applied} tile${summary.created + summary.applied === 1 ? '' : 's'} from your list${summary.ignored ? ` · ${summary.ignored} skipped (no room left on the board)` : ''}.`,
+            });
+            await syncTilesFromServer();
+          }}
+        />
+      )}
       {pasteOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setPasteOpen(false)}>
           <div className="w-full max-w-md bg-card-bg border border-card-border rounded-xl p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
@@ -2156,9 +2199,16 @@ interface DrawerProps {
   /** What one entry on this board is called — a ladder's are tasks (lib/tileAuthoring). */
   noun?: string;
   canLab?: boolean;
+  /** A blank tile was filled through the tile creator (the flow a NEW tile opens on). */
+  onCreated?: (updated: Tile, another: boolean) => void;
+  onOpenBulk?: () => void;
+  canAddAnother?: boolean;
 }
 
-function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, missionsEnabled, cofferAvailable, revealEditor, canLab = false }: DrawerProps) {
+function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, missionsEnabled, cofferAvailable, revealEditor, canLab = false, onCreated, onOpenBulk, canAddAnother }: DrawerProps) {
+  // A blank placeholder before the start is a NEW tile: it opens on the tile creator ("what should
+  // players do?") instead of the full editor, which stays one tap away under "More options".
+  const creating = !eventStarted && isPlaceholderTile(tile) && !tile.mission && !!onCreated;
   // Docked, this is a column in the page, not a dialog over it — so it must not take the page's
   // scroll or swallow Tab. Undocked it really is a drawer, and stays one.
   const ref = useModalA11y<HTMLDivElement>({ onClose, modal: !docked });
@@ -2195,7 +2245,7 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
           <div className="min-w-0">
             <p className="text-[11px] uppercase tracking-wide text-text-muted">{noun} #{tile.position + 1}</p>
             <h3 id={titleId} className="text-base font-bold text-foreground line-clamp-2 break-words">
-              {tile.label}
+              {creating ? `New ${noun.toLowerCase()}` : tile.label}
             </h3>
           </div>
           <button
@@ -2216,6 +2266,36 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
             </p>
           )}
           {revealEditor}
+          {creating ? (
+            <TileCreator
+              tile={tile}
+              eventId={eventId}
+              pointsMode={pointsMode}
+              tierBands={tierBands ?? DEFAULT_TIER_BANDS}
+              teamPlay={teamPlay ?? true}
+              canAddAnother={canAddAnother}
+              onSaved={onCreated}
+              onOpenBulk={onOpenBulk}
+              renderFullEditor={(draft) => (
+                <TileTrackingConfig
+                  tileId={tile.id}
+                  eventId={eventId}
+                  initial={draftToTileConfig(tileToTrackingInitial(tile), draft)}
+                  onSaved={onSaved}
+                  eventStarted={eventStarted}
+                  isAdmin={isAdmin}
+                  pointsMode={pointsMode}
+                  tierBands={tierBands}
+                  categorySuggestions={categorySuggestions}
+                  teamPlay={teamPlay}
+                  missionsAllowed={missionsAllowed}
+                  missionsEnabled={missionsEnabled}
+                  cofferAvailable={cofferAvailable}
+                  hideTaskFinder
+                />
+              )}
+            />
+          ) : (
           <TileTrackingConfig
             tileId={tile.id}
             eventId={eventId}
@@ -2231,6 +2311,7 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
             missionsEnabled={missionsEnabled}
             cofferAvailable={cofferAvailable}
           />
+          )}
 
           {canLab && <TestInLabButton tileId={tile.id} />}
 
