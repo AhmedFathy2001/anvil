@@ -10,6 +10,7 @@ import { verifyAdmin, verifyUser, verifyPluginToken } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { isManagedMediaUrl } from '@/lib/storage';
+import { claimUploads } from '@/lib/uploadClaims';
 import { parseEventRules } from '@/lib/eventRules';
 import { startBaselineFromLiveStats } from '@/lib/liveSnapshot';
 import { needsBaselineRecapture } from '@/lib/statTracking';
@@ -133,6 +134,9 @@ export async function POST(
   const upload = await db.query.proofUploads.findFirst({ where: eq(proofUploads.url, imageUrl.trim()) });
   if (!upload || uploader == null || upload.userId !== uploader) {
     return NextResponse.json({ error: 'Upload the screenshot here yourself, then file it' }, { status: 400 });
+  }
+  if (!(await claimUploads([imageUrl.trim()], eId))) {
+    return NextResponse.json({ error: 'That screenshot is already on another event' }, { status: 409 });
   }
   if (keyword != null && (typeof keyword !== 'string' || keyword.length > 64)) {
     return NextResponse.json({ error: 'keyword must be a string' }, { status: 400 });

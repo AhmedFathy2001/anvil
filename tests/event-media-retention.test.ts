@@ -128,3 +128,24 @@ test('the reminder names the date, the count, and keeps admin text clean', () =>
   assert.equal(cleanName('   '), 'your event');
   assert.equal(daysUntil(at('2026-10-16T05:00:00Z'), at('2026-10-16T05:05:00Z')), 1);
 });
+
+import { deletableMedia } from '../src/lib/eventMediaRetentionRules.ts';
+
+test('the purge deletes only files the event provably owns', () => {
+  const mine = 'https://m/c/r/submissions/mine.webp';
+  const theirs = 'https://m/c/other/submissions/theirs.webp'; // claimed by another event
+  const unfiled = 'https://m/submissions/unfiled.webp'; // recorded, claimed by nobody
+  const legacy = 'https://m/submissions/legacy.webp'; // no record: predates records
+  const legacyShared = 'https://m/submissions/legacy-shared.webp';
+  const fee = 'https://m/c/r/submissions/fee.webp';
+  const foreignFee = 'https://m/c/other/submissions/fee.webp';
+  const out = deletableMedia({
+    proofUrls: [mine, theirs, unfiled, legacy, legacyShared],
+    moneyUrls: [fee, foreignFee],
+    claimed: new Set([mine]),
+    unrecorded: new Set([legacy, legacyShared]),
+    inClanFolder: (u) => u.includes('/c/r/'),
+    usedElsewhere: new Set([legacyShared]),
+  });
+  assert.deepEqual(out.sort(), [fee, legacy, mine].sort());
+});

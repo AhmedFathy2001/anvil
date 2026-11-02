@@ -21,6 +21,7 @@ import { assertEventEditable } from '@/lib/eventLock';
 import { MAX_ATTACHMENTS, parseAttachments } from '@/lib/proofAttachments';
 import { addAttachments, attachmentCount, draftsFor, ownsAttachmentImages } from '@/lib/proofAttachmentsDb';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { claimUploads } from '@/lib/uploadClaims';
 import { isManagedMediaUrl } from '@/lib/storage';
 
 type Ctx = { params: Promise<{ eventId: string }> };
@@ -63,6 +64,9 @@ export async function POST(request: Request, { params }: Ctx) {
   const isStaff = !!(await verifyAdminOrModerator());
   if (!(await ownsAttachmentImages(parsed.items, user.userId))) {
     return NextResponse.json({ error: 'Upload screenshots here yourself before attaching them' }, { status: 400 });
+  }
+  if (!(await claimUploads(parsed.items.filter((a) => a.kind === 'image').map((a) => a.url), eId))) {
+    return NextResponse.json({ error: 'That screenshot is already on another event’s proof' }, { status: 409 });
   }
 
   if (body.submissionId != null) {

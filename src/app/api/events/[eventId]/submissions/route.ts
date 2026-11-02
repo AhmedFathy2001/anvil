@@ -37,6 +37,7 @@ import crypto from 'crypto';
 import { standingsScopeForRequest } from '@/lib/standingsAccess';
 import { parseAttachments } from '@/lib/proofAttachments';
 import { addAttachments, adoptDrafts, attachmentsFor, ownsAttachmentImages } from '@/lib/proofAttachmentsDb';
+import { claimUploads } from '@/lib/uploadClaims';
 
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
 // 'unverified_counter': credited off an in-game signal nobody has checked yet (lib/gameCounters,
@@ -655,6 +656,12 @@ export async function POST(
   if (extraItems.length && !(await ownsAttachmentImages(extraItems, webActor!.userId))) {
     return NextResponse.json({ error: 'Upload screenshots here yourself before attaching them' }, { status: 400 });
   }
+  // File the pictures under this event (lib/uploadClaims): only what an event claimed is deleted with
+  // it, and a file another event already holds isn't this proof's to name.
+  const toClaim = [...(upload && imageUrlValue ? [imageUrlValue] : []), ...extraItems.filter((a) => a.kind === 'image').map((a) => a.url)];
+  if (!(await claimUploads(toClaim, eId))) {
+    return NextResponse.json({ error: 'That screenshot is already on another event’s proof' }, { status: 409 });
+  }
 
   const [inserted] = await db
     .insert(submissions)
@@ -711,7 +718,7 @@ export async function POST(
       const { url } = await put(clanMediaKey(slug, `submissions/${crypto.randomUUID()}-stamped.webp`), stamped, 'image/webp');
       // Registered as a stamp, so posting this copy back as a fresh proof reads as foreign above.
       await db.insert(proofUploads).values({
-        url, sha256: crypto.createHash('sha256').update(stamped).digest('hex'), via: 'stamp', userId: upload.userId,
+        url, sha256: crypto.createHash('sha256').update(stamped).digest('hex'), via: 'stamp', userId: upload.userId, eventId: eId,
       }).onConflictDoNothing();
       [submission] = await db.update(submissions)
         .set({ imageUrl: url, cleanImageUrl: imageUrlValue, proofFacts: JSON.stringify(facts) })

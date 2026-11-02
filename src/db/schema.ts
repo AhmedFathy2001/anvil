@@ -2536,8 +2536,14 @@ export const proofUploads = pgTable('proof_uploads', {
   // 'plugin' | 'web' (who uploaded it) | 'stamp' (the site's own stamped copy of a plugin frame).
   via: text('via').notNull(),
   userId: integer('user_id'),
+  // The event this file was filed on (lib/uploadClaims): stamped when a proof, extra or starting shot
+  // first names it. The media purge deletes only files claimed by the event being purged, so a URL a
+  // client copied from elsewhere can never get someone else's file deleted. NULL = not filed yet.
+  eventId: integer('event_id').references(() => events.id, { onDelete: 'set null' }),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
-});
+}, (table) => [
+  index('proof_uploads_event_idx').on(table.eventId),
+]);
 
 // STARTING SHOT proofs — one row per enrolled player per event (lib/startProof). The image is the
 // same managed-media upload every other proof uses (/api/upload → WebP), so a full roster costs
