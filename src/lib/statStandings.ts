@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { tiles, eventParticipants, teams, completions, events } from '@/db/schema';
+import { eventBoardTiles } from '@/lib/comboSql';
 import { eq, inArray } from 'drizzle-orm';
 import { parseEventRules } from '@/lib/eventRules';
 import { scoreTeams } from '@/lib/boardScoring';
@@ -38,6 +39,7 @@ const readStat = (json: string | null | undefined, statType: string, keys: strin
 // stat, so admins can confirm the starting line actually loaded and watch gains accrue. Read-only;
 // derived from the same statsSnapshot / cachedStats the scoring uses. Non-stat tiles are omitted.
 // `tileIds` narrows it to those tiles (the plugin's tile tracker reads one at a time).
+// Combo PARTS (lib/combo) that are stat tiles are included: their progress is their combo's.
 export async function getStatStandings(eventId: number, tileIds?: number[]): Promise<StatTileStanding[]> {
   const [eventTiles, eventPlayers] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, eventId)),
@@ -178,7 +180,8 @@ export async function getTeamStandings(eventId: number, scoringMode: string): Pr
     // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
     db.query.events.findFirst({ where: eq(events.id, eventId), columns: { rules: true } }),
     db.select().from(teams).where(eq(teams.eventId, eventId)),
-    db.select().from(tiles).where(eq(tiles.eventId, eventId)),
+    // Board cells only (combo parts never score — lib/combo).
+    db.select().from(tiles).where(eventBoardTiles(eventId)),
   ]);
   const rules = parseEventRules(eventRow?.rules);
   const tileIds = allEventTiles.map((t) => t.id);

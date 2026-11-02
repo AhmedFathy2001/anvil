@@ -26,7 +26,7 @@
 //                       several (e.g. "Inferno, PvM" — quote the cell)
 //   optional            true/false — doesn't count toward the total
 //   requiredAmount      integer — drop tiles (item count), kill tiles (kill count), lap tiles (laps),
-//                       lms tiles (qualifying games),
+//                       lms tiles (qualifying games), timed Barracuda Trials rank tiles (runs needed),
 //                       value tiles (gp threshold one haul must meet; "valuetotal" sums hauls toward it)
 //   trackedStat         skill/boss key for a stat-tracked tile (e.g. "mining", "zulrah")
 //   statType            "skill" | "boss"
@@ -42,7 +42,8 @@
 //                       ca tiles — Combat Achievement task names or "Any <Tier>" wildcards,
 //                       pipe-separated ONLY (task names contain commas: "Nylocas, On the Rocks");
 //                       pvp tiles — "any" (any player), "team:other" (any rival team member) or "rsn:<name>" bounties
-//   timedActivity       timed tiles — activity to time (e.g. "Inferno")
+//   timedActivity       timed tiles — activity to time (e.g. "Inferno"), or a Barracuda Trials
+//                       course + rank ("Gwenith Glide — Marlin": no time cap, requiredAmount = runs)
 //   timeThresholdSeconds timed tiles — completion-time cap in seconds (e.g. 1800 for 30:00);
 //                       lms tiles — placement cap instead (1 = win, 3 = top-3)
 //   revealAt            scheduled reveal time (Showdown boards — events whose rules use the
@@ -61,7 +62,8 @@
 //   setsRequired        collection tiles (any-set mode) — how many sets the tile needs; blank = 1.
 //                       Sets are counted, so "2" is two different sets OR the same set twice
 //   countMode           drop pools — blank/"total" = every drop counts, repeats included;
-//                       "distinct" = only DIFFERENT items count ("3 different uniques")
+//                       "distinct" = only DIFFERENT items count ("3 different uniques");
+//                       type=clog rows: blank/"slots" = new slots, "complete" = finish the pages/items
 //   items               drop tiles — tracked item(s), "Name:count" semicolon-separated;
 //                       append "@Set" for set collections ("Dharok's helm:1@Dharok"), and
 //                       "@Set/N" when only N of that set are needed ("Eye of the duke:1@Duke/1")
@@ -113,6 +115,8 @@ export const TILE_CSV_COLUMNS = [
   'countMode',
 ] as const;
 
+import { parseComboRule, type ComboRule } from '@/lib/combo';
+import { parseCapBy } from '@/lib/tileCaps';
 import type { Tile } from '@/lib/types';
 import { missionClaimCap, parseTileMissionRules, type MissionRules } from '@/lib/eventRules';
 import { parseGpInput } from '@/lib/adminEventsFormat';
@@ -168,6 +172,16 @@ export interface TileCsvRow {
   mission?: boolean;
   /** The placement ladder assembled from the mission* columns; null on a normal tile. */
   missionRules?: MissionRules | null;
+  /** Kill/counter tiles: per-member cap counters (lib/tileCaps) — set by the tile creator; no column (yet). */
+  capBy?: string[] | null;
+  /**
+   * COMBO rows (lib/combo), tileType 'combo' — set by the tile creator; no spreadsheet column (yet). The
+   * rule, and each part as its own row (any kind; parts can't be combos or carry parts).
+   */
+  comboRule?: ComboRule | null;
+  parts?: TileCsvRow[] | null;
+  /** A combo PART's weight in a 'mix' combo (null/absent = 1). */
+  comboWeight?: number | null;
 }
 
 // Parse an `items` cell — "Name:count; Name2:count2". Count is optional (defaults to 1) and is
@@ -524,7 +538,9 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
       row.setsRequired = n != null && n >= 2 ? Math.floor(n) : null;
     }
     if (col.countMode >= 0) {
-      row.countMode = get(cells, col.countMode).trim().toLowerCase() === 'distinct' ? 'distinct' : null;
+      const mode = get(cells, col.countMode).trim().toLowerCase();
+      // 'complete' / 'slots' belong to collection-log rows (lib/clogTiles); everything else is a pool.
+      row.countMode = mode === 'distinct' ? 'distinct' : mode === 'complete' || mode === 'slots' ? mode : null;
     }
     if (col.perKillCap >= 0) {
       const cap = toNumberLoose(get(cells, col.perKillCap));
@@ -711,6 +727,21 @@ export function tileToCsvRow(t: Tile): TileCsvRow {
   }
   const effort = parseTileEffortConfig(t.effortConfig);
   if (effort) row.effortConfig = effort;
+  // Capped counters and combos (lib/tileCaps, lib/combo) have no spreadsheet column; the object row
+  // carries them so the library and the importer round-trip them whole — a combo with its parts.
+  const caps = parseCapBy(t.capBy);
+  if (caps.length > 0) row.capBy = caps;
+  if (t.tileType === 'combo') {
+    row.comboRule = parseComboRule(t.comboRule);
+    if (t.parts?.length) {
+      row.parts = t.parts.map((p) => {
+        const part = tileToCsvRow(p) as Record<string, unknown>;
+        delete part.points;
+        if (p.comboWeight != null) part.comboWeight = p.comboWeight;
+        return part;
+      });
+    }
+  }
   return row as TileCsvRow;
 }
 
@@ -755,6 +786,6 @@ export function tileToCsvCells(t: Tile): string[] {
     missionMaxClaimsCell(t),
     missionExpiryCell(t),
     t.setsRequired != null && t.setsRequired > 1 ? String(t.setsRequired) : '',
-    t.countMode === 'distinct' ? 'distinct' : '',
+    t.countMode === 'distinct' || t.countMode === 'complete' ? t.countMode : '',
   ];
 }

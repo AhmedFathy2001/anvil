@@ -26,14 +26,18 @@ import { ROLL_TABLES } from '@/lib/rollTables';
 import { PET_GROUPS } from '@/lib/petGroups';
 import { MAX_TRACKED_ITEMS } from '@/lib/tileItemLimits';
 import Checkbox from '@/components/Checkbox';
-import { TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
-import type { TileConfig, TileMissionRules } from '@/lib/types';
+import { TRIAL_RANK_ACTIVITIES, parseTrialRankTile, trialRankLevel } from '@/lib/barracudaTrials';
+import type { ComboPartConfig, TileConfig, TileMissionRules } from '@/lib/types';
 import { parseTileMissionRules, type MissionReward } from '@/lib/eventRules';
 import MissionRewardEditor from '@/components/MissionRewardEditor';
 import TaskFinder from '@/components/TaskFinder';
 import { AuthoringApiContext } from '@/components/AuthoringApi';
 import NumberInput from '@/components/NumberInput';
 import { clanFetch } from '@/lib/clanFetch';
+import ComboPartsField, { blankPart, draftsFromParts, partPayload, type ComboPartDraft } from '@/components/ComboPartsField';
+import ClogTileFields from '@/components/ClogTileFields';
+import { MAX_COMBO_PARTS, MIN_COMBO_PARTS, parseComboRule, type ComboRule } from '@/lib/combo';
+import { GOTR_ENERGY_CAPS, GOTR_SEARCHES, isGotrEnergyCapped } from '@/lib/tileCaps';
 import { RAID_EFFORT_MODES, parseTileEffortConfig } from '@/lib/tileEffortConfig';
 
 interface Props {
@@ -80,6 +84,13 @@ interface Props {
    * mission is promising more than the pot holds — the board still drops either way.
    */
   cofferAvailable?: number | null;
+  /** The tile creator already asked "what's the task?" — don't ask again above the editor. */
+  hideTaskFinder?: boolean;
+  /**
+   * Editing one PART of a combo (lib/combo, components/ComboPartsField): only what the part tracks —
+   * no points, tags, missions or advanced options (those are the combo's), and no nested combo.
+   */
+  asPart?: boolean;
 }
 
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
@@ -87,7 +98,7 @@ interface Props {
 // hold a nonsensical combo (e.g. a 10M-XP goal on a drop tile).
 // 'kills' is ONE authoring kind over two stored shapes — a hiscores boss-stat tile or a plugin kill
 // tile — and the shape is picked from the monsters chosen (lib/killSource), not by the admin.
-type TileKind = 'standard' | 'skill' | 'kills' | 'drop' | 'collection' | 'lap' | 'pvp' | 'timed' | 'lms' | 'value' | 'diary' | 'ca' | 'gain' | 'deathless';
+type TileKind = 'standard' | 'skill' | 'kills' | 'drop' | 'collection' | 'lap' | 'pvp' | 'timed' | 'lms' | 'value' | 'diary' | 'ca' | 'gain' | 'deathless' | 'clog' | 'combo';
 
 const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'standard', label: 'Standard', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
@@ -103,7 +114,9 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'lms', label: 'LMS placement', blurb: 'Place top-N in Last Man Standing (1 = win), M times. Plugin-detected at game end, baked screenshot.' },
   { key: 'value', label: 'Loot value', blurb: 'Loot worth X gp — one big haul, or hauls summing to a target. Loot keys, PvP kills, any drop. Plugin prices the haul and bakes proof.' },
   { key: 'diary', label: 'Diary', blurb: 'Complete achievement-diary tiers during the event — a specific diary or any diary of a tier. Plugin-detected off the completion message.' },
+  { key: 'clog', label: 'Collection log', blurb: 'New collection log slots during the event — from any page, chosen pages or hand-picked items — or finish whole pages / own every chosen item. Credited off the in-game "New item added to your collection log" message.' },
   { key: 'ca', label: 'Combat task', blurb: 'Complete Combat Achievement tasks during the event — specific tasks or any task of a tier. Players who already own a task can re-trigger it via the in-game "Repeat completion" setting. Plugin-detected off the completion message.' },
+  { key: 'combo', label: 'Combo (mix of tiles)', blurb: 'Several tiles of any kind in one cell — done when any one, all, at least N of them, or any mix adding up to 100% is done ("a Vorkath unique OR 200 Vorkath KC"). Each part is tracked its own way.' },
 ];
 
 // Accepts "5m", "500k", "2.5m" or plain gp figures (commas ok) for the loot-value threshold.
@@ -181,6 +194,11 @@ const TIMED_LABEL_FIXES: Record<string, string | null> = {
   'Lunar Chests': null,    // Moons of Peril has no timer — a chest count line, no duration to pair
   'Wintertodt': null,      // no duration line
   'Zalcano': null,         // no in-game kill timer
+};
+// Sailing level shown beside each Barracuda Trials entry in the timed activity picker.
+const trialSuggestionHint = (activity: string): string | null => {
+  const level = trialRankLevel(activity);
+  return level ? `Sailing ${level}` : null;
 };
 const TIMED_ACTIVITY_SUGGESTIONS = [
   ...new Set([
@@ -354,6 +372,7 @@ const COUNTER_GROUPS: [string, typeof COUNTER_TARGETS][] = (() => {
 })();
 
 function deriveKind(initial: TileConfig): TileKind {
+  if (initial.tileType === 'combo') return 'combo';
   if (initial.tileType === 'drop') {
     return initial.itemRequirements && initial.itemRequirements.length > 0 ? 'collection' : 'drop';
   }
@@ -367,9 +386,42 @@ function deriveKind(initial: TileConfig): TileKind {
   if (initial.tileType === 'value' || initial.tileType === 'valuetotal') return 'value';
   if (initial.tileType === 'diary') return 'diary';
   if (initial.tileType === 'ca') return 'ca';
+  if (initial.tileType === 'clog') return 'clog';
   if (initial.statType === 'skill') return 'skill';
   if (initial.statType === 'boss') return 'kills';
   return 'standard';
+}
+
+/** A saved part row (the tiles PUT returns a combo's parts as raw rows) → the editor's part config. */
+function rowToPartConfig(row: Record<string, unknown>): ComboPartConfig {
+  const json = (v: unknown) => {
+    if (typeof v !== 'string' || !v) return null;
+    try {
+      return JSON.parse(v);
+    } catch {
+      return null;
+    }
+  };
+  return {
+    ...(row as Partial<TileConfig>),
+    id: row.id as number,
+    label: String(row.label ?? ''),
+    trackedItemIds: json(row.trackedItemIds),
+    itemRequirements: json(row.itemRequirements),
+    sourceNpcs: json(row.sourceNpcs),
+    targetNpcs: json(row.targetNpcs),
+    capBy: json(row.capBy),
+    effortConfig: parseTileEffortConfig(row.effortConfig as string | null),
+    optional: !!row.optional,
+    lottery: !!row.lottery,
+    autoTrackDisabled: !!row.autoTrackDisabled,
+    partyTeamOnly: !!row.partyTeamOnly,
+    mission: false,
+    missionRules: null,
+    comboRule: null,
+    parts: null,
+    comboWeight: (row.comboWeight as number | null) ?? null,
+  } as ComboPartConfig;
 }
 
 /** The monsters a stored kills tile already counts, as editor picks. Plugin names stay verbatim. */
@@ -593,6 +645,10 @@ function TrackingModeField({
 // cleared, so picking "Zulrah kills" on a tile that was a drop doesn't leave its items behind.
 const KIND_FIELDS_CLEARED: Partial<TileConfig> = {
   tileType: 'standard',
+  capBy: null,
+  comboRule: null,
+  parts: null,
+  comboWeight: null,
   requiredAmount: null,
   trackedStat: null,
   statType: null,
@@ -640,7 +696,7 @@ export default function TileTrackingConfig(props: Props) {
     : props.initial;
   return (
     <>
-      {!props.eventStarted && !outsideClan && (
+      {!props.eventStarted && !outsideClan && !props.hideTaskFinder && (
         <TaskFinder
           picked={applied?.title ?? null}
           onPick={(s) => setApplied((a) => ({ n: (a?.n ?? 0) + 1, title: s.title, config: s.config }))}
@@ -666,6 +722,7 @@ function TileTrackingEditor({
   missionsAllowed = true,
   missionsEnabled = true,
   cofferAvailable = null,
+  asPart = false,
 }: Props) {
   // Difficulty bands, ascending — the tier picker sets points to a band's floor, and the
   // current points value maps back to whichever band it falls in.
@@ -683,6 +740,10 @@ function TileTrackingEditor({
   const [label, setLabel] = useState<string>(initial.label);
   const [description, setDescription] = useState<string>(initial.description || "");
   const [requiredAmount, setRequiredAmount] = useState<string>(initial.requiredAmount?.toString() || "");
+  // Collection-log tiles (lib/clogTiles): mode, the pages items were picked from, and the items.
+  const [clogMode, setClogMode] = useState<'slots' | 'complete'>(initial.tileType === 'clog' && initial.countMode === 'complete' ? 'complete' : 'slots');
+  const [clogPages, setClogPages] = useState<string[]>(initial.tileType === 'clog' ? initial.targetNpcs || [] : []);
+  const [clogItemIds, setClogItemIds] = useState<number[]>(initial.tileType === 'clog' ? initial.trackedItemIds || [] : []);
   const [trackedStat, setTrackedStat] = useState<string>(initial.trackedStat || "");
   const [statGoal, setStatGoal] = useState<string>(initial.statGoal?.toString() || "");
   // Whether that goal is an in-event GAIN (every stat tile before milestones existed) or a LIFETIME
@@ -697,6 +758,11 @@ function TileTrackingEditor({
   const [lottery, setLottery] = useState<boolean>(initial.lottery || false);
   // Admin kill-switch: when on, the site won't auto-credit this tile — it's completed manually.
   const [autoTrackDisabled, setAutoTrackDisabled] = useState<boolean>(initial.autoTrackDisabled || false);
+  // Kill/counter caps (lib/tileCaps): "100 searches paid for with energy earned during the event".
+  const [capBy, setCapBy] = useState<string[]>(initial.capBy ?? []);
+  // COMBO tiles (lib/combo): the rule and the parts, each an ordinary tile config.
+  const [comboRule, setComboRule] = useState<ComboRule>(initial.comboRule ?? { mode: 'any' });
+  const [comboParts, setComboParts] = useState<ComboPartDraft[]>(() => draftsFromParts(initial.parts));
   const [points, setPoints] = useState<string>(initial.points != null ? initial.points.toString() : "1");
   const [category, setCategory] = useState<string>(initial.category || "");
   // Balance-only calibration. These values never alter plugin matching or completion; they only
@@ -1039,6 +1105,8 @@ function TileTrackingEditor({
   const isValue = kind === 'value';
   const isDiary = kind === 'diary';
   const isCa = kind === 'ca';
+  const isCombo = kind === 'combo';
+  const isClog = kind === 'clog';
 
   // Load the CA task list the first time the CA kind is shown; filter locally as the admin types.
   useEffect(() => {
@@ -1166,6 +1234,26 @@ function TileTrackingEditor({
     ).slice(0, 8);
   }, [npcSearch, killPicks, frozenKillSource]);
 
+  // In-game counters (Hunter Rumours, Herbiboar, chests…) and raid mode names matching the search box.
+  // Neither is in the wiki monster search nor (mostly) on the hiscores, so without this they were
+  // only reachable through the collapsed quick-add lists below — typing "herbi" found nothing.
+  const counterHits = useMemo(() => {
+    const q = npcSearch.trim().toLowerCase();
+    if (q.length < 2) return [];
+    const counters = frozenKillSource === 'hiscores'
+      ? []
+      : COUNTER_TARGETS.map((t) => ({ name: t.name, note: t.note }));
+    const raids = RAID_KC_NAMES
+      .filter((n) => frozenKillSource !== 'hiscores' || !!hiscoresKeyForMonster(n))
+      .map((n) => ({ name: n, note: 'Raid — counts off the in-game completion line' }));
+    return [...counters, ...raids]
+      .filter((t) => t.name.toLowerCase().includes(q))
+      .filter((t) => !killPicks.some((p) => samePick(p, { name: t.name, key: hiscoresKeyForMonster(t.name) })))
+      // A raid the hiscores carry already shows under "On the hiscores" — don't list it twice.
+      .filter((t) => !hiscoresHits.some((h) => h.value === hiscoresKeyForMonster(t.name)))
+      .slice(0, 8);
+  }, [npcSearch, killPicks, frozenKillSource, hiscoresHits]);
+
   /** Add a typed / wiki / quick-add name; a name the hiscores know is tagged with its key. */
   function addNpc(name: string) {
     const trimmed = name.trim();
@@ -1201,6 +1289,8 @@ function TileTrackingEditor({
   function changeKind(next: TileKind) {
     setKind(next);
     setError(null);
+    // A new combo starts with two empty parts to fill in.
+    if (next === 'combo' && comboParts.length === 0) setComboParts([blankPart(initial, 1), blankPart(initial, 2)]);
     // Fields not relevant to the destination kind are always cleared; each branch then
     // keeps only what it needs.
     if (next === 'skill') {
@@ -1293,6 +1383,18 @@ function TileTrackingEditor({
       setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
+    } else if (next === 'clog') {
+      // Keeps requiredAmount; the clog fields are its own state and only reach a clog payload.
+      setTrackedStat("");
+      setStatGoal("");
+      setTrackedItems([]);
+      setSourceNpcsText("");
+      setKillPicks([]);
+      setDiarySelectors([]);
+      setCaSelectors([]);
+      setLapCourses([]);
+      setTimedActivity("");
+      setTimeThresholdClock("");
     } else if (next === 'ca') {
       // Keeps caSelectors + requiredAmount — the CA kind's whole config.
       setTrackedStat("");
@@ -1356,6 +1458,17 @@ function TileTrackingEditor({
   }
 
   function validate(): string | null {
+    if (kind === 'combo') {
+      if (comboParts.length < MIN_COMBO_PARTS || comboParts.length > MAX_COMBO_PARTS) {
+        return `A combo needs ${MIN_COMBO_PARTS}–${MAX_COMBO_PARTS} parts.`;
+      }
+      if (comboRule.mode === 'nOf' && ((comboRule.n ?? 0) < 1 || (comboRule.n ?? 0) > comboParts.length)) {
+        return `Pick how many of the ${comboParts.length} parts are needed.`;
+      }
+      if (comboParts.some((p) => p.comboWeight != null && (p.comboWeight <= 0 || p.comboWeight > 1))) {
+        return 'A part’s weight must be more than 0 and at most 1.';
+      }
+    }
     if (kind === 'skill') {
       if (!trackedStat) return 'Pick a skill to track.';
       const goal = parseInt(statGoal, 10);
@@ -1398,6 +1511,17 @@ function TileTrackingEditor({
       const amt = parseInt(requiredAmount, 10);
       if (!Number.isInteger(amt) || amt < 1) return 'Set a required completion count of at least 1.';
     }
+    if (kind === 'clog') {
+      const amt = requiredAmount.trim() ? parseInt(requiredAmount, 10) : null;
+      if (clogMode === 'complete') {
+        if (clogItemIds.length === 0) return 'Add a collection log page (or tick at least one item) to complete.';
+        if (amt != null && (!Number.isInteger(amt) || amt < 1 || amt > Math.max(1, clogPages.length))) return `Pages needed must be between 1 and ${Math.max(1, clogPages.length)} (blank = all).`;
+      } else {
+        if (amt == null || !Number.isInteger(amt) || amt < 1) return 'Set how many new slots are needed (at least 1).';
+        if (clogPages.length > 0 && clogItemIds.length === 0) return 'Every item is unticked — tick at least one, or remove the page to count any page.';
+        if (clogItemIds.length > 0 && amt > clogItemIds.length) return `Only ${clogItemIds.length} items are chosen — ask for at most ${clogItemIds.length} new slots.`;
+      }
+    }
     if (kind === 'ca') {
       if (caSelectors.length === 0) return 'Add at least one combat task (or an "Any <tier>" wildcard) to count completions for.';
       const amt = parseInt(requiredAmount, 10);
@@ -1408,7 +1532,11 @@ function TileTrackingEditor({
       const amt = parseInt(requiredAmount, 10);
       if (!Number.isInteger(amt) || amt < 1) return 'Set how many must be gained (at least 1).';
     }
-    if (kind === 'timed') {
+    if (kind === 'timed' && parseTrialRankTile(timedActivity)) {
+      // Barracuda Trials rank tile: the rank is the gate, so no time cap — just how many runs.
+      const runs = parseInt(requiredAmount || '1', 10);
+      if (!Number.isInteger(runs) || runs < 1 || runs > 10000) return 'Set how many runs at this rank are needed (at least 1).';
+    } else if (kind === 'timed') {
       if (!timedActivity.trim()) return 'Name the activity to time (e.g. Inferno).';
       const secs = clockToSeconds(timeThresholdClock);
       if (secs == null || secs < 1) return 'Set a time cap as mm:ss (e.g. 30:00) or seconds.';
@@ -1502,11 +1630,16 @@ function TileTrackingEditor({
           } : {}),
         },
         category: category.trim() || null,
+        // A counter's cap rides only a plugin kills tile (lib/tileCaps); cleared on every other kind.
+        capBy: isKill && capBy.length > 0 ? capBy : null,
+        // A combo's rule and parts (lib/combo) — the parts saved with it, each its own tile row.
+        comboRule: isCombo ? comboRule : null,
+        ...(isCombo ? { parts: comboParts.map((p) => partPayload(p, comboRule.mode)) } : {}),
         // Mission flag + per-mission scoring (assembled below; null-rules on a normal tile).
         mission,
         missionRules: buildMissionRules(),
         // defaults — overridden per kind below
-        tileType: isDrop ? 'drop' : isKill ? 'kill' : isLap ? 'lap' : isPvp ? 'pvp' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : isCa ? 'ca' : 'standard',
+        tileType: isCombo ? 'combo' : isDrop ? 'drop' : isKill ? 'kill' : isLap ? 'lap' : isPvp ? 'pvp' : isGain ? 'gain' : isTimed ? 'timed' : isDeathless ? 'deathless' : isLms ? 'lms' : isValue ? (valueMode === 'total' ? 'valuetotal' : 'value') : isDiary ? 'diary' : isCa ? 'ca' : isClog ? 'clog' : 'standard',
         trackedStat: null,
         statType: null,
         statGoal: null,
@@ -1599,6 +1732,13 @@ function TileTrackingEditor({
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.targetNpcs = diarySelectors;
         payload.trackingMode = trackingMode;
+      } else if (kind === 'clog') {
+        // Collection log (lib/clogTiles): the chosen items ARE the pool; pages are kept as labels.
+        payload.countMode = clogMode;
+        payload.targetNpcs = clogPages.length > 0 ? clogPages : null;
+        payload.trackedItemIds = clogItemIds.length > 0 ? clogItemIds : null;
+        payload.requiredAmount = requiredAmount.trim() ? parseInt(requiredAmount, 10) : null;
+        payload.trackingMode = trackingMode;
       } else if (kind === 'ca') {
         // CA selectors (task names / "Any <Tier>") likewise ride in targetNpcs.
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
@@ -1608,6 +1748,14 @@ function TileTrackingEditor({
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.trackedItemIds = trackedItems.length > 0 ? trackedItems.map((i) => i.id) : null;
         payload.trackingMode = trackingMode;
+      } else if (kind === 'timed' && parseTrialRankTile(timedActivity)) {
+        // Barracuda Trials rank tile: gated on the exact rank (no cap); requiredAmount = runs needed.
+        payload.timedActivity = timedActivity.trim();
+        payload.timeThresholdSeconds = null;
+        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : 1;
+        payload.trackingMode = trackingMode;
+        payload.partySize = null;
+        payload.minRaidLevel = null;
       } else if (kind === 'timed') {
         payload.timedActivity = timedActivity.trim();
         payload.timeThresholdSeconds = clockToSeconds(timeThresholdClock);
@@ -1697,8 +1845,12 @@ function TileTrackingEditor({
           partyTeamOnly: !!updated.partyTeamOnly,
           mission: !!updated.mission,
           missionRules: updated.rules ? parseTileMissionRules(updated.rules) : null,
+          capBy: updated.capBy ? JSON.parse(updated.capBy) : null,
+          comboRule: updated.comboRule ? parseComboRule(updated.comboRule) : null,
+          parts: Array.isArray(updated.parts) ? updated.parts.map(rowToPartConfig) : null,
           updatedAt: updated.updatedAt ?? null,
         });
+        if (Array.isArray(updated.parts)) setComboParts(draftsFromParts(updated.parts.map(rowToPartConfig)));
       } else {
         const data = await res.json().catch(() => ({}));
         setError(
@@ -1759,7 +1911,7 @@ function TileTrackingEditor({
       <div>
         <label className="block text-xs text-text-muted mb-1">{eventStarted || lookupApi !== "/api/admin" ? "Tile kind" : "Kind — set for you when you pick a task above"}</label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-          {KINDS.map((k) => (
+          {KINDS.filter((k) => !(asPart && k.key === 'combo')).map((k) => (
             <button
               key={k.key}
               type="button"
@@ -1827,7 +1979,7 @@ function TileTrackingEditor({
       {/* Point value (points events only) — picked by difficulty tier, with the raw number
           alongside for fine-tuning. Choosing a tier sets the band's floor; typing a number
           snaps the tier picker to whichever band it falls in. */}
-      {pointsMode && (
+      {pointsMode && !asPart && (
         <div>
           <label className="block text-xs text-text-muted mb-1">
             Difficulty &amp; Points <span className="text-text-muted/60">(score awarded on completion)</span>
@@ -1866,6 +2018,7 @@ function TileTrackingEditor({
 
       {/* Category — a tile can carry several tags (stored comma-separated), so it shows up
           under every matching filter on the board and in the plugin (e.g. Inferno + PvM). */}
+      {!asPart && (
       <div>
         <label className="block text-xs text-text-muted mb-1">
           Categories <span className="text-text-muted/60">(tags — Enter or comma adds; a tile can have several, e.g. Inferno + PvM)</span>
@@ -1878,6 +2031,23 @@ function TileTrackingEditor({
           suggestions={categorySuggestions}
         />
       </div>
+      )}
+
+      {/* ---- COMBO (lib/combo): the rule and the parts ---- */}
+      {isCombo && (
+        <ComboPartsField
+          rule={comboRule}
+          onRule={setComboRule}
+          parts={comboParts}
+          onParts={setComboParts}
+          base={initial}
+          locked={locked}
+          eventStarted={eventStarted}
+          isAdmin={isAdmin}
+          teamPlay={teamPlay}
+          solo={trackingMode === 'individual'}
+        />
+      )}
 
       {/* ---- SKILL XP (hiscores) ---- */}
       {kind === 'skill' && (
@@ -2558,12 +2728,12 @@ function TileTrackingEditor({
                     setShowNpcDropdown(false);
                   }
                 }}
-                onFocus={() => (npcResults.length > 0 || hiscoresHits.length > 0) && setShowNpcDropdown(true)}
+                onFocus={() => (npcResults.length > 0 || hiscoresHits.length > 0 || counterHits.length > 0) && setShowNpcDropdown(true)}
                 placeholder="Search bosses and monsters (e.g. Zulrah, Nightmare, Chicken)..."
                 className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
               />
               {npcSearching && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">...</span>}
-              {showNpcDropdown && (hiscoresHits.length > 0 || npcResults.length > 0) && (
+              {showNpcDropdown && (hiscoresHits.length > 0 || counterHits.length > 0 || npcResults.length > 0) && (
                 <div className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto bg-brown-dark border border-card-border rounded shadow-lg">
                   {hiscoresHits.length > 0 && (
                     <p className="px-3 pt-2 pb-1 text-[9px] uppercase tracking-wider text-text-muted/70">On the hiscores</p>
@@ -2581,6 +2751,27 @@ function TileTrackingEditor({
                       className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-gold/10 transition-colors"
                     >
                       {o.label}
+                    </button>
+                  ))}
+                  {counterHits.length > 0 && (
+                    <p className={`px-3 pt-2 pb-1 text-[9px] uppercase tracking-wider text-text-muted/70 ${hiscoresHits.length > 0 ? 'border-t border-card-border' : ''}`}>
+                      In-game counters
+                    </p>
+                  )}
+                  {counterHits.map((t) => (
+                    <button
+                      key={t.name}
+                      type="button"
+                      onClick={() => {
+                        addNpc(t.name);
+                        setNpcSearch('');
+                        setNpcResults([]);
+                        setShowNpcDropdown(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-gold/10 transition-colors"
+                    >
+                      {t.name}
+                      <span className="block text-[10px] text-text-muted">{t.note}</span>
                     </button>
                   ))}
                   {npcResults.length > 0 && (
@@ -2668,9 +2859,14 @@ function TileTrackingEditor({
                             type="button"
                             onClick={() => addNpc(e.name)}
                             className="text-[10px] px-2 py-0.5 rounded border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
-                            title={e.note}
+                            title={e.confirmed === false
+                              ? `${e.note} — beta: a new in-game signal, so each credit is flagged for staff to spot-check`
+                              : e.note}
                           >
                             + {e.name}
+                            {e.confirmed === false && (
+                              <span className="ml-1 px-1 rounded bg-yellow-500/15 text-yellow-300 text-[9px] uppercase tracking-wide">beta</span>
+                            )}
                           </button>
                         ))}
                       </div>
@@ -2681,6 +2877,24 @@ function TileTrackingEditor({
             </details>
             )}
           </div>
+
+          {/* Per-member CAP (lib/tileCaps): GOTR searches only count up to the energy each member
+              attuned this event (a search costs one elemental + one catalytic). Any other cap a tile
+              already carries (set through the importer) is shown, and kept. */}
+          {killPicks.length === 1 && killPicks[0].name.toLowerCase() === GOTR_SEARCHES.toLowerCase() && (
+            <Checkbox
+              checked={isGotrEnergyCapped(capBy)}
+              onChange={(on) => setCapBy(on ? [...GOTR_ENERGY_CAPS] : [])}
+              disabled={locked}
+              label="Only searches paid for with energy earned during the event"
+              description="Each member's searches count up to the elemental and catalytic energy they attuned this event — banked energy from before the event buys nothing."
+            />
+          )}
+          {capBy.length > 0 && !isGotrEnergyCapped(capBy) && (
+            <p className="text-[11px] text-text-muted">
+              Capped per member by: <span className="text-foreground/80">{capBy.join(', ')}</span>
+            </p>
+          )}
 
           {/* Which engine counts it — chosen for the admin, said in one line. */}
           {killPicks.length > 0 && (
@@ -3067,6 +3281,25 @@ function TileTrackingEditor({
         </div>
       )}
 
+      {/* ---- COLLECTION LOG KIND ---- */}
+      {isClog && (
+        <div className="space-y-3">
+          <ClogTileFields
+            lookupApi={lookupApi}
+            mode={clogMode}
+            onMode={setClogMode}
+            pages={clogPages}
+            onPages={setClogPages}
+            itemIds={clogItemIds}
+            onItemIds={setClogItemIds}
+            amount={requiredAmount}
+            onAmount={setRequiredAmount}
+            locked={locked}
+          />
+          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit={clogMode === 'complete' ? 'finished pages' : 'new slots'} goal="count" teamPlay={teamPlay} />
+        </div>
+      )}
+
       {/* ---- COMBAT ACHIEVEMENT KIND ---- */}
       {isCa && (
         <div className="space-y-3 rounded-lg border border-accent-green/20 bg-accent-green/5 p-3">
@@ -3202,6 +3435,7 @@ function TileTrackingEditor({
               value={timedActivity}
               onChange={setTimedActivity}
               suggestions={TIMED_ACTIVITY_SUGGESTIONS}
+              suggestionHint={trialSuggestionHint}
               placeholder="e.g. Inferno"
               maxLength={60}
               ariaLabel="Timed activity"
@@ -3215,6 +3449,29 @@ function TileTrackingEditor({
             </p>
           </div>
 
+          {parseTrialRankTile(timedActivity) ? (
+            <>
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Runs needed</label>
+                <Input
+                  type="number"
+                  value={requiredAmount}
+                  onChange={(e) => setRequiredAmount(e.target.value)}
+                  disabled={locked}
+                  placeholder="1"
+                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
+                  min="1"
+                />
+                <p className="text-[10px] text-text-muted mt-0.5">
+                  A Barracuda Trials rank tile: each run that earns exactly this rank on this course counts once
+                  (no time cap — a different rank never counts). Sailing {trialRankLevel(timedActivity)} to enter
+                  the course.
+                </p>
+              </div>
+              <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="runs" goal="run count" teamPlay={teamPlay} />
+            </>
+          ) : (
+          <>
           <div>
             <label className="block text-xs text-text-muted mb-1">
               Time Cap <span className="text-text-muted/60">(complete if cleared at or under)</span>
@@ -3255,6 +3512,8 @@ function TileTrackingEditor({
           )}
           {activityIsToa(timedActivity) && (
             <RaidLevelField value={minRaidLevel} onChange={setMinRaidLevel} />
+          )}
+          </>
           )}
         </div>
       )}
@@ -3467,6 +3726,7 @@ function TileTrackingEditor({
 
       {/* Scoring calibration travels with reusable tasks, CSV/XLSX exports, and concrete tiles.
           It affects only the balance audit; tracking and completion remain independent. */}
+      {!asPart && (
       <details
         open={!!effortSkillRating || !!effortExpectedHours || !!effortRaidMode || effortLockPoints}
         className="group rounded-lg border border-sky-500/20 bg-sky-500/5"
@@ -3596,10 +3856,12 @@ function TileTrackingEditor({
             )}
           </div>
       </details>
+      )}
 
       {/* Everything below is per-tile fine print: it applies to a minority of tiles, and shown open
           on every tile it triples the length of the form for no one's benefit. Opens by default when
           any of it is actually in use, so an existing tile never hides its own configuration. */}
+      {!asPart && (
       <details open={optional || lottery || mission || autoTrackDisabled} className="group rounded-lg border border-card-border/60">
         <summary className="cursor-pointer select-none list-none px-3 py-2 flex items-center gap-2 text-xs font-medium text-text-muted hover:text-foreground">
           <span className="transition-transform group-open:rotate-90">▸</span>
@@ -3815,6 +4077,7 @@ function TileTrackingEditor({
       )}
         </div>
       </details>
+      )}
 
       {error && <p className="text-xs text-red-400">{error}</p>}
 
@@ -3824,7 +4087,7 @@ function TileTrackingEditor({
         disabled={saving}
         className="w-full py-2 text-sm font-semibold rounded bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
       >
-        {saving ? "Saving..." : "Save Configuration"}
+        {saving ? "Saving..." : asPart ? "Done with this part" : "Save Configuration"}
       </button>
     </div>
   );

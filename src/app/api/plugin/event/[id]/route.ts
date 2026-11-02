@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { eventForPluginRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, tiles } from '@/db/schema';
+import { eventBoardTiles } from '@/lib/comboSql';
 import { eq } from 'drizzle-orm';
 import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 
@@ -50,7 +51,8 @@ export async function GET(
           revealedAt: tiles.revealedAt,
         })
         .from(tiles)
-        .where(eq(tiles.eventId, id))
+        // Board cells only — a combo's parts (lib/combo) aren't cells of their own.
+        .where(eventBoardTiles(id))
         .orderBy(tiles.position)
     : [];
   const tileRows = visibleTiles(parseEventRules(event.rules), allTileRows);

@@ -1,3 +1,4 @@
+import type { ComboRule } from '@/lib/combo';
 import type { MissionReward } from '@/lib/eventRules';
 // Canonical shared types used across client components
 
@@ -98,6 +99,16 @@ export interface Tile extends TileRevealState {
   minRaidLevel?: number | null; // ToA timed/deathless tiles — raid level the run must END at (null = any)
   partyTeamOnly?: number | null; // deathless tiles — 1 = every player in the raid is on the team
   pvpMinLootValue?: number | null; // pvp tiles — min loot value (gp) a kill must yield (null/0 = none)
+  /** Combo PART (lib/combo): the combo this tile is a piece of. Parts are never board cells. */
+  parentTileId?: number | null;
+  /** Combo tiles: JSON { mode: 'any' | 'all' | 'nOf' | 'mix', n? } (lib/combo). */
+  comboRule?: string | null;
+  /** Combo PART: its weight in a 'mix' combo (null = 1). */
+  comboWeight?: number | null;
+  /** Kill/counter tiles: JSON string[] of counters that cap each member's count (lib/tileCaps). */
+  capBy?: string | null;
+  /** Combo tiles, where the loader attached them: the parts, in order. */
+  parts?: Tile[];
   mission?: number | null; // 1 = a mission tile (hidden until announced mid-event; see tiles.mission)
   rules?: string | null; // per-mission scoring JSON (see tiles.rules / MissionRules); null on normal tiles
   // Optimistic-concurrency stamp (see tiles PUT baseUpdatedAt). Null on legacy rows.
@@ -174,7 +185,8 @@ export interface Submission {
   itemId?: number | null;
   durationSeconds?: number | null; // timed-tile clear time in seconds
   /** Why this credit wants a human look: 'no_start_proof' (lib/startProof), or 'inferred_duplicate_pet' /
-   * 'inferred_duplicate_scroll' when the plugin worked out an unnamed duplicate from context. */
+   * 'inferred_duplicate_scroll' when the plugin worked out an unnamed duplicate from context, or
+   * 'unverified_counter' when it counted off an in-game signal nobody has checked yet (lib/gameCounters). */
   flaggedReason?: string | null;
   /** 'plugin' | 'web'; null on rows from before provenance was recorded (lib/proofStamp). */
   source?: string | null;
@@ -182,6 +194,11 @@ export interface Submission {
   cleanImageUrl?: string | null;
   /** Hiscores footprint verdict (lib/footprint): 'ok' | 'short' | 'dismissed', null = not checked. */
   footprint?: string | null;
+  /**
+   * What this credits (lib/tileCaps): null = the tile's own count; 'cap:N' = one of a capped tile's cap
+   * counters, which never counts toward (or proves) the tile's own progress.
+   */
+  goal?: string | null;
 }
 
 export interface ItemRequirement {
@@ -232,6 +249,17 @@ export interface TileConfig {
   /** Kill tiles: the kill only counts with at least this many of the team in it (null = no gate). */
   coopMinMembers?: number | null;
   points: number;
+  /** Kill/counter tiles: counters whose per-member totals cap the count (lib/tileCaps). */
+  capBy?: string[] | null;
+  /** Combo tiles: the rule over the parts (lib/combo). */
+  comboRule?: ComboRule | null;
+  /** Combo PART: its weight in a 'mix' combo (null/absent = 1). */
+  comboWeight?: number | null;
+  /**
+   * Combo tiles: the parts, each an ordinary tile config (any kind). `id` names an existing part; a
+   * part without one is created on save. Sent to the tiles PUT as `parts`.
+   */
+  parts?: ComboPartConfig[] | null;
   /** Balance-only assumptions; stored as JSON on a board tile. */
   effortConfig?: TileEffortConfig | null;
   category: string | null;
@@ -274,3 +302,6 @@ export interface PlayerGain {
   gained: number;
   current: number;
 }
+
+/** One part of a combo as the editor / tile creator hold it: a tile's kind config + its label. */
+export type ComboPartConfig = Partial<TileConfig> & { id?: number; label: string };

@@ -176,7 +176,7 @@ export async function buildSchedule(
     const tileCounts = await db
       .select({ eventId: tiles.eventId, count: count() })
       .from(tiles)
-      .where(inArray(tiles.eventId, bingoCandidates.map((e) => e.id)))
+      .where(and(inArray(tiles.eventId, bingoCandidates.map((e) => e.id)), isNull(tiles.parentTileId)))
       .groupBy(tiles.eventId);
     for (const row of tileCounts) tileCountMap.set(row.eventId, row.count);
   }

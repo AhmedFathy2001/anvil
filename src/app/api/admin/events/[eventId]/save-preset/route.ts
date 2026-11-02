@@ -3,6 +3,7 @@ import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { eventPresets, events, tiles } from '@/db/schema';
+import { eventBoardTiles } from '@/lib/comboSql';
 import { asc, eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { TILE_CSV_COLUMNS, tileToCsvCells } from '@/lib/csvTiles';
@@ -54,7 +55,8 @@ export async function POST(
   const eventTiles = await db
     .select()
     .from(tiles)
-    .where(eq(tiles.eventId, id))
+    // Board cells only: a preset is a spreadsheet, which has no place for a combo's parts (lib/combo).
+    .where(eventBoardTiles(id))
     .orderBy(asc(tiles.position));
 
   const clan = await requireClan();

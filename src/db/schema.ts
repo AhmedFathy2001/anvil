@@ -841,6 +841,22 @@ export const tiles = pgTable('tiles', {
   // counts only what's done after the announce — not KC banked between the event start and the drop.
   // JSON { [participantId]: { g: gain so far, l: lifetime } }; NULL = count from the event baseline.
   revealStats: text('reveal_stats'),
+  // COMBO tiles (lib/combo): a tile made of PARTS, each an ordinary tile of any kind. A part is a real
+  // tile row whose `parentTileId` names its combo; it keeps its own engine (hiscores, plugin crediting,
+  // submissions, completions) but is NOT a board cell — never laid out, counted or scored on its own
+  // (lib/combo isPart; SQL: lib/comboSql boardTileWhere). The parent (tileType 'combo') completes for a
+  // team when its parts' completions satisfy `comboRule`. Cascade: deleting a combo removes its parts.
+  parentTileId: integer('parent_tile_id').references((): AnyPgColumn => tiles.id, { onDelete: 'cascade' }),
+  // The combo's rule, on the parent only: JSON { mode: 'any' | 'all' | 'nOf' | 'mix', n?: number }. NULL elsewhere.
+  comboRule: text('combo_rule'),
+  // A PART's weight in a 'mix' combo (lib/combo): a whole part is worth this share of the combo
+  // (1 = all of it; 0.5 = halfway). NULL = 1. Ignored by every other rule.
+  comboWeight: real('combo_weight'),
+  // A kill/counter tile's per-member CAP (lib/tileCaps): JSON string[] of counters. What a member's
+  // count credits is min(their own count, their total of each cap counter) — "100 searches paid for
+  // with energy earned during the event" = min(searches, elemental, catalytic). Cap counters are
+  // tracked through virtual plugin entries and stored as submissions with goal 'cap:N'. NULL = uncapped.
+  capBy: text('cap_by'),
   // Free-text grouping label (e.g. "Zulrah", "Slayer", "Skilling", "GWD") used to
   // filter tasks by boss/skill/category in the RuneLite plugin's collection-log tab.
   // NULL = uncategorised.
@@ -879,6 +895,7 @@ export const tiles = pgTable('tiles', {
   rules: text('rules'),
 }, (table) => [
   index('tiles_event_id_idx').on(table.eventId),
+  index('tiles_parent_tile_id_idx').on(table.parentTileId),
 ]);
 
 // Advisory per-tile edit locks: opening the tile editor acquires one (TTL + heartbeat),
@@ -1120,6 +1137,10 @@ export const submissions = pgTable('submissions', {
   // credit), 'short' (it doesn't — flagged footprint_short), 'dismissed' (staff looked and cleared
   // it; the check never re-raises it). NULL = not checkable yet, or nothing to check.
   footprint: text('footprint'),
+  // What this row credits (lib/tileCaps). NULL = the tile's own count — every ordinary row. 'cap:0',
+  // 'cap:1'… = one of the tile's CAP counters by index (energy behind "searches paid for with event
+  // energy"). A row with a goal NEVER counts toward the tile's own requirement and never proves it.
+  goal: text('goal'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   index('submissions_tile_id_idx').on(table.tileId),

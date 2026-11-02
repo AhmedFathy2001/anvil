@@ -144,6 +144,8 @@ interface BreakdownPlayer {
 }
 interface BreakdownTile {
   id: number;
+  /** A combo PART (lib/combo): its work is credited to its combo — see foldCombosForBreakdown. */
+  parentTileId?: number | null;
   label?: string | null;
   tileType?: string | null;
   trackedStat?: string | null; // set on skill/boss tiles — completed via hiscores, not submissions
@@ -200,6 +202,96 @@ interface BreakdownSubmission {
   tileId: number;
   creditPlayerId: number | null;
   amount: number;
+  /** lib/tileCaps: null/absent = the tile's own credit; 'cap:N' = a cap counter's (never work). */
+  goal?: string | null;
+}
+
+/** The rows that say who did a tile's work: never a cap counter's (energy is not a turn-in). */
+export function contributionRows<T extends { goal?: string | null }>(rows: T[]): T[] {
+  return rows.some((r) => r.goal != null) ? rows.filter((r) => r.goal == null) : rows;
+}
+
+/** Each part of a combo weighs this much in its combo's split, shared by the part's own contributors. */
+const PART_WEIGHT = 1000;
+
+/**
+ * COMBO tiles (lib/combo): a combo has no work of its own — its parts do. Fold every part's work onto
+ * its combo, each part weighing the same (a part's own contributors share {@link PART_WEIGHT} in
+ * proportion to what they did on it — kills, items or XP alike), and drop the parts themselves, which
+ * are never board tiles and never score. Part completions go too: the combo's own completion is what
+ * scores. A no-op on a board without combos.
+ */
+export function foldCombosForBreakdown<
+  T extends BreakdownTile,
+  C extends BreakdownCompletion,
+  S extends BreakdownSubmission,
+>(params: { players: BreakdownPlayer[]; tiles: T[]; completions: C[]; submissions: S[]; statGains?: StatGainMap }): {
+  tiles: T[];
+  completions: C[];
+  submissions: BreakdownSubmission[];
+  statGains?: StatGainMap;
+} {
+  // Parts as rows of their own (parentTileId) or nested under their combo (lib/combo nestParts).
+  const parentOf = new Map<number, number>();
+  for (const t of params.tiles) {
+    if (t.parentTileId != null) parentOf.set(t.id, t.parentTileId);
+    for (const p of (t as { parts?: { id: number }[] }).parts ?? []) parentOf.set(p.id, t.id);
+  }
+  if (parentOf.size === 0) return params;
+  const teamOf = new Map(params.players.map((p) => [p.id, p.teamId]));
+  // part → team → player → raw amount (submission amounts, or the stat gained).
+  const work = new Map<number, Map<number, Map<number, number>>>();
+  const add = (partId: number, teamId: number | null | undefined, playerId: number, amount: number) => {
+    if (teamId == null || amount <= 0) return;
+    const byTeam = work.get(partId) ?? new Map<number, Map<number, number>>();
+    const byPlayer = byTeam.get(teamId) ?? new Map<number, number>();
+    byPlayer.set(playerId, (byPlayer.get(playerId) ?? 0) + amount);
+    byTeam.set(teamId, byPlayer);
+    work.set(partId, byTeam);
+  };
+  const submissions: BreakdownSubmission[] = [];
+  for (const s of params.submissions) {
+    if (!parentOf.has(s.tileId)) {
+      submissions.push(s);
+    } else if (s.goal == null && s.creditPlayerId != null) {
+      add(s.tileId, s.teamId, s.creditPlayerId, s.amount);
+    }
+  }
+  // A finished stat part's split was frozen at completion — that is its work for that team; the live
+  // gain only stands in for a part a team hasn't finished (or a legacy completion with no split).
+  const frozen = new Set<string>();
+  for (const c of params.completions) {
+    if (!parentOf.has(c.tileId) || !c.statContributions) continue;
+    frozen.add(`${c.tileId}:${c.teamId}`);
+    for (const r of c.statContributions.split) add(c.tileId, c.teamId, r.playerId, r.gained);
+  }
+  const statGains: StatGainMap = {};
+  for (const [key, rows] of Object.entries(params.statGains ?? {})) {
+    const tileId = Number(key);
+    if (!parentOf.has(tileId)) {
+      statGains[tileId] = rows;
+      continue;
+    }
+    for (const r of rows) {
+      const teamId = teamOf.get(r.playerId);
+      if (!frozen.has(`${tileId}:${teamId}`)) add(tileId, teamId, r.playerId, r.gained);
+    }
+  }
+  for (const [partId, byTeam] of work) {
+    for (const [teamId, byPlayer] of byTeam) {
+      const total = [...byPlayer.values()].reduce((a, b) => a + b, 0);
+      if (total <= 0) continue;
+      for (const [playerId, amount] of byPlayer) {
+        submissions.push({ teamId, tileId: parentOf.get(partId)!, creditPlayerId: playerId, amount: Math.round((amount / total) * PART_WEIGHT) });
+      }
+    }
+  }
+  return {
+    tiles: params.tiles.filter((t) => t.parentTileId == null),
+    completions: params.completions.filter((c) => !parentOf.has(c.tileId)),
+    submissions,
+    statGains,
+  };
 }
 // Per stat tile, each player's gain on the tracked stat (XP / KC). tileId → rows.
 export type StatGainMap = Record<number, { playerId: number; gained: number }[]>;
@@ -224,13 +316,15 @@ export function computeMemberBreakdown(params: {
   submissions: BreakdownSubmission[];
   statGains?: StatGainMap;
 }): MemberContribution[] {
-  const { teamId, scoringMode, players, tiles, completions, submissions, statGains } = params;
+  const { teamId, scoringMode, players } = params;
+  // Combo parts' work counts toward their combo (no-op on a board without combos).
+  const { tiles, completions, submissions, statGains } = foldCombosForBreakdown(params);
   const tileById = new Map(tiles.map((t) => [t.id, t]));
   const completedTileIds = new Set(
     completions.filter((c) => c.teamId === teamId).map((c) => c.tileId),
   );
   const teamPlayerIds = new Set(players.filter((p) => p.teamId === teamId).map((p) => p.id));
-  const teamSubs = submissions.filter((s) => s.teamId === teamId && s.creditPlayerId != null);
+  const teamSubs = contributionRows(submissions.filter((s) => s.teamId === teamId && s.creditPlayerId != null));
 
   // playerId -> tileId -> { amount, count, stat }. `amount` is the split weight (submission amount,
   // or XP/KC gained); `count` is submissions (0 for stat tiles); `stat` marks a hiscores tile.

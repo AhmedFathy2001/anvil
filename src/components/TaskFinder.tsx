@@ -4,13 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import type { TaskSuggestion } from '@/lib/taskSuggest';
 
-const SOURCE_BADGE: Record<TaskSuggestion['source'], string> = {
-  library: 'Task',
-  boss: 'Kills',
-  skill: 'Skill XP',
-  item: 'Drop',
-};
-
 /**
  * "What's the task?" — type it the way you'd say it and pick a tile that's already set up to track.
  * Suggestions come from lib/taskSuggest; picking one hands its fields to the editor below, which the
@@ -96,7 +89,7 @@ export default function TaskFinder({ onPick, picked }: { onPick: (s: TaskSuggest
                   className={`w-full text-left px-3 py-2 flex items-start gap-2 ${i === active ? 'bg-gold/10' : 'hover:bg-gold/5'}`}
                 >
                   <span className="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-card-border/70 text-text-muted">
-                    {SOURCE_BADGE[s.source]}
+                    {s.badge}
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm text-foreground">{s.title}</span>

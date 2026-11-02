@@ -40,7 +40,7 @@ export const getStageCounts = cache(async (eventId: number): Promise<StageCounts
     db
       .select({ n: count() })
       .from(tiles)
-      .where(and(eq(tiles.eventId, eventId), or(isNull(tiles.mission), eq(tiles.mission, 0)), writtenTile)),
+      .where(and(eq(tiles.eventId, eventId), or(isNull(tiles.mission), eq(tiles.mission, 0)), isNull(tiles.parentTileId), writtenTile)),
     db.select({ n: count() }).from(teams).where(eq(teams.eventId, eventId)),
     db
       .select({ n: count() })

@@ -1,4 +1,5 @@
 import { isIndividualMode } from '@/lib/statTracking';
+import { cappedProgress } from '@/lib/tileCaps';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // Progress toward a submission-backed COUNT tile (kill / PvP / item gain / diary / CA / drop pool …),
@@ -28,6 +29,16 @@ export interface CountedSubmission {
   amount: number;
   /** Which item it was — only read on a 'distinct' drop pool. */
   itemId?: number | null;
+  /**
+   * What the row credits (lib/tileCaps). Null/absent = the tile's own count; 'cap:N' rows are a cap
+   * counter's (energy), which only ever LIMIT the count of a capped tile and never add to it.
+   */
+  goal?: string | null;
+}
+
+/** A row that counts toward the tile's own requirement — not a cap counter's credit. */
+export function isPrimaryCredit(s: { goal?: string | null }): boolean {
+  return s.goal == null;
 }
 
 // Bucket key for submissions we can't attribute to a player. Player ids are positive autoincrement
@@ -59,8 +70,21 @@ export function countProgress(
   // count: each item is worth 1 the first time it shows up and nothing after. "First" is per team on
   // a Team tile and per member on a Solo one — a teammate's copy is still new to YOU.
   countMode?: string | null,
+  // A capped counter tile's caps (lib/tileCaps, tiles.cap_by): each member's count is limited by their
+  // own total of every cap counter ('cap:N' rows in `subsIn`) before members are combined.
+  capBy?: readonly string[] | null,
 ): CountProgress {
-  const subs = countMode === 'distinct' ? distinctOnly(subsIn, isIndividualMode(trackingMode)) : subsIn;
+  // Cap rows (lib/tileCaps) are a different counter entirely: 100 energy is not 100 searches.
+  const primary = subsIn.filter(isPrimaryCredit);
+  // 'slots' (collection-log tiles, lib/clogTiles): a slot is (member, item), so it is distinct PER
+  // MEMBER on a Team tile too — a teammate unlocking the same item is a new slot for them.
+  const subs = countMode === 'distinct'
+    ? distinctOnly(primary, isIndividualMode(trackingMode))
+    : countMode === 'slots' ? distinctOnly(primary, true) : primary;
+  if (capBy && capBy.length > 0) {
+    const capped = cappedProgress([...subs, ...subsIn.filter((s) => !isPrimaryCredit(s))], capBy, trackingMode);
+    return { current: capped.current, finisherPlayerId: capped.finisherPlayerId, teamTotal: capped.teamTotal };
+  }
   const teamTotal = subs.reduce((sum, s) => sum + s.amount, 0);
   if (!isIndividualMode(trackingMode)) {
     return { current: teamTotal, finisherPlayerId: null, teamTotal };
@@ -91,9 +115,18 @@ export function countProgress(
  * over-submission guards and the "3/10" the plugin shows are about YOUR count, not the team's.
  * `playerId` null (unattributed admin/captain upload) reads that shared bucket.
  */
-export function memberProgress(subsIn: CountedSubmission[], playerId: number | null, countMode?: string | null): number {
-  const subs = countMode === 'distinct' ? distinctOnly(subsIn, true) : subsIn;
+export function memberProgress(
+  subsIn: CountedSubmission[],
+  playerId: number | null,
+  countMode?: string | null,
+  capBy?: readonly string[] | null,
+): number {
+  const primary = subsIn.filter(isPrimaryCredit);
+  const subs = countMode === 'distinct' || countMode === 'slots' ? distinctOnly(primary, true) : primary;
   const key = playerId ?? UNATTRIBUTED_CREDIT;
+  if (capBy && capBy.length > 0) {
+    return cappedProgress([...subs, ...subsIn.filter((s) => !isPrimaryCredit(s))], capBy, 'team').byMember.get(key) ?? 0;
+  }
   return subs.reduce((sum, s) => (submissionCreditKey(s) === key ? sum + s.amount : sum), 0);
 }
 
@@ -121,6 +154,6 @@ export function itemAlreadyCounted(
 ): boolean {
   const solo = isIndividualMode(trackingMode);
   return subs.some(
-    (s) => s.amount > 0 && s.itemId === itemId && (!solo || submissionCreditKey(s) === (creditKey ?? UNATTRIBUTED_CREDIT)),
+    (s) => isPrimaryCredit(s) && s.amount > 0 && s.itemId === itemId && (!solo || submissionCreditKey(s) === (creditKey ?? UNATTRIBUTED_CREDIT)),
   );
 }

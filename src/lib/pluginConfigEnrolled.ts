@@ -1,3 +1,4 @@
+import { pluginGameCounters } from '@/lib/gameCounters';
 import { pluginLevelRules } from '@/lib/levelRulesStore';
 import { standingsHidden } from '@/lib/standingsVisibility';
 import { resolvePluginClan } from '@/lib/auth';
@@ -5,7 +6,7 @@ import { howItCounts, parseCountMode, parseSetsRequired } from '@/lib/collection
 import { countedLuckCandidates } from '@/lib/clogLuckBoard';
 import { db } from '@/db';
 import { events, tiles, teams, submissions, eventParticipants, completions, clanRoster, eventStartProofs } from '@/db/schema';
-import { eq, and, sql, inArray } from 'drizzle-orm';
+import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
 import { pluginViewerRsn } from '@/lib/auth';
 import { requireSecret } from '@/lib/env';
 import {
@@ -31,6 +32,9 @@ import {
 } from '@/lib/pluginConfig';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
+import { clogTileSpec, pluginClogEntry } from '@/lib/clogTiles';
+import { countProgress, memberProgress } from '@/lib/countProgress';
+import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { lapUnitNoun, metricKeys } from '@/lib/constants';
 import { ROLL_TABLES, rollItemIds } from '@/lib/rollTables';
 import { computeGain, isIndividualMode, isMilestoneBasis, parseContributionSnapshot } from '@/lib/statTracking';
@@ -56,6 +60,9 @@ import crypto from 'crypto';
 import { playedCharacter } from '@/lib/pluginAccount';
 import { activeNow, panelSchedule, panelTiles, ACTIVE_WINDOW_MS, type WorkSighting } from '@/lib/pluginPanel';
 import { parseStamp } from '@/lib/dbTime';
+import { tilePingMax } from '@/lib/pingMax';
+import { capEligible, capEntryLabel, cappedProgress, capVirtualTileId, CAP_REQUIRED, counterNoun, parseCapBy, type CapRow } from '@/lib/tileCaps';
+import { comboNeeded, comboWeightOf, evaluateCombo, isComboTile, parseComboRule, partsByParent } from '@/lib/combo';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
 
@@ -237,7 +244,8 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
       total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
     })
     .from(submissions)
-    .where(eq(submissions.teamId, teamId))
+    // The tiles' own credits — a capped tile's cap counters (lib/tileCaps) are another counter.
+    .where(and(eq(submissions.teamId, teamId), isNull(submissions.goal)))
     .groupBy(submissions.tileId);
 
   const submissionMap = Object.fromEntries(teamSubmissions.map(s => [s.tileId, s.total]));
@@ -257,6 +265,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
       .from(submissions)
       .where(and(
         eq(submissions.teamId, teamId),
+        isNull(submissions.goal),
         sql`COALESCE(${submissions.creditPlayerId}, ${submissions.playerId}) = ${playerId}`,
       ))
       .groupBy(submissions.tileId);
@@ -271,7 +280,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
         total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
       })
       .from(submissions)
-      .where(eq(submissions.teamId, teamId))
+      .where(and(eq(submissions.teamId, teamId), isNull(submissions.goal)))
       .groupBy(submissions.tileId, sql`COALESCE(${submissions.creditPlayerId}, ${submissions.playerId})`);
   }
   // Progress to advertise for a count tile: the caller's own on a Solo tile, the team's otherwise.
@@ -291,7 +300,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
       lastAt: sql<string>`MAX(${submissions.createdAt})`,
     })
     .from(submissions)
-    .where(eq(submissions.teamId, teamId))
+    .where(and(eq(submissions.teamId, teamId), isNull(submissions.goal)))
     .groupBy(submissions.tileId, submissions.itemId);
 
   // Build a map: tileId -> { itemId -> total }
@@ -570,7 +579,8 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
       .select({ tileId: submissions.tileId, name: eventParticipants.name })
       .from(submissions)
       .leftJoin(eventParticipants, eq(submissions.creditPlayerId, eventParticipants.id))
-      .where(and(eq(submissions.teamId, teamId), inArray(submissions.tileId, completedTileIds)))
+      // A cap counter (energy) is never what finished a tile.
+      .where(and(eq(submissions.teamId, teamId), inArray(submissions.tileId, completedTileIds), isNull(submissions.goal)))
       .orderBy(submissions.createdAt); // ascending → the last write per tile is the latest
     for (const r of creditRows) {
       if (r.name) completedByMap.set(r.tileId, r.name);
@@ -614,11 +624,14 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
 
   const completedTiles = teamCompletions.map((c) => {
     const tile = tileById.get(c.tileId);
+    // A combo PART (lib/combo) reads as a piece of its combo and is worth nothing on its own.
+    const parent = tile?.parentTileId != null ? tileById.get(tile.parentTileId) : undefined;
     return {
       tileId: c.tileId,
-      label: tile?.label ?? `Tile #${c.tileId}`,
-      points: tile?.points ?? 0,
+      label: parent ? `${parent.label} — ${tile!.label}` : (tile?.label ?? `Tile #${c.tileId}`),
+      points: parent ? 0 : (tile?.points ?? 0),
       completedBy: completedByMap.get(c.tileId) ?? null,
+      ...(parent ? { partOf: parent.id } : {}),
     };
   });
 
@@ -676,7 +689,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
         .select({ tileId: submissions.tileId, teamId: submissions.teamId, name: eventParticipants.name })
         .from(submissions)
         .leftJoin(eventParticipants, eq(submissions.creditPlayerId, eventParticipants.id))
-        .where(inArray(submissions.tileId, subTileIds))
+        .where(and(inArray(submissions.tileId, subTileIds), isNull(submissions.goal)))
         .orderBy(submissions.createdAt); // ascending → last write per (tile,team) wins
       for (const r of subRows) {
         if (r.name) subNameByTileTeam.set(`${r.tileId}:${r.teamId}`, r.name);
@@ -775,6 +788,136 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
     ? nextRevealAt(event, rules, fullEventTiles)
     : nextMissionAt(event, rules, fullEventTiles);
 
+  // Image-less ping ceiling (lib/pingMax): sent only for a tile whose targets step by more than 10 per
+  // real action. Absent = 10, so the plugin keeps today's behaviour (a bigger burst goes as a proof).
+  // The submissions route derives the same number itself; this is only so the plugin can ping.
+  const pingMaxField = (targets: string[]) => {
+    const pingMax = tilePingMax(targets);
+    return pingMax != null ? { pingMax } : {};
+  };
+
+  // CAPPED counter tiles (lib/tileCaps). The tile's own entry advertises its CAPPED count, and each cap
+  // counter rides trackedKills as an extra entry on a VIRTUAL negative id (slot 1..n) that never
+  // finishes — it only keeps counting. Released plugins credit them like any kill tile and submit to
+  // the negative id, which the submissions route decodes back to the tile; `capOf` lets a newer
+  // plugin hide them from its rows.
+  const cappedTiles = trackedTiles.filter(
+    (t) => capEligible(t) && parseCapBy(t.capBy).length > 0 && !completedTileIdSet.has(t.id),
+  );
+  const capRows: (CapRow & { tileId: number })[] = cappedTiles.length > 0
+    ? await db
+        .select({
+          tileId: submissions.tileId,
+          playerId: submissions.playerId,
+          creditPlayerId: submissions.creditPlayerId,
+          amount: submissions.amount,
+          goal: submissions.goal,
+        })
+        .from(submissions)
+        .where(and(eq(submissions.teamId, teamId), inArray(submissions.tileId, cappedTiles.map((t) => t.id))))
+    : [];
+  /** The capped count to advertise on a capped tile's own entry (the caller's own on a Solo tile). */
+  const cappedNow = new Map<number, number>();
+  /** Team view of a Solo capped tile: every member's own capped count. */
+  const cappedByMember: { tileId: number; who: number; v: number }[] = [];
+  const capKills = cappedTiles.flatMap((t) => {
+    const caps = parseCapBy(t.capBy);
+    const rows = capRows.filter((r) => r.tileId === t.id);
+    const progress = cappedProgress(rows, caps, t.trackingMode);
+    const solo = isIndividualMode(t.trackingMode);
+    cappedNow.set(t.id, !solo ? progress.current : playerId != null ? (progress.byMember.get(playerId) ?? 0) : 0);
+    if (solo && playerId == null) {
+      for (const [who, v] of progress.byMember) if (who !== 0) cappedByMember.push({ tileId: t.id, who, v });
+    }
+    return caps.map((cap, i) => {
+      const id = capVirtualTileId(t.id, i + 1);
+      const byMember = new Map<number, number>();
+      let team = 0;
+      for (const r of rows) {
+        if (r.goal !== `cap:${i}`) continue;
+        const who = r.creditPlayerId ?? r.playerId ?? 0;
+        byMember.set(who, (byMember.get(who) ?? 0) + r.amount);
+        team += r.amount;
+      }
+      let currentAmount = team;
+      if (solo) {
+        currentAmount = playerId != null ? (byMember.get(playerId) ?? 0) : 0;
+        if (playerId == null) for (const [who, v] of byMember) if (who !== 0) memberOwn(who).c[id] = v;
+      }
+      return {
+        tileId: id,
+        position: t.position ?? 0,
+        label: capEntryLabel(t.label, cap),
+        description: null,
+        points: 0,
+        category: t.category ?? null,
+        targetNpcs: [cap],
+        requiredAmount: CAP_REQUIRED,
+        currentAmount,
+        unit: counterNoun(cap),
+        trackingMode: t.trackingMode ?? 'team',
+        coopCredit: 'per-member' as const,
+        coopMinMembers: 0,
+        capOf: t.id,
+        ...pingMaxField([cap]),
+      };
+    });
+  });
+
+  // COMBO tiles (lib/combo). The combo itself has no engine — its parts ride the ordinary tracked
+  // lists (tagged `partOf` below) and the plugin needs nothing new to credit them. `trackedCombos`
+  // tells a newer client (and the site-built panel) which rows fold under which combo, and the rule.
+  const partsOfCombo = partsByParent(fullEventTiles);
+  const partParent = new Map<number, number>();
+  for (const [parentId, parts] of partsOfCombo) for (const p of parts) partParent.set(p.id, parentId);
+  const trackedCombos = allEventTiles
+    .filter((t) => isComboTile(t) && t.parentTileId == null)
+    .map((c) => {
+      const parts = (partsOfCombo.get(c.id) ?? []).filter((p) => tileById.has(p.id));
+      const rule = parseComboRule(c.comboRule);
+      const ev = evaluateCombo(rule, parts.map((p) => p.id), teamCompletions, c.trackingMode);
+      return {
+        tileId: c.id,
+        position: c.position ?? 0,
+        label: c.label,
+        description: c.description ?? null,
+        points: c.points ?? 0,
+        category: c.category ?? null,
+        rule: rule.mode,
+        needed: comboNeeded(rule, parts.length),
+        done: ev.done,
+        // A 'mix' combo's parts each add weight × their own fraction (lib/combo); `percent` is filled
+        // in from the parts' rows once the panel is built (below).
+        parts: parts.map((p) => ({ tileId: p.id, label: p.label, completed: completedTileIdSet.has(p.id), weight: comboWeightOf(p) })),
+        completed: completedTileIdSet.has(c.id),
+        ...(rule.mode === 'mix' ? { percent: completedTileIdSet.has(c.id) ? 100 : 0 } : {}),
+      };
+    });
+
+  // Collection-log tiles (lib/clogTiles). A slot is (member, item), so the count is worked out from the
+  // rows rather than SUM(amount): a retried screenshot of one slot must not read as two.
+  const clogTiles = trackedTiles.filter((t) => t.tileType === 'clog');
+  const clogRows = clogTiles.length > 0
+    ? await db
+        .select({ tileId: submissions.tileId, playerId: submissions.playerId, creditPlayerId: submissions.creditPlayerId, amount: submissions.amount, itemId: submissions.itemId })
+        .from(submissions)
+        .where(and(eq(submissions.teamId, teamId), isNull(submissions.goal), inArray(submissions.tileId, clogTiles.map((t) => t.id))))
+    : [];
+  const trackedClog = clogTiles.map((t) => {
+    const spec = clogTileSpec(t);
+    const done = completedTileIdSet.has(t.id);
+    if (spec.mode === 'complete') return pluginClogEntry(t, done ? spec.required : 0, done);
+    const rows = clogRows.filter((r) => r.tileId === t.id);
+    if (!isIndividualMode(t.trackingMode)) return pluginClogEntry(t, countProgress(rows, t.trackingMode, 'slots').current, done);
+    // Solo: the caller's own new slots; the team view carries each member's in `members`.
+    if (playerId == null) {
+      for (const who of new Set(rows.map((r) => r.creditPlayerId ?? r.playerId))) {
+        if (who != null) memberOwn(who).c[t.id] = memberProgress(rows, who, 'slots');
+      }
+    }
+    return pluginClogEntry(t, playerId != null ? memberProgress(rows, playerId, 'slots') : 0, done);
+  });
+
   const body = {
     server: serverInfo(),
     // Resolved to an entry, so the logged-in character is this login's own (null on a hint-only read).
@@ -872,6 +1015,9 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
     // an untradeable vestige reaches event luck (lib/eventLuck) and not only its first-ever unlock.
     // Board-only: event luck is the one reader. Capability 'luck-drops'.
     luckItemIds: [...new Set(luckItems.map((c) => c.itemId))].sort((a, b) => a - b),
+    // Counters read off varbits/varps (lib/gameCounters, capability 'game-counters'). Board-only:
+    // they credit kill tiles, and the plugin reads only the ones a tile targets.
+    gameCounters: pluginGameCounters(),
     completedTiles,
     trackedStats,
     trackedKcNames,
@@ -971,7 +1117,8 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
     // word — so a lap tile is exactly a kill tile whose target names are course names, and it
     // credits on every client build, including ones released before laps existed. Only the SITE
     // needs to know the difference (it says "laps", not "kills").
-    trackedKills: trackedTiles
+    trackedKills: [
+      ...trackedTiles
       .filter((t) => t.tileType === 'kill' || t.tileType === 'lap')
       .map((t) => {
         let targetNpcs: string[] = [];
@@ -991,7 +1138,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
           category: t.category ?? null,
           targetNpcs,
           requiredAmount: t.requiredAmount ?? 1,
-          currentAmount: currentFor(t),
+          currentAmount: cappedNow.get(t.id) ?? currentFor(t),
           // What one credit is, for the plugin's in-game wording only ("Tracked lap: …"). Reads off
           // the targets, since a Sepulchre tile counts floors rather than laps. Clients that predate
           // agility tiles ignore the field and say "kill", which is the old behaviour.
@@ -1003,8 +1150,12 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
           // them server-side). Absent/'per-member' + 0 = nothing to report, as before.
           coopCredit: t.coopCredit === 'per-kill' ? 'per-kill' : 'per-member',
           coopMinMembers: t.coopMinMembers ?? 0,
+          ...pingMaxField(targetNpcs),
         };
       }),
+      // Capped tiles' cap-counter entries (see capKills above).
+      ...capKills,
+    ],
 
     // PvP-kill tiles — the plugin credits a kill off the "You have defeated <name>!" line
     // (sent only to the player the game awards the kill/loot key to — one credit per death),
@@ -1101,6 +1252,11 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
         };
       }),
 
+    // Collection-log tiles (lib/clogTiles): the plugin credits off "New item added to your collection
+    // log: X" when X is in `items` (null = any item) and submits a screenshot naming it. Plugins that
+    // predate the field ignore it; their live unlock push still credits these (lib/clogTileCredit).
+    trackedClog,
+
     // Timed-clear tiles — the plugin times the named activity and bakes the duration onto a
     // screenshot; the tile completes when a submitted time is at or under `thresholdSeconds`.
     trackedTimed: trackedTiles
@@ -1122,6 +1278,11 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
         // Signature reward of the timed activity (Colosseum → Dizana's quiver) — the clog
         // accordion's icon; -1 falls back to the book sprite.
         itemId: notableItemFor(t.timedActivity) ?? -1,
+        // Barracuda Trials rank tiles count runs: the server completes them at requiredAmount
+        // qualifying runs, and `completed` stays false until then so the plugin keeps submitting.
+        // Normal timed tiles are one clear under the cap (requiredAmount 1).
+        requiredAmount: parseTrialRankTile(t.timedActivity) ? Math.max(1, t.requiredAmount ?? 1) : 1,
+        currentAmount: parseTrialRankTile(t.timedActivity) ? currentFor(t) : 0,
         completed: completedTileIdSet.has(t.id),
       })),
 
@@ -1229,7 +1390,23 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
         itemId: notableItemFor(t.timedActivity) ?? -1,
         completed: completedTileIdSet.has(t.id),
       })),
+
+    // Combo tiles and their parts (see trackedCombos above). Absent when the board has none.
+    ...(trackedCombos.length > 0 ? { trackedCombos } : {}),
   };
+
+  // Combo parts in every tracked list: tagged with their combo (`partOf`) so a newer client folds them
+  // under it, and dropped once the team has finished the combo — "A or B" is done when A is, so B is
+  // no longer worth watching.
+  if (partParent.size > 0) {
+    const bodyLists = body as unknown as Record<string, unknown>;
+    for (const [key, list] of Object.entries(bodyLists)) {
+      if (!key.startsWith('tracked') || key === 'trackedCombos' || !Array.isArray(list)) continue;
+      bodyLists[key] = (list as { tileId?: number }[])
+        .filter((e) => e.tileId == null || !completedTileIdSet.has(partParent.get(e.tileId) ?? -1))
+        .map((e) => (e.tileId != null && partParent.has(e.tileId) ? { ...e, partOf: partParent.get(e.tileId) } : e));
+    }
+  }
 
   // "Active now": credited submissions in the window (named, the caller's own marked) and the stat
   // sightings above. The created_at column holds two formats (lib/dbTime), so the SQL cut is coarse
@@ -1248,9 +1425,16 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
     sightings.push({ tileId: r.tileId, name: names.get(who)!, self: who === playerId, atMs });
   }
   for (const r of soloByMember) {
-    if (r.who != null && perMemberTiles.has(r.tileId)) memberOwn(r.who).c[r.tileId] = Number(r.total);
+    if (r.who != null && perMemberTiles.has(r.tileId) && !cappedNow.has(r.tileId)) memberOwn(r.who).c[r.tileId] = Number(r.total);
   }
+  for (const r of cappedByMember) memberOwn(r.who).c[r.tileId] = r.v;
   const rows = panelTiles(body);
+  // A mix combo's share, off the same rows the panel draws (lib/pluginPanel foldCombos).
+  for (const c of trackedCombos) {
+    if (c.rule !== 'mix' || c.completed) continue;
+    const row = rows.find((r) => r.tileId === c.tileId);
+    if (row) (c as { percent?: number }).percent = Math.round((row.current / Math.max(1, row.goal)) * 100);
+  }
   return {
     ok: true as const,
     body: {

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import { verifyTileEditorForEvent } from '@/lib/auth';
 import { logTileAudit } from '@/lib/tile-audit';
 import { assertEventEditable } from '@/lib/eventLock';
@@ -52,7 +52,8 @@ export async function POST(
     return NextResponse.json({ error: 'order must be a non-empty array of tile ids' }, { status: 400 });
   }
 
-  const eventTiles = await db.select({ id: tiles.id }).from(tiles).where(eq(tiles.eventId, eId));
+  // Board tiles only — a combo's parts (lib/combo) aren't cells; they follow their combo below.
+  const eventTiles = await db.select({ id: tiles.id }).from(tiles).where(and(eq(tiles.eventId, eId), isNull(tiles.parentTileId)));
   const ids = new Set(eventTiles.map((t) => t.id));
   const unique = new Set(order as number[]);
   if (order.length !== ids.size || unique.size !== order.length || !(order as number[]).every((id) => ids.has(id))) {
@@ -65,6 +66,7 @@ export async function POST(
   await db.transaction(async (tx) => {
     for (let i = 0; i < order.length; i++) {
       await tx.update(tiles).set({ position: i }).where(eq(tiles.id, (order as number[])[i]));
+      await tx.update(tiles).set({ position: i }).where(eq(tiles.parentTileId, (order as number[])[i]));
     }
   });
 

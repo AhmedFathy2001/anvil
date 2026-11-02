@@ -7,6 +7,7 @@ import { verifyAdmin } from '@/lib/auth';
 import { parseContributionSnapshot, buildContributionSnapshot } from '@/lib/statTracking';
 import { assertEventEditable } from '@/lib/eventLock';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
+import { afterPartCompletion } from '@/lib/comboCompletion';
 
 // Reset a single player's participation in an event — the "nuclear" option, minus the whole-team blast
 // radius. Per the product decision: this resets THIS player's own progress only. Their solo/individual
@@ -57,8 +58,13 @@ export async function POST(
     }
   }
 
-  const eventTiles = await db.select({ id: tiles.id }).from(tiles).where(eq(tiles.eventId, eId));
+  // Every tile row, combo parts included: a part's credits and completions are the player's too.
+  const eventTiles = await db
+    .select({ id: tiles.id, parentTileId: tiles.parentTileId, label: tiles.label })
+    .from(tiles)
+    .where(eq(tiles.eventId, eId));
   const tileIds = eventTiles.map((t) => t.id);
+  const partById = new Map(eventTiles.filter((t) => t.parentTileId != null).map((t) => [t.id, t]));
 
   let voidedSubmissions = 0;
   let removedCompletions = 0;
@@ -82,8 +88,13 @@ export async function POST(
     const delComps = await db
       .delete(completions)
       .where(and(inArray(completions.tileId, tileIds), eq(completions.creditPlayerId, pId)))
-      .returning({ id: completions.id });
+      .returning({ id: completions.id, tileId: completions.tileId, teamId: completions.teamId });
     removedCompletions = delComps.length;
+    // A combo part reopened may reopen its combo (lib/comboCompletion).
+    for (const c of delComps) {
+      const part = partById.get(c.tileId);
+      if (part) await afterPartCompletion(part, c.teamId, { change: 'removed', silent: true });
+    }
 
     // 3. Strip their share from every remaining team-mode frozen split, keeping the team's completion.
     const withSplits = await db

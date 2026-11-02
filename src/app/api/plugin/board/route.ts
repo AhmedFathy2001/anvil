@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
+import { primaryCredit } from '@/lib/comboSql';
+import { clogTileLooseSpec, clogTileRule } from '@/lib/clogTileWords';
 import { eventForPluginRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, tiles, teams, completions, submissions, eventParticipants } from '@/db/schema';
+import { comboSentence, isComboTile, parseComboRule, partsByParent, withoutParts } from '@/lib/combo';
+import { isIndividualMode } from '@/lib/statTracking';
 import { eq, inArray, and, sql } from 'drizzle-orm';
 import { verifyPluginToken, verifyPluginTokenForEvent, verifyPluginTokenUser, resolvePluginClan, pluginRsnHintOnly } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
@@ -17,6 +21,7 @@ import { isMilestoneBasis, parseContributionSnapshot } from '@/lib/statTracking'
 import { getStatStandings } from '@/lib/statStandings';
 import { ttlMemo } from '@/lib/ttlMemo';
 import { statLabel } from '@/lib/tileKinds';
+import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { howItCounts, parseCountMode, parseSetsRequired, type CollectionRequirement } from '@/lib/collectionSets';
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
 import { standingsScopeForPlugin } from '@/lib/standingsAccess';
@@ -149,6 +154,10 @@ function tileRequirement(t: typeof tiles.$inferSelect): string | null {
       return amt ? `Gather ${amt}` : null;
     case 'timed': {
       if (!t.timedActivity) return null;
+      // Barracuda Trials rank tile: N runs at that exact rank, no cap.
+      if (parseTrialRankTile(t.timedActivity)) {
+        return t.requiredAmount && t.requiredAmount > 1 ? `${amt}× ${t.timedActivity}` : `Achieve ${t.timedActivity}`;
+      }
       const cap = t.timeThresholdSeconds ? ` under ${fmtClock(t.timeThresholdSeconds)}` : '';
       const party = t.partySize ? ` (${t.partySize}-player)` : '';
       const level = t.minRaidLevel ? ` at raid level ${t.minRaidLevel}+` : '';
@@ -183,6 +192,10 @@ function tileRequirement(t: typeof tiles.$inferSelect): string | null {
       return t.tileType === 'valuetotal'
         ? `Collect ${gp} gp of loot${from}`
         : `A single haul worth ${gp} gp${from}`;
+    }
+    case 'clog': {
+      // Collection-log tiles (lib/clogTileWords): the tile's own sentence.
+      return clogTileRule(clogTileLooseSpec(t), t.trackingMode);
     }
     case 'drop':
     case 'collection': {
@@ -255,8 +268,11 @@ export async function buildBoard(
   // reference revealed tiles anyway: hidden tiles can't be completed). Classic events pass through.
   const rules = parseEventRules(event.rules);
   const revealMode = hasRevealPolicy(rules);
-  const eventTiles = visibleTiles(rules, allEventTiles);
-  const hiddenTileCount = allEventTiles.length - eventTiles.length;
+  // Board cells only: a combo's parts (lib/combo) ride inside their combo's entry below.
+  const boardRows = withoutParts(allEventTiles);
+  const partsOf = partsByParent(allEventTiles);
+  const eventTiles = visibleTiles(rules, boardRows);
+  const hiddenTileCount = boardRows.length - eventTiles.length;
 
   // Raw tracked_item_ids predate per-item requirements, so they carry ids but no display names.
   // Resolve them once per server cache window and ship the names with the board: the in-game detail
@@ -323,7 +339,7 @@ export async function buildBoard(
         total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
       })
       .from(submissions)
-      .where(and(eq(submissions.teamId, callerTeamId), inArray(submissions.tileId, tileIds)))
+      .where(and(eq(submissions.teamId, callerTeamId), inArray(submissions.tileId, tileIds), primaryCredit()))
       .groupBy(submissions.tileId, submissions.itemId);
     for (const r of perItem) {
       if (r.itemId == null) continue;
@@ -363,7 +379,8 @@ export async function buildBoard(
           total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
         })
         .from(submissions)
-        .where(and(eq(submissions.teamId, callerTeamId), inArray(submissions.tileId, tileIds)))
+        // The tile's own credits (a capped tile's cap counters are not progress — lib/tileCaps).
+        .where(and(eq(submissions.teamId, callerTeamId), inArray(submissions.tileId, tileIds), primaryCredit()))
         .groupBy(submissions.tileId, submissions.creditPlayerId),
       db
         .select({ id: eventParticipants.id, name: eventParticipants.name })
@@ -504,7 +521,13 @@ export async function buildBoard(
         })),
         requiredAmount: t.requiredAmount ?? 1,
         requirement: tileRequirement(t),
-        howItCounts: tileHowItCounts(t),
+        // A combo says its rule over its parts ("Done when the team does any one of: …").
+        howItCounts: isComboTile(t)
+          ? comboSentence(parseComboRule(t.comboRule), (partsOf.get(t.id) ?? []).map((p) => p.label), isIndividualMode(t.trackingMode))
+          : tileHowItCounts(t),
+        ...(isComboTile(t)
+          ? { comboRule: parseComboRule(t.comboRule).mode, parts: (partsOf.get(t.id) ?? []).map((p) => ({ tileId: p.id, label: p.label })) }
+          : {}),
         ...(itemRequirements
           ? { groupMode: t.groupMode === 'all' ? 'all' : 'any', setsRequired: parseSetsRequired(t.setsRequired) }
           : {}),

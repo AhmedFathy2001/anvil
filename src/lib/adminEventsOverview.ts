@@ -15,7 +15,7 @@
 
 import { db } from '@/db';
 import { completions, eventSignups, events, payouts, playerEventFacts, eventParticipants, signupFees, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { and, count, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { getTeamStandings } from '@/lib/statStandings';
 import { computeStartReadiness, startBlockerLabel } from '@/lib/eventReadiness';
 import { formatGp, SPARK_DAYS } from '@/lib/adminEventsFormat';
@@ -135,13 +135,14 @@ export async function getRunningEventSummaries(
     db
       .select({ eventId: tiles.eventId, n: count() })
       .from(tiles)
-      .where(and(inArray(tiles.eventId, ids), eq(tiles.optional, 0)))
+      .where(and(inArray(tiles.eventId, ids), eq(tiles.optional, 0), isNull(tiles.parentTileId)))
       .groupBy(tiles.eventId),
     db
       .select({ eventId: tiles.eventId, n: sql<number>`count(distinct ${completions.tileId})` })
       .from(completions)
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
-      .where(inArray(tiles.eventId, ids))
+      // Board cells only: a combo's parts (lib/combo) aren't tiles cleared.
+      .where(and(inArray(tiles.eventId, ids), isNull(tiles.parentTileId)))
       .groupBy(tiles.eventId),
     db
       .select({
@@ -182,7 +183,7 @@ export async function getRunningEventSummaries(
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
       .leftJoin(eventParticipants, eq(completions.creditPlayerId, eventParticipants.id))
       .leftJoin(teams, eq(completions.teamId, teams.id))
-      .where(inArray(tiles.eventId, ids))
+      .where(and(inArray(tiles.eventId, ids), isNull(tiles.parentTileId)))
       .orderBy(desc(completions.completedAt))
       .limit(8 * ids.length),
     db
@@ -420,7 +421,7 @@ export async function getSetupProgress(
   const ids = upcoming.map((e) => e.id);
 
   const [tileCounts, teamCounts, assigned, totalPlayers, signupCounts] = await Promise.all([
-    db.select({ eventId: tiles.eventId, n: count() }).from(tiles).where(inArray(tiles.eventId, ids)).groupBy(tiles.eventId),
+    db.select({ eventId: tiles.eventId, n: count() }).from(tiles).where(and(inArray(tiles.eventId, ids), isNull(tiles.parentTileId))).groupBy(tiles.eventId),
     db.select({ eventId: teams.eventId, n: count() }).from(teams).where(inArray(teams.eventId, ids)).groupBy(teams.eventId),
     db
       .select({ eventId: eventParticipants.eventId, n: count() })

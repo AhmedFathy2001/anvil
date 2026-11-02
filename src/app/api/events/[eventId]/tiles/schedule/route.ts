@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { tiles } from '@/db/schema';
+import { eventBoardTiles, syncPartRevealState } from '@/lib/comboSql';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyTileEditorForEvent } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
@@ -64,7 +65,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   const rows = await db
     .select()
     .from(tiles)
-    .where(and(eq(tiles.eventId, eId), inArray(tiles.id, tileIds)));
+    // Board cells only — a combo's parts (lib/combo) follow their combo.
+    .where(and(eventBoardTiles(eId), inArray(tiles.id, tileIds)));
   if (rows.length === 0) {
     return NextResponse.json({ error: 'None of those tiles are on this board.' }, { status: 404 });
   }
@@ -103,6 +105,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     });
   }
 
+  await syncPartRevealState(eId);
   return NextResponse.json({
     updated: ordered.length,
     updatedAt,

@@ -1,4 +1,5 @@
 // Runs the hiscores footprint checks (lib/footprint) over running boards and ones that just ended.
+import { primaryCredit } from '@/lib/comboSql';
 //
 // Costs no hiscores budget: it reads what the sweep already fetched — each account's last poll
 // (account_stat_snapshots) against the event baseline — and only trusts a poll taken after the
@@ -109,7 +110,8 @@ async function checkEvent(eventId: number, startMs: number | null, sharing: bool
       proofFacts: submissions.proofFacts, flaggedReason: submissions.flaggedReason, footprint: submissions.footprint,
     })
     .from(submissions)
-    .where(and(inArray(submissions.tileId, boardTiles.map((t) => t.id)), eq(submissions.source, 'plugin')));
+    // The tile's own credits: a cap counter's energy (lib/tileCaps) isn't KC or loot.
+    .where(and(inArray(submissions.tileId, boardTiles.map((t) => t.id)), eq(submissions.source, 'plugin'), primaryCredit()));
 
   const days = await db
     .select({ dayIndex: eventDaySnapshots.dayIndex, takenAt: eventDaySnapshots.takenAt, data: eventDaySnapshots.data })

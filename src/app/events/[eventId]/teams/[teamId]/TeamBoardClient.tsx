@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import { useDropProgress } from '@/hooks/useDropProgress';
+import { tileWithPartIds } from '@/lib/combo';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import { useRouter } from 'next/navigation';
 import { ErrorBanner } from '@/components/BoardSkeleton';
@@ -117,7 +118,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
   const tilesLeft = Math.max(0, total - score.boardScore);
   const percentage = score.pct;
 
-  const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions);
+  const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions, completions, team.id);
 
   // KC/XP tiles show the team's count on the board itself, exactly as My Team does.
   const statProgress = new Map<number, { current: number; goal: number; statType?: string }>();
@@ -200,7 +201,9 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
   );
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
-  const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
+  // A combo's proof is its parts' (lib/combo).
+  const selectedTileIds = tileWithPartIds(tiles, selectedTileId);
+  const selectedTileSubmissions = submissions.filter((s) => selectedTileIds.has(s.tileId));
   const selectedTileCompletedBy = selectedTileId
     ? completions
         .filter((c) => c.tileId === selectedTileId)

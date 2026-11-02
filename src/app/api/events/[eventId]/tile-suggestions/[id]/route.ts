@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { events, tileSuggestions, tiles } from '@/db/schema';
+import { eventBoardTiles } from '@/lib/comboSql';
 import { verifyTileEditorForEvent } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
 import { eventForRequest } from '@/lib/eventScope';
@@ -86,7 +87,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     if (started) {
       return NextResponse.json({ error: 'Tiles cannot be added after the event has started.' }, { status: 400 });
     }
-    const existing = await db.select({ position: tiles.position }).from(tiles).where(eq(tiles.eventId, eventId));
+    const existing = await db.select({ position: tiles.position }).from(tiles).where(eventBoardTiles(eventId));
     if (existing.length >= MAX_TILES) return NextResponse.json({ error: `Events are capped at ${MAX_TILES} tiles.` }, { status: 400 });
     const position = existing.length === 0 ? 0 : Math.max(...existing.map((t) => t.position)) + 1;
     tileId = await db.transaction(async (tx) => {

@@ -1,4 +1,4 @@
-import { countProgress, submissionCreditKey, UNATTRIBUTED_CREDIT, type CountedSubmission } from '@/lib/countProgress';
+import { countProgress, isPrimaryCredit, submissionCreditKey, UNATTRIBUTED_CREDIT, type CountedSubmission } from '@/lib/countProgress';
 import { collectionProgress } from '@/lib/pluginPanel';
 import { isIndividualMode } from '@/lib/statTracking';
 
@@ -54,15 +54,19 @@ export function countTileTeams(
   input: TrackerInput,
   subs: (CountedSubmission & { teamId: number })[],
   countMode?: string | null,
+  // A capped counter (lib/tileCaps): `subs` then carries its 'cap:N' rows too, and the team's figure is
+  // the capped one. Each member's own line stays their raw count.
+  capBy?: readonly string[] | null,
 ): TrackerTeam[] {
   return rank(input.teams.map((t) => {
-    const own = subs.filter((s) => s.teamId === t.teamId);
+    const all = subs.filter((s) => s.teamId === t.teamId);
+    const own = all.filter(isPrimaryCredit);
     const byPlayer = new Map<number, number>();
     for (const s of own) {
       const key = submissionCreditKey(s);
       byPlayer.set(key, (byPlayer.get(key) ?? 0) + s.amount);
     }
-    return team(input, t, countProgress(own, input.trackingMode, countMode).current, byPlayer);
+    return team(input, t, countProgress(capBy?.length ? all : own, input.trackingMode, countMode, capBy).current, byPlayer);
   }));
 }
 
@@ -89,7 +93,7 @@ export function collectionTileTeams(
     collectionProgress(reqs.map((r) => ({ ...r, currentAmount: totals.get(r.itemId) ?? 0 })), groupMode, setsRequired);
   const [, goal] = progress(new Map());
   const teams = rank(input.teams.map((t) => {
-    const own = subs.filter((s) => s.teamId === t.teamId);
+    const own = subs.filter((s) => s.teamId === t.teamId && isPrimaryCredit(s));
     const totals = new Map<number, number>();
     const byPlayer = new Map<number, number>();
     for (const s of own) {

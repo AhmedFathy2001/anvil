@@ -31,6 +31,11 @@ interface Props {
    * replacing earlier entries. Suggestions already entered are hidden.
    */
   multi?: boolean;
+  /**
+   * Optional muted note shown after a suggestion in the list (e.g. a level requirement). Display
+   * only — picking the suggestion still commits the bare suggestion string.
+   */
+  suggestionHint?: (suggestion: string) => string | null;
 }
 
 export default function Combobox({
@@ -43,6 +48,7 @@ export default function Combobox({
   ariaLabel,
   className,
   multi,
+  suggestionHint,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(-1);
@@ -213,6 +219,9 @@ export default function Combobox({
                   )}
                 >
                   {s}
+                  {suggestionHint?.(s) && (
+                    <span className="ml-2 text-xs text-text-muted">· {suggestionHint(s)}</span>
+                  )}
                 </li>
               );
             })}

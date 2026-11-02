@@ -48,7 +48,8 @@ export interface BalanceReport {
 // balance cares about: RNG rolls, deterministic grind, execution skill, or a human.
 function kindFamily(t: Tile): 'RNG drops' | 'Grind' | 'Execution' | 'Manual' {
   const type = t.tileType ?? 'standard';
-  if (type === 'drop' || type === 'value') return 'RNG drops';
+  // New collection-log slots are drop RNG; a whole page is the rarest slot on it.
+  if (type === 'drop' || type === 'value' || type === 'clog') return 'RNG drops';
   if (type === 'timed' || type === 'lms' || type === 'deathless') return 'Execution';
   // CA tiles sit with Execution — completing a combat task is a mechanics test, not a grind.
   if (type === 'ca') return 'Execution';

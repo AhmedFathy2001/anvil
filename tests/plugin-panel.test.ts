@@ -92,6 +92,20 @@ test('rows cover every tracked kind', () => {
   assert.equal(row(7).goal, 1, 'a goal-less placement tile still has a bar');
 });
 
+test('a trial rank tile shows runs toward its goal; a plain timed tile stays one clear', () => {
+  const rows = panelTiles({
+    trackedTimed: [
+      { ...base(1), requiredAmount: 5, currentAmount: 3 },
+      { ...base(2), requiredAmount: 5, currentAmount: 5, completed: true },
+      { ...base(3) },
+    ],
+  });
+  const row = (id: number) => rows.find((r) => r.tileId === id)!;
+  assert.deepEqual([row(1).current, row(1).goal, row(1).complete], [3, 5, false]);
+  assert.deepEqual([row(2).current, row(2).goal, row(2).complete], [5, 5, true]);
+  assert.deepEqual([row(3).current, row(3).goal, row(3).complete], [0, 1, false]);
+});
+
 const tile = (tileId: number, complete = false): PanelTile => ({ ...base(tileId), current: 0, goal: 1, points: 0, complete });
 
 test('active now puts the caller in, first, and drops stale or finished tiles', () => {
@@ -150,4 +164,16 @@ test('a one-of-several-sets tile names its closest set, and the set the last pie
   const rows = panelTiles({ trackedDrops: [{ tileId: 9, label: 'One full barrows set', points: 1, position: 1, description: null, currentAmount: 5, requiredAmount: 4, itemRequirements: barrows, groupMode: 'any', setsRequired: 1, lastItemId: 2 }] });
   assert.equal(rows[0].current, 3);
   assert.equal(rows[0].sets, "Guthan's 3/4 · last Dharok's 2/4");
+});
+
+test('collection-log tiles get a row: new slots toward the goal, done when the site says so', () => {
+  const base = { label: 'Clog', points: 1, position: 0, description: null };
+  const rows = panelTiles({
+    completedTiles: [{ tileId: 2 }],
+    trackedClog: [
+      { ...base, tileId: 1, currentAmount: 3, requiredAmount: 10, completed: false },
+      { ...base, tileId: 2, currentAmount: 1, requiredAmount: 1, completed: true },
+    ],
+  });
+  assert.deepEqual(rows.map((r) => [r.tileId, r.current, r.goal, r.complete]), [[1, 3, 10, false], [2, 1, 1, true]]);
 });

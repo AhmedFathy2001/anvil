@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { events, tiles, eventParticipants } from '@/db/schema';
+import { nestParts } from '@/lib/combo';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import TilesClient from './TilesClient';
@@ -75,11 +76,12 @@ export default async function EventTilesPage({
     <TileSuggestionsPanel
       eventId={event.id}
       fixedGrid={fixedGrid}
-      tiles={eventTiles.filter((t) => !t.mission).map((t) => ({ id: t.id, label: t.label }))}
+      tiles={eventTiles.filter((t) => !t.mission && t.parentTileId == null).map((t) => ({ id: t.id, label: t.label }))}
     />
     <TilesClient
       event={event}
-      tiles={withSearchText(eventTiles)}
+      // Board cells, each combo carrying its parts (lib/combo) — the editor edits them together.
+      tiles={withSearchText(nestParts(eventTiles))}
       tierBands={tierBands}
       isAdmin={atLeast(user?.role, 'admin')}
       editLocked={eventEditLocked(event)}

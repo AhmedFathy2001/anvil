@@ -102,7 +102,7 @@ export default async function AdminDashboardPage() {
       .select({ eventId: tiles.eventId, n: count() })
       .from(tiles)
       .innerJoin(events, eq(tiles.eventId, events.id))
-      .where(and(eq(events.clanId, clan.id), writtenTile))
+      .where(and(eq(events.clanId, clan.id), writtenTile, isNull(tiles.parentTileId)))
       .groupBy(tiles.eventId),
     db
       .select({ eventId: teams.eventId, n: count() })
@@ -165,14 +165,14 @@ export default async function AdminDashboardPage() {
       .from(completions)
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
       .innerJoin(events, eq(tiles.eventId, events.id))
-      .where(and(eq(events.clanId, clan.id), sinceDay(completions.completedAt, now, 7)))
+      .where(and(eq(events.clanId, clan.id), isNull(tiles.parentTileId), sinceDay(completions.completedAt, now, 7)))
       .then((r) => r[0]?.c ?? 0),
     db
       .select({ c: count() })
       .from(completions)
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
       .innerJoin(events, eq(tiles.eventId, events.id))
-      .where(and(eq(events.clanId, clan.id), betweenDays(completions.completedAt, now, 14, 7)))
+      .where(and(eq(events.clanId, clan.id), isNull(tiles.parentTileId), betweenDays(completions.completedAt, now, 14, 7)))
       .then((r) => r[0]?.c ?? 0),
     db
       .select({

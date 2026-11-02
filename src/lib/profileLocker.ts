@@ -844,6 +844,7 @@ async function myShareOfEvent(params: {
         tileId: submissions.tileId,
         teamId: submissions.teamId,
         creditPlayerId: submissions.creditPlayerId,
+        goal: submissions.goal,
         amount: submissions.amount,
       })
       .from(submissions)

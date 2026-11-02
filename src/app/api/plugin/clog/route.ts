@@ -7,6 +7,7 @@ import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { clogPageIndex, clogTotalSlots, groupObtainedItems } from '@/lib/clogDataset';
 import { bossKeyForPage, bossKillsFor } from '@/lib/clogLuckBoard';
 import { resolveUnlock } from '@/lib/clogUnlock';
+import { creditClogUnlocks, recheckClogPageTiles } from '@/lib/clogTileCredit';
 import { track } from '@/lib/analytics';
 import { parseStamp } from '@/lib/dbTime';
 import { labQuarantine } from '@/lib/lab';
@@ -87,7 +88,7 @@ export async function POST(request: Request) {
     // The one-button profile sync (whole log). Counted on arrival: a push that then fails to store
     // still says the button was pressed, which is the feature-use question this answers.
     track('profile.synced', { userId: null, props: { kind: 'clog', items: (body.items as unknown[]).length } });
-    return ingestWholeLog(body.items as IncomingItem[], member, {
+    const res = await ingestWholeLog(body.items as IncomingItem[], member, {
       // Kill counters, when the client sends them. The whole-log transmit hands us every obtained
       // item but historically no counts, which left the unlock stamp guessing — see ingestWholeLog.
       counts: body.counts && typeof body.counts === 'object' && !Array.isArray(body.counts)
@@ -97,6 +98,9 @@ export async function POST(request: Request) {
       pluginVersion: request.headers.get('X-Anvil-Plugin-Version')?.slice(0, 32) ?? null,
       accountHash: request.headers.get('X-Account-Hash')?.slice(0, 128) ?? null,
     });
+    // A whole-page collection-log tile (lib/clogTiles) may have just been finished by this sync.
+    if (res.ok) await recheckClogPageTiles(member.accountId);
+    return res;
   }
 
   // LIVE unlocks: the in-game "New item added to your collection log" line, sent as it fires.
@@ -248,6 +252,7 @@ export async function POST(request: Request) {
   if (pagesWritten === 0) {
     return NextResponse.json({ ok: true, pages: 0, skipped: skippedPages });
   }
+  if (itemsWritten > 0) await recheckClogPageTiles(member.accountId);
 
   // Header totals are recomputed from what we hold rather than trusted from the push: the client
   // knows about the pages it has opened, we know about every page it has ever sent us.
@@ -557,8 +562,16 @@ async function ingestUnlocks(raw: IncomingUnlock[], member: { accountId: number 
   if (!rl.ok) {
     return NextResponse.json({ error: 'Too many unlocks' }, { status: 429, headers: rateLimitHeaders(rl) });
   }
+  // Collection-log TILES first (lib/clogTileCredit): the unlock line is the proof a slot is new, with
+  // or without a synced log, so a board counts it even for a member who never synced. Every plugin
+  // since the live push shipped sends this, so released clients credit clog tiles with no update.
+  const names = raw
+    .map((u) => (typeof u?.name === 'string' ? u.name.trim().slice(0, 120) : ''))
+    .filter((n) => n.length > 0);
+  const tileSlots = await creditClogUnlocks(member.accountId, names);
+
   const log = await db.query.memberClog.findFirst({ where: eq(memberClog.accountId, member.accountId) });
-  if (!log) return NextResponse.json({ ok: true, recorded: 0, reason: 'no-log' });
+  if (!log) return NextResponse.json({ ok: true, recorded: 0, tileSlots, reason: 'no-log' });
 
   const ownedRows = await db
     .select({ itemId: memberClogItems.itemId })
@@ -618,7 +631,9 @@ async function ingestUnlocks(raw: IncomingUnlock[], member: { accountId: number 
       .set({ obtained: sql`${memberClog.obtained} + ${recorded}` })
       .where(eq(memberClog.accountId, member.accountId));
   }
-  return NextResponse.json({ ok: true, recorded });
+  // The slot is in the stored log now, which can finish a whole-page tile.
+  if (recorded > 0 && tileSlots === 0) await recheckClogPageTiles(member.accountId);
+  return NextResponse.json({ ok: true, recorded, tileSlots });
 }
 
 /**

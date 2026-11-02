@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { eventBoardTiles, primaryCredit, syncPartRevealState } from '@/lib/comboSql';
 import { events, tiles, completions, eventParticipants, submissions } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
 import {
@@ -66,8 +67,18 @@ function engineActive(event: EventRow, now: string): boolean {
  * bounty completion — every step is idempotent.
  */
 async function revealForEvent(event: EventRow, rules: EventRules, now: string): Promise<void> {
-  const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
+  // Board cells only: a combo's parts (lib/combo) are never drawn — they follow their combo, copied
+  // over at the end of the pass (syncPartRevealState).
+  const eventTiles = await db.select().from(tiles).where(eventBoardTiles(event.id));
   if (eventTiles.length === 0) return;
+  try {
+    await revealPass(event, rules, now, eventTiles);
+  } finally {
+    await syncPartRevealState(event.id).catch(() => {});
+  }
+}
+
+async function revealPass(event: EventRow, rules: EventRules, now: string, eventTiles: TileRow[]): Promise<void> {
 
   // Bounty reconcile: a revealed-open tile that already has a completion is claimed — close it.
   // The completion paths close inline (handleBountyClaim); this catches admin manual completions
@@ -163,7 +174,7 @@ async function revealForEvent(event: EventRow, rules: EventRules, now: string): 
     const openNow = await db
       .select({ id: tiles.id, revealedAt: tiles.revealedAt })
       .from(tiles)
-      .where(and(eq(tiles.eventId, event.id), isNotNull(tiles.revealedAt), isNull(tiles.closedAt)));
+      .where(and(eventBoardTiles(event.id), isNotNull(tiles.revealedAt), isNull(tiles.closedAt)));
     const excess = openNow.length - rules.revealWindowSize;
     if (excess > 0) {
       const oldest = openNow
@@ -193,7 +204,7 @@ async function revealForEvent(event: EventRow, rules: EventRules, now: string): 
  * nothing here — the admin drives it via {@link announceNextMission}. Idempotent.
  */
 async function announceMissionsForEvent(event: EventRow, rules: EventRules, now: string): Promise<void> {
-  const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
+  const eventTiles = await db.select().from(tiles).where(eventBoardTiles(event.id));
   const missionTiles = eventTiles.filter((t) => t.mission);
   if (missionTiles.length === 0) return;
 
@@ -433,7 +444,7 @@ export async function announceNextMission(eventId: number): Promise<{ announced:
   const rules = parseEventRules(event.rules);
   const now = new Date().toISOString();
   if (!engineActive(event, now)) return { announced: 0 };
-  const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, eventId));
+  const eventTiles = await db.select().from(tiles).where(eventBoardTiles(eventId));
   const hidden = eventTiles.filter((t) => t.mission && t.revealedAt == null);
   if (hidden.length === 0) return { announced: 0 };
   const order: RevealOrder = rules.mission?.order ?? 'random';
@@ -486,6 +497,7 @@ export async function handleBountyClaim(eventId: number, tileId: number): Promis
     .where(and(eq(tiles.id, tileId), isNull(tiles.closedAt)))
     .returning({ id: tiles.id, label: tiles.label, points: tiles.points });
   if (closed.length > 0) {
+    await syncPartRevealState(event.id).catch(() => {});
     void announceBountyClaim(event.clanId, event.id, event.name, closed[0], tileId);
   }
   if (!engineActive(event, now)) return;
@@ -522,7 +534,7 @@ async function announceBountyClaim(
         .select({ name: eventParticipants.name })
         .from(submissions)
         .leftJoin(eventParticipants, eq(submissions.creditPlayerId, eventParticipants.id))
-        .where(and(eq(submissions.teamId, teamId), eq(submissions.tileId, tileId)))
+        .where(and(eq(submissions.teamId, teamId), eq(submissions.tileId, tileId), primaryCredit()))
         .orderBy(submissions.createdAt); // ascending → last write is the finishing hand
       rsn = subs.length > 0 ? subs[subs.length - 1].name ?? null : null;
     }
@@ -565,6 +577,7 @@ export async function reopenBountyTileIfUnclaimed(eventId: number, tileId: numbe
     .where(and(eq(tiles.id, tileId), isNotNull(tiles.closedAt)))
     .returning({ id: tiles.id });
   if (reopened.length > 0) {
+    await syncPartRevealState(eventId).catch(() => {});
     log.info('reveal-engine.bounty-reopen', { eventId, tileId });
   }
 }

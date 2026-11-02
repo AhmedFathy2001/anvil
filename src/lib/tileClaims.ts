@@ -14,6 +14,7 @@ import { db } from '@/db';
 import { completions, eventParticipants, events, tileClaims, tiles, users } from '@/db/schema';
 import { isEventEnded } from '@/lib/survey';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
+import { eventBoardTiles } from '@/lib/comboSql';
 
 export { NOTE_MAX, cleanNote, type TeamClaim } from '@/lib/tileClaimsView';
 import type { TeamClaim } from '@/lib/tileClaimsView';
@@ -24,7 +25,8 @@ async function visibleTileIds(eventId: number): Promise<Set<number>> {
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { tilesRevealed: true, rules: true } });
   if (!event?.tilesRevealed) return new Set();
   const rules = parseEventRules(event.rules);
-  const rows = await db.select().from(tiles).where(eq(tiles.eventId, eventId));
+  // Board tiles only — a combo's parts (lib/combo) are claimed through their combo.
+  const rows = await db.select().from(tiles).where(eventBoardTiles(eventId));
   return new Set(rows.filter((t) => isTileRevealed(rules, t)).map((t) => t.id));
 }
 
@@ -74,7 +76,7 @@ export async function claimTile(opts: {
   if (isEventEnded(event)) return { ok: false, error: 'This event has ended.', status: 409 };
   const tile = await db.query.tiles.findFirst({ where: and(eq(tiles.id, opts.tileId), eq(tiles.eventId, opts.eventId)) });
   // Same answer for "no such tile" and "not visible yet", so a claim can't probe a hidden board.
-  if (!tile || !event.tilesRevealed || !isTileRevealed(parseEventRules(event.rules), tile)) {
+  if (!tile || tile.parentTileId != null || !event.tilesRevealed || !isTileRevealed(parseEventRules(event.rules), tile)) {
     return { ok: false, error: 'Tile not found.', status: 404 };
   }
   const done = await db.query.completions.findFirst({

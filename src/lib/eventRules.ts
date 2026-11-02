@@ -868,13 +868,18 @@ export function isTileRevealed(rules: EventRules, tile: RevealStateTile): boolea
  * So every board total, progress bar and tile count runs through this; missions are surfaced and
  * scored on their own.
  */
-export function boardTiles<T extends { mission?: boolean | number | null }>(tiles: T[]): T[] {
-  return tiles.filter((t) => !isMissionTile(t));
+//
+// COMBO PARTS (lib/combo) are never board tiles either: a part is a real tile row that only exists as
+// a piece of its parent combo, which is the cell that scores. They are dropped here as a belt — SQL
+// readers filter them out at the query (lib/comboSql boardTileWhere) — so callers handing over every
+// row of an event still get just the board.
+export function boardTiles<T extends { mission?: boolean | number | null; parentTileId?: number | null }>(tiles: T[]): T[] {
+  return tiles.filter((t) => !isMissionTile(t) && t.parentTileId == null);
 }
 
-/** The mission subset — the other half of {@link boardTiles}. */
-export function missionTiles<T extends { mission?: boolean | number | null }>(tiles: T[]): T[] {
-  return tiles.filter(isMissionTile);
+/** The mission subset — the other half of {@link boardTiles}. Combo parts are neither. */
+export function missionTiles<T extends { mission?: boolean | number | null; parentTileId?: number | null }>(tiles: T[]): T[] {
+  return tiles.filter((t) => isMissionTile(t) && t.parentTileId == null);
 }
 
 /** The member-visible subset of an event's tiles. Closed (claimed/expired) tiles stay visible. */

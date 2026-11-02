@@ -4,6 +4,8 @@ import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { postEventRules } from '@/lib/eventRulesPost';
 import { events, tiles, teams, completions, submissions, eventStartProofs } from '@/db/schema';
+import { eventBoardTiles } from '@/lib/comboSql';
+import { nestParts, withoutParts } from '@/lib/combo';
 import { eq, inArray, and, count, not } from 'drizzle-orm';
 import { writtenTile } from '@/lib/writtenTiles';
 import { del } from '@/lib/storage';
@@ -77,10 +79,11 @@ export async function GET(
 
   return NextResponse.json({
     ...event,
-    tiles: eventTiles,
+    // Board cells, each combo carrying its parts (lib/combo); `completions` keeps the parts' too.
+    tiles: nestParts(eventTiles),
     // Reveal-policy events: how many tiles the caller can't see yet (0 for staff/classic) —
     // lets boards render "N tiles still hidden" without knowing what they are.
-    hiddenTileCount: allEventTiles.length - eventTiles.length,
+    hiddenTileCount: withoutParts(allEventTiles).length - withoutParts(eventTiles).length,
     teams: safeTeams,
     completions: filterToVisibleTeams(standingsScope, eventCompletions, (c) => c.teamId),
   });
@@ -138,7 +141,8 @@ export async function PATCH(
 
     // Compute standings for Discord notification
     const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
-    const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, id));
+    // Board cells only — combo parts (lib/combo) never score.
+    const eventTiles = await db.select().from(tiles).where(eventBoardTiles(id));
     const eventTileIds = eventTiles.map(t => t.id);
     const eventCompletions = eventTileIds.length > 0
       ? await db.select().from(completions).where(inArray(completions.tileId, eventTileIds))
@@ -272,7 +276,7 @@ export async function PATCH(
         db
           .select({ n: count() })
           .from(tiles)
-          .where(and(eq(tiles.eventId, event.id), not(writtenTile))),
+          .where(and(eventBoardTiles(event.id), not(writtenTile))),
       ]);
       const blockers = [
         ...readiness.blockers,
@@ -421,7 +425,8 @@ export async function PATCH(
       const oldTiles = await tx
         .select({ position: tiles.position, label: tiles.label, icon: tiles.icon })
         .from(tiles)
-        .where(eq(tiles.eventId, id));
+        // Board cells only: a combo's parts share its position (and go with it below).
+        .where(eventBoardTiles(id));
       const byPosition = new Map(oldTiles.map((t) => [t.position, t]));
       await tx.delete(tiles).where(eq(tiles.eventId, id));
       const tileValues = Array.from({ length: expectedTiles }, (_, i) => ({
@@ -622,7 +627,7 @@ export async function PATCH(
     // Reveal means "members may see the board", never "play has started". Clean any activity an
     // older ingest path attached to this never-started event before announcing the preview.
     if (!updated.startNotified) await clearPreStartEventActivity(updated.id);
-    const allTiles = await db.select().from(tiles).where(eq(tiles.eventId, updated.id));
+    const allTiles = await db.select().from(tiles).where(eventBoardTiles(updated.id));
     const tileCount = visibleTiles(parseEventRules(updated.rules), allTiles).length;
     notifyBoardRevealed({
       clanId: updated.clanId,

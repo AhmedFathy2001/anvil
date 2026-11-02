@@ -1,4 +1,5 @@
 import { and, eq, isNotNull, or } from 'drizzle-orm';
+import { primaryCredit } from '@/lib/comboSql';
 import { alias } from 'drizzle-orm/pg-core';
 
 import { db } from '@/db';
@@ -34,7 +35,8 @@ export async function submittedDropsForEvent(eventId: number): Promise<Submitted
     .leftJoin(eventParticipants, eq(eventParticipants.id, submissions.playerId))
     .leftJoin(credited, eq(credited.id, submissions.creditPlayerId))
     // Drop tiles only: a value tile's `amount` is gp, and a kill or timed tile's isn't an item at all.
-    .where(and(eq(tiles.eventId, eventId), eq(tiles.tileType, 'drop'), or(isNotNull(submissions.itemId), isNotNull(tiles.trackedItemIds))));
+    // The tile's own credits only: a cap counter's rows are not items (lib/tileCaps).
+    .where(and(eq(tiles.eventId, eventId), eq(tiles.tileType, 'drop'), primaryCredit(), or(isNotNull(submissions.itemId), isNotNull(tiles.trackedItemIds))));
   if (rows.length === 0) return [];
 
   const [prices, mapping] = await Promise.all([getItemPrices(), getItemMapping()]);

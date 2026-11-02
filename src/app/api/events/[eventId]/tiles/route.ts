@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
+import { parseJsonArray } from '@/lib/tileKinds';
+import { clogTileError, MAX_CLOG_TILE_ITEMS } from '@/lib/clogTiles';
 import { killSourceOf } from '@/lib/killSource';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
 import { verifyTileEditorForEvent, verifyAdminOrModerator } from '@/lib/auth';
 import { logTileAudit, diffTiles, snapshotTile } from '@/lib/tile-audit';
 import { parseEventRules, hasRevealPolicy, visibleTiles, isMissionTile, serializeTileMissionRules, type MissionRules } from '@/lib/eventRules';
@@ -14,6 +16,9 @@ import { isRaidEffortMode, parseTileEffortConfig } from '@/lib/tileEffortConfig'
 import { track } from '@/lib/analytics';
 import { captureRevealStats } from '@/lib/revealStatsCapture';
 import { MAX_TRACKED_ITEMS } from '@/lib/tileItemLimits';
+import { capEligible, serializeCapBy, validateCapBy } from '@/lib/tileCaps';
+import { COMBO_TILE_TYPE, MAX_COMBO_PARTS, MIN_COMBO_PARTS, serializeComboRule, validateComboRule, validateComboWeight } from '@/lib/combo';
+import { syncPartRevealState } from '@/lib/comboSql';
 
 export async function GET(
   request: Request,
@@ -69,7 +74,8 @@ export async function PUT(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, statBasis, trackingMode, optional, lottery, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, setsRequired, countMode, perKillCap, coopCredit, coopMinMembers, points, effortConfig, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, minRaidLevel, partyTeamOnly, pvpMinLootValue, revealAt, revealState, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
+  const body = (await request.json()) as Record<string, unknown> & { tileId?: number; baseUpdatedAt?: string | null; liveOverride?: boolean; parts?: unknown };
+  const { tileId, baseUpdatedAt, liveOverride } = body;
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -77,7 +83,7 @@ export async function PUT(
 
   // Verify tile belongs to this event
   const tile = await db.query.tiles.findFirst({
-    where: and(eq(tiles.id, tileId), eq(tiles.eventId, eId)),
+    where: and(eq(tiles.id, tileId as number), eq(tiles.eventId, eId)),
   });
   if (!tile) {
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
@@ -114,6 +120,180 @@ export async function PUT(
       { status: 403 },
     );
   }
+
+  const ctx: TileUpdateCtx = { eId, editor, event, eventStarted: !!eventStarted, liveOverrideActive };
+
+  // COMBO tiles (lib/combo): a `parts` list saves the combo and its parts together — each part through
+  // the very same update below, so every kind's validation applies to it unchanged. Everything is
+  // validated first (a dry run of the combo and each part) and only then written, so a bad part can't
+  // leave a half-saved combo behind.
+  const finalType = body.tileType !== undefined ? (body.tileType || 'standard') : tile.tileType;
+  const existingParts = await db.select().from(tiles).where(eq(tiles.parentTileId, tile.id));
+  if (body.parts !== undefined || (finalType !== COMBO_TILE_TYPE && existingParts.length > 0)) {
+    return saveCombo(ctx, tile, body, existingParts);
+  }
+  // A combo edited without its parts (points, description…) keeps the parts it has.
+  return applyTileUpdate(ctx, tile, body, finalType === COMBO_TILE_TYPE ? { partCount: existingParts.length } : {});
+}
+
+interface TileUpdateCtx {
+  eId: number;
+  editor: NonNullable<Awaited<ReturnType<typeof verifyTileEditorForEvent>>>;
+  event: typeof events.$inferSelect | undefined;
+  eventStarted: boolean;
+  liveOverrideActive: boolean;
+}
+type TileRow = typeof tiles.$inferSelect;
+
+/** Fields a part never takes from its body: placement, reveal and mission state are its combo's. */
+const PART_STRIPPED = ['tileId', 'revealAt', 'revealState', 'mission', 'missionRules', 'baseUpdatedAt', 'liveOverride', 'parts', 'points', 'optional', 'lottery'] as const;
+
+/** A blank part row under `parent` — what a new part is validated against before it exists. */
+function blankPartRow(parent: TileRow): TileRow {
+  return {
+    ...parent,
+    id: 0,
+    parentTileId: parent.id,
+    label: 'Part',
+    icon: null,
+    description: null,
+    tileType: 'standard',
+    requiredAmount: null,
+    trackedStat: null,
+    statType: null,
+    statGoal: null,
+    statBasis: 'gain',
+    trackingMode: 'team',
+    optional: 0,
+    lottery: false,
+    autoTrackDisabled: 0,
+    trackedItemIds: null,
+    itemRequirements: null,
+    groupMode: null,
+    setsRequired: null,
+    countMode: null,
+    perKillCap: null,
+    coopCredit: null,
+    coopMinMembers: null,
+    acceptedSources: null,
+    sourceNpcs: null,
+    targetNpcs: null,
+    timedActivity: null,
+    timeThresholdSeconds: null,
+    partySize: null,
+    minRaidLevel: null,
+    partyTeamOnly: null,
+    pvpMinLootValue: null,
+    revealStats: null,
+    comboRule: null,
+    comboWeight: null,
+    capBy: null,
+    points: 0,
+    effortConfig: null,
+    updatedAt: null,
+    mission: 0,
+    rules: null,
+  };
+}
+
+async function errorOf(res: NextResponse): Promise<string> {
+  try {
+    const j = (await res.clone().json()) as { error?: string };
+    return j.error ?? 'Invalid part';
+  } catch {
+    return 'Invalid part';
+  }
+}
+
+async function saveCombo(ctx: TileUpdateCtx, tile: TileRow, body: Record<string, unknown>, existingParts: TileRow[]): Promise<NextResponse> {
+  const finalType = body.tileType !== undefined ? ((body.tileType as string) || 'standard') : tile.tileType;
+  const frozen = ctx.eventStarted && !ctx.liveOverrideActive;
+
+  // Kind changed away from combo: its parts go with it (pre-start only — the kind is frozen after).
+  if (finalType !== COMBO_TILE_TYPE) {
+    if (frozen) return NextResponse.json({ error: 'A combo’s kind can’t change once the event has started.' }, { status: 400 });
+    const res = await applyTileUpdate(ctx, tile, { ...body, parts: undefined, comboRule: null });
+    if (res.ok && existingParts.length > 0) await db.delete(tiles).where(eq(tiles.parentTileId, tile.id));
+    return res;
+  }
+  if (tile.parentTileId != null) {
+    return NextResponse.json({ error: 'A combo’s part can’t be a combo itself.' }, { status: 400 });
+  }
+  const rawParts = body.parts === undefined ? existingParts.map((p) => ({ id: p.id })) : body.parts;
+  if (!Array.isArray(rawParts) || rawParts.length < MIN_COMBO_PARTS || rawParts.length > MAX_COMBO_PARTS) {
+    return NextResponse.json({ error: `A combo needs ${MIN_COMBO_PARTS}–${MAX_COMBO_PARTS} parts.` }, { status: 400 });
+  }
+  const parts: Record<string, unknown>[] = [];
+  for (const raw of rawParts) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return NextResponse.json({ error: 'Each part must be a tile object.' }, { status: 400 });
+    }
+    const part = { ...(raw as Record<string, unknown>) };
+    for (const k of PART_STRIPPED) delete part[k];
+    parts.push(part);
+  }
+  const byId = new Map(existingParts.map((p) => [p.id, p]));
+  const keptIds = new Set<number>();
+  for (const p of parts) {
+    if (p.id === undefined || p.id === null) continue;
+    if (!Number.isInteger(p.id) || !byId.has(p.id as number) || keptIds.has(p.id as number)) {
+      return NextResponse.json({ error: 'A part doesn’t belong to this combo.' }, { status: 400 });
+    }
+    keptIds.add(p.id as number);
+  }
+  const added = parts.filter((p) => p.id == null).length;
+  const removed = existingParts.filter((p) => !keptIds.has(p.id));
+  // Parts freeze with the combo once the event runs, like its kind and amount.
+  if (frozen && (added > 0 || removed.length > 0)) {
+    return NextResponse.json({ error: 'A combo’s parts can’t be added or removed once the event has started.' }, { status: 400 });
+  }
+
+  // Dry run: the combo, then every part, through the one validator.
+  const combo = { ...body, parts: undefined };
+  const dry = await applyTileUpdate(ctx, tile, combo, { dryRun: true, partCount: parts.length });
+  if (!dry.ok) return dry;
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    const row = p.id != null ? byId.get(p.id as number)! : blankPartRow(tile);
+    const res = await applyTileUpdate(ctx, row, p, { dryRun: true, asPart: true });
+    if (!res.ok) return NextResponse.json({ error: `Part ${i + 1}: ${await errorOf(res)}` }, { status: res.status });
+  }
+
+  // Write: drop removed parts, save the combo, then each part (creating new ones first).
+  if (removed.length > 0) await db.delete(tiles).where(inArray(tiles.id, removed.map((p) => p.id)));
+  const saved = await applyTileUpdate(ctx, tile, combo, { partCount: parts.length });
+  if (!saved.ok) return saved;
+  const comboRow = (await saved.clone().json()) as TileRow;
+  const savedParts: TileRow[] = [];
+  for (const p of parts) {
+    let row = p.id != null ? byId.get(p.id as number)! : null;
+    if (!row) {
+      const { id: _id, ...blank } = blankPartRow(comboRow);
+      [row] = await db.insert(tiles).values({ ...blank, label: typeof p.label === 'string' && p.label.trim() ? p.label.trim().slice(0, 200) : 'Part' }).returning();
+    }
+    const res = await applyTileUpdate(ctx, row, p, { asPart: true });
+    if (!res.ok) return NextResponse.json({ error: `Part: ${await errorOf(res)}` }, { status: res.status });
+    savedParts.push((await res.json()) as TileRow);
+  }
+  // A part carries its combo's reveal state (lib/comboSql).
+  await syncPartRevealState(ctx.eId);
+  return NextResponse.json({ ...comboRow, parts: savedParts });
+}
+
+/**
+ * Validate and apply one tile's update. Every tile — a board tile, a combo, a combo's part — is saved
+ * through here. `dryRun` validates without writing (used before a combo save); `partCount` is a
+ * combo's part count after the save; `asPart` marks a combo's part (no missions, no nested combos).
+ */
+async function applyTileUpdate(
+  ctx: TileUpdateCtx,
+  tile: TileRow,
+  body: Record<string, unknown>,
+  opts: { dryRun?: boolean; partCount?: number; asPart?: boolean } = {},
+): Promise<NextResponse> {
+  const { eId, editor, event, eventStarted, liveOverrideActive } = ctx;
+  const tileId = tile.id;
+  const { label, description, tileType, requiredAmount, trackedStat, statType, statGoal, statBasis, trackingMode, optional, lottery, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, setsRequired, countMode, perKillCap, coopCredit, coopMinMembers, points, effortConfig, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, minRaidLevel, partyTeamOnly, pvpMinLootValue, revealAt, revealState, mission, missionRules, capBy, comboRule, comboWeight } = body as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
   // Validate inputs
   if (requiredAmount !== undefined && requiredAmount !== null) {
@@ -173,9 +353,11 @@ export async function PUT(
   }
 
   if (trackedItemIds !== undefined && trackedItemIds !== null) {
-    if (!Array.isArray(trackedItemIds) || trackedItemIds.length > MAX_TRACKED_ITEMS ||
+    // A collection-log tile lists the items it counts, and a whole page can run past the drop cap.
+    const itemCap = tileType === 'clog' ? MAX_CLOG_TILE_ITEMS : MAX_TRACKED_ITEMS;
+    if (!Array.isArray(trackedItemIds) || trackedItemIds.length > itemCap ||
         !trackedItemIds.every((id: unknown) => Number.isInteger(id) && (id as number) > 0)) {
-      return NextResponse.json({ error: `trackedItemIds must be an array of up to ${MAX_TRACKED_ITEMS} positive integers` }, { status: 400 });
+      return NextResponse.json({ error: `trackedItemIds must be an array of up to ${itemCap} positive integers` }, { status: 400 });
     }
   }
 
@@ -207,7 +389,8 @@ export async function PUT(
       return NextResponse.json({ error: 'setsRequired must be an integer between 1 and 50 (or null for one set)' }, { status: 400 });
     }
   }
-  if (countMode !== undefined && countMode !== null && countMode !== 'total' && countMode !== 'distinct') {
+  // 'slots' / 'complete' are collection-log tiles' own modes (lib/clogTiles), checked against the kind below.
+  if (countMode !== undefined && countMode !== null && countMode !== 'total' && countMode !== 'distinct' && countMode !== 'slots' && countMode !== 'complete') {
     return NextResponse.json({ error: "countMode must be 'total' or 'distinct'" }, { status: 400 });
   }
 
@@ -229,6 +412,32 @@ export async function PUT(
   if (minRaidLevel !== undefined && minRaidLevel !== null) {
     if (!Number.isInteger(minRaidLevel) || minRaidLevel < 1 || minRaidLevel > 600) {
       return NextResponse.json({ error: 'minRaidLevel must be an integer between 1 and 600 (or null for any level)' }, { status: 400 });
+    }
+  }
+
+  // Per-member counter caps (lib/tileCaps): validated whole; null/''/[] clears.
+  let capByJson: string | null | undefined;
+  if (capBy !== undefined) {
+    const parsed = validateCapBy(capBy);
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    capByJson = serializeCapBy(parsed.value);
+  }
+  // A part's weight in a 'mix' combo (lib/combo) — only a part carries one.
+  let comboWeightValue: number | null | undefined;
+  if (comboWeight !== undefined) {
+    const parsed = validateComboWeight(comboWeight);
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    comboWeightValue = opts.asPart || tile.parentTileId != null ? parsed.value : null;
+  }
+  // Combo rule (lib/combo): validated against the part count the combo will have.
+  let comboRuleJson: string | null | undefined;
+  if (comboRule !== undefined) {
+    if (comboRule === null || comboRule === '') {
+      comboRuleJson = null;
+    } else {
+      const parsed = validateComboRule(comboRule, opts.partCount);
+      if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+      comboRuleJson = serializeComboRule(parsed.value);
     }
   }
 
@@ -333,6 +542,7 @@ export async function PUT(
     if (!atLeast(editor.role, 'admin')) {
       return NextResponse.json({ error: 'Revealing or hiding a tile is admin-only.' }, { status: 403 });
     }
+    if (opts.dryRun) return NextResponse.json({ ok: true });
     const [updated] = await db
       .update(tiles)
       .set(
@@ -344,6 +554,8 @@ export async function PUT(
       .returning();
     // A mission opened by hand counts from now, same as one the engine announces.
     if (revealState === 'live' && updated) await captureRevealStats([updated.id]);
+    // A combo's parts follow it (lib/comboSql).
+    await syncPartRevealState(eId);
     return NextResponse.json(updated);
   }
 
@@ -445,7 +657,7 @@ export async function PUT(
     updateSet.setsRequired = setsRequired != null && setsRequired > 1 ? setsRequired : null;
   }
   if (countMode !== undefined) {
-    updateSet.countMode = countMode === 'distinct' ? 'distinct' : null;
+    updateSet.countMode = countMode === 'distinct' || countMode === 'slots' || countMode === 'complete' ? countMode : null;
   }
 
   if (perKillCap !== undefined) {
@@ -492,6 +704,10 @@ export async function PUT(
     if (label !== undefined) updateSet.label = label || tile.label;
     if (tileType !== undefined) updateSet.tileType = tileType || 'standard';
     if (requiredAmount !== undefined) updateSet.requiredAmount = requiredAmount || null;
+    // A counter's cap and a combo's rule are part of the tile's rules, frozen with them once it runs.
+    if (capByJson !== undefined) updateSet.capBy = capByJson;
+    if (comboRuleJson !== undefined) updateSet.comboRule = comboRuleJson;
+    if (comboWeightValue !== undefined) updateSet.comboWeight = comboWeightValue;
   }
 
   // Cross-validate the FINAL persisted state so a tile is always exactly one kind.
@@ -556,6 +772,9 @@ export async function PUT(
   const isGain = merged.tileType === 'gain';
   // Deathless tiles reuse timedActivity as the raid and requiredAmount as runs needed.
   const isDeathless = merged.tileType === 'deathless';
+  // Collection-log tiles (lib/clogTiles): page names in targetNpcs, the chosen items in trackedItemIds,
+  // countMode 'slots' | 'complete', requiredAmount = new slots (or pages) needed.
+  const isClog = merged.tileType === 'clog';
   // requiredAmount is shared by drop (item count), kill (kill count), gain (items gained),
   // diary (completions), lms (qualifying games), value (gp threshold) and deathless (runs).
   const hasRequiredAmount = merged.requiredAmount != null;
@@ -563,17 +782,51 @@ export async function PUT(
   const hasSourceNpcs = parseLen(merged.sourceNpcs) > 0;
 
   // A tile is exactly one kind — stat tiles can't carry any submission-kind fields.
-  if (hasStat && (isDrop || isKill || isLap || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
+  if (hasStat && (isDrop || isKill || isLap || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || isClog || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
     return NextResponse.json(
       { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, lap, PvP, gain, timed, deathless, diary, CA, LMS, or value tile. Pick one kind.' },
       { status: 400 },
     );
   }
+  // A cap limits a counted kill tile; nothing else has a count it could cap.
+  if (merged.capBy && !capEligible(merged)) {
+    return NextResponse.json({ error: 'Only kill / counter tiles can be capped by other counters.' }, { status: 400 });
+  }
+  // COMBO tiles (lib/combo). A combo has no engine of its own — just its rule and its parts — so it
+  // carries no tracking fields; it can't be a mission (missions announce, expire and pay on their own
+  // terms, which a combo's parts would have to follow) and it can't sit inside another combo.
+  const isCombo = merged.tileType === COMBO_TILE_TYPE;
+  if (isCombo) {
+    if (tile.parentTileId != null || opts.asPart) {
+      return NextResponse.json({ error: 'A combo’s part can’t be a combo itself.' }, { status: 400 });
+    }
+    if (merged.mission === 1 || mission === true) {
+      return NextResponse.json({ error: 'A combo tile can’t be a mission.' }, { status: 400 });
+    }
+    if (!merged.comboRule) {
+      return NextResponse.json({ error: "A combo needs a rule: any one, all, or at least N of its parts." }, { status: 400 });
+    }
+    if (opts.partCount == null) {
+      return NextResponse.json({ error: 'Save a combo together with its parts.' }, { status: 400 });
+    }
+    if (hasStat || dropItemFields || hasKillFields || hasTimedFields || merged.requiredAmount != null) {
+      return NextResponse.json({ error: 'A combo tracks nothing itself — its parts do. Clear its own tracking fields.' }, { status: 400 });
+    }
+  } else if (merged.comboRule) {
+    updateSet.comboRule = null;
+    merged.comboRule = null;
+  }
+  if ((opts.asPart || tile.parentTileId != null) && (mission === true || merged.mission === 1)) {
+    return NextResponse.json({ error: 'A combo’s part can’t be a mission.' }, { status: 400 });
+  }
   if (hasStat && merged.statType !== 'skill' && merged.statType !== 'boss') {
     return NextResponse.json({ error: "Stat tracking requires statType 'skill' or 'boss'." }, { status: 400 });
   }
   // Field/kind coherence for the submission-backed kinds.
-  if (hasDropItems && !isDrop && !isGain) {
+  if (parseLen(merged.itemRequirements) > 0 && isClog) {
+    return NextResponse.json({ error: 'A collection log tile lists its items plainly — per-item amounts are for drop collections.' }, { status: 400 });
+  }
+  if (hasDropItems && !isDrop && !isGain && !isClog) {
     return NextResponse.json({ error: 'Only drop or gain tiles can carry tracked items.' }, { status: 400 });
   }
   if (parseLen(merged.itemRequirements) > 0 && isGain) {
@@ -582,7 +835,7 @@ export async function PUT(
   if (hasSourceNpcs && !isDrop && !isValue) {
     return NextResponse.json({ error: 'Only drop or value tiles can restrict loot sources.' }, { status: 400 });
   }
-  if (hasKillFields && !isKill && !isLap && !isDiary && !isCa && !isPvp) {
+  if (hasKillFields && !isKill && !isLap && !isDiary && !isCa && !isPvp && !isClog) {
     return NextResponse.json({ error: 'Only kill tiles can target NPCs (or lap/diary/CA/PvP tiles, their selectors).' }, { status: 400 });
   }
   // Min-loot floor is a PvP-only knob — reject it on any other kind so switching kind can't leave a
@@ -596,8 +849,15 @@ export async function PUT(
   if (merged.timeThresholdSeconds != null && !isTimed && !isLms && !isDeathless && !isDrop) {
     return NextResponse.json({ error: 'Only timed (time cap), LMS (placement cap), deathless (party size), or drop (raid party size) tiles can carry a threshold.' }, { status: 400 });
   }
-  if (hasRequiredAmount && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless) {
-    return NextResponse.json({ error: 'Only drop, kill, lap, PvP, gain, diary, CA, LMS, value, or deathless tiles can have a required amount.' }, { status: 400 });
+  // Timed tiles carry one only as a Barracuda Trials rank tile's runs-needed (lib/submissions).
+  if (isClog) {
+    const clogError = clogTileError(merged.countMode, parseJsonArray<string>(merged.targetNpcs), parseJsonArray<number>(merged.trackedItemIds), merged.requiredAmount);
+    if (clogError) return NextResponse.json({ error: clogError }, { status: 400 });
+  } else if (merged.countMode === 'slots' || merged.countMode === 'complete') {
+    return NextResponse.json({ error: "countMode 'slots' / 'complete' is for collection log tiles." }, { status: 400 });
+  }
+  if (hasRequiredAmount && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless && !isTimed && !isClog) {
+    return NextResponse.json({ error: 'Only drop, kill, lap, PvP, gain, diary, CA, LMS, value, deathless, or timed (trial runs) tiles can have a required amount.' }, { status: 400 });
   }
 
   // CONVERTING an existing board tile into a mission.
@@ -612,6 +872,8 @@ export async function PUT(
   //
   // Everywhere else — points lists, tile races, ladders — position is just order, so the tile moves
   // to the end and nothing is disturbed.
+  if (opts.dryRun) return NextResponse.json({ ok: true });
+
   if (mission === true && !isMissionTile(tile)) {
     const isClassicGrid = (event?.format ?? 'bingo') === 'bingo' && (event?.scoringMode ?? 'tiles') === 'tiles';
     if (isClassicGrid) {
@@ -636,6 +898,9 @@ export async function PUT(
     .set(updateSet)
     .where(eq(tiles.id, tileId))
     .returning();
+
+  // A combo's parts carry its reveal time (lib/comboSql).
+  if (revealAtValue !== undefined && updated.tileType === COMBO_TILE_TYPE) await syncPartRevealState(eId);
 
   // History: record the exact field diff (no-op edits are dropped by logTileAudit). Edits made
   // through the admin live-event override are flagged so the timeline can mark them.
@@ -707,7 +972,8 @@ export async function POST(
     return NextResponse.json({ error: 'Tiles cannot be added after the event has started.' }, { status: 400 });
   }
 
-  const existing = await db.select({ position: tiles.position }).from(tiles).where(eq(tiles.eventId, eId));
+  // Board tiles only: a combo's parts (lib/combo) are neither cells nor positions.
+  const existing = await db.select({ position: tiles.position }).from(tiles).where(and(eq(tiles.eventId, eId), isNull(tiles.parentTileId)));
   if (existing.length >= MAX_TILES) {
     return NextResponse.json({ error: `Events are capped at ${MAX_TILES} tiles.` }, { status: 400 });
   }
@@ -725,7 +991,7 @@ export async function POST(
   if (duplicateOf !== null) {
     source = (await db.query.tiles.findFirst({ where: eq(tiles.id, duplicateOf) })) ?? null;
     // Scoped to this event: a tile id from another board is not this editor's to read.
-    if (!source || source.eventId !== eId) {
+    if (!source || source.eventId !== eId || source.parentTileId != null) {
       return NextResponse.json({ error: 'That tile is not on this board.' }, { status: 404 });
     }
     label = `${source.label} (copy)`.slice(0, 200);
@@ -751,6 +1017,14 @@ export async function POST(
         })()
       : { eventId: eId, position: nextPosition, label, mission: asMission ? 1 : 0 };
     const [tile] = await tx.insert(tiles).values(values).returning();
+    // Duplicating a combo copies its parts under the copy (lib/combo).
+    if (source && source.tileType === COMBO_TILE_TYPE) {
+      const parts = await tx.select().from(tiles).where(eq(tiles.parentTileId, source.id));
+      for (const part of parts) {
+        const { id: _pid, revealedAt: _r, closedAt: _c, revealStats: _s, updatedAt: _u, ...partConfig } = part;
+        await tx.insert(tiles).values({ ...partConfig, parentTileId: tile.id, position: tile.position, revealAt: tile.revealAt });
+      }
+    }
     // Keep boardSize == BOARD tile count so the display helpers (eventTileCount / eventShapeBadge)
     // stay accurate. A mission is not a board tile, so it must not grow the board — on a 5×5 that
     // would turn the grid into a 26-tile board with a hole in it.

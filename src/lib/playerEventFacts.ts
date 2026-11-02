@@ -102,8 +102,11 @@ export async function computePlayerEventFacts(eventId: number): Promise<PlayerEv
     db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
   ]);
   const tileIds = eventTiles.map((t) => t.id);
-  const eventCompletions = tileIds.length
-    ? (await db.select().from(completions).where(inArray(completions.tileId, tileIds))).map((c) => ({
+  // Combo parts (lib/combo) aren't tiles anyone "finished" — their combo is. Their work still folds
+  // into the combo's split (lib/memberBreakdown), so their submissions stay.
+  const boardIds = eventTiles.filter((t) => t.parentTileId == null).map((t) => t.id);
+  const eventCompletions = boardIds.length
+    ? (await db.select().from(completions).where(inArray(completions.tileId, boardIds))).map((c) => ({
         teamId: c.teamId,
         tileId: c.tileId,
         creditPlayerId: c.creditPlayerId,
@@ -117,6 +120,7 @@ export async function computePlayerEventFacts(eventId: number): Promise<PlayerEv
           tileId: submissions.tileId,
           teamId: submissions.teamId,
           creditPlayerId: submissions.creditPlayerId,
+          goal: submissions.goal,
           amount: submissions.amount,
           createdAt: submissions.createdAt,
         })
@@ -148,6 +152,7 @@ export async function computePlayerEventFacts(eventId: number): Promise<PlayerEv
         tileId: s.tileId,
         creditPlayerId: s.creditPlayerId,
         amount: s.amount,
+        goal: s.goal,
       })),
       statGains,
     });

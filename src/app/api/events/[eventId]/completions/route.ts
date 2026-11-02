@@ -3,7 +3,7 @@ import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { completions, tiles, teams, events } from '@/db/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, resolveTeamMembership } from '@/lib/auth';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 import { parseContributionSnapshot } from '@/lib/statTracking';
@@ -11,6 +11,7 @@ import { evaluateCompletionGate } from '@/lib/completionGate';
 import { handleBountyClaim, reopenBountyTileIfUnclaimed } from '@/lib/revealEngine';
 import type { Completion } from '@/lib/types';
 import { assertEventEditable } from '@/lib/eventLock';
+import { afterPartCompletion } from '@/lib/comboCompletion';
 import { standingsScopeForRequest } from '@/lib/standingsAccess';
 import { filterToVisibleTeams } from '@/lib/standingsVisibility';
 
@@ -119,6 +120,11 @@ export async function POST(
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
   }
 
+  // A combo (lib/combo) completes from its parts — only an admin can force it either way.
+  if (tile.tileType === 'combo' && !isAdmin) {
+    return NextResponse.json({ error: 'A combo completes from its parts, not a manual toggle' }, { status: 400 });
+  }
+
   // Drop tiles: only admin can force-toggle; captains/players use submissions
   if (tile.tileType === 'drop' && !isAdmin) {
     return NextResponse.json(
@@ -130,8 +136,10 @@ export async function POST(
   // Tile race: completions are an ordered track. A team may only complete the tile
   // immediately after its current frontier, and may only un-complete the frontier
   // tile itself. Admins bypass so they can correct the board out of order.
-  if (event.format === 'tilerace' && !isAdmin) {
-    const raceTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, eId) });
+  // A combo PART (lib/combo) has no place in the race — its combo does.
+  const isPart = tile.parentTileId != null;
+  if (event.format === 'tilerace' && !isAdmin && !isPart) {
+    const raceTiles = await db.query.tiles.findMany({ where: and(eq(tiles.eventId, eId), isNull(tiles.parentTileId)) });
     const teamDone = await db.query.completions.findMany({ where: eq(completions.teamId, teamId) });
     const doneTileIds = new Set(teamDone.map((c) => c.tileId));
 
@@ -158,6 +166,11 @@ export async function POST(
   if (existing) {
     // Remove completion
     await db.delete(completions).where(eq(completions.id, existing.id));
+    // A combo part undone may undo its combo (lib/comboCompletion).
+    if (isPart) {
+      await afterPartCompletion(tile, teamId, { change: 'removed' });
+      return NextResponse.json({ action: 'removed', tileId, teamId });
+    }
     // Bounty events: pulling back the claiming completion reopens the tile (no-op elsewhere).
     await reopenBountyTileIfUnclaimed(eId, tileId).catch(() => {});
     return NextResponse.json({ action: 'removed', tileId, teamId });
@@ -178,6 +191,12 @@ export async function POST(
       .values({ teamId, tileId, awardedPoints: gate.awardedPoints })
       .returning();
 
+    // A combo part's row is progress: recompute (and maybe announce) its combo instead.
+    if (isPart) {
+      await afterPartCompletion(tile, teamId, { change: 'added', notifyClanId: clan.id });
+      return NextResponse.json({ action: 'added', ...completion });
+    }
+
     // Bounty rotation: close the claimed tile and draw the next immediately (cron backstops).
     if (gate.bounty) handleBountyClaim(eId, tileId).catch(() => {});
 
@@ -196,9 +215,9 @@ export async function POST(
       tile,
     }).catch(() => {}); // Silently ignore errors
 
-    // Check for blackout win
+    // Check for blackout win — board tiles only (combo parts aren't cells).
     const eventTiles = await db.query.tiles.findMany({
-      where: eq(tiles.eventId, eId),
+      where: and(eq(tiles.eventId, eId), isNull(tiles.parentTileId)),
     });
     const teamCompletions = await db.query.completions.findMany({
       where: eq(completions.teamId, teamId),

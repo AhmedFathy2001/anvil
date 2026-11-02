@@ -60,7 +60,8 @@ export async function GET() {
       .from(completions)
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
       .innerJoin(events, eq(tiles.eventId, events.id))
-      .where(eq(events.clanId, clan.id)),
+      // Board cells only — a combo part (lib/combo) is not a tile completed.
+      .where(and(eq(events.clanId, clan.id), isNull(tiles.parentTileId))),
     db
       .select({ n: count() })
       .from(submissions)

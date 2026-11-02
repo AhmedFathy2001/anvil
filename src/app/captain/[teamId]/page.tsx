@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { events, tiles, teams, completions, eventParticipants } from '@/db/schema';
+import { nestParts } from '@/lib/combo';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { verifyCaptain } from '@/lib/auth';
@@ -67,7 +68,8 @@ export default async function CaptainBoardPage({
     <CaptainBoardClient
       event={event}
       team={safeTeam}
-      tiles={eventTiles}
+      // Board cells, each combo carrying its parts (lib/combo); `teamCompletions` keeps the parts'.
+      tiles={nestParts(eventTiles)}
       completions={teamCompletions}
       players={eventPlayers}
     />

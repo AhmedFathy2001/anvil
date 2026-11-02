@@ -15,6 +15,8 @@ interface Completion {
 }
 
 interface Submission {
+  /** lib/tileCaps: null = the tile's own credit; 'cap:N' = a capped tile's cap counter. */
+  goal?: string | null;
   id: number;
   tileId: number;
   teamId: number;

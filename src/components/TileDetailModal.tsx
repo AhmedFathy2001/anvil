@@ -25,6 +25,10 @@ import ProofGallery, { type ProofShot } from './ProofGallery';
 import { isManualTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { clanFetch } from '@/lib/clanFetch';
+import { clogTileLooseSpec, clogTileSetupNote } from '@/lib/clogTileWords';
+import { parseTrialRankTile } from '@/lib/barracudaTrials';
+import { comboSentence, comboWeightOf, isComboTile, parseComboRule } from '@/lib/combo';
+import { partProgressText, type ComboView } from '@/lib/comboProgress';
 
 // mm:ss / h:mm:ss / bare-seconds → seconds. Returns null for unparseable input.
 function clockToSeconds(value: string): number | null {
@@ -99,7 +103,9 @@ interface Props {
   onClose: () => void;
   eventId: number;
   teamId?: number;
-  dropProgress?: { current: number; required: number };
+  dropProgress?: { current: number; required: number; text?: string; note?: string; combo?: ComboView };
+  /** A COMBO on a many-team view (lib/combo): which teams finished each part, by part id. */
+  partCompletedBy?: Record<number, { teamName: string; color: string }[]>;
   perItemProgress?: ItemRequirementProgress[];
   teamPlayers?: TeamPlayer[];
   currentPlayerId?: number;
@@ -131,6 +137,7 @@ export default function TileDetailModal({
   eventId,
   teamId,
   dropProgress,
+  partCompletedBy,
   perItemProgress,
   teamPlayers,
   currentPlayerId,
@@ -217,6 +224,11 @@ export default function TileDetailModal({
   const isDeathless = tile.tileType === 'deathless';
   const isLms = tile.tileType === 'lms';
   const isValue = tile.tileType === 'value' || tile.tileType === 'valuetotal';
+  // Collection-log tiles (lib/clogTileWords): a slot upload names its item; a whole-page tile takes a
+  // screenshot of the finished page instead (its slots are read off the member's synced log).
+  const isClog = tile.tileType === 'clog';
+  const clogSpec = isClog ? clogTileLooseSpec(tile) : null;
+  const isClogPage = clogSpec?.mode === 'complete';
   const manualOnly = isManualTile(tile);
   const howCounts = howTileCounts(tileKindKey(tile), manualOnly);
   const submittedNotice = howCounts.auto
@@ -224,7 +236,7 @@ export default function TileDetailModal({
     : 'Added. Your captain or the clan staff mark the tile done once they’ve seen it.';
   // Count-based tiles share the amount+proof "Add Submission" form. Value tiles use a gp-value form
   // (below); timed uses its own clear-time form; stat/standard have no manual submit.
-  const isCount = isDrop || isKill || isLap || isPvp || isGain || isDiary || isCa || isDeathless || isLms;
+  const isCount = isDrop || isKill || isLap || isPvp || isGain || isDiary || isCa || isDeathless || isLms || isClog;
   // Only real item drops ask for one screenshot per unit; every other count tile takes a SINGLE proof
   // screenshot for the whole entered amount (you can't screenshot 170 kills individually).
   const perUnitProof = isDrop;
@@ -261,11 +273,48 @@ export default function TileDetailModal({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tile.id, isDistinctPool]);
-  const pickerItems = isCollection ? itemReqs : isDistinctPool ? poolItems : [];
-  const needsItem = isCollection || isDistinctPool;
+  // Collection-log slots: the items on the tile's pages — or, on an any-page tile, the page picked first.
+  const isClogSlots = isClog && !isClogPage;
+  const [clogPages, setClogPages] = useState<string[]>([]);
+  const [clogPage, setClogPage] = useState('');
+  const [clogItems, setClogItems] = useState<{ itemId: number; name: string }[]>([]);
+  useEffect(() => {
+    if (!isClogSlots || !clogSpec) return;
+    let cancelled = false;
+    if (clogSpec.itemIds.length > 0) {
+      // Chosen items: exactly those, whatever page they came from.
+      clanFetch(`/api/clog/pages?ids=${clogSpec.itemIds.join(',')}`)
+        .then((r) => (r.ok ? r.json() : { items: [] }))
+        .then((d: { items: { id: number; name: string }[] }) => {
+          if (!cancelled) setClogItems((d.items ?? []).map((i) => ({ itemId: i.id, name: i.name })));
+        })
+        .catch(() => {});
+      return () => {
+        cancelled = true;
+      };
+    }
+    const pages = clogSpec.pages.length > 0 ? clogSpec.pages : clogPage ? [clogPage] : [];
+    if (clogSpec.pages.length === 0 && clogPages.length === 0) {
+      clanFetch('/api/clog/pages')
+        .then((r) => (r.ok ? r.json() : { pages: [] }))
+        .then((d: { pages: string[] }) => { if (!cancelled) setClogPages(d.pages ?? []); })
+        .catch(() => {});
+    }
+    Promise.all(pages.map((p) => clanFetch(`/api/clog/pages?page=${encodeURIComponent(p)}`).then((r) => (r.ok ? r.json() : { items: [] }))))
+      .then((rows: { items: { id: number; name: string }[] }[]) => {
+        if (!cancelled) setClogItems(rows.flatMap((r) => r.items ?? []).map((i) => ({ itemId: i.id, name: i.name })));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tile.id, isClogSlots, clogPage]);
+  const pickerItems = isCollection ? itemReqs : isDistinctPool ? poolItems : isClogSlots ? clogItems : [];
+  const needsItem = isCollection || isDistinctPool || isClogSlots;
   const isStatTile = !!tile.trackedStat;
   // Noun used in the count-based submission form copy ("drop" vs "kill" vs "completion" vs "item").
-  const countNoun = isKill || isPvp ? 'kill' : isLap ? lapUnitNoun(parseJsonArray<string>(tile.targetNpcs)) : isDiary || isCa ? 'completion' : isGain ? 'item' : isDeathless ? 'run' : isLms ? 'game' : 'drop';
+  const countNoun = isClogPage ? 'page' : isClog ? 'slot' : isKill || isPvp ? 'kill' : isLap ? lapUnitNoun(parseJsonArray<string>(tile.targetNpcs)) : isDiary || isCa ? 'completion' : isGain ? 'item' : isDeathless || isTimed ? 'run' : isLms ? 'game' : 'drop';
   // The same names the board's badges and filters use (lib/tileKinds), bar the Sepulchre's own.
   // Both engines behind "Kills" (hiscores boss tile, plugin kill tile) wear one badge: "Kills · 50".
   // Which engine counts it is the how-it-counts line below.
@@ -614,7 +663,12 @@ export default function TileDetailModal({
                     Goal: {tile.requiredAmount.toLocaleString()} {countNoun}{tile.requiredAmount !== 1 ? 's' : ''}
                   </span>
                 )}
-                {isTimed && tile.timeThresholdSeconds && (
+                {isTimed && parseTrialRankTile(tile.timedActivity) && (
+                  <span className="text-xs text-text-muted">
+                    Goal: {(tile.requiredAmount ?? 1).toLocaleString()} run{(tile.requiredAmount ?? 1) !== 1 ? 's' : ''} · {tile.timedActivity}
+                  </span>
+                )}
+                {isTimed && tile.timeThresholdSeconds && !parseTrialRankTile(tile.timedActivity) && (
                   <span className="text-xs text-text-muted">
                     Cap: ≤ {secondsToClock(tile.timeThresholdSeconds)}
                     {tile.timedActivity ? ` · ${tile.timedActivity}` : ''}
@@ -698,6 +752,75 @@ export default function TileDetailModal({
               ))}
             </div>
           )}
+
+          {/* COMBO (lib/combo): the rule, then each part with its own progress — every part is tracked
+              its own way (hiscores, plugin, screenshots), and the combo is done when the rule is met. */}
+          {isComboTile(tile) && (() => {
+            const rule = parseComboRule(tile.comboRule);
+            const parts = tile.parts ?? [];
+            const view = dropProgress?.combo;
+            return (
+              <div className="space-y-2 rounded-lg border border-gold/20 bg-gold/5 p-3">
+                <p className="text-xs font-medium text-gold/90">
+                  {comboSentence(rule, parts.map((p) => p.label), isIndividualMode(tile.trackingMode))}
+                </p>
+                {view && (
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-text-muted">Progress</span>
+                      <span className="font-medium text-accent-green-light">{view.summary}</span>
+                    </div>
+                    <div className="w-full bg-brown-dark rounded-full h-2 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min(100, view.share != null ? view.share * 100 : (view.done / Math.max(1, view.needed)) * 100)}%`,
+                          background: view.complete ? 'linear-gradient(90deg, #22c55e, #4ade80)' : 'linear-gradient(90deg, #eab308cc, #eab308)',
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+                <ul className="space-y-1.5">
+                  {parts.map((p, i) => {
+                    const st = view?.parts.find((x) => x.id === p.id);
+                    const text = st ? partProgressText(st.state) : '';
+                    const teamsDone = partCompletedBy?.[p.id] ?? [];
+                    return (
+                      <li key={p.id} className="rounded border border-card-border/60 bg-card-bg/60 px-2 py-1.5">
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-text-muted w-4 text-right">{i + 1}</span>
+                          <span className={`flex-1 min-w-0 ${st?.state.done ? 'text-accent-green-light' : 'text-foreground'}`}>
+                            {p.label}
+                            {rule.mode === 'mix' && comboWeightOf(p) !== 1 && (
+                              <span className="ml-1 text-[10px] text-text-muted">worth {Math.round(comboWeightOf(p) * 100)}%</span>
+                            )}
+                          </span>
+                          {text && <span className="text-[11px] text-text-muted">{text}</span>}
+                          {/* A manual part (no tracking of its own) is marked done by hand, like a manual tile. */}
+                          {canToggle && onToggle && ((p.tileType === 'standard' && !p.trackedStat) || isManualTile(p)) && (
+                            <button
+                              type="button"
+                              onClick={() => onToggle(p.id)}
+                              className="text-[11px] text-gold hover:underline"
+                            >
+                              {st?.state.done ? 'Undo' : 'Mark done'}
+                            </button>
+                          )}
+                          {teamsDone.map((t) => (
+                            <span key={t.teamName} title={`${t.teamName} did this part`} className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
+                          ))}
+                        </div>
+                        <div className="pl-6 pt-1 text-[11px] text-text-muted">
+                          <TileTargets tile={p} />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })()}
 
           {/* Drop / kill tile progress */}
           {isCount && dropProgress && (
@@ -940,8 +1063,9 @@ export default function TileDetailModal({
             </div>
           )}
 
-          {/* Standard manual toggle (count- and time-based tiles complete via submissions) */}
-          {!isCount && !isTimed && canToggle && onToggle && (
+          {/* Standard manual toggle (count- and time-based tiles complete via submissions; a combo
+              completes from its parts — its manual parts are marked above). */}
+          {!isCount && !isTimed && !isComboTile(tile) && canToggle && onToggle && (
             <button
               onClick={handleToggle}
               disabled={toggling}
@@ -1007,12 +1131,28 @@ export default function TileDetailModal({
                             {s.flaggedReason === 'inferred_duplicate_pet' ? 'duplicate pet · check' : 'duplicate scroll · check'}
                           </span>
                         )}
+                        {s.flaggedReason === 'unverified_counter' && (
+                          <span
+                            title="Auto-counted from a new in-game signal — spot-check it."
+                            className="px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 font-medium"
+                          >
+                            new counter · check
+                          </span>
+                        )}
                         {s.flaggedReason === 'big_ping' && (
                           <span
                             title="The plugin claimed more than one burst of kills without a screenshot; only 10 were counted. See the note for the claim."
                             className="px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 font-medium"
                           >
                             oversized ping · check
+                          </span>
+                        )}
+                        {s.flaggedReason === 'over_action_max' && (
+                          <span
+                            title="Counted in full, but it is more than one game's (or one action's) worth for this counter without a screenshot. See the note for the claim."
+                            className="px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 font-medium"
+                          >
+                            bigger than one game&apos;s worth · check
                           </span>
                         )}
                         {(s.flaggedReason === 'proof_image_mismatch' || s.flaggedReason === 'captured_before_start' || s.flaggedReason === 'capture_clock_ahead') && (
@@ -1039,6 +1179,14 @@ export default function TileDetailModal({
                             className="px-1.5 py-0.5 rounded bg-green-500/15 text-green-300 font-medium"
                           >
                             hiscores ✓
+                          </span>
+                        )}
+                        {s.flaggedReason === 'clog_unverified_slots' && (
+                          <span
+                            title="The finished page includes slots that only showed up in a collection log sync, with no unlock message in game — check the screenshot"
+                            className="px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 font-medium"
+                          >
+                            synced slots · check
                           </span>
                         )}
                         {s.flaggedReason === 'no_start_proof' && (
@@ -1201,6 +1349,27 @@ export default function TileDetailModal({
                 </p>
               )}
 
+              {/* Collection-log tiles: what this upload is, and the any-page tile's page picker. */}
+              {isClog && clogSpec && (
+                <p className="text-xs text-text-muted">
+                  {isClogPage
+                    ? 'Upload a screenshot of the finished collection log page. Finished pages are read from the player’s synced log; this screenshot is the proof the tile waits for.'
+                    : 'One upload per new slot — a screenshot of the “New item added to your collection log” message. Slots already in your log before the event never count.'}
+                  {' '}{clogTileSetupNote(clogSpec.mode).split(' — ')[0]}.
+                </p>
+              )}
+              {isClogSlots && clogSpec && clogSpec.pages.length === 0 && clogSpec.itemIds.length === 0 && (
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">Which collection log page? *</label>
+                  <Select
+                    value={clogPage}
+                    onChange={(v) => { setClogPage(v); setItemId(''); }}
+                    placeholder="Select the page..."
+                    ariaLabel="Which collection log page"
+                    options={clogPages.map((p) => ({ value: p, label: p }))}
+                  />
+                </div>
+              )}
               {/* Collection tiles: which item in the set this submission counts toward (required). */}
               {needsItem && (
                 <div>
@@ -1232,7 +1401,7 @@ export default function TileDetailModal({
               {/* Amount is only entered by hand for non-per-unit count tiles. For real drops the
                   count follows the number of screenshots you attach (one submission per shot), so
                   there's no separate amount field to keep in sync. */}
-              {!perUnitProof && (
+              {!perUnitProof && !isClog && (
                 <div>
                   <label className="block text-xs text-text-muted mb-1">
                     Amount {remaining !== undefined && <span className="text-yellow-400">(max: {maxAmount})</span>}

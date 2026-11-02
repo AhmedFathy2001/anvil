@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { boardCompletion, eventBoardTiles, primaryCredit } from '@/lib/comboSql';
 import { submissions, completions, tiles, eventParticipants, events } from '@/db/schema';
 import { and, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
 import { parseEventRules, hasRevealPolicy } from '@/lib/eventRules';
@@ -119,7 +120,8 @@ export async function buildActivity(args: {
       createdAt: submissions.createdAt,
     })
     .from(submissions)
-    .where(and(eq(submissions.teamId, teamId), gt(submissions.id, since.sub)))
+    // A capped tile's cap-counter pings (energy — lib/tileCaps) aren't progress on the tile.
+    .where(and(eq(submissions.teamId, teamId), gt(submissions.id, since.sub), primaryCredit()))
     .orderBy(firstCall ? sql`${submissions.id} desc` : submissions.id)
     .limit(limit);
   // First call pulls the newest N desc for recency; normalise to ascending-by-id like the delta path.
@@ -135,7 +137,8 @@ export async function buildActivity(args: {
       statContributions: completions.statContributions,
     })
     .from(completions)
-    .where(and(eq(completions.teamId, teamId), gt(completions.id, since.comp)))
+    // Board cells only: a combo part finishing (lib/combo) is progress, not "Tile complete".
+    .where(and(eq(completions.teamId, teamId), gt(completions.id, since.comp), boardCompletion()))
     .orderBy(firstCall ? sql`${completions.id} desc` : completions.id)
     .limit(limit);
   if (firstCall) compRows.reverse();
@@ -159,7 +162,7 @@ export async function buildActivity(args: {
     const revealed = await db
       .select({ id: tiles.id, label: tiles.label, revealedAt: tiles.revealedAt })
       .from(tiles)
-      .where(and(eq(tiles.eventId, eventId), isNotNull(tiles.revealedAt)))
+      .where(and(eventBoardTiles(eventId), isNotNull(tiles.revealedAt)))
       .orderBy(tiles.revealedAt, tiles.id);
     revealTotal = revealed.length;
     // First call: only backfill the most recent few, like the other tables.
@@ -209,7 +212,7 @@ export async function buildActivity(args: {
       .select({ tileId: submissions.tileId, name: eventParticipants.name, amount: submissions.amount })
       .from(submissions)
       .leftJoin(eventParticipants, eq(submissions.creditPlayerId, eventParticipants.id))
-      .where(and(eq(submissions.teamId, teamId), inArray(submissions.tileId, completedTileIds)))
+      .where(and(eq(submissions.teamId, teamId), inArray(submissions.tileId, completedTileIds), primaryCredit()))
       .orderBy(submissions.createdAt); // ascending → last write per tile wins
     for (const r of creditRows) {
       if (!r.name) continue;
@@ -304,7 +307,7 @@ export async function buildActivity(args: {
     const sums = await db
       .select({ tileId: submissions.tileId, total: sql<number>`coalesce(sum(${submissions.amount}), 0)` })
       .from(submissions)
-      .where(and(eq(submissions.teamId, teamId), inArray(submissions.tileId, changedTileIds)))
+      .where(and(eq(submissions.teamId, teamId), inArray(submissions.tileId, changedTileIds), primaryCredit()))
       .groupBy(submissions.tileId);
     for (const s of sums) progress[s.tileId] = Number(s.total) || 0;
   }

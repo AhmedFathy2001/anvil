@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { events, tiles, teams, completions } from '@/db/schema';
+import { nestParts } from '@/lib/combo';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import OverviewClient from './OverviewClient';
@@ -90,7 +91,7 @@ export default async function EventOverviewPage({
       )}
       <OverviewClient
         event={event}
-        tiles={withSearchText(eventTiles)}
+        tiles={withSearchText(nestParts(eventTiles))}
         teams={eventTeams}
         completions={eventCompletions}
         stage={stage}

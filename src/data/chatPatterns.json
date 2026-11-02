@@ -576,6 +576,138 @@
       ]
     },
     {
+      "key": "counter.doom_delve",
+      "description": "Doom of Mokhaiotl delve cleared (any level, printed after every one). Parsed but credits nothing: the delves counter reads the per-level completion varps (site lib/gameCounters).",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "^Delve level: (?<level>\\d+)\\+?(?: \\((?<deep>\\d+)\\))? duration:",
+      "groups": [
+        "level"
+      ],
+      "samples": [
+        {
+          "line": "Delve level: 3 duration: 1:12. Personal best: 0:58",
+          "expect": {
+            "level": "3"
+          }
+        },
+        {
+          "line": "Delve level: 8+ (9) duration: 1:38. Personal best: 0:56",
+          "expect": {
+            "level": "8",
+            "deep": "9"
+          }
+        }
+      ]
+    },
+    {
+      "key": "counter.gotr_energy",
+      "description": "End of a Guardians of the Rift game: energy attuned this game. Amount = N per line (elemental, catalytic, and their sum).",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "^Elemental energy attuned: (?<elemental>[\\d,]+)\\.\\s*Catalytic energy attuned: (?<catalytic>[\\d,]+)",
+      "groups": [
+        "elemental",
+        "catalytic"
+      ],
+      "samples": [
+        {
+          "line": "Elemental energy attuned: 1. Catalytic energy attuned: 2.",
+          "expect": {
+            "elemental": "1",
+            "catalytic": "2"
+          }
+        },
+        {
+          "line": "Elemental energy attuned: 1,204. Catalytic energy attuned: 987.",
+          "expect": {
+            "elemental": "1,204",
+            "catalytic": "987"
+          }
+        }
+      ]
+    },
+    {
+      "key": "counter.reward_search",
+      "description": "A reward search ('You found some loot: ...'). Shared by GOTR, Wintertodt and Tempoross, so the plugin credits it only inside the GOTR region (14484, as RuneLite's LootTrackerPlugin gates it).",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "^You found some loot: ",
+      "groups": [],
+      "samples": [
+        {
+          "line": "You found some loot: 85 x Nature rune",
+          "expect": {}
+        }
+      ]
+    },
+    {
+      "key": "counter.vale_offerings",
+      "description": "Vale Totems offerings searched: one research point, five for the bulk 'five times' line.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "^You rummage through the offerings(?: (?<times>\\w+) times)?",
+      "groups": [
+        "times"
+      ],
+      "samples": [
+        {
+          "line": "You rummage through the offerings.",
+          "expect": {}
+        },
+        {
+          "line": "You rummage through the offerings five times.",
+          "expect": {
+            "times": "five"
+          }
+        }
+      ]
+    },
+    {
+      "key": "counter.sunstone_golem",
+      "description": "Sunstone golem completed (wiki Transcript:Golem (sunstone)). One line, one golem; the 'You have crafted X golems on Wyrmscraig.' tally is not read.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "^As you complete the golem it leaves a gift on the ground for you",
+      "groups": [],
+      "samples": [
+        {
+          "line": "As you complete the golem it leaves a gift on the ground for you: 3 x Sunstone.",
+          "expect": {}
+        }
+      ]
+    },
+    {
       "key": "pickpocket",
       "description": "A successful pickpocket. Marks the tick so that tick's NPC loot isn't counted as a kill.",
       "types": [

@@ -4,6 +4,7 @@
 
 import { db } from '@/db';
 import { events, tiles, eventParticipants, completions, clanRoster } from '@/db/schema';
+import { eventBoardTiles } from '@/lib/comboSql';
 import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { seatsOwnedByAnywhere } from '@/lib/roster';
 import { clansRunningEvents } from '@/lib/coHost';
@@ -85,7 +86,7 @@ export async function homeBoardForUser(clanId: number, userId: number): Promise<
 
   // Scored through lib/boardScoring, so this pre-login summary is the same fraction the board itself
   // shows once they log in — optional tiles out, missions a bonus, a drip board against its pool.
-  const tileRows = await db.query.tiles.findMany({ where: eq(tiles.eventId, live.eventId) });
+  const tileRows = await db.query.tiles.findMany({ where: eventBoardTiles(live.eventId) });
   const doneRows = await db
     .select({ teamId: completions.teamId, tileId: completions.tileId, awardedPoints: completions.awardedPoints })
     .from(completions)

@@ -128,7 +128,8 @@ export async function loadEventCards(
   // they must not sit in the denominator — otherwise a card's percentage drops the moment a host
   // authors a mission nobody has even been shown yet. Missions still SCORE (the query below has no
   // such filter); they just aren't part of what the board is out of.
-  const boardTotalOnly = and(onBoard, or(isNull(tiles.mission), eq(tiles.mission, 0)));
+  // …and never a combo PART (lib/combo): its combo is the cell.
+  const boardTotalOnly = and(onBoard, or(isNull(tiles.mission), eq(tiles.mission, 0)), isNull(tiles.parentTileId));
 
   const teamCounts = new Map<number, number>();
   const boardTotals = new Map<number, number>();
@@ -173,7 +174,8 @@ export async function loadEventCards(
       })
       .from(completions)
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
-      .where(inArray(tiles.eventId, ids))
+      // Board cells only: a combo part's completion (lib/combo) is progress, never a score.
+      .where(and(inArray(tiles.eventId, ids), isNull(tiles.parentTileId)))
       .groupBy(tiles.eventId, completions.teamId),
   ]);
 
@@ -210,7 +212,7 @@ export async function loadEventCards(
       })
       .from(completions)
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
-      .where(or(...hiddenWhere))
+      .where(and(or(...hiddenWhere), isNull(tiles.parentTileId)))
       .groupBy(tiles.eventId, completions.teamId);
 
     for (const row of hiddenRows) {

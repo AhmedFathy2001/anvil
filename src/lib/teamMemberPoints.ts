@@ -36,7 +36,7 @@ async function compute(eventId: number, teamId: number): Promise<Map<number, num
       .from(completions)
       .where(and(eq(completions.teamId, teamId), inArray(completions.tileId, tileIds))),
     db
-      .select({ tileId: submissions.tileId, teamId: submissions.teamId, creditPlayerId: submissions.creditPlayerId, amount: submissions.amount, createdAt: submissions.createdAt })
+      .select({ tileId: submissions.tileId, teamId: submissions.teamId, creditPlayerId: submissions.creditPlayerId, goal: submissions.goal, amount: submissions.amount, createdAt: submissions.createdAt })
       .from(submissions)
       .where(and(eq(submissions.teamId, teamId), inArray(submissions.tileId, tileIds))),
   ]);

@@ -1,3 +1,5 @@
+import { gameCounterTargets } from "./gameCounters.ts";
+
 // Fun one-liners the Anvil plugin may post on a player's death (1/100 roll, otherwise
 // the player's own configured message is used). `{name}` is substituted with the RSN.
 // Served via GET /api/plugin/config so the pool can be edited without a plugin release;
@@ -259,7 +261,14 @@ export const AGILITY_COURSES: { name: string; label: string; level: number }[] =
 // only reason this list exists: without it an admin has to already know the string to type.
 //
 // `note` is shown on the chip's tooltip — several of these count something other than kills.
-export const COUNTER_TARGETS: { name: string; group: string; note: string }[] = [
+// `confirmed: false` marks a signal nobody has checked in game yet: it still counts, but the plugin
+// flags each credit 'unverified_counter' (staff get a "check" badge) and the chip says "beta".
+// Absent = confirmed. The game-value counters (lib/gameCounters) are appended at the end.
+//
+// `actionMax` = the most ONE real action can credit (one game's energy, one sword's reputation).
+// Absent = 1 per line. Only matters above 10: a tile whose targets can step by more than that takes
+// image-less plugin pings up to the largest of them, and flags anything bigger (lib/pingMax).
+export const COUNTER_TARGETS: { name: string; group: string; note: string; confirmed?: boolean; actionMax?: number }[] = [
   // Standard "Your <X> ... count is: N" lines the plugin has always parsed — they just aren't
   // findable, because the hiscores don't carry them and the monster search doesn't know them.
   { name: 'Herbiboar', group: 'Skilling', note: 'Harvest counter — "Your Herbiboar harvest count is: N"' },
@@ -278,6 +287,18 @@ export const COUNTER_TARGETS: { name: string; group: string; note: string }[] = 
   // Own line shapes, parsed separately plugin-side (AnvilPlugin.HUNTER_RUMOUR_PATTERN / EGG_OFFERING_PATTERN).
   { name: 'Hunter Rumours', group: 'Skilling', note: 'Counts rumours handed in at the Hunter Guild' },
   { name: "Bird's egg offerings", group: 'Skilling', note: 'Bird’s eggs offered at the Woodcutting Guild shrine' },
+  // Chat-line counters, plugin-side (AnvilPlugin GOTR_* / VALE_RESEARCH / SUNSTONE_GOLEMS). The
+  // energy line is the end-of-game reward points; a tile listing several of these counts the largest
+  // once per game, never the sum.
+  { name: 'Guardians of the Rift searches', group: 'Minigames', note: 'Reward guardian searches — one per "You found some loot:" inside GOTR' },
+  // Per game (wiki, Guardians of the Rift → Rewards): 100 energy = 1 point, energy capped at 1,000 per
+  // type and 1,200 total (1,320 with yew logs in the abyssal lantern), leftover energy a chance at one
+  // more point. So ≤ 10 of a type and ≤ 14 together (660/660 rounding up both ways).
+  { name: 'GOTR elemental energy', group: 'Minigames', note: 'Elemental energy attuned at the end of each game (reward points)', actionMax: 10 },
+  { name: 'GOTR catalytic energy', group: 'Minigames', note: 'Catalytic energy attuned at the end of each game (reward points)', actionMax: 10 },
+  { name: 'GOTR total energy', group: 'Minigames', note: 'Elemental + catalytic energy attuned per game', actionMax: 14 },
+  { name: 'Vale research points', group: 'Skilling', note: 'Vale Totems offerings searched — 1 point each, 5 for a "five times" search', actionMax: 5 },
+  { name: 'Sunstone golems crafted', group: 'Skilling', note: 'One per golem completed ("As you complete the golem it leaves a gift…")' },
   // Chests are credited off the LOOT EVENT (one event per open), NOT off the game's "You have
   // opened the crystal chest N times." line — that one is a query response (it has a "never
   // opened" form), so counting occurrences of it would credit nothing for a real open and
@@ -289,6 +310,8 @@ export const COUNTER_TARGETS: { name: string; group: string; note: string }[] = 
   { name: "Larran's big chest", group: 'Chests', note: 'Counts opens, credited off the loot event' },
   { name: "Larran's small chest", group: 'Chests', note: 'Counts opens, credited off the loot event' },
   { name: 'Brimstone Chest', group: 'Chests', note: 'Counts opens, credited off the loot event' },
+  // Read off varbits/varps — slayer tasks, Doom delves, points balances, Wintertodt rewards.
+  ...gameCounterTargets(),
 ];
 
 // Hallowed Sepulchre targets, shipped alongside the courses on a lap tile. The Sepulchre doesn't

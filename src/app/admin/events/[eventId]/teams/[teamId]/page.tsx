@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { requireEventForPage } from '@/lib/eventScope';
 import { clanRoster, events, tiles, teams, completions, players, eventParticipants, accounts, users } from '@/db/schema';
+import { nestParts } from '@/lib/combo';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import { getTierBands } from '@/lib/pluginConfig';
@@ -84,7 +85,7 @@ export default async function AdminTeamBoardPage({
       <AdminTeamBoardClient
         event={event}
         team={safeTeam}
-        tiles={withSearchText(eventTiles)}
+        tiles={withSearchText(nestParts(eventTiles))}
         completions={teamCompletions}
         players={eventPlayers}
         tierBands={tierBands}

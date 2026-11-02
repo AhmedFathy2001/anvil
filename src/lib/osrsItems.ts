@@ -21,7 +21,35 @@ export interface MappingItem {
 
 let cachedItems: MappingItem[] | null = null;
 let cacheTimestamp = 0;
+let cacheTtl = 0;
 const CACHE_TTL = 1000 * 60 * 60; // 1 hour
+// A list built while one source was down is missing a whole class of items (RuneLite down → no
+// untradeables by name), so it's only kept briefly before the next request retries both.
+const PARTIAL_CACHE_TTL = 1000 * 60 * 5;
+
+// Untradeable skilling / minigame currencies and resources that gain tiles commonly count. The
+// RuneLite name cache normally supplies these, but it's a live fetch — this keeps them findable by
+// name when it's unreachable. IDs checked against the OSRS Wiki infoboxes (and RuneLite's cache).
+// Only fills names the two live sources didn't supply, so it never overrides them.
+const UNTRADEABLE_SUPPLEMENT: MappingItem[] = [
+  { id: 12012, name: 'Golden nugget' },          // Motherlode Mine
+  { id: 21341, name: 'Unidentified minerals' },  // Mining Guild / MLM
+  { id: 25527, name: 'Stardust' },               // Shooting stars
+  { id: 24711, name: 'Hallowed mark' },          // Hallowed Sepulchre
+  { id: 26792, name: 'Abyssal pearls' },         // Guardians of the Rift
+  { id: 11849, name: 'Mark of Grace' },          // Rooftop agility
+  { id: 29482, name: 'Brimhaven voucher' },      // Brimhaven Agility Arena
+  { id: 29480, name: 'Agility arena ticket' },
+  { id: 22820, name: 'Molch pearl' },            // Aerial fishing
+  { id: 22840, name: 'Golden tench' },
+  { id: 25588, name: 'Spirit flakes' },          // Tempoross
+  { id: 30038, name: 'Termites' },
+  { id: 23962, name: 'Crystal shard' },
+  { id: 6529, name: 'Tokkul' },
+  { id: 33539, name: 'Bucket of bloodwood sap' }, // Varlamore
+  { id: 33621, name: 'Leechfin' },
+  { id: 34020, name: 'Sunstone' },
+];
 
 // Collection-log item ids — the authoritative "this is the real obtainable drop" set. RuneLite's
 // name cache sometimes lists two ids under one name (e.g. "Vorkath's head" = 2425, an unobtainable
@@ -97,7 +125,7 @@ async function fetchRuneLiteItems(): Promise<MappingItem[]> {
 }
 
 export async function getItemMapping(): Promise<MappingItem[]> {
-  if (cachedItems && Date.now() - cacheTimestamp < CACHE_TTL) {
+  if (cachedItems && Date.now() - cacheTimestamp < cacheTtl) {
     return cachedItems;
   }
 
@@ -141,8 +169,16 @@ export async function getItemMapping(): Promise<MappingItem[]> {
     merged.push(it);
   }
 
+  for (const it of UNTRADEABLE_SUPPLEMENT) {
+    const key = it.name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(it);
+  }
+
   cachedItems = merged;
   cacheTimestamp = Date.now();
+  cacheTtl = wiki.length > 0 && rl.length > 0 ? CACHE_TTL : PARTIAL_CACHE_TTL;
   return cachedItems;
 }
 

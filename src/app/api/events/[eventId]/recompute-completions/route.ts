@@ -7,6 +7,8 @@ import { verifyAdmin } from '@/lib/auth';
 import { syncDropTileCompletion } from '@/lib/submissions';
 import { assertEventEditable } from '@/lib/eventLock';
 import { creditStatTilesForTeam } from '@/lib/statTileCredit';
+import { syncComboParent } from '@/lib/comboCompletion';
+import { isComboTile } from '@/lib/combo';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,6 +63,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     }
     const open = statTiles.filter((t) => !alreadyDone.has(`${team.id}-${t.id}`));
     healed += (await creditStatTilesForTeam({ eventId: id, teamId: team.id, statTiles: open })).length;
+    // Combos (lib/combo) last, off their parts' completions as they now stand — add-only, like the rest.
+    for (const combo of eventTiles.filter((t) => isComboTile(t) && t.parentTileId == null)) {
+      if (alreadyDone.has(`${team.id}-${combo.id}`)) continue;
+      const res = await syncComboParent(combo.id, team.id, { silent: true });
+      if (res?.inserted) healed += 1;
+    }
   }
 
   return NextResponse.json({ healed });

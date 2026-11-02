@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { clans, events, tiles, teams, completions, eventParticipants } from '@/db/schema';
+import { nestParts } from '@/lib/combo';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
@@ -203,7 +204,7 @@ export default async function MyTeamPage({
       <MyTeamClient
         event={event}
         team={safeTeam}
-        tiles={withSearchText(eventTiles)}
+        tiles={withSearchText(nestParts(eventTiles))}
         completions={teamCompletions}
         players={eventPlayers}
         startingStats={await startingStatsFor(event, rawEventPlayers.filter((p) => p.teamId === tId))}

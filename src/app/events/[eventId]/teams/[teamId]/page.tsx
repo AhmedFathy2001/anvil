@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { requireEventForParticipantPage } from '@/lib/eventScope';
 import EventApiHost from '@/components/EventApiHost';
 import { events, tiles, teams, completions, eventParticipants } from '@/db/schema';
+import { nestParts } from '@/lib/combo';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import TeamBoardClient from './TeamBoardClient';
@@ -142,7 +143,8 @@ export default async function TeamBoardPage({
 
   // Reveal-policy events (lib/eventRules): non-staff only receive the revealed subset —
   // hidden tile content must never reach the client.
-  const boardTiles = visibleTiles(parseEventRules(event.rules), eventTiles);
+  // Board cells, each combo carrying its parts (lib/combo); the completions keep the parts'.
+  const boardTiles = nestParts(visibleTiles(parseEventRules(event.rules), eventTiles));
 
   return (
     <>

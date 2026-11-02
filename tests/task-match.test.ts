@@ -1,0 +1,762 @@
+// The tile creator's matcher (lib/taskMatch) and its pure config helpers (lib/tileCreatorConfig),
+// run against a real clan's pasted bingo list. Pure — no database.
+//
+// Run: npm run test:taskmatch
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  applyAmount,
+  correctQuery,
+  editDistance,
+  killCandidate,
+  browseCatalog,
+  classifyMatches,
+  matchTasks,
+  parseBulkLine,
+  parseTaskQuery,
+  screenshotCandidate,
+  comboSplits,
+  MAX_COMBO_QUERY,
+  type MatchContext,
+  type TaskCandidate,
+} from '../src/lib/taskMatch.ts';
+import { GOTR_ENERGY_CAPS, GOTR_SEARCHES } from '../src/lib/tileCaps.ts';
+import { comboSentence } from '../src/lib/combo.ts';
+import {
+  BOSS_FAMILIES,
+  RAID_OPTIONS,
+  defaultRaidSelection,
+  familyFor,
+  killPicksConfig,
+  draftPayload,
+  draftToCsvRow,
+  itemTileConfig,
+  raidModeKey,
+  raidTileConfig,
+  trialTileConfig,
+} from '../src/lib/tileCreatorConfig.ts';
+import { chooseKillSource } from '../src/lib/killSource.ts';
+import { COUNTER_TARGETS } from '../src/lib/constants.ts';
+import { clogPages, isMonsterDrop } from '../src/lib/itemObtain.ts';
+
+const items = [
+  { id: 24711, name: 'Hallowed mark' },
+  { id: 12012, name: 'Golden nugget' },
+  { id: 90001, name: 'Bucket of bloodwood sap' },
+  { id: 26813, name: 'Abyssal needle' },
+  { id: 26901, name: 'Abyssal protector' },
+  { id: 19529, name: 'Zenyte shard' },
+];
+const ctx: MatchContext = {
+  items,
+  clogPages: [{ name: 'Guardians of the Rift', items: [{ id: 26813, name: 'Abyssal needle' }, { id: 26901, name: 'Abyssal protector' }] }],
+  // Zenyte shards come off a monster's drop table; the rest are rewards / gathered.
+  itemIsMonsterDrop: (id) => id === 19529,
+};
+
+function best(line: string, c: MatchContext = ctx) {
+  const { text } = parseBulkLine(line);
+  const cands = matchTasks(text, c);
+  return { cands, top: cands[0], verdict: classifyMatches(cands) };
+}
+
+test('an amount is read before or after the task, with k/m and thousands', () => {
+  assert.equal(parseTaskQuery('150 herbi').amount, 150);
+  assert.equal(parseTaskQuery('150 herbi').text, 'herbiboar'); // shorthand expanded
+  assert.equal(parseTaskQuery('zulrah x100').amount, 100);
+  assert.equal(parseTaskQuery('5m fishing').amount, 5_000_000);
+  assert.equal(parseTaskQuery('1,000 zulrah').amount, 1000);
+  // A number that is part of the name is not the amount.
+  assert.equal(parseTaskQuery('sepulchre floor 5').amount, null);
+  assert.equal(parseTaskQuery('3rd age').amount, null);
+});
+
+test('a bulk line carries its points at the end', () => {
+  assert.deepEqual(parseBulkLine('150 herbiboars harvested – 20 pts'), { text: '150 herbiboars harvested', points: 20 });
+  assert.deepEqual(parseBulkLine('Zenyte shard (15 points)'), { text: 'Zenyte shard', points: 15 });
+  assert.deepEqual(parseBulkLine('250 Tithe Farm points'), { text: '250 Tithe Farm points', points: null });
+});
+
+test('25 Hunter rumours completed → the Hunter Rumours counter', () => {
+  const { top, verdict } = best('25 Hunter rumours completed');
+  assert.equal(verdict.status, 'ready');
+  assert.equal(top.source, 'counter');
+  assert.deepEqual(top.config.targetNpcs, ['Hunter Rumours']);
+  assert.equal(top.config.requiredAmount, 25);
+  assert.equal(top.engine, 'plugin');
+});
+
+test('150 herbiboars harvested (and "150 herbi") → the Herbiboar counter, amount prefilled', () => {
+  for (const line of ['150 herbiboars harvested', '150 herbi']) {
+    const { top, verdict } = best(line);
+    assert.equal(verdict.status, 'ready', line);
+    assert.equal(top.config.tileType, 'kill');
+    assert.deepEqual(top.config.targetNpcs, ['Herbiboar']);
+    assert.equal(top.amount, 150);
+  }
+});
+
+test('150 Hallowed marks earned in Sepulchre → an item gain tile, not Sepulchre floors', () => {
+  const { top, verdict, cands } = best('150 Hallowed marks earned in Sepulchre');
+  assert.equal(verdict.status, 'ready');
+  assert.equal(top.config.tileType, 'gain');
+  assert.deepEqual(top.config.trackedItemIds, [24711]);
+  assert.equal(top.config.requiredAmount, 150);
+  // The drop reading is still on offer.
+  assert.ok(cands.some((c) => c.config.tileType === 'drop' && c.config.trackedItemIds?.[0] === 24711));
+});
+
+test('100 golden nuggets at Motherlode Mine → gained golden nuggets', () => {
+  const { top, verdict } = best('100 golden nuggets earned at Motherlode Mine');
+  assert.equal(verdict.status, 'ready');
+  assert.equal(top.config.tileType, 'gain');
+  assert.deepEqual(top.config.trackedItemIds, [12012]);
+  assert.equal(top.config.requiredAmount, 100);
+});
+
+test('200 buckets of bloodwood sap → gained buckets', () => {
+  const { top } = best('200 buckets of bloodwood sap');
+  assert.equal(top.config.tileType, 'gain');
+  assert.equal(top.config.requiredAmount, 200);
+});
+
+test('a monster-dropped item reads as a drop first', () => {
+  const { top } = best('zenyte shard');
+  assert.equal(top.config.tileType, 'drop');
+  assert.equal(top.config.requiredAmount, 1);
+  assert.equal(top.title, 'Zenyte shard');
+});
+
+test('5 CoX/ToB clears, no Entry Mode → one hiscores tile over every non-Entry mode', () => {
+  const { top, verdict } = best('5 CoX/ToB clears, no Entry Mode');
+  assert.equal(verdict.status, 'ready');
+  assert.equal(top.source, 'raid');
+  assert.equal(top.config.statType, 'boss');
+  assert.deepEqual(
+    top.config.trackedStat!.split(',').sort(),
+    ['chambersOfXeric', 'chambersOfXericChallengeMode', 'theatreOfBlood', 'theatreOfBloodHardMode'].sort(),
+  );
+  assert.equal(top.config.statGoal, 5);
+  assert.equal(top.engine, 'hiscores');
+});
+
+test('"any raid" covers every raid (CoX, ToB, ToA, TFA); a named mode narrows it', () => {
+  assert.equal(best('any raid').top.config.trackedStat!.split(',').length, 7);
+  assert.equal(best('10 tob hm').top.config.trackedStat, 'theatreOfBloodHardMode');
+  assert.equal(best('cox cm').top.config.trackedStat, 'chambersOfXericChallengeMode');
+});
+
+test('ticking an Entry mode moves the raid tile to the plugin, with the exact game strings', () => {
+  const sel = { ...defaultRaidSelection(['tob']), [raidModeKey('tob', 'entry')]: true };
+  const res = raidTileConfig(sel, 3);
+  assert.equal(res.source, 'plugin');
+  assert.equal(res.entryTicked, true);
+  assert.equal(res.config.tileType, 'kill');
+  assert.deepEqual(res.config.targetNpcs, ['Theatre of Blood: Entry Mode', 'Theatre of Blood', 'Theatre of Blood: Hard Mode']);
+  assert.equal(res.config.requiredAmount, 3);
+  // CoX CM has NO colon.
+  const cox = raidTileConfig({ [raidModeKey('cox', 'cm')]: true, [raidModeKey('toa', 'entry')]: true }, 1);
+  assert.ok(cox.config.targetNpcs!.includes('Chambers of Xeric Challenge Mode'));
+});
+
+test('10 Gwenith Glide on Marlin → a timed rank tile needing 10 runs', () => {
+  const { top, verdict } = best('10 Gwenith Glide on Marlin');
+  assert.equal(verdict.status, 'ready');
+  assert.equal(top.source, 'trial');
+  assert.equal(top.config.tileType, 'timed');
+  assert.equal(top.config.timedActivity, 'Gwenith Glide — Marlin');
+  assert.equal(top.config.requiredAmount, 10);
+});
+
+test('a course without a rank still needs the trials screen', () => {
+  const { top, verdict } = best('gwenith glide');
+  assert.equal(top.flow, 'trials');
+  assert.equal(verdict.status, 'pick');
+});
+
+test('75 Doom delves lands on the every-delve counter', () => {
+  const { top, verdict } = best('75 Doom delves');
+  assert.equal(verdict.status, 'ready');
+  assert.deepEqual(top.config.targetNpcs, ['Doom of Mokhaiotl delves']);
+  assert.equal(top.config.requiredAmount, 75);
+});
+
+test('GOTR rare reward → ask which items (collection-log page offered)', () => {
+  const { verdict } = best('GOTR rare reward');
+  assert.equal(verdict.status, 'pick');
+  assert.ok(verdict.choices.some((c) => c.source === 'clog' && c.config.trackedItemIds?.includes(26901)));
+});
+
+test('Mortimer slayer tasks and Tithe Farm points land on their in-game counters', () => {
+  const slayer = best('25 Slayer tasks from Mortimer');
+  assert.equal(slayer.verdict.status, 'ready');
+  assert.deepEqual(slayer.top.config.targetNpcs, ['Slayer tasks: Mortimer']);
+  assert.equal(slayer.top.config.requiredAmount, 25);
+  const tithe = best('250 Tithe Farm points');
+  assert.equal(tithe.verdict.status, 'ready');
+  assert.deepEqual(tithe.top.config.targetNpcs, ['Tithe Farm points']);
+  assert.equal(tithe.top.config.requiredAmount, 250);
+});
+
+test('the other kinds are reachable by typing them', () => {
+  assert.equal(best('ardougne elite diary').top.config.targetNpcs![0], 'Ardougne Elite');
+  assert.equal(best('sub 30 inferno').top.config.timeThresholdSeconds, 1800);
+  assert.equal(best('win lms').top.config.tileType, 'lms');
+  assert.equal(best('5 pvp kills').top.config.tileType, 'pvp');
+  assert.equal(best('deathless toa').top.config.tileType, 'deathless');
+  assert.equal(best('master combat tasks').top.config.targetNpcs![0], 'Any Master');
+  assert.equal(best('50 ardougne rooftop laps').top.config.targetNpcs![0], 'Ardougne Rooftop');
+  assert.equal(best('5m slayer xp').top.config.statGoal, 5_000_000);
+  assert.equal(best('100 zulrah').top.config.trackedStat, 'zulrah');
+});
+
+test('changing the amount re-titles and rewrites the right field', () => {
+  const top = best('150 herbi').top;
+  const at = applyAmount(top, 200);
+  assert.equal(at.config.requiredAmount, 200);
+  assert.match(at.title, /^200 /);
+});
+
+test('browse lists are built from the constants alone', () => {
+  assert.ok(browseCatalog('xp').some((c) => c.config.trackedStat === 'slayer'));
+  assert.ok(browseCatalog('skilling').some((c) => c.config.targetNpcs?.[0] === 'Herbiboar'));
+  assert.ok(browseCatalog('courses').some((c) => c.config.tileType === 'lap'));
+});
+
+test('a screenshot fallback keeps the words and the amount', () => {
+  const s = screenshotCandidate('25 Slayer tasks from Mortimer');
+  assert.equal(s.config.tileType, 'standard');
+  assert.equal(s.title, '25 Slayer tasks from Mortimer');
+});
+
+test('items: one of each is a collection; gain stays a flat pool', () => {
+  const two = [{ id: 1, name: 'A' }, { id: 2, name: 'B' }];
+  assert.equal(itemTileConfig({ items: two, how: 'drop', need: 'each', amount: null })!.itemRequirements!.length, 2);
+  assert.deepEqual(itemTileConfig({ items: two, how: 'gain', need: 'total', amount: 50 }), {
+    tileType: 'gain', trackedItemIds: [1, 2], itemRequirements: null, requiredAmount: 50, sourceNpcs: null,
+  });
+});
+
+test('a draft becomes the same PUT the full editor sends, every other kind field cleared', () => {
+  const p = draftPayload(
+    { label: '150 Herbiboar', config: { tileType: 'kill', targetNpcs: ['Herbiboar'], requiredAmount: 150 }, points: 15, trackingMode: 'individual' },
+    7,
+    '2026-11-01T00:00:00.000Z',
+  );
+  assert.equal(p.tileType, 'kill');
+  assert.equal(p.requiredAmount, 150);
+  assert.equal(p.trackedStat, null);
+  assert.equal(p.trackedItemIds, null);
+  assert.equal(p.trackingMode, 'individual');
+  assert.equal(p.points, 15);
+  // A drop tile has no team/solo choice in the editor, so it saves as team.
+  const drop = draftPayload({ label: 'x', config: { tileType: 'drop', trackedItemIds: [1], requiredAmount: 1 }, points: 1, trackingMode: 'individual' }, 1, null);
+  assert.equal(drop.trackingMode, 'team');
+});
+
+test('a one-run trial sends no runs-needed; more than one does', () => {
+  const one = draftPayload({ label: 't', config: trialTileConfig('gwenith glide', 'marlin', 1)!, points: 1, trackingMode: 'team' }, 1, null);
+  assert.equal(one.requiredAmount, null);
+  const ten = draftPayload({ label: 't', config: trialTileConfig('gwenith glide', 'marlin', 10)!, points: 1, trackingMode: 'team' }, 1, null);
+  assert.equal(ten.requiredAmount, 10);
+});
+
+test('a draft becomes an import row the bulk importer understands', () => {
+  const row = draftToCsvRow({ label: '150 × Hallowed mark', config: { tileType: 'gain', trackedItemIds: [24711], requiredAmount: 150 }, points: 15, trackingMode: 'team' });
+  assert.equal(row.tileType, 'gain');
+  assert.equal(row.requiredAmount, 150);
+  assert.deepEqual(row.items, [{ name: '', id: 24711, count: 1 }]);
+  const raid = draftToCsvRow({ label: '5 raids', config: raidTileConfig(defaultRaidSelection(['cox']), 5).config, points: 30, trackingMode: 'team' });
+  assert.equal(raid.statType, 'boss');
+  assert.equal(raid.statGoal, 5);
+});
+
+test('real catalogue noise: an item named like the counter, or a plural twin, does not make it ambiguous', () => {
+  const noisy: MatchContext = {
+    ...ctx,
+    items: [...items, { id: 1, name: 'Herbiboar' }, { id: 2, name: 'Herbi' }, { id: 3, name: 'Hallowed marks' }],
+    clogPages: [...(ctx.clogPages ?? []), { name: 'Motherlode Mine', items: [{ id: 12012, name: 'Golden nugget' }] }],
+  };
+  assert.equal(best('150 herbiboars harvested', noisy).verdict.status, 'ready');
+  assert.equal(best('150 herbi', noisy).top.source, 'counter');
+  assert.equal(best('150 Hallowed marks earned in Sepulchre', noisy).verdict.status, 'ready');
+  // A clog page is only offered when the task talks about rewards.
+  const nuggets = best('100 golden nuggets earned at Motherlode Mine', noisy);
+  assert.equal(nuggets.top.config.tileType, 'gain');
+  assert.ok(!nuggets.cands.some((c) => c.source === 'clog'));
+});
+
+// ─── The Fractured Archive in the raid picker ────────────────────────────────────────────────
+
+test('TFA resolves to its hiscores key and sums with the other raids', () => {
+  assert.equal(chooseKillSource(['Fractured Archive']).ok && (chooseKillSource(['Fractured Archive']) as { trackedStat: string }).trackedStat, 'fracturedArchive');
+  const res = raidTileConfig({ ...defaultRaidSelection(['cox', 'tob']), [raidModeKey('tfa', 'normal')]: true }, 5);
+  assert.equal(res.source, 'hiscores');
+  assert.deepEqual(res.config.trackedStat!.split(',').sort(), [
+    'chambersOfXeric', 'chambersOfXericChallengeMode', 'fracturedArchive', 'theatreOfBlood', 'theatreOfBloodHardMode',
+  ].sort());
+  assert.ok(RAID_OPTIONS.some((r) => r.id === 'tfa' && r.modes[0].name === 'Fractured Archive'));
+});
+
+test('"5 tfa", "5 cox tob or tfa" and "any raid" all go through the raid picker, TFA included', () => {
+  const tfa = best('5 tfa').top;
+  assert.equal(tfa.source, 'raid');
+  assert.equal(tfa.config.trackedStat, 'fracturedArchive');
+  assert.equal(tfa.config.statGoal, 5);
+  const three = best('5 cox tob or tfa').top;
+  assert.equal(three.source, 'raid');
+  assert.equal(three.config.trackedStat!.split(',').length, 5);
+  assert.ok(best('any raid').top.config.trackedStat!.split(',').includes('fracturedArchive'));
+  // TFA is no longer offered as a stray single-boss row next to the raid tile.
+  assert.ok(!best('5 tfa').cands.some((c) => c.key === 'boss-fracturedArchive'));
+  assert.equal(best('deathless tfa').top.config.timedActivity, 'Fractured Archive');
+});
+
+// ─── Several bosses on one tile ──────────────────────────────────────────────────────────────
+
+test('several bosses named in one task become ONE summed hiscores tile', () => {
+  const n = best('50 phosani and normal nightmare');
+  assert.equal(n.verdict.status, 'ready');
+  assert.deepEqual(n.top.config.trackedStat!.split(',').sort(), ['nightmare', 'phosanisNightmare']);
+  assert.equal(n.top.config.statGoal, 50);
+  assert.match(n.top.title, /Nightmare \(any\)/);
+  assert.equal(n.top.engine, 'hiscores');
+  // One boss named once stays one boss.
+  assert.equal(best('phosanis nightmare').top.config.trackedStat, 'phosanisNightmare');
+  assert.equal(best('nightmare').top.config.trackedStat, 'nightmare');
+});
+
+test('families: any mode, "or", group names', () => {
+  assert.equal(best('nightmare any mode').top.key, 'family-nightmare');
+  assert.deepEqual(best('gauntlet or cg').top.config.trackedStat!.split(',').sort(), ['corruptedGauntlet', 'gauntlet']);
+  assert.equal(best('dt2 bosses').top.config.trackedStat!.split(',').length, 4);
+  assert.equal(best('wildy bosses').top.config.trackedStat!.split(',').length, 10);
+  assert.equal(best('25 callisto or artio').top.config.trackedStat, 'callisto,artio');
+  assert.equal(best('gwd').top.key, 'family-gwd');
+});
+
+test('an awakened DT2 boss forces the plugin, listing every name', () => {
+  const duke = best('duke sucellus any').top;
+  assert.equal(duke.config.tileType, 'kill');
+  assert.deepEqual(duke.config.targetNpcs, ['Duke Sucellus', 'Duke Sucellus (awakened)']);
+  assert.equal(duke.engine, 'plugin');
+  const res = killPicksConfig(['nightmare', 'Duke Sucellus (awakened)'], 10);
+  assert.equal(res.source, 'plugin');
+  assert.equal(res.config.requiredAmount, 10);
+});
+
+test('adding a boss on the confirm step: summed keys, then plugin targets once one is off the hiscores', () => {
+  const two = killCandidate(['callisto', 'artio'], 30)!;
+  assert.equal(two.config.trackedStat, 'callisto,artio');
+  assert.equal(two.amountField, 'statGoal');
+  assert.equal(two.title, '30 Callisto or Artio kills');
+  const mixed = killCandidate(['vorkath', 'Chicken'], 30)!;
+  assert.equal(mixed.config.tileType, 'kill');
+  assert.deepEqual(mixed.config.targetNpcs, ['Vorkath', 'Chicken']);
+  assert.equal(mixed.amountField, 'requiredAmount');
+  assert.equal(mixed.engine, 'plugin');
+  assert.equal(familyFor(['phosanisNightmare', 'nightmare'])?.key, 'nightmare');
+});
+
+test('bulk lines with several bosses resolve the same way', () => {
+  const { text, points } = parseBulkLine('100 Callisto + Artio kills – 25 pts');
+  assert.equal(points, 25);
+  const c = classifyMatches(matchTasks(text, ctx));
+  assert.equal(c.status, 'ready');
+  assert.equal(c.choices[0].config.trackedStat, 'callisto,artio');
+  assert.equal(c.choices[0].config.statGoal, 100);
+});
+
+test('families are browseable under Bosses & raids', () => {
+  const list = browseCatalog('bosses');
+  assert.ok(list.some((c) => c.key === 'family-nightmare'));
+  assert.ok(list.some((c) => c.key === 'family-dt2'));
+  assert.ok(BOSS_FAMILIES.length >= 8);
+});
+
+// ─── Typos and shorthand ─────────────────────────────────────────────────────────────────────
+
+const typoCtx: MatchContext = {
+  ...ctx,
+  items: [...items, { id: 1, name: 'Cowhide' }, { id: 2, name: 'Disk of returning' }],
+};
+
+test('edit distance counts a transposition as one edit and stops early', () => {
+  assert.equal(editDistance('zulrha', 'zulrah'), 1);
+  assert.equal(editDistance('hallowd', 'hallowed'), 1);
+  assert.equal(editDistance('abcdefgh', 'zzzzzzzz', 2), 3);
+});
+
+test('typos land on the right tile', () => {
+  const cases: [string, (c: ReturnType<typeof best>['top']) => boolean][] = [
+    ['150 herbiboor', (c) => c.config.targetNpcs?.[0] === 'Herbiboar'],
+    ['150 hallowd marks', (c) => c.config.tileType === 'gain' && c.config.trackedItemIds?.[0] === 24711],
+    ['10 gwenth glide marlin', (c) => c.config.timedActivity === 'Gwenith Glide — Marlin'],
+    ['phosanis nightmre', (c) => c.config.trackedStat === 'phosanisNightmare'],
+    ['250 tith farm points', (c) => c.config.targetNpcs?.[0] === 'Tithe Farm points'],
+    ['25 slayer tasks mortimar', (c) => /Mortimer/.test(c.config.targetNpcs?.[0] ?? '')],
+    ['100 zulrha', (c) => c.config.trackedStat === 'zulrah'],
+    ['200 bloodwood sapp', (c) => c.config.trackedItemIds?.[0] === 90001],
+    ['200 blood wood sap', (c) => c.config.trackedItemIds?.[0] === 90001],
+    ['corupted gauntlet', (c) => c.config.trackedStat === 'corruptedGauntlet'],
+    ['coxcm', (c) => c.config.trackedStat === 'chambersOfXericChallengeMode'],
+    ['cox cm', (c) => c.config.trackedStat === 'chambersOfXericChallengeMode'],
+    ['25 hunter rumors', (c) => c.config.targetNpcs?.[0] === 'Hunter Rumours'],
+    ['100 golden nugets', (c) => c.config.trackedItemIds?.[0] === 12012],
+  ];
+  for (const [line, ok] of cases) {
+    const { top, verdict } = best(line, typoCtx);
+    assert.ok(top && ok(top), `${line} → ${top?.title}`);
+    assert.equal(verdict.status, 'ready', line);
+  }
+  // A corrected reading is marked, and scores below what an exact spelling would.
+  assert.equal(best('100 zulrha', typoCtx).top.fuzzy, true);
+  assert.ok(best('100 zulrha', typoCtx).top.score < best('100 zulrah', typoCtx).top.score);
+});
+
+test('OSRS shorthand finds its boss or activity', () => {
+  const keys: [string, string][] = [
+    ['cg', 'corruptedGauntlet'], ['nm', 'nightmare'], ['pnm', 'phosanisNightmare'], ['kq', 'kalphiteQueen'],
+    ['kbd', 'kingBlackDragon'], ['vork', 'vorkath'], ['sire', 'abyssalSire'], ['hydra', 'alchemicalHydra'],
+    ['muspah', 'phantomMuspah'], ['gotr', 'riftsClosed'], ['wt', 'wintertodt'], ['tempo', 'tempoross'],
+    ['hmt', 'theatreOfBloodHardMode'], ['tob hm', 'theatreOfBloodHardMode'], ['toa expert', 'tombsOfAmascutExpertMode'],
+  ];
+  for (const [q, key] of keys) assert.equal(best(q, typoCtx).top.config.trackedStat, key, q);
+  assert.equal(best('dks', typoCtx).top.key, 'family-dks');
+  assert.equal(best('sepulcher floors', typoCtx).top.config.targetNpcs?.[0], 'Hallowed Sepulchre');
+  assert.equal(best('150 herbi', typoCtx).top.config.targetNpcs?.[0], 'Herbiboar');
+});
+
+test('typo tolerance never invents a match', () => {
+  // Short words are exact-only: "cox" is not "cow", "dks" is not "disk".
+  assert.equal(correctQuery('5 cox', typoCtx), null);
+  assert.equal(correctQuery('dks', typoCtx), null);
+  assert.equal(correctQuery('100 cows', typoCtx), null);
+  // "cow" is not the start of "cowhide": nothing to offer, so a screenshot — never a guess.
+  assert.equal(best('100 cows', typoCtx).verdict.status, 'screenshot');
+  // Numbers are never corrected.
+  assert.equal(correctQuery('1500 zulrah', typoCtx), null);
+  assert.match(correctQuery('150 zulrha', typoCtx) ?? '', /^150 zulrah$/);
+});
+
+test('a typo that could mean two things asks instead of guessing', () => {
+  // "glurb" is one edit from both "glarb" and "glorb": the bulk review must ask, not pick one.
+  const two: MatchContext = {
+    ...typoCtx,
+    counters: [...COUNTER_TARGETS, { name: 'Glarb tokens', group: 'Skilling', note: '' }, { name: 'Glorb tokens', group: 'Skilling', note: '' }],
+  };
+  const v = classifyMatches(matchTasks('100 glurb tokens', two));
+  assert.notEqual(v.status, 'ready');
+  // With one clear correction it is added without a second look.
+  const one: MatchContext = { ...typoCtx, counters: [...COUNTER_TARGETS, { name: 'Glarb tokens', group: 'Skilling', note: '' }] };
+  assert.equal(classifyMatches(matchTasks('100 glarbb tokens', one)).status, 'ready');
+});
+
+// ─── Ordinary monsters ───────────────────────────────────────────────────────────────────────
+
+const monsterCtx: MatchContext = {
+  ...typoCtx,
+  // The real catalogue has items named exactly like monsters ("Chicken"); the kill is the reading.
+  items: [...(typoCtx.items ?? []), { id: 4, name: 'Chicken' }, { id: 5, name: 'Gargoyle' }],
+  monsters: ['Cow', 'Cow calf', 'Chicken', 'Abyssal demon', 'Greater abyssal demon', 'Gargoyle', 'Zulrah', 'Herbiboar', 'Cows (Lumbridge)'],
+};
+
+test('ordinary monsters become plugin kill tiles on their exact name', () => {
+  const cases: [string, string, number][] = [
+    ['100 cows', 'Cow', 100],
+    ['50 chickens', 'Chicken', 50],
+    ['200 abyssal demons', 'Abyssal demon', 200],
+    ['100 gargoyles', 'Gargoyle', 100],
+  ];
+  for (const [line, name, n] of cases) {
+    const { top, verdict } = best(line, monsterCtx);
+    assert.equal(verdict.status, 'ready', line);
+    assert.equal(top.config.tileType, 'kill', line);
+    assert.deepEqual(top.config.targetNpcs, [name], line);
+    assert.equal(top.config.requiredAmount, n, line);
+    assert.equal(top.engine, 'plugin');
+  }
+});
+
+test('monsters: not the cowhide, not a variant, and bosses / counters / raids still win', () => {
+  assert.ok(!best('100 cows', monsterCtx).cands.some((c) => c.title.includes('Cowhide')));
+  assert.ok(!best('100 cows', monsterCtx).cands.some((c) => c.config.targetNpcs?.[0] === 'Cow calf'));
+  assert.equal(best('5 cox', monsterCtx).top.source, 'raid');
+  // On the hiscores → the boss row, read off the hiscores as before.
+  assert.equal(best('100 zulrah', monsterCtx).top.config.trackedStat, 'zulrah');
+  // A counter of the same name is the right reading.
+  const h = best('150 herbiboars', monsterCtx);
+  assert.equal(h.verdict.status, 'ready');
+  assert.equal(h.top.source, 'counter');
+  // Typos reach monsters too, under the usual rules.
+  assert.deepEqual(best('100 gargoyls', monsterCtx).top.config.targetNpcs, ['Gargoyle']);
+});
+
+// ─── Combos (lib/combo) ──────────────────────────────────────────────────────────────────────
+
+// The real collection-log pages, so "a Vorkath unique" is whatever the log lists for Vorkath.
+const clogCtx: MatchContext = { ...ctx, clogPages: clogPages(), itemIsMonsterDrop: isMonsterDrop };
+const pageIds = (name: string) => clogPages().find((p) => p.name === name)!.items.map((i) => i.id);
+const partsOf = (c: TaskCandidate) => c.config.parts ?? [];
+
+test('the clan’s GOTR line is ONE ready combo: the GOTR log page, OR 100 searches capped by event energy', () => {
+  const { top, verdict } = best('A GOTR rare reward OR 100 searches with event-earned energy', clogCtx);
+  assert.equal(verdict.status, 'ready');
+  assert.equal(top.source, 'combo');
+  assert.equal(top.config.tileType, 'combo');
+  assert.deepEqual(top.config.comboRule, { mode: 'any' });
+  const [drop, searches] = partsOf(top);
+  // Whatever the collection log lists on the page is the pool — nothing hand-picked.
+  assert.equal(drop.tileType, 'drop');
+  assert.deepEqual(drop.trackedItemIds, pageIds('Guardians of the Rift'));
+  assert.equal(drop.requiredAmount, 1);
+  // The searches are their own kill-counter tile, capped per member by the two energy counters.
+  assert.equal(searches.tileType, 'kill');
+  assert.deepEqual(searches.targetNpcs, [GOTR_SEARCHES]);
+  assert.equal(searches.requiredAmount, 100);
+  assert.deepEqual(searches.capBy, [...GOTR_ENERGY_CAPS]);
+  assert.equal(top.flow, 'confirm');
+  assert.match(top.title, /^Any Guardians of the Rift collection log item or 100 /);
+  assert.equal(top.hint, comboSentence({ mode: 'any' }, partsOf(top).map((p) => p.label)));
+  assert.match(top.hint, /^Done when the team does any one of: /);
+  // Saved as-is by both write paths: the rule and each part.
+  const draft = { label: top.title, config: top.config, points: 5, trackingMode: 'team' as const };
+  const put = draftPayload(draft, 1, null);
+  assert.equal(put.tileType, 'combo');
+  assert.deepEqual(put.comboRule, { mode: 'any' });
+  const putParts = put.parts as Record<string, unknown>[];
+  assert.equal(putParts.length, 2);
+  assert.deepEqual(putParts[1].capBy, [...GOTR_ENERGY_CAPS]);
+  assert.equal(putParts[1].trackedStat, null); // every other kind field cleared, per part
+  assert.equal(putParts[0].label, drop.label);
+  const row = draftToCsvRow(draft);
+  assert.equal(row.tileType, 'combo');
+  assert.deepEqual(row.comboRule, { mode: 'any' });
+  assert.equal(row.parts?.length, 2);
+  assert.deepEqual(row.parts?.[1].capBy, [...GOTR_ENERGY_CAPS]);
+  assert.deepEqual(row.parts?.[0].items?.map((i) => i.id), pageIds('Guardians of the Rift'));
+  // The small test page works the same way: its whole list.
+  assert.deepEqual(partsOf(best('A GOTR rare reward OR 100 searches with event-earned energy').top)[0].trackedItemIds, [26813, 26901]);
+});
+
+test('combo: other spellings of the energy cap, and no cap when it isn’t said', () => {
+  const long = best('A Guardians of the Rift rare reward OR 100 reward searches using energy earned during the event', clogCtx).top;
+  assert.deepEqual(partsOf(long)[1].capBy, [...GOTR_ENERGY_CAPS]);
+  assert.equal(partsOf(long)[1].requiredAmount, 100);
+  const plain = best('GOTR rare reward or 150 searches', clogCtx).top;
+  assert.equal(partsOf(plain)[1].requiredAmount, 150);
+  assert.equal(partsOf(plain)[1].capBy, undefined);
+  // On its own the drop side still asks (a page is a starting point), offering the whole page.
+  for (const line of ['GOTR rare reward', 'a GOTR unique']) {
+    const bare = best(line, clogCtx).verdict;
+    assert.equal(bare.status, 'pick', line);
+    assert.deepEqual(bare.choices.find((c) => c.source === 'clog')?.config.trackedItemIds, pageIds('Guardians of the Rift'), line);
+  }
+});
+
+test('combo is generic: a drop page OR a hiscores KC tile — each part on its own best engine', () => {
+  const cases: [string, string, string, number][] = [
+    ['Vorkath unique or 200 Vorkath kc', 'Vorkath', 'vorkath', 200],
+    ['Zulrah pet or 500 zulrah kills', 'Zulrah', 'zulrah', 500],
+    ['any Barrows item or 100 barrows chests', 'Barrows Chests', 'barrows', 100],
+    // Either order reads the same; the parts keep the order they were written in.
+    ['200 Vorkath kc or a Vorkath unique', 'Vorkath', 'vorkath', 200],
+  ];
+  for (const [line, page, key, amount] of cases) {
+    const { top, verdict } = best(line, clogCtx);
+    assert.equal(verdict.status, 'ready', line);
+    assert.equal(top.config.tileType, 'combo', line);
+    const parts = partsOf(top);
+    const drop = parts.find((p) => p.tileType === 'drop')!;
+    const kc = parts.find((p) => p !== drop)!;
+    assert.deepEqual(drop.trackedItemIds, pageIds(page), line);
+    // The KC side is the normal hiscores boss tile now — no forcing plugin kills.
+    assert.equal(kc.statType, 'boss', line);
+    assert.equal(kc.trackedStat, key, line);
+    assert.equal(kc.statGoal, amount, line);
+  }
+  const raid = partsOf(best('Any Zulrah item or 50 cox', clogCtx).top);
+  assert.equal(raid.length, 2);
+  assert.equal(raid[1].statType, 'boss');
+  assert.equal(raid[1].statGoal, 50);
+});
+
+test('combo: kills, items and counters too', () => {
+  const withMonsters: MatchContext = { ...ctx, monsters: ['Cow', 'Chicken', 'Cow calf'] };
+  const kills = best('100 cows or 50 chickens', withMonsters);
+  assert.equal(kills.verdict.status, 'ready');
+  assert.deepEqual(partsOf(kills.top).map((p) => [p.targetNpcs, p.requiredAmount]), [[['Cow'], 100], [['Chicken'], 50]]);
+  assert.equal(kills.top.title, '100 Cow kills or 50 Chicken kills');
+
+  const shard = best('Zenyte shard or 25 Hunter rumours');
+  assert.equal(shard.verdict.status, 'ready');
+  assert.deepEqual(partsOf(shard.top)[0].trackedItemIds, [19529]);
+  assert.deepEqual(partsOf(shard.top)[1].targetNpcs, ['Hunter Rumours']);
+  assert.equal(partsOf(shard.top)[1].requiredAmount, 25);
+});
+
+test('an "and" between different tiles is an all-combo; between items it stays one tile', () => {
+  const { top, verdict } = best('a Zulrah pet and 99 Fishing', clogCtx);
+  assert.equal(verdict.status, 'ready');
+  assert.deepEqual(top.config.comboRule, { mode: 'all' });
+  assert.equal(partsOf(top)[0].tileType, 'drop');
+  assert.equal(partsOf(top)[1].statType, 'skill');
+  assert.match(top.hint, /^Done when the team does both of: /);
+  // Items only: a collection's wording ("Ahrim's and Dharok's"), never a combo.
+  const barrows: MatchContext = { ...ctx, items: [...items, { id: 4708, name: "Ahrim's hood" }, { id: 4716, name: "Dharok's helm" }] };
+  assert.notEqual(best("Ahrim's hood and Dharok's helm", barrows).top?.source, 'combo');
+});
+
+test('"2 of: a, b, c, d" and "any 2 of a, b or c" are at-least-N combos', () => {
+  const raidItems: MatchContext = {
+    ...clogCtx,
+    items: [...items, { id: 20997, name: 'Twisted bow' }, { id: 22325, name: 'Scythe of vitur' }, { id: 27275, name: "Tumeken's shadow" }],
+  };
+  const { top, verdict } = best('2 of: Tbow, Scythe, Shadow, a CoX pet', raidItems);
+  assert.equal(verdict.status, 'ready');
+  assert.deepEqual(top.config.comboRule, { mode: 'nOf', n: 2 });
+  assert.equal(partsOf(top).length, 4);
+  assert.deepEqual(partsOf(top).slice(0, 3).map((p) => p.trackedItemIds), [[20997], [22325], [27275]]);
+  assert.match(top.hint, /^Done when the team does any two of: /);
+  const any2 = best('any 2 of tbow, scythe or shadow', raidItems).top;
+  assert.deepEqual(any2.config.comboRule, { mode: 'nOf', n: 2 });
+  assert.equal(partsOf(any2).length, 3);
+  // A collection's wording is not a list.
+  assert.deepEqual(comboSplits('1 of each barrows item'), []);
+});
+
+test('an item-only "or" is ONE drop pool, not a combo; a kind mix stays a combo', () => {
+  const kit: MatchContext = {
+    ...clogCtx,
+    items: [...items, { id: 20997, name: 'Twisted bow' }, { id: 22325, name: 'Scythe of vitur' }, { id: 6573, name: 'Onyx' }],
+  };
+  // Raid rewards aren't a monster's drop, so their pool counts inventory gains — still ONE tile.
+  const pool = best('tbow or scythe', kit).top;
+  assert.notEqual(pool.source, 'combo');
+  assert.equal(pool.config.tileType, 'gain');
+  assert.deepEqual(pool.config.trackedItemIds, [20997, 22325]);
+  assert.equal(pool.config.requiredAmount, 1);
+  assert.equal(pool.config.parts, undefined);
+  const gems = best('zenytes or onyxes', kit).top;
+  assert.notEqual(gems.source, 'combo');
+  assert.deepEqual(gems.config.trackedItemIds, [19529, 6573]);
+  // A list of three, same thing.
+  assert.equal(best('tbow, scythe or onyxes', kit).top.config.trackedItemIds?.length, 3);
+  // "2 of: …" is still at-least-N, and a mix of kinds is still a combo.
+  assert.deepEqual(best('2 of: tbow, scythe, onyxes', kit).top.config.comboRule, { mode: 'nOf', n: 2 });
+  assert.equal(best('tbow or 200 vorkath kc', kit).top.config.tileType, 'combo');
+});
+
+test('a kills list never becomes a combo', () => {
+  // No amount on a counting part: one tile counting both.
+  assert.notEqual(best('gauntlet or cg').top.source, 'combo');
+  assert.notEqual(best('25 callisto or artio').top.source, 'combo');
+  assert.notEqual(best('5 cox tob or tfa').top.source, 'combo');
+  assert.deepEqual(
+    comboSplits('a or b or 100 c').map((s) => s.parts),
+    [['a', 'b', '100 c'], ['a', 'b or 100 c'], ['a or b', '100 c']],
+  );
+});
+
+test('the combo matcher is bounded: a line of many "or"s returns fast and never splits past six parts', () => {
+  const many = Array.from({ length: 60 }, (_, i) => `${i + 1} zulrah kills`).join(' or ');
+  const t0 = performance.now();
+  const res = matchTasks(many, clogCtx);
+  const ms = performance.now() - t0;
+  assert.ok(ms < 1500, `took ${ms}ms`);
+  assert.ok(res.every((c) => c.source !== 'combo'));
+  // Seven parts is past the cap; six is fine.
+  const seven = Array.from({ length: 7 }, (_, i) => `${i + 1} vorkath kc`).join(' or ');
+  assert.deepEqual(comboSplits(seven), []);
+  assert.equal(comboSplits(Array.from({ length: 6 }, (_, i) => `${i + 1} vorkath kc`).join(' or '))[0].parts.length, 6);
+  assert.deepEqual(comboSplits(`${'x'.repeat(MAX_COMBO_QUERY)} or 5 vorkath kc`), []);
+  // A long line that is all "or"s and no task at all is just as cheap.
+  const junk = Array.from({ length: 400 }, () => 'a').join(' or ');
+  const t1 = performance.now();
+  matchTasks(junk, clogCtx);
+  assert.ok(performance.now() - t1 < 1500);
+});
+
+// ─── Points on the line ──────────────────────────────────────────────────────────────────────
+
+test('"2 zenytes 500 points" → a 2 × Zenyte shard drop tile worth 500 points', () => {
+  const gems: MatchContext = { ...ctx, items: [...items, { id: 19492, name: 'Zenyte' }, { id: 19496, name: 'Uncut zenyte' }] };
+  const { top, verdict } = best('2 zenytes 500 points', gems);
+  assert.equal(verdict.status, 'ready');
+  assert.equal(top.config.tileType, 'drop');
+  assert.deepEqual(top.config.trackedItemIds, [19529]);
+  assert.equal(top.amount, 2); // points never count as the amount
+  assert.equal(top.config.requiredAmount, 2);
+  // The bulk review reads the points off the line; the search box gets them on every candidate.
+  assert.equal(parseBulkLine('2 zenytes 500 points').points, 500);
+  const searched = matchTasks('2 zenytes 500 points', gems)[0];
+  assert.equal(searched.points, 500);
+  assert.equal(searched.amount, 2);
+});
+
+test('every points spelling, at the start or the end; k shorthand', () => {
+  const spellings = [
+    '2 zenytes 500 points', '2 zenytes 500 pts', '2 zenytes 500pts', '2 zenytes 500 pt', '2 zenytes 500p',
+    '2 zenytes (500 points)', '2 zenytes - 500 points', '2 zenytes for 500 points', '2 zenytes points: 500',
+    '500 points: 2 zenytes', '(500 pts) 2 zenytes', '500 points 2 zenytes', 'points: 500 - 2 zenytes',
+  ];
+  for (const line of spellings) assert.deepEqual(parseBulkLine(line), { text: '2 zenytes', points: 500 }, line);
+  assert.deepEqual(parseBulkLine('2 zenytes 1.5k points'), { text: '2 zenytes', points: 1500 });
+  // A counter whose own unit is "points" keeps its number.
+  assert.deepEqual(parseBulkLine('Vale research 250 points'), { text: 'Vale research 250 points', points: null });
+  assert.deepEqual(parseBulkLine('zulrah 500'), { text: 'zulrah 500', points: null });
+});
+
+test('points on a combo belong to the combo, not to a part', () => {
+  const top = matchTasks('Vorkath unique or 200 Vorkath kc - 40 pts', clogCtx)[0];
+  assert.equal(top.source, 'combo');
+  assert.equal(top.points, 40);
+  assert.equal(partsOf(top)[1].statGoal, 200);
+  const put = draftPayload({ label: top.title, config: top.config, points: top.points ?? null, trackingMode: 'team' }, 1, null);
+  assert.equal(put.points, 40);
+  assert.ok((put.parts as Record<string, unknown>[]).every((p) => p.points === undefined));
+  assert.equal(draftToCsvRow({ label: top.title, config: top.config, points: 40, trackingMode: 'team' }).parts?.every((p) => p.points == null), true);
+});
+
+test('item shorthand: zenytes, dwh, tbow, onyxes', () => {
+  const kit: MatchContext = {
+    ...ctx,
+    items: [...items, { id: 13576, name: 'Dragon warhammer' }, { id: 20997, name: 'Twisted bow' }, { id: 6573, name: 'Onyx' }],
+  };
+  assert.deepEqual(best('dwh', kit).top.config.trackedItemIds, [13576]);
+  assert.deepEqual(best('tbow', kit).top.config.trackedItemIds, [20997]);
+  assert.deepEqual(best('3 onyxes', kit).top.config.trackedItemIds, [6573]);
+  assert.deepEqual(best('zenytes', kit).top.config.trackedItemIds, [19529]);
+});
+
+test('"(any mix)", "mix and match", "combined", "any combination" make a weighted mix; plain "or" stays any', () => {
+  const gorillas: MatchContext = { ...ctx, monsters: ['Demonic gorilla'] };
+  for (const line of [
+    '200 demonic gorillas or 2 zenytes (any mix)',
+    '200 demonic gorillas or 2 zenytes - mix and match',
+    '200 demonic gorillas or 2 zenytes combined',
+    '200 demonic gorillas or 2 zenytes in any combination',
+  ]) {
+    const { top, verdict } = best(line, gorillas);
+    assert.equal(verdict.status, 'ready', line);
+    assert.deepEqual(top.config.comboRule, { mode: 'mix' }, line);
+    // The marker is gone before the parts are read.
+    assert.deepEqual(partsOf(top).map((p) => p.requiredAmount), [200, 2], line);
+    assert.deepEqual(partsOf(top)[0].targetNpcs, ['Demonic gorilla'], line);
+    assert.deepEqual(partsOf(top)[1].trackedItemIds, [19529], line);
+    assert.match(top.hint, /each part adds its share, done at 100%/, line);
+  }
+  assert.deepEqual(best('200 demonic gorillas or 2 zenytes', gorillas).top.config.comboRule, { mode: 'any' });
+  // A part's weight rides the payload and the import row only when it is set.
+  const top = best('200 demonic gorillas or 2 zenytes (any mix)', gorillas).top;
+  const weighted = { ...top.config, parts: partsOf(top).map((p, i) => (i === 1 ? { ...p, comboWeight: 0.5 } : p)) };
+  const draft = { label: top.title, config: weighted, points: 1, trackingMode: 'team' as const };
+  const put = draftPayload(draft, 1, null).parts as Record<string, unknown>[];
+  assert.equal(put[0].comboWeight, undefined);
+  assert.equal(put[1].comboWeight, 0.5);
+  const row = draftToCsvRow(draft);
+  assert.deepEqual(row.comboRule, { mode: 'mix' });
+  assert.equal(row.parts?.[0].comboWeight, undefined);
+  assert.equal(row.parts?.[1].comboWeight, 0.5);
+});

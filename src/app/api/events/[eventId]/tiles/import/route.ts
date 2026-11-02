@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
+import { parseJsonArray } from '@/lib/tileKinds';
+import { clogTileError } from '@/lib/clogTiles';
 import { eventForRequest } from '@/lib/eventScope';
 import { planTileImport } from '@/lib/tileImportPlan';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { verifyTileEditorForEvent } from '@/lib/auth';
 import { logTileAudit } from '@/lib/tile-audit';
 import { getItemMapping, type MappingItem } from '@/lib/osrsItems';
@@ -14,6 +16,8 @@ import { collectionDisplayTotal } from '@/lib/collectionSets';
 import { isRaidEffortMode, parseTileEffortConfig, type TileEffortConfig } from '@/lib/tileEffortConfig';
 import { track } from '@/lib/analytics';
 import { applyKillTypeAlias, killSourceOf, resolveKillsRow } from '@/lib/killSource';
+import { capEligible, serializeCapBy, validateCapBy } from '@/lib/tileCaps';
+import { COMBO_TILE_TYPE, MAX_COMBO_PARTS, MIN_COMBO_PARTS, serializeComboRule, validateComboRule, validateComboWeight } from '@/lib/combo';
 
 // Bulk tile import — maps CSV/JSON rows onto an event's tiles by position (row order).
 // Built for Leagues-style boards where configuring hundreds of tiles one at a time is
@@ -71,6 +75,13 @@ interface ImportRow {
   /** Hidden until announced mid-event, with its own placement ladder (lib/eventRules MissionRules). */
   mission?: boolean;
   missionRules?: MissionRules | null;
+  /** Kill/counter tiles: per-member cap counters (lib/tileCaps); null clears. */
+  capBy?: unknown;
+  /** COMBO rows (tileType 'combo', lib/combo): the rule and the parts — each its own row, any kind. */
+  comboRule?: unknown;
+  parts?: unknown;
+  /** A combo PART's weight in a 'mix' combo (lib/combo). */
+  comboWeight?: unknown;
 }
 
 // Drop fields derived from a row's resolved `items` list — built before the transaction so the
@@ -94,7 +105,7 @@ const MAX_TILES = 1000;
 
 // Every tile kind the board supports. Anything else in a `type` cell is a typo — reject it
 // loudly rather than storing a junk type the trackers would never match.
-const VALID_TILE_TYPES = new Set(['standard', 'drop', 'kill', 'kills', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'diary', 'ca', 'lms', 'value', 'valuetotal']);
+const VALID_TILE_TYPES = new Set(['combo', 'standard', 'drop', 'kill', 'kills', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'diary', 'ca', 'lms', 'value', 'valuetotal', 'clog']);
 
 // Structural subset of a tile row that the kind cross-validation reads. A full tile row is
 // assignable to this; new (to-be-created) tiles use the blank template below.
@@ -136,6 +147,10 @@ function parseLen(v: unknown): number {
 
 // Validate a row's standalone numeric/array fields. Returns an error string or null.
 function validateRowFields(i: number, row: ImportRow): string | null {
+  if (row.capBy !== undefined) {
+    const caps = validateCapBy(row.capBy);
+    if (!caps.ok) return `Row ${i + 1}: ${caps.error}`;
+  }
   if (row.tileType !== undefined && row.tileType !== '' && !VALID_TILE_TYPES.has(String(row.tileType).toLowerCase())) {
     return `Row ${i + 1}: unknown type "${row.tileType}" — use one of ${[...VALID_TILE_TYPES].join(', ')}`;
   }
@@ -295,6 +310,10 @@ function validateRowKind(
       ? row.tileType || 'standard'
       : base.tileType;
   const effTrackedStat = row.trackedStat !== undefined ? row.trackedStat || null : base.trackedStat;
+  // A cap limits a counted kill tile (lib/tileCaps).
+  if (row.capBy != null && row.capBy !== '' && !(Array.isArray(row.capBy) && row.capBy.length === 0) && !capEligible({ tileType: effTileType, trackedStat: effTrackedStat })) {
+    return `Row ${i + 1}: only kill / counter tiles can be capped by other counters.`;
+  }
   const effStatType = row.statType !== undefined ? row.statType || null : base.statType;
   const effStatGoal = row.statGoal !== undefined ? row.statGoal ?? null : base.statGoal;
   const effRequiredAmount = derived
@@ -330,12 +349,22 @@ function validateRowKind(
   // deathless tiles reuse timedActivity (the raid) + requiredAmount (runs needed).
   const isGain = effTileType === 'gain';
   const isDeathless = effTileType === 'deathless';
+  // Collection-log tiles: pages in targetNpcs, the chosen items from the row's items (lib/clogTiles).
+  const isClog = effTileType === 'clog' || (!!derived && row.tileType === 'clog');
 
-  if (hasStat && (isDrop || isKill || isLap || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
+  if (hasStat && (isClog || isDrop || isKill || isLap || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
     return `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, lap, PvP, gain, timed, deathless, diary, CA, LMS, or value tile.`;
   }
   if (hasStat && effStatType !== 'skill' && effStatType !== 'boss') {
     return `Row ${i + 1}: stat tiles need statType 'skill' or 'boss'.`;
+  }
+  if (isClog) {
+    const pages = row.targetNpcs !== undefined ? (row.targetNpcs ?? []) : parseJsonArray<string>(base.targetNpcs);
+    const ids = derived
+      ? (derived.trackedItemIds ?? derived.itemRequirements?.map((r) => r.itemId) ?? [])
+      : parseJsonArray<number>(base.trackedItemIds);
+    const err = clogTileError(row.countMode === 'complete' ? 'complete' : 'slots', pages, ids, row.requiredAmount ?? null);
+    return err ? `Row ${i + 1}: ${err}` : null;
   }
   if (dropItemFields && !isDrop && !isGain) {
     return `Row ${i + 1}: only drop or gain tiles can carry items.`;
@@ -349,8 +378,8 @@ function validateRowKind(
   if (effThreshold && !isTimed && !isLms && !isDeathless && !isDrop) {
     return `Row ${i + 1}: only timed (time cap), LMS (placement cap), deathless (party size), or drop (raid party size) tiles can carry a threshold.`;
   }
-  if (effRequiredAmount != null && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless) {
-    return `Row ${i + 1}: only drop, kill, lap, PvP, gain, diary, CA, LMS, value, or deathless tiles can have a required amount.`;
+  if (effRequiredAmount != null && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless && !isTimed) {
+    return `Row ${i + 1}: only drop, kill, lap, PvP, gain, diary, CA, LMS, value, deathless, or timed (trial runs) tiles can have a required amount.`;
   }
   return null;
 }
@@ -409,12 +438,32 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
   if (allowPreStart) {
     if (row.label !== undefined && row.label) s.label = String(row.label).slice(0, 200);
     if (row.tileType !== undefined) s.tileType = row.tileType || 'standard';
+    // A collection-log row without items (pages only, or any page) still carries its mode.
+    if (row.tileType === 'clog' && !derived) s.countMode = row.countMode === 'complete' ? 'complete' : 'slots';
     if (row.requiredAmount !== undefined) s.requiredAmount = row.requiredAmount ?? null;
+    // The alternative is part of the tile's rules, frozen with them once the event runs.
+    if (row.capBy !== undefined) {
+      const caps = validateCapBy(row.capBy);
+      s.capBy = caps.ok ? serializeCapBy(caps.value) : null;
+    }
+    // Combo rule (lib/combo) — only on a combo row; any other kind clears it.
+    if (row.tileType !== undefined) {
+      const rule = row.tileType === COMBO_TILE_TYPE && row.comboRule != null ? validateComboRule(row.comboRule) : null;
+      s.comboRule = rule && rule.ok ? serializeComboRule(rule.value) : null;
+    }
     // Item config (resolved from the row's `items`) wins over the raw type/requiredAmount above.
     // A `type=gain` row keeps its kind: the items become the flat tracked pool (no per-item
     // requirements) and the row's own requiredAmount is the gain target.
     if (derived) {
-      if (row.tileType === 'gain') {
+      if (row.tileType === 'clog') {
+        // The chosen items are the pool; the row's own amount is the new slots (or pages) needed.
+        s.tileType = 'clog';
+        s.requiredAmount = row.requiredAmount ?? null;
+        const ids = derived.trackedItemIds ?? derived.itemRequirements?.map((r) => r.itemId) ?? null;
+        s.trackedItemIds = ids && ids.length > 0 ? JSON.stringify(ids) : null;
+        s.itemRequirements = null;
+        s.countMode = row.countMode === 'complete' ? 'complete' : 'slots';
+      } else if (row.tileType === 'gain') {
         s.tileType = 'gain';
         s.requiredAmount = row.requiredAmount ?? derived.requiredAmount;
         // Flat pool either way — a per-item breakdown (row without requiredAmount) still
@@ -479,7 +528,7 @@ function isNoopUpdate(updateSet: Record<string, unknown>, tile: Record<string, u
     const cur = tile[k];
     if (k === 'optional') {
       if ((v ? 1 : 0) !== (cur ? 1 : 0)) return false;
-    } else if (k === 'targetNpcs' || k === 'trackedItemIds' || k === 'effortConfig') {
+    } else if (k === 'targetNpcs' || k === 'trackedItemIds' || k === 'effortConfig' || k === 'capBy' || k === 'comboRule') {
       if (normalizeJsonCell(v) !== normalizeJsonCell(cur)) return false;
     } else if (k === 'itemRequirements') {
       if (normalizeItemReqsCell(v) !== normalizeItemReqsCell(cur)) return false;
@@ -571,7 +620,8 @@ export async function POST(
     }
   }
 
-  const eventTiles = (await db.select().from(tiles).where(eq(tiles.eventId, eId))).sort(
+  // Board tiles only: a combo's parts (lib/combo) aren't positions a row could map onto.
+  const eventTiles = (await db.select().from(tiles).where(and(eq(tiles.eventId, eId), isNull(tiles.parentTileId)))).sort(
     (a, b) => a.position - b.position,
   );
   if (eventTiles.length === 0) {
@@ -595,6 +645,56 @@ export async function POST(
   const createRowOffset = updates;
   const processed = updates + creates;
 
+  // COMBO rows (lib/combo): the combo itself tracks nothing; each part is its own row of any kind,
+  // validated, resolved and written exactly like a board row. Combos only land pre-start (their parts
+  // are frozen once the event runs), and a part can't be a combo or carry parts of its own.
+  const comboParts = new Map<number, ImportRow[]>();
+  for (let i = 0; i < processed; i++) {
+    const row = rows[i] as ImportRow;
+    if (!row || typeof row !== 'object' || row.tileType !== COMBO_TILE_TYPE) {
+      if (row && typeof row === 'object' && row.parts != null) {
+        return NextResponse.json({ error: `Row ${i + 1}: only a combo row can have parts.` }, { status: 400 });
+      }
+      continue;
+    }
+    if (eventStarted) {
+      return NextResponse.json({ error: `Row ${i + 1}: combos can only be imported before the event starts.` }, { status: 400 });
+    }
+    const parts = row.parts;
+    if (!Array.isArray(parts) || parts.length < MIN_COMBO_PARTS || parts.length > MAX_COMBO_PARTS) {
+      return NextResponse.json({ error: `Row ${i + 1}: a combo needs ${MIN_COMBO_PARTS}–${MAX_COMBO_PARTS} parts.` }, { status: 400 });
+    }
+    const rule = validateComboRule(row.comboRule ?? { mode: 'any' }, parts.length);
+    if (!rule.ok) return NextResponse.json({ error: `Row ${i + 1}: ${rule.error}` }, { status: 400 });
+    row.comboRule = rule.value;
+    const partRows: ImportRow[] = [];
+    for (const [k, raw] of parts.entries()) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return NextResponse.json({ error: `Row ${i + 1}, part ${k + 1} is not an object` }, { status: 400 });
+      }
+      const part = { ...(raw as ImportRow) };
+      if (typeof part.tileType === 'string') {
+        part.tileType = part.tileType.trim().toLowerCase();
+        applyKillTypeAlias(part);
+        if (part.tileType === 'stat') part.tileType = 'standard';
+      }
+      if (part.tileType === COMBO_TILE_TYPE || part.parts != null) {
+        return NextResponse.json({ error: `Row ${i + 1}, part ${k + 1}: a part can't be a combo.` }, { status: 400 });
+      }
+      delete part.mission;
+      delete part.missionRules;
+      if (part.tileType === 'kills') {
+        const resolved = resolveKillsRow(part, null);
+        if (!resolved.ok) return NextResponse.json({ error: `Row ${i + 1}, part ${k + 1}: ${resolved.error}` }, { status: 400 });
+        partRows.push(resolved.row as ImportRow);
+      } else {
+        partRows.push(part);
+      }
+    }
+    comboParts.set(i, partRows);
+  }
+  const allPartRows = [...comboParts.values()].flat();
+
   // Item config is only applied pre-start (it sets the tile kind). Load the merged item mapping
   // once if any row carries items, index it by name + id, then fail loudly on any name that
   // doesn't resolve so nothing partial lands. (id-pinned entries skip name resolution.)
@@ -602,7 +702,7 @@ export async function POST(
   const byId = new Map<number, MappingItem>();
   const hasAnyItems =
     !eventStarted &&
-    rows.slice(0, processed).some((r) => r && typeof r === 'object' && Array.isArray((r as ImportRow).items) && (r as ImportRow).items!.length > 0);
+    [...rows.slice(0, processed), ...allPartRows].some((r) => r && typeof r === 'object' && Array.isArray((r as ImportRow).items) && (r as ImportRow).items!.length > 0);
   if (hasAnyItems) {
     let mapping: MappingItem[];
     try {
@@ -620,8 +720,7 @@ export async function POST(
     }
     // Collect name entries (those without an explicit id) that don't resolve.
     const missing = new Set<string>();
-    for (let i = 0; i < processed; i++) {
-      const row = rows[i] as ImportRow;
+    for (const row of [...(rows.slice(0, processed) as ImportRow[]), ...allPartRows]) {
       if (!row || typeof row !== 'object' || !Array.isArray(row.items)) continue;
       for (const it of row.items) {
         if (it && it.id == null) {
@@ -688,6 +787,31 @@ export async function POST(
     }
   }
 
+  // Each combo's parts: validated like a new board row, their items resolved the same way.
+  const partDerived = new Map<number, (DerivedItemFields | null)[]>();
+  for (const [i, partRows] of comboParts) {
+    const derived: (DerivedItemFields | null)[] = [];
+    for (const [k, part] of partRows.entries()) {
+      const d = deriveItemFields(part, byName, byId);
+      const w = validateComboWeight(part.comboWeight);
+      const err = (w.ok ? null : `Row ${i + 1}: ${w.error}`) ?? validateRowFields(i, part) ?? validateRowKind(i, part, BLANK_TILE, false, d);
+      if (err) return NextResponse.json({ error: `${err} (part ${k + 1})` }, { status: 400 });
+      derived.push(d);
+    }
+    partDerived.set(i, derived);
+  }
+  const writeParts = async (tx: Parameters<Parameters<typeof db.transaction>[0]>[0], rowIndex: number, parent: { id: number; position: number }) => {
+    const partRows = comboParts.get(rowIndex);
+    if (!partRows) return;
+    await tx.delete(tiles).where(eq(tiles.parentTileId, parent.id));
+    for (const [k, part] of partRows.entries()) {
+      const fields = tileFieldsFromRow(part, true, partDerived.get(rowIndex)![k]);
+      const label = typeof fields.label === 'string' && fields.label ? fields.label : `Part ${k + 1}`;
+      const weight = validateComboWeight(part.comboWeight);
+      await tx.insert(tiles).values({ eventId: eId, position: parent.position, label, ...fields, points: 0, parentTileId: parent.id, comboWeight: weight.ok ? weight.value : null });
+    }
+  };
+
   const maxPos = existingCount > 0 ? eventTiles[existingCount - 1].position : -1;
 
   let applied = 0;
@@ -695,11 +819,16 @@ export async function POST(
   await db.transaction(async (tx) => {
     for (let i = 0; i < updates; i++) {
       const updateSet = tileFieldsFromRow(rows[i] as ImportRow, !eventStarted, derivedList[i]);
-      if (isNoopUpdate(updateSet, targets[i] as unknown as Record<string, unknown>)) {
+      if (!comboParts.has(i) && isNoopUpdate(updateSet, targets[i] as unknown as Record<string, unknown>)) {
         unchanged++;
         continue;
       }
       await tx.update(tiles).set(updateSet).where(eq(tiles.id, targets[i].id));
+      // A row that turns a combo into another kind takes its parts with it (pre-start only).
+      if (!eventStarted && updateSet.tileType !== undefined && updateSet.tileType !== COMBO_TILE_TYPE) {
+        await tx.delete(tiles).where(eq(tiles.parentTileId, targets[i].id));
+      }
+      await writeParts(tx, i, targets[i]);
       applied++;
     }
     for (let j = 0; j < creates; j++) {
@@ -707,7 +836,8 @@ export async function POST(
       const position = maxPos + 1 + j;
       const fields = tileFieldsFromRow(row, true, derivedList[createRowOffset + j]);
       const label = typeof fields.label === 'string' && fields.label ? fields.label : `Tile ${position + 1}`;
-      await tx.insert(tiles).values({ eventId: eId, position, label, ...fields });
+      const [created] = await tx.insert(tiles).values({ eventId: eId, position, label, ...fields }).returning({ id: tiles.id, position: tiles.position });
+      await writeParts(tx, createRowOffset + j, created);
     }
     if (creates > 0) {
       // Keep boardSize == tile count so the Leagues/race display helpers stay accurate.
