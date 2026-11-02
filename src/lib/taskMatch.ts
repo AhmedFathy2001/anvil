@@ -27,7 +27,7 @@ import {
   SKILL_LABELS,
 } from '@/lib/constants';
 import { HISCORES_ACTIVITIES } from '@/lib/hiscoresActivities';
-import { chooseKillSource } from '@/lib/killSource';
+import { chooseKillSource, hiscoresKeyForMonster } from '@/lib/killSource';
 import type { TileConfig } from '@/lib/types';
 import {
   RAID_OPTIONS,
@@ -56,7 +56,7 @@ export type CreatorFlow = 'confirm' | 'raids' | 'trials' | 'items' | 'courses';
 
 export type CandidateSource =
   | 'library' | 'boss' | 'activity' | 'skill' | 'counter' | 'raid' | 'lap' | 'trial'
-  | 'diary' | 'ca' | 'timed' | 'deathless' | 'lms' | 'pvp' | 'value' | 'gain' | 'drop' | 'clog';
+  | 'diary' | 'ca' | 'timed' | 'deathless' | 'lms' | 'pvp' | 'value' | 'gain' | 'drop' | 'clog' | 'monster';
 
 export interface TaskCandidate {
   key: string;
@@ -113,6 +113,8 @@ export interface MatchContext {
   library?: { key: string; label: string; category: string | null; points: number | null; config: Partial<TileConfig> }[];
   /** Collection-log pages, for "any GOTR reward" style tasks. */
   clogPages?: { name: string; items: MatchItem[] }[];
+  /** Monster names (the wiki's monster list), for plugin kill tiles on ordinary monsters. */
+  monsters?: string[];
   /** In-game counters (defaults to COUNTER_TARGETS) — injectable so tests can add new ones. */
   counters?: { name: string; group: string; note: string }[];
 }
@@ -965,6 +967,52 @@ function itemCandidates(q: ParsedQuery, ctx: MatchContext): TaskCandidate[] {
   return out;
 }
 
+// ─── Ordinary monsters ───────────────────────────────────────────────────────────────────────
+
+/**
+ * "100 cows", "200 abyssal demons": a plugin kill tile on the monster, by its exact name. Only a
+ * monster whose whole name was typed counts ("Cow", not "Cow calf"); one that is on the hiscores
+ * is left to its boss row, which reads the hiscores as today.
+ */
+function monsterCandidates(q: ParsedQuery, ctx: MatchContext): TaskCandidate[] {
+  if (!ctx.monsters || ctx.monsters.length === 0 || q.tokens.length === 0) return [];
+  const hits: { name: string; s: Score; extra: number }[] = [];
+  const seen = new Set<string>();
+  for (const raw of ctx.monsters) {
+    // Wiki disambiguation ("Cow (Lumbridge)") is not part of the name the game reports.
+    const name = raw.replace(/\s*\(.*\)\s*$/, '').trim();
+    const lower = name.toLowerCase();
+    if (!name || !q.tokens.some((t) => lower.includes(t))) continue;
+    // "Cow" and "Cows (Lumbridge)" are one monster to whoever types "cows".
+    const k = tokens(name).join(' ');
+    if (seen.has(k)) continue;
+    const s = scoreNamed(q, { names: [name] });
+    if (!s.matched || !s.nameCovered) continue;
+    seen.add(k);
+    if (hiscoresKeyForMonster(name)) continue;
+    hits.push({ name, s, extra: tokens(name).length });
+  }
+  // Best covered first; among equals the shortest name — the plain monster, not a variant.
+  hits.sort((a, b) => b.s.score - a.s.score || a.extra - b.extra);
+  return hits.slice(0, 2).map(({ name, s }) => {
+    const res = chooseKillSource([name]);
+    const config: Partial<TileConfig> = { tileType: 'kill', targetNpcs: res.ok && res.source === 'plugin' ? res.targetNpcs : [name] };
+    return finish({
+      key: `monster-${name}`,
+      source: 'monster',
+      badge: 'Kills',
+      titleTemplate: `{n} ${name} kills`,
+      verb: 'Kill',
+      noun: name,
+      amountField: 'requiredAmount',
+      defaultAmount: 50,
+      config,
+      flow: 'confirm',
+      category: 'bosses',
+    }, q, s);
+  });
+}
+
 // A collection-log page is only what the task means when it talks about rewards ("GOTR rare reward",
 // "any Barrows unique") — "golden nuggets at Motherlode Mine" names the page but means the nuggets.
 const REWARD_WORDS = ['rare', 'reward', 'unique', 'clog', 'collection', 'log', 'pet', 'item', 'drop', 'any'];
@@ -1128,17 +1176,19 @@ function vocabStatic(ctx: MatchContext): Vocab {
   return staticVocab;
 }
 
-const ctxVocabCache = new WeakMap<object, Vocab>();
+// Cached per (item catalogue, monster list) — both are long-lived server arrays; the library and
+// clog pages ride along with them.
+const ctxVocabCache = new WeakMap<object, { monsters: unknown; vocab: Vocab }>();
 function vocabCtx(ctx: MatchContext): Vocab {
-  const key = ctx.items ?? ctx;
-  const hit = ctxVocabCache.get(key);
-  if (hit && key === ctx.items) return hit;
+  const hit = ctx.items ? ctxVocabCache.get(ctx.items) : undefined;
+  if (hit && hit.monsters === ctx.monsters) return hit.vocab;
   const all: string[] = [];
   for (const it of ctx.items ?? []) all.push(...tokens(it.name));
   for (const p of ctx.clogPages ?? []) all.push(...tokens(p.name));
   for (const t of ctx.library ?? []) all.push(...tokens(t.label));
+  for (const m of ctx.monsters ?? []) all.push(...tokens(m));
   const v = vocabOf(all);
-  if (ctx.items) ctxVocabCache.set(ctx.items, v);
+  if (ctx.items) ctxVocabCache.set(ctx.items, { monsters: ctx.monsters, vocab: v });
   return v;
 }
 
@@ -1277,8 +1327,19 @@ function matchExact(query: string, ctx: MatchContext): TaskCandidate[] {
     out.push(finish(d, q, { ...s, score: s.score + (SOURCE_BONUS[d.source] ?? 0) - (strayNumber ? 1 : 0) + familyAdj + timeAdj }));
   }
 
-  // An item that is just the name of a counter or boss already offered ("Herbiboar") is noise.
+  // A monster that is also a counter or boss already offered (Herbiboar) is that counter or boss.
   const named = new Set(out.filter((c) => ['counter', 'boss', 'activity', 'lap'].includes(c.source)).map((c) => tokens(c.noun).join(' ')));
+  for (const c of monsterCandidates(q, ctx)) {
+    const nm = tokens(c.noun).join(' ');
+    if (named.has(nm)) {
+      out.push({ ...c, score: c.score - 3, confident: false });
+    } else {
+      out.push(c);
+      named.add(nm);
+    }
+  }
+  // An item that is just the name of a counter, boss or monster already offered ("Herbiboar",
+  // the "Chicken" item next to the chicken you kill) is noise.
   for (const c of itemCandidates(q, ctx)) {
     const itemName = tokens(c.titleOne ?? c.title).join(' ');
     out.push(named.has(itemName) ? { ...c, score: c.score - 3, confident: false } : c);

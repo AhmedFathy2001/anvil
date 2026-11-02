@@ -446,3 +446,43 @@ test('a typo that could mean two things asks instead of guessing', () => {
   const one: MatchContext = { ...typoCtx, counters: [...COUNTER_TARGETS, { name: 'Glarb tokens', group: 'Skilling', note: '' }] };
   assert.equal(classifyMatches(matchTasks('100 glarbb tokens', one)).status, 'ready');
 });
+
+// ─── Ordinary monsters ───────────────────────────────────────────────────────────────────────
+
+const monsterCtx: MatchContext = {
+  ...typoCtx,
+  // The real catalogue has items named exactly like monsters ("Chicken"); the kill is the reading.
+  items: [...(typoCtx.items ?? []), { id: 4, name: 'Chicken' }, { id: 5, name: 'Gargoyle' }],
+  monsters: ['Cow', 'Cow calf', 'Chicken', 'Abyssal demon', 'Greater abyssal demon', 'Gargoyle', 'Zulrah', 'Herbiboar', 'Cows (Lumbridge)'],
+};
+
+test('ordinary monsters become plugin kill tiles on their exact name', () => {
+  const cases: [string, string, number][] = [
+    ['100 cows', 'Cow', 100],
+    ['50 chickens', 'Chicken', 50],
+    ['200 abyssal demons', 'Abyssal demon', 200],
+    ['100 gargoyles', 'Gargoyle', 100],
+  ];
+  for (const [line, name, n] of cases) {
+    const { top, verdict } = best(line, monsterCtx);
+    assert.equal(verdict.status, 'ready', line);
+    assert.equal(top.config.tileType, 'kill', line);
+    assert.deepEqual(top.config.targetNpcs, [name], line);
+    assert.equal(top.config.requiredAmount, n, line);
+    assert.equal(top.engine, 'plugin');
+  }
+});
+
+test('monsters: not the cowhide, not a variant, and bosses / counters / raids still win', () => {
+  assert.ok(!best('100 cows', monsterCtx).cands.some((c) => c.title.includes('Cowhide')));
+  assert.ok(!best('100 cows', monsterCtx).cands.some((c) => c.config.targetNpcs?.[0] === 'Cow calf'));
+  assert.equal(best('5 cox', monsterCtx).top.source, 'raid');
+  // On the hiscores → the boss row, read off the hiscores as before.
+  assert.equal(best('100 zulrah', monsterCtx).top.config.trackedStat, 'zulrah');
+  // A counter of the same name is the right reading.
+  const h = best('150 herbiboars', monsterCtx);
+  assert.equal(h.verdict.status, 'ready');
+  assert.equal(h.top.source, 'counter');
+  // Typos reach monsters too, under the usual rules.
+  assert.deepEqual(best('100 gargoyls', monsterCtx).top.config.targetNpcs, ['Gargoyle']);
+});

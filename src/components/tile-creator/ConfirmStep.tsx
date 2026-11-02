@@ -82,7 +82,7 @@ export default function ConfirmStep({
   const [points, setPoints] = useState<number | null>(original.points ?? (pointsMode ? null : initialPoints ?? 1));
   const [capText, setCapText] = useState(clockText(original.config.timeThresholdSeconds));
   // Kills tiles can take more bosses: their kills count together (lib/killSource picks the engine).
-  const killable = ['boss', 'counter'].includes(original.source) && killPicksOf(original.config).length > 0;
+  const killable = ['boss', 'counter', 'monster'].includes(original.source) && killPicksOf(original.config).length > 0;
   const [picks, setPicks] = useState<string[]>(() => killPicksOf(original.config));
   const picksChanged = killable && picks.join('|') !== killPicksOf(original.config).join('|');
   const candidate = (picksChanged && killCandidate(picks, amount, { tileCategory: original.tileCategory, points: original.points })) || original;

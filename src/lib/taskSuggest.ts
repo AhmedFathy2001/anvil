@@ -15,6 +15,7 @@ import { listLibrary } from '@/lib/tileLibrary';
 import { listAnvilTasks } from '@/lib/libraryTasks';
 import { rowToTileConfig, splitAmount } from '@/lib/taskSuggestRows';
 import { clogPages, isMonsterDrop } from '@/lib/itemObtain';
+import { getMonsterNames } from '@/lib/npcNames';
 import {
   classifyMatches,
   libraryCandidate,
@@ -32,12 +33,36 @@ export { rowToTileConfig, splitAmount };
 /** One suggestion: a tile that is already set up to track (see lib/taskMatch TaskCandidate). */
 export type TaskSuggestion = TaskCandidate;
 
+// One entry per name, preferring the id something actually drops (the mapping lists bank
+// placeholders and renamed variants under the same name). Cached per mapping so the matcher's
+// word list (keyed on this array) is built once, not per request.
+const dedupeCache = new WeakMap<MappingItem[], MappingItem[]>();
+function dedupedItems(mapping: MappingItem[]): MappingItem[] {
+  const hit = dedupeCache.get(mapping);
+  if (hit) return hit;
+  const items: MappingItem[] = [];
+  const seen = new Map<string, number>();
+  for (const it of mapping) {
+    const k = it.name.toLowerCase();
+    const at = seen.get(k);
+    if (at == null) {
+      seen.set(k, items.length);
+      items.push(it);
+    } else if (!isDroppableItem(items[at]) && isDroppableItem(it)) {
+      items[at] = it;
+    }
+  }
+  dedupeCache.set(mapping, items);
+  return items;
+}
+
 /** Everything the matcher searches, for one clan. */
 async function contextFor(clanId: number): Promise<MatchContext> {
-  const [library, anvil, mapping] = await Promise.all([
+  const [library, anvil, mapping, monsters] = await Promise.all([
     listLibrary(clanId),
     listAnvilTasks(),
     getItemMapping().catch(() => [] as MappingItem[]),
+    getMonsterNames().catch(() => [] as string[]),
   ]);
   const byName = new Map<string, MappingItem>();
   for (const it of mapping) if (!byName.has(it.name.toLowerCase())) byName.set(it.name.toLowerCase(), it);
@@ -57,22 +82,7 @@ async function contextFor(clanId: number): Promise<MatchContext> {
     if (config) resolved.push({ key: r.key, label: r.label, category: r.category, points: r.points, config });
   }
 
-  // One entry per name, preferring the id something actually drops (the mapping lists bank
-  // placeholders and renamed variants under the same name).
-  const items: MappingItem[] = [];
-  const seen = new Map<string, number>();
-  for (const it of mapping) {
-    const k = it.name.toLowerCase();
-    const at = seen.get(k);
-    if (at == null) {
-      seen.set(k, items.length);
-      items.push(it);
-    } else if (!isDroppableItem(items[at]) && isDroppableItem(it)) {
-      items[at] = it;
-    }
-  }
-
-  return { items, library: resolved, clogPages: clogPages(), itemIsMonsterDrop: isMonsterDrop };
+  return { items: dedupedItems(mapping), library: resolved, clogPages: clogPages(), itemIsMonsterDrop: isMonsterDrop, monsters };
 }
 
 export async function suggestTasks(clanId: number, query: string): Promise<TaskSuggestion[]> {
