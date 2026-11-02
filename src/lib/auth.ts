@@ -20,6 +20,7 @@ import { IGNORED_STATUSES } from '@/lib/accountRelease';
 import { pickActivePluginEvent } from '@/lib/pluginEventPick';
 import { trackPluginRoute } from '@/lib/analytics';
 import { noteNetwork } from '@/lib/integrityNetwork';
+import { notePluginVersion } from '@/lib/pluginSeen';
 import { lastSeenIsFresh } from '@/lib/rosterSync';
 import { labParticipantScope } from '@/lib/lab';
 
@@ -1732,6 +1733,8 @@ export async function resolvePluginMember(
   trackPluginRoute(clan.id, matchedMember.accountId, user.id, request.url);
   // Opt-in boards only (rules.sharingChecks); throttled, fire-and-forget.
   noteNetwork(request, matchedMember.accountId);
+  // Which plugin build plays this character, for "your plugin is too old for this tile" (lib/pluginSeen).
+  notePluginVersion(request, matchedMember.accountId);
 
   // Both, deliberately: the SEAT is this clan's roster row, the ACCOUNT is what Jagex tracks and
   // what every stat, best and collection-log row hangs off — one history per account, not per clan.

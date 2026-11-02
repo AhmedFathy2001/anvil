@@ -52,6 +52,12 @@ const fi: PartialGuideDict = {
       clear: 'Tyhjennä haku',
     },
     cards: {
+      tiles: {
+        eyebrow: 'Pelaajille',
+        title: 'Ruutujen säännöt ja rajoitukset',
+        blurb: 'Mitä ruutu vaatii sinulta ennen aloitusta (peliasetus, plugin, synkronoitu loki, hiscores-sijoitus) ja mitä se ei pysty seuraamaan.',
+        minutes: '~4 min',
+      },
       discord: {
         eyebrow: 'Sille joka hoitaa palvelinta',
         title: 'Anvil Discordissa',
@@ -2327,6 +2333,19 @@ const fi: PartialGuideDict = {
         tip: 'Yksi klaanin peliohjeista (raidit, bossaus, rahanteko…): ala kirjoittaa sen nimeä ja valitse se listasta.',
       },
     },
+  },
+
+  tiles: {
+    metaTitle: 'Ruutujen säännöt ja rajoitukset — Anvil',
+    metaDescription:
+      'Mitä kukin bingoruututyyppi vaatii sinulta (peliasetukset, RuneLite-plugin, synkronoitu collection log, hiscores-sijoitus) ja mitä se ei pysty seuraamaan.',
+    eyebrow: 'Anvil · pelaajille',
+    title: 'Ruutujen säännöt ja rajoitukset',
+    dek: 'Jokainen ruutu kertoo, mitä se vaatii sinulta ja mihin se ei pysty. Tämä sivu selittää jokaisen rivin; ruudun **Why?**-linkit tuovat tänne.',
+    needs: 'Vaatii',
+    limit: 'Hyvä tietää',
+    checked: 'Ruutu tarkistaa tämän puolestasi',
+    englishOnly: 'Alla olevat säännöt ovat toistaiseksi englanniksi, jotta ne vastaavat aina sitä, mitä sivusto oikeasti tekee.',
   },
 };
 

@@ -95,6 +95,7 @@ export const GUIDE_PAGES = [
   'moderator',
   'commands',
   'switching',
+  'tiles',
 ] as const;
 
 // A VALUE, not just a type, because the sitemap has to walk it — 12 pages times 16 locales is 192

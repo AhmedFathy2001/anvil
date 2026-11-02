@@ -1838,6 +1838,20 @@ export const accountSightings = pgTable('account_sightings', {
   index('account_sightings_user_idx').on(table.userId),
 ]);
 
+/**
+ * Which Anvil plugin build last played each character (the `X-Anvil-Plugin-Version` header), and when.
+ *
+ * A sidecar rather than columns on `accounts`: the plugin polls every 30 seconds and the accounts row
+ * is the hot, wide one (see write-amplification notes in lib/roster). Written at most every few hours
+ * per (account, version) by lib/pluginSeen, read by the tile viewer's "Before you start" checks
+ * (lib/tileReadiness) — "your plugin is too old for this tile".
+ */
+export const accountPluginSeen = pgTable('account_plugin_seen', {
+  accountId: integer('account_id').primaryKey().references(() => accounts.id, { onDelete: 'cascade' }),
+  pluginVersion: text('plugin_version').notNull(),
+  seenAt: text('seen_at').notNull(),
+});
+
 // Long-lived plugin tokens issued to an admin after they've verified via the link flow.
 // Distinct from per-event `eventParticipants.playerToken` (which scopes a player to one event/team).
 // Used to authenticate admin-only plugin actions (clan-sync, etc). Not RSN-bound — the

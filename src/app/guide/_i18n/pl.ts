@@ -52,6 +52,12 @@ const pl: PartialGuideDict = {
       clear: 'Wyczyść wyszukiwanie',
     },
     cards: {
+      tiles: {
+        eyebrow: 'Dla graczy',
+        title: 'Zasady i ograniczenia pól',
+        blurb: 'Czego pole wymaga od ciebie przed startem (ustawienie w grze, plugin, zsynchronizowany log, miejsce w hiscores) i czego nie potrafi śledzić.',
+        minutes: '~4 min',
+      },
       discord: {
         eyebrow: 'Dla prowadzącego serwer',
         title: 'Anvil na Discordzie',
@@ -2308,6 +2314,19 @@ const pl: PartialGuideDict = {
         },
       ],
     },
+  },
+
+  tiles: {
+    metaTitle: 'Zasady i ograniczenia pól — Anvil',
+    metaDescription:
+      'Czego każdy rodzaj pola bingo wymaga od ciebie (ustawienia gry, plugin RuneLite, zsynchronizowany collection log, miejsce w hiscores) i gdzie kończy się to, co potrafi śledzić.',
+    eyebrow: 'Anvil · dla graczy',
+    title: 'Zasady i ograniczenia pól',
+    dek: 'Każde pole pokazuje, czego od ciebie wymaga i czego nie potrafi. Ta strona wyjaśnia każdą linijkę; linki **Why?** na polu prowadzą tutaj.',
+    needs: 'Wymaga',
+    limit: 'Dobrze wiedzieć',
+    checked: 'Pole sprawdza to za ciebie',
+    englishOnly: 'Zasady poniżej są na razie po angielsku, żeby zawsze zgadzały się z tym, co strona naprawdę robi.',
   },
 };
 
