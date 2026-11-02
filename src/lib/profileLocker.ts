@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { standingsHidden } from '@/lib/standingsVisibility';
 import {
   accounts as accountsTable,
   clanJoinRequests,
@@ -329,6 +330,7 @@ export async function buildLocker(
       eventForceEndedAt: events.forceEndedAt,
       eventFormat: events.format,
       eventScoringMode: events.scoringMode,
+      eventRules: events.rules,
       teamName: teams.name,
       teamColor: teams.color,
     })
@@ -482,7 +484,12 @@ export async function buildLocker(
       total: standing?.total ?? 0,
       unit: standing?.unit ?? 'tiles',
       pct: standing?.pct ?? 0,
-      rank: index >= 0 ? index + 1 : null,
+      // Hidden standings (lib/standingsVisibility): their own team's score, never its place.
+      rank:
+        index >= 0 &&
+        !standingsHidden({ rules: lead.eventRules, endDate: lead.eventEndDate, forceEndedAt: lead.eventForceEndedAt })
+          ? index + 1
+          : null,
       teamsTotal: standings.length,
       myPoints: points,
       myTasks: tasks,

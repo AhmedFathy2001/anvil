@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { standingsScopeForPlugin } from '@/lib/standingsAccess';
 import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -50,5 +51,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   // The widget counts down to the start itself and drops its pins once the event is over. Both are
   // stable values, so the ETag still only moves when a phase or a number does.
-  return jsonWithEtag(request, await tileProgressView(event, tile, mine));
+  // Hidden standings: the caller's own team's line only, unless they're staff (lib/standingsAccess).
+  const scope = await standingsScopeForPlugin(event, { userId: viewer?.userId ?? null, teamId: mine?.teamId ?? null });
+  return jsonWithEtag(request, await tileProgressView(event, tile, mine, scope));
 }

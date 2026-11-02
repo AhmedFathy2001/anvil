@@ -30,6 +30,7 @@ import { bakeStamp } from '@/lib/proofStampImage';
 import { put, clanMediaKey } from '@/lib/storage';
 import { parseStamp } from '@/lib/dbTime';
 import crypto from 'crypto';
+import { standingsScopeForRequest } from '@/lib/standingsAccess';
 
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
 const INFERRED_FLAGS = new Set(['inferred_duplicate_pet', 'inferred_duplicate_scroll']);
@@ -48,9 +49,13 @@ export async function GET(
   const eId = parseInt(eventId, 10);
 
   // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, eId))) {
+  const scopedEvent = await eventForRequest(request, eId);
+  if (!scopedEvent) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
+  // HIDDEN STANDINGS: without a team filter this returns every team's rows, so while the curtain is
+  // down a non-staff caller gets their own team(s) only — whatever filter they asked for.
+  const standingsScope = await standingsScopeForRequest(request, scopedEvent);
   const { searchParams } = new URL(request.url);
   const teamIdFilter = searchParams.get('teamId');
   const tileIdFilter = searchParams.get('tileId');
@@ -69,6 +74,11 @@ export async function GET(
 
   // Get submissions for this event's tiles with optional filters
   const conditions = [inArray(submissions.tileId, tileIds)];
+  if (standingsScope.hidden) {
+    const own = [...standingsScope.ownTeamIds];
+    if (own.length === 0) return NextResponse.json([]);
+    conditions.push(inArray(submissions.teamId, own));
+  }
   if (teamIdFilter) {
     conditions.push(eq(submissions.teamId, parseInt(teamIdFilter, 10)));
   }

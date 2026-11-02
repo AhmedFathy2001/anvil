@@ -4,7 +4,7 @@ import { buildBoard, pluginBoardScope } from '@/app/api/plugin/board/route';
 import { GET as configRoute } from '@/app/api/plugin/config/route';
 import { GET as weeklyRoute } from '@/app/api/plugin/weekly-leaderboard/route';
 import { db } from '@/db';
-import { clans, memberClogItems, settings } from '@/db/schema';
+import { clans, events, memberClogItems, settings } from '@/db/schema';
 import { apexCharacter } from '@/lib/apexProfiles';
 import { loadClanCard } from '@/lib/clanCard';
 import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
@@ -34,6 +34,8 @@ import { type Node, type View, backRow, button, col, gap, message, text } from '
 import { notFoundUi, playerCardUi } from './playerCardUi';
 import { casUi, clogPageUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from './playerMoreUi';
 import { rosterUi, teamsUi } from './teamsUi';
+import { standingsScopeForPlugin } from '@/lib/standingsAccess';
+import { curtainInfo, standingsHiddenNotice } from '@/lib/standingsVisibility';
 
 // Every view the panel can ask for, by name, and every action it can send. The plugin passes the
 // view's args as query parameters, plus `clan` (the clan it is pointed at) on every call.
@@ -203,7 +205,7 @@ async function boardView(request: Request, a: Args, error: string | null = null)
   const scope = await pluginBoardScope(request, state.event || null);
   if (!scope) return message('Couldn’t load the board.', [gap(5), button('Retry', { a: 'load', v: 'board', args: a })]);
   const [board, progress] = await Promise.all([
-    buildBoard(scope.event, scope.teamId, scope.userId),
+    buildBoard(scope.event, scope.teamId, scope.userId, scope.curtainUserId ?? scope.userId),
     !state.event && !state.pre && scope.teamId != null ? teamProgress(request) : Promise.resolve(new Map()),
   ]);
   const clan = (a.clan ?? '').trim();
@@ -292,6 +294,12 @@ async function homeView(request: Request, a: Args): Promise<View> {
     !open && slug ? ownClanCard(request, slug) : Promise.resolve(null),
     slug ? clanEventsFor(request, slug) : Promise.resolve([] as ClanEventView[]),
   ]);
+  // Hidden standings: the roster above came back unranked; say why where the table would be.
+  // clan-scope: global -- the board this caller's own config just named.
+  const curtainEvent = live && cfg.event ? await db.query.events.findFirst({ where: eq(events.id, cfg.event.id) }) : null;
+  const curtain = curtainEvent
+    ? curtainInfo(await standingsScopeForPlugin(curtainEvent, { userId: auth?.userId ?? null, teamId: auth?.teamId ?? null }))
+    : null;
   const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
   const weekly: HomeData['weekly'] = new Map();
   for (const [id, b] of boards) {
@@ -305,6 +313,10 @@ async function homeView(request: Request, a: Args): Promise<View> {
     inGame: !!me,
     feed,
     standings: roster && roster.mode === 'teams' ? roster.teams.filter((t) => t.rank != null).sort((x, y) => x.rank! - y.rank!) : [],
+    // Plain UTC: the panel has no browser locale to format with.
+    standingsNotice: curtain
+      ? standingsHiddenNotice(curtain, (iso) => new Date(iso).toUTCString().replace(':00 GMT', ' UTC'))
+      : null,
     weekly,
     pins: a.track === '1' ? (a.pins ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0) : null,
     chosen: a.chosen === '1',

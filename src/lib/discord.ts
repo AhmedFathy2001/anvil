@@ -31,6 +31,7 @@ import {
   type PostDecision,
 } from '@/lib/discordPostPolicy';
 import { loadClanPostDefaults, loadEventDiscordPrefs, loadPartnerDiscordPrefs } from '@/lib/eventDiscordPrefs';
+import { curtainRoute, PROGRESS_POST_KINDS, standingsHidden } from '@/lib/standingsVisibility';
 import { clans, events, teams } from '@/db/schema';
 import {
   EMBED_COLOR,
@@ -479,6 +480,17 @@ function eventHostClanId(eventId: number): Promise<number | null> {
   ).catch(() => null);
 }
 
+/** Is this event's standings curtain down right now? Read fresh: the reveal must not lag a cache. */
+async function eventStandingsHidden(eventId: number): Promise<boolean> {
+  // clan-scope: global -- reads one event's own rule and clock, by id, to decide its own posts.
+  const [row] = await db
+    .select({ rules: events.rules, endDate: events.endDate, forceEndedAt: events.forceEndedAt })
+    .from(events)
+    .where(eq(events.id, eventId))
+    .limit(1);
+  return row ? standingsHidden(row) : false;
+}
+
 /** The mention a ping choice turns into, in one clan's own server. */
 async function pingFor(clanId: number, choice: PingChoice): Promise<Pick<DiscordWebhookPayload, 'content' | 'allowed_mentions'>> {
   if (choice === 'none') return {};
@@ -533,6 +545,21 @@ export async function sendEventBingoWebhook(
   const hostDecision = decideHostPost(opts.post, clanDefaults, prefs);
   // Off for the event is off everywhere — the host's server, the co-hosts', the extra hooks.
   if (!hostDecision.send) return false;
+
+  // HIDDEN STANDINGS (lib/standingsVisibility). While the host keeps the standings back, a post that
+  // tells a reader how a team is doing never reaches a shared channel — the host's, a co-host's, a
+  // whole-event hook. A team's OWN hook still hears about its own team. Dropped, not queued: the
+  // reveal posts one summary of the standings instead (lib/standingsReveal).
+  const route = PROGRESS_POST_KINDS.has(opts.post)
+    ? curtainRoute(opts.post, opts.teamId, await eventStandingsHidden(eventId))
+    : { shared: true, teamOnly: null };
+  if (!route.shared) {
+    if (route.teamOnly == null || !info.hook) return false;
+    const hooks = await eventHookTargets(eventId, { kind: info.hook, teamId: route.teamOnly }).catch(() => []);
+    const own = hooks.filter((h) => h.teamId === route.teamOnly);
+    const sent = await Promise.all(own.map((h) => sendToWebhook(h.url, payload, hostClanId)));
+    return sent.some(Boolean);
+  }
 
   // The event's own channel when it has one, else the clan's bingo channel.
   const hostSend = pingFor(hostClanId, hostDecision.ping).then((ping) =>
@@ -1301,6 +1328,8 @@ export async function notifyMonthlyChampion(params: MonthlyChampionNotifyParams)
   };
   const d = await eventPostDecision(params.clanId, params.eventId, 'monthlyChampion');
   if (!d.send) return false;
+  // A month's champion IS the standings — held while the host keeps them back.
+  if (params.eventId != null && (await eventStandingsHidden(params.eventId))) return false;
   return sendBingoWebhook(params.clanId, { ...(await pingFor(params.clanId, d.ping)), embeds: [embed] });
 }
 
@@ -1782,7 +1811,7 @@ interface EventStatsPostParams {
   clanId: number;
   eventId: number;
   /** Which stats post this is — each can be switched off on its own. */
-  post: 'digest' | 'halfway';
+  post: 'digest' | 'halfway' | 'standingsRevealed';
   eventName: string;
   title: string;
   description: string;

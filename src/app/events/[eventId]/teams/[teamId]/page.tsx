@@ -17,6 +17,9 @@ import { clanHref } from '@/lib/clanPath';
 import { idParam } from '@/lib/routeIds';
 import { withSearchText } from '@/lib/tileSearchText';
 import { startingStatsFor } from '@/lib/startingStats';
+import { standingsScopeForSession } from '@/lib/standingsAccess';
+import { canSeeTeamProgress, curtainInfo } from '@/lib/standingsVisibility';
+import StandingsHiddenNotice from '@/components/StandingsHiddenNotice';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,6 +104,38 @@ export default async function TeamBoardPage({
       <div className="border border-dashed border-card-border rounded-xl p-10 text-center text-text-muted">
         <p className="text-lg font-semibold mb-1">The tiles haven&apos;t been revealed yet</p>
         <p className="text-sm">The host will unveil the board before the event begins. Check back soon.</p>
+      </div>
+    );
+  }
+
+  // HIDDEN STANDINGS: another team's board IS its progress. While the host keeps the standings back,
+  // a viewer who isn't on this team (and isn't staff) gets its name and roster — never progress.
+  const standingsScope = await standingsScopeForSession(event);
+  const curtain = curtainInfo(standingsScope);
+  if (curtain && !canSeeTeamProgress(standingsScope, tId)) {
+    const roster = rawEventPlayers.filter((p) => p.teamId === tId).map((p) => p.name).sort((a, b) => a.localeCompare(b));
+    return (
+      <div className="mx-auto max-w-2xl">
+        <h1 className="mb-4 flex items-center gap-3 text-2xl font-bold">
+          <span className="h-4 w-4 rounded-full" style={{ backgroundColor: team.color }} />
+          {team.name}
+        </h1>
+        <StandingsHiddenNotice curtain={curtain} className="mb-6" />
+        <div className="rounded-xl border border-card-border bg-card-bg p-4">
+          <h2 className="mb-3 flex items-center gap-2 font-bold">
+            <span className="h-5 w-1 rounded-full bg-gold" />
+            Roster
+          </h2>
+          {roster.length ? (
+            <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
+              {roster.map((name) => (
+                <li key={name} className="truncate">{name}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-text-muted">Nobody on this team yet.</p>
+          )}
+        </div>
       </div>
     );
   }

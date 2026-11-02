@@ -65,6 +65,8 @@ import EnterEvent from './EnterEvent';
 import { eventActivityIsValid } from '@/lib/completionGate';
 import LocalTime from '@/components/LocalTime';
 import { withSearchText } from '@/lib/tileSearchText';
+import { standingsScopeForSession } from '@/lib/standingsAccess';
+import { canSeeTeamProgress, curtainInfo, filterToVisibleTeams, standingsHidden, standingsRevealAt } from '@/lib/standingsVisibility';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,14 +94,16 @@ export async function generateMetadata({
   const session = await verifyUser();
   if (!event || !(await canSeeEvent({ eventId: id, playerId: session?.playerId ?? null }))) return {};
 
+  // A link card is as public as it gets: while the standings are hidden it names no leader.
+  const curtained = standingsHidden(event);
   const [clanName, prefix, standings] = await Promise.all([
     getClanDisplayName(clan.id, clan.name),
     clanPrefix(),
-    getTeamStandings(id, event.scoringMode),
+    curtained ? Promise.resolve([]) : getTeamStandings(id, event.scoringMode),
   ]);
   return socialMetadata({
     title: `${event.name} — ${clanName || clan.name}`,
-    description: eventLinkDescription(event, standings),
+    description: eventLinkDescription(event, standings, Date.now(), { standingsHidden: curtained }),
     canonical: canonicalPathFor({ prefix, pathname: `/events/${id}`, clanSlug: clan.slug }),
     image: `/api/og/event/${id}`,
   });
@@ -130,6 +134,13 @@ export default async function EventScoreboardPage({
   });
   if (!event) notFound();
 
+  // HIDDEN STANDINGS (lib/standingsVisibility): while the host keeps the standings back, everything
+  // below that carries progress is cut to the viewer's own team(s) BEFORE it is derived from or sent
+  // to the client — a member sees their own board in full and nothing about anyone else's. Staff
+  // and a lifted curtain see it all; the filters are no-ops then.
+  const standingsScope = await standingsScopeForSession(event);
+  const curtain = curtainInfo(standingsScope);
+
   const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, id));
   // The board's rules (mechanics + the host's rulebook) — the same words every clan's Discord gets.
   const rulesFacts = await loadRulesFacts(id).catch(() => null);
@@ -151,6 +162,7 @@ export default async function EventScoreboardPage({
     const allCompletions = await db.select().from(completions);
     eventCompletions = allCompletions
       .filter((c) => tileIdSet.has(c.tileId) && eventActivityIsValid(event, c.completedAt))
+      .filter((c) => canSeeTeamProgress(standingsScope, c.teamId))
       .map((c) => ({
         id: c.id,
         teamId: c.teamId,
@@ -177,7 +189,9 @@ export default async function EventScoreboardPage({
         })
         .from(submissions)
         .where(inArray(submissions.tileId, tileIds))
-        .then((rows) => rows.filter((row) => eventActivityIsValid(event, row.createdAt)))
+        .then((rows) =>
+          rows.filter((row) => eventActivityIsValid(event, row.createdAt) && canSeeTeamProgress(standingsScope, row.teamId)),
+        )
     : [];
   const eventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, id));
   // Multi-account: owner per player + slot mode, so 'per-person' events rank the MVP by person.
@@ -187,9 +201,13 @@ export default async function EventScoreboardPage({
   const statStandings = await getStatStandings(id);
   const statGains: StatGainMap = {};
   for (const s of statStandings) {
-    statGains[s.tileId] = s.players.map((pl) => ({ playerId: pl.playerId, gained: pl.gained }));
+    statGains[s.tileId] = filterToVisibleTeams(standingsScope, s.players, (pl) => pl.teamId).map((pl) => ({
+      playerId: pl.playerId,
+      gained: pl.gained,
+    }));
   }
-  const mvp = computeEventMvp({
+  // The event MVP ranks everyone against everyone — exactly what the curtain is for.
+  const mvpAll = curtain ? null : computeEventMvp({
     scoringMode: event.scoringMode,
     teams: eventTeams,
     players: eventPlayers,
@@ -200,12 +218,13 @@ export default async function EventScoreboardPage({
     ownerByPlayerId,
     accountSlotMode,
   });
+  const mvp = mvpAll;
 
   // MVP of the day — the same split, but scored only over tiles completed in the last 24h. The
   // completedAt filter is all it needs (computeEventMvp ignores completion timestamps); stat tiles
   // still count via their total gain. Null when nothing was completed in the window.
   const dayAgoIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const mvpTodayRaw = computeEventMvp({
+  const mvpTodayRaw = curtain ? null : computeEventMvp({
     scoringMode: event.scoringMode,
     teams: eventTeams,
     players: eventPlayers,
@@ -243,6 +262,7 @@ export default async function EventScoreboardPage({
   // Per-team MVP (overall) for the standings cards — the top contributor on each team.
   const teamMvps: Record<number, TeamMvp | null> = {};
   for (const team of eventTeams) {
+    if (!canSeeTeamProgress(standingsScope, team.id)) continue;
     const bd = computeMemberBreakdown({
       teamId: team.id,
       scoringMode: event.scoringMode,
@@ -361,15 +381,22 @@ export default async function EventScoreboardPage({
   const rules = parseEventRules(event.rules);
   // The board's firsts — read in claim order, so they're a fact about the event rather than a
   // recomputation of the standings.
-  const firsts = await loadEventFirsts(event.id, event.startDate);
+  // Hidden standings: the firsts name whichever team got there first, so they wait for the reveal.
+  const firsts = curtain ? [] : await loadEventFirsts(event.id, event.startDate);
   // The week's colour: pets, clog slots, 1M+ drops and deaths that happened while the board ran
   // (lib/moments isEventFeedWorthy) — never any part of the scoring.
-  const eventMoments = (await eventFeed(event.id, 12)).filter((moment) =>
-    eventActivityIsValid(event, moment.occurredAt),
-  );
+  const eventMoments = (await eventFeed(event.id, curtain ? 60 : 12))
+    .filter((moment) => eventActivityIsValid(event, moment.occurredAt))
+    // Behind the curtain: only the viewer's own team's moments (a teamless moment names no side
+    // and can't be placed, so it waits too).
+    .filter((moment) => canSeeTeamProgress(standingsScope, moment.teamId))
+    .slice(0, 12);
   // Who the game was kind to this event, and who it wasn't (lib/eventLuck) — once it has started.
+  // Cross-team by construction (luckiest / unluckiest across the whole board) — held while hidden.
   const luck =
-    event.startDate && Date.parse(event.startDate) <= Date.now() ? await getEventLuck(event.id).catch(() => null) : null;
+    !curtain && event.startDate && Date.parse(event.startDate) <= Date.now()
+      ? await getEventLuck(event.id).catch(() => null)
+      : null;
   const boardTiles = visibleTiles(rules, eventTiles);
   const hiddenTileCount = hasRevealPolicy(rules) ? eventTiles.length - visibleTiles(rules, eventTiles).length : 0;
   // Nothing here is staff-only any more: this page shows one board, the member's. The "which tiles
@@ -497,6 +524,7 @@ export default async function EventScoreboardPage({
         expiryByTile={Object.fromEntries(expiries)}
         showTeam={ladderHasTeams}
         poolSize={scoredBoardTiles(eventTiles).length}
+        curtain={curtain}
       />
     );
   }
@@ -538,6 +566,10 @@ export default async function EventScoreboardPage({
       });
     }
   }
+
+  // Staff see through the curtain; say so, or a host can't tell that their players don't.
+  const staffSeesCurtain = !curtain && standingsHidden(event);
+  const staffCurtainAt = staffSeesCurtain ? standingsRevealAt(event) : null;
 
   // The icon falls back to the HOST's logo, even when this page is reached at a co-host's address.
   const hostClan = event.clanId === clan.id ? clan : await resolveClanById(event.clanId);
@@ -681,7 +713,7 @@ export default async function EventScoreboardPage({
       />
       )}
       {rulesFacts && <EventRulesCard facts={rulesFacts} defaultOpen={showRules} />}
-      {showStatsLink && !isEventEnded(event) && (
+      {showStatsLink && !curtain && !isEventEnded(event) && (
         <ClanLink
           href={`/events/${id}/stats`}
           className="mb-6 flex items-center gap-3 rounded-xl border border-card-border bg-card-bg p-4 hover:border-gold/40 transition-colors"
@@ -765,9 +797,18 @@ export default async function EventScoreboardPage({
         <>
         {/* Who got it moving, and who drew first blood. Above the board because they're the part
             that stops being true the moment someone else claims one. */}
+        {staffSeesCurtain && (
+          <div className="mb-4 rounded-xl border border-gold/25 bg-gold/5 px-4 py-2.5 text-sm text-foreground/90">
+            <span aria-hidden className="mr-1.5">👁</span>
+            Standings are hidden from players
+            {staffCurtainAt ? <> until <LocalTime date={staffCurtainAt} /></> : ' until the event ends'}
+            <span className="text-text-muted"> — you see them because you&apos;re staff.</span>
+          </div>
+        )}
         <EventFirsts firsts={firsts} />
         <MomentsFeed moments={eventMoments} />
         <ScoreboardClient
+          curtain={curtain}
           event={event}
           tiles={withSearchText(boardTiles)}
           teams={safeTeams}

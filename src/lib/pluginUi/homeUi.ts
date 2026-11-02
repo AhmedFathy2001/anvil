@@ -78,6 +78,8 @@ export interface HomeData {
   inGame: boolean;
   feed: ActivityEntry[];
   standings: RosterTeamOut[];
+  /** Set while the host keeps the standings hidden (lib/standingsVisibility): the notice to show. */
+  standingsNotice?: string | null;
   /** Live weeklies' boards by competition id: the caller's line and the top. */
   weekly: Map<number, { total: number; top: WeeklyStanding[]; you: WeeklyStanding | null }>;
   /** Tiles this client has pinned on the live board; null where it can't pin. */
@@ -456,6 +458,9 @@ function boardPage(d: HomeData, b: Board): Node[] {
   }
 
   parts.push(summary(d, b), gap(12));
+  if (d.live && d.standingsNotice) {
+    parts.push(...heading('Standings'), muted(d.standingsNotice, { wrap: true }), gap(8));
+  }
   if (d.live && d.standings.length) {
     parts.push(...heading('Standings'));
     let shown = 0;

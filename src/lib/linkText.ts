@@ -88,8 +88,16 @@ export function eventLinkDescription(
   event: { startDate: string | null; endDate: string | null; forceEndedAt: string | null },
   standings: { name: string; score: number; unit: string }[],
   now = Date.now(),
+  /** Hidden standings (lib/standingsVisibility): say so, and name no leader and no score. */
+  opts: { standingsHidden?: boolean } = {},
 ): string {
   const stage = eventStage(event, now);
+  if (opts.standingsHidden && stage !== 'build') {
+    const left = timeLeft(event.endDate, now);
+    return ['Live now', 'standings hidden', standings.length ? plural(standings.length, 'team') : null, left ? `ends in ${left}` : null]
+      .filter(Boolean)
+      .join(' · ');
+  }
   const teams = standings.length ? plural(standings.length, 'team') : null;
   const leader = standings[0];
   const scored = !!leader && leader.score > 0;

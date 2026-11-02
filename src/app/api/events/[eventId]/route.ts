@@ -19,6 +19,9 @@ import { parseEventRules, hasRevealPolicy, visibleTiles, validateEventRules, mer
 import { announceNextMission } from '@/lib/revealEngine';
 import { clearPreStartEventActivity } from '@/lib/preStartActivity';
 import { track } from '@/lib/analytics';
+import { standingsScopeForRequest } from '@/lib/standingsAccess';
+import { filterToVisibleTeams, standingsHidden } from '@/lib/standingsVisibility';
+import { forgetLinkCards } from '@/lib/ogKit';
 
 export async function GET(
   request: Request,
@@ -68,6 +71,10 @@ export async function GET(
   // Strip captain passwords from team data
   const safeTeams = eventTeams.map(({ captainPassword: _, ...rest }) => rest);
 
+  // HIDDEN STANDINGS: teams stay (names and colours aren't progress); completions are cut to the
+  // caller's own team(s) unless they're staff or the curtain is up.
+  const standingsScope = await standingsScopeForRequest(request, event);
+
   return NextResponse.json({
     ...event,
     tiles: eventTiles,
@@ -75,7 +82,7 @@ export async function GET(
     // lets boards render "N tiles still hidden" without knowing what they are.
     hiddenTileCount: allEventTiles.length - eventTiles.length,
     teams: safeTeams,
-    completions: eventCompletions,
+    completions: filterToVisibleTeams(standingsScope, eventCompletions, (c) => c.teamId),
   });
 }
 
@@ -474,12 +481,21 @@ export async function PATCH(
   if ('rules' in body) {
     // Merged over what's stored, key by key (lib/eventRules#mergeEventRulesPatch): a panel saving
     // its own keys must never wipe another panel's. Read fresh, not from a client copy.
-    const stored = await db.query.events.findFirst({ where: eq(events.id, id), columns: { rules: true } });
+    const stored = await db.query.events.findFirst({
+      where: eq(events.id, id),
+      columns: { rules: true, endDate: true, forceEndedAt: true },
+    });
     const rulesResult = validateEventRules(mergeEventRulesPatch(stored?.rules, body.rules));
     if ('error' in rulesResult) {
       return NextResponse.json({ error: rulesResult.error }, { status: 400 });
     }
     updates.rules = rulesResult.rules;
+    // Hidden standings switched on: drop cached link cards now, or one drawn a minute ago keeps
+    // showing the leaderboard for its cache window (lib/ogKit). Switching it OFF needs nothing — a
+    // card going stale towards MORE secrecy for two minutes hides nothing.
+    if (standingsHidden({ rules: rulesResult.rules, endDate: stored?.endDate ?? null, forceEndedAt: stored?.forceEndedAt ?? null })) {
+      forgetLinkCards();
+    }
   }
   if ('startDate' in body) {
     updates.startDate = body.startDate;
