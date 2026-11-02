@@ -98,6 +98,23 @@ test('a real character sharing a test name is never adopted or given a tier', as
   assert.ok(!state.dummies.some((d) => d.rsn === 'Lab~Patron'), 'their character is not a test clanmate');
 });
 
+test('the lab is not a lead: the daily digest never sees the lab clan', async () => {
+  delete process.env.CRON_SECRET;
+  const { GET } = await import('../src/app/api/cron/leads-digest/route.ts');
+  const res = await GET(new Request('http://site/api/cron/leads-digest', { headers: { 'x-vercel-cron': '1' } }));
+  const body = await res.json();
+  assert.equal(body.clans, 0, 'the lab clan exists but is not counted');
+});
+
+test('test drops older than a week are swept, newer ones stay', async () => {
+  await L.seedLabDrops(staffId, 2);
+  const old = await db.select({ id: s.moments.id }).from(s.moments).limit(1);
+  await db.update(s.moments).set({ occurredAt: '2020-01-01T00:00:00Z' }).where(eq(s.moments.id, old[0].id));
+  const before = (await L.labSupporterState(staffId)).drops;
+  assert.equal(await L.sweepLabTestDrops(), 1);
+  assert.equal((await L.labSupporterState(staffId)).drops, before - 1);
+});
+
 test('clearing removes every test drop', async () => {
   assert.ok((await L.clearLabDrops()) > 0);
   assert.equal((await L.labSupporterState(staffId)).drops, 0);

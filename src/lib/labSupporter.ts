@@ -9,13 +9,14 @@
 //     clan, and drops on those seats. Their names carry a "~", which no game name can, so they can
 //     never be a real character's, and they are found by their login's marker, never by name. Staff can open the lab clan in the plugin's Lookup.
 
-import { and, eq, inArray, like } from 'drizzle-orm';
+import { and, eq, inArray, like, lt } from 'drizzle-orm';
 import crypto from 'crypto';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, moments, players, supporterSubscriptions, users } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { ensureLabClan, labClanId } from '@/lib/lab';
+import { LAB_DUMMY_LOGIN, LAB_KEEP_DAYS } from '@/lib/labRules';
 import { supporterForUser } from '@/lib/supporter';
 import { SUPPORTER_TIER_ORDER, type SupporterTierId } from '@/lib/supporterTiers';
 
@@ -93,8 +94,7 @@ const SAMPLE_DROPS: { kind: 'pet' | 'unique'; itemName: string; itemId: number; 
   { kind: 'pet', itemName: 'Heron', itemId: 13320, source: 'Fishing' },
 ];
 
-/** A test clanmate's login is marked by this Discord id prefix, which no real Discord id can carry. */
-const DUMMY_LOGIN = 'lab-dummy-';
+const DUMMY_LOGIN = LAB_DUMMY_LOGIN;
 
 /**
  * The test clanmates' seats in the lab clan. Found by their LOGIN's marker, never by name: a real
@@ -172,6 +172,20 @@ export async function clearLabDrops(): Promise<number> {
   const seats = await dummySeats(clanId);
   if (!seats.length) return 0;
   const gone = await db.delete(moments).where(inArray(moments.clanMemberId, seats.map((s) => s.seatId))).returning({ id: moments.id });
+  return gone.length;
+}
+
+/** Test drops are scratch, like lab sessions: gone LAB_KEEP_DAYS after they were made. */
+export async function sweepLabTestDrops(now: Date = new Date()): Promise<number> {
+  const clanId = await labClanId();
+  if (clanId == null) return 0;
+  const seats = await dummySeats(clanId);
+  if (!seats.length) return 0;
+  const cutoff = new Date(now.getTime() - LAB_KEEP_DAYS * 86_400_000).toISOString();
+  const gone = await db
+    .delete(moments)
+    .where(and(inArray(moments.clanMemberId, seats.map((s) => s.seatId)), lt(moments.occurredAt, cutoff)))
+    .returning({ id: moments.id });
   return gone.length;
 }
 
