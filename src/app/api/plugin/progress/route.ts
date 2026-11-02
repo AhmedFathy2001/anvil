@@ -9,6 +9,7 @@ import { cleanProgress, progressUpdates } from '@/lib/memberProgress';
 import { cleanItems, countDone, isItemCategory, serializeItems } from '@/lib/memberProgressItems';
 import { decodeCombatTasks } from '@/lib/combatTasks';
 import { labQuarantine } from '@/lib/lab';
+import { worldModeIgnored } from '@/lib/worldModeRequest';
 
 // POST /api/plugin/progress — quest points, combat-achievement points/tier, and diary counts.
 //
@@ -24,6 +25,10 @@ import { labQuarantine } from '@/lib/lab';
 // an UPDATE.
 
 export async function POST(request: Request) {
+  // Kills, drops, XP and logs from a game-mode world (Leagues, Deadman, hardcore, …) are another
+  // save's progress, never this one's (lib/worldModeRequest).
+  const otherSave = worldModeIgnored(request);
+  if (otherSave) return otherSave;
   const rl = await rateLimit(request, 'plugin-progress', { limit: 30, windowMs: 60_000 });
   if (!rl.ok) {
     return NextResponse.json({ error: 'Too many pushes' }, { status: 429, headers: rateLimitHeaders(rl) });

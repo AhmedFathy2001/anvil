@@ -7,6 +7,7 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { eventHasStarted } from '@/lib/completionGate';
 import { parseStamp } from '@/lib/dbTime';
 import { replayOutsideLab } from '@/lib/lab';
+import { worldModeIgnored } from '@/lib/worldModeRequest';
 
 // Real-time ingest for the fun end-of-event "recap" counters (total deaths, total loot GP, and PvP
 // kills for the active event). The plugin pushes ABSOLUTE per-event totals — idempotent, so a retry
@@ -34,6 +35,10 @@ function clampCounter(v: unknown, max: number): number | null {
 }
 
 export async function POST(request: Request) {
+  // Kills, drops, XP and logs from a game-mode world (Leagues, Deadman, hardcore, …) are another
+  // save's progress, never this one's (lib/worldModeRequest).
+  const otherSave = worldModeIgnored(request);
+  if (otherSave) return otherSave;
   const member = await resolvePluginMember(request);
   if (!member) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 });
