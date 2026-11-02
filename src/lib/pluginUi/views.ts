@@ -24,13 +24,14 @@ import type { PanelTile } from '@/lib/pluginPanel';
 import { pluginRoster } from '@/lib/pluginRoster';
 import { rateLimit } from '@/lib/rate-limit';
 import { claimTile, cleanNote, unclaimTile } from '@/lib/tileClaims';
-import { resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
+import { normalizeRsn, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
+import { SUPPORTER_INK, type SupporterTierId, supporterTiersForRsns } from '@/lib/supporter';
 
 import { type BoardContext, type BoardState, type BoardTile, STATUSES, type Status, boardRowsUi, boardUi } from './boardUi';
 import { clanCardUi, clanCompareUi, clanSearchUi } from './clanUi';
 import { type HomeConfig, type HomeData, eventUi, homeUi } from './homeUi';
 import { lookupPlayerCard, viewerPlayerId, visibleClan } from './load';
-import { type Node, type View, backRow, button, col, gap, message, text } from './nodes';
+import { type Node, type View, applyFlair, backRow, button, col, gap, message, namesIn, text } from './nodes';
 import { notFoundUi, playerCardUi } from './playerCardUi';
 import { casUi, clogPageUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from './playerMoreUi';
 import { rosterUi, teamsUi } from './teamsUi';
@@ -362,7 +363,23 @@ async function ownClanCard(request: Request, slug: string): Promise<Node | null>
   return clanCardUi(await ttlMemo(`plugin-ui-clan-card:${clan.id}`, () => loadClanCard(clan), 5 * 60_000), false);
 }
 
+/** Supporters' names in a finished view get their flair: one lookup for every name it shows. */
+async function flaired(view: View | null): Promise<View | null> {
+  if (!view) return view;
+  const names = namesIn(view.ui);
+  const tiers = names.length ? await supporterTiersForRsns(names).catch(() => new Map<string, SupporterTierId>()) : new Map<string, SupporterTierId>();
+  applyFlair(view.ui, (name) => {
+    const tier = tiers.get(normalizeRsn(name));
+    return tier ? SUPPORTER_INK[tier] : null;
+  });
+  return view;
+}
+
 export async function pluginView(request: Request, v: string, a: Args): Promise<View | null> {
+  return flaired(await viewFor(request, v, a));
+}
+
+async function viewFor(request: Request, v: string, a: Args): Promise<View | null> {
   switch (v) {
     case 'player':
       return playerView(request, (a.rsn ?? '').trim());
@@ -397,6 +414,10 @@ export async function pluginView(request: Request, v: string, a: Args): Promise<
 
 /** An action from the panel: `args` as the view gave them, `fields` from its inputs. */
 export async function pluginAct(request: Request, act: string, args: Args, fields: Args): Promise<View | null> {
+  return flaired(await actFor(request, act, args, fields));
+}
+
+async function actFor(request: Request, act: string, args: Args, fields: Args): Promise<View | null> {
   if (act === 'claim' || act === 'unclaim') return claimAct(request, act, args, fields.note);
   if (act === 'clan-event-going') return clanEventGoingAct(request, args);
   if (act !== 'goal-add' && act !== 'goal-remove') return null;

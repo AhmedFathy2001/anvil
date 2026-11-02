@@ -98,6 +98,10 @@ export type Node =
       cell?: boolean;
       /** At least this wide (a rank column). */
       w?: number;
+      /** Gradient stops drawn across the text (Supporter flair); `color` is the fallback. */
+      grad?: `#${string}`[];
+      /** A player's name: the route gives it their Supporter flair, then drops this. Never sent. */
+      who?: string;
     })
   | (Common & {
       t: 'icon';
@@ -107,7 +111,7 @@ export type Node =
       skill?: string;
       /** A boss, minigame or clue by name or hiscores key: the game's own picture. */
       boss?: string;
-      glyph?: 'check' | 'chevron-right' | 'chevron-left' | 'external' | 'close' | 'swatch';
+      glyph?: 'check' | 'chevron-right' | 'chevron-left' | 'external' | 'close' | 'swatch' | 'star';
       color?: Color;
       w?: number;
       h?: number;
@@ -228,3 +232,60 @@ export const fmt = (n: number): string => n.toLocaleString('en-US');
 
 /** A path segment, encoded the way the site's own links encode it. */
 export const seg = (s: string): string => encodeURIComponent(s.trim());
+
+// ---- Supporter flair: builders mark names, the route colours them ---------------------------------
+
+/** A player's name. Builders stay pure; `withFlair` later gives Supporters their colours and star. */
+export const nameText = (rsn: string, color: Color = 'white', extra: Partial<Extract<Node, { t: 'text' }>> = {}): Node =>
+  text(rsn, color, { ...extra, who: rsn });
+
+type TextNode = Extract<Node, { t: 'text' }>;
+type Ink = { color: `#${string}`; grad?: `#${string}`[] };
+
+function eachChild(n: Node, f: (c: Node) => void): void {
+  const any = n as unknown as Record<string, unknown>;
+  for (const key of ['c', 'l', 'r', 'head', 'icon', 'off', 'lit', 'or']) {
+    const v = any[key];
+    if (Array.isArray(v)) v.forEach((x) => x && typeof x === 'object' && f(x as Node));
+    else if (v && typeof v === 'object' && 't' in (v as object)) f(v as Node);
+  }
+  if (n.t === 'tabs') n.tabs.forEach((t) => f(t.c));
+  if (n.t === 'slot' && n.panes) Object.values(n.panes).forEach(f);
+}
+
+/** Every name marked with `nameText` in a tree. */
+export function namesIn(root: Node): string[] {
+  const out = new Set<string>();
+  const walk = (n: Node) => {
+    if (n.t === 'text' && n.who) out.add(n.who);
+    eachChild(n, walk);
+  };
+  walk(root);
+  return [...out];
+}
+
+/**
+ * Colour each marked name whose owner supports Anvil (`ink(name)` says how) and drop every mark.
+ * A name with an icon of its own (a team swatch) keeps it; the rest get the star after the name.
+ */
+export function applyFlair(root: Node, ink: (name: string) => Ink | null): Node {
+  const walk = (n: Node) => {
+    if (n.t === 'text' && n.who !== undefined) {
+      const t = n as TextNode;
+      const found = ink(t.who!);
+      delete t.who;
+      if (found) {
+        t.color = found.color;
+        if (found.grad) t.grad = found.grad;
+        if (!t.icon) {
+          t.icon = { t: 'icon', glyph: 'star', w: 10, h: 10, color: '#ffd35c' };
+          t.iconAfter = true;
+          t.tip ??= 'Anvil Supporter';
+        }
+      }
+    }
+    eachChild(n, walk);
+  };
+  walk(root);
+  return root;
+}

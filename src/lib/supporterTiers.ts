@@ -24,6 +24,16 @@ export const SUPPORTER_TIERS: Record<SupporterTierId, SupporterTier> = {
 
 export const SUPPORTER_TIER_ORDER: SupporterTierId[] = ['supporter', 'champion', 'patron'];
 
+/**
+ * A tier's name colours where CSS can't reach (the plugin panel): a solid colour every renderer
+ * understands, and the gradient stops a newer one draws across the name. Matches `.supporter-name-*`.
+ */
+export const SUPPORTER_INK: Record<SupporterTierId, { color: `#${string}`; grad?: `#${string}`[] }> = {
+  supporter: { color: '#ffd35c' },
+  champion: { color: '#e05ad0', grad: ['#ff9a5a', '#e05ad0', '#7a8cff'] },
+  patron: { color: '#ff7ab8', grad: ['#ffd27a', '#ff7ab8', '#7ae0ff'] },
+};
+
 /** The tier a Gumroad tier name means ("Champion" → champion). Unknown names are null, never a guess. */
 export function supporterTierForGumroad(name: string | null | undefined): SupporterTierId | null {
   const key = (name ?? '').trim().toLowerCase();

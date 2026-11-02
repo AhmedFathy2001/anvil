@@ -639,7 +639,7 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
       for (const r of s.top) {
         if (shown >= WEEKLY_SHOWN && !r.self) continue;
         if (shown >= WEEKLY_SHOWN) parts.push(gap(3), muted('…'));
-        parts.push(gap(3), row(text(String(r.rank), 'muted', { w: 22, align: 'r' }), text(clip(r.rsn, 16), r.self ? 'brand' : 'text', { tip: r.rsn }), text(`+${weeklyGain(w, r.gained)}`, r.self ? 'brand' : 'muted', { align: 'r' })));
+        parts.push(gap(3), row(text(String(r.rank), 'muted', { w: 22, align: 'r' }), text(clip(r.rsn, 16), r.self ? 'brand' : 'text', { tip: r.rsn, who: r.rsn }), text(`+${weeklyGain(w, r.gained)}`, r.self ? 'brand' : 'muted', { align: 'r' })));
         shown++;
       }
     }

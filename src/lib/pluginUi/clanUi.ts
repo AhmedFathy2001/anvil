@@ -9,7 +9,7 @@ import { namesRow, vsRow } from './playerMoreUi';
 
 /** "Name ......... value" — the name opens that player's card. */
 function nameLine(label: string, value: string, rsn: string): Node {
-  return row(undefined, text(label), text(value, 'brand'), { pad: 2, inset: 2, tip: `Look up ${rsn}`, on: { a: 'lookup', rsn } });
+  return row(undefined, text(label, 'white', { who: rsn }), text(value, 'brand'), { pad: 2, inset: 2, tip: `Look up ${rsn}`, on: { a: 'lookup', rsn } });
 }
 
 /** @param compare offer "Compare with my clan" (another clan, and the viewer has one) */

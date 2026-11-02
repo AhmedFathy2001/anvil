@@ -173,3 +173,20 @@ test('a refund that names only the sale still ends the membership', async () => 
   await post({ sale_id: 'sale-so1', refunded: 'true' });
   assert.equal(await stateFor(u.id), null);
 });
+
+test('the plugin panel finds a supporter by any of their character names', async () => {
+  const { db, schema: s } = await loadDb();
+  const u = await makeUser('ref-rsn');
+  const [player] = await db.insert(s.players).values({}).returning();
+  await db.update(s.users).set({ playerId: player.id }).where(eq(s.users.id, u.id));
+  await db.insert(s.accounts).values([
+    { playerId: player.id, rsn: 'Iron_Flair', rsnNormalized: 'iron flair' },
+    { playerId: player.id, rsn: 'Main Flair', rsnNormalized: 'main flair' },
+  ]);
+  await post({ sale_id: 'sale-rsn1', subscription_id: 'sub-rsn', 'url_params[ref]': 'ref-rsn', 'variants[Tier]': 'Patron' });
+  const { supporterTiersForRsns } = await import('../src/lib/supporter.ts');
+  const tiers = await supporterTiersForRsns(['Iron Flair', 'MAIN_FLAIR', 'Nobody Here']);
+  assert.equal(tiers.get('iron flair'), 'patron');
+  assert.equal(tiers.get('main flair'), 'patron');
+  assert.equal(tiers.size, 2);
+});

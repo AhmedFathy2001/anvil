@@ -7,9 +7,10 @@
 import { eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { supporterSubscriptions, users } from '@/db/schema';
+import { accounts, supporterSubscriptions, users } from '@/db/schema';
+import { normalizeRsn } from '@/lib/auth';
 import { newCheckoutRef } from '@/lib/billing';
-import { supporterState, type SupporterState } from '@/lib/supporterTiers';
+import { supporterState, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
 
 export * from '@/lib/supporterTiers';
 
@@ -53,6 +54,29 @@ export async function supporterForPlayer(playerId: number): Promise<SupporterSta
     .innerJoin(users, eq(users.id, supporterSubscriptions.userId))
     .where(eq(users.playerId, playerId));
   return supporterState(rows);
+}
+
+/**
+ * Supporter tiers by character name, for lists drawn from names (the plugin panel's rosters and
+ * cards). Keyed by `normalizeRsn`; only supporters appear. One query however long the list.
+ */
+export async function supporterTiersForRsns(rsns: string[]): Promise<Map<string, SupporterTierId>> {
+  const out = new Map<string, SupporterTierId>();
+  const keys = [...new Set(rsns.map(normalizeRsn))].filter((k) => k.length > 0 && k.length <= 12).slice(0, 500);
+  if (keys.length === 0) return out;
+  const rows = await db
+    .select({ rsn: accounts.rsnNormalized, ...ROW_COLUMNS })
+    .from(accounts)
+    .innerJoin(users, eq(users.playerId, accounts.playerId))
+    .innerJoin(supporterSubscriptions, eq(supporterSubscriptions.userId, users.id))
+    .where(inArray(accounts.rsnNormalized, keys));
+  const byRsn = new Map<string, typeof rows>();
+  for (const r of rows) byRsn.set(r.rsn, [...(byRsn.get(r.rsn) ?? []), r]);
+  for (const [rsn, list] of byRsn) {
+    const state = supporterState(list);
+    if (state) out.set(rsn, state.tier.id);
+  }
+  return out;
 }
 
 /** The person's Supporter checkout ref, creating one on first use. Stable for the life of the login. */
