@@ -10,7 +10,7 @@ import { buildRuns, parseCoopCredit } from '@/lib/coopRuns';
 import { isIndividualMode } from '@/lib/statTracking';
 import { parseJsonArray } from '@/lib/tileKinds';
 import { evaluateCollection, type CollectionRequirement } from '@/lib/collectionSets';
-import { altProgress, parseAltGoal, type AltGoal } from '@/lib/altGoal';
+import { altProgress, parseAltGoal, ALT_GOAL_KEY, type AltGoal } from '@/lib/altGoal';
 
 /**
  * A team's progress on one submission-backed count tile, under that tile's tracking mode
@@ -279,12 +279,20 @@ export async function syncDropTileCompletion(
   // already screenshots every milestone and the finishing kill, so an honest team always has one.
   // Held like a race block: the count stands and the credit lands the moment a screenshot does.
   let proofBlocked = false;
-  // An alternative is credited by count-only pings whatever the tile's own kind, so it needs one too.
+  // An alternative is credited by count-only pings whatever the tile's own kind, so it needs one too —
+  // and the screenshot must be the ALTERNATIVE's own (lib/altGoal countsAsCompletionProof): an item
+  // screenshot or an energy proof doesn't show searches, and an alternative's screenshot doesn't
+  // show the tile's own requirement either.
   if (isComplete && !raceBlocked && !ruleBlocked && (PROOF_ON_COMPLETION_KINDS.has(tile.tileType) || altComplete)) {
     const [withImage] = await db
       .select({ id: submissions.id })
       .from(submissions)
-      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId), isNotNull(submissions.imageUrl)))
+      .where(and(
+        eq(submissions.tileId, tileId),
+        eq(submissions.teamId, teamId),
+        isNotNull(submissions.imageUrl),
+        altComplete ? eq(submissions.goal, ALT_GOAL_KEY) : isNull(submissions.goal),
+      ))
       .limit(1);
     proofBlocked = !withImage;
   }

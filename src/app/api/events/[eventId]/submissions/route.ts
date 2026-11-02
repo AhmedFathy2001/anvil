@@ -422,7 +422,10 @@ export async function POST(
       const progress = await altTileProgress(tile, teamId);
       const soloTile = isIndividualMode(tile.trackingMode);
       const mine = soloTile ? (progress?.byMember.get(submitterCreditId ?? 0) ?? 0) : (progress?.current ?? 0);
-      if (mine >= altGoal.amount) {
+      // A screenshot is still taken once the count is there: an alternative reached on image-less pings
+      // (or lifted over the line by a cap counter) is held until one of its own rows carries proof
+      // (lib/submissions), and refusing it here would hold the tile forever.
+      if (mine >= altGoal.amount && !imageUrlValue) {
         return NextResponse.json(
           { error: soloTile ? 'You have already reached this tile’s count' : 'Tile already complete' },
           { status: 400 },

@@ -220,6 +220,19 @@ export function memberAltProgress(rows: GoalRow[], goal: AltGoal, playerId: numb
   return altProgress(rows, goal, 'team').byMember.get(playerId ?? UNATTRIBUTED_CREDIT) ?? 0;
 }
 
+// ─── Proof on completion ────────────────────────────────────────────────────────────────────────
+
+/**
+ * Which rows may stand as the screenshot a count-only completion needs, by the goal that completed
+ * the tile. Primary completion: a primary row only. Alternative completion: an alternative-goal row
+ * only — never an unrelated item screenshot, and never a cap counter's (energy proves no searches).
+ * lib/submissions applies the same rule in SQL (proofGoalFilter).
+ */
+export function countsAsCompletionProof(row: { goal?: string | null; imageUrl?: string | null }, via: 'primary' | 'alt'): boolean {
+  if (!row.imageUrl) return false;
+  return via === 'alt' ? row.goal === ALT_GOAL_KEY : row.goal == null;
+}
+
 // ─── Words ──────────────────────────────────────────────────────────────────────────────────────
 
 const fmt = (n: number) => n.toLocaleString('en-US');

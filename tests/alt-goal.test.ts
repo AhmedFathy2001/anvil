@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   altEntryLabel,
+  countsAsCompletionProof,
   altGoalPhrase,
   altGoalProgressNote,
   altGoalUnitSingular,
@@ -191,4 +192,21 @@ test('plugin panel: alt entries fold into the parent row as a note', () => {
   assert.equal(rows[1].sets, undefined);
   assert.equal(rows[2].sets, '3/5 runs');
   assert.equal(rows[2].current, 3);
+});
+
+test('completion proof: only the goal that completed the tile can prove it', () => {
+  const item = { goal: null, imageUrl: 'https://media/x.png' };
+  const search = { goal: 'alt', imageUrl: 'https://media/s.png' };
+  const energy = { goal: 'cap:0', imageUrl: 'https://media/e.png' };
+  const bareSearch = { goal: 'alt', imageUrl: null };
+  // Alternative completion: its own screenshot only — not an item's, not an energy proof.
+  assert.equal(countsAsCompletionProof(search, 'alt'), true);
+  assert.equal(countsAsCompletionProof(item, 'alt'), false);
+  assert.equal(countsAsCompletionProof(energy, 'alt'), false);
+  assert.equal(countsAsCompletionProof(bareSearch, 'alt'), false);
+  // Primary completion is not loosened: alt and cap screenshots don't prove the tile's own goal.
+  assert.equal(countsAsCompletionProof(item, 'primary'), true);
+  assert.equal(countsAsCompletionProof(search, 'primary'), false);
+  assert.equal(countsAsCompletionProof(energy, 'primary'), false);
+  assert.equal(countsAsCompletionProof({ goal: null, imageUrl: null }, 'primary'), false);
 });
