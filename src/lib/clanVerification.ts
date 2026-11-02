@@ -25,7 +25,7 @@
 import { and, desc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanAuditLog, clans, clanStaff, users } from '@/db/schema';
+import { clanAuditLog, clanRoster, clans, clanStaff, users } from '@/db/schema';
 import { releaseRosterMemberships } from '@/lib/homeClan';
 import { parseStamp } from '@/lib/dbTime';
 import { getBotTokenOnly } from '@/lib/discord-roles';
@@ -116,19 +116,27 @@ export async function claimFromRoster(opts: {
   if (taken) {
     // OWNER TIER OUTRANKS A LOWER-RANK CLAIM. Any rank verifies (see below), which means a recruit
     // could stand up a site under their clan's name before the clan's leaders arrived, and first-claim-
-    // wins would then lock the real owners out. So a verification made by a lower rank is provisional
-    // against the clan's own owner tier: when an owner or deputy owner pushes the same in-game name
-    // from a different Anvil clan, the name moves to them. A holder an owner-tier rank (or staff)
-    // verified keeps today's refusal — that is a genuine dispute between two leaderships, a human's.
-    if (pusherOwnerTier && !(await verifiedByOwnerTier(taken.id))) {
-      const moved = await takeOverLowerRankName({
-        fromClan: { id: taken.id, slug: taken.slug, name: taken.name },
-        toClanId: opts.clanId,
-        name,
-        rank: me!.rank,
-        accountId: opts.pusherAccountId,
-      });
-      if (moved) return await recordVerified(opts.clanId, name, me!.rank, opts.pusherAccountId, taken.slug);
+    // wins would then lock the real owners out. So a verification a lower rank made is provisional
+    // against the clan's own owner tier — but the pusher's rank is CLIENT-ATTESTED, so on its own it
+    // proves nothing (a modified client could steal any such name and wipe its member seats). The
+    // takeover needs CORROBORATION from the holder's own syncs, i.e. a second, independent client:
+    // see takeoverCorroboration. A holder an owner-tier rank or staff verified, or whose owner tier
+    // has since synced it, keeps today's refusal — a dispute between two leaderships is a human's.
+    let refusalNote = `already verified by ${taken.slug}`;
+    if (pusherOwnerTier) {
+      const verdict = await takeoverCorroboration(taken.id, me!.rsnNormalized);
+      if (verdict.ok) {
+        const moved = await takeOverLowerRankName({
+          fromClan: { id: taken.id, slug: taken.slug, name: taken.name },
+          toClanId: opts.clanId,
+          name,
+          rank: me!.rank,
+          accountId: opts.pusherAccountId,
+        });
+        if (moved) return await recordVerified(opts.clanId, name, me!.rank, opts.pusherAccountId, taken.slug);
+      } else {
+        refusalNote = `owner-tier claim (${me!.rank}) refused: ${verdict.reason}; already verified by ${taken.slug}`;
+      }
     }
 
     // RECORDED, because a dispute that leaves no trace cannot be resolved. The refusal used to be a
@@ -146,8 +154,9 @@ export async function claimFromRoster(opts: {
           inGameName: name,
           heldBy: taken.slug,
           accountId: opts.pusherAccountId,
+          ownerTierClaim: pusherOwnerTier ? me!.rank : null,
         }),
-        notes: `already verified by ${taken.slug}`,
+        notes: refusalNote,
       })
       .catch(() => {});
 
@@ -161,7 +170,7 @@ export async function claimFromRoster(opts: {
   // the claim; what made a squatted name dangerous — a sync demoting real members' seats in their
   // real clan — no longer exists (lib/guestAdmission memberSeatElsewhere), and the full unique
   // index still keeps one name to one clan. The rank is RECORDED with the verification, because a
-  // lower-rank claim yields to the clan's owner tier later (verifiedByOwnerTier).
+  // lower-rank claim can yield to the clan's owner tier later (takeoverCorroboration).
 
   // Held — UNVERIFIED — by another clan. Typing a name proves nothing, so an unverified hold is not a
   // reservation forever: refusing every later claim let anyone park a famous clan's name in a settings
@@ -246,13 +255,13 @@ async function recordVerified(
 const OWNER_CONFIRMED_EVENT = 'ingame_name_owner_confirmed';
 
 /**
- * An owner or deputy owner synced an ALREADY verified clan. If a lower rank made that verification,
- * record that the owner tier has now stood behind it, which ends its exposure to an owner-tier
- * takeover from another Anvil clan. Writes once; every later sync finds the row and does nothing.
+ * An owner or deputy owner synced an ALREADY verified clan. Unless its verification is already
+ * protected (owner tier or staff), record that the owner tier now stands behind it, which ends its
+ * exposure to an owner-tier takeover from another Anvil clan. Writes once; later syncs do nothing.
  */
 export async function confirmOwnerTier(clanId: number, rank: string | null, accountId: number | null): Promise<void> {
   if (!isOwnerTierRank(rank)) return;
-  if (await verifiedByOwnerTier(clanId)) return;
+  if ((await holderVerification(clanId)).protectedByRecord) return;
   await db.insert(clanAuditLog).values({
     clanId,
     eventType: OWNER_CONFIRMED_EVENT,
@@ -262,15 +271,17 @@ export async function confirmOwnerTier(clanId: number, rank: string | null, acco
 }
 
 /**
- * Was this clan's CURRENT verification made by an owner-tier rank, or by staff?
+ * What the holder's own record says about its verification.
  *
- * Read from the clan's latest `ingame_name_verified` / owner-confirmed row. Only a roster verification that recorded a
- * non-owner rank counts as lower-rank; anything else — staff (an actor, no rank), a row from before
- * ranks were recorded, no row at all — is treated as owner tier, so an unknown history keeps the
- * conservative first-claim-wins refusal rather than handing the name away.
+ * `protectedByRecord` — the latest verification/confirmation row says staff verified it, its owner
+ * tier confirmed it, or it recorded an owner-tier rank. Anything else (a recorded lower rank, a legacy
+ * row with no rank, an unrecognised rank, no row at all) is NOT presumed lower-rank from the row
+ * alone: it is merely open to a takeover that the holder's roster corroborates.
  */
-async function verifiedByOwnerTier(clanId: number): Promise<boolean> {
-  const rows = await db
+async function holderVerification(
+  clanId: number,
+): Promise<{ protectedByRecord: boolean; verifierAccountId: number | null }> {
+  const [row] = await db
     .select({
       eventType: clanAuditLog.eventType,
       newValue: clanAuditLog.newValue,
@@ -285,16 +296,56 @@ async function verifiedByOwnerTier(clanId: number): Promise<boolean> {
     )
     .orderBy(desc(clanAuditLog.id))
     .limit(1);
-  const row = rows[0];
-  if (!row || row.actorUserId != null || row.eventType === OWNER_CONFIRMED_EVENT) return true;
-  let v: { rank?: unknown } | null = null;
+  const clan = await db.query.clans.findFirst({
+    where: eq(clans.id, clanId),
+    columns: { ingameNameClaimedByAccountId: true },
+  });
+  let v: { rank?: unknown; accountId?: unknown } | null = null;
   try {
-    v = row.newValue ? (JSON.parse(row.newValue) as { rank?: unknown }) : null;
+    v = row?.newValue ? (JSON.parse(row.newValue) as { rank?: unknown; accountId?: unknown }) : null;
   } catch {
     v = null;
   }
-  if (!v || !('rank' in v)) return true;
-  return isOwnerTierRank(typeof v.rank === 'string' ? v.rank : null);
+  const verifierAccountId =
+    typeof v?.accountId === 'number' ? v.accountId : (clan?.ingameNameClaimedByAccountId ?? null);
+  const protectedByRecord =
+    row != null &&
+    (row.actorUserId != null ||
+      row.eventType === OWNER_CONFIRMED_EVENT ||
+      isOwnerTierRank(typeof v?.rank === 'string' ? v.rank : null));
+  return { protectedByRecord, verifierAccountId };
+}
+
+/**
+ * May an owner-tier pusher take this holder's name? Only with CORROBORATION the server already holds
+ * from the HOLDER'S OWN syncs — two independent clients agreeing is the proof, since either alone is
+ * client-attested:
+ *   - the holder's live roster lists the pusher's character at an owner-tier rank, and
+ *   - the holder's original verifier, when known, is absent from that roster or below owner tier.
+ * Fails closed on everything else.
+ */
+async function takeoverCorroboration(
+  holderClanId: number,
+  pusherRsnNormalized: string,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const holder = await holderVerification(holderClanId);
+  if (holder.protectedByRecord) return { ok: false, reason: 'the holder was verified by owner tier or staff' };
+
+  const roster = await db
+    .select({ accountId: clanRoster.accountId, rsnNormalized: clanRoster.rsnNormalized, rank: clanRoster.rank })
+    .from(clanRoster)
+    .where(and(eq(clanRoster.clanId, holderClanId), isNull(clanRoster.leftAt)));
+  const pusherThere = roster.find((r) => r.rsnNormalized === pusherRsnNormalized);
+  if (!pusherThere || !isOwnerTierRank(pusherThere.rank)) {
+    return { ok: false, reason: "the holder's own roster does not show the pusher at an owner-tier rank" };
+  }
+  if (holder.verifierAccountId != null) {
+    const verifierThere = roster.find((r) => r.accountId === holder.verifierAccountId);
+    if (verifierThere && isOwnerTierRank(verifierThere.rank)) {
+      return { ok: false, reason: "the holder's verifier is owner tier in its own roster" };
+    }
+  }
+  return { ok: true };
 }
 
 /**

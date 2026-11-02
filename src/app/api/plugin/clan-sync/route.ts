@@ -116,7 +116,8 @@ export async function POST(request: Request) {
   // The roster payload is self-attesting: the plugin reads the member list out of the game, and the
   // person pushing it is IN that list with their rank. So the server can ask a question only a real
   // member passes — "are you in the roster you just sent?" (any rank; an owner-tier rank also
-  // outranks a lower-rank verification elsewhere, see lib/clanVerification) — using nothing the
+  // outranks a lower-rank verification elsewhere when the holder's own roster corroborates it, see
+  // lib/clanVerification) — using nothing the
   // client did not already have.
   //
   // The pusher is identified by their TOKEN, which names a person, and matched against the roster by
