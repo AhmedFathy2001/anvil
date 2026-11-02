@@ -1013,6 +1013,14 @@ export default function TileDetailModal({
                             {s.flaggedReason === 'inferred_duplicate_pet' ? 'duplicate pet · check' : 'duplicate scroll · check'}
                           </span>
                         )}
+                        {s.flaggedReason === 'unverified_counter' && (
+                          <span
+                            title="Auto-counted from a new in-game signal — spot-check it."
+                            className="px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 font-medium"
+                          >
+                            new counter · check
+                          </span>
+                        )}
                         {s.flaggedReason === 'big_ping' && (
                           <span
                             title="The plugin claimed more than one burst of kills without a screenshot; only 10 were counted. See the note for the claim."

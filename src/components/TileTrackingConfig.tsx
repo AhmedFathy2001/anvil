@@ -2685,9 +2685,14 @@ function TileTrackingEditor({
                             type="button"
                             onClick={() => addNpc(e.name)}
                             className="text-[10px] px-2 py-0.5 rounded border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
-                            title={e.note}
+                            title={e.confirmed === false
+                              ? `${e.note} — beta: a new in-game signal, so each credit is flagged for staff to spot-check`
+                              : e.note}
                           >
                             + {e.name}
+                            {e.confirmed === false && (
+                              <span className="ml-1 px-1 rounded bg-yellow-500/15 text-yellow-300 text-[9px] uppercase tracking-wide">beta</span>
+                            )}
                           </button>
                         ))}
                       </div>

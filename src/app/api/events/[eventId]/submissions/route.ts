@@ -32,7 +32,9 @@ import { parseStamp } from '@/lib/dbTime';
 import crypto from 'crypto';
 
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
-const INFERRED_FLAGS = new Set(['inferred_duplicate_pet', 'inferred_duplicate_scroll']);
+// 'unverified_counter': credited off an in-game signal nobody has checked yet (lib/gameCounters,
+// COUNTER_TARGETS confirmed:false) — it counts, staff spot-check it.
+const INFERRED_FLAGS = new Set(['inferred_duplicate_pet', 'inferred_duplicate_scroll', 'unverified_counter']);
 
 /** The most one image-less plugin ping may credit — far above a real 2.5s burst. */
 const MAX_PING_AMOUNT = 10;
@@ -336,7 +338,8 @@ export async function POST(
     }
   }
   // INFERRED ITEM (plugin only). A duplicate pet or champion's scroll gives no item and no name, only
-  // "a funny feeling"; the plugin works out which one from what was just killed or trained. The
+  // "a funny feeling"; the plugin works out which one from what was just killed or trained. (Same
+  // channel: 'unverified_counter', a count off a not-yet-checked in-game signal.) The
   // credit counts, but staff get a look — the same soft hold as a missing starting shot, which wins
   // if both apply since it is the stronger reason.
   if (pluginAuth && !flaggedReason && typeof inferred === 'string' && INFERRED_FLAGS.has(inferred)) {

@@ -1,3 +1,4 @@
+import { pluginGameCounters } from '@/lib/gameCounters';
 import { pluginLevelRules } from '@/lib/levelRulesStore';
 import { resolvePluginClan } from '@/lib/auth';
 import { howItCounts, parseCountMode, parseSetsRequired } from '@/lib/collectionSets';
@@ -859,6 +860,9 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
     // an untradeable vestige reaches event luck (lib/eventLuck) and not only its first-ever unlock.
     // Board-only: event luck is the one reader. Capability 'luck-drops'.
     luckItemIds: [...new Set(luckItems.map((c) => c.itemId))].sort((a, b) => a - b),
+    // Counters read off varbits/varps (lib/gameCounters, capability 'game-counters'). Board-only:
+    // they credit kill tiles, and the plugin reads only the ones a tile targets.
+    gameCounters: pluginGameCounters(),
     completedTiles,
     trackedStats,
     trackedKcNames,
