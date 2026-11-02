@@ -199,7 +199,7 @@ export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAcc
                 checked={m.shared}
                 disabled={sharingId === m.accountId}
                 onChange={(next) => setShared(m.accountId, next)}
-                label="Public on Anvil"
+                label="Show on my public profile"
               />
             </span>
             {/* Only offered when there's something to switch to — a lone account is already primary. */}

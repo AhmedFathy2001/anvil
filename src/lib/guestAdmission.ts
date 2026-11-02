@@ -8,7 +8,7 @@
 // So there is one function, `admit`, and every one of those paths calls it. What it does depends on
 // the clan's policy, and the policy is a decision the clan made rather than a default nobody chose.
 
-import { and, count, desc, eq, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clanStaff, clans, users } from '@/db/schema';
@@ -212,7 +212,81 @@ export async function rejectRequest(
       newValue: JSON.stringify({ requestId, accountId: row.accountId, note: note ?? null }),
     })
     .catch(() => {});
+  // A decline used to be silent: the row flipped and the person kept waiting on a request nobody
+  // would ever answer. Their profile and the clan page now show it (latestDeclines); this tells them
+  // directly when the clan's bot can reach them. Best effort and never awaited — a closed DM or a
+  // clan with no bot must not fail the moderator's click.
+  void notifyDeclined(clanId, row.accountId, row.playerId).catch(() => {});
   return true;
+}
+
+/** DM the person behind a declined request, through the clan's own bot. Returns whether it sent. */
+async function notifyDeclined(clanId: number, accountId: number, playerId: number | null): Promise<boolean> {
+  if (playerId == null) return false;
+  const [clan, account, login] = await Promise.all([
+    db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { name: true, slug: true } }),
+    db.query.accounts.findFirst({ where: eq(accounts.id, accountId), columns: { rsn: true } }),
+    db.query.users.findFirst({ where: eq(users.playerId, playerId), columns: { discordId: true } }),
+  ]);
+  if (!clan || !login?.discordId) return false;
+  // Loaded here rather than at the top: the Discord client pulls in auth and settings, and every
+  // admission path imports this file.
+  const { discordRest, getBotTokenOnly } = await import('@/lib/discord-roles');
+  const { absoluteUrl } = await import('@/lib/seo');
+  const bot = await getBotTokenOnly(clanId);
+  if (!bot) return false;
+  const dm = await discordRest(bot.token, '/users/@me/channels', {
+    method: 'POST',
+    body: JSON.stringify({ recipient_id: login.discordId }),
+  });
+  if (!dm.ok) return false;
+  const channel = (await dm.json()) as { id: string };
+  const who = account?.rsn ? ` for **${account.rsn}**` : '';
+  const res = await discordRest(bot.token, `/channels/${channel.id}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({
+      content:
+        `**${clan.name}** declined your request to join as a guest${who}. ` +
+        `You can still ask again later, or find another clan: ${absoluteUrl('/clans')}`,
+      allowed_mentions: { parse: [] },
+    }),
+  });
+  return res.ok;
+}
+
+export interface DoorState {
+  /** Waiting on this clan's staff. */
+  pending: boolean;
+  /** When this clan last said no, if that is still the newest answer. */
+  declinedAt: string | null;
+}
+
+/**
+ * Where each of these characters stands at one clan's door, for the person's own pages — so a
+ * request survives a reload as "asked", and a decline reads "Declined on <date>" instead of going
+ * quiet. The NEWEST request per character decides: asking again after a no is pending again.
+ * Characters with no request at all are absent from the map.
+ */
+export async function doorStates(clanId: number, accountIds: number[]): Promise<Map<number, DoorState>> {
+  const out = new Map<number, DoorState>();
+  if (accountIds.length === 0) return out;
+  const rows = await db
+    .select({
+      accountId: clanJoinRequests.accountId,
+      status: clanJoinRequests.status,
+      decidedAt: clanJoinRequests.decidedAt,
+    })
+    .from(clanJoinRequests)
+    .where(and(eq(clanJoinRequests.clanId, clanId), inArray(clanJoinRequests.accountId, accountIds)))
+    .orderBy(desc(clanJoinRequests.id));
+  for (const r of rows) {
+    if (out.has(r.accountId)) continue;
+    out.set(r.accountId, {
+      pending: r.status === 'pending',
+      declinedAt: r.status === 'rejected' ? r.decidedAt : null,
+    });
+  }
+  return out;
 }
 
 export interface PendingRequest {

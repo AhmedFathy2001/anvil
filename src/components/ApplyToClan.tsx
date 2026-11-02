@@ -4,12 +4,18 @@ import Select from '@/components/Select';
 import { useEffect, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
+import { parseStamp } from '@/lib/dbTime';
 
 interface Info {
   signedIn: boolean;
   guestPolicy?: string;
   alreadyIn?: boolean;
-  options: { id: number; rsn: string }[];
+  options: { id: number; rsn: string; pending?: boolean; declinedAt?: string | null }[];
+}
+
+function shortDate(stamp: string | null | undefined): string {
+  const ms = parseStamp(stamp);
+  return ms == null ? '' : new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 /**
@@ -53,7 +59,9 @@ export default function ApplyToClan({
       .then((d: Info) => {
         if (!alive) return;
         setInfo(d);
-        if (d.options.length === 1) setChosen(d.options[0].id);
+        // Pre-pick the only character that can still ask (one already waiting has nothing to press).
+        const askable = d.options.filter((o) => !o.pending);
+        if (askable.length === 1) setChosen(askable[0].id);
       })
       .catch(() => {
         if (alive) setLoadFailed(true);
@@ -90,6 +98,19 @@ export default function ApplyToClan({
     );
   }
 
+  // WHAT THEY ALREADY ASKED, from the server, so it survives a reload. Every character waiting: say
+  // so instead of a button. Otherwise offer the rest, and name the last "no" for the one picked.
+  const askable = info.options.filter((o) => !o.pending);
+  if (askable.length === 0) {
+    return (
+      <span className="shrink-0 text-[13px] text-text-muted">
+        Asked — waiting on {clanName}&rsquo;s staff.
+      </span>
+    );
+  }
+  const picked = info.options.find((o) => o.id === chosen) ?? null;
+  const waitingNames = info.options.filter((o) => o.pending).map((o) => o.rsn);
+
   async function apply() {
     if (chosen == null) return;
     setBusy(true);
@@ -112,15 +133,18 @@ export default function ApplyToClan({
 
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-2">
-      {info.options.length > 1 && (
+      {askable.length > 1 && (
         <Select
           value={chosen != null ? String(chosen) : ''}
           onChange={(v) => setChosen(Number(v) || null)}
           placeholder="Which character?"
           ariaLabel="Which character"
           className="min-w-[10rem]"
-          options={info.options.map((o) => ({ value: String(o.id), label: o.rsn }))}
+          options={askable.map((o) => ({ value: String(o.id), label: o.rsn }))}
         />
+      )}
+      {picked?.declinedAt && (
+        <span className="text-[12px] text-red-300/90">Declined on {shortDate(picked.declinedAt)}</span>
       )}
       <button
         type="button"
@@ -130,11 +154,16 @@ export default function ApplyToClan({
       >
         {busy
           ? 'Sending…'
-          : info.guestPolicy === 'open'
+          : picked?.declinedAt
+            ? 'Ask again'
+            : info.guestPolicy === 'open'
             ? (labels?.open ?? 'Join')
             : (labels?.approval ?? 'Apply')}
       </button>
       {error && <span className="text-[12px] text-accent-red">{error}</span>}
+      {waitingNames.length > 0 && (
+        <span className="w-full text-[12px] text-text-muted">Already asked with {waitingNames.join(', ')} — waiting on their staff.</span>
+      )}
     </div>
   );
 }

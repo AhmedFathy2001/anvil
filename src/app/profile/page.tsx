@@ -354,7 +354,7 @@ export default async function ProfilePage({
             {locker.accounts.length > 0 && (
               <p className="mb-3 text-[12.5px] text-text-muted">
                 On this clan&rsquo;s roster, so it sees these whatever you choose.{' '}
-                <span className="text-foreground/80">Public on Anvil</span> is the other question:
+                <span className="text-foreground/80">Show on my public profile</span> is the other question:
                 whether the character shows on its own profile and the cross-clan boards.
               </p>
             )}
