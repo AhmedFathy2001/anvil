@@ -11,7 +11,9 @@ import { requireClan } from '@/lib/clanContext';
 // weekly links land on their admin workspace, not the player page. Any admin/moderator may view.
 export async function GET() {
   const user = await verifyUser();
-  if (!user || (!atLeast(user.role, 'admin') && user.role !== 'moderator')) {
+  // Moderator tier and up. Treasurer TIES with moderator in lib/clanRoles but is money-only, and
+  // this is a moderation surface, so it stays out — explicitly, as it always was.
+  if (!user || !atLeast(user.role, 'moderator') || user.role === 'treasurer') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
