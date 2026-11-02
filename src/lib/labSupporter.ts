@@ -13,9 +13,9 @@ import { and, eq, inArray, like, lt } from 'drizzle-orm';
 import crypto from 'crypto';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, moments, players, supporterSubscriptions, users } from '@/db/schema';
-import { normalizeRsn } from '@/lib/auth';
+import { accounts, clanMemberships, moments, supporterSubscriptions, users } from '@/db/schema';
 import { ensureLabClan, labClanId } from '@/lib/lab';
+import { ensureTestUser } from '@/lib/labCast';
 import { LAB_DUMMY_LOGIN, LAB_KEEP_DAYS } from '@/lib/labRules';
 import { supporterForUser } from '@/lib/supporter';
 import { SUPPORTER_TIER_ORDER, type SupporterTierId } from '@/lib/supporterTiers';
@@ -94,8 +94,6 @@ const SAMPLE_DROPS: { kind: 'pet' | 'unique'; itemName: string; itemId: number; 
   { kind: 'pet', itemName: 'Heron', itemId: 13320, source: 'Fishing' },
 ];
 
-const DUMMY_LOGIN = LAB_DUMMY_LOGIN;
-
 /**
  * The test clanmates' seats in the lab clan. Found by their LOGIN's marker, never by name: a real
  * character that happened to share a name must never be mistaken for one.
@@ -107,35 +105,15 @@ async function dummySeats(clanId: number): Promise<{ rsn: string; seatId: number
     .from(clanMemberships)
     .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
     .innerJoin(users, eq(users.playerId, accounts.playerId))
-    .where(and(eq(clanMemberships.clanId, clanId), like(users.discordId, `${DUMMY_LOGIN}%`)));
+    .where(and(eq(clanMemberships.clanId, clanId), like(users.discordId, `${LAB_DUMMY_LOGIN}%`)));
 }
 
-/** The dummy clanmates, created on first use, with their tiers renewed for another day. */
+/** The four standing test clanmates (lib/labCast), with their tiers renewed for another day. */
 async function ensureDummies(actorUserId: number): Promise<{ rsn: string; seatId: number }[]> {
   const clanId = await ensureLabClan(actorUserId);
   for (const d of DUMMIES) {
-    const key = normalizeRsn(d.rsn);
-    let login = await db.query.users.findFirst({ where: eq(users.discordId, `${DUMMY_LOGIN}${key}`), columns: { id: true, playerId: true } });
-    if (!login) {
-      // Never adopt a character someone else already holds under this name: skip that clanmate.
-      if (await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, key), columns: { id: true } })) continue;
-      const [person] = await db.insert(players).values({ displayName: d.rsn }).returning({ id: players.id });
-      [login] = await db
-        .insert(users)
-        .values({ displayName: d.rsn, discordId: `${DUMMY_LOGIN}${key}`, playerId: person.id })
-        .returning({ id: users.id, playerId: users.playerId });
-    }
-    if (login.playerId == null) continue;
-    let account = await db.query.accounts.findFirst({
-      where: and(eq(accounts.playerId, login.playerId), eq(accounts.rsnNormalized, key)),
-      columns: { id: true },
-    });
-    if (!account) {
-      if (await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, key), columns: { id: true } })) continue;
-      [account] = await db.insert(accounts).values({ playerId: login.playerId, rsn: d.rsn, rsnNormalized: key }).returning({ id: accounts.id });
-    }
-    await db.insert(clanMemberships).values({ clanId, accountId: account.id, kind: 'member', source: 'lab' }).onConflictDoNothing();
-    await setLabTier(login.id, d.tier, d.tier === 'patron' ? 12 : d.tier === 'champion' ? 6 : 0);
+    const user = await ensureTestUser(actorUserId, d.rsn);
+    if (user) await setLabTier(user.userId, d.tier, d.tier === 'patron' ? 12 : d.tier === 'champion' ? 6 : 0);
   }
   return dummySeats(clanId);
 }

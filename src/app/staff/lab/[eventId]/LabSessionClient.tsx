@@ -10,6 +10,8 @@ import LocalTime from '@/components/LocalTime';
 import { LAB_KEEP_DAYS } from '@/lib/labRules';
 
 import { sessionLive } from '../sessionLive';
+import LabTeamsPanel from './LabTeamsPanel';
+import type { LabTeamsView } from '@/lib/labTeams';
 
 const LAB_SLUG = 'anvil-lab';
 const POLL_MS = 5_000;
@@ -57,6 +59,7 @@ interface Detail {
   completions: { tileId: number; completedAt: string | null }[];
   submissions: Submission[];
   log: LogRow[];
+  teams: LabTeamsView;
 }
 
 /** The DB stamps are UTC with a space; LocalTime wants something Date can parse as UTC. */
@@ -200,6 +203,8 @@ export default function LabSessionClient({ eventId }: { eventId: number }) {
           ))}
         </ul>
       </section>
+
+      <LabTeamsPanel teams={data.teams} busy={!!busy} act={act} />
 
       <section>
         <h2 className="mb-3 flex items-center gap-2 font-semibold text-gold"><span className="h-5 w-1 bg-gold" />Submissions</h2>
