@@ -1018,58 +1018,37 @@ function monsterCandidates(q: ParsedQuery, ctx: MatchContext): TaskCandidate[] {
 // "any Barrows unique") — "golden nuggets at Motherlode Mine" names the page but means the nuggets.
 const REWARD_WORDS = ['rare', 'reward', 'unique', 'clog', 'collection', 'log', 'pet', 'item', 'drop', 'any'];
 
-// "A GOTR rare reward": the page's notable uniques, not everything on it. Guardians of the Rift: the
-// reward guardian's rare rolls (Abyssal needle, Abyssal lantern, the three Abyssal dyes) and the pet.
-// Left out on purpose: Abyssal pearls (the minigame's currency), the Raiments of the Eye, Ring of the
-// elements and Guardian's eye (all bought with pearls), and the common-to-uncommon search loot
-// (Catalytic talisman, Intricate pouch, Tarnished locket, Lost bag) — a 100-search tile turns those up.
-export const RARE_REWARDS: Record<string, { short: string; items: string[] }> = {
-  'Guardians of the Rift': {
-    short: 'GOTR',
-    items: ['Abyssal needle', 'Abyssal lantern', 'Abyssal green dye', 'Abyssal blue dye', 'Abyssal red dye', 'Abyssal protector'],
-  },
-};
-
 function clogCandidates(q: ParsedQuery, ctx: MatchContext): TaskCandidate[] {
   const out: TaskCandidate[] = [];
   if (!REWARD_WORDS.some((w) => q.all.includes(w))) return out;
   for (const page of ctx.clogPages ?? []) {
     const s = scoreNamed(q, { names: [page.name], aliases: ['collection', 'log', 'clog', 'rare', 'reward', 'unique'] });
-    if (!s.matched || !s.nameCovered) continue;
-    const rare = RARE_REWARDS[page.name];
-    const rareItems = rare ? page.items.filter((i) => rare.items.some((n) => n.toLowerCase() === i.name.toLowerCase())) : [];
-    if (rareItems.length > 0 && ['rare', 'unique'].some((w) => q.all.includes(w))) {
-      // A drop tile over the page's rares (the plugin credits the loot event — the pet included).
-      out.push(finish({
-        key: `clog-rare-${page.name}`,
-        source: 'clog',
-        badge: 'Drop',
-        titleTemplate: `Any ${rare!.short} rare reward`,
-        verb: 'Get',
-        noun: `any ${rare!.short} rare reward`,
-        amountField: null,
-        defaultAmount: null,
-        config: { tileType: 'drop', trackedItemIds: rareItems.map((i) => i.id), requiredAmount: 1 },
-        flow: 'items',
-        seed: { items: rareItems, how: 'drop' },
-        category: 'items',
-      }, q, { ...s, confident: false, score: s.score - 0.2 }));
-    }
+    // The page's whole name, or every word that isn't a reward word naming it ("any Barrows item" is
+    // the Barrows Chests page — nobody says "chests" when they mean its loot).
+    const pageToks = tokens(page.name);
+    const core = q.tokens.filter((t) => !REWARD_WORDS.includes(t));
+    const coreHit = core.length > 0 && core.every((t) => pageToks.some((c) => tokMatch(t, c)));
+    if (!s.matched || !(s.nameCovered || coreHit)) continue;
+    // "Zulrah pet" is the Zulrah page, not "All Pets": a page that leaves the task's own words unsaid
+    // ranks below one that says them.
+    const unsaid = core.length > 0 && !coreHit ? 3 : 0;
+    // "A GOTR rare reward", "a Vorkath unique", "any Barrows item": the page IS the pool — whatever the
+    // collection log lists there, any one of it, as a drop pool (the clog generator's "any N of").
     const ids = page.items.map((i) => i.id);
     out.push(finish({
       key: `clog-${page.name}`,
       source: 'clog',
-      badge: 'Items',
+      badge: 'Drop',
       titleTemplate: `Any ${page.name} collection log item`,
       verb: 'Get',
       noun: `any ${page.name} collection log item`,
       amountField: null,
       defaultAmount: null,
-      config: { tileType: 'gain', trackedItemIds: ids, requiredAmount: 1 },
+      config: { tileType: 'drop', trackedItemIds: ids, requiredAmount: 1 },
       flow: 'items',
-      seed: { items: page.items, how: 'gain' },
+      seed: { items: page.items, how: 'drop' },
       category: 'items',
-    }, q, { ...s, confident: false, score: s.score - 0.5 }));
+    }, q, { ...s, confident: false, score: Math.max(s.score, 6) - 0.5 - unsaid }));
   }
   return out.sort((a, b) => b.score - a.score).slice(0, 2);
 }
@@ -1158,30 +1137,32 @@ export function matchTasks(query: string, ctx: MatchContext = {}): TaskCandidate
 const ENERGY_RE = /\s*\b(?:(?:paid\s+(?:for\s+)?)?(?:with|using|from|via|by)\s+)?(?:(?:the\s+)?event[-\s]?earned\s+energy|energy\s+(?:earned|gained|attuned|made|collected)\s+(?:during|in|over|throughout)\s+(?:the\s+)?event|(?:the\s+)?event(?:'s)?\s+energy)\b/i;
 const GOTR_RE = /\b(?:gotr|guardians?\s+of\s+the\s+rift)\b/i;
 
-/** Where a task splits into "primary or alternative": a standalone "or" followed by an amount. */
-export function splitEitherOr(query: string): { primary: string; alt: string } | null {
+/** Every standalone "or" in a task, as the two halves either side of it (last split first). */
+export function eitherOrSplits(query: string): { left: string; right: string }[] {
+  const out: { left: string; right: string }[] = [];
   const re = /\s+or\s+/gi;
-  let at: { index: number; len: number } | null = null;
   for (let m = re.exec(query); m; m = re.exec(query)) {
-    const right = query.slice(m.index + m[0].length);
-    if (/^\d/.test(right.trim())) at = { index: m.index, len: m[0].length };
+    const left = query.slice(0, m.index).trim();
+    const right = query.slice(m.index + m[0].length).trim();
+    if (left && right) out.unshift({ left, right });
   }
-  if (!at) return null;
-  const primary = query.slice(0, at.index).trim();
-  const alt = query.slice(at.index + at.len).trim();
-  return primary && alt ? { primary, alt } : null;
+  return out;
+}
+
+interface AltHalf {
+  goal: AltGoal;
+  key: string;
+  score: number;
+  fuzzy?: boolean;
 }
 
 /**
- * "A GOTR rare reward OR 100 searches with event-earned energy" → ONE tile: the first half is the
- * tile, the second its alternative (lib/altGoal). Only when both halves resolve and the second is
- * something the plugin counts like a kill (a counter, a monster, a course) — "gauntlet or cg" and
- * "callisto or artio" stay one kills tile, since an alternative needs its own amount.
+ * The alternative half: an explicit amount of something the plugin counts like a kill — a counter, a
+ * monster, a course, or a boss / raid the hiscores carry, which is then counted by the plugin off its
+ * kill-count line instead (an alternative completes through submissions, never the hiscores).
  */
-function eitherOr(query: string, ctx: MatchContext): TaskCandidate[] | null {
-  const split = splitEitherOr(query);
-  if (!split) return null;
-  let altText = split.alt;
+function altHalf(text: string, query: string, ctx: MatchContext): AltHalf | null {
+  let altText = text;
   const energy = ENERGY_RE.test(altText);
   altText = altText.replace(ENERGY_RE, ' ').replace(/\s+/g, ' ').trim();
   // A GOTR search said any way ("reward searches", "searches in GOTR") is the searches counter.
@@ -1192,44 +1173,86 @@ function eitherOr(query: string, ctx: MatchContext): TaskCandidate[] | null {
       .replace(/\s+/g, ' ')
       .trim();
   }
-  const altVerdict = classifyMatches(matchTasks(altText, ctx));
-  const alt = altVerdict.status === 'ready' ? altVerdict.choices[0] : null;
-  const targets = alt?.config.targetNpcs ?? [];
-  if (!alt || (alt.config.tileType !== 'kill' && alt.config.tileType !== 'lap') || targets.length === 0) return null;
-  const amount = alt.amount ?? parseTaskQuery(altText).amount;
-  if (!amount) return null;
-
-  const primaryCands = matchTasks(split.primary, ctx);
-  const verdict = classifyMatches(primaryCands);
-  const primary = verdict.status === 'ready'
-    ? verdict.choices[0]
-    : primaryCands.find((c) => c.key.startsWith('clog-rare-')) ?? null;
-  if (!primary || !['confirm', 'items'].includes(primary.flow) || !altGoalEligible({ tileType: primary.config.tileType, trackedStat: primary.config.trackedStat })) return null;
-
+  const typed = parseTaskQuery(altText).amount;
+  if (!typed) return null;
+  const cands = matchTasks(altText, ctx);
+  const verdict = classifyMatches(cands);
+  // A count side is short ("100 barrows chests"): its clear leader will do even when the extra word
+  // keeps it from "ready" on its own.
+  const [lead, runnerUp] = cands;
+  const clear = !!lead && lead.score >= 6 && (!runnerUp || lead.score - runnerUp.score >= 1.5);
+  const c = verdict.status === 'ready' ? verdict.choices[0] : clear ? lead : null;
+  if (!c) return null;
+  let targets: string[] = [];
+  if ((c.config.tileType === 'kill' || c.config.tileType === 'lap') && c.config.targetNpcs?.length) {
+    targets = c.config.targetNpcs;
+  } else if (c.config.statType === 'boss' && c.config.trackedStat) {
+    // Hiscores KC → the names the plugin's kill-count line carries (lib/killSource), the same
+    // conversion a kills tile makes when it is counted by the plugin. Clue tiers and minigame scores
+    // have no kill line, so they can't be an alternative.
+    const plugin = chooseKillSource(c.config.trackedStat.split(','), null, true);
+    if (plugin.ok && plugin.source === 'plugin') targets = plugin.targetNpcs;
+  }
+  if (targets.length === 0) return null;
+  const amount = c.amount ?? typed;
   const gotr = targets.length === 1 && targets[0] === GOTR_SEARCHES;
-  const goal: AltGoal = { targets, amount, ...(energy && gotr ? { capBy: [...GOTR_ENERGY_CAPS] } : {}) };
-  const suffix = altTitleSuffix(goal);
-  const config = { ...primary.config, altGoal: goal };
-  const combined: TaskCandidate = {
-    ...primary,
-    key: `either-${primary.key}|${alt.key}`,
-    // A rare-rewards page pick is a finished drop tile once it has its alternative.
-    source: primary.source === 'clog' ? 'drop' : primary.source,
-    title: primary.title + suffix,
-    titleTemplate: primary.titleTemplate + suffix,
-    ...(primary.titleOne ? { titleOne: primary.titleOne + suffix } : {}),
-    hint: `${howItCountsLine(config).text} Or instead: ${altGoalPhrase(goal)}.`,
-    config,
-    // The items are already chosen — straight to the one-sentence confirm.
-    flow: 'confirm',
-    seed: undefined,
-    score: Math.max(primary.score, alt.score) + 3,
-    confident: true,
-    fuzzy: primary.fuzzy || alt.fuzzy,
-  };
-  // The plain first half stays on offer, a step below, for "no, just the first part".
-  const rest = primaryCands.slice(0, 3).map((c) => ({ ...c, confident: false, score: Math.min(c.score, combined.score - 2) }));
-  return [combined, ...rest];
+  return { goal: { targets, amount, ...(energy && gotr ? { capBy: [...GOTR_ENERGY_CAPS] } : {}) }, key: c.key, score: c.score, fuzzy: c.fuzzy };
+}
+
+/** The tile half: anything that completes from submissions — a drop, an item, a collection-log page, kills. */
+function primaryHalf(text: string, ctx: MatchContext): TaskCandidate[] | null {
+  const cands = matchTasks(text, ctx);
+  const verdict = classifyMatches(cands);
+  // A reward word ("unique", "pet", "rare reward", "any … item") means the collection-log page.
+  const rewardy = REWARD_WORDS.some((w) => parseTaskQuery(text).all.includes(w));
+  const page = cands.find((c) => c.source === 'clog');
+  const pick = (rewardy && page) || (verdict.status === 'ready' ? verdict.choices[0] : page);
+  if (!pick || !['confirm', 'items'].includes(pick.flow)) return null;
+  if (!altGoalEligible({ tileType: pick.config.tileType, trackedStat: pick.config.trackedStat })) return null;
+  return [pick, ...cands.filter((c) => c !== pick)];
+}
+
+/**
+ * "<a drop / item / page> OR <N kills / KC / a counter>" → ONE tile: the drop side is the tile, the
+ * count side its alternative (lib/altGoal) — "Vorkath unique or 200 Vorkath kc", "a GOTR rare reward
+ * OR 100 searches with event-earned energy". Either order: "200 Vorkath kc or a Vorkath unique" reads
+ * the same. Needs both halves to resolve and the count side to carry its own amount, so a kills list
+ * ("gauntlet or cg", "25 callisto or artio") stays one kills tile.
+ */
+function eitherOr(query: string, ctx: MatchContext): TaskCandidate[] | null {
+  for (const { left, right } of eitherOrSplits(query)) {
+    for (const [tileText, altText] of [[left, right], [right, left]]) {
+      const alt = altHalf(altText, query, ctx);
+      if (!alt) continue;
+      const tile = primaryHalf(tileText, ctx);
+      if (!tile) continue;
+      const [primary, ...others] = tile;
+      const goal = alt.goal;
+      const suffix = altTitleSuffix(goal);
+      const config = { ...primary.config, altGoal: goal };
+      const combined: TaskCandidate = {
+        ...primary,
+        key: `either-${primary.key}|${alt.key}`,
+        // A collection-log page is a finished drop pool once it has its alternative.
+        source: primary.source === 'clog' ? 'drop' : primary.source,
+        title: primary.title + suffix,
+        titleTemplate: primary.titleTemplate + suffix,
+        ...(primary.titleOne ? { titleOne: primary.titleOne + suffix } : {}),
+        hint: `${howItCountsLine(config).text} Or instead: ${altGoalPhrase(goal)}.`,
+        config,
+        // The items are already chosen — straight to the one-sentence confirm.
+        flow: 'confirm',
+        seed: undefined,
+        score: Math.max(primary.score, alt.score) + 3,
+        confident: true,
+        fuzzy: primary.fuzzy || alt.fuzzy,
+      };
+      // The plain tile half stays on offer, a step below, for "no, just that part".
+      const rest = [primary, ...others].slice(0, 3).map((c) => ({ ...c, confident: false, score: Math.min(c.score, combined.score - 2) }));
+      return [combined, ...rest];
+    }
+  }
+  return null;
 }
 
 // ─── Typo tolerance ──────────────────────────────────────────────────────────────────────────

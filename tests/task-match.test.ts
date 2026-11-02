@@ -16,7 +16,7 @@ import {
   parseBulkLine,
   parseTaskQuery,
   screenshotCandidate,
-  splitEitherOr,
+  eitherOrSplits,
   type MatchContext,
 } from '../src/lib/taskMatch.ts';
 import { eitherOrSentence, GOTR_ENERGY_CAPS, GOTR_SEARCHES } from '../src/lib/altGoal.ts';
@@ -35,6 +35,7 @@ import {
 } from '../src/lib/tileCreatorConfig.ts';
 import { chooseKillSource } from '../src/lib/killSource.ts';
 import { COUNTER_TARGETS } from '../src/lib/constants.ts';
+import { clogPages, isMonsterDrop } from '../src/lib/itemObtain.ts';
 
 const items = [
   { id: 24711, name: 'Hallowed mark' },
@@ -491,38 +492,69 @@ test('monsters: not the cowhide, not a variant, and bosses / counters / raids st
 
 // ─── Either / or (lib/altGoal) ───────────────────────────────────────────────────────────────
 
-test('the clan’s GOTR line is ONE ready tile: rare rewards, or 100 searches paid with event energy', () => {
-  const { top, verdict } = best('A GOTR rare reward OR 100 searches with event-earned energy');
+// The real collection-log pages, so "a Vorkath unique" is whatever the log lists for Vorkath.
+const clogCtx: MatchContext = { ...ctx, clogPages: clogPages(), itemIsMonsterDrop: isMonsterDrop };
+const pageIds = (name: string) => clogPages().find((p) => p.name === name)!.items.map((i) => i.id);
+
+test('the clan’s GOTR line is ONE ready tile: the GOTR log page, or 100 searches paid with event energy', () => {
+  const { top, verdict } = best('A GOTR rare reward OR 100 searches with event-earned energy', clogCtx);
   assert.equal(verdict.status, 'ready');
   assert.equal(top.config.tileType, 'drop');
-  assert.deepEqual(top.config.trackedItemIds, [26813, 26901]); // the rares this test page carries
+  // Whatever the collection log lists on the page is the pool — nothing hand-picked.
+  assert.deepEqual(top.config.trackedItemIds, pageIds('Guardians of the Rift'));
   assert.equal(top.config.requiredAmount, 1);
   assert.deepEqual(top.config.altGoal, { targets: [GOTR_SEARCHES], amount: 100, capBy: [...GOTR_ENERGY_CAPS] });
   assert.equal(top.flow, 'confirm');
-  assert.equal(top.title, 'Any GOTR rare reward or 100 searches');
+  assert.equal(top.title, 'Any Guardians of the Rift collection log item or 100 searches');
   assert.equal(
     eitherOrSentence({ verb: top.verb, noun: top.noun, amount: top.amountField ? top.amount : null }, top.config.altGoal!),
-    'Done when the team gets any GOTR rare reward — or does 100 reward searches paid for with energy earned during the event.',
+    'Done when the team gets any Guardians of the Rift collection log item — or does 100 reward searches paid for with energy earned during the event.',
   );
   // Saved as-is by both write paths.
   const draft = { label: top.title, config: top.config, points: 5, trackingMode: 'team' as const };
   assert.deepEqual(draftPayload(draft, 1, null).altGoal, top.config.altGoal);
   assert.deepEqual(draftToCsvRow(draft).altGoal, top.config.altGoal);
+  // The small test page works the same way: its whole list.
+  assert.deepEqual(best('A GOTR rare reward OR 100 searches with event-earned energy').top.config.trackedItemIds, [26813, 26901]);
 });
 
 test('either/or: other spellings of the energy cap, and no cap when it isn’t said', () => {
-  const long = best('A Guardians of the Rift rare reward OR 100 reward searches using energy earned during the event').top;
+  const long = best('A Guardians of the Rift rare reward OR 100 reward searches using energy earned during the event', clogCtx).top;
   assert.deepEqual(long.config.altGoal?.capBy, [...GOTR_ENERGY_CAPS]);
   assert.equal(long.config.altGoal?.amount, 100);
-  const plain = best('GOTR rare reward or 150 searches').top;
+  const plain = best('GOTR rare reward or 150 searches', clogCtx).top;
   assert.deepEqual(plain.config.altGoal, { targets: [GOTR_SEARCHES], amount: 150 });
-  // The bare first half still asks which items (unchanged), with the rares on offer.
-  const bare = best('GOTR rare reward').verdict;
-  assert.equal(bare.status, 'pick');
-  assert.ok(bare.choices.some((c) => c.key === 'clog-rare-Guardians of the Rift'));
+  // On its own the drop side still asks (a page is a starting point), offering the whole page.
+  for (const line of ['GOTR rare reward', 'a GOTR unique']) {
+    const bare = best(line, clogCtx).verdict;
+    assert.equal(bare.status, 'pick', line);
+    assert.deepEqual(bare.choices.find((c) => c.source === 'clog')?.config.trackedItemIds, pageIds('Guardians of the Rift'), line);
+  }
 });
 
-test('either/or: "X or N Y" for other kinds', () => {
+test('either/or is generic: a drop side OR a KC side, hiscores bosses counted by the plugin', () => {
+  const cases: [string, string, string[], number][] = [
+    ['Vorkath unique or 200 Vorkath kc', 'Vorkath', ['Vorkath'], 200],
+    ['Zulrah pet or 500 zulrah kills', 'Zulrah', ['Zulrah'], 500],
+    ['any Barrows item or 100 barrows chests', 'Barrows Chests', ['Barrows'], 100],
+    // Either order reads the same: the drop side is the tile, the count side the alternative.
+    ['200 Vorkath kc or a Vorkath unique', 'Vorkath', ['Vorkath'], 200],
+  ];
+  for (const [line, page, targets, amount] of cases) {
+    const { top, verdict } = best(line, clogCtx);
+    assert.equal(verdict.status, 'ready', line);
+    assert.equal(top.config.tileType, 'drop', line);
+    assert.deepEqual(top.config.trackedItemIds, pageIds(page), line);
+    // An alternative completes through submissions, so the boss is a plugin kill target, not a stat.
+    assert.deepEqual(top.config.altGoal, { targets, amount }, line);
+    assert.equal(top.config.trackedStat, undefined, line);
+  }
+  // A raid's alternative carries the raid's kill-count-line names, modes included.
+  const raid = best('Any Zulrah item or 50 cox', clogCtx).top;
+  assert.deepEqual(raid.config.altGoal?.targets, ['Chambers of Xeric', 'Chambers of Xeric Challenge Mode']);
+});
+
+test('either/or: kills, items and counters too', () => {
   const withMonsters: MatchContext = { ...ctx, monsters: ['Cow', 'Chicken', 'Cow calf'] };
   const kills = best('100 cows or 50 chickens', withMonsters);
   assert.equal(kills.verdict.status, 'ready');
@@ -538,12 +570,11 @@ test('either/or: "X or N Y" for other kinds', () => {
   assert.deepEqual(shard.top.config.altGoal, { targets: ['Hunter Rumours'], amount: 25 });
 });
 
-test('either/or never splits a kills list, and needs a tile that completes from submissions', () => {
-  // No amount after "or": one tile counting both.
+test('either/or never splits a kills list', () => {
+  // No amount on either side of the "or": one tile counting both.
   assert.equal(best('gauntlet or cg').top.config.altGoal, undefined);
+  // "25 callisto or artio": the side without an amount is a hiscores KC tile, which can't carry one.
   assert.equal(best('25 callisto or artio').top.config.altGoal, undefined);
-  // A hiscores KC tile can't carry an alternative.
-  for (const c of best('100 zulrah or 50 herbiboar').cands) assert.equal(c.config.altGoal, undefined);
-  assert.deepEqual(splitEitherOr('A GOTR rare reward OR 100 searches'), { primary: 'A GOTR rare reward', alt: '100 searches' });
-  assert.equal(splitEitherOr('gauntlet or cg'), null);
+  assert.equal(best('5 cox tob or tfa').top.config.altGoal, undefined);
+  assert.deepEqual(eitherOrSplits('a or b or 100 c'), [{ left: 'a or b', right: '100 c' }, { left: 'a', right: 'b or 100 c' }]);
 });
