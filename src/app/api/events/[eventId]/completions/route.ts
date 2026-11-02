@@ -11,6 +11,8 @@ import { evaluateCompletionGate } from '@/lib/completionGate';
 import { handleBountyClaim, reopenBountyTileIfUnclaimed } from '@/lib/revealEngine';
 import type { Completion } from '@/lib/types';
 import { assertEventEditable } from '@/lib/eventLock';
+import { standingsScopeForRequest } from '@/lib/standingsAccess';
+import { filterToVisibleTeams } from '@/lib/standingsVisibility';
 
 export async function GET(
   request: Request,
@@ -20,7 +22,8 @@ export async function GET(
   const id = parseInt(eventId, 10);
 
   // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, id))) {
+  const scopedEvent = await eventForRequest(request, id);
+  if (!scopedEvent) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   const eventTiles = await db.query.tiles.findMany({
@@ -45,7 +48,9 @@ export async function GET(
     }));
   }
 
-  return NextResponse.json(eventCompletions);
+  // HIDDEN STANDINGS: a non-staff caller gets their own team(s)' completions only.
+  const standingsScope = await standingsScopeForRequest(request, scopedEvent);
+  return NextResponse.json(filterToVisibleTeams(standingsScope, eventCompletions, (c) => c.teamId));
 }
 
 export async function POST(

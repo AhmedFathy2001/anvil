@@ -176,6 +176,14 @@ export const en = {
     hiddenBoard: 'Tiles on **{event}** aren’t revealed yet — team cards open when the board does.',
   },
 
+  // Hidden standings (lib/standingsVisibility): the host keeps the race secret until a date or the end.
+  standings: {
+    hiddenUntil: '🙈 Standings on **{event}** are hidden until {when}.',
+    hiddenUntilEnd: '🙈 Standings on **{event}** are hidden until the event ends.',
+    ownTeamOnly: 'While they’re hidden, `/bingo team` and `/bingo me` show your own team only, and only to you.',
+    notYourTeam: 'Other teams’ progress is hidden until the standings are revealed. Team cards show your own team.',
+  },
+
   apply: {
     title: '📝 {event} — getting in',
     drafted: '**You’re in** — already drafted onto a team. Nothing left to do but play.',

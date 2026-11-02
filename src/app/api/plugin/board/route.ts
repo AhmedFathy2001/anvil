@@ -19,6 +19,8 @@ import { ttlMemo } from '@/lib/ttlMemo';
 import { statLabel } from '@/lib/tileKinds';
 import { howItCounts, parseCountMode, parseSetsRequired, type CollectionRequirement } from '@/lib/collectionSets';
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
+import { standingsScopeForPlugin } from '@/lib/standingsAccess';
+import { canSeeTeamProgress } from '@/lib/standingsVisibility';
 
 // GET /api/plugin/board — the board for an event: every tile with its grid slot, a representative
 // OSRS item icon, and which tiles each team has completed. Backs the Anvil clog tab's classic
@@ -209,7 +211,14 @@ type EventRow = typeof events.$inferSelect;
 // Shared board builder. `callerTeamId` null = read-only preview (no per-team view); a number =
 // interactive for that team (per-cell + per-item progress).
 // Exported so other board surfaces reuse the exact same shape.
-export async function buildBoard(event: EventRow, callerTeamId: number | null, viewerUserId: number | null = null) {
+export async function buildBoard(
+  event: EventRow,
+  callerTeamId: number | null,
+  viewerUserId: number | null = null,
+  // Who to judge the standings curtain by when that isn't the seat's own user — an alt reading its
+  // main's home board has no seat here, but its person may still be on a team (lib/standingsAccess).
+  curtainUserId: number | null = viewerUserId,
+) {
   // Tiles stay hidden in-game until the host reveals them. Return the event shell with
   // an empty tile list (and no per-team completions, since those reference tiles) plus a
   // `tilesRevealed: false` flag the plugin can branch on. Mirrors the web board gate.
@@ -289,6 +298,18 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
       completionsByTeam.get(r.teamId)!.push(r.tileId);
       anyCompleted.add(r.tileId);
     }
+  }
+
+  // HIDDEN STANDINGS (lib/standingsVisibility): other teams' completions are their progress. Cut to
+  // the caller's own team(s) before anything below reads them — the race pips, "Teams done", and the
+  // read-only board's "complete" (which was the union across every team). Staff see all of it.
+  const standingsScope = await standingsScopeForPlugin(event, { userId: curtainUserId, teamId: callerTeamId });
+  if (standingsScope.hidden) {
+    for (const teamId of [...completionsByTeam.keys()]) {
+      if (!canSeeTeamProgress(standingsScope, teamId)) completionsByTeam.delete(teamId);
+    }
+    anyCompleted.clear();
+    for (const ids of completionsByTeam.values()) for (const id of ids) anyCompleted.add(id);
   }
 
   // Interactive only: your team's completed set + per-item submission totals (for compound tiles).
@@ -537,7 +558,14 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
 export async function pluginBoardScope(
   request: Request,
   eventId: number | null,
-): Promise<{ event: EventRow; teamId: number | null; userId: number | null; playerId: number | null } | null> {
+): Promise<{
+  event: EventRow;
+  teamId: number | null;
+  userId: number | null;
+  playerId: number | null;
+  /** The person to judge hidden standings by (see buildBoard), when it differs from `userId`. */
+  curtainUserId?: number | null;
+} | null> {
   // A read: at the login screen the Jagex Launcher's character (X-RSN-Hint) may stand in for the
   // played name, so the team's plan is on the panel before Play. Claims, the write, never take it.
   const hint = { hintOnly: pluginRsnHintOnly(request) };
@@ -556,7 +584,7 @@ export async function pluginBoardScope(
     const clan = user ? await resolvePluginClan(request, user.userId) : null;
     const home = user && clan ? await homeBoardForUser(clan.id, user.userId) : null;
     const event = home ? (await eventForPluginRequest(request, home.eventId))?.event : null;
-    return event ? { event, teamId: null, userId: null, playerId: null } : null;
+    return event ? { event, teamId: null, userId: null, playerId: null, curtainUserId: user?.userId ?? null } : null;
   }
   const event = await db.query.events.findFirst({ where: eq(events.id, auth.eventId) });
   return event ? { event, teamId: auth.teamId, userId: auth.userId, playerId: auth.playerId } : null;
@@ -573,7 +601,7 @@ export async function GET(request: Request) {
     if (!scope) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     // ETag/304: the clog re-fetches on tab-open but the board rarely changes — an unchanged fetch
     // returns 304 with no body (a 1000-tile board can be tens of KB gzipped). See lib/httpEtag.
-    return jsonWithEtag(request, await buildBoard(scope.event, scope.teamId, scope.userId));
+    return jsonWithEtag(request, await buildBoard(scope.event, scope.teamId, scope.userId, scope.curtainUserId ?? scope.userId));
   }
   // Interactive path — the caller's own active event, scoped to their team; an alt gets the home
   // board read-only rather than a 401 the panel would show as "Couldn't load the board".
@@ -581,5 +609,5 @@ export async function GET(request: Request) {
   if (!scope) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
   }
-  return jsonWithEtag(request, await buildBoard(scope.event, scope.teamId, scope.userId));
+  return jsonWithEtag(request, await buildBoard(scope.event, scope.teamId, scope.userId, scope.curtainUserId ?? scope.userId));
 }

@@ -7,6 +7,7 @@ import { eventTimeState } from '@/lib/eventTime';
 import { getStatStandings } from '@/lib/statStandings';
 import { isMilestoneBasis } from '@/lib/statTracking';
 import { parseJsonArray } from '@/lib/tileKinds';
+import { filterToVisibleTeams, standingsHiddenFor, type StandingsScope } from '@/lib/standingsVisibility';
 import { collectionTileTeams, countTileTeams, statTileTeams, type TrackerInput, type TrackerRequirement } from '@/lib/tileTracker';
 
 /**
@@ -18,6 +19,12 @@ export async function tileProgressView(
   event: typeof events.$inferSelect,
   tile: typeof tiles.$inferSelect,
   mine: { teamId: number; playerId: number } | null,
+  /**
+   * Hidden standings (lib/standingsVisibility): who may see which team's line. Omitted (the live
+   * push, which sends one answer to the whole board) = judged on the event alone, so while the
+   * curtain is down only `mine`'s team is kept — and with `mine` null, no team at all.
+   */
+  scope: StandingsScope = standingsHiddenFor(event, mine ? { staff: false, teamIds: [mine.teamId] } : null),
 ) {
   const [teamRows, people, done] = await Promise.all([
     db.select({ teamId: teams.id, name: teams.name, color: teams.color }).from(teams).where(eq(teams.eventId, event.id)),
@@ -79,6 +86,6 @@ export async function tileProgressView(
     points: tile.points ?? 0,
     goal,
     statType: isStat ? tile.statType : null,
-    teams: teamProgress,
+    teams: filterToVisibleTeams(scope, teamProgress, (t) => t.teamId),
   };
 }

@@ -7,6 +7,7 @@ import DateRangeField from '@/components/DateRangeField';
 import DateTimePicker from '@/components/DateTimePicker';
 import NumberInput from '@/components/NumberInput';
 import RevealRulesPanel from '../RevealRulesPanel';
+import StandingsVisibilityPanel from '../StandingsVisibilityPanel';
 import RulebookPanel from '../RulebookPanel';
 import EventEditorsPanel from '../EventEditorsPanel';
 import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
@@ -500,6 +501,9 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
           <p className="text-xs text-red-400 mt-2">{revealScheduleMsg}</p>
         )}
       </section>
+
+      {/* Hidden standings: every board, any time — mid-event included. */}
+      <StandingsVisibilityPanel event={currentEvent} />
 
       {/* Only renders on reveal-policy boards — a classic board has nothing to schedule. */}
       <RevealRulesPanel event={currentEvent} tiles={tiles} />

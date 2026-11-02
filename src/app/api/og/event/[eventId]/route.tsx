@@ -13,6 +13,7 @@ import { ourImageAsDataUrl } from '@/lib/crestImage';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { parseEventRules, visibleTiles, boardTiles } from '@/lib/eventRules';
 import { getTeamStandings } from '@/lib/statStandings';
+import { standingsHidden } from '@/lib/standingsVisibility';
 import { deriveTileIcon } from '@/lib/tileIcons';
 import { eventActivityIsValid } from '@/lib/completionGate';
 
@@ -63,6 +64,10 @@ async function load(_request: Request, { params }: { params: Promise<{ eventId: 
   if (!clan || clanVisibilityOf(clan.visibility) !== 'public') return siteCard();
 
   const revealed = !!event.tilesRevealed;
+  // HIDDEN STANDINGS: a card is public by definition, so while the host keeps the standings back it
+  // shows the board's shape and nothing about who has claimed what. The 2-minute route cache means
+  // a card can lag the reveal by that much; turning the curtain ON clears it (event PATCH).
+  const curtained = standingsHidden(event);
   const [standings, allTiles, clanName] = await Promise.all([
     getTeamStandings(event.id, event.scoringMode),
     revealed ? db.select().from(tilesTable).where(eq(tilesTable.eventId, event.id)) : Promise.resolve([]),
@@ -77,7 +82,7 @@ async function load(_request: Request, { params }: { params: Promise<{ eventId: 
   // Who claimed each shown tile first. Earliest completion wins the colour, the way it does on the
   // page when two teams have both finished a tile.
   const firstClaim = new Map<number, number>();
-  if (shown.length) {
+  if (shown.length && !curtained) {
     const rows = await db
       .select({ tileId: completions.tileId, teamId: completions.teamId, completedAt: completions.completedAt })
       .from(completions)
@@ -107,7 +112,7 @@ async function load(_request: Request, { params }: { params: Promise<{ eventId: 
   });
 
   const leader = standings[0];
-  const anyScore = standings.some((s) => s.score > 0);
+  const anyScore = !curtained && standings.some((s) => s.score > 0);
   const clock =
     stage === 'run'
       ? (() => {
@@ -125,6 +130,7 @@ async function load(_request: Request, { params }: { params: Promise<{ eventId: 
 
   const facts = [
     standings.length ? `${standings.length} team${standings.length === 1 ? '' : 's'}` : null,
+    curtained ? 'standings hidden' : null,
     revealed && shown.length ? `${shown.length} tile${shown.length === 1 ? '' : 's'}` : null,
   ]
     .filter(Boolean)

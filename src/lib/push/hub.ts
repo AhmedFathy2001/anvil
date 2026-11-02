@@ -137,6 +137,13 @@ export class ViewHub {
       if (change.t == null || change.t === team || team === 0) this.schedule(this.view(k));
     }
     if (change.i != null) this.schedule(this.view(tileKey(change.e, change.i)));
+    // The event row itself moved (its rules, its clock, a standings reveal — lib/standingsReveal
+    // announces one): every tile view on the board may read differently now, so rebuild those too.
+    // Only views somebody already holds; nothing new is built.
+    if (change.k === 'events') {
+      const tilePrefix = `tile:${change.e}:`;
+      for (const k of this.views.keys()) if (k.startsWith(tilePrefix)) this.schedule(this.view(k));
+    }
   }
 
   /** Everything rebuilt — after the database listener reconnects, when changes may have gone unheard. */

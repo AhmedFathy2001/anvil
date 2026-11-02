@@ -67,6 +67,8 @@ export interface EventContext {
   rules: string | null;
   startDate: string | null;
   endDate: string | null;
+  /** Set when staff ended it early — the standings curtain lifts then (lib/standingsVisibility). */
+  forceEndedAt?: string | null;
   /** Tiles hidden from members until an admin reveals them. */
   tilesRevealed: boolean;
   teamCount: number;

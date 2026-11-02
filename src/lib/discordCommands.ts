@@ -86,6 +86,7 @@ import {
 } from '@/lib/discordInteractions';
 import { suggestGameGuides } from '@/lib/discordGameGuides';
 import { fmt, plural, getDiscordDict, resolveLocale, findDiscordLocale, type DiscordDict } from '@/lib/discordI18n';
+import { standingsHidden, standingsHiddenFor } from '@/lib/standingsVisibility';
 
 // ── Shared embed furniture ──────────────────────────────────────────────────────────────────────
 
@@ -173,6 +174,25 @@ function shapeLabel(event: EventContext): string {
   return eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules);
 }
 
+// ── Hidden standings ────────────────────────────────────────────────────────────────────────────
+//
+// Discord can't prove who is staff (see `team` below), so while a board's standings are hidden
+// (lib/standingsVisibility) every answer is the member's answer: no leaderboard, no ranks, no other
+// team's card, and the invoker's own team only privately — the Share button would put it in a
+// shared channel, which is exactly where the curtain is meant to hold.
+
+/** The notice line for a hidden board, or null when its standings are public. */
+function curtainLine(t: DiscordDict, event: EventContext): string | null {
+  const scope = standingsHiddenFor(event, null);
+  if (!scope.hidden) return null;
+  const name = clamp(event.name, 80);
+  const ms = scope.revealAt ? Date.parse(scope.revealAt) : NaN;
+  // Discord renders <t:…:f> in each reader's own timezone.
+  return scope.mode === 'at-date' && Number.isFinite(ms)
+    ? fmt(t.standings.hiddenUntil, { event: name, when: `<t:${Math.floor(ms / 1000)}:f>` })
+    : fmt(t.standings.hiddenUntilEnd, { event: name });
+}
+
 // ── /bingo board ────────────────────────────────────────────────────────────────────────────────
 
 async function boardEmbed(
@@ -181,8 +201,9 @@ async function boardEmbed(
   event: EventContext,
   cross: CrossClanContext,
 ): Promise<DiscordEmbed> {
+  const curtain = curtainLine(t, event);
   const [standings, eventRow, allTiles] = await Promise.all([
-    getTeamStandings(event.id, event.scoringMode),
+    curtain ? Promise.resolve([]) : getTeamStandings(event.id, event.scoringMode),
     // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
     db.query.events.findFirst({ where: eq(events.id, event.id), columns: { rules: true } }),
     db
@@ -222,6 +243,7 @@ async function boardEmbed(
   else if (event.phase === 'draft') body.push(t.board.notScheduled);
 
   if (!event.tilesRevealed) body.push(t.board.hidden);
+  if (curtain) body.push('', curtain);
   if (standings.length) body.push('', standingsBody(t, standings, cross));
   const bonus = bonusNote(t, standings);
   if (bonus) body.push('', `-# ${bonus}`);
@@ -240,7 +262,8 @@ async function boardEmbed(
       statField(t.common.fieldTeams, event.teamCount),
       statField(t.common.fieldPlayers, event.playerCount),
       // Tile progress is meaningless before a reveal, and stating it would leak the board's size.
-      ...(event.tilesRevealed
+      // Board-wide claims are progress, so the curtain holds this back too.
+      ...(event.tilesRevealed && !curtain
         ? [statField(t.common.fieldTilesDone, `${distinctDone}/${countable.length}`)]
         : []),
     ],
@@ -286,7 +309,8 @@ async function leaderboardEmbed(
 async function liveBoardsEmbed(t: DiscordDict, clan: ClanContext, events_: EventContext[]): Promise<DiscordEmbed> {
   const blocks = await Promise.all(
     events_.map(async (e) => {
-      const standings = await getTeamStandings(e.id, e.scoringMode);
+      const curtain = curtainLine(t, e);
+      const standings = curtain ? [] : await getTeamStandings(e.id, e.scoringMode);
       const leader = standings[0];
       const meta: string[] = [];
       const ends = relativeTs(e.endDate);
@@ -294,7 +318,7 @@ async function liveBoardsEmbed(t: DiscordDict, clan: ClanContext, events_: Event
       meta.push(plural(e.teamCount, t.multi.teamsOne, t.multi.teamsMany));
       if (leader) meta.push(fmt(t.multi.leader, { team: clamp(leader.name, 30), score: `${leader.score} ${leader.unit}` }));
       const head = `**${clamp(e.name, 60)}** — ${shapeLabel(e)}`;
-      return `${head}\n-# ${meta.join(' · ')}`;
+      return `${head}\n-# ${meta.join(' · ')}${curtain ? `\n${curtain}` : ''}`;
     }),
   );
   const body = [fmt(t.multi.liveIntro, { n: events_.length }), '', blocks.join('\n\n'), '', `-# ${clamp(clan.name, 80)}`];
@@ -311,6 +335,8 @@ async function liveBoardsEmbed(t: DiscordDict, clan: ClanContext, events_: Event
 async function liveStandingsEmbed(t: DiscordDict, clan: ClanContext, events_: EventContext[]): Promise<DiscordEmbed> {
   const blocks = await Promise.all(
     events_.map(async (e) => {
+      const curtain = curtainLine(t, e);
+      if (curtain) return [`**${clamp(e.name, 60)}**`, curtain].join('\n');
       const standings = await getTeamStandings(e.id, e.scoringMode);
       const top = standings
         .slice(0, 3)
@@ -406,7 +432,8 @@ async function meEmbed(
     getTeamStandings(event.id, event.scoringMode),
   ]);
 
-  const rank = teamId ? standings.findIndex((s) => s.teamId === teamId) + 1 : 0;
+  // Behind the curtain the invoker still sees their own work, but not where it places them.
+  const rank = teamId && !standingsHidden(event) ? standings.findIndex((s) => s.teamId === teamId) + 1 : 0;
   const mine = teamId ? standings.find((s) => s.teamId === teamId) : undefined;
 
   const body: string[] = [];
@@ -517,10 +544,12 @@ async function teamEmbed(
   ]);
 
   const standing = standings.find((s) => s.teamId === team.id);
-  const rank = standings.findIndex((s) => s.teamId === team.id) + 1;
+  // Only ever the invoker's own team behind the curtain (SUBCOMMANDS.team) — its score, not its place.
+  const curtained = standingsHidden(event);
+  const rank = curtained ? 0 : standings.findIndex((s) => s.teamId === team.id) + 1;
 
   const body: string[] = [];
-  if (standing) {
+  if (standing && !curtained) {
     const bonus = standing.bonusScore > 0 ? fmt(t.team.bonusSuffix, { n: standing.bonusScore }) : '';
     body.push(
       fmt(t.team.standing, {
@@ -842,6 +871,8 @@ const SUBCOMMANDS: Record<string, (ctx: CommandContext) => Promise<SubResult>> =
 
   async leaderboard({ t, clan, event, cross, liveEvents, memberIds, accountIds }) {
     if (liveEvents.length >= 2) return { embeds: [await liveStandingsEmbed(t, clan, liveEvents)] };
+    const curtain = curtainLine(t, event);
+    if (curtain) return { text: `${curtain}\n${t.standings.ownTeamOnly}` };
     const teamId = await myTeamId(event.id, memberIds, accountIds);
     return { embeds: [await leaderboardEmbed(t, clan, event, cross, teamId)] };
   },
@@ -859,15 +890,29 @@ const SUBCOMMANDS: Record<string, (ctx: CommandContext) => Promise<SubResult>> =
   },
 
   async me({ t, clan, event, cross, memberIds, accountIds, who, shared }) {
+    // Shared = posted to the channel. Your own progress stays yours while the standings are hidden.
+    const curtain = shared ? curtainLine(t, event) : null;
+    if (curtain) return { text: `${curtain}\n${t.standings.ownTeamOnly}` };
     return { embeds: [await meEmbed(t, clan, event, cross, memberIds, accountIds, who, shared)] };
   },
 
-  async team({ t, clan, event, cross, memberIds, accountIds, options }) {
+  async team({ t, clan, event, cross, memberIds, accountIds, options, shared }) {
     // Hidden boards stay hidden. Staff see them on the web; Discord is a member-facing surface with
     // no way to prove a staff role, so it shows what a member would see.
     if (!event.tilesRevealed) return { text: fmt(t.team.hiddenBoard, { event: event.name }) };
     const wanted = typeof options.name === 'string' ? options.name : null;
     const fallback = await myTeamId(event.id, memberIds, accountIds);
+    // Hidden standings: your own team, privately. A named team that isn't yours, or a share, is the
+    // notice — matching names here would let anyone read every card by guessing.
+    const curtain = curtainLine(t, event);
+    if (curtain) {
+      if (shared) return { text: `${curtain}\n${t.standings.ownTeamOnly}` };
+      if (fallback == null) return { text: `${curtain}\n${t.standings.notYourTeam}` };
+      const own = await db.query.teams.findFirst({ where: eq(teams.id, fallback), columns: { name: true } });
+      const needle = wanted?.trim().toLowerCase() ?? '';
+      if (needle && !own?.name.toLowerCase().includes(needle)) return { text: `${curtain}\n${t.standings.notYourTeam}` };
+      return { embeds: [await teamEmbed(t, clan, event, cross, null, fallback)] };
+    }
     return { embeds: [await teamEmbed(t, clan, event, cross, wanted, fallback)] };
   },
 };

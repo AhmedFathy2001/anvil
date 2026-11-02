@@ -12,6 +12,8 @@ import { getLadderBoards } from '@/lib/ladderStandings';
 import { getTeamStandings } from '@/lib/statStandings';
 import { teamMemberPoints } from '@/lib/teamMemberPoints';
 import { isPointsMode } from '@/lib/utils';
+import { standingsScopeForRequest } from '@/lib/standingsAccess';
+import { canSeeTeamProgress } from '@/lib/standingsVisibility';
 
 /**
  * One page of an event's roster for a plugin (lib/eventRoster): the teams ranked (or the players, when
@@ -37,6 +39,11 @@ export async function pluginRoster(
   if (!(await canSeeEvent({ eventId, playerId: viewerPlayerId }))) return null;
 
   const individuals = eventAxes(event).competitors === 'individuals';
+  // HIDDEN STANDINGS (lib/standingsVisibility): names and rosters stay; scores and ranks go. Even the
+  // caller's own team is left unscored HERE — one scored team in a list ranks itself first. Its own
+  // progress is on the panel's team view, and a team's own member split stays on its own page.
+  const standingsScope = await standingsScopeForRequest(request, event);
+  const scored = event.tilesRevealed && !standingsScope.hidden;
 
   const [teamRows, people] = await Promise.all([
     db
@@ -58,7 +65,7 @@ export async function pluginRoster(
 
   // Scores only once there is a board to score: before the reveal every team is on nothing.
   const scoreByTeam = new Map<number, { score: number; text: string }>();
-  if (event.tilesRevealed && !individuals && teamRows.length > 0) {
+  if (scored && !individuals && teamRows.length > 0) {
     for (const s of await getTeamStandings(eventId, event.scoringMode)) {
       scoreByTeam.set(s.teamId, { score: s.score, text: formatScore({ ...s, unit: s.unit as 'pts' | 'tiles' }) });
     }
@@ -82,14 +89,14 @@ export async function pluginRoster(
 
   if (opts.team != null) {
     // Each member's share of the team's score, so the team's page reads best first.
-    if (event.tilesRevealed && !individuals) {
+    if (event.tilesRevealed && !individuals && canSeeTeamProgress(standingsScope, opts.team)) {
       input.memberPoints = await teamMemberPoints(eventId, opts.team);
       input.pointsUnit = isPointsMode(event.scoringMode) ? 'pts' : 'tiles';
     }
     return rosterTeam(input, opts.team, page, pageSize);
   }
 
-  if (individuals && event.tilesRevealed && people.length > 0) {
+  if (individuals && scored && people.length > 0) {
     const { allTime } = await getLadderBoards(event);
     input.individualPoints = allTime.map((s) => ({ participantId: s.playerId, name: s.name, points: s.points }));
   }

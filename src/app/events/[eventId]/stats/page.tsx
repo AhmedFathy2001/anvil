@@ -6,6 +6,9 @@ import { getEventStats, type StatsWindow } from '@/lib/eventStats';
 import { stampMs } from '@/lib/eventDay';
 import { eventHasStarted } from '@/lib/completionGate';
 import StatsDashboard from './StatsDashboard';
+import StandingsHiddenNotice from '@/components/StandingsHiddenNotice';
+import { standingsScopeForSession } from '@/lib/standingsAccess';
+import { curtainInfo } from '@/lib/standingsVisibility';
 import { verifyUser } from '@/lib/auth';
 import { db } from '@/db';
 import { clanRoster, eventParticipants } from '@/db/schema';
@@ -69,6 +72,18 @@ export default async function EventStatsPage({
       <div>
         {header('Event stats')}
         <Notice title="Stats start when the event does">Every number here counts from the start — check back once it’s under way.</Notice>
+      </div>
+    );
+  }
+
+  // HIDDEN STANDINGS: this page is every player's numbers side by side — the race itself. While the
+  // host keeps the standings back it waits for the reveal (staff see it as ever).
+  const curtain = curtainInfo(await standingsScopeForSession(event));
+  if (curtain) {
+    return (
+      <div>
+        {header('Event stats')}
+        <StandingsHiddenNotice curtain={curtain} className="mx-auto mt-10 max-w-xl" />
       </div>
     );
   }
