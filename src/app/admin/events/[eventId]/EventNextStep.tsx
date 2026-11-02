@@ -112,7 +112,7 @@ export function NextStepPanel({
   );
 }
 
-const FLAG_TEXT: Record<string, string> = {
+export const FLAG_TEXT: Record<string, string> = {
   no_start_proof: 'Counted without a starting screenshot',
   clog_unverified_slots: 'A finished collection log page that leans on slots only a log sync shows (no unlock message) — check the screenshot',
   inferred_duplicate_pet: 'A pet duplicate the plugin worked out from context',
@@ -136,12 +136,15 @@ export function ProofsToCheck({
   tiles,
   teamNameById,
   onChange,
+  allHref,
 }: {
   eventId: number;
   submissions: Submission[];
   tiles: Tile[];
   teamNameById: Record<number, string>;
   onChange: () => void;
+  /** The board's "All proofs" feed. Unflagged proofs count on their own; this is where they're browsed. */
+  allHref?: string;
 }) {
   const { ask } = useDialog();
   // Ids with a request in flight, and ids already handled. The ref is the guard (state lags a click
@@ -156,7 +159,16 @@ export function ProofsToCheck({
   const flagged = submissions
     .filter((s) => s.flaggedReason && !handled.has(s.id))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  if (flagged.length === 0) return null;
+  if (flagged.length === 0) {
+    return allHref ? (
+      <p className="text-sm text-text-muted">
+        No proofs need checking.{' '}
+        <ClanLink href={allHref} className="text-gold hover:underline">
+          Browse all proofs &rarr;
+        </ClanLink>
+      </p>
+    ) : null;
+  }
   const tileName = (id: number) => tiles.find((t) => t.id === id)?.label ?? 'Tile';
   const picked = flagged.filter((s) => selected.has(s.id)).map((s) => s.id);
   const allPicked = picked.length === flagged.length;
@@ -240,6 +252,11 @@ export function ProofsToCheck({
         <span className="molten-bar" />
         Proofs to check
         <span className="text-sm font-normal text-text-muted">oldest first</span>
+        {allHref && (
+          <ClanLink href={allHref} className="ml-auto text-sm font-normal text-gold hover:underline">
+            All proofs &rarr;
+          </ClanLink>
+        )}
       </h2>
       <div className="flex flex-wrap items-center gap-3 py-2.5 border-b border-[#2a221b]">
         <label className="flex items-center gap-2 text-sm text-text-muted cursor-pointer select-none">

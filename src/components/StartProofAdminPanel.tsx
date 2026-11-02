@@ -9,6 +9,7 @@ import Checkbox from '@/components/Checkbox';
 import WorldMapPicker from '@/components/WorldMapPicker';
 import { DEFAULT_START_RADIUS, START_LOCATIONS } from '@/lib/startLocations';
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 import {
   parseEventRules,
   DEFAULT_START_PROOF,
@@ -100,6 +101,7 @@ export default function StartProofAdminPanel({
   const [msg, setMsg] = useState('');
   const [data, setData] = useState<PanelData | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const { confirm } = useDialog();
   // Staff filing a shot FOR a player (their plugin broke, they're on a phone, the upload kept failing).
   const [filingFor, setFilingFor] = useState<number | null>(null);
   const [rowMsg, setRowMsg] = useState('');
@@ -236,7 +238,14 @@ export default function StartProofAdminPanel({
     }
   }
 
-  async function clear(proofId: number) {
+  async function clear(proofId: number, rsn: string) {
+    const ok = await confirm({
+      title: `Clear ${rsn}’s starting shot?`,
+      body: 'The screenshot is deleted for good and they’ll need to upload a fresh one.',
+      confirmLabel: 'Clear it',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusyId(proofId);
     try {
       await clanFetch(`/api/admin/events/${event.id}/start-proofs/${proofId}`, { method: 'DELETE' });
@@ -653,7 +662,7 @@ export default function StartProofAdminPanel({
                       <button
                         type="button"
                         disabled={busyId === r.proof.id}
-                        onClick={() => clear(r.proof!.id)}
+                        onClick={() => clear(r.proof!.id, r.rsn)}
                         title="Delete the shot so they upload a fresh one"
                         className="text-[11px] px-2 py-0.5 rounded border border-card-border text-text-muted hover:text-gold hover:border-gold/40 disabled:opacity-50"
                       >

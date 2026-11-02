@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 import { atLeast } from '@/lib/clanRoles';
 
 // Admin-only panel (Overview tab) for granting board-scoped jobs on THIS event: authoring its
@@ -44,6 +45,7 @@ export default function EventEditorsPanel({ eventId }: { eventId: number }) {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const { confirm } = useDialog();
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState('');
   // Which job the next grant is for. Defaults to authoring, which is what this panel was.
@@ -105,7 +107,14 @@ export default function EventEditorsPanel({ eventId }: { eventId: number }) {
     }
   }
 
-  async function remove(userId: number, role: BoardRole) {
+  async function remove(userId: number, role: BoardRole, name: string) {
+    const ok = await confirm({
+      title: `Remove ${name} as ${JOB[role].label.toLowerCase()}?`,
+      body: 'They lose that job on this board right away. You can add them back any time.',
+      confirmLabel: 'Remove',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusyId(userId);
     setError('');
     try {
@@ -162,7 +171,7 @@ export default function EventEditorsPanel({ eventId }: { eventId: number }) {
                       : JOB[e.boardRole].label.toLowerCase()}
                   </span>
                   <button
-                    onClick={() => remove(e.userId, e.boardRole)}
+                    onClick={() => remove(e.userId, e.boardRole, e.displayName)}
                     disabled={busyId === e.userId}
                     className="text-xs font-medium px-2.5 py-1 rounded-lg border border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors disabled:opacity-50 shrink-0"
                   >

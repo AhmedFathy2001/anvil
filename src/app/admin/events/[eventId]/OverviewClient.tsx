@@ -277,6 +277,7 @@ export default function OverviewClient({
           tiles={localTiles}
           teamNameById={teamNameById}
           onChange={() => void fetchSubmissions()}
+          allHref={`/admin/events/${event.id}/proofs`}
         />
       )}
 

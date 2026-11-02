@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { clanHref } from '@/lib/clanPath';
 import { requireClan } from '@/lib/clanContext';
 import { eventParticipants, events, submissions, teams, tiles } from '@/db/schema';
-import { and, eq, gt, inArray, isNotNull, isNull, or } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import type { Submission, Tile } from '@/lib/types';
@@ -38,6 +38,14 @@ export default async function AdminProofsPage() {
         or(isNull(events.endDate), gt(events.endDate, cutoff)),
       ),
     );
+
+  // Every board in the same window, flagged or not, for the "All proofs" feed — unflagged proofs
+  // count on their own and this is a moderator's only way to browse them.
+  const browse = await db
+    .select({ eventId: events.id, name: events.name })
+    .from(events)
+    .where(and(eq(events.clanId, clan.id), isNotNull(events.startDate), or(isNull(events.endDate), gt(events.endDate, cutoff))))
+    .orderBy(desc(events.startDate));
 
   const eventIds = [...new Set(flagged.map((r) => r.eventId))];
   const [tileRows, teamRows, players] = eventIds.length
@@ -78,7 +86,7 @@ export default async function AdminProofsPage() {
         Proofs the system wasn&apos;t sure about. They already count — say they look fine, or take them out and
         tell the team why.
       </p>
-      <ProofsClient boards={boards} teamNameById={teamNameById} />
+      <ProofsClient boards={boards} teamNameById={teamNameById} browse={browse} />
     </div>
   );
 }

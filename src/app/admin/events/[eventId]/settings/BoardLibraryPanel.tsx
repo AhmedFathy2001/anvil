@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import Input from '@/components/Input';
+import { useDialog } from '@/components/Confirm';
 import Textarea from '@/components/Textarea';
 import Select from '@/components/Select';
 import NumberInput from '@/components/NumberInput';
@@ -37,6 +38,7 @@ export default function BoardLibraryPanel({
   /** The library board this event was started from, if any. */
   source: { id: number; title: string; origin: 'anvil' | 'community' } | null;
 }) {
+  const { confirm } = useDialog();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState(eventName);
   const [description, setDescription] = useState('');
@@ -220,7 +222,15 @@ export default function BoardLibraryPanel({
                     )}
                     <button
                       disabled={busy}
-                      onClick={() => send(`/api/admin/library/boards/${b.id}`, { method: 'DELETE' }, 'Deleted.')}
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: `Delete “${b.title}” from the library?`,
+                          body: 'Other clans won’t be able to find or copy it any more. Boards they already copied stay theirs.',
+                          confirmLabel: 'Delete',
+                          tone: 'danger',
+                        });
+                        if (ok) await send(`/api/admin/library/boards/${b.id}`, { method: 'DELETE' }, 'Deleted.');
+                      }}
                       className="text-red-400 hover:text-red-300"
                     >
                       Delete

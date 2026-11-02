@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 import ClanPicker, { type PickedClan } from '@/components/ClanPicker';
 
 interface Invite {
@@ -66,6 +67,7 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
   const [rsn, setRsn] = useState('');
   const [lookup, setLookup] = useState<{ playerId: number; rsn: string; alreadyInvited: boolean } | null>(null);
   const [looked, setLooked] = useState(false);
+  const { confirm } = useDialog();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -183,7 +185,14 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
     }
   }
 
-  async function revoke(id: number) {
+  async function revoke(id: number, name: string) {
+    const ok = await confirm({
+      title: `Remove the invite for ${name}?`,
+      body: 'They won’t be able to see this board any more unless you invite them again.',
+      confirmLabel: 'Remove',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {
@@ -296,7 +305,7 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
                   {i.clanSlug && <span className="font-mono text-[11px] text-text-muted">c/{i.clanSlug}</span>}
                   <button
                     type="button"
-                    onClick={() => revoke(i.id)}
+                    onClick={() => revoke(i.id, i.clanName ?? i.playerName ?? 'them')}
                     disabled={busy}
                     aria-label={`Remove ${i.clanName ?? i.playerName ?? 'invite'}`}
                     className="text-text-muted transition-colors hover:text-accent-red disabled:opacity-50"

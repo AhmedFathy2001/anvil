@@ -5,6 +5,7 @@ import ClanCrest from '@/components/ClanCrest';
 import ClanPicker, { type PickedClan } from '@/components/ClanPicker';
 
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 import type { CohostRow } from '@/lib/coHost';
 import type { EventSettlement } from '@/lib/coHostSettlement';
 import Select from '@/components/Select';
@@ -66,6 +67,7 @@ export default function CoHostPanel({
   const [settlement, setSettlement] = useState(initialSettlement);
   const [customOpen, setCustomOpen] = useState<Record<number, boolean>>({});
   const [pickedClan, setPickedClan] = useState<PickedClan | null>(null);
+  const { confirm } = useDialog();
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedNote, setSavedNote] = useState(false);
@@ -125,7 +127,16 @@ export default function CoHostPanel({
     }
   }
 
-  async function end(id: number, name: string) {
+  async function end(id: number, name: string, accepted: boolean) {
+    const ok = await confirm({
+      title: accepted ? `Remove ${name} as co-host?` : `Withdraw the invite to ${name}?`,
+      body: accepted
+        ? 'Their admins lose access to this event. Their team is taken off only if nobody is on it yet. You can invite them again before the event starts.'
+        : 'They won’t be able to accept it any more. You can invite them again later.',
+      confirmLabel: accepted ? 'Remove' : 'Withdraw',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {
@@ -203,7 +214,7 @@ export default function CoHostPanel({
                       and unwinding it is a scoring decision, not a membership one. */}
                   <button
                     type="button"
-                    onClick={() => end(c.id, c.clanName)}
+                    onClick={() => end(c.id, c.clanName, c.status === 'accepted')}
                     disabled={busy}
                     className="shrink-0 rounded-lg border border-card-border px-2.5 py-1 text-[11.5px] text-text-muted transition-colors hover:border-accent-red/40 hover:text-accent-red disabled:opacity-50"
                   >
