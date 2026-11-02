@@ -7,6 +7,8 @@ import AnnouncementsDrawer from '@/app/profile/AnnouncementsDrawer';
 import type { MyClan } from '@/lib/myClans';
 import type { EmissionSettingsView } from '@/lib/emissionSettings';
 import DetectedAccountsClient from '@/app/profile/DetectedAccountsClient';
+import SupporterName from '@/components/SupporterName';
+import SupporterSection, { type SupporterView } from '@/components/SupporterSection';
 
 export interface PersonCharacter {
   id: number;
@@ -37,6 +39,7 @@ export default function PersonProfile({
   emission,
   suggestedRsn = '',
   unfinishedSetup = false,
+  supporter = null,
 }: {
   displayName: string;
   clans: MyClan[];
@@ -50,6 +53,8 @@ export default function PersonProfile({
   /** Personal webhooks + cross-clan announcement routing — person-level, so their home is here on
       the account, not inside any one clan's locker. Null when there's no character to route yet. */
   emission?: EmissionSettingsView | null;
+  /** Their Anvil Supporter subscription, if one is in force. Person-level, so it lives here. */
+  supporter?: SupporterView | null;
 }) {
   return (
     <div className="max-w-3xl mx-auto">
@@ -72,7 +77,9 @@ export default function PersonProfile({
       <div className="mb-8 flex items-center gap-3">
         <span className="w-1 h-8 bg-gold rounded-full" />
         <div>
-          <h1 className="text-3xl font-bold text-gold">{displayName}</h1>
+          <h1 className="text-3xl font-bold text-gold">
+            <SupporterName name={displayName} tier={supporter?.tier} />
+          </h1>
           <p className="text-sm text-text-muted">
             Your account across Anvil — your characters and your clans. Everything about a clan&rsquo;s
             boards lives on your profile in that clan, linked below.
@@ -228,6 +235,8 @@ export default function PersonProfile({
           <AnnouncementsDrawer initial={emission} />
         </section>
       )}
+
+      <SupporterSection supporter={supporter} />
 
       {/* Billing is a platform concern too — one account, one subscription, wherever you host. Only
           for someone who owns a clan: subscriptions are per hosted clan (see /portal), and a player

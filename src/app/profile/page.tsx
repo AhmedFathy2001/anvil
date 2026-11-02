@@ -27,6 +27,8 @@ import { alsoPlayedFromByAccount } from '@/lib/accountSightings';
 import SecurityDrawer from './SecurityDrawer';
 import { emissionSettingsView } from '@/lib/emissionSettings';
 import { atLeast } from '@/lib/clanRoles';
+import { supporterForUser } from '@/lib/supporter';
+import { supporterView } from '@/components/SupporterSection';
 import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
@@ -78,7 +80,7 @@ export default async function ProfilePage({
     // merge several clans into a picture true of nobody, show what IS true of the PERSON: the
     // characters they play, who they share, their clans — and the platform-level settings that route
     // between clans (webhooks + emission), which never belonged on any single clan's locker.
-    const [myClans, characters, person, emission, onboarding, detectedRows] = await Promise.all([
+    const [myClans, characters, person, emission, onboarding, detectedRows, supporter] = await Promise.all([
       clansOfPerson(session.playerId, session.userId),
       session.playerId == null
         ? Promise.resolve([])
@@ -105,6 +107,7 @@ export default async function ProfilePage({
         where: and(eq(detectedAccounts.userId, user.id), eq(detectedAccounts.status, 'pending')),
         orderBy: (d, { desc }) => [desc(d.lastSeenAt)],
       }),
+      supporterForUser(session.userId),
     ]);
     const ownedRsns = new Set(characters.map((a) => a.rsnNormalized));
     const ownedHashes = new Set(characters.map((a) => a.accountHash).filter(Boolean) as string[]);
@@ -123,14 +126,16 @@ export default async function ProfilePage({
         emission={emission}
         suggestedRsn={suggestedRsn}
         unfinishedSetup={onboarding.offer}
+        supporter={supporterView(supporter)}
       />
     );
   }
 
   const welcome = params.welcome === '1';
-  const [locker, clanName] = await Promise.all([
+  const [locker, clanName, supporterState] = await Promise.all([
     buildLocker(clan.id, session.playerId, session.userId, new Date(), params.account ?? null),
     getClanDisplayName(clan.id),
+    supporterForUser(session.userId),
   ]);
 
   // Quest points, combat achievements and diaries for the account they play most — the primary one,
@@ -247,6 +252,7 @@ export default async function ProfilePage({
 
       <PlayerCard
         displayName={user.displayName}
+        supporterTier={supporterState?.tier.id ?? null}
         discordUsername={user.discordUsername}
         avatar={avatar}
         role={session.role}

@@ -312,3 +312,22 @@ body {
 input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
 input[type='number']::-webkit-inner-spin-button,
 input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* Anvil Supporter name flair (components/SupporterName). Supporter is solid gold; Champion a gradient;
+   Patron the same gradient, moving. The motion stops for anyone who asked for less of it. */
+.supporter-name-supporter { color: var(--gold-light); }
+.supporter-name-champion,
+.supporter-name-patron {
+  background-image: linear-gradient(90deg, #ff9a5a, #e05ad0, #7a8cff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.supporter-name-patron {
+  background-image: linear-gradient(90deg, #ffd27a, #ff7ab8, #7ae0ff, #ffd27a);
+  background-size: 200% 100%;
+}
+@keyframes supporter-shift { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+@media (prefers-reduced-motion: no-preference) {
+  .supporter-name-patron { animation: supporter-shift 4s linear infinite; }
+}

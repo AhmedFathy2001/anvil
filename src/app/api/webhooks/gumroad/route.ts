@@ -6,6 +6,7 @@ import { clanAuditLog, clans } from '@/db/schema';
 import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, trialEndWithGumroad, parseWebhook, verifySeller, verifyWebhookSecret, TRIAL_DAYS } from '@/lib/gumroad';
 import { endMembership, logBilling } from '@/lib/billingLapse';
 import { PLANS, planForGumroadProduct, planForGumroadTier, planOf, type Plan } from '@/lib/plans';
+import { handleSupporterEvent, isSupporterEvent } from '@/lib/supporterBilling';
 
 // Form-encoded body, and crypto — Node runtime.
 export const runtime = 'nodejs';
@@ -157,6 +158,12 @@ export async function POST(req: NextRequest) {
 
   if (!verifySeller(ev.sellerId)) {
     return new Response('Invalid seller', { status: 401 });
+  }
+
+  // The personal Supporter subscription rides the same webhook but is about a person, not a clan.
+  if (isSupporterEvent(ev)) {
+    const result = await handleSupporterEvent(ev);
+    return Response.json(result.body, { status: result.status });
   }
 
   const clan = await clanForEvent(ev);
