@@ -1033,6 +1033,14 @@ export default function TileDetailModal({
                             oversized ping · check
                           </span>
                         )}
+                        {s.flaggedReason === 'over_action_max' && (
+                          <span
+                            title="Counted in full, but it is more than one game's (or one action's) worth for this counter without a screenshot. See the note for the claim."
+                            className="px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 font-medium"
+                          >
+                            bigger than one game&apos;s worth · check
+                          </span>
+                        )}
                         {(s.flaggedReason === 'proof_image_mismatch' || s.flaggedReason === 'captured_before_start' || s.flaggedReason === 'capture_clock_ahead') && (
                           <span
                             title={s.flaggedReason === 'proof_image_mismatch'

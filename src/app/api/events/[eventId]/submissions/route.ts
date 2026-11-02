@@ -9,7 +9,8 @@ import { verifyAdmin, verifyAdminOrModerator, verifyUser, verifyCaptain, verifyP
 import { atLeast } from '@/lib/clanRoles';
 import { resolveTeamManagement } from '@/lib/teamStaff';
 import { syncDropTileCompletion, countTileProgress, altTileProgress } from '@/lib/submissions';
-import { altGoalEligible, decodeAltTileId, goalForSlot, parseAltGoal, ALT_GOAL_KEY } from '@/lib/altGoal';
+import { altGoalEligible, capIndex, decodeAltTileId, goalForSlot, parseAltGoal, ALT_GOAL_KEY } from '@/lib/altGoal';
+import { decidePing, tilePingMax } from '@/lib/pingMax';
 import { countProgress, itemAlreadyCounted, memberProgress } from '@/lib/countProgress';
 import { itemCap, parseCountMode } from '@/lib/collectionSets';
 import { parseJsonArray } from '@/lib/tileKinds';
@@ -37,11 +38,8 @@ import crypto from 'crypto';
 // COUNTER_TARGETS confirmed:false) — it counts, staff spot-check it.
 const INFERRED_FLAGS = new Set(['inferred_duplicate_pet', 'inferred_duplicate_scroll', 'unverified_counter']);
 
-/** The most one image-less plugin ping may credit — far above a real 2.5s burst. */
-const MAX_PING_AMOUNT = 10;
 /** Kinds whose ping counts kills/laps/games one at a time. Gains and loot values are not counts. */
 const PING_CAPPED_KINDS = new Set(['kill', 'lap', 'pvp', 'deathless', 'lms']);
-const BIG_PING_FLAG = 'big_ping';
 
 export async function GET(
   request: Request,
@@ -383,23 +381,35 @@ export async function POST(
     flaggedReason = flaggedReason ?? captureFlag(claims, receivedAt, start);
   }
 
-  // COUNT-ONLY PINGS ARE SMALL. The plugin coalesces a ~2.5s burst into one image-less ping, so a real
-  // one carries a handful of kills at most; anything bigger needs its screenshot. Without this a single
-  // forged ping could claim the 10,000-kill ceiling and finish any kill tile in one request. Clamped,
-  // and flagged so staff can see the claim — not refused, because a refused ping is requeued by the
-  // plugin and would come straight back.
+  // COUNT-ONLY PINGS ARE SMALL (lib/pingMax). The plugin coalesces a ~2.5s burst into one image-less
+  // ping, so a real one carries a handful of kills at most; anything bigger needs its screenshot.
+  // Without this a single forged ping could claim the 10,000-kill ceiling and finish any kill tile in
+  // one request. Clamped to 10 and flagged so staff can see the claim — not refused, because a refused
+  // ping is requeued by the plugin and would come straight back.
+  //
+  // A tile whose targets step by more than 10 per real action (one game's energy, one sword's
+  // reputation) has that action as its ceiling instead, derived HERE from the tile's own targets —
+  // never from the client. Above it the ping still counts in full, flagged 'over_action_max'.
   // A timed clear is one run whatever amount the caller sent — Barracuda Trials rank tiles count
   // runs toward requiredAmount, so a stray amount must never stand in for several runs.
   let creditedAmount: number = tile.tileType === 'timed' && !isAlt ? 1 : amount || 1;
   let creditNote: string | null = note || null;
-  // The alternative's own counter is a kill-style count and is clamped exactly like one. Its CAP
-  // counters are not: one game's energy can legitimately exceed the clamp, and a cap only ever LOWERS
-  // what the alternative counts — an inflated cap credits nothing on its own.
-  const pingCapped = isAlt ? goalValue === ALT_GOAL_KEY : PING_CAPPED_KINDS.has(tile.tileType);
-  if (isPluginKillPing && !imageUrlValue && pingCapped && creditedAmount > MAX_PING_AMOUNT) {
-    creditNote = `${creditNote ? `${creditNote} ` : ''}[claimed ${creditedAmount} without a screenshot]`.slice(0, 500);
-    creditedAmount = MAX_PING_AMOUNT;
-    flaggedReason = flaggedReason ?? BIG_PING_FLAG;
+  // An either/or tile's alternative and its cap counters are kill-style counts too, under the same rule
+  // (their ceiling comes off the alternative's targets / that one cap counter).
+  const pingCapped = isAlt || PING_CAPPED_KINDS.has(tile.tileType);
+  if (isPluginKillPing && !imageUrlValue && pingCapped) {
+    const capAt = capIndex(goalValue);
+    const pingTargets: string[] = !isAlt
+      ? (tile.tileType === 'kill' || tile.tileType === 'lap' ? parseJsonArray<string>(tile.targetNpcs) : [])
+      : goalValue === ALT_GOAL_KEY
+        ? (altGoal?.targets ?? [])
+        : capAt != null && altGoal?.capBy?.[capAt] ? [altGoal.capBy[capAt]] : [];
+    const ping = decidePing(creditedAmount, tilePingMax(pingTargets));
+    if (ping.flag) {
+      creditNote = `${creditNote ? `${creditNote} ` : ''}[claimed ${creditedAmount} without a screenshot]`.slice(0, 500);
+      creditedAmount = ping.amount;
+      flaggedReason = flaggedReason ?? ping.flag;
+    }
   }
 
   // Per-item tracking validation

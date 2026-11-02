@@ -57,6 +57,7 @@ import crypto from 'crypto';
 import { playedCharacter } from '@/lib/pluginAccount';
 import { activeNow, panelSchedule, panelTiles, ACTIVE_WINDOW_MS, type WorkSighting } from '@/lib/pluginPanel';
 import { parseStamp } from '@/lib/dbTime';
+import { tilePingMax } from '@/lib/pingMax';
 import { altEntryLabel, altGoalEligible, altGoalUnitSingular, altProgress, altVirtualTileId, ALT_CAP_REQUIRED, ALT_GOAL_KEY, counterNoun, parseAltGoal, type GoalRow } from '@/lib/altGoal';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
@@ -773,6 +774,13 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
   // reaches — it only keeps counting). Released plugins credit them like any kill tile and submit to
   // the negative id, which the submissions route decodes back to the parent; `altOf`/`altRole`/`unit`
   // let a newer plugin fold them into the parent's row instead.
+  // Image-less ping ceiling (lib/pingMax): sent only for a tile whose targets step by more than 10 per
+  // real action. Absent = 10, so the plugin keeps today's behaviour (a bigger burst goes as a proof).
+  // The submissions route derives the same number itself; this is only so the plugin can ping.
+  const pingMaxField = (targets: string[]) => {
+    const pingMax = tilePingMax(targets);
+    return pingMax != null ? { pingMax } : {};
+  };
   const altTiles = trackedTiles
     .map((t) => ({ t, goal: altGoalEligible(t) ? parseAltGoal(t.altGoal) : null }))
     .filter((x): x is { t: typeof x.t; goal: NonNullable<typeof x.goal> } => x.goal != null && !completedTileIdSet.has(x.t.id));
@@ -832,6 +840,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
         currentAmount: own(goalId, progress.current, progress.byMember),
         unit: altGoalUnitSingular(goal),
         altRole: 'goal' as const,
+        ...pingMaxField(goal.targets),
       },
       ...(goal.capBy ?? []).map((cap, i) => {
         const id = altVirtualTileId(t.id, i + 1);
@@ -845,6 +854,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
           currentAmount: own(id, totals.team, totals.byMember),
           unit: counterNoun(cap),
           altRole: 'cap' as const,
+          ...pingMaxField([cap]),
         };
       }),
     ];
@@ -1083,6 +1093,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
           // them server-side). Absent/'per-member' + 0 = nothing to report, as before.
           coopCredit: t.coopCredit === 'per-kill' ? 'per-kill' : 'per-member',
           coopMinMembers: t.coopMinMembers ?? 0,
+          ...pingMaxField(targetNpcs),
         };
       }),
       // Either/or tiles' virtual entries (see altKills above).

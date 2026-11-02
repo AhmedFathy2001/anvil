@@ -264,7 +264,11 @@ export const AGILITY_COURSES: { name: string; label: string; level: number }[] =
 // `confirmed: false` marks a signal nobody has checked in game yet: it still counts, but the plugin
 // flags each credit 'unverified_counter' (staff get a "check" badge) and the chip says "beta".
 // Absent = confirmed. The game-value counters (lib/gameCounters) are appended at the end.
-export const COUNTER_TARGETS: { name: string; group: string; note: string; confirmed?: boolean }[] = [
+//
+// `actionMax` = the most ONE real action can credit (one game's energy, one sword's reputation).
+// Absent = 1 per line. Only matters above 10: a tile whose targets can step by more than that takes
+// image-less plugin pings up to the largest of them, and flags anything bigger (lib/pingMax).
+export const COUNTER_TARGETS: { name: string; group: string; note: string; confirmed?: boolean; actionMax?: number }[] = [
   // Standard "Your <X> ... count is: N" lines the plugin has always parsed — they just aren't
   // findable, because the hiscores don't carry them and the monster search doesn't know them.
   { name: 'Herbiboar', group: 'Skilling', note: 'Harvest counter — "Your Herbiboar harvest count is: N"' },
@@ -287,10 +291,13 @@ export const COUNTER_TARGETS: { name: string; group: string; note: string; confi
   // energy line is the end-of-game reward points; a tile listing several of these counts the largest
   // once per game, never the sum.
   { name: 'Guardians of the Rift searches', group: 'Minigames', note: 'Reward guardian searches — one per "You found some loot:" inside GOTR' },
-  { name: 'GOTR elemental energy', group: 'Minigames', note: 'Elemental energy attuned at the end of each game (reward points)' },
-  { name: 'GOTR catalytic energy', group: 'Minigames', note: 'Catalytic energy attuned at the end of each game (reward points)' },
-  { name: 'GOTR total energy', group: 'Minigames', note: 'Elemental + catalytic energy attuned per game' },
-  { name: 'Vale research points', group: 'Skilling', note: 'Vale Totems offerings searched — 1 point each, 5 for a "five times" search' },
+  // Per game (wiki, Guardians of the Rift → Rewards): 100 energy = 1 point, energy capped at 1,000 per
+  // type and 1,200 total (1,320 with yew logs in the abyssal lantern), leftover energy a chance at one
+  // more point. So ≤ 10 of a type and ≤ 14 together (660/660 rounding up both ways).
+  { name: 'GOTR elemental energy', group: 'Minigames', note: 'Elemental energy attuned at the end of each game (reward points)', actionMax: 10 },
+  { name: 'GOTR catalytic energy', group: 'Minigames', note: 'Catalytic energy attuned at the end of each game (reward points)', actionMax: 10 },
+  { name: 'GOTR total energy', group: 'Minigames', note: 'Elemental + catalytic energy attuned per game', actionMax: 14 },
+  { name: 'Vale research points', group: 'Skilling', note: 'Vale Totems offerings searched — 1 point each, 5 for a "five times" search', actionMax: 5 },
   { name: 'Sunstone golems crafted', group: 'Skilling', note: 'One per golem completed ("As you complete the golem it leaves a gift…")' },
   // Chests are credited off the LOOT EVENT (one event per open), NOT off the game's "You have
   // opened the crystal chest N times." line — that one is a query response (it has a "never

@@ -117,6 +117,15 @@ export function pluginGameCounters(): PluginGameCounter[] {
 }
 
 /** Kill-picker chips for the catalog (merged into COUNTER_TARGETS). */
-export function gameCounterTargets(): { name: string; group: string; note: string; confirmed: boolean }[] {
-  return GAME_COUNTERS.map((c) => ({ name: c.name, group: c.group, note: c.note, confirmed: c.confirmed }));
+/**
+ * The most ONE real action can credit off this counter — what the plugin credits on a single tick.
+ * `changes` counters count 1 per tick; otherwise each source's jump is capped at maxDelta (plugin
+ * default 1000) and the sources are summed. Feeds a tile's image-less ping ceiling (lib/pingMax).
+ */
+export function gameCounterActionMax(c: GameCounter): number {
+  return c.changes ? 1 : (c.maxDelta ?? 1000) * c.sources.length;
+}
+
+export function gameCounterTargets(): { name: string; group: string; note: string; confirmed: boolean; actionMax: number }[] {
+  return GAME_COUNTERS.map((c) => ({ name: c.name, group: c.group, note: c.note, confirmed: c.confirmed, actionMax: gameCounterActionMax(c) }));
 }

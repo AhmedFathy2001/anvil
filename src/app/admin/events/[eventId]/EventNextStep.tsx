@@ -118,6 +118,7 @@ const FLAG_TEXT: Record<string, string> = {
   inferred_duplicate_scroll: 'A champion scroll duplicate the plugin worked out from context',
   unverified_counter: 'Auto-counted from a new in-game signal — spot-check it',
   big_ping: 'The plugin claimed a lot at once without a screenshot, so only 10 were counted',
+  over_action_max: "Counted in full, but bigger than one game's worth for this counter, with no screenshot",
   proof_image_mismatch: "Sent by the plugin, but its screenshot wasn't uploaded by that player's plugin",
   captured_before_start: "The player's PC clock says the screenshot was taken before the event started",
   capture_clock_ahead: "The player's PC clock was set ahead of the server when the screenshot was taken",
