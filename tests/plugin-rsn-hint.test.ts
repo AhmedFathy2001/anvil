@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('plugin-rsn-hint');
 let db: Awaited<ReturnType<typeof loadDb>>['db'];
@@ -34,7 +35,7 @@ before(async () => {
   A = await import('../src/lib/auth.ts');
   const clanId = (await db.insert(s.clans).values({ slug: 'hint', name: 'Hint Clan' }).returning())[0].id;
   const person = (await db.insert(s.players).values({ displayName: 'Owner' }).returning())[0].id;
-  await db.insert(s.users).values({ displayName: 'Owner', discordId: 'd-hint', pluginToken: 'tok-hint', playerId: person });
+  await db.insert(s.users).values({ displayName: 'Owner', discordId: 'd-hint', pluginTokenHash: tokenHash('tok-hint'), playerId: person });
   const now = new Date().toISOString();
 
   // Theirs, claimed but not yet verified or hash-anchored — exactly what a played X-RSN would upgrade.

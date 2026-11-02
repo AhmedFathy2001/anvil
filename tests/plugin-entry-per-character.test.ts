@@ -8,6 +8,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('entrypercharacter');
 let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
@@ -30,7 +31,7 @@ before(async () => {
   A = await import('../src/lib/auth.ts');
   const clanId = (await db.insert(s.clans).values({ slug: 'twoacc', name: 'Two Accounts' }).returning())[0].id;
   const person = (await db.insert(s.players).values({ displayName: 'Owner' }).returning())[0].id;
-  await db.insert(s.users).values({ displayName: 'Owner', discordId: 'd-two', pluginToken: 'tok-two', playerId: person });
+  await db.insert(s.users).values({ displayName: 'Owner', discordId: 'd-two', pluginTokenHash: tokenHash('tok-two'), playerId: person });
   const now = new Date().toISOString();
   const [main] = await db
     .insert(s.accounts)

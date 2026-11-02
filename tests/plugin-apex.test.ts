@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('plugin-apex');
 const TOKEN = 'apex-test-token';
@@ -79,7 +80,7 @@ before(async () => {
   const [person] = await db.insert(s.players).values({ displayName: RSN }).returning();
   await db
     .insert(s.users)
-    .values({ displayName: RSN, discordId: 'disc-apex', pluginToken: TOKEN, playerId: person.id });
+    .values({ displayName: RSN, discordId: 'disc-apex', pluginTokenHash: tokenHash(TOKEN), playerId: person.id });
 
   const [acct] = await db
     .insert(s.accounts)
@@ -214,7 +215,7 @@ async function restoreSeats() {
 
 async function grantStaff(clanId: number, role: string) {
   const { db, schema: s } = await loadDb();
-  const user = await db.query.users.findFirst({ where: eq(s.users.pluginToken, TOKEN) });
+  const user = await db.query.users.findFirst({ where: eq(s.users.pluginTokenHash, tokenHash(TOKEN)) });
   await db.insert(s.clanStaff).values({ clanId, userId: user!.id, role });
 }
 

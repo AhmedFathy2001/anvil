@@ -34,6 +34,7 @@
 // against the one login they now share.
 
 import { readFileSync } from 'fs';
+import { createHash } from 'crypto';
 import path from 'path';
 import { createRequire } from 'module';
 import pg from 'pg';
@@ -272,7 +273,7 @@ async function importUsers(client) {
 
   for (const u of rows) {
     if (u.discord_id) {
-      const { rows: found } = await client.query('SELECT id, plugin_token FROM users WHERE discord_id = $1', [
+      const { rows: found } = await client.query('SELECT id, plugin_token_hash FROM users WHERE discord_id = $1', [
         u.discord_id,
       ]);
       if (found.length) {
@@ -285,11 +286,13 @@ async function importUsers(client) {
         // it is kept working only so nobody's client stops authenticating at the cutover. Both
         // resolve to this one person; the extras are meant to be retired once their client has been
         // handed the canonical one.
-        if (u.plugin_token && u.plugin_token !== found[0].plugin_token) {
+        // The platform keeps tokens only as hashes (drizzle/0138, 0166), so compare and park by hash.
+        const srcHash = u.plugin_token ? createHash('sha256').update(u.plugin_token, 'utf8').digest('hex') : null;
+        if (srcHash && srcHash !== found[0].plugin_token_hash) {
           await client.query(
-            `INSERT INTO plugin_links (user_id, token) VALUES ($1, $2)
-             ON CONFLICT (token) DO NOTHING`,
-            [found[0].id, u.plugin_token],
+            `INSERT INTO plugin_links (user_id, token_hash) VALUES ($1, $2)
+             ON CONFLICT (token_hash) DO NOTHING`,
+            [found[0].id, srcHash],
           );
           parkedTokens++;
         }
@@ -611,11 +614,11 @@ async function verify(client, clanId) {
   if (srcTokens.length) {
     const { rows } = await client.query(
       `SELECT count(*)::int AS n FROM (
-         SELECT plugin_token AS t FROM users WHERE plugin_token = ANY($1)
+         SELECT plugin_token_hash AS t FROM users WHERE plugin_token_hash = ANY($1)
          UNION
-         SELECT token FROM plugin_links WHERE token = ANY($1) AND revoked_at IS NULL
+         SELECT token_hash FROM plugin_links WHERE token_hash = ANY($1) AND revoked_at IS NULL
        ) k`,
-      [srcTokens],
+      [srcTokens.map((t) => createHash('sha256').update(t, 'utf8').digest('hex'))],
     );
     if (rows[0].n !== srcTokens.length) {
       problems.push(`plugin tokens: ${rows[0].n} of ${srcTokens.length} survived`);
@@ -775,6 +778,15 @@ try {
 
   // Reunite any characters this or an earlier import split across people (same Discord id).
   await reconcileIdentity(client);
+
+  // Tokens are kept only as hashes on the platform (drizzle/0138, 0166): hash what was copied in,
+  // then erase the plain values. verify() below compares by hash.
+  await client.query(`UPDATE users SET plugin_token_hash = encode(sha256(convert_to(plugin_token, 'UTF8')), 'hex')
+                       WHERE plugin_token IS NOT NULL AND plugin_token_hash IS NULL`);
+  await client.query(`UPDATE plugin_links SET token_hash = encode(sha256(convert_to(token, 'UTF8')), 'hex')
+                       WHERE token IS NOT NULL AND token_hash IS NULL`);
+  await client.query(`UPDATE users SET plugin_token = NULL WHERE plugin_token IS NOT NULL`);
+  await client.query(`UPDATE plugin_links SET token = NULL WHERE token IS NOT NULL`);
 
   const problems = await verify(client, clanId);
 

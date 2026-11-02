@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
-import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { pluginDeviceCodes, users } from '@/db/schema';
 import { hashDeviceCode } from '@/lib/pluginDeviceAuth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { track } from '@/lib/analytics';
-import { pluginTokenColumns } from '@/lib/auth';
+import { mintDeviceToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,13 +69,10 @@ export async function POST(request: Request) {
         await db.update(pluginDeviceCodes).set({ status: 'denied' }).where(eq(pluginDeviceCodes.id, row.id));
         return NextResponse.json({ status: 'denied' });
       }
-      // Same lazy mint as the profile page — an existing token is reused, never rotated, so signing
-      // in from a second client doesn't invalidate the first.
-      let token = user.pluginToken;
-      if (!token) {
-        token = crypto.randomUUID();
-        await db.update(users).set(pluginTokenColumns(token)).where(eq(users.id, user.id));
-      }
+      // A token of its own for this client. Tokens are stored only as hashes, so an existing one
+      // cannot be handed out again — and per-client tokens are better anyway: signing in here signs
+      // nobody else out, and each client can be revoked alone.
+      const token = await mintDeviceToken(user.id);
       await db.update(pluginDeviceCodes).set({ status: 'redeemed' }).where(eq(pluginDeviceCodes.id, row.id));
       track('plugin.linked', { userId: user.id, props: { via: 'device' } });
       return NextResponse.json({ status: 'complete', token });

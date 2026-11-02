@@ -21,6 +21,7 @@ import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('plugin-staff-authority');
 
@@ -46,7 +47,7 @@ async function person(
     .values({
       displayName: handle,
       discordId: `disc-${handle}`,
-      pluginToken: token,
+      pluginTokenHash: tokenHash(token),
       playerId: p.id,
       ...(opts.role ? { role: opts.role } : {}),
       ...(opts.platformRole ? { platformRole: opts.platformRole } : {}),
@@ -217,14 +218,14 @@ test('no token, an unknown token, and a malformed header all name nobody', async
 
 test('a legacy link token still names its person, and a revoked one names nobody', async () => {
   const p = await person('legacyinstall');
-  await db.insert(s.pluginLinks).values({ userId: p.userId, token: 'legacy-token' });
+  await db.insert(s.pluginLinks).values({ userId: p.userId, tokenHash: tokenHash('legacy-token') });
   assert.deepEqual(await A.pluginTokenPerson(req('legacy-token')), { userId: p.userId });
 
   const { eq } = await import('drizzle-orm');
   await db
     .update(s.pluginLinks)
     .set({ revokedAt: new Date().toISOString() })
-    .where(eq(s.pluginLinks.token, 'legacy-token'));
+    .where(eq(s.pluginLinks.tokenHash, tokenHash('legacy-token')));
   assert.equal(await A.pluginTokenPerson(req('legacy-token')), null);
 });
 
@@ -232,7 +233,7 @@ test('a legacy token carries no authority of its own either', async () => {
   // It used to be accepted only for a global admin, so the token itself read as an admin credential.
   // Now it identifies somebody, and that somebody has to hold a grant like anyone else.
   const p = await person('legacyinstall', { role: 'admin' });
-  await db.insert(s.pluginLinks).values({ userId: p.userId, token: 'legacy-token' });
+  await db.insert(s.pluginLinks).values({ userId: p.userId, tokenHash: tokenHash('legacy-token') });
 
   const who = await A.pluginTokenPerson(req('legacy-token'));
   assert.ok(who);

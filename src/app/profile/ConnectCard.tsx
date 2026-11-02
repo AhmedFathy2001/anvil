@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ClanLink from '@/components/ClanLink';
+import NewPluginToken from '@/components/NewPluginToken';
 
 // The one job of a member's first visit: get the plugin talking to us.
 //
@@ -46,11 +47,6 @@ export default function ConnectCard({
   onVerifyByXp,
 }: Props) {
   const router = useRouter();
-  const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [revealed, setRevealed] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState('');
   const [heard, setHeard] = useState(false);
   // Seeded from what the server just rendered, so a ping that lands between paint and the first
   // poll still counts as a change rather than becoming the baseline it's compared against.
@@ -60,22 +56,6 @@ export default function ConnectCard({
     verified: verifiedCount,
     detected: detectedCount,
   });
-
-  useEffect(() => {
-    let alive = true;
-    fetch('/api/profile/plugin-token')
-      .then((r) => r.json())
-      .then((d) => {
-        if (!alive) return;
-        if (d.token) setToken(d.token);
-        else setError(d.error || 'Could not load your token');
-      })
-      .catch(() => alive && setError('Could not load your token'))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   // A server refresh updates these props without necessarily remounting this client component. Re-arm
   // the beacon from that new truth so detecting the account is not the last update we ever observe.
@@ -145,18 +125,6 @@ export default function ConnectCard({
       window.removeEventListener('focus', pollWhenVisible);
     };
   }, [heard, router]);
-
-  const copy = useCallback(async () => {
-    if (!token) return;
-    setRevealed(true);
-    try {
-      await navigator.clipboard.writeText(token);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setError('Copy failed — reveal it and copy manually');
-    }
-  }, [token]);
 
   const accountSeen = linkedCount > 0 || detectedCount > 0;
   const tokenDone = connected || verifiedCount > 0 || accountSeen;
@@ -254,37 +222,12 @@ export default function ConnectCard({
           <div>
             <div className="font-semibold text-foreground/85">Plugin sign-in not working?</div>
             <p className="mt-0.5">
-              Copy your token, then click <b className="text-foreground">Paste a token instead</b> under the sign-in
-              button in the Anvil panel. You only paste it once.
+              Make a token, copy it, then click <b className="text-foreground">Paste a token instead</b> under the
+              sign-in button in the Anvil panel. You only paste it once.
             </p>
-            <div className="flex flex-wrap gap-2 mt-2">
-              <code
-                onClick={() => setRevealed(true)}
-                title={revealed ? undefined : 'Click to reveal'}
-                className={`flex-1 min-w-[220px] px-3 py-2.5 bg-brown-dark border border-card-border rounded-lg text-sm font-mono truncate ${
-                  revealed ? 'text-foreground' : 'text-text-muted select-none cursor-pointer'
-                }`}
-                style={revealed ? undefined : { filter: 'blur(5px)' }}
-              >
-                {loading ? 'loading…' : token ?? '—'}
-              </code>
-              <button
-                type="button"
-                onClick={() => setRevealed((r) => !r)}
-                className="px-3 py-2.5 text-sm font-semibold border border-card-border rounded-lg hover:border-gold/40 transition-colors"
-              >
-                {revealed ? 'Hide' : 'Reveal'}
-              </button>
-              <button
-                type="button"
-                onClick={copy}
-                disabled={!token}
-                className="px-4 py-2.5 text-sm font-semibold border border-gold/40 text-gold hover:bg-gold/10 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {copied ? 'Copied' : 'Copy token'}
-              </button>
+            <div className="mt-2">
+              <NewPluginToken />
             </div>
-            {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
           </div>
           {!onVerifyByXp && (
             <div>

@@ -8,6 +8,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('clan-event-modules');
 
@@ -39,7 +40,7 @@ before(async () => {
   otherClan = (await db.insert(s.clans).values({ slug: 'others', name: 'Others' }).returning())[0].id;
   for (let i = 0; i < 4; i++) {
     const [p] = await db.insert(s.players).values({ displayName: `P${i}` }).returning();
-    const [u] = await db.insert(s.users).values({ displayName: `User ${i}`, discordId: `cem-${i}`, pluginToken: `cem-token-${i}`, playerId: p.id }).returning();
+    const [u] = await db.insert(s.users).values({ displayName: `User ${i}`, discordId: `cem-${i}`, pluginTokenHash: tokenHash(`cem-token-${i}`), playerId: p.id }).returning();
     const [a] = await db.insert(s.accounts).values({ playerId: p.id, rsn: `Massgoer ${i}`, rsnNormalized: `massgoer ${i}`, shared: false, claimedAt: new Date().toISOString() }).returning();
     await db.insert(s.clanMemberships).values({ clanId, accountId: a.id, kind: 'member' });
     people.push({ userId: u.id, playerId: p.id, displayName: `User ${i}` });

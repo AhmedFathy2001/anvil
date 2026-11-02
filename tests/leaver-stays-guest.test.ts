@@ -19,6 +19,7 @@ import assert from 'node:assert/strict';
 import { and, eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('leaver-stays-guest');
 
@@ -98,7 +99,7 @@ before(async () => {
   const [person] = await db.insert(s.players).values({ displayName: 'tolleybt' }).returning();
   await db
     .insert(s.users)
-    .values({ displayName: 'tolleybt', discordId: 'disc-leaver', pluginToken: TOKEN, playerId: person.id })
+    .values({ displayName: 'tolleybt', discordId: 'disc-leaver', pluginTokenHash: tokenHash(TOKEN), playerId: person.id })
     .returning();
 
   // The case from production: a member the roster dropped months ago, still played every day.
@@ -114,7 +115,7 @@ before(async () => {
   const [stranger] = await db.insert(s.players).values({ displayName: 'stranger' }).returning();
   await db
     .insert(s.users)
-    .values({ displayName: 'stranger', discordId: 'disc-stranger', pluginToken: 'token-stranger', playerId: stranger.id })
+    .values({ displayName: 'stranger', discordId: 'disc-stranger', pluginTokenHash: tokenHash('token-stranger'), playerId: stranger.id })
     .returning();
   await character(stranger.id, 'FASCIST', { clan: clanId, kind: 'member', left: true });
 });
@@ -169,7 +170,7 @@ test('…and gets a guest seat through the guest door when the clan is open', as
 });
 
 test('in a clan where the person is only a guest, a play never seats another character', async () => {
-  const [me] = await db.select().from(s.users).where(eq(s.users.pluginToken, TOKEN));
+  const [me] = await db.select().from(s.users).where(eq(s.users.pluginTokenHash, tokenHash(TOKEN)));
   await db.update(s.clans).set({ guestPolicy: 'open' }).where(eq(s.clans.id, otherClanId));
   await character(me.playerId!, 'VISITOR', { clan: otherClanId, kind: 'guest' });
   await character(me.playerId!, 'SECONDALT');
@@ -181,7 +182,7 @@ test('a departed seat is not revived for somebody banned from the clan', async (
   const [banned] = await db.insert(s.players).values({ displayName: 'banned' }).returning();
   await db
     .insert(s.users)
-    .values({ displayName: 'banned', discordId: 'disc-banned', pluginToken: 'token-banned', playerId: banned.id });
+    .values({ displayName: 'banned', discordId: 'disc-banned', pluginTokenHash: tokenHash('token-banned'), playerId: banned.id });
   await character(banned.id, 'BARRED', { clan: clanId, kind: 'member', left: true });
   await db.insert(s.clanBans).values({ clanId, playerId: banned.id, reason: 'test' });
 
