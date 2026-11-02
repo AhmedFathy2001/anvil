@@ -9,6 +9,17 @@ import { findOrCreateAnvilWebhook } from '@/lib/discord-webhooks';
 import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
 import { DISCORD_FEEDS, FEED_KEYS, FEEDS_OFF_KEY, GAME_CATCH_ALL, SITE_CATCH_ALL, feedById, parseFeedsOff } from '@/lib/discordFeeds';
 import { getSetting, getSettingMap, setSetting } from '@/lib/settings';
+import {
+  WORLD_MODES_OFF_KEY,
+  WORLD_MODES_SPLIT_KEY,
+  isModeKey,
+  modeFeedId,
+  modeKindsOffKey,
+  modeKeyFromWebhookKey,
+  modeWebhookKey,
+  parseStringList,
+} from '@/lib/worldModes';
+import { clanModeRows, splitIsOn } from '@/lib/worldModeStore';
 
 /**
  * "What goes where" on Admin → Discord (lib/discordFeeds): every feed with the channel it posts to
@@ -40,14 +51,29 @@ async function webhookChannelId(url: string): Promise<string | null> {
 
 const CATCH_ALLS = [SITE_CATCH_ALL, GAME_CATCH_ALL];
 
+/** The in-game kinds a game mode can switch off one by one: the game tab's feeds. */
+const MODE_KINDS = DISCORD_FEEDS.filter((f) => f.tab === 'game').map((f) => ({ id: f.id, label: f.label }));
+const MODE_KIND_IDS = new Set(MODE_KINDS.map((k) => k.id));
+
 async function view(clanId: number) {
+  const modeRows = await clanModeRows(clanId);
+  const modeHookKeys = modeRows.map((m) => modeWebhookKey(m.key));
+  const modeKindKeys = modeRows.map((m) => modeKindsOffKey(m.key));
+  const allKeys = [...FEED_KEYS, ...modeHookKeys];
   const [map, channels] = await Promise.all([
-    getSettingMap(clanId, [...FEED_KEYS, FEEDS_OFF_KEY, 'discord_cohost_posts_enabled']),
+    getSettingMap(clanId, [
+      ...allKeys,
+      ...modeKindKeys,
+      FEEDS_OFF_KEY,
+      'discord_cohost_posts_enabled',
+      WORLD_MODES_SPLIT_KEY,
+      WORLD_MODES_OFF_KEY,
+    ]),
     listBotChannels(clanId).catch(() => ({ enabled: false, channels: [] })),
   ]);
   const keys: Record<string, { set: boolean; channelId: string | null }> = {};
   await Promise.all(
-    FEED_KEYS.map(async (key) => {
+    allKeys.map(async (key) => {
       const first = parseWebhookUrls(map.get(key))[0];
       keys[key] = { set: !!first, channelId: first ? await webhookChannelId(first) : null };
     }),
@@ -55,7 +81,23 @@ async function view(clanId: number) {
   const off = [...parseFeedsOff(map.get(FEEDS_OFF_KEY))];
   const cohost = map.get('discord_cohost_posts_enabled')?.trim();
   if (cohost === 'false' || cohost === '0') off.push('cohost');
+  const modesOff = new Set(parseStringList(map.get(WORLD_MODES_OFF_KEY)));
+  // Leagues switched off on the old row meant "keep them in the normal channels": its own channel
+  // is ignored until the row is switched on again, so the page shows it that way.
+  const legacyLeaguesOff = off.includes('leagues');
   return {
+    modes: {
+      split: splitIsOn(map.get(WORLD_MODES_SPLIT_KEY)),
+      kinds: MODE_KINDS,
+      rows: modeRows.map((m) => ({
+        ...m,
+        id: modeFeedId(m.key),
+        hookKey: modeWebhookKey(m.key),
+        off: modesOff.has(m.key),
+        ownChannelIgnored: m.key === 'leagues' && legacyLeaguesOff,
+        kindsOff: parseStringList(map.get(modeKindsOffKey(m.key))).filter((k) => MODE_KIND_IDS.has(k)),
+      })),
+    },
     feeds: DISCORD_FEEDS,
     catchAlls: { site: SITE_CATCH_ALL, game: GAME_CATCH_ALL },
     keys,
@@ -72,6 +114,9 @@ export async function GET() {
 
 /**
  * One change at a time:
+ *   { modesSplit: boolean }                 the Game modes master switch
+ *   { mode, off: boolean }                  switch one game mode's posts on or off
+ *   { mode, kindsOff: string[] }            the kinds of post a game mode drops
  *   { feed, off: boolean }                  switch a feed on or off
  *   { key, channelId }                      point a feed's (or a catch-all's) setting at a channel
  *   { key, webhookUrl }                     … or at a pasted webhook
@@ -82,6 +127,36 @@ export async function PUT(request: Request) {
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   const clan = await requireClan();
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+
+  if (typeof body.modesSplit === 'boolean') {
+    await setSetting(clan.id, WORLD_MODES_SPLIT_KEY, body.modesSplit ? 'on' : 'off');
+    return NextResponse.json(await view(clan.id));
+  }
+
+  if (body.mode !== undefined) {
+    const modeKey = body.mode;
+    if (!isModeKey(modeKey) || !(await clanModeRows(clan.id)).some((m) => m.key === modeKey)) {
+      return NextResponse.json({ error: 'Unknown game mode.' }, { status: 400 });
+    }
+    if (typeof body.off === 'boolean') {
+      const off = new Set(parseStringList(await getSetting(clan.id, WORLD_MODES_OFF_KEY)));
+      if (body.off) off.add(modeKey);
+      else off.delete(modeKey);
+      await setSetting(clan.id, WORLD_MODES_OFF_KEY, JSON.stringify([...off]));
+      // Switching Leagues on here also clears the old row's "off", which kept its channel unused.
+      if (!body.off && modeKey === 'leagues') {
+        const feedsOff = parseFeedsOff(await getSetting(clan.id, FEEDS_OFF_KEY));
+        if (feedsOff.delete('leagues')) await setSetting(clan.id, FEEDS_OFF_KEY, JSON.stringify([...feedsOff]));
+      }
+      return NextResponse.json(await view(clan.id));
+    }
+    if (Array.isArray(body.kindsOff)) {
+      const kinds = [...new Set(body.kindsOff.filter((k): k is string => typeof k === 'string' && MODE_KIND_IDS.has(k)))];
+      await setSetting(clan.id, modeKindsOffKey(modeKey), JSON.stringify(kinds));
+      return NextResponse.json(await view(clan.id));
+    }
+    return NextResponse.json({ error: 'Nothing to change.' }, { status: 400 });
+  }
 
   if (typeof body.feed === 'string' && typeof body.off === 'boolean') {
     const feed = feedById(body.feed);
@@ -98,7 +173,11 @@ export async function PUT(request: Request) {
   }
 
   const key = typeof body.key === 'string' ? body.key : '';
-  const allowed = CATCH_ALLS.includes(key) || DISCORD_FEEDS.some((f) => f.key === key);
+  const modeKey = modeKeyFromWebhookKey(key);
+  const allowed =
+    CATCH_ALLS.includes(key) ||
+    DISCORD_FEEDS.some((f) => f.key === key) ||
+    (modeKey !== null && (await clanModeRows(clan.id)).some((m) => m.key === modeKey));
   if (!allowed) return NextResponse.json({ error: 'Unknown channel setting.' }, { status: 400 });
 
   if (body.clear === true) {
