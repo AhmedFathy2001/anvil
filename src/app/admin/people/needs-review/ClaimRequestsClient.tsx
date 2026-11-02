@@ -14,7 +14,7 @@ import AnvilReportStatus from '../AnvilReportStatus';
  * These appear because the plugin refused to auto-claim an established member on a public RSN (the
  * takeover fix). A request names a Discord identity and the roster member it wants; the mod's job is
  * the one a machine cannot do — recognise the person. Vouching (lib/claimRequests vouchForClaim)
- * links it here and now when the character has only ever been on this clan's roster (and the claim is
+ * links it here and now when the clan is verified and the character has only ever been on this clan's roster (and the claim is
  * not the vouching admin's own), and otherwise sends it to Anvil.
  * Reject leaves the member to prove it themselves by XP.
  *

@@ -63,12 +63,12 @@ after(async () => {
 });
 
 /** An unclaimed member of clan A (optionally also seated in clan B) with a pending claim request. */
-async function claimSetup(opts: { alsoInB?: boolean } = {}) {
+async function claimSetup(opts: { alsoInB?: boolean; clan?: number } = {}) {
   n++;
   const rsn = `Claimed ${n}`;
   const [ghost] = await db.insert(s.players).values({ displayName: rsn }).returning();
   const [acct] = await db.insert(s.accounts).values({ playerId: ghost.id, rsn, rsnNormalized: rsn.toLowerCase() }).returning();
-  await db.insert(s.clanMemberships).values({ clanId: clanA, accountId: acct.id, kind: 'member', source: 'roster' });
+  await db.insert(s.clanMemberships).values({ clanId: opts.clan ?? clanA, accountId: acct.id, kind: 'member', source: 'roster' });
   if (opts.alsoInB) await db.insert(s.clanMemberships).values({ clanId: clanB, accountId: acct.id, kind: 'guest', source: 'roster' });
   const [person] = await db.insert(s.players).values({ displayName: `Requester ${n}` }).returning();
   const [login] = await db.insert(s.users).values({ playerId: person.id, displayName: `Requester ${n}`, discordId: `req-${n}` }).returning();
@@ -135,6 +135,26 @@ test('B: a character also seated in another clan is not the clan’s alone — a
   assert.equal((await account(x.accountId)).claimedAt, null, 'not linked');
   const r = await report(res.ok && res.outcome === 'sent' ? res.reportId : 0);
   assert.equal(r.status, 'open');
+});
+
+test('B: an unverified clan’s admin cannot link directly, even a single-clan character — it goes to Anvil', async () => {
+  const x = await claimSetup({ clan: clanT });
+  assert.equal(await C.characterOnlyInClan(x.accountId, clanT), true);
+  const res = await C.vouchForClaim(clanT, x.requestId, { userId: adminUser, role: 'admin' });
+  assert.equal(res.ok && res.outcome, 'sent');
+  assert.match(res.ok && res.outcome === 'sent' ? res.why ?? '' : '', /hasn't been verified yet \(sync your member list from the plugin\)/);
+  assert.equal((await account(x.accountId)).claimedAt, null, 'not linked');
+  assert.equal((await report(res.ok && res.outcome === 'sent' ? res.reportId : 0)).status, 'open');
+});
+
+test('B: a clan verified by Anvil staff (no sync) counts as verified — its admin links directly', async () => {
+  const { verifyManually } = await import('../src/lib/clanVerification.ts');
+  const [clanM] = await db.insert(s.clans).values({ slug: 'm', name: 'M', status: 'active' }).returning();
+  assert.deepEqual(await verifyManually(clanM.id, 'Clan M', staffUser), { ok: true });
+  const x = await claimSetup({ clan: clanM.id });
+  const res = await C.vouchForClaim(clanM.id, x.requestId, { userId: adminUser, role: 'admin' });
+  assert.equal(res.ok && res.outcome, 'linked');
+  assert.equal((await account(x.accountId)).playerId, x.person);
 });
 
 test('B: a moderator’s vouch still goes to Anvil, even for a single-clan character', async () => {
@@ -205,7 +225,7 @@ test('C refuses: a throwaway (unverified) clan’s owner cannot take a character
     { apply: true },
   );
   assert.equal(out.applied, false);
-  assert.match(out.why ?? '', /proven its in-game name/);
+  assert.match(out.why ?? '', /hasn't been verified yet/);
   assert.equal((await report(out.id)).status, 'open');
   assert.equal((await account(h.accountId)).playerId, h.holder, 'untouched');
 });
