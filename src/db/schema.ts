@@ -3875,3 +3875,13 @@ export const supporterSubscriptions = pgTable('supporter_subscriptions', {
   uniqueIndex('supporter_subscriptions_gumroad_sub_unique').on(table.gumroadSubscriptionId),
   index('supporter_subscriptions_user_idx').on(table.userId),
 ]);
+
+// Reactions on a moment from the plugin panel's Recent drops (lib/momentReactions): 'gz' for anyone
+// who can see the clan, 'gold' for Anvil Supporters. One of each kind per person per moment.
+export const momentReactions = pgTable('moment_reactions', {
+  id: serial('id').primaryKey(),
+  momentId: integer('moment_id').notNull().references(() => moments.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // 'gz' | 'gold'
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [uniqueIndex('moment_reactions_one_each').on(table.momentId, table.userId, table.kind)]);
