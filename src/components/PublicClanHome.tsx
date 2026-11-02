@@ -100,6 +100,14 @@ export default function PublicClanHome({
 
       {hall && <div className="mt-4">{hall}</div>}
 
+      {/* One line on the two ways in, before either door: a guest seat and membership look alike
+          from outside, and only one of them is something this page can give. */}
+      {(view.recruiting || view.guestPolicy !== 'closed') && (
+        <p className="mt-4 text-[13px] text-text-muted">
+          Members come from the clan&rsquo;s in-game member list. Guests can play the clan&rsquo;s events.
+        </p>
+      )}
+
       {/* Recruiting */}
       {view.recruiting && (
         <div className="mt-4 flex flex-col gap-3 rounded-xl border border-gold/30 bg-gold/[0.06] p-4 sm:flex-row sm:items-center">
