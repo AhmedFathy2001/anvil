@@ -73,6 +73,31 @@ test('only staff find and open the lab clan in the plugin, and can GZ its test d
   assert.ok(json(closed!.ui).includes('isn’t listed'));
 });
 
+test('a lab grant ends on its own when its day is up', async () => {
+  const { supporterForUser } = await import('../src/lib/supporter.ts');
+  const [p] = await db.insert(s.players).values({ displayName: 'Expiry' }).returning();
+  const [u] = await db.insert(s.users).values({ displayName: 'Expiry', discordId: 'd-expiry', playerId: p.id }).returning();
+  await L.setLabTier(u.id, 'patron');
+  assert.equal((await supporterForUser(u.id))?.tier.id, 'patron');
+  await db.update(s.supporterSubscriptions).set({ currentPeriodEnd: '2020-01-01T00:00:00Z' }).where(eq(s.supporterSubscriptions.userId, u.id));
+  assert.equal(await supporterForUser(u.id), null, 'past its end, it grants nothing');
+});
+
+test('a real character sharing a test name is never adopted or given a tier', async () => {
+  const { supporterForUser } = await import('../src/lib/supporter.ts');
+  await L.clearLabDrops();
+  // Wipe the test clanmates, then let a real person hold one of their names first.
+  await db.delete(s.users).where(eq(s.users.discordId, 'lab-dummy-lab~patron'));
+  await db.delete(s.accounts).where(eq(s.accounts.rsnNormalized, 'lab~patron'));
+  const [p] = await db.insert(s.players).values({ displayName: 'Squatter' }).returning();
+  const [u] = await db.insert(s.users).values({ displayName: 'Squatter', discordId: 'd-squat', playerId: p.id }).returning();
+  await db.insert(s.accounts).values({ playerId: p.id, rsn: 'Lab~Patron', rsnNormalized: 'lab~patron' });
+  await L.seedLabDrops(staffId, 4);
+  assert.equal(await supporterForUser(u.id), null, 'no free tier');
+  const state = await L.labSupporterState(staffId);
+  assert.ok(!state.dummies.some((d) => d.rsn === 'Lab~Patron'), 'their character is not a test clanmate');
+});
+
 test('clearing removes every test drop', async () => {
   assert.ok((await L.clearLabDrops()) > 0);
   assert.equal((await L.labSupporterState(staffId)).drops, 0);

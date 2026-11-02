@@ -7,7 +7,7 @@
 //     Setting a new one replaces the old; real paid rows are never touched.
 //   - TEST CLANMATES: four dummy people (one per tier, one free) with member seats in the hidden lab
 //     clan, and drops on those seats. Their names carry a "~", which no game name can, so they can
-//     never collide with a real character. Staff can open the lab clan in the plugin's Lookup.
+//     never be a real character's, and they are found by their login's marker, never by name. Staff can open the lab clan in the plugin's Lookup.
 
 import { and, eq, inArray, like } from 'drizzle-orm';
 import crypto from 'crypto';
@@ -35,7 +35,9 @@ export async function setLabTier(userId: number, tier: SupporterTierId | null, m
   await db.insert(supporterSubscriptions).values({
     userId,
     tier,
-    status: 'active',
+    // 'cancelling' is the status whose end date is enforced (lib/supporterTiers rowInForce); an
+    // 'active' row would run until a Gumroad notification ended it, which a lab grant never gets.
+    status: 'cancelling',
     recurrence: LAB_RECURRENCE,
     currentPeriodEnd: iso(Date.now() + LAB_GRANT_HOURS * 3_600_000),
     startedAt: start.toISOString(),
@@ -91,13 +93,21 @@ const SAMPLE_DROPS: { kind: 'pet' | 'unique'; itemName: string; itemId: number; 
   { kind: 'pet', itemName: 'Heron', itemId: 13320, source: 'Fishing' },
 ];
 
+/** A test clanmate's login is marked by this Discord id prefix, which no real Discord id can carry. */
+const DUMMY_LOGIN = 'lab-dummy-';
+
+/**
+ * The test clanmates' seats in the lab clan. Found by their LOGIN's marker, never by name: a real
+ * character that happened to share a name must never be mistaken for one.
+ */
 async function dummySeats(clanId: number): Promise<{ rsn: string; seatId: number }[]> {
   // clan-scope: global -- pinned to the lab clan by id.
   return db
     .select({ rsn: accounts.rsn, seatId: clanMemberships.id })
     .from(clanMemberships)
     .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
-    .where(and(eq(clanMemberships.clanId, clanId), like(accounts.rsn, 'Lab~%')));
+    .innerJoin(users, eq(users.playerId, accounts.playerId))
+    .where(and(eq(clanMemberships.clanId, clanId), like(users.discordId, `${DUMMY_LOGIN}%`)));
 }
 
 /** The dummy clanmates, created on first use, with their tiers renewed for another day. */
@@ -105,22 +115,26 @@ async function ensureDummies(actorUserId: number): Promise<{ rsn: string; seatId
   const clanId = await ensureLabClan(actorUserId);
   for (const d of DUMMIES) {
     const key = normalizeRsn(d.rsn);
-    let account = await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, key), columns: { id: true, playerId: true } });
-    if (!account) {
-      const [person] = await db.insert(players).values({ displayName: d.rsn }).returning({ id: players.id });
-      [account] = await db
-        .insert(accounts)
-        .values({ playerId: person.id, rsn: d.rsn, rsnNormalized: key })
-        .returning({ id: accounts.id, playerId: accounts.playerId });
-    }
-    await db.insert(clanMemberships).values({ clanId, accountId: account.id, kind: 'member', source: 'lab' }).onConflictDoNothing();
-    let login = await db.query.users.findFirst({ where: eq(users.playerId, account.playerId), columns: { id: true } });
+    let login = await db.query.users.findFirst({ where: eq(users.discordId, `${DUMMY_LOGIN}${key}`), columns: { id: true, playerId: true } });
     if (!login) {
+      // Never adopt a character someone else already holds under this name: skip that clanmate.
+      if (await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, key), columns: { id: true } })) continue;
+      const [person] = await db.insert(players).values({ displayName: d.rsn }).returning({ id: players.id });
       [login] = await db
         .insert(users)
-        .values({ displayName: d.rsn, discordId: `lab-dummy-${key}`, playerId: account.playerId })
-        .returning({ id: users.id });
+        .values({ displayName: d.rsn, discordId: `${DUMMY_LOGIN}${key}`, playerId: person.id })
+        .returning({ id: users.id, playerId: users.playerId });
     }
+    if (login.playerId == null) continue;
+    let account = await db.query.accounts.findFirst({
+      where: and(eq(accounts.playerId, login.playerId), eq(accounts.rsnNormalized, key)),
+      columns: { id: true },
+    });
+    if (!account) {
+      if (await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, key), columns: { id: true } })) continue;
+      [account] = await db.insert(accounts).values({ playerId: login.playerId, rsn: d.rsn, rsnNormalized: key }).returning({ id: accounts.id });
+    }
+    await db.insert(clanMemberships).values({ clanId, accountId: account.id, kind: 'member', source: 'lab' }).onConflictDoNothing();
     await setLabTier(login.id, d.tier, d.tier === 'patron' ? 12 : d.tier === 'champion' ? 6 : 0);
   }
   return dummySeats(clanId);
