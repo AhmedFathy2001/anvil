@@ -1,6 +1,7 @@
 import type { ClanCard } from '@/lib/clanCard';
 
-import { type Node, backRow, button, card, col, count, fmt, gap, header, icon, message, muted, row, seg, text } from './nodes';
+import { FEED_STEP } from './momentsUi';
+import { type Node, backRow, button, card, col, count, fmt, gap, header, icon, message, muted, nameText, row, seg, text } from './nodes';
 import { namesRow, vsRow } from './playerMoreUi';
 
 // A clan as the plugin's panel draws it (was ClanCardView.java): who the clan is, how hard it played
@@ -9,7 +10,7 @@ import { namesRow, vsRow } from './playerMoreUi';
 
 /** "Name ......... value" — the name opens that player's card. */
 function nameLine(label: string, value: string, rsn: string): Node {
-  return row(undefined, text(label), text(value, 'brand'), { pad: 2, inset: 2, tip: `Look up ${rsn}`, on: { a: 'lookup', rsn } });
+  return row(undefined, text(label, 'white', { who: rsn }), text(value, 'brand'), { pad: 2, inset: 2, tip: `Look up ${rsn}`, on: { a: 'lookup', rsn } });
 }
 
 /** @param compare offer "Compare with my clan" (another clan, and the viewer has one) */
@@ -50,19 +51,23 @@ export function clanCardUi(c: ClanCard, compare: boolean): Node {
     parts.push(gap(6), card([header('Top accounts', 'by total XP'), gap(4), ...c.topPlayers.map((p) => nameLine(p.rsn, `${count(p.overallXp)} xp`, p.rsn))]));
   }
   if (c.highlights.length) {
+    // The cached list shows at once; the live feed (counts, GZ buttons, more lines) replaces it.
+    const quick = col(
+      c.highlights.flatMap((h) => [
+        row(
+          icon({ item: h.itemId ?? undefined, w: 24, h: 22 }),
+          col([text(h.kind === 'pet' ? `${h.label} · pet` : h.label), nameText(h.rsn, 'muted', { font: 'small' })]),
+          muted('', { at: h.at }),
+        ),
+        gap(3),
+      ]),
+    );
     parts.push(
       gap(6),
       card([
-        header('Lately in the clan'),
+        header('Recent drops'),
         gap(4),
-        ...c.highlights.flatMap((h) => [
-          row(
-            icon({ item: h.itemId ?? undefined, w: 24, h: 22 }),
-            col([text(h.label), muted(`${h.rsn}${h.kind === 'pet' ? ' · pet' : ''}`)]),
-            muted('', { at: h.at }),
-          ),
-          gap(2),
-        ]),
+        { t: 'slot', id: 'moments', c: quick, load: { a: 'load', v: 'moments', args: { slug: c.slug, n: String(FEED_STEP) }, into: 'moments' } },
       ]),
     );
   }

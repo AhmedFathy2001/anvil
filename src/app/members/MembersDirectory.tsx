@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { MemberListRow, RosterMovement } from '@/lib/memberProfile';
 import ClanLink from '@/components/ClanLink';
+import { type MemberSortKey as SortKey, sortMembers } from '@/lib/memberSort';
 import Input from '@/components/Input';
 
 // Filtering happens in the browser, on a list the server already sent whole. A clan is hundreds of
@@ -14,7 +15,9 @@ import Input from '@/components/Input';
 // 2013; these tell you who is playing now, which is the thing a roster is actually checked for.
 
 type Membership = 'all' | 'members' | 'guests';
-type SortKey = 'name' | 'week' | 'ehp' | 'ehb' | 'xp';
+
+/** The way each column sorts on first click: names A→Z, everything else highest (or most senior) first. */
+const FIRST_DESC: Record<SortKey, boolean> = { name: false, rank: true, week: true, ehp: true, ehb: true, xp: true };
 
 /** Rows are scrollable past this many — the page shouldn't grow a screen per twenty members. */
 const VISIBLE_ROWS = 12;
@@ -85,13 +88,19 @@ function Delta({ places }: { places: number }) {
 export default function MembersDirectory({
   members,
   movement,
+  rankOrder,
 }: {
   members: MemberListRow[];
   movement: Record<number, RosterMovement>;
+  /** Ranks most senior first; a rank not on it (or a guest) sorts after every known one. */
+  rankOrder: string[];
 }) {
   const [query, setQuery] = useState('');
   const [membership, setMembership] = useState<Membership>('all');
-  const [sort, setSort] = useState<SortKey>('week');
+  const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: 'week', desc: true });
+  // Click a column to sort by it; click it again to flip the direction.
+  const pick = (key: SortKey) =>
+    setSort((s) => (s.key === key ? { key, desc: !s.desc } : { key, desc: FIRST_DESC[key] }));
 
   const guestCount = useMemo(() => members.filter((m) => m.isGuest).length, [members]);
 
@@ -103,40 +112,34 @@ export default function MembersDirectory({
       if (q && !m.rsn.toLowerCase().includes(q)) return false;
       return true;
     });
-    // Nulls last on every numeric sort: a member we haven't swept yet shouldn't outrank someone with
-    // a real zero, and shouldn't sit at the top of the board either.
-    const byNumber = (a: number | null, b: number | null) => {
-      if (a === null && b === null) return 0;
-      if (a === null) return 1;
-      if (b === null) return -1;
-      return b - a;
-    };
-    return [...filtered].sort((a, b) => {
-      if (sort === 'name') return a.rsn.localeCompare(b.rsn);
-      if (sort === 'week') {
-        const diff = (movement[b.id]?.week ?? 0) - (movement[a.id]?.week ?? 0);
-        return diff !== 0 ? diff : byNumber(a.ehp, b.ehp);
-      }
-      if (sort === 'ehp') return byNumber(a.ehp, b.ehp);
-      if (sort === 'ehb') return byNumber(a.ehb, b.ehb);
-      return byNumber(a.overallXp, b.overallXp);
-    });
-  }, [members, query, membership, sort, movement]);
+    return sortMembers(filtered, { key: sort.key, desc: sort.desc, movement, rankOrder });
+  }, [members, query, membership, sort, movement, rankOrder]);
 
   const chip = (active: boolean) =>
     `px-3 py-1.5 text-xs rounded-md border transition-colors ${
       active ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
     }`;
 
-  const sortable = (key: SortKey, label: string, className = 'text-right') => (
-    <button
-      type="button"
-      onClick={() => setSort(key)}
-      className={`${className} ${sort === key ? 'text-gold' : 'hover:text-foreground'}`}
-    >
-      {label}
-    </button>
-  );
+  const sortable = (key: SortKey, label: string, className = 'text-right') => {
+    const on = sort.key === key;
+    const way = key === 'name' ? (sort.desc ? 'Z to A' : 'A to Z') : key === 'rank' ? (sort.desc ? 'most senior first' : 'newest ranks first') : sort.desc ? 'highest first' : 'lowest first';
+    return (
+      <button
+        type="button"
+        onClick={() => pick(key)}
+        aria-label={on ? `${label}, sorted ${way}. Click to reverse.` : `Sort by ${label}`}
+        title={on ? `Sorted ${way} — click to reverse` : `Sort by ${label}`}
+        className={`${className} ${on ? 'text-gold' : 'hover:text-foreground'}`}
+      >
+        <span className="inline-flex items-center gap-1">
+          {label}
+          <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden className={on ? 'opacity-100' : 'opacity-0'}>
+            <path d={on && !sort.desc ? 'M4 1.5 7 6H1z' : 'M4 6.5 1 2h6z'} fill="currentColor" />
+          </svg>
+        </span>
+      </button>
+    );
+  };
 
   const cols =
     'grid-cols-[minmax(0,1fr)_4.5rem_5.5rem] sm:grid-cols-[minmax(0,1fr)_6.5rem_6.5rem_5.5rem_5rem_5.5rem_4rem]';
@@ -177,7 +180,7 @@ export default function MembersDirectory({
           className={`grid ${cols} gap-2 px-4 py-2.5 bg-tile-bg text-xs text-text-muted`}
         >
           {sortable('name', 'Player', 'text-left')}
-          <span className="hidden sm:block">Rank</span>
+          {sortable('rank', 'Rank', 'text-left hidden sm:block')}
           <span className="hidden sm:block">Last 7 days</span>
           {sortable('week', '7d')}
           {sortable('ehp', 'EHP', 'text-right hidden sm:block')}

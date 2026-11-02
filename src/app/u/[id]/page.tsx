@@ -6,6 +6,8 @@ import { apexPerson } from '@/lib/apexProfiles';
 import { isApexHost } from '@/lib/clanContext';
 import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
+import SupporterName from '@/components/SupporterName';
+import { supporterForPlayer } from '@/lib/supporter';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +40,8 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
 
   const person = await apexPerson(id);
   if (!person) notFound();
+  // Only reached once apexPerson has said this person chose to be public as one person.
+  const supporter = await supporterForPlayer(id);
 
   const week = person.characters.reduce((n, c) => n + c.xpThisWeek, 0);
   const tracked = person.characters.filter((c) => c.overallXp != null).length;
@@ -51,7 +55,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
         />
         {/* Their primary shared RSN. The Discord display name used to be the page's h1 and its title. */}
         <h1 className="display display-lg relative text-[clamp(1.7rem,4vw,2.2rem)] font-semibold">
-          {person.label}
+          <SupporterName name={person.label} tier={supporter?.tier.id} />
         </h1>
         <p className="relative mt-2 text-[14.5px] text-text-muted">
           {person.characters.length} shared {person.characters.length === 1 ? 'character' : 'characters'}

@@ -27,6 +27,10 @@ export default function StaffLabPage() {
         <ClanLink href="/staff/lab/scenarios" className="text-gold hover:underline">Replay scenarios</ClanLink>
         {' · '}
         <ClanLink href="/staff/chat-patterns" className="text-gold hover:underline">Chat patterns</ClanLink>
+        {' · '}
+        <ClanLink href="/staff/lab/supporter" className="text-gold hover:underline">Supporter lab</ClanLink>
+        {' · '}
+        <ClanLink href="/staff/lab/people" className="text-gold hover:underline">Test users &amp; roles</ClanLink>
       </p>
       <LabClient />
     </div>

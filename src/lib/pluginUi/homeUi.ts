@@ -651,7 +651,7 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
 }
 
 function standingRow(w: ScheduleWeekly, r: WeeklyStanding): Node {
-  return row(text(String(r.rank), 'muted', { w: 22, align: 'r' }), text(clip(r.rsn, 16), r.self ? 'brand' : 'text', { tip: r.rsn }), text(`+${weeklyGain(w, r.gained)}`, r.self ? 'brand' : 'muted', { align: 'r' }));
+  return row(text(String(r.rank), 'muted', { w: 22, align: 'r' }), text(clip(r.rsn, 16), r.self ? 'brand' : 'text', { tip: r.rsn, who: r.rsn }), text(`+${weeklyGain(w, r.gained)}`, r.self ? 'brand' : 'muted', { align: 'r' }));
 }
 
 function scheduledPage(d: HomeData, s: ScheduleBingo): Node[] {

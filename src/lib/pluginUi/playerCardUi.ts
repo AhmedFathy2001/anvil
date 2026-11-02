@@ -14,6 +14,7 @@ import {
   header,
   icon,
   muted,
+  nameText,
   percent,
   row,
   seg,
@@ -193,7 +194,7 @@ function identity(c: PlayerCard, anvil: boolean): Node {
   const parts: Node[] = [
     row(
       undefined,
-      text(c.rsn, 'white', { font: 'bold' }),
+      anvil ? nameText(c.rsn, 'white', { font: 'bold' }) : text(c.rsn, 'white', { font: 'bold' }),
       anvil ? icon({ glyph: 'external', w: 12, h: 12, color: 'muted', tip: 'Open on the Anvil website', on: { a: 'site', path: profilePath(c.rsn) } }) : undefined,
     ),
   ];

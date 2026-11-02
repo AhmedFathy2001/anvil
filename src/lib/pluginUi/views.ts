@@ -6,7 +6,7 @@ import { GET as weeklyRoute } from '@/app/api/plugin/weekly-leaderboard/route';
 import { db } from '@/db';
 import { clans, events, memberClogItems, settings } from '@/db/schema';
 import { apexCharacter } from '@/lib/apexProfiles';
-import { loadClanCard } from '@/lib/clanCard';
+import { FEED_KINDS, loadClanCard } from '@/lib/clanCard';
 import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
 import { caLookup, combatTasks } from '@/lib/combatTasks';
@@ -24,13 +24,18 @@ import type { PanelTile } from '@/lib/pluginPanel';
 import { pluginRoster } from '@/lib/pluginRoster';
 import { rateLimit } from '@/lib/rate-limit';
 import { claimTile, cleanNote, unclaimTile } from '@/lib/tileClaims';
-import { resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
+import { normalizeRsn, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
+import { SUPPORTER_INK, type SupporterTierId, supporterForUser, supporterTiersForRsns } from '@/lib/supporter';
+import { momentsForClan } from '@/lib/momentsStore';
+import { NO_REACTIONS, REACTION_KINDS, isClanMember, momentInClan, reactionSummaries, toggleReaction } from '@/lib/momentReactions';
+import { FEED_MAX, FEED_STEP, type FeedItem, momentsFeedUi } from './momentsUi';
 
 import { type BoardContext, type BoardState, type BoardTile, STATUSES, type Status, boardRowsUi, boardUi } from './boardUi';
 import { clanCardUi, clanCompareUi, clanSearchUi } from './clanUi';
 import { type HomeConfig, type HomeData, eventUi, homeUi } from './homeUi';
-import { lookupPlayerCard, viewerPlayerId, visibleClan } from './load';
-import { type Node, type View, backRow, button, col, gap, message, text } from './nodes';
+import { lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
+import { LAB_CLAN_SLUG } from '@/lib/lab';
+import { type Node, type View, applyFlair, backRow, button, col, gap, message, namesIn, text } from './nodes';
 import { notFoundUi, playerCardUi } from './playerCardUi';
 import { casUi, clogPageUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from './playerMoreUi';
 import { rosterUi, teamsUi } from './teamsUi';
@@ -143,7 +148,7 @@ async function clanCompareView(request: Request, a: Args): Promise<View> {
 }
 
 /** Public, listed clans only (the directory's own rule) — an unlisted clan is not something to search for. */
-async function clansView(q: string): Promise<View> {
+async function clansView(request: Request, q: string): Promise<View> {
   const query = q.trim().slice(0, 60);
   if (query.length < 2) return message('Search a clan by name.');
   const like = `%${query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -155,6 +160,10 @@ async function clansView(q: string): Promise<View> {
     .where(and(listedClanWhere(), or(ilike(clans.name, like), ilike(clans.slug, like))))
     .orderBy(clans.name)
     .limit(8);
+  // Staff can find the hidden lab clan (its test drops, /staff/lab/supporter); nobody else ever sees it.
+  if ('anvil tile lab'.includes(query.toLowerCase()) || LAB_CLAN_SLUG.includes(query.toLowerCase())) {
+    if (await pluginStaff(request)) found.unshift({ slug: LAB_CLAN_SLUG, name: 'Anvil Tile Lab (staff)' });
+  }
   return { ui: clanSearchUi(query, found) };
 }
 
@@ -364,7 +373,72 @@ async function ownClanCard(request: Request, slug: string): Promise<Node | null>
   return clanCardUi(await ttlMemo(`plugin-ui-clan-card:${clan.id}`, () => loadClanCard(clan), 5 * 60_000), false);
 }
 
+/** Supporters' names in a finished view get their flair: one lookup for every name it shows. */
+async function flaired(view: View | null): Promise<View | null> {
+  if (!view) return view;
+  const names = namesIn(view.ui);
+  const tiers = names.length ? await supporterTiersForRsns(names).catch(() => new Map<string, SupporterTierId>()) : new Map<string, SupporterTierId>();
+  applyFlair(view.ui, (name) => {
+    const tier = tiers.get(normalizeRsn(name));
+    return tier ? SUPPORTER_INK[tier] : null;
+  });
+  return view;
+}
+
+/** Clanmates react; in the lab clan, so does staff testing it. */
+async function canReactIn(request: Request, userId: number, clan: { id: number; slug: string }): Promise<boolean> {
+  if (await isClanMember(userId, clan.id)) return true;
+  return clan.slug === LAB_CLAN_SLUG && (await pluginStaff(request));
+}
+
+/** The clan's Recent drops with their reactions: never cached, the counts are the point. */
+async function momentsView(request: Request, a: Args, note?: string): Promise<View> {
+  const clan = await visibleClan(request, a.slug ?? '');
+  if (!clan) return message('That clan isn’t listed on Anvil.');
+  const n = Math.min(FEED_MAX, Math.max(FEED_STEP, positive(a.n) ?? FEED_STEP));
+  const viewer = await verifyPluginTokenUser(request);
+  const rows = (await momentsForClan(clan.id, n + 12)).filter((m) => FEED_KINDS.has(m.kind));
+  const shown = rows.slice(0, n);
+  const [summaries, supporter, member] = await Promise.all([
+    reactionSummaries(shown.map((m) => m.id), viewer?.userId ?? null),
+    viewer ? supporterForUser(viewer.userId) : Promise.resolve(null),
+    viewer ? canReactIn(request, viewer.userId, clan) : Promise.resolve(false),
+  ]);
+  const items: FeedItem[] = shown.map((m) => ({
+    id: m.id,
+    rsn: m.rsn,
+    label: m.itemName ?? m.source ?? m.kind,
+    itemId: m.itemId,
+    kind: m.kind,
+    at: m.occurredAt,
+    ...(summaries.get(m.id) ?? NO_REACTIONS),
+  }));
+  const feed = momentsFeedUi(items, { slug: clan.slug, n, more: rows.length > n, canGold: !!supporter, canReact: member });
+  return { ui: note ? col([text(note, 'error', { wrap: true }), gap(4), feed]) : feed };
+}
+
+async function reactAct(request: Request, a: Args): Promise<View> {
+  const viewer = await verifyPluginTokenUser(request);
+  const clan = await visibleClan(request, a.slug ?? '');
+  const id = positive(a.id);
+  const kind = REACTION_KINDS.find((k) => k === a.kind);
+  if (!viewer || !clan || !id || !kind) return momentsView(request, a, 'Couldn’t react to that.');
+  const rl = await rateLimit(request, `plugin-react:${viewer.userId}`, { limit: 40, windowMs: 60_000 });
+  if (!rl.ok) return momentsView(request, a, 'Slow down a little — try again in a minute.');
+  if (!(await canReactIn(request, viewer.userId, clan))) return momentsView(request, a, 'Only clanmates can GZ these drops.');
+  if (kind === 'gold' && !(await supporterForUser(viewer.userId))) {
+    return momentsView(request, a, 'Gold GZs are an Anvil Supporter reaction.');
+  }
+  if (!(await momentInClan(id, clan.id))) return momentsView(request, a, 'That drop isn’t in this clan’s feed.');
+  await toggleReaction(id, viewer.userId, kind);
+  return momentsView(request, a);
+}
+
 export async function pluginView(request: Request, v: string, a: Args): Promise<View | null> {
+  return flaired(await viewFor(request, v, a));
+}
+
+async function viewFor(request: Request, v: string, a: Args): Promise<View | null> {
   switch (v) {
     case 'player':
       return playerView(request, (a.rsn ?? '').trim());
@@ -381,7 +455,7 @@ export async function pluginView(request: Request, v: string, a: Args): Promise<
     case 'clan-compare':
       return clanCompareView(request, a);
     case 'clans':
-      return clansView(a.q ?? '');
+      return clansView(request, a.q ?? '');
     case 'goals':
       return goalsView(request);
     case 'goal-new':
@@ -392,6 +466,8 @@ export async function pluginView(request: Request, v: string, a: Args): Promise<
       return teamsView(request, a);
     case 'home':
       return homeView(request, a);
+    case 'moments':
+      return momentsView(request, a);
     default:
       return null;
   }
@@ -399,8 +475,13 @@ export async function pluginView(request: Request, v: string, a: Args): Promise<
 
 /** An action from the panel: `args` as the view gave them, `fields` from its inputs. */
 export async function pluginAct(request: Request, act: string, args: Args, fields: Args): Promise<View | null> {
+  return flaired(await actFor(request, act, args, fields));
+}
+
+async function actFor(request: Request, act: string, args: Args, fields: Args): Promise<View | null> {
   if (act === 'claim' || act === 'unclaim') return claimAct(request, act, args, fields.note);
   if (act === 'clan-event-going') return clanEventGoingAct(request, args);
+  if (act === 'react') return reactAct(request, args);
   if (act !== 'goal-add' && act !== 'goal-remove') return null;
   const owner = await ownedAccount(request);
   if (!owner) return { ui: goalsUi([], NOT_YOURS) };

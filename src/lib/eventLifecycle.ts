@@ -19,6 +19,7 @@ import { log } from '@/lib/logger';
 import { postEventRules } from '@/lib/eventRulesPost';
 import { runDiscordCleanups } from '@/lib/eventDiscordCleanup';
 import { sweepEndedLabSessions } from '@/lib/lab';
+import { sweepLabTestDrops } from '@/lib/labSupporter';
 import { clearPreStartEventActivity } from '@/lib/preStartActivity';
 import { track } from '@/lib/analytics';
 import { endOfEventFacts, runDailyDigests, runHalfwayReports } from '@/lib/eventDigest';
@@ -416,4 +417,6 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   await runDiscordCleanups(nowMs).catch((err) => log.warn('event-lifecycle.discord-cleanup-failed', { err: String(err) }));
   // Lab sessions are scratch boards: deleted a week after they end (lib/lab).
   await sweepEndedLabSessions(new Date(nowMs)).catch((err) => log.warn('event-lifecycle.lab-sweep-failed', { err: String(err) }));
+  // And the Supporter lab's test drops, on the same week (lib/labSupporter).
+  await sweepLabTestDrops(new Date(nowMs)).catch((err) => log.warn('event-lifecycle.lab-drops-sweep-failed', { err: String(err) }));
 }

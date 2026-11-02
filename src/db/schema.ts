@@ -1386,7 +1386,12 @@ export const users = pgTable('users', {
   //   level_rules       JSON MilestoneRules for their OWN webhooks; NULL = the defaults.
   levelPostsClan: text('level_posts_clan').notNull().default('clan'),
   levelRules: text('level_rules'),
+  // Anvil Supporter checkout ref: the `?ref=` token on this person's Supporter checkout link. Gumroad
+  // echoes it back on the sale, which is how a purchase finds its buyer. Same job as clans.gumroadRef,
+  // for the personal subscription. Created on first checkout (lib/supporter).
+  supporterRef: text('supporter_ref'),
 }, (table) => [
+  uniqueIndex('users_supporter_ref_unique').on(table.supporterRef),
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
   uniqueIndex('users_plugin_token_hash_unique').on(table.pluginTokenHash),
   index('users_player_idx').on(table.playerId),
@@ -3885,6 +3890,38 @@ export const chatPatternOverrides = pgTable('chat_pattern_overrides', {
   updatedBy: integer('updated_by').references(() => users.id, { onDelete: 'set null' }),
   updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 });
+
+// ANVIL SUPPORTER: the personal subscription (lib/supporter). One row per Gumroad membership a person
+// has bought. It belongs to the LOGIN, like the plugin token, so it follows them into every clan;
+// nothing about it is per clan. A person's effective tier is the best row still in force: 'active', or
+// 'cancelling' before its period end (they paid for the term). 'ended' and 'refunded' rows stay as
+// history, because "supporter since" counts from the first one.
+export const supporterSubscriptions = pgTable('supporter_subscriptions', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tier: text('tier').notNull(),          // 'supporter' | 'champion' | 'patron' (lib/supporterTiers)
+  status: text('status').notNull(),      // 'active' | 'cancelling' | 'ended' | 'refunded'
+  recurrence: text('recurrence'),        // 'monthly' | 'yearly'
+  gumroadSubscriptionId: text('gumroad_subscription_id'),
+  gumroadSaleId: text('gumroad_sale_id'), // the last applied charge: the replay latch
+  currentPeriodEnd: text('current_period_end'),
+  startedAt: text('started_at').notNull(),
+  endedAt: text('ended_at'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  uniqueIndex('supporter_subscriptions_gumroad_sub_unique').on(table.gumroadSubscriptionId),
+  index('supporter_subscriptions_user_idx').on(table.userId),
+]);
+
+// Reactions on a moment from the plugin panel's Recent drops (lib/momentReactions): 'gz' for anyone
+// who can see the clan, 'gold' for Anvil Supporters. One of each kind per person per moment.
+export const momentReactions = pgTable('moment_reactions', {
+  id: serial('id').primaryKey(),
+  momentId: integer('moment_id').notNull().references(() => moments.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // 'gz' | 'gold'
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [uniqueIndex('moment_reactions_one_each').on(table.momentId, table.userId, table.kind)]);
 
 // Game-mode event lines (lib/modeLines). Staff patterns that turn a game-mode world's chat line into
 // a post ("Relic unlocked: …"), tried before the built-ins, and the queue of lines no pattern knew,

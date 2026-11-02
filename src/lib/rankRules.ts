@@ -178,3 +178,44 @@ export function applyRankRules(rules: RankRule[], order: string[], rank: string 
   for (const rule of rules) if (rule.keep && rule.roleId) managed.delete(rule.roleId);
   return { give, managed, staff };
 }
+
+// ---- In-game rank numbers -------------------------------------------------------------------------
+
+/**
+ * The clan's titles with their in-game rank numbers, as the plugin's roster sync reads them
+ * (RuneLite ClanRank: higher = more senior; deputy owner 125, owner 126). One clan maps each title
+ * to one rank, so this is per clan, not per member. Stored as JSON {title: number}.
+ */
+export const RANK_NUMBERS_KEY = 'clan_rank_numbers';
+
+/** {title: number} from a sync payload: normalised titles, integer ranks in RuneLite's range. */
+export function rankNumbersFrom(members: { rank?: unknown; rankNum?: unknown }[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const m of members) {
+    const title = normalizeRank(typeof m.rank === 'string' ? m.rank : null);
+    const n = m.rankNum;
+    if (!title || typeof n !== 'number' || !Number.isInteger(n) || n < -1 || n > 127) continue;
+    out[title] = Math.max(out[title] ?? -2, n);
+  }
+  return out;
+}
+
+export function parseRankNumbers(raw: unknown): Record<string, number> {
+  const v = parseJson(raw);
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+  const out: Record<string, number> = {};
+  for (const [k, n] of Object.entries(v as Record<string, unknown>)) {
+    const title = normalizeRank(k);
+    if (title && typeof n === 'number' && Number.isInteger(n)) out[title] = n;
+  }
+  return out;
+}
+
+/**
+ * Titles most senior first: the in-game numbers where the plugin has sent them (exactly the game's
+ * own order), then whatever the ladder holds that has no number yet, in the ladder's order.
+ */
+export function rankOrderWithNumbers(numbers: Record<string, number>, ladder: string[]): string[] {
+  const known = Object.keys(numbers).sort((a, b) => numbers[b] - numbers[a] || a.localeCompare(b));
+  return [...known, ...ladder.filter((r) => !(r in numbers))];
+}
