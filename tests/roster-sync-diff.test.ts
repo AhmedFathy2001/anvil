@@ -90,3 +90,29 @@ test('a member the roster drops becomes a guest when somebody actually plays the
 test('an unclaimed name departs, because there was never anybody there', () => {
   assert.equal(departureFor({ claimed: false }), 'left');
 });
+
+// ── The sync summary: a rejoin that reset the rank ────────────────────────────────────────────
+
+test('a member who returned AND changed rank is told once, under Returned, as a re-rank to do', async () => {
+  const { returnFields } = await import('../src/lib/rosterSync.ts');
+  const returned = [
+    { rsn: 'Taurak', memberId: 1 },
+    { rsn: 'Plain', memberId: 2 },
+  ];
+  const ranks = [
+    { rsn: 'Taurak', memberId: 1, oldRank: 'Deputy Owner', newRank: 'Imp' },
+    { rsn: 'Promoted', memberId: 3, oldRank: 'Recruit', newRank: 'Corporal' },
+  ];
+  const { returnedField, rankChanged } = returnFields(returned, ranks);
+  assert.equal(returnedField?.name, 'Returned (2)');
+  assert.equal(returnedField?.value, 'Taurak — was deputy owner, back as imp (re-rank them in game)\nPlain');
+  assert.deepEqual(rankChanged.map((c) => c.rsn), ['Promoted'], 'and left out of Rank changed');
+});
+
+test('with no re-ranked returner the Returned field is the plain list', async () => {
+  const { returnFields } = await import('../src/lib/rosterSync.ts');
+  const { returnedField, rankChanged } = returnFields([{ rsn: 'A', memberId: 1 }, { rsn: 'B', memberId: 2 }], []);
+  assert.equal(returnedField?.value, 'A, B');
+  assert.deepEqual(rankChanged, []);
+  assert.equal(returnFields([], []).returnedField, null);
+});
