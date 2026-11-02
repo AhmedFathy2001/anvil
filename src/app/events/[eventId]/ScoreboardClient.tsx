@@ -94,6 +94,8 @@ interface Event {
 }
 
 interface Submission {
+  /** lib/altGoal: null = the tile's own credit; 'alt' / 'cap:N' = an either/or alternative. */
+  goal?: string | null;
   id: number;
   tileId: number;
   teamId: number;
@@ -322,7 +324,8 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   for (const team of teams) {
     let inProgress = 0;
     for (const tile of dropTiles) {
-      const tileSubs = submissions.filter((s) => s.tileId === tile.id && s.teamId === team.id);
+      // The tile's own credits — an either/or alternative's searches aren't drops (lib/altGoal).
+      const tileSubs = submissions.filter((s) => s.tileId === tile.id && s.teamId === team.id && s.goal == null);
       const current = tileSubs.reduce((sum, s) => sum + s.amount, 0);
       const isComplete = completions.some((c) => c.tileId === tile.id && c.teamId === team.id);
       if (current > 0 && !isComplete) {

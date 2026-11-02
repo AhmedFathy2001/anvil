@@ -100,7 +100,7 @@ interface Props {
   onClose: () => void;
   eventId: number;
   teamId?: number;
-  dropProgress?: { current: number; required: number };
+  dropProgress?: { current: number; required: number; alt?: { current: number; required: number; note: string } };
   perItemProgress?: ItemRequirementProgress[];
   teamPlayers?: TeamPlayer[];
   currentPlayerId?: number;
@@ -719,6 +719,10 @@ export default function TileDetailModal({
                 </span>
                 <span className="font-medium text-accent-green-light">
                   {dropProgress.current}/{dropProgress.required}
+                  {/* Either/or tile (lib/altGoal): the other way to finish, beside the primary count. */}
+                  {dropProgress.alt && (
+                    <span className="ml-1.5 font-normal text-text-muted">{dropProgress.alt.note}</span>
+                  )}
                 </span>
               </div>
               <div className="w-full bg-brown-dark rounded-full h-3 overflow-hidden">

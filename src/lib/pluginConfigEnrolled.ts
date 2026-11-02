@@ -5,7 +5,7 @@ import { howItCounts, parseCountMode, parseSetsRequired } from '@/lib/collection
 import { countedLuckCandidates } from '@/lib/clogLuckBoard';
 import { db } from '@/db';
 import { events, tiles, teams, submissions, eventParticipants, completions, clanRoster, eventStartProofs } from '@/db/schema';
-import { eq, and, sql, inArray } from 'drizzle-orm';
+import { eq, and, sql, inArray, isNull, isNotNull, or } from 'drizzle-orm';
 import { pluginViewerRsn } from '@/lib/auth';
 import { requireSecret } from '@/lib/env';
 import {
@@ -57,6 +57,7 @@ import crypto from 'crypto';
 import { playedCharacter } from '@/lib/pluginAccount';
 import { activeNow, panelSchedule, panelTiles, ACTIVE_WINDOW_MS, type WorkSighting } from '@/lib/pluginPanel';
 import { parseStamp } from '@/lib/dbTime';
+import { altEntryLabel, altGoalEligible, altGoalUnitSingular, altProgress, altVirtualTileId, ALT_CAP_REQUIRED, ALT_GOAL_KEY, counterNoun, parseAltGoal, type GoalRow } from '@/lib/altGoal';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
 
@@ -238,7 +239,8 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
       total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
     })
     .from(submissions)
-    .where(eq(submissions.teamId, teamId))
+    // Primary credits only — an either/or tile's alternative rows (lib/altGoal) are another goal.
+    .where(and(eq(submissions.teamId, teamId), isNull(submissions.goal)))
     .groupBy(submissions.tileId);
 
   const submissionMap = Object.fromEntries(teamSubmissions.map(s => [s.tileId, s.total]));
@@ -258,6 +260,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
       .from(submissions)
       .where(and(
         eq(submissions.teamId, teamId),
+        isNull(submissions.goal),
         sql`COALESCE(${submissions.creditPlayerId}, ${submissions.playerId}) = ${playerId}`,
       ))
       .groupBy(submissions.tileId);
@@ -272,7 +275,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
         total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
       })
       .from(submissions)
-      .where(eq(submissions.teamId, teamId))
+      .where(and(eq(submissions.teamId, teamId), isNull(submissions.goal)))
       .groupBy(submissions.tileId, sql`COALESCE(${submissions.creditPlayerId}, ${submissions.playerId})`);
   }
   // Progress to advertise for a count tile: the caller's own on a Solo tile, the team's otherwise.
@@ -292,7 +295,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
       lastAt: sql<string>`MAX(${submissions.createdAt})`,
     })
     .from(submissions)
-    .where(eq(submissions.teamId, teamId))
+    .where(and(eq(submissions.teamId, teamId), isNull(submissions.goal)))
     .groupBy(submissions.tileId, submissions.itemId);
 
   // Build a map: tileId -> { itemId -> total }
@@ -571,7 +574,8 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
       .select({ tileId: submissions.tileId, name: eventParticipants.name })
       .from(submissions)
       .leftJoin(eventParticipants, eq(submissions.creditPlayerId, eventParticipants.id))
-      .where(and(eq(submissions.teamId, teamId), inArray(submissions.tileId, completedTileIds)))
+      // A cap counter (energy) is never what finished a tile; the alternative's own counter can be.
+      .where(and(eq(submissions.teamId, teamId), inArray(submissions.tileId, completedTileIds), or(isNull(submissions.goal), eq(submissions.goal, ALT_GOAL_KEY))))
       .orderBy(submissions.createdAt); // ascending → the last write per tile is the latest
     for (const r of creditRows) {
       if (r.name) completedByMap.set(r.tileId, r.name);
@@ -664,7 +668,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
         .select({ tileId: submissions.tileId, teamId: submissions.teamId, name: eventParticipants.name })
         .from(submissions)
         .leftJoin(eventParticipants, eq(submissions.creditPlayerId, eventParticipants.id))
-        .where(inArray(submissions.tileId, subTileIds))
+        .where(and(inArray(submissions.tileId, subTileIds), or(isNull(submissions.goal), eq(submissions.goal, ALT_GOAL_KEY))))
         .orderBy(submissions.createdAt); // ascending → last write per (tile,team) wins
       for (const r of subRows) {
         if (r.name) subNameByTileTeam.set(`${r.tileId}:${r.teamId}`, r.name);
@@ -762,6 +766,89 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
   const effectiveNextRevealAt = revealMode
     ? nextRevealAt(event, rules, fullEventTiles)
     : nextMissionAt(event, rules, fullEventTiles);
+
+  // EITHER / OR tiles (lib/altGoal). For every tracked tile with an alternative the team hasn't
+  // finished, extra trackedKills entries on VIRTUAL negative ids: slot 0 the alternative itself
+  // (its targets, its amount, progress already capped), slots 1..n each cap counter (a goal it never
+  // reaches — it only keeps counting). Released plugins credit them like any kill tile and submit to
+  // the negative id, which the submissions route decodes back to the parent; `altOf`/`altRole`/`unit`
+  // let a newer plugin fold them into the parent's row instead.
+  const altTiles = trackedTiles
+    .map((t) => ({ t, goal: altGoalEligible(t) ? parseAltGoal(t.altGoal) : null }))
+    .filter((x): x is { t: typeof x.t; goal: NonNullable<typeof x.goal> } => x.goal != null && !completedTileIdSet.has(x.t.id));
+  const altRows: (GoalRow & { tileId: number })[] = altTiles.length > 0
+    ? await db
+        .select({
+          tileId: submissions.tileId,
+          playerId: submissions.playerId,
+          creditPlayerId: submissions.creditPlayerId,
+          amount: submissions.amount,
+          goal: submissions.goal,
+        })
+        .from(submissions)
+        .where(and(eq(submissions.teamId, teamId), isNotNull(submissions.goal), inArray(submissions.tileId, altTiles.map((a) => a.t.id))))
+    : [];
+  const altKills = altTiles.flatMap(({ t, goal }) => {
+    const rows = altRows.filter((r) => r.tileId === t.id);
+    const progress = altProgress(rows, goal, t.trackingMode);
+    const solo = isIndividualMode(t.trackingMode);
+    // Raw per-member counter totals, for the cap entries.
+    const counterTotals = (goalKey: string) => {
+      const byMember = new Map<number, number>();
+      let team = 0;
+      for (const r of rows) {
+        if (r.goal !== goalKey) continue;
+        const who = r.creditPlayerId ?? r.playerId ?? 0;
+        byMember.set(who, (byMember.get(who) ?? 0) + r.amount);
+        team += r.amount;
+      }
+      return { byMember, team };
+    };
+    // The caller's own figure on a Solo tile (the team view lists every member's in `members`).
+    const own = (virtualId: number, team: number, byMember: Map<number, number>) => {
+      if (!solo) return team;
+      if (playerId != null) return byMember.get(playerId) ?? 0;
+      for (const [who, v] of byMember) if (who !== 0) memberOwn(who).c[virtualId] = v;
+      return 0;
+    };
+    const base = {
+      position: t.position ?? 0,
+      description: null,
+      points: 0,
+      category: t.category ?? null,
+      trackingMode: t.trackingMode ?? 'team',
+      coopCredit: 'per-member' as const,
+      coopMinMembers: 0,
+      altOf: t.id,
+    };
+    const goalId = altVirtualTileId(t.id, 0);
+    return [
+      {
+        ...base,
+        tileId: goalId,
+        label: altEntryLabel(t.label, goal, 0),
+        targetNpcs: goal.targets,
+        requiredAmount: goal.amount,
+        currentAmount: own(goalId, progress.current, progress.byMember),
+        unit: altGoalUnitSingular(goal),
+        altRole: 'goal' as const,
+      },
+      ...(goal.capBy ?? []).map((cap, i) => {
+        const id = altVirtualTileId(t.id, i + 1);
+        const totals = counterTotals(`cap:${i}`);
+        return {
+          ...base,
+          tileId: id,
+          label: altEntryLabel(t.label, goal, i + 1),
+          targetNpcs: [cap],
+          requiredAmount: ALT_CAP_REQUIRED,
+          currentAmount: own(id, totals.team, totals.byMember),
+          unit: counterNoun(cap),
+          altRole: 'cap' as const,
+        };
+      }),
+    ];
+  });
 
   const body = {
     server: serverInfo(),
@@ -921,6 +1008,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
             itemRequirements: itemReqs,
             groupMode: t.groupMode,
             setsRequired: t.setsRequired,
+            altGoal: t.altGoal,
           }),
           ...(countedItems ? { countMode: 'distinct', countedItemIds: countedItems } : {}),
           acceptedSources,
@@ -962,7 +1050,8 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
     // word — so a lap tile is exactly a kill tile whose target names are course names, and it
     // credits on every client build, including ones released before laps existed. Only the SITE
     // needs to know the difference (it says "laps", not "kills").
-    trackedKills: trackedTiles
+    trackedKills: [
+      ...trackedTiles
       .filter((t) => t.tileType === 'kill' || t.tileType === 'lap')
       .map((t) => {
         let targetNpcs: string[] = [];
@@ -996,6 +1085,9 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
           coopMinMembers: t.coopMinMembers ?? 0,
         };
       }),
+      // Either/or tiles' virtual entries (see altKills above).
+      ...altKills,
+    ],
 
     // PvP-kill tiles — the plugin credits a kill off the "You have defeated <name>!" line
     // (sent only to the player the game awards the kill/loot key to — one credit per death),

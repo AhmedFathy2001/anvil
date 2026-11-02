@@ -49,6 +49,7 @@ const AUDITED_FIELDS: { key: keyof TileRow; label: string; json?: boolean }[] = 
   { key: 'setsRequired', label: 'Sets required' },
   { key: 'countMode', label: 'How drops count' },
   { key: 'perKillCap', label: 'Max credits per kill' },
+  { key: 'altGoal', label: 'Or finish it by', json: true },
   { key: 'coopCredit', label: 'Shared kills' },
   { key: 'coopMinMembers', label: 'Min teammates per kill' },
   { key: 'acceptedSources', label: 'Accepted sources', json: true },

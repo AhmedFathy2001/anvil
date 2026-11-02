@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { primaryCredit } from '@/lib/altGoalSql';
 import { eventForPluginRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, tiles, teams, completions, submissions, eventParticipants } from '@/db/schema';
@@ -106,6 +107,7 @@ function tileHowItCounts(t: typeof tiles.$inferSelect): string | null {
     itemRequirements: reqs,
     groupMode: t.groupMode,
     setsRequired: t.setsRequired,
+    altGoal: t.altGoal,
   });
 }
 
@@ -307,7 +309,7 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
         total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
       })
       .from(submissions)
-      .where(and(eq(submissions.teamId, callerTeamId), inArray(submissions.tileId, tileIds)))
+      .where(and(eq(submissions.teamId, callerTeamId), inArray(submissions.tileId, tileIds), primaryCredit()))
       .groupBy(submissions.tileId, submissions.itemId);
     for (const r of perItem) {
       if (r.itemId == null) continue;
@@ -347,7 +349,8 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
           total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
         })
         .from(submissions)
-        .where(and(eq(submissions.teamId, callerTeamId), inArray(submissions.tileId, tileIds)))
+        // Primary credits (an either/or tile's alternative is reported as its own note, lib/altGoal).
+        .where(and(eq(submissions.teamId, callerTeamId), inArray(submissions.tileId, tileIds), primaryCredit()))
         .groupBy(submissions.tileId, submissions.creditPlayerId),
       db
         .select({ id: eventParticipants.id, name: eventParticipants.name })

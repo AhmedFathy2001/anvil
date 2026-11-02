@@ -15,6 +15,8 @@ interface Completion {
 }
 
 interface Submission {
+  /** lib/altGoal: null = the tile's own credit; 'alt' / 'cap:N' = an either/or alternative. */
+  goal?: string | null;
   id: number;
   tileId: number;
   teamId: number;

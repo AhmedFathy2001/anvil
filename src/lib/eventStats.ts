@@ -196,6 +196,7 @@ export async function getEventStats(
             tileId: submissions.tileId,
             teamId: submissions.teamId,
             creditPlayerId: submissions.creditPlayerId,
+            goal: submissions.goal,
             playerId: submissions.playerId,
             amount: submissions.amount,
             createdAt: submissions.createdAt,
@@ -264,7 +265,8 @@ export async function getEventStats(
   const tileTypeOf = new Map(eventTiles.map((t) => [t.id, t.tileType]));
   const winMoments = eventMoments.filter((m) => inWin(m.occurredAt));
   const winCompletions = allCompletions.filter((c) => inWin(c.completedAt));
-  const winSubs = allSubmissions.filter((s) => inWin(s.createdAt));
+  // Turn-ins are the tile's own credits — an either/or alternative's pings (lib/altGoal) are not.
+  const winSubs = allSubmissions.filter((s) => s.goal == null && inWin(s.createdAt));
 
   const members: MemberStats[] = eventPlayers.map((p) => {
     const mine = winMoments.filter((m) => playerByMember.get(m.clanMemberId)?.id === p.id);

@@ -841,6 +841,13 @@ export const tiles = pgTable('tiles', {
   // counts only what's done after the announce — not KC banked between the event start and the drop.
   // JSON { [participantId]: { g: gain so far, l: lifetime } }; NULL = count from the event baseline.
   revealStats: text('reveal_stats'),
+  // "Either / or" tiles (lib/altGoal): a second way to finish a SUBMISSION-backed tile — "a GOTR rare
+  // reward OR 100 reward searches". JSON { targets: string[], amount: number, capBy?: string[] }:
+  // `targets` are kill-tile target names (NPCs / COUNTER_TARGETS), `amount` how many, and each
+  // `capBy` entry ONE counter whose per-member total caps what counts (searches paid for with
+  // energy earned during the event = min(searches, elemental, catalytic)). NULL = no alternative.
+  // Credited through submissions whose `goal` is set, which never count toward the primary goal.
+  altGoal: text('alt_goal'),
   // Free-text grouping label (e.g. "Zulrah", "Slayer", "Skilling", "GWD") used to
   // filter tasks by boss/skill/category in the RuneLite plugin's collection-log tab.
   // NULL = uncategorised.
@@ -1120,6 +1127,11 @@ export const submissions = pgTable('submissions', {
   // credit), 'short' (it doesn't — flagged footprint_short), 'dismissed' (staff looked and cleared
   // it; the check never re-raises it). NULL = not checkable yet, or nothing to check.
   footprint: text('footprint'),
+  // Which of the tile's goals this row credits (lib/altGoal). NULL = the tile's own (primary)
+  // requirement — every row before either/or tiles existed. 'alt' = the alternative goal's counter,
+  // 'cap:0', 'cap:1'… = the alt goal's cap counters by index. A row with a goal NEVER counts toward
+  // the primary requirement: 100 searches must not read as 100 items on a drop tile.
+  goal: text('goal'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   index('submissions_tile_id_idx').on(table.tileId),

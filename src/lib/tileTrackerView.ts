@@ -1,4 +1,5 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { primaryCredit } from '@/lib/altGoalSql';
 
 import { db } from '@/db';
 import { completions, eventParticipants, submissions, teams, type events, type tiles } from '@/db/schema';
@@ -58,7 +59,8 @@ export async function tileProgressView(
         itemId: submissions.itemId,
       })
       .from(submissions)
-      .where(eq(submissions.tileId, tile.id));
+      // The tile's own credits — an either/or alternative (lib/altGoal) is a different goal.
+      .where(and(eq(submissions.tileId, tile.id), primaryCredit()));
     const reqs = parseJsonArray<TrackerRequirement>(tile.itemRequirements);
     if (reqs.length > 0) {
       ({ goal, teams: teamProgress } = collectionTileTeams(input, subs, reqs, tile.groupMode, tile.setsRequired ?? 1));

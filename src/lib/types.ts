@@ -1,3 +1,4 @@
+import type { AltGoal } from '@/lib/altGoal';
 import type { MissionReward } from '@/lib/eventRules';
 // Canonical shared types used across client components
 
@@ -98,6 +99,8 @@ export interface Tile extends TileRevealState {
   minRaidLevel?: number | null; // ToA timed/deathless tiles — raid level the run must END at (null = any)
   partyTeamOnly?: number | null; // deathless tiles — 1 = every player in the raid is on the team
   pvpMinLootValue?: number | null; // pvp tiles — min loot value (gp) a kill must yield (null/0 = none)
+  /** Either/or tiles: JSON { targets, amount, capBy? } — a second way to finish it (lib/altGoal). */
+  altGoal?: string | null;
   mission?: number | null; // 1 = a mission tile (hidden until announced mid-event; see tiles.mission)
   rules?: string | null; // per-mission scoring JSON (see tiles.rules / MissionRules); null on normal tiles
   // Optimistic-concurrency stamp (see tiles PUT baseUpdatedAt). Null on legacy rows.
@@ -183,6 +186,11 @@ export interface Submission {
   cleanImageUrl?: string | null;
   /** Hiscores footprint verdict (lib/footprint): 'ok' | 'short' | 'dismissed', null = not checked. */
   footprint?: string | null;
+  /**
+   * Which of the tile's goals this credits (lib/altGoal): null = the tile's own requirement; 'alt' /
+   * 'cap:N' = an either/or tile's alternative, which never counts toward the primary progress.
+   */
+  goal?: string | null;
 }
 
 export interface ItemRequirement {
@@ -233,6 +241,8 @@ export interface TileConfig {
   /** Kill tiles: the kill only counts with at least this many of the team in it (null = no gate). */
   coopMinMembers?: number | null;
   points: number;
+  /** Either/or tiles: a second way to finish it — a counter/NPC target and amount (lib/altGoal). */
+  altGoal?: AltGoal | null;
   /** Balance-only assumptions; stored as JSON on a board tile. */
   effortConfig?: TileEffortConfig | null;
   category: string | null;

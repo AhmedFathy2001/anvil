@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { events, teams, tiles, eventParticipants, completions, submissions, players } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
-import { computeEventMvp, computeMemberBreakdown, rollupByOwner, type StatGainMap } from '@/lib/memberBreakdown';
+import { computeEventMvp, computeMemberBreakdown, contributionRows, rollupByOwner, type StatGainMap } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { getStatStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
@@ -286,6 +286,7 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
           tileId: submissions.tileId,
           teamId: submissions.teamId,
           creditPlayerId: submissions.creditPlayerId,
+          goal: submissions.goal,
           amount: submissions.amount,
           durationSeconds: submissions.durationSeconds,
           createdAt: submissions.createdAt,
@@ -417,6 +418,8 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
   const autoPingTilesSeen = new Set<string>(); // `${personKey}:${tileId}`
   let totalGpLooted = 0;
   for (const sub of eventSubmissions) {
+    // An either/or tile's alternative (searches, energy — lib/altGoal) is not a drop, kill or haul.
+    if (sub.goal != null) continue;
     const s = stat(sub.creditPlayerId);
     if (!s) continue;
     const tile = tileById.get(sub.tileId);
@@ -475,7 +478,7 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
   // rebuilt from the submissions on that tile+team. Either way a person's share is their slice of
   // the work — share == 1 means nobody else touched it.
   const submissionSplit = new Map<string, Map<number, number>>(); // `tileId:teamId` → playerId → amount
-  for (const sub of eventSubmissions) {
+  for (const sub of contributionRows(eventSubmissions)) {
     if (sub.creditPlayerId == null) continue;
     const key = `${sub.tileId}:${sub.teamId}`;
     let split = submissionSplit.get(key);

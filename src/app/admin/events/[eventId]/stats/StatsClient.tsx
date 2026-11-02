@@ -49,6 +49,7 @@ interface ActivitySubmission {
   creditPlayerId: number | null;
   creditPlayerName?: string | null;
   amount: number;
+  goal?: string | null;
 }
 
 export default function StatsClient({ event, teams, tiles, players, statStandings, teamStandings, statsPulledAt, startingStats = {} }: Props) {
@@ -105,6 +106,7 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
           creditPlayerId: s.creditPlayerId,
           creditPlayerName: s.creditPlayerName,
           amount: s.amount,
+          goal: s.goal ?? null,
         })),
       );
       setCompletions(

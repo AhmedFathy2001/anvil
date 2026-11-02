@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { workCredit } from '@/lib/altGoalSql';
 import { events, tiles, completions, eventParticipants, submissions } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
 import {
@@ -522,7 +523,7 @@ async function announceBountyClaim(
         .select({ name: eventParticipants.name })
         .from(submissions)
         .leftJoin(eventParticipants, eq(submissions.creditPlayerId, eventParticipants.id))
-        .where(and(eq(submissions.teamId, teamId), eq(submissions.tileId, tileId)))
+        .where(and(eq(submissions.teamId, teamId), eq(submissions.tileId, tileId), workCredit()))
         .orderBy(submissions.createdAt); // ascending → last write is the finishing hand
       rsn = subs.length > 0 ? subs[subs.length - 1].name ?? null : null;
     }

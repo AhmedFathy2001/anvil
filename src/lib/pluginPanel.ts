@@ -66,7 +66,7 @@ export interface TrackedLists {
   completedTiles?: { tileId: number }[];
   trackedDrops?: (Base & { requiredAmount: number; itemRequirements?: Req[]; groupMode?: string; setsRequired?: number; lastItemId?: number | null })[];
   trackedStats?: (Base & { goalAmount: number })[];
-  trackedKills?: (Base & { requiredAmount: number })[];
+  trackedKills?: (Base & { requiredAmount: number; altOf?: number; altRole?: string; unit?: string })[];
   trackedPvp?: (Base & { requiredAmount: number })[];
   trackedDiaries?: (Base & { requiredAmount: number })[];
   trackedCombatTasks?: (Base & { requiredAmount: number })[];
@@ -115,6 +115,16 @@ export function panelTiles(cfg: TrackedLists): PanelTile[] {
   const counted = (list: (Base & { requiredAmount: number })[] | undefined, min = 0) =>
     (list ?? []).forEach((t) => add(t, t.currentAmount, Math.max(min, t.requiredAmount), done.has(t.tileId)));
 
+  // Either/or tiles (lib/altGoal) ride trackedKills as VIRTUAL entries on negative ids, so every plugin
+  // build credits them. They are not rows of their own: the alternative's progress is a note on its
+  // parent's row ("or 37/100 searches"), and its cap counters are not shown at all.
+  const altNotes = new Map<number, string>();
+  for (const k of cfg.trackedKills ?? []) {
+    if (k.altOf == null || k.altRole !== 'goal') continue;
+    const goal = Math.max(1, k.requiredAmount);
+    altNotes.set(k.altOf, `or ${Math.min(k.currentAmount, goal)}/${goal} ${pluralUnit(k.unit || 'kill', goal)}`);
+  }
+
   for (const d of cfg.trackedDrops ?? []) {
     if (d.itemRequirements?.length) {
       const [current, goal, complete] = collectionProgress(d.itemRequirements, d.groupMode, d.setsRequired ?? 1);
@@ -124,7 +134,7 @@ export function panelTiles(cfg: TrackedLists): PanelTile[] {
     }
   }
   for (const s of cfg.trackedStats ?? []) add(s, s.currentAmount, s.goalAmount, done.has(s.tileId));
-  counted(cfg.trackedKills);
+  counted((cfg.trackedKills ?? []).filter((k) => k.altOf == null));
   counted(cfg.trackedPvp);
   counted(cfg.trackedDiaries);
   counted(cfg.trackedCombatTasks);
@@ -132,7 +142,9 @@ export function panelTiles(cfg: TrackedLists): PanelTile[] {
     const complete = !!t.completed || done.has(t.tileId);
     // Barracuda Trials rank tiles count runs toward requiredAmount; a plain timed tile is one clear.
     const goal = Math.max(1, t.requiredAmount ?? 1);
-    add(t, complete ? goal : Math.min(t.currentAmount ?? 0, goal - 1), goal, complete);
+    const current = complete ? goal : Math.min(t.currentAmount ?? 0, goal - 1);
+    // Say it in runs: a client that draws timed rows as a single clear otherwise shows 0/1 or 1/1.
+    add(t, current, goal, complete, goal > 1 ? `${current}/${goal} runs` : null);
   }
   counted(cfg.trackedLms, 1);
   for (const v of cfg.trackedValues ?? []) {
@@ -146,7 +158,20 @@ export function panelTiles(cfg: TrackedLists): PanelTile[] {
   }
   counted(cfg.trackedGains, 1);
   counted(cfg.trackedDeathless, 1);
+  // The note rides `sets`, the row's existing sub-line, so every client already draws it.
+  for (const r of rows) {
+    const note = altNotes.get(r.tileId);
+    if (note && !r.complete) r.sets = r.sets ? `${r.sets} · ${note}` : note;
+  }
   return rows;
+}
+
+/** search → searches, delve → delves (kept local: this module stays dependency-free). */
+function pluralUnit(unit: string, n: number): string {
+  if (n === 1) return unit;
+  if (/(s|x|z|ch|sh)$/i.test(unit)) return `${unit}es`;
+  if (/[^aeiou]y$/i.test(unit)) return `${unit.slice(0, -1)}ies`;
+  return `${unit}s`;
 }
 
 /**

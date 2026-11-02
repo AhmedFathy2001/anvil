@@ -200,6 +200,21 @@ interface BreakdownSubmission {
   tileId: number;
   creditPlayerId: number | null;
   amount: number;
+  /** lib/altGoal: null/absent = the tile's own requirement; 'alt' / 'cap:N' = an either/or alternative. */
+  goal?: string | null;
+}
+
+/**
+ * The rows that say who did a tile's work. An either/or tile (lib/altGoal) is credited to whoever
+ * worked the goal it was actually reached by: its primary rows when there are any for the tile, and
+ * only otherwise its alternative's own counter ("searches"). Cap counters (energy) are never work.
+ * One team's rows in, so "any primary rows" is per team.
+ */
+export function contributionRows<T extends { tileId: number; teamId?: number; goal?: string | null }>(rows: T[]): T[] {
+  if (!rows.some((r) => r.goal != null)) return rows;
+  const key = (r: T) => `${r.teamId ?? ''}:${r.tileId}`;
+  const primaryTiles = new Set(rows.filter((r) => r.goal == null).map(key));
+  return rows.filter((r) => r.goal == null || (r.goal === 'alt' && !primaryTiles.has(key(r))));
 }
 // Per stat tile, each player's gain on the tracked stat (XP / KC). tileId → rows.
 export type StatGainMap = Record<number, { playerId: number; gained: number }[]>;
@@ -230,7 +245,7 @@ export function computeMemberBreakdown(params: {
     completions.filter((c) => c.teamId === teamId).map((c) => c.tileId),
   );
   const teamPlayerIds = new Set(players.filter((p) => p.teamId === teamId).map((p) => p.id));
-  const teamSubs = submissions.filter((s) => s.teamId === teamId && s.creditPlayerId != null);
+  const teamSubs = contributionRows(submissions.filter((s) => s.teamId === teamId && s.creditPlayerId != null));
 
   // playerId -> tileId -> { amount, count, stat }. `amount` is the split weight (submission amount,
   // or XP/KC gained); `count` is submissions (0 for stat tiles); `stat` marks a hiscores tile.

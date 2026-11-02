@@ -114,6 +114,7 @@ export const TILE_CSV_COLUMNS = [
   'countMode',
 ] as const;
 
+import type { AltGoal } from '@/lib/altGoal';
 import type { Tile } from '@/lib/types';
 import { missionClaimCap, parseTileMissionRules, type MissionRules } from '@/lib/eventRules';
 import { parseGpInput } from '@/lib/adminEventsFormat';
@@ -169,6 +170,8 @@ export interface TileCsvRow {
   mission?: boolean;
   /** The placement ladder assembled from the mission* columns; null on a normal tile. */
   missionRules?: MissionRules | null;
+  /** Either/or tiles (lib/altGoal) — set by the tile creator; no spreadsheet column (yet). */
+  altGoal?: AltGoal | null;
 }
 
 // Parse an `items` cell — "Name:count; Name2:count2". Count is optional (defaults to 1) and is

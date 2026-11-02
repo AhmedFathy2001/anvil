@@ -172,6 +172,7 @@ export default async function EventScoreboardPage({
           tileId: submissions.tileId,
           teamId: submissions.teamId,
           creditPlayerId: submissions.creditPlayerId,
+          goal: submissions.goal,
           amount: submissions.amount,
           createdAt: submissions.createdAt,
         })

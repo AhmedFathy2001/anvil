@@ -100,6 +100,7 @@ export async function POST(
         setsRequired: t.setsRequired,
         countMode: t.countMode,
         perKillCap: t.perKillCap,
+        altGoal: t.altGoal,
         coopCredit: t.coopCredit,
         coopMinMembers: t.coopMinMembers,
         acceptedSources: t.acceptedSources,

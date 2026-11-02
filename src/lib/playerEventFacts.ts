@@ -117,6 +117,7 @@ export async function computePlayerEventFacts(eventId: number): Promise<PlayerEv
           tileId: submissions.tileId,
           teamId: submissions.teamId,
           creditPlayerId: submissions.creditPlayerId,
+          goal: submissions.goal,
           amount: submissions.amount,
           createdAt: submissions.createdAt,
         })

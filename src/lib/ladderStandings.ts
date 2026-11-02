@@ -72,6 +72,7 @@ export async function getLadderBoards(
       tileId: submissions.tileId,
       teamId: submissions.teamId,
       creditPlayerId: submissions.creditPlayerId,
+      goal: submissions.goal,
       amount: submissions.amount,
     })
     .from(submissions)

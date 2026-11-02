@@ -43,7 +43,7 @@ export async function GET(
   const credits = await db
     .select({ playerId: submissions.playerId, tileId: submissions.tileId, amount: submissions.amount, createdAt: submissions.createdAt })
     .from(submissions)
-    .where(and(inArray(submissions.tileId, killTiles.map((t) => t.id)), isNotNull(submissions.playerId)));
+    .where(and(inArray(submissions.tileId, killTiles.map((t) => t.id)), isNotNull(submissions.playerId), isNull(submissions.goal)));
 
   // clan-scope: this clan -- participants of the event eventForRequest settled above; seats joined by id.
   const players = await db

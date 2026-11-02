@@ -1,4 +1,4 @@
-import { countProgress, submissionCreditKey, UNATTRIBUTED_CREDIT, type CountedSubmission } from '@/lib/countProgress';
+import { countProgress, isPrimaryCredit, submissionCreditKey, UNATTRIBUTED_CREDIT, type CountedSubmission } from '@/lib/countProgress';
 import { collectionProgress } from '@/lib/pluginPanel';
 import { isIndividualMode } from '@/lib/statTracking';
 
@@ -56,7 +56,7 @@ export function countTileTeams(
   countMode?: string | null,
 ): TrackerTeam[] {
   return rank(input.teams.map((t) => {
-    const own = subs.filter((s) => s.teamId === t.teamId);
+    const own = subs.filter((s) => s.teamId === t.teamId && isPrimaryCredit(s));
     const byPlayer = new Map<number, number>();
     for (const s of own) {
       const key = submissionCreditKey(s);
@@ -89,7 +89,7 @@ export function collectionTileTeams(
     collectionProgress(reqs.map((r) => ({ ...r, currentAmount: totals.get(r.itemId) ?? 0 })), groupMode, setsRequired);
   const [, goal] = progress(new Map());
   const teams = rank(input.teams.map((t) => {
-    const own = subs.filter((s) => s.teamId === t.teamId);
+    const own = subs.filter((s) => s.teamId === t.teamId && isPrimaryCredit(s));
     const totals = new Map<number, number>();
     const byPlayer = new Map<number, number>();
     for (const s of own) {

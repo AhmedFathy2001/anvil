@@ -14,6 +14,7 @@ import { isRaidEffortMode, parseTileEffortConfig } from '@/lib/tileEffortConfig'
 import { track } from '@/lib/analytics';
 import { captureRevealStats } from '@/lib/revealStatsCapture';
 import { MAX_TRACKED_ITEMS } from '@/lib/tileItemLimits';
+import { altGoalEligible, serializeAltGoal, validateAltGoal } from '@/lib/altGoal';
 
 export async function GET(
   request: Request,
@@ -69,7 +70,7 @@ export async function PUT(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, statBasis, trackingMode, optional, lottery, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, setsRequired, countMode, perKillCap, coopCredit, coopMinMembers, points, effortConfig, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, minRaidLevel, partyTeamOnly, pvpMinLootValue, revealAt, revealState, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, statBasis, trackingMode, optional, lottery, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, setsRequired, countMode, perKillCap, coopCredit, coopMinMembers, points, effortConfig, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, minRaidLevel, partyTeamOnly, pvpMinLootValue, revealAt, revealState, mission, missionRules, baseUpdatedAt, liveOverride, altGoal } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -230,6 +231,14 @@ export async function PUT(
     if (!Number.isInteger(minRaidLevel) || minRaidLevel < 1 || minRaidLevel > 600) {
       return NextResponse.json({ error: 'minRaidLevel must be an integer between 1 and 600 (or null for any level)' }, { status: 400 });
     }
+  }
+
+  // Either/or alternative (lib/altGoal): validated whole; null/'' clears it.
+  let altGoalJson: string | null | undefined;
+  if (altGoal !== undefined) {
+    const parsed = validateAltGoal(altGoal);
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    altGoalJson = serializeAltGoal(parsed.value);
   }
 
   if (perKillCap !== undefined && perKillCap !== null) {
@@ -492,6 +501,8 @@ export async function PUT(
     if (label !== undefined) updateSet.label = label || tile.label;
     if (tileType !== undefined) updateSet.tileType = tileType || 'standard';
     if (requiredAmount !== undefined) updateSet.requiredAmount = requiredAmount || null;
+    // The other way to finish is part of the tile's rules, frozen with them once the event runs.
+    if (altGoalJson !== undefined) updateSet.altGoal = altGoalJson;
   }
 
   // Cross-validate the FINAL persisted state so a tile is always exactly one kind.
@@ -566,6 +577,13 @@ export async function PUT(
   if (hasStat && (isDrop || isKill || isLap || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
     return NextResponse.json(
       { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, lap, PvP, gain, timed, deathless, diary, CA, LMS, or value tile. Pick one kind.' },
+      { status: 400 },
+    );
+  }
+  // An alternative completes through submissions, so only a submission-backed tile can carry one.
+  if (merged.altGoal && !altGoalEligible(merged)) {
+    return NextResponse.json(
+      { error: 'Only tiles that complete from submissions (drops, kills, laps, gains and the like) can have an “or” alternative — not hiscores XP/KC tiles or screenshot tiles.' },
       { status: 400 },
     );
   }

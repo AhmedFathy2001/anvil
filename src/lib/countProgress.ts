@@ -28,6 +28,16 @@ export interface CountedSubmission {
   amount: number;
   /** Which item it was — only read on a 'distinct' drop pool. */
   itemId?: number | null;
+  /**
+   * Which of the tile's goals the row credits (lib/altGoal). Null/absent = the primary requirement;
+   * 'alt' / 'cap:N' rows belong to an either/or tile's ALTERNATIVE and never count here.
+   */
+  goal?: string | null;
+}
+
+/** A row that counts toward the tile's own (primary) requirement — not an alt-goal credit. */
+export function isPrimaryCredit(s: { goal?: string | null }): boolean {
+  return s.goal == null;
 }
 
 // Bucket key for submissions we can't attribute to a player. Player ids are positive autoincrement
@@ -60,7 +70,9 @@ export function countProgress(
   // a Team tile and per member on a Solo one — a teammate's copy is still new to YOU.
   countMode?: string | null,
 ): CountProgress {
-  const subs = countMode === 'distinct' ? distinctOnly(subsIn, isIndividualMode(trackingMode)) : subsIn;
+  // Alt-goal rows (lib/altGoal) are a different goal entirely: 100 searches are not 100 items.
+  const primary = subsIn.filter(isPrimaryCredit);
+  const subs = countMode === 'distinct' ? distinctOnly(primary, isIndividualMode(trackingMode)) : primary;
   const teamTotal = subs.reduce((sum, s) => sum + s.amount, 0);
   if (!isIndividualMode(trackingMode)) {
     return { current: teamTotal, finisherPlayerId: null, teamTotal };
@@ -92,7 +104,8 @@ export function countProgress(
  * `playerId` null (unattributed admin/captain upload) reads that shared bucket.
  */
 export function memberProgress(subsIn: CountedSubmission[], playerId: number | null, countMode?: string | null): number {
-  const subs = countMode === 'distinct' ? distinctOnly(subsIn, true) : subsIn;
+  const primary = subsIn.filter(isPrimaryCredit);
+  const subs = countMode === 'distinct' ? distinctOnly(primary, true) : primary;
   const key = playerId ?? UNATTRIBUTED_CREDIT;
   return subs.reduce((sum, s) => (submissionCreditKey(s) === key ? sum + s.amount : sum), 0);
 }
@@ -121,6 +134,6 @@ export function itemAlreadyCounted(
 ): boolean {
   const solo = isIndividualMode(trackingMode);
   return subs.some(
-    (s) => s.amount > 0 && s.itemId === itemId && (!solo || submissionCreditKey(s) === (creditKey ?? UNATTRIBUTED_CREDIT)),
+    (s) => isPrimaryCredit(s) && s.amount > 0 && s.itemId === itemId && (!solo || submissionCreditKey(s) === (creditKey ?? UNATTRIBUTED_CREDIT)),
   );
 }

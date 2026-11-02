@@ -429,6 +429,9 @@ export const KIND_FIELDS_NULL = {
   minRaidLevel: null,
   partyTeamOnly: null,
   pvpMinLootValue: null,
+  // Either/or tiles (lib/altGoal): the other way to finish. Cleared like any kind field, so a draft
+  // that drops its "or …" half saves without it.
+  altGoal: null,
 } as const;
 
 /** Kinds where "as a team" vs "one player alone" means something (the full editor shows the toggle). */
@@ -500,6 +503,7 @@ export function draftToCsvRow(draft: TileDraft): TileCsvRow {
     timeThresholdSeconds: c.timeThresholdSeconds ?? null,
     countMode: c.countMode ?? null,
     perKillCap: c.perKillCap ?? null,
+    ...(c.altGoal ? { altGoal: c.altGoal } : {}),
   };
   const reqs = draft.config.itemRequirements;
   if (reqs && reqs.length > 0) {

@@ -2,17 +2,28 @@
 
 import { useMemo } from 'react';
 import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
-import { countProgress } from '@/lib/countProgress';
+import { countProgress, isPrimaryCredit } from '@/lib/countProgress';
+import { altProgress, altGoalProgressNote, parseAltGoal } from '@/lib/altGoal';
+
+/** An either/or tile's alternative (lib/altGoal): its capped progress and the "or 37/100 searches" note. */
+export interface AltGoalProgress {
+  current: number;
+  required: number;
+  note: string;
+}
 
 interface DropProgress {
   current: number;
   required: number;
+  /** Either/or tiles: the alternative's progress, shown next to the primary bar. */
+  alt?: AltGoalProgress;
 }
 
 export function useDropProgress(tiles: Tile[], submissions: Submission[]) {
   return useMemo(() => {
     const dropProgress = new Map<number, DropProgress>();
     const perItemProgressMap = new Map<number, ItemRequirementProgress[]>();
+    const altProgressMap = new Map<number, AltGoalProgress>();
 
     for (const tile of tiles) {
       // Count/aggregate tiles all sum submission `amount` toward `requiredAmount` (drop = item drops,
@@ -28,7 +39,7 @@ export function useDropProgress(tiles: Tile[], submissions: Submission[]) {
           || tile.tileType === 'value' || tile.tileType === 'valuetotal')
         && tile.requiredAmount
       ) {
-        const tileSubs = submissions.filter((s) => s.tileId === tile.id);
+        const tileSubs = submissions.filter((s) => s.tileId === tile.id && isPrimaryCredit(s));
         // Mode-aware (lib/countProgress — the same rule the server completes on): Team Total sums the
         // team, Solo shows the best single member's count, so the bar can't read 10/10 on a tile that
         // needs one member to get there alone.
@@ -45,6 +56,18 @@ export function useDropProgress(tiles: Tile[], submissions: Submission[]) {
       }
     }
 
-    return { dropProgress, perItemProgressMap };
+    // Either/or tiles: the alternative's own progress, capped per member exactly as the server does.
+    for (const tile of tiles) {
+      const goal = parseAltGoal(tile.altGoal);
+      if (!goal) continue;
+      const rows = submissions.filter((s) => s.tileId === tile.id && !isPrimaryCredit(s));
+      const { current } = altProgress(rows, goal, tile.trackingMode);
+      const alt = { current, required: goal.amount, note: altGoalProgressNote(goal, current) };
+      altProgressMap.set(tile.id, alt);
+      const primary = dropProgress.get(tile.id);
+      if (primary) dropProgress.set(tile.id, { ...primary, alt });
+    }
+
+    return { dropProgress, perItemProgressMap, altProgressMap };
   }, [tiles, submissions]);
 }

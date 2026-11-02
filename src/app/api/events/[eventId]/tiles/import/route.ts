@@ -14,6 +14,7 @@ import { collectionDisplayTotal } from '@/lib/collectionSets';
 import { isRaidEffortMode, parseTileEffortConfig, type TileEffortConfig } from '@/lib/tileEffortConfig';
 import { track } from '@/lib/analytics';
 import { applyKillTypeAlias, killSourceOf, resolveKillsRow } from '@/lib/killSource';
+import { altGoalEligible, serializeAltGoal, validateAltGoal } from '@/lib/altGoal';
 
 // Bulk tile import — maps CSV/JSON rows onto an event's tiles by position (row order).
 // Built for Leagues-style boards where configuring hundreds of tiles one at a time is
@@ -71,6 +72,8 @@ interface ImportRow {
   /** Hidden until announced mid-event, with its own placement ladder (lib/eventRules MissionRules). */
   mission?: boolean;
   missionRules?: MissionRules | null;
+  /** Either/or tiles: { targets, amount, capBy? } (lib/altGoal); null clears. */
+  altGoal?: unknown;
 }
 
 // Drop fields derived from a row's resolved `items` list — built before the transaction so the
@@ -136,6 +139,10 @@ function parseLen(v: unknown): number {
 
 // Validate a row's standalone numeric/array fields. Returns an error string or null.
 function validateRowFields(i: number, row: ImportRow): string | null {
+  if (row.altGoal !== undefined) {
+    const alt = validateAltGoal(row.altGoal);
+    if (!alt.ok) return `Row ${i + 1}: ${alt.error}`;
+  }
   if (row.tileType !== undefined && row.tileType !== '' && !VALID_TILE_TYPES.has(String(row.tileType).toLowerCase())) {
     return `Row ${i + 1}: unknown type "${row.tileType}" — use one of ${[...VALID_TILE_TYPES].join(', ')}`;
   }
@@ -295,6 +302,10 @@ function validateRowKind(
       ? row.tileType || 'standard'
       : base.tileType;
   const effTrackedStat = row.trackedStat !== undefined ? row.trackedStat || null : base.trackedStat;
+  // A new alternative needs a tile that completes from submissions (lib/altGoal).
+  if (row.altGoal != null && row.altGoal !== '' && !altGoalEligible({ tileType: effTileType, trackedStat: effTrackedStat })) {
+    return `Row ${i + 1}: only drop, kill, lap, gain and other submission tiles can have an “or” alternative.`;
+  }
   const effStatType = row.statType !== undefined ? row.statType || null : base.statType;
   const effStatGoal = row.statGoal !== undefined ? row.statGoal ?? null : base.statGoal;
   const effRequiredAmount = derived
@@ -410,6 +421,11 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
     if (row.label !== undefined && row.label) s.label = String(row.label).slice(0, 200);
     if (row.tileType !== undefined) s.tileType = row.tileType || 'standard';
     if (row.requiredAmount !== undefined) s.requiredAmount = row.requiredAmount ?? null;
+    // The alternative is part of the tile's rules, frozen with them once the event runs.
+    if (row.altGoal !== undefined) {
+      const alt = validateAltGoal(row.altGoal);
+      s.altGoal = alt.ok ? serializeAltGoal(alt.value) : null;
+    }
     // Item config (resolved from the row's `items`) wins over the raw type/requiredAmount above.
     // A `type=gain` row keeps its kind: the items become the flat tracked pool (no per-item
     // requirements) and the row's own requiredAmount is the gain target.
@@ -479,7 +495,7 @@ function isNoopUpdate(updateSet: Record<string, unknown>, tile: Record<string, u
     const cur = tile[k];
     if (k === 'optional') {
       if ((v ? 1 : 0) !== (cur ? 1 : 0)) return false;
-    } else if (k === 'targetNpcs' || k === 'trackedItemIds' || k === 'effortConfig') {
+    } else if (k === 'targetNpcs' || k === 'trackedItemIds' || k === 'effortConfig' || k === 'altGoal') {
       if (normalizeJsonCell(v) !== normalizeJsonCell(cur)) return false;
     } else if (k === 'itemRequirements') {
       if (normalizeItemReqsCell(v) !== normalizeItemReqsCell(cur)) return false;
