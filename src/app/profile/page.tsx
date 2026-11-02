@@ -29,6 +29,7 @@ import { emissionSettingsView } from '@/lib/emissionSettings';
 import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
 import { onboardingNext } from '@/lib/firstLogin';
+import { characterStandings } from '@/lib/characterStandingRead';
 
 export const dynamic = 'force-dynamic';
 
@@ -112,13 +113,23 @@ export default async function ProfilePage({
     const detected = detectedRows
       .filter((d) => !ownedRsns.has(d.rsnNormalized) && !(d.accountHash && ownedHashes.has(d.accountHash)))
       .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
+    const standings = await characterStandings(characters.map((a) => a.id), Date.now());
+    const rsnById = new Map(characters.map((a) => [a.id, a.rsn]));
     return (
       <PersonProfile
         // The Discord display name, and this is the one page it belongs on: /profile is private,
         // signed-in and yours. It is deliberately absent from /u/ and /p/, which are public.
         displayName={user.displayName}
         clans={myClans}
-        characters={characters.map((a) => ({ id: a.id, rsn: a.rsn, shared: !!a.shared }))}
+        characters={characters.map((a) => ({
+          id: a.id,
+          rsn: a.rsn,
+          shared: !!a.shared,
+          standing: standings.lineByAccount.get(a.id),
+        }))}
+        guestSeats={standings.seats
+          .filter((s) => s.kind === 'guest')
+          .map((s) => ({ seatId: s.seatId, rsn: rsnById.get(s.accountId) ?? '', clanName: s.clanName, clanSlug: s.clanSlug }))}
         detected={detected}
         linked={person?.linkAccountsPublicly ?? false}
         emission={emission}
@@ -201,6 +212,8 @@ export default async function ProfilePage({
 
   // Two in-game rosters listing one of their characters: theirs to settle (lib/homeClan).
   const homeConflicts = await membershipConflicts(session.playerId);
+  // Per character: member of which clan (and how fresh its list is), guest where — lib/characterStanding.
+  const lockerStandings = await characterStandings(locker.accounts.map((a) => a.accountId), Date.now());
 
   // Their characters played through somebody else's plugin (lib/accountSightings) — a shared PC, a
   // visit, or a character linked to the wrong person. Shown so they can Remove it if it isn't theirs.
@@ -382,6 +395,7 @@ export default async function ProfilePage({
                   shared: a.shared,
                   accountId: a.accountId,
                   alsoPlayedFrom: alsoPlayedFrom.get(a.accountId),
+                  standing: lockerStandings.lineByAccount.get(a.accountId),
                 }))}
               />
             )}
