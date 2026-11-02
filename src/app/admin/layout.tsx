@@ -192,7 +192,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       { href: '/admin/schedule', label: 'Schedule', icon: '📅', sprite: 'stats' },
       { href: '/admin/clan-events', label: 'Clan events', icon: '🔥', sprite: 'tinderbox' },
       ...(canCheckProofs
-        ? [{ href: '/admin/proofs', label: 'Proofs to check', icon: '🔎', sprite: 'clue' as const, badge: flaggedCount }]
+        ? [{ href: '/admin/proofs', label: 'Proofs to check', icon: '🔎', sprite: 'clue' as const, badge: flaggedCount, matchPrefix: true }]
         : []),
       // The task catalogue boards are generated from — same authority as tile authoring.
       ...(canManageEvents
