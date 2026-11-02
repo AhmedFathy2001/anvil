@@ -174,7 +174,8 @@ export interface Submission {
   itemId?: number | null;
   durationSeconds?: number | null; // timed-tile clear time in seconds
   /** Why this credit wants a human look: 'no_start_proof' (lib/startProof), or 'inferred_duplicate_pet' /
-   * 'inferred_duplicate_scroll' when the plugin worked out an unnamed duplicate from context. */
+   * 'inferred_duplicate_scroll' when the plugin worked out an unnamed duplicate from context, or
+   * 'unverified_counter' when it counted off an in-game signal nobody has checked yet (lib/gameCounters). */
   flaggedReason?: string | null;
   /** 'plugin' | 'web'; null on rows from before provenance was recorded (lib/proofStamp). */
   source?: string | null;

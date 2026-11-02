@@ -1,4 +1,5 @@
 import { activityFor } from '@/lib/hiscoresActivities';
+import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { AGILITY_COURSES, BOSSES, SEPULCHRE_TARGETS, SKILL_LABELS, lapUnitNoun } from './constants';
 
 // Structural subset of a tile row that the kind/target helpers need — board clients keep
@@ -64,7 +65,9 @@ export function tileCountNoun(tile: TileKindLike): string {
       return 'completion';
     case 'gain':
       return 'item';
+    // Deathless raids and timed clears (a Barracuda Trials rank tile counts runs toward its goal).
     case 'deathless':
+    case 'timed':
       return 'run';
     case 'lms':
       return 'game';
@@ -302,6 +305,9 @@ export function tileConfigSummary(tile: TileSummaryLike, noun = 'tile'): string 
       return `Deathless · ${tile.timedActivity || 'raid'}${party}${tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : ''}`;
     }
     case 'timed':
+      if (parseTrialRankTile(tile.timedActivity)) {
+        return `${tile.timedActivity}${tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : ''}`;
+      }
       return tile.timeThresholdSeconds ? `Timed · under ${tile.timeThresholdSeconds}s` : 'Timed clear';
     case 'lms': {
       const cap = tile.timeThresholdSeconds ?? 1;

@@ -1,3 +1,4 @@
+import { pluginGameCounters } from '@/lib/gameCounters';
 import { pluginLevelRules } from '@/lib/levelRulesStore';
 import { resolvePluginClan } from '@/lib/auth';
 import { howItCounts, parseCountMode, parseSetsRequired } from '@/lib/collectionSets';
@@ -30,6 +31,7 @@ import {
 } from '@/lib/pluginConfig';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
+import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { lapUnitNoun, metricKeys } from '@/lib/constants';
 import { ROLL_TABLES, rollItemIds } from '@/lib/rollTables';
 import { computeGain, isIndividualMode, isMilestoneBasis, parseContributionSnapshot } from '@/lib/statTracking';
@@ -858,6 +860,9 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
     // an untradeable vestige reaches event luck (lib/eventLuck) and not only its first-ever unlock.
     // Board-only: event luck is the one reader. Capability 'luck-drops'.
     luckItemIds: [...new Set(luckItems.map((c) => c.itemId))].sort((a, b) => a - b),
+    // Counters read off varbits/varps (lib/gameCounters, capability 'game-counters'). Board-only:
+    // they credit kill tiles, and the plugin reads only the ones a tile targets.
+    gameCounters: pluginGameCounters(),
     completedTiles,
     trackedStats,
     trackedKcNames,
@@ -1108,6 +1113,11 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
         // Signature reward of the timed activity (Colosseum → Dizana's quiver) — the clog
         // accordion's icon; -1 falls back to the book sprite.
         itemId: notableItemFor(t.timedActivity) ?? -1,
+        // Barracuda Trials rank tiles count runs: the server completes them at requiredAmount
+        // qualifying runs, and `completed` stays false until then so the plugin keeps submitting.
+        // Normal timed tiles are one clear under the cap (requiredAmount 1).
+        requiredAmount: parseTrialRankTile(t.timedActivity) ? Math.max(1, t.requiredAmount ?? 1) : 1,
+        currentAmount: parseTrialRankTile(t.timedActivity) ? currentFor(t) : 0,
         completed: completedTileIdSet.has(t.id),
       })),
 

@@ -163,6 +163,10 @@ export const PLUGIN_CAPABILITIES = [
   // in-game clan settings — clan name, rank, rank title, join date — on login and on change. Never
   // the member list. Works with no Anvil clan; feeds the profile's clan line and the hidden page.
   'game-clan',
+  // Game-value counters (lib/gameCounters): /api/plugin/config carries `gameCounters`, the varbits/
+  // varps whose changes credit kill tiles by name, and the submissions route accepts the
+  // 'unverified_counter' flag for the ones nobody has checked in game yet.
+  'game-counters',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

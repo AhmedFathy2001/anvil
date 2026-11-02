@@ -18,10 +18,35 @@ const RANK_LABELS: Record<string, string> = {
   marlin: 'Marlin',
 };
 
-/** The nine "Course — Rank" activity strings offered in the timed-tile activity picker. */
-export const TRIAL_RANK_ACTIVITIES: string[] = TRIAL_COURSES.flatMap((c) =>
-  TRIAL_RANKS.map((r) => `${COURSE_LABELS[c]} — ${RANK_LABELS[r]}`),
+// Sailing level each course unlocks at. The ranks on a course unlock in order (Swordfish → Shark →
+// Marlin) by beating the previous one, not by level — so the level gate is per course only.
+export const TRIAL_COURSE_LEVELS: Record<(typeof TRIAL_COURSES)[number], number> = {
+  'tempor tantrum': 30,
+  'jubbly jive': 55,
+  'gwenith glide': 72,
+};
+
+export interface TrialRankOption {
+  /** The tile's timedActivity string, e.g. "Gwenith Glide — Marlin". */
+  activity: string;
+  course: string;
+  rank: string;
+  /** Sailing level the course unlocks at. */
+  level: number;
+}
+
+/** Every course × rank combo, in course-then-rank order, with the course's Sailing level. */
+export const TRIAL_RANK_OPTIONS: TrialRankOption[] = TRIAL_COURSES.flatMap((c) =>
+  TRIAL_RANKS.map((r) => ({
+    activity: `${COURSE_LABELS[c]} — ${RANK_LABELS[r]}`,
+    course: COURSE_LABELS[c],
+    rank: RANK_LABELS[r],
+    level: TRIAL_COURSE_LEVELS[c],
+  })),
 );
+
+/** The nine "Course — Rank" activity strings offered in the timed-tile activity picker. */
+export const TRIAL_RANK_ACTIVITIES: string[] = TRIAL_RANK_OPTIONS.map((o) => o.activity);
 
 /**
  * Parse a timed-tile activity into its Barracuda Trials course + rank, or null if it isn't a rank
@@ -39,4 +64,10 @@ export function parseTrialRankTile(activity: string | null | undefined): { cours
     }
   }
   return null;
+}
+
+/** Sailing level a trial rank tile's course needs, or null when the activity isn't a rank tile. */
+export function trialRankLevel(activity: string | null | undefined): number | null {
+  const t = parseTrialRankTile(activity);
+  return t ? TRIAL_COURSE_LEVELS[t.course as (typeof TRIAL_COURSES)[number]] : null;
 }

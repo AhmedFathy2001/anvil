@@ -70,7 +70,7 @@ export interface TrackedLists {
   trackedPvp?: (Base & { requiredAmount: number })[];
   trackedDiaries?: (Base & { requiredAmount: number })[];
   trackedCombatTasks?: (Base & { requiredAmount: number })[];
-  trackedTimed?: (Omit<Base, 'currentAmount'> & { completed?: boolean })[];
+  trackedTimed?: (Omit<Base, 'currentAmount'> & { completed?: boolean; requiredAmount?: number; currentAmount?: number })[];
   trackedLms?: (Base & { requiredAmount: number })[];
   trackedValues?: (Omit<Base, 'currentAmount'> & { mode?: string; thresholdGp: number; currentGp: number; completed?: boolean })[];
   trackedGains?: (Base & { requiredAmount: number })[];
@@ -130,7 +130,9 @@ export function panelTiles(cfg: TrackedLists): PanelTile[] {
   counted(cfg.trackedCombatTasks);
   for (const t of cfg.trackedTimed ?? []) {
     const complete = !!t.completed || done.has(t.tileId);
-    add(t, complete ? 1 : 0, 1, complete);
+    // Barracuda Trials rank tiles count runs toward requiredAmount; a plain timed tile is one clear.
+    const goal = Math.max(1, t.requiredAmount ?? 1);
+    add(t, complete ? goal : Math.min(t.currentAmount ?? 0, goal - 1), goal, complete);
   }
   counted(cfg.trackedLms, 1);
   for (const v of cfg.trackedValues ?? []) {

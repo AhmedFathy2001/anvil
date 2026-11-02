@@ -56,6 +56,11 @@ test('a timed tile with no time to beat cannot be cleared', () => {
   assert.equal(problems[0].severity, 'broken');
 });
 
+test('a Barracuda Trials rank tile needs no time cap — the rank is its gate', () => {
+  const problems = findBoardProblems([tile({ tileType: 'timed', timedActivity: 'Gwenith Glide — Marlin', requiredAmount: 5 })], { pointsMode: false });
+  assert.equal(problems.length, 0);
+});
+
 test('a scoring tile worth nothing on a points board is worth a look, not broken', () => {
   const problems = findBoardProblems([tile({ tileType: 'drop', trackedItemIds: '[4151]', points: 0 })], {
     pointsMode: true,

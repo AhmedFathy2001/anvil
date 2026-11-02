@@ -32,7 +32,9 @@ import { parseStamp } from '@/lib/dbTime';
 import crypto from 'crypto';
 
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
-const INFERRED_FLAGS = new Set(['inferred_duplicate_pet', 'inferred_duplicate_scroll']);
+// 'unverified_counter': credited off an in-game signal nobody has checked yet (lib/gameCounters,
+// COUNTER_TARGETS confirmed:false) — it counts, staff spot-check it.
+const INFERRED_FLAGS = new Set(['inferred_duplicate_pet', 'inferred_duplicate_scroll', 'unverified_counter']);
 
 /** The most one image-less plugin ping may credit — far above a real 2.5s burst. */
 const MAX_PING_AMOUNT = 10;
@@ -336,7 +338,8 @@ export async function POST(
     }
   }
   // INFERRED ITEM (plugin only). A duplicate pet or champion's scroll gives no item and no name, only
-  // "a funny feeling"; the plugin works out which one from what was just killed or trained. The
+  // "a funny feeling"; the plugin works out which one from what was just killed or trained. (Same
+  // channel: 'unverified_counter', a count off a not-yet-checked in-game signal.) The
   // credit counts, but staff get a look — the same soft hold as a missing starting shot, which wins
   // if both apply since it is the stronger reason.
   if (pluginAuth && !flaggedReason && typeof inferred === 'string' && INFERRED_FLAGS.has(inferred)) {
@@ -368,7 +371,9 @@ export async function POST(
   // forged ping could claim the 10,000-kill ceiling and finish any kill tile in one request. Clamped,
   // and flagged so staff can see the claim — not refused, because a refused ping is requeued by the
   // plugin and would come straight back.
-  let creditedAmount: number = amount || 1;
+  // A timed clear is one run whatever amount the caller sent — Barracuda Trials rank tiles count
+  // runs toward requiredAmount, so a stray amount must never stand in for several runs.
+  let creditedAmount: number = tile.tileType === 'timed' ? 1 : amount || 1;
   let creditNote: string | null = note || null;
   if (isPluginKillPing && !imageUrlValue && PING_CAPPED_KINDS.has(tile.tileType) && creditedAmount > MAX_PING_AMOUNT) {
     creditNote = `${creditNote ? `${creditNote} ` : ''}[claimed ${creditedAmount} without a screenshot]`.slice(0, 500);

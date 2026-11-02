@@ -17,6 +17,7 @@ import { isMilestoneBasis, parseContributionSnapshot } from '@/lib/statTracking'
 import { getStatStandings } from '@/lib/statStandings';
 import { ttlMemo } from '@/lib/ttlMemo';
 import { statLabel } from '@/lib/tileKinds';
+import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { howItCounts, parseCountMode, parseSetsRequired, type CollectionRequirement } from '@/lib/collectionSets';
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
 
@@ -147,6 +148,10 @@ function tileRequirement(t: typeof tiles.$inferSelect): string | null {
       return amt ? `Gather ${amt}` : null;
     case 'timed': {
       if (!t.timedActivity) return null;
+      // Barracuda Trials rank tile: N runs at that exact rank, no cap.
+      if (parseTrialRankTile(t.timedActivity)) {
+        return t.requiredAmount && t.requiredAmount > 1 ? `${amt}× ${t.timedActivity}` : `Achieve ${t.timedActivity}`;
+      }
       const cap = t.timeThresholdSeconds ? ` under ${fmtClock(t.timeThresholdSeconds)}` : '';
       const party = t.partySize ? ` (${t.partySize}-player)` : '';
       const level = t.minRaidLevel ? ` at raid level ${t.minRaidLevel}+` : '';

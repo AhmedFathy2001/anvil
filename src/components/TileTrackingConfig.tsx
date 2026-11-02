@@ -26,7 +26,7 @@ import { ROLL_TABLES } from '@/lib/rollTables';
 import { PET_GROUPS } from '@/lib/petGroups';
 import { MAX_TRACKED_ITEMS } from '@/lib/tileItemLimits';
 import Checkbox from '@/components/Checkbox';
-import { TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
+import { TRIAL_RANK_ACTIVITIES, parseTrialRankTile, trialRankLevel } from '@/lib/barracudaTrials';
 import type { TileConfig, TileMissionRules } from '@/lib/types';
 import { parseTileMissionRules, type MissionReward } from '@/lib/eventRules';
 import MissionRewardEditor from '@/components/MissionRewardEditor';
@@ -183,6 +183,11 @@ const TIMED_LABEL_FIXES: Record<string, string | null> = {
   'Lunar Chests': null,    // Moons of Peril has no timer — a chest count line, no duration to pair
   'Wintertodt': null,      // no duration line
   'Zalcano': null,         // no in-game kill timer
+};
+// Sailing level shown beside each Barracuda Trials entry in the timed activity picker.
+const trialSuggestionHint = (activity: string): string | null => {
+  const level = trialRankLevel(activity);
+  return level ? `Sailing ${level}` : null;
 };
 const TIMED_ACTIVITY_SUGGESTIONS = [
   ...new Set([
@@ -1430,7 +1435,11 @@ function TileTrackingEditor({
       const amt = parseInt(requiredAmount, 10);
       if (!Number.isInteger(amt) || amt < 1) return 'Set how many must be gained (at least 1).';
     }
-    if (kind === 'timed') {
+    if (kind === 'timed' && parseTrialRankTile(timedActivity)) {
+      // Barracuda Trials rank tile: the rank is the gate, so no time cap — just how many runs.
+      const runs = parseInt(requiredAmount || '1', 10);
+      if (!Number.isInteger(runs) || runs < 1 || runs > 10000) return 'Set how many runs at this rank are needed (at least 1).';
+    } else if (kind === 'timed') {
       if (!timedActivity.trim()) return 'Name the activity to time (e.g. Inferno).';
       const secs = clockToSeconds(timeThresholdClock);
       if (secs == null || secs < 1) return 'Set a time cap as mm:ss (e.g. 30:00) or seconds.';
@@ -1630,6 +1639,14 @@ function TileTrackingEditor({
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.trackedItemIds = trackedItems.length > 0 ? trackedItems.map((i) => i.id) : null;
         payload.trackingMode = trackingMode;
+      } else if (kind === 'timed' && parseTrialRankTile(timedActivity)) {
+        // Barracuda Trials rank tile: gated on the exact rank (no cap); requiredAmount = runs needed.
+        payload.timedActivity = timedActivity.trim();
+        payload.timeThresholdSeconds = null;
+        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : 1;
+        payload.trackingMode = trackingMode;
+        payload.partySize = null;
+        payload.minRaidLevel = null;
       } else if (kind === 'timed') {
         payload.timedActivity = timedActivity.trim();
         payload.timeThresholdSeconds = clockToSeconds(timeThresholdClock);
@@ -2711,9 +2728,14 @@ function TileTrackingEditor({
                             type="button"
                             onClick={() => addNpc(e.name)}
                             className="text-[10px] px-2 py-0.5 rounded border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
-                            title={e.note}
+                            title={e.confirmed === false
+                              ? `${e.note} — beta: a new in-game signal, so each credit is flagged for staff to spot-check`
+                              : e.note}
                           >
                             + {e.name}
+                            {e.confirmed === false && (
+                              <span className="ml-1 px-1 rounded bg-yellow-500/15 text-yellow-300 text-[9px] uppercase tracking-wide">beta</span>
+                            )}
                           </button>
                         ))}
                       </div>
@@ -3245,6 +3267,7 @@ function TileTrackingEditor({
               value={timedActivity}
               onChange={setTimedActivity}
               suggestions={TIMED_ACTIVITY_SUGGESTIONS}
+              suggestionHint={trialSuggestionHint}
               placeholder="e.g. Inferno"
               maxLength={60}
               ariaLabel="Timed activity"
@@ -3258,6 +3281,29 @@ function TileTrackingEditor({
             </p>
           </div>
 
+          {parseTrialRankTile(timedActivity) ? (
+            <>
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Runs needed</label>
+                <Input
+                  type="number"
+                  value={requiredAmount}
+                  onChange={(e) => setRequiredAmount(e.target.value)}
+                  disabled={locked}
+                  placeholder="1"
+                  className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
+                  min="1"
+                />
+                <p className="text-[10px] text-text-muted mt-0.5">
+                  A Barracuda Trials rank tile: each run that earns exactly this rank on this course counts once
+                  (no time cap — a different rank never counts). Sailing {trialRankLevel(timedActivity)} to enter
+                  the course.
+                </p>
+              </div>
+              <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="runs" goal="run count" teamPlay={teamPlay} />
+            </>
+          ) : (
+          <>
           <div>
             <label className="block text-xs text-text-muted mb-1">
               Time Cap <span className="text-text-muted/60">(complete if cleared at or under)</span>
@@ -3298,6 +3344,8 @@ function TileTrackingEditor({
           )}
           {activityIsToa(timedActivity) && (
             <RaidLevelField value={minRaidLevel} onChange={setMinRaidLevel} />
+          )}
+          </>
           )}
         </div>
       )}

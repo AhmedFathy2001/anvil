@@ -139,20 +139,27 @@ export async function syncDropTileCompletion(
       tile.groupMode,
       tile.setsRequired,
     ).isComplete;
-  } else if (tile.tileType === 'timed') {
+  } else if (tile.tileType === 'timed' && parseTrialRankTile(tile.timedActivity) != null) {
     // Barracuda Trials rank tiles ("Gwenith Glide — Marlin"): the plugin only submits an EXACT rank
-    // match, so the rank is the gate — complete on any submission, no time cap (each rank is its own
-    // challenge, so a cap is meaningless). Normal timed tiles: pass/fail on duration ≤ cap; no
-    // threshold configured (and not a rank tile) → never auto-completes.
-    const rankTile = parseTrialRankTile(tile.timedActivity) != null;
-    if (tile.timeThresholdSeconds == null && !rankTile) return null;
+    // match, so the rank is the gate — no time cap (each rank is its own challenge, so a cap is
+    // meaningless). Each submission is one qualifying run; the tile completes at requiredAmount runs
+    // (default 1), counted like the other count kinds so Team/Solo tracking applies.
+    const goal = Math.max(1, tile.requiredAmount ?? 1);
+    const progress = await countTileProgress(tileId, teamId, tile.trackingMode);
+    totalAmount = progress.current;
+    finisherPlayerId = progress.finisherPlayerId;
+    isComplete = totalAmount >= goal;
+    soloShortfall = !isComplete && progress.teamTotal >= goal;
+  } else if (tile.tileType === 'timed') {
+    // Normal timed tiles: pass/fail on duration ≤ cap; no threshold configured → never auto-completes.
+    if (tile.timeThresholdSeconds == null) return null;
     const fastest = await db
       .select({ best: sql<number | null>`MIN(${submissions.durationSeconds})` })
       .from(submissions)
       .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
     const best = fastest[0]?.best ?? null;
     totalAmount = best ?? 0;
-    isComplete = best != null && (rankTile || best <= tile.timeThresholdSeconds!);
+    isComplete = best != null && best <= tile.timeThresholdSeconds;
   } else if (tile.tileType === 'value') {
     // Loot-value tiles: pass/fail on a single haul. A submission's `amount` carries the haul's
     // gp value; the tile completes when any one haul meets the threshold in requiredAmount.
