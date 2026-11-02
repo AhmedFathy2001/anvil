@@ -309,3 +309,110 @@ test('…while a clan that signed up this week keeps its unverified name: the pr
   });
   assert.deepEqual(r, { outcome: 'taken', byClanSlug: 'brand-new' });
 });
+
+// ── Owner tier outranks a lower-rank verification ─────────────────────────────────────────────
+//
+// Any rank verifies, so a recruit can stand a site up under their clan's name before its leaders
+// arrive. That verification is provisional against the clan's own owner tier: an owner or deputy
+// pushing the same name from another Anvil clan takes it over. One an owner-tier rank (or staff)
+// made keeps first-claim-wins.
+
+test('an owner-tier sync takes over a name a lower rank verified elsewhere', async () => {
+  const { db, schema: s } = await loadDb();
+  const { eq, and } = await import('drizzle-orm');
+  const [early] = await db.insert(s.clans).values({ slug: 'recruit-site', name: 'Recruit Site' }).returning();
+  const [real] = await db.insert(s.clans).values({ slug: 'owners-site', name: 'Owners Site' }).returning();
+
+  const first = await V.claimFromRoster({
+    clanId: early.id,
+    reportedClanName: 'Rank Ladder',
+    pusherRsnNormalized: 'a grunt',
+    pusherAccountId: null,
+    roster: ROSTER,
+  });
+  assert.equal(first.outcome, 'verified');
+  const verifiedRow = (
+    await db
+      .select()
+      .from(s.clanAuditLog)
+      .where(and(eq(s.clanAuditLog.clanId, early.id), eq(s.clanAuditLog.eventType, 'ingame_name_verified')))
+  )[0];
+  const recorded = JSON.parse(verifiedRow.newValue!);
+  assert.equal(recorded.rank, 'Recruit', 'the verifying rank is recorded');
+  assert.equal(recorded.ownerTier, false);
+
+  // A member seat the early clan's roster sync made.
+  const [pl] = await db.insert(s.players).values({ displayName: 'Synced' }).returning();
+  const [acct] = await db
+    .insert(s.accounts)
+    .values({ playerId: pl.id, rsn: 'Synced', rsnNormalized: 'synced' })
+    .returning();
+  await db.insert(s.clanMemberships).values({ clanId: early.id, accountId: acct.id, kind: 'member', source: 'roster' });
+
+  const r = await V.claimFromRoster({
+    clanId: real.id,
+    reportedClanName: 'rank ladder',
+    pusherRsnNormalized: 'a deputy',
+    pusherAccountId: ownerAccount,
+    roster: ROSTER,
+  });
+  assert.deepEqual(r, { outcome: 'verified', inGameName: 'rank ladder' });
+
+  const [oldClan] = await db.select().from(s.clans).where(eq(s.clans.id, early.id));
+  assert.equal(oldClan.inGameName, null, 'the old holder loses the name');
+  assert.equal(oldClan.ingameNameVerifiedAt, null);
+  const [seat] = await db.select().from(s.clanMemberships).where(eq(s.clanMemberships.accountId, acct.id));
+  assert.equal(seat.kind, 'guest', 'its roster member seats are released, like a staff unverify');
+
+  const oldLog = await db.select().from(s.clanAuditLog).where(eq(s.clanAuditLog.clanId, early.id));
+  assert.ok(oldLog.some((l) => l.eventType === 'ingame_name_unverified'), 'logged on the old holder');
+  const newLog = await db.select().from(s.clanAuditLog).where(eq(s.clanAuditLog.clanId, real.id));
+  const takeover = newLog.find((l) => l.eventType === 'ingame_name_verified');
+  assert.equal(JSON.parse(takeover!.newValue!).takenFrom, 'recruit-site', 'and on the new one');
+});
+
+test('a lower-rank pusher cannot take over a lower-rank verification', async () => {
+  const { db, schema: s } = await loadDb();
+  const [a] = await db.insert(s.clans).values({ slug: 'grunt-one', name: 'Grunt One' }).returning();
+  const [b] = await db.insert(s.clans).values({ slug: 'grunt-two', name: 'Grunt Two' }).returning();
+  const base = { reportedClanName: 'Low Ranks', pusherRsnNormalized: 'a grunt', pusherAccountId: null, roster: ROSTER };
+  assert.equal((await V.claimFromRoster({ ...base, clanId: a.id })).outcome, 'verified');
+  assert.deepEqual(await V.claimFromRoster({ ...base, clanId: b.id }), { outcome: 'taken', byClanSlug: 'grunt-one' });
+});
+
+test('once the owner tier has synced the holder, the name is no longer open to takeover', async () => {
+  const { db, schema: s } = await loadDb();
+  const [a] = await db.insert(s.clans).values({ slug: 'confirmed', name: 'Confirmed' }).returning();
+  const [b] = await db.insert(s.clans).values({ slug: 'late-owner', name: 'Late Owner' }).returning();
+  await V.claimFromRoster({
+    clanId: a.id,
+    reportedClanName: 'Confirmed Clan',
+    pusherRsnNormalized: 'a grunt',
+    pusherAccountId: null,
+    roster: ROSTER,
+  });
+  await V.confirmOwnerTier(a.id, 'Owner', ownerAccount);
+  const r = await V.claimFromRoster({
+    clanId: b.id,
+    reportedClanName: 'Confirmed Clan',
+    pusherRsnNormalized: 'the boss',
+    pusherAccountId: ownerAccount,
+    roster: ROSTER,
+  });
+  assert.deepEqual(r, { outcome: 'taken', byClanSlug: 'confirmed' });
+});
+
+test('a staff verification is not open to takeover either', async () => {
+  const { db, schema: s } = await loadDb();
+  const [a] = await db.insert(s.clans).values({ slug: 'staff-made', name: 'Staff Made' }).returning();
+  const [b] = await db.insert(s.clans).values({ slug: 'staff-rival', name: 'Staff Rival' }).returning();
+  assert.equal((await V.verifyManually(a.id, 'Staff Clan', staffUser)).ok, true);
+  const r = await V.claimFromRoster({
+    clanId: b.id,
+    reportedClanName: 'Staff Clan',
+    pusherRsnNormalized: 'the boss',
+    pusherAccountId: ownerAccount,
+    roster: ROSTER,
+  });
+  assert.deepEqual(r, { outcome: 'taken', byClanSlug: 'staff-made' });
+});
