@@ -31,6 +31,7 @@ import { chooseKillSource, hiscoresKeyForMonster } from '@/lib/killSource';
 import type { TileConfig } from '@/lib/types';
 import { GOTR_ENERGY_CAPS, GOTR_SEARCHES, capPhrase } from '@/lib/tileCaps';
 import { COMBO_TILE_TYPE, MAX_COMBO_PARTS, comboLabel, comboSentence, type ComboRule } from '@/lib/combo';
+import { clogTileTitle } from '@/lib/clogTileWords';
 import {
   RAID_OPTIONS,
   TRIAL_COURSE_OPTIONS,
@@ -51,14 +52,14 @@ import {
 
 // ─── Types ───────────────────────────────────────────────────────────────────────────────────
 
-export type BrowseCategory = 'bosses' | 'items' | 'skilling' | 'courses' | 'xp' | 'achievements' | 'challenges' | 'other';
+export type BrowseCategory = 'bosses' | 'items' | 'clog' | 'skilling' | 'courses' | 'xp' | 'achievements' | 'challenges' | 'other';
 
 /** Which screen finishes this candidate: most go straight to the one-sentence confirm. */
-export type CreatorFlow = 'confirm' | 'raids' | 'trials' | 'items' | 'courses';
+export type CreatorFlow = 'confirm' | 'raids' | 'trials' | 'items' | 'courses' | 'clog';
 
 export type CandidateSource =
   | 'library' | 'boss' | 'activity' | 'skill' | 'counter' | 'raid' | 'lap' | 'trial'
-  | 'diary' | 'ca' | 'timed' | 'deathless' | 'lms' | 'pvp' | 'value' | 'gain' | 'drop' | 'clog' | 'monster' | 'combo';
+  | 'diary' | 'ca' | 'timed' | 'deathless' | 'lms' | 'pvp' | 'value' | 'gain' | 'drop' | 'clog' | 'clogtile' | 'monster' | 'combo';
 
 export interface TaskCandidate {
   key: string;
@@ -89,6 +90,8 @@ export interface TaskCandidate {
     items?: { id: number; name: string }[];
     how?: 'gain' | 'drop';
     courses?: string[];
+    /** A collection-log tile's picks (lib/clogTiles). */
+    clog?: { mode: 'slots' | 'complete'; pages: string[]; itemIds: number[] };
   };
   category: BrowseCategory;
   score: number;
@@ -201,6 +204,9 @@ const SHORTHANDS: Record<string, string> = {
   vork: 'vorkath',
   muspah: 'phantom muspah',
   tempo: 'tempoross',
+  dwh: 'dragon warhammer',
+  ele: 'elemental',
+  clogs: 'clog',
   mlm: 'motherlode mine',
   gf: 'giants foundry',
   herbi: 'herbiboar',
@@ -216,7 +222,6 @@ const SHORTHANDS: Record<string, string> = {
   // "zenyte" stays ambiguous with the cut gem, so only the plural is expanded.
   zenytes: 'zenyte shards',
   tbow: 'twisted bow',
-  dwh: 'dragon warhammer',
   bowfa: 'bow of faerdhinen',
   zcb: 'zaryte crossbow',
   acb: 'armadyl crossbow',
@@ -1121,6 +1126,117 @@ function clogCandidates(q: ParsedQuery, ctx: MatchContext): TaskCandidate[] {
   return out.sort((a, b) => b.score - a.score).slice(0, 2);
 }
 
+// ─── Collection-log tiles ────────────────────────────────────────────────────────────────────
+//
+// "10 new clog slots", "3 new barrows clog slots", "new clog slot from dwh, tyrannical ring or chaos
+// ele pet", "complete the wintertodt clog page". The pages and items come from ctx.clogPages (the
+// server's catalogue) — this module stays dataset-free so the creator can bundle it.
+
+const CLOG_WORDS = new Set(['clog', 'log', 'collection', 'slot', 'page', 'complete', 'finish', 'fill', 'full', 'own', 'new', 'from', 'unique', 'different', 'any', 'the', 'a', 'an', 'of', 'item']);
+
+/** The candidate a collection-log tile becomes — shared by the matcher and the creator's own step. */
+export function clogTileCandidate(pick: { mode: 'slots' | 'complete'; pages: string[]; itemIds: number[]; itemNames?: string[] }, amount: number | null): TaskCandidate {
+  const { mode, pages, itemIds } = pick;
+  const config: Partial<TileConfig> = {
+    tileType: 'clog',
+    countMode: mode,
+    targetNpcs: pages.length > 0 ? pages : null,
+    trackedItemIds: itemIds.length > 0 ? itemIds : null,
+    requiredAmount: mode === 'slots' ? Math.max(1, amount ?? 1) : null,
+  };
+  const how = howItCountsLine(config);
+  const spec = { mode, pages, itemIds, required: Math.max(1, amount ?? 1) };
+  const names = pick.itemNames && pick.itemNames.length > 0 ? pick.itemNames : undefined;
+  const titleOne = clogTileTitle({ ...spec, required: 1 }, names);
+  const templ = mode === 'slots' ? clogTileTitle({ ...spec, required: 2 }, names).replace(/^2 /, '{n} ') : titleOne;
+  return {
+    key: `clogtile-${mode}-${pages.join('+')}-${itemIds.length}`,
+    source: 'clogtile',
+    badge: 'Collection log',
+    title: mode === 'slots' ? (spec.required === 1 ? titleOne : templ.replace('{n}', fmt(spec.required))) : titleOne,
+    titleTemplate: templ,
+    titleOne,
+    hint: how.text,
+    engine: how.engine,
+    verb: mode === 'slots' ? 'Get' : 'Complete',
+    noun: mode === 'slots' ? 'new collection log slots' : titleOne.replace(/^Complete /, '').replace(/^Own /, 'own '),
+    amountField: mode === 'slots' ? 'requiredAmount' : null,
+    amount: mode === 'slots' ? spec.required : null,
+    config,
+    flow: 'clog',
+    seed: { clog: { mode, pages, itemIds } },
+    category: 'clog',
+    score: 0,
+    confident: true,
+  };
+}
+
+/** One phrase ("chaos ele pet", "tyrannical ring") → the clog item it names, or null. */
+function clogItemFor(phrase: string, ctx: MatchContext): { id: number; name: string; page: string } | null {
+  const want = tokens(expandShorthands(phrase)).filter((t) => !CLOG_WORDS.has(t) || t === 'pet');
+  if (want.length === 0) return null;
+  let best: { id: number; name: string; page: string; extra: number } | null = null;
+  for (const page of ctx.clogPages ?? []) {
+    if (page.name === 'All Pets') continue;
+    for (const item of page.items) {
+      const have = tokens(item.name);
+      if (!want.every((w) => have.some((h) => tokMatch(w, h) || (w.length >= 3 && h.startsWith(w))))) continue;
+      const extra = have.length - want.length;
+      if (!best || extra < best.extra) best = { id: item.id, name: item.name, page: page.name, extra };
+    }
+  }
+  return best ? { id: best.id, name: best.name, page: best.page } : null;
+}
+
+function clogTileCandidates(raw: string, q: ParsedQuery, ctx: MatchContext): TaskCandidate[] {
+  if (!ctx.clogPages || ctx.clogPages.length === 0) return [];
+  const all = new Set(q.all);
+  const logWord = all.has('clog') || all.has('collection') || (all.has('log') && (all.has('slot') || all.has('page')));
+  if (!logWord) return [];
+  const slotIntent = all.has('slot');
+  const pageIntent = !slotIntent && ['complete', 'finish', 'fill', 'full', 'own', 'page'].some((w) => all.has(w));
+  if (!slotIntent && !pageIntent) return [];
+  const mode = slotIntent ? 'slots' : 'complete';
+
+  // Hand-picked items: "… from dwh, tyrannical ring or chaos ele pet".
+  const fromAt = /\bfrom\b/i.exec(raw);
+  if (fromAt) {
+    const list = raw.slice(fromAt.index + 4).split(/,|\bor\b|\band\b|\//i).map((p) => p.trim()).filter(Boolean);
+    const items = list.map((p) => clogItemFor(p, ctx));
+    if (list.length > 1 && items.every((x) => x != null)) {
+      const picked = items as { id: number; name: string; page: string }[];
+      const ids = [...new Set(picked.map((i) => i.id))];
+      const pages = [...new Set(picked.map((i) => i.page))];
+      const c = clogTileCandidate({ mode, pages, itemIds: ids, itemNames: picked.map((i) => i.name) }, mode === 'slots' ? q.amount ?? 1 : null);
+      return [{ ...c, score: 12, confident: true }];
+    }
+  }
+
+  // A page ("barrows", "wintertodt"), or no page at all = any page.
+  const core = q.tokens.filter((t) => !CLOG_WORDS.has(t));
+  if (core.length === 0) {
+    if (mode === 'complete') return [];
+    return [{ ...clogTileCandidate({ mode, pages: [], itemIds: [] }, q.amount ?? 10), score: 11, confident: true }];
+  }
+  let best: { page: { name: string; items: MatchItem[] }; extra: number } | null = null;
+  for (const page of ctx.clogPages) {
+    const have = tokens(page.name);
+    if (!core.every((t) => have.some((h) => tokMatch(t, h)))) continue;
+    const extra = have.length - core.length;
+    if (!best || extra < best.extra) best = { page, extra };
+  }
+  if (best) {
+    const c = clogTileCandidate({ mode, pages: [best.page.name], itemIds: best.page.items.map((i) => i.id) }, mode === 'slots' ? q.amount ?? 1 : null);
+    return [{ ...c, score: 11 - Math.min(best.extra, 2) * 0.25, confident: true }];
+  }
+  // One item: "a new clog slot: tyrannical ring".
+  const one = clogItemFor(core.join(' '), ctx);
+  if (one) {
+    return [{ ...clogTileCandidate({ mode, pages: [one.page], itemIds: [one.id], itemNames: [one.name] }, mode === 'slots' ? 1 : null), score: 10, confident: true }];
+  }
+  return [];
+}
+
 // ─── The catalogue ───────────────────────────────────────────────────────────────────────────
 
 function staticDrafts(ctx: MatchContext, q: ParsedQuery | null): (Draft & Named)[] {
@@ -1627,6 +1743,7 @@ function matchExact(query: string, ctx: MatchContext): TaskCandidate[] {
     out.push(named.has(itemName) ? { ...c, score: c.score - 3, confident: false } : c);
   }
   out.push(...clogCandidates(q, ctx));
+  out.push(...clogTileCandidates(query, q, ctx));
 
   out.sort((a, b) => b.score - a.score);
   // One row per key (a library task and its seed can share a label but not a key).
@@ -1679,6 +1796,8 @@ export function screenshotCandidate(query: string): TaskCandidate {
 
 /** The browse lists — every catalogued task of one category, unscored. Client-safe (constants only). */
 export function browseCatalog(category: BrowseCategory, ctx: MatchContext = {}): TaskCandidate[] {
+  // The collection log has its own step (pages → item checklist); browse offers the any-page tile.
+  if (category === 'clog') return [clogTileCandidate({ mode: 'slots', pages: [], itemIds: [] }, 10)];
   return staticDrafts(ctx, null)
     .filter((d) => d.category === category)
     // Each diary area × tier is searchable, but a browse list of 60 diaries is noise: the

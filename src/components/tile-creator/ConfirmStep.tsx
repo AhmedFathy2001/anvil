@@ -16,6 +16,7 @@ import {
 import { tileTierKey, tierColor, type TierBand } from '@/lib/tileFilter';
 import { deriveTileIcon } from '@/lib/tileIcons';
 import { formatTileAmount } from '@/lib/tileKinds';
+import { clogTileSetupNote } from '@/lib/clogTileWords';
 import { AmountField, ChoiceButton, CountsBanner, Eyebrow, PrimaryButton, SecondaryButton, StepHeader } from './parts';
 
 interface Suggestion {
@@ -211,6 +212,9 @@ function SingleConfirm({
 
       <div className="mb-5">
         <CountsBanner engine={how.engine} text={how.text} />
+        {candidate.config.tileType === 'clog' && (
+          <p className="mt-2 text-xs leading-relaxed text-amber-200/90">{clogTileSetupNote(candidate.config.countMode === 'complete' ? 'complete' : 'slots')}</p>
+        )}
       </div>
 
       {!pointsMode && original.points != null && (

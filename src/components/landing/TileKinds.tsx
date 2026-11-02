@@ -35,6 +35,7 @@ const COPY: Record<TileKindKey, { label: string; blurb: string; icon: string }> 
   gain: { label: 'Gathering', blurb: 'Catch, cook or gather N of anything', icon: wikiImageUrl('Fishing_icon.png') },
   diary: { label: 'Diaries', blurb: 'Achievement diary tiers, as they complete', icon: wikiImageUrl('Achievement_Diaries_icon.png') },
   ca: { label: 'Combat tasks', blurb: 'Combat achievements earned during the event', icon: wikiImageUrl('Combat_Achievements_icon.png') },
+  clog: { label: 'Collection log', blurb: 'New log slots, or whole pages finished', icon: itemIconUrl(22711) },
   standard: { label: 'Anything else', blurb: 'A captain marks it, with the proof attached', icon: itemIconUrl(19835) },
 };
 
@@ -42,7 +43,7 @@ const COPY: Record<TileKindKey, { label: string; blurb: string; icon: string }> 
 const ORDER: TileKindKey[] = [
   'drop', 'boss', 'skill', 'collection', 'kill',
   'lap', 'timed', 'deathless', 'pvp', 'lms',
-  'value', 'gain', 'diary', 'ca', 'standard',
+  'value', 'gain', 'diary', 'ca', 'clog', 'standard',
 ];
 
 /** Every key, in reading order, with anything new appended rather than silently dropped. */

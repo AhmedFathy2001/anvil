@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { submissions, tiles, completions, teams, events, eventParticipants } from '@/db/schema';
-import { eq, and, isNotNull, isNull, sql } from 'drizzle-orm';
+import { eq, and, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { evaluateCompletionGate } from '@/lib/completionGate';
@@ -12,6 +12,8 @@ import { parseJsonArray } from '@/lib/tileKinds';
 import { evaluateCollection, type CollectionRequirement } from '@/lib/collectionSets';
 import { parseCapBy } from '@/lib/tileCaps';
 import { afterPartCompletion, afterPartProgress } from '@/lib/comboCompletion';
+import { clogPageProof, clogTileSpec, CLOG_UNVERIFIED_FLAG } from '@/lib/clogTiles';
+import { clogPagesProgress } from '@/lib/clogTileCredit';
 
 /**
  * A team's progress on one submission-backed count tile, under that tile's tracking mode
@@ -102,7 +104,8 @@ export async function countTileProgress(
 // and insert or revert the `completions` row accordingly. Named for its original drop-only
 // role; it now dispatches on tile_type. Stat (hiscores) tiles don't flow through here.
 /** Tile kinds the plugin can feed with image-less pings — so a completion needs one screenshot. */
-const PROOF_ON_COMPLETION_KINDS = new Set(['kill', 'lap', 'pvp', 'gain', 'deathless', 'lms', 'value', 'valuetotal']);
+// Collection-log tiles too: the live unlock push credits slots with no image (lib/clogTileCredit).
+const PROOF_ON_COMPLETION_KINDS = new Set(['kill', 'lap', 'pvp', 'gain', 'deathless', 'lms', 'value', 'valuetotal', 'clog']);
 
 export async function syncDropTileCompletion(
   tileId: number,
@@ -132,6 +135,8 @@ export async function syncDropTileCompletion(
   // team-mode tile, which is every tile kind that doesn't expose the Team/Solo toggle.
   let finisherPlayerId: number | null = null;
   let soloShortfall = false;
+  // Whole collection-log pages: their own proof rule (lib/clogTiles clogPageProof) — null elsewhere.
+  let clogPageProofOk: boolean | null = null;
 
   // Collection tiles (a SET of items via itemRequirements) complete when their sets are satisfied. Keyed on
   // the PRESENCE of itemRequirements — independent of tile.tileType and tile.requiredAmount — because older
@@ -203,6 +208,37 @@ export async function syncDropTileCompletion(
     finisherPlayerId = progress.finisherPlayerId;
     isComplete = totalAmount >= tile.requiredAmount;
     soloShortfall = !isComplete && progress.teamTotal >= tile.requiredAmount;
+  } else if (tile.tileType === 'clog') {
+    // Collection-log tiles (lib/clogTiles). New slots: distinct (member, item) credits, summed for a
+    // Team tile, best member on a Solo one. Whole pages: each member's own log, read now.
+    const spec = clogTileSpec(tile);
+    if (spec.mode === 'complete') {
+      const pages = await clogPagesProgress(tile, teamId);
+      totalAmount = pages.current;
+      finisherPlayerId = pages.finisherPlayerId;
+      isComplete = pages.complete;
+      if (isComplete) {
+        // Ready, needs proof: the page is read off a synced log, so the completion waits for a
+        // screenshot from a member who finished a counted page.
+        const shots = await db
+          .select({ id: submissions.id, who: sql<number | null>`COALESCE(${submissions.creditPlayerId}, ${submissions.playerId})`, flaggedReason: submissions.flaggedReason })
+          .from(submissions)
+          .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId), isNotNull(submissions.imageUrl), isNull(submissions.goal)));
+        const proof = clogPageProof(pages, new Set(shots.map((r) => r.who).filter((w): w is number => w != null)));
+        clogPageProofOk = proof.ok;
+        // A finish that leans on slots only a sync vouches for still counts, but staff get a look.
+        const flagIds = shots.filter((r) => r.who != null && proof.flag.includes(r.who) && !r.flaggedReason).map((r) => r.id);
+        if (flagIds.length > 0) {
+          await db.update(submissions).set({ flaggedReason: CLOG_UNVERIFIED_FLAG }).where(inArray(submissions.id, flagIds));
+        }
+      }
+    } else {
+      const progress = await countTileProgress(tileId, teamId, tile.trackingMode, { countMode: 'slots' });
+      totalAmount = progress.current;
+      finisherPlayerId = progress.finisherPlayerId;
+      isComplete = totalAmount >= spec.required;
+      soloShortfall = !isComplete && progress.teamTotal >= spec.required;
+    }
   } else if (tile.tileType === 'drop' && tile.requiredAmount) {
     // Simple drop pool (no per-item requirements — collections are handled by the branch above).
     // Drop tiles have no Team/Solo toggle in the editor, so this is always the team sum; it goes
@@ -255,8 +291,11 @@ export async function syncDropTileCompletion(
   let proofBlocked = false;
   // The screenshot must be one of the tile's OWN rows (lib/tileCaps countsAsCompletionProof): a cap
   // counter's proof (energy) shows no searches. A combo part proves itself from its own rows — the
-  // combo needs nothing more, each part it completed on already had to.
-  if (isComplete && !raceBlocked && !ruleBlocked && PROOF_ON_COMPLETION_KINDS.has(tile.tileType)) {
+  // combo needs nothing more, each part it completed on already had to. Whole collection-log pages
+  // have their own rule (lib/clogTiles clogPageProof): a screenshot from a member who finished a page.
+  if (isComplete && !raceBlocked && !ruleBlocked && clogPageProofOk != null) {
+    proofBlocked = !clogPageProofOk;
+  } else if (isComplete && !raceBlocked && !ruleBlocked && PROOF_ON_COMPLETION_KINDS.has(tile.tileType)) {
     const [withImage] = await db
       .select({ id: submissions.id })
       .from(submissions)

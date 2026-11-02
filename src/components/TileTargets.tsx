@@ -6,6 +6,7 @@ import { parseJsonArray } from '@/lib/tileKinds';
 import { AGILITY_COURSES, SEPULCHRE_TARGETS, lapUnitNoun } from '@/lib/constants';
 import { clanFetch } from '@/lib/clanFetch';
 import { howItCounts } from '@/lib/collectionSets';
+import { clogTileLooseSpec, clogTileRule } from '@/lib/clogTileWords';
 import { parseTrialRankTile, trialRankLevel } from '@/lib/barracudaTrials';
 
 // Structural tile shape — the board clients each carry their own narrowed Tile interface.
@@ -27,6 +28,7 @@ export interface TileTargetsLike {
   groupMode?: string | null;
   setsRequired?: number | null;
   countMode?: string | null;
+  trackingMode?: string | null;
 }
 
 // Member-facing, read-only summary of WHAT a tile tracks — the items/NPCs/raid/caps an admin
@@ -196,6 +198,16 @@ export default function TileTargets({ tile, hideItems }: Props) {
   }
   if (kind === 'ca' && targetNpcs.length > 0) {
     rows.push(<Row key="tasks" label="Tasks"><NameChips names={targetNpcs} /></Row>);
+  }
+  if (kind === 'clog') {
+    // Collection-log tiles (lib/clogTileWords): the pages, and the rule a player is measured by.
+    const spec = clogTileLooseSpec(tile);
+    rows.push(
+      <Row key="clog-pages" label={spec.mode === 'complete' ? 'Log pages to finish' : 'Counts slots from'}>
+        {spec.pages.length > 0 ? <NameChips names={spec.pages} /> : 'any collection log page'}
+      </Row>,
+    );
+    rows.push(<Row key="clog-rule" label="Rule">{clogTileRule(spec, tile.trackingMode)}</Row>);
   }
 
   if (kind === 'timed' && tile.timedActivity && parseTrialRankTile(tile.timedActivity)) {

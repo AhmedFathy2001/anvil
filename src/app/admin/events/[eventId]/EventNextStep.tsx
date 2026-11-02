@@ -114,6 +114,7 @@ export function NextStepPanel({
 
 const FLAG_TEXT: Record<string, string> = {
   no_start_proof: 'Counted without a starting screenshot',
+  clog_unverified_slots: 'A finished collection log page that leans on slots only a log sync shows (no unlock message) — check the screenshot',
   inferred_duplicate_pet: 'A pet duplicate the plugin worked out from context',
   inferred_duplicate_scroll: 'A champion scroll duplicate the plugin worked out from context',
   unverified_counter: 'Auto-counted from a new in-game signal — spot-check it',

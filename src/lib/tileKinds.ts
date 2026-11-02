@@ -44,6 +44,8 @@ export function tileKindLabel(tile: TileKindLike): string {
       return 'Diary';
     case 'ca':
       return 'Combat task';
+    case 'clog':
+      return 'Collection log';
     default:
       return tile.trackedStat ? (tile.statType === 'boss' ? 'Kills' : 'XP') : 'Standard';
   }
@@ -71,6 +73,9 @@ export function tileCountNoun(tile: TileKindLike): string {
       return 'run';
     case 'lms':
       return 'game';
+    // Collection-log tiles credit one new slot per row (lib/clogTiles).
+    case 'clog':
+      return 'slot';
     default:
       return 'drop';
   }
@@ -129,7 +134,7 @@ export function statLabel(trackedStat: string | null | undefined, statType?: str
 /** The one canonical kind of a tile, as the authoring surfaces group them. */
 export type TileKindKey =
   | 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'lap' | 'pvp'
-  | 'gain' | 'timed' | 'deathless' | 'lms' | 'value' | 'diary' | 'ca';
+  | 'gain' | 'timed' | 'deathless' | 'lms' | 'value' | 'diary' | 'ca' | 'clog';
 
 /** Shape the kind badge/summary helpers read — a superset of TileKindLike. */
 export interface TileSummaryLike extends TileKindLike {
@@ -138,6 +143,7 @@ export interface TileSummaryLike extends TileKindLike {
   trackingMode?: string | null;
   timedActivity?: string | null;
   timeThresholdSeconds?: number | null;
+  countMode?: string | null;
 }
 
 /** Derive the single canonical kind from the stored columns (mirrors TileTrackingConfig). */
@@ -154,6 +160,7 @@ export function tileKindKey(tile: TileKindLike): TileKindKey {
   if (tile.tileType === 'value' || tile.tileType === 'valuetotal') return 'value';
   if (tile.tileType === 'diary') return 'diary';
   if (tile.tileType === 'ca') return 'ca';
+  if (tile.tileType === 'clog') return 'clog';
   if (tile.tileType === 'drop') {
     const isCollection =
       !!tile.itemRequirements && tile.itemRequirements !== '[]' && tile.itemRequirements !== 'null';
@@ -183,6 +190,7 @@ export const TILE_KIND_BADGES: Record<TileKindKey, { label: string; cls: string;
   lms: { label: 'LMS placement', cls: 'bg-rose-500/20 text-rose-300', blurb: 'Place top-N in Last Man Standing (1 = win), M times. Plugin-detected at game end.' },
   value: { label: 'Loot value', cls: 'bg-amber-500/20 text-amber-200', blurb: 'Loot worth X gp — one haul or hauls summing to a target. Plugin prices the haul.' },
   diary: { label: 'Diary', cls: 'bg-amber-500/20 text-amber-300', blurb: 'Complete achievement-diary tiers during the event. Plugin-detected off the completion message.' },
+  clog: { label: 'Collection log', cls: 'bg-indigo-500/20 text-indigo-300', blurb: 'New collection-log slots during the event (any page or chosen pages), or finish whole log pages. Credited off the in-game “New item added to your collection log” message.' },
   ca: { label: 'Combat task', cls: 'bg-orange-500/20 text-orange-300', blurb: 'Complete Combat Achievement tasks during the event. Plugin-detected off the completion message.' },
 };
 
@@ -204,6 +212,12 @@ export function howTileCounts(kind: TileKindKey, manualOnly: boolean): { auto: b
   // The two engines behind the one "Kills" kind, said plainly so a player knows whether the plugin matters.
   if (kind === 'boss') {
     return { auto: true, text: 'Counted from the hiscores as your kill count goes up during the event. Nothing to upload.' };
+  }
+  if (kind === 'clog') {
+    return {
+      auto: true,
+      text: 'Counts by itself off the game’s “New item added to your collection log” message — keep that chat setting on and the Anvil plugin running. Only upload a screenshot if it missed one.',
+    };
   }
   if (kind === 'kill') {
     return {
@@ -249,7 +263,7 @@ export const TILE_KIND_FILTERS: { key: 'all' | TileKindKey; label: string }[] = 
   { key: 'all', label: 'All' },
   // The badge's own label: the filter used to call the same kind "Kill" / "Laps" / "Gain" while the
   // badge on the tile said "Kill count" / "Agility laps" / "Item gain".
-  ...(['standard', 'skill', 'kill', 'drop', 'collection', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'lms', 'value', 'diary', 'ca'] as const).map(
+  ...(['standard', 'skill', 'kill', 'drop', 'collection', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'lms', 'value', 'diary', 'ca', 'clog'] as const).map(
     (key) => ({ key, label: TILE_KIND_BADGES[key].label }),
   ),
 ];
@@ -328,6 +342,13 @@ export function tileConfigSummary(tile: TileSummaryLike, noun = 'tile'): string 
       const sels = parseJsonArray<string>(tile.targetNpcs);
       const what = sels.length === 1 ? sels[0] : `${sels.length} selectors`;
       return `Combat task · ${what}${tile.requiredAmount && tile.requiredAmount > 1 ? ` ×${tile.requiredAmount}` : ''}`;
+    }
+    case 'clog': {
+      const pages = parseJsonArray<string>(tile.targetNpcs);
+      const where = pages.length === 0 ? 'any page' : pages.length === 1 ? pages[0] : `${pages.length} pages`;
+      return tile.countMode === 'complete'
+        ? `Collection log · complete ${where}`
+        : `Collection log · ${tile.requiredAmount ?? 1} new slot${(tile.requiredAmount ?? 1) === 1 ? '' : 's'} · ${where}`;
     }
     default:
       return `Manual ${noun} — no auto-tracking`;

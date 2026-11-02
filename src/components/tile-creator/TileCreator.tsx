@@ -15,6 +15,7 @@ import ConfirmStep from './ConfirmStep';
 import RaidStep from './RaidStep';
 import CoursesStep from './CoursesStep';
 import ItemStep from './ItemStep';
+import ClogStep from './ClogStep';
 import { CheckIcon, Eyebrow, KindBadge, SearchIcon, StepHeader } from './parts';
 
 type Screen =
@@ -23,12 +24,14 @@ type Screen =
   | { name: 'raids'; candidate?: TaskCandidate }
   | { name: 'courses'; candidate?: TaskCandidate }
   | { name: 'items'; candidate?: TaskCandidate }
+  | { name: 'clog'; candidate?: TaskCandidate }
   | { name: 'confirm'; candidate: TaskCandidate }
   | { name: 'full'; draft: TileDraft };
 
 const CATEGORIES: { id: BrowseCategory; label: string; sub: string }[] = [
   { id: 'bosses', label: 'Bosses & raids', sub: 'Kills, clears, modes' },
   { id: 'items', label: 'Get items', sub: 'Drops, pets, gathered' },
+  { id: 'clog', label: 'Collection log', sub: 'New slots, pages, chosen items' },
   { id: 'skilling', label: 'Skilling & minigames', sub: 'Rumours, herbiboar, GOTR' },
   { id: 'courses', label: 'Courses & trials', sub: 'Agility, Sepulchre, Sailing' },
   { id: 'xp', label: 'Gain XP', sub: 'Any skill, from the hiscores' },
@@ -120,6 +123,7 @@ export default function TileCreator(props: TileCreatorProps) {
     if (c.flow === 'raids' && unfinished) return { name: 'raids', candidate: c };
     if ((c.flow === 'trials' || c.flow === 'courses') && unfinished) return { name: 'courses', candidate: c };
     if (c.flow === 'items' && unfinished) return { name: 'items', candidate: c };
+    if (c.flow === 'clog' && Object.keys(c.config).length === 0) return { name: 'clog', candidate: c };
     return { name: 'confirm', candidate: c };
   }
 
@@ -198,6 +202,9 @@ export default function TileCreator(props: TileCreatorProps) {
   if (screen.name === 'items') {
     return <ItemStep seed={screen.candidate?.seed} amount={screen.candidate?.amount ?? null} onBack={back} onNext={pick} />;
   }
+  if (screen.name === 'clog') {
+    return <ClogStep seed={screen.candidate?.seed?.clog} amount={screen.candidate?.amount ?? null} onBack={back} onNext={pick} />;
+  }
   if (screen.name === 'browse') {
     return <BrowseList category={screen.category} onBack={back} onPick={pick} onRaids={() => push({ name: 'raids' })} />;
   }
@@ -247,6 +254,7 @@ export default function TileCreator(props: TileCreatorProps) {
                   onClick={() => {
                     if (c.id === 'items') push({ name: 'items' });
                     else if (c.id === 'courses') push({ name: 'courses' });
+                    else if (c.id === 'clog') push({ name: 'clog' });
                     else if (c.id === 'other') pick(screenshotCandidate(q || 'New task'));
                     else push({ name: 'browse', category: c.id });
                   }}

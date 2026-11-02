@@ -62,7 +62,8 @@
 //   setsRequired        collection tiles (any-set mode) — how many sets the tile needs; blank = 1.
 //                       Sets are counted, so "2" is two different sets OR the same set twice
 //   countMode           drop pools — blank/"total" = every drop counts, repeats included;
-//                       "distinct" = only DIFFERENT items count ("3 different uniques")
+//                       "distinct" = only DIFFERENT items count ("3 different uniques");
+//                       type=clog rows: blank/"slots" = new slots, "complete" = finish the pages/items
 //   items               drop tiles — tracked item(s), "Name:count" semicolon-separated;
 //                       append "@Set" for set collections ("Dharok's helm:1@Dharok"), and
 //                       "@Set/N" when only N of that set are needed ("Eye of the duke:1@Duke/1")
@@ -537,7 +538,9 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
       row.setsRequired = n != null && n >= 2 ? Math.floor(n) : null;
     }
     if (col.countMode >= 0) {
-      row.countMode = get(cells, col.countMode).trim().toLowerCase() === 'distinct' ? 'distinct' : null;
+      const mode = get(cells, col.countMode).trim().toLowerCase();
+      // 'complete' / 'slots' belong to collection-log rows (lib/clogTiles); everything else is a pool.
+      row.countMode = mode === 'distinct' ? 'distinct' : mode === 'complete' || mode === 'slots' ? mode : null;
     }
     if (col.perKillCap >= 0) {
       const cap = toNumberLoose(get(cells, col.perKillCap));
@@ -783,6 +786,6 @@ export function tileToCsvCells(t: Tile): string[] {
     missionMaxClaimsCell(t),
     missionExpiryCell(t),
     t.setsRequired != null && t.setsRequired > 1 ? String(t.setsRequired) : '',
-    t.countMode === 'distinct' ? 'distinct' : '',
+    t.countMode === 'distinct' || t.countMode === 'complete' ? t.countMode : '',
   ];
 }

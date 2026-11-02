@@ -76,7 +76,11 @@ export function countProgress(
 ): CountProgress {
   // Cap rows (lib/tileCaps) are a different counter entirely: 100 energy is not 100 searches.
   const primary = subsIn.filter(isPrimaryCredit);
-  const subs = countMode === 'distinct' ? distinctOnly(primary, isIndividualMode(trackingMode)) : primary;
+  // 'slots' (collection-log tiles, lib/clogTiles): a slot is (member, item), so it is distinct PER
+  // MEMBER on a Team tile too — a teammate unlocking the same item is a new slot for them.
+  const subs = countMode === 'distinct'
+    ? distinctOnly(primary, isIndividualMode(trackingMode))
+    : countMode === 'slots' ? distinctOnly(primary, true) : primary;
   if (capBy && capBy.length > 0) {
     const capped = cappedProgress([...subs, ...subsIn.filter((s) => !isPrimaryCredit(s))], capBy, trackingMode);
     return { current: capped.current, finisherPlayerId: capped.finisherPlayerId, teamTotal: capped.teamTotal };
@@ -118,7 +122,7 @@ export function memberProgress(
   capBy?: readonly string[] | null,
 ): number {
   const primary = subsIn.filter(isPrimaryCredit);
-  const subs = countMode === 'distinct' ? distinctOnly(primary, true) : primary;
+  const subs = countMode === 'distinct' || countMode === 'slots' ? distinctOnly(primary, true) : primary;
   const key = playerId ?? UNATTRIBUTED_CREDIT;
   if (capBy && capBy.length > 0) {
     return cappedProgress([...subs, ...subsIn.filter((s) => !isPrimaryCredit(s))], capBy, 'team').byMember.get(key) ?? 0;

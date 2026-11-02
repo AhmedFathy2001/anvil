@@ -91,6 +91,7 @@ export interface TrackedLists {
   trackedValues?: (Omit<Base, 'currentAmount'> & { mode?: string; thresholdGp: number; currentGp: number; completed?: boolean })[];
   trackedGains?: (Base & { requiredAmount: number })[];
   trackedDeathless?: (Base & { requiredAmount: number })[];
+  trackedClog?: (Base & { requiredAmount: number; completed?: boolean })[];
 }
 
 interface Base {
@@ -166,6 +167,8 @@ export function panelTiles(cfg: TrackedLists): PanelTile[] {
   }
   counted(cfg.trackedGains, 1);
   counted(cfg.trackedDeathless, 1);
+  // Collection-log tiles: new slots, or pages finished (lib/clogTiles) — the site's own numbers.
+  for (const t of cfg.trackedClog ?? []) add(t, t.currentAmount, Math.max(1, t.requiredAmount), !!t.completed || done.has(t.tileId));
   return foldCombos(rows, cfg.trackedCombos ?? []);
 }
 

@@ -25,7 +25,7 @@ export default async function BoardGuide({ lang }: { lang: string }) {
   // 'all' is a filter option, not a kind. Everything else keeps the picker's order.
   const kindRows = TILE_KIND_FILTERS.filter((f) => f.key !== 'all').map((f) => {
     const key = f.key as TileKindKey;
-    const override = b.kinds.kindLabels[key];
+    const override = (b.kinds.kindLabels as Partial<Record<TileKindKey, { label: string; blurb: string }>>)[key];
     const badge = TILE_KIND_BADGES[key];
     return { term: override?.label || badge.label, body: rt(override?.blurb || badge.blurb) };
   });

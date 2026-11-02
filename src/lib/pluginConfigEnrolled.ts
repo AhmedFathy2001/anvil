@@ -31,6 +31,8 @@ import {
 } from '@/lib/pluginConfig';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
+import { clogTileSpec, pluginClogEntry } from '@/lib/clogTiles';
+import { countProgress, memberProgress } from '@/lib/countProgress';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { lapUnitNoun, metricKeys } from '@/lib/constants';
 import { ROLL_TABLES, rollItemIds } from '@/lib/rollTables';
@@ -878,6 +880,30 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
       };
     });
 
+  // Collection-log tiles (lib/clogTiles). A slot is (member, item), so the count is worked out from the
+  // rows rather than SUM(amount): a retried screenshot of one slot must not read as two.
+  const clogTiles = trackedTiles.filter((t) => t.tileType === 'clog');
+  const clogRows = clogTiles.length > 0
+    ? await db
+        .select({ tileId: submissions.tileId, playerId: submissions.playerId, creditPlayerId: submissions.creditPlayerId, amount: submissions.amount, itemId: submissions.itemId })
+        .from(submissions)
+        .where(and(eq(submissions.teamId, teamId), isNull(submissions.goal), inArray(submissions.tileId, clogTiles.map((t) => t.id))))
+    : [];
+  const trackedClog = clogTiles.map((t) => {
+    const spec = clogTileSpec(t);
+    const done = completedTileIdSet.has(t.id);
+    if (spec.mode === 'complete') return pluginClogEntry(t, done ? spec.required : 0, done);
+    const rows = clogRows.filter((r) => r.tileId === t.id);
+    if (!isIndividualMode(t.trackingMode)) return pluginClogEntry(t, countProgress(rows, t.trackingMode, 'slots').current, done);
+    // Solo: the caller's own new slots; the team view carries each member's in `members`.
+    if (playerId == null) {
+      for (const who of new Set(rows.map((r) => r.creditPlayerId ?? r.playerId))) {
+        if (who != null) memberOwn(who).c[t.id] = memberProgress(rows, who, 'slots');
+      }
+    }
+    return pluginClogEntry(t, playerId != null ? memberProgress(rows, playerId, 'slots') : 0, done);
+  });
+
   const body = {
     server: serverInfo(),
     // Resolved to an entry, so the logged-in character is this login's own (null on a hint-only read).
@@ -1211,6 +1237,11 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
           trackingMode: t.trackingMode ?? 'team',
         };
       }),
+
+    // Collection-log tiles (lib/clogTiles): the plugin credits off "New item added to your collection
+    // log: X" when X is in `items` (null = any item) and submits a screenshot naming it. Plugins that
+    // predate the field ignore it; their live unlock push still credits these (lib/clogTileCredit).
+    trackedClog,
 
     // Timed-clear tiles — the plugin times the named activity and bakes the duration onto a
     // screenshot; the tile completes when a submitted time is at or under `thresholdSeconds`.

@@ -13,6 +13,8 @@ import { capEligible, capGoalForSlot, capIndex, decodeCapTileId, parseCapBy } fr
 import { decidePing, tilePingMax } from '@/lib/pingMax';
 import { countProgress, itemAlreadyCounted, memberProgress } from '@/lib/countProgress';
 import { itemCap, parseCountMode } from '@/lib/collectionSets';
+import { clogItemFromProof, clogSlotRefusal, clogTileSpec, decideClogSlot, decideClogSlotByName } from '@/lib/clogTiles';
+import { clogOwnedBefore } from '@/lib/clogTileCredit';
 import { parseJsonArray } from '@/lib/tileKinds';
 import { parseCoopCredit } from '@/lib/coopRuns';
 import { isIndividualMode } from '@/lib/statTracking';
@@ -218,9 +220,9 @@ export async function POST(
   }
   const isCap = goalValue != null;
   // A cap counter is a count of something else — never which item it was.
-  const itemId = isCap ? null : rawItemId;
-  if (tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'lap' && tile.tileType !== 'pvp' && tile.tileType !== 'gain' && tile.tileType !== 'timed' && tile.tileType !== 'deathless' && tile.tileType !== 'diary' && tile.tileType !== 'ca' && tile.tileType !== 'lms' && tile.tileType !== 'value' && tile.tileType !== 'valuetotal') {
-    return NextResponse.json({ error: 'Submissions are only for drop, kill, lap, PvP, gain, timed, deathless, diary, CA, LMS, or value tiles' }, { status: 400 });
+  let itemId = isCap ? null : rawItemId;
+  if (tile.tileType !== 'clog' && tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'lap' && tile.tileType !== 'pvp' && tile.tileType !== 'gain' && tile.tileType !== 'timed' && tile.tileType !== 'deathless' && tile.tileType !== 'diary' && tile.tileType !== 'ca' && tile.tileType !== 'lms' && tile.tileType !== 'value' && tile.tileType !== 'valuetotal') {
+    return NextResponse.json({ error: 'Submissions are only for drop, kill, lap, PvP, gain, timed, deathless, diary, CA, LMS, value, or collection log tiles' }, { status: 400 });
   }
   // Count-based tiles keep the old anti-typo ceiling; value tiles legitimately carry gp figures.
   if ((isCap || (tile.tileType !== 'value' && tile.tileType !== 'valuetotal')) && submitAmount > 10000) {
@@ -410,6 +412,9 @@ export async function POST(
     }
   }
 
+  // A clog screenshot that replaced the bare row the live unlock push made for the same slot.
+  let clogSuperseded = false;
+
   // Per-item tracking validation
   const tileItemRequirements = tile.itemRequirements ? JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[] : null;
 
@@ -468,6 +473,64 @@ export async function POST(
       .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId), isNull(submissions.goal)));
     if (Number(collected[0]?.total ?? 0) >= tile.requiredAmount) {
       return NextResponse.json({ error: 'Tile already complete' }, { status: 400 });
+    }
+  } else if (tile.tileType === 'clog') {
+    // COLLECTION-LOG TILES (lib/clogTiles). A credit is one slot: an item on the tile's pages that the
+    // member's log didn't hold when the event started and that this tile hasn't counted for them yet.
+    // The plugin names the item (its unlock line) in the proof's banner; a web upload picks it.
+    const spec = clogTileSpec(tile);
+    const creditKey = submitterCreditId ?? 0;
+    const tileSubs = await db
+      .select({ id: submissions.id, playerId: submissions.playerId, creditPlayerId: submissions.creditPlayerId, amount: submissions.amount, itemId: submissions.itemId, imageUrl: submissions.imageUrl })
+      .from(submissions)
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId), isNull(submissions.goal)));
+    const mine = tileSubs.filter((r) => (r.creditPlayerId ?? r.playerId ?? 0) === creditKey && r.itemId != null);
+    const counted = new Set(mine.map((r) => r.itemId!));
+    const member = submitterCreditId
+      ? await db.query.eventParticipants.findFirst({ where: eq(eventParticipants.id, submitterCreditId), columns: { accountId: true } })
+      : null;
+    const before = await clogOwnedBefore(member?.accountId ?? null, event, counted);
+    const name = pluginAuth && !itemId ? clogItemFromProof(claims) : null;
+    // WHOLE-PAGE PROOF: on a 'complete' tile, a screenshot that names no slot (a web upload of the
+    // finished page, or the plugin's capture of the page opened in game) is the proof a finished page
+    // waits for (lib/clogTiles clogPageProof). It counts no slot itself.
+    const pageProof = spec.mode === 'complete' && !!imageUrlValue && !itemId
+      && !(name && decideClogSlotByName(name, spec, new Set(), new Set()).ok);
+    if (pageProof) {
+      itemId = null;
+      creditedAmount = 1;
+    } else {
+      if (!itemId && !name) {
+        return NextResponse.json({ error: 'Pick which collection log item this is.' }, { status: 400 });
+      }
+      // Without an image a row could be a screenshot-less replay of a slot already counted; the
+      // "already counted" check below is the guard, so a duplicate never adds a second slot.
+      const verdict = itemId
+        ? decideClogSlot({ candidates: [Number(itemId)], spec, ownedBefore: before, counted })
+        : decideClogSlotByName(name!, spec, before, counted);
+      if (!verdict.ok) {
+        // The live unlock push (lib/clogTileCredit) may have credited this slot already, with no image.
+        // The screenshot that follows it is the same slot's proof: it replaces that row, not adds one.
+        const uncounted = itemId ? null : decideClogSlotByName(name!, spec, before, new Set());
+        const resolved = itemId ? Number(itemId) : uncounted?.ok ? uncounted.itemId : null;
+        const bare = verdict.reason === 'already-counted' && imageUrlValue && resolved != null
+          ? mine.find((r) => r.itemId === resolved && !r.imageUrl)
+          : undefined;
+        if (!bare) return NextResponse.json({ error: clogSlotRefusal(verdict.reason) }, { status: 400 });
+        await db.delete(submissions).where(eq(submissions.id, bare.id));
+        itemId = resolved;
+        clogSuperseded = true;
+      } else {
+        itemId = verdict.itemId;
+      }
+      creditedAmount = 1;
+      if (!clogSuperseded && spec.mode === 'slots') {
+        const soloTile = isIndividualMode(tile.trackingMode);
+        const now = soloTile ? memberProgress(tileSubs, submitterCreditId, 'slots') : countProgress(tileSubs, tile.trackingMode, 'slots').current;
+        if (now >= spec.required) {
+          return NextResponse.json({ error: soloTile ? 'You have already reached this tile’s count' : 'Tile already complete' }, { status: 400 });
+        }
+      }
     }
   } else if (tile.requiredAmount) {
     // Count tiles. Team Total caps against the team's summed progress; Solo caps against the
@@ -652,6 +715,8 @@ export async function POST(
       eventId: eId,
       tile,
     }).catch(() => {}); // Silently ignore errors
+  } else if (clogSuperseded && !syncResult?.isComplete) {
+    // The slot was already announced when the live unlock push credited it; this only added its proof.
   } else {
     // Drop/kill: debounce. Buffer into the (tile,team) bucket — a completing submission flushes its
     // own bucket inside queueSubmissionNotification; the opportunistic flush posts any *other* buckets

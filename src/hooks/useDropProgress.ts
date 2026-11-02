@@ -43,7 +43,9 @@ export function useDropProgress(tiles: Tile[], submissions: Submission[], comple
           || tile.tileType === 'pvp'
           || tile.tileType === 'gain' || tile.tileType === 'diary' || tile.tileType === 'ca'
           || tile.tileType === 'deathless' || tile.tileType === 'lms'
-          || tile.tileType === 'value' || tile.tileType === 'valuetotal')
+          || tile.tileType === 'value' || tile.tileType === 'valuetotal'
+          // Collection-log NEW SLOTS; a whole-page tile is read off members' logs server-side.
+          || (tile.tileType === 'clog' && tile.countMode !== 'complete'))
         && tile.requiredAmount
       ) {
         // Every row: a capped counter's cap rows (lib/tileCaps) limit its count; countProgress only
@@ -52,7 +54,12 @@ export function useDropProgress(tiles: Tile[], submissions: Submission[], comple
         // Mode-aware (lib/countProgress — the same rule the server completes on): Team Total sums the
         // team, Solo shows the best single member's count, so the bar can't read 10/10 on a tile that
         // needs one member to get there alone.
-        const { current } = countProgress(tileSubs, tile.trackingMode, tile.itemRequirements ? null : tile.countMode, parseCapBy(tile.capBy));
+        const { current } = countProgress(
+          tileSubs,
+          tile.trackingMode,
+          tile.tileType === 'clog' ? 'slots' : tile.itemRequirements ? null : tile.countMode,
+          parseCapBy(tile.capBy),
+        );
         dropProgress.set(tile.id, { current, required: tile.requiredAmount });
 
         if (tile.itemRequirements) {
