@@ -251,6 +251,10 @@ test('the plugin entry lists the counted names for chosen pages, null for any pa
   assert.ok(pages.items?.includes(clogNameKey("Ahrim's hood")));
   assert.ok(!pages.items?.includes(clogNameKey('Phoenix')));
   assert.equal(clogNameKey("Ahrim's hood"), 'ahrim s hood');
+  assert.equal(pages.groups, undefined);
+  // A whole-page tile also hands the plugin each page's chosen ids, so it can screenshot a full page.
+  const whole = pluginClogEntry({ ...tile, countMode: 'complete', targetNpcs: '["Wintertodt"]', trackedItemIds: null, requiredAmount: null }, 0, false);
+  assert.deepEqual(whole.groups, { Wintertodt: wintertodt });
 });
 
 test('a plugin proof names its item in the banner detail, or the game line in its chat', () => {

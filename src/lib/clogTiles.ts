@@ -352,6 +352,11 @@ export interface PluginClogEntry {
   pages: string[];
   /** The item names that count ({@link clogNameKey} form), or null for any item in the log. */
   items: string[] | null;
+  /**
+   * Whole-page tiles only: each page's chosen item ids. The plugin screenshots a page opened in game
+   * whose obtained items cover its group — the proof a finished page waits for (clogPageProof).
+   */
+  groups?: Record<string, number[]>;
   requiredAmount: number;
   currentAmount: number;
   trackingMode: string;
@@ -381,6 +386,9 @@ export function pluginClogEntry(
     mode: spec.mode,
     pages: spec.pages,
     items,
+    ...(spec.mode === 'complete'
+      ? { groups: Object.fromEntries(clogTileGroups(spec).filter((g) => g.name !== 'Chosen items').map((g) => [g.name, g.items])) }
+      : {}),
     requiredAmount: spec.required,
     currentAmount,
     trackingMode: tile.trackingMode ?? 'team',
