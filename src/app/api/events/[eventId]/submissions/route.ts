@@ -656,12 +656,8 @@ export async function POST(
   if (extraItems.length && !(await ownsAttachmentImages(extraItems, webActor!.userId))) {
     return NextResponse.json({ error: 'Upload screenshots here yourself before attaching them' }, { status: 400 });
   }
-  // File the pictures under this event (lib/uploadClaims): only what an event claimed is deleted with
-  // it, and a file another event already holds isn't this proof's to name.
-  const toClaim = [...(upload && imageUrlValue ? [imageUrlValue] : []), ...extraItems.filter((a) => a.kind === 'image').map((a) => a.url)];
-  if (!(await claimUploads(toClaim, eId))) {
-    return NextResponse.json({ error: 'That screenshot is already on another event’s proof' }, { status: 409 });
-  }
+  // File the pictures under this event (lib/uploadClaims) — what the media purge goes by.
+  await claimUploads([...(upload && imageUrlValue ? [imageUrlValue] : []), ...extraItems.filter((a) => a.kind === 'image').map((a) => a.url)], eId);
 
   const [inserted] = await db
     .insert(submissions)

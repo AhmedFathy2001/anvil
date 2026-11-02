@@ -84,25 +84,33 @@ export function isPurgeDue(e: RetentionState, now: Date): boolean {
 }
 
 /**
- * Which stored files a purge may delete: only what the event provably owns. A row's URL is something
- * a client sent, so "our storage, named by this event" is not ownership.
- *   proofUrls (proofs, clean frames, extras, starting shots) — claimed by this event in their upload
- *     record (lib/uploadClaims); a file with no record predates records and goes only if no other
- *     event names it. A record claimed by another event, or by none, keeps the file.
- *   moneyUrls (fees, payouts) — must be under this clan's own folder (the write paths require it) and
- *     named by no other event.
+ * Which stored files a purge may delete: only what the event owns, and nothing another event still
+ * shows. A row's URL is something a client sent, so "our storage, named by this event" is not
+ * ownership. Never deleted while any OTHER event's live row names it (a player in two clans' bingos
+ * may file one screenshot to both — purged rows stop naming it, so the last event out deletes it).
+ *   proofUrls (proofs, clean frames, extras, starting shots) — the upload record's claim
+ *     (lib/uploadClaims) is this event, or an event already purged; or there is no record at all
+ *     (files from before records). Recorded but claimed by no event — a banner, say — is never ours.
+ *   moneyUrls (fees, payouts) — under this clan's own folder (the write paths require it).
  */
 export function deletableMedia(input: {
+  eventId: number;
   proofUrls: string[];
   moneyUrls: string[];
-  claimed: Set<string>;
+  owner: Map<string, number | null>;
   unrecorded: Set<string>;
+  purgedEvents: Set<number>;
   inClanFolder: (url: string) => boolean;
   usedElsewhere: Set<string>;
 }): string[] {
-  const { proofUrls, moneyUrls, claimed, unrecorded, inClanFolder, usedElsewhere } = input;
+  const { eventId, proofUrls, moneyUrls, owner, unrecorded, purgedEvents, inClanFolder, usedElsewhere } = input;
+  const ownsProof = (u: string) => {
+    if (unrecorded.has(u)) return true;
+    const by = owner.get(u);
+    return by != null && (by === eventId || purgedEvents.has(by));
+  };
   return [
-    ...proofUrls.filter((u) => claimed.has(u) || (unrecorded.has(u) && !usedElsewhere.has(u))),
-    ...moneyUrls.filter((u) => inClanFolder(u) && !usedElsewhere.has(u)),
+    ...proofUrls.filter((u) => !usedElsewhere.has(u) && ownsProof(u)),
+    ...moneyUrls.filter((u) => !usedElsewhere.has(u) && inClanFolder(u)),
   ];
 }

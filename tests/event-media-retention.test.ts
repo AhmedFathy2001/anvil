@@ -131,21 +131,24 @@ test('the reminder names the date, the count, and keeps admin text clean', () =>
 
 import { deletableMedia } from '../src/lib/eventMediaRetentionRules.ts';
 
-test('the purge deletes only files the event provably owns', () => {
+test('the purge deletes only files the event owns, and nothing another event still shows', () => {
   const mine = 'https://m/c/r/submissions/mine.webp';
-  const theirs = 'https://m/c/other/submissions/theirs.webp'; // claimed by another event
-  const unfiled = 'https://m/submissions/unfiled.webp'; // recorded, claimed by nobody
+  const shared = 'https://m/c/r/submissions/shared.webp'; // mine, but a live proof elsewhere shows it too
+  const theirs = 'https://m/c/other/submissions/theirs.webp'; // claimed by another, live event
+  const handedDown = 'https://m/c/other/submissions/handed.webp'; // claimer already purged: last one out
+  const banner = 'https://m/c/r/submissions/banner.webp'; // recorded, claimed by no event
   const legacy = 'https://m/submissions/legacy.webp'; // no record: predates records
-  const legacyShared = 'https://m/submissions/legacy-shared.webp';
   const fee = 'https://m/c/r/submissions/fee.webp';
   const foreignFee = 'https://m/c/other/submissions/fee.webp';
   const out = deletableMedia({
-    proofUrls: [mine, theirs, unfiled, legacy, legacyShared],
+    eventId: 1,
+    proofUrls: [mine, shared, theirs, handedDown, banner, legacy],
     moneyUrls: [fee, foreignFee],
-    claimed: new Set([mine]),
-    unrecorded: new Set([legacy, legacyShared]),
+    owner: new Map<string, number | null>([[mine, 1], [shared, 1], [theirs, 2], [handedDown, 3], [banner, null]]),
+    unrecorded: new Set([legacy]),
+    purgedEvents: new Set([3]),
     inClanFolder: (u) => u.includes('/c/r/'),
-    usedElsewhere: new Set([legacyShared]),
+    usedElsewhere: new Set([shared]),
   });
-  assert.deepEqual(out.sort(), [fee, legacy, mine].sort());
+  assert.deepEqual(out.sort(), [fee, handedDown, legacy, mine].sort());
 });

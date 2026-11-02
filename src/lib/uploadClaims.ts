@@ -2,44 +2,34 @@
 //
 // A proof's image is a URL the client sends, and the 90-day media purge deletes an event's files. So
 // the purge must only ever delete files the purged event provably owns — not "any file our storage
-// holds that some row of this event names". A file is claimed by the first proof, extra or starting
-// shot that names it; naming a file another event already claimed is refused.
+// holds that some row of this event names". A file is claimed by the first event whose proof, extra
+// or starting shot names it (eventMediaRetentionRules deletableMedia says how the purge uses that).
 
-import { and, inArray, isNull, ne } from 'drizzle-orm';
+import { and, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { proofUploads } from '@/db/schema';
 
 /**
- * Claim these uploaded files for this event. False when any of them already belongs to another
- * event. Files with no upload record are left alone (the callers refuse those before this).
+ * Stamp these uploaded files with this event, where no event has claimed them yet. Sharing is fine —
+ * a player in two clans' bingos may file one screenshot to both; the purge keeps a file while any
+ * other event still names it.
  */
-export async function claimUploads(urls: string[], eventId: number): Promise<boolean> {
+export async function claimUploads(urls: string[], eventId: number): Promise<void> {
   const list = [...new Set(urls.filter(Boolean))];
-  if (list.length === 0) return true;
+  if (list.length === 0) return;
   // clan-scope: global -- keyed by exact file URLs the caller already checked are this person's own.
   await db.update(proofUploads).set({ eventId }).where(and(inArray(proofUploads.url, list), isNull(proofUploads.eventId)));
-  // clan-scope: global -- same URLs: is any of them another event's?
-  const other = await db
-    .select({ url: proofUploads.url })
-    .from(proofUploads)
-    .where(and(inArray(proofUploads.url, list), ne(proofUploads.eventId, eventId)))
-    .limit(1);
-  return other.length === 0;
 }
 
-/** Of these URLs, the ones this event has claimed, and the ones with no upload record at all. */
-export async function uploadOwnership(urls: string[], eventId: number): Promise<{ claimed: Set<string>; unrecorded: Set<string> }> {
-  const claimed = new Set<string>();
-  const recorded = new Set<string>();
+/** Who claimed each of these URLs (null = recorded, claimed by no event), and which have no record. */
+export async function uploadOwnership(urls: string[]): Promise<{ owner: Map<string, number | null>; unrecorded: Set<string> }> {
+  const owner = new Map<string, number | null>();
   for (let i = 0; i < urls.length; i += 500) {
     const chunk = urls.slice(i, i + 500);
     // clan-scope: global -- the purge asks about this event's own file URLs.
     const rows = await db.select({ url: proofUploads.url, eventId: proofUploads.eventId }).from(proofUploads).where(inArray(proofUploads.url, chunk));
-    for (const r of rows) {
-      recorded.add(r.url);
-      if (r.eventId === eventId) claimed.add(r.url);
-    }
+    for (const r of rows) owner.set(r.url, r.eventId);
   }
-  return { claimed, unrecorded: new Set(urls.filter((u) => !recorded.has(u))) };
+  return { owner, unrecorded: new Set(urls.filter((u) => !owner.has(u))) };
 }

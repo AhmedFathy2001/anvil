@@ -139,14 +139,23 @@ export async function purgeEventMedia(eventId: number, opts: { dryRun?: boolean 
   const managed = (rows: { url: string }[]) => [...new Set(rows.map((r) => r.url).filter((u) => isManagedMediaUrl(u)))];
   const proofUrls = managed([...media.submissions, ...media.cleanFrames, ...media.startProofs, ...media.attachments]);
   const moneyUrls = managed([...media.fees, ...media.payouts]);
-  const { claimed, unrecorded } = await uploadOwnership(proofUrls, eventId);
+  const { owner, unrecorded } = await uploadOwnership(proofUrls);
+  const claimers = [...new Set([...owner.values()].filter((v): v is number => v != null && v !== eventId))];
+  const purgedEvents = new Set(
+    claimers.length
+      ? // clan-scope: global -- the events that claimed this event's files, by id; only their purge stamp.
+        (await db.select({ id: events.id }).from(events).where(and(inArray(events.id, claimers), isNotNull(events.mediaPurgedAt)))).map((e) => e.id)
+      : [],
+  );
   const urls = deletableMedia({
+    eventId,
     proofUrls,
     moneyUrls,
-    claimed,
+    owner,
     unrecorded,
+    purgedEvents,
     inClanFolder: (u) => !!event.clanSlug && isClanMediaUrl(u, event.clanSlug),
-    usedElsewhere: await urlsUsedElsewhere(eventId, [...unrecorded, ...moneyUrls]),
+    usedElsewhere: await urlsUsedElsewhere(eventId, [...proofUrls, ...moneyUrls]),
   });
   const kept = proofUrls.length + moneyUrls.length - urls.length;
   if (kept) log.warn('media-retention.unowned-files-kept', { eventId, count: kept });
