@@ -212,7 +212,7 @@ export const WEBHOOK_SECTIONS = [
         kind: 'webhook',
         key: 'webhook_leagues',
         label: 'Leagues channel',
-        help: 'While a member is on a seasonal (Leagues) world, ALL their notifications go here instead of the channels above — league drops and kill counts are meaningless next to main-game ones, and mixing them makes both channels unreadable. Leave blank to keep everything in the normal channels; seasonal posts are marked either way.',
+        help: 'While a member is on a Leagues world, their notifications go here instead of the channels above. Leave blank to keep them in the normal channels; they are labelled either way. Deadman, hardcore and other game modes each get their own channel on Admin → Discord → Game modes.',
       },
       {
         kind: 'plain',

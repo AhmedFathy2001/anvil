@@ -8,7 +8,21 @@ import Select, { type SelectOption } from '@/components/Select';
 import { clanFetch } from '@/lib/clanFetch';
 import { FEED_TABS, effectiveKey, type DiscordFeed, type FeedTab } from '@/lib/discordFeeds';
 
+interface ModeRow {
+  key: string;
+  label: string;
+  /** False for a mode the site named itself the first time a member played it. */
+  known: boolean;
+  id: string;
+  hookKey: string;
+  off: boolean;
+  /** Leagues was switched off on the old row: its channel stays unused until it's switched on. */
+  ownChannelIgnored: boolean;
+  kindsOff: string[];
+}
+
 interface View {
+  modes: { split: boolean; kinds: { id: string; label: string; event: boolean }[]; rows: ModeRow[] };
   feeds: DiscordFeed[];
   catchAlls: { site: string; game: string };
   keys: Record<string, { set: boolean; channelId: string | null }>;
@@ -101,6 +115,7 @@ export default function DiscordFeedsPanel({ filters }: { filters?: Partial<Recor
   const catchAllKey = tab === 'game' ? view.catchAlls.game : view.catchAlls.site;
   const rows = view.feeds.filter((f) => f.tab === tab);
   const tabInfo = FEED_TABS.find((t) => t.id === tab)!;
+  const modeHookKeys = new Set(view.modes.rows.map((m) => m.hookKey));
 
   /** The Select for one setting: its channel, the fallback, any server channel, or paste. */
   // A render helper, not a component: a component declared in here would remount (and close) on every render.
@@ -129,8 +144,137 @@ export default function DiscordFeedsPanel({ filters }: { filters?: Partial<Recor
     );
   }
 
+  /** The inline "paste a webhook" row under whichever row asked for it. */
+  function pasteRow(settingKey: string, label: string) {
+    if (pasting !== settingKey) return null;
+    return (
+      <div className="flex flex-wrap gap-2 px-5 pb-3.5">
+        <Input
+          type="url"
+          className="flex-1"
+          value={pasted}
+          onChange={(e) => setPasted(e.target.value)}
+          placeholder="https://discord.com/api/webhooks/…"
+          aria-label={`${label} webhook URL`}
+        />
+        <button
+          type="button"
+          disabled={busy !== null || !pasted.trim()}
+          onClick={() =>
+            void put(settingKey, { key: settingKey, webhookUrl: pasted.trim() }).then((ok) => {
+              if (ok) {
+                setPasting(null);
+                setPasted('');
+              }
+            })
+          }
+          className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-brown-dark hover:bg-gold/90 disabled:opacity-50"
+        >
+          Save
+        </button>
+        <button type="button" onClick={() => setPasting(null)} className="px-3 text-sm text-text-muted hover:text-foreground">
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  /** The Game modes tab: one row per mode, each with its own channel and the kinds it posts. */
+  function modeList() {
+    const { split, kinds, rows: modes } = view!.modes;
+    return (
+      <ul className="rounded-xl border border-card-border bg-card-bg">
+        {modes.map((m) => {
+          const ownSet = isSet(m.hookKey) && !m.ownChannelIgnored;
+          const posting = kinds.length - m.kindsOff.length;
+          const where = m.off
+            ? 'Off'
+            : posting === 0
+              ? 'Every kind is off'
+              : split && ownSet
+                ? `Posts to ${keyLabel(m.hookKey)}`
+                : 'Posts to the normal channels';
+          return (
+            <li key={m.key} className="border-b border-card-border-soft last:border-b-0">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-5 py-3.5">
+                <div className="min-w-0 flex-[1_1_280px]">
+                  <Checkbox
+                    checked={!m.off}
+                    disabled={busy !== null}
+                    onChange={(on) => void put(m.id, { mode: m.key, off: !on })}
+                    label={m.known ? m.label : `${m.label} (new)`}
+                    description={
+                      m.known
+                        ? `Posts from ${m.label} worlds.`
+                        : `A mode your members started playing that Anvil hadn't seen before. Posts from it are labelled "${m.label}".`
+                    }
+                  />
+                </div>
+                <div className={`flex items-center gap-2 text-[12px] text-text-muted ${split ? '' : 'opacity-50'}`}>
+                  To
+                  {channelPicker(m.hookKey, 'The normal channels', `${m.label} channel`)}
+                </div>
+                <div className="w-40 text-[12px] text-text-muted">{busy === m.id || busy === m.hookKey ? 'Saving…' : where}</div>
+                <button
+                  type="button"
+                  aria-expanded={open === m.id}
+                  onClick={() => setOpen(open === m.id ? null : m.id)}
+                  className="min-h-9 rounded-lg border border-card-border px-3 text-[13px] hover:border-gold/50"
+                >
+                  Posts {posting}/{kinds.length} {open === m.id ? '▴' : '▾'}
+                </button>
+              </div>
+              {pasteRow(m.hookKey, m.label)}
+              {open === m.id && (
+                <div className="space-y-4 border-t border-card-border-soft bg-brown-light px-5 py-4">
+                  {[
+                    { event: false, title: 'The usual posts' },
+                    { event: true, title: `${m.label}'s own events` },
+                  ].map((group) => (
+                    <div key={group.title}>
+                      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">{group.title}</div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {kinds
+                          .filter((k) => k.event === group.event)
+                          .map((k) => (
+                            <Checkbox
+                              key={k.id}
+                              checked={!m.kindsOff.includes(k.id)}
+                              disabled={busy !== null}
+                              onChange={(on) =>
+                                void put(m.id, {
+                                  mode: m.key,
+                                  kindsOff: on ? m.kindsOff.filter((x) => x !== k.id) : [...m.kindsOff, k.id],
+                                })
+                              }
+                              label={k.label}
+                            />
+                          ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
   return (
     <div className="space-y-4">
+      {tab === 'modes' ? (
+        <div className="rounded-xl border border-card-border bg-brown-dark p-4">
+          <Checkbox
+            checked={view.modes.split}
+            disabled={busy !== null}
+            onChange={(on) => void put('modesSplit', { modesSplit: on })}
+            label="Send game-mode posts to their own channels"
+            description="On: each mode below posts to the channel you pick for it (or the normal channels if you pick none). Off: every mode posts to the normal channels, still labelled."
+          />
+        </div>
+      ) : (
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-card-border bg-brown-dark p-4">
         <div className="min-w-0 flex-[1_1_260px]">
           <div className="text-[14px] font-semibold">{tab === 'game' ? 'In-game catch-all' : 'Catch-all channel'}</div>
@@ -142,11 +286,16 @@ export default function DiscordFeedsPanel({ filters }: { filters?: Partial<Recor
         </div>
         {channelPicker(catchAllKey, 'Nowhere (not set)', 'Catch-all channel')}
       </div>
+      )}
 
       <div role="tablist" className="flex flex-wrap gap-1 border-b border-card-border">
         {FEED_TABS.map((t) => {
           const list = view.feeds.filter((f) => f.tab === t.id);
-          const live = list.filter((f) => !off.has(f.id) && effectiveKey(f, isSet)).length;
+          const total = t.id === 'modes' ? view.modes.rows.length : list.length;
+          const live =
+            t.id === 'modes'
+              ? view.modes.rows.filter((m) => !m.off && m.kindsOff.length < view.modes.kinds.length).length
+              : list.filter((f) => !off.has(f.id) && effectiveKey(f, isSet)).length;
           return (
             <button
               key={t.id}
@@ -156,7 +305,7 @@ export default function DiscordFeedsPanel({ filters }: { filters?: Partial<Recor
               onClick={() => setTab(t.id)}
               className={`relative min-h-11 px-4 text-sm font-medium ${tab === t.id ? 'text-gold' : 'text-text-muted hover:text-foreground'}`}
             >
-              {t.label} <span className="font-normal text-text-muted">· {live}/{list.length} posting</span>
+              {t.label} <span className="font-normal text-text-muted">· {live}/{total} posting</span>
               {tab === t.id && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-gold" />}
             </button>
           );
@@ -165,6 +314,7 @@ export default function DiscordFeedsPanel({ filters }: { filters?: Partial<Recor
       <p className="text-[13px] text-text-muted">{tabInfo.blurb}</p>
       {error && <p className="text-[13px] text-accent-red">{error}</p>}
 
+      {tab === 'modes' ? modeList() : (
       <ul className="rounded-xl border border-card-border bg-card-bg">
         {rows.map((f) => {
           const eff = effectiveKey(f, isSet);
@@ -207,36 +357,7 @@ export default function DiscordFeedsPanel({ filters }: { filters?: Partial<Recor
                   </button>
                 )}
               </div>
-              {pasting === f.key && (
-                <div className="flex flex-wrap gap-2 px-5 pb-3.5">
-                  <Input
-                    type="url"
-                    className="flex-1"
-                    value={pasted}
-                    onChange={(e) => setPasted(e.target.value)}
-                    placeholder="https://discord.com/api/webhooks/…"
-                    aria-label={`${f.label} webhook URL`}
-                  />
-                  <button
-                    type="button"
-                    disabled={busy !== null || !pasted.trim()}
-                    onClick={() =>
-                      void put(f.key, { key: f.key, webhookUrl: pasted.trim() }).then((ok) => {
-                        if (ok) {
-                          setPasting(null);
-                          setPasted('');
-                        }
-                      })
-                    }
-                    className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-brown-dark hover:bg-gold/90 disabled:opacity-50"
-                  >
-                    Save
-                  </button>
-                  <button type="button" onClick={() => setPasting(null)} className="px-3 text-sm text-text-muted hover:text-foreground">
-                    Cancel
-                  </button>
-                </div>
-              )}
+              {pasteRow(f.key, f.label)}
               {open === f.id && f.filters && (
                 <div className="space-y-4 border-t border-card-border-soft bg-brown-light px-5 py-4">{filters?.[f.filters]}</div>
               )}
@@ -244,7 +365,8 @@ export default function DiscordFeedsPanel({ filters }: { filters?: Partial<Recor
           );
         })}
       </ul>
-      {pasting && !rows.some((f) => f.key === pasting) && (
+      )}
+      {pasting && !rows.some((f) => f.key === pasting) && !modeHookKeys.has(pasting) && (
         <div className="flex flex-wrap gap-2">
           <Input type="url" className="flex-1" value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder="https://discord.com/api/webhooks/…" aria-label="Catch-all webhook URL" />
           <button
