@@ -53,7 +53,7 @@ export const NEED_GROUPS: { key: NeedGroup; title: string }[] = [
  * opened in game). Older builds still credit slots off the same chat line when "Sync collection log"
  * is on, but a finished tile then waits for an uploaded screenshot.
  */
-export const CLOG_TILE_MIN_PLUGIN = '1.14.0';
+export const CLOG_TILE_MIN_PLUGIN = '1.15.0';
 
 interface NeedDef {
   kind: NeedKind;
