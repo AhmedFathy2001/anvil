@@ -54,6 +54,7 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   renamed: { label: 'Renamed', color: 'text-yellow-400' },
   verified: { label: 'Verified', color: 'text-gold' },
   claimed: { label: 'Claimed', color: 'text-gold' },
+  fee_reminders_sent: { label: 'Fee reminders', color: 'text-gold' },
   merged: { label: 'Merged', color: 'text-purple-400' },
   rename_dismissed: { label: 'Not a rename', color: 'text-text-muted' },
   mod_approved: { label: 'Mod approved', color: 'text-accent-green-light' },
