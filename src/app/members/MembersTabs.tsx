@@ -34,6 +34,7 @@ export default function MembersTabs({
   rosterLog,
   activities,
   movement,
+  rankOrder,
   luck,
   lately,
 }: {
@@ -42,6 +43,8 @@ export default function MembersTabs({
   rosterLog: RosterEvent[];
   activities: ClanActivityAnalytics;
   movement: Record<number, RosterMovement>;
+  /** The clan's ranks, most senior first (lib/rankRules effectiveRankOrder). */
+  rankOrder: string[];
   /** Dry streaks + spoons, from synced collection logs (lib/clogLuckBoard). */
   luck: React.ComponentProps<typeof ClanLuck>;
   /**
@@ -79,7 +82,7 @@ export default function MembersTabs({
       {tab === 'roster' && (
         <>
           <ClanPulse analytics={analytics} members={members} rosterLog={rosterLog} />
-          <MembersDirectory members={members} movement={movement} />
+          <MembersDirectory members={members} movement={movement} rankOrder={rankOrder} />
         </>
       )}
 

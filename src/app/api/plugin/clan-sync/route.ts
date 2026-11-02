@@ -19,11 +19,14 @@ import { capMessage, newMemberAllowance, syncCapGrace } from '@/lib/member-cap';
 import { getInGameClanName } from '@/lib/pluginConfig';
 import { log } from '@/lib/logger';
 import { recordJoinDates } from '@/lib/rosterJoinDates';
+import { RANK_NUMBERS_KEY, parseRankNumbers, rankNumbersFrom } from '@/lib/rankRules';
 import { accountChanged, seatChanged, departureFor, lastSeenIsFresh, returnFields, rosterReadVerdict } from '@/lib/rosterSync';
 
 interface IncomingMember {
   rsn: string;
   rank?: string | null;
+  /** The in-game rank number (newer plugins); see lib/rankRules RANK_NUMBERS_KEY. */
+  rankNum?: number | null;
   joinedDays?: number | null;
   // Only present for the locally-logged-in player. Used for stable identity / rename detection.
   accountHash?: string | null;
@@ -462,6 +465,18 @@ export async function POST(request: Request) {
       // body, which is where `message` already says exactly what happened.
       { status: 422 },
     );
+  }
+
+  // ── 2.6) The clan's title → rank-number map ───────────────────────────────
+  // One settings row per clan, written only when it changes: the members page sorts Rank by it, in
+  // the game's own order (custom titles included). Older plugins send no numbers and leave it be.
+  {
+    const numbers = rankNumbersFrom(members);
+    if (Object.keys(numbers).length > 0) {
+      const stored = parseRankNumbers(await getSetting(clan.id, RANK_NUMBERS_KEY));
+      const merged = { ...stored, ...numbers };
+      if (JSON.stringify(merged) !== JSON.stringify(stored)) await setSetting(clan.id, RANK_NUMBERS_KEY, JSON.stringify(merged));
+    }
   }
 
   // ── 3) Bulk insert new members ───────────────────────────────────────────
