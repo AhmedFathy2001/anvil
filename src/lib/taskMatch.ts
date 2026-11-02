@@ -92,6 +92,8 @@ export interface TaskCandidate {
   score: number;
   /** Covers what was typed well enough to add without a second look. */
   confident: boolean;
+  /** Matched only after correcting a typo in what was typed ("zulrha" → zulrah). */
+  fuzzy?: boolean;
   /** Library tasks carry their own points and tags. */
   points?: number | null;
   tileCategory?: string | null;
@@ -183,8 +185,35 @@ function parseClock(s: string): number | null {
 }
 
 /** Split an amount and a time cap off what was typed. */
+// OSRS shorthand the hiscores data doesn't carry as an alias, expanded before anything else reads
+// the query. Whole words only; "cg", "hmt", "dks", "gotr", "wt", "sire", "hydra" already match.
+const SHORTHANDS: Record<string, string> = {
+  nm: 'nightmare',
+  pnm: 'phosanis nightmare',
+  kq: 'kalphite queen',
+  kbd: 'king black dragon',
+  vork: 'vorkath',
+  muspah: 'phantom muspah',
+  tempo: 'tempoross',
+  mlm: 'motherlode mine',
+  gf: 'giants foundry',
+  herbi: 'herbiboar',
+  herbis: 'herbiboars',
+  sepulcher: 'sepulchre',
+  rumor: 'rumour',
+  rumors: 'rumours',
+  coxcm: 'cox cm',
+  tobhm: 'tob hm',
+  toaexpert: 'toa expert',
+  cms: 'cox cm',
+};
+
+export function expandShorthands(text: string): string {
+  return text.replace(/[A-Za-z’']+/g, (w) => SHORTHANDS[w.toLowerCase().replace(/[’']/g, '')] ?? w);
+}
+
 export function parseTaskQuery(query: string): ParsedQuery {
-  let text = query.trim().replace(/\s+/g, ' ');
+  let text = expandShorthands(query.trim().replace(/\s+/g, ' '));
   let timeCapSeconds: number | null = null;
   // "sub 30", "sub-25 min", "under 1:20:00", "in under 45 minutes"
   const cap = /\b(?:sub|under|below|in under|faster than)\s*-?\s*(\d{1,2}:\d{2}(?::\d{2})?|\d+(?:\.\d+)?)\s*(m|min|mins|minutes|s|sec|secs|seconds|h|hr|hrs|hours)?\b/i.exec(text);
@@ -251,7 +280,8 @@ const acronymOf = (name: string) => words(name).map((w) => w[0]).join('');
 function tokMatch(q: string, c: string): boolean {
   if (q === c) return true;
   // Typing the start of a word finds it ("herbi" → herbiboar); not the other way round.
-  return q.length >= 3 && c.startsWith(q);
+  // Four letters at least: "cow" is not the start of "cowhide" in anyone's head.
+  return q.length >= 4 && c.startsWith(q);
 }
 
 function containsRun(hay: string[], run: string[]): boolean {
@@ -342,6 +372,13 @@ const RAID_KEYS = new Set([
   'tombsOfAmascut', 'tombsOfAmascutExpertMode', 'fracturedArchive',
 ]);
 
+// A boss's nickname that no other boss shares ("cg", "vork", "kq") names it as surely as its label.
+const BOSS_ALIAS_COUNT = (() => {
+  const m = new Map<string, number>();
+  for (const b of BOSSES) for (const a of b.aliases ?? []) m.set(a, (m.get(a) ?? 0) + 1);
+  return m;
+})();
+
 function bossDrafts(): (Draft & Named)[] {
   return BOSSES.filter((b) => !RAID_KEYS.has(b.key)).map((b) => {
     const choice = chooseKillSource([b.key]);
@@ -352,8 +389,8 @@ function bossDrafts(): (Draft & Named)[] {
       key: `boss-${b.key}`,
       source: 'boss',
       badge: 'Kills',
-      names: [b.label],
-      aliases: b.aliases ?? [],
+      names: [b.label, ...(b.aliases ?? []).filter((x) => BOSS_ALIAS_COUNT.get(x) === 1)],
+      aliases: (b.aliases ?? []).filter((x) => BOSS_ALIAS_COUNT.get(x) !== 1),
       titleTemplate: `{n} ${b.label} kills`,
       verb: 'Kill',
       noun: `${b.label}`,
@@ -556,7 +593,7 @@ function lapDrafts(): (Draft & Named)[] {
     key: `lap-${t.name}`,
     source: 'lap' as const,
     badge: 'Sepulchre',
-    names: [t.name, ...(t.name.startsWith('Hallowed Sepulchre Floor') ? [`sepulchre ${t.label}`] : [])],
+    names: [t.name, ...(t.name.startsWith('Hallowed Sepulchre Floor') ? [`sepulchre ${t.label}`] : t.label === 'Any floor' ? ['sepulchre floors'] : [])],
     aliases: ['sepulchre', 'hallowed', 'floor', 'agility'],
     titleTemplate: t.unit === 'run' ? '{n} Sepulchre full runs' : t.label === 'Any floor' ? '{n} Sepulchre floors' : `{n} Sepulchre ${t.label} clears`,
     verb: t.unit === 'run' ? 'Finish' : 'Clear',
@@ -758,6 +795,8 @@ function raidCandidate(q: ParsedQuery): TaskCandidate | null {
   let raids = (Object.keys(RAID_TOKENS) as RaidId[]).filter((r) => RAID_TOKENS[r].some(has));
   const raidWord = has('raid');
   if (raids.length === 0 && raidWord) raids = RAID_OPTIONS.map((r) => r.id);
+  // "hmt" only ever means Theatre of Blood.
+  if (raids.length === 0 && has('hmt')) raids = ['tob'];
   if (raids.length === 0) return null;
   // Deathless / speed tasks name a raid too — those belong to their own kinds.
   if (['deathless', 'flawless', 'death', 'speed', 'speedrun'].some(has) || q.timeCapSeconds != null) return null;
@@ -871,7 +910,11 @@ function itemCandidates(q: ParsedQuery, ctx: MatchContext): TaskCandidate[] {
     const lower = it.name.toLowerCase();
     if (!q.tokens.some((t) => lower.includes(t))) continue;
     const s = scoreNamed(q, { names: [it.name] });
-    if (!s.matched || !s.nameCovered) continue;
+    // The whole name, or every typed word plus at most one container word left unsaid
+    // ("bloodwood sap" is the Bucket of bloodwood sap).
+    const unsaid = tokens(it.name).filter((c) => !q.tokens.some((t) => tokMatch(t, c))).length;
+    const allSaid = q.tokens.length >= 2 && s.coverage === 1 && unsaid <= 1;
+    if (!s.matched || !(s.nameCovered || allSaid)) continue;
     // "Hallowed mark" and "Hallowed marks" are two catalogue rows for one thing.
     const k = tokens(it.name).join(' ');
     if (seen.has(k)) continue;
@@ -1003,6 +1046,200 @@ export function libraryCandidate(t: NonNullable<MatchContext['library']>[number]
  * rest are "also matches". Empty when nothing covers the query — the caller offers a screenshot tile.
  */
 export function matchTasks(query: string, ctx: MatchContext = {}): TaskCandidate[] {
+  const exact = matchExact(query, ctx);
+  const fix = correctQueryDetail(query, ctx);
+  if (fix == null) return exact;
+  const fixed = fix.text;
+  // The corrected reading scores a step below anything matched as typed, so an exact hit always
+  // wins a tie. It is only "confident" when it is clearly alone — otherwise the bulk review asks
+  // ("pick one") instead of silently guessing what a typo meant.
+  const fuzzy = matchExact(fixed, ctx).map((c) => ({ ...c, score: c.score - 1, fuzzy: true }));
+  const top = fuzzy.find((c) => c.confident);
+  // A rival is another reading that stands on its own (confident) and scores close — the same
+  // item's drop-vs-inventory twin is not one.
+  const rival = top && fuzzy.some((c) => c !== top && c.confident && c.score > top.score - 2);
+  const merged = new Map<string, TaskCandidate>();
+  for (const c of exact) merged.set(c.key, c);
+  for (const c of fuzzy) {
+    // A typo two known words are equally close to is a question, never a guess.
+    const f = { ...c, confident: c === top && !rival && !fix.ambiguous };
+    const prev = merged.get(c.key);
+    if (!prev || f.score > prev.score) merged.set(c.key, f);
+  }
+  return [...merged.values()].sort((a, b) => b.score - a.score).slice(0, 12);
+}
+
+// ─── Typo tolerance ──────────────────────────────────────────────────────────────────────────
+
+/** Damerau-Levenshtein (optimal string alignment): a transposition costs 1. Stops early past `max`. */
+export function editDistance(a: string, b: string, max = 2): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  const prev2: number[] = new Array(b.length + 1).fill(0);
+  let prev: number[] = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur: number[] = [i];
+    let rowMin = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, prev2[j - 2] + 1);
+      cur[j] = v;
+      if (v < rowMin) rowMin = v;
+    }
+    if (rowMin > max) return max + 1;
+    for (let j = 0; j <= b.length; j++) prev2[j] = prev[j];
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/** How many edits a word of this length may be off by: short words must be exact. */
+function allowedEdits(len: number): number {
+  return len <= 3 ? 0 : len <= 5 ? 1 : 2;
+}
+
+interface Vocab {
+  set: Set<string>;
+  byLen: Map<number, string[]>;
+}
+function vocabOf(tokensList: Iterable<string>): Vocab {
+  const set = new Set<string>();
+  for (const t of tokensList) if (t && !/\d/.test(t)) set.add(t);
+  const byLen = new Map<number, string[]>();
+  for (const t of set) {
+    const l = byLen.get(t.length) ?? [];
+    l.push(t);
+    byLen.set(t.length, l);
+  }
+  return { set, byLen };
+}
+
+let staticVocab: Vocab | null = null;
+let staticCounters: unknown = null;
+function vocabStatic(ctx: MatchContext): Vocab {
+  if (staticVocab && staticCounters === (ctx.counters ?? COUNTER_TARGETS)) return staticVocab;
+  const all: string[] = [];
+  for (const d of staticDrafts(ctx, null)) for (const n of [...d.names, ...(d.aliases ?? [])]) all.push(...tokens(n));
+  all.push(...Object.values(RAID_TOKENS).flat(), ...Object.values(MODE_TOKENS).flat(), ...Object.values(COURSE_TOKENS).flat());
+  all.push(...TRIAL_RANK_OPTIONS_UI.map((r) => r.id), 'raid', 'trial', 'barracuda', 'sailing', 'rank', ...GROUP_WORDS, ...REWARD_WORDS);
+  for (const f of BOSS_FAMILIES) for (const n of [f.name, ...f.aliases]) all.push(...tokens(n));
+  staticVocab = vocabOf(all);
+  staticCounters = ctx.counters ?? COUNTER_TARGETS;
+  return staticVocab;
+}
+
+const ctxVocabCache = new WeakMap<object, Vocab>();
+function vocabCtx(ctx: MatchContext): Vocab {
+  const key = ctx.items ?? ctx;
+  const hit = ctxVocabCache.get(key);
+  if (hit && key === ctx.items) return hit;
+  const all: string[] = [];
+  for (const it of ctx.items ?? []) all.push(...tokens(it.name));
+  for (const p of ctx.clogPages ?? []) all.push(...tokens(p.name));
+  for (const t of ctx.library ?? []) all.push(...tokens(t.label));
+  const v = vocabOf(all);
+  if (ctx.items) ctxVocabCache.set(ctx.items, v);
+  return v;
+}
+
+function known(w: string, vs: Vocab[]): boolean {
+  return STOP.has(w) || vs.some((v) => v.set.has(w));
+}
+
+/**
+ * The closest known word within the allowed edits, or null. Earlier vocabularies win ties, then a
+ * shared first letter; `tied` says two words were still equally close (the typo is ambiguous).
+ */
+function nearest(w: string, vs: Vocab[]): { t: string; tied: boolean } | null {
+  const max = allowedEdits(w.length);
+  if (max === 0) return null;
+  let best: { t: string; d: number; rank: number } | null = null;
+  let tied = false;
+  vs.forEach((v, rank) => {
+    for (let len = w.length - max; len <= w.length + max; len++) {
+      for (const t of v.byLen.get(len) ?? []) {
+        if (t.length < 3) continue;
+        const d = editDistance(w, t, max);
+        if (d > max) continue;
+        const b = best as { t: string; d: number; rank: number } | null;
+        const better = !b || d < b.d || (d === b.d && rank < b.rank)
+          || (d === b.d && rank === b.rank && t[0] === w[0] && b.t[0] !== w[0]);
+        const same = !!b && d === b.d && rank === b.rank && (t[0] === w[0]) === (b.t[0] === w[0]);
+        if (better) {
+          best = { t, d, rank };
+          tied = false;
+        } else if (same && t !== b!.t) {
+          tied = true;
+        }
+      }
+    }
+  });
+  const b = best as { t: string } | null;
+  return b ? { t: b.t, tied } : null;
+}
+
+/**
+ * What was typed, with its typos fixed against the words the matcher knows — or null when every
+ * word is already known. Joins and splits run first ("blood wood" → bloodwood, "coxcm" → cox cm),
+ * then a per-word edit-distance fallback. Numbers are never touched; short words must be exact.
+ */
+export function correctQuery(query: string, ctx: MatchContext = {}): string | null {
+  return correctQueryDetail(query, ctx)?.text ?? null;
+}
+
+function correctQueryDetail(query: string, ctx: MatchContext): { text: string; ambiguous: boolean } | null {
+  const vs = [vocabStatic(ctx), vocabCtx(ctx)];
+  const raw = expandShorthands(query).toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9.,:]+/g, ' ').trim().split(' ').filter(Boolean);
+  const out: string[] = [];
+  let changed = false;
+  let ambiguous = false;
+  for (let i = 0; i < raw.length; i++) {
+    const w = raw[i];
+    if (/\d/.test(w) || !/^[a-z]+$/.test(w)) {
+      out.push(w);
+      continue;
+    }
+    const s = stem(w);
+    const next = raw[i + 1];
+    // "blood wood" → "bloodwood": two words that are one known word.
+    if (next && /^[a-z]+$/.test(next) && !STOP.has(w) && !STOP.has(next)) {
+      const joined = stem(w + next);
+      if (vs.some((v) => v.set.has(joined))) {
+        out.push(w + next);
+        changed = true;
+        i++;
+        continue;
+      }
+    }
+    if (known(s, vs) || known(w, vs)) {
+      out.push(w);
+      continue;
+    }
+    // "coxcm" → "cox cm": one word that is two known words (the matcher's own words only).
+    let split: string | null = null;
+    for (let k = 2; k <= w.length - 2 && !split; k++) {
+      const a = w.slice(0, k);
+      const b = w.slice(k);
+      if (vs[0].set.has(a) && vs[0].set.has(stem(b))) split = `${a} ${b}`;
+    }
+    if (split) {
+      out.push(split);
+      changed = true;
+      continue;
+    }
+    const fix = nearest(s, vs);
+    if (fix && fix.t !== s) {
+      out.push(fix.t);
+      changed = true;
+      if (fix.tied) ambiguous = true;
+    } else {
+      out.push(w);
+    }
+  }
+  return changed ? { text: out.join(' '), ambiguous } : null;
+}
+
+function matchExact(query: string, ctx: MatchContext): TaskCandidate[] {
   const q = parseTaskQuery(query);
   if (q.tokens.length === 0 && q.all.length === 0) return [];
   if (q.tokens.join('').length < 2 && q.all.join('').length < 2) return [];
@@ -1032,10 +1269,12 @@ export function matchTasks(query: string, ctx: MatchContext = {}): TaskCandidate
     const strayNumber = tokens(d.noun).some((t) => /^\d+$/.test(t) && !q.all.includes(t));
     // A family ("Nightmare (any)") wins over its namesake boss only when the task says "any", "both",
     // "bosses"… or uses a name only the family has ("dt2", "wildy").
+    // "sub 30 inferno" is a speed tile, not 25 Zuk kills.
+    const timeAdj = d.source === 'timed' && q.timeCapSeconds != null ? 2.5 : 0;
     const familyAdj = d.key.startsWith('family-')
-      ? GROUP_WORDS.some((w) => q.all.includes(w)) || q.tokens.some((t) => !BOSSES.some((b) => tokens(b.label).includes(t))) ? 1.5 : -1.5
+      ? GROUP_WORDS.some((w) => q.all.includes(w)) || q.tokens.some((t) => !BOSSES.some((b) => [b.label, ...(b.aliases ?? [])].some((n) => tokens(n).includes(t)))) ? 1.5 : -1.5
       : 0;
-    out.push(finish(d, q, { ...s, score: s.score + (SOURCE_BONUS[d.source] ?? 0) - (strayNumber ? 1 : 0) + familyAdj }));
+    out.push(finish(d, q, { ...s, score: s.score + (SOURCE_BONUS[d.source] ?? 0) - (strayNumber ? 1 : 0) + familyAdj + timeAdj }));
   }
 
   // An item that is just the name of a counter or boss already offered ("Herbiboar") is noise.

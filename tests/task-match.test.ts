@@ -7,6 +7,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyAmount,
+  correctQuery,
+  editDistance,
   killCandidate,
   browseCatalog,
   classifyMatches,
@@ -30,6 +32,7 @@ import {
   trialTileConfig,
 } from '../src/lib/tileCreatorConfig.ts';
 import { chooseKillSource } from '../src/lib/killSource.ts';
+import { COUNTER_TARGETS } from '../src/lib/constants.ts';
 
 const items = [
   { id: 24711, name: 'Hallowed mark' },
@@ -54,7 +57,7 @@ function best(line: string, c: MatchContext = ctx) {
 
 test('an amount is read before or after the task, with k/m and thousands', () => {
   assert.equal(parseTaskQuery('150 herbi').amount, 150);
-  assert.equal(parseTaskQuery('150 herbi').text, 'herbi');
+  assert.equal(parseTaskQuery('150 herbi').text, 'herbiboar'); // shorthand expanded
   assert.equal(parseTaskQuery('zulrah x100').amount, 100);
   assert.equal(parseTaskQuery('5m fishing').amount, 5_000_000);
   assert.equal(parseTaskQuery('1,000 zulrah').amount, 1000);
@@ -364,4 +367,82 @@ test('families are browseable under Bosses & raids', () => {
   assert.ok(list.some((c) => c.key === 'family-nightmare'));
   assert.ok(list.some((c) => c.key === 'family-dt2'));
   assert.ok(BOSS_FAMILIES.length >= 8);
+});
+
+// ─── Typos and shorthand ─────────────────────────────────────────────────────────────────────
+
+const typoCtx: MatchContext = {
+  ...ctx,
+  items: [...items, { id: 1, name: 'Cowhide' }, { id: 2, name: 'Disk of returning' }],
+};
+
+test('edit distance counts a transposition as one edit and stops early', () => {
+  assert.equal(editDistance('zulrha', 'zulrah'), 1);
+  assert.equal(editDistance('hallowd', 'hallowed'), 1);
+  assert.equal(editDistance('abcdefgh', 'zzzzzzzz', 2), 3);
+});
+
+test('typos land on the right tile', () => {
+  const cases: [string, (c: ReturnType<typeof best>['top']) => boolean][] = [
+    ['150 herbiboor', (c) => c.config.targetNpcs?.[0] === 'Herbiboar'],
+    ['150 hallowd marks', (c) => c.config.tileType === 'gain' && c.config.trackedItemIds?.[0] === 24711],
+    ['10 gwenth glide marlin', (c) => c.config.timedActivity === 'Gwenith Glide — Marlin'],
+    ['phosanis nightmre', (c) => c.config.trackedStat === 'phosanisNightmare'],
+    ['250 tith farm points', (c) => c.config.targetNpcs?.[0] === 'Tithe Farm points'],
+    ['25 slayer tasks mortimar', (c) => /Mortimer/.test(c.config.targetNpcs?.[0] ?? '')],
+    ['100 zulrha', (c) => c.config.trackedStat === 'zulrah'],
+    ['200 bloodwood sapp', (c) => c.config.trackedItemIds?.[0] === 90001],
+    ['200 blood wood sap', (c) => c.config.trackedItemIds?.[0] === 90001],
+    ['corupted gauntlet', (c) => c.config.trackedStat === 'corruptedGauntlet'],
+    ['coxcm', (c) => c.config.trackedStat === 'chambersOfXericChallengeMode'],
+    ['cox cm', (c) => c.config.trackedStat === 'chambersOfXericChallengeMode'],
+    ['25 hunter rumors', (c) => c.config.targetNpcs?.[0] === 'Hunter Rumours'],
+    ['100 golden nugets', (c) => c.config.trackedItemIds?.[0] === 12012],
+  ];
+  for (const [line, ok] of cases) {
+    const { top, verdict } = best(line, typoCtx);
+    assert.ok(top && ok(top), `${line} → ${top?.title}`);
+    assert.equal(verdict.status, 'ready', line);
+  }
+  // A corrected reading is marked, and scores below what an exact spelling would.
+  assert.equal(best('100 zulrha', typoCtx).top.fuzzy, true);
+  assert.ok(best('100 zulrha', typoCtx).top.score < best('100 zulrah', typoCtx).top.score);
+});
+
+test('OSRS shorthand finds its boss or activity', () => {
+  const keys: [string, string][] = [
+    ['cg', 'corruptedGauntlet'], ['nm', 'nightmare'], ['pnm', 'phosanisNightmare'], ['kq', 'kalphiteQueen'],
+    ['kbd', 'kingBlackDragon'], ['vork', 'vorkath'], ['sire', 'abyssalSire'], ['hydra', 'alchemicalHydra'],
+    ['muspah', 'phantomMuspah'], ['gotr', 'riftsClosed'], ['wt', 'wintertodt'], ['tempo', 'tempoross'],
+    ['hmt', 'theatreOfBloodHardMode'], ['tob hm', 'theatreOfBloodHardMode'], ['toa expert', 'tombsOfAmascutExpertMode'],
+  ];
+  for (const [q, key] of keys) assert.equal(best(q, typoCtx).top.config.trackedStat, key, q);
+  assert.equal(best('dks', typoCtx).top.key, 'family-dks');
+  assert.equal(best('sepulcher floors', typoCtx).top.config.targetNpcs?.[0], 'Hallowed Sepulchre');
+  assert.equal(best('150 herbi', typoCtx).top.config.targetNpcs?.[0], 'Herbiboar');
+});
+
+test('typo tolerance never invents a match', () => {
+  // Short words are exact-only: "cox" is not "cow", "dks" is not "disk".
+  assert.equal(correctQuery('5 cox', typoCtx), null);
+  assert.equal(correctQuery('dks', typoCtx), null);
+  assert.equal(correctQuery('100 cows', typoCtx), null);
+  // "cow" is not the start of "cowhide": nothing to offer, so a screenshot — never a guess.
+  assert.equal(best('100 cows', typoCtx).verdict.status, 'screenshot');
+  // Numbers are never corrected.
+  assert.equal(correctQuery('1500 zulrah', typoCtx), null);
+  assert.match(correctQuery('150 zulrha', typoCtx) ?? '', /^150 zulrah$/);
+});
+
+test('a typo that could mean two things asks instead of guessing', () => {
+  // "glurb" is one edit from both "glarb" and "glorb": the bulk review must ask, not pick one.
+  const two: MatchContext = {
+    ...typoCtx,
+    counters: [...COUNTER_TARGETS, { name: 'Glarb tokens', group: 'Skilling', note: '' }, { name: 'Glorb tokens', group: 'Skilling', note: '' }],
+  };
+  const v = classifyMatches(matchTasks('100 glurb tokens', two));
+  assert.notEqual(v.status, 'ready');
+  // With one clear correction it is added without a second look.
+  const one: MatchContext = { ...typoCtx, counters: [...COUNTER_TARGETS, { name: 'Glarb tokens', group: 'Skilling', note: '' }] };
+  assert.equal(classifyMatches(matchTasks('100 glarbb tokens', one)).status, 'ready');
 });
