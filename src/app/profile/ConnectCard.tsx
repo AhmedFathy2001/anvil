@@ -21,6 +21,16 @@ interface Props {
   verifiedCount: number;
   detectedCount: number;
   connected: boolean;
+  /**
+   * Where a brand-new person was heading when they first signed in (lib/firstLogin), offered as a
+   * way past this card. Only set on a first landing.
+   */
+  continueTo?: string | null;
+  /**
+   * Where "Verify by XP" goes. The locker opens its drawer through the #link-account anchor; the
+   * setup flow has no drawer and switches to its character step instead.
+   */
+  onVerifyByXp?: () => void;
 }
 
 type Beacon = { connected: boolean; linked: number; verified: number; detected: number };
@@ -32,6 +42,8 @@ export default function ConnectCard({
   verifiedCount,
   detectedCount,
   connected,
+  continueTo = null,
+  onVerifyByXp,
 }: Props) {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
@@ -167,9 +179,17 @@ export default function ConnectCard({
         {linkedCount > 0 ? 'Finish connecting your account' : 'Connect your account'}
       </h2>
       <p className="text-sm text-text-muted mt-1.5 mb-5 max-w-[62ch]">
-        Install the Anvil plugin, sign in from its side panel, and play — the account appears here automatically.
-        New accounts link immediately; an account already on a roster needs one quick XP or moderator check first.
+        Install the Anvil plugin, sign in from its side panel, and play — your character shows up here by itself.
+        If a clan on Anvil already lists that character, we&rsquo;ll ask for one quick check that it&rsquo;s really
+        you before it&rsquo;s linked.
       </p>
+      {continueTo && (
+        <p className="text-sm text-text-muted -mt-3 mb-5">
+          <a href={/* clan-prefix: platform -- the literal path they signed in from */ continueTo} className="font-semibold text-gold hover:text-gold-light">
+            Skip for now — continue where you were going →
+          </a>
+        </p>
+      )}
 
       <ol className="grid">
         <Step n={1} done title="Signed in with Discord" last={false}>
@@ -179,18 +199,63 @@ export default function ConnectCard({
         <Step n={2} done={tokenDone} title="Install the plugin and sign in" last={false}>
           Install <b className="text-foreground">Anvil</b> from the RuneLite Plugin Hub, open the{' '}
           <b className="text-foreground">Anvil</b> panel in the RuneLite sidebar and click{' '}
-          <b className="text-foreground">Sign in with Discord</b>. Approve the code in the browser tab that opens — the plugin
-          fills in its token by itself.{' '}
+          <b className="text-foreground">Sign in with Discord</b>. Approve the code in the browser tab that opens — that&rsquo;s
+          it.{' '}
           <ClanLink href="/guide/plugin" className="text-gold hover:text-gold-light">
             Setup guide with screenshots →
           </ClanLink>
-          <details className="mt-2.5 max-w-[640px]">
-            <summary className="cursor-pointer text-xs text-text-muted hover:text-foreground">
-              Sign-in not working? Paste your token by hand instead
-            </summary>
-            <p className="mt-2 text-xs text-text-muted">
-              Copy it, then click <b className="text-foreground">Paste a token instead</b> under the sign-in
-              button in the Anvil panel. It works for every event — you never re-paste it.
+        </Step>
+
+        <Step n={3} done={accountSeen} title={detectedCount > 0 ? 'Verify the character we found' : 'Log in to the game'} last>
+          {detectedCount > 0 ? (
+            <>
+              RuneLite reached Anvil. Confirm the detected character under <b className="text-foreground">Your accounts</b>{' '}
+              below. If a clan already lists it, you may need the quick XP check.
+            </>
+          ) : (
+            <>Log in to the account you want tracked and play — it shows up here on its own.</>
+          )}
+          {!accountSeen && (
+            <div className="mt-2.5 flex items-center gap-3 rounded-xl border border-dashed border-card-border bg-brown-dark/50 px-3 py-2.5 text-sm text-text-muted">
+              <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-pulse shrink-0" />
+              {heard ? (
+                <span>Something came through — loading your profile…</span>
+              ) : (
+                <span>
+                  Waiting for RuneLite… <b className="text-foreground">log in or hop worlds once</b> and this
+                  page updates within a few seconds.
+                </span>
+              )}
+            </div>
+          )}
+        </Step>
+      </ol>
+
+      {/* ONE DEFAULT. The plugin is the way; the XP check is the one honest alternative for somebody
+          who isn't at their PC; everything else is for the rare case and stays folded away, so a
+          first-timer is not choosing between five doors. */}
+      <p className="text-sm text-text-muted mt-4">
+        Not on RuneLite right now?{' '}
+        {onVerifyByXp ? (
+          <button type="button" onClick={onVerifyByXp} className="text-gold hover:text-gold-light">
+            Verify by XP
+          </button>
+        ) : (
+          <a href="#link-account" className="text-gold hover:text-gold-light">
+            Verify by XP
+          </a>
+        )}{' '}
+        — we pick one of your skills, and you gain 1,000 XP in it within 30 minutes.
+      </p>
+
+      <details className="mt-3 max-w-[640px]">
+        <summary className="cursor-pointer text-xs text-text-muted hover:text-foreground">Something else</summary>
+        <div className="mt-2.5 grid gap-3 text-xs text-text-muted">
+          <div>
+            <div className="font-semibold text-foreground/85">Plugin sign-in not working?</div>
+            <p className="mt-0.5">
+              Copy your token, then click <b className="text-foreground">Paste a token instead</b> under the sign-in
+              button in the Anvil panel. You only paste it once.
             </p>
             <div className="flex flex-wrap gap-2 mt-2">
               <code
@@ -214,47 +279,27 @@ export default function ConnectCard({
                 type="button"
                 onClick={copy}
                 disabled={!token}
-                className="px-4 py-2.5 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors disabled:opacity-50"
+                className="px-4 py-2.5 text-sm font-semibold border border-gold/40 text-gold hover:bg-gold/10 rounded-lg transition-colors disabled:opacity-50"
               >
                 {copied ? 'Copied' : 'Copy token'}
               </button>
             </div>
             {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
-          </details>
-        </Step>
-
-        <Step n={3} done={accountSeen} title={detectedCount > 0 ? 'Verify the character we found' : 'Log in to the game'} last>
-          {detectedCount > 0 ? (
-            <>
-              RuneLite reached Anvil. Confirm the detected character under <b className="text-foreground">Your accounts</b>{' '}
-              below; a rostered character may need the quick XP check.
-            </>
-          ) : (
-            <>Log in to the account you want tracked and play — it shows up here on its own.</>
-          )}
-          {!accountSeen && (
-            <div className="mt-2.5 flex items-center gap-3 rounded-xl border border-dashed border-card-border bg-brown-dark/50 px-3 py-2.5 text-sm text-text-muted">
-              <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-pulse shrink-0" />
-              {heard ? (
-                <span>Something came through — loading your profile…</span>
-              ) : (
-                <span>
-                  Waiting for RuneLite… <b className="text-foreground">log in or hop worlds once</b> and this
-                  page updates within a few seconds.
-                </span>
-              )}
+          </div>
+          {!onVerifyByXp && (
+            <div>
+              <div className="font-semibold text-foreground/85">On mobile, or not on the hiscores?</div>
+              <p className="mt-0.5">
+                <a href="#link-account" className="text-gold hover:text-gold-light">
+                  Link by name
+                </a>{' '}
+                with the XP check, or ask for a manual check if your character is too low level to show on the
+                hiscores.
+              </p>
             </div>
           )}
-        </Step>
-      </ol>
-
-      <p className="text-xs text-text-muted mt-4">
-        Playing on mobile or the official client?{' '}
-        <a href="#account-security" className="text-gold hover:text-gold-light">
-          Link by name instead
-        </a>{' '}
-        — gain a little XP and we&rsquo;ll verify it from the hiscores.
-      </p>
+        </div>
+      </details>
     </section>
   );
 }

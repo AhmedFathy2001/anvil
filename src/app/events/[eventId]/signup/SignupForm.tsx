@@ -12,6 +12,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import AddCharacterClient from '@/app/profile/AddCharacterClient';
 import LinkAccountClient from '@/app/profile/LinkAccountClient';
+import EnterEvent from '@/app/events/[eventId]/EnterEvent';
 import Checkbox from '@/components/Checkbox';
 import { useDialog } from '@/components/Confirm';
 import { DEFAULT_SIGNUP_FIELDS, type SignupFields } from '@/lib/eventRules';
@@ -413,9 +414,10 @@ export default function SignupForm({
       // Seated here, just not checked yet — prove the first one is theirs.
       return (
         <div className="border border-card-border rounded-xl bg-card-bg p-5 space-y-3">
-          <h2 className="font-semibold">Step 1: show us {myAccounts[0].rsn} is yours</h2>
+          <h2 className="font-semibold">First, show us {myAccounts[0].rsn} is yours</h2>
           <p className="text-sm text-text-muted">
-            One quick check and the sign-up form appears right here.
+            One quick XP check: we pick one of your skills, you gain 1,000 XP in it within 30 minutes, and the
+            sign-up form appears right here.
           </p>
           <LinkAccountClient manualReview={false} initialRsn={myAccounts[0].rsn} />
         </div>
@@ -426,22 +428,20 @@ export default function SignupForm({
         <div className="border border-card-border rounded-xl bg-card-bg p-5 space-y-3">
           <h2 className="font-semibold">You’re not on this clan’s member list yet</h2>
           <p className="text-sm text-text-muted">
-            Your character is linked to Anvil, but this clan hasn’t added it. If you’re in the clan, ask an
-            admin to add you (or to sync the member list from the plugin). If you’re from another clan, go
-            back to the event and sign up as a guest from there.
+            Your character is linked to Anvil, but this clan&rsquo;s member list doesn&rsquo;t have it. If
+            you&rsquo;re in the clan in game, ask an admin to sync the member list from the plugin. If
+            you&rsquo;re from another clan, you can sign up as a guest right here.
           </p>
-          <ClanLink
-            href={`/events/${eventId}`}
-            className="inline-block text-sm font-medium px-4 py-2 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
-          >
-            Back to the event
-          </ClanLink>
+          {/* The guest door itself, not a link back to the event page that holds it — that was a loop:
+              the event page sent them here, and this sent them back. Joining as a guest refreshes the
+              page and the form appears. */}
+          <EnterEvent eventId={eventId} signupFee={event.signupFee} signupsOpen={windowOpen} />
         </div>
       );
     }
     return (
       <div className="border border-card-border rounded-xl bg-card-bg p-5 space-y-3">
-        <h2 className="font-semibold">Step 1: which character is yours?</h2>
+        <h2 className="font-semibold">Which character is yours?</h2>
         <p className="text-sm text-text-muted">
           Link your RuneScape character once and the sign-up form appears right here.
         </p>
@@ -576,6 +576,10 @@ export default function SignupForm({
           </div>
         </div>
       </div>
+
+      {/* WHO TO PAY, BEFORE THEY COMMIT. The payment report below only exists once a sign-up does,
+          so somebody deciding whether to enter used to see a price and no one to give it to. */}
+      {event.signupFee && !existingSignup ? <FeeWhoToPay eventId={eventId} amount={event.signupFee} /> : null}
 
       {/* Per-account fee summary (multi-account 'per-account' fee mode — one fee per entered account). */}
       {accountFees.length > 1 && (
@@ -1026,5 +1030,44 @@ function FeeStatusBadge({ status }: { status: string }) {
     <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${cls}`}>
       {label[status] ?? status}
     </span>
+  );
+}
+
+/**
+ * "Pay N gp to …", for somebody who has not signed up yet. Reads the same collector list the payment
+ * report uses (any signed-in viewer may), and falls back to "the clan's treasurer" when it is empty
+ * or will not load.
+ */
+function FeeWhoToPay({ eventId, amount }: { eventId: number; amount: number }) {
+  const [names, setNames] = useState<string[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    clanFetch(`/api/events/${eventId}/signup/report-payment`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { collectors?: FeeCollectorOption[] } | null) => {
+        if (!alive) return;
+        // Treasurers first: collecting is their job, the admins are the fallback.
+        const sorted = [...(d?.collectors ?? [])].sort(
+          (a, b) => Number(b.role === 'treasurer') - Number(a.role === 'treasurer'),
+        );
+        setNames(sorted.map((c) => c.displayName));
+      })
+      .catch(() => alive && setNames([]));
+    return () => {
+      alive = false;
+    };
+  }, [eventId]);
+
+  const who =
+    names == null || names.length === 0
+      ? 'the clan’s treasurer'
+      : names.length <= 3
+        ? names.join(', ').replace(/, ([^,]*)$/, ' or $1')
+        : `${names.slice(0, 3).join(', ')} or another clan admin`;
+  return (
+    <p className="rounded-xl border border-card-border bg-card-bg px-4 py-3 text-xs text-text-muted">
+      <strong className="font-semibold text-foreground">Fee:</strong> trade {amount.toLocaleString()} gp in-game to{' '}
+      <span className="text-foreground">{who}</span>. You can report your payment after you sign up.
+    </p>
   );
 }

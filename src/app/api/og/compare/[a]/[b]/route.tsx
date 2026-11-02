@@ -3,7 +3,7 @@ import { apexCharacter } from '@/lib/apexProfiles';
 import { comparePlayers } from '@/lib/compare';
 import { headToHeadValue, headToHeadVerdict } from '@/lib/linkText';
 import { headToHeadCard, siteCard } from '@/lib/ogCard';
-import { cachedCard, showingAccounts } from '@/lib/ogKit';
+import { cachedCard, cardParam, showingAccounts } from '@/lib/ogKit';
 import { loadPlayerCard } from '@/lib/playerCard';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +16,11 @@ export const dynamic = 'force-dynamic';
  */
 async function load(_request: Request, { params }: { params: Promise<{ a: string; b: string }> }): Promise<Response> {
   const p = await params;
-  const [a, b] = await Promise.all([apexCharacter(decodeURIComponent(p.a), null), apexCharacter(decodeURIComponent(p.b), null)]);
+  // An RSN is at most 12 characters; anything else cannot be a character.
+  const rsnA = cardParam(p.a, 12);
+  const rsnB = cardParam(p.b, 12);
+  if (!rsnA || !rsnB) return siteCard();
+  const [a, b] = await Promise.all([apexCharacter(rsnA, null), apexCharacter(rsnB, null)]);
   if (!a || !b) return siteCard();
 
   const [cardA, cardB] = await Promise.all([loadPlayerCard(a), loadPlayerCard(b)]);
@@ -38,5 +42,5 @@ async function load(_request: Request, { params }: { params: Promise<{ a: string
 
 export function GET(request: Request, ctx: { params: Promise<{ a: string; b: string }> }) {
   // Keyed by path alone: the card never depends on who is asking.
-  return cachedCard(new URL(request.url).pathname, () => load(request, ctx));
+  return cachedCard(new URL(request.url).pathname, () => load(request, ctx), { request, scope: 'compare' });
 }

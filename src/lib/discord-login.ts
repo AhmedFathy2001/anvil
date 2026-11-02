@@ -12,6 +12,7 @@ import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { log } from '@/lib/logger';
 import { claimAccountForPerson } from '@/lib/accountClaim';
 import { track } from '@/lib/analytics';
+import { firstLoginDestination } from '@/lib/firstLogin';
 
 const SESSION_COOKIE = 'admin_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
@@ -331,8 +332,11 @@ export async function completeDiscordLogin(
   // Arriving from a clan still lands on that clan's locker: they have a clan already, so the one
   // thing left really is the plugin, and the card there says so in the clan's own name.
   const returningToClan = Boolean(returnHost);
-  const destination =
-    isNewUser && returnTo === '/' ? (returningToClan ? '/profile?welcome=1' : '/welcome') : returnTo;
+  //
+  // And it used to do so only when they came from the home page: a deep link skipped onboarding
+  // entirely. Now every first sign-in goes through it, carrying the original target as `next`
+  // (lib/firstLogin, which also lists the few targets that must not be detoured).
+  const destination = isNewUser ? firstLoginDestination(returnTo, returningToClan) : returnTo;
 
   // Back to the clan they started from. `returnHost` has already been resolved against the clans
   // table by the caller, so it is a host we produced rather than one a query parameter asked for.

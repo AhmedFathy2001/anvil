@@ -132,7 +132,10 @@ export async function POST(request: Request) {
     // belongs to whoever first claimed it. The site can offer a transfer flow elsewhere.
     if (existing.claimedAt && existing.playerId !== (await personOf(issuingUser.id))) {
       return NextResponse.json(
-        { error: 'This RuneScape account is already linked to a different site user.' },
+        {
+          error:
+            'Someone else on Anvil has already linked this character. If it’s yours, use “It’s mine” in the Anvil panel, or report it from your profile on the website.',
+        },
         { status: 409 },
       );
     }

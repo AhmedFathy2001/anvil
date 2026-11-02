@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { TierBand } from '@/lib/tileFilter';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 
 // Admin editor for the difficulty-tier bands (points → tier). Backed by /api/admin/tier-bands.
 // Rows are { label, min }; the key is derived server-side from the label. The lowest band must
@@ -15,6 +16,7 @@ interface Row {
 }
 
 export default function TierBandsSetting() {
+  const { confirm } = useDialog();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -81,6 +83,13 @@ export default function TierBandsSetting() {
   }
 
   async function handleReset() {
+    const ok = await confirm({
+      title: 'Reset to the default bands?',
+      body: 'Your custom bands are thrown away and tiles are sorted into the default bands by their points.',
+      confirmLabel: 'Reset',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setSaving(true);
     setMessage(null);
     try {

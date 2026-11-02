@@ -1660,9 +1660,10 @@ export default function TileDetailModal({
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70" onClick={cancelDelete} />
           <div className="relative bg-card-bg border border-card-border rounded-xl w-full max-w-sm p-4 shadow-2xl">
-            <h3 className="text-lg font-bold text-foreground mb-3">Confirm Deletion</h3>
+            <h3 className="text-lg font-bold text-foreground mb-3">Delete this proof for good?</h3>
             <p className="text-sm text-text-muted mb-4">
-              Are you sure you want to delete this submission? This action will be announced in Discord.
+              This is permanent: the screenshot and its progress come off the tile and can&rsquo;t be
+              brought back. The removal and your reason are posted in Discord.
             </p>
             <div className="mb-4">
               <label className="block text-xs text-text-muted mb-1">Reason for deletion *</label>

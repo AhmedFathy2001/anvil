@@ -149,12 +149,45 @@ test('a seat an admin ended stays ended', async () => {
   assert.notEqual(seat.leftAt, null, 'a plugin ping is not an argument against an admin');
 });
 
-test('a character with no seat here gets a guest one', async () => {
+test('an alt with no seat in the home clan is NOT seated when the clan approves guests by hand', async () => {
+  // The person is a live member here (DEXTERITY), so this is their home clan — but the clan's
+  // policy is 'approval', and a background play must not file a join request every login.
+  await A.resolvePluginMember(play('afk', 'CREDIT'));
+  assert.equal(await seatIn(clanId, 'CREDIT'), undefined, 'no seat');
+  const requests = await db.select().from(s.clanJoinRequests).where(eq(s.clanJoinRequests.clanId, clanId));
+  assert.equal(requests.length, 0, 'and no request filed from a play');
+});
+
+test('…and gets a guest seat through the guest door when the clan is open', async () => {
+  await db.update(s.clans).set({ guestPolicy: 'open' }).where(eq(s.clans.id, clanId));
   await A.resolvePluginMember(play('afk', 'CREDIT'));
   const seat = await seatIn(clanId, 'CREDIT');
   assert.ok(seat, 'seated');
   assert.equal(seat.kind, 'guest');
   assert.equal(seat.leftAt, null);
+  assert.ok(seat.lastSeenInClan, 'stamped as seen');
+});
+
+test('in a clan where the person is only a guest, a play never seats another character', async () => {
+  const [me] = await db.select().from(s.users).where(eq(s.users.pluginToken, TOKEN));
+  await db.update(s.clans).set({ guestPolicy: 'open' }).where(eq(s.clans.id, otherClanId));
+  await character(me.playerId!, 'VISITOR', { clan: otherClanId, kind: 'guest' });
+  await character(me.playerId!, 'SECONDALT');
+  await A.resolvePluginMember(play('lfl', 'SECONDALT'));
+  assert.equal(await seatIn(otherClanId, 'SECONDALT'), undefined, 'not their home clan: no new seat');
+});
+
+test('a departed seat is not revived for somebody banned from the clan', async () => {
+  const [banned] = await db.insert(s.players).values({ displayName: 'banned' }).returning();
+  await db
+    .insert(s.users)
+    .values({ displayName: 'banned', discordId: 'disc-banned', pluginToken: 'token-banned', playerId: banned.id });
+  await character(banned.id, 'BARRED', { clan: clanId, kind: 'member', left: true });
+  await db.insert(s.clanBans).values({ clanId, playerId: banned.id, reason: 'test' });
+
+  await A.resolvePluginMember(play('afk', 'BARRED', 'token-banned'));
+  const seat = await seatIn(clanId, 'BARRED');
+  assert.notEqual(seat.leftAt, null, 'a ban is not undone by logging in');
 });
 
 test('playing for one clan leaves the other clan’s rosters alone', async () => {

@@ -7,6 +7,7 @@ import ClanLink from '@/components/ClanLink';
 import { useRouter } from 'next/navigation';
 import { useDialog } from '@/components/Confirm';
 import type { EventStage } from '@/lib/eventStage';
+import { formatWait } from '@/lib/feeReminderText';
 
 // The board's real stage. Fees are taken at sign-up, so most boards here haven't started yet — the
 // chip used to say "Running" for anything not ended, a month before the board opened.
@@ -48,6 +49,56 @@ export default function FeesBoardList({ boards, viewerRole }: { boards: FeeBoard
   const { confirm } = useDialog();
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [remindingId, setRemindingId] = useState<number | null>(null);
+  // Treasurer authority, as the route checks it (verifyEventTreasurer). A board-only treasurer
+  // whose board this isn't gets a clear refusal from the server.
+  const canRemind = atLeast(viewerRole, 'admin') || viewerRole === 'treasurer';
+
+  async function remind(board: FeeBoard) {
+    setError(null);
+    setNotice(null);
+    setRemindingId(board.eventId);
+    try {
+      const url = `/api/admin/events/${board.eventId}/fees/remind`;
+      const preview = await clanFetch(url);
+      const p = await preview.json().catch(() => ({}));
+      if (!preview.ok) throw new Error(p.error || 'Could not check who to remind.');
+      if (p.waitMs > 0) {
+        setNotice(`${board.name}: already reminded recently. You can remind again in ${formatWait(p.waitMs)}.`);
+        return;
+      }
+      if (!p.people) {
+        setNotice(
+          p.unreachable
+            ? `${board.name}: nobody unpaid has Discord linked, so there is no one to message.`
+            : `${board.name}: nobody still owes a fee.`,
+        );
+        return;
+      }
+      const ok = await confirm({
+        title: `Remind ${p.people} ${p.people === 1 ? 'person' : 'people'} to pay?`,
+        body:
+          `The bot sends each of them a Discord DM saying how much they owe for ${board.name} and how to pay. ` +
+          (p.unreachable ? `${p.unreachable} more can't be messaged (no Discord linked). ` : '') +
+          'You can do this once every 12 hours per event.',
+        confirmLabel: 'Send reminders',
+        tone: 'gold',
+      });
+      if (!ok) return;
+      const res = await clanFetch(url, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not send reminders.');
+      setNotice(
+        `${board.name}: reminded ${data.sent}` +
+          (data.failed ? ` · ${data.failed} couldn't get a DM (not in your Discord, or DMs closed)` : '') +
+          '.',
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not send reminders.');
+    } finally {
+      setRemindingId(null);
+    }
+  }
 
   async function closeOut(board: FeeBoard) {
     const parts = [
@@ -138,6 +189,16 @@ export default function FeesBoardList({ boards, viewerRole }: { boards: FeeBoard
               >
                 Open Sign-ups
               </ClanLink>
+              {canRemind && b.unpaid > 0 && (
+                <button
+                  onClick={() => remind(b)}
+                  disabled={remindingId === b.eventId}
+                  title="DM everyone who hasn't paid yet"
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
+                >
+                  {remindingId === b.eventId ? 'Checking…' : 'Remind unpaid'}
+                </button>
+              )}
               {/* Only for a finished board, and only for an admin: this writes money off. */}
               {b.ended && atLeast(viewerRole, 'admin') && (
                 <button

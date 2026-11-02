@@ -906,7 +906,7 @@ function SignupBanner({
   } else if (!loggedIn) {
     title = 'Sign-ups are open';
     body = signupFee ? `Sign-up fee: ${signupFee.toLocaleString()} gp.` : 'No sign-up fee.';
-    ctaText = 'Log in to sign up';
+    ctaText = 'Sign in to sign up';
     // Prefixed. `/login` is a platform path so ClanLink leaves it alone — which is right, and is
     // also why the return inside it has to arrive already carrying the clan.
     ctaLabel = `/login?return=${encodeURIComponent(signupReturn)}`;

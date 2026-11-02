@@ -1562,7 +1562,8 @@ export const platformActAs = pgTable('platform_act_as', {
  * here and decided by platform staff in /staff/reports.
  *
  * `kind`: 'wrong_owner' | 'rename' | 'merge' | 'claim_review' (a plugin/XP link a mod disputes) |
- * 'claim_request' (someone asked the clan to vouch for them) | 'other'.
+ * 'claim_request' (someone asked the clan to vouch for them) | 'wrong_clan' (the player says their
+ * character is a member of the wrong clan; clan_id = the clan they're really in) | 'other'.
  */
 export const characterReports = pgTable('character_reports', {
   id: serial('id').primaryKey(),
@@ -1577,7 +1578,7 @@ export const characterReports = pgTable('character_reports', {
   // For a 'rename': the name the character should take. Staff apply it in one click
   // (lib/characterRename, which also absorbs a duplicate a roster sync made under that name).
   requestedRsn: text('requested_rsn'),
-  status: text('status').notNull().default('open'), // 'open' | 'resolved' | 'dismissed'
+  status: text('status').notNull().default('open'), // 'open' | 'applied' | 'resolved' | 'dismissed' | 'reverted' (lib/characterReports)
   resolution: text('resolution'),
   resolvedByUserId: integer('resolved_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   resolvedAt: text('resolved_at'),

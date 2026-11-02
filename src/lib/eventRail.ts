@@ -58,6 +58,9 @@ export function eventRailGroups(opts: {
     matchPrefix: true,
   };
   const stats = { href: `${base}/stats`, label: 'Stats', icon: '▲', sprite: 'stats' as const, matchPrefix: true };
+  // Every proof on the board, flagged or not, newest first. Flagged ones also surface on Home; the
+  // rest count automatically and this is the only place to browse them.
+  const proofs = { href: `${base}/proofs`, label: 'Proofs', icon: '▣', sprite: 'clue' as const, matchPrefix: true };
   const payouts = {
     href: `${base}/payouts`,
     label: 'Prizes',
@@ -115,7 +118,7 @@ export function eventRailGroups(opts: {
           survey,
         ],
       },
-      { label: 'Once it starts', items: [{ ...stats, quiet: true }, { ...payouts, quiet: true }] },
+      { label: 'Once it starts', items: [{ ...stats, quiet: true }, { ...proofs, quiet: true }, { ...payouts, quiet: true }] },
       elsewhere,
     ]);
   }
@@ -127,6 +130,7 @@ export function eventRailGroups(opts: {
         items: [
           { href: base, label: 'Home', icon: '◉', sprite: 'casket' as const },
           stats,
+          proofs,
           teams,
           signups,
         ],
@@ -145,6 +149,7 @@ export function eventRailGroups(opts: {
         payouts,
         survey,
         stats,
+        proofs,
       ],
     },
     {

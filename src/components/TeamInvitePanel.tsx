@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import NumberInput from '@/components/NumberInput';
 import { MAX_INVITE_HOURS, MAX_INVITE_USES } from '@/lib/teamInvites';
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 import { useClanHref } from '@/lib/useClanPath';
 import Checkbox from '@/components/Checkbox';
 
@@ -40,6 +41,7 @@ export default function TeamInvitePanel({ teamId, captainToggle, bare = false }:
   const [captainInvites, setCaptainInvites] = useState(false);
   const [seats, setSeats] = useState(0);
   const [hours, setHours] = useState(0);
+  const { confirm } = useDialog();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +87,13 @@ export default function TeamInvitePanel({ teamId, captainToggle, bare = false }:
   }
 
   async function revoke(token: string) {
+    const ok = await confirm({
+      title: 'Turn off this invite link?',
+      body: 'Anyone who has it can’t use it to join any more. People who already joined stay on the team.',
+      confirmLabel: 'Turn it off',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const res = await clanFetch(`/api/team/${teamId}/invites?token=${token}`, { method: 'DELETE' });

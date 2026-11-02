@@ -173,7 +173,11 @@ export default function TileHistoryPanel({ eventId }: { eventId: number }) {
 
         {error && <p className="text-sm text-red-400">{error}</p>}
         {!error && loaded && shown.length === 0 && (
-          <p className="text-sm text-text-muted">No changes recorded yet.</p>
+          <p className="text-sm text-text-muted">
+            {filter === 'all'
+              ? 'No changes recorded yet. Every time someone adds, edits, copies, deletes, imports or reorders a tile on this board, it shows up here with who did it and what changed, so you can see how the board got the way it is.'
+              : 'Nothing of this kind yet. Pick “All” to see every change.'}
+          </p>
         )}
 
         <ol className="space-y-2">

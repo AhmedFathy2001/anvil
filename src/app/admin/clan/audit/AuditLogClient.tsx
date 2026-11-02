@@ -54,6 +54,7 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   renamed: { label: 'Renamed', color: 'text-yellow-400' },
   verified: { label: 'Verified', color: 'text-gold' },
   claimed: { label: 'Claimed', color: 'text-gold' },
+  fee_reminders_sent: { label: 'Fee reminders', color: 'text-gold' },
   merged: { label: 'Merged', color: 'text-purple-400' },
   rename_dismissed: { label: 'Not a rename', color: 'text-text-muted' },
   mod_approved: { label: 'Mod approved', color: 'text-accent-green-light' },
@@ -69,6 +70,14 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   fee_confirmed: { label: 'Fee confirmed', color: 'text-accent-green-light' },
   feature_toggled: { label: 'Feature switched', color: 'text-gold' },
   settings_changed: { label: 'Settings changed', color: 'text-text-muted' },
+  claim_request_approved: { label: 'Claim linked', color: 'text-accent-green-light' },
+  claim_request_forwarded: { label: 'Claim sent to Anvil', color: 'text-gold' },
+  claim_request_rejected: { label: 'Claim turned down', color: 'text-red-400' },
+  character_report_applied: { label: "Owner's report done", color: 'text-gold' },
+  character_report_reverted: { label: 'Reverted by Anvil', color: 'text-red-400' },
+  member_chose_this_clan: { label: 'Made this their clan', color: 'text-accent-green-light' },
+  member_left_for_another_clan: { label: 'Moved to another clan', color: 'text-yellow-400' },
+  roster_memberships_released: { label: 'Members released by Anvil', color: 'text-red-400' },
 };
 
 export default function AuditLogClient({

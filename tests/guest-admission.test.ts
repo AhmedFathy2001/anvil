@@ -154,8 +154,19 @@ test('rejecting does not block asking again later', async () => {
 
   assert.equal(await G.rejectRequest(first.requestId, approvalClan, staffUser, 'not now'), true);
 
+  // The decline is visible to them until they ask again (doorStates): it used to go silent.
+  const declined = (await G.doorStates(approvalClan, [other.id])).get(other.id);
+  assert.equal(declined?.pending, false);
+  assert.ok(declined?.declinedAt, 'a decline carries its date');
+
   const second = await G.admit({ clanId: approvalClan, accountId: other.id });
   assert.equal(second.outcome, 'requested', 'a rejection is not a permanent bar');
+
+  // Asking again is the newest answer: pending, no longer declined.
+  const again = (await G.doorStates(approvalClan, [other.id])).get(other.id);
+  assert.deepEqual(again, { pending: true, declinedAt: null });
+  // Another clan's answers are not this clan's.
+  assert.equal((await G.doorStates(openClan, [other.id])).has(other.id), false);
 });
 
 // ── Bans outrank policy ───────────────────────────────────────────────────────────────────────
