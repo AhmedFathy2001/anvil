@@ -227,12 +227,11 @@ export async function POST(request: Request) {
 
   // Game-mode stamp ("[Deadman] …") — server-side, so every kind gets it without the plugin knowing
   // about each one. The icon is a per-clan setting; the URL clan is a fine source for a cosmetic
-  // mark that is the same across destinations. A mode nobody catalogued is remembered so the clan's
-  // Discord page lists it from this first post on.
+  // mark that is the same across destinations. (A mode nobody catalogued is remembered below, per
+  // clan the poster actually posts into — never the URL clan, which any token holder can name.)
   const mode = worldModeOf(request, { world, seasonal });
   if (mode) {
     finalEmbed = markMode(finalEmbed, mode.label, await modeIconUrl(clan.id, mode));
-    await rememberSeenMode(clan.id, mode);
   }
 
   // Strip OSRS '@component@' chat markup the plugin can't (see lib/chatTags) — turns a forwarded
@@ -270,6 +269,8 @@ export async function POST(request: Request) {
         continue;
       }
     }
+    // A new mode joins this clan's Game modes list only off a post by someone with a seat here.
+    if (mode) await rememberSeenMode(ec.clanId, mode);
     const webhooks = await getNotificationWebhooks(ec.clanId);
     const url = mode ? await modeWebhookFor(ec.clanId, webhooks, channel, mode) : webhookFor(webhooks, channel);
     if (url && !urls.has(url)) {
