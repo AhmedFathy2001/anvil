@@ -3,12 +3,12 @@ import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { postEventRules } from '@/lib/eventRulesPost';
-import { events, tiles, teams, completions, submissions, eventStartProofs } from '@/db/schema';
+import { clans, events, tiles, teams, completions } from '@/db/schema';
 import { eventBoardTiles } from '@/lib/comboSql';
 import { nestParts, withoutParts } from '@/lib/combo';
 import { eq, inArray, and, count, not } from 'drizzle-orm';
 import { writtenTile } from '@/lib/writtenTiles';
-import { del } from '@/lib/storage';
+import { deleteOwnedFiles, eventMediaUrls } from '@/lib/eventMediaRetention';
 import { cleanEventImageUrl } from '@/lib/eventImage';
 import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
 import { notifyBoardRevealed, notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
@@ -682,31 +682,16 @@ export async function DELETE(
     );
   }
 
-  // Free the submission screenshots from Blob storage before the rows cascade away with the event —
-  // otherwise the images are orphaned and bill forever (the DB delete drops the rows, not the blobs).
-  // Best-effort and chunked so a single failed delete never blocks tearing the event down.
-  const eventTiles = await db.select({ id: tiles.id }).from(tiles).where(eq(tiles.eventId, id));
-  const tileIds = eventTiles.map((t) => t.id);
-  if (tileIds.length > 0) {
-    const subs = await db
-      .select({ imageUrl: submissions.imageUrl })
-      .from(submissions)
-      .where(inArray(submissions.tileId, tileIds));
-    const urls = subs.map((s) => s.imageUrl).filter((u): u is string => !!u);
-    for (let i = 0; i < urls.length; i += 100) {
-      await del(urls.slice(i, i + 100)).catch(() => {});
-    }
-  }
-
-  // Starting shots are stored the same way and cascade the same way — free their images too.
-  const startShots = await db
-    .select({ imageUrl: eventStartProofs.imageUrl })
-    .from(eventStartProofs)
-    .where(eq(eventStartProofs.eventId, id));
-  for (let i = 0; i < startShots.length; i += 100) {
-    await del(startShots.slice(i, i + 100).map((s) => s.imageUrl)).catch(() => {});
-  }
-
+  // Free the event's stored files before the rows cascade away — otherwise they're orphaned and bill
+  // forever. Only files this event owns and no other event still shows (lib/eventMediaRetention):
+  // a proof URL is client-sent, and a screenshot may be shared with another clan's bingo. The URLs are
+  // gathered before the delete; the files go after it, so this event's own rows no longer count.
+  const media = await eventMediaUrls(id);
+  const clanSlug = (await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { slug: true } }))?.slug ?? null;
   await db.delete(events).where(eq(events.id, id));
+  await deleteOwnedFiles(id, clanSlug, {
+    proofRows: [...media.submissions, ...media.cleanFrames, ...media.startProofs, ...media.attachments],
+    moneyRows: [...media.fees, ...media.payouts],
+  }, { anyRowKeeps: true }).catch(() => 0);
   return NextResponse.json({ success: true });
 }

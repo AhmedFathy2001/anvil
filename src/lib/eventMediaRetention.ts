@@ -1,4 +1,5 @@
-import { and, eq, inArray, isNotNull, isNull, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { db } from '@/db';
 import { clans, eventSignups, eventStartProofs, events, payouts, signupFees, submissionAttachments, submissions, tiles } from '@/db/schema';
 import { del, isClanMediaUrl, isManagedMediaUrl } from '@/lib/storage';
@@ -135,35 +136,10 @@ export async function purgeEventMedia(eventId: number, opts: { dryRun?: boolean 
     await tx.update(events).set({ mediaPurgedAt: new Date().toISOString() }).where(eq(events.id, eventId));
   });
 
-  // Delete only what this event provably owns (deletableMedia says how).
-  const managed = (rows: { url: string }[]) => [...new Set(rows.map((r) => r.url).filter((u) => isManagedMediaUrl(u)))];
-  const proofUrls = managed([...media.submissions, ...media.cleanFrames, ...media.startProofs, ...media.attachments]);
-  const moneyUrls = managed([...media.fees, ...media.payouts]);
-  const { owner, unrecorded } = await uploadOwnership(proofUrls);
-  const claimers = [...new Set([...owner.values()].filter((v): v is number => v != null && v !== eventId))];
-  const purgedEvents = new Set(
-    claimers.length
-      ? // clan-scope: global -- the events that claimed this event's files, by id; only their purge stamp.
-        (await db.select({ id: events.id }).from(events).where(and(inArray(events.id, claimers), isNotNull(events.mediaPurgedAt)))).map((e) => e.id)
-      : [],
-  );
-  const urls = deletableMedia({
-    eventId,
-    proofUrls,
-    moneyUrls,
-    owner,
-    unrecorded,
-    purgedEvents,
-    inClanFolder: (u) => !!event.clanSlug && isClanMediaUrl(u, event.clanSlug),
-    usedElsewhere: await urlsUsedElsewhere(eventId, [...proofUrls, ...moneyUrls]),
+  await deleteOwnedFiles(eventId, event.clanSlug, {
+    proofRows: [...media.submissions, ...media.cleanFrames, ...media.startProofs, ...media.attachments],
+    moneyRows: [...media.fees, ...media.payouts],
   });
-  const kept = proofUrls.length + moneyUrls.length - urls.length;
-  if (kept) log.warn('media-retention.unowned-files-kept', { eventId, count: kept });
-  for (let i = 0; i < urls.length; i += 100) {
-    await del(urls.slice(i, i + 100)).catch((e) =>
-      log.warn('media-retention.delete-failed', { eventId, error: (e as Error).message }),
-    );
-  }
   return { eventId, eventName: event.name, files, bySource, dryRun: false };
 }
 
@@ -192,27 +168,72 @@ export async function eventsDueForPurge(now: Date, limit = 20): Promise<{ id: nu
     .slice(0, limit);
 }
 
-/** Of these URLs, the ones some OTHER event's proof, fee, payout, start shot or attachment names. */
-async function urlsUsedElsewhere(eventId: number, urls: string[]): Promise<Set<string>> {
+/** Of these URLs, the ones some OTHER event's (eventId null: ANY) proof, fee, payout, start shot or attachment names. */
+async function urlsUsedElsewhere(eventId: number | null, urls: string[]): Promise<Set<string>> {
   const out = new Set<string>();
+  const notThis = (col: AnyPgColumn) => (eventId == null ? sql`true` : ne(col, eventId));
   for (let i = 0; i < urls.length; i += 500) {
     const chunk = urls.slice(i, i + 500);
     // clan-scope: global -- the point is to look across every clan's events for these exact URLs.
     const found = await Promise.all([
       db.select({ url: submissions.imageUrl }).from(submissions).innerJoin(tiles, eq(tiles.id, submissions.tileId))
-        .where(and(ne(tiles.eventId, eventId), inArray(submissions.imageUrl, chunk))),
+        .where(and(notThis(tiles.eventId), inArray(submissions.imageUrl, chunk))),
       db.select({ url: submissions.cleanImageUrl }).from(submissions).innerJoin(tiles, eq(tiles.id, submissions.tileId))
-        .where(and(ne(tiles.eventId, eventId), inArray(submissions.cleanImageUrl, chunk))),
+        .where(and(notThis(tiles.eventId), inArray(submissions.cleanImageUrl, chunk))),
       db.select({ url: submissionAttachments.url }).from(submissionAttachments).innerJoin(tiles, eq(tiles.id, submissionAttachments.tileId))
-        .where(and(ne(tiles.eventId, eventId), inArray(submissionAttachments.url, chunk))),
+        .where(and(notThis(tiles.eventId), inArray(submissionAttachments.url, chunk))),
       db.select({ url: eventStartProofs.imageUrl }).from(eventStartProofs)
-        .where(and(ne(eventStartProofs.eventId, eventId), inArray(eventStartProofs.imageUrl, chunk))),
+        .where(and(notThis(eventStartProofs.eventId), inArray(eventStartProofs.imageUrl, chunk))),
       db.select({ url: signupFees.proofBlobUrl }).from(signupFees).innerJoin(eventSignups, eq(eventSignups.id, signupFees.signupId))
-        .where(and(ne(eventSignups.eventId, eventId), inArray(signupFees.proofBlobUrl, chunk))),
+        .where(and(notThis(eventSignups.eventId), inArray(signupFees.proofBlobUrl, chunk))),
       db.select({ url: payouts.proofBlobUrl }).from(payouts)
-        .where(and(ne(payouts.eventId, eventId), inArray(payouts.proofBlobUrl, chunk))),
+        .where(and(notThis(payouts.eventId), inArray(payouts.proofBlobUrl, chunk))),
     ]);
     for (const rows of found) for (const r of rows) if (r.url) out.add(r.url);
   }
   return out;
+}
+
+/**
+ * Delete stored files an event's rows named — only those it owns and no other row still shows
+ * (eventMediaRetentionRules deletableMedia). Every proof-file delete goes through here: the purge,
+ * deleting an event, removing one starting shot. `otherRowsOnly`: the event's own rows are gone or
+ * expired, so ANY remaining row naming a file (this event's too) keeps it.
+ */
+export async function deleteOwnedFiles(
+  eventId: number,
+  clanSlug: string | null,
+  rows: { proofRows: { url: string }[]; moneyRows?: { url: string }[] },
+  opts: { anyRowKeeps?: boolean } = {},
+): Promise<number> {
+  const managed = (list: { url: string }[]) => [...new Set(list.map((r) => r.url).filter((u) => isManagedMediaUrl(u)))];
+  const proofUrls = managed(rows.proofRows);
+  const moneyUrls = managed(rows.moneyRows ?? []);
+  if (proofUrls.length + moneyUrls.length === 0) return 0;
+  const { owner, unrecorded } = await uploadOwnership(proofUrls);
+  const claimers = [...new Set([...owner.values()].filter((v): v is number => v != null && v !== eventId))];
+  const purgedEvents = new Set(
+    claimers.length
+      ? // clan-scope: global -- the events that claimed these files, by id; only their purge stamp.
+        (await db.select({ id: events.id }).from(events).where(and(inArray(events.id, claimers), isNotNull(events.mediaPurgedAt)))).map((e) => e.id)
+      : [],
+  );
+  const urls = deletableMedia({
+    eventId,
+    proofUrls,
+    moneyUrls,
+    owner,
+    unrecorded,
+    purgedEvents,
+    inClanFolder: (u) => !!clanSlug && isClanMediaUrl(u, clanSlug),
+    usedElsewhere: await urlsUsedElsewhere(opts.anyRowKeeps ? null : eventId, [...proofUrls, ...moneyUrls]),
+  });
+  const kept = proofUrls.length + moneyUrls.length - urls.length;
+  if (kept) log.warn('media-retention.unowned-files-kept', { eventId, count: kept });
+  for (let i = 0; i < urls.length; i += 100) {
+    await del(urls.slice(i, i + 100)).catch((e) =>
+      log.warn('media-retention.delete-failed', { eventId, error: (e as Error).message }),
+    );
+  }
+  return urls.length;
 }

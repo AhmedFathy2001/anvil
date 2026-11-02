@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
-import { eventStartProofs } from '@/db/schema';
+import { clans, eventStartProofs } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
-import { del } from '@/lib/storage';
+import { deleteOwnedFiles } from '@/lib/eventMediaRetention';
 
 // Review one starting shot: accept it, reject it (the player is asked to re-take), or clear it
 // entirely so they start over. Rejecting keeps the image — the whole point of a rejection is that
@@ -64,7 +64,8 @@ export async function DELETE(
   const { eventId, proofId } = await params;
   const eId = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, eId))) {
+  const scoped = await eventForRequest(request, eId);
+  if (!scoped) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   const pId = parseInt(proofId, 10);
@@ -78,7 +79,9 @@ export async function DELETE(
     .returning({ imageUrl: eventStartProofs.imageUrl });
 
   if (removed.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  // Best-effort: a stranded object costs pennies, a failed delete shouldn't fail the action.
-  await del(removed[0].imageUrl).catch(() => {});
+  // Best-effort: a stranded object costs pennies, a failed delete shouldn't fail the action. Only if
+  // this event owns the file and no row anywhere still shows it (lib/eventMediaRetention).
+  const clanSlug = (await db.query.clans.findFirst({ where: eq(clans.id, scoped.clanId), columns: { slug: true } }))?.slug ?? null;
+  await deleteOwnedFiles(eId, clanSlug, { proofRows: [{ url: removed[0].imageUrl }] }, { anyRowKeeps: true }).catch(() => 0);
   return NextResponse.json({ ok: true });
 }
