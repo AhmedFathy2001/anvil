@@ -192,7 +192,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       { href: '/admin/schedule', label: 'Schedule', icon: '📅', sprite: 'stats' },
       { href: '/admin/clan-events', label: 'Clan events', icon: '🔥', sprite: 'tinderbox' },
       ...(canCheckProofs
-        ? [{ href: '/admin/proofs', label: 'Proofs to check', icon: '🔎', sprite: 'clue' as const, badge: flaggedCount }]
+        ? [{ href: '/admin/proofs', label: 'Proofs to check', icon: '🔎', sprite: 'clue' as const, badge: flaggedCount, matchPrefix: true }]
         : []),
       // The task catalogue boards are generated from — same authority as tile authoring.
       ...(canManageEvents
@@ -212,9 +212,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       // tabs (app/admin/people/layout). Staff & roles used to be a second sidebar item for one tab.
       { href: '/admin/people', label: 'People', icon: '🛡️', sprite: 'bandos', badge: provisionalCount, matchPrefix: true },
       { href: '/admin/guides', label: 'Guides', icon: '📖', sprite: 'graceful', badge: guideUpdates, matchPrefix: true },
-      // Every staff seat may read the clan's history. Admins reach it as a tab of Clan profile (Set
-      // up, below), so it is listed here only for those who can't open that.
-      ...(isAdmin ? [] : [{ href: '/admin/clan/audit', label: 'Activity log', icon: '📜', sprite: 'clue' as const }]),
+      // Every staff seat may read the clan's history — admins included. It is also a tab of Clan
+      // settings, but "who changed what" is a daily question, not a setting, so it stays listed here
+      // for everyone rather than only behind that tab.
+      { href: '/admin/clan/audit', label: 'Activity log', icon: '📜', sprite: 'clue' },
+      // Posting news is something staff do, not something they set up.
+      ...(isAdmin && features.on('announce')
+        ? [{ href: '/admin/announce', label: 'Post to Discord', icon: '📣', sprite: 'tinderbox' as const }]
+        : []),
     ],
   });
 
@@ -232,23 +237,29 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     });
   }
 
-  // Set once, rarely touched. Discord is everything Anvil does in the clan's server; Features is what
-  // the clan uses at all; the Activity log is who changed what.
+  // Set once, rarely touched, so ONE group at the bottom. Discord is everything Anvil does in the
+  // clan's server; Clan settings is a tabbed hub (app/admin/clan/ClanSettingsHeader) holding the clan
+  // profile, Features and Rules & scoring — which used to be three daily-looking sidebar entries.
+  // Every one of those pages renders that header, so each still links to the others.
   if (isAdmin) {
     groups.push({
-      label: 'Set up',
+      label: 'Settings',
       items: [
-        { href: '/admin/integrations', label: 'Discord', icon: '🔌', sprite: 'discord' },
-        ...(features.on('announce')
-          ? [{ href: '/admin/announce', label: 'Post to Discord', icon: '📣', sprite: 'tinderbox' as const }]
-          : []),
-        { href: '/admin/features', label: 'Features', icon: '🧩', sprite: 'petRock' },
-        { href: '/admin/rules', label: 'Rules & scoring', icon: '📏', sprite: 'stats' },
-        { href: '/admin/clan', label: 'Clan profile', icon: '🏰', sprite: 'zenyte', matchPrefix: true },
-        // SETUP IS A STATE, NOT A PLACE: listed only while unfinished.
+        // SETUP IS A STATE, NOT A PLACE: listed only while unfinished, and first while it is.
         ...(!setup || setup.allDone || setup.dismissed
           ? []
           : [{ href: '/admin/setup', label: 'Finish setup', icon: '🧭', sprite: 'hammer' as const }]),
+        { href: '/admin/integrations', label: 'Discord', icon: '🔌', sprite: 'discord' },
+        {
+          href: '/admin/clan',
+          label: 'Clan settings',
+          icon: '🏰',
+          sprite: 'zenyte',
+          matchPrefix: true,
+          alsoMatch: ['/admin/features', '/admin/rules'],
+          // The Activity log has its own item above.
+          exclude: ['/admin/clan/audit'],
+        },
       ],
     });
   }

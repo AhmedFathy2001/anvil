@@ -100,6 +100,14 @@ export default function PublicClanHome({
 
       {hall && <div className="mt-4">{hall}</div>}
 
+      {/* One line on the two ways in, before either door: a guest seat and membership look alike
+          from outside, and only one of them is something this page can give. */}
+      {(view.recruiting || view.guestPolicy !== 'closed') && (
+        <p className="mt-4 text-[13px] text-text-muted">
+          Members come from the clan&rsquo;s in-game member list. Guests can play the clan&rsquo;s events.
+        </p>
+      )}
+
       {/* Recruiting */}
       {view.recruiting && (
         <div className="mt-4 flex flex-col gap-3 rounded-xl border border-gold/30 bg-gold/[0.06] p-4 sm:flex-row sm:items-center">
@@ -268,8 +276,9 @@ export default function PublicClanHome({
             <ClanLink href="/members" className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium hover:bg-brown-light">
               👥 Members
             </ClanLink>
-            <ClanLink href="/leaderboard" className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium hover:bg-brown-light">
-              📊 Leaderboard
+            {/* The apex's all-clans table, not this clan's: `from` lets it say so (app/leaderboard). */}
+            <ClanLink href={`/leaderboard?from=${encodeURIComponent(view.slug)}`} className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium hover:bg-brown-light">
+              📊 Leaderboard · all clans
             </ClanLink>
             {/* The apex's side-by-side page, with this clan already filled in as one side. ClanLink
                 leaves /compare unprefixed (it is a platform path), so this lands on the apex from a

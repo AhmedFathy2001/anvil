@@ -13,6 +13,7 @@ import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('plugin-clans');
 
@@ -114,7 +115,7 @@ beforeEach(async () => {
   personId = person.id;
   const [u] = await db
     .insert(s.users)
-    .values({ displayName: 'Probe', discordId: 'disc-clans', pluginToken: 'clans-token', playerId: person.id })
+    .values({ displayName: 'Probe', discordId: 'disc-clans', pluginTokenHash: tokenHash('clans-token'), playerId: person.id })
     .returning();
   userId = u.id;
   const [acct] = await db
@@ -274,7 +275,7 @@ test("somebody else's seat is never in your list", async () => {
   const [otherPerson] = await db.insert(s.players).values({ displayName: 'Other' }).returning();
   const [otherUser] = await db
     .insert(s.users)
-    .values({ displayName: 'Other', discordId: 'disc-other', pluginToken: 'other-token', playerId: otherPerson.id })
+    .values({ displayName: 'Other', discordId: 'disc-other', pluginTokenHash: tokenHash('other-token'), playerId: otherPerson.id })
     .returning();
   const [otherAcct] = await db
     .insert(s.accounts)

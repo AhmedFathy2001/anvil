@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 import { and, eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('plugin-account-optout');
 
@@ -36,7 +37,7 @@ async function login() {
   const [person] = await db.insert(s.players).values({ displayName: `discord-${n}` }).returning();
   const [user] = await db
     .insert(s.users)
-    .values({ displayName: `discord-${n}`, discordId: `d-${n}`, pluginToken: token, playerId: person.id })
+    .values({ displayName: `discord-${n}`, discordId: `d-${n}`, pluginTokenHash: tokenHash(token), playerId: person.id })
     .returning();
   return { token, person: person.id, userId: user.id };
 }

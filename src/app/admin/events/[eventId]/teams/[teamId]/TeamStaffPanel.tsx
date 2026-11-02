@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Input from '@/components/Input';
 import type { TeamStaffRow } from '@/lib/teamStaff';
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 
 interface UserRow {
   id: number;
@@ -27,6 +28,7 @@ export default function TeamStaffPanel({ teamId }: { teamId: number }) {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [search, setSearch] = useState('');
   const [note, setNote] = useState('');
+  const { confirm } = useDialog();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -83,7 +85,14 @@ export default function TeamStaffPanel({ teamId }: { teamId: number }) {
     }
   };
 
-  const revoke = async (userId: number) => {
+  const revoke = async (userId: number, name: string) => {
+    const ok = await confirm({
+      title: `Remove ${name} from this team's staff?`,
+      body: 'They lose access to running this team right away. You can add them back any time.',
+      confirmLabel: 'Remove',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {
@@ -138,7 +147,7 @@ export default function TeamStaffPanel({ teamId }: { teamId: number }) {
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => revoke(s.userId)}
+                onClick={() => revoke(s.userId, s.displayName)}
                 className="ml-auto shrink-0 text-xs px-2.5 py-1.5 border border-red-500/30 text-red-400 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-50"
               >
                 Remove

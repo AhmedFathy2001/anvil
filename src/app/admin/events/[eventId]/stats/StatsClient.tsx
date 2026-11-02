@@ -490,7 +490,11 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
         </p>
         {teams.length === 0 ? (
           <div className="text-center py-8 border border-dashed border-card-border rounded-xl text-sm text-text-muted">
-            No teams yet.
+            No teams yet.{' '}
+            <ClanLink href={`/admin/events/${event.id}/teams`} className="text-gold hover:underline">
+              Set up teams
+            </ClanLink>{' '}
+            and each member&rsquo;s share shows here once they start clearing tiles.
           </div>
         ) : (
           <div className="space-y-2">

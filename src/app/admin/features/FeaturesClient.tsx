@@ -49,14 +49,6 @@ export default function FeaturesClient({ initial }: { initial: { key: FeatureKey
 
   return (
     <div className="max-w-3xl">
-      <header className="mb-8">
-        <h1 className="display display-lg text-4xl sm:text-[44px] font-semibold leading-tight">Features</h1>
-        <p className="text-text-muted mt-2 text-[15px] max-w-[62ch]">
-          Switch on only what your clan uses. Anything switched off is hidden for everyone, staff and members alike.
-          Nothing is deleted, so switching it back on brings it all back.
-        </p>
-      </header>
-
       {error && <p className="text-sm text-red-400 mb-4">{error}</p>}
 
       <div className="space-y-5">

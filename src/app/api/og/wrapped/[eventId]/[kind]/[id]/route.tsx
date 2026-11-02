@@ -17,7 +17,7 @@ import {
   teamCardStats,
 } from '@/lib/eventWrappedRules';
 import { siteCard, wrappedCard } from '@/lib/ogCard';
-import { cachedCard, remoteSprite, showingAccounts } from '@/lib/ogKit';
+import { cachedCard, cardId, remoteSprite, showingAccounts } from '@/lib/ogKit';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { isEventEnded } from '@/lib/survey';
 
@@ -34,9 +34,9 @@ type Params = { eventId: string; kind: string; id: string };
  */
 async function load(_request: Request, { params }: { params: Promise<Params> }): Promise<Response> {
   const p = await params;
-  const eventId = Number(p.eventId);
-  const id = Number(p.id);
-  if (!Number.isInteger(eventId) || eventId <= 0 || !Number.isInteger(id) || id <= 0) return siteCard();
+  const eventId = cardId(p.eventId);
+  const id = cardId(p.id);
+  if (eventId == null || id == null) return siteCard();
   if (p.kind !== 'p' && p.kind !== 't') return siteCard();
 
   // clan-scope: global -- reads the very event named in the URL, by its own id; its clan is resolved and access-checked next.
@@ -89,5 +89,5 @@ async function load(_request: Request, { params }: { params: Promise<Params> }):
 }
 
 export function GET(request: Request, ctx: { params: Promise<Params> }) {
-  return cachedCard(new URL(request.url).pathname, () => load(request, ctx));
+  return cachedCard(new URL(request.url).pathname, () => load(request, ctx), { request, scope: 'wrapped' });
 }

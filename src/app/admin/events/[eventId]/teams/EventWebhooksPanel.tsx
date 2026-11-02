@@ -3,6 +3,7 @@
 import Select from '@/components/Select';
 import { useCallback, useEffect, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 import { EVENT_POST_KINDS, type EventPostKind } from '@/lib/eventWebhookKinds';
 
 interface Hook {
@@ -23,6 +24,7 @@ const TEAM_DEFAULT: EventPostKind[] = ['drops', 'completions', 'win', 'lifecycle
  * channel. Each picks which kinds, and can be narrowed to one team's drops/completions/win.
  */
 export default function EventWebhooksPanel({ eventId, teams }: { eventId: number; teams: { id: number; name: string; color: string | null }[] }) {
+  const { confirm } = useDialog();
   const [hooks, setHooks] = useState<Hook[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -143,11 +145,18 @@ export default function EventWebhooksPanel({ eventId, teams }: { eventId: number
                     <button
                       type="button"
                       disabled={busy !== null}
-                      onClick={() =>
-                        call(`del-${h.id}`, { method: 'DELETE', path: `${base}?id=${h.id}` }, () =>
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: `Stop posting to “${h.label || teamName(h.teamId)}”?`,
+                          body: 'This event will no longer post to that Discord channel. You can add it again later with the same link.',
+                          confirmLabel: 'Remove',
+                          tone: 'danger',
+                        });
+                        if (!ok) return;
+                        await call(`del-${h.id}`, { method: 'DELETE', path: `${base}?id=${h.id}` }, () =>
                           setHooks((list) => (list ?? []).filter((x) => x.id !== h.id)),
-                        )
-                      }
+                        );
+                      }}
                       className="text-[12px] text-text-muted hover:text-accent-red hover:underline underline-offset-4"
                     >
                       Remove

@@ -12,8 +12,21 @@ import { db } from '@/db';
 import { accounts, characterReports, clanAuditLog, clans, detectedAccounts, players, users } from '@/db/schema';
 import { claimAccountForPerson } from '@/lib/accountClaim';
 
-export const REPORT_KINDS = ['wrong_owner', 'rename', 'merge', 'claim_review', 'claim_request', 'other'] as const;
+// 'wrong_clan' is the PLAYER's own report (lib/wrongClan): their character is a member of the wrong
+// clan. Its clan_id is the clan they say they're really in, not a clan that raised it.
+export const REPORT_KINDS = ['wrong_owner', 'rename', 'merge', 'claim_review', 'claim_request', 'wrong_clan', 'other'] as const;
 export type ReportKind = (typeof REPORT_KINDS)[number];
+
+/**
+ * Report lifecycle (`character_reports.status`, free text):
+ *   open      — waiting for staff to act.
+ *   applied   — a clan OWNER's call, already carried out (lib/characterReportActions); staff approve
+ *               it (→ resolved) or revert it (→ reverted). Still in the staff queue.
+ *   resolved  — staff acted (or approved an applied one).
+ *   dismissed — staff declined; nothing changed.
+ *   reverted  — staff undid an applied one.
+ */
+export const AWAITING_STAFF = ['open', 'applied'];
 
 export function isReportKind(v: unknown): v is ReportKind {
   return typeof v === 'string' && (REPORT_KINDS as readonly string[]).includes(v);
@@ -89,7 +102,9 @@ export async function fileCharacterReport(input: {
     where: and(
       eq(characterReports.accountId, input.accountId),
       eq(characterReports.kind, input.kind),
-      eq(characterReports.status, 'open'),
+      // An 'applied' one is still live (a clan owner's call, waiting for staff to look) — a second
+      // press must fold into it rather than apply the same change twice.
+      inArray(characterReports.status, ['open', 'applied']),
       claimant == null ? isNull(characterReports.claimantPlayerId) : eq(characterReports.claimantPlayerId, claimant),
       // Two different names asked for one character are two questions, not one.
       requested == null ? isNull(characterReports.requestedRsn) : eq(characterReports.requestedRsn, requested),
@@ -122,9 +137,12 @@ export async function fileCharacterReport(input: {
   return { id: row.id, created: true };
 }
 
-/** How many are waiting — the /staff sidebar badge. */
+/** How many are waiting — the /staff sidebar badge. Applied-by-a-clan-owner ones still want a look. */
 export async function openCharacterReportCount(): Promise<number> {
-  const rows = await db.select({ id: characterReports.id }).from(characterReports).where(eq(characterReports.status, 'open'));
+  const rows = await db
+    .select({ id: characterReports.id })
+    .from(characterReports)
+    .where(inArray(characterReports.status, AWAITING_STAFF));
   return rows.length;
 }
 
@@ -134,8 +152,68 @@ export async function openReportAccountIds(accountIds: number[]): Promise<Set<nu
   const rows = await db
     .select({ accountId: characterReports.accountId })
     .from(characterReports)
-    .where(and(inArray(characterReports.accountId, accountIds), eq(characterReports.status, 'open')));
+    .where(and(inArray(characterReports.accountId, accountIds), inArray(characterReports.status, AWAITING_STAFF)));
   return new Set(rows.map((r) => r.accountId));
+}
+
+/** What a clan sees of a report IT sent: where it stands, when, and anything staff wrote back. */
+export interface ClanReportView {
+  id: number;
+  accountId: number;
+  rsn: string;
+  kind: string;
+  status: string;
+  requestedRsn: string | null;
+  claimantName: string | null;
+  createdAt: string;
+  /** When it last changed state (applied, approved, declined, reverted); null while waiting. */
+  decidedAt: string | null;
+  /** Staff's note back, if any. */
+  note: string | null;
+}
+
+/**
+ * The reports THIS clan sent — every one still with Anvil, plus anything decided in the last
+ * `recentDays` — newest first. Clan-scoped by `character_reports.clan_id`: a clan sees what it sent,
+ * never another clan's reports about the same character.
+ */
+export async function clanReports(clanId: number, opts: { recentDays?: number; accountIds?: number[] } = {}): Promise<ClanReportView[]> {
+  if (opts.accountIds && opts.accountIds.length === 0) return [];
+  const since = new Date(Date.now() - (opts.recentDays ?? 30) * 86_400_000).toISOString();
+  const rows = await db
+    .select({ r: characterReports, rsn: accounts.rsn, claimantName: players.displayName })
+    .from(characterReports)
+    .innerJoin(accounts, eq(accounts.id, characterReports.accountId))
+    .leftJoin(players, eq(players.id, characterReports.claimantPlayerId))
+    .where(
+      and(
+        eq(characterReports.clanId, clanId),
+        opts.accountIds ? inArray(characterReports.accountId, opts.accountIds) : undefined,
+      ),
+    )
+    .orderBy(desc(characterReports.createdAt), desc(characterReports.id))
+    .limit(500);
+  return rows
+    .filter((x) => AWAITING_STAFF.includes(x.r.status) || (x.r.resolvedAt ?? x.r.createdAt) >= since)
+    .map((x) => ({
+      id: x.r.id,
+      accountId: x.r.accountId,
+      rsn: x.rsn,
+      kind: x.r.kind,
+      status: x.r.status,
+      requestedRsn: x.r.requestedRsn,
+      claimantName: x.claimantName,
+      createdAt: x.r.createdAt,
+      decidedAt: x.r.resolvedAt,
+      note: x.r.resolution,
+    }));
+}
+
+/** The newest report this clan sent per character — the roster row's status line. */
+export async function latestClanReportByAccount(clanId: number, accountIds: number[]): Promise<Map<number, ClanReportView>> {
+  const out = new Map<number, ClanReportView>();
+  for (const r of await clanReports(clanId, { accountIds })) if (!out.has(r.accountId)) out.set(r.accountId, r);
+  return out;
 }
 
 export interface CharacterReportView {
@@ -149,7 +227,7 @@ export interface CharacterReportView {
   createdAt: string;
   resolvedAt: string | null;
   account: { id: number; rsn: string; playerId: number; ownerName: string | null; claimed: boolean; verificationMethod: string | null; provisional: boolean };
-  clan: { name: string; slug: string } | null;
+  clan: { id: number; name: string; slug: string } | null;
   reporter: string | null;
   claimant: { id: number; name: string } | null;
 }
@@ -175,7 +253,7 @@ export async function listCharacterReports(opts: { status?: 'open' | 'all' } = {
     .leftJoin(players, eq(players.id, accounts.playerId))
     .leftJoin(clans, eq(clans.id, characterReports.clanId))
     .leftJoin(users, eq(users.id, characterReports.reportedByUserId))
-    .where(opts.status === 'all' ? undefined : eq(characterReports.status, 'open'))
+    .where(opts.status === 'all' ? undefined : inArray(characterReports.status, AWAITING_STAFF))
     .orderBy(desc(characterReports.createdAt))
     .limit(500);
 
@@ -203,7 +281,7 @@ export async function listCharacterReports(opts: { status?: 'open' | 'all' } = {
       verificationMethod: x.verificationMethod,
       provisional: x.provisional === 1,
     },
-    clan: x.clanSlug ? { name: x.clanName ?? x.clanSlug, slug: x.clanSlug } : null,
+    clan: x.clanSlug && x.r.clanId != null ? { id: x.r.clanId, name: x.clanName ?? x.clanSlug, slug: x.clanSlug } : null,
     reporter: x.reporter,
     claimant: x.r.claimantPlayerId != null ? { id: x.r.claimantPlayerId, name: claimantName.get(x.r.claimantPlayerId) ?? `#${x.r.claimantPlayerId}` } : null,
   }));
@@ -228,7 +306,9 @@ export async function resolveCharacterReport(
     .where(
       and(
         eq(characterReports.id, id),
-        eq(characterReports.status, 'open'),
+        // Approving an applied report closes it as resolved; dismissing one would leave its change in
+        // place under a "declined" label, so that has to go through revert instead.
+        status === 'resolved' ? inArray(characterReports.status, AWAITING_STAFF) : eq(characterReports.status, 'open'),
         forAccountId != null ? eq(characterReports.accountId, forAccountId) : undefined,
       ),
     )

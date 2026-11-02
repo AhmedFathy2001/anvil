@@ -85,7 +85,7 @@ export default async function LoginPage({
               Sign in to Anvil
             </h1>
             <p className="mt-4 max-w-[44ch] text-[15px] leading-relaxed text-text-muted">
-              Continue with Discord, using the account you use with your clan. New to Anvil? This is the whole sign-up.
+              Sign in with Discord to get started. No password, no separate account.
             </p>
 
             {params.error && (
@@ -93,7 +93,18 @@ export default async function LoginPage({
                 <svg className="mt-0.5 h-[18px] w-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                   <circle cx="12" cy="12" r="9" /><path d="M12 7v6M12 17h.01" />
                 </svg>
-                <span className="min-w-0">{LOGIN_ERRORS[params.error] ?? GENERIC_LOGIN_ERROR}</span>
+                <span className="min-w-0">
+                  {LOGIN_ERRORS[params.error] ?? GENERIC_LOGIN_ERROR}
+                  {/* A ban is not fixed by trying again; anything else usually is. */}
+                  {params.error !== 'banned' && oauthConfigured && (
+                    <>
+                      {' '}
+                      <a href={/* clan-prefix: platform — the OAuth start is the platform's */ startHref} className="font-semibold text-red-200 underline underline-offset-2 hover:text-white">
+                        Try again
+                      </a>
+                    </>
+                  )}
+                </span>
               </div>
             )}
 
@@ -112,12 +123,24 @@ export default async function LoginPage({
                   <path d="M5 12h14M13 6l6 6-6 6" />
                 </svg>
               </a>
-            ) : (
+            ) : process.env.NODE_ENV !== 'production' ? (
+              // Setup instructions are for whoever is running the site locally. A player on the live
+              // site cannot act on environment variable names, so they get the plain version below.
               <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm leading-relaxed text-red-300">
-                <div className="mb-1 font-semibold">Sign-in isn’t switched on for this site yet</div>
-                If you’re a member, let whoever runs this site know. If that’s you: set <code className="font-mono text-xs">DISCORD_CLIENT_ID</code>,{' '}
+                <div className="mb-1 font-semibold">Discord sign-in isn’t configured (dev only)</div>
+                Set <code className="font-mono text-xs">DISCORD_CLIENT_ID</code>,{' '}
                 <code className="font-mono text-xs">DISCORD_CLIENT_SECRET</code>, and{' '}
                 <code className="font-mono text-xs">DISCORD_REDIRECT_URI</code> on the server.
+              </div>
+            ) : (
+              <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm leading-relaxed text-red-300">
+                Sign-in is temporarily unavailable.{' '}
+                <a
+                  href={/* clan-prefix: platform — /login is the platform's own page */ `/login?return=${encodeURIComponent(returnTo)}`}
+                  className="font-semibold text-red-200 underline underline-offset-2 hover:text-white"
+                >
+                  Try again
+                </a>
               </div>
             )}
 

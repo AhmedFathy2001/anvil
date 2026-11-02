@@ -240,7 +240,7 @@ async function memberFunnel(days: number): Promise<FunnelRow[]> {
   const r = await rows<{ character: boolean; plugin: boolean; submission: boolean }>(sql`
     select
       exists (select 1 from accounts a where a.player_id = u.player_id) as character,
-      (u.plugin_token is not null or exists (select 1 from plugin_links pl where pl.user_id = u.id)) as plugin,
+      (u.plugin_token_hash is not null or exists (select 1 from plugin_links pl where pl.user_id = u.id)) as plugin,
       exists (
         select 1 from submissions s
           join event_participants ep on ep.id = s.player_id
