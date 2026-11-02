@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
 import { RATING_MAX, SURVEY_QUESTION_TYPES, isChoiceType, type QuestionResult, type SurveyAnswerMap, type SurveyQuestionType, type SurveyQuestionView, type SurveyRespondentView, type SurveyStage } from '@/lib/survey';
-import { clanFetch } from '@/lib/clanFetch';
+import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { surveyTemplateById } from '@/lib/surveyTemplates';
 import ClanLink from '@/components/ClanLink';
 import Checkbox from '@/components/Checkbox';
@@ -305,13 +305,13 @@ export default function SurveyClient({
           </div>
         </div>
       ) : (
-        <ResultsView url={resultsUrl ?? `${apiBase}/results`} />
+        <ResultsView url={resultsUrl ?? `${apiBase}/results`} shareHref={stage === 'post' ? previewHref : null} />
       )}
     </div>
   );
 }
 
-function ResultsView({ url }: { url: string }) {
+function ResultsView({ url, shareHref }: { url: string; shareHref: string | null }) {
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [results, setResults] = useState<QuestionResult[]>([]);
@@ -356,7 +356,11 @@ function ResultsView({ url }: { url: string }) {
   }
 
   if (responseCount === 0) {
-    return <p className="text-sm text-text-muted py-6 text-center">No responses yet.</p>;
+    return shareHref ? (
+      <NoResponsesYet shareHref={shareHref} />
+    ) : (
+      <p className="text-sm text-text-muted py-6 text-center">No responses yet.</p>
+    );
   }
 
   return (
@@ -407,6 +411,35 @@ function ResultsView({ url }: { url: string }) {
       ) : (
         <PeopleView respondents={respondents} questions={results.map((r) => r.question)} query={query} />
       )}
+    </div>
+  );
+}
+
+/**
+ * Nobody has answered — usually because nobody has the link yet. Hand the admin the link to post
+ * rather than a dead end.
+ */
+function NoResponsesYet({ shareHref }: { shareHref: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}${clanUrl(shareHref)}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
+  return (
+    <div className="py-6 text-center space-y-2">
+      <p className="text-sm text-text-muted">No responses yet. Share the link in your clan chat or Discord to get answers in.</p>
+      <button
+        type="button"
+        onClick={copy}
+        className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-card-border hover:border-gold/50 hover:text-gold transition-colors"
+      >
+        {copied ? 'Link copied' : 'Copy survey link'}
+      </button>
     </div>
   );
 }

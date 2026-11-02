@@ -503,7 +503,21 @@ function RunningEventHero({
             ))}
           </div>
         ) : (
-          <p className="text-xs text-text-muted">No completions yet.</p>
+          <p className="text-xs text-text-muted">
+            No completions yet. Tiles clear here as proofs come in &mdash; if it stays quiet, check that{' '}
+            {canManage ? (
+              <ClanLink href={`/admin/events/${event.id}/teams`} className="text-gold hover:underline">
+                every team has players
+              </ClanLink>
+            ) : (
+              'every team has players'
+            )}{' '}
+            and the{' '}
+            <ClanLink href={`/admin/events/${event.id}/tiles`} className="text-gold hover:underline">
+              tiles
+            </ClanLink>{' '}
+            are what you meant.
+          </p>
         )}
       </div>
     </div>
