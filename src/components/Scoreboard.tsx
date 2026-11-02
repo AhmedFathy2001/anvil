@@ -21,13 +21,15 @@ interface ScoreboardProps {
   pointsMode?: boolean;
   // Per-team top contributor, shown as a small line on each card.
   teamMvps?: Record<number, TeamMvp | null>;
+  /** Hidden standings: the cards are the viewer's own team(s), not a ranking — no medals, no #n. */
+  unranked?: boolean;
 }
 
 const ZERO: TeamScore = { teamId: 0, boardScore: 0, bonusScore: 0, score: 0, total: 0, unit: 'tiles', pct: 0 };
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
-export default function Scoreboard({ teams, scores, eventId, dropProgressByTeam, pointsMode, teamMvps }: ScoreboardProps) {
+export default function Scoreboard({ teams, scores, eventId, dropProgressByTeam, pointsMode, teamMvps, unranked = false }: ScoreboardProps) {
   const scoreOf = (teamId: number) => scores.get(teamId) ?? ZERO;
   // Rank on total earned, mission bonus included — it's points the team actually holds.
   const sortedTeams = [...teams].sort((a, b) => scoreOf(b.id).score - scoreOf(a.id).score);
@@ -41,7 +43,7 @@ export default function Scoreboard({ teams, scores, eventId, dropProgressByTeam,
         // What's LEFT is board work, so it counts down the board half. A mission bonus is points in
         // hand, not board progress — subtracting it here would advertise a shorter board than exists.
         const tilesLeft = Math.max(0, score.total - score.boardScore);
-        const isLeading = index === 0 && completed > 0;
+        const isLeading = !unranked && index === 0 && completed > 0;
         const dropInfo = dropProgressByTeam?.get(team.id);
         const mvp = teamMvps?.[team.id] ?? null;
 
@@ -58,11 +60,11 @@ export default function Scoreboard({ teams, scores, eventId, dropProgressByTeam,
           >
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3 min-w-0">
-                <span className="text-lg w-7 text-center shrink-0">
+                {!unranked && <span className="text-lg w-7 text-center shrink-0">
                   {index < 3 && completed > 0 ? MEDALS[index] : (
                     <span className="text-text-muted text-sm font-mono">#{index + 1}</span>
                   )}
-                </span>
+                </span>}
                 <div
                   className="w-3.5 h-3.5 rounded-full ring-2 ring-offset-1 ring-offset-background ring-current shrink-0"
                   style={{ backgroundColor: team.color, color: team.color }}

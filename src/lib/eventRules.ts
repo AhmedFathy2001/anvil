@@ -35,6 +35,25 @@ import { nextSlotAfter } from '@/lib/missionSchedule';
 export type RevealPolicy = 'all' | 'scheduled' | 'interval' | 'bounty' | 'rotating';
 export type RevealOrder = 'random' | 'sequential';
 
+/**
+ * Who sees the standings while the board runs (lib/standingsVisibility).
+ *
+ * 'live' is every board before this existed: scores, ranks and every team's progress in public.
+ * The other two draw a curtain over OTHER teams' progress — a member still sees their own team in
+ * full — until the event ends ('at-end') or until a time the host picks ('at-date', e.g. the start
+ * of the final week). Staff always see everything. Team names and rosters are not progress and stay
+ * visible either way.
+ */
+export type StandingsVisibility = 'live' | 'at-end' | 'at-date';
+
+export interface StandingsRule {
+  visibility: StandingsVisibility;
+  /** 'at-date' only: when the curtain lifts (ISO). Null for the other two. */
+  revealAt: string | null;
+}
+
+export const LIVE_STANDINGS: StandingsRule = { visibility: 'live', revealAt: null };
+
 // MISSIONS — a subset of a bingo's tiles authored up front but HIDDEN, announced mid-event from
 // their own pool (independent of the board's revealPolicy). How/when they drop is the event-level
 // `rules.mission` announce policy below; each mission's SCORING (lockout/firstBonus/decay/expiry)
@@ -193,6 +212,8 @@ export type BalanceMode = 'off' | 'advisory' | 'tiered-snake' | 'dynamic-order' 
 
 export interface EventRules {
   revealPolicy: RevealPolicy;
+  /** Standings curtain. Default live; see StandingsVisibility. */
+  standings: StandingsRule;
   /** 'interval' policy: minutes between draws. */
   revealIntervalMinutes: number;
   /** 'interval' / 'rotating' policy: tiles revealed per draw. */
@@ -313,6 +334,7 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   signupFields: DEFAULT_SIGNUP_FIELDS,
   monthlyAward: null,
   revealPolicy: 'all',
+  standings: LIVE_STANDINGS,
   revealIntervalMinutes: 60,
   revealBatchSize: 1,
   revealWindowSize: 3,
@@ -358,6 +380,33 @@ export const MIN_START_RADIUS = 3;
 export const MAX_START_RADIUS = 200;
 
 const REVEAL_POLICIES: RevealPolicy[] = ['all', 'scheduled', 'interval', 'bounty', 'rotating'];
+const STANDINGS_VISIBILITIES: StandingsVisibility[] = ['live', 'at-end', 'at-date'];
+
+/** A stored or submitted instant, as canonical ISO — or null when it isn't one. */
+function isoOrNull(raw: unknown): string | null {
+  if (typeof raw !== 'string' || !raw.trim()) return null;
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
+/**
+ * Tolerant parse of the standings curtain.
+ *
+ * FAILS CLOSED. A stored 'at-date' whose date has gone missing or bad reads as 'at-end' rather than
+ * 'live': the host asked for the standings to be hidden, and a malformed date is not them changing
+ * their mind. Validation refuses that shape at the door, so only a hand-edited row can reach it.
+ */
+export function parseStandingsRule(raw: unknown): StandingsRule {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return LIVE_STANDINGS;
+  const o = raw as { visibility?: unknown; revealAt?: unknown };
+  const visibility = STANDINGS_VISIBILITIES.includes(o.visibility as StandingsVisibility)
+    ? (o.visibility as StandingsVisibility)
+    : 'live';
+  if (visibility === 'live') return LIVE_STANDINGS;
+  if (visibility === 'at-end') return { visibility: 'at-end', revealAt: null };
+  const at = isoOrNull(o.revealAt);
+  return at ? { visibility: 'at-date', revealAt: at } : { visibility: 'at-end', revealAt: null };
+}
 const MISSION_ANNOUNCE_MODES: MissionAnnounceMode[] = ['manual', 'interval', 'scheduled', 'daily'];
 const BALANCE_MODES: BalanceMode[] = ['off', 'advisory', 'tiered-snake', 'dynamic-order', 'spread-cap', 'auto'];
 const START_PROOF_MISSING: StartProofMissing[] = ['flag', 'reject'];
@@ -517,6 +566,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     monthlyAward,
     signupFields,
     revealPolicy: policy,
+    standings: parseStandingsRule(obj.standings),
     revealIntervalMinutes: clampInt(obj.revealIntervalMinutes, 5, 10080, 60),
     revealBatchSize: clampInt(obj.revealBatchSize, 1, 50, 1),
     revealWindowSize: clampInt(obj.revealWindowSize, 1, 50, 3),
@@ -555,6 +605,18 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   const o = input as Record<string, unknown>;
   if (o.revealPolicy !== undefined && !REVEAL_POLICIES.includes(o.revealPolicy as RevealPolicy)) {
     return { error: "rules.revealPolicy must be 'all', 'scheduled', 'interval', 'bounty', or 'rotating'" };
+  }
+  if (o.standings !== undefined && o.standings !== null) {
+    const st = o.standings as { visibility?: unknown; revealAt?: unknown };
+    if (typeof st !== 'object' || Array.isArray(st)) {
+      return { error: 'rules.standings must be an object or null' };
+    }
+    if (!STANDINGS_VISIBILITIES.includes(st.visibility as StandingsVisibility)) {
+      return { error: "rules.standings.visibility must be 'live', 'at-end', or 'at-date'" };
+    }
+    if (st.visibility === 'at-date' && !isoOrNull(st.revealAt)) {
+      return { error: 'rules.standings.revealAt must be a date and time when standings are hidden until a date' };
+    }
   }
   if (o.revealOrder !== undefined && o.revealOrder !== 'random' && o.revealOrder !== 'sequential') {
     return { error: "rules.revealOrder must be 'random' or 'sequential'" };
@@ -704,6 +766,7 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   const canonical = parseEventRules(JSON.stringify(o));
   const isDefault =
     canonical.revealPolicy === 'all' &&
+    canonical.standings.visibility === 'live' &&
     canonical.firstBonus === 0 &&
     canonical.decay === null &&
     !canonical.lockout &&

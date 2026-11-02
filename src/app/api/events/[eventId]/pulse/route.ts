@@ -2,9 +2,10 @@ import { db } from '@/db';
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { events, tiles, completions, submissions, moments, eventParticipants, clanRoster } from '@/db/schema';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { cachedPulseToken } from '@/lib/pulseCache';
+import { standingsScopeForRequest } from '@/lib/standingsAccess';
 
 /**
  * Cheap "did anything change?" pulse for an event board. Returns a tiny fingerprint of the board's
@@ -20,11 +21,27 @@ export async function GET(
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, eId))) {
+  const scopedEvent = await eventForRequest(request, eId);
+  if (!scopedEvent) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   if (!Number.isFinite(eId)) {
     return jsonWithEtag(request, { v: 'none' });
+  }
+
+  // HIDDEN STANDINGS. The ordinary token is made of board-wide completion and submission counts —
+  // a tick every time ANY team claims something, readable by anyone. Behind the curtain a non-staff
+  // viewer gets a token over their own team(s) only, marked so it can never equal the open one:
+  // when the curtain lifts (the reveal time passes, or the host switches it off) the token changes
+  // by itself and every open tab refreshes into the full standings, with no cache to invalidate.
+  const standingsScope = await standingsScopeForRequest(request, scopedEvent);
+  if (standingsScope.hidden) {
+    const own = [...standingsScope.ownTeamIds].sort((a, b) => a - b);
+    const part = new URL(request.url).searchParams.get('part') === 'stats' ? 'stats' : 'board';
+    const v = await cachedPulseToken(`event-curtain:${eId}:${part}:${own.join(',')}`, () =>
+      part === 'stats' ? computeStatsToken(eId, own) : computeCurtainToken(eId, own),
+    );
+    return jsonWithEtag(request, { v: `curtain|${standingsScope.revealAt ?? ''}|${v}` });
   }
 
   // `?part=stats`: KC/XP progress only. A plugin push or a hiscores fetch moves a stat tile without
@@ -42,7 +59,8 @@ export async function GET(
 }
 
 /** The newest stat reading any player on the board has: a live plugin push or a hiscores fetch. */
-async function computeStatsToken(eId: number): Promise<string> {
+async function computeStatsToken(eId: number, onlyTeams?: number[]): Promise<string> {
+  if (onlyTeams && onlyTeams.length === 0) return 'none';
   // clan-scope: global -- a helper called only from handlers that have already run the event guard above.
   const [row] = await db
     .select({
@@ -51,8 +69,65 @@ async function computeStatsToken(eId: number): Promise<string> {
     })
     .from(eventParticipants)
     .leftJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
-    .where(eq(eventParticipants.eventId, eId));
+    .where(
+      and(
+        eq(eventParticipants.eventId, eId),
+        onlyTeams ? inArray(eventParticipants.teamId, onlyTeams) : undefined,
+      ),
+    );
   return `${row?.live ?? ''}|${row?.fetched ?? ''}`;
+}
+
+/**
+ * The board token behind the standings curtain: the board's own shape (reveals, expiries, edits,
+ * the end) plus the viewer's own teams' claims and proof — nothing that moves when a rival scores.
+ */
+async function computeCurtainToken(eId: number, ownTeams: number[]): Promise<string> {
+  // clan-scope: global -- a helper called only from handlers that have already run the event guard above.
+  const event = await db.query.events.findFirst({
+    where: eq(events.id, eId),
+    columns: { tilesRevealed: true, forceEndedAt: true, endDate: true },
+  });
+  if (!event) return 'none';
+  const [ta] = await db
+    .select({
+      count: sql<number>`count(*)`,
+      revealed: sql<string | null>`max(${tiles.revealedAt})`,
+      // Expiries are on the board itself (a rotation closing, a lockout claimed) — not a new leak.
+      closed: sql<string | null>`max(${tiles.closedAt})`,
+      edited: sql<string | null>`max(${tiles.updatedAt})`,
+    })
+    .from(tiles)
+    .where(eq(tiles.eventId, eId));
+  let own = 'none';
+  if (ownTeams.length > 0) {
+    const tileIds = (await db.select({ id: tiles.id }).from(tiles).where(eq(tiles.eventId, eId))).map((t) => t.id);
+    if (tileIds.length > 0) {
+      const [c] = await db
+        .select({ count: sql<number>`count(*)`, max: sql<string | null>`max(${completions.completedAt})` })
+        .from(completions)
+        .where(and(inArray(completions.tileId, tileIds), inArray(completions.teamId, ownTeams)));
+      const [s] = await db
+        .select({ count: sql<number>`count(*)`, max: sql<string | null>`max(${submissions.createdAt})` })
+        .from(submissions)
+        .where(and(inArray(submissions.tileId, tileIds), inArray(submissions.teamId, ownTeams)));
+      const [f] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(moments)
+        .where(and(eq(moments.eventId, eId), inArray(moments.teamId, ownTeams)));
+      own = [c?.count ?? 0, c?.max ?? '', s?.count ?? 0, s?.max ?? '', f?.count ?? 0].join('|');
+    }
+  }
+  return [
+    event.tilesRevealed ? 1 : 0,
+    event.forceEndedAt ?? '',
+    event.endDate ?? '',
+    Number(ta?.count ?? 0),
+    ta?.revealed ?? '',
+    ta?.closed ?? '',
+    ta?.edited ?? '',
+    own,
+  ].join('|');
 }
 
 async function computeEventToken(eId: number): Promise<string> {

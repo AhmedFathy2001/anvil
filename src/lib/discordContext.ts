@@ -182,6 +182,7 @@ async function toEventContext(row: typeof events.$inferSelect, now: Date, viewer
     rules: row.rules,
     startDate: row.startDate,
     endDate: row.endDate,
+    forceEndedAt: row.forceEndedAt,
     tilesRevealed: row.tilesRevealed === 1,
     teamCount: teamRows.length,
     playerCount: playerRows.length,

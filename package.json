@@ -30,6 +30,8 @@
     "load:seed": "node loadtest/seed.mjs",
     "load:run": "k6 run loadtest/k6/anvil.js",
     "test:loadprofile": "node --experimental-strip-types --test tests/load-profile.test.ts",
+    "test:standings": "npx tsx --test tests/standings-visibility.test.ts",
+    "test:standingsaccess": "npx tsx --test tests/standings-access.test.ts",
     "test:missions": "npx tsx --test tests/mission-rewards.test.ts tests/mission-schedule.test.ts tests/mission-csv.test.ts tests/ladder-month.test.ts tests/event-rules-roundtrip.test.ts tests/mission-multiplier.test.ts",
     "test:roster": "npx tsx --test tests/roster-read-verdict.test.ts tests/roster-sync-diff.test.ts tests/roster-shape.test.ts",
     "test:joindates": "node --experimental-strip-types --test tests/clan-join-date.test.ts && npx tsx --test tests/roster-join-dates.test.ts",

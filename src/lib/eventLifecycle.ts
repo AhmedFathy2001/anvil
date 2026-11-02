@@ -14,6 +14,7 @@ import { settleLadderMonths } from '@/lib/monthlyChampion';
 import { parseEventRules, isTileRevealed, visibleTiles } from '@/lib/eventRules';
 import { scoreTeams } from '@/lib/boardScoring';
 import { drawStartLocation } from '@/lib/startProof';
+import { runStandingsReveals } from '@/lib/standingsReveal';
 import { log } from '@/lib/logger';
 import { postEventRules } from '@/lib/eventRulesPost';
 import { runDiscordCleanups } from '@/lib/eventDiscordCleanup';
@@ -396,6 +397,9 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   await runFootprintChecks().catch((err) => log.warn('event-lifecycle.footprint-failed', { err: String(err) }));
   await runHalfwayReports().catch((err) => log.warn('event-lifecycle.halfway-failed', { err: String(err) }));
   await runDailyDigests().catch((err) => log.warn('event-lifecycle.digest-failed', { err: String(err) }));
+  // Hidden standings (lib/standingsReveal): mark curtains that are down, and post the leaderboard
+  // once when one comes up mid-event. Before the end loop's next tick can matter, after the digests.
+  await runStandingsReveals(nowMs).catch((err) => log.warn('event-lifecycle.standings-reveal-failed', { err: String(err) }));
 
   // Reveal-policy events: flip due tiles live (scheduled/interval draws) and reconcile the bounty
   // rotation. After the start loop above, so on the tick an event begins the "event started" post

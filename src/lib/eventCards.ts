@@ -6,6 +6,7 @@ import { eventAxes } from '@/lib/eventAxes';
 import { modeKeyFor, type EventMode } from '@/lib/eventModes';
 import { hasRevealPolicy, parseEventRules } from '@/lib/eventRules';
 import { eventShapeBadge, isPointsMode } from '@/lib/utils';
+import { standingsHidden } from '@/lib/standingsVisibility';
 
 /**
  * One event, reduced to what a card needs.
@@ -257,7 +258,10 @@ export async function loadEventCards(
     // and if a row says otherwise it's an anomaly, not a result, so the card must not dress it up as
     // "leading X — 150 pts" six weeks before the whistle. (A completion on an unstarted board is
     // refused outright now; this is what stops one that predates that rule advertising itself.)
-    const scoreable = status !== 'upcoming';
+    // HIDDEN STANDINGS (lib/standingsVisibility): a card is a shared surface — the clan's events page,
+    // the hub, the home page — so while the host keeps the standings back it names no leader and
+    // counts no claims. It never knows who is looking, so it treats everyone as the public.
+    const scoreable = status !== 'upcoming' && !standingsHidden({ ...event, rules });
     const claimed = scoreable ? claimedRaw : 0;
 
     let top: EventCard['top'] = null;

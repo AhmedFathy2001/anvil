@@ -32,6 +32,7 @@ export const DISCORD_POST_TYPES = [
   { key: 'startHeld', group: 'life', label: 'Start on hold', help: 'Why the event could not start (staff info)', hook: null, ping: false, big: false, partner: false },
   { key: 'digest', group: 'life', label: 'Daily digest', help: 'Every 24 hours while the event runs', hook: 'lifecycle', ping: false, big: false, partner: true },
   { key: 'halfway', group: 'life', label: 'Halfway report', help: 'Once, at the halfway point', hook: 'lifecycle', ping: false, big: false, partner: true },
+  { key: 'standingsRevealed', group: 'life', label: 'Standings revealed', help: 'When hidden standings come back, with the leaderboard', hook: 'lifecycle', ping: false, big: true, partner: true },
   { key: 'eventEnd', group: 'life', label: 'Event ended + recap', help: 'Final standings and awards (also when ended early)', hook: 'lifecycle', ping: true, big: true, partner: true },
   { key: 'draftStart', group: 'draft', label: 'Draft started', help: 'When captains start picking', hook: 'draft', ping: true, big: false, partner: true },
   { key: 'draftDone', group: 'draft', label: 'Draft complete', help: 'The final rosters', hook: 'draft', ping: false, big: true, partner: true },

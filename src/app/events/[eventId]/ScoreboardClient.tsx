@@ -28,6 +28,8 @@ import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import { tileMatchesSearch } from '@/lib/tileSearch';
 import { comboView, comboProgressLine } from '@/lib/comboProgress';
+import StandingsHiddenNotice from '@/components/StandingsHiddenNotice';
+import type { StandingsCurtainInfo } from '@/lib/standingsVisibility';
 
 interface Tile {
   id: number;
@@ -130,6 +132,12 @@ interface Props {
   boardPointsTotal?: number | null;
   /** Opens a visible tile directly (used by RuneLite's sidebar catalogue links). */
   initialTileId?: number | null;
+  /**
+   * Hidden standings (lib/standingsVisibility). When set, `completions` already holds only the
+   * viewer's own teams' rows (the server cut them), and every cross-team surface here — the
+   * standings, XP race, lens, line watch, race pace, per-team stat bars — narrows to those teams.
+   */
+  curtain?: StandingsCurtainInfo | null;
 }
 
 /**
@@ -160,7 +168,13 @@ interface TeamGains {
   tileMembers: Record<number, { name: string; gained: number }[]>;
 }
 
-export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null }: Props) {
+export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null }: Props) {
+  // Behind the curtain the teams whose progress this page deals in are the viewer's own; the rest
+  // are names on a roster. Everything below that scores, ranks, fetches or draws per team uses this.
+  const teams = useMemo(
+    () => (curtain ? allTeams.filter((t) => curtain.ownTeamIds.includes(t.id)) : allTeams),
+    [allTeams, curtain],
+  );
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(() =>
     initialTileId != null && tiles.some((tile) => tile.id === initialTileId) ? initialTileId : null,
@@ -168,7 +182,10 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   const [fullscreen, setFullscreen] = useState(false);
   const [teamGains, setTeamGains] = useState<TeamGains[]>([]);
   // Which team's board the viewer is looking at. Null = everyone's, the shared view.
-  const [lensTeamId, setLensTeamId] = useState<number | null>(null);
+  // Behind the curtain a one-team viewer looks through their own team's lens from the start.
+  const [lensTeamId, setLensTeamId] = useState<number | null>(() =>
+    curtain && curtain.ownTeamIds.length === 1 ? curtain.ownTeamIds[0] : null,
+  );
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [tierFilter, setTierFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -567,16 +584,18 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
           <div className="min-w-0">
             <h2 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2">
               <span className="w-1 h-5 bg-gold rounded-full" />
-              Standings
+              {curtain ? (teams.length > 0 ? 'Your team' : 'Standings') : 'Standings'}
             </h2>
-            <Scoreboard
+            {curtain && <StandingsHiddenNotice curtain={curtain} ownTeamNames={teams.map((t) => t.name)} className="mb-4" />}
+            {(!curtain || teams.length > 0) && <Scoreboard
               teams={teams}
               scores={scores}
               eventId={event.id}
               dropProgressByTeam={dropProgressByTeam}
               pointsMode={pointsMode}
               teamMvps={teamMvps}
-            />
+              unranked={!!curtain}
+            />}
 
             {/* XP/Stat Gains */}
             {statTiles.some((t) => t.statType === 'skill' && t.statBasis !== 'milestone') && teamGains.length > 0 && (
@@ -596,7 +615,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
                           className="flex items-center justify-between border border-card-border rounded-lg p-3 bg-card-bg"
                         >
                           <div className="flex items-center gap-3">
-                            <span className="text-lg font-bold text-gold w-6">#{index + 1}</span>
+                            {!curtain && <span className="text-lg font-bold text-gold w-6">#{index + 1}</span>}
                             {team?.color && (
                               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: team.color }} />
                             )}

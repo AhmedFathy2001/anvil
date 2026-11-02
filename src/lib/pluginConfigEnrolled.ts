@@ -1,5 +1,6 @@
 import { pluginGameCounters } from '@/lib/gameCounters';
 import { pluginLevelRules } from '@/lib/levelRulesStore';
+import { standingsHidden } from '@/lib/standingsVisibility';
 import { resolvePluginClan } from '@/lib/auth';
 import { howItCounts, parseCountMode, parseSetsRequired } from '@/lib/collectionSets';
 import { countedLuckCandidates } from '@/lib/clogLuckBoard';
@@ -634,6 +635,13 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
     };
   });
 
+  // HIDDEN STANDINGS (lib/standingsVisibility). Everything else in this payload is the caller's own
+  // team; the two event-wide parts below — rivals' lockout claims and a ladder's leaderboard — are
+  // held while the curtain is down. Judged on the event alone, not the viewer: the push server sends
+  // this same answer to every teammate (lib/push/views), staff on the team included. Computed per
+  // build, so the body (and its ETag) changes by itself the moment the curtain lifts.
+  const curtained = standingsHidden(event);
+
   // Lock-out claims (bounty / lockout modifier): the most recent missions someone locked in,
   // EVENT-WIDE (not just this team), so the plugin can announce "X claimed <mission>" to the other
   // eventParticipants. Only shipped on lockout events; the plugin diffs it across polls and skips its own.
@@ -656,7 +664,13 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
       })
       .from(completions)
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
-      .where(and(eq(tiles.eventId, eventId), inArray(completions.tileId, missionTileIds)))
+      .where(
+        and(
+          eq(tiles.eventId, eventId),
+          inArray(completions.tileId, missionTileIds),
+          curtained ? eq(completions.teamId, teamId) : undefined,
+        ),
+      )
       .orderBy(sql`${completions.completedAt} desc`)
       .limit(12);
     // Finisher name: the completion's crediting player, else the latest submission credit on the tile.
@@ -723,7 +737,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
   // straight from /config (no extra endpoint). Gated to format='ladder' so other events pay nothing.
   let ladderStandings: PluginStandings | null = null;
   let ladderMonthly: PluginStandings | null = null;
-  if (isLadderFormat(event.format)) {
+  if (isLadderFormat(event.format) && !curtained) {
     const boards = await getLadderBoards(event);
     ladderStandings = toPluginStandings(boards.allTime, playerId ?? -1, boards.ownerByPlayerId, boards.perPerson);
     ladderMonthly = toPluginStandings(boards.monthly, playerId ?? -1, boards.ownerByPlayerId, boards.perPerson);

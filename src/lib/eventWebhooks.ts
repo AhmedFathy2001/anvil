@@ -11,6 +11,8 @@ import { hookWants, parseEventPostKinds, type EventPostKind } from '@/lib/eventW
 export interface EventHookTarget {
   id: number;
   url: string;
+  /** The team a team-scoped hook belongs to; null for a whole-event hook. */
+  teamId: number | null;
 }
 
 /** The hooks on `eventId` that want this post. */
@@ -24,5 +26,5 @@ export async function eventHookTargets(
     .where(eq(eventWebhooks.eventId, eventId));
   return rows
     .filter((r) => hookWants({ teamId: r.teamId, kinds: parseEventPostKinds(r.kinds) }, post))
-    .map((r) => ({ id: r.id, url: r.url }));
+    .map((r) => ({ id: r.id, url: r.url, teamId: r.teamId ?? null }));
 }

@@ -16,6 +16,8 @@ import { isPointsMode } from '@/lib/utils';
 import type { LadderScope, LadderView } from '@/lib/ladderView';
 import type { Tile as FullTile, Submission as FullSubmission } from '@/lib/types';
 import { clanFetch } from '@/lib/clanFetch';
+import StandingsHiddenNotice from '@/components/StandingsHiddenNotice';
+import type { StandingsCurtainInfo } from '@/lib/standingsVisibility';
 
 /**
  * The ladder event page.
@@ -60,6 +62,12 @@ interface Props {
   showTeam: boolean;
   /** Every task in the pool, revealed or not — the hero's "N open of M". */
   poolSize: number;
+  /**
+   * Hidden standings (lib/standingsVisibility). When set, the view was built from the viewer's own
+   * rows only, so every ranking surface (champion, podium, chase, feed, hall, claim counts, the
+   * viewer's own rank) is withheld and the notice stands in for it.
+   */
+  curtain?: StandingsCurtainInfo | null;
 }
 
 export default function LadderClient({
@@ -75,6 +83,7 @@ export default function LadderClient({
   expiryByTile,
   showTeam,
   poolSize,
+  curtain = null,
 }: Props) {
   const router = useRouter();
   const rules = useMemo(() => parseEventRules(event.rules), [event.rules]);
@@ -149,22 +158,28 @@ export default function LadderClient({
         prizePool={prizePool}
         prizeBreakdown={prizeBreakdown}
         placementPrizes={placementPrizes}
-        champion={view.champion}
-        chaser={view.chaser}
+        champion={curtain ? null : view.champion}
+        chaser={curtain ? null : view.chaser}
       />
 
-      {view.me && <YouStrip me={view.me} openNow={openNow} finished={finished} />}
+      {curtain ? (
+        <StandingsHiddenNotice curtain={curtain} className="mb-8" />
+      ) : (
+        <>
+          {view.me && <YouStrip me={view.me} openNow={openNow} finished={finished} />}
 
-      <ScopeBar scopes={view.scopes} value={scopeKey} onChange={setScopeKey} note={scope.note} />
-      <div className="mb-8">
-        <Podium
-          scope={scope}
-          streaks={view.streaks}
-          sparks={view.sparks}
-          mePlayerId={view.me?.playerId ?? null}
-          showTeam={showTeam}
-        />
-      </div>
+          <ScopeBar scopes={view.scopes} value={scopeKey} onChange={setScopeKey} note={scope.note} />
+          <div className="mb-8">
+            <Podium
+              scope={scope}
+              streaks={view.streaks}
+              sparks={view.sparks}
+              mePlayerId={view.me?.playerId ?? null}
+              showTeam={showTeam}
+            />
+          </div>
+        </>
+      )}
 
       <div className="grid items-start gap-8 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="min-w-0">
@@ -189,25 +204,27 @@ export default function LadderClient({
             onTileClick={setSelectedTileId}
             noun="task"
             expiryByTile={expiryByTile}
-            claimsByTile={view.claimsByTile}
+            claimsByTile={curtain ? {} : view.claimsByTile}
             finished={finished}
           />
           {view.me && <YourSeason me={view.me} word={word} />}
         </div>
 
-        <div className="min-w-0">
-          <Chase
-            scope={scope}
-            streaks={view.streaks}
-            mePlayerId={view.me?.playerId ?? null}
-            showTeam={showTeam}
-            finished={finished}
-          />
-          {nowMs !== null && <ActivityFeed feed={view.feed} nowMs={nowMs} />}
-        </div>
+        {!curtain && (
+          <div className="min-w-0">
+            <Chase
+              scope={scope}
+              streaks={view.streaks}
+              mePlayerId={view.me?.playerId ?? null}
+              showTeam={showTeam}
+              finished={finished}
+            />
+            {nowMs !== null && <ActivityFeed feed={view.feed} nowMs={nowMs} />}
+          </div>
+        )}
       </div>
 
-      {view.hall && <HallOfLadder hall={view.hall} />}
+      {!curtain && view.hall && <HallOfLadder hall={view.hall} />}
 
       {selectedTile && (
         <TileDetailModal

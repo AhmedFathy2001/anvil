@@ -9,6 +9,8 @@ import { liveStatsForMembers } from '@/lib/liveStats';
 import { gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
 import { ttlMemo } from '@/lib/ttlMemo';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
+import { standingsScopeForRequest } from '@/lib/standingsAccess';
+import { filterToVisibleTeams } from '@/lib/standingsVisibility';
 
 export async function GET(
   request: Request,
@@ -18,7 +20,8 @@ export async function GET(
   const eId = parseInt(eventId, 10);
 
   // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, eId))) {
+  const scopedEvent = await eventForRequest(request, eId);
+  if (!scopedEvent) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   const teamIdFilter = new URL(request.url).searchParams.get('teamId');
@@ -26,7 +29,10 @@ export async function GET(
   // Every open board tab asks this once per team on each live refresh; the answer depends only on the
   // event and team, so one computation serves every viewer for a few seconds.
   const result = await ttlMemo(`gains:${eId}:${teamIdFilter ?? ''}`, () => computeGains(eId, teamIdFilter), GAINS_TTL_MS);
-  return NextResponse.json(result);
+  // HIDDEN STANDINGS: the memo is per event+team and shared by every viewer, so the cut is made
+  // here, per request, after it — never inside it.
+  const standingsScope = await standingsScopeForRequest(request, scopedEvent);
+  return NextResponse.json(filterToVisibleTeams(standingsScope, result, (row) => row.teamId));
 }
 
 const GAINS_TTL_MS = 15_000;
