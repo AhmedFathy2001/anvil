@@ -63,6 +63,17 @@ export interface TileCreatorProps {
   canAddAnother?: boolean;
 }
 
+/** Which screen a picked candidate opens on. */
+function screenFor(c: TaskCandidate): Screen {
+  // A finished config goes straight to the sentence; an unfinished one to its own control.
+  const unfinished = Object.keys(c.config).length === 0 || c.source === 'clog';
+  if (c.flow === 'raids' && unfinished) return { name: 'raids', candidate: c };
+  if ((c.flow === 'trials' || c.flow === 'courses') && unfinished) return { name: 'courses', candidate: c };
+  if (c.flow === 'items' && unfinished) return { name: 'items', candidate: c };
+  if (c.flow === 'clog' && Object.keys(c.config).length === 0) return { name: 'clog', candidate: c };
+  return { name: 'confirm', candidate: c };
+}
+
 /**
  * The new-tile flow: say what players should do, pick the match, confirm one sentence. The admin
  * never picks a "kind" — lib/taskMatch picks the engine and says in one line how it counts. Hard
@@ -116,16 +127,6 @@ export default function TileCreator(props: TileCreatorProps) {
   }, [q]);
 
   const shown = q.trim().length >= 2 ? results : null;
-
-  function screenFor(c: TaskCandidate): Screen {
-    // A finished config goes straight to the sentence; an unfinished one to its own control.
-    const unfinished = Object.keys(c.config).length === 0 || c.source === 'clog';
-    if (c.flow === 'raids' && unfinished) return { name: 'raids', candidate: c };
-    if ((c.flow === 'trials' || c.flow === 'courses') && unfinished) return { name: 'courses', candidate: c };
-    if (c.flow === 'items' && unfinished) return { name: 'items', candidate: c };
-    if (c.flow === 'clog' && Object.keys(c.config).length === 0) return { name: 'clog', candidate: c };
-    return { name: 'confirm', candidate: c };
-  }
 
   function pick(c: TaskCandidate) {
     setError(null);
