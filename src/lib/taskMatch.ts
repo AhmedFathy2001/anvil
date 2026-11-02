@@ -39,6 +39,9 @@ import {
   raidTileConfig,
   raidTitle,
   trialTileConfig,
+  BOSS_FAMILIES,
+  familyFor,
+  killPicksConfig,
   type CountEngine,
   type RaidId,
   type RaidSelection,
@@ -336,7 +339,7 @@ function finish(d: Draft, q: ParsedQuery | null, s: Score | null): TaskCandidate
 // Raid boss keys are offered through the raid picker (modes as toggles), not one hiscores row each.
 const RAID_KEYS = new Set([
   'chambersOfXeric', 'chambersOfXericChallengeMode', 'theatreOfBlood', 'theatreOfBloodHardMode',
-  'tombsOfAmascut', 'tombsOfAmascutExpertMode',
+  'tombsOfAmascut', 'tombsOfAmascutExpertMode', 'fracturedArchive',
 ]);
 
 function bossDrafts(): (Draft & Named)[] {
@@ -361,6 +364,110 @@ function bossDrafts(): (Draft & Named)[] {
       category: 'bosses',
     } satisfies Draft & Named;
   });
+}
+
+// ─── Several bosses on one tile ──────────────────────────────────────────────────────────────
+
+/**
+ * The candidate for kills of several bosses / monsters / counters counted together. Picks are
+ * hiscores keys or count-line names; lib/killSource picks the engine (all on the hiscores → one
+ * stat tile whose keys SUM; anything off them → a plugin tile listing every name).
+ */
+export function killCandidate(given: string[], amount: number | null, extra: Partial<TaskCandidate> = {}): TaskCandidate | null {
+  // A known family keeps its own member order, so "artio + callisto" and "callisto or artio" are
+  // the same stored tile.
+  const family = familyFor(given);
+  const picks = family ? family.members : given;
+  const res = killPicksConfig(picks, amount);
+  if (!res.ok) return null;
+  const n = amount && amount > 0 ? amount : 1;
+  const how = howItCountsLine(res.config);
+  const titleTemplate = `{n} ${res.what} kills`;
+  return {
+    key: family ? `family-${family.key}` : `kills-${picks.join('+')}`,
+    source: 'boss',
+    badge: 'Kills',
+    title: titleAt({ titleTemplate, amountField: 'statGoal' }, n),
+    titleTemplate,
+    hint: how.text,
+    engine: how.engine,
+    verb: 'Kill',
+    noun: res.what,
+    amountField: res.source === 'hiscores' ? 'statGoal' : 'requiredAmount',
+    amount: n,
+    config: res.config,
+    flow: 'confirm',
+    category: 'bosses',
+    score: 0,
+    confident: true,
+    ...extra,
+  };
+}
+
+function familyDrafts(): (Draft & Named)[] {
+  return BOSS_FAMILIES.map((f) => {
+    const res = killPicksConfig(f.members, null);
+    return {
+      key: `family-${f.key}`,
+      source: 'boss' as const,
+      badge: 'Kills',
+      names: [f.name, ...f.aliases],
+      aliases: [],
+      titleTemplate: `{n} ${f.name} kills`,
+      verb: 'Kill',
+      noun: f.name,
+      amountField: (res.source === 'plugin' ? 'requiredAmount' : 'statGoal') as 'statGoal' | 'requiredAmount',
+      defaultAmount: 25,
+      config: res.config,
+      flow: 'confirm' as const,
+      category: 'bosses' as const,
+    };
+  });
+}
+
+// Words that say "more than one" — a family beats its namesake boss only when the task says so.
+const GROUP_WORDS = ['any', 'all', 'both', 'either', 'or', 'and', 'mode', 'modes', 'boss', 'bosses', 'variant', 'variants', 'awakened'];
+
+/**
+ * Bosses named separately in one task ("phosani and normal nightmare", "gauntlet or cg"). Each boss
+ * claims the words of its own name (longest names first, so "Phosani's Nightmare" takes both its
+ * words before plain "Nightmare" can), plus any alias only it carries.
+ */
+function mentionedBosses(q: ParsedQuery): { keys: string[]; used: number } {
+  const all = q.all;
+  const taken = new Array(all.length).fill(false);
+  const aliasOwners = new Map<string, number>();
+  for (const b of BOSSES) for (const a of b.aliases ?? []) aliasOwners.set(a, (aliasOwners.get(a) ?? 0) + 1);
+  const phrases: { key: string; toks: string[] }[] = [];
+  for (const b of BOSSES) {
+    if (RAID_KEYS.has(b.key)) continue;
+    phrases.push({ key: b.key, toks: words(b.label).filter((w) => w !== 'the').map(stem) });
+    for (const a of b.aliases ?? []) if (aliasOwners.get(a) === 1) phrases.push({ key: b.key, toks: words(a).map(stem) });
+  }
+  for (const c of COUNTER_TARGETS.filter((t) => t.group === 'Combat')) phrases.push({ key: c.name, toks: words(c.name).map(stem) });
+  phrases.sort((a, b) => b.toks.length - a.toks.length);
+  const keys: string[] = [];
+  for (const p of phrases) {
+    if (p.toks.length === 0 || keys.includes(p.key)) continue;
+    for (let i = 0; i + p.toks.length <= all.length; i++) {
+      if (p.toks.every((t, j) => !taken[i + j] && tokMatch(all[i + j], t))) {
+        for (let j = 0; j < p.toks.length; j++) taken[i + j] = true;
+        keys.push(p.key);
+        break;
+      }
+    }
+  }
+  return { keys, used: all.filter((w, i) => taken[i] && !STOP.has(w)).length };
+}
+
+function multiBossCandidate(q: ParsedQuery): TaskCandidate | null {
+  const { keys, used } = mentionedBosses(q);
+  if (keys.length < 2) return null;
+  const meaningful = q.all.filter((w) => !STOP.has(w) && !GROUP_WORDS.includes(w)).length;
+  const coverage = meaningful ? used / meaningful : 0;
+  const c = killCandidate(keys, q.amount ?? 25);
+  if (!c) return null;
+  return { ...c, score: coverage * 10 + 4.5, confident: coverage >= 0.6 };
 }
 
 function activityDrafts(): (Draft & Named)[] {
@@ -540,13 +647,16 @@ function challengeDrafts(q: ParsedQuery | null): (Draft & Named)[] {
       category: 'challenges',
     });
   }
-  for (const r of RAID_MODE_VARIANTS.filter((v) => v.base !== 'Fractured Archive')) {
+  // Every raid the full editor offers for deathless, TFA included (its picker lists
+  // RAID_MODE_VARIANTS whole). The short names ("tfa", "cox") let "deathless tfa" find its raid.
+  for (const r of RAID_MODE_VARIANTS) {
+    const raidId = RAID_OPTIONS.find((o) => o.modes.some((m) => m.name === r.base))?.id;
     out.push({
       key: `deathless-${r.base}`,
       source: 'deathless',
       badge: 'Deathless',
       names: [`deathless ${r.base}`],
-      aliases: ['deathless', 'flawless', 'death', 'deaths', 'die', 'zero', 'raid'],
+      aliases: ['deathless', 'flawless', 'death', 'deaths', 'die', 'zero', 'raid', ...(raidId ? RAID_TOKENS[raidId] : [])],
       titleTemplate: `{n} deathless ${r.base}`,
       titleOne: `Deathless ${r.base}`,
       verb: 'Finish',
@@ -634,6 +744,7 @@ const RAID_TOKENS: Record<RaidId, string[]> = {
   cox: ['cox', 'chamber', 'xeric', 'olm'],
   tob: ['tob', 'theatre', 'theater', 'blood'],
   toa: ['toa', 'tomb', 'amascut'],
+  tfa: ['tfa', 'fractured', 'archive'],
 };
 const MODE_TOKENS: Record<string, string[]> = {
   cm: ['cm', 'challenge', 'cmode'],
@@ -646,7 +757,7 @@ function raidCandidate(q: ParsedQuery): TaskCandidate | null {
   const has = (t: string) => all.includes(t);
   let raids = (Object.keys(RAID_TOKENS) as RaidId[]).filter((r) => RAID_TOKENS[r].some(has));
   const raidWord = has('raid');
-  if (raids.length === 0 && raidWord) raids = ['cox', 'tob', 'toa'];
+  if (raids.length === 0 && raidWord) raids = RAID_OPTIONS.map((r) => r.id);
   if (raids.length === 0) return null;
   // Deathless / speed tasks name a raid too — those belong to their own kinds.
   if (['deathless', 'flawless', 'death', 'speed', 'speedrun'].some(has) || q.timeCapSeconds != null) return null;
@@ -846,6 +957,7 @@ function staticDrafts(ctx: MatchContext, q: ParsedQuery | null): (Draft & Named)
   return [
     ...counterDrafts(ctx),
     ...bossDrafts(),
+    ...familyDrafts(),
     ...activityDrafts(),
     ...skillDrafts(),
     ...lapDrafts(),
@@ -905,6 +1017,8 @@ export function matchTasks(query: string, ctx: MatchContext = {}): TaskCandidate
 
   const raid = raidCandidate(q);
   if (raid) out.push(raid);
+  const several = multiBossCandidate(q);
+  if (several) out.push(several);
   out.push(...trialCandidates(q));
 
   for (const d of staticDrafts(ctx, q)) {
@@ -916,7 +1030,12 @@ export function matchTasks(query: string, ctx: MatchContext = {}): TaskCandidate
     // A variant pinned to a number the task never said ("Doom delve level 3", "Sepulchre Floor 5")
     // is narrower than what was asked — let the general target win the tie ("75 Doom delves").
     const strayNumber = tokens(d.noun).some((t) => /^\d+$/.test(t) && !q.all.includes(t));
-    out.push(finish(d, q, { ...s, score: s.score + (SOURCE_BONUS[d.source] ?? 0) - (strayNumber ? 1 : 0) }));
+    // A family ("Nightmare (any)") wins over its namesake boss only when the task says "any", "both",
+    // "bosses"… or uses a name only the family has ("dt2", "wildy").
+    const familyAdj = d.key.startsWith('family-')
+      ? GROUP_WORDS.some((w) => q.all.includes(w)) || q.tokens.some((t) => !BOSSES.some((b) => tokens(b.label).includes(t))) ? 1.5 : -1.5
+      : 0;
+    out.push(finish(d, q, { ...s, score: s.score + (SOURCE_BONUS[d.source] ?? 0) - (strayNumber ? 1 : 0) + familyAdj }));
   }
 
   // An item that is just the name of a counter or boss already offered ("Herbiboar") is noise.

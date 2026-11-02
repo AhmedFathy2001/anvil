@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyAmount,
+  killCandidate,
   browseCatalog,
   classifyMatches,
   matchTasks,
@@ -16,7 +17,11 @@ import {
   type MatchContext,
 } from '../src/lib/taskMatch.ts';
 import {
+  BOSS_FAMILIES,
+  RAID_OPTIONS,
   defaultRaidSelection,
+  familyFor,
+  killPicksConfig,
   draftPayload,
   draftToCsvRow,
   itemTileConfig,
@@ -24,6 +29,7 @@ import {
   raidTileConfig,
   trialTileConfig,
 } from '../src/lib/tileCreatorConfig.ts';
+import { chooseKillSource } from '../src/lib/killSource.ts';
 
 const items = [
   { id: 24711, name: 'Hallowed mark' },
@@ -126,8 +132,8 @@ test('5 CoX/ToB clears, no Entry Mode → one hiscores tile over every non-Entry
   assert.equal(top.engine, 'hiscores');
 });
 
-test('"any raid" covers all three raids; a named mode narrows it', () => {
-  assert.equal(best('any raid').top.config.trackedStat!.split(',').length, 6);
+test('"any raid" covers every raid (CoX, ToB, ToA, TFA); a named mode narrows it', () => {
+  assert.equal(best('any raid').top.config.trackedStat!.split(',').length, 7);
   assert.equal(best('10 tob hm').top.config.trackedStat, 'theatreOfBloodHardMode');
   assert.equal(best('cox cm').top.config.trackedStat, 'chambersOfXericChallengeMode');
 });
@@ -270,4 +276,92 @@ test('real catalogue noise: an item named like the counter, or a plural twin, do
   const nuggets = best('100 golden nuggets earned at Motherlode Mine', noisy);
   assert.equal(nuggets.top.config.tileType, 'gain');
   assert.ok(!nuggets.cands.some((c) => c.source === 'clog'));
+});
+
+// ─── The Fractured Archive in the raid picker ────────────────────────────────────────────────
+
+test('TFA resolves to its hiscores key and sums with the other raids', () => {
+  assert.equal(chooseKillSource(['Fractured Archive']).ok && (chooseKillSource(['Fractured Archive']) as { trackedStat: string }).trackedStat, 'fracturedArchive');
+  const res = raidTileConfig({ ...defaultRaidSelection(['cox', 'tob']), [raidModeKey('tfa', 'normal')]: true }, 5);
+  assert.equal(res.source, 'hiscores');
+  assert.deepEqual(res.config.trackedStat!.split(',').sort(), [
+    'chambersOfXeric', 'chambersOfXericChallengeMode', 'fracturedArchive', 'theatreOfBlood', 'theatreOfBloodHardMode',
+  ].sort());
+  assert.ok(RAID_OPTIONS.some((r) => r.id === 'tfa' && r.modes[0].name === 'Fractured Archive'));
+});
+
+test('"5 tfa", "5 cox tob or tfa" and "any raid" all go through the raid picker, TFA included', () => {
+  const tfa = best('5 tfa').top;
+  assert.equal(tfa.source, 'raid');
+  assert.equal(tfa.config.trackedStat, 'fracturedArchive');
+  assert.equal(tfa.config.statGoal, 5);
+  const three = best('5 cox tob or tfa').top;
+  assert.equal(three.source, 'raid');
+  assert.equal(three.config.trackedStat!.split(',').length, 5);
+  assert.ok(best('any raid').top.config.trackedStat!.split(',').includes('fracturedArchive'));
+  // TFA is no longer offered as a stray single-boss row next to the raid tile.
+  assert.ok(!best('5 tfa').cands.some((c) => c.key === 'boss-fracturedArchive'));
+  assert.equal(best('deathless tfa').top.config.timedActivity, 'Fractured Archive');
+});
+
+// ─── Several bosses on one tile ──────────────────────────────────────────────────────────────
+
+test('several bosses named in one task become ONE summed hiscores tile', () => {
+  const n = best('50 phosani and normal nightmare');
+  assert.equal(n.verdict.status, 'ready');
+  assert.deepEqual(n.top.config.trackedStat!.split(',').sort(), ['nightmare', 'phosanisNightmare']);
+  assert.equal(n.top.config.statGoal, 50);
+  assert.match(n.top.title, /Nightmare \(any\)/);
+  assert.equal(n.top.engine, 'hiscores');
+  // One boss named once stays one boss.
+  assert.equal(best('phosanis nightmare').top.config.trackedStat, 'phosanisNightmare');
+  assert.equal(best('nightmare').top.config.trackedStat, 'nightmare');
+});
+
+test('families: any mode, "or", group names', () => {
+  assert.equal(best('nightmare any mode').top.key, 'family-nightmare');
+  assert.deepEqual(best('gauntlet or cg').top.config.trackedStat!.split(',').sort(), ['corruptedGauntlet', 'gauntlet']);
+  assert.equal(best('dt2 bosses').top.config.trackedStat!.split(',').length, 4);
+  assert.equal(best('wildy bosses').top.config.trackedStat!.split(',').length, 10);
+  assert.equal(best('25 callisto or artio').top.config.trackedStat, 'callisto,artio');
+  assert.equal(best('gwd').top.key, 'family-gwd');
+});
+
+test('an awakened DT2 boss forces the plugin, listing every name', () => {
+  const duke = best('duke sucellus any').top;
+  assert.equal(duke.config.tileType, 'kill');
+  assert.deepEqual(duke.config.targetNpcs, ['Duke Sucellus', 'Duke Sucellus (awakened)']);
+  assert.equal(duke.engine, 'plugin');
+  const res = killPicksConfig(['nightmare', 'Duke Sucellus (awakened)'], 10);
+  assert.equal(res.source, 'plugin');
+  assert.equal(res.config.requiredAmount, 10);
+});
+
+test('adding a boss on the confirm step: summed keys, then plugin targets once one is off the hiscores', () => {
+  const two = killCandidate(['callisto', 'artio'], 30)!;
+  assert.equal(two.config.trackedStat, 'callisto,artio');
+  assert.equal(two.amountField, 'statGoal');
+  assert.equal(two.title, '30 Callisto or Artio kills');
+  const mixed = killCandidate(['vorkath', 'Chicken'], 30)!;
+  assert.equal(mixed.config.tileType, 'kill');
+  assert.deepEqual(mixed.config.targetNpcs, ['Vorkath', 'Chicken']);
+  assert.equal(mixed.amountField, 'requiredAmount');
+  assert.equal(mixed.engine, 'plugin');
+  assert.equal(familyFor(['phosanisNightmare', 'nightmare'])?.key, 'nightmare');
+});
+
+test('bulk lines with several bosses resolve the same way', () => {
+  const { text, points } = parseBulkLine('100 Callisto + Artio kills – 25 pts');
+  assert.equal(points, 25);
+  const c = classifyMatches(matchTasks(text, ctx));
+  assert.equal(c.status, 'ready');
+  assert.equal(c.choices[0].config.trackedStat, 'callisto,artio');
+  assert.equal(c.choices[0].config.statGoal, 100);
+});
+
+test('families are browseable under Bosses & raids', () => {
+  const list = browseCatalog('bosses');
+  assert.ok(list.some((c) => c.key === 'family-nightmare'));
+  assert.ok(list.some((c) => c.key === 'family-dt2'));
+  assert.ok(BOSS_FAMILIES.length >= 8);
 });

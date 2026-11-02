@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
-import { applyAmount, titleAt, type TaskCandidate } from '@/lib/taskMatch';
+import { applyAmount, killCandidate, titleAt, type TaskCandidate } from '@/lib/taskMatch';
+import KillPicksField from './KillPicksField';
 import {
   draftKindFields,
   howItCountsLine,
+  killPicksOf,
   supportsTrackingMode,
   type TileDraft,
 } from '@/lib/tileCreatorConfig';
@@ -40,7 +42,7 @@ function clockSeconds(v: string): number | null {
  * the full editor with all of this already filled in.
  */
 export default function ConfirmStep({
-  candidate,
+  candidate: original,
   pointsMode,
   tierBands,
   teamPlay,
@@ -72,13 +74,18 @@ export default function ConfirmStep({
   onSubmit: (draft: TileDraft, another: boolean) => void;
 }) {
   const bands = useMemo(() => [...tierBands].sort((a, b) => a.min - b.min), [tierBands]);
-  const [amount, setAmount] = useState<number | null>(candidate.amount);
+  const [amount, setAmount] = useState<number | null>(original.amount);
   const [label, setLabel] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [trackingMode, setTrackingMode] = useState<'team' | 'individual'>('team');
   // A points board starts with no tier picked (a placeholder's 1 point is not a choice anyone made).
-  const [points, setPoints] = useState<number | null>(candidate.points ?? (pointsMode ? null : initialPoints ?? 1));
-  const [capText, setCapText] = useState(clockText(candidate.config.timeThresholdSeconds));
+  const [points, setPoints] = useState<number | null>(original.points ?? (pointsMode ? null : initialPoints ?? 1));
+  const [capText, setCapText] = useState(clockText(original.config.timeThresholdSeconds));
+  // Kills tiles can take more bosses: their kills count together (lib/killSource picks the engine).
+  const killable = ['boss', 'counter'].includes(original.source) && killPicksOf(original.config).length > 0;
+  const [picks, setPicks] = useState<string[]>(() => killPicksOf(original.config));
+  const picksChanged = killable && picks.join('|') !== killPicksOf(original.config).join('|');
+  const candidate = (picksChanged && killCandidate(picks, amount, { tileCategory: original.tileCategory, points: original.points })) || original;
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
 
   const isTimedCap = candidate.config.tileType === 'timed' && candidate.source !== 'trial';
@@ -167,6 +174,7 @@ export default function ConfirmStep({
           {candidate.noun} <span aria-hidden="true" className="text-text-muted">▾</span>
         </button>
       </div>
+      {killable && <KillPicksField picks={picks} onChange={setPicks} />}
       {isTimedCap && (
         <div className="flex flex-wrap items-center gap-2 text-sm mb-3">
           <label htmlFor="cap" className="text-text-muted">In under</label>

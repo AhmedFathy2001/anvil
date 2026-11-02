@@ -6,16 +6,16 @@
 // The admin never picks a "kind" here. They say what players do; these helpers pick the stored
 // shape — and lib/killSource still decides hiscores vs plugin for anything that is a kill count.
 
-import { RAID_MODE_VARIANTS } from '@/lib/constants';
+import { BOSSES, COUNTER_TARGETS, RAID_MODE_VARIANTS } from '@/lib/constants';
 import { TRIAL_COURSES, TRIAL_COURSE_LEVELS, TRIAL_RANKS, TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
-import { chooseKillSource } from '@/lib/killSource';
+import { chooseKillSource, hiscoresKeyForMonster, hiscoresKeyLabel, type KillSource } from '@/lib/killSource';
 import { howTileCounts, tileKindKey, type TileKindKey, type TileKindLike } from '@/lib/tileKinds';
 import type { TileCsvRow } from '@/lib/csvTiles';
 import type { TileConfig } from '@/lib/types';
 
 // ─── Raids ───────────────────────────────────────────────────────────────────────────────────
 
-export type RaidId = 'cox' | 'tob' | 'toa';
+export type RaidId = 'cox' | 'tob' | 'toa' | 'tfa';
 export type RaidModeId = 'entry' | 'normal' | 'cm' | 'hard' | 'expert';
 
 export interface RaidModeOption {
@@ -72,6 +72,13 @@ export const RAID_OPTIONS: RaidOption[] = [
       { id: 'normal', label: 'Normal', short: 'ToA', name: 'Tombs of Amascut' },
       { id: 'expert', label: 'Expert', short: 'ToA Expert', name: variant('Tombs of Amascut', 'Expert') },
     ],
+  },
+  {
+    // One mode, and the count line carries no article ("Your completed Fractured Archive count is").
+    id: 'tfa',
+    label: 'The Fractured Archive',
+    short: 'TFA',
+    modes: [{ id: 'normal', label: 'Normal', short: 'TFA', name: RAID_MODE_VARIANTS.find((r) => r.base === 'Fractured Archive')!.base }],
   },
 ];
 
@@ -154,16 +161,98 @@ export function raidTitle(sel: RaidSelection, n: number): string {
     const nonEntry = raid.modes.filter((m) => m.id !== 'entry').map((m) => m.id);
     if (nonEntry.every((m) => mine.includes(m)) && mine.length === nonEntry.length) {
       whole.push(raid.id);
-      parts.push(`${raid.short} (any mode)`);
+      parts.push(raid.modes.length === 1 ? raid.short : `${raid.short} (any mode)`);
     } else {
       for (const m of raid.modes) if (mine.includes(m.id)) parts.push(m.short);
     }
   }
   // Say "no Entry" only where it is a choice someone might have assumed the other way: a whole
   // ToB/ToA ticked without its Entry mode.
-  const noEntry = whole.some((r) => r !== 'cox');
+  const noEntry = whole.some((r) => r === 'tob' || r === 'toa');
   if (whole.length === RAID_OPTIONS.length) return n > 1 ? `${prefix}raids (any raid${noEntry ? ', no Entry' : ''})` : `Any raid${noEntry ? ' (no Entry)' : ''}`;
   return `${prefix}${parts.join(' + ')}${noEntry ? ' (no Entry)' : ''}`;
+}
+
+// ─── Several bosses on one tile ──────────────────────────────────────────────────────────────
+
+/**
+ * A boss family: several bosses whose kills count together on one tile. Members are hiscores keys
+ * or exact count-line names (an awakened DT2 boss is only a count line); lib/killSource then picks
+ * the engine — every member on the hiscores → one stat tile whose keys' gains SUM, anything off
+ * them (the awakened variants) → a plugin kill tile listing every name.
+ */
+export interface BossFamily {
+  key: string;
+  name: string;
+  /** Phrases that name the family as a whole ("dt2 bosses", "wildy bosses"). */
+  aliases: string[];
+  members: string[];
+}
+
+const AWAKENED = COUNTER_TARGETS.filter((c) => c.name.endsWith(' (awakened)')).map((c) => c.name);
+
+export const BOSS_FAMILIES: BossFamily[] = [
+  { key: 'nightmare', name: 'Nightmare (any)', aliases: ['nightmare any', 'any nightmare', 'both nightmare', 'nightmare any mode', 'all nightmare'], members: ['nightmare', 'phosanisNightmare'] },
+  { key: 'gauntlet', name: 'Gauntlet (any)', aliases: ['gauntlet any', 'any gauntlet', 'gauntlet any mode', 'both gauntlet', 'gauntlet cg'], members: ['gauntlet', 'corruptedGauntlet'] },
+  { key: 'dt2', name: 'Desert Treasure II bosses', aliases: ['dt2', 'dt2 bosses', 'desert treasure 2', 'desert treasure ii'], members: ['dukeSucellus', 'leviathan', 'vardorvis', 'whisperer'] },
+  { key: 'dt2-awakened', name: 'Awakened DT2 bosses', aliases: ['awakened dt2', 'dt2 awakened', 'awakened bosses', 'awakened'], members: AWAKENED },
+  // Each DT2 boss with its awakened version (separate counters in game, one tile here).
+  ...AWAKENED.map((name) => {
+    const base = name.replace(/ \(awakened\)$/, '');
+    const key = hiscoresKeyForMonster(base) ?? base;
+    return { key: `${key}-any`, name: `${base} (any)`, aliases: [`${base} any`, `${base} awakened or normal`, `any ${base}`], members: [key, name] };
+  }),
+  { key: 'wildy', name: 'Wilderness bosses', aliases: ['wildy bosses', 'wilderness bosses', 'wildy', 'wilderness boss'], members: ['callisto', 'artio', 'vetion', 'calvarion', 'venenatis', 'spindel', 'chaosElemental', 'chaosFanatic', 'crazyArchaeologist', 'scorpia'] },
+  { key: 'callisto', name: 'Callisto or Artio', aliases: ['callisto any', 'callisto artio', 'any callisto'], members: ['callisto', 'artio'] },
+  { key: 'vetion', name: 'Vet’ion or Calvar’ion', aliases: ['vetion any', 'vetion calvarion', 'any vetion'], members: ['vetion', 'calvarion'] },
+  { key: 'venenatis', name: 'Venenatis or Spindel', aliases: ['venenatis any', 'venenatis spindel', 'any venenatis'], members: ['venenatis', 'spindel'] },
+  { key: 'gwd', name: 'God Wars generals', aliases: ['gwd', 'god wars', 'gwd bosses', 'god wars dungeon', 'gwd generals'], members: ['generalGraardor', 'commanderZilyana', 'kreeArra', 'krilTsutsaroth'] },
+  { key: 'dks', name: 'Dagannoth Kings', aliases: ['dks', 'dagannoth kings', 'dag kings'], members: ['dagannothPrime', 'dagannothRex', 'dagannothSupreme'] },
+  { key: 'archaeologists', name: 'Archaeologists', aliases: ['archaeologists', 'archaeologist any'], members: ['crazyArchaeologist', 'derangedArchaeologist'] },
+].filter((f) => f.members.length >= 2 && f.members.every((m) => BOSSES.some((b) => b.key === m) || COUNTER_TARGETS.some((c) => c.name === m)));
+
+/** Display label for one pick (a hiscores key or a count-line name). */
+export function killPickLabel(pick: string): string {
+  return hiscoresKeyLabel(pick);
+}
+
+/** The family whose members are exactly these picks, if any. */
+export function familyFor(picks: string[]): BossFamily | null {
+  const set = new Set(picks.map(normPick));
+  return BOSS_FAMILIES.find((f) => f.members.length === set.size && f.members.every((m) => set.has(normPick(m)))) ?? null;
+}
+
+function normPick(p: string): string {
+  return (hiscoresKeyForMonster(p) ?? p).toLowerCase();
+}
+
+export interface KillPicksResult {
+  ok: boolean;
+  error?: string;
+  source: KillSource | null;
+  /** "Nightmare + Phosani's Nightmare", or the family name. */
+  what: string;
+  config: Partial<TileConfig>;
+}
+
+/** Several bosses / monsters / counters whose kills count together on one tile. */
+export function killPicksConfig(picks: string[], amount: number | null): KillPicksResult {
+  const n = amount && amount > 0 ? amount : 1;
+  const family = familyFor(picks);
+  const what = family?.name ?? picks.map(killPickLabel).join(' + ');
+  const choice = chooseKillSource(picks);
+  if (!choice.ok) return { ok: false, error: choice.error, source: null, what, config: {} };
+  if (choice.source === 'hiscores') {
+    return { ok: true, source: 'hiscores', what, config: { tileType: 'standard', statType: 'boss', trackedStat: choice.trackedStat, statGoal: n, statBasis: 'gain' } };
+  }
+  return { ok: true, source: 'plugin', what, config: { tileType: 'kill', targetNpcs: choice.targetNpcs, requiredAmount: n } };
+}
+
+/** The picks a kills config carries (stat keys or plugin target names). */
+export function killPicksOf(config: Partial<TileConfig>): string[] {
+  if (config.tileType === 'kill') return config.targetNpcs ?? [];
+  if (config.statType === 'boss' && config.trackedStat) return config.trackedStat.split(',').map((k) => k.trim()).filter(Boolean);
+  return [];
 }
 
 // ─── Barracuda Trials ────────────────────────────────────────────────────────────────────────
