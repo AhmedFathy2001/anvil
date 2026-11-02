@@ -13,6 +13,7 @@ import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { clans, events, libraryBoards, tiles } from '@/db/schema';
 import { tileToCsvRow, type TileCsvRow } from '@/lib/csvTiles';
+import { nestParts } from '@/lib/combo';
 import { modeKeyFor, type EventMode } from '@/lib/eventModes';
 import { isPlaceholderTile } from '@/lib/placeholderTile';
 import { parseTileEffortConfig } from '@/lib/tileEffortConfig';
@@ -127,7 +128,8 @@ export function cleanMeta(m: BoardMeta): Required<BoardMeta> {
  * behind — reveal times and mission ladders belong to the event they were set for.
  */
 export function rowsForLibrary(eventTiles: Tile[]): TileCsvRow[] {
-  return [...eventTiles]
+  // Combos carry their parts inside their own row (lib/combo); a part is never a row of its own.
+  return nestParts(eventTiles)
     .filter((t) => !isPlaceholderTile(t))
     .sort((a, b) => a.position - b.position)
     .map((t) => {

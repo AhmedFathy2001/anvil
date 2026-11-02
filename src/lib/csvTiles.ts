@@ -114,7 +114,8 @@ export const TILE_CSV_COLUMNS = [
   'countMode',
 ] as const;
 
-import type { AltGoal } from '@/lib/altGoal';
+import { parseComboRule, type ComboRule } from '@/lib/combo';
+import { parseCapBy } from '@/lib/tileCaps';
 import type { Tile } from '@/lib/types';
 import { missionClaimCap, parseTileMissionRules, type MissionRules } from '@/lib/eventRules';
 import { parseGpInput } from '@/lib/adminEventsFormat';
@@ -170,8 +171,16 @@ export interface TileCsvRow {
   mission?: boolean;
   /** The placement ladder assembled from the mission* columns; null on a normal tile. */
   missionRules?: MissionRules | null;
-  /** Either/or tiles (lib/altGoal) — set by the tile creator; no spreadsheet column (yet). */
-  altGoal?: AltGoal | null;
+  /** Kill/counter tiles: per-member cap counters (lib/tileCaps) — set by the tile creator; no column (yet). */
+  capBy?: string[] | null;
+  /**
+   * COMBO rows (lib/combo), tileType 'combo' — set by the tile creator; no spreadsheet column (yet). The
+   * rule, and each part as its own row (any kind; parts can't be combos or carry parts).
+   */
+  comboRule?: ComboRule | null;
+  parts?: TileCsvRow[] | null;
+  /** A combo PART's weight in a 'mix' combo (null/absent = 1). */
+  comboWeight?: number | null;
 }
 
 // Parse an `items` cell — "Name:count; Name2:count2". Count is optional (defaults to 1) and is
@@ -715,6 +724,21 @@ export function tileToCsvRow(t: Tile): TileCsvRow {
   }
   const effort = parseTileEffortConfig(t.effortConfig);
   if (effort) row.effortConfig = effort;
+  // Capped counters and combos (lib/tileCaps, lib/combo) have no spreadsheet column; the object row
+  // carries them so the library and the importer round-trip them whole — a combo with its parts.
+  const caps = parseCapBy(t.capBy);
+  if (caps.length > 0) row.capBy = caps;
+  if (t.tileType === 'combo') {
+    row.comboRule = parseComboRule(t.comboRule);
+    if (t.parts?.length) {
+      row.parts = t.parts.map((p) => {
+        const part = tileToCsvRow(p) as Record<string, unknown>;
+        delete part.points;
+        if (p.comboWeight != null) part.comboWeight = p.comboWeight;
+        return part;
+      });
+    }
+  }
   return row as TileCsvRow;
 }
 

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { tiles } from '@/db/schema';
+import { eventBoardTiles, syncPartRevealState } from '@/lib/comboSql';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyTileEditorForEvent } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
@@ -73,7 +74,8 @@ async function applyReviewedPointChanges(
     const board = await tx
       .select()
       .from(tiles)
-      .where(eq(tiles.eventId, eId))
+      // Board cells only — a combo's parts (lib/combo) carry no points and aren't balanced.
+      .where(eventBoardTiles(eId))
       .for('update');
 
     if (tileBalanceRevision(board) !== revision) {
@@ -217,7 +219,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
   const before = await db
     .select()
     .from(tiles)
-    .where(and(eq(tiles.eventId, eId), inArray(tiles.id, tileIds)));
+    .where(and(eventBoardTiles(eId), inArray(tiles.id, tileIds)));
   if (before.length === 0) {
     return NextResponse.json({ error: 'None of those tiles are on this board.' }, { status: 404 });
   }
@@ -229,6 +231,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     .where(and(eq(tiles.eventId, eId), inArray(tiles.id, before.map((t) => t.id))));
   // Missions opened by hand count from now, same as ones the engine announces.
   if (revealState === 'live') await captureRevealStats(before.map((t) => t.id));
+  // A combo's parts follow its reveal state (lib/comboSql).
+  if (revealState !== undefined) await syncPartRevealState(eId);
 
   // One history entry per tile, same as a single edit would write — a bulk change should be as
   // traceable as the twenty individual ones it replaces.

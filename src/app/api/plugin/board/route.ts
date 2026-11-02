@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { primaryCredit } from '@/lib/altGoalSql';
+import { primaryCredit } from '@/lib/comboSql';
 import { eventForPluginRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, tiles, teams, completions, submissions, eventParticipants } from '@/db/schema';
+import { comboSentence, isComboTile, parseComboRule, partsByParent, withoutParts } from '@/lib/combo';
+import { isIndividualMode } from '@/lib/statTracking';
 import { eq, inArray, and, sql } from 'drizzle-orm';
 import { verifyPluginToken, verifyPluginTokenForEvent, verifyPluginTokenUser, resolvePluginClan, pluginRsnHintOnly } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
@@ -107,7 +109,6 @@ function tileHowItCounts(t: typeof tiles.$inferSelect): string | null {
     itemRequirements: reqs,
     groupMode: t.groupMode,
     setsRequired: t.setsRequired,
-    altGoal: t.altGoal,
   });
 }
 
@@ -253,8 +254,11 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
   // reference revealed tiles anyway: hidden tiles can't be completed). Classic events pass through.
   const rules = parseEventRules(event.rules);
   const revealMode = hasRevealPolicy(rules);
-  const eventTiles = visibleTiles(rules, allEventTiles);
-  const hiddenTileCount = allEventTiles.length - eventTiles.length;
+  // Board cells only: a combo's parts (lib/combo) ride inside their combo's entry below.
+  const boardRows = withoutParts(allEventTiles);
+  const partsOf = partsByParent(allEventTiles);
+  const eventTiles = visibleTiles(rules, boardRows);
+  const hiddenTileCount = boardRows.length - eventTiles.length;
 
   // Raw tracked_item_ids predate per-item requirements, so they carry ids but no display names.
   // Resolve them once per server cache window and ship the names with the board: the in-game detail
@@ -349,7 +353,7 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
           total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
         })
         .from(submissions)
-        // Primary credits (an either/or tile's alternative is reported as its own note, lib/altGoal).
+        // The tile's own credits (a capped tile's cap counters are not progress — lib/tileCaps).
         .where(and(eq(submissions.teamId, callerTeamId), inArray(submissions.tileId, tileIds), primaryCredit()))
         .groupBy(submissions.tileId, submissions.creditPlayerId),
       db
@@ -491,7 +495,13 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
         })),
         requiredAmount: t.requiredAmount ?? 1,
         requirement: tileRequirement(t),
-        howItCounts: tileHowItCounts(t),
+        // A combo says its rule over its parts ("Done when the team does any one of: …").
+        howItCounts: isComboTile(t)
+          ? comboSentence(parseComboRule(t.comboRule), (partsOf.get(t.id) ?? []).map((p) => p.label), isIndividualMode(t.trackingMode))
+          : tileHowItCounts(t),
+        ...(isComboTile(t)
+          ? { comboRule: parseComboRule(t.comboRule).mode, parts: (partsOf.get(t.id) ?? []).map((p) => ({ tileId: p.id, label: p.label })) }
+          : {}),
         ...(itemRequirements
           ? { groupMode: t.groupMode === 'all' ? 'all' : 'any', setsRequired: parseSetsRequired(t.setsRequired) }
           : {}),

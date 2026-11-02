@@ -4,6 +4,7 @@ import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
 import { events, tiles } from '@/db/schema';
+import { eventBoardTiles } from '@/lib/comboSql';
 import { eq } from 'drizzle-orm';
 import { verifyTileEditorForEvent } from '@/lib/auth';
 import { analyzeEffort } from '@/lib/balanceEffort';
@@ -47,7 +48,7 @@ export async function POST(
 
   const event = await db.query.events.findFirst({ where: eq(events.id, eId) });
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
-  const eventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, eId) });
+  const eventTiles = await db.query.tiles.findMany({ where: eventBoardTiles(eId) });
   const [stored, storedRaid] = await Promise.all([
     getSetting(clan.id, BALANCE_RATES_SETTING_KEY),
     getSetting(clan.id, RAID_LUCK_SETTING_KEY),

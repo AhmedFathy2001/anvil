@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { clans, completions, eventHourSnapshots, eventParticipants, events, moments, submissions, teams, tiles } from '@/db/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { boardCompletion } from '@/lib/comboSql';
+import { and, eq, inArray } from 'drizzle-orm';
 import { scoreTeams } from '@/lib/boardScoring';
 import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { effectiveStatsForPlayers } from '@/lib/liveStats';
@@ -190,7 +191,9 @@ export async function getEventStats(
   const tileIds = eventTiles.map((t) => t.id);
   const [allCompletions, allSubmissions] = tileIds.length
     ? await Promise.all([
-        db.select().from(completions).where(inArray(completions.tileId, tileIds)),
+        // Board cells' completions only: a combo part finishing (lib/combo) is progress, not a tile done.
+        // Part submissions stay — their work folds into the combo's split (lib/memberBreakdown).
+        db.select().from(completions).where(and(inArray(completions.tileId, tileIds), boardCompletion())),
         db
           .select({
             tileId: submissions.tileId,
@@ -265,7 +268,7 @@ export async function getEventStats(
   const tileTypeOf = new Map(eventTiles.map((t) => [t.id, t.tileType]));
   const winMoments = eventMoments.filter((m) => inWin(m.occurredAt));
   const winCompletions = allCompletions.filter((c) => inWin(c.completedAt));
-  // Turn-ins are the tile's own credits — an either/or alternative's pings (lib/altGoal) are not.
+  // Turn-ins are the tile's own credits — a cap counter's pings (lib/tileCaps) are not.
   const winSubs = allSubmissions.filter((s) => s.goal == null && inWin(s.createdAt));
 
   const members: MemberStats[] = eventPlayers.map((p) => {

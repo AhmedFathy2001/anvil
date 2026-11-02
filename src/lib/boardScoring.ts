@@ -30,6 +30,8 @@ export interface ScoringTile {
   points?: number | null;
   optional?: number | boolean | null;
   mission?: number | boolean | null;
+  /** Combo parts (lib/combo) never score on their own — their parent does. */
+  parentTileId?: number | null;
   revealAt?: string | null;
   revealedAt?: string | null;
   closedAt?: string | null;
@@ -111,7 +113,7 @@ export function scoreTeams(args: {
   );
   // Missions score whenever they're completed. An unannounced one can't be (the completion gate
   // refuses it), so there's nothing to filter here beyond the mission flag itself.
-  const missions = tiles.filter(isMissionTile);
+  const missions = tiles.filter((t) => isMissionTile(t) && t.parentTileId == null);
 
   const boardWeight = new Map(scoredBoard.map((t) => [t.id, tileWeight(scoringMode, t.points)]));
   const missionWeight = new Map(missions.map((t) => [t.id, tileWeight(scoringMode, t.points)]));

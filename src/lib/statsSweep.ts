@@ -12,6 +12,7 @@ import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
 import { creditStatTilesForTeam } from '@/lib/statTileCredit';
+import { afterPartCompletion, afterPartProgress } from '@/lib/comboCompletion';
 import { computeGain, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot, needsBaselineRecapture, baselineWithOverlay, completePartialBaseline, isPartialBaselineJson } from '@/lib/statTracking';
 import { eligibleSinceReveal, gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
 import { parseStatKeyTimes } from '@/lib/liveStats';
@@ -716,6 +717,7 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
 
 
   // ── Phase 3: evaluate bingo completions in-memory (single-threaded — safe shared-state mutation) ─
+  const movedParts = new Map<string, { tile: (typeof tiles.$inferSelect); teamId: number }>();
   for (const f of fetchedBingo) {
     const ctx = f.ctx;
     if (!ctx.hasStatTiles || !f.player.teamId) continue;
@@ -739,6 +741,8 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
       const meetsGoal = ms ? ms.reached && eligibleSinceReveal(reveal, f.player.id, tile.statGoal!) : gained >= tile.statGoal!;
 
       if (milestone || isIndividualMode(tile.trackingMode)) {
+        // A part of a 'mix' combo (lib/combo) moves its combo's share even short of its own goal.
+        if (!meetsGoal && tile.parentTileId != null && gained > 0) movedParts.set(`${f.player.teamId}-${tile.parentTileId}`, { tile, teamId: f.player.teamId });
         if (meetsGoal) {
           // Event-rules gate: unrevealed/claimed tiles and lockout losses never auto-credit from
           // the sweep; the gain keeps accruing and credits if/when the tile opens up.
@@ -766,7 +770,11 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
             if (gate.bounty) handleBountyClaim(ctx.event.id, tile.id).catch(() => {});
             const team = ctx.teamMap.get(f.player.teamId);
             ctx.result.tilesCompleted.push({ tileLabel: tile.label, teamName: team?.name || 'Unknown', playerName: f.player.name });
-            if (team) {
+            if (tile.parentTileId != null) {
+              // A combo PART (lib/combo): progress only — its combo is recomputed and announced instead.
+              const combo = await afterPartCompletion(tile, f.player.teamId, { change: 'added', finisher: f.player.name });
+              if (combo?.inserted) ctx.completionSet.add(`${f.player.teamId}-${tile.parentTileId}`);
+            } else if (team) {
               notifyTileCompletion({
                 clanId: ctx.event.clanId,
                 eventName: ctx.event.name,
@@ -789,6 +797,8 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
       }
     }
   }
+
+  for (const { tile, teamId } of movedParts.values()) await afterPartProgress(tile, teamId);
 
   // Team-mode completions + blackout win, from the accumulated gains.
   for (const ctx of ctxList) {
@@ -813,8 +823,8 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
         });
       }
 
-      // Blackout: a team completing ALL required (non-optional) tiles.
-      const requiredTileIds = new Set(ctx.eventTiles.filter((t) => !t.optional).map((t) => t.id));
+      // Blackout: a team completing ALL required (non-optional) BOARD tiles — combo parts aren't cells.
+      const requiredTileIds = new Set(ctx.eventTiles.filter((t) => !t.optional && t.parentTileId == null).map((t) => t.id));
       const totalRequiredTiles = requiredTileIds.size;
       for (const team of ctx.teams) {
         const teamCompletionCount = Array.from(ctx.completionSet).filter((key) => {

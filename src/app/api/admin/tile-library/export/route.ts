@@ -4,6 +4,7 @@ import { requireClan } from '@/lib/clanContext';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { tiles } from '@/db/schema';
+import { nestParts } from '@/lib/combo';
 import { verifyTileEditorAnywhere } from '@/lib/auth';
 import { listLibrary } from '@/lib/tileLibrary';
 import { tileToCsvRow, type TileCsvRow } from '@/lib/csvTiles';
@@ -52,7 +53,8 @@ export async function GET(request: Request) {
     if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
     const rows = await db.select().from(tiles).where(eq(tiles.eventId, eventId)).orderBy(tiles.position);
-    tasks = rows
+    // Combos carry their parts inside their own config (lib/combo); parts are never tasks of their own.
+    tasks = nestParts(rows)
       .filter((t) => t.label && !/^Tile \d+$/.test(t.label)) // skip untouched placeholders
       .map((t) => ({
         key: seedKeyFor(t.label, t.tileType),

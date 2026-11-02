@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
 import { events, tiles } from '@/db/schema';
+import { withoutParts } from '@/lib/combo';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
@@ -94,7 +95,7 @@ export default async function EventSettingsPage({
         <ClanLink href={`/admin/events/${id}/discord`} className="text-gold hover:underline">Discord tab</ClanLink>.
       </p>
 
-      <SettingsClient event={event} tiles={eventTiles} canManageEditors={isAdmin} />
+      <SettingsClient event={event} tiles={withoutParts(eventTiles)} canManageEditors={isAdmin} />
       {isAdmin && (
         <BoardLibraryPanel
           eventId={event.id}

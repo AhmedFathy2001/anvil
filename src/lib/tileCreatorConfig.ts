@@ -11,7 +11,8 @@ import { TRIAL_COURSES, TRIAL_COURSE_LEVELS, TRIAL_RANKS, TRIAL_RANK_ACTIVITIES 
 import { chooseKillSource, hiscoresKeyForMonster, hiscoresKeyLabel, type KillSource } from '@/lib/killSource';
 import { howTileCounts, tileKindKey, type TileKindKey, type TileKindLike } from '@/lib/tileKinds';
 import type { TileCsvRow } from '@/lib/csvTiles';
-import type { TileConfig } from '@/lib/types';
+import type { ComboPartConfig, TileConfig } from '@/lib/types';
+import { COMBO_TILE_TYPE, type ComboRule } from '@/lib/combo';
 
 // ─── Raids ───────────────────────────────────────────────────────────────────────────────────
 
@@ -345,6 +346,12 @@ export type CountEngine = 'hiscores' | 'plugin' | 'screenshot';
  * board, so it names what the plugin actually reads.
  */
 export function howItCountsLine(config: Partial<TileConfig>): { engine: CountEngine; text: string } {
+  // A COMBO (lib/combo) counts nothing itself: each part counts its own way.
+  if (config.tileType === COMBO_TILE_TYPE) {
+    const engines = new Set((config.parts ?? []).map((p) => howItCountsLine(p).engine));
+    const engine: CountEngine = engines.has('plugin') ? 'plugin' : engines.has('hiscores') ? 'hiscores' : 'screenshot';
+    return { engine, text: 'Each part counts the way it would as its own tile; the tile is done when the rule is met.' };
+  }
   const kind = configKind(config);
   const base = howTileCounts(kind, false);
   if (!base.auto) return { engine: 'screenshot', text: 'Needs a screenshot: staff approve each one.' };
@@ -429,9 +436,11 @@ export const KIND_FIELDS_NULL = {
   minRaidLevel: null,
   partyTeamOnly: null,
   pvpMinLootValue: null,
-  // Either/or tiles (lib/altGoal): the other way to finish. Cleared like any kind field, so a draft
-  // that drops its "or …" half saves without it.
-  altGoal: null,
+  // A counter's per-member caps (lib/tileCaps) and a combo's rule + parts (lib/combo). Cleared like
+  // any kind field, so a draft that drops a combo down to one tile saves without them.
+  capBy: null,
+  comboRule: null,
+  parts: null,
 } as const;
 
 /** Kinds where "as a team" vs "one player alone" means something (the full editor shows the toggle). */
@@ -448,10 +457,34 @@ export function supportsTrackingMode(config: Partial<TileConfig>): boolean {
 export function draftKindFields(config: Partial<TileConfig>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...KIND_FIELDS_NULL };
   for (const [k, v] of Object.entries(config)) if (k in KIND_FIELDS_NULL && v !== undefined) out[k] = v;
+  // A COMBO (lib/combo): each part is an ordinary tile's kind fields plus its label and who it
+  // counts for — the shape the tiles PUT takes as `parts`. Anything else carries no parts.
+  if (out.tileType === COMBO_TILE_TYPE && Array.isArray(config.parts)) {
+    out.parts = config.parts.map((p) => comboPartFields(p));
+  } else {
+    out.parts = null;
+    out.comboRule = null;
+  }
   if (out.tileType === 'timed' && typeof out.requiredAmount === 'number' && out.requiredAmount <= 1) out.requiredAmount = null;
   // A collection carries per-item counts; the API derives its total.
   if (Array.isArray(out.itemRequirements) && out.itemRequirements.length > 0) out.requiredAmount = null;
   return out;
+}
+
+/** One combo part as the tile API takes it: its label, who it counts for, and its kind fields. */
+export function comboPartFields(part: ComboPartConfig): Record<string, unknown> {
+  const { id, label, trackingMode, comboWeight, ...config } = part;
+  const kind = draftKindFields({ ...config, parts: null });
+  delete kind.parts;
+  delete kind.comboRule;
+  return {
+    ...(id != null ? { id } : {}),
+    label: label.trim() || 'Part',
+    ...kind,
+    // A part's share in a 'mix' combo (lib/combo); absent = 1.
+    ...(comboWeight != null ? { comboWeight } : {}),
+    trackingMode: supportsTrackingMode(config) && trackingMode === 'individual' ? 'individual' : 'team',
+  };
 }
 
 /** The PUT body the tile API takes for this draft — the same shape the full editor sends. */
@@ -503,8 +536,18 @@ export function draftToCsvRow(draft: TileDraft): TileCsvRow {
     timeThresholdSeconds: c.timeThresholdSeconds ?? null,
     countMode: c.countMode ?? null,
     perKillCap: c.perKillCap ?? null,
-    ...(c.altGoal ? { altGoal: c.altGoal } : {}),
+    ...(c.capBy && (c.capBy as string[]).length > 0 ? { capBy: c.capBy as string[] } : {}),
   };
+  // A COMBO row (lib/combo): the rule, and each part as a row of its own (the importer's shape).
+  if (c.tileType === COMBO_TILE_TYPE && Array.isArray(draft.config.parts)) {
+    row.comboRule = (c.comboRule as ComboRule | null) ?? { mode: 'any' };
+    row.parts = draft.config.parts.map((p) => {
+      const { id: _id, label, trackingMode: _tm, comboWeight, ...config } = p;
+      const partRow = draftToCsvRow({ label, config, points: null, trackingMode: 'team' });
+      return comboWeight != null ? { ...partRow, comboWeight } : partRow;
+    });
+    return row;
+  }
   const reqs = draft.config.itemRequirements;
   if (reqs && reqs.length > 0) {
     row.items = reqs.map((r) => ({ name: r.name, id: r.itemId, count: r.requiredAmount }));

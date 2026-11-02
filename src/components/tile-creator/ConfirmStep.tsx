@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import { applyAmount, killCandidate, titleAt, type TaskCandidate } from '@/lib/taskMatch';
 import KillPicksField from './KillPicksField';
-import AltGoalField from '@/components/AltGoalField';
-import { altGoalEligible, altTitleSuffix, eitherOrSentence, type AltGoal } from '@/lib/altGoal';
+import { comboCandidate } from '@/lib/taskMatch';
+import { comboLabel, comboSentence, type ComboRule } from '@/lib/combo';
 import {
   draftKindFields,
   howItCountsLine,
@@ -38,27 +38,7 @@ function clockSeconds(v: string): number | null {
   return parts[0] * 3600 + parts[1] * 60 + parts[2];
 }
 
-/**
- * One sentence, done: "Players must <verb> [N] <thing>", who it counts for, how it counts, what it's
- * worth, and how it shows on the board. Everything else lives behind "More options", which opens
- * the full editor with all of this already filled in.
- */
-export default function ConfirmStep({
-  candidate: original,
-  pointsMode,
-  tierBands,
-  teamPlay,
-  eventId,
-  tileId,
-  initialPoints,
-  saving,
-  error,
-  detached = false,
-  canAddAnother = true,
-  onBack,
-  onMoreOptions,
-  onSubmit,
-}: {
+type ConfirmProps = {
   candidate: TaskCandidate;
   pointsMode: boolean;
   tierBands: TierBand[];
@@ -74,7 +54,34 @@ export default function ConfirmStep({
   onBack: () => void;
   onMoreOptions?: (draft: TileDraft) => void;
   onSubmit: (draft: TileDraft, another: boolean) => void;
-}) {
+};
+
+/**
+ * One sentence, done: "Players must <verb> [N] <thing>", who it counts for, how it counts, what it's
+ * worth, and how it shows on the board. Everything else lives behind "More options", which opens
+ * the full editor with all of this already filled in. A COMBO (lib/combo) gets its own short screen.
+ */
+export default function ConfirmStep(props: ConfirmProps) {
+  if (props.candidate.source === 'combo' && props.candidate.comboParts?.length) return <ComboConfirm {...props} />;
+  return <SingleConfirm {...props} />;
+}
+
+function SingleConfirm({
+  candidate: original,
+  pointsMode,
+  tierBands,
+  teamPlay,
+  eventId,
+  tileId,
+  initialPoints,
+  saving,
+  error,
+  detached = false,
+  canAddAnother = true,
+  onBack,
+  onMoreOptions,
+  onSubmit,
+}: ConfirmProps) {
   const bands = useMemo(() => [...tierBands].sort((a, b) => a.min - b.min), [tierBands]);
   const [amount, setAmount] = useState<number | null>(original.amount);
   const [label, setLabel] = useState<string | null>(null);
@@ -92,20 +99,11 @@ export default function ConfirmStep({
 
   const isTimedCap = candidate.config.tileType === 'timed' && candidate.source !== 'trial';
   const current = applyAmount(candidate, amount);
-  // Either/or (lib/altGoal): "… or 100 searches". Editable here; removing it drops it from the title too.
-  const [altGoal, setAltGoal] = useState<AltGoal | null>(original.config.altGoal ?? null);
-  const altAllowed = altGoalEligible({ tileType: current.config.tileType, trackedStat: current.config.trackedStat });
-  const effectiveAlt = altAllowed ? altGoal : null;
   const config = useMemo(
-    () => ({
-      ...(isTimedCap ? { ...current.config, timeThresholdSeconds: clockSeconds(capText) } : current.config),
-      altGoal: effectiveAlt,
-    }),
-    [current.config, isTimedCap, capText, effectiveAlt],
+    () => (isTimedCap ? { ...current.config, timeThresholdSeconds: clockSeconds(capText) } : current.config),
+    [current.config, isTimedCap, capText],
   );
-  const matchedSuffix = altTitleSuffix(original.config.altGoal);
-  const plainTitle = titleAt(candidate, amount);
-  const autoLabel = (matchedSuffix && plainTitle.endsWith(matchedSuffix) ? plainTitle.slice(0, -matchedSuffix.length) : plainTitle) + altTitleSuffix(effectiveAlt);
+  const autoLabel = titleAt(candidate, amount);
   const effectiveLabel = (label ?? autoLabel).trim() || autoLabel;
   const how = howItCountsLine(config);
   const showTracking = teamPlay && supportsTrackingMode(config);
@@ -146,7 +144,8 @@ export default function ConfirmStep({
   const draft: TileDraft = {
     label: effectiveLabel,
     config,
-    points: pointsMode ? points ?? suggestion?.suggestedPoints ?? 1 : initialPoints ?? 1,
+    // A tiles-scored board still keeps points typed with the task (they score nothing there).
+    points: pointsMode ? points ?? suggestion?.suggestedPoints ?? 1 : points ?? initialPoints ?? 1,
     trackingMode: showTracking ? trackingMode : 'team',
     category: candidate.tileCategory ?? null,
   };
@@ -186,16 +185,6 @@ export default function ConfirmStep({
         </button>
       </div>
       {killable && <KillPicksField picks={picks} onChange={setPicks} />}
-      {effectiveAlt && (
-        <p className="text-sm text-foreground/85 mb-3" data-testid="either-or-sentence">
-          {eitherOrSentence({ verb: candidate.verb, noun: candidate.noun, amount: candidate.amountField ? amount : null }, effectiveAlt, trackingMode === 'individual' && supportsTrackingMode(config))}
-        </p>
-      )}
-      {altAllowed && (
-        <div className="mb-3">
-          <AltGoalField value={altGoal} onChange={setAltGoal} />
-        </div>
-      )}
       {isTimedCap && (
         <div className="flex flex-wrap items-center gap-2 text-sm mb-3">
           <label htmlFor="cap" className="text-text-muted">In under</label>
@@ -224,6 +213,13 @@ export default function ConfirmStep({
         <CountsBanner engine={how.engine} text={how.text} />
       </div>
 
+      {!pointsMode && original.points != null && (
+        <div className="mb-5 flex flex-wrap items-center gap-2 text-sm">
+          <label htmlFor="pts-quiet" className="text-text-muted">Points</label>
+          <AmountField id="pts-quiet" value={points} onChange={setPoints} label="Points" />
+          <span className="text-xs text-text-muted">Saved with the tile; points only matter on a points-scoring board.</span>
+        </div>
+      )}
       {pointsMode && (
         <div className="mb-5">
           <Eyebrow>Worth</Eyebrow>
@@ -302,6 +298,189 @@ export default function ConfirmStep({
           className="w-full min-h-11 mb-5 text-left text-sm text-text-muted hover:text-foreground border-t border-card-border pt-3"
         >
           More options: description, categories, tile kind, start-of-event rules →
+        </button>
+      )}
+
+      {error && <p role="alert" className="mb-3 text-sm text-red-300">{error}</p>}
+      <div className="flex flex-wrap justify-end gap-2">
+        {detached ? (
+          <PrimaryButton onClick={() => onSubmit(draft, false)}>Use this</PrimaryButton>
+        ) : (
+          <>
+            {canAddAnother && (
+              <SecondaryButton onClick={() => onSubmit(draft, true)} disabled={saving}>
+                Add &amp; another
+              </SecondaryButton>
+            )}
+            <PrimaryButton onClick={() => onSubmit(draft, false)} disabled={saving}>
+              {saving ? 'Adding…' : 'Add tile'}
+            </PrimaryButton>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A COMBO (lib/combo): the rule, each part with its own amount, and "drop this part". Dropping down to
+ * one part turns it back into that part's own tile, on the ordinary confirm screen.
+ */
+function ComboConfirm(props: ConfirmProps) {
+  const { candidate: original, pointsMode, initialPoints, saving, error, detached = false, canAddAnother = true, onBack, onMoreOptions, onSubmit } = props;
+  const [parts, setParts] = useState<TaskCandidate[]>(original.comboParts ?? []);
+  // Mix only: each part's share (blank = 1), by position in `parts`.
+  const [weights, setWeights] = useState<(number | null)[]>(() => (original.config.parts ?? []).map((p) => p.comboWeight ?? null));
+  const initialRule = (original.config.comboRule as ComboRule | null | undefined) ?? { mode: 'any' };
+  const [mode, setMode] = useState<ComboRule['mode']>(initialRule.mode);
+  const [n, setN] = useState<number | null>(initialRule.n ?? 2);
+  const [label, setLabel] = useState<string | null>(null);
+  const [points, setPoints] = useState<number | null>(original.points ?? (pointsMode ? null : initialPoints ?? 1));
+
+  if (parts.length === 1) {
+    return <SingleConfirm {...props} candidate={{ ...parts[0], confident: true }} />;
+  }
+  const nClamped = Math.max(1, Math.min(n ?? 1, parts.length));
+  const rule: ComboRule = mode === 'nOf'
+    ? nClamped >= parts.length ? { mode: 'all' } : nClamped === 1 ? { mode: 'any' } : { mode: 'nOf', n: nClamped }
+    : { mode };
+  const base = comboCandidate(rule, parts);
+  const weightOk = (w: number | null | undefined) => w != null && w > 0 && w <= 1;
+  const combo = rule.mode === 'mix'
+    ? {
+        ...base,
+        config: {
+          ...base.config,
+          parts: (base.config.parts ?? []).map((p, i) => (weightOk(weights[i]) ? { ...p, comboWeight: weights[i] } : p)),
+        },
+      }
+    : base;
+  const autoLabel = comboLabel(rule, parts.map((p) => p.title));
+  const effectiveLabel = (label ?? autoLabel).trim() || autoLabel;
+  const how = howItCountsLine(combo.config);
+  const draft: TileDraft = {
+    label: effectiveLabel,
+    config: combo.config,
+    points: pointsMode ? points ?? 1 : points ?? initialPoints ?? 1,
+    trackingMode: 'team',
+    category: original.tileCategory ?? null,
+  };
+  const setPartAmount = (i: number, v: number | null) =>
+    setParts((prev) => prev.map((p, j) => (j === i ? applyAmount(p, v) : p)));
+
+  return (
+    <div>
+      <StepHeader title={detached ? 'Edit this line' : 'Check and add'} onBack={onBack} />
+      <p className="text-sm text-foreground/85 mb-3" data-testid="combo-sentence">
+        {comboSentence(rule, parts.map((p) => p.title))}
+      </p>
+
+      <Eyebrow>Done when the team does</Eyebrow>
+      <div role="group" aria-label="Combo rule" className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+        <ChoiceButton pressed={rule.mode === 'any'} onClick={() => setMode('any')} title="Any one part finishes the tile.">
+          Any one
+        </ChoiceButton>
+        <ChoiceButton pressed={rule.mode === 'all'} onClick={() => setMode('all')} title="Every part has to be done.">
+          All of them
+        </ChoiceButton>
+        <ChoiceButton pressed={rule.mode === 'nOf'} onClick={() => { setMode('nOf'); if (n == null || n < 2) setN(2); }} title="At least this many of the parts.">
+          At least N
+        </ChoiceButton>
+        <ChoiceButton pressed={rule.mode === 'mix'} onClick={() => setMode('mix')} title="Mix and match — any combination adding up to 100%: each part adds its share.">
+          Mix and match
+        </ChoiceButton>
+      </div>
+      {mode === 'mix' && (
+        <p className="text-xs text-text-muted mb-3">
+          Any combination adding up to 100%: each part adds its share of its own goal. A weight under 1 makes a part count for less (blank = 1).
+        </p>
+      )}
+      {mode === 'nOf' && (
+        <div className="flex items-center gap-2 text-sm mb-3">
+          <span className="text-text-muted">At least</span>
+          <AmountField value={n} onChange={setN} label="How many parts" />
+          <span className="text-text-muted">of {parts.length}</span>
+        </div>
+      )}
+
+      <Eyebrow>Parts</Eyebrow>
+      <ul className="mb-4 space-y-2">
+        {parts.map((p, i) => (
+          <li key={`${p.key}-${i}`} className="flex flex-wrap items-center gap-2 rounded-lg border border-card-border bg-card-bg p-2">
+            <span className="text-xs px-1.5 py-0.5 rounded bg-brown-dark text-text-muted">{p.badge}</span>
+            <span className="text-sm">{p.verb}</span>
+            {p.amountField && <AmountField value={p.amount} onChange={(v) => setPartAmount(i, v)} label={`Amount for ${p.noun}`} />}
+            <span className="text-sm font-medium min-w-0 break-words flex-1">{p.noun}</span>
+            {mode === 'mix' && (
+              <label className="flex items-center gap-1 text-xs text-text-muted">
+                Weight
+                <input
+                  type="number"
+                  min={0.01}
+                  max={1}
+                  step={0.05}
+                  inputMode="decimal"
+                  aria-label={`Weight for ${p.noun}`}
+                  value={weights[i] ?? ''}
+                  placeholder="1"
+                  onChange={(e) => {
+                    const v = e.target.value === '' ? null : Number(e.target.value);
+                    setWeights((prev) => parts.map((_, j) => (j === i ? (v != null && Number.isFinite(v) ? v : null) : prev[j] ?? null)));
+                  }}
+                  className="w-16 min-h-11 px-1.5 rounded bg-brown-dark border border-card-border text-right focus:outline-none focus:border-gold"
+                />
+              </label>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setParts((prev) => prev.filter((_, j) => j !== i));
+                setWeights((prev) => prev.filter((_, j) => j !== i));
+              }}
+              className="min-h-11 px-3 text-sm text-text-muted hover:text-red-300"
+              title="Drop this part"
+            >
+              Remove
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mb-5">
+        <CountsBanner engine={how.engine} text={how.text} />
+      </div>
+
+      {!pointsMode && original.points != null && (
+        <div className="mb-5 flex flex-wrap items-center gap-2 text-sm">
+          <label htmlFor="combo-pts-quiet" className="text-text-muted">Points</label>
+          <AmountField id="combo-pts-quiet" value={points} onChange={setPoints} label="Points" />
+          <span className="text-xs text-text-muted">Saved with the tile; points only matter on a points-scoring board.</span>
+        </div>
+      )}
+      {pointsMode && (
+        <div className="mb-5 flex flex-wrap items-center gap-2 text-sm">
+          <label htmlFor="combo-pts" className="text-text-muted">Points</label>
+          <AmountField id="combo-pts" value={points} onChange={setPoints} label="Points" />
+        </div>
+      )}
+
+      <div className="mb-5">
+        <Eyebrow>Shows on the board as</Eyebrow>
+        <input
+          aria-label="Tile name"
+          value={label ?? autoLabel}
+          onChange={(e) => setLabel(e.target.value)}
+          className="w-full min-h-11 px-3 rounded-lg bg-brown-dark border border-card-border text-sm font-semibold focus:outline-none focus:border-gold"
+        />
+      </div>
+
+      {onMoreOptions && !detached && (
+        <button
+          type="button"
+          onClick={() => onMoreOptions(draft)}
+          className="w-full min-h-11 mb-5 text-left text-sm text-text-muted hover:text-foreground border-t border-card-border pt-3"
+        >
+          More options: description, categories, each part in full →
         </button>
       )}
 

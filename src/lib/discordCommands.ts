@@ -22,7 +22,8 @@ import { getSetting } from '@/lib/settings';
 import { COMMANDS_OFF_KEY, parseCommandsOff } from '@/lib/discordCommandToggles';
 import { db } from '@/db';
 import { events, teams, tiles, completions, clanRoster, eventSignups, eventParticipants } from '@/db/schema';
-import { and, desc, eq, inArray, or } from 'drizzle-orm';
+import { eventBoardTiles } from '@/lib/comboSql';
+import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { getTeamStandings, type TeamStanding } from '@/lib/statStandings';
 import { clanMarkUrl } from '@/lib/clanMarkUrl';
 import {
@@ -194,7 +195,8 @@ async function boardEmbed(
         closedAt: tiles.closedAt,
       })
       .from(tiles)
-      .where(eq(tiles.eventId, event.id)),
+      // Board cells only (combo parts — lib/combo — aren't tiles).
+      .where(eventBoardTiles(event.id)),
   ]);
 
   // Count what a MEMBER can see, matching the denominator the standings percentages use: never the
@@ -401,7 +403,7 @@ async function meEmbed(
       .select({ tileId: completions.tileId, label: tiles.label, at: completions.completedAt })
       .from(completions)
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
-      .where(and(eq(tiles.eventId, event.id), inArray(completions.creditPlayerId, playerIds)))
+      .where(and(eventBoardTiles(event.id), inArray(completions.creditPlayerId, playerIds)))
       .orderBy(desc(completions.completedAt)),
     getTeamStandings(event.id, event.scoringMode),
   ]);
@@ -511,7 +513,7 @@ async function teamEmbed(
       .select({ label: tiles.label, at: completions.completedAt })
       .from(completions)
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
-      .where(eq(completions.teamId, team.id))
+      .where(and(eq(completions.teamId, team.id), isNull(tiles.parentTileId)))
       .orderBy(desc(completions.completedAt))
       .limit(5),
   ]);
@@ -679,7 +681,7 @@ async function nextEmbed(
     db
       .select({ id: tiles.id, mission: tiles.mission, revealAt: tiles.revealAt, revealedAt: tiles.revealedAt, closedAt: tiles.closedAt })
       .from(tiles)
-      .where(eq(tiles.eventId, event.id)),
+      .where(eventBoardTiles(event.id)),
   ]);
   const rules = parseEventRules(row?.rules);
 

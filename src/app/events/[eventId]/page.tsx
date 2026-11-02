@@ -15,6 +15,7 @@ import { eventInClan, requireEventForParticipantPage } from '@/lib/eventScope';
 import EventApiHost from '@/components/EventApiHost';
 import { eventIconUrl } from '@/lib/eventImage';
 import { accounts, events, tiles, teams, completions, eventSignups, clanRoster, players, submissions, surveyQuestions, surveyResponses, eventStartProofs, eventParticipants, eventCohosts } from '@/db/schema';
+import { nestParts } from '@/lib/combo';
 import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import ScoreboardClient from './ScoreboardClient';
@@ -130,14 +131,17 @@ export default async function EventScoreboardPage({
   });
   if (!event) notFound();
 
-  const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, id));
+  // Every row (combo parts included — their completions and submissions are the combo's progress),
+  // and the BOARD: cells only, each combo carrying its `parts` (lib/combo nestParts).
+  const allTileRows = await db.select().from(tiles).where(eq(tiles.eventId, id));
+  const eventTiles = nestParts(allTileRows);
   // The board's rules (mechanics + the host's rulebook) — the same words every clan's Discord gets.
   const rulesFacts = await loadRulesFacts(id).catch(() => null);
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
   // The HOST's bands — the tiles were authored against them, whichever clan's address this is.
   const tierBands = await getTierBands(event.clanId);
 
-  const tileIds = eventTiles.map((t) => t.id);
+  const tileIds = allTileRows.map((t) => t.id);
   let eventCompletions: {
     id: number;
     teamId: number;
@@ -319,7 +323,7 @@ export default async function EventScoreboardPage({
   let pluginQuiet = false;
   const startedAt = event.startDate ? Date.parse(event.startDate) : NaN;
   // Only on boards with plugin-counted tiles: a skills-and-bosses board counts off the hiscores.
-  const boardNeedsPlugin = eventTiles.some(
+  const boardNeedsPlugin = allTileRows.some(
     (t) => !isManualTile(t) && !['standard', 'skill', 'boss'].includes(tileKindKey(t)),
   );
   if (boardNeedsPlugin && myPlayerIds.length > 0 && startedAt <= Date.now() && !isEventEnded(event)) {

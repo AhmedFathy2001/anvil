@@ -26,6 +26,8 @@ import { isManualTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { clanFetch } from '@/lib/clanFetch';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
+import { comboSentence, comboWeightOf, isComboTile, parseComboRule } from '@/lib/combo';
+import { partProgressText, type ComboView } from '@/lib/comboProgress';
 
 // mm:ss / h:mm:ss / bare-seconds → seconds. Returns null for unparseable input.
 function clockToSeconds(value: string): number | null {
@@ -100,7 +102,9 @@ interface Props {
   onClose: () => void;
   eventId: number;
   teamId?: number;
-  dropProgress?: { current: number; required: number; alt?: { current: number; required: number; note: string } };
+  dropProgress?: { current: number; required: number; text?: string; note?: string; combo?: ComboView };
+  /** A COMBO on a many-team view (lib/combo): which teams finished each part, by part id. */
+  partCompletedBy?: Record<number, { teamName: string; color: string }[]>;
   perItemProgress?: ItemRequirementProgress[];
   teamPlayers?: TeamPlayer[];
   currentPlayerId?: number;
@@ -132,6 +136,7 @@ export default function TileDetailModal({
   eventId,
   teamId,
   dropProgress,
+  partCompletedBy,
   perItemProgress,
   teamPlayers,
   currentPlayerId,
@@ -705,6 +710,75 @@ export default function TileDetailModal({
             </div>
           )}
 
+          {/* COMBO (lib/combo): the rule, then each part with its own progress — every part is tracked
+              its own way (hiscores, plugin, screenshots), and the combo is done when the rule is met. */}
+          {isComboTile(tile) && (() => {
+            const rule = parseComboRule(tile.comboRule);
+            const parts = tile.parts ?? [];
+            const view = dropProgress?.combo;
+            return (
+              <div className="space-y-2 rounded-lg border border-gold/20 bg-gold/5 p-3">
+                <p className="text-xs font-medium text-gold/90">
+                  {comboSentence(rule, parts.map((p) => p.label), isIndividualMode(tile.trackingMode))}
+                </p>
+                {view && (
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-text-muted">Progress</span>
+                      <span className="font-medium text-accent-green-light">{view.summary}</span>
+                    </div>
+                    <div className="w-full bg-brown-dark rounded-full h-2 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min(100, view.share != null ? view.share * 100 : (view.done / Math.max(1, view.needed)) * 100)}%`,
+                          background: view.complete ? 'linear-gradient(90deg, #22c55e, #4ade80)' : 'linear-gradient(90deg, #eab308cc, #eab308)',
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+                <ul className="space-y-1.5">
+                  {parts.map((p, i) => {
+                    const st = view?.parts.find((x) => x.id === p.id);
+                    const text = st ? partProgressText(st.state) : '';
+                    const teamsDone = partCompletedBy?.[p.id] ?? [];
+                    return (
+                      <li key={p.id} className="rounded border border-card-border/60 bg-card-bg/60 px-2 py-1.5">
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-text-muted w-4 text-right">{i + 1}</span>
+                          <span className={`flex-1 min-w-0 ${st?.state.done ? 'text-accent-green-light' : 'text-foreground'}`}>
+                            {p.label}
+                            {rule.mode === 'mix' && comboWeightOf(p) !== 1 && (
+                              <span className="ml-1 text-[10px] text-text-muted">worth {Math.round(comboWeightOf(p) * 100)}%</span>
+                            )}
+                          </span>
+                          {text && <span className="text-[11px] text-text-muted">{text}</span>}
+                          {/* A manual part (no tracking of its own) is marked done by hand, like a manual tile. */}
+                          {canToggle && onToggle && ((p.tileType === 'standard' && !p.trackedStat) || isManualTile(p)) && (
+                            <button
+                              type="button"
+                              onClick={() => onToggle(p.id)}
+                              className="text-[11px] text-gold hover:underline"
+                            >
+                              {st?.state.done ? 'Undo' : 'Mark done'}
+                            </button>
+                          )}
+                          {teamsDone.map((t) => (
+                            <span key={t.teamName} title={`${t.teamName} did this part`} className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} />
+                          ))}
+                        </div>
+                        <div className="pl-6 pt-1 text-[11px] text-text-muted">
+                          <TileTargets tile={p} />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })()}
+
           {/* Drop / kill tile progress */}
           {isCount && dropProgress && (
             <div>
@@ -719,10 +793,6 @@ export default function TileDetailModal({
                 </span>
                 <span className="font-medium text-accent-green-light">
                   {dropProgress.current}/{dropProgress.required}
-                  {/* Either/or tile (lib/altGoal): the other way to finish, beside the primary count. */}
-                  {dropProgress.alt && (
-                    <span className="ml-1.5 font-normal text-text-muted">{dropProgress.alt.note}</span>
-                  )}
                 </span>
               </div>
               <div className="w-full bg-brown-dark rounded-full h-3 overflow-hidden">
@@ -950,8 +1020,9 @@ export default function TileDetailModal({
             </div>
           )}
 
-          {/* Standard manual toggle (count- and time-based tiles complete via submissions) */}
-          {!isCount && !isTimed && canToggle && onToggle && (
+          {/* Standard manual toggle (count- and time-based tiles complete via submissions; a combo
+              completes from its parts — its manual parts are marked above). */}
+          {!isCount && !isTimed && !isComboTile(tile) && canToggle && onToggle && (
             <button
               onClick={handleToggle}
               disabled={toggling}

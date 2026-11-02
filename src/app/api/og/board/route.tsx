@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { events, tiles } from '@/db/schema';
+import { eventBoardTiles } from '@/lib/comboSql';
 import { boardRevealImage, verifyBoardRevealImageQuery } from '@/lib/boardRevealImage';
 import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 
@@ -19,7 +20,8 @@ export async function GET(request: Request) {
   // lets staff send a private test post before tomorrow's public reveal without mutating the board.
   if (!event) return new Response('Not found', { status: 404 });
 
-  const allTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
+  // Board cells only (combo parts — lib/combo — aren't cells).
+  const allTiles = await db.select().from(tiles).where(eventBoardTiles(event.id));
   // Never let a signed master-board image bypass per-tile staged reveals or hidden missions.
   const shown = visibleTiles(parseEventRules(event.rules), allTiles);
   return boardRevealImage({

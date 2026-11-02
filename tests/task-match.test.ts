@@ -16,10 +16,13 @@ import {
   parseBulkLine,
   parseTaskQuery,
   screenshotCandidate,
-  eitherOrSplits,
+  comboSplits,
+  MAX_COMBO_QUERY,
   type MatchContext,
+  type TaskCandidate,
 } from '../src/lib/taskMatch.ts';
-import { eitherOrSentence, GOTR_ENERGY_CAPS, GOTR_SEARCHES } from '../src/lib/altGoal.ts';
+import { GOTR_ENERGY_CAPS, GOTR_SEARCHES } from '../src/lib/tileCaps.ts';
+import { comboSentence } from '../src/lib/combo.ts';
 import {
   BOSS_FAMILIES,
   RAID_OPTIONS,
@@ -490,40 +493,60 @@ test('monsters: not the cowhide, not a variant, and bosses / counters / raids st
   assert.deepEqual(best('100 gargoyls', monsterCtx).top.config.targetNpcs, ['Gargoyle']);
 });
 
-// ─── Either / or (lib/altGoal) ───────────────────────────────────────────────────────────────
+// ─── Combos (lib/combo) ──────────────────────────────────────────────────────────────────────
 
 // The real collection-log pages, so "a Vorkath unique" is whatever the log lists for Vorkath.
 const clogCtx: MatchContext = { ...ctx, clogPages: clogPages(), itemIsMonsterDrop: isMonsterDrop };
 const pageIds = (name: string) => clogPages().find((p) => p.name === name)!.items.map((i) => i.id);
+const partsOf = (c: TaskCandidate) => c.config.parts ?? [];
 
-test('the clan’s GOTR line is ONE ready tile: the GOTR log page, or 100 searches paid with event energy', () => {
+test('the clan’s GOTR line is ONE ready combo: the GOTR log page, OR 100 searches capped by event energy', () => {
   const { top, verdict } = best('A GOTR rare reward OR 100 searches with event-earned energy', clogCtx);
   assert.equal(verdict.status, 'ready');
-  assert.equal(top.config.tileType, 'drop');
+  assert.equal(top.source, 'combo');
+  assert.equal(top.config.tileType, 'combo');
+  assert.deepEqual(top.config.comboRule, { mode: 'any' });
+  const [drop, searches] = partsOf(top);
   // Whatever the collection log lists on the page is the pool — nothing hand-picked.
-  assert.deepEqual(top.config.trackedItemIds, pageIds('Guardians of the Rift'));
-  assert.equal(top.config.requiredAmount, 1);
-  assert.deepEqual(top.config.altGoal, { targets: [GOTR_SEARCHES], amount: 100, capBy: [...GOTR_ENERGY_CAPS] });
+  assert.equal(drop.tileType, 'drop');
+  assert.deepEqual(drop.trackedItemIds, pageIds('Guardians of the Rift'));
+  assert.equal(drop.requiredAmount, 1);
+  // The searches are their own kill-counter tile, capped per member by the two energy counters.
+  assert.equal(searches.tileType, 'kill');
+  assert.deepEqual(searches.targetNpcs, [GOTR_SEARCHES]);
+  assert.equal(searches.requiredAmount, 100);
+  assert.deepEqual(searches.capBy, [...GOTR_ENERGY_CAPS]);
   assert.equal(top.flow, 'confirm');
-  assert.equal(top.title, 'Any Guardians of the Rift collection log item or 100 searches');
-  assert.equal(
-    eitherOrSentence({ verb: top.verb, noun: top.noun, amount: top.amountField ? top.amount : null }, top.config.altGoal!),
-    'Done when the team gets any Guardians of the Rift collection log item — or does 100 reward searches paid for with energy earned during the event.',
-  );
-  // Saved as-is by both write paths.
+  assert.match(top.title, /^Any Guardians of the Rift collection log item or 100 /);
+  assert.equal(top.hint, comboSentence({ mode: 'any' }, partsOf(top).map((p) => p.label)));
+  assert.match(top.hint, /^Done when the team does any one of: /);
+  // Saved as-is by both write paths: the rule and each part.
   const draft = { label: top.title, config: top.config, points: 5, trackingMode: 'team' as const };
-  assert.deepEqual(draftPayload(draft, 1, null).altGoal, top.config.altGoal);
-  assert.deepEqual(draftToCsvRow(draft).altGoal, top.config.altGoal);
+  const put = draftPayload(draft, 1, null);
+  assert.equal(put.tileType, 'combo');
+  assert.deepEqual(put.comboRule, { mode: 'any' });
+  const putParts = put.parts as Record<string, unknown>[];
+  assert.equal(putParts.length, 2);
+  assert.deepEqual(putParts[1].capBy, [...GOTR_ENERGY_CAPS]);
+  assert.equal(putParts[1].trackedStat, null); // every other kind field cleared, per part
+  assert.equal(putParts[0].label, drop.label);
+  const row = draftToCsvRow(draft);
+  assert.equal(row.tileType, 'combo');
+  assert.deepEqual(row.comboRule, { mode: 'any' });
+  assert.equal(row.parts?.length, 2);
+  assert.deepEqual(row.parts?.[1].capBy, [...GOTR_ENERGY_CAPS]);
+  assert.deepEqual(row.parts?.[0].items?.map((i) => i.id), pageIds('Guardians of the Rift'));
   // The small test page works the same way: its whole list.
-  assert.deepEqual(best('A GOTR rare reward OR 100 searches with event-earned energy').top.config.trackedItemIds, [26813, 26901]);
+  assert.deepEqual(partsOf(best('A GOTR rare reward OR 100 searches with event-earned energy').top)[0].trackedItemIds, [26813, 26901]);
 });
 
-test('either/or: other spellings of the energy cap, and no cap when it isn’t said', () => {
+test('combo: other spellings of the energy cap, and no cap when it isn’t said', () => {
   const long = best('A Guardians of the Rift rare reward OR 100 reward searches using energy earned during the event', clogCtx).top;
-  assert.deepEqual(long.config.altGoal?.capBy, [...GOTR_ENERGY_CAPS]);
-  assert.equal(long.config.altGoal?.amount, 100);
+  assert.deepEqual(partsOf(long)[1].capBy, [...GOTR_ENERGY_CAPS]);
+  assert.equal(partsOf(long)[1].requiredAmount, 100);
   const plain = best('GOTR rare reward or 150 searches', clogCtx).top;
-  assert.deepEqual(plain.config.altGoal, { targets: [GOTR_SEARCHES], amount: 150 });
+  assert.equal(partsOf(plain)[1].requiredAmount, 150);
+  assert.equal(partsOf(plain)[1].capBy, undefined);
   // On its own the drop side still asks (a page is a starting point), offering the whole page.
   for (const line of ['GOTR rare reward', 'a GOTR unique']) {
     const bare = best(line, clogCtx).verdict;
@@ -532,49 +555,186 @@ test('either/or: other spellings of the energy cap, and no cap when it isn’t s
   }
 });
 
-test('either/or is generic: a drop side OR a KC side, hiscores bosses counted by the plugin', () => {
-  const cases: [string, string, string[], number][] = [
-    ['Vorkath unique or 200 Vorkath kc', 'Vorkath', ['Vorkath'], 200],
-    ['Zulrah pet or 500 zulrah kills', 'Zulrah', ['Zulrah'], 500],
-    ['any Barrows item or 100 barrows chests', 'Barrows Chests', ['Barrows'], 100],
-    // Either order reads the same: the drop side is the tile, the count side the alternative.
-    ['200 Vorkath kc or a Vorkath unique', 'Vorkath', ['Vorkath'], 200],
+test('combo is generic: a drop page OR a hiscores KC tile — each part on its own best engine', () => {
+  const cases: [string, string, string, number][] = [
+    ['Vorkath unique or 200 Vorkath kc', 'Vorkath', 'vorkath', 200],
+    ['Zulrah pet or 500 zulrah kills', 'Zulrah', 'zulrah', 500],
+    ['any Barrows item or 100 barrows chests', 'Barrows Chests', 'barrows', 100],
+    // Either order reads the same; the parts keep the order they were written in.
+    ['200 Vorkath kc or a Vorkath unique', 'Vorkath', 'vorkath', 200],
   ];
-  for (const [line, page, targets, amount] of cases) {
+  for (const [line, page, key, amount] of cases) {
     const { top, verdict } = best(line, clogCtx);
     assert.equal(verdict.status, 'ready', line);
-    assert.equal(top.config.tileType, 'drop', line);
-    assert.deepEqual(top.config.trackedItemIds, pageIds(page), line);
-    // An alternative completes through submissions, so the boss is a plugin kill target, not a stat.
-    assert.deepEqual(top.config.altGoal, { targets, amount }, line);
-    assert.equal(top.config.trackedStat, undefined, line);
+    assert.equal(top.config.tileType, 'combo', line);
+    const parts = partsOf(top);
+    const drop = parts.find((p) => p.tileType === 'drop')!;
+    const kc = parts.find((p) => p !== drop)!;
+    assert.deepEqual(drop.trackedItemIds, pageIds(page), line);
+    // The KC side is the normal hiscores boss tile now — no forcing plugin kills.
+    assert.equal(kc.statType, 'boss', line);
+    assert.equal(kc.trackedStat, key, line);
+    assert.equal(kc.statGoal, amount, line);
   }
-  // A raid's alternative carries the raid's kill-count-line names, modes included.
-  const raid = best('Any Zulrah item or 50 cox', clogCtx).top;
-  assert.deepEqual(raid.config.altGoal?.targets, ['Chambers of Xeric', 'Chambers of Xeric Challenge Mode']);
+  const raid = partsOf(best('Any Zulrah item or 50 cox', clogCtx).top);
+  assert.equal(raid.length, 2);
+  assert.equal(raid[1].statType, 'boss');
+  assert.equal(raid[1].statGoal, 50);
 });
 
-test('either/or: kills, items and counters too', () => {
+test('combo: kills, items and counters too', () => {
   const withMonsters: MatchContext = { ...ctx, monsters: ['Cow', 'Chicken', 'Cow calf'] };
   const kills = best('100 cows or 50 chickens', withMonsters);
   assert.equal(kills.verdict.status, 'ready');
-  assert.deepEqual(kills.top.config.targetNpcs, ['Cow']);
-  assert.equal(kills.top.config.requiredAmount, 100);
-  assert.deepEqual(kills.top.config.altGoal, { targets: ['Chicken'], amount: 50 });
+  assert.deepEqual(partsOf(kills.top).map((p) => [p.targetNpcs, p.requiredAmount]), [[['Cow'], 100], [['Chicken'], 50]]);
   assert.equal(kills.top.title, '100 Cow kills or 50 Chicken kills');
 
   const shard = best('Zenyte shard or 25 Hunter rumours');
   assert.equal(shard.verdict.status, 'ready');
-  assert.equal(shard.top.config.tileType, 'drop');
-  assert.deepEqual(shard.top.config.trackedItemIds, [19529]);
-  assert.deepEqual(shard.top.config.altGoal, { targets: ['Hunter Rumours'], amount: 25 });
+  assert.deepEqual(partsOf(shard.top)[0].trackedItemIds, [19529]);
+  assert.deepEqual(partsOf(shard.top)[1].targetNpcs, ['Hunter Rumours']);
+  assert.equal(partsOf(shard.top)[1].requiredAmount, 25);
 });
 
-test('either/or never splits a kills list', () => {
-  // No amount on either side of the "or": one tile counting both.
-  assert.equal(best('gauntlet or cg').top.config.altGoal, undefined);
-  // "25 callisto or artio": the side without an amount is a hiscores KC tile, which can't carry one.
-  assert.equal(best('25 callisto or artio').top.config.altGoal, undefined);
-  assert.equal(best('5 cox tob or tfa').top.config.altGoal, undefined);
-  assert.deepEqual(eitherOrSplits('a or b or 100 c'), [{ left: 'a or b', right: '100 c' }, { left: 'a', right: 'b or 100 c' }]);
+test('an "and" between different tiles is an all-combo; between items it stays one tile', () => {
+  const { top, verdict } = best('a Zulrah pet and 99 Fishing', clogCtx);
+  assert.equal(verdict.status, 'ready');
+  assert.deepEqual(top.config.comboRule, { mode: 'all' });
+  assert.equal(partsOf(top)[0].tileType, 'drop');
+  assert.equal(partsOf(top)[1].statType, 'skill');
+  assert.match(top.hint, /^Done when the team does both of: /);
+  // Items only: a collection's wording ("Ahrim's and Dharok's"), never a combo.
+  const barrows: MatchContext = { ...ctx, items: [...items, { id: 4708, name: "Ahrim's hood" }, { id: 4716, name: "Dharok's helm" }] };
+  assert.notEqual(best("Ahrim's hood and Dharok's helm", barrows).top?.source, 'combo');
+});
+
+test('"2 of: a, b, c, d" and "any 2 of a, b or c" are at-least-N combos', () => {
+  const raidItems: MatchContext = {
+    ...clogCtx,
+    items: [...items, { id: 20997, name: 'Twisted bow' }, { id: 22325, name: 'Scythe of vitur' }, { id: 27275, name: "Tumeken's shadow" }],
+  };
+  const { top, verdict } = best('2 of: Tbow, Scythe, Shadow, a CoX pet', raidItems);
+  assert.equal(verdict.status, 'ready');
+  assert.deepEqual(top.config.comboRule, { mode: 'nOf', n: 2 });
+  assert.equal(partsOf(top).length, 4);
+  assert.deepEqual(partsOf(top).slice(0, 3).map((p) => p.trackedItemIds), [[20997], [22325], [27275]]);
+  assert.match(top.hint, /^Done when the team does any two of: /);
+  const any2 = best('any 2 of tbow, scythe or shadow', raidItems).top;
+  assert.deepEqual(any2.config.comboRule, { mode: 'nOf', n: 2 });
+  assert.equal(partsOf(any2).length, 3);
+  // A collection's wording is not a list.
+  assert.deepEqual(comboSplits('1 of each barrows item'), []);
+});
+
+test('a kills list never becomes a combo', () => {
+  // No amount on a counting part: one tile counting both.
+  assert.notEqual(best('gauntlet or cg').top.source, 'combo');
+  assert.notEqual(best('25 callisto or artio').top.source, 'combo');
+  assert.notEqual(best('5 cox tob or tfa').top.source, 'combo');
+  assert.deepEqual(
+    comboSplits('a or b or 100 c').map((s) => s.parts),
+    [['a', 'b', '100 c'], ['a', 'b or 100 c'], ['a or b', '100 c']],
+  );
+});
+
+test('the combo matcher is bounded: a line of many "or"s returns fast and never splits past six parts', () => {
+  const many = Array.from({ length: 60 }, (_, i) => `${i + 1} zulrah kills`).join(' or ');
+  const t0 = performance.now();
+  const res = matchTasks(many, clogCtx);
+  const ms = performance.now() - t0;
+  assert.ok(ms < 1500, `took ${ms}ms`);
+  assert.ok(res.every((c) => c.source !== 'combo'));
+  // Seven parts is past the cap; six is fine.
+  const seven = Array.from({ length: 7 }, (_, i) => `${i + 1} vorkath kc`).join(' or ');
+  assert.deepEqual(comboSplits(seven), []);
+  assert.equal(comboSplits(Array.from({ length: 6 }, (_, i) => `${i + 1} vorkath kc`).join(' or '))[0].parts.length, 6);
+  assert.deepEqual(comboSplits(`${'x'.repeat(MAX_COMBO_QUERY)} or 5 vorkath kc`), []);
+  // A long line that is all "or"s and no task at all is just as cheap.
+  const junk = Array.from({ length: 400 }, () => 'a').join(' or ');
+  const t1 = performance.now();
+  matchTasks(junk, clogCtx);
+  assert.ok(performance.now() - t1 < 1500);
+});
+
+// ─── Points on the line ──────────────────────────────────────────────────────────────────────
+
+test('"2 zenytes 500 points" → a 2 × Zenyte shard drop tile worth 500 points', () => {
+  const gems: MatchContext = { ...ctx, items: [...items, { id: 19492, name: 'Zenyte' }, { id: 19496, name: 'Uncut zenyte' }] };
+  const { top, verdict } = best('2 zenytes 500 points', gems);
+  assert.equal(verdict.status, 'ready');
+  assert.equal(top.config.tileType, 'drop');
+  assert.deepEqual(top.config.trackedItemIds, [19529]);
+  assert.equal(top.amount, 2); // points never count as the amount
+  assert.equal(top.config.requiredAmount, 2);
+  // The bulk review reads the points off the line; the search box gets them on every candidate.
+  assert.equal(parseBulkLine('2 zenytes 500 points').points, 500);
+  const searched = matchTasks('2 zenytes 500 points', gems)[0];
+  assert.equal(searched.points, 500);
+  assert.equal(searched.amount, 2);
+});
+
+test('every points spelling, at the start or the end; k shorthand', () => {
+  const spellings = [
+    '2 zenytes 500 points', '2 zenytes 500 pts', '2 zenytes 500pts', '2 zenytes 500 pt', '2 zenytes 500p',
+    '2 zenytes (500 points)', '2 zenytes - 500 points', '2 zenytes for 500 points', '2 zenytes points: 500',
+    '500 points: 2 zenytes', '(500 pts) 2 zenytes', '500 points 2 zenytes', 'points: 500 - 2 zenytes',
+  ];
+  for (const line of spellings) assert.deepEqual(parseBulkLine(line), { text: '2 zenytes', points: 500 }, line);
+  assert.deepEqual(parseBulkLine('2 zenytes 1.5k points'), { text: '2 zenytes', points: 1500 });
+  // A counter whose own unit is "points" keeps its number.
+  assert.deepEqual(parseBulkLine('Vale research 250 points'), { text: 'Vale research 250 points', points: null });
+  assert.deepEqual(parseBulkLine('zulrah 500'), { text: 'zulrah 500', points: null });
+});
+
+test('points on a combo belong to the combo, not to a part', () => {
+  const top = matchTasks('Vorkath unique or 200 Vorkath kc - 40 pts', clogCtx)[0];
+  assert.equal(top.source, 'combo');
+  assert.equal(top.points, 40);
+  assert.equal(partsOf(top)[1].statGoal, 200);
+  const put = draftPayload({ label: top.title, config: top.config, points: top.points ?? null, trackingMode: 'team' }, 1, null);
+  assert.equal(put.points, 40);
+  assert.ok((put.parts as Record<string, unknown>[]).every((p) => p.points === undefined));
+  assert.equal(draftToCsvRow({ label: top.title, config: top.config, points: 40, trackingMode: 'team' }).parts?.every((p) => p.points == null), true);
+});
+
+test('item shorthand: zenytes, dwh, tbow, onyxes', () => {
+  const kit: MatchContext = {
+    ...ctx,
+    items: [...items, { id: 13576, name: 'Dragon warhammer' }, { id: 20997, name: 'Twisted bow' }, { id: 6573, name: 'Onyx' }],
+  };
+  assert.deepEqual(best('dwh', kit).top.config.trackedItemIds, [13576]);
+  assert.deepEqual(best('tbow', kit).top.config.trackedItemIds, [20997]);
+  assert.deepEqual(best('3 onyxes', kit).top.config.trackedItemIds, [6573]);
+  assert.deepEqual(best('zenytes', kit).top.config.trackedItemIds, [19529]);
+});
+
+test('"(any mix)", "mix and match", "combined", "any combination" make a weighted mix; plain "or" stays any', () => {
+  const gorillas: MatchContext = { ...ctx, monsters: ['Demonic gorilla'] };
+  for (const line of [
+    '200 demonic gorillas or 2 zenytes (any mix)',
+    '200 demonic gorillas or 2 zenytes - mix and match',
+    '200 demonic gorillas or 2 zenytes combined',
+    '200 demonic gorillas or 2 zenytes in any combination',
+  ]) {
+    const { top, verdict } = best(line, gorillas);
+    assert.equal(verdict.status, 'ready', line);
+    assert.deepEqual(top.config.comboRule, { mode: 'mix' }, line);
+    // The marker is gone before the parts are read.
+    assert.deepEqual(partsOf(top).map((p) => p.requiredAmount), [200, 2], line);
+    assert.deepEqual(partsOf(top)[0].targetNpcs, ['Demonic gorilla'], line);
+    assert.deepEqual(partsOf(top)[1].trackedItemIds, [19529], line);
+    assert.match(top.hint, /each part adds its share, done at 100%/, line);
+  }
+  assert.deepEqual(best('200 demonic gorillas or 2 zenytes', gorillas).top.config.comboRule, { mode: 'any' });
+  // A part's weight rides the payload and the import row only when it is set.
+  const top = best('200 demonic gorillas or 2 zenytes (any mix)', gorillas).top;
+  const weighted = { ...top.config, parts: partsOf(top).map((p, i) => (i === 1 ? { ...p, comboWeight: 0.5 } : p)) };
+  const draft = { label: top.title, config: weighted, points: 1, trackingMode: 'team' as const };
+  const put = draftPayload(draft, 1, null).parts as Record<string, unknown>[];
+  assert.equal(put[0].comboWeight, undefined);
+  assert.equal(put[1].comboWeight, 0.5);
+  const row = draftToCsvRow(draft);
+  assert.deepEqual(row.comboRule, { mode: 'mix' });
+  assert.equal(row.parts?.[0].comboWeight, undefined);
+  assert.equal(row.parts?.[1].comboWeight, 0.5);
 });

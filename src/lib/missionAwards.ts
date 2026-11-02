@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { workCredit } from '@/lib/altGoalSql';
+import { primaryCredit } from '@/lib/comboSql';
 import { completions, eventParticipants, events, submissions, teams, tiles } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import {
@@ -218,7 +218,7 @@ async function resolveClaimants(
         playerId: submissions.playerId,
       })
       .from(submissions)
-      .where(and(inArray(submissions.tileId, [...new Set(unattributed.map((c) => c.tileId))]), workCredit()))
+      .where(and(inArray(submissions.tileId, [...new Set(unattributed.map((c) => c.tileId))]), primaryCredit()))
       .orderBy(submissions.createdAt); // ascending → the last write per (tile, team) wins
     for (const r of rows) {
       const who = r.creditPlayerId ?? r.playerId;

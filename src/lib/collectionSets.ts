@@ -30,8 +30,6 @@
 // per-item display, and the tile editor all read the same rule from here.
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-import { altGoalPhrase, parseAltGoal, type AltGoal } from '@/lib/altGoal';
-
 export type GroupMode = 'any' | 'all';
 
 export interface CollectionRequirement {
@@ -214,8 +212,6 @@ export interface HowItCountsTile {
   itemRequirements?: CollectionRequirement[] | null;
   groupMode?: string | null;
   setsRequired?: number | null;
-  /** Either/or tiles (lib/altGoal): the alternative, as stored (JSON) or parsed. */
-  altGoal?: AltGoal | string | null;
 }
 
 // "Ahrim's set" and "Ahrim's" both read as "the Ahrim's set", never "the Ahrim's set set".
@@ -226,14 +222,6 @@ const times = (n: number) => (n === 1 ? 'once' : n === 2 ? 'twice' : `${SPELLED[
 
 /** The sentence for an item tile, or null for a tile that isn't one. */
 export function howItCounts(tile: HowItCountsTile): string | null {
-  const base = primaryHowItCounts(tile);
-  // An either/or tile says its other way to finish, after its own rule.
-  const alt = parseAltGoal(tile.altGoal);
-  if (!alt) return base;
-  return `${base ? `${base} ` : ''}Or instead: ${altGoalPhrase(alt)}.`;
-}
-
-function primaryHowItCounts(tile: HowItCountsTile): string | null {
   const reqs = tile.itemRequirements ?? [];
   if (reqs.length > 0) return collectionSentence(reqs, tile.groupMode, tile.setsRequired);
   if (tile.tileType !== 'drop') return null;

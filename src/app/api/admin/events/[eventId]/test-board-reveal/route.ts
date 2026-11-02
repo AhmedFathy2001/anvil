@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 import { db } from '@/db';
 import { events, tiles } from '@/db/schema';
+import { eventBoardTiles } from '@/lib/comboSql';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
 import { isAcceptedCohost } from '@/lib/coHost';
@@ -27,7 +28,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ev
   const event = own ?? (await db.query.events.findFirst({ where: eq(events.id, eventId) }));
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const allTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
+  const allTiles = await db.select().from(tiles).where(eventBoardTiles(event.id));
   const tileCount = visibleTiles(parseEventRules(event.rules), allTiles).length;
   const sent = await notifyBoardRevealed({
     clanId: clan.id,

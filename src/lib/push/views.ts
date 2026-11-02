@@ -28,6 +28,8 @@ const TEAM_FIELDS = [
   'trackedStats', 'trackedKcNames', 'trackedSkillNames', 'trackedActivityKeys',
   'trackedDrops', 'trackedKills', 'trackedPvp', 'trackedDiaries', 'trackedCombatTasks',
   'trackedTimed', 'trackedLms', 'trackedValues', 'trackedGains', 'trackedDeathless',
+  // Combo tiles (lib/combo): which tracked rows fold under which combo, and its progress.
+  'trackedCombos',
 ] as const;
 
 /** Ranked for one caller (their place on a ladder), so never in a view shared by a team. */

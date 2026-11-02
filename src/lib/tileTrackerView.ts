@@ -1,8 +1,10 @@
-import { and, eq } from 'drizzle-orm';
-import { primaryCredit } from '@/lib/altGoalSql';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { completions, eventParticipants, submissions, teams, type events, type tiles } from '@/db/schema';
+import { completions, eventParticipants, submissions, teams, tiles as tilesTable, type events, type tiles } from '@/db/schema';
+import { comboNeeded, isComboTile, parseComboRule } from '@/lib/combo';
+import { parseCapBy } from '@/lib/tileCaps';
+import { teamComboView } from '@/lib/comboCompletion';
 import { parseStamp } from '@/lib/dbTime';
 import { eventTimeState } from '@/lib/eventTime';
 import { getStatStandings } from '@/lib/statStandings';
@@ -37,7 +39,26 @@ export async function tileProgressView(
   const isStat = !!tile.trackedStat && !!tile.statType && !!tile.statGoal;
   let goal: number;
   let teamProgress;
-  if (isStat) {
+  if (isComboTile(tile)) {
+    // A COMBO (lib/combo): each team's bar is its parts done against what the rule needs. Fed through
+    // the count tracker as one credit per finished part (to whoever finished it), in team mode.
+    const parts = await db.select({ id: tilesTable.id }).from(tilesTable).where(eq(tilesTable.parentTileId, tile.id));
+    goal = comboNeeded(parseComboRule(tile.comboRule), parts.length);
+    if (parseComboRule(tile.comboRule).mode === 'mix') {
+      // A MIX: each team's combined share in percent (lib/comboProgress), the bar out of 100.
+      goal = 100;
+      const shares = await Promise.all(teamRows.map(async (t) => ({ teamId: t.teamId, amount: (await teamComboView(tile, t.teamId)).view.done })));
+      teamProgress = countTileTeams({ ...input, trackingMode: 'team' }, shares.map((r) => ({ ...r, creditPlayerId: null })));
+    } else {
+    const partDone = parts.length
+      ? await db
+          .select({ teamId: completions.teamId, creditPlayerId: completions.creditPlayerId })
+          .from(completions)
+          .where(inArray(completions.tileId, parts.map((p) => p.id)))
+      : [];
+    teamProgress = countTileTeams({ ...input, trackingMode: 'team' }, partDone.map((c) => ({ ...c, amount: 1 })));
+    }
+  } else if (isStat) {
     goal = tile.statGoal!;
     const standing = (await getStatStandings(event.id, [tile.id]))[0];
     // A milestone tile ("reach 99") measures each member's lifetime against the goal, never a sum.
@@ -57,15 +78,17 @@ export async function tileProgressView(
         creditPlayerId: submissions.creditPlayerId,
         amount: submissions.amount,
         itemId: submissions.itemId,
+        goal: submissions.goal,
       })
       .from(submissions)
-      // The tile's own credits — an either/or alternative (lib/altGoal) is a different goal.
-      .where(and(eq(submissions.tileId, tile.id), primaryCredit()));
+      // Every row: a capped counter's cap rows (lib/tileCaps) limit its count; the trackers below
+      // only ever add the tile's own credits.
+      .where(eq(submissions.tileId, tile.id));
     const reqs = parseJsonArray<TrackerRequirement>(tile.itemRequirements);
     if (reqs.length > 0) {
       ({ goal, teams: teamProgress } = collectionTileTeams(input, subs, reqs, tile.groupMode, tile.setsRequired ?? 1));
     } else {
-      teamProgress = countTileTeams(input, subs, tile.countMode);
+      teamProgress = countTileTeams(input, subs, tile.countMode, parseCapBy(tile.capBy));
     }
   }
 

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
-import { eq, and, gt, sql } from 'drizzle-orm';
+import { eq, and, gt, sql, asc, isNull } from 'drizzle-orm';
 import { verifyTileEditorForEvent } from '@/lib/auth';
 import { logTileAudit, snapshotTile } from '@/lib/tile-audit';
 import { assertEventEditable } from '@/lib/eventLock';
@@ -29,6 +29,11 @@ export async function GET(
   });
   if (!tile) {
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
+  }
+  // A combo (lib/combo) comes with its parts, so the editor opens all of it from one fresh read.
+  if (tile.tileType === 'combo') {
+    const parts = await db.select().from(tiles).where(eq(tiles.parentTileId, tile.id)).orderBy(asc(tiles.id));
+    return NextResponse.json({ ...tile, parts });
   }
   return NextResponse.json(tile);
 }
@@ -76,8 +81,13 @@ export async function DELETE(
   if (!tile) {
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
   }
+  // A combo's part is removed by saving its combo without it (lib/combo).
+  if (tile.parentTileId != null) {
+    return NextResponse.json({ error: 'That tile is part of a combo — remove it from the combo instead.' }, { status: 400 });
+  }
 
-  const allTiles = await db.select({ id: tiles.id }).from(tiles).where(eq(tiles.eventId, eId));
+  // Board tiles only — parts aren't cells (and go with their combo via the FK cascade).
+  const allTiles = await db.select({ id: tiles.id }).from(tiles).where(and(eq(tiles.eventId, eId), isNull(tiles.parentTileId)));
   if (allTiles.length <= 1) {
     return NextResponse.json({ error: 'An event must keep at least one tile.' }, { status: 400 });
   }
@@ -89,6 +99,7 @@ export async function DELETE(
       .update(tiles)
       .set({ position: sql`${tiles.position} - 1` })
       .where(and(eq(tiles.eventId, eId), gt(tiles.position, tile.position)));
+    // (Parts sit at their combo's position, so they shift with it.)
     // Keep boardSize == tile count for Leagues/race display helpers.
     await tx.update(events).set({ boardSize: allTiles.length - 1 }).where(eq(events.id, eId));
   });

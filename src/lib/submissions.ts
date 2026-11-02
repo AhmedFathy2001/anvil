@@ -10,7 +10,8 @@ import { buildRuns, parseCoopCredit } from '@/lib/coopRuns';
 import { isIndividualMode } from '@/lib/statTracking';
 import { parseJsonArray } from '@/lib/tileKinds';
 import { evaluateCollection, type CollectionRequirement } from '@/lib/collectionSets';
-import { altProgress, parseAltGoal, ALT_GOAL_KEY, type AltGoal } from '@/lib/altGoal';
+import { parseCapBy } from '@/lib/tileCaps';
+import { afterPartCompletion, afterPartProgress } from '@/lib/comboCompletion';
 
 /**
  * A team's progress on one submission-backed count tile, under that tile's tracking mode
@@ -23,8 +24,24 @@ export async function countTileProgress(
   trackingMode: string | null | undefined,
   // Shared-kill settings, when the tile has any, and a drop pool's count mode. Omitted → plain
   // per-member counting of every drop.
-  coop?: { coopCredit?: string | null; coopMinMembers?: number | null; countMode?: string | null },
+  coop?: { coopCredit?: string | null; coopMinMembers?: number | null; countMode?: string | null; capBy?: string | null },
 ) {
+  // A CAPPED counter tile (lib/tileCaps): each member's count is limited by their own cap-counter
+  // totals ('cap:N' rows) before the team's is taken. Shared-kill settings don't apply to counters.
+  const caps = parseCapBy(coop?.capBy);
+  if (caps.length > 0) {
+    const all = await db
+      .select({
+        playerId: submissions.playerId,
+        creditPlayerId: submissions.creditPlayerId,
+        amount: submissions.amount,
+        itemId: submissions.itemId,
+        goal: submissions.goal,
+      })
+      .from(submissions)
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
+    return countProgress(all, trackingMode, coop?.countMode, caps);
+  }
   const rows = await db
     .select({
       id: submissions.id,
@@ -37,7 +54,7 @@ export async function countTileProgress(
       coopPartySize: submissions.coopPartySize,
     })
     .from(submissions)
-    // Primary credits only: an either/or tile's alternative rows (lib/altGoal) are a different goal.
+    // The tile's own credits only: a cap counter's rows (lib/tileCaps) are a different counter.
     .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId), isNull(submissions.goal)));
 
   const credit = parseCoopCredit(coop?.coopCredit);
@@ -81,28 +98,6 @@ export async function countTileProgress(
   };
 }
 
-/**
- * A team's progress on an either/or tile's ALTERNATIVE (lib/altGoal): the goal counter capped per
- * member by its cap counters, summed (Team) or the best member (Solo). Null when the tile has none.
- */
-export async function altTileProgress(
-  tile: { id: number; altGoal: string | null; trackingMode: string | null },
-  teamId: number,
-): Promise<(ReturnType<typeof altProgress> & { goal: AltGoal }) | null> {
-  const goal = parseAltGoal(tile.altGoal);
-  if (!goal) return null;
-  const rows = await db
-    .select({
-      playerId: submissions.playerId,
-      creditPlayerId: submissions.creditPlayerId,
-      amount: submissions.amount,
-      goal: submissions.goal,
-    })
-    .from(submissions)
-    .where(and(eq(submissions.tileId, tile.id), eq(submissions.teamId, teamId), isNotNull(submissions.goal)));
-  return { ...altProgress(rows, goal, tile.trackingMode), goal };
-}
-
 // Recompute a team's completion state for a submission-backed tile (drop / kill / timed)
 // and insert or revert the `completions` row accordingly. Named for its original drop-only
 // role; it now dispatches on tile_type. Stat (hiscores) tiles don't flow through here.
@@ -132,10 +127,6 @@ export async function syncDropTileCompletion(
 
   let totalAmount = 0;
   let isComplete = false;
-  // False when the tile's OWN requirement can't auto-complete (no threshold / no amount / a kind that
-  // doesn't complete from submissions). Such a tile used to bail here; an either/or tile can still
-  // finish through its alternative, so the bail waits until that has been looked at too.
-  let primaryTracked = true;
   // Solo ("any one member") count tiles: who reached the goal, and whether the ONLY thing keeping
   // the tile incomplete is that no single member got there alone. Both stay false/null for every
   // team-mode tile, which is every tile kind that doesn't expose the Team/Solo toggle.
@@ -151,7 +142,7 @@ export async function syncDropTileCompletion(
     ? (JSON.parse(tile.itemRequirements) as CollectionRequirement[])
     : null;
 
-  primary: if (itemRequirements && itemRequirements.length > 0) {
+  if (itemRequirements && itemRequirements.length > 0) {
     const perItemTotals = await db
       .select({ itemId: submissions.itemId, total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)` })
       .from(submissions)
@@ -180,10 +171,7 @@ export async function syncDropTileCompletion(
     soloShortfall = !isComplete && progress.teamTotal >= goal;
   } else if (tile.tileType === 'timed') {
     // Normal timed tiles: pass/fail on duration ≤ cap; no threshold configured → never auto-completes.
-    if (tile.timeThresholdSeconds == null) {
-      primaryTracked = false;
-      break primary;
-    }
+    if (tile.timeThresholdSeconds == null) return null;
     const fastest = await db
       .select({ best: sql<number | null>`MIN(${submissions.durationSeconds})` })
       .from(submissions)
@@ -194,10 +182,7 @@ export async function syncDropTileCompletion(
   } else if (tile.tileType === 'value') {
     // Loot-value tiles: pass/fail on a single haul. A submission's `amount` carries the haul's
     // gp value; the tile completes when any one haul meets the threshold in requiredAmount.
-    if (!tile.requiredAmount) {
-      primaryTracked = false;
-      break primary;
-    }
+    if (!tile.requiredAmount) return null;
     const richest = await db
       .select({ best: sql<number | null>`MAX(${submissions.amount})` })
       .from(submissions)
@@ -212,10 +197,7 @@ export async function syncDropTileCompletion(
     // exactly like a simple drop tile (no per-item breakdown). For 'valuetotal', amount is
     // each haul's gp and requiredAmount the total gp to collect. (LMS placement / deathless
     // gating happens plugin-side, like kill targeting.)
-    if (!tile.requiredAmount) {
-      primaryTracked = false;
-      break primary;
-    }
+    if (!tile.requiredAmount) return null;
     const progress = await countTileProgress(tileId, teamId, tile.trackingMode, tile);
     totalAmount = progress.current;
     finisherPlayerId = progress.finisherPlayerId;
@@ -231,19 +213,11 @@ export async function syncDropTileCompletion(
     isComplete = totalAmount >= tile.requiredAmount;
     soloShortfall = !isComplete && progress.teamTotal >= tile.requiredAmount;
   } else {
-    primaryTracked = false;
+    return null;
   }
-
-  // EITHER / OR (lib/altGoal): the tile also completes when its alternative is met — "a GOTR rare
-  // reward OR 100 searches paid for with event energy". A Solo tile names the member who got there.
-  const alt = await altTileProgress(tile, teamId);
-  if (!primaryTracked && !alt) return null;
-  const altComplete = !isComplete && !!alt && alt.current >= alt.goal.amount;
-  if (altComplete) {
-    isComplete = true;
-    finisherPlayerId = alt.finisherPlayerId;
-    soloShortfall = false;
-  }
+  // A combo PART (lib/combo) is not a board cell: no race position of its own and no announcement —
+  // its combo is both. Its own row is progress; lib/comboCompletion recomputes the combo after it.
+  const isPart = tile.parentTileId != null;
 
   // Tile race: a drop tile can't auto-complete until the team has finished every
   // earlier tile in the sequence. Until then we leave it pending so the ordered
@@ -253,8 +227,8 @@ export async function syncDropTileCompletion(
   if (isComplete) {
     // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
     tileEvent = await db.query.events.findFirst({ where: eq(events.id, tile.eventId) });
-    if (tileEvent?.format === 'tilerace') {
-      const raceTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, tile.eventId) });
+    if (tileEvent?.format === 'tilerace' && !isPart) {
+      const raceTiles = await db.query.tiles.findMany({ where: and(eq(tiles.eventId, tile.eventId), isNull(tiles.parentTileId)) });
       const teamDone = await db.query.completions.findMany({ where: eq(completions.teamId, teamId) });
       const doneTileIds = new Set(teamDone.map((c) => c.tileId));
       raceBlocked = raceTiles.some((t) => t.position < tile.position && !doneTileIds.has(t.id));
@@ -279,11 +253,10 @@ export async function syncDropTileCompletion(
   // already screenshots every milestone and the finishing kill, so an honest team always has one.
   // Held like a race block: the count stands and the credit lands the moment a screenshot does.
   let proofBlocked = false;
-  // An alternative is credited by count-only pings whatever the tile's own kind, so it needs one too —
-  // and the screenshot must be the ALTERNATIVE's own (lib/altGoal countsAsCompletionProof): an item
-  // screenshot or an energy proof doesn't show searches, and an alternative's screenshot doesn't
-  // show the tile's own requirement either.
-  if (isComplete && !raceBlocked && !ruleBlocked && (PROOF_ON_COMPLETION_KINDS.has(tile.tileType) || altComplete)) {
+  // The screenshot must be one of the tile's OWN rows (lib/tileCaps countsAsCompletionProof): a cap
+  // counter's proof (energy) shows no searches. A combo part proves itself from its own rows — the
+  // combo needs nothing more, each part it completed on already had to.
+  if (isComplete && !raceBlocked && !ruleBlocked && PROOF_ON_COMPLETION_KINDS.has(tile.tileType)) {
     const [withImage] = await db
       .select({ id: submissions.id })
       .from(submissions)
@@ -291,7 +264,7 @@ export async function syncDropTileCompletion(
         eq(submissions.tileId, tileId),
         eq(submissions.teamId, teamId),
         isNotNull(submissions.imageUrl),
-        altComplete ? eq(submissions.goal, ALT_GOAL_KEY) : isNull(submissions.goal),
+        isNull(submissions.goal),
       ))
       .limit(1);
     proofBlocked = !withImage;
@@ -306,7 +279,10 @@ export async function syncDropTileCompletion(
       .returning();
 
     // Only notify if we actually inserted (not a duplicate)
-    if (inserted) {
+    if (inserted && isPart) {
+      // notifyCompletion=false: the caller's submission post already says this part is done.
+      await afterPartCompletion(tile, teamId, { change: 'added', silent, progressPost: notifyCompletion });
+    } else if (inserted) {
       // Bounty rotation: close the claimed tile and draw the next one right away (the cron
       // tick is the backstop). Fire-and-forget — a draw hiccup must never fail the credit.
       if (bountyEvent) handleBountyClaim(tile.eventId, tileId).catch(() => {});
@@ -336,9 +312,9 @@ export async function syncDropTileCompletion(
           }).catch(() => {});
         }
 
-        // Check for blackout win
+        // Check for blackout win — board tiles only (combo parts aren't cells).
         const eventTiles = await db.query.tiles.findMany({
-          where: eq(tiles.eventId, event.id),
+          where: and(eq(tiles.eventId, event.id), isNull(tiles.parentTileId)),
         });
         const teamCompletions = await db.query.completions.findMany({
           where: eq(completions.teamId, teamId),
@@ -374,10 +350,15 @@ export async function syncDropTileCompletion(
     ).returning({ id: completions.id });
     // Bounty events: if that was the claiming completion (e.g. its submissions were deleted),
     // reopen the tile so the bounty isn't silently lost. Fire-and-forget, like the claim hook.
-    if (removed.length > 0) {
+    if (removed.length > 0 && isPart) {
+      await afterPartCompletion(tile, teamId, { change: 'removed', silent });
+    } else if (removed.length > 0) {
       reopenBountyTileIfUnclaimed(tile.eventId, tileId).catch(() => {});
     }
   }
+
+  // A 'mix' combo (lib/combo) counts its parts' partial progress, so any move on a part re-checks it.
+  if (isPart) await afterPartProgress(tile, teamId, { silent });
 
   return { totalAmount, requiredAmount: tile.requiredAmount, isComplete: isComplete && !raceBlocked && !ruleBlocked && !proofBlocked };
 }

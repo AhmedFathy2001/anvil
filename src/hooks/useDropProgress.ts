@@ -2,28 +2,35 @@
 
 import { useMemo } from 'react';
 import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
-import { countProgress, isPrimaryCredit } from '@/lib/countProgress';
-import { altProgress, altGoalProgressNote, parseAltGoal } from '@/lib/altGoal';
-
-/** An either/or tile's alternative (lib/altGoal): its capped progress and the "or 37/100 searches" note. */
-export interface AltGoalProgress {
-  current: number;
-  required: number;
-  note: string;
-}
+import { countProgress } from '@/lib/countProgress';
+import { parseCapBy } from '@/lib/tileCaps';
+import { comboProgressLine, comboView, type ComboView } from '@/lib/comboProgress';
 
 interface DropProgress {
   current: number;
   required: number;
-  /** Either/or tiles: the alternative's progress, shown next to the primary bar. */
-  alt?: AltGoalProgress;
+  /** A combo's own wording (lib/combo): "1 of 2" / "75%" on the cell, the open parts on hover. */
+  text?: string;
+  note?: string;
+  /** A combo's full view — the detail modal lists its parts from it. */
+  combo?: ComboView;
 }
 
-export function useDropProgress(tiles: Tile[], submissions: Submission[]) {
+/** A completion as the board holds it — enough to tell which team finished which part. */
+interface DoneRow {
+  tileId: number;
+  teamId?: number;
+  creditPlayerId?: number | null;
+}
+
+/**
+ * Per-tile count progress for ONE team's board. `completions` (that team's, or every team's with
+ * `teamId` to pick theirs) lets a COMBO (lib/combo) read which of its parts are done.
+ */
+export function useDropProgress(tiles: Tile[], submissions: Submission[], completions?: DoneRow[], teamId?: number) {
   return useMemo(() => {
     const dropProgress = new Map<number, DropProgress>();
     const perItemProgressMap = new Map<number, ItemRequirementProgress[]>();
-    const altProgressMap = new Map<number, AltGoalProgress>();
 
     for (const tile of tiles) {
       // Count/aggregate tiles all sum submission `amount` toward `requiredAmount` (drop = item drops,
@@ -39,35 +46,46 @@ export function useDropProgress(tiles: Tile[], submissions: Submission[]) {
           || tile.tileType === 'value' || tile.tileType === 'valuetotal')
         && tile.requiredAmount
       ) {
-        const tileSubs = submissions.filter((s) => s.tileId === tile.id && isPrimaryCredit(s));
+        // Every row: a capped counter's cap rows (lib/tileCaps) limit its count; countProgress only
+        // ever adds the tile's own credits.
+        const tileSubs = submissions.filter((s) => s.tileId === tile.id);
         // Mode-aware (lib/countProgress — the same rule the server completes on): Team Total sums the
         // team, Solo shows the best single member's count, so the bar can't read 10/10 on a tile that
         // needs one member to get there alone.
-        const { current } = countProgress(tileSubs, tile.trackingMode, tile.itemRequirements ? null : tile.countMode);
+        const { current } = countProgress(tileSubs, tile.trackingMode, tile.itemRequirements ? null : tile.countMode, parseCapBy(tile.capBy));
         dropProgress.set(tile.id, { current, required: tile.requiredAmount });
 
         if (tile.itemRequirements) {
           const reqs = JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[];
           perItemProgressMap.set(tile.id, reqs.map(req => ({
             ...req,
-            currentAmount: tileSubs.filter(s => s.itemId === req.itemId).reduce((sum, s) => sum + s.amount, 0),
+            currentAmount: tileSubs.filter(s => s.itemId === req.itemId && s.goal == null).reduce((sum, s) => sum + s.amount, 0),
           })));
         }
       }
+
+      // COMBO (lib/combo): parts done against what the rule needs, or a mix's combined share.
+      if (tile.tileType === 'combo' && tile.parts?.length) {
+        const done = new Map(
+          (completions ?? [])
+            .filter((c) => teamId == null || c.teamId == null || c.teamId === teamId)
+            .map((c) => [c.tileId, c.creditPlayerId ?? null] as const),
+        );
+        const view = comboView(tile, tile.parts, (id) => ({
+          done: done.has(id),
+          doneBy: done.get(id) ?? null,
+          subs: submissions.filter((s) => s.tileId === id),
+        }));
+        dropProgress.set(tile.id, {
+          current: view.done,
+          required: view.needed,
+          text: view.share != null ? view.summary : `${Math.min(view.done, view.needed)} of ${view.needed}`,
+          note: comboProgressLine(view),
+          combo: view,
+        });
+      }
     }
 
-    // Either/or tiles: the alternative's own progress, capped per member exactly as the server does.
-    for (const tile of tiles) {
-      const goal = parseAltGoal(tile.altGoal);
-      if (!goal) continue;
-      const rows = submissions.filter((s) => s.tileId === tile.id && !isPrimaryCredit(s));
-      const { current } = altProgress(rows, goal, tile.trackingMode);
-      const alt = { current, required: goal.amount, note: altGoalProgressNote(goal, current) };
-      altProgressMap.set(tile.id, alt);
-      const primary = dropProgress.get(tile.id);
-      if (primary) dropProgress.set(tile.id, { ...primary, alt });
-    }
-
-    return { dropProgress, perItemProgressMap, altProgressMap };
-  }, [tiles, submissions]);
+    return { dropProgress, perItemProgressMap };
+  }, [tiles, submissions, completions, teamId]);
 }

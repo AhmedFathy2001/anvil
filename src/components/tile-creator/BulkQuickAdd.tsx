@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { draftToCsvRow, howItCountsLine, type TileDraft } from '@/lib/tileCreatorConfig';
-import { altGoalPhrase } from '@/lib/altGoal';
+import { comboRuleLead } from '@/lib/combo';
 import type { TaskCandidate } from '@/lib/taskMatch';
 import type { BulkLineResult } from '@/lib/taskSuggest';
 import type { TierBand } from '@/lib/tileFilter';
@@ -106,6 +106,11 @@ export default function BulkQuickAdd({
     screenshot: rows.filter((r) => r.status === 'screenshot').length,
   };
   const settled = rows.filter((r) => r.draft);
+
+  /** The admin typed this line's points in the table. */
+  function setRowPoints(i: number, v: number | null) {
+    setRows((prev) => prev.map((r, j) => (j === i ? { ...r, points: v, draft: r.draft ? { ...r.draft, points: v } : r.draft, manual: true } : r)));
+  }
 
   function choose(i: number, c: TaskCandidate) {
     setRows((prev) => prev.map((r, j) => (j === i ? { ...r, chosen: c, draft: draftOf(c, r.points), manual: true } : r)));
@@ -234,12 +239,12 @@ export default function BulkQuickAdd({
                 <p className="text-sm text-text-muted">Paste your list on the left. Each line shows up here with how it will count.</p>
               ) : (
                 <div role="table" aria-label="Tiles to add" className="text-sm">
-                  <div role="row" className="hidden md:grid grid-cols-[minmax(0,2.2fr)_6rem_4rem_minmax(0,1.6fr)_3.5rem] gap-2 px-2 pb-1.5 text-[11px] uppercase tracking-wide text-text-muted border-b border-card-border">
+                  <div role="row" className="hidden md:grid grid-cols-[minmax(0,2.2fr)_6rem_4rem_minmax(0,1.6fr)_4.5rem] gap-2 px-2 pb-1.5 text-[11px] uppercase tracking-wide text-text-muted border-b border-card-border">
                     <span role="columnheader">Tile</span>
                     <span role="columnheader">Kind</span>
                     <span role="columnheader">Need</span>
                     <span role="columnheader">How it counts</span>
-                    <span role="columnheader" className="text-right">{pointsMode ? 'Pts' : ''}</span>
+                    <span role="columnheader" className="text-right" title={pointsMode ? undefined : 'Saved with the tile; points only matter on a points-scoring board.'}>Pts</span>
                   </div>
                   {rows.map((r, i) => {
                     const c = r.chosen;
@@ -250,7 +255,7 @@ export default function BulkQuickAdd({
                       <div
                         role="row"
                         key={`${i}-${r.line}`}
-                        className="grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.2fr)_6rem_4rem_minmax(0,1.6fr)_3.5rem] gap-x-2 gap-y-1 items-center px-2 py-2 border-b border-card-border/60"
+                        className="grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.2fr)_6rem_4rem_minmax(0,1.6fr)_4.5rem] gap-x-2 gap-y-1 items-center px-2 py-2 border-b border-card-border/60"
                       >
                         <span role="cell" className="min-w-0">
                           <button
@@ -260,9 +265,14 @@ export default function BulkQuickAdd({
                             title="Open in the single-tile editor"
                           >
                             <span className="block font-medium break-words">{r.draft?.label ?? r.text}</span>
-                            {/* Either/or tile (lib/altGoal): the other way to finish, spelled out. */}
-                            {r.draft?.config.altGoal && (
-                              <span className="block text-xs text-text-muted">Or: {altGoalPhrase(r.draft.config.altGoal)}</span>
+                            {/* Combo tile (lib/combo): the rule, then each part on its own line. */}
+                            {r.draft?.config.tileType === 'combo' && r.draft.config.parts && (
+                              <span className="block text-xs text-text-muted">
+                                Done with {comboRuleLead(r.draft.config.comboRule ?? { mode: 'any' }, r.draft.config.parts.length)}:
+                                {r.draft.config.parts.map((p, k) => (
+                                  <span key={k} className="block pl-2">· {p.label}</span>
+                                ))}
+                              </span>
                             )}
                             {r.status === 'pick' && !r.draft && <span className="block text-xs text-gold">Which one did you mean?</span>}
                           </button>
@@ -300,7 +310,19 @@ export default function BulkQuickAdd({
                           {how && how.engine !== 'screenshot' && <CheckIcon className="mt-0.5 shrink-0" />}
                           {how ? (how.engine === 'hiscores' ? 'Hiscores' : how.engine === 'plugin' ? `Plugin${c?.source === 'gain' ? ', inventory' : c?.source === 'counter' ? ', chat line' : c?.source === 'trial' ? ', rank line' : ''}` : 'Staff approve a screenshot') : ''}
                         </span>
-                        <span role="cell" className="text-right text-sm">{pointsMode ? pts : ''}</span>
+                        <span role="cell" className="text-right text-sm">
+                          {/* Editable; on a tiles-scored board it is kept with the tile but scores nothing. */}
+                          <input
+                            type="number"
+                            min={0}
+                            inputMode="numeric"
+                            aria-label={`Points for ${r.draft?.label ?? r.text}`}
+                            value={pointsMode ? pts : (r.draft?.points ?? r.points ?? '')}
+                            placeholder={pointsMode ? undefined : '—'}
+                            onChange={(e) => setRowPoints(i, e.target.value === '' ? null : Math.max(0, Math.round(Number(e.target.value))))}
+                            className={`w-16 min-h-11 px-1.5 rounded bg-brown-dark border border-card-border text-right focus:outline-none focus:border-gold ${pointsMode ? '' : 'text-text-muted'}`}
+                          />
+                        </span>
                       </div>
                     );
                   })}
@@ -312,7 +334,10 @@ export default function BulkQuickAdd({
 
         {!editingRow && (
           <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-t border-card-border px-4 sm:px-5 py-3">
-            <span className="text-xs text-text-muted">Click any tile to open it in the single-tile editor.</span>
+            <span className="text-xs text-text-muted">
+              Click any tile to open it in the single-tile editor.
+              {!pointsMode && rows.some((r) => r.points != null) && ' Points are saved with the tiles but only count on a points-scoring board.'}
+            </span>
             <div className="flex flex-wrap gap-2 ml-auto">
               {error && <span role="alert" className="text-sm text-red-300 self-center">{error}</span>}
               {counts.pick > 0 && (

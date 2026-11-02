@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
 import { events, tiles, teams, eventParticipants, completions, users } from '@/db/schema';
+import { nestParts } from '@/lib/combo';
 import { eq, inArray } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import TeamsDraftClient from './TeamsDraftClient';
@@ -61,7 +62,7 @@ export default async function EventTeamsPage({ params }: { params: Promise<{ eve
     <>
       <TeamsDraftClient
         event={event}
-        tiles={eventTiles}
+        tiles={nestParts(eventTiles)}
         teams={safeTeams}
         players={eventPlayers}
         completions={eventCompletions}

@@ -7,6 +7,7 @@ import EventBoard from '@/components/EventBoard';
 import BoardFilters from '@/components/BoardFilters';
 import TileDetailModal from '@/components/TileDetailModal';
 import { useDropProgress } from '@/hooks/useDropProgress';
+import { tileWithPartIds } from '@/lib/combo';
 import { isPointsMode } from '@/lib/utils';
 import { scoreTeam } from '@/lib/boardScoring';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
@@ -113,7 +114,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
     await fetchCompletions();
   }
 
-  const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions);
+  const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions, completions, team.id);
 
   const pointsMode = isPointsMode(event.scoringMode);
   // Scored by lib/boardScoring, so what staff see here matches the public board and the payouts.
@@ -122,7 +123,9 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
   const total = score.total;
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
-  const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
+  // A combo's proof is its parts' (lib/combo).
+  const selectedTileIds = tileWithPartIds(tiles, selectedTileId);
+  const selectedTileSubmissions = submissions.filter((s) => selectedTileIds.has(s.tileId));
   const selectedTileCompletedBy = selectedTileId
     ? completions
         .filter((c) => c.tileId === selectedTileId)

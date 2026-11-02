@@ -15,7 +15,7 @@ interface Completion {
 }
 
 interface Submission {
-  /** lib/altGoal: null = the tile's own credit; 'alt' / 'cap:N' = an either/or alternative. */
+  /** lib/tileCaps: null = the tile's own credit; 'cap:N' = a capped tile's cap counter. */
   goal?: string | null;
   id: number;
   tileId: number;

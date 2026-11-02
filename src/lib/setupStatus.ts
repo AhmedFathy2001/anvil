@@ -97,7 +97,7 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
       .select({ c: count() })
       .from(tiles)
       .innerJoin(events, eq(tiles.eventId, events.id))
-      .where(and(eq(events.clanId, clanId), writtenTile)),
+      .where(and(eq(events.clanId, clanId), writtenTile, isNull(tiles.parentTileId))),
     // Live member seats — guests from other clans don't make a roster.
     db
       .select({ c: count() })

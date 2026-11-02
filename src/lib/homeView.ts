@@ -474,6 +474,8 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
                   teamId: submissionsTable.teamId,
                   creditPlayerId: submissionsTable.creditPlayerId,
                   amount: submissionsTable.amount,
+                  // Cap counters (lib/tileCaps) are never work; combo parts fold into their combo.
+                  goal: submissionsTable.goal,
                 })
                 .from(submissionsTable)
                 .where(inArray(submissionsTable.tileId, ladderTileIds))

@@ -26,6 +26,8 @@ export interface PanelTile {
    * count alone is the closest set's, so a Dharok piece that didn't move it looked lost.
    */
   sets?: string;
+  /** A COMBO's row (lib/combo): its parts' own rows, folded under it ("1 of 2" is the combo's bar). */
+  parts?: PanelTile[];
 }
 
 /** A tile someone on the caller's team worked in the last {@link ACTIVE_WINDOW_MS}. */
@@ -64,9 +66,23 @@ interface Req {
 /** The config's tracked tiles, as far as the rows need them (every list is optional). */
 export interface TrackedLists {
   completedTiles?: { tileId: number }[];
+  /** Combo tiles (lib/combo): the rule's progress and which tracked rows are its parts. */
+  trackedCombos?: {
+    tileId: number;
+    label: string;
+    points: number;
+    position: number;
+    description: string | null;
+    needed: number;
+    done: number;
+    completed?: boolean;
+    /** 'mix' = weighted shares (lib/combo): each part adds weight × its own fraction, done at 100%. */
+    rule?: string;
+    parts: { tileId: number; label: string; completed?: boolean; weight?: number }[];
+  }[];
   trackedDrops?: (Base & { requiredAmount: number; itemRequirements?: Req[]; groupMode?: string; setsRequired?: number; lastItemId?: number | null })[];
   trackedStats?: (Base & { goalAmount: number })[];
-  trackedKills?: (Base & { requiredAmount: number; altOf?: number; altRole?: string; unit?: string })[];
+  trackedKills?: (Base & { requiredAmount: number; capOf?: number; unit?: string })[];
   trackedPvp?: (Base & { requiredAmount: number })[];
   trackedDiaries?: (Base & { requiredAmount: number })[];
   trackedCombatTasks?: (Base & { requiredAmount: number })[];
@@ -115,16 +131,6 @@ export function panelTiles(cfg: TrackedLists): PanelTile[] {
   const counted = (list: (Base & { requiredAmount: number })[] | undefined, min = 0) =>
     (list ?? []).forEach((t) => add(t, t.currentAmount, Math.max(min, t.requiredAmount), done.has(t.tileId)));
 
-  // Either/or tiles (lib/altGoal) ride trackedKills as VIRTUAL entries on negative ids, so every plugin
-  // build credits them. They are not rows of their own: the alternative's progress is a note on its
-  // parent's row ("or 37/100 searches"), and its cap counters are not shown at all.
-  const altNotes = new Map<number, string>();
-  for (const k of cfg.trackedKills ?? []) {
-    if (k.altOf == null || k.altRole !== 'goal') continue;
-    const goal = Math.max(1, k.requiredAmount);
-    altNotes.set(k.altOf, `or ${Math.min(k.currentAmount, goal)}/${goal} ${pluralUnit(k.unit || 'kill', goal)}`);
-  }
-
   for (const d of cfg.trackedDrops ?? []) {
     if (d.itemRequirements?.length) {
       const [current, goal, complete] = collectionProgress(d.itemRequirements, d.groupMode, d.setsRequired ?? 1);
@@ -134,7 +140,9 @@ export function panelTiles(cfg: TrackedLists): PanelTile[] {
     }
   }
   for (const s of cfg.trackedStats ?? []) add(s, s.currentAmount, s.goalAmount, done.has(s.tileId));
-  counted((cfg.trackedKills ?? []).filter((k) => k.altOf == null));
+  // A capped tile's cap counters (lib/tileCaps) ride trackedKills on VIRTUAL negative ids so every
+  // plugin build credits them; they are not rows of anyone's.
+  counted((cfg.trackedKills ?? []).filter((k) => k.capOf == null));
   counted(cfg.trackedPvp);
   counted(cfg.trackedDiaries);
   counted(cfg.trackedCombatTasks);
@@ -158,20 +166,60 @@ export function panelTiles(cfg: TrackedLists): PanelTile[] {
   }
   counted(cfg.trackedGains, 1);
   counted(cfg.trackedDeathless, 1);
-  // The note rides `sets`, the row's existing sub-line, so every client already draws it.
-  for (const r of rows) {
-    const note = altNotes.get(r.tileId);
-    if (note && !r.complete) r.sets = r.sets ? `${r.sets} · ${note}` : note;
-  }
-  return rows;
+  return foldCombos(rows, cfg.trackedCombos ?? []);
 }
 
-/** search → searches, delve → delves (kept local: this module stays dependency-free). */
-function pluralUnit(unit: string, n: number): string {
-  if (n === 1) return unit;
-  if (/(s|x|z|ch|sh)$/i.test(unit)) return `${unit}es`;
-  if (/[^aeiou]y$/i.test(unit)) return `${unit.slice(0, -1)}ies`;
-  return `${unit}s`;
+/**
+ * COMBO tiles (lib/combo): each part's row leaves the top level and folds under one row for its combo,
+ * whose bar is parts done / parts needed and whose sub-line (`sets`, which every client already draws)
+ * names the open parts' own progress — "1 of 2 · Vorkath KC 37/100".
+ */
+function foldCombos(rows: PanelTile[], combos: NonNullable<TrackedLists['trackedCombos']>): PanelTile[] {
+  if (combos.length === 0) return rows;
+  const partIds = new Set(combos.flatMap((c) => c.parts.map((p) => p.tileId)));
+  const byId = new Map(rows.map((r) => [r.tileId, r]));
+  const out = rows.filter((r) => !partIds.has(r.tileId));
+  for (const c of combos) {
+    const parts = c.parts.map((p) => byId.get(p.tileId)).filter((r): r is PanelTile => r != null);
+    const complete = !!c.completed;
+    const open = parts.filter((p) => !p.complete).map((p) => `${p.label} ${p.current}/${p.goal}`);
+    if (c.rule === 'mix') {
+      // Weighted shares, each part capped at its own (lib/combo mixShare) — the bar is in percent.
+      const weightOf = new Map(c.parts.map((p) => [p.tileId, p.weight != null && p.weight > 0 ? p.weight : 1]));
+      const share = parts.reduce(
+        (sum, p) => sum + (weightOf.get(p.tileId) ?? 1) * (p.complete ? 1 : p.goal > 0 ? Math.min(1, p.current / p.goal) : 0),
+        0,
+      );
+      const pct = complete ? 100 : Math.min(100, Math.floor(share * 100 + 1e-7));
+      out.push({
+        tileId: c.tileId,
+        label: c.label,
+        current: pct,
+        goal: 100,
+        points: c.points ?? 0,
+        complete,
+        position: c.position ?? 0,
+        description: c.description ?? null,
+        ...(complete ? {} : { sets: [`${pct}%`, ...open].join(' · ') }),
+        parts,
+      });
+      continue;
+    }
+    const goal = Math.max(1, c.needed);
+    out.push({
+      tileId: c.tileId,
+      label: c.label,
+      current: complete ? goal : Math.min(c.done, goal),
+      goal,
+      points: c.points ?? 0,
+      complete,
+      position: c.position ?? 0,
+      description: c.description ?? null,
+      ...(complete ? {} : { sets: [`${Math.min(c.done, goal)} of ${goal}`, ...open].join(' · ') }),
+      parts,
+    });
+  }
+  return out;
 }
 
 /**

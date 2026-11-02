@@ -974,6 +974,12 @@ interface TileCompletionNotifyParams {
   finisher?: string | null;
   /** Everyone who put work in, biggest first, with their share (KC / XP, capped at the goal). */
   contributors?: { name: string; amount: number }[];
+  /**
+   * A COMBO PART finishing (lib/combo) — posted as progress on its combo ("1 of 2"), not as a tile
+   * complete: the part isn't a board cell and scores nothing; its combo does. `tile` should be the
+   * combo, so the link opens the cell that's on the board.
+   */
+  partOf?: { label: string; done: number; needed: number } | null;
 }
 
 const CONTRIBUTORS_SHOWN = 5;
@@ -991,6 +997,7 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
     tile,
     finisher,
     contributors = [],
+    partOf,
   } = params;
 
   // What kind of goal was met — kept as one short field rather than the old four-field block, since
@@ -1000,6 +1007,8 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
   const unit = statType === 'skill' || statType === 'xp' ? 'XP' : 'KC';
   if (tileType === 'drop') {
     typeDescription = 'Drop';
+  } else if (tileType === 'combo') {
+    typeDescription = 'Combo';
   } else if (trackedStat || tileType === 'stat') {
     typeDescription = `${unit} goal`;
   }
@@ -1013,8 +1022,13 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
   const embed: DiscordEmbed = {
     ...eventAuthor(eventId, eventName, teamName),
     ...tileThumbnail(tile),
-    title: clamp(`✅ Tile complete — ${tileLabel}`, LIMIT.title),
-    description: finisher ? `**${finisher}** finished it for **${teamName}**.` : `**${teamName}** cleared it.`,
+    title: clamp(
+      partOf ? `🧩 ${partOf.label} — ${Math.min(partOf.done, partOf.needed)} of ${partOf.needed}` : `✅ Tile complete — ${tileLabel}`,
+      LIMIT.title,
+    ),
+    description: partOf
+      ? `${finisher ? `**${finisher}** did` : `**${teamName}** did`} *${tileLabel}* — part of **${partOf.label}**.`
+      : finisher ? `**${finisher}** finished it for **${teamName}**.` : `**${teamName}** cleared it.`,
     color: teamColorToDecimal(teamColor),
     fields: [
       statField('Type', typeDescription),

@@ -287,7 +287,8 @@ async function liveBoardsBySeat(seatIds: number[]): Promise<Map<number, LiveEnro
 
   const [tileRows, doneRows] = await Promise.all([
     // Whole rows: lib/boardScoring reads the mission and reveal fields, not only the weight.
-    db.query.tiles.findMany({ where: inArray(tiles.eventId, eventIds) }),
+    // Board cells only (no combo parts — lib/combo); scored through lib/boardScoring.
+    db.query.tiles.findMany({ where: and(inArray(tiles.eventId, eventIds), isNull(tiles.parentTileId)) }),
     db
       .select({ teamId: completions.teamId, tileId: completions.tileId, awardedPoints: completions.awardedPoints })
       .from(completions)

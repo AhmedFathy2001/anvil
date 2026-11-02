@@ -78,8 +78,7 @@ export async function POST(
     .where(eq(tiles.eventId, sourceId))
     .orderBy(asc(tiles.position));
   if (sourceTiles.length > 0) {
-    await db.insert(tiles).values(
-      sourceTiles.map((t) => ({
+    const copyOf = (t: (typeof sourceTiles)[number]) => ({
         eventId: created.id,
         position: t.position,
         label: t.label,
@@ -100,7 +99,9 @@ export async function POST(
         setsRequired: t.setsRequired,
         countMode: t.countMode,
         perKillCap: t.perKillCap,
-        altGoal: t.altGoal,
+        // Combos (lib/combo): the rule rides the parent; parts are re-pointed at the new parent below.
+        comboRule: t.comboRule,
+        capBy: t.capBy,
         coopCredit: t.coopCredit,
         coopMinMembers: t.coopMinMembers,
         acceptedSources: t.acceptedSources,
@@ -120,8 +121,16 @@ export async function POST(
         revealAt: null,
         revealedAt: null,
         closedAt: null,
-      })),
-    );
+      });
+    // Board tiles first, then each combo's parts pointed at the copy of their parent.
+    const board = sourceTiles.filter((t) => t.parentTileId == null);
+    const parts = sourceTiles.filter((t) => t.parentTileId != null);
+    const inserted = await db.insert(tiles).values(board.map(copyOf)).returning({ id: tiles.id });
+    const newIdOf = new Map(board.map((t, i) => [t.id, inserted[i].id]));
+    const partRows = parts
+      .filter((p) => newIdOf.has(p.parentTileId!))
+      .map((p) => ({ ...copyOf(p), parentTileId: newIdOf.get(p.parentTileId!)! }));
+    if (partRows.length > 0) await db.insert(tiles).values(partRows);
   }
 
   const sourceQuestions = await db

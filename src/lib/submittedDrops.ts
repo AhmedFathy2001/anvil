@@ -1,5 +1,5 @@
 import { and, eq, isNotNull, or } from 'drizzle-orm';
-import { primaryCredit } from '@/lib/altGoalSql';
+import { primaryCredit } from '@/lib/comboSql';
 import { alias } from 'drizzle-orm/pg-core';
 
 import { db } from '@/db';
@@ -35,7 +35,7 @@ export async function submittedDropsForEvent(eventId: number): Promise<Submitted
     .leftJoin(eventParticipants, eq(eventParticipants.id, submissions.playerId))
     .leftJoin(credited, eq(credited.id, submissions.creditPlayerId))
     // Drop tiles only: a value tile's `amount` is gp, and a kill or timed tile's isn't an item at all.
-    // Primary credits only: an either/or tile's searches are not its item (lib/altGoal).
+    // The tile's own credits only: a cap counter's rows are not items (lib/tileCaps).
     .where(and(eq(tiles.eventId, eventId), eq(tiles.tileType, 'drop'), primaryCredit(), or(isNotNull(submissions.itemId), isNotNull(tiles.trackedItemIds))));
   if (rows.length === 0) return [];
 

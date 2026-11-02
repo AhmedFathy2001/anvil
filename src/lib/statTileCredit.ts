@@ -10,6 +10,7 @@ import { notifyTileCompletion } from '@/lib/discord';
 import { evaluateCompletionGate } from '@/lib/completionGate';
 import { eligibleSinceReveal, gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
 import { handleBountyClaim } from '@/lib/revealEngine';
+import { afterPartCompletion, afterPartProgress } from '@/lib/comboCompletion';
 
 type StatTile = typeof tiles.$inferSelect;
 
@@ -101,6 +102,7 @@ export async function creditStatTilesForTeam(opts: {
   const eventStartMs = parseStamp(event?.startDate) ?? 0;
   const nowIso = new Date().toISOString();
 
+  const movedParts = new Map<number, StatTile>();
   for (const tile of statTiles) {
     if (done.has(tile.id) || !tile.trackedStat || !tile.statType || !tile.statGoal) continue;
     // Event-rules gate: unrevealed/claimed tiles and lockout losses never credit, no matter what the
@@ -163,6 +165,8 @@ export async function creditStatTilesForTeam(opts: {
       : teamPlayers.reduce((sum, p) => sum + tileGain(p), 0) >= tile.statGoal!;
     if (!meets || (gate && !gate.allowed)) {
       await saveLedger();
+      // A 'mix' combo counts this part's partial gain (lib/combo) — re-check it once, after the loop.
+      if (tile.parentTileId != null) movedParts.set(tile.parentTileId, tile);
       continue;
     }
 
@@ -195,6 +199,17 @@ export async function creditStatTilesForTeam(opts: {
     done.add(tile.id);
     completed.push(tile.label);
     opts.onCompleted?.(tile);
+    // A combo PART (lib/combo): its row is progress; its combo is recomputed (and announced) instead.
+    if (tile.parentTileId != null) {
+      const finisherName = individualFinisher?.name ?? (risen.length === 1 ? nameOf.get(risen[0]) ?? null : null);
+      await afterPartCompletion(tile, teamId, {
+        change: 'added',
+        silent: opts.notify === false,
+        notifyClanId: opts.notifyClanId,
+        finisher: finisherName,
+      });
+      continue;
+    }
     if (opts.notify !== false && event && team) {
       notifyTileCompletion({
         clanId: opts.notifyClanId ?? event.clanId,
@@ -217,6 +232,9 @@ export async function creditStatTilesForTeam(opts: {
           .map((r) => ({ name: nameOf.get(r.playerId)!, amount: r.gained })),
       }).catch(() => {});
     }
+  }
+  for (const part of movedParts.values()) {
+    await afterPartProgress(part, teamId, { silent: opts.notify === false, notifyClanId: opts.notifyClanId });
   }
   return completed;
 }

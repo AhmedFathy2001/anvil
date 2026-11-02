@@ -13,8 +13,6 @@ export interface TileTargetsLike {
   id: number;
   tileType?: string | null;
   requiredAmount?: number | null;
-  /** Either/or tiles (lib/altGoal): JSON { targets, amount, capBy? }. */
-  altGoal?: string | null;
   trackedItemIds?: string | number[] | null;
   itemRequirements?: string | null;
   sourceNpcs?: string | string[] | null;
@@ -110,7 +108,7 @@ export default function TileTargets({ tile, hideItems }: Props) {
 
   // The rule in plain words, first — always, even when the items themselves are listed elsewhere.
   // Same sentence the RuneLite sidebar shows (lib/collectionSets howItCounts).
-  if (kind === 'drop' || tile.altGoal) {
+  if (kind === 'drop') {
     const rule = howItCounts({
       tileType: kind,
       requiredAmount: tile.requiredAmount,
@@ -119,7 +117,6 @@ export default function TileTargets({ tile, hideItems }: Props) {
       itemRequirements: requirements,
       groupMode: tile.groupMode,
       setsRequired: tile.setsRequired,
-      altGoal: tile.altGoal,
     });
     if (rule) {
       rows.push(

@@ -7,6 +7,7 @@ import TileDetailModal from '@/components/TileDetailModal';
 import LocalTime from '@/components/LocalTime';
 import { useCountdown, useRefreshCountdown } from '@/hooks/useCountdown';
 import { useDropProgress } from '@/hooks/useDropProgress';
+import { tileWithPartIds } from '@/lib/combo';
 import { BoardSkeleton, ErrorBanner } from '@/components/BoardSkeleton';
 import { isPointsMode } from '@/lib/utils';
 import { scoreTeam } from '@/lib/boardScoring';
@@ -207,7 +208,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
   }
 
   // Build drop progress map
-  const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions);
+  const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions, completions, team.id);
 
   // Build stat progress map for tiles
   const statProgress = new Map<number, { current: number; goal: number; statType?: string }>();
@@ -237,7 +238,9 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
   const percentage = score.pct;
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
-  const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
+  // A combo's proof is its parts' (lib/combo).
+  const selectedTileIds = tileWithPartIds(tiles, selectedTileId);
+  const selectedTileSubmissions = submissions.filter((s) => selectedTileIds.has(s.tileId));
   const selectedTileCompletedBy = selectedTileId
     ? completions
         .filter((c) => c.tileId === selectedTileId)

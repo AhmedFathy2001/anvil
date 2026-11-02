@@ -8,8 +8,8 @@ import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin, verifyAdminOrModerator, verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
 import { resolveTeamManagement } from '@/lib/teamStaff';
-import { syncDropTileCompletion, countTileProgress, altTileProgress } from '@/lib/submissions';
-import { altGoalEligible, capIndex, decodeAltTileId, goalForSlot, parseAltGoal, ALT_GOAL_KEY } from '@/lib/altGoal';
+import { syncDropTileCompletion, countTileProgress } from '@/lib/submissions';
+import { capEligible, capGoalForSlot, capIndex, decodeCapTileId, parseCapBy } from '@/lib/tileCaps';
 import { decidePing, tilePingMax } from '@/lib/pingMax';
 import { countProgress, itemAlreadyCounted, memberProgress } from '@/lib/countProgress';
 import { itemCap, parseCountMode } from '@/lib/collectionSets';
@@ -74,7 +74,10 @@ export async function GET(
     conditions.push(eq(submissions.teamId, parseInt(teamIdFilter, 10)));
   }
   if (tileIdFilter) {
-    conditions.push(eq(submissions.tileId, parseInt(tileIdFilter, 10)));
+    // A combo's proof is its parts' (lib/combo): the parts ride along with it.
+    const wanted = parseInt(tileIdFilter, 10);
+    const ids = [wanted, ...eventTiles.filter((t) => t.parentTileId === wanted).map((t) => t.id)];
+    conditions.push(inArray(submissions.tileId, ids));
   }
   const filtered = limit > 0
     ? await db.select().from(submissions).where(and(...conditions))
@@ -128,12 +131,12 @@ export async function POST(
   if (lockedResponse) return lockedResponse;
   const { tileId: rawTileId, teamId, amount, imageUrl, note, creditPlayerId, itemId: rawItemId, durationSeconds, coopGroup, coopPartySize, inferred, proof } = await request.json();
 
-  // EITHER / OR tiles (lib/altGoal): the plugin config hands out VIRTUAL negative tile ids for a
-  // tile's alternative goal (slot 0) and its cap counters (slots 1..n). Every plugin build credits
-  // them like any kill tile, so they arrive here as an ordinary kill ping on a negative id — decoded
-  // back to the parent tile and stored with `goal` set, which keeps them out of the primary count.
-  const altRef = Number.isInteger(rawTileId) && rawTileId < 0 ? decodeAltTileId(rawTileId) : null;
-  const tileId: number = altRef ? altRef.parentId : rawTileId;
+  // CAPPED counter tiles (lib/tileCaps): the plugin config hands out VIRTUAL negative tile ids for a
+  // tile's cap counters (slots 1..n). Every plugin build credits them like any kill tile, so they
+  // arrive here as an ordinary kill ping on a negative id — decoded back to the tile and stored with
+  // `goal` = 'cap:N', which keeps them out of the tile's own count (energy is not searches).
+  const capRef = Number.isInteger(rawTileId) && rawTileId < 0 ? decodeCapTileId(rawTileId) : null;
+  const tileId: number = capRef ? capRef.tileId : rawTileId;
   if (!tileId || !teamId || !Number.isInteger(tileId) || !Number.isInteger(teamId) || tileId < 1 || teamId < 1) {
     return NextResponse.json({ error: 'tileId and teamId are required and must be positive integers' }, { status: 400 });
   }
@@ -207,20 +210,20 @@ export async function POST(
   if (!tile) {
     return NextResponse.json({ error: 'Tile not found in this event' }, { status: 404 });
   }
-  // Which goal this row credits: null = the tile's own requirement; 'alt' / 'cap:N' = its alternative.
-  const altGoal = altRef ? parseAltGoal(tile.altGoal) : null;
-  const goalValue = altRef && altGoal && altGoalEligible(tile) ? goalForSlot(altGoal, altRef.slot) : null;
-  if (altRef && !goalValue) {
-    return NextResponse.json({ error: 'That alternative goal is not on this tile' }, { status: 404 });
+  // What this row credits: null = the tile's own count; 'cap:N' = one of its cap counters.
+  const capBy = capEligible(tile) ? parseCapBy(tile.capBy) : [];
+  const goalValue = capRef ? capGoalForSlot(capBy, capRef.slot) : null;
+  if (capRef && !goalValue) {
+    return NextResponse.json({ error: 'That cap counter is not on this tile' }, { status: 404 });
   }
-  const isAlt = goalValue != null;
-  // An alternative is a count of something else — never which item it was.
-  const itemId = isAlt ? null : rawItemId;
+  const isCap = goalValue != null;
+  // A cap counter is a count of something else — never which item it was.
+  const itemId = isCap ? null : rawItemId;
   if (tile.tileType !== 'drop' && tile.tileType !== 'kill' && tile.tileType !== 'lap' && tile.tileType !== 'pvp' && tile.tileType !== 'gain' && tile.tileType !== 'timed' && tile.tileType !== 'deathless' && tile.tileType !== 'diary' && tile.tileType !== 'ca' && tile.tileType !== 'lms' && tile.tileType !== 'value' && tile.tileType !== 'valuetotal') {
     return NextResponse.json({ error: 'Submissions are only for drop, kill, lap, PvP, gain, timed, deathless, diary, CA, LMS, or value tiles' }, { status: 400 });
   }
   // Count-based tiles keep the old anti-typo ceiling; value tiles legitimately carry gp figures.
-  if ((isAlt || (tile.tileType !== 'value' && tile.tileType !== 'valuetotal')) && submitAmount > 10000) {
+  if ((isCap || (tile.tileType !== 'value' && tile.tileType !== 'valuetotal')) && submitAmount > 10000) {
     return NextResponse.json({ error: 'amount must be an integer between 1 and 10000' }, { status: 400 });
   }
 
@@ -229,8 +232,7 @@ export async function POST(
   // the submission that completes the tile. Count-only is gated to the plugin token, so manual web /
   // captain submissions still require proof. When present, an image must be one of our managed
   // media hosts (the configured R2/S3 base or Vercel Blob) to keep Discord embeds off phishy hosts.
-  // An alt-goal credit is a kill-tile ping to the plugin, whatever the parent tile's kind.
-  const isPluginKillPing = !!pluginAuth && (isAlt || tile.tileType === 'kill' || tile.tileType === 'lap' || tile.tileType === 'pvp' || tile.tileType === 'gain' || tile.tileType === 'deathless' || tile.tileType === 'lms' || tile.tileType === 'value' || tile.tileType === 'valuetotal');
+  const isPluginKillPing = !!pluginAuth && ( tile.tileType === 'kill' || tile.tileType === 'lap' || tile.tileType === 'pvp' || tile.tileType === 'gain' || tile.tileType === 'deathless' || tile.tileType === 'lms' || tile.tileType === 'value' || tile.tileType === 'valuetotal');
   let imageUrlValue: string | null = null;
   if (imageUrl != null && typeof imageUrl === 'string' && imageUrl.trim()) {
     let imageUrlParsed: URL;
@@ -272,7 +274,7 @@ export async function POST(
   // Timed tiles carry a completion duration instead of a count. Validate it up front so the
   // value reaching the DB is always a sane positive integer (seconds, capped at 24h).
   let durationSecondsValue: number | null = null;
-  if (tile.tileType === 'timed' && !isAlt) {
+  if (tile.tileType === 'timed') {
     if (!Number.isInteger(durationSeconds) || durationSeconds < 1 || durationSeconds > 86400) {
       return NextResponse.json(
         { error: 'durationSeconds is required for timed tiles and must be an integer between 1 and 86400' },
@@ -392,18 +394,14 @@ export async function POST(
   // never from the client. Above it the ping still counts in full, flagged 'over_action_max'.
   // A timed clear is one run whatever amount the caller sent — Barracuda Trials rank tiles count
   // runs toward requiredAmount, so a stray amount must never stand in for several runs.
-  let creditedAmount: number = tile.tileType === 'timed' && !isAlt ? 1 : amount || 1;
+  let creditedAmount: number = tile.tileType === 'timed' ? 1 : amount || 1;
   let creditNote: string | null = note || null;
-  // An either/or tile's alternative and its cap counters are kill-style counts too, under the same rule
-  // (their ceiling comes off the alternative's targets / that one cap counter).
-  const pingCapped = isAlt || PING_CAPPED_KINDS.has(tile.tileType);
-  if (isPluginKillPing && !imageUrlValue && pingCapped) {
+  // A cap counter's ping follows the same rule, its ceiling off that one counter.
+  if (isPluginKillPing && !imageUrlValue && PING_CAPPED_KINDS.has(tile.tileType)) {
     const capAt = capIndex(goalValue);
-    const pingTargets: string[] = !isAlt
+    const pingTargets: string[] = !isCap
       ? (tile.tileType === 'kill' || tile.tileType === 'lap' ? parseJsonArray<string>(tile.targetNpcs) : [])
-      : goalValue === ALT_GOAL_KEY
-        ? (altGoal?.targets ?? [])
-        : capAt != null && altGoal?.capBy?.[capAt] ? [altGoal.capBy[capAt]] : [];
+      : capAt != null && capBy[capAt] ? [capBy[capAt]] : [];
     const ping = decidePing(creditedAmount, tilePingMax(pingTargets));
     if (ping.flag) {
       creditNote = `${creditNote ? `${creditNote} ` : ''}[claimed ${creditedAmount} without a screenshot]`.slice(0, 500);
@@ -415,32 +413,15 @@ export async function POST(
   // Per-item tracking validation
   const tileItemRequirements = tile.itemRequirements ? JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[] : null;
 
-  if (isAlt) {
-    // The alternative's guards. Primary-only checks (items, distinct pools, the requiredAmount
-    // remainder) don't apply: this row never counts toward requiredAmount. A finished tile — either
-    // way — takes no more alternative credit, and the goal counter stops once it reached its amount
-    // (the submitter's own on a Solo tile). No remainder cap: the cap counters mean raw searches
-    // and counted searches differ, so overshooting by a few is expected and harmless.
+  if (isCap) {
+    // A cap counter's guards. The tile's own checks (the requiredAmount remainder) don't apply: this
+    // row never counts toward requiredAmount. A finished tile takes no more cap credit.
     const done = await db.query.completions.findFirst({
       where: and(eq(completions.tileId, tileId), eq(completions.teamId, teamId)),
       columns: { id: true },
     });
     if (done) {
       return NextResponse.json({ error: 'Tile already complete' }, { status: 400 });
-    }
-    if (goalValue === ALT_GOAL_KEY && altGoal) {
-      const progress = await altTileProgress(tile, teamId);
-      const soloTile = isIndividualMode(tile.trackingMode);
-      const mine = soloTile ? (progress?.byMember.get(submitterCreditId ?? 0) ?? 0) : (progress?.current ?? 0);
-      // A screenshot is still taken once the count is there: an alternative reached on image-less pings
-      // (or lifted over the line by a cap counter) is held until one of its own rows carries proof
-      // (lib/submissions), and refusing it here would hold the tile forever.
-      if (mine >= altGoal.amount && !imageUrlValue) {
-        return NextResponse.json(
-          { error: soloTile ? 'You have already reached this tile’s count' : 'Tile already complete' },
-          { status: 400 },
-        );
-      }
     }
   } else if (tileItemRequirements) {
     // Per-item mode: require itemId
@@ -523,7 +504,26 @@ export async function POST(
       );
     }
     const coopTile = parseCoopCredit(tile.coopCredit) === 'per-kill' || (tile.coopMinMembers ?? 0) > 0;
-    const currentTotal = coopTile
+    // A CAPPED counter (lib/tileCaps): what counts is the capped figure, so raw searches past the goal
+    // are expected (energy short) — no remainder cap — and once the capped count is there a proof
+    // screenshot is still taken: a count lifted over the line by a cap ping is held until one of the
+    // tile's own rows carries proof, and refusing it would hold the tile forever.
+    if (capBy.length > 0) {
+      const all = await db
+        .select({ playerId: submissions.playerId, creditPlayerId: submissions.creditPlayerId, amount: submissions.amount, goal: submissions.goal })
+        .from(submissions)
+        .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
+      const capped = soloTile
+        ? memberProgress(all, submitterCreditId, null, capBy)
+        : countProgress(all, tile.trackingMode, null, capBy).current;
+      if (capped >= tile.requiredAmount && !imageUrlValue) {
+        return NextResponse.json(
+          { error: soloTile ? 'You have already reached this tile’s count' : 'Tile already complete' },
+          { status: 400 },
+        );
+      }
+    }
+    const currentTotal = capBy.length > 0 ? 0 : coopTile
       // Shared-kill tiles count RUNS, not submissions: a teammate reporting the same kill adds
       // nothing to the total, so guarding on the raw sum would refuse the report that proves it
       // was shared. Guard on the credited figure (lib/coopRuns) and let the run absorb it.
@@ -543,7 +543,7 @@ export async function POST(
     // The remainder cap doesn't apply to a shared-kill tile: a second teammate reporting the same
     // kill doesn't overshoot anything (their report merges into the run), and refusing it would
     // throw away the very evidence that the kill was shared.
-    if (!coopTile && currentTotal + submitAmount > tile.requiredAmount && !isAdmin) {
+    if (!coopTile && capBy.length === 0 && currentTotal + submitAmount > tile.requiredAmount && !isAdmin) {
       const remaining = tile.requiredAmount - currentTotal;
       return NextResponse.json({ error: `Can only submit ${remaining} more (tile needs ${tile.requiredAmount}, has ${currentTotal})` }, { status: 400 });
     }
@@ -608,9 +608,7 @@ export async function POST(
 
   // Current progress for the Discord "x / y" line — mode-aware, so a Solo tile's post reads the
   // finisher's own count rather than a team sum that isn't what completes the tile.
-  // An alternative's row reports the alternative's own count against its own amount.
-  const altNow = isAlt ? await altTileProgress(tile, teamId) : null;
-  const currentTotal = altNow ? altNow.current : (await countTileProgress(tileId, teamId, tile.trackingMode, tile)).current;
+  const currentTotal = (await countTileProgress(tileId, teamId, tile.trackingMode, tile)).current;
 
   // Get credit player name if provided
   let creditPlayerName: string | null = null;
@@ -627,23 +625,10 @@ export async function POST(
   // separate completion announcement is suppressed; the team-win post still fires from inside sync.
   const syncResult = await syncDropTileCompletion(tileId, teamId, { notifyCompletion: false });
 
-  if (isAlt) {
-    // Alternative-goal credits (searches, energy) only post when one finishes the tile: the per-ping
-    // chatter is the alternative's, not the tile's, and would share the tile's progress bucket.
-    if (syncResult?.isComplete && altNow) {
-      await queueSubmissionNotification({
-        eventId: eId,
-        tileId,
-        teamId,
-        amount: creditedAmount,
-        currentTotal: altNow.current,
-        requiredAmount: altNow.goal.amount,
-        imageUrl: imageUrlValue,
-        note: note || null,
-        creditPlayerName,
-        completed: true,
-      });
-    }
+  if (isCap) {
+    // A cap counter's credits (energy) aren't the tile's progress: no per-ping post of their own. The
+    // ping that lifts the cap far enough to finish the tile posts nothing either — the tile's own
+    // proof-carrying search does, once it lands (lib/submissions holds the credit until then).
     flushPendingNotifications().catch(() => {});
   } else if (tile.tileType === 'timed') {
     // Timed clears are discrete, rare, and carry a clear-time the merged embed can't express — post

@@ -9,6 +9,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { events, settings, teams, tiles, eventParticipants } from '@/db/schema';
+import { eventBoardTiles } from '@/lib/comboSql';
 import { eventPoolGp } from '@/lib/coffer';
 import { boardTiles, missionTiles, parseEventRules } from '@/lib/eventRules';
 import { getClanDisplayName } from '@/lib/pluginConfig';
@@ -49,7 +50,8 @@ export async function loadRulesFacts(eventId: number): Promise<RulesFacts | null
     db
       .select({ id: tiles.id, mission: tiles.mission, revealedAt: tiles.revealedAt, trackedStat: tiles.trackedStat })
       .from(tiles)
-      .where(eq(tiles.eventId, eventId)),
+      // Board cells only — combo parts (lib/combo) are neither tiles nor missions.
+      .where(eventBoardTiles(eventId)),
     db.select({ id: eventParticipants.id }).from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
     countPaidEntries(eventId).catch(() => ({ count: 0, gp: 0 })),
     eventPoolGp(eventId).catch(() => 0),

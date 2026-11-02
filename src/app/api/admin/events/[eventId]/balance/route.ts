@@ -4,6 +4,7 @@ import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
 import { eventParticipants, eventSignups, events, teams, tiles } from '@/db/schema';
+import { eventBoardTiles } from '@/lib/comboSql';
 import { and, count, eq, isNotNull } from 'drizzle-orm';
 import { verifyTileEditorForEvent } from '@/lib/auth';
 import { analyzeEffort } from '@/lib/balanceEffort';
@@ -40,7 +41,8 @@ export async function GET(
   if (!event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
-  const eventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, eId) });
+  // Board cells only — combo parts (lib/combo) carry no points of their own.
+  const eventTiles = await db.query.tiles.findMany({ where: eventBoardTiles(eId) });
 
   let ratesOverride: unknown = null;
   let raidRatesOverride: unknown = null;

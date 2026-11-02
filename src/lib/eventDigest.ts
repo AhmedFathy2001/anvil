@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { clans, completions, eventDaySnapshots, eventParticipants, events, moments, teams, tiles } from '@/db/schema';
+import { eventBoardTiles } from '@/lib/comboSql';
 import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import { scoreTeams } from '@/lib/boardScoring';
 import { parseEventRules } from '@/lib/eventRules';
@@ -111,7 +112,8 @@ function counters(p: typeof eventParticipants.$inferSelect, statsNow: string | n
 export async function loadBoard(event: typeof events.$inferSelect, asOfMs?: number) {
   const [eventTeams, eventTiles, eventPlayers] = await Promise.all([
     db.select().from(teams).where(eq(teams.eventId, event.id)),
-    db.select().from(tiles).where(eq(tiles.eventId, event.id)),
+    // Board cells only (combo parts never score — lib/combo).
+    db.select().from(tiles).where(eventBoardTiles(event.id)),
     db.select().from(eventParticipants).where(eq(eventParticipants.eventId, event.id)),
   ]);
   const tileIds = eventTiles.map((t) => t.id);

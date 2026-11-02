@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { completions, eventParticipants, teams, tiles } from '@/db/schema';
+import { eventBoardTiles } from '@/lib/comboSql';
 import { asc, eq, inArray } from 'drizzle-orm';
 import { eventActivityIsValid } from '@/lib/completionGate';
 
@@ -50,7 +51,8 @@ export async function loadEventFirsts(eventId: number, startDate: string | null)
     })
     .from(completions)
     .innerJoin(tiles, eq(completions.tileId, tiles.id))
-    .where(eq(tiles.eventId, eventId))
+    // Board cells only: a combo part (lib/combo) is never a "first".
+    .where(eventBoardTiles(eventId))
     .orderBy(asc(completions.completedAt));
 
   const validRows = rows.filter((row) => eventActivityIsValid({ startDate }, row.completedAt));

@@ -54,15 +54,19 @@ export function countTileTeams(
   input: TrackerInput,
   subs: (CountedSubmission & { teamId: number })[],
   countMode?: string | null,
+  // A capped counter (lib/tileCaps): `subs` then carries its 'cap:N' rows too, and the team's figure is
+  // the capped one. Each member's own line stays their raw count.
+  capBy?: readonly string[] | null,
 ): TrackerTeam[] {
   return rank(input.teams.map((t) => {
-    const own = subs.filter((s) => s.teamId === t.teamId && isPrimaryCredit(s));
+    const all = subs.filter((s) => s.teamId === t.teamId);
+    const own = all.filter(isPrimaryCredit);
     const byPlayer = new Map<number, number>();
     for (const s of own) {
       const key = submissionCreditKey(s);
       byPlayer.set(key, (byPlayer.get(key) ?? 0) + s.amount);
     }
-    return team(input, t, countProgress(own, input.trackingMode, countMode).current, byPlayer);
+    return team(input, t, countProgress(capBy?.length ? all : own, input.trackingMode, countMode, capBy).current, byPlayer);
   }));
 }
 

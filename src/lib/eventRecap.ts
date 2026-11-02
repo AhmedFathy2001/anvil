@@ -267,8 +267,11 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
   const teamById = new Map(eventTeams.map((t) => [t.id, t]));
 
   // Frozen completions for this event's tiles (parse the KC/XP split once for the MVP calc).
-  const eventCompletions = tileIds.length
-    ? (await db.select().from(completions).where(inArray(completions.tileId, tileIds))).map((c) => ({
+  // Board cells only — a combo part finishing (lib/combo) is progress, never a tile anyone "finished";
+  // its submissions stay, and fold into the combo's split (lib/memberBreakdown).
+  const boardIds = eventTiles.filter((t) => t.parentTileId == null).map((t) => t.id);
+  const eventCompletions = boardIds.length
+    ? (await db.select().from(completions).where(inArray(completions.tileId, boardIds))).map((c) => ({
         id: c.id,
         teamId: c.teamId,
         tileId: c.tileId,
@@ -418,7 +421,7 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
   const autoPingTilesSeen = new Set<string>(); // `${personKey}:${tileId}`
   let totalGpLooted = 0;
   for (const sub of eventSubmissions) {
-    // An either/or tile's alternative (searches, energy — lib/altGoal) is not a drop, kill or haul.
+    // A capped tile's cap counter (energy — lib/tileCaps) is not a drop, kill or haul.
     if (sub.goal != null) continue;
     const s = stat(sub.creditPlayerId);
     if (!s) continue;

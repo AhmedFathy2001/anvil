@@ -8,7 +8,7 @@ import { countTurnIns, turnInsOnTile } from '@/lib/turnIns';
 import { formatEst } from '@/components/MemberBreakdown';
 
 interface Submission {
-  /** lib/altGoal: null = the tile's own credit; 'alt' / 'cap:N' = an either/or alternative. */
+  /** lib/tileCaps: null = the tile's own credit; 'cap:N' = a capped tile's cap counter. */
   goal?: string | null;
   id: number;
   tileId: number;
@@ -81,7 +81,7 @@ export default function PlayerContributions({ submissions, tiles, playerName, st
   // Group by tile
   const grouped = new Map<number, Submission[]>();
   for (const s of submissions) {
-    // An either/or tile's alternative pings (searches, energy — lib/altGoal) aren't the tile's own
+    // A capped tile's cap-counter pings (energy — lib/tileCaps) aren't the tile's own
     // credits; summed in here they would read as items.
     if (s.goal != null) continue;
     const arr = grouped.get(s.tileId) || [];

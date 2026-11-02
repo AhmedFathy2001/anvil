@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { events, teams, tiles, completions, eventParticipants } from '@/db/schema';
+import { eventBoardTiles } from '@/lib/comboSql';
 import { eq, and, inArray, isNotNull, isNull, count } from 'drizzle-orm';
 import { notifyBoardRevealed, notifyEventStart, notifyEventEnd, notifyEventStartHeld } from '@/lib/discord';
 import { autoConfirmEventFees, shouldAutoConfirmOnEventEnd } from '@/lib/feeConfirmations';
@@ -104,7 +105,8 @@ export async function eventBoardSummary(event: {
   const eventTiles = await db
     .select({ points: tiles.points, optional: tiles.optional, revealedAt: tiles.revealedAt, revealAt: tiles.revealAt, closedAt: tiles.closedAt, mission: tiles.mission })
     .from(tiles)
-    .where(eq(tiles.eventId, event.id));
+    // Board cells only — a combo's parts (lib/combo) aren't tiles on the board.
+    .where(eventBoardTiles(event.id));
   const scored = eventTiles.filter((t) => !t.optional);
   return {
     tileCount: scored.length,
@@ -195,7 +197,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       // `allEvents` was read before this loop. Keep its in-memory row in step so, when reveal and
       // start share the same minute, the start post does not attach the same board image again.
       event.tilesRevealed = 1;
-      const revealedTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
+      const revealedTiles = await db.select().from(tiles).where(eventBoardTiles(event.id));
       await notifyBoardRevealed({
         clanId: event.clanId,
         eventId: event.id,
@@ -304,7 +306,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       if (flipped.length === 0) continue;
 
       const eventTeams = await db.select().from(teams).where(eq(teams.eventId, event.id));
-      const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
+      const eventTiles = await db.select().from(tiles).where(eventBoardTiles(event.id));
       const eventTileIds = eventTiles.map((t) => t.id);
       const eventCompletions = eventTileIds.length > 0
         ? await db.select().from(completions).where(inArray(completions.tileId, eventTileIds))

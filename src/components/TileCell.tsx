@@ -12,7 +12,11 @@ interface TileCellProps {
   onClick?: () => void;
   size: number;
   tileType?: string;
-  progress?: { current: number; required: number; alt?: { current: number; required: number; note: string } };
+  /**
+   * Count progress. A COMBO (lib/combo) brings its own short `text` ("1 of 2", "75%") and a hover `note`
+   * naming each open part's progress ("1 of 2 done — 37/100 searches").
+   */
+  progress?: { current: number; required: number; text?: string; note?: string };
   statProgress?: { current: number; goal: number; statType?: string };
   expanded?: boolean;
   points?: number;
@@ -42,7 +46,7 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
   const isCompleted = anyCompleted && !markersOnly;
   const teamColor = isCompleted ? completedBy[0].color : undefined;
   // Drop, kill and lap tiles all show a count-based partial-progress indicator.
-  const isDrop = tileType === 'drop' || tileType === 'kill' || tileType === 'lap' || tileType === 'pvp';
+  const isDrop = tileType === 'drop' || tileType === 'kill' || tileType === 'lap' || tileType === 'pvp' || tileType === 'combo';
   const hasPartialProgress = isDrop && progress && progress.current > 0 && !isCompleted;
   const hasStatProgress = statProgress && statProgress.current > 0 && !isCompleted;
 
@@ -194,12 +198,8 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
       {isDrop && progress && !isCompleted && (
         <div className="absolute bottom-0 left-0 right-0">
           <div className="flex items-center justify-center mb-0.5">
-            <span className="text-[8px] sm:text-[10px] text-yellow-400 font-medium" title={progress.alt?.note}>
-              {progress.current}/{progress.required}
-              {/* Either/or tile: the alternative's count, when it has started (full note on hover). */}
-              {progress.alt && progress.alt.current > 0 && (
-                <span className="text-text-muted font-normal"> · {progress.alt.current}/{progress.alt.required}</span>
-              )}
+            <span className="text-[8px] sm:text-[10px] text-yellow-400 font-medium" title={progress.note}>
+              {progress.text ?? `${progress.current}/${progress.required}`}
             </span>
           </div>
           <div className="h-1 bg-brown-dark/60 rounded-b-lg overflow-hidden">

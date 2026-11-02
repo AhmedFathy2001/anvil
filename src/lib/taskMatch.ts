@@ -29,7 +29,8 @@ import {
 import { HISCORES_ACTIVITIES } from '@/lib/hiscoresActivities';
 import { chooseKillSource, hiscoresKeyForMonster } from '@/lib/killSource';
 import type { TileConfig } from '@/lib/types';
-import { altGoalEligible, altGoalPhrase, altTitleSuffix, GOTR_ENERGY_CAPS, GOTR_SEARCHES, type AltGoal } from '@/lib/altGoal';
+import { GOTR_ENERGY_CAPS, GOTR_SEARCHES, capPhrase } from '@/lib/tileCaps';
+import { COMBO_TILE_TYPE, MAX_COMBO_PARTS, comboLabel, comboSentence, type ComboRule } from '@/lib/combo';
 import {
   RAID_OPTIONS,
   TRIAL_COURSE_OPTIONS,
@@ -57,7 +58,7 @@ export type CreatorFlow = 'confirm' | 'raids' | 'trials' | 'items' | 'courses';
 
 export type CandidateSource =
   | 'library' | 'boss' | 'activity' | 'skill' | 'counter' | 'raid' | 'lap' | 'trial'
-  | 'diary' | 'ca' | 'timed' | 'deathless' | 'lms' | 'pvp' | 'value' | 'gain' | 'drop' | 'clog' | 'monster';
+  | 'diary' | 'ca' | 'timed' | 'deathless' | 'lms' | 'pvp' | 'value' | 'gain' | 'drop' | 'clog' | 'monster' | 'combo';
 
 export interface TaskCandidate {
   key: string;
@@ -98,6 +99,8 @@ export interface TaskCandidate {
   /** Library tasks carry their own points and tags. */
   points?: number | null;
   tileCategory?: string | null;
+  /** A combo (lib/combo): each part as the candidate it was matched from, so a part can be edited or dropped. */
+  comboParts?: TaskCandidate[];
 }
 
 export interface MatchItem {
@@ -209,6 +212,34 @@ const SHORTHANDS: Record<string, string> = {
   tobhm: 'tob hm',
   toaexpert: 'toa expert',
   cms: 'cox cm',
+  // Item shorthand clans write in their lists. "zenytes" (plural) are the shards that drop; a lone
+  // "zenyte" stays ambiguous with the cut gem, so only the plural is expanded.
+  zenytes: 'zenyte shards',
+  tbow: 'twisted bow',
+  dwh: 'dragon warhammer',
+  bowfa: 'bow of faerdhinen',
+  zcb: 'zaryte crossbow',
+  acb: 'armadyl crossbow',
+  dhcb: 'dragon hunter crossbow',
+  dhl: 'dragon hunter lance',
+  bgs: 'bandos godsword',
+  ags: 'armadyl godsword',
+  sgs: 'saradomin godsword',
+  zgs: 'zamorak godsword',
+  sang: 'sanguinesti staff',
+  dpick: 'dragon pickaxe',
+};
+
+// Names a clan uses for ONE item only when the word is the whole task ("Scythe", "Shadow") — inside a
+// longer name ("Tumeken's shadow", "Scythe of vitur") they are left alone.
+const WHOLE_ALIASES: Record<string, string> = {
+  scythe: 'scythe of vitur',
+  scythes: 'scythe of vitur',
+  shadow: "tumeken's shadow",
+  shadows: "tumeken's shadow",
+  rapier: 'ghrazi rapier',
+  fang: "osmumten's fang",
+  lance: 'dragon hunter lance',
 };
 
 export function expandShorthands(text: string): string {
@@ -244,6 +275,7 @@ export function parseTaskQuery(query: string): ParsedQuery {
       }
     }
   }
+  text = WHOLE_ALIASES[text.toLowerCase().replace(/^(?:an?|the)\s+/, '')] ?? text;
   return {
     amount,
     text,
@@ -253,11 +285,47 @@ export function parseTaskQuery(query: string): ParsedQuery {
   };
 }
 
-/** One bulk line: "150 herbiboars harvested – 20 pts" → the task text and its points. */
+// A points figure: "500", "1.5k", "1,000".
+const PTS_NUM = String.raw`(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(k)?`;
+const PTS_WORD = String.raw`(?:points?|pts?|p)`;
+// …at the end: "– 20 pts", "(15 points)", "for 500 points", "500p", "points: 500".
+const PTS_END = new RegExp(String.raw`\s*(?:[-–—:|(,]\s*)?(?:for\s+)?(?:${PTS_NUM}\s*${PTS_WORD}|points?\s*[:=]\s*${PTS_NUM})\s*\)?\.?\s*$`, 'i');
+// …at the start: "500 points: 2 zenytes", "(500 pts) 2 zenytes", "points: 500 - 2 zenytes".
+const PTS_START = new RegExp(String.raw`^\s*\(?\s*(?:for\s+)?(?:${PTS_NUM}\s*${PTS_WORD}|points?\s*[:=]\s*${PTS_NUM})\s*\)?\s*[-–—:|,]?\s+(?=\S)`, 'i');
+// Counters whose own name ends in "points" ("Vale research points"): "Vale research 250 points" is
+// that counter, not a points figure.
+const POINTS_COUNTERS = COUNTER_TARGETS.filter((c) => /\bpoints?$/i.test(c.name)).map((c) => tokens(c.name.replace(/\s*points?$/i, '')));
+
+function readPoints(num: string | undefined, k: string | undefined): number | null {
+  if (!num) return null;
+  const n = parseFloat(num.replace(/,/g, '')) * (k ? 1000 : 1);
+  return Number.isFinite(n) && n >= 0 && n <= 1_000_000 ? Math.round(n) : null;
+}
+
+/**
+ * A line's POINTS, at its start or end, and the task text without them: "2 zenytes 500 points" → 2
+ * Zenyte shards worth 500. Points are never the task's amount. Accepts "500 points", "500 pts",
+ * "500pts", "500 pt", "500p", "(500 points)", "- 500 points", "for 500 points", "points: 500", "1.5k
+ * points". A bare number before a counter's own "points" ("250 Tithe Farm points") is left alone.
+ */
 export function parseBulkLine(line: string): { text: string; points: number | null } {
-  const m = /\s*(?:[-–—:|(,]\s*)?(\d+)\s*(?:pts?|points?)\)?\.?\s*$/i.exec(line);
-  if (m && m.index > 0) return { text: line.slice(0, m.index).trim().replace(/[-–—:|,]\s*$/, '').trim(), points: parseInt(m[1], 10) };
-  return { text: line.trim(), points: null };
+  const trimmed = line.trim();
+  const end = PTS_END.exec(trimmed);
+  if (end && end.index > 0) {
+    const text = trimmed.slice(0, end.index).trim().replace(/[-–—:|,(]\s*$/, '').trim();
+    const pts = readPoints(end[1] ?? end[3], end[2] ?? end[4]);
+    const sep = /^\s*[-–—:|(,]|^\s*for\b|points?\s*[:=]/i.test(end[0]);
+    // "Vale research 250 points" — the counter's own unit, not a points figure.
+    const counterUnit = !sep && /points?\)?\.?\s*$/i.test(end[0]) && POINTS_COUNTERS.some((ct) => ct.length > 0 && ct.every((t) => tokens(text).includes(t)));
+    if (pts != null && text && !counterUnit) return { text, points: pts };
+  }
+  const start = PTS_START.exec(trimmed);
+  if (start) {
+    const pts = readPoints(start[1] ?? start[3], start[2] ?? start[4]);
+    const text = trimmed.slice(start[0].length).trim();
+    if (pts != null && text) return { text, points: pts };
+  }
+  return { text: trimmed, points: null };
 }
 
 // ─── Scoring ─────────────────────────────────────────────────────────────────────────────────
@@ -1105,9 +1173,20 @@ export function libraryCandidate(t: NonNullable<MatchContext['library']>[number]
  * rest are "also matches". Empty when nothing covers the query — the caller offers a screenshot tile.
  */
 export function matchTasks(query: string, ctx: MatchContext = {}): TaskCandidate[] {
-  // "X or N Y": one tile that finishes either way, when both halves resolve (see eitherOr).
-  const either = eitherOr(query, ctx);
-  if (either) return either;
+  // Points typed with the task ("2 zenytes 500 points") are the tile's worth, never its amount — and a
+  // combo's as a whole, never one part's.
+  const { text, points } = parseBulkLine(query);
+  // "X or Y", "X and Y", "2 of: a, b, c": one COMBO tile when every part resolves (see comboMatch).
+  const found = comboMatch(text, ctx) ?? matchSingle(text, ctx);
+  return points == null ? found : found.map((c) => ({ ...c, points }));
+}
+
+/**
+ * One task, never split into a combo. The combo matcher resolves each of its parts through THIS, so
+ * a part can't recurse into another split — the old either/or matcher did, and went exponential on a
+ * line with many "or"s.
+ */
+function matchSingle(query: string, ctx: MatchContext): TaskCandidate[] {
   const exact = matchExact(query, ctx);
   const fix = correctQueryDetail(query, ctx);
   if (fix == null) return exact;
@@ -1131,126 +1210,191 @@ export function matchTasks(query: string, ctx: MatchContext = {}): TaskCandidate
   return [...merged.values()].sort((a, b) => b.score - a.score).slice(0, 12);
 }
 
-// ─── Either / or ─────────────────────────────────────────────────────────────────────────────
+// ─── Combos ──────────────────────────────────────────────────────────────────────────────────
 
 // "…with event-earned energy", "…using energy earned during the event", "paid for with event energy".
 const ENERGY_RE = /\s*\b(?:(?:paid\s+(?:for\s+)?)?(?:with|using|from|via|by)\s+)?(?:(?:the\s+)?event[-\s]?earned\s+energy|energy\s+(?:earned|gained|attuned|made|collected)\s+(?:during|in|over|throughout)\s+(?:the\s+)?event|(?:the\s+)?event(?:'s)?\s+energy)\b/i;
 const GOTR_RE = /\b(?:gotr|guardians?\s+of\s+the\s+rift)\b/i;
 
-/** Every standalone "or" in a task, as the two halves either side of it (last split first). */
-export function eitherOrSplits(query: string): { left: string; right: string }[] {
-  const out: { left: string; right: string }[] = [];
-  const re = /\s+or\s+/gi;
-  for (let m = re.exec(query); m; m = re.exec(query)) {
-    const left = query.slice(0, m.index).trim();
-    const right = query.slice(m.index + m[0].length).trim();
-    if (left && right) out.unshift({ left, right });
+// The "mix" marker, anywhere in the line: "(any mix)", "- mix and match", "combined", "in any combination".
+const MIX_RE = /\s*[-–—,(]?\s*\b(?:(?:in\s+)?any\s+mix|mix\s*(?:and|&|'?n'?)\s*match(?:ed)?|combined|(?:in\s+)?any\s+combination)\b\s*\)?/i;
+
+/** Longest line the combo matcher will split. Longer text is matched as one task (never split). */
+export const MAX_COMBO_QUERY = 240;
+
+const SPELLED_N: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+
+export interface ComboSplit {
+  rule: ComboRule;
+  parts: string[];
+  /** Split on "and": an "and" between items only is one collection, never a combo. */
+  and?: boolean;
+}
+
+/**
+ * How a line could be a combo, cheapest first — never more than MAX_COMBO_PARTS parts, never a line
+ * longer than MAX_COMBO_QUERY. Pure text: whether the parts mean anything is comboMatch's question.
+ *
+ *   "2 of: a, b, c"  / "any 2 of a, b or c"  → nOf
+ *   "a or b or c"    / "a, b or c"            → any
+ *   "a and b"                                  → all
+ */
+export function comboSplits(query: string): ComboSplit[] {
+  const text = query.trim();
+  if (!text || text.length > MAX_COMBO_QUERY) return [];
+  const list = (body: string) => body.split(/\s*[,;]\s*(?:(?:or|and)\s+)?|\s+(?:or|and)\s+/i).map((p) => p.trim()).filter(Boolean);
+  const nOf = /^(?:any\s+|at\s+least\s+)?(\d+|one|two|three|four|five|six)\s+of\s*(?::|\s)\s*(.+)$/i.exec(text);
+  if (nOf) {
+    // "one of each …", "2 of the Barrows items": a collection's wording, never a list of tiles.
+    if (/^(?:each|every|the|all|any|these|those)\b/i.test(nOf[2])) return [];
+    const n = SPELLED_N[nOf[1].toLowerCase()] ?? parseInt(nOf[1], 10);
+    const parts = list(nOf[2]);
+    if (parts.length >= 2 && parts.length <= MAX_COMBO_PARTS && n >= 1 && n <= parts.length) {
+      return [{ rule: n === parts.length ? { mode: 'all' } : n === 1 ? { mode: 'any' } : { mode: 'nOf', n }, parts }];
+    }
+    return [];
+  }
+  const out: ComboSplit[] = [];
+  for (const [word, mode] of [['or', 'any'], ['and', 'all']] as const) {
+    const re = new RegExp(`\\s+${word}\\s+`, 'i');
+    if (!re.test(text)) continue;
+    // Commas join the list only when the line is a list of this word ("a, b or c").
+    const parts = text.split(new RegExp(`\\s*,\\s*(?:${word}\\s+)?|\\s+${word}\\s+`, 'i')).map((p) => p.trim()).filter(Boolean);
+    if (parts.length < 2 || parts.length > MAX_COMBO_PARTS) continue;
+    out.push({ rule: { mode }, parts, ...(word === 'and' ? { and: true } : {}) });
+    // Also every two-way split of a longer list ("a or b or 100 c" may be "a or b" OR "100 c").
+    if (parts.length > 2) {
+      for (let k = 1; k < parts.length; k++) {
+        out.push({ rule: { mode }, parts: [parts.slice(0, k).join(` ${word} `), parts.slice(k).join(` ${word} `)], ...(word === 'and' ? { and: true } : {}) });
+      }
+    }
   }
   return out;
 }
 
-interface AltHalf {
-  goal: AltGoal;
-  key: string;
-  score: number;
-  fuzzy?: boolean;
+/** Sources that need no amount of their own to be a finished tile: one item (drop or gained), a log page, a task. */
+const AMOUNTLESS_SOURCES = new Set<CandidateSource>(['drop', 'gain', 'clog', 'diary', 'ca', 'trial', 'timed', 'deathless', 'library']);
+/** Sources that are an item: an "and" between two of them is a collection, never a combo. */
+const ITEM_SOURCES = new Set<CandidateSource>(['drop', 'clog', 'gain']);
+
+interface ResolvedPart {
+  text: string;
+  pick: TaskCandidate;
 }
 
 /**
- * The alternative half: an explicit amount of something the plugin counts like a kill — a counter, a
- * monster, a course, or a boss / raid the hiscores carry, which is then counted by the plugin off its
- * kill-count line instead (an alternative completes through submissions, never the hiscores).
+ * One part of a combo, through the non-splitting matcher: its clear best reading, or null. A part that
+ * counts something (kills, KC, XP, a counter) must say how many itself — that is what keeps a kills
+ * list ("gauntlet or cg", "25 callisto or artio", "5 cox tob or tfa") one kills tile.
  */
-function altHalf(text: string, query: string, ctx: MatchContext): AltHalf | null {
-  let altText = text;
-  const energy = ENERGY_RE.test(altText);
-  altText = altText.replace(ENERGY_RE, ' ').replace(/\s+/g, ' ').trim();
+function resolvePart(raw: string, query: string, ctx: MatchContext): ResolvedPart | null {
+  let text = raw.replace(/^(?:either|both)\s+/i, '').trim();
+  const energy = ENERGY_RE.test(text);
+  text = text.replace(ENERGY_RE, ' ').replace(/\s+/g, ' ').trim();
   // A GOTR search said any way ("reward searches", "searches in GOTR") is the searches counter.
-  if (/\bsearch(?:es)?\b/i.test(altText) && (GOTR_RE.test(query) || /\brift\b/i.test(query))) {
-    altText = altText
+  if (/\bsearch(?:es)?\b/i.test(text) && (GOTR_RE.test(query) || /\brift\b/i.test(query))) {
+    text = text
       .replace(/\b(?:(?:in|at|from)\s+)?(?:the\s+)?(?:gotr|guardians?\s+of\s+the\s+rift)\b/gi, ' ')
       .replace(/\b(?:reward\s+)?(?:guardian\s+)?search(?:es)?\b/i, GOTR_SEARCHES)
       .replace(/\s+/g, ' ')
       .trim();
   }
-  const typed = parseTaskQuery(altText).amount;
-  if (!typed) return null;
-  const cands = matchTasks(altText, ctx);
-  const verdict = classifyMatches(cands);
-  // A count side is short ("100 barrows chests"): its clear leader will do even when the extra word
-  // keeps it from "ready" on its own.
-  const [lead, runnerUp] = cands;
-  const clear = !!lead && lead.score >= 6 && (!runnerUp || lead.score - runnerUp.score >= 1.5);
-  const c = verdict.status === 'ready' ? verdict.choices[0] : clear ? lead : null;
-  if (!c) return null;
-  let targets: string[] = [];
-  if ((c.config.tileType === 'kill' || c.config.tileType === 'lap') && c.config.targetNpcs?.length) {
-    targets = c.config.targetNpcs;
-  } else if (c.config.statType === 'boss' && c.config.trackedStat) {
-    // Hiscores KC → the names the plugin's kill-count line carries (lib/killSource), the same
-    // conversion a kills tile makes when it is counted by the plugin. Clue tiers and minigame scores
-    // have no kill line, so they can't be an alternative.
-    const plugin = chooseKillSource(c.config.trackedStat.split(','), null, true);
-    if (plugin.ok && plugin.source === 'plugin') targets = plugin.targetNpcs;
-  }
-  if (targets.length === 0) return null;
-  const amount = c.amount ?? typed;
-  const gotr = targets.length === 1 && targets[0] === GOTR_SEARCHES;
-  return { goal: { targets, amount, ...(energy && gotr ? { capBy: [...GOTR_ENERGY_CAPS] } : {}) }, key: c.key, score: c.score, fuzzy: c.fuzzy };
-}
-
-/** The tile half: anything that completes from submissions — a drop, an item, a collection-log page, kills. */
-function primaryHalf(text: string, ctx: MatchContext): TaskCandidate[] | null {
-  const cands = matchTasks(text, ctx);
+  if (!text) return null;
+  const q = parseTaskQuery(text);
+  const cands = matchSingle(text, ctx);
   const verdict = classifyMatches(cands);
   // A reward word ("unique", "pet", "rare reward", "any … item") means the collection-log page.
-  const rewardy = REWARD_WORDS.some((w) => parseTaskQuery(text).all.includes(w));
+  const rewardy = REWARD_WORDS.some((w) => q.all.includes(w));
   const page = cands.find((c) => c.source === 'clog');
-  const pick = (rewardy && page) || (verdict.status === 'ready' ? verdict.choices[0] : page);
-  if (!pick || !['confirm', 'items'].includes(pick.flow)) return null;
-  if (!altGoalEligible({ tileType: pick.config.tileType, trackedStat: pick.config.trackedStat })) return null;
-  return [pick, ...cands.filter((c) => c !== pick)];
+  const [lead, runnerUp] = cands;
+  // A part is short ("100 barrows chests"): its clear leader will do even when it isn't "ready".
+  const clear = !!lead && lead.score >= 6 && (!runnerUp || lead.score - runnerUp.score >= 1.5) ? lead : null;
+  let pick = (rewardy && page) || (verdict.status === 'ready' ? verdict.choices[0] : null) || clear || page || null;
+  if (!pick || Object.keys(pick.config).length === 0 || pick.source === 'combo') return null;
+  if (pick.source === 'trial' && pick.flow !== 'confirm') return null;
+  if (!AMOUNTLESS_SOURCES.has(pick.source) && q.amount == null) return null;
+  if (pick.source === 'clog') {
+    // The page IS the pool — a finished drop tile once it's a part.
+    pick = { ...pick, source: 'drop', flow: 'confirm', seed: undefined };
+  }
+  // GOTR searches "paid for with event-earned energy": capped per member by the two energy counters.
+  if (energy && pick.config.tileType === 'kill' && pick.config.targetNpcs?.length === 1 && pick.config.targetNpcs[0] === GOTR_SEARCHES) {
+    const capBy = [...GOTR_ENERGY_CAPS];
+    pick = {
+      ...pick,
+      config: { ...pick.config, capBy },
+      hint: `${pick.hint} Only searches paid for with energy earned during the event count.`,
+      noun: `${pick.noun}${capPhrase(capBy)}`,
+    };
+  }
+  return { text, pick };
+}
+
+const sameConfig = (a: TaskCandidate, b: TaskCandidate) => a.key === b.key || JSON.stringify(a.config) === JSON.stringify(b.config);
+
+/** The combo candidate for resolved parts under a rule. */
+export function comboCandidate(rule: ComboRule, parts: TaskCandidate[]): TaskCandidate {
+  const labels = parts.map((p) => p.title);
+  const title = comboLabel(rule, labels);
+  const engines = new Set(parts.map((p) => p.engine));
+  return {
+    key: `combo-${rule.mode}${rule.n ?? ''}-${parts.map((p) => p.key).join('|')}`,
+    source: 'combo',
+    badge: 'Combo',
+    title,
+    titleTemplate: title,
+    hint: comboSentence(rule, labels),
+    engine: engines.has('plugin') ? 'plugin' : engines.has('hiscores') ? 'hiscores' : 'screenshot',
+    verb: 'Do',
+    noun: title,
+    amountField: null,
+    amount: null,
+    config: {
+      tileType: COMBO_TILE_TYPE,
+      comboRule: rule,
+      parts: parts.map((p) => ({ ...p.config, label: p.title })),
+    },
+    flow: 'confirm',
+    category: 'other',
+    score: Math.max(...parts.map((p) => p.score)) + 3,
+    confident: true,
+    fuzzy: parts.some((p) => p.fuzzy) || undefined,
+    comboParts: parts,
+  };
 }
 
 /**
- * "<a drop / item / page> OR <N kills / KC / a counter>" → ONE tile: the drop side is the tile, the
- * count side its alternative (lib/altGoal) — "Vorkath unique or 200 Vorkath kc", "a GOTR rare reward
- * OR 100 searches with event-earned energy". Either order: "200 Vorkath kc or a Vorkath unique" reads
- * the same. Needs both halves to resolve and the count side to carry its own amount, so a kills list
- * ("gauntlet or cg", "25 callisto or artio") stays one kills tile.
+ * A line that names several DIFFERENT tiles joined by a rule → ONE combo tile, each part its own
+ * ordinary tile on its own best engine: "Vorkath unique or 200 Vorkath kc" (a drop page OR hiscores
+ * KC), "a Zulrah pet and 99 Fishing", "2 of: Tbow, Scythe, Shadow". Every part has to resolve; an
+ * "and" between items only is a collection ("Ahrim's and Dharok's"), never a combo.
+ *
+ * Bounded: the line is split at the top level only, into at most MAX_COMBO_PARTS parts, and each part
+ * goes through the non-splitting matcher — no recursion, so a line of fifty "or"s costs nothing.
  */
-function eitherOr(query: string, ctx: MatchContext): TaskCandidate[] | null {
-  for (const { left, right } of eitherOrSplits(query)) {
-    for (const [tileText, altText] of [[left, right], [right, left]]) {
-      const alt = altHalf(altText, query, ctx);
-      if (!alt) continue;
-      const tile = primaryHalf(tileText, ctx);
-      if (!tile) continue;
-      const [primary, ...others] = tile;
-      const goal = alt.goal;
-      const suffix = altTitleSuffix(goal);
-      const config = { ...primary.config, altGoal: goal };
-      const combined: TaskCandidate = {
-        ...primary,
-        key: `either-${primary.key}|${alt.key}`,
-        // A collection-log page is a finished drop pool once it has its alternative.
-        source: primary.source === 'clog' ? 'drop' : primary.source,
-        title: primary.title + suffix,
-        titleTemplate: primary.titleTemplate + suffix,
-        ...(primary.titleOne ? { titleOne: primary.titleOne + suffix } : {}),
-        hint: `${howItCountsLine(config).text} Or instead: ${altGoalPhrase(goal)}.`,
-        config,
-        // The items are already chosen — straight to the one-sentence confirm.
-        flow: 'confirm',
-        seed: undefined,
-        score: Math.max(primary.score, alt.score) + 3,
-        confident: true,
-        fuzzy: primary.fuzzy || alt.fuzzy,
-      };
-      // The plain tile half stays on offer, a step below, for "no, just that part".
-      const rest = [primary, ...others].slice(0, 3).map((c) => ({ ...c, confident: false, score: Math.min(c.score, combined.score - 2) }));
-      return [combined, ...rest];
+function comboMatch(query: string, ctx: MatchContext): TaskCandidate[] | null {
+  // "(any mix)", "mix and match", "combined", "any combination": a weighted MIX — each part adds its
+  // share toward 100% ("100 gorillas + 1 zenyte" finishes "200 gorillas or 2 zenytes"). The marker is
+  // dropped before the parts are read; without it a plain "X or Y" stays 'any'.
+  const mixMarker = MIX_RE.exec(query);
+  const mix = !!mixMarker;
+  if (mixMarker) query = (query.slice(0, mixMarker.index) + ' ' + query.slice(mixMarker.index + mixMarker[0].length)).replace(/\s+/g, ' ').trim();
+  for (const s of comboSplits(query)) {
+    const split: ComboSplit = mix && s.rule.mode !== 'nOf' ? { ...s, rule: { mode: 'mix' } } : s;
+    const resolved: ResolvedPart[] = [];
+    for (const raw of split.parts) {
+      const r = resolvePart(raw, query, ctx);
+      if (!r) break;
+      resolved.push(r);
     }
+    if (resolved.length !== split.parts.length) continue;
+    const picks = resolved.map((r) => r.pick);
+    if (picks.some((p, i) => picks.some((o, j) => j < i && sameConfig(p, o)))) continue;
+    if (split.and && !mix && picks.every((p) => ITEM_SOURCES.has(p.source))) continue;
+    const combined = comboCandidate(split.rule, picks);
+    // Each part on its own stays on offer, a step below, for "no, just that one".
+    const rest = picks.slice(0, 3).map((c) => ({ ...c, confident: false, score: Math.min(c.score, combined.score - 2) }));
+    return [combined, ...rest];
   }
   return null;
 }

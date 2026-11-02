@@ -92,6 +92,15 @@ export async function evaluateCompletionGate(args: {
   teamId: number;
 }): Promise<CompletionGateResult> {
   const { event, tile, teamId } = args;
+  // A COMBO PART (lib/combo) runs on its combo's gate — a part of a hidden, claimed or locked-out combo
+  // must not progress — but its own row is only progress: no award to freeze, no bounty to claim, no
+  // mission place to take. The combo's completion (lib/comboCompletion) goes through the gate for real.
+  if (tile.parentTileId != null) {
+    const parent = await db.query.tiles.findFirst({ where: eq(tiles.id, tile.parentTileId) });
+    if (!parent) return { allowed: false, reason: 'This part has no combo.', awardedPoints: null, bounty: false, rules: parseEventRules(event.rules) };
+    const g = await evaluateCompletionGate({ event, tile: parent, teamId });
+    return { allowed: g.allowed, reason: g.reason, beforeStart: g.beforeStart, rules: g.rules, awardedPoints: null, bounty: false };
+  }
   const eventRules = parseEventRules(event.rules);
   const isMission = isMissionTile(tile);
   // A mission carries its OWN scoring (lockout/firstBonus/decay), merged over the event rules; a normal

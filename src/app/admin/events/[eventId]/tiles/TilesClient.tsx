@@ -45,11 +45,12 @@ import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
 import GuideLink from '@/components/GuideLink';
 import { parseTileEffortConfig } from '@/lib/tileEffortConfig';
-import { parseAltGoal } from '@/lib/altGoal';
+import { parseComboRule } from '@/lib/combo';
+import type { ComboPartConfig, TileConfig } from '@/lib/types';
 
 // Map a stored Tile to TileTrackingConfig's `initial` shape. Shared by the drawer (Cards view)
 // and the Quick Build two-pane editor so both drive the exact same complete config form.
-function tileToTrackingInitial(tile: Tile) {
+function tileToTrackingInitial(tile: Tile): TileConfig {
   return {
     label: tile.label,
     description: tile.description ?? null,
@@ -73,7 +74,11 @@ function tileToTrackingInitial(tile: Tile) {
     setsRequired: tile.setsRequired ?? null,
     countMode: tile.countMode ?? null,
     perKillCap: tile.perKillCap ?? null,
-    altGoal: parseAltGoal(tile.altGoal),
+    capBy: tile.capBy ? (JSON.parse(tile.capBy) as string[]) : null,
+    // A combo (lib/combo) opens with its rule and its parts, each in the same initial shape.
+    comboRule: tile.tileType === 'combo' ? parseComboRule(tile.comboRule) : null,
+    parts: tile.parts?.map((p): ComboPartConfig => ({ ...tileToTrackingInitial(p), id: p.id, comboWeight: p.comboWeight ?? null })) ?? null,
+    comboWeight: tile.comboWeight ?? null,
     coopCredit: tile.coopCredit ?? null,
     coopMinMembers: tile.coopMinMembers ?? null,
     points: tile.points ?? 1,

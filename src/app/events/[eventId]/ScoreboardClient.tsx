@@ -27,6 +27,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import { tileMatchesSearch } from '@/lib/tileSearch';
+import { comboView, comboProgressLine } from '@/lib/comboProgress';
 
 interface Tile {
   id: number;
@@ -94,7 +95,7 @@ interface Event {
 }
 
 interface Submission {
-  /** lib/altGoal: null = the tile's own credit; 'alt' / 'cap:N' = an either/or alternative. */
+  /** lib/tileCaps: null = the tile's own credit; 'cap:N' = a capped tile's cap counter. */
   goal?: string | null;
   id: number;
   tileId: number;
@@ -212,6 +213,31 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   );
 
   const selectedTile = selectedTileId ? tiles.find((t) => t.id === selectedTileId) : null;
+  // A COMBO (lib/combo): which teams did each part, and — through a team lens — its progress.
+  const selectedParts = (selectedTile as { parts?: FullTile[] } | null | undefined)?.parts;
+  const partCompletedBy = selectedParts
+    ? Object.fromEntries(
+        selectedParts.map((p) => [
+          p.id,
+          completions
+            .filter((c) => c.tileId === p.id && (lensTeamId == null || c.teamId === lensTeamId))
+            .map((c) => {
+              const team = teams.find((t) => t.id === c.teamId);
+              return { teamName: team?.name || 'Unknown', color: team?.color || '#888' };
+            }),
+        ]),
+      )
+    : undefined;
+  const lensCombo = selectedParts && lensTeamId != null && selectedTile
+    ? comboView(selectedTile as unknown as FullTile, selectedParts, (id) => {
+        const c = completions.find((x) => x.tileId === id && x.teamId === lensTeamId);
+        return {
+          done: !!c,
+          doneBy: (c as { creditPlayerId?: number | null } | undefined)?.creditPlayerId ?? null,
+          subs: submissions.filter((x) => x.tileId === id && x.teamId === lensTeamId),
+        };
+      })
+    : null;
   const selectedTileCompletions = selectedTileId
     ? completions.filter((c) => c.tileId === selectedTileId)
     : [];
@@ -324,7 +350,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   for (const team of teams) {
     let inProgress = 0;
     for (const tile of dropTiles) {
-      // The tile's own credits — an either/or alternative's searches aren't drops (lib/altGoal).
+      // The tile's own credits — a cap counter's rows aren't progress (lib/tileCaps).
       const tileSubs = submissions.filter((s) => s.tileId === tile.id && s.teamId === team.id && s.goal == null);
       const current = tileSubs.reduce((sum, s) => sum + s.amount, 0);
       const isComplete = completions.some((c) => c.tileId === tile.id && c.teamId === team.id);
@@ -428,8 +454,10 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
         if (!done.has(tile.id)) break;
         reached++;
       }
+      const boardIds = new Set(board.map((t) => t.id));
       const times = completions
-        .filter((c) => c.teamId === team.id)
+        // Board cells only — a combo part's completion (lib/combo) isn't a step on the track.
+        .filter((c) => c.teamId === team.id && boardIds.has(c.tileId))
         .map((c) => c.completedAt)
         .sort();
       return { id: team.id, name: team.name, color: team.color, reached, firstAt: times[0] ?? null, lastAt: times[times.length - 1] ?? null };
@@ -818,6 +846,8 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
       {selectedTile && (
         <TileDetailModal
           tile={selectedTile as unknown as FullTile}
+          partCompletedBy={partCompletedBy}
+          dropProgress={lensCombo ? { current: lensCombo.done, required: lensCombo.needed, note: comboProgressLine(lensCombo), combo: lensCombo } : undefined}
           submissions={proofForOpenTile ?? []}
           submissionsLoading={proofForOpenTile === null}
           completedBy={selectedTileCompletions
