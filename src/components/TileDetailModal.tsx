@@ -25,6 +25,7 @@ import ProofGallery, { type ProofShot } from './ProofGallery';
 import { isManualTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { clanFetch } from '@/lib/clanFetch';
+import { clogTileLooseSpec, clogTileSetupNote } from '@/lib/clogTileWords';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
 
 // mm:ss / h:mm:ss / bare-seconds → seconds. Returns null for unparseable input.
@@ -218,6 +219,11 @@ export default function TileDetailModal({
   const isDeathless = tile.tileType === 'deathless';
   const isLms = tile.tileType === 'lms';
   const isValue = tile.tileType === 'value' || tile.tileType === 'valuetotal';
+  // Collection-log tiles (lib/clogTileWords): a slot upload names its item; a whole-page tile takes a
+  // screenshot of the finished page instead (its slots are read off the member's synced log).
+  const isClog = tile.tileType === 'clog';
+  const clogSpec = isClog ? clogTileLooseSpec(tile) : null;
+  const isClogPage = clogSpec?.mode === 'complete';
   const manualOnly = isManualTile(tile);
   const howCounts = howTileCounts(tileKindKey(tile), manualOnly);
   const submittedNotice = howCounts.auto
@@ -225,7 +231,7 @@ export default function TileDetailModal({
     : 'Added. Your captain or the clan staff mark the tile done once they’ve seen it.';
   // Count-based tiles share the amount+proof "Add Submission" form. Value tiles use a gp-value form
   // (below); timed uses its own clear-time form; stat/standard have no manual submit.
-  const isCount = isDrop || isKill || isLap || isPvp || isGain || isDiary || isCa || isDeathless || isLms;
+  const isCount = isDrop || isKill || isLap || isPvp || isGain || isDiary || isCa || isDeathless || isLms || isClog;
   // Only real item drops ask for one screenshot per unit; every other count tile takes a SINGLE proof
   // screenshot for the whole entered amount (you can't screenshot 170 kills individually).
   const perUnitProof = isDrop;
@@ -262,11 +268,48 @@ export default function TileDetailModal({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tile.id, isDistinctPool]);
-  const pickerItems = isCollection ? itemReqs : isDistinctPool ? poolItems : [];
-  const needsItem = isCollection || isDistinctPool;
+  // Collection-log slots: the items on the tile's pages — or, on an any-page tile, the page picked first.
+  const isClogSlots = isClog && !isClogPage;
+  const [clogPages, setClogPages] = useState<string[]>([]);
+  const [clogPage, setClogPage] = useState('');
+  const [clogItems, setClogItems] = useState<{ itemId: number; name: string }[]>([]);
+  useEffect(() => {
+    if (!isClogSlots || !clogSpec) return;
+    let cancelled = false;
+    if (clogSpec.itemIds.length > 0) {
+      // Chosen items: exactly those, whatever page they came from.
+      clanFetch(`/api/clog/pages?ids=${clogSpec.itemIds.join(',')}`)
+        .then((r) => (r.ok ? r.json() : { items: [] }))
+        .then((d: { items: { id: number; name: string }[] }) => {
+          if (!cancelled) setClogItems((d.items ?? []).map((i) => ({ itemId: i.id, name: i.name })));
+        })
+        .catch(() => {});
+      return () => {
+        cancelled = true;
+      };
+    }
+    const pages = clogSpec.pages.length > 0 ? clogSpec.pages : clogPage ? [clogPage] : [];
+    if (clogSpec.pages.length === 0 && clogPages.length === 0) {
+      clanFetch('/api/clog/pages')
+        .then((r) => (r.ok ? r.json() : { pages: [] }))
+        .then((d: { pages: string[] }) => { if (!cancelled) setClogPages(d.pages ?? []); })
+        .catch(() => {});
+    }
+    Promise.all(pages.map((p) => clanFetch(`/api/clog/pages?page=${encodeURIComponent(p)}`).then((r) => (r.ok ? r.json() : { items: [] }))))
+      .then((rows: { items: { id: number; name: string }[] }[]) => {
+        if (!cancelled) setClogItems(rows.flatMap((r) => r.items ?? []).map((i) => ({ itemId: i.id, name: i.name })));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tile.id, isClogSlots, clogPage]);
+  const pickerItems = isCollection ? itemReqs : isDistinctPool ? poolItems : isClogSlots ? clogItems : [];
+  const needsItem = isCollection || isDistinctPool || isClogSlots;
   const isStatTile = !!tile.trackedStat;
   // Noun used in the count-based submission form copy ("drop" vs "kill" vs "completion" vs "item").
-  const countNoun = isKill || isPvp ? 'kill' : isLap ? lapUnitNoun(parseJsonArray<string>(tile.targetNpcs)) : isDiary || isCa ? 'completion' : isGain ? 'item' : isDeathless || isTimed ? 'run' : isLms ? 'game' : 'drop';
+  const countNoun = isClogPage ? 'page' : isClog ? 'slot' : isKill || isPvp ? 'kill' : isLap ? lapUnitNoun(parseJsonArray<string>(tile.targetNpcs)) : isDiary || isCa ? 'completion' : isGain ? 'item' : isDeathless || isTimed ? 'run' : isLms ? 'game' : 'drop';
   // The same names the board's badges and filters use (lib/tileKinds), bar the Sepulchre's own.
   // Both engines behind "Kills" (hiscores boss tile, plugin kill tile) wear one badge: "Kills · 50".
   // Which engine counts it is the how-it-counts line below.
@@ -1067,6 +1110,14 @@ export default function TileDetailModal({
                             hiscores ✓
                           </span>
                         )}
+                        {s.flaggedReason === 'clog_unverified_slots' && (
+                          <span
+                            title="The finished page includes slots that only showed up in a collection log sync, with no unlock message in game — check the screenshot"
+                            className="px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 font-medium"
+                          >
+                            synced slots · check
+                          </span>
+                        )}
                         {s.flaggedReason === 'no_start_proof' && (
                           <span
                             title="Landed before this player filed their starting shot"
@@ -1227,6 +1278,27 @@ export default function TileDetailModal({
                 </p>
               )}
 
+              {/* Collection-log tiles: what this upload is, and the any-page tile's page picker. */}
+              {isClog && clogSpec && (
+                <p className="text-xs text-text-muted">
+                  {isClogPage
+                    ? 'Upload a screenshot of the finished collection log page. Finished pages are read from the player’s synced log; this screenshot is the proof the tile waits for.'
+                    : 'One upload per new slot — a screenshot of the “New item added to your collection log” message. Slots already in your log before the event never count.'}
+                  {' '}{clogTileSetupNote(clogSpec.mode).split(' — ')[0]}.
+                </p>
+              )}
+              {isClogSlots && clogSpec && clogSpec.pages.length === 0 && clogSpec.itemIds.length === 0 && (
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">Which collection log page? *</label>
+                  <Select
+                    value={clogPage}
+                    onChange={(v) => { setClogPage(v); setItemId(''); }}
+                    placeholder="Select the page..."
+                    ariaLabel="Which collection log page"
+                    options={clogPages.map((p) => ({ value: p, label: p }))}
+                  />
+                </div>
+              )}
               {/* Collection tiles: which item in the set this submission counts toward (required). */}
               {needsItem && (
                 <div>
@@ -1258,7 +1330,7 @@ export default function TileDetailModal({
               {/* Amount is only entered by hand for non-per-unit count tiles. For real drops the
                   count follows the number of screenshots you attach (one submission per shot), so
                   there's no separate amount field to keep in sync. */}
-              {!perUnitProof && (
+              {!perUnitProof && !isClog && (
                 <div>
                   <label className="block text-xs text-text-muted mb-1">
                     Amount {remaining !== undefined && <span className="text-yellow-400">(max: {maxAmount})</span>}

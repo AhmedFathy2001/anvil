@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { parseJsonArray } from '@/lib/tileKinds';
+import { clogTileError, MAX_CLOG_TILE_ITEMS } from '@/lib/clogTiles';
 import { killSourceOf } from '@/lib/killSource';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
@@ -174,9 +176,11 @@ export async function PUT(
   }
 
   if (trackedItemIds !== undefined && trackedItemIds !== null) {
-    if (!Array.isArray(trackedItemIds) || trackedItemIds.length > MAX_TRACKED_ITEMS ||
+    // A collection-log tile lists the items it counts, and a whole page can run past the drop cap.
+    const itemCap = tileType === 'clog' ? MAX_CLOG_TILE_ITEMS : MAX_TRACKED_ITEMS;
+    if (!Array.isArray(trackedItemIds) || trackedItemIds.length > itemCap ||
         !trackedItemIds.every((id: unknown) => Number.isInteger(id) && (id as number) > 0)) {
-      return NextResponse.json({ error: `trackedItemIds must be an array of up to ${MAX_TRACKED_ITEMS} positive integers` }, { status: 400 });
+      return NextResponse.json({ error: `trackedItemIds must be an array of up to ${itemCap} positive integers` }, { status: 400 });
     }
   }
 
@@ -208,7 +212,8 @@ export async function PUT(
       return NextResponse.json({ error: 'setsRequired must be an integer between 1 and 50 (or null for one set)' }, { status: 400 });
     }
   }
-  if (countMode !== undefined && countMode !== null && countMode !== 'total' && countMode !== 'distinct') {
+  // 'slots' / 'complete' are collection-log tiles' own modes (lib/clogTiles), checked against the kind below.
+  if (countMode !== undefined && countMode !== null && countMode !== 'total' && countMode !== 'distinct' && countMode !== 'slots' && countMode !== 'complete') {
     return NextResponse.json({ error: "countMode must be 'total' or 'distinct'" }, { status: 400 });
   }
 
@@ -454,7 +459,7 @@ export async function PUT(
     updateSet.setsRequired = setsRequired != null && setsRequired > 1 ? setsRequired : null;
   }
   if (countMode !== undefined) {
-    updateSet.countMode = countMode === 'distinct' ? 'distinct' : null;
+    updateSet.countMode = countMode === 'distinct' || countMode === 'slots' || countMode === 'complete' ? countMode : null;
   }
 
   if (perKillCap !== undefined) {
@@ -567,6 +572,9 @@ export async function PUT(
   const isGain = merged.tileType === 'gain';
   // Deathless tiles reuse timedActivity as the raid and requiredAmount as runs needed.
   const isDeathless = merged.tileType === 'deathless';
+  // Collection-log tiles (lib/clogTiles): page names in targetNpcs, the chosen items in trackedItemIds,
+  // countMode 'slots' | 'complete', requiredAmount = new slots (or pages) needed.
+  const isClog = merged.tileType === 'clog';
   // requiredAmount is shared by drop (item count), kill (kill count), gain (items gained),
   // diary (completions), lms (qualifying games), value (gp threshold) and deathless (runs).
   const hasRequiredAmount = merged.requiredAmount != null;
@@ -574,7 +582,7 @@ export async function PUT(
   const hasSourceNpcs = parseLen(merged.sourceNpcs) > 0;
 
   // A tile is exactly one kind — stat tiles can't carry any submission-kind fields.
-  if (hasStat && (isDrop || isKill || isLap || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
+  if (hasStat && (isDrop || isKill || isLap || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || isClog || dropItemFields || hasKillFields || hasTimedFields || hasRequiredAmount)) {
     return NextResponse.json(
       { error: 'A stat-tracked tile (skill/boss) cannot also be a drop, kill, lap, PvP, gain, timed, deathless, diary, CA, LMS, or value tile. Pick one kind.' },
       { status: 400 },
@@ -591,7 +599,10 @@ export async function PUT(
     return NextResponse.json({ error: "Stat tracking requires statType 'skill' or 'boss'." }, { status: 400 });
   }
   // Field/kind coherence for the submission-backed kinds.
-  if (hasDropItems && !isDrop && !isGain) {
+  if (parseLen(merged.itemRequirements) > 0 && isClog) {
+    return NextResponse.json({ error: 'A collection log tile lists its items plainly — per-item amounts are for drop collections.' }, { status: 400 });
+  }
+  if (hasDropItems && !isDrop && !isGain && !isClog) {
     return NextResponse.json({ error: 'Only drop or gain tiles can carry tracked items.' }, { status: 400 });
   }
   if (parseLen(merged.itemRequirements) > 0 && isGain) {
@@ -600,7 +611,7 @@ export async function PUT(
   if (hasSourceNpcs && !isDrop && !isValue) {
     return NextResponse.json({ error: 'Only drop or value tiles can restrict loot sources.' }, { status: 400 });
   }
-  if (hasKillFields && !isKill && !isLap && !isDiary && !isCa && !isPvp) {
+  if (hasKillFields && !isKill && !isLap && !isDiary && !isCa && !isPvp && !isClog) {
     return NextResponse.json({ error: 'Only kill tiles can target NPCs (or lap/diary/CA/PvP tiles, their selectors).' }, { status: 400 });
   }
   // Min-loot floor is a PvP-only knob — reject it on any other kind so switching kind can't leave a
@@ -615,7 +626,13 @@ export async function PUT(
     return NextResponse.json({ error: 'Only timed (time cap), LMS (placement cap), deathless (party size), or drop (raid party size) tiles can carry a threshold.' }, { status: 400 });
   }
   // Timed tiles carry one only as a Barracuda Trials rank tile's runs-needed (lib/submissions).
-  if (hasRequiredAmount && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless && !isTimed) {
+  if (isClog) {
+    const clogError = clogTileError(merged.countMode, parseJsonArray<string>(merged.targetNpcs), parseJsonArray<number>(merged.trackedItemIds), merged.requiredAmount);
+    if (clogError) return NextResponse.json({ error: clogError }, { status: 400 });
+  } else if (merged.countMode === 'slots' || merged.countMode === 'complete') {
+    return NextResponse.json({ error: "countMode 'slots' / 'complete' is for collection log tiles." }, { status: 400 });
+  }
+  if (hasRequiredAmount && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless && !isTimed && !isClog) {
     return NextResponse.json({ error: 'Only drop, kill, lap, PvP, gain, diary, CA, LMS, value, deathless, or timed (trial runs) tiles can have a required amount.' }, { status: 400 });
   }
 

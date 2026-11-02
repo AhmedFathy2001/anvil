@@ -237,6 +237,7 @@ export function deriveTileIcon(tile: IconableTile): string | null {
   if (type === 'lap') return skillIconUrl('agility');
   if (type === 'diary') return wikiImageUrl('Achievement_Diaries_icon.png');
   if (type === 'ca') return wikiImageUrl('Combat_Achievements_icon.png');
+  if (type === 'clog') return itemIconUrl(22711); // the Collection log book
   // PvP kills: the wilderness skull — the universal "dangerous PvP" marker.
   if (type === 'pvp') return wikiImageUrl('Skull_(status)_icon.png');
 

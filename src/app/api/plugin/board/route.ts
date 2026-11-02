@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { clogTileLooseSpec, clogTileRule } from '@/lib/clogTileWords';
 import { primaryCredit } from '@/lib/altGoalSql';
 import { eventForPluginRequest } from '@/lib/eventScope';
 import { db } from '@/db';
@@ -188,6 +189,10 @@ function tileRequirement(t: typeof tiles.$inferSelect): string | null {
       return t.tileType === 'valuetotal'
         ? `Collect ${gp} gp of loot${from}`
         : `A single haul worth ${gp} gp${from}`;
+    }
+    case 'clog': {
+      // Collection-log tiles (lib/clogTileWords): the tile's own sentence.
+      return clogTileRule(clogTileLooseSpec(t), t.trackingMode);
     }
     case 'drop':
     case 'collection': {

@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { parseJsonArray } from '@/lib/tileKinds';
+import { clogTileError } from '@/lib/clogTiles';
 import { eventForRequest } from '@/lib/eventScope';
 import { planTileImport } from '@/lib/tileImportPlan';
 import { db } from '@/db';
@@ -97,7 +99,7 @@ const MAX_TILES = 1000;
 
 // Every tile kind the board supports. Anything else in a `type` cell is a typo — reject it
 // loudly rather than storing a junk type the trackers would never match.
-const VALID_TILE_TYPES = new Set(['standard', 'drop', 'kill', 'kills', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'diary', 'ca', 'lms', 'value', 'valuetotal']);
+const VALID_TILE_TYPES = new Set(['standard', 'drop', 'kill', 'kills', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'diary', 'ca', 'lms', 'value', 'valuetotal', 'clog']);
 
 // Structural subset of a tile row that the kind cross-validation reads. A full tile row is
 // assignable to this; new (to-be-created) tiles use the blank template below.
@@ -341,12 +343,22 @@ function validateRowKind(
   // deathless tiles reuse timedActivity (the raid) + requiredAmount (runs needed).
   const isGain = effTileType === 'gain';
   const isDeathless = effTileType === 'deathless';
+  // Collection-log tiles: pages in targetNpcs, the chosen items from the row's items (lib/clogTiles).
+  const isClog = effTileType === 'clog' || (!!derived && row.tileType === 'clog');
 
-  if (hasStat && (isDrop || isKill || isLap || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
+  if (hasStat && (isClog || isDrop || isKill || isLap || isPvp || isTimed || isDiary || isCa || isLms || isValue || isGain || isDeathless || dropItemFields || effTargetNpcsLen > 0 || effTimed || effRequiredAmount != null)) {
     return `Row ${i + 1}: a stat-tracked tile cannot also be a drop, kill, lap, PvP, gain, timed, deathless, diary, CA, LMS, or value tile.`;
   }
   if (hasStat && effStatType !== 'skill' && effStatType !== 'boss') {
     return `Row ${i + 1}: stat tiles need statType 'skill' or 'boss'.`;
+  }
+  if (isClog) {
+    const pages = row.targetNpcs !== undefined ? (row.targetNpcs ?? []) : parseJsonArray<string>(base.targetNpcs);
+    const ids = derived
+      ? (derived.trackedItemIds ?? derived.itemRequirements?.map((r) => r.itemId) ?? [])
+      : parseJsonArray<number>(base.trackedItemIds);
+    const err = clogTileError(row.countMode === 'complete' ? 'complete' : 'slots', pages, ids, row.requiredAmount ?? null);
+    return err ? `Row ${i + 1}: ${err}` : null;
   }
   if (dropItemFields && !isDrop && !isGain) {
     return `Row ${i + 1}: only drop or gain tiles can carry items.`;
@@ -420,6 +432,8 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
   if (allowPreStart) {
     if (row.label !== undefined && row.label) s.label = String(row.label).slice(0, 200);
     if (row.tileType !== undefined) s.tileType = row.tileType || 'standard';
+    // A collection-log row without items (pages only, or any page) still carries its mode.
+    if (row.tileType === 'clog' && !derived) s.countMode = row.countMode === 'complete' ? 'complete' : 'slots';
     if (row.requiredAmount !== undefined) s.requiredAmount = row.requiredAmount ?? null;
     // The alternative is part of the tile's rules, frozen with them once the event runs.
     if (row.altGoal !== undefined) {
@@ -430,7 +444,15 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
     // A `type=gain` row keeps its kind: the items become the flat tracked pool (no per-item
     // requirements) and the row's own requiredAmount is the gain target.
     if (derived) {
-      if (row.tileType === 'gain') {
+      if (row.tileType === 'clog') {
+        // The chosen items are the pool; the row's own amount is the new slots (or pages) needed.
+        s.tileType = 'clog';
+        s.requiredAmount = row.requiredAmount ?? null;
+        const ids = derived.trackedItemIds ?? derived.itemRequirements?.map((r) => r.itemId) ?? null;
+        s.trackedItemIds = ids && ids.length > 0 ? JSON.stringify(ids) : null;
+        s.itemRequirements = null;
+        s.countMode = row.countMode === 'complete' ? 'complete' : 'slots';
+      } else if (row.tileType === 'gain') {
         s.tileType = 'gain';
         s.requiredAmount = row.requiredAmount ?? derived.requiredAmount;
         // Flat pool either way — a per-item breakdown (row without requiredAmount) still

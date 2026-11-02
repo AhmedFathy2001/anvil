@@ -1,4 +1,6 @@
 import { and, eq } from 'drizzle-orm';
+import { clogTileSpec } from '@/lib/clogTiles';
+import { clogPagesProgress } from '@/lib/clogTileCredit';
 import { primaryCredit } from '@/lib/altGoalSql';
 
 import { db } from '@/db';
@@ -62,7 +64,19 @@ export async function tileProgressView(
       // The tile's own credits — an either/or alternative (lib/altGoal) is a different goal.
       .where(and(eq(submissions.tileId, tile.id), primaryCredit()));
     const reqs = parseJsonArray<TrackerRequirement>(tile.itemRequirements);
-    if (reqs.length > 0) {
+    if (tile.tileType === 'clog' && clogTileSpec(tile).mode === 'complete') {
+      // Whole collection-log pages (lib/clogTiles): pages finished, read off each member's own log.
+      // One row per finished page, credited to whoever finished it, folds through the count path.
+      goal = clogTileSpec(tile).required;
+      const pageRows: (typeof subs)[number][] = [];
+      for (const t of input.teams) {
+        const progress = await clogPagesProgress(tile, t.teamId);
+        for (const page of progress.pages) {
+          if (page.doneBy.length > 0) pageRows.push({ teamId: t.teamId, playerId: page.doneBy[0], creditPlayerId: null, amount: 1, itemId: null });
+        }
+      }
+      teamProgress = countTileTeams(input, pageRows, null);
+    } else if (reqs.length > 0) {
       ({ goal, teams: teamProgress } = collectionTileTeams(input, subs, reqs, tile.groupMode, tile.setsRequired ?? 1));
     } else {
       teamProgress = countTileTeams(input, subs, tile.countMode);

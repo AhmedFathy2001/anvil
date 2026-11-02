@@ -510,35 +510,45 @@ export async function POST(
       : null;
     const before = await clogOwnedBefore(member?.accountId ?? null, event, counted);
     const name = pluginAuth && !itemId ? clogItemFromProof(claims) : null;
-    if (!itemId && !name) {
-      return NextResponse.json({ error: 'Pick which collection log item this is.' }, { status: 400 });
-    }
-    // Without an image a row could be a screenshot-less replay of a slot already counted; the
-    // "already counted" check below is the guard, so a duplicate never adds a second slot.
-    const verdict = itemId
-      ? decideClogSlot({ candidates: [Number(itemId)], spec, ownedBefore: before, counted })
-      : decideClogSlotByName(name!, spec, before, counted);
-    if (!verdict.ok) {
-      // The live unlock push (lib/clogTileCredit) may have credited this slot already, with no image.
-      // The screenshot that follows it is the same slot's proof: it replaces that row, not adds one.
-      const uncounted = itemId ? null : decideClogSlotByName(name!, spec, before, new Set());
-      const resolved = itemId ? Number(itemId) : uncounted?.ok ? uncounted.itemId : null;
-      const bare = verdict.reason === 'already-counted' && imageUrlValue && resolved != null
-        ? mine.find((r) => r.itemId === resolved && !r.imageUrl)
-        : undefined;
-      if (!bare) return NextResponse.json({ error: clogSlotRefusal(verdict.reason) }, { status: 400 });
-      await db.delete(submissions).where(eq(submissions.id, bare.id));
-      itemId = resolved;
-      clogSuperseded = true;
+    // WHOLE-PAGE PROOF: on a 'complete' tile, a screenshot that names no slot (a web upload of the
+    // finished page, or the plugin's capture of the page opened in game) is the proof a finished page
+    // waits for (lib/clogTiles clogPageProof). It counts no slot itself.
+    const pageProof = spec.mode === 'complete' && !!imageUrlValue && !itemId
+      && !(name && decideClogSlotByName(name, spec, new Set(), new Set()).ok);
+    if (pageProof) {
+      itemId = null;
+      creditedAmount = 1;
     } else {
-      itemId = verdict.itemId;
-    }
-    creditedAmount = 1;
-    if (!clogSuperseded && spec.mode === 'slots') {
-      const soloTile = isIndividualMode(tile.trackingMode);
-      const now = soloTile ? memberProgress(tileSubs, submitterCreditId, 'slots') : countProgress(tileSubs, tile.trackingMode, 'slots').current;
-      if (now >= spec.required) {
-        return NextResponse.json({ error: soloTile ? 'You have already reached this tile’s count' : 'Tile already complete' }, { status: 400 });
+      if (!itemId && !name) {
+        return NextResponse.json({ error: 'Pick which collection log item this is.' }, { status: 400 });
+      }
+      // Without an image a row could be a screenshot-less replay of a slot already counted; the
+      // "already counted" check below is the guard, so a duplicate never adds a second slot.
+      const verdict = itemId
+        ? decideClogSlot({ candidates: [Number(itemId)], spec, ownedBefore: before, counted })
+        : decideClogSlotByName(name!, spec, before, counted);
+      if (!verdict.ok) {
+        // The live unlock push (lib/clogTileCredit) may have credited this slot already, with no image.
+        // The screenshot that follows it is the same slot's proof: it replaces that row, not adds one.
+        const uncounted = itemId ? null : decideClogSlotByName(name!, spec, before, new Set());
+        const resolved = itemId ? Number(itemId) : uncounted?.ok ? uncounted.itemId : null;
+        const bare = verdict.reason === 'already-counted' && imageUrlValue && resolved != null
+          ? mine.find((r) => r.itemId === resolved && !r.imageUrl)
+          : undefined;
+        if (!bare) return NextResponse.json({ error: clogSlotRefusal(verdict.reason) }, { status: 400 });
+        await db.delete(submissions).where(eq(submissions.id, bare.id));
+        itemId = resolved;
+        clogSuperseded = true;
+      } else {
+        itemId = verdict.itemId;
+      }
+      creditedAmount = 1;
+      if (!clogSuperseded && spec.mode === 'slots') {
+        const soloTile = isIndividualMode(tile.trackingMode);
+        const now = soloTile ? memberProgress(tileSubs, submitterCreditId, 'slots') : countProgress(tileSubs, tile.trackingMode, 'slots').current;
+        if (now >= spec.required) {
+          return NextResponse.json({ error: soloTile ? 'You have already reached this tile’s count' : 'Tile already complete' }, { status: 400 });
+        }
       }
     }
   } else if (tile.requiredAmount) {
