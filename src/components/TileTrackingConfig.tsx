@@ -1166,6 +1166,26 @@ function TileTrackingEditor({
     ).slice(0, 8);
   }, [npcSearch, killPicks, frozenKillSource]);
 
+  // In-game counters (Hunter Rumours, Herbiboar, chests…) and raid mode names matching the search box.
+  // Neither is in the wiki monster search nor (mostly) on the hiscores, so without this they were
+  // only reachable through the collapsed quick-add lists below — typing "herbi" found nothing.
+  const counterHits = useMemo(() => {
+    const q = npcSearch.trim().toLowerCase();
+    if (q.length < 2) return [];
+    const counters = frozenKillSource === 'hiscores'
+      ? []
+      : COUNTER_TARGETS.map((t) => ({ name: t.name, note: t.note }));
+    const raids = RAID_KC_NAMES
+      .filter((n) => frozenKillSource !== 'hiscores' || !!hiscoresKeyForMonster(n))
+      .map((n) => ({ name: n, note: 'Raid — counts off the in-game completion line' }));
+    return [...counters, ...raids]
+      .filter((t) => t.name.toLowerCase().includes(q))
+      .filter((t) => !killPicks.some((p) => samePick(p, { name: t.name, key: hiscoresKeyForMonster(t.name) })))
+      // A raid the hiscores carry already shows under "On the hiscores" — don't list it twice.
+      .filter((t) => !hiscoresHits.some((h) => h.value === hiscoresKeyForMonster(t.name)))
+      .slice(0, 8);
+  }, [npcSearch, killPicks, frozenKillSource, hiscoresHits]);
+
   /** Add a typed / wiki / quick-add name; a name the hiscores know is tagged with its key. */
   function addNpc(name: string) {
     const trimmed = name.trim();
@@ -2558,12 +2578,12 @@ function TileTrackingEditor({
                     setShowNpcDropdown(false);
                   }
                 }}
-                onFocus={() => (npcResults.length > 0 || hiscoresHits.length > 0) && setShowNpcDropdown(true)}
+                onFocus={() => (npcResults.length > 0 || hiscoresHits.length > 0 || counterHits.length > 0) && setShowNpcDropdown(true)}
                 placeholder="Search bosses and monsters (e.g. Zulrah, Nightmare, Chicken)..."
                 className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
               />
               {npcSearching && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">...</span>}
-              {showNpcDropdown && (hiscoresHits.length > 0 || npcResults.length > 0) && (
+              {showNpcDropdown && (hiscoresHits.length > 0 || counterHits.length > 0 || npcResults.length > 0) && (
                 <div className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto bg-brown-dark border border-card-border rounded shadow-lg">
                   {hiscoresHits.length > 0 && (
                     <p className="px-3 pt-2 pb-1 text-[9px] uppercase tracking-wider text-text-muted/70">On the hiscores</p>
@@ -2581,6 +2601,27 @@ function TileTrackingEditor({
                       className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-gold/10 transition-colors"
                     >
                       {o.label}
+                    </button>
+                  ))}
+                  {counterHits.length > 0 && (
+                    <p className={`px-3 pt-2 pb-1 text-[9px] uppercase tracking-wider text-text-muted/70 ${hiscoresHits.length > 0 ? 'border-t border-card-border' : ''}`}>
+                      In-game counters
+                    </p>
+                  )}
+                  {counterHits.map((t) => (
+                    <button
+                      key={t.name}
+                      type="button"
+                      onClick={() => {
+                        addNpc(t.name);
+                        setNpcSearch('');
+                        setNpcResults([]);
+                        setShowNpcDropdown(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-gold/10 transition-colors"
+                    >
+                      {t.name}
+                      <span className="block text-[10px] text-text-muted">{t.note}</span>
                     </button>
                   ))}
                   {npcResults.length > 0 && (
