@@ -61,3 +61,11 @@ test('the Collection log browse lists the any-page tile', () => {
   assert.equal(list[0].config.tileType, 'clog');
   assert.equal(list[0].flow, 'clog');
 });
+
+test('a clog tile’s own item list never splits into a combo', () => {
+  for (const q of ['new clog slot from dwh, tyrannical ring or chaos ele pet', '3 new barrows clog slots', 'complete the wintertodt clog page']) {
+    const c = top(q);
+    assert.notEqual(c.source, 'combo', q);
+    assert.equal(c.config.tileType, 'clog', q);
+  }
+});

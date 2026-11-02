@@ -1446,6 +1446,53 @@ function resolvePart(raw: string, query: string, ctx: MatchContext): ResolvedPar
   return { text, pick };
 }
 
+/** "New clog slots", "a clog slot from …", "complete the … clog page": a collection-log tile's wording. */
+const CLOG_TILE_PHRASE = /\b(?:clog|collection[\s-]*log)\s+(?:slots?|pages?)\b/i;
+
+/**
+ * A plain "get one of these items" pick — a drop pool, or an inventory-gain pool for items that aren't
+ * a monster's drop (a raid reward) — needing one, with no sets, sources or modes.
+ */
+function isSingleDropPool(p: TaskCandidate): boolean {
+  const c = p.config;
+  return (
+    (c.tileType === 'drop' || c.tileType === 'gain') &&
+    (c.trackedItemIds?.length ?? 0) > 0 &&
+    !(c.itemRequirements?.length) &&
+    !(c.sourceNpcs?.length) &&
+    c.countMode !== 'distinct' &&
+    (c.requiredAmount ?? 1) === 1
+  );
+}
+
+/**
+ * Several one-item picks joined by "or" → one item pool over all their items: a drop pool when every
+ * item is a drop, else an inventory-gain pool (which sees an item however it arrives — a raid chest, a
+ * drop picked up — where loot detection only sees monster drops).
+ */
+function dropPoolCandidate(picks: TaskCandidate[]): TaskCandidate {
+  const ids = [...new Set(picks.flatMap((p) => p.config.trackedItemIds ?? []))];
+  const labels = picks.map((p) => p.title);
+  const title = comboLabel({ mode: 'any' }, labels);
+  const tileType = picks.every((p) => p.config.tileType === 'drop') ? 'drop' : 'gain';
+  const base = picks.find((p) => p.config.tileType === tileType) ?? picks[0];
+  return {
+    ...base,
+    key: `pool-${tileType}-${ids.join('-')}`,
+    source: tileType,
+    title,
+    titleTemplate: title,
+    noun: title,
+    hint: `Get any one of: ${labels.join(', ')}.`,
+    config: { ...base.config, tileType, trackedItemIds: ids, requiredAmount: 1, countMode: null },
+    flow: 'confirm',
+    score: Math.max(...picks.map((p) => p.score)) + 3,
+    confident: true,
+    fuzzy: picks.some((p) => p.fuzzy) || undefined,
+    comboParts: undefined,
+  };
+}
+
 const sameConfig = (a: TaskCandidate, b: TaskCandidate) => a.key === b.key || JSON.stringify(a.config) === JSON.stringify(b.config);
 
 /** The combo candidate for resolved parts under a rule. */
@@ -1489,6 +1536,9 @@ export function comboCandidate(rule: ComboRule, parts: TaskCandidate[]): TaskCan
  * goes through the non-splitting matcher — no recursion, so a line of fifty "or"s costs nothing.
  */
 function comboMatch(query: string, ctx: MatchContext): TaskCandidate[] | null {
+  // A collection-log tile's own wording lists items or pages ("new clog slot from dwh, tyrannical ring
+  // or chaos ele pet") — that list IS the tile (lib/clogTiles), never a combo of parts.
+  if (CLOG_TILE_PHRASE.test(query)) return null;
   // "(any mix)", "mix and match", "combined", "any combination": a weighted MIX — each part adds its
   // share toward 100% ("100 gorillas + 1 zenyte" finishes "200 gorillas or 2 zenytes"). The marker is
   // dropped before the parts are read; without it a plain "X or Y" stays 'any'.
@@ -1507,6 +1557,12 @@ function comboMatch(query: string, ctx: MatchContext): TaskCandidate[] | null {
     const picks = resolved.map((r) => r.pick);
     if (picks.some((p, i) => picks.some((o, j) => j < i && sameConfig(p, o)))) continue;
     if (split.and && !mix && picks.every((p) => ITEM_SOURCES.has(p.source))) continue;
+    // "Tbow or scythe", "zenyte or onyx": items only, one of each — ONE drop pool (any of them), not a
+    // combo. Combos are for mixing different kinds or count sides ("a Vorkath unique or 200 KC").
+    if (split.rule.mode === 'any' && !mix && picks.every(isSingleDropPool)) {
+      const pool = dropPoolCandidate(picks);
+      return [pool, ...picks.slice(0, 3).map((c) => ({ ...c, confident: false, score: Math.min(c.score, pool.score - 2) }))];
+    }
     const combined = comboCandidate(split.rule, picks);
     // Each part on its own stays on offer, a step below, for "no, just that one".
     const rest = picks.slice(0, 3).map((c) => ({ ...c, confident: false, score: Math.min(c.score, combined.score - 2) }));

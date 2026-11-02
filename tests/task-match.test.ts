@@ -626,6 +626,28 @@ test('"2 of: a, b, c, d" and "any 2 of a, b or c" are at-least-N combos', () => 
   assert.deepEqual(comboSplits('1 of each barrows item'), []);
 });
 
+test('an item-only "or" is ONE drop pool, not a combo; a kind mix stays a combo', () => {
+  const kit: MatchContext = {
+    ...clogCtx,
+    items: [...items, { id: 20997, name: 'Twisted bow' }, { id: 22325, name: 'Scythe of vitur' }, { id: 6573, name: 'Onyx' }],
+  };
+  // Raid rewards aren't a monster's drop, so their pool counts inventory gains — still ONE tile.
+  const pool = best('tbow or scythe', kit).top;
+  assert.notEqual(pool.source, 'combo');
+  assert.equal(pool.config.tileType, 'gain');
+  assert.deepEqual(pool.config.trackedItemIds, [20997, 22325]);
+  assert.equal(pool.config.requiredAmount, 1);
+  assert.equal(pool.config.parts, undefined);
+  const gems = best('zenytes or onyxes', kit).top;
+  assert.notEqual(gems.source, 'combo');
+  assert.deepEqual(gems.config.trackedItemIds, [19529, 6573]);
+  // A list of three, same thing.
+  assert.equal(best('tbow, scythe or onyxes', kit).top.config.trackedItemIds?.length, 3);
+  // "2 of: …" is still at-least-N, and a mix of kinds is still a combo.
+  assert.deepEqual(best('2 of: tbow, scythe, onyxes', kit).top.config.comboRule, { mode: 'nOf', n: 2 });
+  assert.equal(best('tbow or 200 vorkath kc', kit).top.config.tileType, 'combo');
+});
+
 test('a kills list never becomes a combo', () => {
   // No amount on a counting part: one tile counting both.
   assert.notEqual(best('gauntlet or cg').top.source, 'combo');

@@ -69,6 +69,10 @@ before(async () => {
     { id: 400, eventId: 1, position: 3, label: 'D', tileType: 'combo', comboRule: '{"mode":"any"}', points: 5 },
     { id: 401, eventId: 1, position: 3, label: 'D1 searches', tileType: 'kill', targetNpcs: '["Guardians of the Rift searches"]', requiredAmount: 100, capBy: '["GOTR elemental energy","GOTR catalytic energy"]', parentTileId: 400, points: 0 },
     { id: 402, eventId: 1, position: 3, label: 'D2 manual', tileType: 'standard', parentTileId: 400, points: 0 },
+    // E: any one of [2 new collection-log slots (any item), a manual part]
+    { id: 500, eventId: 1, position: 4, label: 'E', tileType: 'combo', comboRule: '{"mode":"any"}', points: 1 },
+    { id: 501, eventId: 1, position: 4, label: 'E1 clog slots', tileType: 'clog', countMode: 'slots', requiredAmount: 2, parentTileId: 500, points: 0 },
+    { id: 502, eventId: 1, position: 4, label: 'E2 manual', tileType: 'standard', parentTileId: 500, points: 0 },
   ]);
 });
 
@@ -148,9 +152,24 @@ test('capped counter: searches only count up to the energy earned', async () => 
   assert.equal(await done(400), true);
 });
 
-test('only combos score: the board is the four combos, their parts never count', async () => {
+test('a collection-log part: new slots are distinct per member, and complete the combo', async () => {
+  await db.insert(s.submissions).values([
+    { tileId: 501, teamId: TEAM, playerId: ANN, creditPlayerId: ANN, amount: 1, itemId: 4708, imageUrl: IMG },
+    { tileId: 501, teamId: TEAM, playerId: ANN, creditPlayerId: ANN, amount: 1, itemId: 4708, imageUrl: IMG }, // a repeat
+  ]);
+  await syncDropTileCompletion(501, TEAM, { silent: true });
+  assert.equal(await done(501), false);
+  assert.equal(await done(500), false);
+  // Bo's first copy of the same item is a new slot for HIM.
+  await db.insert(s.submissions).values({ tileId: 501, teamId: TEAM, playerId: BO, creditPlayerId: BO, amount: 1, itemId: 4708, imageUrl: IMG });
+  await syncDropTileCompletion(501, TEAM, { silent: true });
+  assert.equal(await done(501), true);
+  assert.equal(await done(500), true);
+});
+
+test('only combos score: the board is the five combos, their parts never count', async () => {
   const { getTeamStandings } = await import('../src/lib/statStandings.ts');
   const [row] = await getTeamStandings(1, 'points');
-  assert.equal(row.total, 65);
-  assert.equal(row.score, 10 + 20 + 30 + 5);
+  assert.equal(row.total, 66);
+  assert.equal(row.score, 10 + 20 + 30 + 5 + 1);
 });

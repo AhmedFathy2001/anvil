@@ -153,6 +153,13 @@ test('part progress: count, capped count, collection, stat, boolean', () => {
   // A hiscores XP part.
   const stat = { id: 4, trackedStat: 'fishing', statType: 'skill', statGoal: 1000 };
   assert.deepEqual(partState(stat, { done: false, stat: [{ playerId: 7, gained: 300 }, { playerId: 8, gained: 200 }] }), { done: false, current: 500, required: 1000 });
+  // A collection-log part: new slots are distinct (member, item) — a teammate's same item is a new slot,
+  // a member's repeat isn't; whole pages are read off each log, so done or not here.
+  const clog = { id: 6, tileType: 'clog', countMode: 'slots', requiredAmount: 5 };
+  const slots = [sub(7, 1, { itemId: 1 }), sub(7, 1, { itemId: 1 }), sub(8, 1, { itemId: 1 }), sub(8, 1, { itemId: 2 })];
+  assert.deepEqual(partState(clog, { done: false, subs: slots }), { done: false, current: 3, required: 5 });
+  assert.deepEqual(partState(clog, { done: false, subs: slots }, 8), { done: false, current: 2, required: 5 });
+  assert.deepEqual(partState({ ...clog, countMode: 'complete' }, { done: false, subs: slots }), { done: false });
   // A timed clear has no partial progress; a done part is done — for every member when nobody is named.
   assert.deepEqual(partState({ id: 5, tileType: 'timed', timedActivity: 'Inferno' }, { done: false }), { done: false });
   assert.deepEqual(partState({ id: 5, tileType: 'timed' }, { done: true, doneBy: null }, 8), { done: true });

@@ -112,6 +112,7 @@ const KIND_WORD: Record<string, string> = {
   valuetotal: 'loot value',
   diary: 'diary',
   ca: 'combat task',
+  clog: 'collection log',
 };
 
 export default function ComboPartsField({

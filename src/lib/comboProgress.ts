@@ -3,6 +3,7 @@ import { collectionProgress } from '@/lib/pluginPanel';
 import { isMilestoneBasis } from '@/lib/statTracking';
 import { parseCapBy } from '@/lib/tileCaps';
 import { parseJsonArray } from '@/lib/tileKinds';
+import { clogTileMode } from '@/lib/clogTileWords';
 import {
   comboNeeded,
   evaluateCombo,
@@ -97,6 +98,14 @@ export function partState(part: ProgressPart, inputs: PartInputs, playerId?: num
       part.setsRequired ?? 1,
     );
     return { done: false, current, required: goal };
+  }
+  // A collection-log part (lib/clogTiles): new slots are distinct (member, item) credits, counted
+  // like the tile counts them; whole pages are read off each member's log — done or not here.
+  if (part.tileType === 'clog') {
+    if (clogTileMode(part.countMode) === 'complete') return { done: false };
+    const required = Math.max(1, part.requiredAmount ?? 1);
+    const current = playerId === undefined ? countProgress(subs, 'team', 'slots').current : memberProgress(subs, playerId, 'slots');
+    return { done: false, current, required };
   }
   if ((part.tileType && COUNT_KINDS.has(part.tileType)) || isTrialRuns(part)) {
     const required = Math.max(1, part.requiredAmount ?? 1);
