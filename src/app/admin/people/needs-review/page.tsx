@@ -4,7 +4,8 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { requireClan } from '@/lib/clanContext';
 import { pendingClaimRequests } from '@/lib/claimRequests';
-import { openReportAccountIds } from '@/lib/characterReports';
+import { clanReports, openReportAccountIds } from '@/lib/characterReports';
+import SentToAnvil from './SentToAnvil';
 import VerificationsClient, { type PendingMember } from './VerificationsClient';
 import ClaimRequestsClient from './ClaimRequestsClient';
 import GuideLink from '@/components/GuideLink';
@@ -46,12 +47,21 @@ export default async function ClanNeedsReviewPage() {
 
   // Which of these this clan (or another) has already raised with Anvil — shown as sent, not re-asked.
   const reported = await openReportAccountIds([...rows.map((r) => r.accountId), ...claimRequests.map((c) => c.accountId)]);
-  const claimItems = claimRequests.map((c) => ({ ...c, forwarded: reported.has(c.accountId) }));
+  // And what became of everything THIS clan sent: waiting, done, approved, declined, reverted.
+  const sent = await clanReports(clan.id);
+  const latestSent = new Map<number, (typeof sent)[number]>();
+  for (const r of sent) if (!latestSent.has(r.accountId)) latestSent.set(r.accountId, r);
+  const claimItems = claimRequests.map((c) => ({
+    ...c,
+    forwarded: reported.has(c.accountId),
+    report: latestSent.get(c.accountId) ?? null,
+  }));
 
   const items: PendingMember[] = rows.map((r) => ({
     id: r.id,
     rsn: r.rsn,
     reported: reported.has(r.accountId),
+    report: latestSent.get(r.accountId) ?? null,
     verifiedAt: r.verifiedAt,
     verificationMethod: r.verificationMethod,
     claimedAt: r.claimedAt,
@@ -78,12 +88,15 @@ export default async function ClanNeedsReviewPage() {
         People who linked a character — by gaining XP on it, by asking, or just by playing it with the
         plugin. They can already play and lose nothing while they wait. Check the Discord name matches the
         character and approve. If it looks wrong, report it — taking a character off someone is
-        Anvil&rsquo;s call, since it is theirs in every clan.
+        Anvil&rsquo;s call, since it is theirs in every clan. A report from your clan owner is done
+        straight away, and Anvil double-checks it.
       </p>
       <p className="mb-3.5 ml-4">
         <GuideLink href="/guide/moderator#verify">What to check before you approve</GuideLink>
       </p>
       <VerificationsClient items={items} />
+
+      <SentToAnvil reports={sent} />
     </div>
   );
 }

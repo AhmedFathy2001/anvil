@@ -4,29 +4,40 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { clanFetch } from '@/lib/clanFetch';
 import type { ClaimRequest } from '@/lib/claimRequests';
+import type { ClanReportView } from '@/lib/characterReports';
+
+import AnvilReportStatus from '../AnvilReportStatus';
 
 /**
  * Claim requests — a mod vouching that a person is the member they say they are.
  *
  * These appear because the plugin refused to auto-claim an established member on a public RSN (the
  * takeover fix). A request names a Discord identity and the roster member it wants; the mod's job is
- * the one a machine cannot do — recognise the person. Vouching sends it to Anvil, which binds it
- * (lib/characterReports); reject leaves the member to
- * prove it themselves by XP.
+ * the one a machine cannot do — recognise the person. Vouching (lib/claimRequests vouchForClaim)
+ * links it here and now when the character has only ever been on this clan's roster, links it at
+ * once and lets Anvil double-check when the clan owner vouches, and otherwise sends it to Anvil.
+ * Reject leaves the member to prove it themselves by XP.
  *
  * The distinction from the verifications list below: those are members who ALREADY proved control by
  * XP and want a confirmation stamp; these have NOT proved anything, and the mod's recognition is
  * standing in for the proof. So the copy leans on identity ("do you know this person?") rather than
  * on a method.
  */
-export default function ClaimRequestsClient({ items }: { items: (ClaimRequest & { forwarded: boolean })[] }) {
+export default function ClaimRequestsClient({
+  items,
+}: {
+  items: (ClaimRequest & { forwarded: boolean; report: ClanReportView | null })[];
+}) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function act(id: number, action: 'forward' | 'reject') {
     setBusyId(id);
     setError(null);
+    setNotice(null);
+    const rsn = items.find((i) => i.id === id)?.rsn ?? 'It';
     try {
       const res = await clanFetch(`/api/admin/claim-requests/${id}`, {
         method: 'POST',
@@ -35,7 +46,12 @@ export default function ClaimRequestsClient({ items }: { items: (ClaimRequest & 
       });
       const data = await res.json();
       if (!res.ok) setError(data.error || 'Action failed');
-      else router.refresh();
+      else {
+        if (data.outcome === 'linked') setNotice(`${rsn} is linked. It has only ever been on your roster, so no one else needed to agree.`);
+        else if (data.outcome === 'applied') setNotice(`${rsn} is linked. Anvil will double-check it and can undo it if something is wrong.`);
+        else if (data.outcome === 'sent') setNotice(`Sent to Anvil.${data.why ? ` ${data.why}` : ''}`);
+        router.refresh();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Network error');
     } finally {
@@ -43,7 +59,7 @@ export default function ClaimRequestsClient({ items }: { items: (ClaimRequest & 
     }
   }
 
-  if (items.length === 0) return null;
+  if (items.length === 0 && !notice) return null;
 
   return (
     <section className="mb-8">
@@ -52,13 +68,18 @@ export default function ClaimRequestsClient({ items }: { items: (ClaimRequest & 
         <h2 className="text-[16.5px] font-semibold">Claim requests</h2>
       </div>
       <p className="mb-3.5 ml-4 max-w-[64ch] text-[13.5px] text-text-muted">
-        Someone is asking to link one of your members&rsquo; accounts. If you recognise them, vouch for
-        it and Anvil makes the link — a character is its player&rsquo;s in every clan, so the platform
-        decides. Otherwise leave it, and they can prove it themselves by training the account a little.
+        Someone is asking to link one of your members&rsquo; accounts. If you recognise them, say so. A
+        character that has only ever been in your clan is linked straight away; one that is also in
+        another clan goes to Anvil, since it is that player&rsquo;s everywhere (your clan owner&rsquo;s
+        word links it at once, and Anvil double-checks). Otherwise leave it, and they can prove it
+        themselves by training the account a little.
       </p>
 
       {error && (
         <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>
+      )}
+      {notice && (
+        <div className="mb-3 rounded-lg border border-accent-green/30 bg-accent-green/10 p-3 text-sm text-accent-green-light">{notice}</div>
       )}
 
       <div className="space-y-3">
@@ -100,14 +121,18 @@ export default function ClaimRequestsClient({ items }: { items: (ClaimRequest & 
                     Not them
                   </button>
                   {r.forwarded ? (
-                    <span className="px-3 py-1.5 text-xs text-text-muted">Sent to Anvil</span>
+                    r.report ? (
+                      <AnvilReportStatus report={r.report} />
+                    ) : (
+                      <span className="px-3 py-1.5 text-xs text-text-muted">Waiting for Anvil</span>
+                    )
                   ) : (
                     <button
                       onClick={() => act(r.id, 'forward')}
                       disabled={busy}
                       className="rounded-lg border border-accent-green/40 bg-accent-green/20 px-3 py-1.5 text-sm text-accent-green-light transition-colors hover:bg-accent-green/30 disabled:opacity-50"
                     >
-                      Yes, that&rsquo;s them — send to Anvil
+                      Yes, that&rsquo;s them
                     </button>
                   )}
                 </div>
