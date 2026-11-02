@@ -1,6 +1,6 @@
 import type { RosterOverview, RosterPersonOut, RosterSearchPage, RosterTeamOut, RosterTeamPage } from '@/lib/eventRoster';
 
-import { type Action, type Color, type Node, button, card, col, gap, header, icon, muted, row, text } from './nodes';
+import { type Action, type Color, type Node, button, card, col, gap, header, icon, muted, nameText, row, text } from './nodes';
 
 // An event's Teams page in the plugin's side panel (was TeamsView.java): the teams ranked, a team's
 // members, or players found by name — a page at a time (lib/eventRoster does the ranking and paging).
@@ -116,7 +116,7 @@ function personRow(p: RosterPersonOut, ranked: boolean, showTeam: boolean, s: Te
   const tag = p.captain && p.you ? 'Captain · you' : p.captain ? 'Captain' : p.you ? 'You' : null;
   return row(
     ranked ? text(p.rank == null ? '–' : `#${p.rank}`, p.rank != null && p.rank <= 3 ? 'brand' : 'muted', { w: 34 }) : undefined,
-    col([text(p.name, p.you ? 'brand' : 'white'), ...(line ? [line] : [])]),
+    col([nameText(p.name, p.you ? 'brand' : 'white'), ...(line ? [line] : [])]),
     tag ? text(tag, 'brand') : undefined,
     { pad: 4, inset: 6, tip: `Look up ${p.name}`, on: { a: 'lookup', rsn: p.name } },
   );

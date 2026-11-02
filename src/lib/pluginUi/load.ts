@@ -4,6 +4,8 @@ import { db } from '@/db';
 import { accounts, clanMemberships, clans, users } from '@/db/schema';
 import { apexCharacter, apexClan } from '@/lib/apexProfiles';
 import { verifyPluginTokenUser } from '@/lib/auth';
+import { hasPlatformRole } from '@/lib/clanRoles';
+import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { loadPlayerCard } from '@/lib/playerCard';
 import type { PlayerCard } from '@/lib/playerCardShape';
 import { publicHiscoresCard } from '@/lib/publicHiscoresCard';
@@ -60,6 +62,8 @@ export async function visibleClan(request: Request, rawSlug: string) {
   });
   if (!clan || clan.status === 'suspended') return null;
   if ((await apexClan(slug)) != null) return clan;
+  // The hidden lab clan opens for platform staff, so its test drops can be tried in the panel.
+  if (clan.slug === LAB_CLAN_SLUG) return (await pluginStaff(request)) ? clan : null;
 
   const playerId = await viewerPlayerId(request);
   if (playerId == null) return null;
@@ -71,4 +75,12 @@ export async function visibleClan(request: Request, rawSlug: string) {
     .where(and(eq(clanMemberships.clanId, clan.id), eq(accounts.playerId, playerId), isNull(clanMemberships.leftAt)))
     .limit(1);
   return seat ? clan : null;
+}
+
+/** Is the plugin's login platform staff (it may open the lab clan and react to its test drops)? */
+export async function pluginStaff(request: Request): Promise<boolean> {
+  const viewer = await verifyPluginTokenUser(request);
+  if (!viewer) return false;
+  const row = await db.query.users.findFirst({ where: eq(users.id, viewer.userId), columns: { platformRole: true } });
+  return hasPlatformRole(row?.platformRole, 'staff');
 }

@@ -94,6 +94,7 @@ export const PLATFORM_ROOTS = [
   '/about',
   '/features',
   '/pricing',
+  '/supporter',
   '/portal',
   '/legal',
   '/api/profile',

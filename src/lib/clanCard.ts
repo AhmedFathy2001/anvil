@@ -8,6 +8,9 @@ import { momentsForClan } from '@/lib/momentsStore';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
 import { getItemMapping } from '@/lib/osrsItems';
 
+/** What counts as a drop worth showing: pets, uniques and big loot (never a death). */
+export const FEED_KINDS = new Set(['pet', 'unique', 'loot']);
+
 // One clan as the plugin panel and the compare page show it: who they are, how hard they played this
 // week, who carried it, what dropped lately, and what's running. All from reads the clan pages
 // already make — nothing here polls anything.
@@ -56,7 +59,7 @@ export async function loadClanCard(clan: { id: number; slug: string; name: strin
   // Pets and clog-only items arrive by NAME (a chat line), so their moment carries no item id and the
   // plugin drew a blank where the icon goes. Resolve them by name against the item list (which holds
   // untradeables too, and prefers the collection-log id). An outage just leaves the gap, as before.
-  const highlightMoments = moments.filter((m) => m.kind === 'pet' || m.kind === 'drop').slice(0, 5);
+  const highlightMoments = moments.filter((m) => FEED_KINDS.has(m.kind)).slice(0, 5);
   const idByName = new Map<string, number>();
   if (highlightMoments.some((m) => m.itemId == null && m.itemName)) {
     try {

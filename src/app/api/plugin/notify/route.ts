@@ -23,6 +23,8 @@ import { log } from '@/lib/logger';
 import { effectiveClanRules, levelPostMatches, levelPostOf } from '@/lib/levelRules';
 import { getClanMilestoneRules, getMemberLevelPrefs } from '@/lib/levelRulesStore';
 import { labQuarantine } from '@/lib/lab';
+import { apexOrigin } from '@/lib/seo';
+import { supporterForUser, withSupporterAuthor } from '@/lib/supporter';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
 
 // The plugin POSTs clan notifications (death / kill / rare drop / CA) here instead of straight to
@@ -237,7 +239,13 @@ export async function POST(request: Request) {
   // Strip OSRS '@component@' chat markup the plugin can't (see lib/chatTags) — turns a forwarded
   // `⚔️ @ach_comp@This Is Madness` back into `⚔️ This Is Madness` and repairs the wiki URL.
   const outContent = finalContent ? stripChatTags(finalContent) : finalContent;
-  const outEmbed = finalEmbed ? stripChatTagsDeep(finalEmbed) : finalEmbed;
+  let outEmbed = finalEmbed ? stripChatTagsDeep(finalEmbed) : finalEmbed;
+  // An Anvil Supporter's posts carry their tier's star beside their name. Cosmetic: a failed read
+  // posts without it.
+  if (outEmbed?.author) {
+    const tier = await supporterForUser(auth.userId).then((s) => s?.tier.id ?? null, () => null);
+    outEmbed = withSupporterAuthor(outEmbed, tier, apexOrigin());
+  }
 
   // ── ROUTE BY PERSON, not by the clan in the URL ─────────────────────────────────────────────
   //

@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, notLike, or, sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clanStaff, clans, events as eventsTable, users } from '@/db/schema';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { dayKey } from '@/lib/dbTime';
+import { LAB_DUMMY_LOGIN } from '@/lib/labRules';
 import { buildLeadsDigest, type DayCounts, type LeadRow, type StalledPerson } from '@/lib/leadsDigest';
 import { sendOpsWebhook } from '@/lib/opsWebhook';
 import { sendOnboardingNudges, type NudgeOutcome } from '@/lib/onboardingNudge';
@@ -79,7 +80,8 @@ export async function GET(request: Request) {
       )`,
     })
     .from(clans)
-    .where(eq(clans.status, 'active'));
+    // Platform-hidden clans (the lab) are not prospects: no owner to chase, and nobody to sell to.
+    .where(and(eq(clans.status, 'active'), eq(clans.platformHidden, false)));
 
   const leads: LeadRow[] = rows.map((r) => ({
     id: r.id,
@@ -122,10 +124,17 @@ export async function GET(request: Request) {
   // runs once a day, so a whole finished day neither double-counts nor leaves a gap.
   const yesterday = dayKey(Date.now(), 1);
   const onDay = (col: AnyPgColumn) => sql`substr(${col}, 1, 10) = ${yesterday}`;
+  // Written with the null case: a login without a Discord id is still a person.
+  const notLabDummy = or(isNull(users.discordId), notLike(users.discordId, `${LAB_DUMMY_LOGIN}%`));
   const [signUps, clansCreated, charactersLinked] = await Promise.all([
-    db.select({ n: sql<number>`count(*)` }).from(users).where(onDay(users.createdAt)).then((r) => Number(r[0]?.n ?? 0)),
-    db.select({ n: sql<number>`count(*)` }).from(clans).where(onDay(clans.createdAt)).then((r) => Number(r[0]?.n ?? 0)),
-    db.select({ n: sql<number>`count(*)` }).from(accounts).where(onDay(accounts.createdAt)).then((r) => Number(r[0]?.n ?? 0)),
+    // The Supporter lab's test clanmates are not sign-ups, and the lab clan is not a new clan.
+    db.select({ n: sql<number>`count(*)` }).from(users).where(and(onDay(users.createdAt), notLabDummy)).then((r) => Number(r[0]?.n ?? 0)),
+    db.select({ n: sql<number>`count(*)` }).from(clans).where(and(onDay(clans.createdAt), eq(clans.platformHidden, false))).then((r) => Number(r[0]?.n ?? 0)),
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(accounts)
+      .where(and(onDay(accounts.createdAt), sql`not exists (select 1 from ${users} u where u.player_id = accounts.player_id and u.discord_id like ${`${LAB_DUMMY_LOGIN}%`})`))
+      .then((r) => Number(r[0]?.n ?? 0)),
   ]);
   const counts: DayCounts = { signUps, clansCreated, charactersLinked };
 
@@ -145,7 +154,7 @@ export async function GET(request: Request) {
     })
     .from(users)
     // Same prefix comparison, same reason: "signed up before yesterday" is at least a day old.
-    .where(and(sql`substr(${users.createdAt}, 1, 10) < ${yesterday}`, isNull(users.bannedAt)))
+    .where(and(sql`substr(${users.createdAt}, 1, 10) < ${yesterday}`, isNull(users.bannedAt), notLabDummy))
     .orderBy(sql`${users.createdAt} desc`)
     .limit(200);
 
