@@ -1,6 +1,6 @@
 -- Anvil Supporter: the personal subscription (lib/supporter). A checkout ref on the login, so a
--- Gumroad sale can name its buyer, and one row per membership bought. Numbered 0166 because 0165 is
--- taken on another branch; every statement is IF NOT EXISTS so a re-run is harmless.
+-- Gumroad sale can name its buyer, and one row per membership bought. Numbered 0171 (0165–0170 are
+-- taken on beta or pending branches); every statement is IF NOT EXISTS so a re-run is harmless.
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "supporter_ref" text;--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "users_supporter_ref_unique" ON "users" ("supporter_ref");--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "supporter_subscriptions" (

@@ -11,6 +11,7 @@ import { parseConfirmations } from '@/lib/feeConfirmations';
 import { atLeast } from '@/lib/clanRoles';
 import { signUpOnBehalf } from '@/lib/signupOnBehalf';
 import { assertEventEditable } from '@/lib/eventLock';
+import { memberAccounts } from '@/lib/entryFee';
 
 export async function GET(
   request: Request,
@@ -54,6 +55,7 @@ export async function GET(
       // The human behind the seat that signed up. Needed because a board can end up tracking a
       // DIFFERENT character of theirs — see the participant lookup below.
       personId: clanRoster.playerId,
+      accountId: clanRoster.accountId,
     })
     .from(eventSignups)
     // LEFT join so guest sign-ups (no linked user) still list — they show by RSN from `account`.
@@ -117,6 +119,12 @@ export async function GET(
     })),
   );
 
+  // Who entered as a guest — only asked when guests pay differently, so a one-fee board pays nothing for it.
+  // clan-scope: global -- reads the event this handler already scoped (eventForRequest) by its id.
+  const feeEvent = await db.query.events.findFirst({ where: eq(events.id, id) });
+  const members =
+    feeEvent?.guestSignupFee != null ? await memberAccounts(feeEvent, [...new Set(rows.map((r) => r.accountId))]) : null;
+
   const signups = rows.map((r) => ({
     id: r.signup.id,
     status: r.signup.status,
@@ -127,6 +135,8 @@ export async function GET(
     // Guest sign-ups have no user row (left join → null fields); surface user as null.
     user: r.user && r.user.id != null ? r.user : null,
     account: r.account,
+    /** No member seat in a clan running the board (lib/entryFee). Null when guests pay the same. */
+    guest: members ? !members.has(r.accountId) : null,
     captainTeam: r.user && r.user.id != null ? captainTeamByUser.get(r.user.id) ?? null : null,
     // The team they actually play on — a captain's own team for a captain, the drafted team for
     // everyone else, null while they're still in the pool.
@@ -144,6 +154,7 @@ export async function GET(
       ? {
           id: r.fee.id,
           amount: r.fee.amount,
+          customAmount: r.fee.customAmount,
           status: r.fee.status,
           collectedByUserId: r.fee.collectedByUserId,
           reportedCollectorUserId: r.fee.reportedCollectorUserId,

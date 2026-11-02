@@ -24,6 +24,8 @@ import { noteNetwork } from '@/lib/integrityNetwork';
 import { notePluginVersion } from '@/lib/pluginSeen';
 import { lastSeenIsFresh } from '@/lib/rosterSync';
 import { labParticipantScope } from '@/lib/lab';
+import { admit } from '@/lib/guestAdmission';
+import { isBannedFromClan } from '@/lib/clanBans';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
@@ -547,7 +549,7 @@ export function signPlayerToken(playerId: number, teamId: number): string {
 // token working?"). For endpoints that need an event/team/player row, use
 // `verifyPluginToken` which additionally resolves the active enrollment.
 //
-// Only the per-user account token (`users.plugin_token`) is accepted — legacy
+// Only a person's own plugin token (looked up by hash: `users.plugin_token_hash` or `plugin_links`) is accepted — legacy
 // per-event `eventParticipants.player_token`s are no longer a plugin credential.
 /**
  * The clan a plugin request is for.
@@ -761,8 +763,8 @@ async function clanOfPerson(
  * The login a plugin token belongs to — whichever token it is.
  *
  * A person accumulates tokens: one per instance that ever issued them one, plus any device links.
- * `users.pluginToken` holds the newest, and `plugin_links` holds the rest, so both are checked and
- * an older one keeps working. This matters most right after a clan is imported, when somebody in
+ * `users.pluginTokenHash` holds an older account token, and `plugin_links` holds every per-client one
+ * (by hash only, 0166), so both are checked and an older one keeps working. This matters most right after a clan is imported, when somebody in
  * two clans is one login holding two tokens and their client only knows the one it was given.
  */
 // The "on play" bookkeeping in resolvePluginMember (observation breadcrumb, auto-claim, auto-link)
@@ -789,14 +791,13 @@ function playBookkeepingDue(key: string): boolean {
 }
 
 async function userByPluginToken(token: string) {
-  // By hash (0138). The plain-column match is only for a token an older blue-green slot minted
-  // during a switch, before it knew to write the hash; 0139 drops it with the plain columns.
+  // By hash only: tokens are never stored in the clear (0138/0166).
   const hash = hashPluginToken(token);
-  const direct = await db.query.users.findFirst({ where: or(eq(users.pluginTokenHash, hash), eq(users.pluginToken, token)) });
+  const direct = await db.query.users.findFirst({ where: eq(users.pluginTokenHash, hash) });
   if (direct) return direct;
 
   const link = await db.query.pluginLinks.findFirst({
-    where: and(or(eq(pluginLinks.tokenHash, hash), eq(pluginLinks.token, token)), isNull(pluginLinks.revokedAt)),
+    where: and(eq(pluginLinks.tokenHash, hash), isNull(pluginLinks.revokedAt)),
     columns: { userId: true },
   });
   if (!link) return undefined;
@@ -953,13 +954,20 @@ export function autoClaimAllowed(
 }
 
 /**
- * The owner of this character is playing, pointed at this clan. Make sure the clan can see that.
+ * The owner of this character is playing, pointed at this clan. Make sure the clan can see that —
+ * without this becoming a side door onto the roster.
  *
- * A live seat is stamped and left alone — a member stays a member, and a guest stays a guest. A
- * DEPARTED seat comes back as a guest rather than as whatever it was: the in-game roster dropped
- * them, so member is exactly what they are not, and reviving the old kind would quietly re-admit
- * somebody the clan removed. No seat at all becomes a guest, the same state the unclaimed path
- * already creates for a character it links here.
+ * - A LIVE seat is stamped and left alone — a member stays a member, and a guest stays a guest.
+ * - A DEPARTED seat comes back as a guest rather than as whatever it was (the in-game roster dropped
+ *   them, so member is exactly what they are not) — and only when the person is not BANNED from the
+ *   clan. A ban empties a person's seats; reviving one because they logged in would undo it.
+ * - NO seat: only in the person's HOME clan, i.e. where they already hold a live member seat on
+ *   another character — their alts do turn up there. Even then it goes through `admit()`, the one
+ *   door onto a roster, so the clan's guest policy and bans apply; under `approval` nothing is filed
+ *   from a background play (no request spam) and the alt simply is not seated. In a clan where the
+ *   person is only a guest, or not seated at all, a play never seats another character. That used
+ *   to happen via findOrCreateSeat directly, bypassing policy and bans for whatever clan the plugin
+ *   resolved.
  *
  * `source: 'admin'` and `source: 'manual'` seats are left alone entirely, in both directions. An
  * admin placed that seat by hand, including the decision to end it, and `manual` is the mark a
@@ -970,7 +978,12 @@ export function autoClaimAllowed(
 /** How stale `last_seen_in_clan` may get before a plugin play restamps it. */
 export const LAST_SEEN_REFRESH_MS = 15 * 60_000;
 
-async function seatOwnedCharacterAsGuest(clanId: number, accountId: number, nowIso: string): Promise<void> {
+async function seatOwnedCharacterAsGuest(
+  clanId: number,
+  accountId: number,
+  playerId: number,
+  nowIso: string,
+): Promise<void> {
   const [seat] = await db
     .select({
       id: clanMemberships.id,
@@ -984,8 +997,25 @@ async function seatOwnedCharacterAsGuest(clanId: number, accountId: number, nowI
     .limit(1);
 
   if (!seat) {
-    const seatId = await findOrCreateSeat(clanId, accountId, { kind: 'guest' });
-    await db.update(clanMemberships).set({ lastSeenInClan: nowIso }).where(eq(clanMemberships.id, seatId));
+    // Home clan only: a live MEMBER seat on another of this person's characters.
+    const [home] = await db
+      .select({ id: clanMemberships.id })
+      .from(clanMemberships)
+      .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
+      .where(
+        and(
+          eq(clanMemberships.clanId, clanId),
+          eq(accounts.playerId, playerId),
+          eq(clanMemberships.kind, 'member'),
+          isNull(clanMemberships.leftAt),
+        ),
+      )
+      .limit(1);
+    if (!home) return;
+    const admission = await admit({ clanId, accountId, source: 'plugin', fileRequest: false });
+    if (admission.outcome === 'seated') {
+      await db.update(clanMemberships).set({ lastSeenInClan: nowIso }).where(eq(clanMemberships.id, admission.seatId));
+    }
     return;
   }
   if (seat.source === 'admin' || seat.source === 'manual') return;
@@ -998,6 +1028,7 @@ async function seatOwnedCharacterAsGuest(clanId: number, accountId: number, nowI
     }
     return;
   }
+  if (await isBannedFromClan(clanId, playerId)) return;
   await db
     .update(clanMemberships)
     .set({ kind: 'guest', leftAt: null, lastSeenInClan: nowIso })
@@ -1080,12 +1111,13 @@ async function autoLinkOrSuggestOnPlay(
     // the clan's surfaces and the clan had no way to tell they were still around.
     //
     // Seating them as a guest is the honest record of what just happened. Only for the owner — a
-    // character somebody else claimed is not this login's to seat anywhere — and never as a member,
-    // which stays the in-game roster's word. See seatOwnedCharacterAsGuest.
+    // character somebody else claimed is not this login's to seat anywhere — never as a member,
+    // which stays the in-game roster's word, and never past a ban or the clan's guest policy. A new
+    // seat only in their home clan. See seatOwnedCharacterAsGuest.
     if (ownedByRsn?.claimedAt != null) {
       const mine = await personOf(userId);
       if (mine != null && ownedByRsn.playerId === mine) {
-        await seatOwnedCharacterAsGuest(clanId, ownedByRsn.id, nowIso);
+        await seatOwnedCharacterAsGuest(clanId, ownedByRsn.id, mine, nowIso);
       } else if (accountHash && ownedByRsn.accountHash === accountHash) {
         // SOMEBODY ELSE'S, really logged in through this login's plugin — siblings on one RuneLite, a
         // friend at this PC, or a wrong link. Ownership stays put; the sighting is what lets the owner
@@ -1603,7 +1635,7 @@ export function pluginViewerRsn(request: Request): string | null {
 // core: `verifyPluginToken` layers event resolution on top, and the live-stats ingest credits weekly
 // SOTW/BOTW by clan member even when the caller isn't in any bingo.
 //
-// Only the **per-user account token** (`users.plugin_token`) is accepted; legacy per-event
+// Only a **person's plugin token** (by hash: `users.plugin_token_hash` or `plugin_links`) is accepted; legacy per-event
 // `eventParticipants.player_token`s are not a plugin credential. `currentRsn` (header `X-RSN`, fallback
 // `?rsn=`) is the in-game name reported by the client; it scopes resolution to the matching
 // clan_member — the check that blocks "a drop on the wrong account credits the right account" (the
@@ -1942,10 +1974,7 @@ export async function pluginTokenPerson(request: Request): Promise<{ userId: num
   if (user) return { userId: user.id };
 
   const link = await db.query.pluginLinks.findFirst({
-    where: and(
-      or(eq(pluginLinks.tokenHash, hashPluginToken(token)), eq(pluginLinks.token, token)),
-      isNull(pluginLinks.revokedAt),
-    ),
+    where: and(eq(pluginLinks.tokenHash, hashPluginToken(token)), isNull(pluginLinks.revokedAt)),
   });
   if (!link) return null;
 
@@ -2012,9 +2041,15 @@ export function hashPluginToken(token: string): string {
   return crypto.createHash('sha256').update(token, 'utf8').digest('hex');
 }
 
-/** The columns a freshly minted account token writes. The plain one stops being written in 0139. */
-export function pluginTokenColumns(token: string): { pluginToken: string; pluginTokenHash: string } {
-  return { pluginToken: token, pluginTokenHash: hashPluginToken(token) };
+/**
+ * Mint a token for one more RuneLite client, stored as its hash, and hand the token back — the only
+ * time anyone sees it. Every client gets its own (plugin_links), so adding one never signs another out
+ * and each can be revoked on its own.
+ */
+export async function mintDeviceToken(userId: number): Promise<string> {
+  const token = crypto.randomBytes(32).toString('base64url');
+  await db.insert(pluginLinks).values({ userId, tokenHash: hashPluginToken(token) });
+  return token;
 }
 
 export function generatePluginLinkCode(): string {
@@ -2024,10 +2059,6 @@ export function generatePluginLinkCode(): string {
   let out = '';
   for (let i = 0; i < 6; i++) out += alphabet[bytes[i] % alphabet.length];
   return out;
-}
-
-export function generateAdminPluginToken(): string {
-  return crypto.randomBytes(32).toString('hex');
 }
 
 export function normalizeRsn(rsn: string): string {

@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { db } from '@/db';
-import { clanRoster, eventParticipants, eventSignups, events, signupFees, teams, users } from '@/db/schema';
+import { clanMemberships, clanRoster, eventParticipants, eventSignups, events, signupFees, teams, users } from '@/db/schema';
+import { standardFeeForAccount } from '@/lib/entryFee';
 import { generatePlayerToken } from '@/lib/auth';
 import { seatsOwnedBy } from '@/lib/roster';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
@@ -186,10 +187,15 @@ async function enrolSignup(eventId: number, userId: number, clanMemberId: number
 
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
-  if (!event?.signupFee || event.signupFee <= 0) return;
+  if (!event) return;
+  // clan-scope: global -- the seat this sign-up was just written with, by its id; only its character is read.
+  const seat = await db.query.clanMemberships.findFirst({ where: eq(clanMemberships.id, clanMemberId) });
+  // Member or guest fee, by the character's seats (lib/entryFee).
+  const amount = seat ? await standardFeeForAccount(event, seat.accountId) : event.signupFee;
+  if (!amount || amount <= 0) return;
   const fee = await db.query.signupFees.findFirst({ where: eq(signupFees.signupId, row.id) });
   if (!fee) {
-    await db.insert(signupFees).values({ signupId: row.id, amount: event.signupFee, status: 'pending' });
+    await db.insert(signupFees).values({ signupId: row.id, amount, status: 'pending' });
   }
 }
 

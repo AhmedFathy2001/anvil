@@ -9,7 +9,9 @@ import {
 import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
 import { playerEventEmbed } from '@/lib/discordEmbeds';
 import { buildPluginEmbed } from '@/lib/pluginEmbeds';
-import { leaguesIconUrl, markSeasonal } from '@/lib/leagues';
+import { markMode, routeModePost, type WorldMode } from '@/lib/worldModes';
+import { worldModeOf } from '@/lib/worldModeRequest';
+import { getModeRouting, modeIconUrl, rememberSeenMode } from '@/lib/worldModeStore';
 import { stripChatTags, stripChatTagsDeep } from '@/lib/chatTags';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { db } from '@/db';
@@ -50,6 +52,8 @@ type NotifyBody = {
   kind?: unknown;
   facts?: unknown;
   seasonal?: unknown;
+  /** The world the post was made on, frozen in by the plugin (lib/worldModeRequest). */
+  world?: unknown;
 };
 
 function isChannel(value: unknown): value is Channel {
@@ -63,18 +67,27 @@ function webhookFor(webhooks: PluginWebhooks, channel: Channel): string | null {
 }
 
 /**
- * Where a SEASONAL (Leagues) post goes.
+ * Where a post from a GAME-MODE world (Leagues, Deadman, hardcore, … — lib/worldModes) goes in one
+ * clan.
  *
- * League drops are absurd by main-game standards and their kill counts mean nothing next to them,
- * so mixing the two makes both channels useless to read — a clan can point them at their own
- * channel. Falls back to the normal channel when they haven't: routing is an improvement, not a
- * precondition, and a post should never be lost because a webhook is unset.
+ * A league or Deadman drop is absurd by main-game standards and its kill counts mean nothing next
+ * to main-game ones, so mixing them makes both channels useless to read. Each clan decides, per
+ * mode: its own channel, which kinds of post, or nothing at all — and one master switch keeps every
+ * mode in the normal channels. With no mode channel set, a post lands where the same post from the
+ * main game would: routing is an improvement, never the reason a post is lost.
  *
- * The plugin only reports that the player is ON a seasonal world; which channel that means is
- * decided here, so a clan can change it without waiting for a plugin release.
+ * The plugin only reports the world; which mode that is and where it goes is decided here, so a
+ * clan can change it — and a mode Jagex launches tomorrow is handled — without a plugin release.
  */
-function seasonalWebhookFor(webhooks: PluginWebhooks, channel: Channel): string | null {
-  return pickWebhookUrl(webhooks.leagues, 'plugin:leagues') ?? webhookFor(webhooks, channel);
+async function modeWebhookFor(
+  clanId: number,
+  webhooks: PluginWebhooks,
+  channel: Channel,
+  mode: WorldMode,
+): Promise<string | null> {
+  const leaguesHook = pickWebhookUrl(webhooks.leagues, 'plugin:leagues');
+  const routing = await getModeRouting(clanId, mode.key, leaguesHook);
+  return routeModePost(channel, { ...routing, normalHook: webhookFor(webhooks, channel) });
 }
 
 // A player-facing RSN for the embed's author line. Every plugin request already carries the account
@@ -130,8 +143,10 @@ export async function POST(request: Request) {
   // and this route composes the post. Older plugins keep sending a finished `embed`, passed through.
   let kind: unknown;
   let facts: unknown;
-  // Player is on a Leagues world — the plugin reports the fact, this route decides what it means.
+  // Player is on a Leagues world — what plugins before `world` said; this route decides what it means.
   let seasonal = false;
+  // The world the post was made on (types + activity), frozen in by the plugin.
+  let world: unknown;
 
   const contentType = request.headers.get('content-type') || '';
   try {
@@ -146,6 +161,7 @@ export async function POST(request: Request) {
         kind = parsed.kind;
         facts = parsed.facts;
         seasonal = parsed.seasonal === true;
+        world = parsed.world;
       }
       const file = form.get('file');
       if (file instanceof File) {
@@ -162,6 +178,7 @@ export async function POST(request: Request) {
       kind = parsed.kind;
       facts = parsed.facts;
       seasonal = parsed.seasonal === true;
+      world = parsed.world;
     }
   } catch {
     return NextResponse.json({ error: 'Malformed body' }, { status: 400 });
@@ -172,7 +189,7 @@ export async function POST(request: Request) {
     request,
     member?.accountId ?? (async () => (await resolvePluginCharacter(request))?.accountId),
     'notify',
-    { channel, kind, facts, content, embed, seasonal, image: image?.filename ?? null },
+    { channel, kind, facts, content, embed, seasonal, world, image: image?.filename ?? null },
   );
   if (quarantined) return quarantined;
 
@@ -210,11 +227,13 @@ export async function POST(request: Request) {
     finalContent = undefined;
   }
 
-  // Seasonal stamp — server-side, so every kind gets it without the plugin knowing about each one.
-  // The icon is a per-clan setting; the poster's member clan (or the URL clan) is a fine source for
-  // a cosmetic mark that is the same across destinations.
-  if (seasonal) {
-    finalEmbed = markSeasonal(finalEmbed, await leaguesIconUrl(clan.id));
+  // Game-mode stamp ("[Deadman] …") — server-side, so every kind gets it without the plugin knowing
+  // about each one. The icon is a per-clan setting; the URL clan is a fine source for a cosmetic
+  // mark that is the same across destinations. (A mode nobody catalogued is remembered below, per
+  // clan the poster actually posts into — never the URL clan, which any token holder can name.)
+  const mode = worldModeOf(request, { world, seasonal });
+  if (mode) {
+    finalEmbed = markMode(finalEmbed, mode.label, await modeIconUrl(clan.id, mode));
   }
 
   // Strip OSRS '@component@' chat markup the plugin can't (see lib/chatTags) — turns a forwarded
@@ -258,8 +277,10 @@ export async function POST(request: Request) {
         continue;
       }
     }
+    // A new mode joins this clan's Game modes list only off a post by someone with a seat here.
+    if (mode) await rememberSeenMode(ec.clanId, mode);
     const webhooks = await getNotificationWebhooks(ec.clanId);
-    const url = seasonal ? seasonalWebhookFor(webhooks, channel) : webhookFor(webhooks, channel);
+    const url = mode ? await modeWebhookFor(ec.clanId, webhooks, channel, mode) : webhookFor(webhooks, channel);
     if (url && !urls.has(url)) {
       urls.set(url, ec.clanId);
       if (ec.kind === 'guest' && (await clanTagsGuestEmissions(ec.clanId))) markAsGuest.add(url);

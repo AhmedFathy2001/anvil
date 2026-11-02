@@ -9,6 +9,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('plugin-board-alt');
 
@@ -29,7 +30,7 @@ before(async () => {
   await db.insert(s.tiles).values({ eventId, position: 0, label: 'Fire cape', tileType: 'drop' });
 
   const [person] = await db.insert(s.players).values({ displayName: 'Two Accounts' }).returning();
-  await db.insert(s.users).values({ playerId: person.id, displayName: 'Two Accounts', discordId: 'board-alt', pluginToken: 'board-alt-token' });
+  await db.insert(s.users).values({ playerId: person.id, displayName: 'Two Accounts', discordId: 'board-alt', pluginTokenHash: tokenHash('board-alt-token') });
   const [main, alt] = await db
     .insert(s.accounts)
     .values([

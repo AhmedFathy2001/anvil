@@ -114,6 +114,12 @@ export const PLUGIN_CAPABILITIES = [
   // Seasonal routing: /api/plugin/notify accepts `seasonal: true` and posts to the clan's Leagues
   // channel (falling back to the normal one), marking the embed as seasonal.
   'leagues-channel',
+  // Game modes (lib/worldModes): every plugin request may carry X-World-Types / X-World-Activity, and
+  // a notification a `world` block. The site maps that to Leagues, Deadman, hardcore, Grid Master or
+  // a mode it names itself, routes the post per the clan's Game modes settings, and drops credit
+  // (tiles, competitions, profile) from any of them. Informational: the plugin sends the headers
+  // regardless, and an older site ignores them.
+  'world-modes',
   // Starting shot (lib/startProof): /api/plugin/config carries a `startProof` block and
   // POST /api/events/:id/start-proof accepts the capture, so the plugin can show its button.
   'start-proof',

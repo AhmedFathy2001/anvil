@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
 import AnvilTaskEditor, { type AnvilTaskDraft } from '@/components/AnvilTaskEditor';
@@ -26,6 +27,7 @@ const STATUS_TEXT: Record<LibraryProposal['status'], string> = {
  * and suggest new tasks or fixes for Anvil to review.
  */
 export default function AnvilLibraryBrowser({ tierBands, onImported }: { tierBands: TierBand[]; onImported: () => void }) {
+  const { confirm } = useDialog();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [offers, setOffers] = useState<TaskOffer[]>([]);
@@ -125,6 +127,13 @@ export default function AnvilLibraryBrowser({ tierBands, onImported }: { tierBan
   }
 
   async function withdraw(id: number) {
+    const ok = await confirm({
+      title: 'Withdraw this suggestion?',
+      body: 'Anvil won’t review it. To suggest it again you’ll have to write it out again.',
+      confirmLabel: 'Withdraw',
+      tone: 'danger',
+    });
+    if (!ok) return;
     await clanFetch(`/api/library/proposals/${id}`, { method: 'DELETE' });
     await load();
   }

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { verifyAdmin } from '@/lib/auth';
 import { clanHref } from '@/lib/clanPath';
 import RulesSettings from './RulesSettings';
+import ClanSettingsHeader from '../clan/ClanSettingsHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,14 +15,11 @@ export const dynamic = 'force-dynamic';
 export default async function RulesPage() {
   if (!(await verifyAdmin())) redirect(await clanHref('/admin/dashboard'));
   return (
-    <div className="max-w-3xl">
-      <header className="mb-8">
-        <h1 className="display display-lg text-4xl sm:text-[44px] font-semibold leading-tight">Rules &amp; scoring</h1>
-        <p className="text-text-muted mt-2 text-[15px]">
-          Clan-wide rules every event uses. Each event can still change its own on its Settings page.
-        </p>
-      </header>
-      <RulesSettings />
+    <div>
+      <ClanSettingsHeader isAdmin />
+      <div className="max-w-3xl">
+        <RulesSettings />
+      </div>
     </div>
   );
 }

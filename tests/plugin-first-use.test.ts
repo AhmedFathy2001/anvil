@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('plugin-first-use');
 
@@ -29,7 +30,7 @@ async function setup(rsn: string, seat: Partial<typeof s.clanMemberships.$inferI
   const [me] = await db.insert(s.players).values({ displayName: `discord-${n}` }).returning();
   const [login] = await db
     .insert(s.users)
-    .values({ displayName: `discord-${n}`, discordId: `d-${n}`, pluginToken: token, playerId: me.id })
+    .values({ displayName: `discord-${n}`, discordId: `d-${n}`, pluginTokenHash: tokenHash(token), playerId: me.id })
     .returning();
   const [ghost] = await db.insert(s.players).values({ displayName: rsn }).returning();
   const [acct] = await db
@@ -197,7 +198,7 @@ async function clanlessLogin() {
   n++;
   const token = `tok-${n}`;
   const [me] = await db.insert(s.players).values({ displayName: `discord-${n}` }).returning();
-  await db.insert(s.users).values({ displayName: `discord-${n}`, discordId: `d-${n}`, pluginToken: token, playerId: me.id });
+  await db.insert(s.users).values({ displayName: `discord-${n}`, discordId: `d-${n}`, pluginTokenHash: tokenHash(token), playerId: me.id });
   return { token, person: me.id };
 }
 const accountByRsn = async (rsn: string) =>
@@ -243,7 +244,7 @@ test('clanless: a character with roster history is not linked on a name', async 
 
 test('clanless: a released ("Not my account") character stays released', async () => {
   const me = await clanlessLogin();
-  const [login] = await db.select().from(s.users).where(eq(s.users.pluginToken, me.token));
+  const [login] = await db.select().from(s.users).where(eq(s.users.pluginTokenHash, tokenHash(me.token)));
   await db.insert(s.detectedAccounts).values({
     userId: login.id, rsn: 'Sibling Sam', rsnNormalized: 'sibling sam', status: 'dismissed',
     detectedAt: new Date().toISOString(), lastSeenAt: new Date().toISOString(),

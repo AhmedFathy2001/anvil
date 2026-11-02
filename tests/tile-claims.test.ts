@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('tile-claims');
 
@@ -167,7 +168,7 @@ test('an enrolled plugin character can plan on a revealed upcoming board, while 
     playerId: person.id,
     displayName: 'Planner',
     discordId: 'tile-claims-planner',
-    pluginToken: 'tile-claims-upcoming-token',
+    pluginTokenHash: tokenHash('tile-claims-upcoming-token'),
   }).returning();
   const [account] = await db.insert(s.accounts).values({
     playerId: person.id,

@@ -149,6 +149,17 @@ test('the weekly page: you below the cut still show, gains in the comp’s unit'
   assert.equal(weeklyKind('efficiency'), 'Efficiency of the Week');
 });
 
+test('the weekly page: past the 50 the route sends, your own row still closes the list', () => {
+  const top = Array.from({ length: 50 }, (_, i) => ({ rank: i + 1, rsn: `P${i + 1}`, gained: 0, self: false }));
+  const ui = eventUi(base(liveCfg({ panel: { weeklies: [{ id: 4, title: 'BOTW', type: 'boss', metric: 'phosanisNightmare', metricLabel: 'Phosani’s Nightmare', status: 'active', startDate: '2026-10-20T00:00:00Z', endDate: '2026-10-27T00:00:00Z' }] } }), {
+    weekly: new Map([[4, { total: 171, top, you: { rank: 87, rsn: 'Drenvox', gained: 0, self: true } }]]),
+  }), 'weekly:4')!;
+  const all = texts(ui);
+  assert.ok(all.includes('Drenvox'), 'your row, though you rank 87th');
+  assert.ok(!all.some((t) => t.includes('not on the board')));
+  assert.ok(all.some((t) => t.startsWith('You: +0') && t.endsWith('so far')), 'no rank among a tie on +0');
+});
+
 test('sizes: a list is never a grid, a grid keeps its shape, an old site is judged on geometry', () => {
   const b = (tileCount: number, boardSize: number, format: string, scoringMode = 'tiles') =>
     ({ id: 1, title: 'x', startDate: '', endDate: null, status: 'upcoming', tileCount, boardSize, format, scoringMode }) as ScheduleBingo;

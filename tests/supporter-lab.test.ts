@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('supporter-lab');
 let db: Awaited<ReturnType<typeof loadDb>>['db'];
@@ -23,10 +24,10 @@ before(async () => {
   L = await import('../src/lib/labSupporter.ts');
   V = await import('../src/lib/pluginUi/views.ts');
   const [p] = await db.insert(s.players).values({ displayName: 'Staffer' }).returning();
-  const [u] = await db.insert(s.users).values({ displayName: 'Staffer', discordId: 'd-staff', pluginToken: 'staff-token', playerId: p.id, platformRole: 'staff' }).returning();
+  const [u] = await db.insert(s.users).values({ displayName: 'Staffer', discordId: 'd-staff', pluginTokenHash: tokenHash('staff-token'), playerId: p.id, platformRole: 'staff' }).returning();
   staffId = u.id;
   const [q] = await db.insert(s.players).values({ displayName: 'Nobody' }).returning();
-  await db.insert(s.users).values({ displayName: 'Nobody', discordId: 'd-nobody', pluginToken: 'nobody-token', playerId: q.id });
+  await db.insert(s.users).values({ displayName: 'Nobody', discordId: 'd-nobody', pluginTokenHash: tokenHash('nobody-token'), playerId: q.id });
 });
 
 after(async () => {

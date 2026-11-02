@@ -35,6 +35,7 @@ import { put, clanMediaKey } from '@/lib/storage';
 import { parseStamp } from '@/lib/dbTime';
 import crypto from 'crypto';
 import { standingsScopeForRequest } from '@/lib/standingsAccess';
+import { worldModeIgnored } from '@/lib/worldModeRequest';
 
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
 // 'unverified_counter': credited off an in-game signal nobody has checked yet (lib/gameCounters,
@@ -137,6 +138,11 @@ export async function POST(
   // A replayed scenario from the dev client credits lab boards only (lib/lab).
   const replay = await replayOutsideLab(request, scopedEvent.id);
   if (replay) return replay;
+  // A kill or drop on a game-mode world (Leagues, Deadman, hardcore, …) is another save's, never
+  // this board's (lib/worldModeRequest) — unless the board counts that mode (rules.worldModes).
+  // Only the plugin stamps the world; a web upload is untouched.
+  const otherSave = worldModeIgnored(request, parseEventRules(scopedEvent.rules).worldModes);
+  if (otherSave) return otherSave;
   const clan = { id: scopedEvent.clanId };
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);

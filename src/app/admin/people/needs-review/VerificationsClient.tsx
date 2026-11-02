@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { clanFetch } from '@/lib/clanFetch';
+import type { ClanReportView } from '@/lib/characterReports';
+
+import AnvilReportStatus from '../AnvilReportStatus';
 
 export interface PendingMember {
   id: number;
@@ -13,6 +16,8 @@ export interface PendingMember {
   notes: string | null;
   /** Already raised with Anvil (lib/characterReports). */
   reported: boolean;
+  /** The newest report THIS clan sent about it, with where it stands. */
+  report: ClanReportView | null;
   user: {
     id: number;
     displayName: string | null;
@@ -25,10 +30,12 @@ export default function VerificationsClient({ items }: { items: PendingMember[] 
   const router = useRouter();
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function act(id: number, action: 'approve' | 'reject', note?: string) {
     setPendingId(id);
     setError(null);
+    setNotice(null);
     try {
       const res = await clanFetch(`/api/admin/verifications/${id}`, {
         method: 'POST',
@@ -39,6 +46,8 @@ export default function VerificationsClient({ items }: { items: PendingMember[] 
       if (!res.ok) {
         setError(data.error || 'Action failed');
       } else {
+        if (data.status === 'applied') setNotice('Taken off them. Anvil will double-check it and can undo it if something is wrong.');
+        else if (data.status === 'reported') setNotice(`Sent to Anvil.${data.why ? ` ${data.why}` : ''}`);
         router.refresh();
       }
     } catch (e) {
@@ -50,8 +59,15 @@ export default function VerificationsClient({ items }: { items: PendingMember[] 
 
   if (items.length === 0) {
     return (
-      <div className="border border-dashed border-card-border rounded-xl p-8 text-center text-text-muted">
-        All caught up. When someone links a character, they show up here for a quick check.
+      <div className="space-y-3">
+        {notice && (
+          <div className="border border-accent-green/30 bg-accent-green/10 text-accent-green-light rounded-lg p-3 text-sm">
+            {notice}
+          </div>
+        )}
+        <div className="border border-dashed border-card-border rounded-xl p-8 text-center text-text-muted">
+          All caught up. When someone links a character, they show up here for a quick check.
+        </div>
       </div>
     );
   }
@@ -61,6 +77,11 @@ export default function VerificationsClient({ items }: { items: PendingMember[] 
       {error && (
         <div className="border border-red-500/30 bg-red-500/10 text-red-400 rounded-lg p-3 text-sm">
           {error}
+        </div>
+      )}
+      {notice && (
+        <div className="border border-accent-green/30 bg-accent-green/10 text-accent-green-light rounded-lg p-3 text-sm">
+          {notice}
         </div>
       )}
       {items.map((m) => {
@@ -124,14 +145,18 @@ export default function VerificationsClient({ items }: { items: PendingMember[] 
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {m.reported ? (
-                  <span className="px-3 py-1.5 text-xs text-text-muted" title="Anvil staff will decide who this character belongs to.">
-                    Reported to Anvil
-                  </span>
+                  m.report ? (
+                    <AnvilReportStatus report={m.report} />
+                  ) : (
+                    <span className="px-3 py-1.5 text-xs text-text-muted" title="Anvil staff will decide who this character belongs to.">
+                      Waiting for Anvil
+                    </span>
+                  )
                 ) : (
                   <button
                     onClick={() => act(m.id, 'reject')}
                     disabled={busy}
-                    title="Taking a character off someone is Anvil's call — this sends it to them."
+                    title="Taking a character off someone is Anvil's call — this sends it to them. From the clan owner it is done at once and Anvil double-checks."
                     className="px-3 py-1.5 text-sm border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
                   >
                     Report to Anvil

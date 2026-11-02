@@ -88,6 +88,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
   // event that charges nothing from one whose money somebody else is holding.
   const [feeContext, setFeeContext] = useState<{
     signupFee: number;
+    feeText?: string | null;
     cashPolicy: string;
     isHostTeam: boolean;
     collects: boolean;
@@ -677,16 +678,17 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
 function FeesEmpty({
   context,
 }: {
-  context: { signupFee: number; cashPolicy: string; isHostTeam: boolean; collects: boolean } | null;
+  context: { signupFee: number; feeText?: string | null; cashPolicy: string; isHostTeam: boolean; collects: boolean } | null;
 }) {
-  if (!context || context.signupFee === 0) {
+  // feeText names both fees when guests pay differently; older responses only carry signupFee.
+  const fee = context?.feeText ?? (context && context.signupFee > 0 ? `${context.signupFee.toLocaleString()} gp` : null);
+  if (!context || !fee) {
     return <p className="text-sm text-text-muted">This event has no sign-up fee.</p>;
   }
-  const fee = context.signupFee.toLocaleString();
   if (!context.collects) {
     return (
       <p className="text-sm text-text-muted">
-        The host collects the {fee} gp entry fee for this event, and settles up with each clan
+        The host collects the entry fee ({fee}) for this event, and settles up with each clan
         afterwards — there is nothing for you to chase here.
       </p>
     );
@@ -694,7 +696,7 @@ function FeesEmpty({
   return (
     <p className="text-sm text-text-muted">
       Nobody on this team has a sign-up to collect against yet. Players added straight to the roster
-      skip the sign-up form, which is where the {fee} gp fee is attached.
+      skip the sign-up form, which is where the entry fee ({fee}) is attached.
     </p>
   );
 }

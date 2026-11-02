@@ -29,7 +29,9 @@ async function gate(teamId: number) {
   if (!session) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
 
   const membership = await resolveTeamManagement(teamId);
-  const isAdmin = atLeast(session.role, 'admin') || session.role === 'moderator';
+  // Moderator tier and up. Treasurer TIES with moderator in lib/clanRoles but is money-only, and
+  // this is a moderation surface, so it stays out — explicitly, as it always was.
+  const isAdmin = atLeast(session.role, 'moderator') && session.role !== 'treasurer';
   if (!membership && !isAdmin) {
     return { error: NextResponse.json({ error: 'Not your team' }, { status: 403 }) };
   }

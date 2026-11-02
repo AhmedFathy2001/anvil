@@ -8,6 +8,7 @@ import DateTimePicker from '@/components/DateTimePicker';
 import NumberInput from '@/components/NumberInput';
 import RevealRulesPanel from '../RevealRulesPanel';
 import StandingsVisibilityPanel from '../StandingsVisibilityPanel';
+import GameModeWorldsPanel from '../GameModeWorldsPanel';
 import RulebookPanel from '../RulebookPanel';
 import EventEditorsPanel from '../EventEditorsPanel';
 import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
@@ -504,6 +505,9 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
 
       {/* Hidden standings: every board, any time — mid-event included. */}
       <StandingsVisibilityPanel event={currentEvent} />
+
+      {/* Opt this board into Leagues / Deadman / … worlds (rules.worldModes). */}
+      <GameModeWorldsPanel event={currentEvent} />
 
       {/* Only renders on reveal-policy boards — a classic board has nothing to schedule. */}
       <RevealRulesPanel event={currentEvent} tiles={tiles} />

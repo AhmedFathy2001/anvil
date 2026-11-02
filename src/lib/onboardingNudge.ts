@@ -27,7 +27,8 @@ export interface NudgeOutcome {
   via: 'dm' | 'email' | 'none';
 }
 
-async function sendDm(botToken: string, discordId: string, body: Record<string, unknown>): Promise<boolean> {
+/** DM one Discord user through a clan's bot. False when the bot shares no server with them. */
+export async function sendDm(botToken: string, discordId: string, body: Record<string, unknown>): Promise<boolean> {
   const dm = await discordRest(botToken, '/users/@me/channels', {
     method: 'POST',
     body: JSON.stringify({ recipient_id: discordId }),

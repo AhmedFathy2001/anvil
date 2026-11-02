@@ -172,3 +172,41 @@ export type DepartureOutcome = 'guest' | 'left';
 export function departureFor(seat: DepartingSeat): DepartureOutcome {
   return seat.claimed ? 'guest' : 'left';
 }
+
+/** A roster change as the sync summary reads it. */
+export interface RosterChangeLine {
+  rsn: string;
+  memberId: number;
+  oldRank?: string | null;
+  newRank?: string | null;
+}
+
+/**
+ * The sync summary's Returned field, and what is left for its Rank changed field.
+ *
+ * REJOINED AND RE-RANKED IN ONE SYNC is OSRS resetting a returning member's rank, not a staff
+ * decision. Said once, under Returned, as the thing to fix in game — "Taurak — was deputy owner, back
+ * as imp (re-rank them in game)" — and left out of Rank changed, where it read as somebody demoting
+ * them. Only the embed; the audit rows stay as they are.
+ */
+export function returnFields<T extends RosterChangeLine>(
+  returned: T[],
+  rankChanges: T[],
+): { returnedField: { name: string; value: string } | null; rankChanged: T[] } {
+  const back = new Set(returned.map((r) => r.memberId));
+  const reranked = new Map(rankChanges.filter((c) => back.has(c.memberId)).map((c) => [c.memberId, c]));
+  const rankChanged = rankChanges.filter((c) => !reranked.has(c.memberId));
+  if (returned.length === 0) return { returnedField: null, rankChanged };
+  const rank = (r: string | null | undefined) => (r ?? 'unranked').toLowerCase();
+  const line = (c: T) => {
+    const rr = reranked.get(c.memberId);
+    return rr ? `${c.rsn} — was ${rank(rr.oldRank)}, back as ${rank(rr.newRank)} (re-rank them in game)` : c.rsn;
+  };
+  return {
+    returnedField: {
+      name: `Returned (${returned.length})`,
+      value: returned.map(line).join(reranked.size > 0 ? '\n' : ', ').slice(0, 1024),
+    },
+    rankChanged,
+  };
+}

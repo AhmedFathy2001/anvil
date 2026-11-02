@@ -7,6 +7,7 @@ import { activeScopesFor, recordMoments } from '@/lib/momentsStore';
 import { caTierRank, type Observation } from '@/lib/moments';
 import { stripChatTags } from '@/lib/chatTags';
 import { labQuarantine } from '@/lib/lab';
+import { worldModeIgnored } from '@/lib/worldModeRequest';
 
 // Highlight ingest: the pets, uniques, big hauls, deaths and combat tasks that happen while a competition week or
 // a bingo is running (lib/moments decides which of those it is — see that file for why the rules
@@ -77,6 +78,10 @@ function occurredAt(v: unknown, now: number): string {
 }
 
 export async function POST(request: Request) {
+  // Kills, drops, XP and logs from a game-mode world (Leagues, Deadman, hardcore, …) are another
+  // save's progress, never this one's (lib/worldModeRequest).
+  const otherSave = worldModeIgnored(request);
+  if (otherSave) return otherSave;
   const member = await resolvePluginMember(request);
   if (!member) {
     return NextResponse.json(

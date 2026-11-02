@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
+import { useDialog } from '@/components/Confirm';
 import LocalTime from '@/components/LocalTime';
 import { clanFetch } from '@/lib/clanFetch';
 import type { PersonHit } from '@/lib/platformView';
@@ -17,10 +18,20 @@ interface Report {
   status: string;
   resolution: string | null;
   createdAt: string;
+  resolvedAt: string | null;
   account: { id: number; rsn: string; playerId: number; ownerName: string | null; claimed: boolean; verificationMethod: string | null; provisional: boolean };
-  clan: { name: string; slug: string } | null;
+  clan: { id: number; name: string; slug: string } | null;
   reporter: string | null;
   claimant: { id: number; name: string } | null;
+  /** A player's wrong-clan report (lib/wrongClan): can it be carried out from here? */
+  wrongClan?: {
+    targetClanId: number;
+    targetClanName: string;
+    targetSeat: boolean;
+    alreadyMember: boolean;
+    targetVerified: boolean;
+    currentMemberClan: string | null;
+  } | null;
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -29,6 +40,7 @@ const KIND_LABEL: Record<string, string> = {
   merge: 'Duplicate / merge',
   claim_review: 'Disputed link',
   claim_request: 'Clan vouches for a claim',
+  wrong_clan: 'Player says: wrong clan',
   other: 'Other',
 };
 
@@ -36,9 +48,16 @@ const STATUS_CLS: Record<string, string> = {
   open: 'bg-gold/15 text-gold',
   resolved: 'bg-accent-green/15 text-accent-green-light',
   dismissed: 'bg-brown-light text-text-muted',
+  applied: 'bg-sky-500/15 text-sky-300',
+  reverted: 'bg-red-500/15 text-red-400',
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  applied: 'applied — awaiting review',
 };
 
 export default function ReportsClient() {
+  const { confirm } = useDialog();
   const [items, setItems] = useState<Report[]>([]);
   const [filter, setFilter] = useState<'open' | 'all'>('open');
   const [loading, setLoading] = useState(true);
@@ -106,7 +125,9 @@ export default function ReportsClient() {
                 <span className="rounded-full bg-brown-light px-2 py-0.5 text-[10px] font-medium text-text-muted">
                   {KIND_LABEL[r.kind] ?? r.kind}
                 </span>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_CLS[r.status] ?? ''}`}>{r.status}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_CLS[r.status] ?? ''}`}>
+                  {STATUS_LABEL[r.status] ?? r.status}
+                </span>
               </div>
               <div className="mt-0.5 text-xs text-text-muted">
                 {r.account.claimed ? (
@@ -120,7 +141,7 @@ export default function ReportsClient() {
                 )}
                 {r.clan && (
                   <>
-                    {' · raised by '}
+                    {r.kind === 'wrong_clan' ? ' · says they’re really in ' : ' · raised by '}
                     <ClanLink href={`/c/${r.clan.slug}`} className="text-gold hover:underline">
                       {r.clan.name}
                     </ClanLink>
@@ -131,6 +152,55 @@ export default function ReportsClient() {
               {r.body && <p className="mt-2 whitespace-pre-wrap text-sm text-text-muted">{r.body}</p>}
               {r.resolution && <p className="mt-2 text-xs text-accent-green-light">Outcome: {r.resolution}</p>}
 
+              {/* A clan OWNER's report, already carried out (lib/characterReportActions). Approve
+                  keeps it; Revert puts the character back exactly as it was. */}
+              {r.status === 'applied' && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs text-sky-300">
+                    The clan owner&rsquo;s request was applied
+                    {r.resolvedAt ? (
+                      <>
+                        {' on '}
+                        <LocalTime date={r.resolvedAt} format="date" />
+                      </>
+                    ) : null}
+                    . Approve it, or revert to put the character back as it was.
+                  </p>
+                  <textarea
+                    id={`note-${r.id}`}
+                    rows={2}
+                    placeholder="Note for the clan (shown to them)…"
+                    className="w-full resize-y rounded border border-card-border bg-brown-dark px-2 py-1.5 text-xs focus:border-gold/40 focus:outline-none"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      disabled={busy === r.id}
+                      onClick={() => act(r, { id: r.id, status: 'resolved', resolution: note(r) || 'Approved' }, '/api/staff/character-reports', 'PATCH')}
+                      className="rounded-lg border border-accent-green/40 bg-accent-green/15 px-3 py-1.5 text-sm text-accent-green-light hover:bg-accent-green/25 disabled:opacity-50"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      disabled={busy === r.id}
+                      onClick={async () => {
+                        const text = note(r);
+                        const ok = await confirm({
+                          title: `Revert the change to ${r.account.rsn}?`,
+                          body: 'The character goes back to exactly how it was before the clan owner’s change. The clan sees it was reverted, with your note.',
+                          confirmLabel: 'Revert',
+                          tone: 'danger',
+                        });
+                        if (!ok) return;
+                        void act(r, { id: r.id, status: 'reverted', resolution: text || 'Reverted by Anvil staff' }, '/api/staff/character-reports', 'PATCH');
+                      }}
+                      className="rounded-lg border border-red-500/40 px-3 py-1.5 text-sm text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                    >
+                      Revert
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {r.status === 'open' && (
                 <div className="mt-3 space-y-2">
                   <textarea
@@ -140,6 +210,39 @@ export default function ReportsClient() {
                     className="w-full resize-y rounded border border-card-border bg-brown-dark px-2 py-1.5 text-xs focus:border-gold/40 focus:outline-none"
                   />
                   <div className="flex flex-wrap gap-2">
+                    {/* A player's "I'm in the wrong clan": the one fix is moving the membership. Only to a
+                        clan that still has them on its list and is verified (lib/wrongClan). */}
+                    {r.kind === 'wrong_clan' && r.wrongClan?.targetSeat && !r.wrongClan.alreadyMember && (
+                      <button
+                        disabled={busy === r.id || !r.wrongClan.targetVerified}
+                        onClick={async () => {
+                          const w = r.wrongClan!;
+                          const ok = await confirm({
+                            title: `Make ${w.targetClanName} ${r.account.rsn}’s clan?`,
+                            body: w.currentMemberClan
+                              ? `${w.currentMemberClan} keeps ${r.account.rsn} as a guest. Both clans’ histories record that Anvil moved it.`
+                              : `${r.account.rsn} becomes a member of ${w.targetClanName}. Its history records that Anvil did it.`,
+                            confirmLabel: `Make ${w.targetClanName} their home`,
+                          });
+                          if (!ok) return;
+                          void act(r, { id: r.id, action: 'wrong_clan_move', resolution: note(r) || `Made ${w.targetClanName} their home` }, '/api/staff/character-reports');
+                        }}
+                        title={r.wrongClan.targetVerified ? undefined : 'That clan is not verified, so it can’t be given members on a player’s word.'}
+                        className="rounded-lg border border-gold/40 bg-gold/10 px-3 py-1.5 text-sm text-gold hover:bg-gold/20 disabled:opacity-50"
+                      >
+                        Make {r.wrongClan.targetClanName} their home{r.wrongClan.targetVerified ? '' : ' (clan not verified)'}
+                      </button>
+                    )}
+                    {r.kind === 'wrong_clan' && r.wrongClan?.alreadyMember && (
+                      <span className="self-center text-xs text-text-muted">Already a member of {r.wrongClan.targetClanName}.</span>
+                    )}
+                    {r.kind === 'wrong_clan' && !r.clan && (
+                      <span className="self-center text-xs text-text-muted">The clan they name has no place for this character — see their note.</span>
+                    )}
+                    {r.kind === 'wrong_clan' && r.clan && r.wrongClan && !r.wrongClan.targetSeat && (
+                      <span className="self-center text-xs text-text-muted">{r.wrongClan.targetClanName} no longer has this character on its list.</span>
+                    )}
+                    {r.kind !== 'wrong_clan' && <>
                     {r.requestedRsn && (
                       <button
                         disabled={busy === r.id}
@@ -183,6 +286,7 @@ export default function ReportsClient() {
                     >
                       {reassigning === r.id ? 'Close person search' : 'Give to another person…'}
                     </button>
+                    </>}
                     <button
                       disabled={busy === r.id}
                       onClick={() => act(r, { id: r.id, status: 'resolved', resolution: note(r) || 'Resolved' }, '/api/staff/character-reports', 'PATCH')}
