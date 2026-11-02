@@ -16,6 +16,8 @@ interface Props {
   clans: { slug: string; name: string }[];
   /** RSNs already linked to this person, for the character step's done state. */
   characters: string[];
+  /** Where they were heading when they first signed in (lib/firstLogin), or null. */
+  next?: string | null;
 }
 
 /**
@@ -40,6 +42,7 @@ export default function WelcomeClient({
   discordUsername,
   clans,
   characters,
+  next = null,
 }: Props) {
   const router = useRouter();
   const [state, setState] = useState(initial);
@@ -124,6 +127,11 @@ export default function WelcomeClient({
     // point at keeps the old destination for everyone the branches don't cover.
     // Bare /profile is the apex's person page, which spans their clans rather than being any one
     // clan's locker — the right end for somebody who has no clan, or did not come for one.
+    // Somebody who signed in from a deep link goes back to it: that page is why they came.
+    if (next) {
+      router.push(next); // clan-prefix: platform -- the literal path they were on when they signed in
+      return;
+    }
     const clan = clans[0];
     if (state.intent === 'owner' && clan) router.push(`/c/${clan.slug}/admin/setup`);
     else if (state.intent === 'member' && clan) router.push(`/c/${clan.slug}`);
@@ -149,6 +157,7 @@ export default function WelcomeClient({
         displayName={displayName}
         busy={busy}
         chosen={state.intent}
+        next={next}
         onChoose={async (i) => {
           await chooseIntent(i);
           setChoosing(false);
@@ -184,6 +193,7 @@ export default function WelcomeClient({
             {HERE_FOR[state.intent]} — change
           </button>
         )}
+        {next && <ContinueLink next={next} />}
       </header>
 
       <Rail steps={state.steps} open={open} onOpen={setOpen} />
@@ -291,6 +301,7 @@ export default function WelcomeClient({
               verifiedCount={0}
               detectedCount={0}
               connected={state.steps.find((s) => s.key === 'plugin')?.done ?? false}
+              onVerifyByXp={() => setOpen('character')}
             />
           )}
         </div>
@@ -303,7 +314,7 @@ export default function WelcomeClient({
               disabled={busy}
               className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
             >
-              Done — take me to my profile
+              {next ? 'Done — continue where I was going' : 'Done — take me to my profile'}
             </button>
           ) : (
             <>
@@ -369,11 +380,13 @@ function IntentChooser({
   displayName,
   busy,
   chosen,
+  next,
   onChoose,
 }: {
   displayName: string;
   busy: boolean;
   chosen: OnboardingIntent | null;
+  next: string | null;
   onChoose: (intent: OnboardingIntent) => void;
 }) {
   const options: { key: OnboardingIntent; title: string; blurb: string; aside: string }[] = [
@@ -414,6 +427,7 @@ function IntentChooser({
           One question first, so the rest of this is about you. You can change the answer at any
           time — it only decides what Anvil leads with.
         </p>
+        {next && <ContinueLink next={next} />}
       </header>
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -519,6 +533,22 @@ function Done({ children }: { children: React.ReactNode }) {
         ✓
       </span>
       <span className="text-text-muted">{children}</span>
+    </p>
+  );
+}
+
+/**
+ * The page they were on their way to when they signed in for the first time. Onboarding is offered,
+ * never a wall: one click and they are where they meant to be, and the steps stay here for later.
+ */
+function ContinueLink({ next }: { next: string }) {
+  return (
+    <p className="relative mt-3 text-[13px] text-text-muted">
+      <a href={/* clan-prefix: platform -- the literal path they signed in from */ next} className="font-semibold text-gold hover:text-gold-light">
+        Continue to where you were going →
+      </a>{' '}
+      <span className="font-mono text-[11.5px] text-text-dim">{next.length > 60 ? `${next.slice(0, 57)}…` : next}</span>
+      <span className="block text-[12px] text-text-dim">You can finish setting up any time from your profile.</span>
     </p>
   );
 }

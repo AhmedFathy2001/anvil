@@ -175,17 +175,21 @@ export async function POST(request: Request) {
       // Refused rather than synced. An unverified clan can run boards, guests and events — what it
       // cannot do is build a roster, because a roster IS the claim to be a real clan. Every refusal
       // says what would fix it, since the person reading it is usually the one who can.
+      // The profile link is absolute and on the canonical site: the person reading this is in the
+      // RuneLite panel, with no page to be relative to.
+      const { absoluteUrl } = await import('@/lib/seo');
+      const profileUrl = absoluteUrl('/profile');
       const detail =
         claim.outcome === 'taken'
           ? {
               error: 'ingameNameTaken',
-              message: `"${clanName}" is already verified for another clan on Anvil. If that is wrong, contact support and we will sort it out.`,
+              message: `"${clanName}" is already claimed by another clan on Anvil. If that's wrong, contact Anvil support and we'll sort it out.`,
               byClanSlug: claim.byClanSlug,
             }
           : matchedButUnverified
               ? {
                   error: 'accountNotVerified',
-                  message: `You are in the ${clanName} member list, but that character is not verified on Anvil yet. Verify it on your profile, then sync again — a clan name is claimed by a proven account, so the claim can be traced to a real one.`,
+                  message: `You're on the ${clanName} member list, but your character isn't verified on Anvil yet. Verify it at ${profileUrl}, then sync again.`,
                 }
               : mine.length === 0
                 // NOTHING LINKED, which is not the same as "not in the list". The match runs on the
@@ -194,14 +198,14 @@ export async function POST(request: Request) {
                 // standing in it. Linking is what fixes it, so that is what it says.
                 ? {
                     error: 'noCharacterLinked',
-                    message: `Your Anvil account has no RuneScape character linked yet, so we can't find you in the ${clanName} member list. Link the character you are logged in on from your Anvil profile, then sync again.`,
+                    message: `Your Anvil account has no character linked yet, so we can't find you on the ${clanName} member list. Link the character you're logged in on at ${profileUrl}, then sync again.`,
                   }
                 : {
                     error: 'notInRoster',
-                    message: `None of the characters on your Anvil account (${mine
+                    message: `None of your linked characters (${mine
                       .map((a) => a.rsnNormalized)
                       .slice(0, 5)
-                      .join(', ')}) is in the ${clanName} member list. Sync from a character that is in the clan, or link it on your Anvil profile first.`,
+                      .join(', ')}) is on the ${clanName} member list. Sync while logged in on a character that's in the clan, or link it at ${profileUrl} first.`,
                   };
       // 'taken' is already on record — claimFromRoster writes it, for the platform to arbitrate.
       if (claim.outcome !== 'taken') await recordRefusal(clan.id, auth.userId, detail.error, clanName);

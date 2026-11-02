@@ -7,11 +7,14 @@ import AnnouncementsDrawer from '@/app/profile/AnnouncementsDrawer';
 import type { MyClan } from '@/lib/myClans';
 import type { EmissionSettingsView } from '@/lib/emissionSettings';
 import DetectedAccountsClient from '@/app/profile/DetectedAccountsClient';
+import GuestSeatsClient, { type GuestSeatRow } from '@/app/profile/GuestSeatsClient';
 
 export interface PersonCharacter {
   id: number;
   rsn: string;
   shared: boolean;
+  /** Where it stands with the clans — lib/characterStanding. */
+  standing?: string;
 }
 
 /**
@@ -37,7 +40,10 @@ export default function PersonProfile({
   emission,
   suggestedRsn = '',
   unfinishedSetup = false,
+  guestSeats = [],
 }: {
+  /** Their live guest seats, each leavable from here. */
+  guestSeats?: GuestSeatRow[];
   displayName: string;
   clans: MyClan[];
   characters: PersonCharacter[];
@@ -137,6 +143,8 @@ export default function PersonProfile({
         )}
       </section>
 
+      {guestSeats.length > 0 && <GuestSeatsClient seats={guestSeats} />}
+
       <section id="link-account" className="scroll-mt-24">
         <h2 className="mb-3 text-lg font-semibold">Your characters</h2>
         <DetectedAccountsClient initial={detected} />
@@ -165,12 +173,17 @@ export default function PersonProfile({
             <ul className="divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">
               {characters.map((a) => (
                 <li key={a.id} className="flex items-center gap-3 px-4 py-2.5">
-                  <ClanLink
-                    href={`/p/${encodeURIComponent(a.rsn)}`}
-                    className="text-sm hover:text-gold"
-                  >
-                    {a.rsn}
-                  </ClanLink>
+                  <span className="min-w-0">
+                    <ClanLink
+                      href={`/p/${encodeURIComponent(a.rsn)}`}
+                      className="text-sm hover:text-gold"
+                    >
+                      {a.rsn}
+                    </ClanLink>
+                    {/* Which clan this character puts you in, and as what — the answer to most
+                        "why can't I enter?" questions, which the page used to leave to guesswork. */}
+                    {a.standing && <span className="block text-xs text-text-muted">{a.standing}</span>}
+                  </span>
                   {/* Sharing is per character, not per person, so "my main is public and my ironman is
                       nobody's business" is a thing you can actually say — and it is settable HERE,
                       because it is the one thing a person says to clans they are not in. It used to be

@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 
 import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
-import { isApexHost } from '@/lib/clanContext';
+import { isApexHost, resolveClanBySlug } from '@/lib/clanContext';
 import {
   clanStandings,
   isPlayerMode,
@@ -114,11 +114,16 @@ const CLANS_SHOWN = 10;
 export default async function LeaderboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ w?: string; m?: string; p?: string; mode?: string }>;
+  searchParams: Promise<{ w?: string; m?: string; p?: string; mode?: string; from?: string }>;
 }) {
   if (!isApexHost((await headers()).get('host'))) notFound();
 
   const params = await searchParams;
+  // ARRIVED FROM A CLAN. A clan's own page links here, and this is everybody's table — under the
+  // clan's look and name in the tab a moment ago, it read as that clan's. `?from=<slug>` says which
+  // clan they came from, so the header can say "All clans" and offer the way back. Only a real clan
+  // slug is honoured; anything else is ignored rather than echoed.
+  const fromClan = params.from ? await resolveClanBySlug(params.from).catch(() => null) : null;
   const window: LeaderboardWindow = params.w === '30d' || params.w === 'all' ? params.w : '7d';
   const mode: PlayerMode = isPlayerMode(params.mode) ? params.mode : 'all';
 
@@ -158,8 +163,16 @@ export default async function LeaderboardPage({
           size={190}
           className="pointer-events-none absolute -top-10 right-0 hidden text-gold/[0.04] sm:block"
         />
+        {fromClan && (
+          <p className="relative mb-1.5 font-mono text-[10.5px] uppercase tracking-[0.2em] text-gold/85">
+            All clans ·{' '}
+            <ClanLink href={`/c/${fromClan.slug}`} className="normal-case tracking-normal text-text-muted hover:text-gold">
+              back to {fromClan.name}
+            </ClanLink>
+          </p>
+        )}
         <h1 className="display display-lg relative text-[clamp(1.7rem,4vw,2.2rem)] font-semibold">
-          Hall of Records
+          Hall of Records{fromClan ? ' — all clans' : ''}
         </h1>
         <p className="relative mt-2 max-w-[62ch] text-[14.5px] text-text-muted">
           Everybody on Anvil who has shared a character, in one order. Anvil does not need a clan to

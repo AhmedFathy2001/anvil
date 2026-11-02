@@ -55,6 +55,13 @@ function Crest({ slug, name, logoUrl, size = 18 }: { slug: string; name: string;
  * same relationship. A seat says whether you are on the roster; a grant says whether you run the
  * place, and that is the more useful of the two to put on a switcher.
  */
+/** What "guest" means, on hover — the word alone reads as "not really in". */
+const GUEST_HINT = 'Guest: you can play this clan’s events; you’re not on its in-game member list';
+
+function roleHint(c: NavClan): string | undefined {
+  return roleLabel(c) === 'guest' ? GUEST_HINT : undefined;
+}
+
 function roleLabel(c: NavClan): string {
   if (c.role) return c.role;
   if (c.staff) return 'staff';
@@ -153,7 +160,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
         {/* WHERE YOU ARE, AND WHAT ELSE IS YOURS.
             One control that names the clan you're in and drops down to the rest of what's yours,
             plus the ways back to the platform. It's the "you're in one app, not on this clan's site"
-            control — so it renders even with a single clan, because "All clans" and "Anvil home" are
+            control — so it renders even with a single clan, because "All clans" and "Anvil" are
             the way out, not furniture. */}
         {clan && (
           <div ref={switcherRef} className="relative mr-1 pr-2 border-r border-card-border">
@@ -179,7 +186,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                     <Crest slug={current.slug} name={current.name} logoUrl={current.logoUrl ?? clan?.logoUrl} size={26} />
                     <div className="min-w-0">
                       <div className="text-sm font-semibold text-foreground truncate">{current.name}</div>
-                      <div className="text-[11px] text-text-muted">You’re here{roleLabel(current) && ` · ${roleLabel(current)}`}</div>
+                      <div className="text-[11px] text-text-muted" title={roleHint(current)}>You’re here{roleLabel(current) && ` · ${roleLabel(current)}`}</div>
                     </div>
                   </div>
                 )}
@@ -196,7 +203,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                         <Crest slug={o.slug} name={o.name} logoUrl={o.logoUrl} size={20} />
                         <span className="text-sm text-foreground/90 truncate flex-1">{o.name}</span>
                         {roleLabel(o) && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brown-light text-text-muted shrink-0">{roleLabel(o)}</span>
+                          <span title={roleHint(o)} className="text-[10px] px-1.5 py-0.5 rounded-full bg-brown-light text-text-muted shrink-0">{roleLabel(o)}</span>
                         )}
                       </ClanLink>
                     ))}
@@ -212,7 +219,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                     </ClanLink>
                   )}
                   <ClanLink href="/" role="menuitem" className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all">
-                    <span className="w-[18px] text-center">⌂</span> Anvil home
+                    <span className="w-[18px] text-center">⌂</span> Anvil
                   </ClanLink>
                 </div>
               </div>
@@ -339,7 +346,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                 ))}
                 <div className="flex gap-1 px-1 pt-1">
                   <ClanLink href="/clans" onClick={() => setOpen(false)} className="flex-1 text-center px-2 py-1.5 rounded-md text-xs text-text-muted hover:bg-brown-light transition-all">All clans</ClanLink>
-                  <ClanLink href="/" onClick={() => setOpen(false)} className="flex-1 text-center px-2 py-1.5 rounded-md text-xs text-text-muted hover:bg-brown-light transition-all">Anvil home</ClanLink>
+                  <ClanLink href="/" onClick={() => setOpen(false)} className="flex-1 text-center px-2 py-1.5 rounded-md text-xs text-text-muted hover:bg-brown-light transition-all">Anvil</ClanLink>
                 </div>
               </div>
             )}

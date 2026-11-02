@@ -16,7 +16,10 @@ export async function POST(request: Request) {
   const seatId = Number(body?.seatId);
   if (!Number.isInteger(seatId) || seatId <= 0) return NextResponse.json({ error: 'seatId is required' }, { status: 400 });
   if (!(await chooseHomeClan(session.playerId, seatId, session.userId))) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json(
+      { error: 'That choice is no longer open — it may already be settled. Refresh the page to see where things stand.' },
+      { status: 404 },
+    );
   }
   return NextResponse.json({ ok: true });
 }
