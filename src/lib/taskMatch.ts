@@ -913,7 +913,10 @@ export function matchTasks(query: string, ctx: MatchContext = {}): TaskCandidate
     if (d.source === 'deathless' && !['deathless', 'flawless', 'death', 'deaths', 'die'].some((w) => q.all.includes(w))) continue;
     const s = scoreNamed(q, d);
     if (!s.matched) continue;
-    out.push(finish(d, q, { ...s, score: s.score + (SOURCE_BONUS[d.source] ?? 0) }));
+    // A variant pinned to a number the task never said ("Doom delve level 3", "Sepulchre Floor 5")
+    // is narrower than what was asked — let the general target win the tie ("75 Doom delves").
+    const strayNumber = tokens(d.noun).some((t) => /^\d+$/.test(t) && !q.all.includes(t));
+    out.push(finish(d, q, { ...s, score: s.score + (SOURCE_BONUS[d.source] ?? 0) - (strayNumber ? 1 : 0) }));
   }
 
   // An item that is just the name of a counter or boss already offered ("Herbiboar") is noise.

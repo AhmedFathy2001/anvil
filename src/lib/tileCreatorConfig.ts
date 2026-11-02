@@ -7,7 +7,7 @@
 // shape — and lib/killSource still decides hiscores vs plugin for anything that is a kill count.
 
 import { RAID_MODE_VARIANTS } from '@/lib/constants';
-import { TRIAL_COURSES, TRIAL_RANKS, TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
+import { TRIAL_COURSES, TRIAL_COURSE_LEVELS, TRIAL_RANKS, TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
 import { chooseKillSource } from '@/lib/killSource';
 import { howTileCounts, tileKindKey, type TileKindKey, type TileKindLike } from '@/lib/tileKinds';
 import type { TileCsvRow } from '@/lib/csvTiles';
@@ -175,12 +175,12 @@ export interface TrialCourseOption {
   level: number;
 }
 
-// Sailing levels per course. The ranks on a course unlock in order (Swordfish → Shark → Marlin) by
-// beating the previous rank, not by level.
+// Sailing levels per course come from lib/barracudaTrials. The ranks on a course unlock in order
+// (Swordfish → Shark → Marlin) by beating the previous rank, not by level.
 export const TRIAL_COURSE_OPTIONS: TrialCourseOption[] = [
-  { id: 'tempor tantrum', label: 'The Tempor Tantrum', level: 30 },
-  { id: 'jubbly jive', label: 'The Jubbly Jive', level: 55 },
-  { id: 'gwenith glide', label: 'The Gwenith Glide', level: 72 },
+  { id: 'tempor tantrum', label: 'The Tempor Tantrum', level: TRIAL_COURSE_LEVELS['tempor tantrum'] },
+  { id: 'jubbly jive', label: 'The Jubbly Jive', level: TRIAL_COURSE_LEVELS['jubbly jive'] },
+  { id: 'gwenith glide', label: 'The Gwenith Glide', level: TRIAL_COURSE_LEVELS['gwenith glide'] },
 ];
 
 export const TRIAL_RANK_OPTIONS_UI: { id: (typeof TRIAL_RANKS)[number]; label: string; unlock: string }[] = [

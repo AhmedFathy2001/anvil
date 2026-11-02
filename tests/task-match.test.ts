@@ -24,7 +24,6 @@ import {
   raidTileConfig,
   trialTileConfig,
 } from '../src/lib/tileCreatorConfig.ts';
-import { COUNTER_TARGETS } from '../src/lib/constants.ts';
 
 const items = [
   { id: 24711, name: 'Hallowed mark' },
@@ -161,12 +160,8 @@ test('a course without a rank still needs the trials screen', () => {
   assert.equal(verdict.status, 'pick');
 });
 
-test('75 Doom delves lights up the delve counter once it exists', () => {
-  const withCounter: MatchContext = {
-    ...ctx,
-    counters: [...COUNTER_TARGETS, { name: 'Doom of Mokhaiotl delves', group: 'Combat', note: '' }],
-  };
-  const { top, verdict } = best('75 Doom delves', withCounter);
+test('75 Doom delves lands on the every-delve counter', () => {
+  const { top, verdict } = best('75 Doom delves');
   assert.equal(verdict.status, 'ready');
   assert.deepEqual(top.config.targetNpcs, ['Doom of Mokhaiotl delves']);
   assert.equal(top.config.requiredAmount, 75);
@@ -178,25 +173,14 @@ test('GOTR rare reward → ask which items (collection-log page offered)', () =>
   assert.ok(verdict.choices.some((c) => c.source === 'clog' && c.config.trackedItemIds?.includes(26901)));
 });
 
-test('Slayer tasks from Mortimer and Tithe Farm points fall to a screenshot until counters exist…', () => {
-  assert.equal(best('25 Slayer tasks from Mortimer').verdict.status, 'screenshot');
-  assert.equal(best('250 Tithe Farm points').verdict.status, 'screenshot');
-});
-
-test('…and light up as soon as a matching in-game counter is added', () => {
-  const later: MatchContext = {
-    ...ctx,
-    counters: [
-      ...COUNTER_TARGETS,
-      { name: 'Slayer tasks (Mortimer)', group: 'Skilling', note: '' },
-      { name: 'Tithe Farm points', group: 'Skilling', note: '' },
-    ],
-  };
-  const slayer = best('25 Slayer tasks from Mortimer', later);
+test('Mortimer slayer tasks and Tithe Farm points land on their in-game counters', () => {
+  const slayer = best('25 Slayer tasks from Mortimer');
   assert.equal(slayer.verdict.status, 'ready');
-  assert.deepEqual(slayer.top.config.targetNpcs, ['Slayer tasks (Mortimer)']);
-  const tithe = best('250 Tithe Farm points', later);
+  assert.deepEqual(slayer.top.config.targetNpcs, ['Slayer tasks: Mortimer']);
+  assert.equal(slayer.top.config.requiredAmount, 25);
+  const tithe = best('250 Tithe Farm points');
   assert.equal(tithe.verdict.status, 'ready');
+  assert.deepEqual(tithe.top.config.targetNpcs, ['Tithe Farm points']);
   assert.equal(tithe.top.config.requiredAmount, 250);
 });
 
