@@ -3,7 +3,7 @@
 import { and, count, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { submissionAttachments } from '@/db/schema';
+import { proofUploads, submissionAttachments } from '@/db/schema';
 import { orderAttachments, type AttachmentKind, type AttachmentLabel, type ProofAttachment, type ProofAttachmentInput } from '@/lib/proofAttachments';
 
 type Row = typeof submissionAttachments.$inferSelect;
@@ -72,4 +72,20 @@ export async function adoptDrafts(submissionId: number, tileId: number, teamId: 
     .where(and(eq(submissionAttachments.tileId, tileId), eq(submissionAttachments.teamId, teamId), eq(submissionAttachments.userId, userId), isNull(submissionAttachments.submissionId)))
     .returning({ id: submissionAttachments.id });
   return moved.length;
+}
+
+/**
+ * True when every screenshot among these extras is a file THIS person uploaded here (proof_uploads).
+ * "On our storage" is not enough: the media purge deletes an event's attachment files, so a pasted
+ * URL of another clan's (or event's) upload would get that file deleted with this event's.
+ */
+export async function ownsAttachmentImages(items: ProofAttachmentInput[], userId: number): Promise<boolean> {
+  const urls = [...new Set(items.filter((a) => a.kind === 'image').map((a) => a.url))];
+  if (urls.length === 0) return true;
+  // clan-scope: global -- keyed by the caller's own user id and the URLs they sent.
+  const rows = await db
+    .select({ url: proofUploads.url })
+    .from(proofUploads)
+    .where(and(inArray(proofUploads.url, urls), eq(proofUploads.userId, userId)));
+  return rows.length === urls.length;
 }

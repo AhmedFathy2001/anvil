@@ -19,7 +19,7 @@ import { resolveTeamMembership, verifyAdminOrModerator, verifyUser } from '@/lib
 import { eventForRequest } from '@/lib/eventScope';
 import { assertEventEditable } from '@/lib/eventLock';
 import { MAX_ATTACHMENTS, parseAttachments } from '@/lib/proofAttachments';
-import { addAttachments, attachmentCount, draftsFor } from '@/lib/proofAttachmentsDb';
+import { addAttachments, attachmentCount, draftsFor, ownsAttachmentImages } from '@/lib/proofAttachmentsDb';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { isManagedMediaUrl } from '@/lib/storage';
 
@@ -61,6 +61,9 @@ export async function POST(request: Request, { params }: Ctx) {
   const user = await verifyUser();
   if (!user) return NextResponse.json({ error: 'Log in to add proof' }, { status: 401 });
   const isStaff = !!(await verifyAdminOrModerator());
+  if (!(await ownsAttachmentImages(parsed.items, user.userId))) {
+    return NextResponse.json({ error: 'Upload screenshots here yourself before attaching them' }, { status: 400 });
+  }
 
   if (body.submissionId != null) {
     const sub = await db.query.submissions.findFirst({ where: eq(submissions.id, int(body.submissionId)) });

@@ -36,7 +36,7 @@ import { parseStamp } from '@/lib/dbTime';
 import crypto from 'crypto';
 import { standingsScopeForRequest } from '@/lib/standingsAccess';
 import { parseAttachments } from '@/lib/proofAttachments';
-import { addAttachments, adoptDrafts, attachmentsFor } from '@/lib/proofAttachmentsDb';
+import { addAttachments, adoptDrafts, attachmentsFor, ownsAttachmentImages } from '@/lib/proofAttachmentsDb';
 
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
 // 'unverified_counter': credited off an in-game signal nobody has checked yet (lib/gameCounters,
@@ -630,6 +630,14 @@ export async function POST(
     }
   }
 
+  // Extras are a web thing, and their screenshots must be the sender's own uploads (the media purge
+  // deletes attachment files — lib/proofAttachmentsDb ownsAttachmentImages).
+  const webActor = pluginAuth || isCap ? null : await verifyUser();
+  const extraItems = webActor ? extrasParsed.items : [];
+  if (extraItems.length && !(await ownsAttachmentImages(extraItems, webActor!.userId))) {
+    return NextResponse.json({ error: 'Upload screenshots here yourself before attaching them' }, { status: 400 });
+  }
+
   const [inserted] = await db
     .insert(submissions)
     .values({
@@ -654,11 +662,10 @@ export async function POST(
   // The extras sent with it, and the start screenshot this person saved on the tile before the grind
   // (a draft) — both ride on this proof. Web only: a plugin token speaks for a character, not a person
   // with drafts. Never fatal: the credit is in, and a lost extra is a re-upload, not a lost drop.
-  if (!pluginAuth && !isCap) {
+  if (webActor) {
     try {
-      const actor = await verifyUser();
-      await addAttachments({ submissionId: inserted.id, tileId, teamId, userId: actor?.userId ?? null }, extrasParsed.items);
-      if (actor) await adoptDrafts(inserted.id, tileId, teamId, actor.userId);
+      await addAttachments({ submissionId: inserted.id, tileId, teamId, userId: webActor.userId }, extraItems);
+      await adoptDrafts(inserted.id, tileId, teamId, webActor.userId);
     } catch (e) {
       console.warn('[submissions] attachments not saved', (e as Error).message);
     }
