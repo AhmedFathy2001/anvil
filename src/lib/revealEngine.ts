@@ -8,6 +8,7 @@ import {
   hasMissions,
   nextRevealAt,
   intervalDrawsDue,
+  missionDrawsDue,
   parseTileMissionRules,
   serializeTileMissionRules,
   missionClaimCap,
@@ -204,7 +205,6 @@ async function announceMissionsForEvent(event: EventRow, rules: EventRules, now:
   const cfg = rules.mission;
   const announceMode = cfg?.announceMode ?? 'manual';
   const order: RevealOrder = cfg?.order ?? 'random';
-  const intervalMinutes = cfg?.intervalMinutes ?? 60;
 
   const hidden = missionTiles.filter((t) => t.revealedAt == null);
 
@@ -216,21 +216,17 @@ async function announceMissionsForEvent(event: EventRow, rules: EventRules, now:
     // second-guessing them, so the ramp stays out of this mode entirely.
     toReveal = hidden.filter((t) => t.revealAt != null && t.revealAt <= now);
   } else if (announceMode === 'interval' && hidden.length > 0) {
-    // One mission per interval, catch-up target from event start (self-heals a missed tick).
-    const startMs = Date.parse(event.startDate!);
-    if (Number.isFinite(startMs)) {
-      const dueBatches = Math.floor((Date.parse(now) - startMs) / (intervalMinutes * 60_000)) + 1;
-      const target = Math.min(missionTiles.length, dueBatches);
-      const need = target - (missionTiles.length - hidden.length);
-      if (need > 0) {
-        // Draw from the phase in force rather than the whole hidden set (lib/missionRamp): easy
-        // early, the hard ones near the end. No ramp configured = the whole set, as before.
-        const choice = missionPool(hidden, cfg?.tierRamp ?? [], event, Date.parse(now), await getTierBands(event.clanId));
-        if (choice.fellBack) {
-          log.info('reveal-engine.mission-ramp-exhausted', { eventId: event.id, wanted: choice.tiers });
-        }
-        toReveal = draw(choice.pool, need, order);
+    // One mission at start, then one an interval after the last drop (lib/eventRules
+    // missionDrawsDue — the same clock as the countdown); missed ticks catch up one per interval.
+    const need = missionDrawsDue(event, rules, eventTiles, Date.parse(now));
+    if (need > 0) {
+      // Draw from the phase in force rather than the whole hidden set (lib/missionRamp): easy
+      // early, the hard ones near the end. No ramp configured = the whole set, as before.
+      const choice = missionPool(hidden, cfg?.tierRamp ?? [], event, Date.parse(now), await getTierBands(event.clanId));
+      if (choice.fellBack) {
+        log.info('reveal-engine.mission-ramp-exhausted', { eventId: event.id, wanted: choice.tiers });
       }
+      toReveal = draw(choice.pool, need, order);
     }
   } else if (announceMode === 'daily' && cfg?.daily && hidden.length > 0) {
     // Today's schedule against today's drops. Counting only TODAY is what keeps a missed tick

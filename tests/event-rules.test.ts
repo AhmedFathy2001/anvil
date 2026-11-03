@@ -15,6 +15,8 @@ import {
   isTileOpen,
   isTileRevealed,
   intervalDrawsDue,
+  missionDrawsDue,
+  nextMissionAt,
   nextRevealAt,
   parseEventRules,
   parseSignupFields,
@@ -154,6 +156,25 @@ test('intervalDrawsDue: first batch at start even if a tile was previewed earlie
   assert.equal(intervalDrawsDue(evt, rules, tiles, Date.parse('2026-11-01T12:30:00.000Z')), 3);
   const bounty = parseEventRules(JSON.stringify({ revealPolicy: 'bounty' }));
   assert.equal(intervalDrawsDue(evt, bounty, tiles, Date.parse('2026-11-01T12:30:00.000Z')), 0);
+});
+
+test('missionDrawsDue: retuning the mission interval mid-event keeps missions dropping', () => {
+  const H = 3_600_000;
+  const start = Date.parse('2026-11-01T00:00:00.000Z');
+  const evt = { startDate: new Date(start).toISOString() };
+  const at = (h: number) => new Date(start + h * H).toISOString();
+  const rules = parseEventRules(JSON.stringify({ mission: { announceMode: 'interval', intervalMinutes: 360 } }));
+  assert.equal(rules.mission?.intervalMinutes, 360);
+  // 6 missions dropped hourly (0..5h), then the host moved to 6h. Plain tiles don't move the clock.
+  const tiles = [
+    ...Array.from({ length: 6 }, (_, i) => ({ mission: true, revealedAt: at(i) })),
+    ...Array.from({ length: 4 }, () => ({ mission: true, revealedAt: null })),
+    { mission: false, revealedAt: at(9) },
+  ];
+  assert.equal(missionDrawsDue(evt, rules, tiles, start + 10 * H), 0);
+  assert.equal(missionDrawsDue(evt, rules, tiles, start + 11 * H), 1); // 5h + 6h
+  assert.equal(nextMissionAt(evt, rules, tiles, start + 7 * H), at(11));
+  assert.equal(missionDrawsDue(evt, rules, tiles, start + 40 * H), 4); // catch-up, capped by hidden
 });
 
 test('completionAward: null without modifiers or outside points mode; bonus + linear decay apply', () => {

@@ -927,13 +927,13 @@ export function isTileOpen(rules: EventRules, tile: RevealStateTile): boolean {
  * "Open next now" counts as a draw, so the clock carries on from it.
  */
 function drawClock(
-  event: { startDate: string | null },
-  rules: EventRules,
+  startDate: string | null | undefined,
+  intervalMinutes: number,
   tiles: RevealStateTile[],
-): { nextMs: number; stepMs: number; first: boolean } | null {
-  const startMs = event.startDate ? Date.parse(event.startDate) : NaN;
+): { nextMs: number; stepMs: number } | null {
+  const startMs = startDate ? Date.parse(startDate) : NaN;
   if (!Number.isFinite(startMs)) return null;
-  const stepMs = rules.revealIntervalMinutes * 60_000;
+  const stepMs = Math.max(1, intervalMinutes) * 60_000;
   let lastMs = -Infinity;
   for (const t of tiles) {
     const ms = t.revealedAt ? Date.parse(t.revealedAt) : NaN;
@@ -941,8 +941,14 @@ function drawClock(
   }
   // A tile opened before the start (a preview, or a start moved later) isn't a draw: play's
   // first batch still lands at start.
-  if (lastMs < startMs) return { nextMs: startMs, stepMs, first: true };
-  return { nextMs: lastMs + stepMs, stepMs, first: false };
+  if (lastMs < startMs) return { nextMs: startMs, stepMs };
+  return { nextMs: lastMs + stepMs, stepMs };
+}
+
+/** Batches due on a {@link drawClock}: one if it's time, plus one per further missed interval. */
+function batchesDue(clock: { nextMs: number; stepMs: number } | null, nowMs: number): number {
+  if (!clock || nowMs < clock.nextMs) return 0;
+  return Math.floor((nowMs - clock.nextMs) / clock.stepMs) + 1;
 }
 
 /**
@@ -956,9 +962,7 @@ export function intervalDrawsDue(
   nowMs: number,
 ): number {
   if (rules.revealPolicy !== 'interval' && rules.revealPolicy !== 'rotating') return 0;
-  const clock = drawClock(event, rules, tiles);
-  if (!clock || nowMs < clock.nextMs) return 0;
-  const batches = Math.floor((nowMs - clock.nextMs) / clock.stepMs) + 1;
+  const batches = batchesDue(drawClock(event.startDate, rules.revealIntervalMinutes, tiles), nowMs);
   const hidden = tiles.filter((t) => t.revealedAt == null).length;
   return Math.min(hidden, batches * Math.max(1, rules.revealBatchSize));
 }
@@ -984,7 +988,7 @@ export function nextRevealAt(
     return planned[0] ?? null;
   }
   if (rules.revealPolicy === 'interval' || rules.revealPolicy === 'rotating') {
-    const clock = drawClock(event, rules, tiles);
+    const clock = drawClock(event.startDate, rules.revealIntervalMinutes, tiles);
     if (!clock) return null;
     // If we're somehow past due (engine lag), show now-ish rather than a time in the past.
     return new Date(Math.max(clock.nextMs, nowMs)).toISOString();
@@ -1054,19 +1058,30 @@ export function nextMissionAt(
     return next == null ? null : new Date(next).toISOString();
   }
   if (cfg.announceMode === 'interval') {
-    const lastAnnounced = missionTiles
-      .map((t) => t.revealedAt)
-      .filter((v): v is string => !!v)
-      .sort()
-      .pop();
-    const anchor = lastAnnounced ?? event.startDate;
-    if (!anchor) return null;
-    const anchorMs = Date.parse(anchor);
-    if (!Number.isFinite(anchorMs)) return null;
-    const next = lastAnnounced ? anchorMs + cfg.intervalMinutes * 60_000 : anchorMs;
-    return new Date(Math.max(next, nowMs)).toISOString();
+    // Same clock as the engine (missionDrawsDue): at start, then an interval after the last drop.
+    const clock = drawClock(event.startDate, cfg.intervalMinutes, missionTiles);
+    return clock ? new Date(Math.max(clock.nextMs, nowMs)).toISOString() : null;
   }
   return null; // manual
+}
+
+/**
+ * How many missions an 'interval' mission track should drop right now (0 when not due): one at
+ * start, then one an interval after the last drop, catching up one per missed interval. Anchored on
+ * the last drop for the same reason as {@link intervalDrawsDue} — retuning the interval mid-event
+ * must not freeze the track behind a start-anchored target.
+ */
+export function missionDrawsDue(
+  event: { startDate?: string | null },
+  rules: EventRules,
+  tiles: RevealStateTile[],
+  nowMs: number,
+): number {
+  const cfg = rules.mission;
+  if (!cfg || cfg.announceMode !== 'interval') return 0;
+  const missionTiles = tiles.filter(isMissionTile);
+  const hidden = missionTiles.filter((t) => t.revealedAt == null).length;
+  return Math.min(hidden, batchesDue(drawClock(event.startDate, cfg.intervalMinutes, missionTiles), nowMs));
 }
 
 /**
