@@ -186,6 +186,10 @@ export const PLUGIN_CAPABILITIES = [
   // {"t":"rowsdel"} that grow or trim it, push tickets with ?rows=1 for a plugin with no board, and
   // the Feed tab (view 'feed') with its event chat.
   'panel-rows',
+  // Supporter flair in normal game chat: GET /api/plugin/chat-flair lists Supporters' character
+  // names with their colours (and a Patron's star), for the plugin to paint locally. Public, cached;
+  // the plugin sends nothing about who it sees.
+  'chat-flair',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

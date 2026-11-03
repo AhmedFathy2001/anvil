@@ -939,6 +939,13 @@
       "when": 1793730600137,
       "tag": "0184_event_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 185,
+      "version": "7",
+      "when": 1793730660137,
+      "tag": "0185_game_chat_flair",
+      "breakpoints": true
     }
   ]
 }

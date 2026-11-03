@@ -49,6 +49,7 @@ export default function PersonProfile({
   supporter = null,
   invite = null,
   announceSupporter = true,
+  gameChatFlair = true,
   guestSeats = [],
 }: {
   /** Their live guest seats, each leavable from here. */
@@ -70,6 +71,7 @@ export default function PersonProfile({
   invite?: InviteView | null;
   /** Their "announce me as a new supporter in the Anvil Discord" choice (users.announce_supporter). */
   announceSupporter?: boolean;
+  gameChatFlair?: boolean;
 }) {
   return (
     <div className="max-w-3xl mx-auto">
@@ -244,7 +246,7 @@ export default function PersonProfile({
 
       {/* Above the settings, not under them: it was the last thing on the page, below nine webhook
           categories, and that is where people stopped reading. */}
-      <SupporterSection supporter={supporter} invite={invite} name={displayName} announce={announceSupporter} />
+      <SupporterSection supporter={supporter} invite={invite} name={displayName} announce={announceSupporter} gameChat={gameChatFlair} />
 
       {/* Announcements & webhooks — where your drops, deaths and CAs post, and your own Discord
           webhooks. Person-level and cross-clan: it routes BETWEEN your clans, so it could never have

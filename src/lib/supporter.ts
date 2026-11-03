@@ -4,12 +4,13 @@
 // into every clan and onto their apex profile. Tiers and the pure state logic live in
 // lib/supporterTiers; this is the database half. The webhook side is lib/supporterBilling.
 
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, supporterSubscriptions, users } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { newCheckoutRef } from '@/lib/billing';
+import { hasChatStar } from '@/lib/chatLook';
 import { supporterInk, type SupporterInk, type SupporterLook } from '@/lib/supporterStyle';
 import { supporterState, tiersByName, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
 
@@ -151,3 +152,55 @@ export function supporterCheckoutUrl(ref: string, via?: string | null): string |
   if (via) url.searchParams.set('via', via);
   return url.toString();
 }
+
+/** One character's flair in normal game chat: its name (normalized), colour, gradient and star. */
+export interface GameChatFlair {
+  n: string;
+  c: string;
+  g?: string[];
+  s?: true;
+}
+
+/**
+ * Every Supporter's characters with the look they wear, for the plugin to paint on names in normal
+ * game chat. Only people who left `game_chat_flair` on, and only characters they share publicly (a
+ * hidden character's name must not be tied to them). Lapsed and refunded rows drop out on their own.
+ */
+export async function gameChatFlair(): Promise<GameChatFlair[]> {
+  const subs = await db
+    .select(ROW_COLUMNS)
+    .from(supporterSubscriptions)
+    .innerJoin(users, eq(users.id, supporterSubscriptions.userId))
+    .where(and(eq(users.gameChatFlair, true), isNotNull(users.playerId)));
+  const byUser = new Map<number, typeof subs>();
+  for (const r of subs) byUser.set(r.userId, [...(byUser.get(r.userId) ?? []), r]);
+  const states = new Map<number, SupporterState>();
+  for (const [id, list] of byUser) {
+    const state = supporterState(list);
+    if (state) states.set(id, state);
+  }
+  if (states.size === 0) return [];
+
+  const chars = await db
+    .select({ userId: users.id, rsn: accounts.rsnNormalized })
+    .from(users)
+    .innerJoin(accounts, eq(accounts.playerId, users.playerId))
+    .where(and(inArray(users.id, [...states.keys()]), eq(accounts.shared, true)));
+  const out = new Map<string, GameChatFlair>();
+  for (const { userId, rsn } of chars) {
+    const state = states.get(userId);
+    if (!state || !rsn || rsn.length > 12) continue;
+    const prev = out.get(rsn);
+    // Two logins on one character (rare): the higher tier wins.
+    if (prev && (prev.s || !hasChatStar(state.tier.id))) continue;
+    const ink = supporterInk(state.tier.id, state.style);
+    out.set(rsn, {
+      n: rsn,
+      c: ink.color,
+      ...(ink.grad && ink.grad.length >= 2 ? { g: ink.grad.slice(0, 4) } : {}),
+      ...(hasChatStar(state.tier.id) ? { s: true as const } : {}),
+    });
+  }
+  return [...out.values()].sort((a, b) => a.n.localeCompare(b.n));
+}
+
