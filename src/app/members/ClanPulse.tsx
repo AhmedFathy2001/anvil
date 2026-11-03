@@ -4,7 +4,7 @@ import { ActivityHeatmap } from '@/components/stats/Charts';
 import type { ClanAnalytics, MemberListRow, RosterEvent } from '@/lib/memberProfile';
 import ClanLink from '@/components/ClanLink';
 import SupporterName from '@/components/SupporterName';
-import type { SupporterTierId } from '@/lib/supporterTiers';
+import type { SupporterLook } from '@/lib/supporterStyle';
 
 // The clan above the roster: what's happening THIS WEEK first, what it all adds up to second. All of
 // it comes off the same daily rows the profiles use — no extra queries per member, so this costs the
@@ -98,13 +98,13 @@ export default function ClanPulse({
   analytics,
   members,
   rosterLog,
-  supporterTiers = {},
+  supporterLooks = {},
 }: {
   analytics: ClanAnalytics;
   members: MemberListRow[];
   rosterLog: RosterEvent[];
-  /** Supporter tier by roster name; only supporters appear. */
-  supporterTiers?: Record<string, SupporterTierId>;
+  /** Supporter look (tier and colours) by roster name; only supporters appear. */
+  supporterLooks?: Record<string, SupporterLook>;
 }) {
   const { memberCount, guestCount, totalEhp, totalEhb, activity, topWeek, activeThisWeek, activeToday } = analytics;
   const hasActivity = activity.some((a) => a.value > 0);
@@ -197,7 +197,7 @@ export default function ClanPulse({
                         {initials(t.rsn)}
                       </span>
                       <span className="block text-sm font-medium truncate group-hover:text-gold transition-colors">
-                        <SupporterName name={t.rsn} tier={supporterTiers[t.rsn]} className="max-w-full" plain />
+                        <SupporterName name={t.rsn} tier={supporterLooks[t.rsn]?.tier} style={supporterLooks[t.rsn]?.style} className="max-w-full" plain />
                       </span>
                       <span className={`block font-bold text-gold tabular-nums ${first ? 'text-xl' : 'text-base'}`}>
                         {t.hours.toFixed(1)}h
@@ -222,7 +222,7 @@ export default function ClanPulse({
                       className="grid grid-cols-[1.25rem_minmax(0,1fr)_minmax(0,6rem)_3.25rem] items-center gap-3 text-sm hover:text-gold"
                     >
                       <span className="text-text-muted/60 tabular-nums text-xs">{i + 4}</span>
-                      <SupporterName name={t.rsn} tier={supporterTiers[t.rsn]} className="truncate" plain />
+                      <SupporterName name={t.rsn} tier={supporterLooks[t.rsn]?.tier} style={supporterLooks[t.rsn]?.style} className="truncate" plain />
                       <span className="h-1.5 rounded-full bg-tile-bg overflow-hidden">
                         <span
                           className="block h-full rounded-full"

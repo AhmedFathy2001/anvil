@@ -42,7 +42,7 @@ import { memberLinkDescription } from '@/lib/linkText';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import ClanLink from '@/components/ClanLink';
 import SupporterName from '@/components/SupporterName';
-import { supporterTiersByName } from '@/lib/supporter';
+import { supporterLooksByName } from '@/lib/supporter';
 
 export const dynamic = 'force-dynamic';
 
@@ -166,7 +166,7 @@ export default async function MemberProfilePage({
   const viewer = await verifyUser();
 
   const joinedOn = (await ingameJoinDates([profile.id])).get(profile.id) ?? null;
-  const [milestones, records, series, standings, history, persona, collection, activityStandings, progress, questItems, caItems, moments, roster, trackingSince, supporterTiers] = await Promise.all([
+  const [milestones, records, series, standings, history, persona, collection, activityStandings, progress, questItems, caItems, moments, roster, trackingSince, supporterLooks] = await Promise.all([
     // TWO IDS, AND WHICH ONE EACH CALL WANTS IS THE WHOLE POINT. `profile.accountId` is the OSRS
     // character, which is what every stats table is keyed by; `profile.id` is the seat, which is
     // what "their place in THIS clan" is keyed by. Passing the seat to the account-keyed ones drew
@@ -194,7 +194,7 @@ export default async function MemberProfilePage({
     listMembers(clan.id),
     getTrackingSince(profile.accountId),
     // Supporter flair on this character's name only — the person behind it stays out of it.
-    supporterTiersByName([profile.rsn]),
+    supporterLooksByName([profile.rsn]),
   ]);
   // The character behind the seat: who owns it (goals are theirs to edit) and whether its public
   // profile is open (the link to it only makes sense if it is).
@@ -290,7 +290,7 @@ export default async function MemberProfilePage({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <h1 className="text-3xl font-bold text-gold break-words">
-                <SupporterName name={profile.rsn} tier={supporterTiers[profile.rsn]} />
+                <SupporterName name={profile.rsn} tier={supporterLooks[profile.rsn]?.tier} style={supporterLooks[profile.rsn]?.style} />
               </h1>
               {accountTypeLabel(profile.accountType) && profile.accountType !== 'normal' && (
                 <span className="text-[11px] px-2 py-0.5 rounded-full bg-brown-light text-foreground/80">

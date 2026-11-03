@@ -25,7 +25,7 @@ import { pluginRoster } from '@/lib/pluginRoster';
 import { rateLimit } from '@/lib/rate-limit';
 import { claimTile, cleanNote, unclaimTile } from '@/lib/tileClaims';
 import { normalizeRsn, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
-import { SUPPORTER_INK, type SupporterTierId, supporterForUser, supporterTiersForRsns } from '@/lib/supporter';
+import { type SupporterInk, supporterForUser, supporterInksForRsns } from '@/lib/supporter';
 import { momentsForClan } from '@/lib/momentsStore';
 import { NO_REACTIONS, REACTION_KINDS, isClanMember, momentInClan, reactionSummaries, toggleReaction } from '@/lib/momentReactions';
 import { FEED_MAX, FEED_STEP, type FeedItem, momentsFeedUi } from './momentsUi';
@@ -377,11 +377,9 @@ async function ownClanCard(request: Request, slug: string): Promise<Node | null>
 async function flaired(view: View | null): Promise<View | null> {
   if (!view) return view;
   const names = namesIn(view.ui);
-  const tiers = names.length ? await supporterTiersForRsns(names).catch(() => new Map<string, SupporterTierId>()) : new Map<string, SupporterTierId>();
-  applyFlair(view.ui, (name) => {
-    const tier = tiers.get(normalizeRsn(name));
-    return tier ? SUPPORTER_INK[tier] : null;
-  });
+  // Each name in its owner's own colours (a Champion's preset, a Patron's custom stops).
+  const inks = names.length ? await supporterInksForRsns(names).catch(() => new Map<string, SupporterInk>()) : new Map<string, SupporterInk>();
+  applyFlair(view.ui, (name) => inks.get(normalizeRsn(name)) ?? null);
   return view;
 }
 

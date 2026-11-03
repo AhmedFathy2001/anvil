@@ -55,7 +55,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
         />
         {/* Their primary shared RSN. The Discord display name used to be the page's h1 and its title. */}
         <h1 className="display display-lg relative text-[clamp(1.7rem,4vw,2.2rem)] font-semibold">
-          <SupporterName name={person.label} tier={supporter?.tier.id} />
+          <SupporterName name={person.label} tier={supporter?.tier.id} style={supporter?.style} />
         </h1>
         <p className="relative mt-2 text-[14.5px] text-text-muted">
           {person.characters.length} shared {person.characters.length === 1 ? 'character' : 'characters'}

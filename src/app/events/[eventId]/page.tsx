@@ -67,7 +67,7 @@ import EnterEvent from './EnterEvent';
 import { eventActivityIsValid } from '@/lib/completionGate';
 import LocalTime from '@/components/LocalTime';
 import { withSearchText } from '@/lib/tileSearchText';
-import { supporterTiersByName } from '@/lib/supporter';
+import { supporterLooksByName } from '@/lib/supporter';
 import { standingsScopeForSession } from '@/lib/standingsAccess';
 import { canSeeTeamProgress, curtainInfo, filterToVisibleTeams, standingsHidden, standingsRevealAt } from '@/lib/standingsVisibility';
 
@@ -509,7 +509,7 @@ export default async function EventScoreboardPage({
       upcomingRevealAt,
     );
     // Supporter flair on the names the standings show: one query for every row in every scope.
-    const ladderTiers = await supporterTiersByName([...new Set(ladderView.scopes.flatMap((sc) => sc.rows.map((r) => r.name)))]);
+    const ladderLooks = await supporterLooksByName([...new Set(ladderView.scopes.flatMap((sc) => sc.rows.map((r) => r.name)))]);
     return (
       <LadderClient
         event={event}
@@ -533,7 +533,7 @@ export default async function EventScoreboardPage({
         showTeam={ladderHasTeams}
         poolSize={scoredBoardTiles(eventTiles).length}
         curtain={curtain}
-        supporterTiers={ladderTiers}
+        supporterLooks={ladderLooks}
       />
     );
   }

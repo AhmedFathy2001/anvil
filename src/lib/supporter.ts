@@ -10,9 +10,11 @@ import { db } from '@/db';
 import { accounts, supporterSubscriptions, users } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { newCheckoutRef } from '@/lib/billing';
+import { supporterInk, type SupporterInk, type SupporterLook } from '@/lib/supporterStyle';
 import { supporterState, tiersByName, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
 
 export * from '@/lib/supporterTiers';
+export * from '@/lib/supporterStyle';
 
 const ROW_COLUMNS = {
   userId: supporterSubscriptions.userId,
@@ -20,11 +22,17 @@ const ROW_COLUMNS = {
   status: supporterSubscriptions.status,
   currentPeriodEnd: supporterSubscriptions.currentPeriodEnd,
   startedAt: supporterSubscriptions.startedAt,
+  // The owning login's name colours ride along on the same read (every lookup joins users).
+  style: users.supporterStyle,
 } as const;
 
 /** One person's supporter state, or null when they are not supporting right now. */
 export async function supporterForUser(userId: number): Promise<SupporterState | null> {
-  const rows = await db.select(ROW_COLUMNS).from(supporterSubscriptions).where(eq(supporterSubscriptions.userId, userId));
+  const rows = await db
+    .select(ROW_COLUMNS)
+    .from(supporterSubscriptions)
+    .innerJoin(users, eq(users.id, supporterSubscriptions.userId))
+    .where(eq(supporterSubscriptions.userId, userId));
   return supporterState(rows);
 }
 
@@ -33,7 +41,11 @@ export async function supporterForUsers(userIds: number[]): Promise<Map<number, 
   const out = new Map<number, SupporterState>();
   const ids = [...new Set(userIds)].filter((n) => Number.isInteger(n) && n > 0);
   if (ids.length === 0) return out;
-  const rows = await db.select(ROW_COLUMNS).from(supporterSubscriptions).where(inArray(supporterSubscriptions.userId, ids));
+  const rows = await db
+    .select(ROW_COLUMNS)
+    .from(supporterSubscriptions)
+    .innerJoin(users, eq(users.id, supporterSubscriptions.userId))
+    .where(inArray(supporterSubscriptions.userId, ids));
   const byUser = new Map<number, typeof rows>();
   for (const r of rows) byUser.set(r.userId, [...(byUser.get(r.userId) ?? []), r]);
   for (const [id, list] of byUser) {
@@ -62,6 +74,12 @@ export async function supporterForPlayer(playerId: number): Promise<SupporterSta
  */
 export async function supporterTiersForRsns(rsns: string[]): Promise<Map<string, SupporterTierId>> {
   const out = new Map<string, SupporterTierId>();
+  for (const [rsn, state] of await supporterStatesForRsns(rsns)) out.set(rsn, state.tier.id);
+  return out;
+}
+
+async function supporterStatesForRsns(rsns: string[]): Promise<Map<string, SupporterState>> {
+  const out = new Map<string, SupporterState>();
   const keys = [...new Set(rsns.map(normalizeRsn))].filter((k) => k.length > 0 && k.length <= 12).slice(0, 500);
   if (keys.length === 0) return out;
   const rows = await db
@@ -74,16 +92,35 @@ export async function supporterTiersForRsns(rsns: string[]): Promise<Map<string,
   for (const r of rows) byRsn.set(r.rsn, [...(byRsn.get(r.rsn) ?? []), r]);
   for (const [rsn, list] of byRsn) {
     const state = supporterState(list);
-    if (state) out.set(rsn, state.tier.id);
+    if (state) out.set(rsn, state);
   }
   return out;
 }
 
 /**
- * supporterTiersForRsns keyed by the names as given, for a page handing a list to the browser. The
- * tier rides on the CHARACTER's name only — never the person or their other characters — the same
- * as the plugin panel's flair. Flair is decoration: a failed read is no flair, never a broken page.
+ * supporterTiersForRsns with each name's colours as worn (tier plus their gated style): what the
+ * plugin panel paints. Same single query.
  */
+export async function supporterInksForRsns(rsns: string[]): Promise<Map<string, SupporterInk>> {
+  const out = new Map<string, SupporterInk>();
+  for (const [rsn, state] of await supporterStatesForRsns(rsns)) out.set(rsn, supporterInk(state.tier.id, state.style));
+  return out;
+}
+
+/**
+ * Each name's supporter look (tier and their gated colours), keyed by the names as given, for a page
+ * handing a list to the browser. The look rides on the CHARACTER's name only — never the person or
+ * their other characters — the same as the plugin panel's flair. One query; flair is decoration, so
+ * a failed read is no flair, never a broken page.
+ */
+export async function supporterLooksByName(names: string[]): Promise<Record<string, SupporterLook>> {
+  const states = await supporterStatesForRsns(names).catch(() => new Map<string, SupporterState>());
+  const looks = new Map<string, SupporterLook>();
+  for (const [rsn, state] of states) looks.set(rsn, { tier: state.tier.id, style: state.style });
+  return tiersByName(names, looks, normalizeRsn);
+}
+
+/** supporterLooksByName, tiers only. */
 export async function supporterTiersByName(names: string[]): Promise<Record<string, SupporterTierId>> {
   const tiers = await supporterTiersForRsns(names).catch(() => new Map<string, SupporterTierId>());
   return tiersByName(names, tiers, normalizeRsn);

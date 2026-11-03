@@ -18,7 +18,7 @@ import type { Tile as FullTile, Submission as FullSubmission } from '@/lib/types
 import { clanFetch } from '@/lib/clanFetch';
 import StandingsHiddenNotice from '@/components/StandingsHiddenNotice';
 import type { StandingsCurtainInfo } from '@/lib/standingsVisibility';
-import type { SupporterTierId } from '@/lib/supporterTiers';
+import type { SupporterLook } from '@/lib/supporterStyle';
 
 /**
  * The ladder event page.
@@ -70,7 +70,7 @@ interface Props {
    */
   curtain?: StandingsCurtainInfo | null;
   /** Supporter tier by standings name; only supporters appear. */
-  supporterTiers?: Record<string, SupporterTierId>;
+  supporterLooks?: Record<string, SupporterLook>;
 }
 
 export default function LadderClient({
@@ -87,7 +87,7 @@ export default function LadderClient({
   showTeam,
   poolSize,
   curtain = null,
-  supporterTiers = {},
+  supporterLooks = {},
 }: Props) {
   const router = useRouter();
   const rules = useMemo(() => parseEventRules(event.rules), [event.rules]);
@@ -180,7 +180,7 @@ export default function LadderClient({
               sparks={view.sparks}
               mePlayerId={view.me?.playerId ?? null}
               showTeam={showTeam}
-              supporterTiers={supporterTiers}
+              supporterLooks={supporterLooks}
             />
           </div>
         </>
@@ -223,7 +223,7 @@ export default function LadderClient({
               mePlayerId={view.me?.playerId ?? null}
               showTeam={showTeam}
               finished={finished}
-              supporterTiers={supporterTiers}
+              supporterLooks={supporterLooks}
             />
             {nowMs !== null && <ActivityFeed feed={view.feed} nowMs={nowMs} />}
           </div>

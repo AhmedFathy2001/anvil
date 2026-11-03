@@ -120,3 +120,20 @@ test('clearing removes every test drop', async () => {
   assert.ok((await L.clearLabDrops()) > 0);
   assert.equal((await L.labSupporterState(staffId)).drops, 0);
 });
+
+test('a person’s chosen colours ride the same reads, gated by the tier in force', async () => {
+  const { supporterForUser, supporterInksForRsns, supporterLooksByName } = await import('../src/lib/supporter.ts');
+  const [p] = await db.insert(s.players).values({ displayName: 'Painter' }).returning();
+  const [u] = await db
+    .insert(s.users)
+    .values({ displayName: 'Painter', discordId: 'd-painter', playerId: p.id, supporterStyle: '{"stops":["#ff0000","#00ffcc"]}' })
+    .returning();
+  await db.insert(s.accounts).values({ playerId: p.id, rsn: 'Painter', rsnNormalized: 'painter' });
+  await L.setLabTier(u.id, 'patron');
+  assert.deepEqual((await supporterForUser(u.id))?.style, { stops: ['#ff0000', '#00ffcc'] });
+  assert.deepEqual((await supporterInksForRsns(['Painter'])).get('painter'), { color: '#ff0000', grad: ['#ff0000', '#00ffcc'], move: true });
+  assert.deepEqual(await supporterLooksByName(['Painter', 'Nobody Here']), { Painter: { tier: 'patron', style: { stops: ['#ff0000', '#00ffcc'] } } });
+  await L.setLabTier(u.id, 'champion');
+  assert.equal((await supporterForUser(u.id))?.style, null, 'a Champion can’t wear a Patron’s own colours');
+  assert.equal((await supporterInksForRsns(['Painter'])).get('painter')?.color, '#e05ad0');
+});

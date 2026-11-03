@@ -9,7 +9,7 @@ import { isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
 import ClanLink from '@/components/ClanLink';
 import SupporterName from '@/components/SupporterName';
-import { supporterTiersByName } from '@/lib/supporter';
+import { supporterLooksByName } from '@/lib/supporter';
 import ClanCrest from '@/components/ClanCrest';
 import AccountProgressCard from '@/components/AccountProgressCard';
 import ProfileTabs from '@/app/members/[rsn]/ProfileTabs';
@@ -136,7 +136,7 @@ export default async function CharacterPage({
   const profile = await getAccountProfile(character.accountId);
   if (!profile) notFound();
 
-  const [series, records, milestones, collection, progress, questItems, caItems, trackingSince, gameClanRow, supporterTiers] = await Promise.all([
+  const [series, records, milestones, collection, progress, questItems, caItems, trackingSince, gameClanRow, supporterLooks] = await Promise.all([
     getDailySeries(character.accountId, 365),
     getRecords(character.accountId),
     getMilestones(character.accountId, 50),
@@ -147,7 +147,7 @@ export default async function CharacterPage({
     getTrackingSince(character.accountId),
     gameClanForAccount(character.accountId),
     // Supporter flair on this character's name, as in a clan's roster; nothing more about its owner.
-    supporterTiersByName([character.rsn]),
+    supporterLooksByName([character.rsn]),
   ]);
   // The in-game clan their plugin reported (lib/gameClans). A hidden one is the owner's to see.
   const gameClan = gameClanRow && (!gameClanRow.hidden || character.viewerOwns) ? gameClanRow : null;
@@ -175,7 +175,7 @@ export default async function CharacterPage({
       <header className="mb-7">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
           <h1 className="display display-lg text-[clamp(1.7rem,4vw,2.2rem)] font-semibold">
-            <SupporterName name={character.rsn} tier={supporterTiers[character.rsn]} />
+            <SupporterName name={character.rsn} tier={supporterLooks[character.rsn]?.tier} style={supporterLooks[character.rsn]?.style} />
           </h1>
           {character.verified && (
             <span className="rounded-md border border-accent-green/35 bg-accent-green/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-accent-green-light">

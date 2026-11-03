@@ -3,6 +3,8 @@ import CopyLinkButton from '@/components/CopyLinkButton';
 import { REFERRAL_MILESTONES as MILESTONES } from '@/lib/referralRules';
 import { SITE } from '@/lib/site';
 import SupporterName from '@/components/SupporterName';
+import SupporterStylePicker from '@/components/SupporterStylePicker';
+import type { SupporterStyle } from '@/lib/supporterStyle';
 import { tenureStep, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
 
 /** What the profile needs to show someone's Supporter status (serialisable for client islands). */
@@ -14,6 +16,8 @@ export interface SupporterView {
   renewsAt: string | null;
   endsAt: string | null;
   earned: boolean;
+  /** Their name colours as worn (already gated to the tier). */
+  style: SupporterStyle | null;
 }
 
 /** The person's invite link and what it has earned (lib/referrals). */
@@ -36,6 +40,7 @@ export function supporterView(state: SupporterState | null): SupporterView | nul
     renewsAt: state.renewsAt,
     endsAt: state.endsAt,
     earned: state.earned,
+    style: state.style,
   };
 }
 
@@ -118,7 +123,7 @@ export default function SupporterSection({
       <h2 className="mb-3 text-lg font-semibold">Anvil Supporter</h2>
       <div className="rounded-xl border border-gold/40 bg-gold/[0.05] p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <SupporterName name={`Anvil ${supporter.tierName}`} tier={supporter.tier} className="text-lg font-bold" plain />
+          <SupporterName name={`Anvil ${supporter.tierName}`} tier={supporter.tier} style={supporter.style} className="text-lg font-bold" plain />
           <span className="text-sm text-text-muted">
             Since {day(supporter.since)}
             {supporter.months > 0 && <> · {supporter.months} month{supporter.months === 1 ? '' : 's'}</>}
@@ -153,6 +158,7 @@ export default function SupporterSection({
             Manage on Gumroad
           </a>
         </div>
+        <SupporterStylePicker tier={supporter.tier} name={name || 'Your name'} initial={supporter.style} />
       </div>
       {invite && <InviteCard invite={invite} />}
       <DiscordCard />

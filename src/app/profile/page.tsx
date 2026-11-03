@@ -280,6 +280,7 @@ export default async function ProfilePage({
       <PlayerCard
         displayName={user.displayName}
         supporterTier={supporterState?.tier.id ?? null}
+        supporterStyle={supporterState?.style ?? null}
         discordUsername={user.discordUsername}
         avatar={avatar}
         role={session.role}

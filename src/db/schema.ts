@@ -1396,6 +1396,10 @@ export const users = pgTable('users', {
   supporterRef: text('supporter_ref'),
   /** Public invite code for /r/<code> (lib/referrals). Not the checkout ref, which stays private. */
   referralCode: text('referral_code'),
+  // How their Supporter name looks (lib/supporterStyle SupporterStyle, JSON): a preset gradient
+  // (Champion+) or their own stops (Patron). NULL = the tier's default. Re-checked against the tier
+  // in force on every read, so a lapsed Patron's custom colours fall back without a write.
+  supporterStyle: text('supporter_style'),
   // What the in-game chat feed shows this person (lib/chatFeedRules ChatFeedPrefs, JSON). NULL = the
   // defaults. The plugin holds only the master switch; everything finer lives here.
   chatFeedPrefs: text('chat_feed_prefs'),
