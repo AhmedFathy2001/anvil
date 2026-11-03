@@ -550,3 +550,17 @@ test('the board feed shows pets, deaths, clog slots and 1M+ drops — not rune p
   assert.ok(isEventFeedWorthy({ kind: 'unique', itemId: 20997, valueGp: null }));
   assert.ok(isEventFeedWorthy({ kind: 'loot', itemId: 565, valueGp: 1_000_000 }));
 });
+
+test('the clan feed holds priced drops to the clan\'s Discord rarity setting', () => {
+  // Skeletal visage, 1 in 5,000 off Vorkath. Priced and under the 5m floor: below the default
+  // 1-in-10,000 setting it stays off the feed, and a clan that sets 1 in 2,000 gets it back.
+  const visage = { kind: 'unique', source: 'Vorkath', itemId: 22006, quantity: 1, valueGp: 50_000 };
+  assert.equal(isClanWorthy(visage, clan), false);
+  assert.equal(isClanWorthy(visage, { ...clan, minRarity: 2_000 }), true);
+  // Never looser than the feed's own bar, whatever the setting says.
+  assert.equal(isClanWorthy({ ...visage, itemId: 1 }, { ...clan, minRarity: 1 }), false);
+  // Worth the value floor: in, whatever its rarity.
+  assert.equal(isClanWorthy({ ...visage, valueGp: 6_000_000 }, clan), true);
+  // No price to judge it by: rarity alone, at the feed's bar.
+  assert.equal(isClanWorthy({ ...visage, valueGp: 0 }, clan), true);
+});

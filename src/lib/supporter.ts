@@ -101,9 +101,12 @@ async function supporterStatesForRsns(rsns: string[]): Promise<Map<string, Suppo
  * supporterTiersForRsns with each name's colours as worn (tier plus their gated style): what the
  * plugin panel paints. Same single query.
  */
-export async function supporterInksForRsns(rsns: string[]): Promise<Map<string, SupporterInk>> {
-  const out = new Map<string, SupporterInk>();
-  for (const [rsn, state] of await supporterStatesForRsns(rsns)) out.set(rsn, supporterInk(state.tier.id, state.style));
+export async function supporterInksForRsns(rsns: string[]): Promise<Map<string, SupporterInk & { label: string }>> {
+  const out = new Map<string, SupporterInk & { label: string }>();
+  for (const [rsn, state] of await supporterStatesForRsns(rsns)) {
+    // The tier rides along for the star's tooltip in the panel.
+    out.set(rsn, { ...supporterInk(state.tier.id, state.style), label: `Anvil ${state.tier.name}` });
+  }
   return out;
 }
 

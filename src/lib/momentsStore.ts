@@ -1,6 +1,8 @@
 import { db } from '@/db';
 import { countedLuckCandidates } from '@/lib/clogLuckBoard';
 import { getSetting, getSettingMap } from '@/lib/settings';
+// Setting names only; pluginConfig is a heavy module, but momentsStore is server-side already.
+import { DROP_RARITY_FLOOR_SETTING_KEY } from '@/lib/pluginConfig';
 import { clanMemberships, events, moments, eventParticipants, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { type SQL, and, desc, eq, inArray } from 'drizzle-orm';
 import { eventHasStarted } from '@/lib/completionGate';
@@ -163,7 +165,9 @@ async function clanScope(clanId: number): Promise<ClanScope> {
     CLAN_MIN_LOOT_SETTING_KEY,
     CLAN_MIN_CA_TIER_SETTING_KEY,
     CLAN_DEATHS_SETTING_KEY,
+    DROP_RARITY_FLOOR_SETTING_KEY,
   ]);
+  const rawRarity = Number(byKey.get(DROP_RARITY_FLOOR_SETTING_KEY));
 
   const rawLoot = Number(byKey.get(CLAN_MIN_LOOT_SETTING_KEY));
   const rawTier = byKey.get(CLAN_MIN_CA_TIER_SETTING_KEY)?.trim();
@@ -176,6 +180,8 @@ async function clanScope(clanId: number): Promise<ClanScope> {
     deaths: byKey.has(CLAN_DEATHS_SETTING_KEY)
       ? byKey.get(CLAN_DEATHS_SETTING_KEY) === 'on'
       : DEFAULT_CLAN_SCOPE.deaths,
+    // The same floor (and the same clamp) as the Discord rare-drops channel: pluginConfig getDropRarityFloor.
+    minRarity: Number.isFinite(rawRarity) && rawRarity > 0 ? Math.max(1000, Math.round(rawRarity)) : DEFAULT_CLAN_SCOPE.minRarity,
   };
 }
 

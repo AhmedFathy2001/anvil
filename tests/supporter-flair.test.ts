@@ -53,3 +53,11 @@ test('tiersByName re-keys normalised tiers by the names as the page spells them'
   assert.deepEqual(tiersByName(['Lynx_Titan', 'Zezima', 'B0aty'], tiers, norm), { Lynx_Titan: 'patron', Zezima: 'supporter' });
   assert.deepEqual(tiersByName([], tiers, norm), {});
 });
+
+test('the star says which tier, after anything the name already explained', () => {
+  const tip = (n: Node) => (n as Extract<Node, { t: 'text' }>).tip;
+  assert.equal(tip(applyFlair(nameText('P'), () => ({ ...SUPPORTER_INK.patron, label: 'Anvil Patron' }))), 'Anvil Patron');
+  assert.equal(tip(applyFlair(nameText('P', 'white', { tip: 'Look them up' }), () => ({ ...SUPPORTER_INK.patron, label: 'Anvil Patron' }))),
+    'Anvil Patron · Look them up');
+  assert.equal(tip(applyFlair(nameText('P'), () => SUPPORTER_INK.supporter)), 'Anvil Supporter', 'no label: the generic name');
+});

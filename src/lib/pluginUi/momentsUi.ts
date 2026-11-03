@@ -59,7 +59,21 @@ function reactions(m: FeedItem, o: FeedOptions): Node {
       : 'Gold GZs come from Anvil Supporters',
     ...(o.canGold && o.canReact ? { on: react(o, m.id, 'gold') } : {}),
   });
-  return row(gz, undefined, gold, { gap: 8 });
+  return row(gz, undefined, gold, { gap: 10 });
+}
+
+/**
+ * One drop: the item and when on the first line, who (and their GZs) on the second, the item's
+ * picture beside both. The time sits on the item's line rather than in a column of its own, so the
+ * second line keeps the panel's full width for the name and the reactions.
+ */
+export function dropLine(itemId: number | null, title: string, at: string, second: Node): Node {
+  return row(
+    icon({ item: itemId ?? undefined, w: 24, h: 22 }),
+    col([row(undefined, text(title), muted('', { at, font: 'small' }), { gap: 6 }), gap(1), second]),
+    undefined,
+    { gap: 8 },
+  );
 }
 
 export function momentsFeedUi(items: FeedItem[], o: FeedOptions): Node {
@@ -67,15 +81,13 @@ export function momentsFeedUi(items: FeedItem[], o: FeedOptions): Node {
   const parts: Node[] = [];
   for (const m of items) {
     parts.push(
-      row(
-        icon({ item: m.itemId ?? undefined, w: 24, h: 22 }),
-        col([
-          text(m.kind === 'pet' ? `${m.label} · pet` : m.label),
-          row(nameText(m.rsn, 'muted', { font: 'small' }), undefined, reactions(m, o)),
-        ]),
-        muted('', { at: m.at }),
+      dropLine(
+        m.itemId,
+        m.kind === 'pet' ? `${m.label} · pet` : m.label,
+        m.at,
+        row(nameText(m.rsn, 'muted', { font: 'small' }), undefined, reactions(m, o), { gap: 8 }),
       ),
-      gap(3),
+      gap(6),
     );
   }
   if (o.more && o.n < FEED_MAX) {

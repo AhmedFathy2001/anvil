@@ -101,6 +101,12 @@ export interface ClanScope {
    * but a clan-wide feed of everyone dying all week is a different, much worse thing to read.
    */
   deaths: boolean;
+  /**
+   * How rare (1 in N) a drop has to be to count on rarity alone: the clan's own "Post drops rarer
+   * than 1 in…" setting, the one its Discord rare-drops channel uses, so the feed and the channel
+   * agree. Never looser than {@link CLAN_MIN_RARITY_DENOMINATOR}.
+   */
+  minRarity: number;
 }
 
 
@@ -406,6 +412,8 @@ export const DEFAULT_CLAN_SCOPE: ClanScope = {
   // Master and Grandmaster are an achievement on their own terms, which is exactly the test here.
   minCaTier: MIN_OFF_TOPIC_CA_TIER,
   deaths: false,
+  // The Discord rare-drops default (pluginConfig DEFAULT_DROP_RARITY_FLOOR).
+  minRarity: 10_000,
 };
 
 export interface CaTask {
@@ -577,7 +585,7 @@ function clanKindFor(obs: Observation, clan: ClanScope, info: DropInfo | null): 
   // Two ways for a drop to matter with no board to measure it against: the drop table says it is
   // genuinely rare, or it is simply worth a lot of money. Rarity first, so a rare untradeable
   // (a jar, a pet-adjacent unique) isn't judged on a price it doesn't have.
-  if (clanRareDrop(info, obs.quantity ?? 1)) return 'unique';
+  if (clanRareDrop(info, obs.quantity ?? 1, clan.minRarity, obs.valueGp)) return 'unique';
   return (obs.valueGp ?? 0) >= clan.minLootGp ? 'loot' : null;
 }
 
@@ -590,8 +598,14 @@ function clanKindFor(obs: Observation, clan: ClanScope, info: DropInfo | null): 
  * was never about the stack. On a board that reads as a near-miss worth keeping; on a feed with no
  * frame it reads as us not knowing what a drop is.
  */
-function clanRareDrop(info: DropInfo | null, quantity: number): boolean {
-  return !!info && info.stack <= 1 && quantity <= 1 && info.denominator >= CLAN_MIN_RARITY_DENOMINATOR;
+function clanRareDrop(info: DropInfo | null, quantity: number, minRarity: number, valueGp: number | null | undefined): boolean {
+  // A drop with a price answers to the clan's rarity setting (or its value floor, tested after this),
+  // like its Discord channel: a 1-in-600 seed worth 50k isn't clan news. One with no price (an
+  // untradeable: a jar, a unique cosmetic) has nothing else to be judged by, so rarity alone at the
+  // feed's own bar.
+  const priced = (valueGp ?? 0) > 0;
+  const floor = priced ? Math.max(CLAN_MIN_RARITY_DENOMINATOR, Number.isFinite(minRarity) ? minRarity : 0) : CLAN_MIN_RARITY_DENOMINATOR;
+  return !!info && info.stack <= 1 && quantity <= 1 && info.denominator >= floor;
 }
 
 /**
@@ -621,7 +635,7 @@ export function isClanWorthy(
   if (row.kind === 'pet') return true;
   if (row.kind === 'death') return clan.deaths;
   if (row.kind === 'ca') return caTierAtLeast(row.tier, clan.minCaTier);
-  if (clanRareDrop(dropInfo(row.source, row.itemId), row.quantity ?? 1)) return true;
+  if (clanRareDrop(dropInfo(row.source, row.itemId), row.quantity ?? 1, clan.minRarity, row.valueGp)) return true;
   return (row.valueGp ?? 0) >= clan.minLootGp;
 }
 
