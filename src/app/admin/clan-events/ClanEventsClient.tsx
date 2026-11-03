@@ -7,7 +7,7 @@ import DateTimePicker from '@/components/DateTimePicker';
 import Input from '@/components/Input';
 import Select, { type SelectOption } from '@/components/Select';
 import { BOSSES, SKILLS, SKILL_LABELS } from '@/lib/constants';
-import { CHANNEL_SLOTS, CHANNEL_SLOT_LABELS, type ChannelSlot, type ClanEventChannels } from '@/lib/clanEventChannels';
+import { CHANNEL_SLOTS, CHANNEL_SLOT_LABELS, type ChannelSlot, type ClanEventChannels, type PickedChannel } from '@/lib/clanEventChannels';
 import { clanFetch } from '@/lib/clanFetch';
 import { SIGNUP_TEMPLATES, surveyTemplateById } from '@/lib/surveyTemplates';
 
@@ -20,6 +20,7 @@ interface Ev {
   icon: string | null;
   imageUrl: string | null;
   channels: ClanEventChannels | null;
+  postChannel: PickedChannel | null;
   host: string | null;
   repeat: 'none' | 'weekly';
   durationMin: number;
@@ -41,6 +42,8 @@ interface Form {
   icon: string;
   imageUrl: string;
   channels: ClanEventChannels;
+  /** "Post to": null = the clan's clan-events channel. */
+  postChannel: PickedChannel | null;
   host: string;
   start: string; // ISO instant
   durationMin: string;
@@ -59,7 +62,7 @@ interface Form {
 }
 
 const BLANK: Form = {
-  title: '', description: '', location: '', world: '', icon: '', imageUrl: '', channels: {}, host: '', start: '', durationMin: '60', repeat: 'none', until: '', ping: true,
+  title: '', description: '', location: '', world: '', icon: '', imageUrl: '', channels: {}, postChannel: null, host: '', start: '', durationMin: '60', repeat: 'none', until: '', ping: true,
   attend: 'going', questions: 'none', cap: '', approval: false, fee: false, feeAmount: '',
 };
 
@@ -156,6 +159,21 @@ export default function ClanEventsClient() {
     ];
   }
 
+  function postOptions(): SelectOption[] {
+    const current = form.postChannel;
+    const listed = (discord?.channels ?? []).filter((c) => c.kind === 'text');
+    return [
+      { value: '', label: 'Clan default' },
+      ...(current && !listed.some((c) => c.id === current.id) ? [{ value: current.id, label: `#${current.name}` }] : []),
+      ...listed.map((c) => ({ value: c.id, label: `#${c.name}${c.parentName ? ` · ${c.parentName}` : ''}`, keywords: c.parentName ? [c.parentName.toLowerCase()] : [] })),
+    ];
+  }
+
+  function pickPostChannel(id: string) {
+    const picked = discord?.channels.find((c) => c.id === id);
+    setForm((f) => ({ ...f, postChannel: picked ? { id: picked.id, name: picked.name } : id && f.postChannel?.id === id ? f.postChannel : null }));
+  }
+
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   async function save(e: React.FormEvent) {
@@ -172,6 +190,7 @@ export default function ClanEventsClient() {
       icon: form.icon,
       imageUrl: form.imageUrl || null,
       channels: form.channels,
+      postChannel: form.postChannel,
       host: form.host,
       startsAt: form.start,
       durationMin: Number(form.durationMin),
@@ -241,6 +260,7 @@ export default function ClanEventsClient() {
       icon: ev.icon ?? '',
       imageUrl: ev.imageUrl ?? '',
       channels: ev.channels ?? {},
+      postChannel: ev.postChannel ?? null,
       host: ev.host ?? '',
       start: ev.startsAt,
       durationMin: String(ev.durationMin),
@@ -485,6 +505,35 @@ export default function ClanEventsClient() {
                 <p className="text-[11px] text-text-muted">Payouts and a survey can be added from the event&rsquo;s page once it&rsquo;s scheduled.</p>
               </>
             )}
+          </div>
+        )}
+        {discord?.enabled && (
+          <div>
+            <label className={label}>Post to</label>
+            <div className="sm:max-w-[60%]">
+              <Select
+                value={form.postChannel?.id ?? ''}
+                onChange={pickPostChannel}
+                options={postOptions()}
+                placeholder="Clan default"
+                ariaLabel="Post to channel"
+                searchable
+              />
+            </div>
+            <span className="mt-0.5 block text-[11px] text-text-muted">
+              The announcement, the 15-minute reminder and the start.{' '}
+              {form.postChannel ? (
+                'The bot needs Manage Webhooks in that channel.'
+              ) : (
+                <>
+                  Clan default is set in{' '}
+                  <ClanLink href="/admin/integrations" className="text-gold hover:text-gold-light">
+                    Discord settings
+                  </ClanLink>
+                  .
+                </>
+              )}
+            </span>
           </div>
         )}
         <div>

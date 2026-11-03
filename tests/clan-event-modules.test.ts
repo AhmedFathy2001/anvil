@@ -96,7 +96,9 @@ test('the pot is the added gp plus the fees actually collected', () => {
 });
 
 test('channels keep only real channel ids, in a fixed order, as Discord mentions', async () => {
-  const { parseChannels, channelMentions } = await import('../src/lib/clanEventChannels');
+  const { parseChannels, channelMentions, parsePickedChannel } = await import('../src/lib/clanEventChannels');
+  assert.equal(parsePickedChannel({ id: 'general' }), null);
+  assert.deepEqual(parsePickedChannel({ id: '323456789012345678', name: ' pvm\n' }), { id: '323456789012345678', name: 'pvm' });
   assert.equal(parseChannels(null), null);
   assert.equal(parseChannels({ chat: { id: 'general', name: 'x' } }), null, 'not a snowflake');
   const c = parseChannels({ voice: { id: '123456789012345678', name: 'Mass VC\n' }, chat: { id: '223456789012345678', name: '' }, junk: { id: '1' } });

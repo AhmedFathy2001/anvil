@@ -2,12 +2,15 @@ import { and, eq, inArray, isNull, or, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanEventRsvps, clanEvents, clans, users, type ClanEvent } from '@/db/schema';
-import { type ClanEventChannels, channelMentions, parseChannels } from '@/lib/clanEventChannels';
+import { type ClanEventChannels, type PickedChannel, channelMentions, parseChannels, parsePickedChannel } from '@/lib/clanEventChannels';
 import { type ClanEventModules, anyModule, keyFor, parseModules, signupWindow, surveyKey, takesNames } from '@/lib/clanEventModules';
 import { loadQuestions } from '@/lib/clanEventQuestions';
 import { activeCount, activeNames, mySignup, signUp, withdraw } from '@/lib/clanEventSignups';
 import { type Occurrence, currentOccurrence, dueNotice, pastOccurrences, phaseOf } from '@/lib/clanEventTimes';
 import { clanEventThumbnail, sendClanEventPost, siteBaseUrl, upsertClanEventPost } from '@/lib/discord';
+import { listLinkableChannels } from '@/lib/discord-broadcast';
+import { getBotCredentials } from '@/lib/discord-roles';
+import { findOrCreateAnvilWebhook } from '@/lib/discord-webhooks';
 import { type DiscordEmbed, EMBED_COLOR, LIMIT, clamp, field } from '@/lib/discordEmbeds';
 import { log } from '@/lib/logger';
 import { isValidTimeZone } from '@/lib/zonedTime';
@@ -29,6 +32,8 @@ export interface ClanEventView {
   imageUrl: string | null;
   /** Discord channels it points at (lib/clanEventChannels). */
   channels: ClanEventChannels | null;
+  /** Where its posts go when not the clan default. The webhook itself stays server-side. */
+  postChannel: PickedChannel | null;
   host: string | null;
   repeat: 'none' | 'weekly';
   timezone: string;
@@ -125,6 +130,7 @@ async function withGoing(list: { e: ClanEvent; o: Occurrence }[], userId: number
       icon: e.icon,
       imageUrl: e.imageUrl,
       channels: e.channels ?? null,
+      postChannel: e.postChannel ?? null,
       host: e.host,
       repeat: e.repeat === 'weekly' ? 'weekly' : 'none',
       timezone: e.timezone,
@@ -145,6 +151,41 @@ async function withGoing(list: { e: ClanEvent; o: Occurrence }[], userId: number
   return views;
 }
 
+/**
+ * Turn the host's "Post to" pick into a webhook the posts can use. The channel must be a text
+ * channel in THIS clan's server (the bot may sit in other clans' servers too), and the bot needs
+ * Manage Webhooks there. A pick that hasn't changed keeps its webhook, so an edit costs no Discord
+ * call. Mutates `input.postWebhookUrl`; returns the first thing wrong, or null.
+ */
+export async function resolvePostTarget(clanId: number, input: ClanEventInput, priorId?: number): Promise<string | null> {
+  const picked = input.postChannel;
+  input.postWebhookUrl = null;
+  if (!picked) return null;
+  if (priorId != null) {
+    const prior = await db.query.clanEvents.findFirst({
+      columns: { postChannel: true, postWebhookUrl: true },
+      where: and(eq(clanEvents.id, priorId), eq(clanEvents.clanId, clanId)),
+    });
+    if (prior?.postChannel?.id === picked.id && prior.postWebhookUrl) {
+      input.postWebhookUrl = prior.postWebhookUrl;
+      return null;
+    }
+  }
+  const creds = await getBotCredentials(clanId);
+  if (!creds) return 'Connect the clan’s Discord bot first to pick a channel to post in.';
+  const { channels } = await listLinkableChannels(clanId);
+  const channel = channels.find((c) => c.id === picked.id && c.kind === 'text');
+  if (!channel) return 'That channel isn’t a text channel in your server any more. Pick another.';
+  try {
+    const wh = await findOrCreateAnvilWebhook(creds.botToken, channel.id);
+    input.postWebhookUrl = wh.url;
+    input.postChannel = { id: channel.id, name: channel.name };
+    return null;
+  } catch (err) {
+    return err instanceof Error ? err.message : 'Couldn’t set up posting in that channel.';
+  }
+}
+
 // ── Writing ──────────────────────────────────────────────────────────────────────────────────────
 
 export interface ClanEventInput {
@@ -155,6 +196,10 @@ export interface ClanEventInput {
   icon?: string | null;
   imageUrl?: string | null;
   channels?: ClanEventChannels | null;
+  /** "Post to": a channel picked over the clan default, null for the default. */
+  postChannel?: PickedChannel | null;
+  /** Set by {@link resolvePostTarget}, never from the request body. */
+  postWebhookUrl?: string | null;
   host?: string | null;
   startsAt: string;
   durationMin: number;
@@ -195,6 +240,7 @@ export function parseClanEventInput(body: Record<string, unknown>): { ok: true; 
       icon: icon && /^[a-z0-9_]+$/i.test(icon) ? icon : null,
       imageUrl: image.value,
       channels: parseChannels(body.channels),
+      postChannel: parsePickedChannel(body.postChannel),
       host: text(body.host, 40),
       startsAt: new Date(start).toISOString(),
       durationMin,
@@ -214,6 +260,8 @@ const columns = (input: ClanEventInput) => ({
   icon: input.icon ?? null,
   imageUrl: input.imageUrl ?? null,
   channels: input.channels ?? null,
+  postChannel: input.postChannel ?? null,
+  postWebhookUrl: input.postChannel ? input.postWebhookUrl ?? null : null,
   host: input.host ?? null,
   startsAt: input.startsAt,
   durationMin: input.durationMin,
@@ -353,7 +401,7 @@ async function announce(e: ClanEvent): Promise<void> {
   if (!o && !prior) return; // over before anyone heard of it
   const going = o ? await goingCount(e, o) : 0;
   const embed = clanEventEmbed(e, o, going, await eventLink(e.clanId, e.id), e.cancelledAt || !o ? 'cancelled' : 'announce');
-  const result = await upsertClanEventPost(e.clanId, embed, prior, e.ping === 1 && !e.cancelledAt);
+  const result = await upsertClanEventPost(e.clanId, embed, prior, e.ping === 1 && !e.cancelledAt, e.postWebhookUrl);
   if (result.status !== 'sent' || !result.messageId) return;
   const next = { [MESSAGE]: result.messageId, [ANNOUNCED_FOR]: o?.start ?? '' };
   await db.update(clanEvents).set({ discordMessageIds: next }).where(eq(clanEvents.id, e.id));
@@ -393,7 +441,7 @@ export async function processClanEventReminders(now = Date.now()): Promise<void>
         .returning({ id: clanEvents.id });
       if (!claimed.length) continue;
       const embed = clanEventEmbed(e, o, await goingCount(e, o), await eventLink(e.clanId, e.id), due);
-      await sendClanEventPost(e.clanId, embed, e.ping === 1);
+      await sendClanEventPost(e.clanId, embed, e.ping === 1, e.postWebhookUrl);
     } catch (err) {
       log.warn('clan-events.reminder-failed', { id: e.id }, err);
     }

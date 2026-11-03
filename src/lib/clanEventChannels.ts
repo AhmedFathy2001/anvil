@@ -33,6 +33,15 @@ export function parseChannels(raw: unknown): ClanEventChannels | null {
   return Object.keys(out).length ? out : null;
 }
 
+/** One submitted channel made safe (the "Post to" pick), or null. */
+export function parsePickedChannel(raw: unknown): PickedChannel | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const id = String((raw as { id?: unknown }).id ?? '');
+  if (!SNOWFLAKE.test(id)) return null;
+  const name = String((raw as { name?: unknown }).name ?? '').replace(/[\r\n]/g, ' ').trim().slice(0, 100);
+  return { id, name: name || 'channel' };
+}
+
 /** The slots that are set, in a fixed order. */
 export function channelList(c: ClanEventChannels | null | undefined): { slot: ChannelSlot; channel: PickedChannel }[] {
   return CHANNEL_SLOTS.flatMap((slot) => (c?.[slot] ? [{ slot, channel: c[slot]! }] : []));
