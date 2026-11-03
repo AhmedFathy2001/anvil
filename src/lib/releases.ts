@@ -83,6 +83,9 @@ async function announce(note: ReleaseNote): Promise<void> {
 /** Publish every bundled release that hasn't gone out. Returns the versions it published. */
 export async function publishShippedReleases(dir?: string): Promise<string[]> {
   if (isPreview()) return [];
+  // Nothing goes out until #anvil-announcements is set on /staff/releases: a release announced to
+  // nobody would be claimed and never posted there. Set it, and the next tick publishes.
+  if (!(await getPlatformSetting(ANNOUNCEMENTS_WEBHOOK_KEY))) return [];
   const notes = await loadReleaseFiles(dir);
   const done: string[] = [];
   for (const note of notes) {
