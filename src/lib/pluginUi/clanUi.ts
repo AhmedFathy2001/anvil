@@ -1,6 +1,6 @@
 import type { ClanCard } from '@/lib/clanCard';
 
-import { FEED_STEP } from './momentsUi';
+import { FEED_STEP, dropLine } from './momentsUi';
 import { type Node, backRow, button, card, col, count, fmt, gap, header, icon, message, muted, nameText, row, seg, text } from './nodes';
 import { namesRow, vsRow } from './playerMoreUi';
 
@@ -54,12 +54,8 @@ export function clanCardUi(c: ClanCard, compare: boolean): Node {
     // The cached list shows at once; the live feed (counts, GZ buttons, more lines) replaces it.
     const quick = col(
       c.highlights.flatMap((h) => [
-        row(
-          icon({ item: h.itemId ?? undefined, w: 24, h: 22 }),
-          col([text(h.kind === 'pet' ? `${h.label} · pet` : h.label), nameText(h.rsn, 'muted', { font: 'small' })]),
-          muted('', { at: h.at }),
-        ),
-        gap(3),
+        dropLine(h.itemId, h.kind === 'pet' ? `${h.label} · pet` : h.label, h.at, nameText(h.rsn, 'muted', { font: 'small' })),
+        gap(6),
       ]),
     );
     parts.push(

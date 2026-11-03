@@ -242,7 +242,8 @@ export const nameText = (rsn: string, color: Color = 'white', extra: Partial<Ext
   text(rsn, color, { ...extra, who: rsn });
 
 type TextNode = Extract<Node, { t: 'text' }>;
-type Ink = { color: `#${string}`; grad?: `#${string}`[]; move?: boolean };
+/** `label` names the tier for the star's tooltip ("Anvil Patron"). */
+type Ink = { color: `#${string}`; grad?: `#${string}`[]; move?: boolean; label?: string };
 
 function eachChild(n: Node, f: (c: Node) => void): void {
   const any = n as unknown as Record<string, unknown>;
@@ -283,7 +284,9 @@ export function applyFlair(root: Node, ink: (name: string) => Ink | null): Node 
         if (!t.icon) {
           t.icon = { t: 'icon', glyph: 'star', w: 10, h: 10, color: '#ffd35c' };
           t.iconAfter = true;
-          t.tip ??= 'Anvil Supporter';
+          // Whatever the name already explained stays, after who they are.
+          const who = found.label ?? 'Anvil Supporter';
+          t.tip = t.tip ? `${who} · ${t.tip}` : who;
         }
       }
     }

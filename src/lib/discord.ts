@@ -1926,22 +1926,33 @@ export function clanEventThumbnail(icon: string | null): Pick<DiscordEmbed, 'thu
 }
 
 /**
+ * Where a clan event posts: its own "Post to" channel when the host picked one (a bot-made webhook,
+ * lib/clanEvents resolvePostTarget), else the clan's clan-events channel, else its main one.
+ */
+async function clanEventDestination(clanId: number, postWebhookUrl?: string | null): Promise<{ urls: string[]; cursorKey: string } | null> {
+  const own = parseWebhookUrls(postWebhookUrl);
+  if (own.length) return (await isLabClan(clanId)) ? null : { urls: own, cursorKey: `${clanId}:clan-event-own` };
+  return resolveWebhookDestination(clanId, CLAN_EVENTS_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+}
+
+/**
  * A clan event's announcement, posted once and then edited in place (its id kept by the caller).
  * The first post pings the member role when asked; an edit leaves the message's content alone, so a
  * going count ticking up never pings anyone again.
  */
-export async function upsertClanEventPost(clanId: number, embed: DiscordEmbed, existingMessageId?: string, ping = false): Promise<EditableWebhookResult> {
+export async function upsertClanEventPost(clanId: number, embed: DiscordEmbed, existingMessageId?: string, ping = false, postWebhookUrl?: string | null): Promise<EditableWebhookResult> {
   if (await feedOff(clanId, 'clanEvents')) return { status: 'skipped' };
-  const destination = await resolveWebhookDestination(clanId, CLAN_EVENTS_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  const destination = await clanEventDestination(clanId, postWebhookUrl);
   if (!destination) return { status: 'skipped' };
   const mention = ping && !existingMessageId ? await memberPing(clanId) : {};
   return upsertWebhookMessage(destination, { ...mention, embeds: [await withClanCrest(clanId, embed)] }, clanId, existingMessageId);
 }
 
 /** A clan event's reminder or "starting now": a fresh post, pinging the member role when asked. */
-export async function sendClanEventPost(clanId: number, embed: DiscordEmbed, ping: boolean): Promise<boolean> {
+export async function sendClanEventPost(clanId: number, embed: DiscordEmbed, ping: boolean, postWebhookUrl?: string | null): Promise<boolean> {
   if (await feedOff(clanId, 'clanEvents')) return false;
-  const url = await resolveWebhookUrl(clanId, CLAN_EVENTS_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  const destination = await clanEventDestination(clanId, postWebhookUrl);
+  const url = destination ? pickCycledUrl(destination.urls, destination.cursorKey) : null;
   if (!url) return false;
   return sendToWebhook(url, { ...(ping ? await memberPing(clanId) : {}), embeds: [await withClanCrest(clanId, embed)] }, clanId);
 }

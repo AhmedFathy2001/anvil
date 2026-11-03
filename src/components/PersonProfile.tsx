@@ -242,6 +242,10 @@ export default function PersonProfile({
         )}
       </section>
 
+      {/* Above the settings, not under them: it was the last thing on the page, below nine webhook
+          categories, and that is where people stopped reading. */}
+      <SupporterSection supporter={supporter} invite={invite} name={displayName} announce={announceSupporter} />
+
       {/* Announcements & webhooks — where your drops, deaths and CAs post, and your own Discord
           webhooks. Person-level and cross-clan: it routes BETWEEN your clans, so it could never have
           lived on one of them.
@@ -262,7 +266,6 @@ export default function PersonProfile({
         </section>
       )}
 
-      <SupporterSection supporter={supporter} invite={invite} name={displayName} announce={announceSupporter} />
 
       {/* Billing is a platform concern too — one account, one subscription, wherever you host. Only
           for someone who owns a clan: subscriptions are per hosted clan (see /portal), and a player

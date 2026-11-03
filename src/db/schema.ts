@@ -17,7 +17,7 @@ import {
   primaryKey,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
-import type { ClanEventChannels } from '../lib/clanEventChannels';
+import type { ClanEventChannels, PickedChannel } from '../lib/clanEventChannels';
 import { sql } from 'drizzle-orm';
 
 /**
@@ -3710,6 +3710,10 @@ export const clanEvents = pgTable('clan_events', {
   imageUrl: text('image_url'),
   /** Discord channels it points at — chat, guide, voice (lib/clanEventChannels). */
   channels: jsonb('channels').$type<ClanEventChannels>(),
+  /** Where its posts go when not the clan's clan-events channel; null = the clan default. */
+  postChannel: jsonb('post_channel').$type<PickedChannel>(),
+  /** The bot-made webhook in `postChannel`. Server-only: never put it in a view. */
+  postWebhookUrl: text('post_webhook_url'),
   host: text('host'),
   /** The first occurrence's start, ISO UTC. */
   startsAt: text('starts_at').notNull(),

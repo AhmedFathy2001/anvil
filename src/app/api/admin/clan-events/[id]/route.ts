@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
-import { cancelClanEvent, parseClanEventInput, updateClanEvent } from '@/lib/clanEvents';
+import { cancelClanEvent, parseClanEventInput, resolvePostTarget, updateClanEvent } from '@/lib/clanEvents';
 
 // One clan event: edit it (the Discord announcement follows) or call it off.
 
@@ -13,7 +13,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const id = Number((await params).id);
   const parsed = parseClanEventInput(await request.json().catch(() => ({})));
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
-  const row = Number.isInteger(id) ? await updateClanEvent(clan.id, id, parsed.input) : null;
+  if (!Number.isInteger(id)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const postError = await resolvePostTarget(clan.id, parsed.input, id);
+  if (postError) return NextResponse.json({ error: postError }, { status: 400 });
+  const row = await updateClanEvent(clan.id, id, parsed.input);
   return row ? NextResponse.json({ id: row.id }) : NextResponse.json({ error: 'Not found' }, { status: 404 });
 }
 

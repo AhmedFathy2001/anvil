@@ -925,6 +925,13 @@
       "when": 1793727000000,
       "tag": "0182_anvil_discord_supporters",
       "breakpoints": true
+    },
+    {
+      "idx": 183,
+      "version": "7",
+      "when": 1793727060000,
+      "tag": "0183_clan_event_post_channel",
+      "breakpoints": true
     }
   ]
 }

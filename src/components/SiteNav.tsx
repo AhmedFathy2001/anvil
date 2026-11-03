@@ -250,6 +250,17 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
             {platformBadge.count > 0 && <PendingBadge count={platformBadge.count} title={platformBadge.title} />}
           </a>
         )}
+        {/* Anvil is paid for by its supporters, so the way in is on every page rather than at the
+            bottom of the profile. */}
+        <ClanLink
+          href="/supporter"
+          title="Support Anvil"
+          aria-label="Support Anvil"
+          className="ml-1 px-3 py-1.5 rounded-md text-sm text-gold hover:text-gold-light hover:bg-gold/10 transition-all flex items-center gap-1.5"
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden><path d="M8 1.2l2 4.3 4.7.6-3.4 3.2.9 4.6L8 11.6 3.8 13.9l.9-4.6L1.3 6.1 6 5.5z" /></svg>
+          <span className="hidden lg:inline">Support Anvil</span>
+        </ClanLink>
         {discordInvite && (
           <a
             href={discordInvite}
@@ -375,6 +386,14 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                 {platformBadge.count > 0 && <PendingBadge count={platformBadge.count} title={platformBadge.title} />}
               </a>
             )}
+            <ClanLink
+              href="/supporter"
+              onClick={() => setOpen(false)}
+              className="px-3 py-2.5 rounded-md text-sm text-gold hover:text-gold-light hover:bg-gold/10 transition-all flex items-center gap-1.5"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden><path d="M8 1.2l2 4.3 4.7.6-3.4 3.2.9 4.6L8 11.6 3.8 13.9l.9-4.6L1.3 6.1 6 5.5z" /></svg>
+              Support Anvil
+            </ClanLink>
             {discordInvite && (
               <a
                 href={discordInvite}

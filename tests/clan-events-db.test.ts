@@ -5,6 +5,7 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
@@ -89,6 +90,36 @@ test('picked channels are stored and posted as mentions', async () => {
   assert.deepEqual(view?.channels, { voice: { id: '123456789012345678', name: 'Mass VC' } });
   const embed = CE.clanEventEmbed(ev, null, 0, null, 'announce');
   assert.equal(embed.fields?.find((f) => f.name === 'Channels')?.value, 'Voice <#123456789012345678>');
+});
+
+test('"Post to": its webhook is made server-side, kept on edit, and never shown', async () => {
+  const start = new Date(Date.now() + 3_600_000).toISOString();
+  const WH = 'https://discord.com/api/webhooks/1/secret';
+  const pick = { id: '323456789012345678', name: 'pvm' };
+  // The request can't hand us a webhook of its own.
+  const smuggled = CE.parseClanEventInput({ ...input(start), postChannel: pick, postWebhookUrl: 'https://evil.example/x' } as unknown as Record<string, unknown>);
+  assert.ok(smuggled.ok);
+  assert.equal(smuggled.input.postWebhookUrl, undefined);
+  // No bot connected: picking a channel is refused with a plain reason.
+  assert.match((await CE.resolvePostTarget(clanId, smuggled.input)) ?? '', /Discord bot/);
+
+  const ev = await CE.createClanEvent(clanId, input(start), meUser);
+  await db.update(s.clanEvents).set({ postChannel: pick, postWebhookUrl: WH }).where(eq(s.clanEvents.id, ev.id));
+  // Same pick on an edit keeps its webhook without asking Discord (there's no bot here to ask).
+  const same = input(start, { postChannel: pick });
+  assert.equal(await CE.resolvePostTarget(clanId, same, ev.id), null);
+  assert.equal(same.postWebhookUrl, WH);
+  await CE.updateClanEvent(clanId, ev.id, same);
+  const view = await CE.getClanEvent(clanId, ev.id, null);
+  assert.deepEqual(view?.postChannel, pick);
+  assert.ok(!JSON.stringify(view).includes('secret'), 'the webhook never reaches a view');
+  // Back to the clan default clears both.
+  const back = input(start);
+  assert.equal(await CE.resolvePostTarget(clanId, back, ev.id), null);
+  await CE.updateClanEvent(clanId, ev.id, back);
+  const [row] = await db.select().from(s.clanEvents).where(eq(s.clanEvents.id, ev.id));
+  assert.equal(row.postChannel, null);
+  assert.equal(row.postWebhookUrl, null);
 });
 
 test('going is per occurrence: next week asks again', async () => {
