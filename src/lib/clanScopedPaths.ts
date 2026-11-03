@@ -95,6 +95,8 @@ export const PLATFORM_ROOTS = [
   '/features',
   '/pricing',
   '/supporter',
+  // Release notes (lib/releases): Anvil's, not a clan's.
+  '/changelog',
   // Invite links (lib/referrals): a person's, never a clan's.
   '/r/',
   '/portal',

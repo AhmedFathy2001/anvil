@@ -293,6 +293,14 @@ export async function sendDiscordWebhook(clanId: number, payload: DiscordWebhook
   return sendToWebhook(webhookUrl, payload, clanId);
 }
 
+/** Anvil release notes (lib/releases): only where the clan set an "Anvil updates" channel, never the main one. */
+export const ANVIL_UPDATES_WEBHOOK_KEY = 'discord_webhook_anvil_updates';
+export async function sendAnvilUpdatesWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
+  const webhookUrl = await resolveWebhookUrl(clanId, ANVIL_UPDATES_WEBHOOK_KEY);
+  if (!webhookUrl) return false;
+  return sendToWebhook(webhookUrl, payload, clanId);
+}
+
 // Bingo-event channel; falls back to the master webhook so single-webhook clans keep getting bingo
 // posts until they split the channel.
 export async function sendBingoWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {

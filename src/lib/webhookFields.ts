@@ -98,6 +98,13 @@ export const WEBHOOK_SECTIONS = [
         label: 'Sign-up approvals channel',
         help: 'Posts a fee-payment nudge (pinging the member) each time a sign-up is approved.',
       },
+      // Opt-in like the coffer channel: release notes only go where a clan asked for them.
+      {
+        kind: 'webhook',
+        key: 'discord_webhook_anvil_updates',
+        label: 'Anvil updates channel',
+        help: "New Anvil releases (new features, improvements and fixes to the site and the plugin), posted once each when they go live. Nothing posts until you set this. Or follow #anvil-announcements in the Anvil Discord instead.",
+      },
       // The only webhook here with no fallback to the announcements channel. The others carry clan
       // news and a general channel is a fine home for them; this is a running commentary on the
       // clan's money, and a clan that has not asked for it should get silence.

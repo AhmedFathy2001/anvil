@@ -93,6 +93,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         // member posting in Discord; this is the surface the hourly digest links back to.
         { href: '/staff/errors', label: 'Errors', icon: '⚠', badge: pending.errors, matchPrefix: true },
         { href: '/staff/audit', label: 'Operator log', icon: '⧉', matchPrefix: true },
+        { href: '/staff/releases', label: 'Releases', icon: '⇪', matchPrefix: true },
         // The Anvil guide library every clan sees and copies from.
         { href: '/staff/guides', label: 'Guide library', icon: '📖', badge: pending.guideProposals, matchPrefix: true },
         // Anvil's task and board library, and the suggestions clans send for it.

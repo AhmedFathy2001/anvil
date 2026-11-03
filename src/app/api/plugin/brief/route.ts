@@ -12,6 +12,7 @@ import { listClanEvents } from '@/lib/clanEvents';
 import { goalsWithProgress } from '@/lib/goals';
 import { playedCharacter, resolvePluginCharacter } from '@/lib/pluginAccount';
 import { pluginRoster } from '@/lib/pluginRoster';
+import { unseenReleaseLine } from '@/lib/releases';
 import type { HomeConfig } from '@/lib/pluginUi/homeUi';
 import { rateLimitByKey } from '@/lib/rate-limit';
 import { supporterForUser } from '@/lib/supporter';
@@ -102,5 +103,8 @@ export async function GET(request: Request) {
     facts.goal = best ?? null;
   }
 
-  return NextResponse.json({ lines: composeBrief(items, facts), look });
+  // A release this login hasn't seen goes first, once (lib/releases).
+  const whatsNew = await unseenReleaseLine(who.userId).catch(() => null);
+  const lines = composeBrief(items, facts);
+  return NextResponse.json({ lines: whatsNew ? [{ tone: 'info', text: whatsNew }, ...lines] : lines, look });
 }
