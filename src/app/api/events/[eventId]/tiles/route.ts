@@ -533,8 +533,8 @@ async function applyTileUpdate(
   // can score right now, which is a game decision rather than tile authoring.
   //   'live'   → revealedAt = now, closedAt cleared (a re-opened bounty/expired task is playable).
   //   'hidden' → revealedAt + closedAt cleared, so the engine may draw it again later.
-  // Interval/rotating draws are computed from a cumulative target, so a manual reveal is absorbed
-  // by the next draw rather than putting the board permanently ahead.
+  // On interval/rotating boards a manual reveal counts as a draw: the next one lands an interval
+  // after it (lib/eventRules drawClock).
   if (revealState !== undefined) {
     if (revealState !== 'live' && revealState !== 'hidden') {
       return NextResponse.json({ error: "revealState must be 'live' or 'hidden'" }, { status: 400 });

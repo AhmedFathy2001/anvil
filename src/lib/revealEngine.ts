@@ -7,6 +7,8 @@ import {
   hasRevealPolicy,
   hasMissions,
   nextRevealAt,
+  intervalDrawsDue,
+  missionDrawsDue,
   parseTileMissionRules,
   serializeTileMissionRules,
   missionClaimCap,
@@ -32,8 +34,8 @@ import { getTierBands } from '@/lib/pluginConfig';
 // Concurrency: two ticks can overlap (per-minute cron + stats cron). Every flip is a conditional
 // UPDATE … WHERE revealed_at IS NULL, and only ACTUALLY flipped rows are announced, so a tile can
 // never double-post. An overlapping interval draw could in theory pick two different random tiles
-// for the same slot; the target-count math on the next tick simply absorbs it (the extra tile
-// counts toward the next batch), so the board never runs ahead by more than a race's worth.
+// for the same slot; both stamp the same draw time, so the clock carries on from it and the board
+// is at most one race's worth ahead.
 
 type EventRow = typeof events.$inferSelect;
 type TileRow = typeof tiles.$inferSelect;
@@ -117,18 +119,10 @@ async function revealPass(event: EventRow, rules: EventRules, now: string, event
     // until they get a time (or the host reveals them by setting one in the past).
     toReveal = hidden.filter((t) => t.revealAt != null && t.revealAt <= now);
   } else if (rules.revealPolicy === 'interval' || rules.revealPolicy === 'rotating') {
-    // Deterministic target count: one batch at start, another per elapsed interval. Computing
-    // the target (rather than "reveal one per tick") makes a missed tick self-heal — after
-    // downtime the board catches up to where the clock says it should be. Rotating draws the same
-    // way; expired tiles stay counted as revealed, so the cumulative target keeps pulling new ones.
-    const startMs = Date.parse(event.startDate!);
-    if (Number.isFinite(startMs)) {
-      const elapsedMs = Date.parse(now) - startMs;
-      const dueBatches = Math.floor(elapsedMs / (rules.revealIntervalMinutes * 60_000)) + 1;
-      const target = Math.min(eventTiles.length, dueBatches * rules.revealBatchSize);
-      const need = target - (eventTiles.length - hidden.length);
-      if (need > 0) toReveal = draw(hidden, need, rules.revealOrder);
-    }
+    // One batch at start, then one per interval after the previous draw (lib/eventRules
+    // drawClock — the same clock the countdowns read). Missed ticks catch up a batch per interval.
+    const need = intervalDrawsDue(event, rules, eventTiles, Date.parse(now));
+    if (need > 0) toReveal = draw(hidden, need, rules.revealOrder);
   } else if (rules.revealPolicy === 'bounty') {
     const anyOpen = eventTiles.some((t) => t.revealedAt != null && t.closedAt == null);
     if (!anyOpen) toReveal = draw(hidden, 1, rules.revealOrder);
@@ -211,7 +205,6 @@ async function announceMissionsForEvent(event: EventRow, rules: EventRules, now:
   const cfg = rules.mission;
   const announceMode = cfg?.announceMode ?? 'manual';
   const order: RevealOrder = cfg?.order ?? 'random';
-  const intervalMinutes = cfg?.intervalMinutes ?? 60;
 
   const hidden = missionTiles.filter((t) => t.revealedAt == null);
 
@@ -223,21 +216,17 @@ async function announceMissionsForEvent(event: EventRow, rules: EventRules, now:
     // second-guessing them, so the ramp stays out of this mode entirely.
     toReveal = hidden.filter((t) => t.revealAt != null && t.revealAt <= now);
   } else if (announceMode === 'interval' && hidden.length > 0) {
-    // One mission per interval, catch-up target from event start (self-heals a missed tick).
-    const startMs = Date.parse(event.startDate!);
-    if (Number.isFinite(startMs)) {
-      const dueBatches = Math.floor((Date.parse(now) - startMs) / (intervalMinutes * 60_000)) + 1;
-      const target = Math.min(missionTiles.length, dueBatches);
-      const need = target - (missionTiles.length - hidden.length);
-      if (need > 0) {
-        // Draw from the phase in force rather than the whole hidden set (lib/missionRamp): easy
-        // early, the hard ones near the end. No ramp configured = the whole set, as before.
-        const choice = missionPool(hidden, cfg?.tierRamp ?? [], event, Date.parse(now), await getTierBands(event.clanId));
-        if (choice.fellBack) {
-          log.info('reveal-engine.mission-ramp-exhausted', { eventId: event.id, wanted: choice.tiers });
-        }
-        toReveal = draw(choice.pool, need, order);
+    // One mission at start, then one an interval after the last drop (lib/eventRules
+    // missionDrawsDue — the same clock as the countdown); missed ticks catch up one per interval.
+    const need = missionDrawsDue(event, rules, eventTiles, Date.parse(now));
+    if (need > 0) {
+      // Draw from the phase in force rather than the whole hidden set (lib/missionRamp): easy
+      // early, the hard ones near the end. No ramp configured = the whole set, as before.
+      const choice = missionPool(hidden, cfg?.tierRamp ?? [], event, Date.parse(now), await getTierBands(event.clanId));
+      if (choice.fellBack) {
+        log.info('reveal-engine.mission-ramp-exhausted', { eventId: event.id, wanted: choice.tiers });
       }
+      toReveal = draw(choice.pool, need, order);
     }
   } else if (announceMode === 'daily' && cfg?.daily && hidden.length > 0) {
     // Today's schedule against today's drops. Counting only TODAY is what keeps a missed tick
