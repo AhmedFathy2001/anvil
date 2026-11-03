@@ -123,7 +123,7 @@ export default async function AdminPlanPage() {
         </section>
       </div>
 
-      <section className="mt-5 flex flex-wrap items-center gap-4 rounded-xl border border-card-border bg-card-bg px-5 py-4">
+      <section id="anvil-discord" className="mt-5 flex scroll-mt-24 flex-wrap items-center gap-4 rounded-xl border border-card-border bg-card-bg px-5 py-4">
         <p className="min-w-0 flex-[1_1_22rem] text-[14px] leading-relaxed text-text-muted">
           <b className="text-foreground">Run a clan on Anvil?</b> The Anvil Discord is where leaders swap setups, ask
           for features and hear first about what&rsquo;s coming.

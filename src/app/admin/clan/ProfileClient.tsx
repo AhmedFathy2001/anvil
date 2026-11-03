@@ -105,6 +105,7 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
   return (
     <div className="flex max-w-[62ch] flex-col gap-8">
       <Group
+        id="clan-image"
         title="Your clan's image"
         lede="Shown wherever your clan appears — your page, the directory, the switcher. Square works best, and an animated GIF or WebP stays animated; every clan has a generated crest until it has one of these."
       >
@@ -116,6 +117,7 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
       </Group>
 
       <Group
+        id="clan-banner"
         title="Banner"
         lede="Optional. Wide, 3:1 (e.g. 1500×500), across the top of your clan's page and behind its link previews. It can be animated, too."
       >
@@ -131,7 +133,7 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
         />
       </Group>
 
-      <Group title="The hook" lede="One line under your name, and a longer introduction. This is the first thing a stranger reads.">
+      <Group id="clan-hook" title="The hook" lede="One line under your name, and a longer introduction. This is the first thing a stranger reads.">
         <label className="text-[13px] font-medium text-text-muted">Tagline</label>
         <Input
           value={form.tagline}
@@ -149,7 +151,7 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
         />
       </Group>
 
-      <Group title="What you're about" lede="Pick the tags that fit — most clans are two or three.">
+      <Group id="clan-tags" title="What you're about" lede="Pick the tags that fit — most clans are two or three.">
         <div className="flex flex-wrap gap-2">
           {FOCUS.map((f) => {
             const on = form.focus.includes(f.value);
@@ -169,7 +171,7 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
         </div>
       </Group>
 
-      <Group title="Discovery" lede="Whether you want more members, and whether other clans can challenge you.">
+      <Group id="clan-discovery" title="Discovery" lede="Whether you want more members, and whether other clans can challenge you.">
         <div className="flex flex-col gap-2.5">
           <Checkbox
             className="rounded-xl border border-card-border bg-card-bg p-3.5 transition-colors hover:border-gold/40"
@@ -190,7 +192,7 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
         </div>
       </Group>
 
-      <Group title="To join" lede="Optional — what a recruit needs. Left blank, nothing shows.">
+      <Group id="clan-requirements" title="To join" lede="Optional — what a recruit needs. Left blank, nothing shows.">
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-[13px] font-medium text-text-muted">Min total level</label>
@@ -227,9 +229,9 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
   );
 }
 
-function Group({ title, lede, children }: { title: string; lede: string; children: React.ReactNode }) {
+function Group({ id, title, lede, children }: { id?: string; title: string; lede: string; children: React.ReactNode }) {
   return (
-    <section>
+    <section id={id} className="scroll-mt-24">
       <div className="mb-1.5 flex items-center gap-2.5">
         <span className="molten h-5 w-1 shrink-0 rounded-sm" />
         <h2 className="text-[16.5px] font-semibold">{title}</h2>

@@ -247,7 +247,7 @@ export default function PersonProfile({
           account met routing, nine webhook categories and level-post rules before it had a single
           thing that could post. And it starts folded: it is settings, not the page. */}
       {emission && characters.length > 0 && (
-        <section className="mt-10">
+        <section id="announcements" className="mt-10 scroll-mt-24">
           <h2 className="mb-1 text-lg font-semibold">Announcements &amp; webhooks</h2>
           <p className="mb-3 max-w-[70ch] text-sm text-text-muted">
             Where your social notifications go across every clan, and your own Discord destinations —

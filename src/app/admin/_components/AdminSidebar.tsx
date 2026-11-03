@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
 import { Sprite, type SpriteName } from '@/components/ItemSlot';
+import { SettingsSearchTrigger } from './AdminSettingsSearch';
 
 export interface SidebarItem {
   href: string;
@@ -49,6 +50,8 @@ interface Props {
   primary?: { href: string; label: string };
   /** Where "Admin guide" at the foot of the rail goes. Omitted = no link. */
   guideHref?: string;
+  /** Show the "Search settings" trigger (the dialog itself is mounted by the admin layout). */
+  search?: boolean;
 }
 
 /** /admin/events/12, /admin/events/weekly/3 — a specific event, which brings its own rail. */
@@ -56,7 +59,7 @@ function isInsideAnEvent(pathname: string): boolean {
   return /^\/admin\/events\/(weekly\/)?\d+(\/|$)/.test(pathname);
 }
 
-export default function AdminSidebar({ groups, user, scope = 'clan', header, primary, guideHref }: Props) {
+export default function AdminSidebar({ groups, user, scope = 'clan', header, primary, guideHref, search }: Props) {
   // Clan-relative, so a bare item.href can be compared to where we actually are.
   const here = useClanRelativePath();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -135,6 +138,8 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
             </div>
           </div>
           ) : null}
+
+          {search && <SettingsSearchTrigger onOpen={() => setMobileOpen(false)} />}
 
           {primary && (
             <ClanLink

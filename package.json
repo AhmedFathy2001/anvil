@@ -128,6 +128,7 @@
     "test:pluginembeds": "npx tsx --test tests/plugin-embeds.test.ts",
     "test:analytics": "npx tsx --test tests/analytics.test.ts",
     "test:webhooks": "npx tsx --test tests/webhook-fields.test.ts",
+    "test:settingsearch": "npx tsx --test tests/admin-settings-search.test.ts",
     "test:cofferpool": "npx tsx --test tests/coffer-pool.test.ts",
     "test:weeklyhold": "npx tsx --test tests/weekly-prize-hold.test.ts",
     "test:merge": "npx tsx --test tests/merge-people.test.ts",

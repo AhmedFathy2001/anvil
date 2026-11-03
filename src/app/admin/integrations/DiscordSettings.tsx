@@ -95,6 +95,7 @@ export default function DiscordSettings({
       <h2 className="display text-lg font-semibold pt-6">More settings</h2>
 
       <FoldSection
+        id="discord-connection"
         sprite="discord"
         title="Connection"
         summary={botEnabled ? 'The bot is in your server. Its name, language and permissions.' : 'The bot’s name, language and invite link.'}
@@ -200,7 +201,7 @@ export default function DiscordSettings({
         <EventPostDefaultsPanel />
       </FoldSection>
 
-      <FoldSection sprite="bandos" title="Roles & nicknames" summary="Who gets pinged, and keeping Discord roles and names in step with the clan.">
+      <FoldSection id="discord-roles" sprite="bandos" title="Roles & nicknames" summary="Who gets pinged, and keeping Discord roles and names in step with the clan.">
         <RoleSetting
           settingKey="discord_member_ping_role_id"
           label="Ping this role for big news"
@@ -222,7 +223,7 @@ export default function DiscordSettings({
         <RankRulesPanel />
       </FoldSection>
 
-      <FoldSection sprite="emblem" title="Team channels" summary="A private channel for each team during an event.">
+      <FoldSection id="discord-team-channels" sprite="emblem" title="Team channels" summary="A private channel for each team during an event.">
         <p className="text-sm text-text-muted">
           Private voice and text channels per team, made from each event’s Teams page and removed when it ends.
         </p>
@@ -230,12 +231,12 @@ export default function DiscordSettings({
       </FoldSection>
 
       {clanHallOn && (
-        <FoldSection sprite="petRock" title="Clan Hall card" summary="Shows who’s online in your Discord on your public clan page.">
+        <FoldSection id="discord-clan-hall" sprite="petRock" title="Clan Hall card" summary="Shows who’s online in your Discord on your public clan page.">
           <DiscordWidgetSettings />
         </FoldSection>
       )}
 
-      <FoldSection sprite="hammer" title="Commands" summary="Slash commands work by themselves. Switch off any your server doesn’t need.">
+      <FoldSection id="discord-commands" sprite="hammer" title="Commands" summary="Slash commands work by themselves. Switch off any your server doesn’t need.">
         <DiscordCommandToggles />
       </FoldSection>
 
