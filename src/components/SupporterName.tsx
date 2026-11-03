@@ -2,8 +2,9 @@ import SupporterFlairPopover from '@/components/SupporterFlairPopover';
 import type { SupporterTierId } from '@/lib/supporterTiers';
 
 /**
- * A name with its Anvil Supporter flair: a star and the tier's colour (gold, gradient, animated
- * gradient). With no tier it is just the name, so callers can wrap every name without branching.
+ * A name with its Anvil Supporter flair: a star and the tier's colour (gold, gradient, a gradient
+ * that moves on hover). With no tier it is just the name, so callers can wrap every name without
+ * branching.
  * Styles live in globals.css (`.supporter-name-*`).
  */
 export default function SupporterName({
@@ -20,7 +21,7 @@ export default function SupporterName({
 }) {
   if (!tier) return <span className={className}>{name}</span>;
   return (
-    <span className={`inline-flex items-center gap-1.5 min-w-0 ${className}`}>
+    <span className={`supporter-flair inline-flex items-center gap-1.5 min-w-0 ${className}`}>
       {plain ? (
         <SupporterStar />
       ) : (
