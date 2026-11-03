@@ -92,10 +92,12 @@ export async function ensureSupporterRef(userId: number): Promise<string> {
  * The hosted Gumroad checkout for Supporter, carrying the buyer's ref so the sale finds them. Null
  * when the product is not configured on this deployment (the page then hides the buy buttons).
  */
-export function supporterCheckoutUrl(ref: string): string | null {
+export function supporterCheckoutUrl(ref: string, via?: string | null): string | null {
   const base = process.env.GUMROAD_URL_SUPPORTER;
   if (!base) return null;
   const url = new URL(base);
   url.searchParams.set('ref', ref);
+  // Whose invite brought them (lib/referrals); Gumroad echoes it back on the sale.
+  if (via) url.searchParams.set('via', via);
   return url.toString();
 }

@@ -10,6 +10,15 @@ export interface SupporterView {
   months: number;
   renewsAt: string | null;
   endsAt: string | null;
+  earned: boolean;
+}
+
+/** The person's invite link and what it has earned (lib/referrals). */
+export interface InviteView {
+  link: string;
+  held: number;
+  granted: number;
+  monthsEarned: number;
 }
 
 export function supporterView(state: SupporterState | null): SupporterView | null {
@@ -21,6 +30,7 @@ export function supporterView(state: SupporterState | null): SupporterView | nul
     months: state.months,
     renewsAt: state.renewsAt,
     endsAt: state.endsAt,
+    earned: state.earned,
   };
 }
 
@@ -36,10 +46,11 @@ function day(stamp: string | null): string | null {
  * when it renews or ends, with a way to change tier or manage the subscription. Someone who isn't
  * supporting sees one quiet line pointing at the tier page: never a pitch to someone already paying.
  */
-export default function SupporterSection({ supporter }: { supporter: SupporterView | null }) {
+export default function SupporterSection({ supporter, invite = null }: { supporter: SupporterView | null; invite?: InviteView | null }) {
   if (!supporter) {
     return (
       <section className="mt-10">
+        {invite && <InviteCard invite={invite} />}
         <h2 className="mb-3 text-lg font-semibold">Anvil Supporter</h2>
         <ClanLink
           href="/supporter"
@@ -75,7 +86,9 @@ export default function SupporterSection({ supporter }: { supporter: SupporterVi
           </span>
         </div>
         <p className="mt-2 text-sm text-text-muted">
-          {ends ? (
+          {supporter.earned && ends ? (
+            <>Earned through your invites. Your perks run until {ends}.</>
+          ) : ends ? (
             <>Cancelled. Your perks stay until {ends}.</>
           ) : renews ? (
             <>Renews {renews}.</>
@@ -102,6 +115,35 @@ export default function SupporterSection({ supporter }: { supporter: SupporterVi
           </a>
         </div>
       </div>
+      {invite && <InviteCard invite={invite} />}
     </section>
+  );
+}
+
+/**
+ * Invite friends. Only a purchase counts, and the reward is held two weeks so a refund can't farm it:
+ * said plainly, so nobody wonders why a friend's sign-up didn't show up yet.
+ */
+function InviteCard({ invite }: { invite: InviteView }) {
+  return (
+    <div className="mt-3 rounded-xl border border-card-border bg-card-bg p-4">
+      <p className="font-medium">Invite friends, earn Supporter time</p>
+      <p className="mt-1 text-sm text-text-muted">
+        When someone becomes a Supporter through your link, you get a month free (three for a yearly
+        plan), or a month a tier up if you already support. It lands two weeks after their first payment.
+      </p>
+      <input
+        readOnly
+        value={invite.link}
+        aria-label="Your invite link"
+        className="mt-3 w-full rounded-lg border border-card-border bg-background/40 px-3 py-2 font-mono text-[13px]"
+      />
+      {(invite.held > 0 || invite.granted > 0) && (
+        <p className="mt-2 text-xs text-text-dim">
+          {invite.granted} joined · {invite.monthsEarned} month{invite.monthsEarned === 1 ? '' : 's'} earned
+          {invite.held > 0 && <> · {invite.held} on the way</>}
+        </p>
+      )}
+    </div>
   );
 }

@@ -28,6 +28,8 @@ import SecurityDrawer from './SecurityDrawer';
 import { emissionSettingsView } from '@/lib/emissionSettings';
 import { atLeast } from '@/lib/clanRoles';
 import { supporterForUser } from '@/lib/supporter';
+import { referralSummary } from '@/lib/referrals';
+import { apexOrigin } from '@/lib/seo';
 import { supporterView } from '@/components/SupporterSection';
 import ClanLink from '@/components/ClanLink';
 import { onboardingNext } from '@/lib/firstLogin';
@@ -82,7 +84,7 @@ export default async function ProfilePage({
     // merge several clans into a picture true of nobody, show what IS true of the PERSON: the
     // characters they play, who they share, their clans — and the platform-level settings that route
     // between clans (webhooks + emission), which never belonged on any single clan's locker.
-    const [myClans, characters, person, emission, onboarding, detectedRows, supporter] = await Promise.all([
+    const [myClans, characters, person, emission, onboarding, detectedRows, supporter, referral] = await Promise.all([
       clansOfPerson(session.playerId, session.userId),
       session.playerId == null
         ? Promise.resolve([])
@@ -110,6 +112,7 @@ export default async function ProfilePage({
         orderBy: (d, { desc }) => [desc(d.lastSeenAt)],
       }),
       supporterForUser(session.userId),
+      referralSummary(session.userId).catch(() => null),
     ]);
     const ownedRsns = new Set(characters.map((a) => a.rsnNormalized));
     const ownedHashes = new Set(characters.map((a) => a.accountHash).filter(Boolean) as string[]);
@@ -140,6 +143,11 @@ export default async function ProfilePage({
         suggestedRsn={suggestedRsn}
         unfinishedSetup={onboarding.offer}
         supporter={supporterView(supporter)}
+        invite={
+          referral && process.env.GUMROAD_URL_SUPPORTER
+            ? { link: `${apexOrigin()}/r/${referral.code}`, held: referral.held, granted: referral.granted, monthsEarned: referral.monthsEarned }
+            : null
+        }
       />
     );
   }

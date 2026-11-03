@@ -95,6 +95,8 @@ export const PLATFORM_ROOTS = [
   '/features',
   '/pricing',
   '/supporter',
+  // Invite links (lib/referrals): a person's, never a clan's.
+  '/r/',
   '/portal',
   '/legal',
   '/api/profile',

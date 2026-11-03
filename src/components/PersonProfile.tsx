@@ -9,7 +9,7 @@ import type { MyClan } from '@/lib/myClans';
 import type { EmissionSettingsView } from '@/lib/emissionSettings';
 import DetectedAccountsClient from '@/app/profile/DetectedAccountsClient';
 import SupporterName from '@/components/SupporterName';
-import SupporterSection, { type SupporterView } from '@/components/SupporterSection';
+import SupporterSection, { type InviteView, type SupporterView } from '@/components/SupporterSection';
 import GuestSeatsClient, { type GuestSeatRow } from '@/app/profile/GuestSeatsClient';
 import WrongClanReport, { type WrongClanOption } from '@/app/profile/WrongClanReport';
 
@@ -47,6 +47,7 @@ export default function PersonProfile({
   suggestedRsn = '',
   unfinishedSetup = false,
   supporter = null,
+  invite = null,
   guestSeats = [],
 }: {
   /** Their live guest seats, each leavable from here. */
@@ -65,6 +66,7 @@ export default function PersonProfile({
   emission?: EmissionSettingsView | null;
   /** Their Anvil Supporter subscription, if one is in force. Person-level, so it lives here. */
   supporter?: SupporterView | null;
+  invite?: InviteView | null;
 }) {
   return (
     <div className="max-w-3xl mx-auto">
@@ -257,7 +259,7 @@ export default function PersonProfile({
         </section>
       )}
 
-      <SupporterSection supporter={supporter} />
+      <SupporterSection supporter={supporter} invite={invite} />
 
       {/* Billing is a platform concern too — one account, one subscription, wherever you host. Only
           for someone who owns a clan: subscriptions are per hosted clan (see /portal), and a player

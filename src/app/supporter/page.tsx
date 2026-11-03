@@ -1,4 +1,6 @@
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
+import { REFERRAL_COOKIE } from '@/lib/referrals';
+import { isReferralCode } from '@/lib/referralRules';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
@@ -43,7 +45,9 @@ export default async function SupporterPage() {
 
   const session = await verifyUser();
   const current = session ? await supporterForUser(session.userId) : null;
-  const checkout = session ? supporterCheckoutUrl(await ensureSupporterRef(session.userId)) : null;
+  const viaCookie = (await cookies()).get(REFERRAL_COOKIE)?.value ?? null;
+  const via = isReferralCode(viaCookie) ? viaCookie : null;
+  const checkout = session ? supporterCheckoutUrl(await ensureSupporterRef(session.userId), via) : null;
   // The name people see on their card, for the preview (the session's username is a login handle).
   const me = session
     ? (await db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { displayName: true } }))?.displayName ?? null
