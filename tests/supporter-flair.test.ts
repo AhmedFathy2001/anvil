@@ -45,3 +45,11 @@ test('a name with its own icon keeps it (a team swatch is information)', () => {
   assert.equal(boaty.move, undefined);
   assert.equal((applyFlair(nameText('P'), () => SUPPORTER_INK.patron) as Extract<Node, { t: 'text' }>).move, true, 'Patron moves');
 });
+
+test('tiersByName re-keys normalised tiers by the names as the page spells them', async () => {
+  const { tiersByName } = await import('../src/lib/supporterTiers.ts');
+  const norm = (n: string) => n.replace(/_/g, ' ').toLowerCase();
+  const tiers = new Map([['lynx titan', 'patron' as const], ['zezima', 'supporter' as const]]);
+  assert.deepEqual(tiersByName(['Lynx_Titan', 'Zezima', 'B0aty'], tiers, norm), { Lynx_Titan: 'patron', Zezima: 'supporter' });
+  assert.deepEqual(tiersByName([], tiers, norm), {});
+});

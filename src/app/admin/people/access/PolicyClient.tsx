@@ -70,6 +70,7 @@ export default function PolicyClient() {
   return (
     <div className="flex flex-col gap-8">
       <Group
+        id="access-visibility"
         title="Who can see this clan"
         lede="Boards, roster and records. Most clans paste the board link into Discord, so this is public by default."
       >
@@ -93,6 +94,7 @@ export default function PolicyClient() {
       </Group>
 
       <Group
+        id="access-guests"
         title="Players from other clans"
         lede="Guests can play in your events without leaving their own clan."
       >
@@ -117,6 +119,7 @@ export default function PolicyClient() {
       </Group>
 
       <Group
+        id="access-listing"
         title="Listing"
         lede="Whether this clan appears where people go looking for one."
       >
@@ -145,16 +148,18 @@ export default function PolicyClient() {
 }
 
 function Group({
+  id,
   title,
   lede,
   children,
 }: {
+  id?: string;
   title: string;
   lede: string;
   children: React.ReactNode;
 }) {
   return (
-    <section>
+    <section id={id} className="scroll-mt-24">
       <div className="mb-1.5 flex items-center gap-2.5">
         <span className="molten h-5 w-1 shrink-0 rounded-sm" />
         <h2 className="text-[16.5px] font-semibold">{title}</h2>

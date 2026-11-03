@@ -47,7 +47,7 @@ export default function DeleteClan({ slug, isOwner }: { slug: string; isOwner: b
   }
 
   return (
-    <div className="mt-8 rounded-xl border border-red-900/40 bg-card-bg p-5">
+    <div id="delete-clan" className="mt-8 scroll-mt-24 rounded-xl border border-red-900/40 bg-card-bg p-5">
       <div className="flex items-center gap-2">
         <span className="h-5 w-1 rounded-full bg-accent-red" />
         <h2 className="text-lg font-semibold">Delete this clan</h2>

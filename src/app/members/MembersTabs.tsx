@@ -12,6 +12,7 @@ import type {
   RosterEvent,
   RosterMovement,
 } from '@/lib/memberProfile';
+import type { SupporterTierId } from '@/lib/supporterTiers';
 
 // The roster is what people come here for, so it stays the landing view and keeps the length it
 // always had. The clue/minigame/collection-log analytics are a whole page of their own — parked on
@@ -36,6 +37,7 @@ export default function MembersTabs({
   movement,
   rankOrder,
   luck,
+  supporterTiers,
   lately,
 }: {
   members: MemberListRow[];
@@ -47,6 +49,8 @@ export default function MembersTabs({
   rankOrder: string[];
   /** Dry streaks + spoons, from synced collection logs (lib/clogLuckBoard). */
   luck: React.ComponentProps<typeof ClanLuck>;
+  /** Supporter tier by roster name, supporters only (lib/supporter supporterTiersByName). */
+  supporterTiers: Record<string, SupporterTierId>;
   /**
    * The clan's moments feed, rendered on the server and handed over whole.
    *
@@ -81,8 +85,8 @@ export default function MembersTabs({
 
       {tab === 'roster' && (
         <>
-          <ClanPulse analytics={analytics} members={members} rosterLog={rosterLog} />
-          <MembersDirectory members={members} movement={movement} rankOrder={rankOrder} />
+          <ClanPulse analytics={analytics} members={members} rosterLog={rosterLog} supporterTiers={supporterTiers} />
+          <MembersDirectory members={members} movement={movement} rankOrder={rankOrder} supporterTiers={supporterTiers} />
         </>
       )}
 

@@ -10,6 +10,8 @@ import { and, count, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
 import AdminSidebar, { type SidebarGroup } from './_components/AdminSidebar';
+import AdminSettingsSearch from './_components/AdminSettingsSearch';
+import { FEATURES } from '@/lib/features';
 import { getSetupStatus } from '@/lib/setupStatus';
 import { pendingClaimRequests } from '@/lib/claimRequests';
 import { pendingUpdateCount } from '@/lib/guides';
@@ -148,9 +150,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       role: isScopedEditor && isGuideWriter ? 'board & guide editor' : isScopedEditor ? 'board editor' : 'guide editor',
       avatarUrl: userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null,
     };
+    const scopedFeatures = await getClanFeatures(clan.id);
     return (
       <div className="lg:flex lg:gap-6">
-        <AdminSidebar groups={scopedGroups} user={scopedUser} />
+        <AdminSidebar groups={scopedGroups} user={scopedUser} search />
+        <AdminSettingsSearch access={access} features={FEATURES.filter((f) => scopedFeatures.on(f.key)).map((f) => f.key)} />
         <div className="flex-1 min-w-0">{children}</div>
       </div>
     );
@@ -283,7 +287,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="lg:flex lg:gap-6">
-      <AdminSidebar groups={groups} user={user} primary={primary} guideHref="/guide/admin" />
+      <AdminSidebar groups={groups} user={user} primary={primary} guideHref="/guide/admin" search />
+      {/* Ctrl/Cmd+K from anywhere in the admin area — inside an event too, where the rail above is hidden. */}
+      <AdminSettingsSearch access={access} features={FEATURES.filter((f) => features.on(f.key)).map((f) => f.key)} />
       <div className="flex-1 min-w-0">
         {session.actingAs && (
           // Borrowed authority, said out loud. An operator working inside someone else's clan should

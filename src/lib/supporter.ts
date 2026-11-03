@@ -10,7 +10,7 @@ import { db } from '@/db';
 import { accounts, supporterSubscriptions, users } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { newCheckoutRef } from '@/lib/billing';
-import { supporterState, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
+import { supporterState, tiersByName, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
 
 export * from '@/lib/supporterTiers';
 
@@ -77,6 +77,16 @@ export async function supporterTiersForRsns(rsns: string[]): Promise<Map<string,
     if (state) out.set(rsn, state.tier.id);
   }
   return out;
+}
+
+/**
+ * supporterTiersForRsns keyed by the names as given, for a page handing a list to the browser. The
+ * tier rides on the CHARACTER's name only — never the person or their other characters — the same
+ * as the plugin panel's flair. Flair is decoration: a failed read is no flair, never a broken page.
+ */
+export async function supporterTiersByName(names: string[]): Promise<Record<string, SupporterTierId>> {
+  const tiers = await supporterTiersForRsns(names).catch(() => new Map<string, SupporterTierId>());
+  return tiersByName(names, tiers, normalizeRsn);
 }
 
 /** The person's Supporter checkout ref, creating one on first use. Stable for the life of the login. */
