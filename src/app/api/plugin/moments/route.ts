@@ -75,6 +75,9 @@ function int(v: unknown, max: number): number | null {
  * genuinely happened during — so anything outside the window becomes "now", which is when we
  * actually learned about it.
  */
+/** How old a report may be and still go to other players' chat. */
+const FEED_MAX_AGE_MS = 10 * 60_000;
+
 function occurredAt(v: unknown, now: number): string {
   const parsed = typeof v === 'string' ? Date.parse(v) : NaN;
   if (!Number.isFinite(parsed) || parsed > now || now - parsed > MAX_AGE_MS) {
@@ -92,13 +95,21 @@ async function seatlessCharacter(request: Request): Promise<{ userId: number; ac
 }
 
 async function feedFrom(character: { userId: number; accountId: number; rsn: string }, raws: unknown[]): Promise<void> {
+  const now = Date.now();
   for (const raw of raws) {
     if (!raw || typeof raw !== 'object') continue;
     const r = raw as Record<string, unknown>;
     const key = str(r.key, 64);
     const item = feedItemFromMoment(r, character.rsn);
     if (!key || !item) continue;
+    // Other people's chat is live: a replayed or long-queued report is not news, so it is not relayed.
+    const at = typeof r.at === 'string' ? Date.parse(r.at) : NaN;
+    if (!Number.isFinite(at) || at > now + 60_000 || now - at > FEED_MAX_AGE_MS) continue;
     if (!(await claimFeedItem(character.accountId, `${item.kind}:${key}`))) continue;
+    // What one character may put in other people's chat, whatever it claims to have done. Real play is
+    // a handful an hour; this only stops a modified client flooding everyone it can reach.
+    const cap = await rateLimitByKey('chatfeed', String(character.accountId), { limit: 12, windowMs: 10 * 60_000 });
+    if (!cap.ok) return;
     await emitPersonalItem(character, item);
   }
 }
