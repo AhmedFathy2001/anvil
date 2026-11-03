@@ -48,6 +48,8 @@ export interface HomeWeekly {
   startDate: string;
   endDate: string;
   entrants: number;
+  /** Entrants who have gained anything — "scoring" means this, not everyone who entered. */
+  scoring: number;
   /** Winner (completed) or current leader (active), with their gain. Null before anyone scores. */
   top: { rsn: string; value: number; tied: boolean } | null;
   /** Clan-wide gain per day across the competition, for the card's shape. Empty when out of window. */
@@ -260,6 +262,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
       startDate: c.startDate,
       endDate: c.endDate,
       entrants: parts.length,
+      scoring: ranked.length,
       // A tie at the top is said out loud rather than resolved behind the scenes — see
       // computeLeaderboard on why the pick itself is alphabetical.
       top: ranked[0] ? { rsn: ranked[0].rsn, value: ranked[0].value, tied: ranked[1]?.value === ranked[0].value } : null,

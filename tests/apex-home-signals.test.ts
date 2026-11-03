@@ -125,6 +125,8 @@ test('a live competition comes back ranked, with the field size', async () => {
   assert.equal(a!.position, 4, 'three people are ahead');
   assert.equal(a!.fieldSize, 5);
   assert.equal(a!.gained, 3_020_000);
+  assert.equal(a!.scoring, 5, 'everyone has gained something');
+  assert.equal(a!.leaderGained, 4_100_000, 'bars are measured against the real leader');
 
   // The gaps are the whole point of the hero — they are what makes a standing actionable.
   assert.equal(a!.gapAhead, 320_000, 'to third');
