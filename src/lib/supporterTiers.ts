@@ -29,6 +29,24 @@ export const SUPPORTER_TIER_ORDER: SupporterTierId[] = ['supporter', 'champion',
 // Name colours: each tier's default ink, the presets and a person's own choice (lib/supporterStyle).
 export { SUPPORTER_INK } from './supporterStyle.ts';
 
+/**
+ * Re-key a tier map (keyed by normalised RSN) by the names exactly as a page spells them, so a client
+ * component can look a row up by its own `rsn` without the normaliser. Only supporters appear, so
+ * the record stays small however long the list.
+ */
+export function tiersByName<T = SupporterTierId>(
+  names: string[],
+  tiers: Map<string, T>,
+  normalize: (name: string) => string,
+): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const name of names) {
+    const tier = tiers.get(normalize(name));
+    if (tier) out[name] = tier;
+  }
+  return out;
+}
+
 /** The tier a Gumroad tier name means ("Champion" → champion). Unknown names are null, never a guess. */
 export function supporterTierForGumroad(name: string | null | undefined): SupporterTierId | null {
   const key = (name ?? '').trim().toLowerCase();

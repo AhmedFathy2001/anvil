@@ -112,5 +112,5 @@ test('Discord star: static for defaults, drawn in their colours otherwise', () =
   assert.equal(supporterStarUrl('champion', { preset: 'ocean' }, 'https://a'), 'https://a/api/og/supporter-star/7ae0ff-4da3ff-9a8cff');
   assert.equal(supporterStarUrl('champion', { stops: ['#ff0000', '#00ffcc'] }, 'https://a'), 'https://a/icons/supporter-champion.png');
   const e = withSupporterAuthor({ author: { name: 'Zezima' } }, 'patron', 'https://a', { stops: ['#ff0000', '#00ffcc'] });
-  assert.equal((e.author as { icon_url: string }).icon_url, 'https://a/api/og/supporter-star/ff0000-00ffcc');
+  assert.equal((e.author as unknown as { icon_url: string }).icon_url, 'https://a/api/og/supporter-star/ff0000-00ffcc');
 });

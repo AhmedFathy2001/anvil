@@ -122,7 +122,7 @@ test('clearing removes every test drop', async () => {
 });
 
 test('a person’s chosen colours ride the same reads, gated by the tier in force', async () => {
-  const { supporterForUser, supporterInksForRsns } = await import('../src/lib/supporter.ts');
+  const { supporterForUser, supporterInksForRsns, supporterLooksByName } = await import('../src/lib/supporter.ts');
   const [p] = await db.insert(s.players).values({ displayName: 'Painter' }).returning();
   const [u] = await db
     .insert(s.users)
@@ -132,6 +132,7 @@ test('a person’s chosen colours ride the same reads, gated by the tier in forc
   await L.setLabTier(u.id, 'patron');
   assert.deepEqual((await supporterForUser(u.id))?.style, { stops: ['#ff0000', '#00ffcc'] });
   assert.deepEqual((await supporterInksForRsns(['Painter'])).get('painter'), { color: '#ff0000', grad: ['#ff0000', '#00ffcc'], move: true });
+  assert.deepEqual(await supporterLooksByName(['Painter', 'Nobody Here']), { Painter: { tier: 'patron', style: { stops: ['#ff0000', '#00ffcc'] } } });
   await L.setLabTier(u.id, 'champion');
   assert.equal((await supporterForUser(u.id))?.style, null, 'a Champion can’t wear a Patron’s own colours');
   assert.equal((await supporterInksForRsns(['Painter'])).get('painter')?.color, '#e05ad0');

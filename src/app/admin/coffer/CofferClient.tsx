@@ -347,7 +347,7 @@ export default function CofferClient({
         )}
       </Section>
 
-      <Section title="Record a donation">
+      <Section id="coffer-record-donation" title="Record a donation">
         <div className="p-3 space-y-3">
           <p className="text-[11px] text-text-muted">
             For gp handed over in game rather than reported through the site. Credited to whoever gave
@@ -458,7 +458,7 @@ export default function CofferClient({
         </div>
       </Section>
 
-      <Section title="Correct the pot">
+      <Section id="coffer-correct" title="Correct the pot">
         <div className="p-3 space-y-2">
           <p className="text-[11px] text-text-muted">
             For gp that moved outside Anvil — seeding the pot, spending it on something else, fixing a
@@ -589,9 +589,9 @@ function Figure({ label, value, hint, accent }: { label: string; value: string; 
   );
 }
 
-function Section({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
+function Section({ id, title, count, children }: { id?: string; title: string; count?: number; children: React.ReactNode }) {
   return (
-    <div className="mb-6">
+    <div id={id} className="mb-6 scroll-mt-24">
       <h2 className="text-lg font-bold mb-2 flex items-center gap-2">
         <span className="w-1 h-5 bg-gold rounded-full" />
         {title}

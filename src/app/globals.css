@@ -314,7 +314,9 @@ input[type='number']::-webkit-inner-spin-button,
 input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 
 /* Anvil Supporter name flair (components/SupporterName). Supporter is solid gold; Champion a gradient;
-   Patron the same gradient, moving. The motion stops for anyone who asked for less of it. */
+   Patron its own gradient, which moves while you point at the name (or the link around it) or focus
+   it. Still by default: a roster or ladder full of names each repainting every frame was what made
+   pages with several Patrons stutter. The motion never starts for anyone who asked for less of it. */
 .supporter-name-supporter { color: var(--gold-light); }
 .supporter-name-champion,
 .supporter-name-patron {
@@ -329,5 +331,11 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
 }
 @keyframes supporter-shift { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
 @media (prefers-reduced-motion: no-preference) {
-  .supporter-name-patron { animation: supporter-shift 4s linear infinite; }
+  .supporter-flair:hover .supporter-name-patron,
+  a:hover .supporter-name-patron,
+  a:focus-visible .supporter-name-patron,
+  .supporter-flair:focus-within .supporter-name-patron {
+    animation: supporter-shift 4s linear infinite;
+    will-change: background-position;
+  }
 }

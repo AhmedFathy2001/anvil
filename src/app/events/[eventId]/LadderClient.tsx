@@ -18,6 +18,7 @@ import type { Tile as FullTile, Submission as FullSubmission } from '@/lib/types
 import { clanFetch } from '@/lib/clanFetch';
 import StandingsHiddenNotice from '@/components/StandingsHiddenNotice';
 import type { StandingsCurtainInfo } from '@/lib/standingsVisibility';
+import type { SupporterLook } from '@/lib/supporterStyle';
 
 /**
  * The ladder event page.
@@ -68,6 +69,8 @@ interface Props {
    * viewer's own rank) is withheld and the notice stands in for it.
    */
   curtain?: StandingsCurtainInfo | null;
+  /** Supporter tier by standings name; only supporters appear. */
+  supporterLooks?: Record<string, SupporterLook>;
 }
 
 export default function LadderClient({
@@ -84,6 +87,7 @@ export default function LadderClient({
   showTeam,
   poolSize,
   curtain = null,
+  supporterLooks = {},
 }: Props) {
   const router = useRouter();
   const rules = useMemo(() => parseEventRules(event.rules), [event.rules]);
@@ -176,6 +180,7 @@ export default function LadderClient({
               sparks={view.sparks}
               mePlayerId={view.me?.playerId ?? null}
               showTeam={showTeam}
+              supporterLooks={supporterLooks}
             />
           </div>
         </>
@@ -218,6 +223,7 @@ export default function LadderClient({
               mePlayerId={view.me?.playerId ?? null}
               showTeam={showTeam}
               finished={finished}
+              supporterLooks={supporterLooks}
             />
             {nowMs !== null && <ActivityFeed feed={view.feed} nowMs={nowMs} />}
           </div>

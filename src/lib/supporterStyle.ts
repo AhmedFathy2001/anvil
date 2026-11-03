@@ -17,6 +17,12 @@ export interface SupporterStyle {
   stops?: Hex[];
 }
 
+/** Everything a page needs to draw one person's flair: their tier and their (gated) colours. */
+export interface SupporterLook {
+  tier: SupporterTierId;
+  style: SupporterStyle | null;
+}
+
 /** How a name is drawn: a solid colour every renderer understands, and the gradient a newer one draws. */
 export interface SupporterInk {
   color: Hex;

@@ -3,8 +3,9 @@ import { supporterGradientCss, supporterInk, type SupporterStyle } from '@/lib/s
 import type { SupporterTierId } from '@/lib/supporterTiers';
 
 /**
- * A name with its Anvil Supporter flair: a star and the tier's colour (gold, gradient, animated
- * gradient). With no tier it is just the name, so callers can wrap every name without branching.
+ * A name with its Anvil Supporter flair: a star and the tier's colour (gold, gradient, a gradient
+ * that moves on hover). With no tier it is just the name, so callers can wrap every name without
+ * branching.
  * Styles live in globals.css (`.supporter-name-*`); a person's own colours (a Champion preset, a
  * Patron's custom stops, lib/supporterStyle) replace only the gradient, inline, so the class keeps
  * the clipping and the Patron motion.
@@ -27,7 +28,7 @@ export default function SupporterName({
   if (!tier) return <span className={className}>{name}</span>;
   const gradient = style ? supporterGradientCss(supporterInk(tier, style)) : null;
   return (
-    <span className={`inline-flex items-center gap-1.5 min-w-0 ${className}`}>
+    <span className={`supporter-flair inline-flex items-center gap-1.5 min-w-0 ${className}`}>
       {plain ? (
         <SupporterStar />
       ) : (

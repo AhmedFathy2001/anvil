@@ -10,8 +10,8 @@ import { db } from '@/db';
 import { accounts, supporterSubscriptions, users } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { newCheckoutRef } from '@/lib/billing';
-import { supporterInk, type SupporterInk } from '@/lib/supporterStyle';
-import { supporterState, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
+import { supporterInk, type SupporterInk, type SupporterLook } from '@/lib/supporterStyle';
+import { supporterState, tiersByName, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
 
 export * from '@/lib/supporterTiers';
 export * from '@/lib/supporterStyle';
@@ -105,6 +105,25 @@ export async function supporterInksForRsns(rsns: string[]): Promise<Map<string, 
   const out = new Map<string, SupporterInk>();
   for (const [rsn, state] of await supporterStatesForRsns(rsns)) out.set(rsn, supporterInk(state.tier.id, state.style));
   return out;
+}
+
+/**
+ * Each name's supporter look (tier and their gated colours), keyed by the names as given, for a page
+ * handing a list to the browser. The look rides on the CHARACTER's name only — never the person or
+ * their other characters — the same as the plugin panel's flair. One query; flair is decoration, so
+ * a failed read is no flair, never a broken page.
+ */
+export async function supporterLooksByName(names: string[]): Promise<Record<string, SupporterLook>> {
+  const states = await supporterStatesForRsns(names).catch(() => new Map<string, SupporterState>());
+  const looks = new Map<string, SupporterLook>();
+  for (const [rsn, state] of states) looks.set(rsn, { tier: state.tier.id, style: state.style });
+  return tiersByName(names, looks, normalizeRsn);
+}
+
+/** supporterLooksByName, tiers only. */
+export async function supporterTiersByName(names: string[]): Promise<Record<string, SupporterTierId>> {
+  const tiers = await supporterTiersForRsns(names).catch(() => new Map<string, SupporterTierId>());
+  return tiersByName(names, tiers, normalizeRsn);
 }
 
 /** The person's Supporter checkout ref, creating one on first use. Stable for the life of the login. */
