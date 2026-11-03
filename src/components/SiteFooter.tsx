@@ -71,6 +71,9 @@ export default async function SiteFooter() {
               </ClanLink>
             </>
           )}
+          <ClanLink href="/supporter" className="text-gold/80 transition-colors hover:text-gold">
+            Support Anvil
+          </ClanLink>
           <ClanLink href="/guide" className="transition-colors hover:text-foreground">
             Guides
           </ClanLink>

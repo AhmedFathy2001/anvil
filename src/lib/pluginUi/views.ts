@@ -318,8 +318,12 @@ async function homeView(request: Request, a: Args): Promise<View> {
     // Past the top 50 the route still names your own row.
     weekly.set(id, { total: b.total, top, you: top.find((e) => e.self) ?? (b.you ? { ...b.you, self: true } : null) });
   }
+  // Cheap and best effort: the support line is a nudge, never a reason the panel fails.
+  const viewer = await verifyPluginTokenUser(request).catch(() => null);
+  const supportCta = !(viewer && (await supporterForUser(viewer.userId).catch(() => null)));
   const data: HomeData = {
     cfg,
+    supportCta,
     live,
     inGame: !!me,
     feed,
