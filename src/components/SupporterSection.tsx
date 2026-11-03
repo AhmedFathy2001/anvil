@@ -4,6 +4,7 @@ import { REFERRAL_MILESTONES as MILESTONES } from '@/lib/referralRules';
 import { SITE } from '@/lib/site';
 import SupporterName from '@/components/SupporterName';
 import SupporterAnnounceToggle from '@/components/SupporterAnnounceToggle';
+import SupporterGameChatToggle from '@/components/SupporterGameChatToggle';
 import SupporterStylePicker from '@/components/SupporterStylePicker';
 import type { SupporterStyle } from '@/lib/supporterStyle';
 import { tenureStep, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
@@ -62,11 +63,14 @@ export default function SupporterSection({
   invite = null,
   name = null,
   announce = null,
+  gameChat = null,
 }: {
   supporter: SupporterView | null;
   invite?: InviteView | null;
   /** Their "announce me" choice for the Anvil Discord; null hides the toggle. */
   announce?: boolean | null;
+  /** Their "colours in game chat" choice; null hides the toggle. */
+  gameChat?: boolean | null;
   /** Their own display name, previewed in each tier's flair. */
   name?: string | null;
 }) {
@@ -163,6 +167,7 @@ export default function SupporterSection({
           </a>
         </div>
         <SupporterStylePicker tier={supporter.tier} name={name || 'Your name'} initial={supporter.style} />
+        {gameChat != null && <SupporterGameChatToggle initial={gameChat} />}
       </div>
       {invite && <InviteCard invite={invite} />}
       <DiscordCard announce={announce} />

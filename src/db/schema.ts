@@ -1408,6 +1408,9 @@ export const users = pgTable('users', {
   // Post "<name> became an Anvil <tier>" in the Anvil Discord when their membership starts
   // (lib/anvilDiscord). Default on; a toggle on /profile turns it off.
   announceSupporter: boolean('announce_supporter').notNull().default(true),
+  // Show their Supporter colours (and a Patron's star) on their characters' names in normal game chat,
+  // for other Anvil plugin users (GET /api/plugin/chat-flair). Default on; a toggle turns it off.
+  gameChatFlair: boolean('game_chat_flair').notNull().default(true),
   // What the in-game chat feed shows this person (lib/chatFeedRules ChatFeedPrefs, JSON). NULL = the
   // defaults. The plugin holds only the master switch; everything finer lives here.
   chatFeedPrefs: text('chat_feed_prefs'),
