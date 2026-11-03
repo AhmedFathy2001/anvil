@@ -46,7 +46,21 @@ export interface WeeklyRow {
   createdAt: string;
 }
 
-export type ListItem = EventRow | WeeklyRow;
+/** A clan event (lib/clanEvents): a mass or hangout, at its occurrence on now, next, or last. */
+export interface ClanRow {
+  kind: 'clan';
+  id: number;
+  title: string;
+  repeat: 'none' | 'weekly';
+  location: string | null;
+  host: string | null;
+  /** This occurrence's start and end, ISO UTC. */
+  startDate: string;
+  endDate: string;
+  createdAt: string;
+}
+
+export type ListItem = EventRow | WeeklyRow | ClanRow;
 
 interface Props {
   running: ListItem[];
@@ -219,6 +233,8 @@ export default function EventsClient({
           </SectionHead>
           {hero.kind === 'event' ? (
             <RunningEventHero event={hero} summary={summaries[hero.id]} canManage={canManage} />
+          ) : hero.kind === 'clan' ? (
+            <AlsoRunningRow href={`/admin/clan-events/${hero.id}`} title={hero.title} detail={clanDetail(hero)} endDate={hero.endDate} />
           ) : (
             <RunningWeeklyHero comp={hero} />
           )}
@@ -233,6 +249,14 @@ export default function EventsClient({
                     detail={`${eventShapeBadge(item.format, item.scoringMode, item.boardSize, item.rules)} · ${
                       item.teamCount
                     } team${item.teamCount === 1 ? '' : 's'}`}
+                    endDate={item.endDate}
+                  />
+                ) : item.kind === 'clan' ? (
+                  <AlsoRunningRow
+                    key={`c${item.id}`}
+                    href={`/admin/clan-events/${item.id}`}
+                    title={item.title}
+                    detail={clanDetail(item)}
                     endDate={item.endDate}
                   />
                 ) : (
@@ -292,6 +316,8 @@ export default function EventsClient({
                   deleting={deletingId === item.id}
                   onDelete={() => deleteEvent(item)}
                 />
+              ) : item.kind === 'clan' ? (
+                <ClanEventCard key={`c${item.id}`} ev={item} />
               ) : (
                 <WeeklyCard key={`w${item.id}`} comp={item} />
               ),
@@ -800,6 +826,36 @@ function WeeklyCard({ comp }: { comp: WeeklyRow }) {
   );
 }
 
+function clanDetail(ev: ClanRow): string {
+  return ['Clan event', ev.repeat === 'weekly' ? 'weekly' : null, ev.location, ev.host ? `host ${ev.host}` : null]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+// A clan event, linking to its own admin page (Clan events), where it is edited and announced.
+function ClanEventCard({ ev }: { ev: ClanRow }) {
+  return (
+    <ClanLink
+      href={`/admin/clan-events/${ev.id}`}
+      className="group relative block p-4 border border-card-border rounded-xl bg-card-bg hover:border-sky-400/40 hover:bg-card-bg-hover transition-colors"
+    >
+      <div className="flex items-start justify-between mb-2 gap-2">
+        <h3 className="font-semibold group-hover:text-sky-300 transition-colors">{ev.title}</h3>
+        <span className="text-xs bg-sky-400/15 text-sky-300 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
+          {ev.repeat === 'weekly' ? 'Weekly' : 'Clan event'}
+        </span>
+      </div>
+      <div className="flex items-center gap-3 text-xs text-text-muted">
+        {[ev.location, ev.host ? `host ${ev.host}` : null].filter(Boolean).join(' · ') || 'Clan event'}
+      </div>
+      <p className="text-[10px] text-text-muted/70 mt-2">
+        {ev.repeat === 'weekly' ? 'next ' : ''}
+        <LocalTime date={ev.startDate} format="datetime" />
+      </p>
+    </ClanLink>
+  );
+}
+
 function DeleteButton({ label, deleting, onDelete }: { label: string; deleting: boolean; onDelete: () => void }) {
   return (
     <button
@@ -886,6 +942,8 @@ function PastTable({
                 onDelete={() => onDelete(item)}
                 onClone={() => onClone(item)}
               />
+            ) : item.kind === 'clan' ? (
+              <PastClanRow key={`c${item.id}`} ev={item} />
             ) : (
               <PastWeeklyRow key={`w${item.id}`} comp={item} result={weekly[item.id]} />
             ),
@@ -1037,6 +1095,28 @@ function PastWeeklyRow({
         {result?.players ?? comp.participantCount}
       </td>
       <td className="px-3 py-2.5 text-xs text-right text-text-muted/50 hidden lg:table-cell">—</td>
+      <td className="px-3 py-2.5" />
+    </tr>
+  );
+}
+
+function PastClanRow({ ev }: { ev: ClanRow }) {
+  return (
+    <tr className="border-t border-card-border/70 group hover:bg-white/[0.02]">
+      <td className="px-4 py-2.5">
+        <ClanLink href={`/admin/clan-events/${ev.id}`} className="font-medium hover:text-sky-300 transition-colors">
+          {ev.title}
+        </ClanLink>
+      </td>
+      <td className="px-3 py-2.5 hidden sm:table-cell">
+        <span className="text-xs bg-sky-400/10 text-sky-300/90 px-2 py-0.5 rounded-full">Clan event</span>
+      </td>
+      <td className="px-3 py-2.5 text-xs text-text-muted tabular-nums hidden md:table-cell">
+        <LocalTime date={ev.startDate} format="date" />
+      </td>
+      <td className="px-3 py-2.5 text-xs text-text-muted/70">—</td>
+      <td className="px-3 py-2.5 hidden sm:table-cell" />
+      <td className="px-3 py-2.5 hidden lg:table-cell" />
       <td className="px-3 py-2.5" />
     </tr>
   );
