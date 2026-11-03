@@ -6,6 +6,8 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+import { eq } from 'drizzle-orm';
+
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 
 const DB = useTestDatabase('releases');
@@ -47,4 +49,40 @@ test("each login hears about a release once", async () => {
   const [u] = await db.insert(s.users).values({ displayName: 'P', discordId: 'd-rel' }).returning();
   assert.match((await R.unseenReleaseLine(u.id)) ?? '', /^New in Anvil 1\.15\.0/);
   assert.equal(await R.unseenReleaseLine(u.id), null);
+});
+
+test('a backlog posts oldest first, and the login line is the newest by version', async () => {
+  const R = await import('../src/lib/releases.ts');
+  const { db, schema: s } = await loadDb();
+  await writeFile(path.join(dir, '1.15.1.md'), '---\nversion: 1.15.1\ntitle: Fix\n---\n## Fixed\n- A fix.\n');
+  await writeFile(path.join(dir, '1.16.0.md'), '---\nversion: 1.16.0\ntitle: Minor\n---\n## New\n- A thing.\n');
+  const posted: string[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (_u: unknown, init?: RequestInit) => {
+    const e = JSON.parse(String(init?.body)).embeds[0];
+    posted.push(e.title);
+    assert.equal(e.footer?.text, 'Powered by Anvil', 'the same footer as every Anvil post');
+    assert.match(e.description, /-# Live on anvilosrs\.com now$/);
+    return new Response(null, { status: 204 });
+  }) as typeof fetch;
+  assert.deepEqual(await R.publishShippedReleases(dir), ['1.15.1', '1.16.0'], 'oldest first');
+  globalThis.fetch = realFetch;
+  assert.match(posted[0], /1\.15\.1/);
+  assert.match(posted[1], /1\.16\.0/);
+
+  // A user who last saw 1.15.0 is told about 1.16.0, once.
+  const [u] = await db.insert(s.users).values({ displayName: 'Q', discordId: 'd-rel-2' }).returning();
+  const [old] = await db.select().from(s.releases).where(eq(s.releases.version, '1.15.0'));
+  await db.update(s.users).set({ seenReleaseId: old.id }).where(eq(s.users.id, u.id));
+  assert.match((await R.unseenReleaseLine(u.id)) ?? '', /^New in Anvil 1\.16\.0/);
+  assert.equal(await R.unseenReleaseLine(u.id), null);
+});
+
+test('rows out of version order (an old newest-first backlog) still name the newest release', async () => {
+  const R = await import('../src/lib/releases.ts');
+  const { db, schema: s } = await loadDb();
+  // 1.9.0 lands with a higher id than everything above, as the old order did to 1.15.0.
+  await db.insert(s.releases).values({ version: '1.9.0', title: 'Old', note: { version: '1.9.0', title: 'Old', sections: [] } });
+  const [u] = await db.insert(s.users).values({ displayName: 'R', discordId: 'd-rel-3' }).returning();
+  assert.match((await R.unseenReleaseLine(u.id)) ?? '', /^New in Anvil 1\.16\.0/);
 });

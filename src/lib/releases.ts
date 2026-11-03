@@ -15,6 +15,7 @@ import { and, desc, eq, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { releases, settings, users } from '@/db/schema';
 import { ANVIL_UPDATES_WEBHOOK_KEY, sendAnvilUpdatesWebhook } from '@/lib/discord';
+import { stampEmbeds } from '@/lib/discordEmbeds';
 import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
 import { log } from '@/lib/logger';
 import { getPlatformSetting, isPreview } from '@/lib/platformSettings';
@@ -45,12 +46,14 @@ export async function loadReleaseFiles(dir = path.join(process.cwd(), 'releases'
   return out.sort((a, b) => compareVersions(a.version, b.version));
 }
 
+// The "Powered by Anvil" footer every Anvil post carries: the clan copies get it from
+// sendAnvilUpdatesWebhook, and this direct post stamps it the same way.
 async function announce(note: ReleaseNote): Promise<void> {
   const embed = releaseEmbed(note, apexOrigin());
   const hook = await getPlatformSetting(ANNOUNCEMENTS_WEBHOOK_KEY);
   if (hook && isDiscordWebhookUrl(hook)) {
     try {
-      const res = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ embeds: [embed] }) });
+      const res = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(stampEmbeds({ embeds: [embed] })) });
       if (!res.ok) log.warn('releases.announce-failed', { status: res.status });
     } catch (err) {
       log.warn('releases.announce-error', {}, err);
@@ -72,7 +75,9 @@ export async function publishShippedReleases(dir?: string): Promise<string[]> {
   // Nothing goes out until #anvil-announcements is set on /staff/releases: a release announced to
   // nobody would be claimed and never posted there. Set it, and the next tick publishes.
   if (!(await getPlatformSetting(ANNOUNCEMENTS_WEBHOOK_KEY))) return [];
-  const notes = await loadReleaseFiles(dir);
+  // Oldest first: a backlog (the channel set after a few releases) then reads top to bottom in the
+  // order things shipped, and each release's row is newer than the one before it.
+  const notes = [...(await loadReleaseFiles(dir))].reverse();
   const done: string[] = [];
   for (const note of notes) {
     const [claimed] = await db
@@ -106,10 +111,14 @@ export async function listPublishedReleases(limit = 50): Promise<PublishedReleas
  * never had a line before starts at the newest release, so nobody gets a backlog.
  */
 export async function unseenReleaseLine(userId: number): Promise<string | null> {
-  const [latest] = await db.select().from(releases).orderBy(desc(releases.id)).limit(1);
+  // The newest by VERSION. Row order isn't release order: a backlog published newest-first once
+  // gave the oldest release the newest row.
+  const rows = await db.select().from(releases).orderBy(desc(releases.id)).limit(50);
+  const [latest] = rows.sort((a, b) => compareVersions(a.version, b.version));
   if (!latest) return null;
   const me = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { seenReleaseId: true } });
-  if (me?.seenReleaseId != null && me.seenReleaseId >= latest.id) return null;
+  // Seen = the line shown last was this release (not "an id at least this high", for the same reason).
+  if (me?.seenReleaseId === latest.id) return null;
   await db.update(users).set({ seenReleaseId: latest.id }).where(eq(users.id, userId));
   return releaseBriefLine(latest.note as ReleaseNote);
 }
