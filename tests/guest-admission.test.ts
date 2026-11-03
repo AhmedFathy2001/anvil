@@ -214,6 +214,26 @@ test('a departed seat is not quietly resurrected by turning up again', async () 
   assert.ok(after!.leftAt, 'still departed');
 });
 
+test('a seat ended on purpose stays ended for a login, even in an open clan; asking again reopens it', async () => {
+  // "Not our member" (or leaving yourself) marks the seat manual. Under an open policy a plugin
+  // login used to put it straight back.
+  const { db, schema: s } = await loadDb();
+  const [pl] = await db.insert(s.players).values({ displayName: 'Niece' }).returning();
+  const [acct] = await db.insert(s.accounts).values({ playerId: pl.id, rsn: 'Niece', rsnNormalized: 'niece' }).returning();
+  const [seat] = await db
+    .insert(s.clanMemberships)
+    .values({ clanId: openClan, accountId: acct.id, kind: 'guest', source: 'manual', leftAt: new Date().toISOString() })
+    .returning();
+
+  assert.deepEqual(await G.admit({ clanId: openClan, accountId: acct.id, source: 'plugin' }), { outcome: 'refused', reason: 'removed' });
+  assert.deepEqual(await G.admit({ clanId: openClan, accountId: acct.id }), { outcome: 'refused', reason: 'removed' }, 'a link or verification is not asking');
+  const still = await db.query.clanMemberships.findFirst({ where: eq(s.clanMemberships.id, seat.id) });
+  assert.ok(still!.leftAt, 'still ended');
+
+  const asked = await G.admit({ clanId: openClan, accountId: acct.id, source: 'web' });
+  assert.equal(asked.outcome, 'seated', 'applying on the site is a fresh decision');
+});
+
 // ── One member seat ───────────────────────────────────────────────────────────────────────────
 
 test('an account is a member of one clan, and a sync never takes it from the other', async () => {
