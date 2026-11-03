@@ -71,6 +71,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 # Migrations + the boot-time migrator. drizzle-orm's node-postgres migrator and `pg` aren't traced
 # into the standalone bundle (migrate.mjs runs outside Next), so copy them in explicitly.
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
+# Release notes (lib/releases): read at runtime, so a production build can announce the release it is.
+COPY --from=builder --chown=nextjs:nodejs /app/releases ./releases
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/migrate.mjs ./scripts/migrate.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/seed-preview.mjs ./scripts/seed-preview.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/drizzle-orm ./node_modules/drizzle-orm

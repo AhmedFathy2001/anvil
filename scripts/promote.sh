@@ -40,6 +40,26 @@ if ! git merge-base --is-ancestor "$MAIN" "$BETA"; then
   exit 1
 fi
 
+# PRODUCTION ONLY SHIPS AS A RELEASE. The newest releases/<version>.md on beta that has no v<version>
+# tag yet is what this promotion ships; without one, nothing goes out. The note is user-facing (what
+# players can now do, what got better, what got fixed) and the owner approves it, so this asks a
+# person at the keyboard to type the version back before anything is pushed.
+git fetch -q --tags "$REMOTE"
+RELEASE=""
+for f in $(git ls-tree --name-only "$BETA" releases/ 2>/dev/null | sed -n 's#^releases/\([0-9]*\.[0-9]*\.[0-9]*\)\.md$#\1#p' | sort -t. -k1,1nr -k2,2nr -k3,3nr); do
+  if ! git rev-parse -q --verify "refs/tags/v$f" >/dev/null; then RELEASE="$f"; break; fi
+done
+if [ -z "$RELEASE" ]; then
+  echo "Refusing: production only ships as a release, and beta has no new release note." >&2
+  echo "  Write releases/<next version>.md on beta (see releases/README.md), get it approved, then promote." >&2
+  exit 1
+fi
+NOTE="$(git show "$BETA:releases/$RELEASE.md" | node --experimental-strip-types scripts/check-release.mts)" || exit 1
+
+echo "Release $RELEASE — this is what players will read:"
+echo
+echo "$NOTE" | sed 's/^/  /'
+echo
 echo "Promoting $(git rev-parse --short "$MAIN") -> $(git rev-parse --short "$BETA")"
 echo
 git --no-pager log --no-merges --format='  - %s' "$MAIN..$BETA"
@@ -63,7 +83,23 @@ if [ -n "$DRY" ]; then
   exit 0
 fi
 
+# The owner's yes, at the keyboard. No terminal (a script, an agent) means no release.
+if [ ! -r /dev/tty ]; then
+  echo "Refusing: shipping a release needs a person at the keyboard to approve it." >&2
+  exit 1
+fi
+printf 'Type %s to ship this release: ' "$RELEASE" > /dev/tty
+read -r CONFIRM < /dev/tty
+if [ "$CONFIRM" != "$RELEASE" ]; then
+  echo "Not shipped." >&2
+  exit 1
+fi
+
+# The tag first, so the production build describes itself as this version.
+git tag -a "v$RELEASE" "$BETA" -m "Anvil $RELEASE"
+git push "$REMOTE" "refs/tags/v$RELEASE"
 git push "$REMOTE" "$BETA:refs/heads/main"
 echo
-echo "Pushed. CI will retag the image beta tested and deploy anvilosrs.com."
+echo "Pushed v$RELEASE. CI will retag the image beta tested and deploy anvilosrs.com; the build"
+echo "announces the release once it is live (#anvil-announcements, clans' Anvil updates, /changelog)."
 echo "Watch: gh run list --repo AhmedFathy2001/anvil --limit 2"
