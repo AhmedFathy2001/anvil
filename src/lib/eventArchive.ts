@@ -24,14 +24,31 @@ export function safeName(s: string): string {
   return (cleaned || 'untitled').slice(0, 80);
 }
 
-/** RFC 4180 CSV with a header row; null and undefined become empty cells. */
+/**
+ * RFC 4180 CSV with a header row; null and undefined become empty cells. A TEXT cell that a
+ * spreadsheet would run as a formula (= + - @, or a tab/return first) gets a leading apostrophe: a
+ * player named "=HYPERLINK(…)" opens as that text, not a link. Numbers are left alone.
+ */
 export function csvOf(header: string[], rows: unknown[][]): string {
   const cell = (v: unknown) => {
-    const s = v == null ? '' : String(v);
+    let s = v == null ? '' : String(v);
+    if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return [header, ...rows].map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n';
 }
+
+/** Only a #rgb/#rrggbb colour reaches the page's CSS; anything else is grey. */
+const cssColor = (c: string | null | undefined) => (c && /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(c.trim()) ? c.trim() : '#888');
+/** Only an http(s) link becomes a link: the page is opened from disk, where javascript: would run. */
+const webHref = (u: string | null | undefined) => {
+  try {
+    const p = new URL(String(u ?? ''));
+    return p.protocol === 'https:' || p.protocol === 'http:' ? p.toString() : null;
+  } catch {
+    return null;
+  }
+};
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
@@ -50,7 +67,7 @@ export function archiveIndexHtml(input: {
     p.status === 'ok' && p.file
       ? `<figure><a href="${esc(p.file)}"><img src="${esc(p.file)}" loading="lazy" alt=""></a><figcaption>${esc(p.caption)}</figcaption></figure>`
       : `<figure class="gone"><div>${
-          p.status === 'deleted' ? 'Deleted after 90 days' : p.status === 'external' ? `<a href="${esc(p.url)}">External link</a>` : 'Could not be downloaded'
+          p.status === 'deleted' ? 'Deleted after 90 days' : p.status === 'external' ? (webHref(p.url) ? `<a href="${esc(webHref(p.url)!)}">External link</a>` : 'External link') : 'Could not be downloaded'
         }</div><figcaption>${esc(p.caption)}</figcaption></figure>`;
   const tileSections = input.tiles
     .map((t) => {
@@ -59,7 +76,7 @@ export function archiveIndexHtml(input: {
           const ps = input.proofs.filter((p) => p.kind === 'submission' && p.tileId === t.id && p.teamId === team.id);
           const complete = done.has(`${team.id}:${t.id}`);
           if (!ps.length && !complete) return '';
-          return `<div class="team"><h3><span class="dot" style="background:${esc(team.color ?? '#888')}"></span>${esc(team.name)}${
+          return `<div class="team"><h3><span class="dot" style="background:${cssColor(team.color)}"></span>${esc(team.name)}${
             complete ? ' <span class="ok">✓ completed</span>' : ''
           }</h3><div class="grid">${ps.map(shot).join('')}</div></div>`;
         })

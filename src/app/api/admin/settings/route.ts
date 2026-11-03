@@ -1,3 +1,4 @@
+import { URL_SETTINGS, checkSettingUrl } from '@/lib/settingUrls';
 import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 
@@ -154,6 +155,15 @@ export async function PUT(request: Request) {
         { status: 400 },
       );
     }
+  }
+
+  // Links are links: only an http(s) address is stored (the Discord invite on a Discord host).
+  for (const key of URL_SETTINGS) {
+    const raw = body[key];
+    if (typeof raw !== 'string') continue;
+    const checked = checkSettingUrl(key, raw);
+    if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
+    body[key] = checked.value;
   }
 
   const changed: string[] = [];
