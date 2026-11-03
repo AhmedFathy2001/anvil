@@ -100,10 +100,14 @@ export function releaseEmbed(r: ReleaseNote, origin: string) {
   return {
     title: clip(`Anvil ${r.version}: ${r.title}`, 256),
     url: `${origin}/changelog#v${r.version}`,
-    description: r.highlights.length ? clip(r.highlights.map((h) => `• ${h}`).join('\n'), 2000) : undefined,
+    // Where it is, as Discord's small muted subtext under the highlights. Not the footer: every Anvil
+    // post's footer is "Powered by Anvil", stamped when it's sent, which would replace it.
+    description: clip(
+      [...r.highlights.map((h) => `• ${h}`), `-# ${r.pluginVersion ? `Plugin ${r.pluginVersion} · update RuneLite to get it` : 'Live on anvilosrs.com now'}`].join('\n'),
+      2000,
+    ),
     color: 0xe0aa1e,
     fields,
-    footer: { text: r.pluginVersion ? `Plugin ${r.pluginVersion} · update RuneLite to get it` : 'Live on anvilosrs.com now' },
   };
 }
 

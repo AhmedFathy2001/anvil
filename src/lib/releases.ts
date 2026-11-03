@@ -15,6 +15,7 @@ import { and, desc, eq, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { releases, settings, users } from '@/db/schema';
 import { ANVIL_UPDATES_WEBHOOK_KEY, sendAnvilUpdatesWebhook } from '@/lib/discord';
+import { stampEmbeds } from '@/lib/discordEmbeds';
 import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
 import { log } from '@/lib/logger';
 import { getPlatformSetting, isPreview } from '@/lib/platformSettings';
@@ -45,12 +46,14 @@ export async function loadReleaseFiles(dir = path.join(process.cwd(), 'releases'
   return out.sort((a, b) => compareVersions(a.version, b.version));
 }
 
+// The "Powered by Anvil" footer every Anvil post carries: the clan copies get it from
+// sendAnvilUpdatesWebhook, and this direct post stamps it the same way.
 async function announce(note: ReleaseNote): Promise<void> {
   const embed = releaseEmbed(note, apexOrigin());
   const hook = await getPlatformSetting(ANNOUNCEMENTS_WEBHOOK_KEY);
   if (hook && isDiscordWebhookUrl(hook)) {
     try {
-      const res = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ embeds: [embed] }) });
+      const res = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(stampEmbeds({ embeds: [embed] })) });
       if (!res.ok) log.warn('releases.announce-failed', { status: res.status });
     } catch (err) {
       log.warn('releases.announce-error', {}, err);

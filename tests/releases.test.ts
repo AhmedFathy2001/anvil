@@ -59,7 +59,10 @@ test('a backlog posts oldest first, and the login line is the newest by version'
   const posted: string[] = [];
   const realFetch = globalThis.fetch;
   globalThis.fetch = (async (_u: unknown, init?: RequestInit) => {
-    posted.push(JSON.parse(String(init?.body)).embeds[0].title);
+    const e = JSON.parse(String(init?.body)).embeds[0];
+    posted.push(e.title);
+    assert.equal(e.footer?.text, 'Powered by Anvil', 'the same footer as every Anvil post');
+    assert.match(e.description, /-# Live on anvilosrs\.com now$/);
     return new Response(null, { status: 204 });
   }) as typeof fetch;
   assert.deepEqual(await R.publishShippedReleases(dir), ['1.15.1', '1.16.0'], 'oldest first');
