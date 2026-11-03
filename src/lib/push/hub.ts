@@ -80,6 +80,8 @@ export class ViewHub {
   /** event → everyone on it (tile views go to all of them). */
   private readonly events = new Map<number, Set<PushClient>>();
   private readonly views = new Map<string, View>();
+  /** user → their clients with the chat feed on (lib/chatFeed sends to people, not views). */
+  private readonly feeds = new Map<number, Set<PushClient>>();
 
   constructor(opts: ViewHubOptions) {
     this.opts = opts;
@@ -91,6 +93,7 @@ export class ViewHub {
     const keys = client.scope.eventIds.map((e, n) => teamKey(e, n === 0 ? client.scope.teamId : null));
     for (const k of keys) addTo(this.teams, k, client);
     for (const e of client.scope.eventIds) addTo(this.events, e, client);
+    if (client.scope.feed) addTo(this.feeds, client.scope.userId, client);
     for (const k of keys) {
       const v = this.view(k);
       if (v.text != null) client.send(v.text);
@@ -100,6 +103,7 @@ export class ViewHub {
       }
     }
     return () => {
+      if (client.scope.feed) removeFrom(this.feeds, client.scope.userId, client);
       for (const k of keys) {
         removeFrom(this.teams, k, client);
         this.views.get(k)?.owed.delete(client);
@@ -116,7 +120,14 @@ export class ViewHub {
   get size(): number {
     const all = new Set<PushClient>();
     for (const set of this.events.values()) for (const c of set) all.add(c);
+    for (const set of this.feeds.values()) for (const c of set) all.add(c);
     return all.size;
+  }
+
+  /** A chat-feed line for these users, to each of their clients with the feed on. */
+  deliver(feed: FeedNotice): void {
+    const text = JSON.stringify(feed.m);
+    for (const u of feed.u) for (const c of this.feeds.get(u) ?? []) c.send(text);
   }
 
   dispatch(change: PushChange): void {
@@ -283,6 +294,23 @@ function splitCounts(v: TeamMessage): [string, Record<string, number>] {
     });
   }
   return [JSON.stringify({ ...v, at: undefined, members: undefined, config }), counts];
+}
+
+/** A chat-feed NOTIFY (lib/chatFeed): `u` the users, `m` the message they get. */
+export interface FeedNotice {
+  u: number[];
+  m: Record<string, unknown>;
+}
+
+/** A NOTIFY payload as a feed notice, or null when it isn't one. */
+export function parseFeed(payload: string): FeedNotice | null {
+  try {
+    const p = JSON.parse(payload);
+    if (p?.k !== 'feed' || !Array.isArray(p.u) || !p.m || typeof p.m !== 'object') return null;
+    return { u: p.u.filter((n: unknown): n is number => Number.isInteger(n)), m: p.m };
+  } catch {
+    return null;
+  }
 }
 
 /** A NOTIFY payload as a change, or null when it isn't one of ours. */

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { requirePluginClan, resolvePluginMember } from '@/lib/auth';
 import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
 import { socialEmissionClans, clanTagsGuestEmissions, markGuestPost } from '@/lib/emissionRouting';
+import { emitPersonalItem } from '@/lib/chatFeed';
 import { labQuarantine } from '@/lib/lab';
 import { log } from '@/lib/logger';
 import { classifyLine, cleanLine, modeEventEmbed, type ModeEventKind } from '@/lib/modeLines';
@@ -91,6 +92,15 @@ export async function POST(request: Request) {
 
   const fresh = events.filter((e) => !seenRecently(`${member.userId}:${e.title}`, now)).slice(0, MAX_POSTS);
   if (fresh.length === 0) return NextResponse.json({ ok: true, posted: 0 });
+
+  // Other players' in-game chat (lib/chatFeed), the minor tasks aside — a league has hundreds.
+  for (const e of fresh) {
+    if (e.kind === 'modeTaskMinor') continue;
+    void emitPersonalItem(
+      { accountId: member.accountId, userId: member.userId },
+      { kind: 'mode', who: member.rsn, text: `(${mode.label}) ${e.title}` },
+    );
+  }
 
   // Routed by person, like /api/plugin/notify: the clans this account has a seat in, each by its own
   // Game modes settings. With no mode channel the post lands where an achievement would.

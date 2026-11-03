@@ -168,6 +168,10 @@ export const PLUGIN_CAPABILITIES = [
   // Game-mode events (lib/modeLines): on a game-mode world the plugin forwards highlighted game
   // messages to POST /api/plugin/mode-lines, and the site decides which are relics, unlocks or tasks.
   'mode-lines',
+  // The in-game chat feed (lib/chatFeed): moments feed other players' chat (and take 'clog', 'diary'
+  // and 'quest', which only the feed reads), POST /api/plugin/presence takes the guest channel the
+  // character sits in, and push tickets with ?feed=1 hear {"t":"feed"} lines even with no board.
+  'chat-feed',
   // Ghost clans (lib/gameClans): POST /api/plugin/game-clan takes the character's OWN row from the
   // in-game clan settings — clan name, rank, rank title, join date — on login and on change. Never
   // the member list. Works with no Anvil clan; feeds the profile's clan line and the hidden page.

@@ -244,6 +244,12 @@ export const WEBHOOK_SECTIONS = [
       },
       {
         kind: 'toggle',
+        key: 'chat_feed_share_guests',
+        label: 'Share drops with guests in your clan chat (in game)',
+        help: "Off by default. When on, players guesting in your clan's channel right now see your members' notable drops, pets and achievements in their RuneLite chat, and your members see the guests' — the clan broadcast the game only shows your own members. Only people who turned on the Anvil chat feed see it, and only while they're actually in your channel. Each player picks what they see on their Anvil profile.",
+      },
+      {
+        kind: 'toggle',
         key: 'members_count_guests',
         label: "Count guests in your clan's activity",
         help: "Off by default. The Members page headline, the week's podium and your clan EHP/EHB are your members' — a guest is somebody we have seen who is not on your roster, and their hours are not your clan's. Turn this on if your regulars never formally join and you want them counted. Guests appear in the member list either way.",

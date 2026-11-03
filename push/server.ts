@@ -16,7 +16,7 @@ import http from 'node:http';
 import pg from 'pg';
 import { WebSocketServer, type WebSocket } from 'ws';
 
-import { ViewHub, parseChange } from '../src/lib/push/hub.ts';
+import { ViewHub, parseChange, parseFeed } from '../src/lib/push/hub.ts';
 import { internalSecret, ticketKey, verifyTicket } from '../src/lib/push/ticket.ts';
 
 const PATH = '/api/plugin/push/ws';
@@ -133,7 +133,13 @@ let everListened = false;
 async function listen(): Promise<void> {
   const client = new pg.Client({ connectionString: dbUrl });
   client.on('notification', (n) => {
-    const change = n.payload ? parseChange(n.payload) : null;
+    if (!n.payload) return;
+    const feed = parseFeed(n.payload);
+    if (feed) {
+      hub.deliver(feed);
+      return;
+    }
+    const change = parseChange(n.payload);
     if (change) hub.dispatch(change);
   });
   client.on('error', (err) => log('push.db-error', { message: err.message }));

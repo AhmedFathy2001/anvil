@@ -4,6 +4,7 @@ import LinkAccountsToggle from '@/components/LinkAccountsToggle';
 import AddCharacterClient from '@/app/profile/AddCharacterClient';
 import PublishCharactersPrompt from '@/components/PublishCharactersPrompt';
 import AnnouncementsDrawer from '@/app/profile/AnnouncementsDrawer';
+import ChatFeedDrawer from '@/app/profile/ChatFeedDrawer';
 import type { MyClan } from '@/lib/myClans';
 import type { EmissionSettingsView } from '@/lib/emissionSettings';
 import DetectedAccountsClient from '@/app/profile/DetectedAccountsClient';
@@ -252,6 +253,7 @@ export default function PersonProfile({
             clan running the board.)
           </p>
           <AnnouncementsDrawer initial={emission} />
+          <ChatFeedDrawer />
         </section>
       )}
 

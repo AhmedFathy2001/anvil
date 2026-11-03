@@ -32,6 +32,7 @@ import {
 } from '@/lib/discordPostPolicy';
 import { loadClanPostDefaults, loadEventDiscordPrefs, loadPartnerDiscordPrefs } from '@/lib/eventDiscordPrefs';
 import { curtainRoute, PROGRESS_POST_KINDS, standingsHidden } from '@/lib/standingsVisibility';
+import { emitTileCompletion } from '@/lib/chatFeed';
 import { clans, events, teams } from '@/db/schema';
 import {
   EMBED_COLOR,
@@ -1067,6 +1068,11 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
   const boardUrl = eventId != null ? tileBoardUrl(eventId, tile) : null;
   if (boardUrl) embed.url = boardUrl;
 
+  // The other teams' in-game chat, on a board whose host turned the feed on (lib/chatFeed). Not for a
+  // combo part: it scores nothing on its own, and its combo announces when it lands.
+  if (eventId != null && !partOf) {
+    void emitTileCompletion({ eventId, teamId: params.teamId, teamName, tileLabel, finisher });
+  }
   return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'tileComplete', teamId: params.teamId });
 }
 
