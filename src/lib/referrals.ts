@@ -6,12 +6,12 @@
 
 import { randomBytes } from 'node:crypto';
 
-import { and, eq, inArray, lte } from 'drizzle-orm';
+import { and, eq, inArray, lte, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { referrals, supporterSubscriptions, users } from '@/db/schema';
 import { log } from '@/lib/logger';
-import { cappedReward, grantAfter, grantWindow, isReferralCode, rewardMonths } from '@/lib/referralRules';
+import { cappedReward, grantAfter, grantWindow, isReferralCode, milestoneAt, nextMilestone, REFERRAL_MILESTONES, rewardMonths } from '@/lib/referralRules';
 import { parseStamp, rowInForce, SUPPORTER_TIERS, type SupporterTierId } from '@/lib/supporterTiers';
 
 export const REFERRAL_COOKIE = 'anvil_via';
@@ -89,6 +89,28 @@ export async function revokeReferrals(subscriptionId: string, opts: { heldOnly: 
           .where(eq(supporterSubscriptions.id, r.rewardSubscriptionId));
       }
       await tx.update(referrals).set({ status: 'revoked' }).where(eq(referrals.id, r.id));
+      if (r.status === 'granted') {
+        // A milestone stands only while its friends' purchases do: recount under the same lock the
+        // grant takes, and take back any milestone the referrer has now fallen below.
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext('referral-milestone'), ${r.referrerUserId})`);
+        const [{ n }] = await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(referrals)
+          .where(and(eq(referrals.referrerUserId, r.referrerUserId), eq(referrals.status, 'granted')));
+        const lost = REFERRAL_MILESTONES.filter((m) => m.at > n).map((m) => `referral-milestone-${m.at}`);
+        if (lost.length) {
+          await tx
+            .update(supporterSubscriptions)
+            .set({ status: 'refunded', endedAt: new Date().toISOString() })
+            .where(
+              and(
+                eq(supporterSubscriptions.userId, r.referrerUserId),
+                inArray(supporterSubscriptions.recurrence, lost),
+                eq(supporterSubscriptions.status, 'granted'),
+              ),
+            );
+        }
+      }
     }
   });
 }
@@ -144,6 +166,34 @@ export async function grantDueReferrals(now = Date.now()): Promise<number> {
         })
         .returning({ id: supporterSubscriptions.id });
       await tx.update(referrals).set({ status: 'granted', rewardSubscriptionId: reward.id }).where(eq(referrals.id, r.id));
+
+      // A milestone reached by this friend: granted once, after the reward above. Locked per referrer
+      // so two grants landing together can't both see "the third" and pay it twice.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('referral-milestone'), ${r.referrerUserId})`);
+      const [{ n }] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(referrals)
+        .where(and(eq(referrals.referrerUserId, r.referrerUserId), eq(referrals.status, 'granted')));
+      const milestone = milestoneAt(n);
+      const marker = milestone ? `referral-milestone-${milestone.at}` : null;
+      const already = marker
+        ? await tx
+            .select({ id: supporterSubscriptions.id })
+            .from(supporterSubscriptions)
+            .where(and(eq(supporterSubscriptions.userId, r.referrerUserId), eq(supporterSubscriptions.recurrence, marker)))
+            .limit(1)
+        : [];
+      if (milestone && marker && already.length === 0) {
+        const window2 = grantWindow(now, [...banked, end], milestone.months);
+        await tx.insert(supporterSubscriptions).values({
+          userId: r.referrerUserId,
+          tier: milestone.tier,
+          status: 'granted',
+          recurrence: marker,
+          currentPeriodEnd: new Date(window2.end).toISOString(),
+          startedAt: new Date(window2.start).toISOString(),
+        });
+      }
       return true;
     });
     if (done) granted++;
@@ -156,6 +206,8 @@ export interface ReferralSummary {
   held: number;
   granted: number;
   monthsEarned: number;
+  /** Towards the next milestone (lib/referralRules), or null once every one is reached. */
+  next: { from: number; to: number; label: string } | null;
 }
 
 export async function referralSummary(userId: number): Promise<ReferralSummary> {
@@ -169,5 +221,6 @@ export async function referralSummary(userId: number): Promise<ReferralSummary> 
     held: rows.filter((r) => r.status === 'held').length,
     granted: rows.filter((r) => r.status === 'granted').length,
     monthsEarned: rows.filter((r) => r.status === 'granted').reduce((n, r) => n + r.rewardMonths, 0),
+    next: nextMilestone(rows.filter((r) => r.status === 'granted').length),
   };
 }

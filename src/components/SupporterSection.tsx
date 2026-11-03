@@ -19,6 +19,8 @@ export interface InviteView {
   held: number;
   granted: number;
   monthsEarned: number;
+  /** Towards the next milestone, or null once every one is reached. */
+  next: { from: number; to: number; label: string } | null;
 }
 
 export function supporterView(state: SupporterState | null): SupporterView | null {
@@ -138,6 +140,29 @@ function InviteCard({ invite }: { invite: InviteView }) {
         aria-label="Your invite link"
         className="mt-3 w-full rounded-lg border border-card-border bg-background/40 px-3 py-2 font-mono text-[13px]"
       />
+      {invite.next && (
+        <div className="mt-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 text-[13px]">
+            <span>
+              <b className="text-gold">{invite.granted}</b> of {invite.next.to} friends
+            </span>
+            <span className="text-text-muted">at {invite.next.to}: {invite.next.label}</span>
+          </div>
+          <div
+            className="mt-1.5 h-2 overflow-hidden rounded-full bg-brown-dark"
+            role="progressbar"
+            aria-valuemin={invite.next.from}
+            aria-valuemax={invite.next.to}
+            aria-valuenow={invite.granted}
+            aria-label="Friends towards the next reward"
+          >
+            <span
+              className="block h-full rounded-full bg-gradient-to-r from-gold-dark to-gold-light"
+              style={{ width: `${Math.round(((invite.granted - invite.next.from) / (invite.next.to - invite.next.from)) * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
       {(invite.held > 0 || invite.granted > 0) && (
         <p className="mt-2 text-xs text-text-dim">
           {invite.granted} joined · {invite.monthsEarned} month{invite.monthsEarned === 1 ? '' : 's'} earned
