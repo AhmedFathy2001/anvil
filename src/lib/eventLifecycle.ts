@@ -21,6 +21,7 @@ import { runDiscordCleanups } from '@/lib/eventDiscordCleanup';
 import { sweepEndedLabSessions } from '@/lib/lab';
 import { sweepLabTestDrops } from '@/lib/labSupporter';
 import { sweepChatFeed } from '@/lib/chatFeed';
+import { grantDueReferrals } from '@/lib/referrals';
 import { clearPreStartEventActivity } from '@/lib/preStartActivity';
 import { track } from '@/lib/analytics';
 import { endOfEventFacts, runDailyDigests, runHalfwayReports } from '@/lib/eventDigest';
@@ -422,4 +423,6 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   await sweepLabTestDrops(new Date(nowMs)).catch((err) => log.warn('event-lifecycle.lab-drops-sweep-failed', { err: String(err) }));
   // The chat feed's old dedup keys and lapsed guest presence (lib/chatFeed).
   await sweepChatFeed().catch((err) => log.warn('event-lifecycle.chat-feed-sweep-failed', { err: String(err) }));
+  // Invite rewards whose two-week hold is over (lib/referrals).
+  await grantDueReferrals().catch((err) => log.warn('event-lifecycle.referral-grant-failed', { err: String(err) }));
 }

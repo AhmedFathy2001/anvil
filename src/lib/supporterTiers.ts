@@ -40,7 +40,7 @@ export function supporterTierForGumroad(name: string | null | undefined): Suppor
   return SUPPORTER_TIER_ORDER.find((id) => SUPPORTER_TIERS[id].name.toLowerCase() === key) ?? null;
 }
 
-export type SupporterStatus = 'active' | 'cancelling' | 'ended' | 'refunded';
+export type SupporterStatus = 'active' | 'cancelling' | 'granted' | 'ended' | 'refunded';
 
 /** The fields of a supporter_subscriptions row that decide what it is worth right now. */
 export interface SupporterRowLike {
@@ -59,6 +59,8 @@ export interface SupporterState {
   /** The row in force is cancelled and ends at its period end. */
   endsAt: string | null;
   renewsAt: string | null;
+  /** The tier in force is time earned through invites (lib/referrals), not a subscription. */
+  earned: boolean;
 }
 
 /** Parse either stored timestamp shape ('YYYY-MM-DD HH:MM:SS' or ISO) as UTC. */
@@ -72,7 +74,7 @@ export function parseStamp(stamp: string | null | undefined): number {
 export function rowInForce(row: SupporterRowLike, now: number): boolean {
   if (!(row.tier in SUPPORTER_TIERS)) return false;
   if (row.status === 'active') return true;
-  if (row.status === 'cancelling') {
+  if (row.status === 'cancelling' || row.status === 'granted') {
     // They paid for the term; it stops when the term does. No end on record means we cannot say when
     // it runs out, so it counts until Gumroad tells us it ended.
     const end = parseStamp(row.currentPeriodEnd);
@@ -111,8 +113,9 @@ export function supporterState(rows: SupporterRowLike[], now = Date.now()): Supp
     tier: SUPPORTER_TIERS[best.tier as SupporterTierId],
     since: new Date(sinceMs).toISOString(),
     months: wholeMonths(sinceMs, now),
-    endsAt: best.status === 'cancelling' ? best.currentPeriodEnd : null,
+    endsAt: best.status === 'cancelling' || best.status === 'granted' ? best.currentPeriodEnd : null,
     renewsAt: best.status === 'active' ? best.currentPeriodEnd : null,
+    earned: best.status === 'granted',
   };
 }
 

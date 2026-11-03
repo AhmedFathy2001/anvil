@@ -12,8 +12,9 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { supporterSubscriptions, users } from '@/db/schema';
+import { recordSupporterReferral, revokeReferrals } from '@/lib/referrals';
 import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, type GumroadEvent } from '@/lib/gumroad';
-import { supporterTierForGumroad } from '@/lib/supporterTiers';
+import { parseStamp, supporterTierForGumroad } from '@/lib/supporterTiers';
 
 /** Is this notification about the Supporter product (rather than a clan plan)? */
 export function isSupporterEvent(ev: Pick<GumroadEvent, 'productId' | 'productPermalink'>): boolean {
@@ -66,7 +67,9 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
         console.warn('[supporter] sale with unknown tier', ev.tier, ev.subscriptionId);
         return ok({ note: 'unknown tier' });
       }
-      const periodEnd = nextChargeDue(ev.recurrence, chargedAt(ev.saleTimestamp));
+      // A free trial's first charge is due when the trial runs out, not a whole term from now.
+      const trialEnd = parseStamp(ev.freeTrialEndsAt);
+      const periodEnd = Number.isFinite(trialEnd) ? new Date(trialEnd).toISOString() : nextChargeDue(ev.recurrence, chargedAt(ev.saleTimestamp));
       if (row) {
         await db
           .update(supporterSubscriptions)
@@ -81,7 +84,7 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
         console.warn('[supporter] no buyer for sale', ev.saleId, ev.subscriptionId);
         return ok({ note: 'no matching user' });
       }
-      await db.insert(supporterSubscriptions).values({
+      const [created] = await db.insert(supporterSubscriptions).values({
         userId: buyer.id,
         tier,
         status: 'active',
@@ -90,7 +93,18 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
         gumroadSaleId: ev.saleId,
         currentPeriodEnd: periodEnd,
         startedAt: nowIso(),
-      });
+      }).returning({ id: supporterSubscriptions.id });
+      // Bought through somebody's invite link: their reward is held until the money has settled.
+      if (created && ev.urlParams.via) {
+        await recordSupporterReferral({
+          code: ev.urlParams.via,
+          buyerUserId: buyer.id,
+          subscriptionId: ev.subscriptionId,
+          saleId: ev.saleId,
+          recurrence: ev.recurrence,
+          trialEndsAt: Number.isFinite(trialEnd) ? trialEnd : null,
+        });
+      }
       return ok({ tier });
     }
 
@@ -126,6 +140,8 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
       if (row.status !== 'refunded') {
         await db.update(supporterSubscriptions).set({ status: 'ended', endedAt: nowIso() }).where(eq(supporterSubscriptions.id, row.id));
       }
+      // A trial that never paid, or a membership gone before its referral settled, earns nothing.
+      if (ev.subscriptionId) await revokeReferrals(ev.subscriptionId, { heldOnly: true });
       return ok();
     }
 
@@ -150,6 +166,8 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
     case 'dispute': {
       if (!row) return ok({ note: 'unknown membership' });
       await db.update(supporterSubscriptions).set({ status: 'refunded', endedAt: nowIso() }).where(eq(supporterSubscriptions.id, row.id));
+      // Money taken back takes the referrer's reward with it, granted or not.
+      if (row.gumroadSubscriptionId) await revokeReferrals(row.gumroadSubscriptionId, { heldOnly: false });
       return ok();
     }
 

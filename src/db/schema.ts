@@ -1394,11 +1394,14 @@ export const users = pgTable('users', {
   // echoes it back on the sale, which is how a purchase finds its buyer. Same job as clans.gumroadRef,
   // for the personal subscription. Created on first checkout (lib/supporter).
   supporterRef: text('supporter_ref'),
+  /** Public invite code for /r/<code> (lib/referrals). Not the checkout ref, which stays private. */
+  referralCode: text('referral_code'),
   // What the in-game chat feed shows this person (lib/chatFeedRules ChatFeedPrefs, JSON). NULL = the
   // defaults. The plugin holds only the master switch; everything finer lives here.
   chatFeedPrefs: text('chat_feed_prefs'),
 }, (table) => [
   uniqueIndex('users_supporter_ref_unique').on(table.supporterRef),
+  uniqueIndex('users_referral_code_unique').on(table.referralCode),
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
   uniqueIndex('users_plugin_token_hash_unique').on(table.pluginTokenHash),
   index('users_player_idx').on(table.playerId),
@@ -3918,6 +3921,27 @@ export const supporterSubscriptions = pgTable('supporter_subscriptions', {
 }, (table) => [
   uniqueIndex('supporter_subscriptions_gumroad_sub_unique').on(table.gumroadSubscriptionId),
   index('supporter_subscriptions_user_idx').on(table.userId),
+]);
+
+// A referred purchase (lib/referrals). The reward is held until `grant_after`, then granted as a
+// supporter_subscriptions row ('granted'); a refund before or after takes it back.
+export const referrals = pgTable('referrals', {
+  id: serial('id').primaryKey(),
+  referrerUserId: integer('referrer_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  referredUserId: integer('referred_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // 'supporter'
+  gumroadSubscriptionId: text('gumroad_subscription_id'),
+  gumroadSaleId: text('gumroad_sale_id'),
+  recurrence: text('recurrence'),
+  status: text('status').notNull(), // 'held' | 'granting' (in a grant's transaction) | 'granted' | 'revoked'
+  rewardMonths: integer('reward_months').notNull(),
+  rewardSubscriptionId: integer('reward_subscription_id').references(() => supporterSubscriptions.id, { onDelete: 'set null' }),
+  grantAfter: text('grant_after').notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  uniqueIndex('referrals_one_per_person').on(table.referredUserId, table.kind),
+  index('referrals_referrer_idx').on(table.referrerUserId),
+  index('referrals_due_idx').on(table.status, table.grantAfter),
 ]);
 
 // Reactions on a moment from the plugin panel's Recent drops (lib/momentReactions): 'gz' for anyone
