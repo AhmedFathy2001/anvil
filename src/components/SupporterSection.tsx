@@ -1,4 +1,7 @@
 import ClanLink from '@/components/ClanLink';
+import CopyLinkButton from '@/components/CopyLinkButton';
+import { REFERRAL_MILESTONES as MILESTONES } from '@/lib/referralRules';
+import { SITE } from '@/lib/site';
 import SupporterName from '@/components/SupporterName';
 import { tenureStep, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
 
@@ -48,27 +51,61 @@ function day(stamp: string | null): string | null {
  * when it renews or ends, with a way to change tier or manage the subscription. Someone who isn't
  * supporting sees one quiet line pointing at the tier page: never a pitch to someone already paying.
  */
-export default function SupporterSection({ supporter, invite = null }: { supporter: SupporterView | null; invite?: InviteView | null }) {
+export default function SupporterSection({
+  supporter,
+  invite = null,
+  name = null,
+}: {
+  supporter: SupporterView | null;
+  invite?: InviteView | null;
+  /** Their own display name, previewed in each tier's flair. */
+  name?: string | null;
+}) {
   if (!supporter) {
+    const me = name || 'Your name';
     return (
       <section className="mt-10">
-        {invite && <InviteCard invite={invite} />}
         <h2 className="mb-3 text-lg font-semibold">Anvil Supporter</h2>
-        <ClanLink
-          href="/supporter"
-          className="flex items-center justify-between gap-3 rounded-xl border border-card-border bg-card-bg p-4 transition-colors hover:border-gold/40"
-        >
-          <span>
-            <span className="block font-medium text-foreground">Help keep Anvil running</span>
-            <span className="mt-0.5 block text-sm text-text-muted">
-              Supporters pay for the servers that keep Anvil free for every clan, and get name flair their
-              clanmates can see. From $1 a month.
-            </span>
-          </span>
-          <span className="text-gold" aria-hidden>
-            →
-          </span>
-        </ClanLink>
+        <div className="relative overflow-hidden rounded-2xl border border-gold/35 bg-gradient-to-br from-gold/[0.07] via-card-bg to-card-bg p-5 sm:p-6">
+          <div className="flex flex-wrap items-start gap-6">
+            <div className="min-w-0 flex-[1_1_20rem]">
+              <p className="display text-xl font-semibold">Keep Anvil running, and wear it.</p>
+              <p className="mt-2 max-w-[54ch] text-[14px] leading-relaxed text-text-muted">
+                Anvil is free and made by one indie dev. Supporters pay for the servers, and their name says so on
+                every board, in the plugin panel and on Discord.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-1.5 text-[12px]">
+                <span className="rounded-full border border-accent-green/40 bg-accent-green/10 px-2.5 py-0.5 text-accent-green-light">
+                  7 days free
+                </span>
+                <span className="rounded-full border border-card-border px-2.5 py-0.5 text-text-muted">from $1 a month</span>
+                <span className="rounded-full border border-card-border px-2.5 py-0.5 text-text-muted">cancel any time</span>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <ClanLink
+                  href="/supporter"
+                  className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+                >
+                  Try it free for 7 days
+                </ClanLink>
+                <ClanLink href="/supporter" className="text-[13.5px] text-gold hover:text-gold-light">
+                  What each tier gets
+                </ClanLink>
+              </div>
+            </div>
+            {/* Their own name in each tier's flair: the perk, shown rather than described. */}
+            <div className="grid min-w-0 flex-[1_1_14rem] gap-2" aria-label="Your name with each tier's flair">
+              {(['supporter', 'champion', 'patron'] as const).map((t) => (
+                <div key={t} className="flex items-center justify-between gap-3 rounded-lg border border-card-border bg-background/40 px-3 py-2">
+                  <SupporterName name={me} tier={t} className="truncate font-semibold" plain />
+                  <span className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-text-dim">{t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        {invite && <InviteCard invite={invite} />}
+        <DiscordCard />
       </section>
     );
   }
@@ -118,6 +155,7 @@ export default function SupporterSection({ supporter, invite = null }: { support
         </div>
       </div>
       {invite && <InviteCard invite={invite} />}
+      <DiscordCard />
     </section>
   );
 }
@@ -127,48 +165,96 @@ export default function SupporterSection({ supporter, invite = null }: { support
  * said plainly, so nobody wonders why a friend's sign-up didn't show up yet.
  */
 function InviteCard({ invite }: { invite: InviteView }) {
+  const path = (() => {
+    try {
+      return new URL(invite.link).pathname;
+    } catch {
+      return invite.link;
+    }
+  })();
   return (
-    <div className="mt-3 rounded-xl border border-card-border bg-card-bg p-4">
-      <p className="font-medium">Invite friends, earn Supporter time</p>
-      <p className="mt-1 text-sm text-text-muted">
-        When someone becomes a Supporter through your link, you get a month free (three for a yearly
-        plan), or a month a tier up if you already support. It lands two weeks after their first payment.
+    <div className="mt-3 rounded-2xl border border-card-border bg-card-bg p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-base font-semibold">Bring friends, earn free months</p>
+        <span className="text-[13px] text-text-muted">
+          <b className="text-gold">{invite.granted}</b> joined
+          {invite.monthsEarned > 0 && <> · {invite.monthsEarned} month{invite.monthsEarned === 1 ? '' : 's'} earned</>}
+          {invite.held > 0 && <> · {invite.held} on the way</>}
+        </span>
+      </div>
+      <p className="mt-1 text-[13.5px] text-text-muted">
+        Every friend who becomes a Supporter through your link gives you a free month (three for yearly), and the
+        milestones stack on top.
       </p>
-      <input
-        readOnly
-        value={invite.link}
-        aria-label="Your invite link"
-        className="mt-3 w-full rounded-lg border border-card-border bg-background/40 px-3 py-2 font-mono text-[13px]"
-      />
+
+      {/* The ladder: what each milestone gives, and how far along it you are. */}
+      <ol className="mt-4 grid grid-cols-3 gap-2">
+        {MILESTONES.map((m) => {
+          const reached = invite.granted >= m.at;
+          return (
+            <li
+              key={m.at}
+              className={`rounded-xl border px-3 py-2.5 ${reached ? 'border-gold/60 bg-gold/10' : 'border-card-border bg-background/30'}`}
+            >
+              <span className={`font-mono text-[11px] ${reached ? 'text-gold' : 'text-text-dim'}`}>
+                {reached ? '✓ ' : ''}
+                {m.at} friends
+              </span>
+              <span className="mt-0.5 block text-[13px] leading-snug">{m.label}</span>
+            </li>
+          );
+        })}
+      </ol>
       {invite.next && (
-        <div className="mt-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 text-[13px]">
-            <span>
-              <b className="text-gold">{invite.granted}</b> of {invite.next.to} friends
-            </span>
-            <span className="text-text-muted">at {invite.next.to}: {invite.next.label}</span>
-          </div>
-          <div
-            className="mt-1.5 h-2 overflow-hidden rounded-full bg-brown-dark"
-            role="progressbar"
-            aria-valuemin={invite.next.from}
-            aria-valuemax={invite.next.to}
-            aria-valuenow={invite.granted}
-            aria-label="Friends towards the next reward"
-          >
-            <span
-              className="block h-full rounded-full bg-gradient-to-r from-gold-dark to-gold-light"
-              style={{ width: `${Math.round(((invite.granted - invite.next.from) / (invite.next.to - invite.next.from)) * 100)}%` }}
-            />
-          </div>
+        <div
+          className="mt-3 h-2 overflow-hidden rounded-full bg-brown-dark"
+          role="progressbar"
+          aria-valuemin={invite.next.from}
+          aria-valuemax={invite.next.to}
+          aria-valuenow={invite.granted}
+          aria-label="Friends towards the next reward"
+        >
+          <span
+            className="block h-full rounded-full bg-gradient-to-r from-gold-dark to-gold-light"
+            style={{ width: `${Math.max(3, Math.round(((invite.granted - invite.next.from) / (invite.next.to - invite.next.from)) * 100))}%` }}
+          />
         </div>
       )}
-      {(invite.held > 0 || invite.granted > 0) && (
-        <p className="mt-2 text-xs text-text-dim">
-          {invite.granted} joined · {invite.monthsEarned} month{invite.monthsEarned === 1 ? '' : 's'} earned
-          {invite.held > 0 && <> · {invite.held} on the way</>}
-        </p>
-      )}
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <input
+          readOnly
+          value={invite.link}
+          aria-label="Your invite link"
+          className="min-w-0 flex-[1_1_16rem] rounded-lg border border-card-border bg-background/40 px-3 py-2 font-mono text-[13px]"
+        />
+        <CopyLinkButton
+          path={path}
+          label="Copy link"
+          className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+        />
+      </div>
+      <p className="mt-2 text-[12px] text-text-dim">Rewards land two weeks after a friend&rsquo;s first payment.</p>
+    </div>
+  );
+}
+
+/** The Anvil Discord, where supporters and clan leaders actually talk to the person building it. */
+function DiscordCard() {
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-4 rounded-2xl border border-card-border bg-card-bg px-5 py-4">
+      <p className="min-w-0 flex-[1_1_20rem] text-[14px] leading-relaxed text-text-muted">
+        <b className="text-foreground">Come hang out in the Anvil Discord.</b> See new features first, report bugs and
+        have a say in what gets built next.
+      </p>
+      <a
+        href={SITE.supportDiscord}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="rounded-lg bg-[#5865f2] px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+      >
+        Join the Anvil Discord
+      </a>
     </div>
   );
 }
