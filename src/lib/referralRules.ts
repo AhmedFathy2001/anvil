@@ -55,3 +55,25 @@ export function grantWindow(now: number, bankedEnds: number[], months: number): 
 export function isReferralCode(s: unknown): s is string {
   return typeof s === 'string' && /^[a-z0-9]{6,12}$/.test(s);
 }
+
+/**
+ * Milestones on top of the per-friend reward: the count is friends whose purchase settled (granted
+ * referrals). Each is granted once, as Supporter time like any other reward, stacked after what's banked.
+ */
+export const REFERRAL_MILESTONES: { at: number; tier: SupporterTierId; months: number; label: string }[] = [
+  { at: 3, tier: 'champion', months: 1, label: 'a month of Champion' },
+  { at: 10, tier: 'champion', months: 3, label: '3 months of Champion' },
+  { at: 25, tier: 'patron', months: 12, label: 'a year of Patron' },
+];
+
+/** The milestone reached exactly at this count, if any. */
+export function milestoneAt(count: number) {
+  return REFERRAL_MILESTONES.find((m) => m.at === count) ?? null;
+}
+
+/** Progress towards the next milestone: { from, to, label } with `from` the last one passed (0 at first). */
+export function nextMilestone(count: number): { from: number; to: number; label: string } | null {
+  const i = REFERRAL_MILESTONES.findIndex((m) => m.at > count);
+  if (i < 0) return null;
+  return { from: i === 0 ? 0 : REFERRAL_MILESTONES[i - 1].at, to: REFERRAL_MILESTONES[i].at, label: REFERRAL_MILESTONES[i].label };
+}

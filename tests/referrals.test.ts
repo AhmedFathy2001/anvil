@@ -135,3 +135,22 @@ test('a refund takes the reward back, held or granted; a trial that never pays e
   await post({ subscription_id: 'sub-5', resource_name: 'subscription_ended' });
   assert.equal((await referralRows(r5.id))[0].status, 'revoked');
 });
+
+test('the third friend also earns the milestone, once', async () => {
+  const referrer = await makeUser('ref-r6', 'invite06');
+  for (const i of [1, 2, 3]) {
+    await makeUser(`ref-b6-${i}`);
+    await post({ sale_id: `s6-${i}`, subscription_id: `sub-6-${i}`, 'url_params[ref]': `ref-b6-${i}`, 'url_params[via]': 'invite06', 'variants[Tier]': 'Supporter', recurrence: 'monthly' });
+  }
+  const { grantDueReferrals, referralSummary } = await import('../src/lib/referrals.ts');
+  const later = Date.now() + 15 * DAY;
+  await grantDueReferrals(later);
+  await grantDueReferrals(later);
+  const { db, schema: s } = await loadDb();
+  const rows = await db.select().from(s.supporterSubscriptions).where(eq(s.supporterSubscriptions.userId, referrer.id));
+  assert.equal(rows.filter((r) => r.recurrence === 'referral-milestone-3').length, 1, 'one milestone grant');
+  assert.equal(rows.find((r) => r.recurrence === 'referral-milestone-3')?.tier, 'champion');
+  const sum = await referralSummary(referrer.id);
+  assert.equal(sum.granted, 3);
+  assert.deepEqual(sum.next, { from: 3, to: 10, label: '3 months of Champion' });
+});
