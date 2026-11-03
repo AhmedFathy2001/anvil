@@ -6,6 +6,8 @@
 // (lib/discord notifyTileCompletion). Nobody listening is not an error: a NOTIFY to users with no
 // socket open goes nowhere, and the plugin only opens one while its feed switch is on.
 
+import { hasChatStar } from '@/lib/chatLook';
+import { SUPPORTER_INK, supporterForUser } from '@/lib/supporter';
 import { and, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -209,7 +211,15 @@ export async function claimFeedItem(accountId: number, dedupKey: string): Promis
   return rows.length > 0;
 }
 
-async function deliver(item: FeedItem, to: Recipient[]): Promise<number> {
+/** A sender's name colour (Supporter) and star (Patron), for the line other people see. */
+async function flairOf(userId: number | null): Promise<{ color: string; star: boolean } | null> {
+  if (userId == null) return null;
+  const s = await supporterForUser(userId).catch(() => null);
+  if (!s) return null;
+  return { color: SUPPORTER_INK[s.tier.id].color, star: hasChatStar(s.tier.id) };
+}
+
+async function deliver(item: FeedItem, to: Recipient[], flair: { color: string; star: boolean } | null = null): Promise<number> {
   const byTag = new Map<string, number[]>();
   for (const r of to) {
     const list = byTag.get(r.tag) ?? [];
@@ -217,7 +227,7 @@ async function deliver(item: FeedItem, to: Recipient[]): Promise<number> {
     byTag.set(r.tag, list);
   }
   for (const [tag, ids] of byTag) {
-    const m = feedMessage(item, tag);
+    const m = feedMessage(item, tag, flair);
     for (let i = 0; i < ids.length; i += IDS_PER_NOTIFY) {
       await db.execute(sql`select pg_notify('anvil_push', ${JSON.stringify({ k: 'feed', u: ids.slice(i, i + IDS_PER_NOTIFY), m })})`);
     }
@@ -229,7 +239,10 @@ async function route(item: FeedItem, senderUserId: number | null, candidates: Ca
   if (!candidates.length) return 0;
   const ids = [...new Set([...candidates.map((c) => c.userId), ...(senderUserId != null ? [senderUserId] : [])])];
   const [prefs, memberClans] = await Promise.all([prefsFor(ids), memberClansOf(ids)]);
-  return deliver(item, recipients({ item, senderUserId, candidates, prefs, memberClans }));
+  const to = recipients({ item, senderUserId, candidates, prefs, memberClans });
+  if (!to.length) return 0;
+  // A tile is a team's, not a person's: no one's flair on it.
+  return deliver(item, to, item.kind === 'tile' ? null : await flairOf(senderUserId));
 }
 
 /** A player's own item (drop, pet, slot, task, level, quest, game-mode unlock). How many it reached. */

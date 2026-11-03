@@ -172,6 +172,8 @@ export const PLUGIN_CAPABILITIES = [
   // and 'quest', which only the feed reads), POST /api/plugin/presence takes the guest channel the
   // character sits in, and push tickets with ?feed=1 hear {"t":"feed"} lines even with no board.
   'chat-feed',
+  // GET /api/plugin/brief: the login lines and the chat colour palette (lib/chatBrief, lib/chatLook).
+  'login-brief',
   // Ghost clans (lib/gameClans): POST /api/plugin/game-clan takes the character's OWN row from the
   // in-game clan settings — clan name, rank, rank title, join date — on login and on change. Never
   // the member list. Works with no Anvil clan; feeds the profile's clan line and the hidden page.

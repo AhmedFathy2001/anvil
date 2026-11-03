@@ -38,7 +38,25 @@ export interface ChatFeedPrefs {
   tiles: boolean;
   /** Game-mode unlocks: relics, areas, pacts, masteries, harder tasks. */
   modes: boolean;
+  /** The one-or-two-line brief printed at login (lib/chatBrief). */
+  login: boolean;
+  /** How Anvil lines are coloured — see lib/chatLook. 'custom' is a Supporter perk. */
+  palette: Palette;
+  /** Supporter colours per tone, '#rrggbb'. Missing tones keep the Anvil colour. */
+  colors: Partial<Record<Tone, string>>;
+  /** What the login brief covers. Choosing is a Champion perk; everyone else gets the default. */
+  brief: BriefItem[];
 }
+
+/** What a chat line is, which decides its colour: tile done, progress/rank, a drop, someone else's
+ * tile, a warning, or plain information. */
+export const TONES = ['done', 'near', 'drop', 'feed', 'warn', 'info'] as const;
+export type Tone = (typeof TONES)[number];
+export const PALETTES = ['anvil', 'plain', 'custom'] as const;
+export type Palette = (typeof PALETTES)[number];
+export const BRIEF_ITEMS = ['bingo', 'weekly', 'tiles', 'clanEvents', 'goals'] as const;
+export type BriefItem = (typeof BRIEF_ITEMS)[number];
+export const DEFAULT_BRIEF: BriefItem[] = ['bingo', 'weekly'];
 
 export const DEFAULT_PREFS: ChatFeedPrefs = {
   events: true,
@@ -52,6 +70,10 @@ export const DEFAULT_PREFS: ChatFeedPrefs = {
   quests: 'off',
   tiles: true,
   modes: true,
+  login: true,
+  palette: 'anvil',
+  colors: {},
+  brief: DEFAULT_BRIEF,
 };
 
 export const MIN_VALUE_CHOICES = [100_000, 500_000, 1_000_000, 5_000_000, 10_000_000, 50_000_000] as const;
@@ -84,7 +106,28 @@ export function cleanPrefs(p: Record<string, unknown>): ChatFeedPrefs {
     quests: p.quests === 'major' || p.quests === 'off' ? p.quests : DEFAULT_PREFS.quests,
     tiles: bool('tiles'),
     modes: bool('modes'),
+    login: bool('login'),
+    palette: (PALETTES as readonly unknown[]).includes(p.palette) ? (p.palette as Palette) : DEFAULT_PREFS.palette,
+    colors: cleanColors(p.colors),
+    brief: Array.isArray(p.brief)
+      ? BRIEF_ITEMS.filter((b) => (p.brief as unknown[]).includes(b))
+      : DEFAULT_PREFS.brief,
   };
+}
+
+function cleanColors(v: unknown): Partial<Record<Tone, string>> {
+  const out: Partial<Record<Tone, string>> = {};
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return out;
+  for (const t of TONES) {
+    const c = (v as Record<string, unknown>)[t];
+    if (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c)) out[t] = c.toLowerCase();
+  }
+  return out;
+}
+
+/** The tone a feed item is printed in: drops and pets stand out, other teams' tiles sit back. */
+export function toneOf(kind: FeedKind): Tone {
+  return kind === 'drop' || kind === 'pet' ? 'drop' : kind === 'tile' ? 'feed' : 'info';
 }
 
 export type FeedKind = 'drop' | 'pet' | 'clog' | 'ca' | 'level' | 'quest' | 'mode' | 'tile';
@@ -187,8 +230,26 @@ export function gp(n: number): string {
 }
 
 /** The message the plugin prints: `[Anvil · <tag>] <who> <text>`. Kept short for the chatbox. */
-export function feedMessage(item: FeedItem, tag: string): { t: 'feed'; kind: FeedKind; tag: string; who: string; text: string } {
-  return { t: 'feed', kind: item.kind, tag: tag.slice(0, 40), who: item.who.slice(0, 40), text: item.text.slice(0, 160) };
+export interface FeedMessage {
+  t: 'feed';
+  kind: FeedKind;
+  tone: Tone;
+  tag: string;
+  who: string;
+  text: string;
+  /** The sender's Supporter name colour ('#rrggbb'), when they have one. */
+  whoColor?: string;
+  /** Patron: a star before the name. */
+  star?: true;
+}
+
+export function feedMessage(item: FeedItem, tag: string, flair?: { color: string; star: boolean } | null): FeedMessage {
+  const m: FeedMessage = { t: 'feed', kind: item.kind, tone: toneOf(item.kind), tag: tag.slice(0, 40), who: item.who.slice(0, 40), text: item.text.slice(0, 160) };
+  if (flair) {
+    m.whoColor = flair.color;
+    if (flair.star) m.star = true;
+  }
+  return m;
 }
 
 // ── What the plugin reports (POST /api/plugin/moments) ───────────────────────────────────────────
