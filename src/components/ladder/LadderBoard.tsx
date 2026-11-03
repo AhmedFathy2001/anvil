@@ -2,6 +2,8 @@
 
 import { Delta } from './YouStrip';
 import type { LadderScope } from '@/lib/ladderView';
+import SupporterName from '@/components/SupporterName';
+import type { SupporterTierId } from '@/lib/supporterTiers';
 
 /**
  * The ladder standings, in two pieces that share one scope.
@@ -93,12 +95,15 @@ export function Podium({
   sparks,
   mePlayerId,
   showTeam,
+  supporterTiers = {},
 }: {
   scope: LadderScope;
   streaks: Record<number, number>;
   sparks: Record<number, number[]>;
   mePlayerId: number | null;
   showTeam: boolean;
+  /** Supporter tier by row name; only supporters appear. */
+  supporterTiers?: Record<string, SupporterTierId>;
 }) {
   const podium = scope.rows.slice(0, 3);
   if (podium.length === 0) {
@@ -129,7 +134,7 @@ export function Podium({
               {first ? 'LEADER' : `#${i + 1}`}
             </div>
             <div className={`mt-2 break-words font-extrabold leading-tight ${first ? 'text-xl text-gold-light sm:text-2xl' : 'text-lg'}`}>
-              {r.name}
+              <SupporterName name={r.name} tier={supporterTiers[r.name]} className="max-w-full" />
             </div>
             <div className="mt-2.5 flex items-baseline gap-2">
               <span
@@ -170,6 +175,7 @@ export function Chase({
   mePlayerId,
   showTeam,
   finished,
+  supporterTiers = {},
 }: {
   scope: LadderScope;
   streaks: Record<number, number>;
@@ -177,6 +183,8 @@ export function Chase({
   showTeam: boolean;
   /** A finished run's empty states are results, not invitations. */
   finished: boolean;
+  /** Supporter tier by row name; only supporters appear. */
+  supporterTiers?: Record<string, SupporterTierId>;
 }) {
   const chase = scope.rows.slice(3);
   return (
@@ -213,7 +221,7 @@ export function Chase({
               >
                 <span className="font-mono text-xs text-text-muted">#{i + 4}</span>
                 <span className="min-w-0 truncate text-sm">
-                  <span className={isMe ? 'font-bold' : 'font-medium'}>{r.name}</span>
+                  <SupporterName name={r.name} tier={supporterTiers[r.name]} className={isMe ? 'font-bold' : 'font-medium'} />
                   {streaks[r.playerId] > 1 && <span className="ml-1.5 text-xs">🔥</span>}
                   {showTeam && (
                     <span className="ml-2 inline-flex items-center gap-1 text-[11px] text-text-muted">

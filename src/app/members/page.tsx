@@ -15,6 +15,7 @@ import MembersTabs from './MembersTabs';
 import { getLuckBoards } from '@/lib/clogLuckBoard';
 import { momentsForClan } from '@/lib/momentsStore';
 import MomentsFeed from '@/components/MomentsFeed';
+import { supporterTiersByName } from '@/lib/supporter';
 
 /**
  * A static export named the product instead of the clan — "Members — Anvil" on every clan's roster,
@@ -54,7 +55,7 @@ export default async function MembersPage() {
   // Analytics reuses the list rather than re-querying it, so the whole page is a handful of
   // statements. The activity read is its own query, but a narrow one — two columns off the roster,
   // where the alternative was every member's full hiscores snapshot.
-  const [analytics, rosterLog, activities, movement, luck, moments] = await Promise.all([
+  const [analytics, rosterLog, activities, movement, luck, moments, supporterTiers] = await Promise.all([
     getClanAnalytics(members, { countGuests }),
     getRosterLog(clan.id, 20),
     getClanActivityAnalytics(clan.id, { countGuests }),
@@ -63,6 +64,9 @@ export default async function MembersPage() {
     // Every scope's moments together — see momentsForClan for why a board's drop and a quiet
     // Tuesday's pet are the same news to someone reading this page.
     momentsForClan(clan.id, 30),
+    // Supporter flair on each character's name: one query for the whole roster (the podium's names
+    // are roster names, so the same record covers them).
+    supporterTiersByName(members.map((m) => m.rsn)),
   ]);
 
   return (
@@ -83,6 +87,7 @@ export default async function MembersPage() {
         movement={movement}
         rankOrder={rankOrder}
         luck={luck}
+        supporterTiers={supporterTiers}
         lately={
           <MomentsFeed
             moments={moments}

@@ -34,6 +34,24 @@ export const SUPPORTER_INK: Record<SupporterTierId, { color: `#${string}`; grad?
   patron: { color: '#ff7ab8', grad: ['#ffd27a', '#ff7ab8', '#7ae0ff'], move: true },
 };
 
+/**
+ * Re-key a tier map (keyed by normalised RSN) by the names exactly as a page spells them, so a client
+ * component can look a row up by its own `rsn` without the normaliser. Only supporters appear, so
+ * the record stays small however long the list.
+ */
+export function tiersByName(
+  names: string[],
+  tiers: Map<string, SupporterTierId>,
+  normalize: (name: string) => string,
+): Record<string, SupporterTierId> {
+  const out: Record<string, SupporterTierId> = {};
+  for (const name of names) {
+    const tier = tiers.get(normalize(name));
+    if (tier) out[name] = tier;
+  }
+  return out;
+}
+
 /** The tier a Gumroad tier name means ("Champion" → champion). Unknown names are null, never a guess. */
 export function supporterTierForGumroad(name: string | null | undefined): SupporterTierId | null {
   const key = (name ?? '').trim().toLowerCase();
