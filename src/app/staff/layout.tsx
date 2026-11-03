@@ -96,6 +96,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         { href: '/staff/releases', label: 'Releases', icon: '⇪', matchPrefix: true },
         // Anvil's own server: new-supporter posts and supporter roles (lib/anvilDiscord).
         { href: '/staff/discord', label: 'Anvil Discord', icon: '✉', matchPrefix: true },
+        { href: '/staff/event-chat', label: 'Event chat', icon: '✉', matchPrefix: true },
         // The Anvil guide library every clan sees and copies from.
         { href: '/staff/guides', label: 'Guide library', icon: '📖', badge: pending.guideProposals, matchPrefix: true },
         // Anvil's task and board library, and the suggestions clans send for it.

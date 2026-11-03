@@ -160,6 +160,11 @@ async function eventScope(eventId: number, teamId: number | null, clanId: number
  * and a clan that has just turned deaths on should see the next one, not the one after a cache
  * expires.
  */
+/** A clan's feed floors (loot gp, combat-task tier, deaths), as its settings say. */
+export function clanScopeFor(clanId: number): Promise<ClanScope> {
+  return clanScope(clanId);
+}
+
 async function clanScope(clanId: number): Promise<ClanScope> {
   const byKey = await getSettingMap(clanId, [
     CLAN_MIN_LOOT_SETTING_KEY,
@@ -235,7 +240,7 @@ export async function recordMoments(
   member: { clanMemberId: number; rsn: string },
   observations: Observation[],
   scopes: ActiveScopes,
-): Promise<{ stored: number; matched: number }> {
+): Promise<{ stored: number; matched: number; inserted: StoredMoment[] }> {
   const planned: PlannedMoment[] = [];
   for (const obs of observations) {
     // A client retries a short backlog after reconnecting. If it reconnects just after the event
@@ -245,11 +250,12 @@ export async function recordMoments(
     const event = eventStart != null && (occurred == null || occurred < eventStart) ? null : scopes.event;
     planned.push(...classifyObservation(obs, { ...scopes, event }));
   }
-  if (planned.length === 0) return { stored: 0, matched: 0 };
+  if (planned.length === 0) return { stored: 0, matched: 0, inserted: [] };
 
   let stored = 0;
+  const inserted: StoredMoment[] = [];
   for (const row of planned) {
-    const inserted = await db
+    const rows = await db
       .insert(moments)
       .values({
         clanMemberId: member.clanMemberId,
@@ -271,10 +277,44 @@ export async function recordMoments(
         dedupKey: row.dedupKey,
       })
       .onConflictDoNothing()
-      .returning({ id: moments.id });
-    if (inserted.length > 0) stored++;
+      .returning({ id: moments.id, occurredAt: moments.occurredAt });
+    if (rows.length > 0) {
+      stored++;
+      inserted.push({
+        id: rows[0].id,
+        rsn: member.rsn,
+        kind: row.kind,
+        itemId: row.itemId,
+        itemName: row.itemName,
+        quantity: row.quantity,
+        valueGp: row.valueGp,
+        source: row.source,
+        teamId: row.teamId,
+        eventId: row.eventId,
+        tier: row.tier,
+        kc: row.kc,
+        occurredAt: rows[0].occurredAt,
+      });
+    }
   }
-  return { stored, matched: planned.length };
+  return { stored, matched: planned.length, inserted };
+}
+
+/** A moment just stored, as the live panel rows want it (lib/panelRows). */
+export interface StoredMoment {
+  id: number;
+  rsn: string;
+  kind: string;
+  itemId: number | null;
+  itemName: string | null;
+  quantity: number;
+  valueGp: number | null;
+  source: string | null;
+  teamId: number | null;
+  eventId: number | null;
+  tier: string | null;
+  kc: number | null;
+  occurredAt: string;
 }
 
 /** The columns every feed reads. One list so a new one can't quietly drift from the others. */
@@ -292,6 +332,7 @@ const MOMENT_COLUMNS = {
   tier: moments.tier,
   sourceKind: moments.sourceKind,
   teamId: moments.teamId,
+  eventId: moments.eventId,
   occurredAt: moments.occurredAt,
 };
 
@@ -312,6 +353,8 @@ export interface MomentRow {
   sourceKind: string | null;
   /** Which side it happened on, stamped at ingest. Null on weekly/solo moments. */
   teamId: number | null;
+  /** The board it was filed on, if any (a hidden-standings board keeps it out of the clan feed). */
+  eventId?: number | null;
   occurredAt: string;
 }
 

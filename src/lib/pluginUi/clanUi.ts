@@ -14,7 +14,11 @@ function nameLine(label: string, value: string, rsn: string): Node {
 }
 
 /** @param compare offer "Compare with my clan" (another clan, and the viewer has one) */
-export function clanCardUi(c: ClanCard, compare: boolean): Node {
+/**
+ * `feedTab`: the plugin has the Feed tab (it sends X-Anvil-Feed-Tab), so the full drop log lives
+ * there and this card keeps only a short taste of it.
+ */
+export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false): Node {
   const parts: Node[] = [];
   const id: Node[] = [
     row(undefined, text(c.name, 'white', { font: 'bold' }), icon({
@@ -63,7 +67,9 @@ export function clanCardUi(c: ClanCard, compare: boolean): Node {
       card([
         header('Recent drops'),
         gap(4),
-        { t: 'slot', id: 'moments', c: quick, load: { a: 'load', v: 'moments', args: { slug: c.slug, n: String(FEED_STEP) }, into: 'moments' } },
+        feedTab
+          ? col([quick, muted('The full list, live, is in the Feed tab.', { font: 'small', wrap: true })])
+          : { t: 'slot', id: 'moments', c: quick, load: { a: 'load', v: 'moments', args: { slug: c.slug, n: String(FEED_STEP) }, into: 'moments' } },
       ]),
     );
   }

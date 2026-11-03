@@ -16,7 +16,7 @@ import http from 'node:http';
 import pg from 'pg';
 import { WebSocketServer, type WebSocket } from 'ws';
 
-import { ViewHub, parseChange, parseFeed } from '../src/lib/push/hub.ts';
+import { ViewHub, parseChange, parseFeed, parseRows } from '../src/lib/push/hub.ts';
 import { internalSecret, ticketKey, verifyTicket } from '../src/lib/push/ticket.ts';
 
 const PATH = '/api/plugin/push/ws';
@@ -134,6 +134,11 @@ async function listen(): Promise<void> {
   const client = new pg.Client({ connectionString: dbUrl });
   client.on('notification', (n) => {
     if (!n.payload) return;
+    const rows = parseRows(n.payload);
+    if (rows) {
+      hub.deliverRows(rows);
+      return;
+    }
     const feed = parseFeed(n.payload);
     if (feed) {
       hub.deliver(feed);

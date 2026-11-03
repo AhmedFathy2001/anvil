@@ -639,6 +639,31 @@ export function isClanWorthy(
   return (row.valueGp ?? 0) >= clan.minLootGp;
 }
 
+/**
+ * The panel Feed's bar for one row (lib/pluginUi/feedUi). Stricter than {@link isClanWorthy} on one
+ * point: a drop whose price we KNOW must clear the gp floor, rare or not — a 1-in-x Dragonfruit tree
+ * seed is still a 200k line, and a feed that a thousand players read can't carry it. The rarity pass
+ * is kept only for drops with no price (untradeables). Pets always; other kinds are the caller's.
+ */
+export function panelFeedWorthy(
+  row: { kind: string; itemId?: number | null; source?: string | null; quantity?: number | null; valueGp?: number | null },
+  floorGp: number,
+): boolean {
+  if (row.kind === 'pet') return true;
+  if (row.kind !== 'unique' && row.kind !== 'loot') return true;
+  if (row.valueGp != null && row.valueGp > 0) return row.valueGp >= floorGp;
+  // No price: rarity alone, at the feed's own bar.
+  return clanRareDrop(dropInfo(row.source, row.itemId), row.quantity ?? 1, 0, null);
+}
+
+/** A board's Feed floor by its size: the more players, the bigger a drop must be to get a line. */
+export function eventFeedFloor(players: number): number {
+  if (players >= 1000) return 10_000_000;
+  if (players >= 500) return 5_000_000;
+  if (players >= 100) return 3_000_000;
+  return EVENT_FEED_MIN_GP;
+}
+
 let clogIds: Set<number> | null = null;
 
 /** Every item with a collection-log slot. */

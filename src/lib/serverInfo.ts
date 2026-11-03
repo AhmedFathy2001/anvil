@@ -182,6 +182,10 @@ export const PLUGIN_CAPABILITIES = [
   // varps whose changes credit kill tiles by name, and the submissions route accepts the
   // 'unverified_counter' flag for the ones nobody has checked in game yet.
   'game-counters',
+  // Live panel lists (lib/panelRows): the plugin UI's `feed` node, push messages {"t":"rows"} /
+  // {"t":"rowsdel"} that grow or trim it, push tickets with ?rows=1 for a plugin with no board, and
+  // the Feed tab (view 'feed') with its event chat.
+  'panel-rows',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

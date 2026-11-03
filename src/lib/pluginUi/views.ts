@@ -29,11 +29,12 @@ import { type SupporterInk, supporterForUser, supporterInksForRsns } from '@/lib
 import { momentsForClan } from '@/lib/momentsStore';
 import { NO_REACTIONS, REACTION_KINDS, isClanMember, momentInClan, reactionSummaries, toggleReaction } from '@/lib/momentReactions';
 import { FEED_MAX, FEED_STEP, type FeedItem, momentsFeedUi } from './momentsUi';
+import { chatAct, feedView } from './feedView';
 
 import { type BoardContext, type BoardState, type BoardTile, STATUSES, type Status, boardRowsUi, boardUi } from './boardUi';
 import { clanCardUi, clanCompareUi, clanSearchUi } from './clanUi';
 import { type HomeConfig, type HomeData, eventUi, homeUi } from './homeUi';
-import { lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
+import { hasFeedTab, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { type Node, type View, applyFlair, backRow, button, col, gap, message, namesIn, text } from './nodes';
 import { notFoundUi, playerCardUi } from './playerCardUi';
@@ -136,7 +137,7 @@ async function clanView(request: Request, a: Args): Promise<View> {
   const clan = await visibleClan(request, a.slug ?? '');
   if (!clan) return message('That clan isn’t listed on Anvil.');
   const mine = (a.clan ?? '').trim().toLowerCase();
-  return { ui: clanCardUi(await loadClanCard(clan), !!mine && mine !== clan.slug && a.own !== '1') };
+  return { ui: clanCardUi(await loadClanCard(clan), !!mine && mine !== clan.slug && a.own !== '1', hasFeedTab(request)) };
 }
 
 async function clanCompareView(request: Request, a: Args): Promise<View> {
@@ -374,7 +375,7 @@ async function clanEventGoingAct(request: Request, a: Args): Promise<View> {
 async function ownClanCard(request: Request, slug: string): Promise<Node | null> {
   const clan = await visibleClan(request, slug);
   if (!clan) return null;
-  return clanCardUi(await ttlMemo(`plugin-ui-clan-card:${clan.id}`, () => loadClanCard(clan), 5 * 60_000), false);
+  return clanCardUi(await ttlMemo(`plugin-ui-clan-card:${clan.id}`, () => loadClanCard(clan), 5 * 60_000), false, hasFeedTab(request));
 }
 
 /** Supporters' names in a finished view get their flair: one lookup for every name it shows. */
@@ -436,6 +437,25 @@ async function reactAct(request: Request, a: Args): Promise<View> {
   return momentsView(request, a);
 }
 
+/**
+ * A GZ from a live Feed row: the plugin has already flipped it on screen, so the answer is just
+ * whether it stuck (an error line) — nothing is redrawn.
+ */
+async function reactRowAct(request: Request, a: Args): Promise<View> {
+  const viewer = await verifyPluginTokenUser(request);
+  const clan = await visibleClan(request, a.slug ?? '');
+  const id = positive(a.id);
+  const kind = REACTION_KINDS.find((k) => k === a.kind);
+  if (!viewer || !clan || !id || !kind) return { ui: text('Couldn’t react to that.', 'error') };
+  const rl = await rateLimit(request, `plugin-react:${viewer.userId}`, { limit: 40, windowMs: 60_000 });
+  if (!rl.ok) return { ui: text('Slow down a little.', 'error') };
+  if (!(await canReactIn(request, viewer.userId, clan))) return { ui: text('Only clanmates can GZ these drops.', 'error') };
+  if (kind === 'gold' && !(await supporterForUser(viewer.userId))) return { ui: text('Gold GZs are an Anvil Supporter reaction.', 'error') };
+  if (!(await momentInClan(id, clan.id))) return { ui: text('That drop isn’t in this clan’s feed.', 'error') };
+  await toggleReaction(id, viewer.userId, kind);
+  return { ui: gap(0) };
+}
+
 export async function pluginView(request: Request, v: string, a: Args): Promise<View | null> {
   return flaired(await viewFor(request, v, a));
 }
@@ -470,6 +490,8 @@ async function viewFor(request: Request, v: string, a: Args): Promise<View | nul
       return homeView(request, a);
     case 'moments':
       return momentsView(request, a);
+    case 'feed':
+      return feedView(request, a);
     default:
       return null;
   }
@@ -484,6 +506,9 @@ async function actFor(request: Request, act: string, args: Args, fields: Args): 
   if (act === 'claim' || act === 'unclaim') return claimAct(request, act, args, fields.note);
   if (act === 'clan-event-going') return clanEventGoingAct(request, args);
   if (act === 'react') return reactAct(request, args);
+  if (act === 'react-row') return reactRowAct(request, args);
+  const chat = await chatAct(request, act, args, fields);
+  if (chat) return chat;
   if (act !== 'goal-add' && act !== 'goal-remove') return null;
   const owner = await ownedAccount(request);
   if (!owner) return { ui: goalsUi([], NOT_YOURS) };

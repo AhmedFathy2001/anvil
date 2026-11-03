@@ -521,6 +521,11 @@ export const events = pgTable('events', {
   // tile completions in each participant's RuneLite chat. Off by default — it shows each team what the
   // others are getting, so it is the host's call. Never on for another team while standings are hidden.
   chatFeed: boolean('chat_feed').notNull().default(false),
+  // The event chat in the plugin's Feed tab (lib/eventChat): one private channel for this board's
+  // participants. Off by default — the host turns it on; `chatPaused` makes it read-only at once
+  // (a spam wave, a raid). Staff can switch every event chat off (platform setting event_chat_enabled).
+  chatEnabled: boolean('chat_enabled').notNull().default(false),
+  chatPaused: boolean('chat_paused').notNull().default(false),
   // Advertise this board on the apex home's "Open to everyone" feed. SEPARATE from visibility: a
   // public board is readable by link; this is the host also asking for strangers to be pointed at
   // it. Only honoured while the board is public and its clan is listed (lib/apexHome). Off by default.
@@ -3969,6 +3974,37 @@ export const momentReactions = pgTable('moment_reactions', {
   kind: text('kind').notNull(), // 'gz' | 'gold'
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [uniqueIndex('moment_reactions_one_each').on(table.momentId, table.userId, table.kind)]);
+
+// The event chat (lib/eventChat): what a board's participants said to each other, or to their own
+// team (`teamOnly`). A mod's delete keeps the row (so a report can still be read) but stops it being
+// served. Rows go some days after the event ends (sweepEventChat).
+export const eventChatMessages = pgTable('event_chat_messages', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  /** The sender's team when they said it; null for host staff with no team. */
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
+  teamOnly: boolean('team_only').notNull().default(false),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** Said by the host's staff: the "Host & mods" filter reads this. */
+  fromStaff: boolean('from_staff').notNull().default(false),
+  rsn: text('rsn').notNull(),
+  body: text('body').notNull(),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  deletedAt: text('deleted_at'),
+  deletedBy: integer('deleted_by').references(() => users.id, { onDelete: 'set null' }),
+}, (table) => [
+  index('event_chat_messages_event_idx').on(table.eventId, table.id),
+  index('event_chat_messages_team_idx').on(table.eventId, table.teamId, table.id),
+]);
+
+// Who may not talk in an event's chat, until when (null = the rest of the event).
+export const eventChatMutes = pgTable('event_chat_mutes', {
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  until: text('until'),
+  byUserId: integer('by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [primaryKey({ columns: [table.eventId, table.userId] })]);
 
 // Game-mode event lines (lib/modeLines). Staff patterns that turn a game-mode world's chat line into
 // a post ("Relic unlocked: …"), tried before the built-ins, and the queue of lines no pattern knew,
