@@ -10,7 +10,8 @@ import { labQuarantine } from '@/lib/lab';
 import { worldModeIgnored } from '@/lib/worldModeRequest';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { accounts } from '@/db/schema';
+import { accounts, clanMemberships } from '@/db/schema';
+import { emitMomentRows } from '@/lib/panelRows';
 import { claimFeedItem, emitPersonalItem } from '@/lib/chatFeed';
 import { feedItemFromMoment } from '@/lib/chatFeedRules';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
@@ -206,6 +207,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, stored: 0, matched: 0, scoped: false });
   }
 
-  const result = await recordMoments(member, observations, scopes);
+  const { inserted, ...result } = await recordMoments(member, observations, scopes);
+  // The panel's live Feed lists (lib/panelRows). Not awaited past a failure: the reply is the plugin's.
+  if (inserted.length) {
+    // clan-scope: this clan -- the caller's own seat, resolved from their token above
+    const seat = await db.query.clanMemberships.findFirst({ where: eq(clanMemberships.id, member.clanMemberId), columns: { kind: true } });
+    await emitMomentRows(clan.id, seat?.kind ?? 'guest', inserted);
+  }
   return NextResponse.json({ ok: true, ...result, scoped: true });
 }

@@ -1,0 +1,82 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import { eventFeedFloor, panelFeedWorthy } from '../src/lib/moments.ts';
+import { chatFeedIds, chatRow, feedTabUi, momentFeedIds, momentRow } from '../src/lib/pluginUi/feedUi.ts';
+
+const drop = (valueGp: number | null, extra: Record<string, unknown> = {}) => ({
+  id: 1,
+  rsn: 'Rikkert',
+  kind: 'unique',
+  itemId: 22877,
+  itemName: 'Dragonfruit tree seed',
+  quantity: 1,
+  valueGp,
+  source: 'Seed pack',
+  teamId: null,
+  occurredAt: '2026-11-04 10:00:00',
+  ...extra,
+});
+
+test('a priced drop must clear the floor, rare or not', () => {
+  assert.equal(panelFeedWorthy(drop(200_000), 5_000_000), false, 'the 200k seed stays out');
+  assert.equal(panelFeedWorthy(drop(6_000_000), 5_000_000), true);
+  assert.equal(panelFeedWorthy(drop(1, { kind: 'pet' }), 5_000_000), true, 'pets always');
+  assert.equal(panelFeedWorthy(drop(null, { kind: 'ca' }), 5_000_000), true, 'other kinds are the caller’s rule');
+});
+
+test('a board’s floor rises with its size', () => {
+  assert.equal(eventFeedFloor(20), 1_000_000);
+  assert.equal(eventFeedFloor(150), 3_000_000);
+  assert.equal(eventFeedFloor(600), 5_000_000);
+  assert.equal(eventFeedFloor(2000), 10_000_000);
+});
+
+test('a moment names every list it belongs in', () => {
+  assert.deepEqual(momentFeedIds({ kind: 'clan', id: 3 }, 'loot', null), ['moments:clan:3', 'moments:clan:3:drops']);
+  assert.deepEqual(momentFeedIds({ kind: 'event', id: 9 }, 'pet', 4), ['moments:event:9', 'moments:event:9:pets', 'moments:event:9:team:4']);
+});
+
+test('a chat line goes to everyone’s list, its team’s, and staff’s', () => {
+  assert.deepEqual(chatFeedIds(9, { teamId: 4, teamOnly: false, staff: false }), ['chat:9', 'chat:9:team:4']);
+  assert.deepEqual(chatFeedIds(9, { teamId: 4, teamOnly: true, staff: true }), ['chat:9:team:4'], 'team-only stays in the team');
+  assert.deepEqual(chatFeedIds(9, { teamId: null, teamOnly: false, staff: true }), ['chat:9', 'chat:9:mods']);
+});
+
+test('a moment row reads as item, who, value, time', () => {
+  const r = momentRow(drop(4_100_000, { itemName: 'Tanzanite fang' }), { team: { name: 'Ruby', color: '#cf4a3e' } });
+  assert.equal(r.id, 'm1');
+  assert.equal(r.title, 'Tanzanite fang');
+  assert.equal(r.who, 'Rikkert');
+  assert.equal(r.value, '4.1m');
+  assert.equal(r.tag, 'Ruby');
+  assert.equal(r.item, 22877);
+  const stack = momentRow(drop(1_000_000, { quantity: 3, itemName: 'Zulrah scales' }));
+  assert.equal(stack.title, '3 × Zulrah scales');
+  assert.equal(stack.value, '3.0m', 'the stack’s worth');
+});
+
+test('a chat row: staff tag, team-only tag, mod menu only when given', () => {
+  const base = { id: 5, rsn: 'Kev', body: 'hi', teamOnly: false, createdAt: '2026-11-04 10:00:00' };
+  assert.equal(chatRow(base, { role: 'mod' }).tag, 'MOD');
+  assert.equal(chatRow({ ...base, teamOnly: true }).tag, 'TEAM');
+  assert.equal(chatRow(base).menu, undefined);
+  const del = { a: 'post' as const, act: 'chat-del', args: {} };
+  assert.equal(chatRow(base, { modActions: { del, mute: del } }).menu?.length, 2);
+});
+
+test('the chat pane carries the send box; the feed pane its floor line', () => {
+  const scopes = [
+    { kind: 'clan' as const, id: 3, slug: 'afk', name: 'The AFK Spot' },
+    { kind: 'event' as const, id: 9, name: 'Winter Bingo' },
+  ];
+  const chat = JSON.stringify(
+    feedTabUi({ scopes, current: scopes[1], pane: 'chat', chatAvailable: true, filter: 'team', teamId: 4, rows: [], send: { act: 'chat-send', args: { e: '9', to: 'team' }, hint: 'x' } }),
+  );
+  assert.match(chat, /"t":"feed","id":"chat:9:team:4"/);
+  assert.match(chat, /"send":\{"act":"chat-send"/);
+  const feed = JSON.stringify(feedTabUi({ scopes, current: scopes[0], pane: 'feed', chatAvailable: false, filter: 'drops', teamId: null, rows: [], floorNote: 'Drops ≥ 5m' }));
+  assert.match(feed, /"id":"moments:clan:3:drops"/);
+  assert.match(feed, /Drops ≥ 5m/);
+  assert.doesNotMatch(feed, /"label":"Chat"|"s":"Chat"/, 'no chat chip off a board');
+});

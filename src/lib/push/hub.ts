@@ -82,6 +82,8 @@ export class ViewHub {
   private readonly views = new Map<string, View>();
   /** user → their clients with the chat feed on (lib/chatFeed sends to people, not views). */
   private readonly feeds = new Map<number, Set<PushClient>>();
+  /** user → every client they have open, for panel rows (lib/panelRows) aimed at people. */
+  private readonly people = new Map<number, Set<PushClient>>();
 
   constructor(opts: ViewHubOptions) {
     this.opts = opts;
@@ -94,6 +96,7 @@ export class ViewHub {
     for (const k of keys) addTo(this.teams, k, client);
     for (const e of client.scope.eventIds) addTo(this.events, e, client);
     if (client.scope.feed) addTo(this.feeds, client.scope.userId, client);
+    addTo(this.people, client.scope.userId, client);
     for (const k of keys) {
       const v = this.view(k);
       if (v.text != null) client.send(v.text);
@@ -104,6 +107,7 @@ export class ViewHub {
     }
     return () => {
       if (client.scope.feed) removeFrom(this.feeds, client.scope.userId, client);
+      removeFrom(this.people, client.scope.userId, client);
       for (const k of keys) {
         removeFrom(this.teams, k, client);
         this.views.get(k)?.owed.delete(client);
@@ -120,7 +124,7 @@ export class ViewHub {
   get size(): number {
     const all = new Set<PushClient>();
     for (const set of this.events.values()) for (const c of set) all.add(c);
-    for (const set of this.feeds.values()) for (const c of set) all.add(c);
+    for (const set of this.people.values()) for (const c of set) all.add(c);
     return all.size;
   }
 
@@ -128,6 +132,25 @@ export class ViewHub {
   deliver(feed: FeedNotice): void {
     const text = JSON.stringify(feed.m);
     for (const u of feed.u) for (const c of this.feeds.get(u) ?? []) c.send(text);
+  }
+
+  /**
+   * Panel rows (a feed row, a chat line, a removal): to a board's room, one team's room on it, or
+   * named people. Encoded once, whatever the room's size — a thousand-player event chat is one
+   * stringify and a thousand sends.
+   */
+  deliverRows(notice: RowsNotice): void {
+    const text = JSON.stringify(notice.m);
+    const sent = new Set<PushClient>();
+    const send = (set: Set<PushClient> | undefined) => {
+      for (const c of set ?? []) {
+        if (sent.has(c)) continue;
+        sent.add(c);
+        c.send(text);
+      }
+    };
+    if (notice.e != null) send(notice.t != null ? this.teams.get(teamKey(notice.e, notice.t)) : this.events.get(notice.e));
+    for (const u of notice.u ?? []) send(this.people.get(u));
   }
 
   dispatch(change: PushChange): void {
@@ -308,6 +331,28 @@ export function parseFeed(payload: string): FeedNotice | null {
     const p = JSON.parse(payload);
     if (p?.k !== 'feed' || !Array.isArray(p.u) || !p.m || typeof p.m !== 'object') return null;
     return { u: p.u.filter((n: unknown): n is number => Number.isInteger(n)), m: p.m };
+  } catch {
+    return null;
+  }
+}
+
+/** Panel rows (lib/panelRows): `e` a board (with `t`, only that team on it) and/or `u` people. */
+export interface RowsNotice {
+  e?: number;
+  t?: number;
+  u?: number[];
+  m: Record<string, unknown>;
+}
+
+/** A NOTIFY payload as panel rows, or null when it isn't one. */
+export function parseRows(payload: string): RowsNotice | null {
+  try {
+    const p = JSON.parse(payload);
+    if (p?.k !== 'rows' || !p.m || typeof p.m !== 'object') return null;
+    const e = Number.isInteger(p.e) ? (p.e as number) : undefined;
+    const u = Array.isArray(p.u) ? p.u.filter((n: unknown): n is number => Number.isInteger(n)) : undefined;
+    if (e == null && !u?.length) return null;
+    return { ...(e != null ? { e } : {}), ...(e != null && Number.isInteger(p.t) ? { t: p.t } : {}), ...(u?.length ? { u } : {}), m: p.m };
   } catch {
     return null;
   }

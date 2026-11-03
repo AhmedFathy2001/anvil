@@ -170,7 +170,63 @@ export type Node =
       color?: Color;
     })
   /** A part only the plugin can draw (it reads the game): the starting shot's checks and its button. */
-  | (Common & { t: 'native'; name: 'start-proof' });
+  | (Common & { t: 'native'; name: 'start-proof' })
+  /**
+   * A live list (capability 'panel-rows'): drawn once with `rows`, then grown by push messages
+   * `{t:'rows', feeds:[…], rows:[…]}` naming this `id` — never redrawn per row. One list, one row
+   * renderer, so a thousand rows cost what twenty do. With `send` it has a message box under it:
+   * the event chat.
+   */
+  | (Common & {
+      t: 'feed';
+      /** What push messages address it by: `moments:clan:<id>`, `chat:<event>`, `chat:<event>:team:<t>`. */
+      id: string;
+      /** Newest first. */
+      rows: FeedRow[];
+      /** At most this many held; the oldest go. */
+      cap?: number;
+      /** The list's height in px (it scrolls inside). */
+      h?: number;
+      /** Shown while there are no rows. */
+      empty?: string;
+      /** A message box: Enter posts `act` with the text as field `msg`, and nothing is redrawn. */
+      send?: { act: string; args?: Record<string, string>; hint?: string; max?: number };
+      /** 'paused' / 'closed' grey the box out with this line instead. */
+      locked?: string;
+    });
+
+/**
+ * One row of a feed. Kept flat and small: a thousand of these cross the socket in an hour.
+ * `on` runs when the row is clicked, `gz` is the reaction at its right edge.
+ */
+export interface FeedRow {
+  id: string;
+  /** A picture at the left: an item, or a glyph. */
+  item?: number;
+  glyph?: 'check' | 'star' | 'chevron-right';
+  glyphColor?: Color;
+  /** Bold line. A chat row leaves it out and uses `who` + `text` on one line. */
+  title?: string;
+  who?: string;
+  whoColor?: Color;
+  /** Supporter flair on `who`. */
+  grad?: `#${string}`[];
+  text?: string;
+  textColor?: Color;
+  /** Small prefix tag: MOD, HOST, TEAM. */
+  tag?: string;
+  tagColor?: Color;
+  /** ISO time: drawn as "3m". */
+  at: string;
+  /** Right-hand figure: "4.1M", "+3". */
+  value?: string;
+  /** The viewer's own, or their team's: drawn on a lighter ground. */
+  mine?: boolean;
+  gz?: { n: number; mine?: boolean; on: Action };
+  on?: Action;
+  /** Right-click entries (mods: delete, mute). */
+  menu?: { label: string; on: Action }[];
+}
 
 /** A view: the node tree plus whether the plugin may hold it a while (a lookup) or not (your own). */
 export interface View {

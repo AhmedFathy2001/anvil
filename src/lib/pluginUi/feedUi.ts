@@ -1,0 +1,260 @@
+import { formatGp } from '@/lib/itemPrices';
+
+import type { Action, Color, FeedRow, Node } from './nodes';
+import { col, gap, muted, text } from './nodes';
+
+// The plugin panel's Feed tab (view 'feed'): one live list per scope — the clan's moments, a board's
+// moments, a board's chat — drawn once and then grown by push rows (lib/panelRows). Pure: the view
+// in pluginUi/views gathers the data, this decides how it reads.
+//
+// Feed ids are how a push row finds its list. A row names every list it belongs in, so a filtered
+// view is just another id and the plugin never has to understand a filter:
+//   moments:clan:<clan>[:<group>]        a clan's moments, all or one kind group
+//   moments:event:<event>[:<group>]      a board's moments
+//   moments:event:<event>:team:<team>    one team's moments on it
+//   chat:<event> · chat:<event>:team:<team> · chat:<event>:mods
+
+export type KindGroup = 'drops' | 'pets' | 'tasks';
+export const KIND_GROUPS: KindGroup[] = ['drops', 'pets', 'tasks'];
+
+export function kindGroup(kind: string): KindGroup | null {
+  if (kind === 'unique' || kind === 'loot') return 'drops';
+  if (kind === 'pet') return 'pets';
+  if (kind === 'ca' || kind === 'level' || kind === 'clog') return 'tasks';
+  return null;
+}
+
+export type Scope = { kind: 'clan'; id: number; slug: string; name: string } | { kind: 'event'; id: number; name: string };
+
+export function momentsFeedId(scope: { kind: 'clan' | 'event'; id: number }, filter?: KindGroup | 'team', teamId?: number | null): string {
+  const base = `moments:${scope.kind}:${scope.id}`;
+  if (filter === 'team') return teamId != null ? `${base}:team:${teamId}` : base;
+  return filter ? `${base}:${filter}` : base;
+}
+
+/** Every list a moment belongs in: its scope's, its kind group's, and its team's on a board. */
+export function momentFeedIds(scope: { kind: 'clan' | 'event'; id: number }, kind: string, teamId: number | null): string[] {
+  const ids = [momentsFeedId(scope)];
+  const g = kindGroup(kind);
+  if (g) ids.push(momentsFeedId(scope, g));
+  if (scope.kind === 'event' && teamId != null) ids.push(momentsFeedId(scope, 'team', teamId));
+  return ids;
+}
+
+export function chatFeedId(eventId: number, filter?: 'team' | 'mods', teamId?: number | null): string {
+  if (filter === 'team' && teamId != null) return `chat:${eventId}:team:${teamId}`;
+  if (filter === 'mods') return `chat:${eventId}:mods`;
+  return `chat:${eventId}`;
+}
+
+/** The lists a chat line goes to: everyone's (unless team-only), its team's, and the staff list for staff. */
+export function chatFeedIds(eventId: number, m: { teamId: number | null; teamOnly: boolean; staff: boolean }): string[] {
+  const ids: string[] = [];
+  if (!m.teamOnly) ids.push(chatFeedId(eventId));
+  if (m.teamId != null) ids.push(chatFeedId(eventId, 'team', m.teamId));
+  if (m.staff && !m.teamOnly) ids.push(chatFeedId(eventId, 'mods'));
+  return ids;
+}
+
+// ── Rows ─────────────────────────────────────────────────────────────────────────────────────────
+
+export interface MomentLike {
+  id: number;
+  rsn: string;
+  kind: string;
+  itemId: number | null;
+  itemName: string | null;
+  quantity: number;
+  valueGp: number | null;
+  source: string | null;
+  teamId: number | null;
+  occurredAt: string;
+}
+
+const PET = '#ff7f27';
+
+function momentTitle(m: MomentLike): string {
+  const name = m.itemName ?? m.source ?? m.kind;
+  if (m.kind === 'pet') return `Pet: ${name}`;
+  if (m.kind === 'ca') return `Combat task: ${name}`;
+  if (m.kind === 'level') return name;
+  return m.quantity > 1 ? `${m.quantity} × ${name}` : name;
+}
+
+export interface MomentRowOptions {
+  /** The viewer's own drop, or their team's on a board. */
+  mine?: boolean;
+  /** GZ count and whether the viewer gave one; with `react` it is clickable. */
+  gz?: { n: number; mine: boolean };
+  react?: Action;
+  /** "Team Ruby" under the name on a board. */
+  team?: { name: string; color: string | null } | null;
+}
+
+export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
+  const value = m.valueGp != null && m.valueGp > 0 ? formatGp(m.valueGp * Math.max(1, m.quantity)) : undefined;
+  return {
+    id: `m${m.id}`,
+    ...(m.itemId != null ? { item: m.itemId } : { glyph: m.kind === 'pet' ? 'star' : 'check', glyphColor: m.kind === 'pet' ? PET : 'done' }),
+    title: momentTitle(m),
+    who: m.rsn,
+    whoColor: 'muted',
+    ...(o.team ? { tag: o.team.name, tagColor: (o.team.color as Color | null) ?? 'muted' } : {}),
+    at: m.occurredAt,
+    ...(value ? { value } : {}),
+    ...(m.kind === 'pet' ? { textColor: PET as Color } : {}),
+    ...(o.mine ? { mine: true } : {}),
+    ...(o.gz && o.react ? { gz: { n: o.gz.n, mine: o.gz.mine, on: o.react } } : {}),
+  };
+}
+
+/** "+214 smaller drops in the last minute" — what a big board's floor kept out, so the list still says it's busy. */
+export function rollupRow(eventId: number, count: number, at: string): FeedRow {
+  return {
+    id: `roll${eventId}:${at}`,
+    glyph: 'chevron-right',
+    glyphColor: 'muted',
+    text: `+${count} smaller drop${count === 1 ? '' : 's'} in the last minute`,
+    textColor: 'muted',
+    at,
+  };
+}
+
+export interface ChatLike {
+  id: number;
+  rsn: string;
+  body: string;
+  teamOnly: boolean;
+  createdAt: string;
+}
+
+export interface ChatRowOptions {
+  mine?: boolean;
+  /** HOST / MOD, drawn as a tag before the name. */
+  role?: 'host' | 'mod' | null;
+  team?: { name: string; color: string | null } | null;
+  /** Supporter name colour. */
+  whoColor?: Color;
+  grad?: `#${string}`[];
+  /** The viewer moderates: right-click to delete or mute. */
+  modActions?: { del: Action; mute: Action } | null;
+}
+
+export function chatRow(m: ChatLike, o: ChatRowOptions = {}): FeedRow {
+  const tag = o.role === 'host' ? 'HOST' : o.role === 'mod' ? 'MOD' : m.teamOnly ? 'TEAM' : o.team?.name;
+  const tagColor: Color = o.role ? '#7ae0ff' : m.teamOnly ? 'claim' : ((o.team?.color as Color | null) ?? 'muted');
+  return {
+    id: `c${m.id}`,
+    who: m.rsn,
+    whoColor: o.whoColor ?? 'white',
+    ...(o.grad ? { grad: o.grad } : {}),
+    text: m.body,
+    textColor: 'text',
+    ...(tag ? { tag, tagColor } : {}),
+    at: m.createdAt,
+    ...(o.mine ? { mine: true } : {}),
+    ...(o.modActions
+      ? { menu: [{ label: 'Delete message', on: o.modActions.del }, { label: `Mute ${m.rsn}`, on: o.modActions.mute }] }
+      : {}),
+  };
+}
+
+// ── The tab ──────────────────────────────────────────────────────────────────────────────────────
+
+const ON = 'brand';
+const OFF = 'muted';
+
+function chip(label: string, on: boolean, act: Action): Node {
+  return text(label, on ? ON : OFF, { font: on ? 'bold' : 'small', on: act });
+}
+
+export interface FeedTabOptions {
+  scopes: Scope[];
+  current: Scope;
+  /** 'feed' or 'chat' on a board whose chat is on and the viewer plays in. */
+  pane: 'feed' | 'chat';
+  chatAvailable: boolean;
+  /** The filter chip that's lit. */
+  filter: string;
+  /** The viewer's team on this board, for "My team". */
+  teamId: number | null;
+  rows: FeedRow[];
+  /** The floor line under the list: "Drops ≥ 5m · pets". */
+  floorNote?: string;
+  /** For the chat pane. */
+  send?: { act: string; args: Record<string, string>; hint: string } | null;
+  locked?: string | null;
+  /** The viewer moderates this chat: the mods filter and the pause switch show. */
+  staff?: boolean;
+  paused?: boolean;
+}
+
+const scopeKey = (s: Scope) => (s.kind === 'clan' ? `clan:${s.slug}` : `event:${s.id}`);
+
+function load(args: Record<string, string>): Action {
+  return { a: 'load', v: 'feed', args };
+}
+
+export function feedTabUi(o: FeedTabOptions): Node {
+  const key = scopeKey(o.current);
+  const parts: Node[] = [];
+
+  // Scope chips: the clan, then any board the viewer is on. One chip is just a heading.
+  if (o.scopes.length > 1) {
+    parts.push(
+      rowOf(o.scopes.map((s) => chip(s.name, scopeKey(s) === key, load({ s: scopeKey(s) })))),
+      gap(4),
+    );
+  } else {
+    parts.push(text(o.current.name, 'brand', { font: 'bold' }), gap(4));
+  }
+
+  if (o.chatAvailable) {
+    parts.push(
+      rowOf([
+        chip('Feed', o.pane === 'feed', load({ s: key, p: 'feed' })),
+        chip('Chat', o.pane === 'chat', load({ s: key, p: 'chat' })),
+      ]),
+      gap(4),
+    );
+  }
+
+  const filters: [string, string][] =
+    o.pane === 'chat'
+      ? [['all', 'All'], ...(o.teamId != null ? [['team', 'My team'] as [string, string]] : []), ...(o.staff ? [['mods', 'Host & mods'] as [string, string]] : [])]
+      : [['all', 'All'], ['drops', 'Drops'], ['pets', 'Pets'], ['tasks', 'Tasks'], ...(o.current.kind === 'event' && o.teamId != null ? [['team', 'My team'] as [string, string]] : [])];
+  parts.push(rowOf(filters.map(([id, label]) => chip(label, o.filter === id, load({ s: key, p: o.pane, f: id })))), gap(4));
+
+  const id =
+    o.pane === 'chat' && o.current.kind === 'event'
+      ? chatFeedId(o.current.id, o.filter === 'team' ? 'team' : o.filter === 'mods' ? 'mods' : undefined, o.teamId)
+      : momentsFeedId(o.current, o.filter === 'all' ? undefined : (o.filter as KindGroup | 'team'), o.teamId);
+
+  parts.push({
+    t: 'feed',
+    id,
+    rows: o.rows,
+    cap: o.pane === 'chat' ? 300 : 200,
+    h: 460,
+    empty: o.pane === 'chat' ? 'No messages yet. Say hi to the board.' : 'Nothing yet. The next pet or big drop lands here.',
+    ...(o.pane === 'chat' && o.send ? { send: { ...o.send, max: 200 } } : {}),
+    ...(o.locked ? { locked: o.locked } : {}),
+  });
+
+  if (o.pane === 'chat' && o.staff && o.current.kind === 'event') {
+    parts.push(
+      gap(4),
+      text(o.paused ? 'Resume chat' : 'Pause chat (read-only for everyone)', o.paused ? 'done' : 'muted', {
+        font: 'small',
+        on: { a: 'post', act: 'chat-pause', args: { e: String(o.current.id), on: o.paused ? '0' : '1', s: key } },
+      }),
+    );
+  }
+  if (o.floorNote && o.pane === 'feed') parts.push(gap(4), muted(o.floorNote, { font: 'small' }));
+  return col(parts);
+}
+
+/** A row of chips with a little space between, wrapping is the plugin's business. */
+function rowOf(items: Node[]): Node {
+  return { t: 'grid', cols: Math.min(items.length, 5), c: items, gap: 4 };
+}

@@ -84,3 +84,8 @@ export async function pluginStaff(request: Request): Promise<boolean> {
   const row = await db.query.users.findFirst({ where: eq(users.id, viewer.userId), columns: { platformRole: true } });
   return hasPlatformRole(row?.platformRole, 'staff');
 }
+
+/** The plugin draws the Feed tab (capability 'panel-rows'): the clan card can drop its long drop log. */
+export function hasFeedTab(request: Request): boolean {
+  return request.headers.get('X-Anvil-Feed-Tab') === '1';
+}
