@@ -92,7 +92,13 @@ export function ArenaHero({ arena }: { arena: Arena }) {
             Live now · {arena.clanName}
           </p>
           <h2 className="display display-lg mt-2 text-[clamp(1.7rem,4vw,2.4rem)] font-semibold leading-[1.05]">
-            {arena.title}
+            {/* The whole card opens the competition: the link's ::after covers it. */}
+            <ClanLink
+              href={`/c/${arena.clanSlug}/weekly/${arena.competitionId}`}
+              className="after:absolute after:inset-0 after:content-[''] hover:text-gold-light"
+            >
+              {arena.title}
+            </ClanLink>
           </h2>
           <p className="mt-1 text-sm text-text-dim">
             {arena.scoring} of {arena.fieldSize} on the board · {hoursLeft(arena.endDate)}
@@ -110,7 +116,7 @@ export function ArenaHero({ arena }: { arena: Arena }) {
               color: 'transparent',
             }}
           >
-            {unranked ? '—' : arena.position}
+            {unranked ? '0' : arena.position}
             {!unranked && (
               <sup className="text-[0.28em] align-super text-gold-dark">{ordinal(arena.position)}</sup>
             )}

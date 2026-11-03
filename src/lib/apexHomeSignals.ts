@@ -137,7 +137,15 @@ export async function arenaFor(accountIds: number[]): Promise<Arena | null> {
     you: i + 1 === best.position && t.rsn === best.rsn,
   }));
 
-  if (!lanes.some((l) => l.you)) {
+  if (best.gained <= 0) {
+    // Not on the board yet: there is no "rung directly in front", only the race itself. Show its head
+    // (the leader is the thing worth seeing) and then them, unranked, at the bottom.
+    lanes.length = 0;
+    top.slice(0, 3).forEach((t, i) => {
+      if (Number(t.gained ?? 0) > 0) lanes.push({ position: i + 1, rsn: t.rsn, gained: Number(t.gained ?? 0), you: false });
+    });
+    lanes.push({ position: best.position, rsn: best.rsn, gained: 0, you: true });
+  } else if (!lanes.some((l) => l.you)) {
     // Show the two rungs above them rather than the leaderboard's head, which is the part they can
     // act on — "who is directly in front" is the question, not "who is winning".
     const above = await db

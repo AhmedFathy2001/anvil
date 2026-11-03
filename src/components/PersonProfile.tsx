@@ -259,7 +259,7 @@ export default function PersonProfile({
         </section>
       )}
 
-      <SupporterSection supporter={supporter} invite={invite} />
+      <SupporterSection supporter={supporter} invite={invite} name={displayName} />
 
       {/* Billing is a platform concern too — one account, one subscription, wherever you host. Only
           for someone who owns a clan: subscriptions are per hosted clan (see /portal), and a player
