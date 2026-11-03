@@ -72,6 +72,8 @@ export interface WeeklyStanding {
 /** Everything the tab draws, gathered by the view. */
 export interface HomeData {
   cfg: HomeConfig;
+  /** Show the Support Anvil line: the viewer isn't a supporter (or isn't signed in). */
+  supportCta?: boolean;
   /** The board is live for this character (a team on it, the clock running). */
   live: boolean;
   /** In game on a character with no team on the home board: it watches rather than plays. */
@@ -324,6 +326,7 @@ export function homeUi(d: HomeData): Node {
     parts.push(gap(12));
   }
   if (d.ownClan) parts.push(...heading('Your clan'), d.ownClan, gap(12));
+  if (d.supportCta) parts.push(supportLine());
   return col(parts);
 }
 
@@ -682,4 +685,22 @@ function scheduledPage(d: HomeData, s: ScheduleBingo): Node[] {
     parts.push(gap(10), muted('Tiles will appear here when the host reveals them.', { wrap: true }));
   }
   return parts;
+}
+
+/**
+ * One quiet line at the foot of the panel for anyone who isn't a supporter: what pays for Anvil,
+ * and the way to the tier page. Opens the site; nothing is bought in the client.
+ */
+export function supportLine(): Node {
+  return row(
+    text('Support Anvil', '#ffd35c', { icon: icon({ glyph: 'star', w: 10, h: 10, color: '#ffd35c', alt: '★' }) }),
+    undefined,
+    muted('7 days free', { font: 'small' }),
+    {
+      bg: 'card',
+      pad: 8,
+      on: { a: 'site', path: '/supporter' },
+      tip: 'Anvil is free and made by one dev. Supporters pay for the servers, and their name shows it.',
+    },
+  );
 }

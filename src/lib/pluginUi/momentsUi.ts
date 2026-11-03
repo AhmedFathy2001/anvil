@@ -56,8 +56,9 @@ function reactions(m: FeedItem, o: FeedOptions): Node {
       ? m.mineGold
         ? 'You gave this a gold GZ — click to take it back'
         : 'Give a gold GZ (an Anvil Supporter reaction)'
-      : 'Gold GZs come from Anvil Supporters',
-    ...(o.canGold && o.canReact ? { on: react(o, m.id, 'gold') } : {}),
+      : 'Gold GZs come from Anvil Supporters. Click to see how to give them.',
+    // Someone who isn't a supporter is shown where gold comes from.
+    ...(o.canGold && o.canReact ? { on: react(o, m.id, 'gold') } : !o.canGold ? { on: { a: 'site', path: '/supporter' } as Action } : {}),
   });
   return row(gz, undefined, gold, { gap: 8 });
 }
