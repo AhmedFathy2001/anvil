@@ -45,6 +45,10 @@ export interface Arena {
   gained: number;
   position: number;
   fieldSize: number;
+  /** Entrants who have gained anything yet. Below this everyone is tied at nothing, not "ranked". */
+  scoring: number;
+  /** The real leader's gain: the bars are measured against it, not against the rungs on show. */
+  leaderGained: number;
   /** The top of the board plus the caller, in position order, deduplicated. */
   lanes: ArenaLane[];
   /** What the next place up costs, or null when there isn't one. */
@@ -100,6 +104,8 @@ export async function arenaFor(accountIds: number[]): Promise<Arena | null> {
         .select({
           ahead: sql<number>`count(*) FILTER (WHERE ${gainExpr} > ${Number(m.gained)})`,
           total: sql<number>`count(*)`,
+          scoring: sql<number>`count(*) FILTER (WHERE ${gainExpr} > 0)`,
+          leader: sql<number>`COALESCE(max(${gainExpr}), 0)`,
         })
         .from(weeklyParticipants)
         .where(eq(weeklyParticipants.competitionId, m.competitionId));
@@ -108,6 +114,8 @@ export async function arenaFor(accountIds: number[]): Promise<Arena | null> {
         gained: Number(m.gained ?? 0),
         position: Number(row?.ahead ?? 0) + 1,
         fieldSize: Number(row?.total ?? 0),
+        scoring: Number(row?.scoring ?? 0),
+        leaderGained: Number(row?.leader ?? 0),
       };
     }),
   );
@@ -119,7 +127,7 @@ export async function arenaFor(accountIds: number[]): Promise<Arena | null> {
     .select({ rsn: weeklyParticipants.rsn, gained: gainExpr })
     .from(weeklyParticipants)
     .where(eq(weeklyParticipants.competitionId, best.competitionId))
-    .orderBy(desc(gainExpr))
+    .orderBy(desc(gainExpr), weeklyParticipants.rsn)
     .limit(5);
 
   const lanes: ArenaLane[] = top.map((t, i) => ({
@@ -182,6 +190,8 @@ export async function arenaFor(accountIds: number[]): Promise<Arena | null> {
     gained: best.gained,
     position: best.position,
     fieldSize: best.fieldSize,
+    scoring: best.scoring,
+    leaderGained: best.leaderGained,
     lanes,
     gapAhead: ahead ? Math.max(0, ahead.gained - best.gained) : null,
     gapBehind: behind ? Math.max(0, best.gained - Number(behind.gained ?? 0)) : null,

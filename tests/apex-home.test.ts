@@ -309,3 +309,16 @@ test('"Open to everyone" shows public boards from listed clans you are not in, a
   assert.equal((await H.apexHomeView(me, null)).discover, null);
   await db.update(s.players).set({ discoverEvents: true }).where(eq(s.players.id, me));
 });
+
+test('the hidden tile-lab clan is never one of "your clans"', async () => {
+  // Staff testing in the lab hold a seat and a grant there. It is not a clan anyone belongs to, and
+  // counting it made the home page say "4 clans" to someone in three.
+  const { db, schema: s } = await loadDb();
+  const { clansOfPerson } = await import('../src/lib/myClans.ts');
+  const [lab] = await db.insert(s.clans).values({ slug: 'anvil-lab', name: 'Anvil Lab' }).returning();
+  const [acct] = await db.insert(s.accounts).values({ playerId: me, rsn: 'Lab Dummy', rsnNormalized: 'lab dummy' }).returning();
+  await db.insert(s.clanMemberships).values({ clanId: lab.id, accountId: acct.id, kind: 'member', source: 'roster' });
+  const mine = await clansOfPerson(me, null);
+  assert.ok(!mine.some((c) => c.id === lab.id), 'lab clan is not listed');
+  assert.ok(mine.some((c) => c.id === homeClan), 'real clans still are');
+});

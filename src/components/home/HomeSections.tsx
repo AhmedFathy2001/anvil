@@ -385,7 +385,7 @@ function WeeklyLiveCard({ w }: { w: HomeWeekly }) {
           </span>
           <h3 className="mt-1.5 truncate text-xl font-extrabold">{w.title}</h3>
           <p className="mt-0.5 text-[12.5px] text-text-muted">
-            {w.entrants} scoring · ends {dateShort(w.endDate)}
+            {w.scoring} scoring of {w.entrants} · ends {dateShort(w.endDate)}
           </p>
         </div>
       </div>

@@ -50,8 +50,11 @@ export default function ApexHome({
   const live = clansWithOtherLive;
   const needsYou = view.clans.filter((c) => c.staff && c.live.length === 0);
   const running = live.reduce((n, c) => n + c.live.length, 0);
+  // The arena was only taken out of the list to avoid showing it twice. It is still running, so the
+  // summary line and the quiet note must count it, or the page says "nothing running" right above it.
+  const runningTotal = running + (signals.arena ? 1 : 0);
   const quiet =
-    running === 0 && needsYou.length === 0 && view.openSignups.length === 0 && view.clans.length > 0;
+    runningTotal === 0 && needsYou.length === 0 && view.openSignups.length === 0 && view.clans.length > 0;
 
   return (
     <div className="mx-auto w-full max-w-5xl">
@@ -68,7 +71,7 @@ export default function ApexHome({
               {greeting()}, {displayName}
             </h1>
             <p className="mt-1 text-[13.5px] text-text-dim">
-              {summary(view.clans.length, running, view.openSignups.length)}
+              {summary(view.clans.length, runningTotal, view.openSignups.length)}
             </p>
           </div>
           <StreakBadge streak={signals.streak} />

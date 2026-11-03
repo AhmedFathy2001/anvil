@@ -1,7 +1,8 @@
-import { and, asc, count, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clanStaff, clans } from '@/db/schema';
+import { LAB_CLAN_SLUG } from '@/lib/labRules';
 
 export interface MyClan {
   id: number;
@@ -52,7 +53,7 @@ export async function clansOfPerson(
       .from(clanMemberships)
       .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
       .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
-      .where(and(eq(accounts.playerId, playerId), isNull(clanMemberships.leftAt)));
+      .where(and(eq(accounts.playerId, playerId), isNull(clanMemberships.leftAt), ne(clans.slug, LAB_CLAN_SLUG)));
 
     for (const r of seats) {
       const seat = r.kind === 'member' ? 'member' : 'guest';
@@ -71,7 +72,7 @@ export async function clansOfPerson(
       .select({ id: clans.id, slug: clans.slug, name: clans.name, logoUrl: clans.logoUrl, role: clanStaff.role })
       .from(clanStaff)
       .innerJoin(clans, eq(clans.id, clanStaff.clanId))
-      .where(eq(clanStaff.userId, userId));
+      .where(and(eq(clanStaff.userId, userId), ne(clans.slug, LAB_CLAN_SLUG)));
 
     for (const r of grants) {
       const existing = byId.get(r.id);

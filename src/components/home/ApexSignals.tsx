@@ -62,7 +62,10 @@ const ordinal = (n: number) => {
  * not a motivator.
  */
 export function ArenaHero({ arena }: { arena: Arena }) {
-  const leader = Math.max(...arena.lanes.map((l) => l.gained), arena.gained, 1);
+  // Against the actual leader. Measuring against the rungs on show made 7th place a full bar.
+  const leader = Math.max(arena.leaderGained, ...arena.lanes.map((l) => l.gained), arena.gained, 1);
+  // Nothing gained yet means tied with everyone else on nothing, not a placing.
+  const unranked = arena.gained <= 0;
 
   return (
     <section
@@ -92,7 +95,7 @@ export function ArenaHero({ arena }: { arena: Arena }) {
             {arena.title}
           </h2>
           <p className="mt-1 text-sm text-text-dim">
-            {arena.fieldSize} racing · {hoursLeft(arena.endDate)}
+            {arena.scoring} of {arena.fieldSize} on the board · {hoursLeft(arena.endDate)}
           </p>
         </div>
 
@@ -107,11 +110,13 @@ export function ArenaHero({ arena }: { arena: Arena }) {
               color: 'transparent',
             }}
           >
-            {arena.position}
-            <sup className="text-[0.28em] align-super text-gold-dark">{ordinal(arena.position)}</sup>
+            {unranked ? '—' : arena.position}
+            {!unranked && (
+              <sup className="text-[0.28em] align-super text-gold-dark">{ordinal(arena.position)}</sup>
+            )}
           </div>
           <p className="mt-1 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-text-dim">
-            of {arena.fieldSize}
+            {unranked ? 'not on the board yet' : `of ${arena.scoring}`}
           </p>
         </div>
       </div>
@@ -123,7 +128,7 @@ export function ArenaHero({ arena }: { arena: Arena }) {
             className="grid grid-cols-[1.4rem_minmax(0,8rem)_1fr_4.2rem] items-center gap-3"
           >
             <span className={`text-right font-mono text-xs ${lane.you ? 'text-gold' : 'text-text-dim'}`}>
-              {lane.position}
+              {lane.you && unranked ? '–' : lane.position}
             </span>
             <span
               className={`truncate text-sm ${lane.you ? 'font-semibold text-foreground' : 'text-text-muted'}`}
@@ -156,7 +161,9 @@ export function ArenaHero({ arena }: { arena: Arena }) {
           {arena.gapAhead !== null ? (
             <>
               <b className="display text-xl font-semibold text-gold">{compactXp(arena.gapAhead)}</b>
-              <span>to {arena.position - 1}{ordinal(arena.position - 1)}</span>
+              <span>
+                {unranked ? 'to get on the board' : `to ${arena.position - 1}${ordinal(arena.position - 1)}`}
+              </span>
             </>
           ) : (
             <span className="text-gold">Leading the field.</span>

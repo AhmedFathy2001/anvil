@@ -48,12 +48,11 @@ import {
   tiles,
 } from '@/db/schema';
 import { purgeEventMedia } from '@/lib/eventMediaRetention';
-import { LAB_KEEP_DAYS } from '@/lib/labRules';
+import { LAB_CLAN_SLUG, LAB_KEEP_DAYS } from '@/lib/labRules';
 import { log } from '@/lib/logger';
 import { personOf } from '@/lib/roster';
 
-/** The lab clan's address. Reserved in lib/clanNames so nobody can found a clan there. */
-export const LAB_CLAN_SLUG = 'anvil-lab';
+export { LAB_CLAN_SLUG };
 
 let labClanIdMemo: number | null = null;
 
