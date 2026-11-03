@@ -48,6 +48,9 @@ before(async () => {
   }
   // Kev is the clan's moderator, not playing.
   await db.insert(s.clanStaff).values({ clanId: clan.id, userId: u.Kev, role: 'moderator' });
+  // Off until staff turn it on (it needs the plugin's Feed tab).
+  assert.equal(await C.platformChatOn(true), false);
+  await C.setPlatformChat(true);
 });
 
 after(async () => {

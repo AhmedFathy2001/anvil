@@ -70,12 +70,12 @@ export default function EventChatFeedCard({ eventId }: { eventId: number }) {
           Standings are hidden right now, so each player only hears their own team until they are revealed.
         </p>
       )}
-      {state && (
+      {state?.chatPlatformOn && (
         <div className="mt-5 border-t border-card-border/60 pt-4">
           <h3 className="mb-2 text-sm font-semibold text-foreground">Event chat</h3>
           <Checkbox
             checked={state.chatEnabled}
-            disabled={saving || !state.chatPlatformOn}
+            disabled={saving}
             onChange={(v) => save({ chatEnabled: v })}
             label="Let this board's players chat in the plugin's Feed tab"
             description="A private channel for this event only: its players, plus your clan's mods and admins. Players can also talk to just their team. Mods can delete messages and mute people by right-clicking a line; links and gold adverts are blocked, and the chat slows itself down when it gets busy. Messages are deleted a week after the event ends."
@@ -90,9 +90,6 @@ export default function EventChatFeedCard({ eventId }: { eventId: number }) {
                 description="Read-only for everyone except you and your mods, straight away. Untick to reopen."
               />
             </div>
-          )}
-          {!state.chatPlatformOn && (
-            <p className="mt-2 text-xs text-text-muted">Event chat is switched off across Anvil right now.</p>
           )}
         </div>
       )}

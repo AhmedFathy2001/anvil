@@ -30,14 +30,19 @@ import { chatFeedIds, chatRow, type ChatRowOptions } from '@/lib/pluginUi/feedUi
 import type { Action, Color, FeedRow } from '@/lib/pluginUi/nodes';
 import { supporterForUsers, supporterInk } from '@/lib/supporter';
 
-/** Staff's switch for every event chat ('false' = off everywhere). */
+/**
+ * Staff's switch for every event chat. OFF until staff turn it on ('true'): the chat needs the
+ * plugin's Feed tab, so it stays out of sight until that plugin is live on the hub.
+ */
 export const EVENT_CHAT_PLATFORM_KEY = 'event_chat_enabled';
 
 let platformCache: { on: boolean; at: number } | null = null;
 
-export async function platformChatOn(now = Date.now()): Promise<boolean> {
-  if (platformCache && now - platformCache.at < 30_000) return platformCache.on;
-  const on = (await getPlatformSetting(EVENT_CHAT_PLATFORM_KEY)) !== 'false';
+/** `fresh`: skip the 30-second cache (the staff page, which must show what is stored). */
+export async function platformChatOn(fresh = false): Promise<boolean> {
+  const now = Date.now();
+  if (!fresh && platformCache && now - platformCache.at < 30_000) return platformCache.on;
+  const on = (await getPlatformSetting(EVENT_CHAT_PLATFORM_KEY)) === 'true';
   platformCache = { on, at: now };
   return on;
 }

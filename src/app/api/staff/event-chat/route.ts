@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const gate = await requirePlatformApi();
   if ('response' in gate) return gate.response;
-  return NextResponse.json({ enabled: await platformChatOn(0) });
+  return NextResponse.json({ enabled: await platformChatOn(true) });
 }
 
 // PUT /api/staff/event-chat — { enabled: boolean }
