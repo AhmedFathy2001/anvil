@@ -1,5 +1,5 @@
 // Reads a release file on stdin and prints it the way it will be announced, or fails with why.
-// Used by scripts/promote.sh: `git show <sha>:releases/1.15.0.md | node --experimental-strip-types scripts/check-release.mts`
+// Used by scripts/promote.sh: `git show <sha>:releases/1.15.0.md | node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-release.mts`
 import { parseReleaseNote } from '../src/lib/releaseNotes.ts';
 
 let text = '';

@@ -54,7 +54,7 @@ if [ -z "$RELEASE" ]; then
   echo "  Write releases/<next version>.md on beta (see releases/README.md), get it approved, then promote." >&2
   exit 1
 fi
-NOTE="$(git show "$BETA:releases/$RELEASE.md" | node --experimental-strip-types scripts/check-release.mts)" || exit 1
+NOTE="$(git show "$BETA:releases/$RELEASE.md" | node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-release.mts)" || exit 1
 
 echo "Release $RELEASE — this is what players will read:"
 echo
