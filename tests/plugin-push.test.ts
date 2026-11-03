@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ViewHub, parseChange, parseViewKey, teamDelta, teamKey, tileKey, type PushChange } from '../src/lib/push/hub.ts';
+import { ViewHub, parseChange, parseFeed, parseViewKey, teamDelta, teamKey, tileKey, type PushChange } from '../src/lib/push/hub.ts';
 import { signTicket, ticketKey, verifyTicket, TICKET_TTL_MS } from '../src/lib/push/ticket.ts';
 
 const key = ticketKey('secret');
@@ -225,4 +225,26 @@ test('listeners holding the last view get the delta; a newcomer gets the view wh
   const b = client([1], 10);
   assert.equal(JSON.parse(b.got[0]).t, 'team', 'whole, with the latest counts');
   assert.equal(JSON.parse(b.got[0]).config.trackedDrops[0].currentAmount, 2);
+});
+
+test('a feed ticket carries its flag; a plain one does not', () => {
+  const { ticket } = signTicket({ userId: 7, eventIds: [], teamId: null, feed: true }, key, 0);
+  assert.deepEqual(verifyTicket(ticket, key, 1), { userId: 7, eventIds: [], teamId: null, feed: true });
+});
+
+test('feed lines go to that user’s feed clients only', () => {
+  const hub = new ViewHub({ fetchView: async () => null, later: () => () => {} });
+  const got: Record<string, string[]> = { a: [], b: [], c: [] };
+  hub.add({ scope: { userId: 1, eventIds: [], teamId: null, feed: true }, send: (m) => got.a.push(m) });
+  hub.add({ scope: { userId: 2, eventIds: [], teamId: null, feed: true }, send: (m) => got.b.push(m) });
+  const remove = hub.add({ scope: { userId: 1, eventIds: [5], teamId: null }, send: (m) => got.c.push(m) });
+  const notice = parseFeed(JSON.stringify({ k: 'feed', u: [1, 'x', 9], m: { t: 'feed', text: 'hi' } }));
+  assert.deepEqual(notice?.u, [1, 9]);
+  hub.deliver(notice!);
+  assert.deepEqual(got.a, ['{"t":"feed","text":"hi"}']);
+  assert.deepEqual(got.b, []);
+  assert.deepEqual(got.c, [], 'no feed flag, no feed lines');
+  remove();
+  assert.equal(parseFeed(JSON.stringify({ k: 'stats', e: 1 })), null);
+  assert.equal(parseChange(JSON.stringify({ k: 'feed', u: [1], m: {} })), null, 'old servers ignore feed notices');
 });

@@ -15,6 +15,8 @@ export interface PushScope {
   eventIds: number[];
   /** Its team on the seat's event — team-only changes (a teammate's drop) go to that team alone. */
   teamId: number | null;
+  /** The plugin's chat-feed switch is on: it hears feed lines addressed to this user (lib/chatFeed). */
+  feed?: boolean;
 }
 
 /** Long enough to cover a reconnect storm, short enough that a lost seat stops listening soon. */
@@ -30,7 +32,7 @@ export function ticketKey(sessionSecret: string): Buffer {
 
 export function signTicket(scope: PushScope, key: Buffer, nowMs: number): { ticket: string; expiresAt: number } {
   const expiresAt = nowMs + TICKET_TTL_MS;
-  const body = Buffer.from(JSON.stringify({ u: scope.userId, e: scope.eventIds, t: scope.teamId, x: expiresAt })).toString('base64url');
+  const body = Buffer.from(JSON.stringify({ u: scope.userId, e: scope.eventIds, t: scope.teamId, ...(scope.feed ? { f: 1 } : {}), x: expiresAt })).toString('base64url');
   return { ticket: `${body}.${mac(body, key)}`, expiresAt };
 }
 
@@ -47,7 +49,7 @@ export function verifyTicket(ticket: string, key: Buffer, nowMs: number): PushSc
     if (typeof p.x !== 'number' || p.x <= nowMs) return null;
     if (!Number.isInteger(p.u) || !Array.isArray(p.e)) return null;
     const eventIds = p.e.filter((e: unknown): e is number => Number.isInteger(e));
-    return { userId: p.u, eventIds, teamId: Number.isInteger(p.t) ? p.t : null };
+    return { userId: p.u, eventIds, teamId: Number.isInteger(p.t) ? p.t : null, ...(p.f === 1 ? { feed: true } : {}) };
   } catch {
     return null;
   }

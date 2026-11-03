@@ -517,6 +517,10 @@ export const events = pgTable('events', {
   //   open     — sign up and you are in (default, and what every existing event does)
   //   approval — the host says yes first
   entry: text('entry').notNull().default('open'),
+  // The in-game chat feed for everyone on this board (lib/chatFeed): every team's notable drops and
+  // tile completions in each participant's RuneLite chat. Off by default — it shows each team what the
+  // others are getting, so it is the host's call. Never on for another team while standings are hidden.
+  chatFeed: boolean('chat_feed').notNull().default(false),
   // Advertise this board on the apex home's "Open to everyone" feed. SEPARATE from visibility: a
   // public board is readable by link; this is the host also asking for strangers to be pointed at
   // it. Only honoured while the board is public and its clan is listed (lib/apexHome). Off by default.
@@ -1390,6 +1394,9 @@ export const users = pgTable('users', {
   // echoes it back on the sale, which is how a purchase finds its buyer. Same job as clans.gumroadRef,
   // for the personal subscription. Created on first checkout (lib/supporter).
   supporterRef: text('supporter_ref'),
+  // What the in-game chat feed shows this person (lib/chatFeedRules ChatFeedPrefs, JSON). NULL = the
+  // defaults. The plugin holds only the master switch; everything finer lives here.
+  chatFeedPrefs: text('chat_feed_prefs'),
 }, (table) => [
   uniqueIndex('users_supporter_ref_unique').on(table.supporterRef),
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
@@ -3951,4 +3958,26 @@ export const modeLineSamples = pgTable('mode_line_samples', {
   lastSeen: text('last_seen').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (t) => [
   uniqueIndex('mode_line_samples_mode_template_unique').on(t.modeKey, t.template),
+]);
+
+// Who is sitting in which clan's GUEST channel right now (lib/chatFeed's guest bridge). Reported by the
+// plugin when its guest channel changes and refreshed while it stays; a row older than
+// GUEST_PRESENCE_TTL_MS is nobody. Never the stored guest seat: that is everyone who ever guested.
+export const guestPresence = pgTable('guest_presence', {
+  accountId: integer('account_id').primaryKey().references(() => accounts.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  seenAt: timestamp('seen_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('guest_presence_clan_idx').on(t.clanId, t.seenAt)]);
+
+// The chat feed's sender-side idempotency: a retried item (same character, same plugin key) goes to
+// nobody twice. Swept after a couple of days (lib/chatFeed sweepFeedItems).
+export const feedItems = pgTable('feed_items', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  dedupKey: text('dedup_key').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('feed_items_account_key_idx').on(t.accountId, t.dedupKey),
+  index('feed_items_created_idx').on(t.createdAt),
 ]);

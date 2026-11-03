@@ -5,6 +5,7 @@ import { eventCohosts, teams } from '@/db/schema';
 import EventDiscordServerPanel from '@/components/EventDiscordServerPanel';
 import { requireEventForPage } from '@/lib/eventScope';
 import EventWebhooksPanel from '../teams/EventWebhooksPanel';
+import EventChatFeedCard from './EventChatFeedCard';
 import EventDiscordClient from './EventDiscordClient';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,7 @@ export default async function EventDiscordPage({ params }: { params: Promise<{ e
   return (
     <div className="space-y-8">
       <EventDiscordClient eventId={id} hasCohosts={cohosts.length > 0} />
+      <EventChatFeedCard eventId={id} />
       <EventDiscordServerPanel eventId={id} />
       <EventWebhooksPanel eventId={id} teams={eventTeams} />
     </div>

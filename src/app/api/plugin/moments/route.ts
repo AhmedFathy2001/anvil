@@ -8,6 +8,12 @@ import { caTierRank, type Observation } from '@/lib/moments';
 import { stripChatTags } from '@/lib/chatTags';
 import { labQuarantine } from '@/lib/lab';
 import { worldModeIgnored } from '@/lib/worldModeRequest';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { accounts } from '@/db/schema';
+import { claimFeedItem, emitPersonalItem } from '@/lib/chatFeed';
+import { feedItemFromMoment } from '@/lib/chatFeedRules';
+import { resolvePluginCharacter } from '@/lib/pluginAccount';
 
 // Highlight ingest: the pets, uniques, big hauls, deaths and combat tasks that happen while a competition week or
 // a bingo is running (lib/moments decides which of those it is — see that file for why the rules
@@ -69,6 +75,9 @@ function int(v: unknown, max: number): number | null {
  * genuinely happened during — so anything outside the window becomes "now", which is when we
  * actually learned about it.
  */
+/** How old a report may be and still go to other players' chat. */
+const FEED_MAX_AGE_MS = 10 * 60_000;
+
 function occurredAt(v: unknown, now: number): string {
   const parsed = typeof v === 'string' ? Date.parse(v) : NaN;
   if (!Number.isFinite(parsed) || parsed > now || now - parsed > MAX_AGE_MS) {
@@ -77,13 +86,46 @@ function occurredAt(v: unknown, now: number): string {
   return new Date(parsed).toISOString();
 }
 
+/** A character this token owns outright, with no seat: heard for the chat feed only. */
+async function seatlessCharacter(request: Request): Promise<{ userId: number; accountId: number; rsn: string } | null> {
+  const who = await resolvePluginCharacter(request);
+  if (!who) return null;
+  const account = await db.query.accounts.findFirst({ where: eq(accounts.id, who.accountId), columns: { rsn: true } });
+  return account ? { ...who, rsn: account.rsn } : null;
+}
+
+async function feedFrom(character: { userId: number; accountId: number; rsn: string }, raws: unknown[]): Promise<void> {
+  const now = Date.now();
+  for (const raw of raws) {
+    if (!raw || typeof raw !== 'object') continue;
+    const r = raw as Record<string, unknown>;
+    const key = str(r.key, 64);
+    const item = feedItemFromMoment(r, character.rsn);
+    if (!key || !item) continue;
+    // Other people's chat is live: a replayed or long-queued report is not news, so it is not relayed.
+    const at = typeof r.at === 'string' ? Date.parse(r.at) : NaN;
+    if (!Number.isFinite(at) || at > now + 60_000 || now - at > FEED_MAX_AGE_MS) continue;
+    if (!(await claimFeedItem(character.accountId, `${item.kind}:${key}`))) continue;
+    // What one character may put in other people's chat, whatever it claims to have done. Real play is
+    // a handful an hour; this only stops a modified client flooding everyone it can reach.
+    const cap = await rateLimitByKey('chatfeed', String(character.accountId), { limit: 12, windowMs: 10 * 60_000 });
+    if (!cap.ok) return;
+    await emitPersonalItem(character, item);
+  }
+}
+
 export async function POST(request: Request) {
   // Kills, drops, XP and logs from a game-mode world (Leagues, Deadman, hardcore, …) are another
   // save's progress, never this one's (lib/worldModeRequest).
   const otherSave = worldModeIgnored(request);
   if (otherSave) return otherSave;
   const member = await resolvePluginMember(request);
-  if (!member) {
+  // A character with no seat anywhere still has a chat-feed audience (a clan it guests in), so it is
+  // heard for the feed; nothing is stored for it.
+  const character = member
+    ? { userId: member.userId, accountId: member.accountId, rsn: member.rsn }
+    : await seatlessCharacter(request);
+  if (!character) {
     return NextResponse.json(
       { error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' },
       { status: 401 },
@@ -92,7 +134,7 @@ export async function POST(request: Request) {
 
   // Well above real play — a busy raid night is a handful of these an hour — and low enough that a
   // looping client can't fill the table. Retryable: the plugin keeps its queue and tries later.
-  const limit = await rateLimitByKey('moments', String(member.clanMemberId), { limit: 20, windowMs: 60_000 });
+  const limit = await rateLimitByKey('moments', member ? String(member.clanMemberId) : `account:${character.accountId}`, { limit: 20, windowMs: 60_000 });
   if (!limit.ok) {
     return NextResponse.json({ error: 'Too many moments' }, { status: 429, headers: rateLimitHeaders(limit) });
   }
@@ -104,7 +146,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
   // A character in a tile-lab session writes nothing real; the push goes to the lab log (lib/lab).
-  const quarantined = await labQuarantine(request, member.accountId, 'moments', body);
+  const quarantined = await labQuarantine(request, character.accountId, 'moments', body);
   if (quarantined) return quarantined;
   if (!Array.isArray(body?.moments)) {
     return NextResponse.json({ error: 'moments[] required' }, { status: 400 });
@@ -112,6 +154,11 @@ export async function POST(request: Request) {
   if (body.moments.length > MAX_OBSERVATIONS) {
     return NextResponse.json({ error: `At most ${MAX_OBSERVATIONS} moments per push` }, { status: 400 });
   }
+
+  // Other players' in-game chat reads every report first (lib/chatFeed) — the board, the clan and the
+  // competition rules below decide only what is STORED. Off the request's path: nobody waits on it.
+  void feedFrom(character, body.moments as unknown[]);
+  if (!member) return NextResponse.json({ ok: true, stored: 0, matched: 0, scoped: false });
 
   const now = Date.now();
   const observations: Observation[] = [];

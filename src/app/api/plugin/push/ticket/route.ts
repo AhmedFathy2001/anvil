@@ -25,15 +25,17 @@ export async function GET(request: Request) {
   const rl = await rateLimit(request, `plugin-push-ticket:${user.userId}`, { limit: 20, windowMs: 60_000 });
   if (!rl.ok) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
 
+  // ?feed=1: the plugin's chat-feed switch is on, so it listens for feed lines (lib/chatFeed) even
+  // with no board to watch.
+  const feed = new URL(request.url).searchParams.get('feed') === '1';
   const clan = await resolvePluginClan(request);
-  if (!clan) return new NextResponse(null, { status: 204 });
-  const seat = await verifyPluginToken(request, { hintOnly: pluginRsnHintOnly(request) });
-  const home = seat ? null : await homeBoardForUser(clan.id, user.userId);
+  const seat = clan ? await verifyPluginToken(request, { hintOnly: pluginRsnHintOnly(request) }) : null;
+  const home = !clan || seat ? null : await homeBoardForUser(clan.id, user.userId);
   const eventIds = seat ? [seat.eventId] : home?.eventId ? [home.eventId] : [];
-  if (eventIds.length === 0) return new NextResponse(null, { status: 204 });
+  if (eventIds.length === 0 && !feed) return new NextResponse(null, { status: 204 });
 
   const { ticket, expiresAt } = signTicket(
-    { userId: user.userId, eventIds, teamId: seat?.teamId ?? null },
+    { userId: user.userId, eventIds, teamId: seat?.teamId ?? null, feed },
     KEY,
     Date.now(),
   );

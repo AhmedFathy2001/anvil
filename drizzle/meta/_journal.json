@@ -883,6 +883,13 @@
       "when": 1793700500000,
       "tag": "0175_submission_attachments",
       "breakpoints": true
+    },
+    {
+      "idx": 176,
+      "version": "7",
+      "when": 1793700600000,
+      "tag": "0176_chat_feed",
+      "breakpoints": true
     }
   ]
 }
