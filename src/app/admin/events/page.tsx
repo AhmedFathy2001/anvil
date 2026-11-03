@@ -1,6 +1,7 @@
 import { db } from '@/db';
-import { events, teams, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { count, desc, eq } from 'drizzle-orm';
+import { clanEvents, events, teams, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { and, count, desc, eq, isNull } from 'drizzle-orm';
+import { currentOccurrence, pastOccurrences } from '@/lib/clanEventTimes';
 import { verifyUser } from '@/lib/auth';
 import { assignedEventIdsForUser, cohostBoardEventIds } from '@/lib/eventEditors';
 import { coHostedBoardLinks } from '@/lib/coHost';
@@ -44,7 +45,7 @@ export default async function AdminEventsPage() {
   // Boards on OTHER clans that this one co-hosts. They live at the host's address, so they are
   // listed here and linked across rather than being rows of this clan's own.
   const cohosted = session ? await coHostedBoardLinks(clan.id, session.userId, scoped) : [];
-  const [allEventsRaw, allWeeklyRaw] = await Promise.all([
+  const [allEventsRaw, allWeeklyRaw, clanEventRows] = await Promise.all([
     db.select().from(events).where(eq(events.clanId, clan.id)).orderBy(desc(events.createdAt)),
     scoped
       ? Promise.resolve([])
@@ -53,6 +54,14 @@ export default async function AdminEventsPage() {
           .from(weeklyCompetitions)
           .where(eq(weeklyCompetitions.clanId, clan.id))
           .orderBy(desc(weeklyCompetitions.startDate)),
+    // Clan events (masses, hangouts) live in their own table and were never read here, so this list
+    // called itself every event while leaving them out. Board-scoped staff don't get them, like weeks.
+    scoped
+      ? Promise.resolve([])
+      : db
+          .select()
+          .from(clanEvents)
+          .where(and(eq(clanEvents.clanId, clan.id), isNull(clanEvents.cancelledAt))),
   ]);
 
   const allEvents = assignedIds ? allEventsRaw.filter((e) => assignedIds.has(e.id)) : allEventsRaw;
@@ -82,6 +91,26 @@ export default async function AdminEventsPage() {
   ]);
 
   const now = new Date().toISOString();
+  const nowMs = Date.parse(now);
+
+  // A weekly series is listed once, at the occurrence on now or next; a finished one at its last.
+  const clanItems: ListItem[] = clanEventRows.flatMap((e) => {
+    const o = currentOccurrence(e, nowMs) ?? pastOccurrences(e, nowMs, 1)[0] ?? null;
+    if (!o) return [];
+    return [
+      {
+        kind: 'clan' as const,
+        id: e.id,
+        title: e.title,
+        repeat: e.repeat === 'weekly' ? ('weekly' as const) : ('none' as const),
+        location: e.location,
+        host: e.host,
+        startDate: o.start,
+        endDate: o.end,
+        createdAt: e.createdAt,
+      },
+    ];
+  });
 
   const eventItems: ListItem[] = allEvents.map((e) => ({
     kind: 'event',
@@ -120,21 +149,25 @@ export default async function AdminEventsPage() {
   const isPast = (item: ListItem) =>
     item.kind === 'event'
       ? !!item.forceEndedAt || (!!item.endDate && item.endDate < now)
-      : item.status === 'completed' || item.endDate < now;
+      : item.kind === 'clan'
+        ? item.endDate < now
+        : item.status === 'completed' || item.endDate < now;
 
   // "Running" is narrower than "not past": a board with no start date, or one scheduled for next
   // week, is being SET UP — a different job, and a different card.
   const isRunning = (item: ListItem) =>
     item.kind === 'event'
       ? !isPast(item) && !!item.startDate && item.startDate <= now
-      : !isPast(item) && item.status === 'active';
+      : item.kind === 'clan'
+        ? !isPast(item) && item.startDate <= now
+        : !isPast(item) && item.status === 'active';
 
   const sortKey = (item: ListItem) =>
     item.kind === 'event' ? item.startDate ?? item.createdAt : item.startDate;
   const byDateDesc = (a: ListItem, b: ListItem) => (sortKey(a) < sortKey(b) ? 1 : -1);
   const byDateAsc = (a: ListItem, b: ListItem) => (sortKey(a) < sortKey(b) ? -1 : 1);
 
-  const all: ListItem[] = [...eventItems, ...weeklyItems];
+  const all: ListItem[] = [...eventItems, ...weeklyItems, ...clanItems];
   const running = all.filter(isRunning).sort(byDateAsc);
   // Scheduled things first, soonest first; undated drafts fall to the end — a board with a date on
   // it is the one with a deadline attached.
