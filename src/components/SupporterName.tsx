@@ -1,10 +1,12 @@
+import { useId } from 'react';
+
 import SupporterFlairPopover from '@/components/SupporterFlairPopover';
 import { supporterGradientCss, supporterInk, type SupporterStyle } from '@/lib/supporterStyle';
 import type { SupporterTierId } from '@/lib/supporterTiers';
 
 /**
- * A name with its Anvil Supporter flair: a star and the tier's colour (gold, gradient, a gradient
- * that moves on hover). With no tier it is just the name, so callers can wrap every name without
+ * A name with its Anvil Supporter flair: a star and the tier's colour (gold, a gradient, a gradient
+ * that keeps moving). The star wears the same colours as the name. With no tier it is just the name, so callers can wrap every name without
  * branching.
  * Styles live in globals.css (`.supporter-name-*`); a person's own colours (a Champion preset, a
  * Patron's custom stops, lib/supporterStyle) replace only the gradient, inline, so the class keeps
@@ -27,13 +29,15 @@ export default function SupporterName({
 }) {
   if (!tier) return <span className={className}>{name}</span>;
   const gradient = style ? supporterGradientCss(supporterInk(tier, style)) : null;
+  // The star in the name's own stops (their chosen ones, else the tier's); gold has none.
+  const stops = supporterInk(tier, style).grad ?? null;
   return (
     <span className={`supporter-flair inline-flex items-center gap-1.5 min-w-0 ${className}`}>
       {plain ? (
-        <SupporterStar />
+        <SupporterStar stops={stops} />
       ) : (
         <SupporterFlairPopover tier={tier}>
-          <SupporterStar decorative />
+          <SupporterStar decorative stops={stops} />
         </SupporterFlairPopover>
       )}
       <span className={`supporter-name-${tier} truncate`} style={gradient ? { backgroundImage: gradient } : undefined}>
@@ -43,16 +47,36 @@ export default function SupporterName({
   );
 }
 
-export function SupporterStar({ size = 14, decorative = false }: { size?: number; decorative?: boolean }) {
+export function SupporterStar({
+  size = 14,
+  decorative = false,
+  stops = null,
+}: {
+  size?: number;
+  decorative?: boolean;
+  /** Paint the star with these gradient stops instead of gold. */
+  stops?: readonly string[] | null;
+}) {
+  const id = useId();
+  const grad = stops && stops.length >= 2 ? stops : null;
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="currentColor"
+      fill={grad ? `url(#${id})` : 'currentColor'}
       className="shrink-0 text-gold-light"
       {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': 'Anvil Supporter' })}
     >
+      {grad && (
+        <defs>
+          <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+            {grad.map((c, i) => (
+              <stop key={i} offset={grad.length === 1 ? 0 : i / (grad.length - 1)} stopColor={c} />
+            ))}
+          </linearGradient>
+        </defs>
+      )}
       <path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17.3 5.8 21l1.6-7L2 9.2l7.1-.6z" />
     </svg>
   );

@@ -330,12 +330,9 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
   background-size: 200% 100%;
 }
 @keyframes supporter-shift { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+/* A Patron gradient keeps moving, as it does in the RuneLite panel; still for anyone who asked for less motion. */
 @media (prefers-reduced-motion: no-preference) {
-  .supporter-flair:hover .supporter-name-patron,
-  a:hover .supporter-name-patron,
-  a:focus-visible .supporter-name-patron,
-  .supporter-flair:focus-within .supporter-name-patron {
+  .supporter-name-patron {
     animation: supporter-shift 4s linear infinite;
-    will-change: background-position;
   }
 }
