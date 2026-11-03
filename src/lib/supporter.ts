@@ -164,7 +164,7 @@ export interface GameChatFlair {
 /**
  * Every Supporter's characters with the look they wear, for the plugin to paint on names in normal
  * game chat. Only people who left `game_chat_flair` on, and only characters they share publicly (a
- * hidden character's name must not be tied to them). Lapsed and refunded rows drop out on their own.
+ * hidden character's name must not be tied to them), and only ones they have proven are theirs. Lapsed and refunded rows drop out on their own.
  */
 export async function gameChatFlair(): Promise<GameChatFlair[]> {
   const subs = await db
@@ -185,7 +185,15 @@ export async function gameChatFlair(): Promise<GameChatFlair[]> {
     .select({ userId: users.id, rsn: accounts.rsnNormalized })
     .from(users)
     .innerJoin(accounts, eq(accounts.playerId, users.playerId))
-    .where(and(inArray(users.id, [...states.keys()]), eq(accounts.shared, true)));
+    .where(
+      and(
+        inArray(users.id, [...states.keys()]),
+        eq(accounts.shared, true),
+        // Proven theirs only: flair on a name someone merely typed in would paint a stranger.
+        isNotNull(accounts.verifiedAt),
+        eq(accounts.provisional, 0),
+      ),
+    );
   const out = new Map<string, GameChatFlair>();
   for (const { userId, rsn } of chars) {
     const state = states.get(userId);
