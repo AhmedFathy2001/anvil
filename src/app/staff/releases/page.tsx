@@ -47,7 +47,7 @@ export default async function StaffReleasesPage() {
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-text-dim">Announced by the next lifecycle tick on production; beta never announces.</p>
+          <p className="mt-2 text-xs text-text-dim">Announced by the next lifecycle tick on production once #anvil-announcements is set; beta never announces.</p>
         </section>
       )}
 
