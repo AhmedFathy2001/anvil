@@ -2,7 +2,7 @@
 
 import type { Event, Team, Tile, Player } from '@/lib/types';
 import type { StatTileStanding, TeamStanding } from '@/lib/statStandings';
-import { useState, useCallback, useEffect } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { isPointsMode } from '@/lib/utils';
@@ -79,7 +79,14 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
   >([]);
   const [breakdownTeams, setBreakdownTeams] = useState<Set<number>>(new Set());
   const [standingsQuery, setStandingsQuery] = useState('');
+  // The box updates at once; the list behind it catches up at low priority (see StatStandingsList).
+  const deferredQuery = useDeferredValue(standingsQuery);
 
+  const restartStartingStats = startingStatsPoll.restart;
+  const onStartingStatsDone = useCallback(() => {
+    router.refresh();
+    restartStartingStats();
+  }, [router, restartStartingStats]);
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
   // Seed the cooldown from the persisted last-pull time so it survives a page refresh. Runs in an
   // effect (not the initializer) to avoid an SSR/client clock hydration mismatch.
@@ -356,124 +363,16 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
             placeholder="Search a player, boss or skill…"
             className="max-w-sm mb-4 rounded-lg placeholder:text-text-muted"
           />
-          {(() => {
-            // Filter by player name; matching a tile's label or tracked stat keeps that tile's
-            // whole roster, so you can pull up a single boss/skill or a single player.
-            const q = standingsQuery.trim().toLowerCase();
-            const filtered = q
-              ? statStandings
-                  .map((tile) => {
-                    const tileMatches =
-                      tile.label.toLowerCase().includes(q) || tile.trackedStatLabel.toLowerCase().includes(q);
-                    return {
-                      ...tile,
-                      players: tileMatches ? tile.players : tile.players.filter((p) => p.name.toLowerCase().includes(q)),
-                    };
-                  })
-                  .filter((tile) => tile.players.length > 0)
-              : statStandings;
-            if (filtered.length === 0) {
-              return <p className="text-sm text-text-muted py-4">No players or stats match your search.</p>;
-            }
-            return (
-          <div className="space-y-6">
-            {filtered.map((tile) => {
-              const missing = tile.players.filter((p) => !p.hasBaseline).length;
-              return (
-                <div key={tile.tileId} className="border border-card-border rounded-xl p-4 bg-card-bg">
-                  <div className="flex flex-wrap items-center gap-2 mb-3">
-                    <span className="font-bold text-foreground">{tile.label}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded ${tile.statType === 'skill' ? 'bg-blue-500/20 text-blue-400' : 'bg-red-500/20 text-red-400'}`}>
-                      {tile.statType === 'skill' ? 'XP' : 'KC'}
-                    </span>
-                    <span className="text-xs text-text-muted">
-                      {tile.trackedStatLabel} · goal {tile.statGoal.toLocaleString()}
-                    </span>
-                  </div>
-                  {missing > 0 && (
-                    <p className="text-xs text-yellow-400 mb-2">
-                      ⚠ {missing} player{missing !== 1 ? 's' : ''} with no starting stats captured yet — their gains won&apos;t track until a baseline is captured.
-                    </p>
-                  )}
-                  <StartingStatsSummary
-                    ids={unreadIds(tile.players.map((p) => p.playerId), startingStats, startingStatsPoll.lapsed)}
-                    onRetry={(id) => retryStartingStats(event.id, id)}
-                    onDone={() => {
-                      router.refresh();
-                      startingStatsPoll.restart();
-                    }}
-                    className="mb-2"
-                  />
-                  {tile.players.length === 0 ? (
-                    <p className="text-xs text-text-muted">No drafted players yet.</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="text-text-muted text-left">
-                            <th className="font-medium py-1 pr-3">Player</th>
-                            <th className="font-medium py-1 pr-3">Team</th>
-                            <th className="font-medium py-1 pr-3 text-right">Baseline</th>
-                            <th className="font-medium py-1 pr-3 text-right">Current</th>
-                            <th className="font-medium py-1 pr-3 text-right">Gained</th>
-                            <th className="font-medium py-1 text-right" aria-label="Fix baseline"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {tile.players.map((p) => {
-                            const team = teams.find((t) => t.id === p.teamId);
-                            const pct = tile.statGoal > 0 ? Math.min(100, Math.round((p.gained / tile.statGoal) * 100)) : 0;
-                            return (
-                              <tr key={p.playerId} className="border-t border-card-border/50">
-                                <td className="py-1.5 pr-3 font-medium text-foreground">
-                                  <div>{p.name}</div>
-                                  <StartingStatsLine
-                                    status={startingStats[p.playerId]}
-                                    lapsed={startingStatsPoll.lapsed}
-                                    onRetry={async () => {
-                                      await retryStartingStats(event.id, p.playerId);
-                                      router.refresh();
-                                      startingStatsPoll.restart();
-                                    }}
-                                    className="font-normal"
-                                  />
-                                </td>
-                                <td className="py-1.5 pr-3">
-                                  {team && (
-                                    <span className="px-1.5 py-0.5 rounded" style={{ backgroundColor: team.color + '20', color: team.color }}>
-                                      {team.name}
-                                    </span>
-                                  )}
-                                </td>
-                                <td className={`py-1.5 pr-3 text-right ${p.hasBaseline ? 'text-foreground' : 'text-yellow-400'}`}>
-                                  {p.hasBaseline ? p.baseline.toLocaleString() : '—'}
-                                </td>
-                                <td className="py-1.5 pr-3 text-right text-foreground">{p.current.toLocaleString()}</td>
-                                <td className="py-1.5 pr-3 text-right font-medium text-accent-green-light">
-                                  +{p.gained.toLocaleString()} <span className="text-text-muted">({pct}%)</span>
-                                </td>
-                                <td className="py-1.5 text-right">
-                                  <button
-                                    onClick={() => setBaselinePlayer({ id: p.playerId, name: p.name })}
-                                    className="text-[11px] text-gold/90 hover:text-gold border border-gold/30 rounded px-1.5 py-0.5 transition-colors"
-                                    title="Reset this player's baseline from hiscores, or hand-edit a single skill's baseline — also clears any stuck live-stat overlay for the fixed skill"
-                                  >
-                                    Fix baseline
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-            );
-          })()}
+          <StatStandingsList
+            standings={statStandings}
+            query={deferredQuery}
+            teams={teams}
+            eventId={event.id}
+            startingStats={startingStats}
+            lapsed={startingStatsPoll.lapsed}
+            onFixBaseline={setBaselinePlayer}
+            onStartingStatsDone={onStartingStatsDone}
+          />
         </div>
       )}
 
@@ -549,3 +448,159 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
     </div>
   );
 }
+
+/** Stat tiles shown before "Show all": a board can carry hundreds, each with a whole roster. */
+const STANDINGS_PAGE = 20;
+
+/**
+ * The stat tile standings, as their own memoised list.
+ *
+ * Inline, every keystroke in the search box (and every live-stream tick) re-rendered every tile's
+ * roster table — 280 tiles on a Leagues board, thousands of rows — which is what made typing lag.
+ * Memoised on its props, fed a deferred query, and capped until you search or ask for all.
+ */
+const StatStandingsList = memo(function StatStandingsList({
+  standings,
+  query,
+  teams,
+  eventId,
+  startingStats,
+  lapsed,
+  onFixBaseline,
+  onStartingStatsDone,
+}: {
+  standings: StatTileStanding[];
+  query: string;
+  teams: Team[];
+  eventId: number;
+  startingStats: Record<number, StartingStatsStatus>;
+  lapsed: boolean;
+  onFixBaseline: (p: { id: number; name: string }) => void;
+  onStartingStatsDone: () => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const teamById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
+  // Filter by player name; matching a tile's label or tracked stat keeps that tile's whole roster,
+  // so you can pull up a single boss/skill or a single player.
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return standings;
+    return standings
+      .map((tile) => {
+        const tileMatches = tile.label.toLowerCase().includes(q) || tile.trackedStatLabel.toLowerCase().includes(q);
+        return { ...tile, players: tileMatches ? tile.players : tile.players.filter((p) => p.name.toLowerCase().includes(q)) };
+      })
+      .filter((tile) => tile.players.length > 0);
+  }, [standings, query]);
+  if (filtered.length === 0) {
+    return <p className="text-sm text-text-muted py-4">No players or stats match your search.</p>;
+  }
+  const capped = !showAll && !query.trim() && filtered.length > STANDINGS_PAGE;
+  const shown = capped ? filtered.slice(0, STANDINGS_PAGE) : filtered;
+  const setBaselinePlayer = onFixBaseline;
+  return (
+    <>
+          <div className="space-y-6">
+            {shown.map((tile) => {
+              const missing = tile.players.filter((p) => !p.hasBaseline).length;
+              return (
+                <div key={tile.tileId} className="border border-card-border rounded-xl p-4 bg-card-bg">
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <span className="font-bold text-foreground">{tile.label}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${tile.statType === 'skill' ? 'bg-blue-500/20 text-blue-400' : 'bg-red-500/20 text-red-400'}`}>
+                      {tile.statType === 'skill' ? 'XP' : 'KC'}
+                    </span>
+                    <span className="text-xs text-text-muted">
+                      {tile.trackedStatLabel} · goal {tile.statGoal.toLocaleString()}
+                    </span>
+                  </div>
+                  {missing > 0 && (
+                    <p className="text-xs text-yellow-400 mb-2">
+                      ⚠ {missing} player{missing !== 1 ? 's' : ''} with no starting stats captured yet — their gains won&apos;t track until a baseline is captured.
+                    </p>
+                  )}
+                  <StartingStatsSummary
+                    ids={unreadIds(tile.players.map((p) => p.playerId), startingStats, lapsed)}
+                    onRetry={(id) => retryStartingStats(eventId, id)}
+                    onDone={onStartingStatsDone}
+                    className="mb-2"
+                  />
+                  {tile.players.length === 0 ? (
+                    <p className="text-xs text-text-muted">No drafted players yet.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-text-muted text-left">
+                            <th className="font-medium py-1 pr-3">Player</th>
+                            <th className="font-medium py-1 pr-3">Team</th>
+                            <th className="font-medium py-1 pr-3 text-right">Baseline</th>
+                            <th className="font-medium py-1 pr-3 text-right">Current</th>
+                            <th className="font-medium py-1 pr-3 text-right">Gained</th>
+                            <th className="font-medium py-1 text-right" aria-label="Fix baseline"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tile.players.map((p) => {
+                            const team = p.teamId != null ? teamById.get(p.teamId) : undefined;
+                            const pct = tile.statGoal > 0 ? Math.min(100, Math.round((p.gained / tile.statGoal) * 100)) : 0;
+                            return (
+                              <tr key={p.playerId} className="border-t border-card-border/50">
+                                <td className="py-1.5 pr-3 font-medium text-foreground">
+                                  <div>{p.name}</div>
+                                  <StartingStatsLine
+                                    status={startingStats[p.playerId]}
+                                    lapsed={lapsed}
+                                    onRetry={async () => {
+                                      await retryStartingStats(eventId, p.playerId);
+                                      onStartingStatsDone();
+                                    }}
+                                    className="font-normal"
+                                  />
+                                </td>
+                                <td className="py-1.5 pr-3">
+                                  {team && (
+                                    <span className="px-1.5 py-0.5 rounded" style={{ backgroundColor: team.color + '20', color: team.color }}>
+                                      {team.name}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className={`py-1.5 pr-3 text-right ${p.hasBaseline ? 'text-foreground' : 'text-yellow-400'}`}>
+                                  {p.hasBaseline ? p.baseline.toLocaleString() : '—'}
+                                </td>
+                                <td className="py-1.5 pr-3 text-right text-foreground">{p.current.toLocaleString()}</td>
+                                <td className="py-1.5 pr-3 text-right font-medium text-accent-green-light">
+                                  +{p.gained.toLocaleString()} <span className="text-text-muted">({pct}%)</span>
+                                </td>
+                                <td className="py-1.5 text-right">
+                                  <button
+                                    onClick={() => setBaselinePlayer({ id: p.playerId, name: p.name })}
+                                    className="text-[11px] text-gold/90 hover:text-gold border border-gold/30 rounded px-1.5 py-0.5 transition-colors"
+                                    title="Reset this player's baseline from hiscores, or hand-edit a single skill's baseline — also clears any stuck live-stat overlay for the fixed skill"
+                                  >
+                                    Fix baseline
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+      {capped && (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="mt-4 rounded-lg border border-card-border px-4 py-2 text-sm text-text-muted hover:border-gold/40 hover:text-foreground"
+        >
+          Show all {filtered.length} stat tiles
+        </button>
+      )}
+    </>
+  );
+});
