@@ -373,7 +373,7 @@ function searchable(what: string, n: number, list: Extract<Node, { t: 'grid' | '
 /** Personal bests: one row per boss and mode; a row with several team sizes opens to list them. */
 function times(c: PlayerCard): Node {
   const rows: Node[] = c.times.map((e) => {
-    const head = row(icon({ boss: e.base, w: 24, h: 22 }), text(e.name), text(e.best, 'brand'), { pad: 3 });
+    const head = row(icon({ boss: e.icon, w: 24, h: 22 }), text(e.name), text(e.best, 'brand'), { pad: 3 });
     if (!e.variants.length) return { ...head, k: e.name };
     return {
       t: 'fold',

@@ -3,6 +3,8 @@
 // raid is a dozen rows that differ only at the end. Here they fold into one entry per boss, a line per
 // mode, and each team size as a chip on that line. Pure (tests/pure-module-imports).
 
+import { bossKeyForName } from '@/lib/pluginStats';
+
 export interface PbVariant {
   /** "Solo", "2", "11-15" — or "" for a time with no team size. */
   team: string;
@@ -73,10 +75,19 @@ export function timeSeconds(time: string): number {
 export interface PbEntry {
   /** What the row says: the boss, with its mode when it has one. */
   name: string;
-  /** The boss alone — what the icon is looked up by. */
+  /** The boss alone. */
   base: string;
   mode: string;
-  /** The headline time: the overall best when the game keeps one, else the fastest team size. */
+  /**
+   * What the icon is looked up by: the mode's own hiscore key when it has one (ToA Expert's red
+   * icon, CoX CM, ToB HM), else the boss.
+   */
+  icon: string;
+  /**
+   * The headline time: the fastest team size; the size-less time only when there are no sizes.
+   * RuneLite also files a size-less "overall" for raids, and it needn't match any listed size (a
+   * different clock, or an older record) — headlining it showed a time the player never saw.
+   */
   best: string;
   /** Every team size, Solo first; empty when there's only the one time to show. */
   variants: PbVariant[];
@@ -96,15 +107,17 @@ export function personalBestEntries(bests: { activity: string; time: string }[])
   const out: PbEntry[] = [];
   for (const group of groupPersonalBests(bests)) {
     for (const m of group.modes) {
-      const overall = m.variants.find((v) => v.team === '');
-      const fastest = [...m.variants].sort((a, b) => timeSeconds(a.time) - timeSeconds(b.time))[0];
       const teams = m.variants.filter((v) => v.team !== '');
+      const pool = teams.length ? teams : m.variants;
+      const fastest = [...pool].sort((a, b) => timeSeconds(a.time) - timeSeconds(b.time))[0];
+      const name = entryName(group.base, m.mode);
       out.push({
-        name: entryName(group.base, m.mode),
+        name,
         base: group.base,
         mode: m.mode,
-        best: (overall ?? fastest).time,
-        variants: teams.length > 1 || (teams.length === 1 && overall) ? teams : [],
+        icon: (m.mode && bossKeyForName(name)) || group.base,
+        best: fastest.time,
+        variants: teams.length > 1 ? teams : [],
       });
     }
   }
