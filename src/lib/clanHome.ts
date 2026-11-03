@@ -5,7 +5,7 @@
 // read: the profile fields the clan wrote about itself, plus a few counts and its recent events to
 // show it's alive. No heavy aggregation; the standings page already owns cross-clan ranking.
 
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanRoster, clans, events } from '@/db/schema';
@@ -144,15 +144,26 @@ export interface PublicClanActivity {
 const WEEK_KIND: Record<string, string> = { SOTW: 'Skill of the week', BOTW: 'Boss of the week', EOTW: 'Efficiency of the week' };
 
 export async function publicClanActivity(clanId: number, now = new Date()): Promise<PublicClanActivity> {
-  const [hub, invited, clanEvts, members] = await Promise.all([
+  const [hub, clanEvts, members] = await Promise.all([
     loadHubView(clanId, { pastLimit: 6 }, now),
-    db
-      .select({ id: events.id })
-      .from(events)
-      .where(and(eq(events.clanId, clanId), eq(events.visibility, 'invited'))),
     listClanEvents(clanId, { now: now.getTime(), withinDays: 14 }).catch(() => []),
     listMembers(clanId),
   ]);
+  // Every board on the page, whichever clan HOSTS it: the hub includes boards this clan only
+  // co-hosts, so a check limited to this clan's own events would let another clan's invited-only
+  // board through.
+  const boardIds = [
+    ...hub.live.boards.map((b) => b.id),
+    ...hub.upcoming.boards.map((b) => b.id),
+    ...hub.record.items.filter((i) => i.group === 'boards').map((i) => i.id),
+  ];
+  const invited = boardIds.length
+    ? await db
+        .select({ id: events.id })
+        .from(events)
+        // clan-scope: global -- these ids are the boards this clan's hub already lists (hosted or co-hosted).
+        .where(and(inArray(events.id, boardIds), eq(events.visibility, 'invited')))
+    : [];
   const hidden = new Set(invited.map((r) => r.id));
   const analytics = await getClanAnalytics(members).catch(() => null);
 
