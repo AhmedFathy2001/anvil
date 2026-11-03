@@ -796,7 +796,7 @@ export default function ProfileTabs({
               </div>
               <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border max-h-[32rem] overflow-y-auto">
                 {timeEntries.map((e) => {
-                  const icon = activityImageUrl(e.base);
+                  const icon = activityImageUrl(e.mode ? e.name : e.base);
                   const expandable = e.variants.length > 0;
                   const isOpen = openTime === e.name;
                   return (

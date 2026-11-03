@@ -54,4 +54,25 @@ test('entries: one per boss and mode, best time first, team sizes behind it', ()
   assert.equal(entries[1].best, '28:18.00'); // no overall time for CM: the fastest heads the row
   assert.deepEqual(entries[3].variants, []);
   assert.equal(timeSeconds('1:03:43.00'), 3823);
+  // A mode with its own hiscore gets its own icon; one without falls back to the boss.
+  assert.equal(entries[1].icon, 'chambersOfXericChallengeMode');
+  assert.equal(entries[0].icon, 'Chambers of Xeric');
+  assert.equal(entries[3].icon, 'Duke Sucellus');
+});
+
+test('entries: a size-less raid time never heads the row over the team sizes', () => {
+  // RuneLite's size-less ToA Expert record (17:28) matched none of the sizes the row listed.
+  const [toa] = personalBestEntries([
+    { activity: 'Tombs of Amascut: Expert Mode', time: '17:28.00' },
+    { activity: 'Tombs of Amascut: Expert Mode Solo', time: '21:37.00' },
+    { activity: 'Tombs of Amascut: Expert Mode 4 Players', time: '16:08.00' },
+    { activity: 'Tombs of Amascut: Expert Mode 8 Players', time: '15:26.00' },
+  ]);
+  assert.equal(toa.name, 'Tombs of Amascut: Expert Mode');
+  assert.equal(toa.icon, 'tombsOfAmascutExpertMode');
+  assert.equal(toa.best, '15:26.00');
+  assert.deepEqual(toa.variants.map((v) => v.team), ['Solo', '4', '8']);
+  // With no sizes at all, the one time there is still heads it.
+  const [vork] = personalBestEntries([{ activity: 'Vorkath', time: '1:10.00' }]);
+  assert.equal(vork.best, '1:10.00');
 });
