@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { events } from '@/db/schema';
-import { boardSize } from '@/lib/panelRows';
+import { boardHidden, boardSize } from '@/lib/panelRows';
 import { pluginRsnHintOnly, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess } from '@/lib/eventChat';
 import { formatGp } from '@/lib/itemPrices';
@@ -13,6 +13,7 @@ import { homeBoardForUser } from '@/lib/pluginHomeBoard';
 import { rateLimit } from '@/lib/rate-limit';
 import { standingsHidden } from '@/lib/standingsVisibility';
 
+import { visibleClan } from './load';
 import { feedTabUi, kindGroup, momentRow, type KindGroup, type Scope } from './feedUi';
 import type { Action, FeedRow, View } from './nodes';
 import { gap, message, text } from './nodes';
@@ -26,7 +27,9 @@ const err = (s: string): View => ({ ui: text(s, 'error', { wrap: true }) });
 
 /** The scopes this viewer can switch between: their clan, and the board they're playing on. */
 async function scopesFor(request: Request, userId: number | null): Promise<Scope[]> {
-  const clan = await resolvePluginClan(request);
+  const resolved = await resolvePluginClan(request);
+  // The same visibility check every other clan view makes (load.visibleClan), not just the token's say-so.
+  const clan = resolved ? await visibleClan(request, resolved.slug) : null;
   const out: Scope[] = [];
   if (clan) out.push({ kind: 'clan', id: clan.id, slug: clan.slug, name: clan.name });
   const seat = clan ? await verifyPluginToken(request, { hintOnly: pluginRsnHintOnly(request) }).catch(() => null) : null;
@@ -55,10 +58,15 @@ const groupOf = (f: string): KindGroup | null => (f === 'drops' || f === 'pets' 
 async function clanRows(clan: Extract<Scope, { kind: 'clan' }>, filter: string, viewer: number | null): Promise<{ rows: FeedRow[]; floor: number }> {
   const scope = await clanScopeFor(clan.id);
   const g = groupOf(filter);
-  const list = (await momentsForClan(clan.id, 120))
+  const raw = (await momentsForClan(clan.id, 120))
     .filter((m) => panelFeedWorthy(m, scope.minLootGp) && isClanWorthy(m, scope))
-    .filter((m) => !g || kindGroup(m.kind) === g)
-    .slice(0, 80);
+    .filter((m) => !g || kindGroup(m.kind) === g);
+  // Drops filed on a board with hidden standings stay out of the clan's feed (the board's own feed
+  // shows each team its own). Checked fresh per board.
+  const boards = [...new Set(raw.map((m) => m.eventId).filter((e): e is number => e != null))];
+  const hidden = new Set<number>();
+  for (const e of boards) if (await boardHidden(e)) hidden.add(e);
+  const list = raw.filter((m) => m.eventId == null || !hidden.has(m.eventId)).slice(0, 80);
   const [summaries, member] = await Promise.all([
     reactionSummaries(list.map((m) => m.id), viewer),
     viewer != null ? isClanMember(viewer, clan.id) : Promise.resolve(false),

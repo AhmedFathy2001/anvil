@@ -332,6 +332,7 @@ const MOMENT_COLUMNS = {
   tier: moments.tier,
   sourceKind: moments.sourceKind,
   teamId: moments.teamId,
+  eventId: moments.eventId,
   occurredAt: moments.occurredAt,
 };
 
@@ -352,6 +353,8 @@ export interface MomentRow {
   sourceKind: string | null;
   /** Which side it happened on, stamped at ingest. Null on weekly/solo moments. */
   teamId: number | null;
+  /** The board it was filed on, if any (a hidden-standings board keeps it out of the clan feed). */
+  eventId?: number | null;
   occurredAt: string;
 }
 

@@ -62,20 +62,17 @@ export function boardSize(eventId: number): Promise<number> {
   );
 }
 
-/** Whether a board's standings are behind the curtain now. Held a minute. */
-function boardHidden(eventId: number, now: number): Promise<boolean> {
-  return ttlMemo(
-    `panel-rows-board-hidden:${eventId}`,
-    async () => {
-      // clan-scope: this clan -- by id, for a moment its own board just recorded
-      const ev = await db.query.events.findFirst({
-        where: eq(events.id, eventId),
-        columns: { startDate: true, endDate: true, forceEndedAt: true, rules: true },
-      });
-      return ev ? standingsHidden(ev, now) : false;
-    },
-    60_000,
-  );
+/**
+ * Whether a board's standings are behind the curtain now. Read fresh every time, never cached: a host
+ * who hides standings mid-event must not leak a minute of other teams' drops.
+ */
+export async function boardHidden(eventId: number, now: number = Date.now()): Promise<boolean> {
+  // clan-scope: this clan -- by id, for a moment its own board just recorded
+  const ev = await db.query.events.findFirst({
+    where: eq(events.id, eventId),
+    columns: { startDate: true, endDate: true, forceEndedAt: true, rules: true },
+  });
+  return ev ? standingsHidden(ev, now) : false;
 }
 
 function teamOf(teamId: number): Promise<{ name: string; color: string | null } | null> {
@@ -115,7 +112,13 @@ export async function emitMomentRows(clanId: number, seatKind: string, list: New
   try {
     const scope = await clanScopeFor(clanId);
     if (seatKind === 'member') {
-      const shown = list.filter((m) => isClanWorthy(m, scope) && panelFeedWorthy(m, scope.minLootGp));
+      const shown: NewMoment[] = [];
+      for (const m of list) {
+        if (!isClanWorthy(m, scope) || !panelFeedWorthy(m, scope.minLootGp)) continue;
+        // A drop filed on a board with hidden standings is that team's secret: not the clan's feed.
+        if (m.eventId != null && (await boardHidden(m.eventId, now))) continue;
+        shown.push(m);
+      }
       if (shown.length) {
         const ids = await clanUserIds(clanId);
         for (const m of shown) {
