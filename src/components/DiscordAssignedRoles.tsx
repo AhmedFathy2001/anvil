@@ -174,7 +174,7 @@ export default function DiscordAssignedRoles() {
         <button
           onClick={save}
           disabled={saving}
-          className="px-4 py-2 text-sm font-semibold bg-gold text-bg rounded-lg hover:bg-gold/90 transition-colors disabled:opacity-50"
+          className="rounded-lg border border-gold/50 bg-gold/15 px-4 py-2 text-sm font-semibold text-gold-light transition-colors hover:bg-gold/25 disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save assigned roles'}
         </button>
