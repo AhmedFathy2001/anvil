@@ -34,6 +34,13 @@ test('markup, zalgo, styled letters and long runs are cleaned', () => {
   assert.equal(clean('noooooooooooooo'), 'nooooooo'.slice(0, 7), 'a run is kept to six');
   assert.match(clean('ＣＨＥＡＰ ＧＯＬＤ'), /^!/, 'styled letters can’t dodge the gold filter');
   assert.match(clean('<col=ff0000></col>'), /^!/, 'nothing left after cleaning is refused');
+  assert.equal(clean('<co<b>l=ff0000>red'), 'red', 'a tag hidden inside a tag is gone too');
+  assert.equal(clean('<col=' + 'f'.repeat(80) + '>x'), 'x', 'however long the tag');
+  assert.equal(
+    clean('z\u0301\u0302\u200b\u0303\u0304\u200b\u0305\u0306'),
+    'z\u0301\u0302'.normalize('NFC'),
+    'an invisible character can’t split a stack past the cap',
+  );
 });
 
 test('links are for staff; gold adverts for nobody', () => {

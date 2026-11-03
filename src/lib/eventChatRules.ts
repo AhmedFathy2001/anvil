@@ -28,7 +28,7 @@ const GOLD_SELLER = /\b(?:cheap|fast|safe)\s+(?:gp|gold|osrs\s*gold)\b|\b(?:buy|
 
 // Game and Swing markup (<col=ff0000>, <img=1>, <html>…): text that a renderer could take for a tag
 // is dropped, never shown as formatting. The plugin escapes what it draws too; this is the other side.
-const TAG = /<\/?[a-z][^<>]{0,40}>/gi;
+const TAG = /<\/?[a-z][^<>]*>/gi;
 // Stacked combining marks ("zalgo") after the first two on a letter.
 const ZALGO = /(\p{M}{2})\p{M}+/gu;
 // One character repeated past six ("aaaaaaaaaa", "!!!!!!!!!!!!") — kept, but only six of it.
@@ -38,14 +38,19 @@ export type BodyCheck = { ok: true; body: string } | { ok: false; reason: string
 
 /** Clean a message and say whether it may be sent. Staff may post links. */
 export function checkBody(raw: string, opts: { staff: boolean }): BodyCheck {
-  const body = String(raw ?? '')
-    // Trim stacked marks first (on the decomposed text), then fold full-width and styled letters to
-    // plain ones, so the filters below can't be dodged with them.
+  // Order matters, each step on what the one before left: fold full-width and styled letters to plain
+  // ones; drop invisible and control characters; drop tags until none are left (a tag hidden inside
+  // another reappears when the inner one goes); only then cap stacked marks, so nothing removed later
+  // can split a stack the cap already counted.
+  let text = String(raw ?? '').normalize('NFKC').replace(CONTROL, '');
+  for (let prev = ''; prev !== text; ) {
+    prev = text;
+    text = text.replace(TAG, '');
+  }
+  const body = text
     .normalize('NFD')
     .replace(ZALGO, '$1')
-    .normalize('NFKC')
-    .replace(CONTROL, '')
-    .replace(TAG, '')
+    .normalize('NFC')
     .replace(RUNS, '$1$1$1$1$1$1')
     .replace(/\s+/g, ' ')
     .trim();
