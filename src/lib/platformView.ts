@@ -13,12 +13,18 @@
 //     and a main plus an alt is genuinely two seats.
 //   - `leftAt IS NULL` everywhere: a clan's size is who is there now, not who ever was.
 
-import { and, asc, count, countDistinct, desc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm';
+import { and, asc, count, countDistinct, desc, eq, inArray, isNull, like, ne, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanMemberships, clanStaff, clans, errorEvents, events as eventsTable, players, users, weeklyCompetitions } from '@/db/schema';
 import { apexDomain } from '@/lib/clanContext';
 import { subscriptionFacts } from '@/lib/clanBilling';
+import { LAB_CLAN_SLUG, LAB_DUMMY_LOGIN } from '@/lib/labRules';
+
+// THE LAB IS NOT A CLAN. Staff test boards in a hidden clan (lib/lab) with dummy logins; counting
+// either here put "Anvil Tile Lab" under "No owner" and "Unverified" and inflated every total.
+const notLab = (clanIdCol: unknown) => sql`${clanIdCol} is distinct from (select id from clans where slug = ${LAB_CLAN_SLUG})`;
+const labDummyPlayers = sql`(select u.player_id from users u where u.discord_id like ${LAB_DUMMY_LOGIN + '%'} and u.player_id is not null)`;
 
 export interface PlatformTotals {
   clans: number;
@@ -53,16 +59,16 @@ export async function platformTotals(): Promise<PlatformTotals> {
     [bannedRow],
     [staffRow],
   ] = await Promise.all([
-    db.select({ n: count() }).from(clans),
-    db.select({ n: count() }).from(clans).where(eq(clans.status, 'active')),
-    db.select({ n: count() }).from(clans).where(eq(clans.status, 'suspended')),
-    db.select({ n: count() }).from(clans).where(eq(clans.status, 'archived')),
-    db.select({ n: count() }).from(players),
-    db.select({ n: count() }).from(accounts),
-    db.select({ n: count() }).from(clanMemberships).where(isNull(clanMemberships.leftAt)),
-    db.select({ n: count() }).from(users),
-    db.select({ n: count() }).from(eventsTable),
-    db.select({ n: count() }).from(weeklyCompetitions),
+    db.select({ n: count() }).from(clans).where(ne(clans.slug, LAB_CLAN_SLUG)),
+    db.select({ n: count() }).from(clans).where(and(eq(clans.status, 'active'), ne(clans.slug, LAB_CLAN_SLUG))),
+    db.select({ n: count() }).from(clans).where(and(eq(clans.status, 'suspended'), ne(clans.slug, LAB_CLAN_SLUG))),
+    db.select({ n: count() }).from(clans).where(and(eq(clans.status, 'archived'), ne(clans.slug, LAB_CLAN_SLUG))),
+    db.select({ n: count() }).from(players).where(sql`${players.id} not in ${labDummyPlayers}`),
+    db.select({ n: count() }).from(accounts).where(sql`${accounts.playerId} not in ${labDummyPlayers}`),
+    db.select({ n: count() }).from(clanMemberships).where(and(isNull(clanMemberships.leftAt), notLab(clanMemberships.clanId))),
+    db.select({ n: count() }).from(users).where(sql`coalesce(${users.discordId}, '') not like ${LAB_DUMMY_LOGIN + '%'}`),
+    db.select({ n: count() }).from(eventsTable).where(notLab(eventsTable.clanId)),
+    db.select({ n: count() }).from(weeklyCompetitions).where(notLab(weeklyCompetitions.clanId)),
     db.select({ n: count() }).from(players).where(eq(players.banned, true)),
     db.select({ n: count() }).from(users).where(sql`${users.platformRole} <> 'none'`),
   ]);
@@ -218,6 +224,7 @@ export async function allClans(): Promise<ClanRow[]> {
       )`,
     })
     .from(clans)
+    .where(ne(clans.slug, LAB_CLAN_SLUG))
     .orderBy(clans.name);
 
   return rows.map((r) => ({
@@ -418,7 +425,7 @@ export async function multiClanPeople(limit = 20): Promise<{ playerId: number; n
     })
     .from(accounts)
     .innerJoin(players, eq(accounts.playerId, players.id))
-    .innerJoin(clanMemberships, and(eq(clanMemberships.accountId, accounts.id), isNull(clanMemberships.leftAt)))
+    .innerJoin(clanMemberships, and(eq(clanMemberships.accountId, accounts.id), isNull(clanMemberships.leftAt), notLab(clanMemberships.clanId)))
     .groupBy(players.id, players.displayName)
     .having(sql`count(distinct ${clanMemberships.clanId}) > 1`)
     .orderBy(desc(countDistinct(clanMemberships.clanId)))
@@ -645,7 +652,7 @@ export async function nameCollisions(): Promise<NameCollision[]> {
       verifiedAt: clans.ingameNameVerifiedAt,
     })
     .from(clans)
-    .where(sql`${clans.inGameName} is not null and ${clans.inGameName} <> ''`);
+    .where(and(sql`${clans.inGameName} is not null and ${clans.inGameName} <> ''`, ne(clans.slug, LAB_CLAN_SLUG)));
 
   const byName = new Map<string, typeof rows>();
   for (const r of rows) {
