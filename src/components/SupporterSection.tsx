@@ -3,6 +3,7 @@ import CopyLinkButton from '@/components/CopyLinkButton';
 import { REFERRAL_MILESTONES as MILESTONES } from '@/lib/referralRules';
 import { SITE } from '@/lib/site';
 import SupporterName from '@/components/SupporterName';
+import SupporterAnnounceToggle from '@/components/SupporterAnnounceToggle';
 import SupporterStylePicker from '@/components/SupporterStylePicker';
 import type { SupporterStyle } from '@/lib/supporterStyle';
 import { tenureStep, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
@@ -60,9 +61,12 @@ export default function SupporterSection({
   supporter,
   invite = null,
   name = null,
+  announce = null,
 }: {
   supporter: SupporterView | null;
   invite?: InviteView | null;
+  /** Their "announce me" choice for the Anvil Discord; null hides the toggle. */
+  announce?: boolean | null;
   /** Their own display name, previewed in each tier's flair. */
   name?: string | null;
 }) {
@@ -110,7 +114,7 @@ export default function SupporterSection({
           </div>
         </div>
         {invite && <InviteCard invite={invite} />}
-        <DiscordCard />
+        <DiscordCard announce={announce} />
       </section>
     );
   }
@@ -161,7 +165,7 @@ export default function SupporterSection({
         <SupporterStylePicker tier={supporter.tier} name={name || 'Your name'} initial={supporter.style} />
       </div>
       {invite && <InviteCard invite={invite} />}
-      <DiscordCard />
+      <DiscordCard announce={announce} />
     </section>
   );
 }
@@ -246,12 +250,13 @@ function InviteCard({ invite }: { invite: InviteView }) {
 }
 
 /** The Anvil Discord, where supporters and clan leaders actually talk to the person building it. */
-function DiscordCard() {
+function DiscordCard({ announce }: { announce: boolean | null }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-4 rounded-2xl border border-card-border bg-card-bg px-5 py-4">
       <p className="min-w-0 flex-[1_1_20rem] text-[14px] leading-relaxed text-text-muted">
         <b className="text-foreground">Come hang out in the Anvil Discord.</b> See new features first, report bugs and
-        have a say in what gets built next.
+        have a say in what gets built next. Supporters who join with the Discord they sign in with get their
+        tier&rsquo;s role there automatically.
       </p>
       <a
         href={SITE.supportDiscord}
@@ -261,6 +266,7 @@ function DiscordCard() {
       >
         Join the Anvil Discord
       </a>
+      {announce != null && <SupporterAnnounceToggle initial={announce} />}
     </div>
   );
 }

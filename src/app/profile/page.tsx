@@ -143,6 +143,7 @@ export default async function ProfilePage({
         suggestedRsn={suggestedRsn}
         unfinishedSetup={onboarding.offer}
         supporter={supporterView(supporter)}
+        announceSupporter={user.announceSupporter}
         invite={
           referral && process.env.GUMROAD_URL_SUPPORTER
             ? { link: `${apexOrigin()}/r/${referral.code}`, held: referral.held, granted: referral.granted, monthsEarned: referral.monthsEarned, next: referral.next }

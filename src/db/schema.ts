@@ -1400,6 +1400,9 @@ export const users = pgTable('users', {
   // (Champion+) or their own stops (Patron). NULL = the tier's default. Re-checked against the tier
   // in force on every read, so a lapsed Patron's custom colours fall back without a write.
   supporterStyle: text('supporter_style'),
+  // Post "<name> became an Anvil <tier>" in the Anvil Discord when their membership starts
+  // (lib/anvilDiscord). Default on; a toggle on /profile turns it off.
+  announceSupporter: boolean('announce_supporter').notNull().default(true),
   // What the in-game chat feed shows this person (lib/chatFeedRules ChatFeedPrefs, JSON). NULL = the
   // defaults. The plugin holds only the master switch; everything finer lives here.
   chatFeedPrefs: text('chat_feed_prefs'),
@@ -3923,6 +3926,9 @@ export const supporterSubscriptions = pgTable('supporter_subscriptions', {
   currentPeriodEnd: text('current_period_end'),
   startedAt: text('started_at').notNull(),
   endedAt: text('ended_at'),
+  // When this membership was posted to the Anvil Discord's "new supporters" channel (lib/anvilDiscord),
+  // or skipped because the person opted out. Set once: the claim that stops a renewal posting again.
+  announcedAt: text('announced_at'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   uniqueIndex('supporter_subscriptions_gumroad_sub_unique').on(table.gumroadSubscriptionId),

@@ -12,6 +12,7 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { supporterSubscriptions, users } from '@/db/schema';
+import { afterSupporterChange } from '@/lib/anvilDiscord';
 import { recordSupporterReferral, revokeReferrals } from '@/lib/referrals';
 import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, type GumroadEvent } from '@/lib/gumroad';
 import { parseStamp, supporterTierForGumroad } from '@/lib/supporterTiers';
@@ -70,11 +71,14 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
       // A free trial's first charge is due when the trial runs out, not a whole term from now.
       const trialEnd = parseStamp(ev.freeTrialEndsAt);
       const periodEnd = Number.isFinite(trialEnd) ? new Date(trialEnd).toISOString() : nextChargeDue(ev.recurrence, chargedAt(ev.saleTimestamp));
+      // The Anvil Discord announces a membership once it is paid for: a trial waits for its first charge.
+      const isTrial = Number.isFinite(trialEnd) && trialEnd > Date.now();
       if (row) {
         await db
           .update(supporterSubscriptions)
           .set({ tier, status: 'active', recurrence: ev.recurrence, gumroadSaleId: ev.saleId, currentPeriodEnd: periodEnd, endedAt: null })
           .where(eq(supporterSubscriptions.id, row.id));
+        afterSupporterChange(row.userId, { announceRowId: isTrial ? null : row.id });
         return ok({ tier });
       }
       // A new membership: the buyer is whoever's checkout ref came back. Never the email.
@@ -94,6 +98,7 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
         currentPeriodEnd: periodEnd,
         startedAt: nowIso(),
       }).returning({ id: supporterSubscriptions.id });
+      if (created) afterSupporterChange(buyer.id, { announceRowId: isTrial ? null : created.id });
       // Bought through somebody's invite link: their reward is held until the money has settled.
       if (created && ev.urlParams.via) {
         await recordSupporterReferral({
@@ -123,6 +128,8 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
           endedAt: null,
         })
         .where(eq(supporterSubscriptions.id, row.id));
+      // A trial's first real charge is when it is announced (a no-op for anything already announced).
+      afterSupporterChange(row.userId, { announceRowId: row.id });
       return ok({ tier });
     }
 
@@ -141,7 +148,8 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
         await db.update(supporterSubscriptions).set({ status: 'ended', endedAt: nowIso() }).where(eq(supporterSubscriptions.id, row.id));
       }
       // A trial that never paid, or a membership gone before its referral settled, earns nothing.
-      if (ev.subscriptionId) await revokeReferrals(ev.subscriptionId, { heldOnly: true });
+      const lost = ev.subscriptionId ? await revokeReferrals(ev.subscriptionId, { heldOnly: true }) : [];
+      afterSupporterChange([row.userId, ...lost]);
       return ok();
     }
 
@@ -159,6 +167,7 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
           currentPeriodEnd: row.status === 'ended' ? nextChargeDue(ev.recurrence ?? row.recurrence, Date.now()) : row.currentPeriodEnd,
         })
         .where(eq(supporterSubscriptions.id, row.id));
+      afterSupporterChange(row.userId);
       return ok();
     }
 
@@ -167,7 +176,8 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
       if (!row) return ok({ note: 'unknown membership' });
       await db.update(supporterSubscriptions).set({ status: 'refunded', endedAt: nowIso() }).where(eq(supporterSubscriptions.id, row.id));
       // Money taken back takes the referrer's reward with it, granted or not.
-      if (row.gumroadSubscriptionId) await revokeReferrals(row.gumroadSubscriptionId, { heldOnly: false });
+      const lost = row.gumroadSubscriptionId ? await revokeReferrals(row.gumroadSubscriptionId, { heldOnly: false }) : [];
+      afterSupporterChange([row.userId, ...lost]);
       return ok();
     }
 

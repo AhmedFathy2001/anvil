@@ -918,6 +918,13 @@
       "when": 1793723400000,
       "tag": "0181_supporter_style",
       "breakpoints": true
+    },
+    {
+      "idx": 182,
+      "version": "7",
+      "when": 1793727000000,
+      "tag": "0182_anvil_discord_supporters",
+      "breakpoints": true
     }
   ]
 }
