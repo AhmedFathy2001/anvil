@@ -153,4 +153,9 @@ test('the third friend also earns the milestone, once', async () => {
   const sum = await referralSummary(referrer.id);
   assert.equal(sum.granted, 3);
   assert.deepEqual(sum.next, { from: 3, to: 10, label: '3 months of Champion' });
+
+  // One of the three is refunded: the milestone goes with it.
+  await post({ sale_id: 's6-2', subscription_id: 'sub-6-2', refunded: 'true', resource_name: 'refund' });
+  const after = await db.select().from(s.supporterSubscriptions).where(eq(s.supporterSubscriptions.userId, referrer.id));
+  assert.equal(after.find((r) => r.recurrence === 'referral-milestone-3')?.status, 'refunded');
 });
