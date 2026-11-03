@@ -3,7 +3,7 @@
 import { isPlaceholderTile } from '@/lib/placeholderTile';
 import DateTimePicker from '@/components/DateTimePicker';
 import type { Event, Tile, ItemRequirement } from '@/lib/types';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useDeferredValue } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import TileTrackingConfig from '@/components/TileTrackingConfig';
 import TileCreator from '@/components/tile-creator/TileCreator';
@@ -634,6 +634,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
 
   // Filter state — essential once a Leagues board imports hundreds of tiles.
   const [search, setSearch] = useState('');
+  // The box stays instant; the filtered list (hundreds of cards on a Leagues board) follows at low priority.
+  const deferredSearch = useDeferredValue(search);
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [tierFilter, setTierFilter] = useState<string>('all');
@@ -654,23 +656,23 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const announcedMissions = useMemo(() => missionPool.filter((t) => t.revealedAt).length, [missionPool]);
 
   const filteredTiles = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
     return boardOnly.filter((t) => {
       if (kindFilter !== 'all' && tileKindFilterKey(t) !== kindFilter) return false;
       if (categoryFilter !== 'all' && !tileHasCategory(t.category, categoryFilter)) return false;
       if (tierFilter !== 'all' && tileTierKey(t.points, tierBands) !== tierFilter) return false;
       return tileMatchesSearch(t, q);
     });
-  }, [boardOnly, search, kindFilter, categoryFilter, tierFilter, tierBands]);
+  }, [boardOnly, deferredSearch, kindFilter, categoryFilter, tierFilter, tierBands]);
 
   // Quick Build left-pane list honors the same search box, text-only — the kind/category/tier
   // chips live in Cards view, so applying them here would be a hidden filter. Sharing `search`
   // keeps the query alive across the Cards ⇄ Quick build toggle.
   const gridFiltering = search.trim().length > 0;
   const gridTiles = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
     return q ? boardOnly.filter((t) => tileMatchesSearch(t, q)) : boardOnly;
-  }, [boardOnly, search]);
+  }, [boardOnly, deferredSearch]);
 
   // Collapse back to the first page whenever the result set changes.
   useEffect(() => setVisibleLimit(PAGE_SIZE), [search, kindFilter, categoryFilter, tierFilter]);
