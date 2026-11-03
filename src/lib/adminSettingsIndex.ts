@@ -255,9 +255,9 @@ const PAGES: readonly SettingEntry[] = [
     id: 'anvil-updates',
     label: 'Anvil updates and news',
     description:
-      'Anvil does not post its own release notes into your server. Join the Anvil Discord, linked on Plan and billing, to hear about updates first.',
+      'Get each new Anvil release (features, improvements, fixes) in your Discord: set the "Anvil updates channel" under Post without a bot. Or follow #anvil-announcements in the Anvil Discord. Every release is also on anvilosrs.com/changelog.',
     keywords: ['updates', 'release notes', 'changelog', 'deploys', 'deployment', 'new features', 'whats new', 'announcements', 'support'],
-    href: '/admin/plan#anvil-discord',
+    href: '/admin/integrations#discord-by-hand',
     section: 'Settings',
   },
 
