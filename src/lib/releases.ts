@@ -72,7 +72,9 @@ export async function publishShippedReleases(dir?: string): Promise<string[]> {
   // Nothing goes out until #anvil-announcements is set on /staff/releases: a release announced to
   // nobody would be claimed and never posted there. Set it, and the next tick publishes.
   if (!(await getPlatformSetting(ANNOUNCEMENTS_WEBHOOK_KEY))) return [];
-  const notes = await loadReleaseFiles(dir);
+  // Oldest first: a backlog (the channel set after a few releases) then reads top to bottom in the
+  // order things shipped, and each release's row is newer than the one before it.
+  const notes = [...(await loadReleaseFiles(dir))].reverse();
   const done: string[] = [];
   for (const note of notes) {
     const [claimed] = await db
@@ -106,10 +108,14 @@ export async function listPublishedReleases(limit = 50): Promise<PublishedReleas
  * never had a line before starts at the newest release, so nobody gets a backlog.
  */
 export async function unseenReleaseLine(userId: number): Promise<string | null> {
-  const [latest] = await db.select().from(releases).orderBy(desc(releases.id)).limit(1);
+  // The newest by VERSION. Row order isn't release order: a backlog published newest-first once
+  // gave the oldest release the newest row.
+  const rows = await db.select().from(releases).orderBy(desc(releases.id)).limit(50);
+  const [latest] = rows.sort((a, b) => compareVersions(a.version, b.version));
   if (!latest) return null;
   const me = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { seenReleaseId: true } });
-  if (me?.seenReleaseId != null && me.seenReleaseId >= latest.id) return null;
+  // Seen = the line shown last was this release (not "an id at least this high", for the same reason).
+  if (me?.seenReleaseId === latest.id) return null;
   await db.update(users).set({ seenReleaseId: latest.id }).where(eq(users.id, userId));
   return releaseBriefLine(latest.note as ReleaseNote);
 }
