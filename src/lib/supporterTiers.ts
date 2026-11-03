@@ -53,6 +53,9 @@ export function supporterTierForGumroad(name: string | null | undefined): Suppor
   return SUPPORTER_TIER_ORDER.find((id) => SUPPORTER_TIERS[id].name.toLowerCase() === key) ?? null;
 }
 
+/** supporter_subscriptions.recurrence of a staff gift. */
+export const GIFT_RECURRENCE = 'gift';
+
 export type SupporterStatus = 'active' | 'cancelling' | 'granted' | 'ended' | 'refunded';
 
 /** The fields of a supporter_subscriptions row that decide what it is worth right now. */
@@ -61,6 +64,8 @@ export interface SupporterRowLike {
   status: string;
   currentPeriodEnd: string | null;
   startedAt: string;
+  /** 'monthly' | 'yearly', 'referral…', 'gift' (staff, lib/supporterGifts), 'lab'. */
+  recurrence?: string | null;
   /** The owning login's users.supporter_style (JSON), when the read joined it. */
   style?: string | null;
 }
@@ -76,6 +81,8 @@ export interface SupporterState {
   renewsAt: string | null;
   /** The tier in force is time earned through invites (lib/referrals), not a subscription. */
   earned: boolean;
+  /** The tier in force is a gift from Anvil staff (lib/supporterGifts). */
+  gift: boolean;
   /** Their name colours as worn at this tier (already gated: a lapsed Patron's custom is gone). */
   style: SupporterStyle | null;
 }
@@ -132,7 +139,8 @@ export function supporterState(rows: SupporterRowLike[], now = Date.now()): Supp
     months: wholeMonths(sinceMs, now),
     endsAt: best.status === 'cancelling' || best.status === 'granted' ? best.currentPeriodEnd : null,
     renewsAt: best.status === 'active' ? best.currentPeriodEnd : null,
-    earned: best.status === 'granted',
+    earned: best.status === 'granted' && best.recurrence !== GIFT_RECURRENCE,
+    gift: best.status === 'granted' && best.recurrence === GIFT_RECURRENCE,
     style: effectiveSupporterStyle(best.tier as SupporterTierId, parseSupporterStyle(best.style)),
   };
 }
