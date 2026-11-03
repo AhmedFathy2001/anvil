@@ -7,7 +7,7 @@
 // socket open goes nowhere, and the plugin only opens one while its feed switch is on.
 
 import { hasChatStar } from '@/lib/chatLook';
-import { SUPPORTER_INK, supporterForUser } from '@/lib/supporter';
+import { supporterForUser, supporterInk } from '@/lib/supporter';
 import { and, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -216,7 +216,7 @@ async function flairOf(userId: number | null): Promise<{ color: string; star: bo
   if (userId == null) return null;
   const s = await supporterForUser(userId).catch(() => null);
   if (!s) return null;
-  return { color: SUPPORTER_INK[s.tier.id].color, star: hasChatStar(s.tier.id) };
+  return { color: supporterInk(s.tier.id, s.style).color, star: hasChatStar(s.tier.id) };
 }
 
 async function deliver(item: FeedItem, to: Recipient[], flair: { color: string; star: boolean } | null = null): Promise<number> {

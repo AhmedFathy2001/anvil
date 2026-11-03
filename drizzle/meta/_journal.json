@@ -904,6 +904,13 @@
       "when": 1793712600000,
       "tag": "0178_referrals",
       "breakpoints": true
+    },
+    {
+      "idx": 181,
+      "version": "7",
+      "when": 1793723400000,
+      "tag": "0181_supporter_style",
+      "breakpoints": true
     }
   ]
 }

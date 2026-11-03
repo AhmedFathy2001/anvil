@@ -5,6 +5,8 @@
 // superset of the one below. Prices live on Gumroad (one product, three tiers, monthly and yearly);
 // they are repeated here only for display.
 
+import { effectiveSupporterStyle, parseSupporterStyle, presetById, type SupporterStyle } from './supporterStyle.ts';
+
 export type SupporterTierId = 'supporter' | 'champion' | 'patron';
 
 export interface SupporterTier {
@@ -24,15 +26,8 @@ export const SUPPORTER_TIERS: Record<SupporterTierId, SupporterTier> = {
 
 export const SUPPORTER_TIER_ORDER: SupporterTierId[] = ['supporter', 'champion', 'patron'];
 
-/**
- * A tier's name colours where CSS can't reach (the plugin panel): a solid colour every renderer
- * understands, and the gradient stops a newer one draws across the name. Matches `.supporter-name-*`.
- */
-export const SUPPORTER_INK: Record<SupporterTierId, { color: `#${string}`; grad?: `#${string}`[]; move?: boolean }> = {
-  supporter: { color: '#ffd35c' },
-  champion: { color: '#e05ad0', grad: ['#ff9a5a', '#e05ad0', '#7a8cff'] },
-  patron: { color: '#ff7ab8', grad: ['#ffd27a', '#ff7ab8', '#7ae0ff'], move: true },
-};
+// Name colours: each tier's default ink, the presets and a person's own choice (lib/supporterStyle).
+export { SUPPORTER_INK } from './supporterStyle.ts';
 
 /** The tier a Gumroad tier name means ("Champion" → champion). Unknown names are null, never a guess. */
 export function supporterTierForGumroad(name: string | null | undefined): SupporterTierId | null {
@@ -48,6 +43,8 @@ export interface SupporterRowLike {
   status: string;
   currentPeriodEnd: string | null;
   startedAt: string;
+  /** The owning login's users.supporter_style (JSON), when the read joined it. */
+  style?: string | null;
 }
 
 export interface SupporterState {
@@ -61,6 +58,8 @@ export interface SupporterState {
   renewsAt: string | null;
   /** The tier in force is time earned through invites (lib/referrals), not a subscription. */
   earned: boolean;
+  /** Their name colours as worn at this tier (already gated: a lapsed Patron's custom is gone). */
+  style: SupporterStyle | null;
 }
 
 /** Parse either stored timestamp shape ('YYYY-MM-DD HH:MM:SS' or ISO) as UTC. */
@@ -116,6 +115,7 @@ export function supporterState(rows: SupporterRowLike[], now = Date.now()): Supp
     endsAt: best.status === 'cancelling' || best.status === 'granted' ? best.currentPeriodEnd : null,
     renewsAt: best.status === 'active' ? best.currentPeriodEnd : null,
     earned: best.status === 'granted',
+    style: effectiveSupporterStyle(best.tier as SupporterTierId, parseSupporterStyle(best.style)),
   };
 }
 
@@ -132,10 +132,25 @@ export function tenureStep(months: number): { reached: number; next: number | nu
 /**
  * Put a supporter's star on a Discord embed's author line (Discord can't colour a name; the author
  * icon is the one place a small picture sits beside it). Only an embed with an author and no icon
- * of its own; returns a copy. `origin` is the apex, since Discord fetches the picture itself.
+ * of its own; returns a copy. `origin` is the apex, since Discord fetches the picture itself. A
+ * Champion or Patron who picked their own colours gets a star drawn in them; everyone else the
+ * tier's static star.
  */
-export function withSupporterAuthor<T extends Record<string, unknown>>(embed: T, tier: SupporterTierId | null | undefined, origin: string): T {
+export function withSupporterAuthor<T extends Record<string, unknown>>(
+  embed: T,
+  tier: SupporterTierId | null | undefined,
+  origin: string,
+  style: SupporterStyle | null = null,
+): T {
   const author = embed.author as { name?: unknown; icon_url?: unknown } | undefined;
   if (!tier || !author || typeof author.name !== 'string' || author.icon_url) return embed;
-  return { ...embed, author: { ...author, icon_url: `${origin}/icons/supporter-${tier}.png` } };
+  return { ...embed, author: { ...author, icon_url: supporterStarUrl(tier, style, origin) } };
+}
+
+/** The star picture for a tier as this person wears it (see withSupporterAuthor). */
+export function supporterStarUrl(tier: SupporterTierId, style: SupporterStyle | null, origin: string): string {
+  const eff = effectiveSupporterStyle(tier, style);
+  const stops = eff?.stops ?? (eff?.preset ? presetById(eff.preset)?.stops : undefined);
+  if (!stops) return `${origin}/icons/supporter-${tier}.png`;
+  return `${origin}/api/og/supporter-star/${stops.map((h) => h.slice(1)).join('-')}`;
 }

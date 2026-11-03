@@ -1,24 +1,31 @@
 import SupporterFlairPopover from '@/components/SupporterFlairPopover';
+import { supporterGradientCss, supporterInk, type SupporterStyle } from '@/lib/supporterStyle';
 import type { SupporterTierId } from '@/lib/supporterTiers';
 
 /**
  * A name with its Anvil Supporter flair: a star and the tier's colour (gold, gradient, animated
  * gradient). With no tier it is just the name, so callers can wrap every name without branching.
- * Styles live in globals.css (`.supporter-name-*`).
+ * Styles live in globals.css (`.supporter-name-*`); a person's own colours (a Champion preset, a
+ * Patron's custom stops, lib/supporterStyle) replace only the gradient, inline, so the class keeps
+ * the clipping and the Patron motion.
  */
 export default function SupporterName({
   name,
   tier,
   className = '',
   plain = false,
+  style = null,
 }: {
   name: string;
   tier: SupporterTierId | null | undefined;
   className?: string;
   /** No popover on the star: the tier page itself, your own Supporter section, inside a link. */
   plain?: boolean;
+  /** Their chosen name colours; gated by `tier` here, so a lapsed choice just shows the default. */
+  style?: SupporterStyle | null;
 }) {
   if (!tier) return <span className={className}>{name}</span>;
+  const gradient = style ? supporterGradientCss(supporterInk(tier, style)) : null;
   return (
     <span className={`inline-flex items-center gap-1.5 min-w-0 ${className}`}>
       {plain ? (
@@ -28,7 +35,9 @@ export default function SupporterName({
           <SupporterStar decorative />
         </SupporterFlairPopover>
       )}
-      <span className={`supporter-name-${tier} truncate`}>{name}</span>
+      <span className={`supporter-name-${tier} truncate`} style={gradient ? { backgroundImage: gradient } : undefined}>
+        {name}
+      </span>
     </span>
   );
 }

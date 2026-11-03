@@ -76,7 +76,7 @@ export default async function SupporterPage() {
         </p>
         {current && (
           <p className="relative mx-auto mt-4 w-fit rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-[13px]">
-            You&rsquo;re an <SupporterName name={`Anvil ${current.tier.name}`} tier={current.tier.id} className="font-semibold" plain />.
+            You&rsquo;re an <SupporterName name={`Anvil ${current.tier.name}`} tier={current.tier.id} style={current.style} className="font-semibold" plain />.
             Thank you.
           </p>
         )}

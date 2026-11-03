@@ -243,8 +243,8 @@ export async function POST(request: Request) {
   // An Anvil Supporter's posts carry their tier's star beside their name. Cosmetic: a failed read
   // posts without it.
   if (outEmbed?.author) {
-    const tier = await supporterForUser(auth.userId).then((s) => s?.tier.id ?? null, () => null);
-    outEmbed = withSupporterAuthor(outEmbed, tier, apexOrigin());
+    const s = await supporterForUser(auth.userId).catch(() => null);
+    outEmbed = withSupporterAuthor(outEmbed, s?.tier.id ?? null, apexOrigin(), s?.style ?? null);
   }
 
   // ── ROUTE BY PERSON, not by the clan in the URL ─────────────────────────────────────────────
