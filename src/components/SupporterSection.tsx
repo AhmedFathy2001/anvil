@@ -17,6 +17,8 @@ export interface SupporterView {
   renewsAt: string | null;
   endsAt: string | null;
   earned: boolean;
+  /** A gift from Anvil staff. */
+  gift?: boolean;
   /** Their name colours as worn (already gated to the tier). */
   style: SupporterStyle | null;
 }
@@ -41,6 +43,7 @@ export function supporterView(state: SupporterState | null): SupporterView | nul
     renewsAt: state.renewsAt,
     endsAt: state.endsAt,
     earned: state.earned,
+    gift: state.gift,
     style: state.style,
   };
 }
@@ -134,7 +137,9 @@ export default function SupporterSection({
           </span>
         </div>
         <p className="mt-2 text-sm text-text-muted">
-          {supporter.earned && ends ? (
+          {supporter.gift && ends ? (
+            <>A gift from Anvil. Your perks run until {ends}.</>
+          ) : supporter.earned && ends ? (
             <>Earned through your invites. Your perks run until {ends}.</>
           ) : ends ? (
             <>Cancelled. Your perks stay until {ends}.</>

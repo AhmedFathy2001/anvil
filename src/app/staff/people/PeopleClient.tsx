@@ -8,6 +8,7 @@ import type { PersonHit, PeopleBrowseRow, PeopleSort } from '@/lib/platformView'
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
 import MergePeopleDialog from './MergePeopleDialog';
+import SupporterGift from './SupporterGift';
 
 const PLATFORM_ROLES = ['none', 'support', 'staff', 'root'] as const;
 
@@ -246,6 +247,8 @@ function PersonCard({
               Merge duplicate…
             </button>
           )}
+
+          {canGrant && person.userId != null && <SupporterGift playerId={person.playerId} />}
         </div>
       )}
     </div>

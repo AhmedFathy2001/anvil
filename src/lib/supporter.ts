@@ -22,6 +22,7 @@ const ROW_COLUMNS = {
   status: supporterSubscriptions.status,
   currentPeriodEnd: supporterSubscriptions.currentPeriodEnd,
   startedAt: supporterSubscriptions.startedAt,
+  recurrence: supporterSubscriptions.recurrence,
   // The owning login's name colours ride along on the same read (every lookup joins users).
   style: users.supporterStyle,
 } as const;
