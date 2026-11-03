@@ -1399,6 +1399,8 @@ export const users = pgTable('users', {
   // What the in-game chat feed shows this person (lib/chatFeedRules ChatFeedPrefs, JSON). NULL = the
   // defaults. The plugin holds only the master switch; everything finer lives here.
   chatFeedPrefs: text('chat_feed_prefs'),
+  /** The newest release this login was shown in the plugin's login brief (lib/releases). */
+  seenReleaseId: integer('seen_release_id'),
 }, (table) => [
   uniqueIndex('users_supporter_ref_unique').on(table.supporterRef),
   uniqueIndex('users_referral_code_unique').on(table.referralCode),
@@ -4005,3 +4007,22 @@ export const feedItems = pgTable('feed_items', {
   uniqueIndex('feed_items_account_key_idx').on(t.accountId, t.dedupKey),
   index('feed_items_created_idx').on(t.createdAt),
 ]);
+
+// A release that shipped to production (lib/releases). The words live in releases/<version>.md; this
+// row is the record that it went out, and what the changelog and the plugin's login line read.
+export const releases = pgTable('releases', {
+  id: serial('id').primaryKey(),
+  version: text('version').notNull(),
+  title: text('title').notNull(),
+  /** The parsed note (lib/releaseNotes ReleaseNote). */
+  note: jsonb('note').notNull(),
+  pluginVersion: text('plugin_version'),
+  publishedAt: text('published_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (t) => [uniqueIndex('releases_version_unique').on(t.version)]);
+
+// Platform-wide settings (`settings` is per clan): the #anvil-announcements webhook, for now.
+export const platformSettings = pgTable('platform_settings', {
+  key: text('key').primaryKey(),
+  value: text('value'),
+  updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+});
