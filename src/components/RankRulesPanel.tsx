@@ -207,7 +207,7 @@ export default function RankRulesPanel() {
               rules: [...view.rules, { id: `r${Date.now().toString(36)}`, rank: view.order[Math.min(3, view.order.length - 1)], mode: 'up', roleId: null, keep: false, staff: 'none' }],
             })
           }
-          className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-brown-dark hover:bg-gold/90 disabled:opacity-50"
+          className="rounded-lg border border-gold/50 bg-gold/15 px-4 py-2 text-sm font-semibold text-gold-light transition-colors hover:bg-gold/25 disabled:opacity-50"
         >
           + Add rule
         </button>
