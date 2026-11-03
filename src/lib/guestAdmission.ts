@@ -52,7 +52,7 @@ export type AdmitResult =
   | { outcome: 'pending'; requestId: number }
   /** The clan takes no guests, or has barred this person — or (`fileRequest: false`) it would
    *  need a join request that the caller chose not to file. */
-  | { outcome: 'refused'; reason: 'closed' | 'banned' | 'approval' };
+  | { outcome: 'refused'; reason: 'closed' | 'banned' | 'approval' | 'removed' };
 
 /**
  * Get this account a seat in this clan, or a request for one, or neither.
@@ -92,6 +92,12 @@ export async function admit(opts: {
     where: and(eq(clanMemberships.clanId, clanId), eq(clanMemberships.accountId, accountId)),
   });
   if (existing && !existing.leftAt) return { outcome: 'seated', seatId: existing.id };
+  // A seat ended ON PURPOSE (`manual`: the person left, or staff said "not our member") stays ended
+  // for everything automatic — a plugin login, a link, a verification. Only the person explicitly
+  // asking again on the site (`source: 'web'`: apply, enter an event) reopens the question.
+  if (existing?.leftAt && existing.source === 'manual' && opts.source !== 'web') {
+    return { outcome: 'refused', reason: 'removed' };
+  }
 
   // THE CLAN'S OWN STAFF ARE NOT GUESTS OF IT, and this is where that was being forgotten.
   //

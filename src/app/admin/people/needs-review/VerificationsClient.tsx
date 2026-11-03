@@ -32,7 +32,7 @@ export default function VerificationsClient({ items }: { items: PendingMember[] 
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  async function act(id: number, action: 'approve' | 'reject', note?: string) {
+  async function act(id: number, action: 'approve' | 'reject' | 'not_member', note?: string) {
     setPendingId(id);
     setError(null);
     setNotice(null);
@@ -47,6 +47,7 @@ export default function VerificationsClient({ items }: { items: PendingMember[] 
         setError(data.error || 'Action failed');
       } else {
         if (data.status === 'applied') setNotice('Taken off them. Anvil will double-check it and can undo it if something is wrong.');
+        else if (data.status === 'removed') setNotice('Taken off your clan’s list. The character stays with its owner — they can remove it from their profile, or stop tracking it in the plugin.');
         else if (data.status === 'reported') setNotice(`Sent to Anvil.${data.why ? ` ${data.why}` : ''}`);
         router.refresh();
       }
@@ -162,6 +163,14 @@ export default function VerificationsClient({ items }: { items: PendingMember[] 
                     Report to Anvil
                   </button>
                 )}
+                <button
+                  onClick={() => act(m.id, 'not_member')}
+                  disabled={busy}
+                  title="Take this character off your clan's list. It stays linked to its owner — use Report to Anvil if it isn't theirs."
+                  className="px-3 py-1.5 text-sm border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Not our member
+                </button>
                 <button
                   onClick={() => act(m.id, 'approve')}
                   disabled={busy}
