@@ -13,12 +13,16 @@ import path from 'node:path';
 import { and, desc, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { platformSettings, releases, settings, users } from '@/db/schema';
+import { releases, settings, users } from '@/db/schema';
 import { ANVIL_UPDATES_WEBHOOK_KEY, sendAnvilUpdatesWebhook } from '@/lib/discord';
 import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
 import { log } from '@/lib/logger';
+import { getPlatformSetting, isPreview } from '@/lib/platformSettings';
 import { compareVersions, parseReleaseNote, releaseBriefLine, releaseEmbed, type ReleaseNote } from '@/lib/releaseNotes';
 import { apexOrigin } from '@/lib/seo';
+
+// Moved to lib/platformSettings; re-exported so existing imports keep working.
+export { getPlatformSetting, setPlatformSetting } from '@/lib/platformSettings';
 
 export const ANNOUNCEMENTS_WEBHOOK_KEY = 'anvil_announcements_webhook';
 
@@ -39,24 +43,6 @@ export async function loadReleaseFiles(dir = path.join(process.cwd(), 'releases'
     }
   }
   return out.sort((a, b) => compareVersions(a.version, b.version));
-}
-
-export async function getPlatformSetting(key: string): Promise<string | null> {
-  const row = await db.query.platformSettings.findFirst({ where: eq(platformSettings.key, key) });
-  return row?.value?.trim() || null;
-}
-
-export async function setPlatformSetting(key: string, value: string | null): Promise<void> {
-  await db
-    .insert(platformSettings)
-    .values({ key, value })
-    .onConflictDoUpdate({ target: platformSettings.key, set: { value, updatedAt: new Date().toISOString() } });
-}
-
-/** The owner's preview never announces anything. */
-function isPreview(): boolean {
-  const apex = (process.env.ANVIL_APEX_DOMAIN || '').toLowerCase();
-  return apex.startsWith('beta.') || process.env.ANVIL_RELEASES_PUBLISH === 'off';
 }
 
 async function announce(note: ReleaseNote): Promise<void> {

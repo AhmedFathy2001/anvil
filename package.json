@@ -68,6 +68,7 @@
     "test:platform": "npx tsx --test tests/platform-authority.test.ts",
     "test:peopleview": "npx tsx --test tests/people-browse.test.ts",
     "test:billing": "npx tsx --test tests/billing-webhook.test.ts",
+    "test:anvildiscord": "npx tsx --test tests/anvil-discord-roles.test.ts tests/anvil-discord.test.ts",
     "test:clancreate": "npx tsx --test tests/clan-create.test.ts",
     "test:clanbans": "npx tsx --test tests/clan-bans.test.ts",
     "test:guests": "npx tsx --test tests/guest-admission.test.ts",

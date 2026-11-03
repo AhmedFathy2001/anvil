@@ -48,6 +48,7 @@ export default function PersonProfile({
   unfinishedSetup = false,
   supporter = null,
   invite = null,
+  announceSupporter = true,
   guestSeats = [],
 }: {
   /** Their live guest seats, each leavable from here. */
@@ -67,6 +68,8 @@ export default function PersonProfile({
   /** Their Anvil Supporter subscription, if one is in force. Person-level, so it lives here. */
   supporter?: SupporterView | null;
   invite?: InviteView | null;
+  /** Their "announce me as a new supporter in the Anvil Discord" choice (users.announce_supporter). */
+  announceSupporter?: boolean;
 }) {
   return (
     <div className="max-w-3xl mx-auto">
@@ -259,7 +262,7 @@ export default function PersonProfile({
         </section>
       )}
 
-      <SupporterSection supporter={supporter} invite={invite} name={displayName} />
+      <SupporterSection supporter={supporter} invite={invite} name={displayName} announce={announceSupporter} />
 
       {/* Billing is a platform concern too — one account, one subscription, wherever you host. Only
           for someone who owns a clan: subscriptions are per hosted clan (see /portal), and a player
