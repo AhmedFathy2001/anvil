@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
-import { grantWindow, rewardTier, addMonths } from '../src/lib/referralRules.ts';
+import { cappedReward, grantWindow, rewardTier, addMonths } from '../src/lib/referralRules.ts';
 
 const DB = useTestDatabase('referrals');
 let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
@@ -65,6 +65,8 @@ test('pure: reward tier steps up, windows stack', () => {
   assert.equal(rewardTier(null), 'supporter');
   assert.equal(rewardTier('supporter'), 'champion');
   assert.equal(rewardTier('patron'), 'patron');
+  assert.equal(cappedReward('champion', 'supporter'), 'supporter', 'never above what the friend bought');
+  assert.equal(cappedReward('supporter', 'patron'), 'champion');
   const now = Date.UTC(2026, 0, 31);
   const first = grantWindow(now, [], 1);
   const second = grantWindow(now, [first.end], 1);

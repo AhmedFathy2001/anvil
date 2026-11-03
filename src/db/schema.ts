@@ -3933,7 +3933,7 @@ export const referrals = pgTable('referrals', {
   gumroadSubscriptionId: text('gumroad_subscription_id'),
   gumroadSaleId: text('gumroad_sale_id'),
   recurrence: text('recurrence'),
-  status: text('status').notNull(), // 'held' | 'granted' | 'revoked'
+  status: text('status').notNull(), // 'held' | 'granting' (in a grant's transaction) | 'granted' | 'revoked'
   rewardMonths: integer('reward_months').notNull(),
   rewardSubscriptionId: integer('reward_subscription_id').references(() => supporterSubscriptions.id, { onDelete: 'set null' }),
   grantAfter: text('grant_after').notNull(),

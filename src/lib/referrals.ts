@@ -11,7 +11,7 @@ import { and, eq, inArray, lte } from 'drizzle-orm';
 import { db } from '@/db';
 import { referrals, supporterSubscriptions, users } from '@/db/schema';
 import { log } from '@/lib/logger';
-import { grantAfter, grantWindow, isReferralCode, rewardMonths, rewardTier } from '@/lib/referralRules';
+import { cappedReward, grantAfter, grantWindow, isReferralCode, rewardMonths } from '@/lib/referralRules';
 import { parseStamp, rowInForce, SUPPORTER_TIERS, type SupporterTierId } from '@/lib/supporterTiers';
 
 export const REFERRAL_COOKIE = 'anvil_via';
@@ -77,17 +77,20 @@ export async function recordSupporterReferral(args: {
 
 /** The purchase behind a referral was refunded or never paid: take the reward back. */
 export async function revokeReferrals(subscriptionId: string, opts: { heldOnly: boolean }): Promise<void> {
-  const rows = await db.query.referrals.findMany({ where: eq(referrals.gumroadSubscriptionId, subscriptionId) });
-  for (const r of rows) {
-    if (r.status === 'revoked' || (opts.heldOnly && r.status !== 'held')) continue;
-    if (r.status === 'granted' && r.rewardSubscriptionId) {
-      await db
-        .update(supporterSubscriptions)
-        .set({ status: 'refunded', endedAt: new Date().toISOString() })
-        .where(eq(supporterSubscriptions.id, r.rewardSubscriptionId));
+  await db.transaction(async (tx) => {
+    // Locked, so a grant in flight for the same referral finishes first and is then taken back.
+    const rows = await tx.select().from(referrals).where(eq(referrals.gumroadSubscriptionId, subscriptionId)).for('update');
+    for (const r of rows) {
+      if (r.status === 'revoked' || (opts.heldOnly && r.status !== 'held')) continue;
+      if (r.status === 'granted' && r.rewardSubscriptionId) {
+        await tx
+          .update(supporterSubscriptions)
+          .set({ status: 'refunded', endedAt: new Date().toISOString() })
+          .where(eq(supporterSubscriptions.id, r.rewardSubscriptionId));
+      }
+      await tx.update(referrals).set({ status: 'revoked' }).where(eq(referrals.id, r.id));
     }
-    await db.update(referrals).set({ status: 'revoked' }).where(eq(referrals.id, r.id));
-  }
+  });
 }
 
 /** Grant every held reward whose wait is over and whose purchase still stands. How many were granted. */
@@ -98,34 +101,52 @@ export async function grantDueReferrals(now = Date.now()): Promise<number> {
   });
   let granted = 0;
   for (const r of due) {
-    // The purchase must still be standing: refunded or never charged means no reward.
-    const bought = r.gumroadSubscriptionId
-      ? await db.query.supporterSubscriptions.findFirst({ where: eq(supporterSubscriptions.gumroadSubscriptionId, r.gumroadSubscriptionId) })
-      : undefined;
-    if (!bought || bought.status === 'refunded' || bought.status === 'ended') {
-      await db.update(referrals).set({ status: 'revoked' }).where(eq(referrals.id, r.id));
-      continue;
-    }
-    const mine = await db.query.supporterSubscriptions.findMany({ where: eq(supporterSubscriptions.userId, r.referrerUserId) });
-    const paid = mine
-      .filter((m) => m.status !== 'granted' && rowInForce(m, now))
-      .map((m) => m.tier as SupporterTierId)
-      .sort((a, b) => SUPPORTER_TIERS[b].rank - SUPPORTER_TIERS[a].rank)[0] ?? null;
-    const banked = mine.filter((m) => m.status === 'granted').map((m) => parseStamp(m.currentPeriodEnd));
-    const { start, end } = grantWindow(now, banked, r.rewardMonths);
-    const [reward] = await db
-      .insert(supporterSubscriptions)
-      .values({
-        userId: r.referrerUserId,
-        tier: rewardTier(paid),
-        status: 'granted',
-        recurrence: 'referral',
-        currentPeriodEnd: new Date(end).toISOString(),
-        startedAt: new Date(start).toISOString(),
-      })
-      .returning({ id: supporterSubscriptions.id });
-    await db.update(referrals).set({ status: 'granted', rewardSubscriptionId: reward.id }).where(eq(referrals.id, r.id));
-    granted++;
+    // One transaction per referral, claimed with a conditional update: two ticks (or a tick racing a
+    // refund) can't both act on it, and a refund that lands first leaves nothing to claim.
+    const done = await db.transaction(async (tx) => {
+      const [claimed] = await tx
+        .update(referrals)
+        .set({ status: 'granting' })
+        .where(and(eq(referrals.id, r.id), eq(referrals.status, 'held')))
+        .returning({ id: referrals.id });
+      if (!claimed) return false;
+      // The purchase must still be standing: refunded or never charged means no reward. Locked so a
+      // refund for it waits until this grant is committed, then finds it and takes it back.
+      const [bought] = r.gumroadSubscriptionId
+        ? await tx
+            .select()
+            .from(supporterSubscriptions)
+            .where(eq(supporterSubscriptions.gumroadSubscriptionId, r.gumroadSubscriptionId))
+            .for('update')
+        : [];
+      if (!bought || bought.status === 'refunded' || bought.status === 'ended') {
+        await tx.update(referrals).set({ status: 'revoked' }).where(eq(referrals.id, r.id));
+        return false;
+      }
+      const mine = await tx.select().from(supporterSubscriptions).where(eq(supporterSubscriptions.userId, r.referrerUserId));
+      const paid =
+        mine
+          .filter((m) => m.status !== 'granted' && rowInForce(m, now))
+          .map((m) => m.tier as SupporterTierId)
+          .sort((a, b) => SUPPORTER_TIERS[b].rank - SUPPORTER_TIERS[a].rank)[0] ?? null;
+      const banked = mine.filter((m) => m.status === 'granted').map((m) => parseStamp(m.currentPeriodEnd));
+      const { start, end } = grantWindow(now, banked, r.rewardMonths);
+      const [reward] = await tx
+        .insert(supporterSubscriptions)
+        .values({
+          userId: r.referrerUserId,
+          // Never worth more than what the friend bought.
+          tier: cappedReward(paid, bought.tier as SupporterTierId),
+          status: 'granted',
+          recurrence: 'referral',
+          currentPeriodEnd: new Date(end).toISOString(),
+          startedAt: new Date(start).toISOString(),
+        })
+        .returning({ id: supporterSubscriptions.id });
+      await tx.update(referrals).set({ status: 'granted', rewardSubscriptionId: reward.id }).where(eq(referrals.id, r.id));
+      return true;
+    });
+    if (done) granted++;
   }
   return granted;
 }
