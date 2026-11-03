@@ -30,7 +30,12 @@ test('beta never announces; production announces each release once', async () =>
   process.env.ANVIL_APEX_DOMAIN = 'beta.anvilosrs.com';
   assert.deepEqual(await R.publishShippedReleases(dir), []);
   process.env.ANVIL_APEX_DOMAIN = 'anvilosrs.com';
+  assert.deepEqual(await R.publishShippedReleases(dir), [], 'waits for the announcements channel');
+  await R.setPlatformSetting(R.ANNOUNCEMENTS_WEBHOOK_KEY, 'https://discord.com/api/webhooks/1/x');
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(null, { status: 204 })) as typeof fetch;
   assert.deepEqual(await R.publishShippedReleases(dir), ['1.15.0']);
+  globalThis.fetch = realFetch;
   assert.deepEqual(await R.publishShippedReleases(dir), [], 'a second slot or tick does nothing');
   const list = await R.listPublishedReleases();
   assert.equal(list[0].note.title, 'Chat feed');
