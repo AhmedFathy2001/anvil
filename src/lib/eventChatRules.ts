@@ -36,24 +36,35 @@ const RUNS = /(.)\1{6,}/gu;
 
 export type BodyCheck = { ok: true; body: string } | { ok: false; reason: string };
 
-/** Clean a message and say whether it may be sent. Staff may post links. */
-export function checkBody(raw: string, opts: { staff: boolean }): BodyCheck {
-  // Order matters, each step on what the one before left: fold full-width and styled letters to plain
-  // ones; drop invisible and control characters; drop tags until none are left (a tag hidden inside
-  // another reappears when the inner one goes); only then cap stacked marks, so nothing removed later
-  // can split a stack the cap already counted.
+/**
+ * Text as it may be stored and shown. Order matters, each step on what the one before left: fold
+ * full-width and styled letters to plain ones; drop invisible and control characters; drop tags until
+ * none are left (a tag hidden inside another reappears when the inner one goes); only then cap stacked
+ * marks, so nothing removed later can split a stack the cap already counted.
+ */
+export function clean(raw: string): string {
   let text = String(raw ?? '').normalize('NFKC').replace(CONTROL, '');
   for (let prev = ''; prev !== text; ) {
     prev = text;
     text = text.replace(TAG, '');
   }
-  const body = text
+  return text
     .normalize('NFD')
     .replace(ZALGO, '$1')
     .normalize('NFC')
     .replace(RUNS, '$1$1$1$1$1$1')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/** A sender's name as shown beside their line (a participant name, or staff's Discord name). */
+export function cleanName(raw: string | null | undefined): string {
+  return clean(raw ?? '').slice(0, 32) || 'Player';
+}
+
+/** Clean a message and say whether it may be sent. Staff may post links. */
+export function checkBody(raw: string, opts: { staff: boolean }): BodyCheck {
+  const body = clean(raw);
   if (!body) return { ok: false, reason: 'Type something first.' };
   if (body.length > MAX_BODY) return { ok: false, reason: `Keep it under ${MAX_BODY} characters.` };
   if (GOLD_SELLER.test(body)) return { ok: false, reason: 'That looks like a gold advert.' };

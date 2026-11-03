@@ -16,6 +16,7 @@ import { parseStamp } from '@/lib/dbTime';
 import {
   KEEP_DAYS,
   checkBody,
+  cleanName,
   isSlow,
   muteActive,
   newPace,
@@ -236,7 +237,8 @@ export async function sendChat(access: ChatAccess, userId: number, raw: string, 
   lastSent.set(key, now);
   recordSend(pace, now);
 
-  const rsn = access.rsn ?? (await db.query.users.findFirst({ where: eq(users.id, userId), columns: { displayName: true } }))?.displayName ?? 'Staff';
+  // The name is the sender's too (a participant name, or staff's Discord name): cleaned like the line.
+  const rsn = cleanName(access.rsn ?? (await db.query.users.findFirst({ where: eq(users.id, userId), columns: { displayName: true } }))?.displayName ?? 'Staff');
   const [line] = await db
     .insert(eventChatMessages)
     .values({ eventId: access.eventId, teamId: access.teamId, teamOnly, userId, fromStaff: access.staff, rsn, body: checked.body })

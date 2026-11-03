@@ -7,6 +7,7 @@ import {
   SLOW_GAP_MS,
   SLOW_HOLD_MS,
   checkBody,
+  cleanName,
   isSlow,
   muteActive,
   newPace,
@@ -82,4 +83,12 @@ test('mutes: none-until is the rest of the event', () => {
   assert.equal(muteActive(null, 0, parse), true);
   assert.equal(muteActive('2026-11-04 10:00:00', parse('2026-11-04 09:00:00'), parse), true);
   assert.equal(muteActive('2026-11-04 10:00:00', parse('2026-11-04 11:00:00'), parse), false);
+});
+
+test('a sender’s name is cleaned like a line, and kept short', () => {
+  assert.equal(cleanName('<col=ff0000>Kev</col>'), 'Kev');
+  assert.equal(cleanName('Ｋｅｖ\u200b'), 'Kev');
+  assert.equal(cleanName('ab'.repeat(30)).length, 32);
+  assert.equal(cleanName('<b></b>'), 'Player', 'nothing left is a placeholder, not blank');
+  assert.equal(cleanName(null), 'Player');
 });
