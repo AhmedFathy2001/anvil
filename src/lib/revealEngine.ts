@@ -7,6 +7,7 @@ import {
   hasRevealPolicy,
   hasMissions,
   nextRevealAt,
+  intervalDrawsDue,
   parseTileMissionRules,
   serializeTileMissionRules,
   missionClaimCap,
@@ -32,8 +33,8 @@ import { getTierBands } from '@/lib/pluginConfig';
 // Concurrency: two ticks can overlap (per-minute cron + stats cron). Every flip is a conditional
 // UPDATE … WHERE revealed_at IS NULL, and only ACTUALLY flipped rows are announced, so a tile can
 // never double-post. An overlapping interval draw could in theory pick two different random tiles
-// for the same slot; the target-count math on the next tick simply absorbs it (the extra tile
-// counts toward the next batch), so the board never runs ahead by more than a race's worth.
+// for the same slot; both stamp the same draw time, so the clock carries on from it and the board
+// is at most one race's worth ahead.
 
 type EventRow = typeof events.$inferSelect;
 type TileRow = typeof tiles.$inferSelect;
@@ -117,18 +118,10 @@ async function revealPass(event: EventRow, rules: EventRules, now: string, event
     // until they get a time (or the host reveals them by setting one in the past).
     toReveal = hidden.filter((t) => t.revealAt != null && t.revealAt <= now);
   } else if (rules.revealPolicy === 'interval' || rules.revealPolicy === 'rotating') {
-    // Deterministic target count: one batch at start, another per elapsed interval. Computing
-    // the target (rather than "reveal one per tick") makes a missed tick self-heal — after
-    // downtime the board catches up to where the clock says it should be. Rotating draws the same
-    // way; expired tiles stay counted as revealed, so the cumulative target keeps pulling new ones.
-    const startMs = Date.parse(event.startDate!);
-    if (Number.isFinite(startMs)) {
-      const elapsedMs = Date.parse(now) - startMs;
-      const dueBatches = Math.floor(elapsedMs / (rules.revealIntervalMinutes * 60_000)) + 1;
-      const target = Math.min(eventTiles.length, dueBatches * rules.revealBatchSize);
-      const need = target - (eventTiles.length - hidden.length);
-      if (need > 0) toReveal = draw(hidden, need, rules.revealOrder);
-    }
+    // One batch at start, then one per interval after the previous draw (lib/eventRules
+    // drawClock — the same clock the countdowns read). Missed ticks catch up a batch per interval.
+    const need = intervalDrawsDue(event, rules, eventTiles, Date.parse(now));
+    if (need > 0) toReveal = draw(hidden, need, rules.revealOrder);
   } else if (rules.revealPolicy === 'bounty') {
     const anyOpen = eventTiles.some((t) => t.revealedAt != null && t.closedAt == null);
     if (!anyOpen) toReveal = draw(hidden, 1, rules.revealOrder);

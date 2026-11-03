@@ -14,6 +14,7 @@ import {
   hasRevealPolicy,
   isTileOpen,
   isTileRevealed,
+  intervalDrawsDue,
   nextRevealAt,
   parseEventRules,
   parseSignupFields,
@@ -115,6 +116,44 @@ test('nextRevealAt: scheduled = earliest planned; interval = anchor + step; boun
   const bounty = parseEventRules(JSON.stringify({ revealPolicy: 'bounty' }));
   assert.equal(nextRevealAt(evt, bounty, [{ revealedAt: null }], now), null);
   assert.equal(nextRevealAt(evt, parseEventRules(null), [{ revealedAt: null }], now), null);
+});
+
+test('intervalDrawsDue: retuning 2h → 6h mid-event keeps drawing, one interval after the last draw', () => {
+  const H = 3_600_000;
+  const start = Date.parse('2026-11-01T00:00:00.000Z');
+  const evt = { startDate: new Date(start).toISOString() };
+  const at = (h: number) => new Date(start + h * H).toISOString();
+  const sixHourly = parseEventRules(JSON.stringify({ revealPolicy: 'interval', revealIntervalMinutes: 360 }));
+  // Ran 18h on a 2h clock: 10 open (draws at 0,2,…,18), 20 hidden. Host switches to 6h.
+  const board = [
+    ...Array.from({ length: 10 }, (_, i) => ({ revealedAt: at(i * 2) })),
+    ...Array.from({ length: 20 }, () => ({ revealedAt: null })),
+  ];
+  // The old start-anchored target (floor(19/6)+1 = 4 < 10 open) froze the board for ~36h.
+  assert.equal(intervalDrawsDue(evt, sixHourly, board, start + 19 * H), 0);
+  assert.equal(intervalDrawsDue(evt, sixHourly, board, start + 24 * H), 1); // 18h + 6h
+  // The countdown agrees with the engine and doesn't drift with page loads.
+  assert.equal(nextRevealAt(evt, sixHourly, board, start + 19 * H), at(24));
+  assert.equal(nextRevealAt(evt, sixHourly, board, start + 20 * H), at(24));
+  // Downtime: a dead cron catches up one batch per missed interval.
+  assert.equal(intervalDrawsDue(evt, sixHourly, board, start + 36 * H), 3);
+  // A manual "open next now" at 20h counts as a draw: the next lands at 26h.
+  const opened = [...board.slice(0, 10), { revealedAt: at(20) }, ...board.slice(11)];
+  assert.equal(intervalDrawsDue(evt, sixHourly, opened, start + 25 * H), 0);
+  assert.equal(intervalDrawsDue(evt, sixHourly, opened, start + 26 * H), 1);
+});
+
+test('intervalDrawsDue: first batch at start even if a tile was previewed earlier; capped by hidden', () => {
+  const evt = { startDate: '2026-11-01T10:00:00.000Z' };
+  const rules = parseEventRules(
+    JSON.stringify({ revealPolicy: 'rotating', revealIntervalMinutes: 60, revealBatchSize: 2 }),
+  );
+  const tiles = [{ revealedAt: '2026-11-01T08:00:00.000Z' }, { revealedAt: null }, { revealedAt: null }, { revealedAt: null }];
+  assert.equal(intervalDrawsDue(evt, rules, tiles, Date.parse('2026-11-01T09:59:00.000Z')), 0);
+  assert.equal(intervalDrawsDue(evt, rules, tiles, Date.parse('2026-11-01T10:00:00.000Z')), 2);
+  assert.equal(intervalDrawsDue(evt, rules, tiles, Date.parse('2026-11-01T12:30:00.000Z')), 3);
+  const bounty = parseEventRules(JSON.stringify({ revealPolicy: 'bounty' }));
+  assert.equal(intervalDrawsDue(evt, bounty, tiles, Date.parse('2026-11-01T12:30:00.000Z')), 0);
 });
 
 test('completionAward: null without modifiers or outside points mode; bonus + linear decay apply', () => {
