@@ -39,4 +39,4 @@ plugin: 1.15.0
 ```
 
 Sections are optional, but there has to be at least one line under Highlights, New, Improved or
-Fixed. Check a file with `node --experimental-strip-types scripts/check-release.mts < releases/1.15.0.md`.
+Fixed. Check a file with `node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-release.mts < releases/1.15.0.md`.
