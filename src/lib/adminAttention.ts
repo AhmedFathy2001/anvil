@@ -149,6 +149,11 @@ export interface AttentionFacts {
   flaggedProofs?: { count: number; events: { name: string; count: number; href: string }[] };
   /** Active roster seats. A new clan has at most its owner, and nobody can sign up until it syncs. */
   rosterSize?: number;
+  /**
+   * A big clan on the free plan, and what just went well there (app/admin/plan). The caller only
+   * passes it right after something finished, so the card turns up on a good day, not every day.
+   */
+  plan?: { members: number; freeCap: number; justFinished: string } | null;
 }
 
 const DAY = 86_400_000;
@@ -397,6 +402,20 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
       href: '/admin/people',
       action: 'Answer',
       at: 0,
+    });
+  }
+
+  if (facts.plan && facts.plan.members > facts.plan.freeCap) {
+    items.push({
+      key: 'plan',
+      // Awareness, never pressure: always snoozable, always last, never a warning colour.
+      snoozable: true,
+      severity: 'info',
+      title: `${facts.plan.justFinished} just wrapped up`,
+      detail: `Anvil is free up to ${facts.plan.freeCap} members. Clans your size (${facts.plan.members}) keep it running for everyone with a plan, or members can chip in.`,
+      href: '/admin/plan',
+      action: 'See options',
+      at: Number.MAX_SAFE_INTEGER,
     });
   }
 

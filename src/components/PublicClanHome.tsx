@@ -3,7 +3,8 @@ import MotionImg from '@/components/MotionImg';
 
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
-import type { PublicClanHome as View, ClanFocus } from '@/lib/clanHome';
+import type { PublicClanActivity, PublicClanHome as View, ClanFocus } from '@/lib/clanHome';
+import { SITE } from '@/lib/site';
 import ApplyToClan from '@/components/ApplyToClan';
 
 const FOCUS_LABEL: Record<ClanFocus, string> = {
@@ -14,14 +15,14 @@ const FOCUS_LABEL: Record<ClanFocus, string> = {
   ironman: 'Ironman',
 };
 
+/** "Nov 7" — dates on this page are day-level; the event pages carry the times. */
+function shortDate(iso: string): string {
+  const t = Date.parse(iso.includes('T') ? iso : `${iso.replace(' ', 'T')}Z`);
+  return Number.isFinite(t) ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
+}
+
 /** A per-clan crest, matched to the nav switcher so the same clan reads the same everywhere. */
 
-function eventWhen(e: { startDate: string | null; endDate: string | null }): string {
-  const now = new Date().toISOString();
-  if (e.endDate && e.endDate < now) return 'finished';
-  if (e.startDate && e.startDate > now) return 'upcoming';
-  return 'live';
-}
 
 /**
  * The public face of a clan for someone who isn't in it — what the clan is, what it wants, that it's
@@ -31,9 +32,12 @@ export default function PublicClanHome({
   view,
   signedIn,
   hall = null,
+  activity = null,
 }: {
   view: View;
   signedIn: boolean;
+  /** What a visitor can open: live, coming and finished competitions and the week's top players. */
+  activity?: PublicClanActivity | null;
   /** Who's around right now (components/ClanHall), when the clan's Discord is connected. */
   hall?: ReactNode;
 }) {
@@ -184,63 +188,83 @@ export default function PublicClanHome({
         </div>
       )}
 
-      <div className="mt-4 grid gap-4 md:grid-cols-3">
-        {/* About */}
-        <div className="md:col-span-2">
-          {view.description ? (
-            <div className="rounded-xl border border-card-border bg-card-bg p-5">
-              <div className="mb-2 flex items-center gap-2">
-                <span className="h-5 w-1 rounded bg-gold" aria-hidden />
-                <h2 className="text-sm font-semibold text-foreground">About</h2>
+      {activity && activity.live.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-lg font-semibold">Happening now</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {activity.live.map((item) => (
+              <ClanLink
+                key={item.key}
+                href={item.href}
+                className="group flex flex-col gap-1.5 rounded-xl border border-emerald-500/30 bg-card-bg p-4 transition-colors hover:border-emerald-400/60 hover:bg-card-bg-hover"
+              >
+                <span className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-emerald-400">● Live · {item.kind}</span>
+                <span className="display text-lg font-semibold">{item.name}</span>
+                {item.top && (
+                  <span className="text-[13.5px] text-text-muted">
+                    Leading: <span className="text-foreground">{item.top.name}</span> · {item.top.text}
+                  </span>
+                )}
+                {item.line && <span className="text-[12.5px] text-text-dim">{item.line}</span>}
+                <span className="mt-1 text-[13px] text-gold group-hover:text-gold-light">See the standings →</span>
+              </ClanLink>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <div className="grid content-start gap-4 md:col-span-2">
+          {activity && activity.week.top.length > 0 && (
+            <section className="rounded-xl border border-card-border bg-card-bg p-5">
+              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-base font-semibold">This clan&rsquo;s leaderboard</h2>
+                <span className="text-[12.5px] text-text-muted">
+                  this week · {activity.week.activeThisWeek} played
+                </span>
               </div>
+              <ol>
+                {activity.week.top.map((p, i) => (
+                  <li key={p.rsn} className="border-t border-card-border/70 first:border-t-0">
+                    <ClanLink
+                      href={`/members/${encodeURIComponent(p.rsn)}`}
+                      className="grid grid-cols-[1.75rem_1fr_auto] items-center gap-3 py-2 text-[14px] hover:text-gold"
+                    >
+                      <span className="font-mono text-text-dim">{i + 1}</span>
+                      <span className="truncate">{p.rsn}</span>
+                      <span className="font-mono text-gold">+{p.hours.toFixed(1)}h</span>
+                    </ClanLink>
+                  </li>
+                ))}
+              </ol>
+              <div className="mt-2 flex flex-wrap justify-between gap-2 text-[13px]">
+                <ClanLink href="/members" className="text-gold hover:text-gold-light">
+                  Full clan leaderboard
+                </ClanLink>
+                {/* The cross-clan pages stay one click away, but secondary: this page is about THIS clan. */}
+                <ClanLink href={`/compare/clans?a=${encodeURIComponent(view.slug)}`} className="text-text-muted hover:text-gold">
+                  Compare with another clan
+                </ClanLink>
+              </div>
+            </section>
+          )}
+
+          {view.description ? (
+            <section className="rounded-xl border border-card-border bg-card-bg p-5">
+              <h2 className="mb-2 text-base font-semibold">About</h2>
               <p className="whitespace-pre-line text-[14px] leading-relaxed text-text-muted">{view.description}</p>
-            </div>
+            </section>
           ) : (
             <div className="rounded-xl border border-dashed border-card-border bg-card-bg/50 p-5 text-[13px] text-text-muted">
               This clan hasn’t written an introduction yet.
             </div>
           )}
-
-          {/* Recent events */}
-          {view.recentEvents.length > 0 && (
-            <div className="mt-4 rounded-xl border border-card-border bg-card-bg p-5">
-              <div className="mb-3 flex items-center gap-2">
-                <span className="h-5 w-1 rounded bg-gold" aria-hidden />
-                <h2 className="text-sm font-semibold text-foreground">Recent events</h2>
-              </div>
-              <ul className="grid gap-1.5">
-                {view.recentEvents.map((e) => {
-                  const when = eventWhen(e);
-                  return (
-                    <li key={e.id} className="flex items-center gap-3 text-[13.5px]">
-                      <span
-                        className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                          when === 'live'
-                            ? 'bg-emerald-500/10 text-emerald-400'
-                            : when === 'upcoming'
-                              ? 'bg-gold/10 text-gold'
-                              : 'bg-brown-light text-text-muted'
-                        }`}
-                      >
-                        {when}
-                      </span>
-                      <span className="truncate text-foreground/90">{e.name}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
         </div>
 
-        {/* Requirements + quick links */}
         <div className="grid content-start gap-4">
           {hasReqs && (
-            <div className="rounded-xl border border-card-border bg-card-bg p-5">
-              <div className="mb-3 flex items-center gap-2">
-                <span className="h-5 w-1 rounded bg-gold" aria-hidden />
-                <h2 className="text-sm font-semibold text-foreground">To join</h2>
-              </div>
+            <section className="rounded-xl border border-card-border bg-card-bg p-5">
+              <h2 className="mb-3 text-base font-semibold">To join</h2>
               <dl className="grid gap-2 text-[13px]">
                 {reqs.minTotal != null && (
                   <div className="flex justify-between gap-2">
@@ -267,30 +291,86 @@ export default function PublicClanHome({
                   </div>
                 )}
               </dl>
-            </div>
+            </section>
           )}
-          <div className="rounded-xl border border-card-border bg-card-bg p-2">
-            <ClanLink href="/events" className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium hover:bg-brown-light">
-              🏆 Events
+
+          {activity && activity.upcoming.length > 0 && (
+            <section className="rounded-xl border border-card-border bg-card-bg p-5">
+              <h2 className="mb-2 text-base font-semibold">Coming up</h2>
+              <ul className="grid gap-2.5">
+                {activity.upcoming.slice(0, 4).map((item) => (
+                  <li key={item.key}>
+                    <ClanLink href={item.href} className="group flex flex-col">
+                      <span className="text-[14px] group-hover:text-gold">{item.name}</span>
+                      <span className="text-[12.5px] text-text-muted">
+                        {item.kind}
+                        {item.when && <> · {shortDate(item.when)}</>}
+                        {item.line && <> · {item.line}</>}
+                      </span>
+                    </ClanLink>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <nav aria-label={`${view.name} pages`} className="rounded-xl border border-card-border bg-card-bg p-2">
+            <ClanLink href="/events" className="flex items-center rounded-lg px-3 py-2 text-[13.5px] font-medium hover:bg-brown-light">
+              All their events
             </ClanLink>
-            <ClanLink href="/members" className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium hover:bg-brown-light">
-              👥 Members
+            <ClanLink href="/members" className="flex items-center rounded-lg px-3 py-2 text-[13.5px] font-medium hover:bg-brown-light">
+              Members
             </ClanLink>
-            {/* The apex's all-clans table, not this clan's: `from` lets it say so (app/leaderboard). */}
-            <ClanLink href={`/leaderboard?from=${encodeURIComponent(view.slug)}`} className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium hover:bg-brown-light">
-              📊 Leaderboard · all clans
-            </ClanLink>
-            {/* The apex's side-by-side page, with this clan already filled in as one side. ClanLink
-                leaves /compare unprefixed (it is a platform path), so this lands on the apex from a
-                clan's subdomain or /c/ address alike. */}
-            <ClanLink
-              href={`/compare/clans?a=${encodeURIComponent(view.slug)}`}
-              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium hover:bg-brown-light"
-            >
-              ⚖️ Compare
-            </ClanLink>
-          </div>
+          </nav>
         </div>
+      </div>
+
+      {activity && activity.past.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-lg font-semibold">Recently finished</h2>
+          <ul className="overflow-hidden rounded-xl border border-card-border bg-card-bg">
+            {activity.past.map((item) => (
+              <li key={item.key} className="border-t border-card-border/70 first:border-t-0">
+                <ClanLink
+                  href={item.href}
+                  className="grid grid-cols-[1fr_auto] items-center gap-4 px-4 py-3 transition-colors hover:bg-card-bg-hover sm:grid-cols-[1fr_auto_4.5rem]"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">{item.name}</span>
+                    <span className="block text-[12.5px] text-text-muted">{item.line}</span>
+                  </span>
+                  <span className="text-right text-[13.5px]">
+                    {item.top ? (
+                      <>
+                        <span className="block">{item.top.name}</span>
+                        <span className="block text-[12.5px] text-text-muted">{item.top.text}</span>
+                      </>
+                    ) : (
+                      <span className="text-text-dim">no result</span>
+                    )}
+                  </span>
+                  <span className="hidden text-right font-mono text-[12.5px] text-text-dim sm:block">
+                    {item.when ? shortDate(item.when) : ''}
+                  </span>
+                </ClanLink>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Anvil, said once and quietly: this page is somebody else's clan, not an ad. */}
+      <div className="mt-10 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-card-border bg-card-bg px-5 py-4 text-[13.5px]">
+        <span className="min-w-0 flex-[1_1_22rem] text-text-muted">
+          This page runs on Anvil, a free indie project for OSRS clans. Run your own bingos and competitions the
+          same way.
+        </span>
+        <ClanLink href="/clans/new" className="text-gold hover:text-gold-light">
+          Start a clan
+        </ClanLink>
+        <a href={SITE.supportDiscord} target="_blank" rel="noopener noreferrer" className="text-gold hover:text-gold-light">
+          Join the Anvil Discord
+        </a>
       </div>
     </div>
   );

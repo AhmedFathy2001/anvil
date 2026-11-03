@@ -250,6 +250,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           ? []
           : [{ href: '/admin/setup', label: 'Finish setup', icon: '🧭', sprite: 'hammer' as const }]),
         { href: '/admin/integrations', label: 'Discord', icon: '🔌', sprite: 'discord' },
+        // Billing lived only at /portal (profile → Manage billing), where nobody running a clan looks.
+        { href: '/admin/plan', label: 'Plan and billing', icon: '💳', sprite: 'coins' as const },
         {
           href: '/admin/clan',
           label: 'Clan settings',

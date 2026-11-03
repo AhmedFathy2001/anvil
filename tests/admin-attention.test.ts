@@ -526,3 +526,16 @@ test('nobody asking, nothing said', () => {
     undefined,
   );
 });
+
+test('a big free clan hears about plans once, last, and can put it down', () => {
+  const plan = { members: 173, freeCap: 50, justFinished: 'Autumn Bingo' };
+  const q = attentionQueue(facts({ plan, pendingVerifications: 2 }));
+  const item = q.find((i) => i.key === 'plan')!;
+  assert.ok(item, 'the nudge is there');
+  assert.equal(item.severity, 'info');
+  assert.equal(item.snoozable, true);
+  assert.equal(q[q.length - 1].key, 'plan', 'and it is the last thing on the list');
+  assert.equal(attentionQueue(facts({ plan: { ...plan, members: 40 } })).find((i) => i.key === 'plan'), undefined, 'a small clan never sees it');
+  const snoozed = attentionQueue(facts({ plan, snoozed: { plan: NOW + DAY } }));
+  assert.equal(snoozed.find((i) => i.key === 'plan'), undefined, 'and a snooze holds');
+});

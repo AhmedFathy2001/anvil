@@ -20,6 +20,7 @@ import { rosterCapStatus } from '@/lib/member-cap';
 import { pendingRequestCount } from '@/lib/guestAdmission';
 import { pendingCoHostInvites } from '@/lib/coHost';
 import { listClanEventItems, listEventIndex, type ScheduleItem } from '@/lib/eventIndex';
+import { PLANS, planOf } from '@/lib/plans';
 import { attentionQueue, openCount, type AttentionItem, type Severity } from '@/lib/adminAttention';
 import { addDays, dayOf, daysBetween, findGaps, packLanes } from '@/lib/scheduleLanes';
 import { dayKey, daysSince, parseStamp } from '@/lib/dbTime';
@@ -359,6 +360,16 @@ export default async function AdminDashboardPage() {
     },
     accountChangeRequests: accountChangeCount,
     rosterSize: activeMembers,
+    // A big free clan, the week something of theirs finished: the one plan nudge (app/admin/plan).
+    plan:
+      planOf(clan.plan).id === 'free' && activeMembers > (PLANS.free.memberCap ?? Infinity)
+        ? (() => {
+            const just = index.find(
+              (i) => i.status === 'ended' && i.endDate && now - Date.parse(i.endDate) < 7 * 86_400_000,
+            );
+            return just ? { members: activeMembers, freeCap: PLANS.free.memberCap ?? 0, justFinished: just.title } : null;
+          })()
+        : null,
     flaggedProofs: {
       count: flaggedProofEvents.reduce((n, e) => n + e.count, 0),
       events: flaggedProofEvents,
