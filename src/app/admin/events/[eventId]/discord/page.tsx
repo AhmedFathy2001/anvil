@@ -7,11 +7,13 @@ import { requireEventForPage } from '@/lib/eventScope';
 import EventWebhooksPanel from '../teams/EventWebhooksPanel';
 import EventChatFeedCard from './EventChatFeedCard';
 import EventDiscordClient from './EventDiscordClient';
+import EventDiscordInventory from './EventDiscordInventory';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Everything this event does in Discord, in one place: what posts where (on top of the clan's
+ * Everything this event does in Discord, in one place: what Anvil made in the clan's server right now
+ * (and the fixes for it), what posts where (on top of the clan's
  * defaults), the event's team channels and roles, an event server for co-hosted boards, and extra
  * channels that get a copy.
  */
@@ -25,6 +27,7 @@ export default async function EventDiscordPage({ params }: { params: Promise<{ e
 
   return (
     <div className="space-y-8">
+      <EventDiscordInventory eventId={id} />
       <EventDiscordClient eventId={id} hasCohosts={cohosts.length > 0} />
       <EventChatFeedCard eventId={id} />
       <EventDiscordServerPanel eventId={id} />

@@ -81,7 +81,7 @@ function Segmented<T extends string>({
   );
 }
 
-function Section({ title, children, aside }: { title: string; children: React.ReactNode; aside?: React.ReactNode }) {
+export function Section({ title, children, aside }: { title: string; children: React.ReactNode; aside?: React.ReactNode }) {
   return (
     <section className="rounded-2xl border border-card-border bg-card-bg">
       <div className="flex flex-wrap items-center gap-2.5 border-b border-card-border px-5 py-3.5">

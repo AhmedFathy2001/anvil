@@ -51,6 +51,7 @@
     "test:lab": "npx tsx --test tests/tile-lab-rules.test.ts tests/tile-lab.test.ts",
     "test:eventdiscord": "npx tsx --test tests/event-discord-plan.test.ts",
     "test:eventdiscordflow": "npx tsx --test tests/event-discord-flow.test.ts",
+    "test:eventdiscordinventory": "npx tsx --test tests/event-discord-inventory.test.ts tests/event-discord-inventory-db.test.ts",
     "test:commandguide": "npx tsx --test tests/discord-command-guide.test.ts",
     "test:commandsync": "npx tsx --test tests/discord-command-sync.test.ts",
     "test:eventimage": "npx tsx --test tests/event-image.test.ts",
