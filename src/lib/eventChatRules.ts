@@ -26,12 +26,27 @@ const LINK = /\b(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]{2,}\.(?:com|net|org|gg|io|c
 // on a board full of drops.
 const GOLD_SELLER = /\b(?:cheap|fast|safe)\s+(?:gp|gold|osrs\s*gold)\b|\b(?:buy|sell)\w*\s+(?:osrs\s+)?gold\b|\b\d+\s*(?:\$|usd)\s*(?:\/|per)\s*m\b|\brs(?:gold|2gp)\b/i;
 
+// Game and Swing markup (<col=ff0000>, <img=1>, <html>…): text that a renderer could take for a tag
+// is dropped, never shown as formatting. The plugin escapes what it draws too; this is the other side.
+const TAG = /<\/?[a-z][^<>]{0,40}>/gi;
+// Stacked combining marks ("zalgo") after the first two on a letter.
+const ZALGO = /(\p{M}{2})\p{M}+/gu;
+// One character repeated past six ("aaaaaaaaaa", "!!!!!!!!!!!!") — kept, but only six of it.
+const RUNS = /(.)\1{6,}/gu;
+
 export type BodyCheck = { ok: true; body: string } | { ok: false; reason: string };
 
 /** Clean a message and say whether it may be sent. Staff may post links. */
 export function checkBody(raw: string, opts: { staff: boolean }): BodyCheck {
   const body = String(raw ?? '')
+    // Trim stacked marks first (on the decomposed text), then fold full-width and styled letters to
+    // plain ones, so the filters below can't be dodged with them.
+    .normalize('NFD')
+    .replace(ZALGO, '$1')
+    .normalize('NFKC')
     .replace(CONTROL, '')
+    .replace(TAG, '')
+    .replace(RUNS, '$1$1$1$1$1$1')
     .replace(/\s+/g, ' ')
     .trim();
   if (!body) return { ok: false, reason: 'Type something first.' };

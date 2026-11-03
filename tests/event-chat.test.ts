@@ -17,8 +17,23 @@ import {
 test('a message is cleaned and length-checked', () => {
   assert.deepEqual(checkBody('  gz   on the​ pet \n ', { staff: false }), { ok: true, body: 'gz on the pet' });
   assert.equal(checkBody('   ', { staff: false }).ok, false);
-  assert.equal(checkBody('x'.repeat(201), { staff: false }).ok, false);
-  assert.equal(checkBody('x'.repeat(200), { staff: false }).ok, true);
+  assert.equal(checkBody('ab'.repeat(101), { staff: false }).ok, false);
+  assert.equal(checkBody('ab'.repeat(100), { staff: false }).ok, true);
+});
+
+test('markup, zalgo, styled letters and long runs are cleaned', () => {
+  const clean = (t: string) => {
+    const r = checkBody(t, { staff: false });
+    return r.ok ? r.body : `!${r.reason}`;
+  };
+  assert.equal(clean('<col=ff0000>red</col> <img=1>hi'), 'red hi', 'game tags dropped');
+  assert.equal(clean('<html><b>bold</b>'), 'bold');
+  assert.equal(clean('2 < 3 and 5 > 4'), '2 < 3 and 5 > 4', 'a lone < or > is ordinary text');
+  assert.equal(clean('z\u0301\u0302\u0303\u0304\u0305algo'), 'z\u0301\u0302algo'.normalize('NFKC'), 'two marks kept, the stack dropped');
+  assert.equal(clean('ｆｒｅｅ ｇｐ'), 'free gp', 'full-width letters fold');
+  assert.equal(clean('noooooooooooooo'), 'nooooooo'.slice(0, 7), 'a run is kept to six');
+  assert.match(clean('ＣＨＥＡＰ ＧＯＬＤ'), /^!/, 'styled letters can’t dodge the gold filter');
+  assert.match(clean('<col=ff0000></col>'), /^!/, 'nothing left after cleaning is refused');
 });
 
 test('links are for staff; gold adverts for nobody', () => {
