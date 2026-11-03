@@ -22,15 +22,25 @@
  */
 import { loadEventRoleSettings, readPartnerDiscordPrefs } from '@/lib/eventDiscordPrefs';
 import { db } from '@/db';
-import { getSetting } from '@/lib/settings';
+import { getSetting, setSetting } from '@/lib/settings';
 import { events, teams, eventParticipants, clanRoster, users, eventSignups } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
-import { and, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, count, eq, isNotNull, isNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
-import { discordRest, getBotCredentials, resolveDiscordIdForMember } from '@/lib/discord-roles';
+import { createGuildRole, discordRest, getBotCredentials, resolveDiscordIdForMember } from '@/lib/discord-roles';
 import { acceptedCohostClanIds } from '@/lib/coHost';
 import { areEventRostersFinal } from '@/lib/eventReadiness';
 import { isSafeAutomatedRole } from '@/lib/discordRoleSafety';
+import {
+  channelStatusFromHttp,
+  playerRoleStatus,
+  roleStatus,
+  staleTeamColumns,
+  type EventDiscordInventory,
+  type InventoryItem,
+  type TeamColumn,
+  type TeamInventory,
+} from '@/lib/eventDiscordInventory';
 import { provisionCohostTeamChannels, syncEventDiscordFireAndForget, usesEventServer } from '@/lib/eventDiscord';
 
 // Discord permission bits (https://discord.com/developers/docs/topics/permissions).
@@ -971,6 +981,269 @@ export async function updateTeamDiscordIdentity(teamId: number): Promise<void> {
   }
 }
 
+// =============================================================================
+// Inventory + targeted repair/cleanup (the event Discord tab)
+// =============================================================================
+
+type TeamRow = typeof teams.$inferSelect;
+
+const ALL_TEAM_COLUMNS: readonly TeamColumn[] = ['discordTextChannelId', 'discordVoiceChannelId', 'discordRoleId'];
+
+interface TeamDeleteResult {
+  rolesDeleted: number;
+  channelsDeleted: number;
+  rolesFailed: number;
+  channelsFailed: number;
+  failDetail?: string;
+}
+
+/**
+ * Delete the chosen stored resources of one team (channels before the role, as teardown always did)
+ * and forget each id Discord confirmed is gone. A refused delete keeps its id so a re-run can retry.
+ * Only ids stored on the team row are touched — nothing Anvil did not make.
+ */
+async function deleteTeamResources(
+  cfg: TeamChannelConfig,
+  team: Pick<TeamRow, 'id' | TeamColumn>,
+  columns: readonly TeamColumn[],
+): Promise<TeamDeleteResult> {
+  const out: TeamDeleteResult = { rolesDeleted: 0, channelsDeleted: 0, rolesFailed: 0, channelsFailed: 0 };
+  const cleared: Partial<typeof teams.$inferInsert> = {};
+  for (const column of ALL_TEAM_COLUMNS) {
+    if (!columns.includes(column)) continue;
+    const id = team[column];
+    if (!id) continue;
+    const isRole = column === 'discordRoleId';
+    const r = await deleteResource(cfg, isRole ? `/guilds/${cfg.guildId}/roles/${id}` : `/channels/${id}`);
+    if (r.ok) {
+      if (isRole) out.rolesDeleted++;
+      else out.channelsDeleted++;
+      cleared[column] = null;
+    } else {
+      if (isRole) out.rolesFailed++;
+      else out.channelsFailed++;
+      if (!out.failDetail && r.detail) out.failDetail = r.detail;
+    }
+  }
+  if (Object.keys(cleared).length > 0) {
+    await db.update(teams).set(cleared).where(eq(teams.id, team.id));
+  }
+  return out;
+}
+
+const NONE_ITEM: InventoryItem = { id: null, name: null, status: 'none' };
+
+/**
+ * What this event has in the host clan's Discord right now: the event category, the clan's shared
+ * player role, and each team's role + text + voice channel — every stored id checked live with the
+ * clan's bot. Null when the event does not exist.
+ */
+export async function inspectTeamDiscord(eventId: number): Promise<EventDiscordInventory | null> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return null;
+  const [roleSettings, eventTeams, playerRows, rostersReady, rawPlayerRoleId, cfg] = await Promise.all([
+    loadEventRoleSettings(eventId, event.clanId),
+    db.select().from(teams).where(eq(teams.eventId, eventId)).orderBy(teams.id),
+    db
+      .select({ teamId: eventParticipants.teamId, n: count() })
+      .from(eventParticipants)
+      .where(and(eq(eventParticipants.eventId, eventId), isNotNull(eventParticipants.teamId), isNull(eventParticipants.frozenAt)))
+      .groupBy(eventParticipants.teamId),
+    eventRostersReadyForAssignment(eventId, event.draftStatus),
+    getSetting(event.clanId, 'discord_bingo_role_id'),
+    loadTeamChannelConfig(event.clanId, { force: true }),
+  ]);
+  const playersByTeam = new Map(playerRows.map((r) => [r.teamId, Number(r.n)]));
+  const playerRoleId = rawPlayerRoleId?.trim() || null;
+
+  const base = {
+    layout: event.discordLayout,
+    teamChannels: roleSettings.teamChannels,
+    playerRoleTiming: roleSettings.playerRole,
+    rostersReady,
+  };
+
+  if (!cfg) {
+    return {
+      ...base,
+      connected: false,
+      category: { ...NONE_ITEM, id: event.discordCategoryId },
+      playerRole: { id: playerRoleId, name: null, status: playerRoleId ? 'unknown' : 'not-set' },
+      teams: eventTeams.map((t) => ({
+        teamId: t.id,
+        name: t.name,
+        color: t.color,
+        players: playersByTeam.get(t.id) ?? 0,
+        role: { ...NONE_ITEM, id: t.discordRoleId },
+        text: { ...NONE_ITEM, id: t.discordTextChannelId },
+        voice: { ...NONE_ITEM, id: t.discordVoiceChannelId },
+      })),
+    };
+  }
+
+  const rolesRes = await discordRest(cfg.botToken, `/guilds/${cfg.guildId}/roles`);
+  const guildRoles = rolesRes.ok
+    ? ((await rolesRes.json()) as { id: string; name: string; managed?: boolean; permissions?: string }[])
+    : null;
+  if (!guildRoles) log.warn('discord-teams.inventory-roles-fail', { status: rolesRes.status, eventId });
+  const roleIds = guildRoles ? new Set(guildRoles.map((r) => r.id)) : null;
+  const safeIds = guildRoles
+    ? new Set(guildRoles.filter((r) => isSafeAutomatedRole(r, cfg.guildId)).map((r) => r.id))
+    : null;
+  const roleName = (id: string | null) => (id ? (guildRoles?.find((r) => r.id === id)?.name ?? null) : null);
+  const roleItem = (id: string | null): InventoryItem => ({ id, name: roleName(id), status: roleStatus(id, roleIds) });
+
+  const channelItem = async (id: string | null): Promise<InventoryItem> => {
+    if (!id) return NONE_ITEM;
+    const res = await discordRest(cfg.botToken, `/channels/${id}`);
+    if (!res.ok) return { id, name: null, status: channelStatusFromHttp(res.status) };
+    const ch = (await res.json().catch(() => ({}))) as { name?: string; guild_id?: string };
+    // Stored before the clan moved its bot to another server: not something to show (or act on) here.
+    if (ch.guild_id && ch.guild_id !== cfg.guildId) return { id, name: null, status: 'unknown' };
+    return { id, name: ch.name ?? null, status: 'exists' };
+  };
+
+  const [category, teamItems] = await Promise.all([
+    channelItem(event.discordCategoryId),
+    Promise.all(
+      eventTeams.map(async (t): Promise<TeamInventory> => {
+        const [text, voice] = await Promise.all([channelItem(t.discordTextChannelId), channelItem(t.discordVoiceChannelId)]);
+        return {
+          teamId: t.id,
+          name: t.name,
+          color: t.color,
+          players: playersByTeam.get(t.id) ?? 0,
+          role: roleItem(t.discordRoleId),
+          text,
+          voice,
+        };
+      }),
+    ),
+  ]);
+
+  return {
+    ...base,
+    connected: true,
+    category,
+    playerRole: { id: playerRoleId, name: roleName(playerRoleId), status: playerRoleStatus(playerRoleId, roleIds, safeIds) },
+    teams: teamItems,
+  };
+}
+
+export interface CreateMissingReport {
+  ok: boolean;
+  reason?: string;
+  /** Stored ids Discord confirmed were gone, forgotten so provisioning could remake them. */
+  forgotten: number;
+  provision?: ProvisionReport;
+  /** Existing channels given access for a team role that had to be remade. */
+  regranted: number;
+  playerRoleCreated: boolean;
+}
+
+/**
+ * "Create missing": make whatever this event should have in the clan's server but does not. Forgets
+ * stored ids Discord confirms are gone, then runs the ordinary provisioning (which only creates where
+ * nothing is stored), so nothing is duplicated. A remade team role is granted onto that team's
+ * surviving channels, which still name the old one. The clan's shared player role is made only when
+ * the event hands one out and none is set (or the set one was deleted).
+ */
+export async function createMissingTeamDiscord(eventId: number): Promise<CreateMissingReport> {
+  const report: CreateMissingReport = { ok: true, forgotten: 0, regranted: 0, playerRoleCreated: false };
+  const inv = await inspectTeamDiscord(eventId);
+  if (!inv) return { ...report, ok: false, reason: 'event not found' };
+  if (!inv.connected) return { ...report, ok: false, reason: 'The Discord bot is not connected.' };
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope.
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true } });
+  if (!event) return { ...report, ok: false, reason: 'event not found' };
+  const failures: string[] = [];
+
+  if (inv.teamChannels && inv.teams.length > 0) {
+    const regrant: { teamId: number; text: string | null; voice: string | null }[] = [];
+    for (const t of inv.teams) {
+      const stale = staleTeamColumns(t);
+      if (stale.length === 0) continue;
+      await db
+        .update(teams)
+        .set(Object.fromEntries(stale.map((c) => [c, null])) as Partial<typeof teams.$inferInsert>)
+        .where(eq(teams.id, t.teamId));
+      report.forgotten += stale.length;
+      if (stale.includes('discordRoleId')) {
+        const text = t.text.status === 'exists' ? t.text.id : null;
+        const voice = t.voice.status === 'exists' ? t.voice.id : null;
+        if (text || voice) regrant.push({ teamId: t.teamId, text, voice });
+      }
+    }
+    if (inv.category.status === 'missing') {
+      await db.update(events).set({ discordCategoryId: null }).where(eq(events.id, eventId));
+      report.forgotten++;
+    }
+
+    report.provision = await provisionTeamDiscord(eventId);
+    if (!report.provision.ok && report.provision.reason) failures.push(report.provision.reason);
+
+    if (regrant.length > 0) {
+      const cfg = await loadTeamChannelConfig(event.clanId, { force: true });
+      for (const r of regrant) {
+        const row = await db.query.teams.findFirst({ where: eq(teams.id, r.teamId), columns: { discordRoleId: true } });
+        if (!cfg || !row?.discordRoleId) continue;
+        for (const [channelId, bits] of [[r.text, SEND_MESSAGES], [r.voice, CONNECT | SPEAK]] as const) {
+          if (!channelId) continue;
+          const res = await discordRest(cfg.botToken, `/channels/${channelId}/permissions/${row.discordRoleId}`, {
+            method: 'PUT',
+            body: JSON.stringify({ type: OVERWRITE_ROLE, allow: String(VIEW_CHANNEL | bits) }),
+          });
+          if (res.ok) report.regranted++;
+          else log.warn('discord-teams.regrant-fail', { status: res.status, teamId: r.teamId });
+        }
+      }
+    }
+  }
+
+  if (inv.playerRoleTiming !== 'never' && (inv.playerRole.status === 'not-set' || inv.playerRole.status === 'missing')) {
+    const role = await createGuildRole(event.clanId, 'Bingo player', { mentionable: true });
+    if (role) {
+      await setSetting(event.clanId, 'discord_bingo_role_id', role.id);
+      report.playerRoleCreated = true;
+    } else {
+      failures.push('Could not create the player role — the bot needs the "Manage Roles" permission.');
+    }
+  }
+
+  if (failures.length > 0) return { ...report, ok: false, reason: failures.join(' ') };
+  return report;
+}
+
+export type TeamDiscordPart = 'role' | 'text' | 'voice';
+
+const PART_COLUMN: Record<TeamDiscordPart, TeamColumn> = {
+  role: 'discordRoleId',
+  text: 'discordTextChannelId',
+  voice: 'discordVoiceChannelId',
+};
+
+/** Delete one stored role or channel of one team on this event, and forget its id. */
+export async function teardownOneTeamDiscord(
+  eventId: number,
+  teamId: number,
+  part: TeamDiscordPart,
+): Promise<{ ok: boolean; reason?: string; deleted: boolean }> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope.
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true } });
+  if (!event) return { ok: false, reason: 'event not found', deleted: false };
+  // The team must be on THIS event: the id came from the request.
+  const team = await db.query.teams.findFirst({ where: and(eq(teams.id, teamId), eq(teams.eventId, eventId)) });
+  if (!team) return { ok: false, reason: 'team not found', deleted: false };
+  const column = PART_COLUMN[part];
+  if (!team[column]) return { ok: true, deleted: false };
+  const cfg = await loadTeamChannelConfig(event.clanId, { force: true });
+  if (!cfg) return { ok: false, reason: 'The Discord bot is not connected.', deleted: false };
+  const r = await deleteTeamResources(cfg, team, [column]);
+  if (r.rolesFailed + r.channelsFailed > 0) return { ok: false, reason: r.failDetail ?? 'Discord refused the delete.', deleted: false };
+  return { ok: true, deleted: true };
+}
+
 /**
  * Delete the per-team roles + channels and the event category, clearing the stored IDs.
  * Leaves the shared bingo/captain roles untouched (admin-owned). Deleting a role
@@ -997,38 +1270,13 @@ export async function teardownTeamDiscord(eventId: number): Promise<TeardownRepo
   let channelsFailed = 0;
   let failDetail: string | undefined;
 
-  const noteFail = (kind: 'role' | 'channel', detail?: string) => {
-    if (kind === 'role') rolesFailed++;
-    else channelsFailed++;
-    if (!failDetail && detail) failDetail = detail;
-  };
-
   for (const team of eventTeams) {
-    const cleared: Partial<typeof teams.$inferInsert> = {};
-    if (team.discordTextChannelId) {
-      const r = await deleteResource(cfg, `/channels/${team.discordTextChannelId}`);
-      if (r.ok) {
-        channelsDeleted++;
-        cleared.discordTextChannelId = null;
-      } else noteFail('channel', r.detail);
-    }
-    if (team.discordVoiceChannelId) {
-      const r = await deleteResource(cfg, `/channels/${team.discordVoiceChannelId}`);
-      if (r.ok) {
-        channelsDeleted++;
-        cleared.discordVoiceChannelId = null;
-      } else noteFail('channel', r.detail);
-    }
-    if (team.discordRoleId) {
-      const r = await deleteResource(cfg, `/guilds/${cfg.guildId}/roles/${team.discordRoleId}`);
-      if (r.ok) {
-        rolesDeleted++;
-        cleared.discordRoleId = null;
-      } else noteFail('role', r.detail);
-    }
-    if (Object.keys(cleared).length > 0) {
-      await db.update(teams).set(cleared).where(eq(teams.id, team.id));
-    }
+    const r = await deleteTeamResources(cfg, team, ALL_TEAM_COLUMNS);
+    rolesDeleted += r.rolesDeleted;
+    channelsDeleted += r.channelsDeleted;
+    rolesFailed += r.rolesFailed;
+    channelsFailed += r.channelsFailed;
+    if (!failDetail && r.failDetail) failDetail = r.failDetail;
   }
 
   let categoryDeleted = false;
