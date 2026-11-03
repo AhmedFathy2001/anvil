@@ -652,7 +652,8 @@ export function panelFeedWorthy(
   if (row.kind === 'pet') return true;
   if (row.kind !== 'unique' && row.kind !== 'loot') return true;
   if (row.valueGp != null && row.valueGp > 0) return row.valueGp >= floorGp;
-  return clanRareDrop(dropInfo(row.source, row.itemId), row.quantity ?? 1);
+  // No price: rarity alone, at the feed's own bar.
+  return clanRareDrop(dropInfo(row.source, row.itemId), row.quantity ?? 1, 0, null);
 }
 
 /** A board's Feed floor by its size: the more players, the bigger a drop must be to get a line. */
