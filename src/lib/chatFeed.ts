@@ -212,14 +212,17 @@ export async function claimFeedItem(accountId: number, dedupKey: string): Promis
 }
 
 /** A sender's name colour (Supporter) and star (Patron), for the line other people see. */
-async function flairOf(userId: number | null): Promise<{ color: string; star: boolean } | null> {
+type Flair = { color: string; star: boolean; grad?: string[] };
+
+async function flairOf(userId: number | null): Promise<Flair | null> {
   if (userId == null) return null;
   const s = await supporterForUser(userId).catch(() => null);
   if (!s) return null;
-  return { color: supporterInk(s.tier.id, s.style).color, star: hasChatStar(s.tier.id) };
+  const ink = supporterInk(s.tier.id, s.style);
+  return { color: ink.color, star: hasChatStar(s.tier.id), ...(ink.grad ? { grad: ink.grad } : {}) };
 }
 
-async function deliver(item: FeedItem, to: Recipient[], flair: { color: string; star: boolean } | null = null): Promise<number> {
+async function deliver(item: FeedItem, to: Recipient[], flair: Flair | null = null): Promise<number> {
   const byTag = new Map<string, number[]>();
   for (const r of to) {
     const list = byTag.get(r.tag) ?? [];
