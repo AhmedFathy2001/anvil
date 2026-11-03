@@ -239,14 +239,22 @@ export interface FeedMessage {
   text: string;
   /** The sender's Supporter name colour ('#rrggbb'), when they have one. */
   whoColor?: string;
+  /** The name's gradient stops (Champion/Patron), 2–4 hex colours. */
+  whoGrad?: string[];
   /** Patron: a star before the name. */
   star?: true;
 }
 
-export function feedMessage(item: FeedItem, tag: string, flair?: { color: string; star: boolean } | null): FeedMessage {
+export function feedMessage(
+  item: FeedItem,
+  tag: string,
+  flair?: { color: string; star: boolean; grad?: string[] } | null,
+): FeedMessage {
   const m: FeedMessage = { t: 'feed', kind: item.kind, tone: toneOf(item.kind), tag: tag.slice(0, 40), who: item.who.slice(0, 40), text: item.text.slice(0, 160) };
   if (flair) {
+    // `whoColor` for every plugin; `whoGrad` for one that colours the name letter by letter.
     m.whoColor = flair.color;
+    if (flair.grad && flair.grad.length >= 2) m.whoGrad = flair.grad.slice(0, 4);
     if (flair.star) m.star = true;
   }
   return m;

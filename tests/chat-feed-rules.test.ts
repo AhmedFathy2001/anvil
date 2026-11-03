@@ -120,3 +120,11 @@ test('gp is short, and the message is capped for the chatbox', () => {
   assert.equal(m.tag.length, 40);
   assert.equal(m.text.length, 160);
 });
+
+test('a gradient name rides along for plugins that draw it; the solid colour stays for the rest', () => {
+  const item = { kind: 'drop', who: 'Zezima', text: 'Twisted bow' } as unknown as Parameters<typeof feedMessage>[0];
+  const m = feedMessage(item, 'Clan', { color: '#e05ad0', star: false, grad: ['#ff9a5a', '#e05ad0', '#7a8cff', '#000000', '#ffffff'] });
+  assert.equal(m.whoColor, '#e05ad0');
+  assert.deepEqual(m.whoGrad, ['#ff9a5a', '#e05ad0', '#7a8cff', '#000000'], 'at most four stops');
+  assert.equal(feedMessage(item, 'Clan', { color: '#ffd35c', star: false }).whoGrad, undefined, 'a solid name sends none');
+});
