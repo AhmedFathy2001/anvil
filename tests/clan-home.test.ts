@@ -117,3 +117,19 @@ test('the member count is member seats — guests left out, members the hiscores
 
   assert.equal((await publicClanHomeView(clan.id))!.memberCount, 2);
 });
+
+test("a visitor's activity links every board they can open, and leaves invited-only ones out", async () => {
+  const { publicClanActivity } = await import('../src/lib/clanHome.ts');
+  await db.insert(s.events).values({ clanId, name: 'Secret Clash', boardSize: 25, visibility: 'invited', startDate: daysFromNow(-1), endDate: daysFromNow(3) });
+  const a = await publicClanActivity(clanId);
+  const names = [...a.live, ...a.upcoming, ...a.past].map((i) => i.name);
+  assert.ok(names.includes('Winter Bingo'), 'the live board is there');
+  assert.ok(names.includes('Autumn Bingo'), 'the finished board is there');
+  assert.ok(!names.includes('Secret Clash'), 'an invited-only board is not');
+  const live = a.live.find((i) => i.name === 'Winter Bingo')!;
+  assert.match(live.href, /^\/events\/\d+$/, 'and it links to its board');
+  assert.ok(Array.isArray(a.week.top));
+
+  const bare = await publicClanActivity(bareClanId);
+  assert.deepEqual([bare.live.length, bare.upcoming.length, bare.past.length], [0, 0, 0]);
+});

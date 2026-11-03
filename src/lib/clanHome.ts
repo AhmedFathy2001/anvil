@@ -9,6 +9,9 @@ import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanRoster, clans, events } from '@/db/schema';
+import { listClanEvents } from '@/lib/clanEvents';
+import { loadHubView, weeklyValueText } from '@/lib/eventsHub';
+import { getClanAnalytics, listMembers } from '@/lib/memberProfile';
 
 export type ClanFocus = 'pvm' | 'skilling' | 'pvp' | 'social' | 'ironman';
 
@@ -108,5 +111,97 @@ export async function publicClanHomeView(clanId: number, discordInvite: string |
     eventsRun: eventRow?.n ?? 0,
     recentEvents: recent,
     discordInvite,
+  };
+}
+
+// ── What a visitor can open ──────────────────────────────────────────────────────────────────────
+//
+// The public home used to list event NAMES that went nowhere, and its only leaderboard link left for
+// the all-clans table. A visitor deciding whether to join wants to watch what's on and see who plays
+// here, so this gathers the clan's live, coming and finished competitions (boards and weeks, each with
+// a link) and its own week's top players. Invited-only boards are left out: a stranger can't open them.
+
+export interface VisitorItem {
+  key: string;
+  href: string;
+  name: string;
+  /** "Bingo", "Boss of the week", "Clan event". */
+  kind: string;
+  /** One line under the name: standings, entrants, when. */
+  line: string;
+  /** Leader while live, winner once finished. */
+  top: { name: string; text: string } | null;
+  when: string | null;
+}
+
+export interface PublicClanActivity {
+  live: VisitorItem[];
+  upcoming: VisitorItem[];
+  past: VisitorItem[];
+  week: { top: { rsn: string; hours: number }[]; activeThisWeek: number };
+}
+
+const WEEK_KIND: Record<string, string> = { SOTW: 'Skill of the week', BOTW: 'Boss of the week', EOTW: 'Efficiency of the week' };
+
+export async function publicClanActivity(clanId: number, now = new Date()): Promise<PublicClanActivity> {
+  const [hub, invited, clanEvts, members] = await Promise.all([
+    loadHubView(clanId, { pastLimit: 6 }, now),
+    db
+      .select({ id: events.id })
+      .from(events)
+      .where(and(eq(events.clanId, clanId), eq(events.visibility, 'invited'))),
+    listClanEvents(clanId, { now: now.getTime(), withinDays: 14 }).catch(() => []),
+    listMembers(clanId),
+  ]);
+  const hidden = new Set(invited.map((r) => r.id));
+  const analytics = await getClanAnalytics(members).catch(() => null);
+
+  const board = (b: (typeof hub.live.boards)[number]): VisitorItem => ({
+    key: `e${b.id}`,
+    href: `/events/${b.id}`,
+    name: b.name,
+    kind: b.shape,
+    line: [b.chips[0], b.foot].filter(Boolean).join(' · '),
+    top: b.top ? { name: b.top.name, text: `${b.top.score.toLocaleString('en-US')} ${b.top.unit}` } : null,
+    when: b.startDate,
+  });
+  const week = (w: (typeof hub.live.weeks)[number]): VisitorItem => ({
+    key: `w${w.id}`,
+    href: `/weekly/${w.id}`,
+    name: w.name,
+    kind: WEEK_KIND[w.kind] ?? 'Competition',
+    line: `${w.entrants} entered`,
+    top: w.top ? { name: w.top.rsn, text: weeklyValueText(w.unit, w.top.value) } : null,
+    when: w.state === 'upcoming' ? w.startDate : w.endDate,
+  });
+
+  return {
+    live: [...hub.live.weeks.map(week), ...hub.live.boards.filter((b) => !hidden.has(b.id)).map(board)],
+    upcoming: [
+      ...hub.upcoming.boards.filter((b) => !hidden.has(b.id)).map(board),
+      ...hub.upcoming.weeks.map(week),
+      ...clanEvts.map((e) => ({
+        key: `c${e.id}`,
+        href: `/clan-events/${e.id}`,
+        name: e.title,
+        kind: 'Clan event',
+        line: [e.location, e.world ? `W${e.world}` : null].filter(Boolean).join(' · '),
+        top: null,
+        when: e.occurrence.start,
+      })),
+    ].sort((a, b) => (a.when ?? '').localeCompare(b.when ?? '')),
+    past: hub.record.items
+      .filter((i) => !(i.group === 'boards' && hidden.has(i.id)))
+      .slice(0, 5)
+      .map((i) => ({
+        key: i.key,
+        href: i.href,
+        name: i.name,
+        kind: i.group === 'weeks' ? 'Competition' : 'Event',
+        line: `${i.entrants} ${i.entrantLabel}`,
+        top: i.top ? { name: i.top.name, text: i.top.text } : null,
+        when: i.endDate ?? i.startDate,
+      })),
+    week: { top: (analytics?.topWeek ?? []).slice(0, 5), activeThisWeek: analytics?.activeThisWeek ?? 0 },
   };
 }

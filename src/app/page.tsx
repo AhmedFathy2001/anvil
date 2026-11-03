@@ -17,7 +17,7 @@ import { db } from '@/db';
 import { users, clanStaff, clanRoster } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import PublicClanHome from '@/components/PublicClanHome';
-import { publicClanHomeView } from '@/lib/clanHome';
+import { publicClanActivity, publicClanHomeView } from '@/lib/clanHome';
 import { getDiscordInviteUrl } from '@/lib/pluginConfig';
 import { verifyUser } from '@/lib/auth';
 import { buildHomeView } from '@/lib/homeView';
@@ -185,9 +185,12 @@ export default async function HomePage() {
   })().catch(() => null);
 
   if (!insider) {
-    const [publicView, hall] = await Promise.all([
+    const [publicView, hall, activity] = await Promise.all([
       publicClanHomeView(clan.id, await getDiscordInviteUrl(clan.id)),
       hallPromise,
+      // What a visitor can open (live, coming, finished, the week's top players). A failure here is
+      // just a shorter page, never a broken one.
+      publicClanActivity(clan.id).catch(() => null),
     ]);
     if (publicView) {
       return (
@@ -210,6 +213,7 @@ export default async function HomePage() {
             view={publicView}
             signedIn={!!session?.userId}
             hall={hall ? <ClanHall initial={hall} src="public" /> : null}
+            activity={activity}
           />
         </>
       );
