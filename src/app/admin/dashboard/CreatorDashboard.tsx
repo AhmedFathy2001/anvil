@@ -6,6 +6,7 @@ import ClanLink from '@/components/ClanLink';
 import CopyLinkButton from '@/components/CopyLinkButton';
 import SetupChecklist from '@/components/SetupChecklist';
 import { creatorPlayers } from '@/lib/creatorHome';
+import { pendingRequestCountsByEvent } from '@/lib/guestAdmission';
 import type { SetupStatus } from '@/lib/setupStatus';
 import CreatorPlayers from '../people/CreatorPlayers';
 
@@ -20,7 +21,7 @@ function when(stamp: string | null): string {
  * event" button, and who has joined. Nothing about rosters, weeklies, fees or Discord up front.
  */
 export default async function CreatorDashboard({ clanId, setup }: { clanId: number; setup: SetupStatus }) {
-  const [list, players] = await Promise.all([
+  const [list, players, waiting] = await Promise.all([
     db
       .select({ id: events.id, name: events.name, startDate: events.startDate })
       .from(events)
@@ -28,6 +29,7 @@ export default async function CreatorDashboard({ clanId, setup }: { clanId: numb
       .orderBy(desc(events.id))
       .limit(20),
     creatorPlayers(clanId),
+    pendingRequestCountsByEvent(clanId),
   ]);
   // How many joined each, in one grouped read (pending and approved — both are on the board).
   const counts = list.length
@@ -38,7 +40,7 @@ export default async function CreatorDashboard({ clanId, setup }: { clanId: numb
         .groupBy(eventSignups.eventId)
     : [];
   const joinedBy = new Map(counts.map((c) => [c.eventId, c.n]));
-  const rows = list.map((e) => ({ ...e, joined: joinedBy.get(e.id) ?? 0 }));
+  const rows = list.map((e) => ({ ...e, joined: joinedBy.get(e.id) ?? 0, waiting: waiting.get(e.id) ?? 0 }));
 
   return (
     <div className="max-w-4xl">
@@ -75,6 +77,14 @@ export default async function CreatorDashboard({ clanId, setup }: { clanId: numb
                   {when(e.startDate)} · {e.joined} joined
                 </span>
               </ClanLink>
+              {e.waiting > 0 && (
+                <ClanLink
+                  href={`/admin/events/${e.id}/signups`}
+                  className="shrink-0 rounded-lg bg-gold px-3.5 py-2 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+                >
+                  {e.waiting} waiting for you
+                </ClanLink>
+              )}
               <CopyLinkButton
                 path={`/events/${e.id}`}
                 label="Copy invite link"

@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import ClanLink from '@/components/ClanLink';
 import DateRangeField from '@/components/DateRangeField';
 import Input from '@/components/Input';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
+import type { TileCsvRow } from '@/lib/csvTiles';
+import { starterCount } from '@/lib/starterTiles';
 
 /**
  * Three formats, as big cards. Each maps to an existing event mode on its default size; the full
@@ -19,6 +21,12 @@ const FORMATS = [
 
 type FormatKey = (typeof FORMATS)[number]['key'];
 
+interface Starter {
+  boardId: number | null;
+  title: string | null;
+  rows: TileCsvRow[];
+}
+
 export default function FirstEventClient({ suggestedName, first }: { suggestedName: string; first: boolean }) {
   const [name, setName] = useState(suggestedName);
   const [startIso, setStartIso] = useState('');
@@ -27,11 +35,36 @@ export default function FirstEventClient({ suggestedName, first }: { suggestedNa
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<number | null>(null);
+  const [filled, setFilled] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Ready-made tiles (lib/starterTiles) unless the host asks for a blank board. Keyed by format so
+  // flipping between cards doesn't refetch.
+  const [useStarter, setUseStarter] = useState(true);
+  const [starters, setStarters] = useState<Partial<Record<FormatKey, Starter | 'none'>>>({});
+  const fmt = FORMATS.find((x) => x.key === pick)!;
+  const starter = starters[pick];
+
+  useEffect(() => {
+    if (starters[pick]) return;
+    let live = true;
+    const f = FORMATS.find((x) => x.key === pick)!;
+    clanFetch(`/api/admin/library/starter?format=${f.format}&size=${f.size}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: Starter | null) => {
+        if (!live) return;
+        const ok = d && Array.isArray(d.rows) && d.rows.length === starterCount(f.format, f.size);
+        setStarters((m) => ({ ...m, [pick]: ok ? d : 'none' }));
+      })
+      .catch(() => live && setStarters((m) => ({ ...m, [pick]: 'none' })));
+    return () => {
+      live = false;
+    };
+  }, [pick, starters]);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
-    const f = FORMATS.find((x) => x.key === pick)!;
+    const f = fmt;
+    const tiles = useStarter && starter && starter !== 'none' ? starter : null;
     setBusy(true);
     setError(null);
     try {
@@ -46,6 +79,7 @@ export default function FirstEventClient({ suggestedName, first }: { suggestedNa
           ...(f.placement ? { teamPlacement: f.placement } : {}),
           ...(startIso ? { startDate: startIso } : {}),
           ...(endIso ? { endDate: endIso } : {}),
+          ...(tiles ? { tileLabels: tiles.rows.map((r) => r.label ?? '') } : {}),
         }),
       });
       const data: { id?: number; error?: string } = await res.json().catch(() => ({}));
@@ -53,7 +87,24 @@ export default function FirstEventClient({ suggestedName, first }: { suggestedNa
         setError(data.error || 'That didn’t work. Try again.');
         return;
       }
+      // Tracking config rides in through the shared importer (the create API only speaks labels),
+      // exactly like the full wizard. A failed import still leaves a named board, never a lost event.
+      if (tiles) {
+        await clanFetch(`/api/events/${data.id}/tiles/import`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: tiles.rows }),
+        }).catch(() => {});
+        if (tiles.boardId != null) {
+          await clanFetch(`/api/admin/library/boards/${tiles.boardId}/use`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ eventId: data.id }),
+          }).catch(() => {});
+        }
+      }
       setCreated(data.id);
+      setFilled(Boolean(tiles));
     } finally {
       setBusy(false);
     }
@@ -84,7 +135,7 @@ export default function FirstEventClient({ suggestedName, first }: { suggestedNa
         </div>
         <p className="mt-4 text-center text-[13px] text-text-dim">
           <ClanLink href={`/admin/events/${created}`} className="hover:text-gold">
-            Fill in your tiles
+            {filled ? 'Change your tiles' : 'Fill in your tiles'}
           </ClanLink>
         </p>
       </div>
@@ -133,6 +184,49 @@ export default function FirstEventClient({ suggestedName, first }: { suggestedNa
       </div>
 
       <div className="mt-6">
+        <div className="mb-1.5 text-base font-medium">Tiles</div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {([true, false] as const).map((v) => {
+            const on = useStarter === v;
+            const none = v && starter === 'none';
+            return (
+              <button
+                key={String(v)}
+                type="button"
+                aria-pressed={on}
+                disabled={none}
+                onClick={() => setUseStarter(v)}
+                className={`rounded-xl border p-4 text-left transition-colors disabled:opacity-50 ${
+                  on && !none ? 'border-gold bg-gold/10' : 'border-card-border bg-card-bg hover:border-gold/40'
+                }`}
+              >
+                <span className={`block font-semibold ${on && !none ? 'text-gold' : ''}`}>
+                  {v ? 'Ready-made tiles' : 'Blank, I’ll write my own'}
+                </span>
+                <span className="mt-1 block text-sm text-text-muted">
+                  {!v
+                    ? 'Start empty and fill every tile yourself.'
+                    : none
+                      ? 'None ready for this kind yet.'
+                      : 'A ready mix of easy to hard tasks. Change any tile later.'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {useStarter && starter && starter !== 'none' && (
+          <p className="mt-2 text-[13px] text-text-dim" title={starter.rows.map((r) => r.label).join(', ')}>
+            {starter.title ? `${starter.title}: ` : ''}
+            {starter.rows
+              .slice(0, 4)
+              .map((r) => r.label)
+              .join(', ')}
+            {starter.rows.length > 4 ? `, and ${starter.rows.length - 4} more` : ''}
+          </p>
+        )}
+      </div>
+
+      <div className="mt-6">
         <div className="mb-1.5 text-base font-medium">When?</div>
         <DateRangeField
           startIso={startIso}
@@ -150,7 +244,7 @@ export default function FirstEventClient({ suggestedName, first }: { suggestedNa
 
       <button
         type="submit"
-        disabled={busy || !name.trim()}
+        disabled={busy || !name.trim() || (useStarter && starter === undefined)}
         className="mt-8 w-full rounded-xl bg-gold px-6 py-4 text-lg font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
       >
         {busy ? 'Creating…' : 'Create event'}

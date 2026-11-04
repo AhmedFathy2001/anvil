@@ -232,6 +232,12 @@ test('a seat won through an OPEN event does not let them into an APPROVAL one', 
   const all = await db.query.clanJoinRequests.findMany({ where: eq(s.clanJoinRequests.accountId, viewer1.accountId) });
   assert.equal(all.length, 1);
 
+  // The event's own Sign-ups tab lists it, another event's doesn't, and the dashboard counts it.
+  const here = await G.pendingRequests(spaceId, { eventId: approvalEvent });
+  assert.ok(here.some((p) => p.id === req!.id) && here.every((p) => p.eventId === approvalEvent));
+  assert.equal((await G.pendingRequests(spaceId, { eventId: openEvent })).length, 0);
+  assert.equal((await G.pendingRequestCountsByEvent(spaceId)).get(approvalEvent), here.length);
+
   // The host says yes: that invites them to THIS event, and now they are in.
   const ok = await G.approveRequest(req!.id, spaceId, streamer.userId);
   assert.equal(ok.ok, true);

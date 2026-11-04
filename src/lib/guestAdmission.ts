@@ -8,7 +8,7 @@
 // So there is one function, `admit`, and every one of those paths calls it. What it does depends on
 // the clan's policy, and the policy is a decision the clan made rather than a default nobody chose.
 
-import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clanStaff, clans, eventInvites, users } from '@/db/schema';
@@ -377,6 +377,8 @@ export interface PendingRequest {
   requestedAt: string;
   /** The clan they are a member of right now, if any — the most useful thing staff can be told. */
   memberOf: string | null;
+  /** The one event they asked to play (a creator space's approval event); null = the whole clan. */
+  eventId: number | null;
 }
 
 /** What is waiting for this clan's staff. */
@@ -394,7 +396,18 @@ export async function pendingRequestCount(clanId: number): Promise<number> {
   return row?.n ?? 0;
 }
 
-export async function pendingRequests(clanId: number): Promise<PendingRequest[]> {
+/** Waiting event-scoped requests, per event — the creator dashboard's "N waiting" badges. */
+export async function pendingRequestCountsByEvent(clanId: number): Promise<Map<number, number>> {
+  const rows = await db
+    .select({ eventId: clanJoinRequests.eventId, n: count() })
+    .from(clanJoinRequests)
+    .where(and(eq(clanJoinRequests.clanId, clanId), eq(clanJoinRequests.status, 'pending'), isNotNull(clanJoinRequests.eventId)))
+    .groupBy(clanJoinRequests.eventId);
+  return new Map(rows.flatMap((r) => (r.eventId == null ? [] : [[r.eventId, r.n] as [number, number]])));
+}
+
+/** What is waiting for this clan's staff; with `eventId`, only the requests to play that event. */
+export async function pendingRequests(clanId: number, opts: { eventId?: number } = {}): Promise<PendingRequest[]> {
   const rows = await db
     .select({
       id: clanJoinRequests.id,
@@ -404,10 +417,17 @@ export async function pendingRequests(clanId: number): Promise<PendingRequest[]>
       source: clanJoinRequests.source,
       requestedAt: clanJoinRequests.requestedAt,
       rsn: accounts.rsn,
+      eventId: clanJoinRequests.eventId,
     })
     .from(clanJoinRequests)
     .innerJoin(accounts, eq(accounts.id, clanJoinRequests.accountId))
-    .where(and(eq(clanJoinRequests.clanId, clanId), eq(clanJoinRequests.status, 'pending')))
+    .where(
+      and(
+        eq(clanJoinRequests.clanId, clanId),
+        eq(clanJoinRequests.status, 'pending'),
+        opts.eventId != null ? eq(clanJoinRequests.eventId, opts.eventId) : undefined,
+      ),
+    )
     .orderBy(desc(clanJoinRequests.requestedAt));
 
   return Promise.all(

@@ -14,6 +14,9 @@ import SurveyClient from '../survey/SurveyClient';
 import { surveyQuestions } from '@/db/schema';
 import { and } from 'drizzle-orm';
 import { toQuestionView } from '@/lib/survey';
+import { atLeast } from '@/lib/clanRoles';
+import { pendingRequests } from '@/lib/guestAdmission';
+import JoinRequests from '../../../people/JoinRequests';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +35,7 @@ export default async function EventSignupsPage({
   // Settings are per clan, so the clan has to be resolved before anything reads one.
   const clan = await requireClan();
 
-  const [event, confirmationsRequired, signupQuestions] = await Promise.all([
+  const [event, confirmationsRequired, signupQuestions, asking] = await Promise.all([
     // Scoped, not fetched by bare id — see the layout for what that let through.
     requireEventForPage(id),
     getRequiredConfirmations(clan.id),
@@ -43,6 +46,9 @@ export default async function EventSignupsPage({
       .from(surveyQuestions)
       .where(and(eq(surveyQuestions.eventId, id), eq(surveyQuestions.stage, 'signup')))
       .then((rows) => rows.sort((a, b) => a.position - b.position).map(toQuestionView)),
+    // clan-scope: this clan's requests to play THIS board (an approval event on a creator space).
+    // Deciding them is moderator work, as on the People page, so a board treasurer doesn't get them.
+    atLeast(session.role, 'moderator') ? pendingRequests(clan.id, { eventId: id }) : Promise.resolve([]),
   ]);
 
   return (
@@ -51,6 +57,7 @@ export default async function EventSignupsPage({
           person blocked until somebody answers; the card is absent entirely when none are waiting.
           `decide` because an admin's Sign-ups tab is not where somebody asks about their own
           character — that is the team page, where they are a player. */}
+      {asking.length > 0 && <JoinRequests initial={asking} title="Waiting for your yes" />}
       <div className="mb-4">
         <AccountChangeCard eventId={id} mode="decide" />
       </div>
