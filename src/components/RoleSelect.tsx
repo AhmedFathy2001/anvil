@@ -108,7 +108,7 @@ export default function RoleSelect({
             type="button"
             onClick={submitCreate}
             disabled={busy}
-            className="shrink-0 px-3 py-2 text-sm font-semibold rounded-lg bg-gold text-bg hover:bg-gold/90 transition-colors disabled:opacity-50"
+            className="shrink-0 px-3 py-2 text-sm font-semibold rounded-lg bg-gold text-brown-dark hover:bg-gold/90 transition-colors disabled:opacity-50"
           >
             {busy ? 'Creating…' : 'Create'}
           </button>

@@ -18,6 +18,7 @@ import { pluginClansFor } from '@/lib/pluginClans';
 import { combatTaskVarps } from '@/lib/combatTasks';
 import { accountForCharacter, accountStanding, playedCharacter, type PlayedCharacter } from '@/lib/pluginAccount';
 import { h2hDropItemIdsForAccount } from '@/lib/h2h';
+import { clanlessPluginConfig } from '@/lib/pluginConfigClanless';
 
 /** Item ids of this (owned) character's running head-to-head drop races. Never fails the config. */
 async function h2hDropIdsFor(character: PlayedCharacter): Promise<number[]> {
@@ -87,9 +88,14 @@ export async function GET(request: Request) {
   // claim work above runs until the real login sends X-RSN.
   const auth = await verifyPluginToken(request, { hintOnly: pluginRsnHintOnly(request) });
 
-  // See lib/pluginNoClan for why this is answered rather than thrown.
+  // See lib/pluginNoClan for why this is answered rather than thrown. The one exception: a person in
+  // no clan who is in a head-to-head drop race gets a minimal config carrying that race's items, so
+  // their plugin reports the drop (lib/pluginConfigClanless).
   const clan = await resolvePluginClan(request);
-  if (!clan) return noClanForPlugin();
+  if (!clan) {
+    const clanless = await clanlessPluginConfig(request);
+    return clanless ? jsonWithEtag(request, clanless) : noClanForPlugin();
+  }
   if (!auth) {
     // Distinguish "bad token" from "valid token but no active event" so the plugin
     // doesn't surface a misleading "failed to connect" when the user just isn't

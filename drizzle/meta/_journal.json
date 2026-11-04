@@ -1018,10 +1018,24 @@
       "breakpoints": true
     },
     {
-      "idx": 201,
+      "idx": 202,
       "version": "7",
-      "when": 1793792374614,
-      "tag": "0201_events_directory_index",
+      "when": 1793792554614,
+      "tag": "0202_display_case_stat_pins",
+      "breakpoints": true
+    },
+    {
+      "idx": 203,
+      "version": "7",
+      "when": 1793792614614,
+      "tag": "0203_creator_plan_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 204,
+      "version": "7",
+      "when": 1793792674614,
+      "tag": "0204_events_directory_index",
       "breakpoints": true
     }
   ]

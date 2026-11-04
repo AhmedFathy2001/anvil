@@ -259,3 +259,18 @@ test('an owner counts as staff for the probe, since owner outranks admin', async
   await staff(alpha, owner.userId, 'owner');
   assert.equal(await A.staffsAnyClan(owner.userId, 'admin'), true);
 });
+
+test('a sign-in made with "Sign in with Discord" records when it was last used', async () => {
+  const p = await person('signedin');
+  await db.insert(s.pluginLinks).values({ userId: p.userId, tokenHash: tokenHash('device-token') });
+  assert.deepEqual(await A.verifyPluginTokenUser(req('device-token')), { userId: p.userId });
+  const { eq } = await import('drizzle-orm');
+  // The write is fire-and-forget: give it a moment.
+  let row;
+  for (let i = 0; i < 20; i++) {
+    [row] = await db.select().from(s.pluginLinks).where(eq(s.pluginLinks.tokenHash, tokenHash('device-token')));
+    if (row.lastUsedAt) break;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  assert.ok(row?.lastUsedAt, 'last used is written on use');
+});

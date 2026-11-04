@@ -7,6 +7,7 @@ import ClanCrest from '@/components/ClanCrest';
 import ClanLink from '@/components/ClanLink';
 import MotionImg from '@/components/MotionImg';
 import type { ClanFocus } from '@/lib/clanHome';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export interface LookupClan {
   slug: string;
@@ -69,8 +70,14 @@ const FOCUS_LABEL: Record<ClanFocus, string> = {
  *
  * Sorted by ACTIVITY by default, not alphabetically. A directory ordered by name tells you who is
  * called what; ordered by who is playing, the first card is somewhere worth clicking.
+ *
+ * CLANS AND CREATORS APART. A creator space (lib/creatorSpaces) is not a clan — no in-game clan, no
+ * members — so the clan list, its counts and its filters are clans only, and listed creator spaces
+ * get their own "Creators" section below (featured ones first), matched by the same search box.
  */
-export default function ClanLookup({ clans }: { clans: LookupClan[] }) {
+export default function ClanLookup({ clans: everything }: { clans: LookupClan[] }) {
+  const clans = useMemo(() => everything.filter((c) => !isCreatorSpace(c)), [everything]);
+  const creators = useMemo(() => everything.filter((c) => isCreatorSpace(c)), [everything]);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<Sort>('active');
   const [filter, setFilter] = useState<Filter>('any');
@@ -91,17 +98,30 @@ export default function ClanLookup({ clans }: { clans: LookupClan[] }) {
     return [...filtered].sort((a, b) => {
       if (sort === 'name') return a.name.localeCompare(b.name);
       if (sort === 'size') return b.members - a.members || a.name.localeCompare(b.name);
-      // Featured creator spaces first (a Silver+ perk), then activity, and the share that played
-      // breaks the tie — so a small clan that all turned up outranks a large one where the same
-      // number did.
-      return (
-        Number(!!b.featured) - Number(!!a.featured) ||
-        b.activeThisWeek - a.activeThisWeek ||
-        share(b) - share(a) ||
-        a.name.localeCompare(b.name)
-      );
+      // Activity, and the share that played breaks the tie — so a small clan that all turned up
+      // outranks a large one where the same number did.
+      return b.activeThisWeek - a.activeThisWeek || share(b) - share(a) || a.name.localeCompare(b.name);
     });
   }, [clans, query, sort, filter]);
+
+  // Creators: the search applies; the clan filters (taking members, challenges) do not. Featured
+  // spaces first (a Silver+ perk, lib/creatorPlans featuredListing), then whoever is live, then
+  // events run.
+  const shownCreators = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? creators.filter(
+          (c) => c.name.toLowerCase().includes(q) || c.slug.includes(q) || (c.tagline ?? '').toLowerCase().includes(q),
+        )
+      : creators;
+    return [...filtered].sort(
+      (a, b) =>
+        Number(!!b.featured) - Number(!!a.featured) ||
+        Number(!!b.doing) - Number(!!a.doing) ||
+        (b.events ?? 0) - (a.events ?? 0) ||
+        a.name.localeCompare(b.name),
+    );
+  }, [creators, query]);
 
   // The platform at a glance — the same four-cell strip the Hall of Records opens its clans with.
   const totals = useMemo(
@@ -213,6 +233,24 @@ export default function ClanLookup({ clans }: { clans: LookupClan[] }) {
         </div>
       )}
 
+      {shownCreators.length > 0 && (
+        <section id="creators" className="mt-10 scroll-mt-24">
+          <div className="mb-1 flex items-center gap-2.5">
+            <span className="h-5 w-1 rounded-sm bg-gold" />
+            <h2 className="text-[16.5px] font-semibold">Creators</h2>
+            <span className="font-mono text-[11px] text-text-dim">{shownCreators.length}</span>
+          </div>
+          <p className="mb-3 text-[13px] text-text-muted">
+            Streamers and groups hosting events on Anvil without an in-game clan. Anyone can play.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {shownCreators.map((c) => (
+              <Card key={c.slug} clan={c} />
+            ))}
+          </div>
+        </section>
+      )}
+
       <p className="mt-6 text-xs text-text-dim">
         Every clan here chose to be listed. A clan that keeps to itself is still reachable by link if
         it allows that — being unlisted is not the same as being private.
@@ -302,7 +340,7 @@ function Card({ clan }: { clan: LookupClan }) {
 
         {clan.seat && (
           <span className="absolute left-3 top-3 rounded-md border border-gold/40 bg-brown-dark/80 px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.12em] text-gold backdrop-blur-sm">
-            {clan.seat === 'member' ? 'Your clan' : 'You’re a guest'}
+            {clan.kind === 'creator' ? 'You play here' : clan.seat === 'member' ? 'Your clan' : 'You’re a guest'}
           </span>
         )}
         {clan.doing && (
@@ -404,7 +442,7 @@ function Card({ clan }: { clan: LookupClan }) {
             )}
             {clan.openToChallenges && <Tag tone="red">Open to challenges</Tag>}
             <span className="ml-auto text-[12px] text-text-dim transition-colors group-hover:text-gold">
-              {clan.seat ? 'Open →' : 'View clan →'}
+              {clan.seat ? 'Open →' : clan.kind === 'creator' ? 'View space →' : 'View clan →'}
             </span>
           </div>
         </div>

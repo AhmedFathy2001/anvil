@@ -319,7 +319,7 @@ export function homeUi(d: HomeData): Node {
       cards.push(drillCard(s.title || on.name, lines, { a: 'load', v: 'board', args: { event: String(s.id) } }, `Open ${s.title || on.name}`));
       continue;
     }
-    cards.push(drillCard(s.title || 'Bingo', [text(scheduledKind(s), LIGHT), muted(clip(timing ?? sizeLabel(s), 30)), muted(clip(live ? 'Running — you’re not in it' : sizeLabel(s), 30))], home(`event:${s.id}`)));
+    cards.push(drillCard(s.title || 'Bingo', [text(scheduledKind(s), LIGHT), muted(clip(timing ?? sizeLabel(s), 30)), muted(clip(live ? 'Running — you’re not in it' : sizeLabel(s), 30)), ...gateLine(s)], home(`event:${s.id}`)));
   }
   for (const ce of d.clanEvents ?? []) cards.push(drillCard(ce.title, clanEventLines(ce), home(`clan-event:${ce.id}`)));
   if (cards.length) parts.push(...heading('Events'), ...cards.flatMap((c, i) => (i ? [gap(8), c] : [c])));
@@ -693,6 +693,15 @@ function standingRow(w: ScheduleWeekly, r: WeeklyStanding): Node {
   return row(text(String(r.rank), 'muted', { w: 22, align: 'r' }), text(clip(r.rsn, 16), r.self ? 'brand' : 'text', { tip: r.rsn, who: r.rsn }), text(`+${weeklyGain(w, r.gained)}`, r.self ? 'brand' : 'muted', { align: 'r' }));
 }
 
+/**
+ * Who may join a gated event, in a few words ("Subs only (Twitch)", "Discord role: Raiders") — from
+ * the schedule's `gate` (lib/entryGates gatesShortLabel). Nothing on an open event, or once you're in.
+ */
+export function gateLine(s: ScheduleBingo): Node[] {
+  if (!s.gate || s.yourEntry === 'entered') return [];
+  return [text(clip(s.gate, 30), 'brand', { tip: `Who can join: ${s.gate}` })];
+}
+
 function scheduledPage(d: HomeData, s: ScheduleBingo): Node[] {
   const live = s.status === 'active';
   const timing = timingLabel(!live, s.startDate, s.endDate, d.now);
@@ -709,6 +718,7 @@ function scheduledPage(d: HomeData, s: ScheduleBingo): Node[] {
       ...(timing ? [text(timing, live ? 'done' : 'muted')] : []),
       ...(sizeLabel(s) ? [muted(sizeLabel(s))] : []),
       gap(4),
+      ...gateLine(s),
       entry,
       siteLink('View event', 'Open this event on the Anvil site', `${d.clanPath}/events/${s.id}`),
     ]),

@@ -1,10 +1,16 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
 import PendingBadge from '@/components/PendingBadge';
+import CreatorChip from '@/components/CreatorChip';
+import { groupClansAndSpaces } from '@/lib/creatorSpaces';
+import SupporterName from '@/components/SupporterName';
+import type { SupporterStyle } from '@/lib/supporterStyle';
+import type { SupporterTierId } from '@/lib/supporterTiers';
 
 export interface RailClan {
   slug: string;
@@ -13,6 +19,8 @@ export interface RailClan {
   logoUrl?: string | null;
   /** Something is running there right now — the one thing worth a dot in a nav. */
   live?: boolean;
+  /** 'clan' | 'creator' (lib/creatorSpaces). Creator spaces list under "Your spaces", not "Your clans". */
+  kind?: string;
 }
 
 /**
@@ -41,6 +49,8 @@ export default function PlatformRail({
   clans,
   signedIn,
   displayName,
+  avatarUrl = null,
+  supporter = null,
   characterCount,
   myProfileHref,
   platformStaff,
@@ -50,6 +60,10 @@ export default function PlatformRail({
   clans: RailClan[];
   signedIn: boolean;
   displayName: string | null;
+  /** Their uploaded avatar, else their Discord one (resolved by the root layout); null draws the initial. */
+  avatarUrl?: string | null;
+  /** Their Supporter look, for their own name in the account block. */
+  supporter?: { tier: SupporterTierId; style: SupporterStyle | null } | null;
   characterCount?: number;
   /** The signed-in person's own profile — their main character's page, or their locker. */
   myProfileHref?: string | null;
@@ -61,6 +75,8 @@ export default function PlatformRail({
   guideLibrary?: boolean;
 }) {
   const pathname = usePathname() ?? '/';
+  // A Discord avatar hash goes stale when they change it there; a broken image falls back to the initial.
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   const item = (href: string, label: string, icon: React.ReactNode, exact = href === '/', badge?: { count: number; title: string } | null) => {
     // Prefix match, so /guide/<page> keeps Guides lit. Exact for the root, and for the Clan Hall:
@@ -121,21 +137,23 @@ export default function PlatformRail({
         {guideLibrary && item('/staff/guides', 'Guide library', <ShieldIcon />)}
       </div>
 
-      {clans.length > 0 && (
-        <div className="flex min-h-0 shrink-0 gap-0.5 lg:flex-col">
+      {/* "Your clans", then "Your spaces" (creator spaces are not clans — lib/creatorSpaces). An
+          empty group is left out, so somebody with only a space sees no empty clans heading. */}
+      {groupClansAndSpaces(clans, (c) => c.kind).map((g) => (
+        <div key={g.key} className="flex min-h-0 shrink-0 gap-0.5 lg:flex-col">
           {/* A divider only where the row is horizontal. On the desktop rail the section heading
               below already does this job, and a rule as well would be one line too many. */}
           <span aria-hidden className="mx-1 w-px self-stretch bg-card-border lg:hidden" />
           <div className="hidden items-center gap-2 px-2.5 pb-1.5 lg:flex">
             <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-dim">
-              Your clans
+              {g.label}
             </span>
-            <span className="font-mono text-[10px] text-text-dim/70">{clans.length}</span>
+            <span className="font-mono text-[10px] text-text-dim/70">{g.items.length}</span>
           </div>
           {/* Capped and scrolling: guesting into other clans' events is meant to be ordinary, so a
               dozen seats is a normal account. A rail listing all of them pushes the nav off screen. */}
           <div className="flex gap-0.5 lg:max-h-[min(34vh,320px)] lg:flex-col lg:overflow-y-auto">
-            {clans.map((c) => (
+            {g.items.map((c) => (
               <ClanLink
                 key={c.slug}
                 href={`/c/${c.slug}`}
@@ -143,6 +161,7 @@ export default function PlatformRail({
               >
                 <ClanCrest name={c.name} logoUrl={c.logoUrl} size={18} />
                 <span className="truncate">{c.name}</span>
+                {g.key === 'spaces' && <CreatorChip />}
                 {c.live && (
                   <span
                     className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-accent-green-light"
@@ -153,7 +172,7 @@ export default function PlatformRail({
             ))}
           </div>
         </div>
-      )}
+      ))}
 
       {/* THE WAY IN, which the rail did not have.
           /clans/new was reachable from pricing, about, the portal and both landing pages — every
@@ -183,11 +202,32 @@ export default function PlatformRail({
         {signedIn ? (
           <>
             <ClanLink href="/profile" className="group flex min-w-0 items-center gap-2.5">
-              <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#4a3b2a] to-[#2a211a] text-[11px] font-semibold text-gold">
-                {(displayName ?? '?').charAt(0).toUpperCase()}
-              </span>
+              {avatarUrl && !avatarFailed ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarUrl}
+                  alt=""
+                  width={26}
+                  height={26}
+                  referrerPolicy="no-referrer"
+                  onError={() => setAvatarFailed(true)}
+                  className="h-[26px] w-[26px] shrink-0 rounded-full object-cover"
+                />
+              ) : (
+                <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#4a3b2a] to-[#2a211a] text-[11px] font-semibold text-gold">
+                  {(displayName ?? '?').charAt(0).toUpperCase()}
+                </span>
+              )}
               <span className="min-w-0 text-[13px] group-hover:text-gold">
-                <span className="block truncate">{displayName ?? 'You'}</span>
+                <span className="block truncate">
+                  <SupporterName
+                    name={displayName ?? 'You'}
+                    tier={supporter?.tier}
+                    style={supporter?.style}
+                    plain
+                    className="max-w-full align-middle"
+                  />
+                </span>
                 {characterCount != null && (
                   <span className="hidden font-mono text-[10.5px] text-text-dim lg:block">
                     {characterCount} character{characterCount === 1 ? '' : 's'}

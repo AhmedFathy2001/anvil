@@ -3,20 +3,18 @@
 import { useEffect, useState } from 'react';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
-import { checkStreamLink } from '@/lib/creatorSpaces';
 import YoutubeChannel from './YoutubeChannel';
 import KickChannel from './KickChannel';
 
 /**
- * A creator space's settings: the name, the stream links shown on its page, and whether Anvil may
+ * A creator space's settings: the name, the channels its page links to (connected, never typed),
+ * and whether Anvil may
  * advertise it (the clans directory, and the space's events on the "Open to everyone" feed once
  * they are advertised too). Off by default — a creator space starts unlisted.
  */
 export default function CreatorSettings() {
   const [loaded, setLoaded] = useState(false);
   const [name, setName] = useState('');
-  const [twitch, setTwitch] = useState('');
-  const [kick, setKick] = useState('');
   const [advertised, setAdvertised] = useState(false);
   const [chatJoin, setChatJoin] = useState(false);
   const [twitchLinked, setTwitchLinked] = useState<{ login: string } | null>(null);
@@ -34,8 +32,6 @@ export default function CreatorSettings() {
       .then((d) => {
         if (!alive || !d) return;
         setName(d.name ?? '');
-        setTwitch(d.twitchUrl ?? '');
-        setKick(d.kickUrl ?? '');
         setAdvertised(!!d.advertised);
         setChatJoin(!!d.chatJoin);
         setTwitchLinked(d.twitchLinked && typeof d.twitchLinked.login === 'string' ? { login: d.twitchLinked.login } : null);
@@ -72,8 +68,6 @@ export default function CreatorSettings() {
   }
 
   if (!loaded) return null;
-  const twitchCheck = checkStreamLink('twitch', twitch);
-  const kickCheck = checkStreamLink('kick', kick);
 
   return (
     <div className="space-y-6">
@@ -82,7 +76,10 @@ export default function CreatorSettings() {
           <span className="h-5 w-1 rounded-full bg-gold" />
           Your space
         </h2>
-        <p className="mb-4 text-sm text-text-muted">The name and links on your page. Links are shown, not connected.</p>
+        <p className="mb-4 text-sm text-text-muted">
+          The name on your page. Your page links to the channels you connect below (Twitch, YouTube, Kick), each marked
+          verified. Links can&apos;t be typed in: connecting proves the channel is yours.
+        </p>
         <div className="space-y-4">
           <div>
             <label htmlFor="creator-name" className="mb-1.5 block text-sm text-foreground/80">
@@ -90,30 +87,19 @@ export default function CreatorSettings() {
             </label>
             <Input id="creator-name" value={name} maxLength={64} onChange={(e) => setName(e.target.value)} className="rounded-xl px-4 py-2.5" />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="creator-twitch" className="mb-1.5 block text-sm text-foreground/80">
-                Twitch
-              </label>
-              <Input id="creator-twitch" value={twitch} placeholder="https://twitch.tv/you" onChange={(e) => setTwitch(e.target.value)} className="rounded-xl px-4 py-2.5" />
-              {!twitchCheck.ok && <p className="mt-1 text-xs text-accent-red">{twitchCheck.error}</p>}
-            </div>
-            <div>
-              <label htmlFor="creator-kick" className="mb-1.5 block text-sm text-foreground/80">
-                Kick
-              </label>
-              <Input id="creator-kick" value={kick} placeholder="https://kick.com/you" onChange={(e) => setKick(e.target.value)} className="rounded-xl px-4 py-2.5" />
-              {!kickCheck.ok && <p className="mt-1 text-xs text-accent-red">{kickCheck.error}</p>}
-            </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              type="button"
+              disabled={saving || !name.trim()}
+              onClick={() => patch({ name })}
+              className="rounded-xl bg-gold px-4 py-2 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <a href="#channels" className="text-sm text-gold hover:text-gold-light">
+              Connect your Twitch, YouTube or Kick channel
+            </a>
           </div>
-          <button
-            type="button"
-            disabled={saving || !name.trim() || !twitchCheck.ok || !kickCheck.ok}
-            onClick={() => patch({ name, twitchUrl: twitch, kickUrl: kick })}
-            className="rounded-xl bg-gold px-4 py-2 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
         </div>
       </section>
 
@@ -149,11 +135,14 @@ export default function CreatorSettings() {
         </div>
       </section>
 
-      <TwitchChannel />
+      {/* The only source of the stream links on the public page (lib/creatorHome creatorLinks). */}
+      <div id="channels" className="scroll-mt-24 space-y-6">
+        <TwitchChannel />
 
-      <YoutubeChannel />
+        <YoutubeChannel />
 
-      <KickChannel />
+        <KickChannel />
+      </div>
 
       <section className="rounded-xl border border-card-border bg-card-bg p-5">
         <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">
@@ -285,8 +274,8 @@ function TwitchChannel() {
         Twitch channel
       </h2>
       <p className="mb-4 text-sm text-text-muted">
-        Connect your channel to let only your followers or subs join an event. Anvil only reads who follows and
-        subscribes.
+        Connect your channel to show it on your page, marked verified, and to let only your followers or subs join an
+        event. Anvil only reads who follows and subscribes.
       </p>
       {ch && !ch.broken ? (
         <div className="flex flex-wrap items-center gap-3">

@@ -34,7 +34,7 @@ interface SetupRow {
 }
 
 const PRIMARY =
-  'px-4 py-2 bg-gold text-bg font-semibold rounded-lg text-sm hover:bg-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+  'px-4 py-2 bg-gold text-brown-dark font-semibold rounded-lg text-sm hover:bg-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 const SECONDARY =
   'px-4 py-2 bg-card-bg-hover border border-card-border text-text font-semibold rounded-lg text-sm hover:border-gold/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 const LINK = 'text-sm text-gold hover:underline';

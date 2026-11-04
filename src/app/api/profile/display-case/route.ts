@@ -16,7 +16,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 // Your display case (Anvil Supporter: 4 slots, Champion 8, Patron 12). Yours only: every call is
-// about the signed-in login, and a pin is accepted only for an item on one of their own verified
+// about the signed-in login, and a pin (item, kill count or time) is accepted only from one of their own verified
 // characters (lib/displayCase). Slots are the tier NOW; removing and reordering work at any tier.
 
 async function session() {

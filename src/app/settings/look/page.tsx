@@ -54,7 +54,7 @@ export default async function LookSettingsPage() {
 
       <SettingsGroup
         title={`Display case${slots ? ` · ${slots} slots` : ''}`}
-        note="Your best drops pinned to your profile. Items from characters you don’t share stay private."
+        note="Your best drops, kill counts and times pinned to your profile. Pins from characters you don’t share stay private."
       >
         <SettingsBlock>
           {slots === 0 && (

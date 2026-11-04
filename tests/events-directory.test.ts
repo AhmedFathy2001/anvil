@@ -39,8 +39,8 @@ before(async () => {
     .values([
       { slug: 'alpha', name: 'Alpha Clan' },
       { slug: 'paid', name: 'Paid Clan', plan: 'bronze' },
-      { slug: 'streamer', name: 'Big Streamer', kind: 'creator', plan: 'silver' },
-      { slug: 'small', name: 'Small Streamer', kind: 'creator' },
+      { slug: 'streamer', name: 'Big Streamer', kind: 'creator', plan: 'creator_silver' },
+      { slug: 'small', name: 'Small Streamer', kind: 'creator', plan: 'creator_free' },
       { slug: 'secret', name: 'Secret Clan', visibility: 'members' },
       { slug: 'gone', name: 'Suspended Clan', status: 'suspended' },
       { slug: 'lab', name: 'Tile Lab', platformHidden: true },

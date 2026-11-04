@@ -248,6 +248,11 @@ function stateText(t: BoardTile, pre: boolean): string | null {
   return `${t.complete ? 'Done' : closedUndone(t) ? 'Closed' : 'Open'}${isManual(t) ? ' (manual)' : ''}`;
 }
 
+/** A read-only board's claim block: who may join, when the host gates entry ("… · Subs only (Twitch)"). */
+export function joinToClaimLine(gate: string | null): string {
+  return gate ? `Join this event to claim tiles · ${gate}` : 'Join this event to claim tiles.';
+}
+
 /** The whole page: counts, the search and the filter, then the list — or `inner` — in slot `tiles`. */
 export function boardUi(board: Board, s: BoardState, ctx: BoardContext, inner: Node): Node {
   const tiles = board.tiles as BoardTile[];

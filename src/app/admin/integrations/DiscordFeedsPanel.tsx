@@ -8,6 +8,7 @@ import LevelRulesEditor from '@/components/LevelRulesEditor';
 import Select, { type SelectOption } from '@/components/Select';
 import { clanFetch } from '@/lib/clanFetch';
 import { FEED_TABS, effectiveKey, type DiscordFeed, type FeedTab } from '@/lib/discordFeeds';
+import { CREATOR_HIDDEN_FEEDS, CREATOR_HIDDEN_FEED_TABS } from '@/lib/creatorSpaces';
 import { DEFAULT_LEVEL_RULES, DEFAULT_XP_RULES, levelHalf, type LevelRules, type MilestoneRules } from '@/lib/levelRules';
 
 interface ModeRow {
@@ -121,8 +122,26 @@ const FALLBACK = '__fallback__';
  * its own, or the one it falls back to, said out loud instead of left to guess. `filters` renders
  * a feed's own settings (drop floors, level rules, death lines) under its row.
  */
-export default function DiscordFeedsPanel({ filters }: { filters?: Partial<Record<NonNullable<DiscordFeed['filters']>, ReactNode>> }) {
-  const [view, setView] = useState<View | null>(null);
+export default function DiscordFeedsPanel({
+  filters,
+  creator = false,
+}: {
+  filters?: Partial<Record<NonNullable<DiscordFeed['filters']>, ReactNode>>;
+  /** A creator space: no weekly, calendar, roster, coffer or co-host rows, and no Game modes tab (lib/creatorSpaces). */
+  creator?: boolean;
+}) {
+  const [rawView, setView] = useState<View | null>(null);
+  const view = useMemo(
+    () => (rawView && creator ? { ...rawView, feeds: rawView.feeds.filter((f) => !CREATOR_HIDDEN_FEEDS.includes(f.id)) } : rawView),
+    [rawView, creator],
+  );
+  const feedTabs = creator
+    ? FEED_TABS.filter((t) => !CREATOR_HIDDEN_FEED_TABS.includes(t.id)).map((t) =>
+        t.id === 'clan' ? { ...t, label: 'Events', blurb: 'What the site posts about your events.' }
+        : t.id === 'game' ? { ...t, blurb: 'What players do in game, sent by the Anvil plugin.' }
+        : t,
+      )
+    : FEED_TABS;
   const [tab, setTab] = useState<FeedTab>('clan');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -197,7 +216,7 @@ export default function DiscordFeedsPanel({ filters }: { filters?: Partial<Recor
   const off = new Set(view.off);
   const catchAllKey = tab === 'game' ? view.catchAlls.game : view.catchAlls.site;
   const rows = view.feeds.filter((f) => f.tab === tab);
-  const tabInfo = FEED_TABS.find((t) => t.id === tab)!;
+  const tabInfo = feedTabs.find((t) => t.id === tab)!;
   const modeHookKeys = new Set(view.modes.rows.map((m) => m.hookKey));
 
   /** The Select for one setting: its channel, the fallback, any server channel, or paste. */
@@ -376,7 +395,7 @@ export default function DiscordFeedsPanel({ filters }: { filters?: Partial<Recor
       )}
 
       <div role="tablist" className="flex flex-wrap gap-1 border-b border-card-border">
-        {FEED_TABS.map((t) => {
+        {feedTabs.map((t) => {
           const list = view.feeds.filter((f) => f.tab === t.id);
           const total = t.id === 'modes' ? view.modes.rows.length : list.length;
           const live =

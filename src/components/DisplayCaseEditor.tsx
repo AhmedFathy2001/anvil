@@ -2,22 +2,46 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 
+import CaseIcon from '@/components/CaseIcon';
 import ClanLink from '@/components/ClanLink';
 import { caseDate, caseGp, DisplayCaseCard } from '@/components/DisplayCase';
 import { clanFetch } from '@/lib/clanFetch';
 import type { DisplayCaseCandidate, DisplayCaseEntry } from '@/lib/displayCase';
 
-// Arranging your display case, on "your account across Anvil". Pins come from your own drops and
-// collection log only (the server proves each one is yours); the slot count is your tier now.
+// Arranging your display case, on "your account across Anvil". Pins come from your own drops,
+// collection log, kill counts and personal bests only (the server proves each one is yours); the slot
+// count is your tier now.
 
 const SHOW = 60;
+
+type Tab = 'item' | 'kc' | 'pb';
+const TABS: { id: Tab; label: string; empty: string }[] = [
+  { id: 'item', label: 'Items', empty: 'Items appear once the plugin has seen your collection log or your drops on a verified character.' },
+  { id: 'kc', label: 'Kill counts', empty: 'Kill counts appear once the hiscores or the plugin show a kill on a verified character.' },
+  { id: 'pb', label: 'Personal bests', empty: 'Times appear once the plugin has seen your personal bests on a verified character.' },
+];
+
+function tabOf(kind: DisplayCaseCandidate['kind']): Tab {
+  return kind === 'kc' || kind === 'pb' ? kind : 'item';
+}
+
+/** One identity for a pin and the candidate it came from, so the picker can say "Pinned". */
+function pinKey(p: Pick<DisplayCaseCandidate, 'kind' | 'accountId' | 'itemId' | 'statKey'>): string {
+  return p.kind === 'kc' || p.kind === 'pb' ? `${p.kind}:${p.accountId}:${p.statKey}` : `${p.kind}:${p.accountId}:${p.itemId}`;
+}
+
+function pinBody(c: DisplayCaseCandidate) {
+  if (c.kind === 'drop') return { kind: 'drop', momentId: c.momentId };
+  if (c.kind === 'clog') return { kind: 'clog', accountId: c.accountId, itemId: c.itemId };
+  return { kind: c.kind, accountId: c.accountId, statKey: c.statKey };
+}
 
 export default function DisplayCaseEditor({ initialPins, slots }: { initialPins: DisplayCaseEntry[]; slots: number }) {
   const [pins, setPins] = useState(initialPins);
   const [candidates, setCandidates] = useState<DisplayCaseCandidate[] | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [source, setSource] = useState<'all' | 'drop' | 'clog'>('all');
+  const [tab, setTab] = useState<Tab>('item');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -41,7 +65,7 @@ export default function DisplayCaseEditor({ initialPins, slots }: { initialPins:
     setError('');
     setBusy(true);
     try {
-      const body = c.kind === 'drop' ? { kind: 'drop', momentId: c.momentId } : { kind: 'clog', accountId: c.accountId, itemId: c.itemId };
+      const body = pinBody(c);
       const res = await clanFetch('/api/profile/display-case', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -84,18 +108,17 @@ export default function DisplayCaseEditor({ initialPins, slots }: { initialPins:
     if (!res.ok) setError('Could not save the new order.');
   }
 
-  const pinnedKeys = useMemo(
-    () => new Set(pins.map((p) => (p.kind === 'clog' ? `clog:${p.accountId}:${p.itemId}` : `drop:${p.accountId}:${p.itemId}`))),
-    [pins],
-  );
+  const pinnedKeys = useMemo(() => new Set(pins.map(pinKey)), [pins]);
   const shown = useMemo(() => {
     if (!candidates) return [];
     const q = query.trim().toLowerCase();
     return candidates
-      .filter((c) => (source === 'all' || c.kind === source) && (!q || c.name.toLowerCase().includes(q) || (c.source ?? '').toLowerCase().includes(q)))
-      .sort((a, b) => (b.valueGp ?? 0) - (a.valueGp ?? 0))
+      .filter((c) => tabOf(c.kind) === tab && (!q || c.name.toLowerCase().includes(q) || (c.source ?? '').toLowerCase().includes(q) || c.rsn.toLowerCase().includes(q)))
+      .sort((a, b) =>
+        tab === 'item' ? (b.valueGp ?? 0) - (a.valueGp ?? 0) : tab === 'kc' ? (b.kc ?? 0) - (a.kc ?? 0) : a.name.localeCompare(b.name),
+      )
       .slice(0, SHOW);
-  }, [candidates, query, source]);
+  }, [candidates, query, tab]);
 
   const full = pins.length >= slots;
 
@@ -131,7 +154,7 @@ export default function DisplayCaseEditor({ initialPins, slots }: { initialPins:
             onClick={() => void (open ? setOpen(false) : openPicker())}
             className="ml-auto rounded-lg border border-card-border px-3 py-1.5 text-sm transition-colors hover:border-gold/45"
           >
-            {open ? 'Done' : '+ Pin an item'}
+            {open ? 'Done' : '+ Add to case'}
           </button>
         )}
       </div>
@@ -163,7 +186,7 @@ export default function DisplayCaseEditor({ initialPins, slots }: { initialPins:
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-text-muted">Nothing pinned yet. Pick from your drops and collection log.</p>
+        <p className="text-sm text-text-muted">Nothing pinned yet. Pick from your drops, collection log, kill counts and personal bests.</p>
       )}
 
       {open && (
@@ -173,43 +196,50 @@ export default function DisplayCaseEditor({ initialPins, slots }: { initialPins:
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search your items"
-              aria-label="Search your items"
+              placeholder="Search"
+              aria-label="Search what you can pin"
               maxLength={60}
               className="min-w-0 flex-1 rounded-lg border border-card-border bg-brown-dark/60 px-3 py-1.5 text-sm"
             />
-            {(['all', 'drop', 'clog'] as const).map((k) => (
+            {TABS.map((t) => (
               <button
-                key={k}
+                key={t.id}
                 type="button"
-                aria-pressed={source === k}
-                onClick={() => setSource(k)}
-                className={`rounded-full border px-2.5 py-1 text-xs ${source === k ? 'border-gold/60 text-gold' : 'border-card-border text-text-muted'}`}
+                aria-pressed={tab === t.id}
+                onClick={() => setTab(t.id)}
+                className={`rounded-full border px-2.5 py-1 text-xs ${tab === t.id ? 'border-gold/60 text-gold' : 'border-card-border text-text-muted'}`}
               >
-                {k === 'all' ? 'All' : k === 'drop' ? 'Drops' : 'Collection log'}
+                {t.label}
               </button>
             ))}
           </div>
           {candidates == null ? (
-            <p className="text-sm text-text-muted">Loading your items…</p>
+            <p className="text-sm text-text-muted">Loading…</p>
           ) : shown.length === 0 ? (
             <p className="text-sm text-text-muted">
-              Nothing here yet. Items appear once the plugin has seen your collection log or your drops on a verified character.
+              {query.trim() ? 'Nothing matches that.' : `Nothing here yet. ${TABS.find((t) => t.id === tab)!.empty}`}
             </p>
           ) : (
             <ul className="max-h-96 divide-y divide-card-border overflow-y-auto rounded-lg border border-card-border">
               {shown.map((c) => {
-                const pinned = pinnedKeys.has(c.kind === 'clog' ? `clog:${c.accountId}:${c.itemId}` : `drop:${c.accountId}:${c.itemId}`);
+                const pinned = pinnedKeys.has(pinKey(c));
                 const gp = caseGp(c.valueGp);
                 const when = caseDate(c.when);
                 return (
                   <li key={c.key} className="flex items-center gap-3 px-3 py-2">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={c.icon} alt="" width={30} height={27} loading="lazy" className="shrink-0 [image-rendering:pixelated]" />
+                    <CaseIcon src={c.icon} width={30} height={27} className="shrink-0 max-h-8 max-w-8 object-contain" />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm">{c.name}</span>
+                      <span className="block truncate text-sm">
+                        {c.headline ? (
+                          <>
+                            <span className="font-mono text-gold-light">{c.headline}</span> {c.name}
+                          </>
+                        ) : (
+                          c.name
+                        )}
+                      </span>
                       <span className="block truncate text-[11.5px] text-text-dim">
-                        {c.kind === 'drop' ? 'Drop' : 'Log'} · {c.rsn}
+                        {c.kind === 'drop' ? 'Drop' : c.kind === 'clog' ? 'Log' : c.kind === 'kc' ? 'Kill count' : 'Personal best'} · {c.rsn}
                         {c.source ? ` · ${c.source}` : ''}
                         {gp ? ` · ${gp}` : ''}
                         {when ? ` · ${when}` : ''}

@@ -25,6 +25,7 @@ import PlainSetting from '@/components/PlainSetting';
 import RoleSetting from '@/components/RoleSetting';
 import DiscordCommandToggles from '@/components/DiscordCommandToggles';
 import RankRulesPanel from '@/components/RankRulesPanel';
+import { creatorHidesDiscordSection } from '@/lib/creatorSpaces';
 
 function Field({ title, children, aside }: { title: string; children?: ReactNode; aside?: ReactNode }) {
   return (
@@ -61,7 +62,10 @@ export default function DiscordSettings({
   funMessagesOn: boolean;
   clanHallOn: boolean;
   siteUrl: string;
-  /** A creator space (lib/creatorSpaces): no members-vs-guests settings. */
+  /**
+   * A creator space (lib/creatorSpaces): no members-vs-guests settings, no role or nickname sync,
+   * commands or Clan Hall card, and no clan-only feeds.
+   */
   creator?: boolean;
 }) {
   // Bumped after quick setup rewrites the routing, so the by-hand fields remount and re-read it.
@@ -106,7 +110,10 @@ export default function DiscordSettings({
         {botEnabled && (
           <>
             <p className="text-sm text-text-muted">
-              One bot connects your channels, syncs roles and nicknames, and makes team channels. Use the shared Anvil
+              {creator
+                ? 'One bot connects your channels, checks Discord roles for your entry rules, and makes team channels.'
+                : 'One bot connects your channels, syncs roles and nicknames, and makes team channels.'}{' '}
+              Use the shared Anvil
               bot or bring your own; either way it has to be <strong className="text-foreground">invited to your server</strong>.
               The status below says whether it is, and the invite asks Discord for exactly the permissions it needs.
             </p>
@@ -122,7 +129,7 @@ export default function DiscordSettings({
           settingKey="discord_invite_url"
           label="Discord invite link"
           placeholder="https://discord.gg/your-invite"
-          helpText="Shown as the Discord link in the top menu and on your clan's home page. Hidden when blank."
+          helpText={`Shown as the Discord link in the top menu and on your ${creator ? 'space' : "clan's"} home page. Hidden when blank.`}
         />
       </FoldSection>
 
@@ -135,6 +142,7 @@ export default function DiscordSettings({
       >
         <DiscordFeedsPanel
           key={panelKey}
+          creator={creator}
           filters={{
             drops: (
               <>
@@ -204,26 +212,36 @@ export default function DiscordSettings({
         <EventPostDefaultsPanel />
       </FoldSection>
 
-      <FoldSection id="discord-roles" sprite="bandos" title="Roles & nicknames" summary="Who gets pinged, and keeping Discord roles and names in step with the clan.">
+      {/* A creator space has no roster to sync roles or nicknames from: it keeps the ping role only. */}
+      <FoldSection
+        id="discord-roles"
+        sprite="bandos"
+        title={creator ? 'Ping role' : 'Roles & nicknames'}
+        summary={creator ? 'The role pinged when one of your events starts or finishes.' : 'Who gets pinged, and keeping Discord roles and names in step with the clan.'}
+      >
         <RoleSetting
           settingKey="discord_member_ping_role_id"
           label="Ping this role for big news"
           helpText="Pinged when an event starts or finishes. “No role” means no ping."
         />
-        <Divider />
-        <Field title="Match Discord to the clan" aside={<GuideLink href="/guide/discord#roles">How role sync works</GuideLink>}>
-          Give linked members their rank and default roles, and optionally set nicknames to their in-game name.
-        </Field>
-        <DiscordRoleSyncSettings />
-        <div>
-          <p className="font-medium mb-1">Roles the sync gives out</p>
-          <DiscordAssignedRoles />
-        </div>
-        <Divider />
-        <Field title="Rank rules">
-          Give Discord roles from in-game rank, adding up as people climb. Runs with the role sync above, so keep that on.
-        </Field>
-        <RankRulesPanel />
+        {!creator && (
+          <>
+            <Divider />
+            <Field title="Match Discord to the clan" aside={<GuideLink href="/guide/discord#roles">How role sync works</GuideLink>}>
+              Give linked members their rank and default roles, and optionally set nicknames to their in-game name.
+            </Field>
+            <DiscordRoleSyncSettings />
+            <div>
+              <p className="font-medium mb-1">Roles the sync gives out</p>
+              <DiscordAssignedRoles />
+            </div>
+            <Divider />
+            <Field title="Rank rules">
+              Give Discord roles from in-game rank, adding up as people climb. Runs with the role sync above, so keep that on.
+            </Field>
+            <RankRulesPanel />
+          </>
+        )}
       </FoldSection>
 
       <FoldSection id="discord-team-channels" sprite="emblem" title="Team channels" summary="A private channel for each team during an event.">
@@ -233,15 +251,18 @@ export default function DiscordSettings({
         <DiscordTeamChannelSettings />
       </FoldSection>
 
-      {clanHallOn && (
+      {/* Not in a creator space (lib/creatorSpaces CREATOR_HIDDEN_DISCORD_SECTIONS): no public clan page, no clan commands. */}
+      {clanHallOn && !(creator && creatorHidesDiscordSection('discord-clan-hall')) && (
         <FoldSection id="discord-clan-hall" sprite="petRock" title="Clan Hall card" summary="Shows who’s online in your Discord on your public clan page.">
           <DiscordWidgetSettings />
         </FoldSection>
       )}
 
-      <FoldSection id="discord-commands" sprite="hammer" title="Commands" summary="Slash commands work by themselves. Switch off any your server doesn’t need.">
-        <DiscordCommandToggles />
-      </FoldSection>
+      {!(creator && creatorHidesDiscordSection('discord-commands')) && (
+        <FoldSection id="discord-commands" sprite="hammer" title="Commands" summary="Slash commands work by themselves. Switch off any your server doesn’t need.">
+          <DiscordCommandToggles />
+        </FoldSection>
+      )}
 
       {/* Last on purpose: pasting channel links by hand is the fallback for a server that can't take
           the bot, not a step anyone should start with. */}
@@ -251,7 +272,7 @@ export default function DiscordSettings({
         title="Post without a bot"
         summary={
           creator
-            ? 'Can’t add the bot? Paste a channel’s link from Discord instead. Also the Leagues icon.'
+            ? 'Can’t add the bot? Paste a channel’s link from Discord instead.'
             : 'Can’t add the bot? Paste a channel’s link from Discord instead. Also guests’ posts and the Leagues icon.'
         }
       >

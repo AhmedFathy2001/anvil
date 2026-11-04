@@ -15,6 +15,7 @@ import {
   unique,
   index,
   primaryKey,
+  check,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import type { ClanEventChannels, PickedChannel } from '../lib/clanEventChannels';
@@ -79,6 +80,8 @@ export const clans = pgTable('clans', {
   status: text('status').notNull().default('active'),
   // Entitlement tier. Gates the bot-backed features and the stat-sweep cadence, so a free clan
   // cannot consume the shared Discord and Jagex budgets the paid ones fund.
+  // A creator space holds an id from its own catalogue ('creator_free' …, lib/creatorCatalog) — it
+  // must be given one explicitly, since the default is a clan tier (`clans_plan_matches_kind`).
   plan: text('plan').notNull().default('free'),
   // Max active roster members for the plan; mirrors what MEMBER_CAP carried per container.
   memberCap: integer('member_cap'),
@@ -170,6 +173,9 @@ export const clans = pgTable('clans', {
   // that should be impossible rather than merely unlikely.
   uniqueIndex('clans_gumroad_subscription_unique').on(table.gumroadSubscriptionId),
   uniqueIndex('clans_gumroad_ref_unique').on(table.gumroadRef),
+  // A creator space is billed from the creator catalogue (lib/creatorCatalog, ids 'creator_…') and a
+  // clan from the clan ladder (lib/plans), never the other way round (migration 0203).
+  check('clans_plan_matches_kind', sql`(${table.kind} = 'creator') = (left(${table.plan}, 8) = 'creator_')`),
 ]);
 
 /**
@@ -4348,23 +4354,27 @@ export const profileMedia = pgTable('profile_media', {
 
 /**
  * One pinned item in a person's display case. 'clog' points at an obtained collection-log slot
- * (account + item), 'drop' at a drop moment. The owner, the character and the item are re-checked
+ * (account + item), 'drop' at a drop moment, 'kc' / 'pb' at a kill count or personal best of the
+ * character (stat_key; item_id is 0). The owner, the character and the item are re-checked
  * on every read, so a pin to something no longer theirs simply stops showing.
  */
 export const displayCaseItems = pgTable('display_case_items', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   position: integer('position').notNull().default(0),
-  /** 'clog' | 'drop' */
+  /** 'clog' | 'drop' | 'kc' | 'pb' */
   kind: text('kind').notNull(),
   accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   itemId: integer('item_id').notNull(),
   momentId: integer('moment_id').references(() => moments.id, { onDelete: 'cascade' }),
+  /** 'kc': hiscores boss key; 'pb': "<teamSize>:<activity>" (lib/displayCaseStats). Null for items. */
+  statKey: text('stat_key'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('display_case_items_user_idx').on(t.userId, t.position),
   uniqueIndex('display_case_items_clog_unique').on(t.userId, t.accountId, t.itemId).where(sql`kind = 'clog'`),
   uniqueIndex('display_case_items_drop_unique').on(t.userId, t.momentId).where(sql`kind = 'drop'`),
+  uniqueIndex('display_case_items_stat_unique').on(t.userId, t.kind, t.accountId, t.statKey).where(sql`kind in ('kc', 'pb')`),
 ]);
 
 export type ProfileMedia = typeof profileMedia.$inferSelect;

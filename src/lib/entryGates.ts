@@ -281,6 +281,51 @@ export function gatesSummary(gates: EntryGates, ctx: GateContext): string {
   return `Open to ${joinOr(labels)}.`;
 }
 
+/**
+ * Who a rule lets in, in a few words — for a list row or an in-game panel line where the full
+ * sentence will not fit ("Subs (Twitch)", "Followers (Kick)", "Discord role: Raiders", "Boosters").
+ * No host names: the line sits under the event's own title, which already says whose it is.
+ */
+export function ruleShortLabel(rule: GateRule): string {
+  switch (rule.kind) {
+    case 'twitch-follow':
+      return 'Followers (Twitch)';
+    case 'twitch-sub':
+      return rule.tier === 1 ? 'Subs (Twitch)' : `Tier ${rule.tier}+ subs (Twitch)`;
+    case 'discord-role':
+      return `Discord role: ${(rule.roleName || 'a role').slice(0, 32)}`;
+    case 'discord-booster':
+      return 'Boosters';
+    case 'youtube-sub':
+      return 'Subscribers (YouTube)';
+    case 'youtube-member':
+      return 'Members (YouTube)';
+    case 'kick-follow':
+      return 'Followers (Kick)';
+    case 'kick-sub':
+      return 'Subs (Kick)';
+  }
+}
+
+/**
+ * The whole gate in a few words: "Subs only (Twitch)" for a lone sub rule, else the rules joined with
+ * "or" ("Followers (Kick) or Boosters"). Null when nothing gates the event. Past three rules the rest
+ * become "+N more" so a panel line stays a line.
+ */
+export function gatesShortLabel(gates: EntryGates | null | undefined): string | null {
+  const rules = gates?.anyOf ?? [];
+  if (rules.length === 0) return null;
+  if (rules.length === 1) {
+    const only = rules[0];
+    if (only.kind === 'twitch-sub' && only.tier === 1) return 'Subs only (Twitch)';
+    if (only.kind === 'kick-sub') return 'Subs only (Kick)';
+    return ruleShortLabel(only);
+  }
+  const shown = rules.slice(0, 3).map(ruleShortLabel);
+  const more = rules.length - shown.length;
+  return more > 0 ? `${shown.join(', ')} +${more} more` : joinOr(shown);
+}
+
 function joinOr(items: string[]): string {
   if (items.length <= 1) return items[0] ?? '';
   return `${items.slice(0, -1).join(', ')} or ${items[items.length - 1]}`;

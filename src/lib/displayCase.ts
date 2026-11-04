@@ -1,10 +1,13 @@
-// The display case: a row of a person's best drops on their profile (Anvil Supporter — 4 slots,
+// The display case: a row of a person's best drops, kill counts and times on their profile (Anvil Supporter — 4 slots,
 // Champion 8, Patron 12). The slot count is lib/profileMediaRules; this is the database half.
 //
 // PINS COME FROM THEIR OWN VERIFIED RECORD, never from a typed-in item: an obtained collection-log
-// slot the plugin reported (member_clog_items) or a drop moment (moments), on a character that is
-// theirs and proven theirs. Both are re-checked on every read, so a character that leaves them, an
-// item that drops out of the log, or a deleted moment stops showing with no write.
+// slot the plugin reported (member_clog_items), a drop moment (moments), a boss kill count (the
+// hiscores snapshot raised by the plugin's live push — account_stat_snapshots + accounts.live_stats)
+// or a personal best the plugin reported (member_personal_bests), on a character that is theirs and
+// proven theirs. All are re-checked on every read, so a character that leaves them, an item that
+// drops out of the log, or a deleted moment stops showing with no write — and a kill count or a time
+// shows its CURRENT value, never the one at pinning.
 //
 // PRIVACY. A pin names the character it came from. On a public page that is only allowed for a
 // character its owner SHARES — the same rule as /u/ and /p/ — so a pin from a private character is
@@ -13,10 +16,30 @@
 import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, displayCaseItems, memberClogItems, moments, users } from '@/db/schema';
+import {
+  accounts,
+  accountStatSnapshots,
+  clanMemberships,
+  displayCaseItems,
+  memberClogItems,
+  memberPersonalBests,
+  moments,
+  users,
+} from '@/db/schema';
 import { clogItemNames, clogPageOfItem } from '@/lib/clogDataset';
 import { getItemPrices } from '@/lib/itemPrices';
-import { itemIconUrl } from '@/lib/tileIcons';
+import { activityImageUrl, bossImageForStatKey, itemIconUrl, wikiImageUrl } from '@/lib/tileIcons';
+import {
+  bossKillcounts,
+  formatPersonalBest,
+  kcHeadline,
+  kcLabel,
+  parsePbStatKey,
+  pbLabel,
+  pbStatKey,
+  type PinInput,
+  type PinKind,
+} from '@/lib/displayCaseStats';
 import { supporterForUser } from '@/lib/supporter';
 import { DISPLAY_CASE_MAX, displayCaseSlots, visiblePins } from '@/lib/profileMediaRules';
 import type { SupporterTierId } from '@/lib/supporterTiers';
@@ -24,18 +47,28 @@ import type { SupporterTierId } from '@/lib/supporterTiers';
 /** The moment kinds that are an item worth showing off. */
 const DROP_KINDS = ['pet', 'unique', 'loot', 'clog'] as const;
 
+export { parsePinInput, type PinInput } from '@/lib/displayCaseStats';
+
+/** Shown when a boss or activity has no picture of its own. */
+const STAT_FALLBACK_ICON = wikiImageUrl('Stats_icon.png');
+
 export interface DisplayCaseEntry {
   id: number;
   position: number;
-  kind: 'clog' | 'drop';
+  kind: PinKind;
   accountId: number;
   rsn: string;
   /** The character is published (accounts.shared); only these show to anybody but the owner. */
   shared: boolean;
+  /** 0 for a kill count or a time. */
   itemId: number;
+  /** 'kc' / 'pb' only: what the pin is of (lib/displayCaseStats). */
+  statKey: string | null;
+  /** 'kc' / 'pb' only: the main text, "12 KC" / "1:52.40" — the value NOW. */
+  headline: string | null;
   name: string;
   icon: string;
-  /** When it happened, if known: the drop's time, or when the log first showed it. Null = before tracking. */
+  /** When it happened, if known: the drop's time, when the log first showed it, when the time was set. */
   when: string | null;
   kc: number | null;
   /** GE value (the drop's own price, else today's mid). Null for untradeables. */
@@ -48,11 +81,15 @@ export interface DisplayCaseEntry {
 
 export interface DisplayCaseCandidate {
   key: string;
-  kind: 'clog' | 'drop';
+  kind: PinKind;
   accountId: number;
   rsn: string;
   itemId: number;
   momentId: number | null;
+  statKey: string | null;
+  headline: string | null;
+  /** 'kc' only: the count, for sorting. */
+  kc: number | null;
   name: string;
   icon: string;
   when: string | null;
@@ -66,6 +103,61 @@ async function verifiedAccounts(playerId: number) {
     .select({ id: accounts.id, rsn: accounts.rsn, shared: accounts.shared })
     .from(accounts)
     .where(and(eq(accounts.playerId, playerId), isNotNull(accounts.verifiedAt), eq(accounts.provisional, 0)));
+}
+
+/** Each character's boss kill counts now (hiscores raised by the live push), above zero only. */
+async function killcountsOf(accountIds: number[]): Promise<Map<number, Map<string, number>>> {
+  const out = new Map<number, Map<string, number>>();
+  const ids = [...new Set(accountIds)];
+  if (ids.length === 0) return out;
+  const rows = await db
+    .select({ id: accounts.id, live: accounts.liveStats, snapshot: accountStatSnapshots.snapshot })
+    .from(accounts)
+    .leftJoin(accountStatSnapshots, eq(accountStatSnapshots.accountId, accounts.id))
+    .where(inArray(accounts.id, ids));
+  for (const r of rows) out.set(r.id, bossKillcounts(r.snapshot, r.live));
+  return out;
+}
+
+interface Best {
+  activity: string;
+  teamSize: number;
+  centis: number;
+  at: string | null;
+}
+
+/** Each character's personal bests, keyed by the pin's stat key. */
+async function bestsOf(accountIds: number[]): Promise<Map<number, Map<string, Best>>> {
+  const out = new Map<number, Map<string, Best>>();
+  const ids = [...new Set(accountIds)];
+  if (ids.length === 0) return out;
+  const rows = await db
+    .select({
+      accountId: memberPersonalBests.accountId,
+      activity: memberPersonalBests.activity,
+      teamSize: memberPersonalBests.teamSize,
+      centis: memberPersonalBests.centis,
+      achievedAt: memberPersonalBests.achievedAt,
+      updatedAt: memberPersonalBests.updatedAt,
+    })
+    .from(memberPersonalBests)
+    .where(inArray(memberPersonalBests.accountId, ids))
+    .limit(5000);
+  for (const r of rows) {
+    if (!(r.centis > 0)) continue;
+    const m = out.get(r.accountId) ?? new Map<string, Best>();
+    m.set(pbStatKey(r.activity, r.teamSize), { activity: r.activity, teamSize: r.teamSize, centis: r.centis, at: r.achievedAt ?? r.updatedAt ?? null });
+    out.set(r.accountId, m);
+  }
+  return out;
+}
+
+function kcIcon(key: string): string {
+  return bossImageForStatKey(key) ?? STAT_FALLBACK_ICON;
+}
+
+function pbIcon(activity: string): string {
+  return activityImageUrl(activity) ?? STAT_FALLBACK_ICON;
 }
 
 function clogHref(rsn: string, itemId: number): string | null {
@@ -132,12 +224,54 @@ export async function readDisplayCase(userId: number, playerId: number | null): 
     : [];
   const dropById = new Map(dropRows.map((r) => [r.id, r]));
 
+  const kcPins = live.filter((p) => p.kind === 'kc' && p.statKey);
+  const pbPins = live.filter((p) => p.kind === 'pb' && p.statKey);
+  const [kcByAccount, bestsByAccount] = await Promise.all([
+    killcountsOf(kcPins.map((p) => p.accountId)),
+    bestsOf(pbPins.map((p) => p.accountId)),
+  ]);
+
   const names = clogItemNames();
   const prices = await getItemPrices().catch(() => new Map<number, number>());
   const out: DisplayCaseEntry[] = [];
   for (const p of live) {
     const acct = owned.get(p.accountId)!;
-    const base = { id: p.id, position: p.position, accountId: p.accountId, rsn: acct.rsn, shared: !!acct.shared, itemId: p.itemId };
+    const base = {
+      id: p.id,
+      position: p.position,
+      accountId: p.accountId,
+      rsn: acct.rsn,
+      shared: !!acct.shared,
+      itemId: p.itemId,
+      statKey: null,
+      headline: null,
+    };
+    if (p.kind === 'kc' || p.kind === 'pb') {
+      const key = p.statKey;
+      if (!key) continue;
+      if (p.kind === 'kc') {
+        const kc = kcByAccount.get(p.accountId)?.get(key);
+        if (!kc) continue;
+        out.push({ ...base, kind: 'kc', statKey: key, headline: kcHeadline(kc), name: kcLabel(key), icon: kcIcon(key), when: null, kc, valueGp: null, source: null, proofHref: null });
+      } else {
+        const best = bestsByAccount.get(p.accountId)?.get(key);
+        if (!best) continue;
+        out.push({
+          ...base,
+          kind: 'pb',
+          statKey: key,
+          headline: formatPersonalBest(best.centis),
+          name: pbLabel(best.activity, best.teamSize),
+          icon: pbIcon(best.activity),
+          when: best.at,
+          kc: null,
+          valueGp: null,
+          source: null,
+          proofHref: null,
+        });
+      }
+      continue;
+    }
     const proofHref = acct.shared ? clogHref(acct.rsn, p.itemId) : null;
     if (p.kind === 'clog') {
       const row = clogByKey.get(`${p.accountId}:${p.itemId}`);
@@ -153,7 +287,7 @@ export async function readDisplayCase(userId: number, playerId: number | null): 
         source: row.pageName,
         proofHref,
       });
-    } else {
+    } else if (p.kind === 'drop') {
       const row = p.momentId != null ? dropById.get(p.momentId) : undefined;
       if (!row || row.accountId !== p.accountId || row.itemId !== p.itemId) continue;
       out.push({
@@ -221,7 +355,7 @@ export async function displayCaseForPlayer(
   }
 }
 
-/** What they could pin: their collection log and their drops, best first. */
+/** What they could pin: their drops, collection log, kill counts and personal bests. */
 export async function displayCaseCandidates(playerId: number | null): Promise<DisplayCaseCandidate[]> {
   if (playerId == null) return [];
   const accts = await verifiedAccounts(playerId);
@@ -229,7 +363,7 @@ export async function displayCaseCandidates(playerId: number | null): Promise<Di
   const byId = new Map(accts.map((a) => [a.id, a]));
   const ids = accts.map((a) => a.id);
 
-  const [clog, drops, prices] = await Promise.all([
+  const [clog, drops, prices, kcs, bests] = await Promise.all([
     db
       .select({ accountId: memberClogItems.accountId, itemId: memberClogItems.itemId, pageName: memberClogItems.pageName, firstSeenAt: memberClogItems.firstSeenAt })
       .from(memberClogItems)
@@ -244,6 +378,7 @@ export async function displayCaseCandidates(playerId: number | null): Promise<Di
         itemName: moments.itemName,
         valueGp: moments.valueGp,
         source: moments.source,
+        kc: moments.kc,
         occurredAt: moments.occurredAt,
       })
       .from(moments)
@@ -258,10 +393,13 @@ export async function displayCaseCandidates(playerId: number | null): Promise<Di
       .orderBy(sql`${moments.valueGp} desc nulls last`, desc(moments.occurredAt))
       .limit(400),
     getItemPrices().catch(() => new Map<number, number>()),
+    killcountsOf(ids),
+    bestsOf(ids),
   ]);
 
   const names = clogItemNames();
   const out: DisplayCaseCandidate[] = [];
+  const statBase = { itemId: 0, momentId: null, valueGp: null, source: null };
   // One drop per character and item: the same unique twice is one thing to pin.
   const seenDrop = new Set<string>();
   for (const d of drops) {
@@ -276,6 +414,9 @@ export async function displayCaseCandidates(playerId: number | null): Promise<Di
       rsn: byId.get(d.accountId)?.rsn ?? '',
       itemId: d.itemId,
       momentId: d.id,
+      statKey: null,
+      headline: null,
+      kc: d.kc ?? null,
       name: (d.itemName ?? names.get(d.itemId) ?? `Item ${d.itemId}`).slice(0, 80),
       icon: itemIconUrl(d.itemId),
       when: d.occurredAt,
@@ -291,6 +432,9 @@ export async function displayCaseCandidates(playerId: number | null): Promise<Di
       rsn: byId.get(c.accountId)?.rsn ?? '',
       itemId: c.itemId,
       momentId: null,
+      statKey: null,
+      headline: null,
+      kc: null,
       name: names.get(c.itemId) ?? `Item ${c.itemId}`,
       icon: itemIconUrl(c.itemId),
       when: c.firstSeenAt,
@@ -298,31 +442,32 @@ export async function displayCaseCandidates(playerId: number | null): Promise<Di
       source: c.pageName,
     });
   }
+  for (const a of accts) {
+    for (const [key, kc] of kcs.get(a.id) ?? []) {
+      out.push({ ...statBase, key: `kc:${a.id}:${key}`, kind: 'kc', accountId: a.id, rsn: a.rsn, statKey: key, headline: kcHeadline(kc), kc, name: kcLabel(key), icon: kcIcon(key), when: null });
+    }
+    for (const [key, b] of bests.get(a.id) ?? []) {
+      out.push({
+        ...statBase,
+        key: `pb:${a.id}:${key}`,
+        kind: 'pb',
+        accountId: a.id,
+        rsn: a.rsn,
+        statKey: key,
+        headline: formatPersonalBest(b.centis),
+        kc: null,
+        name: pbLabel(b.activity, b.teamSize),
+        icon: pbIcon(b.activity),
+        when: b.at,
+      });
+    }
+  }
   return out;
-}
-
-export type PinInput = { kind: 'clog'; accountId: number; itemId: number } | { kind: 'drop'; momentId: number };
-
-/** Parse a pin request body. Null when it is not one. */
-export function parsePinInput(body: unknown): PinInput | null {
-  if (!body || typeof body !== 'object') return null;
-  const b = body as Record<string, unknown>;
-  const int = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v > 0 && v < 2 ** 31 ? v : null);
-  if (b.kind === 'clog') {
-    const accountId = int(b.accountId);
-    const itemId = int(b.itemId);
-    return accountId && itemId ? { kind: 'clog', accountId, itemId } : null;
-  }
-  if (b.kind === 'drop') {
-    const momentId = int(b.momentId);
-    return momentId ? { kind: 'drop', momentId } : null;
-  }
-  return null;
 }
 
 export type PinResult = { ok: true; id: number } | { ok: false; status: number; error: string };
 
-/** Pin one item, after proving it is theirs and that a slot is free at their tier now. */
+/** Pin one item, kill count or time, after proving it is theirs and that a slot is free at their tier now. */
 export async function pinToDisplayCase(
   userId: number,
   playerId: number | null,
@@ -337,7 +482,33 @@ export async function pinToDisplayCase(
   let accountId: number;
   let itemId: number;
   let momentId: number | null = null;
-  if (input.kind === 'clog') {
+  let statKey: string | null = null;
+  if (input.kind === 'kc' || input.kind === 'pb') {
+    const missing = input.kind === 'kc' ? 'That kill count is not on your character.' : 'That time is not one of your personal bests.';
+    if (!owned.has(input.accountId)) return { ok: false, status: 404, error: missing };
+    if (input.kind === 'kc') {
+      // Only a count above zero: a pin of nothing is not a record.
+      const kc = (await killcountsOf([input.accountId])).get(input.accountId)?.get(input.statKey);
+      if (!kc) return { ok: false, status: 404, error: missing };
+    } else {
+      const pb = parsePbStatKey(input.statKey)!;
+      const row = await db
+        .select({ id: memberPersonalBests.id })
+        .from(memberPersonalBests)
+        .where(
+          and(
+            eq(memberPersonalBests.accountId, input.accountId),
+            eq(memberPersonalBests.activity, pb.activity),
+            eq(memberPersonalBests.teamSize, pb.teamSize),
+          ),
+        )
+        .limit(1);
+      if (row.length === 0) return { ok: false, status: 404, error: missing };
+    }
+    accountId = input.accountId;
+    itemId = 0;
+    statKey = input.statKey;
+  } else if (input.kind === 'clog') {
     if (!owned.has(input.accountId)) return { ok: false, status: 404, error: 'That item is not in your collection log.' };
     const row = await db
       .select({ id: memberClogItems.id })
@@ -368,13 +539,23 @@ export async function pinToDisplayCase(
     // Serialise this person's pins so two quick clicks cannot both take the last slot.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('display_case'), ${userId})`);
     const current = await tx
-      .select({ id: displayCaseItems.id, position: displayCaseItems.position, kind: displayCaseItems.kind, accountId: displayCaseItems.accountId, itemId: displayCaseItems.itemId, momentId: displayCaseItems.momentId })
+      .select({
+        id: displayCaseItems.id,
+        position: displayCaseItems.position,
+        kind: displayCaseItems.kind,
+        accountId: displayCaseItems.accountId,
+        itemId: displayCaseItems.itemId,
+        momentId: displayCaseItems.momentId,
+        statKey: displayCaseItems.statKey,
+      })
       .from(displayCaseItems)
       .where(eq(displayCaseItems.userId, userId));
     const dupe = current.find((c) =>
       input.kind === 'clog'
         ? c.kind === 'clog' && c.accountId === accountId && c.itemId === itemId
-        : c.kind === 'drop' && c.momentId === momentId,
+        : input.kind === 'drop'
+          ? c.kind === 'drop' && c.momentId === momentId
+          : c.kind === input.kind && c.accountId === accountId && c.statKey === statKey,
     );
     if (dupe) return { ok: true as const, id: dupe.id };
     if (current.length >= Math.min(slots, DISPLAY_CASE_MAX)) {
@@ -383,7 +564,7 @@ export async function pinToDisplayCase(
     const position = current.reduce((m, c) => Math.max(m, c.position), -1) + 1;
     const [row] = await tx
       .insert(displayCaseItems)
-      .values({ userId, kind: input.kind, accountId, itemId, momentId, position })
+      .values({ userId, kind: input.kind, accountId, itemId, momentId, statKey, position })
       .returning({ id: displayCaseItems.id });
     return { ok: true as const, id: row.id };
   });

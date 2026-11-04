@@ -5,7 +5,16 @@ import type { ApexHomeView, ClanCard } from '@/lib/apexHome';
 import type { ApexSignals } from '@/lib/apexHomeSignals';
 import type { FoundSeat } from '@/lib/foundYou';
 import DiscoverToggle from '@/components/home/DiscoverToggle';
-import { ArenaHero, CareerWell, Label, Lately, Roster, Standing, StreakBadge } from '@/components/home/ApexSignals';
+import {
+  ArenaHero,
+  CareerWell,
+  Label,
+  Lately,
+  Roster,
+  Standing,
+  StreakBadge,
+  type OwnFlair,
+} from '@/components/home/ApexSignals';
 
 /**
  * The apex, to somebody signed in.
@@ -33,12 +42,15 @@ export default function ApexHome({
   signals,
   displayName,
   found = [],
+  flair = null,
 }: {
   view: ApexHomeView;
   signals: ApexSignals;
   displayName: string;
   /** Roster seats that name-match this login's Discord and nobody has claimed. See lib/foundYou. */
   found?: FoundSeat[];
+  /** The viewer's Supporter look, worn by their own character names on this page. */
+  flair?: OwnFlair | null;
 }) {
   // The arena already IS one of these, in full. Listing it again three inches below was the page
   // saying the same thing twice, which is exactly the flatness the redesign was for.
@@ -71,7 +83,12 @@ export default function ApexHome({
               {greeting()}, {displayName}
             </h1>
             <p className="mt-1 text-[13.5px] text-text-dim">
-              {summary(view.clans.length, runningTotal, view.openSignups.length)}
+              {summary(
+                view.clans.filter((c) => c.clanKind !== 'creator').length,
+                view.clans.filter((c) => c.clanKind === 'creator').length,
+                runningTotal,
+                view.openSignups.length,
+              )}
             </p>
           </div>
           <StreakBadge streak={signals.streak} />
@@ -117,6 +134,7 @@ export default function ApexHome({
                 Your roster
               </Label>
               <Roster
+                flair={flair}
                 characters={view.characters.map((ch) => ({
                   id: ch.id,
                   rsn: ch.rsn,
@@ -138,17 +156,17 @@ export default function ApexHome({
           {signals.milestones.length > 0 && (
             <div>
               <Label>Lately</Label>
-              <Lately milestones={signals.milestones} />
+              <Lately milestones={signals.milestones} flair={flair} />
             </div>
           )}
         </div>
       ) : (
         <div className="flex flex-col gap-10">
-          {signals.arena && <ArenaHero arena={signals.arena} />}
+          {signals.arena && <ArenaHero arena={signals.arena} flair={flair} />}
 
           {/* Directly under the arena when there is one, and leading when there is not — between
               events this is the only thing on the page that is still a contest. */}
-          {signals.standing && <Standing standing={signals.standing} />}
+          {signals.standing && <Standing standing={signals.standing} flair={flair} />}
 
           {live.length > 0 && (
             <Section title="Happening now" note={`${running} running`}>
@@ -282,6 +300,7 @@ export default function ApexHome({
                 Your roster
               </Label>
               <Roster
+                flair={flair}
                 characters={view.characters.map((ch) => ({
                   id: ch.id,
                   rsn: ch.rsn,
@@ -305,7 +324,7 @@ export default function ApexHome({
           {signals.milestones.length > 0 && (
             <div>
               <Label>Lately</Label>
-              <Lately milestones={signals.milestones} />
+              <Lately milestones={signals.milestones} flair={flair} />
             </div>
           )}
         </div>
@@ -444,9 +463,15 @@ function closes(deadline: string | null, startDate: string | null): string {
   return 'sign-ups open';
 }
 
-function summary(clans: number, running: number, signups: number): string {
-  if (clans === 0) return 'Nothing here yet.';
-  const c = `${clans} clan${clans === 1 ? '' : 's'}`;
+/** "2 clans and 1 space" — creator spaces are counted as spaces, never as clans (lib/creatorSpaces). */
+function summary(clans: number, spaces: number, running: number, signups: number): string {
+  if (clans + spaces === 0) return 'Nothing here yet.';
+  const c = [
+    clans > 0 ? `${clans} clan${clans === 1 ? '' : 's'}` : null,
+    spaces > 0 ? `${spaces} space${spaces === 1 ? '' : 's'}` : null,
+  ]
+    .filter(Boolean)
+    .join(' and ');
   const bits: string[] = [];
   if (running > 0) bits.push(`${running} thing${running === 1 ? '' : 's'} running`);
   if (signups > 0) bits.push(`${signups} taking entries`);

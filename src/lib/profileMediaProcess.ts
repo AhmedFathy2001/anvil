@@ -36,7 +36,8 @@ export async function processProfileMedia(
   if (!sniffed) return { ok: false, error: 'Use a PNG, JPEG, GIF or WebP image.' };
 
   // Header only: sharp reads dimensions and the frame count without decoding pixels.
-  let meta: sharp.Metadata;
+  // Typed off the call, not `sharp.Metadata`: sharp 0.35 (what CI installs) has no `sharp` namespace.
+  let meta: Awaited<ReturnType<ReturnType<typeof sharp>['metadata']>>;
   try {
     meta = await sharp(input, { limitInputPixels: lim.maxSide * lim.maxSide, failOn: 'error' }).metadata();
   } catch {
@@ -45,7 +46,8 @@ export async function processProfileMedia(
   // An APNG decodes to its default frame only, so it is a still here whatever it claims.
   const frames = sniffed === 'png' && isAnimatedPng(input) ? 1 : Math.max(1, meta.pages ?? 1);
   const headerError = checkMediaHeader(kind, sniffed, {
-    format: meta.format === 'jpg' ? 'jpeg' : meta.format,
+    // Older sharp said 'jpg'; 0.35 always says 'jpeg'. Kept for both.
+    format: (meta.format as string | undefined) === 'jpg' ? 'jpeg' : meta.format,
     width: meta.width,
     frameHeight: meta.pageHeight ?? meta.height,
     frames,

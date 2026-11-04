@@ -1,7 +1,11 @@
 import ClanLink from '@/components/ClanLink';
+import CreatorChip from '@/components/CreatorChip';
+import { groupClansAndSpaces } from '@/lib/creatorSpaces';
 import { notFound } from 'next/navigation';
 
+import SupporterName from '@/components/SupporterName';
 import { verifyUser } from '@/lib/auth';
+import { supporterForUser } from '@/lib/supporter';
 import { emissionSettingsView } from '@/lib/emissionSettings';
 import { gameClanForAccount } from '@/lib/gameClans';
 import { membershipConflicts } from '@/lib/homeClan';
@@ -51,21 +55,24 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
   const c = characters.find((x) => x.accountId === accountId);
   if (!c) notFound();
 
-  const [seats, gameClan, conflicts, emission, sightings] = await Promise.all([
+  const [seats, gameClan, conflicts, emission, sightings, supporter] = await Promise.all([
     characterSeats(accountId),
     gameClanForAccount(accountId),
     membershipConflicts(session.playerId),
     emissionSettingsView(session.userId, session.playerId),
     alsoPlayedFromByAccount([accountId], session.userId),
+    supporterForUser(session.userId),
   ]);
   const mine = conflicts.filter((x) => x.accountId === accountId);
+  // "Your clans", then "Your spaces": a creator space is not a clan (lib/creatorSpaces).
+  const seatGroups = groupClansAndSpaces(seats, (s) => s.clanKind);
   const others = sightings.get(accountId) ?? [];
   const type = c.accountType ? TYPE_LABEL[c.accountType] : null;
 
   return (
     <>
       <SettingsTitle
-        title={c.rsn}
+        title={<SupporterName name={c.rsn} tier={supporter?.tier.id} style={supporter?.style} plain />}
         badge={
           <>
             {c.isPrimary && <Pill tone="gold">main</Pill>}
@@ -112,7 +119,7 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
       </SettingsGroup>
 
       <SettingsGroup
-        title="Clans"
+        title={seatGroups.some((g) => g.key === 'spaces') ? 'Clans and spaces' : 'Clans'}
         id="clans"
         note={
           seats.some((s) => s.heldByRoster)
@@ -120,7 +127,7 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
             : null
         }
       >
-        {seats.length === 0 && (
+        {!seatGroups.some((g) => g.key === 'clans') && (
           <SettingsRow
             label="Not in a clan"
             description={
@@ -134,7 +141,15 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
             }
           />
         )}
-        {seats.map((s) => (
+        {seatGroups.flatMap((g) => [
+          ...(g.key === 'spaces'
+            ? [
+                <div key="spaces-heading" className="px-4 pt-3 text-[11px] font-medium uppercase tracking-wider text-text-dim">
+                  {g.label}
+                </div>,
+              ]
+            : []),
+          ...g.items.map((s) => (
           <SettingsRow
             key={s.seatId}
             label={
@@ -142,7 +157,11 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
                 <ClanLink href={`/c/${s.clanSlug}/profile`} className="hover:text-gold">
                   {s.clanName}
                 </ClanLink>
-                <Pill tone={s.kind === 'member' ? 'green' : 'muted'}>{s.kind === 'member' ? 'member' : s.clanKind === 'creator' ? 'player' : 'guest'}</Pill>
+                {g.key === 'spaces' ? (
+                  <CreatorChip />
+                ) : (
+                  <Pill tone={s.kind === 'member' ? 'green' : 'muted'}>{s.kind === 'member' ? 'member' : 'guest'}</Pill>
+                )}
               </>
             }
             description={joined(s.joinedAt) ? `Since ${joined(s.joinedAt)}` : undefined}
@@ -163,7 +182,8 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
               </ActionButton>
             )}
           </SettingsRow>
-        ))}
+          )),
+        ])}
         {mine.length > 0 && (
           <SettingsBlock>
             <HomeClanConflicts initial={mine} />
