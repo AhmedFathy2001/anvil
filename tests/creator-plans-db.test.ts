@@ -97,7 +97,7 @@ test('the meter counts one event’s board, and live events are the ones not end
   await db.insert(s.events).values({ clanId: spaceId, name: 'Someday Bingo', boardSize: 5 });
   assert.equal(await P.liveEventCount(spaceId), 1, 'an undated draft is not live either');
   assert.deepEqual(await P.biggestCreatorEvent(spaceId), { id: eventId, name: 'Packed Bingo', players: 50 });
-  assert.equal(await P.creatorPlanOfClan(spaceId), 'free');
+  assert.equal(await P.creatorPlanOfClan(spaceId), 'creator_free', 'a new space starts on the creator catalogue');
 });
 
 test('a full Free event: still seats while generous, says "full" once enforced', async () => {
@@ -113,9 +113,9 @@ test('a full Free event: still seats while generous, says "full" once enforced',
   assert.equal(seat, undefined, 'nobody seated');
 
   // On Bronze there is room again.
-  await db.update(s.clans).set({ plan: 'bronze' }).where(eq(s.clans.id, spaceId));
+  await db.update(s.clans).set({ plan: 'creator_bronze' }).where(eq(s.clans.id, spaceId));
   assert.equal((await enter()).outcome, 'seated');
-  await db.update(s.clans).set({ plan: 'free' }).where(eq(s.clans.id, spaceId));
+  await db.update(s.clans).set({ plan: 'creator_free' }).where(eq(s.clans.id, spaceId));
 
   delete process.env.FREEMIUM_ENFORCED;
   const other = await person('Generous Viewer');
@@ -137,9 +137,9 @@ test('!join: the bot skips a space whose plan lacks it, only once enforced', asy
   assert.deepEqual((await Bot.chatBotChannels()).map((c) => c.clanId), [spaceId]);
   process.env.FREEMIUM_ENFORCED = 'true';
   assert.deepEqual(await Bot.chatBotChannels(), [], 'Free has no !join once enforced');
-  await db.update(s.clans).set({ plan: 'silver' }).where(eq(s.clans.id, spaceId));
+  await db.update(s.clans).set({ plan: 'creator_silver' }).where(eq(s.clans.id, spaceId));
   assert.deepEqual((await Bot.chatBotChannels()).map((c) => c.clanId), [spaceId]);
-  await db.update(s.clans).set({ plan: 'free' }).where(eq(s.clans.id, spaceId));
+  await db.update(s.clans).set({ plan: 'creator_free' }).where(eq(s.clans.id, spaceId));
 });
 
 test('overlay mark: on for a creator space by default, hideable per plan; never on a clan', async () => {
@@ -148,9 +148,9 @@ test('overlay mark: on for a creator space by default, hideable per plan; never 
   assert.equal(await O.readOverlayMark(spaceId), false, 'generous: anyone may hide it');
   process.env.FREEMIUM_ENFORCED = 'true';
   assert.equal(await O.readOverlayMark(spaceId), true, 'Free cannot hide it once enforced');
-  await db.update(s.clans).set({ plan: 'gold' }).where(eq(s.clans.id, spaceId));
+  await db.update(s.clans).set({ plan: 'creator_gold' }).where(eq(s.clans.id, spaceId));
   assert.equal(await O.readOverlayMark(spaceId), false, 'Gold can');
-  await db.update(s.clans).set({ plan: 'free' }).where(eq(s.clans.id, spaceId));
+  await db.update(s.clans).set({ plan: 'creator_free' }).where(eq(s.clans.id, spaceId));
 
   // An ordinary clan's overlay never carries it.
   const [clan] = await db.insert(s.clans).values({ slug: 'plain-clan', name: 'Plain Clan' }).returning();
@@ -174,7 +174,7 @@ test('two sign-ups racing for the last place: exactly one gets it', async () => 
   const [a, b] = await seats(spaceId, 2, 'racer');
   process.env.FREEMIUM_ENFORCED = 'true';
   const signUp = (seat: number) =>
-    P.withEventRoom({ eventId: race, clanPlan: 'free', adding: 1 }, (tx) =>
+    P.withEventRoom({ eventId: race, clanPlan: 'creator_free', adding: 1 }, (tx) =>
       tx.insert(s.eventSignups).values({ eventId: race, clanMemberId: seat, status: 'pending' }).returning(),
     );
   const results = await Promise.allSettled([signUp(a), signUp(b)]);
@@ -207,7 +207,7 @@ test('two creates at once on a one-at-a-time plan: exactly one is made', async (
   assert.equal(r.ok, true);
   if (!r.ok) return;
   const create = (name: string) =>
-    P.withLiveEventSlot({ clanId: r.clanId, clanPlan: 'free' }, (tx) =>
+    P.withLiveEventSlot({ clanId: r.clanId, clanPlan: 'creator_free' }, (tx) =>
       tx.insert(s.events).values({ clanId: r.clanId, name, boardSize: 5, startDate: '2026-11-01T00:00:00.000Z' }).returning(),
     );
   process.env.FREEMIUM_ENFORCED = 'true';
@@ -221,7 +221,7 @@ test('two creates at once on a one-at-a-time plan: exactly one is made', async (
     .values({ clanId: r.clanId, name: 'Ended', boardSize: 5, startDate: '2026-11-01T00:00:00.000Z', forceEndedAt: new Date().toISOString() })
     .returning();
   const resume = () =>
-    P.withLiveEventSlot({ clanId: r.clanId, clanPlan: 'free', exceptEventId: ended.id }, (tx) =>
+    P.withLiveEventSlot({ clanId: r.clanId, clanPlan: 'creator_free', exceptEventId: ended.id }, (tx) =>
       tx.update(s.events).set({ forceEndedAt: null }).where(eq(s.events.id, ended.id)).returning(),
     );
   await assert.rejects(resume(), (e) => e instanceof P.PlanLimitError);
@@ -241,7 +241,7 @@ test('two creates at once on a one-at-a-time plan: exactly one is made', async (
     .insert(s.events)
     .values({ clanId: r.clanId, name: 'Other', boardSize: 5, startDate: '2026-11-01T00:00:00.000Z', forceEndedAt: new Date().toISOString() })
     .returning();
-  await P.withLiveEventSlot({ clanId: r.clanId, clanPlan: 'silver', exceptEventId: other.id }, (tx) =>
+  await P.withLiveEventSlot({ clanId: r.clanId, clanPlan: 'creator_silver', exceptEventId: other.id }, (tx) =>
     tx.update(s.events).set({ forceEndedAt: null }).where(eq(s.events.id, other.id)),
   );
   assert.equal(await P.liveEventCount(r.clanId), 2);
@@ -250,8 +250,8 @@ test('two creates at once on a one-at-a-time plan: exactly one is made', async (
 test('a second live event: refused on Free once enforced, fine on Silver', async () => {
   const CP = await import('../src/lib/creatorPlans.ts');
   const live = await P.liveEventCount(spaceId);
-  assert.equal(CP.newEventVerdict({ clanPlan: 'free', liveEvents: live }).ok, true, 'generous');
+  assert.equal(CP.newEventVerdict({ clanPlan: 'creator_free', liveEvents: live }).ok, true, 'generous');
   process.env.FREEMIUM_ENFORCED = 'true';
-  assert.equal(CP.newEventVerdict({ clanPlan: 'free', liveEvents: live }).ok, false);
-  assert.equal(CP.newEventVerdict({ clanPlan: 'silver', liveEvents: live }).ok, true);
+  assert.equal(CP.newEventVerdict({ clanPlan: 'creator_free', liveEvents: live }).ok, false);
+  assert.equal(CP.newEventVerdict({ clanPlan: 'creator_silver', liveEvents: live }).ok, true);
 });

@@ -1,4 +1,4 @@
-// What a clan is entitled to.
+// What a clan is entitled to. CLANS ONLY: creator spaces have their own catalogue (lib/creatorCatalog).
 //
 // FREEMIUM CHANGES WHAT A PLAN IS. Under the hosted-container model a plan decided whether a clan
 // EXISTED: no payment, no container, no site. Here every clan exists from the moment it is created,
@@ -24,12 +24,6 @@ export interface Plan {
   /** Max active roster members. Null = no cap. */
   memberCap: number | null;
   capLabel: string;
-  /**
-   * CREATOR SPACES (lib/creatorPlans) meter something else: the players on ONE event, not a roster.
-   * A streamer's seat list only ever grows (every viewer who ever joined holds a guest seat), so a
-   * roster cap would charge them for last year's audience. Null = no cap.
-   */
-  playersPerEvent: number | null;
   blurb: string;
   features: string[];
   popular?: boolean;
@@ -46,7 +40,6 @@ export const PLANS: Record<PlanId, Plan> = {
     priceUsd: 0,
     memberCap: 50,
     capLabel: 'Up to 50 members',
-    playersPerEvent: 50,
     blurb: 'Everything you need to run your first bingo.',
     features: [
       'Bingo events and boards',
@@ -62,7 +55,6 @@ export const PLANS: Record<PlanId, Plan> = {
     priceSuggested: 4.99,
     memberCap: 150,
     capLabel: 'Up to 150 members',
-    playersPerEvent: 150,
     blurb: 'For smaller clans getting their first bingo off the ground.',
     features: [
       'Everything in Free',
@@ -80,7 +72,6 @@ export const PLANS: Record<PlanId, Plan> = {
     priceSuggested: 9.99,
     memberCap: 300,
     capLabel: 'Up to 300 members',
-    playersPerEvent: 300,
     blurb: 'For active clans running regular events with bigger rosters.',
     features: [
       'Everything in Bronze',
@@ -99,7 +90,6 @@ export const PLANS: Record<PlanId, Plan> = {
     priceSuggested: 19.99,
     memberCap: 600,
     capLabel: 'Up to 600 members',
-    playersPerEvent: 1000,
     blurb: 'For large clans running everything at once.',
     features: [
       'Everything in Silver',
@@ -116,7 +106,6 @@ export const PLANS: Record<PlanId, Plan> = {
     priceUsd: null,
     memberCap: null,
     capLabel: 'No cap',
-    playersPerEvent: null,
     blurb: 'Negotiated. Set by an operator, never bought.',
     features: [],
   },
@@ -129,22 +118,13 @@ export const PLANS: Record<PlanId, Plan> = {
 // capability here is a genuine premium power, not table stakes. Co-hosting is "free to join, paid to
 // host": `host-multi-clan` is the gate on being the HOST of a co-hosted event; a co-host joins for free.
 //
-// The creator-space ones (lib/creatorPlans) ride the same ladder and the same billing — a creator space
-// is a clans row with a `plan` like any other. `concurrent-events` is shared: for a creator space it is
-// "more than one live event at once".
+// CLANS ONLY. A creator space has its own catalogue, tiers and capabilities (lib/creatorCatalog) and
+// never reads these; lib/billingCatalog picks the catalogue by `clans.kind`.
 export const CAPABILITIES = [
   'discord-notifications',
   'concurrent-events',
   'host-multi-clan',
   'custom-domain',
-  /** Creator entry gates on a stream platform (Twitch, Kick, YouTube…). Discord gates are free. */
-  'stream-gates',
-  /** The `!join` reply in the creator's Twitch chat. */
-  'chat-join-bot',
-  /** Hide the small Anvil mark on the OBS overlay. */
-  'overlay-unbranded',
-  /** Listed first in the clans directory (a creator space that chose to be listed). */
-  'featured-listing',
 ] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 
@@ -154,10 +134,6 @@ export const CAPABILITY_MIN_PLAN: Record<Capability, PlanId> = {
   'concurrent-events': 'silver',
   'host-multi-clan': 'silver',
   'custom-domain': 'gold',
-  'stream-gates': 'bronze',
-  'chat-join-bot': 'silver',
-  'overlay-unbranded': 'gold',
-  'featured-listing': 'silver',
 };
 
 const PLAN_RANK: Record<PlanId, number> = { free: 0, bronze: 1, silver: 2, gold: 3, custom: 4 };
@@ -170,14 +146,6 @@ export function planHasCapability(plan: Plan, capability: Capability): boolean {
 /** The ladder's order, Free first — for "the next tier up". */
 export function planRank(plan: Plan): number {
   return PLAN_RANK[plan.id];
-}
-
-/**
- * A plan's name as a creator reads it. Same tiers, same prices; only the negotiated tier is called
- * "Partner" for a streamer (a deal with a creator), where a clan reads "Custom".
- */
-export function creatorPlanName(plan: Plan): string {
-  return plan.id === 'custom' ? 'Partner' : plan.name;
 }
 
 export function isPlanId(v: string | null | undefined): v is PlanId {

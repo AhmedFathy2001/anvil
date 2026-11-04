@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import * as CP from '../src/lib/creatorPlans.ts';
-import { PLANS, creatorPlanName } from '../src/lib/plans.ts';
+import { CREATOR_PLANS } from '../src/lib/creatorCatalog.ts';
 import { parseGates, validateGatesFor, type GateOptions } from '../src/lib/entryGates.ts';
 
 function enforced<T>(fn: () => T): T {
@@ -19,56 +19,59 @@ function enforced<T>(fn: () => T): T {
   }
 }
 
+const C = CREATOR_PLANS;
+
 test('the approved table: players per event and the Partner name', () => {
   assert.deepEqual(
-    [PLANS.free, PLANS.bronze, PLANS.silver, PLANS.gold, PLANS.custom].map((p) => p.playersPerEvent),
+    [C.creator_free, C.creator_bronze, C.creator_silver, C.creator_gold, C.creator_partner].map((p) => p.playersPerEvent),
     [50, 150, 300, 1000, null],
   );
-  assert.equal(creatorPlanName(PLANS.custom), 'Partner');
-  assert.equal(creatorPlanName(PLANS.silver), 'Silver');
+  assert.equal(C.creator_partner.name, 'Partner');
+  assert.equal(C.creator_silver.name, 'Silver');
   assert.equal(CP.playersPerEventCap('nonsense'), 50, 'unknown plan reads as Free');
-  assert.equal(CP.liveEventLimit(PLANS.free), 1);
-  assert.equal(CP.liveEventLimit(PLANS.bronze), 1);
-  assert.equal(CP.liveEventLimit(PLANS.silver), null);
+  assert.equal(CP.playersPerEventCap('gold'), 50, 'a clan tier reads as creator Free, not creator Gold');
+  assert.equal(CP.liveEventLimit(C.creator_free), 1);
+  assert.equal(CP.liveEventLimit(C.creator_bronze), 1);
+  assert.equal(CP.liveEventLimit(C.creator_silver), null);
 });
 
 test('planForPlayers / nextCreatorPlan pick the smallest tier that fits', () => {
-  assert.equal(CP.planForPlayers(40).id, 'bronze', 'Free is never the upsell');
-  assert.equal(CP.planForPlayers(151).id, 'silver');
-  assert.equal(CP.planForPlayers(1000).id, 'gold');
-  assert.equal(CP.planForPlayers(1001).id, 'custom');
-  assert.equal(CP.nextCreatorPlan('free')?.id, 'bronze');
-  assert.equal(CP.nextCreatorPlan('silver')?.id, 'gold');
-  assert.equal(CP.nextCreatorPlan('gold'), null);
+  assert.equal(CP.planForPlayers(40).id, 'creator_bronze', 'Free is never the upsell');
+  assert.equal(CP.planForPlayers(151).id, 'creator_silver');
+  assert.equal(CP.planForPlayers(1000).id, 'creator_gold');
+  assert.equal(CP.planForPlayers(1001).id, 'creator_partner');
+  assert.equal(CP.nextCreatorPlan('creator_free')?.id, 'creator_bronze');
+  assert.equal(CP.nextCreatorPlan('creator_silver')?.id, 'creator_gold');
+  assert.equal(CP.nextCreatorPlan('creator_gold'), null);
   assert.equal(CP.upgradeForPlayersLine(50), 'Upgrade to Bronze for 150 players.');
   assert.equal(CP.upgradeForPlayersLine(1000), 'Get in touch about a Partner plan for bigger events.');
 });
 
 test('generous phase: a full event, a second event, stream gates, !join and the overlay toggle all pass', () => {
   delete process.env.FREEMIUM_ENFORCED;
-  assert.deepEqual(CP.eventRoomVerdict({ clanPlan: 'free', players: 500, adding: 1 }), { ok: true });
-  assert.deepEqual(CP.newEventVerdict({ clanPlan: 'free', liveEvents: 4 }), { ok: true });
-  assert.equal(CP.streamGateLock('free'), null);
-  assert.equal(CP.chatJoinAllowed('free'), true);
-  assert.equal(CP.overlayShowsMark({ clanPlan: 'free', hideRequested: true }), false, 'anyone may hide it for now');
-  assert.equal(CP.overlayShowsMark({ clanPlan: 'free', hideRequested: false }), true, 'shown by default');
+  assert.deepEqual(CP.eventRoomVerdict({ clanPlan: 'creator_free', players: 500, adding: 1 }), { ok: true });
+  assert.deepEqual(CP.newEventVerdict({ clanPlan: 'creator_free', liveEvents: 4 }), { ok: true });
+  assert.equal(CP.streamGateLock('creator_free'), null);
+  assert.equal(CP.chatJoinAllowed('creator_free'), true);
+  assert.equal(CP.overlayShowsMark({ clanPlan: 'creator_free', hideRequested: true }), false, 'anyone may hide it for now');
+  assert.equal(CP.overlayShowsMark({ clanPlan: 'creator_free', hideRequested: false }), true, 'shown by default');
   // The meter still reads honestly, for the dashboard nudge.
-  assert.equal(CP.overPlayerCap('free', 51), true);
-  assert.equal(CP.creatorPlanCard({ clanPlan: 'free', biggest: { name: 'B', players: 60 } }).enforced, false);
+  assert.equal(CP.overPlayerCap('creator_free', 51), true);
+  assert.equal(CP.creatorPlanCard({ clanPlan: 'creator_free', biggest: { name: 'B', players: 60 } }).enforced, false);
 });
 
 test('enforced: players per event', () => {
   enforced(() => {
-    assert.deepEqual(CP.eventRoomVerdict({ clanPlan: 'free', players: 49, adding: 1 }), { ok: true });
-    const full = CP.eventRoomVerdict({ clanPlan: 'free', players: 50, adding: 1 });
+    assert.deepEqual(CP.eventRoomVerdict({ clanPlan: 'creator_free', players: 49, adding: 1 }), { ok: true });
+    const full = CP.eventRoomVerdict({ clanPlan: 'creator_free', players: 50, adding: 1 });
     assert.equal(full.ok, false);
     assert.match(full.ok ? '' : full.error, /This event is full/);
     // Adding two characters with room for one is refused as a whole.
-    assert.equal(CP.eventRoomVerdict({ clanPlan: 'bronze', players: 149, adding: 2 }).ok, false);
+    assert.equal(CP.eventRoomVerdict({ clanPlan: 'creator_bronze', players: 149, adding: 2 }).ok, false);
     // An edit adds nobody and is never refused, even over the cap after a downgrade.
-    assert.deepEqual(CP.eventRoomVerdict({ clanPlan: 'free', players: 300, adding: 0 }), { ok: true });
-    assert.deepEqual(CP.eventRoomVerdict({ clanPlan: 'gold', players: 999, adding: 1 }), { ok: true });
-    assert.deepEqual(CP.eventRoomVerdict({ clanPlan: 'custom', players: 100_000, adding: 1 }), { ok: true });
+    assert.deepEqual(CP.eventRoomVerdict({ clanPlan: 'creator_free', players: 300, adding: 0 }), { ok: true });
+    assert.deepEqual(CP.eventRoomVerdict({ clanPlan: 'creator_gold', players: 999, adding: 1 }), { ok: true });
+    assert.deepEqual(CP.eventRoomVerdict({ clanPlan: 'creator_partner', players: 100_000, adding: 1 }), { ok: true });
   });
 });
 
@@ -101,9 +104,9 @@ test('net adding counts the same statuses on both sides (no rejected-row trade)'
 
 test('meteredPlan / isLiveEvent', () => {
   delete process.env.FREEMIUM_ENFORCED;
-  assert.equal(CP.meteredPlan({ kind: 'creator', plan: 'free' }), null, 'nothing metered while generous');
+  assert.equal(CP.meteredPlan({ kind: 'creator', plan: 'creator_free' }), null, 'nothing metered while generous');
   enforced(() => {
-    assert.equal(CP.meteredPlan({ kind: 'creator', plan: 'bronze' }), 'bronze');
+    assert.equal(CP.meteredPlan({ kind: 'creator', plan: 'creator_bronze' }), 'creator_bronze');
     assert.equal(CP.meteredPlan({ kind: 'clan', plan: 'free' }), null, 'ordinary clans unchanged');
   });
   const now = Date.parse('2026-11-04T12:00:00Z');
@@ -117,23 +120,23 @@ test('meteredPlan / isLiveEvent', () => {
 
 test('enforced: one live event on Free and Bronze, several from Silver', () => {
   enforced(() => {
-    assert.deepEqual(CP.newEventVerdict({ clanPlan: 'free', liveEvents: 0 }), { ok: true });
-    const second = CP.newEventVerdict({ clanPlan: 'bronze', liveEvents: 1 });
+    assert.deepEqual(CP.newEventVerdict({ clanPlan: 'creator_free', liveEvents: 0 }), { ok: true });
+    const second = CP.newEventVerdict({ clanPlan: 'creator_bronze', liveEvents: 1 });
     assert.equal(second.ok, false);
     assert.match(second.ok ? '' : second.error, /upgrade to Silver/);
-    assert.deepEqual(CP.newEventVerdict({ clanPlan: 'silver', liveEvents: 5 }), { ok: true });
+    assert.deepEqual(CP.newEventVerdict({ clanPlan: 'creator_silver', liveEvents: 5 }), { ok: true });
   });
 });
 
 test('enforced: perks by tier', () => {
   enforced(() => {
-    assert.equal(CP.streamGateLock('free'), 'Bronze');
-    assert.equal(CP.streamGateLock('bronze'), null);
-    assert.equal(CP.chatJoinAllowed('bronze'), false);
-    assert.equal(CP.chatJoinAllowed('silver'), true);
-    assert.equal(CP.overlayShowsMark({ clanPlan: 'silver', hideRequested: true }), true, 'Silver cannot hide it');
-    assert.equal(CP.overlayShowsMark({ clanPlan: 'gold', hideRequested: true }), false);
-    assert.equal(CP.overlayShowsMark({ clanPlan: 'gold', hideRequested: false }), true);
+    assert.equal(CP.streamGateLock('creator_free'), 'Bronze');
+    assert.equal(CP.streamGateLock('creator_bronze'), null);
+    assert.equal(CP.chatJoinAllowed('creator_bronze'), false);
+    assert.equal(CP.chatJoinAllowed('creator_silver'), true);
+    assert.equal(CP.overlayShowsMark({ clanPlan: 'creator_silver', hideRequested: true }), true, 'Silver cannot hide it');
+    assert.equal(CP.overlayShowsMark({ clanPlan: 'creator_gold', hideRequested: true }), false);
+    assert.equal(CP.overlayShowsMark({ clanPlan: 'creator_gold', hideRequested: false }), true);
   });
 });
 
@@ -177,22 +180,22 @@ test('stream gates are "anything but Discord", so new platforms inherit the lock
 
 test('featured listing follows the plan paid for, creator spaces only', () => {
   delete process.env.FREEMIUM_ENFORCED;
-  assert.equal(CP.featuredListing('creator', 'free'), false, 'not every creator while generous');
-  assert.equal(CP.featuredListing('creator', 'bronze'), false);
-  assert.equal(CP.featuredListing('creator', 'silver'), true);
+  assert.equal(CP.featuredListing('creator', 'creator_free'), false, 'not every creator while generous');
+  assert.equal(CP.featuredListing('creator', 'creator_bronze'), false);
+  assert.equal(CP.featuredListing('creator', 'creator_silver'), true);
   assert.equal(CP.featuredListing('clan', 'gold'), false, 'ordinary clans unchanged');
 });
 
 test('the plan card: meter, over, and the tier that fits', () => {
   delete process.env.FREEMIUM_ENFORCED;
-  const small = CP.creatorPlanCard({ clanPlan: 'free', biggest: { name: 'Viewer Bingo', players: 42 } });
+  const small = CP.creatorPlanCard({ clanPlan: 'creator_free', biggest: { name: 'Viewer Bingo', players: 42 } });
   assert.equal(small.planName, 'Free');
   assert.equal(small.playersCap, 50);
   assert.equal(small.over, false);
-  assert.equal(small.next?.id, 'bronze');
-  const big = CP.creatorPlanCard({ clanPlan: 'free', biggest: { name: 'Huge', players: 200 } });
+  assert.equal(small.next?.id, 'creator_bronze');
+  const big = CP.creatorPlanCard({ clanPlan: 'creator_free', biggest: { name: 'Huge', players: 200 } });
   assert.equal(big.over, true);
-  assert.equal(big.next?.id, 'silver', 'jumps to the tier that holds the event');
-  assert.equal(CP.creatorPlanCard({ clanPlan: 'gold', biggest: null }).next, null);
-  assert.equal(CP.creatorPlanCard({ clanPlan: 'custom', biggest: null }).planName, 'Partner');
+  assert.equal(big.next?.id, 'creator_silver', 'jumps to the tier that holds the event');
+  assert.equal(CP.creatorPlanCard({ clanPlan: 'creator_gold', biggest: null }).next, null);
+  assert.equal(CP.creatorPlanCard({ clanPlan: 'creator_partner', biggest: null }).planName, 'Partner');
 });

@@ -44,22 +44,32 @@ test('planHasCapability + upsell copy line up with the model', () => {
   assert.equal(minPlanNameFor('custom-domain'), 'Gold');
 });
 
-test('creator capabilities sit on the same ladder', () => {
-  assert.equal(minPlanNameFor('stream-gates'), 'Bronze');
-  assert.equal(minPlanNameFor('chat-join-bot'), 'Silver');
-  assert.equal(minPlanNameFor('featured-listing'), 'Silver');
-  assert.equal(minPlanNameFor('overlay-unbranded'), 'Gold');
+test('creator capabilities are not on the clan ladder — they live in the creator catalogue', async () => {
+  const { CAPABILITIES } = await import('../src/lib/plans.ts');
+  const { CREATOR_CAPABILITIES, creatorCan, creatorMinPlanNameFor } = await import('../src/lib/creatorCatalog.ts');
+  for (const c of ['stream-gates', 'chat-join-bot', 'overlay-unbranded', 'featured-listing']) {
+    assert.ok(!(CAPABILITIES as readonly string[]).includes(c), `${c} is not a clan capability`);
+    assert.ok((CREATOR_CAPABILITIES as readonly string[]).includes(c), `${c} is a creator capability`);
+  }
+  assert.equal(creatorMinPlanNameFor('stream-gates'), 'Bronze');
+  assert.equal(creatorMinPlanNameFor('chat-join-bot'), 'Silver');
+  assert.equal(creatorMinPlanNameFor('featured-listing'), 'Silver');
+  assert.equal(creatorMinPlanNameFor('overlay-unbranded'), 'Gold');
   delete process.env.FREEMIUM_ENFORCED;
-  assert.equal(clanCan('free', 'overlay-unbranded'), true, 'generous: open to all');
+  assert.equal(creatorCan('creator_free', 'overlay-unbranded'), true, 'generous: open to all');
   process.env.FREEMIUM_ENFORCED = 'true';
   try {
-    assert.equal(clanCan('free', 'stream-gates'), false);
-    assert.equal(clanCan('bronze', 'stream-gates'), true);
-    assert.equal(clanCan('bronze', 'chat-join-bot'), false);
-    assert.equal(clanCan('silver', 'chat-join-bot'), true);
-    assert.equal(clanCan('silver', 'overlay-unbranded'), false);
-    assert.equal(clanCan('gold', 'overlay-unbranded'), true);
-    assert.equal(clanCan('custom', 'featured-listing'), true);
+    assert.equal(creatorCan('creator_free', 'stream-gates'), false);
+    assert.equal(creatorCan('creator_bronze', 'stream-gates'), true);
+    assert.equal(creatorCan('creator_bronze', 'chat-join-bot'), false);
+    assert.equal(creatorCan('creator_silver', 'chat-join-bot'), true);
+    assert.equal(creatorCan('creator_silver', 'overlay-unbranded'), false);
+    assert.equal(creatorCan('creator_gold', 'overlay-unbranded'), true);
+    assert.equal(creatorCan('creator_partner', 'featured-listing'), true);
+    // A clan id on a creator check is creator Free, never the creator tier of the same name.
+    assert.equal(creatorCan('gold', 'overlay-unbranded'), false);
+    // And a creator id on a clan check is clan Free.
+    assert.equal(clanCan('creator_gold', 'host-multi-clan'), false);
   } finally {
     delete process.env.FREEMIUM_ENFORCED;
   }

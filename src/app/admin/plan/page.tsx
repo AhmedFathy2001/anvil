@@ -8,6 +8,9 @@ import { requireClan } from '@/lib/clanContext';
 import { freemiumEnforced } from '@/lib/entitlements';
 import { PLANS, checkoutUrlWithRef, planOf, type Plan } from '@/lib/plans';
 import { SITE } from '@/lib/site';
+import { redirect } from 'next/navigation';
+import { clanHref } from '@/lib/clanPath';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +23,9 @@ export const dynamic = 'force-dynamic';
  */
 export default async function AdminPlanPage() {
   const clan = await requireClan();
+  // A creator space is billed from its own catalogue, on its dashboard's plan card — never offered the
+  // clan tiers this page sells (lib/creatorCatalog).
+  if (isCreatorSpace(clan)) redirect(await clanHref('/admin/dashboard#plan'));
   // clan-scope: the page's own clan.
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })

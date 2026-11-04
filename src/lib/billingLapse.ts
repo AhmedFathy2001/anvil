@@ -14,7 +14,7 @@ import { db } from '@/db';
 import { clanAuditLog, clans } from '@/db/schema';
 import { daysUntil } from '@/lib/clanBilling';
 import { checkSubscriptionWithGumroad } from '@/lib/gumroad';
-import { PLANS } from '@/lib/plans';
+import { freeTierFor, isFreePlanId } from '@/lib/billingCatalog';
 import { log } from '@/lib/logger';
 
 export async function logBilling(clanId: number, eventType: string, detail: unknown, notes = 'gumroad webhook') {
@@ -31,13 +31,17 @@ export async function logBilling(clanId: number, eventType: string, detail: unkn
     .catch(() => {});
 }
 
-/** Drop a clan to free because its membership ended. Status is NOT touched: the site, roster and history stay. */
-export async function endMembership(clan: { id: number; plan: string }, notes = 'gumroad webhook', reason?: string) {
+/**
+ * Drop a clan to free because its membership ended — its OWN catalogue's free (a creator space to
+ * creator free, lib/billingCatalog). Status is NOT touched: the site, roster and history stay.
+ */
+export async function endMembership(clan: { id: number; kind: string; plan: string }, notes = 'gumroad webhook', reason?: string) {
+  const free = freeTierFor(clan.kind);
   await db
     .update(clans)
     .set({
-      plan: 'free',
-      memberCap: PLANS.free.memberCap,
+      plan: free.id,
+      memberCap: free.memberCap,
       // KEPT, not cleared. A membership taken up again from Gumroad's side arrives as a restart
       // naming only this id — clearing it left that notification with no clan to find. A plan of
       // free is what says "not paying" (lib/clanBilling subscriptionFacts); a new checkout
@@ -47,7 +51,7 @@ export async function endMembership(clan: { id: number; plan: string }, notes = 
       trialEndsAt: null,
     })
     .where(eq(clans.id, clan.id));
-  await logBilling(clan.id, 'billing_ended', { from: clan.plan, to: 'free', ...(reason ? { reason } : {}) }, notes);
+  await logBilling(clan.id, 'billing_ended', { from: clan.plan, to: free.id, ...(reason ? { reason } : {}) }, notes);
 }
 
 /** A renewal webhook can land a little late; past this, a missing one is worth asking Gumroad about. */
@@ -69,6 +73,7 @@ export async function sweepLapsedBilling(now = Date.now()): Promise<LapseSweepRe
     .select({
       id: clans.id,
       slug: clans.slug,
+      kind: clans.kind,
       plan: clans.plan,
       status: clans.status,
       subscriptionId: clans.gumroadSubscriptionId,
@@ -77,7 +82,7 @@ export async function sweepLapsedBilling(now = Date.now()): Promise<LapseSweepRe
     .from(clans);
 
   const due = paying.filter((c) => {
-    if (!c.subscriptionId || c.plan === 'free' || c.status === 'suspended') return false;
+    if (!c.subscriptionId || isFreePlanId(c.plan) || c.status === 'suspended') return false;
     const days = daysUntil(c.currentPeriodEnd, now);
     // No date at all is a subscription from before renewals recorded one — the case that hid lfl.
     return days == null || days < -GRACE_DAYS;

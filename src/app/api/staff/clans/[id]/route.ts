@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { clans, clanAuditLog, retiredClanSlugs } from '@/db/schema';
 import { requirePlatformApi, CAN_WRITE, CAN_DELETE_CLAN } from '@/lib/platformAccess';
-import { PLANS, isPlanId } from '@/lib/plans';
+import { billingTierOf, planIdsFor } from '@/lib/billingCatalog';
 import { availabilityMessage, normalizeSlug } from '@/lib/clanNames';
 import { checkSlug } from '@/lib/clanCreate';
 import { ClanDeleteBlocked, deleteClan } from '@/lib/clanDelete';
@@ -50,14 +50,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     patch.status = body.status;
   }
   if ('plan' in body) {
-    // Validated against the one plan vocabulary rather than a copy of it, so a tier added in
-    // lib/plans is immediately settable here instead of silently rejected.
+    // Validated against the row's OWN catalogue (lib/billingCatalog): the clan ladder for a clan,
+    // the creator one for a creator space — never a copy of either, so a new tier is settable at once,
+    // and never the other's, which the database would refuse anyway (clans_plan_matches_kind).
     const plan = String(body.plan ?? '');
-    if (!isPlanId(plan)) return NextResponse.json({ error: 'Bad plan' }, { status: 400 });
+    if (!planIdsFor(before.kind).includes(plan)) return NextResponse.json({ error: 'Bad plan' }, { status: 400 });
     patch.plan = plan;
     // The cap follows the plan unless this same request overrides it. An operator moving a clan to
     // Silver means the Silver cap; leaving a stale cap behind is the bug this prevents.
-    if (!('memberCap' in body)) patch.memberCap = PLANS[plan].memberCap;
+    if (!('memberCap' in body)) patch.memberCap = billingTierOf(before.kind, plan).memberCap;
   }
   if ('name' in body) {
     const name = String(body.name ?? '').trim();

@@ -3,7 +3,15 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
 import { isApexHost } from '@/lib/clanContext';
-import { CAPABILITY_MIN_PLAN, PLANS, creatorPlanName, planHasCapability, type Capability, type Plan } from '@/lib/plans';
+import { PLANS, type Plan } from '@/lib/plans';
+import {
+  CREATOR_CAPABILITY_MIN_PLAN,
+  CREATOR_PLANS,
+  CREATOR_PLAN_IDS,
+  creatorPlanHasCapability,
+  type CreatorCapability,
+  type CreatorPlan,
+} from '@/lib/creatorCatalog';
 import { freemiumEnforced } from '@/lib/entitlements';
 import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
@@ -161,15 +169,16 @@ function TierCard({ plan, enforced }: { plan: Plan; enforced: boolean }) {
 }
 
 /**
- * "For streamers & creators" — the same tiers and prices, metered differently: a creator space has no
- * roster, so the number is the players on one event (lib/creatorPlans). Rendered from PLANS and
- * CAPABILITY_MIN_PLAN like the cards above, so the table cannot drift from what is enforced.
+ * "For streamers & creators" — the creator catalogue (lib/creatorCatalog), its own tiers and prices,
+ * metered differently: a creator space has no roster, so the number is the players on one event
+ * (lib/creatorPlans). Rendered from CREATOR_PLANS and CREATOR_CAPABILITY_MIN_PLAN, so the table cannot
+ * drift from what is billed and enforced.
  */
 function CreatorPricing({ enforced }: { enforced: boolean }) {
-  const cols = [PLANS.free, PLANS.bronze, PLANS.silver, PLANS.gold, PLANS.custom];
-  const has = (p: Plan, c: Capability) => planHasCapability(p, c);
+  const cols = CREATOR_PLAN_IDS.map((id) => CREATOR_PLANS[id]);
+  const has = (p: CreatorPlan, c: CreatorCapability) => creatorPlanHasCapability(p, c);
   const yes = 'Yes';
-  const rows: { label: string; cell: (p: Plan) => string }[] = [
+  const rows: { label: string; cell: (p: CreatorPlan) => string }[] = [
     {
       label: 'Price',
       cell: (p) => (p.priceUsd == null ? 'Talk to us' : p.priceUsd === 0 ? 'Free' : `$${p.priceUsd.toFixed(2)}/mo`),
@@ -194,8 +203,8 @@ function CreatorPricing({ enforced }: { enforced: boolean }) {
         <h2 className="text-[20px] font-semibold">For streamers &amp; creators</h2>
       </div>
       <p className="mb-5 ml-4 max-w-[66ch] text-[13.5px] text-text-muted">
-        Host events for your viewers without an in-game clan. Same plans, same prices, but a creator plan
-        counts the players in one event, not everyone who ever joined.
+        Host events for your viewers without an in-game clan. Creator plans count the players in one
+        event, not everyone who ever joined.
         {!enforced && ' Early access: every creator gets all of this free for now.'}
       </p>
       <div className="overflow-x-auto rounded-2xl border border-card-border bg-card-bg">
@@ -207,7 +216,7 @@ function CreatorPricing({ enforced }: { enforced: boolean }) {
               </th>
               {cols.map((p) => (
                 <th key={p.id} scope="col" className="px-3 py-3 font-semibold">
-                  {creatorPlanName(p)}
+                  {p.name}
                 </th>
               ))}
             </tr>
@@ -230,8 +239,8 @@ function CreatorPricing({ enforced }: { enforced: boolean }) {
       </div>
       <p className="mt-3 text-center text-[12.5px] text-text-dim">
         Each platform needs your channel connected. Follower, sub and member checks start at{' '}
-        {PLANS[CAPABILITY_MIN_PLAN['stream-gates']].name}.{' '}
-        {creatorPlanName(PLANS.custom)} plans are set by hand.{' '}
+        {CREATOR_PLANS[CREATOR_CAPABILITY_MIN_PLAN['stream-gates']].name}.{' '}
+        {CREATOR_PLANS.creator_partner.name} plans are set by hand.{' '}
         <ClanLink href="/host" className="text-gold hover:text-gold-light">
           Start a creator space
         </ClanLink>
