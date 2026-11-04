@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityHeatmap, Bar, LineChart, ProgressRing } from '@/components/stats/Charts';
 import { SKILL_LABELS, BOSSES } from '@/lib/constants';
 import { progressToLevel } from '@/lib/xp';
@@ -12,7 +12,7 @@ import { setUrlParams } from '@/lib/urlState';
 import { activityImageUrl, bossImageForStatKey, itemIconUrl, skillIconUrl, wikiImageUrl } from '@/lib/tileIcons';
 import { personalBestEntries } from '@/lib/pbGroups';
 import { useMediaQuery } from '@/lib/useMediaQuery';
-import { TAB_SLUG, type ProfileLinkState, type ProfileTab } from '@/lib/profileLink';
+import { TAB_SLUG, profileLinkState, type ProfileLinkState, type ProfileTab } from '@/lib/profileLink';
 import LocalTime from '@/components/LocalTime';
 import Input from '@/components/Input';
 import { momentSentence } from '@/lib/moments';
@@ -242,6 +242,14 @@ export default function ProfileTabs({
     // A log page only means something on the Collection tab; leaving it, the link stops naming one.
     setUrlParams({ tab: next === 'stats' ? null : TAB_SLUG[next], stat: null, ...(next === 'collection' ? {} : { page: null }) });
   };
+  // BACK/FORWARD. A tab change rewrites the address in place (replaceState), but the router's cached
+  // copy of the page still carries the tab it was first rendered with — so coming Back to it showed
+  // that tab under an address naming another. On mount, the address wins.
+  useEffect(() => {
+    const fromUrl = profileLinkState(Object.fromEntries(new URLSearchParams(window.location.search))).tab ?? 'stats';
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing from the address bar once, on mount
+    setTabState((cur) => (cur === fromUrl ? cur : fromUrl));
+  }, []);
   const trends = useMemo(() => statTrends(series), [series]);
   const levels = useMemo(() => levelUps(series), [series]);
   // The log page the Collection tab opens on: the link's, or one a boss in the stats asked for.

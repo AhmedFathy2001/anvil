@@ -68,3 +68,47 @@ export function compactXp(xp: number): string {
   if (xp >= 1_000) return `${Math.round(xp / 1_000)}K`;
   return Math.round(xp).toLocaleString();
 }
+
+/** lib/auth normalizeRsn's rule (space and underscore are one character; case-blind), kept pure here. */
+function sameRsn(a: string, b: string): boolean {
+  const n = (s: string) => s.trim().toLowerCase().replace(/[\s_]+/g, ' ');
+  return n(a) === n(b);
+}
+
+/**
+ * Which character /profile is about, from `?account=`.
+ *
+ *   - one of theirs this tab holds no seat for (`unseated`) — matched by name, any spelling;
+ *   - else the seated one the locker focused (it already honoured `?account=` among the seated);
+ *   - else their first seated one.
+ *
+ * Anything else — a name that isn't theirs, a typo — falls through to the default rather than
+ * erroring, and never reaches a character that isn't theirs (both lists are only theirs).
+ */
+export function pickFoldCharacter<S extends { rsn: string }, U extends { rsn: string }>(
+  wanted: string | null | undefined,
+  seated: readonly S[],
+  seatedFocusRsn: string | null,
+  unseated: readonly U[],
+): { row: S | U; seated: boolean } | null {
+  const w = wanted?.trim();
+  if (w) {
+    const off = unseated.find((o) => sameRsn(o.rsn, w));
+    if (off) return { row: off, seated: false };
+  }
+  const on = (seatedFocusRsn != null ? seated.find((s) => s.rsn === seatedFocusRsn) : undefined) ?? seated[0];
+  return on ? { row: on, seated: true } : null;
+}
+
+/**
+ * Where a row in the fold goes: `?account=<rsn>`, KEEPING the tab the page is on — the same tab of
+ * another character is the useful comparison — and dropping the picks inside it (`stat`, `page`,
+ * `progress`), which name things the other character may not have.
+ */
+export function foldHref(rsn: string, current: { get(key: string): string | null } | null): string {
+  const q = new URLSearchParams();
+  q.set('account', rsn);
+  const tab = current?.get('tab');
+  if (tab) q.set('tab', tab);
+  return `/profile?${q.toString().replace(/\+/g, '%20')}`;
+}

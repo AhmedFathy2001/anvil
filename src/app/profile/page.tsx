@@ -13,7 +13,7 @@ import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import { findRosterSeats } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
-import { normalizeRsn, verifyUser } from '@/lib/auth';
+import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { buildLocker } from '@/lib/profileLocker';
@@ -21,8 +21,7 @@ import { Suspense } from 'react';
 import { getAccountProfile, getMemberProfile } from '@/lib/memberProfile';
 import { apexCharacter } from '@/lib/apexProfiles';
 import { profileLinkState } from '@/lib/profileLink';
-import { pickProfileCharacter } from '@/lib/characterProfileRules';
-import { sortFold, type FoldCharacter } from '@/lib/characterFold';
+import { pickFoldCharacter, sortFold, type FoldCharacter } from '@/lib/characterFold';
 import { foldStats } from '@/lib/characterFoldRead';
 import CharacterProfile from '@/components/character/CharacterProfile';
 import PlayerCard from './PlayerCard';
@@ -210,14 +209,10 @@ export default async function ProfilePage({
   //
   // A character this clan holds no seat for has no clan view to show, so it gets its own public one
   // (/p/), owner controls included — the same as every character in a creator space.
-  const wanted = params.account ? normalizeRsn(params.account) : null;
-  const pickedUnseated = wanted ? unseated.find((o) => normalizeRsn(o.rsn) === wanted) ?? null : null;
-  const seated = pickedUnseated ? null : pickProfileCharacter(locker.accounts, locker.focusRsn);
-  const recordsAccount = pickedUnseated
-    ? { accountId: pickedUnseated.accountId, rsn: pickedUnseated.rsn, clanView: false }
-    : seated
-      ? { accountId: seated.accountId, rsn: seated.rsn, clanView: !space }
-      : null;
+  const picked = pickFoldCharacter(params.account, locker.accounts, locker.focusRsn, unseated);
+  const recordsAccount = picked
+    ? { accountId: picked.row.accountId, rsn: picked.row.rsn, clanView: picked.seated && !space }
+    : null;
   const link = profileLinkState(sp);
   const progressTab = one(sp.progress);
 

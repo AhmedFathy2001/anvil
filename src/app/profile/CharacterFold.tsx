@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
 import SupporterName from '@/components/SupporterName';
-import { compactXp, seatLabel, type FoldCharacter } from '@/lib/characterFold';
+import { compactXp, foldHref, seatLabel, type FoldCharacter } from '@/lib/characterFold';
 import type { SupporterStyle } from '@/lib/supporterStyle';
 import type { SupporterTierId } from '@/lib/supporterTiers';
 
@@ -31,6 +31,10 @@ export default function CharacterFold({
   space: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  // The address as it is when the list opens. Read then, not at render: the profile's tabs rewrite
+  // ?tab= in place (history.replaceState), and a row should open the other character on the tab you
+  // are looking at now, not the one the page loaded with.
+  const [search, setSearch] = useState<URLSearchParams | null>(null);
   const listId = useId();
   const button = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -67,8 +71,11 @@ export default function CharacterFold({
         type="button"
         aria-expanded={open}
         aria-controls={listId}
-        onClick={() => setOpen((v) => !v)}
-        className={`inline-flex max-w-full items-center gap-2 rounded-full border bg-brown-dark/60 px-3 py-1 text-sm transition-colors hover:border-gold/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold ${
+        onClick={() => {
+          if (!open) setSearch(new URLSearchParams(window.location.search));
+          setOpen(!open);
+        }}
+        className={`inline-flex max-w-full flex-wrap items-center gap-x-2 text-left rounded-2xl sm:rounded-full border bg-brown-dark/60 px-3 py-1 text-sm transition-colors hover:border-gold/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold ${
           open ? 'border-gold/60' : 'border-card-border'
         }`}
       >
@@ -77,7 +84,8 @@ export default function CharacterFold({
           ▾
         </span>
         {selected && (
-          <span className="min-w-0 truncate text-text-muted">
+          // Wraps rather than truncates: on a phone the selected name is the point of the line.
+          <span className="min-w-0 break-words text-text-muted">
             · viewing{' '}
             <SupporterName
               name={selected.rsn}
@@ -102,7 +110,8 @@ export default function CharacterFold({
             return (
               <li key={c.accountId}>
                 <ClanLink
-                  href={`/profile?account=${encodeURIComponent(c.rsn)}`}
+                  // A push, not a replace: Back returns to the character you came from.
+                  href={foldHref(c.rsn, search)}
                   aria-current={isSelected ? 'page' : undefined}
                   onClick={() => setOpen(false)}
                   className={`flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-card-bg-hover focus-visible:bg-card-bg-hover focus-visible:outline-none ${
