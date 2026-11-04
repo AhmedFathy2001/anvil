@@ -20,6 +20,7 @@ import {
   SLOTS_MAX,
   WEEKDAYS,
 } from '@/lib/spacePage/rules';
+import Slider from '@/components/Slider';
 
 interface Panel {
   id: number;
@@ -268,16 +269,15 @@ function PicturesEditor({ data, onChange }: { data: PageData; onChange: () => Pr
             <>
               <label className="flex items-center gap-2 text-[12.5px] text-text-muted">
                 Show more of the
-                <input
-                  type="range"
+                <Slider
                   min={0}
                   max={100}
                   value={pos}
-                  onChange={(e) => setPos(Number(e.target.value))}
+                  onChange={setPos}
                   onPointerUp={() => void send(API, 'PATCH', { bannerPosition: pos === 50 ? null : pos })}
                   onKeyUp={() => void send(API, 'PATCH', { bannerPosition: pos === 50 ? null : pos })}
-                  aria-label="Which part of the banner shows"
-                  className="accent-gold"
+                  ariaLabel="Which part of the banner shows"
+                  className="w-32"
                 />
                 top / bottom
               </label>

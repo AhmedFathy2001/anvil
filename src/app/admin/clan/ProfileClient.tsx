@@ -8,6 +8,7 @@ import Input from '@/components/Input';
 import type { ClanFocus } from '@/lib/clanHome';
 import ClanCrest from '@/components/ClanCrest';
 import ClanLink from '@/components/ClanLink';
+import Slider from '@/components/Slider';
 
 const FOCUS: { value: ClanFocus; label: string }[] = [
   { value: 'pvm', label: 'PvM' },
@@ -363,14 +364,14 @@ function BannerField({
         {value && (
           <div className="flex flex-col items-center gap-1 text-[10px] text-text-muted">
             <span>Top</span>
-            <input
-              type="range"
+            <Slider
+              orientation="vertical"
               min={0}
               max={100}
               value={position}
-              onChange={(e) => onPosition(Number(e.target.value))}
-              aria-label="Which part of the banner shows"
-              className="flex-1 accent-gold [writing-mode:vertical-lr]"
+              onChange={onPosition}
+              ariaLabel="Which part of the banner shows"
+              className="flex-1"
             />
             <span>Bottom</span>
           </div>
