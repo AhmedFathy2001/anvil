@@ -539,7 +539,9 @@ export async function POST(
       : null;
     // From a game-mode world the board counts, the account's stored log is the MAIN save's and says
     // nothing about that one; the unlock is the proof the slot is new there (lib/clogTileCredit).
-    const before = worldModeOf(request)
+    // Only for the plugin: a web upload is always checked against the stored log, whatever it claims.
+    // (A mode the board doesn't count never gets this far: worldModeIgnored above answers 202.)
+    const before = pluginAuth && worldModeOf(request)
       ? new Set<number>()
       : await clogOwnedBefore(member?.accountId ?? null, event, counted);
     const name = pluginAuth && !itemId ? clogItemFromProof(claims) : null;
