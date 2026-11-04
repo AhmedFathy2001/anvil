@@ -174,6 +174,16 @@ async function viaHost<T>(clanId: number, cfg: YoutubeConfig, read: (token: stri
   return r;
 }
 
+/**
+ * A read on the host's own YouTube token, for other modules (stream highlights' broadcast lookups,
+ * lib/highlights). Null when YouTube is not configured or the host's connection is gone or broken.
+ */
+export async function withHostYoutube<T>(clanId: number, read: (token: string) => Promise<ApiResult<T>>): Promise<ApiResult<T> | null> {
+  const cfg = youtubeConfig();
+  if (!cfg) return null;
+  return viaHost(clanId, cfg, read);
+}
+
 // ── Proofs ──────────────────────────────────────────────────────────────────────────────────────
 
 export async function recordProof(opts: {

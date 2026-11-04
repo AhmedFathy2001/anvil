@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { emitCompletionRow } from '@/lib/panelRows';
+import { queueTileHighlight } from '@/lib/highlights/store';
 import { clanRoster, completions, eventParticipants, events, statTileProgress, teams, tiles } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { statKeys } from '@/lib/tileKinds';
@@ -40,6 +41,8 @@ export async function creditStatTilesForTeam(opts: {
   notifyClanId?: number;
   /** False to complete without announcing. */
   notify?: boolean;
+  /** A live plugin push: a streamed board may clip what this completes (lib/highlights). Sweeps don't. */
+  clip?: boolean;
   /** Told about each tile this call completed (the sweep keeps its own tally). */
   onCompleted?: (tile: StatTile) => void;
 }): Promise<string[]> {
@@ -210,6 +213,7 @@ export async function creditStatTilesForTeam(opts: {
     if (inserted.length === 0) continue;
     // The board's Feed shows it at once (a combo part is skipped there).
     emitCompletionRow(tile.id, teamId);
+    if (opts.clip) queueTileHighlight(tile.id, teamId);
     if (gate?.bounty) handleBountyClaim(eventId, tile.id).catch(() => {});
     done.add(tile.id);
     completed.push(tile.label);

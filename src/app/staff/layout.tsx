@@ -119,6 +119,8 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         { href: '/staff/lab', label: 'Tile lab', icon: '⚗', matchPrefix: true },
         // The chat lines every plugin parses (lib/chatPatterns) and game-mode lines (lib/modeLines).
         { href: '/staff/chat-patterns', label: 'Chat lines', icon: '✎', matchPrefix: true, alsoMatch: ['/staff/mode-lines'] },
+        // Clips of streamed events (lib/highlights), with the ones hosts let Anvil promote.
+        { href: '/staff/highlights', label: 'Stream highlights', icon: '▶', matchPrefix: true },
       ],
     },
   ];

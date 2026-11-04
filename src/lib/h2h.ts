@@ -46,6 +46,7 @@ import { isPreview } from '@/lib/platformSettings';
 import { absoluteUrl } from '@/lib/seo';
 import { computeGainFromJson, effectiveSnapshotJson } from '@/lib/statTracking';
 import { supporterForPlayer } from '@/lib/supporter';
+import { queueH2hHighlight } from '@/lib/highlights/store';
 
 type Row = typeof h2hChallenges.$inferSelect;
 
@@ -456,6 +457,8 @@ async function finish(r: Row, result: H2hResult, now: Date): Promise<boolean> {
   r.result = result;
   r.finishedAt = now;
   await announceResult(r).catch((err) => log.warn('h2h.announce-failed', { id: r.id, message: (err as Error).message }));
+  // A public win by someone playing a streamed event is clipped on their live channel (lib/highlights).
+  queueH2hHighlight(r);
   return true;
 }
 

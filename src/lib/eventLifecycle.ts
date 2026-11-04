@@ -32,6 +32,7 @@ import { endOfEventFacts, runDailyDigests, runHalfwayReports } from '@/lib/event
 import { runHourlySnapshots } from '@/lib/eventHourly';
 import { runFootprintChecks } from '@/lib/footprintCheck';
 import { closeFinishedEventSeats } from '@/lib/eventPlayers';
+import { queueWinnerHighlight } from '@/lib/highlights/store';
 
 // The awards worth celebrating in the Discord end post, most-fun-first — we take the first few of
 // these that actually have a winner so the embed stays punchy.
@@ -363,6 +364,10 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       const facts = await endOfEventFacts(event).catch(() => [] as string[]);
 
       log.info('event-lifecycle.end', { eventId: event.id });
+      // A streamed event's winner is clipped on the host's live channel (lib/highlights). Queued.
+      const winner = scored[0] ? eventTeams.find((t) => t.id === scored[0].teamId) : null;
+      const tied = scored.length > 1 && scored[1].total === scored[0]?.total;
+      if (winner && !tied && (scored[0]?.total ?? 0) > 0) queueWinnerHighlight(event.id, winner.id, winner.name, event.name);
       await notifyEventEnd({
           clanId: event.clanId,
         eventId: event.id,

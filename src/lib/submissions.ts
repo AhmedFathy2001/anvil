@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { emitCompletionRow } from '@/lib/panelRows';
+import { queueTileHighlight } from '@/lib/highlights/store';
 import { submissions, tiles, completions, teams, events, eventParticipants } from '@/db/schema';
 import { eq, and, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
@@ -319,7 +320,11 @@ export async function syncDropTileCompletion(
       .returning();
 
     // A finished board tile shows in its board's Feed at once (lib/panelRows); a part's combo does instead.
-    if (inserted && !isPart) emitCompletionRow(tileId, teamId);
+    if (inserted && !isPart) {
+      emitCompletionRow(tileId, teamId);
+      // A streamed board clips it on the finisher's (or the host's) live channel (lib/highlights).
+      if (!silent) queueTileHighlight(tileId, teamId);
+    }
 
     // Only notify if we actually inserted (not a duplicate)
     if (inserted && isPart) {

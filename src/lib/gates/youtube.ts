@@ -386,6 +386,27 @@ export async function activeLiveChatId(token: string, f: FetchLike = fetch): Pro
   return { ok: true, value: id ?? null };
 }
 
+/**
+ * The token's channel's recent broadcasts with their actual start and end (stream highlights' VOD
+ * links, lib/highlights). One unit of quota per call; callers cache it.
+ */
+export async function recentBroadcasts(
+  token: string,
+  f: FetchLike = fetch,
+): Promise<ApiResult<{ id: string; actualStartTime: string | null; actualEndTime: string | null }[]>> {
+  const q = new URLSearchParams({ part: 'id,snippet', broadcastStatus: 'all', broadcastType: 'all', maxResults: '10' });
+  const r = await apiGet(token, `/liveBroadcasts?${q}`, f);
+  if (!r.ok) return r;
+  const items = (r.value.items as { id?: unknown; snippet?: { actualStartTime?: unknown; actualEndTime?: unknown } }[] | undefined) ?? [];
+  const iso = (v: unknown) => (typeof v === 'string' && Number.isFinite(Date.parse(v)) ? v : null);
+  return {
+    ok: true,
+    value: items
+      .filter((i) => typeof i?.id === 'string' && /^[A-Za-z0-9_-]{6,20}$/.test(i.id))
+      .map((i) => ({ id: i.id as string, actualStartTime: iso(i.snippet?.actualStartTime), actualEndTime: iso(i.snippet?.actualEndTime) })),
+  };
+}
+
 /** The live chat's recent messages (the first page of liveChatMessages.list is the recent history). */
 export async function recentChat(token: string, liveChatId: string, f: FetchLike = fetch): Promise<ApiResult<unknown[]>> {
   const q = new URLSearchParams({ liveChatId, part: 'snippet,authorDetails', maxResults: '2000' });
