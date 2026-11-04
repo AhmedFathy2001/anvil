@@ -9,6 +9,7 @@ import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
 import MergePeopleDialog from './MergePeopleDialog';
 import SupporterGift from './SupporterGift';
+import { CheckboxBox } from '@/components/Checkbox';
 
 const PLATFORM_ROLES = ['none', 'support', 'staff', 'root'] as const;
 
@@ -187,12 +188,10 @@ function PersonCard({
           {canGrant && person.userId != null && (
             // Lateral to the role: writes the Anvil guide library and nothing else on the platform.
             <label className="flex items-center gap-2 text-xs text-gray-400">
-              <input
-                type="checkbox"
+              <CheckboxBox
                 checked={person.platformGuideEditor}
                 disabled={busy}
                 onChange={(e) => patch({ platformGuideEditor: e.target.checked })}
-                className="accent-[#e0b341]"
               />
               Library guide editor
             </label>
@@ -460,7 +459,7 @@ export default function PeopleClient({
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
         <label className="flex items-center gap-1.5 text-text-muted">
-          <input type="checkbox" checked={filters.multiClan} onChange={(e) => go({ multi: e.target.checked, page: null })} />
+          <CheckboxBox checked={filters.multiClan} onChange={(e) => go({ multi: e.target.checked, page: null })} />
           In more than one clan
         </label>
         {hasActiveFilters && (

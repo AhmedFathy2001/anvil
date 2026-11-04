@@ -16,6 +16,7 @@ import {
   type ReportTarget,
 } from '@/lib/platformReportRules';
 import { BLOCK_REASON_LABEL, BLOCK_REASONS, type BlockReason } from '@/lib/spacePage/blocklistSeed';
+import Select from '@/components/Select';
 
 interface Report {
   id: number;
@@ -351,13 +352,13 @@ export default function PromotionsClient({ canWrite }: { canWrite: boolean }) {
                 placeholder="example.com"
                 className="min-w-[14rem] flex-1 rounded-lg border border-card-border bg-card-bg px-3 py-1.5 text-sm"
               />
-              <select value={reason} onChange={(e) => setReason(e.target.value as BlockReason)} className="rounded-lg border border-card-border bg-card-bg px-2 py-1.5 text-sm">
-                {BLOCK_REASONS.map((r) => (
-                  <option key={r} value={r}>
-                    {BLOCK_REASON_LABEL[r]}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={reason}
+                onChange={(v) => setReason(v as BlockReason)}
+                options={BLOCK_REASONS.map((r) => ({ value: r, label: BLOCK_REASON_LABEL[r] }))}
+                ariaLabel="Reason"
+                className="w-44"
+              />
               <button type="submit" disabled={busy || !domain.trim()} className={`${btn} border-gold/50 text-gold`}>
                 Block
               </button>

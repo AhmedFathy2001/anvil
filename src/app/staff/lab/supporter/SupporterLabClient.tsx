@@ -6,6 +6,7 @@ import ClanLink from '@/components/ClanLink';
 import SupporterName from '@/components/SupporterName';
 import LocalTime from '@/components/LocalTime';
 import { SUPPORTER_TIERS, SUPPORTER_TIER_ORDER, type SupporterTierId } from '@/lib/supporterTiers';
+import Select from '@/components/Select';
 
 interface State {
   lab: { tier: SupporterTierId; endsAt: string | null; startedAt: string } | null;
@@ -77,14 +78,17 @@ export default function SupporterLabClient() {
           ))}
           <label className="ml-2 flex items-center gap-2 text-sm text-text-muted">
             supporting for
-            <select value={months} onChange={(e) => {
-                const m = Number(e.target.value);
+            <Select
+              value={String(months)}
+              onChange={(v) => {
+                const m = Number(v);
                 setMonths(m);
                 if (state?.lab) void act({ action: 'tier', tier: state.lab.tier, months: m });
               }}
-              className="rounded border border-card-border bg-background px-2 py-1 text-sm">
-              {MONTHS.map((m) => <option key={m} value={m}>{m} months</option>)}
-            </select>
+              options={MONTHS.map((m) => ({ value: String(m), label: `${m} months` }))}
+              ariaLabel="Supporting for"
+              className="w-32"
+            />
           </label>
         </div>
         {state && (
