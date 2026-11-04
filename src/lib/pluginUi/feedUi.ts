@@ -223,10 +223,19 @@ export function feedTabUi(o: FeedTabOptions): Node {
   const key = scopeKey(o.current);
   const parts: Node[] = [];
 
-  // Scope chips: the clan, then any board the viewer is on. One chip is just a heading.
+  // Which feed: a dropdown of every clan the viewer is in and every board they're on (chips ran out
+  // of room past two). One scope is just a heading.
   if (o.scopes.length > 1) {
     parts.push(
-      rowOf(o.scopes.map((s) => chip(s.name, scopeKey(s) === key, load({ s: scopeKey(s) })))),
+      {
+        t: 'input',
+        name: 's',
+        kind: 'select',
+        options: o.scopes.map((s) => ({ v: scopeKey(s), label: `${s.kind === 'clan' ? 'Clan' : 'Event'} · ${s.name}` })),
+        value: key,
+        tip: 'Whose feed to show',
+        on: load({}),
+      } as Node,
       gap(4),
     );
   } else {
