@@ -54,7 +54,7 @@ test('parseGates keeps only what the checker understands', () => {
   assert.equal(parseGates(''), null);
   assert.equal(parseGates('not json'), null);
   assert.equal(parseGates({ anyOf: [] }), null, 'nothing left means anyone');
-  assert.equal(parseGates({ anyOf: [{ kind: 'kick-follow' }] }), null, 'unknown kinds dropped');
+  assert.equal(parseGates({ anyOf: [{ kind: 'carrier-pigeon' }] }), null, 'unknown kinds dropped');
 
   const g = parseGates({
     anyOf: [

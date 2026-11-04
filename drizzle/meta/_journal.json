@@ -988,6 +988,13 @@
       "when": 1793791894614,
       "tag": "0193_event_overlays",
       "breakpoints": true
+    },
+    {
+      "idx": 194,
+      "version": "7",
+      "when": 1793791954614,
+      "tag": "0194_kick_entry_gates",
+      "breakpoints": true
     }
   ]
 }
