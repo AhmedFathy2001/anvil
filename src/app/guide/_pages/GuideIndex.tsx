@@ -14,12 +14,15 @@ import { listCategories } from '@/lib/guideCategoryStore';
 // Eight guides is too many for one flat grid — grouped by who is reading, so a captain looking for
 // their own page doesn't have to read the treasurer's blurb first. The grouping lives here rather
 // than in the dictionary: which audience a guide belongs to isn't a translation decision.
-const GROUPS: { key: 'playing' | 'running' | 'clan'; pages: Exclude<GuidePage, ''>[] }[] = [
+const GROUPS: { key: 'playing' | 'running' | 'clan' | 'streamers'; pages: Exclude<GuidePage, ''>[] }[] = [
   { key: 'playing', pages: ['plugin', 'tiles', 'captain', 'commands'] },
   { key: 'running', pages: ['admin', 'formats', 'board', 'clan-vs-clan'] },
   // Starting a clan comes first here on purpose: it is the only guide whose reader does not have one
   // yet, and the rest of this group is written for someone already running it.
   { key: 'clan', pages: ['switching', 'clan', 'discord', 'moderator', 'fees', 'coffer'] },
+  // Streamers: the host's guide first (it is the one the admin sidebar sends a creator to), then the
+  // page their viewers need, then the clan that streams.
+  { key: 'streamers', pages: ['creators', 'joining-a-streamer-event', 'streaming-for-clans'] },
 ];
 
 /** Route slug → dictionary card key (they differ only where the slug is hyphenated). */
@@ -38,6 +41,9 @@ const CARD_KEY = {
   commands: 'commands',
   switching: 'switching',
   tiles: 'tiles',
+  creators: 'creators',
+  'joining-a-streamer-event': 'joiningStream',
+  'streaming-for-clans': 'streamingClans',
 } as const;
 
 export async function guideIndexMetadata(lang: string): Promise<Metadata> {

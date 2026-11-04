@@ -38,6 +38,7 @@ const nl: PartialGuideDict = {
       playing: 'Spelen',
       running: 'Een event draaien',
       clan: 'De clan runnen',
+      streamers: 'Streamers',
     },
     ingame: {
       title: 'In-game gidsen',
@@ -146,6 +147,27 @@ const nl: PartialGuideDict = {
         blurb:
           'Elk commando waarop de bot in Discord antwoordt, wat elke optie doet, uitgewerkte voorbeelden, en wat je controleert als er een niet verschijnt.',
         minutes: '~6 min',
+      },
+      creators: {
+        eyebrow: 'Voor streamers',
+        title: 'Events organiseren voor je kijkers',
+        blurb:
+          'Geen clan nodig. Maak een space, deel één link, kies wie mee mag doen (volgers, subs, Discord-rollen) en zet het bord in je stream.',
+        minutes: '~6 min',
+      },
+      joiningStream: {
+        eyebrow: 'Voor kijkers',
+        title: 'Meedoen aan het event van een streamer',
+        blurb:
+          'Een link uit een stream gekregen? Log in, voeg je character toe, druk op Join. Wat je doet bij events alleen voor volgers of subs.',
+        minutes: '~2 min',
+      },
+      streamingClans: {
+        eyebrow: 'Voor clans die streamen',
+        title: 'Streamen voor clans',
+        blurb:
+          'Laat je kijkers aan één event meedoen zonder lid van de clan te worden. Zet Streaming aan en open daarna een event voor kijkers.',
+        minutes: '~2 min',
       },
     },
   },
@@ -2346,6 +2368,404 @@ const nl: PartialGuideDict = {
     limit: 'Goed om te weten',
     checked: 'Het vakje controleert dit voor je',
     englishOnly: 'De regels hieronder zijn voorlopig in het Engels, zodat ze altijd kloppen met wat de site echt doet.',
+  },
+  // /guide/creators — de gids voor hosts van een creator-space.
+  creators: {
+    metaTitle: 'Een OSRS-bingo organiseren voor je kijkers — Anvil',
+    metaDescription:
+      'Organiseer een Old School RuneScape-bingo of tile-race voor je stream, zonder clan: maak een space, deel één link, kies wie mee mag doen (Twitch, Kick, YouTube of Discord) en zet het bord met OBS in je stream.',
+    eyebrow: 'Voor streamers en creators',
+    title: 'Events organiseren voor je kijkers',
+    dek: 'Met een creator-space organiseer je een bingo voor je stream. Je hebt geen clan in het spel nodig. Je maakt één event, deelt één link en je kijkers doen mee.',
+    facts: [
+      { strong: 'Geen clan', rest: 'nodig' },
+      { strong: 'Gratis', rest: 'om te starten' },
+      { strong: 'Eén link', rest: 'voor je chat' },
+    ],
+
+    what: {
+      title: 'Wat een creator-space is',
+      body: [
+        'Het is je eigen pagina op Anvil, op `{apex}/c/jouw-naam`. Daar organiseer je events voor je kijkers.',
+        'Het is geen clan. Er is geen clanlijst, geen rangen en geen wekelijkse wedstrijden. Wie meedoet aan jouw event, speelt dat event. Meer niet.',
+        'Kijkers loggen in met Discord, voegen hun RuneScape-character toe en drukken op **Join**. De Anvil RuneLite-plugin telt hun drops dan vanzelf.',
+      ],
+    },
+
+    create: {
+      title: 'Maak je space',
+      body: [
+        'Ga naar [{apex}/host](/host) en log in met Discord.',
+        'Typ een naam voor je space. Je kanaalnaam is een goede keuze. Je link wordt van de naam gemaakt. Druk op **change link** als je een andere wilt.',
+        'Druk op **Create my space**. Je krijgt één space per Discord-account.',
+      ],
+    },
+
+    first: {
+      title: 'Maak je eerste event',
+      body: [
+        'Direct nadat je je space hebt gemaakt, kom je bij **Create your first event**. Later gebruik je **+ New event** bovenaan **Your events**.',
+        '**Name.** Dit zien je kijkers.',
+        '**What kind?** Kies een kaart. **Team bingo** is een 5×5-raster en Anvil verdeelt de spelers voor je over teams. **Solo bingo** is hetzelfde raster, iedereen voor zichzelf. **Team race** zijn taken op volgorde: het team dat het verst is, wint.',
+        '**Ready-made tiles** geeft je een mix van makkelijke tot moeilijke taken die je later kunt aanpassen. **Blank, I’ll write my own** begint leeg.',
+        '**Who can join?** Laat het op **Anyone** staan, of kies wie mee mag doen. Zie stap 5.',
+        '**When?** Kies de start- en einddatum. Of laat het leeg en start het event zelf als je klaar bent.',
+        'Druk op **Create event**. Druk daarna op **Copy invite link**.',
+      ],
+    },
+
+    share: {
+      title: 'Deel de link',
+      body: [
+        'Plak de uitnodigingslink in je stream-chat, je Discord of je socials. Die link is alles wat je kijkers nodig hebben.',
+        'Je kunt hem altijd opnieuw kopiëren: **Your events** → **Copy invite link** naast het event.',
+        'Wil je dat de bot in de chat op `!join` antwoordt met de link? Zie stap 9.',
+      ],
+    },
+
+    who: {
+      title: 'Kies wie mee mag doen',
+      body: [
+        'Elk event begint open voor **Anyone**. Om het voor je community te houden, open je de **Settings** van het event → **Who can join?** en kies je een of meer opties. Dezelfde opties staan op het scherm voor het eerste event.',
+        'Kies je er meer dan één, dan **is één van hen genoeg**. Een volger OF een server booster komt binnen.',
+      ],
+      intro: 'Elke optie, en wat een kijker moet doen:',
+      rows: [
+        {
+          term: 'Anyone',
+          body: 'Iedereen met de link doet meteen mee.',
+        },
+        {
+          term: 'Twitch followers',
+          body: 'De kijker drukt op de eventpagina op **Link Twitch** en logt in met Twitch. Anvil controleert of hij jou volgt.',
+        },
+        {
+          term: 'Twitch subs',
+          body: 'Zoals bij volgers, maar hij moet geabonneerd zijn. Kies het laagste niveau: **Tier 1 or higher**, **Tier 2 or higher** of **Tier 3**. Prime-subs tellen als tier 1. Je kanaal moet een Twitch-affiliate of -partner zijn.',
+        },
+        {
+          term: 'Kick followers',
+          body: 'Kick vertelt apps niet wie je volgt. Daarom telt Anvil mensen die je volgen _nadat_ je Kick hebt gekoppeld. Eerder gevolgd? Dan ontvolgt de kijker je en volgt opnieuw.',
+        },
+        {
+          term: 'Kick subs',
+          body: 'Subs die Anvil heeft gezien nadat je Kick koppelde, tellen vanzelf. Alle anderen drukken op **Get Kick code** en typen de code (hij ziet eruit als `ANVIL-7F3K9Q`) in je Kick-chat, en Anvil ziet hun sub-badge. Kick heeft geen sub-niveaus.',
+        },
+        {
+          term: 'YouTube subscribers',
+          body: 'De kijker drukt op **Check my YouTube subscription** en logt in met Google. Zijn abonnementen moeten openbaar zijn op YouTube.',
+        },
+        {
+          term: 'YouTube members',
+          body: 'De kijker typt zijn Anvil-code in je YouTube-livechat. Leden kunnen dus alleen meedoen **terwijl je live bent**.',
+        },
+        {
+          term: 'Discord role',
+          body: 'Mensen met een rol die je kiest in je Discord-server (maximaal 5 rollen). Koppel eerst je server: **Discord (optional)** in het menu.',
+        },
+        {
+          term: 'Server boosters',
+          body: 'Mensen die je Discord-server boosten. Hiervoor moet je server ook gekoppeld zijn.',
+        },
+      ],
+      note: {
+        tag: 'Goed om te weten',
+        body: 'Koppel eerst je kanaal (stap 7), anders blijven de opties voor Twitch, Kick en YouTube grijs. Eén Twitch-, Kick- of YouTube-account brengt maar één speler in elk event. Je staff en mensen die je bij naam uitnodigt, slaan de controles over.',
+      },
+    },
+
+    approve: {
+      title: 'Zeg ja tegen elke speler (optioneel)',
+      body: [
+        'Wil je zelf kiezen wie speelt? Open de **Settings** van het event → **Who can play** → **Who can enter it** en kies **Ask me about everyone**. Druk op **Save changes**.',
+        'Nu drukken kijkers op **Ask to join** in plaats van **Join**. Ze moeten eerst nog steeds door je **Who can join?**-opties heen.',
+        'Hun verzoeken staan bij **Your events** als **N waiting for you**. Klik erop, of open het tabblad **Sign-ups** van het event. De lijst bovenaan heet **Waiting for your yes**. Accepteer of wijs elk verzoek af.',
+      ],
+    },
+
+    channels: {
+      title: 'Koppel je Twitch, Kick of YouTube',
+      body: [
+        'Open **Settings** in het menu. Onder de naam van je space druk je op **Connect Twitch**, **Connect YouTube** of **Connect Kick** en log je in als je kanaal.',
+        'Elk kanaal dat je koppelt, staat op je pagina als **verified**-link. Je kunt geen link met de hand intypen: door in te loggen weet Anvil dat het kanaal van jou is.',
+        'Een kanaal kan aan één plek op Anvil gekoppeld zijn. Staat het al op een andere space of clan van jou, dan vraagt Anvil of je het wilt verplaatsen.',
+      ],
+    },
+
+    overlay: {
+      title: 'Zet het bord in je stream (OBS)',
+      body: [
+        'Druk bij **Your events** naast het event op **Stream overlay**, daarna op **Make overlay links**.',
+        'Je krijgt drie links. **Standings**: de beste teams en hoe ver ze zijn. **Feed**: de nieuwste drops en voltooide tiles. **Board**: het bord, met voltooide tiles gemarkeerd.',
+        'Kies vóór het kopiëren een **Text size** (S, M, L of XL). Druk daarna op **Copy** naast de link die je wilt.',
+      ],
+      stepsTitle: 'Voeg het toe in OBS',
+      steps: [
+        'Druk in OBS onder **Sources** op **+** en kies **Browser**.',
+        'Plak de link bij **URL**.',
+        'Stel een grootte in, bijvoorbeeld 800 × 600. Laat **Custom CSS** leeg.',
+        'Druk op **OK**. Het ververst zichzelf om de paar seconden.',
+      ],
+      tipsTag: 'Goed om te weten',
+      tips: [
+        'Zet `&limit=10`, `&title=0` of `&align=right` achter een link om hem aan te passen.',
+        'De overlay toont wat je openbare eventpagina toont. Verborgen standen en verborgen tiles blijven ook in de stream verborgen.',
+        '**Reset link** maakt nieuwe links en stopt de oude. Gebruik het als een link uitlekt. Je moet de nieuwe links dan opnieuw in OBS plakken.',
+        'Een klein “Anvil”-teken staat in de hoek. Met het Gold-abonnement kun je het verbergen via **Settings** → **Anvil mark on your overlay**.',
+      ],
+    },
+
+    chatjoin: {
+      title: '!join in je chat',
+      body: [
+        'Open **Settings** → **!join in Twitch chat** en zet het aan.',
+        'Als een kijker `!join` typt, antwoordt de Anvil-bot (Anvil_OSRS) met de link naar je open event. Hij antwoordt hooguit eens per 30 seconden, hoeveel mensen het ook typen.',
+        'Hij antwoordt alleen in een kanaal dat je in stap 7 hebt gekoppeld. Het werkt ook in de Kick-chat, zodra je Kick-kanaal gekoppeld is.',
+        'Geen event open? Dat zegt hij dan: “No event is open to join right now — keep an eye on the stream!”',
+      ],
+    },
+
+    listing: {
+      title: 'Laat je vermelden op Anvil',
+      body: [
+        'Je space staat bij het maken niet in de lijst. Alleen mensen met je link kunnen hem vinden.',
+        'Open **Settings** → **Advertise on Anvil** en zet het aan. Je space staat dan in de Anvil-clangids en je nieuwe events staan op `{apex}/events`.',
+        'Wil je maar één event vermelden, open dan de **Settings** ervan → **Who can play** → **Advertise on Anvil**. Het staat erin zolang het event gepland of live is.',
+      ],
+    },
+
+    plans: {
+      title: 'Abonnementen en limieten',
+      body: [
+        'Je abonnement bepaalt hoeveel spelers één event kan hebben. Al het andere is bij elk abonnement hetzelfde: het bord, de plugin-tracking, de overlay en Discord.',
+        'Je abonnementskaart staat bij **Your events**. Om abonnementen te vergelijken, zie [prijzen](/pricing#creators). Om te wijzigen of op te zeggen wat je betaalt, ga je naar [je factuurpagina](/portal).',
+      ],
+      rows: [
+        { term: 'Free', body: 'Tot 50 spelers per event. Eén event tegelijk. Controles voor Discord-rol en booster.' },
+        { term: 'Bronze', body: 'Tot 150 spelers per event. Controles voor Twitch, Kick en YouTube.' },
+        { term: 'Silver', body: 'Tot 300 spelers per event. Meer dan één event tegelijk. `!join` in de chat. Als eerste getoond in de lijst.' },
+        { term: 'Gold', body: 'Tot 1.000 spelers per event. Verberg het Anvil-teken op je overlay.' },
+        { term: 'Partner', body: 'Geen spelerslimiet. Direct met Anvil ingesteld — neem contact op.' },
+      ],
+      note: {
+        tag: 'Op dit moment',
+        body: 'Zolang Anvil groeit, komt iedereen nog binnen, ook boven de aantallen van je abonnement. De limieten gaan later in, met aankondiging. Je abonnementskaart laat zien hoe dicht je erbij zit.',
+      },
+    },
+
+    faq: {
+      title: 'Vragen',
+      intro: 'De vragen die streamers het vaakst stellen:',
+      rows: [
+        {
+          term: 'Hebben mijn kijkers een clan nodig?',
+          body: 'Nee. Ze hebben een Discord-account en een OSRS-character nodig. Stuur ze de [gids voor kijkers]({joiningGuide}).',
+        },
+        {
+          term: 'Hebben ze de RuneLite-plugin nodig?',
+          body: 'Voor drops en kills wel. De plugin stuurt ze vanzelf in. Een paar tiles lezen in plaats daarvan de hiscores.',
+        },
+        {
+          term: 'Een kijker zegt “The host’s Twitch connection isn’t working”.',
+          body: 'Twitch accepteert je koppeling niet meer. Open **Settings** en druk op **Reconnect Twitch**. Hetzelfde geldt voor Kick en YouTube.',
+        },
+        {
+          term: 'Kan iemand anders me helpen met organiseren?',
+          body: 'Ja. Open **Players** → **Staff & roles**, voeg ze toe en kies wat elk van hen mag doen.',
+        },
+        {
+          term: 'Ik run ook een clan in het spel.',
+          body: 'Dan heb je misschien geen space nodig. Een openbare clan kan in plaats daarvan **Streaming** aanzetten. Zie [streamen voor clans]({streamingGuide}).',
+        },
+        {
+          term: 'Kan ik een tweede space maken?',
+          body: 'Voorlopig één space per Discord-account. Neem contact op als je er nog een nodig hebt.',
+        },
+      ],
+    },
+  },
+
+  // /guide/joining-a-streamer-event — voor een kijker die op de link van een streamer klikte.
+  joiningStream: {
+    metaTitle: 'Meedoen aan de OSRS-bingo van een streamer — Anvil',
+    metaDescription:
+      'Een link van een streamer gekregen? Log in met Discord, voeg je OSRS-character toe, druk op Join. Wat je doet bij events alleen voor volgers of subs op Twitch, Kick of YouTube, en hoe je drops tellen.',
+    eyebrow: 'Voor kijkers',
+    title: 'Meedoen aan het event van een streamer',
+    dek: 'Een streamer deelde een link. Zo kom je op het bord. Je hebt geen clan nodig.',
+    facts: [
+      { strong: '~2 min', rest: 'om mee te doen' },
+      { strong: 'Geen clan', rest: 'nodig' },
+    ],
+
+    join: {
+      title: 'Meedoen in vier stappen',
+      body: [
+        '**Open de link** die de streamer deelde. Of typ `!join` in hun chat, dan plaatst de bot hem.',
+        '**Log in met Discord.** Dat is je Anvil-account. Je hoeft niets in te vullen.',
+        '**Voeg je character toe.** Druk op **Add my character** en typ je RuneScape-naam. Staat er **Prove it’s mine**, volg dan de stappen op je profiel. De [pluginhandleiding]({pluginGuide}) laat zien hoe.',
+        '**Druk op Join.** Kies je character als je er meer hebt. Je ziet **You’re in!** als het gelukt is.',
+      ],
+    },
+
+    gated: {
+      title: 'Events voor volgers of subs',
+      body: [
+        'Sommige events zijn alleen voor de community van de streamer. De joinkaart zegt voor wie, bijvoorbeeld “Open to followers of somename on Twitch”.',
+        'Druk toch op **Join**. Word je nog niet binnengelaten, dan staat op de kaart wat je kunt doen. Doe een van die dingen en druk dan opnieuw op **Join**.',
+      ],
+      intro: 'Wat je doet per soort:',
+      rows: [
+        {
+          term: 'Twitch follow or sub',
+          body: 'Druk op **Link Twitch** en log in met Twitch. Anvil vraagt om geen rechten. Druk daarna opnieuw op **Join**.',
+        },
+        {
+          term: 'Kick follow or sub',
+          body: 'Druk op **Get Kick code**. Typ de code (zoals `ANVIL-7F3K9Q`) binnen 10 minuten in de Kick-chat van de streamer. Elke code werkt één keer. Druk daarna opnieuw op **Join**.',
+        },
+        {
+          term: 'YouTube subscriber',
+          body: 'Druk op **Check my YouTube subscription** en log in met Google. Kies het account waarmee je kijkt. Je abonnementen moeten openbaar zijn in de privacyinstellingen van YouTube.',
+        },
+        {
+          term: 'YouTube member',
+          body: 'Druk op **Link my YouTube account**, typ dan je code in de YouTube-livechat en druk op **check the chat**. Dit werkt alleen terwijl de streamer live is.',
+        },
+        {
+          term: 'Discord role or booster',
+          body: 'Word lid van de Discord-server van de streamer en krijg de rol (of boost hem). Anvil controleert dit met het Discord-account waarmee je bent ingelogd.',
+        },
+      ],
+      note: {
+        tag: 'Goedkeuring',
+        body: 'Sommige streamers zeggen ja tegen elke speler. Dan staat er op de knop **Ask to join** en zie je **Waiting for the host** tot ze antwoorden.',
+      },
+    },
+
+    plugin: {
+      title: 'Installeer de Anvil-plugin',
+      body: [
+        'Je drops en kills tellen via de Anvil-plugin voor RuneLite. Installeer hem uit de Plugin Hub en log in met Discord in het zijpaneel.',
+        'De [pluginhandleiding]({pluginGuide}) loopt je er in zo’n drie minuten doorheen.',
+      ],
+    },
+
+    play: {
+      title: 'Spelen',
+      body: [
+        'Dat is alles. Speel gewoon. Als je een drop of kill krijgt die het bord nodig heeft, stuurt de plugin hem vanzelf in.',
+        'Open de eventlink altijd om het bord en de standen te zien. Je speelt alleen dit ene event: je wordt geen lid van een clan.',
+      ],
+    },
+
+    accounts: {
+      title: 'Je gekoppelde accounts',
+      body: [
+        'De Twitch-, YouTube- en Kick-accounts die je hebt gekoppeld staan in [Settings → Connected accounts](/settings/connections). Je kunt ze daar ook koppelen voordat je meedoet.',
+        'Je kunt er altijd een ontkoppelen. Events waaraan je al meedoet, houden je erin. Bij een afgeschermd event waaraan je later meedoet, moet je opnieuw koppelen.',
+      ],
+    },
+
+    faq: {
+      title: 'Vragen',
+      intro: 'Als iets nee zegt:',
+      rows: [
+        {
+          term: '“This event is full”',
+          body: 'Er is geen plek meer voor extra spelers. Alleen de streamer kan plek maken — laat het ze weten.',
+        },
+        {
+          term: 'Ik ben sub, maar ik kom er niet in.',
+          body: 'Controleer of je hetzelfde account hebt gekoppeld waarmee je geabonneerd bent. Kijk bij Twitch op de joinkaart bij **Your Twitch**. Typ bij Kick een verse code in hun chat: Anvil leest de sub-badge op dat bericht. Maak bij YouTube je abonnementen openbaar en controleer opnieuw.',
+        },
+        {
+          term: 'Ik volgde op Kick, maar het zegt van niet.',
+          body: 'Anvil ziet alleen volgers van nadat de streamer Kick koppelde. Ontvolg en volg opnieuw, en druk dan op **Join**.',
+        },
+        {
+          term: '“That Twitch account was already used to join this event”',
+          body: 'Eén Twitch-account (of Kick, of YouTube) brengt één speler binnen. Iemand anders deed al mee met dit account.',
+        },
+        {
+          term: '“Twitch didn’t answer just now”',
+          body: 'Twitch, Kick, YouTube of Discord had een haperinkje. Wacht een minuut en druk opnieuw op **Join**.',
+        },
+        {
+          term: '“The host’s … connection isn’t working”',
+          body: 'Dit ligt aan de streamer. Zeg dat ze hun kanaal opnieuw moeten koppelen op Anvil.',
+        },
+        {
+          term: 'Mijn drops verschijnen niet.',
+          body: 'Controleer of de plugin geïnstalleerd en ingelogd is, en of je met de character meedoet die je speelt. Zie de [pluginhandleiding]({pluginGuide}).',
+        },
+      ],
+    },
+  },
+
+  // /guide/streaming-for-clans — een openbare clan die Streaming aanzet.
+  streamingClans: {
+    metaTitle: 'De events van je clan streamen — Anvil',
+    metaDescription:
+      'Laat de kijkers van je stream meedoen aan een event van je clan zonder lid van de clan te worden: zet Streaming aan, open een event voor kijkers en kies welke kijkers binnenkomen.',
+    eyebrow: 'Voor clans die streamen',
+    title: 'Streamen voor clans',
+    dek: 'Streamt je clan zijn events? Laat kijkers aan één event meedoen zonder lid van je clan te worden.',
+
+    on: {
+      title: 'Zet Streaming aan',
+      body: [
+        'Ga naar Admin → **Clan settings** → **Streaming** en zet het aan.',
+        'Alleen een openbare clan kan streamen. Kijkers moeten je eventpagina kunnen openen, en een privéclan verbergt die. Een clan met Streaming aan kan niet privé worden totdat je het uitzet.',
+        'Staat het aan, koppel dan direct eronder je Twitch-, YouTube- of Kick-kanaal.',
+      ],
+    },
+
+    event: {
+      title: 'Open een event voor kijkers',
+      body: [
+        'Elk event blijft **Members only** totdat je iets anders zegt. Zo werkte het ook al eerder.',
+        'Open de **Settings** van het event → **Who can join?** en kies **Members and viewers**. Kies dan **Which viewers?**: iedereen, of volgers, subs, een Discord-rol enzovoort. Druk op **Save**.',
+        'Deze controles gelden alleen voor kijkers. Je clanleden komen er, zoals eerder, altijd in.',
+      ],
+    },
+
+    viewers: {
+      title: 'Wat kijkers zijn',
+      body: [
+        'Een kijker die meedoet is een **eventspeler**. Hij speelt dat ene event.',
+        'Hij is geen clanlid en geen gast. Hij komt nooit op je clanlijst en krijgt geen rang.',
+        'Iedereen die zo meedeed, zie je onder **People** → **Past viewers**.',
+      ],
+    },
+
+    tools: {
+      title: 'Je streamtools',
+      body: [
+        'De streamertools werken hetzelfde als in een creator-space: geverifieerde kanaallinks, **Who can join?**-controles, de OBS-overlay en `!join` in de chat.',
+        'De overlaylinks voor een clanevent staan in de **Settings** van het event, onder **Who can play** → **Stream overlay**. `!join` en het overlayteken staan onder **Clan settings** → **Streaming**.',
+        'De [creatorgids]({creatorsGuide}) legt elk ervan stap voor stap uit.',
+      ],
+    },
+
+    faq: {
+      title: 'Vragen',
+      intro: 'De korte antwoorden:',
+      rows: [
+        {
+          term: 'Tellen kijkers mee voor onze ledenlimiet?',
+          body: 'Nee. Het zijn eventspelers, geen leden. De streamerlimieten gelden per event (zie de [creatorgids]({creatorsGuide})).',
+        },
+        {
+          term: 'Stuurt `!join` mensen naar een event alleen voor leden?',
+          body: 'Nee. Het wijst alleen naar een event dat open is voor kijkers.',
+        },
+        {
+          term: 'Moet ik in plaats daarvan een creator-space maken?',
+          body: 'Alleen als je geen clan hebt. Een space is voor streamers zonder clan in het spel.',
+        },
+      ],
+    },
   },
 };
 
