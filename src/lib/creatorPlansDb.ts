@@ -4,7 +4,7 @@ import { and, count, eq, inArray, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clans, eventSignups, events } from '@/db/schema';
-import { ON_BOARD_STATUSES, eventRoomVerdict, newEventVerdict } from '@/lib/creatorPlans';
+import { ON_BOARD_STATUSES, eventRoomVerdict, isLiveEvent, newEventVerdict } from '@/lib/creatorPlans';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { eventStage } from '@/lib/eventStage';
 
@@ -60,7 +60,7 @@ export async function creatorPlanOfClan(clanId: number): Promise<string | null> 
   return row && isCreatorSpace(row) ? row.plan : null;
 }
 
-/** Events of this space that have not ended (not yet started, or running) — "live" for the plan. */
+/** Events of this space with a start date that have not ended (scheduled or running) — "live" for the plan. Undated drafts don't count (lib/creatorPlans isLiveEvent). */
 export async function liveEventCount(
   clanId: number,
   opts: { now?: number; exceptEventId?: number; tx?: Executor } = {},
@@ -71,7 +71,7 @@ export async function liveEventCount(
     .select({ id: events.id, startDate: events.startDate, endDate: events.endDate, forceEndedAt: events.forceEndedAt })
     .from(events)
     .where(eq(events.clanId, clanId));
-  return rows.filter((r) => r.id !== opts.exceptEventId && eventStage(r, now) !== 'wrap').length;
+  return rows.filter((r) => r.id !== opts.exceptEventId && isLiveEvent(r, now)).length;
 }
 
 /**

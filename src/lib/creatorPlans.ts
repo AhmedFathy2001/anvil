@@ -34,9 +34,14 @@ export function meteredPlan(clan: { kind?: string | null; plan?: string | null }
   return clan && clan.kind === 'creator' && freemiumEnforced() ? (clan.plan ?? 'free') : null;
 }
 
-/** Does this event's dates/end state make it live (not ended)? Same rule as liveEventCount. */
+/**
+ * Does this event count as live for the one-event-at-a-time limit? It has a start date (scheduled or
+ * running) and hasn't ended. An undated draft doesn't count: a host can keep drafts around and still
+ * make their next event. Setting a date (or pressing Start now) is when the limit is checked. Same rule
+ * as liveEventCount.
+ */
 export function isLiveEvent(e: { startDate: string | null; endDate: string | null; forceEndedAt: string | null }, now = Date.now()): boolean {
-  return eventStage(e, now) !== 'wrap';
+  return e.startDate != null && eventStage(e, now) !== 'wrap';
 }
 
 /** The player cap on one event for this plan string. Null = no cap. */
