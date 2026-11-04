@@ -282,3 +282,17 @@ test('a rows ticket carries its flag', () => {
   const { ticket } = signTicket({ userId: 7, eventIds: [3], teamId: 2, feed: true, rows: true }, key, 0);
   assert.deepEqual(verifyTicket(ticket, key, 1), { userId: 7, eventIds: [3], teamId: 2, feed: true, rows: true });
 });
+
+test('a team change rescopes the board\'s extra-board listeners too, not just the team room', () => {
+  const hub = new ViewHub({ fetchView: async () => null, later: () => () => {} });
+  let teamRoom = 0;
+  let extra = 0;
+  let other = 0;
+  hub.add({ scope: { userId: 1, eventIds: [5], teamId: 10, rows: true }, send: () => {}, rescope: () => teamRoom++ });
+  hub.add({ scope: { userId: 2, eventIds: [7, 5], teamId: 3, rows: true }, send: () => {}, rescope: () => extra++ });
+  hub.add({ scope: { userId: 3, eventIds: [5], teamId: 11, rows: true }, send: () => {}, rescope: () => other++ });
+  hub.dispatch({ k: 'event_participants', e: 5, t: null, i: null, x: 10 });
+  assert.equal(teamRoom, 1, 'the left team re-tickets');
+  assert.equal(extra, 1, 'an extra-board listener re-tickets');
+  assert.equal(other, 0, 'another team on its own board stays');
+});

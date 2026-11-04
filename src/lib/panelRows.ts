@@ -101,22 +101,16 @@ function clanUserIds(clanId: number): Promise<number[]> {
 /**
  * The people on one team: team-only rows (team chat, a hidden-standings board's drops) go to them by
  * name, so they arrive on whichever of a player's boards it is — a ticket's team room covers only its
- * first board. Held a minute.
+ * first board. Read fresh every time, never cached: someone just moved off the team must not hear it.
  */
-export function teamUserIds(teamId: number): Promise<number[]> {
-  return ttlMemo(
-    `panel-rows-team-users:${teamId}`,
-    async () => {
-      const rows = await db
-        .selectDistinct({ id: users.id })
-        .from(eventParticipants)
-        .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
-        .innerJoin(users, eq(users.playerId, accounts.playerId))
-        .where(eq(eventParticipants.teamId, teamId));
-      return rows.map((r) => r.id);
-    },
-    60_000,
-  );
+export async function teamUserIds(teamId: number): Promise<number[]> {
+  const rows = await db
+    .selectDistinct({ id: users.id })
+    .from(eventParticipants)
+    .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
+    .innerJoin(users, eq(users.playerId, accounts.playerId))
+    .where(eq(eventParticipants.teamId, teamId));
+  return rows.map((r) => r.id);
 }
 
 /** A board's player count, for its floor. Held five minutes. */

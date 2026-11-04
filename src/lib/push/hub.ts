@@ -162,6 +162,9 @@ export class ViewHub {
     // until their ticket runs out. Nobody else on the board is touched.
     if (change.x != null) {
       for (const c of [...(this.teams.get(teamKey(change.e, change.x)) ?? [])]) c.rescope?.();
+      // Clients that follow this board as an EXTRA board (not their ticket's first) have no team room
+      // here, so the line above can't reach a leaver among them: they re-ticket too.
+      for (const c of [...onBoard]) if (c.scope.eventIds[0] !== change.e) c.rescope?.();
     }
     const prefix = `team:${change.e}:`;
     for (const k of this.teams.keys()) {
