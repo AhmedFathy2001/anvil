@@ -74,7 +74,8 @@ test('a creator space is made with no in-game name: open, public, unlisted, owne
     slug: 'cool-streamer',
     name: 'Cool Streamer',
     ownerUserId: streamer.userId,
-    twitchUrl: 'https://www.twitch.tv/coolstreamer',
+    // An old client still sending a typed link: ignored, never stored (links come from OAuth only).
+    ...({ twitchUrl: 'https://www.twitch.tv/coolstreamer' } as object),
   });
   assert.equal(r.ok, true, JSON.stringify(r));
   if (!r.ok) return;
@@ -94,7 +95,7 @@ test('a creator space is made with no in-game name: open, public, unlisted, owne
   const twitch = await db.query.settings.findFirst({
     where: and(eq(s.settings.clanId, spaceId), eq(s.settings.key, 'creator_twitch_url')),
   });
-  assert.equal(twitch?.value, 'https://twitch.tv/coolstreamer');
+  assert.equal(twitch, undefined, 'a typed stream link is not stored');
 
   // Not in the directory until it opts in.
   const listed = async () =>
@@ -133,18 +134,56 @@ test('one creator space per person', async () => {
   assert.equal(theirs.ok, true);
 });
 
-test('bad input is refused: taken address, bad stream link', async () => {
+test('bad input is refused: taken address', async () => {
   const p = await person('Linky');
   const taken = await C.createCreatorSpace({ slug: 'cool-streamer', name: 'Dup', ownerUserId: p.userId });
   assert.equal(taken.ok, false);
-  const bad = await C.createCreatorSpace({
-    slug: 'linky',
-    name: 'Linky',
-    ownerUserId: p.userId,
-    kickUrl: 'https://kick.com.evil.io/x',
-  });
-  assert.equal(bad.ok, false);
   assert.equal(await C.ownedCreatorSpaceCount(p.userId), 0);
+});
+
+test('public stream links come only from OAuth-connected channels; typed values are never shown', async () => {
+  // A typed link left over from before (the retired settings): the page must not show it.
+  await db.insert(s.settings).values([
+    { clanId: spaceId, key: 'creator_twitch_url', value: 'https://twitch.tv/famousstreamer' },
+    { clanId: spaceId, key: 'creator_kick_url', value: 'https://kick.com/famousstreamer' },
+  ]);
+  assert.deepEqual(await H.creatorLinks(spaceId), [], 'typed links ignored: nothing connected, nothing shown');
+  assert.deepEqual((await H.creatorHomeView(spaceId))!.links, []);
+
+  // Connect Twitch, Kick and YouTube (what the OAuth callbacks store). Links are built from them.
+  const tok = { accessToken: 'x', refreshToken: 'y', expiresAt: '2099-01-01T00:00:00Z', scope: 's' };
+  await db.insert(s.clanTwitchChannels).values({ clanId: spaceId, twitchUserId: '111', twitchLogin: 'RealStreamer', ...tok });
+  await db.insert(s.clanKickChannels).values({
+    clanId: spaceId,
+    kickUserId: '222',
+    kickSlug: 'realstreamer',
+    ...tok,
+    connectedAt: '2026-11-01T00:00:00Z',
+    updatedAt: '2026-11-01T00:00:00Z',
+  });
+  await db.insert(s.clanYoutubeChannels).values({
+    clanId: spaceId,
+    youtubeChannelId: 'UCabcdefghijklmnopqrstuv',
+    title: 'Real Streamer',
+    handle: '@RealStreamer',
+    ...tok,
+  });
+  const links = await H.creatorLinks(spaceId);
+  assert.deepEqual(
+    links.map((l) => [l.platform, l.url]),
+    [
+      ['twitch', 'https://www.twitch.tv/realstreamer'],
+      ['youtube', 'https://www.youtube.com/@RealStreamer'],
+      ['kick', 'https://kick.com/realstreamer'],
+    ],
+  );
+  assert.ok(!links.some((l) => l.url.includes('famousstreamer')), 'the typed value never leaks through');
+
+  // Disconnecting deletes the row, and the link goes with it.
+  await db.delete(s.clanTwitchChannels).where(eq(s.clanTwitchChannels.clanId, spaceId));
+  await db.delete(s.clanKickChannels).where(eq(s.clanKickChannels.clanId, spaceId));
+  await db.delete(s.clanYoutubeChannels).where(eq(s.clanYoutubeChannels.clanId, spaceId));
+  assert.deepEqual(await H.creatorLinks(spaceId), []);
 });
 
 test('a stranger entering an OPEN creator event is seated at once', async () => {

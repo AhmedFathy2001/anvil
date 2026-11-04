@@ -40,9 +40,10 @@ export function standingLine(
   lastSyncByClan: Map<number, string | null>,
   nowMs: number,
 ): string {
-  const member = seats.find((s) => s.kind === 'member');
+  // A creator space is not a clan: any seat there reads "plays in", never "member of" or "guest in".
+  const member = seats.find((s) => s.kind === 'member' && !s.creator);
   const guests = seats.filter((s) => s.kind === 'guest' && !s.creator).map((s) => s.clanName);
-  const plays = seats.filter((s) => s.kind === 'guest' && s.creator).map((s) => s.clanName);
+  const plays = seats.filter((s) => s.creator).map((s) => s.clanName);
   const parts: string[] = [];
   if (member) {
     const ago = syncAgo(lastSyncByClan.get(member.clanId) ?? null, nowMs);

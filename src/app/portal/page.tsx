@@ -11,6 +11,8 @@ import { billingStatus, subscriptionFacts } from '@/lib/clanBilling';
 import { PLANS, PLAN_IDS, planOf, checkoutUrl, checkoutUrlWithRef, overMemberCap, TRIAL_DAYS, type Plan } from '@/lib/plans';
 import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
+import CreatorChip from '@/components/CreatorChip';
+import { groupClansAndSpaces } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +47,7 @@ export default async function PortalPage() {
       id: clans.id,
       slug: clans.slug,
       name: clans.name,
+      kind: clans.kind,
       plan: clans.plan,
       trialEndsAt: clans.trialEndsAt,
       currentPeriodEnd: clans.currentPeriodEnd,
@@ -68,6 +71,9 @@ export default async function PortalPage() {
   }
 
   const nowMs = Date.now();
+  // Creator spaces are not clans: they list under their own "Your spaces" heading (lib/creatorSpaces).
+  const groups = groupClansAndSpaces(owned, (c) => c.kind);
+  const onlySpaces = groups.length === 1 && groups[0].key === 'spaces';
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:py-16">
@@ -78,7 +84,7 @@ export default async function PortalPage() {
         />
         <p className="relative font-mono text-[10.5px] uppercase tracking-[0.22em] text-gold/85">Billing</p>
         <h1 className="display display-lg relative mt-2 text-[clamp(1.7rem,4vw,2.15rem)] font-semibold">
-          Your clans
+          {onlySpaces ? 'Your spaces' : 'Your clans'}
         </h1>
         <p className="relative mt-2.5 max-w-[56ch] text-[15px] leading-relaxed text-text-muted">
           Every clan you own, and what it&rsquo;s on. Payments run through Gumroad — change a plan there
@@ -110,7 +116,17 @@ export default async function PortalPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {owned.map((c) => {
+          {groups.flatMap((g, gi) => [
+            // The first group is named by the page heading; a second one gets its own.
+            ...(gi > 0
+              ? [
+                  <h2 key={`h-${g.key}`} className="mt-4 flex items-center gap-2 text-lg font-semibold">
+                    <span className="h-5 w-1 rounded-full bg-gold" aria-hidden />
+                    {g.label}
+                  </h2>,
+                ]
+              : []),
+            ...g.items.map((c) => {
             const plan = planOf(c.plan);
             const members = counts.get(c.id) ?? 0;
             const overCap = overMemberCap(plan, members);
@@ -135,9 +151,11 @@ export default async function PortalPage() {
                 lapsed={state === 'ended' || state === 'lapsed'}
                 subscriptionId={c.subscriptionId}
                 checkoutRef={c.gumroadRef}
+                creator={g.key === 'spaces'}
               />
             );
-          })}
+          }),
+          ])}
         </div>
       )}
 
@@ -163,7 +181,10 @@ function ClanBillingCard({
   lapsed,
   subscriptionId,
   checkoutRef,
+  creator = false,
 }: {
+  /** A creator space: tagged with the creator chip. */
+  creator?: boolean;
   slug: string;
   name: string;
   plan: Plan;
@@ -197,6 +218,7 @@ function ClanBillingCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="display text-[18px] font-semibold">{name}</h2>
+            {creator && <CreatorChip />}
             <span className="rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-[11px] font-semibold text-gold">
               {plan.name}
             </span>

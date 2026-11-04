@@ -20,16 +20,25 @@ function SectionTitle({ children, aside }: { children: React.ReactNode; aside?: 
   );
 }
 
-function StreamLink({ href, label }: { href: string; label: string }) {
+/** A channel the space connected through that platform's sign-in, so it is shown as verified. */
+function StreamLink({ link }: { link: CreatorHomeView['links'][number] }) {
   return (
     <a
-      href={href}
+      href={link.url}
       target="_blank"
       rel="noopener noreferrer"
+      title={`Verified: this space signed in as ${link.handle} on ${link.label}`}
       className="inline-flex items-center gap-1.5 rounded-lg border border-card-border px-3 py-1.5 text-[13px] font-medium transition-colors hover:border-gold/45 hover:text-gold"
     >
-      {label}
-      <span aria-hidden className="text-text-dim">↗</span>
+      <span>{link.label}</span>
+      <span className="text-text-muted">{link.handle}</span>
+      <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden className="shrink-0 text-accent-green-light">
+        <path
+          fill="currentColor"
+          d="M8 0.5 9.9 2l2.4-.2.7 2.3 2 1.4-.8 2.3.8 2.3-2 1.4-.7 2.3-2.4-.2L8 15.5 6.1 14l-2.4.2-.7-2.3-2-1.4.8-2.3L1 5.9l2-1.4.7-2.3 2.4.2Zm-1 10.3 4.6-4.6-1-1L7 8.8 5.4 7.2l-1 1Z"
+        />
+      </svg>
+      <span className="sr-only">(verified)</span>
     </a>
   );
 }
@@ -119,10 +128,11 @@ export default function CreatorHome({ view, activity }: { view: CreatorHomeView;
           <p className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-gold">Events by</p>
           <h1 className="display text-2xl font-semibold text-foreground sm:text-3xl">{view.name}</h1>
           {view.tagline && <p className="mt-1.5 max-w-[60ch] text-[15px] text-text-muted">{view.tagline}</p>}
-          {(view.links.twitch || view.links.kick) && (
+          {view.links.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
-              {view.links.twitch && <StreamLink href={view.links.twitch} label="Twitch" />}
-              {view.links.kick && <StreamLink href={view.links.kick} label="Kick" />}
+              {view.links.map((l) => (
+                <StreamLink key={l.platform} link={l} />
+              ))}
             </div>
           )}
         </div>

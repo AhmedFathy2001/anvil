@@ -23,7 +23,7 @@ import { newCheckoutRef } from '@/lib/billing';
 import { setSetting } from '@/lib/settings';
 import { FEATURES, FEATURES_OFF_SETTING, defaultFeaturesOffForNewClan, serializeFeaturesOff, type FeatureKey } from '@/lib/features';
 import { PUBLIC_SHOWCASE_KEY } from '@/lib/clanListing';
-import { MAX_CREATOR_SPACES, STREAM_LINK_KEYS, checkStreamLink, mayCreateCreatorSpace } from '@/lib/creatorSpaces';
+import { MAX_CREATOR_SPACES, mayCreateCreatorSpace } from '@/lib/creatorSpaces';
 import {
   availabilityMessage,
   domainRuleFailure,
@@ -266,8 +266,6 @@ export interface CreateCreatorSpaceInput {
   slug: string;
   name: string;
   ownerUserId: number;
-  twitchUrl?: string | null;
-  kickUrl?: string | null;
 }
 
 /**
@@ -288,11 +286,6 @@ export async function createCreatorSpace(input: CreateCreatorSpaceInput): Promis
   const slug = normalizeSlug(input.slug);
   const avail = await checkSlug(slug);
   if (!avail.ok) return { ok: false, error: availabilityMessage('Address', avail) };
-
-  const twitch = checkStreamLink('twitch', input.twitchUrl);
-  if (!twitch.ok) return { ok: false, error: twitch.error };
-  const kick = checkStreamLink('kick', input.kickUrl);
-  if (!kick.ok) return { ok: false, error: kick.error };
 
   try {
     const created = await db.transaction(async (tx) => {
@@ -341,8 +334,8 @@ export async function createCreatorSpace(input: CreateCreatorSpaceInput): Promis
       await setSetting(created.clanId, PUBLIC_SHOWCASE_KEY, 'off');
       // There is no setup wizard for a creator — the event wizard is where they start.
       await setSetting(created.clanId, 'setup_wizard_shown', new Date().toISOString());
-      if (twitch.url) await setSetting(created.clanId, STREAM_LINK_KEYS.twitch, twitch.url);
-      if (kick.url) await setSetting(created.clanId, STREAM_LINK_KEYS.kick, kick.url);
+      // No stream links here: a space links only to the channels it connects later (and so proves),
+      // lib/creatorSpaces verifiedStreamLinks.
     }
     return created;
   } catch (e) {
