@@ -80,3 +80,20 @@ test('the chat pane carries the send box; the feed pane its floor line', () => {
   assert.match(feed, /Drops ≥ 5m/);
   assert.doesNotMatch(feed, /"label":"Chat"|"s":"Chat"/, 'no chat chip off a board');
 });
+
+test('more than one clan or board: a dropdown of all of them, on the one showing', () => {
+  const scopes = [
+    { kind: 'clan' as const, id: 1, slug: 'afk', name: 'The AFK Spot' },
+    { kind: 'event' as const, id: 9, name: 'Chat Test' },
+    { kind: 'clan' as const, id: 2, slug: 'other', name: 'Other Clan' },
+    { kind: 'event' as const, id: 12, name: 'Summer Bingo' },
+  ];
+  const ui = feedTabUi({ scopes, current: scopes[3], pane: 'feed', chatAvailable: false, filter: 'all', teamId: null, rows: [], floorNote: 'x' }) as unknown as { c: Record<string, unknown>[] };
+  const select = ui.c.find((n) => n.t === 'input') as { kind: string; name: string; value: string; options: { v: string; label: string }[] };
+  assert.equal(select.kind, 'select');
+  assert.equal(select.name, 's', 'the choice rides the load as the scope');
+  assert.equal(select.value, 'event:12');
+  assert.deepEqual(select.options.map((o) => o.label), ['Clan · The AFK Spot', 'Event · Chat Test', 'Clan · Other Clan', 'Event · Summer Bingo']);
+  const one = JSON.stringify(feedTabUi({ scopes: [scopes[0]], current: scopes[0], pane: 'feed', chatAvailable: false, filter: 'all', teamId: null, rows: [], floorNote: 'x' }));
+  assert.doesNotMatch(one, /"kind":"select"/, 'one scope is a heading, not a dropdown');
+});

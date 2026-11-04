@@ -1,7 +1,7 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { events } from '@/db/schema';
+import { accounts, clanMemberships, clans, eventParticipants, events, users } from '@/db/schema';
 import { boardHidden, boardSize } from '@/lib/panelRows';
 import { pluginRsnHintOnly, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess } from '@/lib/eventChat';
@@ -40,7 +40,44 @@ async function scopesFor(request: Request, userId: number | null): Promise<Scope
     const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { id: true, name: true } });
     if (ev) out.push({ kind: 'event', id: ev.id, name: ev.name });
   }
+  if (userId != null) await addEverythingElse(out, userId);
   return out;
+}
+
+/**
+ * Every other clan the viewer is a member of, and every live board one of their characters is on,
+ * after the clan and board the plugin is pointed at: someone in two clans, or on two boards at once,
+ * can read (and chat in) any of them from the one dropdown.
+ */
+async function addEverythingElse(out: Scope[], userId: number): Promise<void> {
+  const has = (k: 'clan' | 'event', id: number) => out.some((s) => s.kind === k && s.id === id);
+  // clan-scope: global -- the subject is the viewer's own person; their seats span clans by design.
+  const mine = await db
+    .select({ accountId: accounts.id })
+    .from(users)
+    .innerJoin(accounts, eq(accounts.playerId, users.playerId))
+    .where(eq(users.id, userId));
+  const accountIds = mine.map((m) => m.accountId);
+  if (!accountIds.length) return;
+  // clan-scope: global -- the clans this viewer's own characters are members of.
+  const clanRowsMine = await db
+    .selectDistinct({ id: clans.id, slug: clans.slug, name: clans.name })
+    .from(clanMemberships)
+    .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
+    .where(and(inArray(clanMemberships.accountId, accountIds), eq(clanMemberships.kind, 'member'), isNull(clanMemberships.leftAt)));
+  for (const c of clanRowsMine) if (!has('clan', c.id)) out.push({ kind: 'clan', id: c.id, slug: c.slug, name: c.name });
+  // clan-scope: global -- the boards this viewer's own characters are seated on, in any clan.
+  const boards = await db
+    .selectDistinct({ id: events.id, name: events.name, startDate: events.startDate, endDate: events.endDate, forceEndedAt: events.forceEndedAt })
+    .from(eventParticipants)
+    .innerJoin(events, eq(events.id, eventParticipants.eventId))
+    .where(inArray(eventParticipants.accountId, accountIds));
+  const now = Date.now();
+  const at = (s: string | null) => (s ? Date.parse(s.includes('T') ? s : `${s.replace(' ', 'T')}Z`) : NaN);
+  for (const b of boards) {
+    const live = !b.forceEndedAt && !(at(b.startDate) > now) && !(at(b.endDate) <= now);
+    if (live && !has('event', b.id)) out.push({ kind: 'event', id: b.id, name: b.name });
+  }
 }
 
 function pick(scopes: Scope[], key: string | undefined): Scope | null {
@@ -151,7 +188,7 @@ export async function feedView(request: Request, a: Args): Promise<View> {
       filter,
       teamId,
       rows,
-      floorNote: `Drops ≥ ${formatGp(floor)} · pets · tasks`,
+      floorNote: `Drops ≥ ${formatGp(floor)} · pets`,
     }),
   };
 }
