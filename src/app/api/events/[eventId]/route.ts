@@ -26,6 +26,8 @@ import { standingsScopeForRequest } from '@/lib/standingsAccess';
 import { filterToVisibleTeams, standingsHidden } from '@/lib/standingsVisibility';
 import { forgetLinkCards } from '@/lib/ogKit';
 import { repriceStandardFees } from '@/lib/entryFee';
+import { isLiveEvent, meteredPlan } from '@/lib/creatorPlans';
+import { PlanLimitError, withLiveEventSlot } from '@/lib/creatorPlansDb';
 
 export async function GET(
   request: Request,
@@ -232,18 +234,30 @@ export async function PATCH(
       return NextResponse.json({ error: 'Event is not force-ended' }, { status: 400 });
     }
 
-    const [updated] = await db
-      .update(events)
-      .set({
-        endDate: event.originalEndDate,
-        forceEndedAt: null,
-        originalEndDate: null,
-        endNotified: 0,
-      })
-      .where(eq(events.id, id))
-      .returning();
-
-    return NextResponse.json(updated);
+    // Resuming makes it live again (unless its original end has passed meanwhile): on a creator
+    // space that runs one event at a time, only when no OTHER event is live — counted and written
+    // under the space's lock (lib/creatorPlansDb). A no-op until FREEMIUM_ENFORCED is on.
+    const reopens = isLiveEvent({ startDate: event.startDate, endDate: event.originalEndDate, forceEndedAt: null });
+    try {
+      const [updated] = await withLiveEventSlot(
+        { clanId: clan.id, clanPlan: reopens ? meteredPlan(clan) : null, exceptEventId: id },
+        (tx) =>
+          tx
+            .update(events)
+            .set({
+              endDate: event.originalEndDate,
+              forceEndedAt: null,
+              originalEndDate: null,
+              endNotified: 0,
+            })
+            .where(eq(events.id, id))
+            .returning(),
+      );
+      return NextResponse.json(updated);
+    } catch (e) {
+      if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'plan' }, { status: 403 });
+      throw e;
+    }
   }
 
   // Handle start-now action — kick the bingo off immediately from the admin UI instead of
@@ -641,11 +655,21 @@ export async function PATCH(
     return NextResponse.json({ error: 'signupDeadline must be on or before startDate' }, { status: 400 });
   }
 
-  const [updated] = await db
-    .update(events)
-    .set(updates)
-    .where(eq(events.id, id))
-    .returning();
+  // Moving an ended event's end into the future (or clearing it) makes it live again: on a creator
+  // space that runs one event at a time, only when no OTHER event is live — counted and written under
+  // the space's lock (lib/creatorPlansDb). Edits to an event that is already live are never checked.
+  const reopens =
+    !isLiveEvent(existing) &&
+    isLiveEvent({ startDate: finalStart, endDate: finalEnd, forceEndedAt: existing.forceEndedAt });
+  let updated: typeof events.$inferSelect;
+  try {
+    [updated] = await withLiveEventSlot({ clanId: clan.id, clanPlan: reopens ? meteredPlan(clan) : null, exceptEventId: id }, (tx) =>
+      tx.update(events).set(updates).where(eq(events.id, id)).returning(),
+    );
+  } catch (e) {
+    if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'plan' }, { status: 403 });
+    throw e;
+  }
 
   // A changed fee moves the entries nobody has paid or priced by hand onto it — a guest who entered
   // at the member fee before the guest fee existed owes the guest fee now, not forever the old one.

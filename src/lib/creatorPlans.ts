@@ -19,10 +19,25 @@
 // follows the plan actually paid for, enforced or not. A Silver creator paid to be featured today.
 
 import { clanCan, freemiumEnforced, minPlanNameFor } from '@/lib/entitlements';
+import { eventStage } from '@/lib/eventStage';
 import { PLANS, creatorPlanName, planHasCapability, planOf, planRank, type Plan } from '@/lib/plans';
 
 /** The tiers a creator can buy, in order. Custom ("Partner") is set by hand, never bought. */
 export const CREATOR_BUYABLE: readonly Plan[] = [PLANS.bronze, PLANS.silver, PLANS.gold];
+
+/**
+ * The plan to meter a host by, or null when nothing is metered: an ordinary clan (its roster is its
+ * meter), or any host while FREEMIUM_ENFORCED is off. The race-safe writers (lib/creatorPlansDb
+ * withEventRoom / withLiveEventSlot) take this and skip their lock and check on null.
+ */
+export function meteredPlan(clan: { kind?: string | null; plan?: string | null } | null | undefined): string | null {
+  return clan && clan.kind === 'creator' && freemiumEnforced() ? (clan.plan ?? 'free') : null;
+}
+
+/** Does this event's dates/end state make it live (not ended)? Same rule as liveEventCount. */
+export function isLiveEvent(e: { startDate: string | null; endDate: string | null; forceEndedAt: string | null }, now = Date.now()): boolean {
+  return eventStage(e, now) !== 'wrap';
+}
 
 /** The player cap on one event for this plan string. Null = no cap. */
 export function playersPerEventCap(clanPlan: string | null | undefined): number | null {
@@ -74,6 +89,42 @@ export function eventRoomVerdict(opts: { clanPlan: string | null | undefined; pl
   const cap = playersPerEventCap(opts.clanPlan);
   if (cap == null || opts.players + opts.adding <= cap) return { ok: true };
   return { ok: false, error: EVENT_FULL_MESSAGE, cap };
+}
+
+/** Sign-up statuses that put somebody ON the board — the only ones the meter counts, on every side. */
+export const ON_BOARD_STATUSES = ['pending', 'approved'] as const;
+
+export function isOnBoardStatus(status: string | null | undefined): boolean {
+  return status === 'pending' || status === 'approved';
+}
+
+/**
+ * The status a selected account's sign-up row ends up with after a submission — the same rule the
+ * sign-up route writes: an invite approves; a withdrawn row comes back as pending; anything else
+ * (including `rejected`) keeps its status; a new row is pending, or approved through an invite.
+ */
+export function statusAfterSignup(prior: string | null | undefined, invite: boolean): string {
+  if (prior == null) return invite ? 'approved' : 'pending';
+  if (invite && prior !== 'approved') return 'approved';
+  if (prior === 'withdrawn') return 'pending';
+  return prior;
+}
+
+/**
+ * How many board places one person's submission takes, net: their on-board rows after it, minus
+ * their on-board rows before it. Deselected rows leave the board (they are withdrawn); a deselected
+ * row that was not on the board (rejected, withdrawn) gives nothing back. Both sides count the same
+ * statuses (ON_BOARD_STATUSES), so a rejected row cannot be traded for a place.
+ */
+export function signupNetAdding(opts: {
+  existing: { clanMemberId: number; status: string }[];
+  selectedIds: number[];
+  invite: boolean;
+}): number {
+  const before = opts.existing.filter((r) => isOnBoardStatus(r.status)).length;
+  const prior = new Map(opts.existing.map((r) => [r.clanMemberId, r.status]));
+  const after = opts.selectedIds.filter((cid) => isOnBoardStatus(statusAfterSignup(prior.get(cid), opts.invite))).length;
+  return after - before;
 }
 
 /** The host's upsell line for an event of this size: "Upgrade to Silver for 300 players". */

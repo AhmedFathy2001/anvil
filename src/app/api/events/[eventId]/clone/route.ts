@@ -5,10 +5,8 @@ import { requireClan } from '@/lib/clanContext';
 import { events, tiles, surveyQuestions } from '@/db/schema';
 import { eq, asc } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
-import { isCreatorSpace } from '@/lib/creatorSpaces';
-import { newEventVerdict } from '@/lib/creatorPlans';
-import { liveEventCount } from '@/lib/creatorPlansDb';
-import { freemiumEnforced } from '@/lib/entitlements';
+import { meteredPlan } from '@/lib/creatorPlans';
+import { PlanLimitError, withLiveEventSlot } from '@/lib/creatorPlansDb';
 import { track } from '@/lib/analytics';
 
 // Clone an event: copy its configuration, full tile board, and survey questions into a brand-new
@@ -39,13 +37,12 @@ export async function POST(
   }
 
   const clan = await requireClan();
-  // A creator space on Free or Bronze runs one event at a time (lib/creatorPlans). A no-op until
-  // FREEMIUM_ENFORCED is on; an ordinary clan is unchanged.
-  if (isCreatorSpace(clan) && freemiumEnforced()) {
-    const more = newEventVerdict({ clanPlan: clan.plan, liveEvents: await liveEventCount(clan.id) });
-    if (!more.ok) return NextResponse.json({ error: more.error, reason: 'plan' }, { status: 403 });
-  }
-  const [created] = await db
+  // A creator space on Free or Bronze runs one event at a time (lib/creatorPlans): a copy has no dates,
+  // so it is live from the moment it exists — counted and inserted under the space's lock. A no-op
+  // until FREEMIUM_ENFORCED is on; an ordinary clan is unchanged.
+  let created: { id: number };
+  try {
+    [created] = await withLiveEventSlot({ clanId: clan.id, clanPlan: meteredPlan(clan) }, (tx) => tx
     .insert(events)
     .values({
       clanId: clan.id,
@@ -81,7 +78,11 @@ export async function POST(
       draftStatus: 'none',
       tilesRevealed: 0,
     })
-    .returning({ id: events.id });
+    .returning({ id: events.id }));
+  } catch (e) {
+    if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'plan' }, { status: 403 });
+    throw e;
+  }
 
   const sourceTiles = await db
     .select()

@@ -16,8 +16,8 @@ import { checkPick, isTeamFull, placementOf } from '@/lib/teamPlacement';
 import { seatSignupAccounts, teamLoads } from '@/lib/teamPlacementDb';
 import { entryGateVerdict } from '@/lib/entryGatesDb';
 import { verdictMessage } from '@/lib/entryGates';
-import { eventRoomVerdict } from '@/lib/creatorPlans';
-import { creatorPlanOfClan, eventPlayerCount } from '@/lib/creatorPlansDb';
+import { eventRoomVerdict, signupNetAdding } from '@/lib/creatorPlans';
+import { PlanLimitError, creatorPlanOfClan, eventPlayerCount, withEventRoom } from '@/lib/creatorPlansDb';
 import { freemiumEnforced } from '@/lib/entitlements';
 
 export async function GET(
@@ -282,20 +282,17 @@ export async function POST(
     }
   }
 
-  // A creator space's plan caps the players on one event (lib/creatorPlans). Only the accounts this
-  // submission ADDS count — editing a sign-up, or swapping one character for another, never bumps
-  // anybody. A no-op until FREEMIUM_ENFORCED is on; an ordinary clan is never metered this way.
-  if (freemiumEnforced()) {
-    const adding =
-      selectedIds.filter((cid) => {
-        const prior = existingRows.find((r) => r.clanMemberId === cid);
-        return !prior || prior.status === 'withdrawn';
-      }).length - deselected.length;
-    const hostPlan = adding > 0 ? await creatorPlanOfClan(event.clanId) : null;
-    if (hostPlan != null) {
-      const room = eventRoomVerdict({ clanPlan: hostPlan, players: await eventPlayerCount(id), adding });
-      if (!room.ok) return NextResponse.json({ error: room.error, reason: 'full' }, { status: 403 });
-    }
+  // A creator space's plan caps the players on one event (lib/creatorPlans). Only the board places
+  // this submission takes NET count — editing a sign-up, or swapping one character for another, never
+  // bumps anybody — and both sides count the same statuses (pending/approved), so a rejected row
+  // cannot be traded for a place. This is the cheap, early refusal; the one that holds under a rush
+  // is repeated under the event's lock after the write (step 2). A no-op until FREEMIUM_ENFORCED is
+  // on; an ordinary clan is never metered this way.
+  const metered = freemiumEnforced() ? await creatorPlanOfClan(event.clanId) : null;
+  const netAdding = signupNetAdding({ existing: existingRows, selectedIds, invite: !!invite });
+  if (metered != null && netAdding > 0) {
+    const room = eventRoomVerdict({ clanPlan: metered, players: await eventPlayerCount(id), adding: netAdding });
+    if (!room.ok) return NextResponse.json({ error: room.error, reason: 'full' }, { status: 403 });
   }
 
   // One profile PER PERSON (option A): the answers live on the PRIMARY account's row; siblings carry
@@ -363,45 +360,55 @@ export async function POST(
   }
 
   // 2) Upsert each selected account (profile only on the primary), reactivating a withdrawn row.
+  //    One transaction (lib/creatorPlansDb withEventRoom): on a metered creator event it holds the
+  //    event's lock from before the write to the re-count after it, so two sign-ups racing for the
+  //    last place cannot both take it — the second counts the first's row and rolls its own back.
   const rows: { row: typeof eventSignups.$inferSelect; account: (typeof myAccounts)[number] }[] = [];
-  for (const cid of selectedIds) {
-    const account = accountById.get(cid)!;
-    const data = cid === primaryId ? profileJson : '{}';
-    const prior = existingByMember.get(cid);
-    let row;
-    if (prior) {
-      [row] = await db
-        .update(eventSignups)
-        .set({
-          profileData: data,
-          // Only ever written on a team-choice event; null elsewhere leaves a drafted sign-up alone.
-          ...(teamChoiceOn ? { requestedTeamId } : {}),
-          updatedAt: now,
-          ...(invite && prior.status !== 'approved'
-            ? { status: 'approved' as const }
-            : prior.status === 'withdrawn'
-              ? { status: 'pending' as const }
-              : {}),
-        })
-        .where(eq(eventSignups.id, prior.id))
-        .returning();
-    } else {
-      [row] = await db
-        .insert(eventSignups)
-        .values({
-          eventId: id,
-          userId: session.userId,
-          clanMemberId: cid,
-          profileData: data,
-          requestedTeamId,
-          // The team that invited them already decided; there is nobody left to approve it.
-          status: invite ? 'approved' : 'pending',
-          signedUpAt: now,
-          updatedAt: now,
-        })
-        .returning();
-    }
-    rows.push({ row, account });
+  try {
+    await withEventRoom({ eventId: id, clanPlan: metered, adding: netAdding }, async (tx) => {
+      for (const cid of selectedIds) {
+        const account = accountById.get(cid)!;
+        const data = cid === primaryId ? profileJson : '{}';
+        const prior = existingByMember.get(cid);
+        let row;
+        if (prior) {
+          [row] = await tx
+            .update(eventSignups)
+            .set({
+              profileData: data,
+              // Only ever written on a team-choice event; null elsewhere leaves a drafted sign-up alone.
+              ...(teamChoiceOn ? { requestedTeamId } : {}),
+              updatedAt: now,
+              ...(invite && prior.status !== 'approved'
+                ? { status: 'approved' as const }
+                : prior.status === 'withdrawn'
+                  ? { status: 'pending' as const }
+                  : {}),
+            })
+            .where(eq(eventSignups.id, prior.id))
+            .returning();
+        } else {
+          [row] = await tx
+            .insert(eventSignups)
+            .values({
+              eventId: id,
+              userId: session.userId,
+              clanMemberId: cid,
+              profileData: data,
+              requestedTeamId,
+              // The team that invited them already decided; there is nobody left to approve it.
+              status: invite ? 'approved' : 'pending',
+              signedUpAt: now,
+              updatedAt: now,
+            })
+            .returning();
+        }
+        rows.push({ row, account });
+      }
+    });
+  } catch (e) {
+    if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'full' }, { status: 403 });
+    throw e;
   }
 
   // 3) Seat every active account (one player row per account): the invite's team, the place the

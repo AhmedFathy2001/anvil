@@ -155,6 +155,96 @@ test('overlay mark: on for a creator space by default, hideable per plan; never 
   assert.equal(await O.readOverlayMark(clan.id), false);
 });
 
+/** `count` guest seats in a clan (no sign-ups), for racing sign-ups onto. */
+async function seats(clanId: number, count: number, tag: string): Promise<number[]> {
+  const pls = await db.insert(s.players).values(Array.from({ length: count }, (_, i) => ({ displayName: `${tag}${i}` }))).returning();
+  const accs = await db
+    .insert(s.accounts)
+    .values(pls.map((p, i) => ({ playerId: p.id, rsn: `${tag}${i}`, rsnNormalized: `${tag}${i}`.toLowerCase(), verifiedAt: new Date().toISOString() })))
+    .returning();
+  const rows = await db.insert(s.clanMemberships).values(accs.map((a) => ({ clanId, accountId: a.id, kind: 'guest', source: 'web' }))).returning();
+  return rows.map((r) => r.id);
+}
+
+test('two sign-ups racing for the last place: exactly one gets it', async () => {
+  const [{ id: race }] = await db.insert(s.events).values({ clanId: spaceId, name: 'Race Bingo', boardSize: 5 }).returning();
+  await fill(spaceId, race, 49, 'rc');
+  const [a, b] = await seats(spaceId, 2, 'racer');
+  process.env.FREEMIUM_ENFORCED = 'true';
+  const signUp = (seat: number) =>
+    P.withEventRoom({ eventId: race, clanPlan: 'free', adding: 1 }, (tx) =>
+      tx.insert(s.eventSignups).values({ eventId: race, clanMemberId: seat, status: 'pending' }).returning(),
+    );
+  const results = await Promise.allSettled([signUp(a), signUp(b)]);
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1, JSON.stringify(results));
+  const failed = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+  assert.ok(failed.reason instanceof P.PlanLimitError, String(failed.reason));
+  assert.equal(await P.eventPlayerCount(race), 50, 'the loser’s row was rolled back');
+
+  // Not metered (generous phase passes null): both would go in.
+  const [c] = await seats(spaceId, 1, 'free-for-now');
+  await P.withEventRoom({ eventId: race, clanPlan: null, adding: 1 }, (tx) =>
+    tx.insert(s.eventSignups).values({ eventId: race, clanMemberId: c, status: 'pending' }),
+  );
+  assert.equal(await P.eventPlayerCount(race), 51);
+  await db.delete(s.events).where(eq(s.events.id, race));
+});
+
+test('a rejected sign-up does not count, so it cannot be traded for a place', async () => {
+  const [{ id: ev }] = await db.insert(s.events).values({ clanId: spaceId, name: 'Rejects', boardSize: 5 }).returning();
+  await fill(spaceId, ev, 50, 'rj');
+  const [seat] = await seats(spaceId, 1, 'rejected');
+  await db.insert(s.eventSignups).values({ eventId: ev, clanMemberId: seat, status: 'rejected' });
+  assert.equal(await P.eventPlayerCount(ev), 50, 'rejected is not on the board');
+  await db.delete(s.events).where(eq(s.events.id, ev));
+});
+
+test('two creates at once on a one-at-a-time plan: exactly one is made', async () => {
+  const p = await person('Racing Host');
+  const r = await C.createCreatorSpace({ slug: 'racing-host', name: 'Racing Host', ownerUserId: p.userId });
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  const create = (name: string) =>
+    P.withLiveEventSlot({ clanId: r.clanId, clanPlan: 'free' }, (tx) =>
+      tx.insert(s.events).values({ clanId: r.clanId, name, boardSize: 5 }).returning(),
+    );
+  process.env.FREEMIUM_ENFORCED = 'true';
+  const results = await Promise.allSettled([create('One'), create('Two')]);
+  assert.equal(results.filter((x) => x.status === 'fulfilled').length, 1, JSON.stringify(results));
+  assert.equal(await P.liveEventCount(r.clanId), 1);
+
+  // RESUME over the limit: a force-ended event coming back while another is live is refused…
+  const [ended] = await db
+    .insert(s.events)
+    .values({ clanId: r.clanId, name: 'Ended', boardSize: 5, forceEndedAt: new Date().toISOString() })
+    .returning();
+  const resume = () =>
+    P.withLiveEventSlot({ clanId: r.clanId, clanPlan: 'free', exceptEventId: ended.id }, (tx) =>
+      tx.update(s.events).set({ forceEndedAt: null }).where(eq(s.events.id, ended.id)).returning(),
+    );
+  await assert.rejects(resume(), (e) => e instanceof P.PlanLimitError);
+  assert.equal((await db.query.events.findFirst({ where: eq(s.events.id, ended.id) }))?.forceEndedAt != null, true, 'still ended');
+
+  // …and allowed once the other one has ended (the event itself is not counted against itself).
+  await db
+    .update(s.events)
+    .set({ forceEndedAt: new Date().toISOString() })
+    .where(eq(s.events.clanId, r.clanId));
+  await db.update(s.events).set({ forceEndedAt: new Date().toISOString() }).where(eq(s.events.id, ended.id));
+  await resume();
+  assert.equal(await P.liveEventCount(r.clanId), 1);
+
+  // Silver runs several: a second resume-style reopen passes.
+  const [other] = await db
+    .insert(s.events)
+    .values({ clanId: r.clanId, name: 'Other', boardSize: 5, forceEndedAt: new Date().toISOString() })
+    .returning();
+  await P.withLiveEventSlot({ clanId: r.clanId, clanPlan: 'silver', exceptEventId: other.id }, (tx) =>
+    tx.update(s.events).set({ forceEndedAt: null }).where(eq(s.events.id, other.id)),
+  );
+  assert.equal(await P.liveEventCount(r.clanId), 2);
+});
+
 test('a second live event: refused on Free once enforced, fine on Silver', async () => {
   const CP = await import('../src/lib/creatorPlans.ts');
   const live = await P.liveEventCount(spaceId);

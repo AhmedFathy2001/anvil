@@ -72,6 +72,47 @@ test('enforced: players per event', () => {
   });
 });
 
+test('net adding counts the same statuses on both sides (no rejected-row trade)', () => {
+  // A rejected row deselected gives nothing back; a new account still takes a place.
+  assert.equal(
+    CP.signupNetAdding({ existing: [{ clanMemberId: 1, status: 'rejected' }], selectedIds: [2], invite: false }),
+    1,
+  );
+  // A withdrawn row deselected gives nothing back either.
+  assert.equal(
+    CP.signupNetAdding({ existing: [{ clanMemberId: 1, status: 'withdrawn' }], selectedIds: [2], invite: false }),
+    1,
+  );
+  // A rejected row re-selected through an invite becomes approved: that is a new place.
+  assert.equal(
+    CP.signupNetAdding({ existing: [{ clanMemberId: 1, status: 'rejected' }], selectedIds: [1], invite: true }),
+    1,
+  );
+  // Re-selected without an invite it stays rejected: no place.
+  assert.equal(
+    CP.signupNetAdding({ existing: [{ clanMemberId: 1, status: 'rejected' }], selectedIds: [1], invite: false }),
+    0,
+  );
+  // A swap of one on-board account for another is net zero; an edit is zero; a withdrawn row back is +1.
+  assert.equal(CP.signupNetAdding({ existing: [{ clanMemberId: 1, status: 'pending' }], selectedIds: [2], invite: false }), 0);
+  assert.equal(CP.signupNetAdding({ existing: [{ clanMemberId: 1, status: 'approved' }], selectedIds: [1], invite: false }), 0);
+  assert.equal(CP.signupNetAdding({ existing: [{ clanMemberId: 1, status: 'withdrawn' }], selectedIds: [1], invite: false }), 1);
+});
+
+test('meteredPlan / isLiveEvent', () => {
+  delete process.env.FREEMIUM_ENFORCED;
+  assert.equal(CP.meteredPlan({ kind: 'creator', plan: 'free' }), null, 'nothing metered while generous');
+  enforced(() => {
+    assert.equal(CP.meteredPlan({ kind: 'creator', plan: 'bronze' }), 'bronze');
+    assert.equal(CP.meteredPlan({ kind: 'clan', plan: 'free' }), null, 'ordinary clans unchanged');
+  });
+  const now = Date.parse('2026-11-04T12:00:00Z');
+  assert.equal(CP.isLiveEvent({ startDate: null, endDate: null, forceEndedAt: null }, now), true, 'an undated draft counts');
+  assert.equal(CP.isLiveEvent({ startDate: null, endDate: '2026-11-01T00:00:00Z', forceEndedAt: null }, now), false);
+  assert.equal(CP.isLiveEvent({ startDate: null, endDate: '2026-12-01T00:00:00Z', forceEndedAt: null }, now), true);
+  assert.equal(CP.isLiveEvent({ startDate: null, endDate: null, forceEndedAt: '2026-11-02T00:00:00Z' }, now), false);
+});
+
 test('enforced: one live event on Free and Bronze, several from Silver', () => {
   enforced(() => {
     assert.deepEqual(CP.newEventVerdict({ clanPlan: 'free', liveEvents: 0 }), { ok: true });
