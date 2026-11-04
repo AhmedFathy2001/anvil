@@ -18,7 +18,7 @@ export default async function EventSettingsLayout({ children, params }: { childr
   const clan = await requireClan();
   const kind = { creator: isCreatorSpace(clan), streams: streamsEvents(clan) };
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-4xl">
       <SettingsNav eventId={id} kind={kind} tabs={tabsFor(kind)} />
       {/* One save bar for the whole tab (SaveBar): panels register their unsaved edits with it. */}
       <SaveBarProvider>
