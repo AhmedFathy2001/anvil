@@ -18,7 +18,7 @@ const ROLES = { supporter: 'r-sup', champion: 'r-champ', patron: 'r-pat', subscr
 
 /** Each fake member's roles, by Discord id; absent = not in the server. */
 const members = new Map<string, Set<string>>();
-const posts: Array<{ embeds: Array<{ title: string; description: string }> }> = [];
+const posts: Array<{ content?: string; allowed_mentions?: { users?: string[] }; embeds: Array<{ title: string; description: string }> }> = [];
 const realFetch = globalThis.fetch;
 
 before(async () => {
@@ -100,6 +100,8 @@ test('a new paid membership is announced once and gets its tier role plus the su
   await post({ sale_id: 'sale-a1', subscription_id: 'sub-a', 'url_params[ref]': 'ref-a', 'variants[Tier]': 'Champion', recurrence: 'monthly' });
   assert.equal(posts.length, 1);
   assert.match(posts[0].embeds[0].description, /Buyer\\_\d+\*\* just became an Anvil Champion/);
+  assert.equal(posts[0].content, `<@${u.discordId}>`, 'in the server: they are tagged');
+  assert.deepEqual(posts[0].allowed_mentions?.users, [u.discordId], 'and only they are');
   assert.deepEqual([...members.get(u.discordId)!].sort(), ['r-champ', 'r-sub', 'unrelated']);
 
   // A renewal at a new tier swaps the tier role and posts nothing.
@@ -157,4 +159,35 @@ test('the sweep takes the role off a membership whose term ran out', async () =>
   assert.ok((await sweepAnvilSupporterRoles()) >= 1);
   assert.deepEqual([...members.get(u.discordId)!], ['unrelated']);
   assert.equal(await sweepAnvilSupporterRoles(), 0, 'not again within the hour');
+});
+
+test('everyone already paying is posted once, tagged when in the server; gifts and opt-outs are not', async () => {
+  const { db, schema: s } = await loadDb();
+  const A = await import('../src/lib/anvilDiscord.ts');
+  const old = new Date(Date.now() - 90 * 86400_000).toISOString();
+  const ahead = new Date(Date.now() + 30 * 86400_000).toISOString();
+  const inServer = await makeUser('ref-h1');
+  const outside = await makeUser('ref-h2', { inServer: false });
+  const quiet = await makeUser('ref-h3', { announce: false });
+  const gifted = await makeUser('ref-h4');
+  for (const [u, sale] of [[inServer, 'h1'], [outside, 'h2'], [quiet, 'h3']] as const) {
+    await db.insert(s.supporterSubscriptions).values({ userId: u.id, tier: 'patron', status: 'active', recurrence: 'monthly', gumroadSaleId: `sale-${sale}`, currentPeriodEnd: ahead, startedAt: old });
+  }
+  await db.insert(s.supporterSubscriptions).values({ userId: gifted.id, tier: 'patron', status: 'granted', recurrence: 'gift', currentPeriodEnd: ahead, startedAt: old });
+  posts.length = 0;
+
+  const r = await A.announceCurrentSupporters({ pauseMs: 0 });
+  // Earlier tests' members are still paying too; these four are the ones this test is about.
+  const mine = posts.filter((p) => /has been supporting Anvil since/.test(p.embeds[0].description));
+  const about = (u: { displayName: string }) => mine.find((p) => p.embeds[0].description.includes(u.displayName.replace('_', '\\_')));
+  assert.ok(about(inServer), 'posted');
+  assert.equal(about(inServer)!.content, `<@${inServer.discordId}>`);
+  assert.ok(about(outside) && !about(outside)!.content, 'not in the server: posted, not tagged');
+  assert.ok(!about(quiet), 'opted out');
+  assert.ok(!about(gifted), 'a staff gift is not a purchase');
+  assert.ok(r.skipped >= 1);
+
+  // Marked: a renewal of any of them never reads as new.
+  const left = await db.select().from(s.supporterSubscriptions);
+  assert.ok(left.filter((x) => x.gumroadSaleId?.startsWith('sale-h')).every((x) => x.announcedAt));
 });
