@@ -94,6 +94,18 @@ test('easy tasks stay quiet until a clan turns them on; a saved list is the whol
   assert.equal((await store.getModeRouting(clanId, 'grid-master', null)).kindsOff.size, 0, 'turned on');
 });
 
+test("a mode's own filters: unset follows the main game, saved values read back, a cleared one is gone", async () => {
+  assert.deepEqual(await store.getModeFilters(clanId, 'hardcore'), { dropFloor: null, levels: null });
+  const levels = { ninetyNines: true, skillStep: 0, skillFrom: 1, totalStep: 0, totalFrom: 0, maxTotal: true };
+  await settings.setSetting(clanId, modes.modeDropFloorKey('hardcore'), '5000');
+  await settings.setSetting(clanId, modes.modeLevelsKey('hardcore'), JSON.stringify(levels));
+  assert.deepEqual(await store.getModeFilters(clanId, 'hardcore'), { dropFloor: 5000, levels });
+  assert.deepEqual(await store.getModeFilters(clanId, 'deadman'), { dropFloor: null, levels: null }, 'per mode');
+  await settings.setSetting(clanId, modes.modeDropFloorKey('hardcore'), null);
+  await settings.setSetting(clanId, modes.modeLevelsKey('hardcore'), null);
+  assert.deepEqual(await store.getModeFilters(clanId, 'hardcore'), { dropFloor: null, levels: null });
+});
+
 test('the review queue counts a wording once, newest line kept, capped per mode', async () => {
   const lines = await import('../src/lib/modeLineStore.ts');
   const LG = { key: 'leagues', known: true };
