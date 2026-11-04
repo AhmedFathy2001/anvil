@@ -35,6 +35,7 @@ import { FEATURES_OFF_SETTING, serializeFeaturesOff } from '@/lib/features';
 import {
   FRIENDS_FEATURES_OFF,
   FRIENDS_KIND,
+  checkFriendsHostName,
   friendsAllowsPublicPath,
   eventWindow,
   friendsHostName,
@@ -482,4 +483,36 @@ export async function guardFriendsSeats<T>(eventId: number, write: (tx: Tx) => P
     if (!v.ok) throw new PlanLimitError(v.error);
     return out;
   });
+}
+
+// ── The host's name ─────────────────────────────────────────────────────────────────────────────
+
+export type RenameResult = { ok: true; name: string } | { ok: false; status: 400 | 403 | 404; error: string };
+
+/**
+ * Rename a friends host — what its boards say as "Hosted by …". Its OWNER only (clans.friends_owner_
+ * user_id; nobody else holds anything there that could rename it), checked like a creator's own
+ * page text (checkFriendsHostName), and written to the host's activity log like other host settings.
+ */
+export async function renameFriendsHost(opts: { actorUserId: number; hostId: number; name: unknown }): Promise<RenameResult> {
+  // clan-scope: this clan -- the one host being renamed, by id.
+  const host = await db.query.clans.findFirst({ where: eq(clans.id, opts.hostId), columns: { id: true, kind: true, name: true, friendsOwnerUserId: true } });
+  if (!host || !isFriendsHost(host)) return { ok: false, status: 404, error: 'Not found' };
+  if (host.friendsOwnerUserId !== opts.actorUserId) return { ok: false, status: 403, error: 'Only the host can rename this.' };
+  const checked = checkFriendsHostName(opts.name);
+  if (!checked.ok) return { ok: false, status: 400, error: checked.error };
+  if (checked.value === host.name) return { ok: true, name: host.name };
+  await db.transaction(async (tx) => {
+    await tx.update(clans).set({ name: checked.value }).where(eq(clans.id, host.id));
+    await tx.insert(clanAuditLog).values({
+      clanId: host.id,
+      eventType: 'friends_host_renamed',
+      actorUserId: opts.actorUserId,
+      oldValue: JSON.stringify({ name: host.name }),
+      newValue: JSON.stringify({ name: checked.value }),
+    });
+  });
+  // The settings mirror older readers still consult (the same as a creator space's rename).
+  await setSetting(host.id, 'clan_name', checked.value);
+  return { ok: true, name: checked.value };
 }

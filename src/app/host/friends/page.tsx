@@ -11,6 +11,7 @@ import { FRIENDS_CAPS } from '@/lib/friendEventRules';
 import { friendsEventRows, friendsEventsFor, friendsPeakNow, hostingTierOf, type FriendsEventSummary } from '@/lib/friendEvents';
 import { SUPPORTER_TIERS } from '@/lib/supporterTiers';
 import NewFriendsEvent from './NewFriendsEvent';
+import RenameFriendsHost from './RenameFriendsHost';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +46,7 @@ export default async function FriendsEventsPage() {
       <p className="mt-2 text-[15px] text-text-muted">
         Private bingos and races for your group. Friends join with your invite link; nobody else can find them.
       </p>
+      {host && <RenameFriendsHost name={host.name} />}
 
       {caps && tier ? (
         <div className="mt-6 rounded-xl border border-card-border bg-card-bg p-5">

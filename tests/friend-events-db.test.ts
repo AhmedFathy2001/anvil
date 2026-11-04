@@ -507,3 +507,38 @@ test('after the start: the invite link’s self Join is closed, the owner can st
   await assert.rejects(() => F.guardFriendsSeats(ev.id, (tx) => EN.backfillApprovedSignups(ev.id, [typed2], tx)), (e: Error) => e instanceof P.PlanLimitError);
   assert.equal(await P.eventPlayerCount(ev.id), 10);
 });
+
+test('rename: the owner can, nobody else can, a bad name is refused, and invitees see the new one', async () => {
+  const owner = await person('Fe Rename Owner', 'supporter');
+  const other = await person('Fe Rename Other', 'patron');
+  const r = await F.ensureFriendsHost(owner.userId);
+  assert.ok(r.ok);
+  if (!r.ok) return;
+  assert.equal(r.host.name, 'Fe Rename Owner’s friends', 'the default');
+  const host = await hostRow(r.host.id);
+  const ev = await friendsEvent(host, 'Rename Bingo', null, null);
+
+  const ok = await F.renameFriendsHost({ actorUserId: owner.userId, hostId: host.id, name: '  The Saturday Squad ' });
+  assert.deepEqual(ok, { ok: true, name: 'The Saturday Squad' });
+  assert.equal((await hostRow(host.id)).name, 'The Saturday Squad');
+  assert.equal((await F.inviteTarget(ev.inviteToken!))?.hostName, 'The Saturday Squad', 'the invite page and board read the new name');
+  const log = await db.query.clanAuditLog.findFirst({ where: and(eq(s.clanAuditLog.clanId, host.id), eq(s.clanAuditLog.eventType, 'friends_host_renamed')) });
+  assert.equal(log?.actorUserId, owner.userId);
+  assert.match(log?.oldValue ?? '', /Fe Rename Owner’s friends/);
+  assert.match(log?.newValue ?? '', /The Saturday Squad/);
+
+  const notOwner = await F.renameFriendsHost({ actorUserId: other.userId, hostId: host.id, name: 'Taken Over' });
+  assert.equal(!notOwner.ok && notOwner.status, 403);
+  for (const bad of ['', ' ', 'x', 'y'.repeat(49), 'Buying OSRS gold']) {
+    const v = await F.renameFriendsHost({ actorUserId: owner.userId, hostId: host.id, name: bad });
+    assert.equal(!v.ok && v.status, 400, JSON.stringify(bad));
+  }
+  assert.equal((await hostRow(host.id)).name, 'The Saturday Squad', 'unchanged by any refusal');
+
+  // Not a friends host at all (a creator space): nothing to rename here.
+  const space = await C.createCreatorSpace({ slug: 'fe-rename-space', name: 'Space', ownerUserId: other.userId });
+  assert.ok(space.ok);
+  if (!space.ok) return;
+  const no = await F.renameFriendsHost({ actorUserId: other.userId, hostId: space.clanId, name: 'Nope' });
+  assert.equal(!no.ok && no.status, 404);
+});

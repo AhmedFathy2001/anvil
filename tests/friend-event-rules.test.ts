@@ -8,6 +8,9 @@ import assert from 'node:assert/strict';
 
 import {
   FRIENDS_CAPS,
+  FRIENDS_HOST_NAME_MAX,
+  checkFriendsHostName,
+  friendsHostName,
   eventWindow,
   friendsAllowsAdminPath,
   friendsAllowsPublicPath,
@@ -193,4 +196,19 @@ test('seats change (the locked gate): judged by before/after, never by a count r
   assert.equal(friendsSeatsChangeVerdict({ tier: null, eventId: 1, before: [row(1, 40)], after: [row(1, 39)] }).ok, true);
   // No tier: any new seat is refused.
   assert.equal(friendsSeatsChangeVerdict({ tier: null, eventId: 1, before: [row(1, 0)], after: [row(1, 1)] }).ok, false);
+});
+
+test('the host’s name: a friendly default, and a rename checked like a creator’s own page text', () => {
+  assert.equal(friendsHostName('Ahmed'), 'Ahmed’s friends');
+  assert.equal(friendsHostName('  '), 'Friends events');
+  assert.deepEqual(checkFriendsHostName('  The   Saturday Squad '), { ok: true, value: 'The Saturday Squad' });
+  // Control, zero-width and direction-override characters never reach a board.
+  assert.deepEqual(checkFriendsHostName('Squad\u0007\u200b\u202e Goals'), { ok: true, value: 'Squad Goals' });
+  assert.equal(checkFriendsHostName('').ok, false);
+  assert.equal(checkFriendsHostName('x').ok, false);
+  assert.equal(checkFriendsHostName(42).ok, false);
+  assert.equal(checkFriendsHostName('a'.repeat(FRIENDS_HOST_NAME_MAX + 1)).ok, false, 'too long is refused, not cut');
+  const rwt = checkFriendsHostName('Cheap OSRS gold shop');
+  assert.equal(rwt.ok, false);
+  assert.match(!rwt.ok ? rwt.error : '', /Jagex/);
 });

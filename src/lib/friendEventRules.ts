@@ -36,6 +36,7 @@
 
 import { parseStamp } from '@/lib/dbTime';
 import { eventStage } from '@/lib/eventStage';
+import { cleanText, wordingError } from '@/lib/spacePage/rules';
 import type { FeatureKey } from '@/lib/features';
 import type { SupporterTierId } from '@/lib/supporterTiers';
 
@@ -336,6 +337,24 @@ export const FRIENDS_FEATURES_OFF: readonly FeatureKey[] = [
 export function friendsHostName(displayName: string | null | undefined): string {
   const who = (displayName ?? '').trim().slice(0, 40);
   return who ? `${who}’s friends` : 'Friends events';
+}
+
+/** How long a friends host's name may be. Short: it sits on every board as "Hosted by …". */
+export const FRIENDS_HOST_NAME_MAX = 48;
+
+/**
+ * A new name for a friends host, checked like the text creators put on their pages (lib/spacePage
+ * rules): control, zero-width and direction-override characters stripped, trimmed, at least two
+ * characters, refused (not cut) past the limit, and none of what Jagex forbids promoting.
+ */
+export function checkFriendsHostName(raw: unknown): { ok: true; value: string } | { ok: false; error: string } {
+  const c = cleanText(raw, FRIENDS_HOST_NAME_MAX, { field: 'The name' });
+  if (!c.ok) return c;
+  const name = c.value.replace(/\s+/g, ' ');
+  if (name.length < 2) return { ok: false, error: 'Give it a name — at least two characters.' };
+  const wording = wordingError(name);
+  if (wording) return { ok: false, error: wording };
+  return { ok: true, value: name };
 }
 
 /**
