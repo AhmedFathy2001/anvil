@@ -49,3 +49,8 @@ test('syncAgo reads both timestamp formats and rounds to a readable unit', () =>
   assert.equal(syncAgo(null, NOW), null);
   assert.equal(syncAgo('garbage', NOW), null);
 });
+
+test('a creator space seat reads "Plays in", never "Guest in"', () => {
+  const line = standingLine([seat({ clanName: 'Streamer Space', creator: true }), seat({ clanId: 2, clanName: 'Iron Foundry' })], new Map(), NOW);
+  assert.equal(line, 'Guest in Iron Foundry · Plays in Streamer Space');
+});

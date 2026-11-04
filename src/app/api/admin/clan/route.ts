@@ -8,6 +8,7 @@ import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
 import { latestClanReportByAccount } from '@/lib/characterReports';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 // GET — list all clan members (active + departed) for the admin roster view.
 export async function GET(request: Request) {
@@ -102,6 +103,9 @@ export async function GET(request: Request) {
 
 // POST — manual add (admin entering a guest / member the plugin can't reach).
 export async function POST(request: Request) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   // Roster work is moderation: mods add, edit and remove members like admins do. Nothing here can
   // change what someone can DO on the site — UpdatableFields covers rank/notes/guest/primary only,
   // and site roles + the tile-authoring capability are set through /api/admin/staff, which stays

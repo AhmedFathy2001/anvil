@@ -9,6 +9,7 @@ import { atLeast } from '@/lib/clanRoles';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 // POST /api/admin/verifications/[id] { action: 'approve' | 'reject' | 'not_member', note? }
 // Approve clears the review flag — nothing about the account changes but that.
@@ -23,6 +24,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const session = await verifyAdminOrModerator();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

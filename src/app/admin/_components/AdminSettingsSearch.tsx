@@ -76,10 +76,13 @@ export function SettingsSearchTrigger({ onOpen }: { onOpen?: () => void }) {
 export default function AdminSettingsSearch({
   access,
   features,
+  creator = false,
 }: {
   access: AdminAccess;
   /** Feature keys this clan has switched on. */
   features: readonly FeatureKey[];
+  /** A creator space: leave out the in-game-clan pages it is turned away from. */
+  creator?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -91,7 +94,7 @@ export default function AdminSettingsSearch({
   const listId = `${baseId}-list`;
   const titleId = `${baseId}-title`;
 
-  const entries = useMemo(() => visibleSettings(settingsViewer(access, features)), [access, features]);
+  const entries = useMemo(() => visibleSettings(settingsViewer(access, features, creator)), [access, features, creator]);
 
   const results = useMemo(() => searchSettings(query, entries, 12), [query, entries]);
 

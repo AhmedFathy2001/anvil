@@ -13,7 +13,7 @@ import AdminSidebar, { type SidebarGroup } from './_components/AdminSidebar';
 import AdminSettingsSearch from './_components/AdminSettingsSearch';
 import { FEATURES } from '@/lib/features';
 import { getSetupStatus } from '@/lib/setupStatus';
-import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { creatorHidesAdminPath, isCreatorSpace } from '@/lib/creatorSpaces';
 import { pendingClaimRequests } from '@/lib/claimRequests';
 import { pendingUpdateCount } from '@/lib/guides';
 import { coHostedBoardLinks } from '@/lib/coHost';
@@ -110,6 +110,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // A creator space (lib/creatorSpaces) has no roster, in-game verification or weeklies, so their
   // entries go and the clan words become the space's.
   const creator = isCreatorSpace(clan);
+  // The in-game-clan pages (weeklies, roster review, coffer, …) are not on a creator's menu, and a
+  // typed-in address to one lands on the dashboard instead. One list, lib/creatorSpaces; each of
+  // those pages also checks it (lib/creatorGuard), because this layout does not re-run when the
+  // browser moves between pages under it.
+  if (creator && creatorHidesAdminPath(pathname)) redirect(href('/admin/dashboard'));
   // An authoring grant without a tier: their whole world is the boards they hold. Give them ONLY
   // "My boards"; no dashboard, weekly, clan or schedule. The path gate above already enforced it.
   const isScopedEditor = !isStaffRole(session.role) && session.canEditTiles;
@@ -158,7 +163,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     return (
       <div className="lg:flex lg:gap-6">
         <AdminSidebar groups={scopedGroups} user={scopedUser} search />
-        <AdminSettingsSearch access={access} features={FEATURES.filter((f) => scopedFeatures.on(f.key)).map((f) => f.key)} />
+        <AdminSettingsSearch access={access} features={FEATURES.filter((f) => scopedFeatures.on(f.key)).map((f) => f.key)} creator={creator} />
         <div className="flex-1 min-w-0">{children}</div>
       </div>
     );
@@ -280,9 +285,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // The one "make something" action. Admins get the full picker; a moderator may only schedule a
   // competition (lib/adminAccess draws that line by path), so theirs goes straight there — and not at
   // all when the clan has competitions switched off.
-  // A CREATOR SPACE gets the short menu: its events, its players, its settings. Everything clan-ish
-  // or advanced (schedule, task library, guides, money, plan, activity log) stays reachable by
-  // address but is not on the menu — the person running it has usually never used Anvil before.
+  // A CREATOR SPACE gets the short menu: its events, its players, its settings. The advanced pages
+  // (schedule, task library, guides, fees, plan, activity log) stay reachable by address but are not
+  // on the menu — the person running it has usually never used Anvil before. The in-game-clan pages
+  // are not reachable at all (CREATOR_HIDDEN_ADMIN_PATHS, checked above).
   if (creator) {
     groups.length = 0;
     groups.push({
@@ -324,7 +330,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="lg:flex lg:gap-6">
       <AdminSidebar groups={groups} user={user} primary={primary} guideHref="/guide/admin" search />
       {/* Ctrl/Cmd+K from anywhere in the admin area — inside an event too, where the rail above is hidden. */}
-      <AdminSettingsSearch access={access} features={FEATURES.filter((f) => features.on(f.key)).map((f) => f.key)} />
+      <AdminSettingsSearch access={access} features={FEATURES.filter((f) => features.on(f.key)).map((f) => f.key)} creator={creator} />
       <div className="flex-1 min-w-0">
         {session.actingAs && (
           // Borrowed authority, said out loud. An operator working inside someone else's clan should

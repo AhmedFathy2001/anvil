@@ -37,12 +37,17 @@ export async function characterStandings(accountIds: number[], nowMs: number): P
       clanId: clanMemberships.clanId,
       clanName: clans.name,
       clanSlug: clans.slug,
+      clanKind: clans.kind,
     })
     .from(clanMemberships)
     .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
     .where(and(inArray(clanMemberships.accountId, accountIds), isNull(clanMemberships.leftAt)))
     .orderBy(clans.name);
-  const seats: StandingSeat[] = rows.map((r) => ({ ...r, kind: r.kind === 'member' ? 'member' : 'guest' }));
+  const seats: StandingSeat[] = rows.map(({ clanKind, ...r }) => ({
+    ...r,
+    kind: r.kind === 'member' ? 'member' : 'guest',
+    creator: clanKind === 'creator',
+  }));
 
   const memberClanIds = [...new Set(seats.filter((s) => s.kind === 'member').map((s) => s.clanId))];
   const lastSyncByClan = new Map<number, string | null>();

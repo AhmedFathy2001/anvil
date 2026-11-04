@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { accounts, clanMemberships } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 type UpdatableFields = Partial<{
   rank: string | null;
@@ -18,6 +19,9 @@ type UpdatableFields = Partial<{
 }>;
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   // Roster work is moderation: mods add, edit and remove members like admins do. Nothing here can
   // change what someone can DO on the site — UpdatableFields covers rank/notes/guest/primary only,
   // and site roles + the tile-authoring capability are set through /api/admin/staff, which stays
@@ -87,6 +91,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 // DELETE — soft-delete (mark as left). Preserves historical references.
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   // Roster work is moderation: mods add, edit and remove members like admins do. Nothing here can
   // change what someone can DO on the site — UpdatableFields covers rank/notes/guest/primary only,
   // and site roles + the tile-authoring capability are set through /api/admin/staff, which stays

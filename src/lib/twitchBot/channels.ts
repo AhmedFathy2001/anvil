@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clans, events, settings } from '@/db/schema';
+import { clanTwitchChannels, clans, events, settings } from '@/db/schema';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { absoluteUrl } from '@/lib/seo';
 
@@ -11,9 +11,8 @@ import { CHAT_JOIN_SETTING, NOTHING_OPEN_REPLY, joinReplyText, pickJoinEvent } f
 //
 // WHICH CHANNEL IS WHOSE. The bot may only ever talk in a channel whose broadcaster PROVED it is
 // theirs. The Twitch link on a creator's settings page is typed text — anybody can paste anybody's
-// channel — so it is never used for this. The proof is the creator's linked Twitch account, which the
-// entry-gates work (branch feat/creator-entry-gates) adds via Twitch OAuth. Until that lands,
-// linkedTwitchBroadcaster answers null and the bot has no channels: it runs, and says nothing.
+// channel — so it is never used for this. The proof is the channel the host connected through Twitch
+// OAuth (clan_twitch_channels, the same link the entry gates check followers and subs against).
 
 export interface TwitchBroadcaster {
   /** Twitch user id (decimal string) — what EventSub and Send Chat Message take. */
@@ -22,19 +21,19 @@ export interface TwitchBroadcaster {
 }
 
 /**
- * The Twitch channel a creator space has PROVED it owns, or null.
- *
- * TODO(feat/creator-entry-gates): read the space's linked Twitch account from wherever Twitch account
- * linking stores it (the space owner's verified Twitch user id + login). Requirements on that link:
- *   - it came from Twitch OAuth (never from the typed creator_twitch_url setting);
- *   - it is the account of a person who is admin/owner of THIS space (clanId);
- *   - unlinking it makes this return null again (the bot drops the channel on its next refresh).
- * If linking also asks the broadcaster for the `channel:bot` scope, the bot can later send with an
- * app token and wear Twitch's "Chat Bot" badge — see bot/twitchChat.ts. Nothing else here changes.
+ * The Twitch channel a creator space has PROVED it owns, or null: the channel its host connected
+ * through Twitch OAuth (lib/entryGatesDb, Admin → Space settings → Twitch channel), never the typed
+ * creator_twitch_url setting. Only an admin of the space can connect it (re-checked at the OAuth
+ * callback), and disconnecting deletes the row, so the bot drops the channel on its next refresh.
+ * Ownership stays proven even while the stored tokens are broken, so a broken row still counts.
  */
 export async function linkedTwitchBroadcaster(clanId: number): Promise<TwitchBroadcaster | null> {
-  void clanId;
-  return null;
+  // clan-scope: this clan -- the space's own connected channel; tokens are not read.
+  const row = await db.query.clanTwitchChannels.findFirst({
+    where: eq(clanTwitchChannels.clanId, clanId),
+    columns: { twitchUserId: true, twitchLogin: true },
+  });
+  return row && /^\d{1,20}$/.test(row.twitchUserId) ? { id: row.twitchUserId, login: row.twitchLogin } : null;
 }
 
 /** Is `!join` switched on for this space? The host's opt-in on Admin → Space settings. */

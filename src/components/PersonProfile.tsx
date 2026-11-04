@@ -128,7 +128,7 @@ export default function PersonProfile({
                         demoted by joining elsewhere should be able to see that here rather than
                         discover it when something stops working. */}
                     {c.seat === 'member' && <span className="text-gold">Member</span>}
-                    {c.seat === 'guest' && <span>Guest</span>}
+                    {c.seat === 'guest' && <span>{c.clanKind === 'creator' ? 'Player' : 'Guest'}</span>}
                     {!c.seat && <span>Not on the member list</span>}
                     {/* Named rather than flattened to "Staff": this page shows BOTH axes on
                         purpose, and "Member · Staff" told the owner of the clan strictly less than

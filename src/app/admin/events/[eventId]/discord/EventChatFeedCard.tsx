@@ -8,7 +8,7 @@ import { clanFetch } from '@/lib/clanFetch';
 /**
  * The board's in-game chat feed switch (lib/chatFeed). Saves on toggle, like the clan's settings.
  */
-export default function EventChatFeedCard({ eventId }: { eventId: number }) {
+export default function EventChatFeedCard({ eventId, creator = false }: { eventId: number; creator?: boolean }) {
   const [state, setState] = useState<{
     chatFeed: boolean;
     chatEnabled: boolean;
@@ -60,7 +60,7 @@ export default function EventChatFeedCard({ eventId }: { eventId: number }) {
           disabled={saving}
           onChange={(v) => save({ chatFeed: v })}
           label="Show every team's drops and tile completions in players' RuneLite chat"
-          description="Off by default. When on, everyone on this board — every team, guests from other clans included — sees the others' notable drops and completed tiles in their chat while the event runs. Players can still turn the feed off in the plugin, and choose what they see on their profile."
+          description={`Off by default. When on, everyone on this board — ${creator ? 'every team, every player' : 'every team, guests from other clans included'} — sees the others' notable drops and completed tiles in their chat while the event runs. Players can still turn the feed off in the plugin, and choose what they see on their profile.`}
         />
       ) : (
         <p className="text-sm text-text-muted">Loading…</p>

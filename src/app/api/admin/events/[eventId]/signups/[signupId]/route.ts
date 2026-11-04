@@ -370,7 +370,7 @@ export async function PATCH(
       // sign-up (no user) can't be one until they link their Discord.
       if (signup.userId == null) {
         return NextResponse.json(
-          { error: 'This is a guest sign-up with no linked Discord account — they must log in before they can captain a team.' },
+          { error: 'This player has no linked Discord account — they must log in before they can captain a team.' },
           { status: 400 },
         );
       }

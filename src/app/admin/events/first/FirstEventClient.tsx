@@ -7,6 +7,8 @@ import Input from '@/components/Input';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import type { TileCsvRow } from '@/lib/csvTiles';
 import { starterCount } from '@/lib/starterTiles';
+import EntryGatePicker from '@/components/EntryGatePicker';
+import type { EntryGates, GateOptions } from '@/lib/entryGates';
 
 /**
  * Three formats, as big cards. Each maps to an existing event mode on its default size; the full
@@ -27,7 +29,31 @@ interface Starter {
   rows: TileCsvRow[];
 }
 
-export default function FirstEventClient({ suggestedName, first }: { suggestedName: string; first: boolean }) {
+export default function FirstEventClient({
+  suggestedName,
+  first,
+  creator = false,
+}: {
+  suggestedName: string;
+  first: boolean;
+  /** A creator space: offer "Who can join?" (lib/entryGates). */
+  creator?: boolean;
+}) {
+  // "Who can join?" — null is Anyone. Options load only for a creator space.
+  const [gates, setGates] = useState<EntryGates | null>(null);
+  const [gateOpts, setGateOpts] = useState<GateOptions | null>(null);
+  const [gateNote, setGateNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (!creator) return;
+    let live = true;
+    clanFetch('/api/admin/creator/gates')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: GateOptions | null) => live && d && setGateOpts(d))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [creator]);
   const [name, setName] = useState(suggestedName);
   const [startIso, setStartIso] = useState('');
   const [endIso, setEndIso] = useState('');
@@ -103,6 +129,19 @@ export default function FirstEventClient({ suggestedName, first }: { suggestedNa
           }).catch(() => {});
         }
       }
+      // Who can join rides on its own route (it is checked against the space's Twitch and Discord
+      // there). A refusal still leaves the event made — open to anyone — and says so.
+      if (gates) {
+        const g = await clanFetch(`/api/events/${data.id}/gate`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gates }),
+        }).catch(() => null);
+        if (!g?.ok) {
+          const d = await g?.json().catch(() => null);
+          setGateNote(`${d?.error ?? 'Who can join wasn’t saved.'} Anyone can join for now — change it in the event’s settings.`);
+        }
+      }
       setCreated(data.id);
       setFilled(Boolean(tiles));
     } finally {
@@ -117,6 +156,7 @@ export default function FirstEventClient({ suggestedName, first }: { suggestedNa
         <div className="rounded-2xl border border-gold/30 bg-card-bg p-8 text-center">
           <h1 className="display text-3xl font-semibold">Your event is ready</h1>
           <p className="mt-2 text-text-muted">Share this link on stream or in Discord.</p>
+          {gateNote && <p className="mt-2 text-sm text-accent-red">{gateNote}</p>}
           <p className="mt-4 break-all rounded-lg bg-brown-dark px-3 py-2 font-mono text-sm text-foreground">{link}</p>
           <button
             type="button"
@@ -225,6 +265,13 @@ export default function FirstEventClient({ suggestedName, first }: { suggestedNa
           </p>
         )}
       </div>
+
+      {gateOpts && (
+        <div className="mt-6">
+          <div className="mb-1.5 text-base font-medium">Who can join?</div>
+          <EntryGatePicker value={gates} onChange={setGates} options={gateOpts} />
+        </div>
+      )}
 
       <div className="mt-6">
         <div className="mb-1.5 text-base font-medium">When?</div>

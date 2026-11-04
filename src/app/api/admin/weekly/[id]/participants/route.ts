@@ -7,6 +7,7 @@ import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema'
 import { and, eq, getTableColumns, inArray, isNull } from 'drizzle-orm';
 import { findOrCreateClanMember } from '@/lib/clan';
 import { captureWeeklyStartingStatsSoon } from '@/lib/startingStats';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 export async function GET(
   request: Request,
@@ -103,6 +104,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const user = await verifyAdminOrModerator();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -157,6 +161,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const user = await verifyAdminOrModerator();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -7,6 +7,7 @@ import { clanAuditLog, clans } from '@/db/schema';
 import { requireClan } from '@/lib/clanContext';
 import { verifyAdmin, verifyUser } from '@/lib/auth';
 import type { ClanFocus, ClanRequirements } from '@/lib/clanHome';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 /**
  * The clan's public profile — the face a stranger sees at /c/<slug> (lib/clanHome, PublicClanHome).
@@ -73,6 +74,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const clan = await requireClan();
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const actor = await verifyUser();

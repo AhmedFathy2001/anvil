@@ -104,6 +104,11 @@ interface Props {
   viewerRole: string;
   viewerId: number;
   confirmationsRequired: number;
+  /**
+   * A creator space (lib/creatorSpaces). Everyone who plays is a guest of it, so the words say
+   * "player", and there is no separate guest fee — it would be charged to every single player.
+   */
+  creator?: boolean;
 }
 
 const BOSS_LABEL: Record<string, string> = Object.fromEntries(
@@ -117,6 +122,7 @@ export default function SignupAdminPanel({
   viewerId,
   confirmationsRequired,
   signupQuestions = [],
+  creator = false,
 }: Props) {
   const router = useRouter();
   // `atLeast`, not `=== 'admin'`: the clan's owner outranks admin, and equality hid every admin
@@ -565,9 +571,12 @@ export default function SignupAdminPanel({
               placeholder="0 = free"
               className="w-full mt-1 px-2 py-1.5 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
             />
-            <p className="text-xs text-text-muted mt-1">What clan members pay. Leave blank for a free event.</p>
+            <p className="text-xs text-text-muted mt-1">
+              {creator ? 'What each player pays. Leave blank for a free event.' : 'What clan members pay. Leave blank for a free event.'}
+            </p>
           </label>
 
+          {!creator && (
           <label className="block">
             <span className="text-xs text-text-muted">Guest fee (gp)</span>
             <Input
@@ -584,6 +593,7 @@ export default function SignupAdminPanel({
               fee when you save; change one player&apos;s fee on their row below.
             </p>
           </label>
+          )}
 
           <label className="block">
             <span className="text-xs text-text-muted">Added prize pool (gp)</span>
@@ -769,7 +779,7 @@ export default function SignupAdminPanel({
                 onClick={() => setAnswersModal({ signup: null })}
                 className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
               >
-                Add member
+                {creator ? 'Add player' : 'Add member'}
               </button>
             )}
             {!loading && isAdmin && settleableFees > 0 && (
@@ -914,7 +924,7 @@ export default function SignupAdminPanel({
 
         {!loading && signups.length === 0 && (
           <div className="text-center py-8 border border-dashed border-card-border rounded-xl">
-            <p className="text-text-muted text-sm mb-3">No sign-ups yet. Post the sign-up link in your Discord so members can join.</p>
+            <p className="text-text-muted text-sm mb-3">No sign-ups yet. {creator ? 'Share the sign-up link on stream or in Discord so viewers can join.' : 'Post the sign-up link in your Discord so members can join.'}</p>
             <CopyLinkButton path={`/events/${event.id}/signup`} label="Copy sign-up link" />
           </div>
         )}
@@ -958,10 +968,10 @@ export default function SignupAdminPanel({
                             </span>
                           ) : (
                             <span className="text-[10px] uppercase tracking-wide text-text-muted ml-2 px-1 py-0.5 rounded border border-card-border">
-                              guest · no Discord
+                              {creator ? 'no Discord' : 'guest · no Discord'}
                             </span>
                           )}
-                          {s.guest && (
+                          {s.guest && !creator && (
                             <span
                               title="Not a member of a clan running this board, so they owe the guest fee"
                               className="text-[10px] uppercase tracking-wide text-gold/80 ml-2 px-1 py-0.5 rounded border border-gold/30"
@@ -1303,6 +1313,7 @@ export default function SignupAdminPanel({
           signedUpMemberIds={signups.filter((s) => s.status !== 'withdrawn').map((s) => s.account.id)}
           maxAccountsPerPerson={event.maxAccountsPerPerson ?? 1}
           teams={boardTeams}
+          creator={creator}
           onClose={() => setAnswersModal(null)}
           onSaved={async () => {
             setAnswersModal(null);

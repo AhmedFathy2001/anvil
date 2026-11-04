@@ -11,9 +11,13 @@ import { accounts, clanAuditLog, clans, events } from '@/db/schema';
 import { canEnterEvent, invitedToEvent, staffOfClan, type EntryVerdict } from '@/lib/eventAccess';
 import { admit, requestEventEntry } from '@/lib/guestAdmission';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { entryGateVerdict } from '@/lib/entryGatesDb';
+import { verdictMessage, type GateVerdict } from '@/lib/entryGates';
 
 export type EnterResult =
   | { outcome: 'refused'; reason: 'not-visible' | 'banned' | 'signed-out' | 'closed'; status: number; error: string }
+  /** A creator-space event's entry gate (lib/entryGates) said no; `gate` says what to do about it. */
+  | { outcome: 'gated'; status: number; error: string; gate: Extract<GateVerdict, { pass: false }> }
   | { outcome: 'insider' }
   | { outcome: 'bad-account'; status: number; error: string }
   | { outcome: 'pending'; message: string }
@@ -61,6 +65,16 @@ export async function enterEvent(opts: {
   const host = await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true } });
   const creator = isCreatorSpace(host);
 
+  // The host's "who can join" (Twitch followers/subs, a Discord role, boosters). Before the approval
+  // request too: asking a host to approve somebody their own gate would turn away wastes their time.
+  // Staff and people the host invited by name are not gated (entryGateVerdict returns null).
+  if (creator) {
+    const gate = await entryGateVerdict({ eventId: event.id, userId: opts.actorUserId, playerId: opts.playerId });
+    if (gate && !gate.pass) {
+      return { outcome: 'gated', status: gate.transient ? 503 : 403, error: verdictMessage(gate), gate };
+    }
+  }
+
   // An account that is a MEMBER of another clan may still guest here — that is the whole point of
   // cross-clan play, and the one-member-seat rule is about membership, not visits.
   //
@@ -93,7 +107,7 @@ export async function enterEvent(opts: {
   });
 
   if (admission.outcome === 'refused') {
-    return { outcome: 'refused', reason: 'closed', status: 403, error: 'This clan is not taking guests.' };
+    return { outcome: 'refused', reason: 'closed', status: 403, error: creator ? 'The host isn’t letting you join their events.' : 'This clan is not taking guests.' };
   }
 
   // An invited outsider has already been decided about; that is what the invitation was. Asking them
@@ -104,7 +118,10 @@ export async function enterEvent(opts: {
   if (admission.outcome !== 'seated') {
     // Not seated, but no approval was required — the clan's own guest policy is stricter than the
     // event's entry setting. The clan's word wins: it is their roster.
-    return { outcome: 'pending', message: 'Sent to the host clan’s staff for approval.' };
+    return {
+      outcome: 'pending',
+      message: creator ? 'Sent to the host — you’ll be able to sign up once they accept.' : 'Sent to the host clan’s staff for approval.',
+    };
   }
 
   await db

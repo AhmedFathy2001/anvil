@@ -5,12 +5,16 @@ import { mergeSeats } from '@/lib/mergeSeats';
 import { findRosterSeats } from '@/lib/roster';
 import { clanRoster } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 // POST /api/admin/clan/merge { sourceId, targetId }
 // Merge two roster seats that are actually the same player (typically a left+joined pair from a
 // rename, which clan-sync can only see by name). Moves all references to target and deletes source;
 // the survivor keeps whichever name the in-game roster still lists — see lib/mergeSeats.
 export async function POST(request: Request) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const session = await verifyAdminOrModerator();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

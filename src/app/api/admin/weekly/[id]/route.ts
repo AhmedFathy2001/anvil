@@ -6,6 +6,7 @@ import { db } from '@/db';
 import { playerSnapshots, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { getWeeklyRepeat, setWeeklyRepeat } from '@/lib/weeklyRepeat';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 export async function GET(
   request: Request,
@@ -36,6 +37,9 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const user = await verifyAdminOrModerator();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

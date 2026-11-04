@@ -17,6 +17,7 @@ import { toQuestionView } from '@/lib/survey';
 import { atLeast } from '@/lib/clanRoles';
 import { pendingRequests } from '@/lib/guestAdmission';
 import JoinRequests from '../../../people/JoinRequests';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,6 +102,7 @@ export default async function EventSignupsPage({
         viewerId={session.userId}
         confirmationsRequired={confirmationsRequired}
         signupQuestions={signupQuestions}
+        creator={isCreatorSpace(clan)}
       />
     </>
   );

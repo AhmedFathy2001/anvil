@@ -40,6 +40,42 @@ export function isCreatorSpace(clan: { kind?: string | null } | null | undefined
 /** Modules that are always off in a creator space: they only mean something with a roster. */
 export const CREATOR_ONLY_OFF: readonly FeatureKey[] = ['weekly'];
 
+// ── Admin pages a creator space does not have ──────────────────────────────────────────────────
+
+/**
+ * Admin pages that only mean something for an in-game clan: the weekly competitions, the roster's
+ * review queue, who may join the clan, in-game clan events, the gp coffer and the in-game setup
+ * wizard. A creator space's menu never lists them (app/admin/layout builds a short one), and this
+ * list is what turns a typed-in address away too — app/admin/layout checks it on every load and each
+ * page checks its own entry (lib/creatorGuard), so the menu and the guard read one list.
+ *
+ * Prefixes: everything below an entry goes with it. The old addresses that only redirect into one of
+ * these (/admin/verifications, /admin/clan/needs-review, /admin/clan/policy) are listed so they go
+ * straight to the dashboard instead of taking two hops.
+ */
+export const CREATOR_HIDDEN_ADMIN_PATHS = [
+  '/admin/weekly',
+  '/admin/events/weekly',
+  '/admin/clan-events',
+  '/admin/coffer',
+  '/admin/setup',
+  '/admin/people/needs-review',
+  '/admin/people/access',
+  '/admin/verifications',
+  '/admin/clan/needs-review',
+  '/admin/clan/policy',
+] as const;
+
+export type CreatorHiddenAdminPath = (typeof CREATOR_HIDDEN_ADMIN_PATHS)[number];
+
+/** Is this admin path one a creator space is sent away from? Matches whole path segments only. */
+export function creatorHidesAdminPath(pathname: string): boolean {
+  return CREATOR_HIDDEN_ADMIN_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
+}
+
+/** What an in-game-only admin API says to a creator space. */
+export const CREATOR_NOT_AVAILABLE = 'This is for in-game clans. A creator space does not have it.';
+
 // ── Who may create one ───────────────────────────────────────────────────────────────────────────
 
 /** How many creator spaces one person may own. A squatting bound, like MAX_OWNED in /api/clans. */
@@ -187,4 +223,35 @@ export function creatorSetupSteps(opts: { eventsCount: number; outsideSignups: n
       optional: true,
     },
   ];
+}
+
+// ── Words ────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * What to call somebody who plays in a space they are not a member of. A clan says "guest" — it has
+ * members to tell them apart from. A creator space has no members, so everyone is just a "player".
+ */
+export function outsiderWord(kind: string | null | undefined, plural = false): string {
+  const creator = clanKindOf(kind) === 'creator';
+  if (plural) return creator ? 'players' : 'guests';
+  return creator ? 'player' : 'guest';
+}
+
+/** The Discord DM somebody gets when the host says no to their request. */
+export function declinedRequestText(opts: {
+  kind: string | null | undefined;
+  hostName: string;
+  rsn?: string | null;
+  eventName?: string | null;
+  clansUrl: string;
+}): string {
+  const who = opts.rsn ? ` for **${opts.rsn}**` : '';
+  if (clanKindOf(opts.kind) === 'creator') {
+    const what = opts.eventName ? `to play in **${opts.eventName}**` : 'to play';
+    return `**${opts.hostName}** said no to your request ${what}${who}. You can ask again later.`;
+  }
+  return (
+    `**${opts.hostName}** declined your request to join as a guest${who}. ` +
+    `You can still ask again later, or find another clan: ${opts.clansUrl}`
+  );
 }

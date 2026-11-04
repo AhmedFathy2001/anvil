@@ -976,6 +976,13 @@
       "breakpoints": true
     },
     {
+      "idx": 192,
+      "version": "7",
+      "when": 1793791714614,
+      "tag": "0192_creator_entry_gates",
+      "breakpoints": true
+    },
+    {
       "idx": 193,
       "version": "7",
       "when": 1793791894614,

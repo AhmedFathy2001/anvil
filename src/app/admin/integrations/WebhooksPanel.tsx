@@ -77,12 +77,18 @@ function Stack({ fields, channels, botEnabled }: { fields: readonly SettingField
  * post, and about whom), and the search cuts across all three for the case where you know the word
  * but not which of them it lives under.
  */
-export default function WebhooksPanel({ channels, botEnabled }: Props) {
+export default function WebhooksPanel({ channels, botEnabled, creator = false }: Props & { creator?: boolean }) {
   const [group, setGroup] = useState<WebhookGroupId>('site');
   const [query, setQuery] = useState('');
 
+  // A creator space: everybody who plays is a guest of it, so "who gets announced" (members vs
+  // guests) has no answer there — switching "only your own members" on would silence every player.
+  const groups = WEBHOOK_GROUPS.filter((g) => !creator || g.id !== 'filters');
   const searching = searchTokens(query).length > 0;
-  const matches = useMemo(() => searchFields(query), [query]);
+  const matches = useMemo(
+    () => searchFields(query).filter((m) => !creator || m.section.group !== 'filters'),
+    [query, creator],
+  );
 
   const visible = WEBHOOK_SECTIONS.filter((s) => s.group === group);
 
@@ -93,7 +99,7 @@ export default function WebhooksPanel({ channels, botEnabled }: Props) {
           className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           role="tablist"
         >
-          {WEBHOOK_GROUPS.map((g) => (
+          {groups.map((g) => (
             <button
               key={g.id}
               role="tab"

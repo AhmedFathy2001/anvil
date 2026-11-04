@@ -6,6 +6,7 @@ import { findRosterSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin, verifyUser } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 const VALID = new Set(['admin', 'moderator', 'editor', 'treasurer']);
 
@@ -22,6 +23,9 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const isAdmin = await verifyAdmin();
   if (!isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
