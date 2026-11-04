@@ -8,6 +8,7 @@ import { getCofferBalance, listCofferEntries } from '@/lib/coffer';
 import { getPhysicalCofferState } from '@/lib/cofferSync';
 import { db } from '@/db';
 import { clanRoster } from '@/db/schema';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { and, eq, isNull, asc } from 'drizzle-orm';
 import CofferClient from './CofferClient';
 import { creatorAway } from '@/lib/creatorGuard';
@@ -37,7 +38,8 @@ export default async function AdminCofferPage() {
     db
       .select({ id: clanRoster.id, rsn: clanRoster.rsn, kind: clanRoster.kind })
       .from(clanRoster)
-      .where(and(eq(clanRoster.clanId, clan.id), isNull(clanRoster.leftAt)))
+      // An event player's seat is not clan membership — not somebody the coffer credits.
+      .where(and(eq(clanRoster.clanId, clan.id), isNull(clanRoster.leftAt), rosterClanSeat()))
       .orderBy(asc(clanRoster.rsn)),
     getPhysicalCofferState(clan.id),
   ]);

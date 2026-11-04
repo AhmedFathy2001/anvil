@@ -5,6 +5,7 @@ import { eventParticipants, clanRoster } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
 import { acceptedCohostClanIds } from '@/lib/coHost';
 import { accountChoices } from '@/lib/accountChoices';
+import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 
@@ -70,7 +71,8 @@ export async function GET(
     ? await db
         .select()
         .from(clanRoster)
-        .where(and(eq(clanRoster.playerId, ownerPlayerId), inArray(clanRoster.clanId, seatClans)))
+        // An event player's seat is offered only on its own event.
+        .where(and(eq(clanRoster.playerId, ownerPlayerId), inArray(clanRoster.clanId, seatClans), rosterSeatOpensEventSql(eId)))
     : current
       ? [current]
       : [];

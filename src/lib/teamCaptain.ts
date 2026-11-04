@@ -4,6 +4,7 @@ import { clanMemberships, clanRoster, eventParticipants, eventSignups, events, s
 import { standardFeeForAccount } from '@/lib/entryFee';
 import { generatePlayerToken } from '@/lib/auth';
 import { seatsOwnedBy } from '@/lib/roster';
+import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
 
 /**
@@ -88,7 +89,8 @@ export async function placeCaptainOnTeam(
       verifiedAt: clanRoster.verifiedAt,
     })
     .from(clanRoster)
-    .where(and(eq(clanRoster.playerId, captain.playerId), isNull(clanRoster.leftAt)))
+    // Seats that may play THIS event: an event player's seat only for its own event.
+    .where(and(eq(clanRoster.playerId, captain.playerId), isNull(clanRoster.leftAt), rosterSeatOpensEventSql(eventId)))
     .orderBy(desc(clanRoster.isPrimary), desc(clanRoster.verifiedAt));
   if (memberRows.length === 0) return { playerId: null, reason: 'no-account' };
   const memberIds = memberRows.map((m) => m.id);

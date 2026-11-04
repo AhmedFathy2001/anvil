@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { clanRoster, users } from '@/db/schema';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { and, eq, isNull } from 'drizzle-orm';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { requireClan } from '@/lib/clanContext';
@@ -45,7 +46,8 @@ export default async function ClanNeedsReviewPage() {
     .leftJoin(users, eq(clanRoster.playerId, users.playerId))
     // THIS CLAN'S. Unscoped, the review screen listed every clan's provisional members — and this is
     // the page a moderator acts on, so it was cross-clan moderation, not just a cross-clan read.
-    .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
+    // An event player's seat is not on the roster: never a claim for this clan to review.
+    .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt), rosterClanSeat()))
     .orderBy(clanRoster.claimedAt);
 
   // Which of these this clan (or another) has already raised with Anvil — shown as sent, not re-asked.

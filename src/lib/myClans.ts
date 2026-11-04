@@ -3,6 +3,7 @@ import { and, asc, count, desc, eq, isNull, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts, clanMemberships, clanStaff, clans } from '@/db/schema';
 import { LAB_CLAN_SLUG } from '@/lib/labRules';
+import { clanSeat } from '@/lib/seatScope';
 
 export interface MyClan {
   id: number;
@@ -55,7 +56,8 @@ export async function clansOfPerson(
       .from(clanMemberships)
       .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
       .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
-      .where(and(eq(accounts.playerId, playerId), isNull(clanMemberships.leftAt), ne(clans.slug, LAB_CLAN_SLUG)));
+      // An event player's seat is not belonging to the clan — it opens one event, not a switcher entry.
+      .where(and(eq(accounts.playerId, playerId), isNull(clanMemberships.leftAt), ne(clans.slug, LAB_CLAN_SLUG), clanSeat()));
 
     for (const r of seats) {
       const seat = r.kind === 'member' ? 'member' : 'guest';

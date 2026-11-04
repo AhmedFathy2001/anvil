@@ -92,6 +92,10 @@ export const clans = pgTable('clans', {
   // Default approval because membership is GRANTED, never assumed, and the paths that used to mint
   // a guest seat did it silently — anyone who logged in once appeared on a roster nobody agreed to.
   guestPolicy: text('guest_policy').notNull().default('approval'),
+  // "Streaming" (lib/creatorSpaces streamsEvents): a clan's own events may be opened to viewers, gated
+  // on its Twitch / Kick / YouTube channel; viewers join as EVENT players, never guests. Off = the
+  // clan works exactly as before. Meaningless on a creator space, which always streams.
+  streaming: boolean('streaming').notNull().default(false),
   // May somebody with no seat here READ this clan?
   //   public  — anyone can look at the boards and the roster (default, and what every clan has
   //             always done: the habit is to paste the board link into Discord)
@@ -472,6 +476,9 @@ export const accountGameClans = pgTable('account_game_clans', {
  *   member — on the clan's in-game roster. Only the roster sync or an admin may set this.
  *   guest  — allowed to take part without being in the clan in game. What a cross-clan event, or a
  *            friend playing one bingo, actually is.
+ *   event  — a viewer who joined ONE streamed event (a creator space's, or a clan's with Streaming
+ *            on). Opens that event (`eventId`) and nothing else; never on the roster, the guest list
+ *            or the member count. Closes when the event ends; the row stays as the record.
  *
  * Per ACCOUNT rather than per person, because an in-game roster lists RSNs: a main and an alt both
  * in the clan are two roster rows, which is what the clan itself sees.
@@ -480,7 +487,7 @@ export const clanMemberships = pgTable('clan_memberships', {
   id: serial('id').primaryKey(),
   clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
   accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
-  // 'member' | 'guest' — see above. Never inferred from activity.
+  // 'member' | 'guest' | 'event' — see above. Never inferred from activity.
   kind: text('kind').notNull().default('guest'),
   // In-game clan rank title, as the roster reported it.
   rank: text('rank'),
@@ -499,8 +506,15 @@ export const clanMemberships = pgTable('clan_memberships', {
   notes: text('notes'),
   // A clan role waiting on a mod's approval before it applies: 'admin' | 'moderator' | null.
   pendingRole: text('pending_role'),
+  // An EVENT seat's one event (kind = 'event', lib/eventPlayers): the only event it opens. Null on
+  // member and guest seats. SET NULL if the event is deleted, which leaves a closed record behind.
+  eventId: integer('event_id').references((): AnyPgColumn => events.id, { onDelete: 'set null' }),
 }, (table) => [
-  uniqueIndex('clan_memberships_clan_account_unique').on(table.clanId, table.accountId),
+  // One member/guest seat per account per clan. Event seats are one per account per EVENT (below), so
+  // a viewer in two of a streamer's events holds two seats and neither opens the other.
+  uniqueIndex('clan_memberships_clan_account_unique').on(table.clanId, table.accountId).where(sql`kind <> 'event'`),
+  uniqueIndex('clan_memberships_event_seat_unique').on(table.clanId, table.accountId, table.eventId).where(sql`kind = 'event'`),
+  index('clan_memberships_event_idx').on(table.eventId).where(sql`event_id is not null`),
   // One MEMBER seat per account, across every clan: OSRS lets an account be in exactly one clan, so
   // the site should not be able to say otherwise. Guest seats stay unlimited — guesting is not
   // membership. Partial on kind+left_at, so departures and guests do not collide.
@@ -530,6 +544,10 @@ export const events = pgTable('events', {
   // Creator spaces only (lib/entryGates): who may join, as JSON `{"anyOf":[…]}` — the host's Twitch
   // followers/subscribers, a role in their Discord server, its boosters. Null = anyone.
   entryGates: text('entry_gates'),
+  // A STREAMING clan's event (clans.streaming): may viewers join it, as event players past
+  // `entryGates`? False = members only (the default, and every clan event before 0205). Ignored on a
+  // clan without Streaming, and on a creator space (whose events are always for viewers).
+  openToViewers: boolean('open_to_viewers').notNull().default(false),
   // The in-game chat feed for everyone on this board (lib/chatFeed): every team's notable drops and
   // tile completions in each participant's RuneLite chat. Off by default — it shows each team what the
   // others are getting, so it is the host's call. Never on for another team while standings are hidden.
@@ -1617,6 +1635,8 @@ export const clanRoster = pgView('clan_roster', {
   lastSeenInClan: text('last_seen_in_clan'),
   notes: text('notes'),
   pendingRole: text('pending_role'),
+  // An event seat's one event (kind = 'event'); null otherwise. Appended to the view by 0205.
+  eventId: integer('event_id'),
 }).existing();
 
 // Append-only history of what happened to clan_members rows: joined, left, returned,

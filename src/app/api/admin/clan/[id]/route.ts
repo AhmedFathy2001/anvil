@@ -6,6 +6,11 @@ import { accounts, clanMemberships } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
+import { isEventSeat } from '@/lib/seatKinds';
+
+// An event player's seat is not a roster seat — it is managed only under "Past viewers"
+// (/api/admin/viewers), never edited, promoted or removed here.
+const EVENT_SEAT_REFUSAL = { error: 'That is an event player, not a roster seat — manage it under Past viewers.' };
 
 type UpdatableFields = Partial<{
   rank: string | null;
@@ -44,6 +49,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const existing = await seatForRequest(request, memberId);
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (isEventSeat(existing)) return NextResponse.json(EVENT_SEAT_REFUSAL, { status: 409 });
 
   // Set-primary is the PERSON's choice — a main is a main in every clan, so one clan's staff picking
   // it for them reached into all the others. They set it on their own profile.
@@ -109,9 +115,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
   // Whose seat is this? The id came from the URL, and removing someone from a roster is not
   // something an admin of a different clan gets to do.
-  if (!(await seatForRequest(request, memberId))) {
+  const seat = await seatForRequest(request, memberId);
+  if (!seat) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
+  if (isEventSeat(seat)) return NextResponse.json(EVENT_SEAT_REFUSAL, { status: 409 });
 
   await db
     .update(clanMemberships)

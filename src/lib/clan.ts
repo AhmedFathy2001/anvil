@@ -4,6 +4,7 @@ import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/ros
 import { isBannedFromClan } from '@/lib/clanBans';
 import { and, eq } from 'drizzle-orm';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
+import { rosterClanSeat } from '@/lib/seatScope';
 
 /**
  * Seat an RSN on a clan's roster, creating the account behind it if it is new. Returns the seat id.
@@ -25,7 +26,10 @@ export async function findOrCreateClanMember(
   const normalized = normalizeRsn(trimmed);
   // Scoped to the clan: the same RSN is legitimately on several clans' rosters, so a global lookup
   // would hand one clan another clan's member row.
-  const existing = await findRosterSeat(and(eq(clanRoster.clanId, clanId), eq(clanRoster.rsnNormalized, normalized)));
+  // An event player's seat is not "the" seat on the roster — never reopen or reuse it here.
+  const existing = await findRosterSeat(
+    and(eq(clanRoster.clanId, clanId), eq(clanRoster.rsnNormalized, normalized), rosterClanSeat()),
+  );
 
   if (existing) {
     // The Discord id is a fact about the account; whether they have left is a fact about the seat.

@@ -7,6 +7,7 @@ import { findRosterSeat } from '@/lib/roster';
 import { fetchParticipantStat, type CompetitionType } from '@/lib/weekly';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { rosterClanSeat } from '@/lib/seatScope';
 
 // POST — plugin auto-enrolls the signed-in player in the currently active weekly comp.
 // No auth: any plugin user may enroll themselves (creates a guest clan member if new).
@@ -62,7 +63,8 @@ export async function POST(request: Request) {
   // one. A member playing during a live SOTW is enrolled exactly as before; a stranger gets a plain
   // no and the database is untouched.
   const seat = await findRosterSeat(
-    and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized), isNull(clanRoster.leftAt)),
+    // Member and guest seats: an event player's seat is not in the clan's weeklies.
+    and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized), isNull(clanRoster.leftAt), rosterClanSeat()),
   );
   if (!seat) {
     return NextResponse.json({ enrolled: false, reason: 'not-a-member' });

@@ -14,6 +14,7 @@ import { acceptedCohostClanIds } from '@/lib/coHost';
 import { swapTrackedAccount } from '@/lib/trackedAccount';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { syncEventServerMembersFireAndForget } from '@/lib/eventDiscord';
+import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 
 export async function GET(
   request: Request,
@@ -108,6 +109,8 @@ export async function POST(
           and(
             inArray(clanRoster.id, fromIds.map((i) => i.clanMemberId)),
             eq(clanRoster.clanId, clan.id),
+            // An event player's seat joins only its own event.
+            rosterSeatOpensEventSql(id),
           ),
         );
       for (const m of memberRows) {

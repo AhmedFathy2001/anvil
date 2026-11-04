@@ -23,6 +23,7 @@ import {
 } from '@/db/schema';
 import { approverFor, type Approver } from '@/lib/accountChangeRules';
 import { findRosterSeat } from '@/lib/roster';
+import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 import { swapTrackedAccount } from '@/lib/trackedAccount';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
 
@@ -132,8 +133,9 @@ export async function requestAccountChange(opts: {
   // clan-scope: global -- a person's characters span clans by design, and the ownership check below
   // is what scopes this: the seat has to belong to the person asking. Which clan it sits in is then
   // read off the seat itself and passed to the swap as its only allowed clan.
+  // A seat that may play this board: an event player's seat only for its own event.
   const target = await findRosterSeat(
-    and(eq(clanRoster.id, opts.toSeatId), isNull(clanRoster.leftAt)),
+    and(eq(clanRoster.id, opts.toSeatId), isNull(clanRoster.leftAt), rosterSeatOpensEventSql(participant.eventId)),
   );
   if (!target || target.playerId !== opts.playerId) {
     return { ok: false, status: 403, error: 'That character is not yours' };

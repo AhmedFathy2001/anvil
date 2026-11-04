@@ -17,6 +17,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanRoster, eventParticipants } from '@/db/schema';
 import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
+import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 
 export type SwapResult =
   | { ok: true; changed: boolean; rsn: string }
@@ -52,7 +53,8 @@ export async function swapTrackedAccount(opts: {
   // Scoped by the caller's list. The seat id arrives from a request body, and unscoped this moved a
   // player row onto ANY clan's member.
   const member = await findRosterSeat(
-    and(eq(clanRoster.id, toSeatId), inArray(clanRoster.clanId, allowedClanIds)),
+    // A seat that may play this event: an event player's seat only for its own event.
+    and(eq(clanRoster.id, toSeatId), inArray(clanRoster.clanId, allowedClanIds), rosterSeatOpensEventSql(eventId)),
   );
   if (!member) return { ok: false, status: 404, error: 'Account not found' };
 

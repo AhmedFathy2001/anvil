@@ -43,6 +43,8 @@ export interface ClanContext {
   guestPolicy: string;
   /** 'clan' | 'creator' — a creator space has no in-game clan behind it. See lib/creatorSpaces. */
   kind: string;
+  /** A clan's "Streaming" switch (lib/creatorSpaces streamsEvents). Always false on a creator space's row. */
+  streaming: boolean;
   /** The clan's canonical host, for building absolute URLs. Custom domain wins when set. */
   host: string;
 }
@@ -75,6 +77,7 @@ function toContext(row: typeof clans.$inferSelect): ClanContext {
     visibility: row.visibility,
     guestPolicy: row.guestPolicy,
     kind: row.kind ?? 'clan',
+    streaming: row.streaming === true,
     host: row.customDomain || `${row.slug}.${apexDomain()}`,
   };
 }

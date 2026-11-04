@@ -6,6 +6,9 @@ import { and, eq, isNull, isNotNull, or } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { loadRoleSyncConfig, syncRolesForClanMember, buildSweepContext } from '@/lib/discord-roles';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
+import { seatInClan } from '@/lib/roster';
+import { isEventSeat } from '@/lib/seatKinds';
+import { rosterClanSeat } from '@/lib/seatScope';
 
 // Bounded by realistic guild size + the per-call delay. Each member is ~3-5 Discord
 // REST calls (search + get-member + a small number of PUT/DELETE), at ~150 ms each,
@@ -39,6 +42,10 @@ export async function POST(request: Request) {
   }
 
   if (typeof body.memberId === 'number') {
+    // THIS clan's seat, and a roster one: an event player's seat is not clan membership, so it never
+    // carries a Discord role.
+    const seat = await seatInClan(clan.id, body.memberId);
+    if (!seat || isEventSeat(seat)) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
     const report = await syncRolesForClanMember(body.memberId);
     return NextResponse.json({ mode: 'single', report });
   }
@@ -57,6 +64,8 @@ export async function POST(request: Request) {
         eq(clanRoster.clanId, clan.id),
         isNull(clanRoster.leftAt),
         or(eq(clanRoster.kind, 'member'), isNotNull(clanRoster.verifiedAt)),
+        // A verified event player is still not in the clan: no role.
+        rosterClanSeat(),
       ),
     );
 

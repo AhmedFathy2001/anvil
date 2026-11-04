@@ -8,6 +8,7 @@ import type { StatDeltas } from '@/lib/statDeltas';
 import { db } from '@/db';
 import { clanAuditLog, clanRoster, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants, accounts, players, clanMemberships, accountGameClans, clans, gameClans } from '@/db/schema';
 import { findRosterSeat, statSnapshotOf } from '@/lib/roster';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { computeEfficiency, type EfficiencyResult } from '@/lib/efficiency';
@@ -88,7 +89,8 @@ export async function listMembers(clanId: number): Promise<MemberListRow[]> {
     )
     // Members who left the clan drop off the directory; the profile page still resolves by name so
     // old links and event recaps don't 404.
-    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt)))
+    // Members and guests: an event player's seat is not on the roster (and would read as a member below).
+    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt), rosterClanSeat()))
     .orderBy(clanRoster.rsn);
 
   return rows
@@ -373,7 +375,10 @@ export async function getMemberProfile(clanId: number, rsn: string): Promise<Mem
 
   // Scoped to the clan whose page this is. The same RSN is legitimately on other clans' rosters, and
   // an unscoped lookup would render another clan's member under this clan's banner.
-  const member = await findRosterSeat(and(eq(clanRoster.clanId, clanId), eq(clanRoster.rsnNormalized, normalized)));
+  // A clan seat only: an event player's seat is no member page here (and must not shadow a guest seat).
+  const member = await findRosterSeat(
+    and(eq(clanRoster.clanId, clanId), eq(clanRoster.rsnNormalized, normalized), rosterClanSeat()),
+  );
   if (!member) return null;
 
   // DELEGATES, so the two profiles cannot drift. Everything Jagex tracks comes off the account and is
@@ -645,6 +650,8 @@ export async function getRosterLog(clanId: number, limit = 25): Promise<RosterEv
     .where(
       and(
         eq(clanRoster.clanId, clanId),
+        // The roster's comings and goings: an event player's seat never joined the roster.
+        rosterClanSeat(),
         inArray(clanAuditLog.eventType, ['joined', 'left', 'returned', 'rank_changed', 'renamed']),
       ),
     )
@@ -1454,7 +1461,8 @@ export async function getPersona(clanMemberId: number): Promise<Persona | null> 
   const seatsHere = await db
     .select({ id: clanRoster.id, accountId: clanRoster.accountId, kind: clanRoster.kind })
     .from(clanRoster)
-    .where(and(eq(clanRoster.clanId, member.clanId), eq(clanRoster.playerId, member.playerId), isNull(clanRoster.leftAt)));
+    // Member and guest seats: an event player's seat is not standing here (one per event, read as "guest").
+    .where(and(eq(clanRoster.clanId, member.clanId), eq(clanRoster.playerId, member.playerId), isNull(clanRoster.leftAt), rosterClanSeat()));
   const seatByAccount = new Map(seatsHere.map((x) => [x.accountId, x]));
   // WHAT KEEPS A CHARACTER WITHOUT A SEAT HERE OFF THIS CARD — the same two consents the apex reads
   // (lib/apexProfiles), because listing a character under this person is LINKING it to them:

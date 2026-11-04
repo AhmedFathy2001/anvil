@@ -9,7 +9,7 @@
 // wrong is how one clan reads another's roster. Pass the clan filter in the `where` when the answer
 // is the former. The clan-scope lint rule flags calls that look like they forgot.
 
-import { and, eq, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, eq, isNull, ne, sql, type SQL } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { resolveClanFromRequest } from '@/lib/clanContext';
@@ -169,10 +169,12 @@ export async function findOrCreateSeat(
   accountId: number,
   options: { kind?: 'member' | 'guest'; source?: 'roster' | 'admin' | 'application' } = {},
 ): Promise<number> {
+  // Member and guest seats only: an event player's seats (lib/eventPlayers) are per event and are
+  // never "the" seat an account holds in a clan.
   const [existing] = await db
     .select({ id: clanMemberships.id })
     .from(clanMemberships)
-    .where(and(eq(clanMemberships.clanId, clanId), eq(clanMemberships.accountId, accountId)))
+    .where(and(eq(clanMemberships.clanId, clanId), eq(clanMemberships.accountId, accountId), ne(clanMemberships.kind, 'event')))
     .limit(1);
   if (existing) return existing.id;
 

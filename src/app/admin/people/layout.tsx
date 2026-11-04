@@ -1,12 +1,13 @@
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { clanRoster } from '@/db/schema';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { and, count, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import SectionHeader from '@/components/SectionHeader';
 import { atLeast } from '@/lib/clanRoles';
 import { pendingClaimRequests } from '@/lib/claimRequests';
-import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { isCreatorSpace, streamsEvents } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,8 @@ export const dynamic = 'force-dynamic';
 export default async function PeopleLayout({ children }: { children: React.ReactNode }) {
   const session = await verifyUser();
   const isAdmin = atLeast(session?.role, 'admin');
+  // "Past viewers" (lib/eventPlayers): moderator work, like the roster; only where events stream.
+  const isModerator = atLeast(session?.role, 'moderator') && session?.role !== 'treasurer';
 
   const clan = await requireClan();
   // BOTH KINDS OF WAITING, because the tab holds both and only one of them was counted.
@@ -30,7 +33,8 @@ export default async function PeopleLayout({ children }: { children: React.React
     db
       .select({ c: count() })
       .from(clanRoster)
-      .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
+      // An event player's seat is not on the roster: never a claim for this clan to review.
+      .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt), rosterClanSeat()))
       .then((r) => r[0]?.c ?? 0),
     pendingClaimRequests(clan.id).then((r) => r.length),
   ]);
@@ -44,6 +48,7 @@ export default async function PeopleLayout({ children }: { children: React.React
         <SectionHeader
           pages={[
             { href: '/admin/people', exact: true, title: 'Players', blurb: 'Who has played your events, and who is asking to.' },
+            { href: '/admin/people/viewers', title: 'Past viewers', blurb: 'Viewers by event: their team and how it finished.', show: isModerator },
             { href: '/admin/people/staff', title: 'Staff & roles', blurb: 'Who helps run your events, and what each of them can do.', show: isAdmin },
           ]}
         />
@@ -57,6 +62,8 @@ export default async function PeopleLayout({ children }: { children: React.React
       <SectionHeader
         pages={[
           { href: '/admin/people', exact: true, title: 'Roster', blurb: 'Who is in the clan, and who is asking to join.' },
+          // Viewers who joined a streamed event: never on the roster, so they get their own list.
+          { href: '/admin/people/viewers', title: 'Past viewers', blurb: 'Viewers from your stream, by event: their team and how it finished.', show: isModerator && streamsEvents(clan) },
           { href: '/admin/people/needs-review', title: 'Needs review', blurb: 'Newcomers and ownership claims waiting on a yes or no.', badge: provisionalCount },
           // Who can act for the clan. Admin-only: handing out authority is not roster work.
           { href: '/admin/people/staff', title: 'Staff & roles', blurb: 'Who helps run the clan, and what each of them can do.', show: isAdmin },

@@ -20,7 +20,7 @@ import { toQuestionView } from '@/lib/survey';
 import { isTeamFull, placementOf } from '@/lib/teamPlacement';
 import { teamLoads } from '@/lib/teamPlacementDb';
 import { resolveClanById } from '@/lib/clanContext';
-import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { streamedEvent } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -228,7 +228,8 @@ export default async function EventSignupPage({
       : null;
 
   // A creator space's event: no member list to be missing from, so no "guest" wording either.
-  const creatorEvent = isCreatorSpace(await resolveClanById(event.clanId));
+  // A streamed event (a creator space's, or a Streaming clan's open to viewers) gets the viewer's join flow.
+  const creatorEvent = streamedEvent(await resolveClanById(event.clanId), event);
 
   return (
     <div className="max-w-2xl mx-auto">

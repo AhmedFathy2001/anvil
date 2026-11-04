@@ -28,6 +28,7 @@ import {
   creatorCan,
   creatorMinPlanNameFor,
   creatorPlanHasCapability,
+  creatorPlanFromLegacy,
   creatorPlanOf,
   creatorPlanRank,
   type CreatorPlan,
@@ -42,6 +43,18 @@ export { CREATOR_BUYABLE } from '@/lib/creatorCatalog';
  */
 export function meteredPlan(clan: { kind?: string | null; plan?: string | null } | null | undefined): string | null {
   return clan && clan.kind === 'creator' && freemiumEnforced() ? (clan.plan ?? CREATOR_FREE_ID) : null;
+}
+
+/**
+ * The CREATOR plan id that meters this host's streamer features (per-event player cap, stream gates,
+ * `!join`, the overlay mark). A creator space: its own plan. A clan with Streaming on: its clan tier
+ * read as the creator tier of the same rank (lib/creatorCatalog CREATOR_PLAN_FROM_CLAN_PLAN — Bronze
+ * clan → creator Bronze, Custom → Partner), computed here and NEVER stored: a clan row only ever holds a
+ * clan plan id (the `clans_plan_matches_kind` check). Pass the result to every helper in this module.
+ */
+export function streamPlanId(host: { kind?: string | null; plan?: string | null } | null | undefined): string {
+  if (host?.kind === 'creator') return host.plan ?? CREATOR_FREE_ID;
+  return creatorPlanFromLegacy(host?.plan).id;
 }
 
 /**

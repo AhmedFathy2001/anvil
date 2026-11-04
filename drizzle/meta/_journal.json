@@ -1037,6 +1037,13 @@
       "when": 1793792674614,
       "tag": "0204_events_directory_index",
       "breakpoints": true
+    },
+    {
+      "idx": 205,
+      "version": "7",
+      "when": 1793792734614,
+      "tag": "0205_event_player_seats",
+      "breakpoints": true
     }
   ]
 }

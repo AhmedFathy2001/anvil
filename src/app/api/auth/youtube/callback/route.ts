@@ -5,6 +5,7 @@ import { verifyUser } from '@/lib/auth';
 import { apexDomain, originForHost, sessionCookieDomain } from '@/lib/apexHost';
 import { resolveReturnHost } from '@/lib/clanContext';
 import { gateCache, gatesForEvent, isAdminOfCreatorSpace } from '@/lib/entryGatesDb';
+import { connectConflict } from '@/lib/streamChannels';
 import { hostYoutubeChannel, proveSubscription, saveHostYoutubeChannel } from '@/lib/gates/youtubeDb';
 import { log } from '@/lib/logger';
 import { safeReturnPath } from '@/lib/safe-redirect';
@@ -21,7 +22,8 @@ import {
 } from '@/lib/gates/youtube';
 
 /** Outcomes, as `?youtube=` on the page they return to. Fixed words only — never echoed input. */
-type Outcome = 'subscribed' | 'notsub' | 'linked' | 'taken' | 'private' | 'nochannel' | 'connected' | 'denied' | 'scopes' | 'error';
+// `elsewhere` / `in-use`: the host's channel is connected to another place (lib/streamChannels).
+type Outcome = 'subscribed' | 'notsub' | 'linked' | 'taken' | 'private' | 'nochannel' | 'connected' | 'denied' | 'scopes' | 'error' | 'elsewhere' | 'in-use';
 
 // GET /api/auth/youtube/callback?code=…&state=…  (YOUTUBE_REDIRECT_URI)
 //
@@ -41,10 +43,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'That YouTube link expired or was not started here. Try again from Anvil.' }, { status: 400 });
   }
 
-  const outcome = await finish(url, state, cfg, session.userId);
+  const moveFrom: { id: number | null } = { id: null };
+  const outcome = await finish(url, state, cfg, session.userId, moveFrom);
   const host = (state.h ? await resolveReturnHost(state.h) : null) ?? apexDomain();
   const back = new URL(safeReturnPath(state.r), originForHost(host));
   back.searchParams.set('youtube', outcome);
+  if (outcome === 'elsewhere' && moveFrom.id != null) back.searchParams.set('move', String(moveFrom.id));
   const res = NextResponse.redirect(back);
   res.cookies.set(YOUTUBE_NONCE_COOKIE, '', {
     path: '/api/auth/youtube',
@@ -54,7 +58,7 @@ export async function GET(request: Request) {
   return res;
 }
 
-async function finish(url: URL, state: YoutubeState, cfg: YoutubeConfig, userId: number): Promise<Outcome> {
+async function finish(url: URL, state: YoutubeState, cfg: YoutubeConfig, userId: number, moveFrom: { id: number | null }): Promise<Outcome> {
   if (url.searchParams.get('error')) return 'denied';
   const code = url.searchParams.get('code');
   if (!code || code.length > 1024) return 'error';
@@ -88,6 +92,13 @@ async function finish(url: URL, state: YoutubeState, cfg: YoutubeConfig, userId:
     const me = await fetchMyChannel(tokens.accessToken);
     if (!me.ok) return 'error';
     if (!me.value) return 'nochannel';
+    // One channel, one place (lib/streamChannels): connected elsewhere → ask, never copy.
+    const conflict = await connectConflict('youtube', me.value.id, state.c, userId);
+    if (conflict) {
+      if (conflict.outcome === 'taken') return 'in-use';
+      moveFrom.id = conflict.fromClanId;
+      return 'elsewhere';
+    }
     await saveHostYoutubeChannel({
       clanId: state.c,
       userId,

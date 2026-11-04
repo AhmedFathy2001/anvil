@@ -10,6 +10,7 @@ import { seatsOwnedByAnywhere } from '@/lib/roster';
 import { clansRunningEvents } from '@/lib/coHost';
 import { boardPointsPool, scoreTeam } from '@/lib/boardScoring';
 import { parseEventRules } from '@/lib/eventRules';
+import { isEventSeat } from '@/lib/seatKinds';
 
 /**
  * Server-resolved home-board summary for the sidebar, keyed to the TOKEN's user alone (no in-game
@@ -33,7 +34,7 @@ export async function homeBoardForUser(clanId: number, userId: number): Promise<
   // enrollments are filtered back to what THIS clan is running, two steps down.
   // clan-scope: global -- the subject is a PERSON and their seats span clans by design; the answer is narrowed to this clan by `running` below.
   const myMembers = await db
-    .select({ id: clanRoster.id, isPrimary: clanRoster.isPrimary })
+    .select({ id: clanRoster.id, isPrimary: clanRoster.isPrimary, kind: clanRoster.kind, eventId: clanRoster.eventId })
     .from(clanRoster)
     .where(and(await seatsOwnedByAnywhere(userId), isNull(clanRoster.leftAt)));
   if (myMembers.length === 0) return null;
@@ -59,7 +60,13 @@ export async function homeBoardForUser(clanId: number, userId: number): Promise<
   // Back to this clan: the boards it hosts or co-hosts. A person's enrollment somewhere else
   // entirely is not this clan's board and must not be reported as one.
   const running = await clansRunningEvents([...new Set(enrollments.map((e) => e.eventId))]);
-  const here = enrollments.filter((e) => running.get(e.eventId)?.has(clanId) === true);
+  // An event player's seat reaches only the event it names.
+  const eventSeatOf = new Map(myMembers.filter((m) => isEventSeat(m)).map((m) => [m.id, m.eventId]));
+  const here = enrollments.filter(
+    (e) =>
+      running.get(e.eventId)?.has(clanId) === true &&
+      !(e.clanMemberId != null && eventSeatOf.has(e.clanMemberId) && eventSeatOf.get(e.clanMemberId) !== e.eventId),
+  );
 
   const now = Date.now();
   const isLive = (e: (typeof enrollments)[number]) =>

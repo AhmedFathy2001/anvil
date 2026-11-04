@@ -4,6 +4,7 @@ import { verifyFeeCollector } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanRoster } from '@/db/schema';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { and, eq, inArray } from 'drizzle-orm';
 import { getCofferBalance, listCofferEntries, recordAdjustment, recordDonations } from '@/lib/coffer';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
@@ -70,7 +71,8 @@ export async function POST(request: Request) {
       const seats = await db
         .select({ id: clanRoster.id })
         .from(clanRoster)
-        .where(and(eq(clanRoster.clanId, clan.id), inArray(clanRoster.id, ids)));
+        // An event player's seat is not on the roster — the coffer credits clan seats only.
+        .where(and(eq(clanRoster.clanId, clan.id), inArray(clanRoster.id, ids), rosterClanSeat()));
       const mine = new Set(seats.map((s) => s.id));
       if (ids.some((id) => !mine.has(id))) {
         return NextResponse.json({ error: 'One of those members is not on your roster.' }, { status: 400 });

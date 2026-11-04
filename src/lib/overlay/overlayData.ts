@@ -2,9 +2,9 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clans, completions, eventOverlays, events, settings, tiles } from '@/db/schema';
-import { overlayShowsMark } from '@/lib/creatorPlans';
+import { overlayShowsMark, streamPlanId } from '@/lib/creatorPlans';
 import { OVERLAY_HIDE_MARK_SETTING } from '@/lib/creatorPlansDb';
-import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { streamsEvents } from '@/lib/creatorSpaces';
 import { eventActivityIsValid } from '@/lib/completionGate';
 import { boardTiles, parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { eventStage } from '@/lib/eventStage';
@@ -179,8 +179,8 @@ async function board(event: EventRow, curtain: OverlayCurtain) {
 }
 
 /**
- * Does this event's overlay carry the small Anvil mark? Creator spaces only (an ordinary clan's
- * overlay is unchanged): shown unless the host switched it off AND their plan may (lib/creatorPlans —
+ * Does this event's overlay carry the small Anvil mark? Streaming spaces only — a creator space, or a
+ * clan with Streaming on (an ordinary clan's overlay is unchanged): shown unless the host switched it off AND their plan may (lib/creatorPlans —
  * Gold and up once enforced; anyone while it is not). Memoised per clan like the snapshot.
  */
 export function overlayMark(clanId: number): Promise<boolean> {
@@ -191,11 +191,11 @@ export function overlayMark(clanId: number): Promise<boolean> {
 export async function readOverlayMark(clanId: number): Promise<boolean> {
   // clan-scope: this clan -- the overlay's own host, from the event the key opened.
   const [host, hide] = await Promise.all([
-    db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true, plan: true } }),
+    db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true, plan: true, streaming: true } }),
     db.query.settings.findFirst({ where: and(eq(settings.clanId, clanId), eq(settings.key, OVERLAY_HIDE_MARK_SETTING)) }),
   ]);
-  if (!isCreatorSpace(host)) return false;
-  return overlayShowsMark({ clanPlan: host?.plan, hideRequested: hide?.value === 'on' });
+  if (!streamsEvents(host)) return false;
+  return overlayShowsMark({ clanPlan: streamPlanId(host), hideRequested: hide?.value === 'on' });
 }
 
 // ── The host's half ─────────────────────────────────────────────────────────────────────────────

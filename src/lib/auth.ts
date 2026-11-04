@@ -26,6 +26,8 @@ import { lastSeenIsFresh } from '@/lib/rosterSync';
 import { labParticipantScope } from '@/lib/lab';
 import { admit } from '@/lib/guestAdmission';
 import { isBannedFromClan } from '@/lib/clanBans';
+import { clanSeat, rosterClanSeat, rosterSeatOpensEventSql } from '@/lib/seatScope';
+import { isEventSeat } from '@/lib/seatKinds';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
@@ -501,7 +503,8 @@ export async function resolveTeamMembership(
   const myMembers = await db
     .select({ id: clanRoster.id })
     .from(clanRoster)
-    .where(and(eq(clanRoster.playerId, user.playerId), isNull(clanRoster.leftAt)));
+    // An event player's seat counts only for its own event.
+    .where(and(eq(clanRoster.playerId, user.playerId), isNull(clanRoster.leftAt), rosterSeatOpensEventSql(eventId)));
   if (myMembers.length > 0) {
     const memberIds = myMembers.map((m) => m.id);
     const playerRow = await db.query.eventParticipants.findFirst({
@@ -636,6 +639,8 @@ async function clanOfPerson(
         and(
           await seatsOwnedByAnywhere(userId),
           isNull(clanRoster.leftAt),
+          // An event player's seat is not membership of the in-game clan this push names.
+          rosterClanSeat(),
           sql`lower(${clans.inGameName}) = lower(${inGameClanName.trim()})`,
         ),
       )
@@ -733,6 +738,8 @@ async function clanOfPerson(
       and(
         await seatsOwnedByAnywhere(userId),
         isNull(clanRoster.leftAt),
+        // An event player's seat reaches only the event it names.
+        or(rosterClanSeat(), eq(clanRoster.eventId, eventParticipants.eventId)),
         isNull(events.forceEndedAt),
         or(isNull(events.startDate), lte(events.startDate, nowIso)),
         or(isNull(events.endDate), gte(events.endDate, nowIso)),
@@ -753,7 +760,9 @@ async function clanOfPerson(
     .select({ clanId: clanRoster.clanId })
     .from(clanRoster)
     .where(and(await seatsOwnedByAnywhere(userId), isNull(clanRoster.leftAt)))
-    .orderBy(desc(sql`(${clanRoster.kind} = 'member')`), desc(clanRoster.joinedAt))
+    // Member, then guest, then — last resort only — an open event seat: no home clan, but while its
+    // event is upcoming or live it is the one clan with something for this person.
+    .orderBy(desc(sql`(${clanRoster.kind} = 'member')`), desc(sql`(${clanRoster.kind} <> 'event')`), desc(clanRoster.joinedAt))
     .limit(1);
 
   return seat.length > 0 ? resolveClanById(seat[0].clanId) : null;
@@ -1016,7 +1025,8 @@ async function seatOwnedCharacterAsGuest(
       lastSeenInClan: clanMemberships.lastSeenInClan,
     })
     .from(clanMemberships)
-    .where(and(eq(clanMemberships.clanId, clanId), eq(clanMemberships.accountId, accountId)))
+    // The account's clan seat; an event player's seat is never revived or restamped as one.
+    .where(and(eq(clanMemberships.clanId, clanId), eq(clanMemberships.accountId, accountId), clanSeat()))
     .limit(1);
 
   if (!seat) {
@@ -1076,6 +1086,28 @@ async function provisionalFirstUseClaims(userId: number): Promise<number> {
       ),
     );
   return row?.n ?? 0;
+}
+
+/**
+ * This account's open event-player seat in this clan, if any (lib/eventPlayers). A claim made while
+ * playing or adding a character must not mint a guest seat from it — an event seat is not membership.
+ */
+async function openEventSeat(clanId: number, accountId: number): Promise<number | null> {
+  // clan-scope: this clan -- one account's event seats here.
+  const [row] = await db
+    .select({ id: clanMemberships.id })
+    .from(clanMemberships)
+    .where(
+      and(
+        eq(clanMemberships.clanId, clanId),
+        eq(clanMemberships.accountId, accountId),
+        eq(clanMemberships.kind, 'event'),
+        isNull(clanMemberships.leftAt),
+      ),
+    )
+    .orderBy(desc(clanMemberships.joinedAt))
+    .limit(1);
+  return row?.id ?? null;
 }
 
 async function autoLinkOrSuggestOnPlay(
@@ -1160,11 +1192,12 @@ async function autoLinkOrSuggestOnPlay(
     // seen and written into B's audit log — while clan A, the one they were actually playing for,
     // got no seat at all. The `clanId` parameter was passed in and then used by only one branch,
     // which is the tell.
+    // Clan seats only: an event player's seat is never claimed through, revived or treated as "the" seat.
     const byHash = accountHash
-      ? (await findRosterSeat(and(eq(clanRoster.clanId, clanId), eq(clanRoster.accountHash, accountHash)))) ?? null
+      ? (await findRosterSeat(and(eq(clanRoster.clanId, clanId), eq(clanRoster.accountHash, accountHash), rosterClanSeat()))) ?? null
       : null;
     const byRsn =
-      (await findRosterSeat(and(eq(clanRoster.clanId, clanId), eq(clanRoster.rsnNormalized, normalizedRsn)))) ?? null;
+      (await findRosterSeat(and(eq(clanRoster.clanId, clanId), eq(clanRoster.rsnNormalized, normalizedRsn), rosterClanSeat()))) ?? null;
     const existing = byHash ?? byRsn;
 
     // THE GATE. Established rows (member / verified / role-carrying) need proof of control — an
@@ -1277,13 +1310,19 @@ async function autoLinkOrSuggestOnPlay(
         actorUserId: userId,
       });
       if (!claim.ok) return;
-      // Guest: verification proves ownership of the account, not membership of the clan. Only the
-      // in-game roster sync promotes a seat to 'member'.
-      clanMemberId = await findOrCreateSeat(clanId, claim.accountId, { kind: 'guest' });
-      await db
-        .update(clanMemberships)
-        .set({ lastSeenInClan: nowIso })
-        .where(eq(clanMemberships.id, clanMemberId));
+      // An event player playing their event: the claim stands, but no guest seat is minted from it.
+      const eventSeat = await openEventSeat(clanId, claim.accountId);
+      if (eventSeat != null) {
+        clanMemberId = eventSeat;
+      } else {
+        // Guest: verification proves ownership of the account, not membership of the clan. Only the
+        // in-game roster sync promotes a seat to 'member'.
+        clanMemberId = await findOrCreateSeat(clanId, claim.accountId, { kind: 'guest' });
+        await db
+          .update(clanMemberships)
+          .set({ lastSeenInClan: nowIso })
+          .where(eq(clanMemberships.id, clanMemberId));
+      }
     }
     db.insert(clanAuditLog)
       .values({
@@ -1416,7 +1455,10 @@ async function maybeAutoClaimEstablishedOnPlay(
 ): Promise<void> {
   try {
     // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
-    const existing = await findRosterSeat(eq(clanRoster.accountHash, accountHash));
+    // A clan seat first: an event player's seat (kind 'event') found first would hide a member seat.
+    const existing =
+      (await findRosterSeat(and(eq(clanRoster.accountHash, accountHash), rosterClanSeat()))) ??
+      (await findRosterSeat(eq(clanRoster.accountHash, accountHash)));
     if (!existing) return; // no row anchored to this hash — opt-in flow handles the rest
     if (existing.claimedAt != null) return; // already claimed (theirs or someone else's) — never steal
     // Only an ESTABLISHED identity auto-links: a verified account, or a real in-game roster member.
@@ -1484,13 +1526,19 @@ export async function claimAccountForUser(
 
   // Match by account hash first — the strong, rename-proof continuity signal. The RSN lookup only
   // tells us whether a row already exists; on its own it proves nothing about who controls it.
+  // Clan seats first: the gate reads `kind`, and an event player's seat (kind 'event') found ahead of
+  // a member seat elsewhere would read as unestablished. An event seat still counts as a row.
   const byHash = accountHash
     // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
-    ? (await findRosterSeat(eq(clanRoster.accountHash, accountHash))) ?? null
+    ? (await findRosterSeat(and(eq(clanRoster.accountHash, accountHash), rosterClanSeat()))) ??
+      (await findRosterSeat(eq(clanRoster.accountHash, accountHash))) ??
+      null
     : null;
   const byRsn =
     // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
-    (await findRosterSeat(eq(clanRoster.rsnNormalized, normalizedRsn))) ?? null;
+    (await findRosterSeat(and(eq(clanRoster.rsnNormalized, normalizedRsn), rosterClanSeat()))) ??
+    (await findRosterSeat(eq(clanRoster.rsnNormalized, normalizedRsn))) ??
+    null;
   const existing = byHash ?? byRsn;
   const claimant = await personOfOrCreate(userId);
   const alreadyOurs = existing?.claimedAt != null && existing.playerId === claimant;
@@ -1536,11 +1584,16 @@ export async function claimAccountForUser(
 
   // Ownership is global; the seat is local. A global RSN/hash lookup may have found the account on
   // another clan's roster, so resolve or create the seat in the clan this action actually names.
+  // The account's clan seat here; an event player's seat is never revived or relabelled as one.
   const seatHere = await findRosterSeat(
-    and(eq(clanRoster.clanId, clanId), eq(clanRoster.accountId, accountId)),
+    and(eq(clanRoster.clanId, clanId), eq(clanRoster.accountId, accountId), rosterClanSeat()),
   );
+  // Only an event player here: ownership is complete, but the claim mints no guest seat from it.
+  const eventSeatOnly = seatHere ? null : await openEventSeat(clanId, accountId);
   let clanMemberId: number;
-  if (seatHere) {
+  if (eventSeatOnly != null) {
+    clanMemberId = eventSeatOnly;
+  } else if (seatHere) {
     await db
       .update(clanMemberships)
       .set({
@@ -1591,10 +1644,13 @@ export async function claimAccountForUser(
   // Now that the account is attributed to a Discord-authenticated user, apply any
   // pre-assigned pending role and sync Discord roles. Both fire-and-forget; the dynamic
   // import on discord-roles avoids a static import cycle (it imports normalizeRsn here).
-  applyPendingRole(clanMemberId, userId, 'plugin').catch(() => {});
-  import('@/lib/discord-roles')
-    .then((m) => m.syncRolesForClanMemberFireAndForget(clanMemberId))
-    .catch(() => {});
+  // Not for an event player's seat: it carries no clan role and no Discord roles.
+  if (eventSeatOnly == null) {
+    applyPendingRole(clanMemberId, userId, 'plugin').catch(() => {});
+    import('@/lib/discord-roles')
+      .then((m) => m.syncRolesForClanMemberFireAndForget(clanMemberId))
+      .catch(() => {});
+  }
   // Character now has an owner: adopt its guest sign-ups.
   onCharacterLinked(clanMemberId, userId).catch(() => {});
 
@@ -1639,14 +1695,25 @@ export async function pluginParticipantScope(
       .where(and(eq(eventCohosts.clanId, member.clanId), eq(eventCohosts.status, 'accepted'))),
     // clan-scope: global -- one character's own seats in every clan; the event side below is scoped.
     db
-      .select({ id: clanRoster.id })
+      .select({ id: clanRoster.id, kind: clanRoster.kind, eventId: clanRoster.eventId })
       .from(clanRoster)
-      .where(and(eq(clanRoster.accountId, member.accountId), isNull(clanRoster.leftAt))),
+      .where(
+        or(
+          and(eq(clanRoster.accountId, member.accountId), isNull(clanRoster.leftAt)),
+          eq(clanRoster.id, member.clanMemberId),
+        ),
+      ),
   ]);
-  const seatIds = [...new Set([member.clanMemberId, ...ownSeats.map((s) => s.id)])];
+  // An event player's seat reaches only the event it names; member and guest seats any board below.
+  const seatIds = [...new Set(ownSeats.filter((s) => !isEventSeat(s)).map((s) => s.id))];
+  const eventSeats = ownSeats.filter((s) => isEventSeat(s) && s.eventId != null);
+  const seatMatch = or(
+    seatIds.length > 0 ? inArray(eventParticipants.clanMemberId, seatIds) : sql`false`,
+    ...eventSeats.map((s) => and(eq(eventParticipants.clanMemberId, s.id), eq(eventParticipants.eventId, s.eventId!))),
+  )!;
   const cohostedIds = cohosted.map((c) => c.eventId);
   const ordinary = and(
-    inArray(eventParticipants.clanMemberId, seatIds),
+    seatMatch,
     cohostedIds.length > 0
       ? or(eq(events.clanId, member.clanId), inArray(events.id, cohostedIds))
       : eq(events.clanId, member.clanId),
@@ -1788,6 +1855,7 @@ export async function resolvePluginMember(
       verificationMethod: clanRoster.verificationMethod,
       provisional: clanRoster.provisional,
       accountHash: clanRoster.accountHash,
+      kind: clanRoster.kind,
     })
     .from(clanRoster)
     // Scoped to the clan this plugin request named. The token identifies the PERSON, so unscoped
@@ -1796,6 +1864,9 @@ export async function resolvePluginMember(
     // further down exists to prevent, one level up.
     .where(and(await seatsOwnedBy(clan.id, user.id), isNull(clanRoster.leftAt)));
   if (memberRows.length === 0) return null;
+  // Event players' seats stay — they are how a viewer's plugin reaches their one event — but a clan
+  // seat of the same character wins, so callers asking for "the" seat here get the clan's.
+  memberRows.sort((a, b) => Number(isEventSeat(a)) - Number(isEventSeat(b)));
 
   // No RSN hint — we can't tell which of the user's accounts is logged in, so we must NOT guess.
   // Guessing would serve one account's bingo config / auto-submit scope (and now weekly credit) to

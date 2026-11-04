@@ -8,6 +8,7 @@ import { verifyEventTreasurer } from '@/lib/auth';
 import { MAX_PAYOUT_GP, getEventPrizePool, parsePlacementSplit, placementAmounts } from '@/lib/payouts';
 import { getTeamStandings } from '@/lib/statStandings';
 import { acceptedCohostClanIds } from '@/lib/coHost';
+import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 
 // Order payouts for display: by finishing place (manual/null-place rows last), then amount desc.
 function sortPayouts<T extends { place: number | null; amount: number }>(rows: T[]): T[] {
@@ -105,7 +106,8 @@ export async function POST(
     // exactly who is allowed to field a team here.
     const payableClans = [event.clanId, ...(await acceptedCohostClanIds(id))];
     const member = Number.isFinite(cmId)
-      ? await findRosterSeat(and(eq(clanRoster.id, cmId), inArray(clanRoster.clanId, payableClans)))
+      ? // An event player's seat is payable only on its own event.
+        await findRosterSeat(and(eq(clanRoster.id, cmId), inArray(clanRoster.clanId, payableClans), rosterSeatOpensEventSql(id)))
       : null;
     if (!member) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
     clanMemberId = cmId;

@@ -26,6 +26,7 @@ import { and, desc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 
 import { db } from '@/db';
 import { clanAuditLog, clanRoster, clans, clanStaff, users } from '@/db/schema';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { releaseRosterMemberships } from '@/lib/homeClan';
 import { parseStamp } from '@/lib/dbTime';
 import { getBotTokenOnly } from '@/lib/discord-roles';
@@ -384,7 +385,8 @@ async function takeoverCorroboration(
       lastSeenInClan: clanRoster.lastSeenInClan,
     })
     .from(clanRoster)
-    .where(and(eq(clanRoster.clanId, holderClanId), isNull(clanRoster.leftAt)));
+    // Roster and guest seats only: an event player's seat (no rank) must not stand in for a member seat.
+    .where(and(eq(clanRoster.clanId, holderClanId), isNull(clanRoster.leftAt), rosterClanSeat()));
 
   const pusherThere = roster.find((r) => r.rsnNormalized === pusherRsnNormalized);
   const verifierThere =

@@ -6,6 +6,7 @@ import { accounts, users } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { onboardingState } from '@/lib/onboarding';
 import { clansOfPerson } from '@/lib/myClans';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { onboardingNext } from '@/lib/firstLogin';
 import WelcomeClient from './WelcomeClient';
 
@@ -56,7 +57,8 @@ export default async function WelcomePage({
       state={state}
       displayName={user?.displayName ?? 'there'}
       discordUsername={user?.discordUsername ?? null}
-      clans={myClans.map((c) => ({ slug: c.slug, name: c.name }))}
+      // Clans only: a creator space is not a clan ("You're in 2 clans" must not count one).
+      clans={myClans.filter((c) => !isCreatorSpace({ kind: c.clanKind })).map((c) => ({ slug: c.slug, name: c.name }))}
       characters={characters.map((a) => a.rsn)}
       next={next}
     />

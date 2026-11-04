@@ -427,7 +427,7 @@ async function importRoster(client, clanId) {
       `INSERT INTO clan_memberships (clan_id, account_id, kind, rank, source, joined_at, left_at,
                                      last_seen_in_clan, notes, pending_role)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-       ON CONFLICT (clan_id, account_id) DO UPDATE SET rank = EXCLUDED.rank
+       ON CONFLICT (clan_id, account_id) WHERE kind <> 'event' DO UPDATE SET rank = EXCLUDED.rank
        RETURNING id`,
       [
         clanId, account.id,

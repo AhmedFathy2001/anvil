@@ -20,6 +20,7 @@ import { accounts, clanAuditLog, clanMemberships, clanStaff, clans, errorEvents,
 import { apexDomain } from '@/lib/clanContext';
 import { subscriptionFacts } from '@/lib/clanBilling';
 import { LAB_CLAN_SLUG, LAB_DUMMY_LOGIN } from '@/lib/labRules';
+import { clanSeat } from '@/lib/seatScope';
 
 // THE LAB IS NOT A CLAN. Staff test boards in a hidden clan (lib/lab) with dummy logins; counting
 // either here put "Anvil Tile Lab" under "No owner" and "Unverified" and inflated every total.
@@ -65,7 +66,8 @@ export async function platformTotals(): Promise<PlatformTotals> {
     db.select({ n: count() }).from(clans).where(and(eq(clans.status, 'archived'), ne(clans.slug, LAB_CLAN_SLUG))),
     db.select({ n: count() }).from(players).where(sql`${players.id} not in ${labDummyPlayers}`),
     db.select({ n: count() }).from(accounts).where(sql`${accounts.playerId} not in ${labDummyPlayers}`),
-    db.select({ n: count() }).from(clanMemberships).where(and(isNull(clanMemberships.leftAt), notLab(clanMemberships.clanId))),
+    // Roster seats: an event player's seat is not on a roster.
+    db.select({ n: count() }).from(clanMemberships).where(and(isNull(clanMemberships.leftAt), notLab(clanMemberships.clanId), clanSeat())),
     db.select({ n: count() }).from(users).where(sql`coalesce(${users.discordId}, '') not like ${LAB_DUMMY_LOGIN + '%'}`),
     db.select({ n: count() }).from(eventsTable).where(notLab(eventsTable.clanId)),
     db.select({ n: count() }).from(weeklyCompetitions).where(notLab(weeklyCompetitions.clanId)),
@@ -429,7 +431,8 @@ export async function multiClanPeople(limit = 20): Promise<{ playerId: number; n
     })
     .from(accounts)
     .innerJoin(players, eq(accounts.playerId, players.id))
-    .innerJoin(clanMemberships, and(eq(clanMemberships.accountId, accounts.id), isNull(clanMemberships.leftAt), notLab(clanMemberships.clanId)))
+    // Clans they belong to: an event player's seat is not one.
+    .innerJoin(clanMemberships, and(eq(clanMemberships.accountId, accounts.id), isNull(clanMemberships.leftAt), notLab(clanMemberships.clanId), clanSeat()))
     .groupBy(players.id, players.displayName)
     .having(sql`count(distinct ${clanMemberships.clanId}) > 1`)
     .orderBy(desc(countDistinct(clanMemberships.clanId)))
@@ -838,7 +841,7 @@ export async function browsePeople(
     )` : sql`true`}
     and ${filters.clanId ? sql`exists (
       select 1 from ${clanMemberships} m join ${accounts} a2 on a2.id = m.account_id
-       where a2.player_id = ${PLAYER_ID} and m.clan_id = ${filters.clanId} and m.left_at is null
+       where a2.player_id = ${PLAYER_ID} and m.clan_id = ${filters.clanId} and m.left_at is null and m.kind <> 'event'
     )` : sql`true`}
     and ${
       filters.login === 'yes'
@@ -864,7 +867,7 @@ export async function browsePeople(
     and ${filters.multiClan ? sql`(
       select count(distinct m3.clan_id) from ${clanMemberships} m3
         join ${accounts} a3 on a3.id = m3.account_id
-       where a3.player_id = ${PLAYER_ID} and m3.left_at is null
+       where a3.player_id = ${PLAYER_ID} and m3.left_at is null and m3.kind <> 'event'
     ) > 1` : sql`true`}
   `;
 
@@ -883,7 +886,7 @@ export async function browsePeople(
   const clanCount = sql<number>`(
     select count(distinct sort_membership.clan_id)::int from ${clanMemberships} sort_membership
       join ${accounts} sort_account on sort_account.id = sort_membership.account_id
-     where sort_account.player_id = ${PLAYER_ID} and sort_membership.left_at is null
+     where sort_account.player_id = ${PLAYER_ID} and sort_membership.left_at is null and sort_membership.kind <> 'event'
   )`;
   const nameOrder = sql`lower(coalesce(${players.displayName}, ''))`;
   const sort = filters.sort ?? 'connected';
@@ -918,7 +921,7 @@ export async function browsePeople(
       clans: sql<number>`(
         select count(distinct m4.clan_id)::int from ${clanMemberships} m4
           join ${accounts} a5 on a5.id = m4.account_id
-         where a5.player_id = ${PLAYER_ID} and m4.left_at is null
+         where a5.player_id = ${PLAYER_ID} and m4.left_at is null and m4.kind <> 'event'
       )`,
       hasLogin: sql<boolean>`exists (select 1 from ${users} u3 where u3.player_id = ${PLAYER_ID})`,
     })

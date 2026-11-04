@@ -9,6 +9,7 @@ import { SNOOZE_SETTING_KEY, parseSnoozes } from '@/lib/adminSnooze';
 import SnoozeButton from './SnoozeButton';
 import { db } from '@/db';
 import { clanAuditLog, clanRoster, completions, events, eventSignups, signupFees, teams, tiles, users } from '@/db/schema';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { flaggedProofBoards } from '@/lib/flaggedProofs';
 import { alias } from 'drizzle-orm/pg-core';
 import { and, count, desc, eq, gt, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
@@ -121,7 +122,8 @@ export default async function AdminDashboardPage() {
     db
       .select({ c: count() })
       .from(clanRoster)
-      .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
+      // An event player's seat is not on the roster: never a claim for this clan to review.
+      .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt), rosterClanSeat()))
       .then((r) => r[0]?.c ?? 0),
     db
       .select({ c: count() })

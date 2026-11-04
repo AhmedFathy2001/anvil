@@ -10,6 +10,7 @@ import { verifyAdminOrModerator } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
+import { isEventSeat } from '@/lib/seatKinds';
 
 // POST /api/admin/verifications/[id] { action: 'approve' | 'reject' | 'not_member', note? }
 // Approve clears the review flag — nothing about the account changes but that.
@@ -52,6 +53,10 @@ export async function POST(
   const member = await seatForRequest(request, memberId);
   if (!member) {
     return NextResponse.json({ error: 'Member not found' }, { status: 404 });
+  }
+  // An event player's seat is not a roster seat: never reviewed, verified or ended from here.
+  if (isEventSeat(member)) {
+    return NextResponse.json({ error: 'That is an event player, not a roster seat.' }, { status: 409 });
   }
 
   if (body.action === 'approve') {

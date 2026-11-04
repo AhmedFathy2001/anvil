@@ -10,14 +10,14 @@
 // creates a guest seat in the host clan, through the same admission path everything else uses. A
 // visitor to your event becomes a guest of your clan, which is exactly what they are.
 
-import { and, eq, isNull, or } from 'drizzle-orm';
+import { and, eq, isNull, ne, or } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventInvites, events, users } from '@/db/schema';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { entryOf, visibilityOf } from '@/lib/eventVisibility';
-import { clanKindOf, outsiderNeedsApproval } from '@/lib/creatorSpaces';
+import { clanKindOf, outsiderNeedsApproval, streamedEvent } from '@/lib/creatorSpaces';
 
 export { isEntry, isVisibility, type EventEntry, type EventVisibility } from '@/lib/eventVisibility';
 
@@ -53,7 +53,7 @@ export async function canSeeEvent(opts: {
   // In the host clan? Then it is theirs to see, whatever the setting says. A SEAT or a GRANT —
   // staff are frequently people with authority and no roster row, and an admin who cannot open
   // their own clan's event would be a strange way to enforce privacy.
-  if (await hasSeatIn(event.clanId, opts.playerId)) return true;
+  if (await hasSeatIn(event.clanId, opts.playerId, event.id)) return true;
   if (await hasGrantIn(event.clanId, opts.playerId)) return true;
 
   // A member of a clan that ACCEPTED a co-host seat on this event may see it (and enter it) — they're
@@ -95,17 +95,31 @@ export async function staffOfClan(clanId: number, playerId: number): Promise<boo
   return hasGrantIn(clanId, playerId);
 }
 
-/** A live seat in this clan, of any kind. */
-async function hasSeatIn(clanId: number, playerId: number): Promise<boolean> {
-  const row = await db
-    .select({ id: clanMemberships.id })
+/**
+ * The live seat this person holds in this clan that bears on this event: 'clan' for a member or guest
+ * seat, 'event' for an event player's seat naming THIS event (lib/eventPlayers), null for neither. An
+ * event seat for some other event is nothing here — it opens its own event and no other.
+ */
+async function seatFor(clanId: number, playerId: number, eventId: number): Promise<'clan' | 'event' | null> {
+  const rows = await db
+    .select({ kind: clanMemberships.kind })
     .from(clanMemberships)
     .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
     .where(
-      and(eq(clanMemberships.clanId, clanId), eq(accounts.playerId, playerId), isNull(clanMemberships.leftAt)),
-    )
-    .limit(1);
-  return row.length > 0;
+      and(
+        eq(clanMemberships.clanId, clanId),
+        eq(accounts.playerId, playerId),
+        isNull(clanMemberships.leftAt),
+        or(ne(clanMemberships.kind, 'event'), eq(clanMemberships.eventId, eventId)),
+      ),
+    );
+  if (rows.some((r) => r.kind !== 'event')) return 'clan';
+  return rows.length > 0 ? 'event' : null;
+}
+
+/** A live seat that opens this event: a member/guest seat, or an event seat naming it. */
+async function hasSeatIn(clanId: number, playerId: number, eventId: number): Promise<boolean> {
+  return (await seatFor(clanId, playerId, eventId)) != null;
 }
 
 /** Does this person hold a seat in a clan that has accepted a co-host seat on this event? */
@@ -121,6 +135,8 @@ export async function inAcceptedCohostClan(eventId: number, playerId: number): P
         eq(eventCohosts.status, 'accepted'),
         eq(accounts.playerId, playerId),
         isNull(clanMemberships.leftAt),
+        // A viewer's event seat in the co-host is not a place in that clan.
+        ne(clanMemberships.kind, 'event'),
       ),
     )
     .limit(1);
@@ -168,14 +184,20 @@ export async function invitedToEvent(eventId: number, playerId: number): Promise
   });
   if (byName) return true;
 
-  // Any clan they hold a seat in, that has been invited.
+  // Any clan they hold a seat in, that has been invited. A member or guest seat: an event player's
+  // seat in a clan (lib/eventPlayers) does not make them part of it, so it carries no clan invite.
   const rows = await db
     .select({ id: eventInvites.id })
     .from(eventInvites)
     .innerJoin(clanMemberships, eq(clanMemberships.clanId, eventInvites.clanId))
     .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
     .where(
-      and(eq(eventInvites.eventId, eventId), eq(accounts.playerId, playerId), isNull(clanMemberships.leftAt)),
+      and(
+        eq(eventInvites.eventId, eventId),
+        eq(accounts.playerId, playerId),
+        isNull(clanMemberships.leftAt),
+        ne(clanMemberships.kind, 'event'),
+      ),
     )
     .limit(1);
   return rows.length > 0;
@@ -210,11 +232,16 @@ export async function canEnterEvent(opts: {
     return { outcome: 'refused', reason: 'banned' };
   }
 
-  // A CREATOR SPACE decides approval PER EVENT. Its seats are only ever event guests, and a seat
-  // won through one open event must not walk somebody into another event the host set to
-  // `approval`. So on an approval event a seat is not enough: it takes this event's own yes — an
-  // invitation, which is what approving their request for it creates — or being the space's staff.
-  if (await hasSeatIn(event.clanId, opts.playerId)) {
+  // AN EVENT PLAYER'S SEAT opens its one event (lib/eventPlayers): for THIS event they are in; for
+  // any other it is as if they had no seat at all, and they enter it — or ask — like anybody else.
+  //
+  // A member or guest seat is the clan-wide rule, with one exception kept for the guest seats a
+  // creator space handed out before event seats existed (drizzle/0205 kept those whose holder had
+  // played several events): on an `approval` event such a seat is not enough — it takes this event's
+  // own yes (an invitation, which approving their request creates) or being the space's staff.
+  const seat = await seatFor(event.clanId, opts.playerId, event.id);
+  if (seat === 'event') return { outcome: 'insider' };
+  if (seat === 'clan') {
     if (!(await needsOwnEventYes(event, opts.playerId))) return { outcome: 'insider' };
     return { outcome: 'outsider', needsApproval: true };
   }
@@ -257,10 +284,17 @@ export async function canEnterEvent(opts: {
   // member list a stranger could write themselves onto, and a streamer's viewers are exactly the
   // strangers it exists for. So there `open` means open, and `approval` still asks about everyone.
   // The rule itself is lib/creatorSpaces outsiderNeedsApproval, shared with its tests.
-  const host = await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true } });
+  // A STREAMING clan's event that lets viewers in (lib/creatorSpaces streamedEvent) is the same case:
+  // the people joining it get an event seat, never a row on the clan's roster or guest list.
+  const host = await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true, streaming: true } });
   return {
     outcome: 'outsider',
-    needsApproval: outsiderNeedsApproval({ clanKind: clanKindOf(host?.kind), entry: entryOf(event.entry), vouched }),
+    needsApproval: outsiderNeedsApproval({
+      clanKind: clanKindOf(host?.kind),
+      entry: entryOf(event.entry),
+      vouched,
+      streamed: streamedEvent(host, event),
+    }),
   };
 }
 
@@ -286,6 +320,8 @@ export async function involvedInEvent(opts: { eventId: number; clanId: number; p
     .limit(1);
   if (seat.length > 0) return true;
   if (await hasGrantIn(opts.clanId, opts.playerId)) return true;
+  // Their event seat for THIS event (lib/eventPlayers): a viewer who joined it is in it.
+  if ((await seatFor(opts.clanId, opts.playerId, opts.eventId)) === 'event') return true;
   if (await memberOfAcceptedCohostClan(opts.eventId, opts.playerId)) return true;
   return invitedToEvent(opts.eventId, opts.playerId);
 }

@@ -7,6 +7,7 @@ import { clanHrefs } from '@/lib/clanPath';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import { clanRoster, cofferEntries, users } from '@/db/schema';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { and, count, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
@@ -81,7 +82,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     db
       .select({ c: count() })
       .from(clanRoster)
-      .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
+      // An event player's seat is not on the roster: never a claim for this clan to review.
+      .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt), rosterClanSeat()))
       .then((r) => r[0]?.c ?? 0),
     pendingClaimRequests(clan.id).then((r) => r.length),
   ]);

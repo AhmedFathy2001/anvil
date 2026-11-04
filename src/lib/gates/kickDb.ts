@@ -9,7 +9,8 @@ import { and, eq, inArray, isNull, lt, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanKickChannels, clans, kickChannelFacts, kickLinkCodes, kickWebhookSeen, userKickLinks } from '@/db/schema';
-import { chatJoinAllowed } from '@/lib/creatorPlans';
+import { chatJoinAllowed, streamPlanId } from '@/lib/creatorPlans';
+import { streamsEvents } from '@/lib/creatorSpaces';
 import type { GateContext, KickGateOptions } from '@/lib/entryGates';
 import {
   KICK_BADGE_SUB_MS,
@@ -220,7 +221,13 @@ export async function hostKickToken(
 
 // ── The OAuth callback's work ───────────────────────────────────────────────────────────────────
 
-export type HostConnectOutcome = 'connected' | 'scopes' | 'error' | 'subscribe-failed';
+export type HostConnectOutcome =
+  | 'connected'
+  | 'scopes'
+  | 'error'
+  | 'subscribe-failed'
+  /** Already connected to another place (lib/streamChannels): nothing was saved. */
+  | { conflict: { outcome: 'elsewhere'; fromClanId: number } | { outcome: 'taken' } };
 
 /** After the code exchange: check scopes, learn the channel, store, subscribe. */
 export async function finishHostKickConnect(opts: {
@@ -231,6 +238,10 @@ export async function finishHostKickConnect(opts: {
 }): Promise<HostConnectOutcome> {
   if (!hasKickHostScopes(opts.tokens.scope) || !opts.tokens.refreshToken) return 'scopes';
   const owner = await fetchOwnChannel(opts.tokens.accessToken, fetchImpl);
+  // One channel, one place: a channel connected elsewhere is asked about, never copied.
+  const { connectConflict } = await import('@/lib/streamChannels');
+  const conflict = await connectConflict('kick', owner.userId, opts.clanId, opts.userId);
+  if (conflict) return { conflict };
   const r = await saveHostKickChannel({ ...opts, tokens: { ...opts.tokens, refreshToken: opts.tokens.refreshToken }, owner });
   return r === 'ok' ? 'connected' : 'subscribe-failed';
 }
@@ -427,11 +438,12 @@ export async function applyKickEvent(ev: KickEvent, opts: { code: string | null;
     // One channel answers for one space: a channel two spaces both claim is answered by neither.
     if (channels.length !== 1 || !channels[0].chatJoin) return { kind: 'ignored' };
     // clan-scope: this clan -- the one space that connected this channel.
-    const clan = await db.query.clans.findFirst({ where: eq(clans.id, channels[0].clanId), columns: { kind: true, status: true, plan: true } });
-    if (clan?.kind !== 'creator' || clan.status !== 'active') return { kind: 'ignored' };
+    const clan = await db.query.clans.findFirst({ where: eq(clans.id, channels[0].clanId), columns: { kind: true, status: true, plan: true, streaming: true } });
+    // A creator space, or a clan with Streaming on (lib/creatorSpaces streamsEvents).
+    if (!clan || !streamsEvents(clan) || clan.status !== 'active') return { kind: 'ignored' };
     // The plan (lib/creatorPlans): `!join` is Silver+ once FREEMIUM_ENFORCED is on — the same rule
     // the Twitch bot's chatBotChannels applies. Generous phase: everyone.
-    if (!chatJoinAllowed(clan.plan)) return { kind: 'ignored' };
+    if (!chatJoinAllowed(streamPlanId(clan))) return { kind: 'ignored' };
     return { kind: 'join', clanId: channels[0].clanId, broadcasterId: ev.broadcasterId, replyTo: ev.messageId };
   }
   return { kind: 'ignored' };

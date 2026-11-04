@@ -148,9 +148,12 @@ export function serializeGates(gates: EntryGates | null): string | null {
   return clean ? JSON.stringify(clean) : null;
 }
 
-/** Only creator spaces honour gates; on any other host the column is ignored. */
-export function gatesApply(clanKind: string | null | undefined, gates: EntryGates | null): gates is EntryGates {
-  return clanKind === 'creator' && gates != null && gates.anyOf.length > 0;
+/**
+ * Gates apply on a creator space's events, and on a Streaming clan's events that let viewers in
+ * (`streamed`, lib/creatorSpaces streamedEvent). On any other event the column is ignored.
+ */
+export function gatesApply(clanKind: string | null | undefined, gates: EntryGates | null, streamed = false): gates is EntryGates {
+  return (clanKind === 'creator' || streamed) && gates != null && gates.anyOf.length > 0;
 }
 
 // ── What a host can offer ───────────────────────────────────────────────────────────────────────

@@ -28,6 +28,7 @@ import { detachCharacter, fileCharacterReport, mergeCharacterReportBody, reassig
 import { renameCharacter } from '@/lib/characterRename';
 import { mergeEmptyPersonInto } from '@/lib/mergePeople';
 import { verificationOf } from '@/lib/clanVerification';
+import { clanSeat } from '@/lib/seatScope';
 
 export const APPLIED_EVENT = 'character_report_applied';
 export const REVERTED_EVENT = 'character_report_reverted';
@@ -150,7 +151,8 @@ async function ownerApplyBlocked(
       .select({ id: clanMemberships.id })
       .from(clanMemberships)
       .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
-      .where(and(eq(accounts.playerId, report.claimantPlayerId), eq(clanMemberships.clanId, report.clanId)))
+      // An event player's seat is not a place on the roster.
+      .where(and(eq(accounts.playerId, report.claimantPlayerId), eq(clanMemberships.clanId, report.clanId), clanSeat()))
       .limit(1);
     if (!onRoster) return "The person you vouched for isn't on your roster, so Anvil decides.";
   }
@@ -338,7 +340,8 @@ async function seatIn(clanId: number | null, accountId: number): Promise<number 
   const [seat] = await db
     .select({ id: clanMemberships.id })
     .from(clanMemberships)
-    .where(and(eq(clanMemberships.clanId, clanId), eq(clanMemberships.accountId, accountId)))
+    // The clan seat (an event player's seat is not "the" seat a clan's log is about).
+    .where(and(eq(clanMemberships.clanId, clanId), eq(clanMemberships.accountId, accountId), clanSeat()))
     .limit(1);
   return seat?.id ?? null;
 }

@@ -2,6 +2,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { requireFeature } from '@/lib/clanFeatures';
 
 import { clanRoster } from '@/db/schema';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { verifyUser } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
 import { getCofferBalance, listCofferEntries, topDonors } from '@/lib/coffer';
@@ -33,7 +34,8 @@ export default async function CofferPage() {
   // seat here at all.
   const seats = user
     ? await findRosterSeats(
-        and(eq(clanRoster.clanId, clan.id), isNull(clanRoster.leftAt), await seatsOwnedBy(clan.id, user.userId)),
+        // An event player's seat is not clan membership: no coffer.
+        and(eq(clanRoster.clanId, clan.id), isNull(clanRoster.leftAt), rosterClanSeat(), await seatsOwnedBy(clan.id, user.userId)),
       )
     : [];
 

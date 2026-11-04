@@ -10,6 +10,7 @@ import { loadPlayerCard } from '@/lib/playerCard';
 import type { PlayerCard } from '@/lib/playerCardShape';
 import { publicHiscoresCard } from '@/lib/publicHiscoresCard';
 import { rateLimit } from '@/lib/rate-limit';
+import { clanSeat } from '@/lib/seatScope';
 
 // The reads behind the plugin's cards, shared by the card routes (/api/players/<rsn>/card,
 // /api/clans/<slug>/card) and the panel's views (/api/plugin/ui), so both answer the same.
@@ -72,7 +73,9 @@ export async function visibleClan(request: Request, rawSlug: string) {
     .select({ id: clanMemberships.id })
     .from(clanMemberships)
     .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
-    .where(and(eq(clanMemberships.clanId, clan.id), eq(accounts.playerId, playerId), isNull(clanMemberships.leftAt)))
+    // A member or guest seat: an event player's seat opens its event, not the clan (lib/pluginBoards
+    // still addresses that one board through it).
+    .where(and(eq(clanMemberships.clanId, clan.id), eq(accounts.playerId, playerId), isNull(clanMemberships.leftAt), clanSeat()))
     .limit(1);
   return seat ? clan : null;
 }

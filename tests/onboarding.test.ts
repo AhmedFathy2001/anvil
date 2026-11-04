@@ -229,6 +229,22 @@ test('a linked character ticks its step with no clan and no seat anywhere', asyn
   assert.equal(seats.length, 0, 'proving who you are seats you nowhere');
 });
 
+test('a creator space is not a clan: playing a streamer’s event leaves the clan step open', async () => {
+  const { db, schema: s } = await loadDb();
+  const [acct] = await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, 'newbie guy'));
+  const [space] = await db
+    .insert(s.clans)
+    .values({ slug: 'some-streamer', name: 'Some Streamer', kind: 'creator', plan: 'creator_free', status: 'active' })
+    .returning();
+  // A seat in the space (an older guest seat) and a staff grant there: still no clan.
+  await db.insert(s.clanMemberships).values({ clanId: space.id, accountId: acct.id, kind: 'guest' });
+  await db.insert(s.clanStaff).values({ clanId: space.id, userId: newbieUser, role: 'admin' });
+
+  const state = await O.onboardingState(newbieUser, newbiePlayer);
+  assert.equal(state.steps.find((x) => x.key === 'clan')!.done, false, 'a space does not count as a clan');
+  assert.equal(state.current, 'clan');
+});
+
 test('joining a clan then ticks the clan step', async () => {
   const { db, schema: s } = await loadDb();
   const [acct] = await db

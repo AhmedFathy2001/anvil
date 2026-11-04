@@ -8,13 +8,14 @@
 // So there is one function, `admit`, and every one of those paths calls it. What it does depends on
 // the clan's policy, and the policy is a decision the clan made rather than a default nobody chose.
 
-import { and, count, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNotNull, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clanStaff, clans, eventInvites, events, users } from '@/db/schema';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { findOrCreateSeat } from '@/lib/roster';
-import { declinedRequestText, isCreatorSpace } from '@/lib/creatorSpaces';
+import { declinedRequestText, isCreatorSpace, streamedEvent } from '@/lib/creatorSpaces';
+import { seatEventPlayer } from '@/lib/eventPlayers';
 
 export type GuestPolicy = 'approval' | 'open' | 'closed';
 
@@ -95,8 +96,10 @@ export async function admit(opts: {
 
   // Already seated here? Then there is nothing to admit — including when the seat is departed, which
   // is a decision this function must not quietly undo.
+  // Member and guest seats: an event player's seat (lib/eventPlayers) opens one event and is not a
+  // place in the clan, so it neither counts as "already seated" here nor gets turned into one.
   const existing = await db.query.clanMemberships.findFirst({
-    where: and(eq(clanMemberships.clanId, clanId), eq(clanMemberships.accountId, accountId)),
+    where: and(eq(clanMemberships.clanId, clanId), eq(clanMemberships.accountId, accountId), ne(clanMemberships.kind, 'event')),
   });
   if (existing && !existing.leftAt) return { outcome: 'seated', seatId: existing.id };
   // A seat ended ON PURPOSE (`manual`: the person left, or staff said "not our member") stays ended
@@ -224,11 +227,25 @@ export async function approveRequest(
     return { ok: false, error: 'That person is banned from this clan — lift the ban first' };
   }
 
-  const seatId = await findOrCreateSeat(clanId, req.accountId, { kind: 'guest', source: 'application' });
-  await db.update(clanMemberships).set({ leftAt: null }).where(eq(clanMemberships.id, seatId));
+  // A request to play ONE streamed event (lib/eventEntry: a creator space's, or a Streaming clan's
+  // event open to viewers) seats them as that event's PLAYER — an event seat, never a guest one. A
+  // clan-wide request (no event) is a guest, as it always was.
+  // clan-scope: this clan -- the request's own event, and only on this clan.
+  const reqEvent =
+    req.eventId != null
+      ? await db.query.events.findFirst({ where: and(eq(events.id, req.eventId), eq(events.clanId, clanId)), columns: { id: true, openToViewers: true } })
+      : undefined;
+  const host = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true, streaming: true } });
+  let seatId: number;
+  if (reqEvent && streamedEvent(host, reqEvent)) {
+    seatId = await seatEventPlayer({ clanId, eventId: reqEvent.id, accountId: req.accountId });
+  } else {
+    seatId = await findOrCreateSeat(clanId, req.accountId, { kind: 'guest', source: 'application' });
+    await db.update(clanMemberships).set({ leftAt: null }).where(eq(clanMemberships.id, seatId));
+  }
 
-  // A request to play ONE event (lib/eventEntry, creator spaces): the yes is an invitation to that
-  // event, which is what lets them past its approval — and nothing wider.
+  // The yes is also an invitation to that event, so its entry gates (lib/entryGatesDb) do not turn
+  // away somebody the host has just accepted by name — and nothing wider.
   if (req.eventId != null && req.playerId != null) {
     const invited = await db.query.eventInvites.findFirst({
       where: and(eq(eventInvites.eventId, req.eventId), eq(eventInvites.playerId, req.playerId)),

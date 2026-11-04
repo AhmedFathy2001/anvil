@@ -6,6 +6,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { clanGrant } from '@/lib/clanGrants';
 import { atLeast } from '@/lib/clanRoles';
+import { rosterClanSeat, rosterSeatOpensEventSql } from '@/lib/seatScope';
 
 // GET /api/admin/clan/active-members?eventId=N&teamId=M
 //
@@ -108,7 +109,14 @@ export async function GET(request: Request) {
           // shape consistent (enrolledPlayerId will always be null in that branch).
           eq(eventParticipants.id, -1),
     )
-    .where(and(eq(clanRoster.clanId, rosterClanId), isNull(clanRoster.leftAt)))
+    // An event player's seat is not on the roster; it is offered only for its own event.
+    .where(
+      and(
+        eq(clanRoster.clanId, rosterClanId),
+        isNull(clanRoster.leftAt),
+        eventId != null && Number.isFinite(eventId) ? rosterSeatOpensEventSql(eventId) : rosterClanSeat(),
+      ),
+    )
     .orderBy(clanRoster.rsn);
 
   // ONE ROW PER SEAT. Joining through the person is correct and, unlike the id comparison it

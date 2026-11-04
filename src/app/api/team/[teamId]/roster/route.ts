@@ -5,6 +5,7 @@ import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { requireTeamManager } from '@/lib/teamStaff';
 import { enrolParticipant, participantForSeat } from '@/lib/participants';
 import { captureStartingStatsSoon, startingStatsFor } from '@/lib/startingStats';
+import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 
 /**
  * A team's own roster and its recent proof, for whoever runs that team.
@@ -172,7 +173,8 @@ export async function POST(
   const seat = await db
     .select({ id: clanRoster.id, accountId: clanRoster.accountId, rsn: clanRoster.rsn })
     .from(clanRoster)
-    .where(and(eq(clanRoster.id, clanMemberId), eq(clanRoster.clanId, team.clanId), isNull(clanRoster.leftAt)))
+    // An event player's seat joins only its own event.
+    .where(and(eq(clanRoster.id, clanMemberId), eq(clanRoster.clanId, team.clanId), isNull(clanRoster.leftAt), rosterSeatOpensEventSql(management.eventId)))
     .then((r) => r[0]);
   if (!seat) return NextResponse.json({ error: 'That member is not on your clan’s roster.' }, { status: 400 });
 

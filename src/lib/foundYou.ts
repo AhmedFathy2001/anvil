@@ -2,6 +2,7 @@ import { and, eq, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clans, users } from '@/db/schema';
+import { clanSeat } from '@/lib/seatScope';
 
 // "We think we found you."
 //
@@ -58,6 +59,8 @@ export async function seatsWaitingFor(userId: number): Promise<FoundSeat[]> {
         eq(accounts.discordId, discordId),
         isNull(accounts.claimedAt),
         isNull(clanMemberships.leftAt),
+        // Roster and guest seats: an event player's seat is no clan waiting for anybody.
+        clanSeat(),
         // A clan that is not taking part is not somewhere to send anybody.
         ne(clans.status, 'suspended'),
       ),

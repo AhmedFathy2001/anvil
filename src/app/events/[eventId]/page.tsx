@@ -66,7 +66,7 @@ import { canEnterEvent } from '@/lib/eventAccess';
 import EnterEvent from './EnterEvent';
 import { eventActivityIsValid } from '@/lib/completionGate';
 import LocalTime from '@/components/LocalTime';
-import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { streamedEvent } from '@/lib/creatorSpaces';
 import { withSearchText } from '@/lib/tileSearchText';
 import { supporterLooksByName } from '@/lib/supporter';
 import { standingsScopeForSession } from '@/lib/standingsAccess';
@@ -331,7 +331,8 @@ export default async function EventScoreboardPage({
   // exactly that, because `hasVerifiedAccount` above counts seats in ANY clan — which is right for
   // the ladder strip below and wrong for this question.
   // A creator space's event (lib/creatorSpaces): the join card is the one-button version.
-  const creatorEvent = isCreatorSpace(await resolveClanById(event.clanId));
+  // A streamed event (a creator space's, or a Streaming clan's open to viewers) gets the viewer's join flow.
+  const creatorEvent = streamedEvent(await resolveClanById(event.clanId), event);
   let isOutsider = false;
   if (session?.playerId != null) {
     const verdict = await canEnterEvent({ eventId: id, playerId: session.playerId });

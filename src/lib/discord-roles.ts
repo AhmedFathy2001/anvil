@@ -25,6 +25,7 @@ import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
 import { clanAuditLog, clanRoster, detectedAccounts, eventSignups, users } from '@/db/schema';
 import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { normalizeRsn } from '@/lib/auth';
@@ -577,6 +578,15 @@ export async function searchGuildMembersByName(
     });
 }
 
+/**
+ * Does somebody with these seats in one clan get its MEMBER roles? Only when one of them is a member
+ * seat. A guest seat never does, and neither does an event player's seat (lib/seatKinds) — "not all
+ * guests" used to read as member, which handed member roles to anyone holding an event seat.
+ */
+export function holdsMemberRoles(rows: { kind: string }[]): boolean {
+  return rows.some((r) => r.kind === 'member');
+}
+
 // True when a Discord user id is actually a member of the guild. Used to validate a manual link.
 export async function isGuildMember(clanId: number, discordUserId: string): Promise<boolean> {
   const cfg = await loadRoleSyncConfig(clanId);
@@ -607,8 +617,9 @@ export function orderNicknameAccounts<T extends { rsn: string; isPrimary: number
   const byRsn = new Map<string, T[]>();
   for (const a of accounts) byRsn.set(key(a.rsn), [...(byRsn.get(key(a.rsn)) ?? []), a]);
   for (const [rsn, seats] of byRsn) {
-    const here = seats.find((a) => a.clanId === clanId);
-    const guest = here ? here.kind === 'guest' : seats.every((a) => a.kind === 'guest');
+    // An event player's seat is not a seat here; a member is only ever somebody with a member seat.
+    const here = seats.find((a) => a.clanId === clanId && a.kind !== 'event');
+    const guest = here ? here.kind !== 'member' : !seats.some((a) => a.kind === 'member');
     tierOf.set(rsn, seats.some((a) => a.isPrimary === 1) ? 0 : guest ? 2 : 1);
   }
   const tier = (a: T) => tierOf.get(key(a.rsn)) ?? 1;
@@ -862,6 +873,9 @@ export async function syncRolesForClanMember(
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const member = await findRosterSeat(eq(clanRoster.id, memberId));
   if (!member) return { ok: false, reason: 'member not found', added: [], removed: [] };
+  // An event player's seat opens one event; it earns no clan roles and no nickname. Asked first, so
+  // the answer does not depend on whether this clan has role sync set up.
+  if (member.kind === 'event') return { ok: false, reason: 'event player seat — no clan roles', added: [], removed: [] };
   const cfg = await loadRoleSyncConfig(member.clanId);
   if (!cfg) return { ok: false, reason: 'sync disabled or unconfigured', added: [], removed: [] };
   if (member.leftAt) return { ok: false, reason: 'member has left', added: [], removed: [] };
@@ -957,6 +971,8 @@ export async function syncRolesForClanMember(
         eq(clanRoster.clanId, member.clanId),
         eq(users.discordId, discordUserId),
         isNull(clanRoster.leftAt),
+        // An event player's seat is not membership: never a role.
+        rosterClanSeat(),
       ),
     );
   ownedRows.push(...viaOauth);
@@ -971,6 +987,7 @@ export async function syncRolesForClanMember(
         eq(clanRoster.clanId, member.clanId),
         eq(clanRoster.discordId, discordUserId),
         isNull(clanRoster.leftAt),
+        rosterClanSeat(),
       ),
     );
   ownedRows.push(...viaLegacy);
@@ -982,7 +999,8 @@ export async function syncRolesForClanMember(
     return { ok: false, reason: 'no active clan_members for this Discord user', added: [], removed: [], discordUserId };
   }
 
-  const allGuests = ownedRows.every((r) => r.kind === 'guest');
+  // A member only on a member seat — never inferred from "not a guest" (an event seat is neither).
+  const allGuests = !holdsMemberRoles(ownedRows);
 
   // Always read the live role list before a write. Besides name matching, its permission bitfields
   // are the final guard that prevents a stale/forged config from assigning an administrative role.
@@ -1180,6 +1198,8 @@ export async function syncRolesForClanMember(
           eq(users.discordId, discordUserId),
           isNull(clanRoster.leftAt),
           isNotNull(clanRoster.verifiedAt),
+          // Clan seats only: an event player's seat names nobody in a clan's nickname.
+          rosterClanSeat(),
         ),
       )
       .orderBy(desc(clanRoster.isPrimary));

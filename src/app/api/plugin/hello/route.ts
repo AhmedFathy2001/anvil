@@ -10,6 +10,8 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { weeklyMetricLabel } from '@/lib/constants';
 import { admit } from '@/lib/guestAdmission';
 import { trackPluginDay } from '@/lib/analytics';
+import { rosterClanSeat } from '@/lib/seatScope';
+import { isEventSeat } from '@/lib/seatKinds';
 
 // What's running right now — surfaced to the plugin so it can greet the player in-game with the
 // live SOTW/BOTW and bingos. Public info (same as the site board), so safe on this no-auth route —
@@ -77,7 +79,10 @@ export async function POST(request: Request) {
   const rsnNormalized = normalizeRsn(rsn);
   const signedIn = (await verifyPluginTokenUser(request)) != null;
   // Scoped to the clan named by the Host: the same RSN legitimately sits on other clans' rosters.
-  const existing = await findRosterSeat(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized)));
+  // The clan seat first; else an event player's seat, so their login ping files no guest request.
+  const here = and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized));
+  // clan-scope: this clan -- `here` carries the clan predicate.
+  const existing = (await findRosterSeat(and(here, rosterClanSeat()))) ?? (await findRosterSeat(here));
 
   if (!existing && !signedIn) {
     // Not signed in: answer the question, touch nothing.
@@ -138,7 +143,8 @@ export async function POST(request: Request) {
     rsn,
     seatKind: existing.kind,
     knownMember,
-    isGuest: !knownMember,
+    // An event player's seat is neither member nor guest.
+    isGuest: !knownMember && !isEventSeat(existing),
     ...(await activeNow(clan)),
   });
 }

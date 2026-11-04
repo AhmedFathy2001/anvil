@@ -3,7 +3,8 @@ import { atLeast, rankOf } from '@/lib/clanRoles';
 import { clanGrant } from '@/lib/clanGrants';
 import { clanAuditLog, clanMemberships, clanRoster, clanStaff, users } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { rosterClanSeat } from '@/lib/seatScope';
 
 const PENDING_ROLES = new Set(['admin', 'moderator', 'treasurer']);
 
@@ -26,7 +27,8 @@ export async function applyPendingRole(
   source: 'plugin' | 'manual_approval',
 ): Promise<boolean> {
   // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
-  const member = await findRosterSeat(eq(clanRoster.id, clanMemberId));
+  // A clan seat only: an event player's seat never carries a staff role into the clan.
+  const member = await findRosterSeat(and(eq(clanRoster.id, clanMemberId), rosterClanSeat()));
   if (!member?.pendingRole) return false;
   const pending = member.pendingRole;
 

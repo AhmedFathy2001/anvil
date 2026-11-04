@@ -9,6 +9,7 @@ import { normalizeRsn } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
 import { latestClanReportByAccount } from '@/lib/characterReports';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
+import { rosterClanSeat } from '@/lib/seatScope';
 
 // GET — list all clan members (active + departed) for the admin roster view.
 export async function GET(request: Request) {
@@ -25,7 +26,8 @@ export async function GET(request: Request) {
   const rows = await db
     .select()
     .from(clanRoster)
-    .where(eq(clanRoster.clanId, clan.id))
+    // The roster and the guest list: event players (lib/eventPlayers) are on "Past viewers" instead.
+    .where(and(eq(clanRoster.clanId, clan.id), rosterClanSeat()))
     .orderBy(desc(clanRoster.joinedAt));
 
   // Resolve ban state + authoritative Discord id (users.discordId beats the legacy
@@ -129,7 +131,8 @@ export async function POST(request: Request) {
   const rsnNormalized = normalizeRsn(rsn);
   // Scoped to this clan: the same RSN is legitimately on other clans' rosters, and an unscoped lookup
   // would 409 "already in roster" against a member of a clan this admin has nothing to do with.
-  const existing = await findRosterSeat(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized)));
+  // Member/guest seats: an event player's seat is not "in roster", and is never turned into one here.
+  const existing = await findRosterSeat(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized), rosterClanSeat()));
   if (existing && !existing.leftAt) {
     return NextResponse.json({ error: 'Already in roster', id: existing.id }, { status: 409 });
   }

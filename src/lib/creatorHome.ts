@@ -2,7 +2,7 @@
 // (lib/clanHome) leads with members, focus and recruiting — none of which a creator space has — so
 // this reads the creator, their stream links and the people who have played their events.
 
-import { and, desc, eq, inArray, isNull, max, notInArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, max, notInArray, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -44,7 +44,14 @@ export async function creatorPlayers(clanId: number, limit = 200): Promise<Creat
     .innerJoin(events, eq(events.id, eventSignups.eventId))
     .innerJoin(clanMemberships, eq(clanMemberships.id, eventSignups.clanMemberId))
     .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
-    .where(and(eq(events.clanId, clanId), isNull(clanMemberships.leftAt), notInArray(eventSignups.status, ['withdrawn', 'rejected'])))
+    // A live seat — or an event player's, which closes when its event ends but is still who played.
+    .where(
+      and(
+        eq(events.clanId, clanId),
+        or(isNull(clanMemberships.leftAt), eq(clanMemberships.kind, 'event')),
+        notInArray(eventSignups.status, ['withdrawn', 'rejected']),
+      ),
+    )
     .groupBy(accounts.id, accounts.rsn)
     .orderBy(desc(max(eventSignups.signedUpAt)))
     .limit(limit);

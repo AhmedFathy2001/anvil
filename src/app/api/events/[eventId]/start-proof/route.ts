@@ -14,6 +14,7 @@ import { claimUploads } from '@/lib/uploadClaims';
 import { parseEventRules } from '@/lib/eventRules';
 import { startBaselineFromLiveStats } from '@/lib/liveSnapshot';
 import { needsBaselineRecapture } from '@/lib/statTracking';
+import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 import {
   autoAcceptDecision,
   drawnSpot,
@@ -297,7 +298,8 @@ async function myPlayerRows(userId: number, eventId: number) {
   const members = await db
     .select({ id: clanRoster.id })
     .from(clanRoster)
-    .where(await seatsOwnedByAnywhere(userId));
+    // An event player's seat counts only on its own event.
+    .where(and(await seatsOwnedByAnywhere(userId), rosterSeatOpensEventSql(eventId)));
   if (members.length === 0) return [];
   return db
     .select({ id: eventParticipants.id, teamId: eventParticipants.teamId, name: eventParticipants.name })

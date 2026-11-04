@@ -212,7 +212,9 @@ test('a stranger entering an OPEN creator event is seated at once', async () => 
   const seat = await db.query.clanMemberships.findFirst({
     where: and(eq(s.clanMemberships.clanId, spaceId), eq(s.clanMemberships.accountId, viewer.accountId)),
   });
-  assert.equal(seat?.kind, 'guest');
+  // An EVENT seat for this event (lib/eventPlayers), never a guest one.
+  assert.equal(seat?.kind, 'event');
+  assert.equal(seat?.eventId, openEvent);
   assert.equal(seat?.leftAt, null);
   const asked = await db.query.clanJoinRequests.findFirst({ where: eq(s.clanJoinRequests.accountId, viewer.accountId) });
   assert.equal(asked, undefined, 'no request filed');
@@ -246,7 +248,7 @@ test('an APPROVAL creator event still waits on the host', async () => {
 });
 
 test('a seat won through an OPEN event does not let them into an APPROVAL one', async () => {
-  // Seated in the space already, but this event asks about everyone.
+  // Seated in the space already — but that seat opens the open event only, and this one asks about everyone.
   assert.deepEqual(await A.canEnterEvent({ eventId: approvalEvent, playerId: viewer1.playerId }), {
     outcome: 'outsider',
     needsApproval: true,

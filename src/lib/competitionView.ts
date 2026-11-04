@@ -4,6 +4,7 @@ import { and, eq, gte, inArray, lte, ne, lt, desc } from 'drizzle-orm';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { buildCompetitionAwards, type CompetitionAward } from '@/lib/competitionAwards';
 import { momentsForCompetition } from '@/lib/momentsStore';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { MOMENT_EMOJI, momentSentence } from '@/lib/moments';
 import { EFFICIENCY_SCALE, weeklyMetricLabel as metricLabel } from '@/lib/constants';
 import {
@@ -522,6 +523,7 @@ export async function viewerMemberIds(clanId: number, session: { playerId: numbe
     .from(clanRoster)
     // This clan's seats. Unscoped, a viewer's seat in another clan would be treated as theirs here —
     // ranking them on a leaderboard they are not on, and disclosing that they play elsewhere.
-    .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, playerId)));
+    // An event player's seat is not a seat in the clan: no "you" strip, no Clan Hall insider.
+    .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, playerId), rosterClanSeat()));
   return rows.map((r) => r.id);
 }

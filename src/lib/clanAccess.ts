@@ -3,6 +3,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts, clanMemberships, clanStaff } from '@/db/schema';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
+import { clanSeat } from '@/lib/seatScope';
 
 export { clanVisibilityOf, isClanVisibility, type ClanVisibility } from '@/lib/clanVisibility';
 
@@ -42,6 +43,8 @@ export async function canSeeClan(opts: {
           eq(clanMemberships.clanId, opts.clanId),
           eq(accounts.playerId, opts.playerId),
           isNull(clanMemberships.leftAt),
+          // An event player's seat opens its one event, never the clan itself.
+          clanSeat(),
         ),
       )
       .limit(1);
