@@ -359,7 +359,10 @@ export async function buildLocker(
       accounts,
       otherAccounts: [],
       connection,
-      setupNeeded: true,
+      // The rule above, not a blanket `true`: in a creator space nobody holds a seat until they
+      // enter one of its events, so "no seats here" says nothing about whether setup is done — a
+      // verified character with the plugin talking is done, the same as on a clan tab.
+      setupNeeded,
       career: null,
       liveEvents: [],
       liveWeeklies: [],
