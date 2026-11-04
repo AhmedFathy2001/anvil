@@ -14,11 +14,10 @@
 import { and, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanAuditLog, clanBoosts, clanBoostState, clanMemberships, clans, settings, supporterSubscriptions, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanBoosts, clanBoostState, clanMemberships, clans, supporterSubscriptions, users } from '@/db/schema';
 import { isDiscordWebhookTarget } from '@/lib/discordWebhookUrl';
 import { log } from '@/lib/logger';
-import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
-import { getPlatformSetting, isPreview } from '@/lib/platformSettings';
+import { getPlatformSetting, isPreview, setPlatformSetting } from '@/lib/platformSettings';
 import { apexOrigin } from '@/lib/seo';
 import {
   activeBoostIds,
@@ -30,7 +29,7 @@ import {
   levelProgress,
   levelUpFrom,
   movableAt,
-  paidTier,
+  slotTier,
   pickSlot,
   reconcileLevel,
   recruitPostAllowed,
@@ -128,8 +127,8 @@ async function liveBoosts(ex: Exec, where: SQL | undefined): Promise<LiveBoost[]
   }));
 }
 
-/** Each person's PAID tier (lib/clanBoostRules paidTier) and so their slots. */
-async function paidTiers(ex: Exec, userIds: number[]): Promise<Map<number, SupporterTierId>> {
+/** Each person's slot tier (lib/clanBoostRules slotTier: paid, lab, or a gift with slots) and so their slots. */
+async function slotTiers(ex: Exec, userIds: number[]): Promise<Map<number, SupporterTierId>> {
   const out = new Map<number, SupporterTierId>();
   const ids = [...new Set(userIds)];
   if (ids.length === 0) return out;
@@ -141,13 +140,14 @@ async function paidTiers(ex: Exec, userIds: number[]): Promise<Map<number, Suppo
       currentPeriodEnd: supporterSubscriptions.currentPeriodEnd,
       startedAt: supporterSubscriptions.startedAt,
       recurrence: supporterSubscriptions.recurrence,
+      grantsBoostSlots: supporterSubscriptions.grantsBoostSlots,
     })
     .from(supporterSubscriptions)
     .where(inArray(supporterSubscriptions.userId, ids));
   const byUser = new Map<number, typeof rows>();
   for (const r of rows) byUser.set(r.userId, [...(byUser.get(r.userId) ?? []), r]);
   for (const [id, list] of byUser) {
-    const t = paidTier(list);
+    const t = slotTier(list);
     if (t) out.set(id, t);
   }
   return out;
@@ -155,7 +155,7 @@ async function paidTiers(ex: Exec, userIds: number[]): Promise<Map<number, Suppo
 
 /** The person's paid tier (null when not paying) and slots. */
 export async function boostSlotsFor(userId: number): Promise<{ tier: SupporterTierId | null; slots: number }> {
-  const tier = (await paidTiers(db, [userId])).get(userId) ?? null;
+  const tier = (await slotTiers(db, [userId])).get(userId) ?? null;
   return { tier, slots: slotsFor(tier) };
 }
 
@@ -170,7 +170,7 @@ async function activeBoosts(ex: Exec, clanIds: number[] | 'all'): Promise<LiveBo
   if (here.length === 0) return [];
   const people = [...new Set(here.map((r) => r.userId))];
   const theirs = clanIds === 'all' ? here : await liveBoosts(ex, inArray(clanBoosts.userId, people));
-  const tiers = await paidTiers(ex, people);
+  const tiers = await slotTiers(ex, people);
   const slots = new Map(people.map((u) => [u, slotsFor(tiers.get(u) ?? null)]));
   const active = activeBoostIds(theirs, slots);
   const want = clanIds === 'all' ? null : new Set(clanIds);
@@ -195,9 +195,13 @@ export interface ClanBoostLevel extends LevelState {
  * written back where it moved. `clanIds` 'all' for the Clan Hall. A clan with no boosts and nothing
  * stored is simply absent (level 0).
  */
-export async function clanBoostLevels(clanIds: number[] | 'all'): Promise<Map<number, ClanBoostLevel>> {
+export async function clanBoostLevels(clanIds: number[] | 'all', now = Date.now()): Promise<Map<number, ClanBoostLevel>> {
+  return (await reconcileLevels(clanIds, now)).levels;
+}
+
+async function reconcileLevels(clanIds: number[] | 'all', now: number): Promise<{ levels: Map<number, ClanBoostLevel>; written: number }> {
   const out = new Map<number, ClanBoostLevel>();
-  if (clanIds !== 'all' && clanIds.length === 0) return out;
+  if (clanIds !== 'all' && clanIds.length === 0) return { levels: out, written: 0 };
   const [active, stored] = await Promise.all([
     activeBoosts(db, clanIds),
     // clan-scope: global -- the stored levels of exactly the clans asked about (or all, for the Clan Hall).
@@ -209,7 +213,6 @@ export async function clanBoostLevels(clanIds: number[] | 'all'): Promise<Map<nu
   const counted = new Map<number, number>();
   for (const r of countedRows(active)) counted.set(r.clanId, (counted.get(r.clanId) ?? 0) + 1);
   const storedBy = new Map(stored.map((s) => [s.clanId, s]));
-  const now = Date.now();
   const ids = new Set<number>([...counted.keys(), ...storedBy.keys()]);
   const writes: Promise<unknown>[] = [];
   for (const clanId of ids) {
@@ -221,7 +224,48 @@ export async function clanBoostLevels(clanIds: number[] | 'all'): Promise<Map<nu
   }
   // A failed write only means the next read reconciles again; the answer above is still right.
   await Promise.all(writes.map((w) => w.catch((err) => log.warn('clan-boosts.level-write-failed', {}, err))));
-  return out;
+  return { levels: out, written: writes.length };
+}
+
+// =============================================================================
+// The hourly reconcile (lib/eventLifecycle's every-minute tick)
+// =============================================================================
+
+const RECONCILE_AT_KEY = 'clan_boosts_reconciled_at';
+const RECONCILE_CURSOR_KEY = 'clan_boosts_reconcile_cursor';
+export const RECONCILE_EVERY_MS = 60 * 60 * 1000;
+/** Clans per tick: a run that needs more carries on from a cursor on the next tick (a minute later). */
+export const RECONCILE_BATCH = 500;
+
+/**
+ * Record every clan's boost level on time, so a drop starts its grace week within the hour it
+ * happened rather than whenever a page next looks (a lapse, a term running out, a seat leaving the
+ * roster: none of those touch a boost row). Hourly, in clan-id batches, idempotent: reconcileLevel
+ * writes only what moved, and running twice changes nothing. The read path still reconciles too, as
+ * the fallback. Returns the rows written, or -1 when it isn't due.
+ */
+export async function reconcileClanBoostLevels(now = Date.now()): Promise<number> {
+  const cursorRaw = await getPlatformSetting(RECONCILE_CURSOR_KEY);
+  if (cursorRaw == null) {
+    const last = Number(await getPlatformSetting(RECONCILE_AT_KEY));
+    if (Number.isFinite(last) && now - last < RECONCILE_EVERY_MS) return -1;
+  }
+  const cursor = Number(cursorRaw) || 0;
+  // clan-scope: global -- the sweep visits every clan with a live boost or a stored level, by design.
+  const [live, stored] = await Promise.all([
+    db.selectDistinct({ clanId: clanBoosts.clanId }).from(clanBoosts).where(and(isNull(clanBoosts.endedAt), sql`${clanBoosts.clanId} > ${cursor}`)),
+    db.select({ clanId: clanBoostState.clanId }).from(clanBoostState).where(and(sql`${clanBoostState.level} > 0`, sql`${clanBoostState.clanId} > ${cursor}`)),
+  ]);
+  const ids = [...new Set([...live, ...stored].map((r) => r.clanId))].sort((a, b) => a - b);
+  const batch = ids.slice(0, RECONCILE_BATCH);
+  const { written } = await reconcileLevels(batch, now);
+  if (ids.length > RECONCILE_BATCH) {
+    await setPlatformSetting(RECONCILE_CURSOR_KEY, String(batch[batch.length - 1]));
+  } else {
+    await setPlatformSetting(RECONCILE_CURSOR_KEY, null);
+    await setPlatformSetting(RECONCILE_AT_KEY, String(now));
+  }
+  return written;
 }
 
 function writeLevel(clanId: number, state: LevelState) {
@@ -568,7 +612,7 @@ export async function placeBoost(userId: number, playerId: number, seatId: numbe
   let clanId = 0;
   const res = await db.transaction(async (tx): Promise<BoostResult> => {
     await lockPerson(tx, userId);
-    const tier = (await paidTiers(tx, [userId])).get(userId) ?? null;
+    const tier = (await slotTiers(tx, [userId])).get(userId) ?? null;
     const slots = slotsFor(tier);
     if (slots === 0) return fail(403, 'Boosts come with a paid Supporter tier.');
     const target = await boostableSeat(tx, seatId, playerId, now);
@@ -811,33 +855,3 @@ export async function boostViewerFor(clanId: number, userId: number, playerId: n
   return { boostSeatId: eligible.seatId, mine: mineHere, note: null };
 }
 
-// =============================================================================
-// Level 3 spotlight (the leaderboard)
-// =============================================================================
-
-export interface SpotlightClan {
-  slug: string;
-  name: string;
-  logoUrl: string | null;
-  tagline: string | null;
-  recruitingLine: string | null;
-}
-
-/**
- * Level 3 clans that are listed in the Clan Hall (lib/clanListing's rule), for the spotlight strip
- * above the leaderboard's clan table. Placement only: the table below is ranked exactly as before.
- */
-export async function spotlightClans(): Promise<SpotlightClan[]> {
-  const displays = await clanBoostDisplays('all');
-  const ids = [...displays].filter(([, d]) => boostPerks(d.level).spotlight).map(([id]) => id);
-  if (ids.length === 0) return [];
-  // clan-scope: global -- the public directory's rule over the Level 3 clans just read.
-  const rows = await db
-    .select({ id: clans.id, slug: clans.slug, name: clans.name, logoUrl: clans.logoUrl, tagline: clans.tagline })
-    .from(clans)
-    .leftJoin(settings, showcaseJoinOn())
-    .where(and(listedClanWhere(), inArray(clans.id, ids), eq(clans.kind, 'clan')));
-  return rows
-    .map((r) => ({ slug: r.slug, name: r.name, logoUrl: r.logoUrl, tagline: r.tagline?.trim() || null, recruitingLine: displays.get(r.id)?.recruitingLine ?? null }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-}
