@@ -1,48 +1,15 @@
-import { formatJoinDate } from '@/lib/clanJoinDate';
 import type { Metadata } from 'next';
 import { requireClan } from '@/lib/clanContext';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { clanSectionMetadata } from '@/lib/seoPages';
 import { notFound } from 'next/navigation';
-import Persona from './Persona';
-import { accountTypeLabel } from '@/lib/accountType';
-import {
-  getActivityStandings,
-  getCompetitionHistory,
-  getPersona,
-  ingameJoinDates,
-  getUpcomingMilestones,
-  getDailySeries,
-  getMemberProfile,
-  listMembers,
-  getMilestones,
-  getTrackingSince,
-  getRecords,
-  getStandings,
-  type Standing,
-} from '@/lib/memberProfile';
-import { buildPlayerShape } from '@/lib/playerShape';
-import PlayerShapeRadar from '@/components/PlayerShapeRadar';
-import ProfileTabs from './ProfileTabs';
+import { getMemberProfile } from '@/lib/memberProfile';
 import { profileLinkState } from '@/lib/profileLink';
-import { bossPagesFor } from '@/lib/clogKillcounts';
-import { momentsForMembers } from '@/lib/momentsStore';
-import { getCollectionLog } from '@/lib/clogRead';
-import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
-import AccountProgressCard from '@/components/AccountProgressCard';
-import GoalsCard from '@/components/GoalsCard';
-import { goalsForProfile } from '@/lib/goals';
-import { goalRatesFrom } from '@/lib/statTrends';
-import { db } from '@/db';
-import { accounts } from '@/db/schema';
-import { eq } from 'drizzle-orm';
-import { SKILLS } from '@/lib/constants';
 import { verifyUser } from '@/lib/auth';
 import { memberLinkDescription } from '@/lib/linkText';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import ClanLink from '@/components/ClanLink';
-import SupporterName from '@/components/SupporterName';
-import { supporterLooksByName } from '@/lib/supporter';
+import CharacterProfile from '@/components/character/CharacterProfile';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,78 +35,6 @@ export async function generateMetadata({ params }: { params: Promise<{ rsn: stri
   });
 }
 
-/** Max total level, derived from the skill list — 24 skills today, whatever Jagex adds tomorrow. */
-const MAX_TOTAL_LEVEL = (SKILLS.length - 1) * 99;
-
-function fmtXp(xp: number): string {
-  if (xp >= 1_000_000_000) return `${(xp / 1_000_000_000).toFixed(2)}B`;
-  if (xp >= 1_000_000) return `${(xp / 1_000_000).toFixed(1)}M`;
-  if (xp >= 1_000) return `${(xp / 1_000).toFixed(0)}K`;
-  return Math.round(xp).toLocaleString();
-}
-
-/**
- * One number and its clan placing, as a single chip.
- *
- * The placing used to be grey small-print under a card; here it rides with the number, because
- * "277 EHP" means nothing on its own and "#1 of 41" is the whole point of tracking a clan.
- */
-function Placing({ label, value, standing }: { label: string; value: string; standing?: Standing | null }) {
-  return (
-    <span className="text-xs border border-card-border rounded-full px-3 py-1 bg-brown-dark text-text-muted">
-      {label} <span className="text-foreground font-semibold tabular-nums">{value}</span>
-      {standing && standing.outOf > 1 && (
-        <>
-          {' · '}
-          <span className="text-gold tabular-nums">#{standing.rank}</span> of {standing.outOf}
-        </>
-      )}
-    </span>
-  );
-}
-
-/** Total level as the progress it is: a ring against the 2,376 cap, with the levels still to go. */
-function TotalLevelDial({ level }: { level: number }) {
-  const pct = Math.max(0, Math.min(1, level / MAX_TOTAL_LEVEL));
-  const r = 47;
-  const circumference = 2 * Math.PI * r;
-  const remaining = Math.max(0, MAX_TOTAL_LEVEL - level);
-
-  return (
-    <div className="text-center sm:ml-auto">
-      <svg
-        width="112"
-        height="112"
-        viewBox="0 0 112 112"
-        role="img"
-        aria-label={`Total level ${level.toLocaleString()} of ${MAX_TOTAL_LEVEL.toLocaleString()}`}
-      >
-        <circle cx="56" cy="56" r={r} fill="none" stroke="var(--tile-bg)" strokeWidth="9" />
-        <circle
-          cx="56"
-          cy="56"
-          r={r}
-          fill="none"
-          stroke="var(--gold)"
-          strokeWidth="9"
-          strokeLinecap="round"
-          strokeDasharray={`${(circumference * pct).toFixed(1)} ${circumference.toFixed(1)}`}
-          transform="rotate(-90 56 56)"
-        />
-        <text x="56" y="53" textAnchor="middle" fill="var(--foreground)" fontSize="23" fontWeight="700">
-          {level.toLocaleString()}
-        </text>
-        <text x="56" y="70" textAnchor="middle" fill="var(--text-muted)" fontSize="10" letterSpacing="1.4">
-          OF {MAX_TOTAL_LEVEL.toLocaleString()}
-        </text>
-      </svg>
-      <div className="text-xs text-text-muted mt-1">
-        {remaining > 0 ? `${remaining.toLocaleString()} levels to max` : 'every skill at 99'}
-      </div>
-    </div>
-  );
-}
-
 export default async function MemberProfilePage({
   params,
   searchParams,
@@ -155,244 +50,16 @@ export default async function MemberProfilePage({
   const clan = await requireClan();
   const profile = await getMemberProfile(clan.id, decodeURIComponent(rsn));
   if (!profile) notFound();
-
-  // Every tab's data in one round trip — every query is small and the tabs then switch instantly.
-  // This page is public — no auth check here, and middleware doesn't cover /members. Everything
-  // else on it is game data the hiscores already publish, but the persona is not: it ties an RSN to
-  // a Discord identity and names that person's other accounts. In OSRS that linkage is exactly what
-  // people keep private (ironman and PK alts especially), and the avatar URL carries their Discord
-  // ID for good measure. So it resolves only for a signed-in viewer — the clan can see who owns an
-  // alt; the open internet and search engines can't.
+  // Public page: the viewer only unlocks the persona and the owner's editing (components/character).
   const viewer = await verifyUser();
 
-  const joinedOn = (await ingameJoinDates([profile.id])).get(profile.id) ?? null;
-  const [milestones, records, series, standings, history, persona, collection, activityStandings, progress, questItems, caItems, moments, roster, trackingSince, supporterLooks] = await Promise.all([
-    // TWO IDS, AND WHICH ONE EACH CALL WANTS IS THE WHOLE POINT. `profile.accountId` is the OSRS
-    // character, which is what every stats table is keyed by; `profile.id` is the seat, which is
-    // what "their place in THIS clan" is keyed by. Passing the seat to the account-keyed ones drew
-    // another member's history on every profile in the app, silently, because both are small
-    // integers and the wrong row is always a plausible one.
-    getMilestones(profile.accountId, 50),
-    getRecords(profile.accountId),
-    getDailySeries(profile.accountId, 365),
-    getStandings(profile.id),
-    getCompetitionHistory(profile.id, profile.rsn),
-    viewer ? getPersona(profile.id) : Promise.resolve(null),
-    getCollectionLog(profile.accountId, profile.rsn, clan.id),
-    getActivityStandings(clan.id, profile.rsn),
-    getMemberProgress(profile.accountId),
-    getMemberItems(profile.accountId, 'quest'),
-    getMemberItems(profile.accountId, 'ca'),
-    // The drops, pets and combat tasks we watched happen. "Lately" was built from personal bests
-    // and log unlocks alone, which meant the one feed asking "what has this person been up to?"
-    // could not mention the Twisted bow they got on Tuesday.
-    //
-    // Keyed by the SEAT, not the account: a moment is stamped with the seat it happened under.
-    momentsForMembers([profile.id], 20),
-    // Everyone's totals, for the shape's percentiles. One query for the whole roster (the same one
-    // the directory runs), not a snapshot parse per member.
-    listMembers(clan.id),
-    getTrackingSince(profile.accountId),
-    // Supporter flair on this character's name only — the person behind it stays out of it.
-    supporterLooksByName([profile.rsn]),
-  ]);
-  // The character behind the seat: who owns it (goals are theirs to edit) and whether its public
-  // profile is open (the link to it only makes sense if it is).
-  // clan-scope: global -- an OSRS account is one account however many clans roster it.
-  const acct = await db.query.accounts.findFirst({
-    where: eq(accounts.id, profile.accountId),
-    columns: { playerId: true, shared: true },
-  });
-  const viewerOwns = !!viewer && acct?.playerId === viewer.playerId;
-  const goals = await goalsForProfile(profile.accountId, profile, collection.synced ? collection.pages : null, goalRatesFrom(series));
-
-  const upcoming = getUpcomingMilestones(profile);
-  const shape = buildPlayerShape({
-    members: roster.map((m) => ({
-      id: m.id,
-      // The directory hands these back already divided out of milli — the shape only cares about
-      // the ordering, so whichever unit they arrive in is the unit the percentile is taken in.
-      ehpMilli: m.ehp ?? 0,
-      ehbMilli: m.ehb ?? 0,
-      overallXp: m.overallXp ?? 0,
-    })),
-    standings: activityStandings,
-    memberId: profile.id,
-  });
-
-  const eff = profile.efficiency;
-  // Summed from the skill rows: `skills` carries the real skills only, so looking for an 'overall'
-  // row found nothing and the chip read 0 XP.
-  const totalXp = profile.skills.reduce((sum, s) => sum + (s.key === 'overall' ? 0 : s.xp), 0);
-
+  // The one character profile (components/character), in its clan context — shared with /p/ and /profile.
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
       <ClanLink href="/members" className="text-sm text-text-muted hover:text-gold">
         ← All members
       </ClanLink>
-
-      {/* Identity band: who they are, where they place, and how far from max — one object rather
-          than a name followed by five identically-weighted stat cards. Combat sits on the shield
-          because that is where an OSRS player looks for it. */}
-      <div
-        className="relative overflow-hidden rounded-xl border border-card-border p-5 sm:p-6 mt-3 mb-6"
-        style={{
-          background:
-            'radial-gradient(80% 160% at 0% 0%, rgba(212,160,23,.14), transparent 60%), var(--card-bg)',
-        }}
-      >
-        <div className="flex flex-wrap items-center gap-5 sm:gap-6">
-          {/* Drawn as SVG rather than a clip-path: clipping cuts the border off with the corners,
-              which left the number floating with four stray edge marks instead of a shield. */}
-          <svg
-            width="84"
-            height="92"
-            viewBox="0 0 84 92"
-            className="hidden sm:block shrink-0"
-            role="img"
-            aria-label={profile.combatLevel ? `Combat level ${profile.combatLevel}` : 'Combat level unknown'}
-          >
-            <defs>
-              <linearGradient id="shield-fill" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="var(--brown-light)" />
-                <stop offset="100%" stopColor="var(--tile-bg)" />
-              </linearGradient>
-            </defs>
-            <path
-              d="M42 1 L82 14 V64 L42 91 L2 64 V14 Z"
-              fill="url(#shield-fill)"
-              stroke="var(--gold-dark)"
-              strokeWidth="1.5"
-              strokeLinejoin="round"
-            />
-            <text
-              x="42"
-              y="46"
-              textAnchor="middle"
-              fill="var(--gold-light)"
-              fontSize="27"
-              fontWeight="700"
-            >
-              {profile.combatLevel ?? '—'}
-            </text>
-            <text
-              x="42"
-              y="62"
-              textAnchor="middle"
-              fill="var(--text-muted)"
-              fontSize="9"
-              letterSpacing="1.5"
-            >
-              COMBAT
-            </text>
-          </svg>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <h1 className="text-3xl font-bold text-gold break-words">
-                <SupporterName name={profile.rsn} tier={supporterLooks[profile.rsn]?.tier} style={supporterLooks[profile.rsn]?.style} />
-              </h1>
-              {accountTypeLabel(profile.accountType) && profile.accountType !== 'normal' && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-brown-light text-foreground/80">
-                  {accountTypeLabel(profile.accountType)}
-                </span>
-              )}
-              {profile.isGuest && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-text-muted/15 text-text-muted">guest</span>
-              )}
-              {profile.rank && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-gold/15 text-gold capitalize">
-                  {profile.rank}
-                </span>
-              )}
-              {profile.leftAt && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-red-500/15 text-red-300">left the clan</span>
-              )}
-              {joinedOn && (
-                <span
-                  className="text-[11px] px-2 py-0.5 rounded-full bg-brown-light text-foreground/80"
-                  title="When this character joined the clan in game"
-                >
-                  In the clan since {formatJoinDate(joinedOn, true)}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-text-muted mt-1">
-              {profile.statsAt
-                ? `Stats as at ${new Date(profile.statsAt).toLocaleString()}`
-                : 'Stats from the last hiscores sweep'}
-              {trackingSince && (
-                <>
-                  {' · '}
-                  <span title="History before this day was never recorded">
-                    Tracked since {new Date(`${trackingSince}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </span>
-                </>
-              )}
-              {(acct?.shared || viewerOwns) && (
-                <>
-                  {' · '}
-                  {/* The same character on the platform — records, log and goals that follow it
-                      to any clan. The two pages used to have no way between them. */}
-                  <ClanLink href={`/p/${encodeURIComponent(profile.rsn)}`} className="text-gold hover:underline">
-                    Public profile ↗
-                  </ClanLink>
-                </>
-              )}
-            </p>
-
-            {eff && (
-              <div className="flex flex-wrap gap-2 mt-3">
-                <Placing label="EHP" value={eff.ehp.toFixed(1)} standing={standings.ehp} />
-                <Placing label="EHB" value={eff.ehb.toFixed(1)} standing={standings.ehb} />
-                <Placing label="XP" value={fmtXp(totalXp)} standing={standings.xp} />
-                <span className="text-xs border border-card-border rounded-full px-3 py-1 bg-brown-dark text-text-muted">
-                  {eff.ttm >= 1 ? (
-                    <>
-                      <span className="text-gold font-semibold tabular-nums">{Math.round(eff.ttm).toLocaleString()}h</span> to max
-                    </>
-                  ) : (
-                    <span className="text-gold font-semibold">maxed</span>
-                  )}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {profile.totalLevel > 0 && <TotalLevelDial level={profile.totalLevel} />}
-        </div>
-      </div>
-
-      {/* One human, several accounts. Null for a member with a single linked account, and null for
-          a signed-out visitor — see the note above the query. */}
-      {persona && <Persona persona={persona} currentMemberId={profile.id} />}
-
-      {/* What kind of account this is, before the tabs break it into numbers. Above the fold on
-          purpose: it's the one reading that answers "who am I looking at" in a glance. */}
-      {!shape.empty && (
-        <div className="mb-6">
-          <PlayerShapeRadar shape={shape} rsn={profile.rsn} />
-        </div>
-      )}
-
-      <GoalsCard accountId={profile.accountId} goals={goals.goals} editable={viewerOwns} options={goals.options} />
-
-      <ProfileTabs
-        bossPages={bossPagesFor(profile.bosses)}
-        initial={progressTab && !link.tab ? { ...link, tab: 'collection' } : link}
-        profile={profile}
-        series={series}
-        records={records}
-        milestones={milestones}
-        history={history}
-        upcoming={upcoming}
-        activityStandings={activityStandings}
-        collection={collection}
-        moments={moments}
-        accountProgress={
-          <AccountProgressCard summary={progress} quests={questItems} combat={caItems} initialTab={progressTab} />
-        }
-      />
+      <CharacterProfile context={{ kind: 'clan', clanId: clan.id, seat: profile }} viewer={viewer} link={link} progressTab={progressTab} />
     </main>
   );
 }

@@ -68,6 +68,8 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
   const seatGroups = groupClansAndSpaces(seats, (s) => s.clanKind);
   const others = sightings.get(accountId) ?? [];
   const type = c.accountType ? TYPE_LABEL[c.accountType] : null;
+  const fullProfileSeat =
+    seats.find((s) => s.kind === 'member' && s.clanKind !== 'creator') ?? seats.find((s) => s.clanKind !== 'creator') ?? null;
 
   return (
     <>
@@ -85,6 +87,18 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
         <ClanLink href={`/p/${encodeURIComponent(c.rsn)}`} className="text-gold hover:text-gold-light">
           View public page →
         </ClanLink>
+        {fullProfileSeat && (
+          <>
+            {' · '}
+            {/* The full character page as its home clan sees it (falls back to any seat). */}
+            <ClanLink
+              href={`/c/${fullProfileSeat.clanSlug}/members/${encodeURIComponent(c.rsn)}`}
+              className="text-gold hover:text-gold-light"
+            >
+              View full profile →
+            </ClanLink>
+          </>
+        )}
       </SettingsTitle>
 
       {others.length > 0 && (
