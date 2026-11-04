@@ -136,6 +136,7 @@ export interface ChatRowOptions {
   /** Supporter name colour. */
   whoColor?: Color;
   grad?: `#${string}`[];
+  move?: boolean;
   /** The viewer moderates: right-click to delete or mute. */
   modActions?: { del: Action; mute: Action } | null;
 }
@@ -148,6 +149,7 @@ export function chatRow(m: ChatLike, o: ChatRowOptions = {}): FeedRow {
     who: m.rsn,
     whoColor: o.whoColor ?? 'white',
     ...(o.grad ? { grad: o.grad } : {}),
+    ...(o.grad && o.move ? { move: true } : {}),
     text: m.body,
     textColor: 'text',
     ...(tag ? { tag, tagColor } : {}),
