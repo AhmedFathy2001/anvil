@@ -1,5 +1,6 @@
 'use client';
 
+import SettingsCard from './settings/SettingsCard';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -49,15 +50,8 @@ export default function GameModeWorldsPanel({ event }: { event: Event }) {
   }
 
   return (
-    <section className="border border-card-border rounded-xl p-5 bg-card-bg">
-      <h2 className="text-lg font-bold flex items-center gap-2 mb-1">
-        <span className="w-1 h-5 bg-gold rounded-full" />
-        Game-mode worlds
-      </h2>
-      <p className="text-sm text-text-muted mb-4">
-        Leagues, Deadman, hardcore and other modes use their own characters, so nothing done there counts on this
-        board unless you tick the mode here. Tick it if you&apos;re running this board on that mode.
-      </p>
+    <SettingsCard title="Game-mode worlds" description={<>Leagues, Deadman, hardcore and other modes use their own characters, so nothing done there counts on this
+        board unless you tick the mode here. Tick it if you&apos;re running this board on that mode.</>}>
       <p className="text-sm text-text-muted mb-1">From a ticked mode, these count the same as the main game:</p>
       <ul className="text-sm text-text-muted mb-3 list-disc pl-5 space-y-0.5">
         <li>Drops, kills and other tiles the plugin sends proof for</li>
@@ -101,6 +95,6 @@ export default function GameModeWorldsPanel({ event }: { event: Event }) {
         </button>
         {msg && <span className={`text-xs ${msg.type === 'error' ? 'text-red-400' : 'text-accent-green-light'}`}>{msg.text}</span>}
       </div>
-    </section>
+    </SettingsCard>
   );
 }

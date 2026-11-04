@@ -1,5 +1,6 @@
 'use client';
 
+import SettingsCard from './settings/SettingsCard';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
@@ -133,17 +134,10 @@ export default function EventEditorsPanel({ eventId }: { eventId: number }) {
   }
 
   return (
-    <div className="border border-card-border rounded-xl p-5 bg-card-bg">
-      <h2 className="text-lg font-bold flex items-center gap-2 mb-1">
-        <span className="w-1 h-5 bg-gold rounded-full" />
-        Board staff
-      </h2>
-      <p className="text-sm text-text-muted mb-4">
-        Hand one job on <span className="text-foreground/80">only this board</span> to someone who
+    <SettingsCard title="Board staff" description={<>Hand one job on <span className="text-foreground/80">only this board</span> to someone who
         shouldn&apos;t have it everywhere: authoring its tiles, or running its money. Adding a regular
         member gives them just enough access to reach that one tab — useful when a visiting clan
-        brings its own treasurer for a clan-v-clan.
-      </p>
+        brings its own treasurer for a clan-v-clan.</>}>
 
       {loading ? (
         <p className="text-sm text-text-muted">Loading…</p>
@@ -246,6 +240,6 @@ export default function EventEditorsPanel({ eventId }: { eventId: number }) {
           {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
         </>
       )}
-    </div>
+    </SettingsCard>
   );
 }

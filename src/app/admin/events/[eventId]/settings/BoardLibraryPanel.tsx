@@ -1,5 +1,6 @@
 'use client';
 
+import SettingsCard from './SettingsCard';
 import { useCallback, useEffect, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import Input from '@/components/Input';
@@ -92,12 +93,7 @@ export default function BoardLibraryPanel({
   }
 
   return (
-    <section className="mb-6 rounded-2xl border border-card-border bg-card-bg">
-      <div className="flex items-center gap-2.5 border-b border-card-border px-5 py-3.5">
-        <span className="molten h-5 w-1 shrink-0 rounded-sm" />
-        <h2 className="text-[15px] font-semibold">Board library</h2>
-        <span className="ml-auto text-[12px] text-text-muted">Share this board, or improve the one it came from.</span>
-      </div>
+    <SettingsCard title="Board library" description={<>Share this board, or improve the one it came from.</>} flush>
       <div className="space-y-4 px-5 py-4 text-[13px]">
         {source?.origin === 'anvil' && (
           <div className="rounded-lg border border-gold/30 bg-gold/[0.05] p-3 space-y-2">
@@ -242,6 +238,6 @@ export default function BoardLibraryPanel({
           </div>
         )}
       </div>
-    </section>
+    </SettingsCard>
   );
 }

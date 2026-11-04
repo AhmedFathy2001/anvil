@@ -37,7 +37,17 @@ const SIZES: { key: Size; label: string }[] = [
  * The overlay shows exactly what the public event page shows — hidden standings stay hidden on
  * stream too — which the card says, so nobody expects the curtain to lift for their own scene.
  */
-export default function StreamOverlayCard({ eventId, defaultOpen = false }: { eventId: number; /** Open at once (a page that is only about the overlay). */ defaultOpen?: boolean }) {
+export default function StreamOverlayCard({
+  eventId,
+  defaultOpen = false,
+  embedded = false,
+}: {
+  eventId: number;
+  /** Open at once (a page that is only about the overlay). */
+  defaultOpen?: boolean;
+  /** Inside a settings section that already draws the frame and the heading: no box, no title, no Close. */
+  embedded?: boolean;
+}) {
   const { confirm, notify } = useDialog();
   const [open, setOpen] = useState(defaultOpen);
   const [key, setKey] = useState<string | null | undefined>(undefined);
@@ -133,8 +143,8 @@ export default function StreamOverlayCard({ eventId, defaultOpen = false }: { ev
   }
 
   return (
-    <div className="basis-full rounded-xl border border-card-border bg-background/40 p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <div className={embedded ? '' : 'basis-full rounded-xl border border-card-border bg-background/40 p-4'}>
+      <div className={embedded ? 'hidden' : 'mb-3 flex items-center justify-between gap-3'}>
         <h3 className="flex items-center gap-2 font-semibold">
           <span className="h-5 w-1 rounded-full bg-gold" />
           Stream overlay

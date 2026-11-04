@@ -1,5 +1,6 @@
 'use client';
 
+import SettingsCard from '../settings/SettingsCard';
 import { useCallback, useEffect, useState } from 'react';
 
 import { clanFetch } from '@/lib/clanFetch';
@@ -230,11 +231,7 @@ export default function AccessPanel({ eventId, creator = false }: { eventId: num
   if (visibility == null) return null;
 
   return (
-    <section className="mb-6 rounded-2xl border border-card-border bg-card-bg">
-      <div className="flex items-center gap-2.5 border-b border-card-border px-5 py-3.5">
-        <span className="molten h-5 w-1 shrink-0 rounded-sm" />
-        <h2 className="text-[15px] font-semibold">Who can see and enter this</h2>
-      </div>
+    <SettingsCard title="Who can see and enter this" flush>
 
       <div className="grid gap-5 px-5 py-4 md:grid-cols-2">
         <div>
@@ -420,7 +417,7 @@ export default function AccessPanel({ eventId, creator = false }: { eventId: num
           {error && <p className="mt-2 text-[12.5px] text-accent-red">{error}</p>}
         </div>
       )}
-    </section>
+    </SettingsCard>
   );
 }
 

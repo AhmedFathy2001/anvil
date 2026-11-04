@@ -1,5 +1,6 @@
 'use client';
 
+import SettingsCard from './SettingsCard';
 import { useEffect, useState } from 'react';
 
 import EntryGatePicker from '@/components/EntryGatePicker';
@@ -65,11 +66,7 @@ export default function EntryGatePanel({ eventId }: { eventId: number }) {
   }
 
   return (
-    <section className="mb-6 rounded-2xl border border-card-border bg-card-bg">
-      <div className="flex items-center gap-2.5 border-b border-card-border px-5 py-3.5">
-        <span className="molten h-5 w-1 shrink-0 rounded-sm" />
-        <h2 className="text-[15px] font-semibold">Who can join?</h2>
-      </div>
+    <SettingsCard title="Who can join?" flush>
       <div className="px-5 py-4">
         {viewers != null && (
           <div className="mb-4 space-y-2" role="radiogroup" aria-label="Who can join?">
@@ -105,6 +102,6 @@ export default function EntryGatePanel({ eventId }: { eventId: number }) {
           {note && <span className={`text-[12.5px] ${note.ok ? 'text-accent-green-light' : 'text-accent-red'}`}>{note.text}</span>}
         </div>
       </div>
-    </section>
+    </SettingsCard>
   );
 }

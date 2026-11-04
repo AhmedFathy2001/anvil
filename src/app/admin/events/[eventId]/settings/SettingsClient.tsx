@@ -15,6 +15,7 @@ import { eventModeLabel, isTileRaceFormat, isPointsMode } from '@/lib/utils';
 import { eventAxes } from '@/lib/eventAxes';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { useDialog } from '@/components/Confirm';
+import SettingsCard from './SettingsCard';
 
 interface Props {
   event: Event;
@@ -313,8 +314,8 @@ export default function SettingsClient({ event, tiles, section }: Props) {
       {section === 'event' && (
       <>
       {/* Shape */}
-      <section id="format" className="scroll-mt-28 border border-card-border rounded-xl p-5 bg-card-bg">
-        <SectionTitle>Shape</SectionTitle>
+      <SettingsCard id="format" title="Format" description="The shape of the board. Fixed once it goes live: changing it rebuilds the tiles.">
+
         {editType ? (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
@@ -382,11 +383,11 @@ export default function SettingsClient({ event, tiles, section }: Props) {
             )}
           </>
         )}
-      </section>
+      </SettingsCard>
 
       {/* Schedule */}
-      <section id="schedule" className="scroll-mt-28 border border-card-border rounded-xl p-5 bg-card-bg">
-        <SectionTitle>Schedule</SectionTitle>
+      <SettingsCard id="schedule" title="Schedule" description="When it starts and ends, in your timezone.">
+
         {editDates ? (
           <>
             <DateRangeField
@@ -439,7 +440,7 @@ export default function SettingsClient({ event, tiles, section }: Props) {
             </div>
           </>
         )}
-      </section>
+      </SettingsCard>
 
       </>
       )}
@@ -447,8 +448,8 @@ export default function SettingsClient({ event, tiles, section }: Props) {
       {section === 'board' && (
       <>
       {/* Visibility */}
-      <section id="reveal" className="scroll-mt-28 border border-card-border rounded-xl p-5 bg-card-bg">
-        <SectionTitle>Who can see the tiles</SectionTitle>
+      <SettingsCard id="reveal" title="Tile visibility" description="Before the start only staff see the board, unless you reveal it early.">
+
         <p className="text-sm text-text-muted mb-3">
           {currentEvent.tilesRevealed
             ? 'Members can see the board.'
@@ -508,7 +509,7 @@ export default function SettingsClient({ event, tiles, section }: Props) {
         {revealScheduleMsg && (eventStarted || !!currentEvent.tilesRevealed) && (
           <p className="text-xs text-red-400 mt-2">{revealScheduleMsg}</p>
         )}
-      </section>
+      </SettingsCard>
 
       {/* Hidden standings: every board, any time — mid-event included. */}
       <div id="standings" className="scroll-mt-28 rounded-xl">
@@ -534,9 +535,9 @@ export default function SettingsClient({ event, tiles, section }: Props) {
       {section === 'more' && (
       <>
       {/* Maintenance */}
-      <section id="clone" className="scroll-mt-28 border border-card-border rounded-xl p-5 bg-card-bg">
+      <SettingsCard id="clone" title="Run it again, or repair it" description="Copy this event for next time, or re-check completions after a rule change.">
         <span id="recompute" className="block scroll-mt-28" aria-hidden />
-        <SectionTitle>Run it again, or repair it</SectionTitle>
+
         <div className="flex flex-wrap items-center gap-2">
           <Button
             onClick={recomputeCompletions}
@@ -555,11 +556,10 @@ export default function SettingsClient({ event, tiles, section }: Props) {
           {recomputeMsg && <span className="text-xs text-text-muted">{recomputeMsg}</span>}
         </div>
 
-      </section>
+      </SettingsCard>
 
       {/* The dangerous corner, on its own so nothing else on the tab sits beside it. */}
-      <section id="delete" className="scroll-mt-28 rounded-xl border border-red-500/30 bg-card-bg p-5">
-        <SectionTitle>Danger zone</SectionTitle>
+      <SettingsCard id="delete" title="Danger zone" tone="danger" description="Locked while the event is running.">
         {/* SHOWN WHILE IT IS RUNNING TOO, refused rather than absent. Hiding it read as "this site
             cannot delete events" — an admin looking for the control found nothing at all, on the one
             page it lives on, and nothing anywhere said the event being live was the reason. A
@@ -574,21 +574,13 @@ export default function SettingsClient({ event, tiles, section }: Props) {
               : 'Not while it is running — people are playing it, and deleting it would take their submissions and standings with it mid-event. End it on the Overview tab (or wait for its end date) and this unlocks.'}
           </p>
         </div>
-      </section>
+      </SettingsCard>
       </>
       )}
     </div>
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 className="text-lg font-bold flex items-center gap-2 mb-4">
-      <span className="w-1 h-5 bg-gold rounded-full" />
-      {children}
-    </h2>
-  );
-}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

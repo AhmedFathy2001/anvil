@@ -1,5 +1,6 @@
 'use client';
 
+import SettingsCard from './settings/SettingsCard';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Select from '@/components/Select';
@@ -173,15 +174,8 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
   };
 
   return (
-    <div className="min-w-0">
-      <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
-        <span className="w-1 h-5 bg-gold rounded-full" />
-        Reveal &amp; rotation
-      </h2>
-      <p className="text-sm text-text-muted mb-3">
-        How and when tasks open on this board. Safe to change mid-event — nothing already live is
-        taken away.
-      </p>
+    <SettingsCard title="Reveal &amp; rotation" description={<>How and when tasks open on this board. Safe to change mid-event — nothing already live is
+        taken away.</>}>
 
       {/* The named modes are presets over these axes, not separate systems — so the label is shown
           as a consequence of the settings rather than a type the event is stuck with. Change how
@@ -433,6 +427,6 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
           )}
         </div>
       </div>
-    </div>
+    </SettingsCard>
   );
 }
