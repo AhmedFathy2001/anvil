@@ -7,6 +7,8 @@ import type { PublicClanActivity, PublicClanHome as View, ClanFocus } from '@/li
 import { SITE } from '@/lib/site';
 import ApplyToClan from '@/components/ApplyToClan';
 import ReportButton from '@/components/ReportButton';
+import { accentStyle } from '@/lib/accentStyle';
+import type { Moment } from '@/lib/clanMomentsRules';
 
 const FOCUS_LABEL: Record<ClanFocus, string> = {
   pvm: 'PvM',
@@ -20,6 +22,58 @@ const FOCUS_LABEL: Record<ClanFocus, string> = {
 function shortDate(iso: string): string {
   const t = Date.parse(iso.includes('T') ? iso : `${iso.replace(' ', 'T')}Z`);
   return Number.isFinite(t) ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
+}
+
+/** "2 days ago" — the wall is about lately, so a relative time says it better than a date. */
+function ago(iso: string, now: number): string {
+  const t = Date.parse(iso.includes('T') ? iso : `${iso.replace(' ', 'T')}Z`);
+  if (!Number.isFinite(t)) return '';
+  const h = Math.max(0, Math.round((now - t) / 3_600_000));
+  if (h < 1) return 'just now';
+  if (h < 24) return `${h}h ago`;
+  const d = Math.round(h / 24);
+  return d === 1 ? 'yesterday' : `${d} days ago`;
+}
+
+/**
+ * What the clan's members did lately (lib/clanMoments): the weightiest one big, the rest as tiles.
+ * Game art only (our cached wiki icons), so nothing on the wall is a picture a member uploaded.
+ */
+function MomentsWall({ moments }: { moments: Moment[] }) {
+  const now = Date.now();
+  return (
+    <section className="mt-10" aria-label="Moments">
+      <h2 className="display mb-4 text-2xl font-semibold">Moments</h2>
+      <ul className="grid auto-rows-[150px] grid-cols-2 gap-3 md:grid-cols-4">
+        {moments.map((m, i) => {
+          const big = i === 0 && moments.length >= 3;
+          return (
+            <li
+              key={`${m.rsn}-${m.at}-${i}`}
+              className={`relative flex flex-col justify-end overflow-hidden rounded-2xl border border-card-border p-4 ${big ? 'col-span-2 row-span-2 bg-[var(--sa-deep)]' : 'bg-card-bg'}`}
+            >
+              {m.iconUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- cached game art (lib/assetUrls)
+                <img
+                  src={m.iconUrl}
+                  alt=""
+                  className={`absolute right-4 top-4 object-contain [image-rendering:pixelated] ${big ? 'h-24 w-24' : 'h-11 w-11'}`}
+                />
+              )}
+              <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--sa-text)]">{m.tag}</span>
+              <span className={`display mt-1 font-semibold leading-tight ${big ? 'text-3xl' : 'line-clamp-2 text-lg'}`}>
+                {/* Milestone sentences are written to follow a name ("hit 99 Slayer"); on a tile they lead. */}
+                {m.text.charAt(0).toUpperCase() + m.text.slice(1)}
+              </span>
+              <span className="mt-1 truncate text-[13px] text-text-muted">
+                {m.rsn} · {ago(m.at, now)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
 }
 
 /** A per-clan crest, matched to the nav switcher so the same clan reads the same everywhere. */
@@ -49,62 +103,61 @@ export default function PublicClanHome({
   const hasReqs = reqs.minTotal != null || reqs.minEhp != null || reqs.region != null || reqs.timezone != null;
 
   return (
-    <div className="mx-auto max-w-4xl">
-      {/* The clan's own banner, when it has one — the same always-3:1 frame as an event's (EventHero),
-          so what the admin previewed is what shows. Animated uploads stay animated: a plain <img>. */}
-      {view.bannerUrl && (
-        <div className="relative mb-4 aspect-[3/1] w-full overflow-hidden rounded-2xl border border-card-border">
-          <MotionImg
-            src={view.bannerUrl}
-            className="h-full w-full object-cover"
-            style={{ objectPosition: `50% ${view.bannerPosition ?? 50}%` }}
+    <div className="mx-auto max-w-5xl" style={accentStyle(view.accent)}>
+      {/* The clan's own banner (always 3:1, like an event's), or its colour as a board grid. Animated
+          uploads stay animated. */}
+      <div className="relative aspect-[3/1] max-h-[300px] w-full overflow-hidden rounded-3xl border border-card-border bg-[var(--sa-deep)]">
+        {view.bannerUrl ? (
+          <MotionImg src={view.bannerUrl} className="h-full w-full object-cover" style={{ objectPosition: `50% ${view.bannerPosition ?? 50}%` }} />
+        ) : (
+          <div
+            className="h-full w-full"
+            aria-hidden
+            style={{
+              backgroundImage: 'linear-gradient(#ffffff0d 1px, transparent 1px), linear-gradient(90deg, #ffffff0d 1px, transparent 1px)',
+              backgroundSize: '48px 48px',
+            }}
           />
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Header */}
-      <div className="flex flex-col gap-5 rounded-2xl border border-card-border bg-gradient-to-br from-card-bg to-background p-6 sm:flex-row sm:items-center">
-        {/* The clan's front door, and the place its own image matters most. */}
-        <ClanCrest
-          variant="letter"
-          slug={view.slug}
-          name={view.name}
-          logoUrl={view.logoUrl ?? null}
-          size={64}
-          rounded="rounded-2xl"
-          className="text-2xl"
-        />
-        <div className="min-w-0 flex-1">
+      {/* Only the crest rides up over the banner; the name and numbers start below its edge. */}
+      <header className="relative -mt-14 flex flex-wrap items-start gap-x-6 gap-y-3 px-4 sm:px-6">
+        <div className="rounded-full border-[5px] border-background bg-background">
+          {/* The clan's front door, and the place its own image matters most. */}
+          <ClanCrest variant="letter" slug={view.slug} name={view.name} logoUrl={view.logoUrl ?? null} size={112} rounded="rounded-full" className="text-4xl" />
+        </div>
+        <div className="min-w-0 flex-[1_1_18rem] sm:pt-[4.25rem]">
           <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="display text-2xl font-semibold text-foreground sm:text-3xl">{view.name}</h1>
+            <h1 className="display text-4xl font-semibold leading-none text-foreground sm:text-5xl">{view.name}</h1>
             {view.verified && (
               <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
                 ✓ verified in-game
               </span>
             )}
           </div>
-          {view.tagline && <p className="mt-1.5 max-w-[60ch] text-[15px] text-text-muted">{view.tagline}</p>}
+          {view.tagline && <p className="mt-2 max-w-[60ch] text-[15px] text-text-muted">{view.tagline}</p>}
           {view.focus.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {view.focus.map((f) => (
-                <span key={f} className="rounded-full bg-gold/10 px-2.5 py-1 text-[11px] font-medium text-gold">
+                <span key={f} className="rounded-full bg-[var(--sa-soft)] px-2.5 py-1 text-[11px] font-medium text-[var(--sa-text)]">
                   {FOCUS_LABEL[f]}
                 </span>
               ))}
             </div>
           )}
         </div>
-        <div className="flex gap-6 sm:flex-col sm:gap-3 sm:text-right">
+        <div className="flex gap-6 text-right sm:pt-[4.75rem]">
           <div>
-            <div className="text-xl font-bold tabular-nums text-foreground">{view.memberCount}</div>
+            <div className="text-2xl font-bold tabular-nums text-foreground">{view.memberCount}</div>
             <div className="text-[11px] uppercase tracking-wide text-text-muted">members</div>
           </div>
           <div>
-            <div className="text-xl font-bold tabular-nums text-foreground">{view.eventsRun}</div>
+            <div className="text-2xl font-bold tabular-nums text-foreground">{view.eventsRun}</div>
             <div className="text-[11px] uppercase tracking-wide text-text-muted">events run</div>
           </div>
         </div>
-      </div>
+      </header>
 
       {hall && <div className="mt-4">{hall}</div>}
 
@@ -118,9 +171,9 @@ export default function PublicClanHome({
 
       {/* Recruiting */}
       {view.recruiting && (
-        <div className="mt-4 flex flex-col gap-3 rounded-xl border border-gold/30 bg-gold/[0.06] p-4 sm:flex-row sm:items-center">
+        <div className="mt-4 flex flex-col gap-3 rounded-xl border border-[var(--sa)]/40 bg-[var(--sa-soft)] p-4 sm:flex-row sm:items-center">
           <div className="flex-1">
-            <div className="text-sm font-semibold text-gold">This clan is recruiting</div>
+            <div className="text-sm font-semibold text-[var(--sa-text)]">This clan is recruiting</div>
             <div className="text-[13px] text-text-muted">
               {view.guestPolicy === 'closed'
                 ? 'Applications are currently closed.'
@@ -135,14 +188,14 @@ export default function PublicClanHome({
                 href={view.discordInvite}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="shrink-0 rounded-lg bg-gold px-4 py-2 text-center text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+                className="shrink-0 rounded-lg bg-[var(--sa)] px-4 py-2 text-center text-[13px] font-semibold text-[var(--sa-ink)] transition-opacity hover:opacity-90"
               >
                 Apply on Discord
               </a>
             ) : !signedIn ? (
               <ClanLink
                 href="/login"
-                className="shrink-0 rounded-lg bg-gold px-4 py-2 text-center text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+                className="shrink-0 rounded-lg bg-[var(--sa)] px-4 py-2 text-center text-[13px] font-semibold text-[var(--sa-ink)] transition-opacity hover:opacity-90"
               >
                 Sign in to apply
               </ClanLink>
@@ -184,7 +237,7 @@ export default function PublicClanHome({
           ) : (
             <ClanLink
               href="/login"
-              className="shrink-0 rounded-lg border border-card-border px-4 py-2 text-center text-[13px] font-semibold transition-colors hover:border-gold/40 hover:text-gold"
+              className="shrink-0 rounded-lg border border-card-border px-4 py-2 text-center text-[13px] font-semibold transition-colors hover:border-[var(--sa)] hover:text-[var(--sa-text)]"
             >
               Sign in to ask
             </ClanLink>
@@ -193,29 +246,35 @@ export default function PublicClanHome({
       )}
 
       {activity && activity.live.length > 0 && (
-        <section className="mt-8">
-          <h2 className="mb-3 text-lg font-semibold">Happening now</h2>
+        <section className="mt-10">
+          <h2 className="display mb-4 text-2xl font-semibold">Happening now</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {activity.live.map((item) => (
               <ClanLink
                 key={item.key}
                 href={item.href}
-                className="group flex flex-col gap-1.5 rounded-xl border border-emerald-500/30 bg-card-bg p-4 transition-colors hover:border-emerald-400/60 hover:bg-card-bg-hover"
+                className="group flex flex-col gap-2 rounded-3xl border border-card-border bg-card-bg p-6 transition-colors hover:border-[var(--sa)]"
+                style={{ backgroundImage: 'linear-gradient(var(--sa-soft), transparent 75%)' }}
               >
-                <span className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-emerald-400">● Live · {item.kind}</span>
-                <span className="display text-lg font-semibold">{item.name}</span>
+                <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--sa-text)]">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
+                  Live · {item.kind}
+                </span>
+                <span className="display text-3xl font-semibold leading-tight">{item.name}</span>
                 {item.top && (
-                  <span className="text-[13.5px] text-text-muted">
-                    Leading: <span className="text-foreground">{item.top.name}</span> · {item.top.text}
+                  <span className="text-[14px] text-text-muted">
+                    Leading: <span className="font-semibold text-foreground">{item.top.name}</span> · {item.top.text}
                   </span>
                 )}
-                {item.line && <span className="text-[12.5px] text-text-dim">{item.line}</span>}
-                <span className="mt-1 text-[13px] text-gold group-hover:text-gold-light">See the standings →</span>
+                {item.line && <span className="text-[13px] text-text-dim">{item.line}</span>}
+                <span className="mt-2 text-sm font-medium text-[var(--sa-text)] group-hover:opacity-80">See the standings →</span>
               </ClanLink>
             ))}
           </div>
         </section>
       )}
+
+      {activity && activity.moments.length > 0 && <MomentsWall moments={activity.moments} />}
 
       <div className="mt-6 grid gap-4 md:grid-cols-3">
         <div className="grid content-start gap-4 md:col-span-2">
@@ -232,21 +291,21 @@ export default function PublicClanHome({
                   <li key={p.rsn} className="border-t border-card-border/70 first:border-t-0">
                     <ClanLink
                       href={`/members/${encodeURIComponent(p.rsn)}`}
-                      className="grid grid-cols-[1.75rem_1fr_auto] items-center gap-3 py-2 text-[14px] hover:text-gold"
+                      className="grid grid-cols-[1.75rem_1fr_auto] items-center gap-3 py-2 text-[14px] hover:text-[var(--sa-text)]"
                     >
                       <span className="font-mono text-text-dim">{i + 1}</span>
                       <span className="truncate">{p.rsn}</span>
-                      <span className="font-mono text-gold">+{p.hours.toFixed(1)}h</span>
+                      <span className="font-mono text-[var(--sa-text)]">+{p.hours.toFixed(1)}h</span>
                     </ClanLink>
                   </li>
                 ))}
               </ol>
               <div className="mt-2 flex flex-wrap justify-between gap-2 text-[13px]">
-                <ClanLink href="/members" className="text-gold hover:text-gold-light">
+                <ClanLink href="/members" className="text-[var(--sa-text)] hover:opacity-80">
                   Full clan leaderboard
                 </ClanLink>
                 {/* The cross-clan pages stay one click away, but secondary: this page is about THIS clan. */}
-                <ClanLink href={`/compare/clans?a=${encodeURIComponent(view.slug)}`} className="text-text-muted hover:text-gold">
+                <ClanLink href={`/compare/clans?a=${encodeURIComponent(view.slug)}`} className="text-text-muted hover:text-[var(--sa-text)]">
                   Compare with another clan
                 </ClanLink>
               </div>
@@ -305,7 +364,7 @@ export default function PublicClanHome({
                 {activity.upcoming.slice(0, 4).map((item) => (
                   <li key={item.key}>
                     <ClanLink href={item.href} className="group flex flex-col">
-                      <span className="text-[14px] group-hover:text-gold">{item.name}</span>
+                      <span className="text-[14px] group-hover:text-[var(--sa-text)]">{item.name}</span>
                       <span className="text-[12.5px] text-text-muted">
                         {item.kind}
                         {item.when && <> · {shortDate(item.when)}</>}
@@ -330,31 +389,32 @@ export default function PublicClanHome({
       </div>
 
       {activity && activity.past.length > 0 && (
-        <section className="mt-8">
-          <h2 className="mb-3 text-lg font-semibold">Recently finished</h2>
-          <ul className="overflow-hidden rounded-xl border border-card-border bg-card-bg">
+        <section className="mt-10">
+          <h2 className="display mb-4 text-2xl font-semibold">Recently finished</h2>
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {activity.past.map((item) => (
-              <li key={item.key} className="border-t border-card-border/70 first:border-t-0">
+              <li key={item.key}>
                 <ClanLink
                   href={item.href}
-                  className="grid grid-cols-[1fr_auto] items-center gap-4 px-4 py-3 transition-colors hover:bg-card-bg-hover sm:grid-cols-[1fr_auto_4.5rem]"
+                  className="flex h-full flex-col gap-2 rounded-2xl border border-card-border bg-card-bg p-5 transition-colors hover:border-[var(--sa)]"
                 >
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium">{item.name}</span>
-                    <span className="block text-[12.5px] text-text-muted">{item.line}</span>
+                  <span className="text-xs text-text-muted">
+                    {item.when ? shortDate(item.when) : 'Finished'} · {item.kind}
                   </span>
-                  <span className="text-right text-[13.5px]">
+                  <span className="display text-xl font-semibold leading-tight">{item.name}</span>
+                  <span className="mt-auto flex items-center gap-2 pt-1 text-sm">
                     {item.top ? (
                       <>
-                        <span className="block">{item.top.name}</span>
-                        <span className="block text-[12.5px] text-text-muted">{item.top.text}</span>
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--sa-text)]" aria-hidden>
+                          <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 5M17 6h3a3 3 0 0 1-3 5" />
+                        </svg>
+                        <span>
+                          <b className="font-semibold">{item.top.name}</b> <span className="text-text-muted">won · {item.top.text}</span>
+                        </span>
                       </>
                     ) : (
-                      <span className="text-text-dim">no result</span>
+                      <span className="text-text-dim">{item.line || 'no result'}</span>
                     )}
-                  </span>
-                  <span className="hidden text-right font-mono text-[12.5px] text-text-dim sm:block">
-                    {item.when ? shortDate(item.when) : ''}
                   </span>
                 </ClanLink>
               </li>
@@ -369,10 +429,10 @@ export default function PublicClanHome({
           This page runs on Anvil, a free indie project for OSRS clans. Run your own bingos and competitions the
           same way.
         </span>
-        <ClanLink href="/clans/new" className="text-gold hover:text-gold-light">
+        <ClanLink href="/clans/new" className="text-[var(--sa-text)] hover:opacity-80">
           Start a clan
         </ClanLink>
-        <a href={SITE.supportDiscord} target="_blank" rel="noopener noreferrer" className="text-gold hover:text-gold-light">
+        <a href={SITE.supportDiscord} target="_blank" rel="noopener noreferrer" className="text-[var(--sa-text)] hover:opacity-80">
           Join the Anvil Discord
         </a>
       </div>
