@@ -14,8 +14,10 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { markMode, routeModePost } from '@/lib/worldModes';
 import { worldModeOf } from '@/lib/worldModeRequest';
 import { getModeFilters, getModeRouting, modeIconUrl, rememberSeenMode } from '@/lib/worldModeStore';
-import { effectiveClanRules, levelPostMatches } from '@/lib/levelRules';
-import { getClanMilestoneRules, getMemberLevelPrefs } from '@/lib/levelRulesStore';
+import { levelPostMatches } from '@/lib/levelRules';
+import { getMemberLevelPrefs } from '@/lib/levelRulesStore';
+import { modeLevelRules, pluginPostsModeLevels } from '@/lib/modeFilters';
+import { pluginVersionHeader } from '@/lib/pluginSeen';
 
 // POST /api/plugin/mode-lines — the highlighted game messages a player saw on a GAME-MODE world
 // (Leagues, Deadman, …), for the site to turn into posts: "Relic unlocked: …", "Area unlocked: …".
@@ -82,12 +84,14 @@ export async function POST(request: Request) {
   // The game's own level-ups and quests (a separate save's, so the plugin sends them only as lines).
   // Posted as levels and quests, each clan's level rules deciding which level-ups (lib/modeLines).
   const levelUps: { skill: string; level: number }[] = [];
+  // A plugin that posts mode level-ups itself (lib/modeFilters) would announce each one twice.
+  const lineLevels = !pluginPostsModeLevels(pluginVersionHeader(request));
   const quests: string[] = [];
   for (const line of lines) {
     const verdict = classifyLine(line, mode, patterns);
     if (verdict.kind === 'ignore') continue;
     if (verdict.kind === 'level') {
-      if (!seenRecently(`${member.userId}:lv:${verdict.skill}:${verdict.level}`, now)) levelUps.push(verdict);
+      if (lineLevels && !seenRecently(`${member.userId}:lv:${verdict.skill}:${verdict.level}`, now)) levelUps.push(verdict);
       continue;
     }
     if (verdict.kind === 'quest') {
@@ -139,10 +143,9 @@ export async function POST(request: Request) {
       else log.warn('plugin-mode-lines.post-failed', { clanId: ec.clanId, mode: mode.key, kind });
     };
     if (levelUps.length && levelPrefs) {
-      // The mode's own level rules when the clan set them (Admin → Discord → Game modes), else the
-      // clan's, after the member's own choice — the same question a main-game level-up is asked.
-      const own = (await getModeFilters(ec.clanId, mode.key)).levels;
-      const rules = own ?? effectiveClanRules(await getClanMilestoneRules(ec.clanId), levelPrefs.clanChoice);
+      // The mode's own level rules (Admin → Discord → Game modes) after the member's own choice —
+      // the same rule /api/plugin/notify applies. No rules = no level-ups from the mode.
+      const rules = modeLevelRules((await getModeFilters(ec.clanId, mode.key)).levels, levelPrefs.clanChoice);
       const url = routeModePost('levels', { ...routing, normalHook: pickWebhookUrl(webhooks.levels, 'plugin:levels') });
       for (const lv of levelUps.slice(0, MAX_POSTS)) {
         if (levelPostMatches({ type: 'skill', level: lv.level }, rules)) await send(url, `Reached level ${lv.level} ${lv.skill}`, 'level');

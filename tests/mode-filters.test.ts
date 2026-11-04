@@ -16,6 +16,7 @@ import {
   parseModeDropFloor,
   parseModeDropValue,
   parseModeLevels,
+  pluginPostsModeLevels,
   storedModeDropFloor,
   storedModeDropValue,
   storedModeLevels,
@@ -248,4 +249,9 @@ test('level union: never misses a level any clan wants', () => {
   assert.equal(tight?.skillFrom, 10);
   assert.equal(unionLevelRules([null, undefined]), null);
   assert.deepEqual(unionLevelRules([only99s]), only99s);
+});
+
+test('mode-line level-ups stand down for a plugin that posts mode level-ups itself', () => {
+  for (const v of ['1.15.1', '1.15.2', '1.16.0', '2.0', '1.15.1-dev']) assert.equal(pluginPostsModeLevels(v), true, v);
+  for (const v of ['1.15.0', '1.14.9', '0.9', null, undefined, '', 'dev']) assert.equal(pluginPostsModeLevels(v), false, String(v));
 });

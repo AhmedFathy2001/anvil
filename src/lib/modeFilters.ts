@@ -195,6 +195,26 @@ export function modeFilterAllows(
   return true;
 }
 
+/**
+ * The first plugin build that sends a mode's level-ups as real level posts through
+ * /api/plugin/notify (when the mode has level rules). From it on, /api/plugin/mode-lines must not
+ * also turn the game's "advanced your X level" lines into level posts — the same level-up twice.
+ */
+export const MODE_LEVEL_POSTS_MIN_PLUGIN = '1.15.1';
+
+/** Does this plugin build (its X-Anvil-Plugin-Version) post mode level-ups itself? Unknown = no. */
+export function pluginPostsModeLevels(version: string | null | undefined): boolean {
+  const parts = (v: string | null | undefined) => /^\s*(\d+(?:\.\d+)*)/.exec(v ?? '')?.[1].split('.').map(Number) ?? null;
+  const a = parts(version);
+  const b = parts(MODE_LEVEL_POSTS_MIN_PLUGIN)!;
+  if (!a) return false;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const d = (a[i] ?? 0) - (b[i] ?? 0);
+    if (d !== 0) return d > 0;
+  }
+  return true;
+}
+
 // ── What the plugin is told ───────────────────────────────────────────────────────────────────
 
 /** The `modeThresholds` block of /api/plugin/config. */
