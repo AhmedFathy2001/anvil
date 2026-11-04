@@ -4,11 +4,15 @@ import { getSetting, getSettingMap } from '@/lib/settings';
 // Setting names only; pluginConfig is a heavy module, but momentsStore is server-side already.
 import { DROP_RARITY_FLOOR_SETTING_KEY } from '@/lib/pluginConfig';
 import { clanMemberships, events, moments, eventParticipants, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { type SQL, and, desc, eq, inArray } from 'drizzle-orm';
+import { type SQL, and, desc, eq, inArray, isNull, like, lt, ne } from 'drizzle-orm';
+import { LEVEL_RULES_SETTING_KEY } from '@/lib/levelRulesStore';
+import { parseMilestoneRules } from '@/lib/levelRules';
 import { eventHasStarted } from '@/lib/completionGate';
 import { parseStamp } from '@/lib/dbTime';
 import {
+  ACHIEVEMENT_KINDS,
   DEFAULT_CLAN_SCOPE,
+  isAchievementKind,
   isClanWorthy,
   isEventFeedWorthy,
   type ClanScope,
@@ -171,6 +175,7 @@ async function clanScope(clanId: number): Promise<ClanScope> {
     CLAN_MIN_CA_TIER_SETTING_KEY,
     CLAN_DEATHS_SETTING_KEY,
     DROP_RARITY_FLOOR_SETTING_KEY,
+    LEVEL_RULES_SETTING_KEY,
   ]);
   const rawRarity = Number(byKey.get(DROP_RARITY_FLOOR_SETTING_KEY));
 
@@ -187,6 +192,8 @@ async function clanScope(clanId: number): Promise<ClanScope> {
       : DEFAULT_CLAN_SCOPE.deaths,
     // The same floor (and the same clamp) as the Discord rare-drops channel: pluginConfig getDropRarityFloor.
     minRarity: Number.isFinite(rawRarity) && rawRarity > 0 ? Math.max(1000, Math.round(rawRarity)) : DEFAULT_CLAN_SCOPE.minRarity,
+    // The level-ups its levels channel announces (lib/levelRules) are the ones its feed keeps.
+    levelRules: parseMilestoneRules(byKey.get(LEVEL_RULES_SETTING_KEY)),
   };
 }
 
@@ -255,6 +262,11 @@ export async function recordMoments(
   let stored = 0;
   const inserted: StoredMoment[] = [];
   for (const row of planned) {
+    // An achievement happens once, so it is one row for the clan feed whichever scope kept it: the
+    // clan's own copy (':clan') is skipped when a board or week already holds it, and a board's or
+    // week's when the clan already has it — a 99 reported during a week and replayed after it ended
+    // would otherwise read twice. (A week and a board both keeping it is their own business.)
+    if (isAchievementKind(row.kind) && (await achievementHeld(member.clanMemberId, row.dedupKey))) continue;
     const rows = await db
       .insert(moments)
       .values({
@@ -289,6 +301,7 @@ export async function recordMoments(
         quantity: row.quantity,
         valueGp: row.valueGp,
         source: row.source,
+        sourceKind: row.sourceKind,
         teamId: row.teamId,
         eventId: row.eventId,
         tier: row.tier,
@@ -298,6 +311,87 @@ export async function recordMoments(
     }
   }
   return { stored, matched: planned.length, inserted };
+}
+
+/**
+ * What the plugin's moments route stores for one seat's push.
+ *
+ * With a board or week running, everything goes through {@link recordMoments} as it always has. With
+ * nothing running only the clan scope is left, and it keeps ACHIEVEMENTS alone (lib/moments
+ * ACHIEVEMENT_KINDS — drops and pets still need something running), and only for a MEMBER seat: a
+ * guest seat is somebody visiting for a board, and their milestones are their own clan's news.
+ */
+export async function recordSeatMoments(
+  member: { clanMemberId: number; rsn: string },
+  observations: Observation[],
+  scopes: ActiveScopes,
+): Promise<{ stored: number; matched: number; inserted: StoredMoment[]; seatKind: string; idle: boolean }> {
+  const idle = scopes.weeklies.length === 0 && !scopes.event;
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan
+  const seat = await db.query.clanMemberships.findFirst({ where: eq(clanMemberships.id, member.clanMemberId), columns: { kind: true } });
+  const seatKind = seat?.kind ?? 'guest';
+  const kept = idle ? (seatKind === 'member' ? observations.filter((o) => isAchievementKind(o.kind)) : []) : observations;
+  if (kept.length === 0) return { stored: 0, matched: 0, inserted: [], seatKind, idle };
+  return { ...(await recordMoments(member, kept, scopes)), seatKind, idle };
+}
+
+/** The scope suffix classifyObservation puts on a dedup key: ':clan', ':w<id>' or ':e<id>'. */
+const SCOPE_SUFFIX = /:(clan|w\d+|e\d+)$/;
+
+/**
+ * Whether this member already has the achievement the key names, in the scope that would make a
+ * second row a duplicate on the clan feed (see recordMoments).
+ */
+async function achievementHeld(clanMemberId: number, dedupKey: string): Promise<boolean> {
+  const m = SCOPE_SUFFIX.exec(dedupKey);
+  if (!m) return false;
+  const base = dedupKey.slice(0, m.index);
+  const clanCopy = `${base}:clan`;
+  // LIKE wildcards in a client key are matched literally.
+  const pattern = `${base.replace(/[\\%_]/g, (c) => `\\${c}`)}:%`;
+  const where =
+    m[1] === 'clan'
+      ? and(eq(moments.clanMemberId, clanMemberId), like(moments.dedupKey, pattern), ne(moments.dedupKey, clanCopy))
+      : and(eq(moments.clanMemberId, clanMemberId), eq(moments.dedupKey, clanCopy));
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan
+  const hit = await db.select({ id: moments.id }).from(moments).where(where).limit(1);
+  return hit.length > 0;
+}
+
+/** How long the clan keeps an achievement no board or week holds. */
+export const CLAN_ACHIEVEMENT_KEEP_DAYS = 30;
+/** Rows one sweep deletes at most; the next tick takes the rest. */
+const ACHIEVEMENT_SWEEP_BATCH = 1000;
+
+/**
+ * Forget clan-wide achievements older than {@link CLAN_ACHIEVEMENT_KEEP_DAYS}. Rows a board or a
+ * competition week holds are theirs, kept with them. Bounded per call; returns how many went.
+ */
+export async function sweepClanAchievements(now: Date = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - CLAN_ACHIEVEMENT_KEEP_DAYS * 86_400_000).toISOString();
+  // clan-scope: global -- platform retention sweep across every clan's clan-wide rows
+  const gone = await db
+    .delete(moments)
+    .where(
+      inArray(
+        moments.id,
+        db
+          .select({ id: moments.id })
+          .from(moments)
+          .where(
+            and(
+              isNull(moments.eventId),
+              isNull(moments.weeklyCompetitionId),
+              inArray(moments.kind, [...ACHIEVEMENT_KINDS]),
+              lt(moments.occurredAt, cutoff),
+            ),
+          )
+          .orderBy(moments.occurredAt)
+          .limit(ACHIEVEMENT_SWEEP_BATCH),
+      ),
+    )
+    .returning({ id: moments.id });
+  return gone.length;
 }
 
 /** A moment just stored, as the live panel rows want it (lib/panelRows). */
@@ -310,6 +404,8 @@ export interface StoredMoment {
   quantity: number;
   valueGp: number | null;
   source: string | null;
+  /** 'level': skill / total / max. 'quest': 'cape' on the last one. */
+  sourceKind: string | null;
   teamId: number | null;
   eventId: number | null;
   tier: string | null;

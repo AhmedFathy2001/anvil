@@ -21,6 +21,7 @@ import { runDiscordCleanups } from '@/lib/eventDiscordCleanup';
 import { sweepEndedLabSessions } from '@/lib/lab';
 import { sweepLabTestDrops } from '@/lib/labSupporter';
 import { sweepChatFeed } from '@/lib/chatFeed';
+import { sweepClanAchievements } from '@/lib/momentsStore';
 import { sweepEventChat } from '@/lib/eventChat';
 import { publishShippedReleases } from '@/lib/releases';
 import { grantDueReferrals } from '@/lib/referrals';
@@ -424,6 +425,8 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   await sweepEndedLabSessions(new Date(nowMs)).catch((err) => log.warn('event-lifecycle.lab-sweep-failed', { err: String(err) }));
   // And the Supporter lab's test drops, on the same week (lib/labSupporter).
   await sweepLabTestDrops(new Date(nowMs)).catch((err) => log.warn('event-lifecycle.lab-drops-sweep-failed', { err: String(err) }));
+  // Clan-wide achievements (log slots, diaries, quests, levels, tasks) after 30 days, a batch a tick.
+  await sweepClanAchievements(new Date(nowMs)).catch((err) => log.warn('event-lifecycle.achievements-sweep-failed', { err: String(err) }));
   // The chat feed's old dedup keys and lapsed guest presence (lib/chatFeed).
   await sweepChatFeed().catch((err) => log.warn('event-lifecycle.chat-feed-sweep-failed', { err: String(err) }));
   await sweepEventChat();

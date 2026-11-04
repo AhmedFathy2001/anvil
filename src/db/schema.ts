@@ -2950,7 +2950,7 @@ export const moments = pgTable('moments', {
   clanMemberId: integer('clan_member_id').notNull().references(() => clanMemberships.id, { onDelete: 'cascade' }),
   /** Display name at the time. Denormalized so an old moment still reads right after a rename. */
   rsn: text('rsn').notNull(),
-  /** 'pet' | 'unique' | 'death' | 'loot' | 'ca' — see MomentKind in lib/moments.ts. */
+  /** 'pet' | 'unique' | 'death' | 'loot' | 'ca' | 'level' | 'clog' | 'diary' | 'quest' — see MomentKind in lib/moments.ts. */
   kind: text('kind').notNull(),
   weeklyCompetitionId: integer('weekly_competition_id').references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
   eventId: integer('event_id').references(() => events.id, { onDelete: 'cascade' }),
@@ -2997,6 +2997,8 @@ export const moments = pgTable('moments', {
   index('moments_weekly_idx').on(t.weeklyCompetitionId, t.occurredAt),
   index('moments_event_idx').on(t.eventId, t.occurredAt),
   index('moments_member_idx').on(t.clanMemberId, t.occurredAt),
+  // The clan-wide rows (no board, no week) by age: what the 30-day achievement sweep reads.
+  index('moments_clanwide_idx').on(t.occurredAt).where(sql`event_id is null and weekly_competition_id is null`),
 ]);
 
 export type MemberClog = typeof memberClog.$inferSelect;
