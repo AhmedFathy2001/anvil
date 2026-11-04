@@ -22,6 +22,8 @@ export interface SupporterGift {
   endsAt: string | null;
   /** Still in force (not ended early, not past its end). */
   live: boolean;
+  /** Also gives clan boost slots (lib/clanBoostRules slotTier); off unless staff chose it. */
+  boostSlots: boolean;
 }
 
 export function isGiftTier(v: unknown): v is SupporterTierId {
@@ -41,6 +43,7 @@ export async function listGifts(userId: number, now = Date.now()): Promise<Suppo
     startedAt: r.startedAt,
     endsAt: r.currentPeriodEnd,
     live: r.status === 'granted' && (!r.currentPeriodEnd || Date.parse(r.currentPeriodEnd) > now),
+    boostSlots: r.grantsBoostSlots,
   }));
 }
 
@@ -50,7 +53,10 @@ export async function giveGift(opts: {
   days: number;
   actorUserId: number;
   note?: string | null;
+  /** Give the tier's clan boost slots too. Default without: a gift is flair unless staff say so. */
+  boostSlots?: boolean;
 }): Promise<SupporterGift> {
+  const boostSlots = opts.boostSlots === true;
   const days = Math.round(opts.days);
   if (!(days >= 1 && days <= MAX_GIFT_DAYS)) throw new Error(`A gift runs 1 to ${MAX_GIFT_DAYS} days.`);
   const start = new Date();
@@ -64,15 +70,16 @@ export async function giveGift(opts: {
       recurrence: GIFT_RECURRENCE,
       currentPeriodEnd: end.toISOString(),
       startedAt: start.toISOString(),
+      grantsBoostSlots: boostSlots,
     })
     .returning();
   await db.insert(clanAuditLog).values({
     clanId: null,
     eventType: 'supporter_gift_granted',
     actorUserId: opts.actorUserId,
-    newValue: JSON.stringify({ userId: opts.userId, tier: opts.tier, days, endsAt: end.toISOString(), note: opts.note?.slice(0, 200) || null }),
+    newValue: JSON.stringify({ userId: opts.userId, tier: opts.tier, days, endsAt: end.toISOString(), boostSlots, note: opts.note?.slice(0, 200) || null }),
   });
-  return { id: row.id, tier: opts.tier, startedAt: row.startedAt, endsAt: row.currentPeriodEnd, live: true };
+  return { id: row.id, tier: opts.tier, startedAt: row.startedAt, endsAt: row.currentPeriodEnd, live: true, boostSlots };
 }
 
 /** End a gift now. False when it isn't this person's gift or already ended. */

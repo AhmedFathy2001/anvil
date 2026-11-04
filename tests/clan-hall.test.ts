@@ -210,3 +210,13 @@ test('discord names: a known Discord id carries its accounts to the widget name,
   assert.equal(p.rsn, 'Zezima Alt', 'the account they are playing stands for them');
   assert.equal(p.inGame, true);
 });
+
+test('embed card: a still frame replaces the banner below boost Level 2, and only a real image data URL', () => {
+  const base = { name: 'C', slug: 'c', logoUrl: null, bannerUrl: null, bannerPosition: null };
+  const counts = { discord: 1, inGame: 0, voice: 0 };
+  const still = 'data:image/jpeg;base64,AAAA';
+  const html = renderEmbedHtml({ clan: { ...base, bannerStill: still }, counts, clanUrl: 'https://anvilosrs.com/c/c', inviteUrl: null });
+  assert.ok(html.includes(`src="${still}"`));
+  const bad = renderEmbedHtml({ clan: { ...base, bannerStill: 'data:text/html;base64,PHNjcmlwdD4=' }, counts, clanUrl: 'https://anvilosrs.com/c/c', inviteUrl: null });
+  assert.ok(!bad.includes('data:text/html'));
+});

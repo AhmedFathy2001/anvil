@@ -17,9 +17,6 @@ import { accountTypeBadge, accountTypeLabel } from '@/lib/accountType';
 import ClanShapes from '@/components/leaderboard/ClanShapes';
 import PlayerSearch from '@/components/PlayerSearch';
 import { JsonLd, leaderboardLd } from '@/lib/jsonLd';
-import ClanCrest from '@/components/ClanCrest';
-import { BoostedBadge } from '@/components/ClanBoost';
-import { spotlightClans, type SpotlightClan } from '@/lib/clanBoosts';
 
 export const dynamic = 'force-dynamic';
 
@@ -138,12 +135,10 @@ export default async function LeaderboardPage({
   // One row past the page, which is how the next link knows whether there is a next page without a
   // COUNT over an aggregate — the count would be the most expensive query on the page and would only
   // ever be used to decide whether to draw an arrow.
-  const [clanRows, playerRows, since, spotlight] = await Promise.all([
+  const [clanRows, playerRows, since] = await Promise.all([
     clanStandings(window, CLANS_SHOWN),
     topPlayers(window, PER_PAGE + 1, null, offset, mode),
     window === 'all' ? trackingSince() : Promise.resolve(null),
-    // Level 3 boosted clans (lib/clanBoosts): shown above the clan table, never ranked in it.
-    spotlightClans().catch((): SpotlightClan[] => []),
   ]);
 
   const hasNext = playerRows.length > PER_PAGE;
@@ -351,40 +346,8 @@ export default async function LeaderboardPage({
           it is; how much of the roster turned up, and how much of that was bossing, are what make two
           clans of the same size completely different places to be.
         </p>
-        {spotlight.length > 0 && <Spotlight clans={spotlight} />}
         <ClanShapes rows={clans} />
       </section>
-    </div>
-  );
-}
-
-/**
- * Clans their members boosted to Level 3, above the clan table. Not a ranking: the table below is
- * ordered exactly as before, and this says so.
- */
-function Spotlight({ clans }: { clans: SpotlightClan[] }) {
-  return (
-    <div className="mb-5">
-      <p className="mb-2 ml-4 font-mono text-[10px] uppercase tracking-[0.14em] text-text-dim">Spotlight · boosted by their members, not ranked</p>
-      <ul className="grid gap-3 sm:grid-cols-2">
-        {clans.slice(0, 6).map((c) => (
-          <li key={c.slug}>
-            <ClanLink
-              href={`/c/${c.slug}`}
-              className="flex h-full items-center gap-3 rounded-xl border border-[#ff7ab8]/30 bg-card-bg px-4 py-3 transition-colors hover:border-[#ff7ab8]/55"
-            >
-              <ClanCrest name={c.name} logoUrl={c.logoUrl} size={40} rounded="rounded-lg" />
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2">
-                  <span className="boost-name-animated truncate text-[15px] font-semibold">{c.name}</span>
-                  <BoostedBadge level={3} compact />
-                </span>
-                <span className="mt-0.5 line-clamp-1 block text-[12.5px] text-text-muted">{c.recruitingLine ?? c.tagline ?? 'View clan →'}</span>
-              </span>
-            </ClanLink>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

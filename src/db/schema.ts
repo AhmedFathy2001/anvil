@@ -4229,6 +4229,9 @@ export const supporterSubscriptions = pgTable('supporter_subscriptions', {
   // When this membership was posted to the Anvil Discord's "new supporters" channel (lib/anvilDiscord),
   // or skipped because the person opted out. Set once: the claim that stops a renewal posting again.
   announcedAt: text('announced_at'),
+  // A staff gift (recurrence 'gift') that also gives clan boost slots (drizzle/0219). Paid rows always
+  // give slots and invite time never does, so only gifts read it (lib/clanBoostRules slotTier).
+  grantsBoostSlots: boolean('grants_boost_slots').notNull().default(false),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   uniqueIndex('supporter_subscriptions_gumroad_sub_unique').on(table.gumroadSubscriptionId),

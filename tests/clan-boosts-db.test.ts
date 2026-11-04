@@ -209,3 +209,48 @@ test('the recruiting line needs Level 2; the Discord post Level 3 and once a mon
   assert.equal(again.ok, false);
   if (!again.ok) assert.equal(again.status, 429);
 });
+
+test('a staff gift gives boost slots only when granted with them', async () => {
+  const G = await import('../src/lib/supporterGifts.ts');
+  const giftee = await person('Giftee');
+  const gSeat = await seat(ids.beta, await character(giftee.playerId, 'GifteeMain'), 'member', 60);
+  await G.giveGift({ userId: giftee.userId, tier: 'champion', days: 30, actorUserId: ids.me });
+  assert.equal((await B.boostSlotsFor(giftee.userId)).slots, 0);
+  assert.equal((await B.placeBoost(giftee.userId, giftee.playerId, gSeat)).ok, false);
+  const withSlots = await G.giveGift({ userId: giftee.userId, tier: 'champion', days: 30, actorUserId: ids.me, boostSlots: true });
+  assert.equal(withSlots.boostSlots, true);
+  assert.equal((await B.boostSlotsFor(giftee.userId)).slots, 2);
+  assert.equal((await B.placeBoost(giftee.userId, giftee.playerId, gSeat)).ok, true);
+  const listed = await G.listGifts(giftee.userId);
+  assert.deepEqual(listed.map((g) => g.boostSlots).sort(), [false, true]);
+});
+
+test('the hourly reconcile records a drop when it happens, and only once an hour', async () => {
+  // Beta is at whatever level the last test left; give it a clean Level 1 from three boosters.
+  await db.delete(s.clanBoostState).where(eq(s.clanBoostState.clanId, ids.beta));
+  const people = await Promise.all(['R1', 'R2', 'R3'].map((n) => person(n)));
+  for (const p of people) {
+    await setTier(p.userId, 'supporter');
+    const st = await seat(ids.beta, await character(p.playerId, `${p.userId}Char`), 'member', 30);
+    assert.equal((await B.placeBoost(p.userId, p.playerId, st)).ok, true);
+  }
+  await db.delete(s.platformSettings).where(eq(s.platformSettings.key, 'clan_boosts_reconciled_at'));
+  const t0 = Date.now();
+  assert.ok((await B.reconcileClanBoostLevels(t0)) >= 0);
+  const lvl = async () => (await db.select().from(s.clanBoostState).where(eq(s.clanBoostState.clanId, ids.beta)))[0];
+  assert.ok((await lvl()).level >= 1);
+
+  // Three lapse; nobody opens a page. Within the hour the sweep is not due…
+  for (const p of people) await setTier(p.userId, null);
+  assert.equal(await B.reconcileClanBoostLevels(t0 + 10 * 60_000), -1);
+  // …an hour on it runs, and the grace starts at that run, not at some later page view.
+  const t1 = t0 + B.RECONCILE_EVERY_MS;
+  assert.ok((await B.reconcileClanBoostLevels(t1)) >= 1);
+  const row = await lvl();
+  assert.ok(row.level >= 1, 'perks kept through the grace week');
+  assert.equal(Date.parse(row.droppedAt!), t1);
+  // Running again changes nothing (idempotent).
+  await db.delete(s.platformSettings).where(eq(s.platformSettings.key, 'clan_boosts_reconciled_at'));
+  assert.equal(await B.reconcileClanBoostLevels(t1 + 60_000), 0);
+  assert.equal(Date.parse((await lvl()).droppedAt!), t1);
+});

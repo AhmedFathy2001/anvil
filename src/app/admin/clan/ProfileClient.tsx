@@ -9,6 +9,8 @@ import type { ClanFocus } from '@/lib/clanHome';
 import ClanCrest from '@/components/ClanCrest';
 import ClanLink from '@/components/ClanLink';
 import Slider from '@/components/Slider';
+import MotionImg from '@/components/MotionImg';
+import { boostPerks } from '@/lib/clanBoostRules';
 
 const FOCUS: { value: ClanFocus; label: string }[] = [
   { value: 'pvm', label: 'PvM' },
@@ -37,6 +39,8 @@ interface Form {
  */
 export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string }) {
   const [form, setForm] = useState<Form | null>(null);
+  // The clan's boost level (lib/clanBoosts): an animated banner only plays from Level 2.
+  const [boostLevel, setBoostLevel] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +48,8 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
   useEffect(() => {
     clanFetch('/api/admin/clan/profile')
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('Could not load'))))
-      .then((d) =>
+      .then((d) => {
+        setBoostLevel(Number(d.boostLevel) || 0);
         setForm({
           logoUrl: d.logoUrl ?? null,
           bannerUrl: d.bannerUrl ?? null,
@@ -55,8 +60,8 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
           recruiting: !!d.recruiting,
           openToChallenges: !!d.openToChallenges,
           requirements: d.requirements ?? {},
-        }),
-      )
+        });
+      })
       .catch((e: Error) => setError(e.message));
   }, []);
 
@@ -120,9 +125,10 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
       <Group
         id="clan-banner"
         title="Banner"
-        lede="Optional. Wide, 3:1 (e.g. 1500×500), across the top of your clan's page and behind its link previews. It can be animated, too."
+        lede="Optional. Wide, 3:1 (e.g. 1500×500), across the top of your clan's page and behind its link previews. An animated one plays once members boost the clan to Level 2."
       >
         <BannerField
+          animates={boostPerks(boostLevel).animatedBanner}
           value={form.bannerUrl}
           position={form.bannerPosition ?? 50}
           onChange={(url) => {
@@ -340,11 +346,14 @@ function LogoField({
  * taller is cropped, and the slider picks which part stays. Saved with the rest of the page.
  */
 function BannerField({
+  animates,
   value,
   position,
   onChange,
   onPosition,
 }: {
+  /** Boost Level 2+: an animated banner plays; below, everywhere shows its first frame (so does this preview). */
+  animates: boolean;
   value: string | null;
   position: number;
   onChange: (url: string | null) => void;
@@ -356,10 +365,7 @@ function BannerField({
     <div>
       <div className="mb-2 flex items-stretch gap-3">
         <div className="aspect-[3/1] min-w-0 flex-1 overflow-hidden rounded-lg border border-card-border bg-gradient-to-r from-gold/15 via-card-bg to-gold/10">
-          {value && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={value} alt="" className="h-full w-full object-cover" style={{ objectPosition: `50% ${position}%` }} />
-          )}
+          {value && <MotionImg src={value} className="h-full w-full object-cover" style={{ objectPosition: `50% ${position}%` }} still={!animates} />}
         </div>
         {value && (
           <div className="flex flex-col items-center gap-1 text-[10px] text-text-muted">
@@ -390,7 +396,19 @@ function BannerField({
         )}
       </div>
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
-      <p className="mt-2 text-[12.5px] text-text-dim">Saved with the rest of this page.</p>
+      <p className="mt-2 text-[12.5px] text-text-dim">
+        Saved with the rest of this page.{' '}
+        {animates ? (
+          'Animated banners play: your clan is boosted to Level 2.'
+        ) : (
+          <>
+            An animated banner animates at Boost Level 2; until then your page, Clan Hall card and embed show its first frame.{' '}
+            <ClanLink href="/admin/clan/boosts" className="text-gold hover:text-gold-light">
+              Boosts →
+            </ClanLink>
+          </>
+        )}
+      </p>
     </div>
   );
 }

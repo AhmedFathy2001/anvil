@@ -13,7 +13,7 @@
 // The clan sees the seat's CHARACTER, never the person or their other characters: everything a clan
 // is shown (the wall, the booster mark) is keyed by seat.
 
-import { supporterState, wholeMonths, type SupporterRowLike, type SupporterTierId } from './supporterTiers.ts';
+import { GIFT_RECURRENCE, supporterState, wholeMonths, type SupporterRowLike, type SupporterTierId } from './supporterTiers.ts';
 
 export const BOOST_SLOTS: Record<SupporterTierId, number> = { supporter: 1, champion: 2, patron: 3 };
 /** The most slots anyone can have (Patron); slot numbers run 1..MAX_SLOTS. */
@@ -43,13 +43,25 @@ export function slotsFor(paid: SupporterTierId | null | undefined): number {
   return paid ? BOOST_SLOTS[paid] : 0;
 }
 
+export interface SlotRowLike extends SupporterRowLike {
+  /** A staff gift that also gives boost slots (supporter_subscriptions.grants_boost_slots). */
+  grantsBoostSlots?: boolean | null;
+}
+
+/** Does this membership row give boost slots: paid (and lab) rows always, staff gifts when they say so, invite time never. */
+export function rowGivesSlots(r: SlotRowLike): boolean {
+  if (r.status !== 'granted') return true;
+  return r.recurrence === GIFT_RECURRENCE && r.grantsBoostSlots === true;
+}
+
 /**
- * The tier a person PAYS for right now, or null. Rows Anvil handed out — invite rewards and staff
- * gifts, both stored as status 'granted' — are left out, so a paying Supporter given a month of
- * Champion through an invite still has one slot, and someone on invite time alone has none.
+ * The tier whose boost slots a person has right now, or null. Rows Anvil handed out don't count —
+ * invite rewards never, staff gifts only when staff ticked "with boost slots" — so a paying Supporter
+ * given a month of Champion through an invite still has one slot, and someone on invite time alone
+ * has none. The best tier among the rows that DO count wins.
  */
-export function paidTier(rows: SupporterRowLike[], now = Date.now()): SupporterTierId | null {
-  return supporterState(rows.filter((r) => r.status !== 'granted'), now)?.tier.id ?? null;
+export function slotTier(rows: SlotRowLike[], now = Date.now()): SupporterTierId | null {
+  return supporterState(rows.filter(rowGivesSlots), now)?.tier.id ?? null;
 }
 
 // =============================================================================
@@ -298,7 +310,7 @@ export interface BoostPerks {
   recruitingLine: boolean;
   /** The gradient name moves (still for anyone who asked for less motion). */
   animatedName: boolean;
-  /** Spotlighted above the clan table on the leaderboard. */
+  /** The Spotlight section at the top of the Clan Hall, above Featured. */
   spotlight: boolean;
   /** One recruitment post a month into Anvil's own Discord. */
   discordPost: boolean;

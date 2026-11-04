@@ -6,6 +6,8 @@ import LocalTime from '@/components/LocalTime';
 import { clanFetch } from '@/lib/clanFetch';
 import { SUPPORTER_TIERS, type SupporterTierId } from '@/lib/supporterTiers';
 import Select from '@/components/Select';
+import Checkbox from '@/components/Checkbox';
+import Input from '@/components/Input';
 
 interface Gift {
   id: number;
@@ -13,6 +15,7 @@ interface Gift {
   startedAt: string;
   endsAt: string | null;
   live: boolean;
+  boostSlots?: boolean;
 }
 
 const LENGTHS = [
@@ -31,6 +34,8 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
   const [days, setDays] = useState(30);
   const [custom, setCustom] = useState('');
   const [note, setNote] = useState('');
+  // Off by default: a gift is flair unless staff choose to give its clan boost slots too.
+  const [boostSlots, setBoostSlots] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,9 +99,9 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
             </label>
             <label className="text-gray-400">
               or days
-              <input
+              <Input
                 inputMode="numeric"
-                className="mt-1 block w-20 rounded border border-card-border bg-brown-dark px-2 py-1"
+                className="mt-1 block w-20 px-2 py-1 text-xs"
                 value={custom}
                 onChange={(e) => setCustom(e.target.value.replace(/\D/g, ''))}
                 placeholder="—"
@@ -104,8 +109,8 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
             </label>
             <label className="min-w-40 flex-1 text-gray-400">
               Note (recorded)
-              <input
-                className="mt-1 block w-full rounded border border-card-border bg-brown-dark px-2 py-1"
+              <Input
+                className="mt-1 block w-full px-2 py-1 text-xs"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="e.g. event prize"
@@ -118,7 +123,7 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
                 void call({
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ tier, days: length, note }),
+                  body: JSON.stringify({ tier, days: length, note, boostSlots }),
                 })
               }
               className="rounded-lg bg-gold px-3 py-1.5 font-semibold text-brown-dark disabled:opacity-50"
@@ -126,12 +131,19 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
               Give {SUPPORTER_TIERS[tier].name}
             </button>
           </div>
+          <Checkbox
+            checked={boostSlots}
+            onChange={setBoostSlots}
+            label="With clan boost slots"
+            description={`${SUPPORTER_TIERS[tier].name} slots to boost clans they're a member of. Off: flair and perks only, no boosts.`}
+          />
           {error && <p className="text-red-300">{error}</p>}
           {gifts && gifts.length > 0 && (
             <ul className="space-y-1">
               {gifts.map((g) => (
                 <li key={g.id} className="flex flex-wrap items-center gap-2 text-gray-300">
                   <span className={g.live ? 'text-gold' : 'text-gray-500'}>{SUPPORTER_TIERS[g.tier].name}</span>
+                  {g.boostSlots && <span className="rounded-full border border-card-border px-1.5 text-[10px] text-gray-400">with boost slots</span>}
                   <span className="text-gray-500">
                     from <LocalTime date={g.startedAt} />
                     {g.endsAt && (
