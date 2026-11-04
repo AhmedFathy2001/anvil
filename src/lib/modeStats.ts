@@ -35,14 +35,22 @@ import { computeGainFromJson, type MilestoneState } from '@/lib/statTracking';
 // pruneStaleOverlay):
 //
 //   corroborated  the table has caught up (h >= pushed): the table's value counts.
-//   ahead         pushed above the table, but it rose less than MODE_STALE_MS before the read. The
+//   ahead         pushed above the table, and the reading first went unconfirmed (`up`: the oldest
+//                 rise the table hasn't caught up to) less than MODE_STALE_MS before the read. The
 //                 plugin is legitimately ahead until the player logs out, and OSRS logs everyone out
-//                 by 6h, so this counts — up to a plausible rate (below).
+//                 by 6h. What counts above the table is bounded by plausible growth SINCE THE READ:
+//                 min(pushed, h + plausible rise between the read and the latest rise) — a rise
+//                 the read already saw and didn't show counts only as h. So a lead can't be
+//                 invented before a read and carried past it.
 //   contradicted  pushed above the table, and the table was read MODE_STALE_MS or more after the
-//                 reading last rose. Hiscores must reflect it by then, so the excess is not real:
-//                 only the table's value counts, and staff see the mismatch (modeReadingIssues).
-//                 A key with no rise stamp (a row written before stamps existed) is taken as
-//                 stale, exactly as the main overlay treats a missing stamp.
+//                 reading FIRST went unconfirmed. The clock runs from the oldest unconfirmed rise,
+//                 so nudging the reading up every few hours never restarts it. Hiscores must reflect
+//                 it by then, so the excess is not real: only h counts, plus plausible growth since
+//                 the read, and staff see the mismatch (modeReadingIssues). It is STICKY (`bad`,
+//                 the h it was contradicted at): later pushes add only plausible growth on top of
+//                 the table, never resume from the rejected value, until the table catches up.
+//                 A key with no unconfirmed-rise stamp (a row written before stamps existed) is
+//                 taken as stale, exactly as the main overlay treats a missing stamp.
 //   unverified    nothing to check against — the mode has no table (beta, a mode we had no entry
 //                 for, seasonal Deadman until its table is confirmed), the save isn't on its table
 //                 (404: a fresh character below the rank thresholds), the table doesn't list this
@@ -53,8 +61,9 @@ import { computeGainFromJson, type MilestoneState } from '@/lib/statTracking';
 // per-skill / per-boss ceilings (lib/gainsValidation) over the time between the key's first and
 // latest reading. Those ceilings are generous, so honest play never meets them.
 //
-// MILESTONE tiles never complete on unverified readings: crossing a lifetime threshold is a single
-// yes/no that nothing would ever revisit, so the table has to list every key the tile reads.
+// MILESTONE tiles complete only on what the table itself shows: crossing a lifetime threshold is a
+// single yes/no that nothing would ever revisit, so the table has to list every key the tile reads
+// and its values — not a pushed lead, however plausible — have to reach the goal.
 //
 // THE STARTING LINE is checked too. A reading only ever goes up, so a save the table lists at h,
 // read some hours after a key's first reading, was at least h minus what it could plausibly have
@@ -86,6 +95,13 @@ export interface ModeStatEntry {
   hs?: ModeHiscoresRead;
   /** Per key, the starting line the table corroborates, where it is above the first reading. */
   base?: Record<string, number>;
+  /** Per key, when the reading first rose above what the table has confirmed (ISO). Cleared once a
+   * read catches up. Only a read moves it forward, never a push. */
+  up?: Record<string, string>;
+  /** Per key, the pushed value at that moment: once the table passes it, that lead was real. */
+  upv?: Record<string, number>;
+  /** Per key, the table value a reading was contradicted at. Sticky until the table catches up. */
+  bad?: Record<string, number>;
 }
 export type ModeStats = Record<string, ModeStatEntry>;
 
@@ -136,7 +152,17 @@ export function parseModeStats(json: string | null | undefined): ModeStats {
     const out: ModeStats = {};
     for (const [mode, entry] of Object.entries(parsed as Record<string, unknown>)) {
       if (!entry || typeof entry !== 'object') continue;
-      const e = entry as { first?: unknown; cur?: unknown; ft?: unknown; at?: unknown; hs?: unknown; base?: unknown };
+      const e = entry as {
+        first?: unknown;
+        cur?: unknown;
+        ft?: unknown;
+        at?: unknown;
+        hs?: unknown;
+        base?: unknown;
+        up?: unknown;
+        upv?: unknown;
+        bad?: unknown;
+      };
       const clean: ModeStatEntry = { first: cleanMap(e.first), cur: cleanMap(e.cur) };
       const ft = cleanStamps(e.ft);
       const at = cleanStamps(e.at);
@@ -146,6 +172,12 @@ export function parseModeStats(json: string | null | undefined): ModeStats {
       if (at) clean.at = at;
       if (hs) clean.hs = hs;
       if (Object.keys(base).length) clean.base = base;
+      const up = cleanStamps(e.up);
+      const upv = cleanMap(e.upv);
+      const bad = cleanMap(e.bad);
+      if (up) clean.up = up;
+      if (Object.keys(upv).length) clean.upv = upv;
+      if (Object.keys(bad).length) clean.bad = bad;
       out[mode] = clean;
     }
     return out;
@@ -170,6 +202,8 @@ export function mergeModePush(
   const entry = all[mode] ?? { first: {}, cur: {} };
   const ft = { ...(entry.ft ?? {}) };
   const at = { ...(entry.at ?? {}) };
+  const up = { ...(entry.up ?? {}) };
+  const upv = { ...(entry.upv ?? {}) };
   let changed = false;
   for (const [key, raw] of Object.entries(pushed)) {
     if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < 0) continue;
@@ -182,12 +216,22 @@ export function mergeModePush(
     if (v > (entry.cur[key] ?? -1)) {
       entry.cur[key] = v;
       at[key] = nowIso;
+      // The oldest rise the table hasn't confirmed. A later rise never moves it (that would let a
+      // client drip-feed its way out of the staleness check); only a read that catches up does.
+      if (up[key] == null && !(entry.hs?.status === 'ok' && (entry.hs.v[key] ?? 0) >= v)) {
+        up[key] = nowIso;
+        upv[key] = v;
+      }
       changed = true;
     }
   }
   if (!changed) return null;
   entry.ft = ft;
   entry.at = at;
+  if (Object.keys(up).length) {
+    entry.up = up;
+    entry.upv = upv;
+  }
   all[mode] = entry;
   return JSON.stringify(all);
 }
@@ -249,11 +293,22 @@ export function resolveModeKey(entry: ModeStatEntry, key: string, statType: stri
   if (h != null) {
     if (pushed <= h) return { start, credited: h, pushed, hiscores: h, state: 'corroborated', capped: false, lowStart };
     const readAt = ms(entry.hs!.at)!;
-    if (roseAt == null || readAt - roseAt >= MODE_STALE_MS) {
-      return { start, credited: h, pushed, hiscores: h, state: 'contradicted', capped: false, lowStart };
-    }
-    const credited = Math.max(h, plausible);
-    return { start, credited, pushed, hiscores: h, state: 'ahead', capped: credited < pushed, lowStart };
+    // Above the table: only plausible growth SINCE THE READ counts on top of it. A rise the read
+    // already saw (and didn't show) counts as h.
+    const sinceRead = roseAt != null && roseAt > readAt ? plausibleRise(key, statType, (roseAt - readAt) / 3_600_000) : 0;
+    const credited = Math.max(h, Math.min(pushed, h + sinceRead));
+    const unconfirmedSince = ms(entry.up?.[key]);
+    const contradicted =
+      entry.bad?.[key] != null || unconfirmedSince == null || readAt - unconfirmedSince >= MODE_STALE_MS;
+    return {
+      start,
+      credited,
+      pushed,
+      hiscores: h,
+      state: contradicted ? 'contradicted' : 'ahead',
+      capped: !contradicted && credited < pushed,
+      lowStart,
+    };
   }
   return { start, credited: plausible, pushed, hiscores: null, state: 'unverified', capped: plausible < pushed, lowStart };
 }
@@ -329,7 +384,8 @@ export function milestoneWithModes(
     const readings = keys.map((k) => resolveModeKey(entry, k, statType));
     if (readings.some((r) => r == null || r.hiscores == null)) continue;
     const start = readings.reduce((n, r) => n + r!.start, 0);
-    const lifetime = readings.reduce((n, r) => n + r!.credited, 0);
+    // What the table shows, never a pushed lead (credited may sit above it while 'ahead').
+    const lifetime = readings.reduce((n, r) => n + r!.hiscores!, 0);
     if (start < goal && lifetime >= goal) return { lifetime, eligible: true, reached: true };
   }
   return main;
@@ -379,6 +435,36 @@ export function applyModeRead(
   }
   entry.hs = { at: read.at, status: read.snapshot ? 'ok' : 'absent', v };
 
+  // The unconfirmed-lead clock and the sticky contradiction, per key the table lists.
+  const up = { ...(entry.up ?? {}) };
+  const upv = { ...(entry.upv ?? {}) };
+  const bad = { ...(entry.bad ?? {}) };
+  for (const [key, cur] of Object.entries(entry.cur)) {
+    const h = v[key];
+    if (h == null) continue; // nothing to confirm or contradict with
+    if (h >= cur) {
+      // Caught up: every rise so far is confirmed.
+      delete up[key];
+      delete upv[key];
+      delete bad[key];
+      continue;
+    }
+    if (up[key] != null && upv[key] != null && h >= upv[key]) {
+      // The table passed the value the lead started at, so that lead was real. What is still above
+      // the table began after it; restart the clock at the latest rise the read could have seen.
+      const rose = ms(entry.at?.[key]);
+      up[key] = new Date(Math.min(rose ?? readAt, readAt)).toISOString();
+      upv[key] = cur;
+      delete bad[key];
+    }
+    const since = ms(up[key]);
+    if (bad[key] == null && (since == null || readAt - since >= MODE_STALE_MS)) bad[key] = h;
+  }
+  for (const [name, map] of [['up', up], ['upv', upv], ['bad', bad]] as const) {
+    if (Object.keys(map).length) (entry as unknown as Record<string, unknown>)[name] = map;
+    else delete (entry as unknown as Record<string, unknown>)[name];
+  }
+
   // The starting line: the save was at least h − plausible rise since the first reading, back then.
   const base = { ...(entry.base ?? {}) };
   for (const [key, first] of Object.entries(entry.first)) {
@@ -413,8 +499,8 @@ export interface ModeReadDue {
  * costs nothing:
  *  - never read, or a key first seen since the last read (its starting line): urgent;
  *  - a reading rose since the last read, which is older than MODE_READ_EVERY_MS (absent: longer);
- *  - a reading still above the table is now MODE_STALE_MS old and the last read predates that: the
- *    read that confirms or contradicts it.
+ *  - a reading has been above the table for MODE_STALE_MS since it first went unconfirmed, and the
+ *    last read predates that: the read that confirms or contradicts it.
  */
 export function modeReadDue(entry: ModeStatEntry, nowMs: number): ModeReadDue {
   const keys = Object.keys(entry.cur);
@@ -430,9 +516,9 @@ export function modeReadDue(entry: ModeStatEntry, nowMs: number): ModeReadDue {
   if (entry.hs!.status === 'ok') {
     for (const k of keys) {
       const h = entry.hs!.v[k];
-      const rose = ms(entry.at?.[k]);
-      if (h == null || h >= entry.cur[k] || rose == null) continue;
-      if (nowMs - rose >= MODE_STALE_MS && readAt - rose < MODE_STALE_MS) return { due: true, urgent: false };
+      const since = ms(entry.up?.[k]);
+      if (h == null || h >= entry.cur[k] || since == null || entry.bad?.[k] != null) continue;
+      if (nowMs - since >= MODE_STALE_MS && readAt - since < MODE_STALE_MS) return { due: true, urgent: false };
     }
   }
   return { due: false, urgent: false };

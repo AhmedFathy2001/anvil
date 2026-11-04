@@ -33,7 +33,15 @@ const snap = (zulrah: number, attackXp = 0) =>
 test('a push sets each key’s first reading once and only ever raises the current one', () => {
   let json = mergeModePush(null, 'hardcore', { zulrah: 3 }, iso(T0));
   assert.deepEqual(parseModeStats(json), {
-    hardcore: { first: { zulrah: 3 }, cur: { zulrah: 3 }, ft: { zulrah: iso(T0) }, at: { zulrah: iso(T0) } },
+    hardcore: {
+      first: { zulrah: 3 },
+      cur: { zulrah: 3 },
+      ft: { zulrah: iso(T0) },
+      at: { zulrah: iso(T0) },
+      // Unconfirmed since this push, at this value — until a read catches up.
+      up: { zulrah: iso(T0) },
+      upv: { zulrah: 3 },
+    },
   });
   json = mergeModePush(json, 'hardcore', { zulrah: 7, attack: 500 }, iso(T0 + HOUR));
   const e = parseModeStats(json).hardcore;
@@ -130,14 +138,49 @@ test('a reading the table has caught up to counts, and the table counts where it
   assert.equal(statGainWithModes(null, null, {}, ['zulrah'], 'boss', more, ['hardcore']), 14);
 });
 
-test('the plugin may be ahead of the table until the player has had to log out', () => {
+test('the plugin may be ahead of the table, by no more than plausible growth since the read', () => {
   const pushed = two('hardcore', { zulrah: 1 }, { zulrah: 20 });
   // Read 30 minutes after the last kill: the player is probably still logged in.
-  const soon = applyModeRead(pushed, 'hardcore', read({ zulrah: 5 }, T0 + HOUR + 30 * 60_000));
+  const readAt = T0 + HOUR + 30 * 60_000;
+  const soon = applyModeRead(pushed, 'hardcore', read({ zulrah: 5 }, readAt));
   const r = resolveModeKey(parseModeStats(soon).hardcore, 'zulrah', 'boss')!;
   assert.equal(r.state, 'ahead');
-  assert.equal(statGainWithModes(null, null, {}, ['zulrah'], 'boss', soon, ['hardcore']), 20);
-  assert.deepEqual(modeReadingIssues(soon, ['hardcore'], ['zulrah'], 'boss'), []);
+  assert.equal(r.credited, 5, 'a rise the read already saw, and did not show, counts as the table');
+  assert.deepEqual(modeReadingIssues(soon, ['hardcore'], ['zulrah'], 'boss').map((i) => i.kind), ['capped']);
+  // Kills after the read count on top of the table, at a plausible pace: 10 minutes ≈ 17 at most.
+  const later = mergeModePush(soon, 'hardcore', { zulrah: 21 }, iso(readAt + 10 * 60_000));
+  assert.equal(statGainWithModes(null, null, {}, ['zulrah'], 'boss', later, ['hardcore']), 21);
+  const burst = mergeModePush(soon, 'hardcore', { zulrah: 500 }, iso(readAt + 10 * 60_000));
+  assert.equal(resolveModeKey(parseModeStats(burst).hardcore, 'zulrah', 'boss')!.credited, 5 + 17);
+});
+
+test('drip-fed rises never escape the staleness check', () => {
+  // A fake lead pushed once, then nudged up every two hours so the latest rise always looks fresh.
+  let json = two('hardcore', { zulrah: 1 }, { zulrah: 100 }, 10 * 60_000);
+  json = applyModeRead(json, 'hardcore', read({ zulrah: 40 }, T0 + HOUR));
+  for (let h = 2; h <= 8; h += 2) json = mergeModePush(json, 'hardcore', { zulrah: 100 + h }, iso(T0 + h * HOUR));
+  // Read 7h in, an hour after the last nudge. The lead has been unconfirmed since T0 + 10 min.
+  json = applyModeRead(json, 'hardcore', read({ zulrah: 40 }, T0 + 7 * HOUR));
+  const r = resolveModeKey(parseModeStats(json).hardcore, 'zulrah', 'boss')!;
+  assert.equal(r.state, 'contradicted');
+  assert.ok(r.credited <= 40 + 100, `credited ${r.credited}`);
+  assert.ok(modeReadingIssues(json, ['hardcore'], ['zulrah'], 'boss').some((i) => i.kind === 'contradicted'));
+});
+
+test('once contradicted, pushing higher only adds plausible growth on top of the table', () => {
+  const pushed = two('hardcore', { zulrah: 1 }, { zulrah: 120 });
+  const readAt = T0 + HOUR + MODE_STALE_MS;
+  const late = applyModeRead(pushed, 'hardcore', read({ zulrah: 40 }, readAt));
+  assert.equal(parseModeStats(late).hardcore.bad?.zulrah, 40, 'sticky, with the table value it was contradicted at');
+  const higher = mergeModePush(late, 'hardcore', { zulrah: 1000 }, iso(readAt + 10 * 60_000));
+  const r = resolveModeKey(parseModeStats(higher).hardcore, 'zulrah', 'boss')!;
+  assert.equal(r.state, 'contradicted', 'still contradicted after a fresh push');
+  assert.equal(r.credited, 40 + 17, 'the table plus ten minutes’ plausible kills, not 1000 or 120');
+  // The table catching up clears it.
+  const caught = applyModeRead(higher, 'hardcore', read({ zulrah: 1000 }, readAt + HOUR));
+  const e = parseModeStats(caught).hardcore;
+  assert.equal(e.bad, undefined);
+  assert.equal(resolveModeKey(e, 'zulrah', 'boss')!.state, 'corroborated');
 });
 
 test('a reading the table still contradicts after the logout window stops counting, and staff see it', () => {
@@ -219,6 +262,21 @@ test('a key the table does not list (below its minimum) is unverified, not contr
   const r = resolveModeKey(parseModeStats(json).hardcore, 'zulrah', 'boss')!;
   assert.equal(r.state, 'unverified');
   assert.equal(r.credited, 3);
+});
+
+test('a milestone needs the table itself to reach the goal, not a pushed lead', () => {
+  const none = { lifetime: 0, eligible: false, reached: false };
+  // Table read at 95; then the plugin pushes 100 shortly after — plausible, so it is 'ahead'.
+  let json = two('hardcore', { zulrah: 90 }, { zulrah: 95 });
+  json = applyModeRead(json, 'hardcore', read({ zulrah: 95 }, T0 + HOUR + 60_000));
+  json = mergeModePush(json, 'hardcore', { zulrah: 100 }, iso(T0 + HOUR + 20 * 60_000));
+  const r = resolveModeKey(parseModeStats(json).hardcore, 'zulrah', 'boss')!;
+  assert.equal(r.state, 'ahead');
+  assert.equal(r.credited, 100);
+  assert.deepEqual(milestoneWithModes(none, json, ['hardcore'], ['zulrah'], 'boss', 100), none);
+  // The table shows 100: now it completes.
+  json = applyModeRead(json, 'hardcore', read({ zulrah: 100 }, T0 + 2 * HOUR));
+  assert.deepEqual(milestoneWithModes(none, json, ['hardcore'], ['zulrah'], 'boss', 100), { lifetime: 100, eligible: true, reached: true });
 });
 
 test('a milestone never completes on unverified readings', () => {
