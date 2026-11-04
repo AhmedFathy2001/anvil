@@ -98,6 +98,23 @@ test('more than one clan or board: a dropdown of all of them, on the one showing
   assert.doesNotMatch(one, /"kind":"select"/, 'one scope is a heading, not a dropdown');
 });
 
+test('a finished tile: its row, its lists, and a Tiles chip on a board only', async () => {
+  const { completionRow, completionFeedIds } = await import('../src/lib/pluginUi/feedUi.ts');
+  const row = completionRow({ tileId: 7, teamId: 4, label: 'Abyssal whip', who: 'Drenvox', team: { name: 'Jade', color: '#2ecc71' }, at: '2026-11-04T01:00:00Z', mine: true });
+  assert.equal(row.id, 't7:4', 'one row per tile and team: live and reopened agree');
+  assert.equal(row.title, 'Tile complete: Abyssal whip');
+  assert.equal(row.who, 'Drenvox');
+  assert.equal(row.tag, 'Jade');
+  assert.equal(completionRow({ tileId: 7, teamId: 4, label: 'x', who: null, team: { name: 'Jade', color: null }, at: 'x' }).who, 'Jade', 'no finisher: the team');
+  assert.deepEqual(completionFeedIds(9, 4), ['moments:event:9', 'moments:event:9:tiles', 'moments:event:9:team:4']);
+  const board = { kind: 'event' as const, id: 9, name: 'Chat Test' };
+  const clan = { kind: 'clan' as const, id: 1, slug: 'afk', name: 'The AFK Spot' };
+  const onBoard = JSON.stringify(feedTabUi({ scopes: [board], current: board, pane: 'feed', chatAvailable: false, filter: 'all', teamId: 4, rows: [], floorNote: 'x' }));
+  assert.match(onBoard, /"label":"Tiles"|"Tiles"/);
+  const onClan = JSON.stringify(feedTabUi({ scopes: [clan], current: clan, pane: 'feed', chatAvailable: false, filter: 'all', teamId: null, rows: [], floorNote: 'x' }));
+  assert.doesNotMatch(onClan, /Tiles/);
+});
+
 test("a board page's Feed and Chat open that board's feed, with a way back", async () => {
   const { boardFeedLinks } = await import('../src/lib/pluginUi/feedUi.ts');
   const links = boardFeedLinks(9, { open: 'board', label: 'Chat Test' }) as unknown as { c: { label: string; on: { v: string; args: Record<string, string> } }[] };

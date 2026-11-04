@@ -27,7 +27,7 @@ export function kindGroup(kind: string): KindGroup | null {
 
 export type Scope = { kind: 'clan'; id: number; slug: string; name: string } | { kind: 'event'; id: number; name: string };
 
-export function momentsFeedId(scope: { kind: 'clan' | 'event'; id: number }, filter?: KindGroup | 'team', teamId?: number | null): string {
+export function momentsFeedId(scope: { kind: 'clan' | 'event'; id: number }, filter?: KindGroup | 'team' | 'tiles', teamId?: number | null): string {
   const base = `moments:${scope.kind}:${scope.id}`;
   if (filter === 'team') return teamId != null ? `${base}:team:${teamId}` : base;
   return filter ? `${base}:${filter}` : base;
@@ -128,6 +128,37 @@ export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
     ...(o.mine ? { mine: true } : {}),
     ...(o.gz && o.react ? { gz: { n: o.gz.n, mine: o.gz.mine, on: o.react } } : {}),
   };
+}
+
+/** A board tile some team finished: the tile, who finished it (or the team), the team, when. */
+export function completionRow(c: {
+  tileId: number;
+  teamId: number;
+  label: string;
+  who: string | null;
+  team: { name: string; color: string | null } | null;
+  at: string;
+  mine?: boolean;
+}): FeedRow {
+  return {
+    // One per tile and team: the live row and the opened list's row are the same row.
+    id: `t${c.tileId}:${c.teamId}`,
+    glyph: 'check',
+    glyphColor: 'done',
+    title: `Tile complete: ${c.label}`,
+    textColor: 'done',
+    who: c.who ?? c.team?.name ?? '',
+    whoColor: 'muted',
+    ...(c.team ? { tag: c.team.name, tagColor: (c.team.color as Color | null) ?? 'muted' } : {}),
+    at: c.at,
+    ...(c.mine ? { mine: true } : {}),
+  };
+}
+
+/** The lists a finished tile goes in on its board: everything, Tiles, and its team's. */
+export function completionFeedIds(eventId: number, teamId: number): string[] {
+  const scope = { kind: 'event' as const, id: eventId };
+  return [momentsFeedId(scope), momentsFeedId(scope, 'tiles'), momentsFeedId(scope, 'team', teamId)];
 }
 
 /** "+214 smaller drops in the last minute" — what a big board's floor kept out, so the list still says it's busy. */
@@ -257,14 +288,22 @@ export function feedTabUi(o: FeedTabOptions): Node {
       ? [['all', 'All'], ...(o.teamId != null ? [['team', 'My team'] as [string, string]] : []), ...(o.staff ? [['mods', 'Host & mods'] as [string, string]] : [])]
       // Achievements: log slots, diaries, quests, the clan's level milestones and combat-task tier,
       // kept for the clan whether or not anything is running (a board keeps its own tasks and levels).
-      : [['all', 'All'], ['drops', 'Drops'], ['pets', 'Pets'], ['achievements', 'Achievements'], ...(o.current.kind === 'event' && o.teamId != null ? [['team', 'My team'] as [string, string]] : [])];
+      : [
+          ['all', 'All'],
+          // A board's finished tiles (lib/panelRows completionRow); a clan has no tiles of its own.
+          ...(o.current.kind === 'event' ? [['tiles', 'Tiles'] as [string, string]] : []),
+          ['drops', 'Drops'],
+          ['pets', 'Pets'],
+          ['achievements', 'Achievements'],
+          ...(o.current.kind === 'event' && o.teamId != null ? [['team', 'My team'] as [string, string]] : []),
+        ];
   // Three to a row: the panel splits a row evenly, and "Achievements" is too wide for a quarter of it.
   parts.push(rowOf(filters.map(([id, label]) => chip(label, o.filter === id, load({ s: key, p: o.pane, f: id }))), 3), gap(4));
 
   const id =
     o.pane === 'chat' && o.current.kind === 'event'
       ? chatFeedId(o.current.id, o.filter === 'team' ? 'team' : o.filter === 'mods' ? 'mods' : undefined, o.teamId)
-      : momentsFeedId(o.current, o.filter === 'all' ? undefined : (o.filter as KindGroup | 'team'), o.teamId);
+      : momentsFeedId(o.current, o.filter === 'all' ? undefined : (o.filter as KindGroup | 'team' | 'tiles'), o.teamId);
 
   parts.push({
     t: 'feed',

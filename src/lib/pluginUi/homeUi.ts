@@ -6,6 +6,7 @@ import { SKILLS } from '@/lib/constants';
 import type { PanelActive, PanelTile } from '@/lib/pluginPanel';
 import type { ScheduleBingo, ScheduleWeekly } from '@/lib/pluginConfig';
 import type { RosterTeamOut } from '@/lib/eventRoster';
+import type { BoardSummary } from '@/lib/pluginBoards';
 
 import { type Action, type Color, type Node, backRow, button, card, col, count, exact, gap, icon, muted, percent, row, text } from './nodes';
 import { boardFeedLinks } from './feedUi';
@@ -98,6 +99,8 @@ export interface HomeData {
   now: number;
   /** The clan's events (a mass, a hangout) in the next fortnight, soonest first (lib/clanEvents). */
   clanEvents?: ClanEventView[];
+  /** Every OTHER live board this character is on, any clan (lib/pluginBoards). Absent = not looked up. */
+  myBoards?: BoardSummary[];
 }
 
 // ---- Small words ----------------------------------------------------------------------------------
@@ -313,6 +316,22 @@ export function homeUi(d: HomeData): Node {
   parts.push(gap(12));
 
   const others = d.chosen ? [] : otherBoards(d.cfg);
+  // Each clan card under "Also live" stands for its live board; every OTHER board this character is
+  // on gets a card of its own here (several in one clan included), which is what "+ N more" hinted at.
+  const inAlsoLive = new Set(others.flatMap((c) => (c.live && (!c.live.kind || c.live.kind === 'bingo') ? [c.live.eventId] : [])));
+  const shownBoard = d.cfg.event?.id ?? d.cfg.homeBoard?.eventId ?? null;
+  const mine = (d.myBoards ?? []).filter((m) => m.eventId !== shownBoard && !inAlsoLive.has(m.eventId));
+  if (mine.length) {
+    parts.push(...heading('Your other boards'));
+    mine.forEach((m, i) => {
+      const lines: Node[] = [text(clip(`${m.clanName} · ${m.teamName}`, 30), LIGHT)];
+      if (m.tilesTotal > 0) {
+        lines.push(muted(`${m.tilesComplete} / ${m.tilesTotal} ${m.pointsScored ? 'points' : 'tiles'}`), gap(4), thickBar(percent(m.tilesComplete, m.tilesTotal)));
+      } else lines.push(muted('Board not revealed yet'));
+      parts.push(...(i ? [gap(6)] : []), drillCard(m.name, lines, { a: 'load', v: 'board', args: { event: String(m.eventId) } }, `Open ${m.name}`));
+    });
+    parts.push(gap(12));
+  }
   if (others.length) {
     parts.push(...heading('Also live'));
     others.forEach((c, i) => {
@@ -320,7 +339,8 @@ export function homeUi(d: HomeData): Node {
       const live = c.live!;
       const weekly = live.kind === 'weekly' || live.tilesTotal <= 0;
       const lines: Node[] = [text(clip(live.eventName, 30), LIGHT), muted(weekly ? 'Competition running' : `${live.tilesComplete} / ${live.tilesTotal} ${live.pointsScored ? 'points' : 'tiles'}`)];
-      if ((c.liveCount ?? 0) > 1) lines.push(text(`+ ${(c.liveCount ?? 0) - 1} more here`, 'brand'));
+      // Once the boards are looked up they are listed as cards of their own above.
+      if (!mine.some((m) => m.clan.toLowerCase() === c.slug.toLowerCase()) && (c.liveCount ?? 0) > 1) lines.push(text(`+ ${(c.liveCount ?? 0) - 1} more here`, 'brand'));
       if (!weekly) lines.push(gap(4), thickBar(percent(live.tilesComplete, live.tilesTotal)));
       parts.push(...(i ? [gap(6)] : []), drillCard(name, lines, { a: 'switch', slug: c.slug }, `Switch to ${name} — the sidebar and your submissions follow`));
     });

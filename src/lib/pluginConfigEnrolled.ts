@@ -169,8 +169,19 @@ type PluginClan = NonNullable<Awaited<ReturnType<typeof resolvePluginClan>>>;
  * server sends that one answer to every teammate (lib/push/views), which is why it has to come from
  * the very code the route answers with.
  */
-export async function buildEnrolledConfig(args: { eventId: number; teamId: number; clan: PluginClan; viewer: ConfigViewer | null }) {
-  const { eventId, teamId, clan, viewer } = args;
+export async function buildEnrolledConfig(args: {
+  eventId: number;
+  teamId: number;
+  clan: PluginClan;
+  viewer: ConfigViewer | null;
+  /**
+   * Only the tracked lists matter: another board the same character is on, folded into the active
+   * board's config (lib/pluginBoards). Skips the viewer's schedule, clan switcher and level rules,
+   * which the active board's answer already carries.
+   */
+  trackedOnly?: boolean;
+}) {
+  const { eventId, teamId, clan, viewer, trackedOnly = false } = args;
   const playerId = viewer?.playerId ?? null;
   const members: Record<number, MemberOwn> = {};
   const memberOwn = (id: number) => (members[id] ??= { c: {}, y: {} });
@@ -541,7 +552,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
   // schedule + active weekly (was two separate endpoints) plus the notification
   // webhooks and fun-death pool the plugin posts with directly.
   // The schedule is the viewer's own; everything else here is the clan's (cached, see above).
-  const schedule = viewer
+  const schedule = viewer && !trackedOnly
     ? await pluginScheduleViewer(clan.id, viewer.userId).then((v) => buildSchedule(clan.id, { ...v, viewerRsn: pluginViewerRsn(viewer.request), viewerAccountHash: viewer.request.headers.get('x-account-hash') }))
     : null;
   const { activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, tiers, facts, luckItems, alwaysNotifyItemIds } = clanSettings;
@@ -927,7 +938,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
     // person's clans for the switcher. Present on BOTH shapes so the dropdown does not empty out
     // the moment somebody's event ends (lib/pluginClans).
     activeClan: { slug: clan.slug, name: clan.name },
-    clans: viewer ? await pluginClansFor(viewer.userId, viewer.rsn) : [],
+    clans: viewer && !trackedOnly ? await pluginClansFor(viewer.userId, viewer.rsn) : [],
     event: {
       id: event.id,
       name: event.name,
@@ -1007,7 +1018,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
     dropRarityFloor,
     // See the unenrolled branch above (capability 'level-rules'). Only for a signed-in member: an
     // event token with no login behind it gets no field, and the plugin keeps its built-in rules.
-    ...(viewer?.userId != null ? { levelRules: await pluginLevelRules(clan.id, viewer.userId) } : {}),
+    ...(viewer?.userId != null && !trackedOnly ? { levelRules: await pluginLevelRules(clan.id, viewer.userId) } : {}),
     // See the unenrolled branch above — the drop channel posts with or without a live board, so the
     // facts behind those posts ship on both shapes.
     dropFacts: facts,
