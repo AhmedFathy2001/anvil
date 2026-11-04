@@ -12,6 +12,7 @@ import { getItemPrices } from '@/lib/itemPrices';
 import { clogItemNames } from '@/lib/clogDataset';
 import { guaranteedDropsFor, parseGuaranteedOverrides, petFacts, type DropFacts } from '@/lib/dropFacts';
 import { ttlMemo } from '@/lib/ttlMemo';
+import { gatesApply, gatesShortLabel, parseGates } from '@/lib/entryGates';
 
 // Shared builders for the plugin's read-bootstrap. These back both the standalone
 // /api/plugin/schedule and /api/plugin/active-weekly routes (kept for older jars) and
@@ -38,6 +39,12 @@ export interface ScheduleBingo {
   //   format='bingo' + scoringMode='tiles' → square grid.
   format: string;
   scoringMode: string;
+  /**
+   * Who may join, in a few words ("Subs only (Twitch)", "Discord role: Raiders") when the host gates
+   * entry (lib/entryGates gatesShortLabel). Absent on an open event. Old plugins ignore it; the side
+   * panel (lib/pluginUi/homeUi) shows it under the event.
+   */
+  gate?: string;
 }
 
 export interface ScheduleWeekly {
@@ -188,20 +195,38 @@ export async function buildSchedule(
     bingoCandidates.map((e) => e.id),
   );
 
-  const bingos: ScheduleBingo[] = bingoCandidates.map((e) => ({
-    id: e.id,
-    title: e.name,
-    startDate: e.startDate!,
-    // Null on an open-ended event: it runs until the host ends it.
-    endDate: e.endDate ?? null,
-    status: e.startDate! > nowIso ? 'upcoming' : 'active',
-    boardSize: e.tilesRevealed ? e.boardSize : null,
-    // Hidden until revealed: the board's size is part of what the host is keeping back.
-    tileCount: e.tilesRevealed ? tileCountMap.get(e.id) ?? 0 : null,
-    yourEntry: entries ? entries.get(e.id) ?? null : undefined,
-    format: e.format,
-    scoringMode: e.scoringMode,
-  }));
+  // Entry gates only bind on a creator space's events (lib/entryGates gatesApply), so the host's kind
+  // is read for the gated ones alone — usually none, so usually no query.
+  const gatedHosts = [...new Set(bingoCandidates.filter((e) => e.entryGates).map((e) => e.clanId))];
+  const hostKind = new Map<number, string>();
+  if (gatedHosts.length) {
+    // clan-scope: global -- the hosts of events already filtered to this clan's own and co-hosted boards.
+    const rows = await db.select({ id: clans.id, kind: clans.kind }).from(clans).where(inArray(clans.id, gatedHosts));
+    for (const r of rows) hostKind.set(r.id, r.kind);
+  }
+  const gateOf = (e: (typeof bingoCandidates)[number]): string | null => {
+    const gates = e.entryGates ? parseGates(e.entryGates) : null;
+    return gatesApply(hostKind.get(e.clanId), gates) ? gatesShortLabel(gates) : null;
+  };
+
+  const bingos: ScheduleBingo[] = bingoCandidates.map((e) => {
+    const gate = gateOf(e);
+    return {
+      id: e.id,
+      title: e.name,
+      startDate: e.startDate!,
+      // Null on an open-ended event: it runs until the host ends it.
+      endDate: e.endDate ?? null,
+      status: e.startDate! > nowIso ? 'upcoming' : 'active',
+      boardSize: e.tilesRevealed ? e.boardSize : null,
+      // Hidden until revealed: the board's size is part of what the host is keeping back.
+      tileCount: e.tilesRevealed ? tileCountMap.get(e.id) ?? 0 : null,
+      yourEntry: entries ? entries.get(e.id) ?? null : undefined,
+      format: e.format,
+      scoringMode: e.scoringMode,
+      ...(gate ? { gate } : {}),
+    };
+  });
 
   const weeklies: ScheduleWeekly[] = allWeeklies
     .filter((w) => w.endDate > nowIso && w.status !== 'completed')

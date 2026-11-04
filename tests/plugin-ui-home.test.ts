@@ -250,3 +250,24 @@ test('a clan board you are seated on shows once, under Events, with your team', 
   assert.ok(!all.some((t) => /not in it/.test(t)), 'not "you’re not in it" for a board you are on');
   assert.ok(!all.includes('Your other boards'), 'and not a second card for it');
 });
+
+test('a gated event says who may join, in a few words, on its card and its page — not once you are in', async () => {
+  const { gateLine } = await import('../src/lib/pluginUi/homeUi');
+  const { joinToClaimLine } = await import('../src/lib/pluginUi/boardUi');
+  const gated: ScheduleBingo = { id: 12, title: 'Sub Night', startDate: '2026-11-01T00:00:00Z', endDate: null, status: 'upcoming', boardSize: 5, tileCount: 25, format: 'bingo', scoringMode: 'tiles', gate: 'Subs only (Twitch)' };
+  const open: ScheduleBingo = { ...gated, id: 13, title: 'Open Night', gate: undefined };
+  const cfg = liveCfg({ panel: { tiles: [], weeklies: [], scheduled: [gated, open] } });
+  const list = texts(homeUi(base(cfg)));
+  assert.equal(list.filter((s) => s === 'Subs only (Twitch)').length, 1, 'on the gated card only');
+  assert.ok(texts(eventUi(base(cfg), 'event:12')!).includes('Subs only (Twitch)'), 'and on its page');
+  assert.ok(!texts(eventUi(base(cfg), 'event:13')!).some((s) => s.includes('(Twitch)')));
+  // Entered: the line has done its job.
+  assert.deepEqual(gateLine({ ...gated, yourEntry: 'entered' }), []);
+  assert.equal(gateLine({ ...gated, yourEntry: 'pending' }).length, 1);
+  // A long role name is clipped to a panel line.
+  const long = gateLine({ ...gated, gate: 'Discord role: Extremely Long Role Name Here' });
+  assert.ok((long[0] as { s: string }).s.endsWith('…'));
+  // A read-only board's claim block names it too.
+  assert.equal(joinToClaimLine('Followers (Kick)'), 'Join this event to claim tiles · Followers (Kick)');
+  assert.equal(joinToClaimLine(null), 'Join this event to claim tiles.');
+});
