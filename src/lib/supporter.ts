@@ -111,7 +111,17 @@ async function supporterStatesForRsns(rsns: string[]): Promise<Map<string, Suppo
     .from(accounts)
     .innerJoin(users, eq(users.playerId, accounts.playerId))
     .innerJoin(supporterSubscriptions, eq(supporterSubscriptions.userId, users.id))
-    .where(inArray(accounts.rsnNormalized, keys));
+    .where(
+      and(
+        inArray(accounts.rsnNormalized, keys),
+        // The same characters game chat paints (gameChatFlair): shared, and proven theirs. A name
+        // linked on first use and not yet confirmed (provisional) doesn't wear a Supporter's
+        // colours anywhere, or the panel and the game would disagree about it.
+        eq(accounts.shared, true),
+        isNotNull(accounts.verifiedAt),
+        eq(accounts.provisional, 0),
+      ),
+    );
   const byRsn = new Map<string, typeof rows>();
   for (const r of rows) byRsn.set(r.rsn, [...(byRsn.get(r.rsn) ?? []), r]);
   for (const [rsn, list] of byRsn) {
