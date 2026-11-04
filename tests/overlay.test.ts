@@ -54,7 +54,7 @@ test('anything not shaped like a key is refused before a query', () => {
 
 test('options are clamped and closed-set, never passed through', () => {
   const o = parseOverlayOptions(new URLSearchParams('view=evil&size=huge&limit=999&accent=red;}body{x&align=center&scale=abc'));
-  assert.deepEqual(o, { view: 'standings', scale: 1, limit: 20, title: true, accent: '#e0aa1e', align: 'left', celebrate: false });
+  assert.deepEqual(o, { view: 'standings', scale: 1, limit: 20, title: true, accent: '#e0aa1e', align: 'left', celebrate: false, theme: 'classic' });
   const p = parseOverlayOptions(new URLSearchParams('view=feed&size=xl&accent=%23FF0000&title=0&align=right'));
   assert.equal(p.view, 'feed');
   assert.equal(p.scale, 1.7);
@@ -65,6 +65,15 @@ test('options are clamped and closed-set, never passed through', () => {
   assert.equal(parseOverlayOptions(new URLSearchParams('scale=9')).scale, 3);
   assert.equal(parseOverlayOptions(new URLSearchParams('scale=0.1')).scale, 0.5);
   assert.equal(parseOverlayOptions(new URLSearchParams('limit=0')).limit, 1);
+});
+
+test('themes are a closed set; anything else is classic', () => {
+  for (const t of ['classic', 'glass', 'lower', 'pixel'] as const) {
+    assert.equal(parseOverlayOptions(new URLSearchParams(`theme=${t}`)).theme, t);
+  }
+  for (const bad of ['', 'neon', 'GLASS', 'glass;}', 'lower third']) {
+    assert.equal(parseOverlayOptions(new URLSearchParams(`theme=${encodeURIComponent(bad)}`)).theme, 'classic', bad);
+  }
 });
 
 test('celebrations are opt-in: only celebrate=1 turns them on', () => {
@@ -270,9 +279,9 @@ test('panel event names are cut to one line', () => {
 });
 
 test('the overlay page carries the celebrate flag to its script', () => {
-  const on = overlayHtml('k'.repeat(32), { view: 'board', scale: 1, limit: 5, title: true, accent: '#e0aa1e', align: 'left', celebrate: true }, 'n');
+  const on = overlayHtml('k'.repeat(32), { view: 'board', scale: 1, limit: 5, title: true, accent: '#e0aa1e', align: 'left', celebrate: true, theme: 'glass' }, 'n');
   assert.match(on, /"celebrate":true/);
   assert.match(on, /id="cel"/);
-  const off = overlayHtml('k'.repeat(32), { view: 'board', scale: 1, limit: 5, title: true, accent: '#e0aa1e', align: 'left', celebrate: false }, 'n');
+  const off = overlayHtml('k'.repeat(32), { view: 'board', scale: 1, limit: 5, title: true, accent: '#e0aa1e', align: 'left', celebrate: false, theme: 'classic' }, 'n');
   assert.match(off, /"celebrate":false/);
 });

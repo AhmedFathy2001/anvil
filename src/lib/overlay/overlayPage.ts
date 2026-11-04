@@ -12,7 +12,8 @@
 // socket is up the timer slows to a minute. No socket (blocked, push down, local dev) = the plain poll. Every value from the payload is put on the page with textContent / setAttribute,
 // never as markup, and the CSP allows only this page's own nonce'd script and same-origin images.
 
-import { OVERLAY_LIVE_POLL_MS, OVERLAY_POLL_MS, type OverlayOptions } from './overlayView';
+import { inkOn } from '../artPalette';
+import { OVERLAY_LIVE_POLL_MS, OVERLAY_POLL_MS, type OverlayOptions, type OverlayTheme } from './overlayView';
 
 /** JSON safe to sit inside a <script> element: no `<`, so no `</script>` and no `<!--`. */
 export function scriptJson(v: unknown): string {
@@ -37,6 +38,8 @@ export function overlayCsp(nonce: string): string {
 export function overlayHtml(key: string, opts: OverlayOptions, nonce: string): string {
   const cfg = scriptJson({ key, view: opts.view, limit: opts.limit, title: opts.title, poll: OVERLAY_POLL_MS, livePoll: OVERLAY_LIVE_POLL_MS, celebrate: opts.celebrate });
   const px = (n: number) => `${Math.round(n * opts.scale * 10) / 10}px`;
+  // The board has no lower-third form (a grid does not fit a bar): it draws as glass there.
+  const theme: OverlayTheme = opts.theme === 'lower' && opts.view === 'board' ? 'glass' : opts.theme;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -46,7 +49,7 @@ export function overlayHtml(key: string, opts: OverlayOptions, nonce: string): s
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Anvil overlay</title>
 <style>
-:root{--accent:${opts.accent};--fs:${px(28)};--fs-s:${px(20)};--cell:${px(64)};--gap:${px(8)}}
+:root{--accent:${opts.accent};--ink:${inkOn(opts.accent)};--fs:${px(28)};--fs-s:${px(20)};--cell:${px(64)};--gap:${px(8)}}
 html,body{margin:0;padding:0;background:transparent;overflow:hidden}
 body{font-family:"Segoe UI",Inter,Roboto,"Helvetica Neue",Arial,sans-serif;font-weight:800;color:#fff;font-size:var(--fs);line-height:1.2;padding:${px(12)};text-align:${opts.align}}
 .o{-webkit-text-stroke:${px(1.2)} #000;paint-order:stroke fill;text-shadow:0 ${px(2)} ${px(4)} rgba(0,0,0,.9),0 0 ${px(2)} #000}
@@ -84,17 +87,60 @@ body{font-family:"Segoe UI",Inter,Roboto,"Helvetica Neue",Arial,sans-serif;font-
 .item.pop{animation:in .5s ease-out,glow 1.8s ease-out}
 @keyframes glow{0%{filter:brightness(2) drop-shadow(0 0 ${px(10)} var(--accent))}100%{filter:none}}
 .cell .dots i{width:${px(9)};height:${px(9)};border-radius:50%;box-shadow:0 0 0 ${px(1.5)} #000}
+${themeCss(theme, px)}
 </style>
 </head>
-<body>
-<div id="head" class="o"><span id="name"></span><span id="clock"></span></div>
-<div id="body"></div>
+<body class="t-${theme}">
+<div id="wrap"><div id="head" class="o"><span id="name"></span><span id="clock"></span></div>
+<div id="body"></div></div>
 <div id="cel" aria-live="polite"></div>
 <div id="mark"><img src="/icon-48.png" alt=""><span><span class="pb">Powered by</span><span class="nm">Anvil</span><span class="url">anvilosrs.com</span></span></div>
 <script id="cfg" type="application/json">${cfg}</script>
 <script nonce="${nonce}">${CLIENT}</script>
 </body>
 </html>`;
+}
+
+/**
+ * Each theme is CSS over the same markup (#wrap > #head + #body), so the script and the data are one
+ * for all of them. Classic adds nothing: it is the page as it always was.
+ */
+function themeCss(theme: OverlayTheme, px: (n: number) => string): string {
+  switch (theme) {
+    case 'glass':
+      return `.t-glass{font-weight:700}
+.t-glass #wrap{display:inline-block;min-width:${px(380)};max-width:100%;box-sizing:border-box;padding:${px(14)} ${px(18)};border-radius:${px(18)};background:rgba(15,12,11,.58);-webkit-backdrop-filter:blur(${px(10)});backdrop-filter:blur(${px(10)});box-shadow:inset 0 0 0 ${px(1)} rgba(255,255,255,.12),0 0 0 ${px(2)} color-mix(in srgb,var(--accent) 60%,transparent)}
+.t-glass .o{-webkit-text-stroke:0;text-shadow:none}
+.t-glass .team{flex:none}
+.t-glass .bar{min-width:${px(120)}}
+.t-glass .bar{background:rgba(255,255,255,.12);box-shadow:none}
+.t-glass .cell:not(.done){background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 ${px(1)} rgba(255,255,255,.14)}`;
+    case 'lower':
+      return `.t-lower{padding:0;font-weight:700}
+.t-lower #wrap{position:fixed;left:0;right:0;bottom:0;display:flex;align-items:stretch;min-height:${px(60)};background:rgba(12,10,9,.9)}
+.t-lower #head{margin:0;padding:0 ${px(18)};display:flex;align-items:center;gap:${px(10)};flex:none;background:var(--accent);color:var(--ink);text-transform:uppercase;letter-spacing:.04em}
+.t-lower #name{color:inherit}
+.t-lower #clock{opacity:.8}
+.t-lower .o{-webkit-text-stroke:0;text-shadow:none}
+.t-lower #body{display:flex;align-items:center;gap:${px(28)};padding:0 ${px(20)};overflow:hidden;white-space:nowrap;flex:1;font-size:var(--fs-s)}
+.t-lower .row,.t-lower .item{margin:0;flex:none;animation:none}
+.t-lower .bar{display:none}
+.t-lower .team{max-width:10em}
+.t-lower .item img{width:${px(26)};height:${px(26)}}
+.t-lower #cel{bottom:${px(76)}}`;
+    case 'pixel':
+      return `.t-pixel{font-family:"Courier New",ui-monospace,monospace;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#ffe9a8}
+.t-pixel #wrap{display:inline-block;min-width:${px(380)};box-sizing:border-box;padding:${px(12)} ${px(14)};background:#2b231a;border:${px(4)} solid #0e0b08;box-shadow:inset 0 0 0 ${px(3)} #5a4a33}
+.t-pixel .o{-webkit-text-stroke:0;text-shadow:${px(2)} ${px(2)} 0 #000}
+.t-pixel .team{flex:none}
+.t-pixel .bar{min-width:${px(120)}}
+.t-pixel .bar{border-radius:0;box-shadow:0 0 0 ${px(2)} #0e0b08;background:#1a140f}
+.t-pixel .cell{border-radius:0;background:#1a140f}
+.t-pixel .cell:not(.done){box-shadow:inset 0 0 0 ${px(2)} #5a4a33}
+.t-pixel .cb{border-radius:0}`;
+    default:
+      return '';
+  }
 }
 
 // The page's whole script. Plain ES2017 for OBS's Chromium; builds every node with textContent.

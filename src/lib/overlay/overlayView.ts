@@ -22,6 +22,18 @@ import crypto from 'node:crypto';
 export const OVERLAY_VIEWS = ['standings', 'feed', 'board'] as const;
 export type OverlayView = (typeof OVERLAY_VIEWS)[number];
 
+/**
+ * How the overlay is drawn (lib/overlay/overlayPage): classic outlined text on nothing, a frosted
+ * glass card, a broadcast lower-third bar, or hard-edged pixel panels. Every theme shows the same
+ * data; only the look differs. The board view has no lower-third form and draws as glass.
+ */
+export const OVERLAY_THEMES = ['classic', 'glass', 'lower', 'pixel'] as const;
+export type OverlayTheme = (typeof OVERLAY_THEMES)[number];
+
+export function isOverlayTheme(v: unknown): v is OverlayTheme {
+  return typeof v === 'string' && (OVERLAY_THEMES as readonly string[]).includes(v);
+}
+
 export function isOverlayView(v: unknown): v is OverlayView {
   return typeof v === 'string' && (OVERLAY_VIEWS as readonly string[]).includes(v);
 }
@@ -58,6 +70,8 @@ export interface OverlayOptions {
    * already sitting in somebody's OBS scene never starts popping things up mid-stream.
    */
   celebrate: boolean;
+  /** The look (OVERLAY_THEMES); anything unknown is classic, which every older link already is. */
+  theme: OverlayTheme;
 }
 
 export const SIZE_SCALES: Record<string, number> = { s: 0.8, m: 1, l: 1.3, xl: 1.7 };
@@ -92,6 +106,7 @@ export function parseOverlayOptions(params: URLSearchParams): OverlayOptions {
     accent: /^[0-9a-f]{6}$/i.test(accentRaw) ? `#${accentRaw.toLowerCase()}` : DEFAULT_ACCENT,
     align: params.get('align') === 'right' ? 'right' : 'left',
     celebrate: params.get('celebrate') === '1',
+    theme: isOverlayTheme(params.get('theme')) ? (params.get('theme') as OverlayTheme) : 'classic',
   };
 }
 

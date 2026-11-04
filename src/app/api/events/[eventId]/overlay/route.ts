@@ -5,13 +5,16 @@ import { clanAuditLog } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
 import { eventForRequest } from '@/lib/eventScope';
+import { resolveClanById } from '@/lib/clanContext';
+import { normalizeHex } from '@/lib/artPalette';
 import { isHiddenHost } from '@/lib/friendEventsSql';
 import { overlayKeyFor, removeOverlayKey, rotateOverlayKey } from '@/lib/overlay/overlayData';
 
 // The host's side of an event's stream overlay (lib/overlay). Admin of the event's clan only: the
 // key is a public capability once it is on a stream, so only the people who run the event mint it.
 //
-//   GET     → { key }            the current key, or null when the event has no overlay link
+//   GET     → { key, accent }    the current key, or null when the event has no overlay link, and
+//                                the host's picked colour (#rrggbb or null), the links' default accent
 //   POST    → { key }            make one, or replace it ("Reset link" — old URLs stop working)
 //   DELETE  → { key: null }      turn the overlay off
 
@@ -35,7 +38,8 @@ async function guard(request: Request, raw: string) {
 export async function GET(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const g = await guard(request, (await params).eventId);
   if ('error' in g) return g.error;
-  return NextResponse.json({ key: await overlayKeyFor(g.eventId) });
+  const [key, host] = await Promise.all([overlayKeyFor(g.eventId), resolveClanById(g.clanId)]);
+  return NextResponse.json({ key, accent: normalizeHex(host?.accentColor ?? null) });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
