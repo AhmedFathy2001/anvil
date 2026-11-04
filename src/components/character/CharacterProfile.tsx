@@ -533,7 +533,8 @@ export default async function CharacterProfile({
       <DisplayCase entries={showcase} showRsn={false} className="mb-6" />
 
       {/* One human, several accounts. Null for a single linked account, and for a signed-out visitor. */}
-      {persona && seat && <Persona persona={persona} currentMemberId={seat.id} />}
+      {/* Not on the owner's own /profile: the characters above already list them all, with switching. */}
+      {persona && seat && !embedded && <Persona persona={persona} currentMemberId={seat.id} />}
 
       {/* What kind of account this is, against the clan, before the tabs break it into numbers. */}
       {shape && !shape.empty && (

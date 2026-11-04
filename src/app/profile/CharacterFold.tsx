@@ -9,13 +9,13 @@ import type { SupporterStyle } from '@/lib/supporterStyle';
 import type { SupporterTierId } from '@/lib/supporterTiers';
 
 /**
- * Their characters, folded under the person: one line — "3 characters ▾" (on a character's view,
- * "· viewing Drenvox"), even for one — that opens a compact list, one row per character. Picking a
- * row opens that character's view (?account=<rsn>, a history entry, so Back returns) and folds the
- * list away again.
+ * Their characters, under the person: every one as a chip you can see and click — the one being
+ * viewed lit gold — so it is obvious at a glance there are several and how to switch. A chip opens that
+ * character's view (?account=<rsn>, a history entry, so Back returns), on the tab you are on now.
  *
- * A real disclosure button (aria-expanded / aria-controls), so it works from the keyboard and with a
- * screen reader; Escape folds it and gives focus back to the button.
+ * "Manage ▾" opens the longer list: each character's seat, stats and its own doors (settings, the page
+ * others see). A real disclosure button (aria-expanded / aria-controls); Escape folds it and gives
+ * focus back to the button, and a tap anywhere else folds it too.
  */
 export default function CharacterFold({
   characters,
@@ -60,47 +60,67 @@ export default function CharacterFold({
     };
   }, [open]);
 
-  const selected = characters.find((c) => c.rsn === selectedRsn) ?? null;
-
   return (
     // A fragment inside the card's flex-wrap row: the button sits where the chips did, and the open
     // list takes a line of its own under the row (order-last, full basis) rather than pushing
     // "+ Add a character" aside.
     <>
-      <button
-        ref={button}
-        type="button"
-        aria-expanded={open}
-        aria-controls={listId}
-        onClick={() => {
-          if (!open) setSearch(new URLSearchParams(window.location.search));
-          setOpen(!open);
-        }}
-        className={`inline-flex max-w-full flex-wrap items-center gap-x-2 text-left rounded-2xl sm:rounded-full border bg-brown-dark/60 px-3 py-1 text-sm transition-colors hover:border-gold/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold ${
-          open ? 'border-gold/60' : 'border-card-border'
-        }`}
-      >
-        <span className="whitespace-nowrap font-medium">
-          {characters.length} character{characters.length === 1 ? '' : 's'}
-        </span>
-        <span aria-hidden className={`text-[10px] text-text-muted transition-transform ${open ? 'rotate-180' : ''}`}>
-          ▾
-        </span>
-        {selected && (
-          // Wraps rather than truncates: on a phone the selected name is the point of the line.
-          <span className="min-w-0 break-words text-text-muted">
-            · viewing{' '}
-            <SupporterName
-              name={selected.rsn}
-              tier={supporterTier}
-              style={supporterStyle}
-              plain
-              star={false}
-              className="font-semibold text-foreground"
-            />
+      <nav aria-label="Switch character" className="flex min-w-0 flex-wrap items-center gap-1.5">
+        {characters.map((c) => {
+          const isSelected = c.rsn === selectedRsn;
+          return (
+            <ClanLink
+              key={c.accountId}
+              // The tab you are on now, read as the pointer goes down (the profile's tabs rewrite
+              // ?tab= in place, after this rendered): a chip opens the other character on that tab.
+              href={foldHref(c.rsn, search)}
+              onPointerDown={() => setSearch(new URLSearchParams(window.location.search))}
+              onFocus={() => setSearch(new URLSearchParams(window.location.search))}
+              aria-current={isSelected ? 'page' : undefined}
+              title={c.playingIn ? `Playing ${c.playingIn}` : undefined}
+              className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold ${
+                isSelected
+                  ? 'border-gold/70 bg-gold/15 text-gold-light'
+                  : 'border-card-border bg-brown-dark/60 hover:border-gold/40 hover:bg-card-bg-hover'
+              }`}
+            >
+              {c.playingIn && (
+                <>
+                  <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent-green-light" />
+                  <span className="sr-only">Playing {c.playingIn}.</span>
+                </>
+              )}
+              <SupporterName
+                name={c.rsn}
+                tier={supporterTier}
+                style={supporterStyle}
+                plain
+                star={false}
+                className={`truncate ${isSelected ? 'font-semibold' : 'font-medium'}`}
+              />
+              {c.isPrimary && <span className="shrink-0 text-[10.5px] text-gold">main</span>}
+            </ClanLink>
+          );
+        })}
+        <button
+          ref={button}
+          type="button"
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={() => {
+            if (!open) setSearch(new URLSearchParams(window.location.search));
+            setOpen(!open);
+          }}
+          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs text-text-muted transition-colors hover:border-gold/40 hover:text-gold-light focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold ${
+            open ? 'border-gold/60' : 'border-card-border'
+          }`}
+        >
+          Manage
+          <span aria-hidden className={`text-[10px] transition-transform ${open ? 'rotate-180' : ''}`}>
+            ▾
           </span>
-        )}
-      </button>
+        </button>
+      </nav>
 
       {open && (
         <div ref={list} id={listId} className="order-last basis-full">
