@@ -7,10 +7,12 @@ import {
   SLOW_GAP_MS,
   SLOW_HOLD_MS,
   checkBody,
+  chatPaceHint,
   cleanName,
   isSlow,
   muteActive,
   newPace,
+  personGapMs,
   recordSend,
   waitFor,
 } from '../src/lib/eventChatRules.ts';
@@ -91,4 +93,27 @@ test('a sender’s name is cleaned like a line, and kept short', () => {
   assert.equal(cleanName('ab'.repeat(30)).length, 32);
   assert.equal(cleanName('<b></b>'), 'Player', 'nothing left is a placeholder, not blank');
   assert.equal(cleanName(null), 'Player');
+});
+
+test('each person waits by their Supporter tier: 5s, 3s, 1s, Patron none; slow mode holds everyone', () => {
+  assert.equal(personGapMs(null), 5_000);
+  assert.equal(personGapMs('supporter'), 3_000);
+  assert.equal(personGapMs('champion'), 1_000);
+  assert.equal(personGapMs('patron'), 0);
+  const t = 100_000;
+  assert.equal(waitFor(t, t + 2_000, false, false, personGapMs(null)), 3_000);
+  assert.equal(waitFor(t, t + 2_000, false, false, personGapMs('supporter')), 1_000);
+  assert.equal(waitFor(t, t + 2_000, false, false, personGapMs('champion')), 0);
+  assert.equal(waitFor(t, t, false, false, personGapMs('patron')), 0);
+  // A busy board's slow mode applies to Patrons too; staff never wait.
+  assert.equal(waitFor(t, t + 1_000, true, false, personGapMs('patron')), SLOW_GAP_MS - 1_000);
+  assert.equal(waitFor(t, t, true, true, personGapMs(null)), 0);
+});
+
+test('the message box says what the wait is', () => {
+  assert.equal(chatPaceHint({ tier: null, slow: false, staff: false }), 'slow mode 5s · Supporters chat faster');
+  assert.equal(chatPaceHint({ tier: 'champion', slow: false, staff: false }), 'slow mode 1s');
+  assert.equal(chatPaceHint({ tier: 'patron', slow: false, staff: false }), 'no slow mode (Patron)');
+  assert.equal(chatPaceHint({ tier: 'patron', slow: true, staff: false }), 'slow mode 10s (busy chat)');
+  assert.equal(chatPaceHint({ tier: null, slow: true, staff: true }), 'no slow mode for staff');
 });

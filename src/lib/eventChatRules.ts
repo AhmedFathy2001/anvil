@@ -5,6 +5,8 @@
 // keep a thousand-player board readable, keep links and gold sellers out, and let the host's staff
 // step in.
 
+import type { SupporterTierId } from './supporterTiers.ts';
+
 export const MAX_BODY = 200;
 
 /** Least time between one person's messages, normally. */
@@ -98,12 +100,40 @@ export function recordSend(pace: BoardPace, now: number): BoardPace {
   return pace;
 }
 
-/** How long this person must still wait, 0 when they may send. Staff never wait. */
-export function waitFor(lastSentAt: number | undefined, now: number, slow: boolean, staff: boolean): number {
+/**
+ * Each person's own pace, by their Anvil Supporter tier: a player without one waits 5s between
+ * messages, a Supporter 3s, a Champion 1s, a Patron not at all. Enforced on the server (sendChat), and
+ * shown under the message box (chatPaceHint) so nobody is surprised by it.
+ */
+export const TIER_GAP_MS: Record<SupporterTierId | 'none', number> = { none: 5_000, supporter: 3_000, champion: 1_000, patron: 0 };
+
+export function personGapMs(tier: SupporterTierId | null | undefined): number {
+  return TIER_GAP_MS[tier ?? 'none'] ?? TIER_GAP_MS.none;
+}
+
+/**
+ * How long this person must still wait, 0 when they may send. Staff never wait. `gapMs` is their own
+ * pace (personGapMs); a board in slow mode makes everyone wait at least SLOW_GAP_MS, Patrons too.
+ */
+export function waitFor(lastSentAt: number | undefined, now: number, slow: boolean, staff: boolean, gapMs: number = PERSON_GAP_MS): number {
   if (staff || lastSentAt == null) return 0;
-  const gap = slow ? SLOW_GAP_MS : PERSON_GAP_MS;
+  const gap = slow ? Math.max(SLOW_GAP_MS, gapMs) : gapMs;
   return Math.max(0, lastSentAt + gap - now);
 }
+
+/** The line under the message box: the viewer's own wait, or the board's slow mode when it's on. */
+export function chatPaceHint(opts: { tier: SupporterTierId | null | undefined; slow: boolean; staff: boolean }): string {
+  if (opts.staff) return 'no slow mode for staff';
+  if (opts.slow) return `slow mode ${Math.round(Math.max(SLOW_GAP_MS, personGapMs(opts.tier)) / 1000)}s (busy chat)`;
+  const gap = personGapMs(opts.tier);
+  if (gap === 0) return 'no slow mode (Patron)';
+  const s = `slow mode ${Math.round(gap / 1000)}s`;
+  return opts.tier ? s : `${s} · Supporters chat faster`;
+}
+
+/** Most messages one person may send in BURST_WINDOW_MS, whatever their tier: a flood guard. */
+export const BURST_MAX = 10;
+export const BURST_WINDOW_MS = 10_000;
 
 /** A mute still in force. `until` null = the rest of the event. */
 export function muteActive(until: string | null | undefined, now: number, parse: (s: string) => number | null): boolean {

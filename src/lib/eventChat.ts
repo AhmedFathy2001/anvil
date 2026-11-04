@@ -17,8 +17,11 @@ import {
   KEEP_DAYS,
   checkBody,
   cleanName,
+  BURST_MAX,
+  BURST_WINDOW_MS,
   isSlow,
   muteActive,
+  personGapMs,
   newPace,
   recordSend,
   waitFor,
@@ -29,7 +32,7 @@ import { notifyRows, teamUserIds } from '@/lib/panelRows';
 import { getPlatformSetting, setPlatformSetting } from '@/lib/platformSettings';
 import { chatFeedIds, chatRow, type ChatRowOptions } from '@/lib/pluginUi/feedUi';
 import type { Action, Color, FeedRow } from '@/lib/pluginUi/nodes';
-import { supporterForUsers, supporterInk } from '@/lib/supporter';
+import { supporterForUser, supporterForUsers, supporterInk } from '@/lib/supporter';
 
 /**
  * Staff's switch for every event chat. OFF until staff turn it on ('true'): the chat needs the
@@ -122,6 +125,8 @@ export async function chatAccess(eventId: number, userId: number): Promise<ChatA
 
 const paces = new Map<number, BoardPace>();
 const lastSent = new Map<string, number>();
+/** Each person's recent sends per board, for the flood guard. */
+const bursts = new Map<string, number[]>();
 
 function paceOf(eventId: number): BoardPace {
   let p = paces.get(eventId);
@@ -212,6 +217,11 @@ export async function chatHistory(
   return rowsFor(access.eventId, lines, { userId: viewerUserId, staff: access.staff });
 }
 
+/** Whether a board's chat is in slow mode right now (it turns itself on after a rush). */
+export function boardChatSlow(eventId: number, now = Date.now()): boolean {
+  return isSlow(paceOf(eventId), now);
+}
+
 // ── Saying something ─────────────────────────────────────────────────────────────────────────────
 
 export type SendResult = { ok: true } | { ok: false; error: string };
@@ -232,8 +242,17 @@ export async function sendChat(access: ChatAccess, userId: number, raw: string, 
 
   const pace = paceOf(access.eventId);
   const key = `${access.eventId}:${userId}`;
-  const wait = waitFor(lastSent.get(key), now, isSlow(pace, now), access.staff);
-  if (wait > 0) return { ok: false, error: isSlow(pace, now) ? `Slow mode — wait ${Math.ceil(wait / 1000)}s.` : 'One moment…' };
+  // Their own pace follows their Supporter tier (lib/eventChatRules personGapMs); staff never wait.
+  const tier = access.staff ? null : ((await supporterForUser(userId).catch(() => null))?.tier.id ?? null);
+  const wait = waitFor(lastSent.get(key), now, isSlow(pace, now), access.staff, personGapMs(tier));
+  if (wait > 0) return { ok: false, error: `Slow mode — wait ${Math.ceil(wait / 1000)}s.` };
+  // A flood guard for everyone, Patrons included: no more than BURST_MAX lines in BURST_WINDOW_MS.
+  if (!access.staff) {
+    const recent = (bursts.get(key) ?? []).filter((t) => t > now - BURST_WINDOW_MS);
+    if (recent.length >= BURST_MAX) return { ok: false, error: 'Slow down a little.' };
+    recent.push(now);
+    bursts.set(key, recent);
+  }
   lastSent.set(key, now);
   recordSend(pace, now);
 
