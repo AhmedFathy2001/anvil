@@ -4,7 +4,7 @@ import Select from '@/components/Select';
 import ClanLink from '@/components/ClanLink';
 import type { EntryGates, GateOptions, GateRule, SubTier } from '@/lib/entryGates';
 
-type Choice = 'followers' | 'subs' | 'role' | 'boosters';
+type Choice = 'followers' | 'subs' | 'role' | 'boosters' | 'kick-follow' | 'kick-sub';
 
 /**
  * "Who can join?" for a creator-space event (lib/entryGates). Anyone, or any mix of: the host's
@@ -34,6 +34,8 @@ export default function EntryGatePicker({
   const subsReady = twitchReady && !!tw.channel?.canHaveSubs;
   const discordReady = options.discord.connected;
   const roleReady = discordReady && options.discord.roles.length > 0;
+  const kk = options.kick;
+  const kickReady = !!kk?.configured && !!kk.channel && !kk.channel.broken;
 
   function emit(next: GateRule[]) {
     onChange(next.length > 0 ? { anyOf: next } : null);
@@ -53,6 +55,9 @@ export default function EntryGatePicker({
       }
       case 'boosters':
         return emit(has('discord-booster') ? without('discord-booster') : [...rules, { kind: 'discord-booster' }]);
+      case 'kick-follow':
+      case 'kick-sub':
+        return emit(has(c) ? without(c) : [...rules, { kind: c }]);
     }
   }
 
@@ -66,6 +71,8 @@ export default function EntryGatePicker({
     { key: 'subs', label: 'Twitch subs', on: !!sub, ready: subsReady, show: tw.configured },
     { key: 'role', label: 'Discord role', on: !!role, ready: roleReady, show: true },
     { key: 'boosters', label: 'Server boosters', on: has('discord-booster'), ready: discordReady, show: true },
+    { key: 'kick-follow', label: 'Kick followers', on: has('kick-follow'), ready: kickReady, show: !!kk?.configured },
+    { key: 'kick-sub', label: 'Kick subs', on: has('kick-sub'), ready: kickReady, show: !!kk?.configured },
   ];
 
   return (
@@ -136,6 +143,7 @@ export default function EntryGatePicker({
           </p>
         )}
         {twitchReady && !subsReady && <p>Sub-only needs a Twitch affiliate or partner channel.</p>}
+        <KickHint options={options} kickFollow={has('kick-follow')} kickSub={has('kick-sub')} />
         {!discordReady && (
           <p>
             For Discord choices,{' '}
@@ -173,5 +181,37 @@ function Chip({
     >
       {children}
     </button>
+  );
+}
+
+/** What a Kick choice really means (Kick can't be asked who follows), and how to make it usable. */
+function KickHint({ options, kickFollow, kickSub }: { options: GateOptions; kickFollow: boolean; kickSub: boolean }) {
+  const kk = options.kick;
+  if (!kk?.configured) return null;
+  if (!kk.channel || kk.channel.broken) {
+    return kk.connectUrl ? (
+      <p>
+        To use Kick,{' '}
+        <button
+          type="button"
+          onClick={() => window.location.assign(`${kk.connectUrl}&return=${encodeURIComponent(window.location.pathname)}`)}
+          className="text-gold hover:underline"
+        >
+          {kk.channel?.broken ? 'connect your Kick channel again' : 'connect your Kick channel'}
+        </button>
+        .
+      </p>
+    ) : null;
+  }
+  return (
+    <>
+      {kickFollow && (
+        <p>
+          Kick followers = people who followed after you connected Kick
+          {kk.channel.followersOnlyChat ? ', or who type their Anvil code in your followers-only chat' : ''}.
+        </p>
+      )}
+      {kickSub && <p>Kick subs = any sub (Kick has no tiers) seen since you connected, or a sub badge on a viewer’s code in your chat.</p>}
+    </>
   );
 }
