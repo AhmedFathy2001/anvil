@@ -372,12 +372,10 @@ test('a genuinely rare drop is kept whatever it is worth', () => {
   assert.equal(rows[0].kind, 'unique');
 });
 
-test('deaths stay out unless the clan asks for them', () => {
-  assert.deepEqual(classifyObservation(obs({ kind: 'death', source: 'Vorkath' }), quiet), []);
-  const on = classifyObservation(obs({ kind: 'death', source: 'Vorkath' }), {
-    ...quiet,
-    clan: { ...clan, deaths: true },
-  });
+test('deaths are kept by default, and stay out once the clan turns them off', () => {
+  const off = { ...quiet, clan: { ...clan, deaths: false } };
+  assert.deepEqual(classifyObservation(obs({ kind: 'death', source: 'Vorkath' }), off), []);
+  const on = classifyObservation(obs({ kind: 'death', source: 'Vorkath' }), quiet);
   assert.equal(on.length, 1);
   assert.equal(on[0].kind, 'death');
 });
@@ -442,9 +440,9 @@ test('no clan scope at all keeps the old behaviour exactly', () => {
 
 test('a board keeps its near-misses; the clan feed does not show them', () => {
   // Exactly the rows that filled the Lately tab: a common drop from a boss the board named, and a
-  // death. Both belong on the board's own page and neither is clan news.
+  // death (with the clan's deaths turned off). Both belong on the board's own page.
   assert.equal(isClanWorthy({ kind: 'loot', source: 'Alchemical Hydra', itemId: 1377, valueGp: 120_000 }, clan), false);
-  assert.equal(isClanWorthy({ kind: 'death', source: 'The Whisperer' }, clan), false);
+  assert.equal(isClanWorthy({ kind: 'death', source: 'The Whisperer' }, { ...clan, deaths: false }), false);
   // 1,157 blood runes out of a raid chest is a good raid, not a moment.
   assert.equal(isClanWorthy({ kind: 'loot', source: 'Chambers of Xeric', itemId: 565, quantity: 1157, valueGp: 400_000 }, clan), false);
 });

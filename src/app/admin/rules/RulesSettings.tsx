@@ -86,7 +86,8 @@ export default function RulesSettings() {
         <ToggleSetting
           settingKey="moments_clan_deaths"
           label="Keep deaths too"
-          helpText="Off by default. A death is part of an event's story; a clan-wide feed of everyone dying is not."
+          defaultOn
+          helpText="On by default. Deaths show under the feed's Deaths tab, never in All."
         />
         <PlainSetting
           settingKey="moments_min_loot_gp"
