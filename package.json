@@ -70,7 +70,7 @@
     "test:eventchat": "npx tsx --test tests/event-chat.test.ts tests/panel-feed.test.ts tests/event-chat-db.test.ts tests/lab-feed-chat-db.test.ts",
     "test:h2h": "npx tsx --test tests/h2h.test.ts tests/h2h-db.test.ts",
     "test:highlights": "npx tsx --test --test-concurrency=1 tests/highlights.test.ts tests/highlights-db.test.ts",
-    "test:overlay":"npx tsx --test tests/overlay.test.ts tests/overlay-db.test.ts",
+    "test:overlay": "npx tsx --test tests/overlay.test.ts tests/overlay-db.test.ts",
     "bot:twitch": "node --experimental-strip-types bot/twitchChat.ts",
     "test:pluginpush": "npx tsx --test tests/plugin-push.test.ts tests/plugin-push-notify.test.ts",
     "test:tilesearch": "npx tsx --test tests/tile-search.test.ts",
@@ -99,7 +99,7 @@
     "test:gates": "npx tsx --test --test-concurrency=1 tests/entry-gates.test.ts tests/entry-gates-db.test.ts",
     "test:youtube": "npx tsx --test --test-concurrency=1 tests/youtube-gates.test.ts tests/youtube-gates-db.test.ts",
     "test:connected-accounts": "npx tsx --test --test-concurrency=1 tests/connected-accounts.test.ts tests/connected-accounts-db.test.ts",
-    "test:kick":"npx tsx --test --test-concurrency=1 tests/kick-gates.test.ts tests/kick-gates-db.test.ts",
+    "test:kick": "npx tsx --test --test-concurrency=1 tests/kick-gates.test.ts tests/kick-gates-db.test.ts",
     "test:event-seats": "npx tsx --test --test-concurrency=1 tests/event-seats.test.ts tests/event-seats-backfill.test.ts",
     "test:creators": "npx tsx --test tests/starter-tiles.test.ts tests/creator-spaces.test.ts tests/creator-spaces-db.test.ts",
     "test:creator-plans": "npx tsx --test tests/entitlements.test.ts tests/creator-plans.test.ts tests/creator-catalog.test.ts tests/creator-plans-db.test.ts tests/creator-catalog-db.test.ts",
@@ -225,7 +225,6 @@
     "test:supporter-media": "npx tsx --test tests/supporter-media.test.ts tests/supporter-media-db.test.ts"
   },
   "dependencies": {
-    "@vercel/blob": "^2.0.1",
     "archiver": "^5.3.2",
     "aws4fetch": "^1.0.20",
     "drizzle-orm": "^0.45.4",

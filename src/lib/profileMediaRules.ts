@@ -137,7 +137,9 @@ export function isProfileMediaUrl(raw: string | null | undefined, publicBase = p
   }
   if (u.protocol !== 'https:' && !(u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1'))) return false;
   if (u.search || u.hash || u.username || u.password) return false;
-  let hostOk = u.hostname.endsWith('.blob.vercel-storage.com');
+  // Only our own R2 public base: a provider-wide suffix (e.g. *.blob.vercel-storage.com) would let
+  // anyone's store pass.
+  let hostOk = false;
   const base = publicBase.trim().replace(/\/+$/, '');
   if (!hostOk && base) {
     try {
