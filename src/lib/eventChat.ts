@@ -25,7 +25,7 @@ import {
   type BoardPace,
 } from '@/lib/eventChatRules';
 import { log } from '@/lib/logger';
-import { notifyRows } from '@/lib/panelRows';
+import { notifyRows, teamUserIds } from '@/lib/panelRows';
 import { getPlatformSetting, setPlatformSetting } from '@/lib/platformSettings';
 import { chatFeedIds, chatRow, type ChatRowOptions } from '@/lib/pluginUi/feedUi';
 import type { Action, Color, FeedRow } from '@/lib/pluginUi/nodes';
@@ -246,7 +246,7 @@ export async function sendChat(access: ChatAccess, userId: number, raw: string, 
   // Pushed rows carry no "mine" and no mod menu: those are per viewer, and the same text goes to all.
   const [row] = await rowsFor(access.eventId, [line], null);
   const feeds = chatFeedIds(access.eventId, { teamId: line.teamId, teamOnly, staff: line.fromStaff });
-  await notifyRows(teamOnly ? { e: access.eventId, t: line.teamId! } : { e: access.eventId }, { t: 'rows', feeds, rows: [row] });
+  await notifyRows(teamOnly ? { u: await teamUserIds(line.teamId!) } : { e: access.eventId }, { t: 'rows', feeds, rows: [row] });
   return { ok: true };
 }
 

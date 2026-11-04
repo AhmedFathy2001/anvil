@@ -98,6 +98,27 @@ function clanUserIds(clanId: number): Promise<number[]> {
   );
 }
 
+/**
+ * The people on one team: team-only rows (team chat, a hidden-standings board's drops) go to them by
+ * name, so they arrive on whichever of a player's boards it is — a ticket's team room covers only its
+ * first board. Held a minute.
+ */
+export function teamUserIds(teamId: number): Promise<number[]> {
+  return ttlMemo(
+    `panel-rows-team-users:${teamId}`,
+    async () => {
+      const rows = await db
+        .selectDistinct({ id: users.id })
+        .from(eventParticipants)
+        .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
+        .innerJoin(users, eq(users.playerId, accounts.playerId))
+        .where(eq(eventParticipants.teamId, teamId));
+      return rows.map((r) => r.id);
+    },
+    60_000,
+  );
+}
+
 /** A board's player count, for its floor. Held five minutes. */
 export function boardSize(eventId: number): Promise<number> {
   return ttlMemo(
@@ -188,7 +209,7 @@ export async function emitMomentRows(clanId: number, seatKind: string, list: New
       // A board hiding its standings keeps each team's haul to the team.
       if (await boardHidden(m.eventId, now)) {
         if (m.teamId != null) {
-          await notifyRows({ e: m.eventId, t: m.teamId }, { t: 'rows', feeds: [`moments:event:${m.eventId}:team:${m.teamId}`], rows: [row] });
+          await notifyRows({ u: await teamUserIds(m.teamId) }, { t: 'rows', feeds: [`moments:event:${m.eventId}:team:${m.teamId}`], rows: [row] });
         }
         continue;
       }
