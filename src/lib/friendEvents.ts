@@ -437,3 +437,49 @@ export async function friendsPageReadable(opts: {
   if (!ev) return false;
   return canSeeEvent({ eventId, playerId: opts.playerId });
 }
+
+// ── The one gate for every other way onto a board ───────────────────────────────────────────────
+//
+// The self-serve sign-up writes inside withHostEventRoom's transaction. Every OTHER path that puts a
+// seat on a friends board — an admin signing somebody up on their behalf, approving a rejected or
+// withdrawn sign-up, adding players by hand (with their sign-up backfill), seating a captain — writes
+// through `db` itself, so it goes through here instead: under the SAME per-host lock, check the
+// aggregate peak with `adding` more seats, then run the write while the lock is still held. Every
+// gated writer serialises on that lock, so check-then-write cannot be raced past the cap. Not a
+// friends event, or nothing added: the write runs as it always did (the creator meter is #334's).
+
+/** Seats a status change adds to the board: 1 when it goes from off (none/withdrawn/rejected) to on (pending/approved). */
+export function seatsAdded(prior: string | null | undefined, next: string): number {
+  const on = (s: string | null | undefined) => s === 'pending' || s === 'approved';
+  return on(next) && !on(prior) ? 1 : 0;
+}
+
+/** How many of these seats have no on-board sign-up on this event yet: the places writing one for each would take. */
+export async function seatsWithoutSignup(eventId: number, clanMemberIds: number[]): Promise<number> {
+  if (clanMemberIds.length === 0) return 0;
+  // clan-scope: global -- one event's sign-ups for seats the caller already scoped to it.
+  const rows = await db
+    .select({ seat: eventSignups.clanMemberId })
+    .from(eventSignups)
+    .where(and(eq(eventSignups.eventId, eventId), inArray(eventSignups.clanMemberId, clanMemberIds), inArray(eventSignups.status, [...ON_BOARD_STATUSES])));
+  const onBoard = new Set(rows.map((r) => r.seat));
+  return new Set(clanMemberIds.filter((id) => !onBoard.has(id))).size;
+}
+
+/**
+ * Run `write`, which may put `adding` more seats on this event's board. On a friends event it runs
+ * under the host's lock after the aggregate check, and a refusal throws a PlanLimitError before
+ * anything is written. Anything else: `write()` exactly as before.
+ */
+export async function guardFriendsSeats<T>(eventId: number, adding: number, write: () => Promise<T>): Promise<T> {
+  if (adding <= 0) return write();
+  const hostId = await friendsHostOfEvent(eventId);
+  if (hostId == null) return write();
+  return db.transaction(async (tx) => {
+    await lockFriendsHost(tx, hostId);
+    const verdict = await friendsJoinCheck(eventId, adding, tx);
+    if (verdict && !verdict.ok) throw new PlanLimitError(verdict.error);
+    // The write runs on its own connection and commits before the lock is released (end of this tx).
+    return write();
+  });
+}

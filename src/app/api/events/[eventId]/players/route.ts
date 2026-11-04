@@ -15,6 +15,8 @@ import { swapTrackedAccount } from '@/lib/trackedAccount';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { syncEventServerMembersFireAndForget } from '@/lib/eventDiscord';
 import { rosterSeatOpensEventSql } from '@/lib/seatScope';
+import { PlanLimitError } from '@/lib/creatorPlansDb';
+import { guardFriendsSeats, seatsWithoutSignup } from '@/lib/friendEvents';
 
 export async function GET(
   request: Request,
@@ -130,8 +132,8 @@ export async function POST(
     const event = await db.query.events.findFirst({ where: eq(events.id, id) });
     const capErr = await accountCapError(id, event?.maxAccountsPerPerson ?? 1, members.map((m) => m.clanMemberId));
     if (capErr) return NextResponse.json({ error: capErr }, { status: 409 });
-    const result = await upsertPlayers(id, members, assignTeamId);
-    await backfillApprovedSignups(id, members.map((m) => m.clanMemberId));
+    const result = await addPlayersCapped(id, members, assignTeamId);
+    if (result instanceof NextResponse) return result;
     return NextResponse.json(result, { status: 201 });
   }
 
@@ -148,9 +150,32 @@ export async function POST(
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   const capErr = await accountCapError(id, event?.maxAccountsPerPerson ?? 1, [clanMemberId]);
   if (capErr) return NextResponse.json({ error: capErr }, { status: 409 });
-  const result = await upsertPlayers(id, members, assignTeamId);
-  await backfillApprovedSignups(id, [clanMemberId]);
+  const result = await addPlayersCapped(id, members, assignTeamId);
+  if (result instanceof NextResponse) return result;
   return NextResponse.json(result[0], { status: 201 });
+}
+
+/**
+ * Enrol these players and backfill their approved sign-ups — on a friends event (lib/friendEventRules)
+ * only within the host's Supporter tier: the new board places are checked and written under the
+ * host's lock (lib/friendEvents guardFriendsSeats). Refused: a 403 and nothing enrolled.
+ */
+async function addPlayersCapped(
+  eventId: number,
+  members: MemberInput[],
+  assignTeamId: number | null,
+): Promise<Awaited<ReturnType<typeof upsertPlayers>> | NextResponse> {
+  const ids = members.map((m) => m.clanMemberId);
+  try {
+    return await guardFriendsSeats(eventId, await seatsWithoutSignup(eventId, ids), async () => {
+      const result = await upsertPlayers(eventId, members, assignTeamId);
+      await backfillApprovedSignups(eventId, ids);
+      return result;
+    });
+  } catch (e) {
+    if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'full' }, { status: 403 });
+    throw e;
+  }
 }
 
 export async function DELETE(

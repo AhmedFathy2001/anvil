@@ -18,6 +18,8 @@ import { cohostSignupClanFor } from '@/lib/eventEditors';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { placementOf } from '@/lib/teamPlacement';
 import { enrolPlaced } from '@/lib/teamPlacementDb';
+import { PlanLimitError } from '@/lib/creatorPlansDb';
+import { guardFriendsSeats, seatsAdded } from '@/lib/friendEvents';
 
 // Per-signup admin actions. All admin-only — captain selection is high-stakes and we
 // don't want a moderator accidentally locking the wrong person in.
@@ -190,11 +192,17 @@ export async function PATCH(
       return NextResponse.json({ ok: true, teamId: team?.id ?? null, teamName: team?.name ?? null });
     }
     case 'approve': {
-      const [updated] = await db
-        .update(eventSignups)
-        .set({ status: 'approved', updatedAt: now })
-        .where(eq(eventSignups.id, sigId))
-        .returning();
+      // Approving a rejected or withdrawn sign-up puts it back on the board: on a friends event that
+      // place is capped by the host's Supporter tier (lib/friendEvents guardFriendsSeats, locked).
+      let updated: typeof eventSignups.$inferSelect;
+      try {
+        [updated] = await guardFriendsSeats(evtId, seatsAdded(signup.status, 'approved'), () =>
+          db.update(eventSignups).set({ status: 'approved', updatedAt: now }).where(eq(eventSignups.id, sigId)).returning(),
+        );
+      } catch (e) {
+        if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'full' }, { status: 403 });
+        throw e;
+      }
       logAction('signup_approved');
 
       // Approving = eligible for the draft, so make sure they're in the player pool. Idempotent —

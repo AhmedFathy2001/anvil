@@ -2,6 +2,8 @@ import { and, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanMemberships, clanRoster, eventParticipants, eventSignups, events, signupFees, teams, users } from '@/db/schema';
 import { standardFeeForAccount } from '@/lib/entryFee';
+import { PlanLimitError } from '@/lib/creatorPlansDb';
+import { guardFriendsSeats, seatsWithoutSignup } from '@/lib/friendEvents';
 import { generatePlayerToken } from '@/lib/auth';
 import { seatsOwnedBy } from '@/lib/roster';
 import { rosterSeatOpensEventSql } from '@/lib/seatScope';
@@ -67,7 +69,8 @@ export type CaptainSeatResult =
        * other-team — already playing on a different team; the host put them there on purpose.
        * no-team    — the team id doesn't belong to this event.
        */
-      reason: 'no-account' | 'other-team' | 'no-team';
+      // 'full': a friends event (lib/friendEventRules) with no room left on the host's Supporter tier.
+      reason: 'no-account' | 'other-team' | 'no-team' | 'full';
     };
 
 export async function placeCaptainOnTeam(
@@ -101,18 +104,36 @@ export async function placeCaptainOnTeam(
     .from(eventParticipants)
     .where(and(eq(eventParticipants.eventId, eventId), inArray(eventParticipants.clanMemberId, memberIds)));
 
+  // Every write below may put the captain's sign-up on the board. On a friends event that place is
+  // capped by the host's Supporter tier (lib/friendEvents guardFriendsSeats): checked, and written,
+  // under the host's lock; refused → 'full', with nothing written.
+  const capped = async <T,>(clanMemberId: number | null, write: () => Promise<T>): Promise<T | 'full'> => {
+    try {
+      return await guardFriendsSeats(eventId, clanMemberId == null ? 0 : await seatsWithoutSignup(eventId, [clanMemberId]), write);
+    } catch (e) {
+      if (e instanceof PlanLimitError) return 'full';
+      throw e;
+    }
+  };
+
   const alreadyHere = existing.find((p) => p.teamId === teamId);
   if (alreadyHere) {
     // A player row can belong to a guest with no roster account, hence the null check — there is
     // no sign-up to write for one of those.
-    if (alreadyHere.clanMemberId != null) await enrolSignup(eventId, captainUserId, alreadyHere.clanMemberId);
+    const r = await capped(alreadyHere.clanMemberId, async () => {
+      if (alreadyHere.clanMemberId != null) await enrolSignup(eventId, captainUserId, alreadyHere.clanMemberId);
+    });
+    if (r === 'full') return { playerId: null, reason: 'full' };
     return { playerId: alreadyHere.id, reason: null };
   }
 
   const unassigned = existing.find((p) => p.teamId == null);
   if (unassigned) {
-    await db.update(eventParticipants).set({ teamId }).where(eq(eventParticipants.id, unassigned.id));
-    if (unassigned.clanMemberId != null) await enrolSignup(eventId, captainUserId, unassigned.clanMemberId);
+    const r = await capped(unassigned.clanMemberId, async () => {
+      await db.update(eventParticipants).set({ teamId }).where(eq(eventParticipants.id, unassigned.id));
+      if (unassigned.clanMemberId != null) await enrolSignup(eventId, captainUserId, unassigned.clanMemberId);
+    });
+    if (r === 'full') return { playerId: null, reason: 'full' };
     captureStartingStatsSoon(eventId, [unassigned.id]);
     return { playerId: unassigned.id, reason: null };
   }
@@ -134,20 +155,24 @@ export async function placeCaptainOnTeam(
   const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
   if (!team || team.eventId !== eventId) return { playerId: null, reason: 'no-team' };
 
-  const [player] = await db
-    .insert(eventParticipants)
-    .values({
-      eventId,
-      clanMemberId: account.id,
-      // The board is keyed by account, not by seat (lib/participants).
-      accountId: account.accountId,
-      teamId,
-      name: account.rsn,
-      playerToken: generatePlayerToken(),
-    })
-    .returning({ id: eventParticipants.id });
-
-  await enrolSignup(eventId, captainUserId, account.id);
+  const seated = await capped(account.id, async () => {
+    const [row] = await db
+      .insert(eventParticipants)
+      .values({
+        eventId,
+        clanMemberId: account.id,
+        // The board is keyed by account, not by seat (lib/participants).
+        accountId: account.accountId,
+        teamId,
+        name: account.rsn,
+        playerToken: generatePlayerToken(),
+      })
+      .returning({ id: eventParticipants.id });
+    await enrolSignup(eventId, captainUserId, account.id);
+    return row;
+  });
+  if (seated === 'full') return { playerId: null, reason: 'full' };
+  const player = seated;
   if (player?.id != null) captureStartingStatsSoon(eventId, [player.id]);
   return player?.id != null ? { playerId: player.id, reason: null } : { playerId: null, reason: 'no-account' };
 }
@@ -218,6 +243,8 @@ export function captainSeatNotice(result: CaptainSeatResult, name = 'That captai
       return `${name} has no account on the roster, so they aren't entered as a player. Add their RSN to the roster and set them as captain again.`;
     case 'other-team':
       return `${name} is already playing on another team, so they were left there. Move them off it first if they should play for this one.`;
+    case 'full':
+      return `${name} isn't entered as a player: this friends event is full for your Supporter tier.`;
   }
 }
 

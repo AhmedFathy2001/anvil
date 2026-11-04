@@ -21,12 +21,14 @@ import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { standardFeeForAccount } from '@/lib/entryFee';
 import { placementOf } from '@/lib/teamPlacement';
 import { enrolPlaced } from '@/lib/teamPlacementDb';
+import { PlanLimitError } from '@/lib/creatorPlansDb';
+import { guardFriendsSeats, seatsAdded } from '@/lib/friendEvents';
 
 export type SignupRow = typeof eventSignups.$inferSelect;
 
 export type OnBehalfResult =
   | { ok: true; signup: SignupRow }
-  | { ok: false; status: 404 | 409; error: string };
+  | { ok: false; status: 403 | 404 | 409; error: string };
 
 export async function signUpOnBehalf(input: {
   event: {
@@ -140,24 +142,34 @@ export async function signUpOnBehalf(input: {
   // A withdrawn sign-up is revived in place (the unique (event, seat) index means a second row can't
   // be inserted) — same as the self-serve re-join path. userId is rewritten too: a row revived before
   // the fix above may still name the wrong login.
-  const [signup] = existing
-    ? await db
-        .update(eventSignups)
-        .set({ userId, profileData: profileJson, status: input.status, updatedAt: now })
-        .where(eq(eventSignups.id, existing.id))
-        .returning()
-    : await db
-        .insert(eventSignups)
-        .values({
-          eventId: event.id,
-          userId,
-          clanMemberId,
-          profileData: profileJson,
-          status: input.status,
-          signedUpAt: now,
-          updatedAt: now,
-        })
-        .returning();
+  // On a friends event (lib/friendEventRules) a place on the board is capped by the host's Supporter
+  // tier, whoever writes it: the same locked check as the self-serve sign-up (lib/friendEvents).
+  let signup: SignupRow;
+  try {
+    [signup] = await guardFriendsSeats(event.id, seatsAdded(existing?.status ?? null, input.status), () =>
+      existing
+        ? db
+            .update(eventSignups)
+            .set({ userId, profileData: profileJson, status: input.status, updatedAt: now })
+            .where(eq(eventSignups.id, existing.id))
+            .returning()
+        : db
+            .insert(eventSignups)
+            .values({
+              eventId: event.id,
+              userId,
+              clanMemberId,
+              profileData: profileJson,
+              status: input.status,
+              signedUpAt: now,
+              updatedAt: now,
+            })
+            .returning(),
+    );
+  } catch (e) {
+    if (e instanceof PlanLimitError) return { ok: false, status: 403, error: e.message };
+    throw e;
+  }
 
   // Mirror the self-serve side effects (see /api/events/[eventId]/signup POST): a fee row only when
   // the board charges one, the draft-pool row idempotently.
