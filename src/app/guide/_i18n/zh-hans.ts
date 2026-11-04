@@ -2601,14 +2601,14 @@ const zhHans: PartialGuideDict = {
     plans: {
       title: '方案与限制',
       body: [
-        '你的方案决定一场活动最多有多少名玩家。其他一切在所有方案里都一样：棋盘、插件追踪、浮层和 Discord。',
+        '你的方案决定你的活动同一时间最多能有多少名玩家。日期重叠的活动共用这个数字；日期不同的活动各自都有这个数字。同时在两场重叠活动里的玩家算两次。其他一切在所有方案里都一样：棋盘、插件追踪、浮层和 Discord。',
         '你的方案卡片在 **Your events** 里。想比较方案，请看[价格](/pricing#creators)。想更改或取消付费，请去[你的账单页面](/portal)。',
       ],
       rows: [
-        { term: 'Free', body: '每场活动最多 50 名玩家。同一时间一场活动。Discord 身份组和加成者检查。' },
-        { term: 'Bronze', body: '每场活动最多 150 名玩家。Twitch、Kick 和 YouTube 检查。' },
-        { term: 'Silver', body: '每场活动最多 300 名玩家。可同时进行多场活动。聊天里的 `!join`。在列表中排在前面。' },
-        { term: 'Gold', body: '每场活动最多 1,000 名玩家。可隐藏浮层上的 Anvil 标记。' },
+        { term: 'Free', body: '所有活动加起来同时最多 50 名玩家。同一时间一场活动。Discord 身份组和加成者检查。' },
+        { term: 'Bronze', body: '所有活动加起来同时最多 150 名玩家。Twitch、Kick 和 YouTube 检查。' },
+        { term: 'Silver', body: '所有活动加起来同时最多 300 名玩家。可同时进行多场活动。聊天里的 `!join`。在列表中排在前面。' },
+        { term: 'Gold', body: '所有活动加起来同时最多 1,000 名玩家。可隐藏浮层上的 Anvil 标记。' },
         { term: 'Partner', body: '玩家人数不设上限。直接与 Anvil 一起设置，请联系我们。' },
       ],
       note: {
@@ -2837,7 +2837,7 @@ const zhHans: PartialGuideDict = {
       rows: [
         {
           term: '观众会占用我们的成员名额吗？',
-          body: '不会。他们是活动玩家，不是成员。主播的人数限制是按活动算的（见[创作者指南]({creatorsGuide})）。',
+          body: '不会。他们是活动玩家，不是成员。主播的人数限制是按你举办的所有活动里同时在场的玩家数来算的（见[创作者指南]({creatorsGuide})）。',
         },
         {
           term: '`!join` 会把人带到仅限成员的活动吗？',

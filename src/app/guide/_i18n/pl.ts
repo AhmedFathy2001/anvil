@@ -2584,14 +2584,14 @@ const pl: PartialGuideDict = {
     plans: {
       title: 'Plany i limity',
       body: [
-        'Twój plan ustala, ilu graczy może mieć jedno wydarzenie. Cała reszta jest taka sama w każdym planie: plansza, śledzenie przez plugin, nakładka i Discord.',
+        'Twój plan ustala, ilu graczy może być w twoich wydarzeniach naraz. Wydarzenia, których daty się nakładają, dzielą tę liczbę; wydarzenia w różnych terminach dostają ją każde osobno. Gracz w dwóch nakładających się wydarzeniach liczy się dwa razy. Cała reszta jest taka sama w każdym planie: plansza, śledzenie przez plugin, nakładka i Discord.',
         'Karta twojego planu jest w **Your events**. Żeby porównać plany, zobacz [cennik](/pricing#creators). Żeby zmienić lub anulować płatność, wejdź na [swoją stronę rozliczeń](/portal).',
       ],
       rows: [
-        { term: 'Free', body: 'Do 50 graczy na wydarzenie. Jedno wydarzenie naraz. Sprawdzanie ról Discord i boosterów.' },
-        { term: 'Bronze', body: 'Do 150 graczy na wydarzenie. Sprawdzanie Twitch, Kick i YouTube.' },
-        { term: 'Silver', body: 'Do 300 graczy na wydarzenie. Więcej niż jedno wydarzenie naraz. `!join` na czacie. Pokazywane na początku listy.' },
-        { term: 'Gold', body: 'Do 1000 graczy na wydarzenie. Ukrycie znaczka Anvil na nakładce.' },
+        { term: 'Free', body: 'Do 50 graczy naraz we wszystkich twoich wydarzeniach. Jedno wydarzenie naraz. Sprawdzanie ról Discord i boosterów.' },
+        { term: 'Bronze', body: 'Do 150 graczy naraz we wszystkich twoich wydarzeniach. Sprawdzanie Twitch, Kick i YouTube.' },
+        { term: 'Silver', body: 'Do 300 graczy naraz we wszystkich twoich wydarzeniach. Więcej niż jedno wydarzenie naraz. `!join` na czacie. Pokazywane na początku listy.' },
+        { term: 'Gold', body: 'Do 1000 graczy naraz we wszystkich twoich wydarzeniach. Ukrycie znaczka Anvil na nakładce.' },
         { term: 'Partner', body: 'Bez limitu graczy. Ustalane bezpośrednio z Anvil — napisz do nas.' },
       ],
       note: {
@@ -2820,7 +2820,7 @@ const pl: PartialGuideDict = {
       rows: [
         {
           term: 'Czy widzowie wliczają się do naszego limitu członków?',
-          body: 'Nie. To gracze wydarzenia, nie członkowie. Limity streamera są na wydarzenie (zobacz [przewodnik dla twórców]({creatorsGuide})).',
+          body: 'Nie. To gracze wydarzenia, nie członkowie. Limity streamera liczą graczy naraz we wszystkich wydarzeniach, które prowadzisz (zobacz [przewodnik dla twórców]({creatorsGuide})).',
         },
         {
           term: 'Czy `!join` wyśle ludzi do wydarzenia tylko dla członków?',

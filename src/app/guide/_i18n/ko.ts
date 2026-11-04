@@ -2602,14 +2602,14 @@ const ko: PartialGuideDict = {
     plans: {
       title: '플랜과 한도',
       body: [
-        '플랜이 정하는 건 이벤트 하나에 들어올 수 있는 플레이어 수뿐이에요. 나머지는 모든 플랜이 같습니다: 보드, 플러그인 추적, 오버레이, Discord.',
+        '플랜이 정하는 건 내 이벤트들에 동시에 들어올 수 있는 플레이어 수예요. 날짜가 겹치는 이벤트는 그 수를 함께 나눠 쓰고, 날짜가 다른 이벤트는 각각 그 수를 받아요. 겹치는 이벤트 두 곳에 있는 플레이어는 두 번 셉니다. 나머지는 모든 플랜이 같습니다: 보드, 플러그인 추적, 오버레이, Discord.',
         '플랜 카드는 **Your events**에 있어요. 플랜을 비교하려면 [요금](/pricing#creators)을 보세요. 결제를 바꾸거나 해지하려면 [결제 페이지](/portal)로 가세요.',
       ],
       rows: [
-        { term: 'Free', body: '이벤트당 최대 50명. 한 번에 이벤트 하나. Discord 역할·부스터 확인.' },
-        { term: 'Bronze', body: '이벤트당 최대 150명. Twitch, Kick, YouTube 확인.' },
-        { term: 'Silver', body: '이벤트당 최대 300명. 한 번에 이벤트 여러 개. 채팅의 `!join`. 목록에서 먼저 표시.' },
-        { term: 'Gold', body: '이벤트당 최대 1,000명. 오버레이의 Anvil 마크 숨기기.' },
+        { term: 'Free', body: '내 이벤트 전체에서 동시에 최대 50명. 한 번에 이벤트 하나. Discord 역할·부스터 확인.' },
+        { term: 'Bronze', body: '내 이벤트 전체에서 동시에 최대 150명. Twitch, Kick, YouTube 확인.' },
+        { term: 'Silver', body: '내 이벤트 전체에서 동시에 최대 300명. 한 번에 이벤트 여러 개. 채팅의 `!join`. 목록에서 먼저 표시.' },
+        { term: 'Gold', body: '내 이벤트 전체에서 동시에 최대 1,000명. 오버레이의 Anvil 마크 숨기기.' },
         { term: 'Partner', body: '플레이어 수 제한 없음. Anvil과 직접 설정해요 — 문의해 주세요.' },
       ],
       note: {
@@ -2838,7 +2838,7 @@ const ko: PartialGuideDict = {
       rows: [
         {
           term: '시청자도 멤버 한도에 포함되나요?',
-          body: '아니요. 멤버가 아니라 event player예요. 스트리머 한도는 이벤트마다 적용됩니다([크리에이터 가이드]({creatorsGuide})를 보세요).',
+          body: '아니요. 멤버가 아니라 event player예요. 스트리머 한도는 운영하는 이벤트 전체에서 동시에 있는 플레이어 수로 셉니다([크리에이터 가이드]({creatorsGuide})를 보세요).',
         },
         {
           term: '`!join`이 멤버 전용 이벤트로 안내하나요?',

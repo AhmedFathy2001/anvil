@@ -1,7 +1,7 @@
 // The creator-space plan catalogue: its own tiers, prices, perks and Gumroad products.
 //
 // A creator space (lib/creatorSpaces) is a `clans` row, but it is NOT sold the clan ladder. It has
-// different rules (players per event, not a roster) and its pricing is free to move on its own, so it
+// different rules (players at once across its events, not a roster) and its pricing is free to move on its own, so it
 // has its own catalogue here, its own Gumroad products (GUMROAD_PRODUCT_CREATOR_* / GUMROAD_URL_CREATOR_*)
 // and its own stored ids. The ids are prefixed (`creator_…`) so a value in `clans.plan` says which
 // catalogue it belongs to on its own, and the database refuses a creator row holding a clan tier or the
@@ -28,7 +28,11 @@ export interface CreatorPlan {
   /** Monthly "pay from" floor in USD. Null = negotiated (Partner). Gumroad holds the real charge. */
   priceUsd: number | null;
   priceSuggested?: number;
-  /** THE creator meter: players on one event. Null = no cap. */
+  /**
+   * THE creator meter: players enrolled AT ONCE across the host's events whose dates overlap
+   * (lib/concurrentSeats), counted per event they are in. The name is from when it was per event;
+   * one event on its own still gets all of it. Null = no cap.
+   */
   playersPerEvent: number | null;
   /**
    * Written to `clans.member_cap` beside the plan, as for a clan. Not a creator meter — a creator space

@@ -170,8 +170,8 @@ function TierCard({ plan, enforced }: { plan: Plan; enforced: boolean }) {
 
 /**
  * "For streamers & creators" — the creator catalogue (lib/creatorCatalog), its own tiers and prices,
- * metered differently: a creator space has no roster, so the number is the players on one event
- * (lib/creatorPlans). Rendered from CREATOR_PLANS and CREATOR_CAPABILITY_MIN_PLAN, so the table cannot
+ * metered differently: a creator space has no roster, so the number is the players enrolled at once
+ * across its events whose dates overlap (lib/creatorPlans, lib/concurrentSeats). Rendered from CREATOR_PLANS and CREATOR_CAPABILITY_MIN_PLAN, so the table cannot
  * drift from what is billed and enforced.
  */
 function CreatorPricing({ enforced }: { enforced: boolean }) {
@@ -184,7 +184,7 @@ function CreatorPricing({ enforced }: { enforced: boolean }) {
       cell: (p) => (p.priceUsd == null ? 'Talk to us' : p.priceUsd === 0 ? 'Free' : `$${p.priceUsd.toFixed(2)}/mo`),
     },
     {
-      label: 'Players per event',
+      label: 'Players at once across your events',
       cell: (p) => (p.playersPerEvent == null ? 'No cap' : p.playersPerEvent.toLocaleString('en-US')),
     },
     { label: 'Events running at once', cell: (p) => (has(p, 'concurrent-events') ? 'Several' : '1') },
@@ -203,8 +203,9 @@ function CreatorPricing({ enforced }: { enforced: boolean }) {
         <h2 className="text-[20px] font-semibold">For streamers &amp; creators</h2>
       </div>
       <p className="mb-5 ml-4 max-w-[66ch] text-[13.5px] text-text-muted">
-        Host events for your viewers without an in-game clan. Creator plans count the players in one
-        event, not everyone who ever joined.
+        Host events for your viewers without an in-game clan. Creator plans count the players in your
+        events running at the same time, not everyone who ever joined. Events that overlap share the
+        number; events on different dates get it each. Someone in two overlapping events counts twice.
         {!enforced && ' Early access: every creator gets all of this free for now.'}
       </p>
       <div className="overflow-x-auto rounded-2xl border border-card-border bg-card-bg">

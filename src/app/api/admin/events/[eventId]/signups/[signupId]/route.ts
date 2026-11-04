@@ -18,6 +18,8 @@ import { cohostSignupClanFor } from '@/lib/eventEditors';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { placementOf } from '@/lib/teamPlacement';
 import { enrolPlaced } from '@/lib/teamPlacementDb';
+import { isOnBoardStatus } from '@/lib/creatorPlans';
+import { PlanLimitError, roomPlanOfEvent, withEventRoom } from '@/lib/creatorPlansDb';
 
 // Per-signup admin actions. All admin-only — captain selection is high-stakes and we
 // don't want a moderator accidentally locking the wrong person in.
@@ -190,11 +192,19 @@ export async function PATCH(
       return NextResponse.json({ ok: true, teamId: team?.id ?? null, teamName: team?.name ?? null });
     }
     case 'approve': {
-      const [updated] = await db
-        .update(eventSignups)
-        .set({ status: 'approved', updatedAt: now })
-        .where(eq(eventSignups.id, sigId))
-        .returning();
+      // Approving a rejected or withdrawn sign-up puts somebody back on the board: the plan's cap on
+      // players at once across the host's overlapping events applies (lib/creatorPlansDb
+      // withEventRoom). Pending → approved was already on the board and adds nobody.
+      let updated: typeof eventSignups.$inferSelect;
+      try {
+        [updated] = await withEventRoom(
+          { eventId: evtId, clanPlan: await roomPlanOfEvent(evtId), adding: isOnBoardStatus(signup.status) ? 0 : 1 },
+          (tx) => tx.update(eventSignups).set({ status: 'approved', updatedAt: now }).where(eq(eventSignups.id, sigId)).returning(),
+        );
+      } catch (e) {
+        if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'full' }, { status: 403 });
+        throw e;
+      }
       logAction('signup_approved');
 
       // Approving = eligible for the draft, so make sure they're in the player pool. Idempotent —

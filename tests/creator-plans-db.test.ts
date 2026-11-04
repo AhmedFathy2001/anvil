@@ -6,7 +6,7 @@
 
 import { test, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 
@@ -96,7 +96,9 @@ test('the meter counts one event’s board, and live events are the ones not end
   assert.equal(await P.liveEventCount(spaceId), 1, 'the ended event is not live');
   await db.insert(s.events).values({ clanId: spaceId, name: 'Someday Bingo', boardSize: 5 });
   assert.equal(await P.liveEventCount(spaceId), 1, 'an undated draft is not live either');
-  assert.deepEqual(await P.biggestCreatorEvent(spaceId), { id: eventId, name: 'Packed Bingo', players: 50 });
+  const meter = await P.creatorSeatMeter(spaceId);
+  assert.equal(meter?.peak, 50, 'the open-ended live event; the ended one frees its seats');
+  assert.deepEqual(meter?.peakEvents, [{ name: 'Packed Bingo', players: 50 }]);
   assert.equal(await P.creatorPlanOfClan(spaceId), 'creator_free', 'a new space starts on the creator catalogue');
 });
 
@@ -254,4 +256,142 @@ test('a second live event: refused on Free once enforced, fine on Silver', async
   process.env.FREEMIUM_ENFORCED = 'true';
   assert.equal(CP.newEventVerdict({ clanPlan: 'creator_free', liveEvents: live }).ok, false);
   assert.equal(CP.newEventVerdict({ clanPlan: 'creator_silver', liveEvents: live }).ok, true);
+});
+
+// ── Players at once across overlapping events ────────────────────────────────────────────────────
+
+const day = (d: number) => new Date(Date.UTC(2027, 0, d)).toISOString(); // Jan 2027: all ahead of now
+
+/** A fresh creator space on `plan`, so its events overlap nobody else's. */
+async function space(tag: string, plan: string): Promise<number> {
+  const p = await person(`${tag} Host`);
+  const r = await C.createCreatorSpace({ slug: `${tag}-host`, name: `${tag} Host`, ownerUserId: p.userId });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  if (!r.ok) throw new Error('no space');
+  await db.update(s.clans).set({ plan }).where(eq(s.clans.id, r.clanId));
+  return r.clanId;
+}
+
+async function dated(clanId: number, name: string, from: number | null, to: number | null): Promise<number> {
+  const [row] = await db
+    .insert(s.events)
+    .values({ clanId, name, boardSize: 5, entry: 'open', startDate: from == null ? null : day(from), endDate: to == null ? null : day(to) })
+    .returning();
+  return row.id;
+}
+
+const signUp = (eventId: number, seat: number) =>
+  P.withEventRoom({ eventId, clanPlan: 'creator_free', adding: 1 }, (tx) =>
+    tx.insert(s.eventSignups).values({ eventId, clanMemberId: seat, status: 'pending' }).returning(),
+  );
+
+test('a join is refused when overlapping events together are at the cap; events apart each get it', async () => {
+  const sp = await space('overlap', 'creator_free');
+  const a = await dated(sp, 'Jan 7–10', 7, 10);
+  const b = await dated(sp, 'Jan 8–11', 8, 11);
+  const apart = await dated(sp, 'Jan 20–22', 20, 22);
+  await fill(sp, a, 30, 'ova');
+  await fill(sp, b, 20, 'ovb');
+  await fill(sp, apart, 49, 'ovc');
+  process.env.FREEMIUM_ENFORCED = 'true';
+
+  const [x, y, z] = await seats(sp, 3, 'ovnew');
+  await assert.rejects(signUp(b, x), (e) => e instanceof P.PlanLimitError && /50 players at once, counted across all their events/.test(e.message));
+  await assert.rejects(signUp(a, x), (e) => e instanceof P.PlanLimitError, 'the other overlapping event is just as full');
+  assert.equal(await P.eventPlayerCount(b), 20, 'rolled back');
+  await signUp(apart, y); // 49 → 50 on its own dates
+  await assert.rejects(signUp(apart, z), (e) => e instanceof P.PlanLimitError);
+
+  const v = await P.hostRoomVerdict({ eventId: b, clanPlan: 'creator_free', adding: 1 });
+  assert.equal(v.ok, false);
+  assert.equal(v.ok ? 0 : v.total, 51);
+
+  // The early check on the entry path says "full" too (one-tap enter on an overlapping event).
+  const late = await person('Overlap Late');
+  const refused = await E.enterEvent({ eventId: b, playerId: late.playerId, accountId: late.accountId, actorUserId: late.userId });
+  assert.equal(refused.outcome === 'refused' && refused.reason, 'full');
+
+  // Generous phase: nobody is refused.
+  delete process.env.FREEMIUM_ENFORCED;
+  assert.equal((await P.hostRoomVerdict({ eventId: b, clanPlan: await P.roomPlanOfEvent(b), adding: 1 })).ok, true);
+});
+
+test('seats, not people: one person in two overlapping events counts twice', async () => {
+  const sp = await space('twice', 'creator_free');
+  const a = await dated(sp, 'T1', 7, 10);
+  const b = await dated(sp, 'T2', 8, 11);
+  await fill(sp, a, 25, 'twa');
+  await fill(sp, b, 24, 'twb');
+  const [one] = await seats(sp, 1, 'twperson');
+  process.env.FREEMIUM_ENFORCED = 'true';
+  await signUp(a, one); // A: 26, peak 50
+  assert.equal((await P.creatorSeatMeter(sp))?.peak, 50);
+  // The very same seat (same person) on B as well: that is one more at once, and the cap is reached.
+  await assert.rejects(signUp(b, one), (e) => e instanceof P.PlanLimitError);
+  await db.update(s.eventSignups).set({ status: 'withdrawn' }).where(eq(s.eventSignups.eventId, a));
+  await signUp(b, one);
+  await db.update(s.eventSignups).set({ status: 'pending' }).where(and(eq(s.eventSignups.eventId, a), eq(s.eventSignups.clanMemberId, one)));
+  assert.equal((await P.creatorSeatMeter(sp))?.peak, 26, 'A has 1 (the person), B has 25: the person counts on both');
+});
+
+test('two joins racing onto two OVERLAPPING events for the last place: exactly one gets in', async () => {
+  const sp = await space('race2', 'creator_free');
+  const a = await dated(sp, 'R1', 7, 10);
+  const b = await dated(sp, 'R2', 8, 11);
+  await fill(sp, a, 30, 'r2a');
+  await fill(sp, b, 19, 'r2b');
+  const [x, y] = await seats(sp, 2, 'r2new');
+  process.env.FREEMIUM_ENFORCED = 'true';
+  const results = await Promise.allSettled([signUp(a, x), signUp(b, y)]);
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1, JSON.stringify(results));
+  assert.equal((await P.eventPlayerCount(a)) + (await P.eventPlayerCount(b)), 50);
+});
+
+test('a date change that overlaps another event past the cap is refused; shortening or moving apart is allowed', async () => {
+  const sp = await space('dates', 'creator_free');
+  const a = await dated(sp, 'Winter Bingo', 10, 15);
+  const b = await dated(sp, 'Mine', 1, 5);
+  const draft = await dated(sp, 'Someday', null, null);
+  await fill(sp, a, 30, 'dta');
+  await fill(sp, b, 30, 'dtb');
+  await fill(sp, draft, 30, 'dtd');
+  process.env.FREEMIUM_ENFORCED = 'true';
+  const move = (eventId: number, from: number | null, to: number | null) =>
+    P.withLiveEventSlot(
+      { clanId: sp, clanPlan: null, dates: { eventId, roomPlan: 'creator_free', after: { startDate: from == null ? null : day(from), endDate: to == null ? null : day(to), forceEndedAt: null } } },
+      (tx) => tx.update(s.events).set({ startDate: from == null ? null : day(from), endDate: to == null ? null : day(to) }).where(eq(s.events.id, eventId)).returning(),
+    );
+
+  await assert.rejects(
+    move(b, 1, 12),
+    (e) => e instanceof P.PlanLimitError && /^Those dates would overlap Winter Bingo \(30\): 60 players at once with this event’s 30\. Your Free plan allows 50 players at once/.test(e.message),
+  );
+  assert.equal((await db.query.events.findFirst({ where: eq(s.events.id, b) }))?.endDate, day(5), 'unchanged');
+  await move(b, 1, 10); // touching, not overlapping
+  await move(b, 2, 4); // shorter
+  await move(b, 20, 25); // apart
+  await assert.rejects(move(draft, 11, 12), (e) => e instanceof P.PlanLimitError, 'dating a full draft onto an event');
+  await move(draft, 30, 31);
+  // Open-ended into Winter Bingo is refused too.
+  await assert.rejects(move(b, 20, null), (e) => e instanceof P.PlanLimitError, 'open-ended runs into the draft dated Jan 30');
+
+  // Generous phase (roomPlanOfEvent is null): dates always move.
+  delete process.env.FREEMIUM_ENFORCED;
+  assert.equal(await P.roomPlanOfEvent(b), null);
+  await P.withLiveEventSlot({ clanId: sp, clanPlan: null, dates: { eventId: b, roomPlan: await P.roomPlanOfEvent(b), after: { startDate: day(1), endDate: day(12), forceEndedAt: null } } }, async () => {});
+});
+
+test('a Streaming clan: its viewer events share the cap at its clan tier; members-only events never count', async () => {
+  const [clan] = await db.insert(s.clans).values({ slug: 'stream-cap', name: 'Stream Cap', plan: 'free', streaming: true }).returning();
+  const [{ id: v1 }] = await db.insert(s.events).values({ clanId: clan.id, name: 'V1', boardSize: 5, openToViewers: true, startDate: day(7), endDate: day(10) }).returning();
+  const [{ id: v2 }] = await db.insert(s.events).values({ clanId: clan.id, name: 'V2', boardSize: 5, openToViewers: true, startDate: day(8), endDate: day(11) }).returning();
+  const [{ id: members }] = await db.insert(s.events).values({ clanId: clan.id, name: 'Members', boardSize: 5, startDate: day(7), endDate: day(11) }).returning();
+  await fill(clan.id, v1, 30, 'sv1');
+  await fill(clan.id, v2, 20, 'sv2');
+  await fill(clan.id, members, 40, 'smb');
+  process.env.FREEMIUM_ENFORCED = 'true';
+  assert.equal(await P.roomPlanOfEvent(v2), 'creator_free', 'a Free clan reads as creator Free');
+  assert.equal((await P.hostRoomVerdict({ eventId: v2, clanPlan: 'creator_free', adding: 1 })).ok, false, '30 + 20 at once');
+  assert.deepEqual((await P.hostEventSeats(clan.id)).map((r) => r.name).sort(), ['V1', 'V2'], 'members-only is roster-metered');
+  assert.equal(await P.roomPlanOfEvent(members), null);
 });

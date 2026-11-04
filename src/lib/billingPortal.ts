@@ -9,7 +9,7 @@ import { and, count, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanMemberships, clanStaff, clans } from '@/db/schema';
 import { clanCardModel, creatorCardModel, type BillingCardModel, type OwnedBillingRow } from '@/lib/billingPortalCards';
-import { biggestCreatorEvent } from '@/lib/creatorPlansDb';
+import { creatorSeatMeter } from '@/lib/creatorPlansDb';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { supporterForUser, supporterSubscriptionIdForUser, type SupporterState } from '@/lib/supporter';
 
@@ -57,7 +57,7 @@ export async function billingPortalForUser(userId: number, now = Date.now()): Pr
   }
 
   const [spaces, supporter, supporterSubscriptionId] = await Promise.all([
-    Promise.all(ownedSpaces.map(async (c) => creatorCardModel(c, await biggestCreatorEvent(c.id, now), now))),
+    Promise.all(ownedSpaces.map(async (c) => creatorCardModel(c, await creatorSeatMeter(c.id, now), now))),
     supporterForUser(userId),
     supporterSubscriptionIdForUser(userId, now),
   ]);

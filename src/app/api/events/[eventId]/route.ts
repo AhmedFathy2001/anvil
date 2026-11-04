@@ -27,7 +27,7 @@ import { filterToVisibleTeams, standingsHidden } from '@/lib/standingsVisibility
 import { forgetLinkCards } from '@/lib/ogKit';
 import { repriceStandardFees } from '@/lib/entryFee';
 import { isLiveEvent, meteredPlan } from '@/lib/creatorPlans';
-import { PlanLimitError, withLiveEventSlot } from '@/lib/creatorPlansDb';
+import { PlanLimitError, roomPlanOfEvent, withLiveEventSlot } from '@/lib/creatorPlansDb';
 
 export async function GET(
   request: Request,
@@ -237,10 +237,18 @@ export async function PATCH(
     // Resuming makes it live again (unless its original end has passed meanwhile): on a creator
     // space that runs one event at a time, only when no OTHER event is live — counted and written
     // under the space's lock (lib/creatorPlansDb). A no-op until FREEMIUM_ENFORCED is on.
+    //
+    // It also takes its players back onto the calendar: refused when that would put more players on
+    // at once than the plan allows across events running at the same time (lib/creatorPlans).
     const reopens = isLiveEvent({ startDate: event.startDate, endDate: event.originalEndDate, forceEndedAt: null });
     try {
       const [updated] = await withLiveEventSlot(
-        { clanId: clan.id, clanPlan: reopens ? meteredPlan(clan) : null, exceptEventId: id },
+        {
+          clanId: clan.id,
+          clanPlan: reopens ? meteredPlan(clan) : null,
+          exceptEventId: id,
+          dates: { eventId: id, roomPlan: await roomPlanOfEvent(id), after: { startDate: event.startDate, endDate: event.originalEndDate, forceEndedAt: null } },
+        },
         (tx) =>
           tx
             .update(events)
@@ -318,11 +326,18 @@ export async function PATCH(
     // Starting an undated draft makes it live: on a creator space that runs one event at a time,
     // only when no OTHER event is live — counted and written under the space's lock
     // (lib/creatorPlansDb). An event that already had a start date was counted when it got it.
+    // Starting early also stretches its window back to now: refused when that newly overlaps other
+    // events past the plan's players at once (lib/creatorPlans datesRoomVerdict).
     // A no-op until FREEMIUM_ENFORCED is on.
     let updated: typeof events.$inferSelect;
     try {
       [updated] = await withLiveEventSlot(
-        { clanId: clan.id, clanPlan: isLiveEvent(event) ? null : meteredPlan(clan), exceptEventId: id },
+        {
+          clanId: clan.id,
+          clanPlan: isLiveEvent(event) ? null : meteredPlan(clan),
+          exceptEventId: id,
+          dates: { eventId: id, roomPlan: await roomPlanOfEvent(id), after: { startDate: now, endDate: event.endDate, forceEndedAt: null } },
+        },
         (tx) => tx.update(events).set({ startDate: now, tilesRevealed: 1 }).where(eq(events.id, id)).returning(),
       );
     } catch (e) {
@@ -669,9 +684,20 @@ export async function PATCH(
   const reopens =
     !isLiveEvent(existing) &&
     isLiveEvent({ startDate: finalStart, endDate: finalEnd, forceEndedAt: existing.forceEndedAt });
+  // New dates may also overlap the host's other events: refused when the time this event newly covers
+  // would put more players on at once than the plan allows (lib/creatorPlans datesRoomVerdict).
+  // Shortening it, or moving it away from the others, is always allowed.
+  const datesChange = 'startDate' in body || 'endDate' in body;
   let updated: typeof events.$inferSelect;
   try {
-    [updated] = await withLiveEventSlot({ clanId: clan.id, clanPlan: reopens ? meteredPlan(clan) : null, exceptEventId: id }, (tx) =>
+    [updated] = await withLiveEventSlot({
+      clanId: clan.id,
+      clanPlan: reopens ? meteredPlan(clan) : null,
+      exceptEventId: id,
+      dates: datesChange
+        ? { eventId: id, roomPlan: await roomPlanOfEvent(id), after: { startDate: finalStart, endDate: finalEnd, forceEndedAt: existing.forceEndedAt } }
+        : undefined,
+    }, (tx) =>
       tx.update(events).set(updates).where(eq(events.id, id)).returning(),
     );
   } catch (e) {

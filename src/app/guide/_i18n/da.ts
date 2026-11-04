@@ -2609,14 +2609,14 @@ const da: PartialGuideDict = {
     plans: {
       title: 'Planer og grænser',
       body: [
-        'Din plan bestemmer, hvor mange spillere ét event kan have. Alt andet er ens på alle planer: brættet, plugin-sporingen, overlayet og Discord.',
+        'Din plan bestemmer, hvor mange spillere der kan være med i dine events på samme tid. Events, hvis datoer overlapper, deler det tal; events på forskellige datoer får det hver for sig. En spiller i to overlappende events tæller to gange. Alt andet er ens på alle planer: brættet, plugin-sporingen, overlayet og Discord.',
         'Dit plankort er på **Your events**. Vil du sammenligne planer, så se [priser](/pricing#creators). Vil du ændre eller opsige det, du betaler, så gå til [din betalingsside](/portal).',
       ],
       rows: [
-        { term: 'Free', body: 'Op til 50 spillere pr. event. Ét event ad gangen. Tjek af Discord-rolle og booster.' },
-        { term: 'Bronze', body: 'Op til 150 spillere pr. event. Tjek af Twitch, Kick og YouTube.' },
-        { term: 'Silver', body: 'Op til 300 spillere pr. event. Mere end ét event ad gangen. `!join` i chatten. Vist først på listen.' },
-        { term: 'Gold', body: 'Op til 1.000 spillere pr. event. Skjul Anvil-mærket på dit overlay.' },
+        { term: 'Free', body: 'Op til 50 spillere på samme tid på tværs af dine events. Ét event ad gangen. Tjek af Discord-rolle og booster.' },
+        { term: 'Bronze', body: 'Op til 150 spillere på samme tid på tværs af dine events. Tjek af Twitch, Kick og YouTube.' },
+        { term: 'Silver', body: 'Op til 300 spillere på samme tid på tværs af dine events. Mere end ét event ad gangen. `!join` i chatten. Vist først på listen.' },
+        { term: 'Gold', body: 'Op til 1.000 spillere på samme tid på tværs af dine events. Skjul Anvil-mærket på dit overlay.' },
         { term: 'Partner', body: 'Ingen grænse for spillere. Sættes op direkte med Anvil — kontakt os.' },
       ],
       note: {
@@ -2847,7 +2847,7 @@ const da: PartialGuideDict = {
       rows: [
         {
           term: 'Tæller seere med i vores medlemsgrænse?',
-          body: 'Nej. De er event players, ikke medlemmer. Streamer-grænserne gælder pr. event (se [creator-vejledningen]({creatorsGuide})).',
+          body: 'Nej. De er event players, ikke medlemmer. Streamer-grænserne tæller spillere på samme tid på tværs af de events, du kører (se [creator-vejledningen]({creatorsGuide})).',
         },
         {
           term: 'Sender `!join` folk til et event kun for medlemmer?',

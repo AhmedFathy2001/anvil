@@ -52,7 +52,7 @@ export function streamsEvents(clan: { kind?: string | null; streaming?: boolean 
 }
 
 /**
- * Is this ONE event open to viewers — gated, metered per event, and seating outsiders as event players?
+ * Is this ONE event open to viewers — gated, player-capped (players at once across the host's such events), and seating outsiders as event players?
  * Every creator-space event is; a clan's only with Streaming on AND the event set to let viewers in.
  */
 export function streamedEvent(

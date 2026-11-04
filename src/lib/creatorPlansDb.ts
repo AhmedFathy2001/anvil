@@ -4,9 +4,21 @@ import { and, count, eq, inArray, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clans, eventSignups, events } from '@/db/schema';
-import { ON_BOARD_STATUSES, eventRoomVerdict, isLiveEvent, newEventVerdict, streamPlanId } from '@/lib/creatorPlans';
+import {
+  ON_BOARD_STATUSES,
+  datesRoomVerdict,
+  eventRoomVerdict,
+  isLiveEvent,
+  newEventVerdict,
+  seatMeter,
+  streamPlanId,
+  type HostEventSeats,
+  type RoomVerdict,
+  type SeatMeter,
+} from '@/lib/creatorPlans';
 import { isCreatorSpace, streamedEvent } from '@/lib/creatorSpaces';
-import { eventStage } from '@/lib/eventStage';
+import { freemiumEnforced } from '@/lib/entitlements';
+import type { DatedEvent } from '@/lib/concurrentSeats';
 
 /** The creator setting behind "Hide the Anvil mark" on the OBS overlay ('on' | absent). */
 export const OVERLAY_HIDE_MARK_SETTING = 'creator_overlay_hide_mark';
@@ -19,12 +31,19 @@ export type Executor = Pick<typeof db, 'select' | 'execute'>;
 
 // Advisory-lock namespaces (pg_advisory_xact_lock(ns, id)). Held to the end of the transaction, so
 // "count, then write" is one step for everybody else taking the same lock.
-const EVENT_ROOM_LOCK = 1129336657; // per event: players on one event's board
+//
+// Lock order, so no two writers can wait on each other: LIVE_EVENTS_LOCK before HOST_ROOM_LOCK. A
+// date change takes both (withLiveEventSlot); a sign-up takes only the room (withEventRoom).
+const HOST_ROOM_LOCK = 1129336659; // per host: players at once across the host's events
 const LIVE_EVENTS_LOCK = 1129336658; // per space: how many events are live
 
-/** Serialise every write that could add a player to this event (sign-ups), until the tx ends. */
-export async function lockEventRoom(tx: Executor, eventId: number): Promise<void> {
-  await tx.execute(sql`select pg_advisory_xact_lock(${EVENT_ROOM_LOCK}, ${eventId})`);
+/**
+ * Serialise every write that could put more players on at once ANYWHERE in this host's events — a
+ * sign-up on any of them, or one of them moving its dates onto another — until the tx ends. Per host,
+ * not per event: two joins to two overlapping events share one cap, so they must not both pass.
+ */
+export async function lockHostRoom(tx: Executor, clanId: number): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(${HOST_ROOM_LOCK}, ${clanId})`);
 }
 
 /** Serialise every write that could make one more of this space's events live, until the tx ends. */
@@ -63,8 +82,9 @@ export async function creatorPlanOfClan(clanId: number): Promise<string | null> 
 /**
  * The plan that meters players on THIS event, else null: a creator space's event, or a Streaming
  * clan's event open to viewers (lib/creatorSpaces streamedEvent) — both seat outsiders as event
- * players, so both are capped per event (Plan.playersPerEvent). A clan's members-only events are
- * metered by its roster as before, so null.
+ * players, so both are capped by players at once across the host's such events (hostEventSeats). A
+ * clan's members-only events are metered by its roster as before, so null — and they never count
+ * towards a Streaming clan's viewer-event cap either.
  */
 export async function streamPlanOfEvent(eventId: number): Promise<string | null> {
   // clan-scope: global -- the event by its own id; its host is read back from it.
@@ -74,6 +94,83 @@ export async function streamPlanOfEvent(eventId: number): Promise<string | null>
   const host = await db.query.clans.findFirst({ where: eq(clans.id, ev.clanId), columns: { kind: true, plan: true, streaming: true } });
   // A Streaming clan's clan tier, read as the creator tier it equals (lib/creatorPlans streamPlanId).
   return host && streamedEvent(host, ev) ? streamPlanId(host) : null;
+}
+
+/**
+ * The host's player-capped events — every event of a creator space, or a Streaming clan's events open
+ * to viewers (lib/creatorSpaces streamedEvent) — with their dates and on-board sign-ups. The cap
+ * counts these together wherever their dates overlap (lib/creatorPlans eventRoomVerdict). Seats, not
+ * people: somebody signed up to two of them counts on both.
+ */
+export async function hostEventSeats(clanId: number, tx: Executor = db): Promise<HostEventSeats[]> {
+  // clan-scope: this clan -- the host's own kind, to know which of its events are capped.
+  const [host] = await tx.select({ kind: clans.kind, streaming: clans.streaming }).from(clans).where(eq(clans.id, clanId));
+  if (!host) return [];
+  // clan-scope: this clan -- the host's own events, with how many are on each board.
+  const rows = await tx
+    .select({
+      id: events.id,
+      name: events.name,
+      startDate: events.startDate,
+      endDate: events.endDate,
+      forceEndedAt: events.forceEndedAt,
+      openToViewers: events.openToViewers,
+      seats: count(eventSignups.id),
+    })
+    .from(events)
+    .leftJoin(eventSignups, and(eq(eventSignups.eventId, events.id), inArray(eventSignups.status, [...ON_BOARD])))
+    .where(eq(events.clanId, clanId))
+    .groupBy(events.id, events.name, events.startDate, events.endDate, events.forceEndedAt, events.openToViewers);
+  return rows
+    .filter((r) => streamedEvent(host, r))
+    .map((r) => ({ id: r.id, name: r.name, startDate: r.startDate, endDate: r.endDate, forceEndedAt: r.forceEndedAt, seats: Number(r.seats) }));
+}
+
+/** The host (clan id) of an event, or null. */
+async function hostOf(eventId: number, tx: Executor = db): Promise<number | null> {
+  // clan-scope: global -- the event by its own id; its host is read back from it.
+  const [row] = await tx.select({ clanId: events.clanId }).from(events).where(eq(events.id, eventId));
+  return row?.clanId ?? null;
+}
+
+/**
+ * The plan that caps players on this event right now, or null when nothing would ever be refused:
+ * FREEMIUM_ENFORCED off, or an event that is not player-capped (streamPlanOfEvent).
+ */
+export async function roomPlanOfEvent(eventId: number): Promise<string | null> {
+  return freemiumEnforced() ? streamPlanOfEvent(eventId) : null;
+}
+
+/**
+ * May `adding` more players join this event, counting every overlapping event of its host
+ * (lib/creatorPlans eventRoomVerdict)? `clanPlan` from streamPlanOfEvent / roomPlanOfEvent. The cheap
+ * early check; withEventRoom repeats it under the host's lock.
+ *
+ * `included`: the write is already in the counts (withEventRoom's re-count), so it is taken back off.
+ */
+export async function hostRoomVerdict(opts: {
+  eventId: number;
+  clanPlan: string | null;
+  adding: number;
+  tx?: Executor;
+  included?: boolean;
+  now?: number;
+}): Promise<RoomVerdict> {
+  if (opts.clanPlan == null || opts.adding <= 0) return { ok: true };
+  const clanId = await hostOf(opts.eventId, opts.tx);
+  const rows = clanId == null ? [] : await hostEventSeats(clanId, opts.tx);
+  const self = rows.find((r) => r.id === opts.eventId);
+  // An event the host list did not return (not capped) is judged on its own board.
+  const players = (self?.seats ?? (await eventPlayerCount(opts.eventId, opts.tx))) - (opts.included ? opts.adding : 0);
+  return eventRoomVerdict({
+    clanPlan: opts.clanPlan,
+    players,
+    adding: opts.adding,
+    eventId: opts.eventId,
+    dates: self ?? null,
+    others: rows,
+    now: opts.now,
+  });
 }
 
 /** Events of this space with a start date that have not ended (scheduled or running) — "live" for the plan. Undated drafts don't count (lib/creatorPlans isLiveEvent). */
@@ -90,30 +187,9 @@ export async function liveEventCount(
   return rows.filter((r) => r.id !== opts.exceptEventId && isLiveEvent(r, now)).length;
 }
 
-/**
- * The event the meter shows: the biggest one that has not ended, or — when none is live — the
- * biggest ever, so a creator between events still sees how big they run.
- */
-export async function biggestCreatorEvent(clanId: number, now = Date.now()): Promise<{ id: number; name: string; players: number } | null> {
-  // clan-scope: this clan -- the space's own events, with how many are on each board.
-  const rows = await db
-    .select({
-      id: events.id,
-      name: events.name,
-      startDate: events.startDate,
-      endDate: events.endDate,
-      forceEndedAt: events.forceEndedAt,
-      players: count(eventSignups.id),
-    })
-    .from(events)
-    .leftJoin(eventSignups, and(eq(eventSignups.eventId, events.id), inArray(eventSignups.status, [...ON_BOARD])))
-    .where(eq(events.clanId, clanId))
-    .groupBy(events.id, events.name, events.startDate, events.endDate, events.forceEndedAt);
-  if (rows.length === 0) return null;
-  const live = rows.filter((r) => eventStage(r, now) !== 'wrap');
-  const pool = live.length > 0 ? live : rows;
-  const top = pool.reduce((a, b) => (Number(b.players) > Number(a.players) ? b : a));
-  return { id: top.id, name: top.name, players: Number(top.players) };
+/** The dashboard and portal meter: peak players at once across the host's events (lib/creatorPlans seatMeter). */
+export async function creatorSeatMeter(clanId: number, now = Date.now()): Promise<SeatMeter | null> {
+  return seatMeter(await hostEventSeats(clanId), now);
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -121,10 +197,12 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 /**
  * Run a sign-up write that may put `adding` more players on an event, race-safely.
  *
- * One transaction. When the host is metered (`clanPlan` non-null — lib/creatorPlans meteredPlan) and
- * the write adds anybody, the event's advisory lock is held from before the write to the re-count
- * after it, so two writes racing for the last place serialise: the second counts the first's
- * committed row and rolls its own back with a PlanLimitError. Otherwise a plain transaction.
+ * One transaction. When the event is player-capped (`clanPlan` non-null — roomPlanOfEvent) and the
+ * write adds anybody, the HOST's advisory lock is held from before the write to the re-count after it
+ * — per host, because the cap is players at once across the host's overlapping events: two writes
+ * racing for the last place, on the same event or on two overlapping ones, serialise, and the second
+ * counts the first's committed row and rolls its own back with a PlanLimitError. Date changes take the
+ * same lock (withLiveEventSlot `dates`). Otherwise a plain transaction.
  */
 export async function withEventRoom<T>(
   opts: { eventId: number; clanPlan: string | null; adding: number },
@@ -132,12 +210,14 @@ export async function withEventRoom<T>(
 ): Promise<T> {
   return db.transaction(async (tx) => {
     const metered = opts.clanPlan != null && opts.adding > 0;
-    if (metered) await lockEventRoom(tx, opts.eventId);
+    if (metered) {
+      const clanId = await hostOf(opts.eventId, tx);
+      if (clanId != null) await lockHostRoom(tx, clanId);
+    }
     const out = await write(tx);
     if (metered) {
       // Re-counted under the lock with this write in it: "before" is the count minus what it added.
-      const players = (await eventPlayerCount(opts.eventId, tx)) - opts.adding;
-      const room = eventRoomVerdict({ clanPlan: opts.clanPlan, players, adding: opts.adding });
+      const room = await hostRoomVerdict({ eventId: opts.eventId, clanPlan: opts.clanPlan, adding: opts.adding, tx, included: true });
       if (!room.ok) throw new PlanLimitError(room.error);
     }
     return out;
@@ -149,10 +229,20 @@ export async function withEventRoom<T>(
  * date into the future) race-safely: under the space's advisory lock, count the OTHER live events,
  * refuse with a PlanLimitError when the plan runs one at a time, else write — all in one transaction,
  * so two concurrent creates cannot both see "none live". `clanPlan` null (not metered) skips the
- * check and is a plain transaction.
+ * check.
+ *
+ * `dates`: the write changes this event's dates to `after`. When `roomPlan` is non-null
+ * (roomPlanOfEvent), the host's room lock is taken too and the change is refused when the time the
+ * event newly covers would put more players on at once than the plan allows (lib/creatorPlans
+ * datesRoomVerdict) — "before" is read under the lock, so a sign-up cannot slip in between.
  */
 export async function withLiveEventSlot<T>(
-  opts: { clanId: number; clanPlan: string | null; exceptEventId?: number },
+  opts: {
+    clanId: number;
+    clanPlan: string | null;
+    exceptEventId?: number;
+    dates?: { eventId: number; roomPlan: string | null; after: DatedEvent };
+  },
   write: (tx: Tx) => Promise<T>,
 ): Promise<T> {
   return db.transaction(async (tx) => {
@@ -161,6 +251,18 @@ export async function withLiveEventSlot<T>(
       const liveEvents = await liveEventCount(opts.clanId, { exceptEventId: opts.exceptEventId, tx });
       const more = newEventVerdict({ clanPlan: opts.clanPlan, liveEvents });
       if (!more.ok) throw new PlanLimitError(more.error);
+    }
+    const d = opts.dates;
+    if (d && d.roomPlan != null) {
+      // The event's own host (a co-host's staff may be the ones editing it).
+      const hostId = (await hostOf(d.eventId, tx)) ?? opts.clanId;
+      await lockHostRoom(tx, hostId);
+      const rows = await hostEventSeats(hostId, tx);
+      const self = rows.find((r) => r.id === d.eventId);
+      if (self) {
+        const room = datesRoomVerdict({ clanPlan: d.roomPlan, event: self, before: self, after: d.after, others: rows });
+        if (!room.ok) throw new PlanLimitError(room.error);
+      }
     }
     return write(tx);
   });
