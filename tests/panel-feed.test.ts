@@ -103,7 +103,7 @@ test('a finished tile: its row, its lists, and a Tiles chip on a board only', as
   const row = completionRow({ tileId: 7, teamId: 4, label: 'Abyssal whip', who: 'Drenvox', team: { name: 'Jade', color: '#2ecc71' }, at: '2026-11-04T01:00:00Z', mine: true });
   assert.equal(row.id, 't7:4', 'one row per tile and team: live and reopened agree');
   assert.equal(row.title, 'Tile complete: Abyssal whip');
-  assert.equal(row.who, 'Drenvox');
+  assert.equal(row.who, 'Drenvox · Jade', 'who and which team, on the line');
   assert.equal(row.tag, 'Jade');
   assert.equal(completionRow({ tileId: 7, teamId: 4, label: 'x', who: null, team: { name: 'Jade', color: null }, at: 'x' }).who, 'Jade', 'no finisher: the team');
   assert.deepEqual(completionFeedIds(9, 4), ['moments:event:9', 'moments:event:9:tiles', 'moments:event:9:team:4']);
@@ -113,4 +113,14 @@ test('a finished tile: its row, its lists, and a Tiles chip on a board only', as
   assert.match(onBoard, /"label":"Tiles"|"Tiles"/);
   const onClan = JSON.stringify(feedTabUi({ scopes: [clan], current: clan, pane: 'feed', chatAvailable: false, filter: 'all', teamId: null, rows: [], floorNote: 'x' }));
   assert.doesNotMatch(onClan, /Tiles/);
+});
+
+test('a tile row names who and which team; a death reads as one and has its own list', async () => {
+  const { completionRow, momentRow, momentFeedIds, kindGroup } = await import('../src/lib/pluginUi/feedUi.ts');
+  const row = completionRow({ tileId: 1, teamId: 2, label: 'Lap of seers', who: 'Drenvox', team: { name: 'Lab', color: null }, at: 'x' });
+  assert.equal(row.who, 'Drenvox · Lab');
+  assert.equal(kindGroup('death'), 'deaths');
+  const death = momentRow({ id: 5, rsn: 'Mossy', kind: 'death', itemId: null, itemName: null, quantity: 1, valueGp: null, source: 'Vorkath', occurredAt: 'x', teamId: 2 } as never);
+  assert.equal(death.title, 'Died to Vorkath');
+  assert.ok(momentFeedIds({ kind: 'event', id: 9 }, 'death', 2).includes('moments:event:9:deaths'));
 });
