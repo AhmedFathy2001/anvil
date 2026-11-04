@@ -37,6 +37,8 @@ export interface ClanContext {
   customDomain: string | null;
   /** The clan's own image, or null for the generated crest (components/ClanCrest). */
   logoUrl: string | null;
+  /** Its picked colour, #rrggbb (lib/artPalette); null/absent = Anvil gold. */
+  accentColor?: string | null;
   /** 'public' | 'members' — whether somebody with no seat here may read the clan. See lib/clanVisibility. */
   visibility: string;
   /** 'approval' | 'open' | 'closed' — how it admits somebody it does not already have. */
@@ -70,6 +72,7 @@ function toContext(row: typeof clans.$inferSelect): ClanContext {
     name: row.name,
     inGameName: row.inGameName,
     logoUrl: row.logoUrl ?? null,
+    accentColor: row.accentColor ?? null,
     status: row.status,
     plan: row.plan,
     memberCap: row.memberCap,
