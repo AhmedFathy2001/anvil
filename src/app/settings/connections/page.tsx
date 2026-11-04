@@ -6,10 +6,9 @@ import { PLATFORM_LABEL, type ConnectedLink, type Platform } from '@/lib/connect
 import { twitchConfigured } from '@/lib/twitch';
 import { youtubeConfigured } from '@/lib/gates/youtube';
 import { kickConfigured } from '@/lib/kick';
-import { medalApiKey } from '@/lib/medal';
 import { ActionButton, BTN, SettingSwitch } from '../_client';
 import { Pill, SettingsBlock, SettingsGroup, SettingsRow, SettingsTitle } from '../_ui';
-import { KickLinker, MedalProfileForm, MedalVerify } from './_client';
+import { KickLinker, MedalProfileForm } from './_client';
 import { ConnectedAccountExtras } from './extras';
 
 
@@ -40,7 +39,7 @@ export default async function ConnectedAccountsPage({ searchParams }: { searchPa
       label={
         <>
           {PLATFORM_LABEL[l.platform]}
-          {l.verified ? <Pill tone="green">✓ verified</Pill> : <Pill tone="yellow">not verified</Pill>}
+          {l.verified ? <Pill tone="green">✓ verified</Pill> : l.selfReported ? null : <Pill tone="yellow">not verified</Pill>}
         </>
       }
       description={description}
@@ -64,7 +63,7 @@ export default async function ConnectedAccountsPage({ searchParams }: { searchPa
     <SettingsRow
       label="Show on my profile"
       description={
-        l.verified
+        l.verified || l.selfReported
           ? 'On your public profile, when your characters are shown as one person.'
           : 'Shown with a “not verified” label until you verify it.'
       }
@@ -177,7 +176,7 @@ export default async function ConnectedAccountsPage({ searchParams }: { searchPa
 
       <SettingsGroup
         title="Medal"
-        note="Medal has no sign-in Anvil can use, so a Medal link is unverified until your code turns up in one of your clip titles."
+        note="A link to your Medal profile, shown on your profile like any link you add. Medal has no sign-in, so it isn’t verified."
       >
         {md ? (
           <>
@@ -185,20 +184,7 @@ export default async function ConnectedAccountsPage({ searchParams }: { searchPa
               md,
               <>
                 <b className="text-foreground">{md.handle}</b>
-                {!md.verified && !medal?.code && (
-                  <>
-                    {' · '}
-                    {medal?.medalUserId
-                      ? 'Verification isn’t available on this server yet.'
-                      : 'To verify it, use the medal.tv/users/<number> link to your profile.'}
-                  </>
-                )}
               </>,
-            )}
-            {!md.verified && medal?.code && (
-              <SettingsBlock>
-                <MedalVerify code={medal.code} />
-              </SettingsBlock>
             )}
             {showRow(md)}
             <SettingsBlock>
@@ -212,7 +198,6 @@ export default async function ConnectedAccountsPage({ searchParams }: { searchPa
             <SettingsBlock>
               <MedalProfileForm current={null} />
             </SettingsBlock>
-            {!medalApiKey() && <SettingsBlock><span className="text-[12.5px] text-text-dim">Medal links show as “not verified” on this server.</span></SettingsBlock>}
           </>
         )}
       </SettingsGroup>

@@ -1,7 +1,7 @@
-// Connected accounts against a real database, with Twitch, Kick and Medal mocked at fetch: linking and
+// Connected accounts against a real database, with Twitch and Kick mocked at fetch: linking and
 // unlinking each platform from settings, "taken" when another login has it, Kick linked in the
 // official Anvil channel's chat (and that channel's chat subscription made with the app token), Medal
-// verified by a code in a clip title, show-on-profile choices and who sees what, unlink cleanup
+// as a plain pasted link (never verified, never unique), show-on-profile choices and who sees what, unlink cleanup
 // (proofs, codes, claims on finished events — but not running ones), and the gate fast path: an
 // account linked in settings passes a gated event's identity step with nothing to link again.
 //
@@ -25,7 +25,6 @@ process.env.KICK_CLIENT_SECRET = 'kcsecret';
 process.env.KICK_REDIRECT_URI = 'https://anvil.test/api/auth/kick/callback';
 process.env.KICK_TOKEN_KEY = 'kick-test-key-'.padEnd(48, 'x');
 process.env.KICK_ANVIL_CHANNEL = 'anvil_osrs';
-process.env.MEDAL_API_KEY = 'pub_testkey123';
 delete process.env.KICK_ANVIL_BROADCASTER_ID;
 delete process.env.KICK_BOT_REFRESH_TOKEN;
 
@@ -39,8 +38,6 @@ const net = {
   followers: new Set<string>(),
   anvilSubscribed: false,
   appSubscribePosts: 0,
-  medalClips: [] as { contentTitle: string; credits: string }[],
-  medalCalls: 0,
 };
 
 const realFetch = globalThis.fetch;
@@ -82,11 +79,6 @@ globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) =>
       }
       if (auth === 'Bearer kick-host-at') return reply({ data: [{ name: 'chat.message.sent', version: 1, subscription_id: 'h1' }] });
     }
-  }
-  if (u.hostname === 'developers.medal.tv' && u.pathname === '/v1/latest') {
-    net.medalCalls++;
-    assert.equal(auth, 'pub_testkey123');
-    return reply({ contentObjects: net.medalClips });
   }
   throw new Error(`unexpected fetch ${u.href}`);
 }) as typeof fetch;
@@ -315,43 +307,26 @@ test('gate fast path (Kick): linked in the Anvil channel, a follow seen in the h
   assert.equal(res.outcome, 'seated', JSON.stringify(res));
 });
 
-test('Medal: unverified until the code shows up in a clip title; taken only once verified', async () => {
+test('Medal: a plain pasted link — no verification, no uniqueness, shown by default', async () => {
   const a = await person('Medal A');
   const b = await person('Medal B');
   assert.deepEqual(await CA.setMedalProfile(a.userId, 'https://evil.com/users/1'), { ok: false, reason: 'invalid' });
   assert.deepEqual(await CA.setMedalProfile(a.userId, 'https://medal.tv/users/31337'), { ok: true });
-  // B typing A's profile is allowed while it is unverified (nobody can squat it) …
+  // Anyone may paste the same profile: it is their own claim, like a typed social link.
   assert.deepEqual(await CA.setMedalProfile(b.userId, 'medal.tv/users/31337'), { ok: true });
 
-  let view = await CA.connectedAccountsForUser(a.userId);
-  assert.equal(view.links[0].verified, false);
-  assert.equal(view.links[0].showOnProfile, false, 'unverified: hidden by default');
-  const code = view.medal!.code!;
-  assert.equal(code, CA.medalCodeFor(a.userId, '31337'));
+  const view = await CA.connectedAccountsForUser(a.userId);
+  assert.deepEqual(
+    [view.links[0].verified, view.links[0].selfReported, view.links[0].showOnProfile, view.links[0].url],
+    [false, true, true, 'https://medal.tv/users/31337'],
+  );
+  assert.equal((await CA.connectedAccountsForUser(b.userId)).links.length, 1);
 
-  net.medalClips = [{ contentTitle: 'big drop', credits: 'Credits to Clipper (https://medal.tv/users/31337)' }];
-  assert.deepEqual(await CA.verifyMedal(a.userId), { ok: false, reason: 'no-code' });
-  // The code on a clip credited to SOMEONE ELSE (one that only shows up in their list) proves nothing.
-  net.medalClips.push({ contentTitle: `team clip ${code}`, credits: 'Credits to Other (https://medal.tv/users/999)' });
-  assert.deepEqual(await CA.verifyMedal(a.userId), { ok: false, reason: 'no-code' });
-  net.medalClips.push({ contentTitle: `zuk kill ${code}`, credits: 'Credits to Clipper (https://medal.tv/users/31337)' });
-  assert.deepEqual(await CA.verifyMedal(a.userId), { ok: true, username: 'Clipper' });
-
-  view = await CA.connectedAccountsForUser(a.userId);
-  assert.deepEqual([view.links[0].verified, view.links[0].showOnProfile, view.links[0].url], [true, true, 'https://medal.tv/u/Clipper']);
-  // … and B's unverified claim of the same account is gone; B cannot take it now.
-  assert.equal((await CA.connectedAccountsForUser(b.userId)).links.length, 0);
-  assert.deepEqual(await CA.setMedalProfile(b.userId, '31337'), { ok: false, reason: 'taken' });
-  // B's code in A's clip title proves nothing for B (it is derived from B's login).
-  assert.notEqual(CA.medalCodeFor(b.userId, '31337'), code);
-
-  // Re-saving the same verified account keeps it verified; a username-only profile cannot be verified.
-  assert.deepEqual(await CA.setMedalProfile(a.userId, 'https://medal.tv/users/31337'), { ok: true });
-  assert.equal((await CA.connectedAccountsForUser(a.userId)).links[0].verified, true);
-  const c = await person('Medal C');
-  await CA.setMedalProfile(c.userId, 'https://medal.tv/u/someone');
-  assert.deepEqual(await CA.verifyMedal(c.userId), { ok: false, reason: 'needs-id' });
-  assert.equal((await CA.connectedAccountsForUser(c.userId)).medal?.code, null);
+  // Hiding sticks across a re-save; a username link works too.
+  await CA.setShowOnProfile(a.userId, 'medal', false);
+  assert.deepEqual(await CA.setMedalProfile(a.userId, 'https://medal.tv/u/Clipper'), { ok: true });
+  const again = await CA.connectedAccountsForUser(a.userId);
+  assert.deepEqual([again.links[0].showOnProfile, again.links[0].url], [false, 'https://medal.tv/u/Clipper']);
 });
 
 test('profile: a person’s links across their logins, only those they show, the owner sees all', async () => {
@@ -361,6 +336,8 @@ test('profile: a person’s links across their logins, only those they show, the
   await YT.linkViewerYoutube(second.id, { id: 'UCpppppppppppppppppppppp', title: 'P Tube' });
   await CA.setMedalProfile(p.userId, 'medal.tv/users/777');
   await CA.setShowOnProfile(second.id, 'youtube', false);
+
+  await CA.setShowOnProfile(p.userId, 'medal', false);
 
   const stranger = await CA.profileConnectedAccounts(p.playerId, false);
   assert.deepEqual(stranger.map((l) => l.platform), ['twitch']);

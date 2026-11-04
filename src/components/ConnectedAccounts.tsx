@@ -10,7 +10,7 @@ const TONE: Record<Platform, string> = {
 
 /**
  * A person's connected accounts on their profile (lib/connectedAccounts): one chip per platform, a ✓
- * for a verified link, "not verified" spelled out for one that is not, and LIVE when the platform says
+ * for a verified link, "not verified" spelled out for one that is not (nothing for a plain pasted link like Medal), and LIVE when the platform says
  * they are streaming now. The caller has already applied who may see what (visibleLinks).
  *
  * Every URL was built by lib/connectedAccountsRules from a sanitized id on the platform's own host,
@@ -29,7 +29,7 @@ export default function ConnectedAccounts({ links, className = '' }: { links: Li
               <span className="text-accent-green-light" title="Verified: they proved this account is theirs" aria-label="verified">
                 ✓
               </span>
-            ) : (
+            ) : l.selfReported ? null : (
               <span className="rounded-full border border-yellow-500/30 px-1.5 text-[10px] text-yellow-400">not verified</span>
             )}
             {l.live && (

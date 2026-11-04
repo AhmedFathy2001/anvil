@@ -33,7 +33,7 @@ async function post(body: Record<string, unknown>): Promise<string | null> {
   return j?.error || 'That didn’t work.';
 }
 
-/** Add or change the Medal profile (saved unverified). */
+/** Add or change the Medal profile (a plain link, like a social handle). */
 export function MedalProfileForm({ current }: { current: string | null }) {
   const router = useRouter();
   const [value, setValue] = useState(current ?? '');
@@ -65,45 +65,5 @@ export function MedalProfileForm({ current }: { current: string | null }) {
       </button>
       {error && <p className="w-full text-xs text-red-400">{error}</p>}
     </form>
-  );
-}
-
-/** Verify a Medal link: their code in a clip title, read back through Medal's API. */
-export function MedalVerify({ code }: { code: string }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [copied, setCopied] = useState(false);
-
-  async function verify() {
-    setBusy(true);
-    setError('');
-    const err = await post({ action: 'verify' });
-    setBusy(false);
-    if (err) setError(err);
-    else router.refresh();
-  }
-
-  return (
-    <div className="w-full rounded-lg border border-gold/30 bg-brown-dark p-3 text-[13px]">
-      <p className="text-text-muted">
-        To verify, put this code in the title of one of your public Medal clips (rename any recent one), then press Verify. You can
-        rename it back afterwards.
-      </p>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <code className="rounded-md border border-gold/40 px-3 py-1 text-base font-semibold tracking-wider text-gold">{code}</code>
-        <button
-          type="button"
-          onClick={() => void navigator.clipboard?.writeText(code).then(() => setCopied(true), () => {})}
-          className="text-[12.5px] text-text-muted underline-offset-4 hover:text-gold hover:underline"
-        >
-          {copied ? 'Copied' : 'Copy'}
-        </button>
-        <button type="button" onClick={verify} disabled={busy} className={`${BTN} ml-auto`}>
-          {busy ? 'Checking…' : 'Verify'}
-        </button>
-      </div>
-      {error && <p className="mt-1.5 text-xs text-red-400">{error}</p>}
-    </div>
   );
 }

@@ -1,5 +1,5 @@
 // Connected accounts — the pure half: which platforms, how each link is shown, who may see it, and
-// the Medal profile parsing and verification code. No database import (tests/connected-accounts.test.ts).
+// the Medal profile parsing. No database import (tests/connected-accounts.test.ts).
 //
 // WHAT "CONNECTED" MEANS PER PLATFORM (the database half is lib/connectedAccounts):
 //
@@ -9,15 +9,12 @@
 //              token revoked at once. Verified.
 //   kick     — a one-time code typed in the official Anvil Kick channel's chat (or any connected
 //              streamer's), seen by Anvil's signed webhook (lib/gates/kickAnvilChannel). Verified.
-//   medal    — Medal.tv has no OAuth and no public profile API (see lib/medal). The person enters
-//              their profile; it is UNVERIFIED until they put their Anvil code in the title of one of
-//              their latest public clips and Anvil reads it back through Medal's API (needs
-//              MEDAL_API_KEY). Unverified links are clearly labelled and hidden from profiles by default.
+//   medal    — Medal.tv has no OAuth and no obtainable API key, so a Medal link can never be verified.
+//              It is a plain link the person pastes (medal.tv/users/<id> or /u/<name>), shown like a
+//              social handle they typed: no ✓, no "not verified" label (selfReported), on by default.
 //
-// One platform account per Anvil login (unique indexes on every link table; Medal's only once verified,
-// so nobody can squat somebody else's Medal profile by typing it in).
-
-import crypto from 'crypto';
+// One platform account per Anvil login (unique indexes on every verified link table). Medal is just a
+// link, so two logins may paste the same one; nothing (gates, claims) ever trusts it.
 
 export const PLATFORMS = ['twitch', 'youtube', 'kick', 'medal'] as const;
 export type Platform = (typeof PLATFORMS)[number];
@@ -41,6 +38,8 @@ export interface ConnectedLink {
   /** https URL on the platform's own host, built here from a sanitized id/handle — never stored input. */
   url: string | null;
   verified: boolean;
+  /** A link the person simply typed (Medal): never verifiable, so shown with neither ✓ nor "not verified". */
+  selfReported: boolean;
   /** The person's "show on my profile" choice (default: on when verified, off when not). */
   showOnProfile: boolean;
   /** Platform-side id, for the live lookups. Never rendered. */
@@ -140,36 +139,4 @@ export function parseMedalProfile(input: unknown): MedalProfile | null {
   if (parts[0] === 'users' && parts[1] && MEDAL_ID.test(parts[1])) return { userId: parts[1], username: null };
   if (parts[0] === 'u' && parts[1] && MEDAL_NAME.test(parts[1])) return { userId: null, username: parts[1] };
   return null;
-}
-
-// ── Medal verification code ─────────────────────────────────────────────────────────────────────
-//
-// STATELESS, like the YouTube member code: HMAC(Anvil user, Medal user id). The same person always
-// gets the same code for the same Medal account, nothing to store or expire, and a code is useless
-// for any other (user, Medal account) pair. It only proves anything when it shows up in a clip
-// title on THAT Medal account, which only its owner can edit.
-
-const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
-
-export function medalCode(userId: number, medalUserId: string, key: string): string {
-  const mac = crypto.createHmac('sha256', `anvil-medal-code:${key}`).update(`${userId}:${medalUserId}`).digest();
-  let out = '';
-  for (let i = 0; out.length < 6; i++) out += CODE_ALPHABET[mac[i] % CODE_ALPHABET.length];
-  return `ANVIL-${out}`;
-}
-
-/** Does this clip title carry the code (any case, as a whole token)? */
-export function titleHasCode(title: unknown, code: string): boolean {
-  if (typeof title !== 'string' || title.length > 500) return false;
-  const re = new RegExp(`(?:^|[^A-Za-z0-9])${code.replace('-', '\\-')}(?![A-Za-z0-9])`, 'i');
-  return re.test(title);
-}
-
-/** "Credits to Name (https://medal.tv/users/123)" → { name, id } when it names this Medal user. */
-export function creditsName(credits: unknown, medalUserId: string): string | null {
-  if (typeof credits !== 'string' || credits.length > 500) return null;
-  const m = /Credits to\s+([^()]{1,40}?)\s*\(https?:\/\/(?:www\.)?medal\.tv\/users\/(\d{1,15})\)/i.exec(credits);
-  if (!m || m[2] !== medalUserId) return null;
-  const name = cleanHandle(m[1], 32);
-  return MEDAL_NAME.test(name) ? name : null;
 }

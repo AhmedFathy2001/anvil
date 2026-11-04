@@ -1,5 +1,5 @@
 // Connected accounts — the database half (rules: lib/connectedAccountsRules, live badges:
-// lib/connectedLive, Medal's API: lib/medal).
+// lib/connectedLive). Medal is a plain pasted link: never verified, never trusted by gates.
 //
 // Twitch, YouTube and Kick read and write the SAME identity-only link tables the entry gates use
 // (user_twitch_links, user_youtube_links, user_kick_links). That is the gate fast path: an account
@@ -10,7 +10,7 @@
 //           one Google sign-in, because YouTube only tells the viewer's own token who they subscribe
 //           to and that token is never kept (lib/gates/youtube).
 
-import { and, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -31,14 +31,11 @@ import { gateCache } from '@/lib/entryGatesDb';
 import {
   PLATFORMS,
   cleanHandle,
-  creditsName,
   kickSlugFor,
   kickUrl,
-  medalCode,
   medalUrl,
   parseMedalProfile,
   resolveShowOnProfile,
-  titleHasCode,
   twitchUrl,
   visibleLinks,
   youtubeUrl,
@@ -46,14 +43,10 @@ import {
   type Platform,
 } from '@/lib/connectedAccountsRules';
 import { kickLive, twitchLive } from '@/lib/connectedLive';
-import { latestClips, medalApiKey, type FetchLike } from '@/lib/medal';
 
 export interface MedalState {
   medalUserId: string | null;
   medalUsername: string | null;
-  verified: boolean;
-  /** The code to put in a clip title — only when verification is possible (numeric id + API key). */
-  code: string | null;
 }
 
 export interface ConnectedAccountsView {
@@ -63,11 +56,6 @@ export interface ConnectedAccountsView {
 
 /** A link as shown, plus "live now" where the platform answers cheaply. */
 export type LiveLink = ConnectedLink & { live: boolean };
-
-/** The key the Medal code is derived from (any server secret will do; never sent anywhere). */
-function medalCodeKey(): string {
-  return process.env.MEDAL_CODE_KEY?.trim() || process.env.TWITCH_TOKEN_KEY?.trim() || process.env.SESSION_SECRET?.trim() || 'anvil-medal';
-}
 
 // ── Reading ─────────────────────────────────────────────────────────────────────────────────────
 
@@ -89,6 +77,7 @@ export async function connectedAccountsForUser(userId: number): Promise<Connecte
       handle: cleanHandle(tw.twitchLogin, 25),
       url: twitchUrl(tw.twitchLogin),
       verified: true,
+      selfReported: false,
       showOnProfile: resolveShowOnProfile(pref.get('twitch'), true),
       platformId: tw.twitchUserId,
     });
@@ -99,6 +88,7 @@ export async function connectedAccountsForUser(userId: number): Promise<Connecte
       handle: cleanHandle(yt.youtubeTitle, 60) || 'YouTube channel',
       url: youtubeUrl(yt.youtubeChannelId),
       verified: true,
+      selfReported: false,
       showOnProfile: resolveShowOnProfile(pref.get('youtube'), true),
       platformId: yt.youtubeChannelId,
     });
@@ -109,26 +99,25 @@ export async function connectedAccountsForUser(userId: number): Promise<Connecte
       handle: cleanHandle(kick.kickUsername, 40),
       url: kickUrl(kickSlugFor(kick.kickUsername)),
       verified: true,
+      selfReported: false,
       showOnProfile: resolveShowOnProfile(pref.get('kick'), true),
       platformId: kick.kickUserId,
     });
   }
   let medalState: MedalState | null = null;
   if (medal && (medal.medalUserId || medal.medalUsername)) {
-    const verified = medal.verifiedAt != null;
     links.push({
       platform: 'medal',
       handle: cleanHandle(medal.medalUsername ?? `user ${medal.medalUserId}`, 40),
       url: medalUrl(medal),
-      verified,
-      showOnProfile: resolveShowOnProfile(pref.get('medal'), verified),
+      verified: false,
+      selfReported: true,
+      showOnProfile: resolveShowOnProfile(pref.get('medal'), true),
       platformId: medal.medalUserId,
     });
     medalState = {
       medalUserId: medal.medalUserId,
       medalUsername: medal.medalUsername,
-      verified,
-      code: !verified && medal.medalUserId && medalApiKey() ? medalCode(userId, medal.medalUserId, medalCodeKey()) : null,
     };
   }
   return { links, medal: medalState };
@@ -260,82 +249,21 @@ async function dropEndedClaims(userId: number, platform: 'twitch' | 'youtube' | 
 
 // ── Medal ───────────────────────────────────────────────────────────────────────────────────────
 
-export type MedalSetResult = { ok: true } | { ok: false; reason: 'invalid' | 'taken' };
+export type MedalSetResult = { ok: true } | { ok: false; reason: 'invalid' };
 
 /**
- * Save what they typed as their Medal profile — UNVERIFIED (hidden from their profile by default).
- * Re-saving the same verified account keeps it verified; anything else starts over. 'taken' when that
- * Medal id is already VERIFIED on another login.
+ * Save what they pasted as their Medal profile. A plain link, like a social handle they typed: no
+ * verification, no uniqueness (two logins may paste the same profile), and the show-on-profile choice
+ * they already made is kept.
  */
 export async function setMedalProfile(userId: number, input: unknown): Promise<MedalSetResult> {
   const p = parseMedalProfile(input);
   if (!p) return { ok: false, reason: 'invalid' };
+  // verifiedAt stays null: the column (and its verified-only unique index) is legacy, never set now.
+  const values = { medalUserId: p.userId, medalUsername: p.username, verifiedAt: null, linkedAt: new Date().toISOString() };
   // clan-scope: global -- identity links are per person.
-  if (p.userId) {
-    const other = await db.query.userMedalLinks.findFirst({
-      where: and(eq(userMedalLinks.medalUserId, p.userId), ne(userMedalLinks.userId, userId)),
-      columns: { verifiedAt: true },
-    });
-    if (other?.verifiedAt) return { ok: false, reason: 'taken' };
-  }
-  const mine = await db.query.userMedalLinks.findFirst({ where: eq(userMedalLinks.userId, userId) });
-  const same = !!mine?.verifiedAt && !!p.userId && mine.medalUserId === p.userId;
-  const values = same
-    ? { medalUserId: mine!.medalUserId, medalUsername: mine!.medalUsername, verifiedAt: mine!.verifiedAt, linkedAt: mine!.linkedAt }
-    : { medalUserId: p.userId, medalUsername: p.username, verifiedAt: null, linkedAt: new Date().toISOString() };
   await db.insert(userMedalLinks).values({ userId, ...values }).onConflictDoUpdate({ target: userMedalLinks.userId, set: values });
-  if (!same) {
-    // A changed (so unverified) Medal link goes back to hidden unless they choose otherwise again.
-    await db.delete(userConnectedPrefs).where(and(eq(userConnectedPrefs.userId, userId), eq(userConnectedPrefs.platform, 'medal')));
-  }
   return { ok: true };
-}
-
-export type MedalVerifyResult =
-  | { ok: true; username: string | null }
-  | { ok: false; reason: 'off' | 'none' | 'needs-id' | 'not-found' | 'no-code' | 'taken' | 'error' };
-
-let medalFetch: FetchLike = (input, init) => fetch(input, init);
-export function setMedalFetchForTests(f: FetchLike | null): void {
-  medalFetch = f ?? ((input, init) => fetch(input, init));
-}
-
-/** Look for their code in their latest public clip titles; verify the link when it is there. */
-export async function verifyMedal(userId: number): Promise<MedalVerifyResult> {
-  const key = medalApiKey();
-  if (!key) return { ok: false, reason: 'off' };
-  // clan-scope: global -- identity links are per person.
-  const mine = await db.query.userMedalLinks.findFirst({ where: eq(userMedalLinks.userId, userId) });
-  if (!mine) return { ok: false, reason: 'none' };
-  if (!mine.medalUserId) return { ok: false, reason: 'needs-id' };
-  if (mine.verifiedAt) return { ok: true, username: mine.medalUsername };
-  const clips = await latestClips(key, mine.medalUserId, 10, medalFetch);
-  if (!clips.ok) return { ok: false, reason: clips.reason === 'not-found' ? 'not-found' : 'error' };
-  const code = medalCode(userId, mine.medalUserId, medalCodeKey());
-  // The code only counts on a clip credited to THIS Medal user: a clip that merely shows up in their
-  // list (one they appear in, say) could carry someone else's title. Name taken from that same clip.
-  const hit = clips.value.find((c) => titleHasCode(c.title, code) && creditsName(c.credits, mine.medalUserId!) != null);
-  if (!hit) return { ok: false, reason: 'no-code' };
-  const username = creditsName(hit.credits, mine.medalUserId) ?? mine.medalUsername;
-  try {
-    await db
-      .update(userMedalLinks)
-      .set({ verifiedAt: new Date().toISOString(), medalUsername: username })
-      .where(eq(userMedalLinks.userId, userId));
-  } catch (err) {
-    if ((err as { code?: string })?.code === '23505') return { ok: false, reason: 'taken' };
-    throw err;
-  }
-  // Unverified claims of the same Medal account by other logins are now simply wrong: drop them.
-  await db
-    .delete(userMedalLinks)
-    .where(and(eq(userMedalLinks.medalUserId, mine.medalUserId), ne(userMedalLinks.userId, userId), isNull(userMedalLinks.verifiedAt)));
-  return { ok: true, username };
-}
-
-/** Test helper: the Medal code for a login + Medal id, with the server's key. */
-export function medalCodeFor(userId: number, medalUserId: string): string {
-  return medalCode(userId, medalUserId, medalCodeKey());
 }
 
 /**
