@@ -14,7 +14,7 @@ import { assetCacheKey, parseAssetScale, wikiImageUrl } from '../src/lib/assetUr
 
 let C: typeof import('../src/lib/assetCache.ts');
 let GET: typeof import('../src/app/img/wiki/[...file]/route.ts').GET;
-let sharp: typeof import('sharp');
+let sharp: (typeof import('sharp'))['default'];
 let sprite: Buffer;
 let big: Buffer;
 let upstreamCalls = 0;
