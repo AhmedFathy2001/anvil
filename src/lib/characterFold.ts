@@ -76,28 +76,33 @@ function sameRsn(a: string, b: string): boolean {
 }
 
 /**
- * Which character /profile is about, from `?account=`.
+ * Which character /profile's CHARACTER VIEW is about, from `?account=` — or null for the overview.
  *
- *   - one of theirs this tab holds no seat for (`unseated`) — matched by name, any spelling;
- *   - else the seated one the locker focused (it already honoured `?account=` among the seated);
- *   - else their first seated one.
- *
- * Anything else — a name that isn't theirs, a typo — falls through to the default rather than
- * erroring, and never reaches a character that isn't theirs (both lists are only theirs).
+ * Only a name that is one of theirs opens it: seated here first, then one this tab holds no seat
+ * for, matched by any spelling (space/underscore, case). No `?account=`, an empty one, a typo or
+ * somebody else's name is the overview — never a guess at their main, and never anyone else's
+ * character (both lists are only theirs).
  */
-export function pickFoldCharacter<S extends { rsn: string }, U extends { rsn: string }>(
+export function pickViewedCharacter<S extends { rsn: string }, U extends { rsn: string }>(
   wanted: string | null | undefined,
   seated: readonly S[],
-  seatedFocusRsn: string | null,
   unseated: readonly U[],
 ): { row: S | U; seated: boolean } | null {
   const w = wanted?.trim();
-  if (w) {
-    const off = unseated.find((o) => sameRsn(o.rsn, w));
-    if (off) return { row: off, seated: false };
-  }
-  const on = (seatedFocusRsn != null ? seated.find((s) => s.rsn === seatedFocusRsn) : undefined) ?? seated[0];
-  return on ? { row: on, seated: true } : null;
+  if (!w) return null;
+  const on = seated.find((s) => sameRsn(s.rsn, w));
+  if (on) return { row: on, seated: true };
+  const off = unseated.find((o) => sameRsn(o.rsn, w));
+  return off ? { row: off, seated: false } : null;
+}
+
+/**
+ * The page the rest of the world sees for a character: the clan's member page for a seat on a
+ * clan's tab, else (a creator space, or no seat here) its public /p/ page.
+ */
+export function fullProfileHref(c: { rsn: string; seat: FoldSeat }, space: boolean): string {
+  const rsn = encodeURIComponent(c.rsn);
+  return !space && (c.seat === 'member' || c.seat === 'guest') ? `/members/${rsn}` : `/p/${rsn}`;
 }
 
 /**
