@@ -34,6 +34,8 @@ import { supporterView } from '@/components/SupporterSection';
 import ClanLink from '@/components/ClanLink';
 import { onboardingNext } from '@/lib/firstLogin';
 import { characterStandings, clanOptionsFor } from '@/lib/characterStandingRead';
+import { canUseProfileMedia, displayCaseSlots, profileMediaForUser } from '@/lib/profileMedia';
+import { readDisplayCase } from '@/lib/displayCase';
 
 export const dynamic = 'force-dynamic';
 
@@ -120,6 +122,12 @@ export default async function ProfilePage({
       .filter((d) => !ownedRsns.has(d.rsnNormalized) && !(d.accountHash && ownedHashes.has(d.accountHash)))
       .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
     const standings = await characterStandings(characters.map((a) => a.id), Date.now());
+    // Their own avatar, banner and display case (Anvil Supporter), at the tier in force now.
+    const tierNow = supporter?.tier.id ?? null;
+    const [media, pins] = await Promise.all([
+      profileMediaForUser(session.userId, { tier: tierNow }),
+      readDisplayCase(session.userId, session.playerId).catch(() => []),
+    ]);
     const rsnById = new Map(characters.map((a) => [a.id, a.rsn]));
     return (
       <PersonProfile
@@ -143,6 +151,8 @@ export default async function ProfilePage({
         suggestedRsn={suggestedRsn}
         unfinishedSetup={onboarding.offer}
         supporter={supporterView(supporter)}
+        look={{ media, canUpload: canUseProfileMedia(tierNow) }}
+        displayCase={{ pins, slots: displayCaseSlots(tierNow) }}
         announceSupporter={user.announceSupporter}
         gameChatFlair={user.gameChatFlair}
         invite={
@@ -162,6 +172,8 @@ export default async function ProfilePage({
     getClanDisplayName(clan.id),
     supporterForUser(session.userId),
   ]);
+  // Their own avatar (Anvil Champion+), animated on their own card; else the Discord one below.
+  const ownMedia = await profileMediaForUser(session.userId, { tier: supporterState?.tier.id ?? null });
   // Nothing left to set up (the plugin got there first): no card to put the link on, so just go.
   if (continueTo && !locker.setupNeeded) redirect(continueTo); // clan-prefix: platform -- literal path they signed in from
 
@@ -285,6 +297,7 @@ export default async function ProfilePage({
         supporterStyle={supporterState?.style ?? null}
         discordUsername={user.discordUsername}
         avatar={avatar}
+        customAvatar={ownMedia.avatar}
         role={session.role}
         isStaff={isStaff}
         accounts={locker.accounts}

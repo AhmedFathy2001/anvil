@@ -12,6 +12,11 @@ import SupporterName from '@/components/SupporterName';
 import SupporterSection, { type InviteView, type SupporterView } from '@/components/SupporterSection';
 import GuestSeatsClient, { type GuestSeatRow } from '@/app/profile/GuestSeatsClient';
 import WrongClanReport, { type WrongClanOption } from '@/app/profile/WrongClanReport';
+import ProfileLookEditor from '@/components/ProfileLookEditor';
+import DisplayCaseEditor from '@/components/DisplayCaseEditor';
+import { ProfileAvatar, ProfileBanner } from '@/components/ProfileMedia';
+import type { ShownProfileMedia } from '@/lib/profileMediaRules';
+import type { DisplayCaseEntry } from '@/lib/displayCase';
 
 export interface PersonCharacter {
   id: number;
@@ -51,7 +56,13 @@ export default function PersonProfile({
   announceSupporter = true,
   gameChatFlair = true,
   guestSeats = [],
+  look = null,
+  displayCase = null,
 }: {
+  /** Their own avatar and banner as shown now, and whether their tier lets them upload. */
+  look?: { media: ShownProfileMedia; canUpload: boolean } | null;
+  /** Every pin they have (kept through a lapse) and their slots now. */
+  displayCase?: { pins: DisplayCaseEntry[]; slots: number } | null;
   /** Their live guest seats, each leavable from here. */
   guestSeats?: GuestSeatRow[];
   displayName: string;
@@ -91,8 +102,14 @@ export default function PersonProfile({
         </ClanLink>
       )}
 
+      {look?.media.banner && <ProfileBanner banner={look.media.banner} className="mb-5" />}
+
       <div className="mb-8 flex items-center gap-3">
-        <span className="w-1 h-8 bg-gold rounded-full" />
+        {look?.media.avatar ? (
+          <ProfileAvatar avatar={look.media.avatar} size={56} eager className="border-2 border-gold/45" />
+        ) : (
+          <span className="w-1 h-8 bg-gold rounded-full" />
+        )}
         <div>
           <h1 className="text-3xl font-bold text-gold">
             <SupporterName name={displayName} tier={supporter?.tier} style={supporter?.style} plain />
@@ -243,6 +260,29 @@ export default function PersonProfile({
           <LinkAccountsToggle linked={linked} sharedCount={characters.filter((c) => c.shared).length} />
         )}
       </section>
+
+      {/* Supporter perks that dress the PUBLIC profile: their own pictures and the display case. Both
+          are checked against the tier on every read, so what is here after a lapse is kept, not lost. */}
+      {look && (
+        <section id="profile-look" className="mt-10 scroll-mt-24">
+          <h2 className="mb-1 text-lg font-semibold">Your avatar &amp; banner</h2>
+          <p className="mb-3 max-w-[70ch] text-sm text-text-muted">
+            Shown on your own card, your person page, and your shared characters&rsquo; pages if you show your
+            characters as one person.
+          </p>
+          <ProfileLookEditor initial={look.media} canUpload={look.canUpload} name={displayName} />
+        </section>
+      )}
+      {displayCase && (
+        <section id="display-case" className="mt-10 scroll-mt-24">
+          <h2 className="mb-1 text-lg font-semibold">Display case</h2>
+          <p className="mb-3 max-w-[70ch] text-sm text-text-muted">
+            Your best drops, pinned to your profile: each on its character&rsquo;s page, and all together on your person
+            page if you show your characters as one person. Items from characters you don&rsquo;t share stay private.
+          </p>
+          <DisplayCaseEditor initialPins={displayCase.pins} slots={displayCase.slots} />
+        </section>
+      )}
 
       {/* Above the settings, not under them: it was the last thing on the page, below nine webhook
           categories, and that is where people stopped reading. */}

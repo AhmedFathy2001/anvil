@@ -32,8 +32,8 @@ const ROWS: { label: string; hint?: string; cells: [Cell, Cell, Cell, Cell] }[] 
   { label: 'Name flair on Anvil', cells: ['—', 'Gold name + star', 'Pick a gradient', 'Animated, any colours you like'] },
   { label: 'Flair in the plugin panel and on Discord', cells: ['—', 'Gold name + star', 'Gradient name + star', 'Gradient name + star'] },
   { label: 'Gold GZ on clanmates’ drops (plugin)', cells: ['GZ', 'Gold GZ', 'Gold GZ', 'Gold GZ'] },
-  { label: 'Animated avatar and banner', cells: ['—', '—', { text: 'Yes', soon: true }, { text: 'Yes', soon: true }] },
-  { label: 'Display case of your best drops', cells: ['—', { text: '4 slots', soon: true }, { text: '8 slots', soon: true }, { text: '12 slots', soon: true }] },
+  { label: 'Animated avatar and banner', cells: ['—', '—', 'Yes', 'Yes'] },
+  { label: 'Display case of your best drops', cells: ['—', '4 slots', '8 slots', '12 slots'] },
   {
     label: 'Host friend events',
     hint: 'Run your own small bingo or race for friends, tracked by the plugin like a clan event. Shown as how many you can run at once, and how many players each can have.',
