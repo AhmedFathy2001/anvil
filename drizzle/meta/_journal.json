@@ -988,6 +988,13 @@
       "when": 1793791894614,
       "tag": "0193_event_overlays",
       "breakpoints": true
+    },
+    {
+      "idx": 198,
+      "version": "7",
+      "when": 1793792194614,
+      "tag": "0198_h2h_challenges",
+      "breakpoints": true
     }
   ]
 }

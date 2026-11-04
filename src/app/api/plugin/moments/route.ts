@@ -16,6 +16,7 @@ import { claimFeedItem, emitPersonalItem } from '@/lib/chatFeed';
 import { feedItemFromMoment } from '@/lib/chatFeedRules';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { settleDeathSource } from '@/lib/deathSource';
+import { recordH2hDrops, type ReportedDrop } from '@/lib/h2h';
 
 // Highlight ingest: the pets, uniques, big hauls, deaths and combat tasks that happen while a competition week or
 // a bingo is running (lib/moments decides which of those it is — see that file for why the rules
@@ -117,6 +118,23 @@ async function feedFrom(character: { userId: number; accountId: number; rsn: str
   }
 }
 
+/** The drops (by id) and live log unlocks (by name) in a push, for head-to-head races. */
+function h2hDropsFrom(raws: unknown[], now: number): ReportedDrop[] {
+  const out: ReportedDrop[] = [];
+  for (const raw of raws) {
+    if (!raw || typeof raw !== 'object') continue;
+    const r = raw as Record<string, unknown>;
+    if (r.kind === 'drop') {
+      const itemId = int(r.itemId, 100_000_000);
+      if (itemId != null) out.push({ itemId, itemName: null, occurredAt: occurredAt(r.at, now) });
+    } else if (r.kind === 'clog') {
+      const itemName = str(r.itemName);
+      if (itemName) out.push({ itemId: null, itemName, occurredAt: occurredAt(r.at, now) });
+    }
+  }
+  return out;
+}
+
 export async function POST(request: Request) {
   // Kills, drops, XP and logs from a game-mode world (Leagues, Deadman, hardcore, …) are another
   // save's progress, never this one's (lib/worldModeRequest).
@@ -160,6 +178,10 @@ export async function POST(request: Request) {
   }
   // A killer the plugin only inferred from the fight is kept when it's a boss, else dropped (lib/deathSource).
   for (const raw of body.moments) if (raw && typeof raw === 'object') settleDeathSource(raw as Record<string, unknown>);
+
+  // Head-to-head drop races (lib/h2h) read every drop and live log unlock first, seat or no seat:
+  // a race is the character's, not a clan's. Never scoring anything else.
+  await recordH2hDrops(character.accountId, h2hDropsFrom(body.moments as unknown[], Date.now())).catch(() => 0);
 
   // Other players' in-game chat reads every report first (lib/chatFeed) — the board, the clan and the
   // competition rules below decide only what is STORED. Off the request's path: nobody waits on it.

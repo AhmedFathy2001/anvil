@@ -4,7 +4,9 @@ import { buildBoard, pluginBoardScope } from '@/app/api/plugin/board/route';
 import { GET as configRoute } from '@/app/api/plugin/config/route';
 import { GET as weeklyRoute } from '@/app/api/plugin/weekly-leaderboard/route';
 import { db } from '@/db';
-import { clans, events, memberClogItems, settings, tiles } from '@/db/schema';
+import { clans, events, memberClogItems, settings, tiles, users } from '@/db/schema';
+import { challengesForAccount, respondToChallenge } from '@/lib/h2h';
+import { h2hUi } from './h2hUi';
 import { apexCharacter } from '@/lib/apexProfiles';
 import { FEED_KINDS, loadClanCard } from '@/lib/clanCard';
 import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
@@ -95,7 +97,32 @@ async function youView(request: Request): Promise<View> {
   const cardUi = character
     ? playerCardUi(await loadPlayerCard(character), { sectionKey: 'you', cas: true })
     : notFoundUi(me.rsn);
-  return { ui: col([cardUi, gap(6), (await goalsView(request)).ui]) };
+  // Head-to-head only when something is open: an empty card on everybody's tab is noise.
+  const owner = await ownedAccount(request);
+  const challenges = owner ? await challengesForAccount(owner.accountId).catch(() => []) : [];
+  const h2h = challenges.length ? [h2hUi(challenges), gap(6)] : [];
+  return { ui: col([cardUi, gap(6), ...h2h, (await goalsView(request)).ui]) };
+}
+
+/** The played character's head-to-head challenges (lib/h2h), when it is yours. */
+async function h2hView(request: Request, error: string | null = null): Promise<View> {
+  const owner = await ownedAccount(request);
+  if (!owner) return { ui: h2hUi([], error) };
+  return { ui: h2hUi(await challengesForAccount(owner.accountId).catch(() => []), error) };
+}
+
+/** Accept or decline an invitation from the panel. Only the invited person's own character may. */
+async function h2hAct(request: Request, act: string, args: Args): Promise<View> {
+  const owner = await ownedAccount(request);
+  if (!owner) return h2hView(request, 'Log in to a character that is yours on Anvil.');
+  const rl = await rateLimit(request, `plugin-h2h:${owner.userId}`, { limit: 20, windowMs: 60_000 });
+  if (!rl.ok) return h2hView(request, 'Too many changes — give it a minute.');
+  const id = Number(args.id);
+  // clan-scope: global -- a person's login, by id, to find whose answer this is.
+  const login = await db.query.users.findFirst({ where: eq(users.id, owner.userId), columns: { playerId: true } });
+  if (!login?.playerId || !Number.isInteger(id) || id <= 0) return h2hView(request, 'Couldn’t find that challenge.');
+  const out = await respondToChallenge({ id, playerId: login.playerId, accept: act === 'h2h-accept' });
+  return h2hView(request, out.ok ? null : out.error);
 }
 
 async function casView(request: Request, a: Args): Promise<View> {
@@ -588,6 +615,8 @@ async function viewFor(request: Request, v: string, a: Args): Promise<View | nul
       return clansView(request, a.q ?? '');
     case 'goals':
       return goalsView(request);
+    case 'h2h':
+      return h2hView(request);
     case 'goal-new':
       return goalFormView(request, a.kind ?? 'skill');
     case 'board':
@@ -618,6 +647,7 @@ async function actFor(request: Request, act: string, args: Args, fields: Args): 
   if (act === 'clan-event-going') return clanEventGoingAct(request, args);
   if (act === 'react') return reactAct(request, args);
   if (act === 'react-row') return reactRowAct(request, args);
+  if (act === 'h2h-accept' || act === 'h2h-decline') return h2hAct(request, act, args);
   const chat = await chatAct(request, act, args, fields);
   if (chat) return chat;
   if (act !== 'goal-add' && act !== 'goal-remove') return null;

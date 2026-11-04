@@ -35,7 +35,7 @@ const ROWS: { label: string; cells: [Cell, Cell, Cell, Cell] }[] = [
   { label: 'Animated avatar and banner', cells: ['—', '—', { text: 'Yes', soon: true }, { text: 'Yes', soon: true }] },
   { label: 'Display case of your best drops', cells: ['—', { text: '4 slots', soon: true }, { text: '8 slots', soon: true }, { text: '12 slots', soon: true }] },
   { label: 'Host friend events', cells: ['Join only', { text: '1 · 10 players', soon: true }, { text: '3 · 25 players', soon: true }, { text: 'Unlimited · 50', soon: true }] },
-  { label: 'Head-to-head challenges', cells: [{ text: '1 active', soon: true }, { text: '5 active', soon: true }, { text: 'Unlimited', soon: true }, { text: 'Unlimited', soon: true }] },
+  { label: 'Head-to-head challenges', cells: ['1 active', '5 active', 'Unlimited', 'Unlimited'] },
   { label: 'Gift a month to a friend', cells: ['—', '—', { text: '1 a quarter', soon: true }, { text: '1 a month', soon: true }] },
   { label: 'Early access on beta', cells: ['—', '—', '—', { text: 'Yes', soon: true }] },
 ];

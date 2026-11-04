@@ -16,7 +16,18 @@ import { jsonWithEtag } from '@/lib/httpEtag';
 import { serverInfo } from '@/lib/serverInfo';
 import { pluginClansFor } from '@/lib/pluginClans';
 import { combatTaskVarps } from '@/lib/combatTasks';
-import { accountStanding, playedCharacter } from '@/lib/pluginAccount';
+import { accountForCharacter, accountStanding, playedCharacter, type PlayedCharacter } from '@/lib/pluginAccount';
+import { h2hDropItemIdsForAccount } from '@/lib/h2h';
+
+/** Item ids of this (owned) character's running head-to-head drop races. Never fails the config. */
+async function h2hDropIdsFor(character: PlayedCharacter): Promise<number[]> {
+  try {
+    const account = await accountForCharacter(character);
+    return account ? await h2hDropItemIdsForAccount(account.id) : [];
+  } catch {
+    return [];
+  }
+}
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
 import { panelSchedule } from '@/lib/pluginPanel';
 import { foldOtherBoards, summaryOf, wantsAllBoards } from '@/lib/pluginBoards';
@@ -152,6 +163,9 @@ export async function GET(request: Request) {
         trackedDiaries: [],
         trackedCombatTasks: [],
         trackedClog: [],
+        // No board, so no event luck: only the character's head-to-head drop races (lib/h2h), which
+        // the plugin then reports whatever they sell for. Capability 'luck-drops'.
+        luckItemIds: character && standing === 'yours' ? await h2hDropIdsFor(character) : [],
         noActiveEvent: true,
         rollTables: pluginRollTables,
         schedule,
@@ -198,6 +212,15 @@ export async function GET(request: Request) {
     viewer: { playerId: auth.playerId, userId: auth.userId, rsn: auth.rsn, request },
   });
   if (!built.ok) return NextResponse.json({ error: built.error }, { status: built.status });
+  // The character's head-to-head drop races ride on the board's luck list (lib/h2h): the plugin
+  // reports a drop on that list as a moment whatever it sells for, which is what calls the race.
+  {
+    const raceIds = await h2hDropItemIdsForAccount(auth.accountId).catch(() => [] as number[]);
+    if (raceIds.length) {
+      const b = built.body as unknown as { luckItemIds?: number[] };
+      b.luckItemIds = [...new Set([...(b.luckItemIds ?? []), ...raceIds])].sort((x, y) => x - y);
+    }
+  }
   // ONE DROP, EVERY BOARD. Only for a plugin that says it reads the `board` tag (X-Anvil-Boards):
   // an older one would file board B's tiles against board A, so it keeps exactly today's answer.
   if (wantsAllBoards(request)) {
