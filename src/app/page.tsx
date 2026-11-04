@@ -34,6 +34,7 @@ import { highlightsForSpace } from '@/lib/highlights/store';
 import { publicSpacePage } from '@/lib/spacePage/store';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { isCreatorSpace, spaceDescription } from '@/lib/creatorSpaces';
+import { showReportButton } from '@/lib/platformReportRules';
 
 export const dynamic = 'force-dynamic';
 
@@ -200,7 +201,9 @@ export default async function HomePage() {
       publicSpacePage({ id: clan.id, slug: clan.slug }, { canSeeEvent: canSee }).catch(() => null),
     ]);
     if (creatorView) {
-      return <CreatorHome view={creatorView} highlights={highlights} page={spacePage} canReport={!!viewer?.userId} />;
+      // The space's own staff run the page; the Report flag is for everyone else signed in.
+      const canReport = showReportButton({ signedIn: !!viewer?.userId, staffOfTarget: viewerIsStaff });
+      return <CreatorHome view={creatorView} highlights={highlights} page={spacePage} canReport={canReport} />;
     }
   }
   const session = await verifyUser();
@@ -261,6 +264,7 @@ export default async function HomePage() {
           <PublicClanHome
             view={publicView}
             signedIn={!!session?.userId}
+            canReport={showReportButton({ signedIn: !!session?.userId, staffOfTarget: staffHere })}
             hall={hall ? <ClanHall initial={hall} src="public" /> : null}
             activity={activity}
           />

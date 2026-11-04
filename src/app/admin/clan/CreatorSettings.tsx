@@ -13,7 +13,7 @@ import CreatorPageEditor from './CreatorPageEditor';
 /**
  * A creator space's settings: the name, the channels its page links to (connected, never typed),
  * and whether Anvil may
- * advertise it (the clans directory, and the space's events on the "Open to everyone" feed once
+ * advertise it (the creators list on /clans, and the space's events on the "Open to everyone" feed once
  * they are advertised too). Off by default — a creator space starts unlisted.
  */
 export default function CreatorSettings() {
@@ -118,8 +118,8 @@ export default function CreatorSettings() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <p className="max-w-[60ch] text-sm text-text-muted">
             {advertised
-              ? 'Your space is listed in the Anvil clans directory, and your new events start listed on anvilosrs.com/events. Switch any event off in its own settings.'
-              : 'Unlisted: only people with your link can find your space. Turn this on to list it in the Anvil clans directory. You can still list single events on anvilosrs.com/events from their settings.'}
+              ? 'Your space is listed in Anvil’s creators list, and your new events start listed on anvilosrs.com/events. Switch any event off in its own settings.'
+              : 'Unlisted: only people with your link can find your space. Turn this on to list your space in Anvil’s creators list. You can still list single events on anvilosrs.com/events from their settings.'}
           </p>
           <button
             type="button"
@@ -196,7 +196,7 @@ export default function CreatorSettings() {
           <p className="max-w-[60ch] text-sm text-text-muted">
             {hideMark
               ? 'Hidden: your OBS overlay shows only your event.'
-              : 'Your OBS overlay shows a small “Anvil” in the corner. Turn this on to hide it.'}
+              : 'Your OBS overlay shows a small “Powered by Anvil” badge (logo and anvilosrs.com) in the corner. Turn this on to hide it.'}
             {hideMarkPlan && !hideMark && <span className="block text-gold">Part of the {hideMarkPlan} plan.</span>}
           </p>
           <button

@@ -45,6 +45,7 @@ before(async () => {
       { slug: 'gone', name: 'Suspended Clan', status: 'suspended' },
       { slug: 'lab', name: 'Tile Lab', platformHidden: true },
       { slug: 'nogue', name: 'No Guests', guestPolicy: 'closed' },
+      { slug: 'streamy', name: 'Streaming Clan', streaming: true },
     ])
     .returning();
   const clan = Object.fromEntries(c.map((r) => [r.slug, r.id]));
@@ -76,6 +77,10 @@ before(async () => {
     entryGates: JSON.stringify({ anyOf: [{ kind: 'twitch-follow' }] }),
   });
   await ev('noGuests', 'nogue', { startDate: at(4 * DAY) });
+  // Undated, sign-ups open: a creator's "starts when the host starts it" event, and a Streaming
+  // clan's viewer event — the same rule as the space page (creatorEventPlacement → 'open').
+  await ev('creatorUndated', 'small', { startDate: null });
+  await ev('streamUndated', 'streamy', { startDate: null, openToViewers: true });
 
   // ── never listed ──
   await ev('notAdvertised', 'alpha', { advertised: false, startDate: at(DAY) });
@@ -84,6 +89,12 @@ before(async () => {
   await ev('ended', 'alpha', { startDate: at(-3 * DAY), endDate: at(-HOUR) });
   await ev('forceEnded', 'alpha', { startDate: at(-DAY), forceEndedAt: at(-HOUR) });
   await ev('draft', 'alpha', { startDate: null });
+  // A Streaming clan's undated board that viewers may NOT join is still a draft.
+  await ev('streamDraft', 'streamy', { startDate: null, openToViewers: false });
+  // An undated creator event whose sign-ups closed, or have not opened yet.
+  await ev('creatorUndatedClosed', 'small', { startDate: null, signupDeadline: at(-HOUR) });
+  await ev('creatorUndatedLater', 'small', { startDate: null, signupOpensAt: at(DAY) });
+  await ev('creatorUndatedInvite', 'small', { startDate: null, visibility: 'invited' });
   await ev('privateClan', 'secret', { startDate: at(DAY) });
   await ev('suspendedClan', 'gone', { startDate: at(DAY) });
   await ev('hiddenClan', 'lab', { startDate: at(DAY) });
@@ -114,12 +125,27 @@ const names = (list: { name: string }[]) => list.map((e) => e.name).sort();
 
 test('only advertised events a stranger can see, upcoming or live, are listed', async () => {
   const all = await D.loadDirectoryEvents(NOW);
-  assert.deepEqual(names(all), ['clanVisible', 'creatorGated', 'creatorOpen', 'live', 'noGuests', 'paidLater']);
+  assert.deepEqual(names(all), [
+    'clanVisible', 'creatorGated', 'creatorOpen', 'creatorUndated', 'live', 'noGuests', 'paidLater', 'streamUndated',
+  ]);
+});
+
+test("a creator's undated event with sign-ups open lists as open to join; a clan's undated draft does not", async () => {
+  const by = new Map((await D.loadDirectoryEvents(NOW)).map((e) => [e.name, e]));
+  const open = by.get('creatorUndated')!;
+  assert.deepEqual([open.open, open.live, open.startDate, open.startMs], [true, false, null, null]);
+  assert.equal(R.whenWords(open, NOW), 'Open now · starts when the host starts it');
+  assert.equal(by.get('streamUndated')!.open, true, "a Streaming clan's viewer event follows the same rule");
+  for (const key of ['draft', 'streamDraft', 'creatorUndatedClosed', 'creatorUndatedLater', 'creatorUndatedInvite']) {
+    assert.equal(by.has(key), false, `${key} must not be listed`);
+  }
+  assert.equal(by.get('live')!.open, false);
+  assert.equal(by.get('creatorOpen')!.open, false, 'a dated event is never "open to join"');
 });
 
 test('invite-only, hidden, suspended, private-clan, ended and draft events are never listed', async () => {
   const listed = new Set((await D.loadDirectoryEvents(NOW)).map((e) => e.eventId));
-  for (const key of ['notAdvertised', 'inviteOnly', 'typoVisibility', 'ended', 'forceEnded', 'draft', 'privateClan', 'suspendedClan', 'hiddenClan']) {
+  for (const key of ['notAdvertised', 'inviteOnly', 'typoVisibility', 'ended', 'forceEnded', 'draft', 'streamDraft', 'privateClan', 'suspendedClan', 'hiddenClan']) {
     assert.equal(listed.has(ids[key]), false, `${key} must not be listed`);
   }
 });
@@ -152,23 +178,29 @@ test('cards carry host, format, players and who can join', async () => {
 test('filters: live, starting soon, format, joining and host type', async () => {
   const all = await D.loadDirectoryEvents(NOW);
   const run = (q: Record<string, string>) => names(R.directoryPage(all, R.parseFilters(q), NOW).items);
-  assert.deepEqual(run({ when: 'live' }), ['live']);
+  assert.deepEqual(run({ when: 'live' }), ['live'], 'an open-to-join event is not "live"');
+  assert.deepEqual(run({ when: 'open' }), ['creatorUndated', 'streamUndated']);
+  assert.equal(R.directoryPage(all, R.DEFAULT_FILTERS, NOW).openCount, 2);
+  assert.equal(R.filterHref(R.DEFAULT_FILTERS, { when: 'open' }), '/events?when=open');
   assert.deepEqual(run({ when: 'soon' }), ['clanVisible', 'creatorOpen', 'noGuests', 'paidLater']);
   assert.deepEqual(run({ format: 'race' }), ['creatorOpen']);
   assert.deepEqual(run({ format: 'solo' }), ['creatorOpen']);
-  assert.deepEqual(run({ join: 'open' }), ['creatorOpen']);
-  assert.deepEqual(run({ join: 'gated' }), ['clanVisible', 'creatorGated', 'live', 'noGuests', 'paidLater']);
-  assert.deepEqual(run({ host: 'creator' }), ['creatorGated', 'creatorOpen']);
+  assert.deepEqual(run({ join: 'open' }), ['creatorOpen', 'creatorUndated']);
+  assert.deepEqual(run({ join: 'gated' }), ['clanVisible', 'creatorGated', 'live', 'noGuests', 'paidLater', 'streamUndated']);
+  assert.deepEqual(run({ host: 'creator' }), ['creatorGated', 'creatorOpen', 'creatorUndated']);
   assert.deepEqual(run({ host: 'clan', when: 'soon' }), ['clanVisible', 'noGuests', 'paidLater']);
   // Junk in the URL is the default, never an error.
   assert.equal(R.directoryPage(all, R.parseFilters({ when: 'x', format: '<script>', page: '-4' }), NOW).total, all.length);
 });
 
-test('ordering: live first, then featured within each group, then soonest start', async () => {
+test('ordering: live first, then open to join, then featured within each group, then soonest start', async () => {
   const all = await D.loadDirectoryEvents(NOW);
   const order = R.directoryPage(all, R.DEFAULT_FILTERS, NOW).items.map((e) => e.name);
+  // Open-to-join (undated) sits between live and upcoming, oldest event first.
   // Featured upcoming (paidLater +5d, creatorGated +10d) lead the upcoming group — never above live.
-  assert.deepEqual(order, ['live', 'paidLater', 'creatorGated', 'clanVisible', 'creatorOpen', 'noGuests']);
+  assert.deepEqual(order, [
+    'live', 'creatorUndated', 'streamUndated', 'paidLater', 'creatorGated', 'clanVisible', 'creatorOpen', 'noGuests',
+  ]);
 });
 
 test('paginates 24 to a page', () => {
@@ -181,7 +213,7 @@ test('paginates 24 to a page', () => {
     },
     NOW,
   )!;
-  const many = Array.from({ length: 30 }, (_, i) => ({ ...base, eventId: i + 1, startMs: base.startMs + i }));
+  const many = Array.from({ length: 30 }, (_, i) => ({ ...base, eventId: i + 1, startMs: base.startMs! + i }));
   const p1 = R.directoryPage(many, R.DEFAULT_FILTERS, NOW);
   const p2 = R.directoryPage(many, { ...R.DEFAULT_FILTERS, page: 2 }, NOW);
   assert.deepEqual([p1.items.length, p1.pages, p2.items.length, p2.page], [24, 2, 6, 2]);

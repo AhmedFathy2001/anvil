@@ -71,6 +71,9 @@ export default async function EventsDirectory({ filters }: { filters: DirectoryF
             {view.liveCount > 0 && <span className="h-1.5 w-1.5 rounded-full bg-accent-green-light" />}
             Live now{view.liveCount > 0 ? ` · ${view.liveCount}` : ''}
           </Chip>
+          <Chip href={filterHref(filters, { when: 'open' })} on={filters.when === 'open'}>
+            Open to join{view.openCount > 0 ? ` · ${view.openCount}` : ''}
+          </Chip>
           <Chip href={filterHref(filters, { when: 'soon' })} on={filters.when === 'soon'}>Starting this week</Chip>
         </FilterRow>
         <FilterRow label="Type">
@@ -145,8 +148,8 @@ export default async function EventsDirectory({ filters }: { filters: DirectoryF
       )}
 
       <p className="mt-6 text-xs text-text-dim">
-        Every event here was listed by its host. Joining a clan&rsquo;s event makes you a guest there, never a
-        member — your account and characters stay yours.
+        Every event here was listed by its host. Joining someone else&rsquo;s event lets you play in that event
+        only — you never become a member, and your account and characters stay yours.
       </p>
     </div>
   );

@@ -21,6 +21,8 @@ import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
+import { clanGrant } from '@/lib/clanGrants';
+import { showReportButton } from '@/lib/platformReportRules';
 import { siteReactions } from '@/lib/siteReactions';
 import { parseStamp } from '@/lib/dbTime';
 import { tileKindKey } from '@/lib/tileKinds';
@@ -291,6 +293,12 @@ export default async function EventScoreboardPage({
   // round-trip. We need the viewer's session, their existing signup (if any), and whether
   // they have any verified RSNs at all (controls the banner's primary action).
   const session = await verifyUser();
+  // The Report flag (lib/platformReports) is for everyone signed in EXCEPT the host clan's own staff,
+  // who run this event and fix it in its settings. clanGrant reads clan_staff for exactly event.clanId.
+  const canReport = showReportButton({
+    signedIn: !!session?.userId,
+    staffOfTarget: session?.userId ? (await clanGrant(event.clanId, session.userId)) != null : false,
+  });
   const window = signupWindowState({
     signupOpensAt: event.signupOpensAt,
     signupDeadline: event.signupDeadline,
@@ -858,7 +866,7 @@ export default async function EventScoreboardPage({
           </div>
         )}
         <EventFirsts firsts={firsts} />
-        <HighlightsStrip highlights={highlightStrip} canReport={!!session?.userId} />
+        <HighlightsStrip highlights={highlightStrip} canReport={canReport} />
         <MomentsFeed moments={eventMoments} streamLinks={momentStreamLinks} reactions={momentReactions} />
         <ScoreboardClient
           creator={isCreatorSpace(hostClan)}
@@ -890,8 +898,8 @@ export default async function EventScoreboardPage({
           <CohostTileSuggest eventId={event.id} hostName={hostClan?.name ?? 'the host'} />
         </section>
       )}
-      {/* To Anvil staff, not the host (lib/platformReports). Signed-in viewers only. */}
-      {session?.userId && (
+      {/* To Anvil staff, not the host (lib/platformReports). Signed-in viewers who don't run it. */}
+      {canReport && (
         <div className="mt-8 flex justify-end">
           <ReportButton type="event" id={event.id} label="Report this event" />
         </div>

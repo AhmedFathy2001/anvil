@@ -44,12 +44,15 @@ export async function loadDirectoryEvents(now: number = Date.now()): Promise<Dir
       teamPlacement: events.teamPlacement,
       entry: events.entry,
       entryGates: events.entryGates,
+      visibility: events.visibility,
+      openToViewers: events.openToViewers,
       hostSlug: clans.slug,
       hostName: clans.name,
       hostLogoUrl: clans.logoUrl,
       hostKind: clans.kind,
       hostPlan: clans.plan,
       hostGuestPolicy: clans.guestPolicy,
+      hostStreaming: clans.streaming,
       twitchLogin: clanTwitchChannels.twitchLogin,
     })
     .from(events)
@@ -65,11 +68,17 @@ export async function loadDirectoryEvents(now: number = Date.now()): Promise<Dir
         eq(clans.platformHidden, false),
         eq(clans.visibility, 'public'),
         isNull(events.forceEndedAt),
-        sql`${events.startDate} is not null`,
+        // Dated — or a streamed event (a creator space's, or a Streaming clan's viewer event), whose
+        // undated board is open to join rather than a draft. The exact rule: listsUndated.
+        or(
+          sql`${events.startDate} is not null`,
+          eq(clans.kind, 'creator'),
+          and(eq(clans.streaming, true), eq(events.openToViewers, true)),
+        ),
         or(isNull(events.endDate), sql`${events.endDate} > ${looseCut}`),
       ),
     )
-    .orderBy(events.startDate)
+    .orderBy(sql`${events.startDate} asc nulls first`)
     .limit(MAX_LISTED);
 
   if (rows.length === 0) return [];

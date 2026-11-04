@@ -11,6 +11,11 @@
 // an invite-only board, or one on a members-only clan, would be pointing people at a locked door,
 // so those never list whatever the switch says. Suspended clans and platform-hidden ones (the tile
 // lab is born hidden) never list either.
+//
+// UNDATED EVENTS: a clan's board with no start date is a draft and never lists. A STREAMED event's
+// is the opposite — sign-ups are open and it "starts when the host starts it", on stream — so a
+// creator space's (or a Streaming clan's viewer event, lib/creatorSpaces streamedEvent) lists while
+// its sign-ups are open, by the same rule its space page uses (creatorEventPlacement → 'open').
 
 import { atLeast } from '@/lib/clanRoles';
 import { parseStamp } from '@/lib/dbTime';
@@ -19,6 +24,7 @@ import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
 import { featuredListing } from '@/lib/creatorPlans';
 import { planOf, planRank } from '@/lib/plans';
 import { clanHrefFor } from '@/lib/clanScopedPaths';
+import { creatorEventPlacement, streamedEvent } from '@/lib/creatorSpaces';
 
 export const DIRECTORY_PAGE_SIZE = 24;
 /** "Starting soon" = opens within this long. */
@@ -59,6 +65,10 @@ export interface DirectoryRow {
   hostGuestPolicy: string | null;
   twitchLogin: string | null;
   players: number;
+  /** Optional so older callers/tests stay valid: the event lets viewers in, and its clan streams. */
+  visibility?: string | null;
+  openToViewers?: boolean | null;
+  hostStreaming?: boolean | null;
 }
 
 /** A card, ready to draw. */
@@ -76,11 +86,14 @@ export interface DirectoryEvent {
   formatLabel: string;
   /** Every player is their own team. */
   solo: boolean;
-  startDate: string;
+  /** Null only on an `open` event. */
+  startDate: string | null;
   endDate: string | null;
-  startMs: number;
+  startMs: number | null;
   endMs: number | null;
   live: boolean;
+  /** Undated and taking players now: "starts when the host starts it" (streamed events only). */
+  open: boolean;
   players: number;
   join: JoinKind;
   joinLabel: string;
@@ -122,17 +135,39 @@ function joinOf(row: DirectoryRow): { join: JoinKind; label: string } {
   return { join: 'open', label: 'Anyone can join' };
 }
 
-/** A row into a card, or null when it is not something to list right now (undated, or over). */
+/**
+ * May an UNDATED event list as "Open to join"? Only a streamed one (a creator space's, or a Streaming
+ * clan's viewer event), placed in the space page's 'open' group, with sign-ups open right now. Every
+ * other undated event is a draft.
+ */
+export function listsUndated(row: DirectoryRow, now: number = Date.now()): boolean {
+  if (row.startDate && parseStamp(row.startDate) != null) return false;
+  const host = { kind: row.hostKind, streaming: row.hostStreaming ?? false };
+  if (!streamedEvent(host, { openToViewers: row.openToViewers ?? false })) return false;
+  const place = creatorEventPlacement(
+    { visibility: row.visibility ?? 'public', startDate: null, endDate: row.endDate, forceEndedAt: row.forceEndedAt },
+    { staff: false, now },
+  );
+  if (place?.group !== 'open') return false;
+  const opens = parseStamp(row.signupOpensAt);
+  const deadline = parseStamp(row.signupDeadline);
+  return (opens == null || opens <= now) && (deadline == null || deadline > now);
+}
+
+/** A row into a card, or null when it is not something to list right now (a draft, or over). */
 export function toDirectoryEvent(row: DirectoryRow, now: number = Date.now()): DirectoryEvent | null {
   if (row.forceEndedAt) return null;
-  const startMs = parseStamp(row.startDate);
-  // No start date is a draft, not an event anyone can plan around.
-  if (startMs == null || !row.startDate) return null;
+  const parsedStart = parseStamp(row.startDate);
+  const startMs = row.startDate ? parsedStart : null;
+  // No start date is a draft, not an event anyone can plan around — unless it is a streamed event
+  // whose sign-ups are open (listsUndated).
+  const open = startMs == null && listsUndated(row, now);
+  if (startMs == null && !open) return null;
   const endMs = parseStamp(row.endDate);
   if (endMs != null && endMs <= now) return null;
 
   const mode = modeKeyFor(row.format, row.scoringMode, row.rules);
-  const live = startMs <= now;
+  const live = startMs != null && startMs <= now;
   const opens = parseStamp(row.signupOpensAt);
   const deadline = parseStamp(row.signupDeadline);
   const { join, label } = joinOf(row);
@@ -148,11 +183,12 @@ export function toDirectoryEvent(row: DirectoryRow, now: number = Date.now()): D
     mode,
     formatLabel: EVENT_MODES.find((m) => m.key === mode)?.label ?? 'Bingo',
     solo: row.teamPlacement === 'solo',
-    startDate: row.startDate,
+    startDate: startMs == null ? null : row.startDate,
     endDate: row.endDate,
     startMs,
     endMs,
     live,
+    open,
     players: row.players,
     join,
     joinLabel: label,
@@ -163,7 +199,7 @@ export function toDirectoryEvent(row: DirectoryRow, now: number = Date.now()): D
 
 // ── Filters ──────────────────────────────────────────────────────────────────────────────────────
 
-export type WhenFilter = 'all' | 'live' | 'soon';
+export type WhenFilter = 'all' | 'live' | 'open' | 'soon';
 export type JoinFilter = 'any' | 'open' | 'gated';
 export type HostFilter = 'any' | 'clan' | 'creator';
 /** A mode key, or 'solo' for every-player-for-themselves boards of any mode. */
@@ -189,7 +225,7 @@ export function parseFilters(q: Record<string, string | string[] | undefined>): 
   const host = one(q.host);
   const page = Number.parseInt(one(q.page) ?? '', 10);
   return {
-    when: when === 'live' || when === 'soon' ? when : 'all',
+    when: when === 'live' || when === 'open' || when === 'soon' ? when : 'all',
     format: format === 'solo' || EVENT_MODES.some((m) => m.key === format) ? (format as FormatFilter) : 'any',
     join: join === 'open' || join === 'gated' ? join : 'any',
     host: host === 'clan' || host === 'creator' ? host : 'any',
@@ -212,7 +248,8 @@ export function filterHref(f: DirectoryFilters, change: Partial<DirectoryFilters
 
 export function matchesFilters(e: DirectoryEvent, f: DirectoryFilters, now: number = Date.now()): boolean {
   if (f.when === 'live' && !e.live) return false;
-  if (f.when === 'soon' && (e.live || e.startMs - now > STARTING_SOON_MS)) return false;
+  if (f.when === 'open' && !e.open) return false;
+  if (f.when === 'soon' && (e.live || e.startMs == null || e.startMs - now > STARTING_SOON_MS)) return false;
   if (f.format === 'solo' && !e.solo) return false;
   if (f.format !== 'any' && f.format !== 'solo' && e.mode !== f.format) return false;
   if (f.join === 'open' && e.join !== 'open') return false;
@@ -222,15 +259,18 @@ export function matchesFilters(e: DirectoryEvent, f: DirectoryFilters, now: numb
   return true;
 }
 
+/** Live, then open to join (undated), then upcoming. */
+const groupRank = (e: DirectoryEvent): number => (e.live ? 0 : e.open ? 1 : 2);
+
 /**
- * Live first, then soonest start. Featured hosts lead WITHIN each group — a featured upcoming event
- * never outranks anything live.
+ * Live first, then open to join, then soonest start. Featured hosts lead WITHIN each group — a
+ * featured upcoming event never outranks anything live or open.
  */
 export function compareDirectory(a: DirectoryEvent, b: DirectoryEvent): number {
   return (
-    Number(b.live) - Number(a.live) ||
+    groupRank(a) - groupRank(b) ||
     Number(b.featured) - Number(a.featured) ||
-    a.startMs - b.startMs ||
+    (a.startMs ?? 0) - (b.startMs ?? 0) ||
     a.eventId - b.eventId
   );
 }
@@ -242,6 +282,8 @@ export interface DirectoryPage {
   pages: number;
   /** Counts over the unfiltered list, for the filter chips. */
   liveCount: number;
+  /** Undated events open to join right now. */
+  openCount: number;
   /** The modes actually on offer right now, so the format filter never offers an empty shelf. */
   modes: EventMode[];
   anySolo: boolean;
@@ -252,7 +294,7 @@ export function directoryPage(cachedList: DirectoryEvent[], f: DirectoryFilters,
   // The list may be up to a minute old: settle what that minute changed — something started, or ended.
   const all = cachedList
     .filter((e) => e.endMs == null || e.endMs > now)
-    .map((e) => (!e.live && e.startMs <= now ? { ...e, live: true, takingEntries: false } : e));
+    .map((e) => (!e.live && e.startMs != null && e.startMs <= now ? { ...e, live: true, takingEntries: false } : e));
   const shown = all.filter((e) => matchesFilters(e, f, now)).sort(compareDirectory);
   const pages = Math.max(1, Math.ceil(shown.length / DIRECTORY_PAGE_SIZE));
   const page = Math.min(f.page, pages);
@@ -262,6 +304,7 @@ export function directoryPage(cachedList: DirectoryEvent[], f: DirectoryFilters,
     page,
     pages,
     liveCount: all.filter((e) => e.live).length,
+    openCount: all.filter((e) => e.open).length,
     modes: EVENT_MODES.map((m) => m.key).filter((k) => all.some((e) => e.mode === k)),
     anySolo: all.some((e) => e.solo),
   };
@@ -279,8 +322,15 @@ export function spanWords(ms: number): string {
   return `${d} days`;
 }
 
-/** "Starts in 2 days" / "Live now · ends in 5h" / "Live now". */
-export function whenWords(e: Pick<DirectoryEvent, 'live' | 'startMs' | 'endMs'>, now: number = Date.now()): string {
-  if (!e.live) return `Starts in ${spanWords(e.startMs - now)}`;
+/** What an undated streamed event says instead of a start time. */
+export const OPEN_NOW_WORDS = 'Open now · starts when the host starts it';
+
+/** "Starts in 2 days" / "Live now · ends in 5h" / "Live now" / OPEN_NOW_WORDS. */
+export function whenWords(
+  e: Pick<DirectoryEvent, 'live' | 'startMs' | 'endMs'> & { open?: boolean },
+  now: number = Date.now(),
+): string {
+  if (!e.live && (e.open || e.startMs == null)) return OPEN_NOW_WORDS;
+  if (!e.live) return `Starts in ${spanWords((e.startMs ?? now) - now)}`;
   return e.endMs != null ? `Live now · ends in ${spanWords(e.endMs - now)}` : 'Live now';
 }

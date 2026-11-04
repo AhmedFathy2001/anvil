@@ -2500,7 +2500,7 @@ export const en = {
         'Add `&limit=10`, `&title=0` or `&align=right` to the end of a link to change it.',
         'The overlay shows what your public event page shows. Hidden standings and hidden tiles stay hidden on stream too.',
         '**Reset link** makes new links and stops the old ones. Use it if a link leaks. You have to paste the new links into OBS again.',
-        'A small “Anvil” mark sits in the corner. On the Gold plan you can hide it in **Settings** → **Anvil mark on your overlay**.',
+        'A small “Powered by Anvil” badge (the Anvil logo and anvilosrs.com) sits in the corner. On the Gold plan you can hide it in **Settings** → **Anvil mark on your overlay**.',
       ],
     },
 
@@ -2518,7 +2518,7 @@ export const en = {
       title: 'Get listed on Anvil',
       body: [
         'Your space is unlisted when you make it. Only people with your link can find it.',
-        'Open **Settings** → **Advertise on Anvil** and turn it on. Your space shows in the Anvil clans directory, and your new events show on `{apex}/events`.',
+        'Open **Settings** → **Advertise on Anvil** and turn it on. Your space shows in Anvil’s creators list, and your new events show on `{apex}/events`.',
         'To list one event only, open its **Settings** → **Who can play** → **Advertise on Anvil**. It shows while the event is upcoming or live.',
       ],
     },

@@ -234,7 +234,7 @@ export default function StreamingSettings() {
               <p className="max-w-[60ch] text-sm text-text-muted">
                 {state.overlayHideMark
                   ? 'Hidden: your OBS overlay shows only your event.'
-                  : 'Your OBS overlay shows a small “Anvil” in the corner. Turn this on to hide it.'}
+                  : 'Your OBS overlay shows a small “Powered by Anvil” badge (logo and anvilosrs.com) in the corner. Turn this on to hide it.'}
                 {state.overlayHidePlan && !state.overlayHideMark && (
                   <span className="block text-gold">Part of the {state.overlayHidePlan} plan.</span>
                 )}
