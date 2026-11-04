@@ -289,7 +289,7 @@ export default function WebhookField({
             <button
               onClick={() => create('replace')}
               disabled={creating || !channelId || blockedByPerm}
-              className="px-3 py-1.5 bg-gold text-bg font-semibold rounded-lg text-sm hover:bg-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 bg-gold text-brown-dark font-semibold rounded-lg text-sm hover:bg-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {creating ? 'Working…' : 'Post here'}
             </button>
