@@ -93,6 +93,7 @@ export default function StatsBrowser({
     clues: clueRows.some((a) => a.score > 0),
     minigames: minigameRows.length > 0,
   };
+  // Kept in step with hasBrowsableStats below, which the Overview uses to lay itself out.
   const kinds = KINDS.filter((k) => available[k.key]);
   const [kind, setKind] = useState<StatKind>(initial && available[initial] ? initial : kinds[0]?.key ?? 'skills');
   const [query, setQuery] = useState('');
@@ -367,5 +368,21 @@ function LevelTrail({ levels }: { levels: LevelUp[] }) {
         ))}
       </ol>
     </div>
+  );
+}
+
+/**
+ * Whether the browser has anything to show — the same test as its own `available` map. The Overview
+ * lays out around it: with nothing to browse, the column beside it would be a hole.
+ */
+export function hasBrowsableStats(profile: Pick<AccountProfile, 'skills' | 'bosses' | 'activities'>): boolean {
+  return (
+    profile.skills.length > 0 ||
+    profile.bosses.length > 0 ||
+    profile.activities.some(
+      (a) =>
+        ((CLUE_TIER_KEYS as readonly string[]).includes(a.key) || a.key === 'cluesAll') && a.score > 0,
+    ) ||
+    profile.activities.some((a) => (a.group === 'minigames' || a.group === 'collection') && (a.score > 0 || a.rank != null))
   );
 }
