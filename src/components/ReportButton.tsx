@@ -5,6 +5,7 @@ import { useCallback, useState } from 'react';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { clanFetch } from '@/lib/clanFetch';
 import { REPORT_CATEGORIES, REPORT_CATEGORY_LABEL, REPORT_NOTE_MAX, type ReportCategory, type ReportTarget } from '@/lib/platformReportRules';
+import Radio from '@/components/Radio';
 
 /** What the dialog calls the thing, in "Report this …". */
 const NOUN: Record<ReportTarget, string> = {
@@ -132,13 +133,12 @@ function ReportDialog({ type, id, sent, onSent, onClose }: { type: ReportTarget;
               <legend className="mb-1.5 text-xs text-text-muted">What&rsquo;s wrong?</legend>
               {REPORT_CATEGORIES.map((c) => (
                 <label key={c} className="flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-brown-dark/50">
-                  <input
-                    type="radio"
+                  <Radio
                     name="report-reason"
                     value={c}
                     checked={category === c}
                     onChange={() => setCategory(c)}
-                    className="mt-0.5 accent-gold"
+                    className="mt-0.5"
                   />
                   <span>{REPORT_CATEGORY_LABEL[c]}</span>
                 </label>

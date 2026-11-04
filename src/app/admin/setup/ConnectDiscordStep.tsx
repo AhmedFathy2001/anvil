@@ -7,6 +7,7 @@ import ClanLink from '@/components/ClanLink';
 import type { BroadcastChannel } from '@/lib/discord-broadcast';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { quickSetupLabel, QUICK_SETUP_GROUPS, type QuickSetupLayout } from '@/lib/discordQuickSetup';
+import Radio from '@/components/Radio';
 
 // The setup wizard's Discord step, for someone who has never heard the word "webhook": "Connect your
 // bot" leads (one Discord screen, then straight back here), then one button makes every channel.
@@ -190,12 +191,10 @@ export default function ConnectDiscordStep({
                     }`}
                   >
                     <span className="flex items-center gap-2 font-medium text-sm">
-                      <input
-                        type="radio"
+                      <Radio
                         name="layout"
                         checked={choice === c.id}
                         onChange={() => setChoice(c.id)}
-                        className="accent-gold"
                       />
                       {c.title}
                     </span>

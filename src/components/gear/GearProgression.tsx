@@ -17,6 +17,7 @@ import InventoryPanel, { useItemNames, type ItemNames } from './InventoryPanel';
 import { bankTagString, inventorySetupJson } from '@/lib/runeliteExport';
 import { useGearData } from './useGearData';
 import Select from '@/components/Select';
+import { CheckboxBox } from '@/components/Checkbox';
 
 const TIER_TONE: Record<TierKey, { border: string; text: string; bar: string }> = {
   beginner: { border: 'border-emerald-800/60', text: 'text-emerald-300', bar: 'bg-emerald-500/70' },
@@ -441,7 +442,7 @@ export default function GearProgression({ block, tier, storageKey }: { block: Ge
         <div className="mb-2 flex items-center justify-between">
           <h4 className="text-sm font-semibold">Compare</h4>
           <label className="flex items-center gap-1.5 text-[11px] text-text-muted">
-            <input type="checkbox" checked={withGuide} onChange={(e) => setWithGuide(e.target.checked)} className="accent-[#e0b341]" />
+            <CheckboxBox checked={withGuide} onChange={(e) => setWithGuide(e.target.checked)} />
             Guide setups
           </label>
         </div>

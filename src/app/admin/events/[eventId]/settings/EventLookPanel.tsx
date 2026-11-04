@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ClanCrest from '@/components/ClanCrest';
 import { clanFetch } from '@/lib/clanFetch';
+import Slider from '@/components/Slider';
 
 /**
  * The event's icon and banner (lib/eventImage). Each saves the moment it's uploaded or removed.
@@ -150,17 +151,17 @@ export default function EventLookPanel({
             {banner && (
               <div className="flex flex-col items-center gap-1 text-[10px] text-text-muted">
                 <span>Top</span>
-                <input
-                  type="range"
+                <Slider
+                  orientation="vertical"
                   min={0}
                   max={100}
                   value={position}
-                  onChange={(e) => setPosition(Number(e.target.value))}
+                  onChange={setPosition}
                   onPointerUp={() => void savePosition()}
                   onKeyUp={() => void savePosition()}
                   onBlur={() => void savePosition()}
-                  aria-label="Which part of the banner shows"
-                  className="flex-1 accent-gold [writing-mode:vertical-lr]"
+                  ariaLabel="Which part of the banner shows"
+                  className="flex-1"
                 />
                 <span>Bottom</span>
               </div>

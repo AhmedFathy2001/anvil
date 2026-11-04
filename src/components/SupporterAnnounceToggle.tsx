@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { CheckboxBox } from '@/components/Checkbox';
 
 /** "Announce me as a new supporter in the Anvil Discord" (users.announce_supporter). Default on. */
 export default function SupporterAnnounceToggle({ initial }: { initial: boolean }) {
@@ -23,7 +24,7 @@ export default function SupporterAnnounceToggle({ initial }: { initial: boolean 
 
   return (
     <label className="flex w-full items-center gap-2 text-[13px] text-text-muted">
-      <input type="checkbox" checked={on} disabled={busy} onChange={(e) => void change(e.target.checked)} />
+      <CheckboxBox checked={on} disabled={busy} onChange={(e) => void change(e.target.checked)} />
       Announce me as a new supporter in the Anvil Discord
       {error && <span className="text-red-400">{error}</span>}
     </label>

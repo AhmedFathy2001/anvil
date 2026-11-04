@@ -6,6 +6,7 @@ import ClanLink from '@/components/ClanLink';
 import { MotionImage } from '@/components/ProfileMedia';
 import { clanFetch } from '@/lib/clanFetch';
 import { MEDIA_LIMITS, type ProfileMediaKind, type ShownMedia, type ShownProfileMedia } from '@/lib/profileMediaRules';
+import Slider from '@/components/Slider';
 
 // Your own avatar and banner, on "your account across Anvil" (Anvil Supporter: Champion and Patron).
 // Uploads on choose — the server validates, re-encodes and stores it, and answers with what to show.
@@ -124,14 +125,14 @@ export default function ProfileLookEditor({
         {banner && (
           <div className="flex flex-col items-center gap-1 text-[10px] text-text-muted">
             <span>Top</span>
-            <input
-              type="range"
+            <Slider
+              orientation="vertical"
               min={0}
               max={100}
               value={position}
-              onChange={(e) => moveBanner(Number(e.target.value))}
-              aria-label="Which part of the banner shows"
-              className="flex-1 accent-gold [writing-mode:vertical-lr]"
+              onChange={moveBanner}
+              ariaLabel="Which part of the banner shows"
+              className="flex-1"
             />
             <span>Bottom</span>
           </div>

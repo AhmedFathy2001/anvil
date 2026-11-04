@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { clanFetch } from '@/lib/clanFetch';
 import type { LabTeamsView } from '@/lib/labTeams';
+import Select from '@/components/Select';
 
 export interface ControlTile {
   id: number;
@@ -78,7 +79,6 @@ export default function LabTileControlsPanel({
     }
   }
 
-  const field = 'mt-1 w-full rounded-lg border border-card-border bg-brown-dark px-3 py-2 text-sm';
   const btn = 'rounded-lg border border-card-border px-3 py-1.5 text-sm text-gray-200 hover:border-gold/60 disabled:opacity-50';
   const valueOk = value.trim() !== '' && Number.isFinite(Number(value)) && Number(value) >= 0;
 
@@ -97,28 +97,35 @@ export default function LabTileControlsPanel({
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="text-sm text-gray-300">
               Team
-              <select className={field} value={teamId} onChange={(e) => setTeamId(Number(e.target.value))}>
-                {teams.teams.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
+              <Select
+                value={String(teamId)}
+                onChange={(v) => setTeamId(Number(v))}
+                options={teams.teams.map((t) => ({ value: String(t.id), label: t.name }))}
+                ariaLabel="Team"
+                className="mt-1"
+              />
             </label>
             <label className="text-sm text-gray-300">
               Player
-              <select className={field} value={player ?? ''} onChange={(e) => setPlayerId(Number(e.target.value))} disabled={members.length === 0}>
-                {members.length === 0 && <option value="">Nobody on this team</option>}
-                {members.map((m) => (
-                  <option key={m.participantId} value={m.participantId}>{m.name}</option>
-                ))}
-              </select>
+              <Select
+                value={player == null ? '' : String(player)}
+                onChange={(v) => setPlayerId(Number(v))}
+                options={members.map((m) => ({ value: String(m.participantId), label: m.name }))}
+                placeholder={members.length === 0 ? 'Nobody on this team' : 'Select…'}
+                disabled={members.length === 0}
+                ariaLabel="Player"
+                className="mt-1"
+              />
             </label>
             <label className="text-sm text-gray-300">
               Tile
-              <select className={field} value={tileId} onChange={(e) => setTileId(Number(e.target.value))}>
-                {tiles.map((t) => (
-                  <option key={t.id} value={t.id}>{label(t)}</option>
-                ))}
-              </select>
+              <Select
+                value={String(tileId)}
+                onChange={(v) => setTileId(Number(v))}
+                options={tiles.map((t) => ({ value: String(t.id), label: label(t) }))}
+                ariaLabel="Tile"
+                className="mt-1"
+              />
             </label>
           </div>
           {tile && (

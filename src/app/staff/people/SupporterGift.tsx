@@ -5,6 +5,7 @@ import { useState } from 'react';
 import LocalTime from '@/components/LocalTime';
 import { clanFetch } from '@/lib/clanFetch';
 import { SUPPORTER_TIERS, type SupporterTierId } from '@/lib/supporterTiers';
+import Select from '@/components/Select';
 
 interface Gift {
   id: number;
@@ -70,34 +71,26 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
           <div className="flex flex-wrap items-end gap-2">
             <label className="text-gray-400">
               Tier
-              <select
-                className="mt-1 block rounded border border-card-border bg-brown-dark px-2 py-1"
+              <Select
                 value={tier}
-                onChange={(e) => setTier(e.target.value as SupporterTierId)}
-              >
-                {(Object.keys(SUPPORTER_TIERS) as SupporterTierId[]).map((t) => (
-                  <option key={t} value={t}>
-                    {SUPPORTER_TIERS[t].name}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setTier(v as SupporterTierId)}
+                options={(Object.keys(SUPPORTER_TIERS) as SupporterTierId[]).map((t) => ({ value: t, label: SUPPORTER_TIERS[t].name }))}
+                ariaLabel="Tier"
+                className="mt-1 w-32"
+              />
             </label>
             <label className="text-gray-400">
               For
-              <select
-                className="mt-1 block rounded border border-card-border bg-brown-dark px-2 py-1"
-                value={days}
-                onChange={(e) => {
-                  setDays(Number(e.target.value));
+              <Select
+                value={String(days)}
+                onChange={(v) => {
+                  setDays(Number(v));
                   setCustom('');
                 }}
-              >
-                {LENGTHS.map((l) => (
-                  <option key={l.days} value={l.days}>
-                    {l.label}
-                  </option>
-                ))}
-              </select>
+                options={LENGTHS.map((l) => ({ value: String(l.days), label: l.label }))}
+                ariaLabel="For"
+                className="mt-1 w-36"
+              />
             </label>
             <label className="text-gray-400">
               or days

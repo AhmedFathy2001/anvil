@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import LocalTime from '@/components/LocalTime';
 
 import { sessionLive } from './sessionLive';
+import Select from '@/components/Select';
 
 interface Session {
   id: number;
@@ -125,15 +126,13 @@ export default function LabClient() {
               </label>
               <label className="text-sm text-gray-300">
                 Board size
-                <select
-                  value={boardSize}
-                  onChange={(e) => setBoardSize(Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-card-border bg-brown-dark px-3 py-2 text-sm"
-                >
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <option key={n} value={n}>{n}×{n} ({n * n} tiles)</option>
-                  ))}
-                </select>
+                <Select
+                  value={String(boardSize)}
+                  onChange={(v) => setBoardSize(Number(v))}
+                  options={[1, 2, 3, 4, 5].map((n) => ({ value: String(n), label: `${n}×${n} (${n * n} tiles)` }))}
+                  ariaLabel="Board size"
+                  className="mt-1"
+                />
               </label>
             </div>
             <div className="rounded-lg border border-gold/30 bg-gold/5 px-3 py-2 text-xs text-gray-300">

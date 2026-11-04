@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import SupporterName from '@/components/SupporterName';
 import { CLAN_ROLES, type ClanRole } from '@/lib/clanRoles';
 import { SUPPORTER_TIERS, SUPPORTER_TIER_ORDER, type SupporterTierId } from '@/lib/supporterTiers';
+import Select from '@/components/Select';
 
 interface TestUser {
   userId: number;
@@ -107,16 +108,14 @@ export default function PeopleClient() {
           {state?.users.map((u) => (
             <li key={u.userId} className="flex flex-wrap items-center gap-3 py-2">
               <SupporterName name={u.rsn} tier={u.tier} plain className="min-w-[9rem] text-sm font-medium" />
-              <select
+              <Select
                 value={u.tier ?? ''}
                 disabled={busy}
-                onChange={(e) => void act({ action: 'user-tier', userId: u.userId, tier: e.target.value || null })}
-                className="rounded border border-card-border bg-background px-1.5 py-0.5 text-xs"
-                aria-label={`${u.rsn}'s Supporter tier`}
-              >
-                <option value="">No tier</option>
-                {SUPPORTER_TIER_ORDER.map((t) => <option key={t} value={t}>{SUPPORTER_TIERS[t].name}</option>)}
-              </select>
+                onChange={(v) => void act({ action: 'user-tier', userId: u.userId, tier: v || null })}
+                options={[{ value: '', label: 'No tier' }, ...SUPPORTER_TIER_ORDER.map((t) => ({ value: t, label: SUPPORTER_TIERS[t].name }))]}
+                ariaLabel={`${u.rsn}'s Supporter tier`}
+                className="w-32"
+              />
               <button type="button" disabled={busy} onClick={() => void viewAs(u.userId)} className={`${btn} text-amber-200`}>
                 View as
               </button>

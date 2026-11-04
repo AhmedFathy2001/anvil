@@ -16,6 +16,7 @@ import {
   type SupporterStyle,
 } from '@/lib/supporterStyle';
 import type { SupporterTierId } from '@/lib/supporterTiers';
+import ColorSwatch from '@/components/ColorSwatch';
 
 /**
  * "Your name's look": a Champion picks a preset gradient, a Patron a preset or their own 2–4 colours.
@@ -142,15 +143,14 @@ export default function SupporterStylePicker({
                 key={i}
                 className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 ${tooDark(s) ? 'border-red-500/60' : 'border-card-border'}`}
               >
-                <input
-                  type="color"
+                <ColorSwatch
                   value={s}
-                  aria-label={`Colour ${i + 1}`}
-                  onChange={(e) => {
-                    const h = normalizeHex(e.target.value);
+                  ariaLabel={`Colour ${i + 1}`}
+                  onChange={(hex) => {
+                    const h = normalizeHex(hex);
                     if (h) setStops((cur) => cur.map((c, j) => (j === i ? h : c)));
                   }}
-                  className="h-6 w-8 cursor-pointer rounded border-0 bg-transparent p-0"
+                  className="h-6 w-8 rounded"
                 />
                 <span className="font-mono text-[11.5px] text-text-muted">{s}</span>
                 {stops.length > MIN_STOPS && (

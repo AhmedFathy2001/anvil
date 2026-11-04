@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import { clogTileSetupNote, type ClogTileMode } from '@/lib/clogTileWords';
+import { CheckboxBox } from '@/components/Checkbox';
 
 // The collection-log tile's own fields in the tile editor (lib/clogTiles). Pages are a shortcut for
 // picking items: adding a page ticks every item on it, untick any to leave it out, and items from
@@ -175,7 +176,7 @@ export default function ClogTileFields(props: ClogTileFieldsProps) {
                     {items.map((it) => (
                       <li key={it.id}>
                         <label className="flex items-center gap-2 min-h-8 text-xs">
-                          <input type="checkbox" disabled={locked} checked={chosen.has(it.id)} onChange={() => toggle(it.id)} />
+                          <CheckboxBox disabled={locked} checked={chosen.has(it.id)} onChange={() => toggle(it.id)} />
                           <span className={chosen.has(it.id) ? '' : 'text-text-muted line-through'}>{it.name}</span>
                         </label>
                       </li>

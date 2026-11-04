@@ -14,6 +14,7 @@ import LabFeedChatPanel from './LabFeedChatPanel';
 import LabTeamsPanel from './LabTeamsPanel';
 import LabTileControlsPanel from './LabTileControlsPanel';
 import type { LabTeamsView } from '@/lib/labTeams';
+import Select from '@/components/Select';
 
 const LAB_SLUG = 'anvil-lab';
 const POLL_MS = 5_000;
@@ -299,6 +300,7 @@ function StatSimulator({
   const [gain, setGain] = useState(1);
   const [baseline, setBaseline] = useState('');
   const [result, setResult] = useState('');
+  const [tilePick, setTilePick] = useState('');
 
   function pickTile(id: number) {
     const t = statTiles.find((x) => x.id === id);
@@ -343,28 +345,41 @@ function StatSimulator({
         {statTiles.length > 0 && (
           <label className="text-sm text-gray-300 sm:col-span-3">
             From a tile
-            <select className={field} defaultValue="" onChange={(e) => pickTile(Number(e.target.value))}>
-              <option value="" disabled>Pick a stat tile…</option>
-              {statTiles.map((t) => (
-                <option key={t.id} value={t.id}>{t.label} — {t.trackedStat} ({t.statType})</option>
-              ))}
-            </select>
+            <Select
+              value={tilePick}
+              onChange={(v) => {
+                setTilePick(v);
+                pickTile(Number(v));
+              }}
+              options={statTiles.map((t) => ({ value: String(t.id), label: `${t.label} — ${t.trackedStat} (${t.statType})` }))}
+              placeholder="Pick a stat tile…"
+              ariaLabel="From a tile"
+              className="mt-1"
+            />
           </label>
         )}
         <label className="text-sm text-gray-300">
           Character
-          <select className={field} value={participantId} onChange={(e) => setParticipantId(Number(e.target.value))}>
-            {participants.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+          <Select
+            value={String(participantId)}
+            onChange={(v) => setParticipantId(Number(v))}
+            options={participants.map((p) => ({ value: String(p.id), label: p.name }))}
+            ariaLabel="Character"
+            className="mt-1"
+          />
         </label>
         <label className="text-sm text-gray-300">
           Type
-          <select className={field} value={statType} onChange={(e) => setStatType(e.target.value)}>
-            <option value="boss">boss / activity</option>
-            <option value="skill">skill (XP)</option>
-          </select>
+          <Select
+            value={statType}
+            onChange={setStatType}
+            options={[
+              { value: 'boss', label: 'boss / activity' },
+              { value: 'skill', label: 'skill (XP)' },
+            ]}
+            ariaLabel="Type"
+            className="mt-1"
+          />
         </label>
         <label className="text-sm text-gray-300">
           Hiscores key

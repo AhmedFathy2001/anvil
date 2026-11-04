@@ -11,6 +11,7 @@ import { CHANNEL_SLOTS, CHANNEL_SLOT_LABELS, type ChannelSlot, type ClanEventCha
 import { clanFetch } from '@/lib/clanFetch';
 import { SIGNUP_TEMPLATES, surveyTemplateById } from '@/lib/surveyTemplates';
 import { bossIconForStatKey, skillIconUrl } from '@/lib/tileIcons';
+import { CheckboxBox } from '@/components/Checkbox';
 
 interface Ev {
   id: number;
@@ -493,12 +494,12 @@ export default function ClanEventsClient() {
                     <Input type="number" min={1} value={form.cap} onChange={(e) => set('cap', e.target.value)} placeholder="No limit" />
                   </div>
                   <label className="mt-5 flex items-center gap-2 text-sm text-foreground">
-                    <input type="checkbox" checked={form.approval} onChange={(e) => set('approval', e.target.checked)} />
+                    <CheckboxBox checked={form.approval} onChange={(e) => set('approval', e.target.checked)} />
                     Approve each one
                   </label>
                 </div>
                 <label className="flex items-center gap-2 text-sm text-foreground">
-                  <input type="checkbox" checked={form.fee} onChange={(e) => set('fee', e.target.checked)} />
+                  <CheckboxBox checked={form.fee} onChange={(e) => set('fee', e.target.checked)} />
                   Entry fee
                 </label>
                 {form.fee && (
@@ -584,7 +585,7 @@ export default function ClanEventsClient() {
           )}
         </div>
         <label className="flex items-center gap-2 text-sm text-foreground">
-          <input type="checkbox" checked={form.ping} onChange={(e) => set('ping', e.target.checked)} />
+          <CheckboxBox checked={form.ping} onChange={(e) => set('ping', e.target.checked)} />
           Ping the member role on the announcement, the reminder and the start
         </label>
         {error && <p className="text-sm text-red-400">{error}</p>}

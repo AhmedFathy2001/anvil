@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { checkPattern, classifyLine, patternFromSample, type ModeLinePattern } from '@/lib/modeLines';
+import Select from '@/components/Select';
 
 interface StoredPattern {
   id: number;
@@ -196,25 +197,23 @@ function Editor({
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-gray-300">
           Game mode
-          <select className={field} value={draft.modeKey} onChange={(e) => set({ modeKey: e.target.value })}>
-            <option value="">Every mode</option>
-            {view.modes.map((m) => (
-              <option key={m.key} value={m.key}>
-                {m.label}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={draft.modeKey}
+            onChange={(v) => set({ modeKey: v })}
+            options={[{ value: '', label: 'Every mode' }, ...view.modes.map((m) => ({ value: m.key, label: m.label }))]}
+            ariaLabel="Game mode"
+            className="mt-1"
+          />
         </label>
         <label className="text-gray-300">
           Kind
-          <select className={field} value={draft.kind} onChange={(e) => set({ kind: e.target.value })}>
-            {view.kinds.map((k) => (
-              <option key={k.id} value={k.id}>
-                {k.label}
-              </option>
-            ))}
-            <option value="ignore">Ignore — never post, never queue</option>
-          </select>
+          <Select
+            value={draft.kind}
+            onChange={(v) => set({ kind: v })}
+            options={[...view.kinds.map((k) => ({ value: k.id, label: k.label })), { value: 'ignore', label: 'Ignore — never post, never queue' }]}
+            ariaLabel="Kind"
+            className="mt-1"
+          />
         </label>
       </div>
       <label className="block text-gray-300">

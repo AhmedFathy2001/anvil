@@ -1,6 +1,7 @@
 'use client';
 
 import type { LabTeamsView } from '@/lib/labTeams';
+import Select from '@/components/Select';
 
 /**
  * Teams on a lab board: add sides filled with test users, move anyone between teams (or off every
@@ -21,17 +22,14 @@ export default function LabTeamsPanel({
   const anyRole = teams.teams.some((t) => t.youCaptain || t.youStaff);
   const options = [{ id: null as number | null, name: 'No team' }, ...teams.teams.map((t) => ({ id: t.id as number | null, name: t.name }))];
   const mover = (participantId: number, current: number | null) => (
-    <select
-      value={current ?? ''}
+    <Select
+      value={current == null ? '' : String(current)}
       disabled={busy}
-      onChange={(e) => void act('move', { participantId, teamId: e.target.value === '' ? null : Number(e.target.value) })}
-      className="rounded border border-card-border bg-background px-1.5 py-0.5 text-xs"
-      aria-label="Move to team"
-    >
-      {options.map((o) => (
-        <option key={o.id ?? 'none'} value={o.id ?? ''}>{o.name}</option>
-      ))}
-    </select>
+      onChange={(v) => void act('move', { participantId, teamId: v === '' ? null : Number(v) })}
+      options={options.map((o) => ({ value: o.id == null ? '' : String(o.id), label: o.name }))}
+      ariaLabel="Move to team"
+      className="w-36"
+    />
   );
 
   return (

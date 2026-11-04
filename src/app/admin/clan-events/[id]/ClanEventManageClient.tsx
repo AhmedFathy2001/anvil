@@ -14,6 +14,7 @@ import type { ClanEventModules } from '@/lib/clanEventModules';
 import type { SurveyQuestionView } from '@/lib/survey';
 
 import SurveyClient from '../../events/[eventId]/survey/SurveyClient';
+import { CheckboxBox } from '@/components/Checkbox';
 
 interface Key {
   key: string;
@@ -103,7 +104,7 @@ export default function ClanEventManageClient(props: Props) {
   const label = 'mb-1 block text-xs font-medium text-text-muted';
   const toggle = (on: boolean, set: (on: boolean) => void, text: string, hint?: string) => (
     <label className="flex items-start gap-2 text-sm text-foreground">
-      <input type="checkbox" className="mt-1" checked={on} onChange={(e) => set(e.target.checked)} />
+      <CheckboxBox className="mt-1" checked={on} onChange={(e) => set(e.target.checked)} />
       <span>
         <span className="font-medium">{text}</span>
         {hint && <span className="block text-xs text-text-muted">{hint}</span>}

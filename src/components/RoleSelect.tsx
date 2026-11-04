@@ -5,6 +5,7 @@ import Select, { type SelectOption } from '@/components/Select';
 import Input from '@/components/Input';
 import { loadGuildRoles, createGuildRole, type GuildRole } from '@/lib/rolesClient';
 import Checkbox from '@/components/Checkbox';
+import ColorSwatch from '@/components/ColorSwatch';
 
 interface RoleSelectProps {
   value: string;
@@ -128,13 +129,7 @@ export default function RoleSelect({
         <div className="mt-2 flex items-center gap-4 flex-wrap text-xs text-text-muted">
           <Checkbox checked={useColor} onChange={setUseColor} label="Colour" />
           {useColor && (
-            <input
-              type="color"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-              aria-label="Role colour"
-              className="h-7 w-10 shrink-0 cursor-pointer rounded border border-card-border bg-transparent p-0.5"
-            />
+            <ColorSwatch value={color} onChange={setColor} ariaLabel="Role colour" className="h-7 w-10 rounded" />
           )}
           <Checkbox
             checked={mentionable}

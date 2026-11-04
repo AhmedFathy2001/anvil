@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { clanFetch } from '@/lib/clanFetch';
 import type { PendingRequest } from '@/lib/guestAdmission';
+import { CheckboxBox } from '@/components/Checkbox';
 
 /**
  * Who has asked to join this clan, and staff's answer.
@@ -79,13 +80,12 @@ export default function JoinRequests({ initial, title = 'Asking to join' }: { in
         </h2>
         {requests.length > 1 && (
           <label className="ml-auto flex cursor-pointer items-center gap-2 text-[12.5px] text-text-muted">
-            <input
-              type="checkbox"
+            <CheckboxBox
               checked={picked.size === requests.length}
               onChange={() =>
                 setPicked(picked.size === requests.length ? new Set() : new Set(requests.map((r) => r.id)))
               }
-              className="h-3.5 w-3.5 accent-gold"
+              className="h-3.5 w-3.5"
             />
             Select all
           </label>
@@ -121,12 +121,11 @@ export default function JoinRequests({ initial, title = 'Asking to join' }: { in
             key={r.id}
             className="flex flex-col gap-2.5 rounded-xl border border-card-border bg-card-bg p-3.5 sm:flex-row sm:items-center"
           >
-            <input
-              type="checkbox"
+            <CheckboxBox
               checked={picked.has(r.id)}
               onChange={() => toggle(r.id)}
               aria-label={`Select ${r.rsn}`}
-              className="mt-1 h-3.5 w-3.5 shrink-0 self-start accent-gold sm:mt-0 sm:self-center"
+              className="mt-1 h-3.5 w-3.5 shrink-0 self-start sm:mt-0 sm:self-center"
             />
             <div className="min-w-0 flex-1">
               <div className="text-[14px] font-medium">
