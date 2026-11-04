@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import ClanLink from '@/components/ClanLink';
 
 import { requirePlatformPage } from '@/lib/platformAccess';
 import { botClipStatus } from '@/lib/highlights/botToken';
@@ -60,12 +60,12 @@ export default async function StaffHighlightsPage({ searchParams }: { searchPara
       )}
 
       <div className="mb-4 flex gap-2">
-        <Link href="/staff/highlights" className={tab(!featurable)}>
+        <ClanLink href="/staff/highlights" className={tab(!featurable)}>
           All
-        </Link>
-        <Link href="/staff/highlights?featurable=1" className={tab(featurable)}>
+        </ClanLink>
+        <ClanLink href="/staff/highlights?featurable=1" className={tab(featurable)}>
           Featurable
-        </Link>
+        </ClanLink>
       </div>
 
       {rows.length === 0 ? (

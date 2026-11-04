@@ -111,8 +111,7 @@ export const TITLE_MAX = 100;
  */
 export function cleanTitle(raw: string): string {
   const s = String(raw ?? '')
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩﻿]/g, ' ')
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, ' ')
     .replace(/[<>]/g, '')
     .replace(/\s+/g, ' ')
     .trim();

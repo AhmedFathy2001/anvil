@@ -8,7 +8,6 @@ import { supporterForUser } from '@/lib/supporter';
 import { settingsCharacters } from '@/lib/settingsData';
 import { SettingSwitch } from '../_client';
 import { SettingsGroup, SettingsRow, SettingsTitle } from '../_ui';
-import StreamClipSetting from '@/components/settings/StreamClipSetting';
 
 export default async function PrivacySettingsPage() {
   const session = (await verifyUser())!;
@@ -66,10 +65,6 @@ export default async function PrivacySettingsPage() {
           <SettingSwitch url="/api/profile/discover-events" field="show" checked={person?.discoverEvents ?? true} label="Show other clans' boards" />
         </SettingsRow>
       </SettingsGroup>
-
-      {/* Shown only once Twitch is linked. Belongs beside the Twitch link once Settings has a
-          connected-accounts section; the component carries everything it needs to move there. */}
-      <StreamClipSetting userId={session.userId} group />
     </>
   );
 }

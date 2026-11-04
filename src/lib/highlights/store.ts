@@ -11,7 +11,7 @@
 // READS respect exactly what the feed respects: the event must be the viewer's to see (the pages and
 // routes check canSeeEvent), and behind hidden standings only the viewer's own team's beats show.
 
-import { and, desc, eq, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -174,10 +174,35 @@ async function actorFor(playerId: number | null | undefined): Promise<BeatActor 
 
 // ── Live? ────────────────────────────────────────────────────────────────────────────────────────
 
+/** Short per-process answers (live? broadcasts?), shared by concurrent callers. Failures aren't kept. */
+const answers = new Map<string, { at: number; ttl: number; p: Promise<unknown> }>();
+function held<T>(key: string, ttl: number, compute: () => Promise<T>): Promise<T> {
+  const hit = answers.get(key);
+  if (hit && Date.now() - hit.at < hit.ttl) return hit.p as Promise<T>;
+  const p = compute().then(
+    (v) => {
+      if (v == null) answers.delete(key); // "couldn't say" is asked again next time
+      return v;
+    },
+    (err) => {
+      answers.delete(key);
+      throw err;
+    },
+  );
+  answers.set(key, { at: Date.now(), ttl, p });
+  if (answers.size > 2000) for (const [k, v] of answers) if (Date.now() - v.at >= v.ttl) answers.delete(k);
+  return p;
+}
+
+export function clearHighlightCachesForTests(): void {
+  answers.clear();
+}
+
 /** Is this Twitch channel live? Held 30 s per channel; null when Twitch could not say. */
 function twitchLive(broadcasterId: string): Promise<boolean | null> {
-  return ttlMemo(
-    `highlights-live:${broadcasterId}`,
+  return held(
+    `live:${broadcasterId}`,
+    30_000,
     async () => {
       let access = await botAccess();
       if (!access) return null;
@@ -189,7 +214,6 @@ function twitchLive(broadcasterId: string): Promise<boolean | null> {
       }
       return r.ok ? r.value != null : null;
     },
-    30_000,
   );
 }
 
@@ -198,14 +222,10 @@ function twitchLive(broadcasterId: string): Promise<boolean | null> {
  * beat in that window, and the VOD sweep reads the same cache.
  */
 function youtubeBroadcasts(clanId: number): Promise<YoutubeBroadcast[] | null> {
-  return ttlMemo(
-    `highlights-yt:${clanId}`,
-    async () => {
-      const r = await withHostYoutube(clanId, (token) => recentBroadcasts(token));
-      return r && r.ok ? r.value : null;
-    },
-    2 * 60_000,
-  );
+  return held(`yt:${clanId}`, 2 * 60_000, async () => {
+    const r = await withHostYoutube(clanId, (token) => recentBroadcasts(token));
+    return r && r.ok ? r.value : null;
+  });
 }
 
 // ── Recording a beat ─────────────────────────────────────────────────────────────────────────────
@@ -494,6 +514,7 @@ export function queueH2hHighlight(c: {
     (async () => {
       try {
         const now = new Date().toISOString();
+        // clan-scope: global -- the winner's own boards, wherever they are; each is then checked as streamed.
         const rows = await db
           .select({ eventId: events.id, teamId: eventParticipants.teamId, rsn: accounts.rsn, playerId: accounts.playerId, start: events.startDate, end: events.endDate })
           .from(eventParticipants)
@@ -763,15 +784,4 @@ export async function setPlayerClipSetting(userId: number, on: boolean): Promise
     .where(eq(userTwitchLinks.userId, userId))
     .returning({ userId: userTwitchLinks.userId });
   return done.length > 0;
-}
-
-/** Ids of events (from a list) that are streamed — for pages that only show the strip on those. */
-export async function streamedEventIds(eventIds: number[]): Promise<Set<number>> {
-  if (!eventIds.length) return new Set();
-  const rows = await db
-    .select({ id: events.id, openToViewers: events.openToViewers, kind: clans.kind, streaming: clans.streaming })
-    .from(events)
-    .innerJoin(clans, eq(clans.id, events.clanId))
-    .where(inArray(events.id, eventIds));
-  return new Set(rows.filter((r) => streamedEvent(r, r)).map((r) => r.id));
 }

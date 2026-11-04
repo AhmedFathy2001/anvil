@@ -1,16 +1,15 @@
 import { playerClipSetting } from '@/lib/highlights/store';
 import { SettingSwitch } from '@/app/settings/_client';
-import { SettingsGroup, SettingsRow } from '@/app/settings/_ui';
+import { SettingsRow } from '@/app/settings/_ui';
 
 /**
- * A player's own "clip my stream" switch (lib/highlights). Self-contained: it reads its own row and
- * renders nothing until the person has linked Twitch, so it can sit beside the Twitch link wherever
- * that lives. `group` wraps it in its own settings group, for a page with no Twitch section to join.
+ * A player's own "clip my stream" switch (lib/highlights), under their linked Twitch in Settings →
+ * Connected accounts (settings/connections/extras). Reads its own row; nothing without a Twitch link.
  */
-export default async function StreamClipSetting({ userId, group = false }: { userId: number; group?: boolean }) {
+export default async function StreamClipSetting({ userId }: { userId: number }) {
   const s = await playerClipSetting(userId);
   if (!s) return null;
-  const row = (
+  return (
     <SettingsRow
       label="Clip my stream when I hit a big moment in a streamed event"
       description={
@@ -23,5 +22,4 @@ export default async function StreamClipSetting({ userId, group = false }: { use
       <SettingSwitch url="/api/profile/stream-clips" field="on" checked={s.on} label="Clip my stream when I hit a big moment" />
     </SettingsRow>
   );
-  return group ? <SettingsGroup title="Your stream">{row}</SettingsGroup> : row;
 }
