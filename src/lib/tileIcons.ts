@@ -8,6 +8,7 @@ import { BOSSES, SKILLS, metricKeys } from './constants';
 import { parsePbActivity } from '@/lib/pbGroups';
 import bossIcons from '@/data/bossIcons.json';
 import bossImages from '@/data/bossImages.json';
+import bossHiscoreIcons from '@/data/bossHiscoreIcons.json';
 import { itemAssetUrl, proxyWikiUrl, wikiImageUrl } from '@/lib/assetUrls';
 
 export { wikiImageUrl } from '@/lib/assetUrls';
@@ -129,6 +130,85 @@ export function bossImageForStatKey(key: string | null | undefined): string | nu
   return bossImageUrl(BOSSES.find((b) => b.key === key)?.label ?? key);
 }
 
+// Generated from the OSRS wiki (npm run data:bosshiscoreicons): hiscores boss KEY → the wiki file of
+// that boss's HISCORES sprite ("Nex_icon.png", ~25px). These are the sprites RuneLite's hiscore panel
+// draws (HiscoreSkill's sprite ids), so a boss on the site is the same little head a member picked in
+// RuneLite — not its signature drop (Nex used to be a Nihil horn). Every BOSSES key has one
+// (tests/bossHiscoreIcons.test.ts); anything else falls back to the picture/drop below.
+const BOSS_HISCORE_ICONS = bossHiscoreIcons as Record<string, string>;
+
+// Names that reach us for a boss but aren't its key or label: NPC names, clog pages, the long
+// hiscores spellings of the raid modes. Lowercased, leading "the " already stripped.
+const BOSS_NAME_TO_KEY: Record<string, string> = {
+  'callisto and artio': 'callisto',
+  "vet'ion and calvar'ion": 'vetion',
+  'venenatis and spindel': 'venenatis',
+  'barrows chests': 'barrows',
+  'moons of peril': 'lunarChests',
+  'thermonuclear smoke devil': 'thermonuclearSmokeDevil',
+  'chambers of xeric: challenge mode': 'chambersOfXericChallengeMode',
+  'chambers of xeric challenge mode': 'chambersOfXericChallengeMode',
+  'theatre of blood: hard mode': 'theatreOfBloodHardMode',
+  'theatre of blood hard mode': 'theatreOfBloodHardMode',
+  'tombs of amascut: expert mode': 'tombsOfAmascutExpertMode',
+  'tombs of amascut expert mode': 'tombsOfAmascutExpertMode',
+  'corrupted gauntlet': 'corruptedGauntlet',
+  'crystalline hunllef': 'gauntlet',
+  'corrupted hunllef': 'corruptedGauntlet',
+  'great olm': 'chambersOfXeric',
+  'verzik vitur': 'theatreOfBlood',
+  'fight caves': 'tzTokJad',
+  'inferno': 'tzKalZuk',
+  'fortis colosseum': 'solHeredit',
+  'colosseum': 'solHeredit',
+  'demonic brutus': 'brutus',
+  'cox': 'chambersOfXeric',
+  'tob': 'theatreOfBlood',
+  'toa': 'tombsOfAmascut',
+};
+
+let BOSS_KEY_BY_NAME: Map<string, string> | null = null;
+/** The hiscores boss key for a boss NAME (label, key, NPC name, clog page), or null. */
+export function bossStatKeyFor(name: string | null | undefined): string | null {
+  if (!name) return null;
+  if (!BOSS_KEY_BY_NAME) {
+    const m = new Map<string, string>();
+    const norm = (s: string) => s.trim().toLowerCase().replace(/^the /, '');
+    for (const b of BOSSES) {
+      m.set(b.key.toLowerCase(), b.key);
+      m.set(norm(b.label), b.key);
+    }
+    for (const [n, k] of Object.entries(BOSS_NAME_TO_KEY)) if (!m.has(n)) m.set(n, k);
+    BOSS_KEY_BY_NAME = m;
+  }
+  const key = name.trim().toLowerCase().replace(/^the /, '');
+  return BOSS_KEY_BY_NAME.get(key) ?? null;
+}
+
+/** The boss's hiscores sprite (as RuneLite shows it) for a hiscores KEY, or null when it has none. */
+export function bossHiscoreIconUrl(key: string | null | undefined): string | null {
+  if (!key) return null;
+  const file = BOSS_HISCORE_ICONS[key];
+  return file ? wikiImageUrl(file) : null;
+}
+
+/**
+ * The ICON for a boss NAME — what a list row, a tile, a pin or a Discord thumbnail shows: its hiscores
+ * sprite (the one RuneLite draws), else {@link bossImageUrl}'s picture/drop fallback. For a big hero
+ * picture (a link card, a Wrapped feature) keep using bossImageUrl: a 25px sprite blown up to 500px
+ * is mush.
+ */
+export function bossIconUrl(name: string | null | undefined): string | null {
+  if (!name) return null;
+  return bossHiscoreIconUrl(bossStatKeyFor(name)) ?? bossImageUrl(name);
+}
+
+/** As {@link bossIconUrl}, but from a hiscores boss KEY ("zulrah", "kreeArra"). */
+export function bossIconForStatKey(key: string | null | undefined): string | null {
+  if (!key) return null;
+  return bossHiscoreIconUrl(key) ?? bossImageForStatKey(key);
+}
+
 /** OSRS wiki icon for a hiscores skill key ("mining"), or null for unknown skills. */
 export function skillIconUrl(skill: string | null | undefined): string | null {
   if (!skill) return null;
@@ -226,10 +306,10 @@ export function deriveTileIcon(tile: IconableTile): string | null {
   }
   if (type === 'value') return itemIconUrl(COINS_ITEM_ID);
   if (type === 'kill') {
-    // The boss itself — bossImageUrl falls back to its signature drop when the wiki has no picture.
+    // The boss itself — its hiscores sprite, as RuneLite shows it (picture/drop when it has none).
     try {
       const npcs = tile.targetNpcs ? (JSON.parse(tile.targetNpcs) as string[]) : [];
-      return bossImageUrl(Array.isArray(npcs) ? npcs[0] : null);
+      return bossIconUrl(Array.isArray(npcs) ? npcs[0] : null);
     } catch { return null; }
   }
   // Agility laps: the skill icon. Course-specific art would need a per-course sprite table for a
@@ -249,28 +329,28 @@ export function deriveTileIcon(tile: IconableTile): string | null {
     // Non-boss counters (clues, GOTR, BH…) have no clog activity to derive a drop from.
     const activityIcon = activityIconUrl(firstKey);
     if (activityIcon) return activityIcon;
-    // The boss's picture, falling back to its signature drop where the wiki has none.
-    return bossImageForStatKey(firstKey);
+    // The boss's hiscores sprite, falling back to its picture / signature drop.
+    return bossIconForStatKey(firstKey);
   }
   return null;
 }
 
 /**
- * The face of a weekly competition: the skill's wiki icon, the boss's signature drop, or the
- * stats icon for an efficiency week. Same art the boards already use, so a competition and the
- * tile that tracks it look like the same thing.
+ * The ICON of a weekly competition: the skill's wiki icon, the boss's hiscores sprite (as RuneLite
+ * shows it), or the stats icon for an efficiency week. Same art the boards already use, so a
+ * competition and the tile that tracks it look like the same thing.
  */
 export function competitionIconUrl(type: string, metric: string): string | null {
   if (type === 'skill') return skillIconUrl(metric);
   if (type === 'efficiency') return wikiImageUrl('Stats_icon.png');
-  const item = bossItemForStatKey(metric);
-  return item != null ? itemIconUrl(item) : null;
+  return bossIconForStatKey(metricKeys(metric)[0] ?? metric);
 }
 
 /**
- * As {@link competitionIconUrl}, but a boss competition shows the BOSS ITSELF rather than its
- * signature drop — the face a Boss of the Week embed wants. Skill and efficiency are unchanged
- * (a skill has no monster), and a boss with no wiki image still falls back to the drop sprite.
+ * As {@link competitionIconUrl}, but a boss competition shows the boss's big PICTURE (the monster
+ * render) — for hero art drawn hundreds of pixels wide (the Boss of the Week link card), where the
+ * 25px hiscores sprite would be mush. Skill and efficiency are unchanged, and a boss with no wiki
+ * image still falls back to the drop sprite.
  */
 export function competitionImageUrl(type: string, metric: string): string | null {
   if (type === 'skill') return skillIconUrl(metric);
@@ -280,17 +360,17 @@ export function competitionImageUrl(type: string, metric: string): string | null
 }
 
 /**
- * A picture for a personal-best activity. The game names them by team and mode — "Chambers of Xeric
+ * An icon for a personal-best activity (a boss's hiscores sprite where it has one). The game names them by team and mode — "Chambers of Xeric
  * Challenge Mode 5 Players", "Duke Sucellus (awakened)" — which no boss table knows, so the boss is
  * parsed out first (lib/pbGroups); then a boss whose name it contains ("Demonic Brutus" → Brutus); then
  * a skill it names (agility courses). Null only when nothing fits — callers draw a plain clock.
  */
 export function activityImageUrl(activity: string | null | undefined): string | null {
   if (!activity) return null;
-  const direct = bossImageUrl(activity);
+  const direct = bossIconUrl(activity);
   if (direct) return direct;
   const { base } = parsePbActivity(activity);
-  const byBase = base !== activity ? bossImageUrl(base) : null;
+  const byBase = base !== activity ? bossIconUrl(base) : null;
   if (byBase) return byBase;
   const lower = base.toLowerCase();
   let best: { label: string; len: number } | null = null;
@@ -299,7 +379,7 @@ export function activityImageUrl(activity: string | null | undefined): string | 
     if (l.length >= 4 && lower.includes(l) && (!best || l.length > best.len)) best = { label: b.label, len: l.length };
   }
   if (best) {
-    const img = bossImageUrl(best.label);
+    const img = bossIconUrl(best.label);
     if (img) return img;
   }
   const skill = (SKILLS as readonly string[]).find((k) => k !== 'overall' && lower.includes(k));

@@ -9,7 +9,7 @@ import { BOSSES, SKILL_LABELS } from '@/lib/constants';
 import { CLUE_TIER_KEYS } from '@/lib/hiscoresActivities';
 import type { AccountProfile, ActivityStanding } from '@/lib/memberProfile';
 import { trendLabel, type LevelUp, type StatTrend, type Trends } from '@/lib/statTrends';
-import { activityIconUrl, bossImageForStatKey, skillIconUrl } from '@/lib/tileIcons';
+import { activityIconUrl, bossIconForStatKey, skillIconUrl } from '@/lib/tileIcons';
 import { setUrlParams } from '@/lib/urlState';
 import type { ProfileStatKind } from '@/lib/profileLink';
 
@@ -120,7 +120,7 @@ export default function StatsBrowser({
       return profile.bosses.map((b) => ({
         key: b.key,
         label: bossLabel(b.key),
-        icon: bossImageForStatKey(b.key),
+        icon: bossIconForStatKey(b.key),
         primary: b.kc.toLocaleString(),
         secondary: null,
         hours: b.ehb,

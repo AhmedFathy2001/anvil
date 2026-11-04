@@ -9,7 +9,7 @@ import PersonalLuck from './PersonalLuck';
 import StatsBrowser, { hasBrowsableStats } from './StatsBrowser';
 import { levelUps, statTrends } from '@/lib/statTrends';
 import { setUrlParams } from '@/lib/urlState';
-import { activityImageUrl, bossImageForStatKey, itemIconUrl, skillIconUrl, wikiImageUrl } from '@/lib/tileIcons';
+import { activityImageUrl, bossIconForStatKey, itemIconUrl, skillIconUrl, wikiImageUrl } from '@/lib/tileIcons';
 import { personalBestEntries } from '@/lib/pbGroups';
 import { useMediaQuery } from '@/lib/useMediaQuery';
 import { TAB_SLUG, type ProfileLinkState, type ProfileTab } from '@/lib/profileLink';
@@ -291,7 +291,7 @@ export default function ProfileTabs({
         label: milestoneText(m),
         value: null,
         at: m.noticedAt,
-        icon: m.metric ? (skillIconUrl(m.metric) ?? bossImageForStatKey(m.metric)) : skillIconUrl('overall'),
+        icon: m.metric ? (skillIconUrl(m.metric) ?? bossIconForStatKey(m.metric)) : skillIconUrl('overall'),
       });
     }
     // Level-ups, from the daily rows. 99 is left to the milestone above, which says it already.

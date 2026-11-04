@@ -17,7 +17,7 @@ import { db } from '@/db';
 import { memberClogItems } from '@/db/schema';
 import { inArray } from 'drizzle-orm';
 import { SKILL_LABELS } from '@/lib/constants';
-import { bossImageForStatKey, itemIconUrl, skillIconUrl } from '@/lib/tileIcons';
+import { bossIconForStatKey, itemIconUrl, skillIconUrl } from '@/lib/tileIcons';
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
 import { accountTypeLabel } from '@/lib/accountType';
@@ -246,7 +246,7 @@ export default async function ComparePlayersPage({
             {cmp.bosses.map((x) => (
               <MirrorRow
                 key={x.key}
-                icon={<Sprite src={bossImageForStatKey(x.key)} />}
+                icon={<Sprite src={bossIconForStatKey(x.key)} />}
                 label={x.label}
                 a={x.kcA}
                 b={x.kcB}

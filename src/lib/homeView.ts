@@ -3,7 +3,7 @@ import { clanRoster, clans, completions, events, memberClogItems, memberDailySta
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { weeklyMetricLabel as metricLabel } from '@/lib/constants';
 import { getClanDisplayName, getDiscordInviteUrl } from '@/lib/pluginConfig';
-import { competitionImageUrl, itemIconUrl } from '@/lib/tileIcons';
+import { competitionIconUrl, itemIconUrl } from '@/lib/tileIcons';
 import { clogItemNames } from '@/lib/clogDataset';
 
 /** Rows the Milestones panel shows, and the per-source fetch cap feeding it. */
@@ -257,7 +257,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
       kind: KIND[c.type] ?? 'SOTW',
       type,
       metricLabel: metricLabel(c.type, c.metric),
-      iconUrl: competitionImageUrl(c.type, c.metric),
+      iconUrl: competitionIconUrl(c.type, c.metric),
       status: (c.status as HomeWeekly['status']) ?? 'completed',
       startDate: c.startDate,
       endDate: c.endDate,
@@ -392,7 +392,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
     ...milestoneRows.map((m) => ({
       rsn: m.rsn ?? 'Someone',
       text: milestoneSentence(m.kind, m.metric, m.threshold),
-      iconUrl: m.metric ? competitionImageUrl(m.kind === 'kc' ? 'boss' : 'skill', m.metric) : null,
+      iconUrl: m.metric ? competitionIconUrl(m.kind === 'kc' ? 'boss' : 'skill', m.metric) : null,
       at: m.noticedAt,
       day: m.noticedAt.slice(0, 10),
     })),

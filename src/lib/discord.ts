@@ -8,10 +8,10 @@ import { isLabClan } from '@/lib/lab';
 import { getSettingText } from '@/lib/settings';
 import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
-import { SKILLS, formatEfficiencyHours, weeklyKindLabel } from '@/lib/constants';
+import { SKILLS, formatEfficiencyHours, metricKeys, weeklyKindLabel } from '@/lib/constants';
 import { formatGp } from '@/lib/adminEventsFormat';
 import { placeLabel } from '@/lib/eventRules';
-import { deriveTileIcon, skillIconUrl, bossItemForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
+import { deriveTileIcon, skillIconUrl, bossIconForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
 import { absoluteAssetUrl } from '@/lib/seo';
 import { eq } from 'drizzle-orm';
 import { boardRevealImageQuery } from '@/lib/boardRevealImage';
@@ -1912,16 +1912,16 @@ export async function notifyPayout(params: PayoutNotifyParams): Promise<boolean>
 // One definition, shared with the home page (lib/constants.weeklyKindLabel).
 const weeklyKind = weeklyKindLabel;
 
-// The competition's own icon: the skill's wiki icon for a SOTW, the boss's signature drop for a
-// BOTW. Efficiency spans everything, so it gets none.
+// The competition's own icon: the skill's wiki icon for a SOTW, the boss's hiscores sprite (the one
+// RuneLite shows) for a BOTW. Efficiency spans everything, so it gets none.
 function weeklyThumbnail(type: string, metric: string): Pick<DiscordEmbed, 'thumbnail'> {
   if (type === 'skill') {
     const url = skillIconUrl(metric);
     return url ? { thumbnail: { url: absoluteAssetUrl(url) } } : {};
   }
   if (type === 'boss') {
-    const itemId = bossItemForStatKey(metric);
-    return itemId != null ? { thumbnail: { url: absoluteAssetUrl(itemIconUrl(itemId)) } } : {};
+    const url = bossIconForStatKey(metricKeys(metric)[0] ?? metric);
+    return url ? { thumbnail: { url: absoluteAssetUrl(url) } } : {};
   }
   return {};
 }
