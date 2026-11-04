@@ -30,6 +30,7 @@ import PlayerShapeRadar from '@/components/PlayerShapeRadar';
 import type { ProfileLinkState } from '@/lib/profileLink';
 import { bossPagesFor } from '@/lib/clogKillcounts';
 import { momentsForMembers, type MomentRow } from '@/lib/momentsStore';
+import { siteReactions } from '@/lib/siteReactions';
 import { getCollectionLog } from '@/lib/clogRead';
 import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
 import AccountProgressCard from '@/components/AccountProgressCard';
@@ -258,6 +259,8 @@ export default async function CharacterProfile({ context, viewer, link, progress
     show.publicSwitcher ? characterList(viewerPlayerId) : Promise.resolve([]),
   ]);
 
+  // In a clan, its drops / pets / deaths in "Lately" take the clan feed's reactions (lib/siteReactions).
+  const reactions = clanCtx ? await siteReactions(moments, { clanId: clanCtx.clanId }, viewer?.userId ?? null).catch(() => undefined) : undefined;
   const goals = await goalsForProfile(accountId, profile, collection.synced ? collection.pages : null, goalRatesFrom(series));
   const upcoming = getUpcomingMilestones(profile);
   const shape = clanCtx
@@ -536,6 +539,7 @@ export default async function CharacterProfile({ context, viewer, link, progress
         activityStandings={activityStandings}
         collection={collection}
         moments={moments}
+        reactions={reactions}
         accountProgress={
           <AccountProgressCard summary={progress} quests={questItems} combat={caItems} initialTab={progressTab} />
         }

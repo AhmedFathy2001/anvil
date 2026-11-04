@@ -17,6 +17,8 @@ import LocalTime from '@/components/LocalTime';
 import Input from '@/components/Input';
 import { momentSentence } from '@/lib/moments';
 import type { MomentRow } from '@/lib/momentsStore';
+import type { SiteReactions } from '@/lib/siteReactions';
+import MomentReactions from '@/components/MomentReactions';
 import type {
   ActivityStanding,
   CompetitionHistory,
@@ -203,6 +205,7 @@ export default function ProfileTabs({
   activityStandings,
   collection,
   moments,
+  reactions,
   accountProgress,
   initial,
   bossPages,
@@ -223,6 +226,8 @@ export default function ProfileTabs({
   collection: CollectionLogProps;
   /** Drops, pets and combat tasks we watched happen — see lib/moments. Merged into "Lately". */
   moments: MomentRow[];
+  /** Their reaction chips (lib/siteReactions), in a clan: the same GZ / Sad / Sit as the clan feed. */
+  reactions?: SiteReactions;
   /** Quests / diaries / combat achievements, drawn game-style. Rendered above the log. */
   accountProgress?: React.ReactNode;
   /** Where to open — from the URL (`?tab=&stat=&page=`), so a tab, a stat view or a log page links. */
@@ -270,6 +275,8 @@ export default function ProfileTabs({
       at: string;
       /** The game picture for the row: the item, the boss, the skill. */
       icon: string | null;
+      /** A moment's id, for its reaction chips. */
+      momentId?: number;
     }[] = [];
     for (const b of collection.bests) {
       if (b.at) {
@@ -325,6 +332,7 @@ export default function ProfileTabs({
     for (const m of moments) {
       entries.push({
         key: `moment-${m.id}`,
+        momentId: m.id,
         kind: m.kind === 'ca' ? 'task' : m.kind === 'death' ? 'death' : 'drop',
         label: momentSentence(m),
         // The KC is the story on a drop, the same as it is on a log unlock above.
@@ -698,6 +706,14 @@ export default function ProfileTabs({
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm">{entry.label}</span>
                     <span className={`block text-[11px] ${LATELY_KIND[entry.kind].tone}`}>{LATELY_KIND[entry.kind].label}</span>
+                    {reactions && entry.momentId != null && reactions.byMoment[entry.momentId] && (
+                      <MomentReactions
+                        momentId={entry.momentId}
+                        chips={reactions.byMoment[entry.momentId]}
+                        canReact={reactions.canReact}
+                        target={reactions.target}
+                      />
+                    )}
                   </span>
                   {entry.value && <span className="text-sm font-mono text-gold shrink-0">{entry.value}</span>}
                   <span className="text-[11px] text-text-muted shrink-0 w-20 text-right">
