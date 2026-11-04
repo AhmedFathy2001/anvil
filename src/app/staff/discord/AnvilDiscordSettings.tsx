@@ -2,12 +2,16 @@
 
 import { useState } from 'react';
 
+import { useDialog } from '@/components/Confirm';
+
 import Input from '@/components/Input';
 import type { AnvilBotStatus } from '@/lib/anvilDiscord';
 
 interface Initial {
   guildId: string;
   webhookSet: boolean;
+  /** When everyone already supporting was posted (once), or null. */
+  backfilledAt?: string | null;
   rolesEnabled: boolean;
 }
 
@@ -46,9 +50,11 @@ export default function AnvilDiscordSettings({
   const [guildId, setGuildId] = useState(initial.guildId);
   const [hook, setHook] = useState('');
   const [webhookSet, setWebhookSet] = useState(initial.webhookSet);
+  const [backfilledAt, setBackfilledAt] = useState(initial.backfilledAt ?? null);
   const [rolesEnabled, setRolesEnabled] = useState(initial.rolesEnabled);
   const [includeSubscriber, setIncludeSubscriber] = useState(initialStatus.roles.find((r) => r.key === 'subscriber')?.id != null || !initialStatus.roles.some((r) => r.id));
   const [status, setStatus] = useState(initialStatus);
+  const { confirm } = useDialog();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -187,6 +193,42 @@ export default function AnvilDiscordSettings({
                 </button>
                 <button type="button" disabled={busy} onClick={() => void saveHook('')} className={quiet}>
                   Clear
+                </button>
+              </>
+            )}
+          </div>
+        )}
+        {canWrite && webhookSet && (
+          <div className="mt-4 border-t border-card-border pt-3 text-sm">
+            {backfilledAt ? (
+              <p className="text-text-muted">Everyone already supporting was posted on {new Date(backfilledAt).toLocaleDateString()}.</p>
+            ) : (
+              <>
+                <p className="mb-2 text-text-muted">
+                  People who started paying before this channel was set up never got a post. Post each of them once
+                  (&ldquo;has been supporting Anvil since…&rdquo;), with an @ for anyone in the server. People who opted out,
+                  staff gifts and invite time are left out. This can only run once.
+                </p>
+                <button
+                  type="button"
+                  disabled={busy}
+                  className={quiet}
+                  onClick={() =>
+                    void run(async () => {
+                      const ok = await confirm({
+                        title: 'Post every current supporter?',
+                        body: 'Each one gets a post in the channel now, with an @ if they are in the server. This runs once.',
+                        confirmLabel: 'Post them',
+                      });
+                      if (!ok) return null;
+                      const r = await call('POST', { action: 'announce-current' });
+                      if (!r.ok) return String(r.data.error ?? 'Failed.');
+                      setBackfilledAt(new Date().toISOString());
+                      return `Posted ${r.data.posted}${r.data.skipped ? `, ${r.data.skipped} opted out` : ''}.`;
+                    })
+                  }
+                >
+                  Announce current supporters
                 </button>
               </>
             )}

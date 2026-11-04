@@ -31,7 +31,7 @@ import { log } from '@/lib/logger';
 import { getPlatformSetting, isPreview, setPlatformSetting } from '@/lib/platformSettings';
 import { apexOrigin } from '@/lib/seo';
 import { supporterForUser } from '@/lib/supporter';
-import { SUPPORTER_TIERS, type SupporterTierId } from '@/lib/supporterTiers';
+import { SUPPORTER_TIERS, supporterState, type SupporterTierId } from '@/lib/supporterTiers';
 
 export const ANVIL_GUILD_KEY = 'anvil_discord_guild_id';
 export const ANVIL_SUPPORTERS_WEBHOOK_KEY = 'anvil_discord_supporters_webhook';
@@ -315,6 +315,29 @@ export function newSupporterEmbed(name: string, tier: SupporterTierId, origin: s
 }
 
 /**
+ * Their Discord id when they're in the Anvil server (so a post can @ them), else null: no bot, no
+ * server set, not a real Discord login, or not a member. Never throws.
+ */
+export async function anvilServerMember(discordId: string | null | undefined): Promise<string | null> {
+  try {
+    const token = sharedBotToken();
+    const guildId = await getPlatformSetting(ANVIL_GUILD_KEY);
+    if (!token || !guildId || !isRealDiscordId(discordId)) return null;
+    const res = await discordRest(token, `/guilds/${guildId}/members/${discordId}`);
+    return res.ok ? discordId! : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A post that pings exactly this one person, or no one. */
+function withMention(payload: Record<string, unknown>, discordId: string | null): Record<string, unknown> {
+  return discordId
+    ? { ...payload, content: `<@${discordId}>`, allowed_mentions: { parse: [], users: [discordId] } }
+    : { ...payload, allowed_mentions: { parse: [] } };
+}
+
+/**
  * Announce a membership that just started, once: claimed on supporter_subscriptions.announced_at
  * whether or not anything is posted (opted out, no webhook, beta), so a later renewal never reads as
  * new. No email, no amount: a name and a tier. Never throws.
@@ -331,14 +354,16 @@ export async function announceNewSupporter(subscriptionRowId: number): Promise<b
     if (!hook || !isDiscordWebhookTarget(hook)) return false;
     const user = await db.query.users.findFirst({
       where: eq(users.id, claimed.userId),
-      columns: { displayName: true, discordGlobalName: true, discordUsername: true, announceSupporter: true },
+      columns: { displayName: true, discordGlobalName: true, discordUsername: true, discordId: true, announceSupporter: true },
     });
     if (!user?.announceSupporter) return false;
     const name = (user.displayName || user.discordGlobalName || user.discordUsername || 'Someone').slice(0, 80);
     const res = await fetch(hook, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ embeds: [newSupporterEmbed(name, claimed.tier as SupporterTierId, apexOrigin())], allowed_mentions: { parse: [] } }),
+      body: JSON.stringify(
+        withMention({ embeds: [newSupporterEmbed(name, claimed.tier as SupporterTierId, apexOrigin())] }, await anvilServerMember(user.discordId)),
+      ),
     });
     if (!res.ok) log.warn('anvil-discord.announce-failed', { status: res.status });
     return res.ok;
@@ -346,6 +371,74 @@ export async function announceNewSupporter(subscriptionRowId: number): Promise<b
     log.warn('anvil-discord.announce-error', {}, err);
     return false;
   }
+}
+
+// =============================================================================
+// Everyone already supporting (one-time, from /staff/discord)
+// =============================================================================
+
+export const ANVIL_SUPPORTERS_BACKFILL_KEY = 'anvil_discord_supporters_backfilled_at';
+
+/** "Anvil Patron since March 2026": for a supporter who started before the channel existed. */
+export function currentSupporterEmbed(name: string, tier: SupporterTierId, since: string, origin: string): Record<string, unknown> {
+  const t = SUPPORTER_TIERS[tier];
+  const when = new Date(since).toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  return {
+    title: `Anvil ${t.name}`,
+    description: `**${escapeMarkdown(name)}** has been supporting Anvil since ${when}. Thank you for keeping Anvil running!`,
+    color: anvilRoleColor(tier),
+    thumbnail: { url: `${origin}/icons/supporter-${tier}.png` },
+    url: `${origin}/supporter`,
+  };
+}
+
+/**
+ * Post everyone who is paying for Anvil right now to the new-supporters channel, once: the people who
+ * started before the channel was set up never got a post. One post each, oldest first, an @ for
+ * anyone in the Anvil server, nobody who turned announcements off, and their memberships marked
+ * announced so a renewal never posts them again. Returns how many were posted.
+ */
+export async function announceCurrentSupporters(opts: { pauseMs?: number } = {}): Promise<{ posted: number; skipped: number }> {
+  const hook = await getPlatformSetting(ANVIL_SUPPORTERS_WEBHOOK_KEY);
+  if (isPreview() || !hook || !isDiscordWebhookTarget(hook)) return { posted: 0, skipped: 0 };
+  const rows = await db.select().from(supporterSubscriptions).orderBy(asc(supporterSubscriptions.startedAt));
+  const byUser = new Map<number, typeof rows>();
+  for (const r of rows) byUser.set(r.userId, [...(byUser.get(r.userId) ?? []), r]);
+  let posted = 0;
+  let skipped = 0;
+  for (const [userId, mine] of byUser) {
+    // Bought through Gumroad: not a staff gift, a lab grant or invite time.
+    const paid = mine.filter((r) => !!(r.gumroadSubscriptionId || r.gumroadSaleId));
+    const state = supporterState(paid);
+    if (!state) continue;
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+      columns: { displayName: true, discordGlobalName: true, discordUsername: true, discordId: true, announceSupporter: true },
+    });
+    // Claimed either way, like a new membership: a renewal must never read as new.
+    await db
+      .update(supporterSubscriptions)
+      .set({ announcedAt: new Date().toISOString() })
+      .where(and(eq(supporterSubscriptions.userId, userId), isNull(supporterSubscriptions.announcedAt)));
+    if (!user?.announceSupporter) {
+      skipped++;
+      continue;
+    }
+    const name = (user.displayName || user.discordGlobalName || user.discordUsername || 'Someone').slice(0, 80);
+    const res = await fetch(hook, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        withMention({ embeds: [currentSupporterEmbed(name, state.tier.id, state.since, apexOrigin())] }, await anvilServerMember(user.discordId)),
+      ),
+    }).catch(() => null);
+    if (res?.ok) posted++;
+    else log.warn('anvil-discord.backfill-post-failed', { status: res?.status ?? null });
+    // Webhooks allow about five posts every two seconds.
+    await new Promise((r) => setTimeout(r, opts.pauseMs ?? 500));
+  }
+  await setPlatformSetting(ANVIL_SUPPORTERS_BACKFILL_KEY, new Date().toISOString());
+  return { posted, skipped };
 }
 
 // =============================================================================

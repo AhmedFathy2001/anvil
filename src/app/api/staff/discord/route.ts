@@ -4,6 +4,8 @@ import {
   ANVIL_GUILD_KEY,
   ANVIL_ROLES_ENABLED_KEY,
   ANVIL_SUPPORTERS_WEBHOOK_KEY,
+  ANVIL_SUPPORTERS_BACKFILL_KEY,
+  announceCurrentSupporters,
   anvilBotStatus,
   ensureAnvilRoles,
   newSupporterEmbed,
@@ -60,6 +62,15 @@ export async function POST(request: Request) {
       const res = await ensureAnvilRoles(body.includeSubscriber !== false);
       if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
       return NextResponse.json({ ok: true, status: await anvilBotStatus() });
+    }
+    case 'announce-current': {
+      // Once: everyone it posts is marked announced, so a second run would post nobody new anyway.
+      if (isPreview()) return NextResponse.json({ error: 'Beta never posts to the Anvil Discord.' }, { status: 400 });
+      if (await getPlatformSetting(ANVIL_SUPPORTERS_BACKFILL_KEY)) {
+        return NextResponse.json({ error: 'Current supporters were already announced.' }, { status: 409 });
+      }
+      if (!(await getPlatformSetting(ANVIL_SUPPORTERS_WEBHOOK_KEY))) return NextResponse.json({ error: 'Set the webhook first.' }, { status: 400 });
+      return NextResponse.json({ ok: true, ...(await announceCurrentSupporters()) });
     }
     case 'sweep': {
       await requestAnvilRoleSweep();

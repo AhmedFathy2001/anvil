@@ -29,8 +29,8 @@ export async function GET(request: Request) {
   // with no board to watch.
   const params = new URL(request.url).searchParams;
   const feed = params.get('feed') === '1';
-  // ?rows=1: a plugin with the panel Feed tab (capability 'panel-rows') listens for its clan's and
-  // its own live rows (lib/panelRows) even with no board and the chat feed off.
+  // ?rows=1: a plugin with the panel Feed tab (capability 'panel-rows'). It is sent panel rows and
+  // looks (no other client is: older plugins can't read them), and listens even with no board.
   const rows = params.get('rows') === '1';
   const clan = await resolvePluginClan(request);
   const seat = clan ? await verifyPluginToken(request, { hintOnly: pluginRsnHintOnly(request) }) : null;
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
   if (eventIds.length === 0 && !feed && !rows) return new NextResponse(null, { status: 204 });
 
   const { ticket, expiresAt } = signTicket(
-    { userId: user.userId, eventIds, teamId: seat?.teamId ?? null, feed },
+    { userId: user.userId, eventIds, teamId: seat?.teamId ?? null, feed, rows },
     KEY,
     Date.now(),
   );

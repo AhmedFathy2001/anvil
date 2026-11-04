@@ -136,6 +136,7 @@ export interface ChatRowOptions {
   /** Supporter name colour. */
   whoColor?: Color;
   grad?: `#${string}`[];
+  move?: boolean;
   /** The viewer moderates: right-click to delete or mute. */
   modActions?: { del: Action; mute: Action } | null;
 }
@@ -148,6 +149,7 @@ export function chatRow(m: ChatLike, o: ChatRowOptions = {}): FeedRow {
     who: m.rsn,
     whoColor: o.whoColor ?? 'white',
     ...(o.grad ? { grad: o.grad } : {}),
+    ...(o.grad && o.move ? { move: true } : {}),
     text: m.body,
     textColor: 'text',
     ...(tag ? { tag, tagColor } : {}),
@@ -222,7 +224,9 @@ export function feedTabUi(o: FeedTabOptions): Node {
   const filters: [string, string][] =
     o.pane === 'chat'
       ? [['all', 'All'], ...(o.teamId != null ? [['team', 'My team'] as [string, string]] : []), ...(o.staff ? [['mods', 'Host & mods'] as [string, string]] : [])]
-      : [['all', 'All'], ['drops', 'Drops'], ['pets', 'Pets'], ['tasks', 'Tasks'], ...(o.current.kind === 'event' && o.teamId != null ? [['team', 'My team'] as [string, string]] : [])];
+      // No "Tasks" chip: combat tasks are only kept during a board or weekly, and levels and log slots
+      // aren't kept as moments at all, so the chip promised a list that was almost always empty.
+      : [['all', 'All'], ['drops', 'Drops'], ['pets', 'Pets'], ...(o.current.kind === 'event' && o.teamId != null ? [['team', 'My team'] as [string, string]] : [])];
   parts.push(rowOf(filters.map(([id, label]) => chip(label, o.filter === id, load({ s: key, p: o.pane, f: id })))), gap(4));
 
   const id =
@@ -236,7 +240,7 @@ export function feedTabUi(o: FeedTabOptions): Node {
     rows: o.rows,
     cap: o.pane === 'chat' ? 300 : 200,
     h: 460,
-    empty: o.pane === 'chat' ? 'No messages yet. Say hi to the board.' : 'Nothing yet. The next pet or big drop lands here.',
+    empty: emptyLine(o.pane, o.filter),
     ...(o.pane === 'chat' && o.send ? { send: { ...o.send, max: 200 } } : {}),
     ...(o.locked ? { locked: o.locked } : {}),
   });
@@ -252,6 +256,15 @@ export function feedTabUi(o: FeedTabOptions): Node {
   }
   if (o.floorNote && o.pane === 'feed') parts.push(gap(4), muted(o.floorNote, { font: 'small' }));
   return col(parts);
+}
+
+/** What an empty list says, for the filter that's on. */
+function emptyLine(pane: 'feed' | 'chat', filter: string): string {
+  if (pane === 'chat') return filter === 'team' ? 'Nothing said to your team yet.' : filter === 'mods' ? 'The host and mods haven’t said anything yet.' : 'No messages yet. Say hi to the board.';
+  if (filter === 'pets') return 'No pets yet. The next one lands here.';
+  if (filter === 'drops') return 'No big drops yet. The next one lands here.';
+  if (filter === 'team') return 'Nothing from your team yet.';
+  return 'Nothing yet. The next pet or big drop lands here.';
 }
 
 /** A row of chips with a little space between, wrapping is the plugin's business. */

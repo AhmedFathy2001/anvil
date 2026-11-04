@@ -155,3 +155,23 @@ test('a guest channel that is no clan here stores nothing', async () => {
   const rows = await db.select().from(s.guestPresence);
   assert.ok(!rows.some((r) => r.accountId === ids.Quiet.accountId));
 });
+
+test("team progress: the sender's own team only, once per burst, never a finished tile", async () => {
+  const { eq } = await import('drizzle-orm');
+  const blue = (await db.select().from(s.teams).where(eq(s.teams.name, 'Blue')))[0].id;
+  heard.length = 0;
+  const go = (current: number, label = 'Abyssal whip') =>
+    F.emitTeamProgress({ eventId, teamId: blue, senderUserId: ids.Rival.userId, who: 'Rival', tileLabel: label, current, required: 10 });
+  await go(4);
+  await settle();
+  assert.deepEqual([...reached().keys()].sort(), [ids.Clanmate.userId, ids.Picky.userId].sort(), 'teammates, not the sender or Red');
+  assert.equal(heard[0].m.text, 'Abyssal whip 4/10');
+  assert.equal(heard[0].m.kind, 'progress');
+  heard.length = 0;
+  await go(5);
+  await settle();
+  assert.equal(heard.length, 0, 'a second drop straight after is held');
+  await go(10, 'Dragon limbs');
+  await settle();
+  assert.equal(heard.length, 0, 'a finished tile has its own announcement');
+});

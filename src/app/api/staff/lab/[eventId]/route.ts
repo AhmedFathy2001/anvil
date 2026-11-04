@@ -5,6 +5,8 @@ import { db } from '@/db';
 import { completions, eventParticipants, labLog, submissions, teams, tiles } from '@/db/schema';
 import { CAN_WRITE, requirePlatformApi } from '@/lib/platformAccess';
 import { deleteLabSession, forgetLabSessions, labEvent, MAX_LAB_HOURS, resetLabSession, setLabSessionEnd } from '@/lib/lab';
+import { labClearTile, labCompleteTile, labSetTileProgress, LabTileError } from '@/lib/labTileControls';
+import { progressGoal, progressStore } from '@/lib/labTileProgress';
 import { addLabTeam, labTeams, moveLabParticipant, setLabTeamRole, type TeamRole } from '@/lib/labTeams';
 
 // /api/staff/lab/<id> — one lab session: what is on it, what has been credited, and what its
@@ -21,16 +23,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
   const teamIds = teamRows.map((t) => t.id);
   const [tileRows, participants, done, subs, logRows] = await Promise.all([
     db
-      .select({
-        id: tiles.id,
-        position: tiles.position,
-        label: tiles.label,
-        tileType: tiles.tileType,
-        trackedStat: tiles.trackedStat,
-        statType: tiles.statType,
-        statGoal: tiles.statGoal,
-        requiredAmount: tiles.requiredAmount,
-      })
+      .select()
       .from(tiles)
       .where(eq(tiles.eventId, event.id))
       .orderBy(tiles.position),
@@ -75,9 +68,25 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
       forceEndedAt: event.forceEndedAt,
       boardSize: event.boardSize,
     },
-    tiles: tileRows,
+    tiles: tileRows.map((t) => {
+      // Where the tile keeps its progress, for the tile controls (lib/labTileProgress).
+      const store = progressStore(t);
+      return {
+        id: t.id,
+        position: t.position,
+        label: t.label,
+        tileType: t.tileType,
+        trackedStat: t.trackedStat,
+        statType: t.statType,
+        statGoal: t.statGoal,
+        requiredAmount: t.requiredAmount,
+        parentTileId: t.parentTileId,
+        progressStore: store,
+        progressGoal: progressGoal(t, store),
+      };
+    }),
     participants: participants.map((p) => ({ id: p.id, name: p.name, accountId: p.accountId, simulated: !!p.frozenAt })),
-    completions: done.map((c) => ({ tileId: c.tileId, completedAt: c.completedAt })),
+    completions: done.map((c) => ({ tileId: c.tileId, teamId: c.teamId, completedAt: c.completedAt })),
     submissions: subs,
     log: logRows,
     teams: await labTeams(event.id, gate.actor.user.userId),
@@ -89,7 +98,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
   if ('response' in gate) return gate.response;
   const event = await labEvent(Number((await params).eventId));
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  let body: { action?: unknown; hours?: unknown; participantId?: unknown; teamId?: unknown; players?: unknown; role?: unknown };
+  let body: {
+    action?: unknown;
+    hours?: unknown;
+    participantId?: unknown;
+    teamId?: unknown;
+    tileId?: unknown;
+    value?: unknown;
+    players?: unknown;
+    role?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -136,6 +154,31 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
       if (!Number.isInteger(body.teamId) || !role) return NextResponse.json({ error: 'teamId, role' }, { status: 400 });
       if (!(await setLabTeamRole(event.id, gate.actor.user.userId, body.teamId as number, role))) return NextResponse.json({ error: 'Not on this board' }, { status: 400 });
       break;
+    }
+    // Tile controls (lib/labTileControls): complete, clear or set progress on any tile for any team.
+    case 'tile-complete':
+    case 'tile-clear':
+    case 'tile-progress': {
+      if (!Number.isInteger(body.teamId) || !Number.isInteger(body.tileId)) return NextResponse.json({ error: 'teamId, tileId' }, { status: 400 });
+      const teamId = body.teamId as number;
+      const tileId = body.tileId as number;
+      const needsPlayer = body.action !== 'tile-clear';
+      if (needsPlayer && !Number.isInteger(body.participantId)) return NextResponse.json({ error: 'participantId' }, { status: 400 });
+      if (body.action === 'tile-progress' && (typeof body.value !== 'number' || !Number.isFinite(body.value) || body.value < 0)) {
+        return NextResponse.json({ error: 'value must be a number, 0 or more' }, { status: 400 });
+      }
+      try {
+        const tile =
+          body.action === 'tile-clear'
+            ? await labClearTile(event, teamId, tileId)
+            : body.action === 'tile-complete'
+              ? await labCompleteTile(event, teamId, tileId, body.participantId as number)
+              : await labSetTileProgress(event, teamId, tileId, body.participantId as number, body.value as number);
+        return NextResponse.json({ ok: true, tile });
+      } catch (e) {
+        if (e instanceof LabTileError) return NextResponse.json({ error: e.message }, { status: 400 });
+        throw e;
+      }
     }
     default:
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

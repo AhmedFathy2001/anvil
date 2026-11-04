@@ -36,6 +36,8 @@ export interface ChatFeedPrefs {
   quests: 'major' | 'off';
   /** Other teams' tile completions on a board. */
   tiles: boolean;
+  /** A teammate's drop moving one of your team's item tiles along ("Drenvox: Abyssal whip 4/10"). */
+  teamProgress: boolean;
   /** Game-mode unlocks: relics, areas, pacts, masteries, harder tasks. */
   modes: boolean;
   /** The one-or-two-line brief printed at login (lib/chatBrief). */
@@ -69,6 +71,7 @@ export const DEFAULT_PREFS: ChatFeedPrefs = {
   levels: 'major',
   quests: 'off',
   tiles: true,
+  teamProgress: true,
   modes: true,
   login: true,
   palette: 'anvil',
@@ -105,6 +108,7 @@ export function cleanPrefs(p: Record<string, unknown>): ChatFeedPrefs {
     levels: p.levels === 'major' || p.levels === 'off' ? p.levels : DEFAULT_PREFS.levels,
     quests: p.quests === 'major' || p.quests === 'off' ? p.quests : DEFAULT_PREFS.quests,
     tiles: bool('tiles'),
+    teamProgress: bool('teamProgress'),
     modes: bool('modes'),
     login: bool('login'),
     palette: (PALETTES as readonly unknown[]).includes(p.palette) ? (p.palette as Palette) : DEFAULT_PREFS.palette,
@@ -127,10 +131,10 @@ function cleanColors(v: unknown): Partial<Record<Tone, string>> {
 
 /** The tone a feed item is printed in: drops and pets stand out, other teams' tiles sit back. */
 export function toneOf(kind: FeedKind): Tone {
-  return kind === 'drop' || kind === 'pet' ? 'drop' : kind === 'tile' ? 'feed' : 'info';
+  return kind === 'drop' || kind === 'pet' ? 'drop' : kind === 'tile' ? 'feed' : kind === 'progress' ? 'near' : 'info';
 }
 
-export type FeedKind = 'drop' | 'pet' | 'clog' | 'ca' | 'level' | 'quest' | 'mode' | 'tile';
+export type FeedKind = 'drop' | 'pet' | 'clog' | 'ca' | 'level' | 'quest' | 'mode' | 'tile' | 'progress';
 
 export interface FeedItem {
   kind: FeedKind;
@@ -165,6 +169,8 @@ export function wants(prefs: ChatFeedPrefs, item: FeedItem): boolean {
       return prefs.modes;
     case 'tile':
       return prefs.tiles;
+    case 'progress':
+      return prefs.teamProgress;
   }
 }
 
@@ -211,7 +217,9 @@ export function recipients(args: {
     if (c.via === 'event' && !p.events) continue;
     if (c.via === 'guest' && !p.guests) continue;
     if (!wants(p, item)) continue;
-    if (item.kind !== 'tile' && senderClans?.size) {
+    // Clanmates already see the game's own broadcast of a drop, so they're skipped; nothing in the game
+    // says what a drop did for a board, so team progress goes to them too.
+    if (item.kind !== 'tile' && item.kind !== 'progress' && senderClans?.size) {
       const theirs = memberClans.get(c.userId);
       if (theirs && [...theirs].some((id) => senderClans.has(id))) continue;
     }

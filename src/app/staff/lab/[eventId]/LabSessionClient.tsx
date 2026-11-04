@@ -12,6 +12,7 @@ import { LAB_KEEP_DAYS } from '@/lib/labRules';
 import { sessionLive } from '../sessionLive';
 import LabFeedChatPanel from './LabFeedChatPanel';
 import LabTeamsPanel from './LabTeamsPanel';
+import LabTileControlsPanel from './LabTileControlsPanel';
 import type { LabTeamsView } from '@/lib/labTeams';
 
 const LAB_SLUG = 'anvil-lab';
@@ -26,6 +27,9 @@ interface Tile {
   statType: string | null;
   statGoal: number | null;
   requiredAmount: number | null;
+  parentTileId: number | null;
+  progressStore: string | null;
+  progressGoal: number | null;
 }
 
 interface Participant {
@@ -57,7 +61,7 @@ interface Detail {
   event: { id: number; name: string; startDate: string | null; endDate: string | null; forceEndedAt: string | null; boardSize: number };
   tiles: Tile[];
   participants: Participant[];
-  completions: { tileId: number; completedAt: string | null }[];
+  completions: { tileId: number; teamId: number; completedAt: string | null }[];
   submissions: Submission[];
   log: LogRow[];
   teams: LabTeamsView;
@@ -187,6 +191,8 @@ export default function LabSessionClient({ eventId }: { eventId: number }) {
           ))}
         </div>
       </section>
+
+      <LabTileControlsPanel eventId={eventId} tiles={data.tiles} teams={data.teams} completions={data.completions} onDone={load} />
 
       <StatSimulator eventId={eventId} tiles={data.tiles} participants={data.participants} onDone={load} />
 

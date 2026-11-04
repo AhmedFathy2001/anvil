@@ -21,6 +21,7 @@ import { isIndividualMode } from '@/lib/statTracking';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { notifySubmission } from '@/lib/discord';
 import { removeSubmission } from '@/lib/submissionRemoval';
+import { TEAM_PROGRESS_TILE_TYPES, emitTeamProgress } from '@/lib/chatFeed';
 import { queueSubmissionNotification, flushPendingNotifications } from '@/lib/notifications';
 import { isManagedMediaUrl } from '@/lib/storage';
 import { isDraftInProgress } from '@/lib/eventReadiness';
@@ -754,6 +755,20 @@ export async function POST(
   // separate completion announcement is suppressed; the team-win post still fires from inside sync.
   const syncResult = await syncDropTileCompletion(tileId, teamId, { notifyCompletion: false });
 
+  // A plugin drop that moved an item tile along without finishing it: the rest of the team hears it
+  // in game chat (lib/chatFeed). Item tiles only; a finished tile has its own announcement.
+  if (pluginAuth && !isCap && !syncResult?.isComplete && TEAM_PROGRESS_TILE_TYPES.has(tile.tileType) && tile.requiredAmount) {
+    void emitTeamProgress({
+      eventId: eId,
+      teamId,
+      senderUserId: pluginAuth.userId ?? null,
+      who: creditPlayerName ?? pluginAuth.rsn ?? team.name,
+      tileLabel: tile.label,
+      current: currentTotal,
+      required: tile.requiredAmount,
+    });
+  }
+
   if (isCap) {
     // A cap counter's credits (energy) aren't the tile's progress: no per-ping post of their own. The
     // ping that lifts the cap far enough to finish the tile posts nothing either — the tile's own
@@ -808,7 +823,9 @@ export async function POST(
     props: { via: pluginAuth ? 'plugin' : membership ? 'team-page' : isAdmin ? 'staff' : captain ? 'captain' : 'player', proof: !!imageUrlValue },
   });
 
-  return NextResponse.json({ submission }, { status: 201 });
+  // `completed`: this submission finished the tile, so the plugin can say so at once instead of
+  // waiting for its next config fetch.
+  return NextResponse.json({ submission, completed: syncResult?.isComplete ?? false }, { status: 201 });
 }
 
 export async function DELETE(
