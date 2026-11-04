@@ -6,6 +6,8 @@ import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { verifyAdmin, generatePlayerToken } from '@/lib/auth';
 import { onAccountConflict } from '@/lib/participants';
 import { assertEventEditable } from '@/lib/eventLock';
+import { PlanLimitError } from '@/lib/creatorPlansDb';
+import { withHostEventRoom } from '@/lib/friendEvents';
 
 // Bulk: turn every still-eligible signup into a draft pool entry. Captains already have
 // player rows on their teams (created by promote-captain) — those are skipped.
@@ -158,11 +160,21 @@ export async function POST(
   const pendingIds = toInsertSignups
     .filter((s) => s.status === 'pending')
     .map((s) => s.id);
+  // Pending is already on the board, so this adds nobody — still written through the event's room
+  // (lib/creatorPlansDb withEventRoom), like every status write that lands on the board, and only
+  // for rows still pending, so a row withdrawn meanwhile is not brought back past the plan's cap.
   if (pendingIds.length > 0) {
-    await db
-      .update(eventSignups)
-      .set({ status: 'approved', updatedAt: new Date().toISOString() })
-      .where(inArray(eventSignups.id, pendingIds));
+    try {
+      await withHostEventRoom({ eventId: evtId, audience: 'host' }, (tx) =>
+        tx
+          .update(eventSignups)
+          .set({ status: 'approved', updatedAt: new Date().toISOString() })
+          .where(and(inArray(eventSignups.id, pendingIds), eq(eventSignups.status, 'pending'))),
+      );
+    } catch (e) {
+      if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'full' }, { status: 403 });
+      throw e;
+    }
   }
 
   return NextResponse.json({

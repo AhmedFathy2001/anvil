@@ -22,7 +22,7 @@ import { standardFeeForAccount } from '@/lib/entryFee';
 import { placementOf } from '@/lib/teamPlacement';
 import { enrolPlaced } from '@/lib/teamPlacementDb';
 import { PlanLimitError } from '@/lib/creatorPlansDb';
-import { SignupChangedError, guardFriendsSeats } from '@/lib/friendEvents';
+import { SignupChangedError, withHostEventRoom } from '@/lib/friendEvents';
 
 export type SignupRow = typeof eventSignups.$inferSelect;
 
@@ -142,13 +142,15 @@ export async function signUpOnBehalf(input: {
   // A withdrawn sign-up is revived in place (the unique (event, seat) index means a second row can't
   // be inserted) — same as the self-serve re-join path. userId is rewritten too: a row revived before
   // the fix above may still name the wrong login.
-  // On a friends event (lib/friendEventRules) a place on the board is capped by the host's Supporter
-  // tier, whoever writes it: the same locked gate as the self-serve sign-up (lib/friendEvents). The
-  // row is re-read and written ON the gate's transaction, and the revive only applies to a row that is
-  // STILL withdrawn — somebody else changing it meanwhile is a 409, never a silent overwrite.
+  //
+  // Either way one more player is on the board, so the host's cap applies, staff or not: a creator
+  // plan's players at once across the host's overlapping events (lib/creatorPlansDb withEventRoom),
+  // or a friends host's Supporter tier (lib/friendEvents) — withHostEventRoom picks the one. The row
+  // is re-read and written ON the gate's transaction, and the revive only applies to a row that is
+  // STILL withdrawn: somebody else changing it meanwhile is a 409, never a silent overwrite.
   let signup: SignupRow;
   try {
-    signup = await guardFriendsSeats(event.id, async (tx) => {
+    signup = await withHostEventRoom({ eventId: event.id, audience: 'host' }, async (tx) => {
       const now2 = await tx.query.eventSignups.findFirst({
         where: and(eq(eventSignups.eventId, event.id), eq(eventSignups.clanMemberId, clanMemberId)),
       });

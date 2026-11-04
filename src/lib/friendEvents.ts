@@ -215,13 +215,14 @@ export async function friendsJoinCheck(eventId: number, adding: number, tx: Exec
 }
 
 /**
- * lib/creatorPlansDb withEventRoom, for any host: a friends event goes through guardFriendsSeats
- * (snapshot, write, snapshot, judge — one locked transaction, one connection); anything else is
- * withEventRoom unchanged. `adding` is only the creator meter's: the friends gate judges what the
- * write actually did, so a count read before the lock can never be stale for it.
+ * The ONE wrapper every on-board sign-up write goes through (tests/seat-write-guard): an event has
+ * exactly one host, so it is metered by exactly one gate — a friends host by guardFriendsSeats (the
+ * owner's Supporter tier), anything else by lib/creatorPlansDb withEventRoom (the creator plan,
+ * creator hosts only). Either way the write runs once, on the one transaction that holds that host's
+ * lock, and the check measures what the write actually did. Never both, never a second connection.
  */
 export async function withHostEventRoom<T>(
-  opts: { eventId: number; clanPlan: string | null; adding: number },
+  opts: Parameters<typeof withEventRoom>[0],
   write: (tx: Tx) => Promise<T>,
 ): Promise<T> {
   if ((await friendsHostOfEvent(opts.eventId)) == null) return withEventRoom(opts, write);
@@ -237,7 +238,7 @@ export async function withHostEventRoom<T>(
  */
 export async function withHostEventSlot<T>(
   host: { id: number; kind?: string | null },
-  opts: { clanId: number; clanPlan: string | null; exceptEventId?: number },
+  opts: Parameters<typeof withLiveEventSlot>[0],
   write: (tx: Tx) => Promise<T>,
 ): Promise<T> {
   if (!isFriendsHost(host)) return withLiveEventSlot(opts, write);

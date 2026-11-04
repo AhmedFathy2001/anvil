@@ -8,6 +8,8 @@ import { requireTeamManager } from '@/lib/teamStaff';
 import { enrolParticipant, participantForSeat } from '@/lib/participants';
 import { parseProfile } from '@/lib/signup';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
+import { PlanLimitError } from '@/lib/creatorPlansDb';
+import { withHostEventRoom } from '@/lib/friendEvents';
 
 /**
  * People asking to join THIS team, on an event the host runs by application (rules.teamChoice).
@@ -103,10 +105,20 @@ export async function POST(
     return NextResponse.json({ ok: true, action: 'decline' });
   }
 
-  await db
-    .update(eventSignups)
-    .set({ status: 'approved', updatedAt: now })
-    .where(eq(eventSignups.id, signup.id));
+  // Pending → approved adds nobody to the board; written through the event's room all the same
+  // (lib/creatorPlansDb withEventRoom), and only while still pending, so no path can approve its way
+  // past the plan's cap.
+  try {
+    await withHostEventRoom({ eventId: signup.eventId, audience: 'host' }, (tx) =>
+      tx
+        .update(eventSignups)
+        .set({ status: 'approved', updatedAt: now })
+        .where(and(eq(eventSignups.id, signup.id), eq(eventSignups.status, 'pending'))),
+    );
+  } catch (e) {
+    if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'full' }, { status: 403 });
+    throw e;
+  }
 
   // Seat them. Same rule as the admin approve path: create the player row on this team, or move a
   // pooled one onto it. Someone already on another team is left where they are — that placement

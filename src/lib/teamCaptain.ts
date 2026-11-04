@@ -2,12 +2,12 @@ import { and, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanMemberships, clanRoster, eventParticipants, eventSignups, events, signupFees, teams, users } from '@/db/schema';
 import { standardFeeForAccount } from '@/lib/entryFee';
-import { PlanLimitError } from '@/lib/creatorPlansDb';
-import { guardFriendsSeats, type DbOrTx } from '@/lib/friendEvents';
 import { generatePlayerToken } from '@/lib/auth';
 import { seatsOwnedBy } from '@/lib/roster';
 import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
+import { PlanLimitError } from '@/lib/creatorPlansDb';
+import { withHostEventRoom } from '@/lib/friendEvents';
 
 /**
  * Seat a team's captain on their own team.
@@ -69,9 +69,13 @@ export type CaptainSeatResult =
        * other-team — already playing on a different team; the host put them there on purpose.
        * no-team    — the team id doesn't belong to this event.
        */
-      // 'full': a friends event (lib/friendEventRules) with no room left on the host's Supporter tier.
-      reason: 'no-account' | 'other-team' | 'no-team' | 'full';
-    };
+      reason: 'no-account' | 'other-team' | 'no-team';
+    }
+  /**
+   * full — the plan's cap on players at once across the host's overlapping events has no room for
+   * them (lib/creatorPlansDb withEventRoom). Nothing was moved or seated; `error` says why.
+   */
+  | { playerId: null; reason: 'full'; error: string };
 
 export async function placeCaptainOnTeam(
   eventId: number,
@@ -104,35 +108,26 @@ export async function placeCaptainOnTeam(
     .from(eventParticipants)
     .where(and(eq(eventParticipants.eventId, eventId), inArray(eventParticipants.clanMemberId, memberIds)));
 
-  // The captain's sign-up is what takes a board place, so it is written FIRST: on a friends event
-  // (lib/friendEventRules) inside the host's locked gate and on its own transaction (lib/friendEvents
-  // guardFriendsSeats). Refused → 'full', nothing written. The player row and fee follow once held.
-  const holdSignup = async (clanMemberId: number | null): Promise<SignupRow | null | 'full'> => {
-    if (clanMemberId == null) return null;
-    try {
-      return await guardFriendsSeats(eventId, (tx) => upsertCaptainSignup(tx, eventId, captainUserId, clanMemberId));
-    } catch (e) {
-      if (e instanceof PlanLimitError) return 'full';
-      throw e;
-    }
-  };
-
+  // The sign-up is written FIRST on every path: it is what the plan's player cap can refuse, and a
+  // refused captain must not be moved onto the team or given a player row.
   const alreadyHere = existing.find((p) => p.teamId === teamId);
   if (alreadyHere) {
     // A player row can belong to a guest with no roster account, hence the null check — there is
     // no sign-up to write for one of those.
-    const held = await holdSignup(alreadyHere.clanMemberId);
-    if (held === 'full') return { playerId: null, reason: 'full' };
-    if (held) await enrolSignupFee(eventId, held);
+    if (alreadyHere.clanMemberId != null) {
+      const full = await enrolSignup(eventId, captainUserId, alreadyHere.clanMemberId);
+      if (full) return { playerId: null, reason: 'full', error: full };
+    }
     return { playerId: alreadyHere.id, reason: null };
   }
 
   const unassigned = existing.find((p) => p.teamId == null);
   if (unassigned) {
-    const held = await holdSignup(unassigned.clanMemberId);
-    if (held === 'full') return { playerId: null, reason: 'full' };
+    if (unassigned.clanMemberId != null) {
+      const full = await enrolSignup(eventId, captainUserId, unassigned.clanMemberId);
+      if (full) return { playerId: null, reason: 'full', error: full };
+    }
     await db.update(eventParticipants).set({ teamId }).where(eq(eventParticipants.id, unassigned.id));
-    if (held) await enrolSignupFee(eventId, held);
     captureStartingStatsSoon(eventId, [unassigned.id]);
     return { playerId: unassigned.id, reason: null };
   }
@@ -154,8 +149,9 @@ export async function placeCaptainOnTeam(
   const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
   if (!team || team.eventId !== eventId) return { playerId: null, reason: 'no-team' };
 
-  const held = await holdSignup(account.id);
-  if (held === 'full') return { playerId: null, reason: 'full' };
+  const full = await enrolSignup(eventId, captainUserId, account.id);
+  if (full) return { playerId: null, reason: 'full', error: full };
+
   const [player] = await db
     .insert(eventParticipants)
     .values({
@@ -168,7 +164,7 @@ export async function placeCaptainOnTeam(
       playerToken: generatePlayerToken(),
     })
     .returning({ id: eventParticipants.id });
-  if (held) await enrolSignupFee(eventId, held);
+
   if (player?.id != null) captureStartingStatsSoon(eventId, [player.id]);
   return player?.id != null ? { playerId: player.id, reason: null } : { playerId: null, reason: 'no-account' };
 }
@@ -180,54 +176,61 @@ export async function placeCaptainOnTeam(
  * version only APPROVED an existing sign-up on the two paths where the captain already had a
  * player row — so a captain who was already in the draft pool (roster sync, or added by hand) came
  * out of this with a team, no sign-up, and a site still telling them to go and apply.
+ *
+ * Creating one, or bringing back a withdrawn or rejected one, puts the captain on the board: the
+ * write runs under the event's room (lib/creatorPlansDb withEventRoom), so on a player-capped event
+ * it is refused when the plan has no room for one more at once across the host's overlapping events.
+ * Returns that refusal's message, or null when they're in.
  */
-type SignupRow = typeof eventSignups.$inferSelect;
-
-/** The sign-up half: create or approve the row, on `exec` (the friends gate's transaction, or db). */
-async function upsertCaptainSignup(exec: DbOrTx, eventId: number, userId: number, clanMemberId: number): Promise<SignupRow | null> {
+async function enrolSignup(eventId: number, userId: number, clanMemberId: number): Promise<string | null> {
   const now = new Date().toISOString();
-  const existing = await exec.query.eventSignups.findFirst({
-    where: and(eq(eventSignups.eventId, eventId), eq(eventSignups.clanMemberId, clanMemberId)),
-  });
-  const row = existing
-    ? (await exec
-        .update(eventSignups)
-        .set({ status: 'approved', updatedAt: now })
-        .where(eq(eventSignups.id, existing.id))
-        .returning())[0]
-    : (await exec
-        .insert(eventSignups)
-        .values({
-          eventId,
-          userId,
-          clanMemberId,
-          // No answers: nobody asked them any. The sign-up form's questions are for people the host
-          // is deciding about, and this decision is already made.
-          profileData: '{}',
-          status: 'approved',
-          signedUpAt: now,
-          updatedAt: now,
-        })
-        .returning())[0];
-  return row ?? null;
-}
-
-/** The fee half, once the sign-up is held: the fee it would have carried. */
-async function enrolSignupFee(eventId: number, row: SignupRow): Promise<void> {
-  const clanMemberId = row.clanMemberId;
+  let row: typeof eventSignups.$inferSelect | undefined;
+  try {
+    // A friends host's Supporter tier, or a creator plan: one host, one gate (lib/friendEvents).
+    row = await withHostEventRoom({ eventId, audience: 'host' }, async (tx) => {
+      const [existing] = await tx
+        .select({ id: eventSignups.id })
+        .from(eventSignups)
+        .where(and(eq(eventSignups.eventId, eventId), eq(eventSignups.clanMemberId, clanMemberId)))
+        .limit(1);
+      return existing
+        ? (await tx.update(eventSignups).set({ status: 'approved', updatedAt: now }).where(eq(eventSignups.id, existing.id)).returning())[0]
+        : (
+            await tx
+              .insert(eventSignups)
+              .values({
+                eventId,
+                userId,
+                clanMemberId,
+                // No answers: nobody asked them any. The sign-up form's questions are for people the host
+                // is deciding about, and this decision is already made.
+                profileData: '{}',
+                status: 'approved',
+                signedUpAt: now,
+                updatedAt: now,
+              })
+              .returning()
+          )[0];
+    });
+  } catch (e) {
+    if (e instanceof PlanLimitError) return e.message;
+    throw e;
+  }
+  if (!row) return null;
 
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
-  if (!event) return;
+  if (!event) return null;
   // clan-scope: global -- the seat this sign-up was just written with, by its id; only its character is read.
   const seat = await db.query.clanMemberships.findFirst({ where: eq(clanMemberships.id, clanMemberId) });
   // Member or guest fee, by the character's seats (lib/entryFee).
   const amount = seat ? await standardFeeForAccount(event, seat.accountId) : event.signupFee;
-  if (!amount || amount <= 0) return;
+  if (!amount || amount <= 0) return null;
   const fee = await db.query.signupFees.findFirst({ where: eq(signupFees.signupId, row.id) });
   if (!fee) {
     await db.insert(signupFees).values({ signupId: row.id, amount, status: 'pending' });
   }
+  return null;
 }
 
 /**
@@ -248,7 +251,7 @@ export function captainSeatNotice(result: CaptainSeatResult, name = 'That captai
     case 'other-team':
       return `${name} is already playing on another team, so they were left there. Move them off it first if they should play for this one.`;
     case 'full':
-      return `${name} isn't entered as a player: this friends event is full for your Supporter tier.`;
+      return `${name} isn’t entered as a player. ${result.error}`;
   }
 }
 

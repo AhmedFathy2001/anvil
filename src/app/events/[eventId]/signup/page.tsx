@@ -21,6 +21,7 @@ import { isTeamFull, placementOf } from '@/lib/teamPlacement';
 import { teamLoads } from '@/lib/teamPlacementDb';
 import { resolveClanById } from '@/lib/clanContext';
 import { streamedEvent } from '@/lib/creatorSpaces';
+import { friendsHostOfEvent } from '@/lib/friendEvents';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +52,8 @@ export default async function EventSignupPage({
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) notFound();
+  // A friends host's undated event is open to its invite link's people (lib/signup signupWindowState).
+  const friendsKind = (await friendsHostOfEvent(event.id)) != null ? 'friends' : null;
 
   // Arrived through a team's invite link (lib/teamInvites). The token is re-checked when the form
   // posts — this only decides whether to SAY where they're heading, so a stale link can't promise
@@ -62,6 +65,7 @@ export default async function EventSignupPage({
       signupOpensAt: event.signupOpensAt,
       signupDeadline: event.signupDeadline,
       startDate: event.startDate,
+      hostKind: friendsKind,
     });
     if (checkInvite(row, { now: new Date().getTime(), eventId: id, signupsOpen: window.open }).ok && row) {
       const team = await db.query.teams.findFirst({ where: eq(teams.id, row.teamId) });
@@ -149,11 +153,13 @@ export default async function EventSignupPage({
         signupDeadline: event.signupDeadline,
         startDate: event.startDate,
         paymentDeadline: event.paymentDeadline,
+        hostKind: friendsKind,
       })
     : signupWindowState({
         signupOpensAt: event.signupOpensAt,
         signupDeadline: event.signupDeadline,
         startDate: event.startDate,
+        hostKind: friendsKind,
       });
 
   // Headcount for the page stays "approved"; the pot counts only fees actually in.

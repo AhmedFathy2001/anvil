@@ -2603,14 +2603,14 @@ const fi: PartialGuideDict = {
     plans: {
       title: 'Tasot ja rajat',
       body: [
-        'Tasosi määrää, kuinka monta pelaajaa yhdessä tapahtumassa voi olla. Kaikki muu on sama kaikilla tasoilla: taulu, pluginin seuranta, overlay ja Discord.',
+        'Tasosi määrää, kuinka monta pelaajaa tapahtumissasi voi olla yhtä aikaa. Tapahtumat, joiden päivämäärät menevät päällekkäin, jakavat tämän luvun; eri päiville osuvat tapahtumat saavat sen kukin erikseen. Pelaaja, joka on kahdessa päällekkäisessä tapahtumassa, lasketaan kahdesti. Kaikki muu on sama kaikilla tasoilla: taulu, pluginin seuranta, overlay ja Discord.',
         'Tasokorttisi on kohdassa **Your events**. Vertaa tasoja [hinnoittelusta](/pricing#creators). Maksun muuttamiseen tai peruuttamiseen mene [laskutussivullesi](/portal).',
       ],
       rows: [
-        { term: 'Free', body: 'Enintään 50 pelaajaa per tapahtuma. Yksi tapahtuma kerrallaan. Discord-roolin ja boostaajan tarkistukset.' },
-        { term: 'Bronze', body: 'Enintään 150 pelaajaa per tapahtuma. Twitch-, Kick- ja YouTube-tarkistukset.' },
-        { term: 'Silver', body: 'Enintään 300 pelaajaa per tapahtuma. Useampi tapahtuma kerrallaan. `!join` chatissa. Näkyy listassa ensimmäisenä.' },
-        { term: 'Gold', body: 'Enintään 1 000 pelaajaa per tapahtuma. Piilota Anvil-merkki overlaystasi.' },
+        { term: 'Free', body: 'Enintään 50 pelaajaa yhtä aikaa kaikissa tapahtumissasi. Yksi tapahtuma kerrallaan. Discord-roolin ja boostaajan tarkistukset.' },
+        { term: 'Bronze', body: 'Enintään 150 pelaajaa yhtä aikaa kaikissa tapahtumissasi. Twitch-, Kick- ja YouTube-tarkistukset.' },
+        { term: 'Silver', body: 'Enintään 300 pelaajaa yhtä aikaa kaikissa tapahtumissasi. Useampi tapahtuma kerrallaan. `!join` chatissa. Näkyy listassa ensimmäisenä.' },
+        { term: 'Gold', body: 'Enintään 1 000 pelaajaa yhtä aikaa kaikissa tapahtumissasi. Piilota Anvil-merkki overlaystasi.' },
         { term: 'Partner', body: 'Ei pelaajarajaa. Sovitaan suoraan Anvilin kanssa — ota yhteyttä.' },
       ],
       note: {
@@ -2839,7 +2839,7 @@ const fi: PartialGuideDict = {
       rows: [
         {
           term: 'Lasketaanko katsojat jäsenrajaamme?',
-          body: 'Ei. He ovat tapahtumapelaajia, eivät jäseniä. Striimaajan rajat ovat per tapahtuma (katso [creator-opas]({creatorsGuide})).',
+          body: 'Ei. He ovat tapahtumapelaajia, eivät jäseniä. Striimaajan rajat laskevat pelaajat yhtä aikaa kaikissa tapahtumissa, joita järjestät (katso [creator-opas]({creatorsGuide})).',
         },
         {
           term: 'Ohjaako `!join` ihmisiä vain jäsenille tarkoitettuun tapahtumaan?',

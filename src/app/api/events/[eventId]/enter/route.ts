@@ -6,8 +6,7 @@ import { accounts, clanJoinRequests, clanMemberships, clans, events } from '@/db
 import { seatsEventPlayers } from '@/lib/creatorSpaces';
 import { friendsJoinCheck } from '@/lib/friendEvents';
 import { seatOpensEventSql } from '@/lib/seatScope';
-import { eventRoomVerdict } from '@/lib/creatorPlans';
-import { eventPlayerCount, streamPlanOfEvent } from '@/lib/creatorPlansDb';
+import { hostRoomVerdict, streamPlanOfEvent } from '@/lib/creatorPlansDb';
 import { freemiumEnforced } from '@/lib/entitlements';
 import { verifyUser } from '@/lib/auth';
 import { canEnterEvent } from '@/lib/eventAccess';
@@ -91,7 +90,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
   // Whether they have any character at all. With none, linking one is the next step, and the sign-up
   // page does that inline; with only unverified ones, verifying is, and that lives on the profile.
   let hasCharacter = false;
-  // A creator-space event at its plan's player cap (lib/creatorPlans) — only ever true when enforced.
+  // A creator-space event at its plan's player cap — players at once across the host's overlapping
+  // events (lib/creatorPlans) — only ever true when enforced.
   let full = false;
   if (session?.playerId && verdict.outcome === 'outsider') {
     // clan-scope: global -- entering somebody ELSE'S event is the whole point of this route; the clan is the event's, and canEnterEvent has already ruled on access.
@@ -141,7 +141,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
       if (friendsRoom) full = !friendsRoom.ok;
       else if (streamed && freemiumEnforced()) {
         const plan = await streamPlanOfEvent(eventId);
-        full = !eventRoomVerdict({ clanPlan: plan, players: await eventPlayerCount(eventId), adding: 1 }).ok;
+        full = !(await hostRoomVerdict({ eventId, clanPlan: plan, adding: 1 })).ok;
       }
       hasCharacter = mine.length > 0;
       pendingSince = asked?.requestedAt ?? null;

@@ -16,10 +16,9 @@ import { checkPick, isTeamFull, placementOf } from '@/lib/teamPlacement';
 import { seatSignupAccounts, teamLoads } from '@/lib/teamPlacementDb';
 import { entryGateVerdict } from '@/lib/entryGatesDb';
 import { verdictMessage } from '@/lib/entryGates';
-import { eventRoomVerdict, signupNetAdding } from '@/lib/creatorPlans';
-import { PlanLimitError, eventPlayerCount, streamPlanOfEvent } from '@/lib/creatorPlansDb';
-import { friendsJoinCheck, withHostEventRoom } from '@/lib/friendEvents';
-import { freemiumEnforced } from '@/lib/entitlements';
+import { signupNetAdding } from '@/lib/creatorPlans';
+import { PlanLimitError, hostRoomVerdict, roomPlanOfEvent } from '@/lib/creatorPlansDb';
+import { friendsHostOfEvent, friendsJoinCheck, withHostEventRoom } from '@/lib/friendEvents';
 
 export async function GET(
   request: Request,
@@ -41,6 +40,8 @@ export async function GET(
   }
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+  // A friends host's undated event is open to its invite link's people (lib/signup signupWindowState).
+  const friendsKind = event && (await friendsHostOfEvent(event.id)) != null ? 'friends' : null;
   if (!event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
@@ -94,6 +95,7 @@ export async function GET(
     signupOpensAt: event.signupOpensAt,
     signupDeadline: event.signupDeadline,
     startDate: event.startDate,
+    hostKind: friendsKind,
   });
 
   // Team-choice events (rules.teamChoice): the host built the teams up front and applicants name
@@ -183,6 +185,8 @@ export async function POST(
   }
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+  // A friends host's undated event is open to its invite link's people (lib/signup signupWindowState).
+  const friendsKind = event && (await friendsHostOfEvent(event.id)) != null ? 'friends' : null;
   if (!event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
@@ -208,12 +212,14 @@ export async function POST(
         signupOpensAt: event.signupOpensAt,
         signupDeadline: event.signupDeadline,
         startDate: event.startDate,
+        hostKind: friendsKind,
         paymentDeadline: event.paymentDeadline,
       })
     : signupWindowState({
         signupOpensAt: event.signupOpensAt,
         signupDeadline: event.signupDeadline,
         startDate: event.startDate,
+        hostKind: friendsKind,
       });
   if (!window.open) {
     return NextResponse.json(
@@ -284,16 +290,17 @@ export async function POST(
   }
 
   // A streamed event's plan caps the players on it (lib/creatorPlans): a creator space's, or a
-  // Streaming clan's event open to viewers. Only the board places
+  // Streaming clan's event open to viewers — counted at once across the host's events whose dates
+  // overlap this one's, not this board alone. Only the board places
   // this submission takes NET count — editing a sign-up, or swapping one character for another, never
   // bumps anybody — and both sides count the same statuses (pending/approved), so a rejected row
   // cannot be traded for a place. This is the cheap, early refusal; the one that holds under a rush
-  // is repeated under the event's lock after the write (step 2). A no-op until FREEMIUM_ENFORCED is
+  // is repeated under the host's lock after the write (step 2). A no-op until FREEMIUM_ENFORCED is
   // on; an ordinary clan is never metered this way.
-  const metered = freemiumEnforced() ? await streamPlanOfEvent(id) : null;
+  const metered = await roomPlanOfEvent(id);
   const netAdding = signupNetAdding({ existing: existingRows, selectedIds, invite: !!invite });
   if (metered != null && netAdding > 0) {
-    const room = eventRoomVerdict({ clanPlan: metered, players: await eventPlayerCount(id), adding: netAdding });
+    const room = await hostRoomVerdict({ eventId: id, clanPlan: metered, adding: netAdding });
     if (!room.ok) return NextResponse.json({ error: room.error, reason: 'full' }, { status: 403 });
   }
   // A FRIENDS event is capped by its host's Supporter tier instead (lib/friendEventRules — the seats
@@ -369,11 +376,13 @@ export async function POST(
 
   // 2) Upsert each selected account (profile only on the primary), reactivating a withdrawn row.
   //    One transaction (lib/creatorPlansDb withEventRoom): on a metered creator event it holds the
-  //    event's lock from before the write to the re-count after it, so two sign-ups racing for the
-  //    last place cannot both take it — the second counts the first's row and rolls its own back.
+  //    host's lock from before the write to the re-count after it, so two sign-ups racing for the
+  //    last place — on this event or an overlapping one — cannot both take it — the second counts the first's row and rolls its own back.
   const rows: { row: typeof eventSignups.$inferSelect; account: (typeof myAccounts)[number] }[] = [];
   try {
-    await withHostEventRoom({ eventId: id, clanPlan: metered, adding: netAdding }, async (tx) => {
+    // withEventRoom for a creator host, the friends gate for a friends host (lib/friendEvents): one
+    // host, one check, the write once on its locked transaction.
+    await withHostEventRoom({ eventId: id, clanPlan: metered }, async (tx) => {
       for (const cid of selectedIds) {
         const account = accountById.get(cid)!;
         const data = cid === primaryId ? profileJson : '{}';
@@ -505,6 +514,8 @@ export async function DELETE(
   }
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+  // A friends host's undated event is open to its invite link's people (lib/signup signupWindowState).
+  const friendsKind = event && (await friendsHostOfEvent(event.id)) != null ? 'friends' : null;
   if (!event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
@@ -515,6 +526,7 @@ export async function DELETE(
     signupOpensAt: event.signupOpensAt,
     signupDeadline: event.signupDeadline,
     startDate: event.startDate,
+    hostKind: friendsKind,
   });
   if (!window.open) {
     return NextResponse.json(

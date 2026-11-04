@@ -2591,14 +2591,14 @@ export const en = {
     plans: {
       title: 'Plans and limits',
       body: [
-        'Your plan sets how many players one event can have. Everything else is the same on every plan: the board, the plugin tracking, the overlay and Discord.',
+        'Your plan sets how many players can be in your events at once. Events whose dates overlap share that number; events on different dates get it each. A player in two overlapping events counts twice. Everything else is the same on every plan: the board, the plugin tracking, the overlay and Discord.',
         'Your plan card is on **Your events**. To compare plans, see [pricing](/pricing#creators). To change or cancel what you pay, go to [your billing page](/portal).',
       ],
       rows: [
-        { term: 'Free', body: 'Up to 50 players per event. One event at a time. Discord role and booster checks.' },
-        { term: 'Bronze', body: 'Up to 150 players per event. Twitch, Kick and YouTube checks.' },
-        { term: 'Silver', body: 'Up to 300 players per event. More than one event at a time. `!join` in chat. Shown first in the list.' },
-        { term: 'Gold', body: 'Up to 1,000 players per event. Hide the Anvil mark on your overlay.' },
+        { term: 'Free', body: 'Up to 50 players at once across your events. One event at a time. Discord role and booster checks.' },
+        { term: 'Bronze', body: 'Up to 150 players at once across your events. Twitch, Kick and YouTube checks.' },
+        { term: 'Silver', body: 'Up to 300 players at once across your events. More than one event at a time. `!join` in chat. Shown first in the list.' },
+        { term: 'Gold', body: 'Up to 1,000 players at once across your events. Hide the Anvil mark on your overlay.' },
         { term: 'Partner', body: 'No player cap. Set up with Anvil directly — get in touch.' },
       ],
       note: {
@@ -2830,7 +2830,7 @@ export const en = {
       rows: [
         {
           term: 'Do viewers count toward our member limit?',
-          body: 'No. They are event players, not members. The streamer limits are per event (see the [creator guide]({creatorsGuide})).',
+          body: 'No. They are event players, not members. The streamer limits count players at once across the events you run (see the [creator guide]({creatorsGuide})).',
         },
         {
           term: 'Will `!join` send people to a members-only event?',

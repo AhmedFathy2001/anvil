@@ -1,11 +1,12 @@
 import crypto from 'crypto';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
+import { loginOf } from '@/lib/roster';
 import { db } from '@/db';
-import { clanRoster, eventParticipants, events, teams, eventSignups, accounts, users } from '@/db/schema';
-import type { DbOrTx } from '@/lib/friendEvents';
+import { clanRoster, eventParticipants, events, teams, eventSignups, accounts } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull, or } from 'drizzle-orm';
 import { generatePlayerToken } from '@/lib/auth';
 import { accountsOfSeats, accountsOnBoard, onAccountConflict, type Participant } from '@/lib/participants';
+import { withHostEventRoom } from '@/lib/friendEvents';
 
 export interface MemberInput {
   clanMemberId: number;
@@ -114,38 +115,48 @@ export async function upsertPlayers(
 // Linked members attach to their users row; an unlinked in-game member gets a GUEST sign-up
 // (userId null). An existing sign-up (any status) is left untouched so an admin's manual status
 // decisions aren't silently overridden.
-export async function backfillApprovedSignups(eventId: number, clanMemberIds: number[], exec: DbOrTx = db): Promise<void> {
+//
+// Every new sign-up here puts somebody on the board, so the whole batch is one write under the
+// event's room (lib/creatorPlansDb withEventRoom): on a player-capped event, more players at once
+// than the plan allows across the host's overlapping events rolls the batch back with a
+// PlanLimitError. Call it BEFORE seating anybody (upsertPlayers), so a refusal leaves nothing half-done.
+export async function backfillApprovedSignups(eventId: number, clanMemberIds: number[]): Promise<void> {
   if (clanMemberIds.length === 0) return;
-  // `exec`: a friends event runs this on the transaction holding the host's lock (lib/friendEvents
-  // guardFriendsSeats), so every read and write here goes through it — never a second connection.
   // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
-  const members = await exec.select().from(clanRoster).where(inArray(clanRoster.id, clanMemberIds));
-  for (const m of members) {
-    // Dedup: claimed → by (event, login); unclaimed → by (event, seat).
-    //
-    // eventSignups.userId names a LOGIN and a seat names a PERSON, so the person has to be resolved
-    // to their login rather than passed straight in — the two are different id sequences.
-    const login = m.claimedAt && m.playerId != null
-      ? ((await exec.select({ id: users.id }).from(users).where(eq(users.playerId, m.playerId)).limit(1))[0]?.id ?? null)
-      : null;
-    const existing = await exec.query.eventSignups.findFirst({
-      where:
-        login != null
-          ? and(eq(eventSignups.eventId, eventId), eq(eventSignups.userId, login))
-          : and(eq(eventSignups.eventId, eventId), eq(eventSignups.clanMemberId, m.id)),
-    });
-    if (existing) continue;
-    await exec
-      .insert(eventSignups)
-      // `login`, not the person id. The comment above says exactly this and the dedup check three
-      // lines up already uses it — the insert did not, so it wrote a PERSON id into a column that is
-      // a foreign key to users.id. It does not fail: some unrelated login usually holds that number,
-      // and the sign-up then belongs to them.
-      .values({ eventId, userId: login, clanMemberId: m.id, status: 'approved', profileData: '{}' })
-      // A unique (event, seat) race: the other write won, which is the answer wanted. Not a .catch():
-      // inside a transaction a failed statement aborts everything after it.
-      .onConflictDoNothing();
-  }
+  const members = await db.select().from(clanRoster).where(inArray(clanRoster.id, clanMemberIds));
+  // Resolved outside the transaction: logins are read-only lookups.
+  const logins = new Map<number, number | null>();
+  for (const m of members) logins.set(m.id, m.claimedAt ? await loginOf(m.playerId) : null);
+  // A friends host's Supporter tier or a creator plan — one host, one gate (lib/friendEvents).
+  await withHostEventRoom({ eventId, audience: 'host' }, async (tx) => {
+    for (const m of members) {
+      // Dedup: claimed → by (event, login); unclaimed → by (event, seat).
+      //
+      // eventSignups.userId names a LOGIN and a seat names a PERSON, so the person has to be resolved
+      // to their login rather than passed straight in — the two are different id sequences.
+      const login = logins.get(m.id) ?? null;
+      const [existing] = await tx
+        .select({ id: eventSignups.id })
+        .from(eventSignups)
+        .where(
+          login != null
+            ? and(eq(eventSignups.eventId, eventId), eq(eventSignups.userId, login))
+            : and(eq(eventSignups.eventId, eventId), eq(eventSignups.clanMemberId, m.id)),
+        )
+        .limit(1);
+      if (existing) continue;
+      await tx
+        .insert(eventSignups)
+        // `login`, not the person id. The comment above says exactly this and the dedup check three
+        // lines up already uses it — the insert did not, so it wrote a PERSON id into a column that is
+        // a foreign key to users.id. It does not fail: some unrelated login usually holds that number,
+        // and the sign-up then belongs to them.
+        .values({ eventId, userId: login, clanMemberId: m.id, status: 'approved', profileData: '{}' })
+        // A unique (event, seat) race: the row that won is the one we wanted. Not a .catch — a failed
+        // statement would abort the whole transaction.
+        .onConflictDoNothing();
+    }
+  });
 }
 
 // ─── Auto-enroll: pull every plugin-active clan member into an event ──────────────────────────
@@ -350,6 +361,10 @@ export async function autoEnrollActivePluginMembers(
   const newlyEnrolled = eligible.filter((m) => m.enrolledPlayerId == null).length;
   let teamsCreated = 0;
 
+  // Sign-ups first: on a player-capped event this is the write the plan can refuse (a PlanLimitError,
+  // lib/creatorPlansDb withEventRoom), and nobody should be seated or teamed by a run that is refused.
+  await backfillApprovedSignups(eventId, eligible.map((m) => m.id));
+
   const toMember = (m: EligibleMember): MemberInput => ({
     clanMemberId: m.id,
     name: m.rsn,
@@ -392,8 +407,6 @@ export async function autoEnrollActivePluginMembers(
       );
     }
   }
-
-  await backfillApprovedSignups(eventId, eligible.map((m) => m.id));
 
   return { placement, eligible: eligible.length, added: newlyEnrolled, teamsCreated };
 }

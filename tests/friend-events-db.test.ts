@@ -74,7 +74,7 @@ async function fill(clanId: number, eventId: number, count: number, tag: string)
 
 /** One sign-up through the real gate (withHostEventRoom), for a seat already made. */
 async function signUp(eventId: number, seatId: number) {
-  return F.withHostEventRoom({ eventId, clanPlan: null, adding: 1 }, (tx) =>
+  return F.withHostEventRoom({ eventId }, (tx) =>
     tx.insert(s.eventSignups).values({ eventId, clanMemberId: seatId, status: 'pending' }).returning(),
   );
 }
@@ -459,11 +459,11 @@ test('captain placement and manual adds: refused over the cap, nothing enrolled'
   assert.equal(parts.length, 0, 'no player row without a place');
 
   // The players route's add: the sign-up backfill on the gate's own transaction.
-  await assert.rejects(() => F.guardFriendsSeats(ev.id, (tx) => EN.backfillApprovedSignups(ev.id, [seat.id], tx)), (e: Error) => e instanceof P.PlanLimitError);
+  await assert.rejects(() => EN.backfillApprovedSignups(ev.id, [seat.id]), (e: Error) => e instanceof P.PlanLimitError);
   assert.equal(await P.eventPlayerCount(ev.id), 10, 'rolled back');
   // A seat already on the board adds nothing: the same write goes through.
   const [already] = await db.select({ seat: s.eventSignups.clanMemberId }).from(s.eventSignups).where(eq(s.eventSignups.eventId, ev.id)).limit(1);
-  await F.guardFriendsSeats(ev.id, (tx) => EN.backfillApprovedSignups(ev.id, [already.seat], tx));
+  await EN.backfillApprovedSignups(ev.id, [already.seat]);
   assert.equal(await P.eventPlayerCount(ev.id), 10);
 });
 
@@ -494,7 +494,7 @@ test('after the start: the invite link’s self Join is closed, the owner can st
 
   // The owner's manual add by name (the players route's text add): allowed too, through the gate.
   const typed = await CL.findOrCreateClanMember(host.id, 'Late Typed');
-  await F.guardFriendsSeats(ev.id, (tx) => EN.backfillApprovedSignups(ev.id, [typed], tx));
+  await EN.backfillApprovedSignups(ev.id, [typed]);
   assert.equal(await P.eventPlayerCount(ev.id), 2);
 
   // ...and still capped: fill to 10, then neither owner path gets an 11th in.
@@ -504,7 +504,7 @@ test('after the start: the invite link’s self Join is closed, the owner can st
   const refused = await OB.signUpOnBehalf({ event: ev, clanMemberId: overSeat.id, profile: {}, status: 'approved', playerToken: 'late-2' });
   assert.equal(!refused.ok && refused.status, 403);
   const typed2 = await CL.findOrCreateClanMember(host.id, 'Late Typed Two');
-  await assert.rejects(() => F.guardFriendsSeats(ev.id, (tx) => EN.backfillApprovedSignups(ev.id, [typed2], tx)), (e: Error) => e instanceof P.PlanLimitError);
+  await assert.rejects(() => EN.backfillApprovedSignups(ev.id, [typed2]), (e: Error) => e instanceof P.PlanLimitError);
   assert.equal(await P.eventPlayerCount(ev.id), 10);
 });
 
@@ -541,4 +541,29 @@ test('rename: the owner can, nobody else can, a bad name is refused, and invitee
   if (!space.ok) return;
   const no = await F.renameFriendsHost({ actorUserId: other.userId, hostId: space.clanId, name: 'Nope' });
   assert.equal(!no.ok && no.status, 404);
+});
+
+test('undated friends events are open to the invite link’s people; other undated boards stay drafts', async () => {
+  const SG = await import('../src/lib/signup.ts');
+  const owner = await person('Fe Undated Owner', 'supporter');
+  const r = await F.ensureFriendsHost(owner.userId);
+  assert.ok(r.ok);
+  if (!r.ok) return;
+  const host = await hostRow(r.host.id);
+  const ev = await friendsEvent(host, 'Whenever Bingo', null, null);
+  const row = (await db.query.events.findFirst({ where: eq(s.events.id, ev.id) }))!;
+  assert.deepEqual(SG.signupWindowState({ ...row, hostKind: 'friends' }), { open: true, reason: null });
+  assert.deepEqual(SG.signupWindowState({ ...row, hostKind: 'creator' }), { open: false, reason: 'not_open_yet' }, 'unchanged elsewhere');
+  assert.deepEqual(SG.signupWindowState(row), { open: false, reason: 'not_open_yet' }, 'unchanged when the caller does not say');
+  // The host's own deadline still closes it.
+  const past = new Date(Date.now() - 3600_000).toISOString();
+  assert.equal(SG.signupWindowState({ ...row, signupDeadline: past, hostKind: 'friends' }).open, false);
+  // And the friend gets in through the link: invited, seated, signed up under the cap.
+  const friend = await person('Fe Undated Friend');
+  await F.acceptInvite({ token: ev.inviteToken!, playerId: friend.playerId, userId: friend.userId });
+  const seated = await E.enterEvent({ eventId: ev.id, playerId: friend.playerId, accountId: friend.accountId, actorUserId: friend.userId });
+  assert.equal(seated.outcome, 'seated', JSON.stringify(seated));
+  const seatId = seated.outcome === 'seated' ? seated.seatId : 0;
+  await F.withHostEventRoom({ eventId: ev.id }, (tx) => tx.insert(s.eventSignups).values({ eventId: ev.id, clanMemberId: seatId, status: 'pending' }));
+  assert.equal(await P.eventPlayerCount(ev.id), 1);
 });

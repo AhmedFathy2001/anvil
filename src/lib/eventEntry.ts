@@ -16,9 +16,9 @@ import { isFriendsHost } from '@/lib/friendEventRules';
 import { seatEventPlayer } from '@/lib/eventPlayers';
 import { entryGateVerdict } from '@/lib/entryGatesDb';
 import { verdictMessage, type GateVerdict } from '@/lib/entryGates';
-import { eventRoomVerdict, streamPlanId } from '@/lib/creatorPlans';
+import { streamPlanId } from '@/lib/creatorPlans';
 import { freemiumEnforced } from '@/lib/entitlements';
-import { eventPlayerCount } from '@/lib/creatorPlansDb';
+import { hostRoomVerdict } from '@/lib/creatorPlansDb';
 
 export type EnterResult =
   | { outcome: 'refused'; reason: 'not-visible' | 'banned' | 'signed-out' | 'closed' | 'full'; status: number; error: string }
@@ -88,10 +88,11 @@ export async function enterEvent(opts: {
     if (room && !room.ok) return { outcome: 'refused', reason: 'full', status: 403, error: room.error };
   }
 
-  // A streamed event's plan caps the players on it (lib/creatorPlans). A no-op until
+  // A streamed event's plan caps the players on it — at once, across the host's events whose dates
+  // overlap this one (lib/creatorPlans). A no-op until
   // FREEMIUM_ENFORCED is on; then a full event says so before anyone is seated or asks the host.
   if (streamed && freemiumEnforced()) {
-    const room = eventRoomVerdict({ clanPlan: streamPlanId(host), players: await eventPlayerCount(event.id), adding: 1 });
+    const room = await hostRoomVerdict({ eventId: event.id, clanPlan: streamPlanId(host), adding: 1 });
     if (!room.ok) return { outcome: 'refused', reason: 'full', status: 403, error: room.error };
   }
 

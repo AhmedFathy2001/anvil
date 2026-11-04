@@ -6,7 +6,7 @@ import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanAuditLog, clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { generatePlayerToken } from '@/lib/auth';
 import { sanitizeProfile, serializeProfile } from '@/lib/signup';
@@ -19,7 +19,7 @@ import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { placementOf } from '@/lib/teamPlacement';
 import { enrolPlaced } from '@/lib/teamPlacementDb';
 import { PlanLimitError } from '@/lib/creatorPlansDb';
-import { SignupChangedError, guardFriendsSeats } from '@/lib/friendEvents';
+import { SignupChangedError, withHostEventRoom } from '@/lib/friendEvents';
 
 // Per-signup admin actions. All admin-only — captain selection is high-stakes and we
 // don't want a moderator accidentally locking the wrong person in.
@@ -192,13 +192,14 @@ export async function PATCH(
       return NextResponse.json({ ok: true, teamId: team?.id ?? null, teamName: team?.name ?? null });
     }
     case 'approve': {
-      // Approving a rejected or withdrawn sign-up puts it back on the board: on a friends event that
-      // place is capped by the host's Supporter tier (lib/friendEvents guardFriendsSeats — locked, and
-      // written on the lock's own transaction). The status the host saw is the one approved: if it
-      // changed meanwhile, 0 rows update and this answers 409 rather than approving something else.
+      // Approving a rejected or withdrawn sign-up puts somebody back on the board: the host's cap
+      // applies — a creator plan's players at once across its overlapping events (lib/creatorPlansDb
+      // withEventRoom) or a friends host's Supporter tier (lib/friendEvents); withHostEventRoom picks
+      // the one, and it measures what the write added (pending → approved adds nobody). The status the
+      // host saw is the one approved: changed meanwhile → 0 rows, a 409, never something else approved.
       let updated: typeof eventSignups.$inferSelect;
       try {
-        updated = await guardFriendsSeats(evtId, async (tx) => {
+        updated = await withHostEventRoom({ eventId: evtId, audience: 'host' }, async (tx) => {
           const [row] = await tx
             .update(eventSignups)
             .set({ status: 'approved', updatedAt: now })
@@ -461,11 +462,21 @@ export async function PATCH(
         });
       }
 
-      const [updated] = await db
-        .update(eventSignups)
-        .set({ status: 'approved', updatedAt: now })
-        .where(eq(eventSignups.id, sigId))
-        .returning();
+      // Already on the board (pending or approved, checked above), so this adds nobody; written
+      // through the event's room like every status write that lands on the board.
+      let updated: typeof eventSignups.$inferSelect | undefined;
+      try {
+        [updated] = await withHostEventRoom({ eventId: evtId, audience: 'host' }, (tx) =>
+          tx
+            .update(eventSignups)
+            .set({ status: 'approved', updatedAt: now })
+            .where(and(eq(eventSignups.id, sigId), inArray(eventSignups.status, ['pending', 'approved'])))
+            .returning(),
+        );
+      } catch (e) {
+        if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'full' }, { status: 403 });
+        throw e;
+      }
 
       logAction('captain_promoted', { teamId: team.id, teamName: team.name });
       return NextResponse.json({ signup: updated, team });

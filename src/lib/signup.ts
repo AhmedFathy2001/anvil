@@ -237,10 +237,16 @@ export function signupWindowState(event: {
   signupOpensAt: string | null;
   signupDeadline: string | null;
   startDate: string | null;
+  /**
+   * The host's `clans.kind`, when the caller has it. A FRIENDS host's undated event (lib/
+   * friendEventRules) is open to its invite link's people — it is invite-only anyway, and "starts
+   * when the host starts it" is how a group of friends plays. Every other undated event is a draft.
+   */
+  hostKind?: string | null;
 }): { open: boolean; reason: 'not_open_yet' | 'closed' | 'event_started' | null } {
   const now = Date.now();
-  if (!event.startDate) return { open: false, reason: 'not_open_yet' };
-  if (new Date(event.startDate).getTime() <= now) {
+  if (!event.startDate && event.hostKind !== 'friends') return { open: false, reason: 'not_open_yet' };
+  if (event.startDate && new Date(event.startDate).getTime() <= now) {
     return { open: false, reason: 'event_started' };
   }
   if (event.signupDeadline && new Date(event.signupDeadline).getTime() <= now) {
@@ -262,6 +268,8 @@ export function signupEditState(event: {
   signupDeadline: string | null;
   startDate: string | null;
   paymentDeadline: string | null;
+  /** As signupWindowState: a friends host's undated event is open. */
+  hostKind?: string | null;
 }): { open: boolean; reason: 'not_open_yet' | 'closed' | 'event_started' | null } {
   const base = signupWindowState(event);
   // Before the window opens at all, nothing's editable yet.

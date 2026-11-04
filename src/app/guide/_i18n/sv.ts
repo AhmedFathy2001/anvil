@@ -2602,14 +2602,14 @@ const sv: PartialGuideDict = {
     plans: {
       title: 'Planer och gränser',
       body: [
-        'Din plan avgör hur många spelare ett event kan ha. Allt annat är lika på alla planer: brädet, plugin-spårningen, overlayen och Discord.',
+        'Din plan avgör hur många spelare som kan vara med i dina event samtidigt. Event vars datum överlappar delar på det talet; event på olika datum får det var för sig. En spelare i två överlappande event räknas två gånger. Allt annat är lika på alla planer: brädet, plugin-spårningen, overlayen och Discord.',
         'Ditt plankort finns under **Your events**. För att jämföra planer, se [priser](/pricing#creators). För att ändra eller säga upp det du betalar, gå till [din faktureringssida](/portal).',
       ],
       rows: [
-        { term: 'Free', body: 'Upp till 50 spelare per event. Ett event i taget. Kontroller av Discord-roll och booster.' },
-        { term: 'Bronze', body: 'Upp till 150 spelare per event. Kontroller för Twitch, Kick och YouTube.' },
-        { term: 'Silver', body: 'Upp till 300 spelare per event. Mer än ett event i taget. `!join` i chatten. Visas först i listan.' },
-        { term: 'Gold', body: 'Upp till 1 000 spelare per event. Dölj Anvil-märket på din overlay.' },
+        { term: 'Free', body: 'Upp till 50 spelare samtidigt i alla dina event. Ett event i taget. Kontroller av Discord-roll och booster.' },
+        { term: 'Bronze', body: 'Upp till 150 spelare samtidigt i alla dina event. Kontroller för Twitch, Kick och YouTube.' },
+        { term: 'Silver', body: 'Upp till 300 spelare samtidigt i alla dina event. Mer än ett event i taget. `!join` i chatten. Visas först i listan.' },
+        { term: 'Gold', body: 'Upp till 1 000 spelare samtidigt i alla dina event. Dölj Anvil-märket på din overlay.' },
         { term: 'Partner', body: 'Ingen spelargräns. Ordnas direkt med Anvil — hör av dig.' },
       ],
       note: {
@@ -2838,7 +2838,7 @@ const sv: PartialGuideDict = {
       rows: [
         {
           term: 'Räknas tittare mot vår medlemsgräns?',
-          body: 'Nej. De är eventspelare, inte medlemmar. Streamergränserna gäller per event (se [creator-guiden]({creatorsGuide})).',
+          body: 'Nej. De är eventspelare, inte medlemmar. Streamergränserna räknar spelare samtidigt i alla event du arrangerar (se [creator-guiden]({creatorsGuide})).',
         },
         {
           term: 'Skickar `!join` folk till ett event bara för medlemmar?',

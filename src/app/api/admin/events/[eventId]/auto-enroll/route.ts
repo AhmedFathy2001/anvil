@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { PlanLimitError } from '@/lib/creatorPlansDb';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events } from '@/db/schema';
@@ -89,6 +90,12 @@ export async function POST(
 
   // 'individual' honors the event's slot mode: per-person groups a person's alts onto one team.
   const slotMode = event.accountSlotMode === 'per-account' ? 'per-account' : 'per-person';
-  const result = await autoEnrollActivePluginMembers(id, placement, slotMode);
-  return NextResponse.json(result);
+  try {
+    const result = await autoEnrollActivePluginMembers(id, placement, slotMode);
+    return NextResponse.json(result);
+  } catch (e) {
+    // The plan's cap on players at once across the host's overlapping events (lib/creatorPlansDb).
+    if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'full' }, { status: 403 });
+    throw e;
+  }
 }

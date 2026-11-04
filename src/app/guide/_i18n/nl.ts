@@ -2602,14 +2602,14 @@ const nl: PartialGuideDict = {
     plans: {
       title: 'Abonnementen en limieten',
       body: [
-        'Je abonnement bepaalt hoeveel spelers één event kan hebben. Al het andere is bij elk abonnement hetzelfde: het bord, de plugin-tracking, de overlay en Discord.',
+        'Je abonnement bepaalt hoeveel spelers er tegelijk in je events kunnen zijn. Events waarvan de datums overlappen delen dat aantal; events op verschillende datums krijgen het elk. Een speler in twee overlappende events telt twee keer mee. Al het andere is bij elk abonnement hetzelfde: het bord, de plugin-tracking, de overlay en Discord.',
         'Je abonnementskaart staat bij **Your events**. Om abonnementen te vergelijken, zie [prijzen](/pricing#creators). Om te wijzigen of op te zeggen wat je betaalt, ga je naar [je factuurpagina](/portal).',
       ],
       rows: [
-        { term: 'Free', body: 'Tot 50 spelers per event. Eén event tegelijk. Controles voor Discord-rol en booster.' },
-        { term: 'Bronze', body: 'Tot 150 spelers per event. Controles voor Twitch, Kick en YouTube.' },
-        { term: 'Silver', body: 'Tot 300 spelers per event. Meer dan één event tegelijk. `!join` in de chat. Als eerste getoond in de lijst.' },
-        { term: 'Gold', body: 'Tot 1.000 spelers per event. Verberg het Anvil-teken op je overlay.' },
+        { term: 'Free', body: 'Tot 50 spelers tegelijk in al je events. Eén event tegelijk. Controles voor Discord-rol en booster.' },
+        { term: 'Bronze', body: 'Tot 150 spelers tegelijk in al je events. Controles voor Twitch, Kick en YouTube.' },
+        { term: 'Silver', body: 'Tot 300 spelers tegelijk in al je events. Meer dan één event tegelijk. `!join` in de chat. Als eerste getoond in de lijst.' },
+        { term: 'Gold', body: 'Tot 1.000 spelers tegelijk in al je events. Verberg het Anvil-teken op je overlay.' },
         { term: 'Partner', body: 'Geen spelerslimiet. Direct met Anvil ingesteld — neem contact op.' },
       ],
       note: {
@@ -2838,7 +2838,7 @@ const nl: PartialGuideDict = {
       rows: [
         {
           term: 'Tellen kijkers mee voor onze ledenlimiet?',
-          body: 'Nee. Het zijn eventspelers, geen leden. De streamerlimieten gelden per event (zie de [creatorgids]({creatorsGuide})).',
+          body: 'Nee. Het zijn eventspelers, geen leden. De streamerlimieten tellen spelers tegelijk in alle events die je organiseert (zie de [creatorgids]({creatorsGuide})).',
         },
         {
           term: 'Stuurt `!join` mensen naar een event alleen voor leden?',

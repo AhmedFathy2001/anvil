@@ -142,14 +142,28 @@ test('portal cards: a creator space links creator checkouts only, and none while
     GUMROAD_URL_CREATOR_GOLD: undefined,
   };
   withEnv(urls, () => {
-    const free = creatorCardModel(row(), { name: 'Viewer Bingo', players: 42 });
+    const one = (name: string, players: number) => ({ peak: players, peakEvents: [{ name, players }], events: [{ name, players, when: 'live' as const }], current: true });
+    const free = creatorCardModel(row(), one('Viewer Bingo', 42));
     assert.equal(free.tierName, 'Free');
     assert.equal(free.upgrade?.href, 'https://gum.test/cr-bronze?ref=ref-1');
     assert.equal(free.upgrade?.label, 'Upgrade to Bronze');
     assert.match(free.meter, /42 \/ 50 players/);
-    const big = creatorCardModel(row(), { name: 'Huge', players: 200 });
+    const big = creatorCardModel(row(), one('Huge', 200));
     assert.equal(big.upgrade?.href, 'https://gum.test/cr-silver?ref=ref-1', 'jumps to the tier that holds the event');
     assert.ok(big.overLine);
+    // Two overlapping events share the cap: the meter is their peak together, and the line names both.
+    const pair = creatorCardModel(row(), {
+      peak: 70,
+      peakEvents: [{ name: 'Day Bingo', players: 40 }, { name: 'Night Bingo', players: 30 }],
+      events: [{ name: 'Day Bingo', players: 40, when: 'live' }, { name: 'Night Bingo', players: 30, when: 'live' }],
+      current: true,
+    });
+    assert.match(pair.meter, /At once across your events: 70 \/ 50 players, counted per event/);
+    assert.match(pair.overLine ?? '', /Day Bingo and Night Bingo, running at the same time, have more players at once than Free allows/);
+    // A past event that ran big suggests a tier but is not "over" now.
+    const past = creatorCardModel(row(), { ...one('Old Huge', 200), events: [], current: false });
+    assert.equal(past.overLine, null);
+    assert.match(past.meter, /Biggest past event: 200 \/ 50 players/);
     // Silver → Gold, but creator Gold's checkout is not configured: no button, never the clan Gold one.
     const silver = creatorCardModel(row({ plan: 'creator_silver' }), null);
     assert.equal(silver.upgrade, null);

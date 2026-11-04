@@ -2604,14 +2604,14 @@ const fr: PartialGuideDict = {
     plans: {
       title: 'Offres et limites',
       body: [
-        'Ton offre fixe combien de joueurs un événement peut avoir. Tout le reste est identique pour toutes les offres : la grille, le suivi du plugin, l’overlay et Discord.',
+        'Ton offre fixe combien de joueurs peuvent être dans tes événements en même temps. Les événements dont les dates se chevauchent se partagent ce nombre ; les événements à des dates différentes l’ont chacun. Un joueur dans deux événements qui se chevauchent compte deux fois. Tout le reste est identique pour toutes les offres : la grille, le suivi du plugin, l’overlay et Discord.',
         'Ta carte d’offre est dans **Your events**. Pour comparer les offres, voir les [tarifs](/pricing#creators). Pour changer ou annuler ton paiement, va sur [ta page de facturation](/portal).',
       ],
       rows: [
-        { term: 'Free', body: 'Jusqu’à 50 joueurs par événement. Un événement à la fois. Vérifications de rôle Discord et de booster.' },
-        { term: 'Bronze', body: 'Jusqu’à 150 joueurs par événement. Vérifications Twitch, Kick et YouTube.' },
-        { term: 'Silver', body: 'Jusqu’à 300 joueurs par événement. Plusieurs événements à la fois. `!join` dans le chat. Affiché en premier dans la liste.' },
-        { term: 'Gold', body: 'Jusqu’à 1 000 joueurs par événement. Masque la marque Anvil sur ton overlay.' },
+        { term: 'Free', body: 'Jusqu’à 50 joueurs en même temps sur l’ensemble de tes événements. Un événement à la fois. Vérifications de rôle Discord et de booster.' },
+        { term: 'Bronze', body: 'Jusqu’à 150 joueurs en même temps sur l’ensemble de tes événements. Vérifications Twitch, Kick et YouTube.' },
+        { term: 'Silver', body: 'Jusqu’à 300 joueurs en même temps sur l’ensemble de tes événements. Plusieurs événements à la fois. `!join` dans le chat. Affiché en premier dans la liste.' },
+        { term: 'Gold', body: 'Jusqu’à 1 000 joueurs en même temps sur l’ensemble de tes événements. Masque la marque Anvil sur ton overlay.' },
         { term: 'Partner', body: 'Pas de limite de joueurs. Mise en place directement avec Anvil — contacte-nous.' },
       ],
       note: {
@@ -2840,7 +2840,7 @@ const fr: PartialGuideDict = {
       rows: [
         {
           term: 'Les viewers comptent-ils dans notre limite de membres ?',
-          body: 'Non. Ce sont des joueurs d’événement, pas des membres. Les limites du streamer sont par événement (voir le [guide du créateur]({creatorsGuide})).',
+          body: 'Non. Ce sont des joueurs d’événement, pas des membres. Les limites du streamer comptent les joueurs en même temps sur l’ensemble des événements que tu organises (voir le [guide du créateur]({creatorsGuide})).',
         },
         {
           term: '`!join` enverra-t-il des gens vers un événement réservé aux membres ?',

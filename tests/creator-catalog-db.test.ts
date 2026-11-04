@@ -118,7 +118,7 @@ test('portal: clans and creator spaces in their own catalogues, plus the Support
   const portal = await billingPortalForUser(owner);
   assert.deepEqual(portal.clans.map((c) => [c.slug, c.tierName, c.creator]), [['billing-clan', 'Silver', false]]);
   assert.deepEqual(portal.spaces.map((c) => [c.slug, c.tierName, c.creator]), [['billing-space', 'Bronze', true]]);
-  assert.match(portal.spaces[0].meter, /players per event/, 'a space is metered by players, not members');
+  assert.match(portal.spaces[0].meter, /players at once across your events/, 'a space is metered by players, not members');
   assert.match(portal.clans[0].meter, /members/);
   assert.equal(portal.supporter?.tier.id, 'champion');
   assert.equal(portal.supporter?.renewsAt, future);

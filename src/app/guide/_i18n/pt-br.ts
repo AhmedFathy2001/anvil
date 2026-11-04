@@ -2584,14 +2584,14 @@ const ptBr: PartialGuideDict = {
     plans: {
       title: 'Planos e limites',
       body: [
-        'Seu plano define quantos jogadores um evento pode ter. Todo o resto é igual em todos os planos: o tabuleiro, o registro do plugin, o overlay e o Discord.',
+        'Seu plano define quantos jogadores podem estar nos seus eventos ao mesmo tempo. Eventos com datas que se sobrepõem dividem esse número; eventos em datas diferentes recebem o número cada um. Um jogador em dois eventos sobrepostos conta duas vezes. Todo o resto é igual em todos os planos: o tabuleiro, o registro do plugin, o overlay e o Discord.',
         'O cartão do seu plano fica em **Your events**. Para comparar planos, veja os [preços](/pricing#creators). Para mudar ou cancelar o que você paga, vá para [sua página de cobrança](/portal).',
       ],
       rows: [
-        { term: 'Free', body: 'Até 50 jogadores por evento. Um evento por vez. Conferências de cargo e booster do Discord.' },
-        { term: 'Bronze', body: 'Até 150 jogadores por evento. Conferências de Twitch, Kick e YouTube.' },
-        { term: 'Silver', body: 'Até 300 jogadores por evento. Mais de um evento por vez. `!join` no chat. Aparece primeiro na lista.' },
-        { term: 'Gold', body: 'Até 1.000 jogadores por evento. Esconda a marca do Anvil no seu overlay.' },
+        { term: 'Free', body: 'Até 50 jogadores ao mesmo tempo em todos os seus eventos. Um evento por vez. Conferências de cargo e booster do Discord.' },
+        { term: 'Bronze', body: 'Até 150 jogadores ao mesmo tempo em todos os seus eventos. Conferências de Twitch, Kick e YouTube.' },
+        { term: 'Silver', body: 'Até 300 jogadores ao mesmo tempo em todos os seus eventos. Mais de um evento por vez. `!join` no chat. Aparece primeiro na lista.' },
+        { term: 'Gold', body: 'Até 1.000 jogadores ao mesmo tempo em todos os seus eventos. Esconda a marca do Anvil no seu overlay.' },
         { term: 'Partner', body: 'Sem limite de jogadores. Configurado direto com o Anvil — entre em contato.' },
       ],
       note: {
@@ -2820,7 +2820,7 @@ const ptBr: PartialGuideDict = {
       rows: [
         {
           term: 'Os espectadores contam no nosso limite de membros?',
-          body: 'Não. Eles são jogadores do evento, não membros. Os limites do streamer são por evento (veja o [guia para criadores]({creatorsGuide})).',
+          body: 'Não. Eles são jogadores do evento, não membros. Os limites do streamer contam jogadores ao mesmo tempo em todos os eventos que você organiza (veja o [guia para criadores]({creatorsGuide})).',
         },
         {
           term: 'O `!join` manda as pessoas para um evento só de membros?',
