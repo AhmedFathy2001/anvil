@@ -7,6 +7,7 @@ import { clanHref } from '@/lib/clanPath';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import CreatorSettings from '../clan/CreatorSettings';
 import DeleteClan from '../clan/DeleteClan';
+import LookSettings from '../clan/LookSettings';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +25,9 @@ export default async function SpaceSettingsPage() {
   return (
     <>
       <CreatorSettings />
+      <div className="mt-6">
+        <LookSettings name={clan.name} />
+      </div>
       <div className="mt-6">
         <DeleteClan slug={clan.slug} isOwner={!!grant?.isOwner} space />
       </div>
