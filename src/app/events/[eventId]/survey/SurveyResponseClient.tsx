@@ -5,6 +5,7 @@ import { RATING_MAX, type SurveyAnswerMap, type SurveyQuestionView } from '@/lib
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Checkbox from '@/components/Checkbox';
+import Radio from '@/components/Radio';
 
 interface Props {
   eventId: number;
@@ -136,7 +137,7 @@ export default function SurveyResponseClient({
               <div className="space-y-1.5">
                 {q.options.map((opt) => (
                   <label key={opt} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input type="radio" name={`q-${q.id}`} checked={val === opt} onChange={() => setAnswer(q.id, opt)} className="h-4 w-4 accent-gold" />
+                    <Radio name={`q-${q.id}`} checked={val === opt} onChange={() => setAnswer(q.id, opt)} />
                     {opt}
                   </label>
                 ))}

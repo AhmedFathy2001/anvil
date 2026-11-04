@@ -19,6 +19,8 @@ import {
   type H2hKind,
   type H2hRecord,
 } from '@/lib/h2hRules';
+import { CheckboxBox } from '@/components/Checkbox';
+import Select from '@/components/Select';
 
 interface Data {
   challenges: H2hView[];
@@ -182,7 +184,7 @@ export default function ChallengesClient({ initial, presetOpponent }: { initial:
               </div>
               {c.status === 'finished' && (
                 <label className="flex items-center gap-2 text-xs text-text-dim" title="Shown on both profiles and to your clans only when you both say yes">
-                  <input type="checkbox" checked={c.myPublic} disabled={busy} onChange={(e) => act(c.id, { action: 'public', public: e.target.checked })} />
+                  <CheckboxBox checked={c.myPublic} disabled={busy} onChange={(e) => act(c.id, { action: 'public', public: e.target.checked })} />
                   {c.isPublic ? 'Public' : c.myPublic ? 'Public once they agree' : 'Show publicly'}
                 </label>
               )}
@@ -237,7 +239,7 @@ function Invite({ c, now, busy, act }: { c: H2hView; now: number; busy: boolean;
           Decline and block
         </button>
         <label className="ml-auto flex items-center gap-2 text-xs text-text-dim">
-          <input type="checkbox" checked={pub} onChange={(e) => setPub(e.target.checked)} />
+          <CheckboxBox checked={pub} onChange={(e) => setPub(e.target.checked)} />
           OK to show the result publicly
         </label>
       </div>
@@ -406,11 +408,13 @@ function NewChallenge({ data, presetOpponent, onSent }: { data: Data; presetOppo
           </label>
           <label className="block">
             <span className="text-xs uppercase tracking-[0.12em] text-text-dim">Playing as</span>
-            <select value={accountId} onChange={(e) => setAccountId(Number(e.target.value))} className="mt-1 w-full rounded-lg border border-card-border bg-black/20 px-3 py-2">
-              {data.characters.map((c) => (
-                <option key={c.accountId} value={c.accountId}>{c.rsn}</option>
-              ))}
-            </select>
+            <Select
+              value={String(accountId)}
+              onChange={(v) => setAccountId(Number(v))}
+              options={data.characters.map((c) => ({ value: String(c.accountId), label: c.rsn }))}
+              ariaLabel="Character"
+              className="mt-1"
+            />
           </label>
         </div>
 
@@ -467,23 +471,25 @@ function NewChallenge({ data, presetOpponent, onSent }: { data: Data; presetOppo
         {kind === 'kc' && (
           <label className="block">
             <span className="text-xs uppercase tracking-[0.12em] text-text-dim">Boss</span>
-            <select value={statKey} onChange={(e) => setStatKey(e.target.value)} className="mt-1 w-full rounded-lg border border-card-border bg-black/20 px-3 py-2">
-              <option value="">Pick a boss…</option>
-              {H2H_BOSSES.map((b) => (
-                <option key={b.key} value={b.key}>{b.label}</option>
-              ))}
-            </select>
+            <Select
+              value={statKey}
+              onChange={setStatKey}
+              options={[{ value: '', label: 'Pick a boss…' }, ...H2H_BOSSES.map((b) => ({ value: b.key, label: b.label }))]}
+              ariaLabel="Boss"
+              className="mt-1"
+            />
           </label>
         )}
         {kind === 'xp' && (
           <label className="block">
             <span className="text-xs uppercase tracking-[0.12em] text-text-dim">Skill</span>
-            <select value={statKey} onChange={(e) => setStatKey(e.target.value)} className="mt-1 w-full rounded-lg border border-card-border bg-black/20 px-3 py-2">
-              <option value="">Pick a skill…</option>
-              {H2H_SKILLS.map((s) => (
-                <option key={s} value={s}>{s === 'overall' ? 'Overall (all skills)' : skillLabel(s)}</option>
-              ))}
-            </select>
+            <Select
+              value={statKey}
+              onChange={setStatKey}
+              options={[{ value: '', label: 'Pick a skill…' }, ...H2H_SKILLS.map((s) => ({ value: s, label: s === 'overall' ? 'Overall (all skills)' : skillLabel(s) }))]}
+              ariaLabel="Skill"
+              className="mt-1"
+            />
           </label>
         )}
 
@@ -515,7 +521,7 @@ function NewChallenge({ data, presetOpponent, onSent }: { data: Data; presetOppo
             {ready && kind ? `Challenge ${check?.rsn}: ${describe(kind, label, duration)}` : 'Send challenge'}
           </button>
           <label className="flex items-center gap-2 text-xs text-text-dim" title="Shown on both profiles and to your clans only when you both say yes">
-            <input type="checkbox" checked={pub} onChange={(e) => setPub(e.target.checked)} />
+            <CheckboxBox checked={pub} onChange={(e) => setPub(e.target.checked)} />
             OK to show the result publicly
           </label>
         </div>
@@ -540,7 +546,7 @@ function Settings({ prefs, onChange }: { prefs: H2hPrefs; onChange: () => Promis
   return (
     <section className="rounded-xl border border-card-border px-4 py-3 text-sm">
       <label className="flex items-center gap-2">
-        <input type="checkbox" checked={prefs.closed} disabled={busy} onChange={(e) => put({ closed: e.target.checked })} />
+        <CheckboxBox checked={prefs.closed} disabled={busy} onChange={(e) => put({ closed: e.target.checked })} />
         Turn away all new challenges
       </label>
       {prefs.blocked.length > 0 && (
