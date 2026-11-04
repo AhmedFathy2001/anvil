@@ -254,6 +254,7 @@ const da: PartialGuideDict = {
       body: [
         'Du skal bruge en Discord-konto, og det er hele listen. Log først ind på `{apex}`: en klan skal have en ejer, og indlogningen er måden siden ved, at det er dig. Start fra **Start en klan** på platformsiderne, eller gå direkte til `{apex}/clans/new`.',
         'Det koster ingenting. Ingen plan at vælge, intet kort at indtaste, og ingen prøveperiode der udløber og tager dit bræt med sig — en klan starter gratis og bliver ved med at virke.',
+        'Store klaner kan senere skifte til en større plan via **Plan and billing** i Admin. Alt, hvad du betaler for på Anvil — en klan, et creator-rum eller dit eget Supporter-medlemskab — står på [din betalingsside](/portal).',
       ],
       note: {
         tag: 'Du bliver dens ejer',
@@ -860,6 +861,10 @@ const da: PartialGuideDict = {
           term: '`Anvil: reconnected — tracking is back on.`',
           body: 'Ingenting. Den kom sig selv.',
         },
+        {
+          term: '“<RSN> belongs to another Anvil player”',
+          body: 'En anden linkede denne karakter på Anvil først, så intet tæller for den fra dit login. Er den virkelig din? Så tryk **This is my account** på panelets **You**-fane og tag det hurtige XP-tjek. Derefter bliver den nuværende ejer spurgt, eller Anvils staff afgør det. Du får aldrig at vide, hvem de er. Følg sagen under [Settings → Ownership claims](/settings/claims).',
+        },
       ],
       logHeading: 'Stadig i vanskeligheder? Send en admin en log',
       logBody:
@@ -1061,6 +1066,26 @@ const da: PartialGuideDict = {
       body: [
         'Fanen **Teams & Draft** retter sig efter det format, du valgte: et format uden hold springer den helt over. Til en almindelig holdbingo opretter du holdene, bestemmer hvem der er kaptajner, og enten fordeler spillerne selv eller kører en live draft.',
         'Kaptajnerne drafter fra tilmeldingspuljen i den rækkefølge, du vælger, og hver kaptajn kan se de svar, folk gav i tilmeldingsformularen — fastfrosset som de blev indsendt, så ingen redigerer deres “timer om ugen”, efter de er blevet valgt.',
+      ],
+      placementIntro:
+        'Du behøver ikke at drafte. **Team placement**, på oprettelsesformularen og fanen **Sign-ups**, bestemmer, hvor hver ny tilmelding havner:',
+      placementRows: [
+        {
+          term: 'Auto-balance',
+          body: 'hver person, der tilmelder sig, kommer på holdet med færrest spillere. Du vælger kun, hvor mange hold der er. Godt til store offentlige events.',
+        },
+        {
+          term: 'Players pick',
+          body: 'du laver holdene først, og hver spiller vælger et på tilmeldingsformularen. Sæt en grænse pr. hold for at holde dem lige.',
+        },
+        {
+          term: 'Host drafts',
+          body: 'alle venter i en pulje, indtil du eller dine kaptajner drafter dem eller sætter dem på et hold i hånden. Bedst, når du kender spillerne.',
+        },
+        {
+          term: 'Solo',
+          body: 'slet ingen hold. Hver spiller er for sig selv, opkaldt efter sin karakter, og stillingen rangerer spillere.',
+        },
       ],
       lockNote: {
         tag: 'Draften låser holdene',
@@ -1795,6 +1820,10 @@ const da: PartialGuideDict = {
           term: 'Betalingsfrist',
           body: 'når den er passeret, holder ubetalte tilmeldinger op med at være noget, du render efter, og bliver til en beslutning. Sæt den tidligere end du tror — dagen før eventet er for sent til at finde en erstatning.',
         },
+        {
+          term: 'Gæstegebyr',
+          body: 'det, spillere betaler, når de ikke er medlem af en klan, der kører brættet. Lad det stå tomt, så betaler gæster medlemsgebyret. Skal én spiller betale et andet beløb, så tryk **Change this player’s fee** på spillerens række i **Sign-ups**.',
+        },
       ],
       note: {
         tag: 'Puljen følger tilmeldingerne',
@@ -1807,6 +1836,7 @@ const da: PartialGuideDict = {
       body: [
         'Gebyrer bliver samlet ind på den måde, din klan i forvejen samler penge ind — i spillet, på Discord, som I nu gør. Anvils job begynder i det øjeblik, pengene lander: nogen med stabsadgang markerer det **betalt**, og det stempler, hvem der siger, de tog imod, og hvornår.',
         'Spillerne har også et ord at skulle have sagt. Et medlem kan indberette, hvem de betalte til, og vedhæfte et screenshot — og det er dét, der gør “jeg har helt sikkert betalt” til en registrering med to ender. Når spillerens indberetning og indsamlerens påstand nævner forskellige personer, er det en uenighed, siden kan vise dig, i stedet for en du opdager midt i et skænderi.',
+        'At rykke for betaling er én knap: **Remind unpaid** under Admin → **Fees** sender en Discord-DM til alle i det event, der stadig skylder.',
       ],
       note: {
         tag: 'Beviset bliver slettet med vilje',
@@ -2452,7 +2482,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Kick followers',
-          body: 'Kick fortæller ikke apps, hvem der følger dig, så Anvil tæller folk, der følger _efter_ du forbinder Kick. Fulgte de før? Så skal seeren fjerne følgen og følge igen.',
+          body: 'Kick fortæller ikke apps, hvem der følger dig, så Anvil tæller folk, der følger _efter_ du forbinder Kick. Fulgte de før? Så skal seeren fjerne følgen og følge igen. Er din Kick-chat kun for følgere? Slå **My Kick chat is followers-only** til i boksen **Kick channel**. Så tæller en seer, der skriver sin Anvil-kode i din chat, som følger.',
         },
         {
           term: 'Kick subs',
@@ -2493,7 +2523,7 @@ const da: PartialGuideDict = {
     channels: {
       title: 'Forbind din Twitch, Kick eller YouTube',
       body: [
-        'Åbn **Settings** i menuen. Under dit rums navn trykker du **Connect Twitch**, **Connect YouTube** eller **Connect Kick** og logger ind som din kanal.',
+        'Åbn **Settings** i menuen. I boksen **Twitch channel**, **YouTube channel** eller **Kick channel** trykker du **Connect Twitch**, **Connect YouTube** eller **Connect Kick** og logger ind som din kanal.',
         'Hver kanal, du forbinder, vises på din side som et **verified** link. Du kan ikke skrive et link ind i hånden: at logge ind er sådan, Anvil ved, at kanalen er din.',
         'En kanal kan kun være forbundet ét sted på Anvil. Er den allerede på et andet rum eller en anden klan, du styrer, spørger Anvil, om du vil flytte den.',
       ],
@@ -2527,11 +2557,42 @@ const da: PartialGuideDict = {
       body: [
         'Åbn **Settings** → **!join in Twitch chat** og slå det til.',
         'Når en seer skriver `!join`, svarer Anvil-botten (Anvil_OSRS) med linket til dit åbne event. Den svarer højst én gang hvert 30. sekund, uanset hvor mange der skriver det.',
-        'Den svarer kun i en kanal, du forbandt i trin 7. Den virker også i Kick-chat, når din Kick-kanal er forbundet.',
+        'Den svarer kun i en kanal, du forbandt i trin 7. Til Kick slår du **!join in Kick chat** til i boksen **Kick channel**.',
         'Intet event åbent? Så siger den det: “No event is open to join right now — keep an eye on the stream!”',
       ],
       tips: [
         'Hvis din chat blokerer links (Twitchs **Block hyperlinks** eller AutoMod), bliver bottens svar holdt tilbage. Skriv `/vip anvil_osrs` eller `/mod anvil_osrs` i din chat én gang, så linket kommer igennem.',
+        'Er du i gang med et event? **Space settings** i eventets menu fører dig tilbage til disse kontakter. Det gør **Switch it on in your settings** under **Who can join?** også.',
+      ],
+    },
+
+    page: {
+      title: 'Gør din side til din egen',
+      body: [
+        'Din side er det, folk ser på `{apex}/c/your-name`, sammen med dine events. Åbn **Settings** → **Your page**. Hver del har sin egen gem-knap.',
+      ],
+      items: [
+        '**Bio.** Et par linjer om dig og dine streams. Links, der starter med `https://`, kan klikkes.',
+        '**Logo and banner.** Tryk **Upload a logo** eller **Upload a banner**. Banneret går hen over toppen af din side, så gør det bredt (3:1, for eksempel 1500 × 500). PNG, JPEG, GIF eller WebP. Begge må være animerede.',
+        '**Panels.** Op til 8 kort under dine events, ligesom panelerne under en Twitch-kanal. Tryk **+ Add a panel**, og giv det en titel og lidt tekst. Et billede og et link er valgfrie. Brug pilene til at ændre rækkefølgen.',
+        '**Schedule.** Hvornår du plejer at gå live, i din egen tidszone. Besøgende ser hvert tidspunkt på deres eget ur.',
+        '**Featured.** Ét klip, fastgjort øverst på din side. Vælg et af dine stream-highlights (næste trin), eller indsæt et kliplink fra Twitch, YouTube, Kick eller Medal.',
+        'Tryk **Preview your page** for at se siden, som besøgende ser den.',
+      ],
+      note: {
+        tag: 'Jagex’ regler',
+        body: 'Alt på din side skal følge Jagex’ regler: intet salg af guld eller konti, intet gambling, ingen bots og ingen private servere. Anvil tjekker dine ord og links, når du gemmer. Hvis Anvils staff skjuler din side efter en anmeldelse, står det i dine indstillinger. Spørg på Anvils Discord, hvis du mener, det er en fejl.',
+      },
+    },
+
+    highlights: {
+      title: 'Stream-highlights',
+      body: [
+        'Når din Twitch- eller YouTube-kanal er forbundet, fanger Anvil de store øjeblikke i dine events, mens du er live. Kontakterne ligger i **Settings** → **Stream highlights**.',
+        '**Auto-clip big moments on my stream** er slået til, så snart du forbinder. Mens du er live på Twitch, laver Anvil et klip, når et af dine events starter, når et hold klarer hele brættet eller vinder, og når din egen karakter får et sjældent drop eller et pet. På YouTube gemmer Anvil i stedet et link til netop det sekund i din stream. Kick har ingen highlights endnu.',
+        'Klippene vises under **Highlights** på eventsiden og på din side. Du kan fastgøre et som dit **Featured**-klip (trin 10).',
+        '**Let Anvil feature clips from my events in its own promotion** er slået fra, indtil du slår det til. Så må Anvil dele et klip på sine egne sider og sociale medier, og du bliver altid krediteret.',
+        'Dine spillere kan også klippe deres egne store øjeblikke. De slår **Clip my stream when I hit a big moment** til under deres Twitch-konto i **Settings** → **Connected accounts**.',
       ],
     },
 
@@ -2541,6 +2602,7 @@ const da: PartialGuideDict = {
         'Dit rum er ikke vist, når du laver det. Kun folk med dit link kan finde det.',
         'Åbn **Settings** → **Advertise on Anvil** og slå det til. Dit rum vises i Anvils klanoversigt, og dine nye events vises på `{apex}/events`.',
         'Vil du kun vise ét event, så åbn dets **Settings** → **Who can play** → **Advertise on Anvil**. Det vises, mens eventet er kommende eller i gang.',
+        'Et event uden datoer vises under **Open to join**, markeret med “Open now · starts when the host starts it”.',
       ],
     },
 
@@ -2590,6 +2652,14 @@ const da: PartialGuideDict = {
         {
           term: 'Kan jeg lave et rum mere?',
           body: 'Ét rum pr. Discord-konto indtil videre. Kontakt os, hvis du har brug for et til.',
+        },
+        {
+          term: 'Hvor finder jeg mit rums indstillinger?',
+          body: 'Tryk **Settings** i menuen. Inde fra et event trykker du **Space settings** i eventets menu.',
+        },
+        {
+          term: 'Hvad gør knappen **Report** på min side?',
+          body: 'Alle, der er logget ind, kan anmelde din side, et panel, et event eller et highlight til Anvils staff. Anmeldelser går kun til staff. Hvis staff skjuler din bio, dine paneler, dit skema eller dit fremhævede klip, står det i dine indstillinger.',
         },
       ],
     },
@@ -2675,6 +2745,8 @@ const da: PartialGuideDict = {
       body: [
         'De Twitch-, YouTube- og Kick-konti, du har linket, står i [Settings → Connected accounts](/settings/connections). Du kan også linke dem der, før du kommer med.',
         'Fjern et link når som helst. Events, du allerede er med i, beholder dig. Et event med krav, du kommer med i senere, beder dig linke igen.',
+        'Linkede Twitch-, YouTube- og Kick-konti vises på din profil med et flueben: du har bevist, at de er dine. Slå **Show on my profile** fra for at skjule en. Et Medal-link er anderledes. Det indsætter du selv, så det får intet flueben.',
+        'Streamer du selv på Twitch? Slå **Clip my stream when I hit a big moment** til under din Twitch-konto. Mens du er live i en streamers event, klipper Anvil dine sjældne drops, pets og færdige felter.',
       ],
     },
 
@@ -2709,6 +2781,14 @@ const da: PartialGuideDict = {
         {
           term: 'Mine drops vises ikke.',
           body: 'Tjek, at pluginnet er installeret og logget ind, og at du kom med med den karakter, du spiller. Se [plugin-vejledningen]({pluginGuide}).',
+        },
+        {
+          term: 'Hvor finder jeg flere events som dette?',
+          body: '[Eventsiden](/events) viser events, som alle kan være med i, også streameres events, der er åbne lige nu.',
+        },
+        {
+          term: 'Noget på en streamers side bryder reglerne.',
+          body: 'Tryk **Report** på siden, eventet eller highlightet. Vælg, hvad der er galt, og tryk **Send**. Det går kun til Anvils staff. Streameren får aldrig at vide, hvem der anmeldte det.',
         },
       ],
     },
@@ -2757,6 +2837,7 @@ const da: PartialGuideDict = {
         'Streamer-værktøjerne virker som i et creator-rum: verificerede kanallinks, **Who can join?**-tjek, OBS-overlayet og `!join` i chatten.',
         'Overlay-linkene til et klan-event ligger i eventets **Settings**, under **Who can play** → **Stream overlay**. `!join` og overlay-mærket ligger under **Clan settings** → **Streaming**.',
         '[Creator-vejledningen]({creatorsGuide}) forklarer hver enkelt trin for trin.',
+        'Stream-highlights virker også her: med Twitch eller YouTube forbundet klipper Anvil de store øjeblikke i events, der er åbne for seere. `!join` i Kick-chat har sin egen kontakt i boksen **Kick channel**.',
       ],
     },
 

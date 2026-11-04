@@ -250,6 +250,7 @@ const fi: PartialGuideDict = {
       body: [
         'Tarvitset Discord-tilin, ja siinä on koko lista. Kirjaudu ensin sisään osoitteessa `{apex}`: klaanilla pitää olla omistaja, ja kirjautuminen on se, mistä sivusto tietää sen olevan sinä. Aloita platform-sivujen kohdasta **Perusta klaani**, tai mene suoraan osoitteeseen `{apex}/clans/new`.',
         'Se ei maksa mitään. Ei pakettia valittavana, ei korttia syötettävänä eikä kokeilujaksoa joka päättyy ja vie taulusi mukanaan — klaani alkaa ilmaisena ja pysyy käytettävänä.',
+        'Isot klaanit voivat myöhemmin siirtyä isompaan pakettiin Adminin kohdasta **Plan and billing**. Kaikki, mistä maksat Anvilissa — klaani, creator-tila tai oma Supporter-jäsenyytesi — löytyy [laskutussivultasi](/portal).',
       ],
       note: {
         tag: 'Sinusta tulee sen omistaja',
@@ -855,6 +856,10 @@ const fi: PartialGuideDict = {
           term: '`Anvil: reconnected — tracking is back on.`',
           body: 'Ei mitään. Se korjaantui itsestään.',
         },
+        {
+          term: '“<RSN> belongs to another Anvil player”',
+          body: 'Joku muu yhdisti tämän hahmon Anviliin ensin, joten kirjautumisestasi ei lasketa sille mitään. Jos hahmo todella on sinun, paina paneelin **You**-välilehdellä **This is my account** ja tee nopea XP-tarkistus. Sen jälkeen nykyiseltä omistajalta kysytään, tai Anvilin henkilökunta päättää. Et koskaan saa tietää, kuka hän on. Seuraa asiaa kohdassa [Settings → Ownership claims](/settings/claims).',
+        },
       ],
       logHeading: 'Yhä jumissa? Lähetä ylläpitäjälle loki',
       logBody:
@@ -1055,6 +1060,26 @@ const fi: PartialGuideDict = {
       body: [
         'Välilehti **Teams & Draft** mukautuu valitsemaasi formaattiin: formaatti joka ei käytä joukkueita ohittaa sen kokonaan. Tavallisessa joukkuebingossa luot joukkueet, päätät kuka kutakin kapteenoi, ja joko jaat pelaajat itse tai pidät live-draftin.',
         'Kapteenit draftaavat ilmoittautuneiden poolista valitsemassasi järjestyksessä, ja jokainen kapteeni näkee vastaukset jotka ihmiset antoivat ilmoittautumislomakkeella — jäädytettyinä sellaisina kuin ne lähetettiin, jottei kukaan muokkaa “tuntejaan viikossa” tultuaan valituksi.',
+      ],
+      placementIntro:
+        'Draftia ei ole pakko pitää. **Team placement** luontilomakkeella ja **Sign-ups**-välilehdellä ratkaisee, mihin kukin uusi ilmoittautunut päätyy:',
+      placementRows: [
+        {
+          term: 'Auto-balance',
+          body: 'jokainen ilmoittautuja liittyy joukkueeseen, jossa on vähiten pelaajia. Valitset vain joukkueiden määrän. Hyvä isoihin julkisiin tapahtumiin.',
+        },
+        {
+          term: 'Players pick',
+          body: 'teet joukkueet ensin, ja jokainen pelaaja valitsee yhden ilmoittautumislomakkeella. Aseta joukkuekohtainen raja, niin joukkueet pysyvät tasaisina.',
+        },
+        {
+          term: 'Host drafts',
+          body: 'kaikki odottavat poolissa, kunnes sinä tai kapteenisi draftaatte heidät tai jaatte heidät käsin. Paras, kun tunnet pelaajat.',
+        },
+        {
+          term: 'Solo',
+          body: 'ei joukkueita lainkaan. Jokainen pelaaja pelaa yksin hahmonsa nimellä, ja tilanne järjestää pelaajat.',
+        },
       ],
       lockNote: {
         tag: 'Draft lukitsee joukkueet',
@@ -1790,6 +1815,10 @@ const fi: PartialGuideDict = {
           term: 'Maksun määräaika',
           body: 'sen mentyä maksamattomat ilmoittautumiset lakkaavat olemasta jotain jota jahtaat ja muuttuvat päätökseksi. Aseta se aiemmaksi kuin luulet — tapahtumaa edeltävä päivä on liian myöhäistä korvaajan löytämiseen.',
         },
+        {
+          term: 'Guest fee',
+          body: 'mitä maksavat pelaajat, jotka eivät ole taulua pyörittävän klaanin jäseniä. Jätä tyhjäksi, niin vieraat maksavat jäsenmaksun. Jos haluat periä yhdeltä pelaajalta eri summan, paina hänen rivillään **Sign-ups**-välilehdellä **Change this player’s fee**.',
+        },
       ],
       note: {
         tag: 'Potti seuraa ilmoittautumisia',
@@ -1802,6 +1831,7 @@ const fi: PartialGuideDict = {
       body: [
         'Maksut kerätään sillä tavalla jolla klaanisi jo kerää rahaa — pelissä, Discordissa, miten teettekin. Anvilin työ alkaa sillä hetkellä kun raha saapuu: joku jolla on henkilökunnan pääsy merkitsee sen **maksetuksi**, ja se leimaa kuka sanoo ottaneensa sen vastaan ja milloin.',
         'Pelaajillakin on sananvaltaa. Jäsen voi ilmoittaa kenelle maksoi ja liittää kuvakaappauksen, ja juuri se muuttaa lauseen “maksoin ihan varmasti” merkinnäksi jolla on kaksi päätä. Kun pelaajan ilmoitus ja kerääjän väite nimeävät eri henkilöt, se on erimielisyys jonka sivusto voi näyttää sinulle sen sijaan että saisit sen tietää kesken riidan.',
+        'Muistuttaminen on yksi painallus: **Remind unpaid** kohdassa Admin → **Fees** lähettää Discord-yksityisviestin kaikille, jotka ovat vielä velkaa siitä tapahtumasta.',
       ],
       note: {
         tag: 'Todiste poistetaan tarkoituksella',
@@ -2446,7 +2476,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Kick followers',
-          body: 'Kick ei kerro sovelluksille, ketkä seuraavat sinua, joten Anvil laskee ne, jotka seuraavat _sen jälkeen_ kun yhdistät Kickin. Seurasiko jo aiemmin? Katsoja lopettaa seuraamisen ja seuraa uudelleen.',
+          body: 'Kick ei kerro sovelluksille, ketkä seuraavat sinua, joten Anvil laskee ne, jotka seuraavat _sen jälkeen_ kun yhdistät Kickin. Seurasiko jo aiemmin? Katsoja lopettaa seuraamisen ja seuraa uudelleen. Onko Kick-chattisi vain seuraajille? Laita **Kick channel** -laatikossa päälle **My Kick chat is followers-only**. Silloin katsoja, joka kirjoittaa Anvil-koodinsa chattiisi, lasketaan seuraajaksi.',
         },
         {
           term: 'Kick subs',
@@ -2487,7 +2517,7 @@ const fi: PartialGuideDict = {
     channels: {
       title: 'Yhdistä Twitch, Kick tai YouTube',
       body: [
-        'Avaa valikosta **Settings**. Tilasi nimen alla paina **Connect Twitch**, **Connect YouTube** tai **Connect Kick** ja kirjaudu kanavanasi.',
+        'Avaa valikosta **Settings**. Paina **Twitch channel**-, **YouTube channel**- tai **Kick channel** -laatikossa **Connect Twitch**, **Connect YouTube** tai **Connect Kick** ja kirjaudu kanavanasi.',
         'Jokainen yhdistämäsi kanava näkyy sivullasi **verified**-linkkinä. Linkkiä ei voi kirjoittaa käsin: kirjautumisesta Anvil tietää, että kanava on sinun.',
         'Kanavan voi yhdistää yhteen paikkaan Anvilissa. Jos se on jo toisessa pyörittämässäsi tilassa tai klaanissa, Anvil kysyy haluatko siirtää sen.',
       ],
@@ -2521,11 +2551,42 @@ const fi: PartialGuideDict = {
       body: [
         'Avaa **Settings** → **!join in Twitch chat** ja laita se päälle.',
         'Kun katsoja kirjoittaa `!join`, Anvil-botti (Anvil_OSRS) vastaa linkillä avoimeen tapahtumaasi. Se vastaa korkeintaan kerran 30 sekunnissa, vaikka kuinka moni kirjoittaisi sen.',
-        'Se vastaa vain kanavalla, jonka yhdistit vaiheessa 7. Se toimii myös Kick-chatissa, kun Kick-kanavasi on yhdistetty.',
+        'Se vastaa vain kanavalla, jonka yhdistit vaiheessa 7. Kickiä varten laita **Kick channel** -laatikossa päälle **!join in Kick chat**.',
         'Ei avointa tapahtumaa? Se kertoo sen: “No event is open to join right now — keep an eye on the stream!”',
       ],
       tips: [
         'Jos chattisi estää linkit (Twitchin **Block hyperlinks** tai AutoMod), botin vastaus jää pidätetyksi. Kirjoita chattiisi kerran `/vip anvil_osrs` tai `/mod anvil_osrs`, niin linkki menee läpi.',
+        'Työstätkö tapahtumaa? Tapahtuman valikon **Space settings** vie takaisin näihin kytkimiin. Samoin **Switch it on in your settings** kohdan **Who can join?** alla.',
+      ],
+    },
+
+    page: {
+      title: 'Tee sivustasi omasi',
+      body: [
+        'Sivusi on se, minkä ihmiset näkevät osoitteessa `{apex}/c/your-name`, tapahtumiesi kanssa. Avaa **Settings** → **Your page**. Jokaisella osalla on oma tallennuspainikkeensa.',
+      ],
+      items: [
+        '**Bio.** Muutama rivi sinusta ja striimeistäsi. Linkit, jotka alkavat `https://`, ovat klikattavia.',
+        '**Logo and banner.** Paina **Upload a logo** tai **Upload a banner**. Banneri kulkee sivusi yläreunan poikki, joten tee siitä leveä (3:1, esimerkiksi 1500 × 500). PNG, JPEG, GIF tai WebP. Molemmat saavat olla animoituja.',
+        '**Panels.** Enintään 8 korttia tapahtumiesi alla, kuten paneelit Twitch-kanavan alla. Paina **+ Add a panel** ja anna sille otsikko ja vähän tekstiä. Kuva ja linkki ovat vapaaehtoisia. Muuta järjestystä nuolilla.',
+        '**Schedule.** Milloin yleensä menet liveen, omalla aikavyöhykkeelläsi. Kävijät näkevät jokaisen ajan omassa ajassaan.',
+        '**Featured.** Yksi klippi kiinnitettynä sivusi yläosaan. Valitse yksi striimisi kohokohdista (seuraava vaihe) tai liitä klippilinkki Twitchistä, YouTubesta, Kickistä tai Medalista.',
+        'Paina **Preview your page** nähdäksesi sivun niin kuin kävijät sen näkevät.',
+      ],
+      note: {
+        tag: 'Jagexin säännöt',
+        body: 'Kaiken sivullasi pitää noudattaa Jagexin sääntöjä: ei kullan tai tilien myyntiä, ei uhkapelaamista, ei botteja eikä yksityisiä palvelimia. Anvil tarkistaa tekstisi ja linkkisi tallentaessasi. Jos Anvilin henkilökunta piilottaa sivusi ilmoituksen jälkeen, asetuksesi kertovat sen. Kysy Anvilin Discordissa, jos se on mielestäsi virhe.',
+      },
+    },
+
+    highlights: {
+      title: 'Striimin kohokohdat',
+      body: [
+        'Kun Twitch- tai YouTube-kanavasi on yhdistetty, Anvil tallentaa tapahtumiesi isot hetket, kun olet livenä. Kytkimet ovat kohdassa **Settings** → **Stream highlights**.',
+        '**Auto-clip big moments on my stream** on päällä heti, kun yhdistät. Kun olet livenä Twitchissä, Anvil tekee klipin, kun jokin tapahtumasi alkaa, kun joukkue tyhjentää taulun tai voittaa ja kun oma hahmosi saa harvinaisen dropin tai petin. YouTubessa se tallentaa sen sijaan linkin striimisi kyseiseen sekuntiin. Kickissä kohokohtia ei vielä ole.',
+        'Klipit näkyvät kohdassa **Highlights** tapahtumasivulla ja sivullasi. Voit kiinnittää yhden **Featured**-klipiksesi (vaihe 10).',
+        '**Let Anvil feature clips from my events in its own promotion** pysyy pois päältä, kunnes laitat sen päälle. Sen jälkeen Anvil voi jakaa klipin omilla sivuillaan ja somessa, ja mainitsee sinut aina tekijänä.',
+        'Pelaajasi voivat myös klipata omat isot hetkensä. He laittavat päälle **Clip my stream when I hit a big moment** Twitch-tilinsä alla kohdassa **Settings** → **Connected accounts**.',
       ],
     },
 
@@ -2535,6 +2596,7 @@ const fi: PartialGuideDict = {
         'Tilasi ei ole listalla, kun teet sen. Vain linkin saaneet löytävät sen.',
         'Avaa **Settings** → **Advertise on Anvil** ja laita se päälle. Tilasi näkyy Anvilin klaanihakemistossa, ja uudet tapahtumasi näkyvät osoitteessa `{apex}/events`.',
         'Jos haluat listata vain yhden tapahtuman, avaa sen **Settings** → **Who can play** → **Advertise on Anvil**. Se näkyy, kun tapahtuma on tulossa tai käynnissä.',
+        'Tapahtuma ilman päivämääriä näkyy kohdassa **Open to join** merkinnällä “Open now · starts when the host starts it”.',
       ],
     },
 
@@ -2584,6 +2646,14 @@ const fi: PartialGuideDict = {
         {
           term: 'Voinko tehdä toisen tilan?',
           body: 'Toistaiseksi yksi tila per Discord-tili. Ota yhteyttä, jos tarvitset toisen.',
+        },
+        {
+          term: 'Missä tilani asetukset ovat?',
+          body: 'Paina valikosta **Settings**. Tapahtuman sisältä paina tapahtuman valikosta **Space settings**.',
+        },
+        {
+          term: 'Mitä sivuni **Report**-painike tekee?',
+          body: 'Kuka tahansa kirjautunut voi ilmoittaa sivustasi, paneelista, tapahtumasta tai kohokohdasta Anvilin henkilökunnalle. Ilmoitukset menevät vain henkilökunnalle. Jos henkilökunta piilottaa biosi, paneelisi, aikataulusi tai featured-klippisi, asetuksesi kertovat sen.',
         },
       ],
     },
@@ -2668,6 +2738,8 @@ const fi: PartialGuideDict = {
       body: [
         'Yhdistämäsi Twitch-, YouTube- ja Kick-tilit löytyvät kohdasta [Settings → Connected accounts](/settings/connections). Voit yhdistää ne siellä myös ennen liittymistä.',
         'Voit poistaa yhteyden milloin tahansa. Tapahtumat, joihin jo liityit, pitävät sinut mukana. Myöhemmin liittyessäsi rajattuun tapahtumaan sinua pyydetään yhdistämään uudelleen.',
+        'Yhdistetyt Twitch-, YouTube- ja Kick-tilit näkyvät profiilissasi vahvistusmerkillä: todistit, että ne ovat sinun. Piilota tili laittamalla **Show on my profile** pois päältä. Medal-linkki on eri asia. Liität sen itse, joten siinä ei ole merkkiä.',
+        'Striimaatko itse Twitchissä? Laita Twitch-tilisi alla päälle **Clip my stream when I hit a big moment**. Kun olet livenä striimaajan tapahtumassa, Anvil klippaa harvinaiset droppisi, pettisi ja valmiit ruutusi.',
       ],
     },
 
@@ -2702,6 +2774,14 @@ const fi: PartialGuideDict = {
         {
           term: 'Dropejani ei näy.',
           body: 'Tarkista, että plugin on asennettu ja kirjautunut sisään ja että liityit hahmolla, jolla pelaat. Katso [pluginin opas]({pluginGuide}).',
+        },
+        {
+          term: 'Mistä löydän lisää tällaisia tapahtumia?',
+          body: '[Tapahtumasivu](/events) listaa tapahtumat, joihin kuka tahansa voi liittyä, myös striimaajien juuri nyt avoimet tapahtumat.',
+        },
+        {
+          term: 'Jokin striimaajan sivulla rikkoo sääntöjä.',
+          body: 'Paina **Report** sivulla, tapahtumassa tai kohokohdassa. Valitse, mikä on vialla, ja paina **Send**. Se menee vain Anvilin henkilökunnalle. Striimaajalle ei koskaan kerrota, kuka ilmoitti.',
         },
       ],
     },
@@ -2749,6 +2829,7 @@ const fi: PartialGuideDict = {
         'Striimaajan työkalut toimivat kuten creator-tilassa: vahvistetut kanavalinkit, **Who can join?** -tarkistukset, OBS-overlay ja `!join` chatissa.',
         'Klaanitapahtuman overlay-linkit ovat tapahtuman **Settings**-kohdassa, **Who can play** → **Stream overlay**. `!join` ja overlay-merkki ovat kohdassa **Clan settings** → **Streaming**.',
         '[Creator-opas]({creatorsGuide}) selittää jokaisen vaihe vaiheelta.',
+        'Striimin kohokohdat toimivat täälläkin: kun Twitch tai YouTube on yhdistetty, Anvil klippaa katsojille avoimien tapahtumien isot hetket. `!join` Kick-chatissa on omalla kytkimellään **Kick channel** -laatikossa.',
       ],
     },
 

@@ -134,6 +134,8 @@ export default async function AdminGuide({ lang }: { lang: string }) {
       {/* ------------------------------------------------------------------ 7 */}
       <Section id="teams" n={7} title={a.teams.title} labels={t.common}>
         {paragraphs(a.teams.body, v)}
+        <p className="text-text-muted">{rt(a.teams.placementIntro, v)}</p>
+        <Rows rows={rows(a.teams.placementRows, v)} />
         <Note tag={a.teams.lockNote.tag}>
           <p>{rt(a.teams.lockNote.body, v)}</p>
         </Note>

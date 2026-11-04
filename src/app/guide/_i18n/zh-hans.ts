@@ -248,6 +248,7 @@ const zhHans: PartialGuideDict = {
       body: [
         '你需要一个 Discord 账号，清单到此为止。先在 `{apex}` 登录：氏族需要一个所有者，而登录就是网站确认那是你的方式。从平台页面的 **创建氏族** 开始，或者直接前往 `{apex}/clans/new`。',
         '不花一分钱。没有套餐要选，没有卡要填，也没有到期后把你的板一起带走的试用——氏族免费开始，并且一直可用。',
+        '大氏族以后可以在管理里的 **Plan and billing** 升级套餐。你在 Anvil 上付费的一切——氏族、创作者空间，或者你自己的 Supporter 会员——都在[你的账单页面](/portal)。',
       ],
       note: {
         tag: '你会成为它的所有者',
@@ -853,6 +854,10 @@ const zhHans: PartialGuideDict = {
           term: '`Anvil: reconnected — tracking is back on.`',
           body: '什么都不用做。它自己恢复了。',
         },
+        {
+          term: '“<RSN> belongs to another Anvil player”',
+          body: '别人先在 Anvil 上关联了这个角色，所以你登录时它的任何进度都不计数。如果它真的是你的，在面板的 **You** 标签页按 **This is my account**，并通过一个简短的 XP 检查。之后会询问当前所有者，或由 Anvil 工作人员决定。你永远不会知道对方是谁。在 [Settings → Ownership claims](/settings/claims) 里跟进进度。',
+        },
       ],
       logHeading: '还是不行？给管理员发一份日志',
       logBody:
@@ -1053,6 +1058,26 @@ const zhHans: PartialGuideDict = {
       body: [
         '**Teams & Draft** 标签页会随你选的赛制变化：不使用队伍的赛制会直接跳过它。对于普通的团队宾果，你创建队伍、决定谁当队长，然后要么自己分配玩家，要么开一场实时选秀。',
         '队长们按你指定的顺序从报名池里挑人，并且每位队长都能看到大家在报名表里填的答案 —— 这些答案在提交那一刻就被冻结，所以没人能在被选中之后改自己的「每周时长」。',
+      ],
+      placementIntro:
+        '你不一定要选秀。创建表单和 **Sign-ups** 标签页里的 **Team placement** 决定每个新报名的人进哪里：',
+      placementRows: [
+        {
+          term: 'Auto-balance',
+          body: '每个报名的人都会加入人数最少的队伍。你只需要决定有几支队伍。适合大型公开活动。',
+        },
+        {
+          term: 'Players pick',
+          body: '你先建好队伍，每位玩家在报名表上自己选一支。给每队设个上限，人数就能保持均衡。',
+        },
+        {
+          term: 'Host drafts',
+          body: '所有人都在池子里等，直到你或你的队长通过选秀挑走他们，或者手动分配。最适合你认识这些玩家的时候。',
+        },
+        {
+          term: 'Solo',
+          body: '完全没有队伍。每位玩家各自为战，以自己的角色名显示，排名也按玩家来排。',
+        },
       ],
       lockNote: {
         tag: '选秀会锁死名单',
@@ -1788,6 +1813,10 @@ const zhHans: PartialGuideDict = {
           term: '缴费截止时间',
           body: '一旦过了这个时间，未缴费的报名就不再是你追着跑的事，而变成一个需要拍板的决定。把它设得比你以为的更早 —— 活动前一天才发现，已经来不及找人顶替了。',
         },
+        {
+          term: '访客报名费',
+          body: '不是主办这块板的氏族成员的玩家要交的金额。留空的话，访客交和成员一样的报名费。要让某一位玩家交不同的金额，在 **Sign-ups** 里他那一行按 **Change this player’s fee**。',
+        },
       ],
       note: {
         tag: '奖池跟着报名走',
@@ -1800,6 +1829,7 @@ const zhHans: PartialGuideDict = {
       body: [
         '费用怎么收，就按你们氏族本来收钱的方式来 —— 游戏里、Discord 里，你们怎么做都行。Anvil 的工作从钱到账那一刻开始：有管理权限的人把它标记为**已付**，这会记下是谁说自己收的、以及什么时候。',
         '玩家也有发言权。成员可以上报自己付给了谁，并附上一张截图 —— 正是这一点，把「我肯定交了」变成一条两头都有据可查的记录。当玩家的上报与收款人的说法指向不同的人时，这是一个网站能摆到你面前的分歧，而不是你在争吵中途才发现的分歧。',
+        '催款只要一个按钮：管理 → **Fees** 里的 **Remind unpaid** 会给这场活动里所有还没交钱的人发一条 Discord 私信。',
       ],
       note: {
         tag: '凭证是刻意删除的',
@@ -2444,7 +2474,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: 'Kick followers',
-          body: 'Kick 不会告诉应用谁关注了你，所以 Anvil 只统计你连接 Kick _之后_ 才关注的人。在那之前就关注了？观众取消关注再重新关注就行。',
+          body: 'Kick 不会告诉应用谁关注了你，所以 Anvil 只统计你连接 Kick _之后_ 才关注的人。在那之前就关注了？观众取消关注再重新关注就行。你的 Kick 聊天只允许关注者发言？在 **Kick channel** 框里打开 **My Kick chat is followers-only**。这样，在你聊天里输入 Anvil 代码的观众就会算作关注者。',
         },
         {
           term: 'Kick subs',
@@ -2485,7 +2515,7 @@ const zhHans: PartialGuideDict = {
     channels: {
       title: '连接你的 Twitch、Kick 或 YouTube',
       body: [
-        '在菜单里打开 **Settings**。在你的空间名字下面，按 **Connect Twitch**、**Connect YouTube** 或 **Connect Kick**，并以你的频道登录。',
+        '在菜单里打开 **Settings**。在 **Twitch channel**、**YouTube channel** 或 **Kick channel** 框里，按 **Connect Twitch**、**Connect YouTube** 或 **Connect Kick**，并以你的频道登录。',
         '你连接的每个频道，都会在你的页面上显示为一个 **verified** 链接。你不能手动填链接：登录才是 Anvil 确认频道属于你的方式。',
         '一个频道只能连接到 Anvil 上的一个地方。如果它已经在你管理的另一个空间或氏族里，Anvil 会问你要不要把它移过来。',
       ],
@@ -2519,11 +2549,42 @@ const zhHans: PartialGuideDict = {
       body: [
         '打开 **Settings** → **!join in Twitch chat**，把它打开。',
         '观众输入 `!join` 时，Anvil 机器人（Anvil_OSRS）会回复你当前开放活动的链接。不管多少人输入，它最多每 30 秒回复一次。',
-        '它只在你于第 7 步连接过的频道里回复。你的 Kick 频道连接后，它在 Kick 聊天里也能用。',
+        '它只在你于第 7 步连接过的频道里回复。Kick 的话，在 **Kick channel** 框里打开 **!join in Kick chat**。',
         '没有开放的活动？它会这么说：“No event is open to join right now — keep an eye on the stream!”',
       ],
       tips: [
         '如果你的聊天室屏蔽链接（Twitch 的 **Block hyperlinks** 或 AutoMod），机器人的回复会被拦下。在聊天里输入一次 `/vip anvil_osrs` 或 `/mod anvil_osrs`，链接就能发出来。',
+        '正在处理某个活动？活动菜单里的 **Space settings** 能带你回到这些开关。**Who can join?** 下面的 **Switch it on in your settings** 也可以。',
+      ],
+    },
+
+    page: {
+      title: '打造你自己的页面',
+      body: [
+        '你的页面就是大家在 `{apex}/c/your-name` 看到的内容，连同你的活动。打开 **Settings** → **Your page**。每一部分都有自己的保存按钮。',
+      ],
+      items: [
+        '**Bio.** 几行关于你和你直播的介绍。以 `https://` 开头的链接可以点击。',
+        '**Logo and banner.** 按 **Upload a logo** 或 **Upload a banner**。横幅横跨页面顶部，所以要做得宽一些（3:1，比如 1500 × 500）。支持 PNG、JPEG、GIF 或 WebP。两者都可以是动图。',
+        '**Panels.** 活动下方最多 8 张卡片，就像 Twitch 频道下面的面板。按 **+ Add a panel**，填上标题和文字。图片和链接可选。用箭头调整顺序。',
+        '**Schedule.** 你通常开播的时间，用你自己的时区填写。访客看到的是换算成他们自己时钟的时间。',
+        '**Featured.** 置顶在页面顶部的一个片段。从你的直播高光（下一步）里选一个，或者粘贴 Twitch、YouTube、Kick 或 Medal 的片段链接。',
+        '按 **Preview your page**，用访客的视角看看它。',
+      ],
+      note: {
+        tag: 'Jagex 的规则',
+        body: '你页面上的一切都必须遵守 Jagex 的规则：不准卖金币或卖号，不准赌博，不准用机器人，不准私服。保存时 Anvil 会检查你的文字和链接。如果有人举报后 Anvil 工作人员隐藏了你的页面，你的设置里会写明。如果你觉得是误判，请到 Anvil 的 Discord 询问。',
+      },
+    },
+
+    highlights: {
+      title: '直播高光',
+      body: [
+        '连接了 Twitch 或 YouTube 频道后，你直播时 Anvil 会捕捉你活动里的精彩时刻。开关在 **Settings** → **Stream highlights**。',
+        '**Auto-clip big moments on my stream** 在你连接后就是打开的。你在 Twitch 直播时，活动开始、某支队伍清空板子或获胜、以及你自己的角色出了稀有掉落或宠物时，Anvil 都会剪一个片段。在 YouTube 上，它会改为保存一个指向你直播那一秒的链接。Kick 暂时还没有高光。',
+        '片段会显示在活动页面和你页面的 **Highlights** 下。你可以把其中一个置顶为 **Featured** 片段（第 10 步）。',
+        '**Let Anvil feature clips from my events in its own promotion** 在你打开之前一直是关闭的。打开后，Anvil 可能会在自己的页面和社交媒体上分享片段，并且总会注明是你。',
+        '你的玩家也可以剪自己的精彩时刻。他们在 **Settings** → **Connected accounts** 里自己的 Twitch 账号下打开 **Clip my stream when I hit a big moment**。',
       ],
     },
 
@@ -2533,6 +2594,7 @@ const zhHans: PartialGuideDict = {
         '你的空间建好时是不公开的。只有拿到你链接的人才能找到它。',
         '打开 **Settings** → **Advertise on Anvil** 并打开它。你的空间会出现在 Anvil 氏族目录里，你的新活动会显示在 `{apex}/events`。',
         '只想展示某一场活动，就打开它的 **Settings** → **Who can play** → **Advertise on Anvil**。它会在活动即将开始或进行中时显示。',
+        '没有日期的活动会显示在 **Open to join** 下，标着“Open now · starts when the host starts it”。',
       ],
     },
 
@@ -2582,6 +2644,14 @@ const zhHans: PartialGuideDict = {
         {
           term: '我可以建第二个空间吗？',
           body: '目前每个 Discord 账号一个空间。如果需要另一个，请联系我们。',
+        },
+        {
+          term: '我空间的设置在哪里？',
+          body: '在菜单里按 **Settings**。在活动里面时，按活动菜单里的 **Space settings**。',
+        },
+        {
+          term: '我页面上的 **Report** 按钮是做什么的？',
+          body: '任何已登录的人都可以向 Anvil 工作人员举报你的页面、面板、活动或高光。举报只会发给工作人员。如果工作人员隐藏了你的简介、面板、日程或置顶片段，你的设置里会写明。',
         },
       ],
     },
@@ -2666,6 +2736,8 @@ const zhHans: PartialGuideDict = {
       body: [
         '你关联的 Twitch、YouTube 和 Kick 账号都在 [Settings → Connected accounts](/settings/connections)。你也可以在加入之前先在那里关联。',
         '随时可以取消关联。你已经加入的活动会保留你。以后加入需要检查的活动时，会再要求你关联。',
+        '你关联的 Twitch、YouTube 和 Kick 账号会带着已验证的勾显示在你的个人资料上：你证明了它们是你的。关掉 **Show on my profile** 就能隐藏其中一个。Medal 链接不一样。它是你自己粘贴的，所以没有勾。',
+        '你自己也在 Twitch 直播？在你的 Twitch 账号下打开 **Clip my stream when I hit a big moment**。你在主播的活动里直播时，Anvil 会剪下你的稀有掉落、宠物和完成的格子。',
       ],
     },
 
@@ -2700,6 +2772,14 @@ const zhHans: PartialGuideDict = {
         {
           term: '我的掉落没有显示。',
           body: '确认插件已安装并已登录，而且你是用正在玩的那个角色加入的。见[插件指南]({pluginGuide})。',
+        },
+        {
+          term: '哪里能找到更多这样的活动？',
+          body: '[活动页面](/events)列出了任何人都能加入的活动，包括现在正开放的主播活动。',
+        },
+        {
+          term: '主播页面上有违规内容。',
+          body: '在页面、活动或高光上按 **Report**。选出问题所在，然后按 **Send**。它只会发给 Anvil 工作人员。主播永远不会知道是谁举报的。',
         },
       ],
     },
@@ -2747,6 +2827,7 @@ const zhHans: PartialGuideDict = {
         '直播工具和创作者空间里一样：已验证的频道链接、**Who can join?** 检查、OBS 浮层和聊天里的 `!join`。',
         '氏族活动的浮层链接在活动的 **Settings** 里，位于 **Who can play** → **Stream overlay**。`!join` 和浮层标记在 **Clan settings** → **Streaming** 下。',
         '[创作者指南]({creatorsGuide})会一步一步讲每一项。',
+        '直播高光在这里也能用：连接 Twitch 或 YouTube 后，Anvil 会剪下向观众开放的活动里的精彩时刻。Kick 聊天里的 `!join` 在 **Kick channel** 框里有自己的开关。',
       ],
     },
 

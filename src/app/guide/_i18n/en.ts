@@ -249,6 +249,7 @@ export const en = {
       body: [
         'You need a Discord account, and that is the whole list. Sign in on `{apex}` first: a clan needs an owner, and signing in is how the site knows that is you. Start from **Start a clan** on the platform pages, or go straight to `{apex}/clans/new`.',
         'It costs nothing. There is no plan to pick, no card to enter, and no trial that expires and takes your board with it — a clan starts free and stays usable.',
+        'Big clans can move up a plan later from **Plan and billing** in Admin. Everything you pay for on Anvil — a clan, a creator space or your own Supporter membership — is on [your billing page](/portal).',
       ],
       note: {
         tag: 'You will be its owner',
@@ -841,6 +842,10 @@ export const en = {
           term: '`Anvil: reconnected — tracking is back on.`',
           body: 'Nothing. It recovered by itself.',
         },
+        {
+          term: '“<RSN> belongs to another Anvil player”',
+          body: 'Someone else linked this character on Anvil first, so nothing counts for it from your login. If it really is yours, press **This is my account** in the panel’s **You** tab and pass the quick XP check. Then the current owner is asked, or Anvil staff decide. You never learn who they are. Follow it under [Settings → Ownership claims](/settings/claims).',
+        },
       ],
       logHeading: 'Still stuck? Send an admin a log',
       logBody:
@@ -1032,6 +1037,26 @@ export const en = {
       body: [
         'The **Teams & Draft** tab adapts to the format you chose: a format that doesn’t use teams skips straight past it. For a normal team bingo you create the teams, decide who captains them, and either assign players yourself or run a live draft.',
         'Captains draft from the sign-up pool in your chosen order, and each captain sees the answers people gave on the sign-up form — frozen as they were submitted, so nobody edits their “hours per week” after being picked.',
+      ],
+      placementIntro:
+        'You don’t have to draft. **Team placement**, on the create form and the **Sign-ups** tab, decides where each new sign-up lands:',
+      placementRows: [
+        {
+          term: 'Auto-balance',
+          body: 'each person who signs up joins the team with the fewest players. You only choose how many teams. Good for big public events.',
+        },
+        {
+          term: 'Players pick',
+          body: 'you make the teams first, and each player picks one on the sign-up form. Set a limit per team to keep them even.',
+        },
+        {
+          term: 'Host drafts',
+          body: 'everyone waits in a pool until you or your captains draft them or assign them by hand. Best when you know the players.',
+        },
+        {
+          term: 'Solo',
+          body: 'no teams at all. Every player is on their own, named after their character, and the standings rank players.',
+        },
       ],
       lockNote: {
         tag: 'The draft locks the roster',
@@ -1769,6 +1794,10 @@ export const en = {
           term: 'Payment deadline',
           body: 'after it passes, unpaid sign-ups stop being your problem to chase and start being a decision. Set it earlier than you think — the day before the event is too late to replace someone.',
         },
+        {
+          term: 'Guest fee',
+          body: 'what players who aren’t members of a clan running the board pay. Leave it blank and guests pay the member fee. To charge one player a different amount, press **Change this player’s fee** on their row in **Sign-ups**.',
+        },
       ],
       note: {
         tag: 'The pool follows the entries',
@@ -1781,6 +1810,7 @@ export const en = {
       body: [
         'Fees are collected the way your clan already collects money — in game, in Discord, however you do it. Anvil’s job starts the moment it arrives: somebody with staff access marks it **paid**, and that stamps who says they took it and when.',
         'Players have a say too. A member can report who they paid and attach a screenshot, which is what turns “I definitely paid” into a record with two ends. When the player’s report and the collector’s claim name different people, that is a dispute the site can show you rather than one you find out about in an argument.',
+        'Chasing is one button: **Remind unpaid** on Admin → **Fees** sends a Discord DM to everyone on that event who still owes.',
       ],
       note: {
         tag: 'The proof is deleted on purpose',
@@ -2434,7 +2464,7 @@ export const en = {
         },
         {
           term: 'Kick followers',
-          body: 'Kick won’t tell apps who follows you, so Anvil counts people who follow _after_ you connect Kick. Followed before that? The viewer unfollows and follows again.',
+          body: 'Kick won’t tell apps who follows you, so Anvil counts people who follow _after_ you connect Kick. Followed before that? The viewer unfollows and follows again. Is your Kick chat followers-only? Turn on **My Kick chat is followers-only** in the **Kick channel** box. Then a viewer who types their Anvil code in your chat counts as a follower.',
         },
         {
           term: 'Kick subs',
@@ -2475,7 +2505,7 @@ export const en = {
     channels: {
       title: 'Connect your Twitch, Kick or YouTube',
       body: [
-        'Open **Settings** in the menu. Under your space’s name, press **Connect Twitch**, **Connect YouTube** or **Connect Kick**, and sign in as your channel.',
+        'Open **Settings** in the menu. In the **Twitch channel**, **YouTube channel** or **Kick channel** box, press **Connect Twitch**, **Connect YouTube** or **Connect Kick**, and sign in as your channel.',
         'Each channel you connect shows on your page as a **verified** link. You can’t type a link in by hand: signing in is how Anvil knows the channel is yours.',
         'A channel can be connected to one place on Anvil. If it is already on another space or clan you run, Anvil asks if you want to move it.',
       ],
@@ -2509,11 +2539,42 @@ export const en = {
       body: [
         'Open **Settings** → **!join in Twitch chat** and turn it on.',
         'When a viewer types `!join`, the Anvil bot (Anvil_OSRS) replies with the link to your open event. It answers once every 30 seconds at most, however many people type it.',
-        'It only answers in a channel you connected in step 7. It works in Kick chat too, once your Kick channel is connected.',
+        'It only answers in a channel you connected in step 7. For Kick, turn on **!join in Kick chat** in the **Kick channel** box.',
         'No event open? It says so: “No event is open to join right now — keep an eye on the stream!”',
       ],
       tips: [
         'If your chat blocks links (Twitch’s **Block hyperlinks** or AutoMod), the bot’s reply gets held. Type `/vip anvil_osrs` or `/mod anvil_osrs` in your chat once so its link gets through.',
+        'Working on an event? **Space settings** in the event’s menu takes you back to these switches. So does **Switch it on in your settings** under **Who can join?**.',
+      ],
+    },
+
+    page: {
+      title: 'Make your page yours',
+      body: [
+        'Your page is what people see at `{apex}/c/your-name`, along with your events. Open **Settings** → **Your page**. Each part has its own save button.',
+      ],
+      items: [
+        '**Bio.** A few lines about you and your streams. Links that start with `https://` can be clicked.',
+        '**Logo and banner.** Press **Upload a logo** or **Upload a banner**. The banner goes across the top of your page, so make it wide (3:1, for example 1500 × 500). PNG, JPEG, GIF or WebP. Both may be animated.',
+        '**Panels.** Up to 8 cards under your events, like the panels under a Twitch channel. Press **+ Add a panel** and give it a title and some text. A picture and a link are optional. Use the arrows to change the order.',
+        '**Schedule.** When you usually go live, in your own time zone. Visitors see each time on their own clock.',
+        '**Featured.** One clip pinned to the top of your page. Pick one of your stream highlights (next step), or paste a clip link from Twitch, YouTube, Kick or Medal.',
+        'Press **Preview your page** to see it the way visitors do.',
+      ],
+      note: {
+        tag: 'Jagex’s rules',
+        body: 'Everything on your page must follow Jagex’s rules: no gold or account selling, no gambling, no bots and no private servers. Anvil checks your words and links when you save. If Anvil staff hide your page after a report, your settings say so. Ask on the Anvil Discord if you think it’s a mistake.',
+      },
+    },
+
+    highlights: {
+      title: 'Stream highlights',
+      body: [
+        'With your Twitch or YouTube channel connected, Anvil catches the big moments of your events while you are live. The switches are in **Settings** → **Stream highlights**.',
+        '**Auto-clip big moments on my stream** is on as soon as you connect. While you are live on Twitch, Anvil makes a clip when one of your events starts, when a team clears the board or wins, and when your own character gets a rare drop or a pet. On YouTube it saves a link to that second of your stream instead. Kick has no highlights yet.',
+        'The clips show under **Highlights** on the event page and on your page. You can pin one as your **Featured** clip (step 10).',
+        '**Let Anvil feature clips from my events in its own promotion** stays off until you turn it on. Then Anvil may share a clip on its own pages and socials, and always credits you.',
+        'Your players can clip their own big moments too. They turn on **Clip my stream when I hit a big moment** under their Twitch account in **Settings** → **Connected accounts**.',
       ],
     },
 
@@ -2523,6 +2584,7 @@ export const en = {
         'Your space is unlisted when you make it. Only people with your link can find it.',
         'Open **Settings** → **Advertise on Anvil** and turn it on. Your space shows in Anvil’s creators list, and your new events show on `{apex}/events`.',
         'To list one event only, open its **Settings** → **Who can play** → **Advertise on Anvil**. It shows while the event is upcoming or live.',
+        'An event with no dates shows under **Open to join**, marked “Open now · starts when the host starts it”.',
       ],
     },
 
@@ -2572,6 +2634,14 @@ export const en = {
         {
           term: 'Can I make a second space?',
           body: 'One space per Discord account for now. Get in touch if you need another.',
+        },
+        {
+          term: 'Where are my space’s settings?',
+          body: 'Press **Settings** in the menu. From inside an event, press **Space settings** in the event’s menu.',
+        },
+        {
+          term: 'What does the **Report** button on my page do?',
+          body: 'Anyone signed in can report your page, a panel, an event or a highlight to Anvil staff. Reports go to staff only. If staff hide your bio, panels, schedule or featured clip, your settings say so.',
         },
       ],
     },
@@ -2658,6 +2728,8 @@ export const en = {
       body: [
         'The Twitch, YouTube and Kick accounts you linked are in [Settings → Connected accounts](/settings/connections). You can link them there before you join, too.',
         'Unlink one any time. Events you already joined keep you. A gated event you join later asks you to link again.',
+        'Linked Twitch, YouTube and Kick accounts show on your profile with a verified tick: you proved they are yours. Turn off **Show on my profile** to hide one. A Medal link is different. You paste it yourself, so it has no tick.',
+        'Stream on Twitch yourself? Turn on **Clip my stream when I hit a big moment** under your Twitch account. While you are live in a streamer’s event, Anvil clips your rare drops, pets and finished tiles.',
       ],
     },
 
@@ -2692,6 +2764,14 @@ export const en = {
         {
           term: 'My drops aren’t showing.',
           body: 'Check the plugin is installed and signed in, and that you joined with the character you are playing. See the [plugin guide]({pluginGuide}).',
+        },
+        {
+          term: 'Where can I find more events like this?',
+          body: '[The events page](/events) lists events anyone can join, including streamers’ events that are open right now.',
+        },
+        {
+          term: 'Something on a streamer’s page breaks the rules.',
+          body: 'Press **Report** on the page, the event or the highlight. Pick what’s wrong and press **Send**. It goes to Anvil staff only. The streamer is never told who reported it.',
         },
       ],
     },
@@ -2740,6 +2820,7 @@ export const en = {
         'The streamer tools work the same as in a creator space: verified channel links, **Who can join?** checks, the OBS overlay and `!join` in chat.',
         'The overlay links for a clan event are in the event’s **Settings**, under **Who can play** → **Stream overlay**. `!join` and the overlay mark are under **Clan settings** → **Streaming**.',
         'The [creator guide]({creatorsGuide}) explains each one step by step.',
+        'Stream highlights work here too: with Twitch or YouTube connected, Anvil clips the big moments of events open to viewers. `!join` in Kick chat has its own switch in the **Kick channel** box.',
       ],
     },
 

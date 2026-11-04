@@ -249,6 +249,7 @@ const ko: PartialGuideDict = {
       body: [
         'Discord 계정이 필요하고, 목록은 그게 전부입니다. 먼저 `{apex}`에서 로그인하세요. 클랜에는 소유자가 있어야 하고, 로그인이 바로 그게 당신이라는 걸 사이트에 알려주는 방법입니다. 플랫폼 페이지의 **클랜 만들기**에서 시작하거나 `{apex}/clans/new`로 바로 가세요.',
         '비용은 들지 않습니다. 고를 요금제도, 입력할 카드도, 만료되면서 보드까지 가져가는 체험 기간도 없습니다 — 클랜은 무료로 시작해 그대로 쓸 수 있습니다.',
+        '큰 클랜은 나중에 관리의 **Plan and billing**에서 요금제를 올릴 수 있습니다. Anvil에서 결제하는 모든 것 — 클랜, 크리에이터 스페이스, 당신의 Supporter 멤버십 — 은 [결제 페이지](/portal)에 있습니다.',
       ],
       note: {
         tag: '당신이 소유자가 됩니다',
@@ -854,6 +855,10 @@ const ko: PartialGuideDict = {
           term: '`Anvil: reconnected — tracking is back on.`',
           body: '아무것도 하지 않아도 됩니다. 알아서 복구되었습니다.',
         },
+        {
+          term: '“<RSN> belongs to another Anvil player”',
+          body: '다른 사람이 먼저 Anvil에 이 캐릭터를 연결해서, 당신의 로그인으로는 아무것도 집계되지 않습니다. 정말 당신 캐릭터라면 패널의 **You** 탭에서 **This is my account**를 누르고 간단한 XP 확인을 통과하세요. 그러면 현재 소유자에게 묻거나 Anvil 스태프가 결정합니다. 상대가 누구인지는 알 수 없습니다. 진행 상황은 [Settings → Ownership claims](/settings/claims)에서 확인하세요.',
+        },
       ],
       logHeading: '그래도 막혔다면 관리자에게 로그를 보내세요',
       logBody:
@@ -1054,6 +1059,26 @@ const ko: PartialGuideDict = {
       body: [
         '**Teams & Draft** 탭은 고른 형식에 맞춰 달라집니다: 팀을 쓰지 않는 형식이라면 통째로 건너뜁니다. 보통의 팀 빙고라면 팀을 만들고, 누가 주장인지 정하고, 직접 배분하거나 실시간 드래프트를 돌립니다.',
         '주장들은 당신이 정한 순서대로 신청자 풀에서 뽑고, 각 주장은 신청서에 적힌 답변을 볼 수 있습니다 —— 제출된 그대로 얼어붙어 있어서, 뽑힌 뒤에 “주당 시간”을 고칠 수는 없습니다.',
+      ],
+      placementIntro:
+        '드래프트를 꼭 할 필요는 없습니다. 생성 양식과 **Sign-ups** 탭에 있는 **Team placement**가 새 신청자가 어디로 갈지 정합니다:',
+      placementRows: [
+        {
+          term: 'Auto-balance',
+          body: '신청한 사람은 인원이 가장 적은 팀에 들어갑니다. 당신은 팀 수만 정하면 됩니다. 큰 공개 이벤트에 좋습니다.',
+        },
+        {
+          term: 'Players pick',
+          body: '먼저 팀을 만들고, 각 플레이어가 신청서에서 팀을 하나 고릅니다. 팀마다 인원 한도를 두면 고르게 유지됩니다.',
+        },
+        {
+          term: 'Host drafts',
+          body: '모두 풀에서 기다리다가, 당신이나 주장이 드래프트하거나 직접 배정합니다. 플레이어를 잘 알 때 가장 좋습니다.',
+        },
+        {
+          term: 'Solo',
+          body: '팀이 전혀 없습니다. 모든 플레이어가 혼자이고, 캐릭터 이름으로 표시되며, 순위도 플레이어별로 매깁니다.',
+        },
       ],
       lockNote: {
         tag: '드래프트가 구성을 고정합니다',
@@ -1789,6 +1814,10 @@ const ko: PartialGuideDict = {
           term: '납부 마감',
           body: '이 시각이 지나면 미납 신청은 “쫓아다닐 대상”이 아니라 “판단할 대상”이 됩니다. 생각보다 이르게 잡으세요 —— 이벤트 전날은 대체자를 구하기엔 너무 늦습니다.',
         },
+        {
+          term: '게스트 참가비',
+          body: '보드를 운영하는 클랜의 멤버가 아닌 플레이어가 내는 금액입니다. 비워 두면 게스트도 멤버 참가비를 냅니다. 한 플레이어만 다른 금액을 받으려면 **Sign-ups**에서 그 사람 줄의 **Change this player’s fee**를 누르세요.',
+        },
       ],
       note: {
         tag: '풀은 신청을 따라갑니다',
@@ -1801,6 +1830,7 @@ const ko: PartialGuideDict = {
       body: [
         '참가비는 클랜이 원래 돈을 걷던 방식 그대로 걷으면 됩니다 —— 게임 안에서든, Discord에서든. Anvil의 일은 돈이 도착한 순간부터 시작됩니다: 운영 권한이 있는 누군가가 **납부 완료**로 표시하면, 누가 받았다고 말하는지와 그 시각이 새겨집니다.',
         '플레이어에게도 발언권이 있습니다. 멤버는 누구에게 냈는지 신고하고 스크린샷을 붙일 수 있습니다 —— 바로 그것이 “분명히 냈다”를 양쪽 끝이 있는 기록으로 바꿉니다. 플레이어의 신고와 수령자의 주장이 서로 다른 사람을 가리키면, 그건 다툼 도중에 알게 되는 불일치가 아니라 사이트가 당신에게 보여 줄 수 있는 불일치가 됩니다.',
+        '독촉은 버튼 하나면 됩니다: 관리 → **Fees**의 **Remind unpaid**가 그 이벤트에서 아직 내지 않은 모두에게 Discord DM을 보냅니다.',
       ],
       note: {
         tag: '증빙은 의도적으로 삭제됩니다',
@@ -2445,7 +2475,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: 'Kick followers',
-          body: 'Kick은 앱에 누가 팔로우하는지 알려 주지 않아서, Anvil은 Kick을 연결한 「뒤에」 팔로우한 사람을 셉니다. 그 전에 팔로우했다면 시청자가 언팔로우했다가 다시 팔로우하면 됩니다.',
+          body: 'Kick은 앱에 누가 팔로우하는지 알려 주지 않아서, Anvil은 Kick을 연결한 「뒤에」 팔로우한 사람을 셉니다. 그 전에 팔로우했다면 시청자가 언팔로우했다가 다시 팔로우하면 됩니다. Kick 채팅이 팔로워 전용인가요? **Kick channel** 칸에서 **My Kick chat is followers-only**를 켜세요. 그러면 채팅에 Anvil 코드를 입력한 시청자가 팔로워로 집계됩니다.',
         },
         {
           term: 'Kick subs',
@@ -2486,7 +2516,7 @@ const ko: PartialGuideDict = {
     channels: {
       title: 'Twitch, Kick, YouTube 연결하기',
       body: [
-        '메뉴에서 **Settings**를 여세요. 스페이스 이름 아래에서 **Connect Twitch**, **Connect YouTube**, **Connect Kick**을 누르고 내 채널로 로그인하세요.',
+        '메뉴에서 **Settings**를 여세요. **Twitch channel**, **YouTube channel**, **Kick channel** 칸에서 **Connect Twitch**, **Connect YouTube**, **Connect Kick**을 누르고 내 채널로 로그인하세요.',
         '연결한 채널은 내 페이지에 **verified** 링크로 보입니다. 링크를 직접 입력할 수는 없어요: 로그인이 그 채널이 내 것임을 Anvil이 아는 방법입니다.',
         '채널은 Anvil의 한 곳에만 연결할 수 있어요. 이미 내가 운영하는 다른 스페이스나 클랜에 연결돼 있으면 옮길지 Anvil이 물어봅니다.',
       ],
@@ -2520,11 +2550,42 @@ const ko: PartialGuideDict = {
       body: [
         '**Settings** → **!join in Twitch chat**을 열고 켜세요.',
         '시청자가 `!join`을 입력하면 Anvil 봇(Anvil_OSRS)이 열려 있는 이벤트의 링크로 답합니다. 몇 명이 입력해도 30초에 한 번만 답해요.',
-        '연결한 채널(7단계)에서만 답합니다. Kick 채널을 연결하면 Kick 채팅에서도 동작해요.',
+        '연결한 채널(7단계)에서만 답합니다. Kick은 **Kick channel** 칸에서 **!join in Kick chat**을 켜세요.',
         '열려 있는 이벤트가 없으면 그렇게 알려 줍니다: “No event is open to join right now — keep an eye on the stream!”',
       ],
       tips: [
         '채팅에서 링크를 차단하고 있다면(Twitch의 **Block hyperlinks** 또는 AutoMod) 봇의 답장이 보류됩니다. 채팅에 `/vip anvil_osrs` 또는 `/mod anvil_osrs`를 한 번 입력하면 링크가 올라갑니다.',
+        '이벤트를 작업 중인가요? 이벤트 메뉴의 **Space settings**를 누르면 이 스위치로 돌아옵니다. **Who can join?** 아래의 **Switch it on in your settings**로도 돌아올 수 있어요.',
+      ],
+    },
+
+    page: {
+      title: '내 페이지 꾸미기',
+      body: [
+        '내 페이지는 사람들이 `{apex}/c/your-name`에서 내 이벤트와 함께 보는 곳이에요. **Settings** → **Your page**를 여세요. 부분마다 저장 버튼이 따로 있습니다.',
+      ],
+      items: [
+        '**Bio.** 나와 내 방송에 대한 몇 줄. `https://`로 시작하는 링크는 클릭할 수 있어요.',
+        '**Logo and banner.** **Upload a logo** 또는 **Upload a banner**를 누르세요. 배너는 페이지 맨 위를 가로지르니 가로로 길게 만드세요(3:1, 예: 1500 × 500). PNG, JPEG, GIF, WebP. 둘 다 움직이는 이미지여도 됩니다.',
+        '**Panels.** 이벤트 아래에 놓는 카드 최대 8장. Twitch 채널 아래의 패널과 같아요. **+ Add a panel**을 누르고 제목과 글을 넣으세요. 사진과 링크는 선택입니다. 화살표로 순서를 바꿔요.',
+        '**Schedule.** 보통 방송하는 시간을 내 시간대로. 방문자에게는 각자의 시계 기준으로 보입니다.',
+        '**Featured.** 페이지 맨 위에 고정하는 클립 하나. 내 방송 하이라이트(다음 단계)에서 고르거나, Twitch, YouTube, Kick, Medal의 클립 링크를 붙여 넣으세요.',
+        '**Preview your page**를 누르면 방문자가 보는 그대로 볼 수 있어요.',
+      ],
+      note: {
+        tag: 'Jagex의 규칙',
+        body: '페이지의 모든 내용은 Jagex의 규칙을 따라야 해요: 골드나 계정 판매, 도박, 봇, 사설 서버는 안 됩니다. 저장할 때 Anvil이 글과 링크를 확인합니다. 신고를 받고 Anvil 스태프가 페이지를 숨기면 설정에 그렇게 표시돼요. 실수라고 생각되면 Anvil Discord에서 물어보세요.',
+      },
+    },
+
+    highlights: {
+      title: '방송 하이라이트',
+      body: [
+        'Twitch나 YouTube 채널을 연결해 두면, 방송 중에 내 이벤트의 큰 순간을 Anvil이 잡아냅니다. 스위치는 **Settings** → **Stream highlights**에 있어요.',
+        '**Auto-clip big moments on my stream**은 연결하는 즉시 켜져 있어요. Twitch에서 방송 중이면 이벤트가 시작될 때, 팀이 보드를 다 채우거나 이길 때, 내 캐릭터가 희귀 드롭이나 펫을 얻을 때 Anvil이 클립을 만듭니다. YouTube에서는 대신 방송의 그 초로 가는 링크를 저장해요. Kick은 아직 하이라이트가 없습니다.',
+        '클립은 이벤트 페이지와 내 페이지의 **Highlights**에 보여요. 하나를 **Featured** 클립으로 고정할 수 있습니다(10단계).',
+        '**Let Anvil feature clips from my events in its own promotion**은 직접 켤 때까지 꺼져 있어요. 켜면 Anvil이 자체 페이지와 SNS에서 클립을 공유할 수 있고, 항상 당신을 출처로 밝힙니다.',
+        '플레이어도 자기 큰 순간을 클립할 수 있어요. **Settings** → **Connected accounts**에서 자기 Twitch 계정 아래의 **Clip my stream when I hit a big moment**를 켜면 됩니다.',
       ],
     },
 
@@ -2534,6 +2595,7 @@ const ko: PartialGuideDict = {
         '스페이스는 만들 때 비공개 목록 상태예요. 링크가 있는 사람만 찾을 수 있습니다.',
         '**Settings** → **Advertise on Anvil**을 열고 켜세요. 스페이스가 Anvil 클랜 디렉터리에 보이고, 새 이벤트는 `{apex}/events`에 보입니다.',
         '이벤트 하나만 등록하려면 그 이벤트의 **Settings** → **Who can play** → **Advertise on Anvil**을 여세요. 예정 중이거나 진행 중일 때 보입니다.',
+        '날짜가 없는 이벤트는 **Open to join** 아래에 “Open now · starts when the host starts it”라고 표시됩니다.',
       ],
     },
 
@@ -2583,6 +2645,14 @@ const ko: PartialGuideDict = {
         {
           term: '스페이스를 하나 더 만들 수 있나요?',
           body: '지금은 Discord 계정 하나당 스페이스 하나예요. 하나 더 필요하면 문의해 주세요.',
+        },
+        {
+          term: '스페이스 설정은 어디에 있나요?',
+          body: '메뉴에서 **Settings**를 누르세요. 이벤트 안에서는 이벤트 메뉴의 **Space settings**를 누르세요.',
+        },
+        {
+          term: '내 페이지의 **Report** 버튼은 무엇을 하나요?',
+          body: '로그인한 사람은 누구나 내 페이지, 패널, 이벤트, 하이라이트를 Anvil 스태프에게 신고할 수 있어요. 신고는 스태프에게만 갑니다. 스태프가 소개, 패널, 일정, Featured 클립을 숨기면 설정에 그렇게 표시돼요.',
         },
       ],
     },
@@ -2667,6 +2737,8 @@ const ko: PartialGuideDict = {
       body: [
         '연결한 Twitch, YouTube, Kick 계정은 [Settings → Connected accounts](/settings/connections)에 있어요. 참여하기 전에 여기서 미리 연결해도 됩니다.',
         '언제든 연결을 끊을 수 있어요. 이미 참여한 이벤트는 그대로입니다. 나중에 참여하는 제한 이벤트는 다시 연결하라고 합니다.',
+        '연결한 Twitch, YouTube, Kick 계정은 프로필에 인증 표시와 함께 보여요: 내 것임을 증명했다는 뜻입니다. 숨기려면 **Show on my profile**을 끄세요. Medal 링크는 달라요. 직접 붙여 넣는 것이라 인증 표시가 없습니다.',
+        '직접 Twitch에서 방송하나요? Twitch 계정 아래의 **Clip my stream when I hit a big moment**를 켜세요. 스트리머의 이벤트에서 방송 중일 때 Anvil이 희귀 드롭, 펫, 완료한 타일을 클립합니다.',
       ],
     },
 
@@ -2701,6 +2773,14 @@ const ko: PartialGuideDict = {
         {
           term: '드롭이 안 보여요.',
           body: '플러그인이 설치되어 로그인되어 있는지, 지금 플레이하는 캐릭터로 참여했는지 확인하세요. [플러그인 가이드]({pluginGuide})를 보세요.',
+        },
+        {
+          term: '이런 이벤트를 더 찾으려면 어디로 가나요?',
+          body: '[이벤트 페이지](/events)에 누구나 참여할 수 있는 이벤트가 있어요. 지금 열려 있는 스트리머 이벤트도 포함됩니다.',
+        },
+        {
+          term: '스트리머 페이지에 규칙을 어기는 내용이 있어요.',
+          body: '페이지, 이벤트, 하이라이트에서 **Report**를 누르세요. 무엇이 문제인지 고르고 **Send**를 누르세요. Anvil 스태프에게만 갑니다. 누가 신고했는지 스트리머는 절대 알 수 없어요.',
         },
       ],
     },
@@ -2748,6 +2828,7 @@ const ko: PartialGuideDict = {
         '스트리머 도구는 크리에이터 스페이스와 똑같이 동작해요: 인증된 채널 링크, **Who can join?** 확인, OBS 오버레이, 채팅의 `!join`.',
         '클랜 이벤트의 오버레이 링크는 이벤트의 **Settings**, **Who can play** → **Stream overlay**에 있어요. `!join`과 오버레이 마크는 **Clan settings** → **Streaming**에 있습니다.',
         '[크리에이터 가이드]({creatorsGuide})가 하나씩 차근차근 설명해 줍니다.',
+        '방송 하이라이트도 여기서 동작해요: Twitch나 YouTube를 연결하면, 시청자에게 열린 이벤트의 큰 순간을 Anvil이 클립합니다. Kick 채팅의 `!join`은 **Kick channel** 칸에 따로 스위치가 있어요.',
       ],
     },
 

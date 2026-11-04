@@ -65,7 +65,7 @@ export const GUIDE_OUTLINES: Record<string, GuideOutline> = {
   creators: {
     ns: 'creators',
     page: 'creators',
-    sections: ['what', 'create', 'first', 'share', 'who', 'approve', 'channels', 'overlay', 'chatjoin', 'listing', 'plans', 'faq'],
+    sections: ['what', 'create', 'first', 'share', 'who', 'approve', 'channels', 'overlay', 'chatjoin', 'page', 'highlights', 'listing', 'plans', 'faq'],
   },
   joining: { ns: 'joiningStream', page: 'joining-a-streamer-event', sections: ['join', 'gated', 'plugin', 'play', 'accounts', 'faq'] },
   streamingclans: { ns: 'streamingClans', page: 'streaming-for-clans', sections: ['on', 'event', 'viewers', 'tools', 'faq'] },

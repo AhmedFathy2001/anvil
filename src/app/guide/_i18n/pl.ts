@@ -250,6 +250,7 @@ const pl: PartialGuideDict = {
       body: [
         'Potrzebujesz konta Discord i to cała lista. Najpierw zaloguj się na `{apex}`: klan musi mieć właściciela, a logowanie jest tym, po czym strona wie, że to ty. Zacznij od **Załóż klan** na stronach platformy albo wejdź prosto na `{apex}/clans/new`.',
         'To nic nie kosztuje. Nie ma planu do wyboru, karty do wpisania ani okresu próbnego, który wygasa i zabiera twoją planszę — klan startuje za darmo i pozostaje używalny.',
+        'Duże klany mogą później przejść na wyższy plan w **Plan and billing** w panelu Admin. Wszystko, za co płacisz w Anvil — klan, przestrzeń twórcy albo własne członkostwo Supporter — jest na [twojej stronie płatności](/portal).',
       ],
       note: {
         tag: 'Zostaniesz jego właścicielem',
@@ -847,6 +848,10 @@ const pl: PartialGuideDict = {
           term: '`Anvil: reconnected — tracking is back on.`',
           body: 'Nic. Naprawiło się samo.',
         },
+        {
+          term: '„<RSN> belongs to another Anvil player”',
+          body: 'Ktoś inny pierwszy połączył tę postać w Anvil, więc nic z twojego logowania się dla niej nie liczy. Jeśli naprawdę jest twoja, kliknij **This is my account** w zakładce **You** panelu i przejdź szybką weryfikację XP. Wtedy pytany jest obecny właściciel albo decyduje staff Anvil. Nigdy nie dowiesz się, kto to jest. Śledź sprawę w [Settings → Ownership claims](/settings/claims).',
+        },
       ],
       logHeading: 'Dalej nie działa? Wyślij adminowi log',
       logBody:
@@ -1038,6 +1043,26 @@ const pl: PartialGuideDict = {
       body: [
         'Zakładka **Teams & Draft** dopasowuje się do wybranego formatu: format, który nie używa drużyn, po prostu ją pomija. Przy zwykłym drużynowym bingo tworzysz drużyny, decydujesz, kto nimi kapitanuje, i albo sam przydzielasz graczy, albo prowadzisz draft na żywo.',
         'Kapitanowie draftują z puli zapisanych w ustalonej przez ciebie kolejności, a każdy widzi odpowiedzi z formularza zapisu —— zamrożone w postaci, w jakiej zostały wysłane, żeby nikt nie poprawiał swoich „godzin tygodniowo” po tym, jak został wybrany.',
+      ],
+      placementIntro:
+        'Nie musisz robić draftu. **Team placement**, w formularzu tworzenia i w zakładce **Sign-ups**, decyduje, gdzie trafia każda nowa zapisana osoba:',
+      placementRows: [
+        {
+          term: 'Auto-balance',
+          body: 'każda zapisana osoba trafia do drużyny z najmniejszą liczbą graczy. Wybierasz tylko, ile ma być drużyn. Dobre na duże publiczne wydarzenia.',
+        },
+        {
+          term: 'Players pick',
+          body: 'najpierw tworzysz drużyny, a każdy gracz wybiera jedną w formularzu zapisu. Ustaw limit na drużynę, żeby były równe.',
+        },
+        {
+          term: 'Host drafts',
+          body: 'wszyscy czekają w puli, aż ty lub twoi kapitanowie wybierzecie ich w drafcie albo przydzielicie ręcznie. Najlepsze, gdy znasz graczy.',
+        },
+        {
+          term: 'Solo',
+          body: 'żadnych drużyn. Każdy gracz gra sam, pod nazwą swojej postaci, a ranking pokazuje graczy.',
+        },
       ],
       lockNote: {
         tag: 'Draft blokuje skład',
@@ -1771,6 +1796,10 @@ const pl: PartialGuideDict = {
           term: 'Termin płatności',
           body: 'gdy minie, nieopłacone zapisy przestają być problemem do ścigania, a stają się decyzją. Ustaw go wcześniej, niż ci się wydaje —— dzień przed wydarzeniem jest za późno, żeby kogoś zastąpić.',
         },
+        {
+          term: 'Guest fee',
+          body: 'ile płacą gracze, którzy nie są członkami klanu prowadzącego planszę. Zostaw puste, a goście zapłacą tyle co członkowie. Żeby naliczyć jednemu graczowi inną kwotę, kliknij **Change this player’s fee** w jego wierszu w **Sign-ups**.',
+        },
       ],
       note: {
         tag: 'Pula podąża za zapisami',
@@ -1783,6 +1812,7 @@ const pl: PartialGuideDict = {
       body: [
         'Wpisowe zbiera się tak, jak twój klan już zbiera pieniądze —— w grze, na Discordzie, jak wolicie. Robota Anvil zaczyna się w chwili, gdy pieniądze dotrą: ktoś z dostępem sztabu oznacza je jako **paid**, a to odciska, kto mówi, że je wziął, i kiedy.',
         'Gracze też mają głos. Członek może zgłosić, komu zapłacił, i dołączyć zrzut, i to właśnie zamienia „na pewno zapłaciłem” w zapis z dwoma końcami. Gdy zgłoszenie gracza i deklaracja zbierającego wskazują różne osoby, to rozbieżność, którą strona może ci pokazać, zamiast takiej, o której dowiadujesz się w kłótni.',
+        'Przypominanie to jeden przycisk: **Remind unpaid** w Admin → **Fees** wysyła prywatną wiadomość na Discordzie do każdego, kto wciąż nie zapłacił za to wydarzenie.',
       ],
       note: {
         tag: 'Dowód jest celowo kasowany',
@@ -2427,7 +2457,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Kick followers',
-          body: 'Kick nie mówi aplikacjom, kto cię obserwuje, więc Anvil liczy osoby, które zaczną obserwować _po_ połączeniu Kicka. Obserwował wcześniej? Widz przestaje obserwować i obserwuje od nowa.',
+          body: 'Kick nie mówi aplikacjom, kto cię obserwuje, więc Anvil liczy osoby, które zaczną obserwować _po_ połączeniu Kicka. Obserwował wcześniej? Widz przestaje obserwować i obserwuje od nowa. Twój czat Kicka jest tylko dla obserwujących? Włącz **My Kick chat is followers-only** w polu **Kick channel**. Wtedy widz, który wpisze swój kod Anvil na twoim czacie, liczy się jako obserwujący.',
         },
         {
           term: 'Kick subs',
@@ -2468,7 +2498,7 @@ const pl: PartialGuideDict = {
     channels: {
       title: 'Połącz swój Twitch, Kick lub YouTube',
       body: [
-        'Otwórz **Settings** w menu. Pod nazwą swojej przestrzeni kliknij **Connect Twitch**, **Connect YouTube** albo **Connect Kick** i zaloguj się jako twój kanał.',
+        'Otwórz **Settings** w menu. W polu **Twitch channel**, **YouTube channel** albo **Kick channel** kliknij **Connect Twitch**, **Connect YouTube** albo **Connect Kick** i zaloguj się jako twój kanał.',
         'Każdy połączony kanał pokazuje się na twojej stronie jako link **verified**. Nie da się wpisać linku ręcznie: logowanie to sposób, w jaki Anvil wie, że kanał jest twój.',
         'Kanał można połączyć tylko z jednym miejscem w Anvil. Jeśli jest już w innej przestrzeni lub klanie, który prowadzisz, Anvil zapyta, czy go przenieść.',
       ],
@@ -2502,11 +2532,42 @@ const pl: PartialGuideDict = {
       body: [
         'Otwórz **Settings** → **!join in Twitch chat** i włącz to.',
         'Gdy widz wpisze `!join`, bot Anvil (Anvil_OSRS) odpowie linkiem do twojego otwartego wydarzenia. Odpowiada co najwyżej raz na 30 sekund, bez względu na to, ile osób to wpisze.',
-        'Odpowiada tylko na kanale, który połączyłeś w kroku 7. Działa też na czacie Kicka, gdy twój kanał Kick jest połączony.',
+        'Odpowiada tylko na kanale, który połączyłeś w kroku 7. Dla Kicka włącz **!join in Kick chat** w polu **Kick channel**.',
         'Brak otwartego wydarzenia? Bot to powie: „No event is open to join right now — keep an eye on the stream!”',
       ],
       tips: [
         'Jeśli twój czat blokuje linki (**Block hyperlinks** na Twitchu lub AutoMod), odpowiedź bota zostanie wstrzymana. Wpisz raz `/vip anvil_osrs` albo `/mod anvil_osrs` na czacie, żeby link przechodził.',
+        'Pracujesz nad wydarzeniem? **Space settings** w menu wydarzenia zabierze cię z powrotem do tych przełączników. Tak samo **Switch it on in your settings** pod **Who can join?**.',
+      ],
+    },
+
+    page: {
+      title: 'Zrób swoją stronę po swojemu',
+      body: [
+        'Twoja strona to to, co ludzie widzą pod `{apex}/c/your-name`, razem z twoimi wydarzeniami. Otwórz **Settings** → **Your page**. Każda część ma własny przycisk zapisu.',
+      ],
+      items: [
+        '**Bio.** Kilka zdań o tobie i twoich streamach. Linki zaczynające się od `https://` są klikalne.',
+        '**Logo and banner.** Kliknij **Upload a logo** albo **Upload a banner**. Baner biegnie przez całą górę strony, więc zrób go szerokim (3:1, na przykład 1500 × 500). PNG, JPEG, GIF lub WebP. Oba mogą być animowane.',
+        '**Panels.** Do 8 kart pod twoimi wydarzeniami, jak panele pod kanałem na Twitchu. Kliknij **+ Add a panel** i daj mu tytuł i trochę tekstu. Obrazek i link są opcjonalne. Strzałkami zmienisz kolejność.',
+        '**Schedule.** Kiedy zwykle wchodzisz na live, w twojej strefie czasowej. Odwiedzający widzą każdą godzinę według własnego zegara.',
+        '**Featured.** Jeden klip przypięty na górze strony. Wybierz jeden z highlightów twojego streama (następny krok) albo wklej link do klipu z Twitcha, YouTube, Kicka lub Medal.',
+        'Kliknij **Preview your page**, żeby zobaczyć ją tak, jak widzą ją odwiedzający.',
+      ],
+      note: {
+        tag: 'Zasady Jagexu',
+        body: 'Wszystko na twojej stronie musi przestrzegać zasad Jagexu: żadnej sprzedaży złota ani kont, żadnego hazardu, żadnych botów ani prywatnych serwerów. Anvil sprawdza twoje teksty i linki przy zapisie. Jeśli staff Anvil ukryje twoją stronę po zgłoszeniu, zobaczysz to w ustawieniach. Zapytaj na Discordzie Anvil, jeśli uważasz, że to pomyłka.',
+      },
+    },
+
+    highlights: {
+      title: 'Highlighty ze streama',
+      body: [
+        'Gdy twój kanał Twitch lub YouTube jest połączony, Anvil łapie wielkie momenty twoich wydarzeń, kiedy jesteś na live. Przełączniki są w **Settings** → **Stream highlights**.',
+        '**Auto-clip big moments on my stream** jest włączone od razu po połączeniu. Gdy jesteś na live na Twitchu, Anvil robi klip, kiedy startuje jedno z twoich wydarzeń, kiedy drużyna czyści planszę lub wygrywa i kiedy twoja postać dostaje rzadki drop albo peta. Na YouTube zamiast tego zapisuje link do tej sekundy streama. Kick nie ma jeszcze highlightów.',
+        'Klipy pokazują się w **Highlights** na stronie wydarzenia i na twojej stronie. Jeden możesz przypiąć jako klip **Featured** (krok 10).',
+        '**Let Anvil feature clips from my events in its own promotion** jest wyłączone, dopóki tego nie włączysz. Wtedy Anvil może udostępnić klip na swoich stronach i w social mediach, zawsze podając cię jako autora.',
+        'Twoi gracze też mogą klipować swoje wielkie momenty. Włączają **Clip my stream when I hit a big moment** pod swoim kontem Twitch w **Settings** → **Connected accounts**.',
       ],
     },
 
@@ -2516,6 +2577,7 @@ const pl: PartialGuideDict = {
         'Twoja przestrzeń jest po utworzeniu niepubliczna. Tylko osoby z twoim linkiem mogą ją znaleźć.',
         'Otwórz **Settings** → **Advertise on Anvil** i włącz to. Twoja przestrzeń pokaże się w katalogu klanów Anvil, a nowe wydarzenia na `{apex}/events`.',
         'Żeby pokazać tylko jedno wydarzenie, otwórz jego **Settings** → **Who can play** → **Advertise on Anvil**. Widać je, gdy wydarzenie jest nadchodzące lub trwa.',
+        'Wydarzenie bez dat pokazuje się w **Open to join** z dopiskiem „Open now · starts when the host starts it”.',
       ],
     },
 
@@ -2565,6 +2627,14 @@ const pl: PartialGuideDict = {
         {
           term: 'Czy mogę zrobić drugą przestrzeń?',
           body: 'Na razie jedna przestrzeń na konto Discord. Napisz do nas, jeśli potrzebujesz kolejnej.',
+        },
+        {
+          term: 'Gdzie są ustawienia mojej przestrzeni?',
+          body: 'Kliknij **Settings** w menu. Z wnętrza wydarzenia kliknij **Space settings** w menu wydarzenia.',
+        },
+        {
+          term: 'Co robi przycisk **Report** na mojej stronie?',
+          body: 'Każdy zalogowany może zgłosić staffowi Anvil twoją stronę, panel, wydarzenie albo highlight. Zgłoszenia trafiają tylko do staffu. Jeśli staff ukryje twoje bio, panele, harmonogram lub wyróżniony klip, zobaczysz to w ustawieniach.',
         },
       ],
     },
@@ -2649,6 +2719,8 @@ const pl: PartialGuideDict = {
       body: [
         'Konta Twitch, YouTube i Kick, które połączyłeś, są w [Settings → Connected accounts](/settings/connections). Możesz je tam połączyć jeszcze przed dołączeniem.',
         'Możesz odłączyć każde w każdej chwili. Wydarzenia, do których już dołączyłeś, cię zachowują. Wydarzenie z ograniczeniem, do którego dołączysz później, poprosi o ponowne połączenie.',
+        'Połączone konta Twitch, YouTube i Kick widać na twoim profilu ze znaczkiem weryfikacji: udowodniłeś, że są twoje. Wyłącz **Show on my profile**, żeby jedno ukryć. Link do Medal to co innego. Wklejasz go sam, więc nie ma znaczka.',
+        'Sam streamujesz na Twitchu? Włącz **Clip my stream when I hit a big moment** pod swoim kontem Twitch. Gdy jesteś na live w wydarzeniu streamera, Anvil klipuje twoje rzadkie dropy, pety i ukończone pola.',
       ],
     },
 
@@ -2683,6 +2755,14 @@ const pl: PartialGuideDict = {
         {
           term: 'Moje dropy się nie pokazują.',
           body: 'Sprawdź, czy plugin jest zainstalowany i zalogowany oraz czy dołączyłeś postacią, którą grasz. Zobacz [przewodnik po pluginie]({pluginGuide}).',
+        },
+        {
+          term: 'Gdzie znajdę więcej takich wydarzeń?',
+          body: '[Strona wydarzeń](/events) pokazuje wydarzenia, do których każdy może dołączyć, w tym otwarte teraz wydarzenia streamerów.',
+        },
+        {
+          term: 'Coś na stronie streamera łamie zasady.',
+          body: 'Kliknij **Report** na stronie, przy wydarzeniu albo przy highlighcie. Wybierz, co jest nie tak, i kliknij **Send**. Trafia to tylko do staffu Anvil. Streamer nigdy nie dowie się, kto zgłosił.',
         },
       ],
     },
@@ -2730,6 +2810,7 @@ const pl: PartialGuideDict = {
         'Narzędzia streamera działają tak samo jak w przestrzeni twórcy: zweryfikowane linki kanałów, sprawdzanie **Who can join?**, nakładka OBS i `!join` na czacie.',
         'Linki nakładki dla wydarzenia klanu są w **Settings** wydarzenia, w **Who can play** → **Stream overlay**. `!join` i znaczek nakładki są w **Clan settings** → **Streaming**.',
         '[Przewodnik dla twórców]({creatorsGuide}) tłumaczy każde z nich krok po kroku.',
+        'Highlighty ze streama też tu działają: gdy Twitch lub YouTube jest połączony, Anvil klipuje wielkie momenty wydarzeń otwartych dla widzów. `!join` na czacie Kicka ma własny przełącznik w polu **Kick channel**.',
       ],
     },
 
