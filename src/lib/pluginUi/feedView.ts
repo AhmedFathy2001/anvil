@@ -53,7 +53,9 @@ function pick(scopes: Scope[], key: string | undefined): Scope | null {
   return scopes.find((s) => s.kind === 'event') ?? scopes[0] ?? null;
 }
 
-const groupOf = (f: string): KindGroup | null => (f === 'drops' || f === 'pets' || f === 'tasks' ? f : null);
+// 'tasks' is the old name of 'achievements', for a panel still holding a chip from before.
+const groupOf = (f: string): KindGroup | null =>
+  f === 'drops' || f === 'pets' || f === 'achievements' ? f : f === 'tasks' ? 'achievements' : null;
 
 async function clanRows(clan: Extract<Scope, { kind: 'clan' }>, filter: string, viewer: number | null): Promise<{ rows: FeedRow[]; floor: number }> {
   const scope = await clanScopeFor(clan.id);
@@ -91,6 +93,8 @@ function asLike(m: MomentRow) {
     source: m.source,
     teamId: m.teamId,
     occurredAt: m.occurredAt,
+    tier: m.tier,
+    sourceKind: m.sourceKind,
   };
 }
 
@@ -151,7 +155,7 @@ export async function feedView(request: Request, a: Args): Promise<View> {
       filter,
       teamId,
       rows,
-      floorNote: `Drops ≥ ${formatGp(floor)} · pets · tasks`,
+      floorNote: `Drops ≥ ${formatGp(floor)} · pets · achievements`,
     }),
   };
 }

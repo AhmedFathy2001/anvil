@@ -4,6 +4,7 @@ import skillPets from '@/data/skillPets.json';
 import combatAchievements from '@/data/combatAchievements.json';
 import { BOSSES, metricKeys } from '@/lib/constants';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
+import { DEFAULT_LEVEL_RULES, levelPostMatches, type LevelPost, type LevelRules } from '@/lib/levelRules';
 
 /**
  * What counts as a moment, and which week or board it belongs to.
@@ -21,12 +22,67 @@ import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
  * directly (tests/moments.test.ts).
  */
 
-/** What we store. 'loot' is a haul that was notable for its price rather than its rarity. */
-export type MomentKind = 'pet' | 'unique' | 'death' | 'loot' | 'ca' | 'level';
+/**
+ * What we store. 'loot' is a haul that was notable for its price rather than its rarity.
+ *
+ * 'clog', 'diary' and 'quest' are ACHIEVEMENTS only the clan keeps (see {@link ACHIEVEMENT_KINDS}):
+ * a new collection-log slot, a completed achievement diary tier, a finished quest. No board or week
+ * claims them; they ride the same columns — `itemName` is the item / diary area / quest, `tier` the
+ * diary tier, `sourceKind` 'cape' on the quest that finished the quest cape.
+ */
+export type MomentKind = 'pet' | 'unique' | 'death' | 'loot' | 'ca' | 'level' | 'clog' | 'diary' | 'quest';
+
+/**
+ * A player's own milestones, kept for their clan whether or not anything is running: combat tasks
+ * (at the clan's tier), level milestones (the clan's level rules), new log slots, diaries and quests.
+ * Kept 30 days when no board or week holds them (momentsStore sweepClanAchievements).
+ */
+export const ACHIEVEMENT_KINDS = ['ca', 'level', 'clog', 'diary', 'quest'] as const;
+
+export function isAchievementKind(kind: string): boolean {
+  return (ACHIEVEMENT_KINDS as readonly string[]).includes(kind);
+}
+
+/** The achievement kinds no board or competition week claims: the clan scope is their only home. */
+const CLAN_ONLY_KINDS = new Set<string>(['clog', 'diary', 'quest']);
+
+/** Achievement diary tiers, as the completion line names them. */
+export const DIARY_TIERS = ['Easy', 'Medium', 'Hard', 'Elite'] as const;
+
+/** A diary tier in its display case, or null for anything else. */
+export function diaryTier(v: string | null | undefined): string | null {
+  if (!v) return null;
+  return DIARY_TIERS.find((t) => t.toLowerCase() === v.trim().toLowerCase()) ?? null;
+}
+
+/**
+ * The key one achievement is stored under, whatever the client called it, or null for a kind keyed
+ * by the client. Each happens once per account, so the thing itself is the key: a log slot reported
+ * by two chat lines, a combat task retried in another ten-second bucket, or an older client's
+ * differently-shaped key all collapse onto one row. Levels keep the client's key, which is already
+ * the skill and the number.
+ */
+export function achievementDedupKey(
+  kind: string,
+  o: { itemName?: string | null; taskName?: string | null; tier?: string | null },
+): string | null {
+  const name = o.itemName?.trim().toLowerCase();
+  if (kind === 'clog') return name ? `clog|${name}` : null;
+  if (kind === 'quest') return name ? `quest|${name}` : null;
+  if (kind === 'diary') {
+    const tier = diaryTier(o.tier);
+    return name && tier ? `diary|${name}|${tier.toLowerCase()}` : null;
+  }
+  if (kind === 'ca') {
+    const task = o.taskName?.trim().toLowerCase();
+    return task ? `ca|${task}` : null;
+  }
+  return null;
+}
 
 /** What the plugin says it saw. Everything except `occurredAt`/`dedupKey` is best-effort. */
 export interface Observation {
-  kind: 'pet' | 'drop' | 'death' | 'ca' | 'level';
+  kind: 'pet' | 'drop' | 'death' | 'ca' | 'level' | 'clog' | 'diary' | 'quest';
   itemId?: number | null;
   itemName?: string | null;
   quantity?: number | null;
@@ -42,7 +98,8 @@ export interface Observation {
    *
    * Every combat task has a tier and the line always says it, so the plugin drops a line whose tier
    * word it can't resolve and the ingest route rejects a `ca` observation without a rankable one.
-   * Optional here only because the other three kinds have no tier to carry.
+   * Optional here only because the other kinds have no tier to carry — except 'diary', where it is
+   * the diary tier (Easy…Elite).
    *
    * Read as a FALLBACK: our own dataset is asked first, and this answers for a task added to the
    * game since it was built — the one thing the client knows and we don't.
@@ -107,6 +164,12 @@ export interface ClanScope {
    * agree. Never looser than {@link CLAN_MIN_RARITY_DENOMINATOR}.
    */
   minRarity: number;
+  /**
+   * Which level-ups the clan announces (lib/levelRules, the clan's `level_rules` setting): the same
+   * 99s / total milestones / max its levels channel posts are the ones its feed keeps. Absent = the
+   * shipped defaults.
+   */
+  levelRules?: LevelRules;
 }
 
 
@@ -495,14 +558,15 @@ export function classifyObservation(
   // happened" and "what it was about": the task's name, and the monster our dataset files it under.
   const ca = obs.kind === 'ca' ? caFacts(obs) : null;
   const base = {
-    itemId: obs.itemId ?? null,
+    // A log slot arrives by name (the chat line); the log's own id gives the feed its icon.
+    itemId: obs.itemId ?? (obs.kind === 'clog' ? clogItemIdByName(obs.itemName) : null),
     itemName: obs.kind === 'ca' ? obs.taskName ?? null : obs.itemName ?? null,
     quantity: Math.max(1, obs.quantity ?? 1),
     valueGp: obs.valueGp ?? null,
     source: (obs.kind === 'ca' ? ca?.monster : obs.source) ?? null,
     sourceKind: obs.kind === 'ca' ? 'ca' : obs.sourceKind ?? null,
     kc: obs.kc ?? null,
-    tier: ca?.tier ?? null,
+    tier: obs.kind === 'diary' ? diaryTier(obs.tier) : ca?.tier ?? null,
     occurredAt: obs.occurredAt,
   };
   const info = dropInfo(obs.source, obs.itemId);
@@ -582,6 +646,13 @@ function clanKindFor(obs: Observation, clan: ClanScope, info: DropInfo | null): 
     return caTierAtLeast(caFacts(obs).tier, clan.minCaTier) ? 'ca' : null;
   }
 
+  // The level-ups the clan's own levels channel would announce, and nothing smaller.
+  if (obs.kind === 'level') return clanWantsLevel(obs, clan) ? 'level' : null;
+  // Each happens once per account, ever, so every one is news to the clan.
+  if (obs.kind === 'clog') return obs.itemName ? 'clog' : null;
+  if (obs.kind === 'diary') return obs.itemName && diaryTier(obs.tier) ? 'diary' : null;
+  if (obs.kind === 'quest') return obs.itemName ? 'quest' : null;
+
   // Two ways for a drop to matter with no board to measure it against: the drop table says it is
   // genuinely rare, or it is simply worth a lot of money. Rarity first, so a rare untradeable
   // (a jar, a pet-adjacent unique) isn't judged on a price it doesn't have.
@@ -626,7 +697,9 @@ export function isClanWorthy(
     kind: string;
     tier?: string | null;
     itemId?: number | null;
+    itemName?: string | null;
     source?: string | null;
+    sourceKind?: string | null;
     quantity?: number | null;
     valueGp?: number | null;
   },
@@ -635,6 +708,9 @@ export function isClanWorthy(
   if (row.kind === 'pet') return true;
   if (row.kind === 'death') return clan.deaths;
   if (row.kind === 'ca') return caTierAtLeast(row.tier, clan.minCaTier);
+  // A board keeps every level its players report; the clan shows the ones its rules announce.
+  if (row.kind === 'level') return clanWantsLevel(row, clan);
+  if (CLAN_ONLY_KINDS.has(row.kind)) return true;
   if (clanRareDrop(dropInfo(row.source, row.itemId), row.quantity ?? 1, clan.minRarity, row.valueGp)) return true;
   return (row.valueGp ?? 0) >= clan.minLootGp;
 }
@@ -662,6 +738,42 @@ export function eventFeedFloor(players: number): number {
   if (players >= 500) return 5_000_000;
   if (players >= 100) return 3_000_000;
   return EVENT_FEED_MIN_GP;
+}
+
+/**
+ * A reported level as the clan's level rules read it. The plugin sends the number in `quantity` and
+ * what kind of number in `sourceKind`: 'skill' (a level in `itemName`'s skill), 'total' (a round
+ * total level) or 'max'.
+ */
+export function levelPostOfMoment(m: { sourceKind?: string | null; quantity?: number | null }): LevelPost | null {
+  const n = m.quantity ?? 0;
+  if (m.sourceKind === 'max') return { type: 'total', milestone: n, maxed: true };
+  if (m.sourceKind === 'total') return { type: 'total', milestone: n, maxed: false };
+  if (m.sourceKind === 'skill') return { type: 'skill', level: n };
+  return null;
+}
+
+/** Would the clan's levels channel announce this level-up? */
+export function clanWantsLevel(m: { sourceKind?: string | null; quantity?: number | null }, clan: ClanScope): boolean {
+  const post = levelPostOfMoment(m);
+  return !!post && levelPostMatches(post, clan.levelRules ?? DEFAULT_LEVEL_RULES);
+}
+
+let clogIdByName: Map<string, number> | null = null;
+
+/** A collection-log item's id by its name, or null. A slot's chat line names it and nothing more. */
+export function clogItemIdByName(name: string | null | undefined): number | null {
+  if (!name) return null;
+  if (!clogIdByName) {
+    clogIdByName = new Map();
+    for (const page of clogPageNames()) {
+      for (const item of clogPageItems(page)) {
+        const key = norm(item.name);
+        if (!clogIdByName.has(key)) clogIdByName.set(key, item.id);
+      }
+    }
+  }
+  return clogIdByName.get(norm(name)) ?? null;
 }
 
 let clogIds: Set<number> | null = null;
@@ -699,6 +811,8 @@ export function isEventFeedWorthy(row: { kind: string; itemId?: number | null; v
  */
 function weeklyKindFor(obs: Observation, weekly: WeeklyScope): MomentKind | null {
   if (weekly.type === 'efficiency') return null;
+  // Log slots, diaries and quests are the clan's (clanKindFor), never a week's.
+  if (CLAN_ONLY_KINDS.has(obs.kind)) return null;
 
   // A raid across its modes: whatever belongs to any one of them belongs to the week.
   const keys = weekly.type === 'boss' ? metricKeys(weekly.metric) : [];
@@ -767,6 +881,9 @@ function weeklyKindFor(obs: Observation, weekly: WeeklyScope): MomentKind | null
  * wrong, or the drop credited nothing), or when it is simply worth a lot of money.
  */
 function eventKindFor(obs: Observation, event: EventScope, info: DropInfo | null): MomentKind | null {
+  // Log slots, diaries and quests are the clan's (clanKindFor). A slot that came off a drop already
+  // reached the board as that drop.
+  if (CLAN_ONLY_KINDS.has(obs.kind)) return null;
   // Every pet and every death during a bingo is a story — no filter, that IS the feed. A 99 or a max
   // reached mid-board is the same kind of story, and the board doesn't have to have asked for it.
   if (obs.kind === 'pet') return 'pet';
@@ -827,6 +944,12 @@ export function momentSentence(m: {
         ? `completed the ${tier}combat task ${m.itemName}`
         : `completed a ${tier}combat task`;
     }
+    case 'clog':
+      return `filled a new collection log slot: ${item}`;
+    case 'diary':
+      return `completed the ${m.tier ? `${m.tier} ` : ''}${item} Diary`;
+    case 'quest':
+      return m.sourceKind === 'cape' ? `completed every quest (${item})` : `completed ${item}`;
     default:
       return m.source ? `looted ${qty}${item} from ${m.source}` : `looted ${qty}${item}`;
   }
@@ -839,4 +962,7 @@ export const MOMENT_EMOJI: Record<string, string> = {
   loot: '💰',
   ca: '⚔️',
   level: '🎉',
+  clog: '📖',
+  diary: '📜',
+  quest: '🗺️',
 };
