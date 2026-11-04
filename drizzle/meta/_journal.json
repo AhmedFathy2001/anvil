@@ -1016,6 +1016,13 @@
       "when": 1793792194614,
       "tag": "0198_h2h_challenges",
       "breakpoints": true
+    },
+    {
+      "idx": 201,
+      "version": "7",
+      "when": 1793792374614,
+      "tag": "0201_events_directory_index",
+      "breakpoints": true
     }
   ]
 }

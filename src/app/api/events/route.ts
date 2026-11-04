@@ -11,6 +11,7 @@ import { isTeamFormation } from '@/lib/teamFormation';
 import { DEFAULT_NEW_EVENT_PLACEMENT, isTeamPlacement, normaliseTeamCap, normaliseTeamCount } from '@/lib/teamPlacement';
 import { isVisibility } from '@/lib/eventVisibility';
 import { track } from '@/lib/analytics';
+import { defaultAdvertisedForClan } from '@/lib/eventsDirectoryDb';
 
 const CASH_POLICIES = ['host-holds', 'each-settles', 'clans-collect-host-pays'] as const;
 
@@ -195,6 +196,9 @@ export async function POST(request: Request) {
   // the `tiles.accepted_sources` column produced exactly that orphan state for
   // event #8 — recoverable only via a manual backfill.
   const clan = await requireClan();
+  // A creator space that advertises itself on Anvil starts its new events advertised too
+  // (anvilosrs.com/events). Only a starting position: the host flips it per event in settings.
+  const advertised = await defaultAdvertisedForClan(clan);
   // A creator space on Free or Bronze runs one event at a time (lib/creatorPlans): counted and
   // inserted under the space's lock, so two creates at once cannot both pass. A no-op until
   // FREEMIUM_ENFORCED is on; an ordinary clan is unchanged (meteredPlan is null for it).
@@ -213,6 +217,7 @@ export async function POST(request: Request) {
       teamCap: resolvedPlacement === 'pick' ? resolvedTeamCap : null,
       cashPolicy: resolvedCashPolicy,
       visibility: resolvedVisibility,
+      advertised,
       startDate: resolvedStart as string | null,
       endDate: resolvedEnd as string | null,
     }).returning();

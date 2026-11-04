@@ -59,6 +59,7 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
   const [savedNote, setSavedNote] = useState(false);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [guestPolicy, setGuestPolicy] = useState<string | null>(null);
+  const [clanPublic, setClanPublic] = useState(true);
   const [pickedClan, setPickedClan] = useState<PickedClan | null>(null);
   // Inviting ONE PERSON. `event_invites` always took a clan or a person and the POST always accepted
   // `playerId`; what was missing was any way to turn a name into an id, so only half of inviting was
@@ -81,6 +82,7 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
     setSaved({ visibility: d.visibility, entry: d.entry, advertised: !!d.advertised });
     setInvites(d.invites ?? []);
     setGuestPolicy(d.guestPolicy ?? null);
+    setClanPublic(d.clanPublic !== false);
   }, [eventId]);
 
   useEffect(() => {
@@ -222,8 +224,9 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
       <div className="grid gap-5 px-5 py-4 md:grid-cols-2">
         <div>
           <Choice title="Who can see it" options={VISIBILITY} value={visibility} onPick={setVisibility} />
-          {/* Readable by anyone is not the same as advertised to everyone — a separate yes. */}
-          {visibility === 'public' && (
+          {/* Readable by anyone is not the same as advertised to everyone — a separate yes. Offered
+              wherever a stranger can already read the board; never on an invite-only one. */}
+          {visibility !== 'invited' && (
             <label className="mt-2 flex cursor-pointer items-start gap-2.5 rounded-xl border border-card-border bg-background p-3 text-[12.5px] hover:border-gold/30">
               <input
                 type="checkbox"
@@ -232,11 +235,15 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
                 className="mt-0.5 h-4 w-4 accent-gold"
               />
               <span>
-                <span className="block text-[13.5px] font-medium">Feature on Anvil&rsquo;s home page</span>
+                <span className="block text-[13.5px] font-medium">Advertise on Anvil</span>
                 <span className="mt-0.5 block text-text-muted">
-                  Shown under &ldquo;Open to everyone&rdquo; to players outside your clan, while it&rsquo;s
-                  upcoming or live. Needs your clan listed in the Clan Hall.
+                  List this event on anvilosrs.com/events so anyone can find it, while it&rsquo;s upcoming or live.
                 </span>
+                {!clanPublic && (
+                  <span className="mt-1 block text-accent-red">
+                    Your clan is private, so it won&rsquo;t be listed until the clan is public.
+                  </span>
+                )}
               </span>
             </label>
           )}

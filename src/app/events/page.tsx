@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
+import { notFound } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
 import { listClanEvents } from '@/lib/clanEvents';
@@ -7,7 +9,10 @@ import { getClanDisplayName } from '@/lib/pluginConfig';
 import { clanSectionMetadata } from '@/lib/seoPages';
 import { loadHubView } from '@/lib/eventsHub';
 import { loadCalendar } from '@/lib/eventsCalendar';
-import { requireClan } from '@/lib/clanContext';
+import { currentClan, isApexHost } from '@/lib/clanContext';
+import { parseFilters } from '@/lib/eventsDirectory';
+import { socialMetadata } from '@/lib/seo';
+import EventsDirectory from './EventsDirectory';
 import { verifyUser } from '@/lib/auth';
 import { isStaffRole } from '@/lib/clanRoles';
 import { hubKind } from '@/lib/hubKinds';
@@ -20,8 +25,27 @@ import LocalTime from '@/components/LocalTime';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * ONE ADDRESS, TWO PAGES — the same split /guides and /profile make. Inside a clan (`/c/<slug>/events`)
+ * this is the clan's events hub. On the apex, where no clan is named, it is the public events
+ * directory: every event a host chose to advertise on Anvil (lib/eventsDirectory). Any other host
+ * that names no clan has neither, and 404s.
+ */
+async function apexOrNotFound(): Promise<void> {
+  if (!isApexHost((await headers()).get('host'))) notFound();
+}
+
 export async function generateMetadata(): Promise<Metadata> {
-  const clan = await requireClan();
+  const clan = await currentClan();
+  if (!clan) {
+    await apexOrNotFound();
+    return socialMetadata({
+      title: 'OSRS events you can join — bingos, races and ladders',
+      description:
+        'Old School RuneScape bingos, tile races and ladders from clans and streamers on Anvil, live now or starting soon. Find one and join.',
+      canonical: '/events',
+    });
+  }
   const name = (await getClanDisplayName(clan.id, clan.name)) || clan.name;
   return clanSectionMetadata({
     section: 'Events',
@@ -46,15 +70,21 @@ const PAGE = 24;
 export default async function EventsIndexPage({
   searchParams,
 }: {
-  searchParams: Promise<{ show?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { show } = await searchParams;
+  const clan = await currentClan();
+  if (!clan) {
+    await apexOrNotFound();
+    return <EventsDirectory filters={parseFilters(await searchParams)} />;
+  }
+
+  const { show: rawShow } = await searchParams;
+  const show = Array.isArray(rawShow) ? rawShow[0] : rawShow;
   const requested = Number.parseInt(show ?? '', 10);
   const pastLimit = Number.isFinite(requested) ? Math.min(Math.max(requested, PAGE), 500) : PAGE;
   // Players have no Admin tab, so the empty state only points staff at one.
   const isStaff = isStaffRole((await verifyUser())?.role);
 
-  const clan = await requireClan();
   const [view, calendar, clanEvents] = await Promise.all([
     loadHubView(clan.id, { pastLimit }),
     loadCalendar(clan.id),
