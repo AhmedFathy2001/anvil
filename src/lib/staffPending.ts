@@ -24,7 +24,7 @@ export interface StaffPending {
   errors: number;
   billing: number;
   nameDisputes: number;
-  /** Reports on creator pages' promotional content (lib/spacePage). */
+  /** Open platform reports — creator pages, clans, events, profiles, highlights (lib/platformReports). */
   promoReports: number;
   total: number;
 }
@@ -99,7 +99,7 @@ export function pendingSummary(p: StaffPending): string {
     [p.guideProposals, 'guide proposals'],
     [p.libraryProposals, 'library suggestions'],
     [p.nameDisputes, 'name disputes'],
-    [p.promoReports, 'creator page reports'],
+    [p.promoReports, 'reports'],
   ];
   return parts.filter(([n]) => n > 0).map(([n, l]) => `${n} ${l}`).join(' · ') || 'Nothing waiting';
 }

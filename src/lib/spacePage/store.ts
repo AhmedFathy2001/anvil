@@ -8,7 +8,7 @@
 // HIDDEN NEVER RENDERS. A panel the host hid, a panel staff hid, and every bit of a page staff hid
 // are left out of publicSpacePage — not sent with a flag for the client to honour.
 
-import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -52,6 +52,7 @@ import {
   type TextSegment,
 } from './rules.ts';
 import { BLOCK_REASONS, type BlockReason } from './blocklistSeed.ts';
+import { buildSnapshot, cleanReportNote, REPORT_NOTE_MAX, type ReportCategory } from '../platformReportRules.ts';
 
 export interface Space {
   id: number;
@@ -275,7 +276,7 @@ export async function featurableHighlights(clanId: number, limit = 30) {
     .select({ h: streamHighlights, eventName: events.name })
     .from(streamHighlights)
     .innerJoin(events, eq(events.id, streamHighlights.eventId))
-    .where(and(eq(streamHighlights.clanId, clanId), eq(events.clanId, clanId), eq(streamHighlights.channelOwner, 'host')))
+    .where(and(eq(streamHighlights.clanId, clanId), eq(events.clanId, clanId), eq(streamHighlights.channelOwner, 'host'), isNull(streamHighlights.staffHiddenAt)))
     .orderBy(desc(streamHighlights.occurredAt))
     .limit(limit * 3);
   return rows
@@ -408,7 +409,7 @@ async function featuredHighlight(
     .select({ h: streamHighlights, eventName: events.name, rules: events.rules, endDate: events.endDate, forceEndedAt: events.forceEndedAt })
     .from(streamHighlights)
     .innerJoin(events, eq(events.id, streamHighlights.eventId))
-    .where(and(eq(streamHighlights.id, id), eq(streamHighlights.clanId, clanId), eq(events.clanId, clanId), eq(streamHighlights.channelOwner, 'host')))
+    .where(and(eq(streamHighlights.id, id), eq(streamHighlights.clanId, clanId), eq(events.clanId, clanId), eq(streamHighlights.channelOwner, 'host'), isNull(streamHighlights.staffHiddenAt)))
     .limit(1);
   if (!r) return null;
   const h: ShownHighlight = {
@@ -449,37 +450,72 @@ export async function spaceLive(clanId: number): Promise<{ twitch: boolean; kick
 }
 
 // ── Reports and the staff queue ──────────────────────────────────────────────────────────────────
+//
+// The creator half of the platform report queue (lib/platformReports): a creator page as a whole, or
+// one of its panels. Every other kind of report goes through lib/platformReports, which comes here for
+// these two.
 
-export const REPORT_REASON_MAX = 300;
+export const REPORT_REASON_MAX = REPORT_NOTE_MAX;
+
+/** The kinds of report this module owns. */
+const CREATOR_TARGETS = ['space', 'creator_panel'];
 
 /**
- * A signed-in viewer reports a panel (or the page as a whole). The content is snapshotted, so an edit
- * after the report cannot erase what was reported. One open report per person per thing: a second
- * press answers with the first.
+ * A signed-in viewer reports a panel (or the page as a whole). The content is snapshotted — sanitized
+ * text and URLs only — so an edit after the report cannot erase what was reported. One open report
+ * per person per thing: a second press answers with the first.
  */
 export async function reportContent(
   space: Space,
-  input: { panelId: number | null; reason: unknown; reporterUserId: number },
+  input: { panelId: number | null; reason: unknown; reporterUserId: number; category?: ReportCategory },
 ): Promise<Checked<number>> {
-  const reason = cleanText(input.reason, REPORT_REASON_MAX, { field: 'The reason', multiline: true });
+  const reason = cleanReportNote(input.reason);
   if (!reason.ok) return reason;
   let snapshot: string;
   if (input.panelId != null) {
     // clan-scope: the panel must be this space's own.
     const [p] = await db.select().from(spacePanels).where(and(eq(spacePanels.id, input.panelId), eq(spacePanels.clanId, space.id))).limit(1);
     if (!p || p.hidden || p.staffHiddenAt) return { ok: false, error: 'That panel is not there any more.' };
-    snapshot = [p.title, p.body, p.linkUrl ? `Link: ${p.linkUrl}` : '', p.imageUrl ? `Image: ${p.imageUrl}` : ''].filter(Boolean).join('\n');
+    snapshot = buildSnapshot(
+      [
+        ['Title', p.title],
+        ['Text', p.body],
+      ],
+      [
+        ['Link', p.linkUrl],
+        ['Image', p.imageUrl],
+      ],
+    );
   } else {
-    const prof = await profileOf(space.id);
-    snapshot = [prof?.bio ? `Bio: ${prof.bio}` : '', prof?.featuredClipUrl ? `Featured: ${prof.featuredClipUrl}` : ''].filter(Boolean).join('\n');
+    const [prof, clan] = await Promise.all([
+      profileOf(space.id),
+      // clan-scope: the reported space itself.
+      db.query.clans.findFirst({ where: eq(clans.id, space.id), columns: { name: true, tagline: true, logoUrl: true, bannerUrl: true } }),
+    ]);
+    snapshot = buildSnapshot(
+      [
+        ['Name', clan?.name],
+        ['Tagline', clan?.tagline],
+        ['Bio', prof?.bio],
+        ['Featured title', prof?.featuredTitle],
+      ],
+      [
+        ['Featured', prof?.featuredClipUrl],
+        ['Logo', clan?.logoUrl],
+        ['Banner', clan?.bannerUrl],
+      ],
+    );
   }
+  const targetType = input.panelId != null ? 'creator_panel' : 'space';
+  const targetId = input.panelId ?? space.id;
+  // clan-scope: global -- one open report per reporter per reported thing, addressed by its own id.
   const [dupe] = await db
     .select({ id: promoReports.id })
     .from(promoReports)
     .where(
       and(
-        eq(promoReports.clanId, space.id),
-        input.panelId != null ? eq(promoReports.panelId, input.panelId) : isNull(promoReports.panelId),
+        eq(promoReports.targetType, targetType),
+        eq(promoReports.targetId, targetId),
         eq(promoReports.reporterUserId, input.reporterUserId),
         eq(promoReports.status, 'open'),
       ),
@@ -488,11 +524,21 @@ export async function reportContent(
   if (dupe) return { ok: true, value: dupe.id };
   const [row] = await db
     .insert(promoReports)
-    .values({ clanId: space.id, panelId: input.panelId, reporterUserId: input.reporterUserId, reason: reason.value || null, snapshot: snapshot.slice(0, 4000) })
+    .values({
+      clanId: space.id,
+      targetType,
+      targetId,
+      category: input.category ?? 'other',
+      panelId: input.panelId,
+      reporterUserId: input.reporterUserId,
+      reason: reason.value || null,
+      snapshot,
+    })
     .returning({ id: promoReports.id });
   return { ok: true, value: row.id };
 }
 
+/** Every open report on the platform (all kinds) — the number on the staff Reports link. */
 export async function openPromoReportCount(): Promise<number> {
   // clan-scope: global -- the platform's queue across every space.
   const [r] = await db.select({ n: count() }).from(promoReports).where(eq(promoReports.status, 'open'));
@@ -527,7 +573,7 @@ export async function listPromoReports(status: 'open' | 'all' = 'open', limit = 
     .leftJoin(users, eq(users.id, promoReports.reporterUserId))
     .leftJoin(spaceProfiles, eq(spaceProfiles.clanId, promoReports.clanId))
     .leftJoin(spacePanels, eq(spacePanels.id, promoReports.panelId))
-    .where(status === 'open' ? eq(promoReports.status, 'open') : undefined)
+    .where(and(inArray(promoReports.targetType, CREATOR_TARGETS), status === 'open' ? eq(promoReports.status, 'open') : undefined))
     .orderBy(desc(promoReports.createdAt))
     .limit(limit);
   return rows.map((x) => ({
@@ -537,7 +583,7 @@ export async function listPromoReports(status: 'open' | 'all' = 'open', limit = 
     snapshot: x.r.snapshot,
     createdAt: x.r.createdAt.toISOString(),
     reporter: x.reporter ?? null,
-    space: { id: x.r.clanId, name: x.clanName, slug: x.clanSlug, hidden: !!x.hiddenAt },
+    space: { id: x.r.clanId ?? 0, name: x.clanName, slug: x.clanSlug, hidden: !!x.hiddenAt },
     panel: x.r.panelId != null && x.panelTitle != null ? { id: x.r.panelId, title: x.panelTitle, staffHidden: !!x.panelStaffHidden } : null,
   }));
 }
@@ -565,25 +611,20 @@ export async function staffSetSpaceHidden(clanId: number, hidden: boolean, actor
 export async function resolvePromoReport(id: number, action: 'hide' | 'dismiss', actorUserId: number): Promise<Checked<true>> {
   // clan-scope: global -- platform staff resolve a report by its id.
   const [r] = await db.select().from(promoReports).where(eq(promoReports.id, id)).limit(1);
-  if (!r) return { ok: false, error: 'That report is gone.' };
+  if (!r || !CREATOR_TARGETS.includes(r.targetType)) return { ok: false, error: 'That report is gone.' };
   const done = { resolvedAt: new Date(), resolvedByUserId: actorUserId };
   if (action === 'dismiss') {
     // clan-scope: global -- by report id.
     await db.update(promoReports).set({ status: 'dismissed', ...done }).where(eq(promoReports.id, id));
     return { ok: true, value: true };
   }
-  if (r.panelId != null) await staffSetPanelHidden(r.panelId, true, actorUserId);
-  else await staffSetSpaceHidden(r.clanId, true, actorUserId);
+  if (r.targetType === 'creator_panel' && r.panelId != null) await staffSetPanelHidden(r.panelId, true, actorUserId);
+  else if (r.clanId != null) await staffSetSpaceHidden(r.clanId, true, actorUserId);
+  // clan-scope: global -- every open report on the same thing, by its own id.
   await db
     .update(promoReports)
     .set({ status: 'hidden', ...done })
-    .where(
-      and(
-        eq(promoReports.clanId, r.clanId),
-        eq(promoReports.status, 'open'),
-        r.panelId != null ? eq(promoReports.panelId, r.panelId) : isNull(promoReports.panelId),
-      ),
-    );
+    .where(and(eq(promoReports.targetType, r.targetType), eq(promoReports.targetId, r.targetId ?? -1), eq(promoReports.status, 'open')));
   return { ok: true, value: true };
 }
 

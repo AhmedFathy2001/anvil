@@ -8,6 +8,7 @@ import HighlightsStrip from '@/components/HighlightsStrip';
 import CreatorFeatured from '@/components/CreatorFeatured';
 import CreatorPanels from '@/components/CreatorPanels';
 import CreatorSchedule from '@/components/CreatorSchedule';
+import ReportButton from '@/components/ReportButton';
 import type { PublicSpacePage } from '@/lib/spacePage/store';
 
 function SectionTitle({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
@@ -59,7 +60,7 @@ export default function CreatorHome({
   highlights?: (ShownHighlight & { eventName: string })[];
   /** The space's own page content (lib/spacePage): featured, schedule, bio and panels. */
   page?: PublicSpacePage | null;
-  /** The viewer is signed in, so may report a panel. */
+  /** The viewer is signed in, so may report the page, a panel or a clip. */
   canReport?: boolean;
 }) {
   return (
@@ -124,7 +125,7 @@ export default function CreatorHome({
 
       {highlights.length > 0 && (
         <div className="mt-8">
-          <HighlightsStrip highlights={highlights} blurb="clipped live from the stream during these events" showEvent />
+          <HighlightsStrip highlights={highlights} blurb="clipped live from the stream during these events" showEvent canReport={canReport} />
         </div>
       )}
 
@@ -161,6 +162,12 @@ export default function CreatorHome({
         Not affiliated with Jagex Ltd. Old School RuneScape is a trademark of Jagex Ltd. Promotions on Anvil must follow
         Jagex&rsquo;s rules.
       </p>
+      {/* The whole page, to Anvil staff (lib/platformReports). Signed-in viewers only. */}
+      {canReport && (
+        <div className="mt-2 text-center">
+          <ReportButton type="space" id={view.id} label="Report this page" />
+        </div>
+      )}
     </div>
   );
 }

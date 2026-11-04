@@ -648,6 +648,8 @@ export async function highlightsForEvent(
         eq(streamHighlights.eventId, eventId),
         opts.tileId != null ? eq(streamHighlights.tileId, opts.tileId) : undefined,
         or(and(eq(streamHighlights.clipStatus, 'ready'), isNotNull(streamHighlights.clipUrl)), eq(streamHighlights.vodStatus, 'ready')),
+        // Taken down by platform staff from a report (lib/platformReports): never shown again.
+        isNull(streamHighlights.staffHiddenAt),
       ),
     )
     .orderBy(desc(streamHighlights.occurredAt))
@@ -674,6 +676,8 @@ export async function highlightsForSpace(
         eq(streamHighlights.clanId, clanId),
         eq(events.clanId, clanId),
         or(and(eq(streamHighlights.clipStatus, 'ready'), isNotNull(streamHighlights.clipUrl)), eq(streamHighlights.vodStatus, 'ready')),
+        // Taken down by platform staff from a report (lib/platformReports): never shown again.
+        isNull(streamHighlights.staffHiddenAt),
       ),
     )
     .orderBy(desc(streamHighlights.occurredAt))
@@ -705,6 +709,8 @@ export interface StaffHighlight extends ShownHighlight {
   clipStatus: string;
   /** The host said Anvil may feature its clips. */
   featurable: boolean;
+  /** Platform staff took it down (lib/platformReports); public pages never show it. */
+  staffHidden: boolean;
 }
 
 /** Platform staff: the latest highlights everywhere; `featurable` keeps only hosts who opted in. */
@@ -717,7 +723,7 @@ export async function highlightsForStaff(opts: { featurable?: boolean; limit?: n
     .innerJoin(clans, eq(clans.id, streamHighlights.clanId))
     .where(
       and(
-        opts.featurable ? and(eq(clans.highlightsPromo, true), eq(streamHighlights.clipStatus, 'ready'), eq(streamHighlights.channelOwner, 'host')) : undefined,
+        opts.featurable ? and(eq(clans.highlightsPromo, true), eq(streamHighlights.clipStatus, 'ready'), eq(streamHighlights.channelOwner, 'host'), isNull(streamHighlights.staffHiddenAt)) : undefined,
       ),
     )
     .orderBy(desc(streamHighlights.occurredAt))
@@ -733,7 +739,8 @@ export async function highlightsForStaff(opts: { featurable?: boolean; limit?: n
     channelOwner: r.h.channelOwner,
     clipStatus: r.h.clipStatus,
     // A player's own channel is theirs, not the host's to offer.
-    featurable: r.promo && r.h.channelOwner === 'host',
+    featurable: r.promo && r.h.channelOwner === 'host' && !r.h.staffHiddenAt,
+    staffHidden: !!r.h.staffHiddenAt,
   }));
 }
 

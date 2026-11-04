@@ -9,6 +9,7 @@ import { profileLinkState } from '@/lib/profileLink';
 import { configuredOrigin } from '@/lib/request-origin';
 import { getAccountProfile } from '@/lib/memberProfile';
 import CharacterProfile from '@/components/character/CharacterProfile';
+import ReportButton from '@/components/ReportButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -107,6 +108,12 @@ export default async function CharacterPage({
   return (
     <div className="mx-auto w-full max-w-5xl">
       <CharacterProfile context={{ kind: 'public', character, profile }} viewer={session} link={link} progressTab={progressTab} />
+      {/* To Anvil staff, never the player (lib/platformReports). Signed in, and not your own. */}
+      {session?.userId && !character.viewerOwns && (
+        <div className="mt-6 flex justify-end">
+          <ReportButton type="character" id={character.accountId} label="Report this profile" />
+        </div>
+      )}
     </div>
   );
 }

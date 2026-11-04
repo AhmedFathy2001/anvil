@@ -27,6 +27,15 @@ const WHAT: Record<string, string> = {
   platform_clan_deleted: 'Clan deleted',
   platform_act_as_granted: 'Borrowed a grant in this clan',
   platform_act_as_revoked: 'Handed back a borrowed grant',
+  // The reports inbox (/staff/promotions, lib/platformReports). Never the reporter.
+  platform_promo_report_clan_unlisted: 'Report: clan hidden from directories',
+  platform_promo_report_panel_hidden: 'Report: creator panel hidden',
+  platform_promo_report_page_hidden: 'Report: creator page promotions hidden',
+  platform_promo_report_highlight_hidden: 'Report: highlight hidden',
+  platform_promo_report_dismissed: 'Report dismissed',
+  platform_promo_report_resolved: 'Report marked handled',
+  platform_promo_report_note: 'Report note',
+  platform_promo_highlight_shown: 'Highlight shown again',
 };
 
 /** The ones that change who can sign in, or cannot be undone. Worth spotting in a long list. */

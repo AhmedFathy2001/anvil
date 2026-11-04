@@ -4620,6 +4620,9 @@ export const streamHighlights = pgTable('stream_highlights', {
   vodStatus: text('vod_status').notNull().default('pending'),
   vodAttempts: integer('vod_attempts').notNull().default(0),
   vodNextAt: timestamp('vod_next_at', { withTimezone: true }),
+  /** Platform staff took it down from a report (0213). Never rendered again; the host cannot undo it. */
+  staffHiddenAt: timestamp('staff_hidden_at', { withTimezone: true }),
+  staffHiddenByUserId: integer('staff_hidden_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
@@ -4712,14 +4715,28 @@ export const promoBlockedDomains = pgTable('promo_blocked_domains', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('promo_blocked_domains_domain').on(t.domain)]);
 
-/** A signed-in viewer's report of a space page's content, for the platform staff queue. */
+/**
+ * A signed-in viewer's report to Anvil staff (lib/platformReports): a creator space or one of its
+ * panels (0211), and since 0213 a clan, an event, a player profile or a stream highlight. Named for
+ * where it started; it is the platform's one report queue (/staff/promotions).
+ */
 export const promoReports = pgTable('promo_reports', {
   id: serial('id').primaryKey(),
-  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
-  /** Null = the page as a whole (bio, schedule, featured). */
+  /** The clan the reported thing lives under, when it has one (a player profile has none). */
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'cascade' }),
+  /** 'space' | 'creator_panel' | 'clan' | 'event' | 'character' | 'person' | 'highlight' (0213). */
+  targetType: text('target_type').notNull().default('space'),
+  /** The reported thing's id in its own table (lib/platformReportRules REPORT_TARGETS). */
+  targetId: integer('target_id'),
+  /** The reporter's chosen reason (lib/platformReportRules REPORT_CATEGORIES). */
+  category: text('category'),
+  /** A creator panel report's panel (0211). Null = the page as a whole (bio, schedule, featured). */
   panelId: integer('panel_id').references(() => spacePanels.id, { onDelete: 'set null' }),
   reporterUserId: integer('reporter_user_id').references(() => users.id, { onDelete: 'set null' }),
+  /** The reporter's optional note. */
   reason: text('reason'),
+  /** Platform staff's own note. */
+  staffNote: text('staff_note'),
   /** What it said when reported, so a later edit cannot erase the evidence. */
   snapshot: text('snapshot').notNull().default(''),
   /** 'open' | 'hidden' | 'dismissed'. */
@@ -4727,4 +4744,4 @@ export const promoReports = pgTable('promo_reports', {
   resolvedByUserId: integer('resolved_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [index('promo_reports_status_idx').on(t.status, t.createdAt)]);
+}, (t) => [index('promo_reports_status_idx').on(t.status, t.createdAt), index('promo_reports_target_idx').on(t.targetType, t.targetId, t.status)]);

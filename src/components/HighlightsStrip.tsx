@@ -1,4 +1,5 @@
 import type { ShownHighlight } from '@/lib/highlights/rules';
+import ReportButton from '@/components/ReportButton';
 
 /**
  * Stream highlights (lib/highlights): clips and stream timestamps of a streamed event's big moments.
@@ -14,12 +15,15 @@ export default function HighlightsStrip({
   title = 'Highlights',
   blurb = 'clipped live from the stream',
   showEvent = false,
+  canReport = false,
 }: {
   highlights: (ShownHighlight & { eventName?: string })[];
   title?: string;
   blurb?: string;
   /** Name the event on each card (a page that lists several events' clips). */
   showEvent?: boolean;
+  /** The viewer is signed in, so each card gets a small Report flag (lib/platformReports). */
+  canReport?: boolean;
 }) {
   if (highlights.length === 0) return null;
   return (
@@ -34,7 +38,7 @@ export default function HighlightsStrip({
       <ul className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2">
         {highlights.map((h) => (
           <li key={h.id} className="w-56 shrink-0 snap-start">
-            <HighlightCard h={h} showEvent={showEvent} />
+            <HighlightCard h={h} showEvent={showEvent} canReport={canReport} />
           </li>
         ))}
       </ul>
@@ -46,7 +50,7 @@ function platformLabel(p: ShownHighlight['platform']): string {
   return p === 'youtube' ? 'YouTube' : 'Twitch';
 }
 
-function HighlightCard({ h, showEvent }: { h: ShownHighlight & { eventName?: string }; showEvent: boolean }) {
+function HighlightCard({ h, showEvent, canReport }: { h: ShownHighlight & { eventName?: string }; showEvent: boolean; canReport: boolean }) {
   const href = h.clipUrl ?? h.vodUrl!;
   return (
     <div className="overflow-hidden rounded-xl border border-card-border bg-card-bg">
@@ -80,11 +84,14 @@ function HighlightCard({ h, showEvent }: { h: ShownHighlight & { eventName?: str
           {showEvent && h.eventName ? `${h.eventName} · ` : ''}
           {h.channelName}
         </span>
-        {h.clipUrl && h.vodUrl && (
-          <a href={h.vodUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 hover:text-gold">
-            In the stream
-          </a>
-        )}
+        <span className="flex shrink-0 items-center gap-2">
+          {h.clipUrl && h.vodUrl && (
+            <a href={h.vodUrl} target="_blank" rel="noopener noreferrer" className="hover:text-gold">
+              In the stream
+            </a>
+          )}
+          {canReport && <ReportButton type="highlight" id={h.id} iconOnly />}
+        </span>
       </div>
     </div>
   );

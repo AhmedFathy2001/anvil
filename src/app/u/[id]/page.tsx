@@ -13,6 +13,7 @@ import { displayCaseForPlayer } from '@/lib/displayCase';
 import { ProfileAvatar, ProfileBanner } from '@/components/ProfileMedia';
 import DisplayCase from '@/components/DisplayCase';
 import ConnectedAccounts from '@/components/ConnectedAccounts';
+import ReportButton from '@/components/ReportButton';
 import { profileConnectedAccounts } from '@/lib/connectedAccounts';
 import { verifyUser } from '@/lib/auth';
 
@@ -135,10 +136,14 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
         </p>
       )}
 
-      <p className="mt-8 text-xs text-text-dim">
-        Only shared characters appear here. Anything else this person plays is between them and the
-        clans they&rsquo;re in.
-      </p>
+      <div className="mt-8 flex flex-wrap items-start justify-between gap-3">
+        <p className="text-xs text-text-dim">
+          Only shared characters appear here. Anything else this person plays is between them and the
+          clans they&rsquo;re in.
+        </p>
+        {/* To Anvil staff, never the player (lib/platformReports). Signed in, and not yourself. */}
+        {session?.userId && session.playerId !== id && <ReportButton type="person" id={id} label="Report this profile" />}
+      </div>
     </div>
   );
 }
