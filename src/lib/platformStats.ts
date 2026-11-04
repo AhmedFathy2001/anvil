@@ -1,4 +1,4 @@
-import { and, count, eq, gt, isNull, or, sql } from 'drizzle-orm';
+import { and, ne, count, eq, gt, isNull, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clans, events, memberDailyStats } from '@/db/schema';
@@ -55,7 +55,8 @@ async function loadPlatformStats(): Promise<PlatformStats> {
 
   // clan-scope: global -- counting the whole platform is the entire purpose of this file.
   const [[clanRow], [memberRow], [charRow], [eventRow], [xpRow], [liveRow]] = await Promise.all([
-    db.select({ n: count() }).from(clans).where(eq(clans.status, 'active')),
+    // A Supporter's hidden friends host (lib/friendEventRules) is not a clan anybody could find.
+    db.select({ n: count() }).from(clans).where(and(eq(clans.status, 'active'), ne(clans.kind, 'friends'))),
     db
       .select({ n: count() })
       .from(clanMemberships)

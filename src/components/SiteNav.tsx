@@ -138,7 +138,11 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
   // to list and no board to open, and offering them anyway meant a header whose links 404 — which is
   // most of what made the platform feel like a directory bolted onto a clan site rather than one
   // system. So the apex advertises what the apex has.
-  const links = clan
+  // A friends host (lib/friendEventRules) has no home, list or roster to link to: its pages are one
+  // event's, reached by invite link, so its header is just the logo, the switcher and the account.
+  const links = clan?.kind === 'friends'
+    ? []
+    : clan
     ? [
         // The clan's own home, spelled out rather than '/'. A bare '/' is the APEX, so "Home" from
         // inside a clan used to throw you out to the directory — you could not stay anywhere.

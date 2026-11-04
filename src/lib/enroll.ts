@@ -6,7 +6,7 @@ import { clanRoster, eventParticipants, events, teams, eventSignups, accounts } 
 import { and, eq, inArray, isNull, isNotNull, or } from 'drizzle-orm';
 import { generatePlayerToken } from '@/lib/auth';
 import { accountsOfSeats, accountsOnBoard, onAccountConflict, type Participant } from '@/lib/participants';
-import { withEventRoom } from '@/lib/creatorPlansDb';
+import { withHostEventRoom } from '@/lib/friendEvents';
 
 export interface MemberInput {
   clanMemberId: number;
@@ -127,7 +127,8 @@ export async function backfillApprovedSignups(eventId: number, clanMemberIds: nu
   // Resolved outside the transaction: logins are read-only lookups.
   const logins = new Map<number, number | null>();
   for (const m of members) logins.set(m.id, m.claimedAt ? await loginOf(m.playerId) : null);
-  await withEventRoom({ eventId, audience: 'host' }, async (tx) => {
+  // A friends host's Supporter tier or a creator plan — one host, one gate (lib/friendEvents).
+  await withHostEventRoom({ eventId, audience: 'host' }, async (tx) => {
     for (const m of members) {
       // Dedup: claimed → by (event, login); unclaimed → by (event, seat).
       //

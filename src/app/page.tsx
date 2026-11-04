@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
+import { isFriendsHost } from '@/lib/friendEventRules';
 import { currentClan, isApexHost } from '@/lib/clanContext';
 import { clanRankFor } from '@/lib/clanLeaderboard';
 import { JsonLd, clanLd, faqLd, softwareLd, websiteLd } from '@/lib/jsonLd';
@@ -51,6 +52,8 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata(): Promise<Metadata> {
   const clan = await currentClan();
   if (!clan) return {};
+  // A friends host has no page of its own (lib/friendEventRules), so nothing to describe or index.
+  if (isFriendsHost(clan)) return { robots: { index: false, follow: false } };
 
   // A creator space: no members, no clan table, and its events counted the way a stranger sees them
   // (lib/creatorHome) — never the invite-only ones a raw count of rows would include.
@@ -183,6 +186,13 @@ export default async function HomePage() {
     // an unrecognised host must not land on a real page just because it failed to name a clan.
     const host = (await headers()).get('host');
     if (isApexHost(host)) return <ApexRoot />;
+    notFound();
+  }
+  // A friends host (lib/friendEventRules) has no home page: its events are reached by invite link
+  // and its owner manages them from /host/friends. Its own staff go there; anybody else gets a 404.
+  if (isFriendsHost(clan)) {
+    const viewer = await verifyUser();
+    if (viewer && (await isSpaceStaff(clan.id, viewer.userId))) redirect('/host/friends'); // clan-prefix: platform -- the friends host's home is on the apex
     notFound();
   }
   // A creator space (lib/creatorSpaces) has one page for everyone — the creator, their stream links,

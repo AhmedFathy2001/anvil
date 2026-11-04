@@ -17,7 +17,7 @@ import type { EntryGates, GateOptions } from '@/lib/entryGates';
 const FORMATS = [
   // Teams are balanced automatically (the API's default for a new team board), so nobody is asked.
   { key: 'classic', title: 'Team bingo', line: 'A 5×5 grid of tasks. Players are split into teams for you.', format: 'bingo', scoringMode: 'tiles', size: 5, placement: undefined },
-  { key: 'solo', title: 'Solo bingo', line: 'The same grid, every player for themselves. Great on stream.', format: 'bingo', scoringMode: 'tiles', size: 5, placement: 'solo' },
+  { key: 'solo', title: 'Solo bingo', line: 'The same grid, every player for themselves. Great on stream.', friendsLine: 'The same grid, every player for themselves. Great for a small group.', format: 'bingo', scoringMode: 'tiles', size: 5, placement: 'solo' },
   { key: 'race', title: 'Team race', line: 'Tasks in order. The team furthest along wins.', format: 'tilerace', scoringMode: 'tiles', size: 10, placement: undefined },
 ] as const;
 
@@ -33,11 +33,14 @@ export default function FirstEventClient({
   suggestedName,
   first,
   creator = false,
+  friends = null,
 }: {
   suggestedName: string;
   first: boolean;
   /** A creator space: offer "Who can join?" (lib/entryGates). */
   creator?: boolean;
+  /** A Supporter's friends host (lib/friendEventRules): private, invite link only, capped by their tier. */
+  friends?: { playersCap: number; tierName: string } | null;
 }) {
   // "Who can join?" — null is Anyone. Options load only for a creator space.
   const [gates, setGates] = useState<EntryGates | null>(null);
@@ -61,6 +64,7 @@ export default function FirstEventClient({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<number | null>(null);
+  const [invitePath, setInvitePath] = useState<string | null>(null);
   const [filled, setFilled] = useState(false);
   const [copied, setCopied] = useState(false);
   // Ready-made tiles (lib/starterTiles) unless the host asks for a blank board. Keyed by format so
@@ -108,7 +112,7 @@ export default function FirstEventClient({
           ...(tiles ? { tileLabels: tiles.rows.map((r) => r.label ?? '') } : {}),
         }),
       });
-      const data: { id?: number; error?: string } = await res.json().catch(() => ({}));
+      const data: { id?: number; error?: string; invitePath?: string } = await res.json().catch(() => ({}));
       if (!res.ok || !data.id) {
         setError(data.error || 'That didn’t work. Try again.');
         return;
@@ -143,6 +147,7 @@ export default function FirstEventClient({
         }
       }
       setCreated(data.id);
+      setInvitePath(data.invitePath ?? null);
       setFilled(Boolean(tiles));
     } finally {
       setBusy(false);
@@ -150,12 +155,15 @@ export default function FirstEventClient({
   }
 
   if (created != null) {
-    const link = `${window.location.origin}${clanUrl(`/events/${created}`)}`;
+    // A friends event's link is its private invite (/f/<token>, on the apex); everyone else's is the board.
+    const link = invitePath ? `${window.location.origin}${invitePath}` : `${window.location.origin}${clanUrl(`/events/${created}`)}`;
     return (
       <div className="mx-auto max-w-xl py-6">
         <div className="rounded-2xl border border-gold/30 bg-card-bg p-8 text-center">
           <h1 className="display text-3xl font-semibold">Your event is ready</h1>
-          <p className="mt-2 text-text-muted">Share this link on stream or in Discord.</p>
+          <p className="mt-2 text-text-muted">
+            {friends ? 'Send this link to your friends. Only people with it can join.' : 'Share this link on stream or in Discord.'}
+          </p>
           {gateNote && <p className="mt-2 text-sm text-accent-red">{gateNote}</p>}
           <p className="mt-4 break-all rounded-lg bg-brown-dark px-3 py-2 font-mono text-sm text-foreground">{link}</p>
           <button
@@ -184,7 +192,15 @@ export default function FirstEventClient({
 
   return (
     <form onSubmit={create} className="mx-auto max-w-2xl py-2">
-      <h1 className="display text-3xl font-semibold sm:text-4xl">{first ? 'Create your first event' : 'New event'}</h1>
+      <h1 className="display text-3xl font-semibold sm:text-4xl">
+        {friends ? 'New friends event' : first ? 'Create your first event' : 'New event'}
+      </h1>
+      {friends && (
+        <p className="mt-2 text-text-muted">
+          Private, by invite link only. As a {friends.tierName} you can have up to {friends.playersCap} players across
+          friends events that run at the same time.
+        </p>
+      )}
 
       <div className="mt-6">
         <label htmlFor="ev-name" className="mb-1.5 block text-base font-medium">
@@ -216,7 +232,8 @@ export default function FirstEventClient({
                 }`}
               >
                 <span className={`block text-lg font-semibold ${on ? 'text-gold' : ''}`}>{f.title}</span>
-                <span className="mt-1 block text-sm text-text-muted">{f.line}</span>
+                {/* A friends event is nobody's stream (lib/friendEventRules): its own words where they differ. */}
+                <span className="mt-1 block text-sm text-text-muted">{friends && 'friendsLine' in f ? f.friendsLine : f.line}</span>
               </button>
             );
           })}

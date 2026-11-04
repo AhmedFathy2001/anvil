@@ -4,7 +4,7 @@
 //   - the creator spaces they own, in creator terms,
 //   - their own Anvil Supporter membership (lib/supporter), which belongs to the login.
 
-import { and, count, eq, inArray, isNull } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanMemberships, clanStaff, clans } from '@/db/schema';
@@ -38,7 +38,8 @@ export async function billingPortalForUser(userId: number, now = Date.now()): Pr
     })
     .from(clanStaff)
     .innerJoin(clans, eq(clans.id, clanStaff.clanId))
-    .where(and(eq(clanStaff.userId, userId), eq(clanStaff.role, 'owner')))
+    // A friends host (lib/friendEventRules) is billed by nobody: it rides on the owner's Supporter tier.
+    .where(and(eq(clanStaff.userId, userId), eq(clanStaff.role, 'owner'), ne(clans.kind, 'friends')))
     .orderBy(clans.name);
 
   const ownedClans = owned.filter((c) => !isCreatorSpace(c));

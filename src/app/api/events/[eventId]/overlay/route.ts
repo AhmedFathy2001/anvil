@@ -5,6 +5,7 @@ import { clanAuditLog } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
 import { eventForRequest } from '@/lib/eventScope';
+import { isHiddenHost } from '@/lib/friendEventsSql';
 import { overlayKeyFor, removeOverlayKey, rotateOverlayKey } from '@/lib/overlay/overlayData';
 
 // The host's side of an event's stream overlay (lib/overlay). Admin of the event's clan only: the
@@ -26,6 +27,8 @@ async function guard(request: Request, raw: string) {
   // Ids are global and this one came from the URL: the event must be this clan's.
   const event = await eventForRequest(request, eventId);
   if (!event) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) };
+  // A friends event (lib/friendEventRules) is private: no stream overlay to mint.
+  if (await isHiddenHost(event.clanId)) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) };
   return { session, eventId, clanId: event.clanId };
 }
 

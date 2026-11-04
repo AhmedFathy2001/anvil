@@ -8,7 +8,8 @@ import { requireTeamManager } from '@/lib/teamStaff';
 import { enrolParticipant, participantForSeat } from '@/lib/participants';
 import { parseProfile } from '@/lib/signup';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
-import { PlanLimitError, withEventRoom } from '@/lib/creatorPlansDb';
+import { PlanLimitError } from '@/lib/creatorPlansDb';
+import { withHostEventRoom } from '@/lib/friendEvents';
 
 /**
  * People asking to join THIS team, on an event the host runs by application (rules.teamChoice).
@@ -108,7 +109,7 @@ export async function POST(
   // (lib/creatorPlansDb withEventRoom), and only while still pending, so no path can approve its way
   // past the plan's cap.
   try {
-    await withEventRoom({ eventId: signup.eventId, audience: 'host' }, (tx) =>
+    await withHostEventRoom({ eventId: signup.eventId, audience: 'host' }, (tx) =>
       tx
         .update(eventSignups)
         .set({ status: 'approved', updatedAt: now })

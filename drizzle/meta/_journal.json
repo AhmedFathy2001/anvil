@@ -1093,6 +1093,13 @@
       "when": 1793818929930,
       "tag": "0214_space_accent",
       "breakpoints": true
+    },
+    {
+      "idx": 215,
+      "version": "7",
+      "when": 1793821538194,
+      "tag": "0215_friends_events",
+      "breakpoints": true
     }
   ]
 }

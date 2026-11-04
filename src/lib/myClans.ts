@@ -57,7 +57,8 @@ export async function clansOfPerson(
       .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
       .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
       // An event player's seat is not belonging to the clan — it opens one event, not a switcher entry.
-      .where(and(eq(accounts.playerId, playerId), isNull(clanMemberships.leftAt), ne(clans.slug, LAB_CLAN_SLUG), clanSeat()));
+      // A friends host (lib/friendEventRules) is no clan of anybody's: it has its own entry (/host/friends).
+      .where(and(eq(accounts.playerId, playerId), isNull(clanMemberships.leftAt), ne(clans.slug, LAB_CLAN_SLUG), ne(clans.kind, 'friends'), clanSeat()));
 
     for (const r of seats) {
       const seat = r.kind === 'member' ? 'member' : 'guest';
@@ -76,7 +77,7 @@ export async function clansOfPerson(
       .select({ id: clans.id, slug: clans.slug, name: clans.name, logoUrl: clans.logoUrl, clanKind: clans.kind, role: clanStaff.role })
       .from(clanStaff)
       .innerJoin(clans, eq(clans.id, clanStaff.clanId))
-      .where(and(eq(clanStaff.userId, userId), ne(clans.slug, LAB_CLAN_SLUG)));
+      .where(and(eq(clanStaff.userId, userId), ne(clans.slug, LAB_CLAN_SLUG), ne(clans.kind, 'friends')));
 
     for (const r of grants) {
       const existing = byId.get(r.id);

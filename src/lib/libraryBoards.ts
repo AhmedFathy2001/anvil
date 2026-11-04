@@ -11,6 +11,7 @@
 
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
+import { isHiddenHost } from '@/lib/friendEventsSql';
 import { clans, events, libraryBoards, tiles } from '@/db/schema';
 import { tileToCsvRow, type TileCsvRow } from '@/lib/csvTiles';
 import { nestParts } from '@/lib/combo';
@@ -238,6 +239,9 @@ export async function publishFromEvent(
 ): Promise<LibraryBoard> {
   const event = await db.query.events.findFirst({ where: and(eq(events.id, eventId), eq(events.clanId, clanId)) });
   if (!event) throw new Error('Event not found.');
+  // A community board is credited to its clan by name; a friends host (lib/friendEventRules) is a
+  // private label nobody else should see, so its boards are not published from there.
+  if (await isHiddenHost(clanId)) throw new Error('Boards from friends events can’t be shared to the library.');
   const eventTiles = (await db.select().from(tiles).where(eq(tiles.eventId, eventId))) as unknown as Tile[];
   const rows = rowsForLibrary(eventTiles);
   if (rows.length < 4) throw new Error('Write at least four tiles before sharing a board.');

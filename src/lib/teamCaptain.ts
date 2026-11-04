@@ -6,7 +6,8 @@ import { generatePlayerToken } from '@/lib/auth';
 import { seatsOwnedBy } from '@/lib/roster';
 import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
-import { PlanLimitError, withEventRoom } from '@/lib/creatorPlansDb';
+import { PlanLimitError } from '@/lib/creatorPlansDb';
+import { withHostEventRoom } from '@/lib/friendEvents';
 
 /**
  * Seat a team's captain on their own team.
@@ -185,7 +186,8 @@ async function enrolSignup(eventId: number, userId: number, clanMemberId: number
   const now = new Date().toISOString();
   let row: typeof eventSignups.$inferSelect | undefined;
   try {
-    row = await withEventRoom({ eventId, audience: 'host' }, async (tx) => {
+    // A friends host's Supporter tier, or a creator plan: one host, one gate (lib/friendEvents).
+    row = await withHostEventRoom({ eventId, audience: 'host' }, async (tx) => {
       const [existing] = await tx
         .select({ id: eventSignups.id })
         .from(eventSignups)

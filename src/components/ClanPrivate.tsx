@@ -44,7 +44,8 @@ export default function ClanPrivate({
   kind?: string;
 }) {
   const canApply = guestPolicy === 'approval' || guestPolicy === 'open';
-  const creator = kind === 'creator';
+  // A friends host (lib/friendEventRules) is the same: no members, nothing to apply to, a link the way in.
+  const creator = kind === 'creator' || kind === 'friends';
 
   return (
     <div className="mx-auto flex w-full max-w-[540px] flex-col items-center py-16 text-center sm:py-24">

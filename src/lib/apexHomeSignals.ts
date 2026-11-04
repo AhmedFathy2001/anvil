@@ -6,7 +6,8 @@
 //
 // Everything here comes from rows that already exist. Nothing new is tracked, and nothing is written.
 
-import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { notLabClan } from '@/lib/lab';
 
 import { db } from '@/db';
 import { standingFor, type PlayerStanding } from '@/lib/clanLeaderboard';
@@ -330,7 +331,8 @@ export async function careerFor(userId: number | null | undefined): Promise<Care
     .from(playerEventFacts)
     .innerJoin(clanMemberships, eq(clanMemberships.id, playerEventFacts.clanMemberId))
     .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
-    .where(eq(playerEventFacts.userId, userId));
+    // "Across N clans": a friends host (lib/friendEventRules) and the tile lab are not clans.
+    .where(and(eq(playerEventFacts.userId, userId), ne(clans.kind, 'friends'), notLabClan(clans.id)));
 
   return {
     events: Number(row.events ?? 0),

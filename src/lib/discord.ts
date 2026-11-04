@@ -4,7 +4,8 @@ import { eventHookTargets } from '@/lib/eventWebhooks';
 import { EVENT_POST_KINDS, type EventPostKind } from '@/lib/eventWebhookKinds';
 import { clanMarkUrl, eventMarkUrl } from '@/lib/clanMarkUrl';
 import { log } from '@/lib/logger';
-import { isLabClan } from '@/lib/lab';
+// The lab and friends hosts (lib/friendEventRules) never post: lib/friendEventsSql isHiddenHost.
+import { isHiddenHost } from '@/lib/friendEventsSql';
 import { getSettingText } from '@/lib/settings';
 import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
@@ -140,7 +141,7 @@ async function resolveWebhookDestination(
 ): Promise<{ urls: string[]; cursorKey: string } | null> {
   // The tile lab never posts (lib/lab). It has no webhooks configured anyway; this keeps it that way
   // even if someone pastes one into the lab clan's settings.
-  if (await isLabClan(clanId)) return null;
+  if (await isHiddenHost(clanId)) return null;
   for (const key of keys) {
     const urls = parseWebhookUrls(await getSettingUrl(clanId, key));
     if (urls.length) return { urls, cursorKey: `${clanId}:${key}` };
@@ -549,7 +550,7 @@ export async function sendEventBingoWebhook(
   const host = (await eventHostClanId(eventId)) ?? hostClanId;
   hostClanId = host;
   // A tile-lab board announces nothing, anywhere — not to co-hosts, not to its extra hooks (lib/lab).
-  if (await isLabClan(hostClanId)) return false;
+  if (await isHiddenHost(hostClanId)) return false;
 
   const [clanDefaults, prefs] = await Promise.all([loadClanPostDefaults(hostClanId), loadEventDiscordPrefs(eventId)]);
   const hostDecision = decideHostPost(opts.post, clanDefaults, prefs);
@@ -1939,7 +1940,7 @@ export function clanEventThumbnail(icon: string | null): Pick<DiscordEmbed, 'thu
  */
 async function clanEventDestination(clanId: number, postWebhookUrl?: string | null): Promise<{ urls: string[]; cursorKey: string } | null> {
   const own = parseWebhookUrls(postWebhookUrl);
-  if (own.length) return (await isLabClan(clanId)) ? null : { urls: own, cursorKey: `${clanId}:clan-event-own` };
+  if (own.length) return (await isHiddenHost(clanId)) ? null : { urls: own, cursorKey: `${clanId}:clan-event-own` };
   return resolveWebhookDestination(clanId, CLAN_EVENTS_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
 }
 

@@ -6,7 +6,8 @@ import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { verifyAdmin, generatePlayerToken } from '@/lib/auth';
 import { onAccountConflict } from '@/lib/participants';
 import { assertEventEditable } from '@/lib/eventLock';
-import { PlanLimitError, withEventRoom } from '@/lib/creatorPlansDb';
+import { PlanLimitError } from '@/lib/creatorPlansDb';
+import { withHostEventRoom } from '@/lib/friendEvents';
 
 // Bulk: turn every still-eligible signup into a draft pool entry. Captains already have
 // player rows on their teams (created by promote-captain) — those are skipped.
@@ -164,7 +165,7 @@ export async function POST(
   // for rows still pending, so a row withdrawn meanwhile is not brought back past the plan's cap.
   if (pendingIds.length > 0) {
     try {
-      await withEventRoom({ eventId: evtId, audience: 'host' }, (tx) =>
+      await withHostEventRoom({ eventId: evtId, audience: 'host' }, (tx) =>
         tx
           .update(eventSignups)
           .set({ status: 'approved', updatedAt: new Date().toISOString() })

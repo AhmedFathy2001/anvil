@@ -45,7 +45,13 @@ export const clans = pgTable('clans', {
   // What this space IS. 'clan' — an in-game OSRS clan (every row from before 0187, and the default).
   // 'creator' — a streamer's space for hosting events with NO in-game clan behind it: no in-game
   // name, no roster sync, no weeklies; players arrive as guests of its events. See lib/creatorSpaces.
+  // 'friends' — a Supporter's HIDDEN host for small private events with friends (lib/friendEvents):
+  // one per person, created on first use, never listed anywhere (platform-hidden, members-only), its
+  // events invite-only. Caps come from the owner's Supporter tier, never a plan (lib/friendEventRules).
   kind: text('kind').notNull().default('clan'),
+  // A friends host's one owner (kind = 'friends'): the Supporter whose tier caps its events. Null on
+  // every other kind. Unique, so a person has at most one and two tabs cannot make two.
+  friendsOwnerUserId: integer('friends_owner_user_id').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
   // The exact OSRS clan name — the only thing tying this site to a real clan in the game.
   //
   // THE one place it lives. It used to be here AND in a `clan_ingame_name` setting, with the
@@ -187,6 +193,7 @@ export const clans = pgTable('clans', {
   // that should be impossible rather than merely unlikely.
   uniqueIndex('clans_gumroad_subscription_unique').on(table.gumroadSubscriptionId),
   uniqueIndex('clans_gumroad_ref_unique').on(table.gumroadRef),
+  uniqueIndex('clans_friends_owner_unique').on(table.friendsOwnerUserId).where(sql`friends_owner_user_id is not null`),
   // A creator space is billed from the creator catalogue (lib/creatorCatalog, ids 'creator_…') and a
   // clan from the clan ladder (lib/plans), never the other way round (migration 0203).
   check('clans_plan_matches_kind', sql`(${table.kind} = 'creator') = (left(${table.plan}, 8) = 'creator_')`),
@@ -571,6 +578,10 @@ export const events = pgTable('events', {
   // public board is readable by link; this is the host also asking for strangers to be pointed at
   // it. Only honoured while the board is public and its clan is listed (lib/apexHome). Off by default.
   advertised: boolean('advertised').notNull().default(false),
+  // A FRIENDS event's invite link (lib/friendEvents, /f/<token>): unguessable, the only way in. Null
+  // on every other event. Pressing it records an event_invites row for the person, which is what
+  // lets them see and enter an `invited` event — nothing else about access is new.
+  inviteToken: text('invite_token'),
   // HOW TEAMS FORM, when more than one clan is on the board.
   //   'draft'    — one pool of everybody from every invited clan, captains pick across them. The
   //                only shape that existed before, and the right one for a social cross-clan event.
@@ -773,6 +784,7 @@ export const events = pgTable('events', {
 }, (table) => [
   // The public events directory (lib/eventsDirectoryDb, migration 0201): partial, advertised rows only.
   index('events_advertised_start_idx').on(table.startDate).where(sql`${table.advertised} = true`),
+  uniqueIndex('events_invite_token_unique').on(table.inviteToken).where(sql`invite_token is not null`),
 ]);
 
 /**

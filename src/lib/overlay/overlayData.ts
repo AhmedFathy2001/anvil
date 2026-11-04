@@ -55,13 +55,14 @@ export async function overlayEventForKey(key: string): Promise<EventRow | null> 
   // clan-scope: global -- the key IS the scope: an unguessable per-event capability the host minted;
   // the event's clan is checked on the next line.
   const [row] = await db
-    .select({ event: events, clanStatus: clans.status, clanSlug: clans.slug })
+    .select({ event: events, clanStatus: clans.status, clanSlug: clans.slug, clanKind: clans.kind })
     .from(eventOverlays)
     .innerJoin(events, eq(events.id, eventOverlays.eventId))
     .innerJoin(clans, eq(clans.id, events.clanId))
     .where(eq(eventOverlays.key, key))
     .limit(1);
-  if (!row || row.clanStatus !== 'active' || row.clanSlug === LAB_CLAN_SLUG) return null;
+  // Nor a friends host's (lib/friendEventRules): a private board has no stream to show it on.
+  if (!row || row.clanStatus !== 'active' || row.clanSlug === LAB_CLAN_SLUG || row.clanKind === 'friends') return null;
   return row.event;
 }
 

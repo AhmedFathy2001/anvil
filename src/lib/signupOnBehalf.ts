@@ -21,7 +21,8 @@ import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { standardFeeForAccount } from '@/lib/entryFee';
 import { placementOf } from '@/lib/teamPlacement';
 import { enrolPlaced } from '@/lib/teamPlacementDb';
-import { PlanLimitError, withEventRoom } from '@/lib/creatorPlansDb';
+import { PlanLimitError } from '@/lib/creatorPlansDb';
+import { SignupChangedError, withHostEventRoom } from '@/lib/friendEvents';
 
 export type SignupRow = typeof eventSignups.$inferSelect;
 
@@ -142,32 +143,38 @@ export async function signUpOnBehalf(input: {
   // be inserted) — same as the self-serve re-join path. userId is rewritten too: a row revived before
   // the fix above may still name the wrong login.
   //
-  // Either way one more player is on the board, so the plan's cap on players at once across the
-  // host's overlapping events applies, staff or not (lib/creatorPlansDb withEventRoom).
+  // Either way one more player is on the board, so the host's cap applies, staff or not: a creator
+  // plan's players at once across the host's overlapping events (lib/creatorPlansDb withEventRoom),
+  // or a friends host's Supporter tier (lib/friendEvents) — withHostEventRoom picks the one. The row
+  // is re-read and written ON the gate's transaction, and the revive only applies to a row that is
+  // STILL withdrawn: somebody else changing it meanwhile is a 409, never a silent overwrite.
   let signup: SignupRow;
   try {
-    [signup] = await withEventRoom({ eventId: event.id, audience: 'host' }, (tx) =>
-      existing
-        ? tx
-            .update(eventSignups)
-            .set({ userId, profileData: profileJson, status: input.status, updatedAt: now })
-            .where(eq(eventSignups.id, existing.id))
-            .returning()
-        : tx
-            .insert(eventSignups)
-            .values({
-              eventId: event.id,
-              userId,
-              clanMemberId,
-              profileData: profileJson,
-              status: input.status,
-              signedUpAt: now,
-              updatedAt: now,
-            })
-            .returning(),
-    );
+    signup = await withHostEventRoom({ eventId: event.id, audience: 'host' }, async (tx) => {
+      const now2 = await tx.query.eventSignups.findFirst({
+        where: and(eq(eventSignups.eventId, event.id), eq(eventSignups.clanMemberId, clanMemberId)),
+      });
+      if ((now2?.id ?? null) !== (existing?.id ?? null) || (now2 && now2.status !== 'withdrawn')) throw new SignupChangedError();
+      if (now2) {
+        const [row] = await tx
+          .update(eventSignups)
+          .set({ userId, profileData: profileJson, status: input.status, updatedAt: now })
+          .where(and(eq(eventSignups.id, now2.id), eq(eventSignups.status, 'withdrawn')))
+          .returning();
+        if (!row) throw new SignupChangedError();
+        return row;
+      }
+      const [row] = await tx
+        .insert(eventSignups)
+        .values({ eventId: event.id, userId, clanMemberId, profileData: profileJson, status: input.status, signedUpAt: now, updatedAt: now })
+        .onConflictDoNothing()
+        .returning();
+      if (!row) throw new SignupChangedError();
+      return row;
+    });
   } catch (e) {
     if (e instanceof PlanLimitError) return { ok: false, status: 403, error: e.message };
+    if (e instanceof SignupChangedError) return { ok: false, status: 409, error: e.message };
     throw e;
   }
 

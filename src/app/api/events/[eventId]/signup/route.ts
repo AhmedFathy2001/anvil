@@ -17,7 +17,8 @@ import { seatSignupAccounts, teamLoads } from '@/lib/teamPlacementDb';
 import { entryGateVerdict } from '@/lib/entryGatesDb';
 import { verdictMessage } from '@/lib/entryGates';
 import { signupNetAdding } from '@/lib/creatorPlans';
-import { PlanLimitError, hostRoomVerdict, roomPlanOfEvent, withEventRoom } from '@/lib/creatorPlansDb';
+import { PlanLimitError, hostRoomVerdict, roomPlanOfEvent } from '@/lib/creatorPlansDb';
+import { friendsHostOfEvent, friendsJoinCheck, withHostEventRoom } from '@/lib/friendEvents';
 
 export async function GET(
   request: Request,
@@ -39,6 +40,8 @@ export async function GET(
   }
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+  // A friends host's undated event is open to its invite link's people (lib/signup signupWindowState).
+  const friendsKind = event && (await friendsHostOfEvent(event.id)) != null ? 'friends' : null;
   if (!event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
@@ -92,6 +95,7 @@ export async function GET(
     signupOpensAt: event.signupOpensAt,
     signupDeadline: event.signupDeadline,
     startDate: event.startDate,
+    hostKind: friendsKind,
   });
 
   // Team-choice events (rules.teamChoice): the host built the teams up front and applicants name
@@ -181,6 +185,8 @@ export async function POST(
   }
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+  // A friends host's undated event is open to its invite link's people (lib/signup signupWindowState).
+  const friendsKind = event && (await friendsHostOfEvent(event.id)) != null ? 'friends' : null;
   if (!event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
@@ -206,12 +212,14 @@ export async function POST(
         signupOpensAt: event.signupOpensAt,
         signupDeadline: event.signupDeadline,
         startDate: event.startDate,
+        hostKind: friendsKind,
         paymentDeadline: event.paymentDeadline,
       })
     : signupWindowState({
         signupOpensAt: event.signupOpensAt,
         signupDeadline: event.signupDeadline,
         startDate: event.startDate,
+        hostKind: friendsKind,
       });
   if (!window.open) {
     return NextResponse.json(
@@ -295,6 +303,12 @@ export async function POST(
     const room = await hostRoomVerdict({ eventId: id, clanPlan: metered, adding: netAdding });
     if (!room.ok) return NextResponse.json({ error: room.error, reason: 'full' }, { status: 403 });
   }
+  // A FRIENDS event is capped by its host's Supporter tier instead (lib/friendEventRules — the seats
+  // all their overlapping friends events hold at once), always, whatever FREEMIUM_ENFORCED says.
+  if (netAdding > 0) {
+    const friends = await friendsJoinCheck(id, netAdding);
+    if (friends && !friends.ok) return NextResponse.json({ error: friends.error, reason: 'full' }, { status: 403 });
+  }
 
   // One profile PER PERSON (option A): the answers live on the PRIMARY account's row; siblings carry
   // '{}' and inherit at read time. Primary = the user's primary account if it's among the picks, else
@@ -366,7 +380,9 @@ export async function POST(
   //    last place — on this event or an overlapping one — cannot both take it — the second counts the first's row and rolls its own back.
   const rows: { row: typeof eventSignups.$inferSelect; account: (typeof myAccounts)[number] }[] = [];
   try {
-    await withEventRoom({ eventId: id, clanPlan: metered }, async (tx) => {
+    // withEventRoom for a creator host, the friends gate for a friends host (lib/friendEvents): one
+    // host, one check, the write once on its locked transaction.
+    await withHostEventRoom({ eventId: id, clanPlan: metered }, async (tx) => {
       for (const cid of selectedIds) {
         const account = accountById.get(cid)!;
         const data = cid === primaryId ? profileJson : '{}';
@@ -498,6 +514,8 @@ export async function DELETE(
   }
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
+  // A friends host's undated event is open to its invite link's people (lib/signup signupWindowState).
+  const friendsKind = event && (await friendsHostOfEvent(event.id)) != null ? 'friends' : null;
   if (!event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
@@ -508,6 +526,7 @@ export async function DELETE(
     signupOpensAt: event.signupOpensAt,
     signupDeadline: event.signupDeadline,
     startDate: event.startDate,
+    hostKind: friendsKind,
   });
   if (!window.open) {
     return NextResponse.json(

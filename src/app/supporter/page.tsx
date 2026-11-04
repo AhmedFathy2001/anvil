@@ -8,6 +8,7 @@ import type { Metadata } from 'next';
 import { db } from '@/db';
 import { users } from '@/db/schema';
 import { isApexHost } from '@/lib/clanContext';
+import { FRIENDS_CAPS } from '@/lib/friendEventRules';
 import { verifyUser } from '@/lib/auth';
 import { ensureSupporterRef, supporterCheckoutUrl, supporterForUser } from '@/lib/supporter';
 import { SUPPORTER_TIERS, SUPPORTER_TIER_ORDER, type SupporterTierId } from '@/lib/supporterTiers';
@@ -36,14 +37,20 @@ const ROWS: { label: string; hint?: string; cells: [Cell, Cell, Cell, Cell] }[] 
   { label: 'Display case of your best drops', cells: ['—', '4 slots', '8 slots', '12 slots'] },
   {
     label: 'Host friend events',
-    hint: 'Run your own small bingo or race for friends, tracked by the plugin like a clan event. Shown as how many you can run at once, and how many players each can have.',
-    cells: ['Join only', { text: '1 at a time · 10 players', soon: true }, { text: '3 at a time · 25 players', soon: true }, { text: 'No limit · 50 players', soon: true }],
+    hint: 'Run your own private bingo or race for friends, tracked by the plugin like a clan event. Friends join by your invite link. Shown as how many can be running at once, and how many players they can hold between them while they overlap.',
+    cells: ['Join only', ...SUPPORTER_TIER_ORDER.map((id) => friendsCell(id))] as [Cell, Cell, Cell, Cell],
   },
   {
     label: 'Head-to-head challenges',
     hint: 'Challenge a friend one on one: first to a drop, or most kills or XP in a set time. Anvil tracks you both and calls the winner. Just for bragging rights, never for stakes.',
     cells: ['1 active', '5 active', 'Unlimited', 'Unlimited'] },
 ];
+
+/** "1 at a time · 10 players", from the one table the gates read (lib/friendEventRules). */
+function friendsCell(id: SupporterTierId): Cell {
+  const c = FRIENDS_CAPS[id];
+  return `${c.liveEvents} at a time · ${c.playersPerEvent} players`;
+}
 
 export default async function SupporterPage() {
   if (!isApexHost((await headers()).get('host'))) notFound();
@@ -86,6 +93,13 @@ export default async function SupporterPage() {
             <span>You&rsquo;re an</span>
             <SupporterName name={`Anvil ${current.tier.name}`} tier={current.tier.id} style={current.style} className="font-semibold" plain />
             <span className="-ml-1">. Thank you.</span>
+          </p>
+        )}
+        {current && (
+          <p className="relative mt-3 text-[13.5px]">
+            <ClanLink href="/host/friends" className="text-gold hover:text-gold-light">
+              Host an event for your friends →
+            </ClanLink>
           </p>
         )}
       </header>

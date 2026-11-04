@@ -10,8 +10,8 @@
 // double-grants a staff seat, so a retried accept is safe.
 
 import { parseBoardAccess, staffCanEditFrom, type BoardAccess } from '@/lib/cohostBoardAccess';
-import { CREATOR_NOT_AVAILABLE, isCreatorSpace } from '@/lib/creatorSpaces';
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { CREATOR_NOT_AVAILABLE, clanKindOf } from '@/lib/creatorSpaces';
+import { and, eq, inArray } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import { db } from '@/db';
@@ -104,7 +104,8 @@ export async function coHostKindRefusal(eventId: number, clanId: number): Promis
     // clan-scope: global -- the invited clan is another clan by definition; only its kind is read.
     db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true } }),
   ]);
-  return isCreatorSpace(host) || isCreatorSpace(guest) ? CREATOR_NOT_AVAILABLE : null;
+  // Nor a friends host (lib/friendEventRules): its boards are private to the people it invited.
+  return clanKindOf(host?.kind) !== 'clan' || clanKindOf(guest?.kind) !== 'clan' ? CREATOR_NOT_AVAILABLE : null;
 }
 
 /** Invite a clan to co-host an event. Returns the (possibly pre-existing) co-host row's id. */
@@ -155,8 +156,8 @@ export async function pendingCoHostInvites(clanId: number): Promise<CohostRow[]>
       and(
         eq(eventCohosts.clanId, clanId),
         eq(eventCohosts.status, 'pending'),
-        ne(clans.kind, 'creator'),
-        ne(hostClan.kind, 'creator'),
+        eq(clans.kind, 'clan'),
+        eq(hostClan.kind, 'clan'),
       ),
     );
 }
@@ -513,8 +514,8 @@ export async function coHostedBoardsForClan(clanId: number, now: Date = new Date
       and(
         eq(eventCohosts.clanId, clanId),
         eq(eventCohosts.status, 'accepted'),
-        ne(clans.kind, 'creator'),
-        ne(hostClan.kind, 'creator'),
+        eq(clans.kind, 'clan'),
+        eq(hostClan.kind, 'clan'),
       ),
     );
   return rows

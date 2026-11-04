@@ -27,7 +27,8 @@ import { filterToVisibleTeams, standingsHidden } from '@/lib/standingsVisibility
 import { forgetLinkCards } from '@/lib/ogKit';
 import { repriceStandardFees } from '@/lib/entryFee';
 import { isLiveEvent, meteredPlan } from '@/lib/creatorPlans';
-import { PlanLimitError, roomPlanOfEvent, withLiveEventSlot } from '@/lib/creatorPlansDb';
+import { PlanLimitError, roomPlanOfEvent } from '@/lib/creatorPlansDb';
+import { withHostEventSlot } from '@/lib/friendEvents';
 
 export async function GET(
   request: Request,
@@ -81,8 +82,11 @@ export async function GET(
   // caller's own team(s) unless they're staff or the curtain is up.
   const standingsScope = await standingsScopeForRequest(request, event);
 
+  // A friends event's invite link (lib/friendEvents) stays out of the board read; the host reads it
+  // on /host/friends and the event's own admin pages.
+  const { inviteToken: _invite, ...eventFields } = event;
   return NextResponse.json({
-    ...event,
+    ...eventFields,
     // Board cells, each combo carrying its parts (lib/combo); `completions` keeps the parts' too.
     tiles: nestParts(eventTiles),
     // Reveal-policy events: how many tiles the caller can't see yet (0 for staff/classic) —
@@ -242,7 +246,8 @@ export async function PATCH(
     // at once than the plan allows across events running at the same time (lib/creatorPlans).
     const reopens = isLiveEvent({ startDate: event.startDate, endDate: event.originalEndDate, forceEndedAt: null });
     try {
-      const [updated] = await withLiveEventSlot(
+      const [updated] = await withHostEventSlot(
+        clan,
         {
           clanId: clan.id,
           clanPlan: reopens ? meteredPlan(clan) : null,
@@ -331,7 +336,8 @@ export async function PATCH(
     // A no-op until FREEMIUM_ENFORCED is on.
     let updated: typeof events.$inferSelect;
     try {
-      [updated] = await withLiveEventSlot(
+      [updated] = await withHostEventSlot(
+        clan,
         {
           clanId: clan.id,
           clanPlan: isLiveEvent(event) ? null : meteredPlan(clan),
@@ -690,7 +696,7 @@ export async function PATCH(
   const datesChange = 'startDate' in body || 'endDate' in body;
   let updated: typeof events.$inferSelect;
   try {
-    [updated] = await withLiveEventSlot({
+    [updated] = await withHostEventSlot(clan, {
       clanId: clan.id,
       clanPlan: reopens ? meteredPlan(clan) : null,
       exceptEventId: id,

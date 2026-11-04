@@ -1,8 +1,9 @@
 import { currentClan } from '@/lib/clanContext';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { isFriendsHost } from '@/lib/friendEventRules';
 import { accounts, clanRoster, users, detectedAccounts } from '@/db/schema';
 import { characterStandings } from '@/lib/characterStandingRead';
-import ProfileTabs, { profileClans, SettingsButton } from './ProfileTabs';
+import ProfileTabs, { HostForFriendsButton, profileClans, SettingsButton } from './ProfileTabs';
 import LegacyAnchors from './LegacyAnchors';
 import { profileMediaForUser } from '@/lib/profileMedia';
 import OtherAccountsClient from './OtherAccountsClient';
@@ -162,7 +163,8 @@ export default async function ProfilePage({
   // A first sign-in from a deep link (lib/firstLogin): offer the way back to it on the connect card.
   const continueTo = welcome ? onboardingNext(params.next) : null;
   // A creator space's tab (lib/creatorSpaces): no roster, member page or guest seats to offer.
-  const space = isCreatorSpace(clan);
+  // A friends host's (lib/friendEventRules) too: nobody holds a roster seat there either.
+  const space = isCreatorSpace(clan) || isFriendsHost(clan);
   const [locker, clanName, supporterState] = await Promise.all([
     buildLocker(clan.id, session.playerId, session.userId, new Date(), params.account ?? null, { space }),
     getClanDisplayName(clan.id),
@@ -256,7 +258,8 @@ export default async function ProfilePage({
         <span className="text-sm text-text-muted">
           {daysIn != null && daysIn > 0 && <>{daysIn} day{daysIn === 1 ? '' : 's'} in {clanName}</>}
         </span>
-        <span className="ml-auto">
+        <span className="ml-auto flex flex-wrap items-center gap-2">
+          <HostForFriendsButton />
           <SettingsButton />
         </span>
       </div>

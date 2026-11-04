@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { and, asc, desc, eq, isNull, like, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, like, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clans } from '@/db/schema';
@@ -46,7 +46,8 @@ export async function GET(request: Request) {
         isNull(clanMemberships.leftAt),
       ),
     )
-    .leftJoin(clans, eq(clans.id, clanMemberships.clanId))
+    // Only a clan a stranger may see named (a hidden friends host or lab never is).
+    .leftJoin(clans, and(eq(clans.id, clanMemberships.clanId), eq(clans.platformHidden, false), ne(clans.kind, 'friends')))
     .where(and(eq(accounts.shared, true), like(accounts.rsnNormalized, `${term}%`)))
     // A name that STARTS with what was typed, best-known first — somebody typing three letters is
     // far more often after the account with numbers on it than the one nobody has seen.

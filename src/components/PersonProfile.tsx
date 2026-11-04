@@ -1,6 +1,6 @@
 import ClanLink from '@/components/ClanLink';
 import AddCharacterClient from '@/app/profile/AddCharacterClient';
-import ProfileTabs, { SettingsButton } from '@/app/profile/ProfileTabs';
+import ProfileTabs, { HostForFriendsButton, SettingsButton } from '@/app/profile/ProfileTabs';
 import type { MyClan } from '@/lib/myClans';
 import CreatorChip from '@/components/CreatorChip';
 import { YOUR_CLANS_HEADING, groupClansAndSpaces } from '@/lib/creatorSpaces';
@@ -93,7 +93,10 @@ export default function PersonProfile({
             {clans.filter((c) => c.seat).length === 1 ? '' : 's'}
           </p>
         </div>
-        <SettingsButton />
+        <div className="flex flex-wrap items-center gap-2">
+          <HostForFriendsButton />
+          <SettingsButton />
+        </div>
       </div>
 
       <ProfileTabs clans={clans} current={null} />

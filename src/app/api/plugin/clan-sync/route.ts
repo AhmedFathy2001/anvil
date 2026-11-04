@@ -22,7 +22,7 @@ import { log } from '@/lib/logger';
 import { recordJoinDates } from '@/lib/rosterJoinDates';
 import { RANK_NUMBERS_KEY, parseRankNumbers, rankNumbersFrom } from '@/lib/rankRules';
 import { accountChanged, seatChanged, departureFor, lastSeenIsFresh, returnFields, rosterReadVerdict } from '@/lib/rosterSync';
-import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { clanKindOf } from '@/lib/creatorSpaces';
 import { rosterClanSeat } from '@/lib/seatScope';
 
 interface IncomingMember {
@@ -111,7 +111,8 @@ export async function POST(request: Request) {
 
   // A creator space has no in-game clan, so it has no roster to sync — and a push here would seat a
   // real clan's members in a streamer's space. Refused before anything is written (lib/creatorSpaces).
-  if (isCreatorSpace(clan)) {
+  // A friends host (lib/friendEventRules) has no roster either.
+  if (clanKindOf(clan.kind) !== 'clan') {
     return NextResponse.json(
       {
         error: 'creatorSpace',
