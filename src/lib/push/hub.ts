@@ -10,6 +10,10 @@ import type { PushScope } from './ticket.ts';
 //   tile:<event>:<tile>  one tile's tracker numbers — to everyone on that board
 // Changes to one view are gathered for a moment and then built at most once per MIN_GAP, so a busy
 // team costs a handful of builds a minute however many teammates are watching.
+//
+// Stream overlays (lib/overlay) are WATCHERS, not clients: they get a bare NUDGE (`{"t":"nudge"}`)
+// when their event moves, never a view, and fetch their own public payload in answer. So nothing an
+// overlay key opens is built here, and the overlay's own rules (curtain, reveal) stay the only gate.
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -42,6 +46,14 @@ export interface ViewHubOptions {
   /** Runs fn after ms; returns a cancel. */
   later?: (fn: () => void, ms: number) => () => void;
 }
+
+/** A stream overlay watching one event. */
+export interface Watcher {
+  send(message: string): void;
+}
+
+/** All an overlay is ever sent: "your event moved, fetch". */
+export const NUDGE = JSON.stringify({ t: 'nudge' });
 
 export const DEFAULT_GATHER_MS = 300;
 export const DEFAULT_MIN_GAP_MS = 2_000;
@@ -84,6 +96,10 @@ export class ViewHub {
   private readonly feeds = new Map<number, Set<PushClient>>();
   /** user → every client they have open, for panel rows (lib/panelRows) aimed at people. */
   private readonly people = new Map<number, Set<PushClient>>();
+  /** event → stream overlays watching it (see the header: they only ever get a nudge). */
+  private readonly watchers = new Map<number, Set<Watcher>>();
+  /** event → its pending nudge, gathered and spaced like a view build. */
+  private readonly nudges = new Map<number, { timer: (() => void) | null; lastAt: number }>();
 
   constructor(opts: ViewHubOptions) {
     this.opts = opts;
@@ -120,12 +136,35 @@ export class ViewHub {
     };
   }
 
+  /** Watch an event for a stream overlay; the returned function stops. */
+  watch(eventId: number, watcher: Watcher): () => void {
+    let set = this.watchers.get(eventId);
+    if (!set) this.watchers.set(eventId, (set = new Set()));
+    set.add(watcher);
+    return () => {
+      const s = this.watchers.get(eventId);
+      s?.delete(watcher);
+      if (s?.size === 0) {
+        this.watchers.delete(eventId);
+        this.nudges.get(eventId)?.timer?.();
+        this.nudges.delete(eventId);
+      }
+    };
+  }
+
   /** How many clients are connected, for the server's health line. */
   get size(): number {
     const all = new Set<PushClient>();
     for (const set of this.events.values()) for (const c of set) all.add(c);
     for (const set of this.people.values()) for (const c of set) all.add(c);
     return all.size;
+  }
+
+  /** How many stream overlays are watching, for the same line. */
+  get watching(): number {
+    let n = 0;
+    for (const set of this.watchers.values()) n += set.size;
+    return n;
   }
 
   /** A chat-feed line for these users, to each of their clients with the feed on. */
@@ -151,10 +190,14 @@ export class ViewHub {
       }
     };
     if (notice.e != null) send(notice.t != null ? this.teams.get(teamKey(notice.e, notice.t)) : this.events.get(notice.e));
+    // A feed row on a board is news for its overlays' feed view.
+    if (notice.e != null) this.nudge(notice.e);
     for (const u of notice.u ?? []) send(this.people.get(u));
   }
 
   dispatch(change: PushChange): void {
+    // Overlays first: a board nobody has the plugin open on can still be on stream.
+    this.nudge(change.e);
     const onBoard = this.events.get(change.e);
     if (!onBoard) return;
     // A ticket's team was true when the site signed it. When somebody leaves a team, that team's
@@ -187,6 +230,23 @@ export class ViewHub {
   /** Everything rebuilt — after the database listener reconnects, when changes may have gone unheard. */
   refreshAll(): void {
     for (const k of this.teams.keys()) this.schedule(this.view(k));
+    for (const e of this.watchers.keys()) this.nudge(e);
+  }
+
+  /** Tell an event's overlays to fetch: gathered for a moment, then at most once per gap. */
+  private nudge(eventId: number): void {
+    const set = this.watchers.get(eventId);
+    if (!set) return;
+    let n = this.nudges.get(eventId);
+    if (!n) this.nudges.set(eventId, (n = { timer: null, lastAt: -Infinity }));
+    if (n.timer) return;
+    const state = n;
+    const gap = state.lastAt + (this.opts.minGapMs ?? DEFAULT_MIN_GAP_MS) - this.now();
+    state.timer = this.later(() => {
+      state.timer = null;
+      state.lastAt = this.now();
+      for (const w of this.watchers.get(eventId) ?? []) w.send(NUDGE);
+    }, Math.max(this.opts.gatherMs ?? DEFAULT_GATHER_MS, gap));
   }
 
   private view(key: string): View {

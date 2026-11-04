@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ViewHub, parseChange, parseFeed, parseRows, parseViewKey, teamDelta, teamKey, tileKey, type PushChange } from '../src/lib/push/hub.ts';
+import { NUDGE, ViewHub, parseChange, parseFeed, parseRows, parseViewKey, teamDelta, teamKey, tileKey, type PushChange } from '../src/lib/push/hub.ts';
 import { signTicket, ticketKey, verifyTicket, TICKET_TTL_MS } from '../src/lib/push/ticket.ts';
 
 const key = ticketKey('secret');
@@ -295,4 +295,52 @@ test('a team change rescopes the board\'s extra-board listeners too, not just th
   assert.equal(teamRoom, 1, 'the left team re-tickets');
   assert.equal(extra, 1, 'an extra-board listener re-tickets');
   assert.equal(other, 0, 'another team on its own board stays');
+});
+
+// ── Stream overlays (watchers) ──────────────────────────────────────────────────────────────────
+
+test('an overlay gets a bare nudge when its event moves — never a view, and nothing is built for it', async () => {
+  const { hub, advance, built } = harness();
+  const got: string[] = [];
+  hub.watch(1, { send: (m) => got.push(m) });
+  const other: string[] = [];
+  hub.watch(2, { send: (m) => other.push(m) });
+  hub.dispatch(change({ t: 10, i: 5 }));
+  await advance(100);
+  assert.deepEqual(got, [NUDGE]);
+  assert.deepEqual(other, [], 'another board is not nudged');
+  assert.deepEqual(built, [], 'no plugin is listening, so no view is built');
+  assert.equal(hub.watching, 2);
+});
+
+test('a burst of changes is one nudge, then at most one per gap', async () => {
+  const { hub, advance } = harness({ gatherMs: 100, minGapMs: 1_000 });
+  const got: string[] = [];
+  hub.watch(1, { send: (m) => got.push(m) });
+  for (let n = 0; n < 5; n++) hub.dispatch(change({ t: n }));
+  await advance(100);
+  assert.equal(got.length, 1);
+  hub.dispatch(change({}));
+  await advance(100);
+  assert.equal(got.length, 1, 'still inside the gap');
+  await advance(900);
+  assert.equal(got.length, 2);
+});
+
+test('board feed rows and a listener reconnect nudge overlays too; stopping ends it', async () => {
+  const { hub, advance } = harness();
+  const got: string[] = [];
+  const stop = hub.watch(1, { send: (m) => got.push(m) });
+  hub.deliverRows({ e: 1, m: { t: 'row' } });
+  await advance(100);
+  assert.equal(got.length, 1);
+  await advance(1_000);
+  hub.refreshAll();
+  await advance(100);
+  assert.equal(got.length, 2);
+  stop();
+  assert.equal(hub.watching, 0);
+  hub.dispatch(change({}));
+  await advance(2_000);
+  assert.equal(got.length, 2);
 });

@@ -13,6 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 import http from 'node:http';
+import type { Duplex } from 'node:stream';
 import pg from 'pg';
 import { WebSocketServer, type WebSocket } from 'ws';
 
@@ -53,6 +54,25 @@ async function fetchView(viewKey: string): Promise<string | null> {
   }
 }
 
+/**
+ * The event an overlay key opens; 'unknown' when the site says no such key (a 404: unknown, reset,
+ * removed), 'error' when it didn't answer properly. Only 'unknown' may be remembered as refused.
+ */
+async function overlayEvent(overlayKey: string): Promise<number | 'unknown' | 'error'> {
+  try {
+    const res = await fetch(`${site}/api/internal/push/overlay?key=${encodeURIComponent(overlayKey)}`, {
+      headers: { 'x-push-secret': siteSecret },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (res.status === 404) return 'unknown';
+    if (!res.ok) return 'error';
+    const body = (await res.json()) as { eventId?: unknown };
+    return Number.isInteger(body.eventId) ? (body.eventId as number) : 'error';
+  } catch {
+    return 'error';
+  }
+}
+
 const hub = new ViewHub({ fetchView, minGapMs: Number(process.env.PUSH_MIN_GAP_MS) || undefined });
 
 function log(event: string, fields: Record<string, unknown> = {}) {
@@ -67,7 +87,7 @@ const alive = new WeakSet<WebSocket>();
 const server = http.createServer((req, res) => {
   if (req.url === '/healthz') {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, clients: hub.size, db: listening }));
+    res.end(JSON.stringify({ ok: true, clients: hub.size, overlays: hub.watching, db: listening }));
     return;
   }
   res.writeHead(404).end();
@@ -77,6 +97,12 @@ server.on('upgrade', (req, socket, head) => {
   const url = new URL(req.url ?? '/', 'http://push');
   const auth = req.headers.authorization ?? '';
   const ticket = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  // A stream overlay (a browser: it can't send the plugin's Authorization header) on the same path.
+  const overlayKey = url.searchParams.get('overlay');
+  if (url.pathname === PATH && !ticket && overlayKey != null) {
+    void acceptOverlay(req, socket, head, overlayKey);
+    return;
+  }
   const scope = url.pathname === PATH && ticket ? verifyTicket(ticket, key, Date.now()) : null;
   if (!scope) {
     socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
@@ -103,6 +129,116 @@ server.on('upgrade', (req, socket, head) => {
     });
   });
 });
+
+// ── Stream overlays ──────────────────────────────────────────────────────────────────────────────
+//
+// The overlay key is the overlay's whole permission and it only ever earns a nudge (lib/push/hub,
+// watchers), so the worst a stolen key does here is learn WHEN a board moves — which its public
+// overlay already shows. Each socket is capped in lifetime so a reset key's sockets drop within
+// hours even if the page never fetches; the page reconnects and is checked again.
+
+const OVERLAY_KEY = /^[A-Za-z0-9_-]{32}$/;
+const OVERLAY_MAX_MS = 6 * 60 * 60_000;
+/** Sockets per address: a scene has a handful of overlays, not hundreds. */
+const OVERLAYS_PER_IP = 20;
+/** Every overlay socket on this server, and key checks running at once against the site. */
+const OVERLAYS_MAX = 5_000;
+const LOOKUPS_MAX = 32;
+/** A refused key stays refused this long without asking the site again. */
+const REFUSED_TTL_MS = 60_000;
+const overlaysByIp = new Map<string, number>();
+const refused = new Map<string, number>();
+let overlaysOpen = 0;
+let lookups = 0;
+
+/**
+ * The caller's address. Every public request reaches the box through the Cloudflare tunnel, and
+ * Cloudflare SETS CF-Connecting-IP at its edge (a client's own value is replaced), so that is the
+ * one header trusted. X-Forwarded-For's leftmost entry is whatever the client wrote; only the
+ * rightmost — added by the proxy in front of this server — is used when CF's is missing.
+ */
+function clientIp(req: http.IncomingMessage): string {
+  const cf = req.headers['cf-connecting-ip'];
+  if (typeof cf === 'string' && cf) return cf.trim();
+  const fwd = req.headers['x-forwarded-for'];
+  if (typeof fwd === 'string' && fwd) {
+    const parts = fwd.split(',');
+    return parts[parts.length - 1].trim();
+  }
+  return req.socket.remoteAddress ?? '?';
+}
+
+function isRefused(overlayKey: string): boolean {
+  const until = refused.get(overlayKey);
+  if (until == null) return false;
+  if (until > Date.now()) return true;
+  refused.delete(overlayKey);
+  return false;
+}
+
+function refuse(overlayKey: string): void {
+  // Bounded: an attacker cycling random keys can't grow this past a few thousand entries.
+  if (refused.size >= 5_000) refused.delete(refused.keys().next().value as string);
+  refused.set(overlayKey, Date.now() + REFUSED_TTL_MS);
+}
+
+async function acceptOverlay(req: http.IncomingMessage, socket: Duplex, head: Buffer, overlayKey: string) {
+  const ip = clientIp(req);
+  const open = overlaysByIp.get(ip) ?? 0;
+  if (!OVERLAY_KEY.test(overlayKey) || isRefused(overlayKey)) {
+    socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+    return;
+  }
+  if (open >= OVERLAYS_PER_IP || overlaysOpen >= OVERLAYS_MAX || lookups >= LOOKUPS_MAX) {
+    socket.end('HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\n\r\n');
+    return;
+  }
+  overlaysByIp.set(ip, open + 1);
+  overlaysOpen++;
+  // Released once, by whichever comes first: the raw socket closing (before, during or after the
+  // upgrade, errors included) or the websocket closing. Counting on the ws callback alone leaked a
+  // slot for every socket that died before its upgrade finished.
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    overlaysOpen--;
+    const n = (overlaysByIp.get(ip) ?? 1) - 1;
+    if (n <= 0) overlaysByIp.delete(ip);
+    else overlaysByIp.set(ip, n);
+  };
+  socket.once('close', release);
+  socket.once('error', release);
+  lookups++;
+  let found: number | 'unknown' | 'error';
+  try {
+    found = await overlayEvent(overlayKey);
+  } finally {
+    lookups--;
+  }
+  // A timeout or a 5xx is not a verdict on the key: refuse this socket (the page retries later) but
+  // never remember it, or a slow site would lock valid overlays out.
+  if (found === 'unknown') refuse(overlayKey);
+  const eventId = typeof found === 'number' ? found : null;
+  if (eventId == null || socket.destroyed) {
+    release();
+    if (!socket.destroyed) socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+    return;
+  }
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    alive.add(ws);
+    ws.on('pong', () => alive.add(ws));
+    ws.on('message', () => ws.close(1003, 'listen only'));
+    ws.send(JSON.stringify({ t: 'hello' }));
+    const stop = hub.watch(eventId, { send: (m) => ws.readyState === ws.OPEN && ws.send(m) });
+    const expiry = setTimeout(() => ws.close(4001, 'reconnect'), OVERLAY_MAX_MS);
+    ws.on('close', () => {
+      clearTimeout(expiry);
+      stop();
+      release();
+    });
+  });
+}
 
 function ticketExpiry(ticket: string): number {
   try {
