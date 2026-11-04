@@ -4387,10 +4387,9 @@ export const userKickLinks = pgTable('user_kick_links', {
 ]);
 
 /**
- * A person's Medal.tv profile (lib/connectedAccounts). Medal has no OAuth, so this starts UNVERIFIED —
- * what they typed, labelled as such and hidden from profiles by default — and becomes verified when
- * their Anvil code shows up in one of that Medal account's latest public clip titles (lib/medal).
- * Unique on the Medal id only once verified, so typing somebody else's profile cannot block them.
+ * A person's Medal.tv profile link (lib/connectedAccounts): a plain link they pasted, never verified
+ * (Medal has no OAuth and no obtainable API key). verified_at and its verified-only unique index are
+ * legacy and never set now, so any number of logins may paste the same profile.
  */
 export const userMedalLinks = pgTable('user_medal_links', {
   userId: integer('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),

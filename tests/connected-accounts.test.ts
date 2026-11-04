@@ -1,6 +1,6 @@
-// Connected accounts — the pure half: Medal profile parsing and its verification code, the URLs a
+// Connected accounts — the pure half: Medal profile parsing, the URLs a
 // profile chip may link to, who sees which links, the live badges (batched + cached, against a mocked
-// Helix and Kick), the Medal API client, and YouTube's settings ('link') OAuth state.
+// Helix and Kick), and YouTube's settings ('link') OAuth state.
 //
 // Run: npm run test:connected-accounts
 
@@ -9,21 +9,17 @@ import assert from 'node:assert/strict';
 
 import {
   cleanHandle,
-  creditsName,
   kickSlugFor,
   kickUrl,
-  medalCode,
   medalUrl,
   parseMedalProfile,
   resolveShowOnProfile,
-  titleHasCode,
   twitchUrl,
   visibleLinks,
   youtubeUrl,
   type ConnectedLink,
 } from '../src/lib/connectedAccountsRules.ts';
 import { LIVE_TTL_MS, kickLive, liveCache, setLiveFetchForTests, twitchLive } from '../src/lib/connectedLive.ts';
-import { latestClips, medalApiKey } from '../src/lib/medal.ts';
 import { signState, verifyState } from '../src/lib/gates/youtube.ts';
 
 test('Medal profile input: links and bare ids/names on medal.tv only; everything else refused', () => {
@@ -73,54 +69,19 @@ const link = (platform: ConnectedLink['platform'], verified: boolean, stored?: b
   handle: platform,
   url: null,
   verified,
-  showOnProfile: resolveShowOnProfile(stored, verified),
+  selfReported: platform === 'medal',
+  showOnProfile: resolveShowOnProfile(stored, verified || platform === 'medal'),
   platformId: '1',
 });
 
-test('who sees which link: default on for verified, off for unverified; the owner sees everything', () => {
+test('who sees which link: default on (Medal too — a plain link), off when they hid it; the owner sees everything', () => {
   const links = [link('twitch', true), link('youtube', true, false), link('kick', true), link('medal', false)];
   assert.deepEqual(
     visibleLinks(links, false).map((l) => l.platform),
-    ['twitch', 'kick'],
+    ['twitch', 'kick', 'medal'],
   );
   assert.equal(visibleLinks(links, true).length, 4);
-  // An unverified Medal link the person chose to show is shown (the chip labels it "not verified").
-  assert.deepEqual(
-    visibleLinks([link('medal', false, true)], false).map((l) => l.platform),
-    ['medal'],
-  );
-});
-
-test('Medal code: stable per (login, Medal id), different otherwise; found in a title only as a whole token', () => {
-  const c = medalCode(7, '123', 'k'.repeat(40));
-  assert.match(c, /^ANVIL-[23456789ABCDEFGHJKMNPQRSTVWXYZ]{6}$/);
-  assert.equal(medalCode(7, '123', 'k'.repeat(40)), c);
-  assert.notEqual(medalCode(8, '123', 'k'.repeat(40)), c);
-  assert.notEqual(medalCode(7, '124', 'k'.repeat(40)), c);
-  assert.equal(titleHasCode(`insane drop ${c.toLowerCase()} gg`, c), true);
-  assert.equal(titleHasCode(`${c}X`, c), false);
-  assert.equal(titleHasCode('nothing here', c), false);
-  assert.equal(creditsName('Credits to Clipper (https://medal.tv/users/123)', '123'), 'Clipper');
-  assert.equal(creditsName('Credits to Clipper (https://medal.tv/users/999)', '123'), null);
-});
-
-test('Medal API: fixed host, key in Authorization, bad ids never sent', async () => {
-  assert.equal(medalApiKey({ MEDAL_API_KEY: 'pub_abcdefgh' }), 'pub_abcdefgh');
-  assert.equal(medalApiKey({ MEDAL_API_KEY: 'has space in it' }), null);
-  assert.equal(medalApiKey({}), null);
-  const seen: string[] = [];
-  const f = async (url: string, init?: RequestInit) => {
-    seen.push(url);
-    assert.equal(new Headers(init?.headers).get('authorization'), 'pub_key123');
-    return new Response(JSON.stringify({ contentObjects: [{ contentTitle: 'hi', credits: 'Credits to A (https://medal.tv/users/5)' }] }), { status: 200 });
-  };
-  const r = await latestClips('pub_key123', '5', 10, f);
-  assert.deepEqual(r, { ok: true, value: [{ title: 'hi', credits: 'Credits to A (https://medal.tv/users/5)' }] });
-  assert.equal(new URL(seen[0]).origin, 'https://developers.medal.tv');
-  assert.deepEqual(await latestClips('pub_key123', '5&x=1', 10, f), { ok: false, reason: 'not-found' });
-  assert.equal(seen.length, 1);
-  const r401 = await latestClips('pub_key123', '5', 10, async () => new Response('{}', { status: 401 }));
-  assert.deepEqual(r401, { ok: false, reason: 'unauthorized' });
+  assert.deepEqual(visibleLinks([link('medal', false, false)], false), []);
 });
 
 // ── Live badges ──────────────────────────────────────────────────────────────────────────────────

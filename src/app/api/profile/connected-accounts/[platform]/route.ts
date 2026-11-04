@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { verifyUser } from '@/lib/auth';
 import { isPlatform } from '@/lib/connectedAccountsRules';
-import { setMedalProfile, setShowOnProfile, unlinkConnectedAccount, verifyMedal } from '@/lib/connectedAccounts';
+import { setMedalProfile, setShowOnProfile, unlinkConnectedAccount } from '@/lib/connectedAccounts';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 
 // /api/profile/connected-accounts/<twitch|youtube|kick|medal> — the signed-in person's own links
@@ -12,8 +12,7 @@ import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 //
 //   PATCH  { show: boolean }                    show / hide it on their profile
 //   DELETE                                       unlink (and drop what was cached about it)
-//   POST   (medal) { action: 'set', profile }    save their Medal profile, unverified
-//   POST   (medal) { action: 'verify' }          look for their code in their latest clip titles
+//   POST   (medal) { action: 'set', profile }    save their Medal profile link (a plain link, never verified)
 
 const noStore = { 'Cache-Control': 'no-store' };
 
@@ -44,17 +43,6 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 
 const MEDAL_SET_ERRORS = {
   invalid: 'That doesn’t look like a Medal profile. Paste the link to it (medal.tv/u/name or medal.tv/users/123).',
-  taken: 'That Medal account is already verified on another Anvil login.',
-} as const;
-
-const MEDAL_VERIFY_ERRORS = {
-  off: 'Medal verification isn’t set up on this server.',
-  none: 'Add your Medal profile first.',
-  'needs-id': 'Verification needs your numeric Medal id: paste the medal.tv/users/<number> link to your profile.',
-  'not-found': 'Medal doesn’t know that profile.',
-  'no-code': 'Your code isn’t in the title of any of your 10 latest public clips yet. Medal can take a minute to update.',
-  taken: 'That Medal account is already verified on another Anvil login.',
-  error: 'Couldn’t reach Medal just now — try again in a minute.',
 } as const;
 
 export async function POST(request: Request, { params }: { params: Promise<{ platform: string }> }) {
@@ -68,13 +56,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pla
     const r = await setMedalProfile(w.userId, body.profile);
     return r.ok
       ? NextResponse.json({ ok: true }, { headers: noStore })
-      : NextResponse.json({ error: MEDAL_SET_ERRORS[r.reason] }, { status: r.reason === 'taken' ? 409 : 400 });
-  }
-  if (body?.action === 'verify') {
-    const r = await verifyMedal(w.userId);
-    return r.ok
-      ? NextResponse.json({ ok: true }, { headers: noStore })
-      : NextResponse.json({ error: MEDAL_VERIFY_ERRORS[r.reason], reason: r.reason }, { status: r.reason === 'error' ? 502 : 400 });
+      : NextResponse.json({ error: MEDAL_SET_ERRORS[r.reason] }, { status: 400 });
   }
   return NextResponse.json({ error: 'Bad request' }, { status: 400 });
 }
