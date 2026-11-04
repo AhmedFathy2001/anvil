@@ -37,6 +37,7 @@ const ko: PartialGuideDict = {
       playing: '플레이',
       running: '이벤트 운영',
       clan: '클랜 운영',
+      streamers: '스트리머',
     },
     ingame: {
       title: '게임 공략',
@@ -145,6 +146,27 @@ const ko: PartialGuideDict = {
         blurb:
           '봇이 Discord에서 응답하는 모든 명령어, 각 옵션이 하는 일, 실제 예시, 그리고 명령어가 안 보일 때 확인할 것.',
         minutes: '약 6분',
+      },
+      creators: {
+        eyebrow: '스트리머용',
+        title: '시청자를 위한 이벤트 열기',
+        blurb:
+          '클랜은 필요 없어요. 스페이스를 만들고, 링크 하나를 공유하고, 참여할 수 있는 사람(팔로워, 구독자, Discord 역할)을 고른 뒤, 보드를 방송에 띄우세요.',
+        minutes: '약 6분',
+      },
+      joiningStream: {
+        eyebrow: '시청자용',
+        title: '스트리머의 이벤트에 참여하기',
+        blurb:
+          '방송에서 링크를 받았나요? 로그인하고, 캐릭터를 추가하고, Join을 누르세요. 팔로워 전용·구독자 전용 이벤트에서 할 일.',
+        minutes: '약 2분',
+      },
+      streamingClans: {
+        eyebrow: '방송하는 클랜용',
+        title: '클랜 방송하기',
+        blurb:
+          '시청자가 클랜에 가입하지 않고도 이벤트 하나에 참여하게 하세요. Streaming을 켜고, 이벤트를 시청자에게 열면 됩니다.',
+        minutes: '약 2분',
       },
     },
   },
@@ -2345,6 +2367,405 @@ const ko: PartialGuideDict = {
     limit: '알아둘 점',
     checked: '칸이 대신 확인해 줍니다',
     englishOnly: '아래 규칙은 사이트의 실제 동작과 항상 일치하도록 당분간 영어로만 제공됩니다.',
+  },
+
+  // /guide/creators — 스트리머 스페이스 호스트용 가이드.
+  creators: {
+    metaTitle: '시청자를 위한 OSRS 빙고 열기 — Anvil',
+    metaDescription:
+      '클랜 없이 방송용 Old School RuneScape 빙고나 타일 레이스를 열어 보세요: 스페이스를 만들고, 링크 하나를 공유하고, 참여할 수 있는 사람(Twitch, Kick, YouTube, Discord)을 고른 뒤, OBS로 보드를 방송에 띄웁니다.',
+    eyebrow: '스트리머·크리에이터용',
+    title: '시청자를 위한 이벤트 열기',
+    dek: '크리에이터 스페이스로 방송용 빙고를 열 수 있어요. 게임 내 클랜은 필요 없습니다. 이벤트 하나를 만들고, 링크 하나를 공유하면 시청자가 참여합니다.',
+    facts: [
+      { strong: '클랜', rest: '필요 없음' },
+      { strong: '무료', rest: '로 시작' },
+      { strong: '링크 하나', rest: '를 채팅에' },
+    ],
+
+    what: {
+      title: '크리에이터 스페이스란',
+      body: [
+        'Anvil에 있는 나만의 페이지로, 주소는 `{apex}/c/your-name`입니다. 여기서 시청자를 위한 이벤트를 엽니다.',
+        '클랜이 아닙니다. 클랜 목록도, 계급도, 주간 대회도 없어요. 이벤트에 참여한 사람은 그 이벤트만 합니다. 그게 전부예요.',
+        '시청자는 Discord로 로그인하고, RuneScape 캐릭터를 추가하고, **Join**을 누릅니다. 그러면 Anvil RuneLite 플러그인이 드롭을 알아서 세어 줍니다.',
+      ],
+    },
+
+    create: {
+      title: '스페이스 만들기',
+      body: [
+        '[{apex}/host](/host)로 가서 Discord로 로그인하세요.',
+        '스페이스 이름을 입력하세요. 채널 이름이 좋아요. 링크는 이름으로 만들어집니다. 다른 링크를 원하면 **change link**를 누르세요.',
+        '**Create my space**를 누르세요. 스페이스는 Discord 계정 하나당 하나입니다.',
+      ],
+    },
+
+    first: {
+      title: '첫 이벤트 만들기',
+      body: [
+        '스페이스를 만들면 바로 **Create your first event** 화면이 나옵니다. 나중에는 **Your events** 위쪽의 **+ New event**를 쓰세요.',
+        '**Name.** 시청자에게 보이는 이름이에요.',
+        '**What kind?** 카드를 고르세요. **Team bingo**는 5×5 칸이고 Anvil이 팀을 나눠 줍니다. **Solo bingo**는 같은 칸에서 각자 겨룹니다. **Team race**는 순서대로 하는 과제이고, 가장 멀리 간 팀이 이깁니다.',
+        '**Ready-made tiles**는 쉬운 것부터 어려운 것까지 섞인 과제를 주고, 나중에 바꿀 수 있어요. **Blank, I’ll write my own**은 빈 상태로 시작합니다.',
+        '**Who can join?** 은 **Anyone**으로 두거나, 참여할 수 있는 사람을 고르세요. 5단계를 보세요.',
+        '**When?** 시작일과 종료일을 고르세요. 비워 두고 준비되면 직접 시작해도 됩니다.',
+        '**Create event**를 누른 다음 **Copy invite link**를 누르세요.',
+      ],
+    },
+
+    share: {
+      title: '링크 공유하기',
+      body: [
+        '초대 링크를 방송 채팅, Discord, SNS에 붙여 넣으세요. 시청자에게 필요한 건 그 링크뿐이에요.',
+        '언제든 다시 복사할 수 있어요: **Your events** → 이벤트 옆의 **Copy invite link**.',
+        '채팅의 `!join`에 봇이 링크로 답하게 하고 싶나요? 9단계를 보세요.',
+      ],
+    },
+
+    who: {
+      title: '참여할 수 있는 사람 고르기',
+      body: [
+        '이벤트는 처음에 **Anyone**에게 열려 있어요. 내 커뮤니티만 받고 싶다면 이벤트의 **Settings** → **Who can join?** 을 열고 하나 이상 고르세요. 같은 선택지가 첫 이벤트 화면에도 있습니다.',
+        '둘 이상 고르면 **그중 하나만 맞아도 됩니다**. 팔로워이거나 서버 부스터이면 들어올 수 있어요.',
+      ],
+      intro: '각 선택지와 시청자가 해야 할 일:',
+      rows: [
+        {
+          term: 'Anyone',
+          body: '링크가 있는 사람은 바로 참여합니다.',
+        },
+        {
+          term: 'Twitch followers',
+          body: '시청자가 이벤트 페이지에서 **Link Twitch**를 누르고 Twitch로 로그인합니다. Anvil이 나를 팔로우하는지 확인합니다.',
+        },
+        {
+          term: 'Twitch subs',
+          body: '팔로워와 같지만 구독 중이어야 합니다. 가장 낮은 티어를 고르세요: **Tier 1 or higher**, **Tier 2 or higher**, **Tier 3**. Prime 구독은 1티어로 셉니다. 채널이 Twitch 제휴(Affiliate) 또는 파트너여야 합니다.',
+        },
+        {
+          term: 'Kick followers',
+          body: 'Kick은 앱에 누가 팔로우하는지 알려 주지 않아서, Anvil은 Kick을 연결한 「뒤에」 팔로우한 사람을 셉니다. 그 전에 팔로우했다면 시청자가 언팔로우했다가 다시 팔로우하면 됩니다.',
+        },
+        {
+          term: 'Kick subs',
+          body: 'Kick을 연결한 뒤 Anvil이 본 구독자는 자동으로 인정됩니다. 그 밖의 사람은 **Get Kick code**를 누르고, 코드(`ANVIL-7F3K9Q` 같은 모양)를 내 Kick 채팅에 입력합니다. Anvil이 구독 배지를 확인합니다. Kick에는 구독 티어가 없어요.',
+        },
+        {
+          term: 'YouTube subscribers',
+          body: '시청자가 **Check my YouTube subscription**을 누르고 Google로 로그인합니다. YouTube에서 구독 목록이 공개여야 합니다.',
+        },
+        {
+          term: 'YouTube members',
+          body: '시청자가 Anvil 코드를 내 YouTube 라이브 채팅에 입력합니다. 그래서 멤버는 **방송 중일 때만** 참여할 수 있어요.',
+        },
+        {
+          term: 'Discord role',
+          body: '내 Discord 서버에서 고른 역할(최대 5개)을 가진 사람. 먼저 서버를 연결하세요: 메뉴의 **Discord (optional)**.',
+        },
+        {
+          term: 'Server boosters',
+          body: '내 Discord 서버를 부스트하는 사람. 이것도 서버가 연결되어 있어야 합니다.',
+        },
+      ],
+      note: {
+        tag: '알아 두세요',
+        body: '먼저 채널을 연결하세요(7단계). 그러지 않으면 Twitch, Kick, YouTube 선택지가 회색으로 남아요. Twitch, Kick, YouTube 계정 하나는 이벤트마다 플레이어 한 명만 들여보낼 수 있습니다. 스태프와 이름으로 초대한 사람은 확인 없이 들어옵니다.',
+      },
+    },
+
+    approve: {
+      title: '플레이어를 한 명씩 승인하기 (선택)',
+      body: [
+        '누가 플레이할지 직접 고르고 싶나요? 이벤트의 **Settings** → **Who can play** → **Who can enter it**을 열고 **Ask me about everyone**을 고르세요. **Save changes**를 누르세요.',
+        '이제 시청자에게는 **Join** 대신 **Ask to join**이 보입니다. 그 전에 **Who can join?** 조건은 먼저 통과해야 해요.',
+        '요청은 **Your events**에 **N waiting for you**로 보입니다. 누르거나 이벤트의 **Sign-ups** 탭을 여세요. 맨 위 목록의 이름은 **Waiting for your yes**입니다. 한 명씩 수락하거나 거절하세요.',
+      ],
+    },
+
+    channels: {
+      title: 'Twitch, Kick, YouTube 연결하기',
+      body: [
+        '메뉴에서 **Settings**를 여세요. 스페이스 이름 아래에서 **Connect Twitch**, **Connect YouTube**, **Connect Kick**을 누르고 내 채널로 로그인하세요.',
+        '연결한 채널은 내 페이지에 **verified** 링크로 보입니다. 링크를 직접 입력할 수는 없어요: 로그인이 그 채널이 내 것임을 Anvil이 아는 방법입니다.',
+        '채널은 Anvil의 한 곳에만 연결할 수 있어요. 이미 내가 운영하는 다른 스페이스나 클랜에 연결돼 있으면 옮길지 Anvil이 물어봅니다.',
+      ],
+    },
+
+    overlay: {
+      title: '보드를 방송에 띄우기 (OBS)',
+      body: [
+        '**Your events**에서 이벤트 옆의 **Stream overlay**를 누르고 **Make overlay links**를 누르세요.',
+        '링크가 세 개 생깁니다. **Standings**: 상위 팀과 진행 상황. **Feed**: 최근 드롭과 완료한 타일. **Board**: 완료한 타일이 표시된 보드.',
+        '복사하기 전에 **Text size**(S, M, L, XL)를 고르세요. 그다음 원하는 것 옆의 **Copy**를 누르세요.',
+      ],
+      stepsTitle: 'OBS에 추가하기',
+      steps: [
+        'OBS의 **Sources**에서 **+**를 누르고 **Browser**를 고르세요.',
+        '**URL**에 링크를 붙여 넣으세요.',
+        '크기를 정하세요. 예: 800 × 600. **Custom CSS**는 비워 두세요.',
+        '**OK**를 누르세요. 몇 초마다 알아서 업데이트됩니다.',
+      ],
+      tipsTag: '알아 두세요',
+      tips: [
+        '링크 끝에 `&limit=10`, `&title=0`, `&align=right`를 붙이면 바꿀 수 있어요.',
+        '오버레이에는 공개 이벤트 페이지에 보이는 것이 그대로 나옵니다. 숨긴 순위와 숨긴 타일은 방송에서도 숨겨져요.',
+        '**Reset link**는 새 링크를 만들고 예전 링크를 막습니다. 링크가 새어 나갔을 때 쓰세요. 새 링크를 OBS에 다시 붙여 넣어야 해요.',
+        '구석에 작은 “Anvil” 마크가 있습니다. Gold 플랜에서는 **Settings** → **Anvil mark on your overlay**에서 숨길 수 있어요.',
+      ],
+    },
+
+    chatjoin: {
+      title: '채팅에서 !join',
+      body: [
+        '**Settings** → **!join in Twitch chat**을 열고 켜세요.',
+        '시청자가 `!join`을 입력하면 Anvil 봇(Anvil_OSRS)이 열려 있는 이벤트의 링크로 답합니다. 몇 명이 입력해도 30초에 한 번만 답해요.',
+        '연결한 채널(7단계)에서만 답합니다. Kick 채널을 연결하면 Kick 채팅에서도 동작해요.',
+        '열려 있는 이벤트가 없으면 그렇게 알려 줍니다: “No event is open to join right now — keep an eye on the stream!”',
+      ],
+    },
+
+    listing: {
+      title: 'Anvil에 등록하기',
+      body: [
+        '스페이스는 만들 때 비공개 목록 상태예요. 링크가 있는 사람만 찾을 수 있습니다.',
+        '**Settings** → **Advertise on Anvil**을 열고 켜세요. 스페이스가 Anvil 클랜 디렉터리에 보이고, 새 이벤트는 `{apex}/events`에 보입니다.',
+        '이벤트 하나만 등록하려면 그 이벤트의 **Settings** → **Who can play** → **Advertise on Anvil**을 여세요. 예정 중이거나 진행 중일 때 보입니다.',
+      ],
+    },
+
+    plans: {
+      title: '플랜과 한도',
+      body: [
+        '플랜이 정하는 건 이벤트 하나에 들어올 수 있는 플레이어 수뿐이에요. 나머지는 모든 플랜이 같습니다: 보드, 플러그인 추적, 오버레이, Discord.',
+        '플랜 카드는 **Your events**에 있어요. 플랜을 비교하려면 [요금](/pricing#creators)을 보세요. 결제를 바꾸거나 해지하려면 [결제 페이지](/portal)로 가세요.',
+      ],
+      rows: [
+        { term: 'Free', body: '이벤트당 최대 50명. 한 번에 이벤트 하나. Discord 역할·부스터 확인.' },
+        { term: 'Bronze', body: '이벤트당 최대 150명. Twitch, Kick, YouTube 확인.' },
+        { term: 'Silver', body: '이벤트당 최대 300명. 한 번에 이벤트 여러 개. 채팅의 `!join`. 목록에서 먼저 표시.' },
+        { term: 'Gold', body: '이벤트당 최대 1,000명. 오버레이의 Anvil 마크 숨기기.' },
+        { term: 'Partner', body: '플레이어 수 제한 없음. Anvil과 직접 설정해요 — 문의해 주세요.' },
+      ],
+      note: {
+        tag: '지금은',
+        body: 'Anvil이 자라는 동안에는 플랜 숫자를 넘어도 모두 들어올 수 있어요. 한도는 안내를 드린 뒤 나중에 시작됩니다. 플랜 카드에서 얼마나 가까운지 볼 수 있어요.',
+      },
+    },
+
+    faq: {
+      title: '질문',
+      intro: '스트리머가 가장 많이 묻는 것들:',
+      rows: [
+        {
+          term: '시청자에게 클랜이 필요한가요?',
+          body: '아니요. Discord 계정과 OSRS 캐릭터만 있으면 됩니다. [시청자 가이드]({joiningGuide})를 보내 주세요.',
+        },
+        {
+          term: 'RuneLite 플러그인이 필요한가요?',
+          body: '드롭과 처치(킬)에는 필요해요. 플러그인이 알아서 보냅니다. 일부 타일은 대신 하이스코어를 읽어요.',
+        },
+        {
+          term: '시청자가 “The host’s Twitch connection isn’t working”라고 해요.',
+          body: 'Twitch가 내 연결을 더는 받아 주지 않아요. **Settings**를 열고 **Reconnect Twitch**를 누르세요. Kick과 YouTube도 같습니다.',
+        },
+        {
+          term: '다른 사람이 운영을 도와줄 수 있나요?',
+          body: '네. **Players** → **Staff & roles**를 열어 그 사람을 추가하고, 각자 할 수 있는 일을 고르세요.',
+        },
+        {
+          term: '게임 내 클랜도 운영하고 있어요.',
+          body: '그렇다면 스페이스는 필요 없을 수 있어요. 공개 클랜은 대신 **Streaming**을 켤 수 있습니다. [클랜 방송하기]({streamingGuide})를 보세요.',
+        },
+        {
+          term: '스페이스를 하나 더 만들 수 있나요?',
+          body: '지금은 Discord 계정 하나당 스페이스 하나예요. 하나 더 필요하면 문의해 주세요.',
+        },
+      ],
+    },
+  },
+
+  // /guide/joining-a-streamer-event — 스트리머의 링크를 누른 시청자용.
+  joiningStream: {
+    metaTitle: '스트리머의 OSRS 빙고에 참여하기 — Anvil',
+    metaDescription:
+      '스트리머에게 링크를 받았나요? Discord로 로그인하고, OSRS 캐릭터를 추가하고, Join을 누르세요. Twitch, Kick, YouTube의 팔로워 전용·구독자 전용 이벤트에서 할 일과 드롭이 세어지는 방식.',
+    eyebrow: '시청자용',
+    title: '스트리머의 이벤트에 참여하기',
+    dek: '스트리머가 링크를 공유했어요. 보드에 들어가는 방법입니다. 클랜은 필요 없어요.',
+    facts: [
+      { strong: '약 2분', rest: '이면 참여' },
+      { strong: '클랜', rest: '필요 없음' },
+    ],
+
+    join: {
+      title: '네 단계로 참여하기',
+      body: [
+        '스트리머가 공유한 **링크를 여세요**. 아니면 스트리머의 채팅에 `!join`을 입력하면 봇이 링크를 올려 줍니다.',
+        '**Discord로 로그인하세요.** 그게 Anvil 계정이에요. 따로 적을 건 없습니다.',
+        '**캐릭터를 추가하세요.** **Add my character**를 누르고 RuneScape 이름을 입력하세요. **Prove it’s mine**이 보이면 프로필의 안내를 따르세요. 방법은 [플러그인 가이드]({pluginGuide})에 있어요.',
+        '**Join을 누르세요.** 캐릭터가 여러 개면 하나를 고르세요. 성공하면 **You’re in!** 이 보입니다.',
+      ],
+    },
+
+    gated: {
+      title: '팔로워·구독자 전용 이벤트',
+      body: [
+        '스트리머의 커뮤니티만을 위한 이벤트도 있어요. 참여 카드에 누구를 위한 건지 나옵니다. 예: “Open to followers of somename on Twitch”.',
+        '그래도 **Join**을 눌러 보세요. 아직 들어갈 수 없다면 카드에 할 일이 나옵니다. 그중 하나를 하고 **Join**을 다시 누르세요.',
+      ],
+      intro: '종류별로 할 일:',
+      rows: [
+        {
+          term: 'Twitch follow or sub',
+          body: '**Link Twitch**를 누르고 Twitch로 로그인하세요. Anvil은 아무 권한도 요구하지 않아요. 그다음 **Join**을 다시 누르세요.',
+        },
+        {
+          term: 'Kick follow or sub',
+          body: '**Get Kick code**를 누르세요. 코드(`ANVIL-7F3K9Q` 같은 모양)를 10분 안에 스트리머의 Kick 채팅에 입력하세요. 코드는 한 번만 쓸 수 있어요. 그다음 **Join**을 다시 누르세요.',
+        },
+        {
+          term: 'YouTube subscriber',
+          body: '**Check my YouTube subscription**을 누르고 Google로 로그인하세요. 방송을 볼 때 쓰는 계정을 고르세요. YouTube 개인정보 설정에서 구독 목록이 공개여야 합니다.',
+        },
+        {
+          term: 'YouTube member',
+          body: '**Link my YouTube account**를 누른 다음, YouTube 라이브 채팅에 코드를 입력하고 **check the chat**을 누르세요. 스트리머가 방송 중일 때만 됩니다.',
+        },
+        {
+          term: 'Discord role or booster',
+          body: '스트리머의 Discord 서버에 들어가서 역할을 받으세요(또는 부스트하세요). Anvil은 로그인한 Discord 계정으로 확인합니다.',
+        },
+      ],
+      note: {
+        tag: '승인',
+        body: '스트리머가 플레이어를 한 명씩 승인하는 경우도 있어요. 그러면 버튼이 **Ask to join**이고, 답이 올 때까지 **Waiting for the host**가 보입니다.',
+      },
+    },
+
+    plugin: {
+      title: 'Anvil 플러그인 설치하기',
+      body: [
+        '드롭과 처치(킬)는 RuneLite용 Anvil 플러그인으로 세어집니다. Plugin Hub에서 설치하고, 사이드 패널에서 Discord로 로그인하세요.',
+        '[플러그인 가이드]({pluginGuide})가 약 3분 안에 안내해 줍니다.',
+      ],
+    },
+
+    play: {
+      title: '플레이하기',
+      body: [
+        '이게 전부예요. 평소처럼 플레이하세요. 보드에 필요한 드롭이나 처치가 나오면 플러그인이 알아서 보냅니다.',
+        '이벤트 링크를 열면 언제든 보드와 순위를 볼 수 있어요. 이 이벤트 하나만 하는 거예요: 클랜에 가입하는 게 아닙니다.',
+      ],
+    },
+
+    accounts: {
+      title: '연결한 계정',
+      body: [
+        '연결한 Twitch, YouTube, Kick 계정은 [Settings → Connected accounts](/settings/connections)에 있어요. 참여하기 전에 여기서 미리 연결해도 됩니다.',
+        '언제든 연결을 끊을 수 있어요. 이미 참여한 이벤트는 그대로입니다. 나중에 참여하는 제한 이벤트는 다시 연결하라고 합니다.',
+      ],
+    },
+
+    faq: {
+      title: '질문',
+      intro: '안 된다고 할 때:',
+      rows: [
+        {
+          term: '“This event is full”',
+          body: '더 들어올 자리가 없어요. 자리를 만들 수 있는 건 스트리머뿐이에요 — 알려 주세요.',
+        },
+        {
+          term: '구독 중인데 들어가지 못해요.',
+          body: '구독할 때 쓰는 계정과 같은 계정을 연결했는지 확인하세요. Twitch에서는 참여 카드의 **Your Twitch**를 보세요. Kick에서는 새 코드를 채팅에 입력하세요: Anvil이 그 메시지의 구독 배지를 읽습니다. YouTube에서는 구독 목록을 공개로 바꾸고 다시 확인하세요.',
+        },
+        {
+          term: 'Kick에서 팔로우했는데 안 했다고 나와요.',
+          body: 'Anvil은 스트리머가 Kick을 연결한 뒤에 한 팔로우만 볼 수 있어요. 언팔로우했다가 다시 팔로우한 다음 **Join**을 누르세요.',
+        },
+        {
+          term: '“That Twitch account was already used to join this event”',
+          body: 'Twitch(또는 Kick, YouTube) 계정 하나는 플레이어 한 명만 들여보냅니다. 다른 사람이 이미 그 계정으로 참여했어요.',
+        },
+        {
+          term: '“Twitch didn’t answer just now”',
+          body: 'Twitch, Kick, YouTube, Discord 중 하나가 잠깐 문제가 있었어요. 1분 기다렸다가 **Join**을 다시 누르세요.',
+        },
+        {
+          term: '“The host’s … connection isn’t working”',
+          body: '이건 스트리머 쪽 문제예요. Anvil에서 채널을 다시 연결하라고 알려 주세요.',
+        },
+        {
+          term: '드롭이 안 보여요.',
+          body: '플러그인이 설치되어 로그인되어 있는지, 지금 플레이하는 캐릭터로 참여했는지 확인하세요. [플러그인 가이드]({pluginGuide})를 보세요.',
+        },
+      ],
+    },
+  },
+
+  // /guide/streaming-for-clans — 공개 클랜이 Streaming을 켜는 방법.
+  streamingClans: {
+    metaTitle: '클랜 이벤트 방송하기 — Anvil',
+    metaDescription:
+      '방송 시청자가 클랜에 가입하지 않고도 클랜의 OSRS 이벤트에 참여하게 하세요: Streaming을 켜고, 이벤트를 시청자에게 열고, 들어올 시청자를 고릅니다.',
+    eyebrow: '방송하는 클랜용',
+    title: '클랜 방송하기',
+    dek: '클랜이 이벤트를 방송하나요? 시청자가 클랜에 가입하지 않고도 이벤트 하나에 참여하게 하세요.',
+
+    on: {
+      title: 'Streaming 켜기',
+      body: [
+        'Admin → **Clan settings** → **Streaming**으로 가서 켜세요.',
+        '공개 클랜만 방송할 수 있어요. 시청자가 이벤트 페이지를 열어야 하는데, 비공개 클랜은 그것을 숨기기 때문이에요. Streaming이 켜진 클랜은 끌 때까지 비공개로 바꿀 수 없습니다.',
+        '켠 뒤에는 바로 아래에서 Twitch, YouTube, Kick 채널을 연결하세요.',
+      ],
+    },
+
+    event: {
+      title: '이벤트를 시청자에게 열기',
+      body: [
+        '모든 이벤트는 바꾸기 전까지 **Members only**입니다. 예전과 같아요.',
+        '이벤트의 **Settings** → **Who can join?** 을 열고 **Members and viewers**를 고르세요. 그다음 **Which viewers?** 를 고르세요: 누구나, 또는 팔로워, 구독자, Discord 역할 등. **Save**를 누르세요.',
+        '이 확인은 시청자에게만 적용됩니다. 클랜 멤버는 예전처럼 언제나 들어옵니다.',
+      ],
+    },
+
+    viewers: {
+      title: '시청자란',
+      body: [
+        '참여한 시청자는 **event player**입니다. 그 이벤트 하나만 플레이해요.',
+        '클랜 멤버도 게스트도 아닙니다. 클랜 목록에 올라가지 않고, 계급도 받지 않아요.',
+        '이렇게 참여한 사람은 모두 **People** → **Past viewers**에서 볼 수 있어요.',
+      ],
+    },
+
+    tools: {
+      title: '방송 도구',
+      body: [
+        '스트리머 도구는 크리에이터 스페이스와 똑같이 동작해요: 인증된 채널 링크, **Who can join?** 확인, OBS 오버레이, 채팅의 `!join`.',
+        '클랜 이벤트의 오버레이 링크는 이벤트의 **Settings**, **Who can play** → **Stream overlay**에 있어요. `!join`과 오버레이 마크는 **Clan settings** → **Streaming**에 있습니다.',
+        '[크리에이터 가이드]({creatorsGuide})가 하나씩 차근차근 설명해 줍니다.',
+      ],
+    },
+
+    faq: {
+      title: '질문',
+      intro: '짧은 답:',
+      rows: [
+        {
+          term: '시청자도 멤버 한도에 포함되나요?',
+          body: '아니요. 멤버가 아니라 event player예요. 스트리머 한도는 이벤트마다 적용됩니다([크리에이터 가이드]({creatorsGuide})를 보세요).',
+        },
+        {
+          term: '`!join`이 멤버 전용 이벤트로 안내하나요?',
+          body: '아니요. 시청자에게 열린 이벤트만 안내합니다.',
+        },
+        {
+          term: '대신 크리에이터 스페이스를 만들어야 할까요?',
+          body: '클랜이 없을 때만요. 스페이스는 게임 내 클랜이 없는 스트리머를 위한 거예요.',
+        },
+      ],
+    },
   },
 };
 

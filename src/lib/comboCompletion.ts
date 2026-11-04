@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { emitCompletionRow } from '@/lib/panelRows';
+import { queueTileHighlight } from '@/lib/highlights/store';
 import { completions, eventParticipants, events, submissions, teams, tiles } from '@/db/schema';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { isComboTile, parseComboRule } from '@/lib/combo';
@@ -213,6 +214,7 @@ export async function syncComboParent(
     .returning({ id: completions.id });
   if (!inserted) return { ...evaluation, parentComplete: true, inserted: false };
   emitCompletionRow(parentId, teamId);
+  if (!opts.silent) queueTileHighlight(parentId, teamId);
 
   if (gate.bounty) handleBountyClaim(parent.eventId, parentId).catch(() => {});
   if (!opts.silent) await announceCombo(parent, teamId, event, opts.notifyClanId, evaluation.finisherPlayerId).catch(() => {});

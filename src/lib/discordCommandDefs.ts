@@ -235,6 +235,9 @@ const CLAN_DEFINITIONS = [
           { name: 'Slash commands', value: 'commands' },
           { name: 'Switching from Dink / WOM', value: 'switching' },
           { name: 'Tile rules & limitations', value: 'tiles' },
+          { name: 'Hosting as a streamer', value: 'creators' },
+          { name: 'Joining a streamer event', value: 'joining' },
+          { name: 'Streaming for clans', value: 'streamingclans' },
         ],
       },
       {

@@ -30,6 +30,8 @@ import { ClanEvents, ClanWeek, Competitions, Hero, LiveNow, YouStrip } from '@/c
 import ClanLink from '@/components/ClanLink';
 import CreatorHome from '@/components/CreatorHome';
 import { creatorHomeView, isSpaceStaff } from '@/lib/creatorHome';
+import { highlightsForSpace } from '@/lib/highlights/store';
+import { canSeeEvent } from '@/lib/eventAccess';
 import { isCreatorSpace, spaceDescription } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
@@ -188,8 +190,12 @@ export default async function HomePage() {
     const viewerIsStaff = await isSpaceStaff(clan.id, viewer?.userId);
     // Its own events by the creator rules (lib/creatorHome creatorEventsView), not the clan hub: the
     // hub leaves undated events out, and a creator's undated event is the one viewers can join now.
-    const creatorView = await creatorHomeView(clan.id, { viewerIsStaff });
-    if (creatorView) return <CreatorHome view={creatorView} />;
+    const [creatorView, highlights] = await Promise.all([
+      creatorHomeView(clan.id, { viewerIsStaff }),
+      // Stream highlights (lib/highlights), only from events this viewer may open.
+      highlightsForSpace(clan.id, (eventId) => canSeeEvent({ eventId, playerId: viewer?.playerId ?? null })).catch(() => []),
+    ]);
+    if (creatorView) return <CreatorHome view={creatorView} highlights={highlights} />;
   }
   const session = await verifyUser();
   const myMemberIds = await viewerMemberIds(clan.id, session);

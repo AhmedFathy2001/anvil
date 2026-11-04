@@ -337,7 +337,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="lg:flex lg:gap-6">
-      <AdminSidebar groups={groups} user={user} primary={primary} guideHref="/guide/admin" search />
+      <AdminSidebar groups={groups} user={user} primary={primary} guideHref={creator ? '/guide/creators' : '/guide/admin'} search />
       {/* Ctrl/Cmd+K from anywhere in the admin area — inside an event too, where the rail above is hidden. */}
       <AdminSettingsSearch access={access} features={FEATURES.filter((f) => features.on(f.key)).map((f) => f.key)} creator={creator} />
       <div className="flex-1 min-w-0">

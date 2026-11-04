@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react';
 
+import ClanLink from '@/components/ClanLink';
 import { clanFetch } from '@/lib/clanFetch';
 import TwitchChannel from './TwitchChannel';
 import KickChannel from './KickChannel';
+import StreamHighlightsSettings from './StreamHighlightsSettings';
 import YoutubeChannel from './YoutubeChannel';
 
 type Platform = 'twitch' | 'kick' | 'youtube';
@@ -178,7 +180,10 @@ export default function StreamingSettings() {
           <p className="max-w-[60ch] text-sm text-text-muted">
             {state.streaming
               ? 'On. Connect your stream below. Then open an event to viewers from its settings (“Who can join?”). Viewers play that one event only. They don’t join your clan.'
-              : 'Stream your events? Turn this on to let viewers join an event from your stream. Your clan stays the same: viewers are not members or guests.'}
+              : 'Stream your events? Turn this on to let viewers join an event from your stream. Your clan stays the same: viewers are not members or guests.'}{' '}
+            <ClanLink href="/guide/streaming-for-clans" className="text-gold hover:text-gold-light">
+              How it works
+            </ClanLink>
           </p>
           <Switch
             on={state.streaming}
@@ -196,6 +201,7 @@ export default function StreamingSettings() {
           <TwitchChannel />
           <YoutubeChannel />
           <KickChannel />
+          <StreamHighlightsSettings />
 
           <section className="rounded-xl border border-card-border bg-card-bg p-5">
             <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">

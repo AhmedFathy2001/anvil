@@ -96,6 +96,11 @@ export const clans = pgTable('clans', {
   // on its Twitch / Kick / YouTube channel; viewers join as EVENT players, never guests. Off = the
   // clan works exactly as before. Meaningless on a creator space, which always streams.
   streaming: boolean('streaming').notNull().default(false),
+  // Stream highlights (lib/highlights). Auto-clip: clip big moments on the space's own connected
+  // channel while it is live (ON by default; it only acts once a channel is connected). Promo: Anvil
+  // may feature those clips in its own promotion (OFF until the host says yes).
+  highlightsAutoClip: boolean('highlights_auto_clip').notNull().default(true),
+  highlightsPromo: boolean('highlights_promo').notNull().default(false),
   // May somebody with no seat here READ this clan?
   //   public  — anyone can look at the boards and the roster (default, and what every clan has
   //             always done: the habit is to paste the board link into Discord)
@@ -3755,6 +3760,8 @@ export const userTwitchLinks = pgTable('user_twitch_links', {
   twitchUserId: text('twitch_user_id').notNull(),
   twitchLogin: text('twitch_login').notNull(),
   linkedAt: text('linked_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  /** "Clip my stream when I hit a big moment in a streamed event" (lib/highlights). Off by default. */
+  clipMyMoments: boolean('clip_my_moments').notNull().default(false),
 }, (table) => [
   uniqueIndex('user_twitch_links_twitch_user_unique').on(table.twitchUserId),
 ]);
@@ -4495,4 +4502,64 @@ export const h2hPrefs = pgTable('h2h_prefs', {
   /** JSON array of player ids whose invitations are refused. */
   blocked: text('blocked'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── Stream highlights (0206) ─────────────────────────────────────────────────────────────────────
+
+/**
+ * A clip and/or VOD timestamp of one beat of a STREAMED event on one channel (lib/highlights). Made by
+ * the Anvil bot's own token while the channel is live; the VOD link is resolved later. Shown only once
+ * it has a clip or a VOD link, and only where the event (and, behind hidden standings, the team) is
+ * the viewer's to see.
+ */
+export const streamHighlights = pgTable('stream_highlights', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  /** 'moment' | 'tile' | 'board' | 'start' | 'won' | 'h2h'. */
+  beat: text('beat').notNull(),
+  /** Dedupe key within the event: 'moment:12', 'tile:4:7', 'board', 'start', 'won', 'h2h:9'. */
+  refKey: text('ref_key').notNull(),
+  /** 'twitch' | 'youtube'. */
+  platform: text('platform').notNull(),
+  /** 'host' | 'player'. */
+  channelOwner: text('channel_owner').notNull(),
+  channelId: text('channel_id').notNull(),
+  channelName: text('channel_name').notNull(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
+  tileId: integer('tile_id').references(() => tiles.id, { onDelete: 'cascade' }),
+  momentId: integer('moment_id').references(() => moments.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+  /** 'pending' | 'ready' | 'failed' | 'limited' | 'off' | 'none'. */
+  clipStatus: text('clip_status').notNull().default('pending'),
+  clipId: text('clip_id'),
+  clipUrl: text('clip_url'),
+  thumbnailUrl: text('thumbnail_url'),
+  durationS: real('duration_s'),
+  vodUrl: text('vod_url'),
+  /** 'pending' | 'ready' | 'none'. */
+  vodStatus: text('vod_status').notNull().default('pending'),
+  vodAttempts: integer('vod_attempts').notNull().default(0),
+  vodNextAt: timestamp('vod_next_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('stream_highlights_dedupe').on(t.eventId, t.refKey, t.platform, t.channelId),
+  index('stream_highlights_event_idx').on(t.eventId, t.occurredAt),
+  index('stream_highlights_clan_idx').on(t.clanId, t.occurredAt),
+]);
+export type StreamHighlight = typeof streamHighlights.$inferSelect;
+
+/** The Anvil bot's Twitch user token as the site holds it, seeded from TWITCH_BOT_REFRESH_TOKEN. */
+export const twitchBotTokens = pgTable('twitch_bot_tokens', {
+  id: text('id').primaryKey(),
+  seedHash: text('seed_hash').notNull(),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token').notNull(),
+  expiresAt: text('expires_at'),
+  scope: text('scope').notNull().default(''),
+  botUserId: text('bot_user_id'),
+  updatedAt: text('updated_at').notNull(),
 });

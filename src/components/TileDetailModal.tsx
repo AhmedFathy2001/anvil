@@ -23,6 +23,8 @@ import { submissionHasProof } from '@/lib/submissionProof';
 import { parseTileMissionRules, missionPrizeSummary, placeLabel } from '@/lib/eventRules';
 import { formatGp } from '@/lib/adminEventsFormat';
 import ProofGallery, { type ProofShot } from './ProofGallery';
+import { MomentStreamLinks } from './HighlightsStrip';
+import type { ShownHighlight } from '@/lib/highlights/rules';
 import { isManualTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { clanFetch } from '@/lib/clanFetch';
@@ -118,6 +120,8 @@ interface Props {
   pointsMode?: boolean;
   // Admin all-teams view: label each submission with its team (submissions can span teams here).
   teamNameById?: Record<number, string>;
+  /** A streamed board's clips of this tile (lib/highlights), already filtered to what the viewer may see. */
+  highlights?: ShownHighlight[];
   /** Surface-specific content shown first in the body — the team page's planning (claims) section. */
   extra?: ReactNode;
 }
@@ -149,6 +153,7 @@ export default function TileDetailModal({
   pointsMode,
   teamNameById,
   extra,
+  highlights,
 }: Props) {
   // Public board's Team Progress: which team's row is opened into its members.
   const [expandedTeamId, setExpandedTeamId] = useState<number | null>(null);
@@ -1348,6 +1353,24 @@ export default function TileDetailModal({
                   )}
                 </>
               )}
+            </div>
+          )}
+
+          {/* Stream highlights (lib/highlights): this tile finished live on stream — the clip, or the
+              stream at that second. Only a streamed board's public page passes these. */}
+          {highlights && highlights.length > 0 && (
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-foreground">On stream</h3>
+              <ul className="space-y-1.5">
+                {highlights.map((h) => (
+                  <li key={h.id} className="flex items-center gap-2 text-xs">
+                    <span className="min-w-0 flex-1 truncate text-text-muted">
+                      {h.title} <span className="text-text-dim">· {h.channelName}</span>
+                    </span>
+                    <MomentStreamLinks links={h} />
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

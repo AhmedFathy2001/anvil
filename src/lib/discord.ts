@@ -33,6 +33,7 @@ import {
 import { loadClanPostDefaults, loadEventDiscordPrefs, loadPartnerDiscordPrefs } from '@/lib/eventDiscordPrefs';
 import { curtainRoute, PROGRESS_POST_KINDS, standingsHidden } from '@/lib/standingsVisibility';
 import { emitTileCompletion } from '@/lib/chatFeed';
+import { queueBoardHighlight, queueStartHighlight } from '@/lib/highlights/store';
 import { clans, events, teams } from '@/db/schema';
 import {
   EMBED_COLOR,
@@ -1449,6 +1450,9 @@ interface TeamWinNotifyParams {
 
 export async function notifyTeamWin(params: TeamWinNotifyParams): Promise<boolean> {
   const { eventName, teamName, teamColor, totalTiles, eventId } = params;
+  // A streamed board clips its first full clear on the host's live channel (lib/highlights; later
+  // clears are the same 'board' beat and dedupe away). Queued: the post never waits on Twitch.
+  if (eventId != null && params.teamId != null) queueBoardHighlight(eventId, params.teamId, teamName);
 
   const embed: DiscordEmbed = {
     ...eventAuthor(eventId, eventName, teamName),
@@ -1689,6 +1693,9 @@ export async function notifyFinalHour(
 
 export async function notifyEventStart(params: EventStartNotifyParams): Promise<boolean> {
   const { eventId, eventName, startDate, endDate, format, tileCount, openTileCount, totalPoints, startProofLocation, startProofSessionMinutes, boardImageVersion } = params;
+  // A streamed event's start is clipped on the host's live channel (lib/highlights). Both start doors
+  // (the lifecycle cron and start-now) come through here behind the startNotified flip. Queued.
+  if (eventId != null) queueStartHighlight(eventId, eventName);
   // Wording follows who is competing, not the format name — a board that ranks people can't be
   // wished luck "to all teams", and its entries are tasks.
   const axes = eventAxes({ format, scoringMode: 'points', endDate });

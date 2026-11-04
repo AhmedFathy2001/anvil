@@ -3,10 +3,10 @@
 // rowReactKinds says which a row offers). Counts only, never text, so there is nothing to moderate.
 // One of each kind per person per moment; pressing it again takes it back.
 
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, momentReactions, moments, users } from '@/db/schema';
+import { accounts, clanMemberships, eventParticipants, momentReactions, moments, users } from '@/db/schema';
 
 export type ReactionKind = 'gz' | 'gold' | 'sad' | 'sit';
 export const REACTION_KINDS: ReactionKind[] = ['gz', 'gold', 'sad', 'sit'];
@@ -123,4 +123,75 @@ export async function toggleReaction(momentId: number, userId: number, kind: Rea
   if (removed.length) return false;
   await db.insert(momentReactions).values({ momentId, userId, kind }).onConflictDoNothing();
   return true;
+}
+
+// ── Who reacted ──────────────────────────────────────────────────────────────────────────────────
+
+/** Where the row is read, which decides whose name a reactor goes by. */
+export type ReactorScope = { clanId: number } | { eventId: number; hostClanId: number };
+
+/** Per moment, per kind: the reactors in the order they reacted, by name there (null = no character there). */
+export type ReactorLists = Map<number, Partial<Record<ReactionKind, (string | null)[]>>>;
+
+/**
+ * Who gave each reaction, as the CHARACTER they are in this clan (or on this board) — never their
+ * Discord / person name, and never a character from another clan (the clan/character boundary):
+ *   - a clan's feed: their seat's RSN in that clan (a live member seat first, then a past one or a
+ *     guest seat; their main among several alts);
+ *   - a board's feed: their participant name on that board, else their seat in the host clan (host
+ *     staff who aren't playing).
+ * Nobody under either gets null: counted in "and N others", never named.
+ */
+export async function reactorNames(momentIds: number[], scope: ReactorScope): Promise<ReactorLists> {
+  const out: ReactorLists = new Map();
+  const ids = [...new Set(momentIds)].filter((n) => Number.isInteger(n) && n > 0);
+  if (ids.length === 0) return out;
+  const rows = await db
+    .select({ momentId: momentReactions.momentId, kind: momentReactions.kind, userId: momentReactions.userId })
+    .from(momentReactions)
+    .where(inArray(momentReactions.momentId, ids))
+    .orderBy(asc(momentReactions.id));
+  if (rows.length === 0) return out;
+  const userIds = [...new Set(rows.map((r) => r.userId))];
+  const names = new Map<number, string>();
+  if ('eventId' in scope) {
+    // clan-scope: global -- pinned to this one board's participants.
+    const parts = await db
+      .select({ userId: users.id, name: eventParticipants.name, id: eventParticipants.id })
+      .from(eventParticipants)
+      .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
+      .innerJoin(users, eq(users.playerId, accounts.playerId))
+      .where(and(eq(eventParticipants.eventId, scope.eventId), inArray(users.id, userIds)))
+      .orderBy(asc(eventParticipants.id));
+    for (const p of parts) if (!names.has(p.userId) && p.name.trim()) names.set(p.userId, p.name);
+  }
+  const clanId = 'eventId' in scope ? scope.hostClanId : scope.clanId;
+  const missing = userIds.filter((u) => !names.has(u));
+  if (missing.length) {
+    // clan-scope: global -- the join pins every seat to this one clan.
+    const seats = await db
+      .select({
+        userId: users.id,
+        rsn: accounts.rsn,
+        kind: clanMemberships.kind,
+        leftAt: clanMemberships.leftAt,
+        primary: accounts.isPrimary,
+        seatId: clanMemberships.id,
+      })
+      .from(users)
+      .innerJoin(accounts, eq(accounts.playerId, users.playerId))
+      .innerJoin(clanMemberships, eq(clanMemberships.accountId, accounts.id))
+      .where(and(inArray(users.id, missing), eq(clanMemberships.clanId, clanId), ne(clanMemberships.kind, 'event')));
+    const rank = (x: (typeof seats)[number]) => (x.leftAt == null ? 0 : 4) + (x.kind === 'member' ? 0 : 2) + (x.primary ? 0 : 1);
+    seats.sort((a, b) => rank(a) - rank(b) || a.seatId - b.seatId);
+    for (const x of seats) if (!names.has(x.userId)) names.set(x.userId, x.rsn);
+  }
+  for (const r of rows) {
+    const kind = REACTION_KINDS.find((k) => k === r.kind);
+    if (!kind) continue;
+    const per = out.get(r.momentId) ?? {};
+    (per[kind] ??= []).push(names.get(r.userId) ?? null);
+    out.set(r.momentId, per);
+  }
+  return out;
 }

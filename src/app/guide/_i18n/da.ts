@@ -42,6 +42,7 @@ const da: PartialGuideDict = {
       playing: 'At spille',
       running: 'At køre et event',
       clan: 'At køre klanen',
+      streamers: 'Streamers',
     },
     ingame: {
       title: 'Guides til spillet',
@@ -150,6 +151,27 @@ const da: PartialGuideDict = {
         blurb:
           'Hver kommando botten svarer på i Discord, hvad hver valgmulighed gør, gennemgåede eksempler, og hvad du tjekker, når en ikke dukker op.',
         minutes: '~6 min',
+      },
+      creators: {
+        eyebrow: 'Til streamere',
+        title: 'Hold events for dine seere',
+        blurb:
+          'Ingen klan nødvendig. Lav et rum, del ét link, vælg hvem der må være med (følgere, subs, Discord-roller) og vis brættet på stream.',
+        minutes: '~6 min',
+      },
+      joiningStream: {
+        eyebrow: 'Til seere',
+        title: 'Sådan er du med i en streamers event',
+        blurb:
+          'Fik du et link fra en stream? Log ind, tilføj din karakter, tryk Join. Hvad du gør ved events kun for følgere eller subs.',
+        minutes: '~2 min',
+      },
+      streamingClans: {
+        eyebrow: 'Til klaner, der streamer',
+        title: 'Streaming for klaner',
+        blurb:
+          'Lad dine seere spille ét event uden at være med i klanen. Slå Streaming til, og åbn så et event for seere.',
+        minutes: '~2 min',
       },
     },
   },
@@ -2351,6 +2373,408 @@ const da: PartialGuideDict = {
     limit: 'Godt at vide',
     checked: 'Feltet tjekker det for dig',
     englishOnly: 'Reglerne nedenfor er på engelsk indtil videre, så de altid passer med det, sitet faktisk gør.',
+  },
+
+  // /guide/creators — værtens vejledning til et creator-rum (lib/creatorSpaces). Skrevet til en, der
+  // aldrig har brugt Anvil og ikke har nogen klan. Grænser og fordele følger lib/creatorCatalog.
+  creators: {
+    metaTitle: 'Hold et OSRS-bingo for dine seere — Anvil',
+    metaDescription:
+      'Kør et Old School RuneScape-bingo eller felt-løb til din stream uden en klan: lav et rum, del ét link, vælg hvem der må være med (Twitch, Kick, YouTube eller Discord), og vis brættet på stream med OBS.',
+    eyebrow: 'Til streamere og creators',
+    title: 'Hold events for dine seere',
+    dek: 'Med et creator-rum kan du køre et bingo til din stream. Du behøver ikke en klan i spillet. Du laver ét event, deler ét link, og dine seere er med.',
+    facts: [
+      { strong: 'Ingen klan', rest: 'nødvendig' },
+      { strong: 'Gratis', rest: 'at starte' },
+      { strong: 'Ét link', rest: 'til din chat' },
+    ],
+
+    what: {
+      title: 'Hvad et creator-rum er',
+      body: [
+        'Det er din egen side på Anvil på `{apex}/c/dit-navn`. Der kører du events for dine seere.',
+        'Det er ikke en klan. Der er ingen klanliste, ingen rangordner og ingen ugentlige konkurrencer. Den, der er med i dit event, spiller det event. Ikke andet.',
+        'Seerne logger ind med Discord, tilføjer deres RuneScape-karakter og trykker **Join**. Anvil RuneLite-pluginnet tæller så deres drops af sig selv.',
+      ],
+    },
+
+    create: {
+      title: 'Lav dit rum',
+      body: [
+        'Gå til [{apex}/host](/host) og log ind med Discord.',
+        'Skriv et navn til dit rum. Navnet på din kanal er et godt valg. Dit link laves ud fra navnet. Tryk **change link**, hvis du vil have et andet.',
+        'Tryk **Create my space**. Du får ét rum pr. Discord-konto.',
+      ],
+    },
+
+    first: {
+      title: 'Lav dit første event',
+      body: [
+        'Lige efter du har lavet dit rum, lander du på **Create your first event**. Senere bruger du **+ New event** øverst under **Your events**.',
+        '**Name.** Det, dine seere ser.',
+        '**What kind?** Vælg et kort. **Team bingo** er et 5×5-gitter, og Anvil deler spillerne i hold for dig. **Solo bingo** er det samme gitter, hver spiller for sig selv. **Team race** er opgaver i rækkefølge: holdet, der er længst, vinder.',
+        '**Ready-made tiles** giver dig en blanding af lette til svære opgaver, du kan ændre senere. **Blank, I’ll write my own** starter tomt.',
+        '**Who can join?** Lad den stå på **Anyone**, eller vælg, hvem der må være med. Se trin 5.',
+        '**When?** Vælg start- og slutdato. Eller lad feltet stå tomt og start eventet selv, når du er klar.',
+        'Tryk **Create event**. Tryk så **Copy invite link**.',
+      ],
+    },
+
+    share: {
+      title: 'Del linket',
+      body: [
+        'Sæt invitationslinket ind i din stream-chat, din Discord eller dine sociale medier. Det link er alt, dine seere har brug for.',
+        'Du kan kopiere det igen når som helst: **Your events** → **Copy invite link** ved siden af eventet.',
+        'Vil du have botten til at svare på `!join` i chatten med linket? Se trin 9.',
+      ],
+    },
+
+    who: {
+      title: 'Vælg hvem der må være med',
+      body: [
+        'Hvert event starter åbent for **Anyone**. Vil du holde det for dit fællesskab, så åbn eventets **Settings** → **Who can join?** og vælg ét eller flere punkter. De samme valg er på skærmen til det første event.',
+        'Vælger du mere end ét, **er ét af dem nok**. En følger ELLER en server-booster kommer ind.',
+      ],
+      intro: 'Hvert valg, og hvad en seer skal gøre:',
+      rows: [
+        {
+          term: 'Anyone',
+          body: 'Alle med linket kommer straks ind.',
+        },
+        {
+          term: 'Twitch followers',
+          body: 'Seeren trykker **Link Twitch** på event-siden og logger ind med Twitch. Anvil tjekker, at de følger dig.',
+        },
+        {
+          term: 'Twitch subs',
+          body: 'Som følgere, men de skal være subscribed. Vælg det laveste niveau: **Tier 1 or higher**, **Tier 2 or higher** eller **Tier 3**. Prime-subs tæller som tier 1. Din kanal skal være Twitch-affiliate eller -partner.',
+        },
+        {
+          term: 'Kick followers',
+          body: 'Kick fortæller ikke apps, hvem der følger dig, så Anvil tæller folk, der følger _efter_ du forbinder Kick. Fulgte de før? Så skal seeren fjerne følgen og følge igen.',
+        },
+        {
+          term: 'Kick subs',
+          body: 'Subs, som Anvil så efter du forbandt Kick, tæller af sig selv. Alle andre trykker **Get Kick code** og skriver koden (den ser ud som `ANVIL-7F3K9Q`) i din Kick-chat, og Anvil ser deres sub-badge. Kick har ingen sub-niveauer.',
+        },
+        {
+          term: 'YouTube subscribers',
+          body: 'Seeren trykker **Check my YouTube subscription** og logger ind med Google. Deres abonnementer skal være offentlige på YouTube.',
+        },
+        {
+          term: 'YouTube members',
+          body: 'Seeren skriver sin Anvil-kode i din YouTube live-chat. Medlemmer kan derfor kun komme med, **mens du er live**.',
+        },
+        {
+          term: 'Discord role',
+          body: 'Folk med en rolle, du vælger, i din Discord-server (op til 5 roller). Forbind først din server: **Discord (optional)** i menuen.',
+        },
+        {
+          term: 'Server boosters',
+          body: 'Folk, der booster din Discord-server. Kræver også, at din server er forbundet.',
+        },
+      ],
+      note: {
+        tag: 'Godt at vide',
+        body: 'Forbind først din kanal (trin 7), ellers står Twitch-, Kick- og YouTube-valgene nedtonede. Én Twitch-, Kick- eller YouTube-konto kan kun få én spiller ind i hvert event. Dit staff og folk, du inviterer ved navn, springer tjekkene over.',
+      },
+    },
+
+    approve: {
+      title: 'Sig ja til hver spiller (valgfrit)',
+      body: [
+        'Vil du selv vælge, hvem der spiller? Åbn eventets **Settings** → **Who can play** → **Who can enter it** og vælg **Ask me about everyone**. Tryk **Save changes**.',
+        'Nu trykker seerne **Ask to join** i stedet for **Join**. De skal stadig først bestå dine **Who can join?**-valg.',
+        'Deres anmodninger vises på **Your events** som **N waiting for you**. Klik på den, eller åbn eventets **Sign-ups**-fane. Listen øverst hedder **Waiting for your yes**. Acceptér eller afvis hver enkelt.',
+      ],
+    },
+
+    channels: {
+      title: 'Forbind din Twitch, Kick eller YouTube',
+      body: [
+        'Åbn **Settings** i menuen. Under dit rums navn trykker du **Connect Twitch**, **Connect YouTube** eller **Connect Kick** og logger ind som din kanal.',
+        'Hver kanal, du forbinder, vises på din side som et **verified** link. Du kan ikke skrive et link ind i hånden: at logge ind er sådan, Anvil ved, at kanalen er din.',
+        'En kanal kan kun være forbundet ét sted på Anvil. Er den allerede på et andet rum eller en anden klan, du styrer, spørger Anvil, om du vil flytte den.',
+      ],
+    },
+
+    overlay: {
+      title: 'Vis brættet på stream (OBS)',
+      body: [
+        'På **Your events** trykker du **Stream overlay** ved siden af eventet og så **Make overlay links**.',
+        'Du får tre links. **Standings**: de bedste hold og hvor langt de er. **Feed**: de seneste drops og færdige felter. **Board**: brættet, med færdige felter markeret.',
+        'Vælg en **Text size** (S, M, L eller XL), før du kopierer. Tryk så **Copy** ved siden af det, du vil have.',
+      ],
+      stepsTitle: 'Sæt det ind i OBS',
+      steps: [
+        'Tryk **+** under **Sources** i OBS og vælg **Browser**.',
+        'Sæt linket ind i **URL**.',
+        'Vælg en størrelse, for eksempel 800 × 600. Lad **Custom CSS** stå tom.',
+        'Tryk **OK**. Det opdaterer sig selv hvert par sekunder.',
+      ],
+      tipsTag: 'Godt at vide',
+      tips: [
+        'Skriv `&limit=10`, `&title=0` eller `&align=right` til sidst i et link for at ændre det.',
+        'Overlayet viser det samme som din offentlige event-side. Skjulte stillinger og skjulte felter forbliver også skjulte på stream.',
+        '**Reset link** laver nye links og stopper de gamle. Brug det, hvis et link slipper ud. Du skal sætte de nye links ind i OBS igen.',
+        'Et lille “Anvil”-mærke sidder i hjørnet. Med Gold-planen kan du skjule det under **Settings** → **Anvil mark on your overlay**.',
+      ],
+    },
+
+    chatjoin: {
+      title: '!join i din chat',
+      body: [
+        'Åbn **Settings** → **!join in Twitch chat** og slå det til.',
+        'Når en seer skriver `!join`, svarer Anvil-botten (Anvil_OSRS) med linket til dit åbne event. Den svarer højst én gang hvert 30. sekund, uanset hvor mange der skriver det.',
+        'Den svarer kun i en kanal, du forbandt i trin 7. Den virker også i Kick-chat, når din Kick-kanal er forbundet.',
+        'Intet event åbent? Så siger den det: “No event is open to join right now — keep an eye on the stream!”',
+      ],
+    },
+
+    listing: {
+      title: 'Bliv vist på Anvil',
+      body: [
+        'Dit rum er ikke vist, når du laver det. Kun folk med dit link kan finde det.',
+        'Åbn **Settings** → **Advertise on Anvil** og slå det til. Dit rum vises i Anvils klanoversigt, og dine nye events vises på `{apex}/events`.',
+        'Vil du kun vise ét event, så åbn dets **Settings** → **Who can play** → **Advertise on Anvil**. Det vises, mens eventet er kommende eller i gang.',
+      ],
+    },
+
+    plans: {
+      title: 'Planer og grænser',
+      body: [
+        'Din plan bestemmer, hvor mange spillere ét event kan have. Alt andet er ens på alle planer: brættet, plugin-sporingen, overlayet og Discord.',
+        'Dit plankort er på **Your events**. Vil du sammenligne planer, så se [priser](/pricing#creators). Vil du ændre eller opsige det, du betaler, så gå til [din betalingsside](/portal).',
+      ],
+      rows: [
+        { term: 'Free', body: 'Op til 50 spillere pr. event. Ét event ad gangen. Tjek af Discord-rolle og booster.' },
+        { term: 'Bronze', body: 'Op til 150 spillere pr. event. Tjek af Twitch, Kick og YouTube.' },
+        { term: 'Silver', body: 'Op til 300 spillere pr. event. Mere end ét event ad gangen. `!join` i chatten. Vist først på listen.' },
+        { term: 'Gold', body: 'Op til 1.000 spillere pr. event. Skjul Anvil-mærket på dit overlay.' },
+        { term: 'Partner', body: 'Ingen grænse for spillere. Sættes op direkte med Anvil — kontakt os.' },
+      ],
+      note: {
+        tag: 'Lige nu',
+        body: 'Alle kommer stadig ind, mens Anvil vokser, også over din plans tal. Grænserne starter senere, med varsel. Dit plankort viser, hvor tæt du er på.',
+      },
+    },
+
+    faq: {
+      title: 'Spørgsmål',
+      intro: 'De, streamere spørger mest om:',
+      rows: [
+        {
+          term: 'Skal mine seere have en klan?',
+          body: 'Nej. De skal bruge en Discord-konto og en OSRS-karakter. Send dem [seervejledningen]({joiningGuide}).',
+        },
+        {
+          term: 'Skal de have RuneLite-pluginnet?',
+          body: 'Til drops og kills, ja. Pluginnet sender dem ind af sig selv. Nogle få felter læser hiscores i stedet.',
+        },
+        {
+          term: 'En seer siger “The host’s Twitch connection isn’t working”.',
+          body: 'Twitch holdt op med at acceptere din forbindelse. Åbn **Settings** og tryk **Reconnect Twitch**. Det samme gælder Kick og YouTube.',
+        },
+        {
+          term: 'Kan en anden hjælpe mig med at køre det?',
+          body: 'Ja. Åbn **Players** → **Staff & roles**, tilføj dem, og vælg, hvad hver af dem må.',
+        },
+        {
+          term: 'Jeg har også en klan i spillet.',
+          body: 'Så har du måske ikke brug for et rum. En offentlig klan kan i stedet slå **Streaming** til. Se [streaming for klaner]({streamingGuide}).',
+        },
+        {
+          term: 'Kan jeg lave et rum mere?',
+          body: 'Ét rum pr. Discord-konto indtil videre. Kontakt os, hvis du har brug for et til.',
+        },
+      ],
+    },
+  },
+
+  // /guide/joining-a-streamer-event — til en seer, der klikkede på en streamers link. Antager intet:
+  // ingen klan, ingen Anvil-konto, måske intet RuneLite-plugin. Knapperne står ordret som på siden.
+  joiningStream: {
+    metaTitle: 'Sådan er du med i en streamers OSRS-bingo — Anvil',
+    metaDescription:
+      'Fik du et link fra en streamer? Log ind med Discord, tilføj din OSRS-karakter, tryk Join. Hvad du gør ved events kun for følgere eller subs på Twitch, Kick eller YouTube, og hvordan dine drops tæller.',
+    eyebrow: 'Til seere',
+    title: 'Sådan er du med i en streamers event',
+    dek: 'En streamer delte et link. Sådan kommer du på brættet. Du behøver ikke en klan.',
+    facts: [
+      { strong: '~2 min', rest: 'at komme med' },
+      { strong: 'Ingen klan', rest: 'nødvendig' },
+    ],
+
+    join: {
+      title: 'Kom med i fire trin',
+      body: [
+        '**Åbn linket**, streameren delte. Eller skriv `!join` i deres chat, så sender botten det.',
+        '**Log ind med Discord.** Det er din Anvil-konto. Der er intet at udfylde.',
+        '**Tilføj din karakter.** Tryk **Add my character** og skriv dit RuneScape-navn. Står der **Prove it’s mine**, så følg trinnene på din profil. [Plugin-vejledningen]({pluginGuide}) viser hvordan.',
+        '**Tryk Join.** Vælg din karakter, hvis du har flere. Du ser **You’re in!**, når det lykkedes.',
+      ],
+    },
+
+    gated: {
+      title: 'Events for følgere eller subs',
+      body: [
+        'Nogle events er kun for streamerens fællesskab. Join-kortet siger hvem, for eksempel “Open to followers of somename on Twitch”.',
+        'Tryk **Join** alligevel. Hvis du ikke er lukket ind endnu, viser kortet, hvad du skal gøre. Gør ét af dem, og tryk så **Join** igen.',
+      ],
+      intro: 'Hvad du gør for hver slags:',
+      rows: [
+        {
+          term: 'Twitch follow or sub',
+          body: 'Tryk **Link Twitch** og log ind med Twitch. Anvil beder ikke om nogen tilladelser. Tryk så **Join** igen.',
+        },
+        {
+          term: 'Kick follow or sub',
+          body: 'Tryk **Get Kick code**. Skriv koden (som `ANVIL-7F3K9Q`) i streamerens Kick-chat inden for 10 minutter. Hver kode virker én gang. Tryk så **Join** igen.',
+        },
+        {
+          term: 'YouTube subscriber',
+          body: 'Tryk **Check my YouTube subscription** og log ind med Google. Vælg den konto, du ser med. Dine abonnementer skal være offentlige i YouTubes privatlivsindstillinger.',
+        },
+        {
+          term: 'YouTube member',
+          body: 'Tryk **Link my YouTube account**, skriv så din kode i YouTube live-chatten og tryk **check the chat**. Det virker kun, mens streameren er live.',
+        },
+        {
+          term: 'Discord role or booster',
+          body: 'Kom med på streamerens Discord-server og få rollen (eller boost den). Anvil tjekker med den Discord-konto, du loggede ind med.',
+        },
+      ],
+      note: {
+        tag: 'Godkendelse',
+        body: 'Nogle streamere siger ja til hver spiller. Så står der **Ask to join** på knappen, og du ser **Waiting for the host**, til de svarer.',
+      },
+    },
+
+    plugin: {
+      title: 'Installér Anvil-pluginnet',
+      body: [
+        'Dine drops og kills tæller gennem Anvil-pluginnet til RuneLite. Installér det fra Plugin Hub og log ind med Discord fra dets sidepanel.',
+        '[Plugin-vejledningen]({pluginGuide}) leder dig igennem det på omkring tre minutter.',
+      ],
+    },
+
+    play: {
+      title: 'Spil',
+      body: [
+        'Det var det. Spil som du plejer. Når du får et drop eller et kill, som brættet skal bruge, sender pluginnet det ind af sig selv.',
+        'Åbn event-linket når som helst for at se brættet og stillingen. Du spiller kun dette ene event: du bliver ikke medlem af en klan.',
+      ],
+    },
+
+    accounts: {
+      title: 'Dine forbundne konti',
+      body: [
+        'De Twitch-, YouTube- og Kick-konti, du har linket, står i [Settings → Connected accounts](/settings/connections). Du kan også linke dem der, før du kommer med.',
+        'Fjern et link når som helst. Events, du allerede er med i, beholder dig. Et event med krav, du kommer med i senere, beder dig linke igen.',
+      ],
+    },
+
+    faq: {
+      title: 'Spørgsmål',
+      intro: 'Når noget siger nej:',
+      rows: [
+        {
+          term: '“This event is full”',
+          body: 'Der er ikke plads til flere spillere. Kun streameren kan skabe plads — sig det til dem.',
+        },
+        {
+          term: 'Jeg er subbed, men jeg kommer ikke ind.',
+          body: 'Tjek, at du linkede den samme konto, du abonnerer med. På Twitch kan du se **Your Twitch** på join-kortet. På Kick skriver du en ny kode i deres chat: Anvil læser sub-badget på den besked. På YouTube skal du gøre dine abonnementer offentlige og tjekke igen.',
+        },
+        {
+          term: 'Jeg fulgte på Kick, men der står, at jeg ikke gjorde.',
+          body: 'Anvil ser kun følger, der kom, efter streameren forbandt Kick. Fjern følgen og følg igen, og tryk så **Join**.',
+        },
+        {
+          term: '“That Twitch account was already used to join this event”',
+          body: 'Én Twitch-konto (eller Kick eller YouTube) får én spiller ind. En anden er allerede kommet med på den.',
+        },
+        {
+          term: '“Twitch didn’t answer just now”',
+          body: 'Twitch, Kick, YouTube eller Discord havde et lille hik. Vent et minut og tryk **Join** igen.',
+        },
+        {
+          term: '“The host’s … connection isn’t working”',
+          body: 'Det er streamerens sag. Sig til dem, at de skal forbinde deres kanal på Anvil igen.',
+        },
+        {
+          term: 'Mine drops vises ikke.',
+          body: 'Tjek, at pluginnet er installeret og logget ind, og at du kom med med den karakter, du spiller. Se [plugin-vejledningen]({pluginGuide}).',
+        },
+      ],
+    },
+  },
+
+  // /guide/streaming-for-clans — en offentlig klan, der slår Streaming til (lib/streamingSwitch). Kun det,
+  // der er anderledes end et creator-rum; de fælles værktøjer peger på creator-vejledningen.
+  streamingClans: {
+    metaTitle: 'Stream din klans events — Anvil',
+    metaDescription:
+      'Lad din streams seere være med i et af din klans OSRS-events uden at blive medlem af klanen: slå Streaming til, åbn et event for seere, og vælg hvilke seere der kommer ind.',
+    eyebrow: 'Til klaner, der streamer',
+    title: 'Streaming for klaner',
+    dek: 'Streamer din klan sine events? Lad seere spille ét event uden at blive medlem af din klan.',
+
+    on: {
+      title: 'Slå Streaming til',
+      body: [
+        'Gå til Admin → **Clan settings** → **Streaming** og slå det til.',
+        'Kun en offentlig klan kan streame. Seerne skal kunne åbne din event-side, og en privat klan skjuler den for dem. En klan med Streaming slået til kan ikke blive privat, før du slår det fra.',
+        'Når det er slået til, forbinder du din Twitch-, YouTube- eller Kick-kanal lige under.',
+      ],
+    },
+
+    event: {
+      title: 'Åbn et event for seere',
+      body: [
+        'Hvert event forbliver **Members only**, til du siger andet. Sådan var det før.',
+        'Åbn eventets **Settings** → **Who can join?** og vælg **Members and viewers**. Vælg så **Which viewers?**: alle, eller følgere, subs, en Discord-rolle og så videre. Tryk **Save**.',
+        'Disse tjek gælder kun seere. Dine klanmedlemmer kommer altid ind, som før.',
+      ],
+    },
+
+    viewers: {
+      title: 'Hvad seere er',
+      body: [
+        'En seer, der kommer med, er en **event player**. De spiller det ene event.',
+        'De er ikke klanmedlemmer og ikke gæster. De havner aldrig på din klanliste, og de får ingen rang.',
+        'Du kan se alle, der kom med på den måde, under **People** → **Past viewers**.',
+      ],
+    },
+
+    tools: {
+      title: 'Dine stream-værktøjer',
+      body: [
+        'Streamer-værktøjerne virker som i et creator-rum: verificerede kanallinks, **Who can join?**-tjek, OBS-overlayet og `!join` i chatten.',
+        'Overlay-linkene til et klan-event ligger i eventets **Settings**, under **Who can play** → **Stream overlay**. `!join` og overlay-mærket ligger under **Clan settings** → **Streaming**.',
+        '[Creator-vejledningen]({creatorsGuide}) forklarer hver enkelt trin for trin.',
+      ],
+    },
+
+    faq: {
+      title: 'Spørgsmål',
+      intro: 'De korte svar:',
+      rows: [
+        {
+          term: 'Tæller seere med i vores medlemsgrænse?',
+          body: 'Nej. De er event players, ikke medlemmer. Streamer-grænserne gælder pr. event (se [creator-vejledningen]({creatorsGuide})).',
+        },
+        {
+          term: 'Sender `!join` folk til et event kun for medlemmer?',
+          body: 'Nej. Den peger kun på et event, der er åbent for seere.',
+        },
+        {
+          term: 'Skal jeg lave et creator-rum i stedet?',
+          body: 'Kun hvis du ikke har en klan. Et rum er til streamere uden klan i spillet.',
+        },
+      ],
+    },
   },
 };
 

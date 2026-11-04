@@ -7,6 +7,7 @@ import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
 import Select from '@/components/Select';
 import TileDetailModal from '@/components/TileDetailModal';
+import type { ShownHighlight } from '@/lib/highlights/rules';
 import { exactTitle, formatNumber, isPointsMode } from '@/lib/utils';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { boardTiles, missionTiles, parseEventRules } from '@/lib/eventRules';
@@ -140,6 +141,8 @@ interface Props {
    * standings, XP race, lens, line watch, race pace, per-team stat bars — narrows to those teams.
    */
   curtain?: StandingsCurtainInfo | null;
+  /** A streamed board's tile clips by tile id (lib/highlights), already cut to what this viewer may see. */
+  tileHighlights?: Record<number, ShownHighlight[]>;
 }
 
 /**
@@ -170,7 +173,7 @@ interface TeamGains {
   tileMembers: Record<number, { name: string; gained: number }[]>;
 }
 
-export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, creator = false }: Props) {
+export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, creator = false, tileHighlights }: Props) {
   // Behind the curtain the teams whose progress this page deals in are the viewer's own; the rest
   // are names on a roster. Everything below that scores, ranks, fetches or draws per team uses this.
   const teams = useMemo(
@@ -897,6 +900,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
               : undefined
           }
           pointsMode={pointsMode}
+          highlights={tileHighlights?.[selectedTile.id]}
         />
       )}
     </div>

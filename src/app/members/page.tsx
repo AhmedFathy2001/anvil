@@ -17,6 +17,8 @@ import { getLuckBoards } from '@/lib/clogLuckBoard';
 import { momentsForClan } from '@/lib/momentsStore';
 import MomentsFeed from '@/components/MomentsFeed';
 import { supporterLooksByName } from '@/lib/supporter';
+import { verifyUser } from '@/lib/auth';
+import { siteReactions } from '@/lib/siteReactions';
 
 /**
  * A static export named the product instead of the clan — "Members — Anvil" on every clan's roster,
@@ -71,6 +73,9 @@ export default async function MembersPage() {
     // are roster names, so the same record covers them).
     supporterLooksByName(members.map((m) => m.rsn)),
   ]);
+  // GZ / Sad / Sit under each: counts for anyone, who gave them (and a press) for a clanmate.
+  const session = await verifyUser();
+  const reactions = await siteReactions(moments, { clanId: clan.id }, session?.userId ?? null);
 
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
@@ -94,6 +99,7 @@ export default async function MembersPage() {
         lately={
           <MomentsFeed
             moments={moments}
+            reactions={reactions}
             title="Lately"
             blurb="pets, big drops and combat tasks, as they happened. Nothing here scores."
             emptyNote="Nothing yet. Moments arrive from the Anvil plugin — pets and rare drops always, and anything else that clears the floors on Admin → Integrations."

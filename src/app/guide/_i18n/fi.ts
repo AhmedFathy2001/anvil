@@ -38,6 +38,7 @@ const fi: PartialGuideDict = {
       playing: 'Pelaaminen',
       running: 'Tapahtuman pyörittäminen',
       clan: 'Klaanin pyörittäminen',
+      streamers: 'Striimaajille',
     },
     ingame: {
       title: 'Pelioppaat',
@@ -146,6 +147,27 @@ const fi: PartialGuideDict = {
         blurb:
           'Jokainen komento, johon botti vastaa Discordissa, mitä kukin valinta tekee, valmiit esimerkit, ja mitä tarkistaa kun jokin komento ei näy.',
         minutes: '~6 min',
+      },
+      creators: {
+        eyebrow: 'Striimaajille',
+        title: 'Tapahtumia katsojillesi',
+        blurb:
+          'Klaania ei tarvita. Tee oma tila, jaa yksi linkki, valitse kuka voi liittyä (seuraajat, tilaajat, Discord-roolit) ja tuo taulu striimiin.',
+        minutes: '~6 min',
+      },
+      joiningStream: {
+        eyebrow: 'Katsojille',
+        title: 'Striimaajan tapahtumaan liittyminen',
+        blurb:
+          'Sait linkin striimistä? Kirjaudu sisään, lisää hahmosi ja paina Join. Mitä tehdä seuraajille tai tilaajille tarkoitetuissa tapahtumissa.',
+        minutes: '~2 min',
+      },
+      streamingClans: {
+        eyebrow: 'Striimaaville klaaneille',
+        title: 'Striimaus klaaneille',
+        blurb:
+          'Anna katsojiesi pelata yhtä tapahtumaa liittymättä klaaniin. Laita Streaming päälle ja avaa sitten tapahtuma katsojille.',
+        minutes: '~2 min',
       },
     },
   },
@@ -2346,6 +2368,405 @@ const fi: PartialGuideDict = {
     limit: 'Hyvä tietää',
     checked: 'Ruutu tarkistaa tämän puolestasi',
     englishOnly: 'Alla olevat säännöt ovat toistaiseksi englanniksi, jotta ne vastaavat aina sitä, mitä sivusto oikeasti tekee.',
+  },
+
+  // /guide/creators — isännän opas creator-tilaan.
+  creators: {
+    metaTitle: 'Järjestä OSRS-bingo katsojillesi — Anvil',
+    metaDescription:
+      'Pidä Old School RuneScape -bingo tai ruutukilpailu striimillesi ilman klaania: tee tila, jaa yksi linkki, valitse kuka voi liittyä (Twitch, Kick, YouTube tai Discord) ja tuo taulu striimiin OBS:llä.',
+    eyebrow: 'Striimaajille ja sisällöntuottajille',
+    title: 'Tapahtumia katsojillesi',
+    dek: 'Creator-tilassa voit pitää bingon striimillesi. Pelin sisäistä klaania ei tarvita. Teet yhden tapahtuman, jaat yhden linkin, ja katsojasi liittyvät.',
+    facts: [
+      { strong: 'Ei klaania', rest: 'tarvita' },
+      { strong: 'Ilmainen', rest: 'aloittaa' },
+      { strong: 'Yksi linkki', rest: 'chattiisi' },
+    ],
+
+    what: {
+      title: 'Mikä creator-tila on',
+      body: [
+        'Se on oma sivusi Anvilissa osoitteessa `{apex}/c/sinun-nimesi`. Siellä pidät tapahtumia katsojillesi.',
+        'Se ei ole klaani. Ei ole klaanilistaa, arvoja eikä viikkokisoja. Tapahtumaasi liittyvä pelaa sitä tapahtumaa. Ei muuta.',
+        'Katsojat kirjautuvat Discordilla, lisäävät RuneScape-hahmonsa ja painavat **Join**. Anvilin RuneLite-plugin laskee sitten heidän dropinsa itse.',
+      ],
+    },
+
+    create: {
+      title: 'Tee tilasi',
+      body: [
+        'Mene osoitteeseen [{apex}/host](/host) ja kirjaudu Discordilla.',
+        'Kirjoita tilallesi nimi. Kanavasi nimi on hyvä valinta. Linkki tehdään nimestä. Paina **change link**, jos haluat toisen.',
+        'Paina **Create my space**. Saat yhden tilan per Discord-tili.',
+      ],
+    },
+
+    first: {
+      title: 'Tee ensimmäinen tapahtumasi',
+      body: [
+        'Heti tilan tehtyäsi pääset kohtaan **Create your first event**. Myöhemmin käytä **+ New event** -painiketta kohdan **Your events** yläreunassa.',
+        '**Name.** Sen katsojasi näkevät.',
+        '**What kind?** Valitse kortti. **Team bingo** on 5×5-ruudukko, ja Anvil jakaa pelaajat joukkueisiin puolestasi. **Solo bingo** on sama ruudukko, jokainen pelaa omillaan. **Team race** on tehtäviä järjestyksessä: pisimmälle edennyt joukkue voittaa.',
+        '**Ready-made tiles** antaa sekoituksen helppoja ja vaikeita tehtäviä, joita voit muokata myöhemmin. **Blank, I’ll write my own** alkaa tyhjänä.',
+        '**Who can join?** Jätä arvoon **Anyone** tai valitse kuka voi liittyä. Katso vaihe 5.',
+        '**When?** Valitse alkamis- ja päättymispäivä. Tai jätä tyhjäksi ja aloita tapahtuma itse, kun olet valmis.',
+        'Paina **Create event**. Paina sitten **Copy invite link**.',
+      ],
+    },
+
+    share: {
+      title: 'Jaa linkki',
+      body: [
+        'Liitä kutsulinkki striimisi chattiin, Discordiisi tai someen. Katsojasi tarvitsevat vain sen linkin.',
+        'Voit kopioida sen uudelleen milloin tahansa: **Your events** → **Copy invite link** tapahtuman vieressä.',
+        'Haluatko, että botti vastaa chatissa komentoon `!join` linkillä? Katso vaihe 9.',
+      ],
+    },
+
+    who: {
+      title: 'Valitse kuka voi liittyä',
+      body: [
+        'Jokainen tapahtuma alkaa avoimena kaikille (**Anyone**). Jos haluat pitää sen yhteisöllesi, avaa tapahtuman **Settings** → **Who can join?** ja valitse yksi tai useampi vaihtoehto. Samat vaihtoehdot ovat ensimmäisen tapahtuman näkymässä.',
+        'Jos valitset useamman, **mikä tahansa niistä riittää**. Seuraaja TAI palvelimen boostaaja pääsee sisään.',
+      ],
+      intro: 'Jokainen vaihtoehto ja mitä katsojan pitää tehdä:',
+      rows: [
+        {
+          term: 'Anyone',
+          body: 'Kuka tahansa linkin saanut liittyy heti.',
+        },
+        {
+          term: 'Twitch followers',
+          body: 'Katsoja painaa tapahtumasivulla **Link Twitch** ja kirjautuu Twitchillä. Anvil tarkistaa, että hän seuraa sinua.',
+        },
+        {
+          term: 'Twitch subs',
+          body: 'Kuten seuraajat, mutta heidän pitää olla tilaajia. Valitse alin taso: **Tier 1 or higher**, **Tier 2 or higher** tai **Tier 3**. Prime-tilaajat lasketaan tasoksi 1. Kanavasi pitää olla Twitchin affiliate tai partner.',
+        },
+        {
+          term: 'Kick followers',
+          body: 'Kick ei kerro sovelluksille, ketkä seuraavat sinua, joten Anvil laskee ne, jotka seuraavat _sen jälkeen_ kun yhdistät Kickin. Seurasiko jo aiemmin? Katsoja lopettaa seuraamisen ja seuraa uudelleen.',
+        },
+        {
+          term: 'Kick subs',
+          body: 'Tilaajat, jotka Anvil on nähnyt Kickin yhdistämisen jälkeen, lasketaan itsestään. Kaikki muut painavat **Get Kick code** ja kirjoittavat koodin (se näyttää tältä: `ANVIL-7F3K9Q`) Kick-chattiisi, ja Anvil näkee heidän tilaajamerkkinsä. Kickissä ei ole tilaajatasoja.',
+        },
+        {
+          term: 'YouTube subscribers',
+          body: 'Katsoja painaa **Check my YouTube subscription** ja kirjautuu Googlella. Hänen tilauksensa pitää olla julkisia YouTubessa.',
+        },
+        {
+          term: 'YouTube members',
+          body: 'Katsoja kirjoittaa Anvil-koodinsa YouTube-livechattiisi. Jäsenet voivat siis liittyä vain **kun olet livenä**.',
+        },
+        {
+          term: 'Discord role',
+          body: 'Ihmiset, joilla on valitsemasi rooli Discord-palvelimellasi (enintään 5 roolia). Yhdistä palvelimesi ensin: **Discord (optional)** valikossa.',
+        },
+        {
+          term: 'Server boosters',
+          body: 'Ihmiset, jotka boostaavat Discord-palvelintasi. Vaatii myös palvelimesi yhdistämisen.',
+        },
+      ],
+      note: {
+        tag: 'Hyvä tietää',
+        body: 'Yhdistä kanavasi ensin (vaihe 7), muuten Twitch-, Kick- ja YouTube-valinnat pysyvät harmaina. Yksi Twitch-, Kick- tai YouTube-tili saa jokaiseen tapahtumaan vain yhden pelaajan. Henkilökuntasi ja nimeltä kutsumasi ihmiset ohittavat tarkistukset.',
+      },
+    },
+
+    approve: {
+      title: 'Hyväksy jokainen pelaaja (valinnainen)',
+      body: [
+        'Haluatko valita, ketkä pelaavat? Avaa tapahtuman **Settings** → **Who can play** → **Who can enter it** ja valitse **Ask me about everyone**. Paina **Save changes**.',
+        'Nyt katsojat painavat **Join**-painikkeen sijaan **Ask to join**. Heidän pitää silti ensin läpäistä **Who can join?** -valintasi.',
+        'Heidän pyyntönsä näkyvät kohdassa **Your events** tekstinä **N waiting for you**. Klikkaa sitä tai avaa tapahtuman **Sign-ups**-välilehti. Ylälistan nimi on **Waiting for your yes**. Hyväksy tai hylkää jokainen.',
+      ],
+    },
+
+    channels: {
+      title: 'Yhdistä Twitch, Kick tai YouTube',
+      body: [
+        'Avaa valikosta **Settings**. Tilasi nimen alla paina **Connect Twitch**, **Connect YouTube** tai **Connect Kick** ja kirjaudu kanavanasi.',
+        'Jokainen yhdistämäsi kanava näkyy sivullasi **verified**-linkkinä. Linkkiä ei voi kirjoittaa käsin: kirjautumisesta Anvil tietää, että kanava on sinun.',
+        'Kanavan voi yhdistää yhteen paikkaan Anvilissa. Jos se on jo toisessa pyörittämässäsi tilassa tai klaanissa, Anvil kysyy haluatko siirtää sen.',
+      ],
+    },
+
+    overlay: {
+      title: 'Tuo taulu striimiin (OBS)',
+      body: [
+        'Kohdassa **Your events** paina tapahtuman vieressä **Stream overlay** ja sitten **Make overlay links**.',
+        'Saat kolme linkkiä. **Standings**: kärkijoukkueet ja kuinka pitkällä ne ovat. **Feed**: uusimmat dropit ja valmistuneet ruudut. **Board**: taulu, jossa valmiit ruudut on merkitty.',
+        'Valitse **Text size** (S, M, L tai XL) ennen kopiointia. Paina sitten haluamasi vieressä **Copy**.',
+      ],
+      stepsTitle: 'Lisää se OBS:ään',
+      steps: [
+        'Paina OBS:ssä kohdassa **Sources** **+** ja valitse **Browser**.',
+        'Liitä linkki kenttään **URL**.',
+        'Aseta koko, esimerkiksi 800 × 600. Jätä **Custom CSS** tyhjäksi.',
+        'Paina **OK**. Se päivittyy itsestään muutaman sekunnin välein.',
+      ],
+      tipsTag: 'Hyvä tietää',
+      tips: [
+        'Lisää linkin loppuun `&limit=10`, `&title=0` tai `&align=right` muuttaaksesi sitä.',
+        'Overlay näyttää saman kuin julkinen tapahtumasivusi. Piilotetut tilanteet ja piilotetut ruudut pysyvät piilossa myös striimissä.',
+        '**Reset link** tekee uudet linkit ja pysäyttää vanhat. Käytä sitä, jos linkki vuotaa. Uudet linkit pitää liittää OBS:ään uudelleen.',
+        'Pieni “Anvil”-merkki on kulmassa. Gold-tasolla voit piilottaa sen kohdassa **Settings** → **Anvil mark on your overlay**.',
+      ],
+    },
+
+    chatjoin: {
+      title: '!join chatissasi',
+      body: [
+        'Avaa **Settings** → **!join in Twitch chat** ja laita se päälle.',
+        'Kun katsoja kirjoittaa `!join`, Anvil-botti (Anvil_OSRS) vastaa linkillä avoimeen tapahtumaasi. Se vastaa korkeintaan kerran 30 sekunnissa, vaikka kuinka moni kirjoittaisi sen.',
+        'Se vastaa vain kanavalla, jonka yhdistit vaiheessa 7. Se toimii myös Kick-chatissa, kun Kick-kanavasi on yhdistetty.',
+        'Ei avointa tapahtumaa? Se kertoo sen: “No event is open to join right now — keep an eye on the stream!”',
+      ],
+    },
+
+    listing: {
+      title: 'Näy Anvilin listalla',
+      body: [
+        'Tilasi ei ole listalla, kun teet sen. Vain linkin saaneet löytävät sen.',
+        'Avaa **Settings** → **Advertise on Anvil** ja laita se päälle. Tilasi näkyy Anvilin klaanihakemistossa, ja uudet tapahtumasi näkyvät osoitteessa `{apex}/events`.',
+        'Jos haluat listata vain yhden tapahtuman, avaa sen **Settings** → **Who can play** → **Advertise on Anvil**. Se näkyy, kun tapahtuma on tulossa tai käynnissä.',
+      ],
+    },
+
+    plans: {
+      title: 'Tasot ja rajat',
+      body: [
+        'Tasosi määrää, kuinka monta pelaajaa yhdessä tapahtumassa voi olla. Kaikki muu on sama kaikilla tasoilla: taulu, pluginin seuranta, overlay ja Discord.',
+        'Tasokorttisi on kohdassa **Your events**. Vertaa tasoja [hinnoittelusta](/pricing#creators). Maksun muuttamiseen tai peruuttamiseen mene [laskutussivullesi](/portal).',
+      ],
+      rows: [
+        { term: 'Free', body: 'Enintään 50 pelaajaa per tapahtuma. Yksi tapahtuma kerrallaan. Discord-roolin ja boostaajan tarkistukset.' },
+        { term: 'Bronze', body: 'Enintään 150 pelaajaa per tapahtuma. Twitch-, Kick- ja YouTube-tarkistukset.' },
+        { term: 'Silver', body: 'Enintään 300 pelaajaa per tapahtuma. Useampi tapahtuma kerrallaan. `!join` chatissa. Näkyy listassa ensimmäisenä.' },
+        { term: 'Gold', body: 'Enintään 1 000 pelaajaa per tapahtuma. Piilota Anvil-merkki overlaystasi.' },
+        { term: 'Partner', body: 'Ei pelaajarajaa. Sovitaan suoraan Anvilin kanssa — ota yhteyttä.' },
+      ],
+      note: {
+        tag: 'Juuri nyt',
+        body: 'Kaikki pääsevät vielä sisään Anvilin kasvaessa, myös tasosi lukujen yli. Rajat alkavat myöhemmin, ennakkoilmoituksella. Tasokorttisi näyttää kuinka lähellä olet.',
+      },
+    },
+
+    faq: {
+      title: 'Kysymyksiä',
+      intro: 'Striimaajien useimmin kysymät:',
+      rows: [
+        {
+          term: 'Tarvitsevatko katsojani klaanin?',
+          body: 'Eivät. He tarvitsevat Discord-tilin ja OSRS-hahmon. Lähetä heille [katsojan opas]({joiningGuide}).',
+        },
+        {
+          term: 'Tarvitsevatko he RuneLite-pluginin?',
+          body: 'Dropeihin ja tappoihin kyllä. Plugin lähettää ne itse. Muutama ruutu lukee sen sijaan hiscoret.',
+        },
+        {
+          term: 'Katsoja sanoo “The host’s Twitch connection isn’t working”.',
+          body: 'Twitch lakkasi hyväksymästä yhteyttäsi. Avaa **Settings** ja paina **Reconnect Twitch**. Sama pätee Kickiin ja YouTubeen.',
+        },
+        {
+          term: 'Voiko joku muu auttaa pyörittämisessä?',
+          body: 'Voi. Avaa **Players** → **Staff & roles**, lisää heidät ja valitse, mitä kukin saa tehdä.',
+        },
+        {
+          term: 'Pyöritän myös klaania pelissä.',
+          body: 'Silloin et ehkä tarvitse tilaa. Julkinen klaani voi laittaa **Streaming** päälle. Katso [striimaus klaaneille]({streamingGuide}).',
+        },
+        {
+          term: 'Voinko tehdä toisen tilan?',
+          body: 'Toistaiseksi yksi tila per Discord-tili. Ota yhteyttä, jos tarvitset toisen.',
+        },
+      ],
+    },
+  },
+
+  // /guide/joining-a-streamer-event — katsojalle, joka klikkasi striimaajan linkkiä.
+  joiningStream: {
+    metaTitle: 'Striimaajan OSRS-bingoon liittyminen — Anvil',
+    metaDescription:
+      'Sait linkin striimaajalta? Kirjaudu Discordilla, lisää OSRS-hahmosi ja paina Join. Mitä tehdä Twitchin, Kickin tai YouTuben seuraaja- tai tilaajatapahtumissa ja miten dropisi lasketaan.',
+    eyebrow: 'Katsojille',
+    title: 'Striimaajan tapahtumaan liittyminen',
+    dek: 'Striimaaja jakoi linkin. Näin pääset taululle. Klaania ei tarvita.',
+    facts: [
+      { strong: '~2 min', rest: 'liittyä' },
+      { strong: 'Ei klaania', rest: 'tarvita' },
+    ],
+
+    join: {
+      title: 'Liity neljässä vaiheessa',
+      body: [
+        '**Avaa linkki**, jonka striimaaja jakoi. Tai kirjoita hänen chattiinsa `!join`, niin botti postaa sen.',
+        '**Kirjaudu Discordilla.** Se on Anvil-tilisi. Mitään ei tarvitse täyttää.',
+        '**Lisää hahmosi.** Paina **Add my character** ja kirjoita RuneScape-nimesi. Jos näkyy **Prove it’s mine**, seuraa profiilisi ohjeita. [Pluginin opas]({pluginGuide}) näyttää miten.',
+        '**Paina Join.** Valitse hahmosi, jos niitä on useampi. Näet **You’re in!**, kun onnistui.',
+      ],
+    },
+
+    gated: {
+      title: 'Seuraajille tai tilaajille tarkoitetut tapahtumat',
+      body: [
+        'Jotkin tapahtumat ovat vain striimaajan yhteisölle. Liittymiskortti kertoo kenelle, esimerkiksi “Open to followers of somename on Twitch”.',
+        'Paina silti **Join**. Jos et vielä pääse sisään, kortti listaa mitä tehdä. Tee jokin niistä ja paina sitten **Join** uudelleen.',
+      ],
+      intro: 'Mitä tehdä kussakin tapauksessa:',
+      rows: [
+        {
+          term: 'Twitch follow or sub',
+          body: 'Paina **Link Twitch** ja kirjaudu Twitchillä. Anvil ei pyydä mitään oikeuksia. Paina sitten **Join** uudelleen.',
+        },
+        {
+          term: 'Kick follow or sub',
+          body: 'Paina **Get Kick code**. Kirjoita koodi (esim. `ANVIL-7F3K9Q`) striimaajan Kick-chattiin 10 minuutin sisällä. Jokainen koodi toimii kerran. Paina sitten **Join** uudelleen.',
+        },
+        {
+          term: 'YouTube subscriber',
+          body: 'Paina **Check my YouTube subscription** ja kirjaudu Googlella. Valitse tili, jolla katsot. Tilauksesi pitää olla julkisia YouTuben yksityisyysasetuksissa.',
+        },
+        {
+          term: 'YouTube member',
+          body: 'Paina **Link my YouTube account**, kirjoita sitten koodisi YouTube-livechattiin ja paina **check the chat**. Tämä toimii vain, kun striimaaja on livenä.',
+        },
+        {
+          term: 'Discord role or booster',
+          body: 'Liity striimaajan Discord-palvelimelle ja hanki rooli (tai boostaa sitä). Anvil tarkistaa Discord-tililtä, jolla kirjauduit.',
+        },
+      ],
+      note: {
+        tag: 'Hyväksyntä',
+        body: 'Jotkin striimaajat hyväksyvät jokaisen pelaajan erikseen. Silloin painikkeessa lukee **Ask to join**, ja näet **Waiting for the host**, kunnes he vastaavat.',
+      },
+    },
+
+    plugin: {
+      title: 'Asenna Anvil-plugin',
+      body: [
+        'Dropisi ja tapposi lasketaan RuneLiten Anvil-pluginilla. Asenna se Plugin Hubista ja kirjaudu Discordilla sen sivupaneelista.',
+        '[Pluginin opas]({pluginGuide}) opastaa sen noin kolmessa minuutissa.',
+      ],
+    },
+
+    play: {
+      title: 'Pelaa',
+      body: [
+        'Siinä kaikki. Pelaa normaalisti. Kun saat dropin tai tapon, jota taulu tarvitsee, plugin lähettää sen itse.',
+        'Avaa tapahtumalinkki milloin tahansa nähdäksesi taulun ja tilanteen. Pelaat vain tätä yhtä tapahtumaa: et liity klaaniin.',
+      ],
+    },
+
+    accounts: {
+      title: 'Yhdistetyt tilisi',
+      body: [
+        'Yhdistämäsi Twitch-, YouTube- ja Kick-tilit löytyvät kohdasta [Settings → Connected accounts](/settings/connections). Voit yhdistää ne siellä myös ennen liittymistä.',
+        'Voit poistaa yhteyden milloin tahansa. Tapahtumat, joihin jo liityit, pitävät sinut mukana. Myöhemmin liittyessäsi rajattuun tapahtumaan sinua pyydetään yhdistämään uudelleen.',
+      ],
+    },
+
+    faq: {
+      title: 'Kysymyksiä',
+      intro: 'Kun jokin sanoo ei:',
+      rows: [
+        {
+          term: '“This event is full”',
+          body: 'Lisäpelaajille ei ole tilaa. Vain striimaaja voi tehdä tilaa — kerro hänelle.',
+        },
+        {
+          term: 'Olen tilaaja, mutta en pääse sisään.',
+          body: 'Tarkista, että yhdistit saman tilin, jolla tilaat. Twitchissä katso liittymiskortin kohtaa **Your Twitch**. Kickissä kirjoita uusi koodi heidän chattiinsa: Anvil lukee tilaajamerkin siitä viestistä. YouTubessa tee tilauksistasi julkisia ja tarkista uudelleen.',
+        },
+        {
+          term: 'Seurasin Kickissä, mutta se sanoo etten seurannut.',
+          body: 'Anvil näkee vain seuraamiset, jotka on tehty sen jälkeen kun striimaaja yhdisti Kickin. Lopeta seuraaminen ja seuraa uudelleen, paina sitten **Join**.',
+        },
+        {
+          term: '“That Twitch account was already used to join this event”',
+          body: 'Yksi Twitch-tili (tai Kick tai YouTube) tuo sisään yhden pelaajan. Joku muu on jo liittynyt sillä.',
+        },
+        {
+          term: '“Twitch didn’t answer just now”',
+          body: 'Twitchillä, Kickillä, YouTubella tai Discordilla oli hetken häiriö. Odota minuutti ja paina **Join** uudelleen.',
+        },
+        {
+          term: '“The host’s … connection isn’t working”',
+          body: 'Tämä on striimaajan asia. Pyydä häntä yhdistämään kanavansa uudelleen Anvilissa.',
+        },
+        {
+          term: 'Dropejani ei näy.',
+          body: 'Tarkista, että plugin on asennettu ja kirjautunut sisään ja että liityit hahmolla, jolla pelaat. Katso [pluginin opas]({pluginGuide}).',
+        },
+      ],
+    },
+  },
+
+  // /guide/streaming-for-clans — julkinen klaani laittaa Streamingin päälle.
+  streamingClans: {
+    metaTitle: 'Klaanisi tapahtumien striimaus — Anvil',
+    metaDescription:
+      'Anna striimisi katsojien liittyä yhteen klaanisi OSRS-tapahtumaan liittymättä klaaniin: laita Streaming päälle, avaa tapahtuma katsojille ja valitse, mitkä katsojat pääsevät sisään.',
+    eyebrow: 'Striimaaville klaaneille',
+    title: 'Striimaus klaaneille',
+    dek: 'Striimaako klaanisi tapahtumiaan? Anna katsojien pelata yhtä tapahtumaa liittymättä klaaniisi.',
+
+    on: {
+      title: 'Laita Streaming päälle',
+      body: [
+        'Mene kohtaan Admin → **Clan settings** → **Streaming** ja laita se päälle.',
+        'Vain julkinen klaani voi striimata. Katsojien pitää voida avata tapahtumasivusi, ja yksityinen klaani piilottaa sen heiltä. Klaanista, jolla Streaming on päällä, ei voi tehdä yksityistä ennen kuin laitat sen pois.',
+        'Kun se on päällä, yhdistä Twitch-, YouTube- tai Kick-kanavasi heti sen alla.',
+      ],
+    },
+
+    event: {
+      title: 'Avaa tapahtuma katsojille',
+      body: [
+        'Jokainen tapahtuma pysyy tilassa **Members only**, kunnes toisin sanot. Niin se toimi ennenkin.',
+        'Avaa tapahtuman **Settings** → **Who can join?** ja valitse **Members and viewers**. Valitse sitten **Which viewers?**: kuka tahansa tai seuraajat, tilaajat, Discord-rooli ja niin edelleen. Paina **Save**.',
+        'Nämä tarkistukset koskevat vain katsojia. Klaanisi jäsenet pääsevät aina sisään, kuten ennenkin.',
+      ],
+    },
+
+    viewers: {
+      title: 'Mitä katsojat ovat',
+      body: [
+        'Liittyvä katsoja on **event player**. He pelaavat vain sitä yhtä tapahtumaa.',
+        'He eivät ole klaanin jäseniä eivätkä vieraita. He eivät koskaan päädy klaanilistallesi, eikä heillä ole arvoa.',
+        'Näet kaikki tällä tavalla liittyneet kohdassa **People** → **Past viewers**.',
+      ],
+    },
+
+    tools: {
+      title: 'Striimityökalusi',
+      body: [
+        'Striimaajan työkalut toimivat kuten creator-tilassa: vahvistetut kanavalinkit, **Who can join?** -tarkistukset, OBS-overlay ja `!join` chatissa.',
+        'Klaanitapahtuman overlay-linkit ovat tapahtuman **Settings**-kohdassa, **Who can play** → **Stream overlay**. `!join` ja overlay-merkki ovat kohdassa **Clan settings** → **Streaming**.',
+        '[Creator-opas]({creatorsGuide}) selittää jokaisen vaihe vaiheelta.',
+      ],
+    },
+
+    faq: {
+      title: 'Kysymyksiä',
+      intro: 'Lyhyet vastaukset:',
+      rows: [
+        {
+          term: 'Lasketaanko katsojat jäsenrajaamme?',
+          body: 'Ei. He ovat tapahtumapelaajia, eivät jäseniä. Striimaajan rajat ovat per tapahtuma (katso [creator-opas]({creatorsGuide})).',
+        },
+        {
+          term: 'Ohjaako `!join` ihmisiä vain jäsenille tarkoitettuun tapahtumaan?',
+          body: 'Ei. Se osoittaa vain tapahtumaan, joka on avoin katsojille.',
+        },
+        {
+          term: 'Pitäisikö minun tehdä sen sijaan creator-tila?',
+          body: 'Vain jos sinulla ei ole klaania. Tila on striimaajille, joilla ei ole klaania pelissä.',
+        },
+      ],
+    },
   },
 };
 

@@ -36,6 +36,7 @@ const zhHans: PartialGuideDict = {
       playing: '参与游戏',
       running: '运营一场活动',
       clan: '管理氏族',
+      streamers: '主播',
     },
     ingame: {
       title: '游戏攻略',
@@ -144,6 +145,27 @@ const zhHans: PartialGuideDict = {
         blurb:
           '机器人在 Discord 里响应的每一条命令、每个选项的作用、实际示例，以及某条命令不出现时该检查什么。',
         minutes: '约 6 分钟',
+      },
+      creators: {
+        eyebrow: '给主播',
+        title: '为你的观众举办活动',
+        blurb:
+          '不需要氏族。建一个空间，分享一条链接，选择谁能加入（关注者、订阅者、Discord 身份组），再把棋盘放到直播里。',
+        minutes: '约 6 分钟',
+      },
+      joiningStream: {
+        eyebrow: '给观众',
+        title: '加入主播的活动',
+        blurb:
+          '在直播里拿到了链接？登录，添加你的角色，按 Join。关注者或订阅者专属活动该怎么做。',
+        minutes: '约 2 分钟',
+      },
+      streamingClans: {
+        eyebrow: '给做直播的氏族',
+        title: '氏族直播',
+        blurb:
+          '让观众不用加入氏族也能参加一场活动。打开 Streaming，再向观众开放一场活动。',
+        minutes: '约 2 分钟',
       },
     },
   },
@@ -2344,6 +2366,405 @@ const zhHans: PartialGuideDict = {
     limit: '须知',
     checked: '格子会替你检查这一项',
     englishOnly: '以下规则暂时只有英文版，以确保始终与网站的实际行为一致。',
+  },
+
+  // /guide/creators — 主播的创作者空间指南（lib/creatorSpaces）。
+  creators: {
+    metaTitle: '为你的观众举办 OSRS 宾果 — Anvil',
+    metaDescription:
+      '不需要氏族，就能为你的直播举办 Old School RuneScape 宾果或格子竞速：建一个空间，分享一条链接，选择谁能加入（Twitch、Kick、YouTube 或 Discord），再用 OBS 把棋盘放到直播里。',
+    eyebrow: '给主播和创作者',
+    title: '为你的观众举办活动',
+    dek: '创作者空间让你为直播举办宾果。你不需要游戏里的氏族。你建一场活动，分享一条链接，观众就能加入。',
+    facts: [
+      { strong: '不需要氏族', rest: '' },
+      { strong: '免费', rest: '开始' },
+      { strong: '一条链接', rest: '发到你的聊天' },
+    ],
+
+    what: {
+      title: '什么是创作者空间',
+      body: [
+        '它是你在 Anvil 上的专属页面，地址是 `{apex}/c/your-name`。你在这里为观众举办活动。',
+        '它不是氏族。没有氏族名单，没有职位，也没有每周比赛。谁加入你的活动，就只参加那一场活动，别的都没有。',
+        '观众用 Discord 登录，添加他们的 RuneScape 角色，然后按 **Join**。之后 Anvil 的 RuneLite 插件会自动统计他们的掉落。',
+      ],
+    },
+
+    create: {
+      title: '建立你的空间',
+      body: [
+        '打开 [{apex}/host](/host)，用 Discord 登录。',
+        '给你的空间起个名字。用你的频道名就很好。你的链接由名字生成。想换一个链接，就按 **change link**。',
+        '按 **Create my space**。每个 Discord 账号只能有一个空间。',
+      ],
+    },
+
+    first: {
+      title: '建立你的第一场活动',
+      body: [
+        '建好空间后，你会直接进入 **Create your first event**。以后请用 **Your events** 顶部的 **+ New event**。',
+        '**Name。** 观众会看到的名字。',
+        '**What kind?** 选一张卡片。**Team bingo** 是 5×5 的棋盘，Anvil 会替你给玩家分队。**Solo bingo** 是同样的棋盘，但每个人各玩各的。**Team race** 是按顺序完成的任务：进度最靠前的队伍获胜。',
+        '**Ready-made tiles** 会给你一组从易到难的任务，之后可以修改。**Blank, I’ll write my own** 则从空白开始。',
+        '**Who can join?** 保持 **Anyone**，或者选择谁可以加入。见第 5 步。',
+        '**When?** 选开始和结束日期。也可以留空，准备好时自己开始活动。',
+        '按 **Create event**。然后按 **Copy invite link**。',
+      ],
+    },
+
+    share: {
+      title: '分享链接',
+      body: [
+        '把邀请链接贴到你的直播聊天、Discord 或社交账号里。观众只需要这条链接。',
+        '你随时可以再次复制：**Your events** → 活动旁边的 **Copy invite link**。',
+        '想让机器人在聊天里回复 `!join` 并附上链接？见第 9 步。',
+      ],
+    },
+
+    who: {
+      title: '选择谁能加入',
+      body: [
+        '每场活动一开始都对 **Anyone** 开放。想只留给你的社区，就打开活动的 **Settings** → **Who can join?**，选一个或多个选项。第一场活动的页面上也有同样的选项。',
+        '如果你选了不止一个，**满足其中任何一个就够了**。关注者或者服务器加成者都能进。',
+      ],
+      intro: '每个选项，以及观众要做什么：',
+      rows: [
+        {
+          term: 'Anyone',
+          body: '有链接的人都能直接加入。',
+        },
+        {
+          term: 'Twitch followers',
+          body: '观众在活动页面按 **Link Twitch**，用 Twitch 登录。Anvil 会检查他们是否关注了你。',
+        },
+        {
+          term: 'Twitch subs',
+          body: '和关注者一样，但他们必须是订阅者。选最低等级：**Tier 1 or higher**、**Tier 2 or higher** 或 **Tier 3**。Prime 订阅算 1 级。你的频道必须是 Twitch 合作伙伴或联盟成员。',
+        },
+        {
+          term: 'Kick followers',
+          body: 'Kick 不会告诉应用谁关注了你，所以 Anvil 只统计你连接 Kick _之后_ 才关注的人。在那之前就关注了？观众取消关注再重新关注就行。',
+        },
+        {
+          term: 'Kick subs',
+          body: '你连接 Kick 之后 Anvil 看到的订阅者会自动算数。其他人按 **Get Kick code**，在你的 Kick 聊天里输入验证码（长得像 `ANVIL-7F3K9Q`），Anvil 就能看到他们的订阅徽章。Kick 没有订阅等级。',
+        },
+        {
+          term: 'YouTube subscribers',
+          body: '观众按 **Check my YouTube subscription**，用 Google 登录。他们在 YouTube 上的订阅必须是公开的。',
+        },
+        {
+          term: 'YouTube members',
+          body: '观众在你的 YouTube 直播聊天里输入他们的 Anvil 验证码。所以会员只能在 **你正在直播时** 加入。',
+        },
+        {
+          term: 'Discord role',
+          body: '拥有你在自己的 Discord 服务器里指定的身份组的人（最多 5 个身份组）。请先连接你的服务器：菜单里的 **Discord (optional)**。',
+        },
+        {
+          term: 'Server boosters',
+          body: '给你的 Discord 服务器加成的人。同样需要先连接你的服务器。',
+        },
+      ],
+      note: {
+        tag: '先知道',
+        body: '请先连接你的频道（第 7 步），否则 Twitch、Kick 和 YouTube 的选项会一直是灰色。一个 Twitch、Kick 或 YouTube 账号在每场活动里只能带一名玩家进来。你的工作人员，以及你按名字邀请的人，不用通过检查。',
+      },
+    },
+
+    approve: {
+      title: '逐个批准玩家（可选）',
+      body: [
+        '想自己挑谁来玩？打开活动的 **Settings** → **Who can play** → **Who can enter it**，选 **Ask me about everyone**。按 **Save changes**。',
+        '这样观众会看到 **Ask to join**，而不是 **Join**。他们仍然要先通过你的 **Who can join?** 选项。',
+        '他们的申请会在 **Your events** 里显示为 **N waiting for you**。点它，或者打开活动的 **Sign-ups** 标签页。顶部的列表叫 **Waiting for your yes**。逐个接受或拒绝。',
+      ],
+    },
+
+    channels: {
+      title: '连接你的 Twitch、Kick 或 YouTube',
+      body: [
+        '在菜单里打开 **Settings**。在你的空间名字下面，按 **Connect Twitch**、**Connect YouTube** 或 **Connect Kick**，并以你的频道登录。',
+        '你连接的每个频道，都会在你的页面上显示为一个 **verified** 链接。你不能手动填链接：登录才是 Anvil 确认频道属于你的方式。',
+        '一个频道只能连接到 Anvil 上的一个地方。如果它已经在你管理的另一个空间或氏族里，Anvil 会问你要不要把它移过来。',
+      ],
+    },
+
+    overlay: {
+      title: '把棋盘放到直播里（OBS）',
+      body: [
+        '在 **Your events** 里，按活动旁边的 **Stream overlay**，再按 **Make overlay links**。',
+        '你会得到三条链接。**Standings**：排名靠前的队伍和他们的进度。**Feed**：最新的掉落和完成的格子。**Board**：棋盘，已完成的格子会标出来。',
+        '复制之前先选一个 **Text size**（S、M、L 或 XL）。然后按你想要的那条旁边的 **Copy**。',
+      ],
+      stepsTitle: '把它加到 OBS',
+      steps: [
+        '在 OBS 的 **Sources** 下，按 **+**，选 **Browser**。',
+        '把链接贴到 **URL**。',
+        '设一个大小，比如 800 × 600。让 **Custom CSS** 保持为空。',
+        '按 **OK**。它每隔几秒会自动更新。',
+      ],
+      tipsTag: '先知道',
+      tips: [
+        '在链接末尾加上 `&limit=10`、`&title=0` 或 `&align=right` 可以改变显示效果。',
+        '浮层显示的内容和你的公开活动页面一致。被隐藏的排名和被隐藏的格子，在直播里也会保持隐藏。',
+        '**Reset link** 会生成新链接，并让旧链接失效。链接泄露时用它。你需要把新链接重新贴到 OBS 里。',
+        '角落里有一个小小的 “Anvil” 标记。在 Gold 方案里，你可以在 **Settings** → **Anvil mark on your overlay** 中隐藏它。',
+      ],
+    },
+
+    chatjoin: {
+      title: '聊天里的 !join',
+      body: [
+        '打开 **Settings** → **!join in Twitch chat**，把它打开。',
+        '观众输入 `!join` 时，Anvil 机器人（Anvil_OSRS）会回复你当前开放活动的链接。不管多少人输入，它最多每 30 秒回复一次。',
+        '它只在你于第 7 步连接过的频道里回复。你的 Kick 频道连接后，它在 Kick 聊天里也能用。',
+        '没有开放的活动？它会这么说：“No event is open to join right now — keep an eye on the stream!”',
+      ],
+    },
+
+    listing: {
+      title: '在 Anvil 上展示',
+      body: [
+        '你的空间建好时是不公开的。只有拿到你链接的人才能找到它。',
+        '打开 **Settings** → **Advertise on Anvil** 并打开它。你的空间会出现在 Anvil 氏族目录里，你的新活动会显示在 `{apex}/events`。',
+        '只想展示某一场活动，就打开它的 **Settings** → **Who can play** → **Advertise on Anvil**。它会在活动即将开始或进行中时显示。',
+      ],
+    },
+
+    plans: {
+      title: '方案与限制',
+      body: [
+        '你的方案决定一场活动最多有多少名玩家。其他一切在所有方案里都一样：棋盘、插件追踪、浮层和 Discord。',
+        '你的方案卡片在 **Your events** 里。想比较方案，请看[价格](/pricing#creators)。想更改或取消付费，请去[你的账单页面](/portal)。',
+      ],
+      rows: [
+        { term: 'Free', body: '每场活动最多 50 名玩家。同一时间一场活动。Discord 身份组和加成者检查。' },
+        { term: 'Bronze', body: '每场活动最多 150 名玩家。Twitch、Kick 和 YouTube 检查。' },
+        { term: 'Silver', body: '每场活动最多 300 名玩家。可同时进行多场活动。聊天里的 `!join`。在列表中排在前面。' },
+        { term: 'Gold', body: '每场活动最多 1,000 名玩家。可隐藏浮层上的 Anvil 标记。' },
+        { term: 'Partner', body: '玩家人数不设上限。直接与 Anvil 一起设置，请联系我们。' },
+      ],
+      note: {
+        tag: '目前',
+        body: 'Anvil 还在成长期，所以大家依然都能进，即使超过你方案的数字。限制会在之后开始，并会提前通知。你的方案卡片会显示你离上限还有多远。',
+      },
+    },
+
+    faq: {
+      title: '常见问题',
+      intro: '主播问得最多的几个：',
+      rows: [
+        {
+          term: '我的观众需要氏族吗？',
+          body: '不需要。他们需要一个 Discord 账号和一个 OSRS 角色。把[观众指南]({joiningGuide})发给他们。',
+        },
+        {
+          term: '他们需要 RuneLite 插件吗？',
+          body: '掉落和击杀需要。插件会自动把它们发过来。少数格子改为读取高分榜。',
+        },
+        {
+          term: '观众说 “The host’s Twitch connection isn’t working”。',
+          body: 'Twitch 不再接受你的连接了。打开 **Settings**，按 **Reconnect Twitch**。Kick 和 YouTube 也一样。',
+        },
+        {
+          term: '别人可以帮我一起管理吗？',
+          body: '可以。打开 **Players** → **Staff & roles**，添加他们，并选择每个人能做什么。',
+        },
+        {
+          term: '我也有游戏里的氏族。',
+          body: '那你可能不需要空间。公开氏族可以改为打开 **Streaming**。见[氏族直播]({streamingGuide})。',
+        },
+        {
+          term: '我可以建第二个空间吗？',
+          body: '目前每个 Discord 账号一个空间。如果需要另一个，请联系我们。',
+        },
+      ],
+    },
+  },
+
+  // /guide/joining-a-streamer-event — 点了主播链接的观众。按钮上的文字与网站完全一致。
+  joiningStream: {
+    metaTitle: '加入主播的 OSRS 宾果 — Anvil',
+    metaDescription:
+      '从主播那里拿到了链接？用 Discord 登录，添加你的 OSRS 角色，按 Join。Twitch、Kick 或 YouTube 上关注者或订阅者专属活动该怎么做，以及你的掉落如何计入。',
+    eyebrow: '给观众',
+    title: '加入主播的活动',
+    dek: '主播分享了一条链接。下面是怎么上棋盘。你不需要氏族。',
+    facts: [
+      { strong: '约 2 分钟', rest: '加入' },
+      { strong: '不需要氏族', rest: '' },
+    ],
+
+    join: {
+      title: '四步加入',
+      body: [
+        '**打开链接**，就是主播分享的那条。或者在他们的聊天里输入 `!join`，机器人会贴出来。',
+        '**用 Discord 登录。** 这就是你的 Anvil 账号。什么都不用填。',
+        '**添加你的角色。** 按 **Add my character**，输入你的 RuneScape 名字。如果显示 **Prove it’s mine**，请按你个人资料页上的步骤做。[插件指南]({pluginGuide})会告诉你怎么做。',
+        '**按 Join。** 如果你有多个角色，选一个。成功后你会看到 **You’re in!**。',
+      ],
+    },
+
+    gated: {
+      title: '关注者或订阅者专属活动',
+      body: [
+        '有些活动只给主播的社区。加入卡片会告诉你是谁，例如 “Open to followers of somename on Twitch”。',
+        '照样按 **Join**。如果你还没被放行，卡片会列出该做什么。做完其中一项，再按一次 **Join**。',
+      ],
+      intro: '每种情况该怎么做：',
+      rows: [
+        {
+          term: 'Twitch 关注或订阅',
+          body: '按 **Link Twitch**，用 Twitch 登录。Anvil 不会要求任何权限。然后再按一次 **Join**。',
+        },
+        {
+          term: 'Kick 关注或订阅',
+          body: '按 **Get Kick code**。在 10 分钟内把验证码（像 `ANVIL-7F3K9Q`）输入主播的 Kick 聊天。每个验证码只能用一次。然后再按一次 **Join**。',
+        },
+        {
+          term: 'YouTube 订阅者',
+          body: '按 **Check my YouTube subscription**，用 Google 登录。选你平时观看用的账号。你的订阅必须在 YouTube 的隐私设置里设为公开。',
+        },
+        {
+          term: 'YouTube 会员',
+          body: '按 **Link my YouTube account**，然后在 YouTube 直播聊天里输入你的验证码，再按 **check the chat**。这只在主播正在直播时有效。',
+        },
+        {
+          term: 'Discord 身份组或加成者',
+          body: '加入主播的 Discord 服务器并获得身份组（或者给它加成）。Anvil 会用你登录时的 Discord 账号来检查。',
+        },
+      ],
+      note: {
+        tag: '审批',
+        body: '有些主播会逐个批准玩家。这时按钮会显示 **Ask to join**，在他们回复之前你会看到 **Waiting for the host**。',
+      },
+    },
+
+    plugin: {
+      title: '安装 Anvil 插件',
+      body: [
+        '你的掉落和击杀通过 RuneLite 的 Anvil 插件来计入。从 Plugin Hub 安装它，并在它的侧边栏里用 Discord 登录。',
+        '[插件指南]({pluginGuide})会带你走一遍，大约三分钟。',
+      ],
+    },
+
+    play: {
+      title: '开玩',
+      body: [
+        '就这些。照常游戏。当你获得棋盘需要的掉落或击杀时，插件会自动发送。',
+        '随时打开活动链接，就能看到棋盘和排名。你只是在玩这一场活动：你并没有加入氏族。',
+      ],
+    },
+
+    accounts: {
+      title: '你已连接的账号',
+      body: [
+        '你关联的 Twitch、YouTube 和 Kick 账号都在 [Settings → Connected accounts](/settings/connections)。你也可以在加入之前先在那里关联。',
+        '随时可以取消关联。你已经加入的活动会保留你。以后加入需要检查的活动时，会再要求你关联。',
+      ],
+    },
+
+    faq: {
+      title: '常见问题',
+      intro: '当提示说不行的时候：',
+      rows: [
+        {
+          term: '“This event is full”',
+          body: '没有位置容纳更多玩家了。只有主播能腾出位置，请告诉他们。',
+        },
+        {
+          term: '我订阅了，但它不让我进。',
+          body: '确认你关联的是你订阅时用的同一个账号。在 Twitch 上，看加入卡片上的 **Your Twitch**。在 Kick 上，在他们的聊天里重新输入一个新验证码：Anvil 会读取那条消息上的订阅徽章。在 YouTube 上，把你的订阅设为公开，然后再检查一次。',
+        },
+        {
+          term: '我在 Kick 上关注了，但它说我没有。',
+          body: 'Anvil 只能看到主播连接 Kick 之后产生的关注。取消关注再重新关注，然后按 **Join**。',
+        },
+        {
+          term: '“That Twitch account was already used to join this event”',
+          body: '一个 Twitch（或 Kick、YouTube）账号只能带一名玩家进来。已经有别人用它加入了。',
+        },
+        {
+          term: '“Twitch didn’t answer just now”',
+          body: 'Twitch、Kick、YouTube 或 Discord 出了点小问题。等一分钟，再按一次 **Join**。',
+        },
+        {
+          term: '“The host’s … connection isn’t working”',
+          body: '这个问题在主播那边。告诉他们在 Anvil 上重新连接他们的频道。',
+        },
+        {
+          term: '我的掉落没有显示。',
+          body: '确认插件已安装并已登录，而且你是用正在玩的那个角色加入的。见[插件指南]({pluginGuide})。',
+        },
+      ],
+    },
+  },
+
+  // /guide/streaming-for-clans — 打开 Streaming 的公开氏族（lib/streamingSwitch）。
+  streamingClans: {
+    metaTitle: '为你氏族的活动做直播 — Anvil',
+    metaDescription:
+      '让你直播间的观众不用加入氏族，也能参加你氏族的一场 OSRS 活动：打开 Streaming，向观众开放一场活动，并选择哪些观众可以进入。',
+    eyebrow: '给做直播的氏族',
+    title: '氏族直播',
+    dek: '你的氏族会直播活动？让观众不用加入氏族，也能参加一场活动。',
+
+    on: {
+      title: '打开 Streaming',
+      body: [
+        '打开 Admin → **Clan settings** → **Streaming**，把它打开。',
+        '只有公开氏族可以直播。观众必须能打开你的活动页面，而私密氏族会把它对他们隐藏。打开了 Streaming 的氏族，在你关掉它之前不能设为私密。',
+        '打开之后，就在它下面连接你的 Twitch、YouTube 或 Kick 频道。',
+      ],
+    },
+
+    event: {
+      title: '向观众开放一场活动',
+      body: [
+        '每场活动在你另行设置之前都保持 **Members only**。和以前一样。',
+        '打开活动的 **Settings** → **Who can join?**，选 **Members and viewers**。然后选择 **Which viewers?**：任何人，或者关注者、订阅者、某个 Discord 身份组等等。按 **Save**。',
+        '这些检查只针对观众。你的氏族成员和以前一样，始终能进。',
+      ],
+    },
+
+    viewers: {
+      title: '观众是什么',
+      body: [
+        '加入的观众是一名 **event player**。他们只参加那一场活动。',
+        '他们不是氏族成员，也不是客人。他们不会出现在你的氏族名单里，也没有职位。',
+        '你可以在 **People** → **Past viewers** 下看到所有以这种方式加入的人。',
+      ],
+    },
+
+    tools: {
+      title: '你的直播工具',
+      body: [
+        '直播工具和创作者空间里一样：已验证的频道链接、**Who can join?** 检查、OBS 浮层和聊天里的 `!join`。',
+        '氏族活动的浮层链接在活动的 **Settings** 里，位于 **Who can play** → **Stream overlay**。`!join` 和浮层标记在 **Clan settings** → **Streaming** 下。',
+        '[创作者指南]({creatorsGuide})会一步一步讲每一项。',
+      ],
+    },
+
+    faq: {
+      title: '常见问题',
+      intro: '简短的回答：',
+      rows: [
+        {
+          term: '观众会占用我们的成员名额吗？',
+          body: '不会。他们是活动玩家，不是成员。主播的人数限制是按活动算的（见[创作者指南]({creatorsGuide})）。',
+        },
+        {
+          term: '`!join` 会把人带到仅限成员的活动吗？',
+          body: '不会。它只指向向观众开放的活动。',
+        },
+        {
+          term: '我应该改建一个创作者空间吗？',
+          body: '只有在你没有氏族时才需要。空间是给没有游戏内氏族的主播用的。',
+        },
+      ],
+    },
   },
 };
 

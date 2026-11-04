@@ -3,6 +3,8 @@ import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
 import CreatorEventList from '@/components/CreatorEventList';
 import type { CreatorHomeView } from '@/lib/creatorHome';
+import type { ShownHighlight } from '@/lib/highlights/rules';
+import HighlightsStrip from '@/components/HighlightsStrip';
 
 function SectionTitle({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
   return (
@@ -42,7 +44,14 @@ function StreamLink({ link }: { link: CreatorHomeView['links'][number] }) {
  * people who have played them. No member count, no recruiting, no "apply" — a creator space has no
  * roster, and the way in is each event's own sign-up.
  */
-export default function CreatorHome({ view }: { view: CreatorHomeView }) {
+export default function CreatorHome({
+  view,
+  highlights = [],
+}: {
+  view: CreatorHomeView;
+  /** Stream highlights (lib/highlights), already cut to events this viewer may see. */
+  highlights?: (ShownHighlight & { eventName: string })[];
+}) {
   return (
     <div className="mx-auto max-w-4xl">
       {view.bannerUrl && (
@@ -95,6 +104,12 @@ export default function CreatorHome({ view }: { view: CreatorHomeView }) {
       <div id="events" className="scroll-mt-20">
         <CreatorEventList events={view.events} />
       </div>
+
+      {highlights.length > 0 && (
+        <div className="mt-8">
+          <HighlightsStrip highlights={highlights} blurb="clipped live from the stream during these events" showEvent />
+        </div>
+      )}
 
       {view.players.length > 0 && (
         <section className="mt-8">
