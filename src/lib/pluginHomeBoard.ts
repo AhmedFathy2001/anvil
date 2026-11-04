@@ -3,7 +3,7 @@
 // that same board read-only when the played character isn't the enrolled one).
 
 import { db } from '@/db';
-import { events, tiles, eventParticipants, completions, clanRoster } from '@/db/schema';
+import { events, eventParticipants, completions, clanRoster } from '@/db/schema';
 import { eventBoardTiles } from '@/lib/comboSql';
 import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { seatsOwnedByAnywhere } from '@/lib/roster';
@@ -84,21 +84,7 @@ export async function homeBoardForUser(clanId: number, userId: number): Promise<
   const revealedRow = await db.query.events.findFirst({ where: eq(events.id, live.eventId), columns: { tilesRevealed: true } });
   if (!revealedRow?.tilesRevealed) return null;
 
-  // Scored through lib/boardScoring, so this pre-login summary is the same fraction the board itself
-  // shows once they log in — optional tiles out, missions a bonus, a drip board against its pool.
-  const tileRows = await db.query.tiles.findMany({ where: eventBoardTiles(live.eventId) });
-  const doneRows = await db
-    .select({ teamId: completions.teamId, tileId: completions.tileId, awardedPoints: completions.awardedPoints })
-    .from(completions)
-    .where(eq(completions.teamId, live.teamId as number));
-  const score = scoreTeam({
-    scoringMode: live.scoringMode,
-    rules: parseEventRules(live.rules),
-    tiles: tileRows,
-    completions: doneRows,
-    teamId: live.teamId as number,
-    boardPointsTotal: boardPointsPool(live.scoringMode, tileRows),
-  });
+  const score = await teamBoardScore(live, live.teamId as number);
   return {
     eventId: live.eventId,
     eventName: live.eventName,
@@ -108,3 +94,27 @@ export async function homeBoardForUser(clanId: number, userId: number): Promise<
   };
 }
 
+
+/**
+ * One team's standing on one board, scored through lib/boardScoring — the same fraction the board
+ * itself shows (optional tiles out, missions a bonus, a drip board against its pool). Shared by the
+ * home-board summary above and the panel's list of every board a character is on (lib/pluginBoards).
+ */
+export async function teamBoardScore(
+  event: { eventId: number; scoringMode: string | null; rules: string | null },
+  teamId: number,
+): Promise<{ boardScore: number; total: number; unit: string }> {
+  const tileRows = await db.query.tiles.findMany({ where: eventBoardTiles(event.eventId) });
+  const doneRows = await db
+    .select({ teamId: completions.teamId, tileId: completions.tileId, awardedPoints: completions.awardedPoints })
+    .from(completions)
+    .where(eq(completions.teamId, teamId));
+  return scoreTeam({
+    scoringMode: event.scoringMode,
+    rules: parseEventRules(event.rules),
+    tiles: tileRows,
+    completions: doneRows,
+    teamId,
+    boardPointsTotal: boardPointsPool(event.scoringMode, tileRows),
+  });
+}

@@ -5,7 +5,7 @@ import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { submissions, tiles, teams, eventParticipants, events, users, eventStartProofs, proofUploads, clans, completions } from '@/db/schema';
 import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
-import { verifyAdmin, verifyAdminOrModerator, verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
+import { verifyAdmin, verifyAdminOrModerator, verifyUser, verifyCaptain, verifyPlayer, verifyPluginTokenOnEvent, resolveTeamMembership } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
 import { resolveTeamManagement } from '@/lib/teamStaff';
 import { syncDropTileCompletion, countTileProgress } from '@/lib/submissions';
@@ -190,7 +190,10 @@ export async function POST(
   const isAdmin = viaCohost ? false : await verifyAdmin();
   const captain = viaCohost ? null : await verifyCaptain();
   const player = viaCohost ? null : await verifyPlayer();
-  const pluginAuth = await verifyPluginToken(request);
+  // THIS board's seat for the character, not only its live pick: a character on two live boards has
+  // one drop credit both, so a newer plugin posts board B's tiles here directly. No seat here keeps
+  // the live pick, and the team check below refuses it as before.
+  const pluginAuth = await verifyPluginTokenOnEvent(request, eId);
   const membership =
     !viaCohost && !isAdmin && !captain && !player && !pluginAuth ? await resolveTeamMembership(eId, teamId) : null;
 

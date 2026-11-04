@@ -6,7 +6,7 @@ import { events, eventParticipants, clanRoster, eventStartProofs, accountStatSna
 import { parseStamp } from '@/lib/dbTime';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { and, eq, inArray } from 'drizzle-orm';
-import { verifyAdmin, verifyUser, verifyPluginToken } from '@/lib/auth';
+import { verifyAdmin, verifyUser, verifyPluginTokenOnEvent } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { isManagedMediaUrl } from '@/lib/storage';
@@ -130,7 +130,7 @@ export async function POST(
   }
   // The caller's own upload, on record (proof_uploads). The media purge deletes a starting shot's file
   // with its event, so naming someone else's file — another clan's proof, a banner — must not pass.
-  const uploader = (await verifyPluginToken(request))?.userId ?? (await verifyUser())?.userId ?? null;
+  const uploader = (await verifyPluginTokenOnEvent(request, eId))?.userId ?? (await verifyUser())?.userId ?? null;
   const upload = await db.query.proofUploads.findFirst({ where: eq(proofUploads.url, imageUrl.trim()) });
   if (!upload || uploader == null || upload.userId !== uploader) {
     return NextResponse.json({ error: 'Upload the screenshot here yourself, then file it' }, { status: 400 });
@@ -244,7 +244,8 @@ async function resolveCaller(
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { error: NextResponse.json({ error: 'Event not found' }, { status: 404 }) };
 
-  const pluginAuth = await verifyPluginToken(request);
+  // This character's seat on THIS board, even when another live board is its pick (lib/auth).
+  const pluginAuth = await verifyPluginTokenOnEvent(request, eventId);
   if (pluginAuth && pluginAuth.eventId === eventId) {
     const row = await db.query.eventParticipants.findFirst({ where: eq(eventParticipants.id, pluginAuth.playerId) });
     if (!row) return { error: NextResponse.json({ error: 'Player not found' }, { status: 404 }) };
