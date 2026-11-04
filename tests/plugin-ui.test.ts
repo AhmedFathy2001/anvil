@@ -256,6 +256,19 @@ test('a creator space in the panel: its name and page, never members, a week or 
   assert.ok(walk(clan).some((x) => x.t === 'button' && x.label === 'Compare with my clan'));
 });
 
+test('recent drops point at the Feed tab: a link for a plugin that can open it, a hint for an older one', () => {
+  const card = {
+    slug: 'afk', name: 'The AFK Spot', kind: 'clan' as const, logoUrl: null, members: 3, activeThisWeek: 0,
+    weekHours: 0, totalEhp: 0, totalEhb: 0, topWeek: [], topPlayers: [], clog: null, competitions: [],
+    highlights: [{ itemId: 26235, label: 'Masori mask', kind: 'drop', at: '2026-11-04T10:00:00Z', rsn: 'Titoo' }],
+  } as unknown as Parameters<typeof clanCardUi>[0];
+  const link = clanCardUi(card, false, true, true);
+  assert.ok(actions(link).some((a) => a.a === 'tab' && a.tab === 'feed'));
+  const hint = clanCardUi(card, false, true, false);
+  assert.ok(!actions(hint).some((a) => a.a === 'tab'));
+  assert.ok(texts(hint).includes('The full list, live, is in the Feed tab.'));
+});
+
 // ---- The board's tiles page and the Teams page ------------------------------------------------
 
 import { type BoardContext, type BoardTile, boardRowsUi, boardUi, claimLine, filterTiles, tileDetailUi, trackingLines } from '../src/lib/pluginUi/boardUi';

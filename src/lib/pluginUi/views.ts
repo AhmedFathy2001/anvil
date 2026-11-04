@@ -45,7 +45,7 @@ import { gatesForEvent } from '@/lib/entryGatesDb';
 import { gatesShortLabel } from '@/lib/entryGates';
 import { deleteTileProof, listTileProofs } from '@/lib/tileProofs';
 import { PROOFS_MAX, PROOFS_STEP, type ProofRow, proofsUi } from './proofsUi';
-import { hasFeedTab, hasPanelImages, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
+import { hasFeedTab, hasPanelImages, hasTabLinks, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { type Node, type View, applyFlair, backRow, button, card, col, gap, message, muted, namesIn, text } from './nodes';
@@ -226,7 +226,7 @@ async function clanView(request: Request, a: Args): Promise<View> {
   const mine = (a.clan ?? '').trim().toLowerCase();
   // "Compare with my clan" only between two clans: a creator space has no members to compare.
   const compare = !!mine && mine !== clan.slug && a.own !== '1' && !isCreatorSpace(clan) && !(await mineIsSpace(request, mine));
-  return { ui: clanCardUi(await loadClanCard(clan), compare, hasFeedTab(request)) };
+  return { ui: clanCardUi(await loadClanCard(clan), compare, hasFeedTab(request), hasTabLinks(request)) };
 }
 
 /** Is the place the plugin is pointed at a creator space? */
@@ -551,7 +551,7 @@ async function clanEventGoingAct(request: Request, a: Args): Promise<View> {
 async function ownClanCard(request: Request, slug: string): Promise<Node | null> {
   const clan = await visibleClan(request, slug);
   if (!clan) return null;
-  return clanCardUi(await ttlMemo(`plugin-ui-clan-card:${clan.id}`, () => loadClanCard(clan), 5 * 60_000), false, hasFeedTab(request));
+  return clanCardUi(await ttlMemo(`plugin-ui-clan-card:${clan.id}`, () => loadClanCard(clan), 5 * 60_000), false, hasFeedTab(request), hasTabLinks(request));
 }
 
 /** Supporters' names in a finished view get their flair: one lookup for every name it shows. */

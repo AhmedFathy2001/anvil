@@ -39,7 +39,9 @@ export type Action =
       askValue?: string;
     }
   | { a: 'pin'; event: number; /** 0 with `on: false` = every pin on the event. */ tile: number; on: boolean; then?: Action }
-  | { a: 'switch'; slug: string };
+  | { a: 'switch'; slug: string }
+  /** Open one of the panel's own tabs. Only sent to a plugin that says it knows it (X-Anvil-Tab-Links). */
+  | { a: 'tab'; tab: 'feed' };
 
 interface Common {
   /** Tooltip, plain text. */
