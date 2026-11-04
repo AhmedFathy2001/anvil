@@ -149,7 +149,8 @@ export function completionRow(c: {
     glyph: 'check',
     glyphColor: 'done',
     title: `Tile complete: ${c.label}`,
-    textColor: 'done',
+    // In the team's colour, so each team's finishes read at a glance (green when it has none).
+    textColor: ((c.team?.color && /^#[0-9a-f]{6}$/i.test(c.team.color) ? c.team.color : 'done') as Color),
     // Who AND which team on the line itself: the plugin puts a row's tag only in its tooltip.
     who: c.who && c.team ? `${c.who} · ${c.team.name}` : c.who ?? c.team?.name ?? '',
     whoColor: 'muted',
