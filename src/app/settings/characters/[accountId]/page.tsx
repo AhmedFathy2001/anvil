@@ -4,7 +4,6 @@ import { groupClansAndSpaces, isCreatorSpace } from '@/lib/creatorSpaces';
 import { notFound } from 'next/navigation';
 
 import SupporterName from '@/components/SupporterName';
-import { verifyUser } from '@/lib/auth';
 import { supporterForUser } from '@/lib/supporter';
 import { emissionSettingsView } from '@/lib/emissionSettings';
 import { gameClanForAccount } from '@/lib/gameClans';
@@ -18,6 +17,7 @@ import WrongClanReport from '@/app/profile/WrongClanReport';
 import { CharacterAnnouncements } from '../../EmissionPanels';
 import { ActionButton, SettingSwitch } from '../../_client';
 import { Pill, SettingsBlock, SettingsGroup, SettingsRow, SettingsTitle } from '../../_ui';
+import { settingsSession } from '@/app/settings/settingsSession';
 
 const METHOD_LABEL: Record<string, string> = {
   plugin: 'Verified by the plugin',
@@ -48,7 +48,7 @@ function joined(stamp: string | null): string | null {
  * account-level things you do to it. Everything that used to need the right clan's locker.
  */
 export default async function CharacterSettingsPage({ params }: { params: Promise<{ accountId: string }> }) {
-  const session = (await verifyUser())!;
+  const session = await settingsSession();
   const accountId = Number((await params).accountId);
   if (!session.playerId || !Number.isInteger(accountId)) notFound();
 

@@ -1,10 +1,10 @@
 import ClanLink from '@/components/ClanLink';
 
-import { verifyUser } from '@/lib/auth';
 import { supporterForUser } from '@/lib/supporter';
 import { canCustomColors, canShapeBrief, hasChatStar } from '@/lib/chatLook';
 import ChatFeedPanel from '../ChatFeedPanel';
 import { SettingsBlock, SettingsGroup, SettingsRow, SettingsTitle, Pill } from '../_ui';
+import { settingsSession } from '@/app/settings/settingsSession';
 
 /**
  * In-game chat: what the plugin shows in your RuneLite chatbox. Three of its options are Supporter
@@ -12,7 +12,7 @@ import { SettingsBlock, SettingsGroup, SettingsRow, SettingsTitle, Pill } from '
  * leaving people to discover a greyed-out control.
  */
 export default async function ChatSettingsPage() {
-  const session = (await verifyUser())!;
+  const session = await settingsSession();
   const supporter = await supporterForUser(session.userId);
   const tier = supporter?.tier.id ?? null;
   const perks = [

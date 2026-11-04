@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 
-import { verifyUser } from '@/lib/auth';
 import { connectedAccountsForUser } from '@/lib/connectedAccounts';
 import { PLATFORM_LABEL, type ConnectedLink, type Platform } from '@/lib/connectedAccountsRules';
 import { twitchConfigured } from '@/lib/twitch';
@@ -10,6 +9,7 @@ import { ActionButton, BTN, SettingSwitch } from '../_client';
 import { Pill, SettingsBlock, SettingsGroup, SettingsRow, SettingsTitle } from '../_ui';
 import { KickLinker, MedalProfileForm } from './_client';
 import { ConnectedAccountExtras } from './extras';
+import { settingsSession } from '@/app/settings/settingsSession';
 
 
 /** `?twitch=` / `?youtube=` from the OAuth callbacks — fixed words only, mapped to fixed text. */
@@ -28,7 +28,7 @@ function outcome(platform: 'twitch' | 'youtube', v: string | string[] | undefine
 }
 
 export default async function ConnectedAccountsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const session = (await verifyUser())!;
+  const session = await settingsSession();
   const sp = await searchParams;
   const { links, medal } = await connectedAccountsForUser(session.userId);
   const by = new Map(links.map((l) => [l.platform, l]));

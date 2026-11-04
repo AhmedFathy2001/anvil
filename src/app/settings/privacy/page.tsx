@@ -3,14 +3,14 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { players } from '@/db/schema';
 import SupporterName from '@/components/SupporterName';
-import { verifyUser } from '@/lib/auth';
 import { supporterForUser } from '@/lib/supporter';
 import { settingsCharacters } from '@/lib/settingsData';
 import { SettingSwitch } from '../_client';
 import { SettingsGroup, SettingsRow, SettingsTitle } from '../_ui';
+import { settingsSession } from '@/app/settings/settingsSession';
 
 export default async function PrivacySettingsPage() {
-  const session = (await verifyUser())!;
+  const session = await settingsSession();
   const [[person, characters], supporter] = await Promise.all([
     session.playerId
       ? Promise.all([db.query.players.findFirst({ where: eq(players.id, session.playerId) }), settingsCharacters(session.playerId)])
