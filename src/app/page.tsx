@@ -36,6 +36,8 @@ import { publicSpacePage } from '@/lib/spacePage/store';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { isCreatorSpace, spaceDescription } from '@/lib/creatorSpaces';
 import { showReportButton } from '@/lib/platformReportRules';
+import { boostViewerFor, clanBoostSummary, type ClanBoostSummary } from '@/lib/clanBoosts';
+import { ClanBoostPanel } from '@/components/ClanBoost';
 
 export const dynamic = 'force-dynamic';
 
@@ -235,8 +237,11 @@ export default async function HomePage() {
 
   // Who's around (lib/clanHall). Names for insiders; for everyone else only when the clan chose that.
   // A Discord that is off, unreachable or switched off for the server is simply no card.
+  // The clan's Clan Hall switches, read once: the hall card and the boosters wall both follow its
+  // choice of whether strangers see members' names.
+  const hallConfigPromise = hallConfig(clan.id);
   const hallPromise = (async () => {
-    const config = await hallConfig(clan.id);
+    const config = await hallConfigPromise;
     // Hidden by the platform (/staff/clans): the card is for insiders only.
     if (config.platformHidden && !insider) return null;
     // The viewer's own accounts, so the card can offer "My team" during an event.
@@ -246,13 +251,21 @@ export default async function HomePage() {
     return clanHallView(clan.id, { includeNames: insider || config.publicNames, viewerAccountIds });
   })().catch(() => null);
 
+  // Boosts (lib/clanBoosts): looks only, so a failed read is a page without them, never a broken one.
+  // A stranger sees boosters' names only where the clan shows strangers its members' names.
+  const boostPromise: Promise<ClanBoostSummary | null> = (async () => {
+    const showNames = insider || (await hallConfigPromise.catch(() => null))?.publicNames === true;
+    return clanBoostSummary(clan.id, { showNames });
+  })().catch(() => null);
+
   if (!insider) {
-    const [publicView, hall, activity] = await Promise.all([
+    const [publicView, hall, activity, boost] = await Promise.all([
       publicClanHomeView(clan.id, await getDiscordInviteUrl(clan.id)),
       hallPromise,
       // What a visitor can open (live, coming, finished, the week's top players). A failure here is
       // just a shorter page, never a broken one.
       publicClanActivity(clan.id).catch(() => null),
+      boostPromise,
     ]);
     if (publicView) {
       return (
@@ -277,25 +290,48 @@ export default async function HomePage() {
             canReport={showReportButton({ signedIn: !!session?.userId, staffOfTarget: staffHere })}
             hall={hall ? <ClanHall initial={hall} src="public" /> : null}
             activity={activity}
+            boost={boost ? { level: boost.level, recruitingLine: boost.recruitingLine } : null}
+            // Visitors see the badge and the wall, never the progress line.
+            boosters={
+              boost && boost.wall.length > 0 ? (
+                <ClanBoostPanel level={boost.level} counted={boost.counted} progress={null} graceEndsAt={null} wall={boost.wall} member={false} viewer={null} />
+              ) : null
+            }
           />
         </>
       );
     }
   }
 
-  const [view, hall] = await Promise.all([buildHomeView(clan.id, myMemberIds), hallPromise]);
+  const [view, hall, boost, boostViewer] = await Promise.all([
+    buildHomeView(clan.id, myMemberIds),
+    hallPromise,
+    boostPromise,
+    session?.userId ? boostViewerFor(clan.id, session.userId, session.playerId ?? null).catch(() => null) : Promise.resolve(null),
+  ]);
   // Same rule as the nav: the shortcut only exists when there's something of theirs behind it.
   const myTeams = session?.userId ? await countLiveTeamInvolvements(session.userId) : 0;
 
   return (
     <div>
-      <Hero view={view} />
+      <Hero view={view} boostLevel={boost?.level ?? 0} />
       {hall && <ClanHall initial={hall} src="home" />}
       <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} />
       <LiveNow view={view} />
       <ClanEvents view={view} />
       <Competitions view={view} />
       <ClanWeek view={view} />
+      {boost && (
+        <ClanBoostPanel
+          level={boost.level}
+          counted={boost.counted}
+          progress={boost.progress}
+          graceEndsAt={boost.graceEndsAt}
+          wall={boost.wall}
+          member={myMemberIds.length > 0}
+          viewer={boostViewer}
+        />
+      )}
 
       <section className="mt-9 grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
         <QuickLink href="/events" emoji="🏆" label="Competitions" />

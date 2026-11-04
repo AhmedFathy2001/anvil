@@ -10,6 +10,7 @@ import { isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
 import { clansOfPerson } from '@/lib/myClans';
 import ClanLookup, { type LookupClan } from '@/components/ClanLookup';
+import { clanBoostDisplays, type ClanBoostDisplay } from '@/lib/clanBoosts';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,11 +51,13 @@ export default async function ClansPage() {
   if (!isApexHost((await headers()).get('host'))) notFound();
 
   const session = await verifyUser();
-  const [rows, mine] = await Promise.all([
+  const [rows, mine, boosts] = await Promise.all([
     // One query, still shared: two copies of a counting query is how two pages start disagreeing
     // about how many members a clan has.
     directoryClans(),
     session ? clansOfPerson(session.playerId, session.userId) : Promise.resolve([]),
+    // Boost levels (lib/clanBoosts): looks and order only; a failed read lists everyone unboosted.
+    clanBoostDisplays('all').catch(() => new Map<number, ClanBoostDisplay>()),
   ]);
 
   const seatBySlug = new Map(mine.map((c) => [c.slug, c.seat]));
@@ -85,6 +88,9 @@ export default async function ClansPage() {
     featured: r.featured,
     activeThisWeek: r.activeThisWeek,
     xpThisWeek: r.xpThisWeek,
+    // Creator spaces aren't boosted (boosts ride on in-game clan member seats).
+    boostLevel: r.kind === 'clan' && r.id != null ? (boosts.get(r.id)?.level ?? 0) : 0,
+    recruitingLine: r.kind === 'clan' && r.id != null ? (boosts.get(r.id)?.recruitingLine ?? null) : null,
   }));
 
   return <ClanLookup clans={clans} />;

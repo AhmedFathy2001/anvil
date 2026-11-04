@@ -3,6 +3,8 @@ import ClanLink from '@/components/ClanLink';
 import type { ClanFocus } from '@/lib/clanHome';
 
 export interface DirectoryClan {
+  /** clans.id, for joining per-clan extras (boost levels) without another lookup by slug. */
+  id?: number;
   slug: string;
   /** The clan's own image, or null for the generated crest. */
   logoUrl?: string | null;

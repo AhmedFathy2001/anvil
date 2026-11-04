@@ -1,6 +1,6 @@
 'use client';
 
-import { useLayoutEffect, useRef, type CSSProperties } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 
 import { usePageActive } from '@/hooks/usePageActive';
 
@@ -23,6 +23,7 @@ export default function MotionImg({
   style,
   width,
   height,
+  still = false,
 }: {
   src: string;
   alt?: string;
@@ -30,8 +31,15 @@ export default function MotionImg({
   style?: CSSProperties;
   width?: number;
   height?: number;
+  /**
+   * Show the still frame only, however active the page: a clan banner below boost Level 2
+   * (lib/clanBoostRules boostPerks animatedBanner). Frozen as soon as the image has loaded.
+   */
+  still?: boolean;
 }) {
-  const active = usePageActive();
+  const pageActive = usePageActive();
+  const active = pageActive && !still;
+  const [loaded, setLoaded] = useState(0);
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -59,12 +67,22 @@ export default function MotionImg({
       return; // a decode problem: leave it animating rather than show a blank box
     }
     show(true);
-  }, [active, src]);
+  }, [active, src, loaded]);
 
   return (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element -- object-storage URLs, and frames must stay ours to freeze */}
-      <img ref={imgRef} src={src} alt={alt} width={width} height={height} className={className} style={style} />
+      <img
+        ref={imgRef}
+        src={src}
+        alt={alt}
+        width={width}
+        height={height}
+        className={className}
+        style={style}
+        // A still banner freezes once its first frame is in (the effect above can't draw before that).
+        onLoad={still ? () => setLoaded((n) => n + 1) : undefined}
+      />
       <canvas ref={canvasRef} aria-hidden className={className} style={{ ...style, display: 'none' }} />
     </>
   );
