@@ -1121,6 +1121,13 @@
       "when": 1793824960000,
       "tag": "0218_clan_boosts",
       "breakpoints": true
+    },
+    {
+      "idx": 219,
+      "version": "7",
+      "when": 1793825020000,
+      "tag": "0219_gift_boost_slots",
+      "breakpoints": true
     }
   ]
 }

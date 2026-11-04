@@ -27,7 +27,7 @@ const PERKS: { label: string; where: string; tier: SupporterTierId }[] = [
   { label: 'Your own chat feed colours', where: '/settings/chat', tier: 'supporter' },
   { label: 'Choose what your login brief covers', where: '/settings/chat', tier: 'champion' },
   { label: 'A star by your name in other players’ chat feeds', where: '/settings/chat', tier: 'patron' },
-  { label: 'Boosts for clans you’re in (1 / 2 / 3 slots)', where: '/settings/boosts', tier: 'supporter' },
+  { label: 'Boosts for clans you’re in (1 / 2 slots)', where: '/settings/boosts', tier: 'champion' },
 ];
 const atLeast = (tier: SupporterTierId | null, need: SupporterTierId) =>
   tier != null && SUPPORTER_TIER_ORDER.indexOf(tier) >= SUPPORTER_TIER_ORDER.indexOf(need);

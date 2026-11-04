@@ -26,6 +26,7 @@ import { sweepEventChat } from '@/lib/eventChat';
 import { publishShippedReleases } from '@/lib/releases';
 import { grantDueReferrals } from '@/lib/referrals';
 import { sweepAnvilSupporterRoles } from '@/lib/anvilDiscord';
+import { reconcileClanBoostLevels } from '@/lib/clanBoosts';
 import { clearPreStartEventActivity } from '@/lib/preStartActivity';
 import { track } from '@/lib/analytics';
 import { endOfEventFacts, runDailyDigests, runHalfwayReports } from '@/lib/eventDigest';
@@ -449,4 +450,6 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   await grantDueReferrals().catch((err) => log.warn('event-lifecycle.referral-grant-failed', { err: String(err) }));
   // Anvil Discord supporter roles: hourly, in batches, for terms that ran out and late joiners (lib/anvilDiscord).
   await sweepAnvilSupporterRoles(nowMs).catch((err) => log.warn('event-lifecycle.anvil-roles-sweep-failed', { err: String(err) }));
+  // Clan boost levels: hourly, so a drop below a level starts its grace week on time (lib/clanBoosts).
+  await reconcileClanBoostLevels(nowMs).catch((err) => log.warn('event-lifecycle.boost-reconcile-failed', { err: String(err) }));
 }

@@ -102,6 +102,9 @@ export default function DiscordQuickSetup({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [foreign, setForeign] = useState<ForeignWebhook[]>([]);
   const [current, setCurrent] = useState<RouteNow[]>([]);
+  // Webhooks the clan chose to keep (another bot's feed): out of the removal list, back on request.
+  const [kept, setKept] = useState<Set<string>>(new Set());
+  const [showKept, setShowKept] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -115,6 +118,7 @@ export default function DiscordQuickSetup({
         setLoadError(null);
         setForeign(data.webhooks ?? []);
         setCurrent(data.current ?? []);
+        setKept(new Set<string>(data.kept ?? []));
       }
     } catch {
       setLoadError('Couldn’t read your server’s webhooks.');
@@ -192,6 +196,28 @@ export default function DiscordQuickSetup({
 
   // ---- Remove old webhooks ----
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const removable = foreign.filter((w) => !kept.has(w.id));
+  const keptHooks = foreign.filter((w) => kept.has(w.id));
+
+  async function setKeep(id: string, keep: boolean) {
+    setRemoveMsg(null);
+    const res = await clanFetch('/api/admin/discord/foreign-webhooks/keep', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, keep }),
+    }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
+    if (!res?.ok) {
+      setRemoveMsg({ ok: false, text: data.error || 'Couldn’t save that.' });
+      return;
+    }
+    setKept(new Set<string>(data.kept ?? []));
+    setPicked((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [removeMsg, setRemoveMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -389,17 +415,18 @@ export default function DiscordQuickSetup({
         </div>
       </Card>
 
-      {(foreign.length > 0 || removeMsg) && (
+      {(removable.length > 0 || keptHooks.length > 0 || removeMsg) && (
         <Card title="Remove Dink’s old webhooks">
-          {foreign.length > 0 ? (
+          {removable.length > 0 ? (
             <>
               <p className="text-sm text-text-muted">
                 Once your members are on Anvil, tick the ones to remove. Removed webhooks stop posting for good.
+                One you want to keep (another bot’s feed)? Press Keep and it leaves this list.
               </p>
               <div className="space-y-2">
-                {foreign.map((w) => (
+                {removable.map((w) => (
+                  <div key={w.id} className="flex items-center justify-between gap-3">
                   <Checkbox
-                    key={w.id}
                     checked={picked.has(w.id)}
                     onChange={(on) => {
                       setConfirming(false);
@@ -416,6 +443,10 @@ export default function DiscordQuickSetup({
                       </>
                     }
                   />
+                  <button type="button" onClick={() => setKeep(w.id, true)} className="shrink-0 text-sm text-gold hover:underline">
+                    Keep
+                  </button>
+                  </div>
                 ))}
               </div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -448,6 +479,24 @@ export default function DiscordQuickSetup({
             </>
           ) : null}
           {removeMsg && <p className={cn('text-sm', removeMsg.ok ? 'text-gold' : 'text-red-400')}>{removeMsg.text}</p>}
+          {keptHooks.length > 0 && (
+            <div className="space-y-2">
+              <button type="button" onClick={() => setShowKept((v) => !v)} className="text-sm text-text-muted hover:text-gold">
+                {showKept ? 'Hide' : 'Show'} kept ({keptHooks.length})
+              </button>
+              {showKept &&
+                keptHooks.map((w) => (
+                  <div key={w.id} className="flex items-center justify-between gap-3 text-sm">
+                    <span>
+                      {w.name} <span className="text-text-muted">— #{w.channelName}</span>
+                    </span>
+                    <button type="button" onClick={() => setKeep(w.id, false)} className="shrink-0 text-gold hover:underline">
+                      Put back
+                    </button>
+                  </div>
+                ))}
+            </div>
+          )}
         </Card>
       )}
     </div>

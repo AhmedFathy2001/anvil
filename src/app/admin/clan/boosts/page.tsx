@@ -16,7 +16,7 @@ const day = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { day: 'num
 const LEVELS: { level: 1 | 2 | 3; perks: string[] }[] = [
   { level: 1, perks: ['“Boosted” badge on your clan page, Clan Hall card and in search', 'Listed above unboosted clans in the Clan Hall', 'Your clan name in a gradient'] },
   { level: 2, perks: ['A spot in the Clan Hall’s Featured row', 'Your animated banner plays (below Level 2 it shows its still frame)', 'A recruiting line for visitors', 'Your clan name’s gradient moves'] },
-  { level: 3, perks: ['Spotlighted above the clan table on the leaderboard', 'One recruitment post a month in the Anvil Discord'] },
+  { level: 3, perks: ['A Spotlight at the very top of the Clan Hall', 'One recruitment post a month in the Anvil Discord'] },
 ];
 
 /**

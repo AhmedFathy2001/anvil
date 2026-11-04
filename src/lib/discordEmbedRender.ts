@@ -15,6 +15,11 @@ export interface EmbedClan {
   logoUrl: string | null;
   bannerUrl: string | null;
   bannerPosition: number | null;
+  /**
+   * The banner's first frame as a data URL, used instead of `bannerUrl` when the clan is below boost
+   * Level 2 (an animated banner only plays from there, lib/clanBoostRules boostPerks).
+   */
+  bannerStill?: string | null;
 }
 
 export function escapeHtml(s: string): string {
@@ -45,7 +50,8 @@ export function renderEmbedHtml(opts: {
 }): string {
   const { clan, counts } = opts;
   const name = escapeHtml(clan.name);
-  const banner = safeUrl(clan.bannerUrl);
+  const still = clan.bannerStill && /^data:image\/(jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(clan.bannerStill) ? clan.bannerStill : null;
+  const banner = still ?? safeUrl(clan.bannerUrl);
   const logo = safeUrl(clan.logoUrl);
   const invite = safeUrl(opts.inviteUrl);
   const clanUrl = escapeHtml(opts.clanUrl);

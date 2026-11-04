@@ -22,7 +22,8 @@ import {
   levelUpFrom,
   movableAt,
   nextMonthStart,
-  paidTier,
+  rowGivesSlots,
+  slotTier,
   pickSlot,
   reconcileLevel,
   recruitPostAllowed,
@@ -45,10 +46,10 @@ const days = (n: number) => n * DAY_MS;
 // Slots
 // ---------------------------------------------------------------------------------------------
 
-test('slots per paid tier: 1 / 2 / 3, none without one', () => {
-  assert.equal(slotsFor('supporter'), 1);
-  assert.equal(slotsFor('champion'), 2);
-  assert.equal(slotsFor('patron'), 3);
+test('slots per paid tier: Supporter 0, Champion 1, Patron 2, none without one', () => {
+  assert.equal(slotsFor('supporter'), 0);
+  assert.equal(slotsFor('champion'), 1);
+  assert.equal(slotsFor('patron'), 2);
   assert.equal(slotsFor(null), 0);
 });
 
@@ -61,22 +62,32 @@ const sub = (o: Partial<{ tier: string; status: string; currentPeriodEnd: string
   ...o,
 });
 
-test('paidTier ignores invite time and staff gifts', () => {
-  assert.equal(paidTier([sub({ tier: 'champion' })], NOW), 'champion');
+test('slots come from paid time, not invite time; staff gifts only when granted with slots', () => {
+  assert.equal(slotTier([sub({ tier: 'champion' })], NOW), 'champion');
   // Invite reward only: no slots.
-  assert.equal(paidTier([sub({ tier: 'champion', status: 'granted', recurrence: 'referral', currentPeriodEnd: '2026-12-01 00:00:00' })], NOW), null);
+  assert.equal(slotTier([sub({ tier: 'champion', status: 'granted', recurrence: 'referral', currentPeriodEnd: '2026-12-01 00:00:00' })], NOW), null);
   // Paying Supporter lifted to Champion by an invite: still one slot's worth.
   assert.equal(
-    paidTier([sub({ tier: 'supporter' }), sub({ tier: 'champion', status: 'granted', recurrence: 'referral', currentPeriodEnd: '2026-12-01 00:00:00' })], NOW),
+    slotTier([sub({ tier: 'supporter' }), sub({ tier: 'champion', status: 'granted', recurrence: 'referral', currentPeriodEnd: '2026-12-01 00:00:00' })], NOW),
     'supporter',
   );
-  // A staff gift is granted too.
-  assert.equal(paidTier([sub({ tier: 'patron', status: 'granted', recurrence: 'gift', currentPeriodEnd: '2027-01-01 00:00:00' })], NOW), null);
+  // A staff gift: without slots by default, with them when staff ticked it.
+  const gift = { tier: 'patron', status: 'granted', recurrence: 'gift', currentPeriodEnd: '2027-01-01 00:00:00' };
+  assert.equal(slotTier([sub(gift)], NOW), null);
+  assert.equal(slotTier([{ ...sub(gift), grantsBoostSlots: false }], NOW), null);
+  assert.equal(slotTier([{ ...sub(gift), grantsBoostSlots: true }], NOW), 'patron');
+  // The flag means nothing on invite time.
+  assert.equal(slotTier([{ ...sub({ tier: 'patron', status: 'granted', recurrence: 'referral', currentPeriodEnd: '2027-01-01 00:00:00' }), grantsBoostSlots: true }], NOW), null);
+  // A slot gift above what they pay: the better tier counts.
+  assert.equal(slotTier([sub({ tier: 'supporter' }), { ...sub(gift), grantsBoostSlots: true }], NOW), 'patron');
+  // Lab grants (active rows) keep counting.
+  assert.equal(slotTier([sub({ tier: 'champion', recurrence: 'lab' })], NOW), 'champion');
+  assert.equal(rowGivesSlots(sub({})), true);
   // Cancelled but paid to the end of term still counts; past it, not.
-  assert.equal(paidTier([sub({ status: 'cancelling', currentPeriodEnd: '2026-11-20 00:00:00' })], NOW), 'supporter');
-  assert.equal(paidTier([sub({ status: 'cancelling', currentPeriodEnd: '2026-11-01 00:00:00' })], NOW), null);
-  assert.equal(paidTier([sub({ status: 'ended' })], NOW), null);
-  assert.equal(paidTier([sub({ status: 'refunded' })], NOW), null);
+  assert.equal(slotTier([sub({ status: 'cancelling', currentPeriodEnd: '2026-11-20 00:00:00' })], NOW), 'supporter');
+  assert.equal(slotTier([sub({ status: 'cancelling', currentPeriodEnd: '2026-11-01 00:00:00' })], NOW), null);
+  assert.equal(slotTier([sub({ status: 'ended' })], NOW), null);
+  assert.equal(slotTier([sub({ status: 'refunded' })], NOW), null);
 });
 
 // ---------------------------------------------------------------------------------------------

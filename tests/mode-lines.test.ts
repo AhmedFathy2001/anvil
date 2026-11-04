@@ -83,3 +83,21 @@ test('pattern checks and the sample-to-pattern starter', () => {
   const re = new RegExp(patternFromSample('You have 1,250 points (rank 3).'), 'i');
   assert.ok(re.test('You have 980 points (rank 12).'));
 });
+
+test('main-game milestones from a mode world are recognised and never posted raw', async () => {
+  const { classifyLine, cleanLine } = await import('../src/lib/modeLines');
+  const hc = { key: 'hardcore' };
+  const line = (s: string) => classifyLine(cleanLine(s)!, hc).kind;
+  const magic = classifyLine(cleanLine("Congratulations, you've just advanced your Magic level. You are now level 23.")!, hc);
+  assert.deepEqual(magic, { kind: 'level', skill: 'Magic', level: 23 });
+  assert.equal(line("Congratulations, you've just advanced your Combat level. You are now level 32."), 'ignore');
+  assert.deepEqual(classifyLine(cleanLine("Congratulations, you've completed a quest: @q_mes@Black Knights' Fortress")!, hc), {
+    kind: 'quest',
+    name: "Black Knights' Fortress",
+  });
+  assert.equal(line("Congratulations, you've completed an easy combat task: Noxious Foe."), 'ignore');
+  assert.equal(cleanLine("Congratulations, you've completed a quest: @q_mes@Black Knights' Fortress"), "Congratulations, you've completed a quest: Black Knights' Fortress");
+  // A league's own unlock still posts.
+  assert.equal(line('Congratulations, you have unlocked a new relic: Endless Harvest!'), 'modeRelic');
+  assert.equal(line('Congratulations, you have completed a hard task: Defeat Vorkath.'), 'modeTask');
+});

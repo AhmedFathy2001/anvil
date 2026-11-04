@@ -113,19 +113,22 @@ export default function ClanLookup({ clans: everything }: { clans: LookupClan[] 
     });
   }, [clans, query, sort, filter]);
 
-  // FEATURED: Level 2+ boosted clans get a row of their own at the top, while nobody is searching or
-  // filtering (Level 3 first). They're left out of the grid below meanwhile,
+  // SPOTLIGHT and FEATURED, while nobody is searching or filtering: Level 3 clans get the spotlight at
+  // the very top, Level 2 the Featured row under it (lib/clanBoostRules boostPerks). They're left out of the grid below meanwhile,
   // so no clan shows twice.
+  const browsing = !query.trim() && filter === 'any';
+  const spotlight = useMemo(
+    () => (browsing ? clans.filter((c) => boostPerks(c.boostLevel ?? 0).spotlight).sort(byActivity) : []),
+    [clans, browsing],
+  );
   const featured = useMemo(
     () =>
-      query.trim() || filter !== 'any'
-        ? []
-        : clans
-            .filter((c) => boostPerks(c.boostLevel ?? 0).featured)
-            .sort((a, b) => byBoostLevel(a, b) || b.activeThisWeek - a.activeThisWeek || a.name.localeCompare(b.name)),
-    [clans, query, filter],
+      browsing
+        ? clans.filter((c) => boostPerks(c.boostLevel ?? 0).featured && !boostPerks(c.boostLevel ?? 0).spotlight).sort(byActivity)
+        : [],
+    [clans, browsing],
   );
-  const featuredSlugs = useMemo(() => new Set(featured.map((c) => c.slug)), [featured]);
+  const featuredSlugs = useMemo(() => new Set([...spotlight, ...featured].map((c) => c.slug)), [spotlight, featured]);
   const grid = useMemo(() => shown.filter((c) => !featuredSlugs.has(c.slug)), [shown, featuredSlugs]);
 
   // Creators: the search applies; the clan filters (taking members, challenges) do not. Featured
@@ -236,6 +239,24 @@ export default function ClanLookup({ clans: everything }: { clans: LookupClan[] 
         />
       </div>
 
+      {spotlight.length > 0 && (
+        <section className="mb-8">
+          <div className="mb-1 flex items-center gap-2.5">
+            <span className="h-5 w-1 rounded-sm bg-gradient-to-b from-[#ffd27a] via-[#ff7ab8] to-[#7a8cff]" />
+            <h2 className="text-[16.5px] font-semibold">Spotlight</h2>
+            <span className="font-mono text-[11px] text-text-dim">{spotlight.length}</span>
+          </div>
+          <p className="mb-3 text-[13px] text-text-muted">Clans their own members boosted to Level 3. Not a ranking.</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {spotlight.map((c) => (
+              <div key={c.slug} className="rounded-[13px] bg-gradient-to-br from-[#ffd27a]/40 via-[#ff7ab8]/40 to-[#7a8cff]/40 p-px">
+                <Card clan={c} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {featured.length > 0 && (
         <section className="mb-8">
           <div className="mb-1 flex items-center gap-2.5">
@@ -243,7 +264,7 @@ export default function ClanLookup({ clans: everything }: { clans: LookupClan[] 
             <h2 className="text-[16.5px] font-semibold">Featured</h2>
             <span className="font-mono text-[11px] text-text-dim">{featured.length}</span>
           </div>
-          <p className="mb-3 text-[13px] text-text-muted">Clans their own members boosted to Level 2 or higher.</p>
+          <p className="mb-3 text-[13px] text-text-muted">Clans their own members boosted to Level 2.</p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {featured.map((c) => (
               <Card key={c.slug} clan={c} />
@@ -260,7 +281,7 @@ export default function ClanLookup({ clans: everything }: { clans: LookupClan[] 
         <span className="font-mono text-[11px] text-text-dim">{grid.length}</span>
       </div>
 
-      {grid.length === 0 && featured.length === 0 ? (
+      {grid.length === 0 && featured.length === 0 && spotlight.length === 0 ? (
         <p className="rounded-xl border border-dashed border-card-border px-5 py-10 text-center text-sm text-text-muted">
           {query ? `Nothing matching “${query}”.` : clans.length > 0 ? 'No clan fits that filter yet.' : 'No clans are listed yet.'}
         </p>
@@ -551,6 +572,8 @@ function nameHue(name: string): number {
   for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) % 360;
   return h;
 }
+
+const byActivity = (a: LookupClan, b: LookupClan) => b.activeThisWeek - a.activeThisWeek || a.name.localeCompare(b.name);
 
 const share = (c: LookupClan) => (c.members > 0 ? c.activeThisWeek / c.members : 0);
 

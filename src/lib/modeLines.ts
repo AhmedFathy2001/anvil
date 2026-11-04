@@ -17,6 +17,7 @@
 // Lines that are none of these aren't posted. They're kept, counted, as a template on the review
 // queue, so the lines worth a pattern surface by how often players see them.
 
+import { stripChatTags } from '@/lib/chatTags';
 import type { WorldMode } from '@/lib/worldModes';
 
 /** The kinds a game mode's event posts come in — each one a switch on Admin → Discord → Game modes. */
@@ -58,6 +59,13 @@ export interface ModeLinePattern {
 // punctuation). These are the best-known shapes, not a promise: a line one of them misses still
 // posts through the generic shape and lands on the review queue.
 export const BUILTIN_PATTERNS: readonly ModeLinePattern[] = [
+  // The main game's own milestones say "Congratulations" too. Without these the generic shape posted
+  // every level-up on a Hardcore World word for word ("…your Magic level. You are now level 23.").
+  // Skill levels and quests are read as such in classifyLine (levelLine / questLine) and posted under
+  // the clan's level rules; combat level, combat tasks and diaries are left to their own posts.
+  { id: 'builtin:skip-level', modeKey: null, kind: 'ignore', regex: String.raw`advanced (?:your|a) [\w ]+? level`, title: '' },
+  { id: 'builtin:skip-ca', modeKey: null, kind: 'ignore', regex: String.raw`completed an? \w+ combat task`, title: '' },
+  { id: 'builtin:skip-diary', modeKey: null, kind: 'ignore', regex: String.raw`completed all of the \w+ tasks in the`, title: '' },
   {
     id: 'builtin:task',
     modeKey: null,
@@ -95,6 +103,29 @@ export const BUILTIN_PATTERNS: readonly ModeLinePattern[] = [
   },
 ];
 
+const SKILLS = new Set([
+  'attack', 'defence', 'strength', 'hitpoints', 'ranged', 'prayer', 'magic', 'cooking', 'woodcutting', 'fletching',
+  'fishing', 'firemaking', 'crafting', 'smithing', 'mining', 'herblore', 'agility', 'thieving', 'slayer', 'farming',
+  'runecraft', 'hunter', 'construction', 'sailing',
+]);
+
+/** "…advanced your Magic level. You are now level 23." → the skill and level; never Combat. */
+export function levelLine(line: string): { skill: string; level: number } | null {
+  const m = /advanced (?:your|a) ([\w ]+?) level\.?\s*you are now level (\d{1,2})\b/i.exec(line);
+  if (!m) return null;
+  const skill = m[1].trim().toLowerCase();
+  const level = Number(m[2]);
+  if (!SKILLS.has(skill) || level < 2 || level > 99) return null;
+  return { skill: skill.charAt(0).toUpperCase() + skill.slice(1), level };
+}
+
+/** "Congratulations, you've completed a quest: Black Knights' Fortress" → the quest's name. */
+export function questLine(line: string): string | null {
+  const m = /completed (?:a|the) quest:?\s*(.+?)[.!]*$/i.exec(line);
+  const name = m?.[1]?.trim();
+  return name && name.length <= 80 ? name : null;
+}
+
 /** The generic shape of an unlock nobody has written a pattern for yet. */
 const GENERIC = /^(?:congratulations\b|you(?:'ve| have) (?:just )?(?:unlocked|completed|earned|reached|been awarded|achieved)\b)/i;
 
@@ -104,7 +135,7 @@ export const MAX_LINE = 200;
 /** The line as text: the game's <col>/<img> tags gone, non-breaking spaces normal, trimmed. */
 export function cleanLine(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
-  const s = raw
+  const s = stripChatTags(raw)
     .replace(/<[^>]*>/g, '')
     .replace(/[   ]/g, ' ')
     // Control characters would only ever be a client sending junk.
@@ -142,6 +173,8 @@ function renderTitle(template: string, groups: Record<string, string | undefined
 }
 
 export type LineVerdict =
+  | { kind: 'level'; skill: string; level: number }
+  | { kind: 'quest'; name: string }
   | { kind: ModeEventKind; title: string; patternId: string }
   | { kind: 'ignore'; patternId: string }
   | { kind: 'generic'; title: string }
@@ -152,6 +185,11 @@ export type LineVerdict =
  * so a staff fix always wins over the wording it corrects.
  */
 export function classifyLine(line: string, mode: Pick<WorldMode, 'key'>, custom: readonly ModeLinePattern[] = []): LineVerdict {
+  // The game's own level-up and quest lines, before any pattern: they post as levels and quests.
+  const lv = levelLine(line);
+  if (lv) return { kind: 'level', ...lv };
+  const quest = questLine(line);
+  if (quest) return { kind: 'quest', name: quest };
   for (const p of [...custom, ...BUILTIN_PATTERNS]) {
     if (p.modeKey !== null && p.modeKey !== mode.key) continue;
     const re = compilePattern(p.regex);
