@@ -186,7 +186,7 @@ export default function PlayerCard({
                   to add one. It lands on the drawer, which is where the token and the by-name path
                   actually live. */}
               <ClanLink
-                href="#account-security"
+                href="/settings/add"
                 className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-card-border px-3 py-1 text-sm text-text-muted hover:text-gold-light hover:border-gold/40 transition-colors"
               >
                 + Add a character
@@ -262,7 +262,7 @@ export default function PlayerCard({
               </span>
             )}
             <ClanLink
-              href="#account-security"
+              href="/settings/plugin"
               className="ml-auto text-xs text-text-muted hover:text-foreground border border-card-border rounded-lg px-2 py-1 transition-colors"
             >
               {connection.connected ? 'Manage token' : 'Get your token'}

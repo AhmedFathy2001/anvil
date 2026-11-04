@@ -515,7 +515,7 @@ const PAGES: readonly SettingEntry[] = [
     description:
       'Where your own drops, pets and deaths are announced across every clan, and your personal Discord webhooks. On your profile, and only shown once you have a character.',
     keywords: ['personal', 'my announcements', 'my webhooks', 'webhook', 'opt out', 'emissions', 'profile', 'notifications'],
-    href: '/profile#announcements',
+    href: '/settings/announcements',
     section: 'Your profile',
   },
 ];

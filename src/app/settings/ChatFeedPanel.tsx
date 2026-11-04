@@ -44,7 +44,7 @@ const MAJOR_OPTIONS = (major: string) => [
  * "In-game chat feed" — what other players' drops and achievements show in YOUR RuneLite chat
  * (lib/chatFeed). The plugin's own switch turns the whole feed on or off; this picks what is in it.
  */
-export default function ChatFeedDrawer() {
+export default function ChatFeedPanel() {
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,16 +79,8 @@ export default function ChatFeedDrawer() {
   }
 
   return (
-    <details className="group mt-3 rounded-xl border border-card-border bg-card-bg">
-      <summary className="flex cursor-pointer list-none select-none items-center gap-2.5 px-5 py-4 font-semibold">
-        <span className="text-text-muted transition-transform group-open:rotate-90" aria-hidden>
-          ▸
-        </span>
-        In-game chat feed
-        <span className="text-xs font-normal text-text-muted">other players&rsquo; drops in your RuneLite chat</span>
-      </summary>
-
-      <div className="grid gap-5 px-5 pb-5">
+    <div>
+      <div className="grid gap-5">
         <p className="max-w-[70ch] text-[13px] text-text-muted">
           What shows in your chat when the feed is on in the Anvil plugin (Configuration → Anvil → Chat feed).
           Each thing shows once, even when it reaches you more than one way, and never when your own clan&rsquo;s
@@ -217,7 +209,7 @@ export default function ChatFeedDrawer() {
           </>
         )}
       </div>
-    </details>
+    </div>
   );
 }
 

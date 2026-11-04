@@ -1,22 +1,11 @@
 import ClanLink from '@/components/ClanLink';
-import ShareToggle from '@/components/ShareToggle';
-import LinkAccountsToggle from '@/components/LinkAccountsToggle';
 import AddCharacterClient from '@/app/profile/AddCharacterClient';
-import PublishCharactersPrompt from '@/components/PublishCharactersPrompt';
-import AnnouncementsDrawer from '@/app/profile/AnnouncementsDrawer';
-import ChatFeedDrawer from '@/app/profile/ChatFeedDrawer';
+import ProfileTabs, { SettingsButton } from '@/app/profile/ProfileTabs';
 import type { MyClan } from '@/lib/myClans';
-import type { EmissionSettingsView } from '@/lib/emissionSettings';
-import DetectedAccountsClient from '@/app/profile/DetectedAccountsClient';
 import SupporterName from '@/components/SupporterName';
-import SupporterSection, { type InviteView, type SupporterView } from '@/components/SupporterSection';
-import GuestSeatsClient, { type GuestSeatRow } from '@/app/profile/GuestSeatsClient';
-import WrongClanReport, { type WrongClanOption } from '@/app/profile/WrongClanReport';
-import ProfileLookEditor from '@/components/ProfileLookEditor';
-import DisplayCaseEditor from '@/components/DisplayCaseEditor';
+import type { SupporterView } from '@/components/SupporterSection';
 import { ProfileAvatar, ProfileBanner } from '@/components/ProfileMedia';
 import type { ShownProfileMedia } from '@/lib/profileMediaRules';
-import type { DisplayCaseEntry } from '@/lib/displayCase';
 
 export interface PersonCharacter {
   id: number;
@@ -24,313 +13,161 @@ export interface PersonCharacter {
   shared: boolean;
   /** Where it stands with the clans — lib/characterStanding. */
   standing?: string;
-  /** The clans that have it on their list — what "Wrong clan? Tell Anvil" offers (lib/wrongClan). */
-  clanOptions?: WrongClanOption[];
+  isPrimary?: boolean;
 }
 
 /**
- * You, across the platform — the page `/profile` shows on the apex.
+ * You, across the platform — the "Everywhere" tab of the profile (`/profile?everywhere=1`, and
+ * plain `/profile` for someone with no clan).
  *
- * It exists because the identity model says a human owns their profile and it follows them between
- * clans, while the code said a profile belongs to a clan: `/profile` called requireClan() and so
- * returned 404 on the apex, where a person has no clan. A signed-in member clicking their own name
- * in the header got a not-found page, which is a strange thing for a platform to say about you.
- *
- * The clan-scoped locker is a different surface and stays where it is. This one deliberately holds
- * only what is true of the PERSON regardless of clan: which clans they are in, which characters they
- * play, and which of those they have chosen to publish. Anything about a board or a team belongs to
- * the clan it happened in, and is linked to rather than merged — a merge across clans would describe
- * nobody.
+ * Every clan tab is that clan's locker; this one holds only what is true of the PERSON regardless of
+ * clan: which clans they are in and which characters they play. It changes nothing — every setting
+ * that used to sit here (sharing, announcements, webhooks, chat, Supporter) is on /settings, one
+ * button away, so the profile is a page you look at and settings is the page you change things on.
  */
 export default function PersonProfile({
   displayName,
   clans,
   characters,
-  detected,
-  linked,
-  emission,
+  detectedCount = 0,
   suggestedRsn = '',
   unfinishedSetup = false,
   supporter = null,
-  invite = null,
-  announceSupporter = true,
-  gameChatFlair = true,
-  guestSeats = [],
-  look = null,
-  displayCase = null,
+  media = null,
 }: {
-  /** Their own avatar and banner as shown now, and whether their tier lets them upload. */
-  look?: { media: ShownProfileMedia; canUpload: boolean } | null;
-  /** Every pin they have (kept through a lapse) and their slots now. */
-  displayCase?: { pins: DisplayCaseEntry[]; slots: number } | null;
-  /** Their live guest seats, each leavable from here. */
-  guestSeats?: GuestSeatRow[];
+  /** Their own avatar and banner as shown now (Supporter perk, set on /settings/look). */
+  media?: ShownProfileMedia | null;
   displayName: string;
   clans: MyClan[];
   characters: PersonCharacter[];
-  detected: { id: number; rsn: string; lastSeenAt: string }[];
-  linked: boolean;
+  /** Characters the plugin saw them play that aren't linked yet — reviewed on /settings/add. */
+  detectedCount?: number;
   /** Their first run is still outstanding — see lib/onboarding's `offer`. */
   unfinishedSetup?: boolean;
   /** A name arrived at from `?connect=` — see AddCharacterClient. */
   suggestedRsn?: string;
-  /** Personal webhooks + cross-clan announcement routing — person-level, so their home is here on
-      the account, not inside any one clan's locker. Null when there's no character to route yet. */
-  emission?: EmissionSettingsView | null;
-  /** Their Anvil Supporter subscription, if one is in force. Person-level, so it lives here. */
+  /** Their Anvil Supporter subscription, for the name's flair. */
   supporter?: SupporterView | null;
-  invite?: InviteView | null;
-  /** Their "announce me as a new supporter in the Anvil Discord" choice (users.announce_supporter). */
-  announceSupporter?: boolean;
-  gameChatFlair?: boolean;
 }) {
   return (
-    <div className="max-w-3xl mx-auto">
-      {/* THE WAY BACK INTO THE FLOW, which there wasn't one of. /welcome computed "should this be
-          offered?" and nobody asked: somebody who closed the tab half way through had to know the
-          address to finish. This is the page they land on instead, so it is the page that has to
-          say so — once, as a line rather than a wall, and never for somebody already set up. */}
+    <div className="mx-auto max-w-6xl">
       {unfinishedSetup && (
         <ClanLink
           href="/welcome"
           className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-gold/35 bg-gold/[0.06] px-4 py-3 text-sm transition-colors hover:border-gold/60"
         >
           <span className="font-medium text-gold">Finish setting up</span>
-          <span className="text-text-muted">
-            — a couple of minutes, and the plugin fills in the rest by itself.
-          </span>
+          <span className="text-text-muted">— a couple of minutes, and the plugin fills in the rest by itself.</span>
         </ClanLink>
       )}
 
-      {look?.media.banner && <ProfileBanner banner={look.media.banner} className="mb-5" />}
+      {media?.banner && <ProfileBanner banner={media.banner} className="mb-5" />}
 
-      <div className="mb-8 flex items-center gap-3">
-        {look?.media.avatar ? (
-          <ProfileAvatar avatar={look.media.avatar} size={56} eager className="border-2 border-gold/45" />
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        {media?.avatar ? (
+          <ProfileAvatar avatar={media.avatar} size={56} eager className="border-2 border-gold/45" />
         ) : (
-          <span className="w-1 h-8 bg-gold rounded-full" />
+          <span className="h-8 w-1 rounded-full bg-gold" />
         )}
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-3xl font-bold text-gold">
             <SupporterName name={displayName} tier={supporter?.tier} style={supporter?.style} plain />
           </h1>
           <p className="text-sm text-text-muted">
-            Your account across Anvil — your characters and your clans. Everything about a clan&rsquo;s
-            boards lives on your profile in that clan, linked below.
+            {characters.length} character{characters.length === 1 ? '' : 's'} · {clans.filter((c) => c.seat).length} clan
+            {clans.filter((c) => c.seat).length === 1 ? '' : 's'}
           </p>
         </div>
+        <SettingsButton />
       </div>
 
-      <section className="mb-10">
-        <h2 className="mb-3 text-lg font-semibold">Your clans</h2>
-        {clans.length === 0 ? (
-          <p className="rounded-xl border border-card-border bg-card-bg p-4 text-sm text-text-muted">
-            You&rsquo;re not in a clan yet.{' '}
-            <ClanLink href="/clans" className="text-gold hover:text-gold-light">
-              Browse the clans on Anvil
-            </ClanLink>
-            .
-          </p>
-        ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {clans.map((c) => (
-              <li key={c.id}>
-                <ClanLink
-                  href={`/c/${c.slug}`}
-                  className="block rounded-xl border border-card-border bg-card-bg p-4 transition-colors hover:border-gold/40"
-                >
-                  <span className="font-medium text-foreground">{c.name}</span>
-                  <span className="mt-1 flex gap-2 text-xs text-text-muted">
-                    {/* Guest and member are genuinely different standings, and someone who has been
-                        demoted by joining elsewhere should be able to see that here rather than
-                        discover it when something stops working. */}
-                    {c.seat === 'member' && <span className="text-gold">Member</span>}
-                    {c.seat === 'guest' && <span>{c.clanKind === 'creator' ? 'Player' : 'Guest'}</span>}
-                    {!c.seat && <span>Not on the member list</span>}
-                    {/* Named rather than flattened to "Staff": this page shows BOTH axes on
-                        purpose, and "Member · Staff" told the owner of the clan strictly less than
-                        the row already knew. */}
-                    {c.staff && (
-                      <span className="text-gold/70 capitalize">· {c.role || 'staff'}</span>
-                    )}
-                  </span>
-                </ClanLink>
+      <ProfileTabs clans={clans} current={null} />
 
-                {/* THE WAY TO YOUR LOCKER, which had no way in from here at all.
+      {detectedCount > 0 && (
+        <ClanLink
+          href="/settings/add"
+          className="mb-5 flex items-center gap-2 rounded-xl border border-gold/35 bg-gold/[0.06] px-4 py-3 text-sm transition-colors hover:border-gold/60"
+        >
+          <span className="font-medium text-gold">
+            We noticed you playing {detectedCount} character{detectedCount === 1 ? '' : 's'} that aren&rsquo;t linked yet.
+          </span>
+          <span className="ml-auto text-text-muted">Review →</span>
+        </ClanLink>
+      )}
 
-                    The locker — career, live boards, trophies, milestones, the history of
-                    everything you have played — is assembled per clan, so it lives at
-                    /c/<slug>/profile and cannot be shown on the apex: none of it has a single
-                    answer when no clan is named. But this page linked each clan to its HOME, so
-                    the only route to your own locker was to walk into a clan and find Profile in
-                    its nav. The richest surface in the product, reachable by accident. */}
-                {c.seat && (
-                  <ClanLink
-                    href={`/c/${c.slug}/profile`}
-                    className="mt-1.5 inline-block text-[12.5px] text-text-muted transition-colors hover:text-gold"
-                  >
-                    Your profile in {c.name} →
-                  </ClanLink>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {guestSeats.length > 0 && <GuestSeatsClient seats={guestSeats} />}
-
-      <section id="link-account" className="scroll-mt-24">
-        <h2 className="mb-3 text-lg font-semibold">Your characters</h2>
-        <DetectedAccountsClient initial={detected} />
-        {characters.length === 0 ? (
-          /* This said "Connect the plugin from inside a clan to link one" — addressed to exactly the
-             people who have no clan, which is the one thing they could not act on. Claiming a
-             character needs no clan now (lib/accountClaim), so the answer is the form itself rather
-             than a redirect to somewhere they still cannot do it.
-
-             Manual review is off: it means "a moderator vouches for me", and on the apex there is no
-             moderator to ask. */
-          <div id="plugin-token" className="scroll-mt-24 rounded-xl border border-card-border bg-card-bg p-4">
-            <p className="mb-4 text-sm text-text-muted">
-              No characters linked yet — here&rsquo;s the quickest way to add your first.
-            </p>
-            <AddCharacterClient
-              first
-              suggestedRsn={suggestedRsn}
-              linkedCount={characters.length}
-              detectedCount={detected.length}
-            />
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+        <section className="rounded-xl border border-card-border bg-card-bg p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <span className="h-5 w-1 rounded-full bg-gold" />
+            <h2 className="text-lg font-semibold">Your clans</h2>
           </div>
-        ) : (
-          <>
-            <PublishCharactersPrompt accountIds={characters.filter((c) => !c.shared).map((c) => c.id)} />
-            <ul className="divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">
-              {characters.map((a) => (
-                <li key={a.id} className="flex items-center gap-3 px-4 py-2.5">
-                  <span className="min-w-0">
-                    <ClanLink
-                      href={`/p/${encodeURIComponent(a.rsn)}`}
-                      className="text-sm hover:text-gold"
-                    >
-                      {a.rsn}
-                    </ClanLink>
-                    {/* Which clan this character puts you in, and as what — the answer to most
-                        "why can't I enter?" questions, which the page used to leave to guesswork. */}
-                    {a.standing && <span className="block text-xs text-text-muted">{a.standing}</span>}
-                    {a.clanOptions && a.clanOptions.length > 0 && (
-                      <WrongClanReport accountId={a.id} rsn={a.rsn} options={a.clanOptions} />
-                    )}
-                  </span>
-                  {/* Sharing is per character, not per person, so "my main is public and my ironman is
-                      nobody's business" is a thing you can actually say — and it is settable HERE,
-                      because it is the one thing a person says to clans they are not in. It used to be
-                      reachable only inside the clan locker, and the result was that nobody on the
-                      platform had ever set it: /u/, /p/ and the leaderboard's Players table were dark. */}
-                  <ShareToggle accountId={a.id} shared={a.shared} rsn={a.rsn} />
+          {clans.length === 0 ? (
+            <p className="text-sm text-text-muted">
+              You&rsquo;re not in a clan yet.{' '}
+              <ClanLink href="/clans" className="text-gold hover:text-gold-light">
+                Browse the clans on Anvil
+              </ClanLink>
+              .
+            </p>
+          ) : (
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {clans.map((c) => (
+                <li key={c.id}>
+                  <ClanLink
+                    href={c.seat ? `/c/${c.slug}/profile` : `/c/${c.slug}`}
+                    className="block rounded-lg border border-card-border bg-brown-dark/40 p-4 transition-colors hover:border-gold/40"
+                  >
+                    <span className="font-medium text-foreground">{c.name}</span>
+                    <span className="mt-1 flex gap-2 text-xs text-text-muted">
+                      {c.seat === 'member' && <span className="text-gold">Member</span>}
+                      {c.seat === 'guest' && <span>{c.clanKind === 'creator' ? 'Player' : 'Guest'}</span>}
+                      {!c.seat && <span>Not on the member list</span>}
+                      {c.staff && <span className="capitalize text-gold/70">· {c.role || 'staff'}</span>}
+                    </span>
+                    {c.seat && <span className="mt-2 block text-[12.5px] text-text-muted">Your board, team and this week →</span>}
+                  </ClanLink>
                 </li>
               ))}
             </ul>
-
-            {/* Adding a character is a platform act — it stays yours in every clan — so the way to do
-                it lives here too, not only in the empty state or inside a clan's locker. */}
-            <details
-              id="plugin-token"
-              open={Boolean(suggestedRsn)}
-              className="group mt-3 scroll-mt-24 rounded-xl border border-card-border bg-card-bg"
-            >
-              <summary className="flex cursor-pointer list-none select-none items-center gap-2 px-4 py-3 text-sm font-semibold">
-                <span className="text-text-muted transition-transform group-open:rotate-90" aria-hidden>
-                  ▸
-                </span>
-                Add another character
-              </summary>
-              <div className="px-4 pb-4">
-                <AddCharacterClient
-                  suggestedRsn={suggestedRsn}
-                  linkedCount={characters.length}
-                  detectedCount={detected.length}
-                />
-              </div>
-            </details>
-          </>
-        )}
-        {/* "These are the same player" is a statement about two characters, so it waits for a second. */}
-        {characters.length >= 2 && (
-          <LinkAccountsToggle linked={linked} sharedCount={characters.filter((c) => c.shared).length} />
-        )}
-      </section>
-
-      {/* Supporter perks that dress the PUBLIC profile: their own pictures and the display case. Both
-          are checked against the tier on every read, so what is here after a lapse is kept, not lost. */}
-      {look && (
-        <section id="profile-look" className="mt-10 scroll-mt-24">
-          <h2 className="mb-1 text-lg font-semibold">Your avatar &amp; banner</h2>
-          <p className="mb-3 max-w-[70ch] text-sm text-text-muted">
-            Shown on your own card, your person page, and your shared characters&rsquo; pages if you show your
-            characters as one person.
-          </p>
-          <ProfileLookEditor initial={look.media} canUpload={look.canUpload} name={displayName} />
+          )}
         </section>
-      )}
-      {displayCase && (
-        <section id="display-case" className="mt-10 scroll-mt-24">
-          <h2 className="mb-1 text-lg font-semibold">Display case</h2>
-          <p className="mb-3 max-w-[70ch] text-sm text-text-muted">
-            Your best drops, pinned to your profile: each on its character&rsquo;s page, and all together on your person
-            page if you show your characters as one person. Items from characters you don&rsquo;t share stay private.
-          </p>
-          <DisplayCaseEditor initialPins={displayCase.pins} slots={displayCase.slots} />
+
+        <section className="rounded-xl border border-card-border bg-card-bg p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <span className="h-5 w-1 rounded-full bg-gold" />
+            <h2 className="text-lg font-semibold">Characters</h2>
+          </div>
+          {characters.length === 0 ? (
+            <div id="plugin-token">
+              <p className="mb-4 text-sm text-text-muted">No characters linked yet. Here&rsquo;s the quickest way to add your first.</p>
+              <AddCharacterClient first suggestedRsn={suggestedRsn} linkedCount={0} detectedCount={detectedCount} />
+            </div>
+          ) : (
+            <ul className="grid gap-2">
+              {characters.map((a) => (
+                <li key={a.id} className="rounded-lg border border-tile-border bg-tile-bg px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <ClanLink href={`/p/${encodeURIComponent(a.rsn)}`} className="font-semibold hover:text-gold">
+                      {a.rsn}
+                    </ClanLink>
+                    {a.isPrimary && <span className="rounded-full border border-gold-dark px-1.5 text-[10.5px] text-gold">main</span>}
+                    {!a.shared && <span className="rounded-full border border-card-border px-1.5 text-[10.5px] text-text-muted">private</span>}
+                    <ClanLink href={`/settings/characters/${a.id}`} className="ml-auto text-[12px] text-text-muted hover:text-gold" aria-label={`Settings for ${a.rsn}`}>
+                      ⚙
+                    </ClanLink>
+                  </div>
+                  {a.standing && <span className="mt-0.5 block text-xs text-text-muted">{a.standing}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+          {!supporter && characters.length > 0 && (
+            <ClanLink href="/settings/supporter" className="mt-4 block text-[12.5px] text-text-muted hover:text-gold">
+              Wear your name in colour on every board — Anvil Supporter →
+            </ClanLink>
+          )}
         </section>
-      )}
-
-      {/* Above the settings, not under them: it was the last thing on the page, below nine webhook
-          categories, and that is where people stopped reading. */}
-      <SupporterSection supporter={supporter} invite={invite} name={displayName} announce={announceSupporter} gameChat={gameChatFlair} />
-
-      {/* Announcements & webhooks — where your drops, deaths and CAs post, and your own Discord
-          webhooks. Person-level and cross-clan: it routes BETWEEN your clans, so it could never have
-          lived on one of them.
-
-          WAITS FOR A CHARACTER. `emission` exists for anyone with a player row, so a brand-new
-          account met routing, nine webhook categories and level-post rules before it had a single
-          thing that could post. And it starts folded: it is settings, not the page. */}
-      {emission && characters.length > 0 && (
-        <section id="announcements" className="mt-10 scroll-mt-24">
-          <h2 className="mb-1 text-lg font-semibold">Announcements &amp; webhooks</h2>
-          <p className="mb-3 max-w-[70ch] text-sm text-text-muted">
-            Where your social notifications go across every clan, and your own Discord destinations —
-            set once here, for all of them. (Bingo submissions are separate: those always reach the
-            clan running the board.)
-          </p>
-          <AnnouncementsDrawer initial={emission} />
-          <ChatFeedDrawer />
-        </section>
-      )}
-
-
-      {/* Billing is a platform concern too — one account, one subscription, wherever you host. Only
-          for someone who owns a clan: subscriptions are per hosted clan (see /portal), and a player
-          never pays, so to everyone else this was a section about money that did not concern them. */}
-      {clans.some((c) => c.role === 'owner') && (
-        <section className="mt-10">
-          <h2 className="mb-3 text-lg font-semibold">Billing &amp; plan</h2>
-          <ClanLink
-            href="/portal"
-            className="flex items-center justify-between gap-3 rounded-xl border border-card-border bg-card-bg p-4 transition-colors hover:border-gold/40"
-          >
-            <span>
-              <span className="block font-medium text-foreground">Manage billing &amp; your plan</span>
-              <span className="mt-0.5 block text-sm text-text-muted">
-                Your subscription, invoices and the tier each clan you host is on.
-              </span>
-            </span>
-            <span className="text-gold" aria-hidden>
-              →
-            </span>
-          </ClanLink>
-        </section>
-      )}
+      </div>
     </div>
   );
 }

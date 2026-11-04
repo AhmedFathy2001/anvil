@@ -209,7 +209,7 @@ export default function ConnectCard({
             Verify by XP
           </button>
         ) : (
-          <a href="#link-account" className="text-gold hover:text-gold-light">
+          <a href="/settings/add#link-account" className="text-gold hover:text-gold-light">
             Verify by XP
           </a>
         )}{' '}
@@ -233,7 +233,7 @@ export default function ConnectCard({
             <div>
               <div className="font-semibold text-foreground/85">On mobile, or not on the hiscores?</div>
               <p className="mt-0.5">
-                <a href="#link-account" className="text-gold hover:text-gold-light">
+                <a href="/settings/add#link-account" className="text-gold hover:text-gold-light">
                   Link by name
                 </a>{' '}
                 with the XP check, or ask for a manual check if your character is too low level to show on the

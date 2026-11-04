@@ -94,6 +94,7 @@ export const NOINDEX_ROOTS = [
   '/captain',
   '/player',
   '/profile',
+  '/settings',
   '/login',
   '/logout',
   '/link-device',
