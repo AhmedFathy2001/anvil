@@ -3,6 +3,7 @@ import { getBoard } from '@/lib/libraryBoards';
 import BoardLibraryPanel from '../BoardLibraryPanel';
 import SettingsClient from '../SettingsClient';
 import { boardTiles, loadSettings } from '../load';
+import SettingsCard from '../SettingsCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +15,9 @@ export default async function MoreSettingsPage({ params }: { params: Promise<{ e
     <>
       {isAdmin && (
         <div id="template" className="scroll-mt-28 rounded-xl">
-          <SaveAsPresetButton eventId={event.id} defaultName={event.name} />
+          <SettingsCard title="Save as a template" description="Keeps the type, size and every tile, so you can start an identical board from New event.">
+            <SaveAsPresetButton eventId={event.id} defaultName={event.name} />
+          </SettingsCard>
         </div>
       )}
       {isAdmin && (

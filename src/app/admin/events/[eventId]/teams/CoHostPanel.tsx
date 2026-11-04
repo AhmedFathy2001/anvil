@@ -1,5 +1,6 @@
 'use client';
 
+import SettingsCard from '../settings/SettingsCard';
 import { useState } from 'react';
 import ClanCrest from '@/components/ClanCrest';
 import ClanPicker, { type PickedClan } from '@/components/ClanPicker';
@@ -180,12 +181,7 @@ export default function CoHostPanel({
   }
 
   return (
-    <section className="mb-6 rounded-2xl border border-card-border bg-card-bg">
-      <div className="flex items-center gap-2.5 border-b border-card-border px-5 py-3.5">
-        <span className="molten h-5 w-1 shrink-0 rounded-sm" />
-        <h2 className="text-[15px] font-semibold">Co-hosts</h2>
-        <span className="ml-auto text-[12px] text-text-muted">Invite other clans to run a team here.</span>
-      </div>
+    <SettingsCard title="Co-hosts" description={<>Invite other clans to run a team here.</>} flush>
 
       {cohosts.length > 0 && (
         <ul className="divide-y divide-card-border">
@@ -403,6 +399,6 @@ export default function CoHostPanel({
           </div>
         </div>
       )}
-    </section>
+    </SettingsCard>
   );
 }

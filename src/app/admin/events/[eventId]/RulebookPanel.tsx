@@ -1,5 +1,6 @@
 'use client';
 
+import SettingsCard from './settings/SettingsCard';
 import { useEffect, useState } from 'react';
 
 import Checkbox from '@/components/Checkbox';
@@ -129,15 +130,8 @@ export default function RulebookPanel({ eventId }: { eventId: number }) {
   const rulebookPreview = rulebook.trim() || clanRules.trim();
 
   return (
-    <section className="rounded-xl border border-card-border bg-card-bg p-5">
-      <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">
-        <span className="h-5 w-1 rounded-full bg-gold" />
-        Rules & Discord announcement
-      </h2>
-      <p className="mb-5 text-sm text-text-muted">
-        The main announcement is prefilled from this bingo’s scoring, reveals, missions, proof, teams and fees.
-        Edit it for this event before it is sent; the optional house-rules addendum stays separate underneath.
-      </p>
+    <SettingsCard title="Rules & Discord announcement" description={<>The main announcement is prefilled from this bingo’s scoring, reveals, missions, proof, teams and fees.
+        Edit it for this event before it is sent; the optional house-rules addendum stays separate underneath.</>}>
 
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <label htmlFor="event-rules-message" className="text-sm font-medium">
@@ -251,6 +245,6 @@ export default function RulebookPanel({ eventId }: { eventId: number }) {
           onPosted={() => setPostedToDiscord(true)}
         />
       </div>
-    </section>
+    </SettingsCard>
   );
 }

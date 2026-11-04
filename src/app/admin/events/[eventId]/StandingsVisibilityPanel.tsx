@@ -1,5 +1,6 @@
 'use client';
 
+import SettingsCard from './settings/SettingsCard';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DateTimePicker from '@/components/DateTimePicker';
@@ -85,16 +86,9 @@ export default function StandingsVisibilityPanel({ event }: { event: Event }) {
   );
 
   return (
-    <section className="border border-card-border rounded-xl p-5 bg-card-bg">
-      <h2 className="text-lg font-bold flex items-center gap-2 mb-1">
-        <span className="w-1 h-5 bg-gold rounded-full" />
-        Standings
-      </h2>
-      <p className="text-sm text-text-muted mb-4">
-        Who can see the race. While the standings are hidden, players still see their own team&apos;s board,
+    <SettingsCard title="Standings" description={<>Who can see the race. While the standings are hidden, players still see their own team&apos;s board,
         progress and points — just not anyone else&apos;s. Team names and rosters stay visible, staff always see
-        everything, and shared Discord channels stop posting progress until the reveal.
-      </p>
+        everything, and shared Discord channels stop posting progress until the reveal.</>}>
 
       <div className="space-y-2.5">
         {option('live', 'Live')}
@@ -152,6 +146,6 @@ export default function StandingsVisibilityPanel({ event }: { event: Event }) {
           </span>
         )}
       </div>
-    </section>
+    </SettingsCard>
   );
 }

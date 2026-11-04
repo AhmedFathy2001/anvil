@@ -5,6 +5,7 @@ import { clanHref } from '@/lib/clanPath';
 import { staffTab, tabHref } from '@/lib/eventSettingsTabs';
 import EventEditorsPanel from '../../EventEditorsPanel';
 import { loadSettings } from '../load';
+import SettingsCard from '../SettingsCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +20,12 @@ export default async function StreamSettingsPage({ params }: { params: Promise<{
     <>
       {isAdmin && (
         <div id="overlay" className="scroll-mt-28 rounded-xl">
-          <StreamOverlayCard eventId={id} defaultOpen />
+          <SettingsCard
+            title="Stream overlay"
+            description="Browser sources for OBS: the standings, the drop feed or the board, in your look and colour. Channel panels for your About section are underneath."
+          >
+            <StreamOverlayCard eventId={id} defaultOpen embedded />
+          </SettingsCard>
         </div>
       )}
       {isAdmin && staffTab(kind) === 'stream' && (

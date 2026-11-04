@@ -1,5 +1,6 @@
 'use client';
 
+import SettingsCard from './SettingsCard';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ClanCrest from '@/components/ClanCrest';
@@ -110,11 +111,7 @@ export default function EventLookPanel({
   );
 
   return (
-    <section className="max-w-3xl border border-card-border rounded-xl p-5 bg-card-bg mb-6">
-      <h2 className="text-lg font-bold flex items-center gap-2 mb-4">
-        <span className="w-1 h-5 bg-gold rounded-full" />
-        Look
-      </h2>
+    <SettingsCard title="Look">
 
       <div className="space-y-5">
         <div className="flex items-center gap-4">
@@ -181,6 +178,6 @@ export default function EventLookPanel({
 
         {error && <p className="text-sm text-red-400">{error}</p>}
       </div>
-    </section>
+    </SettingsCard>
   );
 }
