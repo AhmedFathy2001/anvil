@@ -10,6 +10,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import { pageCount, proofFeedSearch, type ProofFeedQuery, type ProofFlagFilter } from '@/lib/proofFeedQuery';
 import { linkHost, type ProofAttachment } from '@/lib/proofAttachments';
 import { FLAG_TEXT } from '../EventNextStep';
+import { CheckboxBox } from '@/components/Checkbox';
 
 /**
  * Every proof on one board, newest first (api/admin/events/[eventId]/proofs).
@@ -261,9 +262,7 @@ export default function ProofFeedClient({ eventId }: { eventId: number }) {
 
       <div className="flex flex-wrap items-center gap-3 py-2.5 border-b border-[#2a221b]">
         <label className="flex items-center gap-2 text-sm text-text-muted cursor-pointer select-none">
-          <input
-            type="checkbox"
-            className="w-4 h-4 accent-[var(--color-gold)]"
+          <CheckboxBox
             checked={allPicked}
             disabled={!rows || rows.length === 0}
             ref={(el) => {
@@ -334,10 +333,9 @@ export default function ProofFeedClient({ eventId }: { eventId: number }) {
                   atCursor ? 'bg-gold/[0.04] shadow-[inset_3px_0_0_var(--gold)]' : ''
                 }`}
               >
-                <input
-                  type="checkbox"
+                <CheckboxBox
                   aria-label={`Select ${s.tileLabel}`}
-                  className="w-4 h-4 shrink-0 accent-[var(--color-gold)]"
+                  className="shrink-0"
                   checked={selected.has(s.id)}
                   disabled={rowBusy}
                   onChange={() => toggle(s.id)}

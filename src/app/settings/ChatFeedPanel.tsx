@@ -7,6 +7,7 @@ import Select from '@/components/Select';
 import { BRIEF_ITEMS, gp, MIN_VALUE_CHOICES, TONES, type BriefItem, type ChatFeedPrefs, type Tone } from '@/lib/chatFeedRules';
 import { ANVIL_COLORS, canCustomColors, canShapeBrief } from '@/lib/chatLook';
 import type { SupporterTierId } from '@/lib/supporterTiers';
+import ColorSwatch from '@/components/ColorSwatch';
 
 type Prefs = ChatFeedPrefs & { tier?: SupporterTierId | null };
 
@@ -217,14 +218,13 @@ function ToneSwatch({ label, value, editable, onSave }: { label: string; value: 
   const [draft, setDraft] = useState(value);
   return (
     <label className="flex items-center gap-2.5 rounded-lg border border-card-border px-3 py-2 text-sm">
-      <input
-        type="color"
+      <ColorSwatch
         value={draft}
         disabled={!editable}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={setDraft}
         onBlur={() => draft !== value && onSave(draft)}
-        className="h-6 w-8 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0 disabled:cursor-default"
-        aria-label={`${label} colour`}
+        ariaLabel={`${label} colour`}
+        className="h-6 w-8 rounded"
       />
       <span style={{ color: draft }} className="truncate">
         {label}

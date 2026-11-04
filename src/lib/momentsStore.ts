@@ -553,7 +553,12 @@ export async function allMomentsForEvent(eventId: number, cap = 5000): Promise<M
  * window several times the asked-for size and stops there rather than paging until it fills. A feed
  * that comes back short is telling the truth about a quiet stretch.
  */
-export async function momentsForClan(clanId: number, limit = 20): Promise<MomentRow[]> {
+/**
+ * The clan's newest moments. `kinds` narrows it IN THE QUERY: a Pets or Deaths view reaches back
+ * through the whole history, where filtering the newest few hundred of every kind afterwards showed
+ * only the pets that happened to fall inside the last couple of days of drops.
+ */
+export async function momentsForClan(clanId: number, limit = 20, kinds?: readonly string[]): Promise<MomentRow[]> {
   const clan = await clanScope(clanId);
   const window = Math.min(limit * 12, 600);
   const rows = await db
@@ -562,7 +567,13 @@ export async function momentsForClan(clanId: number, limit = 20): Promise<Moment
     .innerJoin(clanMemberships, eq(moments.clanMemberId, clanMemberships.id))
     // Members only. A guest seat is somebody visiting for a board (the other side of a clan-v-clan),
     // and their drops are that board's story, not this clan's — the event feed still shows them.
-    .where(and(eq(clanMemberships.clanId, clanId), eq(clanMemberships.kind, 'member')))
+    .where(
+      and(
+        eq(clanMemberships.clanId, clanId),
+        eq(clanMemberships.kind, 'member'),
+        kinds && kinds.length ? inArray(moments.kind, [...kinds]) : undefined,
+      ),
+    )
     .orderBy(desc(moments.occurredAt))
     .limit(window);
   return rows.filter((row) => isClanWorthy(row, clan)).slice(0, limit);

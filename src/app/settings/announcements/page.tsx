@@ -1,15 +1,15 @@
 import ClanLink from '@/components/ClanLink';
 
 import SupporterName from '@/components/SupporterName';
-import { verifyUser } from '@/lib/auth';
 import { emissionSettingsView } from '@/lib/emissionSettings';
 import { supporterForUser } from '@/lib/supporter';
 import { AnnouncementsGeneral } from '../EmissionPanels';
 import { NeedsCharacter } from '../_none';
 import { SettingsBlock, SettingsGroup, SettingsRow, SettingsTitle } from '../_ui';
+import { settingsSession } from '@/app/settings/settingsSession';
 
 export default async function AnnouncementsSettingsPage() {
-  const session = (await verifyUser())!;
+  const session = await settingsSession();
   const [view, supporter] = await Promise.all([
     session.playerId ? emissionSettingsView(session.userId, session.playerId) : Promise.resolve(null),
     supporterForUser(session.userId),

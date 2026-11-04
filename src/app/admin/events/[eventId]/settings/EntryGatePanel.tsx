@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import EntryGatePicker from '@/components/EntryGatePicker';
 import { clanFetch } from '@/lib/clanFetch';
 import type { EntryGates, GateOptions } from '@/lib/entryGates';
+import Radio from '@/components/Radio';
 
 /**
  * An event's "Who can join?" (lib/entryGates), saved on its own. On a creator space: who among the
@@ -90,7 +91,7 @@ export default function EntryGatePanel({ eventId }: { eventId: number }) {
               { v: true, label: 'Members and viewers', hint: 'Viewers from your stream can join this event. They play this event only.' },
             ].map((o) => (
               <label key={String(o.v)} className="flex cursor-pointer items-start gap-2.5 text-[13.5px]">
-                <input type="radio" name="who-can-join" className="mt-1 accent-gold" checked={viewers === o.v} onChange={() => setViewers(o.v)} />
+                <Radio name="who-can-join" className="mt-1" checked={viewers === o.v} onChange={() => setViewers(o.v)} />
                 <span>
                   <span className="font-semibold">{o.label}</span>
                   <span className="block text-[12.5px] text-text-muted">{o.hint}</span>

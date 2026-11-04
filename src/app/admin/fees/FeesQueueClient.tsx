@@ -478,7 +478,7 @@ function FeeCard({
               const f = e.target.files?.[0];
               if (f) handleFile(f);
             }}
-            className="text-xs"
+            className="text-xs text-text-muted file:mr-2 file:rounded file:border-0 file:bg-card-bg file:px-2 file:py-1 file:text-xs file:text-foreground"
           />
           {uploading && <div className="text-xs text-text-muted">Uploading…</div>}
           {uploadError && <div className="text-xs text-red-400">{uploadError}</div>}

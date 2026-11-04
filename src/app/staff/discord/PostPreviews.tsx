@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import Input from '@/components/Input';
+import { CheckboxBox } from '@/components/Checkbox';
 
 interface Sample {
   id: string;
@@ -69,7 +70,7 @@ export default function PostPreviews() {
               .filter((s) => s.group === g)
               .map((s) => (
                 <label key={s.id} className="flex items-center gap-2 text-sm text-gray-300">
-                  <input type="checkbox" className="accent-[#e0b341]" checked={picked.has(s.id)} onChange={() => toggle(s.id)} />
+                  <CheckboxBox checked={picked.has(s.id)} onChange={() => toggle(s.id)} />
                   {s.label}
                 </label>
               ))}

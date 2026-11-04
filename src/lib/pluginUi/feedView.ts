@@ -124,10 +124,18 @@ function pick(scopes: Scope[], key: string | undefined): Scope | null {
 const groupOf = (f: string): KindGroup | null =>
   f === 'drops' || f === 'pets' || f === 'achievements' || f === 'deaths' ? f : f === 'tasks' ? 'achievements' : null;
 
+/** The stored moment kinds behind each Feed filter (feedUi kindGroup, the other way round). */
+const KINDS_OF: Record<KindGroup, readonly string[]> = {
+  drops: ['unique', 'loot'],
+  pets: ['pet'],
+  deaths: ['death'],
+  achievements: ['ca', 'level', 'clog', 'diary', 'quest'],
+};
+
 async function clanRows(clan: Extract<Scope, { kind: 'clan' }>, filter: string, viewer: number | null): Promise<{ rows: FeedRow[]; floor: number }> {
   const scope = await clanScopeFor(clan.id);
   const g = groupOf(filter);
-  const raw = (await momentsForClan(clan.id, 120))
+  const raw = (await momentsForClan(clan.id, 120, g ? KINDS_OF[g] : undefined))
     .filter((m) => panelFeedWorthy(m, scope.minLootGp) && isClanWorthy(m, scope))
     .filter((m) => !g || kindGroup(m.kind) === g);
   // Drops filed on a board with hidden standings stay out of the clan's feed (the board's own feed

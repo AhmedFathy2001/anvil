@@ -6,6 +6,7 @@ import { useDialog } from '@/components/Confirm';
 
 import Input from '@/components/Input';
 import type { AnvilBotStatus } from '@/lib/anvilDiscord';
+import { CheckboxBox } from '@/components/Checkbox';
 
 interface Initial {
   guildId: string;
@@ -302,7 +303,7 @@ export default function AnvilDiscordSettings({
         {canWrite && (
           <div className="flex flex-col gap-3">
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={includeSubscriber} onChange={(e) => setIncludeSubscriber(e.target.checked)} />
+              <CheckboxBox checked={includeSubscriber} onChange={(e) => setIncludeSubscriber(e.target.checked)} />
               Also a shared <b>Anvil Subscriber</b> role every paying tier gets
             </label>
             <div className="flex flex-wrap gap-2">
@@ -310,8 +311,7 @@ export default function AnvilDiscordSettings({
                 {rolesMade ? 'Check / recreate roles' : 'Create roles'}
               </button>
               <label className="flex items-center gap-2 rounded-lg border border-card-border px-3 py-2 text-sm">
-                <input
-                  type="checkbox"
+                <CheckboxBox
                   checked={rolesEnabled}
                   disabled={busy || (!rolesEnabled && !rolesMade)}
                   onChange={(e) => void toggleRoles(e.target.checked)}

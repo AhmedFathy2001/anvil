@@ -2,7 +2,6 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { users } from '@/db/schema';
-import { verifyUser } from '@/lib/auth';
 import { supporterForUser } from '@/lib/supporter';
 import { referralSummary } from '@/lib/referrals';
 import { myBoosts } from '@/lib/clanBoosts';
@@ -11,6 +10,7 @@ import { SUPPORTER_TIER_ORDER, type SupporterTierId } from '@/lib/supporterTiers
 import ClanLink from '@/components/ClanLink';
 import SupporterSection, { supporterView } from '@/components/SupporterSection';
 import { Pill, SettingsGroup, SettingsRow, SettingsTitle } from '../_ui';
+import { settingsSession } from '@/app/settings/settingsSession';
 
 /**
  * Anvil Supporter: the subscription, the perks it unlocks, and the settings that only exist because
@@ -34,7 +34,7 @@ const atLeast = (tier: SupporterTierId | null, need: SupporterTierId) =>
 const TIER_NAME: Record<SupporterTierId, string> = { supporter: 'Supporter', champion: 'Champion', patron: 'Patron' };
 
 export default async function SupporterSettingsPage() {
-  const session = (await verifyUser())!;
+  const session = await settingsSession();
   const [user, supporter, referral, boosts] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, session.userId) }),
     supporterForUser(session.userId),

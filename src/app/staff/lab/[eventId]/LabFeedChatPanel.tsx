@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { clanFetch } from '@/lib/clanFetch';
+import { CheckboxBox } from '@/components/Checkbox';
+import Select from '@/components/Select';
 
 interface CastMember {
   participantId: number;
@@ -94,18 +96,13 @@ export default function LabFeedChatPanel({ eventId }: { eventId: number }) {
           >
             <label className="flex flex-col gap-1 text-xs text-text-muted">
               Say as
-              <select
-                value={speaker ?? ''}
-                onChange={(e) => setWho(Number(e.target.value))}
-                className="rounded border border-card-border bg-background px-2 py-1 text-sm text-foreground"
-              >
-                {state.cast.map((c) => (
-                  <option key={c.participantId} value={c.participantId}>
-                    {c.name}
-                    {c.teamId == null ? ' (no team)' : ''}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={speaker == null ? '' : String(speaker)}
+                onChange={(v) => setWho(Number(v))}
+                options={state.cast.map((c) => ({ value: String(c.participantId), label: `${c.name}${c.teamId == null ? ' (no team)' : ''}` }))}
+                ariaLabel="Say as"
+                className="min-w-[10rem]"
+              />
             </label>
             <label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-xs text-text-muted">
               Message
@@ -118,7 +115,7 @@ export default function LabFeedChatPanel({ eventId }: { eventId: number }) {
               />
             </label>
             <label className="flex items-center gap-1.5 pb-1.5 text-xs text-text-muted">
-              <input type="checkbox" checked={teamOnly} onChange={(e) => setTeamOnly(e.target.checked)} className="accent-gold" />
+              <CheckboxBox checked={teamOnly} onChange={(e) => setTeamOnly(e.target.checked)} />
               Team only
             </label>
             <button type="submit" className={btn} disabled={busy || speaker == null || !text.trim()}>

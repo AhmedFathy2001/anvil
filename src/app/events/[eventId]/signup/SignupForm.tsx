@@ -13,7 +13,8 @@ import ClanLink from '@/components/ClanLink';
 import AddCharacterClient from '@/app/profile/AddCharacterClient';
 import LinkAccountClient from '@/app/profile/LinkAccountClient';
 import EnterEvent from '@/app/events/[eventId]/EnterEvent';
-import Checkbox from '@/components/Checkbox';
+import Checkbox, { CheckboxBox } from '@/components/Checkbox';
+import Radio from '@/components/Radio';
 import { useDialog } from '@/components/Confirm';
 import { DEFAULT_SIGNUP_FIELDS, type SignupFields } from '@/lib/eventRules';
 import SignupQuestions, { type AnswerValue } from '@/components/SignupQuestions';
@@ -678,15 +679,23 @@ export default function SignupForm({
                     : `border-card-border ${atCap ? 'opacity-50' : 'hover:border-gold/40'}`
                 } ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
               >
-                <input
-                  type={maxAccounts > 1 ? 'checkbox' : 'radio'}
-                  name="account"
-                  value={acct.id}
-                  checked={checked}
-                  onChange={() => toggleAccount(acct.id)}
-                  disabled={disabled}
-                  className="accent-gold"
-                />
+                {maxAccounts > 1 ? (
+                  <CheckboxBox
+                    name="account"
+                    value={acct.id}
+                    checked={checked}
+                    onChange={() => toggleAccount(acct.id)}
+                    disabled={disabled}
+                  />
+                ) : (
+                  <Radio
+                    name="account"
+                    value={acct.id}
+                    checked={checked}
+                    onChange={() => toggleAccount(acct.id)}
+                    disabled={disabled}
+                  />
+                )}
                 <span className="font-medium">{acct.rsn}</span>
                 {acct.isPrimary === 1 && (
                   <span className="text-[10px] uppercase tracking-wide bg-gold/20 text-gold px-1.5 py-0.5 rounded">

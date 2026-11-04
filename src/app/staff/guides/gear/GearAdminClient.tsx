@@ -11,6 +11,7 @@ import type { GearItem, Monster } from '@/lib/dps/engine';
 import type { EffectRule } from '@/lib/dps/effects';
 import { SLOTS, WEAPON_STYLES } from '@/lib/dps/tables';
 import type { GearIndex } from '@/lib/dps/summary';
+import { CheckboxBox } from '@/components/Checkbox';
 
 interface Override {
   id: number;
@@ -265,7 +266,7 @@ function ItemForm({ item, override, readOnly, put, revert, onDone }: { item: Gea
         <label className="block">Speed (ticks)<input className={input} disabled={readOnly} value={f.sp} onChange={(e) => setF({ ...f, sp: e.target.value === '' ? '' : Number(e.target.value) })} /></label>
         <label className="col-span-2 block">Weapon category<Select value={f.c} disabled={readOnly} onChange={(v) => setF({ ...f, c: v })} ariaLabel="Weapon category" searchable options={[{ value: '', label: '—' }, ...Object.keys(WEAPON_STYLES).map((c) => ({ value: c, label: c }))]} /></label>
       </div>
-      <label className="flex items-center gap-2"><input type="checkbox" disabled={readOnly} checked={f.h2} onChange={(e) => setF({ ...f, h2: e.target.checked })} /> Two-handed</label>
+      <label className="flex items-center gap-2"><CheckboxBox disabled={readOnly} checked={f.h2} onChange={(e) => setF({ ...f, h2: e.target.checked })} /> Two-handed</label>
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
         {BONUS_LABELS.map((l, i) => (
           <label key={l} className="block">{l}<input className={input} type="number" disabled={readOnly} value={f.b[i]} onChange={(e) => setF({ ...f, b: f.b.map((v, j) => (j === i ? Number(e.target.value) : v)) })} /></label>
@@ -466,7 +467,7 @@ function RuleForm({ rule, readOnly, put, revert, onDone }: { rule: EffectRule | 
       <div className="flex flex-wrap gap-3">
         {(['melee', 'ranged', 'magic'] as const).map((k) => (
           <label key={k} className="flex items-center gap-1">
-            <input type="checkbox" disabled={readOnly} checked={f.kinds.includes(k)} onChange={(e) => setF({ ...f, kinds: e.target.checked ? [...f.kinds, k] : f.kinds.filter((x) => x !== k) })} /> {k}
+            <CheckboxBox disabled={readOnly} checked={f.kinds.includes(k)} onChange={(e) => setF({ ...f, kinds: e.target.checked ? [...f.kinds, k] : f.kinds.filter((x) => x !== k) })} /> {k}
           </label>
         ))}
         <label className="flex items-center gap-1">On task

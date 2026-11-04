@@ -1,7 +1,7 @@
-import { verifyUser } from '@/lib/auth';
 import { claimsOnMyCharacters, myOwnershipClaims, noticesFor, OBJECTION_DAYS } from '@/lib/ownershipClaims';
 import { ActionButton } from '../_client';
 import { Pill, SettingsGroup, SettingsRow, SettingsTitle } from '../_ui';
+import { settingsSession } from '@/app/settings/settingsSession';
 
 function day(iso: string | null): string {
   if (!iso) return '';
@@ -27,7 +27,7 @@ const CLOSED_LABEL: Record<string, string> = {
  * who is asking and answer here. Asked by YOU: where your claim stands — never who the owner is.
  */
 export default async function OwnershipClaimsPage() {
-  const session = (await verifyUser())!;
+  const session = await settingsSession();
   const [onMine, mine, notices] = await Promise.all([
     session.playerId ? claimsOnMyCharacters(session.playerId) : Promise.resolve([]),
     myOwnershipClaims(session.userId),

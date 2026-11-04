@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Radio from '@/components/Radio';
 
 export interface WrongClanOption {
   clanId: number;
@@ -66,7 +67,7 @@ export default function WrongClanReport({
       <div className="space-y-1">
         {options.map((o) => (
           <label key={o.clanId} className="flex items-center gap-2">
-            <input type="radio" name={`wrong-clan-${accountId}`} checked={pick === o.clanId} onChange={() => setPick(o.clanId)} />
+            <Radio name={`wrong-clan-${accountId}`} checked={pick === o.clanId} onChange={() => setPick(o.clanId)} />
             <span>
               {o.name}
               <span className="text-text-muted">{o.kind === 'member' ? ' (member now)' : ' (guest now)'}</span>
@@ -74,7 +75,7 @@ export default function WrongClanReport({
           </label>
         ))}
         <label className="flex items-center gap-2">
-          <input type="radio" name={`wrong-clan-${accountId}`} checked={pick === 0} onChange={() => setPick(0)} />
+          <Radio name={`wrong-clan-${accountId}`} checked={pick === 0} onChange={() => setPick(0)} />
           <span>Another clan — I’ll name it below</span>
         </label>
       </div>

@@ -1,9 +1,9 @@
-import { verifyUser } from '@/lib/auth';
 import { MAX_SLOTS, myBoosts, SEAT_MIN_DAYS, MOVE_COOLDOWN_DAYS, PER_PERSON_CAP, LEVEL_AT } from '@/lib/clanBoosts';
 import ClanLink from '@/components/ClanLink';
 import { BoostBadgeChips, BoostGem } from '@/components/ClanBoost';
 import { Pill, SettingsBlock, SettingsGroup, SettingsRow, SettingsTitle } from '../_ui';
 import { BoostActions, PlaceBoost } from './_client';
+import { settingsSession } from '@/app/settings/settingsSession';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +20,7 @@ const STATE: Record<string, { text: string; tone: 'green' | 'yellow' | 'muted' }
  * Every rule is enforced by api/profile/boosts (lib/clanBoosts); this page only says what they are.
  */
 export default async function BoostsSettingsPage() {
-  const session = (await verifyUser())!;
+  const session = await settingsSession();
   const mine = await myBoosts(session.userId, session.playerId ?? null);
   const now = mine.now;
   const eligible = mine.candidates.filter((c) => c.verdict.ok);

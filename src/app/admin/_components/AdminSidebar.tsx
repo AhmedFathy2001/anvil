@@ -60,6 +60,14 @@ interface Props {
 }
 
 /** /admin/events/12, /admin/events/weekly/3 — a specific event, which brings its own rail. */
+/**
+ * `here` is `path` or a page under it — by whole path segments, so Clan settings (/admin/clan) is not
+ * lit on Clan events (/admin/clan-events), which a plain startsWith matched.
+ */
+function under(here: string, path: string): boolean {
+  return here === path || here.startsWith(path.endsWith('/') ? path : `${path}/`);
+}
+
 function isInsideAnEvent(pathname: string): boolean {
   return /^\/admin\/events\/(weekly\/)?\d+(\/|$)/.test(pathname);
 }
@@ -166,9 +174,9 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
                   {group.items.map((item) => {
                     // Compared clan-RELATIVE: item.href is a bare path and the browser is at
                     // /c/<slug>/… , so a direct comparison never matches and nothing looks active.
-                    const active = ((item.matchPrefix ? here.startsWith(item.href) : here === item.href)
-                      || !!item.alsoMatch?.some((x) => here.startsWith(x)))
-                      && !item.exclude?.some((x) => here.startsWith(x));
+                    const active = ((item.matchPrefix ? under(here, item.href) : here === item.href)
+                      || !!item.alsoMatch?.some((x) => under(here, x)))
+                      && !item.exclude?.some((x) => under(here, x));
                     return (
                       <li key={item.href}>
                         <ClanLink

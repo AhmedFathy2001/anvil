@@ -7,6 +7,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
+import ColorSwatch from '@/components/ColorSwatch';
 
 interface Channel {
   id: string;
@@ -302,12 +303,7 @@ export default function AnnounceClient() {
         {asEmbed && (
           <label className="flex items-center gap-2 text-sm">
             <span>Accent colour</span>
-            <input
-              type="color"
-              value={colorHex}
-              onChange={(e) => setColorHex(e.target.value)}
-              className="h-7 w-10 bg-transparent border border-card-border rounded cursor-pointer"
-            />
+            <ColorSwatch value={colorHex} onChange={setColorHex} ariaLabel="Accent colour" className="h-7 w-10 rounded" />
           </label>
         )}
 

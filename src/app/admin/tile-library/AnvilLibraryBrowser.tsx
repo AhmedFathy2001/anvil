@@ -11,6 +11,7 @@ import { TILE_KIND_BADGES, tileKindFilterKey, type TileKindLike } from '@/lib/ti
 import type { AnvilTask } from '@/lib/libraryTasks';
 import type { TaskOffer } from '@/lib/libraryTasks';
 import type { LibraryProposal } from '@/lib/libraryProposals';
+import { CheckboxBox } from '@/components/Checkbox';
 
 type Row = AnvilTask & { imported: boolean };
 
@@ -213,7 +214,7 @@ export default function AnvilLibraryBrowser({ tierBands, onImported }: { tierBan
       </div>
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <label className="flex items-center gap-1.5 text-text-muted">
-          <input type="checkbox" checked={hideImported} onChange={(e) => setHideImported(e.target.checked)} />
+          <CheckboxBox checked={hideImported} onChange={(e) => setHideImported(e.target.checked)} />
           Hide ones I have
         </label>
         <span className="text-text-muted">
@@ -251,8 +252,7 @@ export default function AnvilLibraryBrowser({ tierBands, onImported }: { tierBan
             const badge = TILE_KIND_BADGES[kindOf(t)];
             return (
               <li key={t.id} className="flex items-center gap-3 px-3 py-2">
-                <input
-                  type="checkbox"
+                <CheckboxBox
                   aria-label={`Pick ${t.label}`}
                   disabled={t.imported}
                   checked={picked.has(t.id)}

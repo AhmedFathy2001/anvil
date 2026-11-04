@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { CheckboxBox } from '@/components/Checkbox';
 
 /** "Show my colours on my names in game chat" (users.game_chat_flair). Default on. */
 export default function SupporterGameChatToggle({ initial }: { initial: boolean }) {
@@ -23,7 +24,7 @@ export default function SupporterGameChatToggle({ initial }: { initial: boolean 
 
   return (
     <label className="mt-3 flex items-start gap-2 text-[13px] text-text-muted">
-      <input className="mt-0.5" type="checkbox" checked={on} disabled={busy} onChange={(e) => void change(e.target.checked)} />
+      <CheckboxBox className="mt-0.5" checked={on} disabled={busy} onChange={(e) => void change(e.target.checked)} />
       <span>
         Show my colours on my characters&rsquo; names in game chat, for other players using the Anvil plugin
         {error && <span className="ml-2 text-red-400">{error}</span>}

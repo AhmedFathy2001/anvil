@@ -209,7 +209,8 @@ test('one person, two characters on two teams of one board: each client speaks a
   const teamOnly = notices.find((n) => n.m.rows[0]?.text === 'sapphire only')!;
   assert.deepEqual(teamOnly.m.feeds, [`chat:${ev.id}:team:${sapphire}`]);
 
-  // My team: each client reads its own character's team; "mine" is that character's lines only.
+  // My team: each client reads its own character's team. "Mine" is the PERSON's lines (Ahmed asked
+  // for it per person): Denoverse's line is still theirs when read from the Drenvox client.
   const rubyFeed = await C.chatHistory(asDren, me.id, 'team');
   assert.deepEqual(rubyFeed.map((r) => r.text), ['from the ruby client']);
   const sapphireFeed = await C.chatHistory(asDeno, me.id, 'team');
@@ -217,6 +218,6 @@ test('one person, two characters on two teams of one board: each client speaks a
   const allAsDren = await C.chatHistory(asDren, me.id, 'all');
   assert.deepEqual(allAsDren.map((r) => [r.text, r.mine ?? false]), [
     ['from the ruby client', true],
-    ['from the sapphire client', false],
+    ['from the sapphire client', true],
   ]);
 });
