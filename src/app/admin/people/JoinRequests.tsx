@@ -17,7 +17,7 @@ import type { PendingRequest } from '@/lib/guestAdmission';
  * Moderator-or-better, matching the route: deciding who is on the roster is roster work, the same
  * tier that can already remove somebody.
  */
-export default function JoinRequests({ initial }: { initial: PendingRequest[] }) {
+export default function JoinRequests({ initial, title = 'Asking to join' }: { initial: PendingRequest[]; title?: string }) {
   const [requests, setRequests] = useState(initial);
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -72,7 +72,7 @@ export default function JoinRequests({ initial }: { initial: PendingRequest[] })
       <div className="mb-2.5 flex items-center gap-2">
         <span className="molten h-5 w-1 shrink-0 rounded-sm" />
         <h2 className="text-[15px] font-semibold text-gold">
-          Asking to join
+          {title}
           <span className="ml-2 text-[12px] font-normal text-text-muted">
             {requests.length} waiting
           </span>
