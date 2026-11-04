@@ -96,6 +96,21 @@ before(async () => {
       .values({ clanMemberId: main.seat.id, rsn: 'x', kind: 'death', itemId: 995, occurredAt: NOW, dedupKey: 'death1' })
       .returning()
   )[0].id;
+
+  // Kill counts: the hiscores sweep, raised by the plugin's live push. Personal bests from the plugin.
+  const snap = (bosses: Record<string, number>) =>
+    JSON.stringify({ skills: {}, bosses: Object.fromEntries(Object.entries(bosses).map(([k, score]) => [k, { rank: 1, score }])) });
+  await db.insert(s.accountStatSnapshots).values([
+    { accountId: ids.main, snapshot: snap({ tzKalZuk: 12, chambersOfXeric: 350, zulrah: -1 }) },
+    { accountId: ids.iron, snapshot: snap({ vorkath: 40 }) },
+    { accountId: ids.other, snapshot: snap({ tzKalZuk: 99 }) },
+  ]);
+  await db.update(s.accounts).set({ liveStats: JSON.stringify({ chambersOfXeric: 352 }) }).where(eq(s.accounts.id, ids.main));
+  const best = (accountId: number, activity: string, teamSize: number, centis: number) =>
+    db.insert(s.memberPersonalBests).values({ accountId, activity, teamSize, centis, achievedAt: '2026-10-02T10:00:00Z', updatedAt: NOW });
+  await best(ids.main, 'vardorvis (awakened)', 0, 11240);
+  await best(ids.iron, 'chambers of xeric', 3, 160000);
+  await best(ids.other, 'tzkal-zuk', 0, 300000);
 });
 
 after(async () => {
@@ -207,6 +222,78 @@ test('candidates: their verified characters only, one per drop item', async () =
   assert.ok(c.length > 0);
   assert.ok(c.every((x) => x.accountId === ids.main || x.accountId === ids.iron));
   assert.equal(c.filter((x) => x.kind === 'drop').length, 1);
+});
+
+test('kill counts and personal bests: candidates, pins, the live value on read, privacy', async () => {
+  await db.delete(s.displayCaseItems).where(eq(s.displayCaseItems.userId, ids.user));
+  await setTier('supporter');
+
+  const c = await DC.displayCaseCandidates(ids.player);
+  const kcs = c.filter((x) => x.kind === 'kc');
+  const pbs = c.filter((x) => x.kind === 'pb');
+  // Only what they have, on their own verified characters; unranked zulrah is no candidate.
+  assert.deepEqual(kcs.map((x) => `${x.rsn} ${x.name} ${x.headline}`).sort(), [
+    'Irony Vorkath 40 KC',
+    'Mainy Chambers of Xeric 352 KC',
+    'Mainy TzKal-Zuk 12 KC',
+  ]);
+  assert.deepEqual(pbs.map((x) => `${x.rsn} ${x.name} ${x.headline}`).sort(), [
+    'Irony Chambers of Xeric (3 players) 26:40.00',
+    'Mainy Vardorvis (Awakened) 1:52.40',
+  ]);
+  assert.ok(kcs.every((x) => x.icon.length > 0) && pbs.every((x) => x.icon.length > 0));
+
+  const zuk = await pin({ kind: 'kc', accountId: ids.main, statKey: 'tzKalZuk' }, 'supporter');
+  assert.ok(zuk.ok);
+  assert.deepEqual(await pin({ kind: 'kc', accountId: ids.main, statKey: 'tzKalZuk' }, 'supporter'), zuk); // twice is one pin
+  assert.ok((await pin({ kind: 'pb', accountId: ids.main, statKey: '0:vardorvis (awakened)' }, 'supporter')).ok);
+  assert.ok((await pin({ kind: 'kc', accountId: ids.iron, statKey: 'vorkath' }, 'supporter')).ok); // private character
+
+  const refused = [
+    await pin({ kind: 'kc', accountId: ids.main, statKey: 'zulrah' }, 'supporter'), // unranked: nothing to show
+    await pin({ kind: 'kc', accountId: ids.main, statKey: 'vorkath' }, 'supporter'), // not on that character
+    await pin({ kind: 'kc', accountId: ids.other, statKey: 'tzKalZuk' }, 'supporter'), // somebody else's
+    await pin({ kind: 'kc', accountId: ids.typed, statKey: 'tzKalZuk' }, 'supporter'), // unverified
+    await pin({ kind: 'pb', accountId: ids.main, statKey: '1:vardorvis (awakened)' }, 'supporter'), // no such team size
+    await pin({ kind: 'pb', accountId: ids.other, statKey: '0:tzkal-zuk' }, 'supporter'),
+  ];
+  for (const r of refused) {
+    assert.equal(r.ok, false);
+    if (!r.ok) assert.equal(r.status, 404);
+  }
+
+  let mine = await DC.readDisplayCase(ids.user, ids.player);
+  assert.equal(mine.length, 3);
+  const zukPin = mine.find((e) => e.kind === 'kc' && e.statKey === 'tzKalZuk')!;
+  assert.equal(zukPin.headline, '12 KC');
+  assert.equal(zukPin.name, 'TzKal-Zuk');
+  assert.equal(mine.find((e) => e.kind === 'pb')!.headline, '1:52.40');
+
+  // The value shown is the value now: more kills, a faster time.
+  await db.update(s.accounts).set({ liveStats: JSON.stringify({ chambersOfXeric: 352, tzKalZuk: 13 }) }).where(eq(s.accounts.id, ids.main));
+  await db
+    .update(s.memberPersonalBests)
+    .set({ centis: 10950 })
+    .where(eq(s.memberPersonalBests.accountId, ids.main));
+  mine = await DC.readDisplayCase(ids.user, ids.player);
+  assert.equal(mine.find((e) => e.statKey === 'tzKalZuk')!.headline, '13 KC');
+  assert.equal(mine.find((e) => e.kind === 'pb')!.headline, '1:49.50');
+
+  // Strangers never see the unshared character's pin; the owner does.
+  let shown = await DC.displayCaseForPlayer(ids.player, { publicView: true });
+  assert.deepEqual(shown.map((e) => e.statKey).sort(), ['0:vardorvis (awakened)', 'tzKalZuk']);
+  // Unshare the main: its pins go dark for others, and stay for the owner.
+  await db.update(s.accounts).set({ shared: false }).where(eq(s.accounts.id, ids.main));
+  shown = await DC.displayCaseForPlayer(ids.player, { publicView: true });
+  assert.deepEqual(shown, []);
+  assert.equal((await DC.displayCaseForPlayer(ids.player)).length, 3);
+  await db.update(s.accounts).set({ shared: true }).where(eq(s.accounts.id, ids.main));
+
+  // A record that goes away takes its pin with it, with no write.
+  await db.delete(s.memberPersonalBests).where(eq(s.memberPersonalBests.accountId, ids.main));
+  mine = await DC.readDisplayCase(ids.user, ids.player);
+  assert.equal(mine.filter((e) => e.kind === 'pb').length, 0);
+  assert.equal((await db.select().from(s.displayCaseItems).where(eq(s.displayCaseItems.userId, ids.user))).length, 3);
 });
 
 test('stored pictures: animated for a Champion, the still after a lapse, nothing foreign', async () => {
