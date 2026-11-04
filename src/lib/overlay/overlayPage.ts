@@ -7,10 +7,12 @@
 //
 // Pure (no database): the page holds no data, only the options; the script polls
 // /api/overlay/<key> for the payload (lib/overlay/overlayData), with an ETag so an unchanged board
-// costs a 304. Every value from the payload is put on the page with textContent / setAttribute,
+// costs a 304. It also opens a socket to the push server (push/server.ts, same path the plugin uses)
+// that carries nothing but a nudge when the event moves: on one it fetches at once, and while the
+// socket is up the timer slows to a minute. No socket (blocked, push down, local dev) = the plain poll. Every value from the payload is put on the page with textContent / setAttribute,
 // never as markup, and the CSP allows only this page's own nonce'd script and same-origin images.
 
-import { OVERLAY_POLL_MS, type OverlayOptions } from './overlayView';
+import { OVERLAY_LIVE_POLL_MS, OVERLAY_POLL_MS, type OverlayOptions } from './overlayView';
 
 /** JSON safe to sit inside a <script> element: no `<`, so no `</script>` and no `<!--`. */
 export function scriptJson(v: unknown): string {
@@ -33,7 +35,7 @@ export function overlayCsp(nonce: string): string {
 }
 
 export function overlayHtml(key: string, opts: OverlayOptions, nonce: string): string {
-  const cfg = scriptJson({ key, view: opts.view, limit: opts.limit, title: opts.title, poll: OVERLAY_POLL_MS });
+  const cfg = scriptJson({ key, view: opts.view, limit: opts.limit, title: opts.title, poll: OVERLAY_POLL_MS, livePoll: OVERLAY_LIVE_POLL_MS, celebrate: opts.celebrate });
   const px = (n: number) => `${Math.round(n * opts.scale * 10) / 10}px`;
   return `<!doctype html>
 <html lang="en">
@@ -71,12 +73,23 @@ body{font-family:"Segoe UI",Inter,Roboto,"Helvetica Neue",Arial,sans-serif;font-
 .cell.done img{opacity:.55}
 .cell .dots{position:absolute;bottom:${px(3)};left:0;right:0;display:flex;justify-content:center;gap:${px(3)}}
 #mark{position:fixed;right:${px(10)};bottom:${px(8)};display:none;align-items:center;gap:${px(7)};padding:${px(5)} ${px(10)} ${px(5)} ${px(6)};border-radius:${px(10)};background:rgba(16,13,12,.72);box-shadow:0 0 0 ${px(1)} rgba(224,170,30,.45),0 ${px(2)} ${px(8)} rgba(0,0,0,.6);-webkit-text-stroke:0;text-shadow:none;font-weight:700;line-height:1.05}#mark img{width:${px(26)};height:${px(26)};image-rendering:pixelated}#mark .pb{display:block;font-size:${px(9)};letter-spacing:.08em;text-transform:uppercase;color:#cbbd9f;font-weight:600}#mark .nm{display:block;font-size:${px(14)};color:#ffd35c}#mark .url{display:block;font-size:${px(9)};color:#cbbd9f;font-weight:500}
+#cel{position:fixed;left:0;right:0;bottom:${px(52)};display:flex;justify-content:center;pointer-events:none;z-index:9}
+.cb{--c:var(--accent);display:flex;align-items:center;gap:${px(10)};max-width:90vw;padding:${px(10)} ${px(20)};border-radius:${px(14)};background:rgba(16,13,12,.86);box-shadow:0 0 0 ${px(3)} var(--c),0 0 ${px(26)} var(--c);animation:pop .55s cubic-bezier(.2,1.6,.4,1)}
+.cb span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cb.out{animation:fade .5s ease-in forwards}
+.cs{color:var(--c);font-size:1.1em}
+@keyframes pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+@keyframes fade{to{opacity:0;transform:translateY(${px(10)})}}
+.pop{animation:glow 1.8s ease-out}
+.item.pop{animation:in .5s ease-out,glow 1.8s ease-out}
+@keyframes glow{0%{filter:brightness(2) drop-shadow(0 0 ${px(10)} var(--accent))}100%{filter:none}}
 .cell .dots i{width:${px(9)};height:${px(9)};border-radius:50%;box-shadow:0 0 0 ${px(1.5)} #000}
 </style>
 </head>
 <body>
 <div id="head" class="o"><span id="name"></span><span id="clock"></span></div>
 <div id="body"></div>
+<div id="cel" aria-live="polite"></div>
 <div id="mark"><img src="/icon-48.png" alt=""><span><span class="pb">Powered by</span><span class="nm">Anvil</span><span class="url">anvilosrs.com</span></span></div>
 <script id="cfg" type="application/json">${cfg}</script>
 <script nonce="${nonce}">${CLIENT}</script>
@@ -90,6 +103,13 @@ var cfg=JSON.parse(document.getElementById('cfg').textContent);
 var head=document.getElementById('head'),nameEl=document.getElementById('name'),clockEl=document.getElementById('clock'),bodyEl=document.getElementById('body'),markEl=document.getElementById('mark');
 if(!cfg.title)head.style.display='none';
 var etag=null,last=null,seen={},first=true;
+var celEl=document.getElementById('cel'),celQ=[],celOn=false,prevS=null,prevB=null;
+function celNext(){var it=celQ.shift();if(!it){celOn=false;return;}celOn=true;celEl.textContent='';
+ var b=el('div','cb o');if(it.c)b.style.setProperty('--c',it.c);b.appendChild(el('span','cs','\u2605'));b.appendChild(el('span',null,it.t));celEl.appendChild(b);
+ setTimeout(function(){b.className='cb o out';},3400);setTimeout(celNext,3900);}
+function celebrate(list,many){if(!cfg.celebrate||!list.length)return;
+ if(list.length>3)list=[{t:list.length+' '+many,c:null}];
+ list.forEach(function(x){celQ.push(x);});while(celQ.length>4)celQ.shift();if(!celOn)celNext();}
 function el(t,c,txt){var e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e;}
 function left(ms){var m=Math.floor(ms/60000),d=Math.floor(m/1440),h=Math.floor(m%1440/60),mm=m%60;return d>0?d+'d '+h+'h':h>0?h+'h '+mm+'m':mm+'m';}
 function clock(){if(!last)return;var h=last.header,now=Date.now(),t='';
@@ -98,30 +118,44 @@ function clock(){if(!last)return;var h=last.header,now=Date.now(),t='';
  else if(h.stage==='wrap')t='final';
  clockEl.textContent=t;}
 function notice(txt){bodyEl.textContent='';bodyEl.appendChild(el('div','notice o',txt));}
-function standings(b){bodyEl.textContent='';b.rows.forEach(function(r){var row=el('div','row');
+function standings(b){bodyEl.textContent='';var now={},wins=[];b.rows.forEach(function(r){var row=el('div','row');
+ now[r.name]=r.score;var was=prevS?prevS[r.name]:undefined;
+ if(cfg.celebrate&&was!=null&&r.score>was){row.className='row pop';var d=r.score-was,u=d===1&&/s$/.test(r.unit)&&r.unit!=='pts'?r.unit.slice(0,-1):r.unit;wins.push({t:r.name+' +'+d+' '+u,c:r.color});}
  row.appendChild(el('span','rank o',String(r.rank)));var n=el('span','team o',r.name);n.style.color=r.color;row.appendChild(n);
  var bar=el('span','bar'),fill=el('i');fill.style.width=r.pct+'%';fill.style.background=r.color;bar.appendChild(fill);row.appendChild(bar);
  row.appendChild(el('span','score o',r.score+(r.total?'/'+r.total:'')+' '+r.unit));bodyEl.appendChild(row);});
- if(!b.rows.length)notice('No teams yet');}
-function feed(b){bodyEl.textContent='';b.items.forEach(function(it){var row=el('div','item');if(!first&&seen[it.id])row.style.animation='none';seen[it.id]=1;
+ prevS=now;celebrate(wins,'teams scored');if(!b.rows.length)notice('No teams yet');}
+function feed(b){bodyEl.textContent='';b.items.forEach(function(it){var row=el('div','item');if(!first&&seen[it.id])row.style.animation='none';else if(!first&&cfg.celebrate)row.className='item pop';seen[it.id]=1;
  if(it.icon){var img=el('img');img.src=it.icon;img.alt='';row.appendChild(img);}
  var txt=el('div');txt.appendChild(el('div','o',it.text));var who=el('div','who o',it.who||'');
  if(it.team){var tg=el('span','tag',' · '+it.team);tg.style.color=it.color;who.appendChild(tg);}txt.appendChild(who);row.appendChild(txt);bodyEl.appendChild(row);});
  if(!b.items.length)notice('Waiting for the first drop');first=false;}
 function board(b){bodyEl.textContent='';var g=el('div','grid');g.style.gridTemplateColumns='repeat('+b.cols+',var(--cell))';
- b.cells.forEach(function(c){var cell=el('div','cell'+(c.done.length?' done':''));cell.title=c.label;if(c.done.length)cell.style.setProperty('--c',c.done[0]);
+ var now={},wins=[],nth={};
+ b.cells.forEach(function(c){var cell=el('div','cell'+(c.done.length?' done':''));
+ var k=c.label+'#'+(nth[c.label]=(nth[c.label]||0)+1);now[k]=c.done.join(',');var was=prevB?prevB[k]:undefined;
+ if(cfg.celebrate&&was!=null&&c.done.length>(was?was.split(',').length:0)){var fresh=c.done.filter(function(col){return was.split(',').indexOf(col)<0;});
+  cell.className+=' pop';wins.push({t:c.label+' done',c:fresh[0]||c.done[c.done.length-1]});}cell.title=c.label;if(c.done.length)cell.style.setProperty('--c',c.done[0]);
  if(c.icon){var img=el('img');img.src=c.icon;img.alt='';cell.appendChild(img);}else cell.appendChild(el('span','lbl o',c.label));
  if(c.done.length>1){var d=el('div','dots');c.done.forEach(function(col){var i=el('i');i.style.background=col;d.appendChild(i);});cell.appendChild(d);}
- g.appendChild(cell);});bodyEl.appendChild(g);}
+ g.appendChild(cell);});bodyEl.appendChild(g);prevB=now;celebrate(wins,'tiles done');}
 function render(p){last=p;nameEl.textContent=p.header.name;clock();markEl.style.display=p.mark?'flex':'none';var b=p.body;
  if(b.notice!=null)return notice(b.notice);
  if(p.view==='standings')standings(b);else if(p.view==='feed')feed(b);else board(b);}
-function poll(){var h={};if(etag)h['If-None-Match']=etag;
+var pollT=null,busy=false,again=false,dead=false,ws=null,live=false,tries=0;
+function soon(ms){clearTimeout(pollT);pollT=setTimeout(poll,ms);}
+function poll(){if(busy){again=true;return;}busy=true;var h={};if(etag)h['If-None-Match']=etag;
  fetch('/api/overlay/'+encodeURIComponent(cfg.key)+'?view='+cfg.view+'&limit='+cfg.limit,{headers:h,cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'})
- .then(function(r){if(r.status===304)return null;if(r.status===404){etag=null;last=null;head.style.display='none';notice('This overlay link was reset or removed. Copy the new one from your Anvil dashboard.');return null;}
+ .then(function(r){if(r.status===304)return null;if(r.status===404){etag=null;last=null;dead=true;if(ws)ws.close();head.style.display='none';notice('This overlay link was reset or removed. Copy the new one from your Anvil dashboard.');return null;}
   if(!r.ok)return null;etag=r.headers.get('ETag');return r.json();})
  .then(function(p){if(p){if(cfg.title)head.style.display='';render(p);}})
  .catch(function(){})
- .then(function(){setTimeout(poll,cfg.poll);});}
-setInterval(clock,30000);poll();
+ .then(function(){busy=false;if(again){again=false;soon(0);}else soon(live?cfg.livePoll:cfg.poll);});}
+function connect(){if(dead||!window.WebSocket)return;var s;
+ try{s=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/api/plugin/push/ws?overlay='+encodeURIComponent(cfg.key));}catch(e){return retry();}
+ ws=s;s.onopen=function(){live=true;tries=0;};
+ s.onmessage=function(m){var d=null;try{d=JSON.parse(m.data);}catch(e){}if(d&&(d.t==='nudge'||d.t==='hello'))soon(0);};
+ s.onclose=function(){if(ws===s)ws=null;var was=live;live=false;if(was)soon(cfg.poll);retry();};}
+function retry(){if(dead)return;tries++;var ms=Math.min(300000,2000*Math.pow(2,Math.min(tries,8)));setTimeout(connect,ms/2+Math.random()*ms/2);}
+setInterval(clock,30000);poll();connect();
 })();`;

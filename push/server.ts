@@ -13,6 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 import http from 'node:http';
+import type { Duplex } from 'node:stream';
 import pg from 'pg';
 import { WebSocketServer, type WebSocket } from 'ws';
 
@@ -53,6 +54,21 @@ async function fetchView(viewKey: string): Promise<string | null> {
   }
 }
 
+/** The event an overlay key opens, or null (unknown, reset, removed, or the site didn't answer). */
+async function overlayEvent(overlayKey: string): Promise<number | null> {
+  try {
+    const res = await fetch(`${site}/api/internal/push/overlay?key=${encodeURIComponent(overlayKey)}`, {
+      headers: { 'x-push-secret': siteSecret },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { eventId?: unknown };
+    return Number.isInteger(body.eventId) ? (body.eventId as number) : null;
+  } catch {
+    return null;
+  }
+}
+
 const hub = new ViewHub({ fetchView, minGapMs: Number(process.env.PUSH_MIN_GAP_MS) || undefined });
 
 function log(event: string, fields: Record<string, unknown> = {}) {
@@ -67,7 +83,7 @@ const alive = new WeakSet<WebSocket>();
 const server = http.createServer((req, res) => {
   if (req.url === '/healthz') {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, clients: hub.size, db: listening }));
+    res.end(JSON.stringify({ ok: true, clients: hub.size, overlays: hub.watching, db: listening }));
     return;
   }
   res.writeHead(404).end();
@@ -77,6 +93,12 @@ server.on('upgrade', (req, socket, head) => {
   const url = new URL(req.url ?? '/', 'http://push');
   const auth = req.headers.authorization ?? '';
   const ticket = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  // A stream overlay (a browser: it can't send the plugin's Authorization header) on the same path.
+  const overlayKey = url.searchParams.get('overlay');
+  if (url.pathname === PATH && !ticket && overlayKey != null) {
+    void acceptOverlay(req, socket, head, overlayKey);
+    return;
+  }
   const scope = url.pathname === PATH && ticket ? verifyTicket(ticket, key, Date.now()) : null;
   if (!scope) {
     socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
@@ -103,6 +125,61 @@ server.on('upgrade', (req, socket, head) => {
     });
   });
 });
+
+// ── Stream overlays ──────────────────────────────────────────────────────────────────────────────
+//
+// The overlay key is the overlay's whole permission and it only ever earns a nudge (lib/push/hub,
+// watchers), so the worst a stolen key does here is learn WHEN a board moves — which its public
+// overlay already shows. Each socket is capped in lifetime so a reset key's sockets drop within
+// hours even if the page never fetches; the page reconnects and is checked again.
+
+const OVERLAY_KEY = /^[A-Za-z0-9_-]{32}$/;
+const OVERLAY_MAX_MS = 6 * 60 * 60_000;
+/** Sockets per address: a scene has a handful of overlays, not hundreds. */
+const OVERLAYS_PER_IP = 20;
+const overlaysByIp = new Map<string, number>();
+
+function clientIp(req: http.IncomingMessage): string {
+  const cf = req.headers['cf-connecting-ip'];
+  if (typeof cf === 'string' && cf) return cf;
+  const fwd = req.headers['x-forwarded-for'];
+  if (typeof fwd === 'string' && fwd) return fwd.split(',')[0].trim();
+  return req.socket.remoteAddress ?? '?';
+}
+
+async function acceptOverlay(req: http.IncomingMessage, socket: Duplex, head: Buffer, overlayKey: string) {
+  const ip = clientIp(req);
+  const open = overlaysByIp.get(ip) ?? 0;
+  if (!OVERLAY_KEY.test(overlayKey) || open >= OVERLAYS_PER_IP) {
+    socket.end(`HTTP/1.1 ${open >= OVERLAYS_PER_IP ? '429 Too Many Requests' : '401 Unauthorized'}\r\nConnection: close\r\n\r\n`);
+    return;
+  }
+  overlaysByIp.set(ip, open + 1);
+  const release = () => {
+    const n = (overlaysByIp.get(ip) ?? 1) - 1;
+    if (n <= 0) overlaysByIp.delete(ip);
+    else overlaysByIp.set(ip, n);
+  };
+  const eventId = await overlayEvent(overlayKey);
+  if (eventId == null || socket.destroyed) {
+    release();
+    if (!socket.destroyed) socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+    return;
+  }
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    alive.add(ws);
+    ws.on('pong', () => alive.add(ws));
+    ws.on('message', () => ws.close(1003, 'listen only'));
+    ws.send(JSON.stringify({ t: 'hello' }));
+    const stop = hub.watch(eventId, { send: (m) => ws.readyState === ws.OPEN && ws.send(m) });
+    const expiry = setTimeout(() => ws.close(4001, 'reconnect'), OVERLAY_MAX_MS);
+    ws.on('close', () => {
+      clearTimeout(expiry);
+      stop();
+      release();
+    });
+  });
+}
 
 function ticketExpiry(ticket: string): number {
   try {
