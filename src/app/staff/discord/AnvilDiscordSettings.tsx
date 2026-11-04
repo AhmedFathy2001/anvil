@@ -206,7 +206,7 @@ export default function AnvilDiscordSettings({
               <>
                 <p className="mb-2 text-text-muted">
                   People who started paying before this channel was set up never got a post. Post each of them once
-                  (&ldquo;has been supporting Anvil since…&rdquo;), with an @ for anyone in the server. People who opted out,
+                  (&ldquo;has been supporting Anvil since…&rdquo;), with their name as an @ mention (no ping) for anyone in the server. People who opted out,
                   staff gifts and invite time are left out. This can only run once.
                 </p>
                 <button
@@ -217,7 +217,7 @@ export default function AnvilDiscordSettings({
                     void run(async () => {
                       const ok = await confirm({
                         title: 'Post every current supporter?',
-                        body: 'Each one gets a post in the channel now, with an @ if they are in the server. This runs once.',
+                        body: 'Each one gets a post in the channel now, with their name as an @ mention (nobody is pinged). This runs once.',
                         confirmLabel: 'Post them',
                       });
                       if (!ok) return null;
