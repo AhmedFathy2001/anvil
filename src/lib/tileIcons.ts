@@ -185,12 +185,19 @@ export function bossStatKeyFor(name: string | null | undefined): string | null {
   return BOSS_KEY_BY_NAME.get(key) ?? null;
 }
 
-/** The boss's hiscores sprite (as RuneLite shows it) for a hiscores KEY, or null when it has none. */
-export function bossHiscoreIconUrl(key: string | null | undefined): string | null {
+/**
+ * The boss's hiscores sprite (as RuneLite shows it) for a hiscores KEY, or null when it has none.
+ * `scale` (2/3/4, lib/assetUrls WIKI_SCALES) asks the asset cache for a nearest-neighbour upscale —
+ * for Discord, which would otherwise draw the 25px sprite thumb-sized.
+ */
+export function bossHiscoreIconUrl(key: string | null | undefined, scale = 1): string | null {
   if (!key) return null;
   const file = BOSS_HISCORE_ICONS[key];
-  return file ? wikiImageUrl(file) : null;
+  return file ? wikiImageUrl(file, scale) : null;
 }
+
+/** The scale Discord embed thumbnails ask sprites for: 25px → a crisp 100px. */
+export const DISCORD_SPRITE_SCALE = 4;
 
 /**
  * The ICON for a boss NAME — what a list row, a tile, a pin or a Discord thumbnail shows: its hiscores
@@ -198,25 +205,26 @@ export function bossHiscoreIconUrl(key: string | null | undefined): string | nul
  * picture (a link card, a Wrapped feature) keep using bossImageUrl: a 25px sprite blown up to 500px
  * is mush.
  */
-export function bossIconUrl(name: string | null | undefined): string | null {
+export function bossIconUrl(name: string | null | undefined, scale = 1): string | null {
   if (!name) return null;
-  return bossHiscoreIconUrl(bossStatKeyFor(name)) ?? bossImageUrl(name);
+  // Only the sprite is upscaled; the fallback picture is already big (or an item sprite).
+  return bossHiscoreIconUrl(bossStatKeyFor(name), scale) ?? bossImageUrl(name);
 }
 
 /** As {@link bossIconUrl}, but from a hiscores boss KEY ("zulrah", "kreeArra"). */
-export function bossIconForStatKey(key: string | null | undefined): string | null {
+export function bossIconForStatKey(key: string | null | undefined, scale = 1): string | null {
   if (!key) return null;
-  return bossHiscoreIconUrl(key) ?? bossImageForStatKey(key);
+  return bossHiscoreIconUrl(key, scale) ?? bossImageForStatKey(key);
 }
 
 /** OSRS wiki icon for a hiscores skill key ("mining"), or null for unknown skills. */
-export function skillIconUrl(skill: string | null | undefined): string | null {
+export function skillIconUrl(skill: string | null | undefined, scale = 1): string | null {
   if (!skill) return null;
   const key = skill.trim().toLowerCase();
-  if (key === 'overall') return wikiImageUrl('Stats_icon.png');
+  if (key === 'overall') return wikiImageUrl('Stats_icon.png', scale);
   if (!(SKILLS as readonly string[]).includes(key)) return null;
   const file = key.charAt(0).toUpperCase() + key.slice(1);
-  return wikiImageUrl(`${file}_icon.png`);
+  return wikiImageUrl(`${file}_icon.png`, scale);
 }
 
 const firstItemId = (trackedItemIds?: string | null, itemRequirements?: string | null): number | null => {
@@ -340,10 +348,10 @@ export function deriveTileIcon(tile: IconableTile): string | null {
  * shows it), or the stats icon for an efficiency week. Same art the boards already use, so a
  * competition and the tile that tracks it look like the same thing.
  */
-export function competitionIconUrl(type: string, metric: string): string | null {
-  if (type === 'skill') return skillIconUrl(metric);
-  if (type === 'efficiency') return wikiImageUrl('Stats_icon.png');
-  return bossIconForStatKey(metricKeys(metric)[0] ?? metric);
+export function competitionIconUrl(type: string, metric: string, scale = 1): string | null {
+  if (type === 'skill') return skillIconUrl(metric, scale);
+  if (type === 'efficiency') return wikiImageUrl('Stats_icon.png', scale);
+  return bossIconForStatKey(metricKeys(metric)[0] ?? metric, scale);
 }
 
 /**

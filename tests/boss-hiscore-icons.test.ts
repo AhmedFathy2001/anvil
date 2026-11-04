@@ -57,3 +57,10 @@ test('no hiscores icon falls back to the old picture/drop; big hero art keeps th
   assert.match(competitionImageUrl('boss', 'nex') ?? '', /Nex\.png/);
   assert.equal(competitionIconUrl('skill', 'mining'), '/img/wiki/Mining_icon.png');
 });
+
+test('Discord asks for the 4× sprite; a fallback picture is never scaled', () => {
+  assert.equal(competitionIconUrl('boss', 'nex', 4), '/img/wiki/Nex_icon.png?x=4');
+  assert.equal(bossIconUrl('Nex', 4), '/img/wiki/Nex_icon.png?x=4');
+  assert.equal(competitionIconUrl('skill', 'mining', 4), '/img/wiki/Mining_icon.png?x=4');
+  assert.doesNotMatch(bossIconUrl('Barbarian Assault', 4) ?? '', /\?x=/);
+});

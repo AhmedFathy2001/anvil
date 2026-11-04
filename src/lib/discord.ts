@@ -11,7 +11,7 @@ import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import { SKILLS, formatEfficiencyHours, metricKeys, weeklyKindLabel } from '@/lib/constants';
 import { formatGp } from '@/lib/adminEventsFormat';
 import { placeLabel } from '@/lib/eventRules';
-import { deriveTileIcon, skillIconUrl, bossIconForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
+import { deriveTileIcon, skillIconUrl, bossIconForStatKey, DISCORD_SPRITE_SCALE, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
 import { absoluteAssetUrl } from '@/lib/seo';
 import { eq } from 'drizzle-orm';
 import { boardRevealImageQuery } from '@/lib/boardRevealImage';
@@ -1916,11 +1916,12 @@ const weeklyKind = weeklyKindLabel;
 // RuneLite shows) for a BOTW. Efficiency spans everything, so it gets none.
 function weeklyThumbnail(type: string, metric: string): Pick<DiscordEmbed, 'thumbnail'> {
   if (type === 'skill') {
-    const url = skillIconUrl(metric);
+    const url = skillIconUrl(metric, DISCORD_SPRITE_SCALE);
     return url ? { thumbnail: { url: absoluteAssetUrl(url) } } : {};
   }
   if (type === 'boss') {
-    const url = bossIconForStatKey(metricKeys(metric)[0] ?? metric);
+    // 4× nearest-neighbour: the 25px hiscores sprite, crisp at thumbnail size rather than thumb-sized.
+    const url = bossIconForStatKey(metricKeys(metric)[0] ?? metric, DISCORD_SPRITE_SCALE);
     return url ? { thumbnail: { url: absoluteAssetUrl(url) } } : {};
   }
   return {};

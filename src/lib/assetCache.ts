@@ -17,7 +17,7 @@ import { mkdir, mkdtemp, readFile, rename, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { assetCacheKey, parseAssetPath, upstreamUrl, UPSTREAM_HOSTS, type AssetRef } from '@/lib/assetUrls';
+import { assetCacheKey, MAX_SCALE_SOURCE_PX, parseAssetPath, parseWikiScale, upstreamUrl, UPSTREAM_HOSTS, WIKI_SCALES, type AssetRef } from '@/lib/assetUrls';
 import { isKnownAsset } from '@/lib/assetKnown';
 import { getClientIp } from '@/lib/clientIp';
 import { log } from '@/lib/logger';
@@ -328,11 +328,78 @@ export async function getAsset(ref: AssetRef, opts: GetAssetOptions = {}): Promi
   return startFetch(ref, key);
 }
 
-/** As {@link getAsset}, from one of our `/img/…` paths. Null for a path that names nothing valid. */
+// ── Pixel-perfect upscales (`/img/wiki/<file>?x=N`) ──
+
+const scaling = new Map<string, Promise<CachedAsset | null | 'limited'>>();
+
+/** Nearest-neighbour `scale`× of a small raster, as PNG (alpha kept). Null when it isn't a sprite. */
+export async function upscaleSprite(bytes: Buffer, scale: number): Promise<Buffer | null> {
+  if (!WIKI_SCALES.includes(scale)) return null;
+  const { default: sharp } = await import('sharp');
+  // The first frame only: an animated GIF has no single upscale, and nothing asks for one.
+  const meta = await sharp(bytes).metadata();
+  const w = meta.width ?? 0;
+  const h = meta.pageHeight ?? meta.height ?? 0;
+  if (!w || !h || w > MAX_SCALE_SOURCE_PX || h > MAX_SCALE_SOURCE_PX) return null;
+  // Replicated by hand on the raw RGBA rather than `resize({ kernel: 'nearest' })`: sharp premultiplies
+  // alpha around a resize, which nudges every half-transparent edge pixel by a level. This is exact.
+  const { data } = await sharp(bytes, { pages: 1 }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const W = w * scale;
+  const out = Buffer.alloc(W * h * scale * 4);
+  for (let y = 0; y < h; y++) {
+    const row = Buffer.alloc(W * 4);
+    for (let x = 0; x < w; x++) {
+      const px = data.subarray((y * w + x) * 4, (y * w + x) * 4 + 4);
+      for (let k = 0; k < scale; k++) px.copy(row, (x * scale + k) * 4);
+    }
+    for (let k = 0; k < scale; k++) row.copy(out, (y * scale + k) * W * 4);
+  }
+  return sharp(out, { raw: { width: W, height: h * scale, channels: 4 } }).png({ compressionLevel: 9 }).toBuffer();
+}
+
+/**
+ * A wiki sprite upscaled `scale`× (WIKI_SCALES), generated ONCE from the cached original and then
+ * kept like any asset — memory, then the store under its own key (assetCacheKey(ref, scale)) — so a
+ * hit never touches sharp. Null when the original is unavailable or too big to be a sprite.
+ */
+export async function getScaledAsset(ref: AssetRef, scale: number, opts: GetAssetOptions = {}): Promise<CachedAsset | null | 'limited'> {
+  if (scale === 1) return getAsset(ref, opts);
+  if (ref.kind !== 'wiki' || !WIKI_SCALES.includes(scale)) return null;
+  const key = assetCacheKey(ref, scale);
+  const hot = memoryGet(key);
+  if (hot) return hot;
+  const joined = scaling.get(key);
+  if (joined) return joined;
+  const p = (async () => {
+    const stored = await readStore(key);
+    if (stored) {
+      memorySet(key, stored);
+      return stored;
+    }
+    const original = await getAsset(ref, opts);
+    if (!original || original === 'limited') return original;
+    const png = await upscaleSprite(original.bytes, scale).catch(() => null);
+    if (!png) return null;
+    const scaled: CachedAsset = { bytes: png, contentType: 'image/png' };
+    memorySet(key, scaled);
+    await storePut(key, scaled);
+    return scaled;
+  })()
+    .catch(() => null)
+    .finally(() => scaling.delete(key));
+  scaling.set(key, p);
+  return p;
+}
+
+/** As {@link getAsset}, from one of our `/img/…` paths (an `?x=N` upscale honoured). Null for a path
+ *  that names nothing valid. */
 export async function getAssetByPath(urlPath: string): Promise<CachedAsset | null> {
   const ref = parseAssetPath(urlPath);
   if (!ref) return null;
-  const got = await getAsset(ref);
+  const q = urlPath.includes('?') ? new URLSearchParams(urlPath.slice(urlPath.indexOf('?') + 1).split('#')[0]) : null;
+  const scale = ref.kind === 'wiki' ? parseWikiScale(q?.get('x')) : 1;
+  if (scale == null) return null;
+  const got = await getScaledAsset(ref, scale);
   return got === 'limited' ? null : got;
 }
 

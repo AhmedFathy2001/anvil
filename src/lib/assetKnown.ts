@@ -7,6 +7,7 @@
 
 import { datasetWikiFiles, normalizeWikiFile, type AssetRef } from '@/lib/assetUrls';
 import { SKILLS } from '@/lib/constants';
+import bossHiscoreIcons from '@/data/bossHiscoreIcons.json';
 
 /** Hand-named wiki files in lib/tileIcons, landing/TileKinds, ProfileTabs, the og cards, lib/leagues. */
 const STATIC_WIKI_FILES = [
@@ -29,7 +30,8 @@ const KNOWN: ReadonlySet<string> = (() => {
     if (skill === 'overall') continue;
     set.add(`${skill.charAt(0).toUpperCase()}${skill.slice(1)}_icon.png`);
   }
-  for (const f of [...STATIC_WIKI_FILES, ...SLOT_GLYPHS]) {
+  // The boss hiscores sprites (lib/tileIcons bossHiscoreIconUrl).
+  for (const f of [...STATIC_WIKI_FILES, ...SLOT_GLYPHS, ...Object.values(bossHiscoreIcons as Record<string, string>)]) {
     const n = normalizeWikiFile(f);
     if (n) set.add(n);
   }

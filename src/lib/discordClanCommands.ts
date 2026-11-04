@@ -30,7 +30,7 @@ import { rosterClanSeat } from '@/lib/seatScope';
 import { resolveInvoker, resolveRosterPlayer, type ClanContext, type InvokerIdentity } from '@/lib/discordContext';
 import { clanMarkUrl } from '@/lib/clanMarkUrl';
 
-import { competitionIconUrl, itemIconUrl, bossIconUrl, wikiImageUrl } from '@/lib/tileIcons';
+import { competitionIconUrl, DISCORD_SPRITE_SCALE, itemIconUrl, bossIconUrl, wikiImageUrl } from '@/lib/tileIcons';
 import { absoluteAssetUrl } from '@/lib/seo';
 import { clogPageItems, clogPageIndex, clogPageNames } from '@/lib/clogDataset';
 import { matchBestsToPages, titleCaseActivity } from '@/lib/clogProfile';
@@ -296,7 +296,7 @@ async function weeklyResult(ctx: ClanCommandCtx, kind: 'skill' | 'boss'): Promis
       description: clamp(body.join('\n'), LIMIT.description),
       color: EMBED_COLOR.gold,
       author: authorOf(clan),
-      ...thumb(competitionIconUrl(c.type, c.metric)),
+      ...thumb(competitionIconUrl(c.type, c.metric, DISCORD_SPRITE_SCALE)),
       fields: [
         field(t.weekly.fieldMetric, weeklyMetricLabel(c.type, c.metric)),
         statField(t.weekly.fieldEntries, board.length),
@@ -735,7 +735,7 @@ async function pbsResult(ctx: ClanCommandCtx, picked: { accountId: number | null
         author: authorOf(clan),
         // The page heading names the boss ("Tombs of Amascut"); a run's own name ("…expert mode solo")
         // doesn't match a picture, and a mode filter can leave only runs like that.
-        ...thumb(pageQuery ? (bossIconUrl([...grouped.keys()][0] ?? shown[0].activity) ?? bossIconUrl(shown[0].activity) ?? itemIconUrl(CLOG_ITEM_ID)) : STATS_ICON),
+        ...thumb(pageQuery ? (bossIconUrl([...grouped.keys()][0] ?? shown[0].activity, DISCORD_SPRITE_SCALE) ?? bossIconUrl(shown[0].activity, DISCORD_SPRITE_SCALE) ?? itemIconUrl(CLOG_ITEM_ID)) : STATS_ICON),
       },
     ],
     shareable: true,
@@ -903,7 +903,7 @@ async function clogPageResult(
         color: EMBED_COLOR.gold,
         author: authorOf(clan),
         // The boss's own picture (falls back to its signature drop, then the log book).
-        ...thumb(bossIconUrl(page) ?? itemIconUrl(CLOG_ITEM_ID)),
+        ...thumb(bossIconUrl(page, DISCORD_SPRITE_SCALE) ?? itemIconUrl(CLOG_ITEM_ID)),
         // The page as the game draws it — icons, counts, gaps dimmed. Signed, versioned by the sync
         // so Discord's image cache can't show yesterday's log. See lib/clogImage.
         ...(clan.origin

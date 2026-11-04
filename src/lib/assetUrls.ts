@@ -24,6 +24,28 @@ export const ITEM_ASSET_PREFIX = '/img/item/';
 /** Raster formats only. SVG is deliberately absent: served from OUR origin it could carry script. */
 export const WIKI_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp'] as const;
 
+/**
+ * The pixel-perfect upscales `/img/wiki/<file>?x=N` may ask for (nearest-neighbour, PNG out). For the
+ * ~25px game sprites (boss hiscores icons, skill icons) that Discord would otherwise draw thumb-sized:
+ * at 4× a 25px Nex head is a crisp 100px one. A fixed short list, so a request cannot fan one file
+ * out into arbitrarily many cached variants.
+ */
+export const WIKI_SCALES: readonly number[] = [2, 3, 4];
+
+/** Only sources this small are upscaled (a sprite, not a 320px render): bounds the output at 512px. */
+export const MAX_SCALE_SOURCE_PX = 128;
+
+/**
+ * The `x` query of a wiki asset request: 1 when absent, the scale when it is one of WIKI_SCALES,
+ * null for anything else (`x=5`, `x=2.0`, `x=`, `x=04`) — the route refuses those outright.
+ */
+export function parseWikiScale(raw: string | null | undefined): number | null {
+  if (raw == null) return 1;
+  if (!/^[1-9]$/.test(raw)) return null;
+  const n = Number(raw);
+  return WIKI_SCALES.includes(n) ? n : null;
+}
+
 const MAX_SEGMENT = 200;
 const MAX_FILE = 400;
 const MAX_ITEM_ID = 999_999;
@@ -89,10 +111,10 @@ export function encodeWikiFile(file: string, strict = false): string {
  * Relative (same origin) — wrap in `absoluteAssetUrl` (lib/seo) for Discord, the plugin, link cards.
  * An unservable name still gets a URL (it answers with the placeholder) so a caller never breaks.
  */
-export function wikiImageUrl(file: string): string {
+export function wikiImageUrl(file: string, scale = 1): string {
   const norm = normalizeWikiFile(file);
   const path = norm ? encodeWikiFile(norm) : encodeURIComponent(file.split(/[?#]/)[0].replace(/ /g, '_'));
-  return `${WIKI_ASSET_PREFIX}${path}`;
+  return `${WIKI_ASSET_PREFIX}${path}${scale !== 1 && WIKI_SCALES.includes(scale) ? `?x=${scale}` : ''}`;
 }
 
 /**
@@ -208,8 +230,10 @@ function safeSegment(seg: string): string {
 }
 
 /** The storage key a cached asset lives under: `asset-cache/wiki/…` or `asset-cache/item/<id>.png`. */
-export function assetCacheKey(ref: AssetRef): string {
+export function assetCacheKey(ref: AssetRef, scale = 1): string {
   if (ref.kind === 'item') return `asset-cache/item/${ref.id}.png`;
+  // A validated upscale (WIKI_SCALES) lives beside the original under its own fixed prefix.
+  if (scale !== 1 && WIKI_SCALES.includes(scale)) return `asset-cache/wiki-x${scale}/${ref.file.split('/').map(safeSegment).join('/')}`;
   // Keyed by the file alone: no request-controlled part ever reaches the key.
   return `asset-cache/wiki/${ref.file.split('/').map(safeSegment).join('/')}`;
 }
