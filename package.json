@@ -25,6 +25,7 @@
     "test": "node scripts/test-all.mjs",
     "seo:indexnow": "node scripts/indexnow.mjs",
     "test:balance": "npx tsx --test tests/balance-effort.test.ts",
+    "test:deathsource": "npx tsx --test tests/death-source.test.ts tests/lab-feed.test.ts",
     "test:dropsource": "npx tsx --test tests/drop-source-check.test.ts",
     "harness:plugin": "node scripts/plugin-harness.mjs",
     "load:profile": "node loadtest/profile.mjs",
