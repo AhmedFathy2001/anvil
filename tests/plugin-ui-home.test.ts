@@ -239,3 +239,14 @@ test('every other live board the character is on gets its own card, opening that
 test('no extra boards: no "Your other boards" heading', () => {
   assert.ok(!texts(homeUi(base(liveCfg(), { myBoards: [] }))).includes('Your other boards'));
 });
+
+test('a clan board you are seated on shows once, under Events, with your team', () => {
+  const ui = homeUi(base(liveCfg(), {
+    cfg: { ...liveCfg(), panel: { ...liveCfg().panel, scheduled: [{ id: 12, title: 'Winter Bingo', startDate: '2026-11-01T00:00:00Z', endDate: null, status: 'active', boardSize: 5, tileCount: 25, format: 'bingo', scoringMode: 'tiles' }] } },
+    myBoards: [{ eventId: 12, name: 'Winter Bingo', clan: 'afk', clanName: 'AFK', teamId: 3, teamName: 'Ruby', tilesComplete: 0, tilesTotal: 0, pointsScored: false }],
+  } as never));
+  const all = texts(ui);
+  assert.ok(all.includes('On Ruby'));
+  assert.ok(!all.some((t) => /not in it/.test(t)), 'not "you’re not in it" for a board you are on');
+  assert.ok(!all.includes('Your other boards'), 'and not a second card for it');
+});
