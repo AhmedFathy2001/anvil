@@ -42,7 +42,7 @@ const ROWS: { label: string; hint?: string; cells: [Cell, Cell, Cell, Cell] }[] 
   {
     label: 'Head-to-head challenges',
     hint: 'Challenge a friend one on one: first to a drop, or most kills or XP in a set time. Anvil tracks you both and calls the winner. Just for bragging rights, never for stakes.',
-    cells: [{ text: '1 active', soon: true }, { text: '5 active', soon: true }, { text: 'Unlimited', soon: true }, { text: 'Unlimited', soon: true }] },
+    cells: ['1 active', '5 active', 'Unlimited', 'Unlimited'] },
 ];
 
 export default async function SupporterPage() {

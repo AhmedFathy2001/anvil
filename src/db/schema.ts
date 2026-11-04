@@ -4366,3 +4366,69 @@ export const displayCaseItems = pgTable('display_case_items', {
 
 export type ProfileMedia = typeof profileMedia.$inferSelect;
 export type DisplayCaseItem = typeof displayCaseItems.$inferSelect;
+
+/**
+ * Head-to-head challenges (lib/h2h, rules in lib/h2hRules): one player against another, first to a
+ * drop or most kills / XP in a set time. BRAGGING RIGHTS ONLY — there is deliberately no column for
+ * a stake, a prize or money, and none may be added.
+ *
+ * Keyed to CHARACTERS (accounts) for the tracking and to PERSONS (players) for who may act, the cap
+ * and the record; a login (users) only sends and answers. The baselines are the effective hiscores
+ * snapshot (hiscores raised by the plugin's live push) at acceptance, the same start line a stat tile
+ * uses, so only activity after the start counts.
+ */
+export const h2hChallenges = pgTable('h2h_challenges', {
+  id: serial('id').primaryKey(),
+  /** 'drop' | 'kc' | 'xp'. */
+  kind: text('kind').notNull(),
+  /** kc: hiscores boss key; xp: skill key; null for a drop race. */
+  statKey: text('stat_key'),
+  /** drop: JSON `[{ i: itemId, n: name }]`, any one of which wins (the name matches a log unlock). */
+  itemIds: text('item_ids'),
+  label: text('label').notNull(),
+  durationMin: integer('duration_min').notNull(),
+  challengerPlayerId: integer('challenger_player_id').notNull().references(() => players.id, { onDelete: 'cascade' }),
+  challengerAccountId: integer('challenger_account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  challengerUserId: integer('challenger_user_id').references(() => users.id, { onDelete: 'set null' }),
+  opponentPlayerId: integer('opponent_player_id').notNull().references(() => players.id, { onDelete: 'cascade' }),
+  opponentAccountId: integer('opponent_account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  /** 'pending' | 'active' | 'finished' | 'declined' | 'expired' | 'cancelled'. */
+  status: text('status').notNull().default('pending'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  respondBy: timestamp('respond_by', { withTimezone: true }).notNull(),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  endsAt: timestamp('ends_at', { withTimezone: true }),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+  /** Effective hiscores snapshot JSON at the start (kc / xp). Null until one could be read. */
+  challengerBaseline: text('challenger_baseline'),
+  opponentBaseline: text('opponent_baseline'),
+  /** kc / xp: the gain at the last check (frozen at the finish). drop: unused. */
+  challengerScore: bigint('challenger_score', { mode: 'number' }).notNull().default(0),
+  opponentScore: bigint('opponent_score', { mode: 'number' }).notNull().default(0),
+  /** drop: when each side's drop landed (client clock, clamped by the moments route). */
+  challengerHitAt: timestamp('challenger_hit_at', { withTimezone: true }),
+  opponentHitAt: timestamp('opponent_hit_at', { withTimezone: true }),
+  /** 'challenger' | 'opponent' | 'tie' once finished. */
+  result: text('result'),
+  /** Each side's say on showing the result publicly; it is public only when both said yes. */
+  challengerPublic: boolean('challenger_public').notNull().default(false),
+  opponentPublic: boolean('opponent_public').notNull().default(false),
+  /** An active challenge ends early only when both agree: the person who asked first. */
+  cancelRequestedBy: integer('cancel_requested_by').references(() => players.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('h2h_challenger_idx').on(t.challengerPlayerId, t.status),
+  index('h2h_opponent_idx').on(t.opponentPlayerId, t.status),
+  index('h2h_challenger_account_idx').on(t.challengerAccountId, t.status),
+  index('h2h_opponent_account_idx').on(t.opponentAccountId, t.status),
+  index('h2h_status_idx').on(t.status, t.endsAt),
+]);
+
+/** A person's head-to-head settings: turn all invitations away, and people they never want one from. */
+export const h2hPrefs = pgTable('h2h_prefs', {
+  playerId: integer('player_id').primaryKey().references(() => players.id, { onDelete: 'cascade' }),
+  /** Refuse every new invitation. */
+  closed: boolean('closed').notNull().default(false),
+  /** JSON array of player ids whose invitations are refused. */
+  blocked: text('blocked'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

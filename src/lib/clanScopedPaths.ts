@@ -95,6 +95,9 @@ export const PLATFORM_ROOTS = [
   '/features',
   '/pricing',
   '/supporter',
+  // Head-to-head challenges (lib/h2h): one person against another, whatever clans they are in.
+  '/challenges',
+  '/api/challenges',
   // "Host an event": making a creator space (lib/creatorSpaces) is a platform act, like /clans/new.
   '/host',
   '/api/creators',

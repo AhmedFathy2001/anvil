@@ -1009,6 +1009,13 @@
       "when": 1793792134614,
       "tag": "0197_supporter_media_case",
       "breakpoints": true
+    },
+    {
+      "idx": 198,
+      "version": "7",
+      "when": 1793792194614,
+      "tag": "0198_h2h_challenges",
+      "breakpoints": true
     }
   ]
 }

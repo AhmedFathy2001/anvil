@@ -4,6 +4,7 @@ import { processEventLifecycleNotifications } from '@/lib/eventLifecycle';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { recheckPendingEventServerMembers } from '@/lib/eventDiscord';
 import { processClanEventReminders } from '@/lib/clanEvents';
+import { settleDueH2h } from '@/lib/h2h';
 
 // Per-minute backstop for the submission-notification debounce. Opportunistic flushes (run at the end
 // of each submission request) cover active events; this catches buckets that went quiet after the last
@@ -39,6 +40,9 @@ export async function GET(request: Request) {
   // Event Discord servers have no gateway connection, so a player who joined through their invite is
   // only noticed here (lib/eventDiscord). One indexed query when nobody is pending.
   await recheckPendingEventServerMembers().catch(() => {});
+  // Head-to-head challenges (lib/h2h): lapse unanswered invitations, refresh running kill / XP races,
+  // call the ones whose time is up.
+  await settleDueH2h().catch(() => {});
   const posted = await flushPendingNotifications();
   return NextResponse.json({ posted });
 }

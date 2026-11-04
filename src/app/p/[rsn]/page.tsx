@@ -25,6 +25,7 @@ import ProfileShare from './ProfileShare';
 import GameClanToggle from './GameClanToggle';
 import { gameClanForAccount, type CharacterGameClan } from '@/lib/gameClans';
 import GoalsCard from '@/components/GoalsCard';
+import H2hCard from '@/components/H2hCard';
 import { goalsForProfile } from '@/lib/goals';
 import { goalRatesFrom } from '@/lib/statTrends';
 import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
@@ -319,6 +320,9 @@ export default async function CharacterPage({
           or once we next check the OSRS Hiscores.
         </div>
       )}
+      {/* Head-to-head (lib/h2h): this character's public record and a Challenge button; the owner
+          sees their whole record and anything waiting on them. */}
+      <H2hCard accountId={character.accountId} rsn={character.rsn} viewerPlayerId={session?.playerId ?? null} />
       <GoalsCard
         accountId={character.accountId}
         goals={goals.goals}
