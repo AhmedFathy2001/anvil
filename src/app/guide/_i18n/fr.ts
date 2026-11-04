@@ -39,6 +39,7 @@ const fr: PartialGuideDict = {
       playing: 'Jouer',
       running: 'Organiser un événement',
       clan: 'Gérer le clan',
+      streamers: 'Streamers',
     },
     ingame: {
       title: 'Guides de jeu',
@@ -147,6 +148,27 @@ const fr: PartialGuideDict = {
         blurb:
           'Chaque commande à laquelle le bot répond dans Discord, ce que fait chaque option, des exemples concrets, et quoi vérifier quand l’une d’elles n’apparaît pas.',
         minutes: '~6 min',
+      },
+      creators: {
+        eyebrow: 'Pour les streamers',
+        title: 'Organiser des événements pour tes viewers',
+        blurb:
+          'Pas besoin de clan. Crée un espace, partage un seul lien, choisis qui peut rejoindre (followers, abonnés, rôles Discord) et mets la grille en stream.',
+        minutes: '~6 min',
+      },
+      joiningStream: {
+        eyebrow: 'Pour les viewers',
+        title: 'Rejoindre l’événement d’un streamer',
+        blurb:
+          'Tu as reçu un lien depuis un stream ? Connecte-toi, ajoute ton personnage, appuie sur Join. Que faire pour les événements réservés aux followers ou aux abonnés.',
+        minutes: '~2 min',
+      },
+      streamingClans: {
+        eyebrow: 'Pour les clans qui streament',
+        title: 'Streamer pour un clan',
+        blurb:
+          'Laisse tes viewers jouer un événement sans rejoindre le clan. Active Streaming, puis ouvre un événement aux viewers.',
+        minutes: '~2 min',
       },
     },
   },
@@ -2347,6 +2369,405 @@ const fr: PartialGuideDict = {
     limit: 'Bon à savoir',
     checked: 'La case le vérifie pour vous',
     englishOnly: 'Les règles ci-dessous sont en anglais pour l’instant, afin de toujours correspondre à ce que le site fait réellement.',
+  },
+
+  // /guide/creators — le guide de l’hôte pour un espace créateur.
+  creators: {
+    metaTitle: 'Organise un bingo OSRS pour tes viewers — Anvil',
+    metaDescription:
+      'Organise un bingo ou une course de cases Old School RuneScape pour ton stream, sans clan : crée un espace, partage un seul lien, choisis qui peut rejoindre (Twitch, Kick, YouTube ou Discord) et mets la grille en stream avec OBS.',
+    eyebrow: 'Pour les streamers et les créateurs',
+    title: 'Organiser des événements pour tes viewers',
+    dek: 'Un espace créateur te permet d’organiser un bingo pour ton stream. Pas besoin de clan en jeu. Tu crées un événement, tu partages un lien, et tes viewers rejoignent.',
+    facts: [
+      { strong: 'Pas de clan', rest: 'nécessaire' },
+      { strong: 'Gratuit', rest: 'pour commencer' },
+      { strong: 'Un seul lien', rest: 'pour ton chat' },
+    ],
+
+    what: {
+      title: 'Ce qu’est un espace créateur',
+      body: [
+        'C’est ta propre page sur Anvil, à `{apex}/c/ton-nom`. Tu y organises des événements pour tes viewers.',
+        'Ce n’est pas un clan. Pas de liste de clan, pas de rangs, pas de compétitions hebdomadaires. Celui qui rejoint ton événement joue cet événement. Rien de plus.',
+        'Les viewers se connectent avec Discord, ajoutent leur personnage RuneScape et appuient sur **Join**. Le plugin Anvil pour RuneLite compte ensuite leurs drops tout seul.',
+      ],
+    },
+
+    create: {
+      title: 'Crée ton espace',
+      body: [
+        'Va sur [{apex}/host](/host) et connecte-toi avec Discord.',
+        'Tape un nom pour ton espace. Le nom de ta chaîne est un bon choix. Ton lien est créé à partir du nom. Appuie sur **change link** si tu veux un autre lien.',
+        'Appuie sur **Create my space**. Tu as un espace par compte Discord.',
+      ],
+    },
+
+    first: {
+      title: 'Crée ton premier événement',
+      body: [
+        'Juste après avoir créé ton espace, tu arrives sur **Create your first event**. Plus tard, utilise **+ New event** en haut de **Your events**.',
+        '**Name.** Ce que verront tes viewers.',
+        '**What kind?** Choisis une carte. **Team bingo** est une grille 5×5 et Anvil répartit les joueurs en équipes pour toi. **Solo bingo** est la même grille, chacun pour soi. **Team race** est une suite de tâches dans l’ordre : l’équipe la plus avancée gagne.',
+        '**Ready-made tiles** te donne un mélange de tâches faciles à difficiles que tu pourras modifier plus tard. **Blank, I’ll write my own** démarre vide.',
+        '**Who can join?** Laisse sur **Anyone**, ou choisis qui peut rejoindre. Voir l’étape 5.',
+        '**When?** Choisis les dates de début et de fin. Ou laisse vide et lance l’événement toi-même quand tu es prêt.',
+        'Appuie sur **Create event**. Puis appuie sur **Copy invite link**.',
+      ],
+    },
+
+    share: {
+      title: 'Partage le lien',
+      body: [
+        'Colle le lien d’invitation dans le chat de ton stream, ton Discord ou tes réseaux. Ce lien suffit à tes viewers.',
+        'Tu peux le copier à nouveau à tout moment : **Your events** → **Copy invite link** à côté de l’événement.',
+        'Tu veux que le bot réponde à `!join` dans le chat avec le lien ? Voir l’étape 9.',
+      ],
+    },
+
+    who: {
+      title: 'Choisis qui peut rejoindre',
+      body: [
+        'Chaque événement commence ouvert à **Anyone**. Pour le réserver à ta communauté, ouvre **Settings** → **Who can join?** de l’événement et choisis une ou plusieurs options. Ce sont les mêmes options que sur l’écran du premier événement.',
+        'Si tu en choisis plusieurs, **une seule suffit**. Un follower OU un booster du serveur peut entrer.',
+      ],
+      intro: 'Chaque option, et ce que le viewer doit faire :',
+      rows: [
+        {
+          term: 'Anyone',
+          body: 'Toute personne avec le lien rejoint tout de suite.',
+        },
+        {
+          term: 'Twitch followers',
+          body: 'Le viewer appuie sur **Link Twitch** sur la page de l’événement et se connecte avec Twitch. Anvil vérifie qu’il te suit.',
+        },
+        {
+          term: 'Twitch subs',
+          body: 'Comme pour les followers, mais il doit être abonné. Choisis le palier minimum : **Tier 1 or higher**, **Tier 2 or higher** ou **Tier 3**. Les abonnés Prime comptent comme palier 1. Ta chaîne doit être affiliée ou partenaire Twitch.',
+        },
+        {
+          term: 'Kick followers',
+          body: 'Kick ne dit pas aux applis qui te suit, donc Anvil compte les personnes qui te suivent _après_ que tu as connecté Kick. Suivi avant ? Le viewer se désabonne puis te suit à nouveau.',
+        },
+        {
+          term: 'Kick subs',
+          body: 'Les abonnés qu’Anvil a vus après ta connexion à Kick comptent tout seuls. Les autres appuient sur **Get Kick code** et tapent le code (il ressemble à `ANVIL-7F3K9Q`) dans ton chat Kick, et Anvil voit leur badge d’abonné. Kick n’a pas de paliers d’abonnement.',
+        },
+        {
+          term: 'YouTube subscribers',
+          body: 'Le viewer appuie sur **Check my YouTube subscription** et se connecte avec Google. Ses abonnements doivent être publics sur YouTube.',
+        },
+        {
+          term: 'YouTube members',
+          body: 'Le viewer tape son code Anvil dans ton chat en direct YouTube. Les membres ne peuvent donc rejoindre que **pendant ton live**.',
+        },
+        {
+          term: 'Discord role',
+          body: 'Les personnes qui ont un rôle de ton serveur Discord que tu choisis (jusqu’à 5 rôles). Connecte d’abord ton serveur : **Discord (optional)** dans le menu.',
+        },
+        {
+          term: 'Server boosters',
+          body: 'Les personnes qui boostent ton serveur Discord. Il faut aussi que ton serveur soit connecté.',
+        },
+      ],
+      note: {
+        tag: 'Bon à savoir',
+        body: 'Connecte d’abord ta chaîne (étape 7), sinon les options Twitch, Kick et YouTube restent grisées. Un compte Twitch, Kick ou YouTube ne peut faire entrer qu’un seul joueur par événement. Ton staff, et les personnes que tu invites par leur nom, passent sans vérification.',
+      },
+    },
+
+    approve: {
+      title: 'Dis oui à chaque joueur (facultatif)',
+      body: [
+        'Tu veux choisir qui joue ? Ouvre **Settings** → **Who can play** → **Who can enter it** de l’événement et choisis **Ask me about everyone**. Appuie sur **Save changes**.',
+        'Les viewers appuient alors sur **Ask to join** au lieu de **Join**. Ils doivent d’abord passer tes choix **Who can join?**.',
+        'Leurs demandes apparaissent dans **Your events** sous la forme **N waiting for you**. Clique dessus, ou ouvre l’onglet **Sign-ups** de l’événement. La liste du haut s’appelle **Waiting for your yes**. Accepte ou refuse chaque demande.',
+      ],
+    },
+
+    channels: {
+      title: 'Connecte ton Twitch, Kick ou YouTube',
+      body: [
+        'Ouvre **Settings** dans le menu. Sous le nom de ton espace, appuie sur **Connect Twitch**, **Connect YouTube** ou **Connect Kick**, et connecte-toi avec ta chaîne.',
+        'Chaque chaîne connectée apparaît sur ta page comme un lien **verified**. Tu ne peux pas saisir un lien à la main : se connecter est la façon dont Anvil sait que la chaîne est à toi.',
+        'Une chaîne ne peut être connectée qu’à un seul endroit sur Anvil. Si elle est déjà sur un autre espace ou clan que tu gères, Anvil te demande si tu veux la déplacer.',
+      ],
+    },
+
+    overlay: {
+      title: 'Mets la grille en stream (OBS)',
+      body: [
+        'Dans **Your events**, appuie sur **Stream overlay** à côté de l’événement, puis sur **Make overlay links**.',
+        'Tu obtiens trois liens. **Standings** : les meilleures équipes et leur avancement. **Feed** : les derniers drops et cases terminées. **Board** : la grille, avec les cases terminées marquées.',
+        'Choisis une **Text size** (S, M, L ou XL) avant de copier. Puis appuie sur **Copy** à côté du lien voulu.',
+      ],
+      stepsTitle: 'Ajoute-le à OBS',
+      steps: [
+        'Dans OBS, sous **Sources**, appuie sur **+** et choisis **Browser**.',
+        'Colle le lien dans **URL**.',
+        'Règle une taille, par exemple 800 × 600. Laisse **Custom CSS** vide.',
+        'Appuie sur **OK**. Il se met à jour tout seul toutes les quelques secondes.',
+      ],
+      tipsTag: 'Bon à savoir',
+      tips: [
+        'Ajoute `&limit=10`, `&title=0` ou `&align=right` à la fin d’un lien pour le modifier.',
+        'L’overlay montre ce que montre la page publique de ton événement. Les classements et cases masqués restent masqués aussi en stream.',
+        '**Reset link** crée de nouveaux liens et arrête les anciens. Utilise-le si un lien fuite. Tu dois recoller les nouveaux liens dans OBS.',
+        'Une petite marque « Anvil » est dans le coin. Avec l’offre Gold, tu peux la masquer dans **Settings** → **Anvil mark on your overlay**.',
+      ],
+    },
+
+    chatjoin: {
+      title: '!join dans ton chat',
+      body: [
+        'Ouvre **Settings** → **!join in Twitch chat** et active-le.',
+        'Quand un viewer tape `!join`, le bot Anvil (Anvil_OSRS) répond avec le lien de ton événement ouvert. Il répond au plus une fois toutes les 30 secondes, peu importe combien de personnes le tapent.',
+        'Il ne répond que dans une chaîne que tu as connectée à l’étape 7. Il marche aussi dans le chat Kick, une fois ta chaîne Kick connectée.',
+        'Aucun événement ouvert ? Il le dit : « No event is open to join right now — keep an eye on the stream! »',
+      ],
+    },
+
+    listing: {
+      title: 'Sois listé sur Anvil',
+      body: [
+        'Ton espace n’est pas listé quand tu le crées. Seules les personnes avec ton lien peuvent le trouver.',
+        'Ouvre **Settings** → **Advertise on Anvil** et active-le. Ton espace apparaît dans l’annuaire des clans d’Anvil, et tes nouveaux événements apparaissent sur `{apex}/events`.',
+        'Pour lister un seul événement, ouvre son **Settings** → **Who can play** → **Advertise on Anvil**. Il apparaît tant que l’événement est à venir ou en cours.',
+      ],
+    },
+
+    plans: {
+      title: 'Offres et limites',
+      body: [
+        'Ton offre fixe combien de joueurs un événement peut avoir. Tout le reste est identique pour toutes les offres : la grille, le suivi du plugin, l’overlay et Discord.',
+        'Ta carte d’offre est dans **Your events**. Pour comparer les offres, voir les [tarifs](/pricing#creators). Pour changer ou annuler ton paiement, va sur [ta page de facturation](/portal).',
+      ],
+      rows: [
+        { term: 'Free', body: 'Jusqu’à 50 joueurs par événement. Un événement à la fois. Vérifications de rôle Discord et de booster.' },
+        { term: 'Bronze', body: 'Jusqu’à 150 joueurs par événement. Vérifications Twitch, Kick et YouTube.' },
+        { term: 'Silver', body: 'Jusqu’à 300 joueurs par événement. Plusieurs événements à la fois. `!join` dans le chat. Affiché en premier dans la liste.' },
+        { term: 'Gold', body: 'Jusqu’à 1 000 joueurs par événement. Masque la marque Anvil sur ton overlay.' },
+        { term: 'Partner', body: 'Pas de limite de joueurs. Mise en place directement avec Anvil — contacte-nous.' },
+      ],
+      note: {
+        tag: 'Pour l’instant',
+        body: 'Tout le monde peut encore entrer pendant qu’Anvil grandit, même au-delà des chiffres de ton offre. Les limites arriveront plus tard, avec préavis. Ta carte d’offre montre où tu en es.',
+      },
+    },
+
+    faq: {
+      title: 'Questions',
+      intro: 'Celles que les streamers posent le plus :',
+      rows: [
+        {
+          term: 'Mes viewers ont-ils besoin d’un clan ?',
+          body: 'Non. Il leur faut un compte Discord et un personnage OSRS. Envoie-leur le [guide du viewer]({joiningGuide}).',
+        },
+        {
+          term: 'Ont-ils besoin du plugin RuneLite ?',
+          body: 'Pour les drops et les kills, oui. Le plugin les envoie tout seul. Quelques cases lisent plutôt les hiscores.',
+        },
+        {
+          term: 'Un viewer dit « The host’s Twitch connection isn’t working ».',
+          body: 'Twitch n’accepte plus ta connexion. Ouvre **Settings** et appuie sur **Reconnect Twitch**. Pareil pour Kick et YouTube.',
+        },
+        {
+          term: 'Quelqu’un d’autre peut-il m’aider à gérer ?',
+          body: 'Oui. Ouvre **Players** → **Staff & roles**, ajoute-les et choisis ce que chacun peut faire.',
+        },
+        {
+          term: 'J’ai aussi un clan en jeu.',
+          body: 'Alors tu n’as peut-être pas besoin d’un espace. Un clan public peut activer **Streaming** à la place. Voir [streamer pour un clan]({streamingGuide}).',
+        },
+        {
+          term: 'Puis-je créer un deuxième espace ?',
+          body: 'Un espace par compte Discord pour l’instant. Contacte-nous si tu en as besoin d’un autre.',
+        },
+      ],
+    },
+  },
+
+  // /guide/joining-a-streamer-event — pour un viewer qui a cliqué sur le lien d’un streamer.
+  joiningStream: {
+    metaTitle: 'Rejoindre le bingo OSRS d’un streamer — Anvil',
+    metaDescription:
+      'Tu as reçu un lien d’un streamer ? Connecte-toi avec Discord, ajoute ton personnage OSRS, appuie sur Join. Que faire pour les événements réservés aux followers ou abonnés sur Twitch, Kick ou YouTube, et comment tes drops comptent.',
+    eyebrow: 'Pour les viewers',
+    title: 'Rejoindre l’événement d’un streamer',
+    dek: 'Un streamer a partagé un lien. Voici comment te mettre sur la grille. Pas besoin de clan.',
+    facts: [
+      { strong: '~2 min', rest: 'pour rejoindre' },
+      { strong: 'Pas de clan', rest: 'nécessaire' },
+    ],
+
+    join: {
+      title: 'Rejoins en quatre étapes',
+      body: [
+        '**Ouvre le lien** partagé par le streamer. Ou tape `!join` dans son chat et le bot le poste.',
+        '**Connecte-toi avec Discord.** C’est ton compte Anvil. Rien à remplir.',
+        '**Ajoute ton personnage.** Appuie sur **Add my character** et tape ton nom RuneScape. Si tu vois **Prove it’s mine**, suis les étapes sur ton profil. Le [guide du plugin]({pluginGuide}) explique comment.',
+        '**Appuie sur Join.** Choisis ton personnage si tu en as plusieurs. Tu vois **You’re in!** quand ça a marché.',
+      ],
+    },
+
+    gated: {
+      title: 'Événements pour followers ou abonnés',
+      body: [
+        'Certains événements sont réservés à la communauté du streamer. La carte pour rejoindre dit qui, par exemple « Open to followers of somename on Twitch ».',
+        'Appuie quand même sur **Join**. Si tu n’es pas encore accepté, la carte liste quoi faire. Fais l’une de ces choses, puis appuie à nouveau sur **Join**.',
+      ],
+      intro: 'Quoi faire pour chaque cas :',
+      rows: [
+        {
+          term: 'Twitch follow or sub',
+          body: 'Appuie sur **Link Twitch** et connecte-toi avec Twitch. Anvil ne demande aucune permission. Puis appuie à nouveau sur **Join**.',
+        },
+        {
+          term: 'Kick follow or sub',
+          body: 'Appuie sur **Get Kick code**. Tape le code (comme `ANVIL-7F3K9Q`) dans le chat Kick du streamer dans les 10 minutes. Chaque code ne marche qu’une fois. Puis appuie à nouveau sur **Join**.',
+        },
+        {
+          term: 'YouTube subscriber',
+          body: 'Appuie sur **Check my YouTube subscription** et connecte-toi avec Google. Choisis le compte avec lequel tu regardes. Tes abonnements doivent être publics dans les paramètres de confidentialité de YouTube.',
+        },
+        {
+          term: 'YouTube member',
+          body: 'Appuie sur **Link my YouTube account**, puis tape ton code dans le chat en direct YouTube et appuie sur **check the chat**. Ça ne marche que pendant le live du streamer.',
+        },
+        {
+          term: 'Discord role or booster',
+          body: 'Rejoins le serveur Discord du streamer et obtiens le rôle (ou booste-le). Anvil vérifie avec le compte Discord avec lequel tu t’es connecté.',
+        },
+      ],
+      note: {
+        tag: 'Approbation',
+        body: 'Certains streamers disent oui à chaque joueur. Le bouton affiche alors **Ask to join**, et tu vois **Waiting for the host** jusqu’à leur réponse.',
+      },
+    },
+
+    plugin: {
+      title: 'Installe le plugin Anvil',
+      body: [
+        'Tes drops et tes kills comptent grâce au plugin Anvil pour RuneLite. Installe-le depuis le Plugin Hub et connecte-toi avec Discord depuis son panneau latéral.',
+        'Le [guide du plugin]({pluginGuide}) t’accompagne en trois minutes environ.',
+      ],
+    },
+
+    play: {
+      title: 'Joue',
+      body: [
+        'C’est tout. Joue normalement. Quand tu obtiens un drop ou un kill dont la grille a besoin, le plugin l’envoie tout seul.',
+        'Ouvre le lien de l’événement à tout moment pour voir la grille et le classement. Tu joues uniquement cet événement : tu ne rejoins pas un clan.',
+      ],
+    },
+
+    accounts: {
+      title: 'Tes comptes connectés',
+      body: [
+        'Les comptes Twitch, YouTube et Kick que tu as liés sont dans [Settings → Connected accounts](/settings/connections). Tu peux aussi les lier là avant de rejoindre.',
+        'Tu peux en délier un à tout moment. Les événements déjà rejoints te gardent. Un événement réservé que tu rejoins plus tard te demandera de lier à nouveau.',
+      ],
+    },
+
+    faq: {
+      title: 'Questions',
+      intro: 'Quand quelque chose dit non :',
+      rows: [
+        {
+          term: '“This event is full”',
+          body: 'Il n’y a plus de place. Seul le streamer peut en faire — préviens-le.',
+        },
+        {
+          term: 'Je suis abonné mais ça ne me laisse pas entrer.',
+          body: 'Vérifie que tu as lié le même compte que celui avec lequel tu t’abonnes. Sur Twitch, regarde **Your Twitch** sur la carte pour rejoindre. Sur Kick, tape un nouveau code dans son chat : Anvil lit le badge d’abonné sur ce message. Sur YouTube, rends tes abonnements publics et revérifie.',
+        },
+        {
+          term: 'J’ai suivi sur Kick mais ça dit que non.',
+          body: 'Anvil ne voit que les follows faits après que le streamer a connecté Kick. Désabonne-toi et suis à nouveau, puis appuie sur **Join**.',
+        },
+        {
+          term: '“That Twitch account was already used to join this event”',
+          body: 'Un compte Twitch (ou Kick, ou YouTube) ne fait entrer qu’un joueur. Quelqu’un d’autre a déjà rejoint avec.',
+        },
+        {
+          term: '“Twitch didn’t answer just now”',
+          body: 'Twitch, Kick, YouTube ou Discord a eu un petit souci. Attends une minute et appuie à nouveau sur **Join**.',
+        },
+        {
+          term: '“The host’s … connection isn’t working”',
+          body: 'C’est du côté du streamer. Dis-lui de reconnecter sa chaîne sur Anvil.',
+        },
+        {
+          term: 'Mes drops n’apparaissent pas.',
+          body: 'Vérifie que le plugin est installé et connecté, et que tu as rejoint avec le personnage que tu joues. Voir le [guide du plugin]({pluginGuide}).',
+        },
+      ],
+    },
+  },
+
+  // /guide/streaming-for-clans — un clan public qui active Streaming.
+  streamingClans: {
+    metaTitle: 'Streamer les événements de ton clan — Anvil',
+    metaDescription:
+      'Laisse les viewers de ton stream rejoindre un événement OSRS de ton clan sans rejoindre le clan : active Streaming, ouvre un événement aux viewers et choisis quels viewers peuvent entrer.',
+    eyebrow: 'Pour les clans qui streament',
+    title: 'Streamer pour un clan',
+    dek: 'Ton clan streame ses événements ? Laisse les viewers jouer un événement sans rejoindre ton clan.',
+
+    on: {
+      title: 'Active Streaming',
+      body: [
+        'Va dans Admin → **Clan settings** → **Streaming** et active-le.',
+        'Seul un clan public peut streamer. Les viewers doivent ouvrir la page de ton événement, et un clan privé la leur cache. Un clan avec Streaming activé ne peut pas passer en privé tant que tu ne le désactives pas.',
+        'Une fois activé, connecte ta chaîne Twitch, YouTube ou Kick juste en dessous.',
+      ],
+    },
+
+    event: {
+      title: 'Ouvre un événement aux viewers',
+      body: [
+        'Chaque événement reste **Members only** tant que tu ne dis pas autre chose. C’était déjà comme ça avant.',
+        'Ouvre **Settings** → **Who can join?** de l’événement et choisis **Members and viewers**. Puis choisis **Which viewers?** : tout le monde, ou followers, abonnés, un rôle Discord, etc. Appuie sur **Save**.',
+        'Ces vérifications ne concernent que les viewers. Les membres de ton clan entrent toujours, comme avant.',
+      ],
+    },
+
+    viewers: {
+      title: 'Ce que sont les viewers',
+      body: [
+        'Un viewer qui rejoint est un **event player**. Il joue cet événement uniquement.',
+        'Ce n’est ni un membre du clan ni un invité. Il n’apparaît jamais dans la liste de ton clan, et n’a aucun rang.',
+        'Tu peux voir tous ceux qui ont rejoint ainsi dans **People** → **Past viewers**.',
+      ],
+    },
+
+    tools: {
+      title: 'Tes outils de stream',
+      body: [
+        'Les outils du streamer fonctionnent comme dans un espace créateur : liens de chaîne vérifiés, vérifications **Who can join?**, l’overlay OBS et `!join` dans le chat.',
+        'Les liens d’overlay d’un événement de clan sont dans les **Settings** de l’événement, sous **Who can play** → **Stream overlay**. `!join` et la marque de l’overlay sont sous **Clan settings** → **Streaming**.',
+        'Le [guide du créateur]({creatorsGuide}) explique chacun pas à pas.',
+      ],
+    },
+
+    faq: {
+      title: 'Questions',
+      intro: 'Les réponses courtes :',
+      rows: [
+        {
+          term: 'Les viewers comptent-ils dans notre limite de membres ?',
+          body: 'Non. Ce sont des joueurs d’événement, pas des membres. Les limites du streamer sont par événement (voir le [guide du créateur]({creatorsGuide})).',
+        },
+        {
+          term: '`!join` enverra-t-il des gens vers un événement réservé aux membres ?',
+          body: 'Non. Il ne pointe que vers un événement ouvert aux viewers.',
+        },
+        {
+          term: 'Devrais-je plutôt créer un espace créateur ?',
+          body: 'Seulement si tu n’as pas de clan. Un espace est pour les streamers sans clan en jeu.',
+        },
+      ],
+    },
   },
 };
 
