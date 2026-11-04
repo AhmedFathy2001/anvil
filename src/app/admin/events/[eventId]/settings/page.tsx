@@ -17,6 +17,8 @@ import { cohostsForEvent } from '@/lib/coHost';
 import { settlementForEvent } from '@/lib/coHostSettlement';
 import { getBoard } from '@/lib/libraryBoards';
 import BoardLibraryPanel from './BoardLibraryPanel';
+import EntryGatePanel from './EntryGatePanel';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,6 +91,7 @@ export default async function EventSettingsPage({
         </div>
       )}
       <AccessPanel eventId={id} />
+      {isCreatorSpace(clan) && <EntryGatePanel eventId={id} />}
       <CoHostPanel eventId={id} initial={cohosts} cashPolicy={event.cashPolicy} settlement={settlement} />
       <p className="mb-6 text-sm text-text-muted">
         Where this event posts, who it pings, its team channels and extra webhooks are on the{' '}

@@ -22,7 +22,29 @@ interface EnterInfo {
   guestsClosed?: boolean;
   /** Has any character at all, verified or not. */
   hasCharacter?: boolean;
+  /** A creator-space event's "who can join" (lib/entryGates), said before anyone presses Join. */
+  gate?: { summary: string; usesTwitch: boolean; twitchLinked: string | null; twitchAvailable: boolean } | null;
 }
+
+/** A refused gate, as the enter/sign-up routes send it. */
+interface GateFail {
+  summary: string;
+  steps: string[];
+  linkTwitch: boolean;
+  transient: boolean;
+}
+
+/** Start linking Twitch, coming back to this very page. Built at click time, from where they are. */
+function linkTwitchHref(): string {
+  return `/api/auth/twitch/start?as=viewer&return=${encodeURIComponent(window.location.pathname)}`;
+}
+
+const TWITCH_BACK: Record<string, { ok: boolean; text: string }> = {
+  linked: { ok: true, text: 'Twitch linked. Press Join again.' },
+  taken: { ok: false, text: 'That Twitch account is already linked to another Anvil login.' },
+  denied: { ok: false, text: 'Twitch linking cancelled.' },
+  error: { ok: false, text: 'Couldn’t link Twitch. Try again.' },
+};
 
 /**
  * Entering an event hosted by a clan you are not in.
@@ -233,6 +255,18 @@ function CreatorJoin({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [state, setState] = useState<'idle' | 'joined' | 'asked'>(info.pendingSince ? 'asked' : 'idle');
+  // The host's gate said no (lib/entryGates): what to do, step by step.
+  const [gateFail, setGateFail] = useState<GateFail | null>(null);
+  // Back from linking Twitch (?twitch=linked…): say how it went, then drop the marker.
+  const [twitchNote, setTwitchNote] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    const back = new URLSearchParams(window.location.search).get('twitch');
+    if (!back || !TWITCH_BACK[back]) return;
+    setTwitchNote(TWITCH_BACK[back]);
+    const u = new URL(window.location.href);
+    u.searchParams.delete('twitch');
+    window.history.replaceState(null, '', u.toString());
+  }, []);
   const { verdict, options } = info;
 
   if (verdict.outcome === 'insider') return null;
@@ -311,6 +345,8 @@ function CreatorJoin({
     if (chosen == null) return;
     setBusy(true);
     setError(null);
+    setGateFail(null);
+    setTwitchNote(null);
     try {
       const res = await clanFetch(`/api/events/${eventId}/enter`, {
         method: 'POST',
@@ -318,6 +354,10 @@ function CreatorJoin({
         body: JSON.stringify({ accountId: chosen }),
       });
       const data = await res.json().catch(() => null);
+      if (!res.ok && data?.gate) {
+        setGateFail(data.gate as GateFail);
+        return;
+      }
       if (!res.ok) throw new Error(data?.error ?? 'Could not join');
       if (data?.pending) {
         setState('asked');
@@ -331,6 +371,11 @@ function CreatorJoin({
         });
         if (signup.ok) {
           setState('joined');
+          return;
+        }
+        const s = await signup.json().catch(() => null);
+        if (s?.gate) {
+          setGateFail(s.gate as GateFail);
           return;
         }
       }
@@ -348,11 +393,25 @@ function CreatorJoin({
       <div className="min-w-0">
         <div className="text-lg font-semibold">{asks ? 'Ask to join this event' : 'Join this event'}</div>
         <div className="text-sm text-text-muted">
-          {asks ? 'The host says yes to each player.' : 'One click and you’re playing.'}
+          {info.gate ? info.gate.summary : asks ? 'The host says yes to each player.' : 'One click and you’re playing.'}
+          {info.gate && asks ? ' The host also says yes to each player.' : ''}
           {signupFee ? ` Entry: ${signupFee.toLocaleString()} gp.` : ''}
         </div>
+        {info.gate?.twitchLinked && (
+          <div className="mt-0.5 text-[12.5px] text-text-dim">Your Twitch: {info.gate.twitchLinked}</div>
+        )}
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
+        {/* Linking first saves a round trip when the gate is Twitch-only. */}
+        {info.gate?.usesTwitch && info.gate.twitchAvailable && !info.gate.twitchLinked && !gateFail?.linkTwitch && (
+          <button
+            type="button"
+            onClick={() => window.location.assign(linkTwitchHref())}
+            className="rounded-xl border border-gold/40 px-4 py-3 text-base text-gold transition-colors hover:border-gold"
+          >
+            Link Twitch
+          </button>
+        )}
         {options.length > 1 && (
           <Select
             value={chosen != null ? String(chosen) : ''}
@@ -372,6 +431,39 @@ function CreatorJoin({
           {busy ? 'Joining…' : asks ? 'Ask to join' : 'Join'}
         </button>
       </div>
+      {gateFail && (
+        <div className="w-full rounded-lg border border-accent-red/40 bg-accent-red/10 p-3 text-sm">
+          <div className="font-semibold">{gateFail.summary}</div>
+          {gateFail.steps.length > 0 && (
+            <>
+              <div className="mt-1 text-text-muted">
+                {gateFail.transient
+                  ? 'We couldn’t check just now:'
+                  : gateFail.steps.length > 1
+                    ? 'Do one of these, then press Join again:'
+                    : 'Do this, then press Join again:'}
+              </div>
+              <ul className="mt-1 list-disc pl-5">
+                {gateFail.steps.map((s) => (
+                  <li key={s}>{s}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          {gateFail.linkTwitch && (
+            <button
+              type="button"
+              onClick={() => window.location.assign(linkTwitchHref())}
+              className="mt-3 inline-block rounded-xl bg-gold px-4 py-2 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+            >
+              Link Twitch
+            </button>
+          )}
+        </div>
+      )}
+      {twitchNote && (
+        <p className={`w-full text-[12.5px] ${twitchNote.ok ? 'text-accent-green-light' : 'text-accent-red'}`}>{twitchNote.text}</p>
+      )}
       {error && <p className="w-full text-[12.5px] text-accent-red">{error}</p>}
     </Card>
   );

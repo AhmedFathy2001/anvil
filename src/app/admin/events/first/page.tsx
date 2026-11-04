@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { events } from '@/db/schema';
 import { requireClan } from '@/lib/clanContext';
 import { suggestEventName } from '@/lib/eventPresets';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 import FirstEventClient from './FirstEventClient';
 
 export const dynamic = 'force-dynamic';
@@ -17,5 +18,11 @@ export default async function FirstEventPage() {
   const clan = await requireClan();
   // clan-scope: this clan's own events, for the suggested name's number.
   const [ec] = await db.select({ c: count() }).from(events).where(eq(events.clanId, clan.id));
-  return <FirstEventClient suggestedName={suggestEventName(clan.name, ec?.c ?? 0)} first={(ec?.c ?? 0) === 0} />;
+  return (
+    <FirstEventClient
+      suggestedName={suggestEventName(clan.name, ec?.c ?? 0)}
+      first={(ec?.c ?? 0) === 0}
+      creator={isCreatorSpace(clan)}
+    />
+  );
 }
