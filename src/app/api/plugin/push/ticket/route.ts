@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { pluginRsnHintOnly, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { requireSecret } from '@/lib/env';
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
+import { resolvePluginCharacter } from '@/lib/pluginAccount';
+import { liveBoardsForCharacter } from '@/lib/pluginBoards';
 import { signTicket, ticketKey } from '@/lib/push/ticket';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { publicOrigin } from '@/lib/request-origin';
@@ -10,6 +12,8 @@ import { pushEnabled } from '@/lib/serverInfo';
 
 const KEY = ticketKey(requireSecret('PLAYER_SESSION_SECRET', 'dev-player-secret'));
 const SOCKET_PATH = '/api/plugin/push/ws';
+/** Other live boards a ticket covers beyond the seat's: plenty for real play, bounded for the ticket. */
+const MAX_EXTRA_BOARDS = 8;
 
 // GET /api/plugin/push/ticket — the plugin's pass onto the push socket (capability 'push-ws').
 //
@@ -36,6 +40,16 @@ export async function GET(request: Request) {
   const seat = clan ? await verifyPluginToken(request, { hintOnly: pluginRsnHintOnly(request) }) : null;
   const home = !clan || seat ? null : await homeBoardForUser(clan.id, user.userId);
   const eventIds = seat ? [seat.eventId] : home?.eventId ? [home.eventId] : [];
+  // A plugin that reads panel rows hears EVERY live board its character plays (a creator's event, a
+  // guest board in another clan), not only the one it's pointed at: their chat and Feed rows go to
+  // each board's room. The first stays the seat's board (its team view, its team).
+  if (rows) {
+    const character = await resolvePluginCharacter(request).catch(() => null);
+    if (character) {
+      const others = await liveBoardsForCharacter(request, character.accountId, { except: eventIds[0] ?? null }).catch(() => []);
+      for (const b of others.slice(0, MAX_EXTRA_BOARDS)) if (!eventIds.includes(b.eventId)) eventIds.push(b.eventId);
+    }
+  }
   if (eventIds.length === 0 && !feed && !rows) return new NextResponse(null, { status: 204 });
 
   const { ticket, expiresAt } = signTicket(
