@@ -2512,6 +2512,9 @@ export const en = {
         'It only answers in a channel you connected in step 7. It works in Kick chat too, once your Kick channel is connected.',
         'No event open? It says so: “No event is open to join right now — keep an eye on the stream!”',
       ],
+      tips: [
+        'If your chat blocks links (Twitch’s **Block hyperlinks** or AutoMod), the bot’s reply gets held. Type `/vip anvil_osrs` or `/mod anvil_osrs` in your chat once so its link gets through.',
+      ],
     },
 
     listing: {

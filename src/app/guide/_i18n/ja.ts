@@ -2523,6 +2523,9 @@ const ja: PartialGuideDict = {
         'つないだチャンネル（ステップ 7）でだけ答えます。Kick チャンネルをつないだあとは、Kick のチャットでも動きます。',
         'イベントが開いていないときは、そう伝えます：“No event is open to join right now — keep an eye on the stream!”',
       ],
+      tips: [
+        'チャットでリンクをブロックしている場合（Twitch の **Block hyperlinks** や AutoMod）、ボットの返信は保留されます。チャットで一度 `/vip anvil_osrs` または `/mod anvil_osrs` と入力すると、リンクが表示されるようになります。',
+      ],
     },
 
     listing: {

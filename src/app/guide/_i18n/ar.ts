@@ -2523,6 +2523,9 @@ const ar: PartialGuideDict = {
         'يرد فقط في قناة ربطتها في الخطوة 7. ويعمل في دردشة Kick أيضًا بعد ربط قناتك على Kick.',
         'لا توجد فعالية مفتوحة؟ يقول ذلك: “No event is open to join right now — keep an eye on the stream!”',
       ],
+      tips: [
+        'إذا كانت دردشتك تحظر الروابط (خيار **Block hyperlinks** في Twitch أو AutoMod)، فسيتم حجز رد البوت. اكتب `/vip anvil_osrs` أو `/mod anvil_osrs` في دردشتك مرة واحدة ليظهر الرابط.',
+      ],
     },
 
     listing: {

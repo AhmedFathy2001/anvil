@@ -2522,6 +2522,9 @@ const zhHans: PartialGuideDict = {
         '它只在你于第 7 步连接过的频道里回复。你的 Kick 频道连接后，它在 Kick 聊天里也能用。',
         '没有开放的活动？它会这么说：“No event is open to join right now — keep an eye on the stream!”',
       ],
+      tips: [
+        '如果你的聊天室屏蔽链接（Twitch 的 **Block hyperlinks** 或 AutoMod），机器人的回复会被拦下。在聊天里输入一次 `/vip anvil_osrs` 或 `/mod anvil_osrs`，链接就能发出来。',
+      ],
     },
 
     listing: {

@@ -104,6 +104,9 @@ export default async function CreatorsGuide({ lang }: { lang: string }) {
 
       <Section id="chatjoin" n={9} title={c.chatjoin.title} labels={t.common} optional>
         {paragraphs(c.chatjoin.body, v)}
+        <Note tag={c.overlay.tipsTag}>
+          <ul className="list-disc ps-5 space-y-1.5">{items(c.chatjoin.tips, v)}</ul>
+        </Note>
       </Section>
 
       <Section id="listing" n={10} title={c.listing.title} labels={t.common} optional>
