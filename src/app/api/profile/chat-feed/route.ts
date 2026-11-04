@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { verifyUser } from '@/lib/auth';
 import { getChatFeedPrefs, setChatFeedPrefs } from '@/lib/chatFeed';
 import { cleanPrefs } from '@/lib/chatFeedRules';
+import { notifyRows } from '@/lib/panelRows';
 import { supporterForUser } from '@/lib/supporter';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,8 @@ export async function PUT(request: Request) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return NextResponse.json({ error: 'Bad body' }, { status: 400 });
   const prefs = cleanPrefs({ ...(await getChatFeedPrefs(session.userId)), ...body });
   await setChatFeedPrefs(session.userId, prefs);
+  // The plugin reads its chat colours at login; this tells an open one to read them again now.
+  await notifyRows({ u: [session.userId] }, { t: 'look' }).catch(() => {});
   const supporter = await supporterForUser(session.userId).catch(() => null);
   return NextResponse.json({ ...prefs, tier: supporter?.tier.id ?? null });
 }
