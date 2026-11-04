@@ -4,14 +4,15 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
 import SupporterName from '@/components/SupporterName';
-import { compactXp, foldHref, seatLabel, type FoldCharacter } from '@/lib/characterFold';
+import { compactXp, foldHref, fullProfileHref, seatLabel, type FoldCharacter } from '@/lib/characterFold';
 import type { SupporterStyle } from '@/lib/supporterStyle';
 import type { SupporterTierId } from '@/lib/supporterTiers';
 
 /**
- * Several characters, folded under the person: one line — "3 characters ▾ · viewing Drenvox" — that
- * opens a compact list, one row per character. Picking a row makes it the page's character
- * (?account=<rsn>, the same link the chips used) and folds the list away again.
+ * Their characters, folded under the person: one line — "3 characters ▾" (on a character's view,
+ * "· viewing Drenvox"), even for one — that opens a compact list, one row per character. Picking a
+ * row opens that character's view (?account=<rsn>, a history entry, so Back returns) and folds the
+ * list away again.
  *
  * A real disclosure button (aria-expanded / aria-controls), so it works from the keyboard and with a
  * screen reader; Escape folds it and gives focus back to the button.
@@ -79,7 +80,9 @@ export default function CharacterFold({
           open ? 'border-gold/60' : 'border-card-border'
         }`}
       >
-        <span className="whitespace-nowrap font-medium">{characters.length} characters</span>
+        <span className="whitespace-nowrap font-medium">
+          {characters.length} character{characters.length === 1 ? '' : 's'}
+        </span>
         <span aria-hidden className={`text-[10px] text-text-muted transition-transform ${open ? 'rotate-180' : ''}`}>
           ▾
         </span>
@@ -108,15 +111,13 @@ export default function CharacterFold({
           {characters.map((c) => {
             const isSelected = c.rsn === selectedRsn;
             return (
-              <li key={c.accountId}>
+              <li key={c.accountId} className={isSelected ? 'bg-gold/[0.07]' : ''}>
                 <ClanLink
                   // A push, not a replace: Back returns to the character you came from.
                   href={foldHref(c.rsn, search)}
                   aria-current={isSelected ? 'page' : undefined}
                   onClick={() => setOpen(false)}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-card-bg-hover focus-visible:bg-card-bg-hover focus-visible:outline-none ${
-                    isSelected ? 'bg-gold/[0.07]' : ''
-                  }`}
+                  className="flex items-center gap-2.5 px-3 pt-2.5 pb-1.5 text-sm transition-colors hover:bg-card-bg-hover focus-visible:bg-card-bg-hover focus-visible:outline-none"
                 >
                   <span
                     className={`h-2 w-2 shrink-0 rounded-full ${
@@ -160,6 +161,24 @@ export default function CharacterFold({
                     {c.totalLevel == null && c.totalXp == null && <span className="block text-text-dim">no stats yet</span>}
                   </span>
                 </ClanLink>
+                {/* Each character's own doors, beside it rather than on the person's header: its
+                    settings (sharing, main, clans, rename, remove) and the page others see. */}
+                <div className="flex flex-wrap gap-x-4 gap-y-1 pb-2.5 pl-[2.1rem] pr-3 text-[12px]">
+                  <ClanLink
+                    href={`/settings/characters/${c.accountId}`}
+                    className="text-text-muted hover:text-gold"
+                    aria-label={`Settings for ${c.rsn}`}
+                  >
+                    ⚙ Settings
+                  </ClanLink>
+                  <ClanLink
+                    href={fullProfileHref(c, space)}
+                    className="text-gold hover:underline"
+                    aria-label={`${c.rsn}'s full profile`}
+                  >
+                    Full profile →
+                  </ClanLink>
+                </div>
               </li>
             );
           })}

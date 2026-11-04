@@ -26,12 +26,8 @@ interface Props {
   isStaff: boolean;
   /** Every character of theirs this tab lists — seated here or not (lib/characterFold). */
   characters: FoldCharacter[];
-  /** The character the page's profile is about; the fold's selected row. */
-  focusRsn: string | null;
   /** A creator space's tab: its seats are event seats. */
   space: boolean;
-  /** Where "View full profile" goes: the clan's member page, or /p/ in a creator space (no member pages). */
-  fullProfileHref: string | null;
   connection: LockerConnection;
   career: LockerCareer | null;
   nowMs: number;
@@ -76,16 +72,12 @@ export default function PlayerCard({
   role,
   isStaff,
   characters,
-  focusRsn,
   space,
-  fullProfileHref,
   connection,
   career,
   nowMs,
 }: Props) {
   const played = career && career.eventsPlayed > 0;
-  const focus = characters.find((a) => a.rsn === focusRsn) ?? null;
-  const only = characters.length === 1 ? characters[0] : null;
 
   return (
     <section className="relative overflow-hidden rounded-2xl border border-card-border bg-card-bg p-5 sm:p-6">
@@ -140,42 +132,17 @@ export default function PlayerCard({
             </div>
             {discordUsername && <div className="text-sm text-text-muted mt-0.5">@{discordUsername} on Discord</div>}
 
-            {/* Their characters, folded under the person once there is more than one: one line
-                that opens a list, and picking a row makes it the page's character. A single
-                character is just its name, with the plugin dot that says "is this thing on?". */}
+            {/* Their characters, always folded under the person — even one — so the overview stays
+                about the person: one line that opens a list, and a row opens that character's view. */}
             <div className="flex flex-wrap items-start gap-2 mt-3">
               {characters.length === 0 ? (
                 <span className="inline-flex items-center gap-2 rounded-full border border-dashed border-card-border px-3 py-1.5 text-sm text-text-muted">
                   No RuneScape account linked yet
                 </span>
-              ) : only ? (
-                <span
-                  className="inline-flex items-center gap-2 rounded-full border border-card-border bg-brown-dark/60 pl-2 pr-3 py-1 text-sm"
-                  title={only.lastPingAt ? `Last plugin ping ${ago(only.lastPingAt, nowMs)}` : 'No plugin ping yet'}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full shrink-0 ${
-                      only.lastPingAt ? 'bg-accent-green-light ring-2 ring-accent-green/25' : 'bg-text-muted'
-                    }`}
-                  />
-                  <SupporterName
-                    name={only.rsn}
-                    tier={supporterTier}
-                    style={supporterStyle}
-                    plain
-                    star={false}
-                    className="truncate max-w-[12rem]"
-                  />
-                  {only.playingIn ? (
-                    <span className="text-[11px] text-accent-green-light">playing</span>
-                  ) : !only.verified ? (
-                    <span className="text-[11px] text-yellow-400">unverified</span>
-                  ) : null}
-                </span>
               ) : (
                 <CharacterFold
                   characters={characters}
-                  selectedRsn={focusRsn}
+                  selectedRsn={null}
                   supporterTier={supporterTier}
                   supporterStyle={supporterStyle}
                   space={space}
@@ -189,24 +156,6 @@ export default function PlayerCard({
                 + Add a character
               </ClanLink>
             </div>
-            {/* The selected character: its settings (sharing, main, clans, rename, remove), and the
-                page the rest of the clan sees. Its profile itself is the rest of this page. */}
-            {focus && (
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
-                <ClanLink
-                  href={`/settings/characters/${focus.accountId}`}
-                  className="text-text-muted hover:text-gold"
-                  aria-label={`Settings for ${focus.rsn}`}
-                >
-                  ⚙ {focus.rsn} settings
-                </ClanLink>
-                {fullProfileHref && (
-                  <ClanLink href={fullProfileHref} className="text-gold hover:underline">
-                    View full profile →
-                  </ClanLink>
-                )}
-              </div>
-            )}
           </div>
 
           {isStaff && (

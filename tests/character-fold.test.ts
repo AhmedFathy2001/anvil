@@ -43,22 +43,29 @@ test('XP reads at a glance', () => {
   assert.equal(compactXp(12_300), '12K');
 });
 
-test('?account= picks one of theirs, any spelling, and falls back to the main for anything else', async () => {
-  const { pickFoldCharacter } = await import('../src/lib/characterFold.ts');
+test('?account= opens one of theirs, any spelling; anything else is the overview', async () => {
+  const { pickViewedCharacter } = await import('../src/lib/characterFold.ts');
   const seated = [{ rsn: 'Drenvox' }, { rsn: 'Iron Dren' }];
   const unseated = [{ rsn: 'Pk Dren' }];
-  // The locker resolves ?account= among the seated, so this layer only has to honour its answer.
-  assert.deepEqual(pickFoldCharacter('Iron Dren', seated, 'Iron Dren', unseated), { row: seated[1], seated: true });
-  // A character this clan doesn't seat, by any spelling of its name.
-  assert.deepEqual(pickFoldCharacter('pk_dren', seated, 'Drenvox', unseated), { row: unseated[0], seated: false });
-  assert.deepEqual(pickFoldCharacter('  PK DREN ', seated, 'Drenvox', unseated), { row: unseated[0], seated: false });
-  // Not theirs, a typo, empty: the default, no error.
-  assert.deepEqual(pickFoldCharacter('Zezima', seated, 'Drenvox', unseated), { row: seated[0], seated: true });
-  assert.deepEqual(pickFoldCharacter('', seated, 'Drenvox', unseated), { row: seated[0], seated: true });
-  assert.deepEqual(pickFoldCharacter(undefined, seated, null, unseated), { row: seated[0], seated: true });
-  // Nothing seated (a clan that holds none of them): an unseated pick still works, else nothing.
-  assert.deepEqual(pickFoldCharacter('Pk Dren', [], null, unseated), { row: unseated[0], seated: false });
-  assert.equal(pickFoldCharacter('Zezima', [], null, unseated), null);
+  assert.deepEqual(pickViewedCharacter('Iron Dren', seated, unseated), { row: seated[1], seated: true });
+  assert.deepEqual(pickViewedCharacter('iron_dren', seated, unseated), { row: seated[1], seated: true });
+  assert.deepEqual(pickViewedCharacter('pk_dren', seated, unseated), { row: unseated[0], seated: false });
+  assert.deepEqual(pickViewedCharacter('  PK DREN ', seated, unseated), { row: unseated[0], seated: false });
+  // No param, empty, a typo, somebody else: the overview — not the main.
+  assert.equal(pickViewedCharacter(undefined, seated, unseated), null);
+  assert.equal(pickViewedCharacter('', seated, unseated), null);
+  assert.equal(pickViewedCharacter('Zezima', seated, unseated), null);
+  // Nothing seated here (a creator space lists them all as seated; a clan may seat none).
+  assert.deepEqual(pickViewedCharacter('Pk Dren', [], unseated), { row: unseated[0], seated: false });
+});
+
+test('the full profile is the member page for a seat on a clan tab, else /p/', async () => {
+  const { fullProfileHref } = await import('../src/lib/characterFold.ts');
+  assert.equal(fullProfileHref({ rsn: 'Iron Dren', seat: 'member' }, false), '/members/Iron%20Dren');
+  assert.equal(fullProfileHref({ rsn: 'Iron Dren', seat: 'guest' }, false), '/members/Iron%20Dren');
+  assert.equal(fullProfileHref({ rsn: 'Iron Dren', seat: null }, false), '/p/Iron%20Dren');
+  assert.equal(fullProfileHref({ rsn: 'Iron Dren', seat: 'event' }, true), '/p/Iron%20Dren');
+  assert.equal(fullProfileHref({ rsn: 'Iron Dren', seat: 'member' }, true), '/p/Iron%20Dren');
 });
 
 test('a row keeps the tab and drops the picks inside it', async () => {
