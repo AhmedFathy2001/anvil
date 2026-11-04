@@ -2,6 +2,7 @@
 
 import SettingsCard from './settings/SettingsCard';
 import { useSaveBar } from './settings/SaveBar';
+import { Segmented } from './settings/controls';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DateTimePicker from '@/components/DateTimePicker';
@@ -75,65 +76,58 @@ export default function StandingsVisibilityPanel({ event }: { event: Event }) {
     }
   }
 
-  const option = (value: StandingsVisibility, label: string) => (
-    <label className="flex items-center gap-2 text-sm cursor-pointer">
-      <input
-        type="radio"
-        name={`standings-${event.id}`}
-        value={value}
-        checked={visibility === value}
-        onChange={() => {
-          setVisibility(value);
-          setMsg(null);
-          if (value === 'at-date' && !revealAt && finalWeek) setRevealAt(finalWeek);
-        }}
-        className="h-4 w-4 accent-gold"
-      />
-      {label}
-    </label>
-  );
+  function pick(value: StandingsVisibility) {
+    setVisibility(value);
+    setMsg(null);
+    if (value === 'at-date' && !revealAt && finalWeek) setRevealAt(finalWeek);
+  }
 
   return (
-    <SettingsCard title="Standings" description={<>Who can see the race. While the standings are hidden, players still see their own team&apos;s board,
-        progress and points — just not anyone else&apos;s. Team names and rosters stay visible, staff always see
-        everything, and shared Discord channels stop posting progress until the reveal.</>}>
+    <SettingsCard
+      title="Standings"
+      description={<>Who can see the race. While hidden, players see only their own team&apos;s progress; staff see everything and shared Discord channels pause.</>}
+    >
 
-      <div className="space-y-2.5">
-        {option('live', 'Live')}
-        {option('at-end', 'Hidden until the event ends')}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          {option('at-date', 'Hidden until a date')}
-          {visibility === 'at-date' && (
-            <>
-              <div className="w-64 max-w-full">
-                <DateTimePicker
-                  value={revealAt}
-                  onChange={(value) => {
-                    setRevealAt(value);
-                    setMsg(null);
-                  }}
-                  placeholder="When the standings come back"
-                  ariaLabel="Standings reveal date and time"
-                />
-              </div>
-              {finalWeek && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRevealAt(finalWeek);
-                    setMsg(null);
-                  }}
-                  className="text-xs px-2.5 py-1.5 rounded-lg border border-gold/30 text-gold hover:bg-gold/10 transition-colors"
-                  title="Seven days before the event ends"
-                >
-                  Final week
-                </button>
-              )}
-            </>
+      <Segmented
+        label="Standings"
+        value={visibility}
+        onChange={pick}
+        options={[
+          { value: 'live', label: 'Live', hint: 'Everyone sees the race as it happens.' },
+          { value: 'at-end', label: 'Hidden until the end', hint: 'Revealed the moment the event ends.' },
+          { value: 'at-date', label: 'Hidden until a date', hint: 'Revealed at the time you pick.' },
+        ]}
+      />
+      {visibility === 'at-date' && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="w-64 max-w-full">
+            <DateTimePicker
+              value={revealAt}
+              onChange={(value) => {
+                setRevealAt(value);
+                setMsg(null);
+              }}
+              placeholder="When the standings come back"
+              ariaLabel="Standings reveal date and time"
+            />
+          </div>
+          {finalWeek && (
+            <button
+              type="button"
+              onClick={() => {
+                setRevealAt(finalWeek);
+                setMsg(null);
+              }}
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-gold/30 text-gold hover:bg-gold/10 transition-colors"
+              title="Seven days before the event ends"
+            >
+              Final week
+            </button>
           )}
         </div>
-      </div>
+      )}
 
+      {(!inBar || msg) && (
       <div className="mt-4 flex flex-wrap items-center gap-3">
         {!inBar && (
           <button
@@ -156,6 +150,7 @@ export default function StandingsVisibilityPanel({ event }: { event: Event }) {
           </span>
         )}
       </div>
+      )}
     </SettingsCard>
   );
 }

@@ -4,12 +4,12 @@
 //
 // A creator space and a clan are DIFFERENT shapes, not one page with parts hidden:
 //
-//   space   Event · Viewers · Stream · Board & play · More
-//   clan    Event · Board & play · Entry & co-hosts · Staff · More      (+ Stream when it streams)
+//   space   Event · Viewers · Stream · Board & play · Rules · More
+//   clan    Event · Board & play · Rules · Entry & co-hosts · Staff · More      (+ Stream when it streams)
 //
 // The same panels back both where they mean the same thing; the words are the host's.
 
-export type SettingsTab = 'event' | 'board' | 'access' | 'staff' | 'stream' | 'more';
+export type SettingsTab = 'event' | 'board' | 'rules' | 'access' | 'staff' | 'stream' | 'more';
 
 export interface SettingsKind {
   /** A creator space (lib/creatorSpaces isCreatorSpace). */
@@ -25,16 +25,17 @@ export interface TabInfo {
   label: string;
 }
 
-const SLUG: Record<SettingsTab, string> = { event: '', board: 'board', access: 'access', staff: 'staff', stream: 'stream', more: 'more' };
+const SLUG: Record<SettingsTab, string> = { event: '', board: 'board', rules: 'rules', access: 'access', staff: 'staff', stream: 'stream', more: 'more' };
 
 export function tabsFor(kind: SettingsKind): TabInfo[] {
   const t = (key: SettingsTab, label: string): TabInfo => ({ key, slug: SLUG[key], label });
   if (kind.creator) {
-    return [t('event', 'Event'), t('access', 'Viewers'), t('stream', 'Stream'), t('board', 'Board & play'), t('more', 'More')];
+    return [t('event', 'Event'), t('access', 'Viewers'), t('stream', 'Stream'), t('board', 'Board & play'), t('rules', 'Rules'), t('more', 'More')];
   }
   return [
     t('event', 'Event'),
     t('board', 'Board & play'),
+    t('rules', 'Rules'),
     t('access', 'Entry & co-hosts'),
     t('staff', 'Staff'),
     ...(kind.streams ? [t('stream', 'Stream')] : []),
@@ -77,7 +78,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
   { id: 'opening', label: 'How tiles open', keywords: ['progressive', 'rotating', 'draw', 'staggered', 'one at a time', 'reveal rules', 'timer'], tab: 'board' },
   { id: 'standings', label: 'Hide standings', keywords: ['leaderboard', 'scores', 'hidden standings', 'curtain', 'ranking'], tab: 'board' },
   { id: 'worlds', label: 'Game-mode worlds', keywords: ['leagues', 'deadman', 'game mode', 'hardcore', 'fresh start', 'worlds'], tab: 'board' },
-  { id: 'rulebook', label: 'Rulebook', keywords: ['rules', 'shared accounts', 'post rules', 'discord rules', 'cheating'], tab: 'board' },
+  { id: 'rulebook', label: 'Rules and Discord announcement', keywords: ['rules', 'rulebook', 'house rules', 'shared accounts', 'post rules', 'discord rules', 'announcement', 'cheating'], tab: 'rules' },
   { id: 'access', label: 'Who can see and enter', keywords: ['visibility', 'who can see', 'invite', 'invited', 'advertise', 'public', 'private', 'entry', 'listed'], tab: 'access' },
   {
     id: 'gate',
