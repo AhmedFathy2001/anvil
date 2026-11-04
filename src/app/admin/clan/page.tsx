@@ -38,7 +38,7 @@ export default async function ClanProfilePage() {
       <>
         <CreatorSettings />
         <div className="mt-6">
-          <DeleteClan slug={clan.slug} isOwner={!!grant?.isOwner} />
+          <DeleteClan slug={clan.slug} isOwner={!!grant?.isOwner} space />
         </div>
       </>
     );

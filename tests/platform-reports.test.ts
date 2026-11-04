@@ -21,6 +21,7 @@ import {
   REPORT_TARGETS,
   SNAPSHOT_MAX,
   snapshotUrl,
+  showReportButton,
   TARGET_ACTIONS,
 } from '../src/lib/platformReportRules.ts';
 
@@ -123,4 +124,16 @@ test('the reporter is never exposed: only the platform queue reads the reports t
   const btn = read('src/components/ReportButton.tsx');
   assert.ok(!/window\.(confirm|alert|prompt)|\balert\(|\bconfirm\(/.test(btn));
   assert.match(btn, /useModalA11y/);
+});
+
+test("the Report flag: everyone signed in, except the target's own staff and on your own content", () => {
+  assert.equal(showReportButton({ signedIn: true }), true);
+  assert.equal(showReportButton({ signedIn: false }), false, 'signed out never sees it');
+  assert.equal(showReportButton({ signedIn: true, staffOfTarget: true }), false, "the clan's / space's own staff don't");
+  assert.equal(showReportButton({ signedIn: true, ownContent: true }), false, 'nobody reports themselves');
+  // Every page that draws the flag routes it through the helper, so staff never see it.
+  for (const p of ['src/app/page.tsx', 'src/app/events/[eventId]/page.tsx']) {
+    assert.match(read(p), /showReportButton\(\{[\s\S]*?staffOfTarget/, p);
+  }
+  assert.match(read('src/components/PublicClanHome.tsx'), /\{canReport && \(/);
 });

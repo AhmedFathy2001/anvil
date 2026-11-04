@@ -30,6 +30,15 @@ export function isReportTarget(v: unknown): v is ReportTarget {
   return typeof v === 'string' && (REPORT_TARGETS as readonly string[]).includes(v);
 }
 
+/**
+ * Does this viewer get the "Report" flag? Signed in, and it is not theirs: nobody reports their own
+ * profile, and the people who RUN the thing (any staff grant in the target's clan — owner, admin,
+ * moderator, an editor seat) fix it in their settings rather than flag it to Anvil.
+ */
+export function showReportButton(viewer: { signedIn: boolean; staffOfTarget?: boolean; ownContent?: boolean }): boolean {
+  return viewer.signedIn && !viewer.staffOfTarget && !viewer.ownContent;
+}
+
 /** The reasons, plain and short. Stored as the key; shown as the label. */
 export const REPORT_CATEGORIES = ['jagex_rules', 'scam', 'harassment', 'impersonation', 'inappropriate', 'cheating', 'other'] as const;
 export type ReportCategory = (typeof REPORT_CATEGORIES)[number];

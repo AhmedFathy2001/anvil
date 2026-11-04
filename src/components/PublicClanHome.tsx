@@ -32,11 +32,14 @@ function shortDate(iso: string): string {
 export default function PublicClanHome({
   view,
   signedIn,
+  canReport = false,
   hall = null,
   activity = null,
 }: {
   view: View;
   signedIn: boolean;
+  /** Show the Report flag: signed in and not this clan's staff (lib/platformReportRules showReportButton). */
+  canReport?: boolean;
   /** What a visitor can open: live, coming and finished competitions and the week's top players. */
   activity?: PublicClanActivity | null;
   /** Who's around right now (components/ClanHall), when the clan's Discord is connected. */
@@ -373,8 +376,8 @@ export default function PublicClanHome({
           Join the Anvil Discord
         </a>
       </div>
-      {/* To Anvil staff, not the clan (lib/platformReports). Signed-in visitors only. */}
-      {signedIn && (
+      {/* To Anvil staff, not the clan (lib/platformReports). Signed-in visitors who don't run it. */}
+      {canReport && (
         <div className="mt-3 flex justify-end">
           <ReportButton type="clan" id={view.id} label="Report this clan" />
         </div>

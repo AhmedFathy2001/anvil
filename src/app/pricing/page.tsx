@@ -192,7 +192,7 @@ function CreatorPricing({ enforced }: { enforced: boolean }) {
     { label: 'Only your Twitch followers or subs (by tier)', cell: (p) => (has(p, 'stream-gates') ? yes : '—') },
     { label: 'Only your Kick followers or subs (any sub)', cell: (p) => (has(p, 'stream-gates') ? yes : '—') },
     { label: 'Only your YouTube subscribers or members', cell: (p) => (has(p, 'stream-gates') ? yes : '—') },
-    { label: 'OBS overlay', cell: (p) => (has(p, 'overlay-unbranded') ? 'Yes, Anvil mark optional' : 'Yes, with a small Anvil mark') },
+    { label: 'OBS overlay', cell: (p) => (has(p, 'overlay-unbranded') ? 'Yes, “Powered by Anvil” badge optional' : 'Yes, with a small “Powered by Anvil” badge') },
     { label: '!join in your Twitch or Kick chat', cell: (p) => (has(p, 'chat-join-bot') ? yes : '—') },
     { label: 'Listed on Anvil (if you want)', cell: (p) => (has(p, 'featured-listing') ? 'Featured first' : yes) },
   ];

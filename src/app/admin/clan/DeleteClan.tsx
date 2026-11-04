@@ -15,7 +15,17 @@ import { clanFetch } from '@/lib/clanFetch';
  * satisfy from either of them is not a confirmation. The server checks the same thing again — this
  * is the part that stops an accident, not the part that stops an attacker.
  */
-export default function DeleteClan({ slug, isOwner }: { slug: string; isOwner: boolean }) {
+export default function DeleteClan({
+  slug,
+  isOwner,
+  space = false,
+}: {
+  slug: string;
+  isOwner: boolean;
+  /** A creator space: same delete, in space words (events, players) rather than clan words. */
+  space?: boolean;
+}) {
+  const noun = space ? 'space' : 'clan';
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
@@ -34,14 +44,14 @@ export default function DeleteClan({ slug, isOwner }: { slug: string; isOwner: b
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(j.error ?? 'Could not delete the clan.');
+        setError(j.error ?? `Could not delete the ${noun}.`);
         setBusy(false);
         return;
       }
       // A full navigation, not a router push: the host we are on has just stopped resolving.
       window.location.href = j.redirect ?? '/';
     } catch {
-      setError('Could not delete the clan.');
+      setError(`Could not delete the ${noun}.`);
       setBusy(false);
     }
   }
@@ -50,14 +60,22 @@ export default function DeleteClan({ slug, isOwner }: { slug: string; isOwner: b
     <div id="delete-clan" className="mt-8 scroll-mt-24 rounded-xl border border-red-900/40 bg-card-bg p-5">
       <div className="flex items-center gap-2">
         <span className="h-5 w-1 rounded-full bg-accent-red" />
-        <h2 className="text-lg font-semibold">Delete this clan</h2>
+        <h2 className="text-lg font-semibold">Delete this {noun}</h2>
       </div>
 
-      <p className="mt-2 max-w-[70ch] text-sm text-text-muted">
-        Removes the clan and everything in it — every board, tile, sign-up, fee, roster seat and
-        setting. Members keep their characters and their other clans. This cannot be undone, and the
-        address <span className="font-mono text-gold/90">{slug}</span> becomes free for anyone.
-      </p>
+      {space ? (
+        <p className="mt-2 max-w-[70ch] text-sm text-text-muted">
+          Removes the space and everything in it — every event, tile, sign-up and setting. Players keep
+          their characters. This cannot be undone, and the address{' '}
+          <span className="font-mono text-gold/90">{slug}</span> becomes free for anyone.
+        </p>
+      ) : (
+        <p className="mt-2 max-w-[70ch] text-sm text-text-muted">
+          Removes the clan and everything in it — every board, tile, sign-up, fee, roster seat and
+          setting. Members keep their characters and their other clans. This cannot be undone, and the
+          address <span className="font-mono text-gold/90">{slug}</span> becomes free for anyone.
+        </p>
+      )}
 
       {!open ? (
         <button
@@ -65,7 +83,7 @@ export default function DeleteClan({ slug, isOwner }: { slug: string; isOwner: b
           onClick={() => setOpen(true)}
           className="mt-4 rounded-md border border-red-900/60 px-3 py-1.5 text-xs text-red-400 transition-colors hover:bg-red-950/40"
         >
-          Delete clan
+          Delete {noun}
         </button>
       ) : (
         <div className="mt-4 space-y-3">
