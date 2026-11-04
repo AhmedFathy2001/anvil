@@ -22,6 +22,7 @@ import {
   users,
 } from '@/db/schema';
 import { parseStamp } from '@/lib/dbTime';
+import { streamGateLock } from '@/lib/creatorPlans';
 import {
   GateCache,
   checkGates,
@@ -483,10 +484,11 @@ export async function entryGateInfo(eventId: number, userId: number | null): Pro
 
 export async function gateOptions(clanId: number): Promise<GateOptions> {
   const configured = twitchConfig() !== null;
-  const [channel, creds, youtube] = await Promise.all([
+  const [channel, creds, youtube, host] = await Promise.all([
     configured ? hostTwitchChannel(clanId) : null,
     getBotCredentials(clanId),
     youtubeGateOptions(clanId),
+    db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { plan: true } }),
   ]);
   const roles = creds
     ? (await fetchGuildRoles(clanId))
@@ -500,6 +502,7 @@ export async function gateOptions(clanId: number): Promise<GateOptions> {
   return {
     twitch: { configured, channel, connectUrl: configured ? `/api/auth/twitch/start?as=host&space=${clanId}` : null },
     discord: { connected: !!creds, roles },
+    streamLock: streamGateLock(host?.plan),
     youtube,
     ...(await kickOptionsField(clanId)),
   };

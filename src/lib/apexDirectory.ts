@@ -11,6 +11,7 @@ import { accounts, clanMemberships, clans, events as eventsTable, memberDailySta
 import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
 import { apexDomain } from '@/lib/clanContext';
 import { asFocus } from '@/lib/clanHome';
+import { featuredListing } from '@/lib/creatorPlans';
 import type { DirectoryClan } from '@/components/ApexDirectory';
 
 /**
@@ -38,6 +39,7 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
       verified: clans.ingameNameVerifiedAt,
       guestPolicy: clans.guestPolicy,
       kind: clans.kind,
+      plan: clans.plan,
       members: count(clanMemberships.id),
     })
     .from(clans)
@@ -72,6 +74,7 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
       clans.ingameNameVerifiedAt,
       clans.guestPolicy,
       clans.kind,
+      clans.plan,
     )
     .orderBy(clans.name);
 
@@ -125,6 +128,7 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
     guestPolicy: r.guestPolicy,
     /** 'creator' for a creator space (lib/creatorSpaces) — no members to count. */
     kind: r.kind,
+    featured: featuredListing(r.kind, r.plan),
     activeThisWeek: activeBy.get(r.id)?.actives ?? 0,
     xpThisWeek: activeBy.get(r.id)?.xp ?? 0,
   }));

@@ -3,6 +3,7 @@ import { pendingUpdateCount } from '@/lib/guides';
 import { redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import { redirectFor } from '@/lib/adminAccess';
+import { atLeast } from '@/lib/clanRoles';
 import { getSetting, setSetting } from '@/lib/settings';
 import { SNOOZE_SETTING_KEY, parseSnoozes } from '@/lib/adminSnooze';
 import SnoozeButton from './SnoozeButton';
@@ -63,7 +64,9 @@ export default async function AdminDashboardPage() {
   const setup = await getSetupStatus(clan.id);
   // A creator space (lib/creatorSpaces) has no roster: no member counts, no roster nags, no weeklies.
   const creator = setup.creator;
-  if (creator) return <CreatorDashboard clanId={clan.id} setup={setup} />;
+  if (creator) {
+    return <CreatorDashboard clanId={clan.id} setup={setup} clanPlan={clan.plan} canBuy={!!session && atLeast(session.role, 'admin')} />;
+  }
   if (setup.isFresh && !setup.wizardShown) {
     await setSetting(clan.id, 'setup_wizard_shown', new Date().toISOString());
     redirect(await clanHref('/admin/setup?welcome=1'));

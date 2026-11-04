@@ -383,6 +383,20 @@ test('!join: only when switched on; replies once per cooldown as the app bot thr
   const r1 = await W.handleKickWebhook(on.headers, on.raw);
   assert.deepEqual(r1.after, { kind: 'join', clanId: spaceId, broadcasterId: BROADCASTER, replyTo: body.message_id });
 
+  // The plan (lib/creatorPlans): once FREEMIUM_ENFORCED is on, `!join` is Silver+ — a Free space's
+  // channel is ignored exactly like the Twitch bot's chatBotChannels skips it.
+  process.env.FREEMIUM_ENFORCED = 'true';
+  try {
+    const capped = webhook('chat.message.sent', chat(7601, 'asker', '!join'));
+    assert.equal((await W.handleKickWebhook(capped.headers, capped.raw)).after, undefined, 'Free + enforced: no reply');
+    await db.update(s.clans).set({ plan: 'silver' }).where(eq(s.clans.id, spaceId));
+    const paid = webhook('chat.message.sent', chat(7601, 'asker', '!join'));
+    assert.equal((await W.handleKickWebhook(paid.headers, paid.raw)).after?.kind, 'join', 'Silver + enforced: replies');
+  } finally {
+    delete process.env.FREEMIUM_ENFORCED;
+    await db.update(s.clans).set({ plan: 'free' }).where(eq(s.clans.id, spaceId));
+  }
+
   const before = net.chats.length;
   assert.equal(await C.answerKickJoin({ clanId: spaceId, broadcasterId: BROADCASTER, replyTo: body.message_id }, 1_000_000), true);
   const sent = net.chats[before];

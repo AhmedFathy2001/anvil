@@ -39,6 +39,10 @@ export default function EntryGatePicker({
   const ytReady = !!yt?.configured && !!yt.channel && !yt.channel.broken;
   const kk = options.kick;
   const kickReady = !!kk?.configured && !!kk.channel && !kk.channel.broken;
+  // A stream-platform choice (anything that is not a Discord one) needs a paid plan once plans are
+  // enforced (lib/creatorPlans). Keyed on "not Discord" so every platform added later inherits it.
+  const streamLock = options.streamLock ?? null;
+  const isStream = (k: Choice) => k !== 'role' && k !== 'boosters';
 
   function emit(next: GateRule[]) {
     onChange(next.length > 0 ? { anyOf: next } : null);
@@ -93,8 +97,14 @@ export default function EntryGatePicker({
         {chips
           .filter((c) => c.show)
           .map((c) => (
-            <Chip key={c.key} on={c.on} disabled={!c.ready && !c.on} onClick={() => toggle(c.key)}>
+            <Chip
+              key={c.key}
+              on={c.on}
+              disabled={(!c.ready || (streamLock != null && isStream(c.key))) && !c.on}
+              onClick={() => toggle(c.key)}
+            >
               {c.label}
+              {streamLock != null && isStream(c.key) && !c.on && <span className="ml-1.5 text-[11px] text-gold">{streamLock}</span>}
             </Chip>
           ))}
       </div>
@@ -142,6 +152,15 @@ export default function EntryGatePicker({
 
       {/* The one thing to do, when a choice is greyed out. */}
       <div className="mt-2 space-y-1 text-[12.5px] text-text-muted">
+        {streamLock != null && chips.some((c) => c.show && isStream(c.key)) && (
+          <p>
+            Only letting your followers or subs in is part of {streamLock}.{' '}
+            <ClanLink href="/admin/dashboard#plan" className="text-gold hover:underline">
+              See your plan
+            </ClanLink>
+            .
+          </p>
+        )}
         {tw.configured && !twitchReady && connectTwitch && (
           <p>
             {tw.channel?.broken ? 'Twitch stopped accepting your connection. ' : 'To use Twitch, '}

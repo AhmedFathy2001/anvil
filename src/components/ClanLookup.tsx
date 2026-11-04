@@ -33,6 +33,8 @@ export interface LookupClan {
   guestPolicy: string;
   /** 'creator' for a creator space (lib/creatorSpaces): no members, so no member pulse. */
   kind?: string;
+  /** A creator space on Silver or up (lib/creatorPlans featuredListing): listed first by default. */
+  featured?: boolean;
   /** Members who gained anything in seven days. */
   activeThisWeek: number;
   xpThisWeek: number;
@@ -89,9 +91,11 @@ export default function ClanLookup({ clans }: { clans: LookupClan[] }) {
     return [...filtered].sort((a, b) => {
       if (sort === 'name') return a.name.localeCompare(b.name);
       if (sort === 'size') return b.members - a.members || a.name.localeCompare(b.name);
-      // Activity, and the share that played breaks the tie — so a small clan that all turned up
-      // outranks a large one where the same number did.
+      // Featured creator spaces first (a Silver+ perk), then activity, and the share that played
+      // breaks the tie — so a small clan that all turned up outranks a large one where the same
+      // number did.
       return (
+        Number(!!b.featured) - Number(!!a.featured) ||
         b.activeThisWeek - a.activeThisWeek ||
         share(b) - share(a) ||
         a.name.localeCompare(b.name)

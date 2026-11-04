@@ -13,9 +13,12 @@ import { admit, requestEventEntry } from '@/lib/guestAdmission';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { entryGateVerdict } from '@/lib/entryGatesDb';
 import { verdictMessage, type GateVerdict } from '@/lib/entryGates';
+import { eventRoomVerdict } from '@/lib/creatorPlans';
+import { freemiumEnforced } from '@/lib/entitlements';
+import { eventPlayerCount } from '@/lib/creatorPlansDb';
 
 export type EnterResult =
-  | { outcome: 'refused'; reason: 'not-visible' | 'banned' | 'signed-out' | 'closed'; status: number; error: string }
+  | { outcome: 'refused'; reason: 'not-visible' | 'banned' | 'signed-out' | 'closed' | 'full'; status: number; error: string }
   /** A creator-space event's entry gate (lib/entryGates) said no; `gate` says what to do about it. */
   | { outcome: 'gated'; status: number; error: string; gate: Extract<GateVerdict, { pass: false }> }
   | { outcome: 'insider' }
@@ -62,8 +65,15 @@ export async function enterEvent(opts: {
 
   // A CREATOR SPACE decides admission per EVENT: `open` seats them now, `approval` files a request.
   // A clan's own guest policy decides it for a clan, exactly as before.
-  const host = await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true } });
+  const host = await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true, plan: true } });
   const creator = isCreatorSpace(host);
+
+  // A creator space's plan caps the players on one event (lib/creatorPlans). A no-op until
+  // FREEMIUM_ENFORCED is on; then a full event says so before anyone is seated or asks the host.
+  if (creator && freemiumEnforced()) {
+    const room = eventRoomVerdict({ clanPlan: host?.plan, players: await eventPlayerCount(event.id), adding: 1 });
+    if (!room.ok) return { outcome: 'refused', reason: 'full', status: 403, error: room.error };
+  }
 
   // The host's "who can join" (Twitch followers/subs, a Discord role, boosters). Before the approval
   // request too: asking a host to approve somebody their own gate would turn away wastes their time.

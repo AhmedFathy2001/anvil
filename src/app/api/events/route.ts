@@ -4,6 +4,8 @@ import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { events, tiles } from '@/db/schema';
 import { verifyAdmin } from '@/lib/auth';
+import { isLiveEvent, meteredPlan } from '@/lib/creatorPlans';
+import { PlanLimitError, withLiveEventSlot } from '@/lib/creatorPlansDb';
 import { validateEventRules } from '@/lib/eventRules';
 import { isTeamFormation } from '@/lib/teamFormation';
 import { DEFAULT_NEW_EVENT_PLACEMENT, isTeamPlacement, normaliseTeamCap, normaliseTeamCount } from '@/lib/teamPlacement';
@@ -193,7 +195,13 @@ export async function POST(request: Request) {
   // the `tiles.accepted_sources` column produced exactly that orphan state for
   // event #8 — recoverable only via a manual backfill.
   const clan = await requireClan();
-  const event = await db.transaction(async (tx) => {
+  // A creator space on Free or Bronze runs one event at a time (lib/creatorPlans): counted and
+  // inserted under the space's lock, so two creates at once cannot both pass. A no-op until
+  // FREEMIUM_ENFORCED is on; an ordinary clan is unchanged (meteredPlan is null for it).
+  const live = isLiveEvent({ startDate: resolvedStart as string | null, endDate: resolvedEnd as string | null, forceEndedAt: null });
+  let event: typeof events.$inferSelect;
+  try {
+    event = await withLiveEventSlot({ clanId: clan.id, clanPlan: live ? meteredPlan(clan) : null }, async (tx) => {
     const [created] = await tx.insert(events).values({
       clanId: clan.id,
       name, boardSize, scoringMode: resolvedScoringMode, format: resolvedFormat,
@@ -217,6 +225,10 @@ export async function POST(request: Request) {
     await tx.insert(tiles).values(tileValues);
     return created;
   });
+  } catch (e) {
+    if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'plan' }, { status: 403 });
+    throw e;
+  }
 
   track('event.created', { clanId: clan.id, props: { format: resolvedFormat, formation: resolvedFormation, placement: resolvedPlacement, tiles: resolvedLabels.length } });
   return NextResponse.json(event, { status: 201 });

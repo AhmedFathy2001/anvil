@@ -290,6 +290,8 @@ export interface OverlayPayload {
   view: OverlayView;
   /** Standings / feed / board, by `view`. */
   body: StandingsPayload | FeedPayload | BoardPayload;
+  /** Show the small "Anvil" mark in the corner (a creator space's plan — lib/creatorPlans). */
+  mark?: boolean;
 }
 
 /** A weak ETag over the payload, so a poll that changes nothing costs a 304 and no body. */

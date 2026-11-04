@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
 import { isApexHost } from '@/lib/clanContext';
-import { PLANS, type Plan } from '@/lib/plans';
+import { CAPABILITY_MIN_PLAN, PLANS, creatorPlanName, planHasCapability, type Capability, type Plan } from '@/lib/plans';
 import { freemiumEnforced } from '@/lib/entitlements';
 import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
@@ -51,6 +51,11 @@ export default async function PricingPage() {
             Early access: every clan is free for now, whatever its size. No card needed.
           </p>
         )}
+        <p className="relative mt-3 text-[13.5px]">
+          <a href="#creators" className="text-gold hover:text-gold-light">
+            Streamer or creator? See creator plans
+          </a>
+        </p>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -98,6 +103,8 @@ export default async function PricingPage() {
         Prices in USD, billed monthly through Gumroad, cancel anytime. Caps are active roster members —
         guests from other clans don&rsquo;t count against yours.
       </p>
+
+      <CreatorPricing enforced={enforced} />
     </div>
   );
 }
@@ -150,5 +157,85 @@ function TierCard({ plan, enforced }: { plan: Plan; enforced: boolean }) {
         {plan.priceUsd === 0 || !enforced ? 'Start free' : 'Start 30-day trial'}
       </ClanLink>
     </div>
+  );
+}
+
+/**
+ * "For streamers & creators" — the same tiers and prices, metered differently: a creator space has no
+ * roster, so the number is the players on one event (lib/creatorPlans). Rendered from PLANS and
+ * CAPABILITY_MIN_PLAN like the cards above, so the table cannot drift from what is enforced.
+ */
+function CreatorPricing({ enforced }: { enforced: boolean }) {
+  const cols = [PLANS.free, PLANS.bronze, PLANS.silver, PLANS.gold, PLANS.custom];
+  const has = (p: Plan, c: Capability) => planHasCapability(p, c);
+  const yes = 'Yes';
+  const rows: { label: string; cell: (p: Plan) => string }[] = [
+    {
+      label: 'Price',
+      cell: (p) => (p.priceUsd == null ? 'Talk to us' : p.priceUsd === 0 ? 'Free' : `$${p.priceUsd.toFixed(2)}/mo`),
+    },
+    {
+      label: 'Players per event',
+      cell: (p) => (p.playersPerEvent == null ? 'No cap' : p.playersPerEvent.toLocaleString('en-US')),
+    },
+    { label: 'Events running at once', cell: (p) => (has(p, 'concurrent-events') ? 'Several' : '1') },
+    { label: 'Only people with a Discord role or boost', cell: () => yes },
+    { label: 'Only your Twitch followers or subs (by tier)', cell: (p) => (has(p, 'stream-gates') ? yes : '—') },
+    { label: 'Only your Kick followers or subs (any sub)', cell: (p) => (has(p, 'stream-gates') ? yes : '—') },
+    { label: 'Only your YouTube subscribers or members', cell: (p) => (has(p, 'stream-gates') ? yes : '—') },
+    { label: 'OBS overlay', cell: (p) => (has(p, 'overlay-unbranded') ? 'Yes, Anvil mark optional' : 'Yes, with a small Anvil mark') },
+    { label: '!join in your Twitch or Kick chat', cell: (p) => (has(p, 'chat-join-bot') ? yes : '—') },
+    { label: 'Listed on Anvil (if you want)', cell: (p) => (has(p, 'featured-listing') ? 'Featured first' : yes) },
+  ];
+  return (
+    <section id="creators" className="mt-16 scroll-mt-24">
+      <div className="mb-1.5 flex items-center gap-2.5">
+        <span className="molten h-5 w-1 shrink-0 rounded-sm" />
+        <h2 className="text-[20px] font-semibold">For streamers &amp; creators</h2>
+      </div>
+      <p className="mb-5 ml-4 max-w-[66ch] text-[13.5px] text-text-muted">
+        Host events for your viewers without an in-game clan. Same plans, same prices, but a creator plan
+        counts the players in one event, not everyone who ever joined.
+        {!enforced && ' Early access: every creator gets all of this free for now.'}
+      </p>
+      <div className="overflow-x-auto rounded-2xl border border-card-border bg-card-bg">
+        <table className="w-full min-w-[640px] text-left text-[13px]">
+          <thead>
+            <tr className="border-b border-card-border">
+              <th className="px-4 py-3 font-medium text-text-muted" scope="col">
+                <span className="sr-only">Feature</span>
+              </th>
+              {cols.map((p) => (
+                <th key={p.id} scope="col" className="px-3 py-3 font-semibold">
+                  {creatorPlanName(p)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.label} className="border-t border-card-border/60 first:border-t-0">
+                <th scope="row" className="px-4 py-2.5 font-normal text-foreground/90">
+                  {r.label}
+                </th>
+                {cols.map((p) => (
+                  <td key={p.id} className="px-3 py-2.5 tabular-nums text-text-muted">
+                    {r.cell(p)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-3 text-center text-[12.5px] text-text-dim">
+        Each platform needs your channel connected. Follower, sub and member checks start at{' '}
+        {PLANS[CAPABILITY_MIN_PLAN['stream-gates']].name}.{' '}
+        {creatorPlanName(PLANS.custom)} plans are set by hand.{' '}
+        <ClanLink href="/host" className="text-gold hover:text-gold-light">
+          Start a creator space
+        </ClanLink>
+      </p>
+    </section>
   );
 }

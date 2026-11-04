@@ -9,6 +9,7 @@ import { and, eq, inArray, isNull, lt, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanKickChannels, clans, kickChannelFacts, kickLinkCodes, kickWebhookSeen, userKickLinks } from '@/db/schema';
+import { chatJoinAllowed } from '@/lib/creatorPlans';
 import type { GateContext, KickGateOptions } from '@/lib/entryGates';
 import {
   KICK_BADGE_SUB_MS,
@@ -426,8 +427,11 @@ export async function applyKickEvent(ev: KickEvent, opts: { code: string | null;
     // One channel answers for one space: a channel two spaces both claim is answered by neither.
     if (channels.length !== 1 || !channels[0].chatJoin) return { kind: 'ignored' };
     // clan-scope: this clan -- the one space that connected this channel.
-    const clan = await db.query.clans.findFirst({ where: eq(clans.id, channels[0].clanId), columns: { kind: true, status: true } });
+    const clan = await db.query.clans.findFirst({ where: eq(clans.id, channels[0].clanId), columns: { kind: true, status: true, plan: true } });
     if (clan?.kind !== 'creator' || clan.status !== 'active') return { kind: 'ignored' };
+    // The plan (lib/creatorPlans): `!join` is Silver+ once FREEMIUM_ENFORCED is on — the same rule
+    // the Twitch bot's chatBotChannels applies. Generous phase: everyone.
+    if (!chatJoinAllowed(clan.plan)) return { kind: 'ignored' };
     return { kind: 'join', clanId: channels[0].clanId, broadcasterId: ev.broadcasterId, replyTo: ev.messageId };
   }
   return { kind: 'ignored' };

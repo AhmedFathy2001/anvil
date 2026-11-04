@@ -43,3 +43,24 @@ test('planHasCapability + upsell copy line up with the model', () => {
   assert.equal(minPlanNameFor('host-multi-clan'), 'Silver');
   assert.equal(minPlanNameFor('custom-domain'), 'Gold');
 });
+
+test('creator capabilities sit on the same ladder', () => {
+  assert.equal(minPlanNameFor('stream-gates'), 'Bronze');
+  assert.equal(minPlanNameFor('chat-join-bot'), 'Silver');
+  assert.equal(minPlanNameFor('featured-listing'), 'Silver');
+  assert.equal(minPlanNameFor('overlay-unbranded'), 'Gold');
+  delete process.env.FREEMIUM_ENFORCED;
+  assert.equal(clanCan('free', 'overlay-unbranded'), true, 'generous: open to all');
+  process.env.FREEMIUM_ENFORCED = 'true';
+  try {
+    assert.equal(clanCan('free', 'stream-gates'), false);
+    assert.equal(clanCan('bronze', 'stream-gates'), true);
+    assert.equal(clanCan('bronze', 'chat-join-bot'), false);
+    assert.equal(clanCan('silver', 'chat-join-bot'), true);
+    assert.equal(clanCan('silver', 'overlay-unbranded'), false);
+    assert.equal(clanCan('gold', 'overlay-unbranded'), true);
+    assert.equal(clanCan('custom', 'featured-listing'), true);
+  } finally {
+    delete process.env.FREEMIUM_ENFORCED;
+  }
+});

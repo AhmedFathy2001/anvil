@@ -15,6 +15,8 @@ interface KickState {
   configured: boolean;
   channel: { slug: string; broken: boolean; followersOnlyChat: boolean; chatJoin: boolean } | null;
   connectUrl: string | null;
+  /** The plan `!join` needs, when this space's plan does not include it (lib/creatorPlans); else null. */
+  chatJoinPlan?: string | null;
 }
 
 /**
@@ -124,6 +126,7 @@ export default function KickChannel() {
             hint={`When a viewer types !join in kick.com/${ch.slug}, the Anvil bot replies with the link to your open event (at most once every 30 seconds).`}
             on={ch.chatJoin}
             busy={busy}
+            locked={state.chatJoinPlan && !ch.chatJoin ? `Part of the ${state.chatJoinPlan} plan.` : null}
             onChange={(next) => send('PATCH', { chatJoin: next })}
           />
         </div>
@@ -154,12 +157,15 @@ function Toggle({
   hint,
   on,
   busy,
+  locked,
   onChange,
 }: {
   label: React.ReactNode;
   hint: string;
   on: boolean;
   busy: boolean;
+  /** Plan note; the switch cannot be turned on while set. */
+  locked?: string | null;
   onChange: (next: boolean) => Promise<boolean>;
 }) {
   return (
@@ -167,12 +173,13 @@ function Toggle({
       <div className="max-w-[60ch]">
         <div className="text-sm font-medium">{label}</div>
         <p className="text-[12.5px] text-text-muted">{hint}</p>
+        {locked && <p className="text-[12.5px] text-gold">{locked}</p>}
       </div>
       <button
         type="button"
         role="switch"
         aria-checked={on}
-        disabled={busy}
+        disabled={busy || !!locked}
         onClick={() => void onChange(!on)}
         className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors disabled:opacity-50 ${
           on ? 'border-gold bg-gold/80' : 'border-card-border bg-brown-dark'

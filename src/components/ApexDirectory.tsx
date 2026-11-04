@@ -16,6 +16,8 @@ export interface DirectoryClan {
   guestPolicy: string;
   /** 'creator' for a creator space (lib/creatorSpaces). */
   kind?: string;
+  /** A creator space on Silver or up — listed first (lib/creatorPlans featuredListing). */
+  featured?: boolean;
   /** Members who gained anything in seven days. A clan's pulse, not its size. */
   activeThisWeek: number;
   xpThisWeek: number;
