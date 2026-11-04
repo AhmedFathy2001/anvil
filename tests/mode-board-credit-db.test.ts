@@ -96,6 +96,13 @@ test('a hardcore KC push lands on the hardcore board only, and never on the acco
   const { POST } = await import('../src/app/api/plugin/stats/route.ts');
   let res = await POST(req('/api/plugin/stats', { stats: [{ name: 'Zulrah', kc: 1 }] }, HARDCORE));
   assert.equal(res.status, 200, await res.clone().text());
+  // An hour later. (Until the hardcore hiscores confirm them, a save's kills count at a believable
+  // pace only — lib/modeStats — so four more in the same millisecond would be held back.)
+  const first = JSON.parse((await row(ids.hcPlayer)).modeStats!);
+  const hourAgo = new Date(Date.now() - 60 * 60_000).toISOString();
+  first.hardcore.ft.zulrah = hourAgo;
+  first.hardcore.at.zulrah = hourAgo;
+  await db.update(s.eventParticipants).set({ modeStats: JSON.stringify(first) }).where(eq(s.eventParticipants.id, ids.hcPlayer));
   res = await POST(req('/api/plugin/stats', { stats: [{ name: 'Zulrah', kc: 5 }] }, HARDCORE));
   const body = await res.json();
   assert.deepEqual(body.completed, ['hc: 5 Zulrah'], 'kills 1..5 on the hardcore save complete the 5-kill tile');
@@ -103,7 +110,8 @@ test('a hardcore KC push lands on the hardcore board only, and never on the acco
   assert.ok(await done(ids.hcKc, ids.hcTeam));
   assert.equal(await done(ids.mainKc, ids.mainTeam), false, 'the main-game-only board takes nothing');
   assert.equal((await row(ids.mainPlayer)).modeStats, null);
-  assert.deepEqual(JSON.parse((await row(ids.hcPlayer)).modeStats!), { hardcore: { first: { zulrah: 1 }, cur: { zulrah: 5 } } });
+  const stored = JSON.parse((await row(ids.hcPlayer)).modeStats!);
+  assert.deepEqual([stored.hardcore.first, stored.hardcore.cur], [{ zulrah: 1 }, { zulrah: 5 }]);
 
   const [acct] = await db.select().from(s.accounts).where(eq(s.accounts.id, ids.account));
   assert.equal(acct.liveStats, null, 'the account overlay (profile, weekly, other boards) is untouched');

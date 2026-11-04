@@ -205,7 +205,8 @@
     "test:startingstats": "npx tsx --test tests/starting-stats.test.ts",
     "test:startingstatsdb": "npx tsx --test tests/starting-stats-capture.test.ts",
     "test:modestats": "npx tsx --test tests/mode-stats.test.ts",
-    "test:modeboarddb": "npx tsx --test tests/mode-board-credit-db.test.ts"
+    "test:modeboarddb": "npx tsx --test tests/mode-board-credit-db.test.ts",
+    "test:modehiscoresdb": "npx tsx --test tests/mode-hiscores-db.test.ts"
   },
   "dependencies": {
     "@vercel/blob": "^2.0.1",

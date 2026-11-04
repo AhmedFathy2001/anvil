@@ -557,6 +557,11 @@ const StatStandingsList = memo(function StatStandingsList({
                                     }}
                                     className="font-normal"
                                   />
+                                  {p.modeNotes?.map((note) => (
+                                    <div key={note} className="mt-0.5 text-[11px] font-normal text-yellow-400">
+                                      ⚠ {note}
+                                    </div>
+                                  ))}
                                 </td>
                                 <td className="py-1.5 pr-3">
                                   {team && (

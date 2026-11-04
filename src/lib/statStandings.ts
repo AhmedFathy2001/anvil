@@ -8,7 +8,8 @@ import { statKeys, statLabel } from '@/lib/tileKinds';
 import { jsonStatValue, effectiveValue, computeGainFromJson, parseContributionSnapshot } from '@/lib/statTracking';
 import { gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
 import { liveStatsForMembers } from '@/lib/liveStats';
-import { countedModes, statGainWithModes } from '@/lib/modeStats';
+import { countedModes, modeReadingIssues, statGainWithModes, type ModeReadingIssue } from '@/lib/modeStats';
+import { worldModeDef } from '@/lib/worldModes';
 
 export interface StatStandingPlayer {
   playerId: number;
@@ -20,6 +21,27 @@ export interface StatStandingPlayer {
   // false = this player has no captured starting snapshot yet — the tell that a baseline
   // didn't load. Surfaced in the UI so admins can spot it before the event relies on it.
   hasBaseline: boolean;
+  /**
+   * Where this player's game-mode readings (lib/modeStats) disagree with that mode's own hiscores,
+   * in plain words for staff. Absent when there is nothing to say.
+   */
+  modeNotes?: string[];
+}
+
+/** One mode-reading mismatch, as a line on the Stats tab. */
+function modeNote(issue: ModeReadingIssue, statType: string): string {
+  const mode = worldModeDef(issue.mode)?.label ?? issue.mode;
+  const what = statLabel(issue.key, statType === 'skill' ? 'skill' : 'boss');
+  const unit = statType === 'skill' ? ' XP' : '';
+  const n = (v: number) => v.toLocaleString('en-US');
+  switch (issue.kind) {
+    case 'contradicted':
+      return `${mode}: the plugin sent ${n(issue.pushed)} ${what}${unit}, but ${mode} hiscores show ${n(issue.hiscores ?? 0)} — only the hiscores number counts.`;
+    case 'low-start':
+      return `${mode}: the first ${what}${unit} reading was ${n(issue.first)}, lower than ${mode} hiscores allow — counted from ${n(issue.start)}.`;
+    case 'capped':
+      return `${mode}: ${what}${unit} is rising faster than is plausible and ${mode} hiscores don't confirm it yet — held back.`;
+  }
 }
 
 export interface StatTileStanding {
@@ -84,6 +106,12 @@ export async function getStatStandings(eventId: number, tileIds?: number[]): Pro
     }
   }
 
+  const notesFor = (modeStats: string | null, keys: string[], statType: string): { modeNotes?: string[] } => {
+    if (!modeStats || modes.length === 0) return {};
+    const notes = modeReadingIssues(modeStats, modes, keys, statType).map((i) => modeNote(i, statType));
+    return notes.length ? { modeNotes: notes } : {};
+  };
+
   return statTiles.map((tile) => {
     const keys = statKeys(tile.trackedStat);
     // A mission counts from its announce, not the event start (lib/revealStats).
@@ -145,6 +173,7 @@ export async function getStatStandings(eventId: number, tileIds?: number[]): Pro
           // let a composite tile net one key's drop against another's rise.
           gained: gainSinceReveal(statGainWithModes(p.statsSnapshot, p.cachedStats, plug, keys, tile.statType!, p.modeStats, modes), reveal, p.id),
           hasBaseline: !!p.statsSnapshot,
+          ...notesFor(p.modeStats, keys, tile.statType!),
         };
       })
       .sort((a, b) => b.gained - a.gained || a.name.localeCompare(b.name));

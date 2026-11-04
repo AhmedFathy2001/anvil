@@ -65,6 +65,12 @@ export default function GameModeWorldsPanel({ event }: { event: Event }) {
         <li>Collection log tiles that count new slots</li>
         <li>End-of-event recap numbers (deaths, loot, PvP kills)</li>
       </ul>
+      <p className="text-sm text-text-muted mb-3">
+        A mode&apos;s kill count and XP are checked against that mode&apos;s own hiscores. A number its hiscores
+        don&apos;t back up stops counting and is shown on the Stats tab. Where there&apos;s nothing to check against
+        (Beta, Seasonal Deadman, new modes, or a character not on its hiscores yet), kill count and XP still count
+        at a believable pace, but can&apos;t finish a &quot;reach a total&quot; tile on their own.
+      </p>
       <p className="text-sm text-text-muted mb-4">
         Whole-page collection log tiles still only count the main game. A mode&apos;s progress never changes a
         player&apos;s profile (stats, collection log, personal bests, quests) or weekly competitions. Players need
