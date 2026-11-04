@@ -73,7 +73,7 @@ export default async function StaffHighlightsPage({ searchParams }: { searchPara
           {featurable ? 'No featurable clips yet.' : 'No highlights yet.'}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-card-border bg-card-bg">
+        <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-card-border bg-card-bg">
           <table className="w-full text-left text-[13px]">
             <thead className="text-[11px] uppercase tracking-wide text-text-dim">
               <tr>

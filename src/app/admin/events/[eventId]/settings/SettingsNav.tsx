@@ -83,7 +83,7 @@ export default function SettingsNav({ eventId, kind, tabs }: { eventId: number; 
 
   return (
     <div className="mb-6 flex flex-wrap items-end gap-x-4 gap-y-2 border-b border-card-border">
-      <nav className="-mb-px flex flex-1 basis-[22rem] gap-1 overflow-x-auto" aria-label="Settings">
+      <nav className="-mb-px flex flex-1 basis-[22rem] gap-1 overflow-x-auto overflow-y-hidden scroll-quiet" aria-label="Settings">
         {tabs.map((t) => {
           const href = tabHref(eventId, t.key);
           const active = t.slug ? pathname.startsWith(href) : pathname === href;

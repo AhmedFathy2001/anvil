@@ -220,7 +220,7 @@ export function ActivityHeatmap({ days, ariaLabel, fluid = false }: { days: Heat
 
   return (
     <div>
-      <div className="overflow-x-auto pb-1">
+      <div className="overflow-x-auto overflow-y-hidden pb-1">
         <div className="inline-flex gap-1.5">
           <div className="grid grid-rows-7 gap-[3px] pt-[15px] text-[9px] leading-3 text-text-muted">
             {weekdays.map((d, i) => (

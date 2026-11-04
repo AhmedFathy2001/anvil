@@ -154,7 +154,7 @@ export default async function StaffSubscriptionsPage({
         price: ≈ ${clanMrr.toFixed(2)}/mo from clans, ≈ ${peopleMrr.toFixed(2)}/mo from individuals.
       </p>
 
-      <div className="mt-5 flex gap-1 border-b border-card-border overflow-x-auto">
+      <div className="mt-5 flex gap-1 border-b border-card-border overflow-x-auto overflow-y-hidden scroll-quiet">
         {tab('clans', 'Clans', paidClans.length)}
         {tab('people', 'Individuals', people.length)}
       </div>
@@ -180,7 +180,7 @@ export default async function StaffSubscriptionsPage({
                   {t.priceUsd != null && <span className="text-sm font-normal text-gray-500">from ${t.priceUsd}/mo</span>}
                   <span className="text-sm font-normal text-gray-500">· {list.length}</span>
                 </h2>
-                <div className="mt-3 overflow-x-auto">
+                <div className="mt-3 overflow-x-auto overflow-y-hidden">
                   <table className="w-full text-sm">
                     <thead className="text-left text-xs uppercase tracking-wider text-gray-500">
                       <tr>
@@ -225,7 +225,7 @@ export default async function StaffSubscriptionsPage({
                     ${t.monthlyUsd}/mo · ${t.yearlyUsd}/yr · {list.length}
                   </span>
                 </h2>
-                <div className="mt-3 overflow-x-auto">
+                <div className="mt-3 overflow-x-auto overflow-y-hidden">
                   <table className="w-full text-sm">
                     <thead className="text-left text-xs uppercase tracking-wider text-gray-500">
                       <tr>

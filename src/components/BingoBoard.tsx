@@ -75,7 +75,7 @@ export default function BingoBoard({
 
   return (
     <div
-      className={`w-full mx-auto overflow-x-auto p-3 sm:p-4 bg-brown-dark/50 rounded-xl border border-card-border ${
+      className={`w-full mx-auto overflow-x-auto overflow-y-hidden p-3 sm:p-4 bg-brown-dark/50 rounded-xl border border-card-border ${
         expanded ? 'max-w-6xl' : 'max-w-4xl'
       }`}
     >

@@ -76,6 +76,17 @@ body {
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
+}
+
+/* A strip that scrolls sideways without showing a bar (tab rows, chip rows): it still scrolls by
+   touch, trackpad and shift+wheel. Pair with overflow-y-hidden, or a 1px underline peeking past the
+   strip's bottom turns into a stray vertical scrollbar beside the tabs. */
+@utility scroll-quiet {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 ::-webkit-scrollbar-track {

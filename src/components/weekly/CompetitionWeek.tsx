@@ -301,7 +301,7 @@ export function TrainingHeatmap({
         {entries.filter((e) => e.gained > 0).length > rows.length && <> · top {rows.length} shown</>}
       </p>
 
-      <div className="mt-3.5 overflow-x-auto">
+      <div className="mt-3.5 overflow-x-auto overflow-y-hidden">
         <table className="border-separate border-spacing-[3px] text-[11.5px]">
           <thead>
             <tr>

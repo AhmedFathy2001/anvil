@@ -147,7 +147,7 @@ export default function SeasonCalendar({
         </span>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-card-border bg-card-bg p-4">
+      <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-card-border bg-card-bg p-4">
         <div ref={trackRef} className="relative min-w-[620px]">
           {/* axis */}
           <div className="relative h-4 border-b border-card-border">

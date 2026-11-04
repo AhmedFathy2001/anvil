@@ -356,7 +356,7 @@ export function renderGuide(source: string | null | undefined, opts: GuideRender
       i++;
       while (i < src.length && !FENCE_RE.test(src[i])) body.push(src[i++]);
       out.push(
-        <pre key={`c${k++}`} className="my-3 overflow-x-auto rounded-lg border border-card-border bg-black/40 p-3 text-[13px] leading-snug">
+        <pre key={`c${k++}`} className="my-3 overflow-x-auto overflow-y-hidden rounded-lg border border-card-border bg-black/40 p-3 text-[13px] leading-snug">
           <code className="font-mono text-gray-200">{body.join('\n')}</code>
         </pre>,
       );

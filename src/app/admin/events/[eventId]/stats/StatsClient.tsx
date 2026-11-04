@@ -528,7 +528,7 @@ const StatStandingsList = memo(function StatStandingsList({
                   {tile.players.length === 0 ? (
                     <p className="text-xs text-text-muted">No drafted players yet.</p>
                   ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto overflow-y-hidden">
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="text-text-muted text-left">

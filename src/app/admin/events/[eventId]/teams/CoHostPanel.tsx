@@ -358,7 +358,7 @@ export default function CoHostPanel({
                 ? 'Each clan sends the fees it collected to you; you pay every winner. Transfer is what each clan owes you.'
                 : 'You collected every fee and pay every winner directly, so nothing crosses clans. You keep the fees left after payouts.'}
           </p>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-hidden">
             <table className="w-full text-[12.5px]">
               <thead>
                 <tr className="text-left text-text-muted">

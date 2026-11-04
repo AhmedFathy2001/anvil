@@ -24,7 +24,7 @@ export default function StaffSectionTabs({ sections }: { sections: StaffSection[
   const section = sections.find((s) => s.tabs.some((t) => hit(s, t)));
   if (!section) return null;
   return (
-    <div className="mb-5 flex gap-1 border-b border-card-border overflow-x-auto">
+    <div className="mb-5 flex gap-1 border-b border-card-border overflow-x-auto overflow-y-hidden scroll-quiet">
       {section.tabs.map((t) => {
         const active = hit(section, t);
         return (

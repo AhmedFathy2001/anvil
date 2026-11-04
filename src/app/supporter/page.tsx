@@ -117,7 +117,7 @@ export default async function SupporterPage() {
         ))}
       </div>
 
-      <div className="mt-10 overflow-x-auto rounded-xl border border-card-border">
+      <div className="mt-10 overflow-x-auto overflow-y-hidden rounded-xl border border-card-border">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="bg-card-bg">
             <tr>

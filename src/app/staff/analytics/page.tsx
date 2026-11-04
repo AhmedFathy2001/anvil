@@ -140,7 +140,7 @@ export default async function StaffAnalyticsPage({
 
       <Section title="Clans by activity">
         <Card>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-hidden">
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-text-muted">
                 <tr>

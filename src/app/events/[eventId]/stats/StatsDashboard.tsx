@@ -392,7 +392,7 @@ function MembersTable({ data }: { data: EventStatsData }) {
           ))}
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overflow-y-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-text-muted border-b border-card-border">

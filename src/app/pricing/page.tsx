@@ -208,7 +208,7 @@ function CreatorPricing({ enforced }: { enforced: boolean }) {
         number; events on different dates get it each. Someone in two overlapping events counts twice.
         {!enforced && ' Early access: every creator gets all of this free for now.'}
       </p>
-      <div className="overflow-x-auto rounded-2xl border border-card-border bg-card-bg">
+      <div className="overflow-x-auto overflow-y-hidden rounded-2xl border border-card-border bg-card-bg">
         <table className="w-full min-w-[640px] text-left text-[13px]">
           <thead>
             <tr className="border-b border-card-border">
