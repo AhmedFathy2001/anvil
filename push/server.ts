@@ -137,30 +137,82 @@ const OVERLAY_KEY = /^[A-Za-z0-9_-]{32}$/;
 const OVERLAY_MAX_MS = 6 * 60 * 60_000;
 /** Sockets per address: a scene has a handful of overlays, not hundreds. */
 const OVERLAYS_PER_IP = 20;
+/** Every overlay socket on this server, and key checks running at once against the site. */
+const OVERLAYS_MAX = 5_000;
+const LOOKUPS_MAX = 32;
+/** A refused key stays refused this long without asking the site again. */
+const REFUSED_TTL_MS = 60_000;
 const overlaysByIp = new Map<string, number>();
+const refused = new Map<string, number>();
+let overlaysOpen = 0;
+let lookups = 0;
 
+/**
+ * The caller's address. Every public request reaches the box through the Cloudflare tunnel, and
+ * Cloudflare SETS CF-Connecting-IP at its edge (a client's own value is replaced), so that is the
+ * one header trusted. X-Forwarded-For's leftmost entry is whatever the client wrote; only the
+ * rightmost — added by the proxy in front of this server — is used when CF's is missing.
+ */
 function clientIp(req: http.IncomingMessage): string {
   const cf = req.headers['cf-connecting-ip'];
-  if (typeof cf === 'string' && cf) return cf;
+  if (typeof cf === 'string' && cf) return cf.trim();
   const fwd = req.headers['x-forwarded-for'];
-  if (typeof fwd === 'string' && fwd) return fwd.split(',')[0].trim();
+  if (typeof fwd === 'string' && fwd) {
+    const parts = fwd.split(',');
+    return parts[parts.length - 1].trim();
+  }
   return req.socket.remoteAddress ?? '?';
+}
+
+function isRefused(overlayKey: string): boolean {
+  const until = refused.get(overlayKey);
+  if (until == null) return false;
+  if (until > Date.now()) return true;
+  refused.delete(overlayKey);
+  return false;
+}
+
+function refuse(overlayKey: string): void {
+  // Bounded: an attacker cycling random keys can't grow this past a few thousand entries.
+  if (refused.size >= 5_000) refused.delete(refused.keys().next().value as string);
+  refused.set(overlayKey, Date.now() + REFUSED_TTL_MS);
 }
 
 async function acceptOverlay(req: http.IncomingMessage, socket: Duplex, head: Buffer, overlayKey: string) {
   const ip = clientIp(req);
   const open = overlaysByIp.get(ip) ?? 0;
-  if (!OVERLAY_KEY.test(overlayKey) || open >= OVERLAYS_PER_IP) {
-    socket.end(`HTTP/1.1 ${open >= OVERLAYS_PER_IP ? '429 Too Many Requests' : '401 Unauthorized'}\r\nConnection: close\r\n\r\n`);
+  if (!OVERLAY_KEY.test(overlayKey) || isRefused(overlayKey)) {
+    socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+    return;
+  }
+  if (open >= OVERLAYS_PER_IP || overlaysOpen >= OVERLAYS_MAX || lookups >= LOOKUPS_MAX) {
+    socket.end('HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\n\r\n');
     return;
   }
   overlaysByIp.set(ip, open + 1);
+  overlaysOpen++;
+  // Released once, by whichever comes first: the raw socket closing (before, during or after the
+  // upgrade, errors included) or the websocket closing. Counting on the ws callback alone leaked a
+  // slot for every socket that died before its upgrade finished.
+  let released = false;
   const release = () => {
+    if (released) return;
+    released = true;
+    overlaysOpen--;
     const n = (overlaysByIp.get(ip) ?? 1) - 1;
     if (n <= 0) overlaysByIp.delete(ip);
     else overlaysByIp.set(ip, n);
   };
-  const eventId = await overlayEvent(overlayKey);
+  socket.once('close', release);
+  socket.once('error', release);
+  lookups++;
+  let eventId: number | null;
+  try {
+    eventId = await overlayEvent(overlayKey);
+  } finally {
+    lookups--;
+  }
+  if (eventId == null) refuse(overlayKey);
   if (eventId == null || socket.destroyed) {
     release();
     if (!socket.destroyed) socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
