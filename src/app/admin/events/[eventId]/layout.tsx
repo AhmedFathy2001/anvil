@@ -142,7 +142,7 @@ export default async function EventLayout({
           )}
         </div>
         <div className="-mt-9 flex flex-wrap items-start gap-x-5 gap-y-3 px-5 pb-5">
-          <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-2xl border-4 border-card-bg bg-brown-light">
+          <div className="relative z-10 flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-2xl border-4 border-card-bg bg-brown-light">
             {heroIcon ? (
               // eslint-disable-next-line @next/next/no-img-element -- the event's or the clan's own upload
               <img src={heroIcon} alt="" className="h-full w-full object-cover" />

@@ -83,7 +83,7 @@ export default function SettingsNav({ eventId, kind, tabs }: { eventId: number; 
 
   return (
     <div className="mb-6 flex flex-wrap items-end gap-x-4 gap-y-2 border-b border-card-border">
-      <nav className="-mb-px flex flex-1 basis-[22rem] gap-1 overflow-x-auto overflow-y-hidden scroll-quiet" aria-label="Settings">
+      <nav className="-mb-px flex max-w-full flex-none gap-1 overflow-x-auto overflow-y-hidden scroll-quiet" aria-label="Settings">
         {tabs.map((t) => {
           const href = tabHref(eventId, t.key);
           const active = t.slug ? pathname.startsWith(href) : pathname === href;
@@ -101,7 +101,7 @@ export default function SettingsNav({ eventId, kind, tabs }: { eventId: number; 
         })}
       </nav>
 
-      <div className="relative mb-2 w-full sm:w-72">
+      <div className="relative mb-2 ml-auto w-full sm:w-64">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden>
           <circle cx="11" cy="11" r="7" />
           <path d="M20 20l-3.5-3.5" />
