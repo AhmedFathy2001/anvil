@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
+import { refuseCreatorSpace } from '@/lib/creatorGuard';
 import { getSetting, setSetting } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import { fetchGuildRoles } from '@/lib/discord-roles';
@@ -47,6 +48,9 @@ export async function POST(request: Request) {
   const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // The roles the ROSTER sync hands out; a creator space has no roster to sync.
+  const refused = refuseCreatorSpace(clan);
+  if (refused) return refused;
 
   const body = (await request.json().catch(() => null)) as
     | { defaultRoleIds?: unknown; guestRoleIds?: unknown }

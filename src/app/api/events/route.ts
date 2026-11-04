@@ -11,6 +11,7 @@ import { isTeamFormation } from '@/lib/teamFormation';
 import { DEFAULT_NEW_EVENT_PLACEMENT, isTeamPlacement, normaliseTeamCap, normaliseTeamCount } from '@/lib/teamPlacement';
 import { isVisibility } from '@/lib/eventVisibility';
 import { track } from '@/lib/analytics';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 const CASH_POLICIES = ['host-holds', 'each-settles', 'clans-collect-host-pays'] as const;
 
@@ -49,6 +50,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "visibility must be 'clan', 'invited' or 'public'" }, { status: 400 });
   }
   const resolvedFormation = isTeamFormation(teamFormation) ? teamFormation : 'draft';
+  // One team per clan is a co-hosted board; a creator space has no clan to field (lib/creatorSpaces).
+  if (resolvedFormation === 'per_clan') {
+    const refused = await refuseForCreatorSpace();
+    if (refused) return refused;
+  }
   const resolvedCashPolicy = (CASH_POLICIES as readonly string[]).includes(cashPolicy) ? cashPolicy : 'host-holds';
   // A per-clan event is a cross-clan event by nature, so it defaults to 'invited' — the host and the
   // clans it invites, not the whole platform — unless the caller says otherwise.

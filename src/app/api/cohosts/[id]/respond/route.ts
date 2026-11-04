@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { verifyUser } from '@/lib/auth';
 import { acceptCoHostInvite, declineCoHostInvite } from '@/lib/coHost';
+import { CREATOR_NOT_AVAILABLE } from '@/lib/creatorSpaces';
 
 /**
  * The invited clan answers a co-host invite. Addressed by co-host id (not clan-scoped to the host —
@@ -23,7 +24,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (action === 'accept') {
     const r = await acceptCoHostInvite(id, session.userId);
-    if (!r.ok) return NextResponse.json({ error: r.error }, { status: 403 });
+    // A creator space on either side is a plain "not for you" (400), not a permissions failure.
+    if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.error === CREATOR_NOT_AVAILABLE ? 400 : 403 });
     return NextResponse.json({ ok: true, teamId: r.teamId });
   }
 

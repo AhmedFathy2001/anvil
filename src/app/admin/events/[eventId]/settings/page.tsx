@@ -60,6 +60,7 @@ export default async function EventSettingsPage({
   ]);
   const isAdmin = atLeast(session?.role, 'admin');
   const sourceBoard = event.libraryBoardId ? await getBoard(event.libraryBoardId) : null;
+  const creator = isCreatorSpace(clan);
 
   return (
     <>
@@ -77,7 +78,9 @@ export default async function EventSettingsPage({
         <span className="w-1 h-5 bg-gold rounded-full" />
         Who can play
       </h2>
-      <p className="mb-4 text-sm text-text-muted">Who sees and enters this event, other clans running a team, and where it posts.</p>
+      <p className="mb-4 text-sm text-text-muted">
+        {creator ? 'Who sees and enters this event, and where it posts.' : 'Who sees and enters this event, other clans running a team, and where it posts.'}
+      </p>
       {uninvited.length > 0 && (
         <div className="mb-4 rounded-xl border border-accent-red/40 bg-accent-red/10 p-4">
           <div className="text-[14px] font-semibold text-accent-red">
@@ -90,9 +93,10 @@ export default async function EventSettingsPage({
           </div>
         </div>
       )}
-      <AccessPanel eventId={id} />
-      {isCreatorSpace(clan) && <EntryGatePanel eventId={id} />}
-      <CoHostPanel eventId={id} initial={cohosts} cashPolicy={event.cashPolicy} settlement={settlement} />
+      <AccessPanel eventId={id} creator={creator} />
+      {creator && <EntryGatePanel eventId={id} />}
+      {/* Co-hosting is between in-game clans; a creator space has none (lib/coHost coHostKindRefusal). */}
+      {!creator && <CoHostPanel eventId={id} initial={cohosts} cashPolicy={event.cashPolicy} settlement={settlement} />}
       <p className="mb-6 text-sm text-text-muted">
         Where this event posts, who it pings, its team channels and extra webhooks are on the{' '}
         <ClanLink href={`/admin/events/${id}/discord`} className="text-gold hover:underline">Discord tab</ClanLink>.

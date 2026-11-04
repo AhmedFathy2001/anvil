@@ -9,6 +9,10 @@ import assert from 'node:assert/strict';
 
 import {
   CREATOR_HIDDEN_ADMIN_PATHS,
+  CREATOR_HIDDEN_FEEDS,
+  CREATOR_HIDDEN_FEED_TABS,
+  CREATOR_HIDDEN_SETTING_KEYS,
+  CREATOR_ONLY_OFF,
   MAX_CREATOR_SPACES,
   YOUR_CLANS_HEADING,
   YOUR_SPACES_HEADING,
@@ -16,6 +20,10 @@ import {
   groupClansAndSpaces,
   verifiedStreamLinks,
   creatorHidesAdminPath,
+  creatorHidesDiscordSection,
+  creatorHidesSetting,
+  creatorHidesSettingKey,
+  creatorRefusedSetting,
   creatorSetupSteps,
   declinedRequestText,
   isCreatorSpace,
@@ -160,7 +168,7 @@ test('creator checklist: event, share, optional Discord', () => {
 test('the in-game-clan admin pages are turned away; everything on the creator menu is not', () => {
   for (const p of ['/admin/weekly', '/admin/events/weekly/12', '/admin/events/weekly/12/settings', '/admin/clan-events', '/admin/clan-events/3',
     '/admin/coffer', '/admin/setup', '/admin/people/needs-review', '/admin/people/access', '/admin/verifications',
-    '/admin/clan/needs-review', '/admin/clan/policy']) {
+    '/admin/clan/needs-review', '/admin/clan/policy', '/admin/cohosted/7']) {
     assert.equal(creatorHidesAdminPath(p), true, p);
   }
   // The creator menu (app/admin/layout), its wizard, and the pages its dashboard links to.
@@ -173,6 +181,54 @@ test('the in-game-clan admin pages are turned away; everything on the creator me
   assert.equal(creatorHidesAdminPath('/admin/weeklyish'), false);
   assert.equal(creatorHidesAdminPath('/admin/coffers'), false);
   for (const p of CREATOR_HIDDEN_ADMIN_PATHS) assert.ok(p.startsWith('/admin/'), p);
+});
+
+test('Discord for a creator: no commands or Clan Hall; ping role, feeds and team channels stay', () => {
+  for (const id of ['discord-commands', 'discord-clan-hall']) assert.equal(creatorHidesDiscordSection(id), true, id);
+  // Roles & nicknames is simplified (ping role only), not hidden; the rest is what a creator uses.
+  for (const id of ['discord-connection', 'discord-feeds', 'discord-event-posts', 'discord-roles', 'discord-team-channels', 'discord-by-hand']) {
+    assert.equal(creatorHidesDiscordSection(id), false, id);
+  }
+});
+
+test('feeds, channels and switches a creator space has nothing to post for', async () => {
+  const { DISCORD_FEEDS, FEED_TABS } = await import('../src/lib/discordFeeds.ts');
+  const { ALL_SETTING_FIELDS } = await import('../src/lib/webhookFields.ts');
+  // Every hidden feed and tab names a real one, so a rename cannot quietly un-hide it.
+  for (const id of CREATOR_HIDDEN_FEEDS) assert.ok(DISCORD_FEEDS.some((f) => f.id === id), id);
+  for (const id of CREATOR_HIDDEN_FEED_TABS) assert.ok(FEED_TABS.some((t) => t.id === id), id);
+  // A hidden feed's channel is a hidden key too, so the by-hand page and the API agree.
+  for (const f of DISCORD_FEEDS.filter((x) => CREATOR_HIDDEN_FEEDS.includes(x.id))) assert.ok(creatorHidesSettingKey(f.key), f.key);
+  // What a creator's events post through stays.
+  for (const f of DISCORD_FEEDS.filter((x) => ['event', 'signups', 'rareDrops', 'pets', 'collectionLog'].includes(x.id))) {
+    assert.equal(creatorHidesSettingKey(f.key), false, f.key);
+  }
+  const fieldKeys = new Set(ALL_SETTING_FIELDS.map((f) => f.key));
+  for (const k of ['discord_webhook_weekly', 'discord_webhook_roster', 'discord_webhook_coffer', 'discord_webhook_cohost', 'webhook_leagues']) {
+    assert.ok(fieldKeys.has(k), `${k} is a real field`);
+    assert.ok(CREATOR_HIDDEN_SETTING_KEYS.includes(k), k);
+  }
+  assert.ok(CREATOR_ONLY_OFF.includes('coffer') && CREATOR_ONLY_OFF.includes('clanHall') && CREATOR_ONLY_OFF.includes('weekly'));
+});
+
+test('a creator settings write: turning a hidden setting on is refused, clearing it is not', () => {
+  assert.equal(creatorRefusedSetting({ discord_role_sync_enabled: 'true' }), 'discord_role_sync_enabled');
+  assert.equal(creatorRefusedSetting({ discord_webhook_weekly: 'https://discord.com/api/webhooks/1/x' }), 'discord_webhook_weekly');
+  for (const v of [null, '', '  ', 'false', false, undefined]) {
+    assert.equal(creatorRefusedSetting({ discord_role_sync_enabled: v }), null, String(v));
+  }
+  // Settings a creator does use go straight through.
+  assert.equal(creatorRefusedSetting({ discord_member_ping_role_id: '123', discord_webhook_bingo: 'https://x' }), null);
+  assert.equal(creatorRefusedSetting(null), null);
+});
+
+test('settings search entries a creator space does not see', () => {
+  for (const id of ['discord-roles', 'discord-commands', 'clan-tags', 'webhook-discord_webhook_roster', 'webhook-webhook_leagues']) {
+    assert.equal(creatorHidesSetting(id), true, id);
+  }
+  for (const id of ['discord-feeds', 'events-all', 'webhook-discord_webhook_bingo', 'webhook-webhook_rare_drops', 'clan-delete']) {
+    assert.equal(creatorHidesSetting(id), false, id);
+  }
 });
 
 test('a creator space says player, a clan says guest', () => {

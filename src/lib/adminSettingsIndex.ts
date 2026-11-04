@@ -590,6 +590,8 @@ export interface SettingsViewer {
   canReach(path: string): boolean;
   hasRole(min: SettingRole): boolean;
   featureOn(key: FeatureKey): boolean;
+  /** Entries this kind of space does not show on its pages at all (a creator space: lib/creatorSpaces). */
+  hides?(id: string): boolean;
 }
 
 /** The path part of an href: no #anchor, no ?query. */
@@ -600,6 +602,7 @@ export function pathOf(href: string): string {
 export function canSeeSetting(entry: SettingEntry, viewer: SettingsViewer): boolean {
   if (entry.minRole && !viewer.hasRole(entry.minRole)) return false;
   if (entry.feature && !viewer.featureOn(entry.feature)) return false;
+  if (viewer.hides?.(entry.id)) return false;
   // Only admin paths are gated by the admin table; /profile is everyone's own.
   const path = pathOf(entry.href);
   return !path.startsWith('/admin') || viewer.canReach(path);

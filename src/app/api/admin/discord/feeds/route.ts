@@ -9,6 +9,7 @@ import { findOrCreateAnvilWebhook } from '@/lib/discord-webhooks';
 import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
 import { DISCORD_FEEDS, FEED_KEYS, FEEDS_OFF_KEY, GAME_CATCH_ALL, SITE_CATCH_ALL, feedById, parseFeedsOff } from '@/lib/discordFeeds';
 import { getSetting, getSettingMap, setSetting } from '@/lib/settings';
+import { CREATOR_NOT_AVAILABLE, creatorHidesSettingKey, isCreatorSpace } from '@/lib/creatorSpaces';
 import {
   WORLD_MODES_OFF_KEY,
   WORLD_MODES_SPLIT_KEY,
@@ -214,6 +215,10 @@ export async function PUT(request: Request) {
   if (body.clear === true) {
     await setSetting(clan.id, key, null);
     return NextResponse.json(await view(clan.id));
+  }
+  // A creator space has no weeklies, coffer, roster or co-hosts to post about (lib/creatorSpaces).
+  if (isCreatorSpace(clan) && creatorHidesSettingKey(key)) {
+    return NextResponse.json({ error: CREATOR_NOT_AVAILABLE }, { status: 400 });
   }
 
   if (typeof body.channelId === 'string' && body.channelId) {

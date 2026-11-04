@@ -10,7 +10,8 @@
 // double-grants a staff seat, so a retried accept is safe.
 
 import { parseBoardAccess, staffCanEditFrom, type BoardAccess } from '@/lib/cohostBoardAccess';
-import { and, eq, inArray } from 'drizzle-orm';
+import { CREATOR_NOT_AVAILABLE, isCreatorSpace } from '@/lib/creatorSpaces';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import { db } from '@/db';
@@ -87,6 +88,25 @@ const COHOST_COLUMNS = {
   boardAccess: eventCohosts.boardAccess,
 };
 
+/**
+ * Co-hosting is between in-game clans: a creator space (lib/creatorSpaces) neither hosts a co-hosted
+ * board nor co-hosts one. The refusal to show, or null when both sides are clans.
+ */
+export async function coHostKindRefusal(eventId: number, clanId: number): Promise<string | null> {
+  const [host, guest] = await Promise.all([
+    db
+      .select({ kind: clans.kind })
+      .from(events)
+      .innerJoin(clans, eq(clans.id, events.clanId))
+      // clan-scope: global -- reads only the host's kind for an event id the caller already scoped.
+      .where(eq(events.id, eventId))
+      .then((r) => r[0]),
+    // clan-scope: global -- the invited clan is another clan by definition; only its kind is read.
+    db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true } }),
+  ]);
+  return isCreatorSpace(host) || isCreatorSpace(guest) ? CREATOR_NOT_AVAILABLE : null;
+}
+
 /** Invite a clan to co-host an event. Returns the (possibly pre-existing) co-host row's id. */
 export async function inviteCoHost(eventId: number, clanId: number, byUserId: number | null): Promise<{ id: number; created: boolean }> {
   const existing = await db
@@ -119,7 +139,11 @@ export async function inviteCoHost(eventId: number, clanId: number, byUserId: nu
   return { id: row.id, created: true };
 }
 
-/** Pending co-host invites addressed to a clan — what its staff see and decide on. */
+/**
+ * Pending co-host invites addressed to a clan — what its staff see and decide on. Never one with a
+ * creator space on either side (coHostKindRefusal): an invite left from before that rule is not
+ * offered, since accepting it would only be refused.
+ */
 export async function pendingCoHostInvites(clanId: number): Promise<CohostRow[]> {
   return db
     .select(COHOST_COLUMNS)
@@ -127,7 +151,14 @@ export async function pendingCoHostInvites(clanId: number): Promise<CohostRow[]>
     .innerJoin(events, eq(events.id, eventCohosts.eventId))
     .innerJoin(clans, eq(clans.id, eventCohosts.clanId))
     .innerJoin(hostClan, eq(hostClan.id, events.clanId))
-    .where(and(eq(eventCohosts.clanId, clanId), eq(eventCohosts.status, 'pending')));
+    .where(
+      and(
+        eq(eventCohosts.clanId, clanId),
+        eq(eventCohosts.status, 'pending'),
+        ne(clans.kind, 'creator'),
+        ne(hostClan.kind, 'creator'),
+      ),
+    );
 }
 
 /** Every co-host on an event (any status) — the host's roll-up. */
@@ -343,6 +374,9 @@ export async function acceptCoHostInvite(
     .where(and(eq(clanStaff.clanId, row.clanId), eq(clanStaff.userId, byUserId)))
     .then((r) => r[0]);
   if (!staff || !atLeast(staff.role, 'admin')) return { ok: false, error: 'Only an admin of the invited clan can accept' };
+  // An invite left over from before creator spaces were kept out of co-hosting cannot be accepted.
+  const refusal = await coHostKindRefusal(row.eventId, row.clanId);
+  if (refusal) return { ok: false, error: refusal };
 
   const teamId = await provisionCoHostTeam(row.eventId, row.clanId, byUserId);
 
@@ -473,7 +507,16 @@ export async function coHostedBoardsForClan(clanId: number, now: Date = new Date
     .from(eventCohosts)
     .innerJoin(events, eq(events.id, eventCohosts.eventId))
     .innerJoin(hostClan, eq(hostClan.id, events.clanId))
-    .where(and(eq(eventCohosts.clanId, clanId), eq(eventCohosts.status, 'accepted')));
+    .innerJoin(clans, eq(clans.id, eventCohosts.clanId))
+    // No creator space on either side (coHostKindRefusal): a creator's admin lists no co-hosted boards.
+    .where(
+      and(
+        eq(eventCohosts.clanId, clanId),
+        eq(eventCohosts.status, 'accepted'),
+        ne(clans.kind, 'creator'),
+        ne(hostClan.kind, 'creator'),
+      ),
+    );
   return rows
     .filter((r) => !r.forceEndedAt && !(r.endDate && r.endDate < nowIso))
     .map(({ eventId, name, hostSlug, hostName, startDate, endDate, staffCanEditBoard }) => ({

@@ -17,6 +17,7 @@ import {
   type SettingField,
   type WebhookGroupId,
 } from '@/lib/webhookFields';
+import { creatorHidesSettingKey } from '@/lib/creatorSpaces';
 
 interface Props {
   channels: BroadcastChannel[];
@@ -85,12 +86,18 @@ export default function WebhooksPanel({ channels, botEnabled, creator = false }:
   // guests) has no answer there — switching "only your own members" on would silence every player.
   const groups = WEBHOOK_GROUPS.filter((g) => !creator || g.id !== 'filters');
   const searching = searchTokens(query).length > 0;
+  // …and no weeklies, calendar, roster, coffer, co-hosts or Leagues to give a channel (lib/creatorSpaces).
   const matches = useMemo(
-    () => searchFields(query).filter((m) => !creator || m.section.group !== 'filters'),
+    () =>
+      searchFields(query).filter(
+        (m) => !creator || (m.section.group !== 'filters' && !creatorHidesSettingKey(m.field.key)),
+      ),
     [query, creator],
   );
 
-  const visible = WEBHOOK_SECTIONS.filter((s) => s.group === group);
+  const visible = WEBHOOK_SECTIONS.filter((s) => s.group === group)
+    .map((s) => (creator ? { ...s, fields: s.fields.filter((f) => !creatorHidesSettingKey(f.key)) } : s))
+    .filter((s) => s.fields.length > 0);
 
   return (
     <div className="space-y-4">
@@ -115,7 +122,7 @@ export default function WebhooksPanel({ channels, botEnabled, creator = false }:
                   : 'border-card-border text-text-muted hover:text-foreground',
               )}
             >
-              {g.label}
+              {creator && g.id === 'site' ? 'Event posts' : g.label}
             </button>
           ))}
         </div>
