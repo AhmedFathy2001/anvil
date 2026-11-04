@@ -35,6 +35,7 @@ function signalText(s: Signal): { tag: string; text: string; weight: number } {
   let d: {
     key?: string; kc?: number; hours?: number; windowHours?: number; pbSeconds?: number; runSeconds?: number;
     offShare?: number; zones?: string[]; usual?: string | null; other?: string; sameTeam?: boolean; countries?: string[];
+    days?: number; hashMatched?: boolean;
   } = {};
   try {
     d = s.detail ? JSON.parse(s.detail) : {};
@@ -48,7 +49,14 @@ function signalText(s: Signal): { tag: string; text: string; weight: number } {
     case 'long_hours':
       return { weight: 3, tag: 'long hours', text: `Gains worth at least ${d.hours} hours of efficient play in ${d.windowHours} hours — more than one person usually plays.` };
     case 'other_login':
-      return { weight: 3, tag: 'other login', text: 'Played through a different Anvil login during the event — somebody else\'s RuneLite. Also what a shared family PC looks like.' };
+      return {
+        // A name-only sighting (the account has no hash on record) is weaker: anyone can type a name.
+        weight: d.hashMatched === false ? 2 : 3,
+        tag: 'other login',
+        text:
+          `Played through a different Anvil login during the event${d.days ? ` (${d.days} day${d.days === 1 ? '' : 's'})` : ''} — somebody else's RuneLite. Also what a shared family PC looks like.` +
+          (d.hashMatched === false ? ' Name only: this character has no account hash on record to confirm it.' : ''),
+      };
     case 'pb_jump':
       return { weight: 2, tag: 'PB jump', text: `${hiscoresKeyLabel(d.key ?? '')} in ${mmss(d.runSeconds ?? 0)}; their best before the event was ${mmss(d.pbSeconds ?? 0)}.` };
     case 'two_countries':

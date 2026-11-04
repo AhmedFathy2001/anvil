@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { refuseForeignCharacter } from '@/lib/pluginForeign';
 import { eventForPluginRequest } from '@/lib/eventScope';
 import { personOf, seatsOwnedByAnywhere } from '@/lib/roster';
 import { db } from '@/db';
@@ -74,6 +75,9 @@ export async function POST(
   if (!rl.ok) {
     return NextResponse.json({ error: 'Too many attempts — slow down.' }, { status: 429, headers: rateLimitHeaders(rl) });
   }
+  // Nothing is filed for a character the plugin's login doesn't own (lib/pluginForeign).
+  const foreign = await refuseForeignCharacter(request);
+  if (foreign) return foreign;
 
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);

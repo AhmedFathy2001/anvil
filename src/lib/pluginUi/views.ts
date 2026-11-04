@@ -20,6 +20,8 @@ import { type ClanEventView, listClanEvents, setGoing } from '@/lib/clanEvents';
 import { ttlMemo } from '@/lib/ttlMemo';
 import { loadPlayerCard } from '@/lib/playerCard';
 import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
+import { pluginCharacterRefusal } from '@/lib/pluginForeign';
+import { fileOwnershipClaim, myClaimOn } from '@/lib/ownershipClaims';
 import { pluginClaimCaller } from '@/lib/pluginClaimCaller';
 import { buildEnrolledConfig } from '@/lib/pluginConfigEnrolled';
 import type { PanelTile } from '@/lib/pluginPanel';
@@ -46,7 +48,7 @@ import { deleteTileProof, listTileProofs } from '@/lib/tileProofs';
 import { PROOFS_MAX, PROOFS_STEP, type ProofRow, proofsUi } from './proofsUi';
 import { hasFeedTab, hasPanelImages, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
-import { type Node, type View, applyFlair, backRow, button, col, gap, message, namesIn, text } from './nodes';
+import { type Node, type View, applyFlair, backRow, button, card, col, gap, message, muted, namesIn, text } from './nodes';
 import { notFoundUi, playerCardUi } from './playerCardUi';
 import { casUi, clogPageUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from './playerMoreUi';
 import { rosterUi, teamsUi } from './teamsUi';
@@ -91,10 +93,53 @@ async function playerView(request: Request, rsn: string): Promise<View> {
   }
 }
 
+/**
+ * The played character belongs to another Anvil player: say so, and offer "This is my account" (an
+ * ownership claim, lib/ownershipClaims) — or show where an earlier claim stands. Never names the owner.
+ */
+async function ownershipCard(request: Request, note: string | null = null): Promise<Node | null> {
+  const viewer = await verifyPluginTokenUser(request);
+  const me = playedCharacter(request);
+  if (!viewer || !me || (await accountStanding(viewer.userId, me)) !== 'other') return null;
+  const claim = await myClaimOn(viewer.userId, me);
+  const live = claim && (claim.status === 'open' || claim.status === 'approved');
+  return card([
+    text(`${me.rsn} belongs to another Anvil player`, 'brand'),
+    gap(2),
+    muted('Nothing is sent for it from this login: no drops, progress or proofs.', { wrap: true }),
+    ...(claim ? [gap(4), text(claim.line, live ? 'progress' : 'muted', { wrap: true })] : []),
+    ...(note ? [gap(4), text(note, 'error', { wrap: true })] : []),
+    ...(!live
+      ? [
+          gap(6),
+          button(
+            'This is my account',
+            { a: 'post', act: 'ownership-claim' },
+            'Ask for it: the current owner is told and can object, and you can withdraw it on the site',
+          ),
+        ]
+      : []),
+  ]);
+}
+
+/** "This is my account" from the panel: the same claim as the account row's "It's mine". */
+async function ownershipClaimAct(request: Request): Promise<View> {
+  const viewer = await verifyPluginTokenUser(request);
+  const me = playedCharacter(request);
+  if (!viewer || !me) return message('Log in to the character first.');
+  const rl = await rateLimit(request, `plugin-ownership-claim:${viewer.userId}`, { limit: 10, windowMs: 10 * 60_000 });
+  if (!rl.ok) return youView(request, 'Too many requests — try again in a few minutes.');
+  const out = await fileOwnershipClaim({ userId: viewer.userId, character: me });
+  // A claim Anvil can't weigh on its own goes to staff from the account row's "It's mine"; here it
+  // just says why.
+  return youView(request, out.ok ? null : out.error);
+}
+
 /** Your own card and goals: the character being played, private or not, if it's yours to see. */
-async function youView(request: Request): Promise<View> {
+async function youView(request: Request, note: string | null = null): Promise<View> {
   const me = playedCharacter(request);
   if (!me) return message('Log in to a character to see your card.');
+  const ownership = await ownershipCard(request, note).catch(() => null);
   const character = await apexCharacter(me.rsn, await viewerPlayerId(request));
   const cardUi = character
     ? playerCardUi(await loadPlayerCard(character), { sectionKey: 'you', cas: true })
@@ -103,7 +148,7 @@ async function youView(request: Request): Promise<View> {
   const owner = await ownedAccount(request);
   const challenges = owner ? await challengesForAccount(owner.accountId).catch(() => []) : [];
   const h2h = challenges.length ? [h2hUi(challenges), gap(6)] : [];
-  return { ui: col([cardUi, gap(6), ...h2h, (await goalsView(request)).ui]) };
+  return { ui: col([...(ownership ? [ownership, gap(6)] : []), cardUi, gap(6), ...h2h, (await goalsView(request)).ui]) };
 }
 
 /** The played character's head-to-head challenges (lib/h2h), when it is yours. */
@@ -654,6 +699,12 @@ export async function pluginAct(request: Request, act: string, args: Args, field
 }
 
 async function actFor(request: Request, act: string, args: Args, fields: Args): Promise<View | null> {
+  // The one action a character that isn't this login's may take: asking for it.
+  if (act === 'ownership-claim') return ownershipClaimAct(request);
+  // Every other action is refused for somebody else's character (lib/pluginForeign) — even the ones
+  // that are the login's own (a reaction, "I'm going", chat), so nothing is done while on it.
+  const foreign = await pluginCharacterRefusal(request, { allowUnclaimed: true }).catch(() => null);
+  if (foreign) return message(foreign.error);
   if (act === 'claim' || act === 'unclaim') return claimAct(request, act, args, fields.note);
   if (act === 'proof-delete') return proofDeleteAct(request, args, fields.note);
   if (act === 'clan-event-going') return clanEventGoingAct(request, args);

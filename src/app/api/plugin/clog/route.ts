@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { foreignOr } from '@/lib/pluginForeign';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanMemberships, memberClog, memberClogItems, memberClogKc, moments } from '@/db/schema';
@@ -61,9 +62,10 @@ export async function POST(request: Request) {
   const member = await resolvePluginCharacter(request);
   if (mode && !member) return worldModeIgnored(request)!;
   if (!member) {
-    return NextResponse.json(
-      { error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' },
-      { status: 401 },
+    // Somebody else's character (or one this login let go of) says so (lib/pluginForeign).
+    return foreignOr(
+      request,
+      NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 }),
     );
   }
 

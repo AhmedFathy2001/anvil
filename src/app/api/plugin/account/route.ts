@@ -11,6 +11,7 @@ import {
 import { accountForCharacter, accountStanding, playedCharacter, type PlayedCharacter } from '@/lib/pluginAccount';
 import { fileCharacterReport } from '@/lib/characterReports';
 import { resolveClanFromRequest } from '@/lib/clanContext';
+import { fileOwnershipClaim } from '@/lib/ownershipClaims';
 
 // /api/plugin/account — the sidebar's account row: "is this character mine?", from the plugin.
 //
@@ -23,8 +24,10 @@ import { resolveClanFromRequest } from '@/lib/clanContext';
 //                              lib/accountRelease) and stop auto-linking it. The plugin stops
 //                              sending anything while it's logged in.
 //   POST { action: 'resume' }  Undo that: the next request links it again as before.
-//   POST { action: 'dispute' } "It's mine": the character is claimed by somebody else; raise it with
-//                              Anvil staff as a wrong-owner report, with this login as claimant.
+//   POST { action: 'dispute' } "It's mine" / "This is my account": the character is claimed by
+//                              somebody else. Opens an ownership claim (lib/ownershipClaims) the owner
+//                              answers — or, when the plugin can't show the character is logged in
+//                              here, a wrong-owner report for Anvil staff. ('claim' is an alias.)
 //
 // None of these run resolvePluginMember — a request whose point is "not mine" must never be the one
 // that links it.
@@ -85,12 +88,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, standing: await accountStanding(userId, character) });
   }
 
-  if (action === 'dispute') {
+  if (action === 'dispute' || action === 'claim') {
     if (!account || account.claimedAt == null || ours || me == null) {
       return NextResponse.json({ error: 'This account isn’t linked to anyone else.' }, { status: 409 });
     }
-    // The hash is the strongest thing the plugin can say: the character really is logged in here.
-    // Recorded as a yes/no — the hash itself is a credential and never goes into a report.
+    // "This is my account" (the plugin's "It's mine"): an ownership claim the owner is told about —
+    // a 7-day objection window when their claim rests on a name, their explicit yes when their own
+    // plugin proved it (lib/ownershipClaims). The claimant learns nothing about who the owner is.
+    const claim = await fileOwnershipClaim({ userId, character, nowIso });
+    if (claim.ok) {
+      return NextResponse.json({ ok: true, filed: true, claim: true, alreadyOpen: !claim.created, status: claim.status, message: claim.message });
+    }
+    if (claim.reason === 'taken') return NextResponse.json({ error: claim.error, reason: claim.reason }, { status: 409 });
+    if (claim.reason === 'rate-limited') return NextResponse.json({ error: claim.error, reason: claim.reason }, { status: 429 });
+    if (claim.reason === 'not-other') return NextResponse.json({ error: claim.error }, { status: 409 });
+    // Nothing Anvil can weigh on its own (no hash from this client, a hash that isn't the one on
+    // record, or the owner already said no): staff look, as a wrong-owner report with this login as
+    // claimant. The hash itself is a credential and never goes into a report — only yes/no.
     const hashMatched = !!character.accountHash && account.accountHash === character.accountHash;
     const clan = await resolveClanFromRequest(request).catch(() => null);
     const { created } = await fileCharacterReport({
@@ -103,9 +117,16 @@ export async function POST(request: Request) {
         `Raised from the RuneLite plugin: this login says ${character.rsn} is theirs, but it is linked to someone else. ` +
         (hashMatched
           ? 'The plugin was logged into the character (account hash matched).'
-          : 'No account-hash match — the name alone was reported.'),
+          : 'No account-hash match — the name alone was reported.') +
+        (claim.reason === 'cooldown' ? ' The current owner already turned down this person’s ownership claim.' : ''),
     });
-    return NextResponse.json({ ok: true, filed: true, alreadyOpen: !created });
+    return NextResponse.json({
+      ok: true,
+      filed: true,
+      claim: false,
+      alreadyOpen: !created,
+      message: 'Sent to Anvil staff. They’ll check and move it to you if it’s yours.',
+    });
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

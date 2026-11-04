@@ -59,6 +59,9 @@ export async function accountStanding(userId: number, c: PlayedCharacter): Promi
       columns: { id: true },
     }),
   ]);
+  // Held by this person: theirs, the same test resolvePluginMember's owned seats make (a person's
+  // character from before claims were stamped can lack `claimedAt`).
+  if (account && me != null && account.playerId === me) return 'yours';
   if (account?.claimedAt != null) {
     return me != null && account.playerId === me ? 'yours' : 'other';
   }

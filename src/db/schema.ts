@@ -1968,6 +1968,57 @@ export const accountSightings = pgTable('account_sightings', {
 ]);
 
 /**
+ * The same sightings, one row per (account, login, UTC day) — what the fair-play check reads, so a
+ * sighting counts only on the days it happened (an event window), not whenever the aggregate row
+ * above was last touched. `hashMatched` 1 = the play carried the hash anchored on the account; 0 =
+ * the account has no hash yet, so the name is all there is (a weaker signal). `lastAt` is refreshed
+ * at most hourly (lib/accountSightings).
+ */
+export const accountSightingDays = pgTable('account_sighting_days', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  day: text('day').notNull(),
+  hashMatched: integer('hash_matched').notNull().default(0),
+  firstAt: text('first_at').notNull(),
+  lastAt: text('last_at').notNull(),
+}, (table) => [
+  uniqueIndex('account_sighting_days_unique').on(table.accountId, table.userId, table.day),
+  index('account_sighting_days_account_day_idx').on(table.accountId, table.day),
+]);
+
+/**
+ * "This is my account": a login asking for a character somebody else has claimed (lib/ownershipClaims).
+ *
+ * `mode` decides how it can end:
+ *   - 'objection': the owner never proved it with the plugin and the claimant's client was logged
+ *     into it (X-Account-Hash). The owner is told; unless they object by `deadlineAt`, it moves.
+ *   - 'approval': the owner's own plugin proved it (same hash). Only the owner's yes moves it.
+ * `status`: open → transferred | objected | declined | withdrawn | lapsed; 'approved' = the owner said
+ * yes (or the window closed) but a live event holds the character, so the move waits for its end.
+ * `claimHash` is the claimant's X-Account-Hash, kept only to anchor on the account at transfer —
+ * never shown. One open claim per character (partial unique index).
+ */
+export const accountOwnershipClaims = pgTable('account_ownership_claims', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  claimantUserId: integer('claimant_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  claimantPlayerId: integer('claimant_player_id').notNull().references(() => players.id, { onDelete: 'cascade' }),
+  ownerPlayerId: integer('owner_player_id').notNull().references(() => players.id, { onDelete: 'cascade' }),
+  mode: text('mode').notNull(),
+  status: text('status').notNull().default('open'),
+  claimHash: text('claim_hash'),
+  createdAt: text('created_at').notNull(),
+  deadlineAt: text('deadline_at'),
+  decidedAt: text('decided_at'),
+  decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+}, (table) => [
+  uniqueIndex('account_ownership_claims_open_unique').on(table.accountId).where(sql`status in ('open', 'approved')`),
+  index('account_ownership_claims_claimant_idx').on(table.claimantUserId),
+  index('account_ownership_claims_owner_idx').on(table.ownerPlayerId),
+]);
+
+/**
  * Which Anvil plugin build last played each character (the `X-Anvil-Plugin-Version` header), and when.
  *
  * A sidecar rather than columns on `accounts`: the plugin polls every 30 seconds and the accounts row

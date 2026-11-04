@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { LAST_SEEN_REFRESH_MS, resolvePluginClan, verifyPluginTokenUser } from '@/lib/auth';
+import { refuseForeignCharacter } from '@/lib/pluginForeign';
 import { lastSeenIsFresh } from '@/lib/rosterSync';
 import { clanMemberships, clanRoster, events, weeklyCompetitions } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
@@ -78,6 +79,12 @@ export async function POST(request: Request) {
 
   const rsnNormalized = normalizeRsn(rsn);
   const signedIn = (await verifyPluginTokenUser(request)) != null;
+  // A signed-in client playing somebody else's character (or one it let go of) asks for nothing and
+  // touches nothing on its behalf. Unclaimed is fine: asking for a seat is how a newcomer starts.
+  if (signedIn) {
+    const foreign = await refuseForeignCharacter(request, { allowUnclaimed: true, rsn });
+    if (foreign) return foreign;
+  }
   // Scoped to the clan named by the Host: the same RSN legitimately sits on other clans' rosters.
   // The clan seat first; else an event player's seat, so their login ping files no guest request.
   const here = and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized));

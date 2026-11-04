@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { foreignOr } from '@/lib/pluginForeign';
 import { db } from '@/db';
 import { eventParticipants, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -42,7 +43,8 @@ export async function POST(request: Request) {
   const member = await resolvePluginMember(request);
   if (!member && mode) return worldModeIgnored(request)!;
   if (!member) {
-    return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 });
+    // Somebody else's character (or one this login let go of) says so (lib/pluginForeign).
+    return foreignOr(request, NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 }));
   }
 
   // AFTER auth, and keyed on the PERSON rather than the address. Recap counters are absolute totals and max-merged, so a flood cannot corrupt a number. It can

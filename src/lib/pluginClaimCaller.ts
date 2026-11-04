@@ -1,5 +1,6 @@
 import { verifyPluginToken, verifyPluginTokenForEvent, verifyPluginTokenUser } from '@/lib/auth';
 import { rateLimitByKey } from '@/lib/rate-limit';
+import { pluginCharacterRefusal } from '@/lib/pluginForeign';
 
 /**
  * Who is claiming a tile from the plugin, and on which team. The token names the account, which names
@@ -14,7 +15,12 @@ export async function pluginClaimCaller(
   | { ok: false; error: string; status: number }
 > {
   const auth = eventId != null ? await verifyPluginTokenForEvent(request, eventId) : await verifyPluginToken(request);
-  if (!auth) return { ok: false, error: 'Unauthorized. Provide Authorization: Bearer <accountToken>', status: 401 };
+  if (!auth) {
+    // Somebody else's character (or one this login let go of) says so (lib/pluginForeign).
+    const foreign = await pluginCharacterRefusal(request).catch(() => null);
+    if (foreign) return { ok: false, error: foreign.error, status: 403 };
+    return { ok: false, error: 'Unauthorized. Provide Authorization: Bearer <accountToken>', status: 401 };
+  }
   // A token minted before logins were linked can resolve the account but not the login. The claim is
   // a person's, so fall back to the token's own user; refuse rather than invent one.
   const userId = auth.userId ?? (await verifyPluginTokenUser(request))?.userId ?? null;

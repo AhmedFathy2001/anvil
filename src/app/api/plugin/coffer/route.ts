@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { foreignOr } from '@/lib/pluginForeign';
 
 import { resolvePluginMember } from '@/lib/auth';
 import { announceCofferMovement } from '@/lib/cofferFeed';
@@ -21,9 +22,10 @@ function balance(value: unknown): number | null {
 export async function POST(request: Request) {
   const member = await resolvePluginMember(request);
   if (!member) {
-    return NextResponse.json(
-      { error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' },
-      { status: 401 },
+    // Somebody else's character (or one this login let go of) says so (lib/pluginForeign).
+    return foreignOr(
+      request,
+      NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 }),
     );
   }
 

@@ -189,10 +189,13 @@ const ACCOUNT_ITEMS: { href: string; label: string; icon: string }[] = [
 export function SettingsNav({
   characters,
   pending,
+  claims = 0,
   flair = null,
 }: {
   characters: NavCharacter[];
   pending: number;
+  /** "This is my account" claims on their characters waiting for their answer (lib/ownershipClaims). */
+  claims?: number;
   /** Their Supporter look, worn by their characters' names (inside a link, so `plain`). */
   flair?: { tier: SupporterTierId | null; style: SupporterStyle | null } | null;
 }) {
@@ -222,6 +225,15 @@ export function SettingsNav({
     <nav aria-label="Settings" className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-2 lg:sticky lg:top-20 lg:mx-0 lg:block lg:overflow-visible lg:px-0 lg:pb-0">
       {heading('Account')}
       {ACCOUNT_ITEMS.map((i) => item(i.href, path === i.href, <>{icon(i.icon)}{i.label}</>))}
+      {item(
+        '/settings/claims',
+        path === '/settings/claims',
+        <>
+          {icon('⚑')}
+          Ownership claims
+          {claims > 0 && <span className="ml-auto rounded-full bg-gold px-1.5 text-[10px] font-semibold text-brown-dark">{claims}</span>}
+        </>,
+      )}
       {heading('Characters')}
       {characters.map((c) => {
         const href = `/settings/characters/${c.accountId}`;

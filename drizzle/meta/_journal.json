@@ -1044,6 +1044,13 @@
       "when": 1793792734614,
       "tag": "0205_event_player_seats",
       "breakpoints": true
+    },
+    {
+      "idx": 208,
+      "version": "7",
+      "when": 1793792914614,
+      "tag": "0208_other_login_characters",
+      "breakpoints": true
     }
   ]
 }

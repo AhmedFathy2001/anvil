@@ -184,15 +184,28 @@ test('somebody else’s character played here: recorded once, shown as other, di
   const shown = await alsoPlayedFromByAccount([acct.id], owner.userId);
   assert.equal(shown.get(acct.id)?.length, 1, 'the owner’s profile can say so');
 
+  // With the hash in hand, "It's mine" is an ownership claim the owner answers (lib/ownershipClaims;
+  // tests/other-login.test.ts); the owner's own plugin proved this one, so it waits on their yes.
   const d = await act(visitor.token, 'Owned Else', 'h-owned', 'dispute');
   assert.equal(d.status, 200, JSON.stringify(d.body));
+  assert.equal(d.body.claim, true);
   const again = await act(visitor.token, 'Owned Else', 'h-owned', 'dispute');
-  assert.equal(again.body.alreadyOpen, true, 'one report, not one per click');
+  assert.equal(again.body.alreadyOpen, true, 'one claim, not one per click');
+  const claims = await db.select().from(s.accountOwnershipClaims).where(eq(s.accountOwnershipClaims.accountId, acct.id));
+  assert.equal(claims.length, 1);
+  assert.equal(claims[0].mode, 'approval');
+  assert.equal(claims[0].claimantPlayerId, visitor.person);
+
+  // Without one (the name alone), it's a wrong-owner report for staff, as before.
+  const stranger = await login();
+  const r = await act(stranger.token, 'Owned Else', null, 'dispute');
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.claim, false);
   const reports = await db.select().from(s.characterReports).where(eq(s.characterReports.accountId, acct.id));
   assert.equal(reports.length, 1);
   assert.equal(reports[0].kind, 'wrong_owner');
-  assert.equal(reports[0].claimantPlayerId, visitor.person);
-  assert.match(reports[0].body ?? '', /hash matched/);
+  assert.equal(reports[0].claimantPlayerId, stranger.person);
+  assert.match(reports[0].body ?? '', /name alone/);
   assert.doesNotMatch(reports[0].body ?? '', /h-owned/, 'the hash itself never lands in a report');
 
   const own = await act(owner.token, 'Owned Else', 'h-owned', 'dispute');

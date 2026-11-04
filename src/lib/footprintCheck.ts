@@ -5,11 +5,11 @@ import { primaryCredit } from '@/lib/comboSql';
 // (account_stat_snapshots) against the event baseline — and only trusts a poll taken after the
 // plugin went quiet, which the sweep makes once a session ends (lib/pollLadder). Flags, never blocks.
 
-import { and, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm';
+import { and, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
-  accounts, accountSightings, accountStatSnapshots, eventDaySnapshots, eventParticipants, events, integrityNetwork,
-  integritySignals, memberPersonalBests, submissions, tiles,
+  accounts, accountSightingDays, accountStatSnapshots, eventDaySnapshots, eventParticipants, events, integrityNetwork,
+  integritySignals, memberPersonalBests, submissions, tiles, users,
 } from '@/db/schema';
 import { parseEventRules } from '@/lib/eventRules';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
@@ -45,7 +45,7 @@ export async function runFootprintChecks(nowMs = Date.now()): Promise<void> {
     if (nowMs - (lastRun.get(ev.id) ?? 0) < CHECK_EVERY_MS) continue;
     lastRun.set(ev.id, nowMs);
     try {
-      await checkEvent(ev.id, parseStamp(ev.startDate), parseEventRules(ev.rules).sharingChecks, nowMs);
+      await checkEvent(ev.id, parseStamp(ev.startDate), parseEventRules(ev.rules).sharingChecks, nowMs, parseStamp(ev.endDate));
     } catch (err) {
       log.warn('footprint.failed', { eventId: ev.id, err: String(err) });
     }
@@ -72,7 +72,7 @@ function snap(json: string | null | undefined): HiscoresSnapshot | null {
 const RANK: Record<Verdict, number> = { unchecked: 0, ok: 1, short: 2 };
 const worse = (a: Verdict, b: Verdict): Verdict => (RANK[b] > RANK[a] ? b : a);
 
-async function checkEvent(eventId: number, startMs: number | null, sharing: boolean, nowMs: number): Promise<void> {
+async function checkEvent(eventId: number, startMs: number | null, sharing: boolean, nowMs: number, endMs: number | null = null): Promise<void> {
   const players = await db
     .select({
       id: eventParticipants.id,
@@ -231,7 +231,7 @@ async function checkEvent(eventId: number, startMs: number | null, sharing: bool
     }
   }
 
-  await raiseBehaviourSignals({ eventId, startMs, sharing, nowMs, players, subs, tileById });
+  await raiseBehaviourSignals({ eventId, startMs, endMs, sharing, nowMs, players, subs, tileById });
 }
 
 function groupBy<T, K>(rows: T[], key: (r: T) => K): Map<K, T[]> {
@@ -292,6 +292,74 @@ async function saveSignals(eventId: number, found: Signal[]): Promise<void> {
 }
 
 /**
+ * "Played through another Anvil login" — a character on a team in this event was played, inside the
+ * event's window, through a plugin whose login doesn't own it (lib/accountSightings records those
+ * per UTC day). What a booster's own RuneLite looks like, and also what a shared family PC looks
+ * like: a reason for this event's staff to take a look (the integrity panel, staff-only), never a
+ * penalty. One signal per (event, player, other login); its detail carries how many days and
+ * whether the account hash confirmed it, and stays current while staff haven't dismissed it.
+ */
+export async function raiseOtherLoginSignals(
+  eventId: number,
+  window: { startMs: number | null; endMs: number | null },
+  players: { id: number; accountId: number | null; teamId: number | null }[],
+): Promise<number> {
+  if (window.startMs == null) return 0;
+  const onTeams = players.filter((p) => p.accountId != null && p.teamId != null);
+  if (onTeams.length === 0) return 0;
+  const byAccount = new Map(onTeams.map((p) => [p.accountId!, p]));
+  const startIso = new Date(window.startMs).toISOString();
+  const endIso = window.endMs != null ? new Date(window.endMs).toISOString() : null;
+  const rows = await db
+    .select({
+      accountId: accountSightingDays.accountId,
+      userId: accountSightingDays.userId,
+      day: accountSightingDays.day,
+      hashMatched: accountSightingDays.hashMatched,
+      firstAt: accountSightingDays.firstAt,
+      lastAt: accountSightingDays.lastAt,
+      ownerId: accounts.playerId,
+      loginPerson: users.playerId,
+    })
+    .from(accountSightingDays)
+    .innerJoin(accounts, eq(accounts.id, accountSightingDays.accountId))
+    .innerJoin(users, eq(users.id, accountSightingDays.userId))
+    .where(and(
+      inArray(accountSightingDays.accountId, [...byAccount.keys()]),
+      gte(accountSightingDays.day, startIso.slice(0, 10)),
+      ...(endIso ? [lte(accountSightingDays.day, endIso.slice(0, 10))] : []),
+    ));
+  type Agg = { participantId: number; userId: number; days: Set<string>; hashMatched: boolean; lastAt: string };
+  const found = new Map<string, Agg>();
+  for (const r of rows) {
+    // Inside the window to the minute, not just the day: a visit the morning before the start says nothing.
+    if (r.lastAt < startIso || (endIso != null && r.firstAt > endIso)) continue;
+    // Since moved to that login's person (an ownership claim): its own plays now, not another login's.
+    if (r.loginPerson != null && r.loginPerson === r.ownerId) continue;
+    const p = byAccount.get(r.accountId)!;
+    const key = `${p.id}:${r.userId}`;
+    const agg = found.get(key) ?? { participantId: p.id, userId: r.userId, days: new Set<string>(), hashMatched: false, lastAt: r.lastAt };
+    agg.days.add(r.day);
+    agg.hashMatched ||= r.hashMatched === 1;
+    if (r.lastAt > agg.lastAt) agg.lastAt = r.lastAt;
+    found.set(key, agg);
+  }
+  for (const f of found.values()) {
+    const detail = JSON.stringify({ seenAt: f.lastAt, days: f.days.size, hashMatched: f.hashMatched });
+    await db
+      .insert(integritySignals)
+      .values({ eventId, participantId: f.participantId, kind: `other_login:${f.userId}`, detail })
+      .onConflictDoUpdate({
+        target: [integritySignals.eventId, integritySignals.participantId, integritySignals.kind],
+        set: { detail },
+        // Staff said "looks fine": leave it be.
+        setWhere: isNull(integritySignals.dismissedAt),
+      });
+  }
+  return found.size;
+}
+
+/**
  * The signals that read how somebody plays rather than what the hiscores say: another Anvil login on
  * the account, a run far past their old PB, play at hours they never kept, a new timezone on their
  * proofs, and — on boards that opted in — shared networks and two countries.
@@ -299,6 +367,7 @@ async function saveSignals(eventId: number, found: Signal[]): Promise<void> {
 async function raiseBehaviourSignals(ctx: {
   eventId: number;
   startMs: number | null;
+  endMs?: number | null;
   sharing: boolean;
   nowMs: number;
   players: { id: number; accountId: number | null; name: string; teamId: number | null; pbBaseline: string | null }[];
@@ -312,17 +381,9 @@ async function raiseBehaviourSignals(ctx: {
   const accountIds = [...byAccount.keys()];
   if (accountIds.length === 0) return;
 
-  // Another Anvil login played this character during the event (lib/accountSightings records only
-  // logins that aren't the owner's). The strongest of these: it is what a booster's own RuneLite looks like.
-  const sightings = await db
-    .select({ accountId: accountSightings.accountId, userId: accountSightings.userId, lastSeenAt: accountSightings.lastSeenAt })
-    .from(accountSightings)
-    .where(inArray(accountSightings.accountId, accountIds));
-  for (const g of sightings) {
-    const seen = parseStamp(g.lastSeenAt);
-    const p = byAccount.get(g.accountId);
-    if (p && seen != null && seen >= startMs) found.push({ participantId: p.id, kind: `other_login:${g.userId}`, detail: { seenAt: g.lastSeenAt } });
-  }
+  // Another Anvil login played this character during the event: its own signal kind, upserted
+  // rather than kept first-only, so the days count keeps up (raiseOtherLoginSignals).
+  await raiseOtherLoginSignals(eventId, { startMs, endMs: ctx.endMs ?? null }, players);
 
   // Personal bests as they stood before the event, captured once (a PB beaten during it is gone after).
   for (const p of players) {

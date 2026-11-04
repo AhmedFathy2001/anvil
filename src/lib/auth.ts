@@ -1173,16 +1173,9 @@ async function autoLinkOrSuggestOnPlay(
       const mine = await personOf(userId);
       if (mine != null && ownedByRsn.playerId === mine) {
         await seatOwnedCharacterAsGuest(clanId, ownedByRsn.id, mine, nowIso);
-      } else if (accountHash && ownedByRsn.accountHash === accountHash) {
-        // SOMEBODY ELSE'S, really logged in through this login's plugin — siblings on one RuneLite, a
-        // friend at this PC, or a wrong link. Ownership stays put; the sighting is what lets the owner
-        // see it and staff weigh a dispute (lib/accountSightings).
-        //
-        // Only on a HASH match. The owner's profile names whoever this is, and a name is free: on a
-        // bare RSN anybody could put "Anvil Staff" in front of a stranger's character with a nudge
-        // to remove it. The hash means the character was actually logged in on that client.
-        await recordForeignSighting(ownedByRsn.id, userId, true, nowIso);
       }
+      // SOMEBODY ELSE'S: nothing to do here. The sighting (who else's plugin played it) is recorded
+      // before clan resolution, in rememberPluginObservation, so a login with no clan is seen too.
       return;
     }
 
@@ -1359,7 +1352,11 @@ async function rememberPluginObservation(
     ? await db.query.accounts.findFirst({ where: eq(accounts.accountHash, accountHash) })
     : null;
   const byRsn = account ?? (await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, rsnNormalized) }));
-  if (!byRsn || byRsn.claimedAt != null) return;
+  if (!byRsn) return;
+  if (byRsn.claimedAt != null) {
+    await noteForeignPlay(byRsn, userId, accountHash, nowIso);
+    return;
+  }
   // Brand-new/seatless accounts are handled by the normal clan-aware auto-link below. This early
   // breadcrumb exists for an established identity that is what prevents clan resolution itself.
   // clan-scope: global -- this is asking whether the account is established on any roster; the
@@ -1391,6 +1388,30 @@ async function rememberPluginObservation(
     detectedAt: nowIso,
     lastSeenAt: nowIso,
   });
+}
+
+/**
+ * A claimed character played through a login whose person doesn't own it — siblings on one RuneLite,
+ * a friend at this PC, a booster, or a wrong link. Ownership stays put and nothing is sent for it
+ * (lib/pluginForeign); the sighting is what the owner's settings and the event fair-play check read
+ * (lib/accountSightings, lib/footprintCheck).
+ *
+ * Only with a hash in hand. A hash equal to the account's anchor is the character really logged in
+ * on that client (hashMatched). An account with no anchor yet can only be matched by name, so that
+ * sighting is kept as the weaker kind. A hash that differs from the anchor is not this character at
+ * all — a stale name or a forged header — and says nothing.
+ */
+async function noteForeignPlay(
+  account: { id: number; playerId: number | null; accountHash: string | null },
+  userId: number,
+  accountHash: string | null,
+  nowIso: string,
+): Promise<void> {
+  if (!accountHash) return;
+  if (account.accountHash && account.accountHash !== accountHash) return;
+  const me = await personOf(userId);
+  if (me != null && account.playerId === me) return;
+  await recordForeignSighting(account.id, userId, account.accountHash === accountHash, nowIso);
 }
 
 /**

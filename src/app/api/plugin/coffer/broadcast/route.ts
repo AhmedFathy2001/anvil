@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { foreignOr } from '@/lib/pluginForeign';
 
 import { resolvePluginMember } from '@/lib/auth';
 import { announce } from '@/lib/coffer';
@@ -14,7 +15,8 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 export async function POST(request: Request) {
   const member = await resolvePluginMember(request);
   if (!member) {
-    return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 });
+    // Somebody else's character (or one this login let go of) says so (lib/pluginForeign).
+    return foreignOr(request, NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 }));
   }
   const rl = await rateLimit(request, `plugin-coffer-chat:${member.userId}`, { limit: 60, windowMs: 60_000 });
   if (!rl.ok) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });

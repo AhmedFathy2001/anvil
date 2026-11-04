@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { foreignOr } from '@/lib/pluginForeign';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { deleteGoal, goalsWithProgress, saveGoal } from '@/lib/goals';
 import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
@@ -24,18 +25,20 @@ async function ownedAccount(request: Request) {
   return account ? { userId: viewer.userId, accountId: account.id, rsn: character.rsn } : null;
 }
 
-const notYours = () =>
-  NextResponse.json({ error: 'Log in to a character that is yours on Anvil to keep goals.' }, { status: 403 });
+const notYours = (request: Request) =>
+  foreignOr(request, () =>
+    NextResponse.json({ error: 'Log in to a character that is yours on Anvil to keep goals.' }, { status: 403 }),
+  );
 
 export async function GET(request: Request) {
   const owner = await ownedAccount(request);
-  if (!owner) return notYours();
+  if (!owner) return notYours(request);
   return NextResponse.json({ goals: await goalsWithProgress(owner.accountId, owner.rsn) });
 }
 
 export async function POST(request: Request) {
   const owner = await ownedAccount(request);
-  if (!owner) return notYours();
+  if (!owner) return notYours(request);
   const rl = await rateLimit(request, `plugin-goals:${owner.userId}`, { limit: 30, windowMs: 60_000 });
   if (!rl.ok) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
 
@@ -52,7 +55,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   const owner = await ownedAccount(request);
-  if (!owner) return notYours();
+  if (!owner) return notYours(request);
   const id = Number(new URL(request.url).searchParams.get('id'));
   if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: 'Which goal?' }, { status: 400 });
   await deleteGoal(owner.accountId, id);

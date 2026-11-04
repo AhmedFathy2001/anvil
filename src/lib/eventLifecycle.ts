@@ -31,6 +31,7 @@ import { track } from '@/lib/analytics';
 import { endOfEventFacts, runDailyDigests, runHalfwayReports } from '@/lib/eventDigest';
 import { runHourlySnapshots } from '@/lib/eventHourly';
 import { runFootprintChecks } from '@/lib/footprintCheck';
+import { settleOwnershipClaims } from '@/lib/ownershipClaims';
 import { closeFinishedEventSeats } from '@/lib/eventPlayers';
 
 // The awards worth celebrating in the Discord end post, most-fun-first — we take the first few of
@@ -407,6 +408,8 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   await runHourlySnapshots().catch((err) => log.warn('event-lifecycle.hourly-failed', { err: String(err) }));
   // Hiscores footprint checks + integrity signals (lib/footprint) — flag-only, off reads already made.
   await runFootprintChecks().catch((err) => log.warn('event-lifecycle.footprint-failed', { err: String(err) }));
+  // "This is my account" claims: an objection window that ran out moves the character (lib/ownershipClaims).
+  await settleOwnershipClaims(nowMs).catch((err) => log.warn('event-lifecycle.ownership-claims-failed', { err: String(err) }));
   await runHalfwayReports().catch((err) => log.warn('event-lifecycle.halfway-failed', { err: String(err) }));
   await runDailyDigests().catch((err) => log.warn('event-lifecycle.digest-failed', { err: String(err) }));
   // Hidden standings (lib/standingsReveal): mark curtains that are down, and post the leaderboard

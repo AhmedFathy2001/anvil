@@ -11,10 +11,10 @@
 //     the old silent nothing;
 //   - is the evidence staff read when either side disputes (POST /api/plugin/account 'dispute').
 
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray, lt, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accountSightings, users } from '@/db/schema';
+import { accountSightingDays, accountSightings, users } from '@/db/schema';
 
 /**
  * Refresh an existing sighting at most this often. The plugin polls /config every 30 seconds; on a
@@ -39,6 +39,7 @@ export async function recordForeignSighting(
   hashMatched: boolean,
   nowIso: string,
 ): Promise<void> {
+  await recordSightingDay(accountId, userId, hashMatched, nowIso);
   const prior = await db.query.accountSightings.findFirst({
     where: and(eq(accountSightings.accountId, accountId), eq(accountSightings.userId, userId)),
   });
@@ -59,6 +60,32 @@ export async function recordForeignSighting(
     .where(eq(accountSightings.id, prior.id));
 }
 
+/** How often a day row's `lastAt` moves while the same login keeps playing that day. */
+export const SIGHTING_DAY_REFRESH_MS = 60 * 60 * 1000;
+
+/**
+ * The per-day row the event fair-play check reads (lib/footprintCheck): at most one per (character,
+ * login, UTC day), its `lastAt` refreshed at most hourly, a hash match sticky for the day.
+ */
+async function recordSightingDay(accountId: number, userId: number, hashMatched: boolean, nowIso: string): Promise<void> {
+  const day = nowIso.slice(0, 10);
+  const cutoff = new Date(Date.parse(nowIso) - SIGHTING_DAY_REFRESH_MS).toISOString();
+  await db
+    .insert(accountSightingDays)
+    .values({ accountId, userId, day, hashMatched: hashMatched ? 1 : 0, firstAt: nowIso, lastAt: nowIso })
+    .onConflictDoUpdate({
+      target: [accountSightingDays.accountId, accountSightingDays.userId, accountSightingDays.day],
+      set: {
+        lastAt: nowIso,
+        hashMatched: sql`greatest(${accountSightingDays.hashMatched}, ${hashMatched ? 1 : 0})`,
+      },
+      // Only when it is worth a write: an hour on, or a hash match the day row didn't have yet.
+      setWhere: hashMatched
+        ? sql`${accountSightingDays.lastAt} < ${cutoff} or ${accountSightingDays.hashMatched} = 0`
+        : lt(accountSightingDays.lastAt, cutoff),
+    });
+}
+
 export type ForeignSighting = { accountId: number; userId: number; hashMatched: boolean; lastSeenAt: string };
 
 /**
@@ -75,7 +102,14 @@ export async function foreignSightingsFor(accountIds: number[], ownerUserId: num
       lastSeenAt: accountSightings.lastSeenAt,
     })
     .from(accountSightings)
-    .where(and(inArray(accountSightings.accountId, accountIds), ne(accountSightings.userId, ownerUserId)));
+    // Hash-matched only. This list NAMES the other login to the owner, and a bare name is free: on
+    // a name-only sighting anybody could put "Anvil Staff" in front of a stranger's character. The
+    // name-only rows exist for staff's fair-play check, which says how weak they are.
+    .where(and(
+      inArray(accountSightings.accountId, accountIds),
+      ne(accountSightings.userId, ownerUserId),
+      eq(accountSightings.hashMatched, 1),
+    ));
   return rows
     .map((r) => ({ ...r, hashMatched: r.hashMatched === 1 }))
     .sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt));
