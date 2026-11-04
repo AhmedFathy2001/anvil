@@ -5,7 +5,18 @@ import { leaguesIconUrl } from '@/lib/leagues';
 import { log } from '@/lib/logger';
 import { DEFAULT_MODE_KINDS_OFF } from '@/lib/modeLines';
 import { getSetting, getSettingMap, setSetting } from '@/lib/settings';
-import { storedModeDropFloor, storedModeLevels, type ModeFilters } from '@/lib/modeFilters';
+import {
+  mergeModeThresholds,
+  modeLevelRules,
+  storedModeDropFloor,
+  storedModeDropValue,
+  storedModeLevels,
+  type ModeFilters,
+  type PluginModeThresholds,
+} from '@/lib/modeFilters';
+import { socialEmissionClans } from '@/lib/emissionRouting';
+import { getMemberLevelPrefs } from '@/lib/levelRulesStore';
+import { worldModeOf } from '@/lib/worldModeRequest';
 import {
   WORLD_MODES,
   WORLD_MODES_OFF_KEY,
@@ -13,6 +24,7 @@ import {
   WORLD_MODES_SPLIT_KEY,
   modeIconKey,
   modeDropFloorKey,
+  modeDropValueKey,
   modeKindsOffKey,
   modeLevelsKey,
   modeWebhookKey,
@@ -60,12 +72,51 @@ export async function getModeRouting(
   };
 }
 
-/** A mode's own post filters in one clan (lib/modeFilters). Unset halves follow the main game. */
+/** A mode's own post thresholds in one clan (lib/modeFilters). Unset drop halves follow the main game. */
 export async function getModeFilters(clanId: number, modeKey: string): Promise<ModeFilters> {
   const floorKey = modeDropFloorKey(modeKey);
+  const valueKey = modeDropValueKey(modeKey);
   const levelsKey = modeLevelsKey(modeKey);
-  const map = await getSettingMap(clanId, [floorKey, levelsKey]);
-  return { dropFloor: storedModeDropFloor(map.get(floorKey)), levels: storedModeLevels(map.get(levelsKey)) };
+  const map = await getSettingMap(clanId, [floorKey, valueKey, levelsKey]);
+  return {
+    dropFloor: storedModeDropFloor(map.get(floorKey)),
+    dropMinValue: storedModeDropValue(map.get(valueKey)),
+    levels: storedModeLevels(map.get(levelsKey)),
+  };
+}
+
+/**
+ * The `modeThresholds` block of /api/plugin/config: on a game-mode world (X-World-* headers), the
+ * most permissive thresholds among the clans this character's posts go to (lib/emissionRouting —
+ * the same set /api/plugin/notify fans out to, which then re-checks each clan's own). Level rules
+ * are taken after the member's own level-post choice. Null on the main game, when no clan set
+ * anything for the mode, or when nothing can be resolved — the plugin then behaves as before.
+ * Never throws: a failed read costs the looser gate, not the config.
+ */
+export async function pluginModeThresholds(
+  request: Request,
+  who: { userId: number | null; addressedClanId: number; accountId: () => Promise<number | null | undefined> },
+): Promise<PluginModeThresholds | null> {
+  const mode = worldModeOf(request);
+  if (!mode) return null;
+  try {
+    // Resolved only on a mode world, so the main game's config costs nothing extra.
+    const accountId = await who.accountId();
+    const clanIds = accountId != null ? (await socialEmissionClans(accountId)).map((c) => c.clanId) : [who.addressedClanId];
+    if (clanIds.length === 0) return null;
+    // An event token with no login behind it has no level-post choice: the clan's rules stand.
+    const choice = who.userId != null ? (await getMemberLevelPrefs(who.userId)).clanChoice : 'clan';
+    const perClan = await Promise.all(
+      clanIds.map(async (id) => {
+        const f = await getModeFilters(id, mode.key);
+        return { ...f, levels: modeLevelRules(f.levels, choice) };
+      }),
+    );
+    return mergeModeThresholds(mode, perClan);
+  } catch (err) {
+    log.info('world-modes.thresholds-failed', { mode: mode.key, err: String(err) });
+    return null;
+  }
 }
 
 /** The thumbnail for a mode's posts: the clan's own pick, else the mode's art, else none. */

@@ -94,16 +94,33 @@ test('easy tasks stay quiet until a clan turns them on; a saved list is the whol
   assert.equal((await store.getModeRouting(clanId, 'grid-master', null)).kindsOff.size, 0, 'turned on');
 });
 
-test("a mode's own filters: unset follows the main game, saved values read back, a cleared one is gone", async () => {
-  assert.deepEqual(await store.getModeFilters(clanId, 'hardcore'), { dropFloor: null, levels: null });
-  const levels = { ninetyNines: true, skillStep: 0, skillFrom: 1, totalStep: 0, totalFrom: 0, maxTotal: true };
-  await settings.setSetting(clanId, modes.modeDropFloorKey('hardcore'), '5000');
+test("a mode's own thresholds: unset follows the main game, saved values read back, a cleared one is gone", async () => {
+  const none = { dropFloor: null, dropMinValue: null, levels: null };
+  assert.deepEqual(await store.getModeFilters(clanId, 'hardcore'), none);
+  const levels = { ninetyNines: true, skillStep: 10, skillFrom: 10, totalStep: 0, totalFrom: 0, maxTotal: true };
+  await settings.setSetting(clanId, modes.modeDropFloorKey('hardcore'), '128');
+  await settings.setSetting(clanId, modes.modeDropValueKey('hardcore'), '10000');
   await settings.setSetting(clanId, modes.modeLevelsKey('hardcore'), JSON.stringify(levels));
-  assert.deepEqual(await store.getModeFilters(clanId, 'hardcore'), { dropFloor: 5000, levels });
-  assert.deepEqual(await store.getModeFilters(clanId, 'deadman'), { dropFloor: null, levels: null }, 'per mode');
-  await settings.setSetting(clanId, modes.modeDropFloorKey('hardcore'), null);
-  await settings.setSetting(clanId, modes.modeLevelsKey('hardcore'), null);
-  assert.deepEqual(await store.getModeFilters(clanId, 'hardcore'), { dropFloor: null, levels: null });
+  assert.deepEqual(await store.getModeFilters(clanId, 'hardcore'), { dropFloor: 128, dropMinValue: 10_000, levels });
+  assert.deepEqual(await store.getModeFilters(clanId, 'deadman'), none, 'per mode');
+
+  // What the plugin is told: only from a mode world, and with no account placed, the addressed clan's.
+  const req = (types?: string) => new Request('http://x/api/plugin/config', { headers: types ? { 'X-World-Types': types } : {} });
+  const who = { userId: null, addressedClanId: clanId, accountId: async () => null };
+  assert.equal(await store.pluginModeThresholds(req(), who), null, 'main game');
+  assert.equal(await store.pluginModeThresholds(req('DEADMAN'), who), null, 'a mode with nothing set');
+  assert.deepEqual(await store.pluginModeThresholds(req('HARDCORE_MAIN,MEMBERS'), who), {
+    key: 'hardcore',
+    label: 'Hardcore',
+    dropRarityFloor: 128,
+    dropMinValue: 10_000,
+    levelRules: levels,
+  });
+
+  for (const key of [modes.modeDropFloorKey('hardcore'), modes.modeDropValueKey('hardcore'), modes.modeLevelsKey('hardcore')]) {
+    await settings.setSetting(clanId, key, null);
+  }
+  assert.deepEqual(await store.getModeFilters(clanId, 'hardcore'), none);
 });
 
 test('the review queue counts a wording once, newest line kept, capped per mode', async () => {

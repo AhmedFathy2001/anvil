@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requirePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import {
+  getDropRarityFloor,
   getNotificationWebhooks,
   NOTIFY_CHANNELS,
   type NotifyChannel,
@@ -287,19 +288,26 @@ export async function POST(request: Request) {
   // Destinations where this account only GUESTS and the clan asked for guests' posts to be marked.
   const markAsGuest = new Set<string>();
   for (const ec of emissionClans) {
-    if (levelPost && levelPrefs) {
+    // A main-game level post follows the clan's rules; a game mode's follows the mode's own (below).
+    if (levelPost && levelPrefs && !mode) {
       const rules = effectiveClanRules(await getClanMilestoneRules(ec.clanId), levelPrefs.clanChoice);
       if (!levelPostMatches(levelPost, rules)) {
         declined++;
         continue;
       }
     }
-    // A mode's own filters (lib/modeFilters): a clan can ask Hardcore, Leagues… to post less than the
-    // main game — rarer drops only, fewer level milestones. Stricter only: the plugin already applied
-    // the main-game settings. Only posts the filters can judge (drops, levels) cost a read.
-    if (mode && (kind === 'drop' || levelPost) && !modeFilterAllows(kind, facts, await getModeFilters(ec.clanId, mode.key))) {
-      declined++;
-      continue;
+    // A mode's own thresholds (lib/modeFilters), looser or stricter than the main game: drop rarity,
+    // drop value, level milestones. The plugin sent whatever the MOST permissive of this person's
+    // clans allows, so each clan asks its own question here. Only posts they can judge cost a read.
+    if (mode && (kind === 'drop' || levelPost)) {
+      const filters = await getModeFilters(ec.clanId, mode.key);
+      // An unset rarity half is judged against the clan's main-game floor — read only when needed.
+      const mainRarityFloor =
+        kind === 'drop' && filters.dropFloor == null && filters.dropMinValue != null ? await getDropRarityFloor(ec.clanId) : 0;
+      if (!modeFilterAllows(kind, facts, filters, { mainRarityFloor, levelChoice: levelPrefs?.clanChoice ?? 'clan' })) {
+        declined++;
+        continue;
+      }
     }
     // A new mode joins this clan's Game modes list only off a post by someone with a seat here.
     if (mode) await rememberSeenMode(ec.clanId, mode);

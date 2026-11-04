@@ -209,7 +209,11 @@ export function modeKindsOffKey(key: string): string {
 export function modeDropFloorKey(key: string): string {
   return `world_mode_drop_floor_${key}`;
 }
-/** Per mode, its own level rules (JSON, lib/modeFilters). Absent = the main-game level rules. */
+/** Per mode, its own drop minimum value in gp (lib/modeFilters). Absent = the main-game value gate. */
+export function modeDropValueKey(key: string): string {
+  return `world_mode_drop_value_${key}`;
+}
+/** Per mode, its own level rules (JSON, lib/modeFilters). Absent = the mode posts no level-ups. */
 export function modeLevelsKey(key: string): string {
   return `world_mode_levels_${key}`;
 }

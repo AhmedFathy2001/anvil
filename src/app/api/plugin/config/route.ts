@@ -19,6 +19,7 @@ import { combatTaskVarps } from '@/lib/combatTasks';
 import { accountForCharacter, accountStanding, playedCharacter, type PlayedCharacter } from '@/lib/pluginAccount';
 import { h2hDropItemIdsForAccount } from '@/lib/h2h';
 import { clanlessPluginConfig } from '@/lib/pluginConfigClanless';
+import { pluginModeThresholds } from '@/lib/worldModeStore';
 
 /** Item ids of this (owned) character's running head-to-head drop races. Never fails the config. */
 async function h2hDropIdsFor(character: PlayedCharacter): Promise<number[]> {
@@ -189,6 +190,13 @@ export async function GET(request: Request) {
         // Which level-ups / total-level steps this member's posts announce (lib/levelRules,
         // capability 'level-rules'): the clan channel's effective rules and their personal webhooks'.
         levelRules: await pluginLevelRules(clan.id, userOnly.userId),
+        // On a game-mode world: that mode's own drop/level thresholds, most permissive across the
+        // member's clans (lib/modeFilters). Null on the main game; older plugins ignore it.
+        modeThresholds: await pluginModeThresholds(request, {
+          userId: userOnly.userId,
+          addressedClanId: clan.id,
+          accountId: async () => (await resolvePluginMember(request, { hintOnly: pluginRsnHintOnly(request) }))?.accountId,
+        }),
         // What only the server can know about a drop (lib/dropFacts): which monster a pet really
         // comes from, and which items a source hands over every kill. Posted drops read from these
         // instead of guessing from the last loot event.
@@ -229,6 +237,12 @@ export async function GET(request: Request) {
       b.luckItemIds = [...new Set([...(b.luckItemIds ?? []), ...raceIds])].sort((x, y) => x - y);
     }
   }
+  // See the unenrolled branch: a game-mode world's own thresholds (lib/modeFilters).
+  (built.body as unknown as Record<string, unknown>).modeThresholds = await pluginModeThresholds(request, {
+    userId: auth.userId,
+    addressedClanId: clan.id,
+    accountId: async () => auth.accountId,
+  });
   // ONE DROP, EVERY BOARD. Only for a plugin that says it reads the `board` tag (X-Anvil-Boards):
   // an older one would file board B's tiles against board A, so it keeps exactly today's answer.
   if (wantsAllBoards(request)) {

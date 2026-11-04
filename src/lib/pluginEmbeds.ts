@@ -71,6 +71,8 @@ export interface DropFacts {
   spoon?: boolean;
   /** A line the plugin composed from its own state (the vestige roll rotation), appended verbatim. */
   note?: string | null;
+  /** Posted only because a game mode's own thresholds let it through (lib/modeFilters). Routing only. */
+  modeOnly?: boolean;
 }
 
 export interface PetFacts {
@@ -579,7 +581,7 @@ function parseFacts(kind: PluginEmbedKind, raw: unknown): PluginEmbedFacts {
           rsn: rsnOf(o), items, source: optStr(o, 'source'), sourceKind: optStr(o, 'sourceKind', 32),
           kc: optInt(o, 'kc'), dropRate: optRate(o, 'dropRate'), guaranteed: flag(o, 'guaranteed'),
           troll: flag(o, 'troll'), notable, earned: flag(o, 'earned'), spoon: flag(o, 'spoon'),
-          note: optStr(o, 'note', 512),
+          note: optStr(o, 'note', 512), modeOnly: flag(o, 'modeOnly'),
         },
       };
     }

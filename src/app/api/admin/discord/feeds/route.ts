@@ -15,6 +15,7 @@ import {
   WORLD_MODES_SPLIT_KEY,
   isModeKey,
   modeDropFloorKey,
+  modeDropValueKey,
   modeFeedId,
   modeKindsOffKey,
   modeLevelsKey,
@@ -24,7 +25,17 @@ import {
 } from '@/lib/worldModes';
 import { clanModeRows, modeKindsOff, splitIsOn } from '@/lib/worldModeStore';
 import { MODE_EVENT_KINDS } from '@/lib/modeLines';
-import { parseModeDropFloor, parseModeLevels, storedModeDropFloor, storedModeLevels } from '@/lib/modeFilters';
+import {
+  MAX_MODE_DROP_FLOOR,
+  MIN_MODE_DROP_FLOOR,
+  MIN_MODE_DROP_VALUE,
+  parseModeDropFloor,
+  parseModeDropValue,
+  parseModeLevels,
+  storedModeDropFloor,
+  storedModeDropValue,
+  storedModeLevels,
+} from '@/lib/modeFilters';
 
 /**
  * "What goes where" on Admin → Discord (lib/discordFeeds): every feed with the channel it posts to
@@ -67,7 +78,12 @@ const MODE_KIND_IDS = new Set(MODE_KINDS.map((k) => k.id));
 async function view(clanId: number) {
   const modeRows = await clanModeRows(clanId);
   const modeHookKeys = modeRows.map((m) => modeWebhookKey(m.key));
-  const modeKindKeys = modeRows.flatMap((m) => [modeKindsOffKey(m.key), modeDropFloorKey(m.key), modeLevelsKey(m.key)]);
+  const modeKindKeys = modeRows.flatMap((m) => [
+    modeKindsOffKey(m.key),
+    modeDropFloorKey(m.key),
+    modeDropValueKey(m.key),
+    modeLevelsKey(m.key),
+  ]);
   const allKeys = [...FEED_KEYS, ...modeHookKeys];
   const [map, channels] = await Promise.all([
     getSettingMap(clanId, [
@@ -107,8 +123,9 @@ async function view(clanId: number) {
         kindsOff: modeKindsOff(map.has(modeKindsOffKey(m.key)) ? map.get(modeKindsOffKey(m.key)) : undefined).filter((k) =>
           MODE_KIND_IDS.has(k),
         ),
-        // Its own filters (lib/modeFilters); null = follows the main-game setting.
+        // Its own thresholds (lib/modeFilters); null drop halves follow the main game, null levels = none.
         dropFloor: storedModeDropFloor(map.get(modeDropFloorKey(m.key))),
+        dropMinValue: storedModeDropValue(map.get(modeDropValueKey(m.key))),
         levels: storedModeLevels(map.get(modeLevelsKey(m.key))),
       })),
     },
@@ -131,8 +148,9 @@ export async function GET() {
  *   { modesSplit: boolean }                 the Game modes master switch
  *   { mode, off: boolean }                  switch one game mode's posts on or off
  *   { mode, kindsOff: string[] }            the kinds of post a game mode drops
- *   { mode, dropFloor: number | null }      a game mode's own drop floor (null = the main game's)
- *   { mode, levels: LevelRules | null }     a game mode's own level rules (null = the main game's)
+ *   { mode, dropFloor?, dropMinValue? }     a game mode's own drop rarity (1 in N) and/or value (gp);
+ *                                           null = the main game's. Either may be given, or both.
+ *   { mode, levels: LevelRules | null }     a game mode's own level rules (null = no level-ups from it)
  *   { feed, off: boolean }                  switch a feed on or off
  *   { key, channelId }                      point a feed's (or a catch-all's) setting at a channel
  *   { key, webhookUrl }                     … or at a pasted webhook
@@ -171,12 +189,24 @@ export async function PUT(request: Request) {
       await setSetting(clan.id, modeKindsOffKey(modeKey), JSON.stringify(kinds));
       return NextResponse.json(await view(clan.id));
     }
-    if ('dropFloor' in body) {
-      const floor = parseModeDropFloor(body.dropFloor);
+    if ('dropFloor' in body || 'dropMinValue' in body) {
+      // Both checked before either is written, so a bad value never leaves half a change saved.
+      const floor = 'dropFloor' in body ? parseModeDropFloor(body.dropFloor) : null;
+      const value = 'dropMinValue' in body ? parseModeDropValue(body.dropMinValue) : null;
       if (floor === undefined) {
-        return NextResponse.json({ error: 'Enter a whole number like 5000, or leave it blank.' }, { status: 400 });
+        return NextResponse.json(
+          { error: `Rarity: enter a whole number from ${MIN_MODE_DROP_FLOOR} to ${MAX_MODE_DROP_FLOOR.toLocaleString('en-US')}, or leave it blank.` },
+          { status: 400 },
+        );
       }
-      await setSetting(clan.id, modeDropFloorKey(modeKey), floor == null ? null : String(floor));
+      if (value === undefined) {
+        return NextResponse.json(
+          { error: `Value: enter a whole number of gp, at least ${MIN_MODE_DROP_VALUE.toLocaleString('en-US')}, or leave it blank.` },
+          { status: 400 },
+        );
+      }
+      if ('dropFloor' in body) await setSetting(clan.id, modeDropFloorKey(modeKey), floor == null ? null : String(floor));
+      if ('dropMinValue' in body) await setSetting(clan.id, modeDropValueKey(modeKey), value == null ? null : String(value));
       return NextResponse.json(await view(clan.id));
     }
     if ('levels' in body) {

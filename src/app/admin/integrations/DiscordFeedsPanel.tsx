@@ -10,6 +10,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import { FEED_TABS, effectiveKey, type DiscordFeed, type FeedTab } from '@/lib/discordFeeds';
 import { CREATOR_HIDDEN_FEEDS, CREATOR_HIDDEN_FEED_TABS } from '@/lib/creatorSpaces';
 import { DEFAULT_LEVEL_RULES, DEFAULT_XP_RULES, levelHalf, type LevelRules, type MilestoneRules } from '@/lib/levelRules';
+import { MIN_MODE_DROP_FLOOR, MIN_MODE_DROP_VALUE } from '@/lib/modeFilters';
 
 interface ModeRow {
   key: string;
@@ -22,9 +23,11 @@ interface ModeRow {
   /** Leagues was switched off on the old row: its channel stays unused until it's switched on. */
   ownChannelIgnored: boolean;
   kindsOff: string[];
-  /** The mode's own drop floor (1 in N); null = the main-game setting. */
+  /** The mode's own drop rarity (1 in N); null = the main-game setting. */
   dropFloor: number | null;
-  /** The mode's own level rules; null = the main-game rules. */
+  /** The mode's own drop minimum value (gp); null = the main-game setting. */
+  dropMinValue: number | null;
+  /** The mode's own level rules; null = no level-ups from this mode. */
   levels: LevelRules | null;
 }
 
@@ -40,50 +43,74 @@ interface View {
 type Put = (tag: string, body: Record<string, unknown>) => Promise<boolean>;
 
 /**
- * A mode's own filters: rarer drops only, fewer level posts. The plugin already used the main-game
- * settings, so these can only take posts away (lib/modeFilters).
+ * A mode's own thresholds: drop rarity, drop value and level milestones. Each may be looser or
+ * stricter than the main game (lib/modeFilters); blank drop fields follow the main game.
  */
 function ModeFilters({ mode, put, disabled }: { mode: ModeRow; put: Put; disabled: boolean }) {
-  const [floor, setFloor] = useState(mode.dropFloor == null ? '' : String(mode.dropFloor));
+  const shown = (n: number | null) => (n == null ? '' : n.toLocaleString('en-US'));
+  const clean = (t: string) => t.trim().replace(/[,_\s]/g, '');
+  const [floor, setFloor] = useState(shown(mode.dropFloor));
+  const [value, setValue] = useState(shown(mode.dropMinValue));
   const [levels, setLevels] = useState<MilestoneRules>({ ...DEFAULT_LEVEL_RULES, ...DEFAULT_XP_RULES, ...(mode.levels ?? {}) });
   const tag = `${mode.id}:filters`;
-  const savedFloor = mode.dropFloor == null ? '' : String(mode.dropFloor);
+  const dropsChanged = clean(floor) !== clean(shown(mode.dropFloor)) || clean(value) !== clean(shown(mode.dropMinValue));
 
   return (
     <div className="space-y-4">
       <div>
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Custom filters</div>
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Custom thresholds</div>
         <p className="text-[12px] text-text-muted">
-          Post less from {mode.label} than from the main game. These can only post less than your main-game settings, not more.
+          Give {mode.label} its own bar for drops and level-ups. It can be looser or stricter than the main game: a fresh
+          character&apos;s 1 in 128 is worth a post when a main&apos;s isn&apos;t.
         </p>
       </div>
 
-      <div className="grid gap-1.5">
-        <label htmlFor={`${tag}:floor`} className="text-[13px] font-medium">
-          Post drops rarer than 1 in…
-        </label>
-        <p className="text-[11.5px] text-text-muted">
-          Blank = same as the main game. Always-post items still post; drops that only count because of their value don&apos;t.
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-1.5">
+          <label htmlFor={`${tag}:floor`} className="text-[13px] font-medium">
+            Post drops rarer than 1 in…
+          </label>
           <Input
             id={`${tag}:floor`}
             inputMode="numeric"
-            className="w-32"
             value={floor}
             onChange={(e) => setFloor(e.target.value)}
             placeholder="Main game"
             disabled={disabled}
           />
-          <button
-            type="button"
-            disabled={disabled || floor.trim() === savedFloor}
-            onClick={() => void put(mode.id, { mode: mode.key, dropFloor: floor.trim() || null })}
-            className="rounded-lg bg-gold px-3.5 py-1.5 text-[13px] font-semibold text-brown-dark hover:bg-gold-light disabled:opacity-50"
-          >
-            Save
-          </button>
+          <p className="text-[11.5px] text-text-muted">At least 1 in {MIN_MODE_DROP_FLOOR}, so coin-flip drops never post.</p>
         </div>
+        <div className="grid gap-1.5">
+          <label htmlFor={`${tag}:value`} className="text-[13px] font-medium">
+            Post drops worth at least (gp)
+          </label>
+          <Input
+            id={`${tag}:value`}
+            inputMode="numeric"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="Main game"
+            disabled={disabled}
+          />
+          <p className="text-[11.5px] text-text-muted">
+            At least {MIN_MODE_DROP_VALUE.toLocaleString('en-US')} gp, so bones and rune piles stay out of the channel.
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={disabled || !dropsChanged}
+          onClick={() =>
+            void put(mode.id, { mode: mode.key, dropFloor: clean(floor) || null, dropMinValue: clean(value) || null })
+          }
+          className="rounded-lg bg-gold px-3.5 py-1.5 text-[13px] font-semibold text-brown-dark hover:bg-gold-light disabled:opacity-50"
+        >
+          Save drop thresholds
+        </button>
+        <p className="text-[11.5px] text-text-muted">
+          Blank = same as the main game. A drop posts if it clears either bar; always-post items still post.
+        </p>
       </div>
 
       <div className="grid gap-3">
@@ -91,8 +118,8 @@ function ModeFilters({ mode, put, disabled }: { mode: ModeRow; put: Put; disable
           checked={mode.levels != null}
           disabled={disabled}
           onChange={(on) => void put(mode.id, { mode: mode.key, levels: on ? levelHalf(levels) : null })}
-          label="Use its own level milestones"
-          description="Off = same as the main game. On = a level-up posts only if it matches both."
+          label={`Post level-ups from ${mode.label}`}
+          description={`Off = none: ${mode.label} is a separate character, so its levels never post by default. On = the milestones below, instead of the main game's. Members who turned level posts off stay off.`}
         />
         {mode.levels != null && (
           <>
@@ -357,7 +384,7 @@ export default function DiscordFeedsPanel({
                     </div>
                   ))}
                   <div className="border-t border-card-border-soft pt-4">
-                    <ModeFilters key={`${m.dropFloor}:${JSON.stringify(m.levels)}`} mode={m} put={put} disabled={busy !== null} />
+                    <ModeFilters key={`${m.dropFloor}:${m.dropMinValue}:${JSON.stringify(m.levels)}`} mode={m} put={put} disabled={busy !== null} />
                   </div>
                 </div>
               )}
