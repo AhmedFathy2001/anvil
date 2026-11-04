@@ -11,7 +11,7 @@ import { db } from '@/db';
 import { resolveClanById, resolveClanFromRequest, type ClanContext } from '@/lib/clanContext';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, clanStaff, clans, detectedAccounts, eventCohosts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users, weeklyCompetitions } from '@/db/schema';
 import { findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, seatsOwnedByAnywhere, updateAccountOfSeat } from '@/lib/roster';
-import { type SQL, and, desc, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import { type SQL, and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
 import { applyPendingRole } from '@/lib/pending-role';
 import { onCharacterLinked } from '@/lib/identity';
@@ -798,10 +798,33 @@ async function userByPluginToken(token: string) {
 
   const link = await db.query.pluginLinks.findFirst({
     where: and(eq(pluginLinks.tokenHash, hash), isNull(pluginLinks.revokedAt)),
-    columns: { userId: true },
+    columns: { id: true, userId: true },
   });
   if (!link) return undefined;
+  touchPluginLink(link.id);
   return db.query.users.findFirst({ where: eq(users.id, link.userId) });
+}
+
+/** When each sign-in's "last used" was last written, so a busy plugin writes it at most hourly. */
+const linkTouchedAt = new Map<number, number>();
+const LINK_TOUCH_EVERY_MS = 60 * 60 * 1000;
+
+/**
+ * Settings → Login & devices shows when each "Sign in with Discord" sign-in was last used. Every
+ * plugin request resolves its token here, so the write is throttled per sign-in (in memory, then
+ * once more in SQL so several app instances don't all write it). Fire-and-forget: never slows or
+ * fails the request.
+ */
+function touchPluginLink(id: number, now = Date.now()): void {
+  if (now - (linkTouchedAt.get(id) ?? 0) < LINK_TOUCH_EVERY_MS) return;
+  linkTouchedAt.set(id, now);
+  if (linkTouchedAt.size > 10_000) linkTouchedAt.clear();
+  const stamp = new Date(now).toISOString();
+  const cutoff = new Date(now - LINK_TOUCH_EVERY_MS).toISOString();
+  db.update(pluginLinks)
+    .set({ lastUsedAt: stamp })
+    .where(and(eq(pluginLinks.id, id), or(isNull(pluginLinks.lastUsedAt), lt(pluginLinks.lastUsedAt, cutoff))))
+    .catch(() => {});
 }
 
 export async function verifyPluginTokenUser(
