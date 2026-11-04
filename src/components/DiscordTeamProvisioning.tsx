@@ -5,6 +5,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
+import Radio from '@/components/Radio';
 
 interface TeamState {
   id: number;
@@ -463,7 +464,7 @@ function ScopeOption({
   return (
     <label className={`cursor-pointer rounded-lg border p-3 transition-colors ${checked ? 'border-indigo-400/60 bg-indigo-500/15' : 'border-card-border bg-card-bg hover:border-indigo-400/30'}`}>
       <span className="flex items-center gap-2 text-sm font-semibold">
-        <input type="radio" checked={checked} onChange={onChange} className="accent-indigo-400" />
+        <Radio tone="indigo" checked={checked} onChange={onChange} />
         {title}
       </span>
       <span className="mt-1 block pl-5 text-xs text-text-muted">{description}</span>

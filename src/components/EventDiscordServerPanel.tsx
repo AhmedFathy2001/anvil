@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import { useDialog } from '@/components/Confirm';
 import type { AdminStatus } from '@/lib/eventDiscord';
+import Radio from '@/components/Radio';
 
 type Layout = AdminStatus['layout'];
 
@@ -115,8 +116,7 @@ export default function EventDiscordServerPanel({ eventId }: { eventId: number }
         <div className="space-y-2">
           {LAYOUTS.filter((l) => l.value !== 'own' || isHost).map((l) => (
             <label key={l.value} className={`flex gap-2.5 rounded-lg border p-3 ${layout === l.value ? 'border-gold/60 bg-gold/5' : 'border-card-border'} ${configurable ? 'cursor-pointer' : 'opacity-70'}`}>
-              <input
-                type="radio"
+              <Radio
                 name={`layout-${eventId}`}
                 checked={layout === l.value}
                 disabled={!configurable}

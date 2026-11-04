@@ -10,6 +10,7 @@ import type { BulkLineResult } from '@/lib/taskSuggest';
 import type { TierBand } from '@/lib/tileFilter';
 import TileCreator from './TileCreator';
 import { CheckIcon, KindBadge, PrimaryButton, SecondaryButton } from './parts';
+import Select from '@/components/Select';
 
 interface Row extends BulkLineResult {
   /** What this line will be added as; null while a "pick one" line is unanswered. */
@@ -222,15 +223,13 @@ export default function BulkQuickAdd({
                 {pointsMode && (
                   <label className="ml-auto flex items-center gap-2 text-text-muted">
                     Default worth
-                    <select
+                    <Select
                       value={defaultBand}
-                      onChange={(e) => setDefaultBand(e.target.value)}
-                      className="min-h-11 bg-brown-dark border border-card-border rounded-lg px-2 text-foreground"
-                    >
-                      {bands.map((b) => (
-                        <option key={b.key} value={b.key}>{b.label} · {Math.max(1, b.min)} pts</option>
-                      ))}
-                    </select>
+                      onChange={setDefaultBand}
+                      options={bands.map((b) => ({ value: b.key, label: `${b.label} · ${Math.max(1, b.min)} pts` }))}
+                      ariaLabel="Default worth"
+                      className="w-44"
+                    />
                   </label>
                 )}
               </div>

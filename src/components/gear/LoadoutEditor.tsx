@@ -8,6 +8,7 @@ import type { GearIndex } from '@/lib/dps/summary';
 import EquipmentPanel from './EquipmentPanel';
 import Select from '@/components/Select';
 import { wikiImageUrl } from '@/lib/assetUrls';
+import { CheckboxBox } from '@/components/Checkbox';
 
 const wiki = (file: string) => wikiImageUrl(file);
 
@@ -213,7 +214,7 @@ export default function LoadoutEditor({
               />
             </label>
             <label className="mt-4 flex cursor-pointer items-center gap-2 text-xs text-text-muted">
-              <input type="checkbox" disabled={readOnly} checked={value.onTask === true} onChange={(e) => onChange({ ...value, onTask: e.target.checked })} className="accent-[#e0b341]" />
+              <CheckboxBox disabled={readOnly} checked={value.onTask === true} onChange={(e) => onChange({ ...value, onTask: e.target.checked })} />
               On slayer task
             </label>
           </div>

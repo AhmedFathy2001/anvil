@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { useDialog } from '@/components/Confirm';
 import { clanFetch } from '@/lib/clanFetch';
+import { CheckboxBox } from '@/components/Checkbox';
 
 interface Cat {
   id: number;
@@ -95,7 +96,7 @@ export default function CategoryManager({ scope }: { scope: 'platform' | 'clan' 
             />
             {scope === 'platform' && (
               <label className="flex items-center gap-1 text-xs text-text-muted" title="Library guides here must cover Beginner, Intermediate and Advanced">
-                <input type="checkbox" disabled={!canEdit} checked={c.requiresLevels !== false} onChange={(e) => send(`${api}/${c.id}`, 'PATCH', { requiresLevels: e.target.checked })} />
+                <CheckboxBox disabled={!canEdit} checked={c.requiresLevels !== false} onChange={(e) => send(`${api}/${c.id}`, 'PATCH', { requiresLevels: e.target.checked })} />
                 needs every level
               </label>
             )}
