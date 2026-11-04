@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import { detectedFor, settingsCharacters } from '@/lib/settingsData';
 import { supporterForUser } from '@/lib/supporter';
+import { claimsOnMyCharacters, unreadNoticeCount } from '@/lib/ownershipClaims';
 import { SettingsNav } from './_client';
 
 export const metadata: Metadata = { title: 'Settings', robots: { index: false } };
@@ -25,9 +26,11 @@ export default async function SettingsLayout({ children }: { children: ReactNode
   const session = await verifyUser();
   if (!session) redirect('/login?return=%2Fsettings');
 
-  const [characters, supporter] = await Promise.all([
+  const [characters, supporter, claimsOnMine, unread] = await Promise.all([
     session.playerId ? settingsCharacters(session.playerId) : Promise.resolve([]),
     supporterForUser(session.userId),
+    session.playerId ? claimsOnMyCharacters(session.playerId).catch(() => []) : Promise.resolve([]),
+    unreadNoticeCount(session.userId).catch(() => 0),
   ]);
   const detected = await detectedFor(session.userId, characters);
 
@@ -38,6 +41,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
           <SettingsNav
             characters={characters.map((c) => ({ accountId: c.accountId, rsn: c.rsn, isPrimary: c.isPrimary }))}
             pending={detected.pending.length}
+            claims={Math.max(claimsOnMine.filter((c) => c.status === 'open').length, unread)}
             flair={supporter ? { tier: supporter.tier.id, style: supporter.style } : null}
           />
         </aside>

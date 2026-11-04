@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { foreignOr } from '@/lib/pluginForeign';
 
 import { requirePluginClan, resolvePluginMember } from '@/lib/auth';
 import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
@@ -48,7 +49,8 @@ export async function POST(request: Request) {
   const member = await resolvePluginMember(request);
   if (!member) {
     // No seat anywhere: nothing to post to, and nobody to credit the queue's lines to either.
-    return NextResponse.json({ ok: true, ignored: 'no-seat' }, { status: 202 });
+    // Somebody else's character is refused outright, so the plugin can say why (lib/pluginForeign).
+    return foreignOr(request, NextResponse.json({ ok: true, ignored: 'no-seat' }, { status: 202 }));
   }
 
   const limit = await rateLimit(request, `plugin-mode-lines:${member.userId}`, { limit: 12, windowMs: 60_000 });

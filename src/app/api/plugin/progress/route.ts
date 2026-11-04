@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { foreignOr } from '@/lib/pluginForeign';
 import { db } from '@/db';
 import { accounts, memberProgress, memberProgressItems } from '@/db/schema';
 import { accountTypeFromVarbit } from '@/lib/accountType';
@@ -36,9 +37,10 @@ export async function POST(request: Request) {
 
   const member = await resolvePluginMember(request);
   if (!member) {
-    return NextResponse.json(
-      { error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' },
-      { status: 401 },
+    // Somebody else's character (or one this login let go of) says so (lib/pluginForeign).
+    return foreignOr(
+      request,
+      NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 }),
     );
   }
 

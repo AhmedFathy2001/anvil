@@ -9,6 +9,7 @@ import { resolvePluginClan } from '@/lib/auth';
 import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
 import { and, desc, eq, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm';
+import { refuseForeignCharacter } from '@/lib/pluginForeign';
 import { isPlausibleRsn, normalizeRsn, pluginClanAuthority, pluginTokenPerson, sanitizeRsn } from '@/lib/auth';
 import { sendRosterWebhook } from '@/lib/discord';
 import { EMBED_COLOR } from '@/lib/discordEmbeds';
@@ -86,6 +87,16 @@ export async function POST(request: Request) {
   const clanName = (body.clanName || '').trim();
   const members = Array.isArray(body.members) ? body.members : null;
   if (!members) return NextResponse.json({ error: 'members[] required' }, { status: 400 });
+
+  // The roster is read through the character logged in — the one entry carrying an account hash.
+  // When that character belongs to somebody else (or this login let it go), nothing is synced
+  // through it (lib/pluginForeign). Authority itself still comes only from this login's own
+  // characters, below.
+  const local = members.find((m) => typeof m?.accountHash === 'string' && m.accountHash.trim() && typeof m.rsn === 'string');
+  if (local) {
+    const foreign = await refuseForeignCharacter(request, { rsn: local.rsn, accountHash: local.accountHash, allowUnclaimed: true });
+    if (foreign) return foreign;
+  }
 
   // The roster belongs to the clan the address named, or — on the apex, which names none — to the
   // one of this person's seats whose IN-GAME name matches the roster they just sent. Resolved after

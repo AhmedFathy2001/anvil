@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { refuseForeignCharacter } from '@/lib/pluginForeign';
 
 import { eventForPluginRequest, eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
@@ -187,6 +188,11 @@ export async function POST(
   // Check auth. Legacy captain/player cookies + plugin bearer token still work; the
   // unified My Team page authenticates via the Discord web session (membership), which is
   // already scoped to this team so it can't be used to submit for another team.
+  // A plugin playing somebody else's character (or one its login let go of) files nothing for it —
+  // not for that character, and not as its login either (lib/pluginForeign). A web request carries
+  // no bearer and passes straight through.
+  const foreign = await refuseForeignCharacter(request);
+  if (foreign) return foreign;
   const isAdmin = viaCohost ? false : await verifyAdmin();
   const captain = viaCohost ? null : await verifyCaptain();
   const player = viaCohost ? null : await verifyPlayer();

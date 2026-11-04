@@ -10,6 +10,7 @@ import { emissionSettingsView } from '@/lib/emissionSettings';
 import { gameClanForAccount } from '@/lib/gameClans';
 import { membershipConflicts } from '@/lib/homeClan';
 import { alsoPlayedFromByAccount } from '@/lib/accountSightings';
+import { claimsOnMyCharacters } from '@/lib/ownershipClaims';
 import { characterSeats, settingsCharacters } from '@/lib/settingsData';
 import HomeClanConflicts from '@/app/profile/HomeClanConflicts';
 import RenameRequestClient from '@/app/profile/RenameRequestClient';
@@ -55,14 +56,16 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
   const c = characters.find((x) => x.accountId === accountId);
   if (!c) notFound();
 
-  const [seats, gameClan, conflicts, emission, sightings, supporter] = await Promise.all([
+  const [seats, gameClan, conflicts, emission, sightings, supporter, claims] = await Promise.all([
     characterSeats(accountId),
     gameClanForAccount(accountId),
     membershipConflicts(session.playerId),
     emissionSettingsView(session.userId, session.playerId),
     alsoPlayedFromByAccount([accountId], session.userId),
     supporterForUser(session.userId),
+    claimsOnMyCharacters(session.playerId),
   ]);
+  const claim = claims.find((x) => x.accountId === accountId && x.status === 'open') ?? null;
   const mine = conflicts.filter((x) => x.accountId === accountId);
   // "Your clans", then "Your spaces": a creator space is not a clan (lib/creatorSpaces).
   const seatGroups = groupClansAndSpaces(seats, (s) => s.clanKind);
@@ -100,6 +103,15 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
           </>
         )}
       </SettingsTitle>
+
+      {claim && (
+        <div className="mb-4 rounded-xl border border-yellow-500/30 bg-yellow-500/[0.06] px-4 py-3 text-[13px] text-yellow-300">
+          {claim.claimantName} says {c.rsn} is their character.{' '}
+          <ClanLink href="/settings/claims" className="font-medium text-gold hover:text-gold-light">
+            Answer the claim →
+          </ClanLink>
+        </div>
+      )}
 
       {others.length > 0 && (
         <div className="mb-6 rounded-xl border border-yellow-500/30 bg-yellow-500/[0.06] px-4 py-3 text-[13px] text-yellow-300">

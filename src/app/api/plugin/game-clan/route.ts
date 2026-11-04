@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { foreignOr } from '@/lib/pluginForeign';
 
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { rateLimitByKey } from '@/lib/rate-limit';
@@ -18,9 +19,10 @@ import { recordGameClan } from '@/lib/gameClans';
 export async function POST(request: Request) {
   const who = await resolvePluginCharacter(request);
   if (!who) {
-    return NextResponse.json(
-      { error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' },
-      { status: 401 },
+    // Somebody else's character (or one this login let go of) says so (lib/pluginForeign).
+    return foreignOr(
+      request,
+      NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 }),
     );
   }
 

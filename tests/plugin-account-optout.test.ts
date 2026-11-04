@@ -184,15 +184,20 @@ test('somebody else’s character played here: recorded once, shown as other, di
   const shown = await alsoPlayedFromByAccount([acct.id], owner.userId);
   assert.equal(shown.get(acct.id)?.length, 1, 'the owner’s profile can say so');
 
+  // "It's mine" starts an ownership claim, which needs the XP check (lib/ownershipClaims;
+  // tests/other-login.test.ts). With the hiscores unreadable it goes to staff as a wrong-owner report.
+  const OC = await import('../src/lib/ownershipClaims.ts');
+  OC.claimDeps.hiscores = async () => null;
   const d = await act(visitor.token, 'Owned Else', 'h-owned', 'dispute');
   assert.equal(d.status, 200, JSON.stringify(d.body));
+  assert.equal(d.body.claim, false);
   const again = await act(visitor.token, 'Owned Else', 'h-owned', 'dispute');
   assert.equal(again.body.alreadyOpen, true, 'one report, not one per click');
   const reports = await db.select().from(s.characterReports).where(eq(s.characterReports.accountId, acct.id));
   assert.equal(reports.length, 1);
   assert.equal(reports[0].kind, 'wrong_owner');
   assert.equal(reports[0].claimantPlayerId, visitor.person);
-  assert.match(reports[0].body ?? '', /hash matched/);
+  assert.match(reports[0].body ?? '', /Not proved/);
   assert.doesNotMatch(reports[0].body ?? '', /h-owned/, 'the hash itself never lands in a report');
 
   const own = await act(owner.token, 'Owned Else', 'h-owned', 'dispute');

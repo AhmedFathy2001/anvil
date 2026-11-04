@@ -1973,6 +1973,83 @@ export const accountSightings = pgTable('account_sightings', {
 ]);
 
 /**
+ * The same sightings, one row per (account, login, UTC day) — what the fair-play check reads, so a
+ * sighting counts only on the days it happened (an event window), not whenever the aggregate row
+ * above was last touched. Only plays carrying the hash anchored on the account are recorded
+ * (`hashMatched` 1; the fair-play check reads nothing else). `lastAt` is refreshed at most hourly.
+ */
+export const accountSightingDays = pgTable('account_sighting_days', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  day: text('day').notNull(),
+  hashMatched: integer('hash_matched').notNull().default(0),
+  firstAt: text('first_at').notNull(),
+  lastAt: text('last_at').notNull(),
+}, (table) => [
+  uniqueIndex('account_sighting_days_unique').on(table.accountId, table.userId, table.day),
+  index('account_sighting_days_account_day_idx').on(table.accountId, table.day),
+]);
+
+/**
+ * "This is my account": a login asking for a character somebody else has claimed (lib/ownershipClaims).
+ *
+ * Nothing the plugin sends is proof (X-Account-Hash is client-supplied), so a claim starts
+ * 'verifying': the claimant must pass the same XP-gain check account verification uses
+ * (`verificationAttemptId`, verification_attempts). Only then is anybody told, and `mode` is set:
+ *   - 'objection': the owner's claim is unverified / provisional and the owner was told in-site
+ *     (`ownerNoticeId`, a user_notices row on their login). Unless they object by `deadlineAt`, it moves.
+ *   - 'approval': the owner verified it. Only their yes moves it.
+ *   - 'staff': the owner can't be told (no login), or said no — Anvil staff decide (`staffReportId`,
+ *     a wrong-owner character report).
+ * `status`: verifying → open → approved → transferring → transferred, or objected | declined | staff |
+ * withdrawn | lapsed | expired. 'approved' waits (a live event holds the character); 'transferring' is
+ * the lock one worker holds while it moves it. Every transition is a conditional UPDATE … RETURNING.
+ * At most one claim per character is in flight (partial unique index).
+ */
+export const accountOwnershipClaims = pgTable('account_ownership_claims', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  claimantUserId: integer('claimant_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  claimantPlayerId: integer('claimant_player_id').notNull().references(() => players.id, { onDelete: 'cascade' }),
+  ownerPlayerId: integer('owner_player_id').notNull().references(() => players.id, { onDelete: 'cascade' }),
+  mode: text('mode'),
+  status: text('status').notNull().default('verifying'),
+  verificationAttemptId: integer('verification_attempt_id').references(() => verificationAttempts.id, { onDelete: 'set null' }),
+  verifiedAt: text('verified_at'),
+  ownerNoticeId: integer('owner_notice_id').references(() => userNotices.id, { onDelete: 'set null' }),
+  staffReportId: integer('staff_report_id').references(() => characterReports.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+  deadlineAt: text('deadline_at'),
+  decidedAt: text('decided_at'),
+  decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  /** Set while one worker holds the move ('transferring'); a stale one is unlocked by the sweep. */
+  transferStartedAt: text('transfer_started_at'),
+}, (table) => [
+  uniqueIndex('account_ownership_claims_live_unique').on(table.accountId).where(sql`status in ('verifying', 'open', 'approved', 'transferring')`),
+  index('account_ownership_claims_claimant_idx').on(table.claimantUserId),
+  index('account_ownership_claims_owner_idx').on(table.ownerPlayerId),
+]);
+
+/**
+ * A notice on the site for one login — the in-site record that somebody was told something (an
+ * ownership claim on their character, its outcome). Shown on /settings/claims; `readAt` once seen.
+ * A Discord DM may also go out, but this row is what "the owner was told" means.
+ */
+export const userNotices = pgTable('user_notices', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(),
+  refId: integer('ref_id'),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  createdAt: text('created_at').notNull(),
+  readAt: text('read_at'),
+}, (table) => [
+  index('user_notices_user_idx').on(table.userId, table.readAt),
+]);
+
+/**
  * Which Anvil plugin build last played each character (the `X-Anvil-Plugin-Version` header), and when.
  *
  * A sidecar rather than columns on `accounts`: the plugin polls every 30 seconds and the accounts row

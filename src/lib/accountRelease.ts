@@ -98,11 +98,12 @@ export async function unmarkCharacterIgnored(userId: number, rsnNormalized: stri
  * so a seat in another clan's event would lose its owner just the same.
  */
 export async function releaseCharacter(input: {
-  userId: number;
+  /** The owner's login; null only for an ownership-claim transfer whose owner never signed in. */
+  userId: number | null;
   playerId: number;
   accountId: number;
   nowIso?: string;
-  via: 'profile' | 'plugin';
+  via: 'profile' | 'plugin' | 'ownership-claim';
 }): Promise<ReleaseOutcome> {
   const nowIso = input.nowIso ?? new Date().toISOString();
   const [account] = await db
@@ -145,7 +146,9 @@ export async function releaseCharacter(input: {
     })
     .where(eq(accounts.id, account.id));
 
-  await markCharacterIgnored(input.userId, account.rsn, account.rsnNormalized, account.accountHash ?? null, nowIso);
+  if (input.userId != null) {
+    await markCharacterIgnored(input.userId, account.rsn, account.rsnNormalized, account.accountHash ?? null, nowIso);
+  }
 
   // If we just removed the primary, promote another owned account so the person still has one.
   if (account.isPrimary === 1) {

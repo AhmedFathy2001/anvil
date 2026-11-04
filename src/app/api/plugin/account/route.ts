@@ -11,6 +11,7 @@ import {
 import { accountForCharacter, accountStanding, playedCharacter, type PlayedCharacter } from '@/lib/pluginAccount';
 import { fileCharacterReport } from '@/lib/characterReports';
 import { resolveClanFromRequest } from '@/lib/clanContext';
+import { startOwnershipClaim } from '@/lib/ownershipClaims';
 
 // /api/plugin/account — the sidebar's account row: "is this character mine?", from the plugin.
 //
@@ -23,8 +24,10 @@ import { resolveClanFromRequest } from '@/lib/clanContext';
 //                              lib/accountRelease) and stop auto-linking it. The plugin stops
 //                              sending anything while it's logged in.
 //   POST { action: 'resume' }  Undo that: the next request links it again as before.
-//   POST { action: 'dispute' } "It's mine": the character is claimed by somebody else; raise it with
-//                              Anvil staff as a wrong-owner report, with this login as claimant.
+//   POST { action: 'dispute' } "It's mine" / "This is my account": the character is claimed by
+//                              somebody else. Opens an ownership claim (lib/ownershipClaims) the owner
+//                              answers — or, when the plugin can't show the character is logged in
+//                              here, a wrong-owner report for Anvil staff. ('claim' is an alias.)
 //
 // None of these run resolvePluginMember — a request whose point is "not mine" must never be the one
 // that links it.
@@ -85,27 +88,44 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, standing: await accountStanding(userId, character) });
   }
 
-  if (action === 'dispute') {
-    if (!account || account.claimedAt == null || ours || me == null) {
-      return NextResponse.json({ error: 'This account isn’t linked to anyone else.' }, { status: 409 });
+  if (action === 'dispute' || action === 'claim') {
+    // "This is my account" (the plugin's "It's mine"): an ownership claim (lib/ownershipClaims). It
+    // starts with the XP check — nothing this request carries (its account hash included) is proof —
+    // and only once that's passed is the owner told, or Anvil staff. The claimant learns nothing
+    // about who the owner is. Looked up by NAME there; the hash plays no part.
+    const claim = await startOwnershipClaim({ userId, character, nowIso });
+    if (claim.ok) {
+      return NextResponse.json({ ok: true, filed: true, claim: true, alreadyOpen: !claim.created, status: claim.status, message: claim.message });
     }
-    // The hash is the strongest thing the plugin can say: the character really is logged in here.
-    // Recorded as a yes/no — the hash itself is a credential and never goes into a report.
-    const hashMatched = !!character.accountHash && account.accountHash === character.accountHash;
+    if (claim.reason === 'not-other') return NextResponse.json({ error: claim.error }, { status: 409 });
+    if (claim.reason === 'taken') return NextResponse.json({ error: claim.error, reason: claim.reason }, { status: 409 });
+    if (claim.reason === 'rate-limited') return NextResponse.json({ error: claim.error, reason: claim.reason }, { status: 429 });
+    if (claim.reason === 'cooldown') {
+      return NextResponse.json({ ok: true, filed: true, claim: false, alreadyOpen: true, message: claim.error });
+    }
+    // The XP check can't run (an unranked character, the hiscores down): Anvil staff look, as a
+    // wrong-owner report with this login as claimant — unproved, and it says so.
+    const named = await accountForCharacter({ ...character, accountHash: null });
+    const claimant = await personOf(userId);
+    if (!named || claimant == null) return NextResponse.json({ error: claim.error }, { status: 502 });
     const clan = await resolveClanFromRequest(request).catch(() => null);
     const { created } = await fileCharacterReport({
-      accountId: account.id,
+      accountId: named.id,
       clanId: clan?.id ?? null,
       reportedByUserId: userId,
-      claimantPlayerId: me,
+      claimantPlayerId: claimant,
       kind: 'wrong_owner',
       body:
-        `Raised from the RuneLite plugin: this login says ${character.rsn} is theirs, but it is linked to someone else. ` +
-        (hashMatched
-          ? 'The plugin was logged into the character (account hash matched).'
-          : 'No account-hash match — the name alone was reported.'),
+        `Raised from the RuneLite plugin: this login says ${named.rsn} is theirs, but it is linked to someone else. ` +
+        'Not proved: the XP check could not run (hiscores unavailable or unranked).',
     });
-    return NextResponse.json({ ok: true, filed: true, alreadyOpen: !created });
+    return NextResponse.json({
+      ok: true,
+      filed: true,
+      claim: false,
+      alreadyOpen: !created,
+      message: 'Sent to Anvil staff. They’ll check and move it to you if it’s yours.',
+    });
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

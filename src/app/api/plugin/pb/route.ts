@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { foreignOr } from '@/lib/pluginForeign';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { memberPersonalBests } from '@/db/schema';
@@ -22,9 +23,10 @@ export async function POST(request: Request) {
   // The seat when there is one, else a character the token owns: bests are the person's, clan or not.
   const member = await resolvePluginCharacter(request);
   if (!member) {
-    return NextResponse.json(
-      { error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' },
-      { status: 401 },
+    // Somebody else's character (or one this login let go of) says so (lib/pluginForeign).
+    return foreignOr(
+      request,
+      NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 }),
     );
   }
 

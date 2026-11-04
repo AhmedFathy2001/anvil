@@ -1,6 +1,7 @@
 import { resolvePluginClan } from '@/lib/auth';
 import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { NextResponse } from 'next/server';
+import { foreignOr } from '@/lib/pluginForeign';
 import { db } from '@/db';
 import { eventParticipants, tiles, events, clanRoster, weeklyParticipants } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
   }
   // No clan is not "nowhere to put it": the stats are the PERSON's, and their profile keeps them
   // with or without a clan. The account-only path takes the push when the token owns the character.
-  if (!clan) return (await accountOnlyPush(request)) ?? noClanForPlugin();
+  if (!clan) return (await accountOnlyPush(request)) ?? (await foreignOr(request, noClanForPlugin));
   // Member-level auth: unlike verifyPluginToken this does NOT require a live bingo event, so a member
   // who's only in a weekly comp can still push live stats.
   const member = await resolvePluginMember(request);
@@ -64,7 +65,8 @@ export async function POST(request: Request) {
       rsn: request.headers.get('X-RSN')?.trim() || null,
       reason: 'no-member',
     });
-    return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 });
+    // Somebody else's character (or one this login let go of) says so (lib/pluginForeign).
+    return foreignOr(request, NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 }));
   }
 
   // AFTER auth, and keyed on the PERSON rather than the address. Stat pushes are the highest-volume ingest there is — the plugin sends on skill and KC change — so

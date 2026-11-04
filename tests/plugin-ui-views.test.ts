@@ -94,7 +94,8 @@ test('goals: add from the form, then remove; someone else’s character can’t 
   assert.ok(!texts(removed!.ui).includes('99 Slayer'));
 
   const notMine = await V.pluginAct(req({ Authorization: `Bearer ${TOKEN}`, 'X-RSN': 'Ui Shared' }), 'goal-add', { kind: 'skill' }, { metric: 'slayer', target: '99' });
-  assert.ok(texts(notMine!.ui).some((t) => t.startsWith('Log in to a character that is yours')));
+  // Somebody else's character: every panel action is refused outright (lib/pluginForeign).
+  assert.ok(texts(notMine!.ui).some((t) => t.startsWith('This character belongs to another Anvil player')));
 });
 
 test('a log page marks what is owned, faint for the rest', async () => {

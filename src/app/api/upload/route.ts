@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { refuseForeignCharacter } from '@/lib/pluginForeign';
 import { verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { put, clanMediaKey } from '@/lib/storage';
@@ -61,6 +62,10 @@ export async function POST(request: Request) {
   // admins. Previously only verifyAdmin/captain/player cookies + plugin token were accepted, so a
   // non-captain member hit 401 here even though the submission POST (which enforces team membership
   // and consumes the URL) would have accepted them. Legacy captain/player cookies + plugin stay.
+  // A plugin playing somebody else's character uploads nothing for it (lib/pluginForeign).
+  const foreign = await refuseForeignCharacter(request);
+  if (foreign) return foreign;
+
   const webUser = await verifyUser();
   const captain = await verifyCaptain();
   const player = await verifyPlayer();

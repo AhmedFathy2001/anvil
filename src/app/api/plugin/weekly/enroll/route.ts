@@ -7,6 +7,7 @@ import { findRosterSeat } from '@/lib/roster';
 import { fetchParticipantStat, type CompetitionType } from '@/lib/weekly';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { refuseForeignCharacter } from '@/lib/pluginForeign';
 import { rosterClanSeat } from '@/lib/seatScope';
 
 // POST — plugin auto-enrolls the signed-in player in the currently active weekly comp.
@@ -36,6 +37,10 @@ export async function POST(request: Request) {
   const rsn = sanitizeRsn(body.rsn || '');
   if (!rsn) return NextResponse.json({ error: 'rsn required' }, { status: 400 });
   const rsnNormalized = normalizeRsn(rsn);
+  // Unauthenticated by design, but a client that DOES send its token and is playing somebody else's
+  // character enrols nothing for it (lib/pluginForeign).
+  const foreign = await refuseForeignCharacter(request, { allowUnclaimed: true, rsn });
+  if (foreign) return foreign;
 
   // THIS clan's active competition. The comment four lines up already said the host is the only
   // thing naming the clan — but the query did not use it, so `findFirst` returned whichever active

@@ -27,6 +27,7 @@ import { labQuarantine } from '@/lib/lab';
 import { apexOrigin } from '@/lib/seo';
 import { supporterForUser, withSupporterAuthor } from '@/lib/supporter';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
+import { refuseForeignCharacter } from '@/lib/pluginForeign';
 
 // The plugin POSTs clan notifications (death / kill / rare drop / CA) here instead of straight to
 // Discord, so it never receives or calls a webhook URL itself — the server owns those (RuneLite
@@ -126,6 +127,12 @@ export async function POST(request: Request) {
   const auth = member ?? (await verifyPluginTokenUser(request));
   if (!auth) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <pluginToken>' }, { status: 401 });
+  }
+  // The login fallback posts AS the character being played, so that character has to be this
+  // login's own — somebody else's (or one this login let go of) posts nothing (lib/pluginForeign).
+  if (!member) {
+    const foreign = await refuseForeignCharacter(request);
+    if (foreign) return foreign;
   }
 
   // The plugin's spam floors (min drop value, dedup windows) all live client-side, so a tampered

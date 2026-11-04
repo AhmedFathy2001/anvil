@@ -11,6 +11,7 @@ import { findRosterSeat, personOf, seatsOwnedBy } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
 import { labDivert, labEvent } from '@/lib/lab';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
+import { refuseForeignCharacter } from '@/lib/pluginForeign';
 
 /**
  * Clip relay — the clan's clips channel, without every member pasting a webhook.
@@ -62,6 +63,9 @@ export async function POST(request: Request) {
   if (!auth) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <pluginToken>' }, { status: 401 });
   }
+  // A clip is posted as the character being played: never one this login doesn't own (lib/pluginForeign).
+  const foreign = await refuseForeignCharacter(request);
+  if (foreign) return foreign;
 
   // Far tighter than /notify's 30/min: a clip is a deliberate act (a hotkey press or an OBS
   // trigger), each one is megabytes, and nobody legitimately saves six a minute.

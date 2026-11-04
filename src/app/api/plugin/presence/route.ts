@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { foreignOr } from '@/lib/pluginForeign';
 
 import { setGuestPresence } from '@/lib/chatFeed';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
@@ -12,7 +13,7 @@ import { rateLimitByKey } from '@/lib/rate-limit';
 // is everyone who ever guested.
 export async function POST(request: Request) {
   const who = await resolvePluginCharacter(request);
-  if (!who) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!who) return foreignOr(request, NextResponse.json({ error: 'Unauthorized' }, { status: 401 }));
   const rl = await rateLimitByKey('plugin-presence', String(who.accountId), { limit: 20, windowMs: 10 * 60_000 });
   if (!rl.ok) return NextResponse.json({ error: 'Too many reports' }, { status: 429 });
   const body = await request.json().catch(() => null);
