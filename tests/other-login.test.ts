@@ -616,6 +616,21 @@ test('a Check that finds the attempt already won does not expire the proved clai
   assert.equal((await claimRow(claimId)).status, 'verifying', 'the proved claim is left for the winner to route');
 });
 
+test('a claim proved but never routed (a crashed Check) is routed by the sweep, once', async () => {
+  const racer = await login('Racer Rue');
+  await character(owner, 'Race Stuck', null, 'stat_delta');
+  await claimViaPlugin(racer, 'Race Stuck', null);
+  const claimId = (await OC.myOwnershipClaims(racer.userId)).find((c) => c.rsn === 'Race Stuck')!.id;
+  // The winner's first write landed, then it died: verified, still 'verifying', nobody told.
+  const provedAt = new Date(Date.now() - 6 * 60_000).toISOString();
+  await db.update(s.accountOwnershipClaims).set({ verifiedAt: provedAt }).where(eq(s.accountOwnershipClaims.id, claimId));
+  await OC.settleOwnershipClaims(Date.now());
+  assert.equal((await claimRow(claimId)).status, 'open', 'routed to the owner');
+  await OC.settleOwnershipClaims(Date.now());
+  const notices = (await db.select().from(s.userNotices).where(eq(s.userNotices.userId, owner.userId))).filter((n) => n.refId === claimId);
+  assert.equal(notices.length, 1, 'told once, however many sweeps');
+});
+
 test('the sweep racing the owner’s objection: exactly one outcome', async () => {
   const racer = await login('Racer Ria');
   const named = await character(owner, 'Race Two', null, 'stat_delta');
