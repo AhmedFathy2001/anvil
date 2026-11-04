@@ -946,6 +946,13 @@
       "when": 1793730660137,
       "tag": "0185_game_chat_flair",
       "breakpoints": true
+    },
+    {
+      "idx": 186,
+      "version": "7",
+      "when": 1793730720137,
+      "tag": "0186_moments_clanwide_idx",
+      "breakpoints": true
     }
   ]
 }

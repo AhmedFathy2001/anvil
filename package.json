@@ -64,6 +64,7 @@
     "test:pluginui": "npx tsx --test tests/plugin-ui.test.ts tests/plugin-ui-home.test.ts tests/plugin-ui-views.test.ts",
     "test:panelproofs": "npx tsx --test tests/panel-proofs.test.ts tests/panel-proofs-db.test.ts",
     "test:chatfeed": "npx tsx --test tests/chat-feed-rules.test.ts tests/chat-feed.test.ts",
+    "test:feedachievements": "npx tsx --test tests/feed-achievements.test.ts tests/feed-achievements-db.test.ts",
     "test:inputs": "npx tsx --test tests/setting-urls.test.ts",
     "test:eventchat": "npx tsx --test tests/event-chat.test.ts tests/panel-feed.test.ts tests/event-chat-db.test.ts tests/lab-feed-chat-db.test.ts",
     "test:pluginpush": "npx tsx --test tests/plugin-push.test.ts tests/plugin-push-notify.test.ts",

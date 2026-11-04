@@ -14,13 +14,14 @@ import { col, gap, muted, text } from './nodes';
 //   moments:event:<event>:team:<team>    one team's moments on it
 //   chat:<event> · chat:<event>:team:<team> · chat:<event>:mods
 
-export type KindGroup = 'drops' | 'pets' | 'tasks';
-export const KIND_GROUPS: KindGroup[] = ['drops', 'pets', 'tasks'];
+export type KindGroup = 'drops' | 'pets' | 'achievements';
+export const KIND_GROUPS: KindGroup[] = ['drops', 'pets', 'achievements'];
 
 export function kindGroup(kind: string): KindGroup | null {
   if (kind === 'unique' || kind === 'loot') return 'drops';
   if (kind === 'pet') return 'pets';
-  if (kind === 'ca' || kind === 'level' || kind === 'clog') return 'tasks';
+  // Combat tasks, level milestones, log slots, diaries, quests (lib/moments ACHIEVEMENT_KINDS).
+  if (kind === 'ca' || kind === 'level' || kind === 'clog' || kind === 'diary' || kind === 'quest') return 'achievements';
   return null;
 }
 
@@ -69,16 +70,37 @@ export interface MomentLike {
   source: string | null;
   teamId: number | null;
   occurredAt: string;
+  /** Combat task / diary tier. */
+  tier?: string | null;
+  /** 'level': skill / total / max. 'quest': 'cape' on the last quest. */
+  sourceKind?: string | null;
 }
 
 const PET = '#ff7f27';
+const ACHIEVEMENT = '#ffd35c';
 
-function momentTitle(m: MomentLike): string {
+export function momentTitle(m: MomentLike): string {
   const name = m.itemName ?? m.source ?? m.kind;
   if (m.kind === 'pet') return `Pet: ${name}`;
-  if (m.kind === 'ca') return `Combat task: ${name}`;
-  if (m.kind === 'level') return name;
+  if (m.kind === 'ca') return m.tier ? `${m.tier} combat task: ${name}` : `Combat task: ${name}`;
+  if (m.kind === 'level') {
+    // The number reached rides in `quantity`, the skill in `itemName` (lib/moments Observation).
+    const n = m.quantity.toLocaleString('en-US');
+    if (m.sourceKind === 'max') return `Maxed: ${n} total level`;
+    if (m.sourceKind === 'total') return `${n} total level`;
+    return m.itemName ? `${n} ${m.itemName}` : `Level ${n}`;
+  }
+  if (m.kind === 'clog') return `New log slot: ${name}`;
+  if (m.kind === 'diary') return `Completed the ${m.tier ? `${m.tier} ` : ''}${name} Diary`;
+  if (m.kind === 'quest') return m.sourceKind === 'cape' ? `Quest cape: ${name}` : `Quest: ${name}`;
   return m.quantity > 1 ? `${m.quantity} × ${name}` : name;
+}
+
+/** The glyph a row without an item icon gets: a star for a pet, a gold tick for an achievement. */
+function glyphOf(kind: string): Pick<FeedRow, 'glyph' | 'glyphColor'> {
+  if (kind === 'pet') return { glyph: 'star', glyphColor: PET as Color };
+  if (kindGroup(kind) === 'achievements') return { glyph: 'check', glyphColor: ACHIEVEMENT as Color };
+  return { glyph: 'check', glyphColor: 'done' };
 }
 
 export interface MomentRowOptions {
@@ -95,7 +117,7 @@ export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
   const value = m.valueGp != null && m.valueGp > 0 ? formatGp(m.valueGp * Math.max(1, m.quantity)) : undefined;
   return {
     id: `m${m.id}`,
-    ...(m.itemId != null ? { item: m.itemId } : { glyph: m.kind === 'pet' ? 'star' : 'check', glyphColor: m.kind === 'pet' ? PET : 'done' }),
+    ...(m.itemId != null ? { item: m.itemId } : glyphOf(m.kind)),
     title: momentTitle(m),
     who: m.rsn,
     whoColor: 'muted',
@@ -224,10 +246,11 @@ export function feedTabUi(o: FeedTabOptions): Node {
   const filters: [string, string][] =
     o.pane === 'chat'
       ? [['all', 'All'], ...(o.teamId != null ? [['team', 'My team'] as [string, string]] : []), ...(o.staff ? [['mods', 'Host & mods'] as [string, string]] : [])]
-      // No "Tasks" chip: combat tasks are only kept during a board or weekly, and levels and log slots
-      // aren't kept as moments at all, so the chip promised a list that was almost always empty.
-      : [['all', 'All'], ['drops', 'Drops'], ['pets', 'Pets'], ...(o.current.kind === 'event' && o.teamId != null ? [['team', 'My team'] as [string, string]] : [])];
-  parts.push(rowOf(filters.map(([id, label]) => chip(label, o.filter === id, load({ s: key, p: o.pane, f: id })))), gap(4));
+      // Achievements: log slots, diaries, quests, the clan's level milestones and combat-task tier,
+      // kept for the clan whether or not anything is running (a board keeps its own tasks and levels).
+      : [['all', 'All'], ['drops', 'Drops'], ['pets', 'Pets'], ['achievements', 'Achievements'], ...(o.current.kind === 'event' && o.teamId != null ? [['team', 'My team'] as [string, string]] : [])];
+  // Three to a row: the panel splits a row evenly, and "Achievements" is too wide for a quarter of it.
+  parts.push(rowOf(filters.map(([id, label]) => chip(label, o.filter === id, load({ s: key, p: o.pane, f: id }))), 3), gap(4));
 
   const id =
     o.pane === 'chat' && o.current.kind === 'event'
@@ -263,11 +286,12 @@ function emptyLine(pane: 'feed' | 'chat', filter: string): string {
   if (pane === 'chat') return filter === 'team' ? 'Nothing said to your team yet.' : filter === 'mods' ? 'The host and mods haven’t said anything yet.' : 'No messages yet. Say hi to the board.';
   if (filter === 'pets') return 'No pets yet. The next one lands here.';
   if (filter === 'drops') return 'No big drops yet. The next one lands here.';
+  if (filter === 'achievements') return 'No achievements yet. The next log slot, 99 or diary lands here.';
   if (filter === 'team') return 'Nothing from your team yet.';
-  return 'Nothing yet. The next pet or big drop lands here.';
+  return 'Nothing yet. The next pet, big drop or achievement lands here.';
 }
 
 /** A row of chips with a little space between, wrapping is the plugin's business. */
-function rowOf(items: Node[]): Node {
-  return { t: 'grid', cols: Math.min(items.length, 5), c: items, gap: 4 };
+function rowOf(items: Node[], maxCols = 5): Node {
+  return { t: 'grid', cols: Math.min(items.length, maxCols), c: items, gap: 4, vgap: 2 };
 }

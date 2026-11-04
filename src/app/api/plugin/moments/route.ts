@@ -3,14 +3,14 @@ import { resolvePluginClan } from '@/lib/auth';
 import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { pluginParticipantScope, resolvePluginMember } from '@/lib/auth';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
-import { activeScopesFor, recordMoments } from '@/lib/momentsStore';
-import { caTierRank, type Observation } from '@/lib/moments';
+import { activeScopesFor, recordSeatMoments } from '@/lib/momentsStore';
+import { achievementDedupKey, caTierRank, diaryTier, type Observation } from '@/lib/moments';
 import { stripChatTags } from '@/lib/chatTags';
 import { labQuarantine } from '@/lib/lab';
 import { worldModeIgnored } from '@/lib/worldModeRequest';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { accounts, clanMemberships } from '@/db/schema';
+import { accounts } from '@/db/schema';
 import { emitMomentRows } from '@/lib/panelRows';
 import { claimFeedItem, emitPersonalItem } from '@/lib/chatFeed';
 import { feedItemFromMoment } from '@/lib/chatFeedRules';
@@ -18,7 +18,8 @@ import { resolvePluginCharacter } from '@/lib/pluginAccount';
 
 // Highlight ingest: the pets, uniques, big hauls, deaths and combat tasks that happen while a competition week or
 // a bingo is running (lib/moments decides which of those it is — see that file for why the rules
-// live here rather than in the plugin).
+// live here rather than in the plugin). A member's ACHIEVEMENTS — new log slots, diaries, quests, the
+// clan's level milestones and combat-task tier — are kept for their clan whether or not anything runs.
 //
 // The client reports what it SAW and nothing more: it does not know which competition is running,
 // what counts as a unique, or which pets belong to which skill. It sends everything it thinks might
@@ -37,7 +38,7 @@ const MAX_KC = 1_000_000;
 /** A moment more than a day old is a replayed queue we no longer have the scopes to place. */
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-const KINDS = ['pet', 'drop', 'death', 'ca', 'level'] as const;
+const KINDS = ['pet', 'drop', 'death', 'ca', 'level', 'clog', 'diary', 'quest'] as const;
 
 // Every name on this route came off a chat line, so it can still carry the game's own styling from
 // a client that predates the plugin's strip (lib/chatTags). A CA task name is the one that matters:
@@ -168,11 +169,17 @@ export async function POST(request: Request) {
     if (!kind || !(KINDS as readonly string[]).includes(kind)) continue;
     // Without a key we can't tell a retry from a second drop, and the same pet would pile up a row
     // per chat line. A client that doesn't send one is too old to trust with a feed.
-    const dedupKey = str(raw?.key, 64);
-    if (!dedupKey) continue;
+    const clientKey = str(raw?.key, 64);
+    if (!clientKey) continue;
     // A combat task is a name AND a tier; without both there is nothing to judge it by and nothing
     // worth a feed line. The plugin always sends both, so this only ever catches a hand-rolled call.
     if (kind === 'ca' && (!str(raw?.taskName, 80) || !caTier(raw?.tier))) continue;
+    // A log slot or quest is its name; a diary its area and tier. Nothing to show without them.
+    if ((kind === 'clog' || kind === 'quest') && !str(raw?.itemName)) continue;
+    if (kind === 'diary' && (!str(raw?.itemName) || !diaryTier(str(raw?.tier, 16)))) continue;
+    // One achievement, one key, whatever the client called it (lib/moments achievementDedupKey).
+    const dedupKey =
+      achievementDedupKey(kind, { itemName: str(raw?.itemName), taskName: str(raw?.taskName, 80), tier: str(raw?.tier, 16) }) ?? clientKey;
     observations.push({
       kind: kind as Observation['kind'],
       itemId: int(raw?.itemId, 100_000_000),
@@ -188,7 +195,7 @@ export async function POST(request: Request) {
       // Same markup the notify hook strips — cleaned here too, so the highlight feed shows a clean
       // name AND lib/moments' caByName lookup (which resolves the boss/tier) matches.
       taskName: stripChatTags(str(raw?.taskName, 80)),
-      tier: caTier(raw?.tier),
+      tier: kind === 'diary' ? diaryTier(str(raw?.tier, 16)) : caTier(raw?.tier),
       occurredAt: occurredAt(raw?.at, now),
       dedupKey,
     });
@@ -201,18 +208,10 @@ export async function POST(request: Request) {
   const clan = await resolvePluginClan(request);
   if (!clan) return noClanForPlugin();
   const scopes = await activeScopesFor(member.clanMemberId, clan.id, new Date(now), await pluginParticipantScope(member));
-  // Nothing was running, so nothing is looking. Told apart from "kept none of them" in the reply so
-  // a client's log can say which it was.
-  if (scopes.weeklies.length === 0 && !scopes.event) {
-    return NextResponse.json({ ok: true, stored: 0, matched: 0, scoped: false });
-  }
-
-  const { inserted, ...result } = await recordMoments(member, observations, scopes);
+  // Nothing running still keeps the clan's achievements (momentsStore recordSeatMoments); `scoped:
+  // false` tells a client's log that was the case.
+  const { inserted, seatKind, idle, ...result } = await recordSeatMoments(member, observations, scopes);
   // The panel's live Feed lists (lib/panelRows). Not awaited past a failure: the reply is the plugin's.
-  if (inserted.length) {
-    // clan-scope: this clan -- the caller's own seat, resolved from their token above
-    const seat = await db.query.clanMemberships.findFirst({ where: eq(clanMemberships.id, member.clanMemberId), columns: { kind: true } });
-    await emitMomentRows(clan.id, seat?.kind ?? 'guest', inserted);
-  }
-  return NextResponse.json({ ok: true, ...result, scoped: true });
+  if (inserted.length) await emitMomentRows(clan.id, seatKind, inserted);
+  return NextResponse.json({ ok: true, ...result, scoped: !idle });
 }
