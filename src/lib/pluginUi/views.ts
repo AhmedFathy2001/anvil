@@ -24,7 +24,8 @@ import type { PanelTile } from '@/lib/pluginPanel';
 import { pluginRoster } from '@/lib/pluginRoster';
 import { rateLimit } from '@/lib/rate-limit';
 import { claimTile, cleanNote, unclaimTile } from '@/lib/tileClaims';
-import { normalizeRsn, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
+import { normalizeRsn, pluginRsnHintOnly, resolvePluginClan, resolvePluginMember, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
+import { type BoardSummary, liveBoardsForCharacter, summarizeBoards } from '@/lib/pluginBoards';
 import { type SupporterInk, supporterForUser, supporterInksForRsns } from '@/lib/supporter';
 import { momentsForClan } from '@/lib/momentsStore';
 import { NO_REACTIONS, REACTION_KINDS, isClanMember, momentInClan, reactionSummaries, toggleReaction } from '@/lib/momentReactions';
@@ -344,7 +345,7 @@ async function homeView(request: Request, a: Args): Promise<View> {
 
   const auth = live ? await verifyPluginToken(request) : null;
   const liveWeeklies = (cfg.panel?.weeklies ?? []).filter((w) => w.status === 'active');
-  const [feed, roster, boards, ownClan, clanEvents] = await Promise.all([
+  const [feed, roster, boards, ownClan, clanEvents, myBoards] = await Promise.all([
     auth
       ? buildActivity({ teamId: auth.teamId, eventId: auth.eventId, selfPlayerId: auth.playerId, selfRsn: auth.rsn, since: { sub: 0, comp: 0, rev: 0 } }).then((p) => p.activity)
       : Promise.resolve([]),
@@ -360,6 +361,7 @@ async function homeView(request: Request, a: Args): Promise<View> {
     ),
     !open && slug ? ownClanCard(request, slug) : Promise.resolve(null),
     slug ? clanEventsFor(request, slug) : Promise.resolve([] as ClanEventView[]),
+    !open ? otherLiveBoards(request, cfg.event?.id ?? cfg.homeBoard?.eventId ?? null) : Promise.resolve([] as BoardSummary[]),
   ]);
   // Hidden standings: the roster above came back unranked; say why where the table would be.
   // clan-scope: global -- the board this caller's own config just named.
@@ -397,8 +399,24 @@ async function homeView(request: Request, a: Args): Promise<View> {
     clanPath,
     now,
     clanEvents,
+    myBoards,
   };
   return { ui: (open && eventUi(data, open)) || homeUi(data) };
+}
+
+/**
+ * Every other live board the played character is on, in any clan it may see (lib/pluginBoards) —
+ * display only, so it works for a plugin that tracks one board as much as for one that tracks all.
+ * Best effort: a failure here never takes the tab down.
+ */
+async function otherLiveBoards(request: Request, shown: number | null): Promise<BoardSummary[]> {
+  try {
+    const member = await resolvePluginMember(request, { hintOnly: pluginRsnHintOnly(request) });
+    if (!member) return [];
+    return await summarizeBoards(await liveBoardsForCharacter(request, member.accountId, { except: shown, preferClanId: member.clanId }));
+  } catch {
+    return [];
+  }
 }
 
 /** The clan's events in the next fortnight, with the caller's own "going" marked. */

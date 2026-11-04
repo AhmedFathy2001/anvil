@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { events, eventParticipants } from '@/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
-import { verifyPluginToken, verifyPluginTokenUser, normalizeRsn, pluginRsnHintOnly, pluginViewerRsn } from '@/lib/auth';
+import { resolvePluginMember, verifyPluginToken, verifyPluginTokenUser, normalizeRsn, pluginRsnHintOnly, pluginViewerRsn } from '@/lib/auth';
 import { eventTimeState } from '@/lib/eventTime';
 import {
   buildSchedule,
@@ -19,6 +19,7 @@ import { combatTaskVarps } from '@/lib/combatTasks';
 import { accountStanding, playedCharacter } from '@/lib/pluginAccount';
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
 import { panelSchedule } from '@/lib/pluginPanel';
+import { foldOtherBoards, summaryOf, wantsAllBoards } from '@/lib/pluginBoards';
 import { buildEnrolledConfig, clanPluginSettings, notifyFlags, pluginRollTables } from '@/lib/pluginConfigEnrolled';
 
 /**
@@ -100,7 +101,7 @@ export async function GET(request: Request) {
         const character = playedCharacter(request);
         const standing = character ? await accountStanding(userOnly.userId, character) : null;
         const { activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, facts, alwaysNotifyItemIds } = clanSettings;
-      return jsonWithEtag(request, {
+      const body: Record<string, unknown> = {
         // Version + capability handshake — present on every /config shape (enrolled or not) so the
         // plugin can gate features per-site. Old plugins ignore it (GSON drops unknown fields).
         server: serverInfo(),
@@ -176,7 +177,16 @@ export async function GET(request: Request) {
           activeNow: [],
           ...panelSchedule(schedule, { ids: [homeBoard?.eventId ?? -1], title: homeBoard ? null : unlinkedActiveEvent }),
         },
-      });
+      };
+      // No board live HERE, but the character may be on boards elsewhere: a multi-board plugin
+      // tracks those too (lib/pluginBoards). Keyed to the played character, so nothing at the
+      // login screen beyond what the launcher hint already names.
+      if (wantsAllBoards(request)) {
+        const member = await resolvePluginMember(request, { hintOnly: pluginRsnHintOnly(request) });
+        if (member) await foldOtherBoards(request, body, { accountId: member.accountId, userId: userOnly.userId, addressedClanId: clan.id, active: null });
+        else body.boards = [];
+      }
+      return jsonWithEtag(request, body);
     }
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
   }
@@ -188,5 +198,16 @@ export async function GET(request: Request) {
     viewer: { playerId: auth.playerId, userId: auth.userId, rsn: auth.rsn, request },
   });
   if (!built.ok) return NextResponse.json({ error: built.error }, { status: built.status });
+  // ONE DROP, EVERY BOARD. Only for a plugin that says it reads the `board` tag (X-Anvil-Boards):
+  // an older one would file board B's tiles against board A, so it keeps exactly today's answer.
+  if (wantsAllBoards(request)) {
+    const body = built.body as unknown as Record<string, unknown>;
+    const b = built.body;
+    const active = summaryOf(
+      { eventId: b.event.id, name: b.event.name, clan: clan.slug, clanName: clan.name, teamId: b.team.id, teamName: b.team.name },
+      (b as { board?: { tilesComplete: number; tilesTotal: number; pointsScored: boolean } }).board,
+    );
+    await foldOtherBoards(request, body, { accountId: auth.accountId, userId: auth.userId, addressedClanId: clan.id, active });
+  }
   return jsonWithEtag(request, built.body);
 }

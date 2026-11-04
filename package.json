@@ -84,6 +84,7 @@
     "test:schedentry": "npx tsx --test tests/plugin-schedule-entry.test.ts",
     "test:schedulevis": "npx tsx --test tests/plugin-schedule-visibility.test.ts",
     "test:entrypercharacter": "npx tsx --test tests/plugin-entry-per-character.test.ts",
+    "test:multiboard": "npx tsx --test tests/plugin-multi-board.test.ts",
     "test:participantnames": "npx tsx --test tests/participant-names-migration.test.ts",
     "test:accounttype": "npx tsx --test tests/account-type.test.ts",
     "test:gameclans": "npx tsx --test tests/game-clans.test.ts",

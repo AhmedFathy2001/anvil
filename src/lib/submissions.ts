@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { emitCompletionRow } from '@/lib/panelRows';
 import { submissions, tiles, completions, teams, events, eventParticipants } from '@/db/schema';
 import { eq, and, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
@@ -316,6 +317,9 @@ export async function syncDropTileCompletion(
     const [inserted] = await db.insert(completions).values({ teamId, tileId, awardedPoints, creditPlayerId: finisherPlayerId })
       .onConflictDoNothing()
       .returning();
+
+    // A finished board tile shows in its board's Feed at once (lib/panelRows); a part's combo does instead.
+    if (inserted && !isPart) emitCompletionRow(tileId, teamId);
 
     // Only notify if we actually inserted (not a duplicate)
     if (inserted && isPart) {

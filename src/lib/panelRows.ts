@@ -10,13 +10,14 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clanStaff, eventParticipants, events, teams, users } from '@/db/schema';
+import { accounts, clanMemberships, clanStaff, completions, eventParticipants, events, teams, tiles, users } from '@/db/schema';
 import { atLeast } from '@/lib/clanRoles';
 import { log } from '@/lib/logger';
 import { eventFeedFloor, isClanWorthy, panelFeedWorthy } from '@/lib/moments';
-import { clanScopeFor } from '@/lib/momentsStore';
-import { momentFeedIds, momentRow, rollupRow, type MomentLike } from '@/lib/pluginUi/feedUi';
+import { boardTileItemIds, clanScopeFor } from '@/lib/momentsStore';
+import { completionFeedIds, completionRow, momentFeedIds, momentRow, rollupRow, type MomentLike } from '@/lib/pluginUi/feedUi';
 import { standingsHidden } from '@/lib/standingsVisibility';
+import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { ttlMemo } from '@/lib/ttlMemo';
 
 /** NOTIFY payloads cap at 8000 bytes: this many ids leaves room for the row beside them. */
@@ -45,36 +46,39 @@ export async function notifyRows(target: RowsTarget, m: Record<string, unknown>)
   }
 }
 
-/** The logins seated on a board (one team's, with `teamId`): who reads its Feed from anywhere. Held a minute. */
+/**
+ * The logins seated on a board (one team's, with `teamId`): who reads its Feed from anywhere. A team's
+ * list is read fresh every time: its rows are the team's secret while standings are hidden, and someone
+ * just moved off the team must not hear the next one. The whole board's is held 15 seconds.
+ */
 function boardUserIds(eventId: number, teamId: number | null): Promise<number[]> {
-  return ttlMemo(
-    `panel-rows-board-users:${eventId}:${teamId ?? 'all'}`,
-    async () => {
-      // clan-scope: global -- by the board id a row is being sent for.
-      const rows = await db
-        .selectDistinct({ id: users.id })
-        .from(eventParticipants)
-        .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
-        .innerJoin(users, eq(users.playerId, accounts.playerId))
-        .where(
-          teamId != null
-            ? and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.teamId, teamId))
-            : eq(eventParticipants.eventId, eventId),
-        );
-      const ids = new Set(rows.map((r) => r.id));
-      // The whole board's rows also reach its clan's moderators and up: they read and moderate its chat
-      // without a seat on it. A team's rows stay the team's.
-      if (teamId == null) {
-        const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true } });
-        if (ev) {
-          const staff = await db.select({ userId: clanStaff.userId, role: clanStaff.role }).from(clanStaff).where(eq(clanStaff.clanId, ev.clanId));
-          for (const st of staff) if (atLeast(st.role, 'moderator')) ids.add(st.userId);
-        }
-      }
-      return [...ids];
-    },
-    60_000,
-  );
+  if (teamId != null) return readBoardUserIds(eventId, teamId);
+  return ttlMemo(`panel-rows-board-users:${eventId}`, () => readBoardUserIds(eventId, null), 15_000);
+}
+
+async function readBoardUserIds(eventId: number, teamId: number | null): Promise<number[]> {
+  // clan-scope: global -- by the board id a row is being sent for.
+  const rows = await db
+    .selectDistinct({ id: users.id })
+    .from(eventParticipants)
+    .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
+    .innerJoin(users, eq(users.playerId, accounts.playerId))
+    .where(
+      teamId != null
+        ? and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.teamId, teamId))
+        : eq(eventParticipants.eventId, eventId),
+    );
+  const ids = new Set(rows.map((r) => r.id));
+  // The whole board's rows also reach its clan's moderators and up: they read and moderate its chat
+  // without a seat on it. A team's rows stay the team's.
+  if (teamId == null) {
+    const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true } });
+    if (ev) {
+      const staff = await db.select({ userId: clanStaff.userId, role: clanStaff.role }).from(clanStaff).where(eq(clanStaff.clanId, ev.clanId));
+      for (const st of staff) if (atLeast(st.role, 'moderator')) ids.add(st.userId);
+    }
+  }
+  return [...ids];
 }
 
 /** The people with a live member seat in a clan: who hears its Feed. Held a minute. */
@@ -173,7 +177,9 @@ export async function emitMomentRows(clanId: number, seatKind: string, list: New
     for (const m of list) {
       if (m.eventId == null) continue;
       const floor = eventFeedFloor(await boardSize(m.eventId));
-      if (!panelFeedWorthy(m, floor)) {
+      // An item one of the board's tiles wants shows whatever it's worth.
+      const wanted = m.itemId != null && (await boardTileItemIds(m.eventId)).has(m.itemId);
+      if (!wanted && !panelFeedWorthy(m, floor)) {
         if (m.kind === 'unique' || m.kind === 'loot') await rollup(m.eventId, now);
         continue;
       }
@@ -193,3 +199,44 @@ export async function emitMomentRows(clanId: number, seatKind: string, list: New
   }
 }
 
+
+/** A completion's stored timestamp as ISO (the column is 'YYYY-MM-DD HH:MM:SS' UTC). */
+export function completionAt(stamp: string): string {
+  return stamp.includes('T') ? stamp : `${stamp.replace(' ', 'T')}Z`;
+}
+
+/**
+ * A team just finished a board tile: its row to the board's Feed (everything, Tiles, the team's).
+ * A board hiding its standings tells only the team. A combo's part isn't a board cell, so it isn't
+ * shown (its combo is, when it lands). Fire-and-forget: never throws, and a missed live row is back
+ * the next time the list opens.
+ */
+export function emitCompletionRow(tileId: number, teamId: number): void {
+  void (async () => {
+    // clan-scope: global -- by the ids of a completion this request just stored.
+    const [c] = await db
+      .select({
+        eventId: tiles.eventId,
+        label: tiles.label,
+        parent: tiles.parentTileId,
+        revealedAt: tiles.revealedAt,
+        mission: tiles.mission,
+        tilesRevealed: events.tilesRevealed,
+        rules: events.rules,
+        at: completions.completedAt,
+        who: eventParticipants.name,
+      })
+      .from(completions)
+      .innerJoin(tiles, eq(tiles.id, completions.tileId))
+      .innerJoin(events, eq(events.id, tiles.eventId))
+      .leftJoin(eventParticipants, eq(eventParticipants.id, completions.creditPlayerId))
+      .where(and(eq(completions.tileId, tileId), eq(completions.teamId, teamId)))
+      .limit(1);
+    if (!c || c.parent != null || c.eventId == null) return;
+    // Never name a tile members can't see yet (unrevealed board, scheduled reveal, unannounced mission).
+    if (!c.tilesRevealed || !isTileRevealed(parseEventRules(c.rules), c)) return;
+    const row = completionRow({ tileId, teamId, label: c.label, who: c.who ?? null, team: await teamOf(teamId), at: completionAt(c.at) });
+    const target = (await boardHidden(c.eventId)) ? { e: c.eventId, t: teamId } : { e: c.eventId };
+    await notifyRows(target, { t: 'rows', feeds: completionFeedIds(c.eventId, teamId), rows: [row] });
+  })().catch((err: unknown) => log.warn('panel-rows.completion-failed', { tileId, teamId, message: (err as Error).message }));
+}

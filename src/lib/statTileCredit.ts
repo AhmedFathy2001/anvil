@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { emitCompletionRow } from '@/lib/panelRows';
 import { clanRoster, completions, eventParticipants, events, statTileProgress, teams, tiles } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { statKeys } from '@/lib/tileKinds';
@@ -195,6 +196,8 @@ export async function creditStatTilesForTeam(opts: {
     // Done either way (ours or a racing check's) — the ledger has nothing left to order.
     if (ledger) await db.delete(statTileProgress).where(and(eq(statTileProgress.teamId, teamId), eq(statTileProgress.tileId, tile.id)));
     if (inserted.length === 0) continue;
+    // The board's Feed shows it at once (a combo part is skipped there).
+    emitCompletionRow(tile.id, teamId);
     if (gate?.bounty) handleBountyClaim(eventId, tile.id).catch(() => {});
     done.add(tile.id);
     completed.push(tile.label);

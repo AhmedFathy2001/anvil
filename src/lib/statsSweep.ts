@@ -1,4 +1,5 @@
 import { saveStatSnapshot, updateAccount } from '@/lib/roster';
+import { emitCompletionRow } from '@/lib/panelRows';
 import { db } from '@/db';
 import { accounts, clanMemberships, clanRoster, completions, eventParticipants, events, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, and, or, inArray, isNull, isNotNull, notExists, sql, asc } from 'drizzle-orm';
@@ -767,6 +768,7 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
             .returning({ id: completions.id });
           ctx.completionSet.add(key);
           if (inserted.length > 0) {
+            emitCompletionRow(tile.id, f.player.teamId);
             if (gate.bounty) handleBountyClaim(ctx.event.id, tile.id).catch(() => {});
             const team = ctx.teamMap.get(f.player.teamId);
             ctx.result.tilesCompleted.push({ tileLabel: tile.label, teamName: team?.name || 'Unknown', playerName: f.player.name });

@@ -1,20 +1,21 @@
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clans, eventParticipants, events, users } from '@/db/schema';
-import { boardHidden, boardSize } from '@/lib/panelRows';
+import { accounts, clanMemberships, clans, completions, eventParticipants, events, teams, tiles, users } from '@/db/schema';
+import { boardHidden, boardSize, completionAt } from '@/lib/panelRows';
 import { pluginRsnHintOnly, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess } from '@/lib/eventChat';
 import { formatGp } from '@/lib/itemPrices';
 import { NO_REACTIONS, isClanMember, reactionSummaries } from '@/lib/momentReactions';
 import { eventFeedFloor, isClanWorthy, panelFeedWorthy } from '@/lib/moments';
-import { clanScopeFor, momentsForClan, momentsForEvent, type MomentRow } from '@/lib/momentsStore';
+import { boardTileItemIds, clanScopeFor, momentsForClan, momentsForEvent, type MomentRow } from '@/lib/momentsStore';
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
 import { rateLimit } from '@/lib/rate-limit';
 import { standingsHidden } from '@/lib/standingsVisibility';
+import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 
 import { visibleClan } from './load';
-import { feedTabUi, kindGroup, momentRow, type KindGroup, type Scope } from './feedUi';
+import { completionRow, feedTabUi, kindGroup, momentRow, type KindGroup, type Scope } from './feedUi';
 import type { Action, FeedRow, View } from './nodes';
 import { gap, message, text } from './nodes';
 
@@ -151,13 +152,64 @@ async function eventRows(eventId: number, filter: string, teamId: number | null)
   const ev = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   const hidden = ev ? standingsHidden(ev) : false;
   const g = groupOf(filter);
-  const list = (await momentsForEvent(eventId, 600))
-    .filter((m) => panelFeedWorthy(m, floor))
-    .filter((m) => !g || kindGroup(m.kind) === g)
-    // Behind the curtain each team sees only its own.
-    .filter((m) => (filter === 'team' || hidden ? teamId != null && m.teamId === teamId : true))
-    .slice(0, 80);
-  return { rows: list.map((m) => momentRow(asLike(m), { mine: teamId != null && m.teamId === teamId })), floor };
+  const own = (t: number | null) => teamId != null && t === teamId;
+  const tileItems = await boardTileItemIds(eventId);
+  // Behind the curtain each team sees only its own.
+  const visible = (t: number | null) => (filter === 'team' || hidden ? own(t) : true);
+  const momentRows =
+    filter === 'tiles'
+      ? []
+      : (await momentsForEvent(eventId, 600))
+          // Under the floor still shows when it's an item one of the board's tiles wants.
+          .filter((m) => panelFeedWorthy(m, floor) || (m.itemId != null && tileItems.has(m.itemId)))
+          .filter((m) => !g || kindGroup(m.kind) === g)
+          .filter((m) => visible(m.teamId))
+          .slice(0, 80)
+          .map((m) => ({ at: Date.parse(m.occurredAt), row: momentRow(asLike(m), { mine: own(m.teamId) }) }));
+  // Finished tiles: in All, Tiles and My team (a drop filter is about drops).
+  const tileRows =
+    g != null
+      ? []
+      : (await boardCompletions(eventId))
+          .filter((c) => visible(c.teamId))
+          .map((c) => {
+            const at = completionAt(c.at);
+            return {
+              at: Date.parse(at),
+              row: completionRow({ tileId: c.tileId, teamId: c.teamId, label: c.label, who: c.who, team: { name: c.teamName, color: c.teamColor }, at, mine: own(c.teamId) }),
+            };
+          });
+  const rows = [...momentRows, ...tileRows].sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 80).map((r) => r.row);
+  return { rows, floor };
+}
+
+/** A board's finished tiles, newest first (combo parts aren't board cells). */
+async function boardCompletions(eventId: number) {
+  // clan-scope: this clan -- by the board id the caller already resolved for this viewer
+  const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { tilesRevealed: true, rules: true } });
+  // A tile members can't see yet (unrevealed board, scheduled reveal, unannounced mission) isn't named.
+  if (!ev?.tilesRevealed) return [];
+  const rules = parseEventRules(ev.rules);
+  const rows = await db
+    .select({
+      revealedAt: tiles.revealedAt,
+      mission: tiles.mission,
+      tileId: completions.tileId,
+      teamId: completions.teamId,
+      at: completions.completedAt,
+      label: tiles.label,
+      teamName: teams.name,
+      teamColor: teams.color,
+      who: eventParticipants.name,
+    })
+    .from(completions)
+    .innerJoin(tiles, eq(tiles.id, completions.tileId))
+    .innerJoin(teams, eq(teams.id, completions.teamId))
+    .leftJoin(eventParticipants, eq(eventParticipants.id, completions.creditPlayerId))
+    .where(and(eq(tiles.eventId, eventId), isNull(tiles.parentTileId)))
+    .orderBy(desc(completions.completedAt))
+    .limit(120);
+  return rows.filter((t) => isTileRevealed(rules, t)).slice(0, 80);
 }
 
 export async function feedView(request: Request, a: Args): Promise<View> {
