@@ -1852,7 +1852,7 @@ export async function resolvePluginMember(
 export async function verifyPluginToken(
   request: Request,
   opts?: { hintOnly?: boolean },
-): Promise<{ playerId: number; teamId: number; eventId: number; userId: number | null; rsn: string } | null> {
+): Promise<{ playerId: number; teamId: number; eventId: number; userId: number | null; rsn: string; accountId: number } | null> {
   const member = await resolvePluginMember(request, opts);
   if (!member) return null;
 
@@ -1904,7 +1904,26 @@ export async function verifyPluginToken(
     eventId: pick.eventId,
     userId: member.userId,
     rsn: pick.name,
+    // The character itself, so a caller can find its OTHER live boards (lib/pluginBoards).
+    accountId: member.accountId,
   };
+}
+
+/**
+ * The plugin seat a write to board `eventId` acts as. The token's live pick when that IS this board;
+ * otherwise this character's own seat on the named board — one drop credits every board the player
+ * is on, so a newer plugin files board B's tiles straight at board B (X-Anvil-Boards). When the
+ * character has no seat there, the live pick comes back unchanged so the caller's "another team"
+ * check still refuses it; null only when the token resolves no seat at all.
+ */
+export async function verifyPluginTokenOnEvent(
+  request: Request,
+  eventId: number,
+): Promise<{ playerId: number; teamId: number; eventId: number; userId: number | null; rsn: string } | null> {
+  const live = await verifyPluginToken(request);
+  if (live && live.eventId === eventId) return live;
+  if (!request.headers.get('Authorization')?.startsWith('Bearer ')) return live;
+  return (await verifyPluginTokenForEvent(request, eventId)) ?? live;
 }
 
 /**
