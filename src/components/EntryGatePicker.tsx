@@ -186,6 +186,15 @@ export default function EntryGatePicker({
         )}
         {has('youtube-member') && <p>YouTube members prove it by typing a code in your live chat, so they can only join while you’re live.</p>}
         <KickHint options={options} kickFollow={has('kick-follow')} kickSub={has('kick-sub')} />
+        {(twitchReady || kickReady) && (
+          <p>
+            Want viewers to get the link by typing <code>!join</code> in your chat?{' '}
+            <ClanLink href="/admin/clan#chat-join" className="text-gold hover:underline">
+              Switch it on in your settings
+            </ClanLink>
+            .
+          </p>
+        )}
         {!discordReady && (
           <p>
             For Discord choices,{' '}
