@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 
 import { db } from '@/db';
 import { clanHref } from '@/lib/clanPath';
+import { resolveClanById } from '@/lib/clanContext';
+import { CREATOR_ONLY_OFF, isCreatorSpace } from '@/lib/creatorSpaces';
 import { clanAuditLog } from '@/db/schema';
 import { getSetting, setSetting } from '@/lib/settings';
 import {
@@ -15,7 +17,11 @@ import {
 
 /** This clan's feature switches. Everything is on unless the clan switched it off. */
 export async function getClanFeatures(clanId: number): Promise<FeatureFlags> {
-  return featureFlags(parseFeaturesOff(await getSetting(clanId, FEATURES_OFF_SETTING)));
+  const off = parseFeaturesOff(await getSetting(clanId, FEATURES_OFF_SETTING));
+  // A creator space has no roster, so the modules that only work on one are off whatever the setting
+  // says (lib/creatorSpaces): a weekly enters "everyone on the roster", which there is nobody.
+  if (isCreatorSpace(await resolveClanById(clanId))) for (const k of CREATOR_ONLY_OFF) off.add(k);
+  return featureFlags(off);
 }
 
 /** Switch one feature on or off, and record who did it in the Activity log. */

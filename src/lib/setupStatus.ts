@@ -1,7 +1,8 @@
 import { db } from '@/db';
 import { getSettingMap } from '@/lib/settings';
-import { clanMemberships, clans, events, tiles } from '@/db/schema';
-import { and, count, eq, isNull } from 'drizzle-orm';
+import { accounts, clanMemberships, clanStaff, clans, eventSignups, events, tiles, users } from '@/db/schema';
+import { and, count, eq, isNull, notInArray } from 'drizzle-orm';
+import { creatorSetupSteps, isCreatorSpace } from '@/lib/creatorSpaces';
 import { writtenTile } from '@/lib/writtenTiles';
 
 // The five "zero-to-first-bingo" milestones a fresh clan needs to hit. Step status is
@@ -11,11 +12,13 @@ import { writtenTile } from '@/lib/writtenTiles';
 // whether a step is "done".
 
 export interface SetupStep {
-  key: 'clan' | 'discord' | 'members' | 'event' | 'tiles';
+  key: 'clan' | 'discord' | 'members' | 'event' | 'tiles' | 'share';
   label: string;
   hint: string;
   done: boolean;
   href: string;
+  /** Shown, but not counted towards "all done" (a creator space's Discord step). */
+  optional?: boolean;
 }
 
 export interface SetupStatus {
@@ -38,6 +41,8 @@ export interface SetupStatus {
    * uses this to word its "already filled in for you" notice.
    */
   provisioned: boolean;
+  /** A creator space (lib/creatorSpaces): its own checklist, and no setup wizard. */
+  creator: boolean;
   /** Prefill values for the wizard, so it opens showing whatever is already set. */
   values: {
     clanName: string;
@@ -79,8 +84,9 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
   // saving that empty box would have been believed.
   const row = await db.query.clans.findFirst({
     where: eq(clans.id, clanId),
-    columns: { name: true, inGameName: true, ingameNameVerifiedAt: true },
+    columns: { name: true, inGameName: true, ingameNameVerifiedAt: true, kind: true },
   });
+  if (isCreatorSpace(row)) return creatorSetupStatus(clanId, map, row?.name ?? '');
   const clanName = row?.name?.trim() || get('clan_name');
   const inGameClanName = row?.inGameName?.trim() || get('clan_ingame_name');
   const webhookUrl = get('discord_webhook_url');
@@ -161,6 +167,7 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
   const provisioned = !!clanName;
 
   return {
+    creator: false,
     steps,
     completedCount,
     totalCount: steps.length,
@@ -183,6 +190,67 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
       deaths: get('webhook_deaths'),
       verified: row?.ingameNameVerifiedAt != null,
       memberCount: mc?.c ?? 0,
+    },
+  };
+}
+
+/**
+ * A creator space's checklist: make an event, share it, and optionally connect Discord. No roster
+ * step, no in-game name, and never the setup wizard (that is all in-game clan configuration) —
+ * `isFresh` is false and `wizardShown` true, so the dashboard never redirects there.
+ */
+async function creatorSetupStatus(clanId: number, map: Map<string, string | null>, name: string): Promise<SetupStatus> {
+  const get = (k: string) => map.get(k) || '';
+  // Sign-ups from someone who does not run the space — the evidence the link went somewhere. The
+  // staff's own characters first, then every sign-up on a seat that is not one of them.
+  const staffAccounts = await db
+    .select({ id: accounts.id })
+    .from(clanStaff)
+    .innerJoin(users, eq(users.id, clanStaff.userId))
+    .innerJoin(accounts, eq(accounts.playerId, users.playerId))
+    .where(eq(clanStaff.clanId, clanId));
+  const staffIds = staffAccounts.map((r) => r.id);
+  const [[ec], [sc]] = await Promise.all([
+    db.select({ c: count() }).from(events).where(eq(events.clanId, clanId)),
+    db
+      .select({ c: count() })
+      .from(eventSignups)
+      .innerJoin(events, eq(events.id, eventSignups.eventId))
+      .innerJoin(clanMemberships, eq(clanMemberships.id, eventSignups.clanMemberId))
+      .where(
+        staffIds.length
+          ? and(eq(events.clanId, clanId), notInArray(clanMemberships.accountId, staffIds))
+          : eq(events.clanId, clanId),
+      ),
+  ]);
+  const webhookUrl = get('discord_webhook_url');
+  const steps = creatorSetupSteps({
+    eventsCount: ec?.c ?? 0,
+    outsideSignups: sc?.c ?? 0,
+    discordConnected: !!webhookUrl || !!get('discord_invite_url'),
+  });
+  const counted = steps.filter((st) => !st.optional);
+  const completedCount = counted.filter((st) => st.done).length;
+  return {
+    creator: true,
+    steps,
+    completedCount,
+    totalCount: counted.length,
+    allDone: completedCount === counted.length,
+    dismissed: !!get('setup_completed'),
+    isFresh: false,
+    wizardShown: true,
+    provisioned: true,
+    values: {
+      clanName: name,
+      inGameClanName: '',
+      inviteUrl: get('discord_invite_url'),
+      webhookUrl,
+      pluginWebhook: get('webhook_plugin_default'),
+      rareDrops: get('webhook_rare_drops'),
+      deaths: get('webhook_deaths'),
+      verified: false,
+      memberCount: 0,
     },
   };
 }

@@ -95,6 +95,9 @@ export const PLATFORM_ROOTS = [
   '/features',
   '/pricing',
   '/supporter',
+  // "Host an event": making a creator space (lib/creatorSpaces) is a platform act, like /clans/new.
+  '/host',
+  '/api/creators',
   // Release notes (lib/releases): Anvil's, not a clan's.
   '/changelog',
   // Invite links (lib/referrals): a person's, never a clan's.

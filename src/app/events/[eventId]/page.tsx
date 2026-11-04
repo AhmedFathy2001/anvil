@@ -66,6 +66,7 @@ import { canEnterEvent } from '@/lib/eventAccess';
 import EnterEvent from './EnterEvent';
 import { eventActivityIsValid } from '@/lib/completionGate';
 import LocalTime from '@/components/LocalTime';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { withSearchText } from '@/lib/tileSearchText';
 import { supporterLooksByName } from '@/lib/supporter';
 import { standingsScopeForSession } from '@/lib/standingsAccess';
@@ -329,6 +330,8 @@ export default async function EventScoreboardPage({
   // nowhere to sit and the ordinary banner would send them to a form that cannot succeed. It did
   // exactly that, because `hasVerifiedAccount` above counts seats in ANY clan — which is right for
   // the ladder strip below and wrong for this question.
+  // A creator space's event (lib/creatorSpaces): the join card is the one-button version.
+  const creatorEvent = isCreatorSpace(await resolveClanById(event.clanId));
   let isOutsider = false;
   if (session?.playerId != null) {
     const verdict = await canEnterEvent({ eventId: id, playerId: session.playerId });
@@ -705,8 +708,28 @@ export default async function EventScoreboardPage({
           </div>
         </div>
       )}
-      {isOutsider ? (
-        <EnterEvent eventId={event.id} signupFee={standardFee(event, true)} signupsOpen={window.open} />
+      {creatorEvent && !session && window.open ? (
+        // A creator space's event, signed out: one button. Discord sign-in, then straight back here,
+        // where the same button joins them (EnterEvent, creator mode).
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-gold/30 bg-gold/10 p-5">
+          <div className="min-w-0">
+            <div className="text-lg font-semibold">Join this event</div>
+            <div className="text-sm text-text-muted">Sign in with Discord — it takes a few seconds.</div>
+          </div>
+          <ClanLink
+            href={`/login?return=${encodeURIComponent(await clanHref(`/events/${event.id}`))}`}
+            className="shrink-0 rounded-xl bg-gold px-6 py-3 text-base font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+          >
+            Join
+          </ClanLink>
+        </div>
+      ) : isOutsider ? (
+        <EnterEvent
+          eventId={event.id}
+          signupFee={standardFee(event, true)}
+          signupsOpen={window.open}
+          creator={creatorEvent}
+        />
       ) : (
       <SignupBanner
         eventId={event.id}

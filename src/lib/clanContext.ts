@@ -41,6 +41,8 @@ export interface ClanContext {
   visibility: string;
   /** 'approval' | 'open' | 'closed' — how it admits somebody it does not already have. */
   guestPolicy: string;
+  /** 'clan' | 'creator' — a creator space has no in-game clan behind it. See lib/creatorSpaces. */
+  kind: string;
   /** The clan's canonical host, for building absolute URLs. Custom domain wins when set. */
   host: string;
 }
@@ -72,6 +74,7 @@ function toContext(row: typeof clans.$inferSelect): ClanContext {
     customDomain: row.customDomain,
     visibility: row.visibility,
     guestPolicy: row.guestPolicy,
+    kind: row.kind ?? 'clan',
     host: row.customDomain || `${row.slug}.${apexDomain()}`,
   };
 }

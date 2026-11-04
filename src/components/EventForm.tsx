@@ -38,6 +38,8 @@ interface EventFormProps {
    * goes: one component, showing a moderator only the half of it that is theirs.
    */
   weeklyOnly?: boolean;
+  /** A creator space (lib/creatorSpaces): no multi-clan co-hosting — there is no clan to field. */
+  creator?: boolean;
   /**
    * The format picked on the "What are you running?" screen (app/admin/events/new). When set, the
    * form opens already on that format and does not show its own format picker — the choice was
@@ -129,7 +131,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function EventForm({ presets = [], suggestedName = '', weeklyOnly = false, choice }: EventFormProps) {
+export default function EventForm({ presets = [], suggestedName = '', weeklyOnly = false, creator = false, choice }: EventFormProps) {
   const router = useRouter();
   const chosenWeekly = choice?.weekly ? WEEKLY_KINDS.find((w) => w.type === choice.weekly) ?? null : null;
   const [name, setName] = useState(
@@ -1252,7 +1254,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
 
           {/* Who plays — a single clan, or several. Team boards only: a whole-clan competition and an
               individual ladder have no per-clan teams to field. */}
-          {teamBoard && (
+          {teamBoard && !creator && (
           <Section title="Who plays">
             <div className="flex flex-wrap gap-2">
               <button

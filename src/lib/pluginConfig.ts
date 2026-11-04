@@ -782,14 +782,16 @@ export async function getDropFacts(clanId: number): Promise<DropFacts> {
 // is where callers already look for it. Imported as well as re-exported — `export ... from` does
 // not bind the name locally, and getPublicShowcase below uses it.
 import { PUBLIC_SHOWCASE_KEY } from '@/lib/clanListing';
+import { showcaseOn } from '@/lib/creatorSpaces';
 export { PUBLIC_SHOWCASE_KEY };
 
 export async function getPublicShowcase(clanId: number): Promise<boolean> {
   // Hidden by the platform (/staff/clans) outranks the clan's own switch.
-  const row = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { platformHidden: true } });
+  const row = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { platformHidden: true, kind: true } });
   if (row?.platformHidden) return false;
-  // default (no row) = listed; explicit 'off' opts out
-  return (await getSetting(clanId, PUBLIC_SHOWCASE_KEY)) !== 'off';
+  // A clan: default (no row) = listed, explicit 'off' opts out. A creator space: only an explicit
+  // 'on' ("Advertise on Anvil") lists it — see lib/creatorSpaces.
+  return showcaseOn(row?.kind, await getSetting(clanId, PUBLIC_SHOWCASE_KEY));
 }
 
 /**

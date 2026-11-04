@@ -24,6 +24,7 @@ import { and, eq, sql, type SQL } from 'drizzle-orm';
 
 import { clans, settings } from '@/db/schema';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
+import { showcaseOn } from '@/lib/creatorSpaces';
 
 /**
  * The opt-out key, defined HERE rather than in lib/pluginConfig, which re-exports it for the callers
@@ -59,7 +60,10 @@ export function listedClanWhere(): SQL {
     eq(clans.visibility, 'public'),
     // `is distinct from` rather than `<> 'off'`, because a NULL — the absent row — has to read as
     // the default rather than as "unknown, therefore excluded".
-    sql`${settings.value} is distinct from 'off'`,
+    //
+    // A CREATOR SPACE is the other way round: unlisted until it opts in ("Advertise on Anvil"), so
+    // only an explicit 'on' lists it and the absent row reads as unlisted. See lib/creatorSpaces.
+    sql`(case when ${clans.kind} = 'creator' then coalesce(${settings.value}, '') = 'on' else ${settings.value} is distinct from 'off' end)`,
   )!;
 }
 
@@ -69,13 +73,13 @@ export function listedClanWhere(): SQL {
  * `showcase` is the raw setting value: null when there is no row.
  */
 export function isClanListed(
-  clan: { status: string; visibility: string | null; platformHidden?: boolean | null },
+  clan: { status: string; visibility: string | null; platformHidden?: boolean | null; kind?: string | null },
   showcase: string | null,
 ): boolean {
   return (
     clan.status === 'active' &&
     !clan.platformHidden &&
     clanVisibilityOf(clan.visibility) === 'public' &&
-    showcase !== 'off'
+    showcaseOn(clan.kind, showcase)
   );
 }

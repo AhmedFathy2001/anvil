@@ -7,6 +7,8 @@ import { clanHref } from '@/lib/clanPath';
 import ProfileClient from './ProfileClient';
 import ClanNameSettings from './ClanNameSettings';
 import DeleteClan from './DeleteClan';
+import CreatorSettings from './CreatorSettings';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +29,19 @@ export default async function ClanProfilePage() {
   // admin sees this page without ever seeing the button.
   const [clan, session] = await Promise.all([requireClan(), verifyUser()]);
   const grant = session ? await clanGrant(clan.id, session.userId) : null;
+
+  // A creator space: its name, stream links and the "Advertise on Anvil" switch. No in-game name,
+  // and none of the clan profile (focus, recruiting, requirements) applies.
+  if (isCreatorSpace(clan)) {
+    return (
+      <>
+        <CreatorSettings />
+        <div className="mt-6">
+          <DeleteClan slug={clan.slug} isOwner={!!grant?.isOwner} />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

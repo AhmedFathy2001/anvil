@@ -56,7 +56,7 @@ export default function FeaturesClient({ initial }: { initial: { key: FeatureKey
           <section key={group} className="border border-[#2e251d] rounded-xl bg-[#18130f] p-5">
             <h2 className="display text-xl font-semibold mb-4">{group}</h2>
             <ul className="space-y-4">
-              {FEATURES.filter((f) => f.group === group).map((f) => (
+              {FEATURES.filter((f) => f.group === group && initial.some((i) => i.key === f.key)).map((f) => (
                 <li key={f.key} id={`feature-${f.key}`} className="flex gap-4 items-start scroll-mt-24">
                   <ItemSlot name={SPRITE[f.key]} size={40} />
                   <label className="flex-1 min-w-0 flex gap-3 items-start cursor-pointer">

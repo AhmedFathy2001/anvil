@@ -31,6 +31,8 @@ export interface LookupClan {
   verified: boolean;
   /** 'approval' | 'open' | 'closed'. */
   guestPolicy: string;
+  /** 'creator' for a creator space (lib/creatorSpaces): no members, so no member pulse. */
+  kind?: string;
   /** Members who gained anything in seven days. */
   activeThisWeek: number;
   xpThisWeek: number;
@@ -351,6 +353,16 @@ function Card({ clan }: { clan: LookupClan }) {
         {/* THE PULSE, in the shape Discord prints "1,234 Online · 9,876 Members" — which everybody
             already reads without thinking. "Online" here is "played this week". */}
         <div className="mt-auto pt-4">
+          {clan.kind === 'creator' ? (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px]">
+              <span className="rounded border border-gold/30 bg-gold/10 px-1.5 py-px text-[11px] font-medium text-gold">Creator</span>
+              <span className="text-text-dim">
+                <b className="font-semibold tabular-nums text-foreground">{(clan.events ?? 0).toLocaleString()}</b> event
+                {clan.events === 1 ? '' : 's'}
+              </span>
+            </div>
+          ) : (
+          <>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px]">
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-accent-green-light" />
@@ -375,6 +387,8 @@ function Card({ clan }: { clan: LookupClan }) {
                 {played}%{clan.xpThisWeek > 0 && <> · {compact(clan.xpThisWeek)} xp</>}
               </span>
             </div>
+          )}
+          </>
           )}
 
           <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-card-border pt-3">

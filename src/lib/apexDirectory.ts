@@ -37,6 +37,7 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
       customDomain: clans.customDomain,
       verified: clans.ingameNameVerifiedAt,
       guestPolicy: clans.guestPolicy,
+      kind: clans.kind,
       members: count(clanMemberships.id),
     })
     .from(clans)
@@ -70,6 +71,7 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
       clans.customDomain,
       clans.ingameNameVerifiedAt,
       clans.guestPolicy,
+      clans.kind,
     )
     .orderBy(clans.name);
 
@@ -121,6 +123,8 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
     events: eventsByClan.get(r.id) ?? 0,
     verified: r.verified != null,
     guestPolicy: r.guestPolicy,
+    /** 'creator' for a creator space (lib/creatorSpaces) — no members to count. */
+    kind: r.kind,
     activeThisWeek: activeBy.get(r.id)?.actives ?? 0,
     xpThisWeek: activeBy.get(r.id)?.xp ?? 0,
   }));

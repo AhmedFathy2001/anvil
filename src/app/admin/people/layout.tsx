@@ -6,6 +6,7 @@ import { verifyUser } from '@/lib/auth';
 import SectionHeader from '@/components/SectionHeader';
 import { atLeast } from '@/lib/clanRoles';
 import { pendingClaimRequests } from '@/lib/claimRequests';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,22 @@ export default async function PeopleLayout({ children }: { children: React.React
     pendingClaimRequests(clan.id).then((r) => r.length),
   ]);
   const provisionalCount = provisionalRows + claimRequests;
+
+  // A creator space: its players (event guests) and its staff. No roster, nothing provisional to
+  // review, and who may join is each event's own entry setting.
+  if (isCreatorSpace(clan)) {
+    return (
+      <div>
+        <SectionHeader
+          pages={[
+            { href: '/admin/people', exact: true, title: 'Players', blurb: 'Who has played your events, and who is asking to.' },
+            { href: '/admin/people/staff', title: 'Staff & roles', blurb: 'Who helps run your events, and what each of them can do.', show: isAdmin },
+          ]}
+        />
+        {children}
+      </div>
+    );
+  }
 
   return (
     <div>

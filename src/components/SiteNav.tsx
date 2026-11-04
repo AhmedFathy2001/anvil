@@ -36,7 +36,7 @@ interface Props {
   discordInvite: string | null;
   user: NavUser | null;
   /** The clan whose pages these are, or null on the apex. */
-  clan: { slug: string; name: string; logoUrl?: string | null } | null;
+  clan: { slug: string; name: string; logoUrl?: string | null; kind?: string } | null;
   /** Every clan the signed-in person is in (includes the current one), for the switcher. */
   myClans: NavClan[];
 }
@@ -133,7 +133,8 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
         // One entry for competitions. A Skill of the Week is an event, and having two links meant
         // knowing which table the clan filed something under before you could find it.
         { href: '/events', label: 'Events' },
-        { href: '/members', label: 'Members' },
+        // A creator space has no members — its players are on its home page (lib/creatorSpaces).
+        ...(clan.kind === 'creator' ? [] : [{ href: '/members', label: 'Members' }]),
         ...(signedIn && myTeams > 0
           ? [{ href: '/team', label: myTeams > 1 ? `My Teams · ${myTeams}` : 'My Team' }]
           : []),
@@ -218,6 +219,9 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                       <span className="w-[18px] text-center text-gold">＋</span> Create a clan
                     </ClanLink>
                   )}
+                  <ClanLink href="/host" role="menuitem" className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all">
+                    <span className="w-[18px] text-center text-gold">▶</span> Host an event
+                  </ClanLink>
                   <ClanLink href="/" role="menuitem" className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all">
                     <span className="w-[18px] text-center">⌂</span> Anvil
                   </ClanLink>

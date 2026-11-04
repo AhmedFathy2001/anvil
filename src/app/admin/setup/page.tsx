@@ -6,6 +6,7 @@ import { listBotChannels } from '@/lib/discord-broadcast';
 import SetupWizardClient from './SetupWizardClient';
 import { atLeast } from '@/lib/clanRoles';
 import { clanHref } from '@/lib/clanPath';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,9 @@ export default async function SetupPage() {
   const session = await verifyUser();
   if (!session) redirect(await clanHref('/admin'));
   if (!atLeast(session.role, 'admin')) redirect(await clanHref('/admin/dashboard'));
+  // The wizard is in-game clan setup (in-game name, roster, plugin). A creator space has none of it;
+  // its checklist lives on the dashboard and its first step is the event wizard.
+  if (isCreatorSpace(clan)) redirect(await clanHref('/admin/dashboard'));
 
   // Channels feed the in-wizard webhook creation flow (steps 2–3); empty/off when no bot is connected.
   const [status, bot] = await Promise.all([getSetupStatus(clan.id), listBotChannels(clan.id)]);

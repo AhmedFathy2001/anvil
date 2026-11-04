@@ -21,7 +21,9 @@ import { clanAuditLog, clanStaff, clans, retiredClanSlugs } from '@/db/schema';
 import { PLANS } from '@/lib/plans';
 import { newCheckoutRef } from '@/lib/billing';
 import { setSetting } from '@/lib/settings';
-import { FEATURES_OFF_SETTING, defaultFeaturesOffForNewClan } from '@/lib/features';
+import { FEATURES, FEATURES_OFF_SETTING, defaultFeaturesOffForNewClan, serializeFeaturesOff, type FeatureKey } from '@/lib/features';
+import { PUBLIC_SHOWCASE_KEY } from '@/lib/clanListing';
+import { MAX_CREATOR_SPACES, STREAM_LINK_KEYS, checkStreamLink, mayCreateCreatorSpace } from '@/lib/creatorSpaces';
 import {
   availabilityMessage,
   domainRuleFailure,
@@ -216,6 +218,134 @@ export async function createClan(input: CreateClanInput): Promise<CreateClanResu
     // The unique index on slug is the real arbiter: two people can pass checkSlug at the same moment
     // and only one insert can win. Reported as "taken" rather than a server error, because from the
     // loser's point of view that is exactly what happened.
+    if ((e as { cause?: { code?: string } }).cause?.code === '23505') {
+      return { ok: false, error: 'That address was just taken — pick another.' };
+    }
+    throw e;
+  }
+}
+
+// ── Creator spaces ───────────────────────────────────────────────────────────────────────────────
+//
+// The same row and the same owner grant as a clan, with what a clan's in-game half needs left out.
+// See lib/creatorSpaces for what a creator space is and why its rules differ.
+
+/** How many creator spaces this person owns. The cap reads this; so does the /host page. */
+export async function ownedCreatorSpaceCount(userId: number): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(clanStaff)
+    .innerJoin(clans, eq(clans.id, clanStaff.clanId))
+    .where(and(eq(clanStaff.userId, userId), eq(clanStaff.role, 'owner'), eq(clans.kind, 'creator')));
+  return row?.n ?? 0;
+}
+
+/** The creator space this person owns, if any — for "you already have one, here it is". */
+export async function ownedCreatorSpace(userId: number): Promise<{ id: number; slug: string; name: string } | null> {
+  const [row] = await db
+    .select({ id: clans.id, slug: clans.slug, name: clans.name })
+    .from(clanStaff)
+    .innerJoin(clans, eq(clans.id, clanStaff.clanId))
+    .where(and(eq(clanStaff.userId, userId), eq(clanStaff.role, 'owner'), eq(clans.kind, 'creator')))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * What a creator space starts with switched off: a new clan's defaults, plus the parts that only
+ * mean something for an in-game clan — weeklies enter "the roster", the coffer is a clan's gp, the
+ * Clan Hall card counts a clan's Discord members.
+ */
+export const CREATOR_FEATURES_OFF: readonly FeatureKey[] = ['weekly', 'coffer', 'clanHall'];
+
+function creatorFeaturesOff(): string {
+  return serializeFeaturesOff([...FEATURES.filter((f) => f.offForNewClans).map((f) => f.key), ...CREATOR_FEATURES_OFF]);
+}
+
+export interface CreateCreatorSpaceInput {
+  slug: string;
+  name: string;
+  ownerUserId: number;
+  twitchUrl?: string | null;
+  kickUrl?: string | null;
+}
+
+/**
+ * Create a creator space and make its creator the owner, in one transaction (the same no-ownerless
+ * rule as createClan). No in-game name, guests let straight in (`open`), readable by anyone — and
+ * UNLISTED (`public_showcase = off`) until the creator turns on "Advertise on Anvil".
+ */
+export async function createCreatorSpace(input: CreateCreatorSpaceInput): Promise<CreateClanResult> {
+  const verdict = mayCreateCreatorSpace({
+    signedIn: input.ownerUserId > 0,
+    ownedCreatorSpaces: await ownedCreatorSpaceCount(input.ownerUserId),
+  });
+  if (!verdict.ok) return { ok: false, error: verdict.message };
+
+  const name = input.name.trim().slice(0, 64);
+  if (!name) return { ok: false, error: 'Give your space a name.' };
+
+  const slug = normalizeSlug(input.slug);
+  const avail = await checkSlug(slug);
+  if (!avail.ok) return { ok: false, error: availabilityMessage('Address', avail) };
+
+  const twitch = checkStreamLink('twitch', input.twitchUrl);
+  if (!twitch.ok) return { ok: false, error: twitch.error };
+  const kick = checkStreamLink('kick', input.kickUrl);
+  if (!kick.ok) return { ok: false, error: kick.error };
+
+  try {
+    const created = await db.transaction(async (tx) => {
+      // A second guard INSIDE the transaction, against two tabs pressing create together: the count
+      // above ran before either insert. A per-person advisory lock makes the second wait for the
+      // first to commit, so its count sees the first space.
+      await tx.execute(sql`select pg_advisory_xact_lock(7187, ${input.ownerUserId}::int)`);
+      const [owned] = await tx
+        .select({ n: count() })
+        .from(clanStaff)
+        .innerJoin(clans, eq(clans.id, clanStaff.clanId))
+        .where(and(eq(clanStaff.userId, input.ownerUserId), eq(clanStaff.role, 'owner'), eq(clans.kind, 'creator')));
+      if ((owned?.n ?? 0) >= MAX_CREATOR_SPACES) return { ok: false as const, error: 'You already have a creator space.' };
+
+      const [clan] = await tx
+        .insert(clans)
+        .values({
+          slug,
+          name,
+          kind: 'creator',
+          inGameName: null,
+          plan: 'free',
+          memberCap: PLANS.free.memberCap,
+          status: 'active',
+          guestPolicy: 'open',
+          visibility: 'public',
+          gumroadRef: newCheckoutRef(),
+        })
+        .returning();
+
+      await tx.insert(clanStaff).values({ clanId: clan.id, userId: input.ownerUserId, role: 'owner', canEditTiles: true });
+
+      await tx.insert(clanAuditLog).values({
+        clanId: clan.id,
+        eventType: 'clan_created',
+        actorUserId: input.ownerUserId,
+        newValue: JSON.stringify({ slug, name, plan: 'free', kind: 'creator' }),
+      });
+
+      return { ok: true as const, clanId: clan.id, slug };
+    });
+
+    if (created.ok) {
+      await setSetting(created.clanId, FEATURES_OFF_SETTING, creatorFeaturesOff());
+      // Unlisted by default; the creator opts in from their settings.
+      await setSetting(created.clanId, PUBLIC_SHOWCASE_KEY, 'off');
+      // There is no setup wizard for a creator — the event wizard is where they start.
+      await setSetting(created.clanId, 'setup_wizard_shown', new Date().toISOString());
+      if (twitch.url) await setSetting(created.clanId, STREAM_LINK_KEYS.twitch, twitch.url);
+      if (kick.url) await setSetting(created.clanId, STREAM_LINK_KEYS.kick, kick.url);
+    }
+    return created;
+  } catch (e) {
     if ((e as { cause?: { code?: string } }).cause?.code === '23505') {
       return { ok: false, error: 'That address was just taken — pick another.' };
     }
