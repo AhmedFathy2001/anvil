@@ -192,7 +192,7 @@ test('own pictures and motion are Champion and Patron', () => {
 
 test('only our own profile objects are ever rendered', () => {
   assert.equal(isProfileMediaUrl(ours(UUID), BASE), true);
-  assert.equal(isProfileMediaUrl(`https://abc.public.blob.vercel-storage.com/profiles/3/${UUID}-Xy12.webp`, BASE), true);
+  assert.equal(isProfileMediaUrl(`https://abc.public.blob.vercel-storage.com/profiles/3/${UUID}-Xy12.webp`, BASE), false, 'not our store');
   assert.equal(isProfileMediaUrl(`https://evil.example.net/profiles/7/${UUID}.webp`, BASE), false);
   assert.equal(isProfileMediaUrl(`${ours(UUID)}?track=1`, BASE), false);
   assert.equal(isProfileMediaUrl(`${BASE}/submissions/${UUID}.webp`, BASE), false);

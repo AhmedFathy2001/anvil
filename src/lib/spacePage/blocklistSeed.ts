@@ -112,8 +112,6 @@ export const BLOCKLIST_SEED: readonly { domain: string; reason: BlockReason }[] 
     'adf.ly',
     'lnkd.in',
     'tr.ee',
-    'linktr.ee',
-    'beacons.ai',
     'lnk.bio',
     'snip.ly',
     'qr.ae',

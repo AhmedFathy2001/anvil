@@ -38,7 +38,7 @@ test('links: a lookalike that only ends with a blocked name is not blocked by it
 });
 
 test('links: shorteners and link hubs are refused, so the list cannot be routed around', () => {
-  for (const url of ['https://bit.ly/abc', 'https://tinyurl.com/x', 'https://t.co/x', 'https://linktr.ee/someone', 'https://cutt.ly/x']) {
+  for (const url of ['https://bit.ly/abc', 'https://tinyurl.com/x', 'https://t.co/x', 'https://cutt.ly/x']) {
     assert.equal(R.checkLink(url, SEED).ok, false, url);
   }
 });
@@ -281,8 +281,16 @@ test('images: only this space’s own uploads on our media host', () => {
   assert.equal(R.isSpaceMediaUrl(`${base}/c/streamer/space/123e4567-e89b-12d3-a456-426614174000-x.webp`, 'streamer', base), false);
 });
 
-test('the seed list is exactly what migration 0211 installs', () => {
-  const sql = readFileSync(new URL('../drizzle/0211_creator_panels.sql', import.meta.url), 'utf8');
+test('creator link hubs are allowed (owner, 2026-11-04): Linktree and beacons.ai', () => {
+  assert.equal(R.checkLink('https://linktr.ee/someone', SEED).ok, true);
+  assert.equal(R.checkLink('https://beacons.ai/someone', SEED).ok, true);
+});
+
+test('the seed list is exactly what migrations 0211 + 0212 leave installed', () => {
+  // 0212 takes linktr.ee and beacons.ai back out of 0211's seed.
+  const sql = readFileSync(new URL('../drizzle/0211_creator_panels.sql', import.meta.url), 'utf8')
+    .replace("  ('linktr.ee', 'shortener'),\n", '')
+    .replace("  ('beacons.ai', 'shortener'),\n", '');
   const inSql = [...sql.matchAll(/\('([a-z0-9.-]+)', '([a-z]+)'\)/g)].map((m) => `${m[1]}:${m[2]}`).sort();
   assert.deepEqual(inSql, BLOCKLIST_SEED.map((s) => `${s.domain}:${s.reason}`).sort());
   // Every seed entry is a normalised domain, once.

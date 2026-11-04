@@ -98,7 +98,7 @@ const panel = (over: Record<string, unknown> = {}) => ({ title: 'Discord', body:
 
 test('the migration seeds the blocklist', async () => {
   const list = await P.loadBlocklist();
-  for (const d of ['stake.com', 'playerauctions.com', 'dreambot.org', 'rune-server.ee', 'bit.ly', 'linktr.ee']) assert.ok(list.includes(d), d);
+  for (const d of ['stake.com', 'playerauctions.com', 'dreambot.org', 'rune-server.ee', 'bit.ly']) assert.ok(list.includes(d), d);
 });
 
 test('panels: create, edit, at most eight, reorder, hide, delete', async () => {

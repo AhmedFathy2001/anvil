@@ -1,16 +1,13 @@
 // Object storage adapter — the single choke point for media (drop-proof screenshots,
-// fee proofs). Two drivers so the same code self-hosts and runs on Vercel:
+// fee proofs, profile and space images). One backend: any S3-compatible store; Anvil runs on
+// Cloudflare R2 (dev can point S3_ENDPOINT at MinIO). Call sites only see put()/del() and a
+// public URL string.
 //
-//   - 's3'          → any S3-compatible store. Recommended: Cloudflare R2 (free egress).
-//                     Used by hosted/self-hosted Docker instances.
-//   - 'vercel-blob' → @vercel/blob. The zero-config default for the open-source Vercel path.
-//
-// Driver selection (STORAGE_DRIVER overrides; otherwise auto): S3 when S3_BUCKET is set,
-// else Vercel Blob. Call sites only see put()/del() and a public URL string — they never
-// know which backend stored the bytes.
+// The Vercel Blob driver is gone: Anvil never runs on Vercel, and trusting `*.blob.vercel-storage.com`
+// as "our media" let anyone host an image on their own Blob store and have it pass. If old rows ever
+// turn out to point at a Blob store of ours, LEGACY_BLOB_HOST (that one exact host) keeps them valid.
 
 import https from 'node:https';
-import { put as blobPut, del as blobDel } from '@vercel/blob';
 import { AwsClient } from 'aws4fetch';
 import { requireSecret } from './env';
 
@@ -21,15 +18,6 @@ export interface PutResult {
   url: string;
 }
 
-type Driver = 's3' | 'vercel-blob';
-
-function resolveDriver(): Driver {
-  const explicit = process.env.STORAGE_DRIVER?.toLowerCase();
-  if (explicit === 's3' || explicit === 'r2') return 's3';
-  if (explicit === 'vercel-blob' || explicit === 'blob') return 'vercel-blob';
-  // Auto: a configured bucket means S3 is the intended backend.
-  return process.env.S3_BUCKET ? 's3' : 'vercel-blob';
-}
 
 // ─── S3 / R2 driver ──────────────────────────────────────────────────────────
 
@@ -179,10 +167,13 @@ async function s3Get(key: string): Promise<{ bytes: Buffer; contentType: string 
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
-/** Is an S3/R2 bucket the configured backend? (Vercel Blob has no keyed read, so callers that need
- *  one — the asset cache — fall back to local disk otherwise.) */
+/**
+ * Is a bucket configured (S3_BUCKET, or STORAGE_DRIVER=s3/r2)? Uploads always go to the S3/R2 store;
+ * this only lets the asset cache keep its keyed reads on local disk in dev and tests with no bucket.
+ */
 export function s3Enabled(): boolean {
-  return resolveDriver() === 's3';
+  const explicit = process.env.STORAGE_DRIVER?.toLowerCase();
+  return !!process.env.S3_BUCKET || explicit === 's3' || explicit === 'r2';
 }
 
 /**
@@ -200,15 +191,13 @@ export async function getObject(key: string): Promise<{ bytes: Buffer; contentTy
  */
 export async function put(key: string, body: StorageBody, contentType?: string): Promise<PutResult> {
   const safeContentType = contentType ?? contentTypeFromKey(key);
-  if (resolveDriver() === 's3') return s3Put(key, body, safeContentType);
-  const { url } = await blobPut(key, body, { access: 'public', contentType: safeContentType });
-  return { url };
+  return s3Put(key, body, safeContentType);
 }
 
 /**
  * Is this URL one we serve media from? Used to reject arbitrary/phishy image hosts on submission.
- * Accepts the configured S3/R2 public base (current uploads) and Vercel Blob hosts (the previous
- * driver — keeps already-stored proof URLs valid after a migration to R2).
+ * Accepts the configured S3/R2 public base, and LEGACY_BLOB_HOST (one exact host, unset by default)
+ * should old rows ever need a former store kept valid. Never a whole provider's domain.
  */
 export function isManagedMediaUrl(raw: string): boolean {
   let u: URL;
@@ -218,7 +207,8 @@ export function isManagedMediaUrl(raw: string): boolean {
     return false;
   }
   if (u.protocol !== 'https:') return false;
-  if (u.hostname.endsWith('.blob.vercel-storage.com')) return true;
+  const legacy = process.env.LEGACY_BLOB_HOST?.trim().toLowerCase();
+  if (legacy && u.hostname === legacy) return true;
   const base = process.env.S3_PUBLIC_BASE_URL;
   if (base) {
     try {
@@ -257,6 +247,5 @@ export function isClanMediaUrl(raw: string, clanSlug: string): boolean {
 export async function del(urls: string | string[]): Promise<void> {
   const list = (Array.isArray(urls) ? urls : [urls]).filter(Boolean);
   if (list.length === 0) return;
-  if (resolveDriver() === 's3') return s3Del(list);
-  await blobDel(list);
+  return s3Del(list);
 }
