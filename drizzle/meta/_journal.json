@@ -981,6 +981,13 @@
       "when": 1793791714614,
       "tag": "0192_creator_entry_gates",
       "breakpoints": true
+    },
+    {
+      "idx": 193,
+      "version": "7",
+      "when": 1793791894614,
+      "tag": "0193_event_overlays",
+      "breakpoints": true
     }
   ]
 }

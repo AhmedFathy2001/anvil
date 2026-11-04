@@ -38,8 +38,10 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Everything except the embeddable Discord card and badge, at the apex or under a clan prefix.
-        source: '/:path((?!(?:c/[^/]+/)?api/discord/(?:embed|badge)).*)',
+        // Everything except the embeddable Discord card and badge, at the apex or under a clan prefix,
+        // and the stream overlay page (app/overlay), which sends its own stricter CSP and lets the
+        // host's dashboard preview it in an iframe (frame-ancestors 'self').
+        source: '/:path((?!(?:c/[^/]+/)?(?:api/discord/(?:embed|badge)|overlay/)).*)',
         headers: SECURITY_HEADERS,
       },
     ];

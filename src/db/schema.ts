@@ -738,6 +738,20 @@ export const events = pgTable('events', {
   libraryBoardId: integer('library_board_id').references((): AnyPgColumn => libraryBoards.id, { onDelete: 'set null' }),
 });
 
+/**
+ * STREAM OVERLAY (lib/overlay, migration 0193): the unguessable key in an event's OBS overlay URL.
+ *
+ * Its own table, not a column on `events`, ON PURPOSE: plenty of code reads whole event rows and
+ * hands them on (`select().from(events)` → JSON), and a key living on that row would ride along into
+ * every one of those answers. Here it is only ever read by the overlay routes. No row = no overlay
+ * link; "Reset link" replaces the key, which kills every URL made from the old one.
+ */
+export const eventOverlays = pgTable('event_overlays', {
+  eventId: integer('event_id').primaryKey().references(() => events.id, { onDelete: 'cascade' }),
+  key: text('key').notNull().unique('event_overlays_key_unique'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const tiles = pgTable('tiles', {
   id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
