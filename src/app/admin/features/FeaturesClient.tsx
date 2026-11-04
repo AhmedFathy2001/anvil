@@ -7,6 +7,7 @@ import GuideLink from '@/components/GuideLink';
 import ItemSlot, { type SpriteName } from '@/components/ItemSlot';
 import { clanFetch } from '@/lib/clanFetch';
 import { FEATURES, type FeatureDef, type FeatureKey } from '@/lib/features';
+import { CheckboxBox } from '@/components/Checkbox';
 
 const SPRITE: Record<FeatureKey, SpriteName> = {
   weekly: 'stats',
@@ -60,9 +61,8 @@ export default function FeaturesClient({ initial }: { initial: { key: FeatureKey
                 <li key={f.key} id={`feature-${f.key}`} className="flex gap-4 items-start scroll-mt-24">
                   <ItemSlot name={SPRITE[f.key]} size={40} />
                   <label className="flex-1 min-w-0 flex gap-3 items-start cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 mt-1 shrink-0 accent-gold"
+                    <CheckboxBox
+                      className="mt-1 shrink-0"
                       checked={on[f.key] ?? true}
                       disabled={saving === f.key}
                       onChange={(e) => toggle(f.key, e.target.checked)}

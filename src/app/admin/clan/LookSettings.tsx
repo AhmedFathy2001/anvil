@@ -6,6 +6,7 @@ import ClanCrest from '@/components/ClanCrest';
 import { useDialog } from '@/components/Confirm';
 import { accentTokens, normalizeHex } from '@/lib/artPalette';
 import { clanFetch } from '@/lib/clanFetch';
+import ColorSwatch from '@/components/ColorSwatch';
 
 const API = '/api/admin/clan/look';
 /** What an unset accent means everywhere: the site's own gold. */
@@ -123,13 +124,7 @@ export default function LookSettings({ name }: { name: string }) {
 
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-sm text-text-muted">
-              <input
-                type="color"
-                value={pick}
-                onChange={(e) => setPick(e.target.value)}
-                className="h-10 w-12 cursor-pointer rounded-lg border border-card-border bg-transparent"
-                aria-label="Pick any colour"
-              />
+              <ColorSwatch value={pick} onChange={setPick} ariaLabel="Pick any colour" className="h-10 w-12 rounded-lg" />
               or type one
             </label>
             <input

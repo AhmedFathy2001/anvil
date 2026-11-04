@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import Radio from '@/components/Radio';
 
 interface Policy {
   visibility: 'public' | 'members';
@@ -192,12 +193,11 @@ function Choice({
               active ? 'border-gold/50 bg-gold/[0.06]' : 'border-card-border bg-card-bg hover:border-gold/30'
             }`}
           >
-            <input
-              type="radio"
+            <Radio
               name={name}
               checked={active}
               onChange={() => onChange(o.value)}
-              className="mt-0.5 h-4 w-4 accent-gold"
+              className="mt-0.5"
             />
             <span>
               <span className={`block text-[14.5px] font-medium ${active ? 'text-gold' : ''}`}>

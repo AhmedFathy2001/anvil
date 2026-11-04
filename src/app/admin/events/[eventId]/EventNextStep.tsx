@@ -10,6 +10,7 @@ import { useDialog } from '@/components/Confirm';
 import { clanFetch } from '@/lib/clanFetch';
 import type { NextStep } from '@/lib/eventNextStep';
 import type { Event, Submission, Tile } from '@/lib/types';
+import { CheckboxBox } from '@/components/Checkbox';
 
 /** Start an event now, going through the readiness gate (lib/eventReadiness) and its override. */
 export function useStartNow(eventId: number, onEventChange: (e: Event) => void) {
@@ -260,9 +261,7 @@ export function ProofsToCheck({
       </h2>
       <div className="flex flex-wrap items-center gap-3 py-2.5 border-b border-[#2a221b]">
         <label className="flex items-center gap-2 text-sm text-text-muted cursor-pointer select-none">
-          <input
-            type="checkbox"
-            className="w-4 h-4 accent-[var(--color-gold)]"
+          <CheckboxBox
             checked={allPicked}
             ref={(el) => {
               if (el) el.indeterminate = picked.length > 0 && !allPicked;
@@ -298,10 +297,9 @@ export function ProofsToCheck({
           const rowBusy = busy.has(s.id);
           return (
             <li key={s.id} className={`flex flex-wrap items-center gap-4 py-3.5 border-b border-[#2a221b] ${rowBusy ? 'opacity-60' : ''}`}>
-              <input
-                type="checkbox"
+              <CheckboxBox
                 aria-label={`Select ${tileName(s.tileId)}`}
-                className="w-4 h-4 shrink-0 accent-[var(--color-gold)]"
+                className="shrink-0"
                 checked={selected.has(s.id)}
                 disabled={rowBusy}
                 onChange={() => toggle(s.id)}

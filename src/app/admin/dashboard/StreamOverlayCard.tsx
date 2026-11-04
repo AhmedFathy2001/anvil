@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { PANEL_KINDS, PANEL_META, type PanelKind } from '@/lib/overlay/streamPanels';
+import { CheckboxBox } from '@/components/Checkbox';
 
 type View = 'standings' | 'feed' | 'board';
 type Size = 's' | 'm' | 'l' | 'xl';
@@ -211,11 +212,10 @@ export default function StreamOverlayCard({
           </div>
 
           <label className="flex max-w-[70ch] items-start gap-2.5 text-sm">
-            <input
-              type="checkbox"
+            <CheckboxBox
               checked={celebrate}
               onChange={(e) => setCelebrate(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-[var(--gold)]"
+              className="mt-0.5"
             />
             <span>
               Celebrate on stream

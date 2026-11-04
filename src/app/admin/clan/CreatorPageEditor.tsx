@@ -5,6 +5,9 @@ import { useEffect, useMemo, useState } from 'react';
 import ClanCrest from '@/components/ClanCrest';
 import ClanLink, { useClanPrefixValue } from '@/components/ClanLink';
 import Input from '@/components/Input';
+import Radio from '@/components/Radio';
+import Select from '@/components/Select';
+import TimeSelect from '@/components/TimeSelect';
 import { clanFetch } from '@/lib/clanFetch';
 import {
   BIO_MAX,
@@ -503,38 +506,25 @@ function ScheduleEditor({ tz: initialTz, slots: initialSlots }: { tz: string | n
       <Heading lede="When you usually go live, in your own time zone. Visitors see each time on their own clock.">Schedule</Heading>
       <label className="mb-3 flex flex-wrap items-center gap-2 text-[13px] text-text-muted">
         Your time zone
-        <select value={tz} onChange={(e) => setTz(e.target.value)} className="rounded-lg border border-card-border bg-card-bg px-2 py-1.5 text-sm text-foreground">
-          {zones.map((z) => (
-            <option key={z} value={z}>
-              {z}
-            </option>
-          ))}
-        </select>
+        <Select value={tz} onChange={setTz} options={zones.map((z) => ({ value: z, label: z }))} ariaLabel="Your time zone" className="w-64 max-w-full" />
       </label>
       <ul className="space-y-2">
         {slots.map((s, i) => (
           <li key={i} className="flex flex-wrap items-center gap-2">
-            <select
-              value={s.weekday}
-              onChange={(e) => set(i, { weekday: Number(e.target.value) })}
-              aria-label="Day"
-              className="rounded-lg border border-card-border bg-card-bg px-2 py-1.5 text-sm"
-            >
-              {WEEKDAYS.map((d, n) => (
-                <option key={d} value={n}>
-                  {d}
-                </option>
-              ))}
-            </select>
-            <input
-              type="time"
+            <Select
+              value={String(s.weekday)}
+              onChange={(v) => set(i, { weekday: Number(v) })}
+              options={WEEKDAYS.map((d, n) => ({ value: String(n), label: d }))}
+              ariaLabel="Day"
+              className="w-36"
+            />
+            <TimeSelect
               value={minuteToHhMm(s.minuteOfDay)}
-              aria-label="Time"
-              onChange={(e) => {
-                const [h, m] = e.target.value.split(':').map(Number);
+              ariaLabel="Time"
+              onChange={(v) => {
+                const [h, m] = v.split(':').map(Number);
                 if (Number.isFinite(h) && Number.isFinite(m)) set(i, { minuteOfDay: h * 60 + m });
               }}
-              className="rounded-lg border border-card-border bg-card-bg px-2 py-1.5 text-sm"
             />
             <Input
               value={s.label ?? ''}
@@ -588,7 +578,7 @@ function FeaturedEditor({ featured, highlights }: { featured: PageData['featured
 
   const radio = (value: typeof mode, label: string, disabled = false) => (
     <label className={`flex items-center gap-2 text-sm ${disabled ? 'opacity-50' : ''}`}>
-      <input type="radio" name="featured-mode" checked={mode === value} disabled={disabled} onChange={() => setMode(value)} className="accent-gold" />
+      <Radio name="featured-mode" checked={mode === value} disabled={disabled} onChange={() => setMode(value)} />
       {label}
     </label>
   );
@@ -602,17 +592,13 @@ function FeaturedEditor({ featured, highlights }: { featured: PageData['featured
         {radio('clip', 'A clip link')}
       </div>
       {mode === 'highlight' && (
-        <select
-          value={highlightId ?? ''}
-          onChange={(e) => setHighlightId(Number(e.target.value))}
-          className="mb-3 w-full max-w-lg rounded-lg border border-card-border bg-card-bg px-2 py-1.5 text-sm"
-        >
-          {highlights.map((h) => (
-            <option key={h.id} value={h.id}>
-              {h.title} — {h.eventName}
-            </option>
-          ))}
-        </select>
+        <Select
+          value={highlightId == null ? '' : String(highlightId)}
+          onChange={(v) => setHighlightId(Number(v))}
+          options={highlights.map((h) => ({ value: String(h.id), label: `${h.title} — ${h.eventName}` }))}
+          ariaLabel="Highlight"
+          className="mb-3 w-full max-w-lg"
+        />
       )}
       {mode === 'clip' && (
         <div className="mb-3 grid max-w-lg gap-2">
