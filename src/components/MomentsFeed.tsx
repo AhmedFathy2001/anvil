@@ -1,4 +1,5 @@
 import { MOMENT_EMOJI, momentSentence } from '@/lib/moments';
+import { BoosterMark } from '@/components/ClanBoost';
 import type { MomentRow } from '@/lib/momentsStore';
 import { MomentStreamLinks } from '@/components/HighlightsStrip';
 import type { SiteReactions } from '@/lib/siteReactions';
@@ -27,7 +28,10 @@ export default function MomentsFeed({
   emptyNote,
   streamLinks,
   reactions,
+  boosters,
 }: {
+  /** This clan's boosting characters by name (lib/clanBoosts boosterMarks): the Booster mark. */
+  boosters?: Record<string, number>;
   moments: MomentRow[];
   title?: string;
   blurb?: string;
@@ -63,7 +67,9 @@ export default function MomentsFeed({
               {MOMENT_EMOJI[m.kind] ?? '⭐'}
             </span>
             <span className="min-w-0 flex-1 truncate text-text-muted">
-              <b className="font-semibold text-foreground">{m.rsn}</b> {momentSentence(m)}
+              <b className="font-semibold text-foreground">{m.rsn}</b>
+              {boosters?.[m.rsn] ? <span className="mx-1 inline-flex align-[-2px]"><BoosterMark count={boosters[m.rsn]} /></span> : ' '}
+              {momentSentence(m)}
             </span>
             {detail(m) && <span className="shrink-0 text-[11px] text-text-muted/80">{detail(m)}</span>}
             <MomentStreamLinks links={streamLinks?.[m.id]} />
