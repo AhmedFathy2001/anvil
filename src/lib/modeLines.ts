@@ -17,6 +17,7 @@
 // Lines that are none of these aren't posted. They're kept, counted, as a template on the review
 // queue, so the lines worth a pattern surface by how often players see them.
 
+import { stripChatTags } from '@/lib/chatTags';
 import type { WorldMode } from '@/lib/worldModes';
 
 /** The kinds a game mode's event posts come in — each one a switch on Admin → Discord → Game modes. */
@@ -58,6 +59,13 @@ export interface ModeLinePattern {
 // punctuation). These are the best-known shapes, not a promise: a line one of them misses still
 // posts through the generic shape and lands on the review queue.
 export const BUILTIN_PATTERNS: readonly ModeLinePattern[] = [
+  // The main game's own milestones say "Congratulations" too, but each has its own post with its own
+  // settings (levels, quests, combat tasks, diaries). Without these the generic shape posted every
+  // level-up on a Hardcore World word for word ("…your Magic level. You are now level 23.").
+  { id: 'builtin:skip-level', modeKey: null, kind: 'ignore', regex: String.raw`advanced (?:your|a) [\w ]+? level`, title: '' },
+  { id: 'builtin:skip-quest', modeKey: null, kind: 'ignore', regex: String.raw`completed (?:a|the) quest`, title: '' },
+  { id: 'builtin:skip-ca', modeKey: null, kind: 'ignore', regex: String.raw`completed an? \w+ combat task`, title: '' },
+  { id: 'builtin:skip-diary', modeKey: null, kind: 'ignore', regex: String.raw`completed all of the \w+ tasks in the`, title: '' },
   {
     id: 'builtin:task',
     modeKey: null,
@@ -104,7 +112,7 @@ export const MAX_LINE = 200;
 /** The line as text: the game's <col>/<img> tags gone, non-breaking spaces normal, trimmed. */
 export function cleanLine(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
-  const s = raw
+  const s = stripChatTags(raw)
     .replace(/<[^>]*>/g, '')
     .replace(/[   ]/g, ' ')
     // Control characters would only ever be a client sending junk.
