@@ -60,7 +60,9 @@ export function profileSections(i: ProfileSectionInput): ProfileSections {
   const clan = i.context === 'clan';
   const platformOpen = i.shared || i.viewerOwns;
   return {
-    personMedia: personSectionsVisible(i),
+    // Shared (or the owner looking) as well: a banner or connected stream on a private character's
+    // clan page would tie that private character to the person's public ones.
+    personMedia: platformOpen && personSectionsVisible(i),
     displayCase: i.personId != null,
     displayCasePublicView: !i.viewerOwns,
     h2h: platformOpen,

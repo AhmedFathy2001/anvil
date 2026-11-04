@@ -28,8 +28,11 @@ test('persona needs a signed-in viewer', () => {
 
 test('owner pictures follow the "show me as one person" switch, or the owner', () => {
   assert.equal(profileSections(base).personMedia, false);
-  assert.equal(profileSections({ ...base, owner: { banned: false, linkAccountsPublicly: true } }).personMedia, true);
-  assert.equal(profileSections({ ...base, owner: { banned: true, linkAccountsPublicly: true } }).personMedia, false);
+  assert.equal(profileSections({ ...base, shared: true, owner: { banned: false, linkAccountsPublicly: true } }).personMedia, true);
+  // A character its owner keeps private never wears their pictures, even on a clan page with "show as
+  // one person" on: that would tie the private character to their public ones.
+  assert.equal(profileSections({ ...base, shared: false, owner: { banned: false, linkAccountsPublicly: true } }).personMedia, false);
+  assert.equal(profileSections({ ...base, shared: true, owner: { banned: true, linkAccountsPublicly: true } }).personMedia, false);
   assert.equal(profileSections({ ...base, viewerOwns: true }).personMedia, true);
   assert.equal(profileSections({ ...base, personId: null, viewerOwns: true }).personMedia, false);
 });
