@@ -184,7 +184,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
   return (
     <>
       {/* Desktop links */}
-      <div className="hidden md:flex items-center gap-1">
+      <div className="ml-5 hidden min-w-0 flex-1 items-center gap-1 lg:flex">
         {/* WHERE YOU ARE, AND WHAT ELSE IS YOURS.
             One control that names the clan you're in and drops down to the rest of what's yours,
             plus the ways back to the platform. It's the "you're in one app, not on this clan's site"
@@ -262,90 +262,135 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
             )}
           </div>
         )}
-        {links.map((l) => (
-          <ClanLink
-            key={l.href}
-            href={l.href}
-            className="px-3 py-1.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
-          >
-            {l.label}
-          </ClanLink>
-        ))}
-        {isStaff && (
-          <ClanLink
-            href={adminHref}
-            className="px-3 py-1.5 rounded-md text-sm text-gold/70 hover:text-gold hover:bg-gold/10 transition-all"
-          >
-            Admin
-          </ClanLink>
-        )}
-        {/* /staff lives on the apex, never under a clan's prefix — a plain link, not a ClanLink. */}
-        {platformBadge && (
-          <a href="/staff" className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-gold/70 hover:text-gold hover:bg-gold/10 transition-all">
-            Platform
-            {platformBadge.count > 0 && <PendingBadge count={platformBadge.count} title={platformBadge.title} />}
-          </a>
-        )}
-        {/* Anvil is paid for by its supporters, so the way in is on every page rather than at the
-            bottom of the profile. */}
-        <ClanLink
-          href="/supporter"
-          title="Support Anvil"
-          aria-label="Support Anvil"
-          className="ml-1 px-3 py-1.5 rounded-md text-sm text-gold hover:text-gold-light hover:bg-gold/10 transition-all flex items-center gap-1.5"
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden><path d="M8 1.2l2 4.3 4.7.6-3.4 3.2.9 4.6L8 11.6 3.8 13.9l.9-4.6L1.3 6.1 6 5.5z" /></svg>
-          <span className="hidden lg:inline">Support Anvil</span>
-        </ClanLink>
-        {discordInvite && (
-          <a
-            href={discordInvite}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ml-2 px-3 py-1.5 rounded-md text-sm text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-all flex items-center gap-1.5"
-          >
-            {DiscordIcon}
-            Discord
-          </a>
-        )}
-        {signedIn && user ? (
-          <div className="ml-2 flex items-center gap-2 pl-3 border-l border-card-border">
+        {links
+          .filter((l) => l.href !== '/team')
+          .map((l) => (
             <ClanLink
-              href="/profile"
-              className="flex items-center gap-2 group px-2 py-1 rounded-md hover:bg-brown-light transition-all"
-              title={user.displayName}
+              key={l.href}
+              href={l.href}
+              className="whitespace-nowrap px-3 py-1.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
             >
-              {avatar}
-              <SupporterName
-                name={user.displayName}
-                tier={user.supporter?.tier}
-                style={user.supporter?.style}
-                plain
-                className="text-sm text-foreground/80 group-hover:text-foreground"
-              />
+              {l.label}
             </ClanLink>
-            <a
-              href="/api/auth/logout?return=/"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-card-border text-xs font-medium text-foreground/80 hover:text-accent-red hover:border-accent-red/50 hover:bg-accent-red/10 transition-all"
+          ))}
+
+        <div className="ml-auto flex items-center gap-1.5 pl-2">
+          {/* My teams: a chip with a count, so a second line can never happen. */}
+          {signedIn && clan && myTeams > 0 && (
+            <ClanLink
+              href="/team"
+              title={myTeams > 1 ? `You're on ${myTeams} teams` : 'Your team'}
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-card-border px-3 py-1 text-sm text-foreground/85 hover:border-gold/40 hover:text-gold transition-all"
             >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden><path d="M6 14H3.5A1.5 1.5 0 012 12.5v-9A1.5 1.5 0 013.5 2H6M10.5 11L14 8l-3.5-3M14 8H6.5" /></svg>
-              Sign out
+              {myTeams > 1 ? 'My teams' : 'My team'}
+              {myTeams > 1 && <span className="rounded-full bg-gold/15 px-1.5 text-[11px] font-semibold text-gold tabular-nums">{myTeams}</span>}
+            </ClanLink>
+          )}
+
+          {/* Staff surfaces. One menu when there are two (the clan's admin and the platform's);
+              a plain link when there is one. /staff lives on the apex, never under a clan's prefix. */}
+          {isStaff && platformBadge ? (
+            <Menu
+              label={
+                <>
+                  Manage
+                  {platformBadge.count > 0 && <PendingBadge count={platformBadge.count} title={platformBadge.title} />}
+                </>
+              }
+              buttonClass="text-gold/80 hover:text-gold hover:bg-gold/10"
+              pathname={pathname}
+            >
+              <ClanLink href={adminHref} role="menuitem" className={MENU_ITEM}>
+                Clan admin
+              </ClanLink>
+              <a href="/staff" role="menuitem" className={MENU_ITEM}>
+                Platform staff
+                {platformBadge.count > 0 && <PendingBadge count={platformBadge.count} title={platformBadge.title} />}
+              </a>
+            </Menu>
+          ) : isStaff ? (
+            <ClanLink href={adminHref} className="px-3 py-1.5 rounded-md text-sm text-gold/80 hover:text-gold hover:bg-gold/10 transition-all">
+              Admin
+            </ClanLink>
+          ) : platformBadge ? (
+            <a href="/staff" className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-gold/80 hover:text-gold hover:bg-gold/10 transition-all">
+              Platform
+              {platformBadge.count > 0 && <PendingBadge count={platformBadge.count} title={platformBadge.title} />}
             </a>
-          </div>
-        ) : (
-          // ClanLink keeps login clan-aware; loginHref (usePathname) carries the return, already
-          // clan-prefixed because the current path is.
-          <ClanLink
-            href={loginHref}
-            className="ml-2 px-3 py-1.5 rounded-md text-sm bg-gold/10 text-gold hover:bg-gold/20 transition-all border border-gold/30"
-          >
-            Sign in
-          </ClanLink>
-        )}
+          ) : null}
+
+          {discordInvite && (
+            <a
+              href={discordInvite}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="The clan's Discord"
+              aria-label="The clan's Discord"
+              className="p-2 rounded-md text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-all"
+            >
+              {DiscordIcon}
+            </a>
+          )}
+
+          {signedIn && user ? (
+            // You: profile, settings, supporting Anvil and signing out, under your own name.
+            <Menu
+              label={
+                <>
+                  {avatar}
+                  <SupporterName
+                    name={user.displayName}
+                    tier={user.supporter?.tier}
+                    style={user.supporter?.style}
+                    plain
+                    className="max-w-[9rem] truncate text-sm text-foreground/85"
+                  />
+                </>
+              }
+              buttonClass="pl-1.5 border-l border-card-border rounded-l-none ml-1 hover:bg-brown-light"
+              align="right"
+              pathname={pathname}
+            >
+              <ClanLink href="/profile" role="menuitem" className={MENU_ITEM}>
+                Your profile
+              </ClanLink>
+              <ClanLink href="/settings" role="menuitem" className={MENU_ITEM}>
+                Settings
+              </ClanLink>
+              {/* Anvil is paid for by its supporters, so the way in is one click from every page. */}
+              <ClanLink href="/supporter" role="menuitem" className={`${MENU_ITEM} text-gold`}>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden><path d="M8 1.2l2 4.3 4.7.6-3.4 3.2.9 4.6L8 11.6 3.8 13.9l.9-4.6L1.3 6.1 6 5.5z" /></svg>
+                Support Anvil
+              </ClanLink>
+              <div className="my-1 border-t border-card-border" />
+              <a href="/api/auth/logout?return=/" role="menuitem" className={`${MENU_ITEM} hover:!text-accent-red`}>
+                Sign out
+              </a>
+            </Menu>
+          ) : (
+            <>
+              <ClanLink
+                href="/supporter"
+                title="Support Anvil"
+                aria-label="Support Anvil"
+                className="p-2 rounded-md text-gold hover:text-gold-light hover:bg-gold/10 transition-all"
+              >
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden><path d="M8 1.2l2 4.3 4.7.6-3.4 3.2.9 4.6L8 11.6 3.8 13.9l.9-4.6L1.3 6.1 6 5.5z" /></svg>
+              </ClanLink>
+              {/* ClanLink keeps login clan-aware; loginHref (usePathname) carries the return. */}
+              <ClanLink
+                href={loginHref}
+                className="ml-1 px-3 py-1.5 rounded-md text-sm bg-gold/10 text-gold hover:bg-gold/20 transition-all border border-gold/30"
+              >
+                Sign in
+              </ClanLink>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Mobile: avatar shortcut + hamburger */}
-      <div className="flex md:hidden items-center gap-1">
+      <div className="flex lg:hidden items-center gap-1">
         {signedIn && user && (
           <ClanLink href="/profile" className="p-1.5 rounded-md hover:bg-brown-light" title={user.displayName}>
             {avatar}
@@ -371,7 +416,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
 
       {/* Mobile menu panel */}
       {open && (
-        <div className="md:hidden absolute top-full inset-x-0 border-b-2 border-gold/20 bg-card-bg shadow-xl">
+        <div className="lg:hidden absolute top-full inset-x-0 border-b-2 border-gold/20 bg-card-bg shadow-xl">
           <div className="px-4 py-3 flex flex-col gap-1">
             {/* Your clans — the switcher, on mobile. Present with one clan too: the way back is here. */}
             {clan && (
@@ -490,5 +535,73 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
         </div>
       )}
     </>
+  );
+}
+
+const MENU_ITEM =
+  'flex items-center gap-2 px-3 py-2 text-sm text-foreground/85 hover:text-foreground hover:bg-brown-light transition-all';
+
+/**
+ * A small dropdown for the nav (Manage, you): opens on click, closes on an outside click, Escape or
+ * any navigation. The switcher keeps its own, richer one.
+ */
+function Menu({
+  label,
+  children,
+  buttonClass = '',
+  align = 'left',
+  pathname,
+}: {
+  label: React.ReactNode;
+  children: React.ReactNode;
+  buttonClass?: string;
+  align?: 'left' | 'right';
+  pathname: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  const [seenPath, setSeenPath] = useState(pathname);
+  if (seenPath !== pathname) {
+    setSeenPath(pathname);
+    setOpen(false);
+  }
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={`flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1.5 rounded-md text-sm transition-all ${buttonClass}`}
+      >
+        {label}
+        <svg className={`w-3 h-3 text-text-muted transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M3 4.5L6 7.5L9 4.5" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className={`absolute top-full mt-1.5 min-w-[12rem] overflow-hidden rounded-xl border border-card-border bg-card-bg py-1 shadow-xl z-50 ${align === 'right' ? 'right-0' : 'left-0'}`}
+        >
+          {children}
+        </div>
+      )}
+    </div>
   );
 }
