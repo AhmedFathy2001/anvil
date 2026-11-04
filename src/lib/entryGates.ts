@@ -16,6 +16,8 @@
 // when a rule needs it — so the orchestration is tested here without a database or the network, and
 // lib/entryGatesDb supplies the real one.
 
+import { isYoutubeRule, youtubeRuleLabel, youtubeStep, type YoutubeAnswer } from '@/lib/gates/youtube';
+
 // ── The model ────────────────────────────────────────────────────────────────────────────────────
 
 export type SubTier = 1 | 2 | 3;
@@ -24,7 +26,10 @@ export type GateRule =
   | { kind: 'twitch-follow' }
   | { kind: 'twitch-sub'; tier: SubTier }
   | { kind: 'discord-role'; roleId: string; roleName: string }
-  | { kind: 'discord-booster' };
+  | { kind: 'discord-booster' }
+  // YouTube (lib/gates/youtube): a subscriber, or a channel member seen in the host's live chat.
+  | { kind: 'youtube-sub' }
+  | { kind: 'youtube-member' };
 
 export type GateKind = GateRule['kind'];
 
@@ -79,6 +84,8 @@ export function parseGates(raw: unknown): EntryGates | null {
   let follow = false;
   let subTier: SubTier | null = null;
   let booster = false;
+  let ytSub = false;
+  let ytMember = false;
   const roles = new Map<string, string>();
   for (const item of list.slice(0, 32)) {
     if (!item || typeof item !== 'object') continue;
@@ -101,6 +108,12 @@ export function parseGates(raw: unknown): EntryGates | null {
       case 'discord-booster':
         booster = true;
         break;
+      case 'youtube-sub':
+        ytSub = true;
+        break;
+      case 'youtube-member':
+        ytMember = true;
+        break;
     }
   }
 
@@ -109,6 +122,8 @@ export function parseGates(raw: unknown): EntryGates | null {
   if (subTier != null) anyOf.push({ kind: 'twitch-sub', tier: subTier });
   for (const [roleId, roleName] of roles) anyOf.push({ kind: 'discord-role', roleId, roleName });
   if (booster) anyOf.push({ kind: 'discord-booster' });
+  if (ytSub) anyOf.push({ kind: 'youtube-sub' });
+  if (ytMember) anyOf.push({ kind: 'youtube-member' });
   return anyOf.length > 0 ? { anyOf } : null;
 }
 
@@ -146,6 +161,12 @@ export interface GateOptions {
     connected: boolean;
     roles: { id: string; name: string }[];
   };
+  /** Absent on servers without YouTube configured (and in older callers). */
+  youtube?: {
+    configured: boolean;
+    channel: { title: string; broken: boolean } | null;
+    connectUrl: string | null;
+  };
 }
 
 /**
@@ -156,7 +177,11 @@ export interface GateOptions {
 export function validateGatesFor(gates: EntryGates | null, opts: GateOptions): { ok: true } | { ok: false; error: string } {
   if (!gates) return { ok: true };
   for (const r of gates.anyOf) {
-    if (isTwitchRule(r)) {
+    if (isYoutubeRule(r)) {
+      const yt = opts.youtube;
+      if (!yt?.configured) return { ok: false, error: 'YouTube checks are not available on this server.' };
+      if (!yt.channel || yt.channel.broken) return { ok: false, error: 'Connect your YouTube channel first.' };
+    } else if (isTwitchRule(r)) {
       if (!opts.twitch.configured) return { ok: false, error: 'Twitch checks are not available on this server.' };
       if (!opts.twitch.channel || opts.twitch.channel.broken) return { ok: false, error: 'Connect your Twitch channel first.' };
       if (r.kind === 'twitch-sub' && !opts.twitch.channel.canHaveSubs) {
@@ -179,6 +204,8 @@ export interface GateContext {
   twitchLogin: string | null;
   /** The host's display name, for "<name>'s Discord server". */
   hostName: string;
+  /** The host's YouTube channel title, when one is connected. */
+  youtubeTitle?: string | null;
 }
 
 function channel(ctx: GateContext): string {
@@ -202,6 +229,9 @@ export function ruleLabel(rule: GateRule, ctx: GateContext): string {
       return `people with the ${rule.roleName} role in ${server(ctx)}`;
     case 'discord-booster':
       return `boosters of ${server(ctx)}`;
+    case 'youtube-sub':
+    case 'youtube-member':
+      return youtubeRuleLabel(rule, ctx.youtubeTitle);
   }
 }
 
@@ -246,6 +276,9 @@ export interface GateProbe {
   /** 0 = not subscribed. */
   twitchSubTier(): Promise<TwitchAnswer<0 | SubTier>>;
   discordMember(): Promise<DiscordAnswer>;
+  /** YouTube proofs on file (lib/gates/youtubeDb). Absent → treated as not configured. */
+  youtubeSub?(): Promise<YoutubeAnswer>;
+  youtubeMember?(): Promise<YoutubeAnswer>;
 }
 
 export type GateVerdict =
@@ -262,6 +295,8 @@ export type GateVerdict =
       linkTwitch: boolean;
       /** Nothing the viewer does with this account changes it (the Twitch account is spoken for). */
       blocked?: true;
+      /** A YouTube rule wants the viewer to check their subscription (verify) or type their chat code. */
+      youtube?: { verify?: true; chatCode?: true };
     };
 
 /** The Twitch account that passed the gate already got somebody else into this event. */
@@ -284,6 +319,10 @@ export async function checkGates(gates: EntryGates, probe: GateProbe, ctx: GateC
   const follows = memo(() => probe.twitchFollows().catch((): TwitchAnswer<boolean> => ({ state: 'error' })));
   const subTier = memo(() => probe.twitchSubTier().catch((): TwitchAnswer<0 | SubTier> => ({ state: 'error' })));
   const member = memo(() => probe.discordMember().catch((): DiscordAnswer => ({ state: 'error' })));
+  const ytOff = async (): Promise<YoutubeAnswer> => ({ state: 'off' });
+  const ytSub = memo(() => (probe.youtubeSub ?? ytOff)().catch((): YoutubeAnswer => ({ state: 'off' })));
+  const ytMember = memo(() => (probe.youtubeMember ?? ytOff)().catch((): YoutubeAnswer => ({ state: 'off' })));
+  let youtube: { verify?: true; chatCode?: true } | undefined;
 
   const steps: string[] = [];
   let transient = false;
@@ -350,10 +389,20 @@ export async function checkGates(gates: EntryGates, probe: GateProbe, ctx: GateC
         }
         break;
       }
+      case 'youtube-sub':
+      case 'youtube-member': {
+        // Answers come from proofs already on file — no network here, so nothing is transient.
+        const a = await (rule.kind === 'youtube-sub' ? ytSub() : ytMember());
+        if (a.state === 'ok' && a.value) return { pass: true, via: rule.kind };
+        const s = youtubeStep(rule, a, ctx.youtubeTitle);
+        add(s.step);
+        if (s.verify || s.chatCode) youtube = { ...youtube, ...(s.verify ? { verify: true } : {}), ...(s.chatCode ? { chatCode: true } : {}) };
+        break;
+      }
     }
   }
 
-  return { pass: false, transient, summary: gatesSummary(gates, ctx), steps, linkTwitch };
+  return { pass: false, transient, summary: gatesSummary(gates, ctx), steps, linkTwitch, ...(youtube ? { youtube } : {}) };
 }
 
 /** One sentence for an API error body, where there is no room for a list. */

@@ -61,6 +61,16 @@ import { isRealDiscordId } from '@/lib/anvilDiscordRoles';
 import { invitedToEvent, staffOfClan } from '@/lib/eventAccess';
 import { atLeast } from '@/lib/clanRoles';
 import { log } from '@/lib/logger';
+import { usesYoutube } from '@/lib/gates/youtube';
+import {
+  YOUTUBE_ALREADY_USED,
+  hostYoutubeChannel,
+  youtubeClaimAfterPass,
+  youtubeGateOptions,
+  youtubeJoinInfo,
+  youtubeProbe,
+  type YoutubeJoinInfo,
+} from '@/lib/gates/youtubeDb';
 
 /** Shared across requests in this process. See GateCache for the TTLs. */
 export const gateCache = new GateCache();
@@ -238,6 +248,7 @@ function makeProbe(opts: { clanId: number; userId: number }): GateProbe {
   }
 
   return {
+    ...youtubeProbe(opts.clanId, opts.userId),
     twitchFollows: () => viaHost((c, t, b, v) => followsChannel(c, t, b, v, fetchImpl)),
     twitchSubTier: async () => {
       const a = await viaHost((c, t, b, v) => subscriptionTier(c, t, b, v, fetchImpl));
@@ -265,8 +276,8 @@ function makeProbe(opts: { clanId: number; userId: number }): GateProbe {
 }
 
 async function gateContext(clanId: number, hostName: string): Promise<GateContext> {
-  const ch = await hostTwitchChannel(clanId);
-  return { twitchLogin: ch?.login ?? null, hostName };
+  const [ch, yt] = await Promise.all([hostTwitchChannel(clanId), hostYoutubeChannel(clanId)]);
+  return { twitchLogin: ch?.login ?? null, hostName, youtubeTitle: yt?.title ?? null };
 }
 
 /** The event's gates when they apply (a creator space with gates set), with the host's name. */
@@ -309,6 +320,14 @@ export async function entryGateVerdict(opts: {
   if (!verdict) {
     verdict = await checkGates(g.gates, makeProbe({ clanId: g.clanId, userId: opts.userId }), ctx);
     gateCache.set(key, verdict);
+  }
+  if (verdict.pass && (verdict.via === 'youtube-sub' || verdict.via === 'youtube-member')) {
+    // The YouTube channel behind the pass is spent on this event (lib/gates/youtubeDb), as Twitch's is.
+    const yc = await youtubeClaimAfterPass({ ...opts, clanId: g.clanId, userId: opts.userId, via: verdict.via, holdMs: CLAIM_HOLD_MS, liveInEvent });
+    if (yc === 'ok') return verdict;
+    gateCache.forgetUser(opts.userId);
+    if (yc === 'missing') return { pass: false, transient: true, summary: gatesSummary(g.gates, ctx), steps: ['Try again in a moment'], linkTwitch: false };
+    return { ...twitchAlreadyUsed(gatesSummary(g.gates, ctx)), steps: [YOUTUBE_ALREADY_USED] };
   }
   if (!verdict.pass || (verdict.via !== 'twitch-follow' && verdict.via !== 'twitch-sub')) return verdict;
 
@@ -415,6 +434,8 @@ export async function entryGateInfo(eventId: number, userId: number | null): Pro
   usesTwitch: boolean;
   twitchLinked: string | null;
   twitchAvailable: boolean;
+  /** Present only when a YouTube rule applies (lib/gates/youtubeDb). */
+  youtube?: YoutubeJoinInfo & { usesSub: boolean; usesMember: boolean };
 } | null> {
   const g = await gatesForEvent(eventId);
   if (!g) return null;
@@ -426,6 +447,15 @@ export async function entryGateInfo(eventId: number, userId: number | null): Pro
     usesTwitch,
     twitchLinked: linked?.login ?? null,
     twitchAvailable: twitchConfig() !== null,
+    ...(usesYoutube(g.gates)
+      ? {
+          youtube: {
+            ...(await youtubeJoinInfo(g.clanId, userId, g.gates.anyOf.some((r) => r.kind === 'youtube-member'))),
+            usesSub: g.gates.anyOf.some((r) => r.kind === 'youtube-sub'),
+            usesMember: g.gates.anyOf.some((r) => r.kind === 'youtube-member'),
+          },
+        }
+      : {}),
   };
 }
 
@@ -433,7 +463,11 @@ export async function entryGateInfo(eventId: number, userId: number | null): Pro
 
 export async function gateOptions(clanId: number): Promise<GateOptions> {
   const configured = twitchConfig() !== null;
-  const [channel, creds] = await Promise.all([configured ? hostTwitchChannel(clanId) : null, getBotCredentials(clanId)]);
+  const [channel, creds, youtube] = await Promise.all([
+    configured ? hostTwitchChannel(clanId) : null,
+    getBotCredentials(clanId),
+    youtubeGateOptions(clanId),
+  ]);
   const roles = creds
     ? (await fetchGuildRoles(clanId))
         // Every role but @everyone (whose id is the server's). Unlike the role pickers that ASSIGN
@@ -446,6 +480,7 @@ export async function gateOptions(clanId: number): Promise<GateOptions> {
   return {
     twitch: { configured, channel, connectUrl: configured ? `/api/auth/twitch/start?as=host&space=${clanId}` : null },
     discord: { connected: !!creds, roles },
+    youtube,
   };
 }
 

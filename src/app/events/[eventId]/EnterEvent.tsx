@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import ClanLink from '@/components/ClanLink';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { parseStamp } from '@/lib/dbTime';
+import YoutubeGate, { type YoutubeGateInfo } from './YoutubeGate';
 
 type Verdict =
   | { outcome: 'insider' }
@@ -23,7 +24,13 @@ interface EnterInfo {
   /** Has any character at all, verified or not. */
   hasCharacter?: boolean;
   /** A creator-space event's "who can join" (lib/entryGates), said before anyone presses Join. */
-  gate?: { summary: string; usesTwitch: boolean; twitchLinked: string | null; twitchAvailable: boolean } | null;
+  gate?: {
+    summary: string;
+    usesTwitch: boolean;
+    twitchLinked: string | null;
+    twitchAvailable: boolean;
+    youtube?: YoutubeGateInfo;
+  } | null;
 }
 
 /** A refused gate, as the enter/sign-up routes send it. */
@@ -34,6 +41,8 @@ interface GateFail {
   transient: boolean;
   /** The Twitch account already got another player into this event. */
   blocked?: boolean;
+  /** A YouTube rule wants a subscription check or the chat code. */
+  youtube?: { verify?: boolean; chatCode?: boolean };
 }
 
 /** Start linking Twitch, coming back to this very page. Built at click time, from where they are. */
@@ -465,6 +474,7 @@ function CreatorJoin({
           )}
         </div>
       )}
+      <YoutubeGate eventId={eventId} info={info.gate?.youtube} fail={gateFail?.youtube} />
       {twitchNote && (
         <p className={`w-full text-[12.5px] ${twitchNote.ok ? 'text-accent-green-light' : 'text-accent-red'}`}>{twitchNote.text}</p>
       )}

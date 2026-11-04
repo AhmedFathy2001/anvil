@@ -4,7 +4,7 @@ import Select from '@/components/Select';
 import ClanLink from '@/components/ClanLink';
 import type { EntryGates, GateOptions, GateRule, SubTier } from '@/lib/entryGates';
 
-type Choice = 'followers' | 'subs' | 'role' | 'boosters';
+type Choice = 'followers' | 'subs' | 'role' | 'boosters' | 'yt-subs' | 'yt-members';
 
 /**
  * "Who can join?" for a creator-space event (lib/entryGates). Anyone, or any mix of: the host's
@@ -34,6 +34,9 @@ export default function EntryGatePicker({
   const subsReady = twitchReady && !!tw.channel?.canHaveSubs;
   const discordReady = options.discord.connected;
   const roleReady = discordReady && options.discord.roles.length > 0;
+  // YouTube (lib/gates/youtube): hidden unless the server has a Google app configured.
+  const yt = options.youtube;
+  const ytReady = !!yt?.configured && !!yt.channel && !yt.channel.broken;
 
   function emit(next: GateRule[]) {
     onChange(next.length > 0 ? { anyOf: next } : null);
@@ -53,6 +56,10 @@ export default function EntryGatePicker({
       }
       case 'boosters':
         return emit(has('discord-booster') ? without('discord-booster') : [...rules, { kind: 'discord-booster' }]);
+      case 'yt-subs':
+        return emit(has('youtube-sub') ? without('youtube-sub') : [...rules, { kind: 'youtube-sub' }]);
+      case 'yt-members':
+        return emit(has('youtube-member') ? without('youtube-member') : [...rules, { kind: 'youtube-member' }]);
     }
   }
 
@@ -66,6 +73,8 @@ export default function EntryGatePicker({
     { key: 'subs', label: 'Twitch subs', on: !!sub, ready: subsReady, show: tw.configured },
     { key: 'role', label: 'Discord role', on: !!role, ready: roleReady, show: true },
     { key: 'boosters', label: 'Server boosters', on: has('discord-booster'), ready: discordReady, show: true },
+    { key: 'yt-subs', label: 'YouTube subscribers', on: has('youtube-sub'), ready: ytReady, show: !!yt?.configured },
+    { key: 'yt-members', label: 'YouTube members', on: has('youtube-member'), ready: ytReady, show: !!yt?.configured },
   ];
 
   return (
@@ -136,6 +145,20 @@ export default function EntryGatePicker({
           </p>
         )}
         {twitchReady && !subsReady && <p>Sub-only needs a Twitch affiliate or partner channel.</p>}
+        {yt?.configured && !ytReady && yt.connectUrl && (
+          <p>
+            {yt.channel?.broken ? 'YouTube stopped accepting your connection. ' : 'To use YouTube, '}
+            <button
+              type="button"
+              onClick={() => window.location.assign(`${yt.connectUrl}&return=${encodeURIComponent(window.location.pathname)}`)}
+              className="text-gold hover:underline"
+            >
+              {yt.channel?.broken ? 'connect it again' : 'connect your YouTube channel'}
+            </button>
+            .
+          </p>
+        )}
+        {has('youtube-member') && <p>YouTube members prove it by typing a code in your live chat, so they can only join while you’re live.</p>}
         {!discordReady && (
           <p>
             For Discord choices,{' '}
