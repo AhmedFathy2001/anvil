@@ -84,19 +84,19 @@ export function isSpaceMediaUrl(raw: string | null | undefined, slug: string, pu
   }
   if (u.protocol !== 'https:' && !(u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1'))) return false;
   if (u.search || u.hash || u.username || u.password) return false;
-  let hostOk = u.hostname.endsWith('.blob.vercel-storage.com');
+  // ONLY our configured media host (S3_PUBLIC_BASE_URL), under its base path — never "any Vercel Blob
+  // store" or any other host a row might hold. No base configured = nothing renders.
   const base = publicBase.trim().replace(/\/+$/, '');
-  if (!hostOk && base) {
-    try {
-      const b = new URL(base);
-      hostOk = u.host === b.host && u.protocol === b.protocol && u.pathname.startsWith(`${b.pathname.replace(/\/+$/, '')}/`);
-    } catch {
-      hostOk = false;
-    }
+  if (!base) return false;
+  try {
+    const b = new URL(base);
+    if (!(u.host === b.host && u.protocol === b.protocol && u.pathname.startsWith(`${b.pathname.replace(/\/+$/, '')}/`))) return false;
+  } catch {
+    return false;
   }
-  if (!hostOk) return false;
   const esc = slug.replace(/[^a-z0-9-]/g, '');
-  return new RegExp(`/c/${esc}/space/[0-9a-f-]{36}(-[A-Za-z0-9]+)?\\.webp$`).test(u.pathname);
+  // Exactly the key the upload route mints: c/<slug>/space/<uuid>.webp.
+  return new RegExp(`/c/${esc}/space/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.webp$`).test(u.pathname);
 }
 
 export type Checked<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -347,8 +347,60 @@ const CLIP_HOSTS: Record<string, ClipPlatform> = {
   'medal.tv': 'medal',
 };
 
-/** A clip or video link on Twitch, YouTube, Kick or Medal — nothing else is featured. */
-export function checkClipUrl(raw: unknown): Checked<{ url: string; platform: ClipPlatform }> {
+const SLUG = '[A-Za-z0-9_-]';
+const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+
+/**
+ * The exact clip and video shapes we feature, per platform host. Each yields the id parts the
+ * canonical URL is rebuilt from, so nothing else the link carried (a `?q=` / `?url=` redirect target,
+ * tracking, a fragment) survives — a host allowlist alone would let the platforms' own open
+ * redirects (youtube.com/redirect?q=…) through.
+ */
+function canonicalClip(host: string, path: string, query: URLSearchParams): { url: string; platform: ClipPlatform } | null {
+  const m = (re: string) => new RegExp(`^${re}/?$`).exec(path);
+  let r: RegExpExecArray | null;
+  switch (host) {
+    case 'youtube.com':
+    case 'm.youtube.com': {
+      if (path === '/watch' || path === '/watch/') {
+        const v = query.get('v') ?? '';
+        return /^[A-Za-z0-9_-]{11}$/.test(v) ? { url: `https://www.youtube.com/watch?v=${v}`, platform: 'youtube' } : null;
+      }
+      r = m(`/shorts/(${SLUG}{11})`);
+      return r ? { url: `https://www.youtube.com/shorts/${r[1]}`, platform: 'youtube' } : null;
+    }
+    case 'youtu.be':
+      r = m(`/(${SLUG}{11})`);
+      return r ? { url: `https://youtu.be/${r[1]}`, platform: 'youtube' } : null;
+    case 'clips.twitch.tv':
+      r = m(`/(${SLUG}{1,100})`);
+      return r ? { url: `https://clips.twitch.tv/${r[1]}`, platform: 'twitch' } : null;
+    case 'twitch.tv':
+    case 'm.twitch.tv':
+      r = m(`/([A-Za-z0-9_]{1,25})/clip/(${SLUG}{1,100})`);
+      if (r) return { url: `https://www.twitch.tv/${r[1]}/clip/${r[2]}`, platform: 'twitch' };
+      r = m(`/videos/(\\d{1,20})`);
+      return r ? { url: `https://www.twitch.tv/videos/${r[1]}`, platform: 'twitch' } : null;
+    case 'kick.com':
+      r = m(`/(${SLUG}{1,40})/clips/(${SLUG}{1,64})`);
+      if (r) return { url: `https://kick.com/${r[1]}/clips/${r[2]}`, platform: 'kick' };
+      r = m(`/(${SLUG}{1,40})/videos/(${UUID})`);
+      return r ? { url: `https://kick.com/${r[1]}/videos/${r[2]}`, platform: 'kick' } : null;
+    case 'medal.tv':
+      r = m(`/games/([a-z0-9-]{1,60})/clips/(${SLUG}{1,64})(?:/${SLUG}{1,120})?`);
+      if (r) return { url: `https://medal.tv/games/${r[1]}/clips/${r[2]}`, platform: 'medal' };
+      r = m(`/clips/(${SLUG}{1,64})(?:/${SLUG}{1,120})?`);
+      return r ? { url: `https://medal.tv/clips/${r[1]}`, platform: 'medal' } : null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * A clip or video link on Twitch, YouTube, Kick or Medal, in one of the exact shapes above, rebuilt
+ * as a canonical URL from its ids — and that URL must still pass the link policy (blocklist included).
+ */
+export function checkClipUrl(raw: unknown, blocked: Iterable<string> = []): Checked<{ url: string; platform: ClipPlatform }> {
   if (typeof raw !== 'string' || !raw.trim()) return { ok: false, error: 'Paste a clip link.' };
   let u: URL;
   try {
@@ -359,10 +411,11 @@ export function checkClipUrl(raw: unknown): Checked<{ url: string; platform: Cli
   if (raw.length > LINK_MAX || u.protocol !== 'https:' || u.username || u.password || u.port) {
     return { ok: false, error: 'Use an https:// clip link from Twitch, YouTube, Kick or Medal.' };
   }
-  const platform = CLIP_HOSTS[normalizeHost(u.hostname)];
-  if (!platform || u.pathname.length < 2) return { ok: false, error: 'Only Twitch, YouTube, Kick or Medal clip links can be featured.' };
-  u.hash = '';
-  return { ok: true, value: { url: u.toString(), platform } };
+  const clip = canonicalClip(normalizeHost(u.hostname), u.pathname, u.searchParams);
+  if (!clip) return { ok: false, error: 'Use a clip or video link from Twitch, YouTube, Kick or Medal.' };
+  const link = checkLink(clip.url, blocked);
+  if (!link.ok) return link;
+  return { ok: true, value: { url: link.value, platform: clip.platform } };
 }
 
 export function clipPlatformOf(url: string): ClipPlatform | null {

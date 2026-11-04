@@ -338,13 +338,16 @@ test('featured: only the space’s own, host-channel, showable highlights — an
 });
 
 test('featured: a clip link from Twitch, YouTube, Kick or Medal only; clearing works', async () => {
-  for (const clipUrl of ['https://stake.com/clip', 'http://clips.twitch.tv/x', 'https://bit.ly/x']) {
+  for (const clipUrl of ['https://stake.com/clip', 'http://clips.twitch.tv/x', 'https://bit.ly/x', 'https://www.youtube.com/redirect?q=https://stake.com']) {
     assert.equal((await P.setFeatured(space.id, { clipUrl })).ok, false, clipUrl);
   }
   assert.equal((await P.setFeatured(space.id, { clipUrl: 'https://medal.tv/clips/abc', title: 'Cheap gp here' })).ok, false);
   assert.equal((await P.setFeatured(space.id, { clipUrl: 'https://kick.com/streamer/clips/clip_1', title: 'My first pet' })).ok, true);
   const f = (await page()).featured;
   assert.deepEqual(f, { kind: 'clip', url: 'https://kick.com/streamer/clips/clip_1', platform: 'kick', title: 'My first pet' });
+  // Stored canonical: whatever else the pasted link carried is gone.
+  assert.equal((await P.setFeatured(space.id, { clipUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&q=https://stake.com' })).ok, true);
+  assert.equal((await P.profileOf(space.id))?.featuredClipUrl, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
   assert.equal((await P.setFeatured(space.id, null)).ok, true);
   assert.equal((await page()).featured, null);
 });

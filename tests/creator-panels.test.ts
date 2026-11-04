@@ -164,22 +164,52 @@ test('text cleaning: limits refused not cut, control and invisible characters go
   assert.ok(R.wordingError('r​s​p​s'));
 });
 
-test('clip links: Twitch, YouTube, Kick and Medal only, https only', () => {
-  for (const [url, platform] of [
-    ['https://clips.twitch.tv/SomeClip-abc', 'twitch'],
-    ['https://www.twitch.tv/me/clip/abc', 'twitch'],
-    ['https://www.youtube.com/watch?v=abc', 'youtube'],
-    ['https://youtu.be/abc', 'youtube'],
-    ['https://kick.com/me/clips/clip_abc', 'kick'],
-    ['https://medal.tv/games/old-school-runescape/clips/abc', 'medal'],
+test('clip links: exact clip/video shapes only, rebuilt canonically from their ids', () => {
+  for (const [url, canonical, platform] of [
+    ['https://clips.twitch.tv/SomeClip-abc?tt_medium=x&url=https://stake.com', 'https://clips.twitch.tv/SomeClip-abc', 'twitch'],
+    ['https://m.twitch.tv/me/clip/Abc-123?redirect=https://stake.com#t', 'https://www.twitch.tv/me/clip/Abc-123', 'twitch'],
+    ['https://www.twitch.tv/videos/123456789?t=1h2m', 'https://www.twitch.tv/videos/123456789', 'twitch'],
+    ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=x&q=https://stake.com', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'youtube'],
+    ['https://m.youtube.com/shorts/dQw4w9WgXcQ?feature=share', 'https://www.youtube.com/shorts/dQw4w9WgXcQ', 'youtube'],
+    ['https://youtu.be/dQw4w9WgXcQ?si=abc', 'https://youtu.be/dQw4w9WgXcQ', 'youtube'],
+    ['https://kick.com/me/clips/clip_01ABC?ref=x', 'https://kick.com/me/clips/clip_01ABC', 'kick'],
+    ['https://kick.com/me/videos/123e4567-e89b-12d3-a456-426614174000', 'https://kick.com/me/videos/123e4567-e89b-12d3-a456-426614174000', 'kick'],
+    ['https://medal.tv/games/old-school-runescape/clips/abcDEF123/some-title?invite=x', 'https://medal.tv/games/old-school-runescape/clips/abcDEF123', 'medal'],
+    ['https://medal.tv/clips/abcDEF123', 'https://medal.tv/clips/abcDEF123', 'medal'],
   ] as const) {
-    const r = R.checkClipUrl(url);
+    const r = R.checkClipUrl(url, SEED);
     assert.equal(r.ok, true, url);
-    if (r.ok) assert.equal(r.value.platform, platform);
+    if (r.ok) assert.deepEqual(r.value, { url: canonical, platform }, url);
   }
-  for (const url of ['http://clips.twitch.tv/x', 'https://stake.com/clip', 'https://bit.ly/x', 'https://twitch.tv.evil.com/x', 'https://youtube.com', 'https://medal.tv:444/x']) {
-    assert.equal(R.checkClipUrl(url).ok, false, url);
+});
+
+test('clip links: open redirects, other paths, other hosts and non-https are refused', () => {
+  for (const url of [
+    // The platforms' own redirectors, and pages that are not a clip or video.
+    'https://www.youtube.com/redirect?q=https://stake.com',
+    'https://www.youtube.com/attribution_link?u=/watch%3Fv%3DdQw4w9WgXcQ',
+    'https://www.youtube.com/watch?v=bad',
+    'https://www.youtube.com/@channel',
+    'https://www.twitch.tv/me',
+    'https://www.twitch.tv/me?url=https://stake.com',
+    'https://twitch.tv/me/clip/x/../../redirect',
+    'https://clips.twitch.tv/a/b',
+    'https://kick.com/me',
+    'https://kick.com/me/videos/not-a-uuid',
+    'https://medal.tv/redirect?url=https://stake.com',
+    'https://medal.tv/games/x',
+    // Wrong scheme, port, host.
+    'http://clips.twitch.tv/x',
+    'https://medal.tv:444/clips/abc',
+    'https://stake.com/clip',
+    'https://bit.ly/x',
+    'https://twitch.tv.evil.com/me/clip/x',
+    'https://youtube.com',
+  ]) {
+    assert.equal(R.checkClipUrl(url, SEED).ok, false, url);
   }
+  // The canonical URL still goes through the blocklist: block a platform and its clips go too.
+  assert.equal(R.checkClipUrl('https://medal.tv/clips/abc', ['medal.tv']).ok, false);
 });
 
 test('schedule: the next start, across the London DST change', () => {
@@ -239,6 +269,16 @@ test('images: only this space’s own uploads on our media host', () => {
   assert.equal(R.isSpaceMediaUrl(`https://evil.com/c/streamer/space/123e4567-e89b-12d3-a456-426614174000.webp`, 'streamer', base), false);
   assert.equal(R.isSpaceMediaUrl(`${ok}?x=1`, 'streamer', base), false);
   assert.equal(R.isSpaceMediaUrl(`${base}/c/streamer/submissions/123e4567-e89b-12d3-a456-426614174000.webp`, 'streamer', base), false);
+  // Any Vercel Blob store is somebody's — only OUR configured host counts.
+  const blob = 'https://anyone.public.blob.vercel-storage.com/c/streamer/space/123e4567-e89b-12d3-a456-426614174000.webp';
+  assert.equal(R.isSpaceMediaUrl(blob, 'streamer', base), false);
+  // No media host configured: nothing is ours.
+  assert.equal(R.isSpaceMediaUrl(ok, 'streamer', ''), false);
+  // A lookalike host, or our host outside its base path.
+  assert.equal(R.isSpaceMediaUrl(ok.replace('media.anvilosrs.com', 'media.anvilosrs.com.evil.net'), 'streamer', base), false);
+  assert.equal(R.isSpaceMediaUrl(ok, 'streamer', `${base}/bucket`), false);
+  // Only the exact key shape the upload route mints.
+  assert.equal(R.isSpaceMediaUrl(`${base}/c/streamer/space/123e4567-e89b-12d3-a456-426614174000-x.webp`, 'streamer', base), false);
 });
 
 test('the seed list is exactly what migration 0211 installs', () => {

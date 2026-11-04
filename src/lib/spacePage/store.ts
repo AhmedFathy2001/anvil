@@ -295,11 +295,12 @@ export async function setFeatured(clanId: number, raw: unknown): Promise<Checked
     return { ok: true, value: true };
   }
   if (r.clipUrl != null && String(r.clipUrl).trim()) {
-    const clip = checkClipUrl(r.clipUrl);
+    const blocked = await loadBlocklist();
+    // Canonicalised from its ids (no redirect parameters survive) and checked against the blocklist.
+    const clip = checkClipUrl(r.clipUrl, blocked);
     if (!clip.ok) return clip;
     const title = cleanText(r.title, FEATURED_TITLE_MAX, { field: 'The title' });
     if (!title.ok) return title;
-    const blocked = await loadBlocklist();
     const err = contentError(title.value, blocked);
     if (err) return { ok: false, error: err };
     await upsertProfile(clanId, { featuredHighlightId: null, featuredClipUrl: clip.value.url, featuredTitle: title.value || null });
@@ -383,7 +384,7 @@ export async function publicSpacePage(
     const h = await featuredHighlight(space.id, profile.featuredHighlightId, opts.canSeeEvent);
     if (h) featured = { kind: 'highlight', highlight: h };
   } else if (profile?.featuredClipUrl) {
-    const clip = checkClipUrl(profile.featuredClipUrl);
+    const clip = checkClipUrl(profile.featuredClipUrl, blocked);
     if (clip.ok) featured = { kind: 'clip', url: clip.value.url, platform: clip.value.platform, title: profile.featuredTitle ?? null };
   }
 
