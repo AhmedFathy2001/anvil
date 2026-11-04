@@ -21,7 +21,7 @@ import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { standardFeeForAccount } from '@/lib/entryFee';
 import { placementOf } from '@/lib/teamPlacement';
 import { enrolPlaced } from '@/lib/teamPlacementDb';
-import { PlanLimitError, roomPlanOfEvent, withEventRoom } from '@/lib/creatorPlansDb';
+import { PlanLimitError, withEventRoom } from '@/lib/creatorPlansDb';
 
 export type SignupRow = typeof eventSignups.$inferSelect;
 
@@ -146,7 +146,7 @@ export async function signUpOnBehalf(input: {
   // host's overlapping events applies, staff or not (lib/creatorPlansDb withEventRoom).
   let signup: SignupRow;
   try {
-    [signup] = await withEventRoom({ eventId: event.id, clanPlan: await roomPlanOfEvent(event.id), adding: 1 }, (tx) =>
+    [signup] = await withEventRoom({ eventId: event.id, audience: 'host' }, (tx) =>
       existing
         ? tx
             .update(eventSignups)

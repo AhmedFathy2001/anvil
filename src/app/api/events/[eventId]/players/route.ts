@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
-import { clanRoster, eventParticipants, eventSignups, events, teams } from '@/db/schema';
+import { clanRoster, eventParticipants, events, teams } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
 import { findOrCreateClanMember } from '@/lib/clan';
@@ -15,7 +15,7 @@ import { swapTrackedAccount } from '@/lib/trackedAccount';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { syncEventServerMembersFireAndForget } from '@/lib/eventDiscord';
 import { rosterSeatOpensEventSql } from '@/lib/seatScope';
-import { hostRoomVerdict, roomPlanOfEvent } from '@/lib/creatorPlansDb';
+import { PlanLimitError } from '@/lib/creatorPlansDb';
 
 export async function GET(
   request: Request,
@@ -131,10 +131,11 @@ export async function POST(
     const event = await db.query.events.findFirst({ where: eq(events.id, id) });
     const capErr = await accountCapError(id, event?.maxAccountsPerPerson ?? 1, members.map((m) => m.clanMemberId));
     if (capErr) return NextResponse.json({ error: capErr }, { status: 409 });
-    const roomErr = await addRoomError(id, members.map((m) => m.clanMemberId));
-    if (roomErr) return NextResponse.json({ error: roomErr, reason: 'full' }, { status: 403 });
+    // Sign-ups first, under the host's room lock (lib/enroll backfillApprovedSignups): a refusal
+    // from the plan's cap leaves nobody seated.
+    const full = await signupsOrFull(id, members.map((m) => m.clanMemberId));
+    if (full) return full;
     const result = await upsertPlayers(id, members, assignTeamId);
-    await backfillApprovedSignups(id, members.map((m) => m.clanMemberId));
     return NextResponse.json(result, { status: 201 });
   }
 
@@ -151,10 +152,9 @@ export async function POST(
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   const capErr = await accountCapError(id, event?.maxAccountsPerPerson ?? 1, [clanMemberId]);
   if (capErr) return NextResponse.json({ error: capErr }, { status: 409 });
-  const roomErr = await addRoomError(id, [clanMemberId]);
-  if (roomErr) return NextResponse.json({ error: roomErr, reason: 'full' }, { status: 403 });
+  const full = await signupsOrFull(id, [clanMemberId]);
+  if (full) return full;
   const result = await upsertPlayers(id, members, assignTeamId);
-  await backfillApprovedSignups(id, [clanMemberId]);
   return NextResponse.json(result[0], { status: 201 });
 }
 
@@ -352,21 +352,16 @@ export async function PATCH(
 
 /**
  * Adding players by hand writes an approved sign-up for every seat that has none
- * (backfillApprovedSignups), so on a player-capped event the plan's cap on players at once across
- * the host's overlapping events applies (lib/creatorPlansDb hostRoomVerdict). Checked before the
- * write rather than under the host's lock: an admin's bulk add is not a rush of strangers, and a
- * rare overshoot here keeps everyone, as a downgrade does. Null = room (or nothing is capped).
+ * (backfillApprovedSignups), as one write under the host's room lock: on a player-capped event, the
+ * plan's cap on players at once across the host's overlapping events applies (lib/creatorPlansDb
+ * withEventRoom). The refusal as a response, or null when the sign-ups are in.
  */
-async function addRoomError(eventId: number, clanMemberIds: number[]): Promise<string | null> {
-  const clanPlan = await roomPlanOfEvent(eventId);
-  if (clanPlan == null || clanMemberIds.length === 0) return null;
-  // clan-scope: global -- this event's sign-ups for the seats just resolved above.
-  const had = await db
-    .select({ seat: eventSignups.clanMemberId })
-    .from(eventSignups)
-    .where(and(eq(eventSignups.eventId, eventId), inArray(eventSignups.clanMemberId, clanMemberIds)));
-  const known = new Set(had.map((r) => r.seat));
-  const adding = new Set(clanMemberIds.filter((cid) => !known.has(cid))).size;
-  const room = await hostRoomVerdict({ eventId, clanPlan, adding });
-  return room.ok ? null : room.error;
+async function signupsOrFull(eventId: number, clanMemberIds: number[]): Promise<NextResponse | null> {
+  try {
+    await backfillApprovedSignups(eventId, clanMemberIds);
+    return null;
+  } catch (e) {
+    if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'full' }, { status: 403 });
+    throw e;
+  }
 }

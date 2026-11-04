@@ -135,6 +135,17 @@ export function eventFullMessage(clanPlan: string | null | undefined, needed: nu
   return `${EVENT_FULL_MESSAGE} The host’s ${plan.name} plan seats ${cap} players at once, counted across all their events running at the same time. Ask the host — ${tierThatFits(needed)} would make room.`;
 }
 
+/**
+ * The same refusal for the host's own staff (an admin adding or approving somebody, a captain being
+ * seated): what it would come to, and the tier that makes room.
+ */
+export function hostFullMessage(clanPlan: string | null | undefined, needed: number): string {
+  const plan = creatorPlanOf(clanPlan);
+  const fmt = (n: number) => n.toLocaleString('en-US');
+  const fit = planForPlayers(needed);
+  return `No room: that would put ${fmt(needed)} players on at once across your events running at the same time, and your ${plan.name} plan allows ${fmt(plan.playersPerEvent ?? 0)}. ${fit.playersPerEvent == null ? 'Get in touch about a Partner plan' : `Upgrade to ${fit.name} (${fmt(fit.playersPerEvent)} at once)`}, or move the events apart.`;
+}
+
 export type RoomVerdict = { ok: true } | { ok: false; error: string; cap: number; total: number };
 
 /** One of the host's metered events with its dates and how many are on its board. */
@@ -171,6 +182,8 @@ export function eventRoomVerdict(opts: {
   dates?: DatedEvent | null;
   others?: readonly HostEventSeats[];
   now?: number;
+  /** Who reads a refusal: the joining player (default) or the host's staff adding somebody. */
+  audience?: 'player' | 'host';
 }): RoomVerdict {
   if (!freemiumEnforced() || opts.adding <= 0) return { ok: true };
   const cap = playersAtOnceCap(opts.clanPlan);
@@ -184,7 +197,8 @@ export function eventRoomVerdict(opts: {
     from: opts.now ?? Date.now(),
   });
   if (v.ok) return { ok: true };
-  return { ok: false, error: eventFullMessage(opts.clanPlan, v.total), cap, total: v.total };
+  const error = opts.audience === 'host' ? hostFullMessage(opts.clanPlan, v.total) : eventFullMessage(opts.clanPlan, v.total);
+  return { ok: false, error, cap, total: v.total };
 }
 
 /**

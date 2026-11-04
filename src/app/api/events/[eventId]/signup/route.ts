@@ -366,7 +366,7 @@ export async function POST(
   //    last place — on this event or an overlapping one — cannot both take it — the second counts the first's row and rolls its own back.
   const rows: { row: typeof eventSignups.$inferSelect; account: (typeof myAccounts)[number] }[] = [];
   try {
-    await withEventRoom({ eventId: id, clanPlan: metered, adding: netAdding }, async (tx) => {
+    await withEventRoom({ eventId: id, clanPlan: metered }, async (tx) => {
       for (const cid of selectedIds) {
         const account = accountById.get(cid)!;
         const data = cid === primaryId ? profileJson : '{}';

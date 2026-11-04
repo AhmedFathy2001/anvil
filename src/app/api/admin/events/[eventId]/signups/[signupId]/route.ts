@@ -6,7 +6,7 @@ import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanAuditLog, clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { generatePlayerToken } from '@/lib/auth';
 import { sanitizeProfile, serializeProfile } from '@/lib/signup';
@@ -18,8 +18,7 @@ import { cohostSignupClanFor } from '@/lib/eventEditors';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { placementOf } from '@/lib/teamPlacement';
 import { enrolPlaced } from '@/lib/teamPlacementDb';
-import { isOnBoardStatus } from '@/lib/creatorPlans';
-import { PlanLimitError, roomPlanOfEvent, withEventRoom } from '@/lib/creatorPlansDb';
+import { PlanLimitError, withEventRoom } from '@/lib/creatorPlansDb';
 
 // Per-signup admin actions. All admin-only — captain selection is high-stakes and we
 // don't want a moderator accidentally locking the wrong person in.
@@ -194,11 +193,11 @@ export async function PATCH(
     case 'approve': {
       // Approving a rejected or withdrawn sign-up puts somebody back on the board: the plan's cap on
       // players at once across the host's overlapping events applies (lib/creatorPlansDb
-      // withEventRoom). Pending → approved was already on the board and adds nobody.
+      // withEventRoom, which measures what the write added). Pending → approved adds nobody.
       let updated: typeof eventSignups.$inferSelect;
       try {
         [updated] = await withEventRoom(
-          { eventId: evtId, clanPlan: await roomPlanOfEvent(evtId), adding: isOnBoardStatus(signup.status) ? 0 : 1 },
+          { eventId: evtId, audience: 'host' },
           (tx) => tx.update(eventSignups).set({ status: 'approved', updatedAt: now }).where(eq(eventSignups.id, sigId)).returning(),
         );
       } catch (e) {
@@ -454,11 +453,21 @@ export async function PATCH(
         });
       }
 
-      const [updated] = await db
-        .update(eventSignups)
-        .set({ status: 'approved', updatedAt: now })
-        .where(eq(eventSignups.id, sigId))
-        .returning();
+      // Already on the board (pending or approved, checked above), so this adds nobody; written
+      // through the event's room like every status write that lands on the board.
+      let updated: typeof eventSignups.$inferSelect | undefined;
+      try {
+        [updated] = await withEventRoom({ eventId: evtId, audience: 'host' }, (tx) =>
+          tx
+            .update(eventSignups)
+            .set({ status: 'approved', updatedAt: now })
+            .where(and(eq(eventSignups.id, sigId), inArray(eventSignups.status, ['pending', 'approved'])))
+            .returning(),
+        );
+      } catch (e) {
+        if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'full' }, { status: 403 });
+        throw e;
+      }
 
       logAction('captain_promoted', { teamId: team.id, teamName: team.name });
       return NextResponse.json({ signup: updated, team });

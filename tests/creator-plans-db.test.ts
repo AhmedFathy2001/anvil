@@ -176,7 +176,7 @@ test('two sign-ups racing for the last place: exactly one gets it', async () => 
   const [a, b] = await seats(spaceId, 2, 'racer');
   process.env.FREEMIUM_ENFORCED = 'true';
   const signUp = (seat: number) =>
-    P.withEventRoom({ eventId: race, clanPlan: 'creator_free', adding: 1 }, (tx) =>
+    P.withEventRoom({ eventId: race, clanPlan: 'creator_free' }, (tx) =>
       tx.insert(s.eventSignups).values({ eventId: race, clanMemberId: seat, status: 'pending' }).returning(),
     );
   const results = await Promise.allSettled([signUp(a), signUp(b)]);
@@ -187,7 +187,7 @@ test('two sign-ups racing for the last place: exactly one gets it', async () => 
 
   // Not metered (generous phase passes null): both would go in.
   const [c] = await seats(spaceId, 1, 'free-for-now');
-  await P.withEventRoom({ eventId: race, clanPlan: null, adding: 1 }, (tx) =>
+  await P.withEventRoom({ eventId: race, clanPlan: null }, (tx) =>
     tx.insert(s.eventSignups).values({ eventId: race, clanMemberId: c, status: 'pending' }),
   );
   assert.equal(await P.eventPlayerCount(race), 51);
@@ -281,7 +281,7 @@ async function dated(clanId: number, name: string, from: number | null, to: numb
 }
 
 const signUp = (eventId: number, seat: number) =>
-  P.withEventRoom({ eventId, clanPlan: 'creator_free', adding: 1 }, (tx) =>
+  P.withEventRoom({ eventId, clanPlan: 'creator_free' }, (tx) =>
     tx.insert(s.eventSignups).values({ eventId, clanMemberId: seat, status: 'pending' }).returning(),
   );
 
@@ -394,4 +394,77 @@ test('a Streaming clan: its viewer events share the cap at its clan tier; member
   assert.equal((await P.hostRoomVerdict({ eventId: v2, clanPlan: 'creator_free', adding: 1 })).ok, false, '30 + 20 at once');
   assert.deepEqual((await P.hostEventSeats(clan.id)).map((r) => r.name).sort(), ['V1', 'V2'], 'members-only is roster-metered');
   assert.equal(await P.roomPlanOfEvent(members), null);
+});
+
+test('captain seating: refused past the cap across overlapping events, with nobody moved or seated', async () => {
+  const TC = await import('../src/lib/teamCaptain.ts');
+  const sp = await space('captain', 'creator_free');
+  const a = await dated(sp, 'Cap A', 7, 10);
+  const b = await dated(sp, 'Cap B', 8, 11);
+  await fill(sp, a, 30, 'cpa');
+  await fill(sp, b, 20, 'cpb');
+  const cap = await person('Captain Late');
+  await db.insert(s.clanMemberships).values({ clanId: sp, accountId: cap.accountId, kind: 'guest', source: 'web' });
+  const [team] = await db.insert(s.teams).values({ eventId: b, name: 'Late Team', color: '#ffffff' }).returning();
+  process.env.FREEMIUM_ENFORCED = 'true';
+
+  const refused = await TC.placeCaptainOnTeam(b, team.id, cap.userId);
+  assert.equal(refused.reason, 'full', JSON.stringify(refused));
+  assert.match(TC.captainSeatNotice(refused, 'Captain Late') ?? '', /isn’t entered as a player\. No room: that would put 51 players on at once/);
+  assert.equal(await P.eventPlayerCount(b), 20, 'no sign-up written');
+  const rows = await db.select().from(s.eventParticipants).where(eq(s.eventParticipants.eventId, b));
+  assert.equal(rows.length, 0, 'no player row made');
+
+  // Room on Bronze: seated, sign-up approved.
+  await db.update(s.clans).set({ plan: 'creator_bronze' }).where(eq(s.clans.id, sp));
+  const seated = await TC.placeCaptainOnTeam(b, team.id, cap.userId);
+  assert.equal(seated.reason, null);
+  assert.equal(await P.eventPlayerCount(b), 21);
+});
+
+test('bulk add (backfill / auto-enrol / the players route): the whole batch is refused past the cap, under the host lock', async () => {
+  const EN = await import('../src/lib/enroll.ts');
+  const sp = await space('bulk', 'creator_free');
+  const a = await dated(sp, 'Bulk A', 7, 10);
+  const b = await dated(sp, 'Bulk B', 8, 11);
+  await fill(sp, a, 30, 'bka');
+  await fill(sp, b, 18, 'bkb');
+  const fresh = await seats(sp, 3, 'bknew');
+  process.env.FREEMIUM_ENFORCED = 'true';
+
+  await assert.rejects(EN.backfillApprovedSignups(b, fresh), (e) => e instanceof P.PlanLimitError && /^No room: that would put 51 players on at once/.test(e.message));
+  assert.equal(await P.eventPlayerCount(b), 18, 'the whole batch rolled back');
+  await EN.backfillApprovedSignups(b, fresh.slice(0, 2)); // 48 → 50
+  assert.equal(await P.eventPlayerCount(b), 20);
+  // Re-running with seats already signed up adds nobody and is never refused, even at the cap.
+  await EN.backfillApprovedSignups(b, fresh.slice(0, 2));
+
+  // Racing a bulk add against a self sign-up on the OTHER overlapping event, for the last place.
+  await db.update(s.eventSignups).set({ status: 'withdrawn' }).where(and(eq(s.eventSignups.eventId, b), eq(s.eventSignups.clanMemberId, fresh[1])));
+  const [solo] = await seats(sp, 1, 'bksolo');
+  const results = await Promise.allSettled([EN.backfillApprovedSignups(b, [fresh[2]]), signUp(a, solo)]);
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1, JSON.stringify(results));
+  assert.equal((await P.eventPlayerCount(a)) + (await P.eventPlayerCount(b)), 50);
+
+  // Generous phase: in they go.
+  delete process.env.FREEMIUM_ENFORCED;
+  const more = await seats(sp, 5, 'bkgen');
+  await EN.backfillApprovedSignups(b, more);
+  assert.equal(await P.eventPlayerCount(b) >= 24, true);
+});
+
+test('reactivating a withdrawn sign-up (approve) goes through the room: refused at the cap', async () => {
+  const sp = await space('reactivate', 'creator_free');
+  const a = await dated(sp, 'Re A', 7, 10);
+  await fill(sp, a, 50, 'rea');
+  const [seat] = await seats(sp, 1, 'rewd');
+  const [row] = await db.insert(s.eventSignups).values({ eventId: a, clanMemberId: seat, status: 'withdrawn' }).returning();
+  process.env.FREEMIUM_ENFORCED = 'true';
+  const approve = () =>
+    P.withEventRoom({ eventId: a, audience: 'host' }, (tx) => tx.update(s.eventSignups).set({ status: 'approved' }).where(eq(s.eventSignups.id, row.id)));
+  await assert.rejects(approve(), (e) => e instanceof P.PlanLimitError);
+  assert.equal((await db.query.eventSignups.findFirst({ where: eq(s.eventSignups.id, row.id) }))?.status, 'withdrawn');
+  // Pending → approved on a full event adds nobody: fine.
+  const [pend] = await db.select().from(s.eventSignups).where(and(eq(s.eventSignups.eventId, a), eq(s.eventSignups.status, 'pending'))).limit(1);
+  await P.withEventRoom({ eventId: a }, (tx) => tx.update(s.eventSignups).set({ status: 'approved' }).where(eq(s.eventSignups.id, pend.id)));
 });

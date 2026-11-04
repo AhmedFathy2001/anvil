@@ -155,6 +155,7 @@ export async function hostRoomVerdict(opts: {
   tx?: Executor;
   included?: boolean;
   now?: number;
+  audience?: 'player' | 'host';
 }): Promise<RoomVerdict> {
   if (opts.clanPlan == null || opts.adding <= 0) return { ok: true };
   const clanId = await hostOf(opts.eventId, opts.tx);
@@ -170,6 +171,7 @@ export async function hostRoomVerdict(opts: {
     dates: self ?? null,
     others: rows,
     now: opts.now,
+    audience: opts.audience,
   });
 }
 
@@ -195,29 +197,40 @@ export async function creatorSeatMeter(clanId: number, now = Date.now()): Promis
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
- * Run a sign-up write that may put `adding` more players on an event, race-safely.
+ * THE way to write a sign-up that may put somebody on an event's board — a new sign-up, a withdrawn
+ * or rejected one brought back, an admin add, a captain seated, a bulk add. Every such write goes
+ * through here (tests/seat-write-guard keeps it that way), so a new path cannot skip the cap.
  *
- * One transaction. When the event is player-capped (`clanPlan` non-null — roomPlanOfEvent) and the
- * write adds anybody, the HOST's advisory lock is held from before the write to the re-count after it
- * — per host, because the cap is players at once across the host's overlapping events: two writes
- * racing for the last place, on the same event or on two overlapping ones, serialise, and the second
- * counts the first's committed row and rolls its own back with a PlanLimitError. Date changes take the
- * same lock (withLiveEventSlot `dates`). Otherwise a plain transaction.
+ * One transaction. When the event is player-capped — `clanPlan` given, or left out and resolved here
+ * by roomPlanOfEvent: a creator space's event, or a Streaming clan's event open to viewers, only while
+ * FREEMIUM_ENFORCED is on — the HOST's advisory lock is held around the write. The event's board is
+ * counted before and after it under the lock, so the write's own effect is measured, never
+ * predicted by the caller: when it put anybody on (after > before), the host-wide verdict is taken
+ * for that many (lib/creatorPlans eventRoomVerdict — players at once across the host's overlapping
+ * events) and a refusal rolls the write back with a PlanLimitError. Per host, not per event, so two
+ * writes racing for the last place — on one event or on two overlapping ones — serialise and the
+ * second sees the first. Date changes take the same lock (withLiveEventSlot `dates`). An edit, a
+ * swap or a withdrawal adds nobody and is never refused. `clanPlan` null: a plain transaction.
  */
 export async function withEventRoom<T>(
-  opts: { eventId: number; clanPlan: string | null; adding: number },
+  opts: {
+    eventId: number;
+    clanPlan?: string | null;
+    /** 'host' when the host's staff are the ones adding (the refusal is worded for them). */
+    audience?: 'player' | 'host';
+  },
   write: (tx: Tx) => Promise<T>,
 ): Promise<T> {
+  const clanPlan = opts.clanPlan === undefined ? await roomPlanOfEvent(opts.eventId) : opts.clanPlan;
   return db.transaction(async (tx) => {
-    const metered = opts.clanPlan != null && opts.adding > 0;
-    if (metered) {
-      const clanId = await hostOf(opts.eventId, tx);
-      if (clanId != null) await lockHostRoom(tx, clanId);
-    }
+    if (clanPlan == null) return write(tx);
+    const clanId = await hostOf(opts.eventId, tx);
+    if (clanId != null) await lockHostRoom(tx, clanId);
+    const before = await eventPlayerCount(opts.eventId, tx);
     const out = await write(tx);
-    if (metered) {
-      // Re-counted under the lock with this write in it: "before" is the count minus what it added.
-      const room = await hostRoomVerdict({ eventId: opts.eventId, clanPlan: opts.clanPlan, adding: opts.adding, tx, included: true });
+    const added = (await eventPlayerCount(opts.eventId, tx)) - before;
+    if (added > 0) {
+      const room = await hostRoomVerdict({ eventId: opts.eventId, clanPlan, adding: added, tx, included: true, audience: opts.audience });
       if (!room.ok) throw new PlanLimitError(room.error);
     }
     return out;
