@@ -17,7 +17,7 @@ import type { EntryGates, GateOptions } from '@/lib/entryGates';
 const FORMATS = [
   // Teams are balanced automatically (the API's default for a new team board), so nobody is asked.
   { key: 'classic', title: 'Team bingo', line: 'A 5×5 grid of tasks. Players are split into teams for you.', format: 'bingo', scoringMode: 'tiles', size: 5, placement: undefined },
-  { key: 'solo', title: 'Solo bingo', line: 'The same grid, every player for themselves. Great on stream.', format: 'bingo', scoringMode: 'tiles', size: 5, placement: 'solo' },
+  { key: 'solo', title: 'Solo bingo', line: 'The same grid, every player for themselves. Great on stream.', friendsLine: 'The same grid, every player for themselves. Great for a small group.', format: 'bingo', scoringMode: 'tiles', size: 5, placement: 'solo' },
   { key: 'race', title: 'Team race', line: 'Tasks in order. The team furthest along wins.', format: 'tilerace', scoringMode: 'tiles', size: 10, placement: undefined },
 ] as const;
 
@@ -232,7 +232,8 @@ export default function FirstEventClient({
                 }`}
               >
                 <span className={`block text-lg font-semibold ${on ? 'text-gold' : ''}`}>{f.title}</span>
-                <span className="mt-1 block text-sm text-text-muted">{f.line}</span>
+                {/* A friends event is nobody's stream (lib/friendEventRules): its own words where they differ. */}
+                <span className="mt-1 block text-sm text-text-muted">{friends && 'friendsLine' in f ? f.friendsLine : f.line}</span>
               </button>
             );
           })}

@@ -466,3 +466,44 @@ test('captain placement and manual adds: refused over the cap, nothing enrolled'
   await F.guardFriendsSeats(ev.id, (tx) => EN.backfillApprovedSignups(ev.id, [already.seat], tx));
   assert.equal(await P.eventPlayerCount(ev.id), 10);
 });
+
+test('after the start: the invite link’s self Join is closed, the owner can still add players (within the cap)', async () => {
+  const SG = await import('../src/lib/signup.ts');
+  const OB = await import('../src/lib/signupOnBehalf.ts');
+  const EN = await import('../src/lib/enroll.ts');
+  const CL = await import('../src/lib/clan.ts');
+  const owner = await person('Fe Late Owner', 'supporter');
+  const r = await F.ensureFriendsHost(owner.userId);
+  assert.ok(r.ok);
+  if (!r.ok) return;
+  const host = await hostRow(r.host.id);
+  const started = await friendsEvent(host, 'Started Bingo', iso(-2), iso(24));
+  const ev = (await db.query.events.findFirst({ where: eq(s.events.id, started.id) }))!;
+
+  // Self Join: the sign-up window every self-serve path reads (signup route, the Join card) is shut.
+  const w = SG.signupWindowState(ev);
+  assert.equal(w.open, false);
+  assert.equal(w.reason, 'event_started');
+
+  // The owner, on the friend's behalf: allowed after the start.
+  const friend = await person('Fe Late Friend');
+  await F.acceptInvite({ token: ev.inviteToken!, playerId: friend.playerId, userId: friend.userId });
+  const [seat] = await db.insert(s.clanMemberships).values({ clanId: host.id, accountId: friend.accountId, kind: 'event', eventId: ev.id, source: 'web' }).returning();
+  const behalf = await OB.signUpOnBehalf({ event: ev, clanMemberId: seat.id, profile: {}, status: 'approved', playerToken: 'late-1' });
+  assert.equal(behalf.ok, true, JSON.stringify(behalf));
+
+  // The owner's manual add by name (the players route's text add): allowed too, through the gate.
+  const typed = await CL.findOrCreateClanMember(host.id, 'Late Typed');
+  await F.guardFriendsSeats(ev.id, (tx) => EN.backfillApprovedSignups(ev.id, [typed], tx));
+  assert.equal(await P.eventPlayerCount(ev.id), 2);
+
+  // ...and still capped: fill to 10, then neither owner path gets an 11th in.
+  await fill(host.id, ev.id, 8, 'latef');
+  const over = await person('Fe Late Over');
+  const [overSeat] = await db.insert(s.clanMemberships).values({ clanId: host.id, accountId: over.accountId, kind: 'event', eventId: ev.id, source: 'web' }).returning();
+  const refused = await OB.signUpOnBehalf({ event: ev, clanMemberId: overSeat.id, profile: {}, status: 'approved', playerToken: 'late-2' });
+  assert.equal(!refused.ok && refused.status, 403);
+  const typed2 = await CL.findOrCreateClanMember(host.id, 'Late Typed Two');
+  await assert.rejects(() => F.guardFriendsSeats(ev.id, (tx) => EN.backfillApprovedSignups(ev.id, [typed2], tx)), (e: Error) => e instanceof P.PlanLimitError);
+  assert.equal(await P.eventPlayerCount(ev.id), 10);
+});
