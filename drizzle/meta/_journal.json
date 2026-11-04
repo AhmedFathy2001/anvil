@@ -1065,6 +1065,13 @@
       "when": 1793793034614,
       "tag": "0210_other_login_characters",
       "breakpoints": true
+    },
+    {
+      "idx": 211,
+      "version": "7",
+      "when": 1793793094614,
+      "tag": "0211_creator_panels",
+      "breakpoints": true
     }
   ]
 }

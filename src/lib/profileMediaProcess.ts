@@ -9,7 +9,7 @@
 import sharp from 'sharp';
 
 import { isAnimatedPng } from './imageAnimation.ts';
-import { checkMediaHeader, MEDIA_LIMITS, sniffImageType, type ProfileMediaKind } from './profileMediaRules.ts';
+import { checkMediaHeader, MEDIA_LIMITS, sniffImageType, type MediaLimits, type ProfileMediaKind } from './profileMediaRules.ts';
 
 const WEBP_QUALITY = 80;
 /** A decode that takes longer than this is a file we do not want. */
@@ -25,10 +25,11 @@ export type ProcessedMedia =
  */
 export async function processProfileMedia(
   input: Buffer,
-  kind: ProfileMediaKind,
+  kind: ProfileMediaKind | MediaLimits,
   allowAnimation: boolean,
 ): Promise<ProcessedMedia> {
-  const lim = MEDIA_LIMITS[kind];
+  // A profile kind's limits, or a caller's own (lib/spacePage: a creator space's logo, banner, panels).
+  const lim = typeof kind === 'string' ? MEDIA_LIMITS[kind] : kind;
   if (input.length === 0) return { ok: false, error: 'That file is empty.' };
   if (input.length > lim.maxBytes) return { ok: false, error: `That file is too large — at most ${mb(lim.maxBytes)}.` };
 
@@ -45,7 +46,7 @@ export async function processProfileMedia(
   }
   // An APNG decodes to its default frame only, so it is a still here whatever it claims.
   const frames = sniffed === 'png' && isAnimatedPng(input) ? 1 : Math.max(1, meta.pages ?? 1);
-  const headerError = checkMediaHeader(kind, sniffed, {
+  const headerError = checkMediaHeader(lim, sniffed, {
     // Older sharp said 'jpg'; 0.35 always says 'jpeg'. Kept for both.
     format: (meta.format as string | undefined) === 'jpg' ? 'jpeg' : meta.format,
     width: meta.width,

@@ -8,6 +8,7 @@ import KickChannel from './KickChannel';
 import StreamHighlightsSettings from './StreamHighlightsSettings';
 import { MoveChannelPrompt } from './StreamSettings';
 import TwitchChannel from './TwitchChannel';
+import CreatorPageEditor from './CreatorPageEditor';
 
 /**
  * A creator space's settings: the name, the channels its page links to (connected, never typed),
@@ -105,6 +106,9 @@ export default function CreatorSettings() {
           </div>
         </div>
       </section>
+
+      {/* Bio, logo and banner, panels, schedule, featured clip (lib/spacePage). */}
+      <CreatorPageEditor />
 
       <section className="rounded-xl border border-card-border bg-card-bg p-5">
         <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">

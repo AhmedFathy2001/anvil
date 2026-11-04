@@ -4640,3 +4640,91 @@ export const twitchBotTokens = pgTable('twitch_bot_tokens', {
   botUserId: text('bot_user_id'),
   updatedAt: text('updated_at').notNull(),
 });
+
+// ── Space pages: creator branding, panels, schedule, featured (0211) ──────────────────────────────
+//
+// Keyed by clan id, so a Streaming clan could opt in later; today only creator spaces
+// (lib/creatorSpaces) can write them (lib/spacePage). The logo and banner stay on `clans`.
+
+/** One row per space that has filled in its page: bio, schedule zone, featured pick, staff hide. */
+export const spaceProfiles = pgTable('space_profiles', {
+  clanId: integer('clan_id').primaryKey().references(() => clans.id, { onDelete: 'cascade' }),
+  /** Plain text, at most 500 characters. Rendered as text, never HTML. */
+  bio: text('bio'),
+  /** IANA zone the schedule is written in (the host's). */
+  scheduleTz: text('schedule_tz'),
+  /** A pinned stream highlight of this space's own. */
+  featuredHighlightId: integer('featured_highlight_id').references(() => streamHighlights.id, { onDelete: 'set null' }),
+  /** Or a pinned clip link (Twitch, YouTube, Kick or Medal only). */
+  featuredClipUrl: text('featured_clip_url'),
+  featuredTitle: text('featured_title'),
+  /** Platform staff hid this space's promotional content (bio, panels, schedule, featured). */
+  hiddenAt: timestamp('hidden_at', { withTimezone: true }),
+  hiddenByUserId: integer('hidden_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** An "About" panel, like Twitch's: title, plain-text body, optional still image and https link. */
+export const spacePanels = pgTable('space_panels', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull().default(0),
+  title: text('title').notNull(),
+  body: text('body').notNull().default(''),
+  /** Our media host only (an upload through /api/admin/creator/page/media). */
+  imageUrl: text('image_url'),
+  linkUrl: text('link_url'),
+  /** The host hid it. */
+  hidden: boolean('hidden').notNull().default(false),
+  /** Platform staff hid it; the host cannot undo this. */
+  staffHiddenAt: timestamp('staff_hidden_at', { withTimezone: true }),
+  staffHiddenByUserId: integer('staff_hidden_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('space_panels_clan_idx').on(t.clanId, t.position)]);
+export type SpacePanel = typeof spacePanels.$inferSelect;
+
+/** A weekly stream slot in the host's own zone (space_profiles.schedule_tz). */
+export const spaceScheduleSlots = pgTable('space_schedule_slots', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  /** 0 = Sunday … 6 = Saturday, in the host's zone. */
+  weekday: smallint('weekday').notNull(),
+  /** Minutes past local midnight in the host's zone. */
+  minuteOfDay: integer('minute_of_day').notNull(),
+  label: text('label'),
+  position: integer('position').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('space_schedule_slots_clan_idx').on(t.clanId)]);
+
+/**
+ * Domains a space page may not link to (lib/spacePage): what Jagex's rules forbid promoting (gold and
+ * account selling, gambling, bots and unapproved clients, private servers, paid boosting) plus URL
+ * shorteners and link hubs that would hide one. A domain blocks itself and every subdomain. Platform
+ * staff edit it at /staff/promotions.
+ */
+export const promoBlockedDomains = pgTable('promo_blocked_domains', {
+  id: serial('id').primaryKey(),
+  domain: text('domain').notNull(),
+  /** 'rwt' | 'gambling' | 'bots' | 'rsps' | 'boosting' | 'phishing' | 'shortener' | 'other'. */
+  reason: text('reason').notNull().default('other'),
+  addedByUserId: integer('added_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('promo_blocked_domains_domain').on(t.domain)]);
+
+/** A signed-in viewer's report of a space page's content, for the platform staff queue. */
+export const promoReports = pgTable('promo_reports', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  /** Null = the page as a whole (bio, schedule, featured). */
+  panelId: integer('panel_id').references(() => spacePanels.id, { onDelete: 'set null' }),
+  reporterUserId: integer('reporter_user_id').references(() => users.id, { onDelete: 'set null' }),
+  reason: text('reason'),
+  /** What it said when reported, so a later edit cannot erase the evidence. */
+  snapshot: text('snapshot').notNull().default(''),
+  /** 'open' | 'hidden' | 'dismissed'. */
+  status: text('status').notNull().default('open'),
+  resolvedByUserId: integer('resolved_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('promo_reports_status_idx').on(t.status, t.createdAt)]);

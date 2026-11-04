@@ -103,6 +103,9 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         { href: '/staff/feedback', label: 'Feedback', icon: '💬', badge: pending.feedback, matchPrefix: true },
         // Characters clans raised: who owns a character is the platform's call (lib/characterReports).
         { href: '/staff/reports', label: 'Character reports', icon: '⚑', badge: pending.reports, matchPrefix: true },
+        // Creator pages' panels and bios viewers reported, the link blocklist, and what staff hid
+        // (lib/spacePage): Anvil never promotes what Jagex's rules forbid.
+        { href: '/staff/promotions', label: 'Creator pages', icon: '⚐', badge: pending.promoReports, matchPrefix: true },
         // What broke, across every clan — the surface the hourly digest links back to.
         { href: '/staff/errors', label: 'Errors', icon: '⚠', badge: pending.errors, matchPrefix: true },
       ],

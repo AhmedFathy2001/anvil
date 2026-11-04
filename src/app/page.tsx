@@ -31,6 +31,7 @@ import ClanLink from '@/components/ClanLink';
 import CreatorHome from '@/components/CreatorHome';
 import { creatorHomeView, isSpaceStaff } from '@/lib/creatorHome';
 import { highlightsForSpace } from '@/lib/highlights/store';
+import { publicSpacePage } from '@/lib/spacePage/store';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { isCreatorSpace, spaceDescription } from '@/lib/creatorSpaces';
 
@@ -190,12 +191,17 @@ export default async function HomePage() {
     const viewerIsStaff = await isSpaceStaff(clan.id, viewer?.userId);
     // Its own events by the creator rules (lib/creatorHome creatorEventsView), not the clan hub: the
     // hub leaves undated events out, and a creator's undated event is the one viewers can join now.
-    const [creatorView, highlights] = await Promise.all([
+    const canSee = (eventId: number) => canSeeEvent({ eventId, playerId: viewer?.playerId ?? null });
+    const [creatorView, highlights, spacePage] = await Promise.all([
       creatorHomeView(clan.id, { viewerIsStaff }),
       // Stream highlights (lib/highlights), only from events this viewer may open.
-      highlightsForSpace(clan.id, (eventId) => canSeeEvent({ eventId, playerId: viewer?.playerId ?? null })).catch(() => []),
+      highlightsForSpace(clan.id, canSee).catch(() => []),
+      // Bio, panels, schedule, featured (lib/spacePage). Hidden content never comes back from here.
+      publicSpacePage({ id: clan.id, slug: clan.slug }, { canSeeEvent: canSee }).catch(() => null),
     ]);
-    if (creatorView) return <CreatorHome view={creatorView} highlights={highlights} />;
+    if (creatorView) {
+      return <CreatorHome view={creatorView} highlights={highlights} page={spacePage} canReport={!!viewer?.userId} />;
+    }
   }
   const session = await verifyUser();
   const myMemberIds = await viewerMemberIds(clan.id, session);

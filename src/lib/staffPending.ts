@@ -7,6 +7,7 @@ import { openCharacterReportCount } from '@/lib/characterReports';
 import { pendingCount as pendingGuideProposals } from '@/lib/guideProposals';
 import { pendingCount as pendingLibraryProposals } from '@/lib/libraryProposals';
 import { nameCollisions } from '@/lib/platformView';
+import { openPromoReportCount } from '@/lib/spacePage/store';
 
 // What is waiting on a platform operator, counted — so the number can sit on the Platform link
 // everywhere in the app instead of only inside /staff, where you had to already be to see it.
@@ -23,6 +24,8 @@ export interface StaffPending {
   errors: number;
   billing: number;
   nameDisputes: number;
+  /** Reports on creator pages' promotional content (lib/spacePage). */
+  promoReports: number;
   total: number;
 }
 
@@ -46,7 +49,7 @@ async function billingNeedingALook(now: number): Promise<number> {
 
 async function compute(): Promise<StaffPending> {
   const now = Date.now();
-  const [reports, guideProposals, libraryProposals, [fb], [errs], billing, disputes] = await Promise.all([
+  const [reports, guideProposals, libraryProposals, [fb], [errs], billing, disputes, promoReports] = await Promise.all([
     openCharacterReportCount(),
     pendingGuideProposals(),
     pendingLibraryProposals(),
@@ -56,6 +59,7 @@ async function compute(): Promise<StaffPending> {
     db.select({ n: count() }).from(errorEvents).where(isNull(errorEvents.resolvedAt)),
     billingNeedingALook(now),
     nameCollisions(),
+    openPromoReportCount(),
   ]);
   const p = {
     reports,
@@ -65,6 +69,7 @@ async function compute(): Promise<StaffPending> {
     errors: Number(errs?.n ?? 0),
     billing,
     nameDisputes: disputes.length,
+    promoReports,
   };
   return { ...p, total: Object.values(p).reduce((a, b) => a + b, 0) };
 }
@@ -94,6 +99,7 @@ export function pendingSummary(p: StaffPending): string {
     [p.guideProposals, 'guide proposals'],
     [p.libraryProposals, 'library suggestions'],
     [p.nameDisputes, 'name disputes'],
+    [p.promoReports, 'creator page reports'],
   ];
   return parts.filter(([n]) => n > 0).map(([n, l]) => `${n} ${l}`).join(' · ') || 'Nothing waiting';
 }
