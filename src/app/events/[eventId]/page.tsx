@@ -21,6 +21,7 @@ import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
+import { siteReactions } from '@/lib/siteReactions';
 import { parseStamp } from '@/lib/dbTime';
 import { tileKindKey } from '@/lib/tileKinds';
 import { isManualTile } from '@/lib/clogManual';
@@ -413,6 +414,9 @@ export default async function EventScoreboardPage({
   const momentStreamLinks = linksByMoment(streamHighlights);
   const tileHighlights: Record<number, typeof streamHighlights> = {};
   for (const h of streamHighlights) if (h.tileId != null) (tileHighlights[h.tileId] ??= []).push(h);
+  // GZ / Sad / Sit under each (lib/siteReactions): counts for anyone who sees the row, who gave them
+  // (and a press) for the board's players and the host's staff, as in the plugin's Feed.
+  const momentReactions = eventMoments.length ? await siteReactions(eventMoments, { eventId: event.id, hostClanId: event.clanId }, session?.userId ?? null) : undefined;
   // Who the game was kind to this event, and who it wasn't (lib/eventLuck) — once it has started.
   // Cross-team by construction (luckiest / unluckiest across the whole board) — held while hidden.
   const luck =
@@ -851,7 +855,7 @@ export default async function EventScoreboardPage({
         )}
         <EventFirsts firsts={firsts} />
         <HighlightsStrip highlights={highlightStrip} />
-        <MomentsFeed moments={eventMoments} streamLinks={momentStreamLinks} />
+        <MomentsFeed moments={eventMoments} streamLinks={momentStreamLinks} reactions={momentReactions} />
         <ScoreboardClient
           curtain={curtain}
           event={event}

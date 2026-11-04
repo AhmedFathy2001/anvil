@@ -58,14 +58,12 @@ export default function MemberCapNotice({ status }: { status: CapStatus }) {
               Review roster
             </ClanLink>
             {status.state !== 'approaching' && (
-              <a
-                href="https://anvilosrs.com/#pricing"
-                target="_blank"
-                rel="noopener noreferrer"
+              <ClanLink
+                href="/admin/plan"
                 className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gold text-brown-dark hover:bg-yellow-500 transition-colors"
               >
                 Upgrade plan
-              </a>
+              </ClanLink>
             )}
           </div>
         </div>

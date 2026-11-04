@@ -30,11 +30,10 @@ import { normalizeRsn, pluginRsnHintOnly, resolvePluginClan, resolvePluginMember
 import { type BoardSummary, liveBoardsForCharacter, summarizeBoards } from '@/lib/pluginBoards';
 import { type SupporterInk, supporterForUser, supporterInksForRsns } from '@/lib/supporter';
 import { momentsForClan } from '@/lib/momentsStore';
-import { NO_REACTIONS, REACTION_KINDS, boardMoment, clanMomentKind, isClanMember, momentInClan, reactionSummaries, toggleReaction } from '@/lib/momentReactions';
-import { chatAccess } from '@/lib/eventChat';
+import { NO_REACTIONS, isClanMember, momentInClan, reactionSummaries, toggleReaction } from '@/lib/momentReactions';
+import { REACT_ERRORS, checkReaction } from '@/lib/reactionAccess';
 import { FEED_MAX, FEED_STEP, type FeedItem, momentsFeedUi } from './momentsUi';
 import { chatAct, feedView } from './feedView';
-import { rowReactKinds } from './feedUi';
 
 import { type BoardContext, type BoardState, type BoardTile, STATUSES, type Status, boardRowsUi, boardUi, joinToClaimLine } from './boardUi';
 import { clanCardUi, clanCompareUi, clanSearchUi } from './clanUi';
@@ -51,7 +50,7 @@ import { notFoundUi, playerCardUi } from './playerCardUi';
 import { casUi, clogPageUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from './playerMoreUi';
 import { rosterUi, teamsUi } from './teamsUi';
 import { standingsScopeForPlugin } from '@/lib/standingsAccess';
-import { curtainInfo, standingsHidden, standingsHiddenNotice } from '@/lib/standingsVisibility';
+import { curtainInfo, standingsHiddenNotice } from '@/lib/standingsVisibility';
 
 // Every view the panel can ask for, by name, and every action it can send. The plugin passes the
 // view's args as query parameters, plus `clan` (the clan it is pointed at) on every call.
@@ -559,47 +558,21 @@ async function reactAct(request: Request, a: Args): Promise<View> {
  * death's Sad / Sit, from a clanmate; a board's death (`e`) takes Sad / Sit from anyone playing on it.
  */
 async function reactRowAct(request: Request, a: Args): Promise<View> {
-  if (a.e) return reactBoardRowAct(request, a);
   const viewer = await verifyPluginTokenUser(request);
-  const clan = await visibleClan(request, a.slug ?? '');
   const id = positive(a.id);
-  const kind = REACTION_KINDS.find((k) => k === a.kind);
-  if (!viewer || !clan || !id || !kind) return { ui: text('Couldn’t react to that.', 'error') };
+  const eventId = a.e ? positive(a.e) : null;
+  const clan = a.e ? null : await visibleClan(request, a.slug ?? '');
+  if (!viewer || !id || !(eventId || clan)) return { ui: text(REACT_ERRORS.bad, 'error') };
   const rl = await rateLimit(request, `plugin-react:${viewer.userId}`, { limit: 40, windowMs: 60_000 });
   if (!rl.ok) return { ui: text('Slow down a little.', 'error') };
-  if (!(await canReactIn(request, viewer.userId, clan))) return { ui: text('Only clanmates can GZ these drops.', 'error') };
-  if (kind === 'gold' && !(await supporterForUser(viewer.userId))) return { ui: text('Gold GZs are an Anvil Supporter reaction.', 'error') };
-  const momentKind = await clanMomentKind(id, clan.id);
-  if (momentKind == null) return { ui: text('That drop isn’t in this clan’s feed.', 'error') };
-  // Gold rides on a GZ; everything else must be one this row offers (no GZ on a death, no Sit on a pet).
-  const offered = rowReactKinds(momentKind) as string[];
-  if (!offered.includes(kind === 'gold' ? 'gz' : kind)) return { ui: text('Couldn’t react to that.', 'error') };
-  await toggleReaction(id, viewer.userId, kind);
-  return { ui: gap(0) };
-}
-
-async function reactBoardRowAct(request: Request, a: Args): Promise<View> {
-  const viewer = await verifyPluginTokenUser(request);
-  const eventId = positive(a.e);
-  const id = positive(a.id);
-  const kind = REACTION_KINDS.find((k) => k === a.kind);
-  if (!viewer || !eventId || !id || !kind) return { ui: text('Couldn’t react to that.', 'error') };
-  const rl = await rateLimit(request, `plugin-react:${viewer.userId}`, { limit: 40, windowMs: 60_000 });
-  if (!rl.ok) return { ui: text('Slow down a little.', 'error') };
-  const access = await chatAccess(eventId, viewer.userId);
-  if (!access?.member) return { ui: text('Only this event’s players can react here.', 'error') };
-  const m = await boardMoment(id, eventId);
-  if (!m) return { ui: text('That isn’t in this event’s feed.', 'error') };
-  // Behind the curtain a player sees only their own team's rows; the host's staff see all.
-  if (!access.staff && m.teamId !== access.teamId) {
-    // clan-scope: global -- by the board id chatAccess just admitted the viewer to.
-    const ev = await db.query.events.findFirst({ where: eq(events.id, eventId) });
-    if (!ev || standingsHidden(ev)) return { ui: text('That isn’t in this event’s feed.', 'error') };
-  }
-  // Whatever the row offers: GZ (gold for a Supporter) on a drop, pet or achievement; Sad / Sit on a death.
-  if (kind === 'gold' && !(await supporterForUser(viewer.userId))) return { ui: text('Gold GZs are an Anvil Supporter reaction.', 'error') };
-  if (!(rowReactKinds(m.kind) as string[]).includes(kind === 'gold' ? 'gz' : kind)) return { ui: text('Couldn’t react to that.', 'error') };
-  await toggleReaction(id, viewer.userId, kind);
+  // The rule is shared with the site's reactions (lib/reactionAccess), so the two can't drift.
+  const verdict = eventId
+    ? await checkReaction(viewer.userId, { eventId }, id, a.kind)
+    : await checkReaction(viewer.userId, { clanId: clan!.id }, id, a.kind, {
+        labStaff: clan!.slug === LAB_CLAN_SLUG && (await pluginStaff(request)),
+      });
+  if (!verdict.ok) return { ui: text(verdict.error, 'error') };
+  await toggleReaction(id, viewer.userId, verdict.kind);
   return { ui: gap(0) };
 }
 
