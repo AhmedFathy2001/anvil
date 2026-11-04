@@ -14,6 +14,7 @@ import { db } from '@/db';
 import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clanStaff, clans, users } from '@/db/schema';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { findOrCreateSeat } from '@/lib/roster';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export type GuestPolicy = 'approval' | 'open' | 'closed';
 
@@ -76,6 +77,12 @@ export async function admit(opts: {
    * request every time somebody logged in a character.
    */
   fileRequest?: boolean;
+  /**
+   * The admission rule for THIS entry, when it is the event's to decide rather than the clan's: a
+   * creator space's event says `open` or `approval` per event (lib/creatorSpaces). A clan that is
+   * `closed` stays closed whatever is passed.
+   */
+  policy?: Exclude<GuestPolicy, 'closed'>;
 }): Promise<AdmitResult> {
   const { clanId, accountId } = opts;
 
@@ -113,14 +120,23 @@ export async function admit(opts: {
   // the exact first impression a new clan gets, so it reads as the product being broken.
   //
   // Staff, not owner: an admin or moderator the owner appointed is equally not applying to visit.
+  //
+  // In a CREATOR SPACE the seat is a guest one, like every other player's: there is no in-game clan
+  // to be a member of, and a member seat would collide with the creator's real clan membership (an
+  // account is a member of one clan at a time — `clan_memberships_one_member_seat`).
+  const hostKind = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true } });
   if (playerId != null && (await staffsThisClan(clanId, playerId))) {
-    const seatId = await findOrCreateSeat(clanId, accountId, { kind: 'member', source: 'admin' });
+    const seatId = await findOrCreateSeat(clanId, accountId, {
+      kind: isCreatorSpace(hostKind) ? 'guest' : 'member',
+      source: 'admin',
+    });
     await db.update(clanMemberships).set({ leftAt: null }).where(eq(clanMemberships.id, seatId));
     return { outcome: 'seated', seatId };
   }
 
-  const policy = await guestPolicyOf(clanId);
-  if (policy === 'closed') return { outcome: 'refused', reason: 'closed' };
+  const clanPolicy = await guestPolicyOf(clanId);
+  if (clanPolicy === 'closed') return { outcome: 'refused', reason: 'closed' };
+  const policy: GuestPolicy = opts.policy ?? clanPolicy;
 
   if (policy === 'open') {
     const seatId = await findOrCreateSeat(clanId, accountId, { kind: 'guest', source: 'application' });

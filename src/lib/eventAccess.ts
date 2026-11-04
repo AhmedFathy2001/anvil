@@ -17,6 +17,7 @@ import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventInvites
 import { isBannedFromClan } from '@/lib/clanBans';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { entryOf, visibilityOf } from '@/lib/eventVisibility';
+import { clanKindOf, outsiderNeedsApproval } from '@/lib/creatorSpaces';
 
 export { isEntry, isVisibility, type EventEntry, type EventVisibility } from '@/lib/eventVisibility';
 
@@ -225,8 +226,17 @@ export async function canEnterEvent(opts: {
     (await invitedToEvent(opts.eventId, opts.playerId)) ||
     (await inAcceptedCohostClan(opts.eventId, opts.playerId));
 
-  const entry = entryOf(event.entry);
-  return { outcome: 'outsider', needsApproval: entry === 'approval' || !vouched };
+  //
+  // A CREATOR SPACE is the exception, and the reason is the roster this whole comment protects: a
+  // creator space has none. Its seats are only ever event guests, there is no in-game clan whose
+  // member list a stranger could write themselves onto, and a streamer's viewers are exactly the
+  // strangers it exists for. So there `open` means open, and `approval` still asks about everyone.
+  // The rule itself is lib/creatorSpaces outsiderNeedsApproval, shared with its tests.
+  const host = await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true } });
+  return {
+    outcome: 'outsider',
+    needsApproval: outsiderNeedsApproval({ clanKind: clanKindOf(host?.kind), entry: entryOf(event.entry), vouched }),
+  };
 }
 
 /**

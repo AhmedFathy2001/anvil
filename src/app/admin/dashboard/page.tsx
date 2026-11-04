@@ -14,6 +14,7 @@ import { and, count, desc, eq, gt, inArray, isNull, notInArray, or, sql } from '
 import { eventTileCount, isLadderFormat } from '@/lib/utils';
 import { writtenTile } from '@/lib/writtenTiles';
 import { getSetupStatus } from '@/lib/setupStatus';
+import CreatorDashboard from './CreatorDashboard';
 import SetupChecklist from '@/components/SetupChecklist';
 import MemberCapNotice from '@/components/MemberCapNotice';
 import { rosterCapStatus } from '@/lib/member-cap';
@@ -60,6 +61,9 @@ export default async function AdminDashboardPage() {
   // owner back to the wizard on every Dashboard click; the shown flag is written before the redirect
   // so the next visit lands here, where the checklist still offers the same steps.
   const setup = await getSetupStatus(clan.id);
+  // A creator space (lib/creatorSpaces) has no roster: no member counts, no roster nags, no weeklies.
+  const creator = setup.creator;
+  if (creator) return <CreatorDashboard clanId={clan.id} setup={setup} />;
   if (setup.isFresh && !setup.wizardShown) {
     await setSetting(clan.id, 'setup_wizard_shown', new Date().toISOString());
     redirect(await clanHref('/admin/setup?welcome=1'));
@@ -359,7 +363,7 @@ export default async function AdminDashboardPage() {
       events: pendingSignupEvents,
     },
     accountChangeRequests: accountChangeCount,
-    rosterSize: activeMembers,
+    rosterSize: creator ? undefined : activeMembers,
     // A big free clan, the week something of theirs finished: the one plan nudge (app/admin/plan).
     plan:
       planOf(clan.plan).id === 'free' && activeMembers > (PLANS.free.memberCap ?? Infinity)
@@ -424,17 +428,19 @@ export default async function AdminDashboardPage() {
           {new Date(now).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
         </h1>
         <p className="text-text-muted text-[15px] mt-2">
-          {activeMembers} on the roster · {running.length} running · {openCount(queue)} waiting on you
+          {creator ? '' : `${activeMembers} on the roster · `}
+          {running.length} running · {openCount(queue)} waiting on you
         </p>
       </header>
 
-      <MemberCapNotice status={capStatus} />
+      {!creator && <MemberCapNotice status={capStatus} />}
 
       {!setup.allDone && !setup.dismissed && (
         <SetupChecklist
           steps={setup.steps}
           completedCount={setup.completedCount}
           totalCount={setup.totalCount}
+          creator={creator}
         />
       )}
 
@@ -476,20 +482,24 @@ export default async function AdminDashboardPage() {
           <span className="text-xs text-text-muted font-normal">last 7 days</span>
         </h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <PulseTile
-            label="Roster"
-            value={activeMembers}
-            delta={netRoster}
-            sub={`${joined7d} joined · ${left7d} left`}
-            href="/admin/people"
-          />
-          <PulseTile
-            label="Played this week"
-            value={playedThisWeek}
-            share={activeMembers > 0 ? playedThisWeek / activeMembers : 0}
-            sub={`of ${activeMembers} · only members running the plugin report in`}
-            href="/admin/people"
-          />
+          {!creator && (
+            <PulseTile
+              label="Roster"
+              value={activeMembers}
+              delta={netRoster}
+              sub={`${joined7d} joined · ${left7d} left`}
+              href="/admin/people"
+            />
+          )}
+          {!creator && (
+            <PulseTile
+              label="Played this week"
+              value={playedThisWeek}
+              share={activeMembers > 0 ? playedThisWeek / activeMembers : 0}
+              sub={`of ${activeMembers} · only members running the plugin report in`}
+              href="/admin/people"
+            />
+          )}
           {/* A measurement is worth reading whoever you are; only the link is an admin's. */}
           <PulseTile
             label="Tiles completed"
@@ -530,6 +540,7 @@ export default async function AdminDashboardPage() {
             provisionalCount={provisionalCount}
             feeCounts={feeCounts}
             unscheduled={unscheduled.length}
+            creator={creator}
           />
         </aside>
       </div>
@@ -1115,12 +1126,15 @@ function Snapshot({
   provisionalCount,
   feeCounts,
   unscheduled,
+  creator = false,
 }: {
   running: ScheduleItem[];
   activeMembers: number;
   provisionalCount: number;
   feeCounts: { owed: number; toSign: number };
   unscheduled: number;
+  /** A creator space: the roster and weekly rows mean nothing there. */
+  creator?: boolean;
 }) {
   const weekly = running.find((r) => r.kind === 'weekly');
   return (
@@ -1130,20 +1144,24 @@ function Snapshot({
         Snapshot
       </h2>
       <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
-        <SnapshotRow
-          label="This week's competition"
-          value={weekly?.title ?? 'none running'}
-          // The competition itself when there is one — /admin/weekly is where you SCHEDULE one now,
-          // which is the wrong answer to "what is running".
-          href={weekly ? weekly.href : '/admin/weekly'}
-        />
-        <SnapshotRow
-          label="Pending mod review"
-          value={`${provisionalCount} member${provisionalCount === 1 ? '' : 's'}`}
-          href="/admin/people/needs-review"
-          emphasize={provisionalCount > 0}
-        />
-        <SnapshotRow label="Roster size" value={`${activeMembers} active`} href="/admin/people" />
+        {!creator && (
+          <SnapshotRow
+            label="This week's competition"
+            value={weekly?.title ?? 'none running'}
+            // The competition itself when there is one — /admin/weekly is where you SCHEDULE one now,
+            // which is the wrong answer to "what is running".
+            href={weekly ? weekly.href : '/admin/weekly'}
+          />
+        )}
+        {!creator && (
+          <SnapshotRow
+            label="Pending mod review"
+            value={`${provisionalCount} member${provisionalCount === 1 ? '' : 's'}`}
+            href="/admin/people/needs-review"
+            emphasize={provisionalCount > 0}
+          />
+        )}
+        {!creator && <SnapshotRow label="Roster size" value={`${activeMembers} active`} href="/admin/people" />}
         <SnapshotRow
           label="Fees to collect"
           value={`${feeCounts.owed} fee${feeCounts.owed === 1 ? '' : 's'}`}

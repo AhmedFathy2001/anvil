@@ -41,6 +41,10 @@ export const clans = pgTable('clans', {
   customDomain: text('custom_domain'),
   // Display name, shown on the site and in Discord posts. Need not match the in-game clan name.
   name: text('name').notNull(),
+  // What this space IS. 'clan' — an in-game OSRS clan (every row from before 0187, and the default).
+  // 'creator' — a streamer's space for hosting events with NO in-game clan behind it: no in-game
+  // name, no roster sync, no weeklies; players arrive as guests of its events. See lib/creatorSpaces.
+  kind: text('kind').notNull().default('clan'),
   // The exact OSRS clan name — the only thing tying this site to a real clan in the game.
   //
   // THE one place it lives. It used to be here AND in a `clan_ingame_name` setting, with the

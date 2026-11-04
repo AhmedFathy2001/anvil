@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
-import { clanFetch } from '@/lib/clanFetch';
+import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { parseStamp } from '@/lib/dbTime';
 
 type Verdict =
@@ -44,11 +44,14 @@ export default function EnterEvent({
   eventId,
   signupFee,
   signupsOpen,
+  creator = false,
 }: {
   eventId: number;
   signupFee: number | null;
   /** The sign-up window is open, so the sign-up page is somewhere to send them. */
   signupsOpen: boolean;
+  /** A creator space's event (lib/creatorSpaces): one big Join button, plain words, sign-up included. */
+  creator?: boolean;
 }) {
   const router = useRouter();
   const [info, setInfo] = useState<EnterInfo | null>(null);
@@ -74,6 +77,7 @@ export default function EnterEvent({
   }, [eventId]);
 
   if (!info) return null;
+  if (creator) return <CreatorJoin eventId={eventId} info={info} signupsOpen={signupsOpen} signupFee={signupFee} />;
   const { verdict, options } = info;
 
   // The server already filtered to outsiders, but a verdict can change between render and fetch —
@@ -179,7 +183,7 @@ export default function EnterEvent({
         <div className="text-sm text-text-muted">
           {asks
             ? 'The host reviews entries from outside the clan.'
-            : 'You’ll join as a guest of the hosting clan.'}
+            : 'You’ll join as a guest of the host.'}
           {signupFee ? ` Sign-up fee: ${signupFee.toLocaleString()} gp.` : ''}
         </div>
       </div>
@@ -201,6 +205,171 @@ export default function EnterEvent({
           className="rounded-lg border border-gold/30 bg-gold/10 px-4 py-2 text-sm font-medium text-gold transition-colors hover:bg-gold/20 disabled:opacity-50"
         >
           {busy ? 'Sending…' : asks ? 'Ask to sign up' : 'Sign up'}
+        </button>
+      </div>
+      {error && <p className="w-full text-[12.5px] text-accent-red">{error}</p>}
+    </Card>
+  );
+}
+
+/**
+ * The creator-space join card: ONE button. Pressing it takes the seat AND signs them up, so a viewer
+ * never meets the two-step "enter, then sign up" a clan event has. Plain words only. If the sign-up
+ * needs anything more (questions, several characters), they land on the sign-up page instead.
+ */
+function CreatorJoin({
+  eventId,
+  info,
+  signupsOpen,
+  signupFee,
+}: {
+  eventId: number;
+  info: EnterInfo;
+  signupsOpen: boolean;
+  signupFee: number | null;
+}) {
+  const router = useRouter();
+  const [chosen, setChosen] = useState<number | null>(info.options.length === 1 ? info.options[0].id : null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<'idle' | 'joined' | 'asked'>(info.pendingSince ? 'asked' : 'idle');
+  const { verdict, options } = info;
+
+  if (verdict.outcome === 'insider') return null;
+  if (verdict.outcome === 'refused') {
+    if (verdict.reason !== 'banned') return null;
+    return (
+      <Card tone="muted">
+        <div className="font-semibold">You can’t join this one</div>
+        <div className="text-sm text-text-muted">The host has blocked you from their events.</div>
+      </Card>
+    );
+  }
+
+  if (state === 'joined') {
+    return (
+      <div className="mb-6 rounded-xl border border-accent-green/40 bg-accent-green/10 p-5">
+        <div className="text-lg font-semibold text-accent-green-light">You’re in!</div>
+        <p className="mt-1 text-sm text-text-muted">
+          Install the Anvil plugin in RuneLite to start tracking — your drops and kills then count by themselves.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-3">
+          <ClanLink
+            href="/guide/plugin"
+            className="rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+          >
+            How to install the plugin
+          </ClanLink>
+          <button
+            type="button"
+            onClick={() => router.refresh()}
+            className="rounded-xl border border-gold/40 px-4 py-2.5 text-sm text-gold transition-colors hover:border-gold"
+          >
+            See the board
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (state === 'asked') {
+    return (
+      <Card tone="info">
+        <div className="min-w-0">
+          <div className="font-semibold">Waiting for the host</div>
+          <div className="text-sm text-text-muted">You asked to join. You’ll be able to play as soon as they say yes.</div>
+        </div>
+      </Card>
+    );
+  }
+
+  if (!signupsOpen) return null;
+
+  // No character they have proved is theirs: that is the one thing to do first.
+  if (options.length === 0) {
+    return (
+      <Card tone="info">
+        <div className="min-w-0">
+          <div className="text-lg font-semibold">Join this event</div>
+          <div className="text-sm text-text-muted">
+            {info.hasCharacter ? 'First, prove your RuneScape character is yours.' : 'First, add your RuneScape character.'}
+          </div>
+        </div>
+        <ClanLink
+          href={info.hasCharacter ? '/profile' : `/events/${eventId}/signup`}
+          className="shrink-0 rounded-xl bg-gold px-6 py-3 text-base font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+        >
+          {info.hasCharacter ? 'Prove it’s mine' : 'Add my character'}
+        </ClanLink>
+      </Card>
+    );
+  }
+
+  const asks = verdict.needsApproval;
+
+  async function join() {
+    if (chosen == null) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await clanFetch(`/api/events/${eventId}/enter`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: chosen }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error ?? 'Could not join');
+      if (data?.pending) {
+        setState('asked');
+        return;
+      }
+      if (typeof data?.seatId === 'number') {
+        const signup = await clanFetch(`/api/events/${eventId}/signup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clanMemberIds: [data.seatId] }),
+        });
+        if (signup.ok) {
+          setState('joined');
+          return;
+        }
+      }
+      // The event asks for more than one press can give (questions, several characters).
+      router.push(clanUrl(`/events/${eventId}/signup`));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card tone="info">
+      <div className="min-w-0">
+        <div className="text-lg font-semibold">{asks ? 'Ask to join this event' : 'Join this event'}</div>
+        <div className="text-sm text-text-muted">
+          {asks ? 'The host says yes to each player.' : 'One click and you’re playing.'}
+          {signupFee ? ` Entry: ${signupFee.toLocaleString()} gp.` : ''}
+        </div>
+      </div>
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        {options.length > 1 && (
+          <Select
+            value={chosen != null ? String(chosen) : ''}
+            onChange={(v) => setChosen(Number(v) || null)}
+            placeholder="Which character?"
+            ariaLabel="Which character"
+            className="min-w-[10rem]"
+            options={options.map((o) => ({ value: String(o.id), label: o.rsn }))}
+          />
+        )}
+        <button
+          type="button"
+          onClick={join}
+          disabled={busy || chosen == null}
+          className="rounded-xl bg-gold px-6 py-3 text-base font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
+        >
+          {busy ? 'Joining…' : asks ? 'Ask to join' : 'Join'}
         </button>
       </div>
       {error && <p className="w-full text-[12.5px] text-accent-red">{error}</p>}

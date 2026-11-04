@@ -14,6 +14,8 @@ export interface DirectoryClan {
   verified: boolean;
   /** 'approval' | 'open' | 'closed' — whether a stranger can ask to join at all. */
   guestPolicy: string;
+  /** 'creator' for a creator space (lib/creatorSpaces). */
+  kind?: string;
   /** Members who gained anything in seven days. A clan's pulse, not its size. */
   activeThisWeek: number;
   xpThisWeek: number;

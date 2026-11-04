@@ -13,6 +13,7 @@ import AdminSidebar, { type SidebarGroup } from './_components/AdminSidebar';
 import AdminSettingsSearch from './_components/AdminSettingsSearch';
 import { FEATURES } from '@/lib/features';
 import { getSetupStatus } from '@/lib/setupStatus';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { pendingClaimRequests } from '@/lib/claimRequests';
 import { pendingUpdateCount } from '@/lib/guides';
 import { coHostedBoardLinks } from '@/lib/coHost';
@@ -106,6 +107,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     : 0;
 
   const isAdmin = atLeast(session.role, 'admin');
+  // A creator space (lib/creatorSpaces) has no roster, in-game verification or weeklies, so their
+  // entries go and the clan words become the space's.
+  const creator = isCreatorSpace(clan);
   // An authoring grant without a tier: their whole world is the boards they hold. Give them ONLY
   // "My boards"; no dashboard, weekly, clan or schedule. The path gate above already enforced it.
   const isScopedEditor = !isStaffRole(session.role) && session.canEditTiles;
@@ -210,11 +214,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // The people, and who helps run things. Staff & roles is the one place jobs are given.
   const guideUpdates = await pendingUpdateCount(clan.id);
   groups.push({
-    label: 'Clan',
+    label: creator ? 'Your space' : 'Clan',
     items: [
       // One entry for the People hub — Roster, Needs review, Staff & roles and Who can join are its
       // tabs (app/admin/people/layout). Staff & roles used to be a second sidebar item for one tab.
-      { href: '/admin/people', label: 'People', icon: '🛡️', sprite: 'bandos', badge: provisionalCount, matchPrefix: true },
+      // A creator space's hub is its players and staff — no roster behind it.
+      creator
+        ? { href: '/admin/people', label: 'Players', icon: '🛡️', sprite: 'bandos' as const, matchPrefix: true }
+        : { href: '/admin/people', label: 'People', icon: '🛡️', sprite: 'bandos' as const, badge: provisionalCount, matchPrefix: true },
       { href: '/admin/guides', label: 'Guides', icon: '📖', sprite: 'graceful', badge: guideUpdates, matchPrefix: true },
       // Every staff seat may read the clan's history — admins included. It is also a tab of Clan
       // settings, but "who changed what" is a daily question, not a setting, so it stays listed here
@@ -252,13 +259,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         // SETUP IS A STATE, NOT A PLACE: listed only while unfinished, and first while it is.
         ...(!setup || setup.allDone || setup.dismissed
           ? []
-          : [{ href: '/admin/setup', label: 'Finish setup', icon: '🧭', sprite: 'hammer' as const }]),
+          : [{ href: creator ? '/admin/dashboard' : '/admin/setup', label: 'Finish setup', icon: '🧭', sprite: 'hammer' as const }]),
         { href: '/admin/integrations', label: 'Discord', icon: '🔌', sprite: 'discord' },
         // Billing lived only at /portal (profile → Manage billing), where nobody running a clan looks.
         { href: '/admin/plan', label: 'Plan and billing', icon: '💳', sprite: 'coins' as const },
         {
           href: '/admin/clan',
-          label: 'Clan settings',
+          label: creator ? 'Space settings' : 'Clan settings',
           icon: '🏰',
           sprite: 'zenyte',
           matchPrefix: true,
@@ -273,7 +280,35 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // The one "make something" action. Admins get the full picker; a moderator may only schedule a
   // competition (lib/adminAccess draws that line by path), so theirs goes straight there — and not at
   // all when the clan has competitions switched off.
-  const primary = isAdmin
+  // A CREATOR SPACE gets the short menu: its events, its players, its settings. Everything clan-ish
+  // or advanced (schedule, task library, guides, money, plan, activity log) stays reachable by
+  // address but is not on the menu — the person running it has usually never used Anvil before.
+  if (creator) {
+    groups.length = 0;
+    groups.push({
+      label: 'Your space',
+      items: [
+        { href: '/admin/dashboard', label: 'Your events', icon: '⌂', sprite: 'hammer' as const },
+        ...(canManageEvents
+          ? [{ href: '/admin/events', label: 'All events', icon: '🎯', sprite: 'fireCape' as const, matchPrefix: true }]
+          : []),
+        ...(canCheckProofs
+          ? [{ href: '/admin/proofs', label: 'Proofs to check', icon: '🔎', sprite: 'clue' as const, badge: flaggedCount, matchPrefix: true }]
+          : []),
+        { href: '/admin/people', label: 'Players', icon: '🛡️', sprite: 'bandos' as const, matchPrefix: true },
+        ...(isAdmin
+          ? [
+              { href: '/admin/clan', label: 'Settings', icon: '🏰', sprite: 'zenyte' as const, matchPrefix: true },
+              { href: '/admin/integrations', label: 'Discord (optional)', icon: '🔌', sprite: 'discord' as const },
+            ]
+          : []),
+      ],
+    });
+  }
+
+  const primary = creator && isAdmin
+    ? { href: '/admin/events/first', label: '+ New event' }
+    : isAdmin
     ? { href: '/admin/events/new', label: '+ New event' }
     : features.on('weekly')
       ? { href: '/admin/weekly', label: '+ New competition' }

@@ -1,5 +1,7 @@
 import { verifyAdmin } from '@/lib/auth';
 import ClanSettingsHeader from './ClanSettingsHeader';
+import { requireClan } from '@/lib/clanContext';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,9 +11,12 @@ export const dynamic = 'force-dynamic';
 // Rules & scoring) match: a moderator reaches the Activity log from the sidebar and sees it alone.
 export default async function ClanLayout({ children }: { children: React.ReactNode }) {
   const isAdmin = !!(await verifyAdmin());
+  // A creator space has one settings page (name, channel links, "Advertise on Anvil"); the clan
+  // tabs — features, rules & scoring, profile — stay off its screen (lib/creatorSpaces).
+  const creator = isCreatorSpace(await requireClan());
   return (
     <div>
-      <ClanSettingsHeader isAdmin={isAdmin} />
+      {!creator && <ClanSettingsHeader isAdmin={isAdmin} />}
       {children}
     </div>
   );

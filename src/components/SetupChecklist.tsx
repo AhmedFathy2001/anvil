@@ -9,12 +9,14 @@ interface Props {
   steps: SetupStep[];
   completedCount: number;
   totalCount: number;
+  /** A creator space: worded for an event host, not a clan. */
+  creator?: boolean;
 }
 
 // Dashboard "finish setting up" card. Rendered by the dashboard only while setup is
 // incomplete and un-dismissed; step status is computed live upstream so it never lies.
 // Dismissing persists the advisory `setup_completed` flag and hides the card.
-export default function SetupChecklist({ steps, completedCount, totalCount }: Props) {
+export default function SetupChecklist({ steps, completedCount, totalCount, creator = false }: Props) {
   const [hidden, setHidden] = useState(false);
   const [dismissing, setDismissing] = useState(false);
 
@@ -46,7 +48,8 @@ export default function SetupChecklist({ steps, completedCount, totalCount }: Pr
             Finish setting up Anvil
           </h2>
           <p className="text-xs text-text-muted mt-1">
-            {completedCount} of {totalCount} done — get your clan ready to run its first bingo.
+            {completedCount} of {totalCount} done —{' '}
+            {creator ? 'get your first event in front of your viewers.' : 'get your clan ready to run its first bingo.'}
           </p>
         </div>
         <button

@@ -5,6 +5,7 @@ import { requireClan } from '@/lib/clanContext';
 import { getClanFeatures } from '@/lib/clanFeatures';
 import { clanHref } from '@/lib/clanPath';
 import { FEATURES } from '@/lib/features';
+import { CREATOR_ONLY_OFF, isCreatorSpace } from '@/lib/creatorSpaces';
 import FeaturesClient from './FeaturesClient';
 import ClanSettingsHeader from '../clan/ClanSettingsHeader';
 
@@ -23,7 +24,13 @@ export default async function FeaturesPage() {
   return (
     <div>
       <ClanSettingsHeader isAdmin />
-      <FeaturesClient initial={FEATURES.map((f) => ({ key: f.key, on: flags.on(f.key) }))} />
+      {/* A creator space never sees the switches for modules it cannot have (lib/creatorSpaces). */}
+      <FeaturesClient
+        initial={FEATURES.filter((f) => !isCreatorSpace(clan) || !CREATOR_ONLY_OFF.includes(f.key)).map((f) => ({
+          key: f.key,
+          on: flags.on(f.key),
+        }))}
+      />
     </div>
   );
 }

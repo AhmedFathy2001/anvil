@@ -6,6 +6,9 @@ import { atLeast } from '@/lib/clanRoles';
 import { requireClan } from '@/lib/clanContext';
 import { pendingCoHostInvites } from '@/lib/coHost';
 import { pendingRequests } from '@/lib/guestAdmission';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { creatorPlayers } from '@/lib/creatorHome';
+import CreatorPlayers from './CreatorPlayers';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +25,15 @@ export default async function AdminClanPage() {
     isAdmin ? pendingCoHostInvites(clan.id) : Promise.resolve([]),
     isModerator ? pendingRequests(clan.id) : Promise.resolve([]),
   ]);
+  if (isCreatorSpace(clan)) {
+    return (
+      <>
+        {requests.length > 0 && <JoinRequests initial={requests} />}
+        {pending.length > 0 && <PendingCoHostInvites initial={pending} />}
+        <CreatorPlayers players={await creatorPlayers(clan.id)} />
+      </>
+    );
+  }
   return (
     <>
       {requests.length > 0 && <JoinRequests initial={requests} />}

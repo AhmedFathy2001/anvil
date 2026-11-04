@@ -73,11 +73,13 @@ export function notifyClanCreated(input: {
   slug: string;
   name: string;
   inGameName: string | null;
+  /** A creator space (lib/creatorSpaces): no in-game clan, so nothing to verify. */
+  creator?: boolean;
   owner: OpsPerson;
 }): void {
   fire(
     {
-      title: `New clan: ${input.name}`,
+      title: `${input.creator ? 'New creator space' : 'New clan'}: ${input.name}`,
       description: `[Operator page](${apexUrl(`/staff/clans/${input.clanId}`)}) · [Their site](${apexUrl(`/c/${input.slug}`)})`,
       color: EMBED_COLOR.green,
       fields: [
@@ -85,7 +87,7 @@ export function notifyClanCreated(input: {
         { name: 'In game', value: input.inGameName ? `\`${input.inGameName}\`` : '_not given_', inline: true },
         { name: 'Address', value: `\`/c/${input.slug}\``, inline: true },
       ],
-      footer: { text: 'Unverified until somebody pushes a roster from in game' },
+      footer: { text: input.creator ? 'Creator space — no in-game clan to verify' : 'Unverified until somebody pushes a roster from in game' },
     },
     'clan-created',
   );

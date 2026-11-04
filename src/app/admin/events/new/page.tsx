@@ -11,6 +11,7 @@ import ClanLink from '@/components/ClanLink';
 import GuideLink from '@/components/GuideLink';
 import ItemSlot from '@/components/ItemSlot';
 import { getClanFeatures } from '@/lib/clanFeatures';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { FORMAT_CARDS, FORMAT_GROUP_BLURB, findFormat, type FormatCard } from '@/lib/formatCatalog';
 
 export const dynamic = 'force-dynamic';
@@ -28,7 +29,19 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
   const chosen = picked && offered.includes(picked) ? picked : null;
   // Formats behind a switched-off feature used to just not be there, and the reason lived on a page the
   // admin had no cause to open. Name them, and where to turn them on.
-  if (!chosen) return <FormatPicker cards={offered} hidden={FORMAT_CARDS.filter((f) => !offered.includes(f)).map((f) => f.name)} />;
+  // A creator space (lib/creatorSpaces): the same wizard with the clan-only parts left out — no
+  // weeklies (feature forced off), no "Clan event", no multi-clan co-hosting.
+  const creator = isCreatorSpace(clan);
+  if (!chosen) {
+    return (
+      <FormatPicker
+        cards={offered}
+        // Weeklies are not "switched off" for a creator space; they do not exist there.
+        hidden={FORMAT_CARDS.filter((f) => !offered.includes(f) && !(creator && f.feature === 'weekly')).map((f) => f.name)}
+        creator={creator}
+      />
+    );
+  }
 
   // Auto-name: "{Clan} Bingo #N" so the name field is never blank. Pull the clan name +
   // how many events exist so we can suggest the next number.
@@ -90,6 +103,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
           presets={presets.filter((p) => !chosen.choice.mode || p.mode === chosen.choice.mode)}
           suggestedName={suggestedName}
           choice={chosen.choice}
+          creator={creator}
         />
       </div>
     </div>
@@ -99,7 +113,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
 const GROUPS: FormatCard['group'][] = ['Team bingo', 'Surprise tasks', 'Solo & ongoing'];
 
 /** "What are you running?" */
-function FormatPicker({ cards, hidden }: { cards: FormatCard[]; hidden: string[] }) {
+function FormatPicker({ cards, hidden, creator = false }: { cards: FormatCard[]; hidden: string[]; creator?: boolean }) {
   return (
     <div className="max-w-5xl">
       <ClanLink
@@ -111,8 +125,10 @@ function FormatPicker({ cards, hidden }: { cards: FormatCard[]; hidden: string[]
       <header className="mb-8">
         <h1 className="display display-lg text-4xl sm:text-[44px] font-semibold leading-tight">What are you running?</h1>
         <p className="text-text-muted mt-2 text-[15px] max-w-[62ch]">
-          Pick one and we&rsquo;ll ask a few quick questions. Nothing is posted to Discord and members don&rsquo;t see
-          the tiles until you start it. First time? Classic bingo is the easiest.
+          {creator
+            ? <>Pick one and we&rsquo;ll ask a few quick questions. Players don&rsquo;t see the tiles until you start it, and Discord is optional. First time? Classic bingo is the easiest.</>
+            : <>Pick one and we&rsquo;ll ask a few quick questions. Nothing is posted to Discord and members don&rsquo;t see
+          the tiles until you start it. First time? Classic bingo is the easiest.</>}
         </p>
         <p className="mt-2">
           <GuideLink href="/guide/formats#choose">Compare the formats</GuideLink>
@@ -155,6 +171,7 @@ function FormatPicker({ cards, hidden }: { cards: FormatCard[]; hidden: string[]
             </section>
           );
         })}
+        {!creator && (
         <section>
           <h2 className="display text-2xl font-semibold">Custom events</h2>
           <p className="text-text-muted mt-1 mb-4">Nothing to track: a time, a place and who&rsquo;s going.</p>
@@ -175,6 +192,7 @@ function FormatPicker({ cards, hidden }: { cards: FormatCard[]; hidden: string[]
             </ClanLink>
           </div>
         </section>
+        )}
       </div>
       {hidden.length > 0 && (
         <p className="mt-9 text-sm text-text-muted">

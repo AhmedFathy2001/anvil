@@ -81,6 +81,7 @@ export default async function ClansPage() {
     seat: seatBySlug.get(r.slug) ?? null,
     verified: r.verified,
     guestPolicy: r.guestPolicy,
+    kind: r.kind,
     activeThisWeek: r.activeThisWeek,
     xpThisWeek: r.xpThisWeek,
   }));

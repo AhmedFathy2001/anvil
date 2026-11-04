@@ -88,6 +88,13 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
               See a live event
             </ClanLink>
           </div>
+          {/* The second audience: somebody with viewers or friends and no in-game clan. */}
+          <p className="mt-3 text-[14px] text-text-muted">
+            Streamer, or no clan?{' '}
+            <ClanLink href="/host" className="font-medium text-gold hover:text-gold-light">
+              Host an event for your viewers
+            </ClanLink>
+          </p>
           <p className="mt-3.5 text-[13px] text-text-dim">
             {/* The same model as the FAQ and /pricing, off the same PLANS row: "free for one event" was
                 an older plan the free tier no longer matches. */}

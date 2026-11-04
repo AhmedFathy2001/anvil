@@ -396,6 +396,12 @@ function Empty({ hasCharacters }: { hasCharacters: boolean }) {
         >
           Start one
         </ClanLink>
+        <ClanLink
+          href="/host"
+          className="rounded-lg border border-card-border px-4 py-2.5 text-sm transition-colors hover:border-gold-dark"
+        >
+          Host an event
+        </ClanLink>
       </div>
       {/* The same two doors the setup flow's clan step offers, so this is not a third option — it is
           the option for somebody who would rather be walked through the whole thing than decide what

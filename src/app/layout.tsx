@@ -327,7 +327,7 @@ export default async function RootLayout({
               </span>
             </ClanLink>
             <SiteNav
-              clan={clan ? { slug: clan.slug, name: clan.name, logoUrl: clan.logoUrl } : null}
+              clan={clan ? { slug: clan.slug, name: clan.name, logoUrl: clan.logoUrl, kind: clan.kind } : null}
               myClans={navClans}
               signedIn={!!session}
               myTeams={myTeams}

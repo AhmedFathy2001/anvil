@@ -27,6 +27,9 @@ import ClanHall from '@/components/ClanHall';
 import { countLiveTeamInvolvements } from '@/lib/myTeamNav';
 import { ClanEvents, ClanWeek, Competitions, Hero, LiveNow, YouStrip } from '@/components/home/HomeSections';
 import ClanLink from '@/components/ClanLink';
+import CreatorHome from '@/components/CreatorHome';
+import { creatorHomeView } from '@/lib/creatorHome';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,7 +55,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const rank = await clanRankFor(clan.id);
 
   const bits: string[] = [];
-  if (view.memberCount > 0) {
+  if (view.memberCount > 0 && !isCreatorSpace(clan)) {
     bits.push(`${view.memberCount.toLocaleString()} member${view.memberCount === 1 ? '' : 's'}`);
   }
   if (rank) bits.push(`${ordinal(rank.rank)} of ${rank.field} clans this week`);
@@ -153,6 +156,15 @@ export default async function HomePage() {
     const host = (await headers()).get('host');
     if (isApexHost(host)) return <ApexRoot />;
     notFound();
+  }
+  // A creator space (lib/creatorSpaces) has one page for everyone — the creator, their stream links,
+  // their events and who has played them. There is no member week view: nobody is a member.
+  if (isCreatorSpace(clan)) {
+    const [creatorView, activity] = await Promise.all([
+      creatorHomeView(clan.id),
+      publicClanActivity(clan.id).catch(() => null),
+    ]);
+    if (creatorView) return <CreatorHome view={creatorView} activity={activity} />;
   }
   const session = await verifyUser();
   const myMemberIds = await viewerMemberIds(clan.id, session);

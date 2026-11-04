@@ -91,6 +91,7 @@
     "test:gameclansdb": "npx tsx --test tests/game-clans-db.test.ts",
     "test:personachars": "npx tsx --test tests/persona-characters.test.ts",
     "test:eventaccess": "npx tsx --test tests/event-access.test.ts",
+    "test:creators": "npx tsx --test tests/creator-spaces.test.ts tests/creator-spaces-db.test.ts",
     "test:onbehalf": "npx tsx --test tests/signup-on-behalf.test.ts",
     "test:leaderboard": "npx tsx --test tests/clan-leaderboard.test.ts",
     "test:seatscope": "npx tsx --test tests/seat-scope.test.ts",

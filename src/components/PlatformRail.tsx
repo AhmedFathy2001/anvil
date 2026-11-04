@@ -108,6 +108,8 @@ export default function PlatformRail({
         {/* Your own page, one click from anywhere — it used to take a search of the Hall of Records. */}
         {myProfileHref && item(myProfileHref, 'My profile', <ProfileIcon />)}
         {item('/clans', 'Clan Hall', <SearchIcon />, true)}
+        {/* No in-game clan needed: a streamer or a friend group hosts from a creator space. */}
+        {item('/host', 'Host an event', <PlusIcon />)}
         {item('/leaderboard', 'Hall of Records', <ChartIcon />)}
         {item('/guide', 'Guides', <BookIcon />)}
         {/* /staff existed and NOTHING linked to it. Platform capability is its own axis — no clan

@@ -23,6 +23,7 @@ import { log } from '@/lib/logger';
  */
 export type ActionName =
   | 'clan.created'
+  | 'creator.created'
   | 'event.created'
   | 'event.cloned'
   | 'event.started'
