@@ -1,9 +1,10 @@
-import type { LockerAccount, LockerCareer, LockerConnection } from '@/lib/profileLocker';
+import type { LockerCareer, LockerConnection } from '@/lib/profileLocker';
+import type { FoldCharacter } from '@/lib/characterFold';
+import CharacterFold from './CharacterFold';
 import ClanLink from '@/components/ClanLink';
 import SupporterName from '@/components/SupporterName';
 import type { SupporterStyle } from '@/lib/supporterStyle';
 import type { SupporterTierId } from '@/lib/supporterTiers';
-import { formatJoinDate } from '@/lib/clanJoinDate';
 import { ProfileAvatar } from '@/components/ProfileMedia';
 import type { ShownMedia } from '@/lib/profileMediaRules';
 
@@ -23,9 +24,12 @@ interface Props {
   customAvatar?: ShownMedia | null;
   role: string;
   isStaff: boolean;
-  accounts: LockerAccount[];
-  /** The character the page's records and progress are about; its chip is the selected one. */
+  /** Every character of theirs this tab lists — seated here or not (lib/characterFold). */
+  characters: FoldCharacter[];
+  /** The character the page's profile is about; the fold's selected row. */
   focusRsn: string | null;
+  /** A creator space's tab: its seats are event seats. */
+  space: boolean;
   /** Where "View full profile" goes: the clan's member page, or /p/ in a creator space (no member pages). */
   fullProfileHref: string | null;
   connection: LockerConnection;
@@ -71,17 +75,17 @@ export default function PlayerCard({
   customAvatar = null,
   role,
   isStaff,
-  accounts,
+  characters,
   focusRsn,
+  space,
   fullProfileHref,
   connection,
   career,
   nowMs,
 }: Props) {
-  // With more than one character the chips switch which one the page's records and progress show.
-  const switchable = accounts.length > 1;
   const played = career && career.eventsPlayed > 0;
-  const focus = accounts.find((a) => a.rsn === focusRsn) ?? null;
+  const focus = characters.find((a) => a.rsn === focusRsn) ?? null;
+  const only = characters.length === 1 ? characters[0] : null;
 
   return (
     <section className="relative overflow-hidden rounded-2xl border border-card-border bg-card-bg p-5 sm:p-6">
@@ -136,68 +140,48 @@ export default function PlayerCard({
             </div>
             {discordUsername && <div className="text-sm text-text-muted mt-0.5">@{discordUsername} on Discord</div>}
 
-            {/* The accounts, in the identity itself — a green dot means the plugin has heard from
-                that character, so "is this thing on?" is answered without scrolling. */}
-            <div className="flex flex-wrap gap-2 mt-3">
-              {accounts.length === 0 ? (
+            {/* Their characters, folded under the person once there is more than one: one line
+                that opens a list, and picking a row makes it the page's character. A single
+                character is just its name, with the plugin dot that says "is this thing on?". */}
+            <div className="flex flex-wrap items-start gap-2 mt-3">
+              {characters.length === 0 ? (
                 <span className="inline-flex items-center gap-2 rounded-full border border-dashed border-card-border px-3 py-1.5 text-sm text-text-muted">
                   No RuneScape account linked yet
                 </span>
+              ) : only ? (
+                <span
+                  className="inline-flex items-center gap-2 rounded-full border border-card-border bg-brown-dark/60 pl-2 pr-3 py-1 text-sm"
+                  title={only.lastPingAt ? `Last plugin ping ${ago(only.lastPingAt, nowMs)}` : 'No plugin ping yet'}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      only.lastPingAt ? 'bg-accent-green-light ring-2 ring-accent-green/25' : 'bg-text-muted'
+                    }`}
+                  />
+                  <SupporterName
+                    name={only.rsn}
+                    tier={supporterTier}
+                    style={supporterStyle}
+                    plain
+                    star={false}
+                    className="truncate max-w-[12rem]"
+                  />
+                  {only.playingIn ? (
+                    <span className="text-[11px] text-accent-green-light">playing</span>
+                  ) : !only.verified ? (
+                    <span className="text-[11px] text-yellow-400">unverified</span>
+                  ) : null}
+                </span>
               ) : (
-                accounts.map((a) => {
-                  const selected = switchable && a.rsn === focusRsn;
-                  const chip = (
-                    <span
-                      className={`inline-flex items-center gap-2 rounded-full border bg-brown-dark/60 pl-2 pr-3 py-1 text-sm transition-colors ${
-                        selected ? 'border-gold/60' : 'border-card-border'
-                      } ${switchable && !selected ? 'hover:border-gold/40' : ''}`}
-                      title={a.lastPingAt ? `Last plugin ping ${ago(a.lastPingAt, nowMs)}` : 'No plugin ping yet'}
-                    >
-                      <span
-                        className={`w-2 h-2 rounded-full shrink-0 ${
-                          a.lastPingAt ? 'bg-accent-green-light ring-2 ring-accent-green/25' : 'bg-text-muted'
-                        }`}
-                      />
-                      {a.isPrimary && <span className="text-gold text-[11px]">★</span>}
-                      {/* Their flair on their own character, colour only: a ★ on a chip already means
-                          "main", and the name above carries the Supporter star. */}
-                      <SupporterName
-                        name={a.rsn}
-                        tier={supporterTier}
-                        style={supporterStyle}
-                        plain
-                        star={false}
-                        className="truncate max-w-[10rem]"
-                      />
-                      {a.joinedOn && (
-                        <span className="text-[11px] text-text-muted" title={`Joined the clan in game on ${formatJoinDate(a.joinedOn, true)}`}>
-                          since {formatJoinDate(a.joinedOn)}
-                        </span>
-                      )}
-                      {a.playingIn ? (
-                        <span className="text-[11px] text-accent-green-light">playing</span>
-                      ) : !a.verified ? (
-                        <span className="text-[11px] text-yellow-400">unverified</span>
-                      ) : null}
-                    </span>
-                  );
-                  return switchable ? (
-                    <ClanLink
-                      key={a.accountId}
-                      href={`/profile?account=${encodeURIComponent(a.rsn)}`}
-                      aria-current={selected ? 'page' : undefined}
-                      title={`Show ${a.rsn}'s records and progress`}
-                    >
-                      {chip}
-                    </ClanLink>
-                  ) : (
-                    <span key={a.accountId}>{chip}</span>
-                  );
-                })
+                <CharacterFold
+                  characters={characters}
+                  selectedRsn={focusRsn}
+                  supporterTier={supporterTier}
+                  supporterStyle={supporterStyle}
+                  space={space}
+                />
               )}
-              {/* The chips are where a member looks for their characters, so it's where they look
-                  to add one. It lands on the drawer, which is where the token and the by-name path
-                  actually live. */}
+              {/* Where a member looks for their characters is where they look to add one. */}
               <ClanLink
                 href="/settings/add"
                 className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-card-border px-3 py-1 text-sm text-text-muted hover:text-gold-light hover:border-gold/40 transition-colors"
@@ -267,7 +251,7 @@ export default function PlayerCard({
 
         {/* Connection: green once the plugin has pushed something, amber while it hasn't. Either
             way it's one line — the setup detail lives in the card below or the drawer. */}
-        {accounts.length > 0 && (
+        {characters.length > 0 && (
           <div
             className={`mt-4 flex items-center gap-2.5 flex-wrap rounded-xl border px-3 py-2 text-sm ${
               connection.connected
