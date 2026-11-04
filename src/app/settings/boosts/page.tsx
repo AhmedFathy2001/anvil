@@ -41,7 +41,7 @@ export default async function BoostsSettingsPage() {
         <SettingsGroup title="Your slots">
           <SettingsBlock>
             <p className="text-[13.5px] text-text-muted">
-              Boosts come with a paid Supporter membership: Supporter 1, Champion 2, Patron {MAX_SLOTS}. Time earned through invites
+              Boosts come with a paid Champion or Patron membership: Champion 1, Patron {MAX_SLOTS}. Time earned through invites
               doesn&rsquo;t add slots.{' '}
               <ClanLink href="/supporter" className="text-gold hover:text-gold-light">
                 About Supporter →

@@ -44,7 +44,7 @@ const ROWS: { label: string; hint?: string; cells: [Cell, Cell, Cell, Cell] }[] 
   {
     label: 'Clan boosts',
     hint: 'Put a boost on a clan you are a member of. Enough boosts from its members give the clan a badge, a coloured name, a better spot in the Clan Hall and more. Looks only, never a rank or a score. Comes with paid membership, not with time earned through invites.',
-    cells: ['—', `${BOOST_SLOTS.supporter} slot`, `${BOOST_SLOTS.champion} slots`, `${BOOST_SLOTS.patron} slots`],
+    cells: ['—', ...SUPPORTER_TIER_ORDER.map((id) => (BOOST_SLOTS[id] ? `${BOOST_SLOTS[id]} slot${BOOST_SLOTS[id] === 1 ? '' : 's'}` : '—'))] as [Cell, Cell, Cell, Cell],
   },
   {
     label: 'Head-to-head challenges',
