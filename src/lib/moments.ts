@@ -4,6 +4,7 @@ import skillPets from '@/data/skillPets.json';
 import combatAchievements from '@/data/combatAchievements.json';
 import { BOSSES, metricKeys } from '@/lib/constants';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
+import { FALLEN_MODE, fallenSentence, isFallenDeath } from '@/lib/hardcoreFall';
 import { DEFAULT_LEVEL_RULES, levelPostMatches, type LevelPost, type LevelRules } from '@/lib/levelRules';
 
 /**
@@ -566,7 +567,7 @@ export function classifyObservation(
     source: (obs.kind === 'ca' ? ca?.monster : obs.source) ?? null,
     sourceKind: obs.kind === 'ca' ? 'ca' : obs.sourceKind ?? null,
     kc: obs.kc ?? null,
-    tier: obs.kind === 'diary' ? diaryTier(obs.tier) : ca?.tier ?? null,
+    tier: obs.kind === 'diary' ? diaryTier(obs.tier) : obs.kind === 'death' ? (obs.tier === FALLEN_MODE ? FALLEN_MODE : null) : ca?.tier ?? null,
     occurredAt: obs.occurredAt,
   };
   const info = dropInfo(obs.source, obs.itemId);
@@ -929,6 +930,7 @@ export function momentSentence(m: {
     case 'unique':
       return m.source ? `got ${qty}${item} from ${m.source}` : `got ${qty}${item}`;
     case 'death':
+      if (isFallenDeath(m)) return fallenSentence(m.source);
       return m.source ? `died to ${m.source}` : 'died';
     case 'level': {
       // The quantity column holds the number reached, and sourceKind says what kind of number it is.
