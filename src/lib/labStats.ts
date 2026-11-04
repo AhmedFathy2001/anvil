@@ -10,15 +10,11 @@ import { and, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { completions, eventParticipants, tiles } from '@/db/schema';
-import { HISCORES_ACTIVITIES } from '@/lib/hiscoresActivities';
+import { foldLabPush, setStatValue, type Snapshot } from '@/lib/labTileProgress';
+import { notifyTeamTiles } from '@/lib/pushNotify';
 import { creditStatTilesForTeam } from '@/lib/statTileCredit';
 import { computeGainFromJson, snapshotValue } from '@/lib/statTracking';
 import { statKeys } from '@/lib/tileKinds';
-
-type Snapshot = Record<string, unknown> & {
-  skills?: Record<string, { xp?: number; level?: number; rank?: number }>;
-  bosses?: Record<string, { score?: number; rank?: number }>;
-};
 
 function parse(json: string | null | undefined): Snapshot | null {
   if (!json) return null;
@@ -30,27 +26,7 @@ function parse(json: string | null | undefined): Snapshot | null {
   }
 }
 
-/** Write one key's value into a snapshot, in the shape snapshotValue reads back. */
-export function setStatValue(snap: Snapshot, statType: string, key: string, value: number): Snapshot {
-  const v = Math.max(0, Math.round(value));
-  if (statType === 'skill') {
-    snap.skills = { ...(snap.skills ?? {}), [key]: { ...(snap.skills?.[key] ?? {}), xp: v } };
-    return snap;
-  }
-  const activity = HISCORES_ACTIVITIES.find((a) => a.key === key);
-  if (activity) {
-    let node = snap as Record<string, unknown>;
-    for (const step of activity.path.slice(0, -1)) {
-      node[step] = { ...((node[step] as object) ?? {}) };
-      node = node[step] as Record<string, unknown>;
-    }
-    const last = activity.path[activity.path.length - 1];
-    node[last] = { ...((node[last] as object) ?? {}), score: v };
-    return snap;
-  }
-  snap.bosses = { ...(snap.bosses ?? {}), [key]: { ...(snap.bosses?.[key] ?? {}), score: v } };
-  return snap;
-}
+export { setStatValue };
 
 export interface SimulateInput {
   participantId: number;
@@ -113,4 +89,51 @@ export async function simulateStatGain(eventId: number, input: SimulateInput): P
 
   const gain = computeGainFromJson(JSON.stringify(baseline), JSON.stringify(reading), {}, [key], input.statType);
   return { gain, completed };
+}
+
+/**
+ * A stats push from a character in a live lab session, applied to that session's board ONLY — the
+ * board-scoped half of /api/plugin/stats. The real route also writes the account's live overlay and
+ * stat history (lib/accountPush) and moves weekly competitions; none of that runs for a lab push, so
+ * the character's real profile and clans never see it. What does run is the real stat-tile engine
+ * (lib/statTileCredit) on the lab participant's own baseline and reading, which are pinned the way
+ * the simulator pins them (frozenAt), so the hiscores sweep leaves them alone.
+ *
+ * Returns the labels of the tiles it completed. Nothing happens for a character on no team.
+ */
+export async function applyLabStatsPush(eventId: number, accountId: number, pushed: Record<string, number>): Promise<{ completed: string[] }> {
+  if (Object.keys(pushed).length === 0) return { completed: [] };
+  const [p] = await db
+    .select()
+    .from(eventParticipants)
+    .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.accountId, accountId)))
+    .limit(1);
+  if (!p || p.teamId == null) return { completed: [] };
+
+  const { baseline, reading } = foldLabPush(parse(p.statsSnapshot), parse(p.frozenStats) ?? parse(p.cachedStats), pushed);
+  const now = new Date().toISOString();
+  await db
+    .update(eventParticipants)
+    .set({
+      statsSnapshot: JSON.stringify(baseline),
+      snapshotAt: p.snapshotAt ?? now,
+      frozenAt: now,
+      frozenStats: JSON.stringify(reading),
+    })
+    .where(eq(eventParticipants.id, p.id));
+
+  // The same tiles the real route picks: auto-tracked stat tiles that read a key this push moved.
+  const keys = new Set(Object.keys(pushed));
+  const statTiles = (await db.query.tiles.findMany({ where: eq(tiles.eventId, eventId) })).filter(
+    (t) =>
+      !!t.trackedStat &&
+      (t.statType === 'boss' || t.statType === 'kc' || t.statType === 'skill') &&
+      !!t.statGoal &&
+      !t.autoTrackDisabled &&
+      statKeys(t.trackedStat).some((k) => keys.has(k)),
+  );
+  if (statTiles.length === 0) return { completed: [] };
+  notifyTeamTiles(eventId, p.teamId, statTiles.map((t) => t.id));
+  const completed = await creditStatTilesForTeam({ eventId, teamId: p.teamId, statTiles });
+  return { completed };
 }

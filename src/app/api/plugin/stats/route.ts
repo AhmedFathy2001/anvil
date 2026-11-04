@@ -2,26 +2,24 @@ import { resolvePluginClan } from '@/lib/auth';
 import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { eventParticipants, tiles, teams, events, completions, clanRoster, weeklyParticipants } from '@/db/schema';
+import { eventParticipants, tiles, events, clanRoster, weeklyParticipants } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { pluginParticipantScope, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import { applyAccountPush, isEmptyPush, readPushed, type PushBody } from '@/lib/accountPush';
 import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
 import { statKeys } from '@/lib/tileKinds';
-import { computeGainFromJson, isIndividualMode, isMilestoneBasis, milestoneStateFromJson, buildContributionSnapshot } from '@/lib/statTracking';
-import { liveStatsForMembers } from '@/lib/liveStats';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
 import { applyWeeklyValue } from '@/lib/weekly';
 import { liveMetricValue, type CompetitionType } from '@/lib/weeklyMetric';
 import { metricKeys } from '@/lib/constants';
-import { notifyTileCompletion } from '@/lib/discord';
-import { evaluateCompletionGate, eventHasStarted } from '@/lib/completionGate';
+import { eventHasStarted } from '@/lib/completionGate';
 import { creditStatTilesForTeam } from '@/lib/statTileCredit';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { log } from '@/lib/logger';
 import { ttlMemo } from '@/lib/ttlMemo';
 import { labQuarantine } from '@/lib/lab';
+import { applyLabStatsPush } from '@/lib/labStats';
 import { notifyTeamTiles } from '@/lib/pushNotify';
 import { worldModeIgnored } from '@/lib/worldModeRequest';
 
@@ -78,8 +76,11 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
-  // A character in a tile-lab session writes nothing real; the push goes to the lab log (lib/lab).
-  const quarantined = await labQuarantine(request, member.accountId, 'stats', body);
+  // A character in a tile-lab session writes nothing real; the push goes to the lab log (lib/lab) and
+  // credits only that session's board (lib/labStats) — never the overlay, history or weekly comps.
+  const quarantined = await labQuarantine(request, member.accountId, 'stats', body, (eventId, accountId) =>
+    applyLabStatsPush(eventId, accountId, readPushed(body)),
+  );
   if (quarantined) return quarantined;
   if (isEmptyPush(body)) {
     // Same reason: a client sending empty bodies looks exactly like a client sending nothing.
@@ -226,6 +227,11 @@ async function accountOnlyPush(request: Request): Promise<NextResponse | null> {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
+  // Same lab rule as the seated path: a session character's push credits only its lab board.
+  const quarantined = await labQuarantine(request, account.id, 'stats', body, (eventId, accountId) =>
+    applyLabStatsPush(eventId, accountId, readPushed(body)),
+  );
+  if (quarantined) return quarantined;
   const pushed = readPushed(body);
   if (Object.keys(pushed).length === 0) return NextResponse.json({ ok: true, updated: 0 });
   await applyAccountPush(account.id, pushed, new Date().toISOString());
