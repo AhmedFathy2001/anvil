@@ -251,11 +251,23 @@ function targetOf(attempt: { baselineSnapshot: string }): string | null {
   }
 }
 
+/**
+ * Close a claim whose check ran out. Only one still verifying AND not yet verified: a Check that won
+ * stamps `verifiedAt` before it completes the attempt and routes the claim, so a Check (or the sweep)
+ * that arrives in between sees a finished attempt but must not expire a claim that was just proved —
+ * that race left a proved claim 'expired' when two Checks landed together.
+ */
 async function expire(claim: ClaimRow, nowIso: string) {
   await db
     .update(accountOwnershipClaims)
     .set({ status: 'expired', decidedAt: nowIso })
-    .where(and(eq(accountOwnershipClaims.id, claim.id), eq(accountOwnershipClaims.status, 'verifying')));
+    .where(
+      and(
+        eq(accountOwnershipClaims.id, claim.id),
+        eq(accountOwnershipClaims.status, 'verifying'),
+        isNull(accountOwnershipClaims.verifiedAt),
+      ),
+    );
 }
 
 export type CheckOutcome =
@@ -283,7 +295,10 @@ export async function checkOwnershipClaim(input: { claimId: number; userId: numb
       await db.update(verificationAttempts).set({ completedAt: nowIso, succeeded: 0, failureReason: 'expired' }).where(eq(verificationAttempts.id, attempt.id));
     }
     await expire(claim, nowIso);
-    return { ok: true, status: 'expired', message: claimantLine({ ...claim, status: 'expired' }, account.rsn) };
+    // Report the claim as it ended up: a Check that lost the race to one that proved it finds the
+    // attempt finished and the claim verified (and routed, or about to be) — not expired.
+    const fresh = (await db.query.accountOwnershipClaims.findFirst({ where: eq(accountOwnershipClaims.id, claim.id) })) ?? claim;
+    return { ok: true, status: fresh.status as ClaimStatus, message: claimantLine(fresh, account.rsn) };
   }
   const target = targetOf(attempt);
   let baseline: Record<string, unknown> = {};
