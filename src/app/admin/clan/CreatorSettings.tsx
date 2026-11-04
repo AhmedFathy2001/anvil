@@ -16,6 +16,8 @@ export default function CreatorSettings() {
   const [twitch, setTwitch] = useState('');
   const [kick, setKick] = useState('');
   const [advertised, setAdvertised] = useState(false);
+  const [chatJoin, setChatJoin] = useState(false);
+  const [twitchLinked, setTwitchLinked] = useState<{ login: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
@@ -29,6 +31,8 @@ export default function CreatorSettings() {
         setTwitch(d.twitchUrl ?? '');
         setKick(d.kickUrl ?? '');
         setAdvertised(!!d.advertised);
+        setChatJoin(!!d.chatJoin);
+        setTwitchLinked(d.twitchLinked && typeof d.twitchLinked.login === 'string' ? { login: d.twitchLinked.login } : null);
         setLoaded(true);
       })
       .catch(() => {});
@@ -132,6 +136,37 @@ export default function CreatorSettings() {
             <span
               className={`absolute top-0.5 h-4 w-4 rounded-full bg-foreground transition-all ${advertised ? 'left-[22px]' : 'left-0.5'}`}
             />
+          </button>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-card-border bg-card-bg p-5">
+        <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">
+          <span className="h-5 w-1 rounded-full bg-gold" />
+          <code className="text-gold">!join</code> in Twitch chat
+        </h2>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <p className="max-w-[60ch] text-sm text-text-muted">
+            When a viewer types <code>!join</code>, the Anvil bot replies with the link to your open event (at most once every
+            30 seconds). {twitchLinked
+              ? `It answers in twitch.tv/${twitchLinked.login}.`
+              : 'It only answers in a Twitch channel you have connected to Anvil — connecting Twitch is coming soon, and the bot stays quiet until then.'}
+          </p>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={chatJoin}
+            disabled={saving}
+            onClick={async () => {
+              const next = !chatJoin;
+              if (await patch({ chatJoin: next })) setChatJoin(next);
+            }}
+            className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors disabled:opacity-50 ${
+              chatJoin ? 'border-gold bg-gold/80' : 'border-card-border bg-brown-dark'
+            }`}
+          >
+            <span className="sr-only">Answer !join in Twitch chat</span>
+            <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-foreground transition-all ${chatJoin ? 'left-[22px]' : 'left-0.5'}`} />
           </button>
         </div>
       </section>

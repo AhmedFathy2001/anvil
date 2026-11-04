@@ -9,6 +9,8 @@ import { getSettingMap, setSetting } from '@/lib/settings';
 import { PUBLIC_SHOWCASE_KEY } from '@/lib/clanListing';
 import { STREAM_LINK_KEYS, checkStreamLink, isCreatorSpace, showcaseOn, showcaseValueFor } from '@/lib/creatorSpaces';
 import { forgetLinkCards } from '@/lib/ogKit';
+import { linkedTwitchBroadcaster } from '@/lib/twitchBot/channels';
+import { CHAT_JOIN_SETTING } from '@/lib/twitchBot/wire';
 
 /**
  * A creator space's own settings: its name, its Twitch and Kick links, and "Advertise on Anvil"
@@ -25,12 +27,18 @@ async function guard() {
 export async function GET() {
   const g = await guard();
   if ('error' in g) return g.error;
-  const map = await getSettingMap(g.clan.id, [STREAM_LINK_KEYS.twitch, STREAM_LINK_KEYS.kick, PUBLIC_SHOWCASE_KEY]);
+  const [map, twitch] = await Promise.all([
+    getSettingMap(g.clan.id, [STREAM_LINK_KEYS.twitch, STREAM_LINK_KEYS.kick, PUBLIC_SHOWCASE_KEY, CHAT_JOIN_SETTING]),
+    linkedTwitchBroadcaster(g.clan.id),
+  ]);
   return NextResponse.json({
     name: g.clan.name,
     twitchUrl: map.get(STREAM_LINK_KEYS.twitch) ?? '',
     kickUrl: map.get(STREAM_LINK_KEYS.kick) ?? '',
     advertised: showcaseOn('creator', map.get(PUBLIC_SHOWCASE_KEY) ?? null),
+    // `!join` in Twitch chat (lib/twitchBot): the switch, and whether a channel is proved to be theirs.
+    chatJoin: map.get(CHAT_JOIN_SETTING) === 'on',
+    twitchLinked: twitch ? { login: twitch.login } : null,
   });
 }
 
@@ -71,6 +79,14 @@ export async function PATCH(request: Request) {
     await setSetting(g.clan.id, PUBLIC_SHOWCASE_KEY, showcaseValueFor(advertise));
     if (!advertise) forgetLinkCards();
     changed.advertised = advertise;
+  }
+
+  if ('chatJoin' in body) {
+    // The opt-in alone. The bot still answers only in a channel the space has PROVED is its own
+    // (lib/twitchBot/channels linkedTwitchBroadcaster), so switching this on names no channel.
+    const on = body.chatJoin === true;
+    await setSetting(g.clan.id, CHAT_JOIN_SETTING, on ? 'on' : null);
+    changed.chatJoin = on;
   }
 
   if (Object.keys(changed).length > 0) {

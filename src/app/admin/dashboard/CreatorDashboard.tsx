@@ -9,6 +9,7 @@ import { creatorPlayers } from '@/lib/creatorHome';
 import { pendingRequestCountsByEvent } from '@/lib/guestAdmission';
 import type { SetupStatus } from '@/lib/setupStatus';
 import CreatorPlayers from '../people/CreatorPlayers';
+import StreamOverlayCard from './StreamOverlayCard';
 
 function when(stamp: string | null): string {
   if (!stamp) return 'Not scheduled';
@@ -90,6 +91,8 @@ export default async function CreatorDashboard({ clanId, setup }: { clanId: numb
                 label="Copy invite link"
                 className="shrink-0 rounded-lg border border-gold/40 bg-gold/10 px-3.5 py-2 text-sm font-medium text-gold transition-colors hover:bg-gold/20"
               />
+              {/* OBS links for this event; opens into a full-width panel under the row. */}
+              <StreamOverlayCard eventId={e.id} />
             </li>
           ))}
         </ul>

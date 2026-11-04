@@ -92,6 +92,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pg-cloudflare ./node
 COPY --from=builder --chown=nextjs:nodejs /app/push ./push
 COPY --from=builder --chown=nextjs:nodejs /app/src/lib/push ./src/lib/push
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/ws ./node_modules/ws
+# The optional Twitch `!join` bot (bot/twitchChat.ts, npm run bot:twitch) runs from this image too, as its
+# own container, under the same type stripping: its source and the one pure module it shares with the
+# site. It needs no node_modules. Off unless TWITCH_BOT_* are set.
+COPY --from=builder --chown=nextjs:nodejs /app/bot ./bot
+COPY --from=builder --chown=nextjs:nodejs /app/src/lib/twitchBot/wire.ts ./src/lib/twitchBot/wire.ts
 
 USER nextjs
 VOLUME /data
