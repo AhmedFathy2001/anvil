@@ -13,7 +13,9 @@ import { getNotificationWebhooks } from '@/lib/pluginConfig';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { markMode, routeModePost } from '@/lib/worldModes';
 import { worldModeOf } from '@/lib/worldModeRequest';
-import { getModeRouting, modeIconUrl, rememberSeenMode } from '@/lib/worldModeStore';
+import { getModeFilters, getModeRouting, modeIconUrl, rememberSeenMode } from '@/lib/worldModeStore';
+import { effectiveClanRules, levelPostMatches } from '@/lib/levelRules';
+import { getClanMilestoneRules, getMemberLevelPrefs } from '@/lib/levelRulesStore';
 
 // POST /api/plugin/mode-lines — the highlighted game messages a player saw on a GAME-MODE world
 // (Leagues, Deadman, …), for the site to turn into posts: "Relic unlocked: …", "Area unlocked: …".
@@ -77,9 +79,21 @@ export async function POST(request: Request) {
   const patterns = await customPatterns();
   const now = Date.now();
   const events: { kind: ModeEventKind; title: string }[] = [];
+  // The game's own level-ups and quests (a separate save's, so the plugin sends them only as lines).
+  // Posted as levels and quests, each clan's level rules deciding which level-ups (lib/modeLines).
+  const levelUps: { skill: string; level: number }[] = [];
+  const quests: string[] = [];
   for (const line of lines) {
     const verdict = classifyLine(line, mode, patterns);
     if (verdict.kind === 'ignore') continue;
+    if (verdict.kind === 'level') {
+      if (!seenRecently(`${member.userId}:lv:${verdict.skill}:${verdict.level}`, now)) levelUps.push(verdict);
+      continue;
+    }
+    if (verdict.kind === 'quest') {
+      if (!seenRecently(`${member.userId}:q:${verdict.name}`, now)) quests.push(verdict.name);
+      continue;
+    }
     if (verdict.kind === 'unknown') {
       await recordSample(mode, line, false);
       continue;
@@ -94,7 +108,8 @@ export async function POST(request: Request) {
   }
 
   const fresh = events.filter((e) => !seenRecently(`${member.userId}:${e.title}`, now)).slice(0, MAX_POSTS);
-  if (fresh.length === 0) return NextResponse.json({ ok: true, posted: 0 });
+  if (fresh.length === 0 && levelUps.length === 0 && quests.length === 0) return NextResponse.json({ ok: true, posted: 0 });
+  const levelPrefs = levelUps.length ? await getMemberLevelPrefs(member.userId) : null;
 
   // Other players' in-game chat (lib/chatFeed), the minor tasks aside — a league has hundreds.
   for (const e of fresh) {
@@ -115,6 +130,28 @@ export async function POST(request: Request) {
     const routing = await getModeRouting(ec.clanId, mode.key, pickWebhookUrl(webhooks.leagues, 'plugin:leagues'));
     const normalHook = pickWebhookUrl(webhooks.combatAchievements, 'plugin:combatAchievements');
     const asGuest = ec.kind === 'guest' && (await clanTagsGuestEmissions(ec.clanId));
+    const send = async (url: string | null, title: string, kind: string) => {
+      if (!url) return;
+      const embed = markMode(modeEventEmbed(title, member.rsn), mode.label, icon);
+      const post = asGuest ? markGuestPost(embed, undefined) : { embed, content: undefined };
+      const ok = await forwardPluginNotification(url, { embed: post.embed ?? null, content: post.content ?? undefined, clanId: ec.clanId });
+      if (ok) posted++;
+      else log.warn('plugin-mode-lines.post-failed', { clanId: ec.clanId, mode: mode.key, kind });
+    };
+    if (levelUps.length && levelPrefs) {
+      // The mode's own level rules when the clan set them (Admin → Discord → Game modes), else the
+      // clan's, after the member's own choice — the same question a main-game level-up is asked.
+      const own = (await getModeFilters(ec.clanId, mode.key)).levels;
+      const rules = own ?? effectiveClanRules(await getClanMilestoneRules(ec.clanId), levelPrefs.clanChoice);
+      const url = routeModePost('levels', { ...routing, normalHook: pickWebhookUrl(webhooks.levels, 'plugin:levels') });
+      for (const lv of levelUps.slice(0, MAX_POSTS)) {
+        if (levelPostMatches({ type: 'skill', level: lv.level }, rules)) await send(url, `Reached level ${lv.level} ${lv.skill}`, 'level');
+      }
+    }
+    if (quests.length) {
+      const url = routeModePost('quests', { ...routing, normalHook: pickWebhookUrl(webhooks.quests, 'plugin:quests') });
+      for (const q of quests.slice(0, MAX_POSTS)) await send(url, `Quest complete: ${q}`, 'quest');
+    }
     for (const e of fresh) {
       const url = routeModePost(e.kind, { ...routing, normalHook });
       if (!url) continue;

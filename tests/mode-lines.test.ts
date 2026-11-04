@@ -88,9 +88,13 @@ test('main-game milestones from a mode world are recognised and never posted raw
   const { classifyLine, cleanLine } = await import('../src/lib/modeLines');
   const hc = { key: 'hardcore' };
   const line = (s: string) => classifyLine(cleanLine(s)!, hc).kind;
-  assert.equal(line("Congratulations, you've just advanced your Magic level. You are now level 23."), 'ignore');
+  const magic = classifyLine(cleanLine("Congratulations, you've just advanced your Magic level. You are now level 23.")!, hc);
+  assert.deepEqual(magic, { kind: 'level', skill: 'Magic', level: 23 });
   assert.equal(line("Congratulations, you've just advanced your Combat level. You are now level 32."), 'ignore');
-  assert.equal(line("Congratulations, you've completed a quest: @q_mes@Black Knights' Fortress"), 'ignore');
+  assert.deepEqual(classifyLine(cleanLine("Congratulations, you've completed a quest: @q_mes@Black Knights' Fortress")!, hc), {
+    kind: 'quest',
+    name: "Black Knights' Fortress",
+  });
   assert.equal(line("Congratulations, you've completed an easy combat task: Noxious Foe."), 'ignore');
   assert.equal(cleanLine("Congratulations, you've completed a quest: @q_mes@Black Knights' Fortress"), "Congratulations, you've completed a quest: Black Knights' Fortress");
   // A league's own unlock still posts.
