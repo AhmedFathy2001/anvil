@@ -26,6 +26,8 @@ interface Props {
   accounts: LockerAccount[];
   /** The character the page's records and progress are about; its chip is the selected one. */
   focusRsn: string | null;
+  /** Where "View full profile" goes: the clan's member page, or /p/ in a creator space (no member pages). */
+  fullProfileHref: string | null;
   connection: LockerConnection;
   career: LockerCareer | null;
   nowMs: number;
@@ -71,6 +73,7 @@ export default function PlayerCard({
   isStaff,
   accounts,
   focusRsn,
+  fullProfileHref,
   connection,
   career,
   nowMs,
@@ -78,6 +81,7 @@ export default function PlayerCard({
   // With more than one character the chips switch which one the page's records and progress show.
   const switchable = accounts.length > 1;
   const played = career && career.eventsPlayed > 0;
+  const focus = accounts.find((a) => a.rsn === focusRsn) ?? null;
 
   return (
     <section className="relative overflow-hidden rounded-2xl border border-card-border bg-card-bg p-5 sm:p-6">
@@ -179,7 +183,7 @@ export default function PlayerCard({
                   );
                   return switchable ? (
                     <ClanLink
-                      key={a.id}
+                      key={a.accountId}
                       href={`/profile?account=${encodeURIComponent(a.rsn)}`}
                       aria-current={selected ? 'page' : undefined}
                       title={`Show ${a.rsn}'s records and progress`}
@@ -187,7 +191,7 @@ export default function PlayerCard({
                       {chip}
                     </ClanLink>
                   ) : (
-                    <span key={a.id}>{chip}</span>
+                    <span key={a.accountId}>{chip}</span>
                   );
                 })
               )}
@@ -201,16 +205,22 @@ export default function PlayerCard({
                 + Add a character
               </ClanLink>
             </div>
-            {/* The way to the whole character page from the card that names it: the records below are
-                the same profile, and the member page is where the clan sees it. */}
-            {focusRsn && (
+            {/* The selected character: its settings (sharing, main, clans, rename, remove), and the
+                page the rest of the clan sees. Its profile itself is the rest of this page. */}
+            {focus && (
               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
-                <a href="#records" className="text-text-muted hover:text-gold">
-                  {focusRsn}&rsquo;s records ↓
-                </a>
-                <ClanLink href={`/members/${encodeURIComponent(focusRsn)}`} className="text-gold hover:underline">
-                  View full profile →
+                <ClanLink
+                  href={`/settings/characters/${focus.accountId}`}
+                  className="text-text-muted hover:text-gold"
+                  aria-label={`Settings for ${focus.rsn}`}
+                >
+                  ⚙ {focus.rsn} settings
                 </ClanLink>
+                {fullProfileHref && (
+                  <ClanLink href={fullProfileHref} className="text-gold hover:underline">
+                    View full profile →
+                  </ClanLink>
+                )}
               </div>
             )}
           </div>
