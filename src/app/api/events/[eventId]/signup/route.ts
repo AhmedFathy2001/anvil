@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
-import { eventParticipants, eventSignups, events, signupFees, teamInvites, teams } from '@/db/schema';
+import { eventSignups, events, signupFees, teamInvites, teams } from '@/db/schema';
 import { signupSeatsFor } from '@/lib/eventSeats';
 import { and, eq } from 'drizzle-orm';
 import { generatePlayerToken, verifyUser } from '@/lib/auth';
@@ -9,10 +9,11 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { parseProfile, sanitizeProfile, serializeProfile, signupWindowState, signupEditState } from '@/lib/signup';
 import { checkInvite, isWellFormedToken } from '@/lib/teamInvites';
 import { parseEventRules } from '@/lib/eventRules';
-import { enrolParticipant, participantForSeat, removeParticipantForWithdrawnSeat } from '@/lib/participants';
+import { participantForSeat, removeParticipantForWithdrawnSeat } from '@/lib/participants';
 import { track } from '@/lib/analytics';
-import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { standardFeeForAccount } from '@/lib/entryFee';
+import { checkPick, isTeamFull, placementOf } from '@/lib/teamPlacement';
+import { seatSignupAccounts, teamLoads } from '@/lib/teamPlacementDb';
 
 export async function GET(
   request: Request,
@@ -91,17 +92,26 @@ export async function GET(
 
   // Team-choice events (rules.teamChoice): the host built the teams up front and applicants name
   // the one they're joining. Sent only when the rule is on, so a drafted event's form is unchanged.
+  //
+  // Players-pick boards (teamPlacement 'pick', lib/teamPlacement) send the same list, with how full
+  // each team is against the host's cap, because there the choice seats them immediately.
   const rules = parseEventRules(event.rules);
-  const choosableTeams = rules.teamChoice
-    ? await db
-        .select({ id: teams.id, name: teams.name, color: teams.color })
-        .from(teams)
-        .where(eq(teams.eventId, id))
-        .orderBy(teams.name)
-    : [];
+  const placement = placementOf(event);
+  const choosableTeams =
+    placement === 'pick'
+      ? (await teamLoads(id)).map((t) => ({ id: t.id, name: t.name, color: t.color ?? '', size: t.size, full: isTeamFull(t, event.teamCap) }))
+      : rules.teamChoice
+        ? await db
+            .select({ id: teams.id, name: teams.name, color: teams.color })
+            .from(teams)
+            .where(eq(teams.eventId, id))
+            .orderBy(teams.name)
+        : [];
 
   return NextResponse.json({
-    teamChoice: rules.teamChoice,
+    teamChoice: rules.teamChoice || placement === 'pick',
+    placement,
+    teamCap: event.teamCap,
     teams: choosableTeams,
     event: {
       id: event.id,
@@ -277,9 +287,43 @@ export async function POST(
   // The team they asked for, on a team-choice event. Validated against THIS event's teams — an id
   // from another board would otherwise seat them somewhere they were never offered. It stays a
   // request either way: nothing here touches their player row, approval does that.
+  //
+  // A players-pick board (lib/teamPlacement) takes the same field, but there the choice SEATS them —
+  // so it is checked here, before anything is written, against the host's per-team cap. The check is
+  // repeated under the event lock when they are actually placed (lib/teamPlacementDb), which is the
+  // one that holds under a rush; this one is what lets a full team refuse cleanly up front.
   const postRules = parseEventRules(event.rules);
+  const placement = placementOf(event);
+  const teamChoiceOn = postRules.teamChoice && placement === 'draft';
+  let pickTeamId: number | null = null;
+  if (placement === 'pick' && !invite) {
+    const loads = await teamLoads(id);
+    if (loads.length > 0) {
+      const wantedId = typeof body?.requestedTeamId === 'number' ? body.requestedTeamId : null;
+      if (wantedId == null) {
+        return NextResponse.json({ error: 'Pick the team you want to join.' }, { status: 400 });
+      }
+      const wanted = loads.find((t) => t.id === wantedId);
+      // Accounts of theirs not already on that team are the ones that would take a place on it.
+      let adding = 0;
+      for (const cid of selectedIds) {
+        const p = await participantForSeat(id, cid);
+        if (!p || p.teamId !== wantedId) adding++;
+      }
+      const verdict = checkPick(wanted, event.teamCap, adding);
+      if (!verdict.ok) {
+        return NextResponse.json(
+          verdict.reason === 'full'
+            ? { error: `${wanted?.name ?? 'That team'} is full. Pick another team.`, reason: 'team-full' }
+            : { error: 'That team is not in this event.' },
+          { status: verdict.reason === 'full' ? 409 : 400 },
+        );
+      }
+      pickTeamId = wantedId;
+    }
+  }
   let requestedTeamId: number | null = null;
-  if (postRules.teamChoice && typeof body?.requestedTeamId === 'number') {
+  if (teamChoiceOn && typeof body?.requestedTeamId === 'number') {
     const wanted = await db.query.teams.findFirst({ where: eq(teams.id, body.requestedTeamId) });
     if (!wanted || wanted.eventId !== id) {
       return NextResponse.json({ error: 'That team is not in this event.' }, { status: 400 });
@@ -300,7 +344,7 @@ export async function POST(
         .set({
           profileData: data,
           // Only ever written on a team-choice event; null elsewhere leaves a drafted sign-up alone.
-          ...(postRules.teamChoice ? { requestedTeamId } : {}),
+          ...(teamChoiceOn ? { requestedTeamId } : {}),
           updatedAt: now,
           ...(invite && prior.status !== 'approved'
             ? { status: 'approved' as const }
@@ -329,32 +373,32 @@ export async function POST(
     rows.push({ row, account });
   }
 
-  // 3) For each active row: ensure its pool player (one per account) and its fee per feeMode.
-  //    per-account → every account owes a fee; per-person → only the primary's row carries it.
-  for (const { row, account } of rows) {
-    if (row.status !== 'pending' && row.status !== 'approved') continue;
+  // 3) Seat every active account (one player row per account): the invite's team, the place the
+  //    board's Team placement gives them, or the draft pool — lib/teamPlacementDb.seatSignupAccounts.
+  const activeRows = rows.filter(({ row }) => row.status === 'pending' || row.status === 'approved');
+  const seated = await seatSignupAccounts({
+    event,
+    accounts: activeRows.map(({ account }) => ({ seatId: account.id, accountId: account.accountId, rsn: account.rsn })),
+    primarySeatId: primaryId,
+    inviteTeamId: invite ? invite.teamId : null,
+    pickTeamId,
+    timezone: profile.timezone ?? null,
+    now,
+    newPlayerToken: generatePlayerToken,
+  });
+  if (!seated.ok) {
+    return NextResponse.json(
+      seated.reason === 'full'
+        ? { error: 'That team just filled up. Pick another team.', reason: 'team-full' }
+        : { error: 'That team is not in this event.' },
+      { status: seated.reason === 'full' ? 409 : 400 },
+    );
+  }
+  const placedTeamId = seated.teamId;
 
-    // By ACCOUNT, not by seat: a player entering a co-hosted board is seated as a guest of the host
-    // clan while their own clan's staff may already have rostered them on their own seat. Asking by
-    // seat finds neither row and puts them on the board twice. See lib/participants.
-    const existingPlayer = await participantForSeat(id, account.id);
-    if (!existingPlayer) {
-      await enrolParticipant({
-        eventId: id,
-        clanMemberId: account.id,
-        accountId: account.accountId,
-        name: account.rsn,
-        // An invite is a seat on ONE team, so the entry skips the pool entirely.
-        teamId: invite ? invite.teamId : null,
-        timezone: profile.timezone ?? null, // the person's tz applies to all their accounts
-        playerToken: generatePlayerToken(),
-      });
-    } else if (invite && existingPlayer.teamId == null) {
-      // Already in the pool (signed up first, invited after) — the link moves them onto the team.
-      await db.update(eventParticipants).set({ teamId: invite.teamId }).where(eq(eventParticipants.id, existingPlayer.id));
-      captureStartingStatsSoon(existingPlayer.eventId, [existingPlayer.id]);
-    }
-
+  //    And each one's fee per feeMode: per-account → every account owes a fee; per-person → only the
+  //    primary's row carries it.
+  for (const { row, account } of activeRows) {
     // Member or guest fee, by whether this character holds a member seat in a clan running the board.
     const feeAmount = await standardFeeForAccount(event, account.accountId);
     if (feeAmount && feeAmount > 0) {
@@ -384,7 +428,10 @@ export async function POST(
   }
 
   const primaryRow = rows.find((r) => r.account.id === primaryId)?.row ?? rows[0].row;
+  const placedTeam = placedTeamId != null ? await db.query.teams.findFirst({ where: eq(teams.id, placedTeamId) }) : null;
   return NextResponse.json({
+    // Where placement put them, so the form can say "You're on Team 3" (null = the pool / a draft).
+    team: placedTeam ? { id: placedTeam.id, name: placedTeam.name, color: placedTeam.color } : null,
     signup: { ...primaryRow, profile: parseProfile(primaryRow.profileData) },
     signups: rows.map(({ row }) => ({ ...row, profile: parseProfile(row.profileData) })),
   });

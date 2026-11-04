@@ -10,8 +10,14 @@ import { FORMAT_CARDS, findFormat } from '../src/lib/formatCatalog.ts';
 
 test('every board mode has exactly one card', () => {
   for (const m of EVENT_MODES) {
-    assert.equal(FORMAT_CARDS.filter((c) => c.choice.mode === m.key).length, 1, m.key);
+    assert.equal(FORMAT_CARDS.filter((c) => c.choice.mode === m.key && !c.choice.placement).length, 1, m.key);
   }
+});
+
+test('solo is its own card, opening a classic board with every player on their own', () => {
+  const solo = findFormat('solo');
+  assert.equal(solo?.choice.mode, 'classic');
+  assert.equal(solo?.choice.placement, 'solo');
 });
 
 test('every weekly kind has a card, and keys are unique', () => {

@@ -9,7 +9,7 @@
 import type { FeatureKey } from '@/lib/features';
 import type { EventMode } from '@/lib/eventModes';
 
-export type FormatKey = EventMode | 'sotw' | 'botw' | 'efficiency';
+export type FormatKey = EventMode | 'sotw' | 'botw' | 'efficiency' | 'solo';
 
 export interface FormatCard {
   key: FormatKey;
@@ -21,8 +21,11 @@ export interface FormatCard {
   /** Hidden when the clan has this switched off on Admin → Features. */
   feature?: FeatureKey;
   tag?: string;
-  /** What EventForm opens on. */
-  choice: { mode?: EventMode; weekly?: 'skill' | 'boss' | 'efficiency' };
+  /**
+   * What EventForm opens on. `placement: 'solo'` is a board format played with every player on
+   * their own (lib/teamPlacement) — the same board, no teams to build.
+   */
+  choice: { mode?: EventMode; weekly?: 'skill' | 'boss' | 'efficiency'; placement?: 'solo' };
 }
 
 export const FORMAT_GROUP_BLURB: Record<FormatCard['group'], string> = {
@@ -38,6 +41,7 @@ export const FORMAT_CARDS: readonly FormatCard[] = [
   { key: 'showdown', group: 'Surprise tasks', name: 'Showdown', how: 'Tasks open at times you choose, like a new one every evening.', goodFor: 'weekend events with set times', sprite: 'dagger', feature: 'poolFormats', choice: { mode: 'showdown' } },
   { key: 'luckydraw', group: 'Surprise tasks', name: 'Lucky draw', how: 'A random task opens every so often, like a bingo caller.', goodFor: 'keeping people logged in', sprite: 'casket', feature: 'poolFormats', choice: { mode: 'luckydraw' } },
   { key: 'bounty', group: 'Surprise tasks', name: 'Bounty hunt', how: 'One task at a time. The first team to finish it takes the points, then the next appears.', goodFor: 'fast, competitive clans', sprite: 'emblem', feature: 'poolFormats', choice: { mode: 'bounty' } },
+  { key: 'solo', group: 'Solo & ongoing', name: 'Solo (everyone for themselves)', how: 'A bingo board where every player is on their own. Nobody builds teams: each sign-up gets a spot named after their character, and the standings rank players.', goodFor: 'big public events and streams', sprite: 'fireCape', choice: { mode: 'classic', placement: 'solo' } },
   { key: 'ladder', group: 'Solo & ongoing', name: 'Ladder', how: 'A points list ranked as a personal leaderboard. Tasks can rotate through the month.', goodFor: 'a monthly clan ladder', sprite: 'clue', feature: 'poolFormats', choice: { mode: 'ladder' } },
   { key: 'sotw', group: 'Solo & ongoing', name: 'Skill of the Week', how: 'Everyone on the roster is entered. Most XP in one skill wins.', goodFor: 'always having something on', sprite: 'stats', feature: 'weekly', choice: { weekly: 'skill' } },
   { key: 'botw', group: 'Solo & ongoing', name: 'Boss of the Week', how: 'Everyone on the roster is entered. Most kills on one boss wins.', goodFor: 'always having something on', sprite: 'bandos', feature: 'weekly', choice: { weekly: 'boss' } },

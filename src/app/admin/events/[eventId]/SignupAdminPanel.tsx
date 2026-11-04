@@ -21,6 +21,8 @@ import Checkbox from '@/components/Checkbox';
 import { useDialog } from '@/components/Confirm';
 import type { SurveyQuestionView } from '@/lib/survey';
 import CopyLinkButton from '@/components/CopyLinkButton';
+import NumberInput from '@/components/NumberInput';
+import { DEFAULT_AUTO_TEAM_COUNT, MAX_AUTO_TEAMS, MIN_AUTO_TEAMS, PLACEMENT_META, TEAM_PLACEMENTS, placementOf, type TeamPlacement } from '@/lib/teamPlacement';
 
 // Default 8-color palette matching the app's existing team color presets.
 const DEFAULT_TEAM_COLORS = [
@@ -166,6 +168,13 @@ export default function SignupAdminPanel({
   // How players get onto a team: drafted (default) or by asking for one when they sign up.
   const storedTeamChoice = parseEventRules(event.rules).teamChoice;
   const [teamChoice, setTeamChoice] = useState(storedTeamChoice);
+  // Team placement (lib/teamPlacement): where each new sign-up lands. Not offered on a per-clan board,
+  // which places by clan.
+  const perClan = event.teamFormation === 'per_clan';
+  const storedPlacement = placementOf(event);
+  const [placement, setPlacement] = useState<TeamPlacement>(storedPlacement);
+  const [teamCount, setTeamCount] = useState(event.teamCount ?? DEFAULT_AUTO_TEAM_COUNT);
+  const [teamCap, setTeamCap] = useState(event.teamCap ?? 0);
 
   const load = useCallback(async () => {
     const res = await clanFetch(`/api/admin/events/${event.id}/signups`);
@@ -402,6 +411,13 @@ export default function SignupAdminPanel({
           // scoring modifiers, which are edited on other tabs — sending it every time would let a
           // sign-up save overwrite them with whatever this page happened to load.
           ...(teamChoice !== storedTeamChoice ? { rules: { teamChoice } } : {}),
+          ...(perClan
+            ? {}
+            : {
+                teamPlacement: placement,
+                ...(placement === 'auto' ? { teamCount } : {}),
+                ...(placement === 'pick' ? { teamCap: teamCap > 0 ? teamCap : null } : {}),
+              }),
         }),
       });
       if (!res.ok) {
@@ -641,13 +657,62 @@ export default function SignupAdminPanel({
           </div>
         </div>
 
-        <Checkbox
-          checked={teamChoice}
-          onChange={setTeamChoice}
-          className="rounded-lg border border-card-border bg-brown-dark/40 px-4 py-3"
-          label="Players pick their own team when they sign up"
-          description="For a board whose teams already exist and aren’t drafted. Sign-ups stay open to everyone and each applicant names the team they’re joining — you or that team’s captain approves them, and approving is what puts them on the roster. Leave off to draft."
-        />
+        {!perClan && (
+          <div className="rounded-lg border border-card-border bg-brown-dark/40 px-4 py-3 space-y-2">
+            <div>
+              <span className="text-xs text-text-muted">Team placement</span>
+              <div className="mt-1 max-w-xs">
+                <Select
+                  value={placement}
+                  onChange={(v) => setPlacement(v as TeamPlacement)}
+                  ariaLabel="Team placement"
+                  options={TEAM_PLACEMENTS.map((p) => ({ value: p, label: `${PLACEMENT_META[p].label}: ${PLACEMENT_META[p].short.toLowerCase()}` }))}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-text-muted">
+              {PLACEMENT_META[placement].help} Changing this never moves anyone already on a team, and a team&rsquo;s invite link
+              always puts people on that team.
+            </p>
+            {placement === 'auto' && (
+              <label className="flex items-center gap-2 text-sm">
+                <span className="text-text-muted">Number of teams</span>
+                <NumberInput
+                  value={teamCount}
+                  onChange={setTeamCount}
+                  min={MIN_AUTO_TEAMS}
+                  max={MAX_AUTO_TEAMS}
+                  fallback={DEFAULT_AUTO_TEAM_COUNT}
+                  className="w-24 bg-brown-light border border-card-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none focus:border-gold"
+                />
+              </label>
+            )}
+            {placement === 'pick' && (
+              <label className="flex items-center gap-2 text-sm">
+                <span className="text-text-muted">Most players per team</span>
+                <NumberInput
+                  value={teamCap}
+                  onChange={setTeamCap}
+                  min={0}
+                  max={1000}
+                  fallback={0}
+                  className="w-24 bg-brown-light border border-card-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none focus:border-gold"
+                />
+                <span className="text-xs text-text-muted">0 = no limit</span>
+              </label>
+            )}
+          </div>
+        )}
+
+        {(perClan || placement === 'draft') && (
+          <Checkbox
+            checked={teamChoice}
+            onChange={setTeamChoice}
+            className="rounded-lg border border-card-border bg-brown-dark/40 px-4 py-3"
+            label="Players ask for a team when they sign up"
+            description="For a board whose teams already exist and aren’t drafted. Sign-ups stay open to everyone and each applicant names the team they’re joining — you or that team’s captain approves them, and approving is what puts them on the roster. Leave off to draft."
+          />
+        )}
 
         <div className="rounded-lg border border-gold/25 bg-gold/5 px-4 py-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <div className="text-xs uppercase tracking-wide text-text-muted min-w-0">

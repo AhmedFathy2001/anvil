@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { placementOf } from '@/lib/teamPlacement';
 import { requireClan } from '@/lib/clanContext';
 import { clans, events, tiles, teams, completions, eventParticipants } from '@/db/schema';
 import { nestParts } from '@/lib/combo';
@@ -144,7 +145,8 @@ export default async function MyTeamPage({
     eventTeams.map((eventTeam) => eventTeam.id),
     rawEventPlayers.map((player) => player.teamId),
   );
-  const draftRequired = event.teamFormation !== 'per_clan' && !rostersFinal;
+  // A board that places sign-ups itself (lib/teamPlacement: auto / pick / solo) has no draft to wait for.
+  const draftRequired = event.teamFormation !== 'per_clan' && placementOf(event) === 'draft' && !rostersFinal;
   // The team hub is a PLAYER surface. A captain is a player with extra buttons — not staff — so an
   // unrevealed board is as hidden here as it is on the event page: the tiles are dropped before the
   // page is built, not hidden in the client.

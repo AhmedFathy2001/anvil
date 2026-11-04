@@ -16,6 +16,8 @@ import { enrolParticipant, participantForSeat, removeParticipantForWithdrawnSeat
 import { assertEventEditable } from '@/lib/eventLock';
 import { cohostSignupClanFor } from '@/lib/eventEditors';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
+import { placementOf } from '@/lib/teamPlacement';
+import { enrolPlaced } from '@/lib/teamPlacementDb';
 
 // Per-signup admin actions. All admin-only — captain selection is high-stakes and we
 // don't want a moderator accidentally locking the wrong person in.
@@ -221,15 +223,22 @@ export async function PATCH(
         } catch {
           /* profileData not JSON — leave timezone null */
         }
-        await enrolParticipant({
+        const values = {
           eventId: evtId,
           clanMemberId: signup.clanMemberId,
           accountId: account?.accountId ?? null,
           name: account?.rsn ?? 'Unknown',
           timezone,
-          teamId: seatTeamId, // null → the pool, draftable/assignable
           playerToken: generatePlayerToken(),
-        });
+        };
+        // An auto-balanced or solo board places them as a self-serve sign-up would (lib/teamPlacement).
+        const placingEvent = seatTeamId == null ? await db.query.events.findFirst({ where: eq(events.id, evtId) }) : null;
+        const placement = placingEvent ? placementOf(placingEvent) : 'draft';
+        if (placingEvent && (placement === 'auto' || placement === 'solo')) {
+          await enrolPlaced(placingEvent, values);
+        } else {
+          await enrolParticipant({ ...values, teamId: seatTeamId }); // null → the pool, draftable/assignable
+        }
       } else if (seatTeamId != null && existingPlayer.teamId == null) {
         // Signed up before the teams existed, or applied and waited: the approval seats them now.
         // Someone already ON a team is left alone — that placement was a decision too.

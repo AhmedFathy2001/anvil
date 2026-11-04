@@ -6,6 +6,7 @@ import { events, tiles } from '@/db/schema';
 import { verifyAdmin } from '@/lib/auth';
 import { validateEventRules } from '@/lib/eventRules';
 import { isTeamFormation } from '@/lib/teamFormation';
+import { DEFAULT_NEW_EVENT_PLACEMENT, isTeamPlacement, normaliseTeamCap, normaliseTeamCount } from '@/lib/teamPlacement';
 import { isVisibility } from '@/lib/eventVisibility';
 import { track } from '@/lib/analytics';
 
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { name, boardSize, tileLabels, tileIcons, scoringMode, format, maxAccountsPerPerson, accountSlotMode, feeMode, rules, startDate, endDate, teamFormation, cashPolicy, visibility } = await request.json();
+  const { name, boardSize, tileLabels, tileIcons, scoringMode, format, maxAccountsPerPerson, accountSlotMode, feeMode, rules, startDate, endDate, teamFormation, cashPolicy, visibility, teamPlacement, teamCount, teamCap } = await request.json();
 
   if (!name || !boardSize) {
     return NextResponse.json({ error: 'Name and boardSize are required' }, { status: 400 });
@@ -51,10 +52,33 @@ export async function POST(request: Request) {
   // clans it invites, not the whole platform — unless the caller says otherwise.
   const resolvedVisibility = isVisibility(visibility) ? visibility : resolvedFormation === 'per_clan' ? 'invited' : 'clan';
 
+  // Team placement (lib/teamPlacement): where a sign-up lands. A new team board defaults to
+  // auto-balance; a per-clan board places by clan, and a ladder is a personal leaderboard, so both
+  // keep the pool ('draft') — the column's own default, which every older event also reads.
+  if (teamPlacement !== undefined && !isTeamPlacement(teamPlacement)) {
+    return NextResponse.json({ error: "teamPlacement must be 'auto', 'pick', 'draft' or 'solo'" }, { status: 400 });
+  }
+  const resolvedTeamCount = normaliseTeamCount(teamCount);
+  if (resolvedTeamCount === 'invalid') {
+    return NextResponse.json({ error: 'Number of teams must be a whole number from 2 to 50' }, { status: 400 });
+  }
+  const resolvedTeamCap = normaliseTeamCap(teamCap);
+  if (resolvedTeamCap === 'invalid') {
+    return NextResponse.json({ error: 'Players per team must be a whole number from 1 to 1000, or blank' }, { status: 400 });
+  }
+
   if (format !== undefined && format !== 'bingo' && format !== 'tilerace' && format !== 'ladder') {
     return NextResponse.json({ error: "format must be 'bingo', 'tilerace' or 'ladder'" }, { status: 400 });
   }
   const resolvedFormat = format === 'tilerace' ? 'tilerace' : format === 'ladder' ? 'ladder' : 'bingo';
+  const resolvedPlacement =
+    resolvedFormation === 'per_clan'
+      ? 'draft'
+      : isTeamPlacement(teamPlacement)
+        ? teamPlacement
+        : resolvedFormat === 'ladder'
+          ? 'draft'
+          : DEFAULT_NEW_EVENT_PLACEMENT;
 
   if (scoringMode !== undefined && scoringMode !== 'tiles' && scoringMode !== 'points') {
     return NextResponse.json({ error: "scoringMode must be 'tiles' or 'points'" }, { status: 400 });
@@ -176,6 +200,9 @@ export async function POST(request: Request) {
       maxAccountsPerPerson: resolvedMaxAccounts, accountSlotMode: resolvedAccountSlotMode, feeMode: resolvedFeeMode,
       rules: resolvedRules,
       teamFormation: resolvedFormation,
+      teamPlacement: resolvedPlacement,
+      teamCount: resolvedPlacement === 'auto' ? resolvedTeamCount : null,
+      teamCap: resolvedPlacement === 'pick' ? resolvedTeamCap : null,
       cashPolicy: resolvedCashPolicy,
       visibility: resolvedVisibility,
       startDate: resolvedStart as string | null,
@@ -191,6 +218,6 @@ export async function POST(request: Request) {
     return created;
   });
 
-  track('event.created', { clanId: clan.id, props: { format: resolvedFormat, formation: resolvedFormation, tiles: resolvedLabels.length } });
+  track('event.created', { clanId: clan.id, props: { format: resolvedFormat, formation: resolvedFormation, placement: resolvedPlacement, tiles: resolvedLabels.length } });
   return NextResponse.json(event, { status: 201 });
 }

@@ -45,6 +45,13 @@ export interface Event {
   /** Wide picture across the top of the event page; null = none. */
   bannerUrl?: string | null;
   bannerPosition?: number | null;
+  /** Where a new sign-up lands (lib/teamPlacement): 'auto' | 'pick' | 'draft' | 'solo'. */
+  teamPlacement?: string;
+  teamFormation?: string;
+  /** Auto-balance: how many teams to spread players across. */
+  teamCount?: number | null;
+  /** Players pick: the most players one team may take. */
+  teamCap?: number | null;
 }
 
 export interface TileRevealState {

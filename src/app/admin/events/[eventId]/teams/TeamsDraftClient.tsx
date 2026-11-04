@@ -33,6 +33,7 @@ import type { StartingStatsStatus } from '@/lib/startingStatsRules';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
 import GuideLink from '@/components/GuideLink';
+import { PLACEMENT_META, placementOf } from '@/lib/teamPlacement';
 
 interface DraftState {
   status: string;
@@ -115,8 +116,13 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   // 'one_team' (whole clan together) skip team creation, draft order and the draft entirely:
   // players are enrolled and teamed up in one click. Derived from DB state when it's already
   // obvious, otherwise asked on the first screen (sessionStorage remembers an explicit answer).
+  // The host's Team placement (lib/teamPlacement) already answers it when sign-ups place themselves:
+  // a solo board is one team each, and an auto-balanced or players-pick board is rostered directly.
+  const placement = placementOf(event);
   const derivedFormat = ((): TeamFormat | null => {
     if (event.draftStatus !== 'none') return 'draft'; // a draft ran / is running
+    if (placement === 'solo') return 'individual';
+    if (placement === 'auto' || placement === 'pick') return 'preassigned';
     const assigned = initialPlayers.filter((p) => p.teamId != null);
     if (teams.length === 1 && assigned.length > 0) return 'one_team';
     if (teams.length >= 2) {
@@ -870,6 +876,17 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     // in their disabled. Clicking a player for stats, expanding answers and step navigation stay
     // live — a blanket disabled <fieldset> used to kill those too.
     <div className="space-y-12 min-w-0">
+      {placement !== 'draft' && event.draftStatus === 'none' && (
+        <p className="!mt-0 rounded-xl border border-gold/25 bg-gold/5 px-4 py-3 text-sm text-text-muted">
+          <span className="font-medium text-foreground">Team placement: {PLACEMENT_META[placement].label}.</span>{' '}
+          {placement === 'solo'
+            ? 'Every player who signs up gets their own entry, so there is nothing to draft. The list below has one per player.'
+            : placement === 'auto'
+              ? `Players join the team with the fewest players when they sign up${event.teamCount ? `, across ${event.teamCount} teams` : ''}. You can still move people by hand.`
+              : 'Players choose one of your teams when they sign up. Create the teams here first.'}{' '}
+          Change it on the Sign-ups tab.
+        </p>
+      )}
       {/* Format-first: nothing else renders until the admin picks how teams work. Non-draft picks
           skip team creation and the draft entirely — enrolment teams everyone up in one click. */}
       {format === null && (
