@@ -82,8 +82,9 @@ export interface MediaHeader {
 }
 
 /** The header checks, before a single pixel is decoded. Null = fine; else what to tell them. */
-export function checkMediaHeader(kind: ProfileMediaKind, sniffed: SniffedImage, h: MediaHeader): string | null {
-  const lim = MEDIA_LIMITS[kind];
+export function checkMediaHeader(kind: ProfileMediaKind | MediaLimits, sniffed: SniffedImage, h: MediaHeader): string | null {
+  // A kind's own limits, or a caller's (a creator space's logo, banner and panel images: lib/spacePage).
+  const lim = typeof kind === 'string' ? MEDIA_LIMITS[kind] : kind;
   // The decoder must agree with the magic bytes; a disagreement is a polyglot or a broken file.
   if (h.format !== sniffed) return 'That file is not the image it says it is.';
   const w = h.width ?? 0;

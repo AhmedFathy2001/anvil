@@ -5,6 +5,10 @@ import CreatorEventList from '@/components/CreatorEventList';
 import type { CreatorHomeView } from '@/lib/creatorHome';
 import type { ShownHighlight } from '@/lib/highlights/rules';
 import HighlightsStrip from '@/components/HighlightsStrip';
+import CreatorFeatured from '@/components/CreatorFeatured';
+import CreatorPanels from '@/components/CreatorPanels';
+import CreatorSchedule from '@/components/CreatorSchedule';
+import type { PublicSpacePage } from '@/lib/spacePage/store';
 
 function SectionTitle({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
   return (
@@ -47,10 +51,16 @@ function StreamLink({ link }: { link: CreatorHomeView['links'][number] }) {
 export default function CreatorHome({
   view,
   highlights = [],
+  page = null,
+  canReport = false,
 }: {
   view: CreatorHomeView;
   /** Stream highlights (lib/highlights), already cut to events this viewer may see. */
   highlights?: (ShownHighlight & { eventName: string })[];
+  /** The space's own page content (lib/spacePage): featured, schedule, bio and panels. */
+  page?: PublicSpacePage | null;
+  /** The viewer is signed in, so may report a panel. */
+  canReport?: boolean;
 }) {
   return (
     <div className="mx-auto max-w-4xl">
@@ -100,6 +110,13 @@ export default function CreatorHome({
         </div>
       </div>
 
+      <CreatorFeatured featured={page?.featured ?? null} />
+      <CreatorSchedule
+        slots={page?.schedule ?? []}
+        hostTz={page?.scheduleTz ?? null}
+        live={view.links.filter((l) => (l.platform === 'twitch' && page?.live.twitch) || (l.platform === 'kick' && page?.live.kick))}
+      />
+
       {/* The same rows the header counts (lib/creatorHome creatorEventsView). */}
       <div id="events" className="scroll-mt-20">
         <CreatorEventList events={view.events} />
@@ -110,6 +127,8 @@ export default function CreatorHome({
           <HighlightsStrip highlights={highlights} blurb="clipped live from the stream during these events" showEvent />
         </div>
       )}
+
+      <CreatorPanels clanId={view.id} bio={page?.bio ?? null} panels={page?.panels ?? []} canReport={canReport} />
 
       {view.players.length > 0 && (
         <section className="mt-8">
@@ -138,6 +157,10 @@ export default function CreatorHome({
           Host an event
         </ClanLink>
       </div>
+      <p className="mt-4 text-center text-[11.5px] text-text-dim">
+        Not affiliated with Jagex Ltd. Old School RuneScape is a trademark of Jagex Ltd. Promotions on Anvil must follow
+        Jagex&rsquo;s rules.
+      </p>
     </div>
   );
 }
