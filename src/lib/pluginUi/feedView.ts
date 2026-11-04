@@ -6,7 +6,7 @@ import { boardHidden, boardSize, completionAt, completionFinisher } from '@/lib/
 import { normalizeRsn, pluginRsnHintOnly, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess } from '@/lib/eventChat';
 import { formatGp } from '@/lib/itemPrices';
-import { NO_REACTIONS, isClanMember, reactionSummaries } from '@/lib/momentReactions';
+import { NO_REACTIONS, isClanMember, reactionSummaries, tallyOf } from '@/lib/momentReactions';
 import { eventFeedFloor, isClanWorthy, panelFeedWorthy } from '@/lib/moments';
 import { boardTileItemIds, clanScopeFor, momentsForClan, momentsForEvent, type MomentRow } from '@/lib/momentsStore';
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
@@ -17,8 +17,8 @@ import { standingsHidden } from '@/lib/standingsVisibility';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 
 import { visibleClan } from './load';
-import { completionRow, feedTabUi, kindGroup, momentRow, type KindGroup, type Scope } from './feedUi';
-import type { Action, FeedRow, View } from './nodes';
+import { completionRow, feedTabUi, kindGroup, momentRow, type KindGroup, type RowReactKind, type Scope } from './feedUi';
+import type { FeedRow, View } from './nodes';
 import { backRow, col, gap, message, text } from './nodes';
 
 // The Feed tab's data (view 'feed') and the event chat's actions. The look is lib/pluginUi/feedUi.
@@ -126,8 +126,10 @@ async function clanRows(clan: Extract<Scope, { kind: 'clan' }>, filter: string, 
   ]);
   const rows = list.map((m) => {
     const s = summaries.get(m.id) ?? NO_REACTIONS;
-    const react: Action | undefined = member ? { a: 'post', act: 'react-row', args: { slug: clan.slug, id: String(m.id), kind: 'gz' } } : undefined;
-    return momentRow(asLike(m), { gz: { n: s.gz, mine: s.mineGz }, react, ink: inks.get(normalizeRsn(m.rsn)) });
+    const reacts = member
+      ? { tally: (k: RowReactKind) => tallyOf(s, k), act: (k: RowReactKind) => ({ a: 'post' as const, act: 'react-row', args: { slug: clan.slug, id: String(m.id), kind: k } }) }
+      : undefined;
+    return momentRow(asLike(m), { reacts, ink: inks.get(normalizeRsn(m.rsn)) });
   });
   return { rows, floor: scope.minLootGp };
 }
@@ -154,7 +156,11 @@ function asLike(m: MomentRow) {
   };
 }
 
-async function eventRows(eventId: number, filter: string, teamId: number | null): Promise<{ rows: FeedRow[]; floor: number }> {
+/**
+ * A board's feed. Its deaths take "Sad" / "Sit" from anyone playing on it (`viewer` with `canReact`);
+ * its drops stay without a GZ, as they always were on a board.
+ */
+async function eventRows(eventId: number, filter: string, teamId: number | null, viewer: number | null = null, canReact = false): Promise<{ rows: FeedRow[]; floor: number }> {
   const floor = eventFeedFloor(await boardSize(eventId));
   // clan-scope: this clan -- by id; the viewer reached this board through their own seat or home board
   const ev = await db.query.events.findFirst({ where: eq(events.id, eventId) });
@@ -178,16 +184,23 @@ async function eventRows(eventId: number, filter: string, teamId: number | null)
           .sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : a.occurredAt > b.occurredAt ? -1 : 0))
           .slice(0, 80);
   // Names in a Supporter's colours, else their team's; the team under the name, as the live rows do.
-  const [inks, teamRows] = await Promise.all([
+  // A lab board's rows (negative ids) are no real moments: nothing to react to.
+  const reactable = (m: MomentRow) => canReact && viewer != null && m.kind === 'death' && m.id > 0;
+  const [inks, teamRows, summaries] = await Promise.all([
     inksFor(momentList.map((m) => m.rsn)),
     momentList.length ? db.select({ id: teams.id, name: teams.name, color: teams.color }).from(teams).where(eq(teams.eventId, eventId)) : Promise.resolve([]),
+    reactionSummaries(momentList.filter(reactable).map((m) => m.id), viewer),
   ]);
   const teamById = new Map(teamRows.map((t) => [t.id, t]));
   const momentRows = momentList.map((m) => {
     const team = m.teamId != null ? teamById.get(m.teamId) : undefined;
+    const s = summaries.get(m.id) ?? NO_REACTIONS;
+    const reacts = reactable(m)
+      ? { tally: (k: RowReactKind) => tallyOf(s, k), act: (k: RowReactKind) => ({ a: 'post' as const, act: 'react-row', args: { e: String(eventId), id: String(m.id), kind: k } }) }
+      : undefined;
     return {
       at: Date.parse(m.occurredAt),
-      row: momentRow(asLike(m), { mine: own(m.teamId), team: team ? { name: team.name, color: team.color } : null, ink: inks.get(normalizeRsn(m.rsn)) }),
+      row: momentRow(asLike(m), { mine: own(m.teamId), team: team ? { name: team.name, color: team.color } : null, ink: inks.get(normalizeRsn(m.rsn)), reacts }),
     };
   });
   // Finished tiles: in All, Tiles and My team (a drop filter is about drops).
@@ -277,7 +290,10 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
     };
   }
 
-  const { rows, floor } = current.kind === 'clan' ? await clanRows(current, filter, viewer?.userId ?? null) : await eventRows(current.id, filter, teamId);
+  const { rows, floor } =
+    current.kind === 'clan'
+      ? await clanRows(current, filter, viewer?.userId ?? null)
+      : await eventRows(current.id, filter, teamId, viewer?.userId ?? null, !!access?.member);
   return {
     ui: feedTabUi({
       scopes,

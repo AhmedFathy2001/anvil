@@ -133,3 +133,30 @@ test('a tile row names who and which team; a death reads as one and has its own 
   assert.equal(death.title, 'Died to Vorkath');
   assert.ok(momentFeedIds({ kind: 'event', id: 9 }, 'death', 2).includes('moments:event:9:deaths'));
 });
+
+test('a death row offers Sad and Sit, never a GZ; every other row keeps its GZ', async () => {
+  const { momentRow, rowReactKinds } = await import('../src/lib/pluginUi/feedUi.ts');
+  assert.deepEqual(rowReactKinds('death'), ['sad', 'sit']);
+  assert.deepEqual(rowReactKinds('pet'), ['gz']);
+  assert.deepEqual(rowReactKinds('unique'), ['gz']);
+  const asked: string[] = [];
+  const reacts = {
+    tally: (k: string) => (asked.push(k), k === 'sit' ? { n: 3, mine: true } : { n: 0, mine: false }),
+    act: (k: string) => ({ a: 'post' as const, act: 'react-row', args: { slug: 'c', id: '5', kind: k } }),
+  };
+  const death = momentRow({ id: 5, rsn: 'Mossy', kind: 'death', itemId: null, itemName: null, quantity: 1, valueGp: null, source: 'Vorkath', occurredAt: 'x', teamId: null }, { reacts });
+  assert.equal(death.gz, undefined, 'an older plugin draws no GZ on a death');
+  assert.deepEqual(death.reacts, [
+    { kind: 'sad', label: 'Sad', n: 0, mine: false, on: { a: 'post', act: 'react-row', args: { slug: 'c', id: '5', kind: 'sad' } } },
+    { kind: 'sit', label: 'Sit', n: 3, mine: true, on: { a: 'post', act: 'react-row', args: { slug: 'c', id: '5', kind: 'sit' } } },
+  ]);
+  assert.ok(!asked.includes('gz'), 'a GZ is never asked for on a death');
+  asked.length = 0;
+  const pet = momentRow(drop(null, { kind: 'pet', itemName: 'Pet snakeling' }), { reacts });
+  assert.deepEqual(pet.gz, { n: 0, mine: false, on: { a: 'post', act: 'react-row', args: { slug: 'c', id: '5', kind: 'gz' } } });
+  assert.equal(pet.reacts, undefined);
+  assert.deepEqual(asked, ['gz']);
+  const unseen = momentRow({ id: 6, rsn: 'Mossy', kind: 'death', itemId: null, itemName: null, quantity: 1, valueGp: null, source: null, occurredAt: 'x', teamId: null });
+  assert.equal(unseen.reacts, undefined, 'no reactions for someone who may not react');
+  assert.equal(unseen.gz, undefined);
+});

@@ -105,12 +105,29 @@ function glyphOf(kind: string): Pick<FeedRow, 'glyph' | 'glyphColor'> {
   return { glyph: 'check', glyphColor: 'done' };
 }
 
+export type RowReactKind = 'gz' | 'sad' | 'sit';
+
+/** What each reaction reads as on a row. */
+const REACT_LABEL: Record<RowReactKind, string> = { gz: 'GZ', sad: 'Sad', sit: 'Sit' };
+
+/**
+ * The reactions a feed row offers for a moment of this kind: a death is met with "Sad" or told to
+ * "Sit" (the game's way of telling someone who died to sit down), everything else gets a GZ. The
+ * react-row action takes only these, so a GZ never lands on a death.
+ */
+export function rowReactKinds(momentKind: string): RowReactKind[] {
+  return momentKind === 'death' ? ['sad', 'sit'] : ['gz'];
+}
+
 export interface MomentRowOptions {
   /** The viewer's own drop, or their team's on a board. */
   mine?: boolean;
-  /** GZ count and whether the viewer gave one; with `react` it is clickable. */
-  gz?: { n: number; mine: boolean };
-  react?: Action;
+  /**
+   * The viewer may react: each kind's count and whether they gave it, and the action that toggles it.
+   * A death's become `reacts` chips (a plugin from before them draws none); anything else's the `gz`.
+   * Kinds the row doesn't offer (rowReactKinds) are never asked for.
+   */
+  reacts?: { tally: (kind: RowReactKind) => { n: number; mine: boolean }; act: (kind: RowReactKind) => Action };
   /** "Team Ruby" under the name on a board. */
   team?: { name: string; color: string | null } | null;
   /** A Supporter's name colours (lib/supporter supporterInksForRsns), the same as their chat lines. */
@@ -143,8 +160,16 @@ export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
     ...(value ? { value } : {}),
     ...(m.kind === 'pet' ? { textColor: PET as Color } : m.kind === 'death' ? { textColor: 'error' as Color } : {}),
     ...(o.mine ? { mine: true } : {}),
-    ...(o.gz && o.react ? { gz: { n: o.gz.n, mine: o.gz.mine, on: o.react } } : {}),
+    ...reactsOf(m.kind, o),
   };
+}
+
+function reactsOf(kind: string, o: MomentRowOptions): Pick<FeedRow, 'gz' | 'reacts'> {
+  if (!o.reacts) return {};
+  const { tally, act } = o.reacts;
+  const kinds = rowReactKinds(kind);
+  if (kinds.length === 1 && kinds[0] === 'gz') return { gz: { ...tally('gz'), on: act('gz') } };
+  return { reacts: kinds.map((k) => ({ kind: k, label: REACT_LABEL[k], ...tally(k), on: act(k) })) };
 }
 
 /** A board tile some team finished: the tile, who finished it (or the team), the team, when. */

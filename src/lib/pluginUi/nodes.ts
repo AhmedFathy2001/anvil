@@ -204,7 +204,9 @@ export type Node =
 
 /**
  * One row of a feed. Kept flat and small: a thousand of these cross the socket in an hour.
- * `on` runs when the row is clicked, `gz` is the reaction at its right edge.
+ * `on` runs when the row is clicked, `gz` is the reaction at its right edge. `reacts` are chips there
+ * instead (a death's "Sad" / "Sit"), each toggled the same way as `gz`; a plugin from before them
+ * ignores the field, so a row carries one or the other, never both.
  */
 export interface FeedRow {
   id: string;
@@ -232,6 +234,7 @@ export interface FeedRow {
   /** The viewer's own, or their team's: drawn on a lighter ground. */
   mine?: boolean;
   gz?: { n: number; mine?: boolean; on: Action };
+  reacts?: { kind: string; label: string; n: number; mine?: boolean; on: Action }[];
   on?: Action;
   /** Right-click entries (mods: delete, mute). */
   menu?: { label: string; on: Action }[];

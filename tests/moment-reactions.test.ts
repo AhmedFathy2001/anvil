@@ -4,6 +4,7 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
@@ -120,4 +121,72 @@ test('without a plugin login a public clan’s feed shows, but nothing can be pr
   const v = await V.pluginView(new Request('http://site/api/plugin/ui'), 'moments', { slug: 'gz-clan' });
   assert.ok(texts(v!.ui).includes('Pet snakeling · pet'));
   assert.ok(!JSON.stringify(v!.ui).includes('"act":"react"'), 'no reaction without knowing who gives it');
+});
+
+// ── Feed rows: a death takes Sad / Sit, everything else a GZ ─────────────────────────────────────
+
+const row = (id: number, kind: string) => V.pluginAct(asFan(), 'react-row', { slug: 'gz-clan', id: String(id), kind }, {});
+const stored = async (momentId: number) =>
+  (await db.select().from(s.momentReactions)).filter((r) => r.momentId === momentId && r.userId === fanUserId).map((r) => r.kind).sort();
+const errorOf = (v: Awaited<ReturnType<typeof row>>) => texts(v!.ui)[0];
+
+test('a clanmate can Sad and Sit a death, each toggling like a GZ', async () => {
+  assert.equal(errorOf(await row(deathId, 'sad')), undefined);
+  assert.equal(errorOf(await row(deathId, 'sit')), undefined);
+  assert.deepEqual(await stored(deathId), ['sad', 'sit']);
+  await row(deathId, 'sad');
+  assert.deepEqual(await stored(deathId), ['sit'], 'pressed again, taken back');
+});
+
+test('no GZ on a death, and no Sad or Sit on a drop', async () => {
+  assert.equal(errorOf(await row(deathId, 'gz')), 'Couldn’t react to that.');
+  assert.equal(errorOf(await row(deathId, 'gold')), 'Couldn’t react to that.', 'a gold GZ is still a GZ');
+  assert.equal(errorOf(await row(petId, 'sit')), 'Couldn’t react to that.');
+  assert.equal(errorOf(await row(petId, 'sad')), 'Couldn’t react to that.');
+  assert.ok(!(await stored(deathId)).includes('gz'));
+  assert.ok(!(await stored(petId)).some((k) => k === 'sad' || k === 'sit'));
+  // The old Recent drops list never takes a death's reactions either.
+  const old = await V.pluginAct(asFan(), 'react', { slug: 'gz-clan', id: String(petId), kind: 'sit' }, {});
+  assert.ok(texts(old!.ui).includes('Couldn’t react to that.'));
+});
+
+test('a board’s death takes Sad / Sit from its players; its drops and outsiders get nothing', async () => {
+  const [clan] = await db.select().from(s.clans).where(eq(s.clans.slug, 'gz-clan'));
+  const [ev] = await db.insert(s.events).values({ clanId: clan.id, name: 'Death Board', boardSize: 2, startDate: '2026-10-01T00:00:00.000Z' }).returning();
+  const [team] = await db.insert(s.teams).values({ eventId: ev.id, name: 'Reds', color: '#cc0000' }).returning();
+  const [fanAcc] = (await db.select().from(s.accounts)).filter((a) => a.rsn === 'Big Fan');
+  await db.insert(s.eventParticipants).values({ eventId: ev.id, teamId: team.id, accountId: fanAcc.id, name: 'Big Fan' });
+  const [seat] = (await db.select().from(s.clanMemberships)).filter((m) => m.accountId !== fanAcc.id && m.clanId === clan.id);
+  const [{ id: boardDeath }] = await db
+    .insert(s.moments)
+    .values({ clanMemberId: seat.id, eventId: ev.id, teamId: team.id, rsn: 'Lucky One', kind: 'death', source: 'Vorkath', occurredAt: '2026-11-02 10:00:00', dedupKey: 'bd1' })
+    .returning();
+  const [{ id: boardPet }] = await db
+    .insert(s.moments)
+    .values({ clanMemberId: seat.id, eventId: ev.id, teamId: team.id, rsn: 'Lucky One', kind: 'pet', itemName: 'Vorki', occurredAt: '2026-11-02 10:05:00', dedupKey: 'bp1' })
+    .returning();
+
+  const onBoard = (id: number, kind: string, req = asFan()) => V.pluginAct(req, 'react-row', { e: String(ev.id), id: String(id), kind }, {});
+  assert.equal(errorOf(await onBoard(boardDeath, 'sit')), undefined);
+  assert.deepEqual(await stored(boardDeath), ['sit']);
+  assert.equal(errorOf(await onBoard(boardDeath, 'gz')), 'Couldn’t react to that.');
+  assert.equal(errorOf(await onBoard(boardPet, 'gz')), 'Couldn’t react to that.', 'a board’s drops stay without a GZ');
+  assert.equal(errorOf(await onBoard(deathId, 'sad')), 'That isn’t in this event’s feed.', 'a death from off the board');
+
+  const [outsider] = await db.insert(s.players).values({ displayName: 'Nobody' }).returning();
+  await db.insert(s.users).values({ displayName: 'nobody', discordId: 'disc-nobody', pluginTokenHash: tokenHash('nobody-token'), playerId: outsider.id });
+  const asNobody = new Request('http://site/api/plugin/ui', { headers: { Authorization: 'Bearer nobody-token' } });
+  assert.equal(errorOf(await onBoard(boardDeath, 'sad', asNobody)), 'Only this event’s players can react here.');
+  assert.deepEqual(await stored(boardDeath), ['sit']);
+
+  // The board's Feed draws the death with its chips, the pet without.
+  const v = await V.pluginView(asFan(), 'feed', { s: `event:${ev.id}` });
+  const json = JSON.stringify(v!.ui);
+  const rows = (JSON.parse(json).c as { t: string; rows?: { id: string; gz?: unknown; reacts?: { kind: string; n: number; mine: boolean }[] }[] }[]).find((n) => n.t === 'feed')?.rows ?? [];
+  const d = rows.find((r) => r.id === `m${boardDeath}`);
+  const p = rows.find((r) => r.id === `m${boardPet}`);
+  assert.ok(d, 'the death is in the board feed');
+  assert.deepEqual(d!.reacts!.map((r) => [r.kind, r.n, r.mine]), [['sad', 0, false], ['sit', 1, true]]);
+  assert.equal(d!.gz, undefined);
+  assert.ok(p && p.gz === undefined && p.reacts === undefined);
 });
