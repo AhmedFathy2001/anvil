@@ -62,9 +62,11 @@ const TRAINABLE_SKILLS = [
 
 export type ClaimMode = 'objection' | 'approval' | 'staff';
 export type ClaimStatus =
-  | 'verifying' | 'open' | 'approved' | 'transferred' | 'objected' | 'declined' | 'staff' | 'withdrawn' | 'lapsed' | 'expired';
+  | 'verifying' | 'open' | 'approved' | 'transferring' | 'transferred' | 'objected' | 'declined' | 'staff' | 'withdrawn' | 'lapsed' | 'expired';
 /** In flight: the partial unique index allows one of these per character. */
-const LIVE: ClaimStatus[] = ['verifying', 'open', 'approved'];
+const LIVE: ClaimStatus[] = ['verifying', 'open', 'approved', 'transferring'];
+/** A transfer that started this long ago and never finished (a crashed worker) is retried. */
+const TRANSFER_STALE_MS = 10 * 60_000;
 /** A no, or staff's to decide: the same person waits before asking again. */
 const REFUSED: ClaimStatus[] = ['objected', 'declined', 'staff'];
 
@@ -98,6 +100,7 @@ export function claimantLine(
         ? `You proved ${rsn}. The current owner has until ${fmtDay(c.deadlineAt)} to object; if they don't, it moves to you.`
         : `You proved ${rsn}. The current owner verified it too, so it moves only if they approve.`;
     case 'approved':
+    case 'transferring':
       return `Your claim on ${rsn} went through. It moves to you as soon as the event it's playing in ends.`;
     case 'transferred':
       return `${rsn} is yours now.`;
@@ -304,12 +307,23 @@ export async function checkOwnershipClaim(input: { claimId: number; userId: numb
     };
   }
 
-  await db.update(verificationAttempts).set({ completedAt: nowIso, succeeded: 1, failureReason: null }).where(eq(verificationAttempts.id, attempt.id));
-  await db.update(accountOwnershipClaims).set({ verifiedAt: nowIso }).where(eq(accountOwnershipClaims.id, claim.id));
-  await audit('ownership_claim_verified', input.userId, { claimId: claim.id, accountId: claim.accountId, method: 'stat_delta', skill: target, gained });
-  const status = await routeVerifiedClaim({ ...claim, verifiedAt: nowIso }, account, nowIso);
+  // ONE winner. Two Checks at once (the panel and the site, or a double click) both see the gain;
+  // only the request whose conditional update comes back routes the claim and tells anybody.
+  const [won] = await db
+    .update(accountOwnershipClaims)
+    .set({ verifiedAt: nowIso })
+    .where(and(eq(accountOwnershipClaims.id, claim.id), eq(accountOwnershipClaims.status, 'verifying'), isNull(accountOwnershipClaims.verifiedAt)))
+    .returning();
+  if (won) {
+    await db
+      .update(verificationAttempts)
+      .set({ completedAt: nowIso, succeeded: 1, failureReason: null })
+      .where(and(eq(verificationAttempts.id, attempt.id), isNull(verificationAttempts.completedAt)));
+    await audit('ownership_claim_verified', input.userId, { claimId: claim.id, accountId: claim.accountId, method: 'stat_delta', skill: target, gained });
+    await routeVerifiedClaim(won, account, nowIso);
+  }
   const fresh = (await db.query.accountOwnershipClaims.findFirst({ where: eq(accountOwnershipClaims.id, claim.id) }))!;
-  return { ok: true, status, message: claimantLine(fresh, account.rsn) };
+  return { ok: true, status: fresh.status as ClaimStatus, message: claimantLine(fresh, account.rsn) };
 }
 
 /** A proved claim goes to whoever can decide it. */
@@ -340,7 +354,7 @@ async function routeVerifiedClaim(claim: ClaimRow, account: typeof accounts.$inf
   if (noticeId == null) return toStaff(claim, account, nowIso, 'the current owner has no Anvil login to tell');
 
   const mode: ClaimMode = ownerVerified ? 'approval' : 'objection';
-  await db
+  const opened = await db
     .update(accountOwnershipClaims)
     .set({
       status: 'open',
@@ -348,7 +362,9 @@ async function routeVerifiedClaim(claim: ClaimRow, account: typeof accounts.$inf
       ownerNoticeId: noticeId,
       deadlineAt: mode === 'objection' ? new Date(Date.parse(nowIso) + OBJECTION_DAYS * DAY_MS).toISOString() : null,
     })
-    .where(eq(accountOwnershipClaims.id, claim.id));
+    .where(and(eq(accountOwnershipClaims.id, claim.id), eq(accountOwnershipClaims.status, 'verifying')))
+    .returning({ id: accountOwnershipClaims.id });
+  if (opened.length === 0) return 'lapsed';
   await audit('ownership_claim_opened', claim.claimantUserId, { claimId: claim.id, accountId: account.id, mode, ownerNoticeId: noticeId });
   return 'open';
 }
@@ -369,10 +385,13 @@ async function toStaff(
     kind: 'wrong_owner',
     body: `Ownership claim #${claim.id}: this login proved control of ${account.rsn} with the XP check; ${why}.`,
   });
-  await db
+  const moved = await db
     .update(accountOwnershipClaims)
     .set({ status, mode: status === 'staff' ? 'staff' : claim.mode, staffReportId: reportId, decidedAt: claim.decidedAt ?? nowIso })
-    .where(eq(accountOwnershipClaims.id, claim.id));
+    // From routing ('verifying'), or the status the owner's "no" just set — never over anything else.
+    .where(and(eq(accountOwnershipClaims.id, claim.id), inArray(accountOwnershipClaims.status, ['verifying', status])))
+    .returning({ id: accountOwnershipClaims.id });
+  if (moved.length === 0) return (await db.query.accountOwnershipClaims.findFirst({ where: eq(accountOwnershipClaims.id, claim.id) }))!.status as ClaimStatus;
   await audit('ownership_claim_to_staff', null, { claimId: claim.id, accountId: account.id, reportId, why });
   await notice(claim.claimantUserId, 'ownership_claim', claim.id, {
     title: `Your claim on ${account.rsn} is with Anvil staff`,
@@ -434,7 +453,8 @@ export async function withdrawClaim(input: { claimId: number; userId: number; no
   const done = await db
     .update(accountOwnershipClaims)
     .set({ status: 'withdrawn', decidedAt: nowIso, decidedByUserId: input.userId })
-    .where(and(eq(accountOwnershipClaims.id, claim.id), inArray(accountOwnershipClaims.status, LIVE)))
+    // Not once a worker is moving it ('transferring'): that finishes, or unlocks back to 'approved'.
+    .where(and(eq(accountOwnershipClaims.id, claim.id), inArray(accountOwnershipClaims.status, ['verifying', 'open', 'approved'])))
     .returning({ id: accountOwnershipClaims.id });
   if (done.length === 0) return { ok: false, error: 'This claim is already settled.', status: 409 };
   await audit('ownership_claim_withdrawn', input.userId, { claimId: claim.id, accountId: claim.accountId });
@@ -447,7 +467,18 @@ export async function withdrawClaim(input: { claimId: number; userId: number; no
  * account hash is never written from the claim. A live event holding the character defers it
  * ('approved', retried by the settle sweep).
  */
-async function transferClaim(claim: ClaimRow, nowIso: string, via: 'owner-approved' | 'no-objection'): Promise<ClaimStatus> {
+async function transferClaim(approvedClaim: ClaimRow, nowIso: string, via: 'owner-approved' | 'no-objection'): Promise<ClaimStatus> {
+  // THE LOCK. Only an 'approved' claim moves, and only the request whose conditional update comes
+  // back does the moving — the owner's Approve and the sweep can't both release and re-claim.
+  const [claim] = await db
+    .update(accountOwnershipClaims)
+    .set({ status: 'transferring', transferStartedAt: nowIso })
+    .where(and(eq(accountOwnershipClaims.id, approvedClaim.id), eq(accountOwnershipClaims.status, 'approved')))
+    .returning();
+  if (!claim) {
+    const now = await db.query.accountOwnershipClaims.findFirst({ where: eq(accountOwnershipClaims.id, approvedClaim.id) });
+    return (now?.status ?? 'lapsed') as ClaimStatus;
+  }
   const account = await db.query.accounts.findFirst({ where: eq(accounts.id, claim.accountId) });
   if (!account || account.claimedAt == null || account.playerId !== claim.ownerPlayerId || claim.verifiedAt == null) {
     await lapse(claim, nowIso, 'owner-changed');
@@ -463,12 +494,11 @@ async function transferClaim(claim: ClaimRow, nowIso: string, via: 'owner-approv
   });
   if (!released.ok) {
     if (released.reason === 'live-event') {
-      if (claim.status !== 'approved') {
-        await db
-          .update(accountOwnershipClaims)
-          .set({ status: 'approved', decidedAt: claim.decidedAt ?? nowIso })
-          .where(eq(accountOwnershipClaims.id, claim.id));
-      }
+      // Unlock: the sweep tries again once the event is over.
+      await db
+        .update(accountOwnershipClaims)
+        .set({ status: 'approved', transferStartedAt: null })
+        .where(and(eq(accountOwnershipClaims.id, claim.id), eq(accountOwnershipClaims.status, 'transferring')));
       return 'approved';
     }
     await lapse(claim, nowIso, 'owner-changed');
@@ -494,7 +524,7 @@ async function transferClaim(claim: ClaimRow, nowIso: string, via: 'owner-approv
   await db
     .update(accountOwnershipClaims)
     .set({ status: 'transferred', decidedAt: claim.decidedAt ?? nowIso })
-    .where(eq(accountOwnershipClaims.id, claim.id));
+    .where(and(eq(accountOwnershipClaims.id, claim.id), eq(accountOwnershipClaims.status, 'transferring')));
   await audit('ownership_claim_transferred', via === 'owner-approved' ? claim.decidedByUserId : null, {
     claimId: claim.id,
     accountId: account.id,
@@ -521,10 +551,13 @@ async function transferClaim(claim: ClaimRow, nowIso: string, via: 'owner-approv
 }
 
 async function lapse(claim: ClaimRow, nowIso: string, why: string) {
-  await db
+  const done = await db
     .update(accountOwnershipClaims)
     .set({ status: 'lapsed', decidedAt: claim.decidedAt ?? nowIso })
-    .where(eq(accountOwnershipClaims.id, claim.id));
+    // Only from a state still in flight: a claim somebody else just settled stays settled.
+    .where(and(eq(accountOwnershipClaims.id, claim.id), inArray(accountOwnershipClaims.status, LIVE)))
+    .returning({ id: accountOwnershipClaims.id });
+  if (done.length === 0) return;
   await audit('ownership_claim_lapsed', null, { claimId: claim.id, accountId: claim.accountId, why });
 }
 
@@ -542,6 +575,16 @@ export async function settleOwnershipClaims(nowMs = Date.now()): Promise<number>
     try {
       if (claim.status === 'verifying') {
         if (Date.parse(claim.createdAt) + VERIFY_WINDOW_MS + 60_000 < nowMs) await expire(claim, nowIso);
+        continue;
+      }
+      if (claim.status === 'transferring') {
+        // A worker that died mid-move: unlock it for the next tick (the move itself is re-checked).
+        if (claim.transferStartedAt && Date.parse(claim.transferStartedAt) + TRANSFER_STALE_MS < nowMs) {
+          await db
+            .update(accountOwnershipClaims)
+            .set({ status: 'approved', transferStartedAt: null })
+            .where(and(eq(accountOwnershipClaims.id, claim.id), eq(accountOwnershipClaims.status, 'transferring'), eq(accountOwnershipClaims.transferStartedAt, claim.transferStartedAt)));
+        }
         continue;
       }
       if (claim.status === 'open') {
@@ -605,7 +648,7 @@ export async function claimsOnMyCharacters(playerId: number): Promise<OwnerClaim
       and(
         eq(accountOwnershipClaims.ownerPlayerId, playerId),
         eq(accounts.playerId, playerId),
-        inArray(accountOwnershipClaims.status, ['open', 'approved']),
+        inArray(accountOwnershipClaims.status, ['open', 'approved', 'transferring']),
       ),
     )
     .orderBy(desc(accountOwnershipClaims.createdAt));

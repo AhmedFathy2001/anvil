@@ -102,7 +102,7 @@ async function ownershipCard(request: Request, note: string | null = null): Prom
   const me = playedCharacter(request);
   if (!viewer || !me || (await accountStanding(viewer.userId, me)) !== 'other') return null;
   const claim = await myClaimOn(viewer.userId, me);
-  const inFlight = claim && (claim.status === 'verifying' || claim.status === 'open' || claim.status === 'approved');
+  const inFlight = claim && ['verifying', 'open', 'approved', 'transferring'].includes(claim.status);
   const withStaff = claim && (claim.status === 'staff' || claim.status === 'objected' || claim.status === 'declined');
   return card([
     text(`${me.rsn} belongs to another Anvil player`, 'brand'),

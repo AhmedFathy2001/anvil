@@ -57,7 +57,7 @@ export default async function OwnershipClaimsPage() {
             label={
               <>
                 {c.rsn}
-                {c.status === 'approved' ? (
+                {c.status === 'approved' || c.status === 'transferring' ? (
                   <Pill tone="gold">moving after its event</Pill>
                 ) : c.mode === 'objection' ? (
                   <Pill tone="yellow">moves {day(c.deadlineAt)} unless you object</Pill>
@@ -107,7 +107,7 @@ export default async function OwnershipClaimsPage() {
           />
         )}
         {mine.map((c) => {
-          const live = c.status === 'verifying' || c.status === 'open' || c.status === 'approved';
+          const live = c.status === 'verifying' || c.status === 'open' || c.status === 'approved' || c.status === 'transferring';
           return (
             <SettingsRow
               key={c.id}
@@ -125,7 +125,7 @@ export default async function OwnershipClaimsPage() {
               }
               description={c.line}
             >
-              {live && (
+              {live && c.status !== 'transferring' && (
                 <div className="flex gap-2">
                   {c.status === 'verifying' && (
                     <ActionButton url={`/api/profile/ownership-claims/${c.id}`} body={{ action: 'check' }}>

@@ -2002,8 +2002,9 @@ export const accountSightingDays = pgTable('account_sighting_days', {
  *   - 'approval': the owner verified it. Only their yes moves it.
  *   - 'staff': the owner can't be told (no login), or said no — Anvil staff decide (`staffReportId`,
  *     a wrong-owner character report).
- * `status`: verifying → open → transferred | objected | declined | staff | withdrawn | lapsed | expired;
- * 'approved' = yes (or no objection) but a live event holds the character, so the move waits for its end.
+ * `status`: verifying → open → approved → transferring → transferred, or objected | declined | staff |
+ * withdrawn | lapsed | expired. 'approved' waits (a live event holds the character); 'transferring' is
+ * the lock one worker holds while it moves it. Every transition is a conditional UPDATE … RETURNING.
  * At most one claim per character is in flight (partial unique index).
  */
 export const accountOwnershipClaims = pgTable('account_ownership_claims', {
@@ -2022,8 +2023,10 @@ export const accountOwnershipClaims = pgTable('account_ownership_claims', {
   deadlineAt: text('deadline_at'),
   decidedAt: text('decided_at'),
   decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  /** Set while one worker holds the move ('transferring'); a stale one is unlocked by the sweep. */
+  transferStartedAt: text('transfer_started_at'),
 }, (table) => [
-  uniqueIndex('account_ownership_claims_live_unique').on(table.accountId).where(sql`status in ('verifying', 'open', 'approved')`),
+  uniqueIndex('account_ownership_claims_live_unique').on(table.accountId).where(sql`status in ('verifying', 'open', 'approved', 'transferring')`),
   index('account_ownership_claims_claimant_idx').on(table.claimantUserId),
   index('account_ownership_claims_owner_idx').on(table.ownerPlayerId),
 ]);

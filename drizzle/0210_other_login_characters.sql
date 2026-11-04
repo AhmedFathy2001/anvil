@@ -51,8 +51,9 @@ CREATE TABLE IF NOT EXISTS "account_ownership_claims" (
   "created_at" text NOT NULL,
   "deadline_at" text,
   "decided_at" text,
-  "decided_by_user_id" integer REFERENCES "users"("id") ON DELETE SET NULL
+  "decided_by_user_id" integer REFERENCES "users"("id") ON DELETE SET NULL,
+  "transfer_started_at" text
 );--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "account_ownership_claims_live_unique" ON "account_ownership_claims" USING btree ("account_id") WHERE status in ('verifying', 'open', 'approved');--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "account_ownership_claims_live_unique" ON "account_ownership_claims" USING btree ("account_id") WHERE status in ('verifying', 'open', 'approved', 'transferring');--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "account_ownership_claims_claimant_idx" ON "account_ownership_claims" USING btree ("claimant_user_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "account_ownership_claims_owner_idx" ON "account_ownership_claims" USING btree ("owner_player_id");

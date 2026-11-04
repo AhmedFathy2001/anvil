@@ -576,3 +576,64 @@ test('the plugin panel shows the claim state: "This is my account", then the XP 
   assert.ok(checked.includes('You proved Panel Main'), checked);
   assert.ok(!checked.includes('Owner Olive'));
 });
+
+// ── Races ──────────────────────────────────────────────────────────────────────────────────────
+
+test('two Checks completing at once route the claim exactly once', async () => {
+  const racer = await login('Racer Rob');
+  await character(owner, 'Race Main', null, 'stat_delta');
+  await claimViaPlugin(racer, 'Race Main', null);
+  const claimId = (await OC.myOwnershipClaims(racer.userId)).find((c) => c.rsn === 'Race Main')!.id;
+  gain.set('Race Main', 5000);
+  const results = await Promise.all([1, 2, 3].map(() => OC.checkOwnershipClaim({ claimId, userId: racer.userId })));
+  gain.delete('Race Main');
+  // The losers just report the claim as they found it; the winner routed it.
+  assert.ok(results.every((r) => r.ok), JSON.stringify(results));
+  assert.equal((await claimRow(claimId)).status, 'open');
+  const opened = (await db.select().from(s.clanAuditLog)).filter((a) => a.eventType === 'ownership_claim_opened' && (a.newValue ?? '').includes(`"claimId":${claimId}`));
+  assert.equal(opened.length, 1, 'one routing');
+  const notices = (await db.select().from(s.userNotices).where(eq(s.userNotices.userId, owner.userId))).filter((n) => n.refId === claimId);
+  assert.equal(notices.length, 1, 'the owner is told once');
+});
+
+test('the sweep racing the owner’s objection: exactly one outcome', async () => {
+  const racer = await login('Racer Ria');
+  const named = await character(owner, 'Race Two', null, 'stat_delta');
+  await db.update(s.accounts).set({ verifiedAt: null }).where(eq(s.accounts.id, named.accountId));
+  const { claim } = await proveClaim(racer, 'Race Two');
+  assert.equal((await claimRow(claim.id)).mode, 'objection');
+  const [moved, answer] = await Promise.all([
+    OC.settleOwnershipClaims(Date.now() + 8 * 86_400_000),
+    OC.respondToClaim({ claimId: claim.id, userId: owner.userId, playerId: owner.person, action: 'decline' }),
+  ]);
+  const row = await claimRow(claim.id);
+  const acct = await accountById(named.accountId);
+  if (row.status === 'objected') {
+    assert.equal(answer.ok, true);
+    assert.equal(acct.playerId, owner.person, 'the objection won: nothing moved');
+  } else {
+    assert.equal(row.status, 'transferred', JSON.stringify(row));
+    assert.equal(answer.ok, false, 'the objection lost cleanly');
+    assert.equal(acct.playerId, racer.person);
+    assert.ok(moved >= 1);
+  }
+});
+
+test('two sweeps and an Approve at once transfer exactly once', async () => {
+  const racer = await login('Racer Rex');
+  const named = await character(owner, 'Race Three', 'h-race3', 'plugin');
+  const { claim } = await proveClaim(racer, 'Race Three');
+  assert.equal((await claimRow(claim.id)).mode, 'approval');
+  await Promise.all([
+    OC.respondToClaim({ claimId: claim.id, userId: owner.userId, playerId: owner.person, action: 'approve' }),
+    OC.settleOwnershipClaims(),
+    OC.settleOwnershipClaims(),
+  ]);
+  // Whatever was mid-flight, one more sweep finishes it.
+  await OC.settleOwnershipClaims();
+  assert.equal((await claimRow(claim.id)).status, 'transferred');
+  assert.equal((await accountById(named.accountId)).playerId, racer.person);
+  const audits = (await db.select().from(s.clanAuditLog)).filter((x) => (x.newValue ?? '').includes(`"claimId":${claim.id}`));
+  assert.equal(audits.filter((x) => x.eventType === 'ownership_claim_transferred').length, 1, 'one move');
+  assert.equal(audits.filter((x) => x.eventType === 'ownership_claim_lapsed').length, 0, 'and no stray lapse');
+});
