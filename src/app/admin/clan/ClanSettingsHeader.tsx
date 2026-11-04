@@ -27,6 +27,12 @@ export default function ClanSettingsHeader({ isAdmin }: { isAdmin: boolean }) {
           blurb: 'Clan-wide rules every event uses. Each event can still change its own on its Settings page.',
           show: isAdmin,
         },
+        {
+          href: '/admin/clan/boosts',
+          title: 'Boosts',
+          blurb: 'What your members’ boosts unlock: the clan’s level, its recruiting line and its monthly post in the Anvil Discord. Looks only.',
+          show: isAdmin,
+        },
         { href: '/admin/clan/audit', title: 'Activity log', blurb: 'Who joined, left, changed what, and when.' },
       ]}
     />

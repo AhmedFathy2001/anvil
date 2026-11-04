@@ -13,6 +13,8 @@ interface Initial {
   /** When everyone already supporting was posted (once), or null. */
   backfilledAt?: string | null;
   rolesEnabled: boolean;
+  /** The Level 3 clan recruitment channel (lib/clanBoosts) is set. */
+  recruitWebhookSet?: boolean;
 }
 
 const card = 'mb-6 rounded-xl border border-card-border bg-card-bg p-5';
@@ -50,6 +52,8 @@ export default function AnvilDiscordSettings({
   const [guildId, setGuildId] = useState(initial.guildId);
   const [hook, setHook] = useState('');
   const [webhookSet, setWebhookSet] = useState(initial.webhookSet);
+  const [recruitHook, setRecruitHook] = useState('');
+  const [recruitSet, setRecruitSet] = useState(!!initial.recruitWebhookSet);
   const [backfilledAt, setBackfilledAt] = useState(initial.backfilledAt ?? null);
   const [rolesEnabled, setRolesEnabled] = useState(initial.rolesEnabled);
   const [includeSubscriber, setIncludeSubscriber] = useState(initialStatus.roles.find((r) => r.key === 'subscriber')?.id != null || !initialStatus.roles.some((r) => r.id));
@@ -88,6 +92,15 @@ export default function AnvilDiscordSettings({
       setWebhookSet(!!r.data.webhookSet);
       setHook('');
       return value ? 'Webhook saved.' : 'Webhook cleared.';
+    });
+
+  const saveRecruitHook = (value: string) =>
+    run(async () => {
+      const r = await call('PUT', { recruitWebhook: value });
+      if (!r.ok) return String(r.data.error ?? 'Could not save.');
+      setRecruitSet(!!r.data.recruitWebhookSet);
+      setRecruitHook('');
+      return value ? 'Recruitment webhook saved.' : 'Recruitment webhook cleared.';
     });
 
   const toggleRoles = (next: boolean) =>
@@ -231,6 +244,35 @@ export default function AnvilDiscordSettings({
                   Announce current supporters
                 </button>
               </>
+            )}
+          </div>
+        )}
+      </section>
+
+      <section className={card}>
+        <h2 className="mb-2 font-semibold">Clan recruitment channel</h2>
+        <p className="mb-3 text-sm text-text-muted">
+          {recruitSet
+            ? 'Clans boosted to Level 3 can post here once a calendar month, written by their owner or an admin from their Boosts settings. Never automatic; mentions are stripped and nobody is pinged.'
+            : 'No channel set: Level 3 clans can’t send their monthly recruitment post yet. Create a webhook on the channel and paste its link.'}
+        </p>
+        {canWrite && (
+          <div className="flex flex-wrap gap-2">
+            <Input
+              type="url"
+              value={recruitHook}
+              onChange={(e) => setRecruitHook(e.target.value)}
+              placeholder={recruitSet ? 'Paste a new webhook link to replace it' : 'https://discord.com/api/webhooks/…'}
+              aria-label="Clan recruitment webhook link"
+              className="min-w-0 flex-[1_1_18rem] rounded-lg px-3 py-2 text-sm"
+            />
+            <button type="button" disabled={busy || !recruitHook.trim()} onClick={() => void saveRecruitHook(recruitHook)} className={primary}>
+              Save
+            </button>
+            {recruitSet && (
+              <button type="button" disabled={busy} onClick={() => void saveRecruitHook('')} className={quiet}>
+                Clear
+              </button>
             )}
           </div>
         )}

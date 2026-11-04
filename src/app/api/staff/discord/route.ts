@@ -12,6 +12,7 @@ import {
   requestAnvilRoleSweep,
 } from '@/lib/anvilDiscord';
 import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
+import { ANVIL_RECRUITMENT_WEBHOOK_KEY } from '@/lib/clanBoosts';
 import { CAN_WRITE, requirePlatformApi } from '@/lib/platformAccess';
 import { getPlatformSetting, isPreview, setPlatformSetting } from '@/lib/platformSettings';
 import { apexOrigin } from '@/lib/seo';
@@ -28,11 +29,12 @@ export async function GET() {
   return NextResponse.json(await anvilBotStatus());
 }
 
-// PUT /api/staff/discord — { guildId?, webhook?, rolesEnabled? }; only the fields sent change.
+// PUT /api/staff/discord — { guildId?, webhook?, recruitWebhook?, rolesEnabled? }; only the fields sent
+// change. recruitWebhook is the channel Level 3 boosted clans' monthly recruitment posts go to.
 export async function PUT(request: Request) {
   const gate = await requirePlatformApi(CAN_WRITE);
   if ('response' in gate) return gate.response;
-  const body = (await request.json().catch(() => null)) as { guildId?: unknown; webhook?: unknown; rolesEnabled?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { guildId?: unknown; webhook?: unknown; recruitWebhook?: unknown; rolesEnabled?: unknown } | null;
   if (!body) return NextResponse.json({ error: 'Bad body' }, { status: 400 });
   if (typeof body.guildId === 'string') {
     const id = body.guildId.trim();
@@ -44,12 +46,21 @@ export async function PUT(request: Request) {
     if (hook && !isDiscordWebhookUrl(hook)) return NextResponse.json({ error: 'That is not a Discord webhook link.' }, { status: 400 });
     await setPlatformSetting(ANVIL_SUPPORTERS_WEBHOOK_KEY, hook || null);
   }
+  if (typeof body.recruitWebhook === 'string') {
+    const hook = body.recruitWebhook.trim();
+    if (hook && !isDiscordWebhookUrl(hook)) return NextResponse.json({ error: 'That is not a Discord webhook link.' }, { status: 400 });
+    await setPlatformSetting(ANVIL_RECRUITMENT_WEBHOOK_KEY, hook || null);
+  }
   if (typeof body.rolesEnabled === 'boolean') {
     await setPlatformSetting(ANVIL_ROLES_ENABLED_KEY, body.rolesEnabled ? '1' : null);
     // Turning it on catches everyone up on the next tick rather than within the hour.
     if (body.rolesEnabled) await requestAnvilRoleSweep();
   }
-  return NextResponse.json({ ok: true, webhookSet: !!(await getPlatformSetting(ANVIL_SUPPORTERS_WEBHOOK_KEY)) });
+  return NextResponse.json({
+    ok: true,
+    webhookSet: !!(await getPlatformSetting(ANVIL_SUPPORTERS_WEBHOOK_KEY)),
+    recruitWebhookSet: !!(await getPlatformSetting(ANVIL_RECRUITMENT_WEBHOOK_KEY)),
+  });
 }
 
 // POST /api/staff/discord — { action: 'create-roles', includeSubscriber } | { action: 'sweep' } | { action: 'test-post' }
