@@ -5,7 +5,7 @@ import { clanFetch } from '@/lib/clanFetch';
 
 type Status =
   | { state: 'idle' }
-  | { state: 'pending'; code: string; expiresAt: string }
+  | { state: 'pending'; code: string; expiresAt: string; channel?: string | null }
   | { state: 'linked'; username: string }
   | { state: 'taken' }
   | { state: 'expired' }
@@ -17,7 +17,20 @@ type Status =
  * who they are on Kick (and, with a sub badge, that they are subscribed). Polls until the webhook
  * has seen the code, then tells them to press Join again.
  */
-export default function KickLinkCode({ slug, compact = false }: { slug: string | null; compact?: boolean }) {
+export default function KickLinkCode({
+  slug,
+  compact = false,
+  codeUrl = '/api/auth/kick/code',
+  doneText = 'Press Join again.',
+  onLinked,
+}: {
+  slug: string | null;
+  compact?: boolean;
+  /** Settings' Connected accounts issue codes from their own route, which names where to type it. */
+  codeUrl?: string;
+  doneText?: string;
+  onLinked?: () => void;
+}) {
   const [status, setStatus] = useState<Status>({ state: 'idle' });
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -31,13 +44,13 @@ export default function KickLinkCode({ slug, compact = false }: { slug: string |
     setBusy(true);
     setCopied(false);
     try {
-      const res = await clanFetch('/api/auth/kick/code', { method: 'POST' });
+      const res = await clanFetch(codeUrl, { method: 'POST' });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || typeof d.code !== 'string') {
         setStatus({ state: 'error', text: d.error || 'Couldn’t get a code. Try again.' });
         return;
       }
-      setStatus({ state: 'pending', code: d.code, expiresAt: d.expiresAt });
+      setStatus({ state: 'pending', code: d.code, expiresAt: d.expiresAt, ...('channel' in d ? { channel: d.channel ?? null } : {}) });
       poll(d.code);
     } finally {
       setBusy(false);
@@ -51,13 +64,22 @@ export default function KickLinkCode({ slug, compact = false }: { slug: string |
       const d = res?.ok ? await res.json().catch(() => null) : null;
       if (!d || d.state === 'pending') return;
       if (timer.current) clearInterval(timer.current);
-      if (d.state === 'linked') setStatus({ state: 'linked', username: String(d.username ?? '') });
+      if (d.state === 'linked') {
+        setStatus({ state: 'linked', username: String(d.username ?? '') });
+        onLinked?.();
+      }
       else if (d.state === 'taken') setStatus({ state: 'taken' });
       else setStatus({ state: 'expired' });
     }, 3000);
   }
 
-  const where = slug ? `${slug}’s Kick chat (kick.com/${slug})` : 'the host’s Kick chat';
+  // A settings code names its channel (the official Anvil one), or null: any connected streamer's chat.
+  const channel = status.state === 'pending' && status.channel !== undefined ? status.channel : slug;
+  const where = channel
+    ? `${channel}’s Kick chat (kick.com/${channel})`
+    : status.state === 'pending' && status.channel === null
+      ? 'the Kick chat of any streamer who has connected Anvil'
+      : 'the host’s Kick chat';
 
   if (status.state === 'pending') {
     return (
@@ -84,7 +106,7 @@ export default function KickLinkCode({ slug, compact = false }: { slug: string |
 
   const note =
     status.state === 'linked'
-      ? { ok: true, text: `Kick linked${status.username ? ` as ${status.username}` : ''}. Press Join again.` }
+      ? { ok: true, text: `Kick linked${status.username ? ` as ${status.username}` : ''}. ${doneText}` }
       : status.state === 'taken'
         ? { ok: false, text: 'That Kick account is already linked to another Anvil login.' }
         : status.state === 'expired'
