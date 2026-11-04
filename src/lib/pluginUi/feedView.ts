@@ -40,16 +40,18 @@ async function scopesFor(request: Request, userId: number | null): Promise<Scope
     const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { id: true, name: true } });
     if (ev) out.push({ kind: 'event', id: ev.id, name: ev.name });
   }
-  if (userId != null) await addEverythingElse(out, userId);
+  if (userId != null) await addEverythingElse(request, out, userId);
   return out;
 }
 
 /**
  * Every other clan the viewer is a member of, and every live board one of their characters is on,
  * after the clan and board the plugin is pointed at: someone in two clans, or on two boards at once,
- * can read (and chat in) any of them from the one dropdown.
+ * can read (and chat in) any of them from the one dropdown. Each clan, and each board's clan, goes
+ * through the same visibility gate as the plugin's own clan (load.visibleClan): a suspended or hidden
+ * clan, or a board in one, never shows up here.
  */
-async function addEverythingElse(out: Scope[], userId: number): Promise<void> {
+async function addEverythingElse(request: Request, out: Scope[], userId: number): Promise<void> {
   const has = (k: 'clan' | 'event', id: number) => out.some((s) => s.kind === k && s.id === id);
   // clan-scope: global -- the subject is the viewer's own person; their seats span clans by design.
   const mine = await db
@@ -65,18 +67,26 @@ async function addEverythingElse(out: Scope[], userId: number): Promise<void> {
     .from(clanMemberships)
     .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
     .where(and(inArray(clanMemberships.accountId, accountIds), eq(clanMemberships.kind, 'member'), isNull(clanMemberships.leftAt)));
-  for (const c of clanRowsMine) if (!has('clan', c.id)) out.push({ kind: 'clan', id: c.id, slug: c.slug, name: c.name });
+  const seen = new Map<string, boolean>();
+  const visible = async (slug: string) => {
+    if (!seen.has(slug)) seen.set(slug, !!(await visibleClan(request, slug).catch(() => null)));
+    return seen.get(slug)!;
+  };
+  for (const c of clanRowsMine) {
+    if (!has('clan', c.id) && (await visible(c.slug))) out.push({ kind: 'clan', id: c.id, slug: c.slug, name: c.name });
+  }
   // clan-scope: global -- the boards this viewer's own characters are seated on, in any clan.
   const boards = await db
-    .selectDistinct({ id: events.id, name: events.name, startDate: events.startDate, endDate: events.endDate, forceEndedAt: events.forceEndedAt })
+    .selectDistinct({ id: events.id, name: events.name, startDate: events.startDate, endDate: events.endDate, forceEndedAt: events.forceEndedAt, clanSlug: clans.slug })
     .from(eventParticipants)
     .innerJoin(events, eq(events.id, eventParticipants.eventId))
+    .innerJoin(clans, eq(clans.id, events.clanId))
     .where(inArray(eventParticipants.accountId, accountIds));
   const now = Date.now();
   const at = (s: string | null) => (s ? Date.parse(s.includes('T') ? s : `${s.replace(' ', 'T')}Z`) : NaN);
   for (const b of boards) {
     const live = !b.forceEndedAt && !(at(b.startDate) > now) && !(at(b.endDate) <= now);
-    if (live && !has('event', b.id)) out.push({ kind: 'event', id: b.id, name: b.name });
+    if (live && !has('event', b.id) && (await visible(b.clanSlug))) out.push({ kind: 'event', id: b.id, name: b.name });
   }
 }
 
