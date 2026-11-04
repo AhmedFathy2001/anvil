@@ -7,7 +7,7 @@
 
 import { PLANS, PLAN_IDS, TRIAL_DAYS, checkoutUrl, checkoutUrlWithRef, overMemberCap, planOf } from '@/lib/plans';
 import { CREATOR_BUYABLE, creatorCheckoutUrl, creatorCheckoutUrlWithRef, creatorPlanOf } from '@/lib/creatorCatalog';
-import { creatorPlanCard } from '@/lib/creatorPlans';
+import { creatorPlanCard, type SeatMeter } from '@/lib/creatorPlans';
 import { billingStatus, subscriptionFacts } from '@/lib/clanBilling';
 
 /** The billing columns of one owned row. */
@@ -119,14 +119,22 @@ export function clanCardModel(row: OwnedBillingRow, members: number, now = Date.
   };
 }
 
-/** A creator space's card: the creator catalogue, metered by players per event, creator checkouts. */
+/** "Summer Bingo has" / "Summer Bingo and Autumn Bingo, running at the same time, have". */
+function overWhat(meter: SeatMeter | null): string {
+  const names = meter?.peakEvents.map((e) => e.name) ?? [];
+  if (names.length === 0) return 'Your events have';
+  if (names.length === 1) return `${names[0]} has`;
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}, running at the same time, have`;
+}
+
+/** A creator space's card: the creator catalogue, metered by players at once across its events, creator checkouts. */
 export function creatorCardModel(
   row: OwnedBillingRow,
-  biggest: { name: string; players: number } | null,
+  meter: SeatMeter | null,
   now = Date.now(),
 ): BillingCardModel {
   const plan = creatorPlanOf(row.plan);
-  const card = creatorPlanCard({ clanPlan: row.plan, biggest });
+  const card = creatorPlanCard({ clanPlan: row.plan, meter });
   const { onTrial, trialDaysLeft } = trialOf(row, now);
   const lapsed = lapsedOf(row, now);
   const free = plan.priceUsd === 0;
@@ -135,7 +143,7 @@ export function creatorCardModel(
   const paid = CREATOR_BUYABLE.filter((p) => creatorCheckoutUrl(p));
   const held = onTrial && free && !!row.subscriptionId;
   const renewing = lapsed && !free && paid.includes(plan);
-  // A creator space moves up by players per event (creatorPlanCard.next), never by roster size.
+  // A creator space moves up by players at once across its events (creatorPlanCard.next), never by roster size.
   const higher = renewing ? plan : card.next ? (paid.find((p) => p.id === card.next!.id) ?? null) : null;
   const capText = card.playersCap == null ? '∞' : card.playersCap.toLocaleString('en-US');
   const href = higher && !held ? creatorCheckoutUrlWithRef(higher, row.gumroadRef) : null;
@@ -146,16 +154,18 @@ export function creatorCardModel(
     creator: true,
     tierName: card.planName,
     priceUsd: plan.priceUsd,
-    meter: card.biggest
-      ? `Biggest event: ${card.biggest.players.toLocaleString('en-US')} / ${capText} players`
-      : `Up to ${card.playersCap == null ? 'any number of' : card.playersCap.toLocaleString('en-US')} players per event`,
+    meter: meter
+      ? meter.current
+        ? `At once across your events: ${meter.peak.toLocaleString('en-US')} / ${capText} players, counted per event they’re in`
+        : `Biggest past event: ${meter.peak.toLocaleString('en-US')} / ${capText} players`
+      : `Up to ${card.playersCap == null ? 'any number of' : card.playersCap.toLocaleString('en-US')} players at once across your events`,
     onTrial,
     trialDaysLeft,
     held,
     lapsed,
     overdue: lapsed && !free,
     overLine: card.over
-      ? `${card.biggest?.name ?? 'Your biggest event'} has more players than ${card.planName} allows per event. Everyone still gets in for now — the next tier gives you room.`
+      ? `${overWhat(meter)} more players at once than ${card.planName} allows. Everyone still gets in for now — the next tier gives you room.`
       : null,
     upgrade:
       higher && href
@@ -163,7 +173,7 @@ export function creatorCardModel(
             label: buttonLabel(higher.name, { renewing, lapsed, onTrial, hasSubscription }),
             href,
             detail: [
-              higher.playersPerEvent != null ? `up to ${higher.playersPerEvent.toLocaleString('en-US')} players per event` : null,
+              higher.playersPerEvent != null ? `up to ${higher.playersPerEvent.toLocaleString('en-US')} players at once` : null,
               ...(renewing ? [] : higher.perks),
             ]
               .filter(Boolean)

@@ -15,6 +15,7 @@ import { swapTrackedAccount } from '@/lib/trackedAccount';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { syncEventServerMembersFireAndForget } from '@/lib/eventDiscord';
 import { rosterSeatOpensEventSql } from '@/lib/seatScope';
+import { PlanLimitError } from '@/lib/creatorPlansDb';
 
 export async function GET(
   request: Request,
@@ -130,8 +131,11 @@ export async function POST(
     const event = await db.query.events.findFirst({ where: eq(events.id, id) });
     const capErr = await accountCapError(id, event?.maxAccountsPerPerson ?? 1, members.map((m) => m.clanMemberId));
     if (capErr) return NextResponse.json({ error: capErr }, { status: 409 });
+    // Sign-ups first, under the host's room lock (lib/enroll backfillApprovedSignups): a refusal
+    // from the plan's cap leaves nobody seated.
+    const full = await signupsOrFull(id, members.map((m) => m.clanMemberId));
+    if (full) return full;
     const result = await upsertPlayers(id, members, assignTeamId);
-    await backfillApprovedSignups(id, members.map((m) => m.clanMemberId));
     return NextResponse.json(result, { status: 201 });
   }
 
@@ -148,8 +152,9 @@ export async function POST(
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   const capErr = await accountCapError(id, event?.maxAccountsPerPerson ?? 1, [clanMemberId]);
   if (capErr) return NextResponse.json({ error: capErr }, { status: 409 });
+  const full = await signupsOrFull(id, [clanMemberId]);
+  if (full) return full;
   const result = await upsertPlayers(id, members, assignTeamId);
-  await backfillApprovedSignups(id, [clanMemberId]);
   return NextResponse.json(result[0], { status: 201 });
 }
 
@@ -343,4 +348,20 @@ export async function PATCH(
   // Benched, unbenched or moved: their event-server team role follows (no-op without an event server).
   if (frozen !== undefined || teamId !== undefined) syncEventServerMembersFireAndForget(eId);
   return NextResponse.json(updated);
+}
+
+/**
+ * Adding players by hand writes an approved sign-up for every seat that has none
+ * (backfillApprovedSignups), as one write under the host's room lock: on a player-capped event, the
+ * plan's cap on players at once across the host's overlapping events applies (lib/creatorPlansDb
+ * withEventRoom). The refusal as a response, or null when the sign-ups are in.
+ */
+async function signupsOrFull(eventId: number, clanMemberIds: number[]): Promise<NextResponse | null> {
+  try {
+    await backfillApprovedSignups(eventId, clanMemberIds);
+    return null;
+  } catch (e) {
+    if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'full' }, { status: 403 });
+    throw e;
+  }
 }

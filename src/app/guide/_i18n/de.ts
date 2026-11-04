@@ -2602,14 +2602,14 @@ const de: PartialGuideDict = {
     plans: {
       title: 'Tarife und Limits',
       body: [
-        'Dein Tarif bestimmt, wie viele Spieler ein Event haben kann. Alles andere ist in jedem Tarif gleich: das Board, das Plugin-Tracking, das Overlay und Discord.',
+        'Dein Tarif bestimmt, wie viele Spieler gleichzeitig in deinen Events sein können. Events mit überlappenden Terminen teilen sich diese Zahl; Events an verschiedenen Terminen bekommen sie jeweils für sich. Ein Spieler in zwei überlappenden Events zählt doppelt. Alles andere ist in jedem Tarif gleich: das Board, das Plugin-Tracking, das Overlay und Discord.',
         'Deine Tarifkarte findest du bei **Your events**. Zum Vergleich der Tarife siehe [Preise](/pricing#creators). Um zu ändern oder zu kündigen, was du zahlst, geh zu [deiner Abrechnungsseite](/portal).',
       ],
       rows: [
-        { term: 'Free', body: 'Bis zu 50 Spieler pro Event. Ein Event gleichzeitig. Prüfungen für Discord-Rolle und Booster.' },
-        { term: 'Bronze', body: 'Bis zu 150 Spieler pro Event. Prüfungen für Twitch, Kick und YouTube.' },
-        { term: 'Silver', body: 'Bis zu 300 Spieler pro Event. Mehr als ein Event gleichzeitig. `!join` im Chat. Wird in der Liste zuerst gezeigt.' },
-        { term: 'Gold', body: 'Bis zu 1.000 Spieler pro Event. Das Anvil-Zeichen im Overlay ausblenden.' },
+        { term: 'Free', body: 'Bis zu 50 Spieler gleichzeitig über all deine Events hinweg. Ein Event gleichzeitig. Prüfungen für Discord-Rolle und Booster.' },
+        { term: 'Bronze', body: 'Bis zu 150 Spieler gleichzeitig über all deine Events hinweg. Prüfungen für Twitch, Kick und YouTube.' },
+        { term: 'Silver', body: 'Bis zu 300 Spieler gleichzeitig über all deine Events hinweg. Mehr als ein Event gleichzeitig. `!join` im Chat. Wird in der Liste zuerst gezeigt.' },
+        { term: 'Gold', body: 'Bis zu 1.000 Spieler gleichzeitig über all deine Events hinweg. Das Anvil-Zeichen im Overlay ausblenden.' },
         { term: 'Partner', body: 'Keine Spielergrenze. Wird direkt mit Anvil eingerichtet — melde dich bei uns.' },
       ],
       note: {
@@ -2838,7 +2838,7 @@ const de: PartialGuideDict = {
       rows: [
         {
           term: 'Zählen Zuschauer zu unserem Mitgliederlimit?',
-          body: 'Nein. Sie sind Event-Spieler, keine Mitglieder. Die Streamer-Limits gelten pro Event (siehe die [Creator-Anleitung]({creatorsGuide})).',
+          body: 'Nein. Sie sind Event-Spieler, keine Mitglieder. Die Streamer-Limits zählen Spieler gleichzeitig über alle Events, die du veranstaltest (siehe die [Creator-Anleitung]({creatorsGuide})).',
         },
         {
           term: 'Schickt `!join` Leute zu einem Event nur für Mitglieder?',

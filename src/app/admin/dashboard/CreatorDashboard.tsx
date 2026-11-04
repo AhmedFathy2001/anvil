@@ -12,7 +12,8 @@ import CreatorPlayers from '../people/CreatorPlayers';
 import StreamOverlayCard from './StreamOverlayCard';
 import CreatorPlanCard from './CreatorPlanCard';
 import { freemiumEnforced } from '@/lib/entitlements';
-import { playersPerEventCap } from '@/lib/creatorPlans';
+import { eventIsFull } from '@/lib/creatorPlans';
+import { hostEventSeats } from '@/lib/creatorPlansDb';
 
 function when(stamp: string | null): string {
   if (!stamp) return 'Not scheduled';
@@ -57,8 +58,10 @@ export default async function CreatorDashboard({
     : [];
   const joinedBy = new Map(counts.map((c) => [c.eventId, c.n]));
   const rows = list.map((e) => ({ ...e, joined: joinedBy.get(e.id) ?? 0, waiting: waiting.get(e.id) ?? 0 }));
-  // "Full" only means something once plans are enforced; until then everyone still gets in.
-  const cap = freemiumEnforced() ? playersPerEventCap(clanPlan) : null;
+  // "Full" only means something once plans are enforced; until then everyone still gets in. Full =
+  // one more player would be refused: the cap is players at once across events whose dates overlap.
+  const seatRows = freemiumEnforced() ? await hostEventSeats(clanId) : null;
+  const full = new Set(seatRows ? rows.filter((e) => eventIsFull(clanPlan, seatRows, e.id)).map((e) => e.id) : []);
 
   return (
     <div className="max-w-4xl">
@@ -98,7 +101,7 @@ export default async function CreatorDashboard({
                 <span className="block truncate font-semibold">{e.name}</span>
                 <span className="block text-[13px] text-text-muted">
                   {when(e.startDate)} · {e.joined} joined
-                  {cap != null && e.joined >= cap && <span className="text-gold"> · full</span>}
+                  {full.has(e.id) && <span className="text-gold"> · full</span>}
                 </span>
               </ClanLink>
               {e.waiting > 0 && (

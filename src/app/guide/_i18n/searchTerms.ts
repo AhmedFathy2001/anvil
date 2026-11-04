@@ -17,7 +17,7 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
     'streamer', 'streaming', 'stream', 'creator', 'creator space', 'space', 'host', 'hosting',
     'twitch', 'kick', 'youtube', 'obs', 'stream overlay', 'browser source', '!join', 'chat bot',
     'followers', 'subs', 'subscribers', 'sub only', 'members', 'boosters', 'gate', 'who can join',
-    'viewers', 'no clan', 'advertise', 'listed', 'directory', 'plan', 'players per event', 'billing',
+    'viewers', 'no clan', 'advertise', 'listed', 'directory', 'plan', 'players per event', 'players at once', 'billing',
     'approve', 'approval', 'waiting for your yes', 'space settings', 'your page', 'bio', 'banner',
     'logo', 'panels', 'schedule', 'featured', 'highlights', 'clips', 'auto clip', 'report',
   ],

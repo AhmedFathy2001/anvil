@@ -1,4 +1,4 @@
-// Creator-space plans (lib/creatorPlans): the per-event meter, the perks, and that every gate is a
+// Creator-space plans (lib/creatorPlans): the players-at-once meter, the perks, and that every gate is a
 // no-op until FREEMIUM_ENFORCED flips.
 //
 // Run: npm run test:creator-plans
@@ -21,6 +21,10 @@ function enforced<T>(fn: () => T): T {
 
 const C = CREATOR_PLANS;
 
+function meterOf(name: string, players: number): CP.SeatMeter {
+  return { peak: players, peakEvents: [{ name, players }], events: [{ name, players, when: 'live' }], current: true };
+}
+
 test('the approved table: players per event and the Partner name', () => {
   assert.deepEqual(
     [C.creator_free, C.creator_bronze, C.creator_silver, C.creator_gold, C.creator_partner].map((p) => p.playersPerEvent),
@@ -28,8 +32,8 @@ test('the approved table: players per event and the Partner name', () => {
   );
   assert.equal(C.creator_partner.name, 'Partner');
   assert.equal(C.creator_silver.name, 'Silver');
-  assert.equal(CP.playersPerEventCap('nonsense'), 50, 'unknown plan reads as Free');
-  assert.equal(CP.playersPerEventCap('gold'), 50, 'a clan tier reads as creator Free, not creator Gold');
+  assert.equal(CP.playersAtOnceCap('nonsense'), 50, 'unknown plan reads as Free');
+  assert.equal(CP.playersAtOnceCap('gold'), 50, 'a clan tier reads as creator Free, not creator Gold');
   assert.equal(CP.liveEventLimit(C.creator_free), 1);
   assert.equal(CP.liveEventLimit(C.creator_bronze), 1);
   assert.equal(CP.liveEventLimit(C.creator_silver), null);
@@ -43,7 +47,7 @@ test('planForPlayers / nextCreatorPlan pick the smallest tier that fits', () => 
   assert.equal(CP.nextCreatorPlan('creator_free')?.id, 'creator_bronze');
   assert.equal(CP.nextCreatorPlan('creator_silver')?.id, 'creator_gold');
   assert.equal(CP.nextCreatorPlan('creator_gold'), null);
-  assert.equal(CP.upgradeForPlayersLine(50), 'Upgrade to Bronze for 150 players.');
+  assert.equal(CP.upgradeForPlayersLine(50), 'Upgrade to Bronze for 150 players at once.');
   assert.equal(CP.upgradeForPlayersLine(1000), 'Get in touch about a Partner plan for bigger events.');
 });
 
@@ -57,10 +61,10 @@ test('generous phase: a full event, a second event, stream gates, !join and the 
   assert.equal(CP.overlayShowsMark({ clanPlan: 'creator_free', hideRequested: false }), true, 'shown by default');
   // The meter still reads honestly, for the dashboard nudge.
   assert.equal(CP.overPlayerCap('creator_free', 51), true);
-  assert.equal(CP.creatorPlanCard({ clanPlan: 'creator_free', biggest: { name: 'B', players: 60 } }).enforced, false);
+  assert.equal(CP.creatorPlanCard({ clanPlan: 'creator_free', meter: meterOf('B', 60) }).enforced, false);
 });
 
-test('enforced: players per event', () => {
+test('enforced: players at once (one event on its own)', () => {
   enforced(() => {
     assert.deepEqual(CP.eventRoomVerdict({ clanPlan: 'creator_free', players: 49, adding: 1 }), { ok: true });
     const full = CP.eventRoomVerdict({ clanPlan: 'creator_free', players: 50, adding: 1 });
@@ -188,14 +192,129 @@ test('featured listing follows the plan paid for, creator spaces only', () => {
 
 test('the plan card: meter, over, and the tier that fits', () => {
   delete process.env.FREEMIUM_ENFORCED;
-  const small = CP.creatorPlanCard({ clanPlan: 'creator_free', biggest: { name: 'Viewer Bingo', players: 42 } });
+  const small = CP.creatorPlanCard({ clanPlan: 'creator_free', meter: meterOf('Viewer Bingo', 42) });
   assert.equal(small.planName, 'Free');
   assert.equal(small.playersCap, 50);
   assert.equal(small.over, false);
   assert.equal(small.next?.id, 'creator_bronze');
-  const big = CP.creatorPlanCard({ clanPlan: 'creator_free', biggest: { name: 'Huge', players: 200 } });
+  const big = CP.creatorPlanCard({ clanPlan: 'creator_free', meter: meterOf('Huge', 200) });
   assert.equal(big.over, true);
   assert.equal(big.next?.id, 'creator_silver', 'jumps to the tier that holds the event');
-  assert.equal(CP.creatorPlanCard({ clanPlan: 'creator_gold', biggest: null }).next, null);
-  assert.equal(CP.creatorPlanCard({ clanPlan: 'creator_partner', biggest: null }).planName, 'Partner');
+  assert.equal(CP.creatorPlanCard({ clanPlan: 'creator_gold', meter: null }).next, null);
+  assert.equal(CP.creatorPlanCard({ clanPlan: 'creator_partner', meter: null }).planName, 'Partner');
+  // A past event that ran big is not "over" now, but still steers the suggestion.
+  const past = CP.creatorPlanCard({ clanPlan: 'creator_free', meter: { ...meterOf('Old', 200), events: [], current: false } });
+  assert.equal(past.over, false);
+  assert.equal(past.next?.id, 'creator_silver');
+});
+
+// ── Players at once across overlapping events ────────────────────────────────────────────────────
+
+const NOW = Date.UTC(2026, 9, 1); // Oct 1, 2026 — before every window below
+const at = (d: number) => new Date(Date.UTC(2026, 9, d)).toISOString();
+const ev = (id: number, name: string, from: number | null, to: number | null, seats: number, forceEndedAt: string | null = null): CP.HostEventSeats => ({
+  id,
+  name,
+  startDate: from == null ? null : at(from),
+  endDate: to == null ? null : at(to),
+  forceEndedAt,
+  seats,
+});
+
+test('enforced: overlapping events share the cap; apart they get it each', () => {
+  enforced(() => {
+    // Gold = 1,000. Oct 7–10 and Oct 8–11 → 1,000 combined.
+    const a = ev(1, 'Day Bingo', 7, 10, 600);
+    const b = ev(2, 'Night Bingo', 8, 11, 399);
+    const join = (target: CP.HostEventSeats, others: CP.HostEventSeats[], adding: number) =>
+      CP.eventRoomVerdict({ clanPlan: 'creator_gold', players: target.seats, adding, eventId: target.id, dates: target, others, now: NOW });
+    assert.equal(join(b, [a, b], 1).ok, true, '999 → 1,000');
+    const full = join(b, [a, b], 2);
+    assert.equal(full.ok, false);
+    if (!full.ok) {
+      assert.equal(full.total, 1001);
+      assert.match(full.error, /^This event is full\. The host’s Gold plan seats 1,000 players at once, counted across all their events running at the same time\. Ask the host — a Partner plan would make room\.$/);
+    }
+    // …and the other event is just as full: the cap is shared.
+    assert.equal(join(a, [a, b], 2).ok, false);
+    // Oct 1–3 and Oct 7–10 → 1,000 each.
+    const early = ev(3, 'Early', 1, 3, 999);
+    assert.equal(join(a, [early, a], 400).ok, true);
+    // A single event on its own → the whole cap.
+    assert.equal(join(a, [a], 400).ok, true);
+    assert.equal(join(a, [a], 401).ok, false);
+    // The tier that fits is named: Free 50, a 30 + 20 overlap wanting one more → Bronze.
+    const f1 = ev(4, 'F1', 7, 10, 30);
+    const f2 = ev(5, 'F2', 8, 11, 20);
+    const v = CP.eventRoomVerdict({ clanPlan: 'creator_free', players: 20, adding: 1, eventId: 5, dates: f2, others: [f1, f2], now: NOW });
+    assert.match(v.ok ? '' : v.error, /Free plan seats 50 players at once.*Bronze \(150 at once\) would make room/);
+  });
+  // Generous phase: never refuses, however full.
+  assert.equal(CP.eventRoomVerdict({ clanPlan: 'creator_free', players: 500, adding: 1, eventId: 1, dates: ev(1, 'A', 7, 10, 500), others: [ev(2, 'B', 7, 10, 500)], now: NOW }).ok, true);
+});
+
+test('seats, not people: one person on two overlapping boards counts twice', () => {
+  enforced(() => {
+    // Partner aside, the smallest cap is 50; 49 + 1 (the same person, already on the other board) = 50.
+    const a = ev(1, 'A', 7, 10, 25);
+    const b = ev(2, 'B', 8, 11, 24);
+    // The person on A signs up to B too: B goes 24 → 25, peak 50. Fine; a second such person is not.
+    assert.equal(CP.eventRoomVerdict({ clanPlan: 'creator_free', players: 24, adding: 1, eventId: 2, dates: b, others: [a, b], now: NOW }).ok, true);
+    const b25 = { ...b, seats: 25 };
+    assert.equal(CP.eventRoomVerdict({ clanPlan: 'creator_free', players: 25, adding: 1, eventId: 2, dates: b25, others: [a, b25], now: NOW }).ok, false);
+    assert.equal(CP.seatMeter([ev(1, 'A', 7, 10, 1), ev(2, 'B', 8, 11, 1)], NOW)?.peak, 2, 'one person in both = 2');
+  });
+});
+
+test('datesRoomVerdict: moving onto another event says which and the total; shortening is fine', () => {
+  enforced(() => {
+    const other = ev(1, 'Summer Bingo', 10, 15, 700);
+    const me = { id: 2, seats: 400 };
+    const before = ev(2, 'Mine', 1, 5, 400);
+    const no = CP.datesRoomVerdict({ clanPlan: 'creator_gold', event: me, before, after: ev(2, 'Mine', 1, 12, 400), others: [other, before], now: NOW });
+    assert.equal(no.ok, false);
+    assert.equal(
+      no.ok ? '' : no.error,
+      'Those dates would overlap Summer Bingo (700): 1,100 players at once with this event’s 400. Your Gold plan allows 1,000 players at once across events running at the same time. Pick dates that don’t overlap, or get in touch about a Partner plan.',
+    );
+    assert.equal(CP.datesRoomVerdict({ clanPlan: 'creator_gold', event: me, before, after: ev(2, 'Mine', 2, 4, 400), others: [other], now: NOW }).ok, true, 'shorter');
+    assert.equal(CP.datesRoomVerdict({ clanPlan: 'creator_gold', event: me, before, after: ev(2, 'Mine', 20, 25, 400), others: [other], now: NOW }).ok, true, 'apart');
+    // Free, upgrade named.
+    const f = CP.datesRoomVerdict({ clanPlan: 'creator_free', event: { id: 2, seats: 30 }, before: null, after: ev(2, 'M', 11, 12, 30), others: [ev(1, 'Other', 10, 15, 30)], now: NOW });
+    assert.match(f.ok ? '' : f.error, /upgrade to Bronze for 150\.$/);
+    // Partner has no cap.
+    assert.equal(CP.datesRoomVerdict({ clanPlan: 'creator_partner', event: me, before, after: ev(2, 'Mine', 1, 12, 400), others: [other], now: NOW }).ok, true);
+  });
+  // Generous phase: dates always move.
+  assert.equal(CP.datesRoomVerdict({ clanPlan: 'creator_free', event: { id: 2, seats: 400 }, before: null, after: ev(2, 'M', 10, 12, 400), others: [ev(1, 'O', 10, 15, 700)], now: NOW }).ok, true);
+});
+
+test('seatMeter: the peak at once, the events behind it, drafts on their own, past as a fallback', () => {
+  const rows = [ev(1, 'A', 7, 10, 30), ev(2, 'B', 8, 11, 25), ev(3, 'C', 20, 22, 40), ev(4, 'Draft', null, null, 10)];
+  const m = CP.seatMeter(rows, NOW)!;
+  assert.equal(m.peak, 55);
+  assert.deepEqual(m.peakEvents.map((e) => e.name), ['A', 'B']);
+  assert.equal(m.current, true);
+  assert.deepEqual(m.events.map((e) => [e.name, e.when]), [['C', 'upcoming'], ['A', 'upcoming'], ['B', 'upcoming'], ['Draft', 'draft']]);
+  // A draft bigger than any overlap is the peak on its own.
+  assert.equal(CP.seatMeter([ev(1, 'A', 7, 10, 30), ev(4, 'Big draft', null, null, 90)], NOW)!.peakEvents[0].name, 'Big draft');
+  // Everything over: the biggest past event, not "current".
+  const later = Date.UTC(2026, 10, 30);
+  const past = CP.seatMeter(rows.slice(0, 3), later)!;
+  assert.equal(past.current, false);
+  assert.equal(past.peak, 40);
+  // A force-ended event frees its seats from then on.
+  const ended = CP.seatMeter([ev(1, 'A', 7, 30, 30, at(8)), ev(2, 'B', 7, 30, 25)], Date.UTC(2026, 9, 9))!;
+  assert.equal(ended.peak, 25);
+  assert.equal(CP.seatMeter([], NOW), null);
+});
+
+test('eventIsFull: one more would be refused, across overlaps', () => {
+  enforced(() => {
+    const rows = [ev(1, 'A', 7, 10, 30), ev(2, 'B', 8, 11, 20), ev(3, 'C', 20, 22, 10)];
+    assert.equal(CP.eventIsFull('creator_free', rows, 1, NOW), true);
+    assert.equal(CP.eventIsFull('creator_free', rows, 2, NOW), true);
+    assert.equal(CP.eventIsFull('creator_free', rows, 3, NOW), false);
+  });
+  assert.equal(CP.eventIsFull('creator_free', [ev(1, 'A', 7, 10, 500)], 1, NOW), false, 'never full while generous');
 });
