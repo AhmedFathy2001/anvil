@@ -1,4 +1,6 @@
 import { db } from '@/db';
+import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
+import { ttlMemo } from '@/lib/ttlMemo';
 import { countedLuckCandidates } from '@/lib/clogLuckBoard';
 import { getSetting, getSettingMap } from '@/lib/settings';
 // Setting names only; pluginConfig is a heavy module, but momentsStore is server-side already.
@@ -110,6 +112,40 @@ export async function activeScopesFor(
   // can never disagree about which side they were on.
   const event = active ? await eventScope(active.eventId, active.teamId, clanId, active.startDate!) : null;
   return { weeklies, event, clan: await clanScope(clanId) };
+}
+
+/**
+ * The items a board's tiles want (a drop tile's items, a tile's tracked items). Its Feed shows any of
+ * them whatever they're worth: five whips toward a whip tile are the board's news even under the
+ * value floor. Held two minutes.
+ */
+export function boardTileItemIds(eventId: number): Promise<Set<number>> {
+  return ttlMemo(
+    `board-tile-items:${eventId}`,
+    async () => {
+      // clan-scope: global -- by the board id the caller already resolved.
+      const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { tilesRevealed: true, rules: true } });
+      // Only tiles members can see: a hidden tile's items let through would say it exists.
+      if (!ev?.tilesRevealed) return new Set<number>();
+      const rules = parseEventRules(ev.rules);
+      const rows = await db
+        .select({
+          trackedItemIds: tiles.trackedItemIds,
+          itemRequirements: tiles.itemRequirements,
+          revealedAt: tiles.revealedAt,
+          mission: tiles.mission,
+        })
+        .from(tiles)
+        .where(eq(tiles.eventId, eventId));
+      const ids = new Set<number>();
+      for (const row of rows.filter((t) => isTileRevealed(rules, t))) {
+        for (const id of parseNumberArray(row.trackedItemIds)) ids.add(id);
+        for (const id of parseItemRequirements(row.itemRequirements)) ids.add(id);
+      }
+      return ids;
+    },
+    2 * 60_000,
+  );
 }
 
 /**
