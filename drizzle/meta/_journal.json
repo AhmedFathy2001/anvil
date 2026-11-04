@@ -1102,6 +1102,13 @@
       "breakpoints": true
     },
     {
+      "idx": 216,
+      "version": "7",
+      "when": 1793821598194,
+      "tag": "0216_chat_flair_log",
+      "breakpoints": true
+    },
+    {
       "idx": 217,
       "version": "7",
       "when": 1793824900000,

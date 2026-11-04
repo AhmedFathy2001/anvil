@@ -17,7 +17,7 @@ import type { Duplex } from 'node:stream';
 import pg from 'pg';
 import { WebSocketServer, type WebSocket } from 'ws';
 
-import { ViewHub, parseChange, parseFeed, parseRows } from '../src/lib/push/hub.ts';
+import { FlairGather, ViewHub, parseChange, parseFeed, parseFlair, parseRows } from '../src/lib/push/hub.ts';
 import { internalSecret, ticketKey, verifyTicket } from '../src/lib/push/ticket.ts';
 
 const PATH = '/api/plugin/push/ws';
@@ -72,6 +72,25 @@ async function overlayEvent(overlayKey: string): Promise<number | 'unknown' | 'e
     return 'error';
   }
 }
+
+/**
+ * People and names whose Supporter colours may have moved: the site works out what did and, if
+ * anything, stores a version whose delta comes back as a 'flairv' NOTIFY (lib/chatFlairFeed).
+ */
+async function refreshFlair(players: number[], names: string[]): Promise<void> {
+  try {
+    const res = await fetch(`${site}/api/internal/push/flair`, {
+      method: 'POST',
+      headers: { 'x-push-secret': siteSecret, 'content-type': 'application/json' },
+      body: JSON.stringify({ players, names }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!res.ok) log('push.flair-failed', { status: res.status });
+  } catch (err) {
+    log('push.flair-failed', { message: (err as Error).message });
+  }
+}
+const flairGather = new FlairGather((p, n) => void refreshFlair(p, n));
 
 const hub = new ViewHub({ fetchView, minGapMs: Number(process.env.PUSH_MIN_GAP_MS) || undefined });
 
@@ -270,6 +289,12 @@ async function listen(): Promise<void> {
   const client = new pg.Client({ connectionString: dbUrl });
   client.on('notification', (n) => {
     if (!n.payload) return;
+    const flair = parseFlair(n.payload);
+    if (flair) {
+      if (flair.kind === 'dirty') flairGather.add(flair.players, flair.names);
+      else hub.deliverFlair(flair.m);
+      return;
+    }
     const rows = parseRows(n.payload);
     if (rows) {
       hub.deliverRows(rows);
@@ -307,7 +332,11 @@ async function listen(): Promise<void> {
   retryMs = 1_000;
   log('push.db-listening');
   // Changes made while the listener was down were never heard: everyone refetches once.
-  if (everListened) hub.refreshAll();
+  if (everListened) {
+    hub.refreshAll();
+    // A Supporter-list version may have gone unheard too: every plugin checks its version (cheap).
+    hub.deliverFlair({ t: 'flair', full: true });
+  }
   everListened = true;
 }
 

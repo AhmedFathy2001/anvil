@@ -36,6 +36,9 @@ export async function GET(request: Request) {
   // ?rows=1: a plugin with the panel Feed tab (capability 'panel-rows'). It is sent panel rows and
   // looks (no other client is: older plugins can't read them), and listens even with no board.
   const rows = params.get('rows') === '1';
+  // ?flair=1: a plugin with 'chat-flair-v' — it is sent the Supporter list's deltas ({t:'flair'}). Not
+  // a reason to listen by itself: a plugin with no other socket polls the list's version instead.
+  const flair = params.get('flair') === '1';
   const clan = await resolvePluginClan(request);
   const seat = clan ? await verifyPluginToken(request, { hintOnly: pluginRsnHintOnly(request) }) : null;
   const home = !clan || seat ? null : await homeBoardForUser(clan.id, user.userId);
@@ -53,7 +56,7 @@ export async function GET(request: Request) {
   if (eventIds.length === 0 && !feed && !rows) return new NextResponse(null, { status: 204 });
 
   const { ticket, expiresAt } = signTicket(
-    { userId: user.userId, eventIds, teamId: seat?.teamId ?? null, feed, rows },
+    { userId: user.userId, eventIds, teamId: seat?.teamId ?? null, feed, rows, flair },
     KEY,
     Date.now(),
   );
