@@ -16,6 +16,7 @@ import { eventFeedFloor, isClanWorthy, panelFeedWorthy } from '@/lib/moments';
 import { boardTileItemIds, clanScopeFor } from '@/lib/momentsStore';
 import { completionFeedIds, completionRow, momentFeedIds, momentRow, rollupRow, type MomentLike } from '@/lib/pluginUi/feedUi';
 import { standingsHidden } from '@/lib/standingsVisibility';
+import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { ttlMemo } from '@/lib/ttlMemo';
 
 /** NOTIFY payloads cap at 8000 bytes: this many ids leaves room for the row beside them. */
@@ -171,15 +172,22 @@ export function emitCompletionRow(tileId: number, teamId: number): void {
         eventId: tiles.eventId,
         label: tiles.label,
         parent: tiles.parentTileId,
+        revealedAt: tiles.revealedAt,
+        mission: tiles.mission,
+        tilesRevealed: events.tilesRevealed,
+        rules: events.rules,
         at: completions.completedAt,
         who: eventParticipants.name,
       })
       .from(completions)
       .innerJoin(tiles, eq(tiles.id, completions.tileId))
+      .innerJoin(events, eq(events.id, tiles.eventId))
       .leftJoin(eventParticipants, eq(eventParticipants.id, completions.creditPlayerId))
       .where(and(eq(completions.tileId, tileId), eq(completions.teamId, teamId)))
       .limit(1);
     if (!c || c.parent != null || c.eventId == null) return;
+    // Never name a tile members can't see yet (unrevealed board, scheduled reveal, unannounced mission).
+    if (!c.tilesRevealed || !isTileRevealed(parseEventRules(c.rules), c)) return;
     const row = completionRow({ tileId, teamId, label: c.label, who: c.who ?? null, team: await teamOf(teamId), at: completionAt(c.at) });
     const target = (await boardHidden(c.eventId)) ? { e: c.eventId, t: teamId } : { e: c.eventId };
     await notifyRows(target, { t: 'rows', feeds: completionFeedIds(c.eventId, teamId), rows: [row] });

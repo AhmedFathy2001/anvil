@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { ttlMemo } from '@/lib/ttlMemo';
 import { countedLuckCandidates } from '@/lib/clogLuckBoard';
 import { getSetting, getSettingMap } from '@/lib/settings';
@@ -123,12 +124,21 @@ export function boardTileItemIds(eventId: number): Promise<Set<number>> {
     `board-tile-items:${eventId}`,
     async () => {
       // clan-scope: global -- by the board id the caller already resolved.
+      const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { tilesRevealed: true, rules: true } });
+      // Only tiles members can see: a hidden tile's items let through would say it exists.
+      if (!ev?.tilesRevealed) return new Set<number>();
+      const rules = parseEventRules(ev.rules);
       const rows = await db
-        .select({ trackedItemIds: tiles.trackedItemIds, itemRequirements: tiles.itemRequirements })
+        .select({
+          trackedItemIds: tiles.trackedItemIds,
+          itemRequirements: tiles.itemRequirements,
+          revealedAt: tiles.revealedAt,
+          mission: tiles.mission,
+        })
         .from(tiles)
         .where(eq(tiles.eventId, eventId));
       const ids = new Set<number>();
-      for (const row of rows) {
+      for (const row of rows.filter((t) => isTileRevealed(rules, t))) {
         for (const id of parseNumberArray(row.trackedItemIds)) ids.add(id);
         for (const id of parseItemRequirements(row.itemRequirements)) ids.add(id);
       }

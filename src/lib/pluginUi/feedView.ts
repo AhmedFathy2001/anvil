@@ -12,6 +12,7 @@ import { boardTileItemIds, clanScopeFor, momentsForClan, momentsForEvent, type M
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
 import { rateLimit } from '@/lib/rate-limit';
 import { standingsHidden } from '@/lib/standingsVisibility';
+import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 
 import { visibleClan } from './load';
 import { completionRow, feedTabUi, kindGroup, momentRow, type KindGroup, type Scope } from './feedUi';
@@ -185,8 +186,14 @@ async function eventRows(eventId: number, filter: string, teamId: number | null)
 /** A board's finished tiles, newest first (combo parts aren't board cells). */
 async function boardCompletions(eventId: number) {
   // clan-scope: this clan -- by the board id the caller already resolved for this viewer
-  return db
+  const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { tilesRevealed: true, rules: true } });
+  // A tile members can't see yet (unrevealed board, scheduled reveal, unannounced mission) isn't named.
+  if (!ev?.tilesRevealed) return [];
+  const rules = parseEventRules(ev.rules);
+  const rows = await db
     .select({
+      revealedAt: tiles.revealedAt,
+      mission: tiles.mission,
       tileId: completions.tileId,
       teamId: completions.teamId,
       at: completions.completedAt,
@@ -201,7 +208,8 @@ async function boardCompletions(eventId: number) {
     .leftJoin(eventParticipants, eq(eventParticipants.id, completions.creditPlayerId))
     .where(and(eq(tiles.eventId, eventId), isNull(tiles.parentTileId)))
     .orderBy(desc(completions.completedAt))
-    .limit(80);
+    .limit(120);
+  return rows.filter((t) => isTileRevealed(rules, t)).slice(0, 80);
 }
 
 export async function feedView(request: Request, a: Args): Promise<View> {
