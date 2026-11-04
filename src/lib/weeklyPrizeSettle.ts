@@ -75,7 +75,8 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
 
   // Guests rank on the board when the clan allows it, but the coffer is the clan's money — paying a
   // visitor out of it is a decision a host makes deliberately, not one a default should make.
-  const eligible = rows.filter((r) => comp.includeGuests === 1 || r.seatKind !== 'guest');
+  // An event player's seat is never the clan's: no coffer prize for it.
+  const eligible = rows.filter((r) => r.seatKind !== 'event' && (comp.includeGuests === 1 || r.seatKind !== 'guest'));
   const byRsn = new Map(eligible.map((r) => [r.rsn, r]));
   const standings = computeLeaderboard(eligible).map((e) => ({
     rsn: e.rsn,

@@ -2,6 +2,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanMemberships } from '@/db/schema';
+import { clanSeat } from '@/lib/seatScope';
 
 export interface ApplyChoices {
   /** Every character this person has already holds a seat here — there is nothing to ask for. */
@@ -32,6 +33,8 @@ export async function applyChoices(clanId: number, playerId: number): Promise<Ap
       and(
         eq(clanMemberships.clanId, clanId),
         isNull(clanMemberships.leftAt),
+        // An event player's seat is not being in the clan: they may still apply with that character.
+        clanSeat(),
         inArray(clanMemberships.accountId, mine.map((a) => a.id)),
       ),
     );

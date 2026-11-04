@@ -6,6 +6,7 @@ import { findRosterSeats } from '@/lib/roster';
 import { clanRoster } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
+import { isEventSeat } from '@/lib/seatKinds';
 
 // POST /api/admin/clan/merge { sourceId, targetId }
 // Merge two roster seats that are actually the same player (typically a left+joined pair from a
@@ -41,6 +42,10 @@ export async function POST(request: Request) {
   // A merge rewrites the surviving CHARACTER and can delete the other — so, like a rename, a clan may
   // only do it to entries nobody has claimed. Anything a player owns goes to Anvil.
   const seats = await findRosterSeats(and(eq(clanRoster.clanId, clan.id), inArray(clanRoster.id, [sourceId, targetId])));
+  // An event player's seat is not a roster seat: never merged into one, nor one into it.
+  if (seats.some((s) => isEventSeat(s))) {
+    return NextResponse.json({ error: 'That is an event player, not a roster seat.' }, { status: 409 });
+  }
   if (seats.some((s) => s.claimedAt != null)) {
     return NextResponse.json({ error: 'This character belongs to a player, so only Anvil can change it. Use “Report to Anvil” on the roster row.', code: 'reportToAnvil' }, { status: 403 });
   }

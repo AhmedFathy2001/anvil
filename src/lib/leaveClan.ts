@@ -20,6 +20,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanMemberships } from '@/db/schema';
+import { clanSeat } from '@/lib/seatScope';
 
 export type LeaveResult =
   | { ok: true; seats: number }
@@ -46,6 +47,8 @@ export async function leaveClanAsPerson(input: {
         eq(clanMemberships.clanId, input.clanId),
         eq(accounts.playerId, input.playerId),
         isNull(clanMemberships.leftAt),
+        // Member and guest seats: an event player's seat is not on the roster, and closes with its event.
+        clanSeat(),
       ),
     );
 

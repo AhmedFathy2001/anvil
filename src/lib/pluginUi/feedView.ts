@@ -80,16 +80,29 @@ async function addEverythingElse(request: Request, out: Scope[], userId: number)
   }
   // clan-scope: global -- the boards this viewer's own characters are seated on, in any clan.
   const boards = await db
-    .selectDistinct({ id: events.id, name: events.name, startDate: events.startDate, endDate: events.endDate, forceEndedAt: events.forceEndedAt, clanSlug: clans.slug })
+    .selectDistinct({
+      id: events.id,
+      name: events.name,
+      startDate: events.startDate,
+      endDate: events.endDate,
+      forceEndedAt: events.forceEndedAt,
+      clanSlug: clans.slug,
+      clanStatus: clans.status,
+      seatKind: clanMemberships.kind,
+      seatEventId: clanMemberships.eventId,
+    })
     .from(eventParticipants)
     .innerJoin(events, eq(events.id, eventParticipants.eventId))
     .innerJoin(clans, eq(clans.id, events.clanId))
+    .leftJoin(clanMemberships, eq(clanMemberships.id, eventParticipants.clanMemberId))
     .where(inArray(eventParticipants.accountId, accountIds));
   const now = Date.now();
   const at = (s: string | null) => (s ? Date.parse(s.includes('T') ? s : `${s.replace(' ', 'T')}Z`) : NaN);
   for (const b of boards) {
     const live = !b.forceEndedAt && !(at(b.startDate) > now) && !(at(b.endDate) <= now);
-    if (live && !has('event', b.id) && (await visible(b.clanSlug))) out.push({ kind: 'event', id: b.id, name: b.name });
+    // Entered on an event player's seat for THIS board: theirs to read even where the clan is hidden.
+    const ownEventSeat = b.seatKind === 'event' && b.seatEventId === b.id && b.clanStatus !== 'suspended';
+    if (live && !has('event', b.id) && (ownEventSeat || (await visible(b.clanSlug)))) out.push({ kind: 'event', id: b.id, name: b.name });
   }
 }
 

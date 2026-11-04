@@ -8,6 +8,7 @@ import { atLeast } from '@/lib/clanRoles';
 import { requireClan } from '@/lib/clanContext';
 import { allows, parseBoardAccess } from '@/lib/cohostBoardAccess';
 import { eventForRequest } from '@/lib/eventScope';
+import { rosterClanSeat } from '@/lib/seatScope';
 
 /**
  * Tiles a co-host clan suggests for the host's board (lib/cohostBoardAccess 'suggest').
@@ -92,7 +93,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     const [onRoster] = await db
       .select({ id: clanRoster.id })
       .from(clanRoster)
-      .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)))
+      // An event player's seat is not on the roster.
+      .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt), rosterClanSeat()))
       .limit(1);
     may = !!onRoster;
   }

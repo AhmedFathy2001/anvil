@@ -7,6 +7,7 @@ import { LIVE_EVENT_RELEASE_MESSAGE, releaseCharacter } from '@/lib/accountRelea
 import { verifyUser } from '@/lib/auth';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { findRosterSeats } from '@/lib/roster';
+import { rosterClanSeat } from '@/lib/seatScope';
 
 /**
  * /api/profile/characters/[accountId] — the settings page's per-character actions, keyed by ACCOUNT.
@@ -45,7 +46,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ac
 
   // The main leads the Discord nickname in every clan that has a seat for it.
   // clan-scope: global -- the subject is the caller's own character, whose seats span clans by design.
-  const seats = await findRosterSeats(and(eq(clanRoster.accountId, account.id), isNull(clanRoster.leftAt)));
+  // Member and guest seats: an event player's seat has no Discord nickname or clan history to update.
+  const seats = await findRosterSeats(and(eq(clanRoster.accountId, account.id), isNull(clanRoster.leftAt), rosterClanSeat()));
   for (const s of seats) {
     syncRolesForClanMemberFireAndForget(s.id);
     db.insert(clanAuditLog)

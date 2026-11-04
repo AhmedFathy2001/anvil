@@ -10,6 +10,7 @@ import { fetchHiscoresSnapshot, snapshotXpMap } from '@/lib/hiscores';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { admit } from '@/lib/guestAdmission';
+import { rosterClanSeat } from '@/lib/seatScope';
 
 /**
  * POST /api/auth/verify-stat-delta/check { attemptId }
@@ -177,7 +178,8 @@ export async function POST(request: Request) {
   // and its `lastSeenInClan` stamped, while clan A got nothing and the response said success. That
   // is the same bug lib/auth.ts documents at its own auto-link, fixed there and not here.
   const existing = await findRosterSeat(
-    and(eq(clanRoster.clanId, clan.id), eq(clanRoster.accountId, claim.accountId)),
+    // The clan seat; an event player's seat is never revived or treated as one (admit() is the door).
+    and(eq(clanRoster.clanId, clan.id), eq(clanRoster.accountId, claim.accountId), rosterClanSeat()),
   );
 
   let clanMemberId: number;

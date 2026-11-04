@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
 import { accounts, clanMemberships, clanRoster, pendingRenames, playerSnapshots, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { and, asc, eq, isNull, ne, or, sql } from 'drizzle-orm';
 import { fetchHiscoresOnce, fetchSnapshotWithRetry, type HiscoresSnapshot } from '@/lib/hiscores';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
@@ -55,6 +56,8 @@ export async function enrollAllPlayers(competitionId: number) {
     eq(clanRoster.clanId, comp.clanId),
     isNull(clanRoster.leftAt),
     eq(clanRoster.status, 'active'),
+    // An event player's seat is not on the roster, guests included or not: never enrolled.
+    rosterClanSeat(),
   );
   const whereClause = trackGuests
     ? baseClause

@@ -352,8 +352,9 @@ test('a seat from another event does not skip this event’s gate (the sign-up c
   const gated = await gatedEvent('Gated Later', { anyOf: [{ kind: 'twitch-follow' }] });
   const v = await person('Seated Elsewhere');
   assert.equal((await enter(v, open)).outcome, 'seated');
-  // Seated in the space now, so entry calls them an insider — the sign-up route runs this instead.
-  assert.equal((await enter(v, gated)).outcome, 'insider');
+  // Their seat is the open event's alone (an event seat, lib/eventPlayers), so the gated event treats
+  // them as a newcomer: entry runs the gate — and the sign-up route's check still says no.
+  assert.equal((await enter(v, gated)).outcome, 'gated');
   const verdict = await G.entryGateVerdict({ eventId: gated, userId: v.userId, playerId: v.playerId });
   assert.equal(verdict?.pass, false);
 });

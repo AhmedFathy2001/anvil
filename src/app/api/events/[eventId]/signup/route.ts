@@ -17,7 +17,7 @@ import { seatSignupAccounts, teamLoads } from '@/lib/teamPlacementDb';
 import { entryGateVerdict } from '@/lib/entryGatesDb';
 import { verdictMessage } from '@/lib/entryGates';
 import { eventRoomVerdict, signupNetAdding } from '@/lib/creatorPlans';
-import { PlanLimitError, creatorPlanOfClan, eventPlayerCount, withEventRoom } from '@/lib/creatorPlansDb';
+import { PlanLimitError, eventPlayerCount, streamPlanOfEvent, withEventRoom } from '@/lib/creatorPlansDb';
 import { freemiumEnforced } from '@/lib/entitlements';
 
 export async function GET(
@@ -282,13 +282,14 @@ export async function POST(
     }
   }
 
-  // A creator space's plan caps the players on one event (lib/creatorPlans). Only the board places
+  // A streamed event's plan caps the players on it (lib/creatorPlans): a creator space's, or a
+  // Streaming clan's event open to viewers. Only the board places
   // this submission takes NET count — editing a sign-up, or swapping one character for another, never
   // bumps anybody — and both sides count the same statuses (pending/approved), so a rejected row
   // cannot be traded for a place. This is the cheap, early refusal; the one that holds under a rush
   // is repeated under the event's lock after the write (step 2). A no-op until FREEMIUM_ENFORCED is
   // on; an ordinary clan is never metered this way.
-  const metered = freemiumEnforced() ? await creatorPlanOfClan(event.clanId) : null;
+  const metered = freemiumEnforced() ? await streamPlanOfEvent(id) : null;
   const netAdding = signupNetAdding({ existing: existingRows, selectedIds, invite: !!invite });
   if (metered != null && netAdding > 0) {
     const room = eventRoomVerdict({ clanPlan: metered, players: await eventPlayerCount(id), adding: netAdding });

@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, eventParticipants, eventSignups, signupFees, weeklyParticipants } from '@/db/schema';
 import { findRosterSeat, loginOf } from '@/lib/roster';
 import { mergeEmptyPersonInto } from '@/lib/mergePeople';
+import { isEventSeat } from '@/lib/seatKinds';
 
 export type MergeSeatsResult =
   | { ok: true; targetId: number; mergedRsn: string; rsn: string }
@@ -44,6 +45,11 @@ export async function mergeSeats(input: {
     findRosterSeat(and(eq(clanRoster.id, targetId), eq(clanRoster.clanId, clanId))),
   ]);
   if (!source || !target) return { ok: false, status: 404, error: 'Source or target not found' };
+  // Clan seat into clan seat, or an event player's seat into the SAME event's seat (a character
+  // merge, lib/characterRename). An event seat never folds into a member/guest seat or vice versa.
+  if (isEventSeat(source) !== isEventSeat(target) || (isEventSeat(source) && source.eventId !== target.eventId)) {
+    return { ok: false, status: 409, error: 'An event player’s seat can only be merged with the same event’s seat.' };
+  }
 
   // Refuse if both are actively claimed by different users — that's a real conflict that
   // needs the users involved to resolve, not an admin merge.

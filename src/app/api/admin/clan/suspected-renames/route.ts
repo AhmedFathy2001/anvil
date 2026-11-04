@@ -6,6 +6,7 @@ import { verifyAdminOrModerator } from '@/lib/auth';
 import { requireClanFromRequest } from '@/lib/clanContext';
 import { detectSuspectedRenames } from '@/lib/renameDetection';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
+import { rosterClanSeat } from '@/lib/seatScope';
 
 // GET /api/admin/clan/suspected-renames
 //
@@ -57,7 +58,8 @@ export async function POST(request: Request) {
   const seats = await db
     .select({ id: clanRoster.id })
     .from(clanRoster)
-    .where(and(eq(clanRoster.clanId, clan.id), inArray(clanRoster.id, [leftMemberId, joinedMemberId])));
+    // Roster seats only: an event player's seat is never half of a rename pair.
+    .where(and(eq(clanRoster.clanId, clan.id), inArray(clanRoster.id, [leftMemberId, joinedMemberId]), rosterClanSeat()));
   if (seats.length !== 2) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   await db.insert(clanAuditLog).values({

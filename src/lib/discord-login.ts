@@ -12,6 +12,7 @@ import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { log } from '@/lib/logger';
 import { claimAccountForPerson } from '@/lib/accountClaim';
 import { track } from '@/lib/analytics';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { firstLoginDestination } from '@/lib/firstLogin';
 
 const SESSION_COOKIE = 'admin_session';
@@ -222,7 +223,8 @@ export async function completeDiscordLogin(
       const unlinked = await db
         .select()
         .from(clanRoster)
-        .where(and(isNull(clanRoster.claimedAt), isNull(clanRoster.leftAt)));
+        // An event player's seat is not a clan seat to adopt by name.
+        .where(and(isNull(clanRoster.claimedAt), isNull(clanRoster.leftAt), rosterClanSeat()));
       // A DISCORD DISPLAY NAME IS NOT PROOF EITHER — it is one rename away from anyone's. Matching
       // it against a public RSN and then CLAIMING the account is the same takeover as the plugin
       // path, and worse for a row carrying a pending role: rename your Discord to a victim's RSN,

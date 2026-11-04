@@ -37,6 +37,31 @@ export function isCreatorSpace(clan: { kind?: string | null } | null | undefined
   return clanKindOf(clan?.kind) === 'creator';
 }
 
+// ── Streaming ────────────────────────────────────────────────────────────────────────────────────
+//
+// The streamer features — Twitch / Kick / YouTube channel, "Who can join?" gates, the OBS overlay's
+// mark, `!join` — belong to any space that STREAMS: a creator space always, and an ordinary clan once
+// an admin turns on Streaming (clans.streaming). A clan's event is only streamed when its "Who can
+// join?" lets viewers in (events.openToViewers); "Members only" is the default and today's behaviour.
+// Whoever joins a streamed event as an outsider gets an EVENT seat (lib/eventPlayers), never a guest one.
+
+/** Does this space have the streamer features: a creator space, or a clan with Streaming on? */
+export function streamsEvents(clan: { kind?: string | null; streaming?: boolean | null } | null | undefined): boolean {
+  return isCreatorSpace(clan) || clan?.streaming === true;
+}
+
+/**
+ * Is this ONE event open to viewers — gated, metered per event, and seating outsiders as event players?
+ * Every creator-space event is; a clan's only with Streaming on AND the event set to let viewers in.
+ */
+export function streamedEvent(
+  clan: { kind?: string | null; streaming?: boolean | null } | null | undefined,
+  event: { openToViewers?: boolean | null } | null | undefined,
+): boolean {
+  if (isCreatorSpace(clan)) return true;
+  return clan?.streaming === true && event?.openToViewers === true;
+}
+
 /** Modules that are always off in a creator space: they only mean something with a roster. */
 export const CREATOR_ONLY_OFF: readonly FeatureKey[] = ['weekly'];
 
@@ -100,11 +125,13 @@ export function mayCreateCreatorSpace(opts: { signedIn: boolean; ownedCreatorSpa
  *
  *   ordinary clan — `approval` always asks; `open` asks unless the clan already vouched for them
  *                   (invited by name, or their clan is invited / co-hosting). Unchanged.
- *   creator space — `approval` asks; `open` never does.
+ *   creator space — `approval` asks; `open` never does. Same for a Streaming clan's viewer event.
  */
-export function outsiderNeedsApproval(opts: { clanKind: ClanKind; entry: EventEntry; vouched: boolean }): boolean {
+export function outsiderNeedsApproval(opts: { clanKind: ClanKind; entry: EventEntry; vouched: boolean; streamed?: boolean }): boolean {
   if (opts.entry === 'approval') return true;
-  if (opts.clanKind === 'creator') return false;
+  // A Streaming clan's event open to viewers (streamedEvent) is a creator event for this purpose:
+  // the viewer gets an event seat, not a place on the roster, so `open` can mean open.
+  if (opts.clanKind === 'creator' || opts.streamed === true) return false;
   return !opts.vouched;
 }
 

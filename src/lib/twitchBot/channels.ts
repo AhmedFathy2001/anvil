@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, or } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanTwitchChannels, clans, settings } from '@/db/schema';
@@ -47,7 +47,8 @@ export async function chatJoinEnabled(clanId: number): Promise<boolean> {
 }
 
 /**
- * Every channel the bot should be in: an active creator space, switched on, with a proved channel —
+ * Every channel the bot should be in: an active streaming space (a creator space, or a clan with
+ * Streaming on), switched on, with a proved channel —
  * and, once FREEMIUM_ENFORCED is on, on a plan that includes `!join` (lib/creatorPlans; Silver+).
  */
 export async function chatBotChannels(): Promise<{ clanId: number; broadcaster: TwitchBroadcaster }[]> {
@@ -56,7 +57,15 @@ export async function chatBotChannels(): Promise<{ clanId: number; broadcaster: 
     .select({ clanId: clans.id, plan: clans.plan })
     .from(settings)
     .innerJoin(clans, eq(clans.id, settings.clanId))
-    .where(and(eq(settings.key, CHAT_JOIN_SETTING), eq(settings.value, 'on'), eq(clans.kind, 'creator'), eq(clans.status, 'active')));
+    .where(
+      and(
+        eq(settings.key, CHAT_JOIN_SETTING),
+        eq(settings.value, 'on'),
+        // A creator space, or a clan with Streaming on (lib/creatorSpaces streamsEvents).
+        or(eq(clans.kind, 'creator'), eq(clans.streaming, true)),
+        eq(clans.status, 'active'),
+      ),
+    );
   const out: { clanId: number; broadcaster: TwitchBroadcaster }[] = [];
   const seen = new Set<string>();
   for (const r of rows) {

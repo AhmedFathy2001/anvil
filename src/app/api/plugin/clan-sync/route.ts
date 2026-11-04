@@ -22,6 +22,7 @@ import { recordJoinDates } from '@/lib/rosterJoinDates';
 import { RANK_NUMBERS_KEY, parseRankNumbers, rankNumbersFrom } from '@/lib/rankRules';
 import { accountChanged, seatChanged, departureFor, lastSeenIsFresh, returnFields, rosterReadVerdict } from '@/lib/rosterSync';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { rosterClanSeat } from '@/lib/seatScope';
 
 interface IncomingMember {
   rsn: string;
@@ -265,7 +266,9 @@ export async function POST(request: Request) {
       lastSeenInClan: clanRoster.lastSeenInClan,
     })
     .from(clanRoster)
-    .where(eq(clanRoster.clanId, clan.id));
+    // Member and guest seats only. An event player's seat is never matched, promoted or departed by
+    // the in-game roster: an account listed here with only an event seat gets a clan seat of its own.
+    .where(and(eq(clanRoster.clanId, clan.id), rosterClanSeat()));
   // By RSN only. A by-hash index existed to match members across renames, but clan-sync no longer
   // reads any incoming hash (a roster cannot honestly assert other people's account hashes), so
   // there is nothing to look up by hash here.

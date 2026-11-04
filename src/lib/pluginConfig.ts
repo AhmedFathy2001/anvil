@@ -13,6 +13,8 @@ import { clogItemNames } from '@/lib/clogDataset';
 import { guaranteedDropsFor, parseGuaranteedOverrides, petFacts, type DropFacts } from '@/lib/dropFacts';
 import { ttlMemo } from '@/lib/ttlMemo';
 import { gatesApply, gatesShortLabel, parseGates } from '@/lib/entryGates';
+import { clanSeat } from '@/lib/seatScope';
+import { streamedEvent } from '@/lib/creatorSpaces';
 
 // Shared builders for the plugin's read-bootstrap. These back both the standalone
 // /api/plugin/schedule and /api/plugin/active-weekly routes (kept for older jars) and
@@ -195,18 +197,19 @@ export async function buildSchedule(
     bingoCandidates.map((e) => e.id),
   );
 
-  // Entry gates only bind on a creator space's events (lib/entryGates gatesApply), so the host's kind
-  // is read for the gated ones alone — usually none, so usually no query.
+  // Entry gates only bind on streamed events — a creator space's, or a Streaming clan's open to viewers
+  // (lib/entryGates gatesApply) — so the host is read for the gated ones alone: usually none, no query.
   const gatedHosts = [...new Set(bingoCandidates.filter((e) => e.entryGates).map((e) => e.clanId))];
-  const hostKind = new Map<number, string>();
+  const hostOf = new Map<number, { kind: string; streaming: boolean }>();
   if (gatedHosts.length) {
     // clan-scope: global -- the hosts of events already filtered to this clan's own and co-hosted boards.
-    const rows = await db.select({ id: clans.id, kind: clans.kind }).from(clans).where(inArray(clans.id, gatedHosts));
-    for (const r of rows) hostKind.set(r.id, r.kind);
+    const rows = await db.select({ id: clans.id, kind: clans.kind, streaming: clans.streaming }).from(clans).where(inArray(clans.id, gatedHosts));
+    for (const r of rows) hostOf.set(r.id, r);
   }
   const gateOf = (e: (typeof bingoCandidates)[number]): string | null => {
     const gates = e.entryGates ? parseGates(e.entryGates) : null;
-    return gatesApply(hostKind.get(e.clanId), gates) ? gatesShortLabel(gates) : null;
+    const host = hostOf.get(e.clanId);
+    return gatesApply(host?.kind, gates, streamedEvent(host, e)) ? gatesShortLabel(gates) : null;
   };
 
   const bingos: ScheduleBingo[] = bingoCandidates.map((e) => {
@@ -285,7 +288,15 @@ async function entriesForCharacter(
     .select({ eventId: eventSignups.eventId, status: eventSignups.status })
     .from(eventSignups)
     .innerJoin(clanMemberships, eq(clanMemberships.id, eventSignups.clanMemberId))
-    .where(and(eq(clanMemberships.accountId, account.id), inArray(eventSignups.eventId, eventIds), ne(eventSignups.status, 'withdrawn')));
+    .where(
+      and(
+        eq(clanMemberships.accountId, account.id),
+        inArray(eventSignups.eventId, eventIds),
+        ne(eventSignups.status, 'withdrawn'),
+        // An event player's seat counts only on its own event.
+        or(clanSeat(), eq(clanMemberships.eventId, eventSignups.eventId)),
+      ),
+    );
   for (const sg of signups) {
     if (sg.status === 'approved') out.set(sg.eventId, 'entered');
     else if (!out.has(sg.eventId)) out.set(sg.eventId, 'pending');
@@ -298,15 +309,19 @@ async function entriesForCharacter(
   const seatIds = (
     await db.select({ id: clanMemberships.id }).from(clanMemberships).where(eq(clanMemberships.accountId, account.id))
   ).map((r) => r.id);
+  // clan-scope: global -- this character's own board entries across clans; the seat join only reads its kind.
   const onBoard = await db
     .select({ eventId: eventParticipants.eventId })
     .from(eventParticipants)
+    // The participant's own seat: an event player's seat counts only on its own event.
+    .leftJoin(clanMemberships, eq(clanMemberships.id, eventParticipants.clanMemberId))
     .where(
       and(
         inArray(eventParticipants.eventId, eventIds),
         seatIds.length > 0
           ? or(eq(eventParticipants.accountId, account.id), inArray(eventParticipants.clanMemberId, seatIds))
           : eq(eventParticipants.accountId, account.id),
+        or(isNull(clanMemberships.id), clanSeat(), eq(clanMemberships.eventId, eventParticipants.eventId)),
       ),
     );
   for (const p of onBoard) out.set(p.eventId, 'entered');
@@ -369,6 +384,8 @@ async function boardsWithStanding(playerId: number, eventIds: number[]): Promise
         inArray(eventSignups.eventId, eventIds),
         ne(eventSignups.status, 'withdrawn'),
         ne(eventSignups.status, 'rejected'),
+        // An event player's seat gives standing only on its own event.
+        or(clanSeat(), eq(clanMemberships.eventId, eventSignups.eventId)),
       ),
     );
   const out = new Set(entered.map((r) => r.eventId));

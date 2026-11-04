@@ -7,6 +7,7 @@ import { requireTeamManager } from '@/lib/teamStaff';
 import { swapTrackedAccount } from '@/lib/trackedAccount';
 import { assertEventEditable } from '@/lib/eventLock';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
+import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 
 /**
  * Which character one of your own players is being followed on.
@@ -132,6 +133,8 @@ export async function GET(
         eq(clanRoster.playerId, current.playerId),
         inArray(clanRoster.clanId, [management.teamClanId]),
         isNull(clanRoster.leftAt),
+        // An event player's seat is offered only on its own event.
+        rosterSeatOpensEventSql(management.eventId),
       ),
     );
 

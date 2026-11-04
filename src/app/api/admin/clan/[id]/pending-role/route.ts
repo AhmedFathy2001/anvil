@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 import { verifyAdmin, verifyUser } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
+import { isEventSeat } from '@/lib/seatKinds';
 
 const VALID = new Set(['admin', 'moderator', 'editor', 'treasurer']);
 
@@ -51,6 +52,8 @@ export async function PUT(
 
   const member = await seatForRequest(request, memberId);
   if (!member) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
+  // An event player's seat is not a roster seat: no role is pre-assigned through it.
+  if (isEventSeat(member)) return NextResponse.json({ error: 'That is an event player, not a roster seat.' }, { status: 409 });
 
   await db.update(clanMemberships).set({ pendingRole: role }).where(eq(clanMemberships.id, memberId));
 

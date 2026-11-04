@@ -9,6 +9,7 @@ const KICK_RETURN: Record<string, { ok: boolean; text: string }> = {
   scopes: { ok: false, text: 'Kick didn’t give Anvil the permissions it asked for. Try again and press Allow.' },
   denied: { ok: false, text: 'Kick connection cancelled.' },
   error: { ok: false, text: 'Couldn’t connect Kick. Try again.' },
+  'in-use': { ok: false, text: 'That channel is connected to another space on Anvil. Ask its admin to disconnect it first.' },
 };
 
 interface KickState {

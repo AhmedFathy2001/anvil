@@ -199,7 +199,8 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
       if (!entry.snapshotJson && p.statsSnapshot) entry.snapshotJson = p.statsSnapshot;
     }
   } else {
-    const active = members.filter((m) => !m.leftAt && m.kind !== 'guest');
+    // Members only — never inferred from "not a guest" (an event player's seat is neither).
+    const active = members.filter((m) => !m.leftAt && m.kind === 'member');
     // Keyed by ACCOUNT — player_snapshots is account-keyed, and filtering it by seat ids (m.id) found
     // nothing, so every clan-wide profile came back with a null baseline snapshot.
     const snapRows = active.length

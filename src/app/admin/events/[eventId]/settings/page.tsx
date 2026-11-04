@@ -18,7 +18,8 @@ import { settlementForEvent } from '@/lib/coHostSettlement';
 import { getBoard } from '@/lib/libraryBoards';
 import BoardLibraryPanel from './BoardLibraryPanel';
 import EntryGatePanel from './EntryGatePanel';
-import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { isCreatorSpace, streamsEvents } from '@/lib/creatorSpaces';
+import StreamOverlayCard from '@/app/admin/dashboard/StreamOverlayCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,7 +92,13 @@ export default async function EventSettingsPage({
         </div>
       )}
       <AccessPanel eventId={id} />
-      {isCreatorSpace(clan) && <EntryGatePanel eventId={id} />}
+      {streamsEvents(clan) && <EntryGatePanel eventId={id} />}
+      {/* A Streaming clan's OBS overlay for this event (a creator space has it on its dashboard). */}
+      {streamsEvents(clan) && !isCreatorSpace(clan) && isAdmin && (
+        <div className="mb-6">
+          <StreamOverlayCard eventId={id} />
+        </div>
+      )}
       <CoHostPanel eventId={id} initial={cohosts} cashPolicy={event.cashPolicy} settlement={settlement} />
       <p className="mb-6 text-sm text-text-muted">
         Where this event posts, who it pings, its team channels and extra webhooks are on the{' '}

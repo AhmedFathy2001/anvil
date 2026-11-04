@@ -15,6 +15,7 @@ import { db } from '@/db';
 import { clanRoster, eventParticipants, eventSignups, signupFees, teams } from '@/db/schema';
 import { enrolParticipant, participantForSeat } from '@/lib/participants';
 import { findRosterSeat, loginOf } from '@/lib/roster';
+import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 import { sanitizeProfile, serializeProfile } from '@/lib/signup';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { standardFeeForAccount } from '@/lib/entryFee';
@@ -63,9 +64,14 @@ export async function signUpOnBehalf(input: {
   }
 
   // The seat has to be on the BOARD's clan roster. The member id came from the request body and
-  // would otherwise seat another clan's member into it.
+  // would otherwise seat another clan's member into it. An event player's seat opens only its own event.
   const account = await findRosterSeat(
-    and(eq(clanRoster.clanId, event.clanId), eq(clanRoster.id, clanMemberId), isNull(clanRoster.leftAt)),
+    and(
+      eq(clanRoster.clanId, event.clanId),
+      eq(clanRoster.id, clanMemberId),
+      isNull(clanRoster.leftAt),
+      rosterSeatOpensEventSql(event.id),
+    ),
   );
   if (!account) return { ok: false, status: 404, error: 'Clan member not found' };
 

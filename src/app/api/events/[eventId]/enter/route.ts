@@ -3,9 +3,10 @@ import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanJoinRequests, clanMemberships, clans, events } from '@/db/schema';
-import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { streamedEvent } from '@/lib/creatorSpaces';
+import { seatOpensEventSql } from '@/lib/seatScope';
 import { eventRoomVerdict } from '@/lib/creatorPlans';
-import { creatorPlanOfClan, eventPlayerCount } from '@/lib/creatorPlansDb';
+import { eventPlayerCount, streamPlanOfEvent } from '@/lib/creatorPlansDb';
 import { freemiumEnforced } from '@/lib/entitlements';
 import { verifyUser } from '@/lib/auth';
 import { canEnterEvent } from '@/lib/eventAccess';
@@ -16,6 +17,9 @@ import { rateLimitByKey } from '@/lib/rate-limit';
 
 /**
  * Entering an event hosted by a clan you are not in.
+ *
+ * A STREAMED event (a creator space's, or a Streaming clan's open to viewers) seats an outsider as an
+ * EVENT PLAYER of that one event (lib/eventPlayers) instead of a guest — see lib/eventEntry.
  *
  * THE STRUCTURAL PROBLEM: `event_signups.clan_member_id` is NOT NULL and names a seat in the host
  * clan, so an outsider has nowhere to sit. This is where they get one — as a GUEST, through the same
@@ -92,21 +96,26 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
     // clan-scope: global -- entering somebody ELSE'S event is the whole point of this route; the clan is the event's, and canEnterEvent has already ruled on access.
     const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
     if (event) {
+      // Seats that open THIS event: a member/guest seat, or an event player's seat for it. An event
+      // seat for another of the host's events opens nothing here (lib/eventPlayers).
       const seated = await db
         .select({ accountId: clanMemberships.accountId })
         .from(clanMemberships)
-        .where(and(eq(clanMemberships.clanId, event.clanId), isNull(clanMemberships.leftAt)));
+        .where(and(eq(clanMemberships.clanId, event.clanId), isNull(clanMemberships.leftAt), seatOpensEventSql(eventId)));
       const seatedIds = new Set(seated.map((r) => r.accountId));
 
       const mine = await db
         .select({ id: accounts.id, rsn: accounts.rsn, verifiedAt: accounts.verifiedAt })
         .from(accounts)
         .where(eq(accounts.playerId, session.playerId));
-      // A creator space asks per event, so a character already seated there (from another of its
-      // events) is still one they can ask with.
-      const creator = isCreatorSpace(await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true } }));
+      // A streamed event (a creator space's, or a Streaming clan's open to viewers) asks per event, so
+      // a character already seated there (a creator space's older guest seat) is still one they can ask with.
+      const streamed = streamedEvent(
+        await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true, streaming: true } }),
+        event,
+      );
       options = mine
-        .filter((a) => a.verifiedAt != null && (creator || !seatedIds.has(a.id)))
+        .filter((a) => a.verifiedAt != null && (streamed || !seatedIds.has(a.id)))
         .map((a) => ({ id: a.id, rsn: a.rsn }));
 
       const [policy, asked] = await Promise.all([
@@ -118,17 +127,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
                 eq(clanJoinRequests.clanId, event.clanId),
                 inArray(clanJoinRequests.accountId, mine.map((a) => a.id)),
                 eq(clanJoinRequests.status, 'pending'),
-                // A creator space's requests are per event: only this event's counts as "asked".
-                ...(creator ? [eq(clanJoinRequests.eventId, eventId)] : []),
+                // A streamed event's requests are per event: only this event's counts as "asked".
+                ...(streamed ? [eq(clanJoinRequests.eventId, eventId)] : []),
               ),
               orderBy: asc(clanJoinRequests.requestedAt),
               columns: { requestedAt: true },
             }),
       ]);
       guestsClosed = policy === 'closed';
-      if (creator && freemiumEnforced()) {
-        const host = await creatorPlanOfClan(event.clanId);
-        full = !eventRoomVerdict({ clanPlan: host, players: await eventPlayerCount(eventId), adding: 1 }).ok;
+      if (streamed && freemiumEnforced()) {
+        const plan = await streamPlanOfEvent(eventId);
+        full = !eventRoomVerdict({ clanPlan: plan, players: await eventPlayerCount(eventId), adding: 1 }).ok;
       }
       hasCharacter = mine.length > 0;
       pendingSince = asked?.requestedAt ?? null;

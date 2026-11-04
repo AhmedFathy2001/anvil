@@ -7,6 +7,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanMemberships, clans } from '@/db/schema';
 import { getSetting } from '@/lib/settings';
+import { clanSeat } from '@/lib/seatScope';
 import { standingLine, type StandingSeat } from '@/lib/characterStanding';
 
 /** accountId's live seats as the clan choices "Wrong clan? Tell Anvil" offers — member first. */
@@ -41,7 +42,8 @@ export async function characterStandings(accountIds: number[], nowMs: number): P
     })
     .from(clanMemberships)
     .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
-    .where(and(inArray(clanMemberships.accountId, accountIds), isNull(clanMemberships.leftAt)))
+    // Member and guest seats only: an event player's seat is no standing in the clan (and would read as "guest").
+    .where(and(inArray(clanMemberships.accountId, accountIds), isNull(clanMemberships.leftAt), clanSeat()))
     .orderBy(clans.name);
   const seats: StandingSeat[] = rows.map(({ clanKind, ...r }) => ({
     ...r,

@@ -16,6 +16,7 @@ import { db } from '@/db';
 import { accounts, characterReports, clanAuditLog, clanMemberships, clans } from '@/db/schema';
 import { fileCharacterReport } from '@/lib/characterReports';
 import { verificationOf } from '@/lib/clanVerification';
+import { clanSeat } from '@/lib/seatScope';
 
 interface LiveSeat {
   seatId: number;
@@ -30,7 +31,8 @@ async function liveSeats(accountId: number): Promise<LiveSeat[]> {
     .select({ seatId: clanMemberships.id, clanId: clans.id, clanName: clans.name, kind: clanMemberships.kind })
     .from(clanMemberships)
     .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
-    .where(and(eq(clanMemberships.accountId, accountId), isNull(clanMemberships.leftAt)));
+    // Member and guest seats: an event player's seat is never a home clan, nor promoted into one.
+    .where(and(eq(clanMemberships.accountId, accountId), isNull(clanMemberships.leftAt), clanSeat()));
 }
 
 export type WrongClanFileResult =

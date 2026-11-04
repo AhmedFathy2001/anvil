@@ -8,6 +8,7 @@ import { and, eq, getTableColumns, inArray, isNull } from 'drizzle-orm';
 import { findOrCreateClanMember } from '@/lib/clan';
 import { captureWeeklyStartingStatsSoon } from '@/lib/startingStats';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
+import { rosterClanSeat } from '@/lib/seatScope';
 
 export async function GET(
   request: Request,
@@ -53,6 +54,8 @@ export async function GET(
     eq(clanRoster.clanId, compRow.clanId),
     isNull(clanRoster.leftAt),
     eq(clanRoster.status, 'active'),
+    // An event player's seat is not on the roster, so never in a weekly.
+    rosterClanSeat(),
   );
   // Pull the FULL active roster (guests included) so exclusions are named, not invisible —
   // "124 of 125" is usually one member sitting outside the enrollment filter.
@@ -79,7 +82,7 @@ export async function GET(
   const inactive = await db
     .select({ rsn: clanRoster.rsn, status: clanRoster.status })
     .from(clanRoster)
-    .where(and(eq(clanRoster.clanId, compRow.clanId), isNull(clanRoster.leftAt)));
+    .where(and(eq(clanRoster.clanId, compRow.clanId), isNull(clanRoster.leftAt), rosterClanSeat()));
   const inactiveExcluded = inactive
     .filter((m) => m.status !== 'active' && !enrolledNorm.has(normalizeRsn(m.rsn)))
     .map((m) => `${m.rsn} (${m.status})`);

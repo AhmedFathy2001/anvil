@@ -31,6 +31,7 @@ import { track } from '@/lib/analytics';
 import { endOfEventFacts, runDailyDigests, runHalfwayReports } from '@/lib/eventDigest';
 import { runHourlySnapshots } from '@/lib/eventHourly';
 import { runFootprintChecks } from '@/lib/footprintCheck';
+import { closeFinishedEventSeats } from '@/lib/eventPlayers';
 
 // The awards worth celebrating in the Discord end post, most-fun-first — we take the first few of
 // these that actually have a winner so the embed stays punchy.
@@ -169,6 +170,10 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   const allEvents = await db.select().from(events);
   const now = new Date().toISOString();
   const nowMs = Date.parse(now);
+
+  // Event players' seats close once their event is over (lib/eventPlayers); the rows stay as the
+  // record. Best effort: a failure here must not hold up the announcements below.
+  await closeFinishedEventSeats(nowMs).catch((error) => log.warn('event-lifecycle.close-event-seats-fail', {}, error));
 
   // A public board reveal is visibility only. Older ingest paths confused it with the start and may
   // already have left activity behind. While the event has never emitted its start notification,

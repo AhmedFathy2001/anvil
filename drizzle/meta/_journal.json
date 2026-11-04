@@ -1023,6 +1023,13 @@
       "when": 1793792554614,
       "tag": "0202_display_case_stat_pins",
       "breakpoints": true
+    },
+    {
+      "idx": 203,
+      "version": "7",
+      "when": 1793792614614,
+      "tag": "0203_event_player_seats",
+      "breakpoints": true
     }
   ]
 }

@@ -26,6 +26,7 @@ import {
   type DiscordEmbed,
 } from '@/lib/discordEmbeds';
 import { fmt, type DiscordDict } from '@/lib/discordI18n';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { resolveInvoker, resolveRosterPlayer, type ClanContext, type InvokerIdentity } from '@/lib/discordContext';
 import { clanMarkUrl } from '@/lib/clanMarkUrl';
 
@@ -479,7 +480,8 @@ async function topCollectors(clanId: number) {
     })
     .from(memberClog)
     .innerJoin(clanRoster, eq(memberClog.accountId, clanRoster.accountId))
-    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt)))
+    // An event player's seat is not on the clan's board (and would list a guest twice).
+    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt), rosterClanSeat()))
     .orderBy(desc(memberClog.obtained));
 }
 

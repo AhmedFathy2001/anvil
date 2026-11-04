@@ -11,6 +11,7 @@ import { accounts, clanMemberships, eventParticipants, moments, users } from '@/
 import { chatAccess, sendChat, setEventChat } from '@/lib/eventChat';
 import { labClanId } from '@/lib/lab';
 import { emitMomentRows, type NewMoment } from '@/lib/panelRows';
+import { seatOpensEventSql } from '@/lib/seatScope';
 
 export interface LabCastMember {
   participantId: number;
@@ -69,7 +70,11 @@ export async function labDrops(eventId: number, count: number): Promise<LabResul
   const cast = await db
     .select({ seatId: clanMemberships.id, name: eventParticipants.name, teamId: eventParticipants.teamId })
     .from(eventParticipants)
-    .innerJoin(clanMemberships, and(eq(clanMemberships.accountId, eventParticipants.accountId), eq(clanMemberships.clanId, clanId)))
+    // A seat that opens this event (an event player's seat only for its own event).
+    .innerJoin(
+      clanMemberships,
+      and(eq(clanMemberships.accountId, eventParticipants.accountId), eq(clanMemberships.clanId, clanId), seatOpensEventSql(eventId)),
+    )
     .where(eq(eventParticipants.eventId, eventId));
   if (!cast.length) return { ok: false, error: 'Add some players to the session first (Teams, below).' };
 

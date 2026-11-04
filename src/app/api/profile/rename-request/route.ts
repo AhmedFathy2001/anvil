@@ -5,6 +5,7 @@ import { findRosterSeat } from '@/lib/roster';
 import { and, desc, eq, or } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { submitRenameRequest } from '@/lib/weekly';
+import { rosterClanSeat } from '@/lib/seatScope';
 
 // Function-as-a-route deadline. The OLD-name hiscores snapshot we capture at submit
 // time can take a couple seconds; the rest is DB. Stay well under the Pro default.
@@ -59,14 +60,15 @@ export async function POST(request: Request) {
   let cm = null;
   if (typeof body.clanMemberId === 'number') {
     // clan-scope: global -- the subject is a PERSON, and their seats span clans by design; scoped to the caller's own via clanRoster.playerId.
-    cm = await findRosterSeat(and(eq(clanRoster.id, body.clanMemberId), eq(clanRoster.playerId, session.playerId)));
+    // A member or guest seat: a rename request goes to that clan's queue, never through an event player's seat.
+    cm = await findRosterSeat(and(eq(clanRoster.id, body.clanMemberId), eq(clanRoster.playerId, session.playerId), rosterClanSeat()));
     if (!cm) return NextResponse.json({ error: 'Clan member not found or not owned by you' }, { status: 403 });
   } else {
     // clan-scope: global -- the subject is a PERSON, and their seats span clans by design; scoped to the caller's own via clanRoster.playerId.
     const owned = await db
       .select({ id: clanRoster.id, isPrimary: clanRoster.isPrimary })
       .from(clanRoster)
-      .where(and(eq(clanRoster.playerId, session.playerId), or(eq(clanRoster.isPrimary, 1), eq(clanRoster.isPrimary, 0))));
+      .where(and(eq(clanRoster.playerId, session.playerId), or(eq(clanRoster.isPrimary, 1), eq(clanRoster.isPrimary, 0)), rosterClanSeat()));
     const primary = owned.find((r) => r.isPrimary === 1) ?? (owned.length === 1 ? owned[0] : null);
     if (!primary) {
       return NextResponse.json(

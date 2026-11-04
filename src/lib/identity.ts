@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { accounts, clanMemberships, clanRoster, clanStaff, eventEditors, eventSignups, events, users } from '@/db/schema';
 import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
+import { clanSeat, rosterClanSeat } from '@/lib/seatScope';
 
 // A game account a person owns — their "character". Thin projection of a clan_member for identity UIs.
 export interface Character {
@@ -89,7 +90,8 @@ export async function getPeopleWithCharacters(clanId: number): Promise<PersonWit
     .leftJoin(accounts, eq(accounts.playerId, users.playerId))
     .leftJoin(
       clanMemberships,
-      and(eq(clanMemberships.accountId, accounts.id), eq(clanMemberships.clanId, clanId)),
+      // An event player's seat is not a presence in the clan's people list.
+      and(eq(clanMemberships.accountId, accounts.id), eq(clanMemberships.clanId, clanId), clanSeat()),
     )
     // A presence here is either a staff grant or a seat on the roster. Someone with neither is a
     // stranger to this clan and does not belong on its people list.
@@ -118,7 +120,7 @@ export async function getPeopleWithCharacters(clanId: number): Promise<PersonWit
           leftAt: clanRoster.leftAt,
         })
         .from(clanRoster)
-        .where(and(eq(clanRoster.clanId, clanId), inArray(clanRoster.playerId, personIds)))
+        .where(and(eq(clanRoster.clanId, clanId), inArray(clanRoster.playerId, personIds), rosterClanSeat()))
     : [];
 
   const byPerson = new Map<number, Character[]>();
@@ -208,6 +210,7 @@ export async function getUnlinkedCharacters(clanId: number): Promise<{ id: numbe
     .select({ id: clanRoster.id, rsn: clanRoster.rsn, kind: clanRoster.kind })
     .from(clanRoster)
     // This clan's unclaimed seats. An admin assigns accounts on their own roster, not on anyone else's.
-    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.claimedAt), isNull(clanRoster.leftAt)));
+    // Roster and guest seats only; an event player's seat is not the clan's to assign from.
+    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.claimedAt), isNull(clanRoster.leftAt), rosterClanSeat()));
   return rows.map((r) => ({ id: r.id, rsn: r.rsn, isGuest: r.kind === 'guest' }));
 }

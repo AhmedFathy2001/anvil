@@ -2,6 +2,7 @@ import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanRoster, clans, detectedAccounts } from '@/db/schema';
+import { rosterClanSeat } from '@/lib/seatScope';
 
 /**
  * Reads for /settings — the one page where a person changes things about themselves and their
@@ -86,7 +87,8 @@ export async function characterSeats(accountId: number): Promise<CharacterSeat[]
     })
     .from(clanRoster)
     .innerJoin(clans, eq(clans.id, clanRoster.clanId))
-    .where(and(eq(clanRoster.accountId, accountId), isNull(clanRoster.leftAt)));
+    // Member and guest seats: an event player's seat is not a seat in the clan (and would read as "guest").
+    .where(and(eq(clanRoster.accountId, accountId), isNull(clanRoster.leftAt), rosterClanSeat()));
   return rows
     .map((r) => ({
       seatId: r.seatId,

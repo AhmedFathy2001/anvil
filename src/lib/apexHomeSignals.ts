@@ -20,6 +20,7 @@ import {
   weeklyCompetitions,
   weeklyParticipants,
 } from '@/db/schema';
+import { clanSeat } from '@/lib/seatScope';
 
 // ── The arena ────────────────────────────────────────────────────────────────────────────────────
 
@@ -412,7 +413,8 @@ export async function seatsByAccount(accountIds: number[]): Promise<Map<number, 
     .from(clanMemberships)
     .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
     // clan-scope: global -- listing one person's own seats across clans is the point of the query.
-    .where(and(inArray(clanMemberships.accountId, accountIds), isNull(clanMemberships.leftAt)));
+    // Member and guest seats only: an event player's seat (one per event) is not a home or a visit.
+    .where(and(inArray(clanMemberships.accountId, accountIds), isNull(clanMemberships.leftAt), clanSeat()));
 
   for (const r of rows) {
     const list = out.get(r.accountId) ?? [];

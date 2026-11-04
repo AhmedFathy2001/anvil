@@ -8,6 +8,7 @@ import { db } from '@/db';
 import { accounts, clanMemberships } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { joinDateChanged, joinDateFromDays } from '@/lib/clanJoinDate';
+import { clanSeat } from '@/lib/seatScope';
 
 export async function recordJoinDates(
   clanId: number,
@@ -22,11 +23,12 @@ export async function recordJoinDates(
     if (key && date) reported.set(key, date);
   }
   if (reported.size === 0) return 0;
+  // clan-scope: this clan -- its live member and guest seats; an event player's seat has no in-game join date.
   const seats = await db
     .select({ id: clanMemberships.id, stored: clanMemberships.ingameJoinedOn, rsnNormalized: accounts.rsnNormalized })
     .from(clanMemberships)
     .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
-    .where(and(eq(clanMemberships.clanId, clanId), isNull(clanMemberships.leftAt)));
+    .where(and(eq(clanMemberships.clanId, clanId), isNull(clanMemberships.leftAt), clanSeat()));
   const writes = seats
     .map((s) => ({ id: s.id, date: reported.get(s.rsnNormalized) ?? null, stored: s.stored }))
     .filter((s): s is { id: number; date: string; stored: string | null } => !!s.date && joinDateChanged(s.stored, s.date));

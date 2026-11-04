@@ -9,6 +9,7 @@ import { normalizeRsn, verifyUser } from '@/lib/auth';
 import { onCharacterLinked } from '@/lib/identity';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { admit } from '@/lib/guestAdmission';
+import { rosterClanSeat } from '@/lib/seatScope';
 
 const MAX_NOTE_LEN = 500;
 
@@ -61,7 +62,8 @@ export async function POST(request: Request) {
   // A found a seat in clan B and then edited B's row — its notes, and its `leftAt`, reviving a seat
   // in a clan the person had left — while A got no request at all.
   const existing = clan
-    ? await findRosterSeat(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized)))
+    // The clan seat; an event player's seat is never revived or treated as one (admit() is the door).
+    ? await findRosterSeat(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized), rosterClanSeat()))
     : null;
 
   // Hard block: somebody else already owns this RSN.

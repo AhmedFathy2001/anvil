@@ -122,7 +122,7 @@ try {
     const seat = await one(
       `INSERT INTO clan_memberships (clan_id, account_id, kind, source, joined_at, last_seen_in_clan)
        VALUES ($1, $2, 'member', 'roster', $3, $3)
-       ON CONFLICT (clan_id, account_id) DO UPDATE SET kind = 'member', left_at = NULL
+       ON CONFLICT (clan_id, account_id) WHERE kind <> 'event' DO UPDATE SET kind = 'member', left_at = NULL
        RETURNING id`,
       [clanId, account.id, new Date().toISOString()],
     );

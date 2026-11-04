@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { clans, events } from '@/db/schema';
 import { canSeeEvent } from '@/lib/eventAccess';
+import { streamedEvent } from '@/lib/creatorSpaces';
 import { absoluteUrl } from '@/lib/seo';
 import { NOTHING_OPEN_REPLY, joinReplyText, pickJoinEvent } from '@/lib/twitchBot/wire';
 
@@ -27,17 +28,22 @@ export async function joinEventFor(clanId: number, now = Date.now()): Promise<{ 
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
       signupDeadline: events.signupDeadline,
+      openToViewers: events.openToViewers,
     })
     .from(events)
     .where(eq(events.clanId, clanId));
+  // clan-scope: this clan -- the space's own kind, for which of its events are for viewers.
+  const host = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true, streaming: true, slug: true } });
   const visible = [];
-  for (const r of rows) if (await canSeeEvent({ eventId: r.id, playerId: null })) visible.push(r);
+  for (const r of rows) {
+    // A Streaming clan's members-only events are not for its chat: only those open to viewers.
+    if (!streamedEvent(host, r)) continue;
+    if (await canSeeEvent({ eventId: r.id, playerId: null })) visible.push(r);
+  }
   const pick = pickJoinEvent(visible, now);
   if (!pick) return null;
-  // clan-scope: this clan -- the slug of the space whose event this is.
-  const clan = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { slug: true } });
-  if (!clan) return null;
-  return { id: pick.id, name: pick.name, url: absoluteUrl(`/c/${clan.slug}/events/${pick.id}`) };
+  if (!host) return null;
+  return { id: pick.id, name: pick.name, url: absoluteUrl(`/c/${host.slug}/events/${pick.id}`) };
 }
 
 /** What `!join` says for this space, on any platform. */

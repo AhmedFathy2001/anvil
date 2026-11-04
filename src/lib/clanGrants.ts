@@ -8,6 +8,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts, clanMemberships, clanStaff, users } from '@/db/schema';
 import { atLeast, type ClanRole, type PlatformRole } from '@/lib/clanRoles';
+import { clanSeat } from '@/lib/seatScope';
 
 export interface ClanGrant {
   clanId: number;
@@ -69,7 +70,8 @@ export async function hasClanPresence(clanId: number, userId: number): Promise<b
     .select({ id: clanMemberships.id })
     .from(users)
     .innerJoin(accounts, eq(accounts.playerId, users.playerId))
-    .innerJoin(clanMemberships, and(eq(clanMemberships.accountId, accounts.id), eq(clanMemberships.clanId, clanId)))
+    // A member or guest seat; an event player's seat is no presence in the clan (lib/identity agrees).
+    .innerJoin(clanMemberships, and(eq(clanMemberships.accountId, accounts.id), eq(clanMemberships.clanId, clanId), clanSeat()))
     .where(eq(users.id, userId))
     .limit(1);
   return seat != null;

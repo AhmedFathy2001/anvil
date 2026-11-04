@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { clanAuditLog, clanRoster, users } from '@/db/schema';
 import { and, desc, eq, isNull, ne } from 'drizzle-orm';
 import AuditLogClient, { type AuditEntry, type LeftMember, type JoinedMember } from './AuditLogClient';
@@ -35,14 +36,15 @@ export default async function ClanAuditPage() {
   const recentLeft = await db
     .select({ id: clanRoster.id, rsn: clanRoster.rsn, leftAt: clanRoster.leftAt, rank: clanRoster.rank })
     .from(clanRoster)
-    .where(and(eq(clanRoster.clanId, clan.id), ne(clanRoster.leftAt, '')))
+    // An event player's seat is not a roster seat: it closes when its event ends, never merges.
+    .where(and(eq(clanRoster.clanId, clan.id), ne(clanRoster.leftAt, ''), rosterClanSeat()))
     .orderBy(desc(clanRoster.leftAt))
     .limit(50);
 
   const recentActive = await db
     .select({ id: clanRoster.id, rsn: clanRoster.rsn, joinedAt: clanRoster.joinedAt, rank: clanRoster.rank })
     .from(clanRoster)
-    .where(and(eq(clanRoster.clanId, clan.id), isNull(clanRoster.leftAt)))
+    .where(and(eq(clanRoster.clanId, clan.id), isNull(clanRoster.leftAt), rosterClanSeat()))
     .orderBy(desc(clanRoster.joinedAt))
     .limit(100);
 

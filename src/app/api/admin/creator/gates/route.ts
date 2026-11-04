@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { requireClan } from '@/lib/clanContext';
 import { verifyAdmin } from '@/lib/auth';
-import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { streamsEvents } from '@/lib/creatorSpaces';
 import { gateOptions } from '@/lib/entryGatesDb';
 
 /**
@@ -13,6 +13,6 @@ import { gateOptions } from '@/lib/entryGatesDb';
 export async function GET() {
   const clan = await requireClan();
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isCreatorSpace(clan)) return NextResponse.json({ error: 'Not a creator space' }, { status: 404 });
+  if (!streamsEvents(clan)) return NextResponse.json({ error: 'Turn on Streaming first' }, { status: 404 });
   return NextResponse.json(await gateOptions(clan.id));
 }

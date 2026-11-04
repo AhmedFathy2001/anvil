@@ -9,6 +9,7 @@ import { applyPendingRole } from '@/lib/pending-role';
 import { banFromClan, isBannedFromClan, liftClanBan } from '@/lib/clanBans';
 import { atLeast } from '@/lib/clanRoles';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
+import { isEventSeat } from '@/lib/seatKinds';
 
 // POST /api/admin/clan/bulk — apply one roster action to many members in a single round-trip.
 //
@@ -133,6 +134,13 @@ export async function POST(request: Request) {
 
   for (const m of members) {
     const linked = m.playerId != null ? userByPerson.get(m.playerId) ?? null : null;
+
+    // An event player's seat is not a roster seat: no role, kind or roster change here (it is managed
+    // under "Past viewers", /api/admin/viewers). A ban is about the person and stays clan-wide.
+    if (isEventSeat(m) && action !== 'ban' && action !== 'unban') {
+      skipped.push({ id: m.id, rsn: m.rsn, reason: 'event player — manage under Past viewers' });
+      continue;
+    }
 
     switch (action) {
       case 'set-role': {

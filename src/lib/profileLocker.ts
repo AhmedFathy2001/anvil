@@ -19,6 +19,7 @@ import {
 import { and, desc, eq, gte, inArray, isNull, or } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { doorStates } from '@/lib/guestAdmission';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { getSetting } from '@/lib/settings';
 import { weeklyMetricLabel } from '@/lib/constants';
 import { computeMemberBreakdown, rollupByOwner, type StatGainMap } from '@/lib/memberBreakdown';
@@ -262,7 +263,8 @@ export async function buildLocker(
     await db
       .select()
       .from(clanRoster)
-      .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, playerId), isNull(clanRoster.leftAt)))
+      // Their member/guest seats: an event player's seat is not a seat in the clan.
+      .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, playerId), isNull(clanRoster.leftAt), rosterClanSeat()))
       .orderBy(desc(clanRoster.isPrimary), desc(clanRoster.verifiedAt))
   ).filter((m) => !m.rsn.startsWith('guest:'));
 

@@ -5,6 +5,7 @@ import { verifyUser } from '@/lib/auth';
 import { apexDomain, originForHost, sessionCookieDomain } from '@/lib/apexHost';
 import { resolveReturnHost } from '@/lib/clanContext';
 import { isAdminOfCreatorSpace, linkViewerTwitch, saveHostTwitchChannel } from '@/lib/entryGatesDb';
+import { connectConflict } from '@/lib/streamChannels';
 import { log } from '@/lib/logger';
 import { safeReturnPath } from '@/lib/safe-redirect';
 import {
@@ -19,7 +20,9 @@ import {
 } from '@/lib/twitch';
 
 /** Outcomes, as `?twitch=` on the page they return to. Fixed words only — never echoed input. */
-type Outcome = 'linked' | 'connected' | 'taken' | 'denied' | 'scopes' | 'error';
+// `elsewhere`: the channel is connected to another place this person also runs — `move` names it, and
+// the settings page asks "Move it here?" (lib/streamChannels). `in-use`: connected to a place they don't.
+type Outcome = 'linked' | 'connected' | 'taken' | 'denied' | 'scopes' | 'error' | 'elsewhere' | 'in-use';
 
 // GET /api/auth/twitch/callback?code=…&state=…  (TWITCH_REDIRECT_URI)
 //
@@ -40,10 +43,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'That Twitch link expired or was not started here. Try again from Anvil.' }, { status: 400 });
   }
 
-  const outcome = await finish(url, state, cfg, session.userId);
+  const moveFrom: { id: number | null } = { id: null };
+  const outcome = await finish(url, state, cfg, session.userId, moveFrom);
   const host = (state.h ? await resolveReturnHost(state.h) : null) ?? apexDomain();
   const back = new URL(safeReturnPath(state.r), originForHost(host));
   back.searchParams.set('twitch', outcome);
+  if (outcome === 'elsewhere' && moveFrom.id != null) back.searchParams.set('move', String(moveFrom.id));
   const res = NextResponse.redirect(back);
   // One use only.
   res.cookies.set(TWITCH_NONCE_COOKIE, '', {
@@ -54,7 +59,13 @@ export async function GET(request: Request) {
   return res;
 }
 
-async function finish(url: URL, state: TwitchState, cfg: NonNullable<ReturnType<typeof twitchConfig>>, userId: number): Promise<Outcome> {
+async function finish(
+  url: URL,
+  state: TwitchState,
+  cfg: NonNullable<ReturnType<typeof twitchConfig>>,
+  userId: number,
+  moveFrom: { id: number | null },
+): Promise<Outcome> {
   if (url.searchParams.get('error')) return 'denied';
   const code = url.searchParams.get('code');
   if (!code || code.length > 512) return 'error';
@@ -77,6 +88,14 @@ async function finish(url: URL, state: TwitchState, cfg: NonNullable<ReturnType<
     if (!hasHostScopes(tokens.scope) || !tokens.refreshToken) {
       void revokeToken(cfg, tokens.accessToken);
       return 'scopes';
+    }
+    // One channel, one place (lib/streamChannels): already connected elsewhere → ask, never copy.
+    const conflict = await connectConflict('twitch', user.id, state.c, userId);
+    if (conflict) {
+      void revokeToken(cfg, tokens.accessToken);
+      if (conflict.outcome === 'taken') return 'in-use';
+      moveFrom.id = conflict.fromClanId;
+      return 'elsewhere';
     }
     await saveHostTwitchChannel({
       clanId: state.c,

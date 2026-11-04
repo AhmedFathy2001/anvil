@@ -8,6 +8,7 @@ import ProfileClient from './ProfileClient';
 import ClanNameSettings from './ClanNameSettings';
 import DeleteClan from './DeleteClan';
 import CreatorSettings from './CreatorSettings';
+import StreamingSettings from './StreamSettings';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
@@ -49,6 +50,8 @@ export default async function ClanProfilePage() {
       {/* The name is passed so the image field's fallback crest is this clan's real one, rather than
           a generic letter that changes the moment the page saves. */}
       <ProfileClient clanName={clan.name} />
+      {/* "Streaming": viewers from the clan's stream can join its events as event players. */}
+      <StreamingSettings />
       <DeleteClan slug={clan.slug} isOwner={!!grant?.isOwner} />
     </>
   );

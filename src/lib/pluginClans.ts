@@ -5,6 +5,7 @@ import { boardPointsPool, scoreTeam } from '@/lib/boardScoring';
 import { parseEventRules } from '@/lib/eventRules';
 import { clansRunningEvents } from '@/lib/coHost';
 import { seatsOwnedByAnywhere } from '@/lib/roster';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { normalizeRsn } from '@/lib/auth';
 
 // THE CLAN SWITCHER, server side.
@@ -110,7 +111,9 @@ export async function pluginClansFor(
     })
     .from(clanRoster)
     .innerJoin(clans, eq(clans.id, clanRoster.clanId))
-    .where(and(ownedAnywhere, isNull(clanRoster.leftAt)));
+    // Member and guest seats: an event player's seat is no clan to switch to (its one board still
+    // reaches the plugin through clanOfPerson and the multi-board fold, lib/pluginBoards).
+    .where(and(ownedAnywhere, isNull(clanRoster.leftAt), rosterClanSeat()));
 
   // A suspended or deleted clan is not somewhere to switch TO — its pages do not answer either, so
   // offering it in a dropdown would hand the member a row that fails when they pick it.

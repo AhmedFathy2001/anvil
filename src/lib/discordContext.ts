@@ -29,6 +29,7 @@ import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { configuredOrigin } from '@/lib/request-origin';
 import { eventStage } from '@/lib/eventStage';
+import { rosterClanSeat } from '@/lib/seatScope';
 import {
   checkGuild,
   contextLine,
@@ -102,7 +103,8 @@ export async function resolveForeignClan(guildId: string, discordId: string | nu
     .select({ clanId: clanRoster.clanId, kind: clanRoster.kind, visibility: clans.visibility })
     .from(clanRoster)
     .innerJoin(clans, eq(clans.id, clanRoster.clanId))
-    .where(and(eq(clanRoster.playerId, user.playerId), isNull(clanRoster.leftAt), eq(clans.status, 'active')));
+    // Clans they belong to: an event player's seat is not one.
+    .where(and(eq(clanRoster.playerId, user.playerId), isNull(clanRoster.leftAt), eq(clans.status, 'active'), rosterClanSeat()));
   const publicSeats = seats.filter((s) => clanVisibilityOf(s.visibility) === 'public');
   if (publicSeats.length === 0) return null;
 
@@ -367,16 +369,17 @@ export async function resolveInvoker(discordId: string, clanId: number): Promise
   //
   // Two fallbacks to the name-matched roster cache (clan_roster.discord_id): no login at all, or a
   // login not yet linked to a player.
+  // Member and guest seats only: an event player's seat is not a place on this roster.
   const rows =
     user?.playerId != null
       ? await db
           .select({ id: clanRoster.id, accountId: clanRoster.accountId, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
           .from(clanRoster)
-          .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, user.playerId), isNull(clanRoster.leftAt)))
+          .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, user.playerId), isNull(clanRoster.leftAt), rosterClanSeat()))
       : await db
           .select({ id: clanRoster.id, accountId: clanRoster.accountId, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
           .from(clanRoster)
-          .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.discordId, discordId), isNull(clanRoster.leftAt)));
+          .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.discordId, discordId), isNull(clanRoster.leftAt), rosterClanSeat()));
 
   const primary = rows.find((m) => m.isPrimary === 1) ?? rows[0];
   const seen = new Set<number>();
@@ -416,7 +419,8 @@ export async function searchRosterPlayers(query: string, clanId: number): Promis
   const rows = await db
     .select({ rsn: clanRoster.rsn, key: clanRoster.rsnNormalized })
     .from(clanRoster)
-    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt), ilike(clanRoster.rsnNormalized, like)))
+    // The clan's roster and guests; an event player's seat is not on it.
+    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt), ilike(clanRoster.rsnNormalized, like), rosterClanSeat()))
     .limit(100);
   return rows
     .sort((a, b) => Number(!a.key.startsWith(q)) - Number(!b.key.startsWith(q)) || a.key.localeCompare(b.key))
@@ -436,7 +440,8 @@ export async function resolveRosterPlayer(rsn: string, clanId: number): Promise<
   const [named] = await db
     .select(cols)
     .from(clanRoster)
-    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt), eq(clanRoster.rsnNormalized, key)))
+    // An event player's seat is not on this clan's roster.
+    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt), eq(clanRoster.rsnNormalized, key), rosterClanSeat()))
     .limit(1);
   if (!named) return null;
   const rows =
@@ -444,7 +449,7 @@ export async function resolveRosterPlayer(rsn: string, clanId: number): Promise<
       ? await db
           .select(cols)
           .from(clanRoster)
-          .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt), eq(clanRoster.playerId, named.playerId)))
+          .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt), eq(clanRoster.playerId, named.playerId), rosterClanSeat()))
       : [named];
   const seen = new Set<number>();
   const accounts = rows

@@ -2,6 +2,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accountClanEmission, accounts, clanMemberships, userWebhooks, users } from '@/db/schema';
+import { clanSeat } from '@/lib/seatScope';
 import { getSetting } from '@/lib/settings';
 
 /** The clan setting key for "refuse social emissions from accounts that only guest here". */
@@ -127,7 +128,8 @@ export async function socialEmissionClans(accountId: number): Promise<EmissionCl
   const seats = await db
     .select({ clanId: clanMemberships.clanId, kind: clanMemberships.kind })
     .from(clanMemberships)
-    .where(and(eq(clanMemberships.accountId, accountId), isNull(clanMemberships.leftAt)));
+    // Member and guest seats: an event player's seat announces nowhere (and must not mask a guest seat).
+    .where(and(eq(clanMemberships.accountId, accountId), isNull(clanMemberships.leftAt), clanSeat()));
   const seatKindOf = new Map(seats.map((s) => [s.clanId, s.kind]));
 
   // Per-(account, clan) overrides: enabled=false silences, enabled=true whitelists.

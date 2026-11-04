@@ -23,6 +23,8 @@ import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { mergeSeats } from '@/lib/mergeSeats';
 import { carryAccountStats } from '@/lib/accountStatsMerge';
 import { memberSeatElsewhere } from '@/lib/guestAdmission';
+import { clanSeat } from '@/lib/seatScope';
+import { isEventSeat } from '@/lib/seatKinds';
 
 export type RenameVia = 'plugin' | 'roster' | 'staff';
 
@@ -53,7 +55,8 @@ export async function rosterSplitEvidence(accountId: number, holderAccountId: nu
   const seats = await db
     .select({ id: clanMemberships.id, clanId: clanMemberships.clanId, accountId: clanMemberships.accountId })
     .from(clanMemberships)
-    .where(inArray(clanMemberships.accountId, [accountId, holderAccountId]));
+    // Roster seats only: an event player's seat is no evidence of an in-game roster split.
+    .where(and(inArray(clanMemberships.accountId, [accountId, holderAccountId]), clanSeat()));
   const ours = seats.filter((x) => x.accountId === accountId);
   const theirs = seats.filter((x) => x.accountId === holderAccountId);
   if (ours.length === 0 || theirs.length === 0) return false;
@@ -179,14 +182,25 @@ export async function renameCharacter(
         source: clanMemberships.source,
         leftAt: clanMemberships.leftAt,
         lastSeenInClan: clanMemberships.lastSeenInClan,
+        eventId: clanMemberships.eventId,
       })
       .from(clanMemberships)
       .where(eq(clanMemberships.accountId, holder.id));
     for (const seat of holderSeats) {
+      // Its counterpart on our account: the clan seat for a clan seat; for an event player's seat, our
+      // seat in the SAME event (one per account per event — the unique indexes in drizzle/0203).
       const [ours] = await db
         .select({ id: clanMemberships.id })
         .from(clanMemberships)
-        .where(and(eq(clanMemberships.accountId, accountId), eq(clanMemberships.clanId, seat.clanId)))
+        .where(
+          and(
+            eq(clanMemberships.accountId, accountId),
+            eq(clanMemberships.clanId, seat.clanId),
+            isEventSeat(seat)
+              ? and(eq(clanMemberships.kind, 'event'), seat.eventId == null ? isNull(clanMemberships.eventId) : eq(clanMemberships.eventId, seat.eventId))
+              : clanSeat(),
+          ),
+        )
         .limit(1);
       if (ours) {
         const res = await mergeSeats({

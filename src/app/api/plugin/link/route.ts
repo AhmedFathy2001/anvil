@@ -15,6 +15,8 @@ import { admit } from '@/lib/guestAdmission';
 import { autoClaimAllowed } from '@/lib/auth';
 import { claimAccountForPerson } from '@/lib/accountClaim';
 import { track } from '@/lib/analytics';
+import { rosterClanSeat } from '@/lib/seatScope';
+import { isEventSeat } from '@/lib/seatKinds';
 
 // Plugin exchanges {code, rsn, accountHash} for a confirmed account link.
 // The RSN comes from Client.getLocalPlayer().getName() inside RuneLite — we trust that value
@@ -83,13 +85,18 @@ export async function POST(request: Request) {
   // Pick the existing clanMember row that this link should attach to:
   //   1) accountHash match — strongest, survives renames
   //   2) rsnNormalized match — for ghosts or members imported via sync
+  // Clan seats first: the gate below reads `kind`, and an event player's seat must not stand in for one.
   let existing = accountHash
     // clan-scope: global -- identity is global — one row per OSRS account however many clans it turns up in; the write below lands on `accounts`, not on anything clan-scoped.
-    ? await findRosterSeat(eq(clanRoster.accountHash, accountHash))
+    ? (await findRosterSeat(and(eq(clanRoster.accountHash, accountHash), rosterClanSeat()))) ??
+      (await findRosterSeat(eq(clanRoster.accountHash, accountHash)))
     : null;
   if (!existing) {
     // clan-scope: global -- identity is global — one row per OSRS account however many clans it turns up in; the write below lands on `accounts`, not on anything clan-scoped.
-    existing = (await findRosterSeat(eq(clanRoster.rsnNormalized, rsnNormalized))) ?? null;
+    existing =
+      (await findRosterSeat(and(eq(clanRoster.rsnNormalized, rsnNormalized), rosterClanSeat()))) ??
+      (await findRosterSeat(eq(clanRoster.rsnNormalized, rsnNormalized))) ??
+      null;
   }
 
   // Detect rename: accountHash matches a row whose RSN no longer matches what the plugin reports.
@@ -168,7 +175,8 @@ export async function POST(request: Request) {
       .set({
         // If this seat was previously soft-deleted (left clan) and is now linking, treat them as
         // returned. Admin removals stay marked-left.
-        leftAt: existing.source === 'admin' ? existing.leftAt : null,
+        // An event player's seat closes with its event; linking never reopens it.
+        leftAt: existing.source === 'admin' || isEventSeat(existing) ? existing.leftAt : null,
         lastSeenInClan: nowIso,
       })
       .where(eq(clanMemberships.id, existing.id));

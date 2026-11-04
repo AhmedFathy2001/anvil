@@ -61,6 +61,8 @@ import { decryptSecret, encryptSecret } from '@/lib/secretBox';
 import { discordRest, fetchGuildRoles, getBotCredentials } from '@/lib/discord-roles';
 import { isRealDiscordId } from '@/lib/anvilDiscordRoles';
 import { invitedToEvent, staffOfClan } from '@/lib/eventAccess';
+import { isCreatorSpace, streamedEvent, streamsEvents } from '@/lib/creatorSpaces';
+import { seatOpensEventSql } from '@/lib/seatScope';
 import { atLeast } from '@/lib/clanRoles';
 import { log } from '@/lib/logger';
 import { usesYoutube } from '@/lib/gates/youtube';
@@ -289,17 +291,17 @@ async function gateContext(clanId: number, hostName: string): Promise<GateContex
 /** The event's gates when they apply (a creator space with gates set), with the host's name. */
 export async function gatesForEvent(
   eventId: number,
-): Promise<{ gates: EntryGates; clanId: number; hostName: string } | null> {
+): Promise<{ gates: EntryGates; clanId: number; hostName: string; creator: boolean } | null> {
   // clan-scope: global -- the event is named by id and its own clanId is read back to check against.
   const ev = await db.query.events.findFirst({
     where: eq(events.id, eventId),
-    columns: { clanId: true, entryGates: true },
+    columns: { clanId: true, entryGates: true, openToViewers: true },
   });
   if (!ev) return null;
-  const host = await db.query.clans.findFirst({ where: eq(clans.id, ev.clanId), columns: { kind: true, name: true } });
+  const host = await db.query.clans.findFirst({ where: eq(clans.id, ev.clanId), columns: { kind: true, name: true, streaming: true } });
   const gates = parseGates(ev.entryGates);
-  if (!gatesApply(host?.kind, gates)) return null;
-  return { gates, clanId: ev.clanId, hostName: host?.name ?? 'the host' };
+  if (!gatesApply(host?.kind, gates, streamedEvent(host, ev))) return null;
+  return { gates, clanId: ev.clanId, hostName: host?.name ?? 'the host', creator: isCreatorSpace(host) };
 }
 
 /**
@@ -316,6 +318,9 @@ export async function entryGateVerdict(opts: {
   if (!g) return null;
   if (await staffOfClan(g.clanId, opts.playerId)) return null;
   if (await invitedToEvent(opts.eventId, opts.playerId)) return null;
+  // A Streaming CLAN's gates are for its viewers: its own members and guests are the clan, and play
+  // its events as they always have. (A creator space has no members; its old guest seats stay gated.)
+  if (!g.creator && (await holdsClanSeat(g.clanId, opts.playerId))) return null;
 
   const ctx = await gateContext(g.clanId, g.hostName);
   if (opts.userId == null) {
@@ -378,6 +383,24 @@ export async function entryGateVerdict(opts: {
  */
 export const CLAIM_HOLD_MS = 10 * 60_000;
 
+/** A live member or guest seat in this clan — never an event player's (lib/seatKinds). */
+async function holdsClanSeat(clanId: number, playerId: number): Promise<boolean> {
+  const seat = await db
+    .select({ id: clanMemberships.id })
+    .from(clanMemberships)
+    .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
+    .where(
+      and(
+        eq(clanMemberships.clanId, clanId),
+        eq(accounts.playerId, playerId),
+        isNull(clanMemberships.leftAt),
+        ne(clanMemberships.kind, 'event'),
+      ),
+    )
+    .limit(1);
+  return seat.length > 0;
+}
+
 /** Does this user still hold a place in this event: an active sign-up, or a live seat in its host? */
 export async function liveInEvent(eventId: number, clanId: number, userId: number): Promise<boolean> {
   const signup = await db.query.eventSignups.findFirst({
@@ -391,7 +414,15 @@ export async function liveInEvent(eventId: number, clanId: number, userId: numbe
     .select({ id: clanMemberships.id })
     .from(clanMemberships)
     .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
-    .where(and(eq(clanMemberships.clanId, clanId), eq(accounts.playerId, u.playerId), isNull(clanMemberships.leftAt)))
+    .where(
+      and(
+        eq(clanMemberships.clanId, clanId),
+        eq(accounts.playerId, u.playerId),
+        isNull(clanMemberships.leftAt),
+        // An event player's seat for another event is not a place in this one.
+        seatOpensEventSql(eventId),
+      ),
+    )
     .limit(1);
   return seat.length > 0;
 }
@@ -508,10 +539,21 @@ export async function gateOptions(clanId: number): Promise<GateOptions> {
   };
 }
 
-/** May this user change a creator space's Twitch connection? Admin or owner of THAT space. */
-export async function isAdminOfCreatorSpace(clanId: number, userId: number): Promise<boolean> {
-  const clan = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true } });
-  if (clan?.kind !== 'creator') return false;
+/**
+ * May this user change a streaming space's channel connections (Twitch, Kick, YouTube)? Admin or owner
+ * of THAT space, which must stream: a creator space, or a clan with Streaming on (lib/creatorSpaces).
+ */
+export async function isAdminOfStreamingSpace(clanId: number, userId: number): Promise<boolean> {
+  const clan = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true, streaming: true } });
+  if (!streamsEvents(clan)) return false;
+  return isAdminOfClan(clanId, userId);
+}
+
+/** The older name, from when only creator spaces streamed. */
+export const isAdminOfCreatorSpace = isAdminOfStreamingSpace;
+
+/** Admin or owner of this clan or space, whatever its kind. */
+export async function isAdminOfClan(clanId: number, userId: number): Promise<boolean> {
   const staff = await db.query.clanStaff.findFirst({
     where: and(eq(clanStaff.clanId, clanId), eq(clanStaff.userId, userId)),
     columns: { role: true },

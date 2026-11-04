@@ -4,7 +4,7 @@ import { db } from '@/db';
 import { clanAuditLog } from '@/db/schema';
 import { requireClan } from '@/lib/clanContext';
 import { verifyAdmin, verifyUser } from '@/lib/auth';
-import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { streamsEvents } from '@/lib/creatorSpaces';
 import { disconnectHostKick, hostKickChannel, resubscribeHostKick, setHostKickFlags } from '@/lib/gates/kickDb';
 import { kickConfigured } from '@/lib/kick';
 import { chatJoinAllowed } from '@/lib/creatorPlans';
@@ -18,7 +18,7 @@ import { minPlanNameFor } from '@/lib/entitlements';
 async function guard() {
   const clan = await requireClan();
   if (!(await verifyAdmin())) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
-  if (!isCreatorSpace(clan)) return { error: NextResponse.json({ error: 'Not a creator space' }, { status: 404 }) };
+  if (!streamsEvents(clan)) return { error: NextResponse.json({ error: 'Turn on Streaming first' }, { status: 404 }) };
   return { clan };
 }
 

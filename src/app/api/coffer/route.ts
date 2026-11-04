@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { clanRoster } from '@/db/schema';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { verifyUser } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
 import { fileDonation, getCofferBalance, listCofferEntries, topDonors } from '@/lib/coffer';
@@ -74,7 +75,8 @@ export async function POST(request: Request) {
   // an authority, so a seat id from somebody else's roster resolves to nothing and the row is filed
   // under their name alone rather than credited to a stranger.
   const mine = await findRosterSeats(
-    and(eq(clanRoster.clanId, clan.id), isNull(clanRoster.leftAt), await seatsOwnedBy(clan.id, session.userId)),
+    // An event player's seat is not clan membership: no coffer.
+    and(eq(clanRoster.clanId, clan.id), isNull(clanRoster.leftAt), rosterClanSeat(), await seatsOwnedBy(clan.id, session.userId)),
   );
   if (mine.length === 0) {
     return NextResponse.json({ error: 'Only members of this clan can donate to its coffer.' }, { status: 403 });

@@ -14,6 +14,7 @@ import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanRoster, clans, eventParticipants, events, teams } from '@/db/schema';
 import { buildEnrolledConfig } from '@/lib/pluginConfigEnrolled';
+import { isEventSeat } from '@/lib/seatKinds';
 import { resolveClanById } from '@/lib/clanContext';
 import { clansRunningEvents } from '@/lib/coHost';
 import { pickActivePluginEvent } from '@/lib/pluginEventPick';
@@ -88,15 +89,19 @@ export async function liveBoardsForCharacter(
 ): Promise<LiveBoard[]> {
   // clan-scope: global -- one character's own seats in every clan; the boards are filtered below.
   const seats = await db
-    .select({ id: clanRoster.id })
+    .select({ id: clanRoster.id, clanId: clanRoster.clanId, kind: clanRoster.kind, eventId: clanRoster.eventId })
     .from(clanRoster)
     .where(and(eq(clanRoster.accountId, accountId), isNull(clanRoster.leftAt)));
   const seatIds = seats.map((s) => s.id);
+  // An event player's seat opens only the event it names: a row on any other board through it is dropped.
+  const eventSeatOf = new Map(seats.filter((s) => isEventSeat(s)).map((s) => [s.id, s.eventId]));
+  const eventSeatClan = new Map(seats.filter((s) => isEventSeat(s)).map((s) => [s.id, s.clanId]));
   // clan-scope: global -- the character's own entries across clans; each board's clan is checked below.
   const rows = await db
     .select({
       id: eventParticipants.id,
       name: eventParticipants.name,
+      clanMemberId: eventParticipants.clanMemberId,
       teamId: eventParticipants.teamId,
       teamName: teams.name,
       eventId: events.id,
@@ -123,6 +128,7 @@ export async function liveBoardsForCharacter(
   const byEvent = new Map<number, (typeof rows)[number]>();
   for (const r of rows) {
     if (r.eventId === opts.except || byEvent.has(r.eventId)) continue;
+    if (r.clanMemberId != null && eventSeatOf.has(r.clanMemberId) && eventSeatOf.get(r.clanMemberId) !== r.eventId) continue;
     if (pickActivePluginEvent([r], nowIso)) byEvent.set(r.eventId, r);
   }
   if (byEvent.size === 0) return [];
@@ -144,10 +150,12 @@ export async function liveBoardsForCharacter(
       r.hostClanId,
       ...runners.filter((id) => id !== r.hostClanId && id !== opts.preferClanId),
     ];
+    // Its own event seat's clan addresses the board even where visibleClan (clan seats only) would not.
+    const ownSeatClan = r.clanMemberId != null && eventSeatOf.get(r.clanMemberId) === r.eventId ? eventSeatClan.get(r.clanMemberId) : undefined;
     let via: { id: number; slug: string; name: string } | null = null;
     for (const id of order) {
       const c = clanById.get(id);
-      if (c && (await visibleClan(request, c.slug))) {
+      if (c && (id === ownSeatClan || (await visibleClan(request, c.slug)))) {
         via = c;
         break;
       }

@@ -22,7 +22,8 @@ import {
 } from '@/lib/kick';
 
 /** Outcomes, as `?kick=` on the page they return to. Fixed words only — never echoed input. */
-type Outcome = 'connected' | 'denied' | 'scopes' | 'error' | 'webhooks';
+// `elsewhere` / `in-use`: the channel is connected to another place (lib/streamChannels) — see Twitch's.
+type Outcome = 'connected' | 'denied' | 'scopes' | 'error' | 'webhooks' | 'elsewhere' | 'in-use';
 
 // GET /api/auth/kick/callback?code=…&state=…  (KICK_REDIRECT_URI)
 //
@@ -41,10 +42,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'That Kick link expired or was not started here. Try again from Anvil.' }, { status: 400 });
   }
 
-  const outcome = await finish(url, state, cfg, session.userId);
+  const moveFrom: { id: number | null } = { id: null };
+  const outcome = await finish(url, state, cfg, session.userId, moveFrom);
   const host = (state.h ? await resolveReturnHost(state.h) : null) ?? apexDomain();
   const back = new URL(safeReturnPath(state.r), originForHost(host));
   back.searchParams.set('kick', outcome);
+  if (outcome === 'elsewhere' && moveFrom.id != null) back.searchParams.set('move', String(moveFrom.id));
   const res = NextResponse.redirect(back);
   res.cookies.set(KICK_NONCE_COOKIE, '', {
     path: '/api/auth/kick',
@@ -54,7 +57,7 @@ export async function GET(request: Request) {
   return res;
 }
 
-async function finish(url: URL, state: KickState, cfg: KickConfig, userId: number): Promise<Outcome> {
+async function finish(url: URL, state: KickState, cfg: KickConfig, userId: number, moveFrom: { id: number | null }): Promise<Outcome> {
   if (url.searchParams.get('error')) return 'denied';
   const code = url.searchParams.get('code');
   if (!code || code.length > 1024) return 'error';
@@ -69,6 +72,13 @@ async function finish(url: URL, state: KickState, cfg: KickConfig, userId: numbe
     if (r === 'scopes') {
       void revokeKickToken(tokens.accessToken, kickFetch());
       return 'scopes';
+    }
+    if (typeof r === 'object') {
+      // One channel, one place (lib/streamChannels): connected elsewhere, nothing saved here.
+      void revokeKickToken(tokens.accessToken, kickFetch());
+      if (r.conflict.outcome === 'taken') return 'in-use';
+      moveFrom.id = r.conflict.fromClanId;
+      return 'elsewhere';
     }
     await db
       .insert(clanAuditLog)

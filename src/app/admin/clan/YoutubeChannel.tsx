@@ -9,6 +9,7 @@ const YOUTUBE_RETURN: Record<string, { ok: boolean; text: string }> = {
   scopes: { ok: false, text: 'Google didn’t give Anvil the permission it asked for. Try again and press Allow.' },
   denied: { ok: false, text: 'YouTube connection cancelled.' },
   error: { ok: false, text: 'Couldn’t connect YouTube. Try again.' },
+  'in-use': { ok: false, text: 'That channel is connected to another space on Anvil. Ask its admin to disconnect it first.' },
 };
 
 interface State {

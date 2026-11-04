@@ -3,7 +3,7 @@
 //
 // Callers settle scope and visibility first (the event page's own gates, or the OG route's).
 
-import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanRoster, eventParticipants, events, moments } from '@/db/schema';
@@ -13,6 +13,7 @@ import { visibilityOf } from '@/lib/eventVisibility';
 import { getEventLuck } from '@/lib/eventLuck';
 import { getWrappedStats } from '@/lib/eventRecap';
 import { shapeWrapped, type WrappedLuckRow, type WrappedPlayer, type WrappedTeam } from '@/lib/eventWrappedRules';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { getTeamStandings } from '@/lib/statStandings';
 
 export interface EventWrapped {
@@ -149,7 +150,14 @@ export async function viewerPlayerIds(eventId: number, viewerPlayerId: number | 
   const seats = await db
     .select({ id: clanRoster.id })
     .from(clanRoster)
-    .where(and(eq(clanRoster.playerId, viewerPlayerId), isNull(clanRoster.leftAt)));
+    // Their live clan seats, plus an event player's seat for THIS event — open or closed, since it
+    // closes when the event ends and this is read after. Never one for another event.
+    .where(
+      and(
+        eq(clanRoster.playerId, viewerPlayerId),
+        or(and(isNull(clanRoster.leftAt), rosterClanSeat()), and(eq(clanRoster.kind, 'event'), eq(clanRoster.eventId, eventId))),
+      ),
+    );
   if (seats.length === 0) return [];
   const rows = await db
     .select({ id: eventParticipants.id })

@@ -12,6 +12,7 @@ import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
 import { apexDomain } from '@/lib/clanContext';
 import { asFocus } from '@/lib/clanHome';
 import { featuredListing } from '@/lib/creatorPlans';
+import { clanSeat } from '@/lib/seatScope';
 import type { DirectoryClan } from '@/components/ApexDirectory';
 
 /**
@@ -100,9 +101,10 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
         .innerJoin(accounts, eq(accounts.id, memberDailyStats.accountId))
         // Joined by ACCOUNT, as every stats read must be — see lib/memberProfile for what came of
         // matching account-keyed rows against a seat id.
+        // An event player's seat is not the clan's people (and would double-count a guest's XP).
         .innerJoin(
           clanMemberships,
-          and(eq(clanMemberships.accountId, accounts.id), isNull(clanMemberships.leftAt)),
+          and(eq(clanMemberships.accountId, accounts.id), isNull(clanMemberships.leftAt), clanSeat()),
         )
         .where(and(inArray(clanMemberships.clanId, clanIds), gte(memberDailyStats.day, weekAgo)))
         .groupBy(clanMemberships.clanId)

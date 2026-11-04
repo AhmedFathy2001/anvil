@@ -8,6 +8,8 @@ import { and, eq, ne, sql } from 'drizzle-orm';
 import { normalizeRsn, verifyAdminOrModerator } from '@/lib/auth';
 import { log } from '@/lib/logger';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
+import { isEventSeat } from '@/lib/seatKinds';
+import { rosterClanSeat } from '@/lib/seatScope';
 
 // POST /api/admin/clan/[id]/rename — records an OSRS username change.
 // Updates the canonical rsn on clan_members and cascades the rename through
@@ -60,6 +62,10 @@ export async function POST(
   if (!source) {
     return NextResponse.json({ error: 'Member not found' }, { status: 404 });
   }
+  // An event player's seat is not a roster seat: renamed by the roster sync / Anvil, never here.
+  if (isEventSeat(source)) {
+    return NextResponse.json({ error: 'That is an event player, not a roster seat.' }, { status: 409 });
+  }
 
   // A rename rewrites the CHARACTER, in every clan it is in. A clan may tidy an entry nobody has
   // claimed (its own roster data); once a player owns it, only Anvil changes it (lib/characterReports).
@@ -82,6 +88,8 @@ export async function POST(
       eq(clanRoster.clanId, source.clanId),
       eq(clanRoster.rsnNormalized, newNormalized),
       ne(clanRoster.id, memberId),
+      // Never fold an event player's seat into a roster seat.
+      rosterClanSeat(),
     ),
   );
 

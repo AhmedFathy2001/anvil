@@ -13,6 +13,9 @@ import {
 import { eventForRequest } from '@/lib/eventScope';
 import { assertEventEditable } from '@/lib/eventLock';
 import { resolveTeamManagement } from '@/lib/teamStaff';
+import { rosterSeatOpensEventSql } from '@/lib/seatScope';
+import { seatOpensEvent } from '@/lib/seatKinds';
+import { findRosterSeat } from '@/lib/roster';
 
 /**
  * "Can I play this event on my other account?" — asking, and seeing what has been asked.
@@ -47,7 +50,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
     : await db
         .select()
         .from(clanRoster)
-        .where(and(eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)));
+        // An event player's seat counts only on its own event — never offered for another one.
+        .where(and(eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt), rosterSeatOpensEventSql(eventId)));
 
   const mySeatIds = mySeats.map((s) => s.id);
   const myParticipant = mySeatIds.length
@@ -128,6 +132,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     where: and(eq(eventParticipants.id, participantId), eq(eventParticipants.eventId, eventId)),
   });
   if (!participant) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  // An event player's seat plays only its own event: never the character a board here moves to.
+  // clan-scope: global -- a seat by id; requestAccountChange checks it is the asker's own.
+  const toSeat = await findRosterSeat(eq(clanRoster.id, toSeatId));
+  if (toSeat && !seatOpensEvent(toSeat, eventId)) {
+    return NextResponse.json({ error: 'That character cannot play this event' }, { status: 400 });
+  }
 
   const result = await requestAccountChange({
     participantId,

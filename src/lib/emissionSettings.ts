@@ -2,6 +2,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accountClanEmission, accounts, clanMemberships, clans, userWebhooks, users } from '@/db/schema';
+import { clanSeat } from '@/lib/seatScope';
 import { isLevelPostsChoice, parseMilestoneRules, type LevelPostsChoice, type MilestoneRules } from '@/lib/levelRules';
 
 /**
@@ -78,7 +79,8 @@ export async function emissionSettingsView(userId: number, playerId: number): Pr
         })
         .from(clanMemberships)
         .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
-        .where(and(inArray(clanMemberships.accountId, accountIds), isNull(clanMemberships.leftAt)))
+        // Member and guest seats: an event player's seat is not somewhere the account announces.
+        .where(and(inArray(clanMemberships.accountId, accountIds), isNull(clanMemberships.leftAt), clanSeat()))
     : [];
 
   // Every override the person holds.
@@ -196,7 +198,8 @@ export async function isValidEmissionTarget(accountId: number, clanId: number, p
   const [ownSeat] = await db
     .select({ id: clanMemberships.id })
     .from(clanMemberships)
-    .where(and(eq(clanMemberships.accountId, accountId), eq(clanMemberships.clanId, clanId), isNull(clanMemberships.leftAt)))
+    // An event player's seat is no connection to the clan's channel.
+    .where(and(eq(clanMemberships.accountId, accountId), eq(clanMemberships.clanId, clanId), isNull(clanMemberships.leftAt), clanSeat()))
     .limit(1);
   if (ownSeat) return true;
 

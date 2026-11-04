@@ -6,6 +6,7 @@ import { parseModules, signupWindow } from '@/lib/clanEventModules';
 import { loadQuestions } from '@/lib/clanEventQuestions';
 import { getRequiredConfirmations } from '@/lib/feeConfirmations';
 import { decideConfirmation, settlesOnCollect } from '@/lib/feeRules';
+import { rosterClanSeat } from '@/lib/seatScope';
 import { del } from '@/lib/storage';
 import { validateAnswers } from '@/lib/survey';
 
@@ -31,7 +32,8 @@ export async function seatsFor(clanId: number, playerId: number | null): Promise
   const rows = await db
     .select({ id: clanRoster.id, rsn: clanRoster.rsn, primary: clanRoster.isPrimary })
     .from(clanRoster)
-    .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, playerId), isNull(clanRoster.leftAt)));
+    // Member and guest seats: an event player's seat opens its one board, not the clan's events.
+    .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, playerId), isNull(clanRoster.leftAt), rosterClanSeat()));
   return rows.sort((a, b) => b.primary - a.primary || a.rsn.localeCompare(b.rsn)).map(({ id, rsn }) => ({ id, rsn }));
 }
 
