@@ -331,6 +331,9 @@ test('Medal: unverified until the code shows up in a clip title; taken only once
 
   net.medalClips = [{ contentTitle: 'big drop', credits: 'Credits to Clipper (https://medal.tv/users/31337)' }];
   assert.deepEqual(await CA.verifyMedal(a.userId), { ok: false, reason: 'no-code' });
+  // The code on a clip credited to SOMEONE ELSE (one that only shows up in their list) proves nothing.
+  net.medalClips.push({ contentTitle: `team clip ${code}`, credits: 'Credits to Other (https://medal.tv/users/999)' });
+  assert.deepEqual(await CA.verifyMedal(a.userId), { ok: false, reason: 'no-code' });
   net.medalClips.push({ contentTitle: `zuk kill ${code}`, credits: 'Credits to Clipper (https://medal.tv/users/31337)' });
   assert.deepEqual(await CA.verifyMedal(a.userId), { ok: true, username: 'Clipper' });
 

@@ -312,9 +312,11 @@ export async function verifyMedal(userId: number): Promise<MedalVerifyResult> {
   const clips = await latestClips(key, mine.medalUserId, 10, medalFetch);
   if (!clips.ok) return { ok: false, reason: clips.reason === 'not-found' ? 'not-found' : 'error' };
   const code = medalCode(userId, mine.medalUserId, medalCodeKey());
-  const hit = clips.value.find((c) => titleHasCode(c.title, code));
+  // The code only counts on a clip credited to THIS Medal user: a clip that merely shows up in their
+  // list (one they appear in, say) could carry someone else's title. Name taken from that same clip.
+  const hit = clips.value.find((c) => titleHasCode(c.title, code) && creditsName(c.credits, mine.medalUserId!) != null);
   if (!hit) return { ok: false, reason: 'no-code' };
-  const username = clips.value.map((c) => creditsName(c.credits, mine.medalUserId!)).find((n): n is string => !!n) ?? mine.medalUsername;
+  const username = creditsName(hit.credits, mine.medalUserId) ?? mine.medalUsername;
   try {
     await db
       .update(userMedalLinks)
