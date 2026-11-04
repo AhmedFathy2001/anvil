@@ -3,7 +3,7 @@ import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts, clanMemberships, clans, completions, eventParticipants, events, teams, tiles, users } from '@/db/schema';
 import { boardHidden, boardSize, completionAt, completionFinisher } from '@/lib/panelRows';
-import { pluginRsnHintOnly, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
+import { normalizeRsn, pluginRsnHintOnly, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess } from '@/lib/eventChat';
 import { formatGp } from '@/lib/itemPrices';
 import { NO_REACTIONS, isClanMember, reactionSummaries } from '@/lib/momentReactions';
@@ -12,6 +12,7 @@ import { boardTileItemIds, clanScopeFor, momentsForClan, momentsForEvent, type M
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
 import { labMomentsForEvent } from '@/lib/lab';
 import { rateLimit } from '@/lib/rate-limit';
+import { supporterInksForRsns } from '@/lib/supporter';
 import { standingsHidden } from '@/lib/standingsVisibility';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 
@@ -111,25 +112,29 @@ async function clanRows(clan: Extract<Scope, { kind: 'clan' }>, filter: string, 
   const g = groupOf(filter);
   const raw = (await momentsForClan(clan.id, 120))
     .filter((m) => panelFeedWorthy(m, scope.minLootGp) && isClanWorthy(m, scope))
-    .filter((m) => !g || kindGroup(m.kind) === g)
-    // Deaths show under the Deaths chip, not in a clan's All (lib/pluginUi/feedUi momentFeedIds).
-    .filter((m) => g === 'deaths' || m.kind !== 'death');
+    .filter((m) => !g || kindGroup(m.kind) === g);
   // Drops filed on a board with hidden standings stay out of the clan's feed (the board's own feed
   // shows each team its own). Checked fresh per board.
   const boards = [...new Set(raw.map((m) => m.eventId).filter((e): e is number => e != null))];
   const hidden = new Set<number>();
   for (const e of boards) if (await boardHidden(e)) hidden.add(e);
   const list = raw.filter((m) => m.eventId == null || !hidden.has(m.eventId)).slice(0, 80);
-  const [summaries, member] = await Promise.all([
+  const [summaries, member, inks] = await Promise.all([
     reactionSummaries(list.map((m) => m.id), viewer),
     viewer != null ? isClanMember(viewer, clan.id) : Promise.resolve(false),
+    inksFor(list.map((m) => m.rsn)),
   ]);
   const rows = list.map((m) => {
     const s = summaries.get(m.id) ?? NO_REACTIONS;
     const react: Action | undefined = member ? { a: 'post', act: 'react-row', args: { slug: clan.slug, id: String(m.id), kind: 'gz' } } : undefined;
-    return momentRow(asLike(m), { gz: { n: s.gz, mine: s.mineGz }, react });
+    return momentRow(asLike(m), { gz: { n: s.gz, mine: s.mineGz }, react, ink: inks.get(normalizeRsn(m.rsn)) });
   });
   return { rows, floor: scope.minLootGp };
+}
+
+/** Supporters' name colours by normalised name; flair is decoration, so a failed read is none. */
+async function inksFor(rsns: string[]) {
+  return rsns.length ? supporterInksForRsns(rsns).catch(() => new Map()) : new Map();
 }
 
 function asLike(m: MomentRow) {
@@ -161,7 +166,7 @@ async function eventRows(eventId: number, filter: string, teamId: number | null)
   const visible = (t: number | null) => (filter === 'team' || hidden ? own(t) : true);
   // A lab board's moments never become real rows; they're read from its session's log (lib/labFeed).
   const labRows = filter === 'tiles' ? [] : await labMomentsForEvent(eventId);
-  const momentRows =
+  const momentList =
     filter === 'tiles'
       ? []
       : [...(await momentsForEvent(eventId, 600)), ...labRows]
@@ -171,8 +176,20 @@ async function eventRows(eventId: number, filter: string, teamId: number | null)
           .filter((m) => !g || kindGroup(m.kind) === g)
           .filter((m) => visible(m.teamId))
           .sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : a.occurredAt > b.occurredAt ? -1 : 0))
-          .slice(0, 80)
-          .map((m) => ({ at: Date.parse(m.occurredAt), row: momentRow(asLike(m), { mine: own(m.teamId) }) }));
+          .slice(0, 80);
+  // Names in a Supporter's colours, else their team's; the team under the name, as the live rows do.
+  const [inks, teamRows] = await Promise.all([
+    inksFor(momentList.map((m) => m.rsn)),
+    momentList.length ? db.select({ id: teams.id, name: teams.name, color: teams.color }).from(teams).where(eq(teams.eventId, eventId)) : Promise.resolve([]),
+  ]);
+  const teamById = new Map(teamRows.map((t) => [t.id, t]));
+  const momentRows = momentList.map((m) => {
+    const team = m.teamId != null ? teamById.get(m.teamId) : undefined;
+    return {
+      at: Date.parse(m.occurredAt),
+      row: momentRow(asLike(m), { mine: own(m.teamId), team: team ? { name: team.name, color: team.color } : null, ink: inks.get(normalizeRsn(m.rsn)) }),
+    };
+  });
   // Finished tiles: in All, Tiles and My team (a drop filter is about drops).
   const tileRows =
     g != null
