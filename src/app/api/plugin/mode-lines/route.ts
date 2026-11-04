@@ -64,6 +64,7 @@ export async function POST(request: Request) {
   }
   if (!Array.isArray(body.lines)) return NextResponse.json({ error: 'lines' }, { status: 400 });
 
+  // A tile-lab session logs this push (lib/lab). A replayed scenario stops there; real play goes on as usual.
   const quarantined = await labQuarantine(request, member.accountId, 'mode-lines', body);
   if (quarantined) return quarantined;
 

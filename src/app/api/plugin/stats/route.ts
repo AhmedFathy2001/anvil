@@ -18,7 +18,7 @@ import { creditStatTilesForTeam } from '@/lib/statTileCredit';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { log } from '@/lib/logger';
 import { ttlMemo } from '@/lib/ttlMemo';
-import { labQuarantine } from '@/lib/lab';
+import { labDivert } from '@/lib/lab';
 import { applyLabStatsPush } from '@/lib/labStats';
 import { notifyTeamTiles } from '@/lib/pushNotify';
 import { worldModeIgnored, worldModeOf } from '@/lib/worldModeRequest';
@@ -84,12 +84,12 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
-  // A character in a tile-lab session writes nothing real; the push goes to the lab log (lib/lab) and
-  // credits only that session's board (lib/labStats) — never the overlay, history or weekly comps.
-  const quarantined = await labQuarantine(request, member.accountId, 'stats', body, (eventId, accountId) =>
-    applyLabStatsPush(eventId, accountId, readPushed(body)),
-  );
-  if (quarantined) return quarantined;
+  // A character in a tile-lab session (lib/lab): the push is logged and credits that session's board
+  // (lib/labStats). A replayed scenario stops there — never the overlay, history or weekly comps. Real
+  // play goes on below exactly as without a session; the board pick leaves lab boards out, so the lab
+  // board is credited once (just now) and the real board is the one the pick finds.
+  const lab = await labDivert(request, member.accountId, 'stats', body, labStatsOnSession(body));
+  if (lab.response) return lab.response;
   if (isEmptyPush(body)) {
     // Same reason: a client sending empty bodies looks exactly like a client sending nothing.
     log.warn('plugin-stats.refused', { clan: clan.slug, clanMemberId: member.clanMemberId, reason: 'empty' });
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
-    .where(await pluginParticipantScope(member));
+    .where(await pluginParticipantScope(member, { lab: false }));
   // Pick the same way lib/auth does, and for the same reason: a member can be on a team for a board
   // that's running AND pre-drafted into one that starts in two months, and row order decides nothing.
   // This used to take the first row that merely hadn't ENDED, which let an event months away win —
@@ -205,7 +205,17 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, updated: Object.keys(pushed).length, completed });
+  return NextResponse.json({ ok: true, updated: Object.keys(pushed).length, completed: [...completed, ...labCompleted(lab.applied)] });
+}
+
+/** The lab board's half of a stats push (lib/labStats), for labDivert. */
+function labStatsOnSession(body: PushBody) {
+  return (eventId: number, accountId: number) => applyLabStatsPush(eventId, accountId, readPushed(body));
+}
+
+/** The lab board tiles a real push just completed, from labDivert's `applied`. */
+function labCompleted(applied: Record<string, unknown>): string[] {
+  return Array.isArray(applied.completed) ? applied.completed.filter((c): c is string => typeof c === 'string') : [];
 }
 
 /**
@@ -231,11 +241,10 @@ async function modePush(
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
-  // A tile-lab character writes nothing real, whatever world it's on (lib/lab).
-  const quarantined = await labQuarantine(request, member.accountId, 'stats', body, (eventId, accountId) =>
-    applyLabStatsPush(eventId, accountId, readPushed(body)),
-  );
-  if (quarantined) return quarantined;
+  // A tile-lab character's replay writes nothing real, whatever world it's on; real play is logged to
+  // the session and goes on as usual, lab boards left out of the pick below (lib/lab).
+  const lab = await labDivert(request, member.accountId, 'stats', body, labStatsOnSession(body));
+  if (lab.response) return lab.response;
   const pushed = readPushed(body);
 
   const nowIso = new Date().toISOString();
@@ -253,7 +262,7 @@ async function modePush(
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
-    .where(await pluginParticipantScope(member));
+    .where(await pluginParticipantScope(member, { lab: false }));
   // Started, running, on a team — and the board counts THIS mode. A main-game-only board never does.
   const boards = rows.filter(
     (r) =>
@@ -263,7 +272,7 @@ async function modePush(
       eventHasStarted(r) &&
       parseEventRules(r.rules).worldModes.includes(mode.key),
   );
-  if (boards.length === 0) return worldModeIgnored(request)!;
+  if (boards.length === 0) return lab.sessionEventId != null ? NextResponse.json({ ok: true, lab: true, completed: labCompleted(lab.applied) }) : worldModeIgnored(request)!;
   if (Object.keys(pushed).length === 0) return NextResponse.json({ ok: true, updated: 0, mode: mode.label, completed: [] });
 
   const updatedKeys = new Set(Object.keys(pushed));
@@ -286,7 +295,7 @@ async function modePush(
       ...(await creditStatTilesForTeam({ eventId: row.eventId, teamId: row.teamId!, statTiles, notifyClanId: clanId })),
     );
   }
-  return NextResponse.json({ ok: true, updated: Object.keys(pushed).length, mode: mode.label, completed });
+  return NextResponse.json({ ok: true, updated: Object.keys(pushed).length, mode: mode.label, completed: [...completed, ...labCompleted(lab.applied)] });
 }
 
 /**
@@ -316,13 +325,11 @@ async function accountOnlyPush(request: Request): Promise<NextResponse | null> {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
-  // Same lab rule as the seated path: a session character's push credits only its lab board.
-  const quarantined = await labQuarantine(request, account.id, 'stats', body, (eventId, accountId) =>
-    applyLabStatsPush(eventId, accountId, readPushed(body)),
-  );
-  if (quarantined) return quarantined;
+  // Same lab rule as the seated path: a replay credits only the lab board; real play also goes on.
+  const lab = await labDivert(request, account.id, 'stats', body, labStatsOnSession(body));
+  if (lab.response) return lab.response;
   const pushed = readPushed(body);
   if (Object.keys(pushed).length === 0) return NextResponse.json({ ok: true, updated: 0 });
   await applyAccountPush(account.id, pushed, new Date().toISOString());
-  return NextResponse.json({ ok: true, updated: Object.keys(pushed).length, completed: [] });
+  return NextResponse.json({ ok: true, updated: Object.keys(pushed).length, completed: labCompleted(lab.applied) });
 }

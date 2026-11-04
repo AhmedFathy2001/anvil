@@ -148,7 +148,8 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
-  // A character in a tile-lab session writes nothing real; the push goes to the lab log (lib/lab).
+  // A character in a tile-lab session: the push is logged to the session, whose Feed reads it from
+  // there (lib/labFeed). A replayed scenario stops here; real play goes on as usual (lib/lab).
   const quarantined = await labQuarantine(request, character.accountId, 'moments', body);
   if (quarantined) return quarantined;
   if (!Array.isArray(body?.moments)) {
@@ -210,7 +211,9 @@ export async function POST(request: Request) {
   // See lib/pluginNoClan: a moment with no clan to tell has nobody to tell.
   const clan = await resolvePluginClan(request);
   if (!clan) return noClanForPlugin();
-  const scopes = await activeScopesFor(member.clanMemberId, clan.id, new Date(now), await pluginParticipantScope(member));
+  // Lab boards left out: one would win the pick and stamp a real moment with the lab board, in the real
+  // clan's feed. The lab board's Feed reads its moments from the lab log instead (lib/lab).
+  const scopes = await activeScopesFor(member.clanMemberId, clan.id, new Date(now), await pluginParticipantScope(member, { lab: false }));
   // Nothing running still keeps the clan's achievements (momentsStore recordSeatMoments); `scoped:
   // false` tells a client's log that was the case.
   const { inserted, seatKind, idle, ...result } = await recordSeatMoments(member, observations, scopes);

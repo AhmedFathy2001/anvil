@@ -3957,9 +3957,10 @@ export type AnalyticsEvent = typeof analyticsEvents.$inferSelect;
 // session is an ordinary event owned by the hidden lab clan, so every clan-scoped surface misses it
 // by construction; these tables hold what only the lab needs.
 
-// What a character in a live lab session pushed that would have reached the real world — a Discord
-// post, a moment, a clog or PB write. The routes divert it here instead (lib/lab labQuarantine), so
-// a faked pet line shows up on the lab page rather than in the clan's channel.
+// What a character in a live lab session pushed that reaches outside the board — a Discord post, a
+// moment, a clog or PB write (lib/lab labDivert). A replayed scenario's push is held back and lands
+// only here, so a faked pet line shows up on the lab page rather than in the clan's channel; real play
+// is logged here too and then recorded as usual.
 export const labLog = pgTable('lab_log', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),

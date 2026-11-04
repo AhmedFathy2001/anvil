@@ -16,14 +16,25 @@
 //    lab participant row carries the ACCOUNT and no seat, and those two also accept a live lab event
 //    the logged-in character is entered in. Its fresh start time makes it win the active-event pick.
 //
-// 2. Everything personal is QUARANTINED. A faked pet line would otherwise post to the player's real
-//    clan channel, a faked clog unlock would write their real log, a faked level-up their real XP.
-//    While a character has a live session, the routes that reach outside the event (notify, moments,
-//    clip, clog, pb, coffer, progress, stats) answer 200 and write the body to `lab_log` instead.
-//    The cost is honest: real play on that character during a session is not recorded until the
-//    next sync. The lab page says so. A stats push is the one that still SCORES: after it is logged,
-//    the lab board's own stat tiles are credited from it (lib/labStats applyLabStatsPush) — the
-//    board-scoped half of the stats route, never the account's overlay, history or weekly comps.
+// 2. Only FAKE pushes are QUARANTINED. The dev client's replay harness stamps every request of a
+//    replayed scenario with SCENARIO_HEADER. Whatever such a push claims happened did not, so a faked
+//    pet line must never post to the player's real clan channel, a faked clog unlock never write
+//    their real log, a faked level-up never their real XP. From a character with a live session, the
+//    routes that reach outside the event (notify, moments, clip, clog, pb, coffer, progress, stats,
+//    mode-lines) answer such a push 200 and write it to `lab_log` instead; with no session it is
+//    dropped. A replay aimed at a real board's submissions or counters is dropped too
+//    (replayOutsideLab).
+//
+//    A push WITHOUT that header is real play, and real play is recorded everywhere it always is: the
+//    clan's Discord and feed, the character's profile, every real board it is on. It is ALSO written
+//    to `lab_log` and applied to the session's board, so the lab still tests it — the board's Feed
+//    reads the logged moments (lib/labFeed), and a stats push credits the board's own stat tiles
+//    (lib/labStats applyLabStatsPush). The routes that pick ONE board for a push themselves (stats,
+//    moments) leave lab boards out of that pick (pluginParticipantScope { lab: false }): the lab board
+//    would win it on its fresh start, so a real moment would be stamped with the lab board instead of
+//    the real one, and a stats push would credit the lab board twice and the real board not at all.
+//    Routes that credit every board a character is on (a clog unlock, a tile submission per board)
+//    reach the lab board the ordinary way, with nothing extra.
 
 import { and, desc, eq, gt, inArray, isNull, lte, ne, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
@@ -70,7 +81,7 @@ export async function labClanId(): Promise<number | null> {
 }
 
 /**
- * A lab board's moments, from the pushes its session quarantined (lib/labFeed), newest first. Only
+ * A lab board's moments, from the moments pushes its session logged (lib/labFeed), newest first. Only
  * for a board the lab clan owns; any other board gets nothing. Read-only.
  */
 export async function labMomentsForEvent(eventId: number, pushes = 60): Promise<MomentRow[]> {
@@ -162,7 +173,7 @@ export async function labParticipantScope(accountId: number): Promise<SQL | unde
   return and(eq(events.clanId, labId), eq(eventParticipants.accountId, accountId))!;
 }
 
-// A character's live session, memoised briefly: the quarantine check runs on every notify, clog and
+// A character's live session, memoised briefly: the lab check runs on every notify, clog and
 // stats push, and a session changes a few times an hour at most.
 const SESSION_TTL_MS = 15_000;
 const sessionMemo = new Map<number, { at: number; eventId: number | null }>();
@@ -198,12 +209,23 @@ const MAX_LOGGED_BYTES = 16_000;
 /** Sent by the plugin's test harness while a replayed scenario is playing (its value is the name). */
 export const SCENARIO_HEADER = 'x-anvil-scenario';
 
+/** What labDivert did with a push. */
+export interface LabDivert {
+  /** Send this and stop: a replayed scenario, held back from everything real. Null: carry on as normal. */
+  response: NextResponse | null;
+  /** The live session the push was logged under, or null when there is none. */
+  sessionEventId: number | null;
+  /** What `onSession` returned (for a real push, the route may fold it into its own reply). */
+  applied: Record<string, unknown>;
+}
+
 /**
- * Divert a push from a character in a live lab session. Returns the response the route should send
- * (a 200 the plugin treats as delivered), or null when the character is not in a session and the
- * route carries on as normal.
+ * Log a push from a character in a live lab session, and hold it back from everything real when it
+ * is a replayed scenario (SCENARIO_HEADER). A push without the header is real play: it is logged and
+ * applied to the session's board the same way, and then `response` is null so the route goes on to
+ * record it exactly as it would with no session at all.
  */
-export async function labQuarantine(
+export async function labDivert(
   request: Request,
   /** The pushing character's account, or a resolver for routes that only hold the token's user. */
   account: number | null | undefined | (() => Promise<number | null | undefined>),
@@ -211,22 +233,24 @@ export async function labQuarantine(
   payload: unknown,
   /**
    * The board-scoped half of the push, run against the session's own board after the push is logged
-   * (the stats route credits the lab board's KC / XP tiles this way). Its result rides on the 200.
-   * Never called for a replay with no session — that push is dropped whole.
+   * (the stats route credits the lab board's KC / XP tiles this way). Its result rides on the 200 of
+   * a replay, and comes back as `applied` for a real push. Never called with no session — a replay
+   * with none is dropped whole.
    */
   onSession?: (eventId: number, accountId: number) => Promise<Record<string, unknown>>,
-): Promise<NextResponse | null> {
+): Promise<LabDivert> {
+  const carryOn: LabDivert = { response: null, sessionEventId: null, applied: {} };
   // The dev client's replay harness stamps every request while a scenario plays (and briefly after).
   // Whatever that push claims happened did not, so it never reaches anything real — session or not.
   const scenario = request.headers.get(SCENARIO_HEADER)?.trim().slice(0, 64) || null;
   // No lab on this database and no replay: nothing to look up, and a resolver is never called.
-  if (!scenario && (await labClanId()) == null) return null;
+  if (!scenario && (await labClanId()) == null) return carryOn;
   const accountId = typeof account === 'function' ? await account() : account;
   const eventId = accountId == null ? null : await labSessionFor(accountId);
   if (eventId == null) {
-    if (!scenario) return null;
+    if (!scenario) return carryOn;
     // A replay with no session to file it under: drop it, and say so to the harness.
-    return NextResponse.json({ ok: true, lab: true, dropped: endpoint, scenario });
+    return { ...carryOn, response: NextResponse.json({ ok: true, lab: true, dropped: endpoint, scenario }) };
   }
   let stored: unknown = payload ?? null;
   try {
@@ -248,14 +272,35 @@ export async function labQuarantine(
       log.warn('lab.apply-fail', { eventId, endpoint }, e);
     }
   }
-  return NextResponse.json({ ...applied, ok: true, lab: true, quarantined: endpoint });
+  // Real play: logged and applied to the lab board above, and now on to everything real as usual.
+  if (!scenario) return { response: null, sessionEventId: eventId, applied };
+  return {
+    response: NextResponse.json({ ...applied, ok: true, lab: true, quarantined: endpoint }),
+    sessionEventId: eventId,
+    applied,
+  };
+}
+
+/**
+ * labDivert for a route that needs nothing back: the response to send for a held-back replay, or
+ * null to carry on as normal (no session, or real play — which has been logged to the session).
+ */
+export async function labQuarantine(
+  request: Request,
+  account: number | null | undefined | (() => Promise<number | null | undefined>),
+  endpoint: string,
+  payload: unknown,
+  onSession?: (eventId: number, accountId: number) => Promise<Record<string, unknown>>,
+): Promise<NextResponse | null> {
+  return (await labDivert(request, account, endpoint, payload, onSession)).response;
 }
 
 // ── Session management (the /staff/lab page) ─────────────────────────────────────────────────
 
 /**
- * The caller's own characters, main first. A session quarantines its characters' real pushes, so it
- * may only ever hold the staffer's own — never a member's.
+ * The caller's own characters, main first. A session takes over its characters' plugin (the lab board
+ * becomes their active board) and logs everything they push, so it may only ever hold the staffer's
+ * own — never a member's.
  */
 export async function ownLabCharacters(userId: number): Promise<{ id: number; rsn: string }[]> {
   const person = await personOf(userId);
@@ -292,7 +337,7 @@ export async function labSessionFromTile(actorUserId: number, source: typeof til
 
 export interface LabSessionInput {
   name: string;
-  /** How long the session runs from now. Capped so a forgotten session cannot quarantine for days. */
+  /** How long the session runs from now. Capped so a forgotten session cannot hold the plugin's active board for days. */
   hours: number;
   boardSize: number;
   accounts: { accountId: number; name: string }[];

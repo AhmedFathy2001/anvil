@@ -9,7 +9,7 @@ import { db } from '@/db';
 import { clanRoster } from '@/db/schema';
 import { findRosterSeat, personOf, seatsOwnedBy } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
-import { labQuarantine } from '@/lib/lab';
+import { labDivert, labEvent } from '@/lib/lab';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
 
 /**
@@ -120,14 +120,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Malformed body' }, { status: 400 });
   }
 
-  // A character in a tile-lab session posts nowhere real: the clip's details go to the lab log.
-  const quarantined = await labQuarantine(
+  // A tile-lab session logs the clip's details (lib/lab). A replayed scenario's stops there and posts
+  // nowhere; real play posts as usual.
+  const lab = await labDivert(
     request,
     async () => (await resolvePluginCharacter(request))?.accountId,
     'clip',
     { moment, eventName, seconds, standing, file: file?.name ?? null, bytes: file?.size ?? null },
   );
-  if (quarantined) return quarantined;
+  if (lab.response) return lab.response;
+  // During a session the plugin's active board is the lab board, so the board a clip names is the lab
+  // one. That name is a test bench's, and never goes to a real clan's channel.
+  if (lab.sessionEventId != null && eventName && eventName.trim() === (await labEvent(lab.sessionEventId))?.name.trim()) {
+    eventName = null;
+  }
 
   if (!file) {
     return NextResponse.json({ error: 'No clip file in the request' }, { status: 400 });

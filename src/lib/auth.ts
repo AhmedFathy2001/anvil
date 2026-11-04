@@ -1598,8 +1598,17 @@ export function pluginRsnHintOnly(request: Request): boolean {
  * roster and, on a co-hosted board, the host's), on a board the connected clan hosts or co-hosts.
  * See verifyPluginToken for why both halves are needed. Every plugin route that looks up "my
  * active event row" goes through this, so a co-host's members resolve exactly as far as config does.
+ *
+ * `lab: false` leaves out the character's tile-lab board (lib/lab). The plugin's own pick wants it —
+ * the lab board is what its panel shows and its submissions credit — but a route that files a REAL
+ * push on one board it picks itself (stats, moments) must not: the lab board would win that pick on
+ * its fresh start, and the push would be stamped with the lab board instead of the real one. Those
+ * routes apply the push to the lab board separately (lib/lab labDivert).
  */
-export async function pluginParticipantScope(member: { clanMemberId: number; accountId: number; clanId: number }): Promise<SQL> {
+export async function pluginParticipantScope(
+  member: { clanMemberId: number; accountId: number; clanId: number },
+  opts: { lab?: boolean } = {},
+): Promise<SQL> {
   const [cohosted, ownSeats] = await Promise.all([
     db
       .select({ eventId: eventCohosts.eventId })
@@ -1621,6 +1630,7 @@ export async function pluginParticipantScope(member: { clanMemberId: number; acc
   )!;
   // A tile-lab board this character is entered in (lib/lab). Its row carries the account and no
   // seat, so the seat rule above can never reach it.
+  if (opts.lab === false) return ordinary;
   const lab = await labParticipantScope(member.accountId);
   return lab ? or(ordinary, lab)! : ordinary;
 }

@@ -2,8 +2,8 @@
 //
 // What must hold:
 //   - a stats push from a character in a lab session credits the LAB board's KC tile through the real
-//     /api/plugin/stats route (and completes it at the goal), while the character's real account
-//     overlay, real event and real clan see nothing of it;
+//     /api/plugin/stats route (and completes it at the goal). Real play also reaches the character's
+//     real account overlay and real board; a replayed scenario reaches nothing real;
 //   - staff can set progress on, complete, and clear any tile for any team, credited to a chosen
 //     player, through the real crediting code; lowering progress un-completes; clear wipes it all;
 //   - nothing reaches a team, tile or player that is not on the session's board.
@@ -109,45 +109,44 @@ after(async () => {
   await dropDatabase(DB);
 });
 
-test('a lab stats push credits the lab board’s KC tile and nothing real', async () => {
+test('a real stats push during a session credits the lab board once AND the real board; a replay credits only the lab', async () => {
   const tile = await setTile(0, { label: 'Vorkath KC', trackedStat: 'vorkath', statType: 'boss', statGoal: 10 });
   const route = await import('../src/app/api/plugin/stats/route.ts');
 
-  // First sight of the key is the starting line (no hiscores baseline on the lab board yet).
+  // Real play. First sight of the key is the lab board's starting line (no hiscores baseline there
+  // yet); on the real board it is 700 over the starting 100, which clears the real tile.
   let res = await route.POST(statsPush({ stats: [{ kc: 800, name: 'Vorkath' }] }));
   assert.equal(res.status, 200);
   let body = await res.json();
-  assert.equal(body.quarantined, 'stats');
-  assert.deepEqual(body.completed, []);
+  assert.equal(body.quarantined, undefined, 'real play is not held back');
+  assert.deepEqual(body.completed, ['Real Vorkath'], 'the real board, not the lab board that wins the plugin pick');
+  assert.ok(await completionOf((await db.select().from(s.teams).where(eq(s.teams.eventId, realEvent)))[0].id, realTile));
+  let [acct] = await db.select().from(s.accounts).where(eq(s.accounts.id, accountId));
+  assert.equal(JSON.parse(acct.liveStats!).vorkath, 800, "the account's own overlay moved");
 
   res = await route.POST(statsPush({ stats: [{ kc: 806, name: 'Vorkath' }] }));
   body = await res.json();
-  assert.deepEqual(body.completed, [], '6 of 10');
+  assert.deepEqual(body.completed, [], '6 of 10 on the lab board');
   assert.equal(await completionOf(labTeam, tile.id), null);
 
-  // A replayed scenario from the session character credits the lab board too.
+  // A replayed scenario from the session character credits the lab board, and only the lab board.
   res = await route.POST(statsPush({ stats: [{ kc: 810, name: 'Vorkath' }] }, 'vorkath-kc'));
   body = await res.json();
+  assert.equal(body.quarantined, 'stats');
   assert.deepEqual(body.completed, ['Vorkath KC']);
   const done = await completionOf(labTeam, tile.id);
   assert.ok(done, 'completed at the goal');
-  assert.equal(JSON.parse(done.statContributions!).total, 10);
+  assert.equal(JSON.parse(done.statContributions!).total, 10, 'credited once per push, never twice');
+  [acct] = await db.select().from(s.accounts).where(eq(s.accounts.id, accountId));
+  assert.equal(JSON.parse(acct.liveStats!).vorkath, 806, 'the replay never reached the overlay');
 
-  // Every push was still logged.
+  // Every push was logged, the replay under its scenario name.
   const log = await db.select().from(s.labLog).where(eq(s.labLog.eventId, labEventId));
-  assert.equal(log.length, 3);
-  assert.ok(log.some((r) => r.endpoint === 'stats · vorkath-kc'));
+  assert.deepEqual(log.map((r) => r.endpoint).sort(), ['stats', 'stats', 'stats · vorkath-kc']);
 
-  // Nothing real moved: no account overlay, no real completion, the real entrant untouched.
-  const [acct] = await db.select().from(s.accounts).where(eq(s.accounts.id, accountId));
-  assert.equal(acct.liveStats, null);
-  assert.equal(acct.liveStatsAt, null);
-  assert.equal((await db.select().from(s.completions).where(eq(s.completions.tileId, realTile))).length, 0);
+  // The real entrant is an ordinary one: never pinned the way a lab entrant is.
   const [realEntrant] = await db.select().from(s.eventParticipants).where(eq(s.eventParticipants.eventId, realEvent));
   assert.equal(realEntrant.frozenAt, null);
-  assert.equal(realEntrant.cachedStats, null);
-  assert.equal((await db.select().from(s.memberDailyStats)).length, 0, 'no stat history');
-  assert.equal((await db.select().from(s.memberMilestones)).length, 0, 'no milestones');
 
   await L.resetLabSession(labEventId);
 });
