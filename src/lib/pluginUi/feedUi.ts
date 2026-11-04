@@ -36,8 +36,7 @@ export function momentsFeedId(scope: { kind: 'clan' | 'event'; id: number }, fil
 
 /** Every list a moment belongs in: its scope's, its kind group's, and its team's on a board. */
 export function momentFeedIds(scope: { kind: 'clan' | 'event'; id: number }, kind: string, teamId: number | null): string[] {
-  // A clan's deaths live under its Deaths chip only: on a feed that never stops, "All" stays highlights.
-  const ids = scope.kind === 'clan' && kind === 'death' ? [] : [momentsFeedId(scope)];
+  const ids = [momentsFeedId(scope)];
   const g = kindGroup(kind);
   if (g) ids.push(momentsFeedId(scope, g));
   if (scope.kind === 'event' && teamId != null) ids.push(momentsFeedId(scope, 'team', teamId));
@@ -114,6 +113,20 @@ export interface MomentRowOptions {
   react?: Action;
   /** "Team Ruby" under the name on a board. */
   team?: { name: string; color: string | null } | null;
+  /** A Supporter's name colours (lib/supporter supporterInksForRsns), the same as their chat lines. */
+  ink?: { color: string; grad?: string[]; move?: boolean } | null;
+}
+
+const HEX = /^#[0-9a-f]{6}$/i;
+
+/** The name's colour: a Supporter's own, else their team's on a board, else muted. */
+function whoInk(o: MomentRowOptions): Pick<FeedRow, 'whoColor' | 'grad' | 'move'> {
+  if (o.ink && HEX.test(o.ink.color)) {
+    const grad = (o.ink.grad ?? []).filter((c) => HEX.test(c)) as `#${string}`[];
+    return { whoColor: o.ink.color as Color, ...(grad.length >= 2 ? { grad, ...(o.ink.move ? { move: true } : {}) } : {}) };
+  }
+  if (o.team?.color && HEX.test(o.team.color)) return { whoColor: o.team.color as Color };
+  return { whoColor: 'muted' };
 }
 
 export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
@@ -124,7 +137,7 @@ export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
     ...(m.itemId != null ? { item: m.itemId } : m.kind === 'death' ? { item: 964 } : glyphOf(m.kind)),
     title: momentTitle(m),
     who: m.rsn,
-    whoColor: 'muted',
+    ...whoInk(o),
     ...(o.team ? { tag: o.team.name, tagColor: (o.team.color as Color | null) ?? 'muted' } : {}),
     at: m.occurredAt,
     ...(value ? { value } : {}),
