@@ -4309,6 +4309,37 @@ export const userKickLinks = pgTable('user_kick_links', {
   uniqueIndex('user_kick_links_kick_user_unique').on(table.kickUserId),
 ]);
 
+/**
+ * A person's Medal.tv profile (lib/connectedAccounts). Medal has no OAuth, so this starts UNVERIFIED —
+ * what they typed, labelled as such and hidden from profiles by default — and becomes verified when
+ * their Anvil code shows up in one of that Medal account's latest public clip titles (lib/medal).
+ * Unique on the Medal id only once verified, so typing somebody else's profile cannot block them.
+ */
+export const userMedalLinks = pgTable('user_medal_links', {
+  userId: integer('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  medalUserId: text('medal_user_id'),
+  medalUsername: text('medal_username'),
+  verifiedAt: text('verified_at'),
+  linkedAt: text('linked_at').notNull(),
+}, (table) => [
+  uniqueIndex('user_medal_links_verified_unique').on(table.medalUserId).where(sql`verified_at is not null`),
+]);
+
+/**
+ * Per-platform choices for a person's connected accounts (settings > Connected accounts). No row =
+ * the default: shown on their profile when the link is verified. Other per-platform settings (stream
+ * highlights' "clip my stream") may sit beside this table; this one is only profile display.
+ */
+export const userConnectedPrefs = pgTable('user_connected_prefs', {
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** 'twitch' | 'youtube' | 'kick' | 'medal' (lib/connectedAccountsRules PLATFORMS). */
+  platform: text('platform').notNull(),
+  showOnProfile: boolean('show_on_profile').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  primaryKey({ name: 'user_connected_prefs_pk', columns: [table.userId, table.platform] }),
+]);
+
 /** One-time Kick link codes (ANVIL-XXXXXX): single use, short-lived, one live code per login. */
 export const kickLinkCodes = pgTable('kick_link_codes', {
   code: text('code').primaryKey(),

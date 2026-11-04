@@ -35,7 +35,9 @@ export async function GET(request: Request) {
   if (!cfg) return NextResponse.json({ error: 'YouTube is not set up on this server.' }, { status: 503 });
 
   const url = new URL(request.url);
-  const mode: YoutubeLinkMode = url.searchParams.get('as') === 'host' ? 'host' : 'viewer';
+  const as = url.searchParams.get('as');
+  // 'link' = settings' Connected accounts: who you are on YouTube, no event involved.
+  const mode: YoutubeLinkMode = as === 'host' ? 'host' : as === 'link' ? 'link' : 'viewer';
   const returnTo = safeReturnPath(url.searchParams.get('return'));
   const target = Number(url.searchParams.get(mode === 'host' ? 'space' : 'event'));
   const host = request.headers.get('host');
@@ -53,7 +55,7 @@ export async function GET(request: Request) {
   const session = await verifyUser();
   if (!session) return NextResponse.redirect(new URL(`/login?return=${encodeURIComponent(returnTo)}`, request.url));
 
-  if (!Number.isInteger(target) || target <= 0) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
+  if (mode !== 'link' && (!Number.isInteger(target) || target <= 0)) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   if (mode === 'host' && !(await isAdminOfCreatorSpace(target, session.userId))) {
     return NextResponse.json({ error: 'Only the space’s admins can connect its YouTube channel.' }, { status: 403 });
   }
@@ -64,7 +66,7 @@ export async function GET(request: Request) {
     {
       u: session.userId,
       m: mode,
-      c: target,
+      c: mode === 'link' ? 0 : target,
       r: returnTo,
       h: url.searchParams.get('clan')?.slice(0, 253) || null,
       n: nonce,
