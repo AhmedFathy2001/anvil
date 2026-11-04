@@ -160,7 +160,8 @@ export function findCodeInChat(items: unknown, code: string, fromChannel?: strin
 // Signed; carries who started it, for what, and where to return. The callback also requires the
 // nonce cookie set by /start and the same logged-in user (as lib/twitch).
 
-export type YoutubeLinkMode = 'viewer' | 'host';
+// 'link': settings' Connected accounts — identity only, no event (c is 0).
+export type YoutubeLinkMode = 'viewer' | 'host' | 'link';
 
 export interface YoutubeState {
   /** users.id of whoever pressed the button. */
@@ -205,8 +206,8 @@ export function verifyState(token: string | null | undefined, tokenKey: string, 
   }
   if (!s || typeof s !== 'object') return null;
   if (!Number.isInteger(s.u) || s.u <= 0) return null;
-  if (s.m !== 'viewer' && s.m !== 'host') return null;
-  if (!Number.isInteger(s.c) || s.c <= 0) return null;
+  if (s.m !== 'viewer' && s.m !== 'host' && s.m !== 'link') return null;
+  if (s.m === 'link' ? s.c !== 0 : !Number.isInteger(s.c) || s.c <= 0) return null;
   if (typeof s.r !== 'string' || typeof s.n !== 'string' || s.n.length < 16) return null;
   if (s.h != null && typeof s.h !== 'string') return null;
   if (typeof s.e !== 'number' || s.e <= now) return null;

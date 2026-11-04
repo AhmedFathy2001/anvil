@@ -6,7 +6,7 @@ import { apexDomain, originForHost, sessionCookieDomain } from '@/lib/apexHost';
 import { resolveReturnHost } from '@/lib/clanContext';
 import { gateCache, gatesForEvent, isAdminOfCreatorSpace } from '@/lib/entryGatesDb';
 import { connectConflict } from '@/lib/streamChannels';
-import { hostYoutubeChannel, proveSubscription, saveHostYoutubeChannel } from '@/lib/gates/youtubeDb';
+import { hostYoutubeChannel, linkViewerYoutube, proveSubscription, saveHostYoutubeChannel } from '@/lib/gates/youtubeDb';
 import { log } from '@/lib/logger';
 import { safeReturnPath } from '@/lib/safe-redirect';
 import {
@@ -68,6 +68,16 @@ async function finish(url: URL, state: YoutubeState, cfg: YoutubeConfig, userId:
     const tokens = await exchangeCode(cfg, code);
     accessToken = tokens.accessToken;
     if (!hasYoutubeScope(tokens.scope)) return 'scopes';
+
+    if (state.m === 'link') {
+      // Settings' Connected accounts: identity only — which channel this is, linked to the login.
+      const me = await fetchMyChannel(tokens.accessToken);
+      if (!me.ok) return 'error';
+      if (!me.value) return 'nochannel';
+      const r = await linkViewerYoutube(userId, me.value);
+      gateCache.forgetUser(userId);
+      return r === 'taken' ? 'taken' : 'linked';
+    }
 
     if (state.m === 'viewer') {
       // The event must still be a YouTube-gated creator event with a connected host channel. Every

@@ -12,6 +12,9 @@ import { profileMediaForPlayer } from '@/lib/profileMedia';
 import { displayCaseForPlayer } from '@/lib/displayCase';
 import { ProfileAvatar, ProfileBanner } from '@/components/ProfileMedia';
 import DisplayCase from '@/components/DisplayCase';
+import ConnectedAccounts from '@/components/ConnectedAccounts';
+import { profileConnectedAccounts } from '@/lib/connectedAccounts';
+import { verifyUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,10 +50,14 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   // Only reached once apexPerson has said this person chose to be public as one person.
   // Their own pictures and display case (Anvil Supporter), gated by tier on read. This IS their
   // profile page, so the pictures may move; only shared characters' pins are shown.
-  const [supporter, media, showcase] = await Promise.all([
+  const session = await verifyUser();
+  // Their connected Twitch/YouTube/Kick/Medal (lib/connectedAccounts): this page already says they are
+  // one person, so showing where they stream says nothing new about which characters are theirs.
+  const [supporter, media, showcase, connected] = await Promise.all([
     supporterForPlayer(id),
     profileMediaForPlayer(id),
     displayCaseForPlayer(id, { publicView: true }),
+    profileConnectedAccounts(id, session?.playerId === id),
   ]);
 
   const week = person.characters.reduce((n, c) => n + c.xpThisWeek, 0);
@@ -75,6 +82,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
           {person.characters.length} shared {person.characters.length === 1 ? 'character' : 'characters'}
           {week > 0 && <> · {compact(week)} XP this week</>}
         </p>
+        <ConnectedAccounts links={connected} className="relative mt-3" />
       </header>
 
       <DisplayCase entries={showcase} className="mb-8" />
