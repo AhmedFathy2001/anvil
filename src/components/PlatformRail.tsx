@@ -80,6 +80,8 @@ export default function PlatformRail({
   const pathname = usePathname() ?? '/';
   // A Discord avatar hash goes stale when they change it there; a broken image falls back to the initial.
   const [avatarFailed, setAvatarFailed] = useState(false);
+  // Phones: the links fold behind a menu button instead of a sideways-scrolling strip.
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const item = (href: string, label: string, icon: React.ReactNode, exact = href === '/', badge?: { count: number; title: string } | null) => {
     // Prefix match, so /guide/<page> keeps Guides lit. Exact for the root, and for the Clan Hall:
@@ -108,19 +110,27 @@ export default function PlatformRail({
     // Applied at every width it also cancels the mobile column's stretch, so the bar sized itself to
     // its own content — 539px of clans against a 422px screen — and dragged the whole page sideways
     // with it. Cross-axis alignment means opposite things in the two directions this flips between.
-    <nav className="sticky top-0 z-40 flex w-full shrink-0 gap-4 overflow-x-auto border-b border-card-border bg-brown-dark p-2 lg:h-screen lg:w-[240px] lg:flex-col lg:gap-6 lg:self-start lg:overflow-x-visible lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-4">
+    <nav className="sticky top-0 z-40 flex w-full shrink-0 flex-wrap items-center gap-2 border-b border-card-border bg-brown-dark p-2 lg:h-screen lg:w-[240px] lg:flex-nowrap lg:flex-col lg:items-stretch lg:gap-6 lg:self-start lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-4">
       {/* THE LOGO IS THE ARTWORK, not the drawn path. `AnvilMark` exists so the mark can be a 600px
           watermark without going to mush — that is a background job. Where the logo is acting as the
           logo, the real icon wins: it is what sits in the browser tab and in everybody's bookmarks,
           and a site whose header mark and favicon are two different drawings looks unfinished. */}
-      <ClanLink href="/" className="group flex shrink-0 items-center gap-2.5 px-2">
+      <ClanLink href="/" className="group order-1 flex shrink-0 items-center gap-2.5 px-2 lg:order-none">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/icon-48.png" alt="" width={26} height={26} className="shrink-0 rounded-md" />
         <span className="display text-[18px] font-semibold text-gold">Anvil</span>
       </ClanLink>
 
-      <div className="flex shrink-0 gap-0.5 lg:flex-col">
-        <div className="hidden px-2.5 pb-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-text-dim lg:block">
+      {/* Every link: a drawer under the bar on a phone (menu button), the rail itself on a desktop. */}
+      <div
+        id="platform-menu"
+        className={`order-4 basis-full flex-col gap-4 pb-2 lg:order-none lg:flex lg:basis-auto lg:gap-6 lg:pb-0 ${menuOpen ? 'flex' : 'hidden'}`}
+        onClick={(e) => {
+          if ((e.target as HTMLElement).closest('a')) setMenuOpen(false);
+        }}
+      >
+      <div className="flex shrink-0 flex-col gap-0.5">
+        <div className="px-2.5 pb-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-text-dim">
           Platform
         </div>
         {item('/', 'Home', <HomeIcon />)}
@@ -143,11 +153,10 @@ export default function PlatformRail({
       {/* "Your clans", then "Your spaces" (creator spaces are not clans — lib/creatorSpaces). An
           empty group is left out, so somebody with only a space sees no empty clans heading. */}
       {groupClansAndSpaces(clans, (c) => c.kind).map((g) => (
-        <div key={g.key} className="flex min-h-0 shrink-0 gap-0.5 lg:flex-col">
+        <div key={g.key} className="flex min-h-0 shrink-0 flex-col gap-0.5">
           {/* A divider only where the row is horizontal. On the desktop rail the section heading
               below already does this job, and a rule as well would be one line too many. */}
-          <span aria-hidden className="mx-1 w-px self-stretch bg-card-border lg:hidden" />
-          <div className="hidden items-center gap-2 px-2.5 pb-1.5 lg:flex">
+                    <div className="flex items-center gap-2 px-2.5 pb-1.5">
             <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-dim">
               {g.label}
             </span>
@@ -155,7 +164,7 @@ export default function PlatformRail({
           </div>
           {/* Capped and scrolling: guesting into other clans' events is meant to be ordinary, so a
               dozen seats is a normal account. A rail listing all of them pushes the nav off screen. */}
-          <div className="flex gap-0.5 lg:max-h-[min(34vh,320px)] lg:flex-col lg:overflow-y-auto">
+          <div className="flex max-h-[40vh] flex-col gap-0.5 overflow-y-auto lg:max-h-[min(34vh,320px)]">
             {g.items.map((c) => (
               <ClanLink
                 key={c.slug}
@@ -180,9 +189,8 @@ export default function PlatformRail({
       {/* Friends events (lib/friendEventRules): a Supporter's private boards, hosted from no clan or
           space. Their own group, so a creator who is also a Supporter sees both ways of hosting. */}
       {friends && (
-        <div className="flex min-h-0 shrink-0 gap-0.5 lg:flex-col">
-          <span aria-hidden className="mx-1 w-px self-stretch bg-card-border lg:hidden" />
-          <div className="hidden items-center gap-2 px-2.5 pb-1.5 lg:flex">
+        <div className="flex min-h-0 shrink-0 flex-col gap-0.5">
+                    <div className="flex items-center gap-2 px-2.5 pb-1.5">
             <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-dim">Friends events</span>
             {friends.total > 0 && <span className="font-mono text-[10px] text-text-dim/70">{friends.total}</span>}
           </div>
@@ -222,9 +230,11 @@ export default function PlatformRail({
         </ClanLink>
       )}
 
+      </div>
+
       {/* The way out. The first cut of this rail had no sign-out at all, because it lived in the
           clan nav that the apex no longer renders. */}
-      <div className="ml-auto flex shrink-0 items-center gap-2.5 pl-2 lg:ml-0 lg:mt-auto lg:border-t lg:border-card-border-soft lg:pt-3">
+      <div className="order-2 ml-auto flex min-w-0 shrink items-center gap-2.5 pl-2 lg:order-none lg:ml-0 lg:mt-auto lg:shrink-0 lg:border-t lg:border-card-border-soft lg:pt-3">
         {signedIn ? (
           <>
             <ClanLink href="/profile" className="group flex min-w-0 items-center gap-2.5">
@@ -255,7 +265,7 @@ export default function PlatformRail({
                   />
                 </span>
                 {characterCount != null && (
-                  <span className="hidden font-mono text-[10.5px] text-text-dim lg:block">
+                  <span className="hidden whitespace-nowrap font-mono text-[10.5px] text-text-dim lg:block">
                     {characterCount} character{characterCount === 1 ? '' : 's'}
                   </span>
                 )}
@@ -277,6 +287,19 @@ export default function PlatformRail({
           item('/login', 'Sign in', <PersonIcon />)
         )}
       </div>
+
+      <button
+        type="button"
+        className="order-3 grid h-8 w-8 shrink-0 place-items-center rounded-md border border-card-border text-text-muted hover:border-gold/40 hover:text-gold lg:hidden"
+        aria-expanded={menuOpen}
+        aria-controls="platform-menu"
+        aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+        onClick={() => setMenuOpen((o) => !o)}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
+          {menuOpen ? <path d="M4 4l8 8M12 4l-8 8" /> : <path d="M2.5 4h11M2.5 8h11M2.5 12h11" />}
+        </svg>
+      </button>
     </nav>
   );
 }
