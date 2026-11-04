@@ -3768,6 +3768,58 @@ export const clanTwitchChannels = pgTable('clan_twitch_channels', {
 });
 
 /**
+ * A creator space's YouTube channel (lib/gates/youtubeDb), connected by its owner with
+ * youtube.readonly. Its token reads the host's live chat for the member gate. Tokens are encrypted
+ * with lib/secretBox under YOUTUBE_TOKEN_KEY and never leave the server.
+ */
+export const clanYoutubeChannels = pgTable('clan_youtube_channels', {
+  clanId: integer('clan_id').primaryKey().references(() => clans.id, { onDelete: 'cascade' }),
+  youtubeChannelId: text('youtube_channel_id').notNull(),
+  title: text('title').notNull(),
+  handle: text('handle'),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token').notNull(),
+  expiresAt: text('expires_at').notNull(),
+  scope: text('scope').notNull(),
+  linkedByUserId: integer('linked_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  /** Google refused a refresh — the host must connect again; member checks fail closed until then. */
+  brokenAt: text('broken_at'),
+  updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+});
+
+/**
+ * A viewer's linked YouTube channel (lib/gates/youtubeDb) — identity only, proved by a Google sign-in
+ * whose token is revoked at once. Unique on the channel: one YouTube channel per Anvil login. The
+ * member chat code only counts when typed from this channel.
+ */
+export const userYoutubeLinks = pgTable('user_youtube_links', {
+  userId: integer('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  youtubeChannelId: text('youtube_channel_id').notNull(),
+  youtubeTitle: text('youtube_title').notNull(),
+  linkedAt: text('linked_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  uniqueIndex('user_youtube_links_channel_unique').on(table.youtubeChannelId),
+]);
+
+/**
+ * A point-in-time YouTube proof (lib/gates/youtubeDb): 'sub' — the viewer's own subscriptions,
+ * read once on their token (then revoked); 'member' — their chat code seen in the host's live chat
+ * from a channel member. Trusted for a day.
+ */
+export const userYoutubeProofs = pgTable('user_youtube_proofs', {
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  hostChannelId: text('host_channel_id').notNull(),
+  kind: text('kind').notNull(),
+  youtubeChannelId: text('youtube_channel_id').notNull(),
+  youtubeTitle: text('youtube_title').notNull(),
+  ok: boolean('ok').notNull(),
+  checkedAt: text('checked_at').notNull(),
+}, (table) => [
+  primaryKey({ name: 'user_youtube_proofs_pk', columns: [table.userId, table.hostChannelId, table.kind] }),
+]);
+
+
+/**
  * A player's OPT-IN Discord grant for `guilds.join` (lib/discordUserTokens). Only written when the
  * player chose "add me automatically"; plain logins never ask for it. Both tokens are encrypted with
  * lib/secretBox under DISCORD_TOKEN_KEY — without that env var nothing is stored and players fall back
@@ -4185,6 +4237,135 @@ export const platformSettings = pgTable('platform_settings', {
   value: text('value'),
   updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 });
+
+// ── Kick (creator spaces: entry gates + `!join`; lib/gates/kick*) ─────────────────────────────────
+
+/**
+ * A creator space's Kick channel, connected by its broadcaster through Kick OAuth (lib/gates/kickDb).
+ * Tokens are encrypted with lib/secretBox under KICK_TOKEN_KEY and never leave the server. Kick's API
+ * cannot answer "does X follow/sub to Y", so this row is what webhook facts are recorded against.
+ */
+export const clanKickChannels = pgTable('clan_kick_channels', {
+  clanId: integer('clan_id').primaryKey().references(() => clans.id, { onDelete: 'cascade' }),
+  kickUserId: text('kick_user_id').notNull(),
+  kickSlug: text('kick_slug').notNull(),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token').notNull(),
+  expiresAt: text('expires_at').notNull(),
+  scope: text('scope').notNull(),
+  linkedByUserId: integer('linked_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  brokenAt: text('broken_at'),
+  followersOnlyChat: boolean('followers_only_chat').notNull().default(false),
+  chatJoin: boolean('chat_join').notNull().default(false),
+  connectedAt: text('connected_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  index('clan_kick_channels_kick_user_idx').on(table.kickUserId),
+]);
+
+/** A viewer's Kick account, proved by a one-time code typed in a connected channel's chat. */
+export const userKickLinks = pgTable('user_kick_links', {
+  userId: integer('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  kickUserId: text('kick_user_id').notNull(),
+  kickUsername: text('kick_username').notNull(),
+  linkedAt: text('linked_at').notNull(),
+}, (table) => [
+  uniqueIndex('user_kick_links_kick_user_unique').on(table.kickUserId),
+]);
+
+/** One-time Kick link codes (ANVIL-XXXXXX): single use, short-lived, one live code per login. */
+export const kickLinkCodes = pgTable('kick_link_codes', {
+  code: text('code').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: text('created_at').notNull(),
+  expiresAt: text('expires_at').notNull(),
+  usedAt: text('used_at'),
+  /** 'linked' | 'taken' once used. */
+  result: text('result'),
+  kickUsername: text('kick_username'),
+}, (table) => [
+  index('kick_link_codes_user_idx').on(table.userId),
+]);
+
+/** What Kick told us about one Kick user in one channel (follow event / sub event / sub badge). */
+export const kickChannelFacts = pgTable('kick_channel_facts', {
+  broadcasterId: text('broadcaster_id').notNull(),
+  kickUserId: text('kick_user_id').notNull(),
+  followedAt: text('followed_at'),
+  subUntil: text('sub_until'),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  primaryKey({ name: 'kick_channel_facts_pk', columns: [table.broadcasterId, table.kickUserId] }),
+]);
+
+/** event_twitch_claims for any platform: one platform account, one player per event. */
+export const eventGateClaims = pgTable('event_gate_claims', {
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  platform: text('platform').notNull(),
+  platformUserId: text('platform_user_id').notNull(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  claimedAt: text('claimed_at').notNull(),
+}, (table) => [
+  uniqueIndex('event_gate_claims_unique').on(table.eventId, table.platform, table.platformUserId),
+]);
+
+/** Kick webhook message ids already handled — replay/redelivery guard, pruned after a day. */
+export const kickWebhookSeen = pgTable('kick_webhook_seen', {
+  messageId: text('message_id').primaryKey(),
+  seenAt: text('seen_at').notNull(),
+});
+
+/** The optional `!join` bot account's rotating Kick token, seeded from KICK_BOT_REFRESH_TOKEN. */
+export const kickBotTokens = pgTable('kick_bot_tokens', {
+  id: text('id').primaryKey(),
+  seedHash: text('seed_hash').notNull(),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token').notNull(),
+  expiresAt: text('expires_at'),
+  updatedAt: text('updated_at').notNull(),
+});
+
+// ── Anvil Supporter: profile media and the display case (0197) ───────────────────────────────────
+// Both belong to the LOGIN, like the subscription, and neither is gated in the data: the tier is
+// checked on every read (lib/profileMedia, lib/displayCase), so a lapse needs no write.
+
+/** A person's own avatar and banner. Animated for Champion+; everyone else is shown the still. */
+export const profileMedia = pgTable('profile_media', {
+  userId: integer('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  /** Animated WebP when the upload moved, else the same as the still. */
+  avatarUrl: text('avatar_url'),
+  /** Always one frame (the first): lists, reduced motion, and a lapsed tier. */
+  avatarStillUrl: text('avatar_still_url'),
+  bannerUrl: text('banner_url'),
+  bannerStillUrl: text('banner_still_url'),
+  /** Vertical focus when the frame crops the banner, 0 (top) – 100 (bottom); null = centred. */
+  bannerPosition: integer('banner_position'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * One pinned item in a person's display case. 'clog' points at an obtained collection-log slot
+ * (account + item), 'drop' at a drop moment. The owner, the character and the item are re-checked
+ * on every read, so a pin to something no longer theirs simply stops showing.
+ */
+export const displayCaseItems = pgTable('display_case_items', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull().default(0),
+  /** 'clog' | 'drop' */
+  kind: text('kind').notNull(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  itemId: integer('item_id').notNull(),
+  momentId: integer('moment_id').references(() => moments.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('display_case_items_user_idx').on(t.userId, t.position),
+  uniqueIndex('display_case_items_clog_unique').on(t.userId, t.accountId, t.itemId).where(sql`kind = 'clog'`),
+  uniqueIndex('display_case_items_drop_unique').on(t.userId, t.momentId).where(sql`kind = 'drop'`),
+]);
+
+export type ProfileMedia = typeof profileMedia.$inferSelect;
+export type DisplayCaseItem = typeof displayCaseItems.$inferSelect;
 
 /**
  * Head-to-head challenges (lib/h2h, rules in lib/h2hRules): one player against another, first to a

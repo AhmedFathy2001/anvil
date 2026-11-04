@@ -96,6 +96,8 @@
     "test:personachars": "npx tsx --test tests/persona-characters.test.ts",
     "test:eventaccess": "npx tsx --test tests/event-access.test.ts",
     "test:gates": "npx tsx --test --test-concurrency=1 tests/entry-gates.test.ts tests/entry-gates-db.test.ts",
+    "test:youtube": "npx tsx --test --test-concurrency=1 tests/youtube-gates.test.ts tests/youtube-gates-db.test.ts",
+    "test:kick": "npx tsx --test --test-concurrency=1 tests/kick-gates.test.ts tests/kick-gates-db.test.ts",
     "test:creators": "npx tsx --test tests/starter-tiles.test.ts tests/creator-spaces.test.ts tests/creator-spaces-db.test.ts",
     "test:onbehalf": "npx tsx --test tests/signup-on-behalf.test.ts",
     "test:leaderboard": "npx tsx --test tests/clan-leaderboard.test.ts",
@@ -211,7 +213,8 @@
     "test:startingstatsdb": "npx tsx --test tests/starting-stats-capture.test.ts",
     "test:modestats": "npx tsx --test tests/mode-stats.test.ts",
     "test:modeboarddb": "npx tsx --test tests/mode-board-credit-db.test.ts",
-    "test:modehiscoresdb": "npx tsx --test tests/mode-hiscores-db.test.ts"
+    "test:modehiscoresdb": "npx tsx --test tests/mode-hiscores-db.test.ts",
+    "test:supporter-media": "npx tsx --test tests/supporter-media.test.ts tests/supporter-media-db.test.ts"
   },
   "dependencies": {
     "@vercel/blob": "^2.0.1",

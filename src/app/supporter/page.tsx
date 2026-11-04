@@ -28,16 +28,21 @@ type Cell = string | { text: string; soon?: boolean };
  * What each tier gets. A perk that isn't built yet says so: this page must never sell something a
  * buyer can't use today. Flip `soon` off as each phase ships.
  */
-const ROWS: { label: string; cells: [Cell, Cell, Cell, Cell] }[] = [
-  { label: 'Name flair on Anvil', cells: ['—', 'Gold name + star', 'Gradient name', 'Animated gradient'] },
+const ROWS: { label: string; hint?: string; cells: [Cell, Cell, Cell, Cell] }[] = [
+  { label: 'Name flair on Anvil', cells: ['—', 'Gold name + star', 'Pick a gradient', 'Animated, any colours you like'] },
   { label: 'Flair in the plugin panel and on Discord', cells: ['—', 'Gold name + star', 'Gradient name + star', 'Gradient name + star'] },
   { label: 'Gold GZ on clanmates’ drops (plugin)', cells: ['GZ', 'Gold GZ', 'Gold GZ', 'Gold GZ'] },
-  { label: 'Animated avatar and banner', cells: ['—', '—', { text: 'Yes', soon: true }, { text: 'Yes', soon: true }] },
-  { label: 'Display case of your best drops', cells: ['—', { text: '4 slots', soon: true }, { text: '8 slots', soon: true }, { text: '12 slots', soon: true }] },
-  { label: 'Host friend events', cells: ['Join only', { text: '1 · 10 players', soon: true }, { text: '3 · 25 players', soon: true }, { text: 'Unlimited · 50', soon: true }] },
-  { label: 'Head-to-head challenges', cells: ['1 active', '5 active', 'Unlimited', 'Unlimited'] },
-  { label: 'Gift a month to a friend', cells: ['—', '—', { text: '1 a quarter', soon: true }, { text: '1 a month', soon: true }] },
-  { label: 'Early access on beta', cells: ['—', '—', '—', { text: 'Yes', soon: true }] },
+  { label: 'Animated avatar and banner', cells: ['—', '—', 'Yes', 'Yes'] },
+  { label: 'Display case of your best drops', cells: ['—', '4 slots', '8 slots', '12 slots'] },
+  {
+    label: 'Host friend events',
+    hint: 'Run your own small bingo or race for friends, tracked by the plugin like a clan event. Shown as how many you can run at once, and how many players each can have.',
+    cells: ['Join only', { text: '1 at a time · 10 players', soon: true }, { text: '3 at a time · 25 players', soon: true }, { text: 'No limit · 50 players', soon: true }],
+  },
+  {
+    label: 'Head-to-head challenges',
+    hint: 'Challenge a friend one on one: first to a drop, or most kills or XP in a set time. Anvil tracks you both and calls the winner. Just for bragging rights, never for stakes.',
+    cells: ['1 active', '5 active', 'Unlimited', 'Unlimited'] },
 ];
 
 export default async function SupporterPage() {
@@ -75,9 +80,12 @@ export default async function SupporterPage() {
           advantage, nothing random.
         </p>
         {current && (
-          <p className="relative mx-auto mt-4 w-fit rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-[13px]">
-            You&rsquo;re an <SupporterName name={`Anvil ${current.tier.name}`} tier={current.tier.id} style={current.style} className="font-semibold" plain />.
-            Thank you.
+          // One flex row: the flair is an inline-flex box (star + name), which sits on its own bottom
+          // edge instead of the text baseline, so the words around it have to be flex items too.
+          <p className="relative mx-auto mt-4 flex w-fit items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-[13px] leading-5">
+            <span>You&rsquo;re an</span>
+            <SupporterName name={`Anvil ${current.tier.name}`} tier={current.tier.id} style={current.style} className="font-semibold" plain />
+            <span className="-ml-1">. Thank you.</span>
           </p>
         )}
       </header>
@@ -112,7 +120,7 @@ export default async function SupporterPage() {
             {ROWS.map((row) => (
               <tr key={row.label} className="border-t border-card-border">
                 <th scope="row" className="px-4 py-3 font-medium">
-                  {row.label}
+                  {row.hint ? <Hint label={row.label} hint={row.hint} /> : row.label}
                 </th>
                 {row.cells.map((c, i) => {
                   const cell = typeof c === 'string' ? { text: c } : c;
@@ -197,5 +205,25 @@ function TierCard({
         </span>
       )}
     </div>
+  );
+}
+
+/** A row label with its explanation on hover or keyboard focus (CSS only; this page is a server component). */
+function Hint({ label, hint }: { label: string; hint: string }) {
+  return (
+    <span className="group relative inline-flex items-center gap-1.5">
+      <span tabIndex={0} className="cursor-help underline decoration-text-dim decoration-dotted underline-offset-4 outline-none">
+        {label}
+      </span>
+      <span aria-hidden className="grid h-4 w-4 place-items-center rounded-full border border-card-border text-[10px] text-text-dim">
+        ?
+      </span>
+      <span
+        role="tooltip"
+        className="pointer-events-none invisible absolute left-0 top-full z-20 mt-1.5 w-72 rounded-lg border border-card-border bg-background px-3 py-2 text-[12.5px] font-normal leading-snug text-text-muted opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+      >
+        {hint}
+      </span>
+    </span>
   );
 }

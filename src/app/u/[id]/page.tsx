@@ -8,6 +8,10 @@ import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 import SupporterName from '@/components/SupporterName';
 import { supporterForPlayer } from '@/lib/supporter';
+import { profileMediaForPlayer } from '@/lib/profileMedia';
+import { displayCaseForPlayer } from '@/lib/displayCase';
+import { ProfileAvatar, ProfileBanner } from '@/components/ProfileMedia';
+import DisplayCase from '@/components/DisplayCase';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,27 +45,39 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   const person = await apexPerson(id);
   if (!person) notFound();
   // Only reached once apexPerson has said this person chose to be public as one person.
-  const supporter = await supporterForPlayer(id);
+  // Their own pictures and display case (Anvil Supporter), gated by tier on read. This IS their
+  // profile page, so the pictures may move; only shared characters' pins are shown.
+  const [supporter, media, showcase] = await Promise.all([
+    supporterForPlayer(id),
+    profileMediaForPlayer(id),
+    displayCaseForPlayer(id, { publicView: true }),
+  ]);
 
   const week = person.characters.reduce((n, c) => n + c.xpThisWeek, 0);
   const tracked = person.characters.filter((c) => c.overallXp != null).length;
 
   return (
     <div className="mx-auto w-full max-w-3xl">
+      {media.banner && <ProfileBanner banner={media.banner} className="mb-5" />}
       <header className="relative mb-8 overflow-hidden">
         <AnvilMark
           size={180}
           className="pointer-events-none absolute -top-8 right-0 hidden text-gold/[0.04] sm:block"
         />
         {/* Their primary shared RSN. The Discord display name used to be the page's h1 and its title. */}
-        <h1 className="display display-lg relative text-[clamp(1.7rem,4vw,2.2rem)] font-semibold">
-          <SupporterName name={person.label} tier={supporter?.tier.id} style={supporter?.style} />
-        </h1>
+        <div className="relative flex items-center gap-3.5">
+          <ProfileAvatar avatar={media.avatar} size={64} eager className="border-2 border-gold/45" />
+          <h1 className="display display-lg text-[clamp(1.7rem,4vw,2.2rem)] font-semibold">
+            <SupporterName name={person.label} tier={supporter?.tier.id} style={supporter?.style} />
+          </h1>
+        </div>
         <p className="relative mt-2 text-[14.5px] text-text-muted">
           {person.characters.length} shared {person.characters.length === 1 ? 'character' : 'characters'}
           {week > 0 && <> · {compact(week)} XP this week</>}
         </p>
       </header>
+
+      <DisplayCase entries={showcase} className="mb-8" />
 
       <ul className="flex flex-col gap-2.5">
         {person.characters.map((c) => (
