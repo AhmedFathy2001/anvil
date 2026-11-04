@@ -24,8 +24,10 @@ export function eventRailGroups(opts: {
   taskNounPlural?: string;
   /** False when the clan has the post-event survey switched off (Admin → Features). */
   surveyOn?: boolean;
+  /** For an admin: a way back to the space's / clan's own settings ("Space settings"), where `!join` lives. */
+  homeSettingsLabel?: string | null;
 }): SidebarGroup[] {
-  const { eventId, stage, counts, tilesOnly, moneyOnly, taskNounPlural = 'tiles', surveyOn = true } = opts;
+  const { eventId, stage, counts, tilesOnly, moneyOnly, taskNounPlural = 'tiles', surveyOn = true, homeSettingsLabel } = opts;
   const base = `/admin/events/${eventId}`;
 
   const tiles = {
@@ -85,6 +87,7 @@ export function eventRailGroups(opts: {
     items: [
       { href: '/admin/events', label: 'All events', icon: '↩' },
       { href: `/events/${eventId}`, label: 'Player view', icon: '↗' },
+      ...(homeSettingsLabel ? [{ href: '/admin/clan', label: homeSettingsLabel, icon: '⚙' }] : []),
     ],
   };
 

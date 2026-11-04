@@ -17,6 +17,10 @@ import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
 import { clanHref } from '@/lib/clanPath';
 import { requireEventForPage } from '@/lib/eventScope';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { db } from '@/db';
+import { clans } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,6 +94,7 @@ export default async function EventLayout({
     moneyOnly: isBoardTreasurer,
     taskNounPlural: nounPlural,
     surveyOn: (await getClanFeatures(event.clanId)).on('survey'),
+    homeSettingsLabel: await homeSettingsLabelFor(session?.role, event.clanId),
   });
 
   return (
@@ -162,4 +167,12 @@ export default async function EventLayout({
       </div>
     </div>
   );
+}
+
+/** "Space settings" / "Clan settings" in the event rail, for an admin only (the page rejects anyone else). */
+async function homeSettingsLabelFor(role: string | null | undefined, clanId: number): Promise<string | null> {
+  if (!atLeast(role, 'admin')) return null;
+  // clan-scope: this clan -- the event's own clan, for its kind.
+  const clan = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true } });
+  return isCreatorSpace(clan) ? 'Space settings' : 'Clan settings';
 }

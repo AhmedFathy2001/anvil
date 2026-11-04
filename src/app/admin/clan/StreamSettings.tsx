@@ -203,7 +203,7 @@ export default function StreamingSettings() {
           <KickChannel />
           <StreamHighlightsSettings />
 
-          <section className="rounded-xl border border-card-border bg-card-bg p-5">
+          <section id="chat-join" className="scroll-mt-20 rounded-xl border border-card-border bg-card-bg p-5">
             <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">
               <span className="h-5 w-1 rounded-full bg-gold" />
               <code className="text-gold">!join</code> in Twitch chat
