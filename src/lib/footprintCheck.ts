@@ -296,8 +296,9 @@ async function saveSignals(eventId: number, found: Signal[]): Promise<void> {
  * event's window, through a plugin whose login doesn't own it (lib/accountSightings records those
  * per UTC day). What a booster's own RuneLite looks like, and also what a shared family PC looks
  * like: a reason for this event's staff to take a look (the integrity panel, staff-only), never a
- * penalty. One signal per (event, player, other login); its detail carries how many days and
- * whether the account hash confirmed it, and stays current while staff haven't dismissed it.
+ * penalty. Only sightings whose hash matched the account's anchored one count. One signal per
+ * (event, player, other login); its detail carries how many days, and stays current while staff
+ * haven't dismissed it.
  */
 export async function raiseOtherLoginSignals(
   eventId: number,
@@ -326,6 +327,8 @@ export async function raiseOtherLoginSignals(
     .innerJoin(users, eq(users.id, accountSightingDays.userId))
     .where(and(
       inArray(accountSightingDays.accountId, [...byAccount.keys()]),
+      // Hash-confirmed only: a name, or a hash nobody can check, must never flag anyone.
+      eq(accountSightingDays.hashMatched, 1),
       gte(accountSightingDays.day, startIso.slice(0, 10)),
       ...(endIso ? [lte(accountSightingDays.day, endIso.slice(0, 10))] : []),
     ));

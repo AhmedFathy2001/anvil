@@ -1396,10 +1396,9 @@ async function rememberPluginObservation(
  * (lib/pluginForeign); the sighting is what the owner's settings and the event fair-play check read
  * (lib/accountSightings, lib/footprintCheck).
  *
- * Only with a hash in hand. A hash equal to the account's anchor is the character really logged in
- * on that client (hashMatched). An account with no anchor yet can only be matched by name, so that
- * sighting is kept as the weaker kind. A hash that differs from the anchor is not this character at
- * all — a stale name or a forged header — and says nothing.
+ * ONLY when the play's hash equals the one anchored on the account. Both of those surfaces name or
+ * flag somebody, and a name is free: on a bare RSN (or a made-up hash for an account with none on
+ * record) anyone could pin a stranger's character on somebody else. The anchored hash is not public.
  */
 async function noteForeignPlay(
   account: { id: number; playerId: number | null; accountHash: string | null },
@@ -1407,11 +1406,10 @@ async function noteForeignPlay(
   accountHash: string | null,
   nowIso: string,
 ): Promise<void> {
-  if (!accountHash) return;
-  if (account.accountHash && account.accountHash !== accountHash) return;
+  if (!accountHash || !account.accountHash || account.accountHash !== accountHash) return;
   const me = await personOf(userId);
   if (me != null && account.playerId === me) return;
-  await recordForeignSighting(account.id, userId, account.accountHash === accountHash, nowIso);
+  await recordForeignSighting(account.id, userId, true, nowIso);
 }
 
 /**

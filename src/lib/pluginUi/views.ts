@@ -21,7 +21,7 @@ import { ttlMemo } from '@/lib/ttlMemo';
 import { loadPlayerCard } from '@/lib/playerCard';
 import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
 import { pluginCharacterRefusal } from '@/lib/pluginForeign';
-import { fileOwnershipClaim, myClaimOn } from '@/lib/ownershipClaims';
+import { checkOwnershipClaim, myClaimOn, startOwnershipClaim } from '@/lib/ownershipClaims';
 import { pluginClaimCaller } from '@/lib/pluginClaimCaller';
 import { buildEnrolledConfig } from '@/lib/pluginConfigEnrolled';
 import type { PanelTile } from '@/lib/pluginPanel';
@@ -94,43 +94,50 @@ async function playerView(request: Request, rsn: string): Promise<View> {
 
 /**
  * The played character belongs to another Anvil player: say so, and offer "This is my account" (an
- * ownership claim, lib/ownershipClaims) — or show where an earlier claim stands. Never names the owner.
+ * ownership claim, lib/ownershipClaims) — or show where an earlier claim stands, with "Check" while
+ * its XP check is running. Never names the owner.
  */
 async function ownershipCard(request: Request, note: string | null = null): Promise<Node | null> {
   const viewer = await verifyPluginTokenUser(request);
   const me = playedCharacter(request);
   if (!viewer || !me || (await accountStanding(viewer.userId, me)) !== 'other') return null;
   const claim = await myClaimOn(viewer.userId, me);
-  const live = claim && (claim.status === 'open' || claim.status === 'approved');
+  const inFlight = claim && (claim.status === 'verifying' || claim.status === 'open' || claim.status === 'approved');
+  const withStaff = claim && (claim.status === 'staff' || claim.status === 'objected' || claim.status === 'declined');
   return card([
     text(`${me.rsn} belongs to another Anvil player`, 'brand'),
     gap(2),
     muted('Nothing is sent for it from this login: no drops, progress or proofs.', { wrap: true }),
-    ...(claim ? [gap(4), text(claim.line, live ? 'progress' : 'muted', { wrap: true })] : []),
+    ...(claim ? [gap(4), text(claim.line, inFlight ? 'progress' : 'muted', { wrap: true })] : []),
     ...(note ? [gap(4), text(note, 'error', { wrap: true })] : []),
-    ...(!live
-      ? [
-          gap(6),
-          button(
-            'This is my account',
-            { a: 'post', act: 'ownership-claim' },
-            'Ask for it: the current owner is told and can object, and you can withdraw it on the site',
-          ),
-        ]
-      : []),
+    ...(claim?.status === 'verifying'
+      ? [gap(6), button('Check', { a: 'post', act: 'ownership-check', args: { id: String(claim.id) } }, 'Read the hiscores again')]
+      : !inFlight && !withStaff
+        ? [
+            gap(6),
+            button(
+              'This is my account',
+              { a: 'post', act: 'ownership-claim' },
+              'Prove it with a quick XP check; then the current owner (or Anvil staff) is asked',
+            ),
+          ]
+        : []),
   ]);
 }
 
 /** "This is my account" from the panel: the same claim as the account row's "It's mine". */
-async function ownershipClaimAct(request: Request): Promise<View> {
+async function ownershipClaimAct(request: Request, act: string, args: Args): Promise<View> {
   const viewer = await verifyPluginTokenUser(request);
   const me = playedCharacter(request);
   if (!viewer || !me) return message('Log in to the character first.');
-  const rl = await rateLimit(request, `plugin-ownership-claim:${viewer.userId}`, { limit: 10, windowMs: 10 * 60_000 });
+  const rl = await rateLimit(request, `plugin-ownership-claim:${viewer.userId}`, { limit: 20, windowMs: 10 * 60_000 });
   if (!rl.ok) return youView(request, 'Too many requests — try again in a few minutes.');
-  const out = await fileOwnershipClaim({ userId: viewer.userId, character: me });
-  // A claim Anvil can't weigh on its own goes to staff from the account row's "It's mine"; here it
-  // just says why.
+  if (act === 'ownership-check') {
+    const id = Number(args.id);
+    const out = Number.isInteger(id) && id > 0 ? await checkOwnershipClaim({ claimId: id, userId: viewer.userId }) : null;
+    return youView(request, !out ? 'Couldn’t find that claim.' : out.ok ? (out.status === 'verifying' ? out.message : null) : out.error);
+  }
+  const out = await startOwnershipClaim({ userId: viewer.userId, character: me });
   return youView(request, out.ok ? null : out.error);
 }
 
@@ -672,8 +679,8 @@ export async function pluginAct(request: Request, act: string, args: Args, field
 }
 
 async function actFor(request: Request, act: string, args: Args, fields: Args): Promise<View | null> {
-  // The one action a character that isn't this login's may take: asking for it.
-  if (act === 'ownership-claim') return ownershipClaimAct(request);
+  // The one thing a character that isn't this login's may do: ask for it (and run its XP check).
+  if (act === 'ownership-claim' || act === 'ownership-check') return ownershipClaimAct(request, act, args);
   // Every other action is refused for somebody else's character (lib/pluginForeign) — even the ones
   // that are the login's own (a reaction, "I'm going", chat), so nothing is done while on it.
   const foreign = await pluginCharacterRefusal(request, { allowUnclaimed: true }).catch(() => null);

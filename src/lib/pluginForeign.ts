@@ -52,12 +52,20 @@ export async function pluginCharacterRefusal(
   const character = characterOf(request, opts.rsn, opts.accountHash);
   if (!character) return null;
 
-  let standing = await accountStanding(viewer.userId, character);
+  // The hash is client-supplied: it may REFUSE, never ALLOW on its own. The NAME is judged too, so a
+  // hash borrowed from one of this login's own characters can't pass for somebody else's.
+  const [byHashOrName, byName] = await Promise.all([
+    accountStanding(viewer.userId, character),
+    character.accountHash ? accountStanding(viewer.userId, { ...character, accountHash: null }) : null,
+  ]);
+  let standing = byHashOrName;
   if (standing === 'unclaimed' && !opts.allowUnclaimed && character.rsnNormalized === playedCharacter(request)?.rsnNormalized) {
     // The same link a config poll makes (and nothing more when it isn't allowed).
     await resolvePluginMember(request).catch(() => null);
     standing = await accountStanding(viewer.userId, character);
   }
+  // A character by this name that somebody else owns is theirs, whatever hash came with it.
+  if (byName === 'other') standing = 'other';
   switch (standing) {
     case 'yours':
       return null;

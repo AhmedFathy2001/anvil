@@ -2,13 +2,14 @@ import { NextResponse } from 'next/server';
 
 import { verifyUser } from '@/lib/auth';
 import { rateLimitByKey } from '@/lib/rate-limit';
-import { respondToClaim, withdrawClaim } from '@/lib/ownershipClaims';
+import { checkOwnershipClaim, respondToClaim, withdrawClaim } from '@/lib/ownershipClaims';
 
 /**
  * /api/profile/ownership-claims/[id] — answering a "This is my account" claim (lib/ownershipClaims).
  *
  *   POST { action: 'approve' }  the owner: it moves to the claimant (after any live event ends).
- *   POST { action: 'decline' }  the owner: it stays (an objection, in an objection window).
+ *   POST { action: 'decline' }  the owner: it stays for now, and Anvil staff decide (both sides proved it).
+ *   POST { action: 'check' }    the claimant: has the XP check's gain reached the hiscores yet?
  *   POST { action: 'withdraw' } the claimant: never mind.
  *
  * The session is the only authority: the owner must still own the character, the claimant must be
@@ -26,6 +27,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const body = await request.json().catch(() => ({}));
   const action = body?.action;
+  if (action === 'check') {
+    const checked = await checkOwnershipClaim({ claimId, userId: session.userId });
+    if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: checked.status ?? 400 });
+    return NextResponse.json({ ok: true, status: checked.status, message: checked.message });
+  }
   const out =
     action === 'approve' || action === 'decline'
       ? await respondToClaim({ claimId, userId: session.userId, playerId: session.playerId, action })

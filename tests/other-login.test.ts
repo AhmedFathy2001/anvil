@@ -3,15 +3,16 @@
 // The Account Token names a LOGIN; X-RSN / X-Account-Hash name the CHARACTER. These pin:
 //   - the hard rule: a token whose login doesn't own the character can do NOTHING for it — every
 //     plugin write family refuses with one clear message, and nothing is written;
-//   - sightings: recorded per (character, login, UTC day), deduped, hash vs name-only, never for the
-//     owner's own login; the owner's settings only ever name a hash-confirmed one;
+//   - sightings: only a play carrying the account's anchored hash, per (character, login, UTC day),
+//     deduped, never for the owner's own login; a name or a made-up hash records and flags nothing;
 //   - the event fair-play flag: only for a character on a team in the event, only for sightings
 //     inside the event window, upserted (days count), staff dismissal respected, and the integrity
 //     route answers only for the event's own clan;
-//   - "This is my account": a name-only owner → 7-day objection window → transfer (audited, hash
-//     anchored, history kept); an owner with plugin proof → only their yes moves it; an objection
-//     stops it; a live event defers it; rate limits; one open claim per character; the claimant never
-//     sees who the owner is.
+//   - "This is my account": nothing the plugin sends is proof — a claim waits on the XP check, and
+//     nobody is told until it passes. Then: an unverified owner told in-site → 7-day objection window
+//     → transfer (audited, hash never written, history kept); an owner with no login → staff; a
+//     verified owner → only their yes; an objection → staff; a live event defers the move; rate
+//     limits; one claim in flight per character; the claimant never sees who the owner is.
 //
 // Run: TEST_DATABASE_URL=... npx tsx --test tests/other-login.test.ts
 
@@ -37,6 +38,9 @@ let otherClanId: number;
 let n = 0;
 const ids = {} as Record<string, number>;
 const sent: { userId: number; title: string; description: string }[] = [];
+/** XP gained per character since the XP check's baseline (the fake hiscores above). */
+const gain = new Map<string, number>();
+const unranked = new Set<string>();
 
 const day = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
 
@@ -100,9 +104,19 @@ before(async () => {
   F = await import('../src/lib/pluginForeign.ts');
   OC = await import('../src/lib/ownershipClaims.ts');
   accountRoute = await import('../src/app/api/plugin/account/route.ts');
-  OC.claimNotify.send = async (userId, msg) => {
+  OC.claimDeps.dm = async (userId, msg) => {
     sent.push({ userId, ...msg });
     return true;
+  };
+  // The hiscores, as the XP check reads them: a fixed baseline, and `gain` added to every skill.
+  OC.claimDeps.hiscores = async (rsn) => {
+    if (unranked.has(rsn)) return null;
+    const g = gain.get(rsn) ?? 0;
+    const skills: Record<string, { rank: number; level: number; xp: number }> = {};
+    for (const k of ['attack', 'strength', 'defence', 'hitpoints', 'ranged', 'prayer', 'magic', 'cooking', 'woodcutting', 'fletching', 'fishing', 'firemaking', 'crafting', 'smithing', 'mining', 'herblore', 'agility', 'thieving', 'runecraft', 'hunter', 'construction']) {
+      skills[k] = { rank: 1, level: 50, xp: 100_000 + g };
+    }
+    return { skills } as never;
   };
   const [clan] = await db.insert(s.clans).values({ slug: 'afk', name: 'The AFK Spot', inGameName: 'AFK' }).returning();
   clanId = clan.id;
@@ -144,11 +158,11 @@ test('another login playing a claimed character: nothing resolves, one sighting 
   assert.equal(after.length, 1);
 });
 
-test('name-only sightings are kept as the weaker kind; a mismatched hash or none is not a sighting', async () => {
+test('only a hash-matched play is a sighting: a name, a made-up hash or none records and flags nothing', async () => {
   const nameOnly = await character(owner, 'Name Only', null, 'stat_delta');
   await play(sibling.token, 'Name Only', 'h-whatever');
-  const [row] = await db.select().from(s.accountSightingDays).where(eq(s.accountSightingDays.accountId, nameOnly.accountId));
-  assert.equal(row.hashMatched, 0);
+  assert.equal((await db.select().from(s.accountSightingDays).where(eq(s.accountSightingDays.accountId, nameOnly.accountId))).length, 0);
+  assert.equal((await db.select().from(s.accountSightings).where(eq(s.accountSightings.accountId, nameOnly.accountId))).length, 0);
 
   const anchored = await character(owner, 'Anchored', 'h-anchored');
   await play(sibling.token, 'Anchored', 'h-not-it');
@@ -283,6 +297,15 @@ test('the refusal also covers a character this login let go of, and one linked t
   assert.equal(await F.pluginCharacterRefusal(new Request('https://example.test/x', { headers: { Authorization: `Bearer ${brother.token}` } })), null);
 });
 
+test('the hash can refuse but never allow: a borrowed hash of your own character is still refused', async () => {
+  const borrower = await login();
+  await play(borrower.token, 'Own Alt', 'h-own-alt');
+  assert.equal(await F.pluginCharacterRefusal(req('/x', headers(borrower.token, 'Own Alt', 'h-own-alt'))), null);
+  // Somebody else's character by name, with this login's own hash attached.
+  const r = await F.pluginCharacterRefusal(req('/x', headers(borrower.token, 'Main Guy', 'h-own-alt')));
+  assert.equal(r?.reason, 'foreign-character');
+});
+
 // ── Event fair-play flag ───────────────────────────────────────────────────────────────────────
 
 test('fair-play: a team player in the running event, played by another login inside the window, is flagged', async () => {
@@ -303,8 +326,13 @@ test('fair-play: a team player in the running event, played by another login ins
   await db.insert(s.accountSightingDays).values({ accountId: main.accountId, userId: sibling.userId, day: day(1).slice(0, 10), hashMatched: 1, firstAt: day(1), lastAt: day(1) });
   await FC.raiseOtherLoginSignals(ids.event, window, players);
   const rows = await db.select().from(s.integritySignals).where(eq(s.integritySignals.eventId, ids.event));
-  assert.equal(rows.length, 1);
+  assert.equal(rows.filter((r) => r.kind === `other_login:${sibling.userId}`).length, 1);
   assert.equal(JSON.parse(rows[0].detail!).days, 2);
+  // A name-only day row (should one ever exist) flags nobody.
+  const other = await login('Name Spoofer');
+  await db.insert(s.accountSightingDays).values({ accountId: main.accountId, userId: other.userId, day: day(0).slice(0, 10), hashMatched: 0, firstAt: day(0), lastAt: day(0) });
+  await FC.raiseOtherLoginSignals(ids.event, window, players);
+  assert.equal((await db.select().from(s.integritySignals).where(eq(s.integritySignals.kind, `other_login:${other.userId}`))).length, 0);
   // ...unless staff marked it fine.
   await db.update(s.integritySignals).set({ dismissedAt: 'x', detail: 'kept' }).where(eq(s.integritySignals.id, rows[0].id));
   await FC.raiseOtherLoginSignals(ids.event, window, players);
@@ -338,88 +366,137 @@ test('fair-play: the integrity list answers only through the event’s own clan'
 
 // ── "This is my account" ───────────────────────────────────────────────────────────────────────
 
-test('claim on a name-only owner: owner told, 7-day window, then it moves (audited, history kept)', async () => {
+/** Start a claim from the plugin, gain the XP, press Check. */
+async function proveClaim(who: Login, rsn: string, hash: string | null = null) {
+  const started = await claimViaPlugin(who, rsn, hash);
+  assert.equal(started.status, 200, JSON.stringify(started.body));
+  const claim = (await OC.myOwnershipClaims(who.userId)).find((c) => c.rsn === rsn)!;
+  gain.set(rsn, 1500);
+  const checked = await OC.checkOwnershipClaim({ claimId: claim.id, userId: who.userId });
+  gain.delete(rsn);
+  return { started, claim, checked };
+}
+
+const claimRow = async (id: number) => (await db.select().from(s.accountOwnershipClaims).where(eq(s.accountOwnershipClaims.id, id)))[0];
+
+test('a spoofed hash proves nothing: the claim waits on the XP check, nobody is told, nothing moves', async () => {
+  const faker = await login('Faker Fred');
+  const target = await character(owner, 'Hash Bait', 'h-bait', 'plugin');
+  sent.length = 0;
+  // Even sending the character's REAL anchored hash only starts the XP check.
+  const r = await claimViaPlugin(faker, 'Hash Bait', 'h-bait');
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.status, 'verifying');
+  assert.match(r.body.message, /XP/);
+  const [claim] = await db.select().from(s.accountOwnershipClaims).where(eq(s.accountOwnershipClaims.accountId, target.accountId));
+  assert.equal(claim.status, 'verifying');
+  assert.equal(claim.mode, null);
+  assert.equal((await db.select().from(s.userNotices).where(eq(s.userNotices.userId, owner.userId))).length, 0, 'the owner isn’t told yet');
+  assert.equal(sent.length, 0);
+  assert.equal((await OC.claimsOnMyCharacters(owner.person)).some((c) => c.id === claim.id), false);
+  // The owner can't even see or answer it.
+  assert.equal((await OC.respondToClaim({ claimId: claim.id, userId: owner.userId, playerId: owner.person, action: 'approve' })).ok, false);
+
+  // No XP gained: Check keeps waiting; time passes: it expires; nothing ever moved.
+  const pending = await OC.checkOwnershipClaim({ claimId: claim.id, userId: faker.userId });
+  assert.equal(pending.ok && pending.status, 'verifying');
+  await OC.settleOwnershipClaims(Date.now() + 60 * 86_400_000);
+  assert.equal((await claimRow(claim.id)).status, 'expired');
+  const acct = await accountById(target.accountId);
+  assert.equal(acct.playerId, owner.person);
+  assert.equal(acct.accountHash, 'h-bait');
+});
+
+test('owner unverified and told in-site: XP check → 7-day window → it moves (audited, hash untouched, history kept)', async () => {
   const realOwner = await login('Real Rita');
   const named = await character(owner, 'Rita Main', null, 'stat_delta');
+  await db.update(s.accounts).set({ provisional: 1 }).where(eq(s.accounts.id, named.accountId));
   sent.length = 0;
 
-  const r = await claimViaPlugin(realOwner, 'Rita Main', 'h-rita');
-  assert.equal(r.status, 200, JSON.stringify(r.body));
-  assert.equal(r.body.claim, true);
-  assert.match(r.body.message, /7 days|until/);
-  // Nothing about the owner reaches the claimant.
-  for (const leak of ['Owner Olive', 'Owner Olive#d']) assert.ok(!JSON.stringify(r.body).includes(leak), `leaked ${leak}`);
+  const { started, claim, checked } = await proveClaim(realOwner, 'Rita Main', 'h-claimant-says');
+  for (const leak of ['Owner Olive', 'Owner Olive#d']) assert.ok(!JSON.stringify(started.body).includes(leak) && !JSON.stringify(checked).includes(leak), `leaked ${leak}`);
+  assert.equal(checked.ok && checked.status, 'open');
 
-  const [claim] = await db.select().from(s.accountOwnershipClaims).where(eq(s.accountOwnershipClaims.accountId, named.accountId));
-  assert.equal(claim.mode, 'objection');
-  assert.equal(claim.status, 'open');
-  const deadline = Date.parse(claim.deadlineAt!);
-  assert.ok(Math.abs(deadline - (Date.now() + 7 * 86_400_000)) < 60_000);
-
-  // The owner is told: a DM and the settings list, naming who is asking.
-  await new Promise((r) => setTimeout(r, 50));
-  const dm = sent.find((m) => m.userId === owner.userId);
-  assert.ok(dm && dm.title.includes('Real Rita') && dm.description.includes('Rita Main'), JSON.stringify(sent));
-  const onMine = await OC.claimsOnMyCharacters(owner.person);
-  assert.ok(onMine.some((c) => c.id === claim.id && c.claimantName === 'Real Rita'));
+  const row = await claimRow(claim.id);
+  assert.equal(row.mode, 'objection');
+  assert.ok(row.ownerNoticeId, 'the in-site notice is recorded');
+  assert.ok(Math.abs(Date.parse(row.deadlineAt!) - (Date.now() + 7 * 86_400_000)) < 60_000);
+  const [n] = await db.select().from(s.userNotices).where(eq(s.userNotices.id, row.ownerNoticeId!));
+  assert.equal(n.userId, owner.userId);
+  assert.ok(n.title.includes('Real Rita') && n.body.includes('Rita Main'));
+  assert.ok(sent.some((m) => m.userId === owner.userId), 'and a DM is attempted');
+  assert.ok((await OC.claimsOnMyCharacters(owner.person)).some((c) => c.id === claim.id && c.claimantName === 'Real Rita'));
 
   // Until it moves, the claimant still can't act for it.
-  const still = await F.pluginCharacterRefusal(req('/x', headers(realOwner.token, 'Rita Main', 'h-rita')));
-  assert.equal(still?.reason, 'foreign-character');
-  // Pressing again is the same claim, not a second one.
-  const again = await claimViaPlugin(realOwner, 'Rita Main', 'h-rita');
-  assert.equal(again.body.alreadyOpen, true);
+  assert.equal((await F.pluginCharacterRefusal(req('/x', headers(realOwner.token, 'Rita Main', null))))?.reason, 'foreign-character');
+  assert.equal((await claimViaPlugin(realOwner, 'Rita Main', null)).body.alreadyOpen, true, 'one claim, not one per click');
 
-  // Before the deadline the sweep leaves it; after, it moves.
   await OC.settleOwnershipClaims(Date.now() + 6 * 86_400_000);
   assert.equal((await accountById(named.accountId)).playerId, owner.person);
   assert.equal(await OC.settleOwnershipClaims(Date.now() + 8 * 86_400_000), 1);
   const moved = await accountById(named.accountId);
   assert.equal(moved.playerId, realOwner.person);
-  assert.equal(moved.accountHash, 'h-rita', 'the claimant’s hash anchors it');
-  assert.equal(moved.verificationMethod, 'plugin');
+  assert.equal(moved.accountHash, null, 'never written from the claimant’s header');
+  assert.equal(moved.verificationMethod, 'stat_delta');
+  assert.equal(moved.provisional, 1, 'an unanswered window still leaves it for a moderator to confirm');
   assert.equal((await db.select().from(s.clanMemberships).where(eq(s.clanMemberships.id, named.seatId))).length, 1, 'the seat (and its history) stays');
-  assert.equal((await db.select().from(s.accountOwnershipClaims).where(eq(s.accountOwnershipClaims.id, claim.id)))[0].status, 'transferred');
-  assert.equal(await F.pluginCharacterRefusal(req('/x', headers(realOwner.token, 'Rita Main', 'h-rita'))), null, 'now theirs to act for');
+  assert.equal((await claimRow(claim.id)).status, 'transferred');
+  assert.equal(await F.pluginCharacterRefusal(req('/x', headers(realOwner.token, 'Rita Main', null))), null, 'now theirs to act for');
   const marker = await db.query.detectedAccounts.findFirst({ where: and(eq(s.detectedAccounts.userId, owner.userId), eq(s.detectedAccounts.rsnNormalized, 'rita main')) });
   assert.equal(marker?.status, 'released', 'the old owner’s plugin won’t re-link it');
   const audits = (await db.select().from(s.clanAuditLog)).filter((a) => (a.newValue ?? '').includes(`"claimId":${claim.id}`)).map((a) => a.eventType);
-  for (const e of ['ownership_claim_opened', 'ownership_claim_unopposed', 'ownership_claim_transferred']) assert.ok(audits.includes(e), `${e} in ${audits}`);
-  assert.ok(sent.some((m) => m.userId === owner.userId && m.title.includes('moved')), 'the owner is told it moved');
+  for (const e of ['ownership_claim_started', 'ownership_claim_verified', 'ownership_claim_opened', 'ownership_claim_unopposed', 'ownership_claim_transferred']) {
+    assert.ok(audits.includes(e), `${e} in ${audits}`);
+  }
+  assert.ok((await db.select().from(s.userNotices).where(eq(s.userNotices.userId, owner.userId))).some((x) => x.title.includes('moved')), 'the owner is told it moved');
 });
 
-test('an objection stops the move; asking again goes to staff instead', async () => {
+test('an owner with no login can’t be told: it goes to Anvil staff, never a window', async () => {
+  const claimant = await login('Claimant Cleo');
+  const [ghost] = await db.insert(s.players).values({ displayName: 'Ghost' }).returning();
+  const now = new Date().toISOString();
+  const [acct] = await db.insert(s.accounts).values({ playerId: ghost.id, rsn: 'Ghost Main', rsnNormalized: 'ghost main', claimedAt: now }).returning();
+  const { claim, checked } = await proveClaim(claimant, 'Ghost Main');
+  assert.equal(checked.ok && checked.status, 'staff');
+  const row = await claimRow(claim.id);
+  assert.equal(row.mode, 'staff');
+  assert.ok(row.staffReportId);
+  const [report] = await db.select().from(s.characterReports).where(eq(s.characterReports.id, row.staffReportId!));
+  assert.equal(report.kind, 'wrong_owner');
+  assert.equal(report.claimantPlayerId, claimant.person);
+  await OC.settleOwnershipClaims(Date.now() + 30 * 86_400_000);
+  assert.equal((await accountById(acct.id)).playerId, ghost.id, 'staff decide; time never moves it');
+});
+
+test('an objection stops the move and hands it to staff; asking again just says so', async () => {
   const claimant = await login('Claimant Cal');
   const named = await character(owner, 'Cal Main', null, 'manual');
-  const r = await claimViaPlugin(claimant, 'Cal Main', 'h-cal');
-  assert.equal(r.body.claim, true);
-  const [claim] = await db.select().from(s.accountOwnershipClaims).where(eq(s.accountOwnershipClaims.accountId, named.accountId));
+  await db.update(s.accounts).set({ verifiedAt: null }).where(eq(s.accounts.id, named.accountId));
+  const { claim } = await proveClaim(claimant, 'Cal Main');
+  assert.equal((await claimRow(claim.id)).mode, 'objection');
 
   // Only the owner may answer.
   assert.equal((await OC.respondToClaim({ claimId: claim.id, userId: claimant.userId, playerId: claimant.person, action: 'approve' })).ok, false);
-  const out = await OC.respondToClaim({ claimId: claim.id, userId: owner.userId, playerId: owner.person, action: 'decline' });
-  assert.deepEqual(out, { ok: true, status: 'objected' });
+  assert.deepEqual(await OC.respondToClaim({ claimId: claim.id, userId: owner.userId, playerId: owner.person, action: 'decline' }), { ok: true, status: 'objected' });
+  assert.ok((await claimRow(claim.id)).staffReportId, 'with staff');
   await OC.settleOwnershipClaims(Date.now() + 8 * 86_400_000);
   assert.equal((await accountById(named.accountId)).playerId, owner.person, 'stays put');
 
   const mine = await OC.myOwnershipClaims(claimant.userId);
   assert.equal(mine[0].status, 'objected');
   assert.ok(!JSON.stringify(mine).includes('Owner Olive'));
-
-  const reportsBefore = (await db.select().from(s.characterReports)).length;
-  const again = await claimViaPlugin(claimant, 'Cal Main', 'h-cal');
+  const again = await claimViaPlugin(claimant, 'Cal Main', null);
   assert.equal(again.body.claim, false);
-  assert.equal((await db.select().from(s.characterReports)).length, reportsBefore + 1, 'filed with staff');
+  assert.equal((await db.select().from(s.accountOwnershipClaims).where(eq(s.accountOwnershipClaims.accountId, named.accountId))).length, 1);
 });
 
-test('an owner with plugin proof: only their yes moves it, and a live event defers the move', async () => {
+test('a verified owner: only their yes moves it, and a live event defers the move', async () => {
   const claimant = await login('Proof Pat');
   const proven = await character(owner, 'Proven Main', 'h-proven', 'plugin');
-  const r = await claimViaPlugin(claimant, 'Proven Main', 'h-proven');
-  assert.equal(r.body.claim, true);
-  const [claim] = await db.select().from(s.accountOwnershipClaims).where(eq(s.accountOwnershipClaims.accountId, proven.accountId));
-  assert.equal(claim.mode, 'approval');
-  assert.equal(claim.deadlineAt, null);
+  const { claim } = await proveClaim(claimant, 'Proven Main', 'h-proven');
+  const row = await claimRow(claim.id);
+  assert.equal(row.mode, 'approval');
+  assert.equal(row.deadlineAt, null);
 
   await OC.settleOwnershipClaims(Date.now() + 60 * 86_400_000);
   assert.equal((await accountById(proven.accountId)).playerId, owner.person, 'no window: time alone never moves it');
@@ -428,53 +505,52 @@ test('an owner with plugin proof: only their yes moves it, and a live event defe
   const ev = (await db.insert(s.events).values({ clanId, name: 'Live', boardSize: 3, startDate: day(-1), endDate: day(2) }).returning())[0].id;
   const team = (await db.insert(s.teams).values({ eventId: ev, name: 'T', color: '#fff' }).returning())[0].id;
   await db.insert(s.eventParticipants).values({ eventId: ev, clanMemberId: proven.seatId, accountId: proven.accountId, name: 'Proven Main', teamId: team });
-  const yes = await OC.respondToClaim({ claimId: claim.id, userId: owner.userId, playerId: owner.person, action: 'approve' });
-  assert.deepEqual(yes, { ok: true, status: 'approved' });
+  assert.deepEqual(await OC.respondToClaim({ claimId: claim.id, userId: owner.userId, playerId: owner.person, action: 'approve' }), { ok: true, status: 'approved' });
   assert.equal((await accountById(proven.accountId)).playerId, owner.person);
 
   await db.update(s.events).set({ endDate: day(-1) }).where(eq(s.events.id, ev));
   assert.equal(await OC.settleOwnershipClaims(), 1);
-  assert.equal((await accountById(proven.accountId)).playerId, claimant.person);
-  assert.equal((await accountById(proven.accountId)).accountHash, 'h-proven');
+  const moved = await accountById(proven.accountId);
+  assert.equal(moved.playerId, claimant.person);
+  assert.equal(moved.provisional, 0, 'the owner’s yes is the vouch');
+  assert.equal(moved.accountHash, 'h-proven', 'the hash on record is the account’s, untouched');
 });
 
-test('claims Anvil can’t weigh go to staff: no hash, or a hash that isn’t the one on record', async () => {
+test('an unranked character can’t run the XP check: staff instead', async () => {
   const claimant = await login();
-  await character(owner, 'Hashed Main', 'h-real-one', 'plugin');
+  await character(owner, 'Unranked Guy', null, 'stat_delta');
+  unranked.add('Unranked Guy');
   const before = (await db.select().from(s.characterReports)).length;
-  const noHash = await claimViaPlugin(claimant, 'Hashed Main', null);
-  assert.equal(noHash.body.claim, false);
-  const wrong = await claimViaPlugin(claimant, 'Hashed Main', 'h-something-else');
-  assert.equal(wrong.body.claim, false);
-  assert.equal((await db.select().from(s.characterReports)).length, before + 1, 'one open report, not two');
+  const r = await claimViaPlugin(claimant, 'Unranked Guy', 'h-anything');
+  assert.equal(r.body.claim, false, JSON.stringify(r));
+  assert.equal((await db.select().from(s.characterReports)).length, before + 1);
   assert.equal((await db.select().from(s.accountOwnershipClaims).where(eq(s.accountOwnershipClaims.claimantUserId, claimant.userId))).length, 0);
 });
 
-test('one open claim per character, a daily limit per login, and no owner identity either way', async () => {
+test('one claim in flight per character, a daily limit per login, and no owner identity either way', async () => {
   const first = await login('First Fay');
   const second = await login('Second Sid');
   await character(owner, 'Contested', null, 'stat_delta');
-  assert.equal((await claimViaPlugin(first, 'Contested', 'h-contested')).body.claim, true);
-  const taken = await claimViaPlugin(second, 'Contested', 'h-contested');
+  assert.equal((await claimViaPlugin(first, 'Contested', null)).body.claim, true);
+  const taken = await claimViaPlugin(second, 'Contested', null);
   assert.equal(taken.status, 409);
   assert.ok(!JSON.stringify(taken.body).includes('Owner Olive') && !JSON.stringify(taken.body).includes('First Fay'));
 
   const greedy = await login('Greedy Gus');
   for (let i = 0; i < OC.CLAIMS_PER_DAY; i++) {
     await character(owner, `Spare ${i}`, null, 'stat_delta');
-    assert.equal((await claimViaPlugin(greedy, `Spare ${i}`, `h-spare-${i}`)).body.claim, true);
+    assert.equal((await claimViaPlugin(greedy, `Spare ${i}`, null)).body.claim, true);
   }
   await character(owner, 'Spare X', null, 'stat_delta');
-  const limited = await claimViaPlugin(greedy, 'Spare X', 'h-spare-x');
-  assert.equal(limited.status, 429);
+  assert.equal((await claimViaPlugin(greedy, 'Spare X', null)).status, 429);
 
-  // A withdrawn claim closes, and only its claimant may withdraw it.
+  // A claim closes on withdraw, and only its claimant may withdraw it.
   const mine = await OC.myOwnershipClaims(greedy.userId);
   assert.equal((await OC.withdrawClaim({ claimId: mine[0].id, userId: first.userId })).ok, false);
   assert.deepEqual(await OC.withdrawClaim({ claimId: mine[0].id, userId: greedy.userId }), { ok: true, status: 'withdrawn' });
 });
 
-test('the plugin panel shows the claim state and offers "This is my account" on somebody else’s character', async () => {
+test('the plugin panel shows the claim state: "This is my account", then the XP check and Check', async () => {
   const ui = await import('../src/app/api/plugin/ui/route.ts');
   const viewer = await login('Panel Pam');
   await character(owner, 'Panel Main', null, 'stat_delta');
@@ -487,9 +563,16 @@ test('the plugin panel shows the claim state and offers "This is my account" on 
   assert.ok(before.includes('"act":"ownership-claim"'));
   assert.ok(!before.includes('Owner Olive'));
 
-  const res = await ui.POST(req('/api/plugin/ui', h, { act: 'ownership-claim' }));
-  const after = JSON.stringify(await res.json());
-  assert.ok(after.includes('Your claim on Panel Main is open'), after);
-  assert.ok(!after.includes('This is my account'), 'no second button while one is open');
+  const after = JSON.stringify(await (await ui.POST(req('/api/plugin/ui', h, { act: 'ownership-claim' }))).json());
+  assert.ok(after.includes('XP on it'), after);
+  assert.ok(after.includes('"act":"ownership-check"'), 'a Check button while the XP check runs');
+  assert.ok(!after.includes('This is my account'));
   assert.ok(!after.includes('Owner Olive'));
+
+  const claimId = (await OC.myOwnershipClaims(viewer.userId))[0].id;
+  gain.set('Panel Main', 2000);
+  const checked = JSON.stringify(await (await ui.POST(req('/api/plugin/ui', h, { act: 'ownership-check', args: { id: String(claimId) } }))).json());
+  gain.delete('Panel Main');
+  assert.ok(checked.includes('You proved Panel Main'), checked);
+  assert.ok(!checked.includes('Owner Olive'));
 });

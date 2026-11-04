@@ -65,7 +65,7 @@ export const SIGHTING_DAY_REFRESH_MS = 60 * 60 * 1000;
 
 /**
  * The per-day row the event fair-play check reads (lib/footprintCheck): at most one per (character,
- * login, UTC day), its `lastAt` refreshed at most hourly, a hash match sticky for the day.
+ * login, UTC day), its `lastAt` refreshed at most hourly. Callers record only hash-matched plays.
  */
 async function recordSightingDay(accountId: number, userId: number, hashMatched: boolean, nowIso: string): Promise<void> {
   const day = nowIso.slice(0, 10);

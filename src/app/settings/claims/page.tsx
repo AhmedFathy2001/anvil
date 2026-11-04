@@ -1,46 +1,52 @@
 import { verifyUser } from '@/lib/auth';
-import { claimsOnMyCharacters, myOwnershipClaims, OBJECTION_DAYS } from '@/lib/ownershipClaims';
+import { claimsOnMyCharacters, myOwnershipClaims, noticesFor, OBJECTION_DAYS } from '@/lib/ownershipClaims';
 import { ActionButton } from '../_client';
 import { Pill, SettingsGroup, SettingsRow, SettingsTitle } from '../_ui';
 
 function day(iso: string | null): string {
   if (!iso) return '';
-  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const ms = Date.parse(iso.includes('T') ? iso : `${iso.replace(' ', 'T')}Z`);
+  return Number.isNaN(ms) ? '' : new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
 const CLOSED_LABEL: Record<string, string> = {
   transferred: 'moved to you',
-  objected: 'owner objected',
-  declined: 'owner declined',
+  objected: 'with Anvil staff',
+  declined: 'with Anvil staff',
+  staff: 'with Anvil staff',
   withdrawn: 'withdrawn',
+  expired: 'check timed out',
   lapsed: 'closed',
 };
 
 /**
- * /settings/claims — "This is my account" claims (lib/ownershipClaims), from both sides.
+ * /settings/claims — "This is my account" claims (lib/ownershipClaims), from both sides, and the
+ * notices Anvil left about them.
  *
- * On YOUR characters: somebody's plugin is logged into one and they say it's theirs. You see who is
- * asking and answer here. Asked FROM your plugin: where your claim stands — never who the owner is.
+ * On YOUR characters: somebody proved control of one with the XP check and says it's theirs. You see
+ * who is asking and answer here. Asked by YOU: where your claim stands — never who the owner is.
  */
 export default async function OwnershipClaimsPage() {
   const session = (await verifyUser())!;
-  const [onMine, mine] = await Promise.all([
+  const [onMine, mine, notices] = await Promise.all([
     session.playerId ? claimsOnMyCharacters(session.playerId) : Promise.resolve([]),
     myOwnershipClaims(session.userId),
+    noticesFor(session.userId),
   ]);
 
   return (
     <>
       <SettingsTitle title="Ownership claims">
-        When somebody&rsquo;s RuneLite plugin is logged into a character linked to another Anvil account, they can say it&rsquo;s
-        theirs. Nothing moves without the owner being told, and everything a character earned stays where it was recorded.
+        When a character is linked to another Anvil account, its real owner can claim it: they prove control with a quick XP check, and
+        only then is the current owner asked. Nothing moves without the owner being told, and everything a character earned stays where it
+        was recorded.
       </SettingsTitle>
 
       <SettingsGroup
         title="Claims on your characters"
         note={
           onMine.length > 0
-            ? `A character linked by name only moves after ${OBJECTION_DAYS} days unless you object. One your own plugin proved moves only if you approve.`
+            ? `A character you never verified moves after ${OBJECTION_DAYS} days unless you object. One you verified moves only if you approve. Saying no hands it to Anvil staff.`
             : null
         }
       >
@@ -60,7 +66,7 @@ export default async function OwnershipClaimsPage() {
                 )}
               </>
             }
-            description={`${c.claimantName}’s plugin is logged into ${c.rsn} and says it’s theirs (asked ${day(c.createdAt)}).`}
+            description={`${c.claimantName} proved control of ${c.rsn} with Anvil’s XP check and says it’s theirs.`}
           >
             {c.status === 'open' && (
               <div className="flex gap-2">
@@ -69,7 +75,7 @@ export default async function OwnershipClaimsPage() {
                   body={{ action: 'decline' }}
                   confirm={{
                     title: `Keep ${c.rsn}?`,
-                    body: `${c.rsn} stays on your account and ${c.claimantName}’s claim closes. If they still think it’s theirs they can ask Anvil staff.`,
+                    body: `${c.rsn} stays on your account for now and Anvil staff look at both sides — ${c.claimantName} proved control of it too.`,
                     confirmLabel: c.mode === 'objection' ? 'Object' : 'Decline',
                   }}
                 >
@@ -97,36 +103,65 @@ export default async function OwnershipClaimsPage() {
         {mine.length === 0 && (
           <SettingsRow
             label="You haven’t claimed any character."
-            description="Logged into a character the plugin says belongs to another Anvil player? Press “This is my account” in the plugin’s side panel."
+            description="Logged into a character the plugin says belongs to another Anvil player? Press “This is my account” in the plugin’s side panel (You tab)."
           />
         )}
-        {mine.map((c) => (
-          <SettingsRow
-            key={c.id}
-            label={
-              <>
-                {c.rsn}
-                {c.status === 'open' || c.status === 'approved' ? (
-                  <Pill tone="yellow">open</Pill>
-                ) : (
-                  <Pill tone={c.status === 'transferred' ? 'green' : 'muted'}>{CLOSED_LABEL[c.status] ?? c.status}</Pill>
-                )}
-              </>
-            }
-            description={c.line}
-          >
-            {(c.status === 'open' || c.status === 'approved') && (
-              <ActionButton
-                url={`/api/profile/ownership-claims/${c.id}`}
-                body={{ action: 'withdraw' }}
-                confirm={{ title: `Withdraw your claim on ${c.rsn}?`, body: 'The current owner keeps it.', confirmLabel: 'Withdraw' }}
-              >
-                Withdraw
-              </ActionButton>
-            )}
-          </SettingsRow>
-        ))}
+        {mine.map((c) => {
+          const live = c.status === 'verifying' || c.status === 'open' || c.status === 'approved';
+          return (
+            <SettingsRow
+              key={c.id}
+              label={
+                <>
+                  {c.rsn}
+                  {c.status === 'verifying' ? (
+                    <Pill tone="yellow">XP check</Pill>
+                  ) : live ? (
+                    <Pill tone="yellow">open</Pill>
+                  ) : (
+                    <Pill tone={c.status === 'transferred' ? 'green' : 'muted'}>{CLOSED_LABEL[c.status] ?? c.status}</Pill>
+                  )}
+                </>
+              }
+              description={c.line}
+            >
+              {live && (
+                <div className="flex gap-2">
+                  {c.status === 'verifying' && (
+                    <ActionButton url={`/api/profile/ownership-claims/${c.id}`} body={{ action: 'check' }}>
+                      Check
+                    </ActionButton>
+                  )}
+                  <ActionButton
+                    url={`/api/profile/ownership-claims/${c.id}`}
+                    body={{ action: 'withdraw' }}
+                    confirm={{ title: `Withdraw your claim on ${c.rsn}?`, body: 'The current owner keeps it.', confirmLabel: 'Withdraw' }}
+                  >
+                    Withdraw
+                  </ActionButton>
+                </div>
+              )}
+            </SettingsRow>
+          );
+        })}
       </SettingsGroup>
+
+      {notices.length > 0 && (
+        <SettingsGroup title="Notices">
+          {notices.map((n) => (
+            <SettingsRow
+              key={n.id}
+              label={
+                <>
+                  {n.title}
+                  {n.readAt == null && <Pill tone="gold">new</Pill>}
+                </>
+              }
+              description={`${n.body.replace(/\*\*/g, '')} · ${day(n.createdAt)}`}
+            />
+          ))}
+        </SettingsGroup>
+      )}
     </>
   );
 }

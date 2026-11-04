@@ -11,7 +11,7 @@ import {
 import { accountForCharacter, accountStanding, playedCharacter, type PlayedCharacter } from '@/lib/pluginAccount';
 import { fileCharacterReport } from '@/lib/characterReports';
 import { resolveClanFromRequest } from '@/lib/clanContext';
-import { fileOwnershipClaim } from '@/lib/ownershipClaims';
+import { startOwnershipClaim } from '@/lib/ownershipClaims';
 
 // /api/plugin/account — the sidebar's account row: "is this character mine?", from the plugin.
 //
@@ -89,36 +89,35 @@ export async function POST(request: Request) {
   }
 
   if (action === 'dispute' || action === 'claim') {
-    if (!account || account.claimedAt == null || ours || me == null) {
-      return NextResponse.json({ error: 'This account isn’t linked to anyone else.' }, { status: 409 });
-    }
-    // "This is my account" (the plugin's "It's mine"): an ownership claim the owner is told about —
-    // a 7-day objection window when their claim rests on a name, their explicit yes when their own
-    // plugin proved it (lib/ownershipClaims). The claimant learns nothing about who the owner is.
-    const claim = await fileOwnershipClaim({ userId, character, nowIso });
+    // "This is my account" (the plugin's "It's mine"): an ownership claim (lib/ownershipClaims). It
+    // starts with the XP check — nothing this request carries (its account hash included) is proof —
+    // and only once that's passed is the owner told, or Anvil staff. The claimant learns nothing
+    // about who the owner is. Looked up by NAME there; the hash plays no part.
+    const claim = await startOwnershipClaim({ userId, character, nowIso });
     if (claim.ok) {
       return NextResponse.json({ ok: true, filed: true, claim: true, alreadyOpen: !claim.created, status: claim.status, message: claim.message });
     }
+    if (claim.reason === 'not-other') return NextResponse.json({ error: claim.error }, { status: 409 });
     if (claim.reason === 'taken') return NextResponse.json({ error: claim.error, reason: claim.reason }, { status: 409 });
     if (claim.reason === 'rate-limited') return NextResponse.json({ error: claim.error, reason: claim.reason }, { status: 429 });
-    if (claim.reason === 'not-other') return NextResponse.json({ error: claim.error }, { status: 409 });
-    // Nothing Anvil can weigh on its own (no hash from this client, a hash that isn't the one on
-    // record, or the owner already said no): staff look, as a wrong-owner report with this login as
-    // claimant. The hash itself is a credential and never goes into a report — only yes/no.
-    const hashMatched = !!character.accountHash && account.accountHash === character.accountHash;
+    if (claim.reason === 'cooldown') {
+      return NextResponse.json({ ok: true, filed: true, claim: false, alreadyOpen: true, message: claim.error });
+    }
+    // The XP check can't run (an unranked character, the hiscores down): Anvil staff look, as a
+    // wrong-owner report with this login as claimant — unproved, and it says so.
+    const named = await accountForCharacter({ ...character, accountHash: null });
+    const claimant = await personOf(userId);
+    if (!named || claimant == null) return NextResponse.json({ error: claim.error }, { status: 502 });
     const clan = await resolveClanFromRequest(request).catch(() => null);
     const { created } = await fileCharacterReport({
-      accountId: account.id,
+      accountId: named.id,
       clanId: clan?.id ?? null,
       reportedByUserId: userId,
-      claimantPlayerId: me,
+      claimantPlayerId: claimant,
       kind: 'wrong_owner',
       body:
-        `Raised from the RuneLite plugin: this login says ${character.rsn} is theirs, but it is linked to someone else. ` +
-        (hashMatched
-          ? 'The plugin was logged into the character (account hash matched).'
-          : 'No account-hash match — the name alone was reported.') +
-        (claim.reason === 'cooldown' ? ' The current owner already turned down this person’s ownership claim.' : ''),
+        `Raised from the RuneLite plugin: this login says ${named.rsn} is theirs, but it is linked to someone else. ` +
+        'Not proved: the XP check could not run (hiscores unavailable or unranked).',
     });
     return NextResponse.json({
       ok: true,
