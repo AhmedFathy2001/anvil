@@ -159,7 +159,7 @@ function StatDeltaPath({
   const [rsn, setRsn] = useState(initialRsn);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Set when the name is already somebody else's: the page offers to report it rather than stopping.
+  // Set when the name is already somebody else's: the page offers to claim it rather than stopping.
   const [conflictRsn, setConflictRsn] = useState<string | null>(null);
   const [attempt, setAttempt] = useState<AttemptState | null>(null);
   const [check, setCheck] = useState<CheckResult | null>(null);
@@ -295,7 +295,7 @@ function StatDeltaPath({
         <div className="text-sm text-foreground/80">
           {check.reason === 'expired' && 'The 30-minute window expired. Try again whenever you can play.'}
           {check.reason === 'ownership_conflict' &&
-            'Someone else on Anvil linked this character while you were verifying. If it’s yours, report it below and Anvil staff will sort it out.'}
+            'Someone else on Anvil linked this character while you were verifying. If it’s yours, claim it below.'}
           {!check.reason && 'Try again or use the plugin path.'}
         </div>
         {check.reason === 'ownership_conflict' && <ReportConflict rsn={attempt.rsn} />}
@@ -368,30 +368,32 @@ function StatDeltaPath({
 }
 
 /**
- * "This is my character — report it". The way out of "somebody else has linked it": files a
- * wrong-owner report with Anvil staff, with the signed-in person as the claimant
- * (/api/profile/claim-dispute — the website's twin of the plugin's "It's mine").
+ * "This is my character". The way out of "somebody else has linked it": starts the same ownership
+ * claim as the plugin's "This is my account" (/api/profile/claim-dispute → lib/ownershipClaims) — an
+ * XP check first, and only then is the owner (or Anvil staff) asked. The claim and its Check button
+ * live on /settings/claims.
  */
 function ReportConflict({ rsn }: { rsn: string }) {
-  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'already'>('idle');
-  const [note, setNote] = useState('');
+  const [state, setState] = useState<'idle' | 'sending' | 'done'>('idle');
+  const [result, setResult] = useState<{ claim: boolean; message: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function report() {
+  async function claim() {
     setState('sending');
     setError(null);
     try {
       const res = await fetch('/api/profile/claim-dispute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rsn, note: note.trim() }),
+        body: JSON.stringify({ rsn }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || 'Could not send the report');
+        setError(data.error || 'Could not start the claim');
         setState('idle');
       } else {
-        setState(data.alreadyOpen ? 'already' : 'sent');
+        setResult({ claim: !!data.claim, message: typeof data.message === 'string' ? data.message : '' });
+        setState('done');
       }
     } catch {
       setError('Network error — try again');
@@ -399,33 +401,37 @@ function ReportConflict({ rsn }: { rsn: string }) {
     }
   }
 
-  if (state === 'sent' || state === 'already') {
+  if (state === 'done' && result) {
     return (
       <div className="mt-3 rounded-lg border border-gold/30 bg-gold/5 p-3 text-sm text-foreground/85">
-        {state === 'sent' ? 'Reported.' : 'You’ve already reported this one — we added to it.'} Anvil staff will look
-        at who <b className="text-foreground">{rsn}</b> belongs to. Signing in to the plugin on that character is the
-        fastest proof you can give them.
+        {result.message}
+        {result.claim && (
+          <>
+            {' '}
+            Follow it, and press <b className="text-foreground">Check</b> once you’ve gained the XP, on{' '}
+            <a href="/settings/claims" className="text-gold hover:underline">
+              your claims
+            </a>
+            .
+          </>
+        )}
       </div>
     );
   }
 
   return (
     <div className="mt-3 rounded-lg border border-card-border bg-brown-dark/40 p-3">
-      <Textarea
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder="Anything that helps (optional) — e.g. I changed my Discord account"
-        rows={2}
-        maxLength={500}
-        className="w-full bg-brown-light border border-card-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-gold resize-y"
-      />
+      <p className="text-sm text-text-muted">
+        Prove it with a quick XP check: Anvil names a skill, you gain a little XP in it within 30 minutes, and only then is whoever linked{' '}
+        <b className="text-foreground">{rsn}</b> asked. Anvil never tells you who that is.
+      </p>
       <button
         type="button"
-        onClick={report}
+        onClick={claim}
         disabled={state === 'sending'}
         className="mt-2 rounded-lg border border-gold/45 px-3 py-1.5 text-sm font-semibold text-gold hover:bg-gold/10 disabled:opacity-50"
       >
-        {state === 'sending' ? 'Sending…' : 'This is my character — report it'}
+        {state === 'sending' ? 'Starting…' : 'This is my character'}
       </button>
       {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
     </div>

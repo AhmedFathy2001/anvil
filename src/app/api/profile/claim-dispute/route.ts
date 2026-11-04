@@ -7,17 +7,17 @@ import { normalizeRsn, verifyUser } from '@/lib/auth';
 import { fileCharacterReport } from '@/lib/characterReports';
 import { resolveClanFromRequest } from '@/lib/clanContext';
 import { rateLimitByKey } from '@/lib/rate-limit';
+import { startOwnershipClaim } from '@/lib/ownershipClaims';
 
-// POST /api/profile/claim-dispute { rsn, note? } — "This is my character — report it".
+// POST /api/profile/claim-dispute { rsn, note? } — "This is my character" on the website.
 //
-// The site's twin of the plugin's "It's mine" (/api/plugin/account, action 'dispute'). Linking a
-// character that somebody else already holds used to end at "Ask a moderator", which on the apex
-// names nobody and in a clan names somebody who can no longer change a character anyway — character
-// ownership is decided by Anvil staff in /staff/reports. This files that report, with the signed-in
-// person as the claimant, so the dead end becomes a queue somebody actually reads.
-//
-// Idempotent through fileCharacterReport: pressing it twice (or once here and once in the plugin)
-// adds to one open report rather than starting a second. Nothing about the character changes here.
+// The site's twin of the plugin's "This is my account" (/api/plugin/account, action 'dispute'), and
+// the SAME flow: an ownership claim (lib/ownershipClaims) that starts with the XP check — the claimant
+// proves control, and only then is the owner (or Anvil staff) told. It used to file a bare staff
+// report from the website while the plugin ran the claim, so the two buttons did different things.
+// Looked up by NAME only, as the plugin's is. Where the XP check can't run (an unranked character,
+// the hiscores down) it falls back, as the plugin does, to a wrong-owner report for staff —
+// unproved, and it says so. Idempotent: pressing it again shows the claim already in flight.
 export async function POST(request: Request) {
   const session = await verifyUser();
   if (!session?.userId) return NextResponse.json({ error: 'Sign in with Discord first' }, { status: 401 });
@@ -43,7 +43,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'That character is already linked to you.' }, { status: 409 });
   }
 
-  // Which clan they were in when they raised it, if any — context for staff, not a scope.
+  // The claim, with its XP check — the same one the plugin starts.
+  const claim = await startOwnershipClaim({
+    userId: session.userId,
+    character: { rsn: account.rsn, rsnNormalized: normalizeRsn(account.rsn), accountHash: null },
+  });
+  if (claim.ok) {
+    return NextResponse.json({ ok: true, claim: true, claimId: claim.claimId, status: claim.status, alreadyOpen: !claim.created, message: claim.message });
+  }
+  if (claim.reason === 'cooldown') return NextResponse.json({ ok: true, claim: false, alreadyOpen: true, message: claim.error });
+  if (claim.reason !== 'hiscores') {
+    return NextResponse.json({ error: claim.error }, { status: claim.reason === 'rate-limited' ? 429 : 409 });
+  }
+
+  // The XP check can't run: Anvil staff look, as a wrong-owner report. Which clan they were in when
+  // they raised it, if any — context for staff, not a scope.
   const clan = await resolveClanFromRequest(request).catch(() => null);
   const { id, created } = await fileCharacterReport({
     accountId: account.id,
@@ -53,8 +67,14 @@ export async function POST(request: Request) {
     kind: 'wrong_owner',
     body:
       `Raised from the website: this person says ${account.rsn} is theirs, but it is linked to someone else. ` +
-      'Name only — no plugin or XP proof yet.' +
+      'Not proved: the XP check could not run (hiscores unavailable or unranked).' +
       (note ? `\n\nTheir note: ${note}` : ''),
   });
-  return NextResponse.json({ ok: true, reportId: id, alreadyOpen: !created });
+  return NextResponse.json({
+    ok: true,
+    claim: false,
+    reportId: id,
+    alreadyOpen: !created,
+    message: 'Couldn’t run the XP check (the character has to be ranked on the hiscores), so this went to Anvil staff instead.',
+  });
 }

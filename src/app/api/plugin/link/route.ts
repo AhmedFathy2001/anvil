@@ -141,7 +141,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'Someone else on Anvil has already linked this character. If it’s yours, use “It’s mine” in the Anvil panel, or report it from your profile on the website.',
+            'Someone else on Anvil has already linked this character. If it’s yours, press “This is my account” in the Anvil panel, or “This is my character” on your profile on the website.',
         },
         { status: 409 },
       );
