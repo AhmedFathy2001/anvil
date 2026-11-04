@@ -2523,6 +2523,9 @@ const nl: PartialGuideDict = {
         'Hij antwoordt alleen in een kanaal dat je in stap 7 hebt gekoppeld. Het werkt ook in de Kick-chat, zodra je Kick-kanaal gekoppeld is.',
         'Geen event open? Dat zegt hij dan: “No event is open to join right now — keep an eye on the stream!”',
       ],
+      tips: [
+        'Blokkeert je chat links (Twitch’ **Block hyperlinks** of AutoMod), dan wordt het antwoord van de bot tegengehouden. Typ één keer `/vip anvil_osrs` of `/mod anvil_osrs` in je chat zodat de link erdoor komt.',
+      ],
     },
 
     listing: {

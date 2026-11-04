@@ -2524,6 +2524,9 @@ const fi: PartialGuideDict = {
         'Se vastaa vain kanavalla, jonka yhdistit vaiheessa 7. Se toimii myös Kick-chatissa, kun Kick-kanavasi on yhdistetty.',
         'Ei avointa tapahtumaa? Se kertoo sen: “No event is open to join right now — keep an eye on the stream!”',
       ],
+      tips: [
+        'Jos chattisi estää linkit (Twitchin **Block hyperlinks** tai AutoMod), botin vastaus jää pidätetyksi. Kirjoita chattiisi kerran `/vip anvil_osrs` tai `/mod anvil_osrs`, niin linkki menee läpi.',
+      ],
     },
 
     listing: {

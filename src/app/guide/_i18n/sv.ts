@@ -2523,6 +2523,9 @@ const sv: PartialGuideDict = {
         'Den svarar bara i en kanal du kopplade i steg 7. Den fungerar i Kick-chatten också, när din Kick-kanal är kopplad.',
         'Inget event öppet? Då säger den det: “No event is open to join right now — keep an eye on the stream!”',
       ],
+      tips: [
+        'Om din chatt blockerar länkar (Twitchs **Block hyperlinks** eller AutoMod) hålls botens svar kvar. Skriv `/vip anvil_osrs` eller `/mod anvil_osrs` i chatten en gång så kommer länken igenom.',
+      ],
     },
 
     listing: {

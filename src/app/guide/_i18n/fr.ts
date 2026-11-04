@@ -2525,6 +2525,9 @@ const fr: PartialGuideDict = {
         'Il ne répond que dans une chaîne que tu as connectée à l’étape 7. Il marche aussi dans le chat Kick, une fois ta chaîne Kick connectée.',
         'Aucun événement ouvert ? Il le dit : « No event is open to join right now — keep an eye on the stream! »',
       ],
+      tips: [
+        'Si ton chat bloque les liens (**Block hyperlinks** de Twitch ou AutoMod), la réponse du bot est retenue. Tape une fois `/vip anvil_osrs` ou `/mod anvil_osrs` dans ton chat pour que le lien passe.',
+      ],
     },
 
     listing: {

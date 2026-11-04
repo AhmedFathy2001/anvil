@@ -2524,6 +2524,9 @@ const es: PartialGuideDict = {
         'Solo responde en un canal que conectaste en el paso 7. También funciona en el chat de Kick, cuando tu canal de Kick está conectado.',
         '¿No hay ningún evento abierto? Lo dice: “No event is open to join right now — keep an eye on the stream!”',
       ],
+      tips: [
+        'Si tu chat bloquea enlaces (**Block hyperlinks** de Twitch o AutoMod), la respuesta del bot queda retenida. Escribe una vez `/vip anvil_osrs` o `/mod anvil_osrs` en tu chat para que el enlace pase.',
+      ],
     },
 
     listing: {

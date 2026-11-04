@@ -2523,6 +2523,9 @@ const ko: PartialGuideDict = {
         '연결한 채널(7단계)에서만 답합니다. Kick 채널을 연결하면 Kick 채팅에서도 동작해요.',
         '열려 있는 이벤트가 없으면 그렇게 알려 줍니다: “No event is open to join right now — keep an eye on the stream!”',
       ],
+      tips: [
+        '채팅에서 링크를 차단하고 있다면(Twitch의 **Block hyperlinks** 또는 AutoMod) 봇의 답장이 보류됩니다. 채팅에 `/vip anvil_osrs` 또는 `/mod anvil_osrs`를 한 번 입력하면 링크가 올라갑니다.',
+      ],
     },
 
     listing: {
