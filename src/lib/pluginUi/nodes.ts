@@ -3,7 +3,8 @@
 // The plugin knows a dozen building blocks and nothing about what a player card or a clan is: the
 // site decides every line, colour and click, and the plugin's one renderer (UiRenderer.java) draws
 // it. Pictures travel as game ids (item, sprite, skill, boss) the plugin draws with RuneLite's own
-// managers — never a URL. A click is one of a fixed set of actions (Action below); the ones that
+// managers — never a URL. The one exception is `img` (capability 'panel-images'): a proof's
+// thumbnail, named by a PATH on this site the plugin fetches itself (lib/proofImage). A click is one of a fixed set of actions (Action below); the ones that
 // reach the site go to this same route and nowhere else.
 
 /** A colour by role, or "#rrggbb". */
@@ -124,6 +125,12 @@ export type Node =
       /** No picture for it: draw this icon instead. */
       or?: Node;
     })
+  /**
+   * A picture from this site (capability 'panel-images', sent only to a plugin that says
+   * X-Anvil-Panel-Images): `src` is a PATH here, never a URL, drawn fitted inside w×h with a
+   * placeholder until it arrives. Only the proof thumbnails use it (lib/proofImage).
+   */
+  | (Common & { t: 'img'; src: string; w: number; h: number })
   | (Common & { t: 'bar'; pct: number; color?: Color; h?: number; label?: string; bg?: 'card' | 'panel' })
   | (Common & { t: 'tabs'; key: string; tabs: { label: string; c: Node }[]; open?: string })
   | (Common & { t: 'fold'; head: Node; c: Node; open?: boolean; /** A chevron at the head's right that turns when open. */ chev?: boolean })

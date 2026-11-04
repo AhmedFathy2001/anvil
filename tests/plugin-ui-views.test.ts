@@ -5,6 +5,7 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 import { tokenHash } from './helpers/tokenHash.ts';
@@ -163,4 +164,48 @@ test('the board page: an enrolled player claims a tile from it, and the Teams pa
   // From the page, "All tiles" comes back with a way home.
   const tilesPage = await V.pluginView(asPlayer(), 'board', { event: '0', back: 'board', backLabel: 'Live Bingo' });
   assert.ok(texts(tilesPage!.ui).includes('Live Bingo') && texts(tilesPage!.ui).includes('All tiles'));
+});
+
+test('a tile’s proofs: the team’s list under the tile, images only for a plugin that draws them, and delete', async () => {
+  process.env.S3_PUBLIC_BASE_URL = 'https://media.example';
+  const [clan] = await db.insert(s.clans).values({ slug: 'uiproofs', name: 'UI Proofs' }).returning();
+  const [ev] = await db
+    .insert(s.events)
+    .values({ clanId: clan.id, name: 'Proof Bingo', boardSize: 5, tilesRevealed: 1, startDate: new Date(Date.now() - 864e5).toISOString() })
+    .returning();
+  const [team] = await db.insert(s.teams).values({ eventId: ev.id, name: 'Red', color: '#ff0000' }).returning();
+  const [vork] = await db.insert(s.tiles).values({ eventId: ev.id, position: 0, label: 'Vorkath KC', tileType: 'kill', requiredAmount: 5 }).returning();
+  const [person] = await db.insert(s.players).values({ displayName: 'Proof Player' }).returning();
+  await db.insert(s.users).values({ playerId: person.id, displayName: 'Proof Player', discordId: 'ui-proofs', pluginTokenHash: tokenHash('ui-proofs-token') });
+  const [acct] = await db.insert(s.accounts).values({ playerId: person.id, rsn: 'Proof Main', rsnNormalized: 'proof main' }).returning();
+  const [seat] = await db.insert(s.clanMemberships).values({ clanId: clan.id, accountId: acct.id, kind: 'member', source: 'roster' }).returning();
+  const [me] = await db.insert(s.eventParticipants).values({ eventId: ev.id, teamId: team.id, clanMemberId: seat.id, accountId: acct.id, name: 'Proof Main' }).returning();
+  const [mate] = await db.insert(s.eventParticipants).values({ eventId: ev.id, teamId: team.id, name: 'Mate' }).returning();
+  const [mine] = await db.insert(s.submissions).values({ tileId: vork.id, teamId: team.id, playerId: me.id, amount: 2, imageUrl: 'https://media.example/a.webp' }).returning();
+  await db.insert(s.submissions).values({ tileId: vork.id, teamId: team.id, playerId: mate.id, amount: 1, imageUrl: null });
+  const as = (extra: Record<string, string> = {}) =>
+    new Request('https://example.test/api/plugin/ui', { headers: { Authorization: 'Bearer ui-proofs-token', 'X-RSN': 'Proof Main', 'x-anvil-clan-slug': 'uiproofs', ...extra } });
+
+  // The tile's detail carries the slot that loads them.
+  const board = await V.pluginView(as(), 'board', { event: '0', clan: 'uiproofs', tile: String(vork.id) });
+  assert.ok(JSON.stringify(board!.ui).includes('"v":"proofs"'));
+
+  const args = { ev: String(ev.id), tile: String(vork.id), event: '0', status: 'all', page: '0', q: '', pre: '' };
+  const withImages = await V.pluginView(as({ 'X-Anvil-Panel-Images': '1' }), 'proofs', args);
+  const json = JSON.stringify(withImages!.ui);
+  assert.ok(texts(withImages!.ui).includes('Proof Main') && texts(withImages!.ui).includes('Mate'));
+  assert.ok(texts(withImages!.ui).includes('2 KC'));
+  assert.match(json, new RegExp(`"t":"img","src":"/api/plugin/proof-image/${mine.id}\\?t=1&s=`));
+  assert.equal((json.match(/"act":"proof-delete"/g) ?? []).length, 2, 'only my own proof: the icon and its menu entry');
+  const old = await V.pluginView(as(), 'proofs', args);
+  assert.ok(!JSON.stringify(old!.ui).includes('"t":"img"'));
+  assert.ok(texts(old!.ui).includes('View screenshot'));
+
+  // The server decides: the teammate's proof can't go, mine can, and the answer is the tile again.
+  const [theirs] = await db.select().from(s.submissions).where(eq(s.submissions.playerId, mate.id));
+  const refused = await V.pluginAct(as(), 'proof-delete', { ...args, part: 'rows', id: String(theirs.id) }, { note: '' });
+  assert.ok(texts(refused!.ui).includes('You can only remove your own proofs.'));
+  const done = await V.pluginAct(as(), 'proof-delete', { ...args, part: 'rows', id: String(mine.id) }, { note: 'wrong boss' });
+  assert.ok(texts(done!.ui).includes('Vorkath KC'));
+  assert.equal(await db.query.submissions.findFirst({ where: eq(s.submissions.id, mine.id) }), undefined);
 });

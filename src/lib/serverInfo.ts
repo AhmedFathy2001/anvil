@@ -99,6 +99,10 @@ export const PLUGIN_CAPABILITIES = [
   // one renderer (lib/pluginUi): player and clan cards, log pages, CAs, compare, goals. A plugin that
   // draws them this way has none of that code, so it needs the site to ship first.
   'plugin-ui',
+  // The panel's `img` node (lib/pluginUi/nodes): a tile's proofs show small thumbnails served by
+  // /api/plugin/proof-image. A plugin that draws them sends X-Anvil-Panel-Images: 1 on its UI calls,
+  // and only then does a view carry one; older plugins get the same list as text.
+  'panel-images',
   // Tile tracker: GET /api/plugin/event/<id>/tile/<tileId>/progress — every team's progress on one
   // tile with its top contributors, for the plugin's pinned in-game widget (lib/tileTracker).
   'tile-tracker',

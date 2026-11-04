@@ -4,7 +4,7 @@ import { buildBoard, pluginBoardScope } from '@/app/api/plugin/board/route';
 import { GET as configRoute } from '@/app/api/plugin/config/route';
 import { GET as weeklyRoute } from '@/app/api/plugin/weekly-leaderboard/route';
 import { db } from '@/db';
-import { clans, events, memberClogItems, settings } from '@/db/schema';
+import { clans, events, memberClogItems, settings, tiles } from '@/db/schema';
 import { apexCharacter } from '@/lib/apexProfiles';
 import { FEED_KINDS, loadClanCard } from '@/lib/clanCard';
 import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
@@ -34,7 +34,10 @@ import { chatAct, feedView } from './feedView';
 import { type BoardContext, type BoardState, type BoardTile, STATUSES, type Status, boardRowsUi, boardUi } from './boardUi';
 import { clanCardUi, clanCompareUi, clanSearchUi } from './clanUi';
 import { type HomeConfig, type HomeData, eventUi, homeUi } from './homeUi';
-import { hasFeedTab, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
+import { proofImagePath } from '@/lib/proofImage';
+import { deleteTileProof, listTileProofs } from '@/lib/tileProofs';
+import { PROOFS_MAX, PROOFS_STEP, type ProofRow, proofsUi } from './proofsUi';
+import { hasFeedTab, hasPanelImages, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { type Node, type View, applyFlair, backRow, button, col, gap, message, namesIn, text } from './nodes';
 import { notFoundUi, playerCardUi } from './playerCardUi';
@@ -244,6 +247,59 @@ async function claimAct(request: Request, act: 'claim' | 'unclaim', a: Args, not
       if (!r.ok) error = r.error;
     }
   }
+  return boardView(request, a, error);
+}
+
+// ---- A tile's proofs ------------------------------------------------------------------------------
+
+/** Who is looking at proofs on board `ev`: the token's seat there, or just its login (staff, spectators). */
+async function proofScope(request: Request, ev: number | null) {
+  const scope = ev ? await pluginBoardScope(request, ev) : null;
+  if (!scope) return null;
+  const userId = scope.userId ?? (await verifyPluginTokenUser(request))?.userId ?? null;
+  return { event: scope.event, viewer: { userId, playerId: scope.playerId, teamId: scope.teamId } };
+}
+
+const unitFor = (t: { statType: string | null; tileType: string | null }) =>
+  t.statType === 'skill' ? ' XP' : t.statType === 'boss' || t.statType === 'kc' || t.tileType === 'kill' ? ' KC' : t.tileType === 'value' || t.tileType === 'valuetotal' ? ' gp' : '';
+
+async function proofsView(request: Request, a: Args): Promise<View> {
+  const ps = await proofScope(request, positive(a.ev));
+  const tileId = positive(a.tile);
+  if (!ps || !tileId) return { ui: gap(0) };
+  const n = Math.min(PROOFS_MAX, Math.max(PROOFS_STEP, positive(a.n) ?? PROOFS_STEP));
+  const [list, tile] = await Promise.all([
+    listTileProofs(ps.event, tileId, ps.viewer, n),
+    // clan-scope: global -- listTileProofs only answers for a tile on this event.
+    db.query.tiles.findFirst({ where: eq(tiles.id, tileId), columns: { statType: true, tileType: true } }),
+  ]);
+  const images = hasPanelImages(request);
+  const rows: ProofRow[] = list.proofs.map((p) => ({
+    id: p.id,
+    who: p.who,
+    credit: p.credit,
+    team: p.teamName,
+    at: p.at,
+    amount: p.amount,
+    thumb: p.imageUrl ? proofImagePath(p.id, p.imageUrl) : null,
+    full: p.imageUrl ? proofImagePath(p.id, p.imageUrl, true) : null,
+    canDelete: p.canDelete,
+  }));
+  const empty = ps.viewer.teamId == null && !list.allTeams ? 'Proofs show for your own team.' : 'No proofs yet.';
+  const ui = proofsUi(rows, { args: a, n, more: list.more, images, unit: tile ? unitFor(tile) : '', teams: list.allTeams }, empty);
+  // An older plugin skips an answer equal to the last one in this slot, even into a new tile's empty
+  // slot — so reopening a tile would sit on "Loading proofs…". A plugin that draws images doesn't.
+  if (!images && ui.t === 'col') ui.k = `proofs:${tileId}:${Date.now()}`;
+  return { ui };
+}
+
+async function proofDeleteAct(request: Request, a: Args, reason: string | undefined): Promise<View> {
+  const ps = await proofScope(request, positive(a.ev));
+  const id = positive(a.id);
+  let error: string | null = null;
+  if (!ps || !id || ps.viewer.userId == null) error = 'Sign in to the plugin to remove proofs.';
+  else if (!(await rateLimit(request, `plugin-proof-delete:${ps.viewer.userId}`, { limit: 20, windowMs: 60_000 })).ok) error = 'Slow down a moment and try again.';
+  else error = await deleteTileProof(ps.event, id, ps.viewer, reason?.trim().slice(0, 300) || 'Removed from the RuneLite panel');
   return boardView(request, a, error);
 }
 
@@ -486,6 +542,8 @@ async function viewFor(request: Request, v: string, a: Args): Promise<View | nul
       return boardView(request, a);
     case 'teams':
       return teamsView(request, a);
+    case 'proofs':
+      return proofsView(request, a);
     case 'home':
       return homeView(request, a);
     case 'moments':
@@ -504,6 +562,7 @@ export async function pluginAct(request: Request, act: string, args: Args, field
 
 async function actFor(request: Request, act: string, args: Args, fields: Args): Promise<View | null> {
   if (act === 'claim' || act === 'unclaim') return claimAct(request, act, args, fields.note);
+  if (act === 'proof-delete') return proofDeleteAct(request, args, fields.note);
   if (act === 'clan-event-going') return clanEventGoingAct(request, args);
   if (act === 'react') return reactAct(request, args);
   if (act === 'react-row') return reactRowAct(request, args);
