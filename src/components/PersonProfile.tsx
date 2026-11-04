@@ -34,7 +34,10 @@ export default function PersonProfile({
   unfinishedSetup = false,
   supporter = null,
   media = null,
+  discordAvatar = null,
 }: {
+  /** Their Discord avatar, shown when they have not uploaded one of their own. */
+  discordAvatar?: string | null;
   /** Their own avatar and banner as shown now (Supporter perk, set on /settings/look). */
   media?: ShownProfileMedia | null;
   displayName: string;
@@ -66,6 +69,16 @@ export default function PersonProfile({
       <div className="mb-4 flex flex-wrap items-center gap-3">
         {media?.avatar ? (
           <ProfileAvatar avatar={media.avatar} size={56} eager className="border-2 border-gold/45" />
+        ) : discordAvatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={discordAvatar}
+            alt=""
+            width={56}
+            height={56}
+            referrerPolicy="no-referrer"
+            className="h-14 w-14 shrink-0 rounded-full border-2 border-gold/45 object-cover"
+          />
         ) : (
           <span className="h-8 w-1 rounded-full bg-gold" />
         )}
@@ -147,8 +160,8 @@ export default function PersonProfile({
               {characters.map((a) => (
                 <li key={a.id} className="rounded-lg border border-tile-border bg-tile-bg px-3 py-2.5">
                   <div className="flex items-center gap-2">
-                    <ClanLink href={`/p/${encodeURIComponent(a.rsn)}`} className="font-semibold hover:text-gold">
-                      {a.rsn}
+                    <ClanLink href={`/p/${encodeURIComponent(a.rsn)}`} className="min-w-0 font-semibold hover:text-gold">
+                      <SupporterName name={a.rsn} tier={supporter?.tier} style={supporter?.style} plain className="max-w-full" />
                     </ClanLink>
                     {a.isPrimary && <span className="rounded-full border border-gold-dark px-1.5 text-[10.5px] text-gold">main</span>}
                     {!a.shared && <span className="rounded-full border border-card-border px-1.5 text-[10.5px] text-text-muted">private</span>}

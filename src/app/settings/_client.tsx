@@ -5,6 +5,9 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 
 import { useDialog } from '@/components/Confirm';
+import SupporterName from '@/components/SupporterName';
+import type { SupporterStyle } from '@/lib/supporterStyle';
+import type { SupporterTierId } from '@/lib/supporterTiers';
 import { clanFetch } from '@/lib/clanFetch';
 
 /** The on/off switch every boolean setting uses. */
@@ -183,7 +186,16 @@ const ACCOUNT_ITEMS: { href: string; label: string; icon: string }[] = [
  * The left rail: account sections, then one entry per character. On a phone it becomes a row of
  * chips that scrolls sideways above the page, so the page itself never does.
  */
-export function SettingsNav({ characters, pending }: { characters: NavCharacter[]; pending: number }) {
+export function SettingsNav({
+  characters,
+  pending,
+  flair = null,
+}: {
+  characters: NavCharacter[];
+  pending: number;
+  /** Their Supporter look, worn by their characters' names (inside a link, so `plain`). */
+  flair?: { tier: SupporterTierId | null; style: SupporterStyle | null } | null;
+}) {
   const path = usePathname();
   const item = (href: string, active: boolean, children: ReactNode, extra = '') => (
     <ClanLink
@@ -218,7 +230,7 @@ export function SettingsNav({ characters, pending }: { characters: NavCharacter[
           path === href,
           <>
             {icon(c.rsn.slice(0, 1).toUpperCase())}
-            <span className="truncate">{c.rsn}</span>
+            <SupporterName name={c.rsn} tier={flair?.tier} style={flair?.style} plain className="truncate" />
             {c.isPrimary && <span className="ml-auto rounded-full border border-gold-dark px-1.5 text-[10px] text-gold">main</span>}
           </>,
         );
