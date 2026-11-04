@@ -1,6 +1,17 @@
 import { clogItemNames, clogPageItems, clogPageNames, clogTotalSlots } from '@/lib/clogDataset';
 import { assessLuckAt, chancePerKill, type LuckAssessment } from '@/lib/clogLuck';
 
+/** Centiseconds → the way the game writes a time: 1:23.40, or 12:04:31.20 for a long one. */
+export function formatPersonalBest(centis: number): string {
+  const totalSeconds = Math.floor(centis / 100);
+  const hundredths = centis % 100;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const mm = hours > 0 ? String(minutes).padStart(2, '0') : String(minutes);
+  return `${hours > 0 ? `${hours}:` : ''}${mm}:${String(seconds).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}`;
+}
+
 // Reading a synced collection log back out: the member's own page, and the clan's luck boards.
 //
 // Two rules shape everything here.
