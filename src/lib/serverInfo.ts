@@ -176,6 +176,9 @@ export const PLUGIN_CAPABILITIES = [
   // and 'quest', which only the feed reads), POST /api/plugin/presence takes the guest channel the
   // character sits in, and push tickets with ?feed=1 hear {"t":"feed"} lines even with no board.
   'chat-feed',
+  // Deaths (lib/deathSource): a death moment may name what the player was FIGHTING, marked
+  // sourceKind 'fought', when nothing had them targeted; the site keeps it only when it's a boss.
+  'death-fought',
   // GET /api/plugin/brief: the login lines and the chat colour palette (lib/chatBrief, lib/chatLook).
   'login-brief',
   // Ghost clans (lib/gameClans): POST /api/plugin/game-clan takes the character's OWN row from the

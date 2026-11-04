@@ -12,6 +12,7 @@ import { db } from '@/db';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import AdminSidebar, { type SidebarGroup } from '../admin/_components/AdminSidebar';
+import StaffSectionTabs, { type StaffSection } from './_components/StaffSectionTabs';
 
 /**
  * The platform shell — /staff, on the apex only.
@@ -76,41 +77,62 @@ export default async function StaffLayout({ children }: { children: React.ReactN
       label: 'Platform',
       items: [
         { href: '/staff', label: 'Overview', icon: '◎', badge: pending.nameDisputes, attn: true },
-        // Billing that wants a look: overdue, cancelling, or a trial ending this week.
-        { href: '/staff/clans', label: 'Clans', icon: '🏰', badge: pending.billing, attn: true, matchPrefix: true },
-        { href: '/staff/ghost-clans', label: 'Ghost clans', icon: '👻' },
-        { href: '/staff/people', label: 'People', icon: '👤', matchPrefix: true },
         // Visits, feature use and where onboarding stalls (lib/analytics). Read-only, so support too.
         { href: '/staff/analytics', label: 'Analytics', icon: '📈', matchPrefix: true },
         // Read-only, and shown to support too: seeing what was done is the least dangerous thing an
         // operator can do, and the one most often needed when somebody asks why.
+        { href: '/staff/audit', label: 'Operator log', icon: '⧉', matchPrefix: true },
+      ],
+    },
+    {
+      label: 'Customers',
+      items: [
+        // Billing that wants a look: overdue, cancelling, or a trial ending this week. Ghost clans
+        // (in-game clans not on Anvil yet) are a tab of the same section.
+        { href: '/staff/clans', label: 'Clans', icon: '🏰', badge: pending.billing, attn: true, matchPrefix: true, alsoMatch: ['/staff/ghost-clans'] },
+        { href: '/staff/people', label: 'People', icon: '👤', matchPrefix: true },
+        // Everyone paying, clan plans and personal Supporter tiers, by tier.
+        { href: '/staff/subscriptions', label: 'Subscriptions', icon: '◈', matchPrefix: true },
+      ],
+    },
+    {
+      label: 'Inbox',
+      items: [
         // Reports about the product, from every clan. Was a triage queue in each clan's own admin
         // area, which asked every clan admin to look after a queue that was never theirs.
         { href: '/staff/feedback', label: 'Feedback', icon: '💬', badge: pending.feedback, matchPrefix: true },
         // Characters clans raised: who owns a character is the platform's call (lib/characterReports).
         { href: '/staff/reports', label: 'Character reports', icon: '⚑', badge: pending.reports, matchPrefix: true },
-        // What broke, across every clan. The platform had no way to learn it was failing except a
-        // member posting in Discord; this is the surface the hourly digest links back to.
+        // What broke, across every clan — the surface the hourly digest links back to.
         { href: '/staff/errors', label: 'Errors', icon: '⚠', badge: pending.errors, matchPrefix: true },
-        { href: '/staff/audit', label: 'Operator log', icon: '⧉', matchPrefix: true },
-        { href: '/staff/releases', label: 'Releases', icon: '⇪', matchPrefix: true },
-        // Anvil's own server: new-supporter posts and supporter roles (lib/anvilDiscord).
-        { href: '/staff/discord', label: 'Anvil Discord', icon: '✉', matchPrefix: true },
-        { href: '/staff/event-chat', label: 'Event chat', icon: '✉', matchPrefix: true },
-        // The Anvil guide library every clan sees and copies from.
-        { href: '/staff/guides', label: 'Guide library', icon: '📖', badge: pending.guideProposals, matchPrefix: true },
-        // Anvil's task and board library, and the suggestions clans send for it.
-        { href: '/staff/library', label: 'Task & board library', icon: '▦', badge: pending.libraryProposals, matchPrefix: true },
-        // Test any tile kind on your own account without a real bingo (lib/lab), and the replay
-        // scenarios the dev client pulls.
-        { href: '/staff/lab', label: 'Tile lab', icon: '⚗', matchPrefix: true },
-        // The chat lines every plugin parses, and their live overrides (lib/chatPatterns).
-        { href: '/staff/chat-patterns', label: 'Chat patterns', icon: '✎', matchPrefix: true },
-        // Game-mode events (lib/modeLines): which chat lines are relics, unlocks or tasks, and the
-        // lines nobody has a pattern for yet.
-        { href: '/staff/mode-lines', label: 'Game-mode lines', icon: '✦', matchPrefix: true },
       ],
     },
+    {
+      label: 'Content & tools',
+      items: [
+        // The guide library and the task & board library: one library, two kinds of content.
+        { href: '/staff/guides', label: 'Library', icon: '📖', badge: pending.guideProposals + pending.libraryProposals, matchPrefix: true, alsoMatch: ['/staff/library'] },
+        { href: '/staff/releases', label: 'Releases', icon: '⇪', matchPrefix: true },
+        // Anvil's own server (lib/anvilDiscord) and the plugin event-chat switch.
+        { href: '/staff/discord', label: 'Discord & chat', icon: '✉', matchPrefix: true, alsoMatch: ['/staff/event-chat'] },
+        // Test any tile kind on your own account without a real bingo (lib/lab).
+        { href: '/staff/lab', label: 'Tile lab', icon: '⚗', matchPrefix: true },
+        // The chat lines every plugin parses (lib/chatPatterns) and game-mode lines (lib/modeLines).
+        { href: '/staff/chat-patterns', label: 'Chat lines', icon: '✎', matchPrefix: true, alsoMatch: ['/staff/mode-lines'] },
+      ],
+    },
+  ];
+
+  const sections: StaffSection[] = [
+    { exact: true, tabs: [{ href: '/staff/clans', label: 'On Anvil' }, { href: '/staff/ghost-clans', label: 'Ghost clans' }] },
+    {
+      tabs: [
+        { href: '/staff/guides', label: 'Guides', badge: pending.guideProposals },
+        { href: '/staff/library', label: 'Tasks & boards', badge: pending.libraryProposals },
+      ],
+    },
+    { tabs: [{ href: '/staff/discord', label: 'Anvil Discord' }, { href: '/staff/event-chat', label: 'Event chat' }] },
+    { tabs: [{ href: '/staff/chat-patterns', label: 'Chat patterns' }, { href: '/staff/mode-lines', label: 'Game-mode lines' }] },
   ];
 
   return (
@@ -133,6 +155,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
             You have <span className="text-gold">support</span> access: everything here is read-only.
           </div>
         )}
+        <StaffSectionTabs sections={sections} />
         {children}
       </div>
     </div>

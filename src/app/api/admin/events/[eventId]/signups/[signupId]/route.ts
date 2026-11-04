@@ -239,6 +239,20 @@ export async function PATCH(
         } else {
           await enrolParticipant({ ...values, teamId: seatTeamId }); // null → the pool, draftable/assignable
         }
+      } else if (seatTeamId == null && existingPlayer.teamId == null) {
+        // Waited in the pool for this approval (a pending sign-up isn't placed): an auto-balanced or
+        // solo board places them now, exactly as a self-serve sign-up would have been.
+        const placingEvent = await db.query.events.findFirst({ where: eq(events.id, evtId) });
+        const placement = placingEvent ? placementOf(placingEvent) : 'draft';
+        if (placingEvent && (placement === 'auto' || placement === 'solo')) {
+          await enrolPlaced(placingEvent, {
+            eventId: evtId,
+            clanMemberId: existingPlayer.clanMemberId ?? signup.clanMemberId,
+            accountId: existingPlayer.accountId,
+            name: existingPlayer.name,
+            playerToken: generatePlayerToken(),
+          });
+        }
       } else if (seatTeamId != null && existingPlayer.teamId == null) {
         // Signed up before the teams existed, or applied and waited: the approval seats them now.
         // Someone already ON a team is left alone — that placement was a decision too.

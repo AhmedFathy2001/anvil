@@ -7,6 +7,8 @@ import { liveStatsForMembers } from '@/lib/liveStats';
 import { eventHasStarted } from '@/lib/completionGate';
 import type { RevealStats } from '@/lib/revealStats';
 import { log } from '@/lib/logger';
+import { parseEventRules } from '@/lib/eventRules';
+import { countedModes, statGainWithModes } from '@/lib/modeStats';
 
 /**
  * Capture where every player stands on each just-announced mission's stat (lib/revealStats), so the
@@ -47,10 +49,13 @@ export async function captureRevealStats(tileIds: number[]): Promise<void> {
           cachedStats: eventParticipants.cachedStats,
           frozenAt: eventParticipants.frozenAt,
           frozenStats: eventParticipants.frozenStats,
+          modeStats: eventParticipants.modeStats,
         })
         .from(eventParticipants)
         .where(eq(eventParticipants.eventId, eventId));
       const live = await liveStatsForMembers(players.map((p) => p.clanMemberId));
+      // Measured on the scorers' scale, game modes the board counts included (lib/modeStats).
+      const modes = countedModes(parseEventRules(event.rules));
 
       for (const tile of statTiles.filter((t) => t.eventId === eventId)) {
         const keys = statKeys(tile.trackedStat);
@@ -60,7 +65,9 @@ export async function captureRevealStats(tileIds: number[]): Promise<void> {
           const current = p.frozenAt ? p.frozenStats : p.cachedStats;
           const plug = p.frozenAt ? {} : (p.clanMemberId != null && live.get(p.clanMemberId)) || {};
           stats[p.id] = {
-            g: computeGainFromJson(p.statsSnapshot, current, plug, keys, tile.statType!),
+            g: p.frozenAt
+              ? computeGainFromJson(p.statsSnapshot, current, plug, keys, tile.statType!)
+              : statGainWithModes(p.statsSnapshot, current, plug, keys, tile.statType!, p.modeStats, modes),
             l: keys.reduce((sum, k) => sum + effectiveValue(jsonStatValue(current, tile.statType!, k), plug, k), 0),
           };
         }

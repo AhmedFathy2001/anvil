@@ -13,8 +13,8 @@ import { WORLD_MODES } from '@/lib/worldModes';
  * Which game-mode worlds count on this board (rules.worldModes).
  *
  * By default none do: Leagues, Deadman and hardcore run their own characters, so a drop there is not
- * the main game's. A clan running its bingo ON Leagues ticks Leagues, and then plugin submissions
- * from Leagues worlds count here. Saves only its own rules key — the API merges it over the rest.
+ * the main game's. A clan running its bingo ON Leagues ticks Leagues, and then plugin submissions,
+ * live KC / XP (lib/modeStats), clog unlock lines and recap counters from Leagues worlds count here. Saves only its own rules key — the API merges it over the rest.
  */
 export default function GameModeWorldsPanel({ event }: { event: Event }) {
   const router = useRouter();
@@ -55,10 +55,20 @@ export default function GameModeWorldsPanel({ event }: { event: Event }) {
         Game-mode worlds
       </h2>
       <p className="text-sm text-text-muted mb-4">
-        Leagues, Deadman, hardcore and other modes use their own characters, so drops and kills there don&apos;t count on
-        this board. Tick a mode if you&apos;re running this board on it. Drops, kills and other plugin submissions from
-        those worlds then count here. Tiles tracked from the hiscores (kill counts, XP) still read the main game&apos;s
-        hiscores.
+        Leagues, Deadman, hardcore and other modes use their own characters, so nothing done there counts on this
+        board unless you tick the mode here. Tick it if you&apos;re running this board on that mode.
+      </p>
+      <p className="text-sm text-text-muted mb-1">From a ticked mode, these count the same as the main game:</p>
+      <ul className="text-sm text-text-muted mb-3 list-disc pl-5 space-y-0.5">
+        <li>Drops, kills and other tiles the plugin sends proof for</li>
+        <li>Kill count and XP tiles, counted from the first number the plugin sends from that mode after the board starts</li>
+        <li>Collection log tiles that count new slots</li>
+        <li>End-of-event recap numbers (deaths, loot, PvP kills)</li>
+      </ul>
+      <p className="text-sm text-text-muted mb-4">
+        Whole-page collection log tiles still only count the main game. A mode&apos;s progress never changes a
+        player&apos;s profile (stats, collection log, personal bests, quests) or weekly competitions. Players need
+        the plugin running on that mode for anything to count.
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
         {WORLD_MODES.map((m) => (

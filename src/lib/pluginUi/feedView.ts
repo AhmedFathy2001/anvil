@@ -10,6 +10,7 @@ import { NO_REACTIONS, isClanMember, reactionSummaries } from '@/lib/momentReact
 import { eventFeedFloor, isClanWorthy, panelFeedWorthy } from '@/lib/moments';
 import { boardTileItemIds, clanScopeFor, momentsForClan, momentsForEvent, type MomentRow } from '@/lib/momentsStore';
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
+import { labMomentsForEvent } from '@/lib/lab';
 import { rateLimit } from '@/lib/rate-limit';
 import { standingsHidden } from '@/lib/standingsVisibility';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
@@ -110,7 +111,9 @@ async function clanRows(clan: Extract<Scope, { kind: 'clan' }>, filter: string, 
   const g = groupOf(filter);
   const raw = (await momentsForClan(clan.id, 120))
     .filter((m) => panelFeedWorthy(m, scope.minLootGp) && isClanWorthy(m, scope))
-    .filter((m) => !g || kindGroup(m.kind) === g);
+    .filter((m) => !g || kindGroup(m.kind) === g)
+    // Deaths show under the Deaths chip, not in a clan's All (lib/pluginUi/feedUi momentFeedIds).
+    .filter((m) => g === 'deaths' || m.kind !== 'death');
   // Drops filed on a board with hidden standings stay out of the clan's feed (the board's own feed
   // shows each team its own). Checked fresh per board.
   const boards = [...new Set(raw.map((m) => m.eventId).filter((e): e is number => e != null))];
@@ -156,14 +159,18 @@ async function eventRows(eventId: number, filter: string, teamId: number | null)
   const tileItems = await boardTileItemIds(eventId);
   // Behind the curtain each team sees only its own.
   const visible = (t: number | null) => (filter === 'team' || hidden ? own(t) : true);
+  // A lab board's moments never become real rows; they're read from its session's log (lib/labFeed).
+  const labRows = filter === 'tiles' ? [] : await labMomentsForEvent(eventId);
   const momentRows =
     filter === 'tiles'
       ? []
-      : (await momentsForEvent(eventId, 600))
-          // Under the floor still shows when it's an item one of the board's tiles wants.
-          .filter((m) => panelFeedWorthy(m, floor) || (m.itemId != null && tileItems.has(m.itemId)))
+      : [...(await momentsForEvent(eventId, 600)), ...labRows]
+          // Under the floor still shows when it's an item one of the board's tiles wants. A lab
+          // board shows everything its tester did: that's what they're there to check.
+          .filter((m) => m.id < 0 || panelFeedWorthy(m, floor) || (m.itemId != null && tileItems.has(m.itemId)))
           .filter((m) => !g || kindGroup(m.kind) === g)
           .filter((m) => visible(m.teamId))
+          .sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : a.occurredAt > b.occurredAt ? -1 : 0))
           .slice(0, 80)
           .map((m) => ({ at: Date.parse(m.occurredAt), row: momentRow(asLike(m), { mine: own(m.teamId) }) }));
   // Finished tiles: in All, Tiles and My team (a drop filter is about drops).

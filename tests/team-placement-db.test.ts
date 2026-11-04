@@ -59,7 +59,7 @@ async function makeEvent(values: Partial<typeof s.events.$inferInsert>) {
   return ev;
 }
 
-function seat(ev: Awaited<ReturnType<typeof makeEvent>>, accounts: Seat[], extra: { inviteTeamId?: number | null; pickTeamId?: number | null } = {}) {
+function seat(ev: Awaited<ReturnType<typeof makeEvent>>, accounts: Seat[], extra: { inviteTeamId?: number | null; pickTeamId?: number | null; poolOnly?: boolean } = {}) {
   return TP.seatSignupAccounts({
     event: ev,
     accounts,
@@ -69,6 +69,7 @@ function seat(ev: Awaited<ReturnType<typeof makeEvent>>, accounts: Seat[], extra
     timezone: null,
     now: new Date().toISOString(),
     newPlayerToken: () => `tok-${++tokenN}`,
+    poolOnly: extra.poolOnly,
   });
 }
 
@@ -229,4 +230,26 @@ test('a pool player is placed when the board later switches to auto', async () =
   const r = await seat(now, p);
   assert.ok(r.ok && r.teamId != null);
   assert.equal((await db.select().from(s.eventParticipants).where(eq(s.eventParticipants.eventId, ev.id))).length, 1);
+});
+
+test('a sign-up waiting for approval stays in the pool on auto and solo, and is placed once approved', async () => {
+  for (const placement of ['auto', 'solo'] as const) {
+    const ev = await makeEvent({ teamPlacement: placement, teamCount: 2 });
+    const [p] = await people(`wait-${placement}-`, 1);
+    const waiting = await seat(ev, p, { poolOnly: true });
+    assert.equal(waiting.ok && waiting.teamId, null, `${placement}: no team while pending`);
+    assert.equal((await TP.teamLoads(ev.id)).filter((t) => t.size > 0).length, 0, `${placement}: nobody placed`);
+    // The host says yes: the approval places them (admin signups PATCH → enrolPlaced on the pooled row).
+    const pooled = (await db.select().from(s.eventParticipants).where(eq(s.eventParticipants.eventId, ev.id)))[0];
+    const placed = await TP.enrolPlaced(ev, { eventId: ev.id, clanMemberId: pooled.clanMemberId!, accountId: pooled.accountId, name: pooled.name, playerToken: 'tok-approve-' + placement });
+    assert.ok(placed.ok && placed.teamId != null, `${placement}: placed on approval`);
+  }
+});
+
+test('an invite still places a pending-looking sign-up straight away (an invite is the host’s yes)', async () => {
+  const ev = await makeEvent({ teamPlacement: 'auto', teamCount: 2 });
+  const [t] = await db.insert(s.teams).values({ eventId: ev.id, name: 'Invited', color: '#4a7bd8' }).returning();
+  const [p] = await people('wait-invite-', 1);
+  const r = await seat(ev, p, { poolOnly: true, inviteTeamId: t.id });
+  assert.equal(r.ok && r.teamId, t.id);
 });

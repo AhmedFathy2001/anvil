@@ -29,6 +29,8 @@ import { and, desc, eq, gt, inArray, isNull, lte, ne, or, sql, type SQL, type SQ
 import { NextResponse } from 'next/server';
 
 import { db } from '@/db';
+import { labMomentRows } from '@/lib/labFeed';
+import type { MomentRow } from '@/lib/momentsStore';
 import {
   accounts,
   clans,
@@ -65,6 +67,30 @@ export async function labClanId(): Promise<number | null> {
   const [row] = await db.select({ id: clans.id }).from(clans).where(eq(clans.slug, LAB_CLAN_SLUG)).limit(1);
   if (row) labClanIdMemo = row.id;
   return row?.id ?? null;
+}
+
+/**
+ * A lab board's moments, from the pushes its session quarantined (lib/labFeed), newest first. Only
+ * for a board the lab clan owns; any other board gets nothing. Read-only.
+ */
+export async function labMomentsForEvent(eventId: number, pushes = 60): Promise<MomentRow[]> {
+  const labId = await labClanId();
+  if (labId == null) return [];
+  // clan-scope: global -- the board is checked to be the lab clan's before anything is read.
+  const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true } });
+  if (ev?.clanId !== labId) return [];
+  const rows = await db
+    .select({ logId: labLog.id, payload: labLog.payload, rsn: accounts.rsn, teamId: eventParticipants.teamId })
+    .from(labLog)
+    .leftJoin(accounts, eq(accounts.id, labLog.accountId))
+    .leftJoin(eventParticipants, and(eq(eventParticipants.eventId, labLog.eventId), eq(eventParticipants.accountId, labLog.accountId)))
+    .where(and(eq(labLog.eventId, eventId), sql`${labLog.endpoint} like 'moments%'`))
+    .orderBy(desc(labLog.id))
+    .limit(pushes);
+  return labMomentRows(
+    rows.map((r) => ({ logId: Number(r.logId), payload: r.payload, rsn: r.rsn ?? 'Tester', teamId: r.teamId ?? null })),
+    eventId,
+  );
 }
 
 /**
@@ -369,6 +395,7 @@ export async function resetLabSession(eventId: number, opts: { keepLog?: boolean
         snapshotAt: null,
         cachedStats: null,
         pluginStats: null,
+        modeStats: null,
         frozenAt: null,
         frozenStats: null,
         deaths: 0,

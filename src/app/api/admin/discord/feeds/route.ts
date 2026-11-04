@@ -13,14 +13,17 @@ import {
   WORLD_MODES_OFF_KEY,
   WORLD_MODES_SPLIT_KEY,
   isModeKey,
+  modeDropFloorKey,
   modeFeedId,
   modeKindsOffKey,
+  modeLevelsKey,
   modeKeyFromWebhookKey,
   modeWebhookKey,
   parseStringList,
 } from '@/lib/worldModes';
 import { clanModeRows, modeKindsOff, splitIsOn } from '@/lib/worldModeStore';
 import { MODE_EVENT_KINDS } from '@/lib/modeLines';
+import { parseModeDropFloor, parseModeLevels, storedModeDropFloor, storedModeLevels } from '@/lib/modeFilters';
 
 /**
  * "What goes where" on Admin → Discord (lib/discordFeeds): every feed with the channel it posts to
@@ -63,7 +66,7 @@ const MODE_KIND_IDS = new Set(MODE_KINDS.map((k) => k.id));
 async function view(clanId: number) {
   const modeRows = await clanModeRows(clanId);
   const modeHookKeys = modeRows.map((m) => modeWebhookKey(m.key));
-  const modeKindKeys = modeRows.map((m) => modeKindsOffKey(m.key));
+  const modeKindKeys = modeRows.flatMap((m) => [modeKindsOffKey(m.key), modeDropFloorKey(m.key), modeLevelsKey(m.key)]);
   const allKeys = [...FEED_KEYS, ...modeHookKeys];
   const [map, channels] = await Promise.all([
     getSettingMap(clanId, [
@@ -103,6 +106,9 @@ async function view(clanId: number) {
         kindsOff: modeKindsOff(map.has(modeKindsOffKey(m.key)) ? map.get(modeKindsOffKey(m.key)) : undefined).filter((k) =>
           MODE_KIND_IDS.has(k),
         ),
+        // Its own filters (lib/modeFilters); null = follows the main-game setting.
+        dropFloor: storedModeDropFloor(map.get(modeDropFloorKey(m.key))),
+        levels: storedModeLevels(map.get(modeLevelsKey(m.key))),
       })),
     },
     feeds: DISCORD_FEEDS,
@@ -124,6 +130,8 @@ export async function GET() {
  *   { modesSplit: boolean }                 the Game modes master switch
  *   { mode, off: boolean }                  switch one game mode's posts on or off
  *   { mode, kindsOff: string[] }            the kinds of post a game mode drops
+ *   { mode, dropFloor: number | null }      a game mode's own drop floor (null = the main game's)
+ *   { mode, levels: LevelRules | null }     a game mode's own level rules (null = the main game's)
  *   { feed, off: boolean }                  switch a feed on or off
  *   { key, channelId }                      point a feed's (or a catch-all's) setting at a channel
  *   { key, webhookUrl }                     … or at a pasted webhook
@@ -160,6 +168,22 @@ export async function PUT(request: Request) {
     if (Array.isArray(body.kindsOff)) {
       const kinds = [...new Set(body.kindsOff.filter((k): k is string => typeof k === 'string' && MODE_KIND_IDS.has(k)))];
       await setSetting(clan.id, modeKindsOffKey(modeKey), JSON.stringify(kinds));
+      return NextResponse.json(await view(clan.id));
+    }
+    if ('dropFloor' in body) {
+      const floor = parseModeDropFloor(body.dropFloor);
+      if (floor === undefined) {
+        return NextResponse.json({ error: 'Enter a whole number like 5000, or leave it blank.' }, { status: 400 });
+      }
+      await setSetting(clan.id, modeDropFloorKey(modeKey), floor == null ? null : String(floor));
+      return NextResponse.json(await view(clan.id));
+    }
+    if ('levels' in body) {
+      if (body.levels !== null && (typeof body.levels !== 'object' || Array.isArray(body.levels))) {
+        return NextResponse.json({ error: 'Those level rules are not valid.' }, { status: 400 });
+      }
+      const levels = parseModeLevels(body.levels);
+      await setSetting(clan.id, modeLevelsKey(modeKey), levels ? JSON.stringify(levels) : null);
       return NextResponse.json(await view(clan.id));
     }
     return NextResponse.json({ error: 'Nothing to change.' }, { status: 400 });

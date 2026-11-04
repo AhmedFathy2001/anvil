@@ -25,6 +25,7 @@
     "test": "node scripts/test-all.mjs",
     "seo:indexnow": "node scripts/indexnow.mjs",
     "test:balance": "npx tsx --test tests/balance-effort.test.ts",
+    "test:deathsource": "npx tsx --test tests/death-source.test.ts tests/lab-feed.test.ts",
     "test:dropsource": "npx tsx --test tests/drop-source-check.test.ts",
     "harness:plugin": "node scripts/plugin-harness.mjs",
     "load:profile": "node loadtest/profile.mjs",
@@ -201,8 +202,11 @@
     "test:weeklyroll": "npx tsx --test tests/weekly-repeat-roll.test.ts",
     "test:features": "npx tsx --test tests/features.test.ts",
     "test:withdrawnroster": "npx tsx --test tests/withdrawn-roster-migration.test.ts",
+    "test:modefilters": "npx tsx --test tests/mode-filters.test.ts tests/world-modes.test.ts",
     "test:startingstats": "npx tsx --test tests/starting-stats.test.ts",
-    "test:startingstatsdb": "npx tsx --test tests/starting-stats-capture.test.ts"
+    "test:startingstatsdb": "npx tsx --test tests/starting-stats-capture.test.ts",
+    "test:modestats": "npx tsx --test tests/mode-stats.test.ts",
+    "test:modeboarddb": "npx tsx --test tests/mode-board-credit-db.test.ts"
   },
   "dependencies": {
     "@vercel/blob": "^2.0.1",

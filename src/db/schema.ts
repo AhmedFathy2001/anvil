@@ -1085,6 +1085,11 @@ export const eventParticipants = pgTable('event_participants', {
   // player everywhere gains are computed (cron team-sum seeding, standings, gains API), so their gain =
   // frozenStats − statsSnapshot stays fixed. NULL when not frozen.
   frozenStats: text('frozen_stats'),
+  // KC / XP pushed from a GAME-MODE world (lib/worldModes) on a board that counts that mode
+  // (rules.worldModes): per mode, the first reading after the board started and the highest since
+  // (lib/modeStats). Kept on the board row so a separate save never touches the account's overlay,
+  // history or weekly competitions. NULL = no mode readings.
+  modeStats: text('mode_stats'),
   // Personal bests as they stood BEFORE the event (lib/footprintCheck), captured once early on so a
   // PB beaten during the event still has its old value to be compared against. JSON
   // {"<hiscores key>|<team size>": centiseconds}; '{}' = captured, none. NULL = not captured yet.

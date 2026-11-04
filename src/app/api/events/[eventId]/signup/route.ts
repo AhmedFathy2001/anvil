@@ -385,6 +385,8 @@ export async function POST(
     timezone: profile.timezone ?? null,
     now,
     newPlayerToken: generatePlayerToken,
+    // Waiting for the host: the pool, not a team, until they're approved.
+    poolOnly: !invite && activeRows.some(({ row }) => row.status === 'pending'),
   });
   if (!seated.ok) {
     return NextResponse.json(

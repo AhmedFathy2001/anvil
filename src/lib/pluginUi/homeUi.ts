@@ -305,9 +305,20 @@ export function homeUi(d: HomeData): Node {
     }
     cards.push(drillCard(w.title || weeklyKind(w.type), lines, home(`weekly:${w.id}`)));
   }
+  // The boards this person is seated on (any of their characters), by id: a clan board listed here that
+  // they're on says their team and opens the board, instead of "not in it" and a second card below.
+  const seated = new Map((d.myBoards ?? []).map((m) => [m.eventId, m]));
   for (const s of d.cfg.panel?.scheduled ?? []) {
     const live = s.status === 'active';
     const timing = timingLabel(!live, s.startDate, s.endDate, d.now);
+    const on = seated.get(s.id);
+    if (on) {
+      const lines: Node[] = [text(scheduledKind(s), LIGHT), muted(clip(timing ?? sizeLabel(s), 30)), text(clip(`On ${on.teamName}`, 30), 'brand')];
+      if (on.tilesTotal > 0) lines.push(muted(`${on.tilesComplete} / ${on.tilesTotal} ${on.pointsScored ? 'points' : 'tiles'}`), gap(4), thickBar(percent(on.tilesComplete, on.tilesTotal)));
+      else lines.push(muted('Board not revealed yet'));
+      cards.push(drillCard(s.title || on.name, lines, { a: 'load', v: 'board', args: { event: String(s.id) } }, `Open ${s.title || on.name}`));
+      continue;
+    }
     cards.push(drillCard(s.title || 'Bingo', [text(scheduledKind(s), LIGHT), muted(clip(timing ?? sizeLabel(s), 30)), muted(clip(live ? 'Running — you’re not in it' : sizeLabel(s), 30))], home(`event:${s.id}`)));
   }
   for (const ce of d.clanEvents ?? []) cards.push(drillCard(ce.title, clanEventLines(ce), home(`clan-event:${ce.id}`)));
@@ -320,7 +331,8 @@ export function homeUi(d: HomeData): Node {
   // on gets a card of its own here (several in one clan included), which is what "+ N more" hinted at.
   const inAlsoLive = new Set(others.flatMap((c) => (c.live && (!c.live.kind || c.live.kind === 'bingo') ? [c.live.eventId] : [])));
   const shownBoard = d.cfg.event?.id ?? d.cfg.homeBoard?.eventId ?? null;
-  const mine = (d.myBoards ?? []).filter((m) => m.eventId !== shownBoard && !inAlsoLive.has(m.eventId));
+  const listed = new Set((d.cfg.panel?.scheduled ?? []).map((x) => x.id));
+  const mine = (d.myBoards ?? []).filter((m) => m.eventId !== shownBoard && !inAlsoLive.has(m.eventId) && !listed.has(m.eventId));
   if (mine.length) {
     parts.push(...heading('Your other boards'));
     mine.forEach((m, i) => {

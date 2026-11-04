@@ -21,7 +21,10 @@ import { ttlMemo } from '@/lib/ttlMemo';
 import { labQuarantine } from '@/lib/lab';
 import { applyLabStatsPush } from '@/lib/labStats';
 import { notifyTeamTiles } from '@/lib/pushNotify';
-import { worldModeIgnored } from '@/lib/worldModeRequest';
+import { worldModeIgnored, worldModeOf } from '@/lib/worldModeRequest';
+import { parseEventRules } from '@/lib/eventRules';
+import { mergeModePush } from '@/lib/modeStats';
+import type { WorldMode } from '@/lib/worldModes';
 
 // Real-time boss-KC / skill-XP / activity ingest. The plugin posts {stats:[{name,kc}],
 // skills:[{name,xp}], activities:[{key,value}]} with
@@ -33,11 +36,16 @@ import { worldModeIgnored } from '@/lib/worldModeRequest';
 // hiscores catches up. See lib/liveStats + lib/statTracking + the cron/stats sweep.
 
 export async function POST(request: Request) {
-  // Kills, drops, XP and logs from a game-mode world (Leagues, Deadman, hardcore, …) are another
-  // save's progress, never this one's (lib/worldModeRequest).
-  const otherSave = worldModeIgnored(request);
-  if (otherSave) return otherSave;
+  // Kills and XP from a game-mode world (Leagues, Deadman, hardcore, …) are another save's progress:
+  // they never reach the account's overlay, history or weekly competitions. Only a board that counts
+  // that mode (rules.worldModes) takes them — see modePush below.
+  const mode = worldModeOf(request);
   const clan = await resolvePluginClan(request);
+  if (mode) {
+    const member = clan ? await resolvePluginMember(request) : null;
+    if (!clan || !member) return worldModeIgnored(request)!;
+    return modePush(request, mode, member, clan.id);
+  }
   // No clan is not "nowhere to put it": the stats are the PERSON's, and their profile keeps them
   // with or without a clan. The account-only path takes the push when the token owns the character.
   if (!clan) return (await accountOnlyPush(request)) ?? noClanForPlugin();
@@ -198,6 +206,87 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ ok: true, updated: Object.keys(pushed).length, completed });
+}
+
+/**
+ * A push from a game-mode world, for the boards that count that mode (rules.worldModes) and nothing
+ * else. The readings go on the character's row on each such board that has started
+ * (event_participants.mode_stats, lib/modeStats) — never the account's overlay, its stat history or a
+ * weekly competition, so the main save's numbers are untouched — and those boards' stat tiles are
+ * re-checked. A character on no such board gets the same 202 every mode push used to.
+ */
+async function modePush(
+  request: Request,
+  mode: WorldMode,
+  member: NonNullable<Awaited<ReturnType<typeof resolvePluginMember>>>,
+  clanId: number,
+): Promise<NextResponse> {
+  const rl = await rateLimit(request, `plugin-stats:${member.userId}`, { limit: 120, windowMs: 60_000 });
+  if (!rl.ok) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
+  }
+  let body: PushBody;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+  // A tile-lab character writes nothing real, whatever world it's on (lib/lab).
+  const quarantined = await labQuarantine(request, member.accountId, 'stats', body, (eventId, accountId) =>
+    applyLabStatsPush(eventId, accountId, readPushed(body)),
+  );
+  if (quarantined) return quarantined;
+  const pushed = readPushed(body);
+
+  const nowIso = new Date().toISOString();
+  // clan-scope: this clan -- boards the connected clan hosts or co-hosts (lib/auth pluginParticipantScope).
+  const rows = await db
+    .select({
+      id: eventParticipants.id,
+      teamId: eventParticipants.teamId,
+      eventId: eventParticipants.eventId,
+      modeStats: eventParticipants.modeStats,
+      startDate: events.startDate,
+      endDate: events.endDate,
+      forceEndedAt: events.forceEndedAt,
+      rules: events.rules,
+    })
+    .from(eventParticipants)
+    .innerJoin(events, eq(eventParticipants.eventId, events.id))
+    .where(await pluginParticipantScope(member));
+  // Started, running, on a team — and the board counts THIS mode. A main-game-only board never does.
+  const boards = rows.filter(
+    (r) =>
+      r.teamId &&
+      !r.forceEndedAt &&
+      (!r.endDate || r.endDate > nowIso) &&
+      eventHasStarted(r) &&
+      parseEventRules(r.rules).worldModes.includes(mode.key),
+  );
+  if (boards.length === 0) return worldModeIgnored(request)!;
+  if (Object.keys(pushed).length === 0) return NextResponse.json({ ok: true, updated: 0, mode: mode.label, completed: [] });
+
+  const updatedKeys = new Set(Object.keys(pushed));
+  const completed: string[] = [];
+  for (const row of boards) {
+    const next = mergeModePush(row.modeStats, mode.key, pushed);
+    if (next == null) continue;
+    await db.update(eventParticipants).set({ modeStats: next }).where(eq(eventParticipants.id, row.id));
+    const statTiles = (await db.select().from(tiles).where(eq(tiles.eventId, row.eventId))).filter(
+      (t) =>
+        t.trackedStat &&
+        (t.statType === 'boss' || t.statType === 'kc' || t.statType === 'skill') &&
+        t.statGoal &&
+        !t.autoTrackDisabled &&
+        statKeys(t.trackedStat).some((k) => updatedKeys.has(k)),
+    );
+    if (statTiles.length === 0) continue;
+    notifyTeamTiles(row.eventId, row.teamId!, statTiles.map((t) => t.id));
+    completed.push(
+      ...(await creditStatTilesForTeam({ eventId: row.eventId, teamId: row.teamId!, statTiles, notifyClanId: clanId })),
+    );
+  }
+  return NextResponse.json({ ok: true, updated: Object.keys(pushed).length, mode: mode.label, completed });
 }
 
 /**

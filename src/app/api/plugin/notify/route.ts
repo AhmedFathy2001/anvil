@@ -11,7 +11,8 @@ import { playerEventEmbed } from '@/lib/discordEmbeds';
 import { buildPluginEmbed } from '@/lib/pluginEmbeds';
 import { markMode, routeModePost, type WorldMode } from '@/lib/worldModes';
 import { worldModeOf } from '@/lib/worldModeRequest';
-import { getModeRouting, modeIconUrl, rememberSeenMode } from '@/lib/worldModeStore';
+import { getModeFilters, getModeRouting, modeIconUrl, rememberSeenMode } from '@/lib/worldModeStore';
+import { modeFilterAllows } from '@/lib/modeFilters';
 import { stripChatTags, stripChatTagsDeep } from '@/lib/chatTags';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { db } from '@/db';
@@ -276,6 +277,13 @@ export async function POST(request: Request) {
         declined++;
         continue;
       }
+    }
+    // A mode's own filters (lib/modeFilters): a clan can ask Hardcore, Leagues… to post less than the
+    // main game — rarer drops only, fewer level milestones. Stricter only: the plugin already applied
+    // the main-game settings. Only posts the filters can judge (drops, levels) cost a read.
+    if (mode && (kind === 'drop' || levelPost) && !modeFilterAllows(kind, facts, await getModeFilters(ec.clanId, mode.key))) {
+      declined++;
+      continue;
     }
     // A new mode joins this clan's Game modes list only off a post by someone with a seat here.
     if (mode) await rememberSeenMode(ec.clanId, mode);

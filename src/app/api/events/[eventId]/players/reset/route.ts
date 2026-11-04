@@ -131,6 +131,7 @@ export async function POST(
         cachedStats: null,
         lastStatsFetch: null,
         pluginStats: null,
+        modeStats: null,
         frozenAt: benched ? new Date().toISOString() : null,
         frozenStats: null,
         ...(remove ? { teamId: null, pickNumber: null, pickedAt: null } : {}),

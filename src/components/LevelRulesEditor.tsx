@@ -43,10 +43,13 @@ export default function LevelRulesEditor({
   value,
   onChange,
   disabled,
+  levelsOnly,
 }: {
   value: MilestoneRules;
   onChange: (next: MilestoneRules) => void;
   disabled?: boolean;
+  /** Hide the XP rows — for rules that only judge level-ups (a game mode's own filters). */
+  levelsOnly?: boolean;
 }) {
   const set = (patch: Partial<MilestoneRules>) => onChange({ ...value, ...patch });
   const preset = presetOf(value);
@@ -111,6 +114,8 @@ export default function LevelRulesEditor({
         />
       </Row>
 
+      {!levelsOnly && (
+      <>
       <Row title="Total XP" hint={`Overall XP steps, in millions (multiples of ${TOTAL_XP_GRAIN_M}). 0 turns them off.`}>
         <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-text-muted">
           every
@@ -150,6 +155,8 @@ export default function LevelRulesEditor({
           })}
         </div>
       </Row>
+      </>
+      )}
     </div>
   );
 }

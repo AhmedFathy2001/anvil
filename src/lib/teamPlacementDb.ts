@@ -235,9 +235,15 @@ export async function seatSignupAccounts(input: {
   timezone: string | null;
   now: string;
   newPlayerToken: () => string;
+  /**
+   * The sign-up still waits for the host's yes: it goes to the pool whatever the placement, and is
+   * placed when approved (admin signups PATCH). A team before approval would let a pending player's
+   * plugin track and credit on a board the host hasn't let them into.
+   */
+  poolOnly?: boolean;
 }): Promise<{ ok: true; teamId: number | null } | { ok: false; reason: 'full' | 'no-such-team' }> {
   const { event, inviteTeamId, pickTeamId, now } = input;
-  const placement = placementOf(event);
+  const placement = input.poolOnly && inviteTeamId == null ? 'draft' : placementOf(event);
   const accounts = [...input.accounts].sort((a, b) =>
     a.seatId === input.primarySeatId ? -1 : b.seatId === input.primarySeatId ? 1 : 0,
   );

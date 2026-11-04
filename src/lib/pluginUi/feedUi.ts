@@ -36,7 +36,8 @@ export function momentsFeedId(scope: { kind: 'clan' | 'event'; id: number }, fil
 
 /** Every list a moment belongs in: its scope's, its kind group's, and its team's on a board. */
 export function momentFeedIds(scope: { kind: 'clan' | 'event'; id: number }, kind: string, teamId: number | null): string[] {
-  const ids = [momentsFeedId(scope)];
+  // A clan's deaths live under its Deaths chip only: on a feed that never stops, "All" stays highlights.
+  const ids = scope.kind === 'clan' && kind === 'death' ? [] : [momentsFeedId(scope)];
   const g = kindGroup(kind);
   if (g) ids.push(momentsFeedId(scope, g));
   if (scope.kind === 'event' && teamId != null) ids.push(momentsFeedId(scope, 'team', teamId));
@@ -149,7 +150,8 @@ export function completionRow(c: {
     glyph: 'check',
     glyphColor: 'done',
     title: `Tile complete: ${c.label}`,
-    textColor: 'done',
+    // In the team's colour, so each team's finishes read at a glance (green when it has none).
+    textColor: ((c.team?.color && /^#[0-9a-f]{6}$/i.test(c.team.color) ? c.team.color : 'done') as Color),
     // Who AND which team on the line itself: the plugin puts a row's tag only in its tooltip.
     who: c.who && c.team ? `${c.who} · ${c.team.name}` : c.who ?? c.team?.name ?? '',
     whoColor: 'muted',
@@ -299,8 +301,8 @@ export function feedTabUi(o: FeedTabOptions): Node {
           ['drops', 'Drops'],
           ['pets', 'Pets'],
           ['achievements', 'Achievements'],
-          // A board keeps every death (a clan feed only when the clan asks for them).
-          ...(o.current.kind === 'event' ? [['deaths', 'Deaths'] as [string, string]] : []),
+          // A board keeps every death; a clan its members' deaths unless it turned them off (Rules).
+          ['deaths', 'Deaths'],
           ...(o.current.kind === 'event' && o.teamId != null ? [['team', 'My team'] as [string, string]] : []),
         ];
   // Three to a row: the panel splits a row evenly, and "Achievements" is too wide for a quarter of it.

@@ -118,6 +118,8 @@ export async function swapTrackedAccount(opts: {
       snapshotAt: null,
       cachedStats: null,
       lastStatsFetch: null,
+      // Same for the game-mode readings (lib/modeStats): they were the old character's.
+      modeStats: null,
     },
   };
 }
