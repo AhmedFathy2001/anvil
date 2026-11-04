@@ -160,7 +160,8 @@ export function findCodeInChat(items: unknown, code: string, fromChannel?: strin
 // Signed; carries who started it, for what, and where to return. The callback also requires the
 // nonce cookie set by /start and the same logged-in user (as lib/twitch).
 
-export type YoutubeLinkMode = 'viewer' | 'host';
+// 'link': settings' Connected accounts — identity only, no event (c is 0).
+export type YoutubeLinkMode = 'viewer' | 'host' | 'link';
 
 export interface YoutubeState {
   /** users.id of whoever pressed the button. */
@@ -205,8 +206,8 @@ export function verifyState(token: string | null | undefined, tokenKey: string, 
   }
   if (!s || typeof s !== 'object') return null;
   if (!Number.isInteger(s.u) || s.u <= 0) return null;
-  if (s.m !== 'viewer' && s.m !== 'host') return null;
-  if (!Number.isInteger(s.c) || s.c <= 0) return null;
+  if (s.m !== 'viewer' && s.m !== 'host' && s.m !== 'link') return null;
+  if (s.m === 'link' ? s.c !== 0 : !Number.isInteger(s.c) || s.c <= 0) return null;
   if (typeof s.r !== 'string' || typeof s.n !== 'string' || s.n.length < 16) return null;
   if (s.h != null && typeof s.h !== 'string') return null;
   if (typeof s.e !== 'number' || s.e <= now) return null;
@@ -384,6 +385,27 @@ export async function activeLiveChatId(token: string, f: FetchLike = fetch): Pro
   const items = (r.value.items as { snippet?: { liveChatId?: unknown } }[] | undefined) ?? [];
   const id = items.map((i) => i?.snippet?.liveChatId).find((x): x is string => typeof x === 'string' && /^[A-Za-z0-9_-]{1,200}$/.test(x));
   return { ok: true, value: id ?? null };
+}
+
+/**
+ * The token's channel's recent broadcasts with their actual start and end (stream highlights' VOD
+ * links, lib/highlights). One unit of quota per call; callers cache it.
+ */
+export async function recentBroadcasts(
+  token: string,
+  f: FetchLike = fetch,
+): Promise<ApiResult<{ id: string; actualStartTime: string | null; actualEndTime: string | null }[]>> {
+  const q = new URLSearchParams({ part: 'id,snippet', broadcastStatus: 'all', broadcastType: 'all', maxResults: '10' });
+  const r = await apiGet(token, `/liveBroadcasts?${q}`, f);
+  if (!r.ok) return r;
+  const items = (r.value.items as { id?: unknown; snippet?: { actualStartTime?: unknown; actualEndTime?: unknown } }[] | undefined) ?? [];
+  const iso = (v: unknown) => (typeof v === 'string' && Number.isFinite(Date.parse(v)) ? v : null);
+  return {
+    ok: true,
+    value: items
+      .filter((i) => typeof i?.id === 'string' && /^[A-Za-z0-9_-]{6,20}$/.test(i.id))
+      .map((i) => ({ id: i.id as string, actualStartTime: iso(i.snippet?.actualStartTime), actualEndTime: iso(i.snippet?.actualEndTime) })),
+  };
 }
 
 /** The live chat's recent messages (the first page of liveChatMessages.list is the recent history). */

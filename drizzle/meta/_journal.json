@@ -1046,10 +1046,24 @@
       "breakpoints": true
     },
     {
-      "idx": 208,
+      "idx": 207,
       "version": "7",
-      "when": 1793792914614,
-      "tag": "0208_other_login_characters",
+      "when": 1793792854614,
+      "tag": "0207_connected_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 209,
+      "version": "7",
+      "when": 1793792974614,
+      "tag": "0209_stream_highlights",
+      "breakpoints": true
+    },
+    {
+      "idx": 210,
+      "version": "7",
+      "when": 1793793034614,
+      "tag": "0210_other_login_characters",
       "breakpoints": true
     }
   ]

@@ -177,6 +177,7 @@ const ACCOUNT_ITEMS: { href: string; label: string; icon: string }[] = [
   { href: '/settings/announcements', label: 'Announcements', icon: '📣' },
   { href: '/settings/webhooks', label: 'Discord webhooks', icon: '⌁' },
   { href: '/settings/chat', label: 'In-game chat', icon: '💬' },
+  { href: '/settings/connections', label: 'Connected accounts', icon: '⇄' },
   { href: '/settings/privacy', label: 'Privacy', icon: '◐' },
   { href: '/settings/look', label: 'Profile look', icon: '▣' },
   { href: '/settings/supporter', label: 'Supporter', icon: '★' },

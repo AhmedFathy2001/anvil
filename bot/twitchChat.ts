@@ -36,6 +36,12 @@ const HELIX = 'https://api.twitch.tv/helix';
 const ID = 'https://id.twitch.tv/oauth2';
 /** How often the channel list is re-read from the site (a host flipping the switch). */
 const SYNC_MS = 5 * 60_000;
+/**
+ * With no channel to sit in, the bot holds no connection at all: Twitch closes an EventSub socket
+ * that subscribes to nothing within ~10s, so staying connected meant reconnecting every few seconds
+ * forever. Instead it asks the site this often whether any channel wants it yet.
+ */
+const IDLE_CHECK_MS = 2 * 60_000;
 
 const clientId = process.env.TWITCH_BOT_CLIENT_ID ?? '';
 const clientSecret = process.env.TWITCH_BOT_CLIENT_SECRET ?? '';
@@ -120,12 +126,20 @@ async function askSite<T>(query: string): Promise<T | null> {
 /** broadcaster id → EventSub subscription id, for the current session. */
 const subs = new Map<string, string>();
 let sessionId: string | null = null;
+/** True while no channel wants the bot: no socket is held, and a close is not followed by a reconnect. */
+let idle = false;
 
 async function sync(): Promise<void> {
   if (!sessionId) return;
   const answer = await askSite<BotChannelsAnswer>('op=channels');
   if (!answer) return; // the site is down: keep what we have rather than leave every channel
   const want = new Set(answer.channels.map((c) => c.broadcasterId));
+  if (want.size === 0) {
+    // Nobody wants the bot any more: let go of the socket and wait (see IDLE_CHECK_MS).
+    subs.clear();
+    goIdle();
+    return;
+  }
   for (const [broadcaster, id] of subs) {
     if (want.has(broadcaster)) continue;
     await helix(`/eventsub/subscriptions?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => null);
@@ -252,6 +266,7 @@ function connect(url: string, keepSubs: boolean) {
     socket = null;
     sessionId = null;
     if (watchdog) clearTimeout(watchdog);
+    if (idle) return; // closed on purpose: nothing to sit in
     log('bot.ws-closed', { retryInMs: backoffMs });
     setTimeout(() => connect(EVENTSUB_WS, false), backoffMs);
     backoffMs = Math.min(backoffMs * 2, 60_000);
@@ -262,9 +277,34 @@ function connect(url: string, keepSubs: boolean) {
   if (!socket) socket = ws;
 }
 
+function goIdle() {
+  if (idle) return;
+  idle = true;
+  log('bot.idle', { recheckInMs: IDLE_CHECK_MS });
+  socket?.close();
+}
+
+/** Connect only when at least one channel wants the bot; otherwise stay idle and check again later. */
+async function wakeIfWanted(): Promise<void> {
+  if (socket) return;
+  const answer = await askSite<BotChannelsAnswer>('op=channels');
+  if (!answer || answer.channels.length === 0) {
+    if (!idle) {
+      idle = true;
+      log('bot.idle', { recheckInMs: IDLE_CHECK_MS });
+    }
+    return;
+  }
+  idle = false;
+  backoffMs = 1_000;
+  log('bot.wake', { channels: answer.channels.length });
+  connect(EVENTSUB_WS, false);
+}
+
 async function main() {
   await refresh();
-  connect(EVENTSUB_WS, false);
+  await wakeIfWanted();
+  setInterval(() => void wakeIfWanted().catch((err: Error) => log('bot.wake-failed', { message: err.message })), IDLE_CHECK_MS);
   setInterval(() => void sync().catch((err: Error) => log('bot.sync-failed', { message: err.message })), SYNC_MS);
   // User tokens last about four hours; refresh well before, so a quiet night doesn't start with a 401.
   setInterval(() => void refresh().catch((err: Error) => log('bot.refresh-failed', { message: err.message })), 2 * 60 * 60_000);

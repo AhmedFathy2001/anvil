@@ -153,6 +153,9 @@ async function forgetChannelIfOrphaned(broadcasterId: string): Promise<void> {
   await db.delete(kickChannelFacts).where(eq(kickChannelFacts.broadcasterId, broadcasterId));
   const cfg = kickConfig();
   if (!cfg) return;
+  // The Anvil channel's chat stays subscribed: it is where anybody links a Kick account.
+  const { isAnvilKickChannel } = await import('@/lib/gates/kickAnvilChannel');
+  if (await isAnvilKickChannel(broadcasterId)) return;
   try {
     const app = await kickAppToken(cfg, fetchImpl);
     await unsubscribeChannelEvents(app.accessToken, broadcasterId, fetchImpl);
@@ -410,7 +413,18 @@ export type KickEventOutcome =
  */
 export async function applyKickEvent(ev: KickEvent, opts: { code: string | null; join: boolean }, now = Date.now()): Promise<KickEventOutcome> {
   const channels = await channelsFor(ev.broadcasterId);
-  if (channels.length === 0) return { kind: 'ignored' };
+  if (channels.length === 0) {
+    // The official Anvil channel (lib/gates/kickAnvilChannel): a code typed there links the account,
+    // with no host and so no follow/sub facts. Anything else from it is ignored.
+    if (ev.type === 'chat' && opts.code) {
+      const { isAnvilKickChannel } = await import('@/lib/gates/kickAnvilChannel');
+      if (await isAnvilKickChannel(ev.broadcasterId)) {
+        const r = await redeemKickCode(opts.code, ev.sender, now);
+        return { kind: 'code', result: r ? r.result : 'invalid' };
+      }
+    }
+    return { kind: 'ignored' };
+  }
 
   if (ev.type === 'follow') {
     await recordFacts(ev.broadcasterId, [ev.follower.id], { follow: true }, now);

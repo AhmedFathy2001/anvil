@@ -14,6 +14,8 @@ import { profileMediaForPlayer } from '@/lib/profileMedia';
 import { displayCaseForPlayer } from '@/lib/displayCase';
 import { ProfileAvatar, ProfileBanner } from '@/components/ProfileMedia';
 import DisplayCase from '@/components/DisplayCase';
+import ConnectedAccounts from '@/components/ConnectedAccounts';
+import { profileConnectedAccounts } from '@/lib/connectedAccounts';
 import ClanCrest from '@/components/ClanCrest';
 import AccountProgressCard from '@/components/AccountProgressCard';
 import ProfileTabs from '@/app/members/[rsn]/ProfileTabs';
@@ -146,11 +148,14 @@ export default async function CharacterPage({
   // nobody else gets told here. The display case is this character's own pins only, which says
   // nothing about any other character.
   const showPersonMedia = character.personId != null && (character.personPublic || character.viewerOwns);
-  const [media, showcase] = await Promise.all([
+  // Connected accounts follow the same rule as the pictures: a Twitch handle on two character pages
+  // would say they are one person, so only when the owner says so (or to the owner).
+  const [media, showcase, connected] = await Promise.all([
     showPersonMedia ? profileMediaForPlayer(character.personId!) : Promise.resolve({ avatar: null, banner: null }),
     character.personId != null
       ? displayCaseForPlayer(character.personId, { accountId: character.accountId, publicView: !character.viewerOwns })
       : Promise.resolve([]),
+    showPersonMedia ? profileConnectedAccounts(character.personId!, character.viewerOwns) : Promise.resolve([]),
   ]);
 
   const [series, records, milestones, collection, progress, questItems, caItems, trackingSince, gameClanRow, supporterLooks] = await Promise.all([
@@ -309,6 +314,7 @@ export default async function CharacterPage({
         </div>
       </header>
 
+      <ConnectedAccounts links={connected} className="-mt-3 mb-7" />
       <DisplayCase entries={showcase} showRsn={false} className="mb-7" />
 
       {/* The tabs render with or without a hiscores snapshot — the clan profile always has. Gating them

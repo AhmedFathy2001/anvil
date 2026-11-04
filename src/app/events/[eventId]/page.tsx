@@ -21,6 +21,7 @@ import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
+import { siteReactions } from '@/lib/siteReactions';
 import { parseStamp } from '@/lib/dbTime';
 import { tileKindKey } from '@/lib/tileKinds';
 import { isManualTile } from '@/lib/clogManual';
@@ -34,6 +35,8 @@ import { startProofState } from '@/lib/startProof';
 import EventFirsts from '@/components/events/EventFirsts';
 import { loadEventFirsts } from '@/lib/eventFirsts';
 import MomentsFeed from '@/components/MomentsFeed';
+import HighlightsStrip from '@/components/HighlightsStrip';
+import { highlightsForEvent, linksByMoment } from '@/lib/highlights/store';
 import { getEventLuck } from '@/lib/eventLuck';
 import EventLuck from './EventLuck';
 import { eventFeed } from '@/lib/momentsStore';
@@ -402,6 +405,18 @@ export default async function EventScoreboardPage({
     // and can't be placed, so it waits too).
     .filter((moment) => canSeeTeamProgress(standingsScope, moment.teamId))
     .slice(0, 12);
+  // Stream highlights (lib/highlights): a streamed board's clips and stream timestamps, under the same
+  // curtain as the feed above. The page's own gate already decided the event is this viewer's to see.
+  const streamHighlights = creatorEvent
+    ? await highlightsForEvent(event.id, (teamId) => canSeeTeamProgress(standingsScope, teamId), { limit: 100 }).catch(() => [])
+    : [];
+  const highlightStrip = streamHighlights.slice(0, 12);
+  const momentStreamLinks = linksByMoment(streamHighlights);
+  const tileHighlights: Record<number, typeof streamHighlights> = {};
+  for (const h of streamHighlights) if (h.tileId != null) (tileHighlights[h.tileId] ??= []).push(h);
+  // GZ / Sad / Sit under each (lib/siteReactions): counts for anyone who sees the row, who gave them
+  // (and a press) for the board's players and the host's staff, as in the plugin's Feed.
+  const momentReactions = eventMoments.length ? await siteReactions(eventMoments, { eventId: event.id, hostClanId: event.clanId }, session?.userId ?? null) : undefined;
   // Who the game was kind to this event, and who it wasn't (lib/eventLuck) — once it has started.
   // Cross-team by construction (luckiest / unluckiest across the whole board) — held while hidden.
   const luck =
@@ -839,7 +854,8 @@ export default async function EventScoreboardPage({
           </div>
         )}
         <EventFirsts firsts={firsts} />
-        <MomentsFeed moments={eventMoments} />
+        <HighlightsStrip highlights={highlightStrip} />
+        <MomentsFeed moments={eventMoments} streamLinks={momentStreamLinks} reactions={momentReactions} />
         <ScoreboardClient
           curtain={curtain}
           event={event}
@@ -856,6 +872,7 @@ export default async function EventScoreboardPage({
           hiddenSchedule={hiddenSchedule}
           boardPointsTotal={pointsOnBoard}
           initialTileId={Number.isInteger(initialTileId) && initialTileId > 0 ? initialTileId : null}
+          tileHighlights={tileHighlights}
         />
         {luck && <EventLuck luck={luck} />}
         </>
