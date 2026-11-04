@@ -67,6 +67,8 @@ export type ClaimStatus =
 const LIVE: ClaimStatus[] = ['verifying', 'open', 'approved', 'transferring'];
 /** A transfer that started this long ago and never finished (a crashed worker) is retried. */
 const TRANSFER_STALE_MS = 10 * 60_000;
+/** A claim proved this long ago and still not routed (a crashed Check) is routed by the sweep. */
+const ROUTE_STALE_MS = 5 * 60_000;
 /** A no, or staff's to decide: the same person waits before asking again. */
 const REFUSED: ClaimStatus[] = ['objected', 'declined', 'staff'];
 
@@ -589,6 +591,22 @@ export async function settleOwnershipClaims(nowMs = Date.now()): Promise<number>
   for (const claim of due) {
     try {
       if (claim.status === 'verifying') {
+        // Proved but never routed: the Check that won stamped verifiedAt and then died before telling
+        // anybody. expire() spares a verified claim (two Checks racing), so without this it would hold
+        // the character's one live-claim slot forever. Finish its attempt and route it, as the winner
+        // would have; routing is guarded on 'verifying', so it happens once.
+        if (claim.verifiedAt && Date.parse(claim.verifiedAt) + ROUTE_STALE_MS < nowMs) {
+          const account = await db.query.accounts.findFirst({ where: eq(accounts.id, claim.accountId) });
+          if (claim.verificationAttemptId) {
+            await db
+              .update(verificationAttempts)
+              .set({ completedAt: claim.verifiedAt, succeeded: 1, failureReason: null })
+              .where(and(eq(verificationAttempts.id, claim.verificationAttemptId), isNull(verificationAttempts.completedAt)));
+          }
+          if (account) await routeVerifiedClaim(claim, account, nowIso);
+          else await lapse(claim, nowIso, 'account-gone');
+          continue;
+        }
         if (Date.parse(claim.createdAt) + VERIFY_WINDOW_MS + 60_000 < nowMs) await expire(claim, nowIso);
         continue;
       }
