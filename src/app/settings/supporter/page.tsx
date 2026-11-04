@@ -5,6 +5,7 @@ import { users } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { supporterForUser } from '@/lib/supporter';
 import { referralSummary } from '@/lib/referrals';
+import { myBoosts } from '@/lib/clanBoosts';
 import { apexOrigin } from '@/lib/seo';
 import { SUPPORTER_TIER_ORDER, type SupporterTierId } from '@/lib/supporterTiers';
 import ClanLink from '@/components/ClanLink';
@@ -26,6 +27,7 @@ const PERKS: { label: string; where: string; tier: SupporterTierId }[] = [
   { label: 'Your own chat feed colours', where: '/settings/chat', tier: 'supporter' },
   { label: 'Choose what your login brief covers', where: '/settings/chat', tier: 'champion' },
   { label: 'A star by your name in other players’ chat feeds', where: '/settings/chat', tier: 'patron' },
+  { label: 'Boosts for clans you’re in (1 / 2 / 3 slots)', where: '/settings/boosts', tier: 'supporter' },
 ];
 const atLeast = (tier: SupporterTierId | null, need: SupporterTierId) =>
   tier != null && SUPPORTER_TIER_ORDER.indexOf(tier) >= SUPPORTER_TIER_ORDER.indexOf(need);
@@ -33,10 +35,11 @@ const TIER_NAME: Record<SupporterTierId, string> = { supporter: 'Supporter', cha
 
 export default async function SupporterSettingsPage() {
   const session = (await verifyUser())!;
-  const [user, supporter, referral] = await Promise.all([
+  const [user, supporter, referral, boosts] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, session.userId) }),
     supporterForUser(session.userId),
     referralSummary(session.userId).catch(() => null),
+    myBoosts(session.userId, session.playerId ?? null).catch(() => null),
   ]);
   const tier = supporter?.tier.id ?? null;
 
@@ -46,6 +49,18 @@ export default async function SupporterSettingsPage() {
         Supporters pay for Anvil&rsquo;s servers and their name says so. Perks are looks only: nothing here changes tracking, scoring or
         what an event counts.
       </SettingsTitle>
+
+      {boosts && boosts.free > 0 && (
+        <ClanLink
+          href="/settings/boosts"
+          className="mb-6 flex flex-wrap items-center gap-x-2 rounded-xl border border-gold/35 bg-gold/[0.06] px-4 py-3 text-[13.5px] transition-colors hover:border-gold/60"
+        >
+          <span className="font-medium text-gold">
+            You have {boosts.free} boost{boosts.free === 1 ? '' : 's'} to place.
+          </span>
+          <span className="text-text-muted">Boost any clan you&rsquo;re a member of →</span>
+        </ClanLink>
+      )}
 
       <SettingsGroup title="Perks">
         {PERKS.map((p) => {

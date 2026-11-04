@@ -11,6 +11,7 @@ import { isApexHost } from '@/lib/clanContext';
 import { FRIENDS_CAPS } from '@/lib/friendEventRules';
 import { verifyUser } from '@/lib/auth';
 import { ensureSupporterRef, supporterCheckoutUrl, supporterForUser } from '@/lib/supporter';
+import { BOOST_SLOTS, boostSlotsFor } from '@/lib/clanBoosts';
 import { SUPPORTER_TIERS, SUPPORTER_TIER_ORDER, type SupporterTierId } from '@/lib/supporterTiers';
 import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
@@ -41,6 +42,11 @@ const ROWS: { label: string; hint?: string; cells: [Cell, Cell, Cell, Cell] }[] 
     cells: ['Join only', ...SUPPORTER_TIER_ORDER.map((id) => friendsCell(id))] as [Cell, Cell, Cell, Cell],
   },
   {
+    label: 'Clan boosts',
+    hint: 'Put a boost on a clan you are a member of. Enough boosts from its members give the clan a badge, a coloured name, a better spot in the Clan Hall and more. Looks only, never a rank or a score. Comes with paid membership, not with time earned through invites.',
+    cells: ['—', `${BOOST_SLOTS.supporter} slot`, `${BOOST_SLOTS.champion} slots`, `${BOOST_SLOTS.patron} slots`],
+  },
+  {
     label: 'Head-to-head challenges',
     hint: 'Challenge a friend one on one: first to a drop, or most kills or XP in a set time. Anvil tracks you both and calls the winner. Just for bragging rights, never for stakes.',
     cells: ['1 active', '5 active', 'Unlimited', 'Unlimited'] },
@@ -57,6 +63,8 @@ export default async function SupporterPage() {
 
   const session = await verifyUser();
   const current = session ? await supporterForUser(session.userId) : null;
+  // Paid slots only (invite time has none), for the one line that says they can boost.
+  const boostSlots = current && session ? (await boostSlotsFor(session.userId).catch(() => ({ slots: 0 }))).slots : 0;
   const viaCookie = (await cookies()).get(REFERRAL_COOKIE)?.value ?? null;
   const via = isReferralCode(viaCookie) ? viaCookie : null;
   const checkout = session ? supporterCheckoutUrl(await ensureSupporterRef(session.userId), via) : null;
@@ -96,10 +104,15 @@ export default async function SupporterPage() {
           </p>
         )}
         {current && (
-          <p className="relative mt-3 text-[13.5px]">
+          <p className="relative mt-3 flex flex-wrap justify-center gap-x-5 gap-y-1 text-[13.5px]">
             <ClanLink href="/host/friends" className="text-gold hover:text-gold-light">
               Host an event for your friends →
             </ClanLink>
+            {boostSlots > 0 && (
+              <ClanLink href="/settings/boosts" className="text-gold hover:text-gold-light">
+                You have {boostSlots} boost{boostSlots === 1 ? '' : 's'}. Boost any clan you&rsquo;re a member of →
+              </ClanLink>
+            )}
           </p>
         )}
       </header>
