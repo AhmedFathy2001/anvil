@@ -5,13 +5,16 @@ import { leaguesIconUrl } from '@/lib/leagues';
 import { log } from '@/lib/logger';
 import { DEFAULT_MODE_KINDS_OFF } from '@/lib/modeLines';
 import { getSetting, getSettingMap, setSetting } from '@/lib/settings';
+import { storedModeDropFloor, storedModeLevels, type ModeFilters } from '@/lib/modeFilters';
 import {
   WORLD_MODES,
   WORLD_MODES_OFF_KEY,
   WORLD_MODES_SEEN_KEY,
   WORLD_MODES_SPLIT_KEY,
   modeIconKey,
+  modeDropFloorKey,
   modeKindsOffKey,
+  modeLevelsKey,
   modeWebhookKey,
   parseSeenModes,
   parseStringList,
@@ -55,6 +58,14 @@ export async function getModeRouting(
     kindsOff: new Set(modeKindsOff(map.has(kindsKey) ? map.get(kindsKey) : undefined)),
     modeHook,
   };
+}
+
+/** A mode's own post filters in one clan (lib/modeFilters). Unset halves follow the main game. */
+export async function getModeFilters(clanId: number, modeKey: string): Promise<ModeFilters> {
+  const floorKey = modeDropFloorKey(modeKey);
+  const levelsKey = modeLevelsKey(modeKey);
+  const map = await getSettingMap(clanId, [floorKey, levelsKey]);
+  return { dropFloor: storedModeDropFloor(map.get(floorKey)), levels: storedModeLevels(map.get(levelsKey)) };
 }
 
 /** The thumbnail for a mode's posts: the clan's own pick, else the mode's art, else none. */

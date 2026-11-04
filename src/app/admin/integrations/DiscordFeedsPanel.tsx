@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 
 import Checkbox from '@/components/Checkbox';
 import Input from '@/components/Input';
+import LevelRulesEditor from '@/components/LevelRulesEditor';
 import Select, { type SelectOption } from '@/components/Select';
 import { clanFetch } from '@/lib/clanFetch';
 import { FEED_TABS, effectiveKey, type DiscordFeed, type FeedTab } from '@/lib/discordFeeds';
+import { DEFAULT_LEVEL_RULES, DEFAULT_XP_RULES, levelHalf, type LevelRules, type MilestoneRules } from '@/lib/levelRules';
 
 interface ModeRow {
   key: string;
@@ -19,6 +21,10 @@ interface ModeRow {
   /** Leagues was switched off on the old row: its channel stays unused until it's switched on. */
   ownChannelIgnored: boolean;
   kindsOff: string[];
+  /** The mode's own drop floor (1 in N); null = the main-game setting. */
+  dropFloor: number | null;
+  /** The mode's own level rules; null = the main-game rules. */
+  levels: LevelRules | null;
 }
 
 interface View {
@@ -28,6 +34,83 @@ interface View {
   keys: Record<string, { set: boolean; channelId: string | null }>;
   off: string[];
   channels: { enabled: boolean; channels: { id: string; name: string; parentName: string | null }[] };
+}
+
+type Put = (tag: string, body: Record<string, unknown>) => Promise<boolean>;
+
+/**
+ * A mode's own filters: rarer drops only, fewer level posts. The plugin already used the main-game
+ * settings, so these can only take posts away (lib/modeFilters).
+ */
+function ModeFilters({ mode, put, disabled }: { mode: ModeRow; put: Put; disabled: boolean }) {
+  const [floor, setFloor] = useState(mode.dropFloor == null ? '' : String(mode.dropFloor));
+  const [levels, setLevels] = useState<MilestoneRules>({ ...DEFAULT_LEVEL_RULES, ...DEFAULT_XP_RULES, ...(mode.levels ?? {}) });
+  const tag = `${mode.id}:filters`;
+  const savedFloor = mode.dropFloor == null ? '' : String(mode.dropFloor);
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Custom filters</div>
+        <p className="text-[12px] text-text-muted">
+          Post less from {mode.label} than from the main game. These can only post less than your main-game settings, not more.
+        </p>
+      </div>
+
+      <div className="grid gap-1.5">
+        <label htmlFor={`${tag}:floor`} className="text-[13px] font-medium">
+          Post drops rarer than 1 in…
+        </label>
+        <p className="text-[11.5px] text-text-muted">
+          Blank = same as the main game. Always-post items still post; drops that only count because of their value don&apos;t.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            id={`${tag}:floor`}
+            inputMode="numeric"
+            className="w-32"
+            value={floor}
+            onChange={(e) => setFloor(e.target.value)}
+            placeholder="Main game"
+            disabled={disabled}
+          />
+          <button
+            type="button"
+            disabled={disabled || floor.trim() === savedFloor}
+            onClick={() => void put(mode.id, { mode: mode.key, dropFloor: floor.trim() || null })}
+            className="rounded-lg bg-gold px-3.5 py-1.5 text-[13px] font-semibold text-brown-dark hover:bg-gold-light disabled:opacity-50"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        <Checkbox
+          checked={mode.levels != null}
+          disabled={disabled}
+          onChange={(on) => void put(mode.id, { mode: mode.key, levels: on ? levelHalf(levels) : null })}
+          label="Use its own level milestones"
+          description="Off = same as the main game. On = a level-up posts only if it matches both."
+        />
+        {mode.levels != null && (
+          <>
+            <LevelRulesEditor value={levels} onChange={setLevels} disabled={disabled} levelsOnly />
+            <div>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => void put(mode.id, { mode: mode.key, levels: levelHalf(levels) })}
+                className="rounded-lg bg-gold px-3.5 py-1.5 text-[13px] font-semibold text-brown-dark hover:bg-gold-light disabled:opacity-50"
+              >
+                Save level milestones
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 const PASTE = '__paste__';
@@ -221,7 +304,8 @@ export default function DiscordFeedsPanel({ filters }: { filters?: Partial<Recor
                   onClick={() => setOpen(open === m.id ? null : m.id)}
                   className="min-h-9 rounded-lg border border-card-border px-3 text-[13px] hover:border-gold/50"
                 >
-                  Posts {posting}/{kinds.length} {open === m.id ? '▴' : '▾'}
+                  Posts {posting}/{kinds.length}
+                  {m.dropFloor != null || m.levels != null ? ' · filtered' : ''} {open === m.id ? '▴' : '▾'}
                 </button>
               </div>
               {pasteRow(m.hookKey, m.label)}
@@ -253,6 +337,9 @@ export default function DiscordFeedsPanel({ filters }: { filters?: Partial<Recor
                       </div>
                     </div>
                   ))}
+                  <div className="border-t border-card-border-soft pt-4">
+                    <ModeFilters key={`${m.dropFloor}:${JSON.stringify(m.levels)}`} mode={m} put={put} disabled={busy !== null} />
+                  </div>
                 </div>
               )}
             </li>

@@ -205,6 +205,14 @@ export const WORLD_MODES_OFF_KEY = 'world_modes_off';
 export function modeKindsOffKey(key: string): string {
   return `world_mode_kinds_off_${key}`;
 }
+/** Per mode, its own drop floor (1-in-N, lib/modeFilters). Absent = the main-game floor. */
+export function modeDropFloorKey(key: string): string {
+  return `world_mode_drop_floor_${key}`;
+}
+/** Per mode, its own level rules (JSON, lib/modeFilters). Absent = the main-game level rules. */
+export function modeLevelsKey(key: string): string {
+  return `world_mode_levels_${key}`;
+}
 /** Modes this clan's members have been seen on that the catalogue doesn't know: JSON [{key,label}]. */
 export const WORLD_MODES_SEEN_KEY = 'world_modes_seen';
 export const MAX_SEEN_MODES = 20;

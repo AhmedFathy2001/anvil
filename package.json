@@ -200,6 +200,7 @@
     "test:weeklyroll": "npx tsx --test tests/weekly-repeat-roll.test.ts",
     "test:features": "npx tsx --test tests/features.test.ts",
     "test:withdrawnroster": "npx tsx --test tests/withdrawn-roster-migration.test.ts",
+    "test:modefilters": "npx tsx --test tests/mode-filters.test.ts tests/world-modes.test.ts",
     "test:startingstats": "npx tsx --test tests/starting-stats.test.ts",
     "test:startingstatsdb": "npx tsx --test tests/starting-stats-capture.test.ts"
   },
