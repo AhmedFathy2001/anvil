@@ -15,6 +15,7 @@ import { emitMomentRows } from '@/lib/panelRows';
 import { claimFeedItem, emitPersonalItem } from '@/lib/chatFeed';
 import { feedItemFromMoment } from '@/lib/chatFeedRules';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
+import { settleDeathSource } from '@/lib/deathSource';
 
 // Highlight ingest: the pets, uniques, big hauls, deaths and combat tasks that happen while a competition week or
 // a bingo is running (lib/moments decides which of those it is — see that file for why the rules
@@ -156,6 +157,8 @@ export async function POST(request: Request) {
   if (body.moments.length > MAX_OBSERVATIONS) {
     return NextResponse.json({ error: `At most ${MAX_OBSERVATIONS} moments per push` }, { status: 400 });
   }
+  // A killer the plugin only inferred from the fight is kept when it's a boss, else dropped (lib/deathSource).
+  for (const raw of body.moments) if (raw && typeof raw === 'object') settleDeathSource(raw as Record<string, unknown>);
 
   // Other players' in-game chat reads every report first (lib/chatFeed) — the board, the clan and the
   // competition rules below decide only what is STORED. Off the request's path: nobody waits on it.
