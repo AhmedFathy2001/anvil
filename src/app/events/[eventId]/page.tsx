@@ -69,6 +69,7 @@ import { eventHasStarted as boardHasStarted } from '@/lib/completionGate';
 import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
 import { canEnterEvent } from '@/lib/eventAccess';
+import { accentStyle } from '@/lib/accentStyle';
 import EnterEvent from './EnterEvent';
 import { eventActivityIsValid } from '@/lib/completionGate';
 import LocalTime from '@/components/LocalTime';
@@ -628,7 +629,9 @@ export default async function EventScoreboardPage({
       .limit(1)
       .then(([seat]) => !!seat && parseBoardAccess(seat.boardAccess, seat.staffCanEditBoard).suggest === 'players'));
   return (
-    <>
+    // A streamed event wears its host space's colour (lib/accentStyle); `contents` adds no box, so the
+    // page lays out exactly as before and only the custom properties are inherited.
+    <div className="contents" style={creatorEvent ? accentStyle(hostRow?.accentColor) : undefined}>
       <EventApiHost eventId={event.id} prefix={apiPrefix} />
       {/* A board is an EVENT — it has a name, a start, an end and an organiser — and saying so is
           what lets it appear in search as an event rather than as a blue link. Emitted only for a
@@ -747,14 +750,14 @@ export default async function EventScoreboardPage({
       {creatorEvent && !session && window.open ? (
         // A creator space's event, signed out: one button. Discord sign-in, then straight back here,
         // where the same button joins them (EnterEvent, creator mode).
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-gold/30 bg-gold/10 p-5">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--sa)]/40 bg-[var(--sa-soft)] p-5">
           <div className="min-w-0">
             <div className="text-lg font-semibold">Join this event</div>
             <div className="text-sm text-text-muted">Sign in with Discord — it takes a few seconds.</div>
           </div>
           <ClanLink
             href={`/login?return=${encodeURIComponent(await clanHref(`/events/${event.id}`))}`}
-            className="shrink-0 rounded-xl bg-gold px-6 py-3 text-base font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+            className="shrink-0 rounded-xl bg-[var(--sa)] px-6 py-3 text-base font-semibold text-[var(--sa-ink)] transition-opacity hover:opacity-90"
           >
             Join
           </ClanLink>
@@ -912,7 +915,22 @@ export default async function EventScoreboardPage({
           <ReportButton type="event" id={event.id} label="Report this event" />
         </div>
       )}
-    </>
+      {creatorEvent && !session && window.open && (
+        // Viewers arrive from a stream and scroll the board first: the way in follows them down.
+        <div className="sticky bottom-4 z-30 mx-auto mt-8 flex max-w-2xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-card-border bg-card-bg-hover/95 py-3 pl-5 pr-3 shadow-[0_18px_44px_rgba(0,0,0,.55)] backdrop-blur">
+          <div className="min-w-0 text-sm">
+            <div className="text-base font-semibold">Watching on stream?</div>
+            <div className="text-text-muted">Join in about a minute. Sign in with Discord.</div>
+          </div>
+          <ClanLink
+            href={`/login?return=${encodeURIComponent(await clanHref(`/events/${event.id}`))}`}
+            className="inline-flex min-h-12 items-center rounded-xl bg-[var(--sa)] px-6 text-base font-bold text-[var(--sa-ink)] transition-opacity hover:opacity-90"
+          >
+            Join
+          </ClanLink>
+        </div>
+      )}
+    </div>
   );
 }
 

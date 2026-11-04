@@ -2,6 +2,7 @@
 // (lib/clanHome) leads with members, focus and recruiting — none of which a creator space has — so
 // this reads the creator, their stream links and the people who have played their events.
 
+import { normalizeHex } from '@/lib/artPalette';
 import { and, desc, eq, inArray, isNull, max, notInArray, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -233,6 +234,8 @@ export interface CreatorHomeView {
   logoUrl: string | null;
   bannerUrl: string | null;
   bannerPosition: number | null;
+  /** The space's picked colour (lib/artPalette), or null for Anvil gold. */
+  accent: string | null;
   links: CreatorLinks;
   /** Events this viewer is shown — the same number as the rows in `events` (lib/creatorSpaces). */
   eventsRun: number;
@@ -269,6 +272,7 @@ export async function creatorHomeView(
     logoUrl: clan.logoUrl ?? null,
     bannerUrl: clan.bannerUrl ?? null,
     bannerPosition: clan.bannerPosition ?? null,
+    accent: normalizeHex(clan.accentColor),
     links,
     eventsRun: eventList.count,
     events: eventList,
