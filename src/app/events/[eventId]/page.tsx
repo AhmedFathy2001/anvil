@@ -36,6 +36,7 @@ import EventFirsts from '@/components/events/EventFirsts';
 import { loadEventFirsts } from '@/lib/eventFirsts';
 import MomentsFeed from '@/components/MomentsFeed';
 import HighlightsStrip from '@/components/HighlightsStrip';
+import ReportButton from '@/components/ReportButton';
 import { highlightsForEvent, linksByMoment } from '@/lib/highlights/store';
 import { getEventLuck } from '@/lib/eventLuck';
 import EventLuck from './EventLuck';
@@ -857,7 +858,7 @@ export default async function EventScoreboardPage({
           </div>
         )}
         <EventFirsts firsts={firsts} />
-        <HighlightsStrip highlights={highlightStrip} />
+        <HighlightsStrip highlights={highlightStrip} canReport={!!session?.userId} />
         <MomentsFeed moments={eventMoments} streamLinks={momentStreamLinks} reactions={momentReactions} />
         <ScoreboardClient
           creator={isCreatorSpace(hostClan)}
@@ -888,6 +889,12 @@ export default async function EventScoreboardPage({
           <p className="mb-3 text-sm text-text-muted">They decide what goes on the board.</p>
           <CohostTileSuggest eventId={event.id} hostName={hostClan?.name ?? 'the host'} />
         </section>
+      )}
+      {/* To Anvil staff, not the host (lib/platformReports). Signed-in viewers only. */}
+      {session?.userId && (
+        <div className="mt-8 flex justify-end">
+          <ReportButton type="event" id={event.id} label="Report this event" />
+        </div>
       )}
     </>
   );

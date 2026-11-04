@@ -91,6 +91,7 @@ export default async function StaffHighlightsPage({ searchParams }: { searchPara
                   <td className="px-3 py-2">
                     {h.title}
                     {h.featurable && <span className="ml-2 rounded bg-accent-green/15 px-1.5 py-0.5 text-[10.5px] text-accent-green-light">featurable</span>}
+                    {h.staffHidden && <span className="ml-2 rounded bg-red-500/15 px-1.5 py-0.5 text-[10.5px] text-red-400">hidden by staff</span>}
                   </td>
                   <td className="px-3 py-2 text-text-muted">
                     {h.eventName} <span className="text-text-dim">· {h.clanName} · {h.eventVisibility}</span>

@@ -1,7 +1,7 @@
 import type { TextSegment } from '@/lib/spacePage/rules';
 import type { ShownPanel } from '@/lib/spacePage/store';
 
-import CreatorReportButton from './CreatorReportButton';
+import ReportButton from './ReportButton';
 
 /**
  * Plain text with line breaks, its allowed https links as links (lib/spacePage/rules linkify, checked
@@ -52,7 +52,7 @@ export default function CreatorPanels({
           <RichText segments={bio} className="text-[14.5px] leading-relaxed text-foreground/90" />
           {canReport && (
             <div className="mt-3 text-right">
-              <CreatorReportButton clanId={clanId} label="Report this page" />
+              <ReportButton type="space" id={clanId} label="Report the bio" />
             </div>
           )}
         </div>
@@ -88,7 +88,7 @@ export default function CreatorPanels({
                   ) : (
                     <span />
                   )}
-                  {canReport && <CreatorReportButton clanId={clanId} panelId={p.id} />}
+                  {canReport && <ReportButton type="creator_panel" id={p.id} />}
                 </div>
               </div>
             </li>

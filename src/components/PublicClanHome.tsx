@@ -6,6 +6,7 @@ import ClanCrest from '@/components/ClanCrest';
 import type { PublicClanActivity, PublicClanHome as View, ClanFocus } from '@/lib/clanHome';
 import { SITE } from '@/lib/site';
 import ApplyToClan from '@/components/ApplyToClan';
+import ReportButton from '@/components/ReportButton';
 
 const FOCUS_LABEL: Record<ClanFocus, string> = {
   pvm: 'PvM',
@@ -372,6 +373,12 @@ export default function PublicClanHome({
           Join the Anvil Discord
         </a>
       </div>
+      {/* To Anvil staff, not the clan (lib/platformReports). Signed-in visitors only. */}
+      {signedIn && (
+        <div className="mt-3 flex justify-end">
+          <ReportButton type="clan" id={view.id} label="Report this clan" />
+        </div>
+      )}
     </div>
   );
 }
