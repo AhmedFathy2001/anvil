@@ -88,6 +88,7 @@ const DiscordIcon = (
 export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff, adminHref, platformBadge = null, discordInvite, user, clan, myClans }: Props) {
   const [open, setOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const switcherRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
 
@@ -154,9 +155,18 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
         { href: '/leaderboard', label: 'Leaderboard' },
       ];
 
-  const avatar = user?.avatarUrl ? (
+  const avatar = user?.avatarUrl && !avatarFailed ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={user.avatarUrl} alt="" width={24} height={24} className="rounded-full" />
+    <img
+      src={user.avatarUrl}
+      alt=""
+      width={24}
+      height={24}
+      referrerPolicy="no-referrer"
+      // A Discord avatar hash goes stale when they change it there: fall back to the initial.
+      onError={() => setAvatarFailed(true)}
+      className="h-6 w-6 shrink-0 rounded-full object-cover"
+    />
   ) : (
     <span className="w-6 h-6 rounded-full bg-gold/20 text-gold text-xs flex items-center justify-center font-semibold">
       {(user?.displayName || '?').charAt(0).toUpperCase()}

@@ -1,10 +1,14 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
 import PendingBadge from '@/components/PendingBadge';
+import SupporterName from '@/components/SupporterName';
+import type { SupporterStyle } from '@/lib/supporterStyle';
+import type { SupporterTierId } from '@/lib/supporterTiers';
 
 export interface RailClan {
   slug: string;
@@ -41,6 +45,8 @@ export default function PlatformRail({
   clans,
   signedIn,
   displayName,
+  avatarUrl = null,
+  supporter = null,
   characterCount,
   myProfileHref,
   platformStaff,
@@ -50,6 +56,10 @@ export default function PlatformRail({
   clans: RailClan[];
   signedIn: boolean;
   displayName: string | null;
+  /** Their uploaded avatar, else their Discord one (resolved by the root layout); null draws the initial. */
+  avatarUrl?: string | null;
+  /** Their Supporter look, for their own name in the account block. */
+  supporter?: { tier: SupporterTierId; style: SupporterStyle | null } | null;
   characterCount?: number;
   /** The signed-in person's own profile — their main character's page, or their locker. */
   myProfileHref?: string | null;
@@ -61,6 +71,8 @@ export default function PlatformRail({
   guideLibrary?: boolean;
 }) {
   const pathname = usePathname() ?? '/';
+  // A Discord avatar hash goes stale when they change it there; a broken image falls back to the initial.
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   const item = (href: string, label: string, icon: React.ReactNode, exact = href === '/', badge?: { count: number; title: string } | null) => {
     // Prefix match, so /guide/<page> keeps Guides lit. Exact for the root, and for the Clan Hall:
@@ -180,11 +192,32 @@ export default function PlatformRail({
         {signedIn ? (
           <>
             <ClanLink href="/profile" className="group flex min-w-0 items-center gap-2.5">
-              <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#4a3b2a] to-[#2a211a] text-[11px] font-semibold text-gold">
-                {(displayName ?? '?').charAt(0).toUpperCase()}
-              </span>
+              {avatarUrl && !avatarFailed ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarUrl}
+                  alt=""
+                  width={26}
+                  height={26}
+                  referrerPolicy="no-referrer"
+                  onError={() => setAvatarFailed(true)}
+                  className="h-[26px] w-[26px] shrink-0 rounded-full object-cover"
+                />
+              ) : (
+                <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#4a3b2a] to-[#2a211a] text-[11px] font-semibold text-gold">
+                  {(displayName ?? '?').charAt(0).toUpperCase()}
+                </span>
+              )}
               <span className="min-w-0 text-[13px] group-hover:text-gold">
-                <span className="block truncate">{displayName ?? 'You'}</span>
+                <span className="block truncate">
+                  <SupporterName
+                    name={displayName ?? 'You'}
+                    tier={supporter?.tier}
+                    style={supporter?.style}
+                    plain
+                    className="max-w-full align-middle"
+                  />
+                </span>
                 {characterCount != null && (
                   <span className="hidden font-mono text-[10.5px] text-text-dim lg:block">
                     {characterCount} character{characterCount === 1 ? '' : 's'}

@@ -1,7 +1,9 @@
 import ClanLink from '@/components/ClanLink';
 import { notFound } from 'next/navigation';
 
+import SupporterName from '@/components/SupporterName';
 import { verifyUser } from '@/lib/auth';
+import { supporterForUser } from '@/lib/supporter';
 import { emissionSettingsView } from '@/lib/emissionSettings';
 import { gameClanForAccount } from '@/lib/gameClans';
 import { membershipConflicts } from '@/lib/homeClan';
@@ -51,12 +53,13 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
   const c = characters.find((x) => x.accountId === accountId);
   if (!c) notFound();
 
-  const [seats, gameClan, conflicts, emission, sightings] = await Promise.all([
+  const [seats, gameClan, conflicts, emission, sightings, supporter] = await Promise.all([
     characterSeats(accountId),
     gameClanForAccount(accountId),
     membershipConflicts(session.playerId),
     emissionSettingsView(session.userId, session.playerId),
     alsoPlayedFromByAccount([accountId], session.userId),
+    supporterForUser(session.userId),
   ]);
   const mine = conflicts.filter((x) => x.accountId === accountId);
   const others = sightings.get(accountId) ?? [];
@@ -65,7 +68,7 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
   return (
     <>
       <SettingsTitle
-        title={c.rsn}
+        title={<SupporterName name={c.rsn} tier={supporter?.tier.id} style={supporter?.style} plain />}
         badge={
           <>
             {c.isPrimary && <Pill tone="gold">main</Pill>}

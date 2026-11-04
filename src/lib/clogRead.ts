@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { memberClog, memberClogItems, memberClogKc, memberPersonalBests } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
-import { buildClogProfile, matchBestsToPages, titleCaseActivity, type BestTime } from '@/lib/clogProfile';
+import { buildClogProfile, formatPersonalBest, matchBestsToPages, titleCaseActivity, type BestTime } from '@/lib/clogProfile';
 import { buildShowcase, buildValueShowcase, clogItemRarity, groupOf, type PageGroup } from '@/lib/clogRarity';
 import { getMemberLuck } from '@/lib/clogLuckBoard';
 import { statSnapshotOf } from '@/lib/roster';
@@ -15,16 +15,8 @@ import type { CollectionLogProps } from '@/app/members/[rsn]/CollectionLog';
 // client needs is easy to get subtly wrong: the grid renders EVERY slot (dim when unowned), so the
 // page ships the catalogue, and the rows only say which of them are lit.
 
-/** Centiseconds → the way the game writes a time: 1:23.40, or 12:04:31.20 for a long one. */
-export function formatPersonalBest(centis: number): string {
-  const totalSeconds = Math.floor(centis / 100);
-  const hundredths = centis % 100;
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  const mm = hours > 0 ? String(minutes).padStart(2, '0') : String(minutes);
-  return `${hours > 0 ? `${hours}:` : ''}${mm}:${String(seconds).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}`;
-}
+// Lives in lib/clogProfile (pure) so the display case can format a time without a database.
+export { formatPersonalBest } from '@/lib/clogProfile';
 
 /**
  * TAKES AN ACCOUNT ID. The parameter used to be called `clanMemberId`.

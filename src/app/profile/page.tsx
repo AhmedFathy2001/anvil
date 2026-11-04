@@ -27,6 +27,7 @@ import { membershipConflicts } from '@/lib/homeClan';
 import { atLeast } from '@/lib/clanRoles';
 import { supporterForUser } from '@/lib/supporter';
 import { supporterView } from '@/components/SupporterSection';
+import SupporterName from '@/components/SupporterName';
 import ClanLink from '@/components/ClanLink';
 import { onboardingNext } from '@/lib/firstLogin';
 
@@ -140,6 +141,7 @@ export default async function ProfilePage({
           unfinishedSetup={onboarding.offer}
           supporter={supporterView(supporter)}
           media={media}
+          discordAvatar={user.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null}
         />
       </>
     );
@@ -354,7 +356,13 @@ export default async function ProfilePage({
                   <li key={a.accountId} className="flex items-center gap-2 rounded-lg border border-tile-border bg-tile-bg px-3 py-2.5">
                     <span className="min-w-0">
                       <span className="flex items-center gap-2">
-                        <span className="font-semibold">{a.rsn}</span>
+                        <SupporterName
+                          name={a.rsn}
+                          tier={supporterState?.tier.id}
+                          style={supporterState?.style}
+                          plain
+                          className="font-semibold"
+                        />
                         {a.isPrimary && <span className="rounded-full border border-gold-dark px-1.5 text-[10.5px] text-gold">main</span>}
                         {!a.shared && <span className="rounded-full border border-card-border px-1.5 text-[10.5px] text-text-muted">private</span>}
                       </span>
