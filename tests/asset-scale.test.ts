@@ -10,7 +10,7 @@ process.env.ASSET_CACHE_DIR = mkdtempSync(path.join(os.tmpdir(), 'asset-scale-te
 delete process.env.S3_BUCKET;
 delete process.env.STORAGE_DRIVER;
 
-import { assetCacheKey, parseWikiScale, wikiImageUrl } from '../src/lib/assetUrls.ts';
+import { assetCacheKey, parseAssetScale, wikiImageUrl } from '../src/lib/assetUrls.ts';
 
 let C: typeof import('../src/lib/assetCache.ts');
 let GET: typeof import('../src/app/img/wiki/[...file]/route.ts').GET;
@@ -35,11 +35,11 @@ before(async () => {
 });
 
 test('only x=2, 3 or 4 is a scale; absent is 1; anything else is refused', () => {
-  assert.equal(parseWikiScale(null), 1);
-  assert.equal(parseWikiScale(undefined), 1);
-  for (const ok of ['2', '3', '4']) assert.equal(parseWikiScale(ok), Number(ok));
+  assert.equal(parseAssetScale(null), 1);
+  assert.equal(parseAssetScale(undefined), 1);
+  for (const ok of ['2', '3', '4']) assert.equal(parseAssetScale(ok), Number(ok));
   for (const bad of ['', '1', '5', '8', '0', '-2', '04', '2.0', '2x', ' 4', 'four', '44', '1e1']) {
-    assert.equal(parseWikiScale(bad), null, JSON.stringify(bad));
+    assert.equal(parseAssetScale(bad), null, JSON.stringify(bad));
   }
 });
 
@@ -99,4 +99,54 @@ test('a scaled variant is generated once, cached immutably, and served as PNG', 
   // The original is served unscaled from the same cache.
   const plain = await sharp(Buffer.from(await (await call('')).arrayBuffer())).metadata();
   assert.equal(plain.width, 3);
+});
+
+// ── Item sprites: the same rules on /img/item/<id>.png ──
+
+const callItem = async (id: string, q: string) => {
+  const { GET: ITEM } = await import('../src/app/img/item/[id]/route.ts');
+  return ITEM(new Request(`http://localhost/img/item/${id}${q}`), { params: Promise.resolve({ id }) });
+};
+
+test('item URLs and cache keys carry only a validated scale', async () => {
+  const { itemAssetUrl } = await import('../src/lib/assetUrls.ts');
+  assert.equal(itemAssetUrl(20997, 4), '/img/item/20997.png?x=4');
+  assert.equal(itemAssetUrl(20997), '/img/item/20997.png');
+  assert.equal(itemAssetUrl(20997, 6), '/img/item/20997.png');
+  assert.equal(assetCacheKey({ kind: 'item', id: 20997 }), 'asset-cache/item/20997.png');
+  assert.equal(assetCacheKey({ kind: 'item', id: 20997 }, 4), 'asset-cache/item-x4/20997.png');
+});
+
+test('the item route refuses a bad scale before touching the cache', async () => {
+  const before = upstreamCalls;
+  for (const q of ['?x=5', '?x=1', '?x=', '?x=3&x=3', '?x=nope']) assert.equal((await callItem('4151.png', q)).status, 400, q);
+  assert.equal(upstreamCalls, before);
+});
+
+test('an item upscale is generated once, PNG, immutable', async () => {
+  const before = upstreamCalls;
+  const a = await callItem('4151.png', '?x=4');
+  assert.equal(a.status, 200);
+  assert.equal(a.headers.get('content-type'), 'image/png');
+  assert.equal(a.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+  assert.equal((await sharp(Buffer.from(await a.arrayBuffer())).metadata()).width, 12);
+  await callItem('4151.png', '?x=4');
+  assert.equal(upstreamCalls - before, 1);
+});
+
+test('Discord thumbnails ask for the 4× sprite; big pictures and odd URLs pass through', async () => {
+  const { scaledSpritePath } = await import('../src/lib/assetUrls.ts');
+  const { discordAssetUrl } = await import('../src/lib/seo.ts');
+  assert.equal(scaledSpritePath('/img/item/20997.png'), '/img/item/20997.png?x=4');
+  assert.equal(scaledSpritePath('/img/wiki/Nex_icon.png'), '/img/wiki/Nex_icon.png?x=4');
+  assert.equal(scaledSpritePath('/img/wiki/Slayer_icon.png'), '/img/wiki/Slayer_icon.png?x=4');
+  assert.equal(scaledSpritePath('/img/wiki/thumb/Nex.png/320px-Nex.png'), '/img/wiki/thumb/Nex.png/320px-Nex.png');
+  assert.equal(scaledSpritePath('/img/item/20997.png?x=2'), '/img/item/20997.png?x=2');
+  assert.equal(scaledSpritePath('https://cdn.example/x.png'), 'https://cdn.example/x.png');
+  assert.match(discordAssetUrl('/img/item/20997.png'), /^https?:\/\/[^/]+\/img\/item\/20997\.png\?x=4$/);
+
+  const { buildPluginEmbed } = await import('../src/lib/pluginEmbeds.ts');
+  const out = buildPluginEmbed('drop', { rsn: 'Zezima', source: 'Chambers of Xeric', items: [{ id: 20997, name: 'Twisted bow', qty: 1, value: 1_200_000_000 }] });
+  assert.ok(out.ok);
+  assert.match(out.ok ? out.embed.thumbnail?.url ?? '' : '', /\/img\/item\/20997\.png\?x=4$/);
 });

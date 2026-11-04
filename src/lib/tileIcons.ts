@@ -187,7 +187,7 @@ export function bossStatKeyFor(name: string | null | undefined): string | null {
 
 /**
  * The boss's hiscores sprite (as RuneLite shows it) for a hiscores KEY, or null when it has none.
- * `scale` (2/3/4, lib/assetUrls WIKI_SCALES) asks the asset cache for a nearest-neighbour upscale —
+ * `scale` (2/3/4, lib/assetUrls ASSET_SCALES) asks the asset cache for a nearest-neighbour upscale —
  * for Discord, which would otherwise draw the 25px sprite thumb-sized.
  */
 export function bossHiscoreIconUrl(key: string | null | undefined, scale = 1): string | null {
@@ -196,8 +196,7 @@ export function bossHiscoreIconUrl(key: string | null | undefined, scale = 1): s
   return file ? wikiImageUrl(file, scale) : null;
 }
 
-/** The scale Discord embed thumbnails ask sprites for: 25px → a crisp 100px. */
-export const DISCORD_SPRITE_SCALE = 4;
+export { DISCORD_SPRITE_SCALE } from '@/lib/assetUrls';
 
 /**
  * The ICON for a boss NAME — what a list row, a tile, a pin or a Discord thumbnail shows: its hiscores

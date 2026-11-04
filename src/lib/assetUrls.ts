@@ -13,7 +13,9 @@
 // file alone, the only thumbnail shape is the one the app emits, and the wiki's cache-buster is
 // looked up server-side from our own dataset — a `?<hex>` on the request is ignored.
 
+import bossHiscoreIcons from '@/data/bossHiscoreIcons.json';
 import bossImages from '@/data/bossImages.json';
+import { SKILLS } from '@/lib/constants';
 
 export const WIKI_IMAGES_ORIGIN = 'https://oldschool.runescape.wiki/images/';
 export const RUNELITE_ITEM_ICON_ORIGIN = 'https://static.runelite.net/cache/item/icon/';
@@ -25,25 +27,25 @@ export const ITEM_ASSET_PREFIX = '/img/item/';
 export const WIKI_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp'] as const;
 
 /**
- * The pixel-perfect upscales `/img/wiki/<file>?x=N` may ask for (nearest-neighbour, PNG out). For the
- * ~25px game sprites (boss hiscores icons, skill icons) that Discord would otherwise draw thumb-sized:
- * at 4× a 25px Nex head is a crisp 100px one. A fixed short list, so a request cannot fan one file
+ * The pixel-perfect upscales `/img/wiki/<file>?x=N` and `/img/item/<id>.png?x=N` may ask for
+ * (nearest-neighbour, PNG out). For the ~25-36px game sprites (boss hiscores icons, skill icons, item
+ * sprites) that Discord would otherwise draw thumb-sized: at 4× a 25px Nex head is a crisp 100px one. A fixed short list, so a request cannot fan one file
  * out into arbitrarily many cached variants.
  */
-export const WIKI_SCALES: readonly number[] = [2, 3, 4];
+export const ASSET_SCALES: readonly number[] = [2, 3, 4];
 
 /** Only sources this small are upscaled (a sprite, not a 320px render): bounds the output at 512px. */
 export const MAX_SCALE_SOURCE_PX = 128;
 
 /**
- * The `x` query of a wiki asset request: 1 when absent, the scale when it is one of WIKI_SCALES,
+ * The `x` query of a wiki asset request: 1 when absent, the scale when it is one of ASSET_SCALES,
  * null for anything else (`x=5`, `x=2.0`, `x=`, `x=04`) — the route refuses those outright.
  */
-export function parseWikiScale(raw: string | null | undefined): number | null {
+export function parseAssetScale(raw: string | null | undefined): number | null {
   if (raw == null) return 1;
   if (!/^[1-9]$/.test(raw)) return null;
   const n = Number(raw);
-  return WIKI_SCALES.includes(n) ? n : null;
+  return ASSET_SCALES.includes(n) ? n : null;
 }
 
 const MAX_SEGMENT = 200;
@@ -114,7 +116,7 @@ export function encodeWikiFile(file: string, strict = false): string {
 export function wikiImageUrl(file: string, scale = 1): string {
   const norm = normalizeWikiFile(file);
   const path = norm ? encodeWikiFile(norm) : encodeURIComponent(file.split(/[?#]/)[0].replace(/ /g, '_'));
-  return `${WIKI_ASSET_PREFIX}${path}${scale !== 1 && WIKI_SCALES.includes(scale) ? `?x=${scale}` : ''}`;
+  return `${WIKI_ASSET_PREFIX}${path}${scale !== 1 && ASSET_SCALES.includes(scale) ? `?x=${scale}` : ''}`;
 }
 
 /**
@@ -149,8 +151,38 @@ export function parseItemId(raw: string | null | undefined): number | null {
  * came back DYNAMIC on every request while the `.png` wiki paths beside it were HITs. The route
  * still answers the bare form (parseItemId accepts both), so URLs already stored or posted keep working.
  */
-export function itemAssetUrl(itemId: number): string {
-  return `${ITEM_ASSET_PREFIX}${Math.trunc(itemId)}.png`;
+export function itemAssetUrl(itemId: number, scale = 1): string {
+  return `${ITEM_ASSET_PREFIX}${Math.trunc(itemId)}.png${scale !== 1 && ASSET_SCALES.includes(scale) ? `?x=${scale}` : ''}`;
+}
+
+/** The scale Discord embed thumbnails ask sprites for: a 25-36px sprite → a crisp 100-144px one. */
+export const DISCORD_SPRITE_SCALE = 4;
+
+/** Wiki files known to be small sprites (≤ MAX_SCALE_SOURCE_PX), so safe to ask an upscale of. */
+const SMALL_WIKI_SPRITES: ReadonlySet<string> = new Set([
+  ...Object.values(bossHiscoreIcons as Record<string, string>),
+  ...SKILLS.filter((k) => k !== 'overall').map((k) => `${k.charAt(0).toUpperCase()}${k.slice(1)}_icon.png`),
+  'Stats_icon.png',
+  'Combat_icon.png',
+  'Skull_(status)_icon.png',
+  'Achievement_Diaries_icon.png',
+  'Combat_Achievements_icon.png',
+]);
+
+/**
+ * One of our sprite paths with a `?x=<scale>` upscale added — an item sprite, or a wiki file known to
+ * be a small sprite. Anything else (a 320px boss render, an uploaded image, a path that already has a
+ * query, a full URL) passes through untouched, so the caller can hand it any icon it derived.
+ */
+export function scaledSpritePath(url: string, scale?: number): string;
+export function scaledSpritePath(url: string | null | undefined, scale?: number): string | null;
+export function scaledSpritePath(url: string | null | undefined, scale = DISCORD_SPRITE_SCALE): string | null {
+  if (!url) return url ?? null;
+  if (url.includes('?') || url.includes('#') || !ASSET_SCALES.includes(scale)) return url;
+  const ref = parseAssetPath(url);
+  if (!ref) return url;
+  if (ref.kind === 'wiki' && !SMALL_WIKI_SPRITES.has(ref.file)) return url;
+  return `${url}?x=${scale}`;
 }
 
 /** Is this one of our cached-asset paths (relative)? */
@@ -231,9 +263,10 @@ function safeSegment(seg: string): string {
 
 /** The storage key a cached asset lives under: `asset-cache/wiki/…` or `asset-cache/item/<id>.png`. */
 export function assetCacheKey(ref: AssetRef, scale = 1): string {
-  if (ref.kind === 'item') return `asset-cache/item/${ref.id}.png`;
-  // A validated upscale (WIKI_SCALES) lives beside the original under its own fixed prefix.
-  if (scale !== 1 && WIKI_SCALES.includes(scale)) return `asset-cache/wiki-x${scale}/${ref.file.split('/').map(safeSegment).join('/')}`;
+  // A validated upscale (ASSET_SCALES) lives beside the original under its own fixed prefix.
+  const x = scale !== 1 && ASSET_SCALES.includes(scale) ? `-x${scale}` : '';
+  if (ref.kind === 'item') return `asset-cache/item${x}/${ref.id}.png`;
+  if (x) return `asset-cache/wiki${x}/${ref.file.split('/').map(safeSegment).join('/')}`;
   // Keyed by the file alone: no request-controlled part ever reaches the key.
   return `asset-cache/wiki/${ref.file.split('/').map(safeSegment).join('/')}`;
 }

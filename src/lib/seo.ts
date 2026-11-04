@@ -13,6 +13,7 @@
 import type { Metadata } from 'next';
 
 import { apexDomain, isApexHost, originForHost, slugFromHost } from '@/lib/apexHost';
+import { scaledSpritePath } from '@/lib/assetUrls';
 
 export const SITE_NAME = 'Anvil';
 
@@ -47,6 +48,18 @@ export function absoluteAssetUrl(url: string | null | undefined): string | null;
 export function absoluteAssetUrl(url: string | null | undefined): string | null {
   if (!url) return url ?? null;
   return url.startsWith('/img/') ? absoluteUrl(url) : url;
+}
+
+/**
+ * An embed THUMBNAIL (or small author icon) for Discord: {@link absoluteAssetUrl}, with a game sprite
+ * — an item, a boss hiscores head, a skill icon — asked for at 4× nearest-neighbour (lib/assetUrls
+ * scaledSpritePath). Discord draws a 32px image at 32px; at 4× it fills the thumbnail and stays crisp.
+ * Anything that is not a known small sprite passes through as absoluteAssetUrl would.
+ */
+export function discordAssetUrl(url: string): string;
+export function discordAssetUrl(url: string | null | undefined): string | null;
+export function discordAssetUrl(url: string | null | undefined): string | null {
+  return absoluteAssetUrl(scaledSpritePath(url));
 }
 
 /** A clan's canonical PATH. `/c/theafkspot/events/5`. The address every link should carry. */

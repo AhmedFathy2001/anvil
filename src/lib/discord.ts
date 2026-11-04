@@ -11,8 +11,8 @@ import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import { SKILLS, formatEfficiencyHours, metricKeys, weeklyKindLabel } from '@/lib/constants';
 import { formatGp } from '@/lib/adminEventsFormat';
 import { placeLabel } from '@/lib/eventRules';
-import { deriveTileIcon, skillIconUrl, bossIconForStatKey, DISCORD_SPRITE_SCALE, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
-import { absoluteAssetUrl } from '@/lib/seo';
+import { deriveTileIcon, skillIconUrl, bossIconForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
+import { discordAssetUrl } from '@/lib/seo';
 import { eq } from 'drizzle-orm';
 import { boardRevealImageQuery } from '@/lib/boardRevealImage';
 
@@ -749,7 +749,7 @@ function eventAuthor(
 // board renders. Absent for tiles with no derivable icon (e.g. manual tiles).
 function tileThumbnail(tile: IconableTile | null | undefined): Pick<DiscordEmbed, 'thumbnail'> {
   const icon = tile ? deriveTileIcon(tile) : null;
-  return icon ? { thumbnail: { url: absoluteAssetUrl(icon) } } : {};
+  return icon ? { thumbnail: { url: discordAssetUrl(icon) } } : {};
 }
 
 // Discord renders <t:UNIX:STYLE> dynamically per viewer: the timezone is the
@@ -1184,7 +1184,7 @@ export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Pr
     title: clamp(title, LIMIT.title),
     description,
     color: EMBED_COLOR.gold,
-    ...(icon ? { thumbnail: { url: absoluteAssetUrl(icon) } } : {}),
+    ...(icon ? { thumbnail: { url: discordAssetUrl(icon) } } : {}),
     ...(fields.length ? { fields } : {}),
     ...(boardUrl ? { url: boardUrl } : {}),
   };
@@ -1895,7 +1895,7 @@ export async function notifyPayout(params: PayoutNotifyParams): Promise<boolean>
 
   const embed: DiscordEmbed = {
     ...eventAuthor(eventId, eventName),
-    ...{ thumbnail: { url: absoluteAssetUrl(itemIconUrl(995)) } }, // coins — the payout's own icon
+    ...{ thumbnail: { url: discordAssetUrl(itemIconUrl(995)) } }, // coins — the payout's own icon
     title: '💰 Prizes paid out',
     description: `Congratulations to the winners of **${eventName}**. Prizes have been sent.${boardLinkLine(eventId)}`,
     color: EMBED_COLOR.gold,
@@ -1916,13 +1916,13 @@ const weeklyKind = weeklyKindLabel;
 // RuneLite shows) for a BOTW. Efficiency spans everything, so it gets none.
 function weeklyThumbnail(type: string, metric: string): Pick<DiscordEmbed, 'thumbnail'> {
   if (type === 'skill') {
-    const url = skillIconUrl(metric, DISCORD_SPRITE_SCALE);
-    return url ? { thumbnail: { url: absoluteAssetUrl(url) } } : {};
+    const url = skillIconUrl(metric);
+    return url ? { thumbnail: { url: discordAssetUrl(url) } } : {};
   }
   if (type === 'boss') {
-    // 4× nearest-neighbour: the 25px hiscores sprite, crisp at thumbnail size rather than thumb-sized.
-    const url = bossIconForStatKey(metricKeys(metric)[0] ?? metric, DISCORD_SPRITE_SCALE);
-    return url ? { thumbnail: { url: absoluteAssetUrl(url) } } : {};
+    // discordAssetUrl asks for the 4× nearest-neighbour sprite: crisp at thumbnail size, not thumb-sized.
+    const url = bossIconForStatKey(metricKeys(metric)[0] ?? metric);
+    return url ? { thumbnail: { url: discordAssetUrl(url) } } : {};
   }
   return {};
 }

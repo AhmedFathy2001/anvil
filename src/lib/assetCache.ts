@@ -17,7 +17,7 @@ import { mkdir, mkdtemp, readFile, rename, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { assetCacheKey, MAX_SCALE_SOURCE_PX, parseAssetPath, parseWikiScale, upstreamUrl, UPSTREAM_HOSTS, WIKI_SCALES, type AssetRef } from '@/lib/assetUrls';
+import { assetCacheKey, MAX_SCALE_SOURCE_PX, parseAssetPath, parseAssetScale, upstreamUrl, UPSTREAM_HOSTS, ASSET_SCALES, type AssetRef } from '@/lib/assetUrls';
 import { isKnownAsset } from '@/lib/assetKnown';
 import { getClientIp } from '@/lib/clientIp';
 import { log } from '@/lib/logger';
@@ -334,7 +334,7 @@ const scaling = new Map<string, Promise<CachedAsset | null | 'limited'>>();
 
 /** Nearest-neighbour `scale`× of a small raster, as PNG (alpha kept). Null when it isn't a sprite. */
 export async function upscaleSprite(bytes: Buffer, scale: number): Promise<Buffer | null> {
-  if (!WIKI_SCALES.includes(scale)) return null;
+  if (!ASSET_SCALES.includes(scale)) return null;
   const { default: sharp } = await import('sharp');
   // The first frame only: an animated GIF has no single upscale, and nothing asks for one.
   const meta = await sharp(bytes).metadata();
@@ -358,13 +358,13 @@ export async function upscaleSprite(bytes: Buffer, scale: number): Promise<Buffe
 }
 
 /**
- * A wiki sprite upscaled `scale`× (WIKI_SCALES), generated ONCE from the cached original and then
+ * A sprite (wiki file or item) upscaled `scale`× (ASSET_SCALES), generated ONCE from the cached original and then
  * kept like any asset — memory, then the store under its own key (assetCacheKey(ref, scale)) — so a
  * hit never touches sharp. Null when the original is unavailable or too big to be a sprite.
  */
 export async function getScaledAsset(ref: AssetRef, scale: number, opts: GetAssetOptions = {}): Promise<CachedAsset | null | 'limited'> {
   if (scale === 1) return getAsset(ref, opts);
-  if (ref.kind !== 'wiki' || !WIKI_SCALES.includes(scale)) return null;
+  if (!ASSET_SCALES.includes(scale)) return null;
   const key = assetCacheKey(ref, scale);
   const hot = memoryGet(key);
   if (hot) return hot;
@@ -397,10 +397,24 @@ export async function getAssetByPath(urlPath: string): Promise<CachedAsset | nul
   const ref = parseAssetPath(urlPath);
   if (!ref) return null;
   const q = urlPath.includes('?') ? new URLSearchParams(urlPath.slice(urlPath.indexOf('?') + 1).split('#')[0]) : null;
-  const scale = ref.kind === 'wiki' ? parseWikiScale(q?.get('x')) : 1;
+  const scale = parseAssetScale(q?.get('x'));
   if (scale == null) return null;
   const got = await getScaledAsset(ref, scale);
   return got === 'limited' ? null : got;
+}
+
+/**
+ * The whole GET for an /img route once the path has named an asset: the `x` query validated
+ * (ASSET_SCALES only — anything else, or `x` twice, is a 400 before the cache is touched; other
+ * params are ignored), then the original or its cached upscale, throttled on a miss.
+ */
+export async function scaledAssetResponse(request: Request & { nextUrl?: URL }, ref: AssetRef): Promise<Response> {
+  const xs = (request.nextUrl ?? new URL(request.url)).searchParams.getAll('x');
+  const scale = xs.length > 1 ? null : parseAssetScale(xs[0]);
+  if (scale == null) return placeholderResponse(400);
+  const asset = await getScaledAsset(ref, scale, { allowMiss: missThrottle(request) });
+  if (asset === 'limited') return limitedResponse();
+  return asset ? assetResponse(asset) : placeholderResponse();
 }
 
 // ── Miss throttle (the /img routes) ──
