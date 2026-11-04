@@ -1,5 +1,10 @@
 import { currentClan } from '@/lib/clanContext';
-import { accounts, accounts as accountsTable, clanMemberships, players, clanRoster, users, detectedAccounts } from '@/db/schema';
+import { accounts, clanRoster, users, detectedAccounts } from '@/db/schema';
+import { characterStandings } from '@/lib/characterStandingRead';
+import ProfileTabs, { profileClans, SettingsButton } from './ProfileTabs';
+import LegacyAnchors from './LegacyAnchors';
+import { profileMediaForUser } from '@/lib/profileMedia';
+import OtherAccountsClient from './OtherAccountsClient';
 import { onboardingState } from '@/lib/onboarding';
 import { clansOfPerson } from '@/lib/myClans';
 import PersonProfile from '@/components/PersonProfile';
@@ -18,24 +23,12 @@ import ConnectCard from './ConnectCard';
 import LiveForYou from './LiveForYou';
 import RunSoFar from './RunSoFar';
 import { InReach, PersonalBests, PublicProfile, TrophyCase } from './LockerRail';
-import LinkedAccountsClient from './LinkedAccountsClient';
-import OtherAccountsClient from './OtherAccountsClient';
-import DetectedAccountsClient from './DetectedAccountsClient';
-import HomeClanConflicts from './HomeClanConflicts';
 import { membershipConflicts } from '@/lib/homeClan';
-import { alsoPlayedFromByAccount } from '@/lib/accountSightings';
-import SecurityDrawer from './SecurityDrawer';
-import { emissionSettingsView } from '@/lib/emissionSettings';
 import { atLeast } from '@/lib/clanRoles';
 import { supporterForUser } from '@/lib/supporter';
-import { referralSummary } from '@/lib/referrals';
-import { apexOrigin } from '@/lib/seo';
 import { supporterView } from '@/components/SupporterSection';
 import ClanLink from '@/components/ClanLink';
 import { onboardingNext } from '@/lib/firstLogin';
-import { characterStandings, clanOptionsFor } from '@/lib/characterStandingRead';
-import { canUseProfileMedia, displayCaseSlots, profileMediaForUser } from '@/lib/profileMedia';
-import { readDisplayCase } from '@/lib/displayCase';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,7 +45,7 @@ export const dynamic = 'force-dynamic';
 export default async function ProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ welcome?: string; connect?: string; account?: string; next?: string }>;
+  searchParams: Promise<{ welcome?: string; connect?: string; account?: string; next?: string; everywhere?: string }>;
 }) {
   // NOT requireClan(). This page is the person's, and a person has no clan on the apex — so the one
   // surface the identity model insists follows you between clans answered 404 there, and a signed-in
@@ -80,14 +73,23 @@ export default async function ProfilePage({
     redirect(`/login?return=${encodeURIComponent(back)}`);
   }
 
+  // Adding a character moved to settings; old `/profile?connect=<rsn>` links follow it there.
+  if (suggestedRsn && session.playerId != null) {
+    redirect(`/settings/add?connect=${encodeURIComponent(suggestedRsn)}#link-account`);
+  }
+
+  const myClans = await clansOfPerson(session.playerId, session.userId);
+
   if (!clan) {
-    // The apex: you, across the platform. The locker below is assembled per clan — boards, teams,
-    // this week's progress — and none of that has a single answer when no clan is named. Rather than
-    // merge several clans into a picture true of nobody, show what IS true of the PERSON: the
-    // characters they play, who they share, their clans — and the platform-level settings that route
-    // between clans (webhooks + emission), which never belonged on any single clan's locker.
-    const [myClans, characters, person, emission, onboarding, detectedRows, supporter, referral] = await Promise.all([
-      clansOfPerson(session.playerId, session.userId),
+    // ONE PROFILE, A TAB PER CLAN. Plain /profile on the apex opens the home clan's tab — that is
+    // where people spend their time — and "Everywhere" (?everywhere=1) is the person view below.
+    // Someone with no clan seat only has the person view, so they stay here.
+    const home = profileClans(myClans)[0];
+    if (home && params.everywhere !== '1') redirect(`/c/${home.slug}/profile`); // clan-prefix: platform -- the home clan's tab
+
+    // The apex: you, across the platform — clans and characters, nothing per board. Settings live on
+    // /settings; this view only reads.
+    const [characters, onboarding, detectedRows, supporter] = await Promise.all([
       session.playerId == null
         ? Promise.resolve([])
         : db
@@ -97,70 +99,49 @@ export default async function ProfilePage({
               rsnNormalized: accounts.rsnNormalized,
               accountHash: accounts.accountHash,
               shared: accounts.shared,
+              isPrimary: accounts.isPrimary,
             })
             .from(accounts)
             .where(eq(accounts.playerId, session.playerId)),
-      session.playerId == null
-        ? Promise.resolve(null)
-        : db.query.players.findFirst({ where: eq(players.id, session.playerId) }),
-      // Emission routing + personal webhooks are PERSON-level and cross-clan by nature, so this is
-      // their home. Needs a player — a signed-in account with no character yet has nothing to route.
-      session.playerId == null ? Promise.resolve(null) : emissionSettingsView(session.userId, session.playerId),
-      // Whether their first run is still outstanding. The flow ends here, so this is also where
-      // somebody who abandoned it half way through gets offered it back.
       onboardingState(session.userId, session.playerId),
       db.query.detectedAccounts.findMany({
         where: and(eq(detectedAccounts.userId, user.id), eq(detectedAccounts.status, 'pending')),
-        orderBy: (d, { desc }) => [desc(d.lastSeenAt)],
       }),
       supporterForUser(session.userId),
-      referralSummary(session.userId).catch(() => null),
     ]);
     const ownedRsns = new Set(characters.map((a) => a.rsnNormalized));
     const ownedHashes = new Set(characters.map((a) => a.accountHash).filter(Boolean) as string[]);
-    const detected = detectedRows
-      .filter((d) => !ownedRsns.has(d.rsnNormalized) && !(d.accountHash && ownedHashes.has(d.accountHash)))
-      .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
+    const detectedCount = detectedRows.filter(
+      (d) => !ownedRsns.has(d.rsnNormalized) && !(d.accountHash && ownedHashes.has(d.accountHash)),
+    ).length;
+    // eslint-disable-next-line react-hooks/purity -- server component, runs once per request
     const standings = await characterStandings(characters.map((a) => a.id), Date.now());
-    // Their own avatar, banner and display case (Anvil Supporter), at the tier in force now.
-    const tierNow = supporter?.tier.id ?? null;
-    const [media, pins] = await Promise.all([
-      profileMediaForUser(session.userId, { tier: tierNow }),
-      readDisplayCase(session.userId, session.playerId).catch(() => []),
-    ]);
-    const rsnById = new Map(characters.map((a) => [a.id, a.rsn]));
+    // Their own avatar and banner (Anvil Supporter), at the tier in force now. Edited on /settings/look.
+    const media = await profileMediaForUser(session.userId, { tier: supporter?.tier.id ?? null });
     return (
-      <PersonProfile
-        // The Discord display name, and this is the one page it belongs on: /profile is private,
-        // signed-in and yours. It is deliberately absent from /u/ and /p/, which are public.
-        displayName={user.displayName}
-        clans={myClans}
-        characters={characters.map((a) => ({
-          id: a.id,
-          rsn: a.rsn,
-          shared: !!a.shared,
-          standing: standings.lineByAccount.get(a.id),
-          clanOptions: clanOptionsFor(standings.seats, a.id),
-        }))}
-        guestSeats={standings.seats
-          .filter((s) => s.kind === 'guest')
-          .map((s) => ({ seatId: s.seatId, rsn: rsnById.get(s.accountId) ?? '', clanName: s.clanName, clanSlug: s.clanSlug }))}
-        detected={detected}
-        linked={person?.linkAccountsPublicly ?? false}
-        emission={emission}
-        suggestedRsn={suggestedRsn}
-        unfinishedSetup={onboarding.offer}
-        supporter={supporterView(supporter)}
-        look={{ media, canUpload: canUseProfileMedia(tierNow) }}
-        displayCase={{ pins, slots: displayCaseSlots(tierNow) }}
-        announceSupporter={user.announceSupporter}
-        gameChatFlair={user.gameChatFlair}
-        invite={
-          referral && process.env.GUMROAD_URL_SUPPORTER
-            ? { link: `${apexOrigin()}/r/${referral.code}`, held: referral.held, granted: referral.granted, monthsEarned: referral.monthsEarned, next: referral.next }
-            : null
-        }
-      />
+      <>
+        <LegacyAnchors />
+        <PersonProfile
+          // The Discord display name, and this is the one page it belongs on: /profile is private,
+          // signed-in and yours. It is deliberately absent from /u/ and /p/, which are public.
+          displayName={user.displayName}
+          clans={myClans}
+          characters={characters
+            .sort((x, y) => y.isPrimary - x.isPrimary || x.rsn.localeCompare(y.rsn))
+            .map((a) => ({
+              id: a.id,
+              rsn: a.rsn,
+              shared: !!a.shared,
+              isPrimary: a.isPrimary === 1,
+              standing: standings.lineByAccount.get(a.id),
+            }))}
+          detectedCount={detectedCount}
+          suggestedRsn={suggestedRsn}
+          unfinishedSetup={onboarding.offer}
+          supporter={supporterView(supporter)}
+          media={media}
+        />
+      </>
     );
   }
 
@@ -195,60 +176,22 @@ export default async function ProfilePage({
       ])
     : [null, null, null];
 
-  // The opt-in inbox and the opt-out list: accounts the plugin saw this user play, minus anything
-  // they already own through another path so we never suggest an account that's on the list above.
+  // Things waiting on them in settings, surfaced here as one line each: characters the plugin saw
+  // them play that aren't linked, and characters two in-game rosters both claim (lib/homeClan).
   // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to the viewer's own.
   const owned = await findRosterSeats(and(eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)));
   const ownedRsns = new Set(owned.map((m) => m.rsnNormalized));
   const ownedHashes = new Set(owned.map((m) => m.accountHash).filter(Boolean) as string[]);
   const detectedRows = await db.query.detectedAccounts.findMany({
-    where: eq(detectedAccounts.userId, user.id),
-    orderBy: (d, { desc }) => [desc(d.lastSeenAt)],
+    where: and(eq(detectedAccounts.userId, user.id), eq(detectedAccounts.status, 'pending')),
   });
-  const notOwned = detectedRows.filter(
+  const detected = detectedRows.filter(
     (d) => !ownedRsns.has(d.rsnNormalized) && !(d.accountHash && ownedHashes.has(d.accountHash)),
   );
-  const detected = notOwned
-    .filter((d) => d.status === 'pending')
-    .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
-  const ignored = notOwned
-    .filter((d) => d.status === 'dismissed' || d.status === 'released')
-    .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
-
-  // CAN THEY TAKE THIS SEAT BACK? Only a seat the in-game roster is not holding open is theirs to
-  // end — see lib/leaveClan — so the answer is computed here and the control says which case it is
-  // rather than finding out by being refused.
-  const liveSeats = clan
-    ? await db
-        .select({ kind: clanMemberships.kind, source: clanMemberships.source })
-        .from(clanMemberships)
-        .innerJoin(accountsTable, eq(accountsTable.id, clanMemberships.accountId))
-        .where(
-          and(
-            eq(clanMemberships.clanId, clan.id),
-            eq(accountsTable.playerId, session.playerId),
-            isNull(clanMemberships.leftAt),
-          ),
-        )
-    : [];
-  const leaveSeat: 'guest' | 'member-in-game' | null =
-    liveSeats.length === 0
-      ? null
-      : liveSeats.some((s) => s.kind === 'member' && s.source === 'roster')
-        ? 'member-in-game'
-        : 'guest';
-
-  // Two in-game rosters listing one of their characters: theirs to settle (lib/homeClan).
   const homeConflicts = await membershipConflicts(session.playerId);
   // Per character: member of which clan (and how fresh its list is), guest where — lib/characterStanding.
+  // eslint-disable-next-line react-hooks/purity -- server component, runs once per request
   const lockerStandings = await characterStandings(locker.accounts.map((a) => a.accountId), Date.now());
-
-  // Their characters played through somebody else's plugin (lib/accountSightings) — a shared PC, a
-  // visit, or a character linked to the wrong person. Shown so they can Remove it if it isn't theirs.
-  const alsoPlayedFrom = await alsoPlayedFromByAccount(
-    locker.accounts.map((a) => a.accountId),
-    session.userId,
-  );
 
   const avatar = user.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null;
   // session.role, NOT user.role. `users.role` is the LEGACY GLOBAL column, and lib/auth says what
@@ -267,29 +210,20 @@ export default async function ProfilePage({
 
   return (
     <div className="max-w-6xl mx-auto">
-      {/* THE WAY BACK OUT. This locker is one clan's view of you — game data, boards, trophies. The
-          platform-level things (your characters, sharing, webhooks, where announcements go, billing)
-          live on your account across Anvil, and this is the link there so the two never blur.
-
-          A RAW anchor, not ClanLink: `/profile` is a clan-scoped root, so ClanLink would prefix it
-          back to THIS clan's locker. The apex version is the bare path, reached by a hard navigation
-          (which is right — leaving the clan for the platform is a context change, like the switcher).
-          The lint rule guards against ACCIDENTALLY dropping the prefix; here landing on the apex is
-          the entire point, so it is disabled deliberately for this one link. */}
-      {/* eslint-disable-next-line clan-scope/clan-prefix -- intentional apex link out of the clan locker */}
-      <a href="/profile" className="mb-3 inline-flex items-center gap-1.5 text-[13px] text-text-muted transition-colors hover:text-gold">
-        ← Your account across Anvil
-      </a>
-      <div className="flex items-baseline gap-3 flex-wrap mb-4">
+      <LegacyAnchors />
+      <div className="flex items-center gap-3 flex-wrap mb-4">
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2.5">
           <span className="w-1 h-7 bg-gold rounded-full" />
           Your profile
         </h1>
         <span className="text-sm text-text-muted">
-          {clanName}
-          {daysIn != null && daysIn > 0 && <> · {daysIn} day{daysIn === 1 ? '' : 's'} in the clan</>}
+          {daysIn != null && daysIn > 0 && <>{daysIn} day{daysIn === 1 ? '' : 's'} in {clanName}</>}
+        </span>
+        <span className="ml-auto">
+          <SettingsButton />
         </span>
       </div>
+      <ProfileTabs clans={myClans} current={clan.slug} />
 
       <PlayerCard
         displayName={user.displayName}
@@ -370,41 +304,44 @@ export default async function ProfilePage({
             />
           )}
 
+          {/* Your characters, to look at. Everything you can change about one (sharing, main,
+              its clans, rename, remove) is on its settings page — the cog on each row. */}
           <section className="border border-card-border rounded-xl bg-card-bg p-5">
             <div className="flex items-center gap-2 mb-4">
               <span className="w-1 h-5 bg-gold rounded-full" />
-              <h2 className="text-lg font-semibold">Your accounts</h2>
-              <ClanLink
-                href="#account-security"
-                className="text-xs font-semibold px-2.5 py-1 border border-card-border rounded-lg hover:border-gold/40 hover:text-gold-light transition-colors"
-              >
+              <h2 className="text-lg font-semibold">Your characters</h2>
+              <ClanLink href="/settings/add" className="ml-auto text-xs text-text-muted hover:text-gold">
                 + Add a character
               </ClanLink>
-              <span className="ml-auto text-xs text-text-muted">
-                {locker.accounts.length === 0
-                  ? 'none linked'
-                  : `${locker.accounts.length} linked · ${
-                      locker.accounts.every((a) => a.verified)
-                        ? 'all verified'
-                        : `${locker.accounts.filter((a) => a.verified).length} verified`
-                    }`}
-              </span>
             </div>
 
-            {/* WHAT THE SWITCH ON THESE ROWS IS FOR, because beside a roster it reads as the wrong
-                question. These hold a seat here, and a clan can always see its own roster — the
-                switch cannot change that and never could. It is the PLATFORM's question: whether the
-                character appears on its own profile and the cross-clan boards. */}
-            {locker.accounts.length > 0 && (
-              <p className="mb-3 text-[12.5px] text-text-muted">
-                On this clan&rsquo;s roster, so it sees these whatever you choose.{' '}
-                <span className="text-foreground/80">Show on my public profile</span> is the other question:
-                whether the character shows on its own profile and the cross-clan boards.
-              </p>
+            {(detected.length > 0 || homeConflicts.length > 0) && (
+              <div className="mb-3 grid gap-2">
+                {homeConflicts.map((c) => (
+                  <ClanLink
+                    key={c.accountId}
+                    href={`/settings/characters/${c.accountId}#clans`}
+                    className="flex items-center gap-2 rounded-lg border border-gold/35 bg-gold/[0.06] px-3.5 py-2.5 text-[13px] hover:border-gold/60"
+                  >
+                    <span>
+                      Two clans list <b>{c.rsn}</b> ({c.member.name} and {c.listedBy.name}). Which is home?
+                    </span>
+                    <span className="ml-auto text-gold">Choose →</span>
+                  </ClanLink>
+                ))}
+                {detected.length > 0 && (
+                  <ClanLink
+                    href="/settings/add"
+                    className="flex items-center gap-2 rounded-lg border border-gold/35 bg-gold/[0.06] px-3.5 py-2.5 text-[13px] hover:border-gold/60"
+                  >
+                    <span>
+                      We noticed you playing {detected.length} character{detected.length === 1 ? '' : 's'} that aren&rsquo;t linked yet.
+                    </span>
+                    <span className="ml-auto text-gold">Review →</span>
+                  </ClanLink>
+                )}
+              </div>
             )}
-
-            <HomeClanConflicts initial={homeConflicts} />
-            <DetectedAccountsClient initial={detected} />
 
             {locker.accounts.length === 0 ? (
               <div className="border border-dashed border-card-border rounded-lg bg-brown-dark/40 px-4 py-6 text-center text-sm text-text-muted">
@@ -412,35 +349,35 @@ export default async function ProfilePage({
                 New accounts can link immediately. Existing roster accounts ask for the one-time ownership check first.
               </div>
             ) : (
-              <LinkedAccountsClient
-                accounts={locker.accounts.map((a) => ({
-                  id: a.id,
-                  rsn: a.rsn,
-                  isPrimary: a.isPrimary,
-                  verified: a.verified,
-                  verificationMethod: a.verificationMethod,
-                  provisional: a.provisional,
-                  inActiveEvent: a.inActiveEvent,
-                  playingIn: a.playingIn,
-                  lastPingAt: a.lastPingAt,
-                  shared: a.shared,
-                  accountId: a.accountId,
-                  alsoPlayedFrom: alsoPlayedFrom.get(a.accountId),
-                  standing: lockerStandings.lineByAccount.get(a.accountId),
-                  clanOptions: clanOptionsFor(lockerStandings.seats, a.accountId),
-                }))}
-              />
+              <ul className="grid gap-2">
+                {locker.accounts.map((a) => (
+                  <li key={a.accountId} className="flex items-center gap-2 rounded-lg border border-tile-border bg-tile-bg px-3 py-2.5">
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-2">
+                        <span className="font-semibold">{a.rsn}</span>
+                        {a.isPrimary && <span className="rounded-full border border-gold-dark px-1.5 text-[10.5px] text-gold">main</span>}
+                        {!a.shared && <span className="rounded-full border border-card-border px-1.5 text-[10.5px] text-text-muted">private</span>}
+                      </span>
+                      {lockerStandings.lineByAccount.get(a.accountId) && (
+                        <span className="block text-xs text-text-muted">{lockerStandings.lineByAccount.get(a.accountId)}</span>
+                      )}
+                    </span>
+                    <ClanLink
+                      href={`/settings/characters/${a.accountId}`}
+                      className="ml-auto shrink-0 rounded-md border border-card-border px-2 py-1 text-[12px] text-text-muted hover:border-gold/40 hover:text-gold"
+                      aria-label={`Settings for ${a.rsn}`}
+                    >
+                      ⚙ Settings
+                    </ClanLink>
+                  </li>
+                ))}
+              </ul>
             )}
 
-            {/* Accounts of theirs this clan has no seat for. Listed only so the Share switch is
-                reachable — the accounts a person most wants to publish or hold back are exactly the
-                ones the clan they're looking at cannot see. */}
+            {/* Their characters this clan holds no seat for — offered here as guests, because asking
+                THIS clan is the one thing about them that only makes sense on this clan's tab. */}
             {locker.otherAccounts.length > 0 && (
-              <OtherAccountsClient
-                accounts={locker.otherAccounts}
-                clanName={clan?.name ?? 'This clan'}
-                clanSlug={clan?.slug ?? null}
-              />
+              <OtherAccountsClient accounts={locker.otherAccounts} clanName={clan.name} clanSlug={clan.slug} />
             )}
           </section>
         </div>
@@ -453,18 +390,6 @@ export default async function ProfilePage({
         </div>
       </div>
 
-      {/* Announcements routing + personal webhooks moved to the apex /profile — they are person-level
-          and cross-clan by nature, so they belong on "your account across Anvil", not one clan's
-          locker. The link at the top of this page goes there. */}
-
-      <SecurityDrawer
-        accounts={locker.accounts.map((a) => ({ id: a.id, rsn: a.rsn }))}
-        ignored={ignored}
-        defaultOpen={Boolean(suggestedRsn) || (locker.setupNeeded && locker.accounts.length > 0)}
-        clanName={clan?.name ?? 'this clan'}
-        seat={leaveSeat}
-        suggestedRsn={suggestedRsn}
-      />
     </div>
   );
 }

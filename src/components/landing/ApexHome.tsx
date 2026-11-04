@@ -374,7 +374,7 @@ function Empty({ hasCharacters }: { hasCharacters: boolean }) {
       <div className="mt-5 flex flex-wrap gap-3">
         {!hasCharacters && (
           <ClanLink
-            href="/profile#link-account"
+            href="/settings/add#link-account"
             className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
           >
             Connect my RuneScape account
@@ -485,7 +485,7 @@ function FoundSeats({ seats }: { seats: FoundSeat[] }) {
             </span>
           </span>
           <ClanLink
-            href={`/profile?connect=${encodeURIComponent(s.rsn)}#link-account`}
+            href={`/settings/add?connect=${encodeURIComponent(s.rsn)}#link-account`}
             className="shrink-0 rounded-lg bg-gold px-3.5 py-2 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light"
           >
             Verify &amp; claim

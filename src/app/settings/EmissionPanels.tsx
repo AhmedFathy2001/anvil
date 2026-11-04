@@ -34,22 +34,8 @@ const STATE_OPTIONS = [
   { value: 'never', label: 'Never' },
 ];
 
-/**
- * "Where do my announcements go" — the /profile face of lib/emissionRouting.
- *
- * The distinction the copy leans on, because it is the one people get wrong: this is about the SOCIAL
- * stuff — drops, pets, deaths, combat achievements. A bingo submission is EVIDENCE and always reaches
- * the clan running the board; nothing here can send it somewhere else or hold it back.
- */
-export default function AnnouncementsDrawer({
-  initial,
-  defaultOpen = false,
-}: {
-  initial: EmissionSettingsView;
-  /** Open on first render — used on the apex /profile where this is a primary purpose of the page,
-      rather than a footnote drawer at the bottom of a clan locker. */
-  defaultOpen?: boolean;
-}) {
+/** Shared state for the panels below: each PATCH returns the whole view, so they stay in step. */
+function useEmissions(initial: EmissionSettingsView) {
   const [view, setView] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,133 +58,132 @@ export default function AnnouncementsDrawer({
       setBusy(false);
     }
   }
+  return { view, setView, busy, error, patch };
+}
 
-  // Anything to configure on the clan side? (a guest clan, or a member clan an alt could be pointed at)
-  const hasClanControls = view.accounts.some((a) => a.clans.length > 0) || view.memberClans.length > 0;
+function ErrorLine({ error }: { error: string | null }) {
+  return error ? (
+    <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-2.5 text-xs text-red-400">{error}</div>
+  ) : null;
+}
 
+/**
+ * "Where do my announcements go" — the account-wide half of lib/emissionRouting, on /settings.
+ *
+ * The distinction the copy leans on, because it is the one people get wrong: this is about the SOCIAL
+ * stuff — drops, pets, deaths, combat achievements. A bingo submission is EVIDENCE and always reaches
+ * the clan running the board; nothing here can send it somewhere else or hold it back.
+ */
+export function AnnouncementsGeneral({ initial }: { initial: EmissionSettingsView }) {
+  const { view, busy, error, patch } = useEmissions(initial);
   return (
-    <details open={defaultOpen || undefined} className="group mt-5 rounded-xl border border-card-border bg-card-bg">
-      <summary className="flex cursor-pointer list-none select-none items-center gap-2.5 px-5 py-4 font-semibold">
-        <span className="text-text-muted transition-transform group-open:rotate-90" aria-hidden>
-          ▸
-        </span>
-        Announcements
-        <span className="text-xs font-normal text-text-muted">drops, deaths, CAs — where they post</span>
-      </summary>
-
-      <div className="grid gap-6 px-5 pb-5">
-        <p className="max-w-[70ch] text-[13px] text-text-muted">
-          Where your drops, pets, deaths and combat achievements get announced across your clans. Your
-          bingo submissions aren&rsquo;t affected — those always reach the clan running the board.
-        </p>
-
-        {error && (
-          <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-2.5 text-xs text-red-400">{error}</div>
-        )}
-
-        {/* The user-side block. */}
-        <Checkbox
-          checked={view.blockGuestEmissions}
-          onChange={(v) => patch({ blockGuestEmissions: v })}
-          disabled={busy}
-          label="Keep my announcements out of clans I only guest in"
-          description="Your own clan and your bingo boards are unaffected. Allow specific clans below."
-        />
-
-        {/* Level posts in clan channels — stricter-only on top of each clan's own rules. */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">Level posts in clan channels</p>
-            <p className="text-[12px] text-text-muted">
-              Your clans decide which level-ups and XP milestones get posted; you can turn yours down, not up.
-            </p>
-          </div>
-          <Select
-            value={view.levelPostsClan}
-            onChange={(v) => patch({ levelPostsClan: v })}
-            options={LEVEL_POSTS_OPTIONS}
-            disabled={busy}
-            ariaLabel="Level posts in clan channels"
-            className="w-48 shrink-0"
-          />
+    <div className="grid gap-5">
+      <ErrorLine error={error} />
+      <Checkbox
+        checked={view.blockGuestEmissions}
+        onChange={(v) => patch({ blockGuestEmissions: v })}
+        disabled={busy}
+        label="Keep my announcements out of clans I only guest in"
+        description="Your own clan and your bingo boards are unaffected. Allow single clans on each character's page."
+      />
+      {/* Level posts in clan channels — stricter-only on top of each clan's own rules. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">Level posts in clan channels</p>
+          <p className="text-[12px] text-text-muted">
+            Your clans decide which level-ups and XP milestones get posted; you can turn yours down, not up.
+          </p>
         </div>
-
-        {/* Per-account, per-clan controls. */}
-        {hasClanControls && (
-          <div className="grid gap-4">
-            {view.accounts.map((a) => {
-              // Member clans this account has no row for — the "point an alt here" options.
-              const pointable = view.memberClans.filter(
-                (mc) => mc.clanId !== a.memberClan?.clanId && !a.clans.some((c) => c.clanId === mc.clanId),
-              );
-              if (a.clans.length === 0 && pointable.length === 0) return null;
-              return (
-                <div key={a.accountId} className="rounded-lg border border-card-border/60 bg-brown-dark/30 p-3.5">
-                  <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                    {a.rsn}
-                    {a.shared && (
-                      <span className="rounded bg-gold/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gold">
-                        shared
-                      </span>
-                    )}
-                    {a.memberClan && (
-                      <span className="text-[11px] font-normal text-text-muted">· member of {a.memberClan.name}</span>
-                    )}
-                  </div>
-
-                  {a.clans.length > 0 && (
-                    <ul className="grid gap-1.5">
-                      {a.clans.map((c) => (
-                        <li key={c.clanId} className="flex items-center justify-between gap-3">
-                          <span className="min-w-0 truncate text-[13px]">
-                            {c.name}
-                            <span className="ml-1.5 text-[11px] text-text-muted">
-                              {c.seat === 'guest' ? 'guest' : 'pointed here'}
-                            </span>
-                          </span>
-                          <Select
-                            value={c.state}
-                            onChange={(v) => patch({ accountId: a.accountId, clanId: c.clanId, state: v as EmissionState })}
-                            options={STATE_OPTIONS}
-                            ariaLabel={`Announcements for ${a.rsn} in ${c.name}`}
-                            className="w-44 shrink-0"
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  {pointable.length > 0 && (
-                    <div className="mt-2.5 flex items-center justify-between gap-3">
-                      <span className="min-w-0 truncate text-[11px] text-text-muted">Also announce to a clan you&rsquo;re a member of:</span>
-                      <Select
-                        value=""
-                        onChange={(v) => v && patch({ accountId: a.accountId, clanId: Number(v), state: 'always' })}
-                        options={[{ value: '', label: 'Add…' }, ...pointable.map((mc) => ({ value: String(mc.clanId), label: mc.name }))]}
-                        ariaLabel={`Point ${a.rsn} at a clan you are a member of`}
-                        className="w-44 shrink-0"
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="h-px bg-card-border" />
-
-        {/* Personal webhooks. */}
-        <WebhookSection view={view} onChange={setView} />
-
-        <PersonalLevelRules
-          initial={view.personalLevelRules}
-          hasLevelHook={view.webhooks.some((h) => h.kinds.includes('levels'))}
-          busy={busy}
-          onSave={(rules) => patch({ personalLevelRules: rules })}
+        <Select
+          value={view.levelPostsClan}
+          onChange={(v) => patch({ levelPostsClan: v })}
+          options={LEVEL_POSTS_OPTIONS}
+          disabled={busy}
+          ariaLabel="Level posts in clan channels"
+          className="w-48 shrink-0"
         />
       </div>
-    </details>
+    </div>
+  );
+}
+
+/**
+ * One character's announcement routing, per clan: guest clans (and clans it was pointed at) with
+ * their override, plus "also announce to" one of the person's member clans. Null when there is
+ * nothing to choose — a character only in its own clan always announces there.
+ */
+export function CharacterAnnouncements({ initial, accountId }: { initial: EmissionSettingsView; accountId: number }) {
+  const { view, busy, error, patch } = useEmissions(initial);
+  const a = view.accounts.find((x) => x.accountId === accountId);
+  if (!a) return null;
+  const pointable = view.memberClans.filter(
+    (mc) => mc.clanId !== a.memberClan?.clanId && !a.clans.some((c) => c.clanId === mc.clanId),
+  );
+  if (a.clans.length === 0 && pointable.length === 0) {
+    return (
+      <p className="text-[13px] text-text-muted">
+        {a.memberClan ? <>Announces in {a.memberClan.name}, its own clan. Nothing else to choose.</> : <>Not in a clan, so nothing announces anywhere.</>}
+      </p>
+    );
+  }
+  return (
+    <div className="grid gap-2">
+      <ErrorLine error={error} />
+      {a.memberClan && (
+        <div className="flex items-center justify-between gap-3 text-[13px]">
+          <span>
+            {a.memberClan.name} <span className="ml-1 text-[11px] text-text-muted">its own clan</span>
+          </span>
+          <span className="w-44 text-right text-[12px] text-text-muted">Always</span>
+        </div>
+      )}
+      {a.clans.map((c) => (
+        <div key={c.clanId} className="flex items-center justify-between gap-3">
+          <span className="min-w-0 truncate text-[13px]">
+            {c.name}
+            <span className="ml-1.5 text-[11px] text-text-muted">{c.seat === 'guest' ? 'guest' : 'pointed here'}</span>
+          </span>
+          <Select
+            value={c.state}
+            onChange={(v) => patch({ accountId: a.accountId, clanId: c.clanId, state: v as EmissionState })}
+            options={STATE_OPTIONS}
+            disabled={busy}
+            ariaLabel={`Announcements for ${a.rsn} in ${c.name}`}
+            className="w-44 shrink-0"
+          />
+        </div>
+      ))}
+      {pointable.length > 0 && (
+        <div className="mt-1 flex items-center justify-between gap-3">
+          <span className="min-w-0 truncate text-[12px] text-text-muted">Also announce to a clan you&rsquo;re a member of:</span>
+          <Select
+            value=""
+            onChange={(v) => v && patch({ accountId: a.accountId, clanId: Number(v), state: 'always' })}
+            options={[{ value: '', label: 'Add…' }, ...pointable.map((mc) => ({ value: String(mc.clanId), label: mc.name }))]}
+            disabled={busy}
+            ariaLabel={`Point ${a.rsn} at a clan you are a member of`}
+            className="w-44 shrink-0"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Personal Discord webhooks and the level rules that apply to them. */
+export function WebhooksPanel({ initial }: { initial: EmissionSettingsView }) {
+  const { view, setView, busy, error, patch } = useEmissions(initial);
+  return (
+    <div className="grid gap-5">
+      <ErrorLine error={error} />
+      <WebhookSection view={view} onChange={setView} />
+      <PersonalLevelRules
+        initial={view.personalLevelRules}
+        hasLevelHook={view.webhooks.some((h) => h.kinds.includes('levels'))}
+        busy={busy}
+        onSave={(rules) => patch({ personalLevelRules: rules })}
+      />
+    </div>
   );
 }
 
@@ -253,8 +238,7 @@ function WebhookSection({
 
   return (
     <div>
-      <div className="text-sm font-semibold">Your own webhooks</div>
-      <p className="mb-3 mt-0.5 max-w-[70ch] text-[12.5px] text-text-muted">
+            <p className="mb-3 mt-0.5 max-w-[70ch] text-[12.5px] text-text-muted">
         Send copies of your notifications to your own Discord channels, independent of any clan. Paste a
         webhook from a channel&rsquo;s Integrations → Webhooks.
       </p>

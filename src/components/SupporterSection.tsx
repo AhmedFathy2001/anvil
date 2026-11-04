@@ -67,7 +67,10 @@ export default function SupporterSection({
   name = null,
   announce = null,
   gameChat = null,
+  bare = false,
 }: {
+  /** On /settings, where the page already has its title: no section heading or top margin. */
+  bare?: boolean;
   supporter: SupporterView | null;
   invite?: InviteView | null;
   /** Their "announce me" choice for the Anvil Discord; null hides the toggle. */
@@ -80,8 +83,8 @@ export default function SupporterSection({
   if (!supporter) {
     const me = name || 'Your name';
     return (
-      <section className="mt-10">
-        <h2 className="mb-3 text-lg font-semibold">Anvil Supporter</h2>
+      <section className={bare ? '' : 'mt-10'}>
+        {!bare && <h2 className="mb-3 text-lg font-semibold">Anvil Supporter</h2>}
         <div className="relative overflow-hidden rounded-2xl border border-gold/35 bg-gradient-to-br from-gold/[0.07] via-card-bg to-card-bg p-5 sm:p-6">
           <div className="flex flex-wrap items-start gap-6">
             <div className="min-w-0 flex-[1_1_20rem]">
@@ -130,8 +133,8 @@ export default function SupporterSection({
   const renews = day(supporter.renewsAt);
   const ends = day(supporter.endsAt);
   return (
-    <section className="mt-10">
-      <h2 className="mb-3 text-lg font-semibold">Anvil Supporter</h2>
+    <section className={bare ? '' : 'mt-10'}>
+      {!bare && <h2 className="mb-3 text-lg font-semibold">Anvil Supporter</h2>}
       <div className="rounded-xl border border-gold/40 bg-gold/[0.05] p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <SupporterName name={`Anvil ${supporter.tierName}`} tier={supporter.tier} style={supporter.style} className="text-lg font-bold" plain />

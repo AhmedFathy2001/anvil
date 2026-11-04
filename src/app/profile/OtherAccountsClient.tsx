@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { LockerOtherAccount } from '@/lib/profileLocker';
-import Checkbox from '@/components/Checkbox';
 import { parseStamp } from '@/lib/dbTime';
 
 function shortDate(stamp: string | null): string {
@@ -45,26 +44,6 @@ export default function OtherAccountsClient({
   const [error, setError] = useState('');
   const [asked, setAsked] = useState<Record<number, string>>({});
 
-  async function setShared(accountId: number, shared: boolean) {
-    setBusyId(accountId);
-    setError('');
-    try {
-      const res = await fetch(`/api/profile/accounts/${accountId}/share`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shared }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        setError(j.error ?? 'Could not change that.');
-        return;
-      }
-      router.refresh();
-    } finally {
-      setBusyId(null);
-    }
-  }
-
   async function guestHere(account: LockerOtherAccount) {
     if (!clanSlug) return;
     setBusyId(account.accountId);
@@ -100,9 +79,7 @@ export default function OtherAccountsClient({
       </div>
       <p className="text-xs text-text-muted mb-2.5">
         {clanName} holds no seat for these, so nothing here counts them and nobody here can see them.
-        Offer one as a guest and they can &mdash; and it can play their events. &ldquo;Show on my public
-        profile&rdquo; is a separate thing: it decides whether the character shows on its own profile and the
-        cross-clan boards, anywhere on the site.
+        Offer one as a guest and they can &mdash; and it can play their events.
       </p>
       {error && <p className="text-xs text-red-300 mb-2">{error}</p>}
       <div className="space-y-1.5">
@@ -139,13 +116,6 @@ export default function OtherAccountsClient({
                 // same bar the sign-up form and the event door apply.
                 <span className="text-xs text-text-muted">Verify it to offer it</span>
               ) : null}
-
-              <Checkbox
-                checked={a.shared}
-                disabled={busyId === a.accountId}
-                onChange={(next) => setShared(a.accountId, next)}
-                label="Show on my public profile"
-              />
             </span>
           </div>
         ))}
