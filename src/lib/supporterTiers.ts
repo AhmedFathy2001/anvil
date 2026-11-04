@@ -68,6 +68,8 @@ export interface SupporterRowLike {
   recurrence?: string | null;
   /** The owning login's users.supporter_style (JSON), when the read joined it. */
   style?: string | null;
+  /** The owning login, when the read has it (ties between a person's logins). */
+  userId?: number | null;
 }
 
 export interface SupporterState {
@@ -122,12 +124,20 @@ export function wholeMonths(fromMs: number, toMs: number): number {
  * in force wins; "since" is the first row ever, refunded ones excluded (money taken back is not
  * tenure).
  */
+function betterRow(b: SupporterRowLike, a: SupporterRowLike): boolean {
+  const rb = SUPPORTER_TIERS[b.tier as SupporterTierId].rank;
+  const ra = SUPPORTER_TIERS[a.tier as SupporterTierId].rank;
+  if (rb !== ra) return rb > ra;
+  if (!!b.style !== !!a.style) return !!b.style;
+  return (b.userId ?? Infinity) < (a.userId ?? Infinity);
+}
+
 export function supporterState(rows: SupporterRowLike[], now = Date.now()): SupporterState | null {
   const live = rows.filter((r) => rowInForce(r, now));
   if (live.length === 0) return null;
-  const best = live.reduce((a, b) =>
-    SUPPORTER_TIERS[b.tier as SupporterTierId].rank > SUPPORTER_TIERS[a.tier as SupporterTierId].rank ? b : a,
-  );
+  // The best tier; between equal tiers (one person, several logins) the one with chosen colours,
+  // then the oldest login: a fixed answer, so every read of the same person paints them the same.
+  const best = live.reduce((a, b) => (betterRow(b, a) ? b : a));
   const starts = rows
     .filter((r) => r.status !== 'refunded')
     .map((r) => parseStamp(r.startedAt))

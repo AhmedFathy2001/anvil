@@ -14,7 +14,7 @@ import {
 } from '../src/lib/supporterTiers.ts';
 
 const NOW = Date.parse('2026-11-02T12:00:00Z');
-const row = (o: Partial<{ tier: string; status: string; currentPeriodEnd: string | null; startedAt: string }>) => ({
+const row = (o: Partial<{ tier: string; status: string; currentPeriodEnd: string | null; startedAt: string; style: string | null; userId: number }>) => ({
   tier: 'supporter',
   status: 'active',
   currentPeriodEnd: null,
@@ -96,4 +96,19 @@ test('a supporter\'s Discord post gets their star on the author line, and nothin
   assert.equal(withSupporterAuthor(noAuthor, 'patron', 'https://anvilosrs.com'), noAuthor);
   const own = { author: { name: 'x', icon_url: 'https://cdn/x.png' } };
   assert.equal(withSupporterAuthor(own, 'patron', 'https://anvilosrs.com'), own, 'an icon already there stays');
+});
+
+test('one person on several logins: equal tiers pick the login with chosen colours, then the oldest — every read alike', () => {
+  const blue = JSON.stringify({ stops: ['#7ae0ff', '#3a6bff'] });
+  const plain = row({ tier: 'patron', userId: 3 });
+  const styled = row({ tier: 'patron', userId: 9, style: blue });
+  // Whichever order the rows come back in (a host's own login first, or their characters' login).
+  assert.deepEqual(supporterState([plain, styled], NOW)?.style, supporterState([styled, plain], NOW)?.style);
+  assert.ok(supporterState([plain, styled], NOW)?.style, 'the chosen colours win the tie');
+  // A higher tier still wins over chosen colours.
+  assert.equal(supporterState([row({ tier: 'champion', userId: 1, style: blue }), plain], NOW)?.tier.id, 'patron');
+  // No colours on either: the oldest login, either order.
+  const a = row({ tier: 'patron', userId: 2, startedAt: '2026-01-01T00:00:00Z' });
+  const b = row({ tier: 'patron', userId: 5, startedAt: '2026-02-01T00:00:00Z' });
+  assert.equal(supporterState([a, b], NOW)?.since, supporterState([b, a], NOW)?.since);
 });
