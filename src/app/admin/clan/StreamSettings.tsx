@@ -214,6 +214,7 @@ export default function StreamingSettings() {
                 {state.twitchLinked
                   ? `It answers in twitch.tv/${state.twitchLinked.login}.`
                   : 'Connect your Twitch channel above first.'}
+                {state.twitchLinked && <span className="mt-1 block">If your chat blocks links, type <code>/vip anvil_osrs</code> (or <code>/mod anvil_osrs</code>) in your chat so the bot’s link isn’t held.</span>}
                 {state.chatJoinPlan && !state.chatJoin && <span className="block text-gold">Part of the {state.chatJoinPlan} plan.</span>}
               </p>
               <Switch
