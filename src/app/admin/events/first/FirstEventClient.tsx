@@ -11,9 +11,10 @@ import { clanFetch, clanUrl } from '@/lib/clanFetch';
  * wizard (/admin/events/new?format=…) is where every other choice lives.
  */
 const FORMATS = [
-  { key: 'classic', title: 'Bingo', line: 'A 5×5 grid of tasks. Most tiles wins.', format: 'bingo', scoringMode: 'tiles', size: 5 },
-  { key: 'leagues', title: 'Points board', line: 'A list of tasks worth points. Highest score wins.', format: 'bingo', scoringMode: 'points', size: 20 },
-  { key: 'race', title: 'Team race', line: 'Tasks in order. Furthest along wins.', format: 'tilerace', scoringMode: 'tiles', size: 10 },
+  // Teams are balanced automatically (the API's default for a new team board), so nobody is asked.
+  { key: 'classic', title: 'Team bingo', line: 'A 5×5 grid of tasks. Players are split into teams for you.', format: 'bingo', scoringMode: 'tiles', size: 5, placement: undefined },
+  { key: 'solo', title: 'Solo bingo', line: 'The same grid, every player for themselves. Great on stream.', format: 'bingo', scoringMode: 'tiles', size: 5, placement: 'solo' },
+  { key: 'race', title: 'Team race', line: 'Tasks in order. The team furthest along wins.', format: 'tilerace', scoringMode: 'tiles', size: 10, placement: undefined },
 ] as const;
 
 type FormatKey = (typeof FORMATS)[number]['key'];
@@ -22,7 +23,7 @@ export default function FirstEventClient({ suggestedName, first }: { suggestedNa
   const [name, setName] = useState(suggestedName);
   const [startIso, setStartIso] = useState('');
   const [endIso, setEndIso] = useState('');
-  const [pick, setPick] = useState<FormatKey>('classic');
+  const [pick, setPick] = useState<FormatKey>('solo');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<number | null>(null);
@@ -42,6 +43,7 @@ export default function FirstEventClient({ suggestedName, first }: { suggestedNa
           boardSize: f.size,
           format: f.format,
           scoringMode: f.scoringMode,
+          ...(f.placement ? { teamPlacement: f.placement } : {}),
           ...(startIso ? { startDate: startIso } : {}),
           ...(endIso ? { endDate: endIso } : {}),
         }),
