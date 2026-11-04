@@ -75,11 +75,54 @@ test('everything that names the person moves, and the empty row goes', async () 
 
   // The login half: a person with nothing but a Discord account.
   const human = await person('hyperi0n');
-  await login(human, 'hyperi0n');
+  const humanLogin = await login(human, 'hyperi0n');
+
+  // Someone else, on the other side of a claim, a head-to-head and a block.
+  const rival = await person('rival');
+  const rivalAcct = await account(rival, 'rival');
+  const [claim] = await db
+    .insert(s.accountOwnershipClaims)
+    .values({ accountId: rivalAcct, claimantUserId: humanLogin, claimantPlayerId: ghost, ownerPlayerId: rival, status: 'open', createdAt: new Date().toISOString() })
+    .returning();
+  const [duel] = await db
+    .insert(s.h2hChallenges)
+    .values({
+      kind: 'drop',
+      label: 'Any pet',
+      durationMin: 60,
+      challengerPlayerId: ghost,
+      challengerAccountId: acctId,
+      opponentPlayerId: rival,
+      opponentAccountId: rivalAcct,
+      respondBy: new Date(Date.now() + 3_600_000),
+    })
+    .returning();
+  await db.insert(s.h2hPrefs).values({ playerId: ghost, closed: true, blocked: JSON.stringify([rival]) });
+  await db.insert(s.h2hPrefs).values({ playerId: rival, closed: false, blocked: JSON.stringify([ghost]) });
 
   const r = await mergePeople({ sourcePlayerId: ghost, targetPlayerId: human });
   assert.ok(r.ok, JSON.stringify(r));
-  assert.deepEqual(r.moved, { accounts: 1, logins: 0, bans: 1, joinRequests: 1, invites: 1, reports: 1 });
+  assert.deepEqual(r.moved, {
+    accounts: 1,
+    logins: 0,
+    bans: 1,
+    joinRequests: 1,
+    invites: 1,
+    reports: 1,
+    ownershipClaims: 1,
+    h2hChallenges: 1,
+    h2hPrefs: 2,
+  });
+  const claimAfter = await db.query.accountOwnershipClaims.findFirst({ where: eq(s.accountOwnershipClaims.id, claim.id) });
+  assert.equal(claimAfter?.claimantPlayerId, human, 'the claim survives the husk, now the human’s');
+  assert.equal(claimAfter?.status, 'open');
+  const duelAfter = await db.query.h2hChallenges.findFirst({ where: eq(s.h2hChallenges.id, duel.id) });
+  assert.equal(duelAfter?.challengerPlayerId, human);
+  const humanPrefs = await db.query.h2hPrefs.findFirst({ where: eq(s.h2hPrefs.playerId, human) });
+  assert.equal(humanPrefs?.closed, true, 'the stricter setting carries');
+  assert.deepEqual(JSON.parse(humanPrefs?.blocked ?? '[]'), [rival]);
+  const rivalPrefs = await db.query.h2hPrefs.findFirst({ where: eq(s.h2hPrefs.playerId, rival) });
+  assert.deepEqual(JSON.parse(rivalPrefs?.blocked ?? '[]'), [human], 'a block on the husk follows the human');
 
   // The survivor holds all of it.
   assert.equal((await db.select().from(s.accounts).where(eq(s.accounts.playerId, human))).length, 1);
@@ -96,6 +139,49 @@ test('everything that names the person moves, and the empty row goes', async () 
 
   // And the husk is gone rather than lingering in the operator's search.
   assert.equal(await db.query.players.findFirst({ where: eq(s.players.id, ghost) }), undefined);
+});
+
+test('a waiting claim or a live challenge against yourself is closed; a transferring claim is left alone', async () => {
+  const a = await person('same human');
+  const aAcct = await account(a, 'same human alt');
+  const b = await person('same human');
+  const bLogin = await login(b, 'same human');
+  const bAcct = await account(b, 'same human');
+  const bAcct2 = await account(b, 'same human main');
+  const now = new Date().toISOString();
+  const [waiting] = await db
+    .insert(s.accountOwnershipClaims)
+    .values({ accountId: bAcct, claimantUserId: bLogin, claimantPlayerId: a, ownerPlayerId: b, status: 'open', createdAt: now })
+    .returning();
+  const [moving] = await db
+    .insert(s.accountOwnershipClaims)
+    .values({ accountId: bAcct2, claimantUserId: bLogin, claimantPlayerId: b, ownerPlayerId: a, status: 'transferring', createdAt: now })
+    .returning();
+  const [duel] = await db
+    .insert(s.h2hChallenges)
+    .values({
+      kind: 'kc',
+      statKey: 'zulrah',
+      label: 'Zulrah',
+      durationMin: 60,
+      challengerPlayerId: a,
+      challengerAccountId: aAcct,
+      opponentPlayerId: b,
+      opponentAccountId: bAcct,
+      status: 'active',
+      respondBy: new Date(Date.now() + 3_600_000),
+    })
+    .returning();
+  // a has a character, so it is not the empty kind; b has the login — an operator merge.
+  const r = await mergePeople({ sourcePlayerId: a, targetPlayerId: b });
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.equal((await db.query.accountOwnershipClaims.findFirst({ where: eq(s.accountOwnershipClaims.id, waiting.id) }))?.status, 'withdrawn');
+  assert.equal(
+    (await db.query.accountOwnershipClaims.findFirst({ where: eq(s.accountOwnershipClaims.id, moving.id) }))?.status,
+    'transferring',
+    'a claim mid-transfer is the caller’s, never closed here',
+  );
+  assert.equal((await db.query.h2hChallenges.findFirst({ where: eq(s.h2hChallenges.id, duel.id) }))?.status, 'cancelled');
 });
 
 test('a platform ban cannot be washed off by merging', async () => {
@@ -225,7 +311,17 @@ test('no table references a person without mergePeople knowing about it', () => 
     if (/references\(\(\) => players\.id/.test(line)) tables.push(current);
   }
 
-  const handled = ['accounts', 'users', 'clanBans', 'clanJoinRequests', 'eventInvites', 'characterReports'];
+  const handled = [
+    'accounts',
+    'users',
+    'clanBans',
+    'clanJoinRequests',
+    'eventInvites',
+    'characterReports',
+    'accountOwnershipClaims',
+    'h2hChallenges',
+    'h2hPrefs',
+  ];
   assert.deepEqual(
     [...new Set(tables)].sort(),
     [...handled].sort(),

@@ -12,7 +12,7 @@
 // MOVE what the row carries before deleting it, which is what this does, rather than to leave litter
 // in the one tool an operator uses to check that identity merged.
 //
-// EVERY TABLE THAT NAMES A PERSON IS HANDLED HERE. There are six, and the list is load-bearing: a
+// EVERY TABLE THAT NAMES A PERSON IS HANDLED HERE. There are nine, and the list is load-bearing: a
 // table added later and forgotten would be silently cascade-deleted by the delete at the end.
 //
 //   accounts.player_id            NOT NULL, cascade   → moved
@@ -21,6 +21,14 @@
 //   clan_join_requests.player_id  nullable, set null  → moved
 //   event_invites.player_id       nullable, cascade   → moved, duplicates dropped
 //   character_reports.claimant_player_id nullable, set null → moved
+//   account_ownership_claims.claimant_player_id / owner_player_id  NOT NULL, cascade → both moved;
+//                                 a still-waiting claim left asking a person for their own character
+//                                 is withdrawn (never one already transferring — a claim's own
+//                                 transfer is what calls this)
+//   h2h_challenges.challenger_player_id / opponent_player_id  NOT NULL, cascade → both moved;
+//                                 cancel_requested_by (set null) moved; a live self-challenge cancelled
+//   h2h_prefs.player_id           PK, cascade         → kept or merged (stricter "closed", blocks
+//                                 united), and other people's block lists follow the survivor
 //
 // tests/merge-people.test.ts builds a row in each of them and checks the count afterwards, so the
 // list above stays honest.
@@ -29,12 +37,15 @@ import { and, eq, isNull, inArray, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
+  accountOwnershipClaims,
   accounts,
   characterReports,
   clanAuditLog,
   clanBans,
   clanJoinRequests,
   eventInvites,
+  h2hChallenges,
+  h2hPrefs,
   players,
   users,
 } from '@/db/schema';
@@ -44,7 +55,17 @@ export type MergeResult =
   | {
       ok: true;
       /** What moved, for the operator log and the confirmation. */
-      moved: { accounts: number; logins: number; bans: number; joinRequests: number; invites: number; reports: number };
+      moved: {
+        accounts: number;
+        logins: number;
+        bans: number;
+        joinRequests: number;
+        invites: number;
+        reports: number;
+        ownershipClaims: number;
+        h2hChallenges: number;
+        h2hPrefs: number;
+      };
       /** A live ban the target already had, so the duplicate was lifted rather than moved. */
       duplicateBansLifted: number;
       duplicateInvitesDropped: number;
@@ -204,6 +225,59 @@ async function mergePeopleWith(
       .where(eq(characterReports.claimantPlayerId, sourcePlayerId))
       .returning({ id: characterReports.id });
 
+    // Ownership claims name two people. Both sides move — ON DELETE CASCADE would otherwise erase the
+    // claim, and with it the record of a transfer, along with the husk.
+    const claimsAsClaimant = await tx
+      .update(accountOwnershipClaims)
+      .set({ claimantPlayerId: targetPlayerId })
+      .where(eq(accountOwnershipClaims.claimantPlayerId, sourcePlayerId))
+      .returning({ id: accountOwnershipClaims.id });
+    const claimsAsOwner = await tx
+      .update(accountOwnershipClaims)
+      .set({ ownerPlayerId: targetPlayerId })
+      .where(eq(accountOwnershipClaims.ownerPlayerId, sourcePlayerId))
+      .returning({ id: accountOwnershipClaims.id });
+    // A claim still waiting that now asks a person for their own character means nothing: withdrawn.
+    // Never one 'approved' or 'transferring' — a claim's own transfer is what merges the husk away.
+    await tx
+      .update(accountOwnershipClaims)
+      .set({ status: 'withdrawn', decidedAt: new Date().toISOString() })
+      .where(
+        and(
+          eq(accountOwnershipClaims.claimantPlayerId, targetPlayerId),
+          eq(accountOwnershipClaims.ownerPlayerId, targetPlayerId),
+          inArray(accountOwnershipClaims.status, ['verifying', 'open']),
+        ),
+      );
+
+    // Head-to-head challenges: both sides and the pending cancel request move; one the two rows had
+    // with each other (now a person against themselves) is cancelled if it was still live.
+    const h2hAsChallenger = await tx
+      .update(h2hChallenges)
+      .set({ challengerPlayerId: targetPlayerId })
+      .where(eq(h2hChallenges.challengerPlayerId, sourcePlayerId))
+      .returning({ id: h2hChallenges.id });
+    const h2hAsOpponent = await tx
+      .update(h2hChallenges)
+      .set({ opponentPlayerId: targetPlayerId })
+      .where(eq(h2hChallenges.opponentPlayerId, sourcePlayerId))
+      .returning({ id: h2hChallenges.id });
+    await tx.update(h2hChallenges).set({ cancelRequestedBy: targetPlayerId }).where(eq(h2hChallenges.cancelRequestedBy, sourcePlayerId));
+    await tx
+      .update(h2hChallenges)
+      .set({ status: 'cancelled', finishedAt: new Date() })
+      .where(
+        and(
+          eq(h2hChallenges.challengerPlayerId, targetPlayerId),
+          eq(h2hChallenges.opponentPlayerId, targetPlayerId),
+          inArray(h2hChallenges.status, ['pending', 'active']),
+        ),
+      );
+
+    // Head-to-head preferences: one row per person. The survivor keeps the stricter "closed" and both
+    // block lists; then everybody else who blocked the source now blocks the survivor.
+    const prefsMoved = await mergeH2hPrefs(tx, sourcePlayerId, targetPlayerId);
+
     // The login last, so that if anything above throws, the human is still signed in as somebody.
     const logins = await tx
       .update(users)
@@ -221,6 +295,9 @@ async function mergePeopleWith(
         joinRequests: requests.length,
         invites: invites.length,
         reports: reports.length,
+        ownershipClaims: new Set([...claimsAsClaimant, ...claimsAsOwner].map((c) => c.id)).size,
+        h2hChallenges: new Set([...h2hAsChallenger, ...h2hAsOpponent].map((c) => c.id)).size,
+        h2hPrefs: prefsMoved,
       },
       duplicateBansLifted,
       duplicateInvitesDropped,
@@ -287,4 +364,57 @@ async function mergeEmptyPersonIntoWith(
     actorUserId: actorUserId ?? null,
     reason: 'emptied by a claim',
   });
+}
+
+/** `blocked` is a JSON array of player ids; anything else reads as none. */
+function blockList(raw: string | null): number[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.filter((n): n is number => Number.isInteger(n)) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fold the source's head-to-head preferences into the target's, and point other people's blocks at
+ * the survivor. Returns how many preference rows changed.
+ */
+async function mergeH2hPrefs(tx: DbExecutor, sourcePlayerId: number, targetPlayerId: number): Promise<number> {
+  let changed = 0;
+  const [sourcePrefs] = await tx.select().from(h2hPrefs).where(eq(h2hPrefs.playerId, sourcePlayerId));
+  const [targetPrefs] = await tx.select().from(h2hPrefs).where(eq(h2hPrefs.playerId, targetPlayerId));
+  if (sourcePrefs && targetPrefs) {
+    const blocked = [...new Set([...blockList(targetPrefs.blocked), ...blockList(sourcePrefs.blocked)])].filter(
+      (id) => id !== targetPlayerId && id !== sourcePlayerId,
+    );
+    await tx
+      .update(h2hPrefs)
+      .set({ closed: targetPrefs.closed || sourcePrefs.closed, blocked: blocked.length ? JSON.stringify(blocked) : null, updatedAt: new Date() })
+      .where(eq(h2hPrefs.playerId, targetPlayerId));
+    await tx.delete(h2hPrefs).where(eq(h2hPrefs.playerId, sourcePlayerId));
+    changed++;
+  } else if (sourcePrefs) {
+    const blocked = blockList(sourcePrefs.blocked).filter((id) => id !== targetPlayerId && id !== sourcePlayerId);
+    await tx
+      .update(h2hPrefs)
+      .set({ playerId: targetPlayerId, blocked: blocked.length ? JSON.stringify(blocked) : null })
+      .where(eq(h2hPrefs.playerId, sourcePlayerId));
+    changed++;
+  }
+  // Somebody who blocked the source blocked this human: the block follows them to the survivor.
+  // clan-scope: global -- people, not a clan's rows; the LIKE only narrows, the parse decides.
+  const others = await tx
+    .select({ playerId: h2hPrefs.playerId, blocked: h2hPrefs.blocked })
+    .from(h2hPrefs)
+    .where(sql`${h2hPrefs.blocked} like ${`%${sourcePlayerId}%`}`);
+  for (const row of others) {
+    const list = blockList(row.blocked);
+    if (!list.includes(sourcePlayerId)) continue;
+    const next = [...new Set(list.map((id) => (id === sourcePlayerId ? targetPlayerId : id)))].filter((id) => id !== row.playerId);
+    await tx.update(h2hPrefs).set({ blocked: next.length ? JSON.stringify(next) : null }).where(eq(h2hPrefs.playerId, row.playerId));
+    changed++;
+  }
+  return changed;
 }

@@ -596,6 +596,26 @@ test('two Checks completing at once route the claim exactly once', async () => {
   assert.equal(notices.length, 1, 'the owner is told once');
 });
 
+test('a Check that finds the attempt already won does not expire the proved claim', async () => {
+  // The state between a winning Check's first write and its routing: verified, attempt finished,
+  // still 'verifying'. The losing Check used to read the finished attempt as "ran out" and expire it.
+  const racer = await login('Racer Ray');
+  await character(owner, 'Race Zero', null, 'stat_delta');
+  await claimViaPlugin(racer, 'Race Zero', null);
+  const claimId = (await OC.myOwnershipClaims(racer.userId)).find((c) => c.rsn === 'Race Zero')!.id;
+  const row = await claimRow(claimId);
+  const now = new Date().toISOString();
+  await db.update(s.accountOwnershipClaims).set({ verifiedAt: now }).where(eq(s.accountOwnershipClaims.id, claimId));
+  await db
+    .update(s.verificationAttempts)
+    .set({ completedAt: now, succeeded: 1 })
+    .where(eq(s.verificationAttempts.id, row.verificationAttemptId!));
+  const r = await OC.checkOwnershipClaim({ claimId, userId: racer.userId });
+  assert.ok(r.ok);
+  assert.equal(r.status, 'verifying', 'reported as it is, not expired');
+  assert.equal((await claimRow(claimId)).status, 'verifying', 'the proved claim is left for the winner to route');
+});
+
 test('the sweep racing the owner’s objection: exactly one outcome', async () => {
   const racer = await login('Racer Ria');
   const named = await character(owner, 'Race Two', null, 'stat_delta');
