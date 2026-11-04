@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isTeamPlacement, normaliseTeamCap, normaliseTeamCount } from '@/lib/teamPlacement';
 import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
@@ -509,6 +510,24 @@ export async function PATCH(
     updates.startHoldNotified = 0;
   }
   if ('endDate' in body) updates.endDate = body.endDate;
+  // Team placement (lib/teamPlacement). Changing it never moves anybody already placed: it decides
+  // where the NEXT sign-up lands.
+  if ('teamPlacement' in body) {
+    if (!isTeamPlacement(body.teamPlacement)) {
+      return NextResponse.json({ error: "teamPlacement must be 'auto', 'pick', 'draft' or 'solo'" }, { status: 400 });
+    }
+    updates.teamPlacement = body.teamPlacement;
+  }
+  if ('teamCount' in body) {
+    const n = normaliseTeamCount(body.teamCount);
+    if (n === 'invalid') return NextResponse.json({ error: 'Number of teams must be a whole number from 2 to 50' }, { status: 400 });
+    updates.teamCount = n;
+  }
+  if ('teamCap' in body) {
+    const n = normaliseTeamCap(body.teamCap);
+    if (n === 'invalid') return NextResponse.json({ error: 'Players per team must be a whole number from 1 to 1000, or blank' }, { status: 400 });
+    updates.teamCap = n;
+  }
   if ('signupOpensAt' in body) updates.signupOpensAt = body.signupOpensAt;
   if ('signupDeadline' in body) updates.signupDeadline = body.signupDeadline;
   if ('paymentDeadline' in body) updates.paymentDeadline = body.paymentDeadline;

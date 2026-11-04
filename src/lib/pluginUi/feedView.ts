@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clans, completions, eventParticipants, events, teams, tiles, users } from '@/db/schema';
-import { boardHidden, boardSize, completionAt } from '@/lib/panelRows';
+import { boardHidden, boardSize, completionAt, completionFinisher } from '@/lib/panelRows';
 import { pluginRsnHintOnly, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess } from '@/lib/eventChat';
 import { formatGp } from '@/lib/itemPrices';
@@ -103,7 +103,7 @@ function pick(scopes: Scope[], key: string | undefined): Scope | null {
 
 // 'tasks' is the old name of 'achievements', for a panel still holding a chip from before.
 const groupOf = (f: string): KindGroup | null =>
-  f === 'drops' || f === 'pets' || f === 'achievements' ? f : f === 'tasks' ? 'achievements' : null;
+  f === 'drops' || f === 'pets' || f === 'achievements' || f === 'deaths' ? f : f === 'tasks' ? 'achievements' : null;
 
 async function clanRows(clan: Extract<Scope, { kind: 'clan' }>, filter: string, viewer: number | null): Promise<{ rows: FeedRow[]; floor: number }> {
   const scope = await clanScopeFor(clan.id);
@@ -184,7 +184,7 @@ async function eventRows(eventId: number, filter: string, teamId: number | null)
 }
 
 /** A board's finished tiles, newest first (combo parts aren't board cells). */
-async function boardCompletions(eventId: number) {
+export async function boardCompletions(eventId: number) {
   // clan-scope: this clan -- by the board id the caller already resolved for this viewer
   const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { tilesRevealed: true, rules: true } });
   // A tile members can't see yet (unrevealed board, scheduled reveal, unannounced mission) isn't named.
@@ -200,12 +200,11 @@ async function boardCompletions(eventId: number) {
       label: tiles.label,
       teamName: teams.name,
       teamColor: teams.color,
-      who: eventParticipants.name,
+      who: completionFinisher,
     })
     .from(completions)
     .innerJoin(tiles, eq(tiles.id, completions.tileId))
     .innerJoin(teams, eq(teams.id, completions.teamId))
-    .leftJoin(eventParticipants, eq(eventParticipants.id, completions.creditPlayerId))
     .where(and(eq(tiles.eventId, eventId), isNull(tiles.parentTileId)))
     .orderBy(desc(completions.completedAt))
     .limit(120);

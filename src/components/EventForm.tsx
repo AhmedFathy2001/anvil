@@ -19,6 +19,7 @@ import type { LibraryTask } from '@/lib/tileLibrary';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 import { useDialog } from '@/components/Confirm';
+import { DEFAULT_AUTO_TEAM_COUNT, MAX_AUTO_TEAMS, MIN_AUTO_TEAMS, PLACEMENT_META, TEAM_PLACEMENTS, type TeamPlacement } from '@/lib/teamPlacement';
 
 interface EventFormProps {
   presets?: EventPreset[];
@@ -44,7 +45,7 @@ interface EventFormProps {
    * form opens already on that format and does not show its own format picker — the choice was
    * made, and asking it again on the same screen is exactly the "asked twice" the redesign removed.
    */
-  choice?: { mode?: Mode; weekly?: 'skill' | 'boss' | 'efficiency' };
+  choice?: { mode?: Mode; weekly?: 'skill' | 'boss' | 'efficiency'; placement?: 'solo' };
 }
 
 /**
@@ -166,6 +167,11 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   // Multi-clan (co-host) — a team board where each invited clan fields its own team. Off by default;
   // when on, the event is created per_clan + invited and each named clan gets a pending invite.
   const [multiClan, setMultiClan] = useState(false);
+  // Where a sign-up lands (lib/teamPlacement). Auto-balance unless the "Solo" format was picked.
+  const [placement, setPlacement] = useState<TeamPlacement>(choice?.placement ?? 'auto');
+  const [teamCount, setTeamCount] = useState(DEFAULT_AUTO_TEAM_COUNT);
+  // Players-pick limit per team; 0 = no limit.
+  const [teamCap, setTeamCap] = useState(0);
   const [cashPolicy, setCashPolicy] = useState<'host-holds' | 'each-settles' | 'clans-collect-host-pays'>('host-holds');
   const [coHostSlugs, setCoHostSlugs] = useState<string[]>([]);
   const [coHostChecking, setCoHostChecking] = useState(false);
@@ -223,6 +229,8 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   // actually in effect (guarded by the board kind, so flipping to a weekly can't leave it stuck on).
   const teamBoard = !weeklyType && meta.chips[0] !== 'individual';
   const useMultiClan = teamBoard && multiClan;
+  // Placement applies to a single-clan team board; a co-hosted one places by clan.
+  const usePlacement = teamBoard && !useMultiClan;
 
   // The three things you'll do after pressing create, in this format's terms.
   const nextSteps = [
@@ -233,9 +241,15 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
         : `Author ${expectedTiles} tiles — paste a list, or draw from your library`,
     meta.chips[0] === 'individual'
       ? 'Set the rotation — how many tasks are open, and for how long'
-      : effectivePolicy && effectivePolicy !== 'all'
-        ? 'Set when tiles open, then build teams'
-        : 'Build teams — draft with an order, or assign from the roster',
+      : usePlacement && placement === 'auto'
+        ? `Share the sign-up link — players are spread across ${teamCount} teams as they join`
+        : usePlacement && placement === 'solo'
+          ? 'Share the sign-up link — every player is on their own'
+          : usePlacement && placement === 'pick'
+            ? 'Create the teams, then share the sign-up link so players can pick one'
+            : effectivePolicy && effectivePolicy !== 'all'
+              ? 'Set when tiles open, then build teams'
+              : 'Build teams — draft with an order, or assign from the roster',
     startDate ? 'Leave it — it starts on schedule by itself' : 'Start it when you\'re ready',
   ];
 
@@ -444,6 +458,13 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
           // Multi-clan: each invited clan is a team, the event is invite-only, and the chosen policy
           // decides who holds the cash. Only meaningful on a team board (guarded in the UI).
           ...(useMultiClan ? { teamFormation: 'per_clan', cashPolicy, visibility: 'invited' } : {}),
+          ...(usePlacement
+            ? {
+                teamPlacement: placement,
+                ...(placement === 'auto' ? { teamCount } : {}),
+                ...(placement === 'pick' && teamCap > 0 ? { teamCap } : {}),
+              }
+            : {}),
           ...(startDate ? { startDate } : {}),
           ...(endDate ? { endDate } : {}),
           ...(effectivePolicy
@@ -1106,6 +1127,65 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
             </Section>
           )}
 
+          {/* Team placement (lib/teamPlacement): where each sign-up lands. On the main path, not in
+              "More options", because it decides how the whole event runs. */}
+          {usePlacement && (
+            <Section title="Team placement">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" role="radiogroup" aria-label="Team placement">
+                {TEAM_PLACEMENTS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    role="radio"
+                    aria-checked={placement === p}
+                    onClick={() => setPlacement(p)}
+                    className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                      placement === p ? 'border-gold bg-gold/10' : 'border-card-border hover:border-gold/40 bg-brown-dark/30'
+                    }`}
+                  >
+                    <span className={`block text-sm font-medium ${placement === p ? 'text-gold' : ''}`}>{PLACEMENT_META[p].label}</span>
+                    <span className="block text-xs text-text-muted mt-0.5 leading-snug">{PLACEMENT_META[p].short}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-3 text-sm text-text-muted">{PLACEMENT_META[placement].help}</p>
+              {placement === 'auto' && (
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-foreground/70 mb-1.5">Number of teams</label>
+                  <div className="flex items-center gap-2">
+                    <NumberInput
+                      value={teamCount}
+                      onChange={setTeamCount}
+                      min={MIN_AUTO_TEAMS}
+                      max={MAX_AUTO_TEAMS}
+                      fallback={DEFAULT_AUTO_TEAM_COUNT}
+                      className="w-28 bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
+                    />
+                    <span className="text-sm text-text-muted">Named Team 1 to Team {teamCount}. You can rename them later.</span>
+                  </div>
+                </div>
+              )}
+              {placement === 'pick' && (
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-foreground/70 mb-1.5">Most players per team</label>
+                  <div className="flex items-center gap-2">
+                    <NumberInput
+                      value={teamCap}
+                      onChange={setTeamCap}
+                      min={0}
+                      max={1000}
+                      fallback={0}
+                      className="w-28 bg-brown-light border border-card-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-gold"
+                    />
+                    <span className="text-sm text-text-muted">
+                      {teamCap > 0 ? `A team stops taking players at ${teamCap}.` : '0 means no limit.'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </Section>
+          )}
+
           {/* Rarely changed: one account per person and one clan are the right answer for nearly
               every event, so these two sit folded away instead of on the main path. */}
           {(!weeklyType || teamBoard) && (
@@ -1338,7 +1418,19 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
               <SpecRow label="Scoring" value={meta.chips[1]} />
               <SpecRow
                 label="Teams"
-                value={meta.chips[0] === 'individual' ? 'none needed — no draft' : 'draft, or assign by hand'}
+                value={
+                  meta.chips[0] === 'individual'
+                    ? 'none needed — no draft'
+                    : !usePlacement
+                      ? 'one per clan'
+                      : placement === 'auto'
+                        ? `${teamCount}, balanced as players join`
+                        : placement === 'solo'
+                          ? 'none — everyone on their own'
+                          : placement === 'pick'
+                            ? 'players pick one of yours'
+                            : 'draft, or assign by hand'
+                }
               />
               <SpecRow label="Tiles open" value={meta.chips[2]} />
               <SpecRow label="Entries" value={maxAccounts > 1 ? `up to ${maxAccounts} accounts each` : '1 account each'} />

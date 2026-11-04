@@ -17,6 +17,8 @@ import SignupForm from './SignupForm';
 import { memberAccounts } from '@/lib/entryFee';
 import { standardFee } from '@/lib/entryFeeMath';
 import { toQuestionView } from '@/lib/survey';
+import { isTeamFull, placementOf } from '@/lib/teamPlacement';
+import { teamLoads } from '@/lib/teamPlacementDb';
 
 export const dynamic = 'force-dynamic';
 
@@ -187,7 +189,12 @@ export default async function EventSignupPage({
   )
     .sort((a, b) => a.position - b.position)
     .map(toQuestionView);
-  const choosableTeams = eventRules.teamChoice
+  // Players-pick boards (lib/teamPlacement) list every team with how full it is: there the choice
+  // seats them straight away, so a full team is shown and cannot be picked.
+  const placement = placementOf(event);
+  const choosableTeams = placement === 'pick'
+    ? (await teamLoads(event.id)).map((t) => ({ id: t.id, name: t.name, color: t.color ?? '', size: t.size, full: isTeamFull(t, event.teamCap) }))
+    : eventRules.teamChoice
     ? await db
         .select({ id: teams.id, name: teams.name, color: teams.color })
         .from(teams)
@@ -202,7 +209,7 @@ export default async function EventSignupPage({
   // better answer to "which team", so it wins.
   const myAccountIds = myAccounts.map((a) => a.id);
   let seatedTeamId: number | null = null;
-  if (eventRules.teamChoice && myAccountIds.length > 0) {
+  if ((eventRules.teamChoice || placement !== 'draft') && myAccountIds.length > 0) {
     const seat = await db
       .select({ teamId: eventParticipants.teamId })
       .from(eventParticipants)
@@ -210,6 +217,13 @@ export default async function EventSignupPage({
       .limit(1);
     seatedTeamId = seat[0]?.teamId ?? null;
   }
+
+  // Shown on an auto / solo board ("Your team: Team 3"), and lets a full team stay pickable for the
+  // person already on it.
+  const seatedTeam =
+    seatedTeamId != null
+      ? ((await db.query.teams.findFirst({ columns: { id: true, name: true, color: true }, where: eq(teams.id, seatedTeamId) })) ?? null)
+      : null;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -249,10 +263,19 @@ export default async function EventSignupPage({
           // Team-choice events (rules.teamChoice): the host built the teams, applicants name the one
           // they're joining, and approving the sign-up is what seats them. An invite link already
           // decided the team, so it wins — there is nothing left to choose.
-          eventRules.teamChoice && !invite
-            ? { teams: choosableTeams, requestedTeamId: seatedTeamId ?? signup?.requestedTeamId ?? null }
+          //
+          // Players-pick (lib/teamPlacement) uses the same picker, but the pick seats them at once.
+          (eventRules.teamChoice || placement === 'pick') && !invite
+            ? {
+                teams: choosableTeams,
+                requestedTeamId: seatedTeamId ?? signup?.requestedTeamId ?? null,
+                mode: placement === 'pick' ? 'pick' : 'request',
+                cap: placement === 'pick' ? event.teamCap : null,
+              }
             : null
         }
+        placement={invite ? null : placement}
+        seatedTeam={seatedTeam}
         event={{
           signupFee: viewerFee,
           signupOpensAt: event.signupOpensAt,

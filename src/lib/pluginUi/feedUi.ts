@@ -14,12 +14,13 @@ import { button, col, gap, muted, text } from './nodes';
 //   moments:event:<event>:team:<team>    one team's moments on it
 //   chat:<event> · chat:<event>:team:<team> · chat:<event>:mods
 
-export type KindGroup = 'drops' | 'pets' | 'achievements';
-export const KIND_GROUPS: KindGroup[] = ['drops', 'pets', 'achievements'];
+export type KindGroup = 'drops' | 'pets' | 'achievements' | 'deaths';
+export const KIND_GROUPS: KindGroup[] = ['drops', 'pets', 'achievements', 'deaths'];
 
 export function kindGroup(kind: string): KindGroup | null {
   if (kind === 'unique' || kind === 'loot') return 'drops';
   if (kind === 'pet') return 'pets';
+  if (kind === 'death') return 'deaths';
   // Combat tasks, level milestones, log slots, diaries, quests (lib/moments ACHIEVEMENT_KINDS).
   if (kind === 'ca' || kind === 'level' || kind === 'clog' || kind === 'diary' || kind === 'quest') return 'achievements';
   return null;
@@ -82,6 +83,7 @@ const ACHIEVEMENT = '#ffd35c';
 export function momentTitle(m: MomentLike): string {
   const name = m.itemName ?? m.source ?? m.kind;
   if (m.kind === 'pet') return `Pet: ${name}`;
+  if (m.kind === 'death') return m.source ? `Died to ${m.source}` : 'Died';
   if (m.kind === 'ca') return m.tier ? `${m.tier} combat task: ${name}` : `Combat task: ${name}`;
   if (m.kind === 'level') {
     // The number reached rides in `quantity`, the skill in `itemName` (lib/moments Observation).
@@ -117,14 +119,15 @@ export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
   const value = m.valueGp != null && m.valueGp > 0 ? formatGp(m.valueGp * Math.max(1, m.quantity)) : undefined;
   return {
     id: `m${m.id}`,
-    ...(m.itemId != null ? { item: m.itemId } : glyphOf(m.kind)),
+    // A death has no item: the game's Skull (item 964) stands for it.
+    ...(m.itemId != null ? { item: m.itemId } : m.kind === 'death' ? { item: 964 } : glyphOf(m.kind)),
     title: momentTitle(m),
     who: m.rsn,
     whoColor: 'muted',
     ...(o.team ? { tag: o.team.name, tagColor: (o.team.color as Color | null) ?? 'muted' } : {}),
     at: m.occurredAt,
     ...(value ? { value } : {}),
-    ...(m.kind === 'pet' ? { textColor: PET as Color } : {}),
+    ...(m.kind === 'pet' ? { textColor: PET as Color } : m.kind === 'death' ? { textColor: 'error' as Color } : {}),
     ...(o.mine ? { mine: true } : {}),
     ...(o.gz && o.react ? { gz: { n: o.gz.n, mine: o.gz.mine, on: o.react } } : {}),
   };
@@ -147,7 +150,8 @@ export function completionRow(c: {
     glyphColor: 'done',
     title: `Tile complete: ${c.label}`,
     textColor: 'done',
-    who: c.who ?? c.team?.name ?? '',
+    // Who AND which team on the line itself: the plugin puts a row's tag only in its tooltip.
+    who: c.who && c.team ? `${c.who} · ${c.team.name}` : c.who ?? c.team?.name ?? '',
     whoColor: 'muted',
     ...(c.team ? { tag: c.team.name, tagColor: (c.team.color as Color | null) ?? 'muted' } : {}),
     at: c.at,
@@ -295,6 +299,8 @@ export function feedTabUi(o: FeedTabOptions): Node {
           ['drops', 'Drops'],
           ['pets', 'Pets'],
           ['achievements', 'Achievements'],
+          // A board keeps every death (a clan feed only when the clan asks for them).
+          ...(o.current.kind === 'event' ? [['deaths', 'Deaths'] as [string, string]] : []),
           ...(o.current.kind === 'event' && o.teamId != null ? [['team', 'My team'] as [string, string]] : []),
         ];
   // Three to a row: the panel splits a row evenly, and "Achievements" is too wide for a quarter of it.

@@ -18,6 +18,8 @@ import { findRosterSeat, loginOf } from '@/lib/roster';
 import { sanitizeProfile, serializeProfile } from '@/lib/signup';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { standardFeeForAccount } from '@/lib/entryFee';
+import { placementOf } from '@/lib/teamPlacement';
+import { enrolPlaced } from '@/lib/teamPlacementDb';
 
 export type SignupRow = typeof eventSignups.$inferSelect;
 
@@ -26,7 +28,18 @@ export type OnBehalfResult =
   | { ok: false; status: 404 | 409; error: string };
 
 export async function signUpOnBehalf(input: {
-  event: { id: number; clanId: number; signupFee: number | null; guestSignupFee?: number | null; maxAccountsPerPerson: number | null };
+  event: {
+    id: number;
+    clanId: number;
+    signupFee: number | null;
+    guestSignupFee?: number | null;
+    maxAccountsPerPerson: number | null;
+    // Team placement (lib/teamPlacement). Absent reads as 'draft', the pool, as it always was.
+    teamPlacement?: string;
+    teamFormation?: string;
+    teamCount?: number | null;
+    teamCap?: number | null;
+  };
   clanMemberId: number;
   profile: Record<string, unknown>;
   status: 'pending' | 'approved';
@@ -150,8 +163,28 @@ export async function signUpOnBehalf(input: {
     }
   }
 
-  // The draft-pool row, idempotently.
-  if (!player) {
+  // The draft-pool row, idempotently — or, on an auto-balanced or solo board with no team named, the
+  // seat the placement gives them, exactly as if they had signed up themselves (lib/teamPlacementDb).
+  const placement = placementOf(event);
+  if (teamId == null && (placement === 'auto' || placement === 'solo') && (!player || player.teamId == null)) {
+    await enrolPlaced(
+      {
+        id: event.id,
+        teamPlacement: placement,
+        teamFormation: event.teamFormation ?? 'draft',
+        teamCount: event.teamCount ?? null,
+        teamCap: event.teamCap ?? null,
+      },
+      {
+        eventId: event.id,
+        clanMemberId,
+        accountId: account.accountId,
+        name: account.rsn,
+        timezone: profile.timezone ?? null,
+        playerToken: input.playerToken,
+      },
+    );
+  } else if (!player) {
     await enrolParticipant({
       eventId: event.id,
       clanMemberId,

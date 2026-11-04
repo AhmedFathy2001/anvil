@@ -92,9 +92,19 @@ interface Props {
    * decided). It stays a REQUEST — the host approves it — so the copy never promises a seat.
    */
   teamChoice: {
-    teams: { id: number; name: string; color: string }[];
+    teams: { id: number; name: string; color: string; size?: number; full?: boolean }[];
     requestedTeamId: number | null;
+    /**
+     * 'request' (rules.teamChoice): staff approve the ask. 'pick' (teamPlacement 'pick'): the choice
+     * seats them at once, and a full team cannot be picked.
+     */
+    mode?: 'request' | 'pick';
+    cap?: number | null;
   } | null;
+  /** Where the board places sign-ups (lib/teamPlacement); null on an invite, which already decided. */
+  placement?: 'auto' | 'pick' | 'draft' | 'solo' | null;
+  /** The team they are already on, if any. */
+  seatedTeam?: { id: number; name: string; color: string } | null;
   /**
    * Arrived through a team's invite link (lib/teamInvites). Everything about the form is the same —
    * same questions, same accounts, same fee — but the entry lands on that team, approved, so say so
@@ -228,6 +238,8 @@ export default function SignupForm({
   windowReason,
   invite = null,
   teamChoice = null,
+  placement = null,
+  seatedTeam = null,
   fields = DEFAULT_SIGNUP_FIELDS,
   questions = [],
 }: Props) {
@@ -473,8 +485,10 @@ export default function SignupForm({
             Which team are you joining?
           </h2>
           <p className="text-text-muted text-xs mb-3">
-            This event isn&apos;t drafted — the teams already exist and you apply to one. A host or
-            that team&apos;s captain approves you before you&apos;re on the roster.
+            {teamChoice.mode === 'pick'
+              ? `Pick the team you want to play on — you go straight onto it.${teamChoice.cap ? ` Each team takes up to ${teamChoice.cap} players.` : ''} You can switch until the event starts.`
+              : <>This event isn&apos;t drafted — the teams already exist and you apply to one. A host or
+            that team&apos;s captain approves you before you&apos;re on the roster.</>}
           </p>
           {teamChoice.teams.length === 0 ? (
             <p className="text-text-muted text-sm">
@@ -484,11 +498,14 @@ export default function SignupForm({
             <div className="flex flex-wrap gap-2">
               {teamChoice.teams.map((t) => {
                 const picked = requestedTeamId === t.id;
+                // A full team can't take them — unless it is the one they are already on.
+                const full = !!t.full && seatedTeam?.id !== t.id;
                 return (
                   <button
                     key={t.id}
                     type="button"
-                    disabled={isLocked}
+                    disabled={isLocked || (full && !picked)}
+                    title={full ? 'This team is full' : undefined}
                     onClick={() => setRequestedTeamId(picked ? null : t.id)}
                     className={`text-sm px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
                       picked ? 'font-semibold' : 'border-card-border bg-brown-dark hover:border-gold/40'
@@ -501,10 +518,34 @@ export default function SignupForm({
                     aria-pressed={picked}
                   >
                     {t.name}
+                    {teamChoice.mode === 'pick' && t.size != null && (
+                      <span className="ml-1.5 text-xs text-text-muted tabular-nums">
+                        {teamChoice.cap ? `${t.size}/${teamChoice.cap}` : t.size}
+                        {full ? ' · full' : ''}
+                      </span>
+                    )}
                   </button>
                 );
               })}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Auto-balance / solo (lib/teamPlacement): nothing to choose, so say what will happen. */}
+      {(placement === 'auto' || placement === 'solo') && (
+        <div className="border border-card-border rounded-xl p-4 bg-card-bg text-sm">
+          {seatedTeam ? (
+            <p>
+              {placement === 'solo' ? 'You play on your own' : 'Your team'}:{' '}
+              <span className="font-semibold" style={{ color: seatedTeam.color }}>{seatedTeam.name}</span>
+            </p>
+          ) : (
+            <p className="text-text-muted">
+              {placement === 'solo'
+                ? 'Everyone plays for themselves in this event. Sign up and you get your own spot on the board, named after your character.'
+                : 'Teams are balanced automatically. Sign up and you join the team with the fewest players.'}
+            </p>
           )}
         </div>
       )}

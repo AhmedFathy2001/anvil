@@ -540,6 +540,18 @@ export const events = pgTable('events', {
   //   'per_clan' — each invited clan is one team. No draft: your seat decides your team, which is
   //                what a rivalry means. See teams.clanId.
   teamFormation: text('team_formation').notNull().default('draft'),
+  // WHERE A NEW SIGN-UP LANDS (lib/teamPlacement), on a board that is not per_clan:
+  //   'draft' — the pool, for the host or captains to place (the column default, and what every
+  //             event made before 0188 keeps)
+  //   'auto'  — auto-balance onto the team with the fewest players (what POST /api/events defaults to)
+  //   'pick'  — the player chooses one of the host's teams on the sign-up form
+  //   'solo'  — every player is their own team
+  teamPlacement: text('team_placement').notNull().default('draft'),
+  // Auto-balance: how many teams to spread players across (made on demand). Null = the teams the
+  // host built, or lib/teamPlacement's default when there are none.
+  teamCount: integer('team_count'),
+  // Players pick: the most players one team may take. Null = no limit.
+  teamCap: integer('team_cap'),
   boardSize: integer('board_size').notNull(),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   draftStatus: text('draft_status').default('none').notNull(),
