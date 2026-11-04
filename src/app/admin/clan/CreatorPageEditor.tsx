@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import ClanCrest from '@/components/ClanCrest';
-import ClanLink from '@/components/ClanLink';
+import ClanLink, { useClanPrefixValue } from '@/components/ClanLink';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 import {
@@ -115,6 +115,9 @@ function Picker({ label, busy, onFile }: { label: string; busy: boolean; onFile:
  * saves on its own. Everything is checked on the server against Jagex's rules (wording and links).
  */
 export default function CreatorPageEditor() {
+  // The space's own page: '/c/<slug>' on the shared host, '/' on its own subdomain. A ClanLink to '/'
+  // would leave the path alone (the apex home is not clan-scoped) and open the Anvil home instead.
+  const prefix = useClanPrefixValue();
   const [data, setData] = useState<PageData | null>(null);
   const [loadError, setLoadError] = useState(false);
 
@@ -154,9 +157,9 @@ export default function CreatorPageEditor() {
             channel.
           </p>
         </div>
-        <ClanLink href="/" target="_blank" className={btnPlain}>
+        <a href={prefix || '/'} target="_blank" rel="noopener" className={btnPlain}>
           Preview your page ↗
-        </ClanLink>
+        </a>
       </div>
 
       <p className="mb-5 rounded-lg border border-gold/30 bg-gold/5 px-3 py-2 text-[13px] text-foreground/90">{POLICY_NOTE}</p>

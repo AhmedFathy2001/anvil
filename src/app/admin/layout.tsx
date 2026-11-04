@@ -312,7 +312,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         { href: '/admin/people', label: 'Players', icon: '🛡️', sprite: 'bandos' as const, matchPrefix: true },
         ...(isAdmin
           ? [
-              { href: '/admin/clan', label: 'Settings', icon: '🏰', sprite: 'zenyte' as const, matchPrefix: true },
+              { href: '/admin/space', label: 'Settings', icon: '🏰', sprite: 'zenyte' as const, matchPrefix: true },
               { href: '/admin/integrations', label: 'Discord (optional)', icon: '🔌', sprite: 'discord' as const },
             ]
           : []),

@@ -166,6 +166,7 @@ export default function CreatorSettings() {
             30 seconds). {twitchLinked
               ? `It answers in twitch.tv/${twitchLinked.login}.`
               : 'It only answers in a Twitch channel you have connected to Anvil. Connect yours above first.'}
+            {twitchLinked && <span className="mt-1 block">If your chat blocks links, type <code>/vip anvil_osrs</code> (or <code>/mod anvil_osrs</code>) in your chat so the bot’s link isn’t held.</span>}
             {chatJoinPlan && !chatJoin && <span className="block text-gold">Part of the {chatJoinPlan} plan.</span>}
           </p>
           <button

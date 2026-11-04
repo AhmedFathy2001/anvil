@@ -94,7 +94,7 @@ export default async function EventLayout({
     moneyOnly: isBoardTreasurer,
     taskNounPlural: nounPlural,
     surveyOn: (await getClanFeatures(event.clanId)).on('survey'),
-    homeSettingsLabel: await homeSettingsLabelFor(session?.role, event.clanId),
+    homeSettings: await homeSettingsFor(session?.role, event.clanId),
   });
 
   return (
@@ -170,9 +170,9 @@ export default async function EventLayout({
 }
 
 /** "Space settings" / "Clan settings" in the event rail, for an admin only (the page rejects anyone else). */
-async function homeSettingsLabelFor(role: string | null | undefined, clanId: number): Promise<string | null> {
+async function homeSettingsFor(role: string | null | undefined, clanId: number): Promise<{ href: string; label: string } | null> {
   if (!atLeast(role, 'admin')) return null;
   // clan-scope: this clan -- the event's own clan, for its kind.
   const clan = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true } });
-  return isCreatorSpace(clan) ? 'Space settings' : 'Clan settings';
+  return isCreatorSpace(clan) ? { href: '/admin/space', label: 'Space settings' } : { href: '/admin/clan', label: 'Clan settings' };
 }
