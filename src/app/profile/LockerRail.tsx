@@ -1,9 +1,6 @@
-import type { LockerBests, LockerTrophy } from '@/lib/profileLocker';
-import type { UpcomingMilestone } from '@/lib/memberProfile';
-import ClanLink from '@/components/ClanLink';
+import type { LockerTrophy } from '@/lib/profileLocker';
 
-// The right-hand rail: what you've won, what you've hit, what you're near. All derived — nothing
-// here is a new thing to track, and nothing here scores.
+// What you've won. Derived — nothing here is a new thing to track, and nothing here scores.
 
 function Card({ title, note, children }: { title: string; note?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -61,107 +58,6 @@ export function TrophyCase({ trophies }: { trophies: LockerTrophy[] }) {
           </div>
         ))}
       </div>
-    </Card>
-  );
-}
-
-const PERIOD_LABEL: Record<string, string> = { day: 'Best day', week: 'Best week', month: 'Best month' };
-
-function compact(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
-  if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
-  return Math.round(n).toLocaleString();
-}
-
-/** Rolling XP records and where this person sits in the clan. Both are per-account by nature. */
-export function PersonalBests({ bests, focusRsn }: { bests: LockerBests; focusRsn: string | null }) {
-  const xpRecords = bests.records.filter((r) => r.metric === 'xp');
-  if (xpRecords.length === 0 && bests.standings.length === 0) return null;
-
-  return (
-    <Card title="Personal bests" note={focusRsn}>
-      {xpRecords.length > 0 && (
-        <div className="grid gap-2.5">
-          {(['day', 'week', 'month'] as const).map((period) => {
-            const row = xpRecords.find((r) => r.period === period);
-            if (!row) return null;
-            return (
-              <div key={period} className="flex items-baseline gap-2.5 text-sm">
-                <span className="text-text-muted">{PERIOD_LABEL[period]}</span>
-                <span className="ml-auto font-mono font-bold tabular-nums">{compact(row.value)}</span>
-                <span className="font-mono text-[11px] text-text-muted w-14 text-right">
-                  {new Date(`${row.endedOn}T00:00:00Z`).toLocaleDateString(undefined, {
-                    day: 'numeric',
-                    month: 'short',
-                    timeZone: 'UTC',
-                  })}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {bests.standings.length > 0 && (
-        <>
-          {xpRecords.length > 0 && <div className="h-px bg-card-border my-3.5" />}
-          <div className="grid gap-2.5">
-            {bests.standings.map((s) => (
-              <div key={s.label} className="flex items-baseline gap-2.5 text-sm">
-                <span className="text-text-muted">{s.label}</span>
-                <span className="ml-auto font-mono font-bold tabular-nums">#{s.place}</span>
-                <span className="font-mono text-[11px] text-text-muted w-14 text-right">of {s.outOf}</span>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </Card>
-  );
-}
-
-/** The milestone log looks backwards; this is the question a player actually asks. */
-export function InReach({ milestones }: { milestones: UpcomingMilestone[] }) {
-  if (milestones.length === 0) return null;
-  return (
-    <Card title="In reach" note="nearly there">
-      <div className="grid gap-3.5">
-        {milestones.map((m) => (
-          <div key={m.label}>
-            <div className="flex gap-2.5 text-sm">
-              <span className="truncate">{m.label}</span>
-              <span className="ml-auto font-mono text-[11.5px] text-text-muted shrink-0">{m.remaining}</span>
-            </div>
-            <div className="mt-1.5 h-1.5 rounded-full bg-brown-light overflow-hidden">
-              <span
-                className="block h-full rounded-full"
-                style={{
-                  width: `${Math.min(100, Math.round(m.progress * 100))}%`,
-                  background: 'linear-gradient(90deg, var(--gold-dark), var(--gold-light))',
-                }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-/** The version of this page the rest of the clan sees. */
-export function PublicProfile({ rsn }: { rsn: string }) {
-  return (
-    <Card title="Public profile">
-      <p className="text-sm text-text-muted mb-3">
-        Skills, boss KC, milestones and every event you&rsquo;ve played — the version the rest of the clan
-        sees.
-      </p>
-      <ClanLink
-        href={`/members/${encodeURIComponent(rsn)}`}
-        className="inline-block text-sm font-semibold px-3.5 py-2 border border-card-border rounded-lg hover:border-gold/40 hover:bg-gold/5 transition-colors"
-      >
-        View as clan →
-      </ClanLink>
     </Card>
   );
 }

@@ -18,7 +18,8 @@ import { avatarUrl } from '@/lib/discord-oauth';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { buildLocker } from '@/lib/profileLocker';
 import { Suspense } from 'react';
-import { getMemberProfile } from '@/lib/memberProfile';
+import { getAccountProfile, getMemberProfile } from '@/lib/memberProfile';
+import { apexCharacter } from '@/lib/apexProfiles';
 import { profileLinkState } from '@/lib/profileLink';
 import { pickProfileCharacter } from '@/lib/characterProfileRules';
 import CharacterProfile from '@/components/character/CharacterProfile';
@@ -26,24 +27,27 @@ import PlayerCard from './PlayerCard';
 import ConnectCard from './ConnectCard';
 import LiveForYou from './LiveForYou';
 import RunSoFar from './RunSoFar';
-import { InReach, PersonalBests, PublicProfile, TrophyCase } from './LockerRail';
+import { TrophyCase } from './LockerRail';
 import { membershipConflicts } from '@/lib/homeClan';
 import { atLeast } from '@/lib/clanRoles';
 import { supporterForUser } from '@/lib/supporter';
 import { supporterView } from '@/components/SupporterSection';
-import SupporterName from '@/components/SupporterName';
 import ClanLink from '@/components/ClanLink';
 import { onboardingNext } from '@/lib/firstLogin';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * /profile — the member's locker.
+ * /profile — the member's locker, as ONE page.
  *
- * This page used to be a settings form: link an account, copy a token, and never open it again. It
- * is now the surface a member checks between sessions — what's running for them, what they've won,
- * what they're close to — with the setup it replaces kept to one card that removes itself once it's
- * done, and every form folded into the drawer at the bottom.
+ * Top to bottom: their person card (who they are, their characters as chips that pick the one the
+ * page is about), the owner-only band nobody else sees (live for you, captain's deck, their run,
+ * trophies), then the selected character's profile inline — the same component as the member page
+ * and /p/, in its embedded variant, so it adds no second banner under the card.
+ *
+ * In a creator space there is no roster and no member page: the locker counts the event seats the
+ * person entered its events with, the card lists every character they own, and the character's
+ * profile is the public one (/p/), owner controls included.
  *
  * All the assembly lives in lib/profileLocker; this file is layout.
  */
@@ -159,7 +163,7 @@ export default async function ProfilePage({
   // A creator space's tab (lib/creatorSpaces): no roster, member page or guest seats to offer.
   const space = isCreatorSpace(clan);
   const [locker, clanName, supporterState] = await Promise.all([
-    buildLocker(clan.id, session.playerId, session.userId, new Date(), params.account ?? null),
+    buildLocker(clan.id, session.playerId, session.userId, new Date(), params.account ?? null, { space }),
     getClanDisplayName(clan.id),
     supporterForUser(session.userId),
   ]);
@@ -171,7 +175,7 @@ export default async function ProfilePage({
   // THE CHARACTER PROFILE, for one character: the one the chips on the card picked (?account=),
   // else their main, else the first. The same component as /members/<rsn> and /p/<rsn>, so a member
   // no longer has to find themselves on the roster to see their own records. Only this character's
-  // data is read, and it streams in under the locker (Suspense) so the locker never waits on it.
+  // data is read, and it streams in under the owner band (Suspense) so that never waits on it.
   const recordsAccount = pickProfileCharacter(locker.accounts, locker.focusRsn);
   const link = profileLinkState(sp);
   const progressTab = one(sp.progress);
@@ -189,9 +193,6 @@ export default async function ProfilePage({
     (d) => !ownedRsns.has(d.rsnNormalized) && !(d.accountHash && ownedHashes.has(d.accountHash)),
   );
   const homeConflicts = await membershipConflicts(session.playerId);
-  // Per character: member of which clan (and how fresh its list is), guest where — lib/characterStanding.
-  // eslint-disable-next-line react-hooks/purity -- server component, runs once per request
-  const lockerStandings = await characterStandings(locker.accounts.map((a) => a.accountId), Date.now());
 
   const avatar = user.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null;
   // session.role, NOT user.role. `users.role` is the LEGACY GLOBAL column, and lib/auth says what
@@ -236,10 +237,47 @@ export default async function ProfilePage({
         isStaff={isStaff}
         accounts={locker.accounts}
         focusRsn={locker.focusRsn}
+        // A creator space has no member pages (lib/creatorSpaces): the full profile is the public one.
+        fullProfileHref={
+          recordsAccount
+            ? space
+              ? `/p/${encodeURIComponent(recordsAccount.rsn)}`
+              : `/members/${encodeURIComponent(recordsAccount.rsn)}`
+            : null
+        }
         connection={locker.connection}
         career={locker.career}
         nowMs={nowMs}
       />
+
+      {/* Things waiting on them in settings, one line each, under the card that lists the characters. */}
+      {(detected.length > 0 || homeConflicts.length > 0) && (
+        <div className="mt-3 grid gap-2">
+          {homeConflicts.map((c) => (
+            <ClanLink
+              key={c.accountId}
+              href={`/settings/characters/${c.accountId}#clans`}
+              className="flex items-center gap-2 rounded-lg border border-gold/35 bg-gold/[0.06] px-3.5 py-2.5 text-[13px] hover:border-gold/60"
+            >
+              <span>
+                Two clans list <b>{c.rsn}</b> ({c.member.name} and {c.listedBy.name}). Which is home?
+              </span>
+              <span className="ml-auto text-gold">Choose →</span>
+            </ClanLink>
+          ))}
+          {detected.length > 0 && (
+            <ClanLink
+              href="/settings/add"
+              className="flex items-center gap-2 rounded-lg border border-gold/35 bg-gold/[0.06] px-3.5 py-2.5 text-[13px] hover:border-gold/60"
+            >
+              <span>
+                We noticed you playing {detected.length} character{detected.length === 1 ? '' : 's'} that aren&rsquo;t linked yet.
+              </span>
+              <span className="ml-auto text-gold">Review →</span>
+            </ClanLink>
+          )}
+        </div>
+      )}
 
       {locker.setupNeeded && (
         <ConnectCard
@@ -253,7 +291,8 @@ export default async function ProfilePage({
         />
       )}
 
-      <div className="grid gap-5 mt-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+      {/* The owner band: what only they see. Live and captaincy on one side, the record on the other. */}
+      <div className="grid gap-5 mt-5 lg:grid-cols-2 lg:items-start">
         <div className="grid gap-5 content-start">
           <LiveForYou
             events={locker.liveEvents}
@@ -292,124 +331,39 @@ export default async function ProfilePage({
               </div>
             </section>
           )}
-
-          {/* A creator space has no member pages (lib/creatorSpaces), so no "All events →" into one. */}
-          <RunSoFar rows={locker.history} totals={locker.historyTotals} focusRsn={space ? null : locker.focusRsn} />
-
-          {/* Your characters, to look at. Everything you can change about one (sharing, main,
-              its clans, rename, remove) is on its settings page — the cog on each row. */}
-          <section className="border border-card-border rounded-xl bg-card-bg p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="w-1 h-5 bg-gold rounded-full" />
-              <h2 className="text-lg font-semibold">Your characters</h2>
-              <ClanLink href="/settings/add" className="ml-auto text-xs text-text-muted hover:text-gold">
-                + Add a character
-              </ClanLink>
-            </div>
-
-            {(detected.length > 0 || homeConflicts.length > 0) && (
-              <div className="mb-3 grid gap-2">
-                {homeConflicts.map((c) => (
-                  <ClanLink
-                    key={c.accountId}
-                    href={`/settings/characters/${c.accountId}#clans`}
-                    className="flex items-center gap-2 rounded-lg border border-gold/35 bg-gold/[0.06] px-3.5 py-2.5 text-[13px] hover:border-gold/60"
-                  >
-                    <span>
-                      Two clans list <b>{c.rsn}</b> ({c.member.name} and {c.listedBy.name}). Which is home?
-                    </span>
-                    <span className="ml-auto text-gold">Choose →</span>
-                  </ClanLink>
-                ))}
-                {detected.length > 0 && (
-                  <ClanLink
-                    href="/settings/add"
-                    className="flex items-center gap-2 rounded-lg border border-gold/35 bg-gold/[0.06] px-3.5 py-2.5 text-[13px] hover:border-gold/60"
-                  >
-                    <span>
-                      We noticed you playing {detected.length} character{detected.length === 1 ? '' : 's'} that aren&rsquo;t linked yet.
-                    </span>
-                    <span className="ml-auto text-gold">Review →</span>
-                  </ClanLink>
-                )}
-              </div>
-            )}
-
-            {locker.accounts.length === 0 ? (
-              <div className="border border-dashed border-card-border rounded-lg bg-brown-dark/40 px-4 py-6 text-center text-sm text-text-muted">
-                <div className="font-medium text-foreground mb-1">Play once and it appears here.</div>
-                New accounts can link immediately. Existing roster accounts ask for the one-time ownership check first.
-              </div>
-            ) : (
-              <ul className="grid gap-2">
-                {locker.accounts.map((a) => (
-                  <li key={a.accountId} className="flex items-center gap-2 rounded-lg border border-tile-border bg-tile-bg px-3 py-2.5">
-                    <span className="min-w-0">
-                      <span className="flex items-center gap-2">
-                        <SupporterName
-                          name={a.rsn}
-                          tier={supporterState?.tier.id}
-                          style={supporterState?.style}
-                          plain
-                          className="font-semibold"
-                        />
-                        {a.isPrimary && <span className="rounded-full border border-gold-dark px-1.5 text-[10.5px] text-gold">main</span>}
-                        {!a.shared && <span className="rounded-full border border-card-border px-1.5 text-[10.5px] text-text-muted">private</span>}
-                      </span>
-                      {lockerStandings.lineByAccount.get(a.accountId) && (
-                        <span className="block text-xs text-text-muted">{lockerStandings.lineByAccount.get(a.accountId)}</span>
-                      )}
-                    </span>
-                    <ClanLink
-                      href={`/settings/characters/${a.accountId}`}
-                      className="ml-auto shrink-0 rounded-md border border-card-border px-2 py-1 text-[12px] text-text-muted hover:border-gold/40 hover:text-gold"
-                      aria-label={`Settings for ${a.rsn}`}
-                    >
-                      ⚙ Settings
-                    </ClanLink>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {/* Their characters this clan holds no seat for — offered here as guests, because asking
-                THIS clan is the one thing about them that only makes sense on this clan's tab. */}
-            {/* Not in a creator space: it has no roster to guest on — a viewer gets in through an event. */}
-            {!space && locker.otherAccounts.length > 0 && (
-              <OtherAccountsClient accounts={locker.otherAccounts} clanName={clan.name} clanSlug={clan.slug} />
-            )}
-          </section>
         </div>
 
         <div className="grid gap-5 content-start">
+          {/* A creator space has no member pages (lib/creatorSpaces), so no "All events →" into one. */}
+          <RunSoFar rows={locker.history} totals={locker.historyTotals} focusRsn={space ? null : locker.focusRsn} />
           <TrophyCase trophies={locker.trophies} />
-          {locker.bests && <PersonalBests bests={locker.bests} focusRsn={locker.focusRsn} />}
-          <InReach milestones={locker.milestones} />
-          {locker.focusRsn && !space && <PublicProfile rsn={locker.focusRsn} />}
         </div>
       </div>
 
-      {recordsAccount && (
-        <section id="records" className="mt-8 scroll-mt-20" aria-label={`${recordsAccount.rsn}'s profile`}>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="w-1 h-5 bg-gold rounded-full" />
-            <h2 className="text-lg font-semibold">{recordsAccount.rsn}&rsquo;s records</h2>
-            {locker.accounts.length > 1 && (
-              <span className="text-xs text-text-muted">· pick another character on your card above</span>
-            )}
-            <ClanLink
-              href={`/members/${encodeURIComponent(recordsAccount.rsn)}`}
-              className="ml-auto text-sm text-gold hover:underline"
-            >
-              View full profile →
-            </ClanLink>
-          </div>
-          <Suspense key={recordsAccount.accountId} fallback={<RecordsSkeleton />}>
-            <LockerCharacterProfile clanId={clan.id} rsn={recordsAccount.rsn} viewer={session} link={link} progressTab={progressTab} />
-          </Suspense>
+      {/* Their characters this clan holds no seat for — offered here as guests, because asking
+          THIS clan is the one thing about them that only makes sense on this clan's tab. Not in a
+          creator space: it has no roster to guest on (a viewer gets in through an event), and its
+          card already lists every character they own. */}
+      {!space && locker.otherAccounts.length > 0 && (
+        <section className="mt-5 border border-card-border rounded-xl bg-card-bg px-5 pb-5 pt-1">
+          <OtherAccountsClient accounts={locker.otherAccounts} clanName={clan.name} clanSlug={clan.slug} />
         </section>
       )}
 
+      {recordsAccount && (
+        <section id="records" className="scroll-mt-20" aria-label={`${recordsAccount.rsn}'s profile`}>
+          <Suspense key={recordsAccount.accountId} fallback={<RecordsSkeleton />}>
+            <LockerCharacterProfile
+              clanId={clan.id}
+              space={space}
+              rsn={recordsAccount.rsn}
+              viewer={session}
+              link={link}
+              progressTab={progressTab}
+            />
+          </Suspense>
+        </section>
+      )}
     </div>
   );
 }
@@ -417,26 +371,54 @@ export default async function ProfilePage({
 /** The selected character's profile, resolved inside the Suspense boundary so the locker streams first. */
 async function LockerCharacterProfile({
   clanId,
+  space,
   rsn,
   viewer,
   link,
   progressTab,
 }: {
   clanId: number;
+  /** A creator space: no seat to show, so the character's public profile (as /p/ renders it). */
+  space: boolean;
   rsn: string;
   viewer: Awaited<ReturnType<typeof verifyUser>>;
   link: ReturnType<typeof profileLinkState>;
   progressTab?: string;
 }) {
+  if (space) {
+    // The owner always passes apexCharacter's rule (shared, or theirs), so this is their own /p/ page.
+    const character = await apexCharacter(rsn, viewer?.playerId ?? null);
+    const profile = character ? await getAccountProfile(character.accountId) : null;
+    if (!character || !profile) return null;
+    return (
+      <CharacterProfile
+        context={{ kind: 'public', character, profile }}
+        viewer={viewer}
+        link={link}
+        progressTab={progressTab}
+        nameAs="h2"
+        variant="embedded"
+      />
+    );
+  }
   const seat = await getMemberProfile(clanId, rsn);
   if (!seat) return null;
-  return <CharacterProfile context={{ kind: 'clan', clanId, seat }} viewer={viewer} link={link} progressTab={progressTab} nameAs="h2" />;
+  return (
+    <CharacterProfile
+      context={{ kind: 'clan', clanId, seat }}
+      viewer={viewer}
+      link={link}
+      progressTab={progressTab}
+      nameAs="h2"
+      variant="embedded"
+    />
+  );
 }
 
 function RecordsSkeleton() {
   return (
-    <div className="mt-3 grid gap-4" aria-busy="true" aria-label="Loading records">
-      <div className="h-36 rounded-xl border border-card-border bg-card-bg animate-pulse" />
+    <div className="mt-6 grid gap-4" aria-busy="true" aria-label="Loading records">
+      <div className="h-20 rounded-xl border border-card-border bg-card-bg animate-pulse" />
       <div className="h-72 rounded-xl border border-card-border bg-card-bg animate-pulse" />
     </div>
   );

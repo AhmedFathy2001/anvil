@@ -31,13 +31,10 @@ import { involvedInEvent } from '@/lib/eventAccess';
 import { competitionImageUrl } from '@/lib/tileIcons';
 import {
   getClanActivityAnalytics,
+  getAccountProfile,
   getMemberProfile,
-  getRecords,
-  getUpcomingMilestones,
   ingameJoinDates,
   listMembers,
-  type PeriodRecord,
-  type UpcomingMilestone,
 } from '@/lib/memberProfile';
 
 /**
@@ -55,8 +52,6 @@ import {
 
 /** How many rows the history card carries. It's a highlight reel, not an archive. */
 const HISTORY_LIMIT = 6;
-/** Milestone bars in the rail. */
-const MILESTONE_LIMIT = 4;
 /** Daily rows to read for the activity streak. */
 const STREAK_WINDOW_DAYS = 140;
 
@@ -78,8 +73,11 @@ export interface LockerOtherAccount {
 }
 
 export interface LockerAccount {
-  /** The SEAT on this clan's roster. What the unlink / verify APIs address. */
-  id: number;
+  /**
+   * The SEAT on this clan's roster. What the unlink / verify APIs address. Null in a creator space
+   * for a character with no seat there: the space lists every character the person owns.
+   */
+  id: number | null;
   rsn: string;
   isPrimary: boolean;
   verified: boolean;
@@ -206,11 +204,6 @@ export interface LockerTrophy {
   earned: boolean;
 }
 
-export interface LockerBests {
-  records: PeriodRecord[];
-  standings: { label: string; place: number; outOf: number }[];
-}
-
 export interface LockerData {
   accounts: LockerAccount[];
   /** Theirs, but with no seat in this clan — listed only so sharing is reachable. */
@@ -226,9 +219,7 @@ export interface LockerData {
   history: LockerHistoryRow[];
   historyTotals: { events: number; weeklies: number };
   trophies: LockerTrophy[];
-  bests: LockerBests | null;
-  milestones: UpcomingMilestone[];
-  /** The account the rail's personal numbers are about — records are per-account, not per-person. */
+  /** The character the page's profile is about — records are per-account, not per-person. */
   focusRsn: string | null;
   /** Earliest join date across their accounts — the in-game one where the roster sync reported it. */
   memberSince: string | null;
@@ -249,8 +240,16 @@ export async function buildLocker(
   playerId: number,
   userId: number,
   now: Date = new Date(),
-  /** The character the rail's records and milestones are about (?account= on the page), when it's theirs. */
+  /** The character the page's profile is about (?account= on the page), when it's theirs. */
   wantedRsn: string | null = null,
+  opts: {
+    /**
+     * A creator space (lib/creatorSpaces): it has no roster, so a person's only seats there are the
+     * EVENT seats entering its events gave them. Count those as theirs (or the space's live events
+     * and history read nothing), and list every character they own on the card, seat or not.
+     */
+    space?: boolean;
+  } = {},
 ): Promise<LockerData> {
   const nowIso = now.toISOString();
   const nowMs = now.getTime();
@@ -264,7 +263,14 @@ export async function buildLocker(
       .select()
       .from(clanRoster)
       // Their member/guest seats: an event player's seat is not a seat in the clan.
-      .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, playerId), isNull(clanRoster.leftAt), rosterClanSeat()))
+      .where(
+        and(
+          eq(clanRoster.clanId, clanId),
+          eq(clanRoster.playerId, playerId),
+          isNull(clanRoster.leftAt),
+          opts.space ? undefined : rosterClanSeat(),
+        ),
+      )
       .orderBy(desc(clanRoster.isPrimary), desc(clanRoster.verifiedAt))
   ).filter((m) => !m.rsn.startsWith('guest:'));
 
@@ -284,25 +290,65 @@ export async function buildLocker(
     }
   }
 
+  // Sharing state for every account they own, in one read. Keyed by account id because that is what
+  // sharing is set on — a seat id is per clan, and the same account has a different one in each.
+  const allOwnedAccounts = await db
+    .select({
+      id: accountsTable.id,
+      rsn: accountsTable.rsn,
+      shared: accountsTable.shared,
+      isPrimary: accountsTable.isPrimary,
+      // Only a verified character can be offered to a clan's door — see the guest offer below.
+      verifiedAt: accountsTable.verifiedAt,
+      verificationMethod: accountsTable.verificationMethod,
+      provisional: accountsTable.provisional,
+      liveStatsAt: accountsTable.liveStatsAt,
+    })
+    .from(accountsTable)
+    .where(eq(accountsTable.playerId, playerId))
+    .orderBy(desc(accountsTable.isPrimary), accountsTable.rsn);
+
   // ── Connection ────────────────────────────────────────────────────────────────────────────────
+  // In a creator space the person's characters are all of theirs (see `opts.space`), so the plugin
+  // check and the setup card read those; in a clan, the seats this clan holds.
+  const identity = opts.space
+    ? allOwnedAccounts.map((a) => ({ rsn: a.rsn, liveStatsAt: a.liveStatsAt, verifiedAt: a.verifiedAt }))
+    : memberRows;
   let lastPingAt: string | null = null;
   let lastPingRsn: string | null = null;
-  for (const m of memberRows) {
+  for (const m of identity) {
     if (m.liveStatsAt && (!lastPingAt || m.liveStatsAt > lastPingAt)) {
       lastPingAt = m.liveStatsAt;
       lastPingRsn = m.rsn;
     }
   }
   const connection: LockerConnection = { connected: lastPingAt !== null, lastPingAt, lastPingRsn };
-  const hasVerified = memberRows.some((m) => m.verifiedAt);
-  const setupNeeded = memberRows.length === 0 || !hasVerified;
+  const hasVerified = identity.some((m) => m.verifiedAt);
+  const setupNeeded = identity.length === 0 || !hasVerified;
+
+  /** A character of theirs with no seat here — a creator space's card lists it anyway. */
+  const seatless = (a: (typeof allOwnedAccounts)[number]): LockerAccount => ({
+    id: null,
+    rsn: a.rsn,
+    isPrimary: a.isPrimary === 1,
+    verified: Boolean(a.verifiedAt),
+    verificationMethod: a.verificationMethod,
+    provisional: Boolean(a.provisional),
+    inActiveEvent: false,
+    playingIn: null,
+    lastPingAt: a.liveStatsAt,
+    shared: a.shared === true,
+    accountId: a.id,
+    joinedOn: null,
+  });
 
   // A member with nothing linked has no history to read, no board to score and no standing to hold.
   // Everything below this point is keyed on their clan_member rows, so stop here rather than run a
   // dozen queries that can only return empty.
   if (memberIds.length === 0) {
+    const accounts = opts.space ? allOwnedAccounts.map(seatless) : [];
     return {
-      accounts: [],
+      accounts,
       otherAccounts: [],
       connection,
       setupNeeded: true,
@@ -314,9 +360,7 @@ export async function buildLocker(
       history: [],
       historyTotals: { events: 0, weeklies: 0 },
       trophies: lockedTrophies([]),
-      bests: null,
-      milestones: [],
-      focusRsn: null,
+      focusRsn: pickFocus(accounts, wantedRsn),
       memberSince: null,
     };
   }
@@ -364,23 +408,10 @@ export async function buildLocker(
     liveEventNameByMember.set(p.clanMemberId, p.eventName);
   }
 
-  // Sharing state for every account they own, in one read. Keyed by account id because that is what
-  // sharing is set on — a seat id is per clan, and the same account has a different one in each.
-  const allOwnedAccounts = await db
-    .select({
-      id: accountsTable.id,
-      rsn: accountsTable.rsn,
-      shared: accountsTable.shared,
-      isPrimary: accountsTable.isPrimary,
-      // Only a verified character can be offered to a clan's door — see the guest offer below.
-      verifiedAt: accountsTable.verifiedAt,
-    })
-    .from(accountsTable)
-    .where(eq(accountsTable.playerId, playerId));
   const sharedByAccount = new Map(allOwnedAccounts.map((a) => [a.id, a.shared === true]));
 
   const joinedBySeat = await ingameJoinDates(memberRows.map((m) => m.id));
-  const accounts: LockerAccount[] = memberRows.map((m) => ({
+  const seatAccounts: LockerAccount[] = memberRows.map((m) => ({
     id: m.id,
     rsn: m.rsn,
     isPrimary: m.isPrimary === 1,
@@ -394,6 +425,21 @@ export async function buildLocker(
     accountId: m.accountId,
     joinedOn: joinedBySeat.get(m.id) ?? null,
   }));
+  // In a creator space one character can hold an event seat per event it entered: show it once,
+  // playing if any of its seats is, and add the characters that entered nothing here.
+  const accounts: LockerAccount[] = opts.space
+    ? allOwnedAccounts.map((a) => {
+        const seats = seatAccounts.filter((x) => x.accountId === a.id);
+        if (seats.length === 0) return seatless(a);
+        return {
+          ...seats[0],
+          isPrimary: a.isPrimary === 1,
+          inActiveEvent: seats.some((x) => x.inActiveEvent),
+          playingIn: seats.find((x) => x.playingIn)?.playingIn ?? null,
+          joinedOn: null,
+        };
+      })
+    : seatAccounts;
 
   // Their accounts that hold no seat in THIS clan.
   //
@@ -694,41 +740,27 @@ export async function buildLocker(
     weekStreak,
   };
 
-  // ── The rail's personal numbers ───────────────────────────────────────────────────────────────
-  // Records and milestones are per-ACCOUNT — a best week is one account's best week, and summing an
-  // alt's XP into it would invent a week nobody played. Focus the account that leads the person.
-  // A character they picked comes first — but only one of their own; anything else falls through.
+  // ── The focused character ─────────────────────────────────────────────────────────────────────
+  // The page's character profile is per-ACCOUNT — a best week is one account's best week, and
+  // summing an alt's XP into it would invent a week nobody played. Focus the account that leads the
+  // person. A character they picked comes first — but only one of their own; anything else falls through.
   const wanted = wantedRsn ? normalizeRsn(wantedRsn) : null;
   const focus =
-    (wanted ? memberRows.find((m) => normalizeRsn(m.rsn) === wanted) : undefined) ??
-    memberRows.find((m) => m.isPrimary === 1) ??
-    myRoster.slice().sort((a, b) => (b.overallXp ?? 0) - (a.overallXp ?? 0))[0] ??
-    memberRows[0];
+    (wanted ? accounts.find((m) => normalizeRsn(m.rsn) === wanted) : undefined) ??
+    accounts.find((m) => m.isPrimary) ??
+    accounts.find((a) => a.id === myRoster.slice().sort((x, y) => (y.overallXp ?? 0) - (x.overallXp ?? 0))[0]?.id) ??
+    accounts[0];
   const focusRsn = focus?.rsn ?? null;
-  // The ACCOUNT, not the seat. `getRecords` reads member_daily_stats, which is keyed by account —
-  // handing it the seat id charted whichever unrelated character happened to share that number.
-  const focusAccountId = focus?.accountId ?? null;
 
-  const [records, focusProfile, activity] = await Promise.all([
-    focusAccountId ? getRecords(focusAccountId) : Promise.resolve([]),
-    focusRsn ? getMemberProfile(clanId, focusRsn) : Promise.resolve(null),
+  const [focusProfile, activity] = await Promise.all([
+    // For the 99s trophy. A creator space has no member profile to read — the account's own does.
+    !focus ? Promise.resolve(null) : opts.space ? getAccountProfile(focus.accountId) : getMemberProfile(clanId, focus.rsn),
     // Same setting the members page reads, so the two surfaces cannot disagree about whose records
     // are the clan's.
     getSetting(clanId, 'members_count_guests').then((v) =>
       getClanActivityAnalytics(clanId, { countGuests: v === '1' }),
     ),
   ]);
-
-  const bests: LockerBests = {
-    records,
-    standings: [
-      ehpRank && { label: 'EHP in clan', ...ehpRank },
-      ehbRank && { label: 'EHB in clan', ...ehbRank },
-      xpRank && { label: 'Total XP', ...xpRank },
-    ].filter((s): s is { label: string; place: number; outOf: number } => !!s),
-  };
-
-  const milestones = focusProfile ? getUpcomingMilestones(focusProfile, MILESTONE_LIMIT) : [];
 
   // ── Trophies ──────────────────────────────────────────────────────────────────────────────────
   const earned: LockerTrophy[] = [];
@@ -804,8 +836,6 @@ export async function buildLocker(
     history: history.slice(0, HISTORY_LIMIT),
     historyTotals: { events: finishedEvents.length, weeklies: finishedWeeklies.length },
     trophies: lockedTrophies(earned),
-    bests,
-    milestones,
     focusRsn,
     // The in-game date when the roster sync has reported one: Anvil's own first sight of them is
     // only when the clan started using Anvil, which for a long-time member is years late.
@@ -1063,4 +1093,14 @@ function lockedTrophies(earned: LockerTrophy[]): LockerTrophy[] {
     earned: false,
   }));
   return [...earned, ...locked];
+}
+
+/** The character the page is about with no seat data to rank by: the one asked for, else the main, else the first. */
+function pickFocus(accounts: LockerAccount[], wantedRsn: string | null): string | null {
+  const wanted = wantedRsn ? normalizeRsn(wantedRsn) : null;
+  return (
+    (wanted ? accounts.find((a) => normalizeRsn(a.rsn) === wanted) : undefined) ??
+    accounts.find((a) => a.isPrimary) ??
+    accounts[0]
+  )?.rsn ?? null;
 }

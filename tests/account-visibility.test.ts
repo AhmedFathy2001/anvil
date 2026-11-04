@@ -429,3 +429,25 @@ test("the locker's open sign-ups are only the person's own clans' events, named 
     [['Alpha Bingo', 'Alpha', 'alpha']],
   );
 });
+
+test('in a creator space the locker lists every character of theirs, seat or not', async () => {
+  // A creator space has no roster: the person's characters hold no seat there until they enter an
+  // event, and the page used to come up empty ("only half") because the card read seats only.
+  const { buildLocker } = await import('../src/lib/profileLocker.ts');
+  const { db, schema: s } = await loadDb();
+  const loginId = (await db.query.users.findFirst({ where: eq(s.users.playerId, person) }))!.id;
+  const [space] = await db.insert(s.clans).values({ slug: 'creator-space', name: 'Creator', kind: 'creator', plan: 'creator_free' }).returning();
+
+  const locker = await buildLocker(space.id, person, loginId, new Date(), null, { space: true });
+  assert.deepEqual(locker.accounts.map((a) => a.rsn).sort(), ['The Alt', 'The Hermit', 'The Main']);
+  assert.ok(locker.accounts.every((a) => a.id === null), 'none of them has a seat in the space');
+  assert.equal(locker.focusRsn, 'The Main', 'the main, by default');
+
+  const picked = await buildLocker(space.id, person, loginId, new Date(), 'the hermit', { space: true });
+  assert.equal(picked.focusRsn, 'The Hermit', 'any of their own characters can be picked');
+
+  // And a regular clan read of the same space still shows no seats — the widening is opt-in.
+  const asClan = await buildLocker(space.id, person, loginId);
+  assert.deepEqual(asClan.accounts, []);
+  assert.equal(asClan.focusRsn, null);
+});

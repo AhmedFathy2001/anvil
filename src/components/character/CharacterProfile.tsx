@@ -20,6 +20,7 @@ import {
   type ActivityStanding,
   type CompetitionHistory,
   type MemberProfile,
+  type PeriodRecord,
   type Standing,
 } from '@/lib/memberProfile';
 import type { ApexCharacter } from '@/lib/apexProfiles';
@@ -159,6 +160,12 @@ export interface CharacterProfileProps {
   progressTab?: string;
   /** The character's name is the page heading, except on /profile, which has its own. */
   nameAs?: 'h1' | 'h2';
+  /**
+   * 'embedded' — inside the owner's /profile, under their own person card. No banner and no hero
+   * band (the card above already is one): a compact character line with the placings and best
+   * days, then the rest of the profile. The page's own chips switch characters, so no switcher.
+   */
+  variant?: 'full' | 'embedded';
 }
 
 /**
@@ -172,8 +179,16 @@ export interface CharacterProfileProps {
  *
  * Every query is for ONE character; callers render this for the selected character only.
  */
-export default async function CharacterProfile({ context, viewer, link, progressTab, nameAs = 'h1' }: CharacterProfileProps) {
+export default async function CharacterProfile({
+  context,
+  viewer,
+  link,
+  progressTab,
+  nameAs = 'h1',
+  variant = 'full',
+}: CharacterProfileProps) {
   const Name = nameAs;
+  const embedded = variant === 'embedded';
   const clanCtx = context.kind === 'clan' ? context : null;
   const pubCtx = context.kind === 'public' ? context : null;
   const profile: AccountProfile = clanCtx ? clanCtx.seat : pubCtx!.profile;
@@ -256,7 +271,7 @@ export default async function CharacterProfile({ context, viewer, link, progress
     pubCtx ? gameClanForAccount(accountId) : Promise.resolve(null),
     // The owner's other characters, so a person with three accounts can move between them. Only
     // ever the viewer's OWN list — it says these accounts are one person.
-    show.publicSwitcher ? characterList(viewerPlayerId) : Promise.resolve([]),
+    show.publicSwitcher && !embedded ? characterList(viewerPlayerId) : Promise.resolve([]),
   ]);
 
   // In a clan, its drops / pets / deaths in "Lately" take the clan feed's reactions (lib/siteReactions).
@@ -292,210 +307,226 @@ export default async function CharacterProfile({ context, viewer, link, progress
   const totalXp = skillXp > 0 ? skillXp : character?.overallXp ?? 0;
   const seat = clanCtx?.seat ?? null;
 
+  // The character's identity, shared by the full hero band and the embedded line.
+  const identity = (
+    <>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        {!embedded && <ProfileAvatar avatar={media.avatar} size={44} eager className="border-2 border-gold/45" />}
+        <Name className={`${embedded ? 'text-2xl' : 'text-3xl'} font-bold text-gold break-words`}>
+          <SupporterName name={rsn} tier={supporterLooks[rsn]?.tier} style={supporterLooks[rsn]?.style} />
+        </Name>
+        {acct?.verifiedAt && (
+          <span className="rounded-md border border-accent-green/35 bg-accent-green/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-accent-green-light">
+            Verified
+          </span>
+        )}
+        {show.clanSections && accountTypeLabel(profile.accountType) && profile.accountType !== 'normal' && (
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-brown-light text-foreground/80">
+            {accountTypeLabel(profile.accountType)}
+          </span>
+        )}
+        {seat?.isGuest && (
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-text-muted/15 text-text-muted">guest</span>
+        )}
+        {seat?.rank && (
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-gold/15 text-gold capitalize">{seat.rank}</span>
+        )}
+        {seat?.leftAt && (
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-red-500/15 text-red-300">left the clan</span>
+        )}
+        {joinedOn && (
+          <span
+            className="text-[11px] px-2 py-0.5 rounded-full bg-brown-light text-foreground/80"
+            title="When this character joined the clan in game"
+          >
+            In the clan since {formatJoinDate(joinedOn, true)}
+          </span>
+        )}
+      </div>
+
+      {/* The apex's answer to "which clan?" — the listed clan they are a member of, the
+          in-game clan the plugin reported, and the person, when they chose to be shown as one. */}
+      {show.platformHeader && character && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-text-muted">
+          {character.clan && (
+            <ClanLink href={`/c/${character.clan.slug}`} className="flex items-center gap-2 transition-colors hover:text-gold">
+              <ClanCrest name={character.clan.name} logoUrl={character.clan.logoUrl} size={18} />
+              {character.clan.name}
+              {seatIsGameClan && gameClan?.title && <span className="text-text-dim">· {gameClan.title}</span>}
+              {/* The roster sync's date, else the one the player's own plugin reported. */}
+              {clanJoinedOn && <span className="text-text-dim">· since {formatJoinDate(clanJoinedOn)}</span>}
+            </ClanLink>
+          )}
+          {gameClan && !seatIsGameClan && <GameClanChip clan={gameClan} />}
+          {gameClan && show.ownerControls && <GameClanToggle accountId={accountId} hidden={gameClan.hidden} />}
+          {character.clan ? (
+            // The same character, seen by its clan: standings, competition history, moments.
+            <ClanLink
+              href={`/c/${character.clan.slug}/members/${encodeURIComponent(rsn)}`}
+              className="text-gold hover:underline"
+            >
+              Clan profile →
+            </ClanLink>
+          ) : gameClan ? null : (
+            <span className="text-text-dim">No clan</span>
+          )}
+          {/* Only present when its owner turned linking on, and named by another RSN they
+              shared — never by anything from Discord (apexCharacter). */}
+          {character.owner && (
+            <span>
+              also plays{' '}
+              <ClanLink href={`/u/${character.owner.playerId}`} className="text-gold hover:underline">
+                {character.owner.label}
+              </ClanLink>
+            </span>
+          )}
+        </div>
+      )}
+
+      <p className="text-xs text-text-muted mt-1">
+        {profile.statsAt
+          ? `Stats as at ${new Date(profile.statsAt).toLocaleString()}`
+          : 'Stats from the last hiscores sweep'}
+        {trackingSince && (
+          <>
+            {' · '}
+            <span title="History before this day was never recorded">
+              Tracked since {new Date(`${trackingSince}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+          </>
+        )}
+        {show.platformLinks && (
+          <>
+            {show.clanSections && (
+              <>
+                {' · '}
+                {/* The same character on the platform — the two pages used to have no way between them. */}
+                <ClanLink href={`/p/${encodeURIComponent(rsn)}`} className="text-gold hover:underline">
+                  Public profile ↗
+                </ClanLink>
+              </>
+            )}
+            {' · '}
+            {/* Their year and finished months as shareable cards (app/p/[rsn]/wrapped). */}
+            <ClanLink href={`/p/${encodeURIComponent(rsn)}/wrapped`} className="text-gold hover:underline">
+              Wrapped
+            </ClanLink>
+            {' · '}
+            {/* Side by side with somebody else — the compare page asks for the other name. */}
+            <ClanLink href={`/compare?a=${encodeURIComponent(rsn)}`} className="text-gold hover:underline">
+              Compare ↗
+            </ClanLink>
+          </>
+        )}
+      </p>
+
+      {(eff || totalXp > 0 || embedded) && (
+        <div className="flex flex-wrap gap-2 mt-3">
+          {eff && <Placing label="EHP" value={eff.ehp.toFixed(1)} standing={standings.ehp} />}
+          {eff && <Placing label="EHB" value={eff.ehb.toFixed(1)} standing={standings.ehb} />}
+          <Placing label="XP" value={fmtXp(totalXp)} standing={standings.xp} />
+          {eff && (
+            <span className="text-xs border border-card-border rounded-full px-3 py-1 bg-brown-dark text-text-muted">
+              {eff.ttm >= 1 ? (
+                <>
+                  <span className="text-gold font-semibold tabular-nums">{Math.round(eff.ttm).toLocaleString()}h</span> to max
+                </>
+              ) : (
+                <span className="text-gold font-semibold">maxed</span>
+              )}
+            </span>
+          )}
+          {embedded && <EmbeddedFacts profile={profile} records={records} />}
+        </div>
+      )}
+    </>
+  );
+
   return (
     <>
-      {media.banner && <ProfileBanner banner={media.banner} className="mt-3" />}
+      {embedded ? (
+        // Inside /profile: the person card above is the hero, so this is one compact line — who the
+        // character is, where it places, its best stretches — and no banner.
+        <div className="mt-6 mb-6 border-b border-card-border pb-5">{identity}</div>
+      ) : (
+        <>
+          {media.banner && <ProfileBanner banner={media.banner} className="mt-3" />}
 
-      {/* Identity band: who they are, where they place, and how far from max — one object rather
-          than a name followed by five identically-weighted stat cards. Combat sits on the shield
-          because that is where an OSRS player looks for it. */}
-      <div
-        className="relative overflow-hidden rounded-xl border border-card-border p-5 sm:p-6 mt-3 mb-6"
-        style={{
-          background:
-            'radial-gradient(80% 160% at 0% 0%, rgba(212,160,23,.14), transparent 60%), var(--card-bg)',
-        }}
-      >
-        <div className="flex flex-wrap items-center gap-5 sm:gap-6">
-          {/* Drawn as SVG rather than a clip-path: clipping cuts the border off with the corners,
-              which left the number floating with four stray edge marks instead of a shield. */}
-          <svg
-            width="84"
-            height="92"
-            viewBox="0 0 84 92"
-            className="hidden sm:block shrink-0"
-            role="img"
-            aria-label={profile.combatLevel ? `Combat level ${profile.combatLevel}` : 'Combat level unknown'}
+          {/* Identity band: who they are, where they place, and how far from max — one object rather
+              than a name followed by five identically-weighted stat cards. Combat sits on the shield
+              because that is where an OSRS player looks for it. */}
+          <div
+            className="relative overflow-hidden rounded-xl border border-card-border p-5 sm:p-6 mt-3 mb-6"
+            style={{
+              background:
+                'radial-gradient(80% 160% at 0% 0%, rgba(212,160,23,.14), transparent 60%), var(--card-bg)',
+            }}
           >
-            <defs>
-              <linearGradient id="shield-fill" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="var(--brown-light)" />
-                <stop offset="100%" stopColor="var(--tile-bg)" />
-              </linearGradient>
-            </defs>
-            <path
-              d="M42 1 L82 14 V64 L42 91 L2 64 V14 Z"
-              fill="url(#shield-fill)"
-              stroke="var(--gold-dark)"
-              strokeWidth="1.5"
-              strokeLinejoin="round"
-            />
-            <text x="42" y="46" textAnchor="middle" fill="var(--gold-light)" fontSize="27" fontWeight="700">
-              {profile.combatLevel ?? '—'}
-            </text>
-            <text x="42" y="62" textAnchor="middle" fill="var(--text-muted)" fontSize="9" letterSpacing="1.5">
-              COMBAT
-            </text>
-          </svg>
+            <div className="flex flex-wrap items-center gap-5 sm:gap-6">
+              {/* Drawn as SVG rather than a clip-path: clipping cuts the border off with the corners,
+                  which left the number floating with four stray edge marks instead of a shield. */}
+              <svg
+                width="84"
+                height="92"
+                viewBox="0 0 84 92"
+                className="hidden sm:block shrink-0"
+                role="img"
+                aria-label={profile.combatLevel ? `Combat level ${profile.combatLevel}` : 'Combat level unknown'}
+              >
+                <defs>
+                  <linearGradient id="shield-fill" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="var(--brown-light)" />
+                    <stop offset="100%" stopColor="var(--tile-bg)" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M42 1 L82 14 V64 L42 91 L2 64 V14 Z"
+                  fill="url(#shield-fill)"
+                  stroke="var(--gold-dark)"
+                  strokeWidth="1.5"
+                  strokeLinejoin="round"
+                />
+                <text x="42" y="46" textAnchor="middle" fill="var(--gold-light)" fontSize="27" fontWeight="700">
+                  {profile.combatLevel ?? '—'}
+                </text>
+                <text x="42" y="62" textAnchor="middle" fill="var(--text-muted)" fontSize="9" letterSpacing="1.5">
+                  COMBAT
+                </text>
+              </svg>
 
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <ProfileAvatar avatar={media.avatar} size={44} eager className="border-2 border-gold/45" />
-              <Name className="text-3xl font-bold text-gold break-words">
-                <SupporterName name={rsn} tier={supporterLooks[rsn]?.tier} style={supporterLooks[rsn]?.style} />
-              </Name>
-              {acct?.verifiedAt && (
-                <span className="rounded-md border border-accent-green/35 bg-accent-green/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-accent-green-light">
-                  Verified
-                </span>
-              )}
-              {show.clanSections && accountTypeLabel(profile.accountType) && profile.accountType !== 'normal' && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-brown-light text-foreground/80">
-                  {accountTypeLabel(profile.accountType)}
-                </span>
-              )}
-              {seat?.isGuest && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-text-muted/15 text-text-muted">guest</span>
-              )}
-              {seat?.rank && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-gold/15 text-gold capitalize">{seat.rank}</span>
-              )}
-              {seat?.leftAt && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-red-500/15 text-red-300">left the clan</span>
-              )}
-              {joinedOn && (
-                <span
-                  className="text-[11px] px-2 py-0.5 rounded-full bg-brown-light text-foreground/80"
-                  title="When this character joined the clan in game"
-                >
-                  In the clan since {formatJoinDate(joinedOn, true)}
-                </span>
-              )}
+              <div className="min-w-0 flex-1">
+                {identity}
+
+                {myCharacters.length > 1 && (
+                  <nav aria-label="Your characters" className="mt-3 flex flex-wrap items-center gap-1.5">
+                    <span className="mr-1 text-[11px] uppercase tracking-[0.12em] text-text-dim">Your characters</span>
+                    {myCharacters
+                      .slice()
+                      .sort((a, b) => a.rsn.localeCompare(b.rsn))
+                      .map((c) =>
+                        c.id === accountId ? (
+                          <span key={c.id} aria-current="page" className="rounded-full border border-gold/50 bg-gold/10 px-2.5 py-0.5 text-xs text-gold">
+                            {c.rsn}
+                          </span>
+                        ) : (
+                          <ClanLink
+                            key={c.id}
+                            href={`/p/${encodeURIComponent(c.rsn)}`}
+                            className="rounded-full border border-card-border px-2.5 py-0.5 text-xs text-text-muted transition-colors hover:border-gold/40 hover:text-foreground"
+                          >
+                            {c.rsn}
+                          </ClanLink>
+                        ),
+                      )}
+                  </nav>
+                )}
+              </div>
+
+              {profile.totalLevel > 0 && <TotalLevelDial level={profile.totalLevel} />}
             </div>
-
-            {/* The apex's answer to "which clan?" — the listed clan they are a member of, the
-                in-game clan the plugin reported, and the person, when they chose to be shown as one. */}
-            {show.platformHeader && character && (
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-text-muted">
-                {character.clan && (
-                  <ClanLink href={`/c/${character.clan.slug}`} className="flex items-center gap-2 transition-colors hover:text-gold">
-                    <ClanCrest name={character.clan.name} logoUrl={character.clan.logoUrl} size={18} />
-                    {character.clan.name}
-                    {seatIsGameClan && gameClan?.title && <span className="text-text-dim">· {gameClan.title}</span>}
-                    {/* The roster sync's date, else the one the player's own plugin reported. */}
-                    {clanJoinedOn && <span className="text-text-dim">· since {formatJoinDate(clanJoinedOn)}</span>}
-                  </ClanLink>
-                )}
-                {gameClan && !seatIsGameClan && <GameClanChip clan={gameClan} />}
-                {gameClan && show.ownerControls && <GameClanToggle accountId={accountId} hidden={gameClan.hidden} />}
-                {character.clan ? (
-                  // The same character, seen by its clan: standings, competition history, moments.
-                  <ClanLink
-                    href={`/c/${character.clan.slug}/members/${encodeURIComponent(rsn)}`}
-                    className="text-gold hover:underline"
-                  >
-                    Clan profile →
-                  </ClanLink>
-                ) : gameClan ? null : (
-                  <span className="text-text-dim">No clan</span>
-                )}
-                {/* Only present when its owner turned linking on, and named by another RSN they
-                    shared — never by anything from Discord (apexCharacter). */}
-                {character.owner && (
-                  <span>
-                    also plays{' '}
-                    <ClanLink href={`/u/${character.owner.playerId}`} className="text-gold hover:underline">
-                      {character.owner.label}
-                    </ClanLink>
-                  </span>
-                )}
-              </div>
-            )}
-
-            <p className="text-xs text-text-muted mt-1">
-              {profile.statsAt
-                ? `Stats as at ${new Date(profile.statsAt).toLocaleString()}`
-                : 'Stats from the last hiscores sweep'}
-              {trackingSince && (
-                <>
-                  {' · '}
-                  <span title="History before this day was never recorded">
-                    Tracked since {new Date(`${trackingSince}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </span>
-                </>
-              )}
-              {show.platformLinks && (
-                <>
-                  {show.clanSections && (
-                    <>
-                      {' · '}
-                      {/* The same character on the platform — the two pages used to have no way between them. */}
-                      <ClanLink href={`/p/${encodeURIComponent(rsn)}`} className="text-gold hover:underline">
-                        Public profile ↗
-                      </ClanLink>
-                    </>
-                  )}
-                  {' · '}
-                  {/* Their year and finished months as shareable cards (app/p/[rsn]/wrapped). */}
-                  <ClanLink href={`/p/${encodeURIComponent(rsn)}/wrapped`} className="text-gold hover:underline">
-                    Wrapped
-                  </ClanLink>
-                  {' · '}
-                  {/* Side by side with somebody else — the compare page asks for the other name. */}
-                  <ClanLink href={`/compare?a=${encodeURIComponent(rsn)}`} className="text-gold hover:underline">
-                    Compare ↗
-                  </ClanLink>
-                </>
-              )}
-            </p>
-
-            {(eff || totalXp > 0) && (
-              <div className="flex flex-wrap gap-2 mt-3">
-                {eff && <Placing label="EHP" value={eff.ehp.toFixed(1)} standing={standings.ehp} />}
-                {eff && <Placing label="EHB" value={eff.ehb.toFixed(1)} standing={standings.ehb} />}
-                <Placing label="XP" value={fmtXp(totalXp)} standing={standings.xp} />
-                {eff && (
-                  <span className="text-xs border border-card-border rounded-full px-3 py-1 bg-brown-dark text-text-muted">
-                    {eff.ttm >= 1 ? (
-                      <>
-                        <span className="text-gold font-semibold tabular-nums">{Math.round(eff.ttm).toLocaleString()}h</span> to max
-                      </>
-                    ) : (
-                      <span className="text-gold font-semibold">maxed</span>
-                    )}
-                  </span>
-                )}
-              </div>
-            )}
-
-            {myCharacters.length > 1 && (
-              <nav aria-label="Your characters" className="mt-3 flex flex-wrap items-center gap-1.5">
-                <span className="mr-1 text-[11px] uppercase tracking-[0.12em] text-text-dim">Your characters</span>
-                {myCharacters
-                  .slice()
-                  .sort((a, b) => a.rsn.localeCompare(b.rsn))
-                  .map((c) =>
-                    c.id === accountId ? (
-                      <span key={c.id} aria-current="page" className="rounded-full border border-gold/50 bg-gold/10 px-2.5 py-0.5 text-xs text-gold">
-                        {c.rsn}
-                      </span>
-                    ) : (
-                      <ClanLink
-                        key={c.id}
-                        href={`/p/${encodeURIComponent(c.rsn)}`}
-                        className="rounded-full border border-card-border px-2.5 py-0.5 text-xs text-text-muted transition-colors hover:border-gold/40 hover:text-foreground"
-                      >
-                        {c.rsn}
-                      </ClanLink>
-                    ),
-                  )}
-              </nav>
-            )}
           </div>
-
-          {profile.totalLevel > 0 && <TotalLevelDial level={profile.totalLevel} />}
-        </div>
-      </div>
+        </>
+      )}
 
       {/* The owner's streams and their Supporter display case. */}
       <ConnectedAccounts links={connected} className="-mt-3 mb-6" />
@@ -554,6 +585,39 @@ export default async function CharacterProfile({ context, viewer, link, progress
             Shown because this account is shared. Its owner can turn that off from their profile.
           </p>
         ))}
+    </>
+  );
+}
+
+const BEST_LABEL: Record<string, string> = { day: 'Best day', week: 'Best week', month: 'Best month' };
+
+/**
+ * The embedded line's extra chips: combat and total level (the hero's shield and dial), and the
+ * best XP day / week / month — the numbers /profile's old "Personal bests" card carried.
+ */
+function EmbeddedFacts({ profile, records }: { profile: AccountProfile; records: PeriodRecord[] }) {
+  const chip = 'text-xs border border-card-border rounded-full px-3 py-1 bg-brown-dark text-text-muted';
+  return (
+    <>
+      {profile.combatLevel != null && (
+        <span className={chip}>
+          Combat <span className="text-foreground font-semibold tabular-nums">{profile.combatLevel}</span>
+        </span>
+      )}
+      {profile.totalLevel > 0 && (
+        <span className={chip}>
+          Total <span className="text-foreground font-semibold tabular-nums">{profile.totalLevel.toLocaleString()}</span>
+        </span>
+      )}
+      {(['day', 'week', 'month'] as const).map((period) => {
+        const r = records.find((x) => x.period === period && x.metric === 'xp');
+        if (!r) return null;
+        return (
+          <span key={period} className={chip} title={`Ending ${r.endedOn}`}>
+            {BEST_LABEL[period]} <span className="text-gold font-semibold tabular-nums">{fmtXp(r.value)}</span> XP
+          </span>
+        );
+      })}
     </>
   );
 }
