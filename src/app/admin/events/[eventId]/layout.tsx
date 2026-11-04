@@ -18,6 +18,8 @@ import ClanLink from '@/components/ClanLink';
 import { clanHref } from '@/lib/clanPath';
 import { clanPrefix } from '@/lib/clanContext';
 import { requireEventForPage } from '@/lib/eventScope';
+import { resolveClanById } from '@/lib/clanContext';
+import { eventIconUrl } from '@/lib/eventImage';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { isFriendsHost } from '@/lib/friendEventRules';
 import { ensureInviteToken } from '@/lib/friendEvents';
@@ -105,6 +107,8 @@ export default async function EventLayout({
     homeSettings: await homeSettingsFor(session?.role, event.clanId),
   });
 
+  const heroIcon = eventIconUrl(event, await resolveClanById(event.clanId));
+
   return (
     <div className="lg:flex lg:gap-6">
       <AdminSidebar
@@ -120,31 +124,62 @@ export default async function EventLayout({
         &larr; All events
       </ClanLink>
 
-      <div className="flex items-start justify-between gap-3 flex-wrap mb-2">
-        <EventTitle eventId={id} initialName={event.name} canEdit={atLeast(session?.role, 'admin')} />
-        <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${status.cls}`}>
-          {status.label}
-        </span>
-      </div>
-
-      <div className="flex items-center gap-2.5 text-sm text-text-muted mb-6 flex-wrap">
-        <span className="bg-gold/15 text-gold px-2 py-0.5 rounded-full text-xs font-medium">
-          {eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules)}
-        </span>
-        {raceFormat && (
-          <span className="bg-blue-500/15 text-blue-400 px-2 py-0.5 rounded-full text-xs font-medium">
-            Tile race
-          </span>
-        )}
-        {pointsMode && (
-          <span className="bg-purple-500/15 text-purple-300 px-2 py-0.5 rounded-full text-xs font-medium">
-            Points
-          </span>
-        )}
-        <span>{tileCount.c} {tileCount.c === 1 ? noun : nounPlural}</span>
-        <span>·</span>
-        <span>{teamCount.c} team{teamCount.c !== 1 ? 's' : ''}</span>
-      </div>
+      {/* The event's hero (from the settings mockups): its banner, its icon over it, the name and
+          what kind of board it is, and a way to see it as players do. */}
+      <header className="mb-6 overflow-hidden rounded-2xl border border-card-border bg-card-bg">
+        <div className="relative h-24 bg-brown-dark sm:h-28" aria-hidden>
+          {event.bannerUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- the event's own upload
+            <img src={event.bannerUrl} alt="" className="h-full w-full object-cover" style={{ objectPosition: `50% ${event.bannerPosition ?? 50}%` }} />
+          ) : (
+            <div
+              className="h-full w-full"
+              style={{
+                backgroundImage: 'linear-gradient(#ffffff0a 1px, transparent 1px), linear-gradient(90deg, #ffffff0a 1px, transparent 1px)',
+                backgroundSize: '40px 40px',
+              }}
+            />
+          )}
+        </div>
+        <div className="-mt-9 flex flex-wrap items-start gap-x-5 gap-y-3 px-5 pb-5">
+          <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-2xl border-4 border-card-bg bg-brown-light">
+            {heroIcon ? (
+              // eslint-disable-next-line @next/next/no-img-element -- the event's or the clan's own upload
+              <img src={heroIcon} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <span className="display text-2xl font-semibold text-gold" aria-hidden>
+                {event.name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('')}
+              </span>
+            )}
+          </div>
+          <div className="min-w-0 flex-[1_1_18rem] sm:pt-11">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <EventTitle eventId={id} initialName={event.name} canEdit={atLeast(session?.role, 'admin')} />
+              <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${status.cls}`}>{status.label}</span>
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2.5 text-sm text-text-muted">
+              <span className="bg-gold/15 text-gold px-2 py-0.5 rounded-full text-xs font-medium">
+                {eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules)}
+              </span>
+              {raceFormat && <span className="bg-blue-500/15 text-blue-400 px-2 py-0.5 rounded-full text-xs font-medium">Tile race</span>}
+              {pointsMode && <span className="bg-purple-500/15 text-purple-300 px-2 py-0.5 rounded-full text-xs font-medium">Points</span>}
+              <span>
+                {tileCount.c} {tileCount.c === 1 ? noun : nounPlural}
+              </span>
+              <span>·</span>
+              <span>
+                {teamCount.c} team{teamCount.c !== 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+          <ClanLink
+            href={`/events/${id}`}
+            className="inline-flex min-h-10 items-center rounded-lg border border-card-border px-4 text-sm font-medium transition-colors hover:border-gold/40 hover:text-gold sm:mt-11"
+          >
+            Player view ↗
+          </ClanLink>
+        </div>
+      </header>
 
       {/* The event's own rail (rendered by the admin shell) carries navigation now; this strip
           answers the other question — where the event is in its life, and what moves it forward. */}

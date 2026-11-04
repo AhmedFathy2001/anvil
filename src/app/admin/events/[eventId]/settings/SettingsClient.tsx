@@ -9,7 +9,6 @@ import NumberInput from '@/components/NumberInput';
 import RevealRulesPanel from '../RevealRulesPanel';
 import StandingsVisibilityPanel from '../StandingsVisibilityPanel';
 import GameModeWorldsPanel from '../GameModeWorldsPanel';
-import RulebookPanel from '../RulebookPanel';
 import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
 import { eventModeLabel, isTileRaceFormat, isPointsMode } from '@/lib/utils';
 import { eventAxes } from '@/lib/eventAxes';
@@ -562,9 +561,6 @@ export default function SettingsClient({ event, tiles, section }: Props) {
         <RevealRulesPanel event={currentEvent} tiles={tiles} />
       </div>
 
-      <div id="rulebook" className="scroll-mt-28 rounded-xl">
-        <RulebookPanel eventId={event.id} />
-      </div>
       </>
       )}
 

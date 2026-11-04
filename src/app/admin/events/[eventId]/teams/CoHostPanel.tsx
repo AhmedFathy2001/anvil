@@ -2,6 +2,7 @@
 
 import SettingsCard from '../settings/SettingsCard';
 import { useSaveBar } from '../settings/SaveBar';
+import { Segmented, SettingRow } from '../settings/controls';
 import { useState } from 'react';
 import ClanCrest from '@/components/ClanCrest';
 import ClanPicker, { type PickedClan } from '@/components/ClanPicker';
@@ -295,28 +296,9 @@ export default function CoHostPanel({
       </p>
 
       {/* Who holds the cash */}
-      <div className="border-t border-card-border px-5 py-4">
-        <div className="mb-2.5 text-[13px] font-semibold">Who holds the cash</div>
-        <div className="flex flex-col gap-2">
-          {CASH.map((c) => {
-            const active = c.value === cashPolicy;
-            return (
-              <label
-                key={c.value}
-                className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${
-                  active ? 'border-gold/50 bg-gold/[0.06]' : 'border-card-border bg-background hover:border-gold/30'
-                }`}
-              >
-                <input type="radio" name="cashPolicy" checked={active} onChange={() => setCashPolicy(c.value)} className="mt-0.5 h-4 w-4 accent-gold" />
-                <span>
-                  <span className={`block text-[13.5px] font-medium ${active ? 'text-gold' : ''}`}>{c.label}</span>
-                  <span className="mt-0.5 block text-[12.5px] text-text-muted">{c.hint}</span>
-                </span>
-              </label>
-            );
-          })}
-        </div>
-      </div>
+      <SettingRow title="Who holds the cash" stack>
+        <Segmented label="Who holds the cash" options={CASH} value={cashPolicy} onChange={setCashPolicy} />
+      </SettingRow>
 
       {((dirty && !inBar) || savedNote) && (
         <div className="flex items-center gap-3 border-t border-card-border px-5 py-3">

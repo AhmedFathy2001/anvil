@@ -12,8 +12,8 @@ const clan = { creator: false, streams: false };
 const streamingClan = { creator: false, streams: true };
 
 test('a space and a clan get their own tab sets', () => {
-  assert.deepEqual(tabsFor(space).map((t) => t.label), ['Event', 'Viewers', 'Stream', 'Board & play', 'More']);
-  assert.deepEqual(tabsFor(clan).map((t) => t.label), ['Event', 'Board & play', 'Entry & co-hosts', 'Staff', 'More']);
+  assert.deepEqual(tabsFor(space).map((t) => t.label), ['Event', 'Viewers', 'Stream', 'Board & play', 'Rules', 'More']);
+  assert.deepEqual(tabsFor(clan).map((t) => t.label), ['Event', 'Board & play', 'Rules', 'Entry & co-hosts', 'Staff', 'More']);
   assert.ok(tabsFor(streamingClan).some((t) => t.key === 'stream'), 'a streaming clan gets the Stream tab');
 });
 
@@ -49,6 +49,7 @@ test('things that live elsewhere in the event are found too, after settings', ()
   assert.equal(searchSettings('', 7, clan).length, 0);
   assert.equal(searchSettings('zzzz', 7, clan).length, 0);
   assert.equal(searchSettings('rules discord', 7, clan)[0].id, 'rulebook', 'every word must match');
+  assert.equal(searchSettings('house rules', 7, space)[0].href, '/admin/events/7/settings/rules#rulebook', 'the rules have their own tab');
 });
 
 test('every index entry has a unique id', () => {

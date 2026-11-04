@@ -2,6 +2,7 @@
 
 import SettingsCard from '../settings/SettingsCard';
 import { useSaveBar } from '../settings/SaveBar';
+import { Segmented, SettingRow, Switch } from '../settings/controls';
 import { useCallback, useEffect, useState } from 'react';
 
 import { clanFetch } from '@/lib/clanFetch';
@@ -236,49 +237,36 @@ export default function AccessPanel({ eventId, creator = false }: { eventId: num
 
   if (visibility == null) return null;
 
-  return (
-    <SettingsCard title="Who can see and enter this" flush>
+  // The guest-door warning belongs with "who can enter"; drawn in that section below.
+  const guestsClosed = guestPolicy === 'closed' && !creator;
 
-      <div className="grid gap-5 px-5 py-4 md:grid-cols-2">
-        <div>
-          <Choice title="Who can see it" options={visibilityOptions} value={visibility} onPick={setVisibility} />
-          {/* Readable by anyone is not the same as advertised to everyone — a separate yes. Offered
-              wherever a stranger can already read the board; never on an invite-only one. */}
-          {visibility !== 'invited' && (
-            <label className="mt-2 flex cursor-pointer items-start gap-2.5 rounded-xl border border-card-border bg-background p-3 text-[12.5px] hover:border-gold/30">
-              <input
-                type="checkbox"
-                checked={advertised}
-                onChange={(e) => setAdvertised(e.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-gold"
-              />
-              <span>
-                <span className="block text-[13.5px] font-medium">Advertise on Anvil</span>
-                <span className="mt-0.5 block text-text-muted">
-                  List this event on anvilosrs.com/events so anyone can find it, while it&rsquo;s upcoming or live.
-                </span>
-                {!clanPublic && (
-                  <span className="mt-1 block text-accent-red">
-                    Your clan is private, so it won&rsquo;t be listed until the clan is public.
-                  </span>
-                )}
-              </span>
-            </label>
-          )}
-        </div>
-        <div>
-          <Choice title="Who can enter it" options={entryOptions} value={entry ?? 'open'} onPick={setEntry} />
-          {/* The clan's own door is the stricter of the two and always wins in lib/guestAdmission —
-              this setting could promise entry that the roster policy then refused, silently. A
-              creator space has no such door (People → Who can join is a clan page). */}
-          {guestPolicy === 'closed' && !creator && (
-            <p className="mt-2 text-[12.5px] text-accent-red">
-              Your clan is not taking guests, so nobody from outside can enter whatever this says.
-              Change it under People → Who can join.
-            </p>
-          )}
-        </div>
-      </div>
+  return (
+    <>
+    <SettingsCard
+      title="Who can see it"
+      description={creator ? 'Your space page, the board and the sign-up page.' : 'The board, standings and sign-up page.'}
+      flush
+    >
+      <SettingRow stack>
+        <Segmented label="Who can see it" options={visibilityOptions} value={visibility} onChange={setVisibility} />
+      </SettingRow>
+      {/* Readable by anyone is not the same as advertised to everyone — a separate yes. Offered
+          wherever a stranger can already read the board; never on an invite-only one. */}
+      {visibility !== 'invited' && (
+        <SettingRow
+          title="List on Anvil"
+          hint={
+            <>
+              Shows it on anvilosrs.com/events while it&rsquo;s upcoming or live.
+              {!clanPublic && (
+                <span className="mt-1 block text-accent-red">Your clan is private, so it won&rsquo;t be listed until the clan is public.</span>
+              )}
+            </>
+          }
+        >
+          <Switch on={advertised} onChange={setAdvertised} label="List on Anvil" />
+        </SettingRow>
+      )}
 
       {((dirty && !inBar) || savedNote) && (
         <div className="flex items-center gap-3 border-t border-card-border px-5 py-3">
@@ -424,48 +412,24 @@ export default function AccessPanel({ eventId, creator = false }: { eventId: num
         </div>
       )}
     </SettingsCard>
-  );
-}
 
-function Choice({
-  title,
-  options,
-  value,
-  onPick,
-}: {
-  title: string;
-  options: { value: string; label: string; hint: string }[];
-  value: string;
-  onPick: (v: string) => void;
-}) {
-  return (
-    <div>
-      <div className="mb-2 text-[13px] font-semibold">{title}</div>
-      <div className="flex flex-col gap-2">
-        {options.map((o) => {
-          const active = o.value === value;
-          return (
-            <label
-              key={o.value}
-              className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${
-                active ? 'border-gold/50 bg-gold/[0.06]' : 'border-card-border bg-background hover:border-gold/30'
-              }`}
-            >
-              <input
-                type="radio"
-                name={title}
-                checked={active}
-                onChange={() => onPick(o.value)}
-                className="mt-0.5 h-4 w-4 accent-gold"
-              />
-              <span>
-                <span className={`block text-[13.5px] font-medium ${active ? 'text-gold' : ''}`}>{o.label}</span>
-                <span className="mt-0.5 block text-[12.5px] text-text-muted">{o.hint}</span>
-              </span>
-            </label>
-          );
-        })}
-      </div>
-    </div>
+    <SettingsCard
+      title="Who can enter"
+      description={creator ? 'Who can play once they can see it.' : 'Your roster always can. Anyone else waits for your yes on Sign-ups.'}
+      flush
+    >
+      <SettingRow stack>
+        <Segmented label="Who can enter" options={entryOptions} value={entry ?? 'open'} onChange={setEntry} />
+        {/* The clan's own door is the stricter of the two and always wins in lib/guestAdmission —
+            this setting could promise entry that the roster policy then refused, silently. */}
+        {guestsClosed && (
+          <p className="text-[12.5px] text-accent-red">
+            Your clan is not taking guests, so nobody from outside can enter whatever this says. Change it under People → Who
+            can join.
+          </p>
+        )}
+      </SettingRow>
+    </SettingsCard>
+    </>
   );
 }

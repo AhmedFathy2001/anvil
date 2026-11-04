@@ -57,24 +57,33 @@ export default function GameModeWorldsPanel({ event }: { event: Event }) {
   return (
     <SettingsCard title="Game-mode worlds" description={<>Leagues, Deadman, hardcore and other modes use their own characters, so nothing done there counts on this
         board unless you tick the mode here. Tick it if you&apos;re running this board on that mode.</>}>
-      <p className="text-sm text-text-muted mb-1">From a ticked mode, these count the same as the main game:</p>
-      <ul className="text-sm text-text-muted mb-3 list-disc pl-5 space-y-0.5">
-        <li>Drops, kills and other tiles the plugin sends proof for</li>
-        <li>Kill count and XP tiles, counted from the first number the plugin sends from that mode after the board starts</li>
-        <li>Collection log tiles that count new slots</li>
-        <li>End-of-event recap numbers (deaths, loot, PvP kills)</li>
-      </ul>
-      <p className="text-sm text-text-muted mb-3">
-        A mode&apos;s kill count and XP are checked against that mode&apos;s own hiscores. A number its hiscores
-        don&apos;t back up stops counting and is shown on the Stats tab. Where there&apos;s nothing to check against
-        (Beta, Seasonal Deadman, new modes, or a character not on its hiscores yet), kill count and XP still count
-        at a believable pace, but can&apos;t finish a &quot;reach a total&quot; tile on their own.
-      </p>
-      <p className="text-sm text-text-muted mb-4">
-        Whole-page collection log tiles still only count the main game. A mode&apos;s progress never changes a
-        player&apos;s profile (stats, collection log, personal bests, quests) or weekly competitions. Players need
-        the plugin running on that mode for anything to count.
-      </p>
+      {/* The fine print, folded: the checkboxes are what most people came for. */}
+      <details className="group mb-4 rounded-lg border border-card-border/70 bg-background/40 px-3.5 py-2.5">
+        <summary className="cursor-pointer list-none text-sm font-medium text-text-muted hover:text-foreground [&::-webkit-details-marker]:hidden">
+          <span className="mr-1.5 inline-block transition-transform group-open:rotate-90" aria-hidden>›</span>
+          How modes count
+        </summary>
+        <div className="mt-3">
+          <p className="text-sm text-text-muted mb-1">From a ticked mode, these count the same as the main game:</p>
+          <ul className="text-sm text-text-muted mb-3 list-disc pl-5 space-y-0.5">
+            <li>Drops, kills and other tiles the plugin sends proof for</li>
+            <li>Kill count and XP tiles, counted from the first number the plugin sends from that mode after the board starts</li>
+            <li>Collection log tiles that count new slots</li>
+            <li>End-of-event recap numbers (deaths, loot, PvP kills)</li>
+          </ul>
+          <p className="text-sm text-text-muted mb-3">
+            A mode&apos;s kill count and XP are checked against that mode&apos;s own hiscores. A number its hiscores
+            don&apos;t back up stops counting and is shown on the Stats tab. Where there&apos;s nothing to check against
+            (Beta, Seasonal Deadman, new modes, or a character not on its hiscores yet), kill count and XP still count
+            at a believable pace, but can&apos;t finish a &quot;reach a total&quot; tile on their own.
+          </p>
+          <p className="text-sm text-text-muted">
+            Whole-page collection log tiles still only count the main game. A mode&apos;s progress never changes a
+            player&apos;s profile (stats, collection log, personal bests, quests) or weekly competitions. Players need
+            the plugin running on that mode for anything to count.
+          </p>
+        </div>
+      </details>
       <div className="grid gap-2 sm:grid-cols-2">
         {WORLD_MODES.map((m) => (
           <Checkbox
@@ -89,6 +98,7 @@ export default function GameModeWorldsPanel({ event }: { event: Event }) {
           />
         ))}
       </div>
+      {(!inBar || msg) && (
       <div className="mt-4 flex flex-wrap items-center gap-3">
         {!inBar && (
           <button
@@ -102,6 +112,7 @@ export default function GameModeWorldsPanel({ event }: { event: Event }) {
         )}
         {msg && <span className={`text-xs ${msg.type === 'error' ? 'text-red-400' : 'text-accent-green-light'}`}>{msg.text}</span>}
       </div>
+      )}
     </SettingsCard>
   );
 }

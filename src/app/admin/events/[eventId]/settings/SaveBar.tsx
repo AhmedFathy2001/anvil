@@ -75,8 +75,13 @@ export function SaveBarProvider({ children }: { children: ReactNode }) {
           className="sticky bottom-4 z-30 mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-card-border bg-card-bg-hover/95 py-3 pl-5 pr-3 shadow-[0_18px_44px_rgba(0,0,0,.55)] backdrop-blur"
         >
           <div className="min-w-0 text-sm">
-            <span className="font-semibold text-gold">Unsaved changes</span>
-            <span className="text-text-muted"> · {pending.map((e) => e.label).join(', ')}</span>
+            <span className="text-text-muted">You changed </span>
+            {pending.map((e, i) => (
+              <span key={e.label}>
+                {i > 0 && <span className="text-text-muted">{i === pending.length - 1 ? ' and ' : ', '}</span>}
+                <b className="font-semibold text-gold">{e.label}</b>
+              </span>
+            ))}
             {failed.length > 0 && (
               <span className="block text-[12.5px] text-accent-red">Couldn&rsquo;t save {failed.join(', ')}: the section says why.</span>
             )}
