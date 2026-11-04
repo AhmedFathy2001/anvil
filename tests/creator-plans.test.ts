@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 
 import * as CP from '../src/lib/creatorPlans.ts';
 import { PLANS, creatorPlanName } from '../src/lib/plans.ts';
-import { validateGatesFor, type GateOptions } from '../src/lib/entryGates.ts';
+import { parseGates, validateGatesFor, type GateOptions } from '../src/lib/entryGates.ts';
 
 function enforced<T>(fn: () => T): T {
   process.env.FREEMIUM_ENFORCED = 'true';
@@ -155,6 +155,22 @@ test('stream gates are "anything but Discord", so new platforms inherit the lock
   assert.match(locked.ok ? '' : locked.error, /Bronze feature/);
   assert.deepEqual(validateGatesFor({ anyOf: [{ kind: 'discord-booster' }] }, opts), { ok: true }, 'Discord is free');
   assert.deepEqual(validateGatesFor({ anyOf: [{ kind: 'twitch-follow' }] }, { ...opts, streamLock: null }), { ok: true });
+
+  // Kick and YouTube kinds are locked the same way, ahead of their own connection checks.
+  const ready: GateOptions = {
+    ...opts,
+    kick: { configured: true, channel: { slug: 'k', broken: false, followersOnlyChat: false }, connectUrl: null },
+    youtube: { configured: true, channel: { title: 'Y', broken: false }, connectUrl: null },
+  };
+  for (const kind of ['kick-follow', 'kick-sub', 'youtube-sub', 'youtube-member'] as const) {
+    const parsed = parseGates({ anyOf: [{ kind }] });
+    assert.ok(parsed, `${kind} parses`);
+    assert.ok(CP.usesStreamGate(parsed), `${kind} is a stream gate`);
+    const v = validateGatesFor(parsed, ready);
+    assert.equal(v.ok, false, `${kind} locked below Bronze`);
+    assert.match(v.ok ? '' : v.error, /Bronze feature/);
+    assert.deepEqual(validateGatesFor(parsed, { ...ready, streamLock: null }), { ok: true }, `${kind} allowed on Bronze+`);
+  }
 });
 
 test('featured listing follows the plan paid for, creator spaces only', () => {

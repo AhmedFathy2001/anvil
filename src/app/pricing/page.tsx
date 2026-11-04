@@ -180,9 +180,11 @@ function CreatorPricing({ enforced }: { enforced: boolean }) {
     },
     { label: 'Events running at once', cell: (p) => (has(p, 'concurrent-events') ? 'Several' : '1') },
     { label: 'Only people with a Discord role or boost', cell: () => yes },
-    { label: 'Only your Twitch followers or subs', cell: (p) => (has(p, 'stream-gates') ? yes : '—') },
+    { label: 'Only your Twitch followers or subs (by tier)', cell: (p) => (has(p, 'stream-gates') ? yes : '—') },
+    { label: 'Only your Kick followers or subs (any sub)', cell: (p) => (has(p, 'stream-gates') ? yes : '—') },
+    { label: 'Only your YouTube subscribers or members', cell: (p) => (has(p, 'stream-gates') ? yes : '—') },
     { label: 'OBS overlay', cell: (p) => (has(p, 'overlay-unbranded') ? 'Yes, Anvil mark optional' : 'Yes, with a small Anvil mark') },
-    { label: '!join in your Twitch chat', cell: (p) => (has(p, 'chat-join-bot') ? yes : '—') },
+    { label: '!join in your Twitch or Kick chat', cell: (p) => (has(p, 'chat-join-bot') ? yes : '—') },
     { label: 'Listed on Anvil (if you want)', cell: (p) => (has(p, 'featured-listing') ? 'Featured first' : yes) },
   ];
   return (
@@ -227,7 +229,8 @@ function CreatorPricing({ enforced }: { enforced: boolean }) {
         </table>
       </div>
       <p className="mt-3 text-center text-[12.5px] text-text-dim">
-        Kick and YouTube checks will be part of {PLANS[CAPABILITY_MIN_PLAN['stream-gates']].name} when they arrive.{' '}
+        Each platform needs your channel connected. Follower, sub and member checks start at{' '}
+        {PLANS[CAPABILITY_MIN_PLAN['stream-gates']].name}.{' '}
         {creatorPlanName(PLANS.custom)} plans are set by hand.{' '}
         <ClanLink href="/host" className="text-gold hover:text-gold-light">
           Start a creator space
