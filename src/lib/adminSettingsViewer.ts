@@ -7,7 +7,7 @@
 import { redirectFor, type AdminAccess } from '@/lib/adminAccess';
 import type { SettingRole, SettingsViewer } from '@/lib/adminSettingsIndex';
 import { atLeast } from '@/lib/clanRoles';
-import { creatorHidesAdminPath } from '@/lib/creatorSpaces';
+import { creatorHidesAdminPath, creatorHidesSetting } from '@/lib/creatorSpaces';
 import type { FeatureKey } from '@/lib/features';
 
 export function settingsViewer(
@@ -22,5 +22,7 @@ export function settingsViewer(
     hasRole: (min: SettingRole) =>
       min === 'treasurer' ? access.role === 'treasurer' || atLeast(access.role, 'admin') : atLeast(access.role, min),
     featureOn: (key) => on.has(key),
+    // …nor the clan-only sections inside the pages it does reach (Discord's role sync, commands, …).
+    hides: (id) => creator && creatorHidesSetting(id),
   };
 }

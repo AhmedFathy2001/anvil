@@ -37,8 +37,12 @@ export function isCreatorSpace(clan: { kind?: string | null } | null | undefined
   return clanKindOf(clan?.kind) === 'creator';
 }
 
-/** Modules that are always off in a creator space: they only mean something with a roster. */
-export const CREATOR_ONLY_OFF: readonly FeatureKey[] = ['weekly'];
+/**
+ * Modules that are always off in a creator space, switch hidden too: weeklies need a roster, the
+ * coffer is a clan's gp and the Clan Hall card sits on a clan's public page. A new space is made
+ * with all three off (lib/clanCreate CREATOR_FEATURES_OFF); this keeps them off.
+ */
+export const CREATOR_ONLY_OFF: readonly FeatureKey[] = ['weekly', 'coffer', 'clanHall'];
 
 // ── Admin pages a creator space does not have ──────────────────────────────────────────────────
 
@@ -64,6 +68,8 @@ export const CREATOR_HIDDEN_ADMIN_PATHS = [
   '/admin/verifications',
   '/admin/clan/needs-review',
   '/admin/clan/policy',
+  // Co-hosting is between in-game clans: a creator space neither invites clans nor is invited.
+  '/admin/cohosted',
 ] as const;
 
 export type CreatorHiddenAdminPath = (typeof CREATOR_HIDDEN_ADMIN_PATHS)[number];
@@ -71,6 +77,97 @@ export type CreatorHiddenAdminPath = (typeof CREATOR_HIDDEN_ADMIN_PATHS)[number]
 /** Is this admin path one a creator space is sent away from? Matches whole path segments only. */
 export function creatorHidesAdminPath(pathname: string): boolean {
   return CREATOR_HIDDEN_ADMIN_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
+}
+
+// ── Sections inside pages a creator space does not have ─────────────────────────────────────────
+
+/**
+ * Folded sections of Admin → Discord (their FoldSection ids, which are also the settings search's
+ * anchors) that only mean something for an in-game clan: slash commands and the Clan Hall card.
+ * "Roles & nicknames" (`discord-roles`) is not here: a creator keeps its ping role, and only the
+ * roster's role and nickname sync inside it goes (app/admin/integrations/DiscordSettings).
+ */
+export const CREATOR_HIDDEN_DISCORD_SECTIONS = ['discord-clan-hall', 'discord-commands'] as const;
+
+export function creatorHidesDiscordSection(id: string): boolean {
+  return (CREATOR_HIDDEN_DISCORD_SECTIONS as readonly string[]).includes(id);
+}
+
+/**
+ * Rows of Discord → "What goes where" (lib/discordFeeds ids) with nothing to post in a creator
+ * space: other clans' boards, weeklies, the clan calendar, the in-game roster and the coffer.
+ */
+export const CREATOR_HIDDEN_FEEDS: readonly string[] = ['cohost', 'weekly', 'clanEvents', 'roster', 'coffer'];
+
+/** Tabs of "What goes where": game-mode worlds (Leagues, DMM…) never count toward an event. */
+export const CREATOR_HIDDEN_FEED_TABS: readonly string[] = ['modes'];
+
+/**
+ * Settings keys a creator space has no use for: the channels and switches of the feeds above (on
+ * "Post without a bot" too), the roster's Discord role and nickname sync, and the Clan Hall card.
+ * Hidden from its screens and the settings search, and refused when a request turns one ON
+ * (creatorRefusedSetting). Clearing one always goes through, so nothing old gets stuck on.
+ */
+export const CREATOR_HIDDEN_SETTING_KEYS: readonly string[] = [
+  'discord_webhook_weekly',
+  'discord_webhook_clan_events',
+  'discord_webhook_roster',
+  'discord_webhook_coffer',
+  'discord_webhook_cohost',
+  'discord_cohost_posts_enabled',
+  'webhook_leagues',
+  'leagues_icon_url',
+  'discord_role_sync_enabled',
+  'discord_nickname_sync_enabled',
+  'discord_nickname_overwrite',
+  'discord_widget_enabled',
+  'discord_widget_public_names',
+  'discord_widget_embed',
+];
+
+export function creatorHidesSettingKey(key: string): boolean {
+  return CREATOR_HIDDEN_SETTING_KEYS.includes(key);
+}
+
+/**
+ * For a settings write from a creator space: the first hidden key it would set to something, or
+ * null. A blank, null, false or 'false' value is a clear and goes through.
+ */
+export function creatorRefusedSetting(body: Record<string, unknown> | null | undefined): string | null {
+  if (!body) return null;
+  for (const key of CREATOR_HIDDEN_SETTING_KEYS) {
+    const v = body[key];
+    if (v === undefined || v === null || v === false) continue;
+    if (typeof v === 'string' && (v.trim() === '' || v.trim() === 'false')) continue;
+    return key;
+  }
+  return null;
+}
+
+/**
+ * Entries of the admin settings search (lib/adminSettingsIndex ids) for things a creator space does
+ * not have on screen, beyond the hidden pages (those go by path): the clan profile's fields (a
+ * creator's settings page is its own), the clan's Lately feed, the roster's role and nickname sync,
+ * commands, the Clan Hall card and game-mode channels. Webhook entries go by their key.
+ */
+export const CREATOR_HIDDEN_SETTINGS: readonly string[] = [
+  'clan-name',
+  'clan-image',
+  'clan-banner',
+  'clan-hook',
+  'clan-tags',
+  'clan-discovery',
+  'clan-requirements',
+  'rules-feeds',
+  'discord-roles',
+  'discord-clan-hall',
+  'discord-commands',
+  'discord-game-modes',
+];
+
+export function creatorHidesSetting(id: string): boolean {
+  if (CREATOR_HIDDEN_SETTINGS.includes(id)) return true;
+  return id.startsWith('webhook-') && creatorHidesSettingKey(id.slice('webhook-'.length));
 }
 
 /** What an in-game-only admin API says to a creator space. */

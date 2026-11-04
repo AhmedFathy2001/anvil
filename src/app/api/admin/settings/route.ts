@@ -13,6 +13,7 @@ import { WEBHOOK_PAGE_SETTING_KEYS } from '@/lib/webhookFields';
 import { fetchGuildRoles } from '@/lib/discord-roles';
 import { isSafeAutomatedRole } from '@/lib/discordRoleSafety';
 import { forgetLinkCards } from '@/lib/ogKit';
+import { CREATOR_NOT_AVAILABLE, creatorRefusedSetting, isCreatorSpace } from '@/lib/creatorSpaces';
 
 const EXPOSED_KEYS = [
   // Every destination and switch the Integrations → Webhooks page renders: the announcements
@@ -132,6 +133,12 @@ export async function PUT(request: Request) {
   }
 
   const body = (await request.json()) as Partial<Record<ExposedKey, string | null>>;
+
+  // A creator space has no roster to sync roles from, no weeklies, coffer or co-hosts to post about
+  // (lib/creatorSpaces). Turning one of those on is refused; clearing one is not.
+  if (isCreatorSpace(clan) && creatorRefusedSetting(body)) {
+    return NextResponse.json({ error: CREATOR_NOT_AVAILABLE }, { status: 400 });
+  }
 
   // These IDs are handed to Discord's add-role endpoint later, including during co-host fan-out.
   // Validate against the clan's OWN verified guild now; a forged request must not save an

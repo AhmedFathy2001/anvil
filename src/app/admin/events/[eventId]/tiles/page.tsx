@@ -16,6 +16,7 @@ import { atLeast, hasPlatformRole } from '@/lib/clanRoles';
 import { CAN_WRITE } from '@/lib/platformAccess';
 import { getCofferBalance } from '@/lib/coffer';
 import { withSearchText } from '@/lib/tileSearchText';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,11 +74,14 @@ export default async function EventTilesPage({
 
   return (
     <>
-    <TileSuggestionsPanel
-      eventId={event.id}
-      fixedGrid={fixedGrid}
-      tiles={eventTiles.filter((t) => !t.mission && t.parentTileId == null).map((t) => ({ id: t.id, label: t.label }))}
-    />
+    {/* Suggestions come from co-host clans; a creator space has none (lib/coHost coHostKindRefusal). */}
+    {!isCreatorSpace(clan) && (
+      <TileSuggestionsPanel
+        eventId={event.id}
+        fixedGrid={fixedGrid}
+        tiles={eventTiles.filter((t) => !t.mission && t.parentTileId == null).map((t) => ({ id: t.id, label: t.label }))}
+      />
+    )}
     <TilesClient
       event={event}
       // Board cells, each combo carrying its parts (lib/combo) — the editor edits them together.
