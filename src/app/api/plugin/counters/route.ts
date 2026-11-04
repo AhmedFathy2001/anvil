@@ -7,7 +7,8 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { eventHasStarted } from '@/lib/completionGate';
 import { parseStamp } from '@/lib/dbTime';
 import { replayOutsideLab } from '@/lib/lab';
-import { worldModeIgnored } from '@/lib/worldModeRequest';
+import { worldModeIgnored, worldModeOf } from '@/lib/worldModeRequest';
+import { parseEventRules } from '@/lib/eventRules';
 
 // Real-time ingest for the fun end-of-event "recap" counters (total deaths, total loot GP, and PvP
 // kills for the active event). The plugin pushes ABSOLUTE per-event totals — idempotent, so a retry
@@ -35,11 +36,11 @@ function clampCounter(v: unknown, max: number): number | null {
 }
 
 export async function POST(request: Request) {
-  // Kills, drops, XP and logs from a game-mode world (Leagues, Deadman, hardcore, …) are another
-  // save's progress, never this one's (lib/worldModeRequest).
-  const otherSave = worldModeIgnored(request);
-  if (otherSave) return otherSave;
+  // A game-mode world (Leagues, Deadman, hardcore, …) is another save: its counters land only on a
+  // board that counts that mode (rules.worldModes) — see the pick below — and 202 otherwise.
+  const mode = worldModeOf(request);
   const member = await resolvePluginMember(request);
+  if (!member && mode) return worldModeIgnored(request)!;
   if (!member) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 });
   }
@@ -104,6 +105,7 @@ export async function POST(request: Request) {
       startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
+      rules: events.rules,
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
@@ -113,10 +115,12 @@ export async function POST(request: Request) {
       p.teamId &&
       !p.forceEndedAt &&
       eventHasStarted(p, now) &&
-      (!p.endDate || (parseStamp(p.endDate) ?? 0) > now),
+      (!p.endDate || (parseStamp(p.endDate) ?? 0) > now) &&
+      // From a mode world, only a board that counts that mode; a main-game-only board never.
+      (!mode || parseEventRules(p.rules).worldModes.includes(mode.key)),
   );
   if (!active) {
-    return NextResponse.json({ ok: true, updated: 0 });
+    return mode ? worldModeIgnored(request)! : NextResponse.json({ ok: true, updated: 0 });
   }
   // A replayed scenario's deaths and kills count on lab boards only (lib/lab).
   const replay = await replayOutsideLab(request, active.eventId);

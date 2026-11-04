@@ -202,7 +202,9 @@
     "test:withdrawnroster": "npx tsx --test tests/withdrawn-roster-migration.test.ts",
     "test:modefilters": "npx tsx --test tests/mode-filters.test.ts tests/world-modes.test.ts",
     "test:startingstats": "npx tsx --test tests/starting-stats.test.ts",
-    "test:startingstatsdb": "npx tsx --test tests/starting-stats-capture.test.ts"
+    "test:startingstatsdb": "npx tsx --test tests/starting-stats-capture.test.ts",
+    "test:modestats": "npx tsx --test tests/mode-stats.test.ts",
+    "test:modeboarddb": "npx tsx --test tests/mode-board-credit-db.test.ts"
   },
   "dependencies": {
     "@vercel/blob": "^2.0.1",

@@ -12,6 +12,8 @@ import { evaluateCompletionGate } from '@/lib/completionGate';
 import { eligibleSinceReveal, gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
 import { handleBountyClaim } from '@/lib/revealEngine';
 import { afterPartCompletion, afterPartProgress } from '@/lib/comboCompletion';
+import { parseEventRules } from '@/lib/eventRules';
+import { countedModes, milestoneWithModes, statGainWithModes } from '@/lib/modeStats';
 
 type StatTile = typeof tiles.$inferSelect;
 
@@ -55,9 +57,14 @@ export async function creditStatTilesForTeam(opts: {
       frozenAt: eventParticipants.frozenAt,
       frozenStats: eventParticipants.frozenStats,
       lastStatsFetch: eventParticipants.lastStatsFetch,
+      modeStats: eventParticipants.modeStats,
     })
     .from(eventParticipants)
     .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.teamId, teamId)));
+  // clan-scope: global -- the event id came from a participant row the caller already scoped.
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  // Game modes this board counts (rules.worldModes): their pushes sit on the row (lib/modeStats).
+  const modes = countedModes(event ? parseEventRules(event.rules) : null);
   // Every team player's live overlay. Gain = sum over keys of max(0, max(hiscores, live) − baseline).
   const teamLive = await liveStatsForMembers(teamPlayers.map((p) => p.clanMemberId));
   const gainFor = (p: (typeof teamPlayers)[number], keys: string[], statType: string): number => {
@@ -65,7 +72,7 @@ export async function creditStatTilesForTeam(opts: {
     // toward the team total but never climbs.
     if (p.frozenAt) return computeGainFromJson(p.statsSnapshot, p.frozenStats, {}, keys, statType);
     const plug = (p.clanMemberId != null && teamLive.get(p.clanMemberId)) || {};
-    return computeGainFromJson(p.statsSnapshot, p.cachedStats, plug, keys, statType);
+    return statGainWithModes(p.statsSnapshot, p.cachedStats, plug, keys, statType, p.modeStats, modes);
   };
 
   // When each member's reading of each key is from: their hiscores fetch, or a push that raised it.
@@ -97,8 +104,6 @@ export async function creditStatTilesForTeam(opts: {
     .from(completions)
     .where(and(inArray(completions.tileId, tileIds), eq(completions.teamId, teamId)));
   const done = new Set(existing.map((c) => c.tileId));
-  // clan-scope: global -- the event id came from a participant row the caller already scoped.
-  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
   const eventStartMs = parseStamp(event?.startDate) ?? 0;
   const nowIso = new Date().toISOString();
@@ -121,10 +126,17 @@ export async function creditStatTilesForTeam(opts: {
     const msFor = (p: (typeof teamPlayers)[number]) => {
       const ms = p.frozenAt
         ? milestoneStateFromJson(p.statsSnapshot, p.frozenStats, {}, keys, tile.statType!, tile.statGoal!)
-        : milestoneStateFromJson(
-            p.statsSnapshot,
-            p.cachedStats,
-            (p.clanMemberId != null && teamLive.get(p.clanMemberId)) || {},
+        : milestoneWithModes(
+            milestoneStateFromJson(
+              p.statsSnapshot,
+              p.cachedStats,
+              (p.clanMemberId != null && teamLive.get(p.clanMemberId)) || {},
+              keys,
+              tile.statType!,
+              tile.statGoal!,
+            ),
+            p.modeStats,
+            modes,
             keys,
             tile.statType!,
             tile.statGoal!,

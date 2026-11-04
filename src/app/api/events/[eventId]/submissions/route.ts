@@ -40,7 +40,7 @@ import { standingsScopeForRequest } from '@/lib/standingsAccess';
 import { parseAttachments } from '@/lib/proofAttachments';
 import { addAttachments, adoptDrafts, attachmentsFor, ownsAttachmentImages } from '@/lib/proofAttachmentsDb';
 import { claimUploads } from '@/lib/uploadClaims';
-import { worldModeIgnored } from '@/lib/worldModeRequest';
+import { worldModeIgnored, worldModeOf } from '@/lib/worldModeRequest';
 
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
 // 'unverified_counter': credited off an in-game signal nobody has checked yet (lib/gameCounters,
@@ -537,7 +537,13 @@ export async function POST(
     const member = submitterCreditId
       ? await db.query.eventParticipants.findFirst({ where: eq(eventParticipants.id, submitterCreditId), columns: { accountId: true } })
       : null;
-    const before = await clogOwnedBefore(member?.accountId ?? null, event, counted);
+    // From a game-mode world the board counts, the account's stored log is the MAIN save's and says
+    // nothing about that one; the unlock is the proof the slot is new there (lib/clogTileCredit).
+    // Only for the plugin: a web upload is always checked against the stored log, whatever it claims.
+    // (A mode the board doesn't count never gets this far: worldModeIgnored above answers 202.)
+    const before = pluginAuth && worldModeOf(request)
+      ? new Set<number>()
+      : await clogOwnedBefore(member?.accountId ?? null, event, counted);
     const name = pluginAuth && !itemId ? clogItemFromProof(claims) : null;
     // WHOLE-PAGE PROOF: on a 'complete' tile, a screenshot that names no slot (a web upload of the
     // finished page, or the plugin's capture of the page opened in game) is the proof a finished page

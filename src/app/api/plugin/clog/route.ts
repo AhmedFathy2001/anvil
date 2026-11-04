@@ -11,7 +11,8 @@ import { creditClogUnlocks, recheckClogPageTiles } from '@/lib/clogTileCredit';
 import { track } from '@/lib/analytics';
 import { parseStamp } from '@/lib/dbTime';
 import { labQuarantine } from '@/lib/lab';
-import { worldModeIgnored } from '@/lib/worldModeRequest';
+import { worldModeIgnored, worldModeOf } from '@/lib/worldModeRequest';
+import type { WorldMode } from '@/lib/worldModes';
 
 // Collection-log ingest. The plugin sends pages the player has actually OPENED — the game only hands
 // the client a page once it has drawn one — so a log arrives in pieces over days rather than whole.
@@ -51,12 +52,14 @@ const int = (v: unknown, max: number): number | null => {
 };
 
 export async function POST(request: Request) {
-  // Kills, drops, XP and logs from a game-mode world (Leagues, Deadman, hardcore, …) are another
-  // save's progress, never this one's (lib/worldModeRequest).
-  const otherSave = worldModeIgnored(request);
-  if (otherSave) return otherSave;
+  // A game-mode world (Leagues, Deadman, hardcore, …) is another save, so its log never touches the
+  // account's stored one (lib/worldModeRequest). Its live unlock lines still count on a board that
+  // counts that mode (rules.worldModes) — see modeUnlocks. Page and whole-log syncs are profile data
+  // only, so a mode world's are dropped.
+  const mode = worldModeOf(request);
   // The seat when there is one, else a character the token owns: a log is the person's, clan or not.
   const member = await resolvePluginCharacter(request);
+  if (mode && !member) return worldModeIgnored(request)!;
   if (!member) {
     return NextResponse.json(
       { error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' },
@@ -73,6 +76,7 @@ export async function POST(request: Request) {
   // A character in a tile-lab session writes nothing real; the push goes to the lab log (lib/lab).
   const quarantined = await labQuarantine(request, member.accountId, 'clog', body);
   if (quarantined) return quarantined;
+  if (mode) return modeUnlocks(request, mode, body, member);
 
   // WHOLE-LOG push. The plugin can have the server transmit every entry at once instead of the
   // player paging through the log, and what arrives is a flat obtained-item list with no pages.
@@ -540,6 +544,28 @@ async function ingestWholeLog(
     // Non-zero means the game has items our catalogue doesn't: re-run `npm run data:clog`.
     unknown,
   });
+}
+
+/**
+ * Unlock lines from a game-mode world: credit the clog tiles of boards that count that mode, and
+ * write nothing to the account's log — the mode save's log isn't the account's. Anything else from a
+ * mode world gets the usual 202.
+ */
+async function modeUnlocks(request: Request, mode: WorldMode, body: { unlocks?: unknown; pages?: unknown }, member: { accountId: number }) {
+  if (!Array.isArray(body?.unlocks) || Array.isArray(body?.pages)) return worldModeIgnored(request)!;
+  const raw = body.unlocks as IncomingUnlock[];
+  if (raw.length === 0 || raw.length > MAX_UNLOCKS_PER_PUSH) {
+    return NextResponse.json({ error: `1-${MAX_UNLOCKS_PER_PUSH} unlocks per push` }, { status: 400 });
+  }
+  const rl = await rateLimitByKey('clog-unlock', String(member.accountId), { limit: 30, windowMs: 60_000 });
+  if (!rl.ok) {
+    return NextResponse.json({ error: 'Too many unlocks' }, { status: 429, headers: rateLimitHeaders(rl) });
+  }
+  const names = raw
+    .map((u) => (typeof u?.name === 'string' ? u.name.trim().slice(0, 120) : ''))
+    .filter((n) => n.length > 0);
+  const tileSlots = await creditClogUnlocks(member.accountId, names, { mode: mode.key });
+  return NextResponse.json({ ok: true, recorded: 0, tileSlots, mode: mode.label });
 }
 
 interface IncomingUnlock {
