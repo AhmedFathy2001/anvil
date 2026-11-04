@@ -5,6 +5,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { isPanelKind, PANEL_KINDS, PANEL_META, panelEventName, panelFileName } from '../src/lib/overlay/streamPanels.ts';
+
 import {
   boardPayload,
   etagMatches,
@@ -52,7 +54,7 @@ test('anything not shaped like a key is refused before a query', () => {
 
 test('options are clamped and closed-set, never passed through', () => {
   const o = parseOverlayOptions(new URLSearchParams('view=evil&size=huge&limit=999&accent=red;}body{x&align=center&scale=abc'));
-  assert.deepEqual(o, { view: 'standings', scale: 1, limit: 20, title: true, accent: '#e0aa1e', align: 'left' });
+  assert.deepEqual(o, { view: 'standings', scale: 1, limit: 20, title: true, accent: '#e0aa1e', align: 'left', celebrate: false });
   const p = parseOverlayOptions(new URLSearchParams('view=feed&size=xl&accent=%23FF0000&title=0&align=right'));
   assert.equal(p.view, 'feed');
   assert.equal(p.scale, 1.7);
@@ -63,6 +65,14 @@ test('options are clamped and closed-set, never passed through', () => {
   assert.equal(parseOverlayOptions(new URLSearchParams('scale=9')).scale, 3);
   assert.equal(parseOverlayOptions(new URLSearchParams('scale=0.1')).scale, 0.5);
   assert.equal(parseOverlayOptions(new URLSearchParams('limit=0')).limit, 1);
+});
+
+test('celebrations are opt-in: only celebrate=1 turns them on', () => {
+  assert.equal(parseOverlayOptions(new URLSearchParams('')).celebrate, false);
+  assert.equal(parseOverlayOptions(new URLSearchParams('celebrate=1')).celebrate, true);
+  for (const v of ['0', 'true', 'yes', '']) {
+    assert.equal(parseOverlayOptions(new URLSearchParams(`celebrate=${v}`)).celebrate, false, v);
+  }
 });
 
 // ── Visibility: the curtain ─────────────────────────────────────────────────────────────────────
@@ -231,4 +241,38 @@ test('pickJoinEvent: running beats upcoming; finished and closed sign-ups are sk
   assert.equal(pickJoinEvent(rows.filter((r) => r.id !== 2), now)?.id, 1);
   assert.equal(pickJoinEvent([{ id: 9, ...base, startDate: null }, { id: 1, ...base, startDate: '2026-11-10T00:00:00Z' }], now)?.id, 1);
   assert.equal(pickJoinEvent(rows.filter((r) => r.id >= 3), now), null);
+});
+
+// ── Channel panels ──────────────────────────────────────────────────────────────────────────────
+
+
+test('panel kinds are a closed set and each links to a public event page', () => {
+  assert.deepEqual([...PANEL_KINDS], ['join', 'board', 'standings']);
+  assert.equal(isPanelKind('join'), true);
+  for (const bad of ['', 'JOIN', '../x', null, 3]) assert.equal(isPanelKind(bad), false, String(bad));
+  assert.equal(PANEL_META.join.path(7), '/events/7/signup');
+  assert.equal(PANEL_META.board.path(7), '/events/7');
+  assert.equal(PANEL_META.standings.path(7), '/events/7/stats');
+});
+
+test('panel file names only carry [a-z0-9-] into the header', () => {
+  assert.equal(panelFileName('Viewer Bingo #3', 10, 'join'), 'viewer-bingo-3-join.png');
+  assert.equal(panelFileName('"; rm -rf /', 10, 'board'), 'rm-rf-board.png');
+  assert.equal(panelFileName('★★★', 10, 'standings'), 'event-10-standings.png');
+  assert.match(panelFileName('x'.repeat(200), 1, 'join'), /^x{40}-join\.png$/);
+});
+
+test('panel event names are cut to one line', () => {
+  assert.equal(panelEventName('  Short   name '), 'Short name');
+  const long = panelEventName('A very long event name that will never fit on a panel');
+  assert.ok(long.length <= 34, long);
+  assert.ok(long.endsWith('…'));
+});
+
+test('the overlay page carries the celebrate flag to its script', () => {
+  const on = overlayHtml('k'.repeat(32), { view: 'board', scale: 1, limit: 5, title: true, accent: '#e0aa1e', align: 'left', celebrate: true }, 'n');
+  assert.match(on, /"celebrate":true/);
+  assert.match(on, /id="cel"/);
+  const off = overlayHtml('k'.repeat(32), { view: 'board', scale: 1, limit: 5, title: true, accent: '#e0aa1e', align: 'left', celebrate: false }, 'n');
+  assert.match(off, /"celebrate":false/);
 });

@@ -52,6 +52,12 @@ export interface OverlayOptions {
   accent: string;
   /** Text alignment of the whole overlay, for a source docked to the right of the scene. */
   align: 'left' | 'right';
+  /**
+   * Celebrate completions on stream: a short toast and a glow when a tile finishes (board) or a
+   * team's score rises (standings); a glow on new feed rows. Opt-in (`celebrate=1`) so a link
+   * already sitting in somebody's OBS scene never starts popping things up mid-stream.
+   */
+  celebrate: boolean;
 }
 
 export const SIZE_SCALES: Record<string, number> = { s: 0.8, m: 1, l: 1.3, xl: 1.7 };
@@ -85,6 +91,7 @@ export function parseOverlayOptions(params: URLSearchParams): OverlayOptions {
     title: params.get('title') !== '0',
     accent: /^[0-9a-f]{6}$/i.test(accentRaw) ? `#${accentRaw.toLowerCase()}` : DEFAULT_ACCENT,
     align: params.get('align') === 'right' ? 'right' : 'left',
+    celebrate: params.get('celebrate') === '1',
   };
 }
 
@@ -307,3 +314,9 @@ export function etagMatches(header: string | null, etag: string): boolean {
 
 /** How often the overlay page polls, in ms. Live enough for a stream; a 304 when nothing moved. */
 export const OVERLAY_POLL_MS = 10_000;
+
+/**
+ * The poll while the page holds a live socket to the push server (lib/push/hub, watchers): changes
+ * arrive as a nudge within a couple of seconds, so the timer is only a safety net for a lost one.
+ */
+export const OVERLAY_LIVE_POLL_MS = 60_000;

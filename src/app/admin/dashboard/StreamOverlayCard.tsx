@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 
 import { useDialog } from '@/components/Confirm';
-import { clanFetch } from '@/lib/clanFetch';
+import { clanFetch, clanUrl } from '@/lib/clanFetch';
+import { PANEL_KINDS, PANEL_META, type PanelKind } from '@/lib/overlay/streamPanels';
 
 type View = 'standings' | 'feed' | 'board';
 type Size = 's' | 'm' | 'l' | 'xl';
@@ -35,7 +36,8 @@ export default function StreamOverlayCard({ eventId }: { eventId: number }) {
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<View>('standings');
   const [size, setSize] = useState<Size>('m');
-  const [copied, setCopied] = useState<View | null>(null);
+  const [celebrate, setCelebrate] = useState(true);
+  const [copied, setCopied] = useState<View | PanelKind | null>(null);
   const [origin, setOrigin] = useState('');
 
   useEffect(() => {
@@ -51,7 +53,8 @@ export default function StreamOverlayCard({ eventId }: { eventId: number }) {
     };
   }, [open, key, eventId]);
 
-  const path = (v: View) => (key ? `/overlay/${key}?view=${v}${size === 'm' ? '' : `&size=${size}`}` : '');
+  const path = (v: View) =>
+    key ? `/overlay/${key}?view=${v}${size === 'm' ? '' : `&size=${size}`}${celebrate ? '&celebrate=1' : ''}` : '';
 
   async function call(method: 'POST' | 'DELETE') {
     setBusy(true);
@@ -88,8 +91,7 @@ export default function StreamOverlayCard({ eventId }: { eventId: number }) {
     if (ok) await call('DELETE');
   }
 
-  async function copy(v: View) {
-    const full = `${origin}${path(v)}`;
+  async function copy(v: View | PanelKind, full: string) {
     try {
       await navigator.clipboard.writeText(full);
       setCopied(v);
@@ -156,6 +158,22 @@ export default function StreamOverlayCard({ eventId }: { eventId: number }) {
             ))}
           </div>
 
+          <label className="flex max-w-[70ch] items-start gap-2.5 text-sm">
+            <input
+              type="checkbox"
+              checked={celebrate}
+              onChange={(e) => setCelebrate(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[var(--gold)]"
+            />
+            <span>
+              Celebrate on stream
+              <span className="block text-xs text-text-muted">
+                A short pop-up when a tile is finished or a team scores. Changes the links below, so copy them again
+                after switching.
+              </span>
+            </span>
+          </label>
+
           <ul className="space-y-2">
             {VIEWS.map((v) => (
               <li key={v.key} className="flex flex-wrap items-center gap-2">
@@ -177,7 +195,7 @@ export default function StreamOverlayCard({ eventId }: { eventId: number }) {
                 />
                 <button
                   type="button"
-                  onClick={() => copy(v.key)}
+                  onClick={() => copy(v.key, `${origin}${path(v.key)}`)}
                   className="shrink-0 rounded-md border border-gold/40 bg-gold/10 px-3 py-1.5 text-sm font-medium text-gold transition-colors hover:bg-gold/20"
                 >
                   {copied === v.key ? 'Copied ✓' : 'Copy'}
@@ -230,6 +248,66 @@ export default function StreamOverlayCard({ eventId }: { eventId: number }) {
           </div>
         </div>
       )}
+
+      {key !== undefined && (
+        <div className="mt-4">
+          <PanelsSection eventId={eventId} origin={origin} copied={copied} onCopy={copy} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Channel panels (lib/overlay/streamPanels): the images for a Twitch/Kick About section and the
+ * page each one should link to. Twitch and Kick both take the link separately from the image.
+ */
+function PanelsSection({
+  eventId,
+  origin,
+  copied,
+  onCopy,
+}: {
+  eventId: number;
+  origin: string;
+  copied: View | PanelKind | null;
+  onCopy: (k: PanelKind, full: string) => void;
+}) {
+  return (
+    <div className="border-t border-card-border pt-4">
+      <h4 className="text-sm font-semibold">Channel panels</h4>
+      <p className="mb-3 mt-0.5 max-w-[70ch] text-xs text-text-muted">
+        For your Twitch or Kick About section. Upload the image, then paste its link into the panel&apos;s link field.
+      </p>
+      <ul className="grid gap-3 sm:grid-cols-3">
+        {PANEL_KINDS.map((k) => {
+          const img = clanUrl(`/api/events/${eventId}/panels/${k}`);
+          const link = `${origin}${clanUrl(PANEL_META[k].path(eventId))}`;
+          return (
+            <li key={k} className="flex flex-col gap-2 rounded-lg border border-card-border p-2.5">
+              {/* eslint-disable-next-line @next/next/no-img-element -- a generated, admin-only PNG */}
+              <img src={img} alt={`${PANEL_META[k].label} panel`} width={320} height={100} className="h-auto w-full rounded-md" />
+              <div className="flex flex-wrap gap-2">
+                {/* eslint-disable-next-line clan-scope/clan-prefix -- img already went through clanUrl; a download needs a plain <a> */}
+                <a href={`${img}?download=1`}
+                  download
+                  className="rounded-md border border-gold/40 bg-gold/10 px-3 py-1.5 text-sm font-medium text-gold transition-colors hover:bg-gold/20"
+                >
+                  Download
+                </a>
+                <button
+                  type="button"
+                  onClick={() => onCopy(k, link)}
+                  className="rounded-md border border-card-border px-3 py-1.5 text-sm text-foreground/80 transition-colors hover:border-gold/40"
+                  title={link}
+                >
+                  {copied === k ? 'Copied ✓' : 'Copy link'}
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
