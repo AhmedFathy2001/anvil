@@ -3,6 +3,8 @@ import { requireClan } from '@/lib/clanContext';
 import { verifyAdmin } from '@/lib/auth';
 import { getBotCredentials } from '@/lib/discord-roles';
 import { currentRouting, foreignWebhooksOf, readGuildWebhooks } from '@/lib/discordForeignWebhooks';
+import { KEPT_WEBHOOKS_KEY, parseKept } from '@/lib/keptWebhooks';
+import { getSetting } from '@/lib/settings';
 
 // GET — the server's webhooks that aren't Anvil's (Dink's, usually), plus where Anvil's plugin
 // routing points now.
@@ -19,6 +21,11 @@ export async function GET() {
   const read = await readGuildWebhooks(creds.botToken, creds.guildId);
   if (!read.ok) return NextResponse.json({ enabled: true, ok: false, error: read.error, webhooks: [], current: [] });
 
-  const [webhooks, current] = await Promise.all([foreignWebhooksOf(read), currentRouting(clan.id, read)]);
-  return NextResponse.json({ enabled: true, ok: true, webhooks, current });
+  const [webhooks, current, keptRaw] = await Promise.all([
+    foreignWebhooksOf(read),
+    currentRouting(clan.id, read),
+    getSetting(clan.id, KEPT_WEBHOOKS_KEY),
+  ]);
+  // Ids the clan chose to keep (lib/keptWebhooks): they stay out of the removal list.
+  return NextResponse.json({ enabled: true, ok: true, webhooks, current, kept: parseKept(keptRaw) });
 }
