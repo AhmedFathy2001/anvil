@@ -317,9 +317,11 @@ export async function entryGateVerdict(opts: {
   // abuse is one Twitch account across several.
   const link = await viewerTwitch(opts.userId);
   if (!link) {
-    // Unlinked since the pass was cached (unlink clears the cache, so this is a race): ask again.
+    // Unlinked since the pass was cached (unlink clears the cache, so this is a race). Fail closed:
+    // re-checking here could pass on a Twitch account relinked in between without claiming it.
+    // The next press starts clean.
     gateCache.forgetUser(opts.userId);
-    return checkGates(g.gates, makeProbe({ clanId: g.clanId, userId: opts.userId }), ctx);
+    return { pass: false, transient: true, summary: gatesSummary(g.gates, ctx), steps: ['Try again in a moment'], linkTwitch: true };
   }
   const claim = await claimTwitchForEvent({
     eventId: opts.eventId,
