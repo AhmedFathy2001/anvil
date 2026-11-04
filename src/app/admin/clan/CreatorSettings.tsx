@@ -5,6 +5,7 @@ import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 import YoutubeChannel from './YoutubeChannel';
 import KickChannel from './KickChannel';
+import StreamHighlightsSettings from './StreamHighlightsSettings';
 import { MoveChannelPrompt } from './StreamSettings';
 import TwitchChannel from './TwitchChannel';
 
@@ -146,6 +147,8 @@ export default function CreatorSettings() {
         <YoutubeChannel />
 
         <KickChannel />
+
+        <StreamHighlightsSettings />
       </div>
 
       <section className="rounded-xl border border-card-border bg-card-bg p-5">

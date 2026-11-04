@@ -3,6 +3,8 @@ import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
 import type { PublicClanActivity, VisitorItem } from '@/lib/clanHome';
 import type { CreatorHomeView } from '@/lib/creatorHome';
+import type { ShownHighlight } from '@/lib/highlights/rules';
+import HighlightsStrip from '@/components/HighlightsStrip';
 
 /** "Nov 7" — day-level; the event pages carry the times. */
 function shortDate(iso: string): string {
@@ -96,7 +98,16 @@ function EventList({ title, items, tone }: { title: string; items: VisitorItem[]
  * people who have played them. No member count, no recruiting, no "apply" — a creator space has no
  * roster, and the way in is each event's own sign-up.
  */
-export default function CreatorHome({ view, activity }: { view: CreatorHomeView; activity: PublicClanActivity | null }) {
+export default function CreatorHome({
+  view,
+  activity,
+  highlights = [],
+}: {
+  view: CreatorHomeView;
+  activity: PublicClanActivity | null;
+  /** Stream highlights (lib/highlights), already cut to events this viewer may see. */
+  highlights?: (ShownHighlight & { eventName: string })[];
+}) {
   const live = activity?.live ?? [];
   const upcoming = activity?.upcoming ?? [];
   const past = activity?.past ?? [];
@@ -151,6 +162,12 @@ export default function CreatorHome({ view, activity }: { view: CreatorHomeView;
       </div>
 
       <EventList title="Happening now" items={live} tone="live" />
+
+      {highlights.length > 0 && (
+        <div className="mt-8">
+          <HighlightsStrip highlights={highlights} blurb="clipped live from the stream during these events" showEvent />
+        </div>
+      )}
       <EventList title="Coming up" items={upcoming} tone="upcoming" />
       <EventList title="Finished" items={past} tone="past" />
 

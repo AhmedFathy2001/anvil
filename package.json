@@ -69,6 +69,7 @@
     "test:inputs": "npx tsx --test tests/setting-urls.test.ts",
     "test:eventchat": "npx tsx --test tests/event-chat.test.ts tests/panel-feed.test.ts tests/event-chat-db.test.ts tests/lab-feed-chat-db.test.ts",
     "test:h2h": "npx tsx --test tests/h2h.test.ts tests/h2h-db.test.ts",
+    "test:highlights": "npx tsx --test --test-concurrency=1 tests/highlights.test.ts tests/highlights-db.test.ts",
     "test:overlay":"npx tsx --test tests/overlay.test.ts tests/overlay-db.test.ts",
     "bot:twitch": "node --experimental-strip-types bot/twitchChat.ts",
     "test:pluginpush": "npx tsx --test tests/plugin-push.test.ts tests/plugin-push-notify.test.ts",

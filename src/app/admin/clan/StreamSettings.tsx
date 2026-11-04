@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import TwitchChannel from './TwitchChannel';
 import KickChannel from './KickChannel';
+import StreamHighlightsSettings from './StreamHighlightsSettings';
 import YoutubeChannel from './YoutubeChannel';
 
 type Platform = 'twitch' | 'kick' | 'youtube';
@@ -196,6 +197,7 @@ export default function StreamingSettings() {
           <TwitchChannel />
           <YoutubeChannel />
           <KickChannel />
+          <StreamHighlightsSettings />
 
           <section className="rounded-xl border border-card-border bg-card-bg p-5">
             <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">

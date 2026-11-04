@@ -164,6 +164,7 @@ export async function POST(request: Request) {
           teamId: activePlayer.teamId!,
           statTiles,
           notifyClanId: clan.id,
+          clip: true,
         })),
       );
     }
@@ -292,7 +293,7 @@ async function modePush(
     if (statTiles.length === 0) continue;
     notifyTeamTiles(row.eventId, row.teamId!, statTiles.map((t) => t.id));
     completed.push(
-      ...(await creditStatTilesForTeam({ eventId: row.eventId, teamId: row.teamId!, statTiles, notifyClanId: clanId })),
+      ...(await creditStatTilesForTeam({ eventId: row.eventId, teamId: row.teamId!, statTiles, notifyClanId: clanId, clip: true })),
     );
   }
   return NextResponse.json({ ok: true, updated: Object.keys(pushed).length, mode: mode.label, completed: [...completed, ...labCompleted(lab.applied)] });

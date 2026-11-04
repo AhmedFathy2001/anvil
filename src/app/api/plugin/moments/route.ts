@@ -12,6 +12,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts } from '@/db/schema';
 import { emitMomentRows } from '@/lib/panelRows';
+import { queueMomentHighlights } from '@/lib/highlights/store';
 import { claimFeedItem, emitPersonalItem } from '@/lib/chatFeed';
 import { feedItemFromMoment } from '@/lib/chatFeedRules';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
@@ -241,5 +242,8 @@ export async function POST(request: Request) {
   const { inserted, seatKind, idle, ...result } = await recordSeatMoments(member, observations, scopes);
   // The panel's live Feed lists (lib/panelRows). Not awaited past a failure: the reply is the plugin's.
   if (inserted.length) await emitMomentRows(clan.id, seatKind, inserted);
+  // Stream highlights (lib/highlights): a big drop or pet on a STREAMED board is clipped on a live
+  // channel that wants it. Queued, never awaited: Twitch is nobody's reason to hold this reply.
+  if (inserted.length) queueMomentHighlights(member.clanMemberId, inserted);
   return NextResponse.json({ ok: true, ...result, scoped: !idle });
 }
