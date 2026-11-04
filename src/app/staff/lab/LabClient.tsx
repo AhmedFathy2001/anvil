@@ -137,10 +137,10 @@ export default function LabClient() {
               </label>
             </div>
             <div className="rounded-lg border border-gold/30 bg-gold/5 px-3 py-2 text-xs text-gray-300">
-              While the session runs, these characters&apos; drop/death/level posts, moments, clips, collection log, PBs,
-              stats and coffer pushes go to the session log instead of anywhere real. Real play on them is not recorded
-              until the session ends and the next sync runs. The session becomes the plugin&apos;s active board (it is
-              the newest one).
+              The session becomes the plugin&apos;s active board for these characters (it is the newest one). Real play
+              still counts everywhere as usual: the clan&apos;s Discord and feed, the profile, and every real board they
+              are on. It is also copied to the session log and onto this board. Only scenarios the dev client replays are
+              held back: those reach the session and nothing else.
             </div>
             {error && <p className="text-sm text-red-400">{error}</p>}
             <button

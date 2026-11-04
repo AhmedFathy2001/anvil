@@ -10,7 +10,7 @@ import { progressGoal, progressStore } from '@/lib/labTileProgress';
 import { addLabTeam, labTeams, moveLabParticipant, setLabTeamRole, type TeamRole } from '@/lib/labTeams';
 
 // /api/staff/lab/<id> — one lab session: what is on it, what has been credited, and what its
-// characters pushed that was quarantined. PATCH runs the session controls; DELETE removes the session
+// characters pushed (the lab log: replays held back, and real play that also went through). PATCH runs the session controls; DELETE removes the session
 // and everything on it (the sweep in lib/lab does the same a week after a session ends).
 
 export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {

@@ -1,10 +1,12 @@
 // The tile lab (lib/lab): a lab session is a board in a hidden clan that the plugin finds for the
-// character entered on it, and everything that character pushes outside the board is quarantined.
+// character entered on it. Everything that character pushes outside the board is logged to the
+// session; only a replayed scenario is held back from the real world.
 //
 // What must hold:
 //   - the plugin resolves the lab board for the entered character (and only them), at whatever clan
 //     address it is connected to, and it outranks a real event that started earlier;
-//   - personal pushes from that character land in lab_log, never in the real routes;
+//   - personal pushes from that character land in lab_log; real play also carries on to the real
+//     routes (a real moment is filed on the REAL board and clan, never stamped with the lab board);
 //   - a replayed scenario (X-Anvil-Scenario) never credits or writes anything real, session or not;
 //   - lab boards post to no Discord and drop out of account-wide reads like yearly Wrapped;
 //   - the stat simulator completes a stat tile through the real engine, and reset wipes it.
@@ -176,21 +178,94 @@ test('the lab clan is hidden and owned by the staffer who opened it', async () =
   assert.equal(clan.inGameName, null, 'no roster sync can ever land in it');
 });
 
-test("the session character's personal pushes go to the lab log, nobody else's do", async () => {
+test("the session character's pushes go to the lab log, nobody else's do; real play carries on", async () => {
   const { db, schema: s } = await loadDb();
   const { eq } = await import('drizzle-orm');
-  const res = await L.labQuarantine(pluginRequest(), accountId, 'notify', { channel: 'drops', kind: 'pet' });
-  assert.ok(res);
-  assert.deepEqual(await res.json(), { ok: true, lab: true, quarantined: 'notify' });
+  // Real play: logged under the session, and the route goes on as if there were no session.
+  const real = await L.labDivert(pluginRequest(), accountId, 'notify', { channel: 'drops', kind: 'pet' });
+  assert.equal(real.response, null, 'real play is not held back');
+  assert.equal(real.sessionEventId, labEventId);
+  assert.equal(await L.labQuarantine(pluginRequest(), accountId, 'notify', { channel: 'drops', kind: 'pet' }), null);
   const rows = await db.select().from(s.labLog).where(eq(s.labLog.eventId, labEventId));
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].endpoint, 'notify');
+  assert.equal(rows.length, 2);
+  assert.ok(rows.every((r) => r.endpoint === 'notify'));
   assert.deepEqual(rows[0].payload, { channel: 'drops', kind: 'pet' });
 
-  assert.equal(await L.labQuarantine(pluginRequest(), otherAccountId, 'notify', {}), null);
+  // A replay from the same character is held back: a 200 for the harness, and nothing else.
+  const res = await L.labQuarantine(pluginRequest({ scenario: 'boss-pet' }), accountId, 'notify', { channel: 'drops', kind: 'pet' });
+  assert.ok(res);
+  assert.deepEqual(await res.json(), { ok: true, lab: true, quarantined: 'notify' });
+
+  // The board-scoped half runs for both, and its result comes back to the route.
+  const applied = await L.labDivert(pluginRequest(), accountId, 'stats', {}, async (eventId) => ({ completed: [`board ${eventId}`] }));
+  assert.equal(applied.response, null);
+  assert.deepEqual(applied.applied, { completed: [`board ${labEventId}`] });
+
+  assert.deepEqual(await L.labDivert(pluginRequest(), otherAccountId, 'notify', {}), { response: null, sessionEventId: null, applied: {} });
   // The resolver form is only called when there is a lab at all, and works the same.
-  const viaResolver = await L.labQuarantine(pluginRequest(), async () => accountId, 'clip', { moment: 'x' });
+  const viaResolver = await L.labQuarantine(pluginRequest({ scenario: 'clip-test' }), async () => accountId, 'clip', { moment: 'x' });
   assert.ok(viaResolver);
+  await db.delete(s.labLog).where(eq(s.labLog.eventId, labEventId));
+});
+
+test('a real moment during a session lands on the real board and clan, and in the lab log', async () => {
+  const { db, schema: s } = await loadDb();
+  const { eq } = await import('drizzle-orm');
+  const route = await import('../src/app/api/plugin/moments/route.ts');
+  const push = (key: string, scenario?: string) => {
+    const headers = new Headers(pluginRequest({ scenario }).headers);
+    headers.set('Content-Type', 'application/json');
+    const moments = [{ kind: 'pet', key, itemId: 21992, itemName: 'Vorki', source: 'Vorkath', at: new Date().toISOString() }];
+    return route.POST(new Request('https://anvilosrs.com/api/plugin/moments', { method: 'POST', headers, body: JSON.stringify({ moments }) }));
+  };
+
+  // The real entrant's row rewritten, so a scan meets the lab board's row first: the moments route's
+  // pick takes the first live row it meets, and the lab board must not be one it can take.
+  await db.update(s.eventParticipants).set({ name: RSN }).where(eq(s.eventParticipants.eventId, realEvent));
+
+  const res = await push('real-pet-1');
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.quarantined, undefined, 'not held back');
+  const stored = await db.select().from(s.moments);
+  assert.equal(stored.length, 1, 'stored as a real moment');
+  assert.equal(stored[0].eventId, realEvent, 'filed on the real board, not the lab board that wins the plugin pick');
+  const [alpha] = await db.select().from(s.clans).where(eq(s.clans.slug, 'alpha'));
+  const [seat] = await db.select().from(s.clanMemberships).where(eq(s.clanMemberships.id, stored[0].clanMemberId));
+  assert.equal(seat.clanId, alpha.id, "on the character's real clan seat");
+  assert.equal((await db.select().from(s.moments).where(eq(s.moments.eventId, labEventId))).length, 0, 'nothing stamped with the lab board');
+
+  // The lab board's Feed reads it from the log.
+  const logged = await db.select().from(s.labLog).where(eq(s.labLog.eventId, labEventId));
+  assert.deepEqual(logged.map((r) => r.endpoint), ['moments']);
+  const feed = await L.labMomentsForEvent(labEventId);
+  assert.equal(feed.length, 1);
+  assert.equal(feed[0].itemName, 'Vorki');
+
+  // A replay of the same pet stays in the lab.
+  const replay = await push('fake-pet-1', 'boss-pet');
+  assert.equal((await replay.json()).quarantined, 'moments');
+  assert.equal((await db.select().from(s.moments)).length, 1, 'no real moment from a replay');
+  assert.equal((await db.select().from(s.labLog).where(eq(s.labLog.eventId, labEventId))).length, 2);
+  await db.delete(s.labLog).where(eq(s.labLog.eventId, labEventId));
+  await db.delete(s.moments);
+});
+
+test('the plugin participant scope can leave lab boards out', async () => {
+  const { db, schema: s } = await loadDb();
+  const { eq } = await import('drizzle-orm');
+  const member = await A.resolvePluginMember(pluginRequest());
+  assert.ok(member);
+  const eventsIn = async (lab?: boolean) =>
+    (
+      await db
+        .select({ id: s.eventParticipants.eventId })
+        .from(s.eventParticipants)
+        .innerJoin(s.events, eq(s.events.id, s.eventParticipants.eventId))
+        .where(await A.pluginParticipantScope(member, lab === undefined ? {} : { lab }))
+    ).map((r) => r.id).sort((a, b) => a - b);
+  assert.deepEqual(await eventsIn(), [realEvent, labEventId].sort((a, b) => a - b));
+  assert.deepEqual(await eventsIn(false), [realEvent]);
 });
 
 test('a replayed scenario is dropped outside the lab, session or not', async () => {
@@ -300,11 +375,11 @@ test('"Test in lab" copies a real tile whole onto a one-tile session on the main
   await L.setLabSessionEnd(eventId!, null);
 });
 
-test('ending the session hands the character back to the real event and stops quarantining', async () => {
+test('ending the session hands the character back to the real event and stops logging', async () => {
   await L.setLabSessionEnd(labEventId, null);
   assert.equal((await A.verifyPluginToken(pluginRequest()))?.eventId, realEvent);
   assert.equal(await L.labSessionFor(accountId), null);
-  assert.equal(await L.labQuarantine(pluginRequest(), accountId, 'notify', {}), null);
+  assert.deepEqual(await L.labDivert(pluginRequest(), accountId, 'notify', {}), { response: null, sessionEventId: null, applied: {} });
 });
 
 test('a lab session is deleted with everything on it; the sweep waits a week after the end; real boards are never reachable', async () => {

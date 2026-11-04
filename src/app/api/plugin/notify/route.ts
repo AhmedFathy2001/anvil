@@ -185,7 +185,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Malformed body' }, { status: 400 });
   }
 
-  // A character in a tile-lab session posts nowhere real: the post goes to the lab log (lib/lab).
+  // A tile-lab session logs this post (lib/lab). A replayed scenario's stops there and posts nowhere;
+  // real play posts as usual — the lab clan has no channels, so only the player's real clans hear it.
   const quarantined = await labQuarantine(
     request,
     member?.accountId ?? (async () => (await resolvePluginCharacter(request))?.accountId),

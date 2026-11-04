@@ -237,10 +237,11 @@ export default function LabSessionClient({ eventId }: { eventId: number }) {
       </section>
 
       <section>
-        <h2 className="mb-1 flex items-center gap-2 font-semibold text-gold"><span className="h-5 w-1 bg-gold" />Quarantined pushes</h2>
+        <h2 className="mb-1 flex items-center gap-2 font-semibold text-gold"><span className="h-5 w-1 bg-gold" />Session log</h2>
         <p className="mb-3 text-xs text-text-muted">
-          What would have reached Discord, moments or the character&apos;s real profile. A scenario name after the route
-          means the dev client was replaying it.
+          Everything the characters pushed during the session: Discord posts, moments, profile and stat pushes. A
+          scenario name after the route means the dev client replayed it, and it stopped here. Without one it was real
+          play, and it also went everywhere it normally goes.
         </p>
         {data.log.length === 0 ? (
           <p className="text-sm text-text-muted">Nothing yet.</p>
@@ -271,7 +272,7 @@ export default function LabSessionClient({ eventId }: { eventId: number }) {
   );
 }
 
-/** One line for a quarantined body: the notify kind, or the first few keys. */
+/** One line for a logged body: the notify kind, or the first few keys. */
 function summary(payload: unknown): string {
   if (!payload || typeof payload !== 'object') return String(payload ?? '');
   const p = payload as Record<string, unknown>;

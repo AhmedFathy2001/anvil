@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
-  // A character in a tile-lab session writes nothing real; the push goes to the lab log (lib/lab).
+  // A tile-lab session logs this push (lib/lab). A replayed scenario stops there; real play goes on as usual.
   const quarantined = await labQuarantine(request, member.accountId, 'pb', body);
   if (quarantined) return quarantined;
   if (!Array.isArray(body?.bests) || body.bests.length === 0) {

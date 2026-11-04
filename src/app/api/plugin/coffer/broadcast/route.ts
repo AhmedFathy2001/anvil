@@ -21,6 +21,7 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  // A tile-lab session logs this push (lib/lab). A replayed scenario stops there; real play goes on as usual.
   const quarantined = await labQuarantine(request, member.accountId, 'coffer', body);
   if (quarantined) return quarantined;
 

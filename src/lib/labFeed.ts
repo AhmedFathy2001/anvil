@@ -1,10 +1,12 @@
 import type { MomentRow } from '@/lib/momentsStore';
 import { settleDeathSource } from '@/lib/deathSource';
 
-// A lab board's Feed (lib/lab). Moments pushed during a lab session are quarantined into `lab_log`
-// and never stored as real moments, so the board's Feed read nothing and a tester's deaths, drops
-// and pets went nowhere. This turns those logged pushes into feed rows for that board alone —
-// read-only, never written anywhere — so the Feed can be tested in the lab like everything else.
+// A lab board's Feed (lib/lab). Every moments push during a lab session is written to `lab_log`, and
+// none is ever stored as a moment ON the lab board: a replayed scenario's is held back from
+// everything real, and real play is stored on the character's real board and clan (the moments route
+// leaves lab boards out of its pick). So the board's Feed reads the log instead — this turns those
+// logged pushes into feed rows for that board alone, read-only, never written anywhere — and the
+// Feed can be tested in the lab like everything else.
 //
 // Pure (no db): lib/lab reads the log, this shapes it.
 
