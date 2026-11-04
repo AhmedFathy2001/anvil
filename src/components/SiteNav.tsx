@@ -1,5 +1,9 @@
 'use client';
 
+import SupporterName from '@/components/SupporterName';
+import type { SupporterStyle } from '@/lib/supporterStyle';
+import type { SupporterTierId } from '@/lib/supporterTiers';
+
 import { usePathname } from 'next/navigation';
 import ClanCrest from '@/components/ClanCrest';
 import { useEffect, useRef, useState } from 'react';
@@ -10,6 +14,8 @@ import { outsiderWord } from '@/lib/creatorSpaces';
 interface NavUser {
   displayName: string;
   avatarUrl: string | null;
+  /** Their Anvil Supporter flair, if they have one: the same star and colours they show everywhere else. */
+  supporter?: { tier: SupporterTierId; style: SupporterStyle | null } | null;
 }
 
 /** One of the signed-in person's clans, with the relationship that decides its role chip. */
@@ -287,9 +293,13 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
               title={user.displayName}
             >
               {avatar}
-              <span className="text-sm text-foreground/80 group-hover:text-foreground">
-                {user.displayName}
-              </span>
+              <SupporterName
+                name={user.displayName}
+                tier={user.supporter?.tier}
+                style={user.supporter?.style}
+                plain
+                className="text-sm text-foreground/80 group-hover:text-foreground"
+              />
             </ClanLink>
             <a
               href="/api/auth/logout?return=/"
@@ -421,7 +431,13 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                     className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-brown-light transition-all min-w-0"
                   >
                     {avatar}
-                    <span className="text-sm text-foreground/80 truncate">{user.displayName}</span>
+                    <SupporterName
+                      name={user.displayName}
+                      tier={user.supporter?.tier}
+                      style={user.supporter?.style}
+                      plain
+                      className="text-sm text-foreground/80 truncate"
+                    />
                   </ClanLink>
                   <a
                     href="/api/auth/logout?return=/"

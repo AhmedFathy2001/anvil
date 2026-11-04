@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { supporterForUser } from '@/lib/supporter';
 import { headers } from 'next/headers';
 import { clanPrefix, currentClan } from '@/lib/clanContext';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
@@ -163,6 +164,8 @@ export default async function RootLayout({
     });
     if (found) userRow = found;
   }
+  // The nav shows your own name with your Supporter flair, like everywhere else your name appears.
+  const mySupport = session?.userId ? await supporterForUser(session.userId).catch(() => null) : null;
   // "My Team" only appears when there's something of theirs to reach — a live team, a captain seat,
   // or an open sign-up. Between events that's nobody, and a nav item whose page says "you're not on
   // a team" isn't navigation.
@@ -336,7 +339,7 @@ export default async function RootLayout({
               adminHref={adminHref}
               platformBadge={isPlatformStaff ? platformBadge ?? { count: 0, title: '' } : null}
               discordInvite={discordInvite}
-              user={session && userRow ? { displayName: userRow.displayName, avatarUrl: avatar } : null}
+              user={session && userRow ? { displayName: userRow.displayName, avatarUrl: avatar, supporter: mySupport ? { tier: mySupport.tier.id, style: mySupport.style ?? null } : null } : null}
             />
           </div>
         </nav>

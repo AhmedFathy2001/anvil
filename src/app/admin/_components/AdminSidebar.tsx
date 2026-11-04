@@ -4,6 +4,9 @@ import { useState } from 'react';
 import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
 import { Sprite, type SpriteName } from '@/components/ItemSlot';
 import { SettingsSearchTrigger } from './AdminSettingsSearch';
+import SupporterName from '@/components/SupporterName';
+import type { SupporterStyle } from '@/lib/supporterStyle';
+import type { SupporterTierId } from '@/lib/supporterTiers';
 
 export interface SidebarItem {
   href: string;
@@ -36,6 +39,8 @@ interface Props {
     displayName: string;
     role: string;
     avatarUrl: string | null;
+    /** Their Anvil Supporter flair, if they have one: the same star and colours they show everywhere else. */
+    supporter?: { tier: SupporterTierId; style: SupporterStyle | null } | null;
   };
   /**
    * 'clan' is the shell's own nav. It hides itself inside a specific event, because that event's
@@ -133,7 +138,9 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
               </span>
             )}
             <div className="min-w-0">
-              <div className="text-sm font-medium truncate">{user.displayName}</div>
+              <div className="text-sm font-medium truncate">
+                <SupporterName name={user.displayName} tier={user.supporter?.tier} style={user.supporter?.style} plain />
+              </div>
               <div className="text-xs text-text-muted capitalize">{user.role}</div>
             </div>
           </div>
