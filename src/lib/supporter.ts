@@ -4,13 +4,14 @@
 // into every clan and onto their apex profile. Tiers and the pure state logic live in
 // lib/supporterTiers; this is the database half. The webhook side is lib/supporterBilling.
 
-import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, type SQL } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, supporterSubscriptions, users } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { newCheckoutRef } from '@/lib/billing';
 import { hasChatStar } from '@/lib/chatLook';
+import { styleKey, type FlairRecord } from '@/lib/chatFlairWire';
 import { supporterInk, type SupporterInk, type SupporterLook } from '@/lib/supporterStyle';
 import { SUPPORTER_TIERS, rowInForce, supporterState, tiersByName, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
 
@@ -102,6 +103,16 @@ export async function supporterTiersForRsns(rsns: string[]): Promise<Map<string,
   return out;
 }
 
+/**
+ * Which characters wear a Supporter's colours, anywhere (game chat, the plugin panel, the site):
+ * shared publicly (a hidden character's name must not be tied to them), and verified — the plugin
+ * logging in on it proved it is theirs. A clan's approval (provisional) doesn't decide it: a clanless
+ * Supporter wears their colours too. ONE where-clause for every reader, so they can't disagree.
+ */
+export function flairCharacterWhere(): SQL {
+  return and(eq(accounts.shared, true), isNotNull(accounts.verifiedAt))!;
+}
+
 async function supporterStatesForRsns(rsns: string[]): Promise<Map<string, SupporterState>> {
   const out = new Map<string, SupporterState>();
   const keys = [...new Set(rsns.map(normalizeRsn))].filter((k) => k.length > 0 && k.length <= 12).slice(0, 500);
@@ -114,12 +125,8 @@ async function supporterStatesForRsns(rsns: string[]): Promise<Map<string, Suppo
     .where(
       and(
         inArray(accounts.rsnNormalized, keys),
-        // The same characters game chat paints (gameChatFlair): shared, and proven theirs. A name
-        // linked on first use and not yet confirmed (provisional) doesn't wear a Supporter's
-        // colours anywhere, or the panel and the game would disagree about it.
-        eq(accounts.shared, true),
-        isNotNull(accounts.verifiedAt),
-        eq(accounts.provisional, 0),
+        // The same characters game chat paints (gameChatFlair): one rule, so they can't disagree.
+        flairCharacterWhere(),
       ),
     );
   const byRsn = new Map<string, typeof rows>();
@@ -196,15 +203,45 @@ export interface GameChatFlair {
 
 /**
  * Every Supporter's characters with the look they wear, for the plugin to paint on names in normal
- * game chat. Only people who left `game_chat_flair` on, and only characters they share publicly (a
- * hidden character's name must not be tied to them), and only ones they have proven are theirs. Lapsed and refunded rows drop out on their own.
+ * game chat. Only people who left `game_chat_flair` on, only characters flairCharacterWhere() allows.
+ * Lapsed and refunded rows drop out on their own. The legacy list shape (GET /api/plugin/chat-flair).
  */
 export async function gameChatFlair(): Promise<GameChatFlair[]> {
+  const out: GameChatFlair[] = [];
+  for (const [n, r] of await gameChatFlairRecords()) out.push({ n, ...JSON.parse(styleAsEntry(r.k)) });
+  return out.sort((a, b) => a.n.localeCompare(b.n));
+}
+
+function styleAsEntry(key: string): string {
+  const [c, g, s] = JSON.parse(key) as [string, string[] | null, number];
+  return JSON.stringify({ c, ...(g ? { g } : {}), ...(s ? { s: true } : {}) });
+}
+
+/**
+ * gameChatFlair as name → {look, owner}, for lib/chatFlairFeed. With `rsns`, only those names (a
+ * change's delta); without, everyone (a full rebuild).
+ */
+export async function gameChatFlairRecords(rsns?: string[]): Promise<Map<string, FlairRecord>> {
+  const out = new Map<string, FlairRecord>();
+  if (rsns && rsns.length === 0) return out;
+  const charWhere = and(flairCharacterWhere(), eq(users.gameChatFlair, true), rsns ? inArray(accounts.rsnNormalized, rsns) : undefined);
+  // The people first (few: supporters), then their characters.
   const subs = await db
     .select(ROW_COLUMNS)
     .from(supporterSubscriptions)
     .innerJoin(users, eq(users.id, supporterSubscriptions.userId))
-    .where(and(eq(users.gameChatFlair, true), isNotNull(users.playerId)));
+    .where(
+      and(
+        eq(users.gameChatFlair, true),
+        isNotNull(users.playerId),
+        rsns
+          ? inArray(
+              users.playerId,
+              db.select({ p: accounts.playerId }).from(accounts).where(and(inArray(accounts.rsnNormalized, rsns), flairCharacterWhere())),
+            )
+          : undefined,
+      ),
+    );
   const byUser = new Map<number, typeof subs>();
   for (const r of subs) byUser.set(r.userId, [...(byUser.get(r.userId) ?? []), r]);
   const states = new Map<number, SupporterState>();
@@ -212,36 +249,33 @@ export async function gameChatFlair(): Promise<GameChatFlair[]> {
     const state = supporterState(list);
     if (state) states.set(id, state);
   }
-  if (states.size === 0) return [];
+  if (states.size === 0) return out;
 
-  const chars = await db
-    .select({ userId: users.id, rsn: accounts.rsnNormalized })
-    .from(users)
-    .innerJoin(accounts, eq(accounts.playerId, users.playerId))
-    .where(
-      and(
-        inArray(users.id, [...states.keys()]),
-        eq(accounts.shared, true),
-        // Proven theirs only: flair on a name someone merely typed in would paint a stranger.
-        isNotNull(accounts.verifiedAt),
-        eq(accounts.provisional, 0),
-      ),
+  const ids = [...states.keys()];
+  const chars: { userId: number; rsn: string; playerId: number }[] = [];
+  // Chunked: a full rebuild can name tens of thousands of supporters.
+  for (let i = 0; i < ids.length; i += 5_000) {
+    chars.push(
+      ...(await db
+        .select({ userId: users.id, rsn: accounts.rsnNormalized, playerId: accounts.playerId })
+        .from(users)
+        .innerJoin(accounts, eq(accounts.playerId, users.playerId))
+        .where(and(inArray(users.id, ids.slice(i, i + 5_000)), charWhere))),
     );
-  const out = new Map<string, GameChatFlair>();
-  for (const { userId, rsn } of chars) {
+  }
+  const starred = new Set<string>();
+  for (const { userId, rsn, playerId } of chars) {
     const state = states.get(userId);
     if (!state || !rsn || rsn.length > 12) continue;
-    const prev = out.get(rsn);
     // Two logins on one character (rare): the higher tier wins.
-    if (prev && (prev.s || !hasChatStar(state.tier.id))) continue;
+    if (out.has(rsn) && (starred.has(rsn) || !hasChatStar(state.tier.id))) continue;
     const ink = supporterInk(state.tier.id, state.style);
+    const star = hasChatStar(state.tier.id);
+    if (star) starred.add(rsn);
     out.set(rsn, {
-      n: rsn,
-      c: ink.color,
-      ...(ink.grad && ink.grad.length >= 2 ? { g: ink.grad.slice(0, 4) } : {}),
-      ...(hasChatStar(state.tier.id) ? { s: true as const } : {}),
+      k: styleKey({ c: ink.color, ...(ink.grad && ink.grad.length >= 2 ? { g: ink.grad.slice(0, 4) } : {}), ...(star ? { s: true as const } : {}) }),
+      p: playerId,
     });
   }
-  return [...out.values()].sort((a, b) => a.n.localeCompare(b.n));
+  return out;
 }
-
