@@ -100,8 +100,8 @@ test('a new paid membership is announced once and gets its tier role plus the su
   await post({ sale_id: 'sale-a1', subscription_id: 'sub-a', 'url_params[ref]': 'ref-a', 'variants[Tier]': 'Champion', recurrence: 'monthly' });
   assert.equal(posts.length, 1);
   assert.match(posts[0].embeds[0].description, /Buyer\\_\d+\*\* just became an Anvil Champion/);
-  assert.equal(posts[0].content, `<@${u.discordId}>`, 'in the server: they are tagged');
-  assert.deepEqual(posts[0].allowed_mentions?.users, [u.discordId], 'and only they are');
+  assert.equal(posts[0].content, `<@${u.discordId}>`, 'in the server: their name shows as a mention');
+  assert.equal(posts[0].allowed_mentions?.users, undefined, 'shown as a mention, but nobody is pinged');
   assert.deepEqual([...members.get(u.discordId)!].sort(), ['r-champ', 'r-sub', 'unrelated']);
 
   // A renewal at a new tier swaps the tier role and posts nothing.

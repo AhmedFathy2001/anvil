@@ -330,10 +330,13 @@ export async function anvilServerMember(discordId: string | null | undefined): P
   }
 }
 
-/** A post that pings exactly this one person, or no one. */
+/**
+ * Their name as a mention, so it shows as @Name in their role colour, without pinging anyone: the
+ * empty allowed_mentions renders the mention and notifies nobody.
+ */
 function withMention(payload: Record<string, unknown>, discordId: string | null): Record<string, unknown> {
   return discordId
-    ? { ...payload, content: `<@${discordId}>`, allowed_mentions: { parse: [], users: [discordId] } }
+    ? { ...payload, content: `<@${discordId}>`, allowed_mentions: { parse: [] } }
     : { ...payload, allowed_mentions: { parse: [] } };
 }
 
