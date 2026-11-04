@@ -34,3 +34,14 @@ CREATE TABLE IF NOT EXISTS "clan_twitch_channels" (
   "broken_at" text,
   "updated_at" text DEFAULT to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS') NOT NULL
 );
+
+-- Which Twitch account passed a Twitch gate into which event, for whom. One Twitch account, one
+-- player per event: without this a single sub could link → join → unlink → link on another login →
+-- join, over and over. The claim moves only when its holder no longer has a live seat or sign-up.
+CREATE TABLE IF NOT EXISTS "event_twitch_claims" (
+  "event_id" integer NOT NULL REFERENCES "events"("id") ON DELETE CASCADE,
+  "twitch_user_id" text NOT NULL,
+  "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "claimed_at" text DEFAULT to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS') NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "event_twitch_claims_event_twitch_unique" ON "event_twitch_claims" USING btree ("event_id","twitch_user_id");

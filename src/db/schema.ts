@@ -3706,6 +3706,21 @@ export const userTwitchLinks = pgTable('user_twitch_links', {
 ]);
 
 /**
+ * Which Twitch account passed a Twitch gate into which event, for whom (lib/entryGatesDb
+ * claimTwitchForEvent). One Twitch account, one player per event — so a single sub cannot link,
+ * join, unlink and relink on another login to let a crowd in. The claim moves only when its holder
+ * has no live seat or sign-up left. Discord gates need no equivalent: users.discord_id is the login.
+ */
+export const eventTwitchClaims = pgTable('event_twitch_claims', {
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  twitchUserId: text('twitch_user_id').notNull(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  claimedAt: text('claimed_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  uniqueIndex('event_twitch_claims_event_twitch_unique').on(table.eventId, table.twitchUserId),
+]);
+
+/**
  * A creator space's Twitch channel, connected by its broadcaster (lib/entryGatesDb). The follower and
  * subscriber checks run on THIS token (moderator:read:followers + channel:read:subscriptions), so a
  * viewer never grants Anvil anything beyond who they are. Tokens are encrypted with lib/secretBox

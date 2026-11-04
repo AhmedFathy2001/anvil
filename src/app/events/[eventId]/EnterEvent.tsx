@@ -32,6 +32,8 @@ interface GateFail {
   steps: string[];
   linkTwitch: boolean;
   transient: boolean;
+  /** The Twitch account already got another player into this event. */
+  blocked?: boolean;
 }
 
 /** Start linking Twitch, coming back to this very page. Built at click time, from where they are. */
@@ -434,7 +436,9 @@ function CreatorJoin({
       {gateFail && (
         <div className="w-full rounded-lg border border-accent-red/40 bg-accent-red/10 p-3 text-sm">
           <div className="font-semibold">{gateFail.summary}</div>
-          {gateFail.steps.length > 0 && (
+          {/* The Twitch account is spoken for on this event: nothing to press again. */}
+          {gateFail.blocked && <p className="mt-1">{gateFail.steps[0]}</p>}
+          {!gateFail.blocked && gateFail.steps.length > 0 && (
             <>
               <div className="mt-1 text-text-muted">
                 {gateFail.transient

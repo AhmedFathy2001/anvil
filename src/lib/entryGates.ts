@@ -260,7 +260,16 @@ export type GateVerdict =
       steps: string[];
       /** A Twitch rule is waiting on the viewer linking Twitch: show the Link Twitch button. */
       linkTwitch: boolean;
+      /** Nothing the viewer does with this account changes it (the Twitch account is spoken for). */
+      blocked?: true;
     };
+
+/** The Twitch account that passed the gate already got somebody else into this event. */
+export const TWITCH_ALREADY_USED = 'That Twitch account was already used to join this event by another player.';
+
+export function twitchAlreadyUsed(summary: string): Extract<GateVerdict, { pass: false }> {
+  return { pass: false, transient: false, summary, steps: [TWITCH_ALREADY_USED], linkTwitch: false, blocked: true };
+}
 
 function memo<T>(fn: () => Promise<T>): () => Promise<T> {
   let p: Promise<T> | null = null;
@@ -351,6 +360,7 @@ export async function checkGates(gates: EntryGates, probe: GateProbe, ctx: GateC
 export function verdictMessage(v: Extract<GateVerdict, { pass: false }>): string {
   const first = v.steps[0];
   if (!first) return v.summary;
+  if (v.blocked) return first;
   return v.transient ? `${v.summary} ${first}.` : `${v.summary} ${first}, then try again.`;
 }
 

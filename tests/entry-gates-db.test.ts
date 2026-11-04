@@ -363,6 +363,103 @@ test('gate options: the space’s channel and its server’s roles (not @everyon
   assert.deepEqual(o.discord.roles, [{ id: ROLE, name: 'Subs' }], 'a managed integration role is offered; @everyone is not');
 });
 
+// ── One Twitch account, one player per event ────────────────────────────────────────────────────
+
+const claimOf = async (eventId: number, twitchUserId: string) =>
+  db.query.eventTwitchClaims.findFirst({
+    where: and(eq(s.eventTwitchClaims.eventId, eventId), eq(s.eventTwitchClaims.twitchUserId, twitchUserId)),
+  });
+
+test('link → join → unlink → relink on another login → join is refused; the first player can come back', async () => {
+  const ev = await gatedEvent('Relink Bingo', { anyOf: [{ kind: 'twitch-follow' }] });
+  const a = await person('Sub Owner');
+  const b = await person('Alt Login');
+  net.followers.add('9001');
+
+  await G.linkViewerTwitch(a.userId, { id: '9001', login: 'onesub', broadcasterType: '' });
+  assert.equal((await enter(a, ev)).outcome, 'seated');
+  assert.equal((await claimOf(ev, '9001'))?.userId, a.userId);
+
+  await G.unlinkViewerTwitch(a.userId);
+  assert.equal(await G.linkViewerTwitch(b.userId, { id: '9001', login: 'onesub', broadcasterType: '' }), 'ok');
+  const r = await enter(b, ev);
+  assert.equal(r.outcome, 'gated', JSON.stringify(r));
+  if (r.outcome === 'gated') {
+    assert.equal(r.error, 'That Twitch account was already used to join this event by another player.');
+    assert.equal(r.gate.blocked, true);
+    assert.equal(r.status, 403);
+  }
+  // The sign-up check refuses it too.
+  const v = await G.entryGateVerdict({ eventId: ev, userId: b.userId, playerId: b.playerId });
+  assert.equal(v?.pass, false);
+  assert.equal((await claimOf(ev, '9001'))?.userId, a.userId, 'the claim did not move');
+
+  // A Twitch pass on ANOTHER event is a separate claim.
+  const other = await gatedEvent('Relink Other', { anyOf: [{ kind: 'twitch-follow' }] });
+  assert.equal((await enter(b, other)).outcome, 'seated');
+
+  // The original player relinks and re-enters / signs up: still theirs.
+  await G.unlinkViewerTwitch(b.userId);
+  await G.linkViewerTwitch(a.userId, { id: '9001', login: 'onesub', broadcasterType: '' });
+  assert.deepEqual(await G.entryGateVerdict({ eventId: ev, userId: a.userId, playerId: a.playerId }), { pass: true, via: 'twitch-follow' });
+});
+
+test('a claim moves only once its holder has left the event and the hold has passed', async () => {
+  const ev = await gatedEvent('Moving Bingo', { anyOf: [{ kind: 'twitch-follow' }] });
+  const a = await person('Leaver');
+  const b = await person('Next Owner');
+  net.followers.add('9101');
+  await G.linkViewerTwitch(a.userId, { id: '9101', login: 'mover', broadcasterType: '' });
+  assert.equal((await enter(a, ev)).outcome, 'seated');
+  await G.unlinkViewerTwitch(a.userId);
+  await G.linkViewerTwitch(b.userId, { id: '9101', login: 'mover', broadcasterType: '' });
+
+  // Seat gone but the claim is fresh: still held (it may be mid-join).
+  await db.update(s.clanMemberships).set({ leftAt: new Date().toISOString() }).where(eq(s.clanMemberships.accountId, a.accountId));
+  assert.equal(await G.claimTwitchForEvent({ eventId: ev, clanId: spaceId, twitchUserId: '9101', userId: b.userId }), 'taken');
+
+  // Old, and the holder has no seat or sign-up: it moves.
+  await db
+    .update(s.eventTwitchClaims)
+    .set({ claimedAt: new Date(Date.now() - G.CLAIM_HOLD_MS - 1000).toISOString() })
+    .where(eq(s.eventTwitchClaims.eventId, ev));
+  assert.equal((await enter(b, ev)).outcome, 'seated');
+  assert.equal((await claimOf(ev, '9101'))?.userId, b.userId);
+});
+
+test('an old claim whose holder is still seated does not move', async () => {
+  const ev = await gatedEvent('Holding Bingo', { anyOf: [{ kind: 'twitch-follow' }] });
+  const a = await person('Stayer');
+  const b = await person('Hopeful');
+  net.followers.add('9201');
+  await G.linkViewerTwitch(a.userId, { id: '9201', login: 'stayer', broadcasterType: '' });
+  assert.equal((await enter(a, ev)).outcome, 'seated');
+  await db
+    .update(s.eventTwitchClaims)
+    .set({ claimedAt: new Date(Date.now() - G.CLAIM_HOLD_MS - 1000).toISOString() })
+    .where(eq(s.eventTwitchClaims.eventId, ev));
+  assert.equal(await G.claimTwitchForEvent({ eventId: ev, clanId: spaceId, twitchUserId: '9201', userId: b.userId }), 'taken');
+});
+
+test('racing claims for one Twitch account: exactly one login wins', async () => {
+  const ev = await gatedEvent('Race Bingo', { anyOf: [{ kind: 'twitch-follow' }] });
+  const racers = await Promise.all(['Racer A', 'Racer B', 'Racer C', 'Racer D'].map((nm) => person(nm)));
+  const results = await Promise.all(
+    racers.map((r) => G.claimTwitchForEvent({ eventId: ev, clanId: spaceId, twitchUserId: '9301', userId: r.userId })),
+  );
+  assert.equal(results.filter((x) => x === 'ok').length, 1, JSON.stringify(results));
+  const rows = await db.query.eventTwitchClaims.findMany({ where: eq(s.eventTwitchClaims.eventId, ev) });
+  assert.equal(rows.length, 1);
+});
+
+test('a Discord pass writes no Twitch claim', async () => {
+  const ev = await gatedEvent('Discord Only', { anyOf: [{ kind: 'twitch-follow' }, { kind: 'discord-booster' }] });
+  const b = await person('Boosting Unlinked');
+  net.members.set(b.discordId, { roles: [], premium_since: '2026-10-01T00:00:00.000Z' });
+  assert.equal((await enter(b, ev)).outcome, 'seated');
+  assert.equal((await db.query.eventTwitchClaims.findMany({ where: eq(s.eventTwitchClaims.eventId, ev) })).length, 0);
+});
+
 test('only an admin of a creator space may connect its channel', async () => {
   const stranger = await person('Stranger');
   assert.equal(await G.isAdminOfCreatorSpace(spaceId, host.userId), true);

@@ -6,10 +6,22 @@
 // signing up for one (api/events/[eventId]/signup) — the second because somebody already seated in
 // the space through another event skips entry and goes straight to the sign-up.
 
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanStaff, clanTwitchChannels, clans, events, userTwitchLinks, users } from '@/db/schema';
+import {
+  accounts,
+  clanMemberships,
+  clanStaff,
+  clanTwitchChannels,
+  clans,
+  eventSignups,
+  eventTwitchClaims,
+  events,
+  userTwitchLinks,
+  users,
+} from '@/db/schema';
+import { parseStamp } from '@/lib/dbTime';
 import {
   GateCache,
   checkGates,
@@ -18,6 +30,7 @@ import {
   gatesSummary,
   isTwitchRule,
   parseGates,
+  twitchAlreadyUsed,
   twitchTierOf,
   type DiscordAnswer,
   type EntryGates,
@@ -292,11 +305,106 @@ export async function entryGateVerdict(opts: {
     return { pass: false, transient: false, summary: gatesSummary(g.gates, ctx), steps: ['Sign in with Discord'], linkTwitch: false };
   }
   const key = GateCache.key(opts.userId, opts.eventId, g.gates);
-  const hit = gateCache.get(key);
-  if (hit) return hit;
-  const verdict = await checkGates(g.gates, makeProbe({ clanId: g.clanId, userId: opts.userId }), ctx);
-  gateCache.set(key, verdict);
-  return verdict;
+  let verdict = gateCache.get(key);
+  if (!verdict) {
+    verdict = await checkGates(g.gates, makeProbe({ clanId: g.clanId, userId: opts.userId }), ctx);
+    gateCache.set(key, verdict);
+  }
+  if (!verdict.pass || (verdict.via !== 'twitch-follow' && verdict.via !== 'twitch-sub')) return verdict;
+
+  // Passed on TWITCH: the Twitch account is spent on this event for this player (see
+  // eventTwitchClaims). Checked on every join, cache or not — the cache is per Anvil login, the
+  // abuse is one Twitch account across several.
+  const link = await viewerTwitch(opts.userId);
+  if (!link) {
+    // Unlinked since the pass was cached (unlink clears the cache, so this is a race): ask again.
+    gateCache.forgetUser(opts.userId);
+    return checkGates(g.gates, makeProbe({ clanId: g.clanId, userId: opts.userId }), ctx);
+  }
+  const claim = await claimTwitchForEvent({
+    eventId: opts.eventId,
+    clanId: g.clanId,
+    twitchUserId: link.id,
+    userId: opts.userId,
+  });
+  // Discord gates need no claim: the Discord id they check IS the login (users.discord_id is
+  // unique and comes from Discord OAuth), so a role or boost cannot be moved to another Anvil login.
+  return claim === 'ok' ? verdict : twitchAlreadyUsed(gatesSummary(g.gates, ctx));
+}
+
+/**
+ * How long a fresh claim holds even before its holder is seated. A Twitch pass is checked BEFORE the
+ * seat is taken, so without this a claim made a moment ago would look abandoned to a second login
+ * racing in with the same (relinked) Twitch account.
+ */
+export const CLAIM_HOLD_MS = 10 * 60_000;
+
+/** Does this user still hold a place in this event: an active sign-up, or a live seat in its host? */
+async function liveInEvent(eventId: number, clanId: number, userId: number): Promise<boolean> {
+  const signup = await db.query.eventSignups.findFirst({
+    where: and(eq(eventSignups.eventId, eventId), eq(eventSignups.userId, userId), ne(eventSignups.status, 'withdrawn')),
+    columns: { id: true },
+  });
+  if (signup) return true;
+  const u = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { playerId: true } });
+  if (u?.playerId == null) return false;
+  const seat = await db
+    .select({ id: clanMemberships.id })
+    .from(clanMemberships)
+    .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
+    .where(and(eq(clanMemberships.clanId, clanId), eq(accounts.playerId, u.playerId), isNull(clanMemberships.leftAt)))
+    .limit(1);
+  return seat.length > 0;
+}
+
+/**
+ * Spend a Twitch account on an event for one player. Atomic on UNIQUE(event_id, twitch_user_id):
+ *
+ *   no claim yet                         → insert, ok
+ *   claimed by this same player          → ok (re-entering, signing up after entering)
+ *   claimed by another who is still in   → 'taken' (live seat/sign-up, or claimed < CLAIM_HOLD_MS ago)
+ *   claimed by another who has left      → moved to this player, but only if it is STILL theirs —
+ *                                           a conditional update, so of two racers only one wins
+ */
+export async function claimTwitchForEvent(opts: {
+  eventId: number;
+  clanId: number;
+  twitchUserId: string;
+  userId: number;
+}): Promise<'ok' | 'taken'> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const now = new Date().toISOString();
+    const inserted = await db
+      .insert(eventTwitchClaims)
+      .values({ eventId: opts.eventId, twitchUserId: opts.twitchUserId, userId: opts.userId, claimedAt: now })
+      .onConflictDoNothing({ target: [eventTwitchClaims.eventId, eventTwitchClaims.twitchUserId] })
+      .returning({ userId: eventTwitchClaims.userId });
+    if (inserted.length > 0) return 'ok';
+
+    const row = await db.query.eventTwitchClaims.findFirst({
+      where: and(eq(eventTwitchClaims.eventId, opts.eventId), eq(eventTwitchClaims.twitchUserId, opts.twitchUserId)),
+    });
+    if (!row) continue; // deleted in between (event or user removed) — try the insert again
+    if (row.userId === opts.userId) return 'ok';
+
+    const claimedMs = parseStamp(row.claimedAt);
+    const fresh = claimedMs != null && Date.now() - claimedMs < CLAIM_HOLD_MS;
+    if (fresh || (await liveInEvent(opts.eventId, opts.clanId, row.userId))) return 'taken';
+
+    const moved = await db
+      .update(eventTwitchClaims)
+      .set({ userId: opts.userId, claimedAt: now })
+      .where(
+        and(
+          eq(eventTwitchClaims.eventId, opts.eventId),
+          eq(eventTwitchClaims.twitchUserId, opts.twitchUserId),
+          eq(eventTwitchClaims.userId, row.userId),
+        ),
+      )
+      .returning({ userId: eventTwitchClaims.userId });
+    if (moved.length > 0) return 'ok';
+  }
+  return 'taken';
 }
 
 /** What the join card shows BEFORE anyone presses anything. No external calls. */

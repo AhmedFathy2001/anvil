@@ -16,6 +16,7 @@ import {
   gatesSummary,
   parseGates,
   serializeGates,
+  twitchAlreadyUsed,
   twitchTierOf,
   validateGatesFor,
   verdictMessage,
@@ -217,6 +218,12 @@ test('host-side problems name whose move it is', async () => {
     'The host’s Twitch connection isn’t working — let them know',
     'The host’s Discord server isn’t connected — let them know',
   ]);
+});
+
+test('a spoken-for Twitch account is said as one sentence, with no "try again"', () => {
+  const v = twitchAlreadyUsed('Open to followers of x on Twitch.');
+  assert.equal(v.blocked, true);
+  assert.equal(verdictMessage(v), 'That Twitch account was already used to join this event by another player.');
 });
 
 test('labels without a connected channel still read', () => {
