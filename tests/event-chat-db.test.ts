@@ -169,9 +169,15 @@ test('one person, two characters on two teams of one board: each client speaks a
   assert.equal(asDeno.rsn, 'Denoverse');
   assert.equal(asDren.teamId, rubyT);
   assert.equal(asDren.rsn, 'Drenvox');
-  // A renamed character still found by its hash; an unknown one falls back to the first seat (as before).
+  // A renamed character still found by its hash; no character named falls back to the first seat (as before).
   assert.equal((await C.chatAccess(ev.id, me.id, { accountHash: '2222', rsn: 'Old Name' }))!.teamId, sapphire);
   assert.equal((await C.chatAccess(ev.id, me.id, null))!.teamId, rubyT);
+  // A character of theirs that ISN'T seated here (GIM Drenvox) speaks as nobody on this board: no
+  // seat, no team, no rsn borrowed from Drenvox or Denoverse.
+  const asGim = (await C.chatAccess(ev.id, me.id, { accountHash: '9999', rsn: 'GIM Drenvox' }))!;
+  assert.equal(asGim.teamId, null);
+  assert.notEqual(asGim.rsn, 'Drenvox');
+  assert.notEqual(asGim.rsn, 'Denoverse');
 
   const listener = new (await import('pg')).default.Client({ connectionString: process.env.DATABASE_URL });
   await listener.connect();
