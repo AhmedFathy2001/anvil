@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
+import ClanLink from '@/components/ClanLink';
 import { clanFetch } from '@/lib/clanFetch';
 import TwitchChannel from './TwitchChannel';
 import KickChannel from './KickChannel';
@@ -178,7 +179,10 @@ export default function StreamingSettings() {
           <p className="max-w-[60ch] text-sm text-text-muted">
             {state.streaming
               ? 'On. Connect your stream below. Then open an event to viewers from its settings (“Who can join?”). Viewers play that one event only. They don’t join your clan.'
-              : 'Stream your events? Turn this on to let viewers join an event from your stream. Your clan stays the same: viewers are not members or guests.'}
+              : 'Stream your events? Turn this on to let viewers join an event from your stream. Your clan stays the same: viewers are not members or guests.'}{' '}
+            <ClanLink href="/guide/streaming-for-clans" className="text-gold hover:text-gold-light">
+              How it works
+            </ClanLink>
           </p>
           <Switch
             on={state.streaming}

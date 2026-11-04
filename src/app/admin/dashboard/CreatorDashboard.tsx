@@ -81,6 +81,11 @@ export default async function CreatorDashboard({
           >
             Create your first event
           </ClanLink>
+          <p className="mt-3 text-sm">
+            <ClanLink href="/guide/creators" className="text-gold hover:text-gold-light">
+              How it works
+            </ClanLink>
+          </p>
         </div>
       ) : (
         <ul className="overflow-hidden rounded-xl border border-card-border bg-card-bg">

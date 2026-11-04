@@ -43,7 +43,12 @@ export default async function HostPage() {
         <span className="h-5 w-1 rounded-full bg-gold" aria-hidden />
         <h1 className="display text-2xl font-semibold">Host an event</h1>
       </div>
-      <p className="mt-2 text-[15px] text-text-muted">Run a bingo for your viewers. No clan needed.</p>
+      <p className="mt-2 text-[15px] text-text-muted">
+        Run a bingo for your viewers. No clan needed.{' '}
+        <ClanLink href="/guide/creators" className="text-gold hover:text-gold-light">
+          How it works
+        </ClanLink>
+      </p>
 
       <div className="mt-6">
         {existing ? (
