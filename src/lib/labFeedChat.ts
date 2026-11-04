@@ -37,7 +37,8 @@ export type LabResult = { ok: true; note?: string } | { ok: false; error: string
 export async function labSay(eventId: number, participantId: number, body: string, teamOnly: boolean): Promise<LabResult> {
   const who = (await labSessionCast(eventId)).find((c) => c.participantId === participantId);
   if (!who) return { ok: false, error: 'That player isn’t on this session.' };
-  const access = await chatAccess(eventId, who.userId);
+  // The lab plays one named player: their seat, even when one person holds two in the session.
+  const access = await chatAccess(eventId, who.userId, { participantId });
   if (!access) return { ok: false, error: 'Session not found.' };
   if (!access.open) return { ok: false, error: access.closedWhy ?? 'Chat is off for this session.' };
   const r = await sendChat(access, who.userId, body, teamOnly);

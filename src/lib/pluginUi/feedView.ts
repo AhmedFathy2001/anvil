@@ -3,8 +3,8 @@ import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts, clanMemberships, clans, completions, eventParticipants, events, teams, tiles, users } from '@/db/schema';
 import { boardHidden, boardSize, completionAt, completionFinisher } from '@/lib/panelRows';
-import { normalizeRsn, pluginRsnHintOnly, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
-import { boardChatSlow, chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess } from '@/lib/eventChat';
+import { normalizeRsn, pluginRsnHintOnly, pluginViewerRsn, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
+import { boardChatSlow, chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess, type ChatSeatPick } from '@/lib/eventChat';
 import { chatPaceHint } from '@/lib/eventChatRules';
 import { formatGp } from '@/lib/itemPrices';
 import { NO_REACTIONS, isClanMember, reactionSummaries, reactorNames, tallyOf } from '@/lib/momentReactions';
@@ -278,6 +278,19 @@ export async function boardCompletions(eventId: number) {
   return rows.filter((t) => isTileRevealed(rules, t)).slice(0, 80);
 }
 
+/**
+ * The character this plugin request is from, for the chat's seat (lib/eventChat ChatSeatPick). One
+ * person signed in on two clients, each a character seated on another team of the same board, must
+ * speak and read as the character in front of them. It only ever chooses among the person's OWN
+ * seats, so the launcher hint and an unverified hash may take part: nothing is claimed or linked.
+ */
+export function chatCharacter(request: Request): ChatSeatPick {
+  return {
+    rsn: pluginViewerRsn(request),
+    accountHash: pluginRsnHintOnly(request) ? null : request.headers.get('X-Account-Hash')?.trim() || null,
+  };
+}
+
 /** Opened from a board page on the Clan tab ("Feed" / "Chat" there): a way back over the feed. */
 function withBack(a: Args, view: View): View {
   if (!a.back) return view;
@@ -294,7 +307,7 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
   const current = pick(scopes, a.s);
   if (!current) return message('Sign in with the plugin and join a clan or an event to see its feed.');
 
-  const access: ChatAccess | null = current.kind === 'event' && viewer ? await chatAccess(current.id, viewer.userId) : null;
+  const access: ChatAccess | null = current.kind === 'event' && viewer ? await chatAccess(current.id, viewer.userId, chatCharacter(request)) : null;
   const chatAvailable = !!access && access.member && access.open;
   const pane = a.p === 'chat' && chatAvailable ? 'chat' : 'feed';
   const filter = a.f || 'all';
@@ -353,7 +366,7 @@ async function accessFor(request: Request, a: Args): Promise<{ access: ChatAcces
   const viewer = await verifyPluginTokenUser(request);
   const e = Number(a.e);
   if (!viewer || !Number.isInteger(e) || e <= 0) return err('Sign in with the plugin first.');
-  const access = await chatAccess(e, viewer.userId);
+  const access = await chatAccess(e, viewer.userId, chatCharacter(request));
   if (!access || !access.member) return err('Only this event’s players can use its chat.');
   return { access, userId: viewer.userId };
 }

@@ -35,7 +35,7 @@ import { momentsForClan } from '@/lib/momentsStore';
 import { NO_REACTIONS, isClanMember, momentInClan, reactionSummaries, toggleReaction } from '@/lib/momentReactions';
 import { REACT_ERRORS, checkReaction } from '@/lib/reactionAccess';
 import { FEED_MAX, FEED_STEP, type FeedItem, momentsFeedUi } from './momentsUi';
-import { chatAct, feedView } from './feedView';
+import { chatAct, chatCharacter, feedView } from './feedView';
 
 import { type BoardContext, type BoardState, type BoardTile, STATUSES, type Status, boardRowsUi, boardUi, joinToClaimLine } from './boardUi';
 import { clanCardUi, clanCompareUi, clanSearchUi } from './clanUi';
@@ -629,7 +629,7 @@ async function reactRowAct(request: Request, a: Args): Promise<View> {
   if (!rl.ok) return { ui: text('Slow down a little.', 'error') };
   // The rule is shared with the site's reactions (lib/reactionAccess), so the two can't drift.
   const verdict = eventId
-    ? await checkReaction(viewer.userId, { eventId }, id, a.kind)
+    ? await checkReaction(viewer.userId, { eventId }, id, a.kind, { seat: chatCharacter(request) })
     : await checkReaction(viewer.userId, { clanId: clan!.id }, id, a.kind, {
         labStaff: clan!.slug === LAB_CLAN_SLUG && (await pluginStaff(request)),
       });

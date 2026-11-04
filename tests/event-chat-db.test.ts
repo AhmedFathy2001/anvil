@@ -144,3 +144,73 @@ test('chat from a long-finished event is swept', async () => {
   assert.equal((await db.select().from(s.eventChatMessages)).length, 0);
   assert.equal((await db.select().from(s.eventChatMutes)).length, 0);
 });
+
+test('one person, two characters on two teams of one board: each client speaks and reads as its own character', async () => {
+  // Drenvox (Ruby) and Denoverse (Sapphire): one Anvil person, both clients signed in as them.
+  const [clan] = await db.insert(s.clans).values({ slug: 'twoseat', name: 'Two Seat' }).returning();
+  const [ev] = await db.insert(s.events).values({ clanId: clan.id, name: 'Alt Bingo', boardSize: 5, chatEnabled: true }).returning();
+  const [{ id: rubyT }, { id: sapphire }] = await db
+    .insert(s.teams)
+    .values([{ eventId: ev.id, name: 'Ruby', color: '#cf4a3e' }, { eventId: ev.id, name: 'Sapphire', color: '#3e6acf' }])
+    .returning();
+  const [pl] = await db.insert(s.players).values({ displayName: 'Dren' }).returning();
+  const [dren] = await db.insert(s.accounts).values({ playerId: pl.id, rsn: 'Drenvox', rsnNormalized: 'drenvox', accountHash: '1111' }).returning();
+  const [deno] = await db.insert(s.accounts).values({ playerId: pl.id, rsn: 'Denoverse', rsnNormalized: 'denoverse', accountHash: '2222' }).returning();
+  const [me] = await db.insert(s.users).values({ playerId: pl.id, displayName: 'Dren', discordId: '99210000000000001' }).returning();
+  await db.insert(s.eventParticipants).values([
+    { eventId: ev.id, name: 'Drenvox', accountId: dren.id, teamId: rubyT },
+    { eventId: ev.id, name: 'Denoverse', accountId: deno.id, teamId: sapphire },
+  ]);
+
+  // How the plugin's requests name them (lib/pluginUi/feedView chatCharacter): hash first, else the name.
+  const asDeno = (await C.chatAccess(ev.id, me.id, { accountHash: '2222', rsn: 'Denoverse' }))!;
+  const asDren = (await C.chatAccess(ev.id, me.id, { rsn: 'drenvox' }))!;
+  assert.equal(asDeno.teamId, sapphire);
+  assert.equal(asDeno.rsn, 'Denoverse');
+  assert.equal(asDren.teamId, rubyT);
+  assert.equal(asDren.rsn, 'Drenvox');
+  // A renamed character still found by its hash; an unknown one falls back to the first seat (as before).
+  assert.equal((await C.chatAccess(ev.id, me.id, { accountHash: '2222', rsn: 'Old Name' }))!.teamId, sapphire);
+  assert.equal((await C.chatAccess(ev.id, me.id, null))!.teamId, rubyT);
+
+  const listener = new (await import('pg')).default.Client({ connectionString: process.env.DATABASE_URL });
+  await listener.connect();
+  const notices: { u?: number[]; e?: number; m: { feeds: string[]; rows: { text: string }[] } }[] = [];
+  listener.on('notification', (n) => {
+    const p = JSON.parse(n.payload!);
+    if (p.k === 'rows' && p.m?.t === 'rows') notices.push(p);
+  });
+  await listener.query('LISTEN anvil_push');
+
+  assert.deepEqual(await C.sendChat(asDeno, me.id, 'from the sapphire client', false, later()), { ok: true });
+  assert.deepEqual(await C.sendChat(asDren, me.id, 'from the ruby client', false, later()), { ok: true });
+  assert.deepEqual(await C.sendChat(asDeno, me.id, 'sapphire only', true, later()), { ok: true });
+  await new Promise((r) => setTimeout(r, 150));
+  await listener.end();
+
+  const stored = await db
+    .select({ rsn: s.eventChatMessages.rsn, teamId: s.eventChatMessages.teamId, teamOnly: s.eventChatMessages.teamOnly, body: s.eventChatMessages.body })
+    .from(s.eventChatMessages)
+    .where(eq(s.eventChatMessages.eventId, ev.id))
+    .orderBy(s.eventChatMessages.id);
+  assert.deepEqual(stored, [
+    { rsn: 'Denoverse', teamId: sapphire, teamOnly: false, body: 'from the sapphire client' },
+    { rsn: 'Drenvox', teamId: rubyT, teamOnly: false, body: 'from the ruby client' },
+    { rsn: 'Denoverse', teamId: sapphire, teamOnly: true, body: 'sapphire only' },
+  ]);
+
+  // The team-only line is pushed for Sapphire's team feed alone, never Ruby's.
+  const teamOnly = notices.find((n) => n.m.rows[0]?.text === 'sapphire only')!;
+  assert.deepEqual(teamOnly.m.feeds, [`chat:${ev.id}:team:${sapphire}`]);
+
+  // My team: each client reads its own character's team; "mine" is that character's lines only.
+  const rubyFeed = await C.chatHistory(asDren, me.id, 'team');
+  assert.deepEqual(rubyFeed.map((r) => r.text), ['from the ruby client']);
+  const sapphireFeed = await C.chatHistory(asDeno, me.id, 'team');
+  assert.deepEqual(sapphireFeed.map((r) => r.text), ['sapphire only', 'from the sapphire client']);
+  const allAsDren = await C.chatHistory(asDren, me.id, 'all');
+  assert.deepEqual(allAsDren.map((r) => [r.text, r.mine ?? false]), [
+    ['from the ruby client', true],
+    ['from the sapphire client', false],
+  ]);
+});

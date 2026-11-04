@@ -12,7 +12,7 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { events } from '@/db/schema';
-import { chatAccess } from '@/lib/eventChat';
+import { chatAccess, type ChatSeatPick } from '@/lib/eventChat';
 import { REACTION_KINDS, type ReactionKind, boardMoment, clanMomentKind, isClanMember } from '@/lib/momentReactions';
 import { rowReactKinds } from '@/lib/pluginUi/feedUi';
 import { standingsHidden } from '@/lib/standingsVisibility';
@@ -42,7 +42,7 @@ export async function checkReaction(
   target: ReactTarget,
   momentId: number,
   rawKind: unknown,
-  opts: { labStaff?: boolean } = {},
+  opts: { labStaff?: boolean; seat?: ChatSeatPick | null } = {},
 ): Promise<ReactVerdict> {
   const kind = reactionKind(rawKind);
   if (!kind || !Number.isInteger(momentId) || momentId <= 0) return { ok: false, status: 400, error: REACT_ERRORS.bad };
@@ -59,7 +59,7 @@ export async function checkReaction(
     return { ok: true, kind };
   }
 
-  const access = await chatAccess(target.eventId, userId);
+  const access = await chatAccess(target.eventId, userId, opts.seat);
   if (!access?.member) return { ok: false, status: 403, error: REACT_ERRORS.notPlayer };
   const m = await boardMoment(momentId, target.eventId);
   if (!m) return { ok: false, status: 404, error: REACT_ERRORS.notInEvent };
