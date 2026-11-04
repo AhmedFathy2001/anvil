@@ -4,7 +4,8 @@ import { db } from '@/db';
 import { accounts, clanMemberships, clans, completions, eventParticipants, events, teams, tiles, users } from '@/db/schema';
 import { boardHidden, boardSize, completionAt, completionFinisher } from '@/lib/panelRows';
 import { normalizeRsn, pluginRsnHintOnly, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
-import { chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess } from '@/lib/eventChat';
+import { boardChatSlow, chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess } from '@/lib/eventChat';
+import { chatPaceHint } from '@/lib/eventChatRules';
 import { formatGp } from '@/lib/itemPrices';
 import { NO_REACTIONS, isClanMember, reactionSummaries, reactorNames, tallyOf } from '@/lib/momentReactions';
 import { eventFeedFloor, isClanWorthy, panelFeedWorthy } from '@/lib/moments';
@@ -12,7 +13,7 @@ import { boardTileItemIds, clanScopeFor, momentsForClan, momentsForEvent, type M
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
 import { labMomentsForEvent } from '@/lib/lab';
 import { rateLimit } from '@/lib/rate-limit';
-import { supporterInksForRsns } from '@/lib/supporter';
+import { supporterForUser, supporterInksForRsns } from '@/lib/supporter';
 import { standingsHidden } from '@/lib/standingsVisibility';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
@@ -311,7 +312,16 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
         filter: f,
         teamId,
         rows,
-        send: { act: 'chat-send', args: { e: String(current.id), to: f === 'team' ? 'team' : 'all' }, hint: f === 'team' ? 'Message your team' : 'Message the event' },
+        send: {
+          act: 'chat-send',
+          args: { e: String(current.id), to: f === 'team' ? 'team' : 'all' },
+          // The viewer's own pace (Supporter tier) or the board's slow mode, so nobody is surprised by it.
+          hint: `${f === 'team' ? 'Message your team' : 'Message the event'} · ${chatPaceHint({
+            tier: access.staff ? null : ((await supporterForUser(viewer.userId).catch(() => null))?.tier.id ?? null),
+            slow: boardChatSlow(current.id),
+            staff: access.staff,
+          })}`,
+        },
         locked: access.paused && !access.staff ? 'The host has paused chat.' : null,
         staff: access.staff,
         paused: access.paused,
