@@ -292,6 +292,8 @@ export interface FeedTabOptions {
   floorNote?: string;
   /** For the chat pane. */
   send?: { act: string; args: Record<string, string>; hint: string } | null;
+  /** Chat: the names the viewer's own lines carry (lib/eventChat myChatNames), so live lines highlight too. */
+  mine?: string[];
   locked?: string | null;
   /** The viewer moderates this chat: the mods filter and the pause switch show. */
   staff?: boolean;
@@ -369,6 +371,7 @@ export function feedTabUi(o: FeedTabOptions): Node {
     h: 460,
     empty: emptyLine(o.pane, o.filter),
     ...(o.pane === 'chat' && o.send ? { send: { ...o.send, max: 200 } } : {}),
+    ...(o.pane === 'chat' && o.mine?.length ? { mine: o.mine } : {}),
     ...(o.locked ? { locked: o.locked } : {}),
   });
 
