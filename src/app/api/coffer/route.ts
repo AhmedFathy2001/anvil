@@ -8,6 +8,7 @@ import { fileDonation, getCofferBalance, listCofferEntries, topDonors } from '@/
 import { rateLimitByKey } from '@/lib/rate-limit';
 import { findRosterSeats, seatsOwnedBy } from '@/lib/roster';
 import { isClanMediaUrl } from '@/lib/storage';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 /**
  * The clan coffer, from a member's side: what is in the pot, who put it there, and the form for
@@ -41,6 +42,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const session = await verifyUser();
   if (!session) return NextResponse.json({ error: 'Sign in first' }, { status: 401 });
   const clan = await requireClan();

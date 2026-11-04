@@ -7,13 +7,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  CREATOR_HIDDEN_ADMIN_PATHS,
   MAX_CREATOR_SPACES,
   checkStreamLink,
   clanKindOf,
+  creatorHidesAdminPath,
   creatorSetupSteps,
+  declinedRequestText,
   isCreatorSpace,
   mayCreateCreatorSpace,
   outsiderNeedsApproval,
+  outsiderWord,
   showcaseOn,
   showcaseValueFor,
   suggestSlug,
@@ -100,4 +104,41 @@ test('creator checklist: event, share, optional Discord', () => {
   assert.ok(fresh.every((s) => !s.done));
   const going = creatorSetupSteps({ eventsCount: 1, outsideSignups: 3, discordConnected: false });
   assert.ok(going.filter((s) => !s.optional).every((s) => s.done), 'Discord is not needed for done');
+});
+
+test('the in-game-clan admin pages are turned away; everything on the creator menu is not', () => {
+  for (const p of ['/admin/weekly', '/admin/events/weekly/12', '/admin/events/weekly/12/settings', '/admin/clan-events', '/admin/clan-events/3',
+    '/admin/coffer', '/admin/setup', '/admin/people/needs-review', '/admin/people/access', '/admin/verifications',
+    '/admin/clan/needs-review', '/admin/clan/policy']) {
+    assert.equal(creatorHidesAdminPath(p), true, p);
+  }
+  // The creator menu (app/admin/layout), its wizard, and the pages its dashboard links to.
+  for (const p of ['/admin/dashboard', '/admin/events', '/admin/events/first', '/admin/events/new', '/admin/events/12',
+    '/admin/events/12/signups', '/admin/proofs', '/admin/people', '/admin/people/staff', '/admin/clan', '/admin/clan/audit',
+    '/admin/integrations', '/admin/fees', '/admin/schedule']) {
+    assert.equal(creatorHidesAdminPath(p), false, p);
+  }
+  // Whole segments only: a page that merely starts with the same letters is not caught.
+  assert.equal(creatorHidesAdminPath('/admin/weeklyish'), false);
+  assert.equal(creatorHidesAdminPath('/admin/coffers'), false);
+  for (const p of CREATOR_HIDDEN_ADMIN_PATHS) assert.ok(p.startsWith('/admin/'), p);
+});
+
+test('a creator space says player, a clan says guest', () => {
+  assert.equal(outsiderWord('creator'), 'player');
+  assert.equal(outsiderWord('creator', true), 'players');
+  assert.equal(outsiderWord('clan'), 'guest');
+  assert.equal(outsiderWord('clan', true), 'guests');
+  assert.equal(outsiderWord(null), 'guest');
+});
+
+test('the decline DM: no "guest" from a creator space, unchanged from a clan', () => {
+  const creator = declinedRequestText({ kind: 'creator', hostName: 'Streamer', rsn: 'Zezima', eventName: 'Big Bingo', clansUrl: 'https://x/clans' });
+  assert.equal(creator, '**Streamer** said no to your request to play in **Big Bingo** for **Zezima**. You can ask again later.');
+  assert.doesNotMatch(creator, /guest/i);
+  assert.doesNotMatch(declinedRequestText({ kind: 'creator', hostName: 'S', clansUrl: 'u' }), /guest|clan/i);
+  assert.equal(
+    declinedRequestText({ kind: 'clan', hostName: 'Iron Foundry', rsn: 'Zezima', clansUrl: 'https://x/clans' }),
+    '**Iron Foundry** declined your request to join as a guest for **Zezima**. You can still ask again later, or find another clan: https://x/clans',
+  );
 });

@@ -8,6 +8,7 @@ import { verifyAdminOrModerator } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
 import { banFromClan, isBannedFromClan, liftClanBan } from '@/lib/clanBans';
 import { atLeast } from '@/lib/clanRoles';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 // POST /api/admin/clan/bulk — apply one roster action to many members in a single round-trip.
 //
@@ -47,6 +48,9 @@ const MAX_IDS = 500;
 const MODERATOR_ACTIONS = new Set<BulkAction>(['remove', 'rejoin', 'ban', 'unban']);
 
 export async function POST(request: Request) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const actor = await verifyAdminOrModerator();
   if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 

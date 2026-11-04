@@ -5,6 +5,7 @@ import { requireClan } from '@/lib/clanContext';
 import { announce, settleAward, settleDonation } from '@/lib/coffer';
 import { settleBroadcastEntry } from '@/lib/cofferBroadcast';
 import { settlePhysicalReading } from '@/lib/cofferSync';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 /**
  * Resolving one ledger row: approve or reject a member's donation, mark a prize sent, or take a
@@ -14,6 +15,9 @@ import { settlePhysicalReading } from '@/lib/cofferSync';
  * second click credits nothing twice and a row id from another clan's ledger updates nothing at all.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ entryId: string }> }) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const session = await verifyFeeCollector();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const clan = await requireClan();

@@ -9,6 +9,7 @@ import { isClanVisibility } from '@/lib/clanVisibility';
 import { isGuestPolicy } from '@/lib/guestAdmission';
 import { getSettingMap, setSetting } from '@/lib/settings';
 import { forgetLinkCards } from '@/lib/ogKit';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 /**
  * Who may see this clan, and how somebody gets in.
@@ -48,6 +49,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const clan = await requireClan();
   // `verifyAdmin` answers the gate; the session carries who is doing it, for the audit line below.
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -111,6 +111,8 @@ interface Props {
    * rather than letting someone submit believing they're entering the draft pool.
    */
   invite?: { token: string; teamName: string } | null;
+  /** A creator space's event (lib/creatorSpaces): no clan, no member list — just "join". */
+  creator?: boolean;
 }
 
 const WINDOW_MESSAGES: Record<NonNullable<Props['windowReason']>, string> = {
@@ -242,6 +244,7 @@ export default function SignupForm({
   seatedTeam = null,
   fields = DEFAULT_SIGNUP_FIELDS,
   questions = [],
+  creator = false,
 }: Props) {
   const router = useRouter();
   const [requestedTeamId, setRequestedTeamId] = useState<number | null>(teamChoice?.requestedTeamId ?? null);
@@ -400,7 +403,7 @@ export default function SignupForm({
   async function withdraw() {
     const ok = await confirm({
       title: 'Withdraw your sign-up?',
-      body: 'Your place goes back to the clan. You can sign up again any time before the deadline closes.',
+      body: `Your place goes back to the ${creator ? 'host' : 'clan'}. You can sign up again any time before the deadline closes.`,
       confirmLabel: 'Withdraw',
     });
     if (!ok) return;
@@ -434,6 +437,11 @@ export default function SignupForm({
           <LinkAccountClient manualReview={false} initialRsn={myAccounts[0].rsn} />
         </div>
       );
+    }
+    // A creator space has no member list: their character just isn't in this event yet, and the one
+    // join button (EnterEvent, creator mode) is the whole answer.
+    if (hasAnyCharacter && creator) {
+      return <EnterEvent eventId={eventId} signupFee={event.signupFee} signupsOpen={windowOpen} creator />;
     }
     if (hasAnyCharacter) {
       return (

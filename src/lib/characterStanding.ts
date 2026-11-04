@@ -15,6 +15,8 @@ export interface StandingSeat {
   clanId: number;
   clanName: string;
   clanSlug: string;
+  /** A creator space (lib/creatorSpaces): its seats are "plays in", never "guest in". */
+  creator?: boolean;
 }
 
 /** "just now", "12m ago", "3h ago", "5d ago" — or null when there is no readable stamp. */
@@ -39,13 +41,15 @@ export function standingLine(
   nowMs: number,
 ): string {
   const member = seats.find((s) => s.kind === 'member');
-  const guests = seats.filter((s) => s.kind === 'guest').map((s) => s.clanName);
+  const guests = seats.filter((s) => s.kind === 'guest' && !s.creator).map((s) => s.clanName);
+  const plays = seats.filter((s) => s.kind === 'guest' && s.creator).map((s) => s.clanName);
   const parts: string[] = [];
   if (member) {
     const ago = syncAgo(lastSyncByClan.get(member.clanId) ?? null, nowMs);
     parts.push(`Member of ${member.clanName} · ${ago ? `list synced ${ago}` : 'list not synced yet'}`);
   }
   if (guests.length > 0) parts.push(`Guest in ${guests.join(', ')}`);
+  if (plays.length > 0) parts.push(`Plays in ${plays.join(', ')}`);
   if (parts.length === 0) return 'Not on any clan’s member list yet';
   return parts.join(' · ');
 }

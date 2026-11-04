@@ -10,6 +10,7 @@ import { db } from '@/db';
 import { clanRoster } from '@/db/schema';
 import { and, eq, isNull, asc } from 'drizzle-orm';
 import CofferClient from './CofferClient';
+import { creatorAway } from '@/lib/creatorGuard';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +22,8 @@ export const dynamic = 'force-dynamic';
  * the clan's money, and rank has never conferred the right to move it.
  */
 export default async function AdminCofferPage() {
+  // In-game clans only (lib/creatorSpaces CREATOR_HIDDEN_ADMIN_PATHS).
+  await creatorAway('/admin/coffer');
   const session = await verifyFeeCollector();
   if (!session) redirect(await clanHref('/admin'));
   const clan = await requireClan();

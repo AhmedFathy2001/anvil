@@ -12,6 +12,8 @@ interface Props {
   confirmationsRequired: number;
   /** This board's own sign-up questions, so the panel can show answers under the right prompt. */
   signupQuestions: SurveyQuestionView[];
+  /** A creator space (lib/creatorSpaces): "player", never "guest" or "member". */
+  creator?: boolean;
 }
 
 export default function SignupsClient({
@@ -20,6 +22,7 @@ export default function SignupsClient({
   viewerId,
   confirmationsRequired,
   signupQuestions,
+  creator = false,
 }: Props) {
   const [currentEvent, setCurrentEvent] = useState(event);
   return (
@@ -30,6 +33,7 @@ export default function SignupsClient({
       viewerId={viewerId}
       confirmationsRequired={confirmationsRequired}
       signupQuestions={signupQuestions}
+      creator={creator}
     />
   );
 }

@@ -419,6 +419,8 @@ function Empty({ hasCharacters }: { hasCharacters: boolean }) {
 
 /** One word for how you are attached. Staff is a separate axis and outranks the seat for display. */
 function seatWord(c: ClanCard): string {
+  // A creator space has no members: everybody who plays there is a "player" (lib/creatorSpaces).
+  if (c.clanKind === 'creator') return c.staff ? 'Staff' : c.seat ? 'Player' : 'Not playing';
   if (c.staff) return c.seat === 'member' ? 'Staff' : 'Staff · guest';
   return c.seat === 'member' ? 'Member' : c.seat === 'guest' ? 'Guest' : 'Not a member';
 }

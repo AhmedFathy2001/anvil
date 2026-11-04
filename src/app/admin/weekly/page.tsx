@@ -2,6 +2,7 @@ import { requireClan } from '@/lib/clanContext';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import EventForm from '@/components/EventForm';
 import ClanLink from '@/components/ClanLink';
+import { creatorAway } from '@/lib/creatorGuard';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,8 @@ export const dynamic = 'force-dynamic';
  * its baselines — the same place a board keeps its Settings tab.
  */
 export default async function NewCompetitionPage() {
+  // In-game clans only (lib/creatorSpaces CREATOR_HIDDEN_ADMIN_PATHS).
+  await creatorAway('/admin/weekly');
   const clan = await requireClan();
   const clanName = await getClanDisplayName(clan.id, '');
 

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { rejectClaimRequest, vouchForClaim } from '@/lib/claimRequests';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 // POST /api/admin/claim-requests/[id] { action: 'forward' | 'reject', note? }
 //
@@ -19,6 +20,9 @@ import { rejectClaimRequest, vouchForClaim } from '@/lib/claimRequests';
 // Clan-scoped by requireClan AND re-checked inside the lib against this clan's seats, so a mod cannot
 // approve a claim on another clan's member by guessing an id.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const clan = await requireClan();
   const session = await verifyAdminOrModerator();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

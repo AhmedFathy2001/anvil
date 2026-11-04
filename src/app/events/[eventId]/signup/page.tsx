@@ -19,6 +19,8 @@ import { standardFee } from '@/lib/entryFeeMath';
 import { toQuestionView } from '@/lib/survey';
 import { isTeamFull, placementOf } from '@/lib/teamPlacement';
 import { teamLoads } from '@/lib/teamPlacementDb';
+import { resolveClanById } from '@/lib/clanContext';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -225,6 +227,9 @@ export default async function EventSignupPage({
       ? ((await db.query.teams.findFirst({ columns: { id: true, name: true, color: true }, where: eq(teams.id, seatedTeamId) })) ?? null)
       : null;
 
+  // A creator space's event: no member list to be missing from, so no "guest" wording either.
+  const creatorEvent = isCreatorSpace(await resolveClanById(event.clanId));
+
   return (
     <div className="max-w-2xl mx-auto">
       <EventApiHost eventId={event.id} prefix={apiPrefix} />
@@ -306,6 +311,7 @@ export default async function EventSignupPage({
         prefillProfile={prefillProfile}
         windowOpen={window.open}
         windowReason={window.reason}
+        creator={creatorEvent}
       />
     </div>
   );
