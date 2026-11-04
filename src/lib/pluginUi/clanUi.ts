@@ -17,8 +17,9 @@ function nameLine(label: string, value: string, rsn: string): Node {
 /**
  * `feedTab`: the plugin has the Feed tab (it sends X-Anvil-Feed-Tab), so the full drop log lives
  * there and this card keeps only a short taste of it.
+ * `tabLinks`: the plugin can open its Feed tab from a row, so the pointer is a link, not a hint.
  */
-export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false): Node {
+export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLinks = false): Node {
   if (c.kind === 'creator') return spaceCardUi(c);
   const parts: Node[] = [];
   const id: Node[] = [
@@ -69,7 +70,12 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false): Node
         header('Recent drops'),
         gap(4),
         feedTab
-          ? col([quick, muted('The full list, live, is in the Feed tab.', { font: 'small', wrap: true })])
+          ? col([
+              quick,
+              tabLinks
+                ? row(text('See them all live in Feed \u203a', 'brand', { font: 'small' }), undefined, undefined, { pad: 2, tip: 'Open the Feed tab', on: { a: 'tab', tab: 'feed' } })
+                : muted('The full list, live, is in the Feed tab.', { font: 'small', wrap: true }),
+            ])
           : { t: 'slot', id: 'moments', c: quick, load: { a: 'load', v: 'moments', args: { slug: c.slug, n: String(FEED_STEP) }, into: 'moments' } },
       ]),
     );

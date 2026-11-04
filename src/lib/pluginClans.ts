@@ -71,6 +71,12 @@ export interface PluginClanRow {
    * as the whole answer. A client can say "and four more" instead of quietly lying by omission.
    */
   liveCount: number;
+  /**
+   * A creator space (or a friends host), not a clan. Someone can sit in several clans AND several
+   * spaces at once, so the dropdown marks each row; the panel's tab label alone can only describe
+   * the one that's open.
+   */
+  space: boolean;
 }
 
 /**
@@ -108,6 +114,7 @@ export async function pluginClansFor(
       slug: clans.slug,
       name: clans.name,
       status: clans.status,
+      clanKind: clans.kind,
     })
     .from(clanRoster)
     .innerJoin(clans, eq(clans.id, clanRoster.clanId))
@@ -192,6 +199,7 @@ export async function pluginClansFor(
       slug: row.slug,
       name: row.name,
       kind: row.kind,
+      space: row.clanKind === 'creator' || row.clanKind === 'friends',
       liveCount: here.length + (weekly ? 1 : 0),
       live: best
         ? {
