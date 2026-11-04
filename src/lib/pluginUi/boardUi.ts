@@ -517,6 +517,11 @@ export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: Boa
   const pin = pinAction(t, s, ctx, list(s, { tile: String(t.tileId) }));
   if (pin) parts.push(gap(5), pin.on ? button(pin.label, pin.on, pin.tip) : muted(pin.tip, { wrap: true }));
   if (ctx.boardPath) parts.push(gap(5), text('Open on Anvil', 'brand', { tip: 'Open this tile on the Anvil site', on: { a: 'site', path: `${ctx.boardPath}?tile=${t.tileId}` }, icon: { t: 'icon', glyph: 'external', w: 11, h: 11, color: 'brand' }, iconAfter: true }));
+  // The team's proofs, fetched when this tile is opened (one tile's, not every pane's): lib/pluginUi proofsUi.
+  if (!s.pre && ctx.eventId > 0) {
+    const load: Action = { a: 'load', v: 'proofs', args: { ...args(s), ev: String(ctx.eventId), tile: String(t.tileId) } };
+    parts.push(gap(9), { t: 'slot', id: 'proofs', c: muted('Loading proofs…'), load });
+  }
 
   return col([button('Back to tiles', pane(`p${s.page}`), 'Return to the searchable tile list'), gap(7), card(parts, { inset: 9 })]);
 }

@@ -19,7 +19,8 @@ import { parseJsonArray } from '@/lib/tileKinds';
 import { parseCoopCredit } from '@/lib/coopRuns';
 import { isIndividualMode } from '@/lib/statTracking';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
-import { notifySubmission, notifySubmissionDeleted } from '@/lib/discord';
+import { notifySubmission } from '@/lib/discord';
+import { removeSubmission } from '@/lib/submissionRemoval';
 import { TEAM_PROGRESS_TILE_TYPES, emitTeamProgress } from '@/lib/chatFeed';
 import { queueSubmissionNotification, flushPendingNotifications } from '@/lib/notifications';
 import { isManagedMediaUrl } from '@/lib/storage';
@@ -890,24 +891,10 @@ export async function DELETE(
     return NextResponse.json({ error: 'Submission not in this event' }, { status: 404 });
   }
 
-  // Get team info for Discord notification
+  // The team's name, for the audit line below.
   const team = await db.query.teams.findFirst({
     where: eq(teams.id, submission.teamId),
   });
-
-  // Get event info for Discord notification
-  const event = await db.query.events.findFirst({
-    where: eq(events.id, eId),
-  });
-
-  // Get credit player name if exists
-  let creditPlayerName: string | null = null;
-  if (submission.creditPlayerId) {
-    const creditPlayer = await db.query.eventParticipants.findFirst({
-      where: eq(eventParticipants.id, submission.creditPlayerId),
-    });
-    creditPlayerName = creditPlayer?.name || null;
-  }
 
   // Determine who is deleting — name the real person so the audit isn't a generic "Admin (admin)".
   let deletedByName = 'Admin';
@@ -960,31 +947,8 @@ export async function DELETE(
     }
   }
 
-  await db.delete(submissions).where(eq(submissions.id, sId));
-
-  // Sync completion
-  const syncResult = await syncDropTileCompletion(submission.tileId, submission.teamId);
-
-  // Send Discord notification for deletion
-  if (team && event) {
-    notifySubmissionDeleted({
-      clanId: clan.id,
-      eventName: event.name,
-      tileLabel: tile.label,
-      teamName: team.name,
-      teamId: team.id,
-      teamColor: team.color,
-      creditPlayerName,
-      amount: submission.amount,
-      deletedBy: deletedByName,
-      deletedByRole,
-      reason,
-      eventId: event.id,
-      tile,
-    }).catch(() => {}); // Silently ignore errors
-  }
-
-  track('submission.removed', { clanId: clan.id, props: { by: deletedByRole } });
+  // The shared removal (lib/submissionRemoval): delete, recompute the completion, tell Discord.
+  const syncResult = await removeSubmission({ submission, tile, clanId: clan.id, deletedBy: deletedByName, deletedByRole, reason });
 
   return NextResponse.json({ success: true, sync: syncResult });
 }

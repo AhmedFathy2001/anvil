@@ -89,3 +89,8 @@ export async function pluginStaff(request: Request): Promise<boolean> {
 export function hasFeedTab(request: Request): boolean {
   return request.headers.get('X-Anvil-Feed-Tab') === '1';
 }
+
+/** The plugin draws `img` nodes (capability 'panel-images'): proof thumbnails in a tile's detail. */
+export function hasPanelImages(request: Request): boolean {
+  return request.headers.get('X-Anvil-Panel-Images') === '1';
+}
