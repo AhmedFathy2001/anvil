@@ -315,20 +315,28 @@ export async function PATCH(
       }
     }
 
-    // Flip startNotified atomically first — only the request that wins the flip sends the
-    // Discord embed, so a retried start-now (or the cron reaching the start time) can't
-    // double-post it.
+    // Starting an undated draft makes it live: on a creator space that runs one event at a time,
+    // only when no OTHER event is live — counted and written under the space's lock
+    // (lib/creatorPlansDb). An event that already had a start date was counted when it got it.
+    // A no-op until FREEMIUM_ENFORCED is on.
+    let updated: typeof events.$inferSelect;
+    try {
+      [updated] = await withLiveEventSlot(
+        { clanId: clan.id, clanPlan: isLiveEvent(event) ? null : meteredPlan(clan), exceptEventId: id },
+        (tx) => tx.update(events).set({ startDate: now, tilesRevealed: 1 }).where(eq(events.id, id)).returning(),
+      );
+    } catch (e) {
+      if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'plan' }, { status: 403 });
+      throw e;
+    }
+
+    // Flip startNotified atomically — only the request that wins the flip sends the Discord embed,
+    // so a retried start-now (or the cron reaching the start time) can't double-post it.
     const flipped = await db
       .update(events)
       .set({ startNotified: 1 })
       .where(and(eq(events.id, id), eq(events.startNotified, 0)))
       .returning({ id: events.id });
-
-    const [updated] = await db
-      .update(events)
-      .set({ startDate: now, tilesRevealed: 1 })
-      .where(eq(events.id, id))
-      .returning();
 
     if (flipped.length > 0) {
       track('event.started', { clanId: updated.clanId, props: { via: 'start-now', format: updated.format } });

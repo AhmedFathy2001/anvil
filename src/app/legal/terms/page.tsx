@@ -110,6 +110,20 @@ export default function TermsPage() {
         post.
       </p>
 
+      <h3>Connected streaming accounts</h3>
+      <p>
+        Streamers can connect a Twitch, Kick or YouTube channel to limit who joins their events and to let
+        the {SITE.name} chat bot answer <code>!join</code>; viewers can connect an account to show they
+        follow or subscribe. Connecting is optional and can be undone at any time. When you connect a
+        YouTube account you are also bound by the{' '}
+        <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">
+          YouTube Terms of Service
+        </a>
+        . The chat bot only replies when someone types <code>!join</code> in a channel whose host turned
+        it on, and never sends messages on its own. Section 4a of the Privacy Policy explains what we read
+        and keep.
+      </p>
+
       <h2>7. Your data and content</h2>
       <p>
         You and your clan members retain ownership of the data you put into the platform (roster

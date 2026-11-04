@@ -72,7 +72,7 @@ before(async () => {
   spaceId = r.clanId;
   [{ id: eventId }] = await db
     .insert(s.events)
-    .values({ clanId: spaceId, name: 'Packed Bingo', boardSize: 5, entry: 'open' })
+    .values({ clanId: spaceId, name: 'Packed Bingo', boardSize: 5, entry: 'open', startDate: '2026-11-01T00:00:00.000Z' })
     .returning();
 });
 
@@ -90,10 +90,12 @@ test('the meter counts one event’s board, and live events are the ones not end
   assert.equal(await P.eventPlayerCount(eventId), 50);
   const [ended] = await db
     .insert(s.events)
-    .values({ clanId: spaceId, name: 'Old Bingo', boardSize: 5, forceEndedAt: new Date().toISOString() })
+    .values({ clanId: spaceId, name: 'Old Bingo', boardSize: 5, startDate: '2026-11-01T00:00:00.000Z', forceEndedAt: new Date().toISOString() })
     .returning();
   await fill(spaceId, ended.id, 3, 'old');
   assert.equal(await P.liveEventCount(spaceId), 1, 'the ended event is not live');
+  await db.insert(s.events).values({ clanId: spaceId, name: 'Someday Bingo', boardSize: 5 });
+  assert.equal(await P.liveEventCount(spaceId), 1, 'an undated draft is not live either');
   assert.deepEqual(await P.biggestCreatorEvent(spaceId), { id: eventId, name: 'Packed Bingo', players: 50 });
   assert.equal(await P.creatorPlanOfClan(spaceId), 'free');
 });
@@ -206,7 +208,7 @@ test('two creates at once on a one-at-a-time plan: exactly one is made', async (
   if (!r.ok) return;
   const create = (name: string) =>
     P.withLiveEventSlot({ clanId: r.clanId, clanPlan: 'free' }, (tx) =>
-      tx.insert(s.events).values({ clanId: r.clanId, name, boardSize: 5 }).returning(),
+      tx.insert(s.events).values({ clanId: r.clanId, name, boardSize: 5, startDate: '2026-11-01T00:00:00.000Z' }).returning(),
     );
   process.env.FREEMIUM_ENFORCED = 'true';
   const results = await Promise.allSettled([create('One'), create('Two')]);
@@ -216,7 +218,7 @@ test('two creates at once on a one-at-a-time plan: exactly one is made', async (
   // RESUME over the limit: a force-ended event coming back while another is live is refused…
   const [ended] = await db
     .insert(s.events)
-    .values({ clanId: r.clanId, name: 'Ended', boardSize: 5, forceEndedAt: new Date().toISOString() })
+    .values({ clanId: r.clanId, name: 'Ended', boardSize: 5, startDate: '2026-11-01T00:00:00.000Z', forceEndedAt: new Date().toISOString() })
     .returning();
   const resume = () =>
     P.withLiveEventSlot({ clanId: r.clanId, clanPlan: 'free', exceptEventId: ended.id }, (tx) =>
@@ -237,7 +239,7 @@ test('two creates at once on a one-at-a-time plan: exactly one is made', async (
   // Silver runs several: a second resume-style reopen passes.
   const [other] = await db
     .insert(s.events)
-    .values({ clanId: r.clanId, name: 'Other', boardSize: 5, forceEndedAt: new Date().toISOString() })
+    .values({ clanId: r.clanId, name: 'Other', boardSize: 5, startDate: '2026-11-01T00:00:00.000Z', forceEndedAt: new Date().toISOString() })
     .returning();
   await P.withLiveEventSlot({ clanId: r.clanId, clanPlan: 'silver', exceptEventId: other.id }, (tx) =>
     tx.update(s.events).set({ forceEndedAt: null }).where(eq(s.events.id, other.id)),

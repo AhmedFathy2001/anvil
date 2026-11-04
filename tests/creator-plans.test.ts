@@ -107,10 +107,12 @@ test('meteredPlan / isLiveEvent', () => {
     assert.equal(CP.meteredPlan({ kind: 'clan', plan: 'free' }), null, 'ordinary clans unchanged');
   });
   const now = Date.parse('2026-11-04T12:00:00Z');
-  assert.equal(CP.isLiveEvent({ startDate: null, endDate: null, forceEndedAt: null }, now), true, 'an undated draft counts');
-  assert.equal(CP.isLiveEvent({ startDate: null, endDate: '2026-11-01T00:00:00Z', forceEndedAt: null }, now), false);
-  assert.equal(CP.isLiveEvent({ startDate: null, endDate: '2026-12-01T00:00:00Z', forceEndedAt: null }, now), true);
-  assert.equal(CP.isLiveEvent({ startDate: null, endDate: null, forceEndedAt: '2026-11-02T00:00:00Z' }, now), false);
+  assert.equal(CP.isLiveEvent({ startDate: null, endDate: null, forceEndedAt: null }, now), false, 'an undated draft does not count');
+  assert.equal(CP.isLiveEvent({ startDate: null, endDate: '2026-12-01T00:00:00Z', forceEndedAt: null }, now), false, 'no start date: still a draft');
+  assert.equal(CP.isLiveEvent({ startDate: '2026-11-10T00:00:00Z', endDate: null, forceEndedAt: null }, now), true, 'scheduled');
+  assert.equal(CP.isLiveEvent({ startDate: '2026-11-01T00:00:00Z', endDate: '2026-12-01T00:00:00Z', forceEndedAt: null }, now), true, 'running');
+  assert.equal(CP.isLiveEvent({ startDate: '2026-10-01T00:00:00Z', endDate: '2026-11-01T00:00:00Z', forceEndedAt: null }, now), false, 'ended');
+  assert.equal(CP.isLiveEvent({ startDate: '2026-11-01T00:00:00Z', endDate: null, forceEndedAt: '2026-11-02T00:00:00Z' }, now), false, 'force-ended');
 });
 
 test('enforced: one live event on Free and Bronze, several from Silver', () => {

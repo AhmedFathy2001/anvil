@@ -49,6 +49,10 @@ export default function PrivacyPage() {
           the bot does not read ordinary chat messages.
         </li>
         <li>
+          <strong>Connected streaming accounts (Twitch, Kick, YouTube):</strong> only if you connect
+          one. See section 4a for exactly what is read and kept.
+        </li>
+        <li>
           <strong>Technical:</strong> log data such as IP address, request metadata, and error
           diagnostics, used to operate and secure the service.
         </li>
@@ -99,10 +103,69 @@ export default function PrivacyPage() {
           integrations for your clan.
         </li>
         <li>
+          <strong>Twitch Interactive, Inc., Kick Streaming Pty Ltd and Google LLC (YouTube)</strong> —
+          only when you connect an account on one of them; see section 4a.
+        </li>
+        <li>
           <strong>Jagex Hiscores</strong> — public OSRS Hiscores are queried to refresh competition
           stats; we send RuneScape names you provide.
         </li>
       </ul>
+
+      <h2>4a. Connected streaming accounts (Twitch, Kick, YouTube)</h2>
+      <p>
+        Streamers can limit who joins their events to their followers, subscribers or channel members,
+        and can let a chat bot answer <code>!join</code> with their event link. Connecting an account is
+        always optional and something you start yourself.
+      </p>
+      <ul>
+        <li>
+          <strong>If you join a streamer&rsquo;s event as a viewer:</strong> we use your sign-in only to
+          learn which account is yours and whether you follow, subscribe to or are a member of that
+          streamer&rsquo;s channel. We keep your account&rsquo;s ID and name, and that yes/no answer with
+          the time we checked. We do not keep your access token: it is used once and then revoked.
+        </li>
+        <li>
+          <strong>If you connect your own channel as a host:</strong> we keep your channel&rsquo;s ID and
+          name and an access token, encrypted, so we can check your followers or subscribers when
+          someone joins, and (if you turn it on) reply to <code>!join</code> in your chat. On Kick we also
+          receive your channel&rsquo;s chat messages, follows and subscriptions as they happen; we keep only
+          the follow and subscription facts and codes typed to link an account, never the chat itself.
+        </li>
+        <li>
+          <strong>Never shared or sold.</strong> This information is used only to decide who may join the
+          events you take part in or host. It is not shown to anyone else, used for advertising, or
+          passed to other parties.
+        </li>
+        <li>
+          <strong>Removing it:</strong> disconnect the account in {SITE.name} at any time and we delete
+          the stored ID, name, tokens and checks. You can also revoke {SITE.name}&rsquo;s access from the
+          platform itself (for Google, at{' '}
+          <a href="https://security.google.com/settings/security/permissions" target="_blank" rel="noopener noreferrer">
+            Google security settings
+          </a>
+          ).
+        </li>
+      </ul>
+      <p>
+        <strong>YouTube.</strong> {SITE.name} uses YouTube API Services. By connecting a YouTube account
+        you agree to the{' '}
+        <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">
+          YouTube Terms of Service
+        </a>
+        , and Google&rsquo;s handling of your data is covered by the{' '}
+        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">
+          Google Privacy Policy
+        </a>
+        . We request read-only access (<code>youtube.readonly</code>) and use it only to read your
+        channel&rsquo;s ID and name, whether you subscribe to a host&rsquo;s channel, and, while a host is
+        live, the author of a chat message containing your joining code. {SITE.name}&rsquo;s use of
+        information received from Google APIs adheres to the{' '}
+        <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">
+          Google API Services User Data Policy
+        </a>
+        , including its Limited Use requirements.
+      </p>
 
       <h2>5. International transfers</h2>
       <p>
