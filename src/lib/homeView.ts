@@ -568,7 +568,7 @@ function safeParse(raw: string | null): { skills?: Record<string, number>; bosse
 }
 
 /** "hit 99 Agility" / "passed 1,000 Zulrah KC" — the readable half of a milestone row. */
-function milestoneSentence(kind: string, metric: string | null, threshold: number): string {
+export function milestoneSentence(kind: string, metric: string | null, threshold: number): string {
   const label = metric ? metricLabel(kind === 'kc' ? 'boss' : 'skill', metric) : null;
   switch (kind) {
     case 'level':

@@ -5,6 +5,9 @@
 // read: the profile fields the clan wrote about itself, plus a few counts and its recent events to
 // show it's alive. No heavy aggregation; the standings page already owns cross-clan ranking.
 
+import { normalizeHex } from '@/lib/artPalette';
+import { clanMoments } from '@/lib/clanMoments';
+import type { Moment } from '@/lib/clanMomentsRules';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -36,6 +39,8 @@ export interface PublicClanHome {
   /** The clan's wide 3:1 banner (may be animated) and its vertical focus, 0–100; null = none / centred. */
   bannerUrl: string | null;
   bannerPosition: number | null;
+  /** Its picked colour (lib/artPalette), or null for Anvil gold. */
+  accent: string | null;
   recruiting: boolean;
   openToChallenges: boolean;
   guestPolicy: string;
@@ -104,6 +109,7 @@ export async function publicClanHomeView(clanId: number, discordInvite: string |
     logoUrl: clan.logoUrl ?? null,
     bannerUrl: clan.bannerUrl ?? null,
     bannerPosition: clan.bannerPosition ?? null,
+    accent: normalizeHex(clan.accentColor),
     recruiting: clan.recruiting,
     openToChallenges: clan.openToChallenges,
     guestPolicy: clan.guestPolicy,
@@ -139,15 +145,19 @@ export interface PublicClanActivity {
   upcoming: VisitorItem[];
   past: VisitorItem[];
   week: { top: { rsn: string; hours: number }[]; activeThisWeek: number };
+  /** What its members did lately: pets, log slots, 99s, maxes (lib/clanMoments). */
+  moments: Moment[];
 }
 
 const WEEK_KIND: Record<string, string> = { SOTW: 'Skill of the week', BOTW: 'Boss of the week', EOTW: 'Efficiency of the week' };
 
 export async function publicClanActivity(clanId: number, now = new Date()): Promise<PublicClanActivity> {
-  const [hub, clanEvts, members] = await Promise.all([
+  const [hub, clanEvts, members, moments] = await Promise.all([
     loadHubView(clanId, { pastLimit: 6 }, now),
     listClanEvents(clanId, { now: now.getTime(), withinDays: 14 }).catch(() => []),
     listMembers(clanId),
+    // A wall that fails to load is a page without the wall, never a page that fails.
+    clanMoments(clanId, now).catch(() => [] as Moment[]),
   ]);
   // Every board on the page, whichever clan HOSTS it: the hub includes boards this clan only
   // co-hosts, so a check limited to this clan's own events would let another clan's invited-only
@@ -214,5 +224,6 @@ export async function publicClanActivity(clanId: number, now = new Date()): Prom
         when: i.endDate ?? i.startDate,
       })),
     week: { top: (analytics?.topWeek ?? []).slice(0, 5), activeThisWeek: analytics?.activeThisWeek ?? 0 },
+    moments,
   };
 }
