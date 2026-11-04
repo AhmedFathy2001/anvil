@@ -27,6 +27,7 @@ import { getClanMilestoneRules, getMemberLevelPrefs } from '@/lib/levelRulesStor
 import { labQuarantine } from '@/lib/lab';
 import { apexOrigin } from '@/lib/seo';
 import { supporterForUser, withSupporterAuthor } from '@/lib/supporter';
+import { boostedClanIdsForAccount, withBoosterAuthor } from '@/lib/clanBoosts';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { refuseForeignCharacter } from '@/lib/pluginForeign';
 
@@ -254,6 +255,8 @@ export async function POST(request: Request) {
   // `⚔️ @ach_comp@This Is Madness` back into `⚔️ This Is Madness` and repairs the wiki URL.
   const outContent = finalContent ? stripChatTags(finalContent) : finalContent;
   let outEmbed = finalEmbed ? stripChatTagsDeep(finalEmbed) : finalEmbed;
+  // Before the star: a clan this character boosts gets the booster gem in its place (below).
+  const unstarred = outEmbed;
   // An Anvil Supporter's posts carry their tier's star beside their name. Cosmetic: a failed read
   // posts without it.
   if (outEmbed?.author) {
@@ -355,9 +358,15 @@ export async function POST(request: Request) {
     return new NextResponse(null, { status: 204 });
   }
 
+  // The clans this character boosts (lib/clanBoosts): THEIR posts wear the booster gem by the name
+  // instead of the star. Every other clan, and personal webhooks, keep the ordinary star.
+  const boosted =
+    unstarred?.author && member ? await boostedClanIdsForAccount(member.accountId).catch(() => new Set<number>()) : new Set<number>();
+
   let anyOk = false;
   for (const [url, clanId] of urls) {
-    const post = markAsGuest.has(url) ? markGuestPost(outEmbed, outContent) : { embed: outEmbed, content: outContent };
+    const embedHere = clanId != null && boosted.has(clanId) ? withBoosterAuthor(unstarred!, apexOrigin()) : outEmbed;
+    const post = markAsGuest.has(url) ? markGuestPost(embedHere, outContent) : { embed: embedHere, content: outContent };
     const ok = await forwardPluginNotification(url, {
       content: post.content ?? undefined,
       embed: post.embed ?? null,

@@ -35,6 +35,7 @@ import { membershipConflicts } from '@/lib/homeClan';
 import { atLeast } from '@/lib/clanRoles';
 import { supporterForUser } from '@/lib/supporter';
 import { supporterView } from '@/components/SupporterSection';
+import { myBoosts } from '@/lib/clanBoosts';
 import ClanLink from '@/components/ClanLink';
 import { onboardingNext } from '@/lib/firstLogin';
 
@@ -132,6 +133,8 @@ export default async function ProfilePage({
     const standings = await characterStandings(characters.map((a) => a.id), Date.now());
     // Their own avatar and banner (Anvil Supporter), at the tier in force now. Edited on /settings/look.
     const media = await profileMediaForUser(session.userId, { tier: supporter?.tier.id ?? null });
+    // Their clan boosts and badges: this page is private, so it's the one place they're listed whole.
+    const boosts = await myBoosts(session.userId, session.playerId ?? null).catch(() => null);
     return (
       <>
         <LegacyAnchors />
@@ -155,6 +158,7 @@ export default async function ProfilePage({
           supporter={supporterView(supporter)}
           media={media}
           discordAvatar={user.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null}
+          boosts={boosts}
         />
       </>
     );

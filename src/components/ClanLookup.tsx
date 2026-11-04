@@ -8,6 +8,8 @@ import ClanLink from '@/components/ClanLink';
 import MotionImg from '@/components/MotionImg';
 import type { ClanFocus } from '@/lib/clanHome';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { BoostedBadge, BoostedClanName } from '@/components/ClanBoost';
+import { boostPerks, byBoostLevel } from '@/lib/clanBoostRules';
 
 export interface LookupClan {
   slug: string;
@@ -39,6 +41,10 @@ export interface LookupClan {
   /** Members who gained anything in seven days. */
   activeThisWeek: number;
   xpThisWeek: number;
+  /** Its clan boost level in force (lib/clanBoosts): badge, name colour, order, featured row. */
+  boostLevel?: number;
+  /** Level 2+: the clan's own one-line pitch to recruits. */
+  recruitingLine?: string | null;
 }
 
 type Sort = 'active' | 'size' | 'name';
@@ -99,10 +105,28 @@ export default function ClanLookup({ clans: everything }: { clans: LookupClan[] 
       if (sort === 'name') return a.name.localeCompare(b.name);
       if (sort === 'size') return b.members - a.members || a.name.localeCompare(b.name);
       // Activity, and the share that played breaks the tie — so a small clan that all turned up
-      // outranks a large one where the same number did.
-      return b.activeThisWeek - a.activeThisWeek || share(b) - share(a) || a.name.localeCompare(b.name);
+      // outranks a large one where the same number did. Boosted clans first in this default order
+      // and in search results (a boost perk: placement, never a rank anywhere else).
+      return (
+        byBoostLevel(a, b) || b.activeThisWeek - a.activeThisWeek || share(b) - share(a) || a.name.localeCompare(b.name)
+      );
     });
   }, [clans, query, sort, filter]);
+
+  // FEATURED: Level 2+ boosted clans get a row of their own at the top, while nobody is searching or
+  // filtering (Level 3 first). They're left out of the grid below meanwhile,
+  // so no clan shows twice.
+  const featured = useMemo(
+    () =>
+      query.trim() || filter !== 'any'
+        ? []
+        : clans
+            .filter((c) => boostPerks(c.boostLevel ?? 0).featured)
+            .sort((a, b) => byBoostLevel(a, b) || b.activeThisWeek - a.activeThisWeek || a.name.localeCompare(b.name)),
+    [clans, query, filter],
+  );
+  const featuredSlugs = useMemo(() => new Set(featured.map((c) => c.slug)), [featured]);
+  const grid = useMemo(() => shown.filter((c) => !featuredSlugs.has(c.slug)), [shown, featuredSlugs]);
 
   // Creators: the search applies; the clan filters (taking members, challenges) do not. Featured
   // spaces first (a Silver+ perk, lib/creatorPlans featuredListing), then whoever is live, then
@@ -212,21 +236,37 @@ export default function ClanLookup({ clans: everything }: { clans: LookupClan[] 
         />
       </div>
 
+      {featured.length > 0 && (
+        <section className="mb-8">
+          <div className="mb-1 flex items-center gap-2.5">
+            <span className="h-5 w-1 rounded-sm bg-gold" />
+            <h2 className="text-[16.5px] font-semibold">Featured</h2>
+            <span className="font-mono text-[11px] text-text-dim">{featured.length}</span>
+          </div>
+          <p className="mb-3 text-[13px] text-text-muted">Clans their own members boosted to Level 2 or higher.</p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {featured.map((c) => (
+              <Card key={c.slug} clan={c} />
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="mb-3 flex items-center gap-2.5">
         <span className="h-5 w-1 rounded-sm bg-gold" />
         <h2 className="text-[16.5px] font-semibold">
           {filter === 'open' ? 'Taking members' : filter === 'challenge' ? 'Open to challenges' : 'Every clan'}
         </h2>
-        <span className="font-mono text-[11px] text-text-dim">{shown.length}</span>
+        <span className="font-mono text-[11px] text-text-dim">{grid.length}</span>
       </div>
 
-      {shown.length === 0 ? (
+      {grid.length === 0 && featured.length === 0 ? (
         <p className="rounded-xl border border-dashed border-card-border px-5 py-10 text-center text-sm text-text-muted">
           {query ? `Nothing matching “${query}”.` : clans.length > 0 ? 'No clan fits that filter yet.' : 'No clans are listed yet.'}
         </p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {shown.map((c) => (
+          {grid.map((c) => (
             <Card key={c.slug} clan={c} />
           ))}
           <StartYourOwn />
@@ -311,6 +351,8 @@ function Card({ clan }: { clan: LookupClan }) {
   const hue = nameHue(clan.name);
   const played = clan.members > 0 ? Math.round((clan.activeThisWeek / clan.members) * 100) : 0;
   const focus = clan.focus ?? [];
+  const level = clan.boostLevel ?? 0;
+  const perks = boostPerks(level);
 
   return (
     <ClanLink
@@ -323,6 +365,8 @@ function Card({ clan }: { clan: LookupClan }) {
             src={clan.bannerUrl}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
             style={{ objectPosition: `50% ${clan.bannerPosition ?? 50}%` }}
+            // A clan's animated banner plays from boost Level 2 (a creator space's always does).
+            still={!isCreatorSpace(clan) && !perks.animatedBanner}
           />
         ) : (
           <div
@@ -359,7 +403,7 @@ function Card({ clan }: { clan: LookupClan }) {
         </div>
 
         <div className="mt-2 flex items-center gap-1.5">
-          <span className="truncate text-[16px] font-semibold">{clan.name}</span>
+          <BoostedClanName name={clan.name} level={level} className="truncate text-[16px] font-semibold" />
           {clan.verified && (
             // The badge means the in-game name is proven — the thing that stops somebody
             // registering a famous clan's name and collecting its members.
@@ -370,6 +414,11 @@ function Card({ clan }: { clan: LookupClan }) {
               ✓
             </span>
           )}
+          {perks.badge && (
+            <span className="ml-auto">
+              <BoostedBadge level={level} compact />
+            </span>
+          )}
         </div>
 
         <p className="mt-1 line-clamp-2 min-h-[2.5em] text-[13px] leading-snug text-text-muted">
@@ -378,6 +427,10 @@ function Card({ clan }: { clan: LookupClan }) {
               ? `${clan.events} event${clan.events === 1 ? '' : 's'} run on Anvil.`
               : 'New on Anvil.')}
         </p>
+
+        {perks.recruitingLine && clan.recruitingLine && !clan.seat && (
+          <p className="mt-1.5 line-clamp-2 text-[12.5px] leading-snug text-[#ffc2de]">{clan.recruitingLine}</p>
+        )}
 
         {focus.length > 0 && (
           <div className="mt-2.5 flex flex-wrap gap-1">

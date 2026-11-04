@@ -38,8 +38,11 @@ export default function MembersTabs({
   rankOrder,
   luck,
   supporterLooks,
+  boosters = {},
   lately,
 }: {
+  /** This clan's boosting characters by name, for the Booster mark (lib/clanBoosts boosterMarks). */
+  boosters?: Record<string, number>;
   members: MemberListRow[];
   analytics: ClanAnalytics;
   rosterLog: RosterEvent[];
@@ -86,7 +89,7 @@ export default function MembersTabs({
       {tab === 'roster' && (
         <>
           <ClanPulse analytics={analytics} members={members} rosterLog={rosterLog} supporterLooks={supporterLooks} />
-          <MembersDirectory members={members} movement={movement} rankOrder={rankOrder} supporterLooks={supporterLooks} />
+          <MembersDirectory members={members} movement={movement} rankOrder={rankOrder} supporterLooks={supporterLooks} boosters={boosters} />
         </>
       )}
 

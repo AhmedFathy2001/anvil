@@ -347,3 +347,22 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
     animation: supporter-shift 4s linear infinite;
   }
 }
+
+/* A boosted clan's name (lib/clanBoostRules boostNameClass): Level 1 wears the Champion gradient, Level
+   2 and up the Patron one, moving like a Patron name — still for anyone who asked for less motion. */
+.boost-name,
+.boost-name-animated {
+  background-image: linear-gradient(90deg, #ff9a5a, #e05ad0, #7a8cff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.boost-name-animated {
+  background-image: linear-gradient(90deg, #ffd27a, #ff7ab8, #7ae0ff, #ffd27a);
+  background-size: 200% 100%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .boost-name-animated {
+    animation: supporter-shift 5s linear infinite;
+  }
+}

@@ -112,6 +112,7 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
   const activeBy = new Map(activity.map((a) => [a.clanId, { actives: Number(a.actives), xp: Number(a.xp) }]));
 
   return rows.map((r) => ({
+    id: r.id,
     slug: r.slug,
     name: r.name,
     logoUrl: r.logoUrl ?? null,

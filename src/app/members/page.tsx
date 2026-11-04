@@ -19,6 +19,9 @@ import MomentsFeed from '@/components/MomentsFeed';
 import { supporterLooksByName } from '@/lib/supporter';
 import { verifyUser } from '@/lib/auth';
 import { siteReactions } from '@/lib/siteReactions';
+import { boosterMarks } from '@/lib/clanBoosts';
+import { hallConfig } from '@/lib/clanHall';
+import { viewerMemberIds } from '@/lib/competitionView';
 
 /**
  * A static export named the product instead of the clan — "Members — Anvil" on every clan's roster,
@@ -60,7 +63,7 @@ export default async function MembersPage() {
   // Analytics reuses the list rather than re-querying it, so the whole page is a handful of
   // statements. The activity read is its own query, but a narrow one — two columns off the roster,
   // where the alternative was every member's full hiscores snapshot.
-  const [analytics, rosterLog, activities, movement, luck, moments, supporterLooks] = await Promise.all([
+  const [analytics, rosterLog, activities, movement, luck, moments, supporterLooks, boosters] = await Promise.all([
     getClanAnalytics(members, { countGuests }),
     getRosterLog(clan.id, 20),
     getClanActivityAnalytics(clan.id, { countGuests }),
@@ -72,6 +75,9 @@ export default async function MembersPage() {
     // Supporter flair on each character's name: one query for the whole roster (the podium's names
     // are roster names, so the same record covers them).
     supporterLooksByName(members.map((m) => m.rsn)),
+    // The Booster mark: who boosts THIS clan, by the character the boost rides on. A stranger sees it
+    // only where the clan shows strangers its members' names (the Clan Hall's switch), like the wall.
+    boosterMarksFor(clan.id),
   ]);
   // GZ / Sad / Sit under each: counts for anyone, who gave them (and a press) for a clanmate.
   const session = await verifyUser();
@@ -96,10 +102,12 @@ export default async function MembersPage() {
         rankOrder={rankOrder}
         luck={luck}
         supporterLooks={supporterLooks}
+        boosters={boosters}
         lately={
           <MomentsFeed
             moments={moments}
             reactions={reactions}
+            boosters={boosters}
             title="Lately"
             blurb="pets, big drops and combat tasks, as they happened. Nothing here scores."
             emptyNote="Nothing yet. Moments arrive from the Anvil plugin — pets and rare drops always, and anything else that clears the floors on Admin → Integrations."
@@ -108,4 +116,11 @@ export default async function MembersPage() {
       />
     </main>
   );
+}
+
+async function boosterMarksFor(clanId: number): Promise<Record<string, number>> {
+  const session = await verifyUser();
+  const insider = !!session && (await viewerMemberIds(clanId, session)).length > 0;
+  if (!insider && !(await hallConfig(clanId).catch(() => null))?.publicNames) return {};
+  return boosterMarks(clanId);
 }

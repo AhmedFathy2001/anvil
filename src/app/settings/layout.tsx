@@ -43,6 +43,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
             pending={detected.pending.length}
             claims={Math.max(claimsOnMine.filter((c) => c.status === 'open').length, unread)}
             flair={supporter ? { tier: supporter.tier.id, style: supporter.style } : null}
+            boosts={!!supporter}
           />
         </aside>
         <main className="min-w-0 max-w-3xl">{children}</main>

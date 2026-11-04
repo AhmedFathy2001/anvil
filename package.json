@@ -224,7 +224,8 @@
     "test:modestats": "npx tsx --test tests/mode-stats.test.ts",
     "test:modeboarddb": "npx tsx --test tests/mode-board-credit-db.test.ts",
     "test:modehiscoresdb": "npx tsx --test tests/mode-hiscores-db.test.ts",
-    "test:supporter-media": "npx tsx --test tests/supporter-media.test.ts tests/supporter-media-db.test.ts"
+    "test:supporter-media": "npx tsx --test tests/supporter-media.test.ts tests/supporter-media-db.test.ts",
+    "test:clanboosts": "npx tsx --test --test-concurrency=1 tests/clan-boost-rules.test.ts tests/clan-boosts-db.test.ts"
   },
   "dependencies": {
     "archiver": "^5.3.2",

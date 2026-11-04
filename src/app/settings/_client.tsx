@@ -182,6 +182,8 @@ const ACCOUNT_ITEMS: { href: string; label: string; icon: string }[] = [
   { href: '/settings/look', label: 'Profile look', icon: '▣' },
   { href: '/settings/supporter', label: 'Supporter', icon: '★' },
 ];
+/** Only for Supporters (and anyone with a boost placed): never a pitch to everyone else. */
+const BOOSTS_ITEM = { href: '/settings/boosts', label: 'Clan boosts', icon: '◆' };
 
 /**
  * The left rail: account sections, then one entry per character. On a phone it becomes a row of
@@ -192,7 +194,10 @@ export function SettingsNav({
   pending,
   claims = 0,
   flair = null,
+  boosts = false,
 }: {
+  /** Show "Clan boosts": they're a Supporter, or still have boosts placed. */
+  boosts?: boolean;
   characters: NavCharacter[];
   pending: number;
   /** "This is my account" claims on their characters waiting for their answer (lib/ownershipClaims). */
@@ -225,7 +230,7 @@ export function SettingsNav({
   return (
     <nav aria-label="Settings" className="-mx-4 flex gap-1 overflow-x-auto overflow-y-hidden scroll-quiet px-4 pb-2 lg:sticky lg:top-20 lg:mx-0 lg:block lg:overflow-visible lg:px-0 lg:pb-0">
       {heading('Account')}
-      {ACCOUNT_ITEMS.map((i) => item(i.href, path === i.href, <>{icon(i.icon)}{i.label}</>))}
+      {[...ACCOUNT_ITEMS, ...(boosts || path === BOOSTS_ITEM.href ? [BOOSTS_ITEM] : [])].map((i) => item(i.href, path === i.href, <>{icon(i.icon)}{i.label}</>))}
       {item(
         '/settings/claims',
         path === '/settings/claims',

@@ -49,6 +49,8 @@ export interface JoinedMember {
 
 const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   joined: { label: 'Joined', color: 'text-accent-green-light' },
+  boost_recruiting_line_set: { label: 'Recruiting line', color: 'text-gold' },
+  boost_recruit_post_sent: { label: 'Discord recruitment post', color: 'text-gold' },
   left: { label: 'Left', color: 'text-red-400' },
   returned: { label: 'Returned', color: 'text-accent-green-light' },
   renamed: { label: 'Renamed', color: 'text-yellow-400' },

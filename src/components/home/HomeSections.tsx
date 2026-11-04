@@ -9,6 +9,8 @@ import LocalTime from '@/components/LocalTime';
 import AnvilMark from '@/components/AnvilMark';
 import ClanCrest from '@/components/ClanCrest';
 import ClanLink from '@/components/ClanLink';
+import { BoostedBadge } from '@/components/ClanBoost';
+import { boostNameClass, boostPerks } from '@/lib/clanBoostRules';
 
 /**
  * The home page, in the pieces it's made of.
@@ -52,7 +54,9 @@ function weeklyValue(w: HomeWeekly, value: number): string {
 
 /* ---------------------------------------------------------------- hero ---- */
 
-export function Hero({ view }: { view: HomeView }) {
+/** `boostLevel`: the clan's boost level in force (lib/clanBoosts): the badge, the name's gradient, and whether an animated banner plays. */
+export function Hero({ view, boostLevel = 0 }: { view: HomeView; boostLevel?: number }) {
+  const boost = boostPerks(boostLevel);
   const { clanWeek, live } = view;
   const stats = [
     { k: 'Members', v: view.memberCount.toLocaleString(), sub: 'in the clan right now' },
@@ -92,6 +96,8 @@ export function Hero({ view }: { view: HomeView }) {
             src={view.bannerUrl}
             className="h-full w-full object-cover"
             style={{ objectPosition: `50% ${view.bannerPosition ?? 50}%` }}
+            // An animated banner plays from boost Level 2; below that its still frame.
+            still={!boost.animatedBanner}
           />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-card-bg/80 via-transparent to-transparent" />
         </div>
@@ -110,8 +116,15 @@ export function Hero({ view }: { view: HomeView }) {
             className={`mb-4 border-2 border-card-bg shadow-lg shadow-black/30 ${view.bannerUrl ? '-mt-16 sm:-mt-20' : ''}`}
           />
         )}
-        <span className="block font-mono text-[10px] uppercase tracking-[0.2em] text-gold-dark">OSRS clan events</span>
-        <h1 className="display display-lg mt-2 bg-gradient-to-b from-[#ffe9a8] via-[#f2c14e] to-[#c8962c] bg-clip-text text-[clamp(2.2rem,5vw,3.4rem)] font-semibold leading-[1.03] text-transparent">
+        <span className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-gold-dark">
+          OSRS clan events
+          {boost.badge && <span className="normal-case tracking-normal"><BoostedBadge level={boostLevel} /></span>}
+        </span>
+        <h1
+          className={`display display-lg mt-2 text-[clamp(2.2rem,5vw,3.4rem)] font-semibold leading-[1.03] ${
+            boost.gradientName ? boostNameClass(boostLevel) : 'bg-gradient-to-b from-[#ffe9a8] via-[#f2c14e] to-[#c8962c] bg-clip-text text-transparent'
+          }`}
+        >
           {view.clanName}
         </h1>
         <p className="mt-3 max-w-[54ch] text-sm text-text-muted">

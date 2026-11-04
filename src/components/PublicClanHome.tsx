@@ -9,6 +9,8 @@ import ApplyToClan from '@/components/ApplyToClan';
 import ReportButton from '@/components/ReportButton';
 import { accentStyle } from '@/lib/accentStyle';
 import type { Moment } from '@/lib/clanMomentsRules';
+import { BoostedBadge } from '@/components/ClanBoost';
+import { boostNameClass, boostPerks } from '@/lib/clanBoostRules';
 
 const FOCUS_LABEL: Record<ClanFocus, string> = {
   pvm: 'PvM',
@@ -89,7 +91,13 @@ export default function PublicClanHome({
   canReport = false,
   hall = null,
   activity = null,
+  boost = null,
+  boosters = null,
 }: {
+  /** Its boost level in force and (Level 2+) recruiting line (lib/clanBoosts). */
+  boost?: { level: number; recruitingLine: string | null } | null;
+  /** The boosters wall (components/ClanBoost ClanBoostPanel), when anyone boosts it. */
+  boosters?: ReactNode;
   view: View;
   signedIn: boolean;
   /** Show the Report flag: signed in and not this clan's staff (lib/platformReportRules showReportButton). */
@@ -101,6 +109,8 @@ export default function PublicClanHome({
 }) {
   const reqs = view.requirements;
   const hasReqs = reqs.minTotal != null || reqs.minEhp != null || reqs.region != null || reqs.timezone != null;
+  const level = boost?.level ?? 0;
+  const perks = boostPerks(level);
 
   return (
     <div className="mx-auto max-w-5xl" style={accentStyle(view.accent)}>
@@ -108,7 +118,13 @@ export default function PublicClanHome({
           uploads stay animated. */}
       <div className="relative aspect-[3/1] max-h-[300px] w-full overflow-hidden rounded-3xl border border-card-border bg-[var(--sa-deep)]">
         {view.bannerUrl ? (
-          <MotionImg src={view.bannerUrl} className="h-full w-full object-cover" style={{ objectPosition: `50% ${view.bannerPosition ?? 50}%` }} />
+          <MotionImg
+            src={view.bannerUrl}
+            className="h-full w-full object-cover"
+            style={{ objectPosition: `50% ${view.bannerPosition ?? 50}%` }}
+            // An animated banner plays from boost Level 2; below that its still frame.
+            still={!perks.animatedBanner}
+          />
         ) : (
           <div
             className="h-full w-full"
@@ -129,7 +145,10 @@ export default function PublicClanHome({
         </div>
         <div className="min-w-0 flex-[1_1_18rem] sm:pt-[4.25rem]">
           <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="display text-4xl font-semibold leading-none text-foreground sm:text-5xl">{view.name}</h1>
+            <h1 className={`display text-4xl font-semibold leading-none sm:text-5xl ${perks.gradientName ? boostNameClass(level) : 'text-foreground'}`}>
+              {view.name}
+            </h1>
+            <BoostedBadge level={level} />
             {view.verified && (
               <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
                 ✓ verified in-game
@@ -137,6 +156,12 @@ export default function PublicClanHome({
             )}
           </div>
           {view.tagline && <p className="mt-2 max-w-[60ch] text-[15px] text-text-muted">{view.tagline}</p>}
+          {perks.recruitingLine && boost?.recruitingLine && (
+            <p className="mt-2 max-w-[60ch] text-[14px] text-[#ffc2de]">
+              <span className="mr-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[#ff9cc8]">Recruiting</span>
+              {boost.recruitingLine}
+            </p>
+          )}
           {view.focus.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {view.focus.map((f) => (
@@ -422,6 +447,8 @@ export default function PublicClanHome({
           </ul>
         </section>
       )}
+
+      {boosters}
 
       {/* Anvil, said once and quietly: this page is somebody else's clan, not an ad. */}
       <div className="mt-10 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-card-border bg-card-bg px-5 py-4 text-[13.5px]">

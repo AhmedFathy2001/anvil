@@ -6,6 +6,7 @@ import ClanLink from '@/components/ClanLink';
 import { type MemberSortKey as SortKey, sortMembers } from '@/lib/memberSort';
 import Input from '@/components/Input';
 import SupporterName from '@/components/SupporterName';
+import { BoosterMark } from '@/components/ClanBoost';
 import type { SupporterLook } from '@/lib/supporterStyle';
 
 // Filtering happens in the browser, on a list the server already sent whole. A clan is hundreds of
@@ -92,7 +93,10 @@ export default function MembersDirectory({
   movement,
   rankOrder,
   supporterLooks = {},
+  boosters = {},
 }: {
+  /** This clan's boosting characters by name (lib/clanBoosts boosterMarks). */
+  boosters?: Record<string, number>;
   members: MemberListRow[];
   movement: Record<number, RosterMovement>;
   /** Ranks most senior first; a rank not on it (or a guest) sorts after every known one. */
@@ -216,6 +220,7 @@ export default function MembersDirectory({
                 >
                   <span className="min-w-0 truncate flex items-center gap-2">
                     <SupporterName name={m.rsn} tier={supporterLooks[m.rsn]?.tier} style={supporterLooks[m.rsn]?.style} className="text-gold truncate" plain />
+                    {boosters[m.rsn] ? <BoosterMark count={boosters[m.rsn]} /> : null}
                     {mv && <Delta places={mv.delta} />}
                     {m.status !== 'active' && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-300 shrink-0">

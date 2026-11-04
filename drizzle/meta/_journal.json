@@ -1114,6 +1114,13 @@
       "when": 1793824900000,
       "tag": "0217_seat_push_people",
       "breakpoints": true
+    },
+    {
+      "idx": 218,
+      "version": "7",
+      "when": 1793824960000,
+      "tag": "0218_clan_boosts",
+      "breakpoints": true
     }
   ]
 }

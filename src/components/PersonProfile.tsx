@@ -8,6 +8,8 @@ import SupporterName from '@/components/SupporterName';
 import type { SupporterView } from '@/components/SupporterSection';
 import { ProfileAvatar, ProfileBanner } from '@/components/ProfileMedia';
 import type { ShownProfileMedia } from '@/lib/profileMediaRules';
+import { BoostBadgeChips, BoostGem } from '@/components/ClanBoost';
+import type { MyBoosts } from '@/lib/clanBoosts';
 
 export interface PersonCharacter {
   id: number;
@@ -37,7 +39,10 @@ export default function PersonProfile({
   supporter = null,
   media = null,
   discordAvatar = null,
+  boosts = null,
 }: {
+  /** Their clan boosts (lib/clanBoosts myBoosts): only ever shown to them, on this private page. */
+  boosts?: Pick<MyBoosts, 'slots' | 'free' | 'placements'> | null;
   /** Their Discord avatar, shown when they have not uploaded one of their own. */
   discordAvatar?: string | null;
   /** Their own avatar and banner as shown now (Supporter perk, set on /settings/look). */
@@ -197,6 +202,36 @@ export default function PersonProfile({
             <ClanLink href="/settings/supporter" className="mt-4 block text-[12.5px] text-text-muted hover:text-gold">
               Wear your name in colour on every board — Anvil Supporter →
             </ClanLink>
+          )}
+          {boosts && (boosts.slots > 0 || boosts.placements.length > 0) && (
+            <div className="mt-5 border-t border-card-border pt-4">
+              <div className="mb-2 flex items-center gap-2">
+                <BoostGem size={14} />
+                <h3 className="text-[14px] font-semibold">Clan boosts</h3>
+                <span className="font-mono text-[11px] text-text-dim">
+                  {boosts.placements.length}/{boosts.slots}
+                </span>
+              </div>
+              {boosts.placements.length > 0 && (
+                <ul className="mb-2 grid gap-1.5">
+                  {boosts.placements.map((p) => (
+                    <li key={p.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
+                      <ClanLink href={`/c/${p.clanSlug}`} className="font-medium hover:text-gold">
+                        {p.clanName}
+                      </ClanLink>
+                      <span className="text-text-dim">via {p.rsn}</span>
+                      {p.state !== 'active' && <span className="text-[11px] text-text-dim">({p.state === 'paused' ? 'paused' : 'seat gone'})</span>}
+                      <BoostBadgeChips badges={p.badges} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {boosts.free > 0 && (
+                <ClanLink href="/settings/boosts" className="block text-[12.5px] text-gold hover:text-gold-light">
+                  You have {boosts.free} boost{boosts.free === 1 ? '' : 's'}. Boost any clan you&rsquo;re a member of →
+                </ClanLink>
+              )}
+            </div>
           )}
         </section>
       </div>
