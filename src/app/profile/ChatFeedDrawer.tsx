@@ -133,6 +133,12 @@ export default function ChatFeedDrawer() {
               <Checkbox checked={prefs.pets} disabled={busy} onChange={(v) => save({ pets: v })} label="Pets" />
               <Checkbox checked={prefs.clog} disabled={busy} onChange={(v) => save({ clog: v })} label="New collection log slots" />
               <Checkbox checked={prefs.tiles} disabled={busy} onChange={(v) => save({ tiles: v })} label="Other teams' completed tiles" />
+              <Checkbox
+                checked={prefs.teamProgress}
+                disabled={busy}
+                onChange={(v) => save({ teamProgress: v })}
+                label="My team's progress on item tiles"
+              />
               <Checkbox checked={prefs.modes} disabled={busy} onChange={(v) => save({ modes: v })} label="Leagues, Deadman and other game-mode unlocks" />
               <Row label="Combat achievements">
                 <Select value={prefs.ca} onChange={(v) => save({ ca: v as ChatFeedPrefs['ca'] })} options={CA_OPTIONS} disabled={busy} ariaLabel="Combat achievements" className="w-44 shrink-0" />
