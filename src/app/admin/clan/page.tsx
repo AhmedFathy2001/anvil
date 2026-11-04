@@ -7,6 +7,7 @@ import { clanHref } from '@/lib/clanPath';
 import ProfileClient from './ProfileClient';
 import ClanNameSettings from './ClanNameSettings';
 import DeleteClan from './DeleteClan';
+import LookSettings from './LookSettings';
 import MovedToSpace from './MovedToSpace';
 import StreamingSettings from './StreamSettings';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
@@ -40,6 +41,8 @@ export default async function ClanProfilePage() {
       {/* The name is passed so the image field's fallback crest is this clan's real one, rather than
           a generic letter that changes the moment the page saves. */}
       <ProfileClient clanName={clan.name} />
+      {/* Colours from its own logo and banner (lib/artPalette). */}
+      <LookSettings name={clan.name} />
       {/* "Streaming": viewers from the clan's stream can join its events as event players. */}
       <StreamingSettings />
       <DeleteClan slug={clan.slug} isOwner={!!grant?.isOwner} />

@@ -71,6 +71,11 @@ export const clans = pgTable('clans', {
   // events carry.
   bannerUrl: text('banner_url'),
   bannerPosition: integer('banner_position'),
+  // Its own colours (lib/artPalette, "Colours" in settings). accentColor is the one an admin picked,
+  // #rrggbb; null means Anvil gold everywhere, as before. artPalette is { from, colors }: the swatches
+  // pulled from the logo and banner, and the two urls they came from, so a new upload re-picks them.
+  accentColor: text('accent_color'),
+  artPalette: jsonb('art_palette'),
   // The account that proved it, so a dispute has something to point at besides a timestamp.
   ingameNameClaimedByAccountId: integer('ingame_name_claimed_by_account_id').references(() => accounts.id, {
     onDelete: 'set null',
