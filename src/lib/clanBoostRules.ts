@@ -15,9 +15,10 @@
 
 import { GIFT_RECURRENCE, supporterState, wholeMonths, type SupporterRowLike, type SupporterTierId } from './supporterTiers.ts';
 
-export const BOOST_SLOTS: Record<SupporterTierId, number> = { supporter: 1, champion: 2, patron: 3 };
+// Champion and Patron only (Ahmed, 2026-11-05): the entry tier is status and hosting, boosts start one up.
+export const BOOST_SLOTS: Record<SupporterTierId, number> = { supporter: 0, champion: 1, patron: 2 };
 /** The most slots anyone can have (Patron); slot numbers run 1..MAX_SLOTS. */
-export const MAX_SLOTS = 3;
+export const MAX_SLOTS = 2;
 export const PER_PERSON_CAP = 2;
 /** Counted boosts needed for levels 1, 2 and 3. */
 export const LEVEL_AT = [3, 8, 15] as const;

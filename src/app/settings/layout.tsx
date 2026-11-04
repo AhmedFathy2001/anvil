@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 
 import { verifyUser } from '@/lib/auth';
 import { detectedFor, settingsCharacters } from '@/lib/settingsData';
+import { BOOST_SLOTS } from '@/lib/clanBoostRules';
 import { supporterForUser } from '@/lib/supporter';
 import { claimsOnMyCharacters, unreadNoticeCount } from '@/lib/ownershipClaims';
 import { SettingsNav } from './_client';
@@ -43,7 +44,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
             pending={detected.pending.length}
             claims={Math.max(claimsOnMine.filter((c) => c.status === 'open').length, unread)}
             flair={supporter ? { tier: supporter.tier.id, style: supporter.style } : null}
-            boosts={!!supporter}
+            boosts={!!supporter && BOOST_SLOTS[supporter.tier.id] > 0}
           />
         </aside>
         <main className="min-w-0 max-w-3xl">{children}</main>

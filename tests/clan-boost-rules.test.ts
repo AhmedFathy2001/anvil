@@ -46,10 +46,10 @@ const days = (n: number) => n * DAY_MS;
 // Slots
 // ---------------------------------------------------------------------------------------------
 
-test('slots per paid tier: 1 / 2 / 3, none without one', () => {
-  assert.equal(slotsFor('supporter'), 1);
-  assert.equal(slotsFor('champion'), 2);
-  assert.equal(slotsFor('patron'), 3);
+test('slots per paid tier: Supporter 0, Champion 1, Patron 2, none without one', () => {
+  assert.equal(slotsFor('supporter'), 0);
+  assert.equal(slotsFor('champion'), 1);
+  assert.equal(slotsFor('patron'), 2);
   assert.equal(slotsFor(null), 0);
 });
 
