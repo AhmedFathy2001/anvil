@@ -807,7 +807,9 @@ export async function POST(
     props: { via: pluginAuth ? 'plugin' : membership ? 'team-page' : isAdmin ? 'staff' : captain ? 'captain' : 'player', proof: !!imageUrlValue },
   });
 
-  return NextResponse.json({ submission }, { status: 201 });
+  // `completed`: this submission finished the tile, so the plugin can say so at once instead of
+  // waiting for its next config fetch.
+  return NextResponse.json({ submission, completed: syncResult?.isComplete ?? false }, { status: 201 });
 }
 
 export async function DELETE(
