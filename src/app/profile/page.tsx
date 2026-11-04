@@ -21,7 +21,8 @@ import { Suspense } from 'react';
 import { getAccountProfile, getMemberProfile } from '@/lib/memberProfile';
 import { apexCharacter } from '@/lib/apexProfiles';
 import { profileLinkState } from '@/lib/profileLink';
-import { pickProfileCharacter } from '@/lib/characterProfileRules';
+import { pickFoldCharacter, sortFold, type FoldCharacter } from '@/lib/characterFold';
+import { foldStats } from '@/lib/characterFoldRead';
 import CharacterProfile from '@/components/character/CharacterProfile';
 import PlayerCard from './PlayerCard';
 import ConnectCard from './ConnectCard';
@@ -172,11 +173,46 @@ export default async function ProfilePage({
   // Nothing left to set up (the plugin got there first): no card to put the link on, so just go.
   if (continueTo && !locker.setupNeeded) redirect(continueTo); // clan-prefix: platform -- literal path they signed in from
 
-  // THE CHARACTER PROFILE, for one character: the one the chips on the card picked (?account=),
-  // else their main, else the first. The same component as /members/<rsn> and /p/<rsn>, so a member
-  // no longer has to find themselves on the roster to see their own records. Only this character's
-  // data is read, and it streams in under the owner band (Suspense) so that never waits on it.
-  const recordsAccount = pickProfileCharacter(locker.accounts, locker.focusRsn);
+  // EVERY CHARACTER OF THEIRS, for the card's folded list: the ones seated here, then — on a clan's
+  // tab — the ones this clan holds no seat for ("no seat"). A creator space's locker already lists
+  // all of them (lib/profileLocker `space`).
+  const unseated = space ? [] : locker.otherAccounts;
+  const foldBase: Omit<FoldCharacter, 'totalLevel' | 'totalXp'>[] = [
+    ...locker.accounts.map((a) => ({
+      accountId: a.accountId,
+      rsn: a.rsn,
+      isPrimary: a.isPrimary,
+      seat: a.seat,
+      playingIn: a.playingIn,
+      lastPingAt: a.lastPingAt,
+      verified: a.verified,
+    })),
+    ...unseated.map((o) => ({
+      accountId: o.accountId,
+      rsn: o.rsn,
+      isPrimary: o.isPrimary,
+      seat: null,
+      playingIn: null,
+      lastPingAt: null,
+      verified: o.verified,
+    })),
+  ];
+  const levels = await foldStats(foldBase.map((c) => c.accountId));
+  const foldCharacters: FoldCharacter[] = sortFold(
+    foldBase.map((c) => ({ ...c, totalLevel: null, totalXp: null, ...levels.get(c.accountId) })),
+  );
+
+  // THE CHARACTER PROFILE, for one character: the one picked on the card (?account=), else their
+  // main, else the first. The same component as /members/<rsn> and /p/<rsn>, so a member no longer
+  // has to find themselves on the roster to see their own records. Only this character's data is
+  // read, and it streams in under the owner band (Suspense) so that never waits on it.
+  //
+  // A character this clan holds no seat for has no clan view to show, so it gets its own public one
+  // (/p/), owner controls included — the same as every character in a creator space.
+  const picked = pickFoldCharacter(params.account, locker.accounts, locker.focusRsn, unseated);
+  const recordsAccount = picked
+    ? { accountId: picked.row.accountId, rsn: picked.row.rsn, clanView: picked.seated && !space }
+    : null;
   const link = profileLinkState(sp);
   const progressTab = one(sp.progress);
 
@@ -235,14 +271,15 @@ export default async function ProfilePage({
         customAvatar={ownMedia.avatar}
         role={session.role}
         isStaff={isStaff}
-        accounts={locker.accounts}
-        focusRsn={locker.focusRsn}
-        // A creator space has no member pages (lib/creatorSpaces): the full profile is the public one.
+        characters={foldCharacters}
+        focusRsn={recordsAccount?.rsn ?? null}
+        space={space}
+        // The clan's member page for a seat here; else (a creator space, or no seat) the public one.
         fullProfileHref={
           recordsAccount
-            ? space
-              ? `/p/${encodeURIComponent(recordsAccount.rsn)}`
-              : `/members/${encodeURIComponent(recordsAccount.rsn)}`
+            ? recordsAccount.clanView
+              ? `/members/${encodeURIComponent(recordsAccount.rsn)}`
+              : `/p/${encodeURIComponent(recordsAccount.rsn)}`
             : null
         }
         connection={locker.connection}
@@ -355,7 +392,7 @@ export default async function ProfilePage({
           <Suspense key={recordsAccount.accountId} fallback={<RecordsSkeleton />}>
             <LockerCharacterProfile
               clanId={clan.id}
-              space={space}
+              publicView={!recordsAccount.clanView}
               rsn={recordsAccount.rsn}
               viewer={session}
               link={link}
@@ -371,21 +408,21 @@ export default async function ProfilePage({
 /** The selected character's profile, resolved inside the Suspense boundary so the locker streams first. */
 async function LockerCharacterProfile({
   clanId,
-  space,
+  publicView,
   rsn,
   viewer,
   link,
   progressTab,
 }: {
   clanId: number;
-  /** A creator space: no seat to show, so the character's public profile (as /p/ renders it). */
-  space: boolean;
+  /** No clan seat to show (a creator space, or a character this clan doesn't seat): its public profile, as /p/ renders it. */
+  publicView: boolean;
   rsn: string;
   viewer: Awaited<ReturnType<typeof verifyUser>>;
   link: ReturnType<typeof profileLinkState>;
   progressTab?: string;
 }) {
-  if (space) {
+  if (publicView) {
     // The owner always passes apexCharacter's rule (shared, or theirs), so this is their own /p/ page.
     const character = await apexCharacter(rsn, viewer?.playerId ?? null);
     const profile = character ? await getAccountProfile(character.accountId) : null;

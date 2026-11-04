@@ -451,3 +451,30 @@ test('in a creator space the locker lists every character of theirs, seat or not
   assert.deepEqual(asClan.accounts, []);
   assert.equal(asClan.focusRsn, null);
 });
+
+test('a creator space asks for setup only while it is not done — no seat there is not "not set up"', async () => {
+  // The owner of a creator space, with a verified main and the plugin talking, opened their profile
+  // there and got the "log in to the game" card: the no-seats early return answered setupNeeded:
+  // true outright, and in a space nobody has a seat until they enter one of its events.
+  const { buildLocker } = await import('../src/lib/profileLocker.ts');
+  const { db, schema: s } = await loadDb();
+  const loginId = (await db.query.users.findFirst({ where: eq(s.users.playerId, person) }))!.id;
+  const [space] = await db.insert(s.clans).values({ slug: 'setup-space', name: 'Setup', kind: 'creator', plan: 'creator_free' }).returning();
+
+  const before = await buildLocker(space.id, person, loginId, new Date(), null, { space: true });
+  assert.equal(before.setupNeeded, true, 'nothing verified yet: the card is right to ask');
+
+  const now = new Date().toISOString();
+  await db.update(s.accounts).set({ verifiedAt: now, liveStatsAt: now }).where(eq(s.accounts.id, mainId));
+  try {
+    const after = await buildLocker(space.id, person, loginId, new Date(), null, { space: true });
+    assert.equal(after.setupNeeded, false, 'a verified character with the plugin talking is set up, seat or not');
+    assert.equal(after.connection.connected, true);
+    assert.equal(after.connection.lastPingRsn, 'The Main');
+    // A clan that seats none of them still asks — there is nothing of theirs there to track.
+    const [empty] = await db.insert(s.clans).values({ slug: 'no-seats', name: 'No seats' }).returning();
+    assert.equal((await buildLocker(empty.id, person, loginId)).setupNeeded, true);
+  } finally {
+    await db.update(s.accounts).set({ verifiedAt: null, liveStatsAt: null }).where(eq(s.accounts.id, mainId));
+  }
+});

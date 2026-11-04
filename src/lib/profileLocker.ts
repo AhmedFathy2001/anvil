@@ -59,6 +59,8 @@ const STREAK_WINDOW_DAYS = 140;
 export interface LockerOtherAccount {
   accountId: number;
   rsn: string;
+  /** Their main (accounts.is_primary) — the card's character list badges it. */
+  isPrimary: boolean;
   /** "Show on my public profile": its own profile and the cross-clan boards. Nothing to do with this clan. */
   shared: boolean;
   /** Verified characters are the only ones a clan's door will consider. */
@@ -79,6 +81,11 @@ export interface LockerAccount {
    */
   id: number | null;
   rsn: string;
+  /**
+   * What the seat here is: a roster 'member', a 'guest', or — in a creator space — the 'event'
+   * seat entering one of its events gave it. Null with no seat here.
+   */
+  seat: 'member' | 'guest' | 'event' | null;
   isPrimary: boolean;
   verified: boolean;
   verificationMethod: string | null;
@@ -330,6 +337,7 @@ export async function buildLocker(
   const seatless = (a: (typeof allOwnedAccounts)[number]): LockerAccount => ({
     id: null,
     rsn: a.rsn,
+    seat: null,
     isPrimary: a.isPrimary === 1,
     verified: Boolean(a.verifiedAt),
     verificationMethod: a.verificationMethod,
@@ -351,7 +359,10 @@ export async function buildLocker(
       accounts,
       otherAccounts: [],
       connection,
-      setupNeeded: true,
+      // The rule above, not a blanket `true`: in a creator space nobody holds a seat until they
+      // enter one of its events, so "no seats here" says nothing about whether setup is done — a
+      // verified character with the plugin talking is done, the same as on a clan tab.
+      setupNeeded,
       career: null,
       liveEvents: [],
       liveWeeklies: [],
@@ -413,6 +424,7 @@ export async function buildLocker(
   const joinedBySeat = await ingameJoinDates(memberRows.map((m) => m.id));
   const seatAccounts: LockerAccount[] = memberRows.map((m) => ({
     id: m.id,
+    seat: m.kind === 'member' || m.kind === 'guest' || m.kind === 'event' ? m.kind : null,
     rsn: m.rsn,
     isPrimary: m.isPrimary === 1,
     verified: Boolean(m.verifiedAt),
@@ -465,6 +477,7 @@ export async function buildLocker(
     return {
       accountId: a.id,
       rsn: a.rsn,
+      isPrimary: a.isPrimary === 1,
       shared: a.shared === true,
       verified: a.verifiedAt != null,
       guestRequestPending: door?.pending ?? false,
