@@ -546,6 +546,8 @@ export interface ClanCardData {
   /** "PvM · Skilling · Recruiting" — what the clan says it is. */
   chips: string[];
   stats: { value: string; label: string; live?: boolean }[];
+  /** The label over the name. Defaults to "OSRS Clan · on Anvil"; a creator space says it is not one. */
+  eyebrow?: string;
 }
 
 export async function clanCard(d: ClanCardData): Promise<Response> {
@@ -560,7 +562,7 @@ export async function clanCard(d: ClanCardData): Promise<Response> {
       </FaceArt>
       <div style={{ ...PANE, left: 76, top: 66, width: 640, height: 500, flexDirection: 'column', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <Eyebrow>OSRS Clan · on Anvil</Eyebrow>
+          <Eyebrow>{d.eyebrow ?? 'OSRS Clan · on Anvil'}</Eyebrow>
           <div style={{ display: 'flex', marginTop: 18 }}>
             <Title size={size}>{d.name}</Title>
           </div>

@@ -10,6 +10,9 @@ import { clanSectionMetadata } from '@/lib/seoPages';
 import { loadHubView } from '@/lib/eventsHub';
 import { loadCalendar } from '@/lib/eventsCalendar';
 import { currentClan, isApexHost } from '@/lib/clanContext';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { creatorEventsView, isSpaceStaff } from '@/lib/creatorHome';
+import CreatorEventList from '@/components/CreatorEventList';
 import { parseFilters } from '@/lib/eventsDirectory';
 import { socialMetadata } from '@/lib/seo';
 import EventsDirectory from './EventsDirectory';
@@ -47,6 +50,12 @@ export async function generateMetadata(): Promise<Metadata> {
     });
   }
   const name = (await getClanDisplayName(clan.id, clan.name)) || clan.name;
+  if (isCreatorSpace(clan)) {
+    return clanSectionMetadata({
+      section: 'Events',
+      description: `Events by ${name} on Anvil — what is live, what is open to join, what is coming up and how the last ones finished.`,
+    });
+  }
   return clanSectionMetadata({
     section: 'Events',
     description: `Every bingo board, Skill of the Week and Boss of the Week ${name} has run — what is live now, what is coming, and how the last ones finished.`,
@@ -76,6 +85,23 @@ export default async function EventsIndexPage({
   if (!clan) {
     await apexOrNotFound();
     return <EventsDirectory filters={parseFilters(await searchParams)} />;
+  }
+  // A creator space has no hub of weeklies and clan events: its own events, by the same rules and
+  // the same rows as its home page (lib/creatorHome creatorEventsView).
+  if (isCreatorSpace(clan)) {
+    const viewer = await verifyUser();
+    const list = await creatorEventsView(clan.id, { viewerIsStaff: await isSpaceStaff(clan.id, viewer?.userId) });
+    return (
+      <div className="mx-auto max-w-4xl">
+        <header className="mb-2">
+          <h1 className="text-2xl font-bold text-gold sm:text-3xl">Events</h1>
+          <p className="mt-1 text-sm text-text-muted">
+            {list.count === 1 ? '1 event' : `${list.count} events`} by {clan.name}: live now, open to join, coming up and finished.
+          </p>
+        </header>
+        <CreatorEventList events={list} />
+      </div>
+    );
   }
 
   const { show: rawShow } = await searchParams;

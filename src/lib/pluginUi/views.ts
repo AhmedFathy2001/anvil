@@ -47,6 +47,7 @@ import { deleteTileProof, listTileProofs } from '@/lib/tileProofs';
 import { PROOFS_MAX, PROOFS_STEP, type ProofRow, proofsUi } from './proofsUi';
 import { hasFeedTab, hasPanelImages, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { type Node, type View, applyFlair, backRow, button, card, col, gap, message, muted, namesIn, text } from './nodes';
 import { notFoundUi, playerCardUi } from './playerCardUi';
 import { casUi, clogPageUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from './playerMoreUi';
@@ -223,13 +224,21 @@ async function clanView(request: Request, a: Args): Promise<View> {
   const clan = await visibleClan(request, a.slug ?? '');
   if (!clan) return message('That clan isn’t listed on Anvil.');
   const mine = (a.clan ?? '').trim().toLowerCase();
-  return { ui: clanCardUi(await loadClanCard(clan), !!mine && mine !== clan.slug && a.own !== '1', hasFeedTab(request)) };
+  // "Compare with my clan" only between two clans: a creator space has no members to compare.
+  const compare = !!mine && mine !== clan.slug && a.own !== '1' && !isCreatorSpace(clan) && !(await mineIsSpace(request, mine));
+  return { ui: clanCardUi(await loadClanCard(clan), compare, hasFeedTab(request)) };
+}
+
+/** Is the place the plugin is pointed at a creator space? */
+async function mineIsSpace(request: Request, slug: string): Promise<boolean> {
+  return isCreatorSpace(await visibleClan(request, slug).catch(() => null));
 }
 
 async function clanCompareView(request: Request, a: Args): Promise<View> {
   const [theirs, mine] = await Promise.all([visibleClan(request, a.slug ?? ''), visibleClan(request, a.clan ?? '')]);
   if (!theirs) return message('That clan isn’t listed on Anvil.');
   if (!mine) return message('Couldn’t load your clan — try again in a moment.');
+  if (isCreatorSpace(theirs) || isCreatorSpace(mine)) return message('A creator space has no members to compare.');
   const [x, y] = await Promise.all([loadClanCard(mine), loadClanCard(theirs)]);
   return { ui: clanCompareUi(x, y) };
 }
@@ -416,7 +425,7 @@ function withBack(a: Args, title: string, page: Node): Node {
  */
 async function homeView(request: Request, a: Args): Promise<View> {
   const res = await configRoute(request);
-  const noClan = 'You’re not in a clan on Anvil yet — join one on the site and it shows here.';
+  const noClan = 'You’re not in a clan or an event on Anvil yet — join one on the site and it shows here.';
   if (!res.ok) {
     return message(res.status === 404 ? noClan : 'Couldn’t reach Anvil — try again in a moment.');
   }
@@ -452,7 +461,8 @@ async function homeView(request: Request, a: Args): Promise<View> {
       }),
     ),
     !open && slug ? ownClanCard(request, slug) : Promise.resolve(null),
-    slug ? clanEventsFor(request, slug) : Promise.resolve([] as ClanEventView[]),
+    // A creator space has no in-game clan events (lib/creatorSpaces).
+    slug && cfg.activeClan?.kind !== 'creator' ? clanEventsFor(request, slug) : Promise.resolve([] as ClanEventView[]),
     !open ? otherLiveBoards(request, cfg.event?.id ?? cfg.homeBoard?.eventId ?? null) : Promise.resolve([] as BoardSummary[]),
   ]);
   // Hidden standings: the roster above came back unranked; say why where the table would be.

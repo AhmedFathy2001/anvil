@@ -15,6 +15,7 @@ import { rateLimit } from '@/lib/rate-limit';
 import { supporterInksForRsns } from '@/lib/supporter';
 import { standingsHidden } from '@/lib/standingsVisibility';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 import { visibleClan } from './load';
 import { completionRow, feedTabUi, kindGroup, momentRow, type KindGroup, type RowReactKind, type Scope } from './feedUi';
@@ -34,7 +35,9 @@ async function scopesFor(request: Request, userId: number | null): Promise<Scope
   // The same visibility check every other clan view makes (load.visibleClan), not just the token's say-so.
   const clan = resolved ? await visibleClan(request, resolved.slug) : null;
   const out: Scope[] = [];
-  if (clan) out.push({ kind: 'clan', id: clan.id, slug: clan.slug, name: clan.name });
+  // A creator space has no clan feed of its own (no members whose drops it collects): its boards
+  // are the feed, added below as event scopes. Only an in-game clan gets a "Clan · X" scope.
+  if (clan && !isCreatorSpace(clan)) out.push({ kind: 'clan', id: clan.id, slug: clan.slug, name: clan.name });
   const seat = clan ? await verifyPluginToken(request, { hintOnly: pluginRsnHintOnly(request) }).catch(() => null) : null;
   let eventId = seat?.eventId ?? null;
   if (eventId == null && clan && userId != null) eventId = (await homeBoardForUser(clan.id, userId).catch(() => null))?.eventId ?? null;
@@ -288,7 +291,7 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
   const viewer = await verifyPluginTokenUser(request);
   const scopes = await scopesFor(request, viewer?.userId ?? null);
   const current = pick(scopes, a.s);
-  if (!current) return message('Sign in with the plugin and join a clan to see its feed.');
+  if (!current) return message('Sign in with the plugin and join a clan or an event to see its feed.');
 
   const access: ChatAccess | null = current.kind === 'event' && viewer ? await chatAccess(current.id, viewer.userId) : null;
   const chatAvailable = !!access && access.member && access.open;

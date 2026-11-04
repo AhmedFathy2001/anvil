@@ -37,6 +37,7 @@ const ja: PartialGuideDict = {
       playing: 'プレイする',
       running: 'イベントを運営する',
       clan: 'クランを回す',
+      streamers: '配信者',
     },
     ingame: {
       title: 'ゲーム攻略',
@@ -145,6 +146,27 @@ const ja: PartialGuideDict = {
         blurb:
           'ボットが Discord で応答するすべてのコマンド、各オプションの意味、実例、そしてコマンドが出てこないときに確認すること。',
         minutes: '約 6 分',
+      },
+      creators: {
+        eyebrow: '配信者向け',
+        title: '視聴者のためにイベントを開く',
+        blurb:
+          'クランは不要。スペースを作って、リンクを 1 本共有し、参加できる人（フォロワー、サブスク、Discord ロール）を選んで、ボードを配信に映すだけ。',
+        minutes: '約 6 分',
+      },
+      joiningStream: {
+        eyebrow: '視聴者向け',
+        title: '配信者のイベントに参加する',
+        blurb:
+          '配信でリンクを見た？ サインインして、キャラクターを追加して、Join を押すだけ。フォロワー限定・サブスク限定のイベントでやること。',
+        minutes: '約 2 分',
+      },
+      streamingClans: {
+        eyebrow: '配信するクラン向け',
+        title: 'クランの配信',
+        blurb:
+          '視聴者がクランに入らなくても、1 つのイベントで遊べるようにします。Streaming をオンにして、イベントを視聴者に開くだけ。',
+        minutes: '約 2 分',
       },
     },
   },
@@ -2345,6 +2367,405 @@ const ja: PartialGuideDict = {
     limit: '知っておくこと',
     checked: 'マスが自動で確認します',
     englishOnly: '以下のルールは、サイトの実際の動作と常に一致させるため、当面は英語のみです。',
+  },
+
+  // /guide/creators — 配信者スペースのホスト向けガイド。
+  creators: {
+    metaTitle: '視聴者のために OSRS ビンゴを開く — Anvil',
+    metaDescription:
+      'クラン不要で、配信向けの Old School RuneScape ビンゴやマス競争を開催：スペースを作り、リンクを 1 本共有し、参加できる人（Twitch、Kick、YouTube、Discord）を選び、OBS でボードを配信に映します。',
+    eyebrow: '配信者・クリエイター向け',
+    title: '視聴者のためにイベントを開く',
+    dek: 'クリエイタースペースを使うと、配信向けのビンゴを開けます。ゲーム内クランは要りません。イベントを 1 つ作って、リンクを 1 本共有すれば、視聴者が参加します。',
+    facts: [
+      { strong: 'クラン', rest: '不要' },
+      { strong: '無料', rest: 'で始められる' },
+      { strong: 'リンク 1 本', rest: 'をチャットに' },
+    ],
+
+    what: {
+      title: 'クリエイタースペースとは',
+      body: [
+        'Anvil 上のあなた専用のページで、`{apex}/c/your-name` にあります。ここで視聴者向けのイベントを開きます。',
+        'クランではありません。クランの一覧も、ランクも、毎週の競争もありません。イベントに参加した人は、そのイベントだけで遊びます。それだけです。',
+        '視聴者は Discord でサインインし、RuneScape のキャラクターを追加して、**Join** を押します。あとは Anvil の RuneLite プラグインがドロップを自動で数えます。',
+      ],
+    },
+
+    create: {
+      title: 'スペースを作る',
+      body: [
+        '[{apex}/host](/host) を開いて、Discord でサインインします。',
+        'スペースの名前を入力します。チャンネル名がおすすめです。リンクは名前から作られます。別のリンクにしたいときは **change link** を押します。',
+        '**Create my space** を押します。スペースは Discord アカウントにつき 1 つです。',
+      ],
+    },
+
+    first: {
+      title: '最初のイベントを作る',
+      body: [
+        'スペースを作ると、すぐ **Create your first event** の画面になります。あとからは **Your events** の上にある **+ New event** を使います。',
+        '**Name.** 視聴者に表示される名前です。',
+        '**What kind?** カードを選びます。**Team bingo** は 5×5 のマス目で、Anvil がチーム分けをします。**Solo bingo** は同じマス目を一人ずつで競います。**Team race** は順番に進むタスクで、いちばん進んだチームが勝ちです。',
+        '**Ready-made tiles** は、やさしいものから難しいものまでのタスクが入っていて、あとから変えられます。**Blank, I’ll write my own** は空から始めます。',
+        '**Who can join?** は **Anyone** のままにするか、参加できる人を選びます。ステップ 5 を見てください。',
+        '**When?** 開始日と終了日を選びます。空のままにして、準備ができたら自分で開始してもかまいません。',
+        '**Create event** を押して、そのあと **Copy invite link** を押します。',
+      ],
+    },
+
+    share: {
+      title: 'リンクを共有する',
+      body: [
+        '招待リンクを配信のチャット、Discord、SNS に貼ります。視聴者に必要なのはそのリンクだけです。',
+        'いつでもコピーし直せます：**Your events** → イベントの横の **Copy invite link**。',
+        'チャットの `!join` にボットがリンクで答えるようにしたい？ ステップ 9 を見てください。',
+      ],
+    },
+
+    who: {
+      title: '参加できる人を選ぶ',
+      body: [
+        'イベントは最初は **Anyone** に開かれています。コミュニティだけにしたいときは、イベントの **Settings** → **Who can join?** を開いて、1 つ以上選びます。同じ選択肢は最初のイベントの画面にもあります。',
+        '2 つ以上選んだ場合は、**どれか 1 つで十分**です。フォロワー、または サーバーブースターなら入れます。',
+      ],
+      intro: 'それぞれの選択肢と、視聴者がすること：',
+      rows: [
+        {
+          term: 'Anyone',
+          body: 'リンクを持つ人は、すぐに参加できます。',
+        },
+        {
+          term: 'Twitch followers',
+          body: '視聴者はイベントページで **Link Twitch** を押して、Twitch でサインインします。Anvil がフォローしているかを確認します。',
+        },
+        {
+          term: 'Twitch subs',
+          body: 'フォロワーと同じですが、サブスクが必要です。いちばん低いティアを選びます：**Tier 1 or higher**、**Tier 2 or higher**、**Tier 3**。Prime サブは Tier 1 として数えます。チャンネルが Twitch のアフィリエイトかパートナーである必要があります。',
+        },
+        {
+          term: 'Kick followers',
+          body: 'Kick はアプリにフォロワーを教えないので、Anvil は Kick をつないだ「あと」にフォローした人を数えます。それより前にフォローした人は、いったんフォローを外してもう一度フォローします。',
+        },
+        {
+          term: 'Kick subs',
+          body: 'Kick をつないだあとに Anvil が見たサブスクは、自動で数えられます。それ以外の人は **Get Kick code** を押して、コード（`ANVIL-7F3K9Q` のような形）をあなたの Kick チャットに書きます。Anvil がサブのバッジを見ます。Kick にサブのティアはありません。',
+        },
+        {
+          term: 'YouTube subscribers',
+          body: '視聴者は **Check my YouTube subscription** を押して、Google でサインインします。YouTube の登録チャンネルを公開にしておく必要があります。',
+        },
+        {
+          term: 'YouTube members',
+          body: '視聴者は Anvil のコードを YouTube のライブチャットに書きます。なので、メンバーは**配信中だけ**参加できます。',
+        },
+        {
+          term: 'Discord role',
+          body: 'あなたの Discord サーバーで選んだロール（最大 5 つ）を持つ人。先にサーバーをつなぎます：メニューの **Discord (optional)**。',
+        },
+        {
+          term: 'Server boosters',
+          body: 'あなたの Discord サーバーをブーストしている人。こちらもサーバーをつなぐ必要があります。',
+        },
+      ],
+      note: {
+        tag: '知っておくこと',
+        body: '先にチャンネルをつないでください（ステップ 7）。つながないと、Twitch・Kick・YouTube の選択肢はグレーのままです。Twitch、Kick、YouTube のアカウント 1 つで、各イベントに入れるプレイヤーは 1 人だけです。スタッフと、名前で招待した人は確認なしで入れます。',
+      },
+    },
+
+    approve: {
+      title: 'プレイヤーを一人ずつ承認する（任意）',
+      body: [
+        '遊ぶ人を自分で選びたい？ イベントの **Settings** → **Who can play** → **Who can enter it** を開いて、**Ask me about everyone** を選びます。**Save changes** を押します。',
+        'すると視聴者には **Join** のかわりに **Ask to join** が出ます。その前に、**Who can join?** の条件を満たす必要があります。',
+        'リクエストは **Your events** に **N waiting for you** と出ます。クリックするか、イベントの **Sign-ups** タブを開きます。上のリストは **Waiting for your yes** です。一人ずつ承認するか、断ります。',
+      ],
+    },
+
+    channels: {
+      title: 'Twitch、Kick、YouTube をつなぐ',
+      body: [
+        'メニューの **Settings** を開きます。スペースの名前の下で、**Connect Twitch**、**Connect YouTube**、**Connect Kick** を押して、あなたのチャンネルでサインインします。',
+        'つないだチャンネルは、ページに **verified** のリンクとして表示されます。リンクを手で入力することはできません：サインインが、そのチャンネルがあなたのものだという Anvil の確認方法です。',
+        'チャンネルは Anvil 上の 1 か所にだけつなげます。すでにあなたの別のスペースやクランにつながっているときは、移すか Anvil が聞きます。',
+      ],
+    },
+
+    overlay: {
+      title: 'ボードを配信に映す（OBS）',
+      body: [
+        '**Your events** で、イベントの横の **Stream overlay** を押して、**Make overlay links** を押します。',
+        'リンクが 3 本できます。**Standings**：上位チームと進み具合。**Feed**：最新のドロップと完了したマス。**Board**：完了したマスに印がついたボード。',
+        'コピーする前に **Text size**（S、M、L、XL）を選びます。使いたいリンクの横の **Copy** を押します。',
+      ],
+      stepsTitle: 'OBS に追加する',
+      steps: [
+        'OBS の **Sources** で **+** を押して、**Browser** を選びます。',
+        '**URL** にリンクを貼ります。',
+        'サイズを決めます（例：800 × 600）。**Custom CSS** は空のままにします。',
+        '**OK** を押します。数秒ごとに自動で更新されます。',
+      ],
+      tipsTag: '知っておくこと',
+      tips: [
+        'リンクの最後に `&limit=10`、`&title=0`、`&align=right` を足すと変えられます。',
+        'オーバーレイには、公開イベントページと同じ内容が出ます。非表示の順位や非表示のマスは、配信でも非表示のままです。',
+        '**Reset link** は新しいリンクを作って、古いリンクを止めます。リンクが漏れたときに使います。新しいリンクを OBS に貼り直す必要があります。',
+        '隅に小さな “Anvil” のマークがあります。Gold プランでは **Settings** → **Anvil mark on your overlay** で消せます。',
+      ],
+    },
+
+    chatjoin: {
+      title: 'チャットで !join',
+      body: [
+        '**Settings** → **!join in Twitch chat** を開いて、オンにします。',
+        '視聴者が `!join` と打つと、Anvil のボット（Anvil_OSRS）が、開いているイベントのリンクで答えます。何人が打っても、返信は 30 秒に 1 回までです。',
+        'つないだチャンネル（ステップ 7）でだけ答えます。Kick チャンネルをつないだあとは、Kick のチャットでも動きます。',
+        'イベントが開いていないときは、そう伝えます：“No event is open to join right now — keep an eye on the stream!”',
+      ],
+    },
+
+    listing: {
+      title: 'Anvil に掲載される',
+      body: [
+        'スペースは作った時点では非掲載です。リンクを知っている人だけが見つけられます。',
+        '**Settings** → **Advertise on Anvil** を開いて、オンにします。スペースが Anvil のクラン一覧に出て、新しいイベントが `{apex}/events` に出ます。',
+        'イベント 1 つだけ掲載したいときは、そのイベントの **Settings** → **Who can play** → **Advertise on Anvil** を開きます。開催前と開催中のあいだ表示されます。',
+      ],
+    },
+
+    plans: {
+      title: 'プランと上限',
+      body: [
+        'プランで決まるのは、1 つのイベントのプレイヤー数だけです。それ以外はどのプランでも同じです：ボード、プラグインの追跡、オーバーレイ、Discord。',
+        'プランのカードは **Your events** にあります。プランを比べるには[料金](/pricing#creators)を見てください。支払いの変更や解約は、[請求ページ](/portal)で行います。',
+      ],
+      rows: [
+        { term: 'Free', body: '1 イベントにつき最大 50 人。同時に 1 イベント。Discord のロールとブースターの確認。' },
+        { term: 'Bronze', body: '1 イベントにつき最大 150 人。Twitch、Kick、YouTube の確認。' },
+        { term: 'Silver', body: '1 イベントにつき最大 300 人。同時に複数のイベント。チャットの `!join`。一覧の上に表示。' },
+        { term: 'Gold', body: '1 イベントにつき最大 1,000 人。オーバーレイの Anvil マークを消せる。' },
+        { term: 'Partner', body: 'プレイヤー数の上限なし。Anvil と直接設定します — ご連絡ください。' },
+      ],
+      note: {
+        tag: '今のところ',
+        body: 'Anvil が育つあいだは、プランの数を超えても全員が入れます。上限は、お知らせのうえで、あとから始まります。プランのカードで、上限までの近さが分かります。',
+      },
+    },
+
+    faq: {
+      title: 'よくある質問',
+      intro: '配信者からいちばん多い質問：',
+      rows: [
+        {
+          term: '視聴者にクランは必要ですか？',
+          body: 'いいえ。Discord アカウントと OSRS のキャラクターがあれば大丈夫です。[視聴者向けガイド]({joiningGuide})を送ってあげてください。',
+        },
+        {
+          term: 'RuneLite プラグインは必要ですか？',
+          body: 'ドロップとキルには必要です。プラグインが自動で送ります。一部のマスは、かわりにハイスコアを読みます。',
+        },
+        {
+          term: '視聴者が “The host’s Twitch connection isn’t working” と言っています。',
+          body: 'Twitch があなたの接続を受け付けなくなりました。**Settings** を開いて **Reconnect Twitch** を押します。Kick と YouTube も同じです。',
+        },
+        {
+          term: '誰かに運営を手伝ってもらえますか？',
+          body: 'はい。**Players** → **Staff & roles** を開いて、その人を追加し、できることを選びます。',
+        },
+        {
+          term: 'ゲーム内クランも運営しています。',
+          body: 'それならスペースは要らないかもしれません。公開クランは、かわりに **Streaming** をオンにできます。[クランの配信]({streamingGuide})を見てください。',
+        },
+        {
+          term: '2 つ目のスペースは作れますか？',
+          body: '今は Discord アカウントにつき 1 つです。もう 1 つ必要なときはご連絡ください。',
+        },
+      ],
+    },
+  },
+
+  // /guide/joining-a-streamer-event — 配信者のリンクを押した視聴者向け。
+  joiningStream: {
+    metaTitle: '配信者の OSRS ビンゴに参加する — Anvil',
+    metaDescription:
+      '配信者からリンクをもらいましたか？ Discord でサインインして、OSRS のキャラクターを追加し、Join を押します。Twitch、Kick、YouTube のフォロワー限定・サブスク限定イベントでやることと、ドロップの数え方。',
+    eyebrow: '視聴者向け',
+    title: '配信者のイベントに参加する',
+    dek: '配信者がリンクを共有しました。ボードに参加する方法です。クランは要りません。',
+    facts: [
+      { strong: '約 2 分', rest: 'で参加' },
+      { strong: 'クラン', rest: '不要' },
+    ],
+
+    join: {
+      title: '4 ステップで参加',
+      body: [
+        '配信者が共有した**リンクを開きます**。または配信者のチャットで `!join` と打つと、ボットが投稿します。',
+        '**Discord でサインインします。** それが Anvil のアカウントです。入力することはありません。',
+        '**キャラクターを追加します。** **Add my character** を押して、RuneScape の名前を入力します。**Prove it’s mine** と出たら、プロフィールの手順に従います。やり方は[プラグインガイド]({pluginGuide})にあります。',
+        '**Join を押します。** キャラクターが複数いるときは選びます。うまくいくと **You’re in!** と出ます。',
+      ],
+    },
+
+    gated: {
+      title: 'フォロワー・サブスク限定のイベント',
+      body: [
+        '配信者のコミュニティだけのイベントもあります。参加カードに、たとえば “Open to followers of somename on Twitch” のように誰向けかが出ます。',
+        'とりあえず **Join** を押します。まだ入れないときは、カードにやることが出ます。そのどれかをやってから、もう一度 **Join** を押します。',
+      ],
+      intro: '種類ごとにやること：',
+      rows: [
+        {
+          term: 'Twitch follow or sub',
+          body: '**Link Twitch** を押して、Twitch でサインインします。Anvil が求める権限はありません。そのあと、もう一度 **Join** を押します。',
+        },
+        {
+          term: 'Kick follow or sub',
+          body: '**Get Kick code** を押します。コード（`ANVIL-7F3K9Q` のような形）を、10 分以内に配信者の Kick チャットに書きます。コードは 1 回だけ使えます。そのあと、もう一度 **Join** を押します。',
+        },
+        {
+          term: 'YouTube subscriber',
+          body: '**Check my YouTube subscription** を押して、Google でサインインします。視聴に使っているアカウントを選んでください。YouTube のプライバシー設定で、登録チャンネルを公開にしておく必要があります。',
+        },
+        {
+          term: 'YouTube member',
+          body: '**Link my YouTube account** を押して、YouTube のライブチャットにコードを書き、**check the chat** を押します。配信者が配信中のときだけ使えます。',
+        },
+        {
+          term: 'Discord role or booster',
+          body: '配信者の Discord サーバーに入って、ロールをもらいます（またはブーストします）。Anvil は、サインインした Discord アカウントで確認します。',
+        },
+      ],
+      note: {
+        tag: '承認',
+        body: '配信者が一人ずつ承認するイベントもあります。その場合、ボタンは **Ask to join** になり、返事が来るまで **Waiting for the host** と出ます。',
+      },
+    },
+
+    plugin: {
+      title: 'Anvil プラグインを入れる',
+      body: [
+        'ドロップとキルは、RuneLite の Anvil プラグインで数えられます。Plugin Hub から入れて、サイドパネルから Discord でサインインします。',
+        '[プラグインガイド]({pluginGuide})が、約 3 分で案内します。',
+      ],
+    },
+
+    play: {
+      title: 'あそぶ',
+      body: [
+        'これで完了です。いつもどおり遊んでください。ボードに必要なドロップやキルが出ると、プラグインが自動で送ります。',
+        'イベントのリンクを開けば、いつでもボードと順位が見られます。遊ぶのはこの 1 つのイベントだけで、クランには入りません。',
+      ],
+    },
+
+    accounts: {
+      title: 'つないだアカウント',
+      body: [
+        'リンクした Twitch、YouTube、Kick のアカウントは [Settings → Connected accounts](/settings/connections) にあります。参加する前にここでリンクしておくこともできます。',
+        'いつでもリンクを外せます。すでに参加したイベントはそのままです。あとから参加する限定イベントでは、もう一度リンクを求められます。',
+      ],
+    },
+
+    faq: {
+      title: 'よくある質問',
+      intro: 'ダメと言われたとき：',
+      rows: [
+        {
+          term: '“This event is full”',
+          body: 'これ以上プレイヤーが入れません。場所を空けられるのは配信者だけです — 知らせてあげてください。',
+        },
+        {
+          term: 'サブスクしているのに入れません。',
+          body: 'サブスクに使っているのと同じアカウントをリンクしたか確認してください。Twitch では、参加カードの **Your Twitch** を見ます。Kick では、新しいコードをチャットに書いてください：Anvil はそのメッセージのサブバッジを読みます。YouTube では、登録チャンネルを公開にして、もう一度確認します。',
+        },
+        {
+          term: 'Kick でフォローしたのに、していないと言われます。',
+          body: 'Anvil が見られるのは、配信者が Kick をつないだあとのフォローだけです。フォローを外してもう一度フォローし、**Join** を押してください。',
+        },
+        {
+          term: '“That Twitch account was already used to join this event”',
+          body: 'Twitch（または Kick、YouTube）のアカウント 1 つで入れるプレイヤーは 1 人です。ほかの人がすでにそのアカウントで参加しています。',
+        },
+        {
+          term: '“Twitch didn’t answer just now”',
+          body: 'Twitch、Kick、YouTube、Discord のどれかが一瞬つながりませんでした。1 分待って、もう一度 **Join** を押してください。',
+        },
+        {
+          term: '“The host’s … connection isn’t working”',
+          body: 'これは配信者の側の問題です。Anvil でチャンネルをつなぎ直すよう伝えてください。',
+        },
+        {
+          term: 'ドロップが表示されません。',
+          body: 'プラグインが入っていてサインインしているか、遊んでいるキャラクターで参加したかを確認してください。[プラグインガイド]({pluginGuide})を見てください。',
+        },
+      ],
+    },
+  },
+
+  // /guide/streaming-for-clans — 公開クランが Streaming をオンにする。
+  streamingClans: {
+    metaTitle: 'クランのイベントを配信する — Anvil',
+    metaDescription:
+      '配信の視聴者が、クランに入らずにクランの OSRS イベントに参加できるようにします：Streaming をオンにして、イベントを視聴者に開き、入れる視聴者を選びます。',
+    eyebrow: '配信するクラン向け',
+    title: 'クランの配信',
+    dek: 'クランでイベントを配信していますか？ 視聴者がクランに入らずに 1 つのイベントで遊べるようにします。',
+
+    on: {
+      title: 'Streaming をオンにする',
+      body: [
+        'Admin → **Clan settings** → **Streaming** を開いて、オンにします。',
+        '配信できるのは公開クランだけです。視聴者はイベントページを開く必要があり、非公開クランではそれが隠れるからです。Streaming がオンのクランは、オフにするまで非公開にできません。',
+        'オンにしたら、そのすぐ下で Twitch、YouTube、Kick のチャンネルをつなぎます。',
+      ],
+    },
+
+    event: {
+      title: 'イベントを視聴者に開く',
+      body: [
+        'どのイベントも、変えるまでは **Members only** のままです。これまでと同じです。',
+        'イベントの **Settings** → **Who can join?** を開いて、**Members and viewers** を選びます。次に **Which viewers?** を選びます：誰でも、またはフォロワー、サブスク、Discord のロールなど。**Save** を押します。',
+        'この確認は視聴者だけが対象です。クランのメンバーは、これまでどおり必ず入れます。',
+      ],
+    },
+
+    viewers: {
+      title: '視聴者とは',
+      body: [
+        '参加した視聴者は **event player** です。その 1 つのイベントだけで遊びます。',
+        'クランのメンバーでもゲストでもありません。クランの一覧には載らず、ランクももらえません。',
+        'この形で参加した人は、**People** → **Past viewers** で全員見られます。',
+      ],
+    },
+
+    tools: {
+      title: '配信のツール',
+      body: [
+        '配信者向けのツールは、クリエイタースペースと同じように動きます：確認済みのチャンネルリンク、**Who can join?** の確認、OBS のオーバーレイ、チャットの `!join`。',
+        'クランのイベントのオーバーレイリンクは、イベントの **Settings** の **Who can play** → **Stream overlay** にあります。`!join` とオーバーレイのマークは **Clan settings** → **Streaming** にあります。',
+        '[クリエイターガイド]({creatorsGuide})で、一つずつ順番に説明しています。',
+      ],
+    },
+
+    faq: {
+      title: 'よくある質問',
+      intro: '短い答え：',
+      rows: [
+        {
+          term: '視聴者はメンバー数の上限に入りますか？',
+          body: 'いいえ。メンバーではなく event player だからです。配信者向けの上限はイベントごとです（[クリエイターガイド]({creatorsGuide})を見てください）。',
+        },
+        {
+          term: '`!join` は、メンバー限定のイベントに案内しますか？',
+          body: 'いいえ。視聴者に開いているイベントだけを案内します。',
+        },
+        {
+          term: '代わりにクリエイタースペースを作るべきですか？',
+          body: 'クランがないときだけです。スペースは、ゲーム内クランのない配信者向けです。',
+        },
+      ],
+    },
   },
 };
 

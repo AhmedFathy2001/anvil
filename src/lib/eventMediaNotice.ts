@@ -11,6 +11,7 @@ import { log } from '@/lib/logger';
 import { renderEmail } from '@/lib/emailTemplates';
 import { escapeHtml, isMailConfigured, sendMail } from '@/lib/mailer';
 import { absoluteUrl, clanCanonicalPath } from '@/lib/seo';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 // The reminders before an event's proof images are deleted (rules: lib/eventMediaRetentionRules).
 // They go to the hosting clan's owner and admins — the people who can download the archive — by
@@ -120,7 +121,7 @@ export async function sendPurgeNotice(
     return result;
   }
 
-  const [clan] = await db.select({ name: clans.name, slug: clans.slug }).from(clans).where(eq(clans.id, e.clanId));
+  const [clan] = await db.select({ name: clans.name, slug: clans.slug, kind: clans.kind }).from(clans).where(eq(clans.id, e.clanId));
   const archiveUrl = absoluteUrl(clanCanonicalPath(clan?.slug ?? '', `/admin/events/${e.id}`));
   const { subject, lines } = purgeNoticeText({
     stage: e.stage,
@@ -153,7 +154,7 @@ export async function sendPurgeNotice(
       heading: escapeHtml(subject),
       lines: lines.map(escapeHtml),
       cta: { label: 'Download the archive', url: archiveUrl },
-      footnote: 'You get this because you are an owner or admin of this clan on Anvil.',
+      footnote: `You get this because you are an owner or admin of this ${isCreatorSpace(clan) ? 'space' : 'clan'} on Anvil.`,
     });
     for (const to of new Set(admins.map((a) => a.email?.trim().toLowerCase()).filter((m): m is string => !!m))) {
       if (await sendMail({ to, subject, text, html })) result.emails++;

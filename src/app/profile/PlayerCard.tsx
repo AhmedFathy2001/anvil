@@ -201,6 +201,18 @@ export default function PlayerCard({
                 + Add a character
               </ClanLink>
             </div>
+            {/* The way to the whole character page from the card that names it: the records below are
+                the same profile, and the member page is where the clan sees it. */}
+            {focusRsn && (
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
+                <a href="#records" className="text-text-muted hover:text-gold">
+                  {focusRsn}&rsquo;s records ↓
+                </a>
+                <ClanLink href={`/members/${encodeURIComponent(focusRsn)}`} className="text-gold hover:underline">
+                  View full profile →
+                </ClanLink>
+              </div>
+            )}
           </div>
 
           {isStaff && (

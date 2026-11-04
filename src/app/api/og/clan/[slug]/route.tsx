@@ -1,4 +1,6 @@
 import { publicClanHomeView } from '@/lib/clanHome';
+import { creatorHomeView } from '@/lib/creatorHome';
+import { isCreatorSpace, spaceCardEyebrow } from '@/lib/creatorSpaces';
 import { resolveClanBySlug } from '@/lib/clanContext';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { clanRankFor } from '@/lib/clanLeaderboard';
@@ -35,6 +37,33 @@ async function load(_request: Request, { params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const clan = await resolveClanBySlug(slug);
   if (!clan || clanVisibilityOf(clan.visibility) !== 'public') return siteCard();
+
+  // A creator space (lib/creatorSpaces): no members, focus, recruiting or clan table — its name, its
+  // words, and its events counted the way a stranger sees them (never the invite-only ones).
+  if (isCreatorSpace(clan)) {
+    const [view, name, logo] = await Promise.all([
+      creatorHomeView(clan.id),
+      getClanDisplayName(clan.id, clan.name),
+      ourImageAsDataUrl(clan.logoUrl, { width: 300, height: 300 }, 'png'),
+    ]);
+    if (!view) return siteCard();
+    const banner = await ourImageAsDataUrl(view.bannerUrl, { width: 1200, height: 630 }, 'jpeg');
+    const live = view.events.groups.live[0];
+    const open = view.events.groups.open[0];
+    return clanCard({
+      name: name || clan.name,
+      logo,
+      banner,
+      tagline: (view.tagline || '').trim() || null,
+      rank: null,
+      chips: [],
+      eyebrow: spaceCardEyebrow(clan.kind),
+      stats: [
+        ...(view.eventsRun > 0 ? [{ value: view.eventsRun.toLocaleString('en-US'), label: view.eventsRun === 1 ? 'Event' : 'Events' }] : []),
+        ...(live ? [{ value: 'Live', label: live.name, live: true }] : open ? [{ value: 'Open', label: open.name }] : []),
+      ],
+    });
+  }
 
   const viewP = publicClanHomeView(clan.id);
   const [view, name, rank, logo, banner] = await Promise.all([

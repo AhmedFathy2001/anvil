@@ -27,6 +27,7 @@ import {
   type FeeRecipient,
 } from '@/lib/feeReminderText';
 import { absoluteUrl, clanCanonicalPath } from '@/lib/seo';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 /** The pending fees on one event, one recipient per person. Clan-scoped by the caller's event. */
 export async function unpaidFeeRecipients(eventId: number): Promise<{ recipients: FeeRecipient[]; unreachable: number }> {
@@ -100,7 +101,7 @@ export type RemindResult =
   | { ok: false; status: number; error: string; waitMs?: number };
 
 export async function remindUnpaidFees(p: {
-  clan: { id: number; name: string; slug: string };
+  clan: { id: number; name: string; slug: string; kind?: string | null };
   event: { id: number; name: string };
   actorUserId: number;
   now?: number;
@@ -163,7 +164,14 @@ export async function remindUnpaidFees(p: {
   let failed = 0;
   // One at a time: Discord rate-limits DM channel creation, and a clan's unpaid list is short.
   for (const r of recipients) {
-    const embed = feeReminderEmbed({ clanName: p.clan.name, eventName: p.event.name, amount: r.amount, fees: r.fees, url });
+    const embed = feeReminderEmbed({
+      clanName: p.clan.name,
+      eventName: p.event.name,
+      amount: r.amount,
+      fees: r.fees,
+      url,
+      creator: isCreatorSpace(p.clan),
+    });
     if (await send(token, r.discordId, { embeds: [embed] }).catch(() => false)) sent++;
     else failed++;
   }

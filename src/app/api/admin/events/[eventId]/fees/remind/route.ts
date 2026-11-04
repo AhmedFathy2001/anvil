@@ -54,7 +54,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   const clan = await requireClan();
   if (clan.id !== g.event.clanId) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const result = await remindUnpaidFees({
-    clan: { id: clan.id, name: clan.name, slug: clan.slug },
+    clan: { id: clan.id, name: clan.name, slug: clan.slug, kind: clan.kind },
     event: { id: g.event.id, name: g.event.name },
     actorUserId: g.userId,
   });

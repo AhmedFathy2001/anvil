@@ -1,4 +1,5 @@
 import { currentClan } from '@/lib/clanContext';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { accounts, clanRoster, users, detectedAccounts } from '@/db/schema';
 import { characterStandings } from '@/lib/characterStandingRead';
 import ProfileTabs, { profileClans, SettingsButton } from './ProfileTabs';
@@ -16,8 +17,11 @@ import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { buildLocker } from '@/lib/profileLocker';
-import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
-import AccountProgressCard from '@/components/AccountProgressCard';
+import { Suspense } from 'react';
+import { getMemberProfile } from '@/lib/memberProfile';
+import { profileLinkState } from '@/lib/profileLink';
+import { pickProfileCharacter } from '@/lib/characterProfileRules';
+import CharacterProfile from '@/components/character/CharacterProfile';
 import PlayerCard from './PlayerCard';
 import ConnectCard from './ConnectCard';
 import LiveForYou from './LiveForYou';
@@ -46,7 +50,7 @@ export const dynamic = 'force-dynamic';
 export default async function ProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ welcome?: string; connect?: string; account?: string; next?: string; everywhere?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   // NOT requireClan(). This page is the person's, and a person has no clan on the apex — so the one
   // surface the identity model insists follows you between clans answered 404 there, and a signed-in
@@ -54,7 +58,9 @@ export default async function ProfilePage({
   // here; it selects the person-level view below rather than failing.
   const clan = await currentClan();
   const session = await verifyUser();
-  const params = await searchParams;
+  const sp = await searchParams;
+  const one = (v: string | string[] | undefined) => (typeof v === 'string' ? v : undefined);
+  const params = { welcome: one(sp.welcome), connect: one(sp.connect), account: one(sp.account), next: one(sp.next), everywhere: one(sp.everywhere) };
   // A name the apex home believes is theirs. Trimmed and capped at the RSN limit because it is a URL
   // parameter that ends up in an input: it is a convenience, not a claim about anybody.
   const suggestedRsn = (params.connect ?? '').trim().slice(0, 12);
@@ -150,6 +156,8 @@ export default async function ProfilePage({
   const welcome = params.welcome === '1';
   // A first sign-in from a deep link (lib/firstLogin): offer the way back to it on the connect card.
   const continueTo = welcome ? onboardingNext(params.next) : null;
+  // A creator space's tab (lib/creatorSpaces): no roster, member page or guest seats to offer.
+  const space = isCreatorSpace(clan);
   const [locker, clanName, supporterState] = await Promise.all([
     buildLocker(clan.id, session.playerId, session.userId, new Date(), params.account ?? null),
     getClanDisplayName(clan.id),
@@ -160,23 +168,13 @@ export default async function ProfilePage({
   // Nothing left to set up (the plugin got there first): no card to put the link on, so just go.
   if (continueTo && !locker.setupNeeded) redirect(continueTo); // clan-prefix: platform -- literal path they signed in from
 
-  // Quest points, combat achievements and diaries for the account they play most — the primary one,
-  // falling back to the first linked. A person with several accounts sees the one this profile is
-  // really about rather than a merge of all of them, which would be true of nobody.
-  // The chips at the top switch it (?account=), and the rail follows the same character.
-  const progressAccount =
-    locker.accounts.find((a) => locker.focusRsn != null && a.rsn === locker.focusRsn) ??
-    locker.accounts.find((a) => a.isPrimary) ??
-    locker.accounts[0] ??
-    null;
-  const [progress, questItems, caItems] = progressAccount
-    ? await Promise.all([
-        // The ACCOUNT, not the seat — these read member_progress, which is account-keyed.
-        getMemberProgress(progressAccount.accountId),
-        getMemberItems(progressAccount.accountId, 'quest'),
-        getMemberItems(progressAccount.accountId, 'ca'),
-      ])
-    : [null, null, null];
+  // THE CHARACTER PROFILE, for one character: the one the chips on the card picked (?account=),
+  // else their main, else the first. The same component as /members/<rsn> and /p/<rsn>, so a member
+  // no longer has to find themselves on the roster to see their own records. Only this character's
+  // data is read, and it streams in under the locker (Suspense) so the locker never waits on it.
+  const recordsAccount = pickProfileCharacter(locker.accounts, locker.focusRsn);
+  const link = profileLinkState(sp);
+  const progressTab = one(sp.progress);
 
   // Things waiting on them in settings, surfaced here as one line each: characters the plugin saw
   // them play that aren't linked, and characters two in-game rosters both claim (lib/homeClan).
@@ -295,16 +293,8 @@ export default async function ProfilePage({
             </section>
           )}
 
-          <RunSoFar rows={locker.history} totals={locker.historyTotals} focusRsn={locker.focusRsn} />
-
-          {progress && (!progress.empty || questItems) && (
-            <AccountProgressCard
-              summary={progress}
-              quests={questItems}
-              combat={caItems}
-              title={progressAccount ? `${progressAccount.rsn}'s progress` : 'Account progress'}
-            />
-          )}
+          {/* A creator space has no member pages (lib/creatorSpaces), so no "All events →" into one. */}
+          <RunSoFar rows={locker.history} totals={locker.historyTotals} focusRsn={space ? null : locker.focusRsn} />
 
           {/* Your characters, to look at. Everything you can change about one (sharing, main,
               its clans, rename, remove) is on its settings page — the cog on each row. */}
@@ -384,7 +374,8 @@ export default async function ProfilePage({
 
             {/* Their characters this clan holds no seat for — offered here as guests, because asking
                 THIS clan is the one thing about them that only makes sense on this clan's tab. */}
-            {locker.otherAccounts.length > 0 && (
+            {/* Not in a creator space: it has no roster to guest on — a viewer gets in through an event. */}
+            {!space && locker.otherAccounts.length > 0 && (
               <OtherAccountsClient accounts={locker.otherAccounts} clanName={clan.name} clanSlug={clan.slug} />
             )}
           </section>
@@ -394,10 +385,59 @@ export default async function ProfilePage({
           <TrophyCase trophies={locker.trophies} />
           {locker.bests && <PersonalBests bests={locker.bests} focusRsn={locker.focusRsn} />}
           <InReach milestones={locker.milestones} />
-          {locker.focusRsn && <PublicProfile rsn={locker.focusRsn} />}
+          {locker.focusRsn && !space && <PublicProfile rsn={locker.focusRsn} />}
         </div>
       </div>
 
+      {recordsAccount && (
+        <section id="records" className="mt-8 scroll-mt-20" aria-label={`${recordsAccount.rsn}'s profile`}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="w-1 h-5 bg-gold rounded-full" />
+            <h2 className="text-lg font-semibold">{recordsAccount.rsn}&rsquo;s records</h2>
+            {locker.accounts.length > 1 && (
+              <span className="text-xs text-text-muted">· pick another character on your card above</span>
+            )}
+            <ClanLink
+              href={`/members/${encodeURIComponent(recordsAccount.rsn)}`}
+              className="ml-auto text-sm text-gold hover:underline"
+            >
+              View full profile →
+            </ClanLink>
+          </div>
+          <Suspense key={recordsAccount.accountId} fallback={<RecordsSkeleton />}>
+            <LockerCharacterProfile clanId={clan.id} rsn={recordsAccount.rsn} viewer={session} link={link} progressTab={progressTab} />
+          </Suspense>
+        </section>
+      )}
+
+    </div>
+  );
+}
+
+/** The selected character's profile, resolved inside the Suspense boundary so the locker streams first. */
+async function LockerCharacterProfile({
+  clanId,
+  rsn,
+  viewer,
+  link,
+  progressTab,
+}: {
+  clanId: number;
+  rsn: string;
+  viewer: Awaited<ReturnType<typeof verifyUser>>;
+  link: ReturnType<typeof profileLinkState>;
+  progressTab?: string;
+}) {
+  const seat = await getMemberProfile(clanId, rsn);
+  if (!seat) return null;
+  return <CharacterProfile context={{ kind: 'clan', clanId, seat }} viewer={viewer} link={link} progressTab={progressTab} nameAs="h2" />;
+}
+
+function RecordsSkeleton() {
+  return (
+    <div className="mt-3 grid gap-4" aria-busy="true" aria-label="Loading records">
+      <div className="h-36 rounded-xl border border-card-border bg-card-bg animate-pulse" />
+      <div className="h-72 rounded-xl border border-card-border bg-card-bg animate-pulse" />
     </div>
   );
 }

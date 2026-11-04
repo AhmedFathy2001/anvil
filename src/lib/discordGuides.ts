@@ -61,6 +61,14 @@ export const GUIDE_OUTLINES: Record<string, GuideOutline> = {
   // Mirrors COMMANDS_SECTIONS in _pages/CommandsGuide.
   commands: { ns: 'commands', page: 'commands', sections: ['using', 'bingo', 'clan', 'options', 'who', 'trouble'] },
   switching: { ns: 'switching', page: 'switching', sections: ['staff', 'player', 'questions'] },
+  // Mirror the *_SECTIONS lists in _pages/CreatorsGuide, JoiningStreamGuide and StreamingClansGuide.
+  creators: {
+    ns: 'creators',
+    page: 'creators',
+    sections: ['what', 'create', 'first', 'share', 'who', 'approve', 'channels', 'overlay', 'chatjoin', 'listing', 'plans', 'faq'],
+  },
+  joining: { ns: 'joiningStream', page: 'joining-a-streamer-event', sections: ['join', 'gated', 'plugin', 'play', 'accounts', 'faq'] },
+  streamingclans: { ns: 'streamingClans', page: 'streaming-for-clans', sections: ['on', 'event', 'viewers', 'tools', 'faq'] },
   // Mirrors TilesGuide: one section per registry group that has entries.
   tiles: {
     ns: 'tiles',

@@ -107,6 +107,8 @@ interface Submission {
 }
 
 interface Props {
+  /** A creator space's event (lib/creatorSpaces): the whole board is "everyone", not "the clan". */
+  creator?: boolean;
   event: Event;
   tiles: Tile[];
   teams: Team[];
@@ -171,7 +173,7 @@ interface TeamGains {
   tileMembers: Record<number, { name: string; gained: number }[]>;
 }
 
-export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, tileHighlights }: Props) {
+export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, creator = false, tileHighlights }: Props) {
   // Behind the curtain the teams whose progress this page deals in are the viewer's own; the rest
   // are names on a roster. Everything below that scores, ranks, fetches or draws per team uses this.
   const teams = useMemo(
@@ -815,7 +817,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
           {axes.shape === 'list' && (
             <BoardMinimap
               tiles={minimapTiles}
-              lensName={lensTeamId == null ? 'the clan' : (teams.find((t) => t.id === lensTeamId)?.name ?? 'your team')}
+              lensName={lensTeamId == null ? (creator ? 'everyone' : 'the clan') : (teams.find((t) => t.id === lensTeamId)?.name ?? 'your team')}
               onTileClick={setSelectedTileId}
             />
           )}

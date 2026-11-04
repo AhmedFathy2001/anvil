@@ -1,16 +1,10 @@
 import MotionImg from '@/components/MotionImg';
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
-import type { PublicClanActivity, VisitorItem } from '@/lib/clanHome';
+import CreatorEventList from '@/components/CreatorEventList';
 import type { CreatorHomeView } from '@/lib/creatorHome';
 import type { ShownHighlight } from '@/lib/highlights/rules';
 import HighlightsStrip from '@/components/HighlightsStrip';
-
-/** "Nov 7" — day-level; the event pages carry the times. */
-function shortDate(iso: string): string {
-  const t = Date.parse(iso.includes('T') ? iso : `${iso.replace(' ', 'T')}Z`);
-  return Number.isFinite(t) ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
-}
 
 function SectionTitle({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
   return (
@@ -45,54 +39,6 @@ function StreamLink({ link }: { link: CreatorHomeView['links'][number] }) {
   );
 }
 
-function EventRow({ item, tone }: { item: VisitorItem; tone: 'live' | 'upcoming' | 'past' }) {
-  return (
-    <li className="border-t border-card-border/70 first:border-t-0">
-      <ClanLink
-        href={item.href}
-        className="grid grid-cols-[1fr_auto] items-center gap-4 px-4 py-3 transition-colors hover:bg-card-bg-hover"
-      >
-        <span className="min-w-0">
-          <span className="flex items-center gap-2">
-            {tone === 'live' && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" aria-label="Live" />}
-            <span className="truncate font-medium">{item.name}</span>
-          </span>
-          <span className="block text-[12.5px] text-text-muted">
-            {item.kind}
-            {item.line && <> · {item.line}</>}
-          </span>
-        </span>
-        <span className="text-right text-[13px]">
-          {item.top ? (
-            <>
-              <span className="block">{item.top.name}</span>
-              <span className="block text-[12px] text-text-muted">{item.top.text}</span>
-            </>
-          ) : (
-            <span className="font-mono text-[12.5px] text-text-dim">{item.when ? shortDate(item.when) : ''}</span>
-          )}
-        </span>
-      </ClanLink>
-    </li>
-  );
-}
-
-function EventList({ title, items, tone }: { title: string; items: VisitorItem[]; tone: 'live' | 'upcoming' | 'past' }) {
-  if (items.length === 0) return null;
-  return (
-    <section className="mt-8">
-      <SectionTitle>{title}</SectionTitle>
-      <ul
-        className={`overflow-hidden rounded-xl border bg-card-bg ${tone === 'live' ? 'border-emerald-500/30' : 'border-card-border'}`}
-      >
-        {items.map((item) => (
-          <EventRow key={item.key} item={item} tone={tone} />
-        ))}
-      </ul>
-    </section>
-  );
-}
-
 /**
  * A creator space's page (lib/creatorSpaces): who runs it, where they stream, their events, and the
  * people who have played them. No member count, no recruiting, no "apply" — a creator space has no
@@ -100,19 +46,12 @@ function EventList({ title, items, tone }: { title: string; items: VisitorItem[]
  */
 export default function CreatorHome({
   view,
-  activity,
   highlights = [],
 }: {
   view: CreatorHomeView;
-  activity: PublicClanActivity | null;
   /** Stream highlights (lib/highlights), already cut to events this viewer may see. */
   highlights?: (ShownHighlight & { eventName: string })[];
 }) {
-  const live = activity?.live ?? [];
-  const upcoming = activity?.upcoming ?? [];
-  const past = activity?.past ?? [];
-  const nothingYet = live.length + upcoming.length + past.length === 0;
-
   return (
     <div className="mx-auto max-w-4xl">
       {view.bannerUrl && (
@@ -150,7 +89,7 @@ export default function CreatorHome({
         <div className="flex gap-6 sm:flex-col sm:gap-3 sm:text-right">
           <div>
             <div className="text-xl font-bold tabular-nums text-foreground">{view.eventsRun}</div>
-            <div className="text-[11px] uppercase tracking-wide text-text-muted">events</div>
+            <div className="text-[11px] uppercase tracking-wide text-text-muted">{view.eventsRun === 1 ? 'event' : 'events'}</div>
           </div>
           {view.playerCount != null && (
             <div>
@@ -161,19 +100,14 @@ export default function CreatorHome({
         </div>
       </div>
 
-      <EventList title="Happening now" items={live} tone="live" />
+      {/* The same rows the header counts (lib/creatorHome creatorEventsView). */}
+      <div id="events" className="scroll-mt-20">
+        <CreatorEventList events={view.events} />
+      </div>
 
       {highlights.length > 0 && (
         <div className="mt-8">
           <HighlightsStrip highlights={highlights} blurb="clipped live from the stream during these events" showEvent />
-        </div>
-      )}
-      <EventList title="Coming up" items={upcoming} tone="upcoming" />
-      <EventList title="Finished" items={past} tone="past" />
-
-      {nothingYet && (
-        <div className="mt-8 rounded-xl border border-card-border bg-card-bg p-5 text-sm text-text-muted">
-          No events yet. Check back soon.
         </div>
       )}
 

@@ -69,7 +69,7 @@ import { canEnterEvent } from '@/lib/eventAccess';
 import EnterEvent from './EnterEvent';
 import { eventActivityIsValid } from '@/lib/completionGate';
 import LocalTime from '@/components/LocalTime';
-import { streamedEvent } from '@/lib/creatorSpaces';
+import { isCreatorSpace, streamedEvent } from '@/lib/creatorSpaces';
 import { withSearchText } from '@/lib/tileSearchText';
 import { supporterLooksByName } from '@/lib/supporter';
 import { standingsScopeForSession } from '@/lib/standingsAccess';
@@ -627,12 +627,13 @@ export default async function EventScoreboardPage({
           endDate: event.forceEndedAt ?? event.endDate,
           clanName: clan.name,
           clanSlug: clan.slug,
+          hostKind: hostClan?.kind,
         })}
       />}
       {!apiPrefix && <JsonLd
         data={breadcrumbLd(
           clanTrail(clan, [
-            { name: 'Competitions', path: `/c/${clan.slug}/events` },
+            { name: isCreatorSpace(clan) ? 'Events' : 'Competitions', path: `/c/${clan.slug}/events` },
             { name: event.name, path: `/c/${clan.slug}/events/${event.id}` },
           ]),
         )}
@@ -643,6 +644,8 @@ export default async function EventScoreboardPage({
         bannerUrl={event.bannerUrl}
         bannerPosition={event.bannerPosition}
         hostName={hostClan?.name ?? clan.name}
+        // A creator space's event names its host in words, not with a clan crest's say-so.
+        hostedBy={isCreatorSpace(hostClan) ? hostClan?.name ?? null : null}
         shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.tilesRevealed ? event.boardSize : null, event.rules)}
         pointsOnBoard={pointsOnBoard}
         teamsCount={safeTeams.length}
@@ -857,6 +860,7 @@ export default async function EventScoreboardPage({
         <HighlightsStrip highlights={highlightStrip} />
         <MomentsFeed moments={eventMoments} streamLinks={momentStreamLinks} reactions={momentReactions} />
         <ScoreboardClient
+          creator={isCreatorSpace(hostClan)}
           curtain={curtain}
           event={event}
           tiles={withSearchText(boardTiles)}

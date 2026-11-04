@@ -453,3 +453,58 @@ test('co-hosting: a creator space is refused on either side and offered nothing;
   assert.equal(accepted.ok, true, JSON.stringify(accepted));
   assert.equal((await coHost.coHostedBoardsForClan(other.clanId)).length, 1);
 });
+
+test('the space page lists its own events by the creator rules, and counts exactly the rows it lists', async () => {
+  // A fresh space, so the rows here are the only ones it has.
+  const host = await person('Rules Host');
+  const made = await C.createCreatorSpace({ slug: 'rules-host', name: 'Rules Host', ownerUserId: host.userId });
+  assert.equal(made.ok, true, JSON.stringify(made));
+  if (!made.ok) return;
+  const id = made.clanId;
+  const now = new Date('2026-11-04T12:00:00Z');
+  const rows = await db
+    .insert(s.events)
+    .values([
+      // The bug: undated, sign-ups open by invite link. The clan hub dropped it; the header counted it.
+      { clanId: id, name: 'Open Bingo', boardSize: 5, visibility: 'public' },
+      { clanId: id, name: 'Live Race', boardSize: 5, visibility: 'clan', startDate: '2026-11-04 10:00:00', endDate: '2026-11-06 10:00:00' },
+      { clanId: id, name: 'Next Week', boardSize: 5, visibility: 'public', startDate: '2026-11-11T18:00:00.000Z' },
+      { clanId: id, name: 'Last Month', boardSize: 5, visibility: 'public', startDate: '2026-10-01 00:00:00', endDate: '2026-10-08 00:00:00' },
+      // Invite-only, undated: never to a stranger; the host sees it tagged.
+      { clanId: id, name: 'Secret Draft', boardSize: 5, visibility: 'invited' },
+    ])
+    .returning({ id: s.events.id, name: s.events.name });
+  const idOf = (name: string) => rows.find((r) => r.name === name)!.id;
+
+  const names = (v: Awaited<ReturnType<typeof H.creatorEventsView>>) =>
+    Object.fromEntries(Object.entries(v.groups).map(([k, items]) => [k, items.map((i) => i.name)]));
+
+  const stranger = await H.creatorEventsView(id, { now });
+  assert.deepEqual(names(stranger), { live: ['Live Race'], open: ['Open Bingo'], upcoming: ['Next Week'], past: ['Last Month'] });
+  assert.equal(stranger.count, 4);
+  assert.equal(stranger.groups.open[0].href, `/events/${idOf('Open Bingo')}`);
+  assert.equal(stranger.groups.open[0].line, 'Starts when the host starts it');
+  assert.ok(Object.values(stranger.groups).flat().every((i) => !i.staffOnly));
+
+  const staff = await H.creatorEventsView(id, { now, viewerIsStaff: true });
+  assert.deepEqual(staff.groups.open.map((i) => [i.name, i.staffOnly]), [['Secret Draft', true], ['Open Bingo', false]]);
+  assert.equal(staff.count, 5);
+
+  // The header's number is the list's, for each viewer — never a raw count of rows.
+  for (const [v, viewerIsStaff] of [[stranger, false], [staff, true]] as const) {
+    assert.equal(v.count, Object.values(v.groups).flat().length);
+    const home = (await H.creatorHomeView(id, { viewerIsStaff, now }))!;
+    assert.equal(home.eventsRun, v.count);
+    assert.equal(home.events.count, v.count);
+  }
+});
+
+test('the plugin card for a creator space carries no member numbers', async () => {
+  const { loadClanCard } = await import('../src/lib/clanCard.ts');
+  const card = await loadClanCard({ id: spaceId, slug: 'cool-streamer', name: 'Cool Streamer', logoUrl: null, kind: 'creator' });
+  assert.equal(card.kind, 'creator');
+  assert.equal(card.members, 0);
+  assert.deepEqual(card.topPlayers, []);
+  assert.deepEqual(card.competitions, []);
+});
+

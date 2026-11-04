@@ -59,7 +59,7 @@ export async function visibleClan(request: Request, rawSlug: string) {
   // clan-scope: global -- resolving a clan by slug is what this is.
   const clan = await db.query.clans.findFirst({
     where: eq(clans.slug, slug),
-    columns: { id: true, slug: true, name: true, logoUrl: true, status: true },
+    columns: { id: true, slug: true, name: true, logoUrl: true, status: true, kind: true },
   });
   if (!clan || clan.status === 'suspended') return null;
   if ((await apexClan(slug)) != null) return clan;

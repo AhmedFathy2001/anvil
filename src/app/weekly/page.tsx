@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
 import { clanHref } from '@/lib/clanPath';
+import { currentClan } from '@/lib/clanContext';
+import { creatorPublicAway } from '@/lib/creatorGuard';
 
 /**
  * The weekly index is the Events hub now.
@@ -10,5 +12,7 @@ import { clanHref } from '@/lib/clanPath';
  * there. `/weekly/[id]` is untouched: a week still has its own page.
  */
 export default async function WeeklyIndexPage() {
+  // A creator space has no weeklies: straight to its home, not via its events list.
+  await creatorPublicAway('/weekly', await currentClan());
   redirect(await clanHref('/events'));
 }

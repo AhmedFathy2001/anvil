@@ -295,6 +295,15 @@ export function Roster({ characters, flair }: { characters: RosterCharacter[]; f
                 <p className="mt-0.5 font-mono text-[0.56rem] uppercase tracking-[0.13em] text-text-dim">
                   {home ? home.clanName : 'No home clan'}
                 </p>
+                {/* The full character page as the home clan sees it — records, placings, goals. */}
+                {home && (
+                  <ClanLink
+                    href={`/c/${home.clanSlug}/members/${encodeURIComponent(c.rsn)}`}
+                    className="mt-0.5 block text-[0.74rem] text-gold-dark hover:text-gold"
+                  >
+                    View full profile →
+                  </ClanLink>
+                )}
               </div>
               <span className="ml-auto text-right">
                 <b className="font-mono text-base tabular-nums">{compactXp(c.xpThisWeek)}</b>

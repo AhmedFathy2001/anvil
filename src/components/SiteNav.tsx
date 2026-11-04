@@ -144,7 +144,8 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
         // inside a clan used to throw you out to the directory — you could not stay anywhere.
         { href: `/c/${clan.slug}`, label: 'Home' },
         // One entry for competitions. A Skill of the Week is an event, and having two links meant
-        // knowing which table the clan filed something under before you could find it.
+        // knowing which table the clan filed something under before you could find it. In a creator
+        // space /events is the space's own list (app/events), not the clan hub.
         { href: '/events', label: 'Events' },
         // A creator space has no members — its players are on its home page (lib/creatorSpaces).
         ...(clan.kind === 'creator' ? [] : [{ href: '/members', label: 'Members' }]),
@@ -193,7 +194,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
               aria-haspopup="menu"
               aria-expanded={switcherOpen}
               className="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm font-medium text-foreground/90 hover:bg-brown-light transition-all"
-              title="Switch clan"
+              title={clan.kind === 'creator' ? 'Your clans and spaces' : 'Switch clan'}
             >
               <Crest slug={clan.slug} name={clan.name} logoUrl={clan.logoUrl} />
               <span className="max-w-[10rem] truncate">{clan.name}</span>

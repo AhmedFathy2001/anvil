@@ -13,6 +13,23 @@ import type { GuidePage } from './index';
 // reader typing a Danish word still finds the page — this table is the extra net underneath, not
 // the only one. Adding a locale's own words here later is additive and breaks nothing.
 export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
+  creators: [
+    'streamer', 'streaming', 'stream', 'creator', 'creator space', 'space', 'host', 'hosting',
+    'twitch', 'kick', 'youtube', 'obs', 'stream overlay', 'browser source', '!join', 'chat bot',
+    'followers', 'subs', 'subscribers', 'sub only', 'members', 'boosters', 'gate', 'who can join',
+    'viewers', 'no clan', 'advertise', 'listed', 'directory', 'plan', 'players per event', 'billing',
+    'approve', 'approval', 'waiting for your yes',
+  ],
+  'joining-a-streamer-event': [
+    'viewer', 'join', 'joining', 'streamer event', 'stream link', 'link twitch', 'kick code',
+    'get kick code', 'youtube subscription', 'sub only', 'follower only', 'event is full', 'full',
+    'not subbed', 'won’t let me in', "won't let me in", 'cant join', "can't join", 'connected accounts',
+    'ask to join', 'waiting for the host',
+  ],
+  'streaming-for-clans': [
+    'streaming', 'stream', 'clan stream', 'viewers', 'members and viewers', 'members only',
+    'event players', 'past viewers', 'open to viewers', 'public clan',
+  ],
   tiles: [
     'tile rules', 'rules', 'limits', 'limitations', 'requirements', 'before you start', 'why',
     'not counting', 'not completing', 'collection log', 'clog', 'setting', 'chat setting',

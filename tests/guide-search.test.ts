@@ -29,6 +29,9 @@ const CARD_KEY = {
   commands: 'commands',
   switching: 'switching',
   tiles: 'tiles',
+  creators: 'creators',
+  'joining-a-streamer-event': 'joiningStream',
+  'streaming-for-clans': 'streamingClans',
 } as const;
 
 const ITEMS = (Object.keys(SEARCH_TERMS) as (keyof typeof SEARCH_TERMS)[]).map((page) => {

@@ -1,5 +1,3 @@
-import { formatJoinDate } from '@/lib/clanJoinDate';
-import { characterList } from '@/lib/apexHome';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
@@ -7,38 +5,10 @@ import type { Metadata } from 'next';
 import { apexCharacter } from '@/lib/apexProfiles';
 import { isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
-import ClanLink from '@/components/ClanLink';
-import SupporterName from '@/components/SupporterName';
-import { supporterLooksByName } from '@/lib/supporter';
-import { profileMediaForPlayer } from '@/lib/profileMedia';
-import { displayCaseForPlayer } from '@/lib/displayCase';
-import { ProfileAvatar, ProfileBanner } from '@/components/ProfileMedia';
-import DisplayCase from '@/components/DisplayCase';
-import ConnectedAccounts from '@/components/ConnectedAccounts';
-import { profileConnectedAccounts } from '@/lib/connectedAccounts';
-import ClanCrest from '@/components/ClanCrest';
-import AccountProgressCard from '@/components/AccountProgressCard';
-import ProfileTabs from '@/app/members/[rsn]/ProfileTabs';
 import { profileLinkState } from '@/lib/profileLink';
-import { bossPagesFor } from '@/lib/clogKillcounts';
-import { getCollectionLog } from '@/lib/clogRead';
 import { configuredOrigin } from '@/lib/request-origin';
-import ProfileShare from './ProfileShare';
-import GameClanToggle from './GameClanToggle';
-import { gameClanForAccount, type CharacterGameClan } from '@/lib/gameClans';
-import GoalsCard from '@/components/GoalsCard';
-import H2hCard from '@/components/H2hCard';
-import { goalsForProfile } from '@/lib/goals';
-import { goalRatesFrom } from '@/lib/statTrends';
-import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
-import {
-  getAccountProfile,
-  getDailySeries,
-  getMilestones,
-  getRecords,
-  getTrackingSince,
-  getUpcomingMilestones,
-} from '@/lib/memberProfile';
+import { getAccountProfile } from '@/lib/memberProfile';
+import CharacterProfile from '@/components/character/CharacterProfile';
 
 export const dynamic = 'force-dynamic';
 
@@ -112,17 +82,6 @@ export async function generateMetadata({ params }: { params: Promise<{ rsn: stri
   };
 }
 
-/** Nothing to say without a clan, but the tabs still want the shape. */
-const NO_COMPETITIONS = {
-  events: [],
-  weeklies: [],
-  eventWins: 0,
-  eventPodiums: 0,
-  weeklyWins: 0,
-  weeklyPodiums: 0,
-  totalPoints: 0,
-};
-
 export default async function CharacterPage({
   params,
   searchParams,
@@ -143,267 +102,11 @@ export default async function CharacterPage({
   const profile = await getAccountProfile(character.accountId);
   if (!profile) notFound();
 
-  // The owner's own pictures (Anvil Champion+) only when they show their characters as one person, or
-  // to themselves: the same banner on two characters would otherwise say they are one person, which
-  // nobody else gets told here. The display case is this character's own pins only, which says
-  // nothing about any other character.
-  const showPersonMedia = character.personId != null && (character.personPublic || character.viewerOwns);
-  // Connected accounts follow the same rule as the pictures: a Twitch handle on two character pages
-  // would say they are one person, so only when the owner says so (or to the owner).
-  const [media, showcase, connected] = await Promise.all([
-    showPersonMedia ? profileMediaForPlayer(character.personId!) : Promise.resolve({ avatar: null, banner: null }),
-    character.personId != null
-      ? displayCaseForPlayer(character.personId, { accountId: character.accountId, publicView: !character.viewerOwns })
-      : Promise.resolve([]),
-    showPersonMedia ? profileConnectedAccounts(character.personId!, character.viewerOwns) : Promise.resolve([]),
-  ]);
-
-  const [series, records, milestones, collection, progress, questItems, caItems, trackingSince, gameClanRow, supporterLooks] = await Promise.all([
-    getDailySeries(character.accountId, 365),
-    getRecords(character.accountId),
-    getMilestones(character.accountId, 50),
-    getCollectionLog(character.accountId, character.rsn),
-    getMemberProgress(character.accountId),
-    getMemberItems(character.accountId, 'quest'),
-    getMemberItems(character.accountId, 'ca'),
-    getTrackingSince(character.accountId),
-    gameClanForAccount(character.accountId),
-    // Supporter flair on this character's name, as in a clan's roster; nothing more about its owner.
-    supporterLooksByName([character.rsn]),
-  ]);
-  // The in-game clan their plugin reported (lib/gameClans). A hidden one is the owner's to see.
-  const gameClan = gameClanRow && (!gameClanRow.hidden || character.viewerOwns) ? gameClanRow : null;
-  // The same clan as their Anvil seat: the rank title joins that chip instead of a second one.
-  const seatIsGameClan = !!gameClan && !!character.clan && gameClan.anvilClan?.slug === character.clan.slug;
-
-  const goals = await goalsForProfile(
-    character.accountId,
-    profile,
-    collection.synced ? collection.pages : null,
-    goalRatesFrom(series),
-  );
-
-  const clanJoinedOn = character.clan?.joinedOn ?? (seatIsGameClan ? gameClan?.joinedOn ?? null : null);
-  // The owner's other characters, so a person with three accounts can move between them. Only ever
-  // the viewer's OWN list — it says these accounts are one person, which nobody else gets told here.
-  const myCharacters = character.viewerOwns ? await characterList(session?.playerId) : [];
-
-  const upcoming = getUpcomingMilestones(profile);
-  const ehp = profile.efficiency?.ehp ?? null;
-  const ehb = profile.efficiency?.ehb ?? null;
-
+  // The one character profile (components/character) in its public context: no clan placings,
+  // persona, competition history or moments — those are a clan's, and this page has no clan behind it.
   return (
     <div className="mx-auto w-full max-w-5xl">
-      {media.banner && <ProfileBanner banner={media.banner} className="mb-5" />}
-      <header className="mb-7">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <ProfileAvatar avatar={media.avatar} size={52} eager className="border-2 border-gold/45" />
-          <h1 className="display display-lg text-[clamp(1.7rem,4vw,2.2rem)] font-semibold">
-            <SupporterName name={character.rsn} tier={supporterLooks[character.rsn]?.tier} style={supporterLooks[character.rsn]?.style} />
-          </h1>
-          {character.verified && (
-            <span className="rounded-md border border-accent-green/35 bg-accent-green/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-accent-green-light">
-              Verified
-            </span>
-          )}
-        </div>
-
-        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13.5px] text-text-muted">
-          {character.clan ? (
-            <ClanLink
-              href={`/c/${character.clan.slug}`}
-              className="flex items-center gap-2 transition-colors hover:text-gold"
-            >
-              <ClanCrest name={character.clan.name} logoUrl={character.clan.logoUrl} size={18} />
-              {character.clan.name}
-              {seatIsGameClan && gameClan?.title && <span className="text-text-dim">· {gameClan.title}</span>}
-              {/* The roster sync's date, else the one the player's own plugin reported for this clan. */}
-              {clanJoinedOn && <span className="text-text-dim">· since {formatJoinDate(clanJoinedOn)}</span>}
-            </ClanLink>
-          ) : null}
-          {gameClan && !seatIsGameClan && <GameClanChip clan={gameClan} />}
-          {gameClan && character.viewerOwns && (
-            <GameClanToggle accountId={character.accountId} hidden={gameClan.hidden} />
-          )}
-          {character.clan ? (
-            // The same character, seen by its clan: standings, competition history, the moments
-            // feed. Two pages about one account used to have no way between them.
-            <ClanLink
-              href={`/c/${character.clan.slug}/members/${encodeURIComponent(character.rsn)}`}
-              className="text-gold hover:underline"
-            >
-              Clan profile →
-            </ClanLink>
-          ) : gameClan ? null : (
-            <span className="text-text-dim">No clan</span>
-          )}
-
-          {/* Only present when its owner turned linking on, and named by another RSN they shared —
-              never by anything from Discord. This line used to read "played by <Discord name>".
-
-              `apexCharacter` guarantees the label names a DIFFERENT account from this one, so there
-              is no case to handle here: no other shared character means no owner line at all. */}
-          {character.owner && (
-            <span>
-              also plays{' '}
-              <ClanLink href={`/u/${character.owner.playerId}`} className="text-gold hover:underline">
-                {character.owner.label}
-              </ClanLink>
-            </span>
-          )}
-
-          {trackingSince && (
-            <span title="History before this day was never recorded">
-              Tracked since {new Date(`${trackingSince}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
-            </span>
-          )}
-
-          {/* Their year (from 1 December) and finished months as shareable cards (app/p/[rsn]/wrapped). */}
-          <ClanLink href={`/p/${encodeURIComponent(character.rsn)}/wrapped`} className="text-gold hover:underline">
-            🎁 Wrapped
-          </ClanLink>
-
-          {/* Side by side with somebody else — the compare page asks for the other name. */}
-          <ClanLink
-            href={`/compare?a=${encodeURIComponent(character.rsn)}`}
-            className="text-gold hover:underline"
-          >
-            Compare ↗
-          </ClanLink>
-        </div>
-
-        {myCharacters.length > 1 && (
-          <nav aria-label="Your characters" className="mt-3 flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-[11px] uppercase tracking-[0.12em] text-text-dim">Your characters</span>
-            {myCharacters
-              .slice()
-              .sort((a, b) => a.rsn.localeCompare(b.rsn))
-              .map((c) =>
-                c.id === character.accountId ? (
-                  <span key={c.id} aria-current="page" className="rounded-full border border-gold/50 bg-gold/10 px-2.5 py-0.5 text-xs text-gold">
-                    {c.rsn}
-                  </span>
-                ) : (
-                  <ClanLink
-                    key={c.id}
-                    href={`/p/${encodeURIComponent(c.rsn)}`}
-                    className="rounded-full border border-card-border px-2.5 py-0.5 text-xs text-text-muted transition-colors hover:border-gold/40 hover:text-foreground"
-                  >
-                    {c.rsn}
-                  </ClanLink>
-                ),
-              )}
-          </nav>
-        )}
-
-        <div className="mt-5 flex flex-wrap gap-x-8 gap-y-4">
-          <Figure label="Total level" value={profile.totalLevel > 0 ? profile.totalLevel.toLocaleString() : '—'} />
-          <Figure label="Combat" value={profile.combatLevel != null ? String(profile.combatLevel) : '—'} />
-          <Figure
-            label="Total XP"
-            value={
-              character.overallXp != null
-                ? compact(character.overallXp)
-                : profile.skills.length > 0
-                  ? compact(profile.skills.reduce((sum, k) => sum + k.xp, 0))
-                  : '—'
-            }
-          />
-          <Figure label="EHP" value={ehp != null ? ehp.toFixed(1) : '—'} />
-          <Figure label="EHB" value={ehb != null ? ehb.toFixed(1) : '—'} />
-        </div>
-      </header>
-
-      <ConnectedAccounts links={connected} className="-mt-3 mb-7" />
-      <DisplayCase entries={showcase} showRsn={false} className="mb-7" />
-
-      {/* The tabs render with or without a hiscores snapshot — the clan profile always has. Gating them
-          on the snapshot hid everything the plugin pushes on its own (collection log, quests, combat
-          achievements, records) until the sweep happened to reach this character. */}
-      {!profile.statsAt && profile.skills.length === 0 && (
-        <div className="mb-5 rounded-xl border border-dashed border-card-border px-5 py-4 text-center text-sm text-text-muted">
-          No stats yet for this character. They appear within minutes of playing with the Anvil plugin running,
-          or once we next check the OSRS Hiscores.
-        </div>
-      )}
-      {/* Head-to-head (lib/h2h): this character's public record and a Challenge button; the owner
-          sees their whole record and anything waiting on them. */}
-      <H2hCard accountId={character.accountId} rsn={character.rsn} viewerPlayerId={session?.playerId ?? null} />
-      <GoalsCard
-        accountId={character.accountId}
-        goals={goals.goals}
-        editable={character.viewerOwns}
-        options={goals.options}
-      />
-      <ProfileTabs
-        bossPages={bossPagesFor(profile.bosses)}
-        initial={progressTab && !link.tab ? { ...link, tab: 'collection' } : link}
-          profile={profile}
-          series={series}
-          records={records}
-          milestones={milestones}
-          // Empty here on purpose. A moment belongs to the clan it happened in, and this is the
-          // PLATFORM profile — a page anyone can reach for a character that may sit in several
-          // clans. Showing the feed would carry one clan's social content onto a page its members
-          // never chose to publish it on. The clan profile (/c/<slug>/members/<rsn>) has it.
-          moments={[]}
-          history={NO_COMPETITIONS}
-          upcoming={upcoming}
-          // Standings are a clan's answer — "#3 of 47" says nothing on a page with no clan behind
-          // it. The tabs already render a dash for an absent placing, so this is empty rather than
-          // faked from the platform, which would be a different and much less useful number.
-          activityStandings={{}}
-          collection={collection}
-          accountProgress={
-            <AccountProgressCard summary={progress} quests={questItems} combat={caItems} initialTab={progressTab} />
-          }
-        />
-
-      {character.viewerOwns ? (
-        <ProfileShare rsn={character.rsn} shared={!character.privateToViewer} />
-      ) : (
-        <p className="mt-8 text-xs text-text-dim">
-          Shown because this account is shared. Its owner can turn that off from their profile.
-        </p>
-      )}
-    </div>
-  );
-}
-
-/**
- * The in-game clan, when it is not the Anvil clan already shown: its Anvil page when it has a listed
- * one, else its ghost page — or plain text for an Anvil clan that keeps itself off public pages.
- */
-function GameClanChip({ clan }: { clan: CharacterGameClan }) {
-  const body = (
-    <>
-      {!clan.anvilClanUnlisted && (
-        <ClanCrest name={clan.anvilClan?.name ?? clan.name} logoUrl={clan.anvilClan?.logoUrl ?? null} size={18} />
-      )}
-      {clan.name}
-      {clan.title && <span className="text-text-dim">· {clan.title}</span>}
-      {clan.joinedOn && <span className="text-text-dim">· since {formatJoinDate(clan.joinedOn)}</span>}
-    </>
-  );
-  if (clan.anvilClanUnlisted) return <span className="flex items-center gap-2">{body}</span>;
-  return (
-    <ClanLink
-      href={clan.anvilClan ? `/c/${clan.anvilClan.slug}` : `/clans/g/${encodeURIComponent(clan.key)}`}
-      className="flex items-center gap-2 transition-colors hover:text-gold"
-      title={clan.joinedOn ? `In-game clan · joined ${clan.joinedOn}` : 'In-game clan'}
-    >
-      {body}
-    </ClanLink>
-  );
-}
-
-function Figure({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="font-mono text-[22px] tabular-nums">{value}</div>
-      <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-text-dim">
-        {label}
-      </div>
+      <CharacterProfile context={{ kind: 'public', character, profile }} viewer={session} link={link} progressTab={progressTab} />
     </div>
   );
 }
