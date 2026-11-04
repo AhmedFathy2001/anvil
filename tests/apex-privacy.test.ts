@@ -167,7 +167,7 @@ test('no public apex page reads players.displayName', () => {
   // A source check, because the value is only wrong in CONTEXT: displayName is correct on /profile
   // and a leak on /u/ and /p/, and no type distinguishes them. Comments are stripped first so the
   // notes explaining why it is absent do not read as a use of it.
-  for (const f of ['src/app/u/[id]/page.tsx', 'src/app/p/[rsn]/page.tsx']) {
+  for (const f of ['src/app/u/[id]/page.tsx', 'src/app/p/[rsn]/page.tsx', 'src/components/character/CharacterProfile.tsx']) {
     const src = readFileSync(join(process.cwd(), f), 'utf-8')
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/(^|[^:])\/\/.*$/gm, '$1');
