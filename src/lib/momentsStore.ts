@@ -223,8 +223,9 @@ async function clanScope(clanId: number): Promise<ClanScope> {
     // restore what shipped, not silently switch a feature off. Turning combat tasks OFF is written
     // as a tier we can't rank ("none"), which reads as what it is and can't be reached by accident.
     minCaTier: rawTier ? rawTier : DEFAULT_CLAN_SCOPE.minCaTier,
-    deaths: byKey.has(CLAN_DEATHS_SETTING_KEY)
-      ? byKey.get(CLAN_DEATHS_SETTING_KEY) === 'on'
+    // The admin toggle writes 'true'/'false' (components/ToggleSetting); 'on' is the older spelling.
+    deaths: byKey.get(CLAN_DEATHS_SETTING_KEY)
+      ? ['true', '1', 'on'].includes(byKey.get(CLAN_DEATHS_SETTING_KEY)!.trim().toLowerCase())
       : DEFAULT_CLAN_SCOPE.deaths,
     // The same floor (and the same clamp) as the Discord rare-drops channel: pluginConfig getDropRarityFloor.
     minRarity: Number.isFinite(rawRarity) && rawRarity > 0 ? Math.max(1000, Math.round(rawRarity)) : DEFAULT_CLAN_SCOPE.minRarity,
@@ -366,7 +367,12 @@ export async function recordSeatMoments(
   // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan
   const seat = await db.query.clanMemberships.findFirst({ where: eq(clanMemberships.id, member.clanMemberId), columns: { kind: true } });
   const seatKind = seat?.kind ?? 'guest';
-  const kept = idle ? (seatKind === 'member' ? observations.filter((o) => isAchievementKind(o.kind)) : []) : observations;
+  // A death is kept with nothing running too, when the clan keeps deaths (it's the clan's feed either way).
+  const kept = idle
+    ? seatKind === 'member'
+      ? observations.filter((o) => isAchievementKind(o.kind) || (o.kind === 'death' && scopes.clan.deaths))
+      : []
+    : observations;
   if (kept.length === 0) return { stored: 0, matched: 0, inserted: [], seatKind, idle };
   return { ...(await recordMoments(member, kept, scopes)), seatKind, idle };
 }

@@ -111,7 +111,9 @@ async function clanRows(clan: Extract<Scope, { kind: 'clan' }>, filter: string, 
   const g = groupOf(filter);
   const raw = (await momentsForClan(clan.id, 120))
     .filter((m) => panelFeedWorthy(m, scope.minLootGp) && isClanWorthy(m, scope))
-    .filter((m) => !g || kindGroup(m.kind) === g);
+    .filter((m) => !g || kindGroup(m.kind) === g)
+    // Deaths show under the Deaths chip, not in a clan's All (lib/pluginUi/feedUi momentFeedIds).
+    .filter((m) => g === 'deaths' || m.kind !== 'death');
   // Drops filed on a board with hidden standings stay out of the clan's feed (the board's own feed
   // shows each team its own). Checked fresh per board.
   const boards = [...new Set(raw.map((m) => m.eventId).filter((e): e is number => e != null))];

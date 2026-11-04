@@ -154,8 +154,8 @@ export interface ClanScope {
   /** The lowest combat-task tier worth keeping. A tier we can't rank ("none") turns them off. */
   minCaTier: string;
   /**
-   * Keep deaths too. Off by default, and deliberately: inside an event a death is half the story,
-   * but a clan-wide feed of everyone dying all week is a different, much worse thing to read.
+   * Keep deaths too. On by default; the clan feed shows them under their own Deaths chip and never
+   * in All, because a clan-wide stream of everyone dying all week would drown the highlights.
    */
   deaths: boolean;
   /**
@@ -474,7 +474,7 @@ export const DEFAULT_CLAN_SCOPE: ClanScope = {
   minLootGp: 5_000_000,
   // Master and Grandmaster are an achievement on their own terms, which is exactly the test here.
   minCaTier: MIN_OFF_TOPIC_CA_TIER,
-  deaths: false,
+  deaths: true,
   // The Discord rare-drops default (pluginConfig DEFAULT_DROP_RARITY_FLOOR).
   minRarity: 10_000,
 };
