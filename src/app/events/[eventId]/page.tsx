@@ -751,15 +751,16 @@ export default async function EventScoreboardPage({
         // A creator space's event, signed out: one button. Discord sign-in, then straight back here,
         // where the same button joins them (EnterEvent, creator mode).
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--sa)]/40 bg-[var(--sa-soft)] p-5">
-          <div className="min-w-0">
-            <div className="text-lg font-semibold">Join this event</div>
-            <div className="text-sm text-text-muted">Sign in with Discord — it takes a few seconds.</div>
+          <div className="min-w-0 flex-[1_1_16rem]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--sa-text)]">Step 1 of 2</div>
+            <div className="mt-1 text-lg font-semibold">Join this event</div>
+            <div className="text-sm text-text-muted">Sign in with Discord — it takes a few seconds. Then one more tap and you’re playing.</div>
           </div>
           <ClanLink
             href={`/login?return=${encodeURIComponent(await clanHref(`/events/${event.id}`))}`}
-            className="shrink-0 rounded-xl bg-[var(--sa)] px-6 py-3 text-base font-semibold text-[var(--sa-ink)] transition-opacity hover:opacity-90"
+            className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-[var(--sa)] px-7 text-base font-bold text-[var(--sa-ink)] transition-opacity hover:opacity-90 sm:w-auto"
           >
-            Join
+            Continue with Discord
           </ClanLink>
         </div>
       ) : isOutsider ? (

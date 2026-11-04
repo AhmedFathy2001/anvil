@@ -284,6 +284,8 @@ function CreatorJoin({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [state, setState] = useState<'idle' | 'joined' | 'asked'>(info.pendingSince ? 'asked' : 'idle');
+  // The team the sign-up seated them on (auto-balance or their pick), for "You're on Team Kat".
+  const [team, setTeam] = useState<{ name: string; color: string | null } | null>(null);
   // The host's gate said no (lib/entryGates): what to do, step by step.
   const [gateFail, setGateFail] = useState<GateFail | null>(null);
   // Back from linking Twitch (?twitch=linked…): say how it went, then drop the marker.
@@ -311,22 +313,47 @@ function CreatorJoin({
 
   if (state === 'joined') {
     return (
-      <div className="mb-6 rounded-xl border border-accent-green/40 bg-accent-green/10 p-5">
-        <div className="text-lg font-semibold text-accent-green-light">You’re in!</div>
-        <p className="mt-1 text-sm text-text-muted">
-          Install the Anvil plugin in RuneLite to start tracking — your drops and kills then count by themselves.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-3">
+      <div className="mb-6 rounded-2xl border border-card-border bg-card-bg p-5 sm:p-6" role="status">
+        <div className="flex items-center gap-4">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[var(--sa-soft,rgba(224,170,30,.16))]">
+            <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-[var(--sa-text,var(--gold))]" aria-hidden>
+              <path d="M5 12l5 5L20 7" />
+            </svg>
+          </span>
+          <div className="min-w-0">
+            <div className="display text-2xl font-semibold leading-tight">
+              {team ? (
+                <>
+                  You’re on <span style={team.color ? { color: team.color } : undefined}>{team.name}</span>
+                </>
+              ) : (
+                'You’re in!'
+              )}
+            </div>
+            <p className="mt-0.5 text-sm text-text-muted">Last thing: the plugin counts your drops for you.</p>
+          </div>
+        </div>
+        <ol className="mt-5 grid gap-2 text-sm">
+          <li className="flex items-center gap-3 rounded-xl bg-background/60 px-3.5 py-3">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--sa,var(--gold))] text-xs font-bold text-[var(--sa-ink,var(--brown-dark))]" aria-hidden>✓</span>
+            Signed in and on {team ? 'a team' : 'the event'}
+          </li>
+          <li className="flex items-center gap-3 rounded-xl bg-background/60 px-3.5 py-3">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-card-border text-xs font-bold text-text-muted" aria-hidden>2</span>
+            Install Anvil from the RuneLite Plugin Hub
+          </li>
+        </ol>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <ClanLink
             href="/guide/plugin"
-            className="rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+            className="inline-flex min-h-12 items-center justify-center rounded-xl px-5 text-base font-semibold bg-[var(--sa,var(--gold))] text-[var(--sa-ink,var(--brown-dark))] transition-opacity hover:opacity-90"
           >
-            How to install the plugin
+            How to install (30 s)
           </ClanLink>
           <button
             type="button"
             onClick={() => router.refresh()}
-            className="rounded-xl border border-gold/40 px-4 py-2.5 text-sm text-gold transition-colors hover:border-gold"
+            className="inline-flex min-h-12 items-center justify-center rounded-xl border border-card-border px-5 text-base transition-colors hover:border-[var(--sa,var(--gold))]"
           >
             See the board
           </button>
@@ -399,6 +426,8 @@ function CreatorJoin({
           body: JSON.stringify({ clanMemberIds: [data.seatId] }),
         });
         if (signup.ok) {
+          const done = await signup.json().catch(() => null);
+          if (done?.team && typeof done.team.name === 'string') setTeam({ name: done.team.name, color: done.team.color ?? null });
           setState('joined');
           return;
         }
@@ -418,9 +447,10 @@ function CreatorJoin({
   }
 
   return (
-    <Card tone="info">
-      <div className="min-w-0">
-        <div className="text-lg font-semibold">{asks ? 'Ask to join this event' : 'Join this event'}</div>
+    <Card tone="accent">
+      <div className="min-w-0 flex-[1_1_16rem]">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--sa-text,var(--gold))]">Step 2 of 2 · one tap</div>
+        <div className="mt-1 text-lg font-semibold">{asks ? 'Ask to join this event' : 'Join this event'}</div>
         <div className="text-sm text-text-muted">
           {info.gate ? info.gate.summary : asks ? 'The host says yes to each player.' : 'One click and you’re playing.'}
           {info.gate && asks ? ' The host also says yes to each player.' : ''}
@@ -431,7 +461,7 @@ function CreatorJoin({
         )}
         {info.gate?.kick?.linked && <div className="mt-0.5 text-[12.5px] text-text-dim">Your Kick: {info.gate.kick.linked}</div>}
       </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">
         {/* Linking first saves a round trip when the gate is Twitch-only. */}
         {info.gate?.usesTwitch && info.gate.twitchAvailable && !info.gate.twitchLinked && !gateFail?.linkTwitch && (
           <button
@@ -456,7 +486,7 @@ function CreatorJoin({
           type="button"
           onClick={join}
           disabled={busy || chosen == null}
-          className="rounded-xl bg-gold px-6 py-3 text-base font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
+          className="min-h-12 w-full rounded-xl px-7 text-base font-bold disabled:opacity-50 sm:w-auto bg-[var(--sa,var(--gold))] text-[var(--sa-ink,var(--brown-dark))] transition-opacity hover:opacity-90"
         >
           {busy ? 'Joining…' : asks ? 'Ask to join' : 'Join'}
         </button>
@@ -515,8 +545,14 @@ function requestedDay(stamp: string): string {
   return ms == null ? 'an earlier visit' : new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
 }
 
-function Card({ tone, children }: { tone: 'info' | 'muted'; children: React.ReactNode }) {
-  const cls = tone === 'muted' ? 'border-card-border bg-brown-dark' : 'border-gold/30 bg-gold/10';
+function Card({ tone, children }: { tone: 'info' | 'muted' | 'accent'; children: React.ReactNode }) {
+  // 'accent': the host space's colour where the page sets it (lib/accentStyle), gold where it doesn't.
+  const cls =
+    tone === 'muted'
+      ? 'border-card-border bg-brown-dark'
+      : tone === 'accent'
+        ? 'rounded-2xl border-[var(--sa,var(--gold))]/40 bg-[var(--sa-soft,rgba(224,170,30,.1))]'
+        : 'border-gold/30 bg-gold/10';
   return (
     <div className={`mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4 ${cls}`}>
       {children}
