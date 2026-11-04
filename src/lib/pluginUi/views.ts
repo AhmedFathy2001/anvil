@@ -557,8 +557,9 @@ async function reactBoardRowAct(request: Request, a: Args): Promise<View> {
     const ev = await db.query.events.findFirst({ where: eq(events.id, eventId) });
     if (!ev || standingsHidden(ev)) return { ui: text('That isn’t in this event’s feed.', 'error') };
   }
-  // A board's rows take reactions only on its deaths.
-  if (m.kind !== 'death' || !(rowReactKinds(m.kind) as string[]).includes(kind)) return { ui: text('Couldn’t react to that.', 'error') };
+  // Whatever the row offers: GZ (gold for a Supporter) on a drop, pet or achievement; Sad / Sit on a death.
+  if (kind === 'gold' && !(await supporterForUser(viewer.userId))) return { ui: text('Gold GZs are an Anvil Supporter reaction.', 'error') };
+  if (!(rowReactKinds(m.kind) as string[]).includes(kind === 'gold' ? 'gz' : kind)) return { ui: text('Couldn’t react to that.', 'error') };
   await toggleReaction(id, viewer.userId, kind);
   return { ui: gap(0) };
 }
