@@ -82,6 +82,7 @@ export default async function ClansPage() {
     verified: r.verified,
     guestPolicy: r.guestPolicy,
     kind: r.kind,
+    featured: r.featured,
     activeThisWeek: r.activeThisWeek,
     xpThisWeek: r.xpThisWeek,
   }));

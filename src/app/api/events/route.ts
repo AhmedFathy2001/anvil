@@ -4,6 +4,10 @@ import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { events, tiles } from '@/db/schema';
 import { verifyAdmin } from '@/lib/auth';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { newEventVerdict } from '@/lib/creatorPlans';
+import { liveEventCount } from '@/lib/creatorPlansDb';
+import { freemiumEnforced } from '@/lib/entitlements';
 import { validateEventRules } from '@/lib/eventRules';
 import { isTeamFormation } from '@/lib/teamFormation';
 import { DEFAULT_NEW_EVENT_PLACEMENT, isTeamPlacement, normaliseTeamCap, normaliseTeamCount } from '@/lib/teamPlacement';
@@ -193,6 +197,12 @@ export async function POST(request: Request) {
   // the `tiles.accepted_sources` column produced exactly that orphan state for
   // event #8 — recoverable only via a manual backfill.
   const clan = await requireClan();
+  // A creator space on Free or Bronze runs one event at a time (lib/creatorPlans). A no-op until
+  // FREEMIUM_ENFORCED is on; an ordinary clan is unchanged.
+  if (isCreatorSpace(clan) && freemiumEnforced()) {
+    const more = newEventVerdict({ clanPlan: clan.plan, liveEvents: await liveEventCount(clan.id) });
+    if (!more.ok) return NextResponse.json({ error: more.error, reason: 'plan' }, { status: 403 });
+  }
   const event = await db.transaction(async (tx) => {
     const [created] = await tx.insert(events).values({
       clanId: clan.id,

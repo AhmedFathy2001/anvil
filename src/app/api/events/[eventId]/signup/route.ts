@@ -16,6 +16,9 @@ import { checkPick, isTeamFull, placementOf } from '@/lib/teamPlacement';
 import { seatSignupAccounts, teamLoads } from '@/lib/teamPlacementDb';
 import { entryGateVerdict } from '@/lib/entryGatesDb';
 import { verdictMessage } from '@/lib/entryGates';
+import { eventRoomVerdict } from '@/lib/creatorPlans';
+import { creatorPlanOfClan, eventPlayerCount } from '@/lib/creatorPlansDb';
+import { freemiumEnforced } from '@/lib/entitlements';
 
 export async function GET(
   request: Request,
@@ -276,6 +279,22 @@ export async function POST(
         { error: `${rsn}'s fee is already paid — contact an admin to remove that account.` },
         { status: 403 },
       );
+    }
+  }
+
+  // A creator space's plan caps the players on one event (lib/creatorPlans). Only the accounts this
+  // submission ADDS count — editing a sign-up, or swapping one character for another, never bumps
+  // anybody. A no-op until FREEMIUM_ENFORCED is on; an ordinary clan is never metered this way.
+  if (freemiumEnforced()) {
+    const adding =
+      selectedIds.filter((cid) => {
+        const prior = existingRows.find((r) => r.clanMemberId === cid);
+        return !prior || prior.status === 'withdrawn';
+      }).length - deselected.length;
+    const hostPlan = adding > 0 ? await creatorPlanOfClan(event.clanId) : null;
+    if (hostPlan != null) {
+      const room = eventRoomVerdict({ clanPlan: hostPlan, players: await eventPlayerCount(id), adding });
+      if (!room.ok) return NextResponse.json({ error: room.error, reason: 'full' }, { status: 403 });
     }
   }
 

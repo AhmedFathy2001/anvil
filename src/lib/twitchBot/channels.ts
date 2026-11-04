@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { clanTwitchChannels, clans, events, settings } from '@/db/schema';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { absoluteUrl } from '@/lib/seo';
+import { chatJoinAllowed } from '@/lib/creatorPlans';
 
 import { CHAT_JOIN_SETTING, NOTHING_OPEN_REPLY, joinReplyText, pickJoinEvent } from './wire';
 
@@ -43,17 +44,22 @@ export async function chatJoinEnabled(clanId: number): Promise<boolean> {
   return row?.value === 'on';
 }
 
-/** Every channel the bot should be in: an active creator space, switched on, with a proved channel. */
+/**
+ * Every channel the bot should be in: an active creator space, switched on, with a proved channel —
+ * and, once FREEMIUM_ENFORCED is on, on a plan that includes `!join` (lib/creatorPlans; Silver+).
+ */
 export async function chatBotChannels(): Promise<{ clanId: number; broadcaster: TwitchBroadcaster }[]> {
   // clan-scope: global -- the bot serves every creator space that opted in; each row is its own clan's.
   const rows = await db
-    .select({ clanId: clans.id })
+    .select({ clanId: clans.id, plan: clans.plan })
     .from(settings)
     .innerJoin(clans, eq(clans.id, settings.clanId))
     .where(and(eq(settings.key, CHAT_JOIN_SETTING), eq(settings.value, 'on'), eq(clans.kind, 'creator'), eq(clans.status, 'active')));
   const out: { clanId: number; broadcaster: TwitchBroadcaster }[] = [];
   const seen = new Set<string>();
   for (const r of rows) {
+    // Left out entirely, so the bot leaves the channel on its next refresh after a downgrade.
+    if (!chatJoinAllowed(r.plan)) continue;
     const b = await linkedTwitchBroadcaster(r.clanId);
     // One channel answers for one space: a channel two spaces both claim is answered by neither.
     if (!b) continue;

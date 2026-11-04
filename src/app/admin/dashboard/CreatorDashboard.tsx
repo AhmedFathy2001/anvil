@@ -10,6 +10,9 @@ import { pendingRequestCountsByEvent } from '@/lib/guestAdmission';
 import type { SetupStatus } from '@/lib/setupStatus';
 import CreatorPlayers from '../people/CreatorPlayers';
 import StreamOverlayCard from './StreamOverlayCard';
+import CreatorPlanCard from './CreatorPlanCard';
+import { freemiumEnforced } from '@/lib/entitlements';
+import { playersPerEventCap } from '@/lib/creatorPlans';
 
 function when(stamp: string | null): string {
   if (!stamp) return 'Not scheduled';
@@ -21,7 +24,19 @@ function when(stamp: string | null): string {
  * A creator space's landing (lib/creatorSpaces): their events with an invite link each, a big "new
  * event" button, and who has joined. Nothing about rosters, weeklies, fees or Discord up front.
  */
-export default async function CreatorDashboard({ clanId, setup }: { clanId: number; setup: SetupStatus }) {
+export default async function CreatorDashboard({
+  clanId,
+  setup,
+  clanPlan,
+  canBuy,
+}: {
+  clanId: number;
+  setup: SetupStatus;
+  /** clans.plan — the same ladder as a clan's (lib/creatorPlans). */
+  clanPlan: string;
+  /** Admin or owner: may see the checkout button. */
+  canBuy: boolean;
+}) {
   const [list, players, waiting] = await Promise.all([
     db
       .select({ id: events.id, name: events.name, startDate: events.startDate })
@@ -42,6 +57,8 @@ export default async function CreatorDashboard({ clanId, setup }: { clanId: numb
     : [];
   const joinedBy = new Map(counts.map((c) => [c.eventId, c.n]));
   const rows = list.map((e) => ({ ...e, joined: joinedBy.get(e.id) ?? 0, waiting: waiting.get(e.id) ?? 0 }));
+  // "Full" only means something once plans are enforced; until then everyone still gets in.
+  const cap = freemiumEnforced() ? playersPerEventCap(clanPlan) : null;
 
   return (
     <div className="max-w-4xl">
@@ -76,6 +93,7 @@ export default async function CreatorDashboard({ clanId, setup }: { clanId: numb
                 <span className="block truncate font-semibold">{e.name}</span>
                 <span className="block text-[13px] text-text-muted">
                   {when(e.startDate)} · {e.joined} joined
+                  {cap != null && e.joined >= cap && <span className="text-gold"> · full</span>}
                 </span>
               </ClanLink>
               {e.waiting > 0 && (
@@ -97,6 +115,10 @@ export default async function CreatorDashboard({ clanId, setup }: { clanId: numb
           ))}
         </ul>
       )}
+
+      <div className="mt-8">
+        <CreatorPlanCard clanId={clanId} clanPlan={clanPlan} canBuy={canBuy} />
+      </div>
 
       <div className="mt-8">
         <CreatorPlayers players={players} title="Who joined" />

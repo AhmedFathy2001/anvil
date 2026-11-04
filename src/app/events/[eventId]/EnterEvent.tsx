@@ -22,6 +22,8 @@ interface EnterInfo {
   guestsClosed?: boolean;
   /** Has any character at all, verified or not. */
   hasCharacter?: boolean;
+  /** A creator-space event with no room left on its plan (lib/creatorPlans). */
+  full?: boolean;
   /** A creator-space event's "who can join" (lib/entryGates), said before anyone presses Join. */
   gate?: { summary: string; usesTwitch: boolean; twitchLinked: string | null; twitchAvailable: boolean } | null;
 }
@@ -155,6 +157,17 @@ export default function EnterEvent({
           <div className="text-sm text-text-muted">
             {pending ?? `You asked on ${requestedDay(info.pendingSince!)}. You’ll be able to sign up once they accept.`}
           </div>
+        </div>
+      </Card>
+    );
+  }
+
+  if (info.full) {
+    return (
+      <Card tone="muted">
+        <div className="min-w-0">
+          <div className="font-semibold">This event is full</div>
+          <div className="text-sm text-text-muted">There’s no room for more players right now. Ask the host — they can make room.</div>
         </div>
       </Card>
     );

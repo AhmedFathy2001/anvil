@@ -1,4 +1,4 @@
-import { overlayEventForKey, overlaySnapshot } from '@/lib/overlay/overlayData';
+import { overlayEventForKey, overlayMark, overlaySnapshot } from '@/lib/overlay/overlayData';
 import { etagMatches, isOverlayKey, overlayEtag, parseOverlayOptions } from '@/lib/overlay/overlayView';
 import { rateLimit, rateLimitByKey } from '@/lib/rate-limit';
 
@@ -32,7 +32,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
   if (!event) return Response.json({ error: 'Not found' }, { status: 404, headers: HEADERS });
 
   const opts = parseOverlayOptions(new URL(request.url).searchParams);
-  const json = JSON.stringify(await overlaySnapshot(event, opts));
+  const [snapshot, mark] = await Promise.all([overlaySnapshot(event, opts), overlayMark(event.clanId)]);
+  const json = JSON.stringify(mark ? { ...snapshot, mark: true } : snapshot);
   const etag = overlayEtag(json);
   if (etagMatches(request.headers.get('if-none-match'), etag)) {
     return new Response(null, { status: 304, headers: { ...HEADERS, ETag: etag } });

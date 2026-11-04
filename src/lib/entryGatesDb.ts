@@ -22,6 +22,7 @@ import {
   users,
 } from '@/db/schema';
 import { parseStamp } from '@/lib/dbTime';
+import { streamGateLock } from '@/lib/creatorPlans';
 import {
   GateCache,
   checkGates,
@@ -433,7 +434,11 @@ export async function entryGateInfo(eventId: number, userId: number | null): Pro
 
 export async function gateOptions(clanId: number): Promise<GateOptions> {
   const configured = twitchConfig() !== null;
-  const [channel, creds] = await Promise.all([configured ? hostTwitchChannel(clanId) : null, getBotCredentials(clanId)]);
+  const [channel, creds, host] = await Promise.all([
+    configured ? hostTwitchChannel(clanId) : null,
+    getBotCredentials(clanId),
+    db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { plan: true } }),
+  ]);
   const roles = creds
     ? (await fetchGuildRoles(clanId))
         // Every role but @everyone (whose id is the server's). Unlike the role pickers that ASSIGN
@@ -446,6 +451,7 @@ export async function gateOptions(clanId: number): Promise<GateOptions> {
   return {
     twitch: { configured, channel, connectUrl: configured ? `/api/auth/twitch/start?as=host&space=${clanId}` : null },
     discord: { connected: !!creds, roles },
+    streamLock: streamGateLock(host?.plan),
   };
 }
 

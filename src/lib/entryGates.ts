@@ -146,6 +146,12 @@ export interface GateOptions {
     connected: boolean;
     roles: { id: string; name: string }[];
   };
+  /**
+   * The plan a stream-platform gate (any kind but discord-*) needs, when this space's plan does not
+   * reach it; null/absent = allowed (lib/creatorPlans streamGateLock). Always null while
+   * FREEMIUM_ENFORCED is off.
+   */
+  streamLock?: string | null;
 }
 
 /**
@@ -155,6 +161,9 @@ export interface GateOptions {
  */
 export function validateGatesFor(gates: EntryGates | null, opts: GateOptions): { ok: true } | { ok: false; error: string } {
   if (!gates) return { ok: true };
+  if (opts.streamLock && gates.anyOf.some((r) => !r.kind.startsWith('discord-'))) {
+    return { ok: false, error: `Twitch, Kick and YouTube checks are a ${opts.streamLock} feature. Discord checks are free.` };
+  }
   for (const r of gates.anyOf) {
     if (isTwitchRule(r)) {
       if (!opts.twitch.configured) return { ok: false, error: 'Twitch checks are not available on this server.' };

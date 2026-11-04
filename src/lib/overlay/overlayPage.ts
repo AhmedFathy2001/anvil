@@ -70,12 +70,14 @@ body{font-family:"Segoe UI",Inter,Roboto,"Helvetica Neue",Arial,sans-serif;font-
 .cell.done{box-shadow:inset 0 0 0 ${px(4)} var(--c)}
 .cell.done img{opacity:.55}
 .cell .dots{position:absolute;bottom:${px(3)};left:0;right:0;display:flex;justify-content:center;gap:${px(3)}}
+#mark{position:fixed;right:${px(8)};bottom:${px(6)};font-size:${px(13)};font-weight:700;opacity:.8;display:none}
 .cell .dots i{width:${px(9)};height:${px(9)};border-radius:50%;box-shadow:0 0 0 ${px(1.5)} #000}
 </style>
 </head>
 <body>
 <div id="head" class="o"><span id="name"></span><span id="clock"></span></div>
 <div id="body"></div>
+<div id="mark" class="o">Anvil</div>
 <script id="cfg" type="application/json">${cfg}</script>
 <script nonce="${nonce}">${CLIENT}</script>
 </body>
@@ -85,7 +87,7 @@ body{font-family:"Segoe UI",Inter,Roboto,"Helvetica Neue",Arial,sans-serif;font-
 // The page's whole script. Plain ES2017 for OBS's Chromium; builds every node with textContent.
 const CLIENT = `(function(){
 var cfg=JSON.parse(document.getElementById('cfg').textContent);
-var head=document.getElementById('head'),nameEl=document.getElementById('name'),clockEl=document.getElementById('clock'),bodyEl=document.getElementById('body');
+var head=document.getElementById('head'),nameEl=document.getElementById('name'),clockEl=document.getElementById('clock'),bodyEl=document.getElementById('body'),markEl=document.getElementById('mark');
 if(!cfg.title)head.style.display='none';
 var etag=null,last=null,seen={},first=true;
 function el(t,c,txt){var e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e;}
@@ -111,7 +113,7 @@ function board(b){bodyEl.textContent='';var g=el('div','grid');g.style.gridTempl
  if(c.icon){var img=el('img');img.src=c.icon;img.alt='';cell.appendChild(img);}else cell.appendChild(el('span','lbl o',c.label));
  if(c.done.length>1){var d=el('div','dots');c.done.forEach(function(col){var i=el('i');i.style.background=col;d.appendChild(i);});cell.appendChild(d);}
  g.appendChild(cell);});bodyEl.appendChild(g);}
-function render(p){last=p;nameEl.textContent=p.header.name;clock();var b=p.body;
+function render(p){last=p;nameEl.textContent=p.header.name;clock();markEl.style.display=p.mark?'block':'none';var b=p.body;
  if(b.notice!=null)return notice(b.notice);
  if(p.view==='standings')standings(b);else if(p.view==='feed')feed(b);else board(b);}
 function poll(){var h={};if(etag)h['If-None-Match']=etag;

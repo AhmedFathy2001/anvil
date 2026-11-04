@@ -4,6 +4,9 @@ import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts, clanJoinRequests, clanMemberships, clans, events } from '@/db/schema';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { eventRoomVerdict } from '@/lib/creatorPlans';
+import { creatorPlanOfClan, eventPlayerCount } from '@/lib/creatorPlansDb';
+import { freemiumEnforced } from '@/lib/entitlements';
 import { verifyUser } from '@/lib/auth';
 import { canEnterEvent } from '@/lib/eventAccess';
 import { guestPolicyOf } from '@/lib/guestAdmission';
@@ -83,6 +86,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
   // Whether they have any character at all. With none, linking one is the next step, and the sign-up
   // page does that inline; with only unverified ones, verifying is, and that lives on the profile.
   let hasCharacter = false;
+  // A creator-space event at its plan's player cap (lib/creatorPlans) — only ever true when enforced.
+  let full = false;
   if (session?.playerId && verdict.outcome === 'outsider') {
     // clan-scope: global -- entering somebody ELSE'S event is the whole point of this route; the clan is the event's, and canEnterEvent has already ruled on access.
     const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
@@ -121,6 +126,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
             }),
       ]);
       guestsClosed = policy === 'closed';
+      if (creator && freemiumEnforced()) {
+        const host = await creatorPlanOfClan(event.clanId);
+        full = !eventRoomVerdict({ clanPlan: host, players: await eventPlayerCount(eventId), adding: 1 }).ok;
+      }
       hasCharacter = mine.length > 0;
       pendingSince = asked?.requestedAt ?? null;
     }
@@ -129,5 +138,5 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
   // A creator-space event's "who can join", said up front (no Twitch or Discord call is made here).
   const gate = verdict.outcome === 'outsider' ? await entryGateInfo(eventId, session?.userId ?? null) : null;
 
-  return NextResponse.json({ verdict, options, pendingSince, guestsClosed, hasCharacter, gate });
+  return NextResponse.json({ verdict, options, pendingSince, guestsClosed, hasCharacter, full, gate });
 }
