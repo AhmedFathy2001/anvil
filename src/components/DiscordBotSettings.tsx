@@ -175,7 +175,7 @@ export default function DiscordBotSettings() {
       href={status.inviteUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gold text-bg font-semibold rounded-lg text-xs hover:bg-gold/90 transition-colors"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gold text-brown-dark font-semibold rounded-lg text-xs hover:bg-gold/90 transition-colors"
     >
       Add the bot to your server ↗
     </a>
@@ -301,7 +301,7 @@ export default function DiscordBotSettings() {
           {/* A navigation, not a fetch: it ends on Discord's own screen. */}
           <a
             href={clanHref('/api/admin/discord/bot/connect')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gold text-bg font-semibold rounded-lg text-sm hover:bg-gold/90 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gold text-brown-dark font-semibold rounded-lg text-sm hover:bg-gold/90 transition-colors"
           >
             Connect your Discord server
           </a>
@@ -386,7 +386,7 @@ export default function DiscordBotSettings() {
         <button
           onClick={save}
           disabled={saving || !hasChanges}
-          className="px-4 py-2 bg-gold text-bg font-semibold rounded-lg text-sm hover:bg-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 bg-gold text-brown-dark font-semibold rounded-lg text-sm hover:bg-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
