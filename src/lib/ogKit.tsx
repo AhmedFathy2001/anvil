@@ -513,16 +513,36 @@ export function ClanFace({ name, logo, size }: { name: string; logo?: string | n
 
 // ── Sprites ────────────────────────────────────────────────────────────────────────────────────
 
-const localCache = new Map<string, Promise<string | null>>();
+/** A bundled sprite ready to draw: a data URL plus the size to draw it at (whole game pixels). */
+export interface LocalSprite {
+  src: string;
+  width: number;
+  height: number;
+}
 
-/** One of the bundled sprites in public/og/sprites, as a data URL. */
-export function localSprite(name: string): Promise<string | null> {
-  let hit = localCache.get(name);
+const localCache = new Map<string, Promise<LocalSprite | null>>();
+
+/**
+ * One of the bundled sprites in public/og/sprites (4× exports of the game sprite), as a data URL drawn
+ * at `scale` of the file. It is pre-sized here with nearest-neighbour and drawn at exactly that size:
+ * left to the renderer, an `objectFit: contain` box scales every sprite by a different odd factor and
+ * smooths it, which reads as soft, nibbled edges. One scale for all keeps the in-game proportions (a
+ * pickaxe is smaller than a cape) and every pixel crisp.
+ */
+export function localSprite(name: string, scale = 0.5): Promise<LocalSprite | null> {
+  const key = `${scale}|${name}`;
+  let hit = localCache.get(key);
   if (!hit) {
-    hit = readFile(path.join(process.cwd(), 'public', 'og', 'sprites', `${name}.png`))
-      .then((b) => `data:image/png;base64,${b.toString('base64')}`)
-      .catch(() => null);
-    localCache.set(name, hit);
+    hit = (async () => {
+      const bytes = await readFile(path.join(process.cwd(), 'public', 'og', 'sprites', `${name}.png`));
+      const { default: sharp } = await import('sharp');
+      const meta = await sharp(bytes).metadata();
+      const width = Math.max(1, Math.round((meta.width ?? 0) * scale));
+      const height = Math.max(1, Math.round((meta.height ?? 0) * scale));
+      const png = await sharp(bytes).resize(width, height, { kernel: 'nearest' }).png().toBuffer();
+      return { src: `data:image/png;base64,${png.toString('base64')}`, width, height };
+    })().catch(() => null);
+    localCache.set(key, hit);
   }
   return hit;
 }

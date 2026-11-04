@@ -9,7 +9,7 @@ import {
   type PluginEmbedKind,
 } from '../src/lib/pluginEmbeds.ts';
 import { proxyWikiUrl } from '../src/lib/assetUrls.ts';
-import { absoluteAssetUrl } from '../src/lib/seo.ts';
+import { absoluteAssetUrl, discordAssetUrl } from '../src/lib/seo.ts';
 
 // Parity with the plugin. Until site-embeds the plugin built every clan-notification embed itself;
 // tests/fixtures/legacy-plugin-embeds.json is what those Java builders (plugin d876ce6 + the quest
@@ -23,9 +23,17 @@ import { absoluteAssetUrl } from '../src/lib/seo.ts';
 // One more intentional difference: the plugin hotlinked game art from the wiki and RuneLite's static
 // host, and the site now serves the same images through its own asset cache (lib/assetUrls), so the
 // fixture's sprite URLs are mapped onto those addresses before comparing. The fixture stays verbatim.
+// And a THUMBNAIL sprite goes out as its 4× nearest-neighbour upscale (lib/seo discordAssetUrl), so
+// Discord draws it thumbnail-sized rather than at 32px.
 const legacy = JSON.parse(
   readFileSync(new URL('./fixtures/legacy-plugin-embeds.json', import.meta.url), 'utf8'),
-  (_key, value) => (typeof value === 'string' ? absoluteAssetUrl(proxyWikiUrl(value)) : value),
+  (key, value) => {
+    // Strings stay relative here; the thumbnail/image objects make theirs absolute just below.
+    if (typeof value === 'string') return proxyWikiUrl(value);
+    if (key === 'thumbnail' && value && typeof value.url === 'string') return { ...value, url: discordAssetUrl(value.url) };
+    if (key === 'image' && value && typeof value.url === 'string') return { ...value, url: absoluteAssetUrl(value.url) };
+    return value;
+  },
 ) as Record<string, unknown>;
 
 /** Pick SPOON_LINES[i] deterministically. */
@@ -322,7 +330,7 @@ test('a level below 99 reads in the same voice, with the skill wiki page and ico
     description: 'Zezima just reached **level 85 Slayer**!',
     color: 4886745,
     url: 'https://oldschool.runescape.wiki/w/Slayer',
-    thumbnail: { url: 'https://anvilosrs.com/img/wiki/Slayer_icon.png' },
+    thumbnail: { url: 'https://anvilosrs.com/img/wiki/Slayer_icon.png?x=4' },
     fields: [{ name: 'Progress', value: '12 of 23 skills at 99', inline: true }],
     image: { url: 'attachment://anvil-achievement.png' },
   });

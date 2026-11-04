@@ -10,6 +10,7 @@ import { BOSSES, SKILLS, SKILL_LABELS } from '@/lib/constants';
 import { CHANNEL_SLOTS, CHANNEL_SLOT_LABELS, type ChannelSlot, type ClanEventChannels, type PickedChannel } from '@/lib/clanEventChannels';
 import { clanFetch } from '@/lib/clanFetch';
 import { SIGNUP_TEMPLATES, surveyTemplateById } from '@/lib/surveyTemplates';
+import { bossIconForStatKey, skillIconUrl } from '@/lib/tileIcons';
 
 interface Ev {
   id: number;
@@ -96,6 +97,12 @@ const ICON_OPTIONS: SelectOption[] = [
   ...SKILLS.filter((k) => k !== 'overall').map((k) => ({ value: k, label: SKILL_LABELS[k] ?? k, keywords: ['skill'] })),
   ...BOSSES.map((b) => ({ value: b.key, label: b.label, keywords: b.aliases })),
 ];
+
+/** The picture a boss/skill key draws as — the Discord embed's thumbnail (lib/discord clanEventThumbnail). */
+function iconPreview(icon: string): string | null {
+  if (!icon) return null;
+  return (SKILLS as readonly string[]).includes(icon) ? skillIconUrl(icon) : bossIconForStatKey(icon);
+}
 
 interface LinkableChannel {
   id: string;
@@ -396,7 +403,16 @@ export default function ClanEventsClient() {
           {!form.imageUrl && (
             <div>
               <label className={label}>Boss or skill (picture)</label>
-              <Select value={form.icon} onChange={(v) => set('icon', v)} options={ICON_OPTIONS} placeholder="No picture" ariaLabel="Picture" searchable />
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <Select value={form.icon} onChange={(v) => set('icon', v)} options={ICON_OPTIONS} placeholder="No picture" ariaLabel="Picture" searchable />
+                </div>
+                {/* The same picture the Discord post (and RuneLite's hiscores) shows for it. */}
+                {iconPreview(form.icon) && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={iconPreview(form.icon)!} alt="" className="h-7 w-7 shrink-0 object-contain [image-rendering:pixelated]" />
+                )}
+              </div>
             </div>
           )}
         </div>

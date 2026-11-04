@@ -28,7 +28,7 @@ import {
 } from '@/db/schema';
 import { clogItemNames, clogPageOfItem } from '@/lib/clogDataset';
 import { getItemPrices } from '@/lib/itemPrices';
-import { activityImageUrl, bossImageForStatKey, itemIconUrl, wikiImageUrl } from '@/lib/tileIcons';
+import { activityImageUrl, bossIconForStatKey, itemIconUrl, wikiImageUrl } from '@/lib/tileIcons';
 import {
   bossKillcounts,
   formatPersonalBest,
@@ -153,7 +153,7 @@ async function bestsOf(accountIds: number[]): Promise<Map<number, Map<string, Be
 }
 
 function kcIcon(key: string): string {
-  return bossImageForStatKey(key) ?? STAT_FALLBACK_ICON;
+  return bossIconForStatKey(key) ?? STAT_FALLBACK_ICON;
 }
 
 function pbIcon(activity: string): string {

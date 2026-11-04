@@ -8,11 +8,11 @@ import { isLabClan } from '@/lib/lab';
 import { getSettingText } from '@/lib/settings';
 import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
-import { SKILLS, formatEfficiencyHours, weeklyKindLabel } from '@/lib/constants';
+import { SKILLS, formatEfficiencyHours, metricKeys, weeklyKindLabel } from '@/lib/constants';
 import { formatGp } from '@/lib/adminEventsFormat';
 import { placeLabel } from '@/lib/eventRules';
-import { deriveTileIcon, skillIconUrl, bossItemForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
-import { absoluteAssetUrl } from '@/lib/seo';
+import { deriveTileIcon, skillIconUrl, bossIconForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
+import { discordAssetUrl } from '@/lib/seo';
 import { eq } from 'drizzle-orm';
 import { boardRevealImageQuery } from '@/lib/boardRevealImage';
 
@@ -749,7 +749,7 @@ function eventAuthor(
 // board renders. Absent for tiles with no derivable icon (e.g. manual tiles).
 function tileThumbnail(tile: IconableTile | null | undefined): Pick<DiscordEmbed, 'thumbnail'> {
   const icon = tile ? deriveTileIcon(tile) : null;
-  return icon ? { thumbnail: { url: absoluteAssetUrl(icon) } } : {};
+  return icon ? { thumbnail: { url: discordAssetUrl(icon) } } : {};
 }
 
 // Discord renders <t:UNIX:STYLE> dynamically per viewer: the timezone is the
@@ -1184,7 +1184,7 @@ export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Pr
     title: clamp(title, LIMIT.title),
     description,
     color: EMBED_COLOR.gold,
-    ...(icon ? { thumbnail: { url: absoluteAssetUrl(icon) } } : {}),
+    ...(icon ? { thumbnail: { url: discordAssetUrl(icon) } } : {}),
     ...(fields.length ? { fields } : {}),
     ...(boardUrl ? { url: boardUrl } : {}),
   };
@@ -1895,7 +1895,7 @@ export async function notifyPayout(params: PayoutNotifyParams): Promise<boolean>
 
   const embed: DiscordEmbed = {
     ...eventAuthor(eventId, eventName),
-    ...{ thumbnail: { url: absoluteAssetUrl(itemIconUrl(995)) } }, // coins — the payout's own icon
+    ...{ thumbnail: { url: discordAssetUrl(itemIconUrl(995)) } }, // coins — the payout's own icon
     title: '💰 Prizes paid out',
     description: `Congratulations to the winners of **${eventName}**. Prizes have been sent.${boardLinkLine(eventId)}`,
     color: EMBED_COLOR.gold,
@@ -1912,16 +1912,17 @@ export async function notifyPayout(params: PayoutNotifyParams): Promise<boolean>
 // One definition, shared with the home page (lib/constants.weeklyKindLabel).
 const weeklyKind = weeklyKindLabel;
 
-// The competition's own icon: the skill's wiki icon for a SOTW, the boss's signature drop for a
-// BOTW. Efficiency spans everything, so it gets none.
+// The competition's own icon: the skill's wiki icon for a SOTW, the boss's hiscores sprite (the one
+// RuneLite shows) for a BOTW. Efficiency spans everything, so it gets none.
 function weeklyThumbnail(type: string, metric: string): Pick<DiscordEmbed, 'thumbnail'> {
   if (type === 'skill') {
     const url = skillIconUrl(metric);
-    return url ? { thumbnail: { url: absoluteAssetUrl(url) } } : {};
+    return url ? { thumbnail: { url: discordAssetUrl(url) } } : {};
   }
   if (type === 'boss') {
-    const itemId = bossItemForStatKey(metric);
-    return itemId != null ? { thumbnail: { url: absoluteAssetUrl(itemIconUrl(itemId)) } } : {};
+    // discordAssetUrl asks for the 4× nearest-neighbour sprite: crisp at thumbnail size, not thumb-sized.
+    const url = bossIconForStatKey(metricKeys(metric)[0] ?? metric);
+    return url ? { thumbnail: { url: discordAssetUrl(url) } } : {};
   }
   return {};
 }

@@ -18,12 +18,13 @@
 // Pure: no database, no network — the route validates and calls `buildPluginEmbed`.
 
 import { clamp, code, LIMIT, type DiscordEmbed, type DiscordEmbedField } from './discordEmbeds';
-import { absoluteAssetUrl } from './seo';
+import { discordAssetUrl } from './seo';
 import { itemIconUrl as itemIconPath, skillIconUrl as skillIconPath, wikiImageUrl } from './tileIcons';
 
-// Discord fetches thumbnails itself, so our cached-art paths go out apex-absolute.
-const itemIconUrl = (id: number) => absoluteAssetUrl(itemIconPath(id));
-const skillIconUrl = (skill: string | null | undefined) => absoluteAssetUrl(skillIconPath(skill));
+// Discord fetches thumbnails itself, so our cached-art paths go out apex-absolute — and as a 4×
+// nearest-neighbour upscale (lib/seo discordAssetUrl), or Discord draws a 32px sprite at 32px.
+const itemIconUrl = (id: number) => discordAssetUrl(itemIconPath(id));
+const skillIconUrl = (skill: string | null | undefined) => discordAssetUrl(skillIconPath(skill));
 
 export const PLUGIN_EMBED_KINDS = [
   'drop',
@@ -174,7 +175,7 @@ export type PluginEmbedFacts =
 export const PLUGIN_COLOR = { rare: 0xd4a017, achievement: 0x4a90d9 } as const;
 
 const WIKI = 'https://oldschool.runescape.wiki/w/';
-const caIconUrl = () => absoluteAssetUrl(wikiImageUrl('Combat_Achievements_icon.png'));
+const caIconUrl = () => discordAssetUrl(wikiImageUrl('Combat_Achievements_icon.png'));
 const CA_WIKI_URL = 'https://oldschool.runescape.wiki/w/Combat_Achievements';
 const CA_TIERS: readonly CaTierName[] = ['Easy', 'Medium', 'Hard', 'Elite', 'Master', 'Grandmaster'];
 

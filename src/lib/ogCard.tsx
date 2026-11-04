@@ -59,11 +59,16 @@ export const SITE_PITCH = 'Bingos, Skill & Boss of the Week, and your whole rost
  * with a few tiles "claimed", because a bingo board is the one picture every OSRS clan recognises.
  */
 export async function siteCard(): Promise<Response> {
-  const sprites = await Promise.all(SITE_SPRITES.map(localSprite));
+  // Half the bundled 4× files = 2 screen px per game px, so the biggest sprite (31 game px) is 62px
+  // and every one sits whole inside its 94px tile with room to spare.
+  const sprites = await Promise.all(SITE_SPRITES.map((n) => localSprite(n, 0.5)));
   return renderCard(['site'], async () => (
     <Frame brand={false} backdrop={await backdrop({ glow: '78% 40%', seed: 3, sparkCount: 18 })}>
-      <div style={{ ...PANE, left: 660, top: 78, width: 520, flexWrap: 'wrap', gap: 10, transform: 'rotate(-8deg)' }}>
-        {sprites.map((src, i) => {
+      {/* 5×4 tiles of 94px + 10px gaps (510×406), turned -8°. Placed so the turned board's far corners
+          stay inside the 1200×630 canvas (right edge ≈1180, bottom ≈525) — no tile is sliced by the
+          frame; its near side fades into the text instead (the gradient below). */}
+      <div style={{ ...PANE, left: 640, top: 86, width: 520, flexWrap: 'wrap', gap: 10, transform: 'rotate(-8deg)' }}>
+        {sprites.map((sprite, i) => {
           const done = SITE_DONE.has(i);
           return (
             <div
@@ -79,9 +84,9 @@ export async function siteCard(): Promise<Response> {
                 border: `2px solid ${done ? C.gold : C.border}`,
               }}
             >
-              {src ? (
+              {sprite ? (
                 // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
-                <img src={src} width={60} height={60} style={{ width: 60, height: 60, objectFit: 'contain', opacity: done ? 1 : 0.55 }} />
+                <img src={sprite.src} width={sprite.width} height={sprite.height} style={{ width: sprite.width, height: sprite.height, opacity: done ? 1 : 0.55 }} />
               ) : null}
             </div>
           );
