@@ -4,7 +4,7 @@ import { db } from '@/db';
 import { accounts, clanMemberships, clans, completions, eventParticipants, events, teams, tiles, users } from '@/db/schema';
 import { boardHidden, boardSize, completionAt, completionFinisher } from '@/lib/panelRows';
 import { normalizeRsn, pluginRsnHintOnly, pluginViewerRsn, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
-import { boardChatSlow, chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess, type ChatSeatPick } from '@/lib/eventChat';
+import { boardChatSlow, myChatNames, chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess, type ChatSeatPick } from '@/lib/eventChat';
 import { chatPaceHint } from '@/lib/eventChatRules';
 import { formatGp } from '@/lib/itemPrices';
 import { NO_REACTIONS, isClanMember, reactionSummaries, reactorNames, tallyOf } from '@/lib/momentReactions';
@@ -325,6 +325,7 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
         filter: f,
         teamId,
         rows,
+        mine: await myChatNames(viewer.userId),
         send: {
           act: 'chat-send',
           args: { e: String(current.id), to: f === 'team' ? 'team' : 'all' },

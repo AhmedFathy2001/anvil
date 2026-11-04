@@ -237,7 +237,8 @@ async function rowsFor(
     const ink = s ? supporterInk(s.tier.id, s.style) : null;
     const team = l.teamId != null ? teamById.get(l.teamId) : null;
     const o: ChatRowOptions = {
-      mine: viewer?.userId === l.userId && (viewer.rsn == null || cleanName(viewer.rsn) === l.rsn),
+      // Per PERSON: every line they sent, as any of their characters or as host staff, is theirs.
+      mine: viewer?.userId === l.userId,
       role: l.fromStaff ? (hosts.get(l.userId) ?? 'mod') : null,
       team: team ? { name: team.name, color: team.color } : null,
       ...(ink ? { whoColor: ink.color as Color, ...(ink.grad ? { grad: ink.grad as `#${string}`[], ...(ink.move ? { move: true } : {}) } : {}) } : {}),
@@ -284,6 +285,21 @@ export async function chatHistory(
   else where.push(eq(eventChatMessages.teamOnly, false));
   const lines = await db.select(LINE_COLUMNS).from(eventChatMessages).where(and(...where)).orderBy(desc(eventChatMessages.id)).limit(limit);
   return rowsFor(access.eventId, lines, { userId: viewerUserId, staff: access.staff, rsn: access.seats > 1 ? access.rsn : null });
+}
+
+/**
+ * The names this person's own lines carry (their characters' names and the display name they post
+ * under as host staff), for the plugin to tell its live lines apart: sent only to that viewer.
+ */
+export async function myChatNames(userId: number): Promise<string[]> {
+  const me = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { displayName: true, playerId: true } });
+  if (!me) return [];
+  const chars = me.playerId != null
+    ? await db.select({ rsn: accounts.rsn }).from(accounts).where(eq(accounts.playerId, me.playerId))
+    : [];
+  const names = new Set(chars.map((c) => cleanName(c.rsn)).filter(Boolean));
+  if (me.displayName) names.add(cleanName(me.displayName));
+  return [...names].slice(0, 50);
 }
 
 /** Whether a board's chat is in slow mode right now (it turns itself on after a rush). */

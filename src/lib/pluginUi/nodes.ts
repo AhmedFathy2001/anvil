@@ -198,6 +198,8 @@ export type Node =
       empty?: string;
       /** A message box: Enter posts `act` with the text as field `msg`, and nothing is redrawn. */
       send?: { act: string; args?: Record<string, string>; hint?: string; max?: number };
+      /** Chat: names whose lines are the viewer's own (per person), for live rows. */
+      mine?: string[];
       /** 'paused' / 'closed' grey the box out with this line instead. */
       locked?: string;
     });
