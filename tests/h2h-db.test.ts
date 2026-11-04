@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('h2h');
 delete process.env.DISCORD_BOT_TOKEN;
@@ -206,6 +207,64 @@ test('drop race: nothing before the start; the first landing after it wins at on
   const list = await H.challengesForPlayer(b.playerId, { now: at(21 * 60_000) });
   assert.equal(list.find((c) => c.id === id)?.outcome, 'won');
   assert.equal(list.find((c) => c.id === id)?.resultLine, 'DropB beat DropA to a Dragon pickaxe');
+});
+
+test('drop race with no clan: the plugin gets a config carrying the race, and its drop report calls it', async () => {
+  // Neither side is in a clan. Their plugins used to get a 404 config, so no `luckItemIds` and no
+  // moments at all: the race could only ever end in a draw (lib/pluginConfigClanless).
+  const a = await person('SoloA');
+  const b = await person('SoloB');
+  for (const p of [a, b]) {
+    await db.update(s.users).set({ pluginTokenHash: tokenHash(`tok-${p.rsn}`) }).where(eq(s.users.id, p.userId));
+    await db.update(s.accounts).set({ claimedAt: '2026-01-01 00:00:00' }).where(eq(s.accounts.id, p.accountId));
+  }
+  const headers = (p: Person, version = '1.14.0') => ({
+    Authorization: `Bearer tok-${p.rsn}`,
+    'X-RSN': p.rsn,
+    'X-Anvil-Plugin-Version': version,
+    'Content-Type': 'application/json',
+  });
+  const { GET: config } = await import('../src/app/api/plugin/config/route.ts');
+  const { POST: moments } = await import('../src/app/api/plugin/moments/route.ts');
+  const cfg = (p: Person, version?: string) => config(new Request('https://anvilosrs.com/api/plugin/config', { headers: headers(p, version) }));
+
+  assert.equal((await cfg(b)).status, 404, 'no race running: the ordinary no-clan answer');
+  const made = await create(a, b, 'drop', new Date());
+  const id = made.ok ? made.id : 0;
+  assert.equal((await cfg(b)).status, 404, 'an invitation is not a race yet');
+  assert.ok((await H.respondToChallenge({ id, playerId: b.playerId, accept: true, now: new Date() })).ok);
+
+  const res = await cfg(b);
+  assert.equal(res.status, 200);
+  const body = (await res.json()) as Record<string, unknown> & { server: { capabilities: string[] } };
+  assert.deepEqual(body.luckItemIds, [11920]);
+  assert.equal(body.event, null);
+  assert.equal(body.activeClan, null);
+  assert.equal(body.clanless, true);
+  assert.equal(body.noActiveEvent, true);
+  assert.ok(body.server.capabilities.includes('moments') && body.server.capabilities.includes('luck-drops'));
+  assert.ok(Object.values(body.notify as Record<string, boolean>).every((v) => v === false), 'no Discord to post to');
+  assert.equal((await cfg(b, '1.13.3')).status, 404, 'an older jar draws its own clan card: it keeps the 404');
+  // Somebody else's character on this token is not answered for.
+  const other = await config(new Request('https://anvilosrs.com/api/plugin/config', { headers: { ...headers(b), 'X-RSN': a.rsn } }));
+  assert.equal(other.status, 404);
+
+  // The plugin reports the drop as a moment; the route runs it through the race with no seat anywhere.
+  const posted = await moments(
+    new Request('https://anvilosrs.com/api/plugin/moments', {
+      method: 'POST',
+      headers: headers(b),
+      body: JSON.stringify({ moments: [{ kind: 'drop', itemId: 11920, itemName: 'Dragon pickaxe', quantity: 1, valueGp: 0, key: 'k-solo-1', at: new Date(Date.now() + 1000).toISOString() }] }),
+    }),
+  );
+  assert.equal(posted.status, 200);
+  assert.equal(((await posted.json()) as { stored: number }).stored, 0, 'nothing stored: h2h only');
+  const done = await row(id);
+  assert.equal(done.status, 'finished');
+  assert.equal(done.result, 'opponent');
+  assert.equal((await cfg(b)).status, 404, 'race over: back to the no-clan answer');
+  // The chat-feed relay runs off the request's path; let it settle before the pool closes.
+  await new Promise((r) => setTimeout(r, 300));
 });
 
 test('drop race nobody wins by the end is a draw', async () => {

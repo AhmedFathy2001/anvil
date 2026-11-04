@@ -1,7 +1,10 @@
 import ClanLink from '@/components/ClanLink';
+import SupporterName from '@/components/SupporterName';
 import type { Arena, Career, NextMilestone, RecentMilestone, Seat, Streak } from '@/lib/apexHomeSignals';
 import type { PlayerStanding } from '@/lib/clanLeaderboard';
 import { compactXp } from '@/lib/apexHomeSignals';
+import type { SupporterStyle } from '@/lib/supporterStyle';
+import type { SupporterTierId } from '@/lib/supporterTiers';
 import { milestoneMetricLabel } from '@/lib/constants';
 import { activityFor } from '@/lib/hiscoresActivities';
 import { totalXpLabel } from '@/lib/totalXpMilestones';
@@ -15,6 +18,15 @@ import { totalXpLabel } from '@/lib/totalXpMilestones';
  * bar: the arena glows and is large, the roster sits on the page ground, the career well is inset.
  * That gives the eye an order without a single extra label.
  */
+
+/**
+ * The viewer's own Supporter flair. Every name this half of the page draws is one of THEIR
+ * characters, so one look covers them all; fetched once by the page, never per name.
+ */
+export interface OwnFlair {
+  tier: SupporterTierId | null;
+  style: SupporterStyle | null;
+}
 
 // ── Section label ────────────────────────────────────────────────────────────────────────────────
 
@@ -61,7 +73,7 @@ const ordinal = (n: number) => {
  * the leader, so the gap is SEEN rather than described. A number you have to do arithmetic on is
  * not a motivator.
  */
-export function ArenaHero({ arena }: { arena: Arena }) {
+export function ArenaHero({ arena, flair }: { arena: Arena; flair?: OwnFlair | null }) {
   // Against the actual leader. Measuring against the rungs on show made 7th place a full bar.
   const leader = Math.max(arena.leaderGained, ...arena.lanes.map((l) => l.gained), arena.gained, 1);
   // Nothing gained yet means tied with everyone else on nothing, not a placing.
@@ -139,7 +151,11 @@ export function ArenaHero({ arena }: { arena: Arena }) {
             <span
               className={`truncate text-sm ${lane.you ? 'font-semibold text-foreground' : 'text-text-muted'}`}
             >
-              {lane.rsn}
+              {lane.you ? (
+                <SupporterName name={lane.rsn} tier={flair?.tier} style={flair?.style} plain className="max-w-full" />
+              ) : (
+                lane.rsn
+              )}
             </span>
             <span className="h-2.5 overflow-hidden rounded-full bg-black/40">
               <span
@@ -245,7 +261,7 @@ export interface RosterCharacter {
  * visit — because that distinction is the whole membership model and a colour alone would not say
  * which is which.
  */
-export function Roster({ characters }: { characters: RosterCharacter[] }) {
+export function Roster({ characters, flair }: { characters: RosterCharacter[]; flair?: OwnFlair | null }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {characters.map((c) => {
@@ -274,7 +290,7 @@ export function Roster({ characters }: { characters: RosterCharacter[] }) {
                   href={`/p/${encodeURIComponent(c.rsn)}`}
                   className="block truncate text-[0.95rem] font-semibold leading-tight transition-colors hover:text-gold"
                 >
-                  {c.rsn}
+                  <SupporterName name={c.rsn} tier={flair?.tier} style={flair?.style} plain className="max-w-full" />
                 </ClanLink>
                 <p className="mt-0.5 font-mono text-[0.56rem] uppercase tracking-[0.13em] text-text-dim">
                   {home ? home.clanName : 'No home clan'}
@@ -415,7 +431,7 @@ function ago(iso: string): string {
 }
 
 /** Thresholds already detected and dated by the stats sweep. This only reads them. */
-export function Lately({ milestones }: { milestones: RecentMilestone[] }) {
+export function Lately({ milestones, flair }: { milestones: RecentMilestone[]; flair?: OwnFlair | null }) {
   return (
     <ul className="flex flex-col">
       {milestones.map((m, i) => {
@@ -430,7 +446,10 @@ export function Lately({ milestones }: { milestones: RecentMilestone[] }) {
             </span>
             <span className="min-w-0 truncate">
               <b className="font-semibold">{text}</b>
-              <span className="ml-1.5 text-xs text-text-dim">· {m.rsn}</span>
+              <span className="ml-1.5 text-xs text-text-dim">
+                ·{' '}
+                <SupporterName name={m.rsn} tier={flair?.tier} style={flair?.style} plain className="align-middle" />
+              </span>
             </span>
             <span className="font-mono text-[0.66rem] text-text-dim">{ago(m.noticedAt)}</span>
           </li>
@@ -453,7 +472,7 @@ export function Lately({ milestones }: { milestones: RecentMilestone[] }) {
  * rows in it — a record of a hundred and sixty-one active players that nobody, including them, could
  * read.
  */
-export function Standing({ standing }: { standing: PlayerStanding }) {
+export function Standing({ standing, flair }: { standing: PlayerStanding; flair?: OwnFlair | null }) {
   const top = standing.rank === 1;
   const pct = standing.field > 1 ? ((standing.field - standing.rank) / (standing.field - 1)) * 100 : 100;
 
@@ -492,7 +511,8 @@ export function Standing({ standing }: { standing: PlayerStanding }) {
           )}
         </p>
         <p className="mt-0.5 truncate text-xs text-text-dim">
-          {standing.rsn} · {compactXp(standing.xpGained)} this week
+          <SupporterName name={standing.rsn} tier={flair?.tier} style={flair?.style} plain className="align-middle" /> ·{' '}
+          {compactXp(standing.xpGained)} this week
         </p>
         {/* The same proportional bar the arena uses, so "close" looks close. */}
         <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-black/40">

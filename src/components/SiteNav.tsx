@@ -1,5 +1,9 @@
 'use client';
 
+import SupporterName from '@/components/SupporterName';
+import type { SupporterStyle } from '@/lib/supporterStyle';
+import type { SupporterTierId } from '@/lib/supporterTiers';
+
 import { usePathname } from 'next/navigation';
 import ClanCrest from '@/components/ClanCrest';
 import { useEffect, useRef, useState } from 'react';
@@ -11,6 +15,8 @@ import { groupClansAndSpaces, outsiderWord } from '@/lib/creatorSpaces';
 interface NavUser {
   displayName: string;
   avatarUrl: string | null;
+  /** Their Anvil Supporter flair, if they have one: the same star and colours they show everywhere else. */
+  supporter?: { tier: SupporterTierId; style: SupporterStyle | null } | null;
 }
 
 /** One of the signed-in person's clans, with the relationship that decides its role chip. */
@@ -83,6 +89,7 @@ const DiscordIcon = (
 export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff, adminHref, platformBadge = null, discordInvite, user, clan, myClans }: Props) {
   const [open, setOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const switcherRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
 
@@ -151,9 +158,18 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
         { href: '/leaderboard', label: 'Leaderboard' },
       ];
 
-  const avatar = user?.avatarUrl ? (
+  const avatar = user?.avatarUrl && !avatarFailed ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={user.avatarUrl} alt="" width={24} height={24} className="rounded-full" />
+    <img
+      src={user.avatarUrl}
+      alt=""
+      width={24}
+      height={24}
+      referrerPolicy="no-referrer"
+      // A Discord avatar hash goes stale when they change it there: fall back to the initial.
+      onError={() => setAvatarFailed(true)}
+      className="h-6 w-6 shrink-0 rounded-full object-cover"
+    />
   ) : (
     <span className="w-6 h-6 rounded-full bg-gold/20 text-gold text-xs flex items-center justify-center font-semibold">
       {(user?.displayName || '?').charAt(0).toUpperCase()}
@@ -295,9 +311,13 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
               title={user.displayName}
             >
               {avatar}
-              <span className="text-sm text-foreground/80 group-hover:text-foreground">
-                {user.displayName}
-              </span>
+              <SupporterName
+                name={user.displayName}
+                tier={user.supporter?.tier}
+                style={user.supporter?.style}
+                plain
+                className="text-sm text-foreground/80 group-hover:text-foreground"
+              />
             </ClanLink>
             <a
               href="/api/auth/logout?return=/"
@@ -435,7 +455,13 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                     className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-brown-light transition-all min-w-0"
                   >
                     {avatar}
-                    <span className="text-sm text-foreground/80 truncate">{user.displayName}</span>
+                    <SupporterName
+                      name={user.displayName}
+                      tier={user.supporter?.tier}
+                      style={user.supporter?.style}
+                      plain
+                      className="text-sm text-foreground/80 truncate"
+                    />
                   </ClanLink>
                   <a
                     href="/api/auth/logout?return=/"

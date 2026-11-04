@@ -1,4 +1,5 @@
 import { headers } from 'next/headers';
+import { supporterForUser } from '@/lib/supporter';
 import { redirectFor } from '@/lib/adminAccess';
 import { atLeast, isStaffRole } from '@/lib/clanRoles';
 import { clanPrefix, requireClan } from '@/lib/clanContext';
@@ -67,6 +68,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         columns: { displayName: true, discordId: true, discordAvatar: true },
       })
     : null;
+
+  // The sidebar card shows your own name with your Supporter flair, like everywhere else it appears.
+  const mySupport = session.userId > 0 ? await supporterForUser(session.userId).catch(() => null) : null;
+  const supporter = mySupport ? { tier: mySupport.tier.id, style: mySupport.style ?? null } : null;
 
   const clan = await requireClan();
   // Provisional members AND claim requests — the two things the Needs review tab holds. Counting
@@ -158,6 +163,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       displayName: userRow?.displayName ?? session.username ?? 'Editor',
       role: isScopedEditor && isGuideWriter ? 'board & guide editor' : isScopedEditor ? 'board editor' : 'guide editor',
       avatarUrl: userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null,
+      supporter,
     };
     const scopedFeatures = await getClanFeatures(clan.id);
     return (
@@ -324,6 +330,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     displayName: userRow?.displayName ?? session.username ?? 'Admin',
     role: session.role,
     avatarUrl: userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null,
+    supporter,
   };
 
   return (

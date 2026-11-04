@@ -31,9 +31,10 @@ export default async function EventDiscordPage({ params }: { params: Promise<{ e
   return (
     <div className="space-y-8">
       <EventDiscordInventory eventId={id} />
-      <EventDiscordClient eventId={id} hasCohosts={cohosts.length > 0} />
+      {/* A creator space never co-hosts (lib/coHost coHostKindRefusal): no co-host posts, no joint server. */}
+      <EventDiscordClient eventId={id} hasCohosts={!creator && cohosts.length > 0} />
       <EventChatFeedCard eventId={id} creator={creator} />
-      <EventDiscordServerPanel eventId={id} />
+      {!creator && <EventDiscordServerPanel eventId={id} />}
       <EventWebhooksPanel eventId={id} teams={eventTeams} />
     </div>
   );

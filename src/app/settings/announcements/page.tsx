@@ -1,14 +1,19 @@
 import ClanLink from '@/components/ClanLink';
 
+import SupporterName from '@/components/SupporterName';
 import { verifyUser } from '@/lib/auth';
 import { emissionSettingsView } from '@/lib/emissionSettings';
+import { supporterForUser } from '@/lib/supporter';
 import { AnnouncementsGeneral } from '../EmissionPanels';
 import { NeedsCharacter } from '../_none';
 import { SettingsBlock, SettingsGroup, SettingsRow, SettingsTitle } from '../_ui';
 
 export default async function AnnouncementsSettingsPage() {
   const session = (await verifyUser())!;
-  const view = session.playerId ? await emissionSettingsView(session.userId, session.playerId) : null;
+  const [view, supporter] = await Promise.all([
+    session.playerId ? emissionSettingsView(session.userId, session.playerId) : Promise.resolve(null),
+    supporterForUser(session.userId),
+  ]);
 
   return (
     <>
@@ -29,7 +34,7 @@ export default async function AnnouncementsSettingsPage() {
             {view.accounts.map((a) => (
               <SettingsRow
                 key={a.accountId}
-                label={a.rsn}
+                label={<SupporterName name={a.rsn} tier={supporter?.tier.id} style={supporter?.style} plain />}
                 description={
                   [a.memberClan ? `Member of ${a.memberClan.name}` : 'No member clan', a.clans.length ? `${a.clans.length} other clan${a.clans.length === 1 ? '' : 's'}` : null]
                     .filter(Boolean)

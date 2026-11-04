@@ -13,6 +13,7 @@ import { platformStats } from '@/lib/platformStats';
 import { apexHomeView } from '@/lib/apexHome';
 import { apexSignals } from '@/lib/apexHomeSignals';
 import { seatsWaitingFor } from '@/lib/foundYou';
+import { supporterForUser } from '@/lib/supporter';
 import { db } from '@/db';
 import { users, clanStaff, clanRoster } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -128,7 +129,7 @@ async function ApexRoot() {
     );
   }
 
-  const [view, userRow, signals, found] = await Promise.all([
+  const [view, userRow, signals, found, supporter] = await Promise.all([
     apexHomeView(session.playerId, session.userId),
     db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { displayName: true } }),
     // The "how am I doing" half. Fetched alongside rather than inside apexHomeView so the two stay
@@ -137,6 +138,8 @@ async function ApexRoot() {
     // Roster seats that name-match this login and nobody has claimed — the reason somebody can be
     // signed in, on a clan's roster, and in no clan as far as this platform is concerned.
     seatsWaitingFor(session.userId),
+    // Their Supporter look, once: every character name the signed-in home draws is their own.
+    supporterForUser(session.userId),
   ]);
   return (
     <ApexHome
@@ -144,6 +147,7 @@ async function ApexRoot() {
       signals={signals}
       displayName={userRow?.displayName ?? 'there'}
       found={found}
+      flair={supporter ? { tier: supporter.tier.id, style: supporter.style } : null}
     />
   );
 }

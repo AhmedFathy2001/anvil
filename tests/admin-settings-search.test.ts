@@ -28,7 +28,7 @@ test('ids are unique and every href is a bare site path', () => {
   for (const e of ADMIN_SETTINGS) {
     assert.ok(!seen.has(e.id), `duplicate id ${e.id}`);
     seen.add(e.id);
-    assert.match(e.href, /^\/(admin|profile)(\/|#|$)/, e.id);
+    assert.match(e.href, /^\/(admin|profile|settings)(\/|#|$)/, e.id);
     assert.ok(e.label && e.description && e.section, e.id);
   }
 });
@@ -114,4 +114,23 @@ test('a switched-off feature hides its settings', () => {
   assert.ok(!seen.has('webhook-discord_webhook_coffer'));
   // The switch itself stays findable, or there would be no way back.
   assert.ok(seen.has('feature-coffer'));
+});
+
+test('a creator space finds only what its pages show; an ordinary clan is unchanged', () => {
+  const access: AdminAccess = { role: 'admin', canEditTiles: true, editorScope: 'all' };
+  const all = FEATURES.map((f) => f.key);
+  const creator = new Set(visibleSettings(settingsViewer(access, all, true)).map((e) => e.id));
+  const clan = new Set(visibleSettings(settingsViewer(access, all)).map((e) => e.id));
+  // Clan-only pages, Discord sections and channels are gone…
+  for (const id of ['setup', 'clan-events', 'people-review', 'access-guests', 'discord-roles', 'discord-commands',
+    'discord-clan-hall', 'discord-game-modes', 'clan-tags', 'rules-feeds', 'webhook-discord_webhook_weekly',
+    'webhook-discord_webhook_roster', 'webhook-discord_webhook_cohost', 'webhook-discord_cohost_posts_enabled']) {
+    assert.ok(!creator.has(id), id);
+    assert.ok(clan.has(id), `${id} still there for a clan`);
+  }
+  // …and what a creator runs its events with is still found.
+  for (const id of ['events-all', 'discord', 'discord-feeds', 'discord-event-posts', 'discord-team-channels',
+    'webhook-discord_webhook_bingo', 'webhook-webhook_rare_drops', 'people-staff', 'plan']) {
+    assert.ok(creator.has(id), id);
+  }
 });

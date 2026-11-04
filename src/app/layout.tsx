@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { supporterForUser } from '@/lib/supporter';
+import { profileMediaForUser } from '@/lib/profileMedia';
 import { headers } from 'next/headers';
 import { clanPrefix, currentClan } from '@/lib/clanContext';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
@@ -163,6 +165,8 @@ export default async function RootLayout({
     });
     if (found) userRow = found;
   }
+  // The nav shows your own name with your Supporter flair, like everywhere else your name appears.
+  const mySupport = session?.userId ? await supporterForUser(session.userId).catch(() => null) : null;
   // "My Team" only appears when there's something of theirs to reach — a live team, a captain seat,
   // or an open sign-up. Between events that's nobody, and a nav item whose page says "you're not on
   // a team" isn't navigation.
@@ -172,7 +176,14 @@ export default async function RootLayout({
   // And never when the clan has switched the coffer off on Admin → Features: off is off for everyone.
   const hasCoffer = clan ? (await getClanFeatures(clan.id)).on('coffer') && (await clanHasCoffer(clan.id)) : false;
 
-  const avatar = userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null;
+  // Their own picture in the chrome: the one they uploaded on Profile look (a Supporter perk; the
+  // still frame, since this sits on every page), else their Discord avatar, else the shells draw the
+  // initial. The apex rail used to take no picture at all, so it was the initial for everybody.
+  const ownMedia = session?.userId
+    ? await profileMediaForUser(session.userId, { still: true, tier: mySupport?.tier.id ?? null })
+    : null;
+  const avatar =
+    ownMedia?.avatar?.src ?? (userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null);
   // WHO SEES THE ADMIN LINK. `isStaffRole` ranks the clan roles, and asking it rather than
   // hand-listing them is the whole point: the list here read
   // ['admin','treasurer','moderator','editor'] and OWNER WAS NOT IN IT, so the one person who
@@ -292,6 +303,8 @@ export default async function RootLayout({
               clans={railOrder(myClans, liveIn)}
               signedIn={!!session}
               displayName={userRow?.displayName ?? null}
+              avatarUrl={session ? avatar : null}
+              supporter={mySupport ? { tier: mySupport.tier.id, style: mySupport.style ?? null } : null}
               characterCount={session ? myCharacters : undefined}
               myProfileHref={profileHref}
               platformStaff={isPlatformStaff}
@@ -336,7 +349,7 @@ export default async function RootLayout({
               adminHref={adminHref}
               platformBadge={isPlatformStaff ? platformBadge ?? { count: 0, title: '' } : null}
               discordInvite={discordInvite}
-              user={session && userRow ? { displayName: userRow.displayName, avatarUrl: avatar } : null}
+              user={session && userRow ? { displayName: userRow.displayName, avatarUrl: avatar, supporter: mySupport ? { tier: mySupport.tier.id, style: mySupport.style ?? null } : null } : null}
             />
           </div>
         </nav>

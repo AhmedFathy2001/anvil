@@ -36,10 +36,12 @@ import { FEED_MAX, FEED_STEP, type FeedItem, momentsFeedUi } from './momentsUi';
 import { chatAct, feedView } from './feedView';
 import { rowReactKinds } from './feedUi';
 
-import { type BoardContext, type BoardState, type BoardTile, STATUSES, type Status, boardRowsUi, boardUi } from './boardUi';
+import { type BoardContext, type BoardState, type BoardTile, STATUSES, type Status, boardRowsUi, boardUi, joinToClaimLine } from './boardUi';
 import { clanCardUi, clanCompareUi, clanSearchUi } from './clanUi';
 import { type HomeConfig, type HomeData, eventUi, homeUi } from './homeUi';
 import { proofImagePath } from '@/lib/proofImage';
+import { gatesForEvent } from '@/lib/entryGatesDb';
+import { gatesShortLabel } from '@/lib/entryGates';
 import { deleteTileProof, listTileProofs } from '@/lib/tileProofs';
 import { PROOFS_MAX, PROOFS_STEP, type ProofRow, proofsUi } from './proofsUi';
 import { hasFeedTab, hasPanelImages, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
@@ -243,6 +245,12 @@ async function teamProgress(request: Request): Promise<BoardContext['progress']>
   return out;
 }
 
+/** "Join this event to claim tiles", saying who may join when the host gates entry (lib/entryGates). */
+async function joinToClaim(eventId: number): Promise<string> {
+  const gated = await gatesForEvent(eventId).catch(() => null);
+  return joinToClaimLine(gated ? gatesShortLabel(gated.gates) : null);
+}
+
 async function boardView(request: Request, a: Args, error: string | null = null): Promise<View> {
   const state = boardState(a);
   const scope = await pluginBoardScope(request, state.event || null);
@@ -254,7 +262,7 @@ async function boardView(request: Request, a: Args, error: string | null = null)
   const clan = (a.clan ?? '').trim();
   const ctx: BoardContext = {
     eventId: scope.event.id,
-    claimBlock: board.readOnly ? 'Join this event to claim tiles.' : playedCharacter(request) ? null : 'Log in to claim tiles.',
+    claimBlock: board.readOnly ? await joinToClaim(scope.event.id) : playedCharacter(request) ? null : 'Log in to claim tiles.',
     // The plugin says which tiles it has pinned, and whether it can pin here at all (in game, tracker on).
     pins: a.track === '1' ? (a.pins ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0) : null,
     progress,
@@ -357,10 +365,14 @@ function withBack(a: Args, title: string, page: Node): Node {
  */
 async function homeView(request: Request, a: Args): Promise<View> {
   const res = await configRoute(request);
+  const noClan = 'You’re not in a clan on Anvil yet — join one on the site and it shows here.';
   if (!res.ok) {
-    return message(res.status === 404 ? 'You’re not in a clan on Anvil yet — join one on the site and it shows here.' : 'Couldn’t reach Anvil — try again in a moment.');
+    return message(res.status === 404 ? noClan : 'Couldn’t reach Anvil — try again in a moment.');
   }
-  const cfg = (await res.json()) as HomeConfig & { event?: { startDate: string | null; endDate: string | null; forceEndedAt?: string | null } | null };
+  const cfg = (await res.json()) as HomeConfig & { clanless?: boolean; event?: { startDate: string | null; endDate: string | null; forceEndedAt?: string | null } | null };
+  // In no clan, but in a head-to-head drop race: the config answered only to carry the race's items
+  // (lib/pluginConfigClanless). The Clan tab still has no clan to show.
+  if (cfg.clanless) return message(noClan);
   const now = Date.now();
   // Running: started, not force-ended, and not past an end — an open-ended event (no end date) runs
   // until the host ends it, as the plugin's tracking reads it (eventTimeState calls that 'none').

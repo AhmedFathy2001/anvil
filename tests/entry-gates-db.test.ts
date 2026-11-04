@@ -153,6 +153,29 @@ after(async () => {
 
 // ── Tests ────────────────────────────────────────────────────────────────────────────────────────
 
+test('the plugin schedule says who may join a gated event, in a few words; an open one and a clan’s say nothing', async () => {
+  const { buildSchedule } = await import('../src/lib/pluginConfig.ts');
+  const start = new Date(Date.now() + 86_400_000).toISOString();
+  const [gated] = await db
+    .insert(s.events)
+    .values({ clanId: spaceId, name: 'Sched Subs', boardSize: 5, entry: 'open', visibility: 'public', startDate: start, entryGates: JSON.stringify({ anyOf: [{ kind: 'twitch-sub', tier: 1 }] }) })
+    .returning();
+  const [open] = await db.insert(s.events).values({ clanId: spaceId, name: 'Sched Open', boardSize: 5, entry: 'open', visibility: 'public', startDate: start }).returning();
+  const sched = await buildSchedule(spaceId, { member: false });
+  assert.equal(sched.bingos.find((b) => b.id === gated.id)?.gate, 'Subs only (Twitch)');
+  assert.equal(sched.bingos.find((b) => b.id === open.id)?.gate, undefined);
+
+  // An ordinary clan ignores the column (lib/entryGates gatesApply), so the panel does too.
+  const [clan] = await db.insert(s.clans).values({ slug: 'sched-clan', name: 'Sched Clan', inGameName: 'Sched Clan' }).returning();
+  const [plain] = await db
+    .insert(s.events)
+    .values({ clanId: clan.id, name: 'Clan Night', boardSize: 5, entry: 'open', visibility: 'public', startDate: start, entryGates: JSON.stringify({ anyOf: [{ kind: 'discord-booster' }] }) })
+    .returning();
+  const clanSched = await buildSchedule(clan.id, { member: true });
+  assert.ok(clanSched.bingos.some((b) => b.id === plain.id));
+  assert.equal(clanSched.bingos.find((b) => b.id === plain.id)?.gate, undefined);
+});
+
 test('tokens are stored encrypted, never as given', async () => {
   const row = await db.query.clanTwitchChannels.findFirst({ where: eq(s.clanTwitchChannels.clanId, spaceId) });
   assert.ok(row!.accessToken.startsWith('enc1:') && !row!.accessToken.includes('host-at-1'));
