@@ -73,7 +73,8 @@ export async function signUpOnBehalf(input: {
       rosterSeatOpensEventSql(event.id),
     ),
   );
-  if (!account) return { ok: false, status: 404, error: 'Clan member not found' };
+  // "Player", not "clan member": a creator space's players hold event seats, and a clan's guest is not a member either.
+  if (!account) return { ok: false, status: 404, error: 'Player not found' };
 
   // Are they already playing, and where? By ACCOUNT, not by seat — see lib/participants for why one
   // player can hold two of the latter. Asked BEFORE anything is written: refusing halfway would

@@ -146,7 +146,7 @@ function activityVerdict(hoursPerWeek: number | null): string {
   if (hoursPerWeek <= 10) return 'Verdict: employed, well-adjusted, touches grass. Suspicious.';
   if (hoursPerWeek <= 25) return 'Verdict: part-time job, part-time gamer — respectable balance.';
   if (hoursPerWeek <= 45) return 'Verdict: unemployed (allegedly). Plenty of free time.';
-  if (hoursPerWeek <= 70) return 'Verdict: no social life detected. The clan thanks you.';
+  if (hoursPerWeek <= 70) return 'Verdict: no social life detected. Your team thanks you.';
   if (hoursPerWeek <= 112) return 'Verdict: OSRS is your whole personality now. Respect.';
   return 'Verdict: touch grass speedrun any%. Please see sunlight.';
 }
@@ -628,7 +628,7 @@ export default function SignupForm({
 
       {/* WHO TO PAY, BEFORE THEY COMMIT. The payment report below only exists once a sign-up does,
           so somebody deciding whether to enter used to see a price and no one to give it to. */}
-      {event.signupFee && !existingSignup ? <FeeWhoToPay eventId={eventId} amount={event.signupFee} /> : null}
+      {event.signupFee && !existingSignup ? <FeeWhoToPay eventId={eventId} amount={event.signupFee} creator={creator} /> : null}
 
       {/* Per-account fee summary (multi-account 'per-account' fee mode — one fee per entered account). */}
       {accountFees.length > 1 && (
@@ -653,7 +653,7 @@ export default function SignupForm({
 
       {/* Fee status + optional payment report (only if a fee row exists) */}
       {fee && existingSignup && (
-        <PaymentReportSection eventId={eventId} fee={fee} isLocked={isLocked} />
+        <PaymentReportSection eventId={eventId} fee={fee} isLocked={isLocked} creator={creator} />
       )}
 
       {/* Account picker — single (radio) at maxAccounts=1, else a capped multi-select. */}
@@ -944,10 +944,13 @@ function PaymentReportSection({
   eventId,
   fee,
   isLocked,
+  creator = false,
 }: {
   eventId: number;
   fee: FeeRow;
   isLocked: boolean;
+  /** A creator space's event: the host and their staff collect, not "the clan staff". */
+  creator?: boolean;
 }) {
   const [collectors, setCollectors] = useState<FeeCollectorOption[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -1010,13 +1013,15 @@ function PaymentReportSection({
 
       <div className="rounded-lg bg-blue-500/10 border border-blue-500/25 p-3 text-xs text-blue-300">
         <strong className="font-semibold text-blue-200">How to pay:</strong> trade {fee.amount.toLocaleString()} gp in-game to
-        one of the clan staff below. Then pick who you paid here — it&apos;s your proof if anyone asks later.
+        {creator ? 'the host or one of their staff' : 'one of the clan staff'} below. Then pick who you paid here — it&apos;s your proof if anyone asks later.
       </div>
 
       {!loaded && <p className="text-xs text-text-muted">Loading who collects fees…</p>}
 
       {loaded && collectors.length === 0 && (
-        <p className="text-xs text-text-muted">Ask your clan&apos;s staff on Discord who to pay.</p>
+        <p className="text-xs text-text-muted">
+          {creator ? 'Ask the host who to pay.' : <>Ask your clan&apos;s staff on Discord who to pay.</>}
+        </p>
       )}
 
       {loaded && collectors.length > 0 && (
@@ -1087,7 +1092,7 @@ function FeeStatusBadge({ status }: { status: string }) {
  * report uses (any signed-in viewer may), and falls back to "the clan's treasurer" when it is empty
  * or will not load.
  */
-function FeeWhoToPay({ eventId, amount }: { eventId: number; amount: number }) {
+function FeeWhoToPay({ eventId, amount, creator = false }: { eventId: number; amount: number; creator?: boolean }) {
   const [names, setNames] = useState<string[] | null>(null);
   useEffect(() => {
     let alive = true;
@@ -1109,10 +1114,12 @@ function FeeWhoToPay({ eventId, amount }: { eventId: number; amount: number }) {
 
   const who =
     names == null || names.length === 0
-      ? 'the clan’s treasurer'
+      ? creator
+        ? 'the host'
+        : 'the clan’s treasurer'
       : names.length <= 3
         ? names.join(', ').replace(/, ([^,]*)$/, ' or $1')
-        : `${names.slice(0, 3).join(', ')} or another clan admin`;
+        : `${names.slice(0, 3).join(', ')} or another ${creator ? 'of the host’s staff' : 'clan admin'}`;
   return (
     <p className="rounded-xl border border-card-border bg-card-bg px-4 py-3 text-xs text-text-muted">
       <strong className="font-semibold text-foreground">Fee:</strong> trade {amount.toLocaleString()} gp in-game to{' '}

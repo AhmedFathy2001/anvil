@@ -16,6 +16,7 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 
 import { clanPrefix, currentClan } from '@/lib/clanContext';
+import { homeTitleSuffix } from '@/lib/creatorSpaces';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { canonicalPathFor, socialMetadata } from '@/lib/seo';
 
@@ -55,7 +56,8 @@ export async function clanSectionMetadata(opts: {
     // Spot" in a list of search results could be anything, and the two words that make it findable
     // by somebody looking for a clan are the two the name will never contain. Sub-pages need no
     // qualifier — "Members — The AFK Spot" is already unambiguous once you are reading it.
-    title: opts.title ?? (opts.section ? `${opts.section} — ${clanName}` : `${clanName} — OSRS Clan`),
+    // A creator space is not a clan (lib/creatorSpaces): its home says "Events on Anvil" instead.
+    title: opts.title ?? (opts.section ? `${opts.section} — ${clanName}` : `${clanName} — ${homeTitleSuffix(clan.kind)}`),
     description: opts.description,
     canonical: canonicalPathFor({ prefix, pathname, clanSlug: clan.slug }),
     image: opts.image ?? `/api/og/clan/${clan.slug}`,

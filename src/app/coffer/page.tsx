@@ -5,6 +5,7 @@ import { clanRoster } from '@/db/schema';
 import { rosterClanSeat } from '@/lib/seatScope';
 import { verifyUser } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
+import { creatorPublicAway } from '@/lib/creatorGuard';
 import { getCofferBalance, listCofferEntries, topDonors } from '@/lib/coffer';
 import { findRosterSeats, seatsOwnedBy } from '@/lib/roster';
 import { formatGp } from '@/lib/adminEventsFormat';
@@ -21,6 +22,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function CofferPage() {
   const clan = await requireClan();
+  await creatorPublicAway('/coffer', clan);
   await requireFeature(clan.id, 'coffer', '/');
   const user = await verifyUser();
 

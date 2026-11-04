@@ -85,6 +85,8 @@ export function feeReminderEmbed(p: {
   amount: number;
   fees: number;
   url: string;
+  /** A creator space (lib/creatorSpaces): the host is a streamer, not "the clan's staff". */
+  creator?: boolean;
 }): Record<string, unknown> {
   const owed = p.fees > 1 ? `${gp(p.amount)} (for ${p.fees} accounts)` : gp(p.amount);
   return {
@@ -93,7 +95,9 @@ export function feeReminderEmbed(p: {
     color: EMBED_COLOR.amber,
     description: [
       `Hi! **${p.clanName}** hasn’t got your entry fee for **${p.eventName}** yet: **${owed}**.`,
-      'Trade it in-game to one of the clan’s staff, then pick who you paid on your sign-up so they know to look for it.',
+      p.creator
+        ? 'Trade it in-game to the host or one of their staff, then pick who you paid on your sign-up so they know to look for it.'
+        : 'Trade it in-game to one of the clan’s staff, then pick who you paid on your sign-up so they know to look for it.',
       `[Open your sign-up](${p.url})`,
       'Already paid? Ignore this, staff will catch up.',
     ].join('\n\n'),

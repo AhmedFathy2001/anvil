@@ -40,6 +40,7 @@ export default async function EventsDirectory({ filters }: { filters: DirectoryF
                 endDate: e.endDate,
                 clanName: e.hostName,
                 clanSlug: e.hostSlug,
+                hostKind: e.hostKind,
               }) as Record<string, unknown>;
               return { '@type': 'ListItem', position: (view.page - 1) * DIRECTORY_PAGE_SIZE + i + 1, item };
             }),

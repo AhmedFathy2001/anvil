@@ -29,6 +29,7 @@ export default function ClanPrivate({
   signedIn,
   hasCharacter,
   guestPolicy,
+  kind,
 }: {
   name: string;
   slug: string;
@@ -39,8 +40,11 @@ export default function ClanPrivate({
   hasCharacter: boolean;
   /** 'approval' | 'open' | 'closed' — whether asking to join is even a thing here. */
   guestPolicy: string;
+  /** 'creator' for a creator space (lib/creatorSpaces): no members, no guests, nothing to apply to. */
+  kind?: string;
 }) {
   const canApply = guestPolicy === 'approval' || guestPolicy === 'open';
+  const creator = kind === 'creator';
 
   return (
     <div className="mx-auto flex w-full max-w-[540px] flex-col items-center py-16 text-center sm:py-24">
@@ -54,7 +58,32 @@ export default function ClanPrivate({
 
       <h1 className="display display-lg text-[26px] font-semibold">{name}</h1>
 
-      {signedIn && !hasCharacter ? (
+      {creator ? (
+        // A creator space has no members to share with and no guest door: it is closed to visitors
+        // for now, and the way in is one of its events' links.
+        <>
+          <p className="mt-3 text-[15px] leading-relaxed text-text-muted">
+            This space isn&rsquo;t open to visitors right now. If you&rsquo;re playing in one of its events,
+            {signedIn ? ' open the link the host shared.' : ' sign in and open the link the host shared.'}
+          </p>
+          <div className="mt-7 flex flex-wrap justify-center gap-3">
+            {!signedIn && (
+              <ClanLink
+                href="/login"
+                className="rounded-lg bg-gold px-5 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+              >
+                Sign in
+              </ClanLink>
+            )}
+            <ClanLink
+              href="/clans"
+              className="rounded-lg border border-card-border px-5 py-2.5 text-sm transition-colors hover:border-gold-dark hover:bg-card-bg"
+            >
+              Browse Anvil
+            </ClanLink>
+          </div>
+        </>
+      ) : signedIn && !hasCharacter ? (
         <>
           <p className="mt-3 text-[15px] leading-relaxed text-text-muted">
             This clan shares with its members, and we cannot tell yet whether you are one — you have

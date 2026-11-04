@@ -947,7 +947,7 @@ export async function buildEnrolledConfig(args: {
     // Same two fields as the not-enrolled shape above: which clan answered, and the rest of this
     // person's clans for the switcher. Present on BOTH shapes so the dropdown does not empty out
     // the moment somebody's event ends (lib/pluginClans).
-    activeClan: { slug: clan.slug, name: clan.name },
+    activeClan: { slug: clan.slug, name: clan.name, kind: clan.kind },
     clans: viewer && !trackedOnly ? await pluginClansFor(viewer.userId, viewer.rsn) : [],
     event: {
       id: event.id,

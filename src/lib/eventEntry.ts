@@ -40,7 +40,11 @@ export async function enterEvent(opts: {
     // 404 for not-visible, so an event nobody may see does not confirm its own existence. A ban is
     // told plainly — the person needs to know it is a decision rather than a glitch.
     if (verdict.reason === 'banned') {
-      return { outcome: 'refused', reason: 'banned', status: 403, error: 'This clan has barred you from its events.' };
+      // clan-scope: global -- the host of the one event being entered, by its id.
+      const ev = await db.query.events.findFirst({ where: eq(events.id, opts.eventId), columns: { clanId: true } });
+      const host = ev ? await db.query.clans.findFirst({ where: eq(clans.id, ev.clanId), columns: { kind: true } }) : null;
+      const error = isCreatorSpace(host) ? 'The host has barred you from their events.' : 'This clan has barred you from its events.';
+      return { outcome: 'refused', reason: 'banned', status: 403, error };
     }
     return { outcome: 'refused', reason: verdict.reason, status: 404, error: 'Not found' };
   }

@@ -25,9 +25,18 @@ import { and, eq, inArray, isNull, isNotNull, or, gt } from 'drizzle-orm';
 export async function countLiveTeamInvolvements(
   userId: number,
   now: Date = new Date(),
+  /**
+   * Only events this space hosts. A CREATOR SPACE's nav passes its own id: a viewer there has a
+   * team in that streamer's event or nothing, and a clan team elsewhere is not a link to put in a
+   * streamer's header. Clans leave it out and keep the person-wide count described above.
+   */
+  onlyClanId?: number,
 ): Promise<number> {
   const nowIso = now.toISOString();
-  const live = or(isNull(events.endDate), gt(events.endDate, nowIso));
+  const live = and(
+    or(isNull(events.endDate), gt(events.endDate, nowIso)),
+    onlyClanId != null ? eq(events.clanId, onlyClanId) : undefined,
+  );
   const notForceEnded = isNull(events.forceEndedAt);
 
   const [captainRows, staffRows, playerRows, signupRows] = await Promise.all([

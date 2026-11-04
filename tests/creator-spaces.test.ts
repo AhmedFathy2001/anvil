@@ -8,7 +8,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  CREATOR_EVENT_GROUPS,
   CREATOR_HIDDEN_ADMIN_PATHS,
+  CREATOR_HIDDEN_PUBLIC_PATHS,
   CREATOR_HIDDEN_FEEDS,
   CREATOR_HIDDEN_FEED_TABS,
   CREATOR_HIDDEN_SETTING_KEYS,
@@ -19,7 +21,13 @@ import {
   clanKindOf,
   groupClansAndSpaces,
   verifiedStreamLinks,
+  creatorEventPlacement,
   creatorHidesAdminPath,
+  creatorHidesPublicPath,
+  creatorPublicRedirect,
+  homeTitleSuffix,
+  spaceCardEyebrow,
+  spaceDescription,
   creatorHidesDiscordSection,
   creatorHidesSetting,
   creatorHidesSettingKey,
@@ -248,4 +256,91 @@ test('the decline DM: no "guest" from a creator space, unchanged from a clan', (
     declinedRequestText({ kind: 'clan', hostName: 'Iron Foundry', rsn: 'Zezima', clansUrl: 'https://x/clans' }),
     '**Iron Foundry** declined your request to join as a guest for **Zezima**. You can still ask again later, or find another clan: https://x/clans',
   );
+});
+
+// ── The space's events list (the "1 EVENTS" over "No events yet" bug) ──────────────────────────
+
+const NOW = Date.parse('2026-11-04T12:00:00Z');
+const ev = (o: Partial<{ visibility: string | null; startDate: string | null; endDate: string | null; forceEndedAt: string | null }>) => ({
+  visibility: 'public',
+  startDate: null,
+  endDate: null,
+  forceEndedAt: null,
+  ...o,
+});
+
+test('events list: an undated event that has not ended is OPEN TO JOIN, not missing', () => {
+  // The bug: the clan hub drops undated boards, so the page counted 1 and listed none.
+  assert.deepEqual(creatorEventPlacement(ev({}), { staff: false, now: NOW }), { group: 'open', staffOnly: false });
+  assert.deepEqual(creatorEventPlacement(ev({ visibility: 'clan' }), { staff: false, now: NOW }), { group: 'open', staffOnly: false });
+  // Undated but with an end date still ahead: open. Past it, or force-ended: finished.
+  assert.equal(creatorEventPlacement(ev({ endDate: '2026-11-10 00:00:00' }), { staff: false, now: NOW })?.group, 'open');
+  assert.equal(creatorEventPlacement(ev({ endDate: '2026-11-01 00:00:00' }), { staff: false, now: NOW })?.group, 'past');
+  assert.equal(creatorEventPlacement(ev({ forceEndedAt: '2026-11-03T10:00:00.000Z' }), { staff: false, now: NOW })?.group, 'past');
+});
+
+test('events list: live, coming up and finished by their dates, in both stored formats', () => {
+  const at = (o: Parameters<typeof ev>[0]) => creatorEventPlacement(ev(o), { staff: false, now: NOW })?.group;
+  assert.equal(at({ startDate: '2026-11-04 11:00:00' }), 'live');
+  assert.equal(at({ startDate: '2026-11-04T11:00:00.000Z', endDate: '2026-11-05T11:00:00.000Z' }), 'live');
+  assert.equal(at({ startDate: '2026-11-04 13:00:00' }), 'upcoming');
+  assert.equal(at({ startDate: '2026-10-01 00:00:00', endDate: '2026-10-08 00:00:00' }), 'past');
+  // Force-ended before it even started is finished, not "coming up".
+  assert.equal(at({ startDate: '2026-11-09 00:00:00', forceEndedAt: '2026-11-03 00:00:00' }), 'past');
+  assert.deepEqual(CREATOR_EVENT_GROUPS.map((g) => g.title), ['Live now', 'Open to join', 'Coming up', 'Finished']);
+});
+
+test('events list: invite-only is never listed to non-staff; staff see it tagged', () => {
+  for (const visibility of ['invited', 'nonsense', null]) {
+    assert.equal(creatorEventPlacement(ev({ visibility }), { staff: false, now: NOW }), null, String(visibility));
+    assert.deepEqual(creatorEventPlacement(ev({ visibility }), { staff: true, now: NOW }), { group: 'open', staffOnly: true });
+  }
+  // What everyone sees, staff see untagged.
+  assert.deepEqual(creatorEventPlacement(ev({ visibility: 'public' }), { staff: true, now: NOW }), { group: 'open', staffOnly: false });
+});
+
+test('clan-only public pages are a creator space\'s to skip; events and the rest are not', () => {
+  assert.deepEqual([...CREATOR_HIDDEN_PUBLIC_PATHS], ['/members', '/weekly', '/coffer', '/clan-events']);
+  for (const p of ['/members', '/members/Zezima', '/weekly', '/weekly/12', '/coffer', '/clan-events/3', '/clan-events/3/survey']) {
+    assert.equal(creatorHidesPublicPath(p), true, p);
+  }
+  for (const p of ['/', '/events', '/events/5', '/team', '/profile', '/membership', '/weeklyish', '/host']) {
+    assert.equal(creatorHidesPublicPath(p), false, p);
+  }
+});
+
+test('clan-only pages send a creator space home, and still render for a clan', () => {
+  const space = { kind: 'creator' };
+  assert.equal(creatorPublicRedirect('/members', space, '/c/cool-streamer'), '/c/cool-streamer');
+  assert.equal(creatorPublicRedirect('/members/Zezima', space, '/c/cool-streamer'), '/c/cool-streamer');
+  assert.equal(creatorPublicRedirect('/coffer', space, '/c/cool-streamer'), '/c/cool-streamer');
+  // On the space's own host there is no prefix: its home is '/'.
+  assert.equal(creatorPublicRedirect('/weekly/4', space, ''), '/');
+  // Pages a space does have are left alone.
+  assert.equal(creatorPublicRedirect('/events', space, '/c/cool-streamer'), null);
+  // An ordinary clan (or a row without a kind) keeps every page.
+  for (const clan of [{ kind: 'clan' }, {}, null]) {
+    for (const p of CREATOR_HIDDEN_PUBLIC_PATHS) assert.equal(creatorPublicRedirect(p, clan, '/c/afk'), null, p);
+  }
+});
+
+test('what a space calls itself: "Events on Anvil", never "OSRS Clan" or a roster, for a creator', () => {
+  assert.equal(homeTitleSuffix('creator'), 'Events on Anvil');
+  assert.equal(homeTitleSuffix('clan'), 'OSRS Clan');
+  assert.equal(homeTitleSuffix(null), 'OSRS Clan');
+  assert.ok(!/clan|roster|member/i.test(spaceDescription('creator', 'Cool Streamer')));
+  assert.match(spaceDescription('creator', 'Cool Streamer'), /Cool Streamer/);
+  assert.equal(spaceDescription('clan', 'The AFK Spot'), 'Bingos, competitions and the roster for The AFK Spot.');
+  assert.ok(!/clan/i.test(spaceCardEyebrow('creator')));
+  assert.equal(spaceCardEyebrow('clan'), 'OSRS Clan · on Anvil');
+});
+
+
+test('a first sign-in into a creator space goes straight back to the event, not to clan onboarding', async () => {
+  const { firstLoginDestination, spaceSlugOf } = await import('../src/lib/firstLogin.ts');
+  assert.equal(spaceSlugOf('/c/Cool-Streamer/events/5'), 'cool-streamer');
+  assert.equal(spaceSlugOf('/events/5'), null);
+  assert.equal(firstLoginDestination('/c/cool-streamer/events/5', false, true), '/c/cool-streamer/events/5');
+  // A clan's deep link still goes through onboarding, carrying the target along.
+  assert.equal(firstLoginDestination('/c/afk/events/5', false), `/welcome?next=${encodeURIComponent('/c/afk/events/5')}`);
 });

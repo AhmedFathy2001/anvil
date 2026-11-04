@@ -225,6 +225,37 @@ test('clans: members open in Lookup, compare only when offered, search rows open
   assert.ok(actions(clanSearchUi('afk', [{ slug: 'theafkspot', name: 'The AFK Spot' }])).some((a) => a.a === 'load' && a.v === 'clan'));
 });
 
+test('a creator space in the panel: its name and page, never members, a week or "Compare with my clan"', () => {
+  const card = {
+    slug: 'cool-streamer',
+    name: 'Cool Streamer',
+    kind: 'creator' as const,
+    logoUrl: null,
+    members: 0,
+    activeThisWeek: 0,
+    weekHours: 0,
+    totalEhp: 0,
+    totalEhb: 0,
+    topWeek: [],
+    topPlayers: [],
+    clog: null,
+    highlights: [],
+    competitions: [],
+  };
+  // Even asked to offer the compare button, a space's card has none.
+  const ui = clanCardUi(card, true);
+  const all = texts(ui).join(' | ');
+  assert.ok(all.includes('Cool Streamer'));
+  assert.ok(all.includes('Events by Cool Streamer on Anvil'));
+  assert.ok(!/member|clan|this week/i.test(all), all);
+  assert.ok(!walk(ui).some((x) => x.t === 'button'), 'no compare button');
+  assert.ok(actions(ui).some((a) => a.a === 'site' && a.path === '/c/cool-streamer'));
+  // An ordinary clan's card is unchanged: members line and the compare button when offered.
+  const clan = clanCardUi({ ...card, kind: 'clan', slug: 'afk', name: 'The AFK Spot', members: 12 }, true);
+  assert.ok(texts(clan).some((t) => t.startsWith('12 members')));
+  assert.ok(walk(clan).some((x) => x.t === 'button' && x.label === 'Compare with my clan'));
+});
+
 // ---- The board's tiles page and the Teams page ------------------------------------------------
 
 import { type BoardContext, type BoardTile, boardRowsUi, boardUi, claimLine, filterTiles, tileDetailUi, trackingLines } from '../src/lib/pluginUi/boardUi';

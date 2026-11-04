@@ -1,6 +1,7 @@
 import { formatJoinDate } from '@/lib/clanJoinDate';
 import type { Metadata } from 'next';
 import { requireClan } from '@/lib/clanContext';
+import { creatorPublicAway } from '@/lib/creatorGuard';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { clanSectionMetadata } from '@/lib/seoPages';
 import { notFound } from 'next/navigation';
@@ -153,6 +154,7 @@ export default async function MemberProfilePage({
   const progressTab = typeof sp.progress === 'string' ? sp.progress : undefined;
   const { rsn } = await params;
   const clan = await requireClan();
+  await creatorPublicAway('/members', clan);
   const profile = await getMemberProfile(clan.id, decodeURIComponent(rsn));
   if (!profile) notFound();
 

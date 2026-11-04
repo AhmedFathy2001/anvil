@@ -19,6 +19,7 @@ function nameLine(label: string, value: string, rsn: string): Node {
  * there and this card keeps only a short taste of it.
  */
 export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false): Node {
+  if (c.kind === 'creator') return spaceCardUi(c);
   const parts: Node[] = [];
   const id: Node[] = [
     row(undefined, text(c.name, 'white', { font: 'bold' }), icon({
@@ -75,6 +76,27 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false): Node
   }
   if (compare) parts.push(gap(6), button('Compare with my clan', { a: 'load', v: 'clan-compare', args: { slug: c.slug } }));
   return col(parts);
+}
+
+/**
+ * A creator space (lib/creatorSpaces) where a clan's card would go: its name and a way to its page.
+ * No member count, week, top accounts or "Compare with my clan" — a space has no members.
+ */
+export function spaceCardUi(c: Pick<ClanCard, 'slug' | 'name'>): Node {
+  return col([
+    card([
+      row(undefined, text(c.name, 'white', { font: 'bold' }), icon({
+        glyph: 'external',
+        w: 12,
+        h: 12,
+        color: 'muted',
+        tip: 'Open this space on the Anvil website',
+        on: { a: 'site', path: `/c/${seg(c.slug)}` },
+      })),
+      gap(2),
+      muted(`Events by ${c.name} on Anvil`, { wrap: true }),
+    ]),
+  ]);
 }
 
 /** Two clans side by side: one line per measure, the leader's number in orange. */

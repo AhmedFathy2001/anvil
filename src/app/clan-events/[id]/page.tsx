@@ -5,6 +5,7 @@ import LocalTime from '@/components/LocalTime';
 import { verifyUser } from '@/lib/auth';
 import { canSeeClan } from '@/lib/clanAccess';
 import { requireClan } from '@/lib/clanContext';
+import { creatorPublicAway } from '@/lib/creatorGuard';
 import { CHANNEL_SLOT_LABELS, channelList } from '@/lib/clanEventChannels';
 import { keyFor } from '@/lib/clanEventModules';
 import { loadQuestions } from '@/lib/clanEventQuestions';
@@ -22,6 +23,7 @@ export const dynamic = 'force-dynamic';
 export default async function ClanEventPage({ params }: { params: Promise<{ id: string }> }) {
   const id = idParam((await params).id);
   const [clan, user] = await Promise.all([requireClan(), verifyUser()]);
+  await creatorPublicAway('/clan-events', clan);
   if (!(await canSeeClan({ clanId: clan.id, visibility: clan.visibility, playerId: user?.playerId, userId: user?.userId }))) notFound();
   const ev = await getClanEvent(clan.id, id, user?.userId ?? null);
   if (!ev) notFound();

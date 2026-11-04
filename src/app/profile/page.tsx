@@ -1,4 +1,5 @@
 import { currentClan } from '@/lib/clanContext';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { accounts, clanRoster, users, detectedAccounts } from '@/db/schema';
 import { characterStandings } from '@/lib/characterStandingRead';
 import ProfileTabs, { profileClans, SettingsButton } from './ProfileTabs';
@@ -150,6 +151,8 @@ export default async function ProfilePage({
   const welcome = params.welcome === '1';
   // A first sign-in from a deep link (lib/firstLogin): offer the way back to it on the connect card.
   const continueTo = welcome ? onboardingNext(params.next) : null;
+  // A creator space's tab (lib/creatorSpaces): no roster, member page or guest seats to offer.
+  const space = isCreatorSpace(clan);
   const [locker, clanName, supporterState] = await Promise.all([
     buildLocker(clan.id, session.playerId, session.userId, new Date(), params.account ?? null),
     getClanDisplayName(clan.id),
@@ -295,7 +298,8 @@ export default async function ProfilePage({
             </section>
           )}
 
-          <RunSoFar rows={locker.history} totals={locker.historyTotals} focusRsn={locker.focusRsn} />
+          {/* A creator space has no member pages (lib/creatorSpaces), so no "All events →" into one. */}
+          <RunSoFar rows={locker.history} totals={locker.historyTotals} focusRsn={space ? null : locker.focusRsn} />
 
           {progress && (!progress.empty || questItems) && (
             <AccountProgressCard
@@ -384,7 +388,8 @@ export default async function ProfilePage({
 
             {/* Their characters this clan holds no seat for — offered here as guests, because asking
                 THIS clan is the one thing about them that only makes sense on this clan's tab. */}
-            {locker.otherAccounts.length > 0 && (
+            {/* Not in a creator space: it has no roster to guest on — a viewer gets in through an event. */}
+            {!space && locker.otherAccounts.length > 0 && (
               <OtherAccountsClient accounts={locker.otherAccounts} clanName={clan.name} clanSlug={clan.slug} />
             )}
           </section>
@@ -394,7 +399,7 @@ export default async function ProfilePage({
           <TrophyCase trophies={locker.trophies} />
           {locker.bests && <PersonalBests bests={locker.bests} focusRsn={locker.focusRsn} />}
           <InReach milestones={locker.milestones} />
-          {locker.focusRsn && <PublicProfile rsn={locker.focusRsn} />}
+          {locker.focusRsn && !space && <PublicProfile rsn={locker.focusRsn} />}
         </div>
       </div>
 

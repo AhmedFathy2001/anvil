@@ -19,6 +19,7 @@
 //     creator space is unlisted unless it opts IN ("Advertise on Anvil"), because a streamer's
 //     events are for their audience first and the platform directory second.
 
+import { parseStamp } from '@/lib/dbTime';
 import type { EventEntry } from '@/lib/eventVisibility';
 import type { FeatureKey } from '@/lib/features';
 
@@ -194,6 +195,104 @@ export const CREATOR_HIDDEN_SETTINGS: readonly string[] = [
 export function creatorHidesSetting(id: string): boolean {
   if (CREATOR_HIDDEN_SETTINGS.includes(id)) return true;
   return id.startsWith('webhook-') && creatorHidesSettingKey(id.slice('webhook-'.length));
+}
+
+// ── Public pages a creator space does not have ─────────────────────────────────────────────────
+
+/**
+ * Player-facing pages that only mean something for an in-game clan: the roster and member profiles,
+ * the weekly competitions, the gp coffer and in-game clan events. In a creator space each sends the
+ * visitor to the space's home (lib/creatorGuard creatorPublicAway), and nothing links to them.
+ * Prefixes, matched on whole path segments like CREATOR_HIDDEN_ADMIN_PATHS.
+ */
+export const CREATOR_HIDDEN_PUBLIC_PATHS = ['/members', '/weekly', '/coffer', '/clan-events'] as const;
+
+export type CreatorHiddenPublicPath = (typeof CREATOR_HIDDEN_PUBLIC_PATHS)[number];
+
+export function creatorHidesPublicPath(pathname: string): boolean {
+  return CREATOR_HIDDEN_PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
+}
+
+/**
+ * Where a request for one of those pages goes instead: the space's home, or null to render it (an
+ * ordinary clan, or a path not on the list). `prefix` is the request's clan prefix (`/c/<slug>`, or
+ * '' on a space's own host, where '/' is its home).
+ */
+export function creatorPublicRedirect(
+  pathname: string,
+  clan: { kind?: string | null } | null | undefined,
+  prefix: string,
+): string | null {
+  if (!isCreatorSpace(clan) || !creatorHidesPublicPath(pathname)) return null;
+  return prefix || '/';
+}
+
+// ── The space's events list ─────────────────────────────────────────────────────────────────────
+//
+// A clan's events hub leaves an undated board out: there, no start date means the host is still
+// building it. A creator's undated event is usually the opposite — sign-ups are open and it "starts
+// when the host starts it", on stream. So a creator space lists its own events by these rules, and
+// the count above the list is the number of rows the same viewer is shown.
+
+export type CreatorEventGroup = 'live' | 'open' | 'upcoming' | 'past';
+
+/** The groups in page order, with their headings. */
+export const CREATOR_EVENT_GROUPS: readonly { key: CreatorEventGroup; title: string }[] = [
+  { key: 'live', title: 'Live now' },
+  { key: 'open', title: 'Open to join' },
+  { key: 'upcoming', title: 'Coming up' },
+  { key: 'past', title: 'Finished' },
+];
+
+/** Shown on a row only the space's staff can see (an invite-only event). */
+export const CREATOR_STAFF_ONLY_TAG = 'Only you can see this';
+
+export interface CreatorEventRow {
+  visibility: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  forceEndedAt: string | null;
+}
+
+/**
+ * Where one of the space's events goes on its page for this viewer, or null when it is not theirs
+ * to see. Invite-only events (and any visibility nobody recognises) are never listed to anyone but
+ * the space's staff, who see every event with `staffOnly` set on the ones nobody else can.
+ */
+export function creatorEventPlacement(
+  e: CreatorEventRow,
+  opts: { staff: boolean; now?: number },
+): { group: CreatorEventGroup; staffOnly: boolean } | null {
+  const seenByAll = e.visibility === 'public' || e.visibility === 'clan';
+  if (!seenByAll && !opts.staff) return null;
+  const now = opts.now ?? Date.now();
+  const start = parseStamp(e.startDate);
+  const end = parseStamp(e.endDate);
+  let group: CreatorEventGroup;
+  if (e.forceEndedAt || (end != null && end <= now)) group = 'past';
+  else if (start == null) group = 'open';
+  else if (start <= now) group = 'live';
+  else group = 'upcoming';
+  return { group, staffOnly: !seenByAll };
+}
+
+// ── What the space calls itself ─────────────────────────────────────────────────────────────────
+
+/** What the space's home page calls itself after its name, in the tab and in search results. */
+export function homeTitleSuffix(kind: string | null | undefined): string {
+  return clanKindOf(kind) === 'creator' ? 'Events on Anvil' : 'OSRS Clan';
+}
+
+/** The fallback description of a space with nothing of its own written: no "roster" for a creator. */
+export function spaceDescription(kind: string | null | undefined, name: string): string {
+  return clanKindOf(kind) === 'creator'
+    ? `Old School RuneScape events by ${name} on Anvil: bingos and races for their viewers.`
+    : `Bingos, competitions and the roster for ${name}.`;
+}
+
+/** The small label over the name on the space's link card (lib/ogCard clanCard). */
+export function spaceCardEyebrow(kind: string | null | undefined): string {
+  return clanKindOf(kind) === 'creator' ? 'Events · on Anvil' : 'OSRS Clan · on Anvil';
 }
 
 /** What an in-game-only admin API says to a creator space. */

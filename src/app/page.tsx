@@ -29,10 +29,10 @@ import { countLiveTeamInvolvements } from '@/lib/myTeamNav';
 import { ClanEvents, ClanWeek, Competitions, Hero, LiveNow, YouStrip } from '@/components/home/HomeSections';
 import ClanLink from '@/components/ClanLink';
 import CreatorHome from '@/components/CreatorHome';
-import { creatorHomeView } from '@/lib/creatorHome';
+import { creatorHomeView, isSpaceStaff } from '@/lib/creatorHome';
 import { highlightsForSpace } from '@/lib/highlights/store';
 import { canSeeEvent } from '@/lib/eventAccess';
-import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { isCreatorSpace, spaceDescription } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +50,26 @@ export async function generateMetadata(): Promise<Metadata> {
   const clan = await currentClan();
   if (!clan) return {};
 
+  // A creator space: no members, no clan table, and its events counted the way a stranger sees them
+  // (lib/creatorHome) — never the invite-only ones a raw count of rows would include.
+  if (isCreatorSpace(clan)) {
+    const view = await creatorHomeView(clan.id);
+    if (!view) return {};
+    const live = view.events.groups.live[0];
+    const facts = live
+      ? `${live.name} running now`
+      : view.events.groups.open[0]
+        ? `${view.events.groups.open[0].name} open to join`
+        : view.eventsRun > 0
+          ? `${view.eventsRun.toLocaleString()} event${view.eventsRun === 1 ? '' : 's'}`
+          : '';
+    const own = (view.tagline || '').trim().replace(/\s+/g, ' ');
+    const description = own
+      ? `${own.length > 110 ? `${own.slice(0, 107)}…` : own}${facts ? ` — ${facts}.` : ''}`
+      : `${spaceDescription(clan.kind, view.name)}${facts ? ` ${facts}.` : ''}`;
+    return clanSectionMetadata({ description });
+  }
+
   const view = await publicClanHomeView(clan.id);
   if (!view) return {};
 
@@ -58,7 +78,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const rank = await clanRankFor(clan.id);
 
   const bits: string[] = [];
-  if (view.memberCount > 0 && !isCreatorSpace(clan)) {
+  if (view.memberCount > 0) {
     bits.push(`${view.memberCount.toLocaleString()} member${view.memberCount === 1 ? '' : 's'}`);
   }
   if (rank) bits.push(`${ordinal(rank.rank)} of ${rank.field} clans this week`);
@@ -167,22 +187,15 @@ export default async function HomePage() {
   // their events and who has played them. There is no member week view: nobody is a member.
   if (isCreatorSpace(clan)) {
     const viewer = await verifyUser();
-    const viewerIsStaff = viewer?.userId
-      ? (
-          await db
-            .select({ id: clanStaff.id })
-            .from(clanStaff)
-            .where(and(eq(clanStaff.clanId, clan.id), eq(clanStaff.userId, viewer.userId)))
-            .limit(1)
-        ).length > 0
-      : false;
-    const [creatorView, activity, highlights] = await Promise.all([
+    const viewerIsStaff = await isSpaceStaff(clan.id, viewer?.userId);
+    // Its own events by the creator rules (lib/creatorHome creatorEventsView), not the clan hub: the
+    // hub leaves undated events out, and a creator's undated event is the one viewers can join now.
+    const [creatorView, highlights] = await Promise.all([
       creatorHomeView(clan.id, { viewerIsStaff }),
-      publicClanActivity(clan.id).catch(() => null),
       // Stream highlights (lib/highlights), only from events this viewer may open.
       highlightsForSpace(clan.id, (eventId) => canSeeEvent({ eventId, playerId: viewer?.playerId ?? null })).catch(() => []),
     ]);
-    if (creatorView) return <CreatorHome view={creatorView} activity={activity} highlights={highlights} />;
+    if (creatorView) return <CreatorHome view={creatorView} highlights={highlights} />;
   }
   const session = await verifyUser();
   const myMemberIds = await viewerMemberIds(clan.id, session);
