@@ -20,6 +20,8 @@
 
 import { isKickKind, kickRuleLabel, kickRuleOutcome, type KickAnswer, type KickRule } from '@/lib/gates/kick';
 
+import { isYoutubeRule, youtubeRuleLabel, youtubeStep, type YoutubeAnswer } from '@/lib/gates/youtube';
+
 // ── The model ────────────────────────────────────────────────────────────────────────────────────
 
 export type SubTier = 1 | 2 | 3;
@@ -29,6 +31,9 @@ export type GateRule =
   | { kind: 'twitch-sub'; tier: SubTier }
   | { kind: 'discord-role'; roleId: string; roleName: string }
   | { kind: 'discord-booster' }
+  // YouTube (lib/gates/youtube): a subscriber, or a channel member seen in the host's live chat.
+  | { kind: 'youtube-sub' }
+  | { kind: 'youtube-member' }
   | KickRule;
 
 export type GateKind = GateRule['kind'];
@@ -88,6 +93,8 @@ export function parseGates(raw: unknown): EntryGates | null {
   let follow = false;
   let subTier: SubTier | null = null;
   let booster = false;
+  let ytSub = false;
+  let ytMember = false;
   const kick = new Set<KickRule['kind']>();
   const roles = new Map<string, string>();
   for (const item of list.slice(0, 32)) {
@@ -111,6 +118,12 @@ export function parseGates(raw: unknown): EntryGates | null {
       case 'discord-booster':
         booster = true;
         break;
+      case 'youtube-sub':
+        ytSub = true;
+        break;
+      case 'youtube-member':
+        ytMember = true;
+        break;
       case 'kick-follow':
       case 'kick-sub':
         kick.add(r.kind);
@@ -123,6 +136,8 @@ export function parseGates(raw: unknown): EntryGates | null {
   if (subTier != null) anyOf.push({ kind: 'twitch-sub', tier: subTier });
   for (const [roleId, roleName] of roles) anyOf.push({ kind: 'discord-role', roleId, roleName });
   if (booster) anyOf.push({ kind: 'discord-booster' });
+  if (ytSub) anyOf.push({ kind: 'youtube-sub' });
+  if (ytMember) anyOf.push({ kind: 'youtube-member' });
   for (const k of ['kick-follow', 'kick-sub'] as const) if (kick.has(k)) anyOf.push({ kind: k });
   return anyOf.length > 0 ? { anyOf } : null;
 }
@@ -161,6 +176,12 @@ export interface GateOptions {
     connected: boolean;
     roles: { id: string; name: string }[];
   };
+  /** Absent on servers without YouTube configured (and in older callers). */
+  youtube?: {
+    configured: boolean;
+    channel: { title: string; broken: boolean } | null;
+    connectUrl: string | null;
+  };
   /** Absent on servers without Kick configured (lib/gates/kickDb kickGateOptions). */
   kick?: KickGateOptions;
 }
@@ -179,7 +200,11 @@ export interface KickGateOptions {
 export function validateGatesFor(gates: EntryGates | null, opts: GateOptions): { ok: true } | { ok: false; error: string } {
   if (!gates) return { ok: true };
   for (const r of gates.anyOf) {
-    if (isKickRule(r)) {
+    if (isYoutubeRule(r)) {
+      const yt = opts.youtube;
+      if (!yt?.configured) return { ok: false, error: 'YouTube checks are not available on this server.' };
+      if (!yt.channel || yt.channel.broken) return { ok: false, error: 'Connect your YouTube channel first.' };
+    } else if (isKickRule(r)) {
       if (!opts.kick?.configured) return { ok: false, error: 'Kick checks are not available on this server.' };
       if (!opts.kick.channel || opts.kick.channel.broken) return { ok: false, error: 'Connect your Kick channel first.' };
     } else if (isTwitchRule(r)) {
@@ -205,6 +230,8 @@ export interface GateContext {
   twitchLogin: string | null;
   /** The host's display name, for "<name>'s Discord server". */
   hostName: string;
+  /** The host's YouTube channel title, when one is connected. */
+  youtubeTitle?: string | null;
   /** The host's Kick channel slug, when one is connected. */
   kickSlug?: string | null;
 }
@@ -230,6 +257,9 @@ export function ruleLabel(rule: GateRule, ctx: GateContext): string {
       return `people with the ${rule.roleName} role in ${server(ctx)}`;
     case 'discord-booster':
       return `boosters of ${server(ctx)}`;
+    case 'youtube-sub':
+    case 'youtube-member':
+      return youtubeRuleLabel(rule, ctx.youtubeTitle);
     case 'kick-follow':
     case 'kick-sub':
       return kickRuleLabel(rule, ctx);
@@ -277,6 +307,9 @@ export interface GateProbe {
   /** 0 = not subscribed. */
   twitchSubTier(): Promise<TwitchAnswer<0 | SubTier>>;
   discordMember(): Promise<DiscordAnswer>;
+  /** YouTube proofs on file (lib/gates/youtubeDb). Absent → treated as not configured. */
+  youtubeSub?(): Promise<YoutubeAnswer>;
+  youtubeMember?(): Promise<YoutubeAnswer>;
   /** What Kick has told Anvil about this viewer in the host's channel. Absent → Kick is off. */
   kickFacts?(): Promise<KickAnswer>;
 }
@@ -295,6 +328,8 @@ export type GateVerdict =
       linkTwitch: boolean;
       /** Nothing the viewer does with this account changes it (the Twitch account is spoken for). */
       blocked?: true;
+      /** A YouTube rule wants the viewer to check their subscription (verify) or type their chat code. */
+      youtube?: { verify?: true; chatCode?: true };
       /** A Kick rule wants a chat code from the viewer: show the "Get Kick code" button. */
       linkKick?: true;
     };
@@ -319,6 +354,10 @@ export async function checkGates(gates: EntryGates, probe: GateProbe, ctx: GateC
   const follows = memo(() => probe.twitchFollows().catch((): TwitchAnswer<boolean> => ({ state: 'error' })));
   const subTier = memo(() => probe.twitchSubTier().catch((): TwitchAnswer<0 | SubTier> => ({ state: 'error' })));
   const member = memo(() => probe.discordMember().catch((): DiscordAnswer => ({ state: 'error' })));
+  const ytOff = async (): Promise<YoutubeAnswer> => ({ state: 'off' });
+  const ytSub = memo(() => (probe.youtubeSub ?? ytOff)().catch((): YoutubeAnswer => ({ state: 'off' })));
+  const ytMember = memo(() => (probe.youtubeMember ?? ytOff)().catch((): YoutubeAnswer => ({ state: 'off' })));
+  let youtube: { verify?: true; chatCode?: true } | undefined;
   const kickFacts = memo(
     (): Promise<KickAnswer> => (probe.kickFacts ? probe.kickFacts().catch((): KickAnswer => ({ state: 'error' })) : Promise.resolve({ state: 'off' })),
   );
@@ -389,6 +428,16 @@ export async function checkGates(gates: EntryGates, probe: GateProbe, ctx: GateC
         }
         break;
       }
+      case 'youtube-sub':
+      case 'youtube-member': {
+        // Answers come from proofs already on file — no network here, so nothing is transient.
+        const a = await (rule.kind === 'youtube-sub' ? ytSub() : ytMember());
+        if (a.state === 'ok' && a.value) return { pass: true, via: rule.kind };
+        const s = youtubeStep(rule, a, ctx.youtubeTitle);
+        add(s.step);
+        if (s.verify || s.chatCode) youtube = { ...youtube, ...(s.verify ? { verify: true } : {}), ...(s.chatCode ? { chatCode: true } : {}) };
+        break;
+      }
       case 'kick-follow':
       case 'kick-sub': {
         const o = kickRuleOutcome(rule, await kickFacts(), ctx);
@@ -401,7 +450,15 @@ export async function checkGates(gates: EntryGates, probe: GateProbe, ctx: GateC
     }
   }
 
-  return { pass: false, transient, summary: gatesSummary(gates, ctx), steps, linkTwitch, ...(linkKick ? { linkKick: true as const } : {}) };
+  return {
+    pass: false,
+    transient,
+    summary: gatesSummary(gates, ctx),
+    steps,
+    linkTwitch,
+    ...(youtube ? { youtube } : {}),
+    ...(linkKick ? { linkKick: true as const } : {}),
+  };
 }
 
 /** One sentence for an API error body, where there is no room for a list. */

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 import { checkStreamLink } from '@/lib/creatorSpaces';
+import YoutubeChannel from './YoutubeChannel';
 import KickChannel from './KickChannel';
 
 /**
@@ -142,6 +143,8 @@ export default function CreatorSettings() {
       </section>
 
       <TwitchChannel />
+
+      <YoutubeChannel />
 
       <KickChannel />
 

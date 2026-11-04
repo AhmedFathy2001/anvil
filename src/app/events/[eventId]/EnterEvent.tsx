@@ -8,6 +8,7 @@ import ClanLink from '@/components/ClanLink';
 import KickLinkCode from '@/components/KickLinkCode';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { parseStamp } from '@/lib/dbTime';
+import YoutubeGate, { type YoutubeGateInfo } from './YoutubeGate';
 
 type Verdict =
   | { outcome: 'insider' }
@@ -29,6 +30,7 @@ interface EnterInfo {
     usesTwitch: boolean;
     twitchLinked: string | null;
     twitchAvailable: boolean;
+    youtube?: YoutubeGateInfo;
     /** Present when a Kick rule is in the gates (lib/gates/kickDb kickGateInfo). */
     kick?: { slug: string | null; linked: string | null; available: boolean };
   } | null;
@@ -42,6 +44,8 @@ interface GateFail {
   transient: boolean;
   /** The Twitch account already got another player into this event. */
   blocked?: boolean;
+  /** A YouTube rule wants a subscription check or the chat code. */
+  youtube?: { verify?: boolean; chatCode?: boolean };
   /** A Kick rule wants a chat code: show "Get Kick code". */
   linkKick?: boolean;
 }
@@ -481,6 +485,7 @@ function CreatorJoin({
           )}
         </div>
       )}
+      <YoutubeGate eventId={eventId} info={info.gate?.youtube} fail={gateFail?.youtube} />
       {/* Linking Kick first saves a round trip when the gate is Kick-only. */}
       {info.gate?.kick?.available && !info.gate.kick.linked && !gateFail && <KickLinkCode slug={info.gate.kick.slug} />}
       {twitchNote && (

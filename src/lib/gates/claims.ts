@@ -10,7 +10,7 @@ import { eventGateClaims } from '@/db/schema';
 import { parseStamp } from '@/lib/dbTime';
 import { CLAIM_HOLD_MS, liveInEvent } from '@/lib/entryGatesDb';
 
-export type ClaimPlatform = 'kick';
+export type ClaimPlatform = 'kick' | 'youtube';
 
 export async function claimGateAccount(opts: {
   eventId: number;

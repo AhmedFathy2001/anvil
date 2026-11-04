@@ -3768,6 +3768,58 @@ export const clanTwitchChannels = pgTable('clan_twitch_channels', {
 });
 
 /**
+ * A creator space's YouTube channel (lib/gates/youtubeDb), connected by its owner with
+ * youtube.readonly. Its token reads the host's live chat for the member gate. Tokens are encrypted
+ * with lib/secretBox under YOUTUBE_TOKEN_KEY and never leave the server.
+ */
+export const clanYoutubeChannels = pgTable('clan_youtube_channels', {
+  clanId: integer('clan_id').primaryKey().references(() => clans.id, { onDelete: 'cascade' }),
+  youtubeChannelId: text('youtube_channel_id').notNull(),
+  title: text('title').notNull(),
+  handle: text('handle'),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token').notNull(),
+  expiresAt: text('expires_at').notNull(),
+  scope: text('scope').notNull(),
+  linkedByUserId: integer('linked_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  /** Google refused a refresh — the host must connect again; member checks fail closed until then. */
+  brokenAt: text('broken_at'),
+  updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+});
+
+/**
+ * A viewer's linked YouTube channel (lib/gates/youtubeDb) — identity only, proved by a Google sign-in
+ * whose token is revoked at once. Unique on the channel: one YouTube channel per Anvil login. The
+ * member chat code only counts when typed from this channel.
+ */
+export const userYoutubeLinks = pgTable('user_youtube_links', {
+  userId: integer('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  youtubeChannelId: text('youtube_channel_id').notNull(),
+  youtubeTitle: text('youtube_title').notNull(),
+  linkedAt: text('linked_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  uniqueIndex('user_youtube_links_channel_unique').on(table.youtubeChannelId),
+]);
+
+/**
+ * A point-in-time YouTube proof (lib/gates/youtubeDb): 'sub' — the viewer's own subscriptions,
+ * read once on their token (then revoked); 'member' — their chat code seen in the host's live chat
+ * from a channel member. Trusted for a day.
+ */
+export const userYoutubeProofs = pgTable('user_youtube_proofs', {
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  hostChannelId: text('host_channel_id').notNull(),
+  kind: text('kind').notNull(),
+  youtubeChannelId: text('youtube_channel_id').notNull(),
+  youtubeTitle: text('youtube_title').notNull(),
+  ok: boolean('ok').notNull(),
+  checkedAt: text('checked_at').notNull(),
+}, (table) => [
+  primaryKey({ name: 'user_youtube_proofs_pk', columns: [table.userId, table.hostChannelId, table.kind] }),
+]);
+
+
+/**
  * A player's OPT-IN Discord grant for `guilds.join` (lib/discordUserTokens). Only written when the
  * player chose "add me automatically"; plain logins never ask for it. Both tokens are encrypted with
  * lib/secretBox under DISCORD_TOKEN_KEY — without that env var nothing is stored and players fall back
