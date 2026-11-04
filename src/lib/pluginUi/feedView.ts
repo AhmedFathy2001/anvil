@@ -16,7 +16,7 @@ import { standingsHidden } from '@/lib/standingsVisibility';
 import { visibleClan } from './load';
 import { feedTabUi, kindGroup, momentRow, type KindGroup, type Scope } from './feedUi';
 import type { Action, FeedRow, View } from './nodes';
-import { gap, message, text } from './nodes';
+import { backRow, col, gap, message, text } from './nodes';
 
 // The Feed tab's data (view 'feed') and the event chat's actions. The look is lib/pluginUi/feedUi.
 
@@ -160,7 +160,17 @@ async function eventRows(eventId: number, filter: string, teamId: number | null)
   return { rows: list.map((m) => momentRow(asLike(m), { mine: teamId != null && m.teamId === teamId })), floor };
 }
 
+/** Opened from a board page on the Clan tab ("Feed" / "Chat" there): a way back over the feed. */
+function withBack(a: Args, view: View): View {
+  if (!a.back) return view;
+  return { ...view, ui: col([backRow(a.backLabel || 'Back', { a: 'load', v: 'home', args: { open: a.back } }), gap(8), view.ui]) };
+}
+
 export async function feedView(request: Request, a: Args): Promise<View> {
+  return withBack(a, await feedViewInner(request, a));
+}
+
+async function feedViewInner(request: Request, a: Args): Promise<View> {
   const viewer = await verifyPluginTokenUser(request);
   const scopes = await scopesFor(request, viewer?.userId ?? null);
   const current = pick(scopes, a.s);

@@ -1,6 +1,7 @@
 import type { buildBoard } from '@/app/api/plugin/board/route';
 
 import { type Action, type Color, type Node, button, card, col, count, exact, gap, muted, percent, row, text } from './nodes';
+import { boardFeedLinks } from './feedUi';
 
 // The board's "All tiles" page in the plugin's side panel (was the catalogue in AnvilSidebarPanel):
 // search, a status filter, fifteen rows a page, and a tile's detail with claiming and pinning. Pure;
@@ -262,6 +263,9 @@ export function boardUi(board: Board, s: BoardState, ctx: BoardContext, inner: N
           : 'Click for details · claims aren’t available on this site.';
   const reload = list({ ...s, page: 0 });
   return col([
+    // This board's feed and chat, one click away (any board, not only the one the plugin tracks).
+    boardFeedLinks(ctx.eventId),
+    gap(8),
     text(`${tiles.length} visible tile${tiles.length === 1 ? '' : 's'}${hidden}`, '#cdcdcd'),
     gap(2),
     muted(hint),

@@ -8,6 +8,7 @@ import type { ScheduleBingo, ScheduleWeekly } from '@/lib/pluginConfig';
 import type { RosterTeamOut } from '@/lib/eventRoster';
 
 import { type Action, type Color, type Node, backRow, button, card, col, count, exact, gap, icon, muted, percent, row, text } from './nodes';
+import { boardFeedLinks } from './feedUi';
 
 // The plugin's Clan tab, built here (was the event list and event page in AnvilSidebarPanel, fed by
 // AnvilSidebarDataSource/ConnectionView): the clan's events as cards, and one event's page — the
@@ -461,7 +462,10 @@ function boardPage(d: HomeData, b: Board): Node[] {
     return [text(b.title, 'brand'), muted(b.note ?? '', { wrap: true }), gap(8), button('View the board', { a: 'load', v: 'board', args: { event: String(eventId), back: 'board', backLabel: b.title } })];
   }
 
-  parts.push(summary(d, b), gap(12));
+  parts.push(summary(d, b), gap(8));
+  // Straight to this board's feed or chat, with a way back here.
+  if (event?.id) parts.push(boardFeedLinks(event.id, { open: 'board', label: b.title }), gap(12));
+  else parts.push(gap(4));
   if (d.live && d.standingsNotice) {
     parts.push(...heading('Standings'), muted(d.standingsNotice, { wrap: true }), gap(8));
   }

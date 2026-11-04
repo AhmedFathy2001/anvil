@@ -97,3 +97,12 @@ test('more than one clan or board: a dropdown of all of them, on the one showing
   const one = JSON.stringify(feedTabUi({ scopes: [scopes[0]], current: scopes[0], pane: 'feed', chatAvailable: false, filter: 'all', teamId: null, rows: [], floorNote: 'x' }));
   assert.doesNotMatch(one, /"kind":"select"/, 'one scope is a heading, not a dropdown');
 });
+
+test("a board page's Feed and Chat open that board's feed, with a way back", async () => {
+  const { boardFeedLinks } = await import('../src/lib/pluginUi/feedUi.ts');
+  const links = boardFeedLinks(9, { open: 'board', label: 'Chat Test' }) as unknown as { c: { label: string; on: { v: string; args: Record<string, string> } }[] };
+  assert.deepEqual(links.c.map((b) => b.label), ['Feed', 'Chat']);
+  assert.deepEqual(links.c[1].on, { a: 'load', v: 'feed', args: { s: 'event:9', p: 'chat', back: 'board', backLabel: 'Chat Test' } });
+  const bare = boardFeedLinks(9) as unknown as { c: { on: { args: Record<string, string> } }[] };
+  assert.equal(bare.c[0].on.args.back, undefined, 'no back unless asked');
+});

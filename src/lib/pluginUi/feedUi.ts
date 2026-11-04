@@ -1,7 +1,7 @@
 import { formatGp } from '@/lib/itemPrices';
 
 import type { Action, Color, FeedRow, Node } from './nodes';
-import { col, gap, muted, text } from './nodes';
+import { button, col, gap, muted, text } from './nodes';
 
 // The plugin panel's Feed tab (view 'feed'): one live list per scope — the clan's moments, a board's
 // moments, a board's chat — drawn once and then grown by push rows (lib/panelRows). Pure: the view
@@ -303,4 +303,22 @@ function emptyLine(pane: 'feed' | 'chat', filter: string): string {
 /** A row of chips with a little space between, wrapping is the plugin's business. */
 function rowOf(items: Node[], maxCols = 5): Node {
   return { t: 'grid', cols: Math.min(items.length, maxCols), c: items, gap: 4, vgap: 2 };
+}
+
+/**
+ * "Feed" and "Chat" for one board, side by side: straight to its list or its chat on the Feed view.
+ * `back` (a Clan-tab page, e.g. 'board') puts a way back over the feed.
+ */
+export function boardFeedLinks(eventId: number, back?: { open: string; label: string }): Node {
+  const go = (p: 'feed' | 'chat'): Action => ({
+    a: 'load',
+    v: 'feed',
+    args: { s: `event:${eventId}`, p, ...(back ? { back: back.open, backLabel: back.label } : {}) },
+  });
+  return {
+    t: 'grid',
+    cols: 2,
+    gap: 6,
+    c: [button('Feed', go('feed'), 'This board’s drops, pets and finished tiles'), button('Chat', go('chat'), 'This board’s chat')],
+  };
 }
