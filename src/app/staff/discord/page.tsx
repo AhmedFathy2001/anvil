@@ -3,6 +3,7 @@ import { hasPlatformRole } from '@/lib/clanRoles';
 import { requirePlatformPage } from '@/lib/platformAccess';
 import { getPlatformSetting, isPreview } from '@/lib/platformSettings';
 import AnvilDiscordSettings from './AnvilDiscordSettings';
+import PostPreviews from './PostPreviews';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +36,12 @@ export default async function StaffDiscordPage() {
         initial={{ guildId: cfg.guildId ?? '', webhookSet: !!cfg.webhook, rolesEnabled: cfg.rolesEnabled, backfilledAt }}
         initialStatus={status}
       />
+      {/* Works on beta too: it only posts to a channel someone pastes in, never the Anvil Discord. */}
+      {!!actor && hasPlatformRole(actor.role, 'staff') && (
+        <div className="mt-6">
+          <PostPreviews />
+        </div>
+      )}
     </div>
   );
 }
