@@ -252,7 +252,7 @@ export default async function RootLayout({
   // The switcher wants the whole set (including the current clan) with each one's relationship, so it
   // can show a role chip and mark where you are.
   const navClans = myClans.map((c) => ({
-    slug: c.slug, name: c.name, logoUrl: c.logoUrl, seat: c.seat, staff: c.staff, role: c.role,
+    slug: c.slug, name: c.name, logoUrl: c.logoUrl, seat: c.seat, staff: c.staff, role: c.role, kind: c.clanKind,
   }));
 
   return (

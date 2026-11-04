@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { verifyAdmin } from '@/lib/auth';
 import { clanHref } from '@/lib/clanPath';
 import PolicyClient from './PolicyClient';
+import { creatorAway } from '@/lib/creatorGuard';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,8 @@ export const dynamic = 'force-dynamic';
  * a hidden tab is not a permission.
  */
 export default async function ClanPolicyPage() {
+  // In-game clans only (lib/creatorSpaces CREATOR_HIDDEN_ADMIN_PATHS).
+  await creatorAway('/admin/people/access');
   // Through clanHref: a bare '/admin/clan' resolves against the apex, which has no admin area —
   // so a moderator would be bounced out of the clan entirely instead of back to its roster.
   // Not /admin/clan — that IS this page now that Profile is the hub's front door, so sending a

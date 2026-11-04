@@ -93,7 +93,7 @@ export async function enterEvent(opts: {
   });
 
   if (admission.outcome === 'refused') {
-    return { outcome: 'refused', reason: 'closed', status: 403, error: 'This clan is not taking guests.' };
+    return { outcome: 'refused', reason: 'closed', status: 403, error: creator ? 'The host isn’t letting you join their events.' : 'This clan is not taking guests.' };
   }
 
   // An invited outsider has already been decided about; that is what the invitation was. Asking them
@@ -104,7 +104,10 @@ export async function enterEvent(opts: {
   if (admission.outcome !== 'seated') {
     // Not seated, but no approval was required — the clan's own guest policy is stricter than the
     // event's entry setting. The clan's word wins: it is their roster.
-    return { outcome: 'pending', message: 'Sent to the host clan’s staff for approval.' };
+    return {
+      outcome: 'pending',
+      message: creator ? 'Sent to the host — you’ll be able to sign up once they accept.' : 'Sent to the host clan’s staff for approval.',
+    };
   }
 
   await db

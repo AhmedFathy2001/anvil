@@ -40,6 +40,8 @@ interface Props {
   teams: { id: number; name: string; color: string }[];
   onClose: () => void;
   onSaved: () => void;
+  /** A creator space (lib/creatorSpaces): "player", never "member" or "guest". */
+  creator?: boolean;
 }
 
 // Read one bound of an HoursRange as a form string ('' when absent).
@@ -120,6 +122,7 @@ export default function SignupAnswersModal({
   teams,
   onClose,
   onSaved,
+  creator = false,
 }: Props) {
   const initial = editTarget?.profile ?? {};
   const [memberId, setMemberId] = useState<number | null>(null);
@@ -182,7 +185,7 @@ export default function SignupAnswersModal({
     e.preventDefault();
     setError(null);
     if (!isEdit && !memberId) {
-      setError('Pick the member to sign up.');
+      setError(creator ? 'Pick the player to sign up.' : 'Pick the member to sign up.');
       return;
     }
     setSubmitting(true);
@@ -236,7 +239,7 @@ export default function SignupAnswersModal({
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold flex items-center gap-2">
             <span className="w-1 h-5 bg-gold rounded-full" />
-            {isEdit ? `Edit answers · ${editTarget.displayName} (${editTarget.rsn})` : 'Add member sign-up'}
+            {isEdit ? `Edit answers · ${editTarget.displayName} (${editTarget.rsn})` : creator ? 'Add a player' : 'Add member sign-up'}
           </h3>
           <button
             onClick={onClose}
@@ -250,6 +253,12 @@ export default function SignupAnswersModal({
         <form onSubmit={submit} className="space-y-4">
           {!isEdit && (
             <div className="space-y-2">
+              {creator ? (
+                <p className="text-xs text-text-muted">
+                  Sign a player up for them and fill in their answers. Skips the sign-up window and goes
+                  straight to <span className="text-accent-green-light">approved</span>.
+                </p>
+              ) : (
               <p className="text-xs text-text-muted">
                 Sign a member up on their behalf and fill in their answers — for the folks
                 who told you everything on Discord but won&apos;t touch the site. Skips the
@@ -257,6 +266,7 @@ export default function SignupAnswersModal({
                 An in-game member with no Discord login is added as a <span className="text-text-muted">guest</span>{' '}
                 sign-up (they can link their account later).
               </p>
+              )}
               <ClanMemberPicker
                 mode="single"
                 eventId={eventId}

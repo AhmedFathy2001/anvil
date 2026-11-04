@@ -12,6 +12,7 @@ import { parseWeeklyPrizes, serializeWeeklyPrizes, totalPrizeGp } from '@/lib/we
 import { setWeeklyPool } from '@/lib/coffer';
 import { track } from '@/lib/analytics';
 import { setWeeklyRepeat } from '@/lib/weeklyRepeat';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 export async function GET() {
   const user = await verifyAdminOrModerator();
@@ -44,6 +45,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const user = await verifyAdminOrModerator();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

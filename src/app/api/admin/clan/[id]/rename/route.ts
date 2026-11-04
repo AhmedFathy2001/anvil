@@ -7,6 +7,7 @@ import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { and, eq, ne, sql } from 'drizzle-orm';
 import { normalizeRsn, verifyAdminOrModerator } from '@/lib/auth';
 import { log } from '@/lib/logger';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 // POST /api/admin/clan/[id]/rename — records an OSRS username change.
 // Updates the canonical rsn on clan_members and cascades the rename through
@@ -21,6 +22,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   // Roster work is moderation: mods add, edit and remove members like admins do. Nothing here can
   // change what someone can DO on the site — UpdatableFields covers rank/notes/guest/primary only,
   // and site roles + the tile-authoring capability are set through /api/admin/staff, which stays

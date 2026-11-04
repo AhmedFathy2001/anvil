@@ -12,6 +12,8 @@ export interface MyClan {
   logoUrl: string | null;
   /** How they are attached to the roster: a seat of this kind, or none. */
   seat: 'member' | 'guest' | null;
+  /** 'clan' | 'creator' (lib/creatorSpaces). A creator space calls its guests "players". */
+  clanKind: string;
   /** Whether they hold authority here, which is a separate thing from a seat. */
   staff: boolean;
   /**
@@ -49,7 +51,7 @@ export async function clansOfPerson(
 
   if (playerId != null) {
     const seats = await db
-      .select({ id: clans.id, slug: clans.slug, name: clans.name, logoUrl: clans.logoUrl, kind: clanMemberships.kind })
+      .select({ id: clans.id, slug: clans.slug, name: clans.name, logoUrl: clans.logoUrl, clanKind: clans.kind, kind: clanMemberships.kind })
       .from(clanMemberships)
       .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
       .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
@@ -63,13 +65,13 @@ export async function clansOfPerson(
         if (seat === 'member') existing.seat = 'member';
         continue;
       }
-      byId.set(r.id, { id: r.id, slug: r.slug, name: r.name, logoUrl: r.logoUrl ?? null, seat, staff: false, role: null });
+      byId.set(r.id, { id: r.id, slug: r.slug, name: r.name, logoUrl: r.logoUrl ?? null, seat, clanKind: r.clanKind, staff: false, role: null });
     }
   }
 
   if (userId != null) {
     const grants = await db
-      .select({ id: clans.id, slug: clans.slug, name: clans.name, logoUrl: clans.logoUrl, role: clanStaff.role })
+      .select({ id: clans.id, slug: clans.slug, name: clans.name, logoUrl: clans.logoUrl, clanKind: clans.kind, role: clanStaff.role })
       .from(clanStaff)
       .innerJoin(clans, eq(clans.id, clanStaff.clanId))
       .where(and(eq(clanStaff.userId, userId), ne(clans.slug, LAB_CLAN_SLUG)));
@@ -80,7 +82,7 @@ export async function clansOfPerson(
         existing.staff = true;
         existing.role = r.role;
       } else {
-        byId.set(r.id, { id: r.id, slug: r.slug, name: r.name, logoUrl: r.logoUrl ?? null, seat: null, staff: true, role: r.role });
+        byId.set(r.id, { id: r.id, slug: r.slug, name: r.name, logoUrl: r.logoUrl ?? null, seat: null, clanKind: r.clanKind, staff: true, role: r.role });
       }
     }
   }

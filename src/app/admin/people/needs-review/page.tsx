@@ -9,6 +9,7 @@ import SentToAnvil from './SentToAnvil';
 import VerificationsClient, { type PendingMember } from './VerificationsClient';
 import ClaimRequestsClient from './ClaimRequestsClient';
 import GuideLink from '@/components/GuideLink';
+import { creatorAway } from '@/lib/creatorGuard';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,8 @@ export const dynamic = 'force-dynamic';
 // Same query + client the standalone /admin/verifications page used; that route now just
 // redirects here.
 export default async function ClanNeedsReviewPage() {
+  // In-game clans only (lib/creatorSpaces CREATOR_HIDDEN_ADMIN_PATHS).
+  await creatorAway('/admin/people/needs-review');
   const clan = await requireClan();
   const claimRequests = await pendingClaimRequests(clan.id);
   const rows = await db

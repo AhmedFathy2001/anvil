@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
 import { createClanEvent, listClanEvents, parseClanEventInput, resolvePostTarget } from '@/lib/clanEvents';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 // Clan events (lib/clanEvents): staff list and schedule them. Moderator-tier and up.
 
@@ -14,6 +15,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const user = await verifyAdminOrModerator();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const clan = await requireClan();

@@ -5,6 +5,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { requireClanFromRequest } from '@/lib/clanContext';
 import { detectSuspectedRenames } from '@/lib/renameDetection';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 // GET /api/admin/clan/suspected-renames
 //
@@ -30,6 +31,9 @@ export async function GET(request: Request) {
 // list. Stored as a 'rename_dismissed' audit row (against the joined member) so it's
 // visible in the audit feed and survives reloads.
 export async function POST(request: Request) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const session = await verifyAdminOrModerator();
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -11,10 +11,10 @@
 import { and, count, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clanStaff, clans, eventInvites, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clanStaff, clans, eventInvites, events, users } from '@/db/schema';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { findOrCreateSeat } from '@/lib/roster';
-import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { declinedRequestText, isCreatorSpace } from '@/lib/creatorSpaces';
 
 export type GuestPolicy = 'approval' | 'open' | 'closed';
 
@@ -294,17 +294,26 @@ export async function rejectRequest(
   // would ever answer. Their profile and the clan page now show it (latestDeclines); this tells them
   // directly when the clan's bot can reach them. Best effort and never awaited — a closed DM or a
   // clan with no bot must not fail the moderator's click.
-  void notifyDeclined(clanId, row.accountId, row.playerId).catch(() => {});
+  void notifyDeclined(clanId, row.accountId, row.playerId, row.eventId).catch(() => {});
   return true;
 }
 
 /** DM the person behind a declined request, through the clan's own bot. Returns whether it sent. */
-async function notifyDeclined(clanId: number, accountId: number, playerId: number | null): Promise<boolean> {
+async function notifyDeclined(
+  clanId: number,
+  accountId: number,
+  playerId: number | null,
+  eventId: number | null,
+): Promise<boolean> {
   if (playerId == null) return false;
-  const [clan, account, login] = await Promise.all([
-    db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { name: true, slug: true } }),
+  const [clan, account, login, event] = await Promise.all([
+    db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { name: true, slug: true, kind: true } }),
     db.query.accounts.findFirst({ where: eq(accounts.id, accountId), columns: { rsn: true } }),
     db.query.users.findFirst({ where: eq(users.playerId, playerId), columns: { discordId: true } }),
+    // clan-scope: the request's own event, and only on this clan (a creator space's per-event ask).
+    eventId != null
+      ? db.query.events.findFirst({ where: and(eq(events.id, eventId), eq(events.clanId, clanId)), columns: { name: true } })
+      : Promise.resolve(undefined),
   ]);
   if (!clan || !login?.discordId) return false;
   // Loaded here rather than at the top: the Discord client pulls in auth and settings, and every
@@ -319,13 +328,17 @@ async function notifyDeclined(clanId: number, accountId: number, playerId: numbe
   });
   if (!dm.ok) return false;
   const channel = (await dm.json()) as { id: string };
-  const who = account?.rsn ? ` for **${account.rsn}**` : '';
   const res = await discordRest(bot.token, `/channels/${channel.id}/messages`, {
     method: 'POST',
     body: JSON.stringify({
-      content:
-        `**${clan.name}** declined your request to join as a guest${who}. ` +
-        `You can still ask again later, or find another clan: ${absoluteUrl('/clans')}`,
+      // A creator space says "your request to play", never "as a guest" (lib/creatorSpaces).
+      content: declinedRequestText({
+        kind: clan.kind,
+        hostName: clan.name,
+        rsn: account?.rsn,
+        eventName: event?.name,
+        clansUrl: absoluteUrl('/clans'),
+      }),
       allowed_mentions: { parse: [] },
     }),
   });

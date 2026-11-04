@@ -8,6 +8,8 @@ import EventWebhooksPanel from '../teams/EventWebhooksPanel';
 import EventChatFeedCard from './EventChatFeedCard';
 import EventDiscordClient from './EventDiscordClient';
 import EventDiscordInventory from './EventDiscordInventory';
+import { requireClan } from '@/lib/clanContext';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +22,7 @@ export const dynamic = 'force-dynamic';
 export default async function EventDiscordPage({ params }: { params: Promise<{ eventId: string }> }) {
   const id = parseInt((await params).eventId, 10);
   await requireEventForPage(id);
+  const creator = isCreatorSpace(await requireClan());
   const [eventTeams, cohosts] = await Promise.all([
     db.select({ id: teams.id, name: teams.name, color: teams.color }).from(teams).where(eq(teams.eventId, id)),
     db.select({ id: eventCohosts.id }).from(eventCohosts).where(and(eq(eventCohosts.eventId, id), eq(eventCohosts.status, 'accepted'))),
@@ -29,7 +32,7 @@ export default async function EventDiscordPage({ params }: { params: Promise<{ e
     <div className="space-y-8">
       <EventDiscordInventory eventId={id} />
       <EventDiscordClient eventId={id} hasCohosts={cohosts.length > 0} />
-      <EventChatFeedCard eventId={id} />
+      <EventChatFeedCard eventId={id} creator={creator} />
       <EventDiscordServerPanel eventId={id} />
       <EventWebhooksPanel eventId={id} teams={eventTeams} />
     </div>

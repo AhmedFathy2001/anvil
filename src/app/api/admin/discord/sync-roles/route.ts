@@ -5,6 +5,7 @@ import { clanRoster } from '@/db/schema';
 import { and, eq, isNull, isNotNull, or } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { loadRoleSyncConfig, syncRolesForClanMember, buildSweepContext } from '@/lib/discord-roles';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 // Bounded by realistic guild size + the per-call delay. Each member is ~3-5 Discord
 // REST calls (search + get-member + a small number of PUT/DELETE), at ~150 ms each,
@@ -15,6 +16,9 @@ export const maxDuration = 300;
 // active non-guest member. Mods can use this to bulk-apply after a rank-role-map
 // change or to retrofit roles after first turning the feature on.
 export async function POST(request: Request) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const clan = await requireClan();
   const isAdmin = await verifyAdmin();
   if (!isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

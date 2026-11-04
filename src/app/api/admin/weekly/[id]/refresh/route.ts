@@ -7,6 +7,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { fetchParticipantStat, type CompetitionType } from '@/lib/weekly';
 import { checkRateSpike, describeRateSpike } from '@/lib/gainsValidation';
 import { log } from '@/lib/logger';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 // Sequential hiscores fetch for every participant — easily over a minute. Default
 // Vercel function timeout is 15 s (Pro) / 10 s (Hobby), so without this the admin
@@ -21,6 +22,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const user = await verifyAdminOrModerator();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

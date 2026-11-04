@@ -5,6 +5,7 @@ import ClanCrest from '@/components/ClanCrest';
 import { useEffect, useRef, useState } from 'react';
 import ClanLink from '@/components/ClanLink';
 import PendingBadge from '@/components/PendingBadge';
+import { outsiderWord } from '@/lib/creatorSpaces';
 
 interface NavUser {
   displayName: string;
@@ -20,6 +21,8 @@ export interface NavClan {
   staff: boolean;
   /** The clan grant they hold here, if any — 'owner', 'admin', 'moderator', 'treasurer', 'editor'. */
   role?: string | null;
+  /** 'clan' | 'creator' (lib/creatorSpaces). In a creator space a guest seat reads "player". */
+  kind?: string;
 }
 
 interface Props {
@@ -66,7 +69,7 @@ function roleLabel(c: NavClan): string {
   if (c.role) return c.role;
   if (c.staff) return 'staff';
   if (c.seat === 'member') return 'member';
-  if (c.seat === 'guest') return 'guest';
+  if (c.seat === 'guest') return outsiderWord(c.kind);
   return '';
 }
 

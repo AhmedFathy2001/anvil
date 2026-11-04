@@ -4,6 +4,7 @@ import { listBotChannels } from '@/lib/discord-broadcast';
 import { configuredOrigin } from '@/lib/request-origin';
 import GuideLink from '@/components/GuideLink';
 import DiscordSettings from './DiscordSettings';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,12 +16,14 @@ export default async function AdminDiscordPage() {
     listBotChannels(clan.id),
     getClanFeatures(clan.id),
   ]);
+  const creator = isCreatorSpace(clan);
   return (
     <div className="max-w-3xl">
       <header className="mb-8">
         <h1 className="display display-lg text-4xl sm:text-[44px] font-semibold leading-tight">Discord</h1>
         <p className="text-text-muted mt-2 text-[15px]">
-          Let the bot set up your channels, then tell your members. Everything else is under More settings.
+          Let the bot set up your channels, then tell your {creator ? 'viewers' : 'members'}. Everything else is under
+          More settings.
         </p>
         <p className="mt-2">
           <GuideLink href="/guide/discord">Discord guide</GuideLink>
@@ -32,6 +35,7 @@ export default async function AdminDiscordPage() {
         funMessagesOn={features.on('funMessages')}
         clanHallOn={features.on('clanHall')}
         siteUrl={configuredOrigin() ?? ''}
+        creator={creator}
       />
     </div>
   );

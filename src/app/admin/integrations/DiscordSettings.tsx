@@ -54,12 +54,15 @@ export default function DiscordSettings({
   funMessagesOn,
   clanHallOn,
   siteUrl,
+  creator = false,
 }: {
   channels: BroadcastChannel[];
   botEnabled: boolean;
   funMessagesOn: boolean;
   clanHallOn: boolean;
   siteUrl: string;
+  /** A creator space (lib/creatorSpaces): no members-vs-guests settings. */
+  creator?: boolean;
 }) {
   // Bumped after quick setup rewrites the routing, so the by-hand fields remount and re-read it.
   const [panelKey, setPanelKey] = useState(0);
@@ -246,9 +249,13 @@ export default function DiscordSettings({
         id="discord-by-hand"
         sprite="clue"
         title="Post without a bot"
-        summary="Can’t add the bot? Paste a channel’s link from Discord instead. Also guests’ posts and the Leagues icon."
+        summary={
+          creator
+            ? 'Can’t add the bot? Paste a channel’s link from Discord instead. Also the Leagues icon.'
+            : 'Can’t add the bot? Paste a channel’s link from Discord instead. Also guests’ posts and the Leagues icon.'
+        }
       >
-        <WebhooksPanel key={panelKey} channels={channels} botEnabled={botEnabled} />
+        <WebhooksPanel key={panelKey} channels={channels} botEnabled={botEnabled} creator={creator} />
       </FoldSection>
     </div>
   );

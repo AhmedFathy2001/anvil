@@ -6,6 +6,7 @@ import { db } from '@/db';
 import { clanRoster } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { getCofferBalance, listCofferEntries, recordAdjustment, recordDonations } from '@/lib/coffer';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 
 /**
  * The staff side of the coffer: the whole ledger, and the one write that isn't a reaction to
@@ -27,6 +28,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
+  const notForCreators = await refuseForCreatorSpace();
+  if (notForCreators) return notForCreators;
   const session = await verifyFeeCollector();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const clan = await requireClan();

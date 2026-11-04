@@ -363,3 +363,16 @@ test('an ordinary clan is unchanged: an unvouched stranger on an OPEN event stil
     .where(and(L.listedClanWhere(), eq(s.clans.id, made.clanId)));
   assert.equal(listedClan.length, 1);
 });
+
+test('in-game-clan admin APIs refuse a creator space with a plain 400, and let a clan through', async () => {
+  const { refuseCreatorSpace } = await import('../src/lib/creatorGuard.ts');
+  const space = (await db.query.clans.findFirst({ where: eq(s.clans.id, spaceId) }))!;
+  const refused = refuseCreatorSpace(space);
+  assert.ok(refused, 'a creator space is refused');
+  assert.equal(refused.status, 400);
+  assert.match((await refused.json()).error, /in-game clans/);
+
+  const plain = (await db.query.clans.findFirst({ where: eq(s.clans.slug, 'plain-clan') }))!;
+  assert.equal(refuseCreatorSpace(plain), null, 'an ordinary clan goes through');
+  assert.equal(refuseCreatorSpace(null), null, 'no clan resolved: the route answers as it always did');
+});
