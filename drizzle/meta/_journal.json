@@ -953,6 +953,13 @@
       "when": 1793730720137,
       "tag": "0186_moments_clanwide_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 188,
+      "version": "7",
+      "when": 1793730840137,
+      "tag": "0188_team_placement",
+      "breakpoints": true
     }
   ]
 }
