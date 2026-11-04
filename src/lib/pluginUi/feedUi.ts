@@ -1,4 +1,5 @@
 import { formatGp } from '@/lib/itemPrices';
+import { fallenTitle, isFallenDeath } from '@/lib/hardcoreFall';
 import { whoText } from '@/lib/reactionWho';
 
 import type { Action, Color, FeedRow, Node } from './nodes';
@@ -84,6 +85,7 @@ const ACHIEVEMENT = '#ffd35c';
 export function momentTitle(m: MomentLike): string {
   const name = m.itemName ?? m.source ?? m.kind;
   if (m.kind === 'pet') return `Pet: ${name}`;
+  if (isFallenDeath(m)) return fallenTitle(m.source);
   if (m.kind === 'death') return m.source ? `Died to ${m.source}` : 'Died';
   if (m.kind === 'ca') return m.tier ? `${m.tier} combat task: ${name}` : `Combat task: ${name}`;
   if (m.kind === 'level') {

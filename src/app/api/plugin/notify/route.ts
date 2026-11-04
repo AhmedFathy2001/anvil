@@ -9,6 +9,7 @@ import {
 import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
 import { playerEventEmbed } from '@/lib/discordEmbeds';
 import { buildPluginEmbed } from '@/lib/pluginEmbeds';
+import { FALLEN_MODE, fallenEmbed } from '@/lib/hardcoreFall';
 import { markMode, routeModePost, type WorldMode } from '@/lib/worldModes';
 import { worldModeOf } from '@/lib/worldModeRequest';
 import { getModeFilters, getModeRouting, modeIconUrl, rememberSeenMode } from '@/lib/worldModeStore';
@@ -241,6 +242,10 @@ export async function POST(request: Request) {
   // mark that is the same across destinations. (A mode nobody catalogued is remembered below, per
   // clan the poster actually posts into — never the URL clan, which any token holder can name.)
   const mode = worldModeOf(request, { world, seasonal });
+  // A death on Hardcore Worlds ends the character (lib/hardcoreFall): its own post, and it goes to the
+  // clan's main deaths channel as well as the mode's.
+  const fallen = mode?.key === FALLEN_MODE && channel === 'deaths';
+  if (fallen) finalEmbed = fallenEmbed(finalEmbed);
   if (mode) {
     finalEmbed = markMode(finalEmbed, mode.label, await modeIconUrl(clan.id, mode));
   }
@@ -297,9 +302,12 @@ export async function POST(request: Request) {
     if (mode) await rememberSeenMode(ec.clanId, mode);
     const webhooks = await getNotificationWebhooks(ec.clanId);
     const url = mode ? await modeWebhookFor(ec.clanId, webhooks, channel, mode) : webhookFor(webhooks, channel);
-    if (url && !urls.has(url)) {
-      urls.set(url, ec.clanId);
-      if (ec.kind === 'guest' && (await clanTagsGuestEmissions(ec.clanId))) markAsGuest.add(url);
+    // A fallen post also goes to the main deaths channel — unless the clan muted the mode (no url).
+    const main = fallen && url ? webhookFor(webhooks, channel) : null;
+    for (const u of [url, main]) {
+      if (!u || urls.has(u)) continue;
+      urls.set(u, ec.clanId);
+      if (ec.kind === 'guest' && (await clanTagsGuestEmissions(ec.clanId))) markAsGuest.add(u);
     }
   }
 

@@ -8,7 +8,7 @@ import { activeScopesFor, recordSeatMoments } from '@/lib/momentsStore';
 import { achievementDedupKey, caTierRank, diaryTier, type Observation } from '@/lib/moments';
 import { stripChatTags } from '@/lib/chatTags';
 import { labQuarantine } from '@/lib/lab';
-import { worldModeIgnored } from '@/lib/worldModeRequest';
+import { worldModeIgnored, worldModeOf } from '@/lib/worldModeRequest';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts } from '@/db/schema';
@@ -18,6 +18,7 @@ import { claimFeedItem, emitPersonalItem } from '@/lib/chatFeed';
 import { feedItemFromMoment } from '@/lib/chatFeedRules';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { settleDeathSource } from '@/lib/deathSource';
+import { FALLEN_MODE, fallenMoments } from '@/lib/hardcoreFall';
 import { recordH2hDrops, type ReportedDrop } from '@/lib/h2h';
 
 // Highlight ingest: the pets, uniques, big hauls, deaths and combat tasks that happen while a competition week or
@@ -140,8 +141,13 @@ function h2hDropsFrom(raws: unknown[], now: number): ReportedDrop[] {
 export async function POST(request: Request) {
   // Kills, drops, XP and logs from a game-mode world (Leagues, Deadman, hardcore, …) are another
   // save's progress, never this one's (lib/worldModeRequest).
-  const otherSave = worldModeIgnored(request);
-  if (otherSave) return otherSave;
+  // One exception (lib/hardcoreFall): a death on Hardcore Worlds ends that character, so the clan
+  // feed keeps it, marked as fallen. Nothing else from that world is kept.
+  const fallen = worldModeOf(request)?.key === FALLEN_MODE;
+  if (!fallen) {
+    const otherSave = worldModeIgnored(request);
+    if (otherSave) return otherSave;
+  }
   const member = await resolvePluginMember(request);
   // A character with no seat anywhere still has a chat-feed audience (a clan it guests in), so it is
   // heard for the feed; nothing is stored for it.
@@ -176,24 +182,25 @@ export async function POST(request: Request) {
   if (!Array.isArray(body?.moments)) {
     return NextResponse.json({ error: 'moments[] required' }, { status: 400 });
   }
-  if (body.moments.length > MAX_OBSERVATIONS) {
+  const pushed: unknown[] = fallen ? fallenMoments(body.moments) : body.moments;
+  if (pushed.length > MAX_OBSERVATIONS) {
     return NextResponse.json({ error: `At most ${MAX_OBSERVATIONS} moments per push` }, { status: 400 });
   }
   // A killer the plugin only inferred from the fight is kept when it's a boss, else dropped (lib/deathSource).
-  for (const raw of body.moments) if (raw && typeof raw === 'object') settleDeathSource(raw as Record<string, unknown>);
+  for (const raw of pushed) if (raw && typeof raw === 'object') settleDeathSource(raw as Record<string, unknown>);
 
   // Head-to-head drop races (lib/h2h) read every drop and live log unlock first, seat or no seat:
   // a race is the character's, not a clan's. Never scoring anything else.
-  await recordH2hDrops(character.accountId, h2hDropsFrom(body.moments as unknown[], Date.now())).catch(() => 0);
+  await recordH2hDrops(character.accountId, h2hDropsFrom(pushed as unknown[], Date.now())).catch(() => 0);
 
   // Other players' in-game chat reads every report first (lib/chatFeed) — the board, the clan and the
   // competition rules below decide only what is STORED. Off the request's path: nobody waits on it.
-  void feedFrom(character, body.moments as unknown[]);
+  void feedFrom(character, pushed as unknown[]);
   if (!member) return NextResponse.json({ ok: true, stored: 0, matched: 0, scoped: false });
 
   const now = Date.now();
   const observations: Observation[] = [];
-  for (const raw of body.moments as Record<string, unknown>[]) {
+  for (const raw of pushed as Record<string, unknown>[]) {
     const kind = str(raw?.kind, 12);
     if (!kind || !(KINDS as readonly string[]).includes(kind)) continue;
     // Without a key we can't tell a retry from a second drop, and the same pet would pile up a row
@@ -224,7 +231,8 @@ export async function POST(request: Request) {
       // Same markup the notify hook strips — cleaned here too, so the highlight feed shows a clean
       // name AND lib/moments' caByName lookup (which resolves the boss/tier) matches.
       taskName: stripChatTags(str(raw?.taskName, 80)),
-      tier: kind === 'diary' ? diaryTier(str(raw?.tier, 16)) : caTier(raw?.tier),
+      // A death has no tier, except a Hardcore Worlds one, marked fallen (lib/hardcoreFall).
+      tier: kind === 'diary' ? diaryTier(str(raw?.tier, 16)) : kind === 'death' ? (fallen ? FALLEN_MODE : null) : caTier(raw?.tier),
       occurredAt: occurredAt(raw?.at, now),
       dedupKey,
     });
@@ -238,7 +246,9 @@ export async function POST(request: Request) {
   if (!clan) return noClanForPlugin();
   // Lab boards left out: one would win the pick and stamp a real moment with the lab board, in the real
   // clan's feed. The lab board's Feed reads its moments from the lab log instead (lib/lab).
-  const scopes = await activeScopesFor(member.clanMemberId, clan.id, new Date(now), await pluginParticipantScope(member, { lab: false }));
+  const found = await activeScopesFor(member.clanMemberId, clan.id, new Date(now), await pluginParticipantScope(member, { lab: false }));
+  // A fallen character's death is the clan's news, never a death on a main-game board or week.
+  const scopes = fallen ? { ...found, weeklies: [], event: null } : found;
   // Nothing running still keeps the clan's achievements (momentsStore recordSeatMoments); `scoped:
   // false` tells a client's log that was the case.
   const { inserted, seatKind, idle, ...result } = await recordSeatMoments(member, observations, scopes);
