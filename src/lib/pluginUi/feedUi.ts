@@ -1,4 +1,5 @@
 import { formatGp } from '@/lib/itemPrices';
+import { whoText } from '@/lib/reactionWho';
 
 import type { Action, Color, FeedRow, Node } from './nodes';
 import { button, col, gap, muted, text } from './nodes';
@@ -108,7 +109,7 @@ function glyphOf(kind: string): Pick<FeedRow, 'glyph' | 'glyphColor'> {
 export type RowReactKind = 'gz' | 'sad' | 'sit';
 
 /** What each reaction reads as on a row. */
-const REACT_LABEL: Record<RowReactKind, string> = { gz: 'GZ', sad: 'Sad', sit: 'Sit' };
+export const REACT_LABEL: Record<RowReactKind, string> = { gz: 'GZ', sad: 'Sad', sit: 'Sit' };
 
 /**
  * The reactions a feed row offers for a moment of this kind: a death is met with "Sad" or told to
@@ -127,7 +128,12 @@ export interface MomentRowOptions {
    * A death's become `reacts` chips (a plugin from before them draws none); anything else's the `gz`.
    * Kinds the row doesn't offer (rowReactKinds) are never asked for.
    */
-  reacts?: { tally: (kind: RowReactKind) => { n: number; mine: boolean }; act: (kind: RowReactKind) => Action };
+  reacts?: {
+    tally: (kind: RowReactKind) => { n: number; mine: boolean };
+    act: (kind: RowReactKind) => Action;
+    /** Who gave it, by character name there (lib/momentReactions reactorNames); omitted = no tooltip. */
+    who?: (kind: RowReactKind) => readonly (string | null)[] | undefined;
+  };
   /** "Team Ruby" under the name on a board. */
   team?: { name: string; color: string | null } | null;
   /** A Supporter's name colours (lib/supporter supporterInksForRsns), the same as their chat lines. */
@@ -166,10 +172,14 @@ export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
 
 function reactsOf(kind: string, o: MomentRowOptions): Pick<FeedRow, 'gz' | 'reacts'> {
   if (!o.reacts) return {};
-  const { tally, act } = o.reacts;
+  const { tally, act, who } = o.reacts;
   const kinds = rowReactKinds(kind);
-  if (kinds.length === 1 && kinds[0] === 'gz') return { gz: { ...tally('gz'), on: act('gz') } };
-  return { reacts: kinds.map((k) => ({ kind: k, label: REACT_LABEL[k], ...tally(k), on: act(k) })) };
+  const tip = (k: RowReactKind) => {
+    const line = who ? whoText(REACT_LABEL[k], who(k) ?? []) : '';
+    return line ? { who: line } : {};
+  };
+  if (kinds.length === 1 && kinds[0] === 'gz') return { gz: { ...tally('gz'), on: act('gz'), ...tip('gz') } };
+  return { reacts: kinds.map((k) => ({ kind: k, label: REACT_LABEL[k], ...tally(k), on: act(k), ...tip(k) })) };
 }
 
 /** A board tile some team finished: the tile, who finished it (or the team), the team, when. */

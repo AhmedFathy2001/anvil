@@ -6,7 +6,7 @@ import { boardHidden, boardSize, completionAt, completionFinisher } from '@/lib/
 import { normalizeRsn, pluginRsnHintOnly, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess } from '@/lib/eventChat';
 import { formatGp } from '@/lib/itemPrices';
-import { NO_REACTIONS, isClanMember, reactionSummaries, tallyOf } from '@/lib/momentReactions';
+import { NO_REACTIONS, isClanMember, reactionSummaries, reactorNames, tallyOf } from '@/lib/momentReactions';
 import { eventFeedFloor, isClanWorthy, panelFeedWorthy } from '@/lib/moments';
 import { boardTileItemIds, clanScopeFor, momentsForClan, momentsForEvent, type MomentRow } from '@/lib/momentsStore';
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
@@ -132,15 +132,21 @@ async function clanRows(clan: Extract<Scope, { kind: 'clan' }>, filter: string, 
   const hidden = new Set<number>();
   for (const e of boards) if (await boardHidden(e)) hidden.add(e);
   const list = raw.filter((m) => m.eventId == null || !hidden.has(m.eventId)).slice(0, 80);
-  const [summaries, member, inks] = await Promise.all([
+  const member = viewer != null && (await isClanMember(viewer, clan.id));
+  // Only a clanmate gets the chips, so only a clanmate is told who gave them.
+  const [summaries, inks, who] = await Promise.all([
     reactionSummaries(list.map((m) => m.id), viewer),
-    viewer != null ? isClanMember(viewer, clan.id) : Promise.resolve(false),
     inksFor(list.map((m) => m.rsn)),
+    member ? reactorNames(list.map((m) => m.id), { clanId: clan.id }) : Promise.resolve(null),
   ]);
   const rows = list.map((m) => {
     const s = summaries.get(m.id) ?? NO_REACTIONS;
     const reacts = member
-      ? { tally: (k: RowReactKind) => tallyOf(s, k), act: (k: RowReactKind) => ({ a: 'post' as const, act: 'react-row', args: { slug: clan.slug, id: String(m.id), kind: k } }) }
+      ? {
+          tally: (k: RowReactKind) => tallyOf(s, k),
+          act: (k: RowReactKind) => ({ a: 'post' as const, act: 'react-row', args: { slug: clan.slug, id: String(m.id), kind: k } }),
+          who: (k: RowReactKind) => who?.get(m.id)?.[k],
+        }
       : undefined;
     return momentRow(asLike(m), { reacts, ink: inks.get(normalizeRsn(m.rsn)) });
   });
@@ -199,17 +205,24 @@ async function eventRows(eventId: number, filter: string, teamId: number | null,
   // Names in a Supporter's colours, else their team's; the team under the name, as the live rows do.
   // A lab board's rows (negative ids) are no real moments: nothing to react to.
   const reactable = (m: MomentRow) => canReact && viewer != null && m.id > 0;
-  const [inks, teamRows, summaries] = await Promise.all([
+  const reactIds = momentList.filter(reactable).map((m) => m.id);
+  const [inks, teamRows, summaries, who] = await Promise.all([
     inksFor(momentList.map((m) => m.rsn)),
     momentList.length ? db.select({ id: teams.id, name: teams.name, color: teams.color }).from(teams).where(eq(teams.eventId, eventId)) : Promise.resolve([]),
-    reactionSummaries(momentList.filter(reactable).map((m) => m.id), viewer),
+    reactionSummaries(reactIds, viewer),
+    // Names as the reactors play on this board (else their seat in the host clan).
+    ev && reactIds.length ? reactorNames(reactIds, { eventId, hostClanId: ev.clanId }) : Promise.resolve(null),
   ]);
   const teamById = new Map(teamRows.map((t) => [t.id, t]));
   const momentRows = momentList.map((m) => {
     const team = m.teamId != null ? teamById.get(m.teamId) : undefined;
     const s = summaries.get(m.id) ?? NO_REACTIONS;
     const reacts = reactable(m)
-      ? { tally: (k: RowReactKind) => tallyOf(s, k), act: (k: RowReactKind) => ({ a: 'post' as const, act: 'react-row', args: { e: String(eventId), id: String(m.id), kind: k } }) }
+      ? {
+          tally: (k: RowReactKind) => tallyOf(s, k),
+          act: (k: RowReactKind) => ({ a: 'post' as const, act: 'react-row', args: { e: String(eventId), id: String(m.id), kind: k } }),
+          who: (k: RowReactKind) => who?.get(m.id)?.[k],
+        }
       : undefined;
     return {
       at: Date.parse(m.occurredAt),
