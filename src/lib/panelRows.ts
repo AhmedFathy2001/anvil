@@ -200,6 +200,17 @@ export async function emitMomentRows(clanId: number, seatKind: string, list: New
 }
 
 
+/**
+ * Who finished a completed tile: its recorded finisher (a stat or Solo tile), else whoever's submission
+ * was the last one on it for that team, the one that took it over the line. Qualified by hand: Drizzle
+ * renders a column in a correlated subquery unqualified.
+ */
+export const completionFinisher = sql<string | null>`coalesce(
+  (select ep.name from event_participants ep where ep.id = "completions"."credit_player_id"),
+  (select ep.name from submissions s join event_participants ep on ep.id = coalesce(s.credit_player_id, s.player_id)
+     where s.tile_id = "completions"."tile_id" and s.team_id = "completions"."team_id" order by s.id desc limit 1)
+)`;
+
 /** A completion's stored timestamp as ISO (the column is 'YYYY-MM-DD HH:MM:SS' UTC). */
 export function completionAt(stamp: string): string {
   return stamp.includes('T') ? stamp : `${stamp.replace(' ', 'T')}Z`;
@@ -224,12 +235,11 @@ export function emitCompletionRow(tileId: number, teamId: number): void {
         tilesRevealed: events.tilesRevealed,
         rules: events.rules,
         at: completions.completedAt,
-        who: eventParticipants.name,
+        who: completionFinisher,
       })
       .from(completions)
       .innerJoin(tiles, eq(tiles.id, completions.tileId))
       .innerJoin(events, eq(events.id, tiles.eventId))
-      .leftJoin(eventParticipants, eq(eventParticipants.id, completions.creditPlayerId))
       .where(and(eq(completions.tileId, tileId), eq(completions.teamId, teamId)))
       .limit(1);
     if (!c || c.parent != null || c.eventId == null) return;
