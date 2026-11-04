@@ -285,7 +285,7 @@ export default function ClanPulse({
         {hasActivity ? (
           // 53 columns don't fit a phone: scroll the grid inside its own card rather than clipping
           // the last months off the right edge.
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-hidden">
           <ActivityHeatmap
             days={activity}
             ariaLabel="Clan-wide efficient hours gained per day over the last 12 months"

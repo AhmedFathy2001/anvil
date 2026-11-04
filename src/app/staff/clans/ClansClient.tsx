@@ -249,7 +249,7 @@ export default function ClansClient({
         className="mb-4 rounded-xl bg-card-bg px-4 py-2.5 outline-none"
       />
 
-      <div className="overflow-x-auto rounded-xl border border-card-border bg-card-bg">
+      <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-card-border bg-card-bg">
         <table className="w-full min-w-[68rem] text-sm">
           <thead className="border-b border-card-border text-left text-xs uppercase tracking-wide text-gray-400">
             <tr>

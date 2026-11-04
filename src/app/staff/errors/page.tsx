@@ -143,7 +143,7 @@ export default async function StaffErrorsPage({
                   <summary className="cursor-pointer text-xs text-text-muted hover:text-gold">
                     Stack
                   </summary>
-                  <pre className="mt-2 overflow-x-auto rounded-lg bg-brown-dark p-3 text-[11px] leading-relaxed text-text-muted">
+                  <pre className="mt-2 overflow-x-auto overflow-y-hidden rounded-lg bg-brown-dark p-3 text-[11px] leading-relaxed text-text-muted">
                     {r.stack}
                   </pre>
                 </details>

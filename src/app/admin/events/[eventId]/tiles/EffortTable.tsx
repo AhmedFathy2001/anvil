@@ -196,7 +196,7 @@ function SuggestionReviewDialog({
                 <span>Changed-tile total: <strong className="text-foreground">{currentTotal}</strong> → <strong className="text-gold">{proposedTotal}</strong> pts</span>
                 <span><strong className="text-foreground">{skipped}</strong> skipped</span>
               </div>
-              <div className="overflow-x-auto rounded-lg border border-card-border/70">
+              <div className="overflow-x-auto overflow-y-hidden rounded-lg border border-card-border/70">
                 <table className="w-full min-w-[520px] text-xs">
                   <thead className="bg-brown-dark/70 text-[10px] uppercase tracking-wide text-text-muted">
                     <tr>
@@ -390,7 +390,7 @@ export default function EffortTable({
       {modelled.length === 0 ? (
         <p className="text-xs text-text-muted">No tiles could be effort-modelled yet.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-hidden">
           <table className="w-full text-xs">
             <thead>
               <tr className="text-left text-[10px] uppercase tracking-wide text-text-muted">

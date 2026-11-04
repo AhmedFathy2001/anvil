@@ -445,7 +445,7 @@ export default function GearProgression({ block, tier, storageKey }: { block: Ge
             Guide setups
           </label>
         </div>
-        <div className="overflow-x-auto rounded-lg border border-card-border">
+        <div className="overflow-x-auto overflow-y-hidden rounded-lg border border-card-border">
           <table className="w-full text-xs">
             <thead className="bg-black/30 text-left text-[10px] uppercase tracking-wider text-text-muted">
               <tr>

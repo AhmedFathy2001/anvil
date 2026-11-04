@@ -448,7 +448,7 @@ function MonthGrid({
   onExpandWeek: (i: number) => void;
 }) {
   return (
-    <div className="border border-card-border rounded-xl bg-card-bg overflow-x-auto">
+    <div className="border border-card-border rounded-xl bg-card-bg overflow-x-auto overflow-y-hidden">
       <div className="min-w-[640px]">
         <div className="grid grid-cols-7 border-b border-card-border bg-brown-dark/40">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
@@ -601,7 +601,7 @@ function QuarterGrid({
   const todayPct = today >= from && today <= to ? (daysBetween(from, today) / total) * 100 : null;
 
   return (
-    <div className="border border-card-border rounded-xl bg-card-bg p-4 overflow-x-auto">
+    <div className="border border-card-border rounded-xl bg-card-bg p-4 overflow-x-auto overflow-y-hidden">
       <div className="min-w-[720px]">
         <div className="grid grid-cols-[180px_1fr] gap-3 items-end">
           <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted/70">

@@ -145,7 +145,7 @@ export default function HubRecord({
           {items.length === 0 ? 'Nothing has finished yet.' : 'Nothing matches that.'}
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-hidden">
           <table className="w-full min-w-[620px] border-separate border-spacing-0 text-[13px]">
             <thead>
               <tr className="text-[9.5px] uppercase tracking-[0.14em] text-text-muted">

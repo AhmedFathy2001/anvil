@@ -1119,7 +1119,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
       ) : (
         <>
         {/* Desktop: full table from sm: up. */}
-        <div className="hidden sm:block border border-card-border rounded-xl bg-card-bg overflow-x-auto">
+        <div className="hidden sm:block border border-card-border rounded-xl bg-card-bg overflow-x-auto overflow-y-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-card-border text-left text-text-muted">

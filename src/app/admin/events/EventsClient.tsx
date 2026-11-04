@@ -916,7 +916,7 @@ function PastTable({
   onClone: (event: EventRow) => void;
 }) {
   return (
-    <div className="border border-card-border rounded-xl bg-card-bg overflow-x-auto">
+    <div className="border border-card-border rounded-xl bg-card-bg overflow-x-auto overflow-y-hidden">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-[10px] uppercase tracking-wider text-text-muted/70">

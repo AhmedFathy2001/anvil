@@ -86,7 +86,7 @@ export function Figure({
       <figcaption className="text-[11px] uppercase tracking-widest text-text-muted mb-3">
         {caption}
       </figcaption>
-      <div className="rounded-lg bg-brown-dark border border-card-border p-3 overflow-x-auto">
+      <div className="rounded-lg bg-brown-dark border border-card-border p-3 overflow-x-auto overflow-y-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
@@ -147,7 +147,7 @@ export function Chat({
           ? 'text-text-muted'
           : 'text-foreground/80';
   return (
-    <div className="rounded-lg bg-brown-dark border border-card-border px-4 py-3 font-mono text-[13px] leading-7 overflow-x-auto">
+    <div className="rounded-lg bg-brown-dark border border-card-border px-4 py-3 font-mono text-[13px] leading-7 overflow-x-auto overflow-y-hidden">
       {lines.map((l, i) => (
         <div key={i} className={color(l.tone)}>
           {l.text}

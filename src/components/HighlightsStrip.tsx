@@ -35,7 +35,7 @@ export default function HighlightsStrip({
         </h2>
         <span className="text-[11.5px] text-text-muted">{blurb}</span>
       </div>
-      <ul className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2">
+      <ul className="-mx-1 flex snap-x gap-3 overflow-x-auto overflow-y-hidden px-1 pb-2">
         {highlights.map((h) => (
           <li key={h.id} className="w-56 shrink-0 snap-start">
             <HighlightCard h={h} showEvent={showEvent} canReport={canReport} />

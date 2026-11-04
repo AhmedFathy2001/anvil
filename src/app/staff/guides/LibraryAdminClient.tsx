@@ -88,7 +88,7 @@ export default function LibraryAdminClient({ canEdit }: { canEdit: boolean }) {
       ) : rows.length === 0 ? (
         <p className="rounded-xl border border-dashed border-card-border p-8 text-center text-sm text-text-muted">The library is empty.</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-card-border bg-card-bg">
+        <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-card-border bg-card-bg">
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-text-muted">
               <tr className="border-b border-card-border">
