@@ -1,6 +1,7 @@
 'use client';
 
 import SettingsCard from './settings/SettingsCard';
+import { useSaveBar } from './settings/SaveBar';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DateTimePicker from '@/components/DateTimePicker';
@@ -29,16 +30,21 @@ export default function StandingsVisibilityPanel({ event }: { event: Event }) {
   const endMs = event.endDate ? Date.parse(event.endDate) : NaN;
   const finalWeek = Number.isFinite(endMs) ? new Date(endMs - WEEK_MS).toISOString() : null;
   const dirty = visibility !== stored.visibility || (visibility === 'at-date' && revealAt !== (stored.revealAt ?? ''));
+  // One save bar per settings tab (settings/SaveBar); its own Save button only outside one.
+  const inBar = useSaveBar('standings', 'Standings', dirty, () => save(), () => {
+    setVisibility(stored.visibility);
+    setRevealAt(stored.revealAt ?? '');
+  });
 
   // What players see right now, from the SAVED rule.
   const savedEvent = { rules: event.rules ?? null, endDate: event.endDate ?? null, forceEndedAt: event.forceEndedAt ?? null };
   const hiddenNow = standingsHidden(savedEvent);
   const liftsAt = standingsRevealAt(savedEvent);
 
-  async function save() {
+  async function save(): Promise<boolean> {
     if (visibility === 'at-date' && !revealAt) {
       setMsg({ type: 'error', text: 'Pick when the standings come back.' });
-      return;
+      return false;
     }
     setSaving(true);
     setMsg(null);
@@ -56,12 +62,14 @@ export default function StandingsVisibilityPanel({ event }: { event: Event }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMsg({ type: 'error', text: data.error || 'Could not save the standings setting.' });
-        return;
+        return false;
       }
       setMsg({ type: 'success', text: 'Saved.' });
       router.refresh();
+      return true;
     } catch {
       setMsg({ type: 'error', text: 'Could not save the standings setting.' });
+      return false;
     } finally {
       setSaving(false);
     }
@@ -127,14 +135,16 @@ export default function StandingsVisibilityPanel({ event }: { event: Event }) {
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={save}
-          disabled={saving || !dirty}
-          className="text-sm font-medium px-4 py-2 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : 'Save'}
-        </button>
+        {!inBar && (
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving || !dirty}
+            className="text-sm font-medium px-4 py-2 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        )}
         {msg && <span className={`text-xs ${msg.type === 'error' ? 'text-red-400' : 'text-accent-green-light'}`}>{msg.text}</span>}
         {!msg && stored.visibility !== 'live' && (
           <span className="text-xs text-text-muted" suppressHydrationWarning>

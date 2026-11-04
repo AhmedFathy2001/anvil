@@ -1,6 +1,7 @@
 'use client';
 
 import SettingsCard from '../settings/SettingsCard';
+import { useSaveBar } from '../settings/SaveBar';
 import { useCallback, useEffect, useState } from 'react';
 
 import { clanFetch } from '@/lib/clanFetch';
@@ -109,7 +110,7 @@ export default function AccessPanel({ eventId, creator = false }: { eventId: num
     saved != null &&
     (visibility !== saved.visibility || (entry ?? 'open') !== (saved.entry ?? 'open') || advertised !== saved.advertised);
 
-  async function save() {
+  async function save(): Promise<boolean> {
     setSaving(true);
     setError(null);
     try {
@@ -123,8 +124,10 @@ export default function AccessPanel({ eventId, creator = false }: { eventId: num
       setSaved({ visibility, entry: entry ?? 'open', advertised });
       setSavedNote(true);
       setTimeout(() => setSavedNote(false), 2500);
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
     } finally {
       setSaving(false);
     }
@@ -228,6 +231,9 @@ export default function AccessPanel({ eventId, creator = false }: { eventId: num
     }
   }
 
+  // The tab's save bar (settings/SaveBar), after save/discard and before the early return.
+  const inBar = useSaveBar('access', 'Who can see and enter', dirty, () => save(), () => discard());
+
   if (visibility == null) return null;
 
   return (
@@ -274,7 +280,7 @@ export default function AccessPanel({ eventId, creator = false }: { eventId: num
         </div>
       </div>
 
-      {(dirty || savedNote) && (
+      {((dirty && !inBar) || savedNote) && (
         <div className="flex items-center gap-3 border-t border-card-border px-5 py-3">
           {dirty ? (
             <>

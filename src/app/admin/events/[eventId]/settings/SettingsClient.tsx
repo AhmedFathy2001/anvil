@@ -16,6 +16,7 @@ import { eventAxes } from '@/lib/eventAxes';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { useDialog } from '@/components/Confirm';
 import SettingsCard from './SettingsCard';
+import { useSaveBar } from './SaveBar';
 
 interface Props {
   event: Event;
@@ -72,7 +73,28 @@ export default function SettingsClient({ event, tiles, section }: Props) {
 
   const typeMeta = EVENT_MODES.find((m) => m.key === typeMode)!;
 
-  async function saveDates() {
+  // The tab's save bar (SaveBar): each form here registers only while it is open and changed, on
+  // the tab that draws it.
+  const datesDirty =
+    section === 'event' && editDates && (startDate !== (currentEvent.startDate ?? '') || endDate !== (currentEvent.endDate ?? ''));
+  const typeDirty =
+    section === 'event' &&
+    editType &&
+    (typeMode !== modeKeyFor(currentEvent.format, currentEvent.scoringMode, currentEvent.rules) || typeSize !== currentEvent.boardSize);
+  const revealAtDirty = section === 'board' && tilesRevealAt !== (currentEvent.tilesRevealAt ?? '');
+  const inBar = useSaveBar('schedule', 'Dates', datesDirty, () => saveDates(), () => {
+    setStartDate(currentEvent.startDate ?? '');
+    setEndDate(currentEvent.endDate ?? '');
+    setDateError('');
+    setEditDates(false);
+  });
+  useSaveBar('format', 'Format', typeDirty, () => saveType(), () => setEditType(false));
+  useSaveBar('reveal-at', 'Early reveal time', revealAtDirty, () => saveRevealSchedule(), () => {
+    setTilesRevealAt(currentEvent.tilesRevealAt ?? '');
+    setRevealScheduleMsg('');
+  });
+
+  async function saveDates(): Promise<boolean> {
     setSavingDates(true);
     setDateError('');
     try {
@@ -88,9 +110,11 @@ export default function SettingsClient({ event, tiles, section }: Props) {
         setEndDate(updated.endDate ?? '');
         setEditDates(false);
         router.refresh();
+        return true;
       } else {
         const data = await res.json().catch(() => ({}));
         setDateError(data.error || 'Could not save the dates.');
+        return false;
       }
     } finally {
       setSavingDates(false);
@@ -111,10 +135,10 @@ export default function SettingsClient({ event, tiles, section }: Props) {
     setTypeError('');
   }
 
-  async function saveType() {
+  async function saveType(): Promise<boolean> {
     if (typeSize < typeMeta.min || typeSize > typeMeta.max) {
       setTypeError(`${typeMeta.label} supports ${typeMeta.min}–${typeMeta.max}.`);
-      return;
+      return false;
     }
 
     // Showdown → Lucky draw → Bounty is one JSON field, not a new board: same format, same scoring,
@@ -140,14 +164,16 @@ export default function SettingsClient({ event, tiles, section }: Props) {
           setCurrentEvent(await res.json());
           setEditType(false);
           router.refresh();
+          return true;
         } else {
           const data = await res.json().catch(() => ({}));
           setTypeError(data.error || 'Could not change how tasks open.');
+          return false;
         }
       } finally {
         setSavingType(false);
       }
-      return;
+      return false;
     }
 
     const tileCount = typeMeta.square ? typeSize * typeSize : typeSize;
@@ -158,7 +184,7 @@ export default function SettingsClient({ event, tiles, section }: Props) {
         confirmLabel: 'Rebuild board',
       }))
     )
-      return;
+      return false;
     setSavingType(true);
     setTypeError('');
     try {
@@ -179,9 +205,11 @@ export default function SettingsClient({ event, tiles, section }: Props) {
         setCurrentEvent(updated);
         setEditType(false);
         router.refresh();
+        return true;
       } else {
         const data = await res.json().catch(() => ({}));
         setTypeError(data.error || 'Could not change the event type.');
+        return false;
       }
     } finally {
       setSavingType(false);
@@ -218,7 +246,7 @@ export default function SettingsClient({ event, tiles, section }: Props) {
     }
   }
 
-  async function saveRevealSchedule() {
+  async function saveRevealSchedule(): Promise<boolean> {
     setSavingRevealAt(true);
     setRevealScheduleMsg('');
     try {
@@ -233,8 +261,10 @@ export default function SettingsClient({ event, tiles, section }: Props) {
         setTilesRevealAt(data.tilesRevealAt ?? '');
         setRevealScheduleMsg(data.tilesRevealAt ? 'Reveal scheduled.' : 'Early reveal cleared.');
         router.refresh();
+        return true;
       } else {
         setRevealScheduleMsg(data.error || 'Could not save the reveal time.');
+        return false;
       }
     } finally {
       setSavingRevealAt(false);
@@ -351,9 +381,11 @@ export default function SettingsClient({ event, tiles, section }: Props) {
             <p className="text-xs text-text-muted leading-relaxed">{typeMeta.blurb}</p>
             {typeError && <p className="text-red-400 text-xs mt-1">{typeError}</p>}
             <div className="flex gap-2 mt-3">
-              <Button onClick={saveType} disabled={savingType} tone="gold">
-                {savingType ? 'Saving…' : 'Save type'}
-              </Button>
+              {!inBar && (
+                <Button onClick={saveType} disabled={savingType} tone="gold">
+                  {savingType ? 'Saving…' : 'Save type'}
+                </Button>
+              )}
               <Button onClick={() => setEditType(false)} disabled={savingType}>
                 Cancel
               </Button>
@@ -404,9 +436,11 @@ export default function SettingsClient({ event, tiles, section }: Props) {
             </p>
             {dateError && <p className="text-xs text-red-400 mt-2">{dateError}</p>}
             <div className="flex gap-2 mt-3">
-              <Button onClick={saveDates} disabled={savingDates} tone="gold">
-                {savingDates ? 'Saving…' : 'Save dates'}
-              </Button>
+              {!inBar && (
+                <Button onClick={saveDates} disabled={savingDates} tone="gold">
+                  {savingDates ? 'Saving…' : 'Save dates'}
+                </Button>
+              )}
               <Button
                 onClick={() => {
                   setStartDate(currentEvent.startDate ?? '');
@@ -487,13 +521,15 @@ export default function SettingsClient({ event, tiles, section }: Props) {
                   ariaLabel="Early board reveal date and time"
                 />
                 <div className="flex items-center gap-2 mt-3">
-                  <Button
-                    onClick={saveRevealSchedule}
-                    disabled={savingRevealAt || tilesRevealAt === (currentEvent.tilesRevealAt ?? '')}
-                    tone="gold"
-                  >
-                    {savingRevealAt ? 'Saving…' : 'Save reveal time'}
-                  </Button>
+                  {!inBar && (
+                    <Button
+                      onClick={saveRevealSchedule}
+                      disabled={savingRevealAt || tilesRevealAt === (currentEvent.tilesRevealAt ?? '')}
+                      tone="gold"
+                    >
+                      {savingRevealAt ? 'Saving…' : 'Save reveal time'}
+                    </Button>
+                  )}
                   {revealScheduleMsg && (
                     <span className={`text-xs ${revealScheduleMsg.includes('scheduled') || revealScheduleMsg.includes('cleared') ? 'text-text-muted' : 'text-red-400'}`}>
                       {revealScheduleMsg}

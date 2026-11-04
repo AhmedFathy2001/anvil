@@ -1,6 +1,7 @@
 'use client';
 
 import SettingsCard from './settings/SettingsCard';
+import { useSaveBar } from './settings/SaveBar';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Select from '@/components/Select';
@@ -54,12 +55,26 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
   const [opening, setOpening] = useState(false);
   const { confirm } = useDialog();
 
+  // Unsaved = any field differs from the stored rules. Above the early return: hooks run every render.
+  const snap = (v: unknown[]) => JSON.stringify(v);
+  const dirty =
+    snap([policy, intervalMinutes, batchSize, windowSize, order, firstBonus, decayEnabled ? [decayTargetPct, decayHours] : null, lockout]) !==
+    snap([
+      stored.revealPolicy,
+      stored.revealIntervalMinutes,
+      stored.revealBatchSize,
+      stored.revealWindowSize,
+      stored.revealOrder,
+      stored.firstBonus,
+      stored.decay ? [stored.decay.targetPct, stored.decay.hours] : null,
+      stored.lockout,
+    ]);
+
   // Who gets this panel. Anything already ON a reveal policy, plus any points-scored board that
   // COULD take one — a ladder whose rules are still NULL (cloned, templated, or made before the
   // rotation existed) has no other way to get an interval, which is the bug that motivated this.
   // Tiles-scored classic bingo is left out: reveal policies only ever shipped on points boards.
   const canConfigure = stored.revealPolicy !== 'all' || supportsRevealPolicy(axes);
-  if (!canConfigure) return null;
   const eventStarted = !!event.startDate && new Date(event.startDate) <= new Date();
 
   const live = tiles.filter((t) => t.revealedAt && !t.closedAt).length;
@@ -117,7 +132,7 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
     }
   }
 
-  async function save() {
+  async function save(): Promise<boolean> {
     // Turning a rotation ON mid-event pulls every not-yet-drawn tile off the members' board (a
     // classic board's tiles carry no revealedAt, so the engine treats them all as still hidden).
     // Before start that's just setup; after start it's a visible change, so say so first.
@@ -128,7 +143,7 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
         body: `${stillHidden} tile${stillHidden === 1 ? '' : 's'} members can see right now will drop out of view until the engine draws ${stillHidden === 1 ? 'it' : 'them'}. Completions already earned are untouched.`,
         confirmLabel: 'Switch to rotation',
       });
-      if (!ok) return;
+      if (!ok) return false;
     }
     setSaving(true);
     setMsg(null);
@@ -154,16 +169,34 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMsg({ type: 'error', text: data.error || 'Could not save these settings.' });
-        return;
+        return false;
       }
       setMsg({ type: 'success', text: 'Saved — the engine picks this up on its next pass (within a minute).' });
       router.refresh();
+      return true;
     } catch {
       setMsg({ type: 'error', text: 'Could not save these settings.' });
+      return false;
     } finally {
       setSaving(false);
     }
   }
+
+  const inBar = useSaveBar('opening', 'How tiles open', dirty, () => save(), () => {
+    setPolicy(stored.revealPolicy);
+    setIntervalMinutes(stored.revealIntervalMinutes);
+    setBatchSize(stored.revealBatchSize);
+    setWindowSize(stored.revealWindowSize);
+    setOrder(stored.revealOrder);
+    setFirstBonus(stored.firstBonus);
+    setDecayEnabled(stored.decay != null);
+    setDecayMode(stored.decay && stored.decay.targetPct > 100 ? 'grow' : 'decay');
+    setDecayTargetPct(stored.decay?.targetPct ?? 50);
+    setDecayHours(stored.decay?.hours ?? 24);
+    setLockout(stored.lockout);
+  });
+  // After every hook (save bar included), so they run on every render.
+  if (!canConfigure) return null;
 
   const policyBlurb: Record<RevealPolicy, string> = {
     all: 'Every tile is visible as soon as you reveal the board.',
@@ -413,13 +446,15 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
         )}
 
         <div className="flex items-center gap-3 flex-wrap border-t border-card-border pt-3">
-          <button
-            onClick={save}
-            disabled={saving}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save reveal settings'}
-          </button>
+          {!inBar && (
+            <button
+              onClick={save}
+              disabled={saving}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save reveal settings'}
+            </button>
+          )}
           {msg && (
             <span className={`text-xs ${msg.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>
               {msg.text}
