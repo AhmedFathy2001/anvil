@@ -252,10 +252,12 @@ test('feed lines go to that user’s feed clients only', () => {
 test('panel rows go to a board, one team on it, or named people — once each', () => {
   const hub = new ViewHub({ fetchView: async () => null, later: () => () => {} });
   const got: Record<string, string[]> = { a: [], b: [], c: [], d: [] };
-  hub.add({ scope: { userId: 1, eventIds: [5], teamId: 10 }, send: (m) => got.a.push(m) });
-  hub.add({ scope: { userId: 2, eventIds: [5], teamId: 11 }, send: (m) => got.b.push(m) });
-  hub.add({ scope: { userId: 3, eventIds: [6], teamId: null }, send: (m) => got.c.push(m) });
-  hub.add({ scope: { userId: 4, eventIds: [], teamId: null }, send: (m) => got.d.push(m) });
+  hub.add({ scope: { userId: 1, eventIds: [5], teamId: 10, rows: true }, send: (m) => got.a.push(m) });
+  hub.add({ scope: { userId: 2, eventIds: [5], teamId: 11, rows: true }, send: (m) => got.b.push(m) });
+  hub.add({ scope: { userId: 3, eventIds: [6], teamId: null, rows: true }, send: (m) => got.c.push(m) });
+  hub.add({ scope: { userId: 4, eventIds: [], teamId: null, rows: true }, send: (m) => got.d.push(m) });
+  const old: string[] = [];
+  hub.add({ scope: { userId: 1, eventIds: [5], teamId: 10 }, send: (m) => old.push(m) });
   const clear = () => Object.values(got).forEach((g) => g.splice(0));
   clear();
 
@@ -270,7 +272,13 @@ test('panel rows go to a board, one team on it, or named people — once each', 
   hub.deliverRows(parseRows(JSON.stringify({ k: 'rows', e: 5, u: [1, 4], m: { t: 'rows' } }))!);
   assert.deepEqual([got.a.length, got.b.length, got.c.length, got.d.length], [1, 1, 0, 1], 'board plus people, nobody twice');
 
+  assert.deepEqual(old, [], 'a plugin that never said it reads rows is sent none (older plugins log each one)');
   assert.equal(parseRows(JSON.stringify({ k: 'rows', m: {} })), null, 'nobody to send to');
   assert.equal(parseRows(JSON.stringify({ k: 'feed', u: [1], m: {} })), null);
   assert.equal(parseFeed(JSON.stringify({ k: 'rows', u: [1], m: {} })), null, 'feed parser ignores rows');
+});
+
+test('a rows ticket carries its flag', () => {
+  const { ticket } = signTicket({ userId: 7, eventIds: [3], teamId: 2, feed: true, rows: true }, key, 0);
+  assert.deepEqual(verifyTicket(ticket, key, 1), { userId: 7, eventIds: [3], teamId: 2, feed: true, rows: true });
 });

@@ -211,6 +211,8 @@ export interface FeedRow {
   whoColor?: Color;
   /** Supporter flair on `who`. */
   grad?: `#${string}`[];
+  /** The gradient slides along the name (Patron), unless the player turned animation off. */
+  move?: boolean;
   text?: string;
   textColor?: Color;
   /** Small prefix tag: MOD, HOST, TEAM. */

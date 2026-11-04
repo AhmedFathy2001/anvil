@@ -144,7 +144,8 @@ export class ViewHub {
     const sent = new Set<PushClient>();
     const send = (set: Set<PushClient> | undefined) => {
       for (const c of set ?? []) {
-        if (sent.has(c)) continue;
+        // Only a plugin that said it reads rows: an older one would log a warning for each.
+        if (sent.has(c) || !c.scope.rows) continue;
         sent.add(c);
         c.send(text);
       }
