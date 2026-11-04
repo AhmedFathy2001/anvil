@@ -144,7 +144,7 @@ export default function LiveFixPanel({
           Edit tiles
         </ClanLink>
         <ClanLink
-          href={`${base}/settings`}
+          href={`${base}/settings/board`}
           className="px-3 py-1.5 text-xs rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors"
         >
           Rules &amp; reveal

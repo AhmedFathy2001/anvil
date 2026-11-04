@@ -10,7 +10,6 @@ import RevealRulesPanel from '../RevealRulesPanel';
 import StandingsVisibilityPanel from '../StandingsVisibilityPanel';
 import GameModeWorldsPanel from '../GameModeWorldsPanel';
 import RulebookPanel from '../RulebookPanel';
-import EventEditorsPanel from '../EventEditorsPanel';
 import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
 import { eventModeLabel, isTileRaceFormat, isPointsMode } from '@/lib/utils';
 import { eventAxes } from '@/lib/eventAxes';
@@ -20,7 +19,8 @@ import { useDialog } from '@/components/Confirm';
 interface Props {
   event: Event;
   tiles: Tile[];
-  canManageEditors?: boolean;
+  /** Which settings tab is drawing it (lib/eventSettingsTabs): each shows only its own sections. */
+  section: 'event' | 'board' | 'more';
 }
 
 /**
@@ -30,7 +30,7 @@ interface Props {
  * the event's home, next to the state they change. What lives here is the stuff you set up front
  * and revisit rarely: shape, schedule, when tiles open, who can edit, and the dangerous corner.
  */
-export default function SettingsClient({ event, tiles, canManageEditors = false }: Props) {
+export default function SettingsClient({ event, tiles, section }: Props) {
   const router = useRouter();
   const [currentEvent, setCurrentEvent] = useState(event);
 
@@ -309,9 +309,11 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="space-y-6">
+      {section === 'event' && (
+      <>
       {/* Shape */}
-      <section className="border border-card-border rounded-xl p-5 bg-card-bg">
+      <section id="format" className="scroll-mt-28 border border-card-border rounded-xl p-5 bg-card-bg">
         <SectionTitle>Shape</SectionTitle>
         {editType ? (
           <>
@@ -383,7 +385,7 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
       </section>
 
       {/* Schedule */}
-      <section className="border border-card-border rounded-xl p-5 bg-card-bg">
+      <section id="schedule" className="scroll-mt-28 border border-card-border rounded-xl p-5 bg-card-bg">
         <SectionTitle>Schedule</SectionTitle>
         {editDates ? (
           <>
@@ -439,8 +441,13 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
         )}
       </section>
 
+      </>
+      )}
+
+      {section === 'board' && (
+      <>
       {/* Visibility */}
-      <section className="border border-card-border rounded-xl p-5 bg-card-bg">
+      <section id="reveal" className="scroll-mt-28 border border-card-border rounded-xl p-5 bg-card-bg">
         <SectionTitle>Who can see the tiles</SectionTitle>
         <p className="text-sm text-text-muted mb-3">
           {currentEvent.tilesRevealed
@@ -504,21 +511,32 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
       </section>
 
       {/* Hidden standings: every board, any time — mid-event included. */}
-      <StandingsVisibilityPanel event={currentEvent} />
+      <div id="standings" className="scroll-mt-28 rounded-xl">
+        <StandingsVisibilityPanel event={currentEvent} />
+      </div>
 
       {/* Opt this board into Leagues / Deadman / … worlds (rules.worldModes). */}
-      <GameModeWorldsPanel event={currentEvent} />
+      <div id="worlds" className="scroll-mt-28 rounded-xl">
+        <GameModeWorldsPanel event={currentEvent} />
+      </div>
 
       {/* Only renders on reveal-policy boards — a classic board has nothing to schedule. */}
-      <RevealRulesPanel event={currentEvent} tiles={tiles} />
+      <div id="opening" className="scroll-mt-28 rounded-xl">
+        <RevealRulesPanel event={currentEvent} tiles={tiles} />
+      </div>
 
-      <RulebookPanel eventId={event.id} />
+      <div id="rulebook" className="scroll-mt-28 rounded-xl">
+        <RulebookPanel eventId={event.id} />
+      </div>
+      </>
+      )}
 
-      {canManageEditors && <EventEditorsPanel eventId={event.id} />}
-
-      {/* Maintenance + the dangerous corner */}
-      <section className="border border-card-border rounded-xl p-5 bg-card-bg">
-        <SectionTitle>Maintenance</SectionTitle>
+      {section === 'more' && (
+      <>
+      {/* Maintenance */}
+      <section id="clone" className="scroll-mt-28 border border-card-border rounded-xl p-5 bg-card-bg">
+        <span id="recompute" className="block scroll-mt-28" aria-hidden />
+        <SectionTitle>Run it again, or repair it</SectionTitle>
         <div className="flex flex-wrap items-center gap-2">
           <Button
             onClick={recomputeCompletions}
@@ -537,11 +555,16 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
           {recomputeMsg && <span className="text-xs text-text-muted">{recomputeMsg}</span>}
         </div>
 
+      </section>
+
+      {/* The dangerous corner, on its own so nothing else on the tab sits beside it. */}
+      <section id="delete" className="scroll-mt-28 rounded-xl border border-red-500/30 bg-card-bg p-5">
+        <SectionTitle>Danger zone</SectionTitle>
         {/* SHOWN WHILE IT IS RUNNING TOO, refused rather than absent. Hiding it read as "this site
             cannot delete events" — an admin looking for the control found nothing at all, on the one
             page it lives on, and nothing anywhere said the event being live was the reason. A
             disabled button that names its condition answers the question the missing one raised. */}
-        <div className="mt-4 pt-4 border-t border-card-border">
+        <div>
           <Button onClick={deleteEvent} disabled={deleting || !canDelete} tone="danger">
             {deleting ? 'Deleting…' : 'Delete event'}
           </Button>
@@ -552,6 +575,8 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
           </p>
         </div>
       </section>
+      </>
+      )}
     </div>
   );
 }
