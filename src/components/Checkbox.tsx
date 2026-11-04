@@ -1,7 +1,67 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { ComponentPropsWithRef, ReactNode } from 'react';
+import { twMerge } from 'tailwind-merge';
 import { cn } from '@/lib/utils';
+
+type BoxProps = Omit<ComponentPropsWithRef<'input'>, 'type'> & {
+  /** See Checkbox's `tone`. */
+  tone?: 'gold' | 'amber' | 'indigo';
+  /** Classes for the box's wrapper: margins, alignment, or a size (`h-3.5 w-3.5`) — tailwind-merged. */
+  className?: string;
+};
+
+/**
+ * The bare box — a real `<input type="checkbox">` (focusable, keyboard-toggled, submits its
+ * `name`/`value` with a form) drawn by us instead of the browser: `appearance-none` drops the OS
+ * widget, and the tick is our SVG shown by `peer-checked`. For the spots whose layout is their own —
+ * a whole selectable card, a table cell — where the labelled `Checkbox` below would not fit. Every
+ * other input property (a `ref`, say, to set `indeterminate`) passes straight through.
+ */
+export function CheckboxBox({ tone = 'gold', className, ...rest }: BoxProps) {
+  return (
+    <span className={twMerge('relative inline-flex h-4 w-4 shrink-0', className)}>
+      <input
+        type="checkbox"
+        {...rest}
+        className={cn(
+          'peer m-0 h-full w-full cursor-[inherit] appearance-none rounded-[4px] border border-text-dim/70 bg-brown-dark transition-colors',
+          'hover:border-gold/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40',
+          'disabled:cursor-not-allowed',
+          tone === 'amber'
+            ? 'checked:border-amber-400 checked:bg-amber-400 indeterminate:border-amber-400 indeterminate:bg-amber-400'
+            : tone === 'indigo'
+              ? 'checked:border-indigo-400 checked:bg-indigo-400 indeterminate:border-indigo-400 indeterminate:bg-indigo-400'
+              : 'checked:border-gold checked:bg-gold indeterminate:border-gold indeterminate:bg-gold',
+        )}
+      />
+      <svg
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.25"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="pointer-events-none absolute inset-0 hidden h-full w-full text-brown-dark peer-checked:block peer-indeterminate:hidden"
+        aria-hidden
+      >
+        <polyline points="3.5 8.5 6.5 11.5 12.5 4.5" />
+      </svg>
+      {/* A select-all box set `indeterminate` by its caller (some rows picked) shows a dash. */}
+      <svg
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.25"
+        strokeLinecap="round"
+        className="pointer-events-none absolute inset-0 hidden h-full w-full text-brown-dark peer-indeterminate:block"
+        aria-hidden
+      >
+        <line x1="4" y1="8" x2="12" y2="8" />
+      </svg>
+    </span>
+  );
+}
 
 interface CheckboxProps {
   checked: boolean;
@@ -46,8 +106,8 @@ interface CheckboxProps {
   trailing?: ReactNode;
 }
 
-// Themed checkbox (gold accent) with an optional label + description, so checkboxes look and behave
-// consistently instead of each spot rolling its own `<input type="checkbox" className="accent-gold">`.
+// Themed checkbox with an optional label + description, so checkboxes look and behave consistently
+// instead of each spot rolling its own `<input type="checkbox">` — the browser's box never shows.
 export default function Checkbox({
   checked,
   onChange,
@@ -71,17 +131,13 @@ export default function Checkbox({
         className,
       )}
     >
-      <input
-        type="checkbox"
+      <CheckboxBox
         checked={checked}
         disabled={disabled}
         aria-label={ariaLabel}
         onChange={(e) => onChange(e.target.checked)}
-        className={cn(
-          'h-4 w-4 shrink-0',
-          tone === 'amber' ? 'accent-amber-400' : 'accent-gold',
-          !!description && 'mt-0.5',
-        )}
+        tone={tone}
+        className={description ? 'mt-0.5' : undefined}
       />
       {(label || description) && (
         <span>
