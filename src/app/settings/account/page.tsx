@@ -60,9 +60,12 @@ export default async function AccountSettingsPage() {
             </ActionButton>
           </SettingsRow>
         ))}
-        <SettingsRow label="Link another computer" description="Get a short code to type into the Anvil panel.">
+        <SettingsRow
+          label="Link another computer"
+          description="In RuneLite, press “Sign in with Discord” in the Anvil panel. It shows a code and opens this page; if the page didn’t open, enter the code here."
+        >
           <ClanLink href="/link-device" className="rounded-lg border border-card-border bg-card-bg-hover px-3 py-1.5 text-[13px] hover:border-gold/40">
-            Link device
+            Enter a code
           </ClanLink>
         </SettingsRow>
       </SettingsGroup>
