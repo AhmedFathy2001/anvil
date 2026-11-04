@@ -10,7 +10,8 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, completions, eventParticipants, events, teams, tiles, users } from '@/db/schema';
+import { accounts, clanMemberships, clanStaff, completions, eventParticipants, events, teams, tiles, users } from '@/db/schema';
+import { atLeast } from '@/lib/clanRoles';
 import { log } from '@/lib/logger';
 import { eventFeedFloor, isClanWorthy, panelFeedWorthy } from '@/lib/moments';
 import { boardTileItemIds, clanScopeFor } from '@/lib/momentsStore';
@@ -31,7 +32,53 @@ export async function notifyRows(target: RowsTarget, m: Record<string, unknown>)
     }
     return;
   }
+  // A board's room holds only the plugins whose ACTIVE board this is. Someone reading it from the Feed
+  // dropdown (another board they're on) isn't in it, so the board's people are named too; the hub
+  // sends once per plugin within a notice, so nobody in both gets a row twice.
+  const people = await boardUserIds(target.e, target.t ?? null);
+  if (people.length <= IDS_PER_NOTIFY) {
+    await db.execute(sql`select pg_notify('anvil_push', ${JSON.stringify({ k: 'rows', ...target, ...(people.length ? { u: people } : {}), m })})`);
+    return;
+  }
   await db.execute(sql`select pg_notify('anvil_push', ${JSON.stringify({ k: 'rows', ...target, m })})`);
+  for (let i = 0; i < people.length; i += IDS_PER_NOTIFY) {
+    await db.execute(sql`select pg_notify('anvil_push', ${JSON.stringify({ k: 'rows', u: people.slice(i, i + IDS_PER_NOTIFY), m })})`);
+  }
+}
+
+/**
+ * The logins seated on a board (one team's, with `teamId`): who reads its Feed from anywhere. A team's
+ * list is read fresh every time: its rows are the team's secret while standings are hidden, and someone
+ * just moved off the team must not hear the next one. The whole board's is held 15 seconds.
+ */
+function boardUserIds(eventId: number, teamId: number | null): Promise<number[]> {
+  if (teamId != null) return readBoardUserIds(eventId, teamId);
+  return ttlMemo(`panel-rows-board-users:${eventId}`, () => readBoardUserIds(eventId, null), 15_000);
+}
+
+async function readBoardUserIds(eventId: number, teamId: number | null): Promise<number[]> {
+  // clan-scope: global -- by the board id a row is being sent for.
+  const rows = await db
+    .selectDistinct({ id: users.id })
+    .from(eventParticipants)
+    .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
+    .innerJoin(users, eq(users.playerId, accounts.playerId))
+    .where(
+      teamId != null
+        ? and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.teamId, teamId))
+        : eq(eventParticipants.eventId, eventId),
+    );
+  const ids = new Set(rows.map((r) => r.id));
+  // The whole board's rows also reach its clan's moderators and up: they read and moderate its chat
+  // without a seat on it. A team's rows stay the team's.
+  if (teamId == null) {
+    const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true } });
+    if (ev) {
+      const staff = await db.select({ userId: clanStaff.userId, role: clanStaff.role }).from(clanStaff).where(eq(clanStaff.clanId, ev.clanId));
+      for (const st of staff) if (atLeast(st.role, 'moderator')) ids.add(st.userId);
+    }
+  }
+  return [...ids];
 }
 
 /** The people with a live member seat in a clan: who hears its Feed. Held a minute. */
