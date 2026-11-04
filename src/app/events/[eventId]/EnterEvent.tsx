@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
+import KickLinkCode from '@/components/KickLinkCode';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { parseStamp } from '@/lib/dbTime';
 import YoutubeGate, { type YoutubeGateInfo } from './YoutubeGate';
@@ -30,6 +31,8 @@ interface EnterInfo {
     twitchLinked: string | null;
     twitchAvailable: boolean;
     youtube?: YoutubeGateInfo;
+    /** Present when a Kick rule is in the gates (lib/gates/kickDb kickGateInfo). */
+    kick?: { slug: string | null; linked: string | null; available: boolean };
   } | null;
 }
 
@@ -43,6 +46,8 @@ interface GateFail {
   blocked?: boolean;
   /** A YouTube rule wants a subscription check or the chat code. */
   youtube?: { verify?: boolean; chatCode?: boolean };
+  /** A Kick rule wants a chat code: show "Get Kick code". */
+  linkKick?: boolean;
 }
 
 /** Start linking Twitch, coming back to this very page. Built at click time, from where they are. */
@@ -411,6 +416,7 @@ function CreatorJoin({
         {info.gate?.twitchLinked && (
           <div className="mt-0.5 text-[12.5px] text-text-dim">Your Twitch: {info.gate.twitchLinked}</div>
         )}
+        {info.gate?.kick?.linked && <div className="mt-0.5 text-[12.5px] text-text-dim">Your Kick: {info.gate.kick.linked}</div>}
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         {/* Linking first saves a round trip when the gate is Twitch-only. */}
@@ -463,6 +469,11 @@ function CreatorJoin({
               </ul>
             </>
           )}
+          {gateFail.linkKick && info.gate?.kick?.available && (
+            <div className="mt-3">
+              <KickLinkCode slug={info.gate.kick.slug} />
+            </div>
+          )}
           {gateFail.linkTwitch && (
             <button
               type="button"
@@ -475,6 +486,8 @@ function CreatorJoin({
         </div>
       )}
       <YoutubeGate eventId={eventId} info={info.gate?.youtube} fail={gateFail?.youtube} />
+      {/* Linking Kick first saves a round trip when the gate is Kick-only. */}
+      {info.gate?.kick?.available && !info.gate.kick.linked && !gateFail && <KickLinkCode slug={info.gate.kick.slug} />}
       {twitchNote && (
         <p className={`w-full text-[12.5px] ${twitchNote.ok ? 'text-accent-green-light' : 'text-accent-red'}`}>{twitchNote.text}</p>
       )}

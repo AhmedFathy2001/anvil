@@ -150,7 +150,7 @@ test('no GZ on a death, and no Sad or Sit on a drop', async () => {
   assert.ok(texts(old!.ui).includes('Couldn’t react to that.'));
 });
 
-test('a board’s death takes Sad / Sit from its players; its drops and outsiders get nothing', async () => {
+test('a board’s rows take reactions from its players: Sad / Sit on a death, GZ on the rest; outsiders get nothing', async () => {
   const [clan] = await db.select().from(s.clans).where(eq(s.clans.slug, 'gz-clan'));
   const [ev] = await db.insert(s.events).values({ clanId: clan.id, name: 'Death Board', boardSize: 2, startDate: '2026-10-01T00:00:00.000Z' }).returning();
   const [team] = await db.insert(s.teams).values({ eventId: ev.id, name: 'Reds', color: '#cc0000' }).returning();
@@ -170,7 +170,9 @@ test('a board’s death takes Sad / Sit from its players; its drops and outsider
   assert.equal(errorOf(await onBoard(boardDeath, 'sit')), undefined);
   assert.deepEqual(await stored(boardDeath), ['sit']);
   assert.equal(errorOf(await onBoard(boardDeath, 'gz')), 'Couldn’t react to that.');
-  assert.equal(errorOf(await onBoard(boardPet, 'gz')), 'Couldn’t react to that.', 'a board’s drops stay without a GZ');
+  assert.equal(errorOf(await onBoard(boardPet, 'gz')), undefined, 'a board’s pet takes a GZ');
+  assert.deepEqual(await stored(boardPet), ['gz']);
+  assert.equal(errorOf(await onBoard(boardPet, 'sit')), 'Couldn’t react to that.', 'no Sit on a pet');
   assert.equal(errorOf(await onBoard(deathId, 'sad')), 'That isn’t in this event’s feed.', 'a death from off the board');
 
   const [outsider] = await db.insert(s.players).values({ displayName: 'Nobody' }).returning();
@@ -179,7 +181,7 @@ test('a board’s death takes Sad / Sit from its players; its drops and outsider
   assert.equal(errorOf(await onBoard(boardDeath, 'sad', asNobody)), 'Only this event’s players can react here.');
   assert.deepEqual(await stored(boardDeath), ['sit']);
 
-  // The board's Feed draws the death with its chips, the pet without.
+  // The board's Feed draws the death with its chips, the pet with its GZ.
   const v = await V.pluginView(asFan(), 'feed', { s: `event:${ev.id}` });
   const json = JSON.stringify(v!.ui);
   const rows = (JSON.parse(json).c as { t: string; rows?: { id: string; gz?: unknown; reacts?: { kind: string; n: number; mine: boolean }[] }[] }[]).find((n) => n.t === 'feed')?.rows ?? [];
@@ -188,5 +190,6 @@ test('a board’s death takes Sad / Sit from its players; its drops and outsider
   assert.ok(d, 'the death is in the board feed');
   assert.deepEqual(d!.reacts!.map((r) => [r.kind, r.n, r.mine]), [['sad', 0, false], ['sit', 1, true]]);
   assert.equal(d!.gz, undefined);
-  assert.ok(p && p.gz === undefined && p.reacts === undefined);
+  assert.ok(p && p.reacts === undefined);
+  assert.deepEqual(p!.gz && [(p!.gz as { n: number }).n, (p!.gz as { mine: boolean }).mine], [1, true]);
 });

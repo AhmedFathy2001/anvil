@@ -157,8 +157,8 @@ function asLike(m: MomentRow) {
 }
 
 /**
- * A board's feed. Its deaths take "Sad" / "Sit" from anyone playing on it (`viewer` with `canReact`);
- * its drops stay without a GZ, as they always were on a board.
+ * A board's feed. Everyone playing on it (`viewer` with `canReact`) can react to any row: a GZ on a
+ * drop, pet or achievement, "Sad" / "Sit" on a death.
  */
 async function eventRows(eventId: number, filter: string, teamId: number | null, viewer: number | null = null, canReact = false): Promise<{ rows: FeedRow[]; floor: number }> {
   const floor = eventFeedFloor(await boardSize(eventId));
@@ -185,7 +185,7 @@ async function eventRows(eventId: number, filter: string, teamId: number | null,
           .slice(0, 80);
   // Names in a Supporter's colours, else their team's; the team under the name, as the live rows do.
   // A lab board's rows (negative ids) are no real moments: nothing to react to.
-  const reactable = (m: MomentRow) => canReact && viewer != null && m.kind === 'death' && m.id > 0;
+  const reactable = (m: MomentRow) => canReact && viewer != null && m.id > 0;
   const [inks, teamRows, summaries] = await Promise.all([
     inksFor(momentList.map((m) => m.rsn)),
     momentList.length ? db.select({ id: teams.id, name: teams.name, color: teams.color }).from(teams).where(eq(teams.eventId, eventId)) : Promise.resolve([]),

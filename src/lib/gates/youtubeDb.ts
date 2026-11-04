@@ -3,14 +3,14 @@
 //   the host's channel   clan_youtube_channels — tokens encrypted, refreshed, marked broken on refusal
 //   proofs               user_youtube_proofs   — 'sub' (viewer OAuth) and 'member' (live-chat code),
 //                                                trusted for PROOF_TTL_MS
-//   claims               event_youtube_claims  — one YouTube channel, one player per event
+//   claims               event_gate_claims (lib/gates/claims, platform 'youtube')
 //
 // lib/entryGatesDb wires these into the shared verdict; nothing here knows about Twitch or Discord.
 
 import { and, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanYoutubeChannels, eventYoutubeClaims, userYoutubeLinks, userYoutubeProofs } from '@/db/schema';
+import { clanYoutubeChannels, userYoutubeLinks, userYoutubeProofs } from '@/db/schema';
 import { parseStamp } from '@/lib/dbTime';
 import type { GateKind, GateOptions } from '@/lib/entryGates';
 import {
@@ -419,64 +419,16 @@ export async function checkChatCode(opts: { clanId: number; userId: number }): P
 }
 
 // ── One YouTube channel, one player per event ──────────────────────────────────────────────────
+//
+// The claim itself is lib/gates/claims (event_gate_claims, platform 'youtube') — the same algorithm
+// as Twitch's. This only says WHICH channel a pass rests on: the proof's, i.e. the viewer's linked one.
 
-/**
- * After a YouTube pass: spend the YouTube channel behind it on this event for this player. Same rules
- * as claimTwitchForEvent (lib/entryGatesDb), whose liveness check and hold time are passed in so the
- * two stay one policy. 'missing' = the proof vanished in between (fail closed).
- */
-export async function youtubeClaimAfterPass(opts: {
-  eventId: number;
-  clanId: number;
-  userId: number;
-  via: GateKind;
-  holdMs: number;
-  liveInEvent: (eventId: number, clanId: number, userId: number) => Promise<boolean>;
-}): Promise<'ok' | 'taken' | 'missing'> {
-  const host = await hostYoutubeChannel(opts.clanId);
-  if (!host) return 'missing';
-  const proof = await freshProof(opts.userId, host.channelId, opts.via === 'youtube-member' ? 'member' : 'sub');
-  if (!proof?.ok) return 'missing';
-  return claimYoutubeForEvent({ ...opts, youtubeChannelId: proof.youtubeChannelId });
-}
-
-export async function claimYoutubeForEvent(opts: {
-  eventId: number;
-  clanId: number;
-  youtubeChannelId: string;
-  userId: number;
-  holdMs: number;
-  liveInEvent: (eventId: number, clanId: number, userId: number) => Promise<boolean>;
-}): Promise<'ok' | 'taken'> {
-  const where = and(eq(eventYoutubeClaims.eventId, opts.eventId), eq(eventYoutubeClaims.youtubeChannelId, opts.youtubeChannelId));
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const now = new Date().toISOString();
-    // clan-scope: global -- keyed by event id, whose host the caller already resolved.
-    const inserted = await db
-      .insert(eventYoutubeClaims)
-      .values({ eventId: opts.eventId, youtubeChannelId: opts.youtubeChannelId, userId: opts.userId, claimedAt: now })
-      .onConflictDoNothing({ target: [eventYoutubeClaims.eventId, eventYoutubeClaims.youtubeChannelId] })
-      .returning({ userId: eventYoutubeClaims.userId });
-    if (inserted.length > 0) return 'ok';
-
-    // clan-scope: global -- as above.
-    const row = await db.query.eventYoutubeClaims.findFirst({ where });
-    if (!row) continue;
-    if (row.userId === opts.userId) return 'ok';
-
-    const claimedMs = parseStamp(row.claimedAt);
-    const fresh = claimedMs != null && Date.now() - claimedMs < opts.holdMs;
-    if (fresh || (await opts.liveInEvent(opts.eventId, opts.clanId, row.userId))) return 'taken';
-
-    // clan-scope: global -- as above; conditional on the old holder so only one racer wins.
-    const moved = await db
-      .update(eventYoutubeClaims)
-      .set({ userId: opts.userId, claimedAt: now })
-      .where(and(where, eq(eventYoutubeClaims.userId, row.userId)))
-      .returning({ userId: eventYoutubeClaims.userId });
-    if (moved.length > 0) return 'ok';
-  }
-  return 'taken';
+/** The YouTube channel behind a YouTube pass, or null if its proof vanished in between (fail closed). */
+export async function youtubePassChannel(clanId: number, userId: number, via: GateKind): Promise<string | null> {
+  const host = await hostYoutubeChannel(clanId);
+  if (!host) return null;
+  const proof = await freshProof(userId, host.channelId, via === 'youtube-member' ? 'member' : 'sub');
+  return proof?.ok ? proof.youtubeChannelId : null;
 }
 
 /** The YouTube twin of TWITCH_ALREADY_USED. */

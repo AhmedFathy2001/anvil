@@ -5,6 +5,7 @@ import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 import { checkStreamLink } from '@/lib/creatorSpaces';
 import YoutubeChannel from './YoutubeChannel';
+import KickChannel from './KickChannel';
 
 /**
  * A creator space's settings: the name, the stream links shown on its page, and whether Anvil may
@@ -144,6 +145,8 @@ export default function CreatorSettings() {
       <TwitchChannel />
 
       <YoutubeChannel />
+
+      <KickChannel />
 
       <section className="rounded-xl border border-card-border bg-card-bg p-5">
         <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">

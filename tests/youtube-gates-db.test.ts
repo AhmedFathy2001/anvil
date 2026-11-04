@@ -195,8 +195,8 @@ test('subscribers: unchecked → check button; a non-sub is told to subscribe; a
   G.gateCache.forgetUser(v.userId);
   assert.equal((await enter(v, ev)).outcome, 'seated');
 
-  const claim = await db.query.eventYoutubeClaims.findFirst({
-    where: and(eq(s.eventYoutubeClaims.eventId, ev), eq(s.eventYoutubeClaims.youtubeChannelId, 'UCviewer1000000000000000')),
+  const claim = await db.query.eventGateClaims.findFirst({
+    where: and(eq(s.eventGateClaims.eventId, ev), eq(s.eventGateClaims.platform, 'youtube'), eq(s.eventGateClaims.platformUserId, 'UCviewer1000000000000000')),
   });
   assert.equal(claim?.userId, v.userId);
 
@@ -357,8 +357,8 @@ test('members: a member friend typing MY code does not make me a member; my own 
   assert.equal(await Y.checkChatCode({ clanId: spaceId, userId: me.userId }), 'member');
   G.gateCache.forgetUser(me.userId);
   assert.equal((await enter(me, ev)).outcome, 'seated');
-  const claim = await db.query.eventYoutubeClaims.findFirst({ where: eq(s.eventYoutubeClaims.eventId, ev) });
-  assert.equal(claim?.youtubeChannelId, 'UCnotmember0000000000000', 'the claim is on MY channel');
+  const claim = await db.query.eventGateClaims.findFirst({ where: and(eq(s.eventGateClaims.eventId, ev), eq(s.eventGateClaims.platform, 'youtube')) });
+  assert.equal(claim?.platformUserId, 'UCnotmember0000000000000', 'the claim is on MY channel');
 });
 
 test('member-only events: the Google sign-in links the channel without a subscription check', async () => {

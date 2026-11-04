@@ -108,7 +108,7 @@ export function youtubeStep(
 // nothing to store or expire. The code only names WHICH Anvil login a chat message speaks for; the
 // membership is read from the message's author. Typing someone else's code helps only them, and only
 // if the typer is a member — the same as lending an account, which the one-channel-per-event claim
-// (event_youtube_claims) already bounds.
+// (event_gate_claims, platform 'youtube') already bounds.
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O, 1/I
 

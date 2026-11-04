@@ -28,6 +28,7 @@ import {
   discordMemberFacts,
   gatesApply,
   gatesSummary,
+  isKickRule,
   isTwitchRule,
   parseGates,
   twitchAlreadyUsed,
@@ -65,12 +66,15 @@ import { usesYoutube } from '@/lib/gates/youtube';
 import {
   YOUTUBE_ALREADY_USED,
   hostYoutubeChannel,
-  youtubeClaimAfterPass,
+  youtubePassChannel,
   youtubeGateOptions,
   youtubeJoinInfo,
   youtubeProbe,
   type YoutubeJoinInfo,
 } from '@/lib/gates/youtubeDb';
+import { KICK_ALREADY_USED } from '@/lib/gates/kick';
+import { kickContext, kickGateInfo, kickGateOptions, kickProbe, viewerKick } from '@/lib/gates/kickDb';
+import { claimGateAccount } from '@/lib/gates/claims';
 
 /** Shared across requests in this process. See GateCache for the TTLs. */
 export const gateCache = new GateCache();
@@ -272,12 +276,13 @@ function makeProbe(opts: { clanId: number; userId: number }): GateProbe {
       if (res.status === 403) return { state: 'no-server' };
       return { state: 'error' };
     },
+    kickFacts: kickProbe(opts.clanId, opts.userId),
   };
 }
 
 async function gateContext(clanId: number, hostName: string): Promise<GateContext> {
-  const [ch, yt] = await Promise.all([hostTwitchChannel(clanId), hostYoutubeChannel(clanId)]);
-  return { twitchLogin: ch?.login ?? null, hostName, youtubeTitle: yt?.title ?? null };
+  const [ch, yt, kick] = await Promise.all([hostTwitchChannel(clanId), hostYoutubeChannel(clanId), kickContext(clanId)]);
+  return { twitchLogin: ch?.login ?? null, hostName, youtubeTitle: yt?.title ?? null, ...kick };
 }
 
 /** The event's gates when they apply (a creator space with gates set), with the host's name. */
@@ -323,11 +328,23 @@ export async function entryGateVerdict(opts: {
   }
   if (verdict.pass && (verdict.via === 'youtube-sub' || verdict.via === 'youtube-member')) {
     // The YouTube channel behind the pass is spent on this event (lib/gates/youtubeDb), as Twitch's is.
-    const yc = await youtubeClaimAfterPass({ ...opts, clanId: g.clanId, userId: opts.userId, via: verdict.via, holdMs: CLAIM_HOLD_MS, liveInEvent });
-    if (yc === 'ok') return verdict;
-    gateCache.forgetUser(opts.userId);
-    if (yc === 'missing') return { pass: false, transient: true, summary: gatesSummary(g.gates, ctx), steps: ['Try again in a moment'], linkTwitch: false };
-    return { ...twitchAlreadyUsed(gatesSummary(g.gates, ctx)), steps: [YOUTUBE_ALREADY_USED] };
+    const ytChannel = await youtubePassChannel(g.clanId, opts.userId, verdict.via);
+    if (!ytChannel) {
+      gateCache.forgetUser(opts.userId);
+      return { pass: false, transient: true, summary: gatesSummary(g.gates, ctx), steps: ['Try again in a moment'], linkTwitch: false };
+    }
+    const yc = await claimGateAccount({ eventId: opts.eventId, clanId: g.clanId, platform: 'youtube', platformUserId: ytChannel, userId: opts.userId });
+    return yc === 'ok' ? verdict : { pass: false, transient: false, summary: gatesSummary(g.gates, ctx), steps: [YOUTUBE_ALREADY_USED], linkTwitch: false, blocked: true };
+  }
+  if (verdict.pass && (verdict.via === 'kick-follow' || verdict.via === 'kick-sub')) {
+    // The same one-account-per-event rule as Twitch, for the Kick account that passed.
+    const kick = await viewerKick(opts.userId);
+    if (!kick) {
+      gateCache.forgetUser(opts.userId);
+      return { pass: false, transient: true, summary: gatesSummary(g.gates, ctx), steps: ['Try again in a moment'], linkTwitch: false };
+    }
+    const kc = await claimGateAccount({ eventId: opts.eventId, clanId: g.clanId, platform: 'kick', platformUserId: kick.id, userId: opts.userId });
+    return kc === 'ok' ? verdict : { pass: false, transient: false, summary: gatesSummary(g.gates, ctx), steps: [KICK_ALREADY_USED], linkTwitch: false, blocked: true };
   }
   if (!verdict.pass || (verdict.via !== 'twitch-follow' && verdict.via !== 'twitch-sub')) return verdict;
 
@@ -361,7 +378,7 @@ export async function entryGateVerdict(opts: {
 export const CLAIM_HOLD_MS = 10 * 60_000;
 
 /** Does this user still hold a place in this event: an active sign-up, or a live seat in its host? */
-async function liveInEvent(eventId: number, clanId: number, userId: number): Promise<boolean> {
+export async function liveInEvent(eventId: number, clanId: number, userId: number): Promise<boolean> {
   const signup = await db.query.eventSignups.findFirst({
     where: and(eq(eventSignups.eventId, eventId), eq(eventSignups.userId, userId), ne(eventSignups.status, 'withdrawn')),
     columns: { id: true },
@@ -436,12 +453,14 @@ export async function entryGateInfo(eventId: number, userId: number | null): Pro
   twitchAvailable: boolean;
   /** Present only when a YouTube rule applies (lib/gates/youtubeDb). */
   youtube?: YoutubeJoinInfo & { usesSub: boolean; usesMember: boolean };
+  kick?: { slug: string | null; linked: string | null; available: boolean };
 } | null> {
   const g = await gatesForEvent(eventId);
   if (!g) return null;
   const ctx = await gateContext(g.clanId, g.hostName);
   const usesTwitch = g.gates.anyOf.some(isTwitchRule);
   const linked = usesTwitch && userId != null ? await viewerTwitch(userId) : null;
+  const usesKick = g.gates.anyOf.some(isKickRule);
   return {
     summary: gatesSummary(g.gates, ctx),
     usesTwitch,
@@ -456,6 +475,7 @@ export async function entryGateInfo(eventId: number, userId: number | null): Pro
           },
         }
       : {}),
+    ...(usesKick ? { kick: await kickGateInfo(g.clanId, userId) } : {}),
   };
 }
 
@@ -481,6 +501,7 @@ export async function gateOptions(clanId: number): Promise<GateOptions> {
     twitch: { configured, channel, connectUrl: configured ? `/api/auth/twitch/start?as=host&space=${clanId}` : null },
     discord: { connected: !!creds, roles },
     youtube,
+    ...(await kickOptionsField(clanId)),
   };
 }
 
@@ -493,4 +514,9 @@ export async function isAdminOfCreatorSpace(clanId: number, userId: number): Pro
     columns: { role: true },
   });
   return !!staff && atLeast(staff.role, 'admin');
+}
+
+async function kickOptionsField(clanId: number): Promise<{ kick?: GateOptions['kick'] }> {
+  const kick = await kickGateOptions(clanId);
+  return kick ? { kick } : {};
 }

@@ -44,12 +44,5 @@ CREATE TABLE IF NOT EXISTS "user_youtube_proofs" (
   CONSTRAINT "user_youtube_proofs_pk" PRIMARY KEY ("user_id", "host_channel_id", "kind")
 );
 
--- Which YouTube channel passed a YouTube gate into which event, for whom — the YouTube twin of
--- event_twitch_claims: one YouTube channel, one player per event.
-CREATE TABLE IF NOT EXISTS "event_youtube_claims" (
-  "event_id" integer NOT NULL REFERENCES "events"("id") ON DELETE CASCADE,
-  "youtube_channel_id" text NOT NULL,
-  "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
-  "claimed_at" text DEFAULT to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS') NOT NULL
-);
-CREATE UNIQUE INDEX IF NOT EXISTS "event_youtube_claims_event_channel_unique" ON "event_youtube_claims" USING btree ("event_id","youtube_channel_id");
+-- Event claims (one YouTube channel, one player per event) use event_gate_claims from 0194 with
+-- platform = 'youtube' (lib/gates/claims).
