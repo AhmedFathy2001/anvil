@@ -3188,7 +3188,18 @@ export type ForgePlayerEvent = typeof forgePlayerEvents.$inferSelect;
 // limit and stores the raw JSON body; the next drain parses it with lib/hiscores and applies it
 // through the same code the in-app fetch uses. Forge holds no copy of the sweep's rules, so there is
 // nothing for the two to drift apart on.
-export type HiscoresFetchMode = 'main' | 'ironman' | 'hardcore' | 'ultimate';
+// 'hardcore' is Hardcore IRONMAN (the account-type probe). The game-mode world tables
+// (lib/modeHiscores) have their own names — 'hardcore_mains' is the Hardcore Worlds save.
+export type HiscoresFetchMode =
+  | 'main'
+  | 'ironman'
+  | 'hardcore'
+  | 'ultimate'
+  | 'hardcore_mains'
+  | 'seasonal'
+  | 'deadman'
+  | 'fresh_start'
+  | 'tournament';
 export type HiscoresFetchOutcome = 'ok' | 'unranked' | 'transient';
 export const hiscoresFetches = pgTable(
   'hiscores_fetches',

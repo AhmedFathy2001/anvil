@@ -1,9 +1,10 @@
-import { and, eq, gt, inArray, isNotNull, isNull, lt, ne, notExists, or, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNotNull, isNull, lt, notExists, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts, hiscoresFetches } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { parseHiscoresBody, type HiscoresSnapshot, type SnapshotFetch } from '@/lib/hiscores';
 import { log } from '@/lib/logger';
+import { drainModeFetches, type ModeDrainStats } from '@/lib/modeHiscoresQueue';
 import {
   MAX_RESULT_AGE_MS,
   RECHECK_AFTER_MS,
@@ -58,7 +59,12 @@ export interface ForgeDrainStats {
   oldestPendingSec: number | null;
   /** Account-type probes: new ones started (first walks + re-checks), settled, and modes written. */
   probes: { started: number; settled: number; typed: number };
+  /** Game-mode world table reads (lib/modeHiscoresQueue). */
+  modes: ModeDrainStats;
 }
+
+/** The account-type probe's tables. Every other non-main mode is somebody else's (lib/modeHiscores). */
+const PROBE_MODES: ProbeMode[] = ['ironman', 'ultimate', 'hardcore'];
 
 export async function drainForgeFetches<E extends ForgeWorkEntry>(opts: {
   work: E[];
@@ -155,6 +161,13 @@ export async function drainForgeFetches<E extends ForgeWorkEntry>(opts: {
   }
 
   const probes = await advanceTypeProbes(now);
+  let modes: ModeDrainStats = { read: 0, applied: 0, unsupported: 0, queued: 0 };
+  try {
+    modes = await drainModeFetches(now);
+  } catch (e) {
+    // Mode checks are an extra; a failure must never cost the main sweep its drain.
+    log.warn('forge-drain.mode-failed', { error: (e as Error).message });
+  }
 
   // 4. Housekeeping: consumed rows only matter for a day of "what did Forge return for X?".
   await db
@@ -187,6 +200,7 @@ export async function drainForgeFetches<E extends ForgeWorkEntry>(opts: {
     pending: waiting?.n ?? 0,
     oldestPendingSec,
     probes,
+    modes,
   };
 }
 
@@ -204,7 +218,7 @@ async function advanceTypeProbes(now: Date): Promise<ForgeDrainStats['probes']> 
     .update(hiscoresFetches)
     .set({ consumedAt: now })
     .where(
-      and(isNotNull(hiscoresFetches.fetchedAt), isNull(hiscoresFetches.consumedAt), ne(hiscoresFetches.mode, 'main')),
+      and(isNotNull(hiscoresFetches.fetchedAt), isNull(hiscoresFetches.consumedAt), inArray(hiscoresFetches.mode, PROBE_MODES)),
     )
     .returning({
       accountId: hiscoresFetches.accountId,
@@ -295,7 +309,7 @@ async function advanceTypeProbes(now: Date): Promise<ForgeDrainStats['probes']> 
             .where(
               and(
                 eq(hiscoresFetches.accountId, accounts.id),
-                ne(hiscoresFetches.mode, 'main'),
+                inArray(hiscoresFetches.mode, PROBE_MODES),
                 isNull(hiscoresFetches.consumedAt),
               ),
             ),
