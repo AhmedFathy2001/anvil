@@ -2,7 +2,6 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { users } from '@/db/schema';
-import { verifyUser } from '@/lib/auth';
 import { supporterForUser } from '@/lib/supporter';
 import { canUseProfileMedia, displayCaseSlots, profileMediaForUser } from '@/lib/profileMedia';
 import { readDisplayCase } from '@/lib/displayCase';
@@ -10,6 +9,7 @@ import ClanLink from '@/components/ClanLink';
 import ProfileLookEditor from '@/components/ProfileLookEditor';
 import DisplayCaseEditor from '@/components/DisplayCaseEditor';
 import { SettingsBlock, SettingsGroup, SettingsTitle, TierChip } from '../_ui';
+import { settingsSession } from '@/app/settings/settingsSession';
 
 /**
  * Profile look: the Supporter perks that dress the PUBLIC profile — your own avatar and banner
@@ -17,7 +17,7 @@ import { SettingsBlock, SettingsGroup, SettingsTitle, TierChip } from '../_ui';
  * Patron 12 slots). Both are checked against the tier on every read, so a lapse keeps what was set.
  */
 export default async function LookSettingsPage() {
-  const session = (await verifyUser())!;
+  const session = await settingsSession();
   const [user, supporter] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, session.userId) }),
     supporterForUser(session.userId),

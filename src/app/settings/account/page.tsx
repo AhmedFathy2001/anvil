@@ -3,11 +3,11 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { pluginLinks, users } from '@/db/schema';
-import { verifyUser } from '@/lib/auth';
 import { clansOfPerson } from '@/lib/myClans';
 import SignOutEverywhereClient from '@/app/profile/SignOutEverywhereClient';
 import { ActionButton } from '../_client';
 import { SettingsBlock, SettingsGroup, SettingsRow, SettingsTitle } from '../_ui';
+import { settingsSession } from '@/app/settings/settingsSession';
 
 function day(stamp: string | null): string {
   if (!stamp) return 'never';
@@ -16,7 +16,7 @@ function day(stamp: string | null): string {
 }
 
 export default async function AccountSettingsPage() {
-  const session = (await verifyUser())!;
+  const session = await settingsSession();
   const [user, links, clans] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, session.userId) }),
     db

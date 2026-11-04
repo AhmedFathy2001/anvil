@@ -1,9 +1,9 @@
-import { verifyUser } from '@/lib/auth';
 import { detectedFor, settingsCharacters } from '@/lib/settingsData';
 import AddCharacterClient from '@/app/profile/AddCharacterClient';
 import DetectedAccountsClient from '@/app/profile/DetectedAccountsClient';
 import IgnoredAccountsClient from '@/app/profile/IgnoredAccountsClient';
 import { SettingsBlock, SettingsGroup, SettingsTitle } from '../_ui';
+import { settingsSession } from '@/app/settings/settingsSession';
 
 /**
  * Adding a character, and the two lists that feed it: characters the plugin saw you play that aren't
@@ -11,7 +11,7 @@ import { SettingsBlock, SettingsGroup, SettingsTitle } from '../_ui';
  * /profile link) pre-fills the name.
  */
 export default async function AddCharacterPage({ searchParams }: { searchParams: Promise<{ connect?: string }> }) {
-  const session = (await verifyUser())!;
+  const session = await settingsSession();
   const suggestedRsn = ((await searchParams).connect ?? '').trim().slice(0, 12);
   const characters = session.playerId ? await settingsCharacters(session.playerId) : [];
   const detected = await detectedFor(session.userId, characters);
