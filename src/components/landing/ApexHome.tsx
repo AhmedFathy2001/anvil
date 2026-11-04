@@ -83,7 +83,12 @@ export default function ApexHome({
               {greeting()}, {displayName}
             </h1>
             <p className="mt-1 text-[13.5px] text-text-dim">
-              {summary(view.clans.length, runningTotal, view.openSignups.length)}
+              {summary(
+                view.clans.filter((c) => c.clanKind !== 'creator').length,
+                view.clans.filter((c) => c.clanKind === 'creator').length,
+                runningTotal,
+                view.openSignups.length,
+              )}
             </p>
           </div>
           <StreakBadge streak={signals.streak} />
@@ -458,9 +463,15 @@ function closes(deadline: string | null, startDate: string | null): string {
   return 'sign-ups open';
 }
 
-function summary(clans: number, running: number, signups: number): string {
-  if (clans === 0) return 'Nothing here yet.';
-  const c = `${clans} clan${clans === 1 ? '' : 's'}`;
+/** "2 clans and 1 space" — creator spaces are counted as spaces, never as clans (lib/creatorSpaces). */
+function summary(clans: number, spaces: number, running: number, signups: number): string {
+  if (clans + spaces === 0) return 'Nothing here yet.';
+  const c = [
+    clans > 0 ? `${clans} clan${clans === 1 ? '' : 's'}` : null,
+    spaces > 0 ? `${spaces} space${spaces === 1 ? '' : 's'}` : null,
+  ]
+    .filter(Boolean)
+    .join(' and ');
   const bits: string[] = [];
   if (running > 0) bits.push(`${running} thing${running === 1 ? '' : 's'} running`);
   if (signups > 0) bits.push(`${signups} taking entries`);

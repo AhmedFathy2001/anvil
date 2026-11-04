@@ -1,11 +1,22 @@
 import ClanLink from '@/components/ClanLink';
 import type { MyClan } from '@/lib/myClans';
+import CreatorChip from '@/components/CreatorChip';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
-/** The clans a profile has a tab for: those with a seat, member clans first, then by name. */
+/**
+ * The clans a profile has a tab for: those with a seat. Clans before creator spaces (a space is not
+ * a clan, so it is never the "home clan" a bare /profile lands on while the person has a clan),
+ * then member seats first, then by name.
+ */
 export function profileClans(clans: MyClan[]): MyClan[] {
+  const space = (c: MyClan) => (isCreatorSpace({ kind: c.clanKind }) ? 1 : 0);
   return clans
     .filter((c) => c.seat)
-    .sort((a, b) => (a.seat === b.seat ? a.name.localeCompare(b.name) : a.seat === 'member' ? -1 : 1));
+    .sort(
+      (a, b) =>
+        space(a) - space(b) ||
+        (a.seat === b.seat ? a.name.localeCompare(b.name) : a.seat === 'member' ? -1 : 1),
+    );
 }
 
 /**
@@ -22,17 +33,21 @@ export default function ProfileTabs({ clans, current }: { clans: MyClan[]; curre
       active ? 'border-gold text-foreground' : 'border-transparent text-text-muted hover:text-foreground'
     }`;
   return (
-    <nav aria-label="Your clans" className="mb-5 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-card-border">
+    <nav aria-label="Your clans and spaces" className="mb-5 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-card-border">
       {tabs.map((c) => (
         <ClanLink key={c.id} href={`/c/${c.slug}/profile`} className={tab(current === c.slug)} aria-current={current === c.slug ? 'page' : undefined}>
           {c.name}
-          <span
-            className={`rounded-full border px-1.5 text-[10.5px] ${
-              c.seat === 'member' ? 'border-gold-dark text-gold' : 'border-card-border text-text-muted'
-            }`}
-          >
-            {c.seat === 'member' ? 'member' : c.clanKind === 'creator' ? 'player' : 'guest'}
-          </span>
+          {isCreatorSpace({ kind: c.clanKind }) ? (
+            <CreatorChip />
+          ) : (
+            <span
+              className={`rounded-full border px-1.5 text-[10.5px] ${
+                c.seat === 'member' ? 'border-gold-dark text-gold' : 'border-card-border text-text-muted'
+              }`}
+            >
+              {c.seat === 'member' ? 'member' : 'guest'}
+            </span>
+          )}
         </ClanLink>
       ))}
       {/* A raw anchor: ClanLink would prefix /profile back into the current clan. Leaving the clan for

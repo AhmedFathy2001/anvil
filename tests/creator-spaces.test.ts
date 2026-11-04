@@ -1,5 +1,6 @@
 // Creator spaces — the pure rules (lib/creatorSpaces): who may make one, when an outsider is let
-// straight in, how the "Advertise on Anvil" switch reads, and what a stream link may be.
+// straight in, how the "Advertise on Anvil" switch reads, that stream links come only from connected
+// channels, and how a person's clans and creator spaces are grouped apart.
 //
 // Run: npm run test:creators   (this file needs no database)
 
@@ -13,8 +14,11 @@ import {
   CREATOR_HIDDEN_SETTING_KEYS,
   CREATOR_ONLY_OFF,
   MAX_CREATOR_SPACES,
-  checkStreamLink,
+  YOUR_CLANS_HEADING,
+  YOUR_SPACES_HEADING,
   clanKindOf,
+  groupClansAndSpaces,
+  verifiedStreamLinks,
   creatorHidesAdminPath,
   creatorHidesDiscordSection,
   creatorHidesSetting,
@@ -75,28 +79,75 @@ test('listing: a creator space is unlisted unless it said on; a clan is listed u
   assert.equal(showcaseOn('clan', 'on'), true);
 });
 
-test('stream links: https on that platform, normalised to the channel', () => {
-  assert.deepEqual(checkStreamLink('twitch', ''), { ok: true, url: null });
-  assert.deepEqual(checkStreamLink('twitch', '  '), { ok: true, url: null });
-  assert.deepEqual(checkStreamLink('twitch', 'https://www.twitch.tv/Some_Streamer?ref=x#y'), {
-    ok: true,
-    url: 'https://twitch.tv/Some_Streamer',
+test('stream links come only from connected channels, built from the stored name', () => {
+  assert.deepEqual(verifiedStreamLinks({}), [], 'nothing connected = no links');
+  assert.deepEqual(verifiedStreamLinks({ twitchLogin: null, kickSlug: null, youtube: null }), []);
+
+  const links = verifiedStreamLinks({
+    twitchLogin: 'Some_Streamer',
+    kickSlug: 'kickname',
+    youtube: { channelId: 'UCabcdefghijklmnopqrstuv', handle: '@MyChannel', title: 'My Channel' },
   });
-  assert.deepEqual(checkStreamLink('twitch', 'https://m.twitch.tv/abc'), { ok: true, url: 'https://twitch.tv/abc' });
-  assert.deepEqual(checkStreamLink('kick', 'https://kick.com/streamer'), { ok: true, url: 'https://kick.com/streamer' });
-  for (const bad of [
-    'http://twitch.tv/abc', // not https
-    'https://twitch.tv/', // no channel
-    'https://twitch.tv.evil.com/abc', // look-alike host
-    'https://evil.com/twitch.tv/abc',
-    'https://user:pw@twitch.tv/abc',
-    'twitch.tv/abc', // not a URL
-    'javascript:alert(1)',
-    'https://kick.com/abc', // the other platform
-  ]) {
-    assert.equal(checkStreamLink('twitch', bad).ok, false, bad);
+  assert.deepEqual(
+    links.map((l) => [l.platform, l.url, l.handle]),
+    [
+      ['twitch', 'https://www.twitch.tv/some_streamer', 'Some_Streamer'],
+      ['youtube', 'https://www.youtube.com/@MyChannel', '@MyChannel'],
+      ['kick', 'https://kick.com/kickname', 'kickname'],
+    ],
+  );
+
+  // No handle: the channel id page, named by its title.
+  assert.deepEqual(
+    verifiedStreamLinks({ youtube: { channelId: 'UCabcdefghijklmnopqrstuv', handle: null, title: 'Fallback' } }).map((l) => [l.url, l.handle]),
+    [['https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv', 'Fallback']],
+  );
+});
+
+test('stream links: a stored value that is not a channel name never becomes an href', () => {
+  for (const bad of ['', '  ', 'evil.com/x', 'a b', '../../x', 'javascript:alert(1)', 'x'.repeat(26), 'name?x=1']) {
+    assert.deepEqual(verifiedStreamLinks({ twitchLogin: bad }), [], `twitch ${bad}`);
   }
-  assert.equal(checkStreamLink('kick', 'https://twitch.tv/abc').ok, false);
+  for (const bad of ['', 'kick.com/x', 'a b', '<script>', 'x'.repeat(41)]) {
+    assert.deepEqual(verifiedStreamLinks({ kickSlug: bad }), [], `kick ${bad}`);
+  }
+  assert.deepEqual(verifiedStreamLinks({ youtube: { channelId: 'not-a-channel', handle: 'no-at-sign' } }), []);
+  assert.deepEqual(verifiedStreamLinks({ youtube: { channelId: 'UC/../../evil', handle: '@ok"><x' } }), []);
+});
+
+test('typed stream links are gone: the old setting keys are not read or written from this module', async () => {
+  const mod = (await import('../src/lib/creatorSpaces.ts')) as Record<string, unknown>;
+  assert.equal(mod.checkStreamLink, undefined, 'no typed-link checker left to accept a typed link');
+  assert.equal(mod.STREAM_LINK_KEYS, undefined, 'no setting keys left to read a typed link from');
+  // And the builder takes no URL at all: a typed value passed in is ignored.
+  const sneaky = { twitchUrl: 'https://twitch.tv/famous', kickUrl: 'https://kick.com/famous' } as unknown as Parameters<typeof verifiedStreamLinks>[0];
+  assert.deepEqual(verifiedStreamLinks(sneaky), []);
+});
+
+test('your clans and your spaces: grouped apart, clans first, empty groups left out', () => {
+  const list = [
+    { name: 'Alpha', kind: 'clan' },
+    { name: 'Streamer Space', kind: 'creator' },
+    { name: 'Bravo', kind: null },
+    { name: 'Other Space', kind: 'creator' },
+  ];
+  const groups = groupClansAndSpaces(list, (c) => c.kind);
+  assert.deepEqual(
+    groups.map((g) => [g.key, g.label, g.items.map((i) => i.name)]),
+    [
+      ['clans', 'Your clans', ['Alpha', 'Bravo']],
+      ['spaces', 'Your spaces', ['Streamer Space', 'Other Space']],
+    ],
+  );
+  assert.equal(YOUR_CLANS_HEADING, 'Your clans');
+  assert.equal(YOUR_SPACES_HEADING, 'Your spaces');
+
+  // Only spaces: no empty "Your clans" heading.
+  const onlySpaces = groupClansAndSpaces([{ kind: 'creator' }], (c) => c.kind);
+  assert.deepEqual(onlySpaces.map((g) => g.key), ['spaces']);
+  // Only clans, and nothing at all.
+  assert.deepEqual(groupClansAndSpaces([{ kind: 'clan' }], (c) => c.kind).map((g) => g.key), ['clans']);
+  assert.deepEqual(groupClansAndSpaces([], () => 'clan'), []);
 });
 
 test('slug suggestion from a display name', () => {

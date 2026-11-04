@@ -224,46 +224,62 @@ export function showcaseOn(kind: string | null | undefined, showcase: string | n
 }
 
 // ── Stream links ─────────────────────────────────────────────────────────────────────────────────
+//
+// A creator page links ONLY to channels the space has connected through that platform's OAuth
+// (clan_twitch_channels, clan_kick_channels, clan_youtube_channels): signing in as the channel is the
+// proof it is theirs. A typed address proved nothing (anybody could type a famous streamer's
+// channel), so the old typed `creator_twitch_url` / `creator_kick_url` settings are never read or
+// written any more; rows that still exist are ignored. The URL is built here from the stored login,
+// slug or channel id, never from anything a person typed.
 
-export type StreamPlatform = 'twitch' | 'kick';
+export type StreamPlatform = 'twitch' | 'kick' | 'youtube';
 
-export const STREAM_LINK_KEYS: Record<StreamPlatform, string> = {
-  twitch: 'creator_twitch_url',
-  kick: 'creator_kick_url',
-};
+export interface VerifiedStreamLink {
+  platform: StreamPlatform;
+  /** "Twitch" / "Kick" / "YouTube". */
+  label: string;
+  /** What the channel is called there: the login, the slug, the @handle or the channel title. */
+  handle: string;
+  url: string;
+}
 
-const STREAM_HOSTS: Record<StreamPlatform, readonly string[]> = {
-  twitch: ['twitch.tv', 'www.twitch.tv', 'm.twitch.tv'],
-  kick: ['kick.com', 'www.kick.com'],
-};
+/** What the connected-channel rows hold. A missing row (never connected, or disconnected) is null. */
+export interface ConnectedChannels {
+  twitchLogin?: string | null;
+  kickSlug?: string | null;
+  youtube?: { channelId: string; handle: string | null; title?: string | null } | null;
+}
 
-const STREAM_NAMES: Record<StreamPlatform, string> = { twitch: 'Twitch', kick: 'Kick' };
-
-export type StreamLinkResult = { ok: true; url: string | null } | { ok: false; error: string };
+const TWITCH_LOGIN = /^[A-Za-z0-9_]{1,25}$/;
+const KICK_SLUG = /^[A-Za-z0-9_-]{1,40}$/;
+const YOUTUBE_HANDLE = /^@[A-Za-z0-9._-]{1,100}$/;
+const YOUTUBE_CHANNEL_ID = /^UC[A-Za-z0-9_-]{10,40}$/;
 
 /**
- * Check a channel link. Empty is fine (both are optional) and comes back as null.
- *
- * https only, on that platform's own host, with a channel name in the path — so a link labelled
- * "Twitch" on a creator's page can only ever go to Twitch. Stored without query or fragment.
+ * The links a creator page shows, built from its OAuth-connected channels only. A stored value that
+ * does not look like that platform's name is dropped rather than put in an href.
  */
-export function checkStreamLink(platform: StreamPlatform, raw: string | null | undefined): StreamLinkResult {
-  const s = (raw ?? '').trim();
-  if (!s) return { ok: true, url: null };
-  const name = STREAM_NAMES[platform];
-  const bad = { ok: false as const, error: `${name} link must look like https://${STREAM_HOSTS[platform][0]}/yourchannel` };
-  if (s.length > 200) return bad;
-  let u: URL;
-  try {
-    u = new URL(s);
-  } catch {
-    return bad;
+export function verifiedStreamLinks(c: ConnectedChannels): VerifiedStreamLink[] {
+  const out: VerifiedStreamLink[] = [];
+  const login = c.twitchLogin?.trim();
+  if (login && TWITCH_LOGIN.test(login)) {
+    out.push({ platform: 'twitch', label: 'Twitch', handle: login, url: `https://www.twitch.tv/${login.toLowerCase()}` });
   }
-  if (u.protocol !== 'https:' || u.username || u.password || u.port) return bad;
-  if (!STREAM_HOSTS[platform].includes(u.hostname.toLowerCase())) return bad;
-  const channel = u.pathname.split('/').filter(Boolean)[0] ?? '';
-  if (!/^[A-Za-z0-9_-]{2,40}$/.test(channel)) return bad;
-  return { ok: true, url: `https://${STREAM_HOSTS[platform][0]}/${channel}` };
+  const yt = c.youtube;
+  if (yt) {
+    const handle = yt.handle?.trim();
+    if (handle && YOUTUBE_HANDLE.test(handle)) {
+      out.push({ platform: 'youtube', label: 'YouTube', handle, url: `https://www.youtube.com/${handle}` });
+    } else if (YOUTUBE_CHANNEL_ID.test(yt.channelId ?? '')) {
+      const title = (yt.title ?? '').trim().slice(0, 60) || 'YouTube';
+      out.push({ platform: 'youtube', label: 'YouTube', handle: title, url: `https://www.youtube.com/channel/${yt.channelId}` });
+    }
+  }
+  const slug = c.kickSlug?.trim();
+  if (slug && KICK_SLUG.test(slug)) {
+    out.push({ platform: 'kick', label: 'Kick', handle: slug, url: `https://kick.com/${slug.toLowerCase()}` });
+  }
+  return out;
 }
 
 // ── Name and address ────────────────────────────────────────────────────────────────────────────
@@ -320,6 +336,33 @@ export function creatorSetupSteps(opts: { eventsCount: number; outsideSignups: n
       optional: true,
     },
   ];
+}
+
+// ── "Your clans" and "Your spaces" ──────────────────────────────────────────────────────────────
+
+export const YOUR_CLANS_HEADING = 'Your clans';
+export const YOUR_SPACES_HEADING = 'Your spaces';
+
+export interface ClanKindGroup<T> {
+  key: 'clans' | 'spaces';
+  label: string;
+  items: T[];
+}
+
+/**
+ * A person's places, split into their in-game clans and their creator spaces. A creator space is
+ * not a clan (no in-game clan behind it), so every list of "your clans" shows spaces as their own
+ * group. Clans first; input order kept within each group; an empty group is left out, so somebody
+ * with only spaces never sees an empty "Your clans" heading.
+ */
+export function groupClansAndSpaces<T>(items: readonly T[], kindOf: (item: T) => string | null | undefined): ClanKindGroup<T>[] {
+  const clans: T[] = [];
+  const spaces: T[] = [];
+  for (const it of items) (clanKindOf(kindOf(it)) === 'creator' ? spaces : clans).push(it);
+  const out: ClanKindGroup<T>[] = [];
+  if (clans.length > 0) out.push({ key: 'clans', label: YOUR_CLANS_HEADING, items: clans });
+  if (spaces.length > 0) out.push({ key: 'spaces', label: YOUR_SPACES_HEADING, items: spaces });
+  return out;
 }
 
 // ── Words ────────────────────────────────────────────────────────────────────────────────────────

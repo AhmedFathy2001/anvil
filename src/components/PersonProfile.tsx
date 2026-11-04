@@ -2,6 +2,8 @@ import ClanLink from '@/components/ClanLink';
 import AddCharacterClient from '@/app/profile/AddCharacterClient';
 import ProfileTabs, { SettingsButton } from '@/app/profile/ProfileTabs';
 import type { MyClan } from '@/lib/myClans';
+import CreatorChip from '@/components/CreatorChip';
+import { YOUR_CLANS_HEADING, groupClansAndSpaces } from '@/lib/creatorSpaces';
 import SupporterName from '@/components/SupporterName';
 import type { SupporterView } from '@/components/SupporterSection';
 import { ProfileAvatar, ProfileBanner } from '@/components/ProfileMedia';
@@ -110,27 +112,39 @@ export default function PersonProfile({
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
         <section className="rounded-xl border border-card-border bg-card-bg p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <span className="h-5 w-1 rounded-full bg-gold" />
-            <h2 className="text-lg font-semibold">Your clans</h2>
-          </div>
           {clans.length === 0 ? (
-            <p className="text-sm text-text-muted">
-              You&rsquo;re not in a clan yet.{' '}
-              <ClanLink href="/clans" className="text-gold hover:text-gold-light">
-                Browse the clans on Anvil
-              </ClanLink>
-              .
-            </p>
+            <>
+              <div className="mb-4 flex items-center gap-2">
+                <span className="h-5 w-1 rounded-full bg-gold" />
+                <h2 className="text-lg font-semibold">{YOUR_CLANS_HEADING}</h2>
+              </div>
+              <p className="text-sm text-text-muted">
+                You&rsquo;re not in a clan yet.{' '}
+                <ClanLink href="/clans" className="text-gold hover:text-gold-light">
+                  Browse the clans on Anvil
+                </ClanLink>
+                .
+              </p>
+            </>
           ) : (
+            // "Your clans", then "Your spaces" (creator spaces are not clans). Only non-empty groups.
+            groupClansAndSpaces(clans, (c) => c.clanKind).map((g, i) => (
+            <div key={g.key} className={i > 0 ? 'mt-6' : undefined}>
+            <div className="mb-4 flex items-center gap-2">
+              <span className="h-5 w-1 rounded-full bg-gold" />
+              <h2 className="text-lg font-semibold">{g.label}</h2>
+            </div>
             <ul className="grid gap-3 sm:grid-cols-2">
-              {clans.map((c) => (
+              {g.items.map((c) => (
                 <li key={c.id}>
                   <ClanLink
                     href={c.seat ? `/c/${c.slug}/profile` : `/c/${c.slug}`}
                     className="block rounded-lg border border-card-border bg-brown-dark/40 p-4 transition-colors hover:border-gold/40"
                   >
-                    <span className="font-medium text-foreground">{c.name}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="font-medium text-foreground">{c.name}</span>
+                      {g.key === 'spaces' && <CreatorChip />}
+                    </span>
                     <span className="mt-1 flex gap-2 text-xs text-text-muted">
                       {c.seat === 'member' && <span className="text-gold">Member</span>}
                       {c.seat === 'guest' && <span>{c.clanKind === 'creator' ? 'Player' : 'Guest'}</span>}
@@ -142,6 +156,8 @@ export default function PersonProfile({
                 </li>
               ))}
             </ul>
+            </div>
+            ))
           )}
         </section>
 

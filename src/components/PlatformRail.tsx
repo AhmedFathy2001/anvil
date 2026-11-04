@@ -6,6 +6,8 @@ import { useState } from 'react';
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
 import PendingBadge from '@/components/PendingBadge';
+import CreatorChip from '@/components/CreatorChip';
+import { groupClansAndSpaces } from '@/lib/creatorSpaces';
 import SupporterName from '@/components/SupporterName';
 import type { SupporterStyle } from '@/lib/supporterStyle';
 import type { SupporterTierId } from '@/lib/supporterTiers';
@@ -17,6 +19,8 @@ export interface RailClan {
   logoUrl?: string | null;
   /** Something is running there right now — the one thing worth a dot in a nav. */
   live?: boolean;
+  /** 'clan' | 'creator' (lib/creatorSpaces). Creator spaces list under "Your spaces", not "Your clans". */
+  kind?: string;
 }
 
 /**
@@ -130,21 +134,23 @@ export default function PlatformRail({
         {guideLibrary && item('/staff/guides', 'Guide library', <ShieldIcon />)}
       </div>
 
-      {clans.length > 0 && (
-        <div className="flex min-h-0 shrink-0 gap-0.5 lg:flex-col">
+      {/* "Your clans", then "Your spaces" (creator spaces are not clans — lib/creatorSpaces). An
+          empty group is left out, so somebody with only a space sees no empty clans heading. */}
+      {groupClansAndSpaces(clans, (c) => c.kind).map((g) => (
+        <div key={g.key} className="flex min-h-0 shrink-0 gap-0.5 lg:flex-col">
           {/* A divider only where the row is horizontal. On the desktop rail the section heading
               below already does this job, and a rule as well would be one line too many. */}
           <span aria-hidden className="mx-1 w-px self-stretch bg-card-border lg:hidden" />
           <div className="hidden items-center gap-2 px-2.5 pb-1.5 lg:flex">
             <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-dim">
-              Your clans
+              {g.label}
             </span>
-            <span className="font-mono text-[10px] text-text-dim/70">{clans.length}</span>
+            <span className="font-mono text-[10px] text-text-dim/70">{g.items.length}</span>
           </div>
           {/* Capped and scrolling: guesting into other clans' events is meant to be ordinary, so a
               dozen seats is a normal account. A rail listing all of them pushes the nav off screen. */}
           <div className="flex gap-0.5 lg:max-h-[min(34vh,320px)] lg:flex-col lg:overflow-y-auto">
-            {clans.map((c) => (
+            {g.items.map((c) => (
               <ClanLink
                 key={c.slug}
                 href={`/c/${c.slug}`}
@@ -152,6 +158,7 @@ export default function PlatformRail({
               >
                 <ClanCrest name={c.name} logoUrl={c.logoUrl} size={18} />
                 <span className="truncate">{c.name}</span>
+                {g.key === 'spaces' && <CreatorChip />}
                 {c.live && (
                   <span
                     className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-accent-green-light"
@@ -162,7 +169,7 @@ export default function PlatformRail({
             ))}
           </div>
         </div>
-      )}
+      ))}
 
       {/* THE WAY IN, which the rail did not have.
           /clans/new was reachable from pricing, about, the portal and both landing pages — every
