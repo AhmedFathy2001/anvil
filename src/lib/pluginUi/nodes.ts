@@ -233,8 +233,9 @@ export interface FeedRow {
   value?: string;
   /** The viewer's own, or their team's: drawn on a lighter ground. */
   mine?: boolean;
-  gz?: { n: number; mine?: boolean; on: Action };
-  reacts?: { kind: string; label: string; n: number; mine?: boolean; on: Action }[];
+  /** `who`: the chip's tooltip, "GZ · Mossy, Rikkert and 3 others" (a plugin from before it ignores it). */
+  gz?: { n: number; mine?: boolean; on: Action; who?: string };
+  reacts?: { kind: string; label: string; n: number; mine?: boolean; on: Action; who?: string }[];
   on?: Action;
   /** Right-click entries (mods: delete, mute). */
   menu?: { label: string; on: Action }[];

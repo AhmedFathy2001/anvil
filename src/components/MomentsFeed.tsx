@@ -1,5 +1,7 @@
 import { MOMENT_EMOJI, momentSentence } from '@/lib/moments';
 import type { MomentRow } from '@/lib/momentsStore';
+import type { SiteReactions } from '@/lib/siteReactions';
+import MomentReactions from './MomentReactions';
 
 /**
  * What actually happened — the pets, the drops, the deaths.
@@ -22,11 +24,14 @@ export default function MomentsFeed({
   title = 'Moments',
   blurb = 'what happened while the board ran — pets, big drops and deaths. Nothing here scores.',
   emptyNote,
+  reactions,
 }: {
   moments: MomentRow[];
   title?: string;
   blurb?: string;
   emptyNote?: string;
+  /** The rows' GZ / Sad / Sit (lib/siteReactions): counts for anyone, names and presses for those who may. */
+  reactions?: SiteReactions;
 }) {
   if (moments.length === 0 && !emptyNote) return null;
 
@@ -57,6 +62,9 @@ export default function MomentsFeed({
               <b className="font-semibold text-foreground">{m.rsn}</b> {momentSentence(m)}
             </span>
             {detail(m) && <span className="shrink-0 text-[11px] text-text-muted/80">{detail(m)}</span>}
+            {reactions?.byMoment[m.id] && (
+              <MomentReactions momentId={m.id} chips={reactions.byMoment[m.id]} canReact={reactions.canReact} target={reactions.target} />
+            )}
             <span className="shrink-0 font-mono text-[10.5px] text-text-muted">{when(m.occurredAt)}</span>
           </div>
         ))}
