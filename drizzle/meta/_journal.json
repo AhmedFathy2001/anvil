@@ -1100,6 +1100,13 @@
       "when": 1793821538194,
       "tag": "0215_friends_events",
       "breakpoints": true
+    },
+    {
+      "idx": 217,
+      "version": "7",
+      "when": 1793824900000,
+      "tag": "0217_seat_push_people",
+      "breakpoints": true
     }
   ]
 }

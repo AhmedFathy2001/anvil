@@ -18,7 +18,8 @@ import type { PushScope } from './ticket.ts';
 
 /**
  * One NOTIFY from the database (migration 0149) or lib/pushNotify: e = event, t = team, i = tile,
- * x = a team somebody just left (removed, or moved to another).
+ * x = a team somebody just left (removed, or moved to another), p = the people whose seat on it was
+ * just added, removed or moved (migration 0217).
  */
 export interface PushChange {
   k: string;
@@ -26,6 +27,7 @@ export interface PushChange {
   t: number | null;
   i: number | null;
   x?: number;
+  p?: number[];
 }
 
 export interface PushClient {
@@ -198,6 +200,10 @@ export class ViewHub {
   dispatch(change: PushChange): void {
     // Overlays first: a board nobody has the plugin open on can still be on stream.
     this.nudge(change.e);
+    // Someone was just seated, unseated or moved here: every client of theirs re-tickets, wherever it
+    // listens. A newly seated player isn't on this board's room yet (their ticket predates the seat),
+    // so nothing below would reach them — and their chat and Feed rows would wait for a config poll.
+    for (const u of change.p ?? []) for (const c of [...(this.people.get(u) ?? [])]) c.rescope?.();
     const onBoard = this.events.get(change.e);
     if (!onBoard) return;
     // A ticket's team was true when the site signed it. When somebody leaves a team, that team's
@@ -433,6 +439,7 @@ export function parseChange(payload: string): PushChange | null {
       t: Number.isInteger(p.t) ? p.t : null,
       i: Number.isInteger(p.i) ? p.i : null,
       ...(Number.isInteger(p.x) ? { x: p.x } : {}),
+      ...(Array.isArray(p.p) && p.p.some(Number.isInteger) ? { p: p.p.filter((n: unknown): n is number => Number.isInteger(n)) } : {}),
     };
   } catch {
     return null;

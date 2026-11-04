@@ -297,6 +297,22 @@ test('a team change rescopes the board\'s extra-board listeners too, not just th
   assert.equal(other, 0, 'another team on its own board stays');
 });
 
+test('seating someone re-tickets every client of theirs, even one not on that board yet', () => {
+  const hub = new ViewHub({ fetchView: async () => null, later: () => () => {} });
+  const dropped: string[] = [];
+  // Denoverse's client: listening for rows with no board yet (its ticket predates the seat).
+  hub.add({ scope: { userId: 4, eventIds: [], teamId: null, rows: true }, send: () => {}, rescope: () => dropped.push('fresh') });
+  // The same person's other character, already on another board.
+  hub.add({ scope: { userId: 4, eventIds: [9], teamId: 2, rows: true }, send: () => {}, rescope: () => dropped.push('alt') });
+  hub.add({ scope: { userId: 5, eventIds: [5], teamId: 10, rows: true }, send: () => {}, rescope: () => dropped.push('bystander') });
+  hub.dispatch({ k: 'event_participants', e: 5, t: null, i: null, p: [4] });
+  assert.deepEqual(dropped.sort(), ['alt', 'fresh'], 'the seated person re-tickets; nobody else on the board does');
+  assert.deepEqual(parseChange('{"k":"event_participants","e":5,"t":null,"i":null,"x":null,"p":[4,"x",6]}'), {
+    k: 'event_participants', e: 5, t: null, i: null, p: [4, 6],
+  });
+  assert.deepEqual(parseChange('{"k":"event_participants","e":5,"t":null,"i":null,"x":null,"p":null}'), { k: 'event_participants', e: 5, t: null, i: null });
+});
+
 // ── Stream overlays (watchers) ──────────────────────────────────────────────────────────────────
 
 test('an overlay gets a bare nudge when its event moves — never a view, and nothing is built for it', async () => {

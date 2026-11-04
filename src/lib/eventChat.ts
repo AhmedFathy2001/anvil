@@ -10,6 +10,7 @@ import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, eventChatMessages, eventChatMutes, eventParticipants, events, teams, users } from '@/db/schema';
+import { normalizeRsn } from '@/lib/auth';
 import { clanGrant, platformRoleOf } from '@/lib/clanGrants';
 import { atLeast, hasPlatformRole } from '@/lib/clanRoles';
 import { parseStamp } from '@/lib/dbTime';
@@ -78,21 +79,78 @@ export interface ChatAccess {
   role: 'host' | 'mod' | null;
   teamId: number | null;
   rsn: string | null;
+  /** How many seats this person holds on the board: with more than one, "mine" is by character. */
+  seats: number;
 }
 
-/** A participant's team and name on a board, by the person's characters. */
-async function participantOf(eventId: number, userId: number): Promise<{ teamId: number | null; rsn: string } | null> {
-  const [row] = await db
-    .select({ teamId: eventParticipants.teamId, name: eventParticipants.name })
+/**
+ * Which character a request speaks as, when the person has more than one seat on the board: the
+ * plugin's logged-in character (X-Account-Hash, then X-RSN or the launcher hint — see chatCharacter
+ * in lib/pluginUi/feedView), or one seat by id (the tile lab plays a named player). With one seat
+ * it never matters; with none given (the site, a staff tool) the first seat stands, as before.
+ */
+export interface ChatSeatPick {
+  accountHash?: string | null;
+  rsn?: string | null;
+  participantId?: number;
+}
+
+interface Seat {
+  id: number;
+  teamId: number | null;
+  name: string;
+  accountHash: string | null;
+  rsnNormalized: string | null;
+}
+
+/** The seat on a board this person speaks from: by the requesting character when they hold several. */
+export function pickSeat(seats: Seat[], pick: ChatSeatPick | null | undefined): Seat | null {
+  if (seats.length <= 1 || !pick) return seats[0] ?? null;
+  if (pick.participantId != null) {
+    const byId = seats.find((s) => s.id === pick.participantId);
+    if (byId) return byId;
+  }
+  if (pick.accountHash) {
+    const byHash = seats.find((s) => s.accountHash === pick.accountHash);
+    if (byHash) return byHash;
+  }
+  const rsn = pick.rsn ? normalizeRsn(pick.rsn) : '';
+  if (rsn) {
+    const byName = seats.find((s) => s.rsnNormalized === rsn || normalizeRsn(s.name) === rsn);
+    if (byName) return byName;
+  }
+  // A character of theirs that isn't seated here: the first seat, as with no character at all.
+  return seats[0];
+}
+
+/** A participant's team and name on a board, by the person's characters (and which one is asking). */
+async function participantOf(
+  eventId: number,
+  userId: number,
+  pick: ChatSeatPick | null | undefined,
+): Promise<{ teamId: number | null; rsn: string; seats: number } | null> {
+  const seats = await db
+    .select({
+      id: eventParticipants.id,
+      teamId: eventParticipants.teamId,
+      name: eventParticipants.name,
+      accountHash: accounts.accountHash,
+      rsnNormalized: accounts.rsnNormalized,
+    })
     .from(eventParticipants)
     .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
     .innerJoin(users, eq(users.playerId, accounts.playerId))
     .where(and(eq(eventParticipants.eventId, eventId), eq(users.id, userId)))
-    .limit(1);
-  return row ? { teamId: row.teamId, rsn: row.name } : null;
+    .orderBy(eventParticipants.id);
+  const seat = pickSeat(seats, pick);
+  return seat ? { teamId: seat.teamId, rsn: seat.name, seats: seats.length } : null;
 }
 
-export async function chatAccess(eventId: number, userId: number): Promise<ChatAccess | null> {
+/**
+ * `pick` names the character asking (see ChatSeatPick): a person with two characters seated on the
+ * board, one per client, speaks — and reads their team's lines — as the one that sent the request.
+ */
+export async function chatAccess(eventId: number, userId: number, pick?: ChatSeatPick | null): Promise<ChatAccess | null> {
   const ev = await db.query.events.findFirst({
     where: eq(events.id, eventId),
     columns: { id: true, clanId: true, chatEnabled: true, chatPaused: true },
@@ -100,7 +158,7 @@ export async function chatAccess(eventId: number, userId: number): Promise<ChatA
   if (!ev) return null;
   const [platformOn, part, grant, platformRole] = await Promise.all([
     platformChatOn(),
-    participantOf(eventId, userId),
+    participantOf(eventId, userId, pick),
     clanGrant(ev.clanId, userId),
     platformRoleOf(userId),
   ]);
@@ -118,6 +176,7 @@ export async function chatAccess(eventId: number, userId: number): Promise<ChatA
     role,
     teamId: part?.teamId ?? null,
     rsn: part?.rsn ?? null,
+    seats: part?.seats ?? 0,
   };
 }
 
@@ -153,7 +212,15 @@ const modAct = (eventId: number, id: number, act: 'chat-del' | 'chat-mute'): Act
   args: { e: String(eventId), id: String(id) },
 });
 
-async function rowsFor(eventId: number, lines: StoredLine[], viewer: { userId: number; staff: boolean } | null): Promise<FeedRow[]> {
+/**
+ * `viewer.rsn`: set only when the viewer holds several seats on the board — then a line is "mine"
+ * only when this character said it, not the same person's other character on another team.
+ */
+async function rowsFor(
+  eventId: number,
+  lines: StoredLine[],
+  viewer: { userId: number; staff: boolean; rsn?: string | null } | null,
+): Promise<FeedRow[]> {
   if (!lines.length) return [];
   const userIds = [...new Set(lines.map((l) => l.userId))];
   const teamIds = [...new Set(lines.map((l) => l.teamId).filter((t): t is number => t != null))];
@@ -168,7 +235,7 @@ async function rowsFor(eventId: number, lines: StoredLine[], viewer: { userId: n
     const ink = s ? supporterInk(s.tier.id, s.style) : null;
     const team = l.teamId != null ? teamById.get(l.teamId) : null;
     const o: ChatRowOptions = {
-      mine: viewer?.userId === l.userId,
+      mine: viewer?.userId === l.userId && (viewer.rsn == null || cleanName(viewer.rsn) === l.rsn),
       role: l.fromStaff ? (hosts.get(l.userId) ?? 'mod') : null,
       team: team ? { name: team.name, color: team.color } : null,
       ...(ink ? { whoColor: ink.color as Color, ...(ink.grad ? { grad: ink.grad as `#${string}`[], ...(ink.move ? { move: true } : {}) } : {}) } : {}),
@@ -214,7 +281,7 @@ export async function chatHistory(
   else if (filter === 'mods') where.push(eq(eventChatMessages.fromStaff, true), eq(eventChatMessages.teamOnly, false));
   else where.push(eq(eventChatMessages.teamOnly, false));
   const lines = await db.select(LINE_COLUMNS).from(eventChatMessages).where(and(...where)).orderBy(desc(eventChatMessages.id)).limit(limit);
-  return rowsFor(access.eventId, lines, { userId: viewerUserId, staff: access.staff });
+  return rowsFor(access.eventId, lines, { userId: viewerUserId, staff: access.staff, rsn: access.seats > 1 ? access.rsn : null });
 }
 
 /** Whether a board's chat is in slow mode right now (it turns itself on after a rush). */

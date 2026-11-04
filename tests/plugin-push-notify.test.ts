@@ -28,7 +28,7 @@ let clanCtx: typeof import('../src/lib/clanContext.ts');
 let listener: pg.Client;
 let site: http.Server;
 let server: ChildProcess;
-const heard: { k: string; e: number; t: number | null; i: number | null; x?: number | null }[] = [];
+const heard: { k: string; e: number; t: number | null; i: number | null; x?: number | null; p?: number[] | null }[] = [];
 let ids: { clan: number; event: number; red: number; blue: number; teamTile: number; soloTile: number; soloKill: number; me: number; mate: number };
 
 before(async () => {
@@ -94,7 +94,7 @@ after(async () => {
 /** Wait for the listener to catch up, then take what it heard. */
 async function drain(): Promise<typeof heard> {
   await new Promise((r) => setTimeout(r, 100));
-  return heard.splice(0).map(({ x, ...rest }) => (x != null ? { ...rest, x } : rest));
+  return heard.splice(0).map(({ x, p, ...rest }) => ({ ...rest, ...(x != null ? { x } : {}), ...(p != null ? { p } : {}) }));
 }
 
 test('a submission announces its event, team and tile', async () => {
@@ -127,6 +127,23 @@ test('leaving a team names it (x) so its listeners re-ticket; a pick from the po
     { k: 'event_participants', e: ids.event, t: null, i: null },
     { k: 'event_participants', e: ids.event, t: null, i: null, x: ids.blue },
     { k: 'event_participants', e: ids.event, t: null, i: null, x: ids.red },
+  ]);
+});
+
+test('seating, moving and unseating a person names them (p), so their own plugin re-tickets at once', async () => {
+  const [pl] = await db.insert(s.players).values({ displayName: 'Denoverse' }).returning();
+  const [acct] = await db.insert(s.accounts).values({ playerId: pl.id, rsn: 'Denoverse', rsnNormalized: 'denoverse' }).returning();
+  const [person] = await db.insert(s.users).values({ playerId: pl.id, displayName: 'Deno', discordId: '99300000000000001' }).returning();
+  await drain();
+  const [seat] = await db.insert(s.eventParticipants).values({ eventId: ids.event, name: 'Denoverse', accountId: acct.id, teamId: ids.red }).returning();
+  await db.update(s.eventParticipants).set({ cachedStats: '{"zulrah":1}' }).where(eq(s.eventParticipants.id, seat.id));
+  await db.update(s.eventParticipants).set({ teamId: ids.blue }).where(eq(s.eventParticipants.id, seat.id));
+  await db.delete(s.eventParticipants).where(eq(s.eventParticipants.id, seat.id));
+  assert.deepEqual(await drain(), [
+    { k: 'event_participants', e: ids.event, t: null, i: null, p: [person.id] },
+    { k: 'event_participants', e: ids.event, t: ids.red, i: null },
+    { k: 'event_participants', e: ids.event, t: null, i: null, x: ids.red, p: [person.id] },
+    { k: 'event_participants', e: ids.event, t: null, i: null, x: ids.blue, p: [person.id] },
   ]);
 });
 
