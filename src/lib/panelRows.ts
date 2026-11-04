@@ -10,11 +10,11 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, eventParticipants, events, teams, users } from '@/db/schema';
+import { accounts, clanMemberships, completions, eventParticipants, events, teams, tiles, users } from '@/db/schema';
 import { log } from '@/lib/logger';
 import { eventFeedFloor, isClanWorthy, panelFeedWorthy } from '@/lib/moments';
-import { clanScopeFor } from '@/lib/momentsStore';
-import { momentFeedIds, momentRow, rollupRow, type MomentLike } from '@/lib/pluginUi/feedUi';
+import { boardTileItemIds, clanScopeFor } from '@/lib/momentsStore';
+import { completionFeedIds, completionRow, momentFeedIds, momentRow, rollupRow, type MomentLike } from '@/lib/pluginUi/feedUi';
 import { standingsHidden } from '@/lib/standingsVisibility';
 import { ttlMemo } from '@/lib/ttlMemo';
 
@@ -129,7 +129,9 @@ export async function emitMomentRows(clanId: number, seatKind: string, list: New
     for (const m of list) {
       if (m.eventId == null) continue;
       const floor = eventFeedFloor(await boardSize(m.eventId));
-      if (!panelFeedWorthy(m, floor)) {
+      // An item one of the board's tiles wants shows whatever it's worth.
+      const wanted = m.itemId != null && (await boardTileItemIds(m.eventId)).has(m.itemId);
+      if (!wanted && !panelFeedWorthy(m, floor)) {
         if (m.kind === 'unique' || m.kind === 'loot') await rollup(m.eventId, now);
         continue;
       }
@@ -149,3 +151,37 @@ export async function emitMomentRows(clanId: number, seatKind: string, list: New
   }
 }
 
+
+/** A completion's stored timestamp as ISO (the column is 'YYYY-MM-DD HH:MM:SS' UTC). */
+export function completionAt(stamp: string): string {
+  return stamp.includes('T') ? stamp : `${stamp.replace(' ', 'T')}Z`;
+}
+
+/**
+ * A team just finished a board tile: its row to the board's Feed (everything, Tiles, the team's).
+ * A board hiding its standings tells only the team. A combo's part isn't a board cell, so it isn't
+ * shown (its combo is, when it lands). Fire-and-forget: never throws, and a missed live row is back
+ * the next time the list opens.
+ */
+export function emitCompletionRow(tileId: number, teamId: number): void {
+  void (async () => {
+    // clan-scope: global -- by the ids of a completion this request just stored.
+    const [c] = await db
+      .select({
+        eventId: tiles.eventId,
+        label: tiles.label,
+        parent: tiles.parentTileId,
+        at: completions.completedAt,
+        who: eventParticipants.name,
+      })
+      .from(completions)
+      .innerJoin(tiles, eq(tiles.id, completions.tileId))
+      .leftJoin(eventParticipants, eq(eventParticipants.id, completions.creditPlayerId))
+      .where(and(eq(completions.tileId, tileId), eq(completions.teamId, teamId)))
+      .limit(1);
+    if (!c || c.parent != null || c.eventId == null) return;
+    const row = completionRow({ tileId, teamId, label: c.label, who: c.who ?? null, team: await teamOf(teamId), at: completionAt(c.at) });
+    const target = (await boardHidden(c.eventId)) ? { e: c.eventId, t: teamId } : { e: c.eventId };
+    await notifyRows(target, { t: 'rows', feeds: completionFeedIds(c.eventId, teamId), rows: [row] });
+  })().catch((err: unknown) => log.warn('panel-rows.completion-failed', { tileId, teamId, message: (err as Error).message }));
+}

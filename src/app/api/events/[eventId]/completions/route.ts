@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { emitCompletionRow } from '@/lib/panelRows';
 import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
@@ -196,6 +197,7 @@ export async function POST(
       await afterPartCompletion(tile, teamId, { change: 'added', notifyClanId: clan.id });
       return NextResponse.json({ action: 'added', ...completion });
     }
+    emitCompletionRow(tileId, teamId);
 
     // Bounty rotation: close the claimed tile and draw the next immediately (cron backstops).
     if (gate.bounty) handleBountyClaim(eId, tileId).catch(() => {});
