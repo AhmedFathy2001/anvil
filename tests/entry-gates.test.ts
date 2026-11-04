@@ -230,6 +230,28 @@ test('labels without a connected channel still read', () => {
   assert.equal(gatesSummary({ anyOf: [{ kind: 'twitch-follow' }] }, { twitchLogin: null, hostName: 'X' }), 'Open to followers of the host on Twitch.');
 });
 
+test('short labels: a few words per gate for the plugin panel', async () => {
+  const { gatesShortLabel, ruleShortLabel } = await import('../src/lib/entryGates.ts');
+  const g = (anyOf: unknown[]) => parseGates({ anyOf });
+  assert.equal(gatesShortLabel(null), null);
+  assert.equal(gatesShortLabel(g([{ kind: 'twitch-sub', tier: 1 }])), 'Subs only (Twitch)');
+  assert.equal(gatesShortLabel(g([{ kind: 'twitch-sub', tier: 2 }])), 'Tier 2+ subs (Twitch)');
+  assert.equal(gatesShortLabel(g([{ kind: 'kick-follow' }])), 'Followers (Kick)');
+  assert.equal(gatesShortLabel(g([{ kind: 'kick-sub' }])), 'Subs only (Kick)');
+  assert.equal(gatesShortLabel(g([{ kind: 'discord-booster' }])), 'Boosters');
+  assert.equal(gatesShortLabel(g([{ kind: 'discord-role', roleId: '123456789012345678', roleName: '@Raiders' }])), 'Discord role: Raiders');
+  assert.equal(gatesShortLabel(g([{ kind: 'twitch-follow' }, { kind: 'discord-booster' }])), 'Followers (Twitch) or Boosters');
+  assert.equal(
+    gatesShortLabel(g([{ kind: 'twitch-follow' }, { kind: 'twitch-sub', tier: 1 }, { kind: 'discord-booster' }, { kind: 'youtube-sub' }, { kind: 'kick-follow' }])),
+    'Followers (Twitch), Subs (Twitch), Boosters +2 more',
+  );
+  assert.equal(ruleShortLabel({ kind: 'youtube-member' }), 'Members (YouTube)');
+  // A role name is display text that came from Discord: control characters gone, and bounded.
+  const evil = gatesShortLabel(g([{ kind: 'discord-role', roleId: '123456789012345678', roleName: 'a\u0000b'.padEnd(90, 'x') }]))!;
+  assert.ok(!/[\u0000-\u001f]/.test(evil));
+  assert.ok(evil.length <= 'Discord role: '.length + 32);
+});
+
 // ── Readers ──────────────────────────────────────────────────────────────────────────────────────
 
 test('twitch tiers and Discord member facts', () => {
