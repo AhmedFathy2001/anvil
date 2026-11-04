@@ -222,6 +222,28 @@ export function friendsRedateVerdict(opts: {
   return { ok: false, reason: 'full', error: FRIENDS_REDATE_OVER };
 }
 
+/**
+ * A write to one event's sign-ups, judged by what it actually did: the host's events snapshotted
+ * under the lock before it and after it, in the same transaction (lib/friendEvents
+ * guardFriendsSeats). Seats on `eventId` not up → always fine (an edit, a withdrawal, a downgrade
+ * keeps everyone). Up → the peak inside that event's window afterwards must fit the owner's cap.
+ * No `adding` is passed in, so nothing read before the lock can be stale.
+ */
+export function friendsSeatsChangeVerdict(opts: {
+  tier: SupporterTierId | null | undefined;
+  eventId: number;
+  before: readonly FriendsEventRow[];
+  after: readonly FriendsEventRow[];
+}): FriendsVerdict {
+  const was = opts.before.find((r) => r.id === opts.eventId)?.seats ?? 0;
+  const target = opts.after.find((r) => r.id === opts.eventId);
+  if (!target || target.seats <= was) return { ok: true };
+  const loads = opts.after.map(loadOf);
+  const peak = peakFor(loadOf(target), loads.filter((l) => l.id !== opts.eventId));
+  if (peak <= friendsPlayerCap(opts.tier)) return { ok: true };
+  return { ok: false, reason: 'full', error: FRIENDS_EVENT_FULL };
+}
+
 /** The snapshot of one host event the schedule check compares (lib/friendEvents withFriendsSchedule). */
 export interface FriendsEventRow {
   id: number;

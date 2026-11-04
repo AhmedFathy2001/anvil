@@ -1,8 +1,8 @@
 import crypto from 'crypto';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
-import { loginOf } from '@/lib/roster';
 import { db } from '@/db';
-import { clanRoster, eventParticipants, events, teams, eventSignups, accounts } from '@/db/schema';
+import { clanRoster, eventParticipants, events, teams, eventSignups, accounts, users } from '@/db/schema';
+import type { DbOrTx } from '@/lib/friendEvents';
 import { and, eq, inArray, isNull, isNotNull, or } from 'drizzle-orm';
 import { generatePlayerToken } from '@/lib/auth';
 import { accountsOfSeats, accountsOnBoard, onAccountConflict, type Participant } from '@/lib/participants';
@@ -114,31 +114,37 @@ export async function upsertPlayers(
 // Linked members attach to their users row; an unlinked in-game member gets a GUEST sign-up
 // (userId null). An existing sign-up (any status) is left untouched so an admin's manual status
 // decisions aren't silently overridden.
-export async function backfillApprovedSignups(eventId: number, clanMemberIds: number[]): Promise<void> {
+export async function backfillApprovedSignups(eventId: number, clanMemberIds: number[], exec: DbOrTx = db): Promise<void> {
   if (clanMemberIds.length === 0) return;
+  // `exec`: a friends event runs this on the transaction holding the host's lock (lib/friendEvents
+  // guardFriendsSeats), so every read and write here goes through it — never a second connection.
   // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
-  const members = await db.select().from(clanRoster).where(inArray(clanRoster.id, clanMemberIds));
+  const members = await exec.select().from(clanRoster).where(inArray(clanRoster.id, clanMemberIds));
   for (const m of members) {
     // Dedup: claimed → by (event, login); unclaimed → by (event, seat).
     //
     // eventSignups.userId names a LOGIN and a seat names a PERSON, so the person has to be resolved
     // to their login rather than passed straight in — the two are different id sequences.
-    const login = m.claimedAt ? await loginOf(m.playerId) : null;
-    const existing = await db.query.eventSignups.findFirst({
+    const login = m.claimedAt && m.playerId != null
+      ? ((await exec.select({ id: users.id }).from(users).where(eq(users.playerId, m.playerId)).limit(1))[0]?.id ?? null)
+      : null;
+    const existing = await exec.query.eventSignups.findFirst({
       where:
         login != null
           ? and(eq(eventSignups.eventId, eventId), eq(eventSignups.userId, login))
           : and(eq(eventSignups.eventId, eventId), eq(eventSignups.clanMemberId, m.id)),
     });
     if (existing) continue;
-    await db
+    await exec
       .insert(eventSignups)
       // `login`, not the person id. The comment above says exactly this and the dedup check three
       // lines up already uses it — the insert did not, so it wrote a PERSON id into a column that is
       // a foreign key to users.id. It does not fail: some unrelated login usually holds that number,
       // and the sign-up then belongs to them.
       .values({ eventId, userId: login, clanMemberId: m.id, status: 'approved', profileData: '{}' })
-      .catch(() => {}); // unique (event,user) race — ignore
+      // A unique (event, seat) race: the other write won, which is the answer wanted. Not a .catch():
+      // inside a transaction a failed statement aborts everything after it.
+      .onConflictDoNothing();
   }
 }
 

@@ -10,8 +10,11 @@
 // THE GATES. Two writes can take a host past its Supporter tier, and both go through here under ONE
 // per-host advisory lock, so joins and date changes serialise against each other:
 //
-//   withHostEventRoom    a sign-up that adds seats   → friendsJoinVerdict (the aggregate peak)
+//   guardFriendsSeats    any write that adds seats   → friendsSeatsChangeVerdict (the aggregate peak)
+//     (withHostEventRoom is it, for the self-serve sign-up)
 //   withHostEventSlot    create / clone / re-date    → friendsScheduleVerdict (tier, live limit, peak)
+//
+// Both run the write ON the locking transaction and judge a before/after snapshot taken under it.
 //
 // Both dispatch: a creator space or a clan goes to lib/creatorPlansDb exactly as before, untouched. An
 // event belongs to one host, so it is metered by exactly one of the two, never both.
@@ -20,6 +23,9 @@ import crypto from 'node:crypto';
 import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
+import type * as schema from '@/db/schema';
+import type { PgDatabase } from 'drizzle-orm/pg-core';
+import type { NodePgQueryResultHKT } from 'drizzle-orm/node-postgres';
 import { clanAuditLog, clanStaff, clans, eventInvites, eventSignups, events, users } from '@/db/schema';
 import { ON_BOARD_STATUSES } from '@/lib/creatorPlans';
 import { PlanLimitError, withEventRoom, withLiveEventSlot, type Executor } from '@/lib/creatorPlansDb';
@@ -34,6 +40,7 @@ import {
   friendsHostName,
   friendsJoinVerdict,
   friendsScheduleVerdict,
+  friendsSeatsChangeVerdict,
   isFriendsHost,
   isInviteToken,
   isLiveFriendsEvent,
@@ -45,7 +52,10 @@ import {
 import { setSetting } from '@/lib/settings';
 import { supporterForUser, type SupporterTierId } from '@/lib/supporter';
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+/** A transaction handle: every guarded write runs on the one that holds the host's lock. */
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+/** The db or a transaction: what a helper takes so a guarded caller can run it on the lock's transaction. */
+export type DbOrTx = PgDatabase<NodePgQueryResultHKT, typeof schema>;
 
 // Advisory-lock namespace (pg_advisory_xact_lock(ns, hostId)): one lock per friends host for every
 // write that could take it past its tier — joins and date changes alike. Distinct from the creator
@@ -204,36 +214,22 @@ export async function friendsJoinCheck(eventId: number, adding: number, tx: Exec
 }
 
 /**
- * lib/creatorPlansDb withEventRoom, for any host: a friends event runs the write under the host's
- * lock and re-checks the aggregate peak with the write in it (rolling back with a PlanLimitError, so
- * the routes' existing catch answers it); anything else is withEventRoom unchanged.
+ * lib/creatorPlansDb withEventRoom, for any host: a friends event goes through guardFriendsSeats
+ * (snapshot, write, snapshot, judge — one locked transaction, one connection); anything else is
+ * withEventRoom unchanged. `adding` is only the creator meter's: the friends gate judges what the
+ * write actually did, so a count read before the lock can never be stale for it.
  */
 export async function withHostEventRoom<T>(
   opts: { eventId: number; clanPlan: string | null; adding: number },
   write: (tx: Tx) => Promise<T>,
 ): Promise<T> {
-  const hostId = await friendsHostOfEvent(opts.eventId);
-  if (hostId == null) return withEventRoom(opts, write);
-  return db.transaction(async (tx) => {
-    const metered = opts.adding > 0;
-    if (metered) await lockFriendsHost(tx, hostId);
-    const out = await write(tx);
-    if (metered) {
-      const rows = await friendsEventRows(hostId, tx);
-      const loads = rows.map((r) => ({ id: r.id, window: eventWindow(r), seats: r.seats - (r.id === opts.eventId ? opts.adding : 0) }));
-      const target = loads.find((l) => l.id === opts.eventId);
-      if (target) {
-        const v = friendsJoinVerdict({ tier: await tierOfFriendsHost(hostId, tx), target, others: loads.filter((l) => l !== target), adding: opts.adding });
-        if (!v.ok) throw new PlanLimitError(v.error);
-      }
-    }
-    return out;
-  });
+  if ((await friendsHostOfEvent(opts.eventId)) == null) return withEventRoom(opts, write);
+  return guardFriendsSeats(opts.eventId, write);
 }
 
 /**
  * lib/creatorPlansDb withLiveEventSlot, for any host. A friends host: under its lock, snapshot its
- * events, run the write, snapshot again and judge every event the write changed
+ * events, run the write ON THAT TRANSACTION, snapshot again and judge every event the write changed
  * (friendsScheduleVerdict — a tier to create, the live limit, the aggregate peak), rolling back with
  * a PlanLimitError. Always checked for a friends host, whatever `clanPlan` says (that is the creator
  * meter's switch). Anything else: withLiveEventSlot unchanged.
@@ -244,12 +240,15 @@ export async function withHostEventSlot<T>(
   write: (tx: Tx) => Promise<T>,
 ): Promise<T> {
   if (!isFriendsHost(host)) return withLiveEventSlot(opts, write);
+  // Read BEFORE the transaction: the tier lookup runs on its own connection, and nothing inside a
+  // locked transaction may wait on a second one (a pool full of lock-holders would stall).
+  const tier = await tierOfFriendsHost(host.id);
   return db.transaction(async (tx) => {
     await lockFriendsHost(tx, host.id);
     const before = await friendsEventRows(host.id, tx);
     const out = await write(tx);
     const after = await friendsEventRows(host.id, tx);
-    const v = friendsScheduleVerdict({ tier: await tierOfFriendsHost(host.id, tx), before, after });
+    const v = friendsScheduleVerdict({ tier, before, after });
     if (!v.ok) throw new PlanLimitError(v.error);
     return out;
   });
@@ -438,15 +437,30 @@ export async function friendsPageReadable(opts: {
   return canSeeEvent({ eventId, playerId: opts.playerId });
 }
 
-// ── The one gate for every other way onto a board ───────────────────────────────────────────────
+// ── The one gate for every way onto a board ─────────────────────────────────────────────────────
 //
-// The self-serve sign-up writes inside withHostEventRoom's transaction. Every OTHER path that puts a
-// seat on a friends board — an admin signing somebody up on their behalf, approving a rejected or
-// withdrawn sign-up, adding players by hand (with their sign-up backfill), seating a captain — writes
-// through `db` itself, so it goes through here instead: under the SAME per-host lock, check the
-// aggregate peak with `adding` more seats, then run the write while the lock is still held. Every
-// gated writer serialises on that lock, so check-then-write cannot be raced past the cap. Not a
-// friends event, or nothing added: the write runs as it always did (the creator meter is #334's).
+// EVERY write that can put a seat on a friends board runs through guardFriendsSeats: the self-serve
+// sign-up (withHostEventRoom), an admin signing somebody up on their behalf, approving a rejected or
+// withdrawn sign-up, adding players by hand (their sign-up backfill), seating a captain.
+//
+//   1. the owner's tier is read first, outside any transaction;
+//   2. one transaction takes the host's advisory lock and snapshots the host's boards;
+//   3. the write runs ON THAT TRANSACTION (`write(tx)`) — never on `db`, so a lock-holder never waits
+//      for a second pooled connection, and the check and the write commit or roll back together;
+//   4. a second snapshot, and friendsSeatsChangeVerdict judges what the write actually did — no
+//      `adding` read before the lock, so nothing it relies on can be stale. Over → PlanLimitError,
+//      the transaction rolls back and nothing is written.
+//
+// Not a friends event: `write` still runs in a transaction of its own, nothing else changes (the
+// creator meter is lib/creatorPlansDb's).
+
+/** A guarded write found its row changed by somebody else since it was read: answer 409, try again. */
+export class SignupChangedError extends Error {
+  constructor(message = 'That sign-up changed meanwhile. Refresh and try again.') {
+    super(message);
+    this.name = 'SignupChangedError';
+  }
+}
 
 /** Seats a status change adds to the board: 1 when it goes from off (none/withdrawn/rejected) to on (pending/approved). */
 export function seatsAdded(prior: string | null | undefined, next: string): number {
@@ -454,32 +468,18 @@ export function seatsAdded(prior: string | null | undefined, next: string): numb
   return on(next) && !on(prior) ? 1 : 0;
 }
 
-/** How many of these seats have no on-board sign-up on this event yet: the places writing one for each would take. */
-export async function seatsWithoutSignup(eventId: number, clanMemberIds: number[]): Promise<number> {
-  if (clanMemberIds.length === 0) return 0;
-  // clan-scope: global -- one event's sign-ups for seats the caller already scoped to it.
-  const rows = await db
-    .select({ seat: eventSignups.clanMemberId })
-    .from(eventSignups)
-    .where(and(eq(eventSignups.eventId, eventId), inArray(eventSignups.clanMemberId, clanMemberIds), inArray(eventSignups.status, [...ON_BOARD_STATUSES])));
-  const onBoard = new Set(rows.map((r) => r.seat));
-  return new Set(clanMemberIds.filter((id) => !onBoard.has(id))).size;
-}
-
-/**
- * Run `write`, which may put `adding` more seats on this event's board. On a friends event it runs
- * under the host's lock after the aggregate check, and a refusal throws a PlanLimitError before
- * anything is written. Anything else: `write()` exactly as before.
- */
-export async function guardFriendsSeats<T>(eventId: number, adding: number, write: () => Promise<T>): Promise<T> {
-  if (adding <= 0) return write();
+/** Run a write that may put seats on this event's board — see the section header. */
+export async function guardFriendsSeats<T>(eventId: number, write: (tx: Tx) => Promise<T>): Promise<T> {
   const hostId = await friendsHostOfEvent(eventId);
-  if (hostId == null) return write();
+  if (hostId == null) return db.transaction((tx) => write(tx));
+  const tier = await tierOfFriendsHost(hostId);
   return db.transaction(async (tx) => {
     await lockFriendsHost(tx, hostId);
-    const verdict = await friendsJoinCheck(eventId, adding, tx);
-    if (verdict && !verdict.ok) throw new PlanLimitError(verdict.error);
-    // The write runs on its own connection and commits before the lock is released (end of this tx).
-    return write();
+    const before = await friendsEventRows(hostId, tx);
+    const out = await write(tx);
+    const after = await friendsEventRows(hostId, tx);
+    const v = friendsSeatsChangeVerdict({ tier, eventId, before, after });
+    if (!v.ok) throw new PlanLimitError(v.error);
+    return out;
   });
 }

@@ -387,21 +387,30 @@ test('sign-up on behalf: refused over the cap (approved or pending), fine once t
   assert.equal(await P.eventPlayerCount(ev.id), 11);
 });
 
+/** The admin approve action's write, exactly as the route runs it: conditional on the status the host saw. */
+function approveAsRoute(eventId: number, signupId: number, sawStatus: string) {
+  return F.guardFriendsSeats(eventId, async (tx) => {
+    const [row] = await tx
+      .update(s.eventSignups)
+      .set({ status: 'approved' })
+      .where(and(eq(s.eventSignups.id, signupId), eq(s.eventSignups.status, sawStatus)))
+      .returning();
+    if (!row) throw new F.SignupChangedError();
+    return row;
+  });
+}
+
 test('reactivation: a rejected or withdrawn sign-up coming back is a new place; pending → approved is not', async () => {
   const OB = await import('../src/lib/signupOnBehalf.ts');
-  const { ev, seat, host } = await fullSupporterBoard('Revive');
+  const { ev, seat } = await fullSupporterBoard('Revive');
   const [rejected] = await db.insert(s.eventSignups).values({ eventId: ev.id, clanMemberId: seat.id, status: 'rejected' }).returning();
   assert.equal(F.seatsAdded('rejected', 'approved'), 1);
-  assert.equal(F.seatsAdded('withdrawn', 'pending'), 1);
   assert.equal(F.seatsAdded('pending', 'approved'), 0);
-  assert.equal(F.seatsAdded(null, 'rejected'), 0);
-  // The admin approve action's write, exactly as the route runs it.
-  const approve = () =>
-    F.guardFriendsSeats(ev.id, F.seatsAdded(rejected.status, 'approved'), () =>
-      db.update(s.eventSignups).set({ status: 'approved' }).where(eq(s.eventSignups.id, rejected.id)).returning(),
-    );
-  await assert.rejects(approve, (e: Error) => e instanceof P.PlanLimitError);
-  assert.equal((await db.query.eventSignups.findFirst({ where: eq(s.eventSignups.id, rejected.id) }))?.status, 'rejected');
+  await assert.rejects(() => approveAsRoute(ev.id, rejected.id, 'rejected'), (e: Error) => e instanceof P.PlanLimitError);
+  assert.equal((await db.query.eventSignups.findFirst({ where: eq(s.eventSignups.id, rejected.id) }))?.status, 'rejected', 'rolled back');
+
+  // The host approved what they saw; somebody changed it meanwhile → a conflict, not a silent approve.
+  await assert.rejects(() => approveAsRoute(ev.id, rejected.id, 'pending'), (e: Error) => e instanceof F.SignupChangedError);
 
   // Withdrawn and revived on behalf: refused the same way.
   await db.update(s.eventSignups).set({ status: 'withdrawn' }).where(eq(s.eventSignups.id, rejected.id));
@@ -411,17 +420,37 @@ test('reactivation: a rejected or withdrawn sign-up coming back is a new place; 
   // Approving somebody already on the board (pending) adds nobody, so it goes through even when full.
   const [onBoard] = await db.select().from(s.eventSignups).where(and(eq(s.eventSignups.eventId, ev.id), eq(s.eventSignups.status, 'approved'))).limit(1);
   await db.update(s.eventSignups).set({ status: 'pending' }).where(eq(s.eventSignups.id, onBoard.id));
-  await F.guardFriendsSeats(ev.id, F.seatsAdded('pending', 'approved'), () =>
-    db.update(s.eventSignups).set({ status: 'approved' }).where(eq(s.eventSignups.id, onBoard.id)),
-  );
+  await approveAsRoute(ev.id, onBoard.id, 'pending');
   assert.equal(await P.eventPlayerCount(ev.id), 10);
-  void host;
+});
+
+test('two reactivations racing for the last place: exactly one wins', async () => {
+  const owner = await person('Fe Race Owner', 'supporter');
+  const r = await F.ensureFriendsHost(owner.userId);
+  assert.ok(r.ok);
+  if (!r.ok) return;
+  const host = await hostRow(r.host.id);
+  const ev = await friendsEvent(host, 'Race Bingo', iso(-1), iso(24));
+  await fill(host.id, ev.id, 9, 'racef'); // cap 10: one place left
+  const rejected = [];
+  for (const tag of ['A', 'B']) {
+    const p = await person(`Fe Racer ${tag}`);
+    const [seat] = await db.insert(s.clanMemberships).values({ clanId: host.id, accountId: p.accountId, kind: 'event', eventId: ev.id, source: 'web' }).returning();
+    const [row] = await db.insert(s.eventSignups).values({ eventId: ev.id, clanMemberId: seat.id, status: 'rejected' }).returning();
+    rejected.push(row);
+  }
+  const results = await Promise.allSettled(rejected.map((row) => approveAsRoute(ev.id, row.id, 'rejected')));
+  const won = results.filter((x) => x.status === 'fulfilled').length;
+  const full = results.filter((x) => x.status === 'rejected' && x.reason instanceof P.PlanLimitError).length;
+  assert.equal(won, 1, JSON.stringify(results.map((x) => x.status)));
+  assert.equal(full, 1);
+  assert.equal(await P.eventPlayerCount(ev.id), 10);
 });
 
 test('captain placement and manual adds: refused over the cap, nothing enrolled', async () => {
   const TC = await import('../src/lib/teamCaptain.ts');
   const EN = await import('../src/lib/enroll.ts');
-  const { ev, seat, friend, host } = await fullSupporterBoard('Captain');
+  const { ev, seat, friend } = await fullSupporterBoard('Captain');
   const [team] = await db.insert(s.teams).values({ eventId: ev.id, name: 'Reds', color: '#f00', captainUserId: friend.userId }).returning();
   const placed = await TC.placeCaptainOnTeam(ev.id, team.id, friend.userId);
   assert.equal(placed.reason, 'full');
@@ -429,19 +458,11 @@ test('captain placement and manual adds: refused over the cap, nothing enrolled'
   const parts = await db.query.eventParticipants.findMany({ where: and(eq(s.eventParticipants.eventId, ev.id), eq(s.eventParticipants.clanMemberId, seat.id)) });
   assert.equal(parts.length, 0, 'no player row without a place');
 
-  // The players route's add (upsert + sign-up backfill) under the same gate.
-  assert.equal(await F.seatsWithoutSignup(ev.id, [seat.id]), 1);
-  await assert.rejects(
-    () =>
-      F.guardFriendsSeats(ev.id, 1, async () => {
-        await EN.upsertPlayers(ev.id, [{ clanMemberId: seat.id, name: friend.name, discord: null, timezone: null }], null);
-        await EN.backfillApprovedSignups(ev.id, [seat.id]);
-      }),
-    (e: Error) => e instanceof P.PlanLimitError,
-  );
-  assert.equal(await P.eventPlayerCount(ev.id), 10);
-  // Somebody already signed up is not a new place: zero to add, and the gate lets the write through.
+  // The players route's add: the sign-up backfill on the gate's own transaction.
+  await assert.rejects(() => F.guardFriendsSeats(ev.id, (tx) => EN.backfillApprovedSignups(ev.id, [seat.id], tx)), (e: Error) => e instanceof P.PlanLimitError);
+  assert.equal(await P.eventPlayerCount(ev.id), 10, 'rolled back');
+  // A seat already on the board adds nothing: the same write goes through.
   const [already] = await db.select({ seat: s.eventSignups.clanMemberId }).from(s.eventSignups).where(eq(s.eventSignups.eventId, ev.id)).limit(1);
-  assert.equal(await F.seatsWithoutSignup(ev.id, [already.seat]), 0);
-  void host;
+  await F.guardFriendsSeats(ev.id, (tx) => EN.backfillApprovedSignups(ev.id, [already.seat], tx));
+  assert.equal(await P.eventPlayerCount(ev.id), 10);
 });

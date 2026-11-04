@@ -16,7 +16,7 @@ import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { syncEventServerMembersFireAndForget } from '@/lib/eventDiscord';
 import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 import { PlanLimitError } from '@/lib/creatorPlansDb';
-import { guardFriendsSeats, seatsWithoutSignup } from '@/lib/friendEvents';
+import { guardFriendsSeats } from '@/lib/friendEvents';
 
 export async function GET(
   request: Request,
@@ -156,9 +156,10 @@ export async function POST(
 }
 
 /**
- * Enrol these players and backfill their approved sign-ups — on a friends event (lib/friendEventRules)
- * only within the host's Supporter tier: the new board places are checked and written under the
- * host's lock (lib/friendEvents guardFriendsSeats). Refused: a 403 and nothing enrolled.
+ * Enrol these players and backfill their approved sign-ups. The sign-ups are what take board places,
+ * so they are written first, on a friends event (lib/friendEventRules) inside the host's locked gate
+ * and on its own transaction (lib/friendEvents guardFriendsSeats); a refusal is a 403 with nothing
+ * written. The player rows follow once the places are held.
  */
 async function addPlayersCapped(
   eventId: number,
@@ -167,15 +168,12 @@ async function addPlayersCapped(
 ): Promise<Awaited<ReturnType<typeof upsertPlayers>> | NextResponse> {
   const ids = members.map((m) => m.clanMemberId);
   try {
-    return await guardFriendsSeats(eventId, await seatsWithoutSignup(eventId, ids), async () => {
-      const result = await upsertPlayers(eventId, members, assignTeamId);
-      await backfillApprovedSignups(eventId, ids);
-      return result;
-    });
+    await guardFriendsSeats(eventId, (tx) => backfillApprovedSignups(eventId, ids, tx));
   } catch (e) {
     if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'full' }, { status: 403 });
     throw e;
   }
+  return upsertPlayers(eventId, members, assignTeamId);
 }
 
 export async function DELETE(

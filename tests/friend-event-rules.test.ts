@@ -16,6 +16,7 @@ import {
   friendsLiveVerdict,
   friendsRedateVerdict,
   friendsScheduleVerdict,
+  friendsSeatsChangeVerdict,
   isInviteToken,
   mayHostFriends,
   peakSeats,
@@ -171,4 +172,25 @@ test('invite tokens and the friends host’s pages', () => {
   assert.equal(friendsAllowsPublicPath('/events/12/signup'), true);
   assert.equal(friendsAllowsPublicPath('/members'), false);
   assert.equal(friendsAllowsPublicPath('/'), false);
+});
+
+test('seats change (the locked gate): judged by before/after, never by a count read earlier', () => {
+  const row = (id: number, seats: number, from: number | null = 0, to: number | null = 10): FriendsEventRow => ({
+    id,
+    startDate: from == null ? null : at(from),
+    endDate: to == null ? null : at(to),
+    forceEndedAt: null,
+    seats,
+  });
+  // 9 → 10 on a Supporter board: fits.
+  assert.equal(friendsSeatsChangeVerdict({ tier: 'supporter', eventId: 1, before: [row(1, 9)], after: [row(1, 10)] }).ok, true);
+  // 10 → 11: over.
+  assert.equal(friendsSeatsChangeVerdict({ tier: 'supporter', eventId: 1, before: [row(1, 10)], after: [row(1, 11)] }).ok, false);
+  // Overlap counts: 6 + 5 on two overlapping boards is 11.
+  assert.equal(friendsSeatsChangeVerdict({ tier: 'supporter', eventId: 1, before: [row(1, 5), row(2, 5)], after: [row(1, 6), row(2, 5)] }).ok, false);
+  // Down or flat is always fine, even far over the cap after a downgrade.
+  assert.equal(friendsSeatsChangeVerdict({ tier: 'supporter', eventId: 1, before: [row(1, 40)], after: [row(1, 40)] }).ok, true);
+  assert.equal(friendsSeatsChangeVerdict({ tier: null, eventId: 1, before: [row(1, 40)], after: [row(1, 39)] }).ok, true);
+  // No tier: any new seat is refused.
+  assert.equal(friendsSeatsChangeVerdict({ tier: null, eventId: 1, before: [row(1, 0)], after: [row(1, 1)] }).ok, false);
 });

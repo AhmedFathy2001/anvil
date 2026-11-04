@@ -19,7 +19,7 @@ import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { placementOf } from '@/lib/teamPlacement';
 import { enrolPlaced } from '@/lib/teamPlacementDb';
 import { PlanLimitError } from '@/lib/creatorPlansDb';
-import { guardFriendsSeats, seatsAdded } from '@/lib/friendEvents';
+import { SignupChangedError, guardFriendsSeats } from '@/lib/friendEvents';
 
 // Per-signup admin actions. All admin-only — captain selection is high-stakes and we
 // don't want a moderator accidentally locking the wrong person in.
@@ -193,14 +193,23 @@ export async function PATCH(
     }
     case 'approve': {
       // Approving a rejected or withdrawn sign-up puts it back on the board: on a friends event that
-      // place is capped by the host's Supporter tier (lib/friendEvents guardFriendsSeats, locked).
+      // place is capped by the host's Supporter tier (lib/friendEvents guardFriendsSeats — locked, and
+      // written on the lock's own transaction). The status the host saw is the one approved: if it
+      // changed meanwhile, 0 rows update and this answers 409 rather than approving something else.
       let updated: typeof eventSignups.$inferSelect;
       try {
-        [updated] = await guardFriendsSeats(evtId, seatsAdded(signup.status, 'approved'), () =>
-          db.update(eventSignups).set({ status: 'approved', updatedAt: now }).where(eq(eventSignups.id, sigId)).returning(),
-        );
+        updated = await guardFriendsSeats(evtId, async (tx) => {
+          const [row] = await tx
+            .update(eventSignups)
+            .set({ status: 'approved', updatedAt: now })
+            .where(and(eq(eventSignups.id, sigId), eq(eventSignups.status, signup.status)))
+            .returning();
+          if (!row) throw new SignupChangedError();
+          return row;
+        });
       } catch (e) {
         if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'full' }, { status: 403 });
+        if (e instanceof SignupChangedError) return NextResponse.json({ error: e.message, reason: 'changed' }, { status: 409 });
         throw e;
       }
       logAction('signup_approved');
