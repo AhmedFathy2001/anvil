@@ -8,6 +8,7 @@ import { statKeys, statLabel } from '@/lib/tileKinds';
 import { jsonStatValue, effectiveValue, computeGainFromJson, parseContributionSnapshot } from '@/lib/statTracking';
 import { gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
 import { liveStatsForMembers } from '@/lib/liveStats';
+import { countedModes, statGainWithModes } from '@/lib/modeStats';
 
 export interface StatStandingPlayer {
   playerId: number;
@@ -41,10 +42,14 @@ const readStat = (json: string | null | undefined, statType: string, keys: strin
 // `tileIds` narrows it to those tiles (the plugin's tile tracker reads one at a time).
 // Combo PARTS (lib/combo) that are stat tiles are included: their progress is their combo's.
 export async function getStatStandings(eventId: number, tileIds?: number[]): Promise<StatTileStanding[]> {
-  const [eventTiles, eventPlayers] = await Promise.all([
+  const [eventTiles, eventPlayers, eventRow] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, eventId)),
     db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
+    // clan-scope: global -- the caller already scoped this event id.
+    db.query.events.findFirst({ where: eq(events.id, eventId), columns: { rules: true } }),
   ]);
+  // Game modes this board counts (rules.worldModes) — scored off the row's mode readings (lib/modeStats).
+  const modes = countedModes(parseEventRules(eventRow?.rules));
 
   const statTiles = eventTiles
     .filter((t) => t.trackedStat && t.statType && t.statGoal && (!tileIds || tileIds.includes(t.id)))
@@ -138,7 +143,7 @@ export async function getStatStandings(eventId: number, tileIds?: number[]): Pro
           // missing snapshot reads as a baseline of zero, so the gain becomes the whole account.
           // It also clamps PER KEY, matching what actually scores — subtracting the summed totals
           // let a composite tile net one key's drop against another's rise.
-          gained: gainSinceReveal(computeGainFromJson(p.statsSnapshot, p.cachedStats, plug, keys, tile.statType!), reveal, p.id),
+          gained: gainSinceReveal(statGainWithModes(p.statsSnapshot, p.cachedStats, plug, keys, tile.statType!, p.modeStats, modes), reveal, p.id),
           hasBaseline: !!p.statsSnapshot,
         };
       })

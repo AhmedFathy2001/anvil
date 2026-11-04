@@ -50,6 +50,7 @@ import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { serverInfo } from '@/lib/serverInfo';
 import { pluginClansFor } from '@/lib/pluginClans';
 import { boardPointsPool, scoreTeam } from '@/lib/boardScoring';
+import { countedModes, statGainWithModes } from '@/lib/modeStats';
 import { parseEventRules, hasRevealPolicy, nextRevealAt, nextMissionAt, isMissionTile, parseTileMissionRules, missionPrizeSummary } from '@/lib/eventRules';
 import { startProofState } from '@/lib/startProof';
 import { combatTaskVarps } from '@/lib/combatTasks';
@@ -216,6 +217,7 @@ export async function buildEnrolledConfig(args: {
     ? await db.query.tiles.findMany({ where: eq(tiles.eventId, eventId) })
     : [];
   const rules = parseEventRules(event.rules);
+  const worldModes = countedModes(rules);
   const revealMode = hasRevealPolicy(rules);
 
   // STARTING SHOT (lib/startProof): what this player still owes, plus the keyword only they get.
@@ -343,6 +345,7 @@ export async function buildEnrolledConfig(args: {
         cachedStats: eventParticipants.cachedStats,
         frozenAt: eventParticipants.frozenAt,
         frozenStats: eventParticipants.frozenStats,
+        modeStats: eventParticipants.modeStats,
         // Per-KEY last-rose timestamps — the "is this teammate grinding THIS stat tile right now" signal
         // for "Active now". Per-stat (not per-member), so a fishing push only marks their fishing tile.
         liveStatKeyTimes: clanRoster.liveStatKeyTimes,
@@ -446,6 +449,13 @@ export async function buildEnrolledConfig(args: {
         lifetime += Math.max(0, current);
         const gained = current - baseline;
         if (gained > 0) playerGained += gained;
+      }
+      // A game mode this board counts (rules.worldModes) raises the gain per key (lib/modeStats).
+      if (!benched && !milestone && worldModes.length > 0) {
+        playerGained = Math.max(
+          playerGained,
+          statGainWithModes(p.statsSnapshot, nowStats, plug, statKeys(statName), statType, p.modeStats, worldModes),
+        );
       }
       // The team view (no caller) leaves a per-member tile at zero and lists each member's own instead.
       if (!milestone) {

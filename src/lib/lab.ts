@@ -369,6 +369,7 @@ export async function resetLabSession(eventId: number, opts: { keepLog?: boolean
         snapshotAt: null,
         cachedStats: null,
         pluginStats: null,
+        modeStats: null,
         frozenAt: null,
         frozenStats: null,
         deaths: 0,

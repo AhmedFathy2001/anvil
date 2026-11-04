@@ -201,7 +201,9 @@
     "test:features": "npx tsx --test tests/features.test.ts",
     "test:withdrawnroster": "npx tsx --test tests/withdrawn-roster-migration.test.ts",
     "test:startingstats": "npx tsx --test tests/starting-stats.test.ts",
-    "test:startingstatsdb": "npx tsx --test tests/starting-stats-capture.test.ts"
+    "test:startingstatsdb": "npx tsx --test tests/starting-stats-capture.test.ts",
+    "test:modestats": "npx tsx --test tests/mode-stats.test.ts",
+    "test:modeboarddb": "npx tsx --test tests/mode-board-credit-db.test.ts"
   },
   "dependencies": {
     "@vercel/blob": "^2.0.1",

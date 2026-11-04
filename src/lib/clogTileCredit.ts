@@ -100,8 +100,11 @@ export async function clogPagesProgress(tile: TileRow, teamId: number): Promise<
   return evaluateClogPages(spec, members, tile.trackingMode);
 }
 
-/** The clog tiles an account is playing right now: live events, revealed, auto-tracked, on a team. */
-async function liveClogTiles(accountId: number): Promise<{ event: EventRow; teamId: number; playerId: number; tile: TileRow }[]> {
+/**
+ * The clog tiles an account is playing right now: live events, revealed, auto-tracked, on a team.
+ * With `mode` (a game-mode world, lib/worldModes), only boards that count that mode (rules.worldModes).
+ */
+async function liveClogTiles(accountId: number, mode?: string): Promise<{ event: EventRow; teamId: number; playerId: number; tile: TileRow }[]> {
   const seats = await db
     .select({ id: eventParticipants.id, eventId: eventParticipants.eventId, teamId: eventParticipants.teamId })
     .from(eventParticipants)
@@ -110,7 +113,8 @@ async function liveClogTiles(accountId: number): Promise<{ event: EventRow; team
   const eventIds = [...new Set(seats.map((s) => s.eventId))];
   // clan-scope: global -- an account's own seats, across every clan it plays in: an unlock is the account's.
   const live = (await db.select().from(events).where(inArray(events.id, eventIds)))
-    .filter((e) => eventHasStarted(e) && !isEventOver(e) && !!e.tilesRevealed && !isDraftInProgress(e.draftStatus));
+    .filter((e) => eventHasStarted(e) && !isEventOver(e) && !!e.tilesRevealed && !isDraftInProgress(e.draftStatus))
+    .filter((e) => !mode || parseEventRules(e.rules).worldModes.includes(mode));
   if (live.length === 0) return [];
   const clogTiles = await db
     .select()
@@ -131,14 +135,19 @@ async function liveClogTiles(accountId: number): Promise<{ event: EventRow; team
  * Credit the clog tiles an account is on from unlock lines its plugin pushed (names as the game
  * printed them). Returns how many slots were credited. Never throws — the profile write that called
  * this has already happened, and a tile hiccup must not fail it.
+ *
+ * `mode`: the lines came from a game-mode world. Only boards that count that mode take them, and the
+ * account's stored log says nothing about that save — the unlock line alone proves the slot is new
+ * there — so nothing is ruled out as owned before the start. The per-member "already counted" check
+ * still keeps one item to one slot.
  */
-export async function creditClogUnlocks(accountId: number, names: string[]): Promise<number> {
+export async function creditClogUnlocks(accountId: number, names: string[], opts: { mode?: string } = {}): Promise<number> {
   try {
-    const targets = await liveClogTiles(accountId);
+    const targets = await liveClogTiles(accountId, opts.mode);
     if (targets.length === 0 || names.length === 0) return 0;
     const { syncDropTileCompletion } = await import('@/lib/submissions');
     const { queueSubmissionNotification, flushPendingNotifications } = await import('@/lib/notifications');
-    const log = await memberClogLog(accountId);
+    const log = opts.mode ? { synced: false, rows: [] } : await memberClogLog(accountId);
     let credited = 0;
     for (const { event, teamId, playerId, tile } of targets) {
       const done = await db.query.completions.findFirst({
