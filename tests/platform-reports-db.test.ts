@@ -8,6 +8,7 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
@@ -286,6 +287,7 @@ test('staff: a creator panel and a creator page through the same queue', async (
   const promo = await P.listPromoReports('all');
   assert.ok(promo.length >= 3);
   assert.ok(promo.every((r) => r.space.id === spaceId));
+  await db.update(s.clans).set({ platformHidden: false }).where(eq(s.clans.id, spaceId));
 });
 
 test('a report on another kind never closes a creator page report on the same clan id', async () => {
@@ -298,4 +300,67 @@ test('a report on another kind never closes a creator page report on the same cl
   assert.equal((await P.resolvePromoReport(rs.value, 'hide', staffer.userId)).ok, true);
   const clanRow = (await R.listReports({ status: 'all', type: 'clan' })).find((r) => r.id === rc.value)!;
   assert.equal(clanRow.status, 'open');
+});
+
+test('no existence oracle: what the reporter may not see answers exactly like a missing id', async () => {
+  const missing = await file(viewer, 'clan', 987_654);
+  assert.deepEqual(missing, { ok: false, error: R.NOT_FOUND_ERROR });
+  const sameAsMissing = async (type: string, id: number) => assert.deepEqual(await file(viewer, type, id), missing, `${type} ${id}`);
+  for (const t of ['space', 'creator_panel', 'event', 'character', 'person', 'highlight']) await sameAsMissing(t, 987_654);
+
+  // A members-only clan.
+  const [priv] = await db.insert(s.clans).values({ slug: 'secret', name: 'Secret Clan', visibility: 'members' }).returning();
+  await sameAsMissing('clan', priv.id);
+  // A public clan the platform hid.
+  const [hid] = await db.insert(s.clans).values({ slug: 'unlisted', name: 'Unlisted', visibility: 'public', platformHidden: true }).returning();
+  await sameAsMissing('clan', hid.id);
+  // A creator space the platform hid: its page and its panel.
+  const [sp] = await db
+    .insert(s.clans)
+    .values({ slug: 'hiddenspace', name: 'Hidden Space', kind: 'creator', plan: 'creator_free', visibility: 'public', platformHidden: true })
+    .returning();
+  const pnl = await P.createPanel({ id: sp.id, slug: sp.slug }, { title: 'Hi', body: 'x', linkUrl: null, imageUrl: null });
+  assert.ok(pnl.ok);
+  await sameAsMissing('space', sp.id);
+  if (pnl.ok) await sameAsMissing('creator_panel', pnl.value);
+  // A panel staff hid on a visible space answers the same as a missing panel.
+  await sameAsMissing('creator_panel', panelId);
+  // An invite-only event, and a clip from it.
+  await sameAsMissing('event', privateEventId);
+  const [clip] = await db
+    .insert(s.streamHighlights)
+    .values({
+      eventId: privateEventId,
+      clanId,
+      beat: 'start',
+      refKey: 'start-private',
+      platform: 'twitch',
+      channelOwner: 'host',
+      channelId: '111',
+      channelName: 'shadystream',
+      title: 'Secret start',
+      occurredAt: new Date(),
+      clipStatus: 'ready',
+      clipUrl: 'https://clips.twitch.tv/Secret',
+      vodStatus: 'none',
+    })
+    .returning();
+  await sameAsMissing('highlight', clip.id);
+  // An unshared character, and a person who is not public.
+  await sameAsMissing('character', unsharedAccount);
+  await sameAsMissing('person', viewer2.playerId);
+
+  // Someone with a grant in the private clan can see it, so can report it.
+  await db.insert(s.clanStaff).values({ clanId: priv.id, userId: viewer2.userId, role: 'moderator' });
+  assert.equal((await R.fileReport({ type: 'clan', id: priv.id, category: 'other', note: '', reporterUserId: viewer2.userId, reporterPlayerId: viewer2.playerId })).ok, true);
+  // And none of the outsider's attempts filed anything.
+  const filed = (await R.listReports({ status: 'all' })).filter((r) => [priv.id, hid.id, sp.id].includes(r.clan?.id ?? -1));
+  assert.equal(filed.length, 1);
+});
+
+test('the routes answer a hidden target with the same 404 as a missing one', () => {
+  for (const p of ['src/app/api/report/route.ts', 'src/app/api/space-report/route.ts']) {
+    const src = readFileSync(new URL(`../${p}`, import.meta.url), 'utf-8');
+    assert.match(src, /status: r\.error === NOT_FOUND_ERROR \? 404 : 400/, p);
+  }
 });

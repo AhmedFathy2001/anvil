@@ -20,8 +20,12 @@ import { db } from '@/db';
 import { accounts, clans, events, promoReports, spacePanels, spaceProfiles, streamHighlights, users } from '@/db/schema';
 import { apexPerson } from '@/lib/apexProfiles';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { canSeeClan } from '@/lib/clanAccess';
+import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { canSeeEvent } from '@/lib/eventAccess';
+import { showable } from '@/lib/highlights/rules';
 import { rateLimitByKey } from '@/lib/rate-limit';
+import { standingsHidden } from '@/lib/standingsVisibility';
 import { reportContent, staffSetPanelHidden, staffSetSpaceHidden } from '@/lib/spacePage/store';
 import {
   buildSnapshot,
@@ -69,18 +73,36 @@ interface Resolved {
   snapshot: string;
 }
 
-const GONE: Checked<never> = { ok: false, error: 'That is not there any more.' };
+/** The one answer for "no such thing" AND "not yours to see" — a report is never an existence oracle. */
+export const NOT_FOUND_ERROR = 'That is not there any more.';
+const GONE: Checked<never> = { ok: false, error: NOT_FOUND_ERROR };
+
+type ClanRow = typeof clans.$inferSelect;
+
+/**
+ * May this reporter see this clan's (or creator space's) page as it stands? A public clan the
+ * platform has not hidden, yes. A members-only clan, or one the platform hid from the public, only
+ * for someone with a seat or a staff grant in it (lib/clanAccess canSeeClan, the rule the clan layout
+ * gates its pages with). Archived clans for nobody.
+ */
+async function reporterSeesClan(c: ClanRow | undefined, playerId: number | null, userId: number): Promise<boolean> {
+  if (!c || c.status === 'archived') return false;
+  const openToAll = clanVisibilityOf(c.visibility) === 'public' && !c.platformHidden;
+  if (openToAll) return true;
+  // Forced to the closed rule so only a seat or a grant opens it, whatever `visibility` says.
+  return canSeeClan({ clanId: c.id, visibility: 'members', playerId, userId });
+}
 
 /**
  * The reported thing as the reporter can see it, with its snapshot — or null when it does not exist
  * or is not theirs to see (the same answer for both, so a report cannot probe for hidden things).
  */
-async function resolveTarget(type: ReportTarget, id: number, playerId: number | null): Promise<Resolved | null> {
+async function resolveTarget(type: ReportTarget, id: number, playerId: number | null, userId: number): Promise<Resolved | null> {
   switch (type) {
     case 'clan': {
       // clan-scope: global -- the reported clan, addressed by its own id.
       const c = await db.query.clans.findFirst({ where: eq(clans.id, id) });
-      if (!c || c.status === 'archived') return null;
+      if (!c || !(await reporterSeesClan(c, playerId, userId))) return null;
       return {
         clanId: c.id,
         snapshot: buildSnapshot(
@@ -141,12 +163,16 @@ async function resolveTarget(type: ReportTarget, id: number, playerId: number | 
     case 'highlight': {
       // clan-scope: global -- the reported clip by its own id; its event is access-checked below.
       const [h] = await db
-        .select({ h: streamHighlights, eventName: events.name })
+        .select({ h: streamHighlights, eventName: events.name, rules: events.rules, endDate: events.endDate, forceEndedAt: events.forceEndedAt })
         .from(streamHighlights)
         .innerJoin(events, eq(events.id, streamHighlights.eventId))
         .where(and(eq(streamHighlights.id, id), isNull(streamHighlights.staffHiddenAt)))
         .limit(1);
-      if (!h || !(await canSeeEvent({ eventId: h.h.eventId, playerId }))) return null;
+      if (!h || !showable({ clipUrl: h.h.clipStatus === 'ready' ? h.h.clipUrl : null, vodUrl: h.h.vodStatus === 'ready' ? h.h.vodUrl : null })) return null;
+      if (!(await canSeeEvent({ eventId: h.h.eventId, playerId }))) return null;
+      // Behind hidden standings a team's clip is that team's secret (lib/highlights visibleToScope);
+      // only the start, which names no side, is anybody's to see — and so to report.
+      if (h.h.beat !== 'start' && standingsHidden({ rules: h.rules, endDate: h.endDate, forceEndedAt: h.forceEndedAt })) return null;
       return {
         clanId: h.h.clanId,
         snapshot: buildSnapshot(
@@ -189,15 +215,17 @@ export async function fileReport(input: ReportInput): Promise<Checked<number>> {
       clanId = p.clanId;
     }
     // clan-scope: global -- the reported space by its own id.
-    const c = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { id: true, slug: true, kind: true } });
-    if (!c || !isCreatorSpace(c)) return GONE;
-    return reportContent(
+    const c = await db.query.clans.findFirst({ where: eq(clans.id, clanId) });
+    if (!c || !isCreatorSpace(c) || !(await reporterSeesClan(c, input.reporterPlayerId, input.reporterUserId))) return GONE;
+    const r = await reportContent(
       { id: c.id, slug: c.slug },
       { panelId: input.type === 'creator_panel' ? id : null, reason: note.value, reporterUserId: input.reporterUserId, category },
     );
+    // A panel the host or staff hid answers exactly like a missing one.
+    return r.ok ? r : GONE;
   }
 
-  const target = await resolveTarget(input.type, id, input.reporterPlayerId);
+  const target = await resolveTarget(input.type, id, input.reporterPlayerId, input.reporterUserId);
   if (!target) return GONE;
 
   // clan-scope: global -- one open report per reporter per reported thing, addressed by its own id.

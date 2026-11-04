@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { verifyUser } from '@/lib/auth';
 import { getClientIp } from '@/lib/clientIp';
-import { fileReport, reportRateCheck } from '@/lib/platformReports';
+import { fileReport, NOT_FOUND_ERROR, reportRateCheck } from '@/lib/platformReports';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,8 +14,10 @@ export const dynamic = 'force-dynamic';
  *
  * Signed-in only; rate-limited per person and per network; one open report per person per thing. The
  * answer is the same "thanks" for a new report and a repeat, and never says anything about who else
- * reported it. Addressed by ids rather than the host, so it works the same from a clan's subdomain,
- * its /c/<slug> path, a custom domain or the apex.
+ * reported it. Something missing and something the reporter may not see get the identical 404
+ * (lib/platformReports NOT_FOUND_ERROR), so a report cannot probe for private clans, events or
+ * profiles. Addressed by ids rather than the host, so it works the same from a clan's subdomain, its
+ * /c/<slug> path, a custom domain or the apex.
  */
 export async function POST(request: Request) {
   const session = await verifyUser();
@@ -40,6 +42,6 @@ export async function POST(request: Request) {
     reporterUserId: session.userId,
     reporterPlayerId: session.playerId ?? null,
   });
-  if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.error.startsWith('That is not there') ? 404 : 400 });
+  if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.error === NOT_FOUND_ERROR ? 404 : 400 });
   return NextResponse.json({ ok: true });
 }

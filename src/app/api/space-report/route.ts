@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { verifyUser } from '@/lib/auth';
 import { getClientIp } from '@/lib/clientIp';
-import { fileReport, reportRateCheck } from '@/lib/platformReports';
+import { fileReport, NOT_FOUND_ERROR, reportRateCheck } from '@/lib/platformReports';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +34,6 @@ export async function POST(request: Request) {
     reporterUserId: session.userId,
     reporterPlayerId: session.playerId ?? null,
   });
-  if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
+  if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.error === NOT_FOUND_ERROR ? 404 : 400 });
   return NextResponse.json({ ok: true });
 }
