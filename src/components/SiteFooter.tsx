@@ -63,6 +63,10 @@ export default async function SiteFooter() {
               <ClanLink href="/features" className="transition-colors hover:text-foreground">
                 Features
               </ClanLink>
+              {/* clan-prefix: platform -- apex-only block; /events here is the public events directory */}
+              <ClanLink href="/events" className="transition-colors hover:text-foreground">
+                Events
+              </ClanLink>
               <ClanLink href="/pricing" className="transition-colors hover:text-foreground">
                 Pricing
               </ClanLink>

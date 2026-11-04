@@ -198,6 +198,7 @@
     "test:imageanimation": "npx tsx --test tests/image-animation.test.ts",
     "test:linktext": "npx tsx --test tests/link-text.test.ts",
     "test:apexhome": "npx tsx --test tests/apex-home.test.ts tests/apex-home-signals.test.ts",
+    "test:events-directory": "npx tsx --test tests/events-directory.test.ts",
     "test:rulebook": "npx tsx --test tests/event-rulebook.test.ts tests/event-rules-post-migration.test.ts",
     "test:cohostdiscord": "npx tsx --test tests/cohost-discord.test.ts",
     "test:digest": "npx tsx --test tests/event-digest.test.ts tests/event-stats.test.ts",

@@ -111,8 +111,8 @@ export default function CreatorSettings() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <p className="max-w-[60ch] text-sm text-text-muted">
             {advertised
-              ? 'Your space is listed in the Anvil clans directory. Events you mark as advertised also show on the Anvil home page.'
-              : 'Unlisted: only people with your link can find your space. Turn this on to list it in the Anvil clans directory.'}
+              ? 'Your space is listed in the Anvil clans directory, and your new events start listed on anvilosrs.com/events. Switch any event off in its own settings.'
+              : 'Unlisted: only people with your link can find your space. Turn this on to list it in the Anvil clans directory. You can still list single events on anvilosrs.com/events from their settings.'}
           </p>
           <button
             type="button"

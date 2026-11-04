@@ -742,7 +742,10 @@ export const events = pgTable('events', {
   // host offer their changes back as a suggestion on an Anvil board, and counts how often a board is
   // used. Never followed: an event's tiles are its own from the moment it's created.
   libraryBoardId: integer('library_board_id').references((): AnyPgColumn => libraryBoards.id, { onDelete: 'set null' }),
-});
+}, (table) => [
+  // The public events directory (lib/eventsDirectoryDb, migration 0201): partial, advertised rows only.
+  index('events_advertised_start_idx').on(table.startDate).where(sql`${table.advertised} = true`),
+]);
 
 /**
  * STREAM OVERLAY (lib/overlay, migration 0193): the unguessable key in an event's OBS overlay URL.

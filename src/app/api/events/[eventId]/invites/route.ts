@@ -8,6 +8,8 @@ import { atLeast } from '@/lib/clanRoles';
 import { eventForRequest } from '@/lib/eventScope';
 import { isEntry, isVisibility } from '@/lib/eventAccess';
 import { forgetLinkCards } from '@/lib/ogKit';
+import { mayAdvertiseEvents } from '@/lib/eventsDirectory';
+import { forgetDirectory } from '@/lib/eventsDirectoryDb';
 
 /**
  * Inviting another clan — or one person — to an event, and setting who may see it.
@@ -47,7 +49,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   // always has, so a panel that did not know it could promise entry the roster then refused.
   const hostClan = await db.query.clans.findFirst({
     where: eq(clans.id, event.clanId),
-    columns: { guestPolicy: true },
+    columns: { guestPolicy: true, visibility: true },
   });
 
   return NextResponse.json({
@@ -55,6 +57,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
     entry: event.entry,
     advertised: event.advertised,
     guestPolicy: hostClan?.guestPolicy ?? null,
+    // Whether strangers may read the clan at all — the public events directory lists nothing from
+    // a clan that refuses them, so the "Advertise on Anvil" switch says so.
+    clanPublic: hostClan?.visibility === 'public',
     invites: rows,
   });
 }
@@ -86,11 +91,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     }
     if ('advertised' in body) {
       if (typeof body.advertised !== 'boolean') return NextResponse.json({ error: 'Bad advertised' }, { status: 400 });
+      // "Advertise on Anvil" puts the event on anvilosrs.com/events: the host's admins decide that,
+      // checked here on its own so loosening the route's guard for invites can never loosen this.
+      if (!mayAdvertiseEvents(session.role)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
       patch.advertised = body.advertised;
     }
     await db.update(events).set(patch).where(eq(events.id, eventId));
     // Who may see it just changed: no link card drawn under the old rule may be served again.
     if ('visibility' in patch) forgetLinkCards();
+    // Either one changes what the public directory may list; show the host their change at once.
+    if ('visibility' in patch || 'advertised' in patch) forgetDirectory();
     return NextResponse.json({ ok: true, ...patch });
   }
 
