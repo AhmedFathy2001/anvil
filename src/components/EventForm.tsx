@@ -548,7 +548,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
       // live — and where an admin can retry whichever ones did not go out. Carried in the URL rather
       // than shown here, because the board exists either way and this form is done.
       const failedQs = failed.length > 0 ? `?uninvited=${encodeURIComponent(failed.join(','))}` : '';
-      router.push(clanUrl(`/admin/events/${data.id}${useMultiClan ? `/settings${failedQs}#who-can-play` : ''}`));
+      router.push(clanUrl(`/admin/events/${data.id}${useMultiClan ? `/settings${failedQs}` : ''}`));
       router.refresh();
     } catch {
       setError('Failed to create event');

@@ -460,7 +460,7 @@ function BuildHome({
           ? 'Starts and ends on schedule.'
           : 'Open-ended — it runs until you end it.'
         : `The ${noun} can still be started by hand, but nothing is scheduled.`,
-      href: `${base}/settings`,
+      href: `${base}/settings#schedule`,
       action: 'Edit dates',
       blocking: false,
     },
@@ -481,7 +481,7 @@ function BuildHome({
       detail: event.tilesRevealed
         ? 'Members can read the board before it starts.'
         : 'Fine either way — just decide on purpose before the start.',
-      href: `${base}/settings`,
+      href: `${base}/settings/board#reveal`,
       action: 'Change',
       blocking: false,
     },
@@ -919,7 +919,7 @@ function WrapHome({
           Run it again
         </h2>
         <div className="flex flex-wrap gap-2 items-center">
-          <QuietLink href={`${base}/settings`}>Clone or save as a template</QuietLink>
+          <QuietLink href={`${base}/settings/more#clone`}>Clone or save as a template</QuietLink>
           {event.forceEndedAt && (
             <button
               type="button"

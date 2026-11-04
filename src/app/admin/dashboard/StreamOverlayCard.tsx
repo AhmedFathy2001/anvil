@@ -37,9 +37,9 @@ const SIZES: { key: Size; label: string }[] = [
  * The overlay shows exactly what the public event page shows — hidden standings stay hidden on
  * stream too — which the card says, so nobody expects the curtain to lift for their own scene.
  */
-export default function StreamOverlayCard({ eventId }: { eventId: number }) {
+export default function StreamOverlayCard({ eventId, defaultOpen = false }: { eventId: number; /** Open at once (a page that is only about the overlay). */ defaultOpen?: boolean }) {
   const { confirm, notify } = useDialog();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [key, setKey] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<View>('standings');
