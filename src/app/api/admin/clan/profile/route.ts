@@ -8,6 +8,7 @@ import { requireClan } from '@/lib/clanContext';
 import { verifyAdmin, verifyUser } from '@/lib/auth';
 import type { ClanFocus, ClanRequirements } from '@/lib/clanHome';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
+import { clanBoostLevel } from '@/lib/clanBoosts';
 
 /**
  * The clan's public profile — the face a stranger sees at /c/<slug> (lib/clanHome, PublicClanHome).
@@ -70,6 +71,8 @@ export async function GET() {
     logoUrl: row?.logoUrl ?? null,
     bannerUrl: row?.bannerUrl ?? null,
     bannerPosition: row?.bannerPosition ?? null,
+    // The boost level in force: an animated banner plays from Level 2 (the preview says so).
+    boostLevel: (await clanBoostLevel(clan.id).catch(() => null))?.level ?? 0,
   });
 }
 
