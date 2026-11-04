@@ -105,7 +105,8 @@ interface Seat {
 
 /** The seat on a board this person speaks from: by the requesting character when they hold several. */
 export function pickSeat(seats: Seat[], pick: ChatSeatPick | null | undefined): Seat | null {
-  if (seats.length <= 1 || !pick) return seats[0] ?? null;
+  // No character named (the website, or an old client): the person's seat, as before.
+  if (!pick || (pick.participantId == null && !pick.accountHash && !pick.rsn)) return seats[0] ?? null;
   if (pick.participantId != null) {
     const byId = seats.find((s) => s.id === pick.participantId);
     if (byId) return byId;
@@ -119,8 +120,9 @@ export function pickSeat(seats: Seat[], pick: ChatSeatPick | null | undefined): 
     const byName = seats.find((s) => s.rsnNormalized === rsn || normalizeRsn(s.name) === rsn);
     if (byName) return byName;
   }
-  // A character of theirs that isn't seated here: the first seat, as with no character at all.
-  return seats[0];
+  // The character asking isn't seated on this board (e.g. GIM Drenvox while Drenvox plays it): it
+  // speaks as nobody here. Falling back to another seat put words in a character that didn't say them.
+  return null;
 }
 
 /** A participant's team and name on a board, by the person's characters (and which one is asking). */
