@@ -23,6 +23,8 @@ export const CREATORS_SECTIONS = [
   'channels',
   'overlay',
   'chatjoin',
+  'page',
+  'highlights',
   'listing',
   'plans',
   'faq',
@@ -52,7 +54,7 @@ export default async function CreatorsGuide({ lang }: { lang: string }) {
       eyebrow={c.eyebrow}
       title={c.title}
       sections={SECTIONS}
-      minutes={6}
+      minutes={8}
       locale={{ code: locale.code, dir: locale.dir }}
       labels={t.common}
       languages={languages}
@@ -109,11 +111,23 @@ export default async function CreatorsGuide({ lang }: { lang: string }) {
         </Note>
       </Section>
 
-      <Section id="listing" n={10} title={c.listing.title} labels={t.common} optional>
+      <Section id="page" n={10} title={c.page.title} labels={t.common} optional>
+        {paragraphs(c.page.body, v)}
+        <ul className={list}>{items(c.page.items, v)}</ul>
+        <Note tag={c.page.note.tag}>
+          <p>{rt(c.page.note.body, v)}</p>
+        </Note>
+      </Section>
+
+      <Section id="highlights" n={11} title={c.highlights.title} labels={t.common} optional>
+        {paragraphs(c.highlights.body, v)}
+      </Section>
+
+      <Section id="listing" n={12} title={c.listing.title} labels={t.common} optional>
         {paragraphs(c.listing.body, v)}
       </Section>
 
-      <Section id="plans" n={11} title={c.plans.title} labels={t.common}>
+      <Section id="plans" n={13} title={c.plans.title} labels={t.common}>
         {paragraphs(c.plans.body, v)}
         <Rows rows={rows(c.plans.rows, v)} />
         <Note tag={c.plans.note.tag} tone="green">
@@ -121,7 +135,7 @@ export default async function CreatorsGuide({ lang }: { lang: string }) {
         </Note>
       </Section>
 
-      <Section id="faq" n={12} title={c.faq.title} labels={t.common}>
+      <Section id="faq" n={14} title={c.faq.title} labels={t.common}>
         <p className="text-text-muted">{rt(c.faq.intro, v)}</p>
         <Rows rows={rows(c.faq.rows, v)} />
       </Section>

@@ -18,13 +18,14 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
     'twitch', 'kick', 'youtube', 'obs', 'stream overlay', 'browser source', '!join', 'chat bot',
     'followers', 'subs', 'subscribers', 'sub only', 'members', 'boosters', 'gate', 'who can join',
     'viewers', 'no clan', 'advertise', 'listed', 'directory', 'plan', 'players per event', 'billing',
-    'approve', 'approval', 'waiting for your yes',
+    'approve', 'approval', 'waiting for your yes', 'space settings', 'your page', 'bio', 'banner',
+    'logo', 'panels', 'schedule', 'featured', 'highlights', 'clips', 'auto clip', 'report',
   ],
   'joining-a-streamer-event': [
     'viewer', 'join', 'joining', 'streamer event', 'stream link', 'link twitch', 'kick code',
     'get kick code', 'youtube subscription', 'sub only', 'follower only', 'event is full', 'full',
     'not subbed', 'won’t let me in', "won't let me in", 'cant join', "can't join", 'connected accounts',
-    'ask to join', 'waiting for the host',
+    'ask to join', 'waiting for the host', 'medal', 'clip my stream', 'report', 'events page',
   ],
   'streaming-for-clans': [
     'streaming', 'stream', 'clan stream', 'viewers', 'members and viewers', 'members only',
@@ -42,7 +43,8 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
   ],
   clan: [
     'clan', 'create', 'start', 'new', 'make', 'register', 'setup', 'set up', 'owner',
-    'address', 'slug', 'url', 'subdomain', 'name', 'rename', 'free', 'first',
+    'address', 'slug', 'url', 'subdomain', 'name', 'rename', 'free', 'first', 'billing', 'portal',
+    'plan and billing',
   ],
   discord: [
     'discord', 'bot', 'webhook', 'hook', 'channel', 'server', 'guild', 'invite', 'role', 'roles',
@@ -54,11 +56,13 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
     'plugin', 'runelite', 'install', 'hub', 'client', 'token', 'link', 'linking', 'verify',
     'verification', 'rsn', 'account', 'character', 'sync', 'roster', 'tracking', 'not tracking',
     'not showing', 'drops', 'overlay', 'sidebar', 'sign in', 'login', 'log in', 'warning',
-    'third party', '3rd party', 'ip address', 'privacy',
+    'third party', '3rd party', 'ip address', 'privacy', 'belongs to another', 'this is my account',
+    'ownership', 'claim',
   ],
   admin: [
     'admin', 'event', 'events', 'run', 'running', 'host', 'hosting', 'launch', 'start', 'signup',
     'sign-ups', 'sign ups', 'open', 'close', 'end', 'finish', 'schedule', 'announce', 'first event',
+    'team placement', 'auto-balance', 'auto balance', 'players pick', 'solo',
   ],
   board: [
     'board', 'tile', 'tiles', 'csv', 'xlsx', 'spreadsheet', 'import', 'export', 'bulk', 'authoring',
@@ -75,7 +79,7 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
   ],
   fees: [
     'fee', 'fees', 'pay', 'payment', 'payout', 'payouts', 'prize', 'prizes', 'gp', 'money', 'buy-in',
-    'buyin', 'entry', 'treasurer', 'coffer', 'pot', 'split',
+    'buyin', 'entry', 'treasurer', 'coffer', 'pot', 'split', 'guest fee', 'remind unpaid', 'unpaid',
   ],
   coffer: [
     'coffer', 'pot', 'bank', 'donation', 'donations', 'donate', 'donor', 'donors', 'gp', 'money',

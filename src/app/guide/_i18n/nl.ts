@@ -250,6 +250,7 @@ const nl: PartialGuideDict = {
       body: [
         'Je hebt een Discord-account nodig, en dat is de hele lijst. Meld je eerst aan op `{apex}`: een clan heeft een eigenaar nodig, en via het aanmelden weet de site dat jij dat bent. Begin bij **Een clan starten** op de platformpagina’s, of ga direct naar `{apex}/clans/new`.',
         'Het kost niets. Geen abonnement te kiezen, geen kaart in te vullen, en geen proefperiode die verloopt en je bord meeneemt — een clan begint gratis en blijft bruikbaar.',
+        'Grote clans kunnen later overstappen op een groter abonnement via **Plan and billing** in Admin. Alles wat je op Anvil betaalt — een clan, een creator-space of je eigen Supporter-lidmaatschap — staat op [je factuurpagina](/portal).',
       ],
       note: {
         tag: 'Jij wordt de eigenaar',
@@ -855,6 +856,10 @@ const nl: PartialGuideDict = {
           term: '`Anvil: reconnected — tracking is back on.`',
           body: 'Niets. Het herstelde zichzelf.',
         },
+        {
+          term: '“<RSN> belongs to another Anvil player”',
+          body: 'Iemand anders heeft dit character als eerste op Anvil gekoppeld, dus vanaf jouw login telt er niets voor. Is het echt van jou? Druk dan op **This is my account** in het tabblad **You** van het paneel en doe de korte XP-controle. Daarna wordt de huidige eigenaar gevraagd, of beslist de staf van Anvil. Je komt nooit te weten wie het is. Volg het via [Settings → Ownership claims](/settings/claims).',
+        },
       ],
       logHeading: 'Nog steeds vast? Stuur een admin een log',
       logBody:
@@ -1055,6 +1060,26 @@ const nl: PartialGuideDict = {
       body: [
         'Het tabblad **Teams & Draft** past zich aan het gekozen format aan: een format zonder teams slaat het helemaal over. Voor een gewone teambingo maak je de teams aan, bepaal je wie er captain is, en verdeel je de spelers zelf of draai je een live draft.',
         'De captains draften uit de inschrijfpool in de volgorde die jij kiest, en elke captain ziet de antwoorden die mensen op het inschrijfformulier gaven — bevroren zoals ze zijn ingediend, zodat niemand zijn “uren per week” aanpast nadat hij gekozen is.',
+      ],
+      placementIntro:
+        'Je hoeft niet te draften. **Team placement**, op het aanmaakformulier en het tabblad **Sign-ups**, bepaalt waar elke nieuwe inschrijving terechtkomt:',
+      placementRows: [
+        {
+          term: 'Auto-balance',
+          body: 'elke persoon die zich inschrijft, komt in het team met de minste spelers. Jij kiest alleen hoeveel teams er zijn. Goed voor grote openbare events.',
+        },
+        {
+          term: 'Players pick',
+          body: 'jij maakt eerst de teams, en elke speler kiest er een op het inschrijfformulier. Stel een limiet per team in om ze gelijk te houden.',
+        },
+        {
+          term: 'Host drafts',
+          body: 'iedereen wacht in een pool tot jij of je captains ze draften of met de hand indelen. Het beste als je de spelers kent.',
+        },
+        {
+          term: 'Solo',
+          body: 'helemaal geen teams. Elke speler speelt voor zichzelf, onder de naam van zijn character, en de stand rangschikt spelers.',
+        },
       ],
       lockNote: {
         tag: 'De draft zet de teams vast',
@@ -1790,6 +1815,10 @@ const nl: PartialGuideDict = {
           term: 'Betaaldeadline',
           body: 'zodra die verstreken is, houden onbetaalde inschrijvingen op iets te zijn waar je achteraan zit en worden ze een beslissing. Zet hem eerder dan je denkt — de dag vóór het event is te laat om iemand te vervangen.',
         },
+        {
+          term: 'Gastinleg',
+          body: 'wat spelers betalen die geen lid zijn van een clan die het bord runt. Laat je het leeg, dan betalen gasten de ledeninleg. Wil je één speler een ander bedrag laten betalen, druk dan op **Change this player’s fee** in zijn rij bij **Sign-ups**.',
+        },
       ],
       note: {
         tag: 'De pot volgt de inschrijvingen',
@@ -1802,6 +1831,7 @@ const nl: PartialGuideDict = {
       body: [
         'Inleg wordt geïnd zoals jullie clan sowieso al geld int — in het spel, op Discord, hoe jullie het ook doen. Anvils werk begint op het moment dat het binnenkomt: iemand met stafttoegang markeert het als **betaald**, en dat legt vast wie zegt het te hebben ontvangen, en wanneer.',
         'Spelers hebben ook een stem. Een lid kan melden aan wie hij betaalde en er een schermafbeelding bij hangen, en dat is wat “ik heb echt betaald” tot een vastlegging met twee kanten maakt. Wanneer de melding van de speler en de bewering van de inner verschillende mensen noemen, is dat een geschil dat de site je kan tonen in plaats van een dat je midden in een ruzie ontdekt.',
+        'Achter mensen aan zitten is één knop: **Remind unpaid** bij Admin → **Fees** stuurt een Discord-DM naar iedereen bij dat event die nog moet betalen.',
       ],
       note: {
         tag: 'Het bewijs wordt met opzet verwijderd',
@@ -2445,7 +2475,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Kick followers',
-          body: 'Kick vertelt apps niet wie je volgt. Daarom telt Anvil mensen die je volgen _nadat_ je Kick hebt gekoppeld. Eerder gevolgd? Dan ontvolgt de kijker je en volgt opnieuw.',
+          body: 'Kick vertelt apps niet wie je volgt. Daarom telt Anvil mensen die je volgen _nadat_ je Kick hebt gekoppeld. Eerder gevolgd? Dan ontvolgt de kijker je en volgt opnieuw. Is je Kick-chat alleen voor volgers? Zet dan **My Kick chat is followers-only** aan in het vak **Kick channel**. Een kijker die zijn Anvil-code in je chat typt, telt dan als volger.',
         },
         {
           term: 'Kick subs',
@@ -2486,7 +2516,7 @@ const nl: PartialGuideDict = {
     channels: {
       title: 'Koppel je Twitch, Kick of YouTube',
       body: [
-        'Open **Settings** in het menu. Onder de naam van je space druk je op **Connect Twitch**, **Connect YouTube** of **Connect Kick** en log je in als je kanaal.',
+        'Open **Settings** in het menu. Druk in het vak **Twitch channel**, **YouTube channel** of **Kick channel** op **Connect Twitch**, **Connect YouTube** of **Connect Kick** en log in als je kanaal.',
         'Elk kanaal dat je koppelt, staat op je pagina als **verified**-link. Je kunt geen link met de hand intypen: door in te loggen weet Anvil dat het kanaal van jou is.',
         'Een kanaal kan aan één plek op Anvil gekoppeld zijn. Staat het al op een andere space of clan van jou, dan vraagt Anvil of je het wilt verplaatsen.',
       ],
@@ -2520,11 +2550,42 @@ const nl: PartialGuideDict = {
       body: [
         'Open **Settings** → **!join in Twitch chat** en zet het aan.',
         'Als een kijker `!join` typt, antwoordt de Anvil-bot (Anvil_OSRS) met de link naar je open event. Hij antwoordt hooguit eens per 30 seconden, hoeveel mensen het ook typen.',
-        'Hij antwoordt alleen in een kanaal dat je in stap 7 hebt gekoppeld. Het werkt ook in de Kick-chat, zodra je Kick-kanaal gekoppeld is.',
+        'Hij antwoordt alleen in een kanaal dat je in stap 7 hebt gekoppeld. Voor Kick zet je **!join in Kick chat** aan in het vak **Kick channel**.',
         'Geen event open? Dat zegt hij dan: “No event is open to join right now — keep an eye on the stream!”',
       ],
       tips: [
         'Blokkeert je chat links (Twitch’ **Block hyperlinks** of AutoMod), dan wordt het antwoord van de bot tegengehouden. Typ één keer `/vip anvil_osrs` of `/mod anvil_osrs` in je chat zodat de link erdoor komt.',
+        'Bezig met een event? **Space settings** in het menu van het event brengt je terug naar deze schakelaars. Dat doet **Switch it on in your settings** onder **Who can join?** ook.',
+      ],
+    },
+
+    page: {
+      title: 'Maak je pagina persoonlijk',
+      body: [
+        'Je pagina is wat mensen zien op `{apex}/c/your-name`, samen met je events. Open **Settings** → **Your page**. Elk onderdeel heeft een eigen opslaanknop.',
+      ],
+      items: [
+        '**Bio.** Een paar regels over jou en je streams. Links die beginnen met `https://` zijn klikbaar.',
+        '**Logo and banner.** Druk op **Upload a logo** of **Upload a banner**. De banner loopt over de hele bovenkant van je pagina, dus maak hem breed (3:1, bijvoorbeeld 1500 × 500). PNG, JPEG, GIF of WebP. Beide mogen geanimeerd zijn.',
+        '**Panels.** Tot 8 kaarten onder je events, zoals de panelen onder een Twitch-kanaal. Druk op **+ Add a panel** en geef het een titel en wat tekst. Een afbeelding en een link zijn optioneel. Met de pijlen verander je de volgorde.',
+        '**Schedule.** Wanneer je meestal live gaat, in je eigen tijdzone. Bezoekers zien elke tijd op hun eigen klok.',
+        '**Featured.** Eén clip, vastgezet bovenaan je pagina. Kies een van je stream-highlights (volgende stap), of plak een cliplink van Twitch, YouTube, Kick of Medal.',
+        'Druk op **Preview your page** om je pagina te zien zoals bezoekers hem zien.',
+      ],
+      note: {
+        tag: 'De regels van Jagex',
+        body: 'Alles op je pagina moet de regels van Jagex volgen: geen verkoop van goud of accounts, geen gokken, geen bots en geen privéservers. Anvil controleert je tekst en links als je opslaat. Verbergt de staf van Anvil je pagina na een melding, dan staat dat in je instellingen. Denk je dat het een vergissing is? Vraag het op de Discord van Anvil.',
+      },
+    },
+
+    highlights: {
+      title: 'Stream-highlights',
+      body: [
+        'Is je Twitch- of YouTube-kanaal gekoppeld, dan legt Anvil de grote momenten van je events vast terwijl je live bent. De schakelaars staan in **Settings** → **Stream highlights**.',
+        '**Auto-clip big moments on my stream** staat aan zodra je koppelt. Terwijl je live bent op Twitch, maakt Anvil een clip als een van je events begint, als een team het bord uitspeelt of wint, en als je eigen character een zeldzame drop of een pet krijgt. Op YouTube bewaart Anvil in plaats daarvan een link naar die seconde van je stream. Kick heeft nog geen highlights.',
+        'De clips staan onder **Highlights** op de eventpagina en op je pagina. Je kunt er een vastzetten als je **Featured**-clip (stap 10).',
+        '**Let Anvil feature clips from my events in its own promotion** blijft uit tot je het aanzet. Daarna mag Anvil een clip delen op zijn eigen pagina’s en socials, en noemt het jou altijd als maker.',
+        'Je spelers kunnen ook hun eigen grote momenten clippen. Ze zetten **Clip my stream when I hit a big moment** aan onder hun Twitch-account in **Settings** → **Connected accounts**.',
       ],
     },
 
@@ -2534,6 +2595,7 @@ const nl: PartialGuideDict = {
         'Je space staat bij het maken niet in de lijst. Alleen mensen met je link kunnen hem vinden.',
         'Open **Settings** → **Advertise on Anvil** en zet het aan. Je space staat dan in de Anvil-clangids en je nieuwe events staan op `{apex}/events`.',
         'Wil je maar één event vermelden, open dan de **Settings** ervan → **Who can play** → **Advertise on Anvil**. Het staat erin zolang het event gepland of live is.',
+        'Een event zonder datums staat onder **Open to join**, met de tekst “Open now · starts when the host starts it”.',
       ],
     },
 
@@ -2583,6 +2645,14 @@ const nl: PartialGuideDict = {
         {
           term: 'Kan ik een tweede space maken?',
           body: 'Voorlopig één space per Discord-account. Neem contact op als je er nog een nodig hebt.',
+        },
+        {
+          term: 'Waar vind ik de instellingen van mijn space?',
+          body: 'Druk op **Settings** in het menu. Zit je in een event, druk dan op **Space settings** in het menu van het event.',
+        },
+        {
+          term: 'Wat doet de **Report**-knop op mijn pagina?',
+          body: 'Iedereen die is ingelogd, kan je pagina, een paneel, een event of een highlight melden bij de staf van Anvil. Meldingen gaan alleen naar de staf. Verbergt de staf je bio, panelen, schema of uitgelichte clip, dan staat dat in je instellingen.',
         },
       ],
     },
@@ -2667,6 +2737,8 @@ const nl: PartialGuideDict = {
       body: [
         'De Twitch-, YouTube- en Kick-accounts die je hebt gekoppeld staan in [Settings → Connected accounts](/settings/connections). Je kunt ze daar ook koppelen voordat je meedoet.',
         'Je kunt er altijd een ontkoppelen. Events waaraan je al meedoet, houden je erin. Bij een afgeschermd event waaraan je later meedoet, moet je opnieuw koppelen.',
+        'Gekoppelde Twitch-, YouTube- en Kick-accounts staan op je profiel met een vinkje: je hebt bewezen dat ze van jou zijn. Zet **Show on my profile** uit om er een te verbergen. Een Medal-link is anders. Die plak je zelf, dus die krijgt geen vinkje.',
+        'Stream je zelf op Twitch? Zet **Clip my stream when I hit a big moment** aan onder je Twitch-account. Terwijl je live bent in het event van een streamer, clipt Anvil je zeldzame drops, pets en voltooide tiles.',
       ],
     },
 
@@ -2701,6 +2773,14 @@ const nl: PartialGuideDict = {
         {
           term: 'Mijn drops verschijnen niet.',
           body: 'Controleer of de plugin geïnstalleerd en ingelogd is, en of je met de character meedoet die je speelt. Zie de [pluginhandleiding]({pluginGuide}).',
+        },
+        {
+          term: 'Waar vind ik meer events zoals dit?',
+          body: '[De eventspagina](/events) toont events waaraan iedereen mee kan doen, ook events van streamers die nu open zijn.',
+        },
+        {
+          term: 'Iets op de pagina van een streamer breekt de regels.',
+          body: 'Druk op **Report** op de pagina, het event of de highlight. Kies wat er mis is en druk op **Send**. Het gaat alleen naar de staf van Anvil. De streamer hoort nooit wie het meldde.',
         },
       ],
     },
@@ -2748,6 +2828,7 @@ const nl: PartialGuideDict = {
         'De streamertools werken hetzelfde als in een creator-space: geverifieerde kanaallinks, **Who can join?**-controles, de OBS-overlay en `!join` in de chat.',
         'De overlaylinks voor een clanevent staan in de **Settings** van het event, onder **Who can play** → **Stream overlay**. `!join` en het overlayteken staan onder **Clan settings** → **Streaming**.',
         'De [creatorgids]({creatorsGuide}) legt elk ervan stap voor stap uit.',
+        'Stream-highlights werken hier ook: is Twitch of YouTube gekoppeld, dan clipt Anvil de grote momenten van events die open zijn voor kijkers. `!join` in de Kick-chat heeft een eigen schakelaar in het vak **Kick channel**.',
       ],
     },
 
