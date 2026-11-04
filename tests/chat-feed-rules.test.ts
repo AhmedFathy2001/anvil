@@ -12,6 +12,7 @@ import {
   gp,
   parsePrefs,
   recipients,
+  toneOf,
   wants,
   type Candidate,
   type ChatFeedPrefs,
@@ -127,4 +128,16 @@ test('a gradient name rides along for plugins that draw it; the solid colour sta
   assert.equal(m.whoColor, '#e05ad0');
   assert.deepEqual(m.whoGrad, ['#ff9a5a', '#e05ad0', '#7a8cff', '#000000'], 'at most four stops');
   assert.equal(feedMessage(item, 'Clan', { color: '#ffd35c', star: false }).whoGrad, undefined, 'a solid name sends none');
+});
+
+test('team progress reaches clanmates on the team, and has its own switch', () => {
+  const item = { kind: 'progress' as const, who: 'Drenvox', text: 'Abyssal whip 4/10' };
+  const cands = [2, 3].map((userId) => ({ userId, via: 'event' as const, tag: 'Bingo' }));
+  // 1 is the sender; 2 shares their clan (would be skipped for a drop), 3 doesn't.
+  const memberClans = new Map([[1, new Set([7])], [2, new Set([7])], [3, new Set([8])]]);
+  assert.deepEqual(recipients({ item, senderUserId: 1, candidates: cands, prefs: new Map(), memberClans }).map((r) => r.userId), [2, 3]);
+  const off = new Map([[2, { ...DEFAULT_PREFS, teamProgress: false }]]);
+  assert.deepEqual(recipients({ item, senderUserId: 1, candidates: cands, prefs: off, memberClans }).map((r) => r.userId), [3]);
+  assert.equal(toneOf('progress'), 'near');
+  assert.equal(cleanPrefs({}).teamProgress, true, 'on by default');
 });

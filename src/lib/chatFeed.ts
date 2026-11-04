@@ -293,6 +293,55 @@ export async function emitTileCompletion(args: {
   }
 }
 
+/** Tile kinds a teammate hears progress on: items. Kill counts, XP, laps and loot value move with every
+ * kill or tick, and would turn the chatbox into a log. */
+export const TEAM_PROGRESS_TILE_TYPES: ReadonlySet<string> = new Set(['drop', 'clog']);
+
+// One line per tile and team this often at most: a burst of drops (a raid's purples, a stack of
+// uniques credited together) reads as its last count, not five lines.
+const PROGRESS_GAP_MS = 20_000;
+const lastProgress = new Map<string, number>();
+
+/**
+ * A teammate's drop moved one of the team's item tiles along without finishing it: the rest of that
+ * team hears "Drenvox: Abyssal whip 4/10" in game chat. Only the team (never rivals, so it is fine
+ * while standings are hidden), only on a board with the feed on, never for the player who sent it.
+ */
+export async function emitTeamProgress(args: {
+  eventId: number;
+  teamId: number;
+  senderUserId: number | null;
+  who: string;
+  tileLabel: string;
+  current: number;
+  required: number;
+}): Promise<void> {
+  try {
+    if (!(args.required > 1) || !(args.current > 0) || args.current >= args.required) return;
+    const key = `${args.eventId}:${args.teamId}:${args.tileLabel}`;
+    const now = Date.now();
+    if (now - (lastProgress.get(key) ?? 0) < PROGRESS_GAP_MS) return;
+    // clan-scope: global -- keyed by the event id the progress belongs to.
+    const board = await db.query.events.findFirst({
+      where: eq(events.id, args.eventId),
+      columns: { name: true, chatFeed: true, startDate: true, endDate: true, forceEndedAt: true },
+    });
+    if (!board?.chatFeed || !isLive(board, now)) return;
+    lastProgress.set(key, now);
+    if (lastProgress.size > 5000) lastProgress.clear();
+    const candidates: Candidate[] = (await boardUsers(args.eventId))
+      .filter((p) => p.teamId === args.teamId)
+      .map((p) => ({ userId: p.userId, via: 'event', tag: board.name }));
+    await route(
+      { kind: 'progress', who: args.who, text: `${args.tileLabel} ${args.current}/${args.required}` },
+      args.senderUserId,
+      candidates,
+    );
+  } catch (err) {
+    log.warn('chat-feed.progress-failed', { eventId: args.eventId, message: (err as Error).message });
+  }
+}
+
 /** Old dedup keys and stale presence rows. Run from the daily sweep. */
 export async function sweepChatFeed(): Promise<void> {
   await db.delete(feedItems).where(lt(feedItems.createdAt, new Date(Date.now() - 2 * 86_400_000)));
