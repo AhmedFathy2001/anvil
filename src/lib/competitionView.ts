@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { memberDailyStats, memberMilestones, weeklyCompetitions, clanRoster } from '@/db/schema';
-import { and, eq, gte, inArray, lte, ne, lt, desc } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lte, ne, lt, desc } from 'drizzle-orm';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { buildCompetitionAwards, type CompetitionAward } from '@/lib/competitionAwards';
 import { momentsForCompetition } from '@/lib/momentsStore';
@@ -523,7 +523,9 @@ export async function viewerMemberIds(clanId: number, session: { playerId: numbe
     .from(clanRoster)
     // This clan's seats. Unscoped, a viewer's seat in another clan would be treated as theirs here —
     // ranking them on a leaderboard they are not on, and disclosing that they play elsewhere.
-    // An event player's seat is not a seat in the clan: no "you" strip, no Clan Hall insider.
-    .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, playerId), rosterClanSeat()));
+    // An event player's seat is not a seat in the clan: no "you" strip, no Clan Hall insider. Nor is
+    // one they LEFT: the roster view keeps departed seats, so without this an ex-member got the
+    // member week view ("Drenvox · 6 of 7 days active") on a clan they are no longer in.
+    .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, playerId), isNull(clanRoster.leftAt), rosterClanSeat()));
   return rows.map((r) => r.id);
 }
