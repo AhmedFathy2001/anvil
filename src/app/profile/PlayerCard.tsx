@@ -4,6 +4,8 @@ import SupporterName from '@/components/SupporterName';
 import type { SupporterStyle } from '@/lib/supporterStyle';
 import type { SupporterTierId } from '@/lib/supporterTiers';
 import { formatJoinDate } from '@/lib/clanJoinDate';
+import { ProfileAvatar } from '@/components/ProfileMedia';
+import type { ShownMedia } from '@/lib/profileMediaRules';
 
 // The card at the top of the locker: who you are, which accounts are yours, and — once you've
 // played anything — the numbers that make the page feel earned. Before that the same slots render
@@ -17,6 +19,8 @@ interface Props {
   supporterStyle?: SupporterStyle | null;
   discordUsername: string | null;
   avatar: string | null;
+  /** Their own uploaded avatar (Anvil Champion+), which wins over the Discord one. */
+  customAvatar?: ShownMedia | null;
   role: string;
   isStaff: boolean;
   accounts: LockerAccount[];
@@ -62,6 +66,7 @@ export default function PlayerCard({
   supporterStyle = null,
   discordUsername,
   avatar,
+  customAvatar = null,
   role,
   isStaff,
   accounts,
@@ -91,7 +96,9 @@ export default function PlayerCard({
 
       <div className="relative">
         <div className="flex items-start gap-4 flex-wrap">
-          {avatar ? (
+          {customAvatar ? (
+            <ProfileAvatar avatar={customAvatar} size={72} eager className="border-2 border-gold/45" />
+          ) : avatar ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={avatar}

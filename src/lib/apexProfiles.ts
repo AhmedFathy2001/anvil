@@ -136,6 +136,14 @@ export interface ApexCharacter {
    * somebody.
    */
   viewerOwns: boolean;
+  /**
+   * The person behind it (players.id), for reads that must find their login — never rendered. Their
+   * own avatar, banner and display case hang off it (lib/profileMedia, lib/displayCase).
+   */
+  personId: number | null;
+  /** They agreed to be shown as one person (players.linkAccountsPublicly), so person-level things
+      like their own avatar and banner may appear here without tying characters together unasked. */
+  personPublic: boolean;
 }
 
 /**
@@ -222,6 +230,8 @@ export async function apexCharacter(rsn: string, viewerPlayerId?: number | null)
     owner: ownerOut,
     privateToViewer: !acct.shared && ownedByViewer,
     viewerOwns: ownedByViewer,
+    personId: acct.playerId ?? null,
+    personPublic: !!owner && !owner.banned && !!owner.linkAccountsPublicly,
   };
 }
 

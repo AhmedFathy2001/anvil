@@ -4185,3 +4185,45 @@ export const platformSettings = pgTable('platform_settings', {
   value: text('value'),
   updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 });
+
+// ── Anvil Supporter: profile media and the display case (0197) ───────────────────────────────────
+// Both belong to the LOGIN, like the subscription, and neither is gated in the data: the tier is
+// checked on every read (lib/profileMedia, lib/displayCase), so a lapse needs no write.
+
+/** A person's own avatar and banner. Animated for Champion+; everyone else is shown the still. */
+export const profileMedia = pgTable('profile_media', {
+  userId: integer('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  /** Animated WebP when the upload moved, else the same as the still. */
+  avatarUrl: text('avatar_url'),
+  /** Always one frame (the first): lists, reduced motion, and a lapsed tier. */
+  avatarStillUrl: text('avatar_still_url'),
+  bannerUrl: text('banner_url'),
+  bannerStillUrl: text('banner_still_url'),
+  /** Vertical focus when the frame crops the banner, 0 (top) – 100 (bottom); null = centred. */
+  bannerPosition: integer('banner_position'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * One pinned item in a person's display case. 'clog' points at an obtained collection-log slot
+ * (account + item), 'drop' at a drop moment. The owner, the character and the item are re-checked
+ * on every read, so a pin to something no longer theirs simply stops showing.
+ */
+export const displayCaseItems = pgTable('display_case_items', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull().default(0),
+  /** 'clog' | 'drop' */
+  kind: text('kind').notNull(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  itemId: integer('item_id').notNull(),
+  momentId: integer('moment_id').references(() => moments.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('display_case_items_user_idx').on(t.userId, t.position),
+  uniqueIndex('display_case_items_clog_unique').on(t.userId, t.accountId, t.itemId).where(sql`kind = 'clog'`),
+  uniqueIndex('display_case_items_drop_unique').on(t.userId, t.momentId).where(sql`kind = 'drop'`),
+]);
+
+export type ProfileMedia = typeof profileMedia.$inferSelect;
+export type DisplayCaseItem = typeof displayCaseItems.$inferSelect;

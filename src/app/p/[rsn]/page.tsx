@@ -10,6 +10,10 @@ import { verifyUser } from '@/lib/auth';
 import ClanLink from '@/components/ClanLink';
 import SupporterName from '@/components/SupporterName';
 import { supporterLooksByName } from '@/lib/supporter';
+import { profileMediaForPlayer } from '@/lib/profileMedia';
+import { displayCaseForPlayer } from '@/lib/displayCase';
+import { ProfileAvatar, ProfileBanner } from '@/components/ProfileMedia';
+import DisplayCase from '@/components/DisplayCase';
 import ClanCrest from '@/components/ClanCrest';
 import AccountProgressCard from '@/components/AccountProgressCard';
 import ProfileTabs from '@/app/members/[rsn]/ProfileTabs';
@@ -136,6 +140,18 @@ export default async function CharacterPage({
   const profile = await getAccountProfile(character.accountId);
   if (!profile) notFound();
 
+  // The owner's own pictures (Anvil Champion+) only when they show their characters as one person, or
+  // to themselves: the same banner on two characters would otherwise say they are one person, which
+  // nobody else gets told here. The display case is this character's own pins only, which says
+  // nothing about any other character.
+  const showPersonMedia = character.personId != null && (character.personPublic || character.viewerOwns);
+  const [media, showcase] = await Promise.all([
+    showPersonMedia ? profileMediaForPlayer(character.personId!) : Promise.resolve({ avatar: null, banner: null }),
+    character.personId != null
+      ? displayCaseForPlayer(character.personId, { accountId: character.accountId, publicView: !character.viewerOwns })
+      : Promise.resolve([]),
+  ]);
+
   const [series, records, milestones, collection, progress, questItems, caItems, trackingSince, gameClanRow, supporterLooks] = await Promise.all([
     getDailySeries(character.accountId, 365),
     getRecords(character.accountId),
@@ -172,8 +188,10 @@ export default async function CharacterPage({
 
   return (
     <div className="mx-auto w-full max-w-5xl">
+      {media.banner && <ProfileBanner banner={media.banner} className="mb-5" />}
       <header className="mb-7">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <ProfileAvatar avatar={media.avatar} size={52} eager className="border-2 border-gold/45" />
           <h1 className="display display-lg text-[clamp(1.7rem,4vw,2.2rem)] font-semibold">
             <SupporterName name={character.rsn} tier={supporterLooks[character.rsn]?.tier} style={supporterLooks[character.rsn]?.style} />
           </h1>
@@ -289,6 +307,8 @@ export default async function CharacterPage({
           <Figure label="EHB" value={ehb != null ? ehb.toFixed(1) : '—'} />
         </div>
       </header>
+
+      <DisplayCase entries={showcase} showRsn={false} className="mb-7" />
 
       {/* The tabs render with or without a hiscores snapshot — the clan profile always has. Gating them
           on the snapshot hid everything the plugin pushes on its own (collection log, quests, combat
