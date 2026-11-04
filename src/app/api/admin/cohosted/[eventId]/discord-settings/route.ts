@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { verifyUser } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 import { isAcceptedCohost } from '@/lib/coHost';
 import { channelChoices, resolveChannelInput, type ChannelInput } from '@/lib/eventDiscordChannel';
 import { parsePartnerDiscordPrefs } from '@/lib/discordPostPolicy';
@@ -56,6 +57,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ eventId
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  // Co-hosting is between in-game clans; a creator space is never one (lib/coHost coHostKindRefusal).
+  const refused = await refuseForCreatorSpace();
+  if (refused) return refused;
   const s = await scope((await params).eventId);
   if ('error' in s) return s.error;
   const body = (await request.json().catch(() => ({}))) as { prefs?: unknown; channel?: ChannelInput };

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { verifyAdmin } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
+import { refuseCreatorSpace } from '@/lib/creatorGuard';
 import { COMMANDS_OFF_KEY, TOGGLEABLE_COMMANDS, parseCommandsOff } from '@/lib/discordCommandToggles';
 import { getSetting, setSetting } from '@/lib/settings';
 
@@ -17,6 +18,9 @@ export async function GET() {
 export async function PUT(request: Request) {
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   const clan = await requireClan();
+  // The command switches are not on a creator space's Discord page (lib/creatorSpaces).
+  const refused = refuseCreatorSpace(clan);
+  if (refused) return refused;
   const body = (await request.json().catch(() => ({}))) as { name?: unknown; on?: unknown };
   if (typeof body.on !== 'boolean' || !TOGGLEABLE_COMMANDS.some((c) => c.name === body.name)) {
     return NextResponse.json({ error: 'Unknown command.' }, { status: 400 });

@@ -14,6 +14,7 @@ import CohostSignupsClient from './CohostSignupsClient';
 import CohostDiscordClient from './CohostDiscordClient';
 import CohostTileSuggest from '@/components/CohostTileSuggest';
 import { parseBoardAccess, staffCanEditFrom } from '@/lib/cohostBoardAccess';
+import { creatorAway } from '@/lib/creatorGuard';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,8 @@ export const dynamic = 'force-dynamic';
  * host has let its staff author it, and its side of the event's Discord.
  */
 export default async function CohostedEventPage({ params }: { params: Promise<{ eventId: string }> }) {
+  // A creator space never co-hosts (lib/creatorSpaces CREATOR_HIDDEN_ADMIN_PATHS).
+  await creatorAway('/admin/cohosted');
   const id = Number((await params).eventId);
   if (!Number.isInteger(id)) notFound();
   const [session, clan] = await Promise.all([verifyUser(), requireClan()]);
