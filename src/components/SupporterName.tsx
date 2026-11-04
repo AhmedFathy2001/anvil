@@ -18,6 +18,7 @@ export default function SupporterName({
   className = '',
   plain = false,
   style = null,
+  star = true,
 }: {
   name: string;
   tier: SupporterTierId | null | undefined;
@@ -26,6 +27,8 @@ export default function SupporterName({
   plain?: boolean;
   /** Their chosen name colours; gated by `tier` here, so a lapsed choice just shows the default. */
   style?: SupporterStyle | null;
+  /** Leave the star off where the row already carries a star of its own (the locker's "main" chip). */
+  star?: boolean;
 }) {
   if (!tier) return <span className={className}>{name}</span>;
   const gradient = style ? supporterGradientCss(supporterInk(tier, style)) : null;
@@ -33,7 +36,7 @@ export default function SupporterName({
   const stops = supporterInk(tier, style).grad ?? null;
   return (
     <span className={`supporter-flair inline-flex items-center gap-1.5 min-w-0 ${className}`}>
-      {plain ? (
+      {!star ? null : plain ? (
         <SupporterStar stops={stops} />
       ) : (
         <SupporterFlairPopover tier={tier}>

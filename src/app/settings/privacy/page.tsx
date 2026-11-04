@@ -2,16 +2,21 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { players } from '@/db/schema';
+import SupporterName from '@/components/SupporterName';
 import { verifyUser } from '@/lib/auth';
+import { supporterForUser } from '@/lib/supporter';
 import { settingsCharacters } from '@/lib/settingsData';
 import { SettingSwitch } from '../_client';
 import { SettingsGroup, SettingsRow, SettingsTitle } from '../_ui';
 
 export default async function PrivacySettingsPage() {
   const session = (await verifyUser())!;
-  const [person, characters] = session.playerId
-    ? await Promise.all([db.query.players.findFirst({ where: eq(players.id, session.playerId) }), settingsCharacters(session.playerId)])
-    : [null, []];
+  const [[person, characters], supporter] = await Promise.all([
+    session.playerId
+      ? Promise.all([db.query.players.findFirst({ where: eq(players.id, session.playerId) }), settingsCharacters(session.playerId)])
+      : Promise.resolve([null, []] as const),
+    supporterForUser(session.userId),
+  ]);
   const sharedCount = characters.filter((c) => c.shared).length;
 
   return (
@@ -27,7 +32,10 @@ export default async function PrivacySettingsPage() {
           note="On: the character has its own public page and shows on the cross-clan leaderboards."
         >
           {characters.map((c) => (
-            <SettingsRow key={c.accountId} label={c.rsn} description={c.shared ? 'Public' : 'Only its clans'}>
+            <SettingsRow
+              key={c.accountId}
+              label={<SupporterName name={c.rsn} tier={supporter?.tier.id} style={supporter?.style} plain />}
+              description={c.shared ? 'Public' : 'Only its clans'}>
               <SettingSwitch
                 url={`/api/profile/accounts/${c.accountId}/share`}
                 field="shared"

@@ -5,7 +5,16 @@ import type { ApexHomeView, ClanCard } from '@/lib/apexHome';
 import type { ApexSignals } from '@/lib/apexHomeSignals';
 import type { FoundSeat } from '@/lib/foundYou';
 import DiscoverToggle from '@/components/home/DiscoverToggle';
-import { ArenaHero, CareerWell, Label, Lately, Roster, Standing, StreakBadge } from '@/components/home/ApexSignals';
+import {
+  ArenaHero,
+  CareerWell,
+  Label,
+  Lately,
+  Roster,
+  Standing,
+  StreakBadge,
+  type OwnFlair,
+} from '@/components/home/ApexSignals';
 
 /**
  * The apex, to somebody signed in.
@@ -33,12 +42,15 @@ export default function ApexHome({
   signals,
   displayName,
   found = [],
+  flair = null,
 }: {
   view: ApexHomeView;
   signals: ApexSignals;
   displayName: string;
   /** Roster seats that name-match this login's Discord and nobody has claimed. See lib/foundYou. */
   found?: FoundSeat[];
+  /** The viewer's Supporter look, worn by their own character names on this page. */
+  flair?: OwnFlair | null;
 }) {
   // The arena already IS one of these, in full. Listing it again three inches below was the page
   // saying the same thing twice, which is exactly the flatness the redesign was for.
@@ -122,6 +134,7 @@ export default function ApexHome({
                 Your roster
               </Label>
               <Roster
+                flair={flair}
                 characters={view.characters.map((ch) => ({
                   id: ch.id,
                   rsn: ch.rsn,
@@ -143,17 +156,17 @@ export default function ApexHome({
           {signals.milestones.length > 0 && (
             <div>
               <Label>Lately</Label>
-              <Lately milestones={signals.milestones} />
+              <Lately milestones={signals.milestones} flair={flair} />
             </div>
           )}
         </div>
       ) : (
         <div className="flex flex-col gap-10">
-          {signals.arena && <ArenaHero arena={signals.arena} />}
+          {signals.arena && <ArenaHero arena={signals.arena} flair={flair} />}
 
           {/* Directly under the arena when there is one, and leading when there is not — between
               events this is the only thing on the page that is still a contest. */}
-          {signals.standing && <Standing standing={signals.standing} />}
+          {signals.standing && <Standing standing={signals.standing} flair={flair} />}
 
           {live.length > 0 && (
             <Section title="Happening now" note={`${running} running`}>
@@ -287,6 +300,7 @@ export default function ApexHome({
                 Your roster
               </Label>
               <Roster
+                flair={flair}
                 characters={view.characters.map((ch) => ({
                   id: ch.id,
                   rsn: ch.rsn,
@@ -310,7 +324,7 @@ export default function ApexHome({
           {signals.milestones.length > 0 && (
             <div>
               <Label>Lately</Label>
-              <Lately milestones={signals.milestones} />
+              <Lately milestones={signals.milestones} flair={flair} />
             </div>
           )}
         </div>

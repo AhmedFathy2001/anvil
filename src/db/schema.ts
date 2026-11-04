@@ -4351,23 +4351,27 @@ export const profileMedia = pgTable('profile_media', {
 
 /**
  * One pinned item in a person's display case. 'clog' points at an obtained collection-log slot
- * (account + item), 'drop' at a drop moment. The owner, the character and the item are re-checked
+ * (account + item), 'drop' at a drop moment, 'kc' / 'pb' at a kill count or personal best of the
+ * character (stat_key; item_id is 0). The owner, the character and the item are re-checked
  * on every read, so a pin to something no longer theirs simply stops showing.
  */
 export const displayCaseItems = pgTable('display_case_items', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   position: integer('position').notNull().default(0),
-  /** 'clog' | 'drop' */
+  /** 'clog' | 'drop' | 'kc' | 'pb' */
   kind: text('kind').notNull(),
   accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
   itemId: integer('item_id').notNull(),
   momentId: integer('moment_id').references(() => moments.id, { onDelete: 'cascade' }),
+  /** 'kc': hiscores boss key; 'pb': "<teamSize>:<activity>" (lib/displayCaseStats). Null for items. */
+  statKey: text('stat_key'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('display_case_items_user_idx').on(t.userId, t.position),
   uniqueIndex('display_case_items_clog_unique').on(t.userId, t.accountId, t.itemId).where(sql`kind = 'clog'`),
   uniqueIndex('display_case_items_drop_unique').on(t.userId, t.momentId).where(sql`kind = 'drop'`),
+  uniqueIndex('display_case_items_stat_unique').on(t.userId, t.kind, t.accountId, t.statKey).where(sql`kind in ('kc', 'pb')`),
 ]);
 
 export type ProfileMedia = typeof profileMedia.$inferSelect;
