@@ -4285,6 +4285,48 @@ export const momentReactions = pgTable('moment_reactions', {
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [uniqueIndex('moment_reactions_one_each').on(table.momentId, table.userId, table.kind)]);
 
+// A Supporter's boost, placed by hand on a clan through one of their MEMBER seats (lib/clanBoosts,
+// drizzle/0218). Visibility only. Shown to the clan as the seat's character, never as the person.
+// One row per placement: a move ends the row ('moved') and starts another in the same slot; a remove
+// ends it ('removed'). Ended rows stay as history (the "first booster" badge reads them).
+export const clanBoosts = pgTable('clan_boosts', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  clanMemberId: integer('clan_member_id').notNull().references(() => clanMemberships.id, { onDelete: 'cascade' }),
+  /** The person's slot number, 1–3. One live row per slot (the index below) caps the pool under a double submit. */
+  slot: integer('slot').notNull(),
+  /** When it was put here: the move cooldown counts from it, and the oldest boosts stay active on a downgrade. */
+  placedAt: text('placed_at').notNull(),
+  /** The level this placement lifted its clan to, when it did (the "Level-up" badge). */
+  levelUp: integer('level_up'),
+  endedAt: text('ended_at'),
+  /** 'moved' | 'removed'. */
+  endReason: text('end_reason'),
+  /** A removed row: when its slot may take a new boost (the move cooldown); null = at once. */
+  reusableAt: text('reusable_at'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  index('clan_boosts_user_idx').on(table.userId),
+  index('clan_boosts_clan_idx').on(table.clanId),
+  index('clan_boosts_seat_idx').on(table.clanMemberId),
+  uniqueIndex('clan_boosts_live_slot_unique').on(table.userId, table.slot).where(sql`ended_at is null`),
+]);
+
+// A clan's boost level as it stands (lib/clanBoosts). `level` is the level in force; `droppedAt` is
+// when its counted boosts fell below it, and the clan keeps that level's perks for GRACE_DAYS from
+// then (lib/clanBoostRules reconcileLevel). Also the clan's own boost-perk content: the recruiting
+// line (Level 2) and its last monthly recruitment post into Anvil's Discord (Level 3).
+export const clanBoostState = pgTable('clan_boost_state', {
+  clanId: integer('clan_id').primaryKey().references(() => clans.id, { onDelete: 'cascade' }),
+  level: integer('level').notNull().default(0),
+  droppedAt: text('dropped_at'),
+  recruitingLine: text('recruiting_line'),
+  lastRecruitPostAt: text('last_recruit_post_at'),
+  lastRecruitPostBy: integer('last_recruit_post_by').references(() => users.id, { onDelete: 'set null' }),
+  updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+});
+
 // The event chat (lib/eventChat): what a board's participants said to each other, or to their own
 // team (`teamOnly`). A mod's delete keeps the row (so a report can still be read) but stops it being
 // served. Rows go some days after the event ends (sweepEventChat).
