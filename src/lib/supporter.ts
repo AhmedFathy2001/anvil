@@ -4,7 +4,8 @@
 // into every clan and onto their apex profile. Tiers and the pure state logic live in
 // lib/supporterTiers; this is the database half. The webhook side is lib/supporterBilling.
 
-import { and, eq, inArray, isNotNull, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, or, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
 import { db } from '@/db';
 import { accounts, supporterSubscriptions, users } from '@/db/schema';
@@ -61,18 +62,26 @@ export async function supporterSubscriptionIdForUser(userId: number, now = Date.
   return paid[0]?.subscriptionId ?? null;
 }
 
-/** Many people at once (a leaderboard, a roster): only supporters appear in the map. */
+/**
+ * Many people at once (a leaderboard, a roster, chat lines), keyed by the login asked about: only
+ * supporters appear. The subscription may sit on ANOTHER login of the same person (players.id), and
+ * their characters wear it either way (supporterStatesForRsns) — so this reads the whole person too,
+ * or a host posting under their own name (no seat) wore another login's tier and colours than their
+ * characters' lines did.
+ */
 export async function supporterForUsers(userIds: number[]): Promise<Map<number, SupporterState>> {
   const out = new Map<number, SupporterState>();
   const ids = [...new Set(userIds)].filter((n) => Number.isInteger(n) && n > 0);
   if (ids.length === 0) return out;
+  const asked = alias(users, 'asked_user');
   const rows = await db
-    .select(ROW_COLUMNS)
+    .select({ askedId: asked.id, ...ROW_COLUMNS })
     .from(supporterSubscriptions)
     .innerJoin(users, eq(users.id, supporterSubscriptions.userId))
-    .where(inArray(supporterSubscriptions.userId, ids));
+    .innerJoin(asked, or(eq(asked.id, users.id), and(isNotNull(asked.playerId), eq(asked.playerId, users.playerId))))
+    .where(inArray(asked.id, ids));
   const byUser = new Map<number, typeof rows>();
-  for (const r of rows) byUser.set(r.userId, [...(byUser.get(r.userId) ?? []), r]);
+  for (const r of rows) byUser.set(r.askedId, [...(byUser.get(r.askedId) ?? []), r]);
   for (const [id, list] of byUser) {
     const state = supporterState(list);
     if (state) out.set(id, state);
