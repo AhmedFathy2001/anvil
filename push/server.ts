@@ -54,18 +54,22 @@ async function fetchView(viewKey: string): Promise<string | null> {
   }
 }
 
-/** The event an overlay key opens, or null (unknown, reset, removed, or the site didn't answer). */
-async function overlayEvent(overlayKey: string): Promise<number | null> {
+/**
+ * The event an overlay key opens; 'unknown' when the site says no such key (a 404: unknown, reset,
+ * removed), 'error' when it didn't answer properly. Only 'unknown' may be remembered as refused.
+ */
+async function overlayEvent(overlayKey: string): Promise<number | 'unknown' | 'error'> {
   try {
     const res = await fetch(`${site}/api/internal/push/overlay?key=${encodeURIComponent(overlayKey)}`, {
       headers: { 'x-push-secret': siteSecret },
       signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) return null;
+    if (res.status === 404) return 'unknown';
+    if (!res.ok) return 'error';
     const body = (await res.json()) as { eventId?: unknown };
-    return Number.isInteger(body.eventId) ? (body.eventId as number) : null;
+    return Number.isInteger(body.eventId) ? (body.eventId as number) : 'error';
   } catch {
-    return null;
+    return 'error';
   }
 }
 
@@ -206,13 +210,16 @@ async function acceptOverlay(req: http.IncomingMessage, socket: Duplex, head: Bu
   socket.once('close', release);
   socket.once('error', release);
   lookups++;
-  let eventId: number | null;
+  let found: number | 'unknown' | 'error';
   try {
-    eventId = await overlayEvent(overlayKey);
+    found = await overlayEvent(overlayKey);
   } finally {
     lookups--;
   }
-  if (eventId == null) refuse(overlayKey);
+  // A timeout or a 5xx is not a verdict on the key: refuse this socket (the page retries later) but
+  // never remember it, or a slow site would lock valid overlays out.
+  if (found === 'unknown') refuse(overlayKey);
+  const eventId = typeof found === 'number' ? found : null;
   if (eventId == null || socket.destroyed) {
     release();
     if (!socket.destroyed) socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
