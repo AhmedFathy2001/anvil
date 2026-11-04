@@ -160,8 +160,18 @@ export default async function HomePage() {
   // A creator space (lib/creatorSpaces) has one page for everyone — the creator, their stream links,
   // their events and who has played them. There is no member week view: nobody is a member.
   if (isCreatorSpace(clan)) {
+    const viewer = await verifyUser();
+    const viewerIsStaff = viewer?.userId
+      ? (
+          await db
+            .select({ id: clanStaff.id })
+            .from(clanStaff)
+            .where(and(eq(clanStaff.clanId, clan.id), eq(clanStaff.userId, viewer.userId)))
+            .limit(1)
+        ).length > 0
+      : false;
     const [creatorView, activity] = await Promise.all([
-      creatorHomeView(clan.id),
+      creatorHomeView(clan.id, { viewerIsStaff }),
       publicClanActivity(clan.id).catch(() => null),
     ]);
     if (creatorView) return <CreatorHome view={creatorView} activity={activity} />;

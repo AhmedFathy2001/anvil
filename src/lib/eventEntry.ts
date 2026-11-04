@@ -8,8 +8,8 @@ import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanAuditLog, clans, events } from '@/db/schema';
-import { canEnterEvent, type EntryVerdict } from '@/lib/eventAccess';
-import { admit } from '@/lib/guestAdmission';
+import { canEnterEvent, invitedToEvent, staffOfClan, type EntryVerdict } from '@/lib/eventAccess';
+import { admit, requestEventEntry } from '@/lib/guestAdmission';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export type EnterResult =
@@ -66,12 +66,30 @@ export async function enterEvent(opts: {
   //
   // Carry the REASON into the request. Staff clearing the queue see one list of strangers, and
   // "wants to play in Summer Bingo" is a different decision from "wants to join the clan".
+  // A creator space's `approval` event, for somebody who is neither its staff nor invited to it:
+  // ask about THIS event, whether or not they already hold a seat from another one. No seat, no
+  // sign-up, until the host says yes (approveRequest then invites them to this event only).
+  if (creator && verdict.needsApproval && !(await staffOfClan(event.clanId, opts.playerId))) {
+    if (!(await invitedToEvent(event.id, opts.playerId))) {
+      await requestEventEntry({
+        clanId: event.clanId,
+        eventId: event.id,
+        accountId: opts.accountId,
+        playerId: opts.playerId,
+        message: `Wants to play in ${event.name}.`,
+      });
+      return { outcome: 'pending', message: 'Sent to the host — you’ll be able to sign up once they accept.' };
+    }
+  }
+  const invitedHere = creator && (await invitedToEvent(event.id, opts.playerId));
+
   const admission = await admit({
     clanId: event.clanId,
     accountId: opts.accountId,
     source: 'web',
     message: `Wants to play in ${event.name}.`,
-    ...(creator ? { policy: verdict.needsApproval ? ('approval' as const) : ('open' as const) } : {}),
+    // Past the per-event check above, a creator space admits: open events, staff, and the invited.
+    ...(creator ? { policy: 'open' as const } : {}),
   });
 
   if (admission.outcome === 'refused') {
@@ -80,7 +98,7 @@ export async function enterEvent(opts: {
 
   // An invited outsider has already been decided about; that is what the invitation was. Asking them
   // to wait for approval as well would be asking twice.
-  if (admission.outcome !== 'seated' && verdict.needsApproval) {
+  if (admission.outcome !== 'seated' && verdict.needsApproval && !invitedHere) {
     return { outcome: 'pending', message: 'Sent to the host — you’ll be able to sign up once they accept.' };
   }
   if (admission.outcome !== 'seated') {

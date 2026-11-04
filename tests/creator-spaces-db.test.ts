@@ -41,6 +41,11 @@ let streamer: Awaited<ReturnType<typeof person>>;
 let spaceId: number;
 let openEvent: number;
 let approvalEvent: number;
+/** Seated through the open event. */
+let viewer1: Awaited<ReturnType<typeof person>>;
+let G: typeof import('../src/lib/guestAdmission.ts');
+let Seats: typeof import('../src/lib/eventSeats.ts');
+let H: typeof import('../src/lib/creatorHome.ts');
 
 before(async () => {
   await resetDatabase(DB);
@@ -50,6 +55,9 @@ before(async () => {
   A = await import('../src/lib/eventAccess.ts');
   L = await import('../src/lib/clanListing.ts');
   ({ getSetupStatus: setupStatus } = await import('../src/lib/setupStatus.ts'));
+  G = await import('../src/lib/guestAdmission.ts');
+  Seats = await import('../src/lib/eventSeats.ts');
+  H = await import('../src/lib/creatorHome.ts');
   streamer = await person('Streamer');
 });
 
@@ -149,6 +157,7 @@ test('a stranger entering an OPEN creator event is seated at once', async () => 
     .returning();
 
   const viewer = await person('Viewer');
+  viewer1 = viewer;
   assert.deepEqual(await A.canEnterEvent({ eventId: openEvent, playerId: viewer.playerId }), {
     outcome: 'outsider',
     needsApproval: false,
@@ -197,6 +206,43 @@ test('an APPROVAL creator event still waits on the host', async () => {
   assert.equal(req?.status, 'pending');
 });
 
+test('a seat won through an OPEN event does not let them into an APPROVAL one', async () => {
+  // Seated in the space already, but this event asks about everyone.
+  assert.deepEqual(await A.canEnterEvent({ eventId: approvalEvent, playerId: viewer1.playerId }), {
+    outcome: 'outsider',
+    needsApproval: true,
+  });
+  const approvalRow = { id: approvalEvent, clanId: spaceId };
+  assert.deepEqual(await Seats.signupSeatsFor(approvalRow, viewer1.playerId), [], 'nothing to sign up with yet');
+  assert.equal((await Seats.signupSeatsFor({ id: openEvent, clanId: spaceId }, viewer1.playerId)).length, 1, 'the open event still works');
+
+  const r = await E.enterEvent({
+    eventId: approvalEvent,
+    playerId: viewer1.playerId,
+    accountId: viewer1.accountId,
+    actorUserId: viewer1.userId,
+  });
+  assert.equal(r.outcome, 'pending', JSON.stringify(r));
+  const req = await db.query.clanJoinRequests.findFirst({
+    where: and(eq(s.clanJoinRequests.accountId, viewer1.accountId), eq(s.clanJoinRequests.eventId, approvalEvent)),
+  });
+  assert.equal(req?.status, 'pending', 'an event-scoped request');
+  // Asking twice is still one request.
+  await E.enterEvent({ eventId: approvalEvent, playerId: viewer1.playerId, accountId: viewer1.accountId, actorUserId: viewer1.userId });
+  const all = await db.query.clanJoinRequests.findMany({ where: eq(s.clanJoinRequests.accountId, viewer1.accountId) });
+  assert.equal(all.length, 1);
+
+  // The host says yes: that invites them to THIS event, and now they are in.
+  const ok = await G.approveRequest(req!.id, spaceId, streamer.userId);
+  assert.equal(ok.ok, true);
+  assert.deepEqual(await A.canEnterEvent({ eventId: approvalEvent, playerId: viewer1.playerId }), { outcome: 'insider' });
+  assert.equal((await Seats.signupSeatsFor(approvalRow, viewer1.playerId)).length, 1);
+
+  // A third approval event is its own question again.
+  const [third] = await db.insert(s.events).values({ clanId: spaceId, name: 'Third Bingo', boardSize: 5, entry: 'approval' }).returning();
+  assert.deepEqual(await A.canEnterEvent({ eventId: third.id, playerId: viewer1.playerId }), { outcome: 'outsider', needsApproval: true });
+});
+
 test('the owner plays their own events on a guest seat, even while a member of a real clan', async () => {
   const [realClan] = await db
     .insert(s.clans)
@@ -218,6 +264,42 @@ test('the owner plays their own events on a guest seat, even while a member of a
     where: and(eq(s.clanMemberships.clanId, spaceId), eq(s.clanMemberships.accountId, streamer.accountId)),
   });
   assert.equal(seat?.kind, 'guest');
+});
+
+test('public players: only people on the board of events a stranger may open, only when listed', async () => {
+  const seatOf = async (accountId: number) =>
+    (await db.query.clanMemberships.findFirst({
+      where: and(eq(s.clanMemberships.clanId, spaceId), eq(s.clanMemberships.accountId, accountId)),
+    }))!.id;
+  // Viewer is on the open event's board.
+  await db.insert(s.eventParticipants).values({ eventId: openEvent, name: 'Viewer', accountId: viewer1.accountId, clanMemberId: await seatOf(viewer1.accountId) });
+  // Somebody on an invite-only event's board — a stranger may not open that event.
+  const secret = await person('Secret Player');
+  const [hidden] = await db.insert(s.events).values({ clanId: spaceId, name: 'Private', boardSize: 5, visibility: 'invited' }).returning();
+  await db.insert(s.clanMemberships).values({ clanId: spaceId, accountId: secret.accountId, kind: 'guest', source: 'application' });
+  await db.insert(s.eventParticipants).values({ eventId: hidden.id, name: 'Secret Player', accountId: secret.accountId, clanMemberId: await seatOf(secret.accountId) });
+  // A pending sign-up only, not on any board.
+  const pendingPat = await person('Pending Pat');
+  await db.insert(s.clanMemberships).values({ clanId: spaceId, accountId: pendingPat.accountId, kind: 'guest', source: 'application' });
+  await db.insert(s.eventSignups).values({ eventId: openEvent, userId: pendingPat.userId, clanMemberId: await seatOf(pendingPat.accountId), status: 'pending' });
+
+  // Unlisted (the default): no names for a stranger, but the space's staff still see them.
+  const unlisted = (await H.creatorHomeView(spaceId))!;
+  assert.deepEqual(unlisted.players, []);
+  assert.equal(unlisted.playerCount, null);
+  const staffView = (await H.creatorHomeView(spaceId, { viewerIsStaff: true }))!;
+  assert.deepEqual(staffView.players.map((p) => p.rsn), ['Viewer']);
+
+  // Listed: the stranger sees exactly the visible board's players.
+  await showcase(spaceId, 'on');
+  const listed = (await H.creatorHomeView(spaceId))!;
+  assert.deepEqual(listed.players.map((p) => p.rsn), ['Viewer'], 'no invite-only player, no pending sign-up');
+
+  // Hidden by the platform: nothing, whatever the space chose.
+  await db.update(s.clans).set({ platformHidden: true }).where(eq(s.clans.id, spaceId));
+  assert.deepEqual((await H.creatorHomeView(spaceId))!.players, []);
+  await db.update(s.clans).set({ platformHidden: false }).where(eq(s.clans.id, spaceId));
+  await showcase(spaceId, 'off');
 });
 
 test('an ordinary clan is unchanged: an unvouched stranger on an OPEN event still needs approval', async () => {
@@ -257,6 +339,15 @@ test('an ordinary clan is unchanged: an unvouched stranger on an OPEN event stil
   // And a clan still needs its in-game name.
   const nameless = await C.createClan({ slug: 'nameless', name: 'Nameless', ownerUserId: founder.userId });
   assert.equal(nameless.ok, false);
+
+  // A guest seat in an ordinary clan still counts for its approval events (clan-wide rule unchanged).
+  const [clanApproval] = await db
+    .insert(s.events)
+    .values({ clanId: made.clanId, name: 'Clan Careful', boardSize: 5, entry: 'approval' })
+    .returning();
+  const guest = await person('Clan Guest');
+  await db.insert(s.clanMemberships).values({ clanId: made.clanId, accountId: guest.accountId, kind: 'guest', source: 'application' });
+  assert.deepEqual(await A.canEnterEvent({ eventId: clanApproval.id, playerId: guest.playerId }), { outcome: 'insider' });
 
   // A clan with no showcase row is still listed (unchanged default).
   const listedClan = await db

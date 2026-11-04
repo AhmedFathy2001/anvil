@@ -1726,11 +1726,14 @@ export const clanJoinRequests = pgTable('clan_join_requests', {
   decidedAt: text('decided_at'),
   decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   decidedNote: text('decided_note'),
+  // Set when the request is to play ONE event (a creator space's `approval` event, lib/eventEntry).
+  // Approving it seats them and invites them to that event only. Null = a clan-wide request.
+  eventId: integer('event_id').references(() => events.id, { onDelete: 'cascade' }),
 }, (table) => [
-  // One LIVE request per account per clan. Partial, so a rejected one does not block asking again —
-  // people fall out with clans and make up.
+  // One LIVE request per account per clan (per event, for an event-scoped one). Partial, so a
+  // rejected one does not block asking again — people fall out with clans and make up.
   uniqueIndex('clan_join_requests_pending_unique')
-    .on(table.clanId, table.accountId)
+    .on(table.clanId, table.accountId, sql`coalesce(${table.eventId}, 0)`)
     .where(sql`status = 'pending'`),
   index('clan_join_requests_clan_status_idx').on(table.clanId, table.status),
 ]);

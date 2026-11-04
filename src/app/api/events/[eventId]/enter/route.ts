@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanJoinRequests, clanMemberships, events } from '@/db/schema';
+import { accounts, clanJoinRequests, clanMemberships, clans, events } from '@/db/schema';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { verifyUser } from '@/lib/auth';
 import { canEnterEvent } from '@/lib/eventAccess';
 import { guestPolicyOf } from '@/lib/guestAdmission';
@@ -92,8 +93,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
         .select({ id: accounts.id, rsn: accounts.rsn, verifiedAt: accounts.verifiedAt })
         .from(accounts)
         .where(eq(accounts.playerId, session.playerId));
+      // A creator space asks per event, so a character already seated there (from another of its
+      // events) is still one they can ask with.
+      const creator = isCreatorSpace(await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true } }));
       options = mine
-        .filter((a) => a.verifiedAt != null && !seatedIds.has(a.id))
+        .filter((a) => a.verifiedAt != null && (creator || !seatedIds.has(a.id)))
         .map((a) => ({ id: a.id, rsn: a.rsn }));
 
       const [policy, asked] = await Promise.all([
@@ -105,6 +109,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
                 eq(clanJoinRequests.clanId, event.clanId),
                 inArray(clanJoinRequests.accountId, mine.map((a) => a.id)),
                 eq(clanJoinRequests.status, 'pending'),
+                // A creator space's requests are per event: only this event's counts as "asked".
+                ...(creator ? [eq(clanJoinRequests.eventId, eventId)] : []),
               ),
               orderBy: asc(clanJoinRequests.requestedAt),
               columns: { requestedAt: true },

@@ -10,8 +10,9 @@
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanRoster, eventCohosts } from '@/db/schema';
+import { clanRoster, eventCohosts, events } from '@/db/schema';
 import { isBannedFromClan } from '@/lib/clanBans';
+import { needsOwnEventYes } from '@/lib/eventAccess';
 
 /** The host, then every clan that accepted a co-host seat on this event. */
 export async function signupClanIds(event: { id: number; clanId: number }): Promise<number[]> {
@@ -35,6 +36,11 @@ export async function signupSeatsFor(event: { id: number; clanId: number }, play
   // host ban empties the person's seats in the host clan; without this their co-host seat would walk
   // them straight back onto the board.
   const clanIds = (await isBannedFromClan(event.clanId, playerId)) ? [] : await signupClanIds(event);
+  // A creator space's `approval` event needs THIS event's yes (lib/eventAccess needsOwnEventYes):
+  // a seat from one of the space's open events offers nothing to sign up with here until then.
+  // clan-scope: global -- the event being signed up for, by its own id.
+  const row = await db.query.events.findFirst({ where: eq(events.id, event.id), columns: { id: true, clanId: true, entry: true } });
+  if (row && (await needsOwnEventYes(row, playerId))) return [];
   if (clanIds.length === 0) return [];
   const cohostIds = clanIds.filter((c) => c !== event.clanId);
   const seats = (

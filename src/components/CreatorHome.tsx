@@ -131,10 +131,12 @@ export default function CreatorHome({ view, activity }: { view: CreatorHomeView;
             <div className="text-xl font-bold tabular-nums text-foreground">{view.eventsRun}</div>
             <div className="text-[11px] uppercase tracking-wide text-text-muted">events</div>
           </div>
-          <div>
-            <div className="text-xl font-bold tabular-nums text-foreground">{view.playerCount}</div>
-            <div className="text-[11px] uppercase tracking-wide text-text-muted">players</div>
-          </div>
+          {view.playerCount != null && (
+            <div>
+              <div className="text-xl font-bold tabular-nums text-foreground">{view.playerCount}</div>
+              <div className="text-[11px] uppercase tracking-wide text-text-muted">players</div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -150,7 +152,7 @@ export default function CreatorHome({ view, activity }: { view: CreatorHomeView;
 
       {view.players.length > 0 && (
         <section className="mt-8">
-          <SectionTitle aside={view.playerCount > view.players.length ? `latest ${view.players.length} of ${view.playerCount}` : undefined}>
+          <SectionTitle aside={view.playerCount != null && view.playerCount > view.players.length ? `latest ${view.players.length} of ${view.playerCount}` : undefined}>
             Players
           </SectionTitle>
           <ul className="flex flex-wrap gap-2">

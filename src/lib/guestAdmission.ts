@@ -11,7 +11,7 @@
 import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clanStaff, clans, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clanStaff, clans, eventInvites, users } from '@/db/schema';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { findOrCreateSeat } from '@/lib/roster';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
@@ -153,6 +153,8 @@ export async function admit(opts: {
       eq(clanJoinRequests.clanId, clanId),
       eq(clanJoinRequests.accountId, accountId),
       eq(clanJoinRequests.status, 'pending'),
+      // Clan-wide requests only; a request to play one event is a different question.
+      isNull(clanJoinRequests.eventId),
     ),
   });
   if (live) return { outcome: 'pending', requestId: live.id };
@@ -168,6 +170,41 @@ export async function admit(opts: {
     })
     .returning();
 
+  return { outcome: 'requested', requestId: created.id };
+}
+
+/**
+ * Ask to play ONE event — a creator space's `approval` event (lib/eventEntry). No seat now; the host
+ * answers it in the same queue as any request, and approving it seats them and invites them to
+ * that event alone. One live request per account per event.
+ */
+export async function requestEventEntry(opts: {
+  clanId: number;
+  eventId: number;
+  accountId: number;
+  playerId: number;
+  message?: string | null;
+}): Promise<{ outcome: 'requested' | 'pending'; requestId: number }> {
+  const live = await db.query.clanJoinRequests.findFirst({
+    where: and(
+      eq(clanJoinRequests.clanId, opts.clanId),
+      eq(clanJoinRequests.accountId, opts.accountId),
+      eq(clanJoinRequests.eventId, opts.eventId),
+      eq(clanJoinRequests.status, 'pending'),
+    ),
+  });
+  if (live) return { outcome: 'pending', requestId: live.id };
+  const [created] = await db
+    .insert(clanJoinRequests)
+    .values({
+      clanId: opts.clanId,
+      accountId: opts.accountId,
+      playerId: opts.playerId,
+      eventId: opts.eventId,
+      source: 'web',
+      message: opts.message?.trim().slice(0, 500) || null,
+    })
+    .returning();
   return { outcome: 'requested', requestId: created.id };
 }
 
@@ -189,6 +226,17 @@ export async function approveRequest(
 
   const seatId = await findOrCreateSeat(clanId, req.accountId, { kind: 'guest', source: 'application' });
   await db.update(clanMemberships).set({ leftAt: null }).where(eq(clanMemberships.id, seatId));
+
+  // A request to play ONE event (lib/eventEntry, creator spaces): the yes is an invitation to that
+  // event, which is what lets them past its approval — and nothing wider.
+  if (req.eventId != null && req.playerId != null) {
+    const invited = await db.query.eventInvites.findFirst({
+      where: and(eq(eventInvites.eventId, req.eventId), eq(eventInvites.playerId, req.playerId)),
+    });
+    if (!invited) {
+      await db.insert(eventInvites).values({ eventId: req.eventId, playerId: req.playerId, invitedByUserId: byUserId, note: 'Approved request' });
+    }
+  }
 
   await db
     .update(clanJoinRequests)

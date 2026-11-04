@@ -77,6 +77,24 @@ export async function clanIsPublic(clanId: number): Promise<boolean> {
   return clanVisibilityOf(row?.visibility) === 'public';
 }
 
+/**
+ * True when this is a creator space's `approval` event and the person has neither a staff grant in
+ * the space nor this event's own invitation — the per-event yes a seat in the space does not give.
+ * Always false for an ordinary clan, whose events keep the clan-wide rule.
+ */
+export async function needsOwnEventYes(event: { id: number; clanId: number; entry: string | null }, playerId: number): Promise<boolean> {
+  if (entryOf(event.entry) !== 'approval') return false;
+  const host = await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true } });
+  if (clanKindOf(host?.kind) !== 'creator') return false;
+  if (await hasGrantIn(event.clanId, playerId)) return false;
+  return !(await invitedToEvent(event.id, playerId));
+}
+
+/** Does this person hold a staff grant in this clan? */
+export async function staffOfClan(clanId: number, playerId: number): Promise<boolean> {
+  return hasGrantIn(clanId, playerId);
+}
+
 /** A live seat in this clan, of any kind. */
 async function hasSeatIn(clanId: number, playerId: number): Promise<boolean> {
   const row = await db
@@ -192,7 +210,14 @@ export async function canEnterEvent(opts: {
     return { outcome: 'refused', reason: 'banned' };
   }
 
-  if (await hasSeatIn(event.clanId, opts.playerId)) return { outcome: 'insider' };
+  // A CREATOR SPACE decides approval PER EVENT. Its seats are only ever event guests, and a seat
+  // won through one open event must not walk somebody into another event the host set to
+  // `approval`. So on an approval event a seat is not enough: it takes this event's own yes — an
+  // invitation, which is what approving their request for it creates — or being the space's staff.
+  if (await hasSeatIn(event.clanId, opts.playerId)) {
+    if (!(await needsOwnEventYes(event, opts.playerId))) return { outcome: 'insider' };
+    return { outcome: 'outsider', needsApproval: true };
+  }
 
   // A MEMBER of an accepted co-host clan signs up with their OWN clan's seat (lib/eventSeats) — the
   // host said yes to that clan's members by accepting it as a co-host. Sending them through entry
