@@ -15,6 +15,14 @@ const VIEWS: { key: View; label: string; hint: string }[] = [
   { key: 'board', label: 'Board', hint: 'The board, with finished tiles marked' },
 ];
 
+type Theme = 'classic' | 'glass' | 'lower' | 'pixel';
+const THEMES: { key: Theme; label: string; hint: string }[] = [
+  { key: 'classic', label: 'Classic', hint: 'Outlined text, no box' },
+  { key: 'glass', label: 'Glass', hint: 'A frosted card edged in your colour' },
+  { key: 'lower', label: 'Lower third', hint: 'A broadcast bar along the bottom (the board shows as glass)' },
+  { key: 'pixel', label: 'Pixel', hint: 'Hard-edged panels and blocky type' },
+];
+
 const SIZES: { key: Size; label: string }[] = [
   { key: 's', label: 'S' },
   { key: 'm', label: 'M' },
@@ -37,6 +45,9 @@ export default function StreamOverlayCard({ eventId }: { eventId: number }) {
   const [view, setView] = useState<View>('standings');
   const [size, setSize] = useState<Size>('m');
   const [celebrate, setCelebrate] = useState(true);
+  const [theme, setTheme] = useState<Theme>('glass');
+  // The space's own colour (lib/artPalette), from the overlay route; null = the overlay's gold.
+  const [accent, setAccent] = useState<string | null>(null);
   const [copied, setCopied] = useState<View | PanelKind | null>(null);
   const [origin, setOrigin] = useState('');
 
@@ -46,7 +57,11 @@ export default function StreamOverlayCard({ eventId }: { eventId: number }) {
     setOrigin(window.location.origin);
     clanFetch(`/api/events/${eventId}/overlay`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => alive && setKey(d && typeof d.key === 'string' ? d.key : null))
+      .then((d) => {
+        if (!alive) return;
+        setKey(d && typeof d.key === 'string' ? d.key : null);
+        setAccent(d && typeof d.accent === 'string' ? d.accent : null);
+      })
       .catch(() => alive && setKey(null));
     return () => {
       alive = false;
@@ -54,7 +69,11 @@ export default function StreamOverlayCard({ eventId }: { eventId: number }) {
   }, [open, key, eventId]);
 
   const path = (v: View) =>
-    key ? `/overlay/${key}?view=${v}${size === 'm' ? '' : `&size=${size}`}${celebrate ? '&celebrate=1' : ''}` : '';
+    key
+      ? `/overlay/${key}?view=${v}${size === 'm' ? '' : `&size=${size}`}${theme === 'classic' ? '' : `&theme=${theme}`}${
+          accent ? `&accent=${accent.slice(1)}` : ''
+        }${celebrate ? '&celebrate=1' : ''}`
+      : '';
 
   async function call(method: 'POST' | 'DELETE') {
     setBusy(true);
@@ -158,6 +177,29 @@ export default function StreamOverlayCard({ eventId }: { eventId: number }) {
             ))}
           </div>
 
+          <div>
+            <span className="mb-1.5 block text-sm text-text-muted">Look</span>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Overlay look">
+              {THEMES.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={theme === t.key}
+                  onClick={() => setTheme(t.key)}
+                  title={t.hint}
+                  className={`rounded-md border px-3 py-1.5 text-sm ${theme === t.key ? 'border-gold bg-gold/15 text-gold' : 'border-card-border text-foreground/80 hover:border-gold/40'}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-xs text-text-muted">
+              {THEMES.find((t) => t.key === theme)?.hint}
+              {accent ? ' · in your space colour' : ''}
+            </p>
+          </div>
+
           <label className="flex max-w-[70ch] items-start gap-2.5 text-sm">
             <input
               type="checkbox"
@@ -208,7 +250,7 @@ export default function StreamOverlayCard({ eventId }: { eventId: number }) {
             <p className="mb-1.5 text-xs text-text-muted">Preview — {VIEWS.find((v) => v.key === view)?.hint}</p>
             {/* A checkerboard behind the transparent page, so the outline reads the way it will on a scene. */}
             <iframe
-              key={`${view}:${size}:${key}`}
+              key={`${view}:${size}:${theme}:${key}`}
               src={path(view)}
               title="Overlay preview"
               className="h-72 w-full rounded-lg border border-card-border"
