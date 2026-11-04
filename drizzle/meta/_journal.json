@@ -974,6 +974,13 @@
       "when": 1793791654614,
       "tag": "0191_creator_spaces",
       "breakpoints": true
+    },
+    {
+      "idx": 192,
+      "version": "7",
+      "when": 1793791714614,
+      "tag": "0192_creator_entry_gates",
+      "breakpoints": true
     }
   ]
 }

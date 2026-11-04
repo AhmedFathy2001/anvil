@@ -521,6 +521,9 @@ export const events = pgTable('events', {
   //   open     — sign up and you are in (default, and what every existing event does)
   //   approval — the host says yes first
   entry: text('entry').notNull().default('open'),
+  // Creator spaces only (lib/entryGates): who may join, as JSON `{"anyOf":[…]}` — the host's Twitch
+  // followers/subscribers, a role in their Discord server, its boosters. Null = anyone.
+  entryGates: text('entry_gates'),
   // The in-game chat feed for everyone on this board (lib/chatFeed): every team's notable drops and
   // tile completions in each participant's RuneLite chat. Off by default — it shows each team what the
   // others are getting, so it is the host's call. Never on for another team while standings are hidden.
@@ -3687,6 +3690,57 @@ export const eventDiscordMembers = pgTable('event_discord_members', {
   index('event_discord_members_status_idx').on(t.status, t.lastCheckedAt),
 ]);
 export type EventDiscordMember = typeof eventDiscordMembers.$inferSelect;
+
+/**
+ * A viewer's linked Twitch account (lib/entryGatesDb) — identity only. The viewer's OAuth token is
+ * used once to learn who they are and then revoked; nothing else is kept. Unique on the Twitch id so
+ * one subscription cannot admit many Anvil logins.
+ */
+export const userTwitchLinks = pgTable('user_twitch_links', {
+  userId: integer('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  twitchUserId: text('twitch_user_id').notNull(),
+  twitchLogin: text('twitch_login').notNull(),
+  linkedAt: text('linked_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  uniqueIndex('user_twitch_links_twitch_user_unique').on(table.twitchUserId),
+]);
+
+/**
+ * Which Twitch account passed a Twitch gate into which event, for whom (lib/entryGatesDb
+ * claimTwitchForEvent). One Twitch account, one player per event — so a single sub cannot link,
+ * join, unlink and relink on another login to let a crowd in. The claim moves only when its holder
+ * has no live seat or sign-up left. Discord gates need no equivalent: users.discord_id is the login.
+ */
+export const eventTwitchClaims = pgTable('event_twitch_claims', {
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  twitchUserId: text('twitch_user_id').notNull(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  claimedAt: text('claimed_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  uniqueIndex('event_twitch_claims_event_twitch_unique').on(table.eventId, table.twitchUserId),
+]);
+
+/**
+ * A creator space's Twitch channel, connected by its broadcaster (lib/entryGatesDb). The follower and
+ * subscriber checks run on THIS token (moderator:read:followers + channel:read:subscriptions), so a
+ * viewer never grants Anvil anything beyond who they are. Tokens are encrypted with lib/secretBox
+ * under TWITCH_TOKEN_KEY and never leave the server.
+ */
+export const clanTwitchChannels = pgTable('clan_twitch_channels', {
+  clanId: integer('clan_id').primaryKey().references(() => clans.id, { onDelete: 'cascade' }),
+  twitchUserId: text('twitch_user_id').notNull(),
+  twitchLogin: text('twitch_login').notNull(),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token').notNull(),
+  expiresAt: text('expires_at').notNull(),
+  scope: text('scope').notNull(),
+  /** Twitch broadcaster_type: 'affiliate' | 'partner' | ''. Only affiliates and partners have subscribers. */
+  broadcasterType: text('broadcaster_type').notNull().default(''),
+  linkedByUserId: integer('linked_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  /** Twitch refused a refresh — the host must connect again; checks fail closed until then. */
+  brokenAt: text('broken_at'),
+  updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+});
 
 /**
  * A player's OPT-IN Discord grant for `guilds.join` (lib/discordUserTokens). Only written when the

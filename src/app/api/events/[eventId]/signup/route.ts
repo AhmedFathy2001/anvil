@@ -14,6 +14,8 @@ import { track } from '@/lib/analytics';
 import { standardFeeForAccount } from '@/lib/entryFee';
 import { checkPick, isTeamFull, placementOf } from '@/lib/teamPlacement';
 import { seatSignupAccounts, teamLoads } from '@/lib/teamPlacementDb';
+import { entryGateVerdict } from '@/lib/entryGatesDb';
+import { verdictMessage } from '@/lib/entryGates';
 
 export async function GET(
   request: Request,
@@ -217,6 +219,16 @@ export async function POST(
       },
       { status: 403 },
     );
+  }
+
+  // A creator-space event's entry gate (lib/entryGates), on a NEW sign-up. Entry checks it too, but
+  // somebody already seated in the space through another event never passes through entry. Editing
+  // an existing sign-up is not re-gated: an unfollow after joining does not throw anyone off a board.
+  if (!isEditingActive && session.playerId != null) {
+    const gate = await entryGateVerdict({ eventId: id, userId: session.userId, playerId: session.playerId });
+    if (gate && !gate.pass) {
+      return NextResponse.json({ error: verdictMessage(gate), gate }, { status: gate.transient ? 503 : 403 });
+    }
   }
 
   // AN INVITE (lib/teamInvites) re-checked here, never trusted from the page that rendered it: the

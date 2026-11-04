@@ -8,6 +8,7 @@ import { verifyUser } from '@/lib/auth';
 import { canEnterEvent } from '@/lib/eventAccess';
 import { guestPolicyOf } from '@/lib/guestAdmission';
 import { enterEvent } from '@/lib/eventEntry';
+import { entryGateInfo } from '@/lib/entryGatesDb';
 import { rateLimitByKey } from '@/lib/rate-limit';
 
 /**
@@ -48,6 +49,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     case 'refused':
     case 'bad-account':
       return NextResponse.json({ error: result.error }, { status: result.status });
+    case 'gated':
+      // The structured verdict rides along so the join card can list the steps and offer "Link Twitch".
+      return NextResponse.json({ error: result.error, gate: result.gate }, { status: result.status });
     case 'insider':
       return NextResponse.json({ ok: true, alreadyIn: true, message: 'You can sign up directly.' });
     case 'pending':
@@ -122,5 +126,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
     }
   }
 
-  return NextResponse.json({ verdict, options, pendingSince, guestsClosed, hasCharacter });
+  // A creator-space event's "who can join", said up front (no Twitch or Discord call is made here).
+  const gate = verdict.outcome === 'outsider' ? await entryGateInfo(eventId, session?.userId ?? null) : null;
+
+  return NextResponse.json({ verdict, options, pendingSince, guestsClosed, hasCharacter, gate });
 }
