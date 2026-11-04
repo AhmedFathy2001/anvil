@@ -21,7 +21,9 @@
 //    While a character has a live session, the routes that reach outside the event (notify, moments,
 //    clip, clog, pb, coffer, progress, stats) answer 200 and write the body to `lab_log` instead.
 //    The cost is honest: real play on that character during a session is not recorded until the
-//    next sync. The lab page says so.
+//    next sync. The lab page says so. A stats push is the one that still SCORES: after it is logged,
+//    the lab board's own stat tiles are credited from it (lib/labStats applyLabStatsPush) — the
+//    board-scoped half of the stats route, never the account's overlay, history or weekly comps.
 
 import { and, desc, eq, gt, inArray, isNull, lte, ne, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
@@ -181,6 +183,12 @@ export async function labQuarantine(
   account: number | null | undefined | (() => Promise<number | null | undefined>),
   endpoint: string,
   payload: unknown,
+  /**
+   * The board-scoped half of the push, run against the session's own board after the push is logged
+   * (the stats route credits the lab board's KC / XP tiles this way). Its result rides on the 200.
+   * Never called for a replay with no session — that push is dropped whole.
+   */
+  onSession?: (eventId: number, accountId: number) => Promise<Record<string, unknown>>,
 ): Promise<NextResponse | null> {
   // The dev client's replay harness stamps every request while a scenario plays (and briefly after).
   // Whatever that push claims happened did not, so it never reaches anything real — session or not.
@@ -206,7 +214,15 @@ export async function labQuarantine(
   } catch (e) {
     log.warn('lab.log-fail', { eventId, endpoint }, e);
   }
-  return NextResponse.json({ ok: true, lab: true, quarantined: endpoint });
+  let applied: Record<string, unknown> = {};
+  if (onSession && accountId != null) {
+    try {
+      applied = await onSession(eventId, accountId);
+    } catch (e) {
+      log.warn('lab.apply-fail', { eventId, endpoint }, e);
+    }
+  }
+  return NextResponse.json({ ...applied, ok: true, lab: true, quarantined: endpoint });
 }
 
 // ── Session management (the /staff/lab page) ─────────────────────────────────────────────────
