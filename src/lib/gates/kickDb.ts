@@ -9,7 +9,7 @@ import { and, eq, inArray, isNull, lt, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanKickChannels, clans, kickChannelFacts, kickLinkCodes, kickWebhookSeen, userKickLinks } from '@/db/schema';
-import { chatJoinAllowed } from '@/lib/creatorPlans';
+import { chatJoinAllowed, streamPlanId } from '@/lib/creatorPlans';
 import { streamsEvents } from '@/lib/creatorSpaces';
 import type { GateContext, KickGateOptions } from '@/lib/entryGates';
 import {
@@ -443,7 +443,7 @@ export async function applyKickEvent(ev: KickEvent, opts: { code: string | null;
     if (!clan || !streamsEvents(clan) || clan.status !== 'active') return { kind: 'ignored' };
     // The plan (lib/creatorPlans): `!join` is Silver+ once FREEMIUM_ENFORCED is on — the same rule
     // the Twitch bot's chatBotChannels applies. Generous phase: everyone.
-    if (!chatJoinAllowed(clan.plan)) return { kind: 'ignored' };
+    if (!chatJoinAllowed(streamPlanId(clan))) return { kind: 'ignored' };
     return { kind: 'join', clanId: channels[0].clanId, broadcasterId: ev.broadcasterId, replyTo: ev.messageId };
   }
   return { kind: 'ignored' };

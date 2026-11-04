@@ -5,10 +5,20 @@
 import { and, desc, eq, inArray, isNull, max, notInArray, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clans, eventParticipants, events, eventSignups } from '@/db/schema';
+import {
+  accounts,
+  clanKickChannels,
+  clanMemberships,
+  clans,
+  clanTwitchChannels,
+  clanYoutubeChannels,
+  eventParticipants,
+  events,
+  eventSignups,
+} from '@/db/schema';
 import { PUBLIC_SHOWCASE_KEY, isClanListed } from '@/lib/clanListing';
 import { getSettingMap } from '@/lib/settings';
-import { STREAM_LINK_KEYS, checkStreamLink } from '@/lib/creatorSpaces';
+import { type VerifiedStreamLink, verifiedStreamLinks } from '@/lib/creatorSpaces';
 
 export interface CreatorPlayer {
   accountId: number;
@@ -77,19 +87,30 @@ export async function publicCreatorPlayers(clanId: number, limit = 200): Promise
   return rows.map((r) => ({ ...r, lastSignedUpAt: null }));
 }
 
-export interface CreatorLinks {
-  twitch: string | null;
-  kick: string | null;
-}
+export type CreatorLinks = VerifiedStreamLink[];
 
-/** The space's stream links, re-checked on read so a bad stored value never becomes a link. */
+/**
+ * The space's stream links: ONLY its OAuth-connected channels (lib/creatorSpaces verifiedStreamLinks).
+ * Typed links (the retired `creator_twitch_url` / `creator_kick_url` settings) are never read. Only
+ * the public names are selected; the tokens never leave their tables.
+ */
 export async function creatorLinks(clanId: number): Promise<CreatorLinks> {
-  const map = await getSettingMap(clanId, [STREAM_LINK_KEYS.twitch, STREAM_LINK_KEYS.kick]);
-  const read = (platform: 'twitch' | 'kick') => {
-    const r = checkStreamLink(platform, map.get(STREAM_LINK_KEYS[platform]));
-    return r.ok ? r.url : null;
-  };
-  return { twitch: read('twitch'), kick: read('kick') };
+  const [twitch, kick, youtube] = await Promise.all([
+    // clan-scope: clanId is the creator space whose page is being rendered.
+    db.query.clanTwitchChannels.findFirst({ where: eq(clanTwitchChannels.clanId, clanId), columns: { twitchLogin: true } }),
+    // clan-scope: clanId is the creator space whose page is being rendered.
+    db.query.clanKickChannels.findFirst({ where: eq(clanKickChannels.clanId, clanId), columns: { kickSlug: true } }),
+    // clan-scope: clanId is the creator space whose page is being rendered.
+    db.query.clanYoutubeChannels.findFirst({
+      where: eq(clanYoutubeChannels.clanId, clanId),
+      columns: { youtubeChannelId: true, handle: true, title: true },
+    }),
+  ]);
+  return verifiedStreamLinks({
+    twitchLogin: twitch?.twitchLogin ?? null,
+    kickSlug: kick?.kickSlug ?? null,
+    youtube: youtube ? { channelId: youtube.youtubeChannelId, handle: youtube.handle, title: youtube.title } : null,
+  });
 }
 
 export interface CreatorHomeView {

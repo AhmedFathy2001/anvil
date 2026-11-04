@@ -12,7 +12,7 @@ import { normalizeRsn } from '@/lib/auth';
 import { newCheckoutRef } from '@/lib/billing';
 import { hasChatStar } from '@/lib/chatLook';
 import { supporterInk, type SupporterInk, type SupporterLook } from '@/lib/supporterStyle';
-import { supporterState, tiersByName, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
+import { SUPPORTER_TIERS, rowInForce, supporterState, tiersByName, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
 
 export * from '@/lib/supporterTiers';
 export * from '@/lib/supporterStyle';
@@ -36,6 +36,28 @@ export async function supporterForUser(userId: number): Promise<SupporterState |
     .innerJoin(users, eq(users.id, supporterSubscriptions.userId))
     .where(eq(supporterSubscriptions.userId, userId));
   return supporterState(rows);
+}
+
+/**
+ * The Gumroad membership behind a person's Supporter tier, for "Manage on Gumroad": the in-force row
+ * that gives them their tier (best rank first) that has a subscription id. Null for a gift or invite
+ * reward (nothing to manage) and for someone not supporting.
+ */
+export async function supporterSubscriptionIdForUser(userId: number, now = Date.now()): Promise<string | null> {
+  const rows = await db
+    .select({
+      tier: supporterSubscriptions.tier,
+      status: supporterSubscriptions.status,
+      currentPeriodEnd: supporterSubscriptions.currentPeriodEnd,
+      startedAt: supporterSubscriptions.startedAt,
+      subscriptionId: supporterSubscriptions.gumroadSubscriptionId,
+    })
+    .from(supporterSubscriptions)
+    .where(eq(supporterSubscriptions.userId, userId));
+  const paid = rows
+    .filter((r) => r.subscriptionId && rowInForce(r, now))
+    .sort((a, b) => SUPPORTER_TIERS[b.tier as SupporterTierId].rank - SUPPORTER_TIERS[a.tier as SupporterTierId].rank);
+  return paid[0]?.subscriptionId ?? null;
 }
 
 /** Many people at once (a leaderboard, a roster): only supporters appear in the map. */

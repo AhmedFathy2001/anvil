@@ -46,13 +46,22 @@ export interface BillingFacts {
 }
 
 /**
+ * Is this stored plan a free tier? Two catalogues share `clans.plan`: the clan ladder's 'free' and a
+ * creator space's 'creator_free' (lib/creatorCatalog). Inlined rather than imported so this module
+ * stays dependency-free; lib/billingCatalog isFreePlanId says the same and a test holds them together.
+ */
+export function isFreePlan(plan: string | null | undefined): boolean {
+  return plan === 'free' || plan === 'creator_free';
+}
+
+/**
  * Paying, or paid once. The webhook KEEPS the subscription id when a subscription ends, so a
  * restart from Gumroad's side can find the clan again — which makes the id alone mean "ever had
  * one". The plan is what says whether it's still paying: an ended one drops to free.
  */
 export function subscriptionFacts(subscriptionId: string | null, plan: string): { subscribed: boolean; subscriptionEnded: boolean } {
   const had = !!subscriptionId;
-  return { subscribed: had && plan !== 'free', subscriptionEnded: had && plan === 'free' };
+  return { subscribed: had && !isFreePlan(plan), subscriptionEnded: had && isFreePlan(plan) };
 }
 
 export interface BillingStatus {
@@ -164,7 +173,7 @@ export function billingStatus(facts: BillingFacts, now: number): BillingStatus {
 
   // A paid plan with nothing behind it. Deliberate in every case we have (a migration, a deal, a
   // clan being let off while something is fixed), so it is stated rather than flagged.
-  if (facts.plan !== 'free') {
+  if (!isFreePlan(facts.plan)) {
     return { state: 'comped', daysLeft: null, label: `${facts.plan} · no subscription`, attention: false };
   }
 

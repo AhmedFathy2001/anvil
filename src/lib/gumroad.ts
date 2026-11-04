@@ -12,6 +12,8 @@
 //                                we only trust POSTs where it matches.
 //   GUMROAD_PRODUCT_{BRONZE,SILVER,GOLD} — product ids → tier (see plans.ts).
 //   GUMROAD_URL_{BRONZE,SILVER,GOLD}     — the hosted checkout URL per tier (see plans.ts).
+//   GUMROAD_PRODUCT_CREATOR_{BRONZE,SILVER,GOLD} / GUMROAD_URL_CREATOR_{…} — the creator-space
+//                                catalogue's own products and checkouts (see creatorCatalog.ts).
 //   GUMROAD_TRIAL_DAYS         — cosmetic only; mirrors the free trial set on the Gumroad products
 //                                so we can show "trial ends in N days" (default 30).
 

@@ -3,7 +3,7 @@ import { and, eq, or } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanTwitchChannels, clans, settings } from '@/db/schema';
 import { joinEventFor, joinReplyForClan } from '@/lib/chatBot/join';
-import { chatJoinAllowed } from '@/lib/creatorPlans';
+import { chatJoinAllowed, streamPlanId } from '@/lib/creatorPlans';
 
 import { CHAT_JOIN_SETTING } from './wire';
 
@@ -13,8 +13,8 @@ export { joinEventFor };
 // `!join` — the site's half (the bot process is bot/twitchChat.ts; shared rules in ./wire).
 //
 // WHICH CHANNEL IS WHOSE. The bot may only ever talk in a channel whose broadcaster PROVED it is
-// theirs. The Twitch link on a creator's settings page is typed text — anybody can paste anybody's
-// channel — so it is never used for this. The proof is the channel the host connected through Twitch
+// theirs. A typed link (the retired creator_twitch_url setting) proves nothing — anybody can paste
+// anybody's channel — so it is never used for this, nor shown anywhere. The proof is the channel the host connected through Twitch
 // OAuth (clan_twitch_channels, the same link the entry gates check followers and subs against).
 
 export interface TwitchBroadcaster {
@@ -54,7 +54,7 @@ export async function chatJoinEnabled(clanId: number): Promise<boolean> {
 export async function chatBotChannels(): Promise<{ clanId: number; broadcaster: TwitchBroadcaster }[]> {
   // clan-scope: global -- the bot serves every creator space that opted in; each row is its own clan's.
   const rows = await db
-    .select({ clanId: clans.id, plan: clans.plan })
+    .select({ clanId: clans.id, plan: clans.plan, kind: clans.kind })
     .from(settings)
     .innerJoin(clans, eq(clans.id, settings.clanId))
     .where(
@@ -70,7 +70,7 @@ export async function chatBotChannels(): Promise<{ clanId: number; broadcaster: 
   const seen = new Set<string>();
   for (const r of rows) {
     // Left out entirely, so the bot leaves the channel on its next refresh after a downgrade.
-    if (!chatJoinAllowed(r.plan)) continue;
+    if (!chatJoinAllowed(streamPlanId(r))) continue;
     const b = await linkedTwitchBroadcaster(r.clanId);
     // One channel answers for one space: a channel two spaces both claim is answered by neither.
     if (!b) continue;

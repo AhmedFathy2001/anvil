@@ -1,4 +1,4 @@
-// 0203 turns a creator space's single-event guest seats into event seats, and nothing else.
+// 0205 turns a creator space's single-event guest seats into event seats, and nothing else.
 //
 //   guest seat in a creator space, sign-ups in ONE event  → kind 'event', event_id = that event
 //   guest seat in a creator space, sign-ups in TWO events → stays a guest
@@ -23,9 +23,9 @@ const seat: Record<string, number> = {};
 const ev: Record<string, number> = {};
 
 before(async () => {
-  await resetDatabase(DB, '0202_display_case_stat_pins');
+  await resetDatabase(DB, '0204_events_directory_index');
   ({ pool } = await loadDb());
-  const [space] = await seedOldShape(pool, 'clans', { slug: 'space', name: 'Space', kind: 'creator' });
+  const [space] = await seedOldShape(pool, 'clans', { slug: 'space', name: 'Space', kind: 'creator', plan: 'creator_free' });
   const [clan] = await seedOldShape(pool, 'clans', { slug: 'clan', name: 'Clan', inGameName: 'Clan' });
   const insertEvent = async (clanId: number, name: string) =>
     Number((await pool.query('insert into events (clan_id, name, board_size) values ($1, $2, 5) returning id', [clanId, name])).rows[0].id);
@@ -89,8 +89,8 @@ test('everything else stays a guest', async () => {
   }
 });
 
-test('running 0203 again changes nothing', async () => {
-  const sql = readFileSync('drizzle/0203_event_player_seats.sql', 'utf8');
+test('running 0205 again changes nothing', async () => {
+  const sql = readFileSync('drizzle/0205_event_player_seats.sql', 'utf8');
   for (const stmt of sql.split('--> statement-breakpoint')) {
     if (stmt.trim()) await pool.query(stmt);
   }

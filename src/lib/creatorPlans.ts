@@ -1,29 +1,40 @@
 // Creator-space plans — the rules. Pure: no database import (tests/pure-module-imports).
 //
-// A creator space (lib/creatorSpaces) is a `clans` row, so it is on a plan like any clan: the same
-// Free / Bronze / Silver / Gold ladder, the same prices, the same Gumroad checkout and webhook
-// (lib/plans, lib/billing). Two things differ, and this module is both of them:
+// A creator space (lib/creatorSpaces) is a `clans` row on a plan, but from ITS OWN catalogue
+// (lib/creatorCatalog: creator_free … creator_partner, own prices, own Gumroad products), never the
+// clan ladder in lib/plans. The webhook routes a sale to the right one (lib/billingCatalog). Two things
+// make a creator plan what it is, and this module is both of them:
 //
-//   THE METER is players on ONE event (`Plan.playersPerEvent`), never the roster. Every viewer who
+//   THE METER is players on ONE event (`CreatorPlan.playersPerEvent`), never the roster. Every viewer who
 //     ever joined a streamer's event keeps a guest seat, so a roster cap would bill a creator for
 //     last year's audience. A board of 42 people is a 42-player event however many seats exist.
 //   THE PERKS are streamer things: stream-platform entry gates, the `!join` chat bot, an overlay
 //     without the Anvil mark, featured ordering in the directory, more than one live event at once.
 //
-// EVERY GATE GOES THROUGH clanCan (lib/entitlements), so while FREEMIUM_ENFORCED is off — the
-// generous phase, the default — nothing here refuses anybody: a full event still seats, a Free space
+// EVERY GATE GOES THROUGH creatorCan (lib/creatorCatalog, the creator twin of clanCan), so while
+// FREEMIUM_ENFORCED is off — the generous phase, the default — nothing here refuses anybody: a full event still seats, a Free space
 // can still gate on Twitch. What the off-state DOES do is say so: the dashboard's plan card shows the
 // meter and the tier that would fit, so nobody is surprised the day the switch flips.
 //
 // The one exception is `featuredListing`: it is a perk that only re-orders, never a door, so it
 // follows the plan actually paid for, enforced or not. A Silver creator paid to be featured today.
 
-import { clanCan, freemiumEnforced, minPlanNameFor } from '@/lib/entitlements';
+import { freemiumEnforced } from '@/lib/entitlements';
 import { eventStage } from '@/lib/eventStage';
-import { PLANS, creatorPlanName, planHasCapability, planOf, planRank, type Plan } from '@/lib/plans';
+import {
+  CREATOR_BUYABLE,
+  CREATOR_FREE_ID,
+  CREATOR_PLANS,
+  creatorCan,
+  creatorMinPlanNameFor,
+  creatorPlanHasCapability,
+  creatorPlanFromLegacy,
+  creatorPlanOf,
+  creatorPlanRank,
+  type CreatorPlan,
+} from '@/lib/creatorCatalog';
 
-/** The tiers a creator can buy, in order. Custom ("Partner") is set by hand, never bought. */
-export const CREATOR_BUYABLE: readonly Plan[] = [PLANS.bronze, PLANS.silver, PLANS.gold];
+export { CREATOR_BUYABLE } from '@/lib/creatorCatalog';
 
 /**
  * The plan to meter a host by, or null when nothing is metered: an ordinary clan (its roster is its
@@ -31,7 +42,19 @@ export const CREATOR_BUYABLE: readonly Plan[] = [PLANS.bronze, PLANS.silver, PLA
  * withEventRoom / withLiveEventSlot) take this and skip their lock and check on null.
  */
 export function meteredPlan(clan: { kind?: string | null; plan?: string | null } | null | undefined): string | null {
-  return clan && clan.kind === 'creator' && freemiumEnforced() ? (clan.plan ?? 'free') : null;
+  return clan && clan.kind === 'creator' && freemiumEnforced() ? (clan.plan ?? CREATOR_FREE_ID) : null;
+}
+
+/**
+ * The CREATOR plan id that meters this host's streamer features (per-event player cap, stream gates,
+ * `!join`, the overlay mark). A creator space: its own plan. A clan with Streaming on: its clan tier
+ * read as the creator tier of the same rank (lib/creatorCatalog CREATOR_PLAN_FROM_CLAN_PLAN — Bronze
+ * clan → creator Bronze, Custom → Partner), computed here and NEVER stored: a clan row only ever holds a
+ * clan plan id (the `clans_plan_matches_kind` check). Pass the result to every helper in this module.
+ */
+export function streamPlanId(host: { kind?: string | null; plan?: string | null } | null | undefined): string {
+  if (host?.kind === 'creator') return host.plan ?? CREATOR_FREE_ID;
+  return creatorPlanFromLegacy(host?.plan).id;
 }
 
 /**
@@ -46,17 +69,17 @@ export function isLiveEvent(e: { startDate: string | null; endDate: string | nul
 
 /** The player cap on one event for this plan string. Null = no cap. */
 export function playersPerEventCap(clanPlan: string | null | undefined): number | null {
-  return planOf(clanPlan).playersPerEvent;
+  return creatorPlanOf(clanPlan).playersPerEvent;
 }
 
 /** "Players per event" as a short label: "Up to 50 players" / "No player cap". */
-export function playersCapLabel(plan: Plan): string {
+export function playersCapLabel(plan: CreatorPlan): string {
   return plan.playersPerEvent == null ? 'No player cap' : `Up to ${plan.playersPerEvent.toLocaleString('en-US')} players`;
 }
 
 /** How many live events at once. Null = several (no fixed number). */
-export function liveEventLimit(plan: Plan): number | null {
-  return planHasCapability(plan, 'concurrent-events') ? null : 1;
+export function liveEventLimit(plan: CreatorPlan): number | null {
+  return creatorPlanHasCapability(plan, 'concurrent-events') ? null : 1;
 }
 
 /** Is this event over (or at) what the plan would allow? Pure arithmetic — says nothing about enforcing. */
@@ -66,14 +89,14 @@ export function overPlayerCap(clanPlan: string | null | undefined, players: numb
 }
 
 /** The smallest buyable tier whose per-event cap holds this many players; Partner when none does. */
-export function planForPlayers(players: number): Plan {
-  return CREATOR_BUYABLE.find((p) => p.playersPerEvent != null && p.playersPerEvent >= players) ?? PLANS.custom;
+export function planForPlayers(players: number): CreatorPlan {
+  return CREATOR_BUYABLE.find((p) => p.playersPerEvent != null && p.playersPerEvent >= players) ?? CREATOR_PLANS.creator_partner;
 }
 
 /** The next buyable tier above this one, or null at Gold / Partner. */
-export function nextCreatorPlan(clanPlan: string | null | undefined): Plan | null {
-  const rank = planRank(planOf(clanPlan));
-  return CREATOR_BUYABLE.find((p) => planRank(p) > rank) ?? null;
+export function nextCreatorPlan(clanPlan: string | null | undefined): CreatorPlan | null {
+  const rank = creatorPlanRank(creatorPlanOf(clanPlan));
+  return CREATOR_BUYABLE.find((p) => creatorPlanRank(p) > rank) ?? null;
 }
 
 // ── Players per event ────────────────────────────────────────────────────────────────────────────
@@ -149,12 +172,12 @@ export type NewEventVerdict = { ok: true } | { ok: false; error: string };
  * at a time; Silver and up run several. Refuses only when enforced.
  */
 export function newEventVerdict(opts: { clanPlan: string | null | undefined; liveEvents: number }): NewEventVerdict {
-  if (clanCan(opts.clanPlan, 'concurrent-events')) return { ok: true };
-  const limit = liveEventLimit(planOf(opts.clanPlan)) ?? Infinity;
+  if (creatorCan(opts.clanPlan, 'concurrent-events')) return { ok: true };
+  const limit = liveEventLimit(creatorPlanOf(opts.clanPlan)) ?? Infinity;
   if (opts.liveEvents < limit) return { ok: true };
   return {
     ok: false,
-    error: `Your plan runs one event at a time. End your current event first, or upgrade to ${minPlanNameFor('concurrent-events')} to run several at once.`,
+    error: `Your plan runs one event at a time. End your current event first, or upgrade to ${creatorMinPlanNameFor('concurrent-events')} to run several at once.`,
   };
 }
 
@@ -176,19 +199,19 @@ export function usesStreamGate(gates: { anyOf: { kind: string }[] } | null | und
 
 /** The plan name a stream gate needs, when this space may not use one right now; null = allowed. */
 export function streamGateLock(clanPlan: string | null | undefined): string | null {
-  return clanCan(clanPlan, 'stream-gates') ? null : minPlanNameFor('stream-gates');
+  return creatorCan(clanPlan, 'stream-gates') ? null : creatorMinPlanNameFor('stream-gates');
 }
 
 // ── Overlay mark, !join, featured ────────────────────────────────────────────────────────────────
 
 /** Does the OBS overlay show the small Anvil mark? Yes unless the host hid it AND may hide it. */
 export function overlayShowsMark(opts: { clanPlan: string | null | undefined; hideRequested: boolean }): boolean {
-  return !(opts.hideRequested && clanCan(opts.clanPlan, 'overlay-unbranded'));
+  return !(opts.hideRequested && creatorCan(opts.clanPlan, 'overlay-unbranded'));
 }
 
 /** May the `!join` chat bot answer for this space? */
 export function chatJoinAllowed(clanPlan: string | null | undefined): boolean {
-  return clanCan(clanPlan, 'chat-join-bot');
+  return creatorCan(clanPlan, 'chat-join-bot');
 }
 
 /**
@@ -196,7 +219,7 @@ export function chatJoinAllowed(clanPlan: string | null | undefined): boolean {
  * actually paid for, not the switch — see the note at the top.
  */
 export function featuredListing(kind: string | null | undefined, clanPlan: string | null | undefined): boolean {
-  return kind === 'creator' && planHasCapability(planOf(clanPlan), 'featured-listing');
+  return kind === 'creator' && creatorPlanHasCapability(creatorPlanOf(clanPlan), 'featured-listing');
 }
 
 // ── The plan card ────────────────────────────────────────────────────────────────────────────────
@@ -209,25 +232,18 @@ export interface CreatorPlanCard {
   biggest: { name: string; players: number } | null;
   over: boolean;
   /** The tier worth showing next: the one that fits the biggest event, else simply the next one up. */
-  next: { id: Plan['id']; name: string; priceUsd: number | null; playersCap: number | null; perks: string[] } | null;
+  next: { id: CreatorPlan['id']; name: string; priceUsd: number | null; playersCap: number | null; perks: string[] } | null;
   enforced: boolean;
 }
 
-/** Plain-words perks a tier adds over the one below, for the card. */
-export const CREATOR_PERKS: Record<'bronze' | 'silver' | 'gold', string[]> = {
-  bronze: ['Only Twitch followers or subs can join'],
-  silver: ['Run more than one event at a time', '!join in your Twitch chat', 'Shown first in the clans list'],
-  gold: ['Hide the Anvil mark on your OBS overlay'],
-};
-
 export function creatorPlanCard(opts: { clanPlan: string | null | undefined; biggest: { name: string; players: number } | null }): CreatorPlanCard {
-  const plan = planOf(opts.clanPlan);
+  const plan = creatorPlanOf(opts.clanPlan);
   const players = opts.biggest?.players ?? 0;
   const over = overPlayerCap(plan.id, players);
   const fits = over ? planForPlayers(players) : null;
-  const pick = fits && planRank(fits) > planRank(plan) && fits.id !== 'custom' ? fits : nextCreatorPlan(plan.id);
+  const pick = fits && creatorPlanRank(fits) > creatorPlanRank(plan) && fits.buyable ? fits : nextCreatorPlan(plan.id);
   return {
-    planName: creatorPlanName(plan),
+    planName: plan.name,
     playersCap: plan.playersPerEvent,
     biggest: opts.biggest,
     over,
@@ -237,7 +253,7 @@ export function creatorPlanCard(opts: { clanPlan: string | null | undefined; big
           name: pick.name,
           priceUsd: pick.priceUsd,
           playersCap: pick.playersPerEvent,
-          perks: CREATOR_PERKS[pick.id as 'bronze' | 'silver' | 'gold'] ?? [],
+          perks: pick.perks,
         }
       : null,
     enforced: freemiumEnforced(),

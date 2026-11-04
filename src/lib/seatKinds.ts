@@ -9,7 +9,7 @@
 //   event ends    —                   stays a guest           the seat closes; the row stays
 //
 // One row per account per clan for members and guests; one per account per EVENT for event seats
-// (the unique indexes in drizzle/0203), so a viewer in two of a streamer's events holds two seats and
+// (the unique indexes in drizzle/0205), so a viewer in two of a streamer's events holds two seats and
 // neither opens the other. Everything that asks "does this person belong to this clan?" — rosters,
 // guest lists, counts, Discord roles, feeds, weeklies, access to the clan itself — asks it of
 // member and guest seats only (`isClanSeat`). Everything that asks "may this seat play THIS event?"

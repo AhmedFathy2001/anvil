@@ -236,7 +236,7 @@ export async function canEnterEvent(opts: {
   // any other it is as if they had no seat at all, and they enter it — or ask — like anybody else.
   //
   // A member or guest seat is the clan-wide rule, with one exception kept for the guest seats a
-  // creator space handed out before event seats existed (drizzle/0203 kept those whose holder had
+  // creator space handed out before event seats existed (drizzle/0205 kept those whose holder had
   // played several events): on an `approval` event such a seat is not enough — it takes this event's
   // own yes (an invitation, which approving their request creates) or being the space's staff.
   const seat = await seatFor(event.clanId, opts.playerId, event.id);

@@ -33,7 +33,7 @@ function eventOver(e: { startDate: string | null; endDate: string | null; forceE
 /**
  * Seat this account as an event player of this event, or re-open its seat there. Returns the seat id.
  *
- * Idempotent: one event seat per (clan, account, event) — the partial unique index in drizzle/0203 —
+ * Idempotent: one event seat per (clan, account, event) — the partial unique index in drizzle/0205 —
  * so a double press, or two tabs, end on the same row. The caller has already decided the person may
  * enter (lib/eventEntry: visibility, ban, gates, approval, room).
  */

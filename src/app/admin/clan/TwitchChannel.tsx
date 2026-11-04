@@ -64,8 +64,9 @@ export default function TwitchChannel() {
         Twitch channel
       </h2>
       <p className="mb-4 text-sm text-text-muted">
-        Connect your channel to let only your followers or subs join an event. Anvil only reads who follows and
-        subscribes. A channel can be connected to one place at a time.
+        Connect your channel to let only your followers or subs join an event (on a creator space it also shows on
+        your page, marked verified). Anvil only reads who follows and subscribes. A channel can be connected to one
+        place at a time.
       </p>
       {ch && !ch.broken ? (
         <div className="flex flex-wrap items-center gap-3">

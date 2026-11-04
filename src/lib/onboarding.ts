@@ -3,6 +3,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts, users } from '@/db/schema';
 import { clansOfPerson } from '@/lib/myClans';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 /**
  * First run, for a person.
@@ -188,7 +189,9 @@ export async function onboardingState(
 
   const doneOf: Record<StepKey, boolean> = {
     discord: true,
-    clan: myClans.length > 0,
+    // A CLAN, not a creator space: playing a streamer's event (or running a space) is not being in a
+    // clan, which is what this step is about.
+    clan: myClans.some((c) => !isCreatorSpace({ kind: c.clanKind })),
     character: characters.length > 0,
     plugin: characters.some((a) => a.liveStatsAt != null),
   };

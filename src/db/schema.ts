@@ -15,6 +15,7 @@ import {
   unique,
   index,
   primaryKey,
+  check,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import type { ClanEventChannels, PickedChannel } from '../lib/clanEventChannels';
@@ -79,6 +80,8 @@ export const clans = pgTable('clans', {
   status: text('status').notNull().default('active'),
   // Entitlement tier. Gates the bot-backed features and the stat-sweep cadence, so a free clan
   // cannot consume the shared Discord and Jagex budgets the paid ones fund.
+  // A creator space holds an id from its own catalogue ('creator_free' …, lib/creatorCatalog) — it
+  // must be given one explicitly, since the default is a clan tier (`clans_plan_matches_kind`).
   plan: text('plan').notNull().default('free'),
   // Max active roster members for the plan; mirrors what MEMBER_CAP carried per container.
   memberCap: integer('member_cap'),
@@ -174,6 +177,9 @@ export const clans = pgTable('clans', {
   // that should be impossible rather than merely unlikely.
   uniqueIndex('clans_gumroad_subscription_unique').on(table.gumroadSubscriptionId),
   uniqueIndex('clans_gumroad_ref_unique').on(table.gumroadRef),
+  // A creator space is billed from the creator catalogue (lib/creatorCatalog, ids 'creator_…') and a
+  // clan from the clan ladder (lib/plans), never the other way round (migration 0203).
+  check('clans_plan_matches_kind', sql`(${table.kind} = 'creator') = (left(${table.plan}, 8) = 'creator_')`),
 ]);
 
 /**
@@ -539,7 +545,7 @@ export const events = pgTable('events', {
   // followers/subscribers, a role in their Discord server, its boosters. Null = anyone.
   entryGates: text('entry_gates'),
   // A STREAMING clan's event (clans.streaming): may viewers join it, as event players past
-  // `entryGates`? False = members only (the default, and every clan event before 0203). Ignored on a
+  // `entryGates`? False = members only (the default, and every clan event before 0205). Ignored on a
   // clan without Streaming, and on a creator space (whose events are always for viewers).
   openToViewers: boolean('open_to_viewers').notNull().default(false),
   // The in-game chat feed for everyone on this board (lib/chatFeed): every team's notable drops and
@@ -754,7 +760,10 @@ export const events = pgTable('events', {
   // host offer their changes back as a suggestion on an Anvil board, and counts how often a board is
   // used. Never followed: an event's tiles are its own from the moment it's created.
   libraryBoardId: integer('library_board_id').references((): AnyPgColumn => libraryBoards.id, { onDelete: 'set null' }),
-});
+}, (table) => [
+  // The public events directory (lib/eventsDirectoryDb, migration 0201): partial, advertised rows only.
+  index('events_advertised_start_idx').on(table.startDate).where(sql`${table.advertised} = true`),
+]);
 
 /**
  * STREAM OVERLAY (lib/overlay, migration 0193): the unguessable key in an event's OBS overlay URL.
@@ -1626,7 +1635,7 @@ export const clanRoster = pgView('clan_roster', {
   lastSeenInClan: text('last_seen_in_clan'),
   notes: text('notes'),
   pendingRole: text('pending_role'),
-  // An event seat's one event (kind = 'event'); null otherwise. Appended to the view by 0203.
+  // An event seat's one event (kind = 'event'); null otherwise. Appended to the view by 0205.
   eventId: integer('event_id'),
 }).existing();
 

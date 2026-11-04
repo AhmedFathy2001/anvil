@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { clanRoster, clanStaff, users } from '@/db/schema';
 import { verifyAdmin } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
+import { refuseCreatorSpace } from '@/lib/creatorGuard';
 import { fetchGuildRoles } from '@/lib/discord-roles';
 import { isSafeAutomatedRole } from '@/lib/discordRoleSafety';
 import {
@@ -116,6 +117,9 @@ export async function GET() {
 export async function PUT(request: Request) {
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   const clan = await requireClan();
+  // Rank rules read the in-game roster's ranks; a creator space has none.
+  const refused = refuseCreatorSpace(clan);
+  if (refused) return refused;
   const body = (await request.json().catch(() => ({}))) as { rules?: unknown; order?: unknown; remove?: unknown };
   if (body.rules !== undefined) {
     if (Array.isArray(body.rules) && body.rules.length > MAX_RANK_RULES) {

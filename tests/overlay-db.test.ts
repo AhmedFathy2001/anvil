@@ -33,7 +33,7 @@ before(async () => {
   O = await import('../src/lib/overlay/overlayData.ts');
   B = await import('../src/lib/twitchBot/channels.ts');
 
-  const [c] = await db.insert(s.clans).values({ slug: 'streamer', name: 'Streamer', kind: 'creator', visibility: 'public' }).returning();
+  const [c] = await db.insert(s.clans).values({ slug: 'streamer', name: 'Streamer', kind: 'creator', plan: 'creator_free', visibility: 'public' }).returning();
   clanId = c.id;
   const [e] = await db
     .insert(s.events)

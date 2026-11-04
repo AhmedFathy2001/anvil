@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { ClanRow } from '@/lib/platformView';
 import type { ActAsGrant } from '@/lib/actAs';
 import Select from '@/components/Select';
-import { PLAN_IDS } from '@/lib/plans';
+import { planIdsFor } from '@/lib/billingCatalog';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
 import { billingStatus, liveness } from '@/lib/clanBilling';
@@ -424,7 +424,8 @@ export default function ClansClient({
                       value={c.plan}
                       disabled={busy != null}
                       onChange={(v) => patch(c.id, { plan: v })}
-                      options={PLAN_IDS.map((p) => ({ value: p, label: p }))}
+                      // Only its own catalogue's tiers: a creator space is never offered a clan one.
+                      options={planIdsFor(c.kind).map((p) => ({ value: p, label: p }))}
                       ariaLabel="Plan"
                       className="w-32"
                     />

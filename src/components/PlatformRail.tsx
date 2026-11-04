@@ -6,6 +6,8 @@ import { useState } from 'react';
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
 import PendingBadge from '@/components/PendingBadge';
+import CreatorChip from '@/components/CreatorChip';
+import { groupClansAndSpaces } from '@/lib/creatorSpaces';
 import SupporterName from '@/components/SupporterName';
 import type { SupporterStyle } from '@/lib/supporterStyle';
 import type { SupporterTierId } from '@/lib/supporterTiers';
@@ -17,6 +19,8 @@ export interface RailClan {
   logoUrl?: string | null;
   /** Something is running there right now — the one thing worth a dot in a nav. */
   live?: boolean;
+  /** 'clan' | 'creator' (lib/creatorSpaces). Creator spaces list under "Your spaces", not "Your clans". */
+  kind?: string;
 }
 
 /**
@@ -120,6 +124,9 @@ export default function PlatformRail({
         {/* Your own page, one click from anywhere — it used to take a search of the Hall of Records. */}
         {myProfileHref && item(myProfileHref, 'My profile', <ProfileIcon />)}
         {item('/clans', 'Clan Hall', <SearchIcon />, true)}
+        {/* The public events directory: every event a host advertised on Anvil. The rail is apex-only,
+            so this resolves to the apex /events, never a clan's hub. */}
+        {item('/events', 'Events', <CalendarIcon />)}
         {/* No in-game clan needed: a streamer or a friend group hosts from a creator space. */}
         {item('/host', 'Host an event', <PlusIcon />)}
         {item('/leaderboard', 'Hall of Records', <ChartIcon />)}
@@ -130,21 +137,23 @@ export default function PlatformRail({
         {guideLibrary && item('/staff/guides', 'Guide library', <ShieldIcon />)}
       </div>
 
-      {clans.length > 0 && (
-        <div className="flex min-h-0 shrink-0 gap-0.5 lg:flex-col">
+      {/* "Your clans", then "Your spaces" (creator spaces are not clans — lib/creatorSpaces). An
+          empty group is left out, so somebody with only a space sees no empty clans heading. */}
+      {groupClansAndSpaces(clans, (c) => c.kind).map((g) => (
+        <div key={g.key} className="flex min-h-0 shrink-0 gap-0.5 lg:flex-col">
           {/* A divider only where the row is horizontal. On the desktop rail the section heading
               below already does this job, and a rule as well would be one line too many. */}
           <span aria-hidden className="mx-1 w-px self-stretch bg-card-border lg:hidden" />
           <div className="hidden items-center gap-2 px-2.5 pb-1.5 lg:flex">
             <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-dim">
-              Your clans
+              {g.label}
             </span>
-            <span className="font-mono text-[10px] text-text-dim/70">{clans.length}</span>
+            <span className="font-mono text-[10px] text-text-dim/70">{g.items.length}</span>
           </div>
           {/* Capped and scrolling: guesting into other clans' events is meant to be ordinary, so a
               dozen seats is a normal account. A rail listing all of them pushes the nav off screen. */}
           <div className="flex gap-0.5 lg:max-h-[min(34vh,320px)] lg:flex-col lg:overflow-y-auto">
-            {clans.map((c) => (
+            {g.items.map((c) => (
               <ClanLink
                 key={c.slug}
                 href={`/c/${c.slug}`}
@@ -152,6 +161,7 @@ export default function PlatformRail({
               >
                 <ClanCrest name={c.name} logoUrl={c.logoUrl} size={18} />
                 <span className="truncate">{c.name}</span>
+                {g.key === 'spaces' && <CreatorChip />}
                 {c.live && (
                   <span
                     className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-accent-green-light"
@@ -162,7 +172,7 @@ export default function PlatformRail({
             ))}
           </div>
         </div>
-      )}
+      ))}
 
       {/* THE WAY IN, which the rail did not have.
           /clans/new was reachable from pricing, about, the portal and both landing pages — every
@@ -257,6 +267,7 @@ const s = {
 const HomeIcon = () => <svg {...s}><path d="M2 7l6-4.5L14 7v6.5a1 1 0 01-1 1H3a1 1 0 01-1-1V7z" /></svg>;
 const ProfileIcon = () => <svg {...s}><circle cx="8" cy="5.5" r="2.75" /><path d="M2.75 14c.6-2.9 2.7-4.5 5.25-4.5s4.65 1.6 5.25 4.5" /></svg>;
 const SearchIcon = () => <svg {...s}><circle cx="7" cy="7" r="4.4" /><path d="M10.4 10.4L14 14" /></svg>;
+const CalendarIcon = () => <svg {...s}><rect x="2.5" y="3.5" width="11" height="10" rx="1.2" /><path d="M2.5 6.8h11M5.5 2v3M10.5 2v3" /></svg>;
 const ChartIcon = () => <svg {...s}><path d="M3 13V8.5M8 13V3.5M13 13V6" /></svg>;
 const BookIcon = () => <svg {...s}><path d="M3 2.8h7a2 2 0 012 2v8.4H5a2 2 0 01-2-2V2.8z" /><path d="M6 6h5M6 8.6h5" /></svg>;
 const PersonIcon = () => <svg {...s}><circle cx="8" cy="5.5" r="2.4" /><path d="M2.8 13.2c.5-2.5 2.6-3.8 5.2-3.8s4.7 1.3 5.2 3.8" /></svg>;

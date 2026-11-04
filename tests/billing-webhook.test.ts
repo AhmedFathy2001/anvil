@@ -522,3 +522,124 @@ test('a sale Gumroad says has no trial is not shown as one', async () => {
   const days = (Date.parse(after!.currentPeriodEnd!) - Date.now()) / 86_400_000;
   assert.ok(days > 27 && days < 32, `due a month out, got ${days}`);
 });
+
+// ── Two catalogues: creator spaces buy their own products (lib/creatorCatalog) ─────────────────
+
+const CATALOG_PRODUCTS = {
+  GUMROAD_PRODUCT_SILVER: 'prod-clan-silver',
+  GUMROAD_PRODUCT_GOLD: 'prod-clan-gold',
+  GUMROAD_PRODUCT_CREATOR_BRONZE: 'prod-cr-bronze',
+  GUMROAD_PRODUCT_CREATOR_SILVER: 'prod-cr-silver',
+  GUMROAD_PRODUCT_CREATOR_GOLD: 'prod-cr-gold',
+};
+
+async function withProducts<T>(run: () => Promise<T>): Promise<T> {
+  for (const [k, v] of Object.entries(CATALOG_PRODUCTS)) process.env[k] = v;
+  try {
+    return await run();
+  } finally {
+    for (const k of Object.keys(CATALOG_PRODUCTS)) delete process.env[k];
+  }
+}
+
+async function creatorSpace(slug: string, values: Record<string, unknown> = {}) {
+  const { db, schema: s } = await loadDb();
+  const [row] = await db
+    .insert(s.clans)
+    .values({ slug, name: slug, kind: 'creator', plan: 'creator_free', status: 'active', gumroadRef: `ref-${slug}`, ...values })
+    .returning();
+  return row;
+}
+
+test('a creator product bought through a creator space moves it within the creator catalogue', async () => {
+  const { db, schema: s } = await loadDb();
+  const space = await creatorSpace('cat-space');
+  await withProducts(async () => {
+    const res = await postWebhook({ resource_name: 'sale', sale_id: 'sale-cat-1', subscription_id: 'sub-cat-1', product_id: 'prod-cr-silver', recurrence: 'monthly', 'url_params[ref]': 'ref-cat-space' });
+    assert.equal(res.status, 200);
+    assert.equal((await res.json()).plan, 'creator_silver');
+    // A renewal of it, and a renewal naming the tier by its creator name.
+    await postWebhook({ resource_name: 'sale', is_recurring_charge: 'true', sale_id: 'sale-cat-2', subscription_id: 'sub-cat-1', product_id: 'prod-cr-silver', recurrence: 'monthly' });
+  });
+  const after = await db.query.clans.findFirst({ where: eq(s.clans.id, space.id) });
+  assert.equal(after?.plan, 'creator_silver');
+  assert.equal(after?.memberCap, 300);
+  assert.equal(after?.gumroadSubscriptionId, 'sub-cat-1');
+});
+
+test('a clan product bought for a creator space is refused and logged, and the other way round', async () => {
+  const { db, schema: s } = await loadDb();
+  const space = await creatorSpace('cat-wrong-space');
+  const [clan] = await db.insert(s.clans).values({ slug: 'cat-wrong-clan', name: 'Wrong Clan', status: 'active', gumroadRef: 'ref-cat-wrong-clan' }).returning();
+  await withProducts(async () => {
+    // A clan Gold link with the space's ref pasted on, by product id and by tier name alone.
+    const r1 = await postWebhook({ resource_name: 'sale', sale_id: 'sale-wrong-1', subscription_id: 'sub-wrong-1', product_id: 'prod-clan-gold', 'url_params[ref]': 'ref-cat-wrong-space' });
+    assert.equal((await r1.json()).note, 'product is for another kind of space');
+    await postWebhook({ resource_name: 'sale', sale_id: 'sale-wrong-2', subscription_id: 'sub-wrong-2', 'variants[Tier]': 'Anvil Gold', 'url_params[ref]': 'ref-cat-wrong-space' });
+    // A product the space can't prove is a creator one: nothing either.
+    await postWebhook({ resource_name: 'sale', sale_id: 'sale-wrong-3', subscription_id: 'sub-wrong-3', product_id: 'prod-mystery', 'url_params[ref]': 'ref-cat-wrong-space' });
+    // A creator product on a clan's checkout.
+    await postWebhook({ resource_name: 'sale', sale_id: 'sale-wrong-4', subscription_id: 'sub-wrong-4', product_id: 'prod-cr-gold', 'url_params[ref]': 'ref-cat-wrong-clan' });
+    await postWebhook({ resource_name: 'sale', sale_id: 'sale-wrong-5', subscription_id: 'sub-wrong-5', 'variants[Tier]': 'Anvil Creator Gold', 'url_params[ref]': 'ref-cat-wrong-clan' });
+  });
+  const s1 = await db.query.clans.findFirst({ where: eq(s.clans.id, space.id) });
+  assert.equal(s1?.plan, 'creator_free');
+  assert.equal(s1?.gumroadSubscriptionId, null, 'nothing recorded from a refused sale');
+  const c1 = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+  assert.equal(c1?.plan, 'free');
+  const logged = (await db.select().from(s.clanAuditLog).where(eq(s.clanAuditLog.eventType, 'billing_wrong_catalog')))
+    .map((r) => [r.clanId, JSON.parse(r.newValue!).catalog]);
+  assert.deepEqual(logged, [
+    [space.id, 'clan'],
+    [space.id, 'clan'],
+    [space.id, 'unknown'],
+    [clan.id, 'creator'],
+    [clan.id, 'creator'],
+  ]);
+  // The clan storefront's old leniency is kept: a clan sale naming nothing still lands (entry tier).
+  await postWebhook({ resource_name: 'sale', sale_id: 'sale-wrong-6', subscription_id: 'sub-wrong-6', 'url_params[ref]': 'ref-cat-wrong-clan' });
+  assert.equal((await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) }))?.plan, 'bronze');
+});
+
+test('a creator space lapses, refunds and restarts within its own catalogue', async () => {
+  const { db, schema: s } = await loadDb();
+  const lapsing = await creatorSpace('cat-lapse', { plan: 'creator_gold', memberCap: 600, gumroadSubscriptionId: 'sub-cat-lapse' });
+  await postWebhook({ resource_name: 'cancellation', subscription_id: 'sub-cat-lapse' });
+  assert.equal((await db.query.clans.findFirst({ where: eq(s.clans.id, lapsing.id) }))?.plan, 'creator_gold', 'kept until the term ends');
+  await postWebhook({ resource_name: 'subscription_ended', subscription_id: 'sub-cat-lapse' });
+  const ended = await db.query.clans.findFirst({ where: eq(s.clans.id, lapsing.id) });
+  assert.equal(ended?.plan, 'creator_free', "dropped to the creator catalogue's free");
+  assert.equal(ended?.memberCap, 50);
+  assert.equal(ended?.status, 'active', 'data kept, site up');
+  assert.equal(ended?.gumroadSubscriptionId, 'sub-cat-lapse');
+
+  await withGumroad({ 'sub-cat-lapse': { status: 'alive' } }, () =>
+    withProducts(() => postWebhook({ resource_name: 'subscription_restarted', subscription_id: 'sub-cat-lapse', product_id: 'prod-cr-gold' })),
+  );
+  assert.equal((await db.query.clans.findFirst({ where: eq(s.clans.id, lapsing.id) }))?.plan, 'creator_gold', 'restored from billing_ended');
+
+  // An end recorded before the split (a clan id) restores the creator tier it meant.
+  const old = await creatorSpace('cat-old-end', { gumroadSubscriptionId: 'sub-cat-old' });
+  await db.insert(s.clanAuditLog).values({ clanId: old.id, eventType: 'billing_ended', newValue: JSON.stringify({ from: 'silver', to: 'free' }) });
+  await withGumroad({ 'sub-cat-old': { status: 'alive' } }, () => postWebhook({ resource_name: 'subscription_restarted', subscription_id: 'sub-cat-old' }));
+  assert.equal((await db.query.clans.findFirst({ where: eq(s.clans.id, old.id) }))?.plan, 'creator_silver');
+
+  const refunded = await creatorSpace('cat-refund', { plan: 'creator_silver', gumroadSubscriptionId: 'sub-cat-refund' });
+  await postWebhook({ resource_name: 'refund', subscription_id: 'sub-cat-refund', sale_id: 'sale-cat-refund' });
+  const r = await db.query.clans.findFirst({ where: eq(s.clans.id, refunded.id) });
+  assert.equal(r?.plan, 'creator_free');
+  assert.equal(r?.status, 'suspended', 'a refund suspends, as for a clan');
+});
+
+test('the daily lapse check drops a creator space to creator free', async () => {
+  const { db, schema: s } = await loadDb();
+  const { sweepLapsedBilling } = await import('../src/lib/billingLapse.ts');
+  const past = new Date(Date.now() - 10 * 86_400_000).toISOString();
+  const space = await creatorSpace('cat-sweep', { plan: 'creator_bronze', gumroadSubscriptionId: 'sub-cat-sweep', currentPeriodEnd: past });
+  // An ended creator space (creator free, id kept) is not "paying": never asked about.
+  await creatorSpace('cat-sweep-free', { gumroadSubscriptionId: 'sub-cat-sweep-free', currentPeriodEnd: past });
+  const result = await withGumroad({ 'sub-cat-sweep': { status: 'cancelled' } }, () => sweepLapsedBilling());
+  assert.ok(result.ended.includes('cat-sweep'));
+  assert.ok(!result.ended.includes('cat-sweep-free'));
+  assert.equal((await db.query.clans.findFirst({ where: eq(s.clans.id, space.id) }))?.plan, 'creator_free');
+});

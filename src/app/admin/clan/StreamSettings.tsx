@@ -119,6 +119,8 @@ interface StreamingState {
   chatJoinPlan: string | null;
   overlayHideMark: boolean;
   overlayHidePlan: string | null;
+  /** Why it can't be turned on (a private clan), or null. */
+  blocked?: string | null;
 }
 
 /**
@@ -178,8 +180,14 @@ export default function StreamingSettings() {
               ? 'On. Connect your stream below. Then open an event to viewers from its settings (“Who can join?”). Viewers play that one event only. They don’t join your clan.'
               : 'Stream your events? Turn this on to let viewers join an event from your stream. Your clan stays the same: viewers are not members or guests.'}
           </p>
-          <Switch on={state.streaming} disabled={saving} label="Streaming" onToggle={() => patch({ streaming: !state.streaming })} />
+          <Switch
+            on={state.streaming}
+            disabled={saving || (!state.streaming && !!state.blocked)}
+            label="Streaming"
+            onToggle={() => patch({ streaming: !state.streaming })}
+          />
         </div>
+        {!state.streaming && state.blocked && <p className="mt-2 text-sm text-gold">{state.blocked}</p>}
       </section>
 
       {state.streaming && (

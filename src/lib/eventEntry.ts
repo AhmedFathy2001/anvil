@@ -14,7 +14,7 @@ import { isCreatorSpace, streamedEvent } from '@/lib/creatorSpaces';
 import { seatEventPlayer } from '@/lib/eventPlayers';
 import { entryGateVerdict } from '@/lib/entryGatesDb';
 import { verdictMessage, type GateVerdict } from '@/lib/entryGates';
-import { eventRoomVerdict } from '@/lib/creatorPlans';
+import { eventRoomVerdict, streamPlanId } from '@/lib/creatorPlans';
 import { freemiumEnforced } from '@/lib/entitlements';
 import { eventPlayerCount } from '@/lib/creatorPlansDb';
 
@@ -78,7 +78,7 @@ export async function enterEvent(opts: {
   // A streamed event's plan caps the players on it (lib/creatorPlans). A no-op until
   // FREEMIUM_ENFORCED is on; then a full event says so before anyone is seated or asks the host.
   if (streamed && freemiumEnforced()) {
-    const room = eventRoomVerdict({ clanPlan: host?.plan, players: await eventPlayerCount(event.id), adding: 1 });
+    const room = eventRoomVerdict({ clanPlan: streamPlanId(host), players: await eventPlayerCount(event.id), adding: 1 });
     if (!room.ok) return { outcome: 'refused', reason: 'full', status: 403, error: room.error };
   }
 

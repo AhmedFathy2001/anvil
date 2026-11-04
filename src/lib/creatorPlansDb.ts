@@ -4,7 +4,7 @@ import { and, count, eq, inArray, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clans, eventSignups, events } from '@/db/schema';
-import { ON_BOARD_STATUSES, eventRoomVerdict, isLiveEvent, newEventVerdict } from '@/lib/creatorPlans';
+import { ON_BOARD_STATUSES, eventRoomVerdict, isLiveEvent, newEventVerdict, streamPlanId } from '@/lib/creatorPlans';
 import { isCreatorSpace, streamedEvent } from '@/lib/creatorSpaces';
 import { eventStage } from '@/lib/eventStage';
 
@@ -72,7 +72,8 @@ export async function streamPlanOfEvent(eventId: number): Promise<string | null>
   if (!ev) return null;
   // clan-scope: this clan -- the event's own host.
   const host = await db.query.clans.findFirst({ where: eq(clans.id, ev.clanId), columns: { kind: true, plan: true, streaming: true } });
-  return host && streamedEvent(host, ev) ? host.plan : null;
+  // A Streaming clan's clan tier, read as the creator tier it equals (lib/creatorPlans streamPlanId).
+  return host && streamedEvent(host, ev) ? streamPlanId(host) : null;
 }
 
 /** Events of this space with a start date that have not ended (scheduled or running) — "live" for the plan. Undated drafts don't count (lib/creatorPlans isLiveEvent). */

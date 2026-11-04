@@ -2,7 +2,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clans, completions, eventOverlays, events, settings, tiles } from '@/db/schema';
-import { overlayShowsMark } from '@/lib/creatorPlans';
+import { overlayShowsMark, streamPlanId } from '@/lib/creatorPlans';
 import { OVERLAY_HIDE_MARK_SETTING } from '@/lib/creatorPlansDb';
 import { streamsEvents } from '@/lib/creatorSpaces';
 import { eventActivityIsValid } from '@/lib/completionGate';
@@ -195,7 +195,7 @@ export async function readOverlayMark(clanId: number): Promise<boolean> {
     db.query.settings.findFirst({ where: and(eq(settings.clanId, clanId), eq(settings.key, OVERLAY_HIDE_MARK_SETTING)) }),
   ]);
   if (!streamsEvents(host)) return false;
-  return overlayShowsMark({ clanPlan: host?.plan, hideRequested: hide?.value === 'on' });
+  return overlayShowsMark({ clanPlan: streamPlanId(host), hideRequested: hide?.value === 'on' });
 }
 
 // ── The host's half ─────────────────────────────────────────────────────────────────────────────

@@ -389,12 +389,12 @@ test('!join: only when switched on; replies once per cooldown as the app bot thr
   try {
     const capped = webhook('chat.message.sent', chat(7601, 'asker', '!join'));
     assert.equal((await W.handleKickWebhook(capped.headers, capped.raw)).after, undefined, 'Free + enforced: no reply');
-    await db.update(s.clans).set({ plan: 'silver' }).where(eq(s.clans.id, spaceId));
+    await db.update(s.clans).set({ plan: 'creator_silver' }).where(eq(s.clans.id, spaceId));
     const paid = webhook('chat.message.sent', chat(7601, 'asker', '!join'));
     assert.equal((await W.handleKickWebhook(paid.headers, paid.raw)).after?.kind, 'join', 'Silver + enforced: replies');
   } finally {
     delete process.env.FREEMIUM_ENFORCED;
-    await db.update(s.clans).set({ plan: 'free' }).where(eq(s.clans.id, spaceId));
+    await db.update(s.clans).set({ plan: 'creator_free' }).where(eq(s.clans.id, spaceId));
   }
 
   const before = net.chats.length;

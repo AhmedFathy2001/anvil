@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Input from '@/components/Input';
-import { checkStreamLink, suggestSlug } from '@/lib/creatorSpaces';
+import { suggestSlug } from '@/lib/creatorSpaces';
 
 /**
  * The "Host an event" form. Pressing create makes the space and goes straight to its event wizard —
@@ -23,8 +23,6 @@ export default function HostClient({
   const [slug, setSlug] = useState(defaultSlug);
   const [touchedSlug, setTouchedSlug] = useState(false);
   const [editSlug, setEditSlug] = useState(false);
-  const [twitch, setTwitch] = useState('');
-  const [kick, setKick] = useState('');
   const [check, setCheck] = useState<{ ok: boolean; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,9 +45,6 @@ export default function HostClient({
     return () => clearTimeout(t);
   }, [slug]);
 
-  const twitchCheck = checkStreamLink('twitch', twitch);
-  const kickCheck = checkStreamLink('kick', kick);
-
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -58,7 +53,7 @@ export default function HostClient({
       const res = await fetch('/api/creators', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, slug, twitchUrl: twitch, kickUrl: kick }),
+        body: JSON.stringify({ name, slug }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -87,7 +82,6 @@ export default function HostClient({
   }
 
   const slugBad = check != null && !check.ok;
-  const linksBad = !twitchCheck.ok || !kickCheck.ok;
 
   return (
     <form onSubmit={submit} className="space-y-5 rounded-xl border border-card-border bg-card-bg p-6">
@@ -141,45 +135,18 @@ export default function HostClient({
         </div>
       </div>
 
-      <details className="group rounded-xl border border-card-border px-4 py-3" open={!twitchCheck.ok || !kickCheck.ok}>
-        <summary className="cursor-pointer text-sm text-text-muted group-open:mb-3">Add your channel (optional)</summary>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="host-twitch" className="mb-1.5 block text-sm text-foreground/80">
-              Twitch
-            </label>
-            <Input
-              id="host-twitch"
-              value={twitch}
-              onChange={(e) => setTwitch(e.target.value)}
-              placeholder="https://twitch.tv/you"
-              inputMode="url"
-              className="rounded-xl px-4 py-2.5 outline-none"
-            />
-            {!twitchCheck.ok && <p className="mt-1 text-xs text-accent-red">{twitchCheck.error}</p>}
-          </div>
-          <div>
-            <label htmlFor="host-kick" className="mb-1.5 block text-sm text-foreground/80">
-              Kick
-            </label>
-            <Input
-              id="host-kick"
-              value={kick}
-              onChange={(e) => setKick(e.target.value)}
-              placeholder="https://kick.com/you"
-              inputMode="url"
-              className="rounded-xl px-4 py-2.5 outline-none"
-            />
-            {!kickCheck.ok && <p className="mt-1 text-xs text-accent-red">{kickCheck.error}</p>}
-          </div>
-        </div>
-      </details>
+      {/* No typed channel links: a space links only to channels it connects (and so proves) from its
+          settings once it exists (lib/creatorSpaces verifiedStreamLinks). */}
+      <p className="text-[13px] text-text-muted">
+        You can connect your Twitch, YouTube or Kick channel from your space&apos;s settings afterwards. It shows on your
+        page as verified.
+      </p>
 
       {error && <p className="text-sm text-accent-red">{error}</p>}
 
       <button
         type="submit"
-        disabled={busy || !name.trim() || !slug || slugBad || linksBad}
+        disabled={busy || !name.trim() || !slug || slugBad}
         className="w-full rounded-xl bg-gold px-6 py-4 text-lg font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
       >
         {busy ? 'Creating…' : 'Create my space'}

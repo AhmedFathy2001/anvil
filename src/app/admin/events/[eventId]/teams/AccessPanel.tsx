@@ -37,6 +37,17 @@ const ENTRY: { value: string; label: string; hint: string }[] = [
   },
 ];
 
+const CREATOR_VISIBILITY: { value: string; label: string; hint: string }[] = [
+  { value: 'clan', label: 'Anyone with the link', hint: 'On your space’s page, and open to anyone you share it with.' },
+  { value: 'invited', label: 'Invited only', hint: 'Hidden unless you invite them by name.' },
+  { value: 'public', label: 'Anyone', hint: 'Listed and readable by anybody on Anvil.' },
+];
+
+const CREATOR_ENTRY: { value: string; label: string; hint: string }[] = [
+  { value: 'open', label: 'Anyone', hint: 'Viewers join straight away.' },
+  { value: 'approval', label: 'Ask me about everyone', hint: 'Every player lands in your queue first.' },
+];
+
 /**
  * Who may see this event, and who may enter it.
  *
@@ -49,7 +60,11 @@ const ENTRY: { value: string; label: string; hint: string }[] = [
  * purpose (a public board with approval entry is the ordinary cross-clan case), and an admin setting
  * one without seeing the other is how you end up with a board nobody can find.
  */
-export default function AccessPanel({ eventId }: { eventId: number }) {
+export default function AccessPanel({ eventId, creator = false }: { eventId: number; creator?: boolean }) {
+  // A creator space (lib/creatorSpaces): no member list, no clans to invite, and `open` really is
+  // open (outsiderNeedsApproval), so the choices are said in those words.
+  const visibilityOptions = creator ? CREATOR_VISIBILITY : VISIBILITY;
+  const entryOptions = creator ? CREATOR_ENTRY : ENTRY;
   // Drafts, saved together by the Save button — picking an option is not committing to it.
   const [visibility, setVisibility] = useState<string | null>(null);
   const [entry, setEntry] = useState<string | null>(null);
@@ -59,11 +74,12 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
   const [savedNote, setSavedNote] = useState(false);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [guestPolicy, setGuestPolicy] = useState<string | null>(null);
+  const [clanPublic, setClanPublic] = useState(true);
   const [pickedClan, setPickedClan] = useState<PickedClan | null>(null);
   // Inviting ONE PERSON. `event_invites` always took a clan or a person and the POST always accepted
   // `playerId`; what was missing was any way to turn a name into an id, so only half of inviting was
   // reachable from the product.
-  const [mode, setMode] = useState<'clan' | 'person'>('clan');
+  const [mode, setMode] = useState<'clan' | 'person'>(creator ? 'person' : 'clan');
   const [rsn, setRsn] = useState('');
   const [lookup, setLookup] = useState<{ playerId: number; rsn: string; alreadyInvited: boolean } | null>(null);
   const [looked, setLooked] = useState(false);
@@ -81,6 +97,7 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
     setSaved({ visibility: d.visibility, entry: d.entry, advertised: !!d.advertised });
     setInvites(d.invites ?? []);
     setGuestPolicy(d.guestPolicy ?? null);
+    setClanPublic(d.clanPublic !== false);
   }, [eventId]);
 
   useEffect(() => {
@@ -221,9 +238,10 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
 
       <div className="grid gap-5 px-5 py-4 md:grid-cols-2">
         <div>
-          <Choice title="Who can see it" options={VISIBILITY} value={visibility} onPick={setVisibility} />
-          {/* Readable by anyone is not the same as advertised to everyone — a separate yes. */}
-          {visibility === 'public' && (
+          <Choice title="Who can see it" options={visibilityOptions} value={visibility} onPick={setVisibility} />
+          {/* Readable by anyone is not the same as advertised to everyone — a separate yes. Offered
+              wherever a stranger can already read the board; never on an invite-only one. */}
+          {visibility !== 'invited' && (
             <label className="mt-2 flex cursor-pointer items-start gap-2.5 rounded-xl border border-card-border bg-background p-3 text-[12.5px] hover:border-gold/30">
               <input
                 type="checkbox"
@@ -232,20 +250,25 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
                 className="mt-0.5 h-4 w-4 accent-gold"
               />
               <span>
-                <span className="block text-[13.5px] font-medium">Feature on Anvil&rsquo;s home page</span>
+                <span className="block text-[13.5px] font-medium">Advertise on Anvil</span>
                 <span className="mt-0.5 block text-text-muted">
-                  Shown under &ldquo;Open to everyone&rdquo; to players outside your clan, while it&rsquo;s
-                  upcoming or live. Needs your clan listed in the Clan Hall.
+                  List this event on anvilosrs.com/events so anyone can find it, while it&rsquo;s upcoming or live.
                 </span>
+                {!clanPublic && (
+                  <span className="mt-1 block text-accent-red">
+                    Your clan is private, so it won&rsquo;t be listed until the clan is public.
+                  </span>
+                )}
               </span>
             </label>
           )}
         </div>
         <div>
-          <Choice title="Who can enter it" options={ENTRY} value={entry ?? 'open'} onPick={setEntry} />
+          <Choice title="Who can enter it" options={entryOptions} value={entry ?? 'open'} onPick={setEntry} />
           {/* The clan's own door is the stricter of the two and always wins in lib/guestAdmission —
-              this setting could promise entry that the roster policy then refused, silently. */}
-          {guestPolicy === 'closed' && (
+              this setting could promise entry that the roster policy then refused, silently. A
+              creator space has no such door (People → Who can join is a clan page). */}
+          {guestPolicy === 'closed' && !creator && (
             <p className="mt-2 text-[12.5px] text-accent-red">
               Your clan is not taking guests, so nobody from outside can enter whatever this says.
               Change it under People → Who can join.
@@ -292,7 +315,9 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
           <div className="mb-2 text-[13px] font-semibold">Invited</div>
           {invites.length === 0 ? (
             <p className="mb-2.5 text-[12.5px] text-accent-red">
-              Nobody is invited yet, so nobody outside your clan can see this board.
+              {creator
+                ? 'Nobody is invited yet, so only you and your staff can see this board.'
+                : 'Nobody is invited yet, so nobody outside your clan can see this board.'}
             </p>
           ) : (
             <ul className="mb-2.5 flex flex-wrap gap-2">
@@ -317,25 +342,28 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
             </ul>
           )}
 
-          <div className="mb-2 flex gap-1">
-            {(['clan', 'person'] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => {
-                  setMode(m);
-                  setError(null);
-                  setLooked(false);
-                  setLookup(null);
-                }}
-                className={`rounded-lg px-3 py-1 text-[12.5px] transition-colors ${
-                  mode === m ? 'bg-gold/15 text-gold' : 'text-text-muted hover:text-foreground'
-                }`}
-              >
-                {m === 'clan' ? 'A clan' : 'One person'}
-              </button>
-            ))}
-          </div>
+          {/* A creator space invites people, never clans. */}
+          {!creator && (
+            <div className="mb-2 flex gap-1">
+              {(['clan', 'person'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => {
+                    setMode(m);
+                    setError(null);
+                    setLooked(false);
+                    setLookup(null);
+                  }}
+                  className={`rounded-lg px-3 py-1 text-[12.5px] transition-colors ${
+                    mode === m ? 'bg-gold/15 text-gold' : 'text-text-muted hover:text-foreground'
+                  }`}
+                >
+                  {m === 'clan' ? 'A clan' : 'One person'}
+                </button>
+              ))}
+            </div>
+          )}
 
           {mode === 'person' ? (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -383,10 +411,12 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
           {mode === 'person' && lookup?.alreadyInvited && (
             <p className="mt-2 text-[12.5px] text-text-muted">{lookup.rsn} is already invited.</p>
           )}
-          <p className="mt-2 text-[12px] text-text-muted">
-            An invited clan’s members can see this board and enter without being approved one by one.
-            To have a clan run its own TEAM here, invite it as a co-host below instead.
-          </p>
+          {!creator && (
+            <p className="mt-2 text-[12px] text-text-muted">
+              An invited clan’s members can see this board and enter without being approved one by one.
+              To have a clan run its own TEAM here, invite it as a co-host below instead.
+            </p>
+          )}
           {error && <p className="mt-2 text-[12.5px] text-accent-red">{error}</p>}
         </div>
       )}

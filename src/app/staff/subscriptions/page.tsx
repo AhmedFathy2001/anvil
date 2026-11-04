@@ -5,7 +5,9 @@ import { db } from '@/db';
 import { clans, supporterSubscriptions, users } from '@/db/schema';
 import { requirePlatformPage } from '@/lib/platformAccess';
 import { billingStatus, subscriptionFacts, type BillingState } from '@/lib/clanBilling';
-import { PLANS, PLAN_IDS, type PlanId } from '@/lib/plans';
+import { PLANS, PLAN_IDS } from '@/lib/plans';
+import { CREATOR_FREE_ID, CREATOR_PLANS, CREATOR_PLAN_IDS } from '@/lib/creatorCatalog';
+import { billingTierOf, isFreePlanId } from '@/lib/billingCatalog';
 import {
   GIFT_RECURRENCE,
   SUPPORTER_TIERS,
@@ -56,6 +58,7 @@ export default async function StaffSubscriptionsPage({
       id: clans.id,
       name: clans.name,
       slug: clans.slug,
+      kind: clans.kind,
       plan: clans.plan,
       contactEmail: clans.contactEmail,
       trialEndsAt: clans.trialEndsAt,
@@ -69,13 +72,20 @@ export default async function StaffSubscriptionsPage({
   const paidClans = clanRows
     .map((c) => ({ ...c, billing: billingStatus({ ...c, ...subscriptionFacts(c.gumroadSubscriptionId, c.plan) }, now) }))
     .filter((c) => CLAN_STATES.includes(c.billing.state));
-  // A trialing clan sits on 'free' until it pays; it is shown under its own heading, not as Free.
-  const clanTiers: { id: PlanId | 'trial'; name: string; priceUsd: number | null }[] = [
+  // A trialing clan sits on free until it pays; it is shown under its own heading, not as Free.
+  // Creator spaces are billed from their own catalogue (lib/creatorCatalog) and listed under their
+  // own tiers, after the clan ones.
+  const clanTiers: { id: string; name: string; priceUsd: number | null }[] = [
     ...PLAN_IDS.filter((id) => id !== 'free').map((id) => ({ id, name: PLANS[id].name, priceUsd: PLANS[id].priceUsd })),
+    ...CREATOR_PLAN_IDS.filter((id) => id !== CREATOR_FREE_ID).map((id) => ({
+      id,
+      name: `Creator ${CREATOR_PLANS[id].name}`,
+      priceUsd: CREATOR_PLANS[id].priceUsd,
+    })),
     { id: 'trial', name: 'On trial', priceUsd: null },
   ];
-  const clanTierOf = (c: (typeof paidClans)[number]): PlanId | 'trial' =>
-    c.billing.state === 'trialing' && c.plan === 'free' ? 'trial' : (c.plan as PlanId);
+  const clanTierOf = (c: (typeof paidClans)[number]): string =>
+    c.billing.state === 'trialing' && isFreePlanId(c.plan) ? 'trial' : billingTierOf(c.kind, c.plan).id;
   const clansByTier = new Map(clanTiers.map((t) => [t.id, paidClans.filter((c) => clanTierOf(c) === t.id)]));
 
   // ── People ───────────────────────────────────────────────────────────────────────────────
@@ -111,7 +121,7 @@ export default async function StaffSubscriptionsPage({
   // discounts mean the true number is higher or lower). Trials, comps, gifts and referrals are $0.
   const clanMrr = paidClans
     .filter((c) => c.billing.state === 'active' || c.billing.state === 'cancelling')
-    .reduce((sum, c) => sum + (PLANS[c.plan as PlanId]?.priceUsd ?? 0), 0);
+    .reduce((sum, c) => sum + (billingTierOf(c.kind, c.plan).priceUsd ?? 0), 0);
   const peopleMrr = people
     .filter(isPaid)
     .reduce((sum, p) => {

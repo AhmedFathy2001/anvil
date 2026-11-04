@@ -10,6 +10,7 @@ import { isGuestPolicy } from '@/lib/guestAdmission';
 import { getSettingMap, setSetting } from '@/lib/settings';
 import { forgetLinkCards } from '@/lib/ogKit';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
+import { visibilityChangeVerdict } from '@/lib/streamingSwitch';
 
 /**
  * Who may see this clan, and how somebody gets in.
@@ -71,6 +72,9 @@ export async function PATCH(request: Request) {
     if (!isClanVisibility(body.visibility)) {
       return NextResponse.json({ error: 'Visibility must be public or members' }, { status: 400 });
     }
+    // A Streaming clan can't go private: viewers have to open its events (lib/streamingSwitch).
+    const v = await visibilityChangeVerdict(clan.id, body.visibility);
+    if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
     patch.visibility = body.visibility;
   }
 

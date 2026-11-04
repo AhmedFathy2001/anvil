@@ -291,7 +291,7 @@ test('a creator-space viewer gets an event seat; one event never opens the other
 });
 
 test('one stream channel, one place: an admin of both may move it; anybody else may not', async () => {
-  const [other] = await db.insert(s.clans).values({ slug: 'other-space', name: 'Other Space', kind: 'creator' }).returning();
+  const [other] = await db.insert(s.clans).values({ slug: 'other-space', name: 'Other Space', kind: 'creator', plan: 'creator_free' }).returning();
   await db.insert(s.clanStaff).values({ clanId: other.id, userId: owner.userId, role: 'owner' });
   await db.insert(s.clanTwitchChannels).values({
     clanId: other.id,
@@ -342,6 +342,42 @@ test('the plugin’s boards for an event seat are its own event only', async () 
   ]);
   const boards = await Boards.liveBoardsForCharacter(new Request('https://example.test/x'), v.accountId);
   assert.deepEqual(boards.map((b) => b.eventId), [streamEvent]);
+});
+
+test('private clans can’t stream, and a Streaming clan can’t go private', async () => {
+  const SW = await import('../src/lib/streamingSwitch.ts');
+  const founder = await person('Private Founder');
+  const made = await C.createClan({ slug: 'quiet-clan', name: 'Quiet Clan', inGameName: 'Quiet Clan', ownerUserId: founder.userId });
+  assert.equal(made.ok, true);
+  if (!made.ok) return;
+  await db.update(s.clans).set({ visibility: 'members' }).where(eq(s.clans.id, made.clanId));
+  assert.deepEqual(await SW.setClanStreaming(made.clanId, true), { ok: false, error: SW.STREAMING_NEEDS_PUBLIC });
+  assert.equal((await db.query.clans.findFirst({ where: eq(s.clans.id, made.clanId) }))?.streaming, false);
+  // Public: on. Then going private is refused until Streaming is off.
+  await db.update(s.clans).set({ visibility: 'public' }).where(eq(s.clans.id, made.clanId));
+  assert.deepEqual(await SW.setClanStreaming(made.clanId, true), { ok: true });
+  assert.deepEqual(await SW.visibilityChangeVerdict(made.clanId, 'members'), { ok: false, error: SW.PRIVATE_NEEDS_STREAMING_OFF });
+  assert.deepEqual(await SW.visibilityChangeVerdict(made.clanId, 'public'), { ok: true });
+  assert.deepEqual(await SW.setClanStreaming(made.clanId, false), { ok: true });
+  assert.deepEqual(await SW.visibilityChangeVerdict(made.clanId, 'members'), { ok: true });
+});
+
+test('a Streaming clan keeps its clan plan; its viewer events are metered as the same creator tier', async () => {
+  const CP = await import('../src/lib/creatorPlans.ts');
+  const PD = await import('../src/lib/creatorPlansDb.ts');
+  assert.equal(CP.streamPlanId({ kind: 'clan', plan: 'free' }), 'creator_free');
+  assert.equal(CP.streamPlanId({ kind: 'clan', plan: 'silver' }), 'creator_silver');
+  assert.equal(CP.streamPlanId({ kind: 'clan', plan: 'custom' }), 'creator_partner');
+  assert.equal(CP.streamPlanId({ kind: 'creator', plan: 'creator_gold' }), 'creator_gold');
+
+  await db.update(s.clans).set({ plan: 'silver' }).where(eq(s.clans.id, clanId));
+  assert.equal(await PD.streamPlanOfEvent(streamEvent), 'creator_silver', 'the viewer event, read as creator Silver');
+  assert.equal(await PD.streamPlanOfEvent(membersEvent), null, 'members-only: metered by the roster, as before');
+  const row = await db.query.clans.findFirst({ where: eq(s.clans.id, clanId), columns: { plan: true } });
+  assert.equal(row?.plan, 'silver', 'the clan row keeps its clan plan id');
+  // A creator plan id can never be written onto a clan row.
+  await assert.rejects(db.update(s.clans).set({ plan: 'creator_silver' }).where(eq(s.clans.id, clanId)));
+  await db.update(s.clans).set({ plan: 'free' }).where(eq(s.clans.id, clanId));
 });
 
 test('an event seat never earns member Discord roles, a member nickname tier, or a role sync', async () => {

@@ -42,6 +42,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const statics: MetadataRoute.Sitemap = [
     { url: absoluteUrl('/'), lastModified: now, changeFrequency: 'daily', priority: 1 },
     { url: absoluteUrl('/clans'), lastModified: now, changeFrequency: 'daily', priority: 0.9 },
+    // The public events directory (lib/eventsDirectory) — changes by the hour.
+    { url: absoluteUrl('/events'), lastModified: now, changeFrequency: 'hourly', priority: 0.9 },
     { url: absoluteUrl('/leaderboard'), lastModified: now, changeFrequency: 'daily', priority: 0.7 },
     { url: absoluteUrl('/about'), changeFrequency: 'monthly', priority: 0.5 },
     { url: absoluteUrl('/pricing'), changeFrequency: 'monthly', priority: 0.6 },

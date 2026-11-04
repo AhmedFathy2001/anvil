@@ -6,9 +6,12 @@ import { clans, events } from '@/db/schema';
 import { eventForRequest } from '@/lib/eventScope';
 import { verifyUser } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
-import { cohostsForEvent, inviteCoHost, setCohostBoardAccess, setCohostStaffCanEditBoard } from '@/lib/coHost';
+import { coHostKindRefusal, cohostsForEvent, inviteCoHost, setCohostBoardAccess, setCohostStaffCanEditBoard } from '@/lib/coHost';
+import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 import { settlementForEvent } from '@/lib/coHostSettlement';
 import { clanCan, minPlanNameFor } from '@/lib/entitlements';
+import { creatorCan, creatorMinPlanNameFor } from '@/lib/creatorCatalog';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const CASH_POLICIES = ['host-holds', 'each-settles', 'clans-collect-host-pays'] as const;
 export type CashPolicy = (typeof CASH_POLICIES)[number];
@@ -41,6 +44,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
 export async function PATCH(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const session = await verifyUser();
   if (!session || !atLeast(session.role, 'admin')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  // A creator space has no co-hosts to configure (lib/creatorSpaces).
+  const refused = await refuseForCreatorSpace();
+  if (refused) return refused;
 
   const eventId = Number((await params).eventId);
   const event = await eventForRequest(request, eventId);
@@ -81,13 +87,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   const event = await eventForRequest(request, eventId);
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
+  const refused = await refuseForCreatorSpace();
+  if (refused) return refused;
+
   // "Free to join, paid to host": hosting a co-hosted event is a premium capability. Generous now —
   // clanCan is true for everyone until FREEMIUM_ENFORCED flips (lib/entitlements) — so this door is
   // wired but does not bite yet.
-  const host = await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { plan: true } });
-  if (!clanCan(host?.plan, 'host-multi-clan')) {
+  // Each kind asks its own catalogue: a creator space's tier is a creator one (lib/creatorCatalog).
+  const host = await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true, plan: true } });
+  const creator = isCreatorSpace(host);
+  const mayHost = creator ? creatorCan(host?.plan, 'host-multi-clan') : clanCan(host?.plan, 'host-multi-clan');
+  if (!mayHost) {
+    const tier = creator ? creatorMinPlanNameFor('host-multi-clan') : minPlanNameFor('host-multi-clan');
     return NextResponse.json(
-      { error: `Hosting a multi-clan event is a ${minPlanNameFor('host-multi-clan')} feature.`, upgrade: true },
+      { error: `Hosting a multi-clan event is a ${tier} feature.`, upgrade: true },
       { status: 402 },
     );
   }
@@ -99,6 +112,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   const target = await db.query.clans.findFirst({ where: eq(clans.slug, clanSlug) });
   if (!target) return NextResponse.json({ error: 'No clan with that address' }, { status: 404 });
   if (target.id === event.clanId) return NextResponse.json({ error: 'That clan is the host' }, { status: 400 });
+  // Co-hosting is between in-game clans: not from a creator space, and not to one.
+  const kindRefusal = await coHostKindRefusal(eventId, target.id);
+  if (kindRefusal) return NextResponse.json({ error: kindRefusal }, { status: 400 });
 
   const { id, created } = await inviteCoHost(eventId, target.id, session.userId);
   return NextResponse.json({ ok: true, id, created });

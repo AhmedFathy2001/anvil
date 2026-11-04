@@ -98,6 +98,8 @@ export interface ClanRow {
   host: string;
   status: string;
   plan: string;
+  /** 'clan' | 'creator' — which plan catalogue `plan` comes from (lib/billingCatalog). */
+  kind: string;
   memberCap: number | null;
   createdAt: string;
   /** The in-game clan name, and whether anybody has proved it. */
@@ -165,6 +167,7 @@ export async function allClans(): Promise<ClanRow[]> {
       customDomain: clans.customDomain,
       status: clans.status,
       plan: clans.plan,
+      kind: clans.kind,
       memberCap: clans.memberCap,
       createdAt: clans.createdAt,
       inGameName: clans.inGameName,
@@ -240,6 +243,7 @@ export async function allClans(): Promise<ClanRow[]> {
     host: r.customDomain || `${apexDomain()}/c/${r.slug}`,
     status: r.status,
     plan: r.plan,
+    kind: r.kind,
     memberCap: r.memberCap,
     createdAt: r.createdAt,
     inGameName: r.inGameName,
@@ -1036,6 +1040,7 @@ export async function clanDetail(clanId: number): Promise<ClanDetail | null> {
       host: row.customDomain || `${apexDomain()}/c/${row.slug}`,
       status: row.status,
       plan: row.plan,
+      kind: row.kind,
       memberCap: row.memberCap,
       createdAt: row.createdAt,
       inGameName: row.inGameName,

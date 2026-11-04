@@ -188,7 +188,7 @@ export async function renameCharacter(
       .where(eq(clanMemberships.accountId, holder.id));
     for (const seat of holderSeats) {
       // Its counterpart on our account: the clan seat for a clan seat; for an event player's seat, our
-      // seat in the SAME event (one per account per event — the unique indexes in drizzle/0203).
+      // seat in the SAME event (one per account per event — the unique indexes in drizzle/0205).
       const [ours] = await db
         .select({ id: clanMemberships.id })
         .from(clanMemberships)

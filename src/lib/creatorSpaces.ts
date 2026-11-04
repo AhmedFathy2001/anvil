@@ -62,8 +62,13 @@ export function streamedEvent(
   return clan?.streaming === true && event?.openToViewers === true;
 }
 
-/** Modules that are always off in a creator space: they only mean something with a roster. */
-export const CREATOR_ONLY_OFF: readonly FeatureKey[] = ['weekly'];
+
+/**
+ * Modules that are always off in a creator space, switch hidden too: weeklies need a roster, the
+ * coffer is a clan's gp and the Clan Hall card sits on a clan's public page. A new space is made
+ * with all three off (lib/clanCreate CREATOR_FEATURES_OFF); this keeps them off.
+ */
+export const CREATOR_ONLY_OFF: readonly FeatureKey[] = ['weekly', 'coffer', 'clanHall'];
 
 // ── Admin pages a creator space does not have ──────────────────────────────────────────────────
 
@@ -89,6 +94,8 @@ export const CREATOR_HIDDEN_ADMIN_PATHS = [
   '/admin/verifications',
   '/admin/clan/needs-review',
   '/admin/clan/policy',
+  // Co-hosting is between in-game clans: a creator space neither invites clans nor is invited.
+  '/admin/cohosted',
 ] as const;
 
 export type CreatorHiddenAdminPath = (typeof CREATOR_HIDDEN_ADMIN_PATHS)[number];
@@ -96,6 +103,97 @@ export type CreatorHiddenAdminPath = (typeof CREATOR_HIDDEN_ADMIN_PATHS)[number]
 /** Is this admin path one a creator space is sent away from? Matches whole path segments only. */
 export function creatorHidesAdminPath(pathname: string): boolean {
   return CREATOR_HIDDEN_ADMIN_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
+}
+
+// ── Sections inside pages a creator space does not have ─────────────────────────────────────────
+
+/**
+ * Folded sections of Admin → Discord (their FoldSection ids, which are also the settings search's
+ * anchors) that only mean something for an in-game clan: slash commands and the Clan Hall card.
+ * "Roles & nicknames" (`discord-roles`) is not here: a creator keeps its ping role, and only the
+ * roster's role and nickname sync inside it goes (app/admin/integrations/DiscordSettings).
+ */
+export const CREATOR_HIDDEN_DISCORD_SECTIONS = ['discord-clan-hall', 'discord-commands'] as const;
+
+export function creatorHidesDiscordSection(id: string): boolean {
+  return (CREATOR_HIDDEN_DISCORD_SECTIONS as readonly string[]).includes(id);
+}
+
+/**
+ * Rows of Discord → "What goes where" (lib/discordFeeds ids) with nothing to post in a creator
+ * space: other clans' boards, weeklies, the clan calendar, the in-game roster and the coffer.
+ */
+export const CREATOR_HIDDEN_FEEDS: readonly string[] = ['cohost', 'weekly', 'clanEvents', 'roster', 'coffer'];
+
+/** Tabs of "What goes where": game-mode worlds (Leagues, DMM…) never count toward an event. */
+export const CREATOR_HIDDEN_FEED_TABS: readonly string[] = ['modes'];
+
+/**
+ * Settings keys a creator space has no use for: the channels and switches of the feeds above (on
+ * "Post without a bot" too), the roster's Discord role and nickname sync, and the Clan Hall card.
+ * Hidden from its screens and the settings search, and refused when a request turns one ON
+ * (creatorRefusedSetting). Clearing one always goes through, so nothing old gets stuck on.
+ */
+export const CREATOR_HIDDEN_SETTING_KEYS: readonly string[] = [
+  'discord_webhook_weekly',
+  'discord_webhook_clan_events',
+  'discord_webhook_roster',
+  'discord_webhook_coffer',
+  'discord_webhook_cohost',
+  'discord_cohost_posts_enabled',
+  'webhook_leagues',
+  'leagues_icon_url',
+  'discord_role_sync_enabled',
+  'discord_nickname_sync_enabled',
+  'discord_nickname_overwrite',
+  'discord_widget_enabled',
+  'discord_widget_public_names',
+  'discord_widget_embed',
+];
+
+export function creatorHidesSettingKey(key: string): boolean {
+  return CREATOR_HIDDEN_SETTING_KEYS.includes(key);
+}
+
+/**
+ * For a settings write from a creator space: the first hidden key it would set to something, or
+ * null. A blank, null, false or 'false' value is a clear and goes through.
+ */
+export function creatorRefusedSetting(body: Record<string, unknown> | null | undefined): string | null {
+  if (!body) return null;
+  for (const key of CREATOR_HIDDEN_SETTING_KEYS) {
+    const v = body[key];
+    if (v === undefined || v === null || v === false) continue;
+    if (typeof v === 'string' && (v.trim() === '' || v.trim() === 'false')) continue;
+    return key;
+  }
+  return null;
+}
+
+/**
+ * Entries of the admin settings search (lib/adminSettingsIndex ids) for things a creator space does
+ * not have on screen, beyond the hidden pages (those go by path): the clan profile's fields (a
+ * creator's settings page is its own), the clan's Lately feed, the roster's role and nickname sync,
+ * commands, the Clan Hall card and game-mode channels. Webhook entries go by their key.
+ */
+export const CREATOR_HIDDEN_SETTINGS: readonly string[] = [
+  'clan-name',
+  'clan-image',
+  'clan-banner',
+  'clan-hook',
+  'clan-tags',
+  'clan-discovery',
+  'clan-requirements',
+  'rules-feeds',
+  'discord-roles',
+  'discord-clan-hall',
+  'discord-commands',
+  'discord-game-modes',
+];
+
+export function creatorHidesSetting(id: string): boolean {
+  if (CREATOR_HIDDEN_SETTINGS.includes(id)) return true;
+  return id.startsWith('webhook-') && creatorHidesSettingKey(id.slice('webhook-'.length));
 }
 
 /** What an in-game-only admin API says to a creator space. */
@@ -154,46 +252,62 @@ export function showcaseOn(kind: string | null | undefined, showcase: string | n
 }
 
 // ── Stream links ─────────────────────────────────────────────────────────────────────────────────
+//
+// A creator page links ONLY to channels the space has connected through that platform's OAuth
+// (clan_twitch_channels, clan_kick_channels, clan_youtube_channels): signing in as the channel is the
+// proof it is theirs. A typed address proved nothing (anybody could type a famous streamer's
+// channel), so the old typed `creator_twitch_url` / `creator_kick_url` settings are never read or
+// written any more; rows that still exist are ignored. The URL is built here from the stored login,
+// slug or channel id, never from anything a person typed.
 
-export type StreamPlatform = 'twitch' | 'kick';
+export type StreamPlatform = 'twitch' | 'kick' | 'youtube';
 
-export const STREAM_LINK_KEYS: Record<StreamPlatform, string> = {
-  twitch: 'creator_twitch_url',
-  kick: 'creator_kick_url',
-};
+export interface VerifiedStreamLink {
+  platform: StreamPlatform;
+  /** "Twitch" / "Kick" / "YouTube". */
+  label: string;
+  /** What the channel is called there: the login, the slug, the @handle or the channel title. */
+  handle: string;
+  url: string;
+}
 
-const STREAM_HOSTS: Record<StreamPlatform, readonly string[]> = {
-  twitch: ['twitch.tv', 'www.twitch.tv', 'm.twitch.tv'],
-  kick: ['kick.com', 'www.kick.com'],
-};
+/** What the connected-channel rows hold. A missing row (never connected, or disconnected) is null. */
+export interface ConnectedChannels {
+  twitchLogin?: string | null;
+  kickSlug?: string | null;
+  youtube?: { channelId: string; handle: string | null; title?: string | null } | null;
+}
 
-const STREAM_NAMES: Record<StreamPlatform, string> = { twitch: 'Twitch', kick: 'Kick' };
-
-export type StreamLinkResult = { ok: true; url: string | null } | { ok: false; error: string };
+const TWITCH_LOGIN = /^[A-Za-z0-9_]{1,25}$/;
+const KICK_SLUG = /^[A-Za-z0-9_-]{1,40}$/;
+const YOUTUBE_HANDLE = /^@[A-Za-z0-9._-]{1,100}$/;
+const YOUTUBE_CHANNEL_ID = /^UC[A-Za-z0-9_-]{10,40}$/;
 
 /**
- * Check a channel link. Empty is fine (both are optional) and comes back as null.
- *
- * https only, on that platform's own host, with a channel name in the path — so a link labelled
- * "Twitch" on a creator's page can only ever go to Twitch. Stored without query or fragment.
+ * The links a creator page shows, built from its OAuth-connected channels only. A stored value that
+ * does not look like that platform's name is dropped rather than put in an href.
  */
-export function checkStreamLink(platform: StreamPlatform, raw: string | null | undefined): StreamLinkResult {
-  const s = (raw ?? '').trim();
-  if (!s) return { ok: true, url: null };
-  const name = STREAM_NAMES[platform];
-  const bad = { ok: false as const, error: `${name} link must look like https://${STREAM_HOSTS[platform][0]}/yourchannel` };
-  if (s.length > 200) return bad;
-  let u: URL;
-  try {
-    u = new URL(s);
-  } catch {
-    return bad;
+export function verifiedStreamLinks(c: ConnectedChannels): VerifiedStreamLink[] {
+  const out: VerifiedStreamLink[] = [];
+  const login = c.twitchLogin?.trim();
+  if (login && TWITCH_LOGIN.test(login)) {
+    out.push({ platform: 'twitch', label: 'Twitch', handle: login, url: `https://www.twitch.tv/${login.toLowerCase()}` });
   }
-  if (u.protocol !== 'https:' || u.username || u.password || u.port) return bad;
-  if (!STREAM_HOSTS[platform].includes(u.hostname.toLowerCase())) return bad;
-  const channel = u.pathname.split('/').filter(Boolean)[0] ?? '';
-  if (!/^[A-Za-z0-9_-]{2,40}$/.test(channel)) return bad;
-  return { ok: true, url: `https://${STREAM_HOSTS[platform][0]}/${channel}` };
+  const yt = c.youtube;
+  if (yt) {
+    const handle = yt.handle?.trim();
+    if (handle && YOUTUBE_HANDLE.test(handle)) {
+      out.push({ platform: 'youtube', label: 'YouTube', handle, url: `https://www.youtube.com/${handle}` });
+    } else if (YOUTUBE_CHANNEL_ID.test(yt.channelId ?? '')) {
+      const title = (yt.title ?? '').trim().slice(0, 60) || 'YouTube';
+      out.push({ platform: 'youtube', label: 'YouTube', handle: title, url: `https://www.youtube.com/channel/${yt.channelId}` });
+    }
+  }
+  const slug = c.kickSlug?.trim();
+  if (slug && KICK_SLUG.test(slug)) {
+    out.push({ platform: 'kick', label: 'Kick', handle: slug, url: `https://kick.com/${slug.toLowerCase()}` });
+  }
+  return out;
 }
 
 // ── Name and address ────────────────────────────────────────────────────────────────────────────
@@ -250,6 +364,33 @@ export function creatorSetupSteps(opts: { eventsCount: number; outsideSignups: n
       optional: true,
     },
   ];
+}
+
+// ── "Your clans" and "Your spaces" ──────────────────────────────────────────────────────────────
+
+export const YOUR_CLANS_HEADING = 'Your clans';
+export const YOUR_SPACES_HEADING = 'Your spaces';
+
+export interface ClanKindGroup<T> {
+  key: 'clans' | 'spaces';
+  label: string;
+  items: T[];
+}
+
+/**
+ * A person's places, split into their in-game clans and their creator spaces. A creator space is
+ * not a clan (no in-game clan behind it), so every list of "your clans" shows spaces as their own
+ * group. Clans first; input order kept within each group; an empty group is left out, so somebody
+ * with only spaces never sees an empty "Your clans" heading.
+ */
+export function groupClansAndSpaces<T>(items: readonly T[], kindOf: (item: T) => string | null | undefined): ClanKindGroup<T>[] {
+  const clans: T[] = [];
+  const spaces: T[] = [];
+  for (const it of items) (clanKindOf(kindOf(it)) === 'creator' ? spaces : clans).push(it);
+  const out: ClanKindGroup<T>[] = [];
+  if (clans.length > 0) out.push({ key: 'clans', label: YOUR_CLANS_HEADING, items: clans });
+  if (spaces.length > 0) out.push({ key: 'spaces', label: YOUR_SPACES_HEADING, items: spaces });
+  return out;
 }
 
 // ── Words ────────────────────────────────────────────────────────────────────────────────────────
