@@ -9,7 +9,8 @@ import { MAX_GIFT_DAYS, endGift, giveGift, isGiftTier, listGifts } from '@/lib/s
 
 // /api/staff/people/<playerId>/supporter — free Supporter time from Anvil staff (lib/supporterGifts).
 //   GET                          this person's gifts
-//   POST { tier, days, note? }   give one
+//   POST { tier, days, note?, boostSlots? }   give one; boostSlots (default false) also gives the
+//                                tier's clan boost slots (lib/clanBoostRules slotTier)
 //   DELETE ?gift=<id>            end one now
 // Root only, like platform roles: it hands out what people otherwise pay for. Their Anvil Discord
 // role follows at once (the role sweep would catch it later anyway). A gift isn't announced in the
@@ -36,7 +37,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if ('response' in gate) return gate.response;
   const login = await loginFor(params);
   if (!login) return noLogin();
-  const body = (await request.json().catch(() => null)) as { tier?: unknown; days?: unknown; note?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { tier?: unknown; days?: unknown; note?: unknown; boostSlots?: unknown } | null;
   if (!body || !isGiftTier(body.tier)) return NextResponse.json({ error: 'Pick a tier.' }, { status: 400 });
   const days = typeof body.days === 'number' ? body.days : NaN;
   if (!(days >= 1 && days <= MAX_GIFT_DAYS)) {
@@ -48,6 +49,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     days,
     actorUserId: gate.actor.user.userId,
     note: typeof body.note === 'string' ? body.note : null,
+    boostSlots: body.boostSlots === true,
   });
   void syncAnvilSupporterRoles(login.id);
   return NextResponse.json({ gifts: await listGifts(login.id) });
