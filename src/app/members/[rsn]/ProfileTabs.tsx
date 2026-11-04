@@ -6,7 +6,7 @@ import { SKILL_LABELS, BOSSES } from '@/lib/constants';
 import { progressToLevel } from '@/lib/xp';
 import CollectionLog, { type CollectionLogProps } from './CollectionLog';
 import PersonalLuck from './PersonalLuck';
-import StatsBrowser from './StatsBrowser';
+import StatsBrowser, { hasBrowsableStats } from './StatsBrowser';
 import { levelUps, statTrends } from '@/lib/statTrends';
 import { setUrlParams } from '@/lib/urlState';
 import { activityImageUrl, bossImageForStatKey, itemIconUrl, skillIconUrl, wikiImageUrl } from '@/lib/tileIcons';
@@ -254,6 +254,7 @@ export default function ProfileTabs({
   };
   // Whether the side column is beside the tabs (lg+) — it only has room for part of the year there.
   const wide = useMediaQuery('(min-width: 1024px)');
+  const browsable = hasBrowsableStats(profile);
   const [bestFilter, setBestFilter] = useState('');
   const [metric, setMetric] = useState<Metric>('ehp');
   const [days, setDays] = useState<Window>(30);
@@ -466,8 +467,9 @@ export default function ProfileTabs({
 
       {tab === 'stats' && (
         <>
-          {/* Recent form first, career second — the two questions in the order they're asked. */}
-          <div className="grid lg:grid-cols-2 gap-4 mb-8">
+          {/* Recent form first, career second — the two questions in the order they're asked. With no
+              skill left short of 99 the form strip takes the row rather than leaving half of it empty. */}
+          <div className={`grid gap-4 mb-8 ${nearest99s.length > 0 ? 'lg:grid-cols-2' : ''}`}>
             <FormStrip series={series} />
             {nearest99s.length > 0 && (
               <div className="border border-card-border rounded-xl bg-card-bg p-4">
@@ -495,12 +497,20 @@ export default function ProfileTabs({
 
           {/* The numbers on the left change with the tab; the two pictures on the right are the whole
               account and don't — so they sit beside the tabs rather than under them, and stay in view
-              while the list scrolls. Stacked again below lg, where there's no room beside anything. */}
-          <div className="grid items-start gap-x-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-            <div className="min-w-0">
-              <StatsBrowser profile={profile} trends={trends} levels={levels} standings={activityStandings} initial={initial?.stat} bossPages={bossPages} onOpenLogPage={openLogPage} />
-            </div>
-            <aside className="min-w-0 lg:sticky lg:top-4">
+              while the list scrolls. Stacked again below lg, where there's no room beside anything.
+              With nothing to browse yet (no hiscores read), the two pictures share the row instead of
+              hanging in a side column beside an empty one. */}
+          <div
+            className={`grid items-start gap-x-6 ${
+              browsable ? 'lg:grid-cols-[minmax(0,1fr)_340px]' : ''
+            }`}
+          >
+            {browsable && (
+              <div className="min-w-0">
+                <StatsBrowser profile={profile} trends={trends} levels={levels} standings={activityStandings} initial={initial?.stat} bossPages={bossPages} onOpenLogPage={openLogPage} />
+              </div>
+            )}
+            <aside className={`min-w-0 ${browsable ? 'lg:sticky lg:top-4' : 'grid grid-cols-[minmax(0,1fr)] items-start gap-x-6 lg:grid-cols-[repeat(2,minmax(0,1fr))]'}`}>
               <Section title="Gained over time">
                 <div className="border border-card-border rounded-xl bg-card-bg p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
