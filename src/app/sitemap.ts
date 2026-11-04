@@ -8,6 +8,7 @@ import { allGuideHrefs } from '@/app/guide/_i18n/meta';
 import { FEATURE_PAGES } from '@/lib/answers';
 import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
 import { absoluteUrl, clanCanonicalPath } from '@/lib/seo';
+import { creatorHidesPublicPath, isCreatorSpace } from '@/lib/creatorSpaces';
 
 // Built on request, never at build time: this reads the database, and the Docker image is built
 // without one. A prerendered sitemap would fail the build, and a stale one would list clans that
@@ -71,7 +72,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // clan-scope: global -- the sitemap IS the list of every publicly readable clan.
   const listed = await db
-    .select({ id: clans.id, slug: clans.slug })
+    .select({ id: clans.id, slug: clans.slug, kind: clans.kind })
     .from(clans)
     .leftJoin(settings, showcaseJoinOn())
     .where(listedClanWhere())
@@ -79,7 +80,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const clanUrls: MetadataRoute.Sitemap = listed.flatMap((c) => [
     { url: absoluteUrl(clanCanonicalPath(c.slug)), lastModified: now, changeFrequency: 'daily' as const, priority: 0.8 },
-    ...CLAN_SUBPAGES.map((p) => ({
+    // A creator space has no roster page (lib/creatorSpaces CREATOR_HIDDEN_PUBLIC_PATHS).
+    ...CLAN_SUBPAGES.filter((p) => !(isCreatorSpace(c) && creatorHidesPublicPath(p))).map((p) => ({
       url: absoluteUrl(clanCanonicalPath(c.slug, p)),
       lastModified: now,
       changeFrequency: 'daily' as const,

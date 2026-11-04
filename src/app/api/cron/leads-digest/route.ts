@@ -11,6 +11,7 @@ import { buildLeadsDigest, type DayCounts, type LeadRow, type StalledPerson } fr
 import { sendOpsWebhook } from '@/lib/opsWebhook';
 import { sendOnboardingNudges, type NudgeOutcome } from '@/lib/onboardingNudge';
 import { log } from '@/lib/logger';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 // The clans that signed up and never got going.
 //
@@ -54,6 +55,7 @@ export async function GET(request: Request) {
       slug: clans.slug,
       name: clans.name,
       inGameName: clans.inGameName,
+      kind: clans.kind,
       createdAt: clans.createdAt,
       verifiedAt: clans.ingameNameVerifiedAt,
       // Written out rather than interpolated: drizzle renders an interpolated column unqualified
@@ -103,7 +105,10 @@ export async function GET(request: Request) {
   const dryRun = new URL(request.url).searchParams.get('dry') === '1';
   let nudges: NudgeOutcome[] = [];
   try {
-    nudges = await sendOnboardingNudges(leads, Date.now(), { dryRun });
+    // Never a creator space: the nudges are about an in-game clan's member list, which a creator
+    // space does not have (lib/creatorSpaces) — "your clan's member list hasn't come in" is wrong there.
+    const creators = new Set(rows.filter((r) => isCreatorSpace(r)).map((r) => r.id));
+    nudges = await sendOnboardingNudges(leads.filter((l) => !creators.has(l.id)), Date.now(), { dryRun });
   } catch (err) {
     log.warn('onboarding-nudge.failed', { error: err instanceof Error ? err.message : String(err) });
   }

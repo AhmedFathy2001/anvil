@@ -61,7 +61,8 @@ export interface HomeConfig {
     live: { kind?: string; eventId: number; eventName: string; tilesComplete: number; tilesTotal: number; pointsScored: boolean } | null;
     liveCount?: number;
   }[];
-  activeClan?: { slug: string } | null;
+  /** `kind` 'creator': a creator space (lib/creatorSpaces) — the tab speaks of it by name, not as "your clan". */
+  activeClan?: { slug: string; name?: string | null; kind?: string | null } | null;
 }
 
 export interface WeeklyStanding {
@@ -358,9 +359,16 @@ export function homeUi(d: HomeData): Node {
     });
     parts.push(gap(12));
   }
-  if (d.ownClan) parts.push(...heading('Your clan'), d.ownClan, gap(12));
+  if (d.ownClan) parts.push(...heading(ownHeading(d.cfg)), d.ownClan, gap(12));
   if (d.supportCta) parts.push(supportLine());
   return col(parts);
+}
+
+/** Over the card of the place the plugin is pointed at: "Your clan", or a creator space by its name. */
+export function ownHeading(cfg: Pick<HomeConfig, 'activeClan'>): string {
+  const c = cfg.activeClan;
+  if (c?.kind !== 'creator') return 'Your clan';
+  return clip((c.name ?? '').trim() || 'This space', 30);
 }
 
 const suffix = (label: string | null) => (label ? ` · ${label[0].toLowerCase()}${label.slice(1)}` : '');

@@ -224,7 +224,8 @@ export async function approveRequest(
   if (req.status !== 'pending') return { ok: false, error: `Already ${req.status}` };
 
   if (await isBannedFromClan(clanId, req.playerId)) {
-    return { ok: false, error: 'That person is banned from this clan — lift the ban first' };
+    const kind = (await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true } }))?.kind;
+    return { ok: false, error: `That person is banned from this ${isCreatorSpace({ kind }) ? 'space' : 'clan'} — lift the ban first` };
   }
 
   // A request to play ONE streamed event (lib/eventEntry: a creator space's, or a Streaming clan's

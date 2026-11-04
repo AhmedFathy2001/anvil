@@ -240,7 +240,8 @@ export default function TileDetailModal({
   const howCounts = howTileCounts(tileKindKey(tile), manualOnly);
   const submittedNotice = howCounts.auto
     ? 'Added — it counts now. Staff only step in if something looks off.'
-    : 'Added. Your captain or the clan staff mark the tile done once they’ve seen it.';
+    // "The staff", not "the clan staff": the same modal serves creator spaces, whose host is no clan.
+    : 'Added. Your captain or the staff mark the tile done once they’ve seen it.';
   // Count-based tiles share the amount+proof "Add Submission" form. Value tiles use a gp-value form
   // (below); timed uses its own clear-time form; stat/standard have no manual submit.
   const isCount = isDrop || isKill || isLap || isPvp || isGain || isDiary || isCa || isDeathless || isLms || isClog;

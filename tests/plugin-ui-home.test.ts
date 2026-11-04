@@ -271,3 +271,16 @@ test('a gated event says who may join, in a few words, on its card and its page 
   assert.equal(joinToClaimLine('Followers (Kick)'), 'Join this event to claim tiles · Followers (Kick)');
   assert.equal(joinToClaimLine(null), 'Join this event to claim tiles.');
 });
+
+test('a creator space: the card under the events is headed by the space, not "Your clan"', async () => {
+  const { ownHeading } = await import('../src/lib/pluginUi/homeUi');
+  const card: Node = { t: 'text', s: 'space card' } as Node;
+  const space = texts(homeUi(base(liveCfg({ activeClan: { slug: 'cool', name: 'Cool Streamer', kind: 'creator' } }), { ownClan: card })));
+  assert.ok(space.includes('Cool Streamer'), space.join(' | '));
+  assert.ok(!space.includes('Your clan'));
+  assert.equal(ownHeading({ activeClan: { slug: 'cool', name: '', kind: 'creator' } }), 'This space');
+  // A clan keeps its heading; so does a config from before `kind` was sent.
+  const clan = texts(homeUi(base(liveCfg({ activeClan: { slug: 'afk', name: 'The AFK Spot', kind: 'clan' } }), { ownClan: card })));
+  assert.ok(clan.includes('Your clan'));
+  assert.equal(ownHeading({ activeClan: { slug: 'afk' } }), 'Your clan');
+});

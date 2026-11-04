@@ -23,9 +23,19 @@ const STRAIGHT_THROUGH: RegExp[] = [
   /^(?:\/c\/[^/]+)?\/events\/[^/]+\/join\/[^/?#]+/,
 ];
 
-export function firstLoginDestination(returnTo: string, returningToClan: boolean): string {
+/** The slug of a `/c/<slug>/…` return path, or null. */
+export function spaceSlugOf(returnTo: string): string | null {
+  return /^\/c\/([^/?#]+)/.exec(safeReturnPath(returnTo))?.[1]?.toLowerCase() ?? null;
+}
+
+/**
+ * `intoCreatorSpace`: the target is inside a creator space (lib/creatorSpaces). A viewer signing in
+ * from a streamer's event came to join it, and the onboarding page is about running or joining a
+ * CLAN — so they go straight back to the event.
+ */
+export function firstLoginDestination(returnTo: string, returningToClan: boolean, intoCreatorSpace = false): string {
   const target = safeReturnPath(returnTo);
-  if (STRAIGHT_THROUGH.some((re) => re.test(target))) return target;
+  if (intoCreatorSpace || STRAIGHT_THROUGH.some((re) => re.test(target))) return target;
   const base = returningToClan ? '/profile?welcome=1' : '/welcome';
   if (target === '/') return base;
   return `${base}${base.includes('?') ? '&' : '?'}next=${encodeURIComponent(target)}`;

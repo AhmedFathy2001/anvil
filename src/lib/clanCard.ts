@@ -7,6 +7,7 @@ import { getClanAnalytics, listMembers } from '@/lib/memberProfile';
 import { momentsForClan } from '@/lib/momentsStore';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
 import { getItemMapping } from '@/lib/osrsItems';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 /** What counts as a drop worth showing: pets, uniques and big loot (never a death). */
 export const FEED_KINDS = new Set(['pet', 'unique', 'loot']);
@@ -18,6 +19,8 @@ export const FEED_KINDS = new Set(['pet', 'unique', 'loot']);
 export interface ClanCard {
   slug: string;
   name: string;
+  /** 'creator' for a creator space (lib/creatorSpaces): no members, so none of the numbers below. */
+  kind?: 'clan' | 'creator';
   logoUrl: string | null;
   members: number;
   /** Members who gained anything in the last 7 days. */
@@ -40,7 +43,32 @@ export interface ClanCard {
 }
 
 
-export async function loadClanCard(clan: { id: number; slug: string; name: string; logoUrl: string | null }): Promise<ClanCard> {
+export async function loadClanCard(clan: {
+  id: number;
+  slug: string;
+  name: string;
+  logoUrl: string | null;
+  kind?: string | null;
+}): Promise<ClanCard> {
+  // A creator space has no roster to count, rank or compare: the card is who it is, nothing more.
+  if (isCreatorSpace(clan)) {
+    return {
+      slug: clan.slug,
+      name: clan.name,
+      kind: 'creator',
+      logoUrl: clan.logoUrl,
+      members: 0,
+      activeThisWeek: 0,
+      weekHours: 0,
+      totalEhp: 0,
+      totalEhb: 0,
+      topWeek: [],
+      topPlayers: [],
+      clog: null,
+      highlights: [],
+      competitions: [],
+    };
+  }
   const members = await listMembers(clan.id);
   const roster = members.filter((m) => !m.isGuest);
   const [analytics, moments, weekly, clogRows] = await Promise.all([

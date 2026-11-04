@@ -16,6 +16,8 @@ interface Props {
   bannerPosition?: number | null;
   /** Names the crest when there's no picture at all. */
   hostName?: string;
+  /** A creator space's event: "Hosted by <creator>" under the title. Null/absent for a clan's. */
+  hostedBy?: string | null;
   shapeBadge: string;
   pointsOnBoard: number | null;
   teamsCount: number;
@@ -69,6 +71,7 @@ export default function EventHero({
   bannerUrl = null,
   bannerPosition = null,
   hostName,
+  hostedBy,
   shapeBadge,
   pointsOnBoard,
   teamsCount,
@@ -179,6 +182,7 @@ export default function EventHero({
           )}
         </div>
         <h1 className="break-words text-2xl font-extrabold leading-tight text-gold sm:text-4xl">{name}</h1>
+        {hostedBy && <p className="mt-1 text-sm text-text-muted">Hosted by {hostedBy}</p>}
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
           <span className="rounded-full bg-gold/15 px-2 py-0.5 font-medium text-gold">{shapeBadge}</span>
           {pointsOnBoard !== null && (

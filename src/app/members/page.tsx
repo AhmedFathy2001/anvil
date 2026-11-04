@@ -7,6 +7,7 @@ import {
   listMembers,
 } from '@/lib/memberProfile';
 import { requireClan } from '@/lib/clanContext';
+import { creatorPublicAway } from '@/lib/creatorGuard';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { clanSectionMetadata } from '@/lib/seoPages';
 import { getSetting } from '@/lib/settings';
@@ -37,6 +38,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function MembersPage() {
   const clan = await requireClan();
+  // A creator space has no roster (lib/creatorSpaces CREATOR_HIDDEN_PUBLIC_PATHS): its home instead.
+  await creatorPublicAway('/members', clan);
   const members = await listMembers(clan.id);
   // Guests are listed but not counted, unless this clan says otherwise — see getClanAnalytics.
   const countGuests = (await getSetting(clan.id, 'members_count_guests')) === '1';

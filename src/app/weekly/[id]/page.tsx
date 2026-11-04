@@ -8,6 +8,7 @@ import { and, eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import LiveRefresher from '@/components/LiveRefresher';
 import { requireClan } from '@/lib/clanContext';
+import { creatorPublicAway } from '@/lib/creatorGuard';
 import { verifyUser } from '@/lib/auth';
 import { buildCompetitionView, viewerMemberIds } from '@/lib/competitionView';
 import { competitionImageUrl } from '@/lib/tileIcons';
@@ -90,6 +91,7 @@ export default async function WeeklyLeaderboardPage({
   // Scoped to the clan whose host this is: ids are global, so without the clan check one clan's
   // page would happily render another clan's competition under its own banner.
   const clan = await requireClan();
+  await creatorPublicAway('/weekly', clan);
   const [competition] = await db
     .select()
     .from(weeklyCompetitions)

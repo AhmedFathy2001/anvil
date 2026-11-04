@@ -127,6 +127,8 @@ export function eventLd(opts: {
   endDate: string | null;
   clanName: string;
   clanSlug: string;
+  /** 'creator' for a creator space: its host is a person streaming, not an organisation (a clan). */
+  hostKind?: string | null;
 }): object {
   const startDate = isoOrNull(opts.startDate);
   const endDate = isoOrNull(opts.endDate);
@@ -147,7 +149,7 @@ export function eventLd(opts: {
       url: absoluteUrl(opts.url),
     },
     organizer: {
-      '@type': 'Organization',
+      '@type': opts.hostKind === 'creator' ? 'Person' : 'Organization',
       name: opts.clanName,
       url: absoluteUrl(`/c/${opts.clanSlug}`),
     },

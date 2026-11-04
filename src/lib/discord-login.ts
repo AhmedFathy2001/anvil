@@ -6,14 +6,15 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { DiscordUser } from '@/lib/discord-oauth';
 import { autoClaimAllowed, signUserToken } from '@/lib/auth';
 import { publicOrigin } from '@/lib/request-origin';
-import { originForHost, resolveClanByHost, sessionCookieDomain } from '@/lib/clanContext';
+import { originForHost, resolveClanByHost, resolveClanBySlug, sessionCookieDomain } from '@/lib/clanContext';
 import { applyPendingRole } from '@/lib/pending-role';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { log } from '@/lib/logger';
 import { claimAccountForPerson } from '@/lib/accountClaim';
 import { track } from '@/lib/analytics';
 import { rosterClanSeat } from '@/lib/seatScope';
-import { firstLoginDestination } from '@/lib/firstLogin';
+import { firstLoginDestination, spaceSlugOf } from '@/lib/firstLogin';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 const SESSION_COOKIE = 'admin_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
@@ -338,7 +339,9 @@ export async function completeDiscordLogin(
   // And it used to do so only when they came from the home page: a deep link skipped onboarding
   // entirely. Now every first sign-in goes through it, carrying the original target as `next`
   // (lib/firstLogin, which also lists the few targets that must not be detoured).
-  const destination = isNewUser ? firstLoginDestination(returnTo, returningToClan) : returnTo;
+  const spaceSlug = isNewUser ? spaceSlugOf(returnTo) : null;
+  const intoCreatorSpace = spaceSlug ? isCreatorSpace(await resolveClanBySlug(spaceSlug).catch(() => null)) : false;
+  const destination = isNewUser ? firstLoginDestination(returnTo, returningToClan, intoCreatorSpace) : returnTo;
 
   // Back to the clan they started from. `returnHost` has already been resolved against the clans
   // table by the caller, so it is a host we produced rather than one a query parameter asked for.

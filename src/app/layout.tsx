@@ -4,6 +4,7 @@ import { profileMediaForUser } from '@/lib/profileMedia';
 import { headers } from 'next/headers';
 import { clanPrefix, currentClan } from '@/lib/clanContext';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
+import { isCreatorSpace, spaceDescription } from '@/lib/creatorSpaces';
 import {
   APEX_TITLE,
   DEFAULT_DESCRIPTION,
@@ -120,7 +121,7 @@ export async function generateMetadata(): Promise<Metadata> {
     icons: ICONS,
     ...socialMetadata({
       title: name ? `${name} — ${SITE_NAME}` : APEX_TITLE,
-      description: name ? `Bingos, competitions and the roster for ${name}.` : DEFAULT_DESCRIPTION,
+      description: name ? spaceDescription(clan?.kind, name) : DEFAULT_DESCRIPTION,
       canonical,
       // The card a link becomes when it is pasted into Discord, which is where nearly every link to
       // this site is pasted. Until this existed, a clan's board arrived as a bare grey URL.
@@ -170,11 +171,16 @@ export default async function RootLayout({
   // "My Team" only appears when there's something of theirs to reach — a live team, a captain seat,
   // or an open sign-up. Between events that's nobody, and a nav item whose page says "you're not on
   // a team" isn't navigation.
-  const myTeams = session?.userId && clan ? await countLiveTeamInvolvements(session.userId) : 0;
+  // In a creator space, only a team in one of ITS events (lib/myTeamNav onlyClanId).
+  const myTeams =
+    session?.userId && clan
+      ? await countLiveTeamInvolvements(session.userId, new Date(), isCreatorSpace(clan) ? clan.id : undefined)
+      : 0;
   // The Coffer link appears once a clan actually keeps one. Same rule as "My Team": a nav item whose
   // page reads "nothing here yet" is not navigation, and most clans will never run prize missions.
   // And never when the clan has switched the coffer off on Admin → Features: off is off for everyone.
-  const hasCoffer = clan ? (await getClanFeatures(clan.id)).on('coffer') && (await clanHasCoffer(clan.id)) : false;
+  const hasCoffer =
+    clan && !isCreatorSpace(clan) ? (await getClanFeatures(clan.id)).on('coffer') && (await clanHasCoffer(clan.id)) : false;
 
   // Their own picture in the chrome: the one they uploaded on Profile look (a Supporter perk; the
   // still frame, since this sits on every page), else their Discord avatar, else the shells draw the
@@ -364,6 +370,7 @@ export default async function RootLayout({
               signedIn={!!session}
               hasCharacter={hasCharacter}
               guestPolicy={clan!.guestPolicy}
+              kind={clan!.kind}
             />
           )}
         </main>

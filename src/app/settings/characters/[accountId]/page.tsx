@@ -1,6 +1,6 @@
 import ClanLink from '@/components/ClanLink';
 import CreatorChip from '@/components/CreatorChip';
-import { groupClansAndSpaces } from '@/lib/creatorSpaces';
+import { groupClansAndSpaces, isCreatorSpace } from '@/lib/creatorSpaces';
 import { notFound } from 'next/navigation';
 
 import SupporterName from '@/components/SupporterName';
@@ -174,7 +174,10 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
                 tone="danger"
                 confirm={{
                   title: `Leave ${s.clanName} with ${c.rsn}?`,
-                  body: 'Results already recorded there stay. You can come back if the clan lets you in again.',
+                  body:
+                    g.key === 'spaces'
+                      ? 'Results already recorded there stay. You can join its events again any time.'
+                      : 'Results already recorded there stay. You can come back if the clan lets you in again.',
                   confirmLabel: 'Leave',
                 }}
               >
@@ -195,12 +198,15 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
             <CharacterAnnouncements initial={emission} accountId={accountId} />
           </SettingsBlock>
         )}
-        {seats.length > 0 && (
+        {/* "Which clan is it really in?" is about in-game clans: a creator space is never an answer. */}
+        {seats.some((s) => !isCreatorSpace({ kind: s.clanKind })) && (
           <SettingsBlock>
             <WrongClanReport
               accountId={accountId}
               rsn={c.rsn}
-              options={seats.map((s) => ({ clanId: s.clanId, name: s.clanName, kind: s.kind }))}
+              options={seats
+                .filter((s) => !isCreatorSpace({ kind: s.clanKind }))
+                .map((s) => ({ clanId: s.clanId, name: s.clanName, kind: s.kind }))}
             />
           </SettingsBlock>
         )}
