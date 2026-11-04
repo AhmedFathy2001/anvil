@@ -54,3 +54,12 @@ test('a creator space seat reads "Plays in", never "Guest in"', () => {
   const line = standingLine([seat({ clanName: 'Streamer Space', creator: true }), seat({ clanId: 2, clanName: 'Iron Foundry' })], new Map(), NOW);
   assert.equal(line, 'Guest in Iron Foundry · Plays in Streamer Space');
 });
+
+test('a creator space is never "Member of": any seat there reads "Plays in", after the clans', () => {
+  const line = standingLine(
+    [seat({ kind: 'member', clanName: 'Streamer Space', creator: true }), seat({ clanId: 2, kind: 'member', clanName: 'Iron Foundry' })],
+    new Map([[2, '2026-11-02 11:00:00']]),
+    NOW,
+  );
+  assert.equal(line, 'Member of Iron Foundry · list synced 1h ago · Plays in Streamer Space');
+});

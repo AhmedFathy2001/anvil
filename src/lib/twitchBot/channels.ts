@@ -13,8 +13,8 @@ export { joinEventFor };
 // `!join` — the site's half (the bot process is bot/twitchChat.ts; shared rules in ./wire).
 //
 // WHICH CHANNEL IS WHOSE. The bot may only ever talk in a channel whose broadcaster PROVED it is
-// theirs. The Twitch link on a creator's settings page is typed text — anybody can paste anybody's
-// channel — so it is never used for this. The proof is the channel the host connected through Twitch
+// theirs. A typed link (the retired creator_twitch_url setting) proves nothing — anybody can paste
+// anybody's channel — so it is never used for this, nor shown anywhere. The proof is the channel the host connected through Twitch
 // OAuth (clan_twitch_channels, the same link the entry gates check followers and subs against).
 
 export interface TwitchBroadcaster {

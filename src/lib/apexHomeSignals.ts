@@ -387,6 +387,8 @@ export interface Seat {
   clanSlug: string;
   /** 'member' is a home; 'guest' is a visit. The page draws them differently. */
   kind: string;
+  /** 'clan' | 'creator' (lib/creatorSpaces). A creator space is not a clan: its chip says so. */
+  clanKind: string;
 }
 
 /**
@@ -408,6 +410,7 @@ export async function seatsByAccount(accountIds: number[]): Promise<Map<number, 
       clanName: clans.name,
       clanSlug: clans.slug,
       kind: clanMemberships.kind,
+      clanKind: clans.kind,
     })
     .from(clanMemberships)
     .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
@@ -417,11 +420,16 @@ export async function seatsByAccount(accountIds: number[]): Promise<Map<number, 
   for (const r of rows) {
     const list = out.get(r.accountId) ?? [];
     // Homes before visits, so a card reads "where I belong" first.
-    list.push({ clanId: r.clanId, clanName: r.clanName, clanSlug: r.clanSlug, kind: r.kind });
+    list.push({ clanId: r.clanId, clanName: r.clanName, clanSlug: r.clanSlug, kind: r.kind, clanKind: r.clanKind });
     out.set(r.accountId, list);
   }
   for (const list of out.values()) {
-    list.sort((a, b) => (a.kind === b.kind ? a.clanName.localeCompare(b.clanName) : a.kind === 'member' ? -1 : 1));
+    // Clans before creator spaces (a space is not a clan), then homes before visits, then by name.
+    const space = (x: Seat) => (x.clanKind === 'creator' ? 1 : 0);
+    list.sort(
+      (a, b) =>
+        space(a) - space(b) || (a.kind === b.kind ? a.clanName.localeCompare(b.clanName) : a.kind === 'member' ? -1 : 1),
+    );
   }
   return out;
 }

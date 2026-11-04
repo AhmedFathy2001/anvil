@@ -249,7 +249,7 @@ export function Roster({ characters }: { characters: RosterCharacter[] }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {characters.map((c) => {
-        const home = c.seats.find((s) => s.kind === 'member');
+        const home = c.seats.find((s) => s.kind === 'member' && s.clanKind !== 'creator');
         return (
           <article
             key={c.id}
@@ -298,14 +298,16 @@ export function Roster({ characters }: { characters: RosterCharacter[] }) {
                     // and the clan being linked to is frequently not the one the reader is "in".
                     href={`/c/${s.clanSlug}`}
                     className={
-                      s.kind === 'member'
+                      s.clanKind === 'creator'
+                        ? 'inline-flex items-center gap-1.5 rounded-md border border-gold/30 bg-gold/[0.06] px-2 py-0.5 text-xs text-text-muted'
+                        : s.kind === 'member'
                         ? 'inline-flex items-center gap-1.5 rounded-md bg-gold/10 px-2 py-0.5 text-xs text-gold'
                         : 'inline-flex items-center gap-1.5 rounded-md border border-dashed border-card-border px-2 py-0.5 text-xs text-text-dim'
                     }
                   >
                     {s.clanName}
                     <span className="font-mono text-[0.55rem] uppercase tracking-wider opacity-70">
-                      {s.kind === 'member' ? 'member' : 'guest'}
+                      {s.clanKind === 'creator' ? 'creator' : s.kind === 'member' ? 'member' : 'guest'}
                     </span>
                   </ClanLink>
                 ))}

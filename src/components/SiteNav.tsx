@@ -9,7 +9,8 @@ import ClanCrest from '@/components/ClanCrest';
 import { useEffect, useRef, useState } from 'react';
 import ClanLink from '@/components/ClanLink';
 import PendingBadge from '@/components/PendingBadge';
-import { outsiderWord } from '@/lib/creatorSpaces';
+import CreatorChip from '@/components/CreatorChip';
+import { groupClansAndSpaces, outsiderWord } from '@/lib/creatorSpaces';
 
 interface NavUser {
   displayName: string;
@@ -93,6 +94,8 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
 
   const current = clan ? myClans.find((c) => c.slug === clan.slug) ?? null : null;
   const otherClans = myClans.filter((c) => c.slug !== clan?.slug);
+  // Creator spaces are not clans: they get their own "Your spaces" group (lib/creatorSpaces).
+  const otherGroups = groupClansAndSpaces(otherClans, (c) => c.kind);
 
   // Close the switcher on an outside click or Escape — a dropdown that traps the pointer is worse
   // than the inline list it replaces.
@@ -202,20 +205,25 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                 )}
                 {otherClans.length > 0 && (
                   <div className="py-1 max-h-64 overflow-y-auto">
-                    <div className="px-3 pt-1.5 pb-1 text-[10px] uppercase tracking-wider text-text-muted/70">Switch to</div>
-                    {otherClans.map((o) => (
-                      <ClanLink
-                        key={o.slug}
-                        href={`/c/${o.slug}`}
-                        role="menuitem"
-                        className="flex items-center gap-2.5 px-3 py-2 hover:bg-brown-light transition-all"
-                      >
-                        <Crest slug={o.slug} name={o.name} logoUrl={o.logoUrl} size={20} />
-                        <span className="text-sm text-foreground/90 truncate flex-1">{o.name}</span>
-                        {roleLabel(o) && (
-                          <span title={roleHint(o)} className="text-[10px] px-1.5 py-0.5 rounded-full bg-brown-light text-text-muted shrink-0">{roleLabel(o)}</span>
-                        )}
-                      </ClanLink>
+                    {otherGroups.map((g) => (
+                      <div key={g.key}>
+                        <div className="px-3 pt-1.5 pb-1 text-[10px] uppercase tracking-wider text-text-muted/70">{g.label}</div>
+                        {g.items.map((o) => (
+                          <ClanLink
+                            key={o.slug}
+                            href={`/c/${o.slug}`}
+                            role="menuitem"
+                            className="flex items-center gap-2.5 px-3 py-2 hover:bg-brown-light transition-all"
+                          >
+                            <Crest slug={o.slug} name={o.name} logoUrl={o.logoUrl} size={20} />
+                            <span className="text-sm text-foreground/90 truncate flex-1">{o.name}</span>
+                            {g.key === 'spaces' && <CreatorChip />}
+                            {roleLabel(o) && (
+                              <span title={roleHint(o)} className="text-[10px] px-1.5 py-0.5 rounded-full bg-brown-light text-text-muted shrink-0">{roleLabel(o)}</span>
+                            )}
+                          </ClanLink>
+                        ))}
+                      </div>
                     ))}
                   </div>
                 )}
@@ -360,17 +368,23 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                     <span className="ml-auto text-[10px] text-text-muted">here</span>
                   </div>
                 )}
-                {otherClans.map((o) => (
-                  <ClanLink
-                    key={o.slug}
-                    href={`/c/${o.slug}`}
-                    onClick={() => setOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-brown-light transition-all"
-                  >
-                    <Crest slug={o.slug} name={o.name} logoUrl={o.logoUrl} />
-                    <span className="text-sm text-foreground/90 truncate flex-1">{o.name}</span>
-                    {roleLabel(o) && <span className="text-[10px] text-text-muted">{roleLabel(o)}</span>}
-                  </ClanLink>
+                {otherGroups.map((g) => (
+                  <div key={g.key} className="flex flex-col gap-0.5">
+                    <div className="px-3 pt-1.5 text-[10px] uppercase tracking-wider text-text-muted/70">{g.label}</div>
+                    {g.items.map((o) => (
+                      <ClanLink
+                        key={o.slug}
+                        href={`/c/${o.slug}`}
+                        onClick={() => setOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-brown-light transition-all"
+                      >
+                        <Crest slug={o.slug} name={o.name} logoUrl={o.logoUrl} />
+                        <span className="text-sm text-foreground/90 truncate flex-1">{o.name}</span>
+                        {g.key === 'spaces' && <CreatorChip />}
+                        {roleLabel(o) && <span className="text-[10px] text-text-muted">{roleLabel(o)}</span>}
+                      </ClanLink>
+                    ))}
+                  </div>
                 ))}
                 <div className="flex gap-1 px-1 pt-1">
                   <ClanLink href="/clans" onClick={() => setOpen(false)} className="flex-1 text-center px-2 py-1.5 rounded-md text-xs text-text-muted hover:bg-brown-light transition-all">All clans</ClanLink>

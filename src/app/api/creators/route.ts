@@ -37,8 +37,6 @@ export async function POST(request: Request) {
   const result = await createCreatorSpace({
     slug: String(body.slug ?? ''),
     name: String(body.name ?? ''),
-    twitchUrl: body.twitchUrl ? String(body.twitchUrl) : null,
-    kickUrl: body.kickUrl ? String(body.kickUrl) : null,
     ownerUserId: session.userId,
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });

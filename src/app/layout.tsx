@@ -137,14 +137,14 @@ export async function generateMetadata(): Promise<Metadata> {
  * usable: your own clan, then staff seats, then everything else alphabetically.
  */
 function railOrder(
-  clans: { id: number; slug: string; name: string; logoUrl: string | null; seat: string | null; staff: boolean }[],
+  clans: { id: number; slug: string; name: string; logoUrl: string | null; seat: string | null; staff: boolean; clanKind: string }[],
   live: Set<number>,
 ): RailClan[] {
   const rank = (c: { seat: string | null; staff: boolean }) =>
     c.seat === 'member' ? 0 : c.staff ? 1 : 2;
   return [...clans]
     .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
-    .map((c) => ({ slug: c.slug, name: c.name, logoUrl: c.logoUrl, live: live.has(c.id) }));
+    .map((c) => ({ slug: c.slug, name: c.name, logoUrl: c.logoUrl, live: live.has(c.id), kind: c.clanKind }));
 }
 
 export default async function RootLayout({
