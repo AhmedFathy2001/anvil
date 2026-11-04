@@ -13,6 +13,8 @@ import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 import CreatorChip from '@/components/CreatorChip';
 import { groupClansAndSpaces } from '@/lib/creatorSpaces';
+import { creatorPlanCard, type CreatorPlanCard } from '@/lib/creatorPlans';
+import { biggestCreatorEvent } from '@/lib/creatorPlansDb';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,6 +76,14 @@ export default async function PortalPage() {
   // Creator spaces are not clans: they list under their own "Your spaces" heading (lib/creatorSpaces).
   const groups = groupClansAndSpaces(owned, (c) => c.kind);
   const onlySpaces = groups.length === 1 && groups[0].key === 'spaces';
+  // A creator space is metered by players per event, not by roster members (lib/creatorPlans).
+  const spaceCards = new Map<number, CreatorPlanCard>(
+    await Promise.all(
+      owned
+        .filter((c) => c.kind === 'creator')
+        .map(async (c) => [c.id, creatorPlanCard({ clanPlan: c.plan, biggest: await biggestCreatorEvent(c.id) })] as const),
+    ),
+  );
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:py-16">
@@ -152,6 +162,7 @@ export default async function PortalPage() {
                 subscriptionId={c.subscriptionId}
                 checkoutRef={c.gumroadRef}
                 creator={g.key === 'spaces'}
+                creatorCard={spaceCards.get(c.id) ?? null}
               />
             );
           }),
@@ -182,9 +193,12 @@ function ClanBillingCard({
   subscriptionId,
   checkoutRef,
   creator = false,
+  creatorCard = null,
 }: {
   /** A creator space: tagged with the creator chip. */
   creator?: boolean;
+  /** A creator space's plan in its own terms: players per event, its own next tier and perks. */
+  creatorCard?: CreatorPlanCard | null;
   slug: string;
   name: string;
   plan: Plan;
@@ -209,7 +223,14 @@ function ClanBillingCard({
   const held = onTrial && plan.priceUsd === 0 && !!subscriptionId;
   // An overdue clan still on its paid plan renews that plan.
   const renewing = lapsed && plan.priceUsd !== 0 && paid.includes(plan);
-  const higher = renewing ? plan : overCap && fits ? fits : paid.find((p) => plan.memberCap != null && p.memberCap! > plan.memberCap);
+  // A creator space moves up by players per event (creatorCard.next), never by roster size.
+  const higher = renewing
+    ? plan
+    : creatorCard
+      ? (creatorCard.next ? paid.find((p) => p.id === creatorCard.next!.id) ?? null : null)
+      : overCap && fits
+        ? fits
+        : paid.find((p) => plan.memberCap != null && p.memberCap! > plan.memberCap);
   const cap = plan.memberCap == null ? '∞' : plan.memberCap.toLocaleString();
 
   return (
@@ -220,7 +241,7 @@ function ClanBillingCard({
             <h2 className="display text-[18px] font-semibold">{name}</h2>
             {creator && <CreatorChip />}
             <span className="rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-[11px] font-semibold text-gold">
-              {plan.name}
+              {creatorCard ? creatorCard.planName : plan.name}
             </span>
             {onTrial && !held && (
               <span className="rounded-full bg-accent-green/15 px-2 py-0.5 text-[11px] font-medium text-accent-green-light">
@@ -229,7 +250,11 @@ function ClanBillingCard({
             )}
           </div>
           <p className="mt-1 font-mono text-[12.5px] text-text-muted">
-            {members.toLocaleString()} / {cap} members
+            {creatorCard
+              ? creatorCard.biggest
+                ? `Biggest event: ${creatorCard.biggest.players.toLocaleString()} / ${creatorCard.playersCap == null ? '∞' : creatorCard.playersCap.toLocaleString()} players`
+                : `Up to ${creatorCard.playersCap == null ? 'any number of' : creatorCard.playersCap.toLocaleString()} players per event`
+              : `${members.toLocaleString()} / ${cap} members`}
             {plan.priceUsd != null && plan.priceUsd > 0 && (
               <> · ${plan.priceUsd.toFixed(2)}/mo</>
             )}
@@ -260,7 +285,14 @@ function ClanBillingCard({
         </div>
       )}
 
-      {overCap && (
+      {creatorCard?.over && (
+        <div className="mt-3 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-2 text-[12.5px] text-orange-300">
+          {creatorCard.biggest?.name} has more players than {creatorCard.planName} allows per event. Everyone still
+          gets in for now — the next tier gives you room.
+        </div>
+      )}
+
+      {!creatorCard && overCap && (
         <div className="mt-3 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-2 text-[12.5px] text-orange-300">
           This roster is over the {plan.name} cap of {cap}. Nothing breaks and nobody is removed — but
           the next tier gives you room.
@@ -277,7 +309,16 @@ function ClanBillingCard({
           >
             {renewing ? `Renew ${higher.name}` : lapsed ? `Subscribe to ${higher.name}` : onTrial || !hasSubscription ? `Upgrade to ${higher.name}` : `Move to ${higher.name}`}
           </a>
-          <span className="text-[12px] text-text-dim">up to {higher.memberCap?.toLocaleString()} members</span>
+          <span className="text-[12px] text-text-dim">
+            {creatorCard
+              ? [
+                  creatorCard.next?.playersCap != null ? `up to ${creatorCard.next.playersCap.toLocaleString()} players per event` : null,
+                  ...(creatorCard.next?.perks ?? []),
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+              : `up to ${higher.memberCap?.toLocaleString()} members`}
+          </span>
         </div>
       )}
 
@@ -300,7 +341,7 @@ function ClanBillingCard({
       {!higher && plan.priceUsd === 0 && !onTrial && (
         <p className="mt-3 text-[12.5px] text-text-dim">
           On the free tier. Your {TRIAL_DAYS}-day trial of the paid tiers is available whenever your
-          roster needs it.
+          {creatorCard ? ' events need' : ' roster needs'} it.
         </p>
       )}
     </div>
