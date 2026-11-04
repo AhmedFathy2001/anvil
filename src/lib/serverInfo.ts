@@ -197,6 +197,10 @@ export const PLUGIN_CAPABILITIES = [
   // names with their colours (and a Patron's star), for the plugin to paint locally. Public, cached;
   // the plugin sends nothing about who it sees.
   'chat-flair',
+  // The same list versioned (lib/chatFlairFeed): GET chat-flair/v?since= for the version and its
+  // deltas, chat-flair/v/<v> for the whole compact list (CDN-cached), and {t:'flair'} deltas on the
+  // push socket for a ticket that asked (?flair=1).
+  'chat-flair-v',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

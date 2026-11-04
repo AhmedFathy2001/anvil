@@ -195,6 +195,23 @@ export class ViewHub {
     for (const u of notice.u ?? []) send(this.people.get(u));
   }
 
+  /**
+   * A Supporter-list delta ({"t":"flair"}, lib/chatFlairFeed) to every plugin that said it reads them
+   * (an older one would log a warning for each). Global: the list is the same for everyone.
+   */
+  deliverFlair(message: Record<string, unknown>): number {
+    const text = JSON.stringify(message);
+    const sent = new Set<PushClient>();
+    for (const set of this.people.values()) {
+      for (const c of set) {
+        if (sent.has(c) || !c.scope.flair) continue;
+        sent.add(c);
+        c.send(text);
+      }
+    }
+    return sent.size;
+  }
+
   dispatch(change: PushChange): void {
     // Overlays first: a board nobody has the plugin open on can still be on stream.
     this.nudge(change.e);
@@ -436,5 +453,60 @@ export function parseChange(payload: string): PushChange | null {
     };
   } catch {
     return null;
+  }
+}
+
+/**
+ * A Supporter-list NOTIFY: 'flairdirty' (migration 0216's triggers: these people and old names may
+ * wear different colours now) or 'flairv' (lib/chatFlairFeed stored a version: `m` is its delta).
+ */
+export type FlairNotice = { kind: 'dirty'; players: number[]; names: string[] } | { kind: 'version'; m: Record<string, unknown> };
+
+export function parseFlair(payload: string): FlairNotice | null {
+  try {
+    const p = JSON.parse(payload);
+    if (p?.k === 'flairv' && p.m && typeof p.m === 'object' && p.m.t === 'flair') return { kind: 'version', m: p.m };
+    if (p?.k !== 'flairdirty') return null;
+    const players = Array.isArray(p.p) ? p.p.filter((n: unknown): n is number => Number.isInteger(n)) : [];
+    const names = Array.isArray(p.n) ? p.n.filter((n: unknown): n is string => typeof n === 'string') : [];
+    return { kind: 'dirty', players, names };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Gathers 'flairdirty' notices for `gatherMs` (a merge or a Gumroad burst is one call), then hands the
+ * union to `flush` — the site works out the delta. A notice arriving during a flush starts the next.
+ */
+export class FlairGather {
+  private players = new Set<number>();
+  private names = new Set<string>();
+  private timer: (() => void) | null = null;
+  private readonly flush: (players: number[], names: string[]) => void;
+  private readonly gatherMs: number;
+  private readonly later: (fn: () => void, ms: number) => () => void;
+
+  constructor(flush: (players: number[], names: string[]) => void, gatherMs = 2_000, later?: (fn: () => void, ms: number) => () => void) {
+    this.flush = flush;
+    this.gatherMs = gatherMs;
+    this.later = later ?? ((fn, ms) => {
+      const t = setTimeout(fn, ms);
+      return () => clearTimeout(t);
+    });
+  }
+
+  add(players: number[], names: string[]): void {
+    for (const n of players) this.players.add(n);
+    for (const n of names) this.names.add(n);
+    if (this.timer) return;
+    this.timer = this.later(() => {
+      this.timer = null;
+      const p = [...this.players];
+      const n = [...this.names];
+      this.players.clear();
+      this.names.clear();
+      if (p.length || n.length) this.flush(p, n);
+    }, this.gatherMs);
   }
 }

@@ -23,6 +23,8 @@ export interface PushScope {
    * and logs a warning for each one it can't parse.
    */
   rows?: boolean;
+  /** The plugin applies Supporter-list deltas ({"t":"flair"}, lib/chatFlairWire); older ones aren't sent them. */
+  flair?: boolean;
 }
 
 /** Long enough to cover a reconnect storm, short enough that a lost seat stops listening soon. */
@@ -38,7 +40,7 @@ export function ticketKey(sessionSecret: string): Buffer {
 
 export function signTicket(scope: PushScope, key: Buffer, nowMs: number): { ticket: string; expiresAt: number } {
   const expiresAt = nowMs + TICKET_TTL_MS;
-  const body = Buffer.from(JSON.stringify({ u: scope.userId, e: scope.eventIds, t: scope.teamId, ...(scope.feed ? { f: 1 } : {}), ...(scope.rows ? { r: 1 } : {}), x: expiresAt })).toString('base64url');
+  const body = Buffer.from(JSON.stringify({ u: scope.userId, e: scope.eventIds, t: scope.teamId, ...(scope.feed ? { f: 1 } : {}), ...(scope.rows ? { r: 1 } : {}), ...(scope.flair ? { l: 1 } : {}), x: expiresAt })).toString('base64url');
   return { ticket: `${body}.${mac(body, key)}`, expiresAt };
 }
 
@@ -55,7 +57,7 @@ export function verifyTicket(ticket: string, key: Buffer, nowMs: number): PushSc
     if (typeof p.x !== 'number' || p.x <= nowMs) return null;
     if (!Number.isInteger(p.u) || !Array.isArray(p.e)) return null;
     const eventIds = p.e.filter((e: unknown): e is number => Number.isInteger(e));
-    return { userId: p.u, eventIds, teamId: Number.isInteger(p.t) ? p.t : null, ...(p.f === 1 ? { feed: true } : {}), ...(p.r === 1 ? { rows: true } : {}) };
+    return { userId: p.u, eventIds, teamId: Number.isInteger(p.t) ? p.t : null, ...(p.f === 1 ? { feed: true } : {}), ...(p.r === 1 ? { rows: true } : {}), ...(p.l === 1 ? { flair: true } : {}) };
   } catch {
     return null;
   }

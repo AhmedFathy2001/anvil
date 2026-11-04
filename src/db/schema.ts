@@ -4235,6 +4235,25 @@ export const supporterSubscriptions = pgTable('supporter_subscriptions', {
   index('supporter_subscriptions_user_idx').on(table.userId),
 ]);
 
+// The in-game Supporter name list's history (lib/chatFlairFeed). Each change to who wears which colours
+// is one version: its delta as the plugins get it (`msg`, lib/chatFlairWire) and the owners of the
+// names it sets (`owners`, {name: players.id} — never sent), so any app instance can bring its copy
+// up to date and a plugin that missed a few can be handed just those. Trimmed below the newest snapshot.
+export const chatFlairLog = pgTable('chat_flair_log', {
+  version: integer('version').primaryKey(),
+  msg: text('msg').notNull(),
+  owners: text('owners').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// The whole list at a version (lib/chatFlairFeed), as name → {k: look, p: owner} JSON: where a fresh
+// instance starts before replaying the log. Written every so many versions, and after a full rebuild.
+export const chatFlairSnapshots = pgTable('chat_flair_snapshots', {
+  version: integer('version').primaryKey(),
+  state: text('state').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 // A referred purchase (lib/referrals). The reward is held until `grant_after`, then granted as a
 // supporter_subscriptions row ('granted'); a refund before or after takes it back.
 export const referrals = pgTable('referrals', {
