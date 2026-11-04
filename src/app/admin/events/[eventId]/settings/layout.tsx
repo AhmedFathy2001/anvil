@@ -3,6 +3,7 @@ import { isCreatorSpace, streamsEvents } from '@/lib/creatorSpaces';
 import { requireEventForPage } from '@/lib/eventScope';
 import { tabsFor } from '@/lib/eventSettingsTabs';
 import SettingsNav from './SettingsNav';
+import { SaveBarProvider } from './SaveBar';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +20,10 @@ export default async function EventSettingsLayout({ children, params }: { childr
   return (
     <div className="max-w-3xl">
       <SettingsNav eventId={id} kind={kind} tabs={tabsFor(kind)} />
-      <div className="space-y-6">{children}</div>
+      {/* One save bar for the whole tab (SaveBar): panels register their unsaved edits with it. */}
+      <SaveBarProvider>
+        <div className="space-y-6">{children}</div>
+      </SaveBarProvider>
     </div>
   );
 }

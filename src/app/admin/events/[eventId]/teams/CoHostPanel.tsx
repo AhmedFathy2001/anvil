@@ -1,6 +1,7 @@
 'use client';
 
 import SettingsCard from '../settings/SettingsCard';
+import { useSaveBar } from '../settings/SaveBar';
 import { useState } from 'react';
 import ClanCrest from '@/components/ClanCrest';
 import ClanPicker, { type PickedClan } from '@/components/ClanPicker';
@@ -79,7 +80,7 @@ export default function CoHostPanel({
   const changedBoard = cohosts.filter((c) => c.id in boardDraft && !sameAccess(boardDraft[c.id], savedAccess(c)));
   const dirty = cashPolicy !== savedCash || changedBoard.length > 0;
 
-  async function save() {
+  async function save(): Promise<boolean> {
     setSaving(true);
     setError(null);
     try {
@@ -106,8 +107,10 @@ export default function CoHostPanel({
       await refresh();
       setSavedNote(true);
       setTimeout(() => setSavedNote(false), 2500);
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
     } finally {
       setSaving(false);
     }
@@ -179,6 +182,9 @@ export default function CoHostPanel({
       setBusy(false);
     }
   }
+
+  // The tab's save bar (settings/SaveBar): the pot and board access are drafts until saved.
+  const inBar = useSaveBar('cohosts', 'Co-hosts', dirty, () => save(), () => discard());
 
   return (
     <SettingsCard title="Co-hosts" description={<>Invite other clans to run a team here.</>} flush>
@@ -312,7 +318,7 @@ export default function CoHostPanel({
         </div>
       </div>
 
-      {(dirty || savedNote) && (
+      {((dirty && !inBar) || savedNote) && (
         <div className="flex items-center gap-3 border-t border-card-border px-5 py-3">
           {dirty ? (
             <>

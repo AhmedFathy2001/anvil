@@ -1,6 +1,7 @@
 'use client';
 
 import SettingsCard from './settings/SettingsCard';
+import { useSaveBar } from './settings/SaveBar';
 import { useEffect, useState } from 'react';
 
 import Checkbox from '@/components/Checkbox';
@@ -109,11 +110,11 @@ export default function RulebookPanel({ eventId }: { eventId: number }) {
     });
   }
 
-  async function saveRulebook() {
-    if (await patch({ rulebook })) {
-      setOriginalRulebook(rulebook);
-      setMessage({ ok: true, text: rulebook.trim() ? 'House-rules addendum saved.' : 'Cleared — this board uses your clan’s house rules.' });
-    }
+  async function saveRulebook(): Promise<boolean> {
+    if (!(await patch({ rulebook }))) return false;
+    setOriginalRulebook(rulebook);
+    setMessage({ ok: true, text: rulebook.trim() ? 'House-rules addendum saved.' : 'Cleared — this board uses your clan’s house rules.' });
+    return true;
   }
 
   async function toggleAtStart(on: boolean) {
@@ -125,6 +126,10 @@ export default function RulebookPanel({ eventId }: { eventId: number }) {
     setSharing(on);
     if (!(await patch({ sharingChecks: on }))) setSharing(!on);
   }
+
+  // The tab's save bar (settings/SaveBar) for the two texts; the switches below save as you flip them.
+  const inBar = useSaveBar('rules-message', 'Discord announcement', loaded && rulesMessage !== originalRulesMessage, () => saveRulesMessage(), () => setRulesMessage(originalRulesMessage));
+  useSaveBar('rulebook', 'House rules', loaded && rulebook !== originalRulebook, () => saveRulebook(), () => setRulebook(originalRulebook));
 
   if (!loaded) return null;
   const rulebookPreview = rulebook.trim() || clanRules.trim();
@@ -162,6 +167,7 @@ export default function RulebookPanel({ eventId }: { eventId: number }) {
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <button
           type="button"
+          hidden={inBar}
           onClick={() => void saveRulesMessage()}
           disabled={busy || rulesMessage === originalRulesMessage || !rulesMessage.trim()}
           className="rounded-lg border border-gold/30 bg-gold/10 px-3 py-1.5 text-sm text-gold transition-colors hover:bg-gold/20 disabled:opacity-50"
@@ -209,6 +215,7 @@ export default function RulebookPanel({ eventId }: { eventId: number }) {
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <button
             type="button"
+            hidden={inBar}
             onClick={saveRulebook}
             disabled={busy || rulebook === originalRulebook}
             className="rounded-lg border border-gold/30 bg-gold/10 px-3 py-1.5 text-sm text-gold transition-colors hover:bg-gold/20 disabled:opacity-50"

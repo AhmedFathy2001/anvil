@@ -1,6 +1,7 @@
 'use client';
 
 import SettingsCard from './SettingsCard';
+import { useSaveBar } from './SaveBar';
 import { useEffect, useState } from 'react';
 
 import EntryGatePicker from '@/components/EntryGatePicker';
@@ -39,10 +40,9 @@ export default function EntryGatePanel({ eventId }: { eventId: number }) {
     };
   }, [eventId]);
 
-  if (!options) return null;
   const dirty = JSON.stringify([gates, viewers]) !== saved;
 
-  async function save() {
+  async function save(): Promise<boolean> {
     setBusy(true);
     setNote(null);
     try {
@@ -58,12 +58,27 @@ export default function EntryGatePanel({ eventId }: { eventId: number }) {
       setViewers(v);
       setSaved(JSON.stringify([d.gates ?? null, v]));
       setNote({ ok: true, text: 'Saved.' });
+      return true;
     } catch (e) {
       setNote({ ok: false, text: (e as Error).message });
+      return false;
     } finally {
       setBusy(false);
     }
   }
+
+  // The tab's save bar (settings/SaveBar), then the early return: hooks run on every render.
+  const inBar = useSaveBar('gate', 'Who can join', options != null && dirty, () => save(), () => {
+    setNote(null);
+    try {
+      const [g, v] = JSON.parse(saved ?? '[null,null]');
+      setGates(g);
+      setViewers(v);
+    } catch {
+      /* nothing saved yet to go back to */
+    }
+  });
+  if (!options) return null;
 
   return (
     <SettingsCard title="Who can join?" flush>
@@ -93,6 +108,7 @@ export default function EntryGatePanel({ eventId }: { eventId: number }) {
         <div className="mt-4 flex items-center gap-3">
           <button
             type="button"
+            hidden={inBar}
             onClick={save}
             disabled={busy || !dirty}
             className="rounded-lg bg-gold px-4 py-1.5 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
