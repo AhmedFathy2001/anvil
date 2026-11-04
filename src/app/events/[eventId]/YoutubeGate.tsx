@@ -9,12 +9,15 @@ export interface YoutubeGateInfo {
   available: boolean;
   checked: string | null;
   chatCode: string | null;
+  linked: string | null;
   usesSub: boolean;
   usesMember: boolean;
 }
 
 const BACK: Record<string, { ok: boolean; text: string }> = {
   subscribed: { ok: true, text: 'Subscription confirmed. Press Join.' },
+  linked: { ok: true, text: 'YouTube account linked. Now type your code in the live chat.' },
+  taken: { ok: false, text: 'That YouTube account is already linked to another Anvil login.' },
   notsub: { ok: false, text: 'That YouTube channel isn’t subscribed to the host. Subscribe, then check again.' },
   private: { ok: false, text: 'YouTube wouldn’t show your subscriptions. Make them public in YouTube’s privacy settings, then check again.' },
   nochannel: { ok: false, text: 'That Google account has no YouTube channel. Pick the account you watch with.' },
@@ -71,11 +74,25 @@ export default function YoutubeGate({
   }
 
   const showVerify = info.usesSub && (fail?.verify || !info.checked);
-  const showCode = info.usesMember && info.chatCode && (fail?.chatCode || !info.usesSub);
+  const wantsCode = info.usesMember && !!info.chatCode && (fail?.chatCode || !info.usesSub);
+  // The code only counts typed from the linked account, so linking comes first.
+  const showLink = wantsCode && !info.linked && !showVerify;
+  const showCode = wantsCode && !!info.linked;
 
   return (
     <div className="w-full space-y-2 text-sm">
-      {info.checked && <div className="text-[12.5px] text-text-dim">Your YouTube: {info.checked}</div>}
+      {(info.linked || info.checked) && (
+        <div className="text-[12.5px] text-text-dim">Your YouTube: {info.linked ?? info.checked}</div>
+      )}
+      {showLink && (
+        <button
+          type="button"
+          onClick={verify}
+          className="rounded-xl border border-gold/40 px-4 py-2 text-gold transition-colors hover:border-gold"
+        >
+          Link my YouTube account (for the members check)
+        </button>
+      )}
       {showVerify && (
         <button
           type="button"
@@ -87,7 +104,7 @@ export default function YoutubeGate({
       )}
       {showCode && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-text-muted">Members: while the host is live, type</span>
+          <span className="text-text-muted">Members: while the host is live, from {info.linked} type</span>
           <code className="rounded bg-brown-dark px-2 py-0.5 font-semibold text-gold">{info.chatCode}</code>
           <span className="text-text-muted">in the YouTube chat, then</span>
           <button

@@ -217,8 +217,12 @@ test('one YouTube channel cannot get two Anvil logins into the same event', asyn
   const a = await person('Owner Login');
   const b = await person('Alt Login');
   net.viewers.set('shared-tok', { channel: 'UCshared0000000000000000', title: 'Shared', sub: true });
-  await Y.proveSubscription({ userId: a.userId, hostChannelId: HOST_CH, token: 'shared-tok' });
-  await Y.proveSubscription({ userId: b.userId, hostChannelId: HOST_CH, token: 'shared-tok' });
+  assert.equal(await Y.proveSubscription({ userId: a.userId, hostChannelId: HOST_CH, token: 'shared-tok' }), 'subscribed');
+  // One YouTube channel per Anvil login: the second sign-in is refused at the link.
+  assert.equal(await Y.proveSubscription({ userId: b.userId, hostChannelId: HOST_CH, token: 'shared-tok' }), 'taken');
+  assert.equal(await Y.viewerYoutube(b.userId), null);
+  // Even with a proof somehow on file (e.g. linked before a's sign-in moved it), the event claim holds.
+  await Y.recordProof({ userId: b.userId, hostChannelId: HOST_CH, kind: 'sub', channel: { id: 'UCshared0000000000000000', title: 'Shared' }, ok: true });
 
   assert.equal((await enter(a, ev)).outcome, 'seated');
   const r = await enter(b, ev);
@@ -257,6 +261,10 @@ test('members: the code in live chat from a member lets them in; a non-member an
   if (r1.outcome === 'gated') assert.deepEqual(r1.gate.youtube, { chatCode: true });
   else assert.fail(JSON.stringify(r1));
 
+  assert.equal(await Y.checkChatCode({ clanId: spaceId, userId: m.userId }), 'unlinked', 'no linked channel yet');
+  await Y.linkViewerYoutube(m.userId, { id: 'UCmember0000000000000000', title: 'Member Chan' });
+  await Y.linkViewerYoutube(plain.userId, { id: 'UCplain00000000000000000', title: 'Plain Chan' });
+  await Y.linkViewerYoutube(quiet.userId, { id: 'UCquiet00000000000000000', title: 'Quiet Chan' });
   const plainCode = YT.chatCode(plain.userId, HOST_CH, YT.youtubeConfig()!.tokenKey);
   net.chat = [chatMsg(`hey ${code!.toLowerCase()}`, 'UCmember0000000000000000', true), chatMsg(plainCode, 'UCplain00000000000000000', false)];
 
@@ -275,6 +283,7 @@ test('members: the code in live chat from a member lets them in; a non-member an
 
 test('members: not live → offline, and no chat is read', async () => {
   const v = await person('Offline Viewer');
+  await Y.linkViewerYoutube(v.userId, { id: 'UCoffline000000000000000', title: 'Off' });
   net.live = false;
   const reads = net.chatReads;
   try {
@@ -287,6 +296,7 @@ test('members: not live → offline, and no chat is read', async () => {
 
 test('an expired host token is refreshed; a refused refresh marks the channel broken', async () => {
   const v = await person('Refresh Viewer');
+  await Y.linkViewerYoutube(v.userId, { id: 'UCrefresh000000000000000', title: 'Ref' });
   await db
     .update(s.clanYoutubeChannels)
     .set({ expiresAt: new Date(Date.now() - 1000).toISOString() })
@@ -326,4 +336,35 @@ test('disconnecting forgets the channel and revokes its grant; gates then fail c
   if (r.outcome === 'gated') assert.deepEqual(r.gate.steps, ['The host’s YouTube connection isn’t working — let them know']);
   else assert.fail(JSON.stringify(r));
   await connectHost(net.hostToken);
+});
+
+test('members: a member friend typing MY code does not make me a member; my own linked channel does', async () => {
+  const ev = await gatedEvent('Friend Bingo', { anyOf: [{ kind: 'youtube-member' }] });
+  const me = await person('Not A Member');
+  await Y.linkViewerYoutube(me.userId, { id: 'UCnotmember0000000000000', title: 'My Chan' });
+  const code = YT.chatCode(me.userId, HOST_CH, YT.youtubeConfig()!.tokenKey);
+
+  // The friend (a member) types my code; I never did.
+  net.chat = [chatMsg(code, 'UCfriend0000000000000000', true)];
+  assert.equal(await Y.checkChatCode({ clanId: spaceId, userId: me.userId }), 'wrong-account');
+  assert.equal(await Y.freshProof(me.userId, HOST_CH, 'member'), null, 'nothing recorded');
+  const r = await enter(me, ev);
+  assert.equal(r.outcome, 'gated', JSON.stringify(r));
+
+  // Now I am a member and type it myself — after the friend's message, and with theirs still newer.
+  Y.clearYoutubeCachesForTests();
+  net.chat = [chatMsg(code, 'UCnotmember0000000000000', true), chatMsg(code, 'UCfriend0000000000000000', true)];
+  assert.equal(await Y.checkChatCode({ clanId: spaceId, userId: me.userId }), 'member');
+  G.gateCache.forgetUser(me.userId);
+  assert.equal((await enter(me, ev)).outcome, 'seated');
+  const claim = await db.query.eventYoutubeClaims.findFirst({ where: eq(s.eventYoutubeClaims.eventId, ev) });
+  assert.equal(claim?.youtubeChannelId, 'UCnotmember0000000000000', 'the claim is on MY channel');
+});
+
+test('member-only events: the Google sign-in links the channel without a subscription check', async () => {
+  const v = await person('Link Only');
+  net.viewers.set('link-tok', { channel: 'UClinkonly00000000000000', title: 'Link Only', sub: false });
+  assert.equal(await Y.proveSubscription({ userId: v.userId, hostChannelId: HOST_CH, token: 'link-tok', checkSub: false }), 'linked');
+  assert.deepEqual(await Y.viewerYoutube(v.userId), { channelId: 'UClinkonly00000000000000', title: 'Link Only' });
+  assert.equal(await Y.freshProof(v.userId, HOST_CH, 'sub'), null);
 });

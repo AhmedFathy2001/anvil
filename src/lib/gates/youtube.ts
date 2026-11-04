@@ -98,7 +98,7 @@ export function youtubeStep(
       : { step: `Subscribe to ${ch} on YouTube, then check again`, verify: true };
   }
   return a.state === 'unchecked'
-    ? { step: `While ${ch} is live, type your Anvil code in the YouTube chat (members only)`, chatCode: true }
+    ? { step: `While ${ch} is live, type your Anvil code in the YouTube chat from your linked account (members only)`, chatCode: true }
     : { step: `Become a member of ${ch} on YouTube, then type your code in a live chat again`, chatCode: true };
 }
 
@@ -136,8 +136,8 @@ export interface ChatSighting {
   member: boolean;
 }
 
-/** The NEWEST chat message carrying the code, if any. */
-export function findCodeInChat(items: unknown, code: string): ChatSighting | null {
+/** The NEWEST chat message carrying the code — only from `fromChannel` when given — if any. */
+export function findCodeInChat(items: unknown, code: string, fromChannel?: string): ChatSighting | null {
   if (!Array.isArray(items)) return null;
   for (let i = items.length - 1; i >= 0; i--) {
     const m = items[i] as {
@@ -149,6 +149,7 @@ export function findCodeInChat(items: unknown, code: string): ChatSighting | nul
     if (!messageHasCode(text, code)) continue;
     const channelId = m.authorDetails?.channelId;
     if (!isChannelId(channelId)) continue;
+    if (fromChannel !== undefined && channelId !== fromChannel) continue;
     return { channelId, displayName: cleanTitle(m.authorDetails?.displayName), member: m.authorDetails?.isChatSponsor === true };
   }
   return null;

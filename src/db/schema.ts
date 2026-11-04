@@ -3788,6 +3788,20 @@ export const clanYoutubeChannels = pgTable('clan_youtube_channels', {
 });
 
 /**
+ * A viewer's linked YouTube channel (lib/gates/youtubeDb) — identity only, proved by a Google sign-in
+ * whose token is revoked at once. Unique on the channel: one YouTube channel per Anvil login. The
+ * member chat code only counts when typed from this channel.
+ */
+export const userYoutubeLinks = pgTable('user_youtube_links', {
+  userId: integer('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  youtubeChannelId: text('youtube_channel_id').notNull(),
+  youtubeTitle: text('youtube_title').notNull(),
+  linkedAt: text('linked_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  uniqueIndex('user_youtube_links_channel_unique').on(table.youtubeChannelId),
+]);
+
+/**
  * A point-in-time YouTube proof (lib/gates/youtubeDb): 'sub' — the viewer's own subscriptions,
  * read once on their token (then revoked); 'member' — their chat code seen in the host's live chat
  * from a channel member. Trusted for a day.

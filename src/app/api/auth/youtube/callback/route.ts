@@ -21,7 +21,7 @@ import {
 } from '@/lib/gates/youtube';
 
 /** Outcomes, as `?youtube=` on the page they return to. Fixed words only — never echoed input. */
-type Outcome = 'subscribed' | 'notsub' | 'private' | 'nochannel' | 'connected' | 'denied' | 'scopes' | 'error';
+type Outcome = 'subscribed' | 'notsub' | 'linked' | 'taken' | 'private' | 'nochannel' | 'connected' | 'denied' | 'scopes' | 'error';
 
 // GET /api/auth/youtube/callback?code=…&state=…  (YOUTUBE_REDIRECT_URI)
 //
@@ -66,12 +66,18 @@ async function finish(url: URL, state: YoutubeState, cfg: YoutubeConfig, userId:
     if (!hasYoutubeScope(tokens.scope)) return 'scopes';
 
     if (state.m === 'viewer') {
-      // The event must still be a YouTube-subscriber-gated creator event with a connected host channel.
+      // The event must still be a YouTube-gated creator event with a connected host channel. Every
+      // viewer sign-in links their channel (identity only); a subscriber rule also checks the sub.
       const g = await gatesForEvent(state.c);
-      if (!g || !g.gates.anyOf.some((r) => r.kind === 'youtube-sub')) return 'error';
+      if (!g || !g.gates.anyOf.some((r) => r.kind === 'youtube-sub' || r.kind === 'youtube-member')) return 'error';
       const hostCh = await hostYoutubeChannel(g.clanId);
       if (!hostCh) return 'error';
-      const r = await proveSubscription({ userId, hostChannelId: hostCh.channelId, token: tokens.accessToken });
+      const r = await proveSubscription({
+        userId,
+        hostChannelId: hostCh.channelId,
+        token: tokens.accessToken,
+        checkSub: g.gates.anyOf.some((x) => x.kind === 'youtube-sub'),
+      });
       gateCache.forgetUser(userId);
       return r;
     }

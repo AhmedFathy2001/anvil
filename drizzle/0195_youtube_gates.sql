@@ -19,6 +19,17 @@ CREATE TABLE IF NOT EXISTS "clan_youtube_channels" (
   "updated_at" text DEFAULT to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS') NOT NULL
 );
 
+-- A viewer's linked YouTube channel, proved by a Google sign-in (identity only: the token is revoked
+-- at once, never stored). One channel per Anvil login, so one subscription or membership cannot let a
+-- crowd of alts through — and the member chat code only counts when typed FROM this channel.
+CREATE TABLE IF NOT EXISTS "user_youtube_links" (
+  "user_id" integer PRIMARY KEY NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "youtube_channel_id" text NOT NULL,
+  "youtube_title" text NOT NULL,
+  "linked_at" text DEFAULT to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS') NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "user_youtube_links_channel_unique" ON "user_youtube_links" USING btree ("youtube_channel_id");
+
 -- A point-in-time YouTube proof for one viewer against one host channel: 'sub' from the viewer's
 -- own subscriptions (OAuth, token revoked straight after), 'member' from their chat code in the
 -- host's live chat. Trusted for a day (lib/gates/youtubeDb PROOF_TTL_MS), then asked again.

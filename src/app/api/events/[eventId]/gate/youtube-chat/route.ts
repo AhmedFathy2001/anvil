@@ -9,6 +9,8 @@ import { rateLimitByKey } from '@/lib/rate-limit';
 const MESSAGES: Record<ChatCheck, string> = {
   member: 'Membership confirmed. Press Join.',
   'not-member': 'We saw your code, but that YouTube account isn’t a channel member.',
+  unlinked: 'Sign in with Google first, so we know which YouTube account is yours.',
+  'wrong-account': 'Type the code from the YouTube account you linked.',
   'not-seen': 'We didn’t see your code in the live chat yet. Send it, wait a few seconds, then check again.',
   offline: 'The host isn’t live on YouTube right now. The member check only works during a stream.',
   'host-missing': 'The host’s YouTube connection isn’t working — let them know.',

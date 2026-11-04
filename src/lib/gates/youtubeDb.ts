@@ -7,10 +7,10 @@
 //
 // lib/entryGatesDb wires these into the shared verdict; nothing here knows about Twitch or Discord.
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanYoutubeChannels, eventYoutubeClaims, userYoutubeProofs } from '@/db/schema';
+import { clanYoutubeChannels, eventYoutubeClaims, userYoutubeLinks, userYoutubeProofs } from '@/db/schema';
 import { parseStamp } from '@/lib/dbTime';
 import type { GateKind, GateOptions } from '@/lib/entryGates';
 import {
@@ -214,16 +214,55 @@ export async function freshProof(userId: number, hostChannelId: string, kind: Pr
   return at != null && Date.now() - at < PROOF_TTL_MS ? row : null;
 }
 
-export type SubProof = 'subscribed' | 'notsub' | 'private' | 'nochannel' | 'error';
+// ── The viewer's linked channel (identity only) ─────────────────────────────────────────────────
+
+export async function viewerYoutube(userId: number): Promise<{ channelId: string; title: string } | null> {
+  // clan-scope: global -- a user's own identity link.
+  const row = await db.query.userYoutubeLinks.findFirst({ where: eq(userYoutubeLinks.userId, userId) });
+  return row ? { channelId: row.youtubeChannelId, title: row.youtubeTitle } : null;
+}
 
 /**
- * The viewer's subscriber check, on THEIR token (fresh from the OAuth callback): which channel they
- * are, and whether it subscribes to the host. Records the answer; the caller revokes the token.
+ * Link a YouTube channel to a login. 'taken' when that channel already belongs to another Anvil login
+ * — one subscription or membership must not let a crowd of alts in. Re-linking your own is fine;
+ * linking a different channel replaces the old one.
  */
-export async function proveSubscription(opts: { userId: number; hostChannelId: string; token: string }): Promise<SubProof> {
+export async function linkViewerYoutube(userId: number, channel: { id: string; title: string }): Promise<'ok' | 'taken'> {
+  // clan-scope: global -- identity links are per user.
+  const other = await db.query.userYoutubeLinks.findFirst({
+    where: and(eq(userYoutubeLinks.youtubeChannelId, channel.id), ne(userYoutubeLinks.userId, userId)),
+    columns: { userId: true },
+  });
+  if (other) return 'taken';
+  const values = { youtubeChannelId: channel.id, youtubeTitle: channel.title, linkedAt: new Date().toISOString() };
+  try {
+    // clan-scope: global -- as above.
+    await db.insert(userYoutubeLinks).values({ userId, ...values }).onConflictDoUpdate({ target: userYoutubeLinks.userId, set: values });
+  } catch (err) {
+    if ((err as { code?: string })?.code === '23505') return 'taken';
+    throw err;
+  }
+  return 'ok';
+}
+
+export type SubProof = 'subscribed' | 'notsub' | 'linked' | 'taken' | 'private' | 'nochannel' | 'error';
+
+/**
+ * The viewer's Google sign-in, on THEIR token (fresh from the OAuth callback): which channel they are
+ * (linked to their login — identity only), and, when `checkSub`, whether it subscribes to the host.
+ * Records the answer; the caller revokes the token.
+ */
+export async function proveSubscription(opts: {
+  userId: number;
+  hostChannelId: string;
+  token: string;
+  checkSub?: boolean;
+}): Promise<SubProof> {
   const me = await fetchMyChannel(opts.token, f);
   if (!me.ok) return 'error';
   if (!me.value) return 'nochannel';
+  if ((await linkViewerYoutube(opts.userId, me.value)) === 'taken') return 'taken';
+  if (opts.checkSub === false) return 'linked';
   const sub = await subscribesTo(opts.token, opts.hostChannelId, f);
   if (!sub.ok) {
     if (sub.reason === 'forbidden') return 'private';
@@ -267,15 +306,19 @@ export interface YoutubeJoinInfo {
   checked: string | null;
   /** Their member-check chat code for this host (only when a member rule applies). */
   chatCode: string | null;
+  /** Their linked YouTube channel's title — the member code only counts typed from it. */
+  linked: string | null;
 }
 
 /** For the join card before anyone presses Join. No external calls. */
 export async function youtubeJoinInfo(clanId: number, userId: number | null, wantsCode: boolean): Promise<YoutubeJoinInfo> {
   const cfg = youtubeConfig();
   const host = cfg ? await hostYoutubeChannel(clanId) : null;
-  if (!cfg || !host) return { available: false, checked: null, chatCode: null };
+  if (!cfg || !host) return { available: false, checked: null, chatCode: null, linked: null };
   const proof = userId != null ? await freshProof(userId, host.channelId, 'sub') : null;
+  const link = userId != null ? await viewerYoutube(userId) : null;
   return {
+    linked: link?.title ?? null,
     available: !host.broken || !wantsCode,
     checked: proof?.youtubeTitle ?? null,
     chatCode: wantsCode && userId != null ? chatCode(userId, host.channelId, cfg.tokenKey) : null,
@@ -287,6 +330,10 @@ export async function youtubeJoinInfo(clanId: number, userId: number | null, wan
 export type ChatCheck =
   | 'member'
   | 'not-member'
+  /** No linked YouTube channel yet: sign in with Google first. */
+  | 'unlinked'
+  /** The code was typed from a channel other than the one they linked. Nothing recorded. */
+  | 'wrong-account'
   /** No message with their code in the recent chat. */
   | 'not-seen'
   /** The host is not live on YouTube right now. */
@@ -318,6 +365,10 @@ export async function checkChatCode(opts: { clanId: number; userId: number }): P
   if (!cfg) return 'off';
   const host = await hostYoutubeChannel(opts.clanId);
   if (!host || host.broken) return 'host-missing';
+  // The code names the login; the LINKED channel says who must have typed it. Without this a member
+  // friend could type my code and I would pass as a member.
+  const link = await viewerYoutube(opts.userId);
+  if (!link) return 'unlinked';
 
   try {
     const now = Date.now();
@@ -350,8 +401,9 @@ export async function checkChatCode(opts: { clanId: number; userId: number }): P
       return 'error';
     }
 
-    const seen = findCodeInChat(r.value, chatCode(opts.userId, host.channelId, cfg.tokenKey));
-    if (!seen) return 'not-seen';
+    const code = chatCode(opts.userId, host.channelId, cfg.tokenKey);
+    const seen = findCodeInChat(r.value, code, link.channelId);
+    if (!seen) return findCodeInChat(r.value, code) ? 'wrong-account' : 'not-seen';
     await recordProof({
       userId: opts.userId,
       hostChannelId: host.channelId,

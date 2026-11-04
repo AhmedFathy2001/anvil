@@ -106,7 +106,7 @@ test('checkGates: a proof on file passes; none asks for the check (sub) or the c
   assert.deepEqual(v.youtube, { verify: true, chatCode: true });
   assert.deepEqual(v.steps, [
     'Check your YouTube subscription to Cool Tube',
-    'While Cool Tube is live, type your Anvil code in the YouTube chat (members only)',
+    'While Cool Tube is live, type your Anvil code in the YouTube chat from your linked account (members only)',
   ]);
 
   const no = await checkGates({ anyOf: [{ kind: 'youtube-sub' }] }, ytProbe({ state: 'ok', value: false }, { state: 'unchecked' }), ctx);
