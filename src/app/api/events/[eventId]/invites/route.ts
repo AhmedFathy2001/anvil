@@ -10,6 +10,7 @@ import { isEntry, isVisibility } from '@/lib/eventAccess';
 import { forgetLinkCards } from '@/lib/ogKit';
 import { mayAdvertiseEvents } from '@/lib/eventsDirectory';
 import { forgetDirectory } from '@/lib/eventsDirectoryDb';
+import { isFriendsHost } from '@/lib/friendEventRules';
 
 /**
  * Inviting another clan — or one person — to an event, and setting who may see it.
@@ -80,6 +81,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
 
   // ── Settings ──────────────────────────────────────────────────────────────────────────────
   if ('visibility' in body || 'entry' in body || 'advertised' in body) {
+    // A friends event (lib/friendEventRules) is invite-only and never advertised, by what it is: its
+    // host has no switch for either, and a typed-in request does not get one.
+    // clan-scope: this clan -- the event's own host, already matched to the request by eventForRequest.
+    const host = await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true } });
+    if (isFriendsHost(host)) {
+      return NextResponse.json({ error: 'A friends event stays private: only people with its invite link can join.' }, { status: 400 });
+    }
     const patch: Partial<typeof events.$inferInsert> = {};
     if ('visibility' in body) {
       if (!isVisibility(body.visibility)) return NextResponse.json({ error: 'Bad visibility' }, { status: 400 });
@@ -118,6 +126,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     if (!target) return NextResponse.json({ error: 'No clan with that address' }, { status: 404 });
     if (target.id === event.clanId) {
       return NextResponse.json({ error: 'That is the clan hosting this event' }, { status: 400 });
+    }
+    // A friends event is for the friends its link reaches, never a whole clan (and a friends host is
+    // nobody's to invite: it has no members).
+    // clan-scope: this clan -- the event's own host, already matched to the request by eventForRequest.
+    const host = await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true } });
+    if (isFriendsHost(host) || isFriendsHost(target)) {
+      return NextResponse.json({ error: 'A friends event is shared by its invite link, not with whole clans.' }, { status: 400 });
     }
     inviteClanId = target.id;
   }

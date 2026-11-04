@@ -6,6 +6,7 @@
 
 import type { StatDeltas } from '@/lib/statDeltas';
 import { db } from '@/db';
+import { notFriendsEvent } from '@/lib/friendEventsSql';
 import { clanAuditLog, clanRoster, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants, accounts, players, clanMemberships, accountGameClans, clans, gameClans } from '@/db/schema';
 import { findRosterSeat, statSnapshotOf } from '@/lib/roster';
 import { rosterClanSeat } from '@/lib/seatScope';
@@ -1201,6 +1202,9 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
+    // A Supporter's friends events are private to the friends invited (lib/friendEventRules): never on
+    // a clan profile anybody can read.
+    .where(notFriendsEvent(events.clanId))
     .orderBy(desc(events.endDate));
 
   const mineEvents = enrolled.filter(
@@ -1225,7 +1229,8 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
       format: events.format,
     })
     .from(playerEventFacts)
-    .innerJoin(events, eq(playerEventFacts.eventId, events.id));
+    .innerJoin(events, eq(playerEventFacts.eventId, events.id))
+    .where(notFriendsEvent(events.clanId));
   const factFor = new Map(
     factRows
       .filter((f) => f.clanMemberId === clanMemberId || aliases.has(normalizeRsn(f.rsn)))

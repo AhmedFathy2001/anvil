@@ -14,7 +14,7 @@ import { db } from '@/db';
 import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clanStaff, clans, eventInvites, events, users } from '@/db/schema';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { findOrCreateSeat } from '@/lib/roster';
-import { declinedRequestText, isCreatorSpace, streamedEvent } from '@/lib/creatorSpaces';
+import { clanKindOf, declinedRequestText, isCreatorSpace, seatsEventPlayers } from '@/lib/creatorSpaces';
 import { seatEventPlayer } from '@/lib/eventPlayers';
 
 export type GuestPolicy = 'approval' | 'open' | 'closed';
@@ -130,7 +130,8 @@ export async function admit(opts: {
   const hostKind = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true } });
   if (playerId != null && (await staffsThisClan(clanId, playerId))) {
     const seatId = await findOrCreateSeat(clanId, accountId, {
-      kind: isCreatorSpace(hostKind) ? 'guest' : 'member',
+      // A friends host (lib/friendEventRules) the same: nobody is ever a member of one.
+      kind: clanKindOf(hostKind?.kind) === 'clan' ? 'member' : 'guest',
       source: 'admin',
     });
     await db.update(clanMemberships).set({ leftAt: null }).where(eq(clanMemberships.id, seatId));
@@ -238,7 +239,7 @@ export async function approveRequest(
       : undefined;
   const host = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true, streaming: true } });
   let seatId: number;
-  if (reqEvent && streamedEvent(host, reqEvent)) {
+  if (reqEvent && seatsEventPlayers(host, reqEvent)) {
     seatId = await seatEventPlayer({ clanId, eventId: reqEvent.id, accountId: req.accountId });
   } else {
     seatId = await findOrCreateSeat(clanId, req.accountId, { kind: 'guest', source: 'application' });

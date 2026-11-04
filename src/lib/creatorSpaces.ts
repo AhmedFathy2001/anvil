@@ -23,15 +23,30 @@ import { parseStamp } from '@/lib/dbTime';
 import type { EventEntry } from '@/lib/eventVisibility';
 import type { FeatureKey } from '@/lib/features';
 
-export type ClanKind = 'clan' | 'creator';
+// 'friends' is a Supporter's hidden host for private events with friends (lib/friendEventRules): NOT a
+// creator space (no page, no plan, no streaming), but like one it has no in-game clan behind it, so
+// its players are event players and nobody is ever on a roster there.
+export type ClanKind = 'clan' | 'creator' | 'friends';
 
 export function isClanKind(v: unknown): v is ClanKind {
-  return v === 'clan' || v === 'creator';
+  return v === 'clan' || v === 'creator' || v === 'friends';
 }
 
 /** Unknown values read as an ordinary clan — the stricter answer for entry (see outsiderNeedsApproval). */
 export function clanKindOf(v: string | null | undefined): ClanKind {
-  return v === 'creator' ? 'creator' : 'clan';
+  return v === 'creator' ? 'creator' : v === 'friends' ? 'friends' : 'clan';
+}
+
+/**
+ * Does this event seat outsiders as EVENT players (lib/eventPlayers: one seat, this event only, never
+ * a guest or roster row)? Every streamed event (streamedEvent), and every friends event — which is
+ * NOT streamed: no gates, no overlay, no `!join`, no plan meter, no directory.
+ */
+export function seatsEventPlayers(
+  clan: { kind?: string | null; streaming?: boolean | null } | null | undefined,
+  event: { openToViewers?: boolean | null } | null | undefined,
+): boolean {
+  return clan?.kind === 'friends' || streamedEvent(clan, event);
 }
 
 export function isCreatorSpace(clan: { kind?: string | null } | null | undefined): boolean {
@@ -328,7 +343,7 @@ export function outsiderNeedsApproval(opts: { clanKind: ClanKind; entry: EventEn
   if (opts.entry === 'approval') return true;
   // A Streaming clan's event open to viewers (streamedEvent) is a creator event for this purpose:
   // the viewer gets an event seat, not a place on the roster, so `open` can mean open.
-  if (opts.clanKind === 'creator' || opts.streamed === true) return false;
+  if (opts.clanKind === 'creator' || opts.clanKind === 'friends' || opts.streamed === true) return false;
   return !opts.vouched;
 }
 
@@ -485,7 +500,12 @@ export interface ClanKindGroup<T> {
 export function groupClansAndSpaces<T>(items: readonly T[], kindOf: (item: T) => string | null | undefined): ClanKindGroup<T>[] {
   const clans: T[] = [];
   const spaces: T[] = [];
-  for (const it of items) (clanKindOf(kindOf(it)) === 'creator' ? spaces : clans).push(it);
+  for (const it of items) {
+    const kind = clanKindOf(kindOf(it));
+    // A friends host is neither: it has its own "Friends events" entry (/host/friends).
+    if (kind === 'friends') continue;
+    (kind === 'creator' ? spaces : clans).push(it);
+  }
   const out: ClanKindGroup<T>[] = [];
   if (clans.length > 0) out.push({ key: 'clans', label: YOUR_CLANS_HEADING, items: clans });
   if (spaces.length > 0) out.push({ key: 'spaces', label: YOUR_SPACES_HEADING, items: spaces });
@@ -499,7 +519,7 @@ export function groupClansAndSpaces<T>(items: readonly T[], kindOf: (item: T) =>
  * members to tell them apart from. A creator space has no members, so everyone is just a "player".
  */
 export function outsiderWord(kind: string | null | undefined, plural = false): string {
-  const creator = clanKindOf(kind) === 'creator';
+  const creator = clanKindOf(kind) !== 'clan';
   if (plural) return creator ? 'players' : 'guests';
   return creator ? 'player' : 'guest';
 }
@@ -513,7 +533,7 @@ export function declinedRequestText(opts: {
   clansUrl: string;
 }): string {
   const who = opts.rsn ? ` for **${opts.rsn}**` : '';
-  if (clanKindOf(opts.kind) === 'creator') {
+  if (clanKindOf(opts.kind) !== 'clan') {
     const what = opts.eventName ? `to play in **${opts.eventName}**` : 'to play';
     return `**${opts.hostName}** said no to your request ${what}${who}. You can ask again later.`;
   }

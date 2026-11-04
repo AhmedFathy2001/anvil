@@ -16,6 +16,7 @@ import AdminSettingsSearch from './_components/AdminSettingsSearch';
 import { FEATURES } from '@/lib/features';
 import { getSetupStatus } from '@/lib/setupStatus';
 import { creatorHidesAdminPath, isCreatorSpace } from '@/lib/creatorSpaces';
+import { friendsAllowsAdminPath, isFriendsHost } from '@/lib/friendEventRules';
 import { pendingClaimRequests } from '@/lib/claimRequests';
 import { pendingUpdateCount } from '@/lib/guides';
 import { coHostedBoardLinks } from '@/lib/coHost';
@@ -122,6 +123,36 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // those pages also checks it (lib/creatorGuard), because this layout does not re-run when the
   // browser moves between pages under it.
   if (creator && creatorHidesAdminPath(pathname)) redirect(href('/admin/dashboard'));
+  // A FRIENDS host (lib/friendEventRules) has its events and nothing else: no dashboard, people,
+  // Discord, settings or plan. Its home is the owner's /host/friends on the apex; any other admin
+  // address goes there.
+  if (isFriendsHost(clan)) {
+    if (!friendsAllowsAdminPath(pathname)) redirect('/host/friends'); // clan-prefix: platform -- the friends host's home is on the apex
+    const friendsUser = {
+      displayName: userRow?.displayName ?? session.username ?? 'Host',
+      role: 'host',
+      avatarUrl: userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null,
+      supporter,
+    };
+    return (
+      <div className="lg:flex lg:gap-6">
+        <AdminSidebar
+          groups={[{ label: 'Friends events', items: [{ href: '/admin/events', label: 'Your boards', icon: '🎯', sprite: 'fireCape' as const, matchPrefix: true }] }]}
+          user={friendsUser}
+          primary={{ href: '/admin/events/first', label: '+ New friends event' }}
+        />
+        <div className="flex-1 min-w-0">
+          <p className="mb-3 text-[13px] text-text-dim">
+            {/* clan-prefix: platform -- /host/friends is the apex's list of this person's friends events */}
+            <a href="/host/friends" className="hover:text-gold">
+              ← Your friends events and invite links
+            </a>
+          </p>
+          {children}
+        </div>
+      </div>
+    );
+  }
   // An authoring grant without a tier: their whole world is the boards they hold. Give them ONLY
   // "My boards"; no dashboard, weekly, clan or schedule. The path gate above already enforced it.
   const isScopedEditor = !isStaffRole(session.role) && session.canEditTiles;

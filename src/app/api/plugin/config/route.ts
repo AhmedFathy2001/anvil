@@ -135,7 +135,8 @@ export async function GET(request: Request) {
         // The plugin echoes activeClan.slug back as a `/c/<slug>` prefix, so once it has asked
         // once, every later call is addressed rather than re-resolved (lib/pluginClans).
         // `kind` ('clan' | 'creator'): a creator space's panel speaks of the space, not a clan.
-        activeClan: { slug: clan.slug, name: clan.name, kind: clan.kind },
+        // A friends host (lib/friendEventRules) reads as a space to the plugin: no clan card, its name as the heading.
+        activeClan: { slug: clan.slug, name: clan.name, kind: clan.kind === 'friends' ? 'creator' : clan.kind },
         clans: switchableClans,
         // Server-resolved board summary off the token's USER (linked member → live enrollment), so
         // the sidebar shows the home board even at the login screen. Null when not enrolled anywhere.

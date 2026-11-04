@@ -5,7 +5,9 @@ import { requireClan } from '@/lib/clanContext';
 import { events, tiles } from '@/db/schema';
 import { verifyAdmin } from '@/lib/auth';
 import { isLiveEvent, meteredPlan } from '@/lib/creatorPlans';
-import { PlanLimitError, withLiveEventSlot } from '@/lib/creatorPlansDb';
+import { PlanLimitError } from '@/lib/creatorPlansDb';
+import { newInviteToken, withHostEventSlot } from '@/lib/friendEvents';
+import { friendsInvitePath, isFriendsHost } from '@/lib/friendEventRules';
 import { validateEventRules } from '@/lib/eventRules';
 import { isTeamFormation } from '@/lib/teamFormation';
 import { DEFAULT_NEW_EVENT_PLACEMENT, isTeamPlacement, normaliseTeamCap, normaliseTeamCount } from '@/lib/teamPlacement';
@@ -23,7 +25,8 @@ export async function GET() {
     .from(events)
     .where(eq(events.clanId, clan.id))
     .orderBy(desc(events.createdAt));
-  return NextResponse.json(allEvents);
+  // A friends event's invite link is the only key to it (lib/friendEvents): never in a list.
+  return NextResponse.json(allEvents.map(({ inviteToken: _token, ...e }) => e));
 }
 
 export async function POST(request: Request) {
@@ -204,14 +207,19 @@ export async function POST(request: Request) {
   const clan = await requireClan();
   // A creator space that advertises itself on Anvil starts its new events advertised too
   // (anvilosrs.com/events). Only a starting position: the host flips it per event in settings.
-  const advertised = await defaultAdvertisedForClan(clan);
+  // A FRIENDS host (lib/friendEventRules) makes private boards only: invited-only, never advertised,
+  // open to whoever holds the invite link — whatever the request asked for.
+  const friends = isFriendsHost(clan);
+  const advertised = friends ? false : await defaultAdvertisedForClan(clan);
   // A creator space on Free or Bronze runs one event at a time (lib/creatorPlans): counted and
   // inserted under the space's lock, so two creates at once cannot both pass. A no-op until
   // FREEMIUM_ENFORCED is on; an ordinary clan is unchanged (meteredPlan is null for it).
   const live = isLiveEvent({ startDate: resolvedStart as string | null, endDate: resolvedEnd as string | null, forceEndedAt: null });
   let event: typeof events.$inferSelect;
   try {
-    event = await withLiveEventSlot({ clanId: clan.id, clanPlan: live ? meteredPlan(clan) : null }, async (tx) => {
+    // A friends host is judged by its owner's Supporter tier instead (lib/friendEvents withHostEventSlot):
+    // a tier to create at all, its live limit, and the seats its overlapping events hold at once.
+    event = await withHostEventSlot(clan, { clanId: clan.id, clanPlan: live ? meteredPlan(clan) : null }, async (tx) => {
     const [created] = await tx.insert(events).values({
       clanId: clan.id,
       name, boardSize, scoringMode: resolvedScoringMode, format: resolvedFormat,
@@ -222,8 +230,9 @@ export async function POST(request: Request) {
       teamCount: resolvedPlacement === 'auto' ? resolvedTeamCount : null,
       teamCap: resolvedPlacement === 'pick' ? resolvedTeamCap : null,
       cashPolicy: resolvedCashPolicy,
-      visibility: resolvedVisibility,
+      visibility: friends ? 'invited' : resolvedVisibility,
       advertised,
+      ...(friends ? { entry: 'open', inviteToken: newInviteToken() } : {}),
       startDate: resolvedStart as string | null,
       endDate: resolvedEnd as string | null,
     }).returning();
@@ -242,5 +251,8 @@ export async function POST(request: Request) {
   }
 
   track('event.created', { clanId: clan.id, props: { format: resolvedFormat, formation: resolvedFormation, placement: resolvedPlacement, tiles: resolvedLabels.length } });
-  return NextResponse.json(event, { status: 201 });
+  return NextResponse.json(
+    friends && event.inviteToken ? { ...event, invitePath: friendsInvitePath(event.inviteToken) } : event,
+    { status: 201 },
+  );
 }

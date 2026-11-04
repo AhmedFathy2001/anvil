@@ -56,6 +56,7 @@ export default function PlatformRail({
   platformStaff,
   platformBadge,
   guideLibrary,
+  friends = null,
 }: {
   clans: RailClan[];
   signedIn: boolean;
@@ -73,6 +74,8 @@ export default function PlatformRail({
   platformBadge?: { count: number; title: string } | null;
   /** Writes the Anvil guide library without holding a platform role. */
   guideLibrary?: boolean;
+  /** Their friends events (lib/friendEvents friendsRailEntry), or null to leave the group out. */
+  friends?: { live: { id: number; name: string; href: string }[]; total: number } | null;
 }) {
   const pathname = usePathname() ?? '/';
   // A Discord avatar hash goes stale when they change it there; a broken image falls back to the initial.
@@ -173,6 +176,29 @@ export default function PlatformRail({
           </div>
         </div>
       ))}
+
+      {/* Friends events (lib/friendEventRules): a Supporter's private boards, hosted from no clan or
+          space. Their own group, so a creator who is also a Supporter sees both ways of hosting. */}
+      {friends && (
+        <div className="flex min-h-0 shrink-0 gap-0.5 lg:flex-col">
+          <span aria-hidden className="mx-1 w-px self-stretch bg-card-border lg:hidden" />
+          <div className="hidden items-center gap-2 px-2.5 pb-1.5 lg:flex">
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-dim">Friends events</span>
+            {friends.total > 0 && <span className="font-mono text-[10px] text-text-dim/70">{friends.total}</span>}
+          </div>
+          {item('/host/friends', friends.total > 0 ? 'Your friends events' : 'Host for friends', <PlusIcon />)}
+          {friends.live.map((e) => (
+            <ClanLink
+              key={e.id}
+              href={e.href}
+              className="flex shrink-0 items-center gap-2.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13.5px] text-text-muted transition-colors hover:bg-brown-light hover:text-foreground"
+            >
+              <span className="truncate">{e.name}</span>
+              <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-accent-green-light" title="Running now" />
+            </ClanLink>
+          ))}
+        </div>
+      )}
 
       {/* THE WAY IN, which the rail did not have.
           /clans/new was reachable from pricing, about, the portal and both landing pages — every

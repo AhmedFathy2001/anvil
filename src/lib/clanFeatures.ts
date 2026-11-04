@@ -14,13 +14,17 @@ import {
   type FeatureFlags,
   type FeatureKey,
 } from '@/lib/features';
+import { FRIENDS_FEATURES_OFF, isFriendsHost } from '@/lib/friendEventRules';
 
 /** This clan's feature switches. Everything is on unless the clan switched it off. */
 export async function getClanFeatures(clanId: number): Promise<FeatureFlags> {
   const off = parseFeaturesOff(await getSetting(clanId, FEATURES_OFF_SETTING));
   // A creator space has no roster, so the modules that only work on one are off whatever the setting
   // says (lib/creatorSpaces): a weekly enters "everyone on the roster", which there is nobody.
-  if (isCreatorSpace(await resolveClanById(clanId))) for (const k of CREATOR_ONLY_OFF) off.add(k);
+  const clan = await resolveClanById(clanId);
+  if (isCreatorSpace(clan)) for (const k of CREATOR_ONLY_OFF) off.add(k);
+  // A friends host (lib/friendEventRules) runs bare boards: everything a clan or a space adds is off.
+  if (isFriendsHost(clan)) for (const k of FRIENDS_FEATURES_OFF) off.add(k);
   return featureFlags(off);
 }
 

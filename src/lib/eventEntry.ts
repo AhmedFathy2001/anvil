@@ -10,7 +10,9 @@ import { db } from '@/db';
 import { accounts, clanAuditLog, clans, events } from '@/db/schema';
 import { canEnterEvent, invitedToEvent, staffOfClan, type EntryVerdict } from '@/lib/eventAccess';
 import { admit, requestEventEntry } from '@/lib/guestAdmission';
-import { isCreatorSpace, streamedEvent } from '@/lib/creatorSpaces';
+import { isCreatorSpace, seatsEventPlayers, streamedEvent } from '@/lib/creatorSpaces';
+import { friendsJoinCheck } from '@/lib/friendEvents';
+import { isFriendsHost } from '@/lib/friendEventRules';
 import { seatEventPlayer } from '@/lib/eventPlayers';
 import { entryGateVerdict } from '@/lib/entryGatesDb';
 import { verdictMessage, type GateVerdict } from '@/lib/entryGates';
@@ -78,6 +80,13 @@ export async function enterEvent(opts: {
     columns: { kind: true, plan: true, streaming: true, guestPolicy: true },
   });
   const streamed = streamedEvent(host, event);
+  // A FRIENDS event (lib/friendEventRules) seats its players the same way, but is not streamed: no
+  // gates and no plan meter — its cap is the host's Supporter tier, checked here and at sign-up.
+  const eventSeats = seatsEventPlayers(host, event);
+  if (!streamed && eventSeats) {
+    const room = await friendsJoinCheck(event.id, 1);
+    if (room && !room.ok) return { outcome: 'refused', reason: 'full', status: 403, error: room.error };
+  }
 
   // A streamed event's plan caps the players on it (lib/creatorPlans). A no-op until
   // FREEMIUM_ENFORCED is on; then a full event says so before anyone is seated or asks the host.
@@ -96,7 +105,7 @@ export async function enterEvent(opts: {
     }
   }
 
-  if (streamed) {
+  if (eventSeats) {
     const staff = await staffOfClan(event.clanId, opts.playerId);
     // `approval`, for somebody who is neither the host's staff nor invited to this event: ask about
     // THIS event. No seat, no sign-up, until the host says yes (approveRequest then seats them as
@@ -120,7 +129,8 @@ export async function enterEvent(opts: {
     // a member seat in a clan. Everybody else: this event's seat, and only this event's.
     let seatId: number;
     let eventType = 'entered_event_as_viewer';
-    if (staff) {
+    // A friends host's owner plays their own board on an event seat like everyone else (lib/friendEventRules).
+    if (staff && !isFriendsHost(host)) {
       const admission = await admit({ clanId: event.clanId, accountId: opts.accountId, source: 'web', policy: 'open' });
       if (admission.outcome !== 'seated') {
         return { outcome: 'refused', reason: 'closed', status: 403, error: 'The host isn’t letting you join their events.' };

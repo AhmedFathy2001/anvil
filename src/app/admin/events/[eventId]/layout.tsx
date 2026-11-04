@@ -16,8 +16,12 @@ import AdminSidebar from '@/app/admin/_components/AdminSidebar';
 import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
 import { clanHref } from '@/lib/clanPath';
+import { clanPrefix } from '@/lib/clanContext';
 import { requireEventForPage } from '@/lib/eventScope';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { isFriendsHost } from '@/lib/friendEventRules';
+import { ensureInviteToken } from '@/lib/friendEvents';
+import FriendsInviteLink from '@/components/FriendsInviteLink';
 import { db } from '@/db';
 import { clans } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -55,6 +59,10 @@ export default async function EventLayout({
   if (isBoardTreasurer) {
     if (!(await isEventTreasurer(session!.userId, id))) redirect(await clanHref('/admin/events'));
   }
+
+  // A friends event's invite link, minted on first look for a board made before links existed.
+  const friendsToken = (await friendsHostOfEventKind(event.clanId)) ? await ensureInviteToken(id) : null;
+  const friendsApiBase = friendsToken ? await clanPrefix() : '';
 
   // Same per-request cache the rail reads, so the two strips never disagree and never double-query.
   const stageCounts = await getStageCounts(id);
@@ -163,6 +171,9 @@ export default async function EventLayout({
         <EventLockBanner eventId={id} locked={eventEditLocked(event)} canToggle={atLeast(session?.role, 'admin')} />
       )}
 
+      {/* A friends event's one way in (lib/friendEvents): the host copies the link from here. */}
+      {friendsToken && atLeast(session?.role, 'admin') && <FriendsInviteLink eventId={id} token={friendsToken} apiBase={friendsApiBase} />}
+
       {children}
       </div>
     </div>
@@ -174,5 +185,14 @@ async function homeSettingsFor(role: string | null | undefined, clanId: number):
   if (!atLeast(role, 'admin')) return null;
   // clan-scope: this clan -- the event's own clan, for its kind.
   const clan = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true } });
+  // A friends host has no settings page of its own (lib/friendEventRules FRIENDS_ADMIN_PATHS).
+  if (isFriendsHost(clan)) return null;
   return isCreatorSpace(clan) ? { href: '/admin/space', label: 'Space settings' } : { href: '/admin/clan', label: 'Clan settings' };
+}
+
+/** Is this event's host a friends host? */
+async function friendsHostOfEventKind(clanId: number): Promise<boolean> {
+  // clan-scope: this clan -- the event's own clan, for its kind.
+  const clan = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { kind: true } });
+  return isFriendsHost(clan);
 }

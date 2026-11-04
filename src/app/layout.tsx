@@ -34,6 +34,8 @@ import { getClanFeatures } from "@/lib/clanFeatures";
 import { characterCount, clansOfPerson, myProfileHref } from "@/lib/myClans";
 import { clansWithSomethingLive } from "@/lib/apexHome";
 import PlatformRail, { type RailClan } from "@/components/PlatformRail";
+import { friendsPageReadable, friendsRailEntry } from "@/lib/friendEvents";
+import { isFriendsHost } from "@/lib/friendEventRules";
 import SiteFooter from "@/components/SiteFooter";
 import ClanPrivate from "@/components/ClanPrivate";
 import { canSeeClan } from "@/lib/clanAccess";
@@ -228,13 +230,25 @@ export default async function RootLayout({
   // chances to forget. When the answer is no the page is replaced by the clan's card, which says
   // which clan it is and how to ask in; a 404 would claim the clan does not exist, and somebody
   // following a link from Discord could not tell that from a typo.
+  //
+  // A FRIENDS host (lib/friendEventRules) is members-only and has no members: its players hold event
+  // seats, which never open a clan. What it has to show them is one event's pages, so those pass
+  // through to the event page's own check (lib/eventAccess canSeeEvent: invited by its link, or on
+  // it); its staff see everything; every other page of it stays behind the card.
   const clanReadable = clan
-    ? await canSeeClan({
-        clanId: clan.id,
-        visibility: clan.visibility,
-        playerId: session?.playerId,
-        userId: session?.userId,
-      })
+    ? isFriendsHost(clan)
+      ? await friendsPageReadable({
+          clanId: clan.id,
+          pathname: (await headers()).get('x-anvil-pathname') || '/',
+          playerId: session?.playerId ?? null,
+          userId: session?.userId ?? null,
+        })
+      : await canSeeClan({
+          clanId: clan.id,
+          visibility: clan.visibility,
+          playerId: session?.playerId,
+          userId: session?.userId,
+        })
     : true;
 
   // HAVE THEY PROVED ANY CHARACTER? Only asked when the answer above was no, and it decides which of
@@ -258,14 +272,16 @@ export default async function RootLayout({
   // Only for someone signed in — a stranger has none, and asking costs two queries.
   const myClans = session ? await clansOfPerson(session.playerId, session.userId) : [];
   // Only the apex rail shows these, so only the apex pays for the queries.
-  const [myCharacters, liveIn, profileHref] =
+  const [myCharacters, liveIn, profileHref, friendsRail] =
     session && !clan
       ? await Promise.all([
           characterCount(session.playerId),
           clansWithSomethingLive(myClans.map((c) => c.id)),
           myProfileHref(session.playerId),
+          // Their friends events (lib/friendEvents): a Supporter perk with its own sidebar group.
+          friendsRailEntry(session.userId).catch(() => null),
         ])
-      : [0, new Set<number>(), null];
+      : [0, new Set<number>(), null, null];
   // The switcher wants the whole set (including the current clan) with each one's relationship, so it
   // can show a role chip and mark where you are.
   const navClans = myClans.map((c) => ({
@@ -313,6 +329,7 @@ export default async function RootLayout({
               supporter={mySupport ? { tier: mySupport.tier.id, style: mySupport.style ?? null } : null}
               characterCount={session ? myCharacters : undefined}
               myProfileHref={profileHref}
+              friends={friendsRail}
               platformStaff={isPlatformStaff}
               platformBadge={platformBadge}
               // A library guide editor holds no platform role, so the Platform link would 404 for

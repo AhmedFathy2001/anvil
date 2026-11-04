@@ -3,7 +3,8 @@ import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanJoinRequests, clanMemberships, clans, events } from '@/db/schema';
-import { streamedEvent } from '@/lib/creatorSpaces';
+import { seatsEventPlayers } from '@/lib/creatorSpaces';
+import { friendsJoinCheck } from '@/lib/friendEvents';
 import { seatOpensEventSql } from '@/lib/seatScope';
 import { eventRoomVerdict } from '@/lib/creatorPlans';
 import { eventPlayerCount, streamPlanOfEvent } from '@/lib/creatorPlansDb';
@@ -110,7 +111,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
         .where(eq(accounts.playerId, session.playerId));
       // A streamed event (a creator space's, or a Streaming clan's open to viewers) asks per event, so
       // a character already seated there (a creator space's older guest seat) is still one they can ask with.
-      const streamed = streamedEvent(
+      // A friends event (lib/friendEventRules) seats per event the same way.
+      const streamed = seatsEventPlayers(
         await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true, streaming: true } }),
         event,
       );
@@ -135,7 +137,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
             }),
       ]);
       guestsClosed = policy === 'closed';
-      if (streamed && freemiumEnforced()) {
+      const friendsRoom = await friendsJoinCheck(eventId, 1);
+      if (friendsRoom) full = !friendsRoom.ok;
+      else if (streamed && freemiumEnforced()) {
         const plan = await streamPlanOfEvent(eventId);
         full = !eventRoomVerdict({ clanPlan: plan, players: await eventPlayerCount(eventId), adding: 1 }).ok;
       }

@@ -27,7 +27,8 @@ import { filterToVisibleTeams, standingsHidden } from '@/lib/standingsVisibility
 import { forgetLinkCards } from '@/lib/ogKit';
 import { repriceStandardFees } from '@/lib/entryFee';
 import { isLiveEvent, meteredPlan } from '@/lib/creatorPlans';
-import { PlanLimitError, withLiveEventSlot } from '@/lib/creatorPlansDb';
+import { PlanLimitError } from '@/lib/creatorPlansDb';
+import { withHostEventSlot } from '@/lib/friendEvents';
 
 export async function GET(
   request: Request,
@@ -81,8 +82,11 @@ export async function GET(
   // caller's own team(s) unless they're staff or the curtain is up.
   const standingsScope = await standingsScopeForRequest(request, event);
 
+  // A friends event's invite link (lib/friendEvents) stays out of the board read; the host reads it
+  // on /host/friends and the event's own admin pages.
+  const { inviteToken: _invite, ...eventFields } = event;
   return NextResponse.json({
-    ...event,
+    ...eventFields,
     // Board cells, each combo carrying its parts (lib/combo); `completions` keeps the parts' too.
     tiles: nestParts(eventTiles),
     // Reveal-policy events: how many tiles the caller can't see yet (0 for staff/classic) —
@@ -239,7 +243,8 @@ export async function PATCH(
     // under the space's lock (lib/creatorPlansDb). A no-op until FREEMIUM_ENFORCED is on.
     const reopens = isLiveEvent({ startDate: event.startDate, endDate: event.originalEndDate, forceEndedAt: null });
     try {
-      const [updated] = await withLiveEventSlot(
+      const [updated] = await withHostEventSlot(
+        clan,
         { clanId: clan.id, clanPlan: reopens ? meteredPlan(clan) : null, exceptEventId: id },
         (tx) =>
           tx
@@ -321,7 +326,8 @@ export async function PATCH(
     // A no-op until FREEMIUM_ENFORCED is on.
     let updated: typeof events.$inferSelect;
     try {
-      [updated] = await withLiveEventSlot(
+      [updated] = await withHostEventSlot(
+        clan,
         { clanId: clan.id, clanPlan: isLiveEvent(event) ? null : meteredPlan(clan), exceptEventId: id },
         (tx) => tx.update(events).set({ startDate: now, tilesRevealed: 1 }).where(eq(events.id, id)).returning(),
       );
@@ -671,7 +677,7 @@ export async function PATCH(
     isLiveEvent({ startDate: finalStart, endDate: finalEnd, forceEndedAt: existing.forceEndedAt });
   let updated: typeof events.$inferSelect;
   try {
-    [updated] = await withLiveEventSlot({ clanId: clan.id, clanPlan: reopens ? meteredPlan(clan) : null, exceptEventId: id }, (tx) =>
+    [updated] = await withHostEventSlot(clan, { clanId: clan.id, clanPlan: reopens ? meteredPlan(clan) : null, exceptEventId: id }, (tx) =>
       tx.update(events).set(updates).where(eq(events.id, id)).returning(),
     );
   } catch (e) {

@@ -17,7 +17,8 @@ import { seatSignupAccounts, teamLoads } from '@/lib/teamPlacementDb';
 import { entryGateVerdict } from '@/lib/entryGatesDb';
 import { verdictMessage } from '@/lib/entryGates';
 import { eventRoomVerdict, signupNetAdding } from '@/lib/creatorPlans';
-import { PlanLimitError, eventPlayerCount, streamPlanOfEvent, withEventRoom } from '@/lib/creatorPlansDb';
+import { PlanLimitError, eventPlayerCount, streamPlanOfEvent } from '@/lib/creatorPlansDb';
+import { friendsJoinCheck, withHostEventRoom } from '@/lib/friendEvents';
 import { freemiumEnforced } from '@/lib/entitlements';
 
 export async function GET(
@@ -295,6 +296,12 @@ export async function POST(
     const room = eventRoomVerdict({ clanPlan: metered, players: await eventPlayerCount(id), adding: netAdding });
     if (!room.ok) return NextResponse.json({ error: room.error, reason: 'full' }, { status: 403 });
   }
+  // A FRIENDS event is capped by its host's Supporter tier instead (lib/friendEventRules — the seats
+  // all their overlapping friends events hold at once), always, whatever FREEMIUM_ENFORCED says.
+  if (netAdding > 0) {
+    const friends = await friendsJoinCheck(id, netAdding);
+    if (friends && !friends.ok) return NextResponse.json({ error: friends.error, reason: 'full' }, { status: 403 });
+  }
 
   // One profile PER PERSON (option A): the answers live on the PRIMARY account's row; siblings carry
   // '{}' and inherit at read time. Primary = the user's primary account if it's among the picks, else
@@ -366,7 +373,7 @@ export async function POST(
   //    last place cannot both take it — the second counts the first's row and rolls its own back.
   const rows: { row: typeof eventSignups.$inferSelect; account: (typeof myAccounts)[number] }[] = [];
   try {
-    await withEventRoom({ eventId: id, clanPlan: metered, adding: netAdding }, async (tx) => {
+    await withHostEventRoom({ eventId: id, clanPlan: metered, adding: netAdding }, async (tx) => {
       for (const cid of selectedIds) {
         const account = accountById.get(cid)!;
         const data = cid === primaryId ? profileJson : '{}';

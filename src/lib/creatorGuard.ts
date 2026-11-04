@@ -4,17 +4,26 @@
 // acts on it — a redirect for pages, a 400 for APIs.
 
 import { NextResponse } from 'next/server';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { clanPrefix, currentClan, requireClan } from '@/lib/clanContext';
 import { clanHref } from '@/lib/clanPath';
 import {
   CREATOR_NOT_AVAILABLE,
+  clanKindOf,
   creatorHidesAdminPath,
   creatorPublicRedirect,
   isCreatorSpace,
   type CreatorHiddenAdminPath,
   type CreatorHiddenPublicPath,
 } from '@/lib/creatorSpaces';
+
+/**
+ * No in-game clan behind it: a creator space, or a Supporter's friends host (lib/friendEventRules).
+ * The in-game-clan refusals below apply to both — a friends host has even less than a creator space.
+ */
+function noInGameClan(clan: { kind?: string | null } | null | undefined): boolean {
+  return clanKindOf(clan?.kind) !== 'clan';
+}
 
 /**
  * For a page on the hidden list: send a creator space to its dashboard.
@@ -25,7 +34,9 @@ import {
  */
 export async function creatorAway(path: CreatorHiddenAdminPath): Promise<void> {
   if (!creatorHidesAdminPath(path)) return;
-  if (isCreatorSpace(await requireClan())) redirect(await clanHref('/admin/dashboard'));
+  const clan = await requireClan();
+  if (clanKindOf(clan.kind) === 'friends') redirect('/host/friends'); // clan-prefix: platform -- the friends host's home is on the apex
+  if (isCreatorSpace(clan)) redirect(await clanHref('/admin/dashboard'));
 }
 
 /**
@@ -37,6 +48,8 @@ export async function creatorPublicAway(
   path: CreatorHiddenPublicPath,
   clan: { kind?: string | null } | null | undefined,
 ): Promise<void> {
+  // A friends host has none of these pages and no home to send anyone to (lib/friendEventRules).
+  if (clanKindOf(clan?.kind) === 'friends') notFound();
   if (!isCreatorSpace(clan)) return;
   // The prefix IS the home (`/c/<slug>`). Not clanHref('/'): a bare '/' takes no prefix, so that
   // would land on the apex.
@@ -49,7 +62,7 @@ export async function creatorPublicAway(
  * space, null for everyone else. `clan` is whatever the route already resolved.
  */
 export function refuseCreatorSpace(clan: { kind?: string | null } | null | undefined): NextResponse | null {
-  if (!isCreatorSpace(clan)) return null;
+  if (!noInGameClan(clan)) return null;
   return NextResponse.json({ error: CREATOR_NOT_AVAILABLE }, { status: 400 });
 }
 

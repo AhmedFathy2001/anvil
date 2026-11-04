@@ -71,3 +71,15 @@ export function SettingsButton() {
     </ClanLink>
   );
 }
+
+/** "Host for friends" (lib/friendEventRules): a Supporter's private events, beside Settings on every tab. */
+export function HostForFriendsButton() {
+  return (
+    <ClanLink
+      href="/host/friends"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-gold/40 bg-card-bg px-3 py-1.5 text-[13px] text-gold transition-colors hover:border-gold hover:text-gold-light"
+    >
+      <span aria-hidden>＋</span> Host for friends
+    </ClanLink>
+  );
+}

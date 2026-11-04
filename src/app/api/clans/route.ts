@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
-import { and, count, eq } from 'drizzle-orm';
+import { and, count, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanStaff, clans, users } from '@/db/schema';
@@ -89,7 +89,9 @@ export async function POST(request: Request) {
   const ownedOwner = await db
     .select({ n: count() })
     .from(clanStaff)
-    .where(and(eq(clanStaff.userId, session.userId), eq(clanStaff.role, 'owner')))
+    // A friends host (lib/friendEventRules) is not a clan anybody owns in this sense.
+    .innerJoin(clans, eq(clans.id, clanStaff.clanId))
+    .where(and(eq(clanStaff.userId, session.userId), eq(clanStaff.role, 'owner'), ne(clans.kind, 'friends')))
     .then((r) => r[0]?.n ?? 0);
   if (ownedOwner >= MAX_OWNED) {
     return NextResponse.json(

@@ -72,7 +72,8 @@ import { canEnterEvent } from '@/lib/eventAccess';
 import EnterEvent from './EnterEvent';
 import { eventActivityIsValid } from '@/lib/completionGate';
 import LocalTime from '@/components/LocalTime';
-import { isCreatorSpace, streamedEvent } from '@/lib/creatorSpaces';
+import { isCreatorSpace, seatsEventPlayers, streamedEvent } from '@/lib/creatorSpaces';
+import { isFriendsHost } from '@/lib/friendEventRules';
 import { withSearchText } from '@/lib/tileSearchText';
 import { supporterLooksByName } from '@/lib/supporter';
 import { standingsScopeForSession } from '@/lib/standingsAccess';
@@ -344,7 +345,11 @@ export default async function EventScoreboardPage({
   // the ladder strip below and wrong for this question.
   // A creator space's event (lib/creatorSpaces): the join card is the one-button version.
   // A streamed event (a creator space's, or a Streaming clan's open to viewers) gets the viewer's join flow.
-  const creatorEvent = streamedEvent(await resolveClanById(event.clanId), event);
+  const hostRow = await resolveClanById(event.clanId);
+  const creatorEvent = streamedEvent(hostRow, event);
+  // A friends event (lib/friendEventRules) joins the same one-button way — the invite link already
+  // said yes — without being streamed (no highlights, no gates).
+  const oneButtonJoin = seatsEventPlayers(hostRow, event);
   let isOutsider = false;
   if (session?.playerId != null) {
     const verdict = await canEnterEvent({ eventId: id, playerId: session.playerId });
@@ -654,7 +659,8 @@ export default async function EventScoreboardPage({
         bannerPosition={event.bannerPosition}
         hostName={hostClan?.name ?? clan.name}
         // A creator space's event names its host in words, not with a clan crest's say-so.
-        hostedBy={isCreatorSpace(hostClan) ? hostClan?.name ?? null : null}
+        // A friends event (lib/friendEventRules) too: "Ahmed’s friends".
+        hostedBy={isCreatorSpace(hostClan) || isFriendsHost(hostClan) ? hostClan?.name ?? null : null}
         shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.tilesRevealed ? event.boardSize : null, event.rules)}
         pointsOnBoard={pointsOnBoard}
         teamsCount={safeTeams.length}
@@ -756,7 +762,7 @@ export default async function EventScoreboardPage({
           eventId={event.id}
           signupFee={standardFee(event, true)}
           signupsOpen={window.open}
-          creator={creatorEvent}
+          creator={oneButtonJoin}
         />
       ) : (
       <SignupBanner
