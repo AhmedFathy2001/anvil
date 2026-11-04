@@ -8,7 +8,7 @@ import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { disconnectHostKick, hostKickChannel, resubscribeHostKick, setHostKickFlags } from '@/lib/gates/kickDb';
 import { kickConfigured } from '@/lib/kick';
 import { chatJoinAllowed } from '@/lib/creatorPlans';
-import { minPlanNameFor } from '@/lib/entitlements';
+import { creatorMinPlanNameFor } from '@/lib/creatorCatalog';
 
 /**
  * A creator space's connected Kick channel — what "Kick followers" / "Kick subs" check against, and
@@ -32,7 +32,7 @@ export async function GET() {
     // The client appends &return=<its own path>.
     connectUrl: configured ? `/api/auth/kick/start?space=${g.clan.id}` : null,
     // `!join` is Silver+ once plans are enforced (lib/creatorPlans); null = allowed.
-    chatJoinPlan: chatJoinAllowed(g.clan.plan) ? null : minPlanNameFor('chat-join-bot'),
+    chatJoinPlan: chatJoinAllowed(g.clan.plan) ? null : creatorMinPlanNameFor('chat-join-bot'),
   });
 }
 
@@ -50,7 +50,7 @@ export async function PATCH(request: Request) {
   if (typeof body.followersOnlyChat === 'boolean') flags.followersOnlyChat = body.followersOnlyChat;
   if (typeof body.chatJoin === 'boolean') flags.chatJoin = body.chatJoin;
   if (flags.chatJoin === true && !chatJoinAllowed(g.clan.plan)) {
-    return NextResponse.json({ error: `!join in Kick chat is a ${minPlanNameFor('chat-join-bot')} feature.` }, { status: 403 });
+    return NextResponse.json({ error: `!join in Kick chat is a ${creatorMinPlanNameFor('chat-join-bot')} feature.` }, { status: 403 });
   }
   if (Object.keys(flags).length === 0) return NextResponse.json({ error: 'Nothing to change' }, { status: 400 });
   if (!(await setHostKickFlags(g.clan.id, flags))) return NextResponse.json({ error: 'Connect your Kick channel first.' }, { status: 409 });

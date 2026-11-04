@@ -32,7 +32,7 @@ export default async function CreatorDashboard({
 }: {
   clanId: number;
   setup: SetupStatus;
-  /** clans.plan — the same ladder as a clan's (lib/creatorPlans). */
+  /** clans.plan — a creator catalogue id (lib/creatorCatalog), never a clan tier. */
   clanPlan: string;
   /** Admin or owner: may see the checkout button. */
   canBuy: boolean;

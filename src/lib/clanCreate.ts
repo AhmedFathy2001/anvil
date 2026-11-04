@@ -19,6 +19,7 @@ import { and, count, eq, ne, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanAuditLog, clanStaff, clans, retiredClanSlugs } from '@/db/schema';
 import { PLANS } from '@/lib/plans';
+import { CREATOR_PLANS } from '@/lib/creatorCatalog';
 import { newCheckoutRef } from '@/lib/billing';
 import { setSetting } from '@/lib/settings';
 import { FEATURES, FEATURES_OFF_SETTING, defaultFeaturesOffForNewClan, serializeFeaturesOff, type FeatureKey } from '@/lib/features';
@@ -307,8 +308,9 @@ export async function createCreatorSpace(input: CreateCreatorSpaceInput): Promis
           name,
           kind: 'creator',
           inGameName: null,
-          plan: 'free',
-          memberCap: PLANS.free.memberCap,
+          // The creator catalogue's own free tier (lib/creatorCatalog), never the clan one.
+          plan: CREATOR_PLANS.creator_free.id,
+          memberCap: CREATOR_PLANS.creator_free.memberCap,
           status: 'active',
           guestPolicy: 'open',
           visibility: 'public',
@@ -322,7 +324,7 @@ export async function createCreatorSpace(input: CreateCreatorSpaceInput): Promis
         clanId: clan.id,
         eventType: 'clan_created',
         actorUserId: input.ownerUserId,
-        newValue: JSON.stringify({ slug, name, plan: 'free', kind: 'creator' }),
+        newValue: JSON.stringify({ slug, name, plan: CREATOR_PLANS.creator_free.id, kind: 'creator' }),
       });
 
       return { ok: true as const, clanId: clan.id, slug };

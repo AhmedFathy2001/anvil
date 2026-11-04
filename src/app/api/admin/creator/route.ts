@@ -13,7 +13,7 @@ import { linkedTwitchBroadcaster } from '@/lib/twitchBot/channels';
 import { CHAT_JOIN_SETTING } from '@/lib/twitchBot/wire';
 import { chatJoinAllowed } from '@/lib/creatorPlans';
 import { OVERLAY_HIDE_MARK_SETTING } from '@/lib/creatorPlansDb';
-import { clanCan, minPlanNameFor } from '@/lib/entitlements';
+import { creatorCan, creatorMinPlanNameFor } from '@/lib/creatorCatalog';
 
 /**
  * A creator space's own settings: its name and "Advertise on Anvil"
@@ -42,9 +42,9 @@ export async function GET() {
     twitchLinked: twitch ? { login: twitch.login } : null,
     // What the plan allows (lib/creatorPlans). Both true while FREEMIUM_ENFORCED is off; the plan name
     // is for the "a Silver feature" line when one is not.
-    chatJoinPlan: chatJoinAllowed(g.clan.plan) ? null : minPlanNameFor('chat-join-bot'),
+    chatJoinPlan: chatJoinAllowed(g.clan.plan) ? null : creatorMinPlanNameFor('chat-join-bot'),
     overlayHideMark: map.get(OVERLAY_HIDE_MARK_SETTING) === 'on',
-    overlayHidePlan: clanCan(g.clan.plan, 'overlay-unbranded') ? null : minPlanNameFor('overlay-unbranded'),
+    overlayHidePlan: creatorCan(g.clan.plan, 'overlay-unbranded') ? null : creatorMinPlanNameFor('overlay-unbranded'),
   });
 }
 
@@ -83,7 +83,7 @@ export async function PATCH(request: Request) {
     // (lib/twitchBot/channels linkedTwitchBroadcaster), so switching this on names no channel.
     const on = body.chatJoin === true;
     if (on && !chatJoinAllowed(g.clan.plan)) {
-      return NextResponse.json({ error: `!join in Twitch chat is a ${minPlanNameFor('chat-join-bot')} feature.` }, { status: 403 });
+      return NextResponse.json({ error: `!join in Twitch chat is a ${creatorMinPlanNameFor('chat-join-bot')} feature.` }, { status: 403 });
     }
     await setSetting(g.clan.id, CHAT_JOIN_SETTING, on ? 'on' : null);
     changed.chatJoin = on;
@@ -93,8 +93,8 @@ export async function PATCH(request: Request) {
     // "Hide the Anvil mark" on the OBS overlay (lib/overlay/overlayData overlayMark). Switching it
     // OFF is always allowed; ON needs the plan once plans are enforced.
     const hide = body.overlayHideMark === true;
-    if (hide && !clanCan(g.clan.plan, 'overlay-unbranded')) {
-      return NextResponse.json({ error: `Hiding the Anvil mark is a ${minPlanNameFor('overlay-unbranded')} feature.` }, { status: 403 });
+    if (hide && !creatorCan(g.clan.plan, 'overlay-unbranded')) {
+      return NextResponse.json({ error: `Hiding the Anvil mark is a ${creatorMinPlanNameFor('overlay-unbranded')} feature.` }, { status: 403 });
     }
     await setSetting(g.clan.id, OVERLAY_HIDE_MARK_SETTING, hide ? 'on' : null);
     changed.overlayHideMark = hide;

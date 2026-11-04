@@ -15,6 +15,7 @@ import {
   unique,
   index,
   primaryKey,
+  check,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import type { ClanEventChannels, PickedChannel } from '../lib/clanEventChannels';
@@ -79,6 +80,8 @@ export const clans = pgTable('clans', {
   status: text('status').notNull().default('active'),
   // Entitlement tier. Gates the bot-backed features and the stat-sweep cadence, so a free clan
   // cannot consume the shared Discord and Jagex budgets the paid ones fund.
+  // A creator space holds an id from its own catalogue ('creator_free' …, lib/creatorCatalog) — it
+  // must be given one explicitly, since the default is a clan tier (`clans_plan_matches_kind`).
   plan: text('plan').notNull().default('free'),
   // Max active roster members for the plan; mirrors what MEMBER_CAP carried per container.
   memberCap: integer('member_cap'),
@@ -170,6 +173,9 @@ export const clans = pgTable('clans', {
   // that should be impossible rather than merely unlikely.
   uniqueIndex('clans_gumroad_subscription_unique').on(table.gumroadSubscriptionId),
   uniqueIndex('clans_gumroad_ref_unique').on(table.gumroadRef),
+  // A creator space is billed from the creator catalogue (lib/creatorCatalog, ids 'creator_…') and a
+  // clan from the clan ladder (lib/plans), never the other way round (migration 0203).
+  check('clans_plan_matches_kind', sql`(${table.kind} = 'creator') = (left(${table.plan}, 8) = 'creator_')`),
 ]);
 
 /**

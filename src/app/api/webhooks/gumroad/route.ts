@@ -5,7 +5,8 @@ import { db } from '@/db';
 import { clanAuditLog, clans } from '@/db/schema';
 import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, trialEndWithGumroad, parseWebhook, verifySeller, verifyWebhookSecret, TRIAL_DAYS } from '@/lib/gumroad';
 import { endMembership, logBilling } from '@/lib/billingLapse';
-import { PLANS, planForGumroadProduct, planForGumroadTier, planOf, type Plan } from '@/lib/plans';
+import { billingTierOf, catalogOfKind, endedTierFor, entryTierFor, freeTierFor, gumroadPurchase, type BillingTier } from '@/lib/billingCatalog';
+import { log } from '@/lib/logger';
 import { handleSupporterEvent, isSupporterEvent } from '@/lib/supporterBilling';
 
 // Form-encoded body, and crypto — Node runtime.
@@ -26,6 +27,12 @@ export const runtime = 'nodejs';
  * community's data over a failed payment is not a retention strategy.
  *
  * Refunds and disputes still suspend, because those are the abuse cases rather than the lapse ones.
+ *
+ * TWO CATALOGUES, ONE WEBHOOK. A clan buys the clan ladder (lib/plans); a creator space buys its own
+ * (lib/creatorCatalog, separate Gumroad products). Both correlate the same way (the `ref` on the
+ * checkout URL, then the subscription id). The product decides the catalogue (lib/billingCatalog
+ * gumroadPurchase), the row's `kind` decides which one it may have, and a sale from the other one is
+ * logged and ignored. Ending, cancelling, refunding work the same for both — to that catalogue's free.
  *
  * Always 200 on an authentic event we understood, so Gumroad marks it delivered; only a bad secret
  * 401s and only genuine failures 500 (which Gumroad retries).
@@ -54,8 +61,9 @@ async function suspendedByBilling(clanId: number): Promise<boolean> {
  * The plan a clan had before its subscription ended, from the billing_ended entry that dropped it —
  * so taking the membership up again gives back what was paid for, not a guess. Only when nothing
  * has happened since: a refund, dispute or staff change after the end makes the old plan stale.
+ * Read in the row's own catalogue (lib/billingCatalog endedTierFor).
  */
-async function planBeforeEnd(clanId: number): Promise<Plan | null> {
+async function planBeforeEnd(clanId: number, kind: string): Promise<BillingTier | null> {
   const [last] = await db
     .select({ eventType: clanAuditLog.eventType, newValue: clanAuditLog.newValue })
     .from(clanAuditLog)
@@ -70,8 +78,7 @@ async function planBeforeEnd(clanId: number): Promise<Plan | null> {
   if (last?.eventType !== 'billing_ended') return null;
   try {
     const from = (JSON.parse(last.newValue ?? '{}') as { from?: string }).from;
-    const plan = planOf(from);
-    return plan === PLANS.free ? null : plan;
+    return endedTierFor(kind, from);
   } catch {
     return null;
   }
@@ -110,9 +117,33 @@ async function hadMembership(clanId: number): Promise<boolean> {
   return !!row;
 }
 
-/** The tier actually bought: membership tier name first, then per-tier product id. */
-function purchasedPlan(ev: ReturnType<typeof parseWebhook>, fallback: Plan): Plan {
-  return planForGumroadTier(ev.tier) ?? planForGumroadProduct(ev.productId) ?? fallback;
+/**
+ * The tier actually bought, from the row's own catalogue: the product / tier name Gumroad sent
+ * (lib/billingCatalog gumroadPurchase), else the fallback. Only ever called once wrongCatalog has
+ * cleared the notification, so a purchase from the other catalogue never reaches here.
+ */
+function purchasedPlan(ev: ReturnType<typeof parseWebhook>, kind: string, fallback: BillingTier): BillingTier {
+  const bought = gumroadPurchase(ev);
+  return bought && bought.catalog === catalogOfKind(kind) ? bought.tier : fallback;
+}
+
+/**
+ * Is this notification for a product of the OTHER catalogue than the row's? A clan tier bought
+ * through a creator space's checkout (its ref pasted onto a clan link), a creator tier bought for a
+ * clan, or a renewal of one: never applied, logged for staff.
+ *
+ * A NEW SALE on a creator space must also identify as a creator product: its products are new and
+ * always configured (GUMROAD_PRODUCT_CREATOR_*), so an unrecognised one proves nothing. A renewal or
+ * restart is matched by a subscription the space already holds — applied from a sale that passed
+ * this — so only a positive mismatch stops it. A clan keeps the old leniency (an unrecognised product
+ * falls back to its current or entry tier) because its storefront predates product ids being set.
+ */
+function wrongCatalog(ev: ReturnType<typeof parseWebhook>, kind: string): string | null {
+  const bought = gumroadPurchase(ev);
+  const mine = catalogOfKind(kind);
+  if (bought && bought.catalog !== mine) return bought.catalog;
+  if (!bought && mine === 'creator' && ev.kind === 'sale') return 'unknown';
+  return null;
 }
 
 /**
@@ -175,7 +206,20 @@ export async function POST(req: NextRequest) {
     return Response.json({ received: true, note: 'no matching clan' });
   }
 
-  const current = planOf(clan.plan);
+  // The clan's tier in its OWN catalogue (lib/billingCatalog): the clan ladder, or a creator space's.
+  const current = billingTierOf(clan.kind, clan.plan);
+
+  // A sale, renewal or restart of a product from the other catalogue changes nothing — whatever ref or
+  // subscription it arrived with. Logged (audit + server log) so staff can refund or move it by hand.
+  if (ev.kind === 'sale' || ev.kind === 'recurring_charge' || ev.kind === 'restarted') {
+    const other = wrongCatalog(ev, clan.kind);
+    if (other) {
+      const detail = { kind: ev.kind, catalog: other, spaceKind: clan.kind, product: ev.productId, tier: ev.tier, sale: ev.saleId, subscription: ev.subscriptionId };
+      await logBilling(clan.id, 'billing_wrong_catalog', detail);
+      log.warn('gumroad.wrong-catalog', { clanId: clan.id, ...detail });
+      return Response.json({ received: true, note: 'product is for another kind of space' });
+    }
+  }
 
   // Anything that GRANTS — a sale or a renewal — must name a sale Gumroad still stands behind, and one
   // we have not already applied. Replaying a captured notification otherwise re-ran the trial clock
@@ -195,7 +239,7 @@ export async function POST(req: NextRequest) {
   switch (ev.kind) {
     // ── Paid, or a free trial started ────────────────────────────────────────────────────────
     case 'sale': {
-      const plan = purchasedPlan(ev, current === PLANS.free ? PLANS.bronze : current);
+      const plan = purchasedPlan(ev, clan.kind, current.free ? entryTierFor(clan.kind) : current);
       // Gumroad's own record says whether this started a trial; the notification often doesn't.
       // Without a token to ask, the notification's word, and failing that the products' trial.
       const asked = await trialEndWithGumroad(ev.subscriptionId);
@@ -218,7 +262,7 @@ export async function POST(req: NextRequest) {
       // must never keep a paying clan off its plan.
       const trialKnown = asked !== undefined ? !!asked : !!said;
       if (trialRunning && trialKnown && (await hadMembership(clan.id))) {
-        if (current !== PLANS.free) {
+        if (!current.free) {
           // Already on a paid plan from another membership: that one stays the clan's. This one is a
           // duplicate purchase (two tiers in one cart) for staff to cancel on Gumroad.
           await logBilling(clan.id, 'billing_duplicate', { plan: plan.id, subscription: ev.subscriptionId, kept: clan.gumroadSubscriptionId });
@@ -235,7 +279,7 @@ export async function POST(req: NextRequest) {
       // A new membership on a clan that is still paying for another: the new one becomes the clan's,
       // and the old one keeps charging on Gumroad until someone cancels it ("Move to Gold" is a new
       // purchase, not an upgrade of the Silver one). Logged so staff see it.
-      if (current !== PLANS.free && clan.gumroadSubscriptionId && clan.gumroadSubscriptionId !== ev.subscriptionId) {
+      if (!current.free && clan.gumroadSubscriptionId && clan.gumroadSubscriptionId !== ev.subscriptionId) {
         await logBilling(clan.id, 'billing_duplicate', { plan: plan.id, subscription: ev.subscriptionId, replaced: clan.gumroadSubscriptionId, replacedPlan: clan.plan });
       }
       await db
@@ -263,7 +307,7 @@ export async function POST(req: NextRequest) {
     case 'recurring_charge': {
       // A charge on a clan already dropped to free is a membership taken up again (the restart's own
       // notification may come after it, or not at all): it gets back the plan it had.
-      const plan = purchasedPlan(ev, current === PLANS.free ? ((await planBeforeEnd(clan.id)) ?? PLANS.bronze) : current);
+      const plan = purchasedPlan(ev, clan.kind, current.free ? ((await planBeforeEnd(clan.id, clan.kind)) ?? entryTierFor(clan.kind)) : current);
       await db
         .update(clans)
         .set({
@@ -315,19 +359,19 @@ export async function POST(req: NextRequest) {
         return Response.json({ received: true, note: 'subscription not running' });
       }
       // Cancelled but still inside the term: only the cancel flag was ever set, so only it clears.
-      if (current !== PLANS.free) {
+      if (!current.free) {
         await db.update(clans).set({ cancelAtPeriodEnd: false }).where(eq(clans.id, clan.id));
         await logBilling(clan.id, 'billing_restarted', { plan: clan.plan, was: 'cancelling' });
         return Response.json({ received: true, plan: clan.plan });
       }
       // Ended. Only a clan whose last billing word was that end gets its plan back from it — a
       // replayed restart after a later refund or staff change finds nothing to restore.
-      const before = await planBeforeEnd(clan.id);
+      const before = await planBeforeEnd(clan.id, clan.kind);
       if (!before) {
         await logBilling(clan.id, 'billing_restart_ignored', { reason: 'nothing to restore' });
         return Response.json({ received: true, note: 'nothing to restore' });
       }
-      const plan = purchasedPlan(ev, before);
+      const plan = purchasedPlan(ev, clan.kind, before);
       await db
         .update(clans)
         .set({
@@ -347,8 +391,8 @@ export async function POST(req: NextRequest) {
       await db
         .update(clans)
         .set({
-          plan: 'free',
-          memberCap: PLANS.free.memberCap,
+          plan: freeTierFor(clan.kind).id,
+          memberCap: freeTierFor(clan.kind).memberCap,
           // These DO suspend, unlike a lapse: money was taken back, so the clan stops serving until
           // a human looks at it.
           status: 'suspended',

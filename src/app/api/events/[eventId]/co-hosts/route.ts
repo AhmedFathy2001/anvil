@@ -10,6 +10,8 @@ import { coHostKindRefusal, cohostsForEvent, inviteCoHost, setCohostBoardAccess,
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 import { settlementForEvent } from '@/lib/coHostSettlement';
 import { clanCan, minPlanNameFor } from '@/lib/entitlements';
+import { creatorCan, creatorMinPlanNameFor } from '@/lib/creatorCatalog';
+import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 export const CASH_POLICIES = ['host-holds', 'each-settles', 'clans-collect-host-pays'] as const;
 export type CashPolicy = (typeof CASH_POLICIES)[number];
@@ -91,10 +93,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   // "Free to join, paid to host": hosting a co-hosted event is a premium capability. Generous now —
   // clanCan is true for everyone until FREEMIUM_ENFORCED flips (lib/entitlements) — so this door is
   // wired but does not bite yet.
-  const host = await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { plan: true } });
-  if (!clanCan(host?.plan, 'host-multi-clan')) {
+  // Each kind asks its own catalogue: a creator space's tier is a creator one (lib/creatorCatalog).
+  const host = await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { kind: true, plan: true } });
+  const creator = isCreatorSpace(host);
+  const mayHost = creator ? creatorCan(host?.plan, 'host-multi-clan') : clanCan(host?.plan, 'host-multi-clan');
+  if (!mayHost) {
+    const tier = creator ? creatorMinPlanNameFor('host-multi-clan') : minPlanNameFor('host-multi-clan');
     return NextResponse.json(
-      { error: `Hosting a multi-clan event is a ${minPlanNameFor('host-multi-clan')} feature.`, upgrade: true },
+      { error: `Hosting a multi-clan event is a ${tier} feature.`, upgrade: true },
       { status: 402 },
     );
   }

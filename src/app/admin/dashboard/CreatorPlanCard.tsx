@@ -2,23 +2,24 @@ import ClanLink from '@/components/ClanLink';
 import { ensureClanCheckoutRef } from '@/lib/billing';
 import { creatorPlanCard, liveEventLimit } from '@/lib/creatorPlans';
 import { biggestCreatorEvent, liveEventCount } from '@/lib/creatorPlansDb';
-import { PLANS, checkoutUrlWithRef, planOf } from '@/lib/plans';
+import { CREATOR_PLANS, creatorCheckoutUrlWithRef, creatorPlanOf } from '@/lib/creatorCatalog';
 
 /**
  * A creator's plan, in plain words, on their dashboard (lib/creatorPlans): which plan, how full the
  * biggest event is, and the one tier worth looking at next with a button straight to its checkout.
  *
- * The checkout is the clan one (lib/plans checkoutUrlWithRef + the space's `ref`), because a creator
- * space IS a clan row: the Gumroad webhook finds it by that ref and sets `clans.plan` like any clan.
+ * The checkout is the CREATOR catalogue's (lib/creatorCatalog creatorCheckoutUrlWithRef + the space's
+ * `ref`): its own Gumroad products, never a clan tier. The webhook finds the space by that ref and
+ * moves `clans.plan` within the creator catalogue. No checkout URL configured → no button.
  */
 export default async function CreatorPlanCard({ clanId, clanPlan, canBuy }: { clanId: number; clanPlan: string; canBuy: boolean }) {
   const [biggest, live] = await Promise.all([biggestCreatorEvent(clanId), liveEventCount(clanId)]);
   const card = creatorPlanCard({ clanPlan, biggest });
-  const plan = planOf(clanPlan);
-  const paying = plan.id !== 'free';
-  const next = card.next ? PLANS[card.next.id] : null;
+  const plan = creatorPlanOf(clanPlan);
+  const paying = plan.id !== 'creator_free';
+  const next = card.next ? CREATOR_PLANS[card.next.id] : null;
   const ref = canBuy && next && !paying ? await ensureClanCheckoutRef(clanId) : null;
-  const checkout = next && ref ? checkoutUrlWithRef(next, ref) : null;
+  const checkout = next && ref ? creatorCheckoutUrlWithRef(next, ref) : null;
   const cap = card.playersCap;
   const players = card.biggest?.players ?? 0;
   const pct = cap ? Math.min(100, Math.round((players / cap) * 100)) : 0;
