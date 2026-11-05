@@ -16,6 +16,7 @@ import { SUPPORTER_TIERS, SUPPORTER_TIER_ORDER, type SupporterTierId } from '@/l
 import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 import SupporterName from '@/components/SupporterName';
+import HoverHint from '@/components/HoverHint';
 
 export const dynamic = 'force-dynamic';
 
@@ -147,7 +148,7 @@ export default async function SupporterPage() {
             {ROWS.map((row) => (
               <tr key={row.label} className="border-t border-card-border">
                 <th scope="row" className="px-4 py-3 font-medium">
-                  {row.hint ? <Hint label={row.label} hint={row.hint} /> : row.label}
+                  {row.hint ? <HoverHint label={row.label} hint={row.hint} /> : row.label}
                 </th>
                 {row.cells.map((c, i) => {
                   const cell = typeof c === 'string' ? { text: c } : c;
@@ -232,25 +233,5 @@ function TierCard({
         </span>
       )}
     </div>
-  );
-}
-
-/** A row label with its explanation on hover or keyboard focus (CSS only; this page is a server component). */
-function Hint({ label, hint }: { label: string; hint: string }) {
-  return (
-    <span className="group relative inline-flex items-center gap-1.5">
-      <span tabIndex={0} className="cursor-help underline decoration-text-dim decoration-dotted underline-offset-4 outline-none">
-        {label}
-      </span>
-      <span aria-hidden className="grid h-4 w-4 place-items-center rounded-full border border-card-border text-[10px] text-text-dim">
-        ?
-      </span>
-      <span
-        role="tooltip"
-        className="pointer-events-none invisible absolute left-0 top-full z-20 mt-1.5 w-72 rounded-lg border border-card-border bg-background px-3 py-2 text-[12.5px] font-normal leading-snug text-text-muted opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
-      >
-        {hint}
-      </span>
-    </span>
   );
 }
