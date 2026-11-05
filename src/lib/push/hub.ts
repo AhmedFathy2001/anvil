@@ -182,19 +182,25 @@ export class ViewHub {
    */
   deliverRows(notice: RowsNotice): void {
     const text = JSON.stringify(notice.m);
+    // `rx`: the rows' reaction chips are for the board's players and staff. A room client not seated on
+    // the board (a clanmate watching it as the clan's home board) gets the rows without them, encoded once.
+    let bare: string | null = null;
+    const bareText = () => (bare ??= JSON.stringify(withoutReacts(notice.m)));
     const sent = new Set<PushClient>();
-    const send = (set: Set<PushClient> | undefined) => {
+    const send = (set: Set<PushClient> | undefined, room = false) => {
       for (const c of set ?? []) {
         // Only a plugin that said it reads rows: an older one would log a warning for each.
         if (sent.has(c) || !c.scope.rows) continue;
         sent.add(c);
-        c.send(text);
+        c.send(room && notice.rx && !seatedOn(c.scope, notice.e!) ? bareText() : text);
       }
     };
-    if (notice.e != null) send(notice.t != null ? this.teams.get(teamKey(notice.e, notice.t)) : this.events.get(notice.e));
+    // The people named first: they're the ones a row was meant for as it is (a staff member watching
+    // the board from their home board is named too, and gets the chips).
+    for (const u of notice.u ?? []) send(this.people.get(u));
+    if (notice.e != null) send(notice.t != null ? this.teams.get(teamKey(notice.e, notice.t)) : this.events.get(notice.e), true);
     // A feed row on a board is news for its overlays' feed view.
     if (notice.e != null) this.nudge(notice.e);
-    for (const u of notice.u ?? []) send(this.people.get(u));
   }
 
   /**
@@ -423,12 +429,41 @@ export function parseFeed(payload: string): FeedNotice | null {
   }
 }
 
-/** Panel rows (lib/panelRows): `e` a board (with `t`, only that team on it) and/or `u` people. */
+/**
+ * Panel rows (lib/panelRows): `e` a board (with `t`, only that team on it) and/or `u` people. `rx`: the
+ * rows' reaction chips are for players only (see deliverRows).
+ */
 export interface RowsNotice {
   e?: number;
   t?: number;
   u?: number[];
+  rx?: boolean;
   m: Record<string, unknown>;
+}
+
+/**
+ * Whether a ticket holds a seat on this board: its first board with a team (else that first board is
+ * only the clan's home board, watched), or any other board it lists (push/ticket: those are the
+ * character's own live boards).
+ */
+export function seatedOn(scope: PushScope, eventId: number): boolean {
+  const at = scope.eventIds.indexOf(eventId);
+  return at > 0 || (at === 0 && scope.teamId != null);
+}
+
+/** A rows message with its rows' reaction chips (`gz`, `reacts`) taken off. */
+export function withoutReacts(m: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(m.rows)) return m;
+  return {
+    ...m,
+    rows: m.rows.map((r: unknown) => {
+      if (!r || typeof r !== 'object') return r;
+      const rest = { ...(r as Record<string, unknown>) };
+      delete rest.gz;
+      delete rest.reacts;
+      return rest;
+    }),
+  };
 }
 
 /** A NOTIFY payload as panel rows, or null when it isn't one. */
@@ -439,7 +474,7 @@ export function parseRows(payload: string): RowsNotice | null {
     const e = Number.isInteger(p.e) ? (p.e as number) : undefined;
     const u = Array.isArray(p.u) ? p.u.filter((n: unknown): n is number => Number.isInteger(n)) : undefined;
     if (e == null && !u?.length) return null;
-    return { ...(e != null ? { e } : {}), ...(e != null && Number.isInteger(p.t) ? { t: p.t } : {}), ...(u?.length ? { u } : {}), m: p.m };
+    return { ...(e != null ? { e } : {}), ...(e != null && Number.isInteger(p.t) ? { t: p.t } : {}), ...(u?.length ? { u } : {}), ...(e != null && p.rx === 1 ? { rx: true } : {}), m: p.m };
   } catch {
     return null;
   }

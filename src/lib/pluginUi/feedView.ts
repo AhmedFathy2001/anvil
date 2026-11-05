@@ -19,7 +19,7 @@ import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 
 import { visibleClan } from './load';
-import { completionRow, feedTabUi, kindGroup, momentRow, type KindGroup, type RowReactKind, type Scope } from './feedUi';
+import { completionRow, feedTabUi, kindGroup, momentRow, reactRowAction, type KindGroup, type RowReactKind, type Scope } from './feedUi';
 import type { FeedRow, View } from './nodes';
 import { backRow, col, gap, message, text } from './nodes';
 
@@ -156,7 +156,7 @@ async function clanRows(clan: Extract<Scope, { kind: 'clan' }>, filter: string, 
     const reacts = member
       ? {
           tally: (k: RowReactKind) => tallyOf(s, k),
-          act: (k: RowReactKind) => ({ a: 'post' as const, act: 'react-row', args: { slug: clan.slug, id: String(m.id), kind: k } }),
+          act: (k: RowReactKind) => reactRowAction({ slug: clan.slug }, m.id, k),
           who: (k: RowReactKind) => who?.get(m.id)?.[k],
         }
       : undefined;
@@ -232,7 +232,7 @@ async function eventRows(eventId: number, filter: string, teamId: number | null,
     const reacts = reactable(m)
       ? {
           tally: (k: RowReactKind) => tallyOf(s, k),
-          act: (k: RowReactKind) => ({ a: 'post' as const, act: 'react-row', args: { e: String(eventId), id: String(m.id), kind: k } }),
+          act: (k: RowReactKind) => reactRowAction({ e: eventId }, m.id, k),
           who: (k: RowReactKind) => who?.get(m.id)?.[k],
         }
       : undefined;

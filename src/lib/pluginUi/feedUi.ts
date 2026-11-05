@@ -172,6 +172,25 @@ export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
   };
 }
 
+/** Where a row's reaction goes: a clan's Feed (by slug) or a board's (by id). */
+export type ReactOn = { slug: string } | { e: number };
+
+/** The post a GZ / Sad / Sit chip sends (views reactRowAct): the opened list and a live row send the same. */
+export function reactRowAction(on: ReactOn, momentId: number, kind: RowReactKind): Action {
+  const where: Record<string, string> = 'slug' in on ? { slug: on.slug } : { e: String(on.e) };
+  return { a: 'post', act: 'react-row', args: { ...where, id: String(momentId), kind } };
+}
+
+/**
+ * A moment just stored, as its live row offers it: nobody has reacted yet, so every count is 0 and
+ * the chip is the same for everyone it's sent to. Without it a pushed row showed no GZ until the
+ * Feed was opened again. Undefined for a lab row (no real moment to react to).
+ */
+export function freshReacts(on: ReactOn, momentId: number): MomentRowOptions['reacts'] {
+  if (!(momentId > 0)) return undefined;
+  return { tally: () => ({ n: 0, mine: false }), act: (k) => reactRowAction(on, momentId, k) };
+}
+
 function reactsOf(kind: string, o: MomentRowOptions): Pick<FeedRow, 'gz' | 'reacts'> {
   if (!o.reacts) return {};
   const { tally, act, who } = o.reacts;

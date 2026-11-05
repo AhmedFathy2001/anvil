@@ -160,3 +160,17 @@ test('a death row offers Sad and Sit, never a GZ; every other row keeps its GZ',
   assert.equal(unseen.reacts, undefined, 'no reactions for someone who may not react');
   assert.equal(unseen.gz, undefined);
 });
+
+test('a live moment row carries its reaction chip, with the action the opened list gives', async () => {
+  const { freshReacts, momentRow, reactRowAction } = await import('../src/lib/pluginUi/feedUi.ts');
+  const like = { id: 42, rsn: 'Mossy', itemId: 4151, itemName: 'Abyssal whip', quantity: 1, valueGp: 2_000_000, source: null, teamId: null, occurredAt: '2026-11-05T10:00:00Z' };
+  const drop = momentRow({ ...like, kind: 'unique' }, { reacts: freshReacts({ slug: 'theafkspot' }, 42) });
+  assert.deepEqual(drop.gz, { n: 0, mine: false, on: { a: 'post', act: 'react-row', args: { slug: 'theafkspot', id: '42', kind: 'gz' } } });
+  assert.deepEqual(drop.gz?.on, reactRowAction({ slug: 'theafkspot' }, 42, 'gz'));
+  const death = momentRow({ ...like, kind: 'death', itemId: null }, { reacts: freshReacts({ e: 9 }, 42) });
+  assert.deepEqual(death.reacts?.map((r) => [r.kind, r.n, r.on]), [
+    ['sad', 0, { a: 'post', act: 'react-row', args: { e: '9', id: '42', kind: 'sad' } }],
+    ['sit', 0, { a: 'post', act: 'react-row', args: { e: '9', id: '42', kind: 'sit' } }],
+  ]);
+  assert.equal(freshReacts({ e: 9 }, -3), undefined, 'a lab row has nothing to react to');
+});
