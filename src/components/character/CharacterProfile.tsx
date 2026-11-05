@@ -31,6 +31,7 @@ import PlayerShapeRadar from '@/components/PlayerShapeRadar';
 import type { ProfileLinkState } from '@/lib/profileLink';
 import { bossPagesFor } from '@/lib/clogKillcounts';
 import { momentsForMembers, type MomentRow } from '@/lib/momentsStore';
+import { collapseMomentRuns } from '@/lib/feedRuns';
 import { siteReactions } from '@/lib/siteReactions';
 import { getCollectionLog } from '@/lib/clogRead';
 import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
@@ -263,7 +264,8 @@ export default async function CharacterProfile({
     clanCtx ? getActivityStandings(clanCtx.clanId, rsn) : Promise.resolve({} as Record<string, ActivityStanding>),
     // The drops, pets and combat tasks we watched happen. Keyed by the SEAT: a moment belongs to
     // the clan it happened in, so the platform profile never carries one clan's social content.
-    clanCtx ? momentsForMembers([clanCtx.seat.id], 20) : Promise.resolve([] as MomentRow[]),
+    // Back-to-back repeats (a run of deaths) are one line with a count (lib/feedRuns), cut to 20 after.
+    clanCtx ? momentsForMembers([clanCtx.seat.id], 60).then((rows) => collapseMomentRuns(rows).slice(0, 20)) : Promise.resolve([] as MomentRow[]),
     // Everyone's totals, for the shape's percentiles — one query for the whole roster.
     clanCtx ? listMembers(clanCtx.clanId) : Promise.resolve([]),
 

@@ -19,13 +19,24 @@ import { stampEmbeds } from '@/lib/discordEmbeds';
 import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
 import { log } from '@/lib/logger';
 import { getPlatformSetting, isPreview } from '@/lib/platformSettings';
-import { compareVersions, parseReleaseNote, releaseBriefLine, releaseEmbed, type ReleaseNote } from '@/lib/releaseNotes';
+import { VERSION_RE, compareVersions, parseReleaseNote, releaseBriefLine, releaseEmbed, releaseIsDue, type ReleaseNote } from '@/lib/releaseNotes';
 import { apexOrigin } from '@/lib/seo';
 
 // Moved to lib/platformSettings; re-exported so existing imports keep working.
 export { getPlatformSetting, setPlatformSetting } from '@/lib/platformSettings';
 
 export const ANNOUNCEMENTS_WEBHOOK_KEY = 'anvil_announcements_webhook';
+/** Silent releases staff asked to announce now (a JSON list of versions), /staff/releases. */
+export const ANNOUNCE_NOW_KEY = 'releases_announce_now';
+
+export function parseVersionList(raw: string | null | undefined): string[] {
+  try {
+    const v = JSON.parse(raw ?? '[]');
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && VERSION_RE.test(x)).slice(0, 50) : [];
+  } catch {
+    return [];
+  }
+}
 
 /** Every release file bundled with this build, newest first. A malformed one is logged and skipped. */
 export async function loadReleaseFiles(dir = path.join(process.cwd(), 'releases')): Promise<ReleaseNote[]> {
@@ -78,8 +89,11 @@ export async function publishShippedReleases(dir?: string): Promise<string[]> {
   // Oldest first: a backlog (the channel set after a few releases) then reads top to bottom in the
   // order things shipped, and each release's row is newer than the one before it.
   const notes = [...(await loadReleaseFiles(dir))].reverse();
+  const announceNow = new Set(parseVersionList(await getPlatformSetting(ANNOUNCE_NOW_KEY)));
   const done: string[] = [];
   for (const note of notes) {
+    // A silent release waits (lib/releaseNotes releaseIsDue): no row yet, so nothing shows anywhere.
+    if (!releaseIsDue(note, notes, announceNow)) continue;
     const [claimed] = await db
       .insert(releases)
       .values({ version: note.version, title: note.title, note, pluginVersion: note.pluginVersion })

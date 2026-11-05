@@ -17,6 +17,12 @@ names, PR numbers, commit speak, or anything not live yet.
 One release covers the site **and** the plugin. Mark plugin-only lines with `[Plugin]`. Set
 `plugin:` only when that plugin version is live on the RuneLite plugin hub.
 
+## Silent releases
+
+Add `silent: true` to the front matter to ship a release without posting it anywhere (Discord, clans'
+Anvil updates, /changelog, the plugin's login line). It goes out with the next release that isn't
+silent, oldest first, or when staff press **Announce now** on /staff/releases.
+
 ## Format
 
 ```

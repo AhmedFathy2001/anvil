@@ -30,8 +30,26 @@ export function foughtBoss(name: unknown): string | null {
  * Settle a raw death report in place: a `fought` killer becomes the boss (sourceKind 'npc') or
  * nothing. Every other report is left exactly as it came.
  */
+/**
+ * NPCs the plugin can see "targeting" you around a death that never killed anyone: Death himself,
+ * who talks to you in Death's Domain right after you die ("Died to Death" at Phosani's Nightmare).
+ * Lower-case names; a death naming one of these reads plainly ("Died").
+ */
+const NOT_A_KILLER = new Set(['death']);
+
+/** A stored death's killer as it should read: null for one of the never-killers above. */
+export function shownKiller(source: string | null | undefined): string | null {
+  return source && !NOT_A_KILLER.has(source.trim().toLowerCase()) ? source : null;
+}
+
 export function settleDeathSource(raw: Record<string, unknown>): void {
-  if (raw.kind !== 'death' || raw.sourceKind !== FOUGHT_SOURCE_KIND) return;
+  if (raw.kind !== 'death') return;
+  if (typeof raw.source === 'string' && NOT_A_KILLER.has(raw.source.trim().toLowerCase())) {
+    raw.source = null;
+    raw.sourceKind = null;
+    return;
+  }
+  if (raw.sourceKind !== FOUGHT_SOURCE_KIND) return;
   const boss = foughtBoss(raw.source);
   raw.source = boss;
   raw.sourceKind = boss ? 'npc' : null;
