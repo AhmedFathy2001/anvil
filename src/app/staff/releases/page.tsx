@@ -2,6 +2,7 @@ import { requirePlatformPage } from '@/lib/platformAccess';
 import { ANNOUNCEMENTS_WEBHOOK_KEY, getPlatformSetting, listPublishedReleases, loadReleaseFiles } from '@/lib/releases';
 import ClanLink from '@/components/ClanLink';
 import AnnouncementsWebhook from './AnnouncementsWebhook';
+import AnnounceNowButton from './AnnounceNowButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,8 +43,12 @@ export default async function StaffReleasesPage() {
           <h2 className="mb-2 font-semibold">In this build, not announced yet</h2>
           <ul className="grid gap-1 text-sm">
             {waiting.map((w) => (
-              <li key={w.version}>
-                {w.version} · {w.title}
+              <li key={w.version} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span>
+                  {w.version} · {w.title}
+                  {w.silent && <span className="ml-2 text-xs text-text-dim">silent: goes out with the next release</span>}
+                </span>
+                {w.silent && <AnnounceNowButton version={w.version} />}
               </li>
             ))}
           </ul>

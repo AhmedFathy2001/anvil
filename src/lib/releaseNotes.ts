@@ -22,6 +22,12 @@ export interface ReleaseNote {
   version: string;
   title: string;
   pluginVersion: string | null;
+  /**
+   * `silent: true` in the front matter: production ships it without posting it anywhere (Discord,
+   * clans' Anvil updates, /changelog, the plugin's login line). It goes out later — with the next
+   * release that isn't silent, oldest first, or when staff press "Announce now" on /staff/releases.
+   */
+  silent: boolean;
   highlights: string[];
   added: string[];
   improved: string[];
@@ -52,6 +58,7 @@ export function parseReleaseNote(text: string): ReleaseNote {
     version: meta.version,
     title: meta.title.slice(0, 120),
     pluginVersion: meta.plugin && VERSION_RE.test(meta.plugin) ? meta.plugin : null,
+    silent: /^(?:true|yes|1)$/i.test(meta.silent ?? ''),
     highlights: [],
     added: [],
     improved: [],
@@ -115,4 +122,14 @@ export function releaseEmbed(r: ReleaseNote, origin: string) {
 export function releaseBriefLine(r: ReleaseNote): string {
   const lead = r.highlights[0] ?? r.title;
   return clip(`New in Anvil ${r.version}: ${lead} · anvilosrs.com/changelog`, 150);
+}
+
+/**
+ * Is this release due to be announced? A loud one always is. A silent one waits until a LATER
+ * release that isn't silent ships (it then goes out with that backlog, oldest first), or until staff
+ * asked for it by version (`announceNow`).
+ */
+export function releaseIsDue(note: Pick<ReleaseNote, 'version' | 'silent'>, all: readonly Pick<ReleaseNote, 'version' | 'silent'>[], announceNow: ReadonlySet<string>): boolean {
+  if (!note.silent || announceNow.has(note.version)) return true;
+  return all.some((o) => !o.silent && compareVersions(note.version, o.version) > 0);
 }

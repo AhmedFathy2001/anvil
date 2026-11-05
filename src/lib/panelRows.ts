@@ -4,7 +4,7 @@
 //
 // Messages the plugin understands:
 //   {t:'rows',     feeds:[id…], rows:[FeedRow…]}   grow these lists (newest first)
-//   {t:'rowsdel',  feeds:[id…], ids:[rowId…]}      drop rows (a mod deleted a chat line)
+//   {t:'rowsdel',  feeds:[id…], ids:[rowId…]}      drop rows (a mod deleted a chat line; a run's old top row)
 //   {t:'rowslock', feeds:[prefix…], locked}        grey a chat box out (paused / turned off), or null to reopen
 
 import { and, eq, isNull, sql } from 'drizzle-orm';
@@ -17,7 +17,9 @@ import { supporterInksForRsns } from '@/lib/supporter';
 import { log } from '@/lib/logger';
 import { eventFeedFloor, isClanWorthy, panelFeedWorthy } from '@/lib/moments';
 import { boardTileItemIds, clanScopeFor } from '@/lib/momentsStore';
-import { completionFeedIds, completionRow, momentFeedIds, momentRow, rollupRow, type MomentLike } from '@/lib/pluginUi/feedUi';
+import { completionFeedIds, completionRow, momentFeedIds, momentRow, parseMomentsFeedId, rollupRow, type MomentLike } from '@/lib/pluginUi/feedUi';
+import type { FeedRow } from '@/lib/pluginUi/nodes';
+import { RUN_GAP_MS, runKey, stampMs, type RunInfo } from '@/lib/feedRuns';
 import { standingsHidden } from '@/lib/standingsVisibility';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { ttlMemo } from '@/lib/ttlMemo';
@@ -180,27 +182,35 @@ async function inkOf(rsn: string) {
 /**
  * New moments, just stored: to the clan's Feed (member seats only, at the clan's floor) and the
  * board's (at the floor its size sets). Never throws — a missed live row is fixed by the next open.
+ *
+ * A moment that extends the run at the top of a list (lib/feedRuns: the same person dying again)
+ * replaces that run's row: a `rowsdel` of the old top row, then the new row with the count, per list.
+ * Sent oldest first, each judged as if the batch's later moments hadn't landed yet, so a batch of
+ * deaths walks the count up the way the opened list would show it.
  */
 export async function emitMomentRows(clanId: number, seatKind: string, list: NewMoment[], now = Date.now()): Promise<void> {
   if (!list.length) return;
   try {
+    const ordered = [...list].sort((a, b) => (stampMs(a.occurredAt) || 0) - (stampMs(b.occurredAt) || 0));
+    const later = (i: number) => new Set(ordered.slice(i + 1).map((x) => x.id));
     const scope = await clanScopeFor(clanId);
     if (seatKind === 'member') {
-      const shown: NewMoment[] = [];
-      for (const m of list) {
+      const shown: { m: NewMoment; i: number }[] = [];
+      for (const [i, m] of ordered.entries()) {
         if (!isClanWorthy(m, scope) || !panelFeedWorthy(m, scope.minLootGp)) continue;
         // A drop filed on a board with hidden standings is that team's secret: not the clan's feed.
         if (m.eventId != null && (await boardHidden(m.eventId, now))) continue;
-        shown.push(m);
+        shown.push({ m, i });
       }
       if (shown.length) {
         const ids = await clanUserIds(clanId);
-        for (const m of shown) {
-          await notifyRows({ u: ids }, { t: 'rows', feeds: momentFeedIds({ kind: 'clan', id: clanId }, m.kind, null), rows: [momentRow(m, { ink: await inkOf(m.rsn) })] });
+        for (const { m, i } of shown) {
+          const ink = await inkOf(m.rsn);
+          await sendMomentRow({ u: ids }, m, momentFeedIds({ kind: 'clan', id: clanId }, m.kind, null), (run) => momentRow({ ...m, run }, { ink }), later(i));
         }
       }
     }
-    for (const m of list) {
+    for (const [i, m] of ordered.entries()) {
       if (m.eventId == null) continue;
       const floor = eventFeedFloor(await boardSize(m.eventId));
       // An item one of the board's tiles wants shows whatever it's worth.
@@ -210,21 +220,78 @@ export async function emitMomentRows(clanId: number, seatKind: string, list: New
         continue;
       }
       const team = m.teamId != null ? await teamOf(m.teamId) : null;
-      const row = momentRow(m, { team, ink: await inkOf(m.rsn) });
+      const ink = await inkOf(m.rsn);
+      const build = (run?: RunInfo) => momentRow({ ...m, run }, { team, ink });
       // A board hiding its standings keeps each team's haul to the team.
       if (await boardHidden(m.eventId, now)) {
         if (m.teamId != null) {
-          await notifyRows({ u: await teamUserIds(m.teamId) }, { t: 'rows', feeds: [`moments:event:${m.eventId}:team:${m.teamId}`], rows: [row] });
+          await sendMomentRow({ u: await teamUserIds(m.teamId) }, m, [`moments:event:${m.eventId}:team:${m.teamId}`], build, later(i));
         }
         continue;
       }
-      await notifyRows({ e: m.eventId }, { t: 'rows', feeds: momentFeedIds({ kind: 'event', id: m.eventId }, m.kind, m.teamId), rows: [row] });
+      await sendMomentRow({ e: m.eventId }, m, momentFeedIds({ kind: 'event', id: m.eventId }, m.kind, m.teamId), build, later(i));
     }
   } catch (err) {
     log.warn('panel-rows.emit-failed', { message: (err as Error).message });
   }
 }
 
+/**
+ * One moment's live row to its lists. Where it extends the run at the top of a list, that list gets
+ * the old top row deleted and the row with its count instead; lists can differ (a drop between two
+ * deaths breaks the run in All, not in Deaths), so each outcome is its own pair of messages.
+ */
+async function sendMomentRow(target: RowsTarget, m: NewMoment, feeds: string[], build: (run?: RunInfo) => FeedRow, skip: ReadonlySet<number>): Promise<void> {
+  const plain = () => notifyRows(target, { t: 'rows', feeds, rows: [build()] });
+  if (!(await mayExtendRun(m, skip))) return plain();
+  const outcomes = new Map<string, { feeds: string[]; run?: RunInfo; del?: string }>();
+  for (const feed of feeds) {
+    const run = await topRunFor(feed, m.id, skip).catch(() => undefined);
+    const del = run ? `m${run.ids[1]}` : undefined;
+    const key = run ? `${del}|${run.n}|${run.mixed ? 1 : 0}` : '';
+    const o = outcomes.get(key) ?? { feeds: [], run, del };
+    o.feeds.push(feed);
+    outcomes.set(key, o);
+  }
+  for (const o of outcomes.values()) {
+    // The plugin drops a list's deleted ids before it adds new rows, in one flush.
+    if (o.del) await notifyRows(target, { t: 'rowsdel', feeds: o.feeds, ids: [o.del] });
+    await notifyRows(target, { t: 'rows', feeds: o.feeds, rows: [build(o.run)] });
+  }
+}
+
+/**
+ * Cheap first look before any list is read: could this moment be part of a run at all? The same
+ * seat's same kind of moment within the run window. Most drops answer no on an index read.
+ */
+async function mayExtendRun(m: NewMoment, skip: ReadonlySet<number>): Promise<boolean> {
+  if (m.id <= 0 || runKey(m) == null) return false;
+  const at = stampMs(m.occurredAt);
+  // clan-scope: global -- the seat of a moment this request just stored.
+  const rows = await db.execute<{ id: number; occurred_at: string }>(sql`
+    select b.id, b.occurred_at from moments a
+    join moments b on b.clan_member_id = a.clan_member_id and b.kind = a.kind and b.id <> a.id
+    where a.id = ${m.id}
+    order by b.occurred_at desc limit 8`);
+  const list = (rows as unknown as { rows?: { id: number; occurred_at: string }[] }).rows ?? (rows as unknown as { id: number; occurred_at: string }[]);
+  return list.some((r) => !skip.has(Number(r.id)) && Math.abs(stampMs(r.occurred_at) - at) <= RUN_GAP_MS);
+}
+
+/**
+ * The run at the top of one live list, when this moment heads it and it's two or more: what that
+ * list's opened view (pluginUi/feedLists) would draw first, read without the batch's later moments.
+ */
+async function topRunFor(feed: string, momentId: number, skip: ReadonlySet<number>): Promise<RunInfo | undefined> {
+  const f = parseMomentsFeedId(feed);
+  if (!f) return undefined;
+  // Imported here: feedLists reads this module's board helpers.
+  const { clanFeedList, eventFeedList } = await import('@/lib/pluginUi/feedLists');
+  const head =
+    f.kind === 'clan'
+      ? (await clanFeedList(f.id, f.filter, skip)).list[0]
+      : (await eventFeedList(f.id, f.filter, f.teamId, skip)).items[0]?.m;
+  return head && head.id === momentId && head.run && head.run.ids.length > 1 ? head.run : undefined;
+}
 
 /**
  * Who finished a completed tile: its recorded finisher (a stat or Solo tile), else whoever's submission
