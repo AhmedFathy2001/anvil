@@ -8,7 +8,7 @@ import type { BroadcastChannel } from '@/lib/discord-broadcast';
 import WebhooksPanel from './WebhooksPanel';
 import DiscordFeedsPanel from './DiscordFeedsPanel';
 import EventPostDefaultsPanel from './EventPostDefaultsPanel';
-import DiscordQuickSetup from './DiscordQuickSetup';
+import DiscordQuickSetup, { FeedRulesHint } from './DiscordQuickSetup';
 import { invalidateSettings } from '@/lib/settingsClient';
 import DiscordBotSettings from '@/components/DiscordBotSettings';
 import BotIdentitySettings from '@/components/BotIdentitySettings';
@@ -92,6 +92,7 @@ export default function DiscordSettings({
         <DiscordQuickSetup
           channels={channels}
           siteUrl={siteUrl}
+          feedRulesHint={!creator}
           onRoutingChanged={() => {
             invalidateSettings();
             setPanelKey((k) => k + 1);
@@ -201,6 +202,7 @@ export default function DiscordSettings({
               : {}),
           }}
         />
+        {!creator && <FeedRulesHint />}
       </FoldSection>
 
       <FoldSection
@@ -219,27 +221,33 @@ export default function DiscordSettings({
         title={creator ? 'Ping role' : 'Roles & nicknames'}
         summary={creator ? 'The role pinged when one of your events starts or finishes.' : 'Who gets pinged, and keeping Discord roles and names in step with the clan.'}
       >
-        <RoleSetting
-          settingKey="discord_member_ping_role_id"
-          label="Ping this role for big news"
-          helpText="Pinged when an event starts or finishes. “No role” means no ping."
-        />
+        <div id="discord-ping-role" className="scroll-mt-24">
+          <RoleSetting
+            settingKey="discord_member_ping_role_id"
+            label="Ping this role for big news"
+            helpText="Pinged when an event starts or finishes. “No role” means no ping."
+          />
+        </div>
         {!creator && (
           <>
             <Divider />
-            <Field title="Match Discord to the clan" aside={<GuideLink href="/guide/discord#roles">How role sync works</GuideLink>}>
-              Give linked members their rank and default roles, and optionally set nicknames to their in-game name.
-            </Field>
-            <DiscordRoleSyncSettings />
-            <div>
-              <p className="font-medium mb-1">Roles the sync gives out</p>
-              <DiscordAssignedRoles />
+            <div id="discord-role-sync" className="scroll-mt-24 space-y-6">
+              <Field title="Match Discord to the clan" aside={<GuideLink href="/guide/discord#roles">How role sync works</GuideLink>}>
+                Give linked members their rank and default roles, and optionally set nicknames to their in-game name.
+              </Field>
+              <DiscordRoleSyncSettings />
+              <div>
+                <p className="font-medium mb-1">Roles the sync gives out</p>
+                <DiscordAssignedRoles />
+              </div>
             </div>
             <Divider />
-            <Field title="Rank rules">
-              Give Discord roles from in-game rank, adding up as people climb. Runs with the role sync above, so keep that on.
-            </Field>
-            <RankRulesPanel />
+            <div id="discord-rank-rules" className="scroll-mt-24 space-y-6">
+              <Field title="Rank rules">
+                Give Discord roles from in-game rank, adding up as people climb. Runs with the role sync above, so keep that on.
+              </Field>
+              <RankRulesPanel />
+            </div>
           </>
         )}
       </FoldSection>

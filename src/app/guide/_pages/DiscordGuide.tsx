@@ -39,10 +39,13 @@ export default async function DiscordGuide({ lang }: { lang: string }) {
     { id: 'bot', n: 1, title: c.bot.title },
     { id: 'connect', n: 2, title: c.connect.title },
     { id: 'channels', n: 3, title: c.channels.title },
-    { id: 'roles', n: 4, title: c.roles.title },
-    { id: 'commands', n: 5, title: c.commands.title },
-    { id: 'posts', n: 6, title: c.posts.title },
-    { id: 'quiet', n: 7, title: c.quiet.title },
+    { id: 'modes', n: 4, title: c.modes.title },
+    { id: 'cleanup', n: 5, title: c.cleanup.title },
+    { id: 'roles', n: 6, title: c.roles.title },
+    { id: 'commands', n: 7, title: c.commands.title },
+    { id: 'posts', n: 8, title: c.posts.title },
+    { id: 'announce', n: 9, title: c.announce.title },
+    { id: 'quiet', n: 10, title: c.quiet.title },
   ];
 
   return (
@@ -50,7 +53,7 @@ export default async function DiscordGuide({ lang }: { lang: string }) {
       eyebrow={c.eyebrow}
       title={c.title}
       sections={SECTIONS}
-      minutes={5}
+      minutes={7}
       locale={{ code: locale.code, dir: locale.dir }}
       labels={t.common}
       languages={languages}
@@ -82,26 +85,44 @@ export default async function DiscordGuide({ lang }: { lang: string }) {
       </Section>
 
       {/* ---------------------------------------------------------------- 4 */}
-      <Section id="roles" n={4} title={c.roles.title} labels={t.common}>
+      <Section id="modes" n={4} title={c.modes.title} labels={t.common}>
+        {paragraphs(c.modes.body, v)}
+        <Note tag={c.modes.note.tag}>{rt(c.modes.note.body, v)}</Note>
+      </Section>
+
+      {/* ---------------------------------------------------------------- 5 */}
+      <Section id="cleanup" n={5} title={c.cleanup.title} labels={t.common}>
+        {paragraphs(c.cleanup.body, v)}
+        <Note tag={c.cleanup.note.tag}>{rt(c.cleanup.note.body, v)}</Note>
+      </Section>
+
+      {/* ---------------------------------------------------------------- 6 */}
+      <Section id="roles" n={6} title={c.roles.title} labels={t.common}>
         {paragraphs(c.roles.body, v)}
         <Rows rows={rows(c.roles.ways, v)} />
         <Note tag={c.roles.note.tag}>{rt(c.roles.note.body, v)}</Note>
       </Section>
 
-      {/* ---------------------------------------------------------------- 5 */}
-      <Section id="commands" n={5} title={c.commands.title} labels={t.common}>
+      {/* ---------------------------------------------------------------- 7 */}
+      <Section id="commands" n={7} title={c.commands.title} labels={t.common}>
         {paragraphs(c.commands.body, v)}
         <Note tag={c.commands.note.tag}>{rt(c.commands.note.body, v)}</Note>
       </Section>
 
-      {/* ---------------------------------------------------------------- 6 */}
-      <Section id="posts" n={6} title={c.posts.title} labels={t.common}>
+      {/* ---------------------------------------------------------------- 8 */}
+      <Section id="posts" n={8} title={c.posts.title} labels={t.common}>
         {paragraphs(c.posts.body, v)}
         <Note tag={c.posts.note.tag}>{rt(c.posts.note.body, v)}</Note>
       </Section>
 
-      {/* ---------------------------------------------------------------- 7 */}
-      <Section id="quiet" n={7} title={c.quiet.title} labels={t.common}>
+      {/* ---------------------------------------------------------------- 9 */}
+      <Section id="announce" n={9} title={c.announce.title} labels={t.common}>
+        {paragraphs(c.announce.body, v)}
+        <Note tag={c.announce.note.tag}>{rt(c.announce.note.body, v)}</Note>
+      </Section>
+
+      {/* ---------------------------------------------------------------- 10 */}
+      <Section id="quiet" n={10} title={c.quiet.title} labels={t.common}>
         {paragraphs(c.quiet.body, v)}
         <Rows rows={rows(c.quiet.checks, v)} />
         <Note tag={c.quiet.note.tag}>{rt(c.quiet.note.body, v)}</Note>

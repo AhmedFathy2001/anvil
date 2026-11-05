@@ -192,7 +192,7 @@ export const en = {
         '**Sync your clan list.** In RuneLite, open the Anvil plugin’s settings. Turn on **Keep the clan roster in sync**. One admin does this once, in game. This replaces your Wise Old Man group.',
         '**Start a Skill or Boss of the Week.** Go to Admin → All events → **+ New event**, and pick Skill of the Week or Boss of the Week. Everyone on the clan list is in it automatically. This replaces Wise Old Man competitions.',
         '**Tell your members.** Go to Admin → Discord → **Tell your members** → **Post it**. The bot posts the player steps for you.',
-        '**A week later, clean up.** Go to Admin → Discord, tick Dink’s old webhooks, and press **Remove**. After that, nothing can post twice.',
+        '**A week later, clean up.** Go to Admin → Discord → **Remove Dink’s old webhooks**, tick the ones to go, press **Remove … webhooks** and then **Yes, remove them**. After that, nothing can post twice. Press **Keep** on any you want to leave alone.',
       ],
     },
 
@@ -242,7 +242,7 @@ export const en = {
       { strong: '~4 min', rest: 'to a working clan' },
     ],
     footnote:
-      'You can change every one of these later from Admin → Clan, except the address — that one is worth a moment’s thought now.',
+      'You can change every one of these later from Admin → **Clan settings**, except the address — that one is worth a moment’s thought now.',
 
     before: {
       title: 'Before you start',
@@ -253,7 +253,7 @@ export const en = {
       ],
       note: {
         tag: 'You will be its owner',
-        body: 'Owner is the one role nobody can take from you, and it goes to whoever creates the clan. Add staff afterwards from Admin → Clan; see [On the rota]({moderatorGuide}).',
+        body: 'Owner is the one role nobody can take from you, and it goes to whoever creates the clan. Add staff afterwards from Admin → **People** → **Staff & roles**; see [On the rota]({moderatorGuide}).',
       },
     },
 
@@ -292,27 +292,27 @@ export const en = {
     setup: {
       title: 'The setup wizard',
       intro:
-        'Four things stand between a fresh clan and a running event. The wizard walks them in order and skips whatever you have already done.',
+        'Three steps stand between a fresh clan and a running event, and the wizard walks them in order, skipping whatever you have already done. The board comes straight after.',
       steps: [
         {
-          term: 'Name it in Discord',
+          term: 'Your clan',
           body: 'Your display name, your in-game clan name, and an invite link to your server. The invite is what lets sign-up pages and guides point people at you.',
         },
         {
           term: 'Connect Discord',
-          body: 'One shared bot, so there is no application to register and no token to paste. Approve it once and it can post to your channels and read your roles.',
+          body: 'One shared bot, so there is no application to register and no token to paste. Press **Connect your bot** and approve it once, then pick **A few channels** or **Just one channel** and press **Set it up for me** — the bot makes the channels for you.',
         },
         {
-          term: 'Give it a channel',
-          body: 'An announcements channel for event posts. Optionally split the plugin’s feeds out: rare drops in one channel, deaths in another, so neither drowns the other.',
+          term: 'Bring your members in',
+          body: 'Install the plugin, sign in with Discord, then open your clan window in game and press the **Anvil** button in its title bar. Nobody can sign up for an event until your member list is in.',
         },
         {
           term: 'Make a board',
-          body: 'The first event. Pick a format, add tiles, open sign-ups — that is [Running your first event]({adminGuide}), and it is the longest of the four by a distance.',
+          body: 'The wizard ends on **Create your first event →**. Pick a format, add tiles, open sign-ups — that is [Running your first event]({adminGuide}), and it is the longest step by a distance.',
         },
       ],
       after: [
-        'You can skip the wizard entirely and do all of it from Admin → Clan later. It exists because the order matters when you have never done it: Discord before channels, channels before a board that wants to post to them.',
+        'You can skip the wizard entirely with **Skip setup** and do all of it later from Admin → **Clan settings** and Admin → **Discord**. It exists because the order matters when you have never done it: Discord before channels, members before a board they need to sign up for.',
       ],
     },
 
@@ -332,7 +332,7 @@ export const en = {
         },
         {
           term: 'By hand',
-          body: 'Admin → Clan takes names one at a time, for the person on mobile or the official client who cannot run the plugin at all.',
+          body: 'Admin → **People** → **+ Add Manually** takes names one at a time, for the person on mobile or the official client who cannot run the plugin at all.',
         },
       ],
       note: {
@@ -362,6 +362,19 @@ export const en = {
         body: 'Joining somebody else’s event is free, and so is hosting one. A clan that only ever turns up to other people’s boards never needs anything beyond its own free clan.',
       },
     },
+
+    boosts: {
+      title: 'Clan boosts',
+      body: [
+        'Members who pay for Anvil Supporter at **Champion** (one boost) or **Patron** (two) can boost the clan from their own **Settings → Clan boosts**. A boost counts once their seat in the clan is 14 days old, and no more than two count from one person.',
+        'You see where you stand on Admin → **Clan settings** → **Boosts**: the clan’s level, how many boosts are counting and how many more the next level needs. Level 1 takes 3 boosts, Level 2 takes 8 and Level 3 takes 15. If boosts fall below a level, its perks stay for a week first.',
+        'Level 1 puts a **Boosted** badge on your clan page, Clan Hall card and in search, lists you above unboosted clans in the Clan Hall and gives your name a gradient. Level 2 adds a spot in the Clan Hall’s Featured row, plays your animated banner and unlocks a **Recruiting line**: one sentence, up to 140 characters, shown to visitors. Level 3 adds a Spotlight at the top of the Clan Hall and one **Recruitment post in the Anvil Discord** a month, up to 500 characters, sent once with **Post to the Anvil Discord**, with a link to your clan page and nobody pinged.',
+      ],
+      note: {
+        tag: 'Looks only',
+        body: 'Boosts change how the clan looks and where it is listed. They never change a rank, a score, your seats or your plan.',
+      },
+    },
   },
   discord: {
     metaTitle: 'Anvil in Discord — Anvil',
@@ -376,13 +389,13 @@ export const en = {
       { strong: 'Opt-in', rest: 'every feed is off until you point it somewhere' },
     ],
     footnote:
-      'Everything here lives under Admin → Settings, split across the Discord bot, Webhooks, Roles & channels and Notifications tabs.',
+      'Everything here lives on Admin → **Discord**: the quick setup at the top, then **More settings** — Connection, What goes where, Event posts, Roles & nicknames, Team channels, Commands and Post without a bot.',
 
     bot: {
       title: 'One bot, already built',
       body: [
         'There is no Discord application to create, no token to generate and no secret to paste. Anvil runs one bot and every clan shares it, so connecting is an invite and nothing else.',
-        'You can still bring your own — paste a token under **Discord bot** and it is used instead. Worth it only if you want the bot to wear your clan’s name and avatar in the member list; everything in this guide works the same either way.',
+        'You can still bring your own — paste a token under **Use your own bot instead (advanced)** and it is used instead. Worth it only if you want the bot to wear your clan’s name and avatar in the member list; everything in this guide works the same either way.',
       ],
       permissions: [
         {
@@ -391,7 +404,7 @@ export const en = {
         },
         {
           term: 'Manage Webhooks',
-          body: 'So the **Create** button on the Webhooks tab can make a webhook for you instead of you copying URLs out of Discord by hand.',
+          body: 'So **Set it up for me** and **Post here** can make webhooks for you instead of you copying URLs out of Discord by hand, and so Anvil can find old webhooks for you to remove.',
         },
         {
           term: 'Manage Roles',
@@ -411,7 +424,7 @@ export const en = {
         },
         {
           term: 'Change Nickname',
-          body: 'Only if you give the bot your clan’s name in **Settings → Bot appearance**. It changes the bot’s name in your server only.',
+          body: 'Only if you give the bot your clan’s name under **Connection → Bot appearance in your server**. It changes the bot’s name in your server only.',
         },
       ],
       note: {
@@ -427,11 +440,11 @@ export const en = {
       steps: [
         {
           term: 'Invite the bot',
-          body: 'Admin → Settings → **Discord bot** → **Invite / re-invite the bot**. The link pre-selects your server once the ID is set, so you cannot add it to the wrong one by accident.',
+          body: 'Admin → **Discord** → **Connect your Discord server** (or **Add Anvil to Discord**). Discord asks which server to add Anvil to and sends you back here, so you cannot add it to the wrong one by accident. Later, **Invite / re-invite the bot** is under **More settings → Connection**.',
         },
         {
           term: 'Set the server ID',
-          body: 'Right-click your server icon in Discord → **Copy Server ID** (needs Developer Mode on, under Discord’s own Advanced settings) and paste it in. This is the field that makes the connection specific to you.',
+          body: 'Only if the button can’t do it: open **Can’t use the button? Enter the server ID**, right-click your server icon in Discord → **Copy Server ID** (needs Developer Mode on, under Discord’s own Advanced settings), paste it into **Your Discord server’s ID** and press **Save**. This is the field that makes the connection specific to you.',
         },
       ],
       after: [
@@ -447,20 +460,20 @@ export const en = {
       title: 'Set up webhooks',
       body: [
         'Anvil posts through **webhooks**, one per channel, and every one of them is optional. Nothing posts anywhere until you point a feed at a channel — a fresh clan is silent by design rather than by accident.',
-        'Open **Admin → Discord → Where posts go** and start with **Main channel**. With the Anvil bot in your server, pick a channel, press **Post here**, then use **Test** beside it. Without the bot, open that Discord channel’s **Edit Channel → Integrations → Webhooks**, create one, copy its URL, paste it into Anvil, and press **Add**. A webhook URL can post to its channel, so treat it like a password; if it leaks, delete it in Discord and create a new one. **Post here** replaces the saved destination, while **Add another** keeps both and rotates busy posts between them.',
+        'With the Anvil bot in your server, **Set it up for me** at the top of **Admin → Discord** makes the channels and points every feed at them. To do it by hand, open **More settings → What goes where** and start with the **Catch-all channel** on **Clan & events**, then the **In-game catch-all** on **In-game (plugin)**: pick a channel from the dropdown and it saves. Without the bot, open that Discord channel’s **Edit Channel → Integrations → Webhooks**, create one, copy its URL, choose **Paste a webhook…** in the dropdown, paste it and press **Save**. A webhook URL can post to its channel, so treat it like a password; if it leaks, delete it in Discord and create a new one. **Test**, and **Add another** to rotate busy posts between two webhooks, are under **Post without a bot**.',
       ],
       feeds: [
         {
-          term: 'Announcements',
-          body: 'The main one. Event starts and endings, sign-ups opening, standings, weekly results. Set this and nothing else and you have a working clan.',
+          term: 'Catch-all channel',
+          body: 'The main one, on the **Clan & events** tab. Event starts and endings, sign-ups opening, standings, weekly results — anything the site posts without a channel of its own. Set this and nothing else and you have a working clan.',
         },
         {
-          term: 'Plugin default',
-          body: 'Where anything from the game goes when it has no channel of its own. Set this second.',
+          term: 'In-game catch-all',
+          body: 'On the **In-game (plugin)** tab: where anything from the game goes when it has no channel of its own. Set this second.',
         },
         {
           term: 'The split feeds',
-          body: 'Bingo, weekly results and sign-ups can split from announcements; rare drops, pets, deaths, collection log, combat achievements, levels, quests, diaries, PvP kills and Leagues can split from the plugin default. Blank split feeds fall back to their parent channel. The coffer is the exception: blank means no money posts at all.',
+          body: 'Event posts, boards you co-host, Skill & boss of the week and clan calendar events can split from the catch-all; rare drops, pets, collection log, levels, combat achievements, quests, diaries, deaths and PvP kills can split from the in-game catch-all. Roster changes, sign-up approvals and the coffer ledger sit on **Staff only**. Blank split feeds fall back to their catch-all. The coffer is the exception: blank means no money posts at all. Leagues and other modes have their own **Game modes** tab.',
         },
       ],
       note: {
@@ -472,7 +485,7 @@ export const en = {
     roles: {
       title: 'Roles and nicknames',
       body: [
-        'Both syncs are off until you enable them under **Admin → Settings → Roles & channels**, and both are driven by the roster. Turn on **Enable Discord role sync**, leave **Auto-match in-game rank → Discord role by name** on, select any general **Member roles** and **Guest roles**, save, then press **Sync roles & nicknames now**. Every person also needs a linked Discord identity; the sync report names anyone it could not resolve.',
+        'Both syncs are off until you enable them under **Admin → Discord → Roles & nicknames**, and both are driven by the roster. Turn on **Enable Discord role sync**, leave **Auto-match in-game rank → Discord role by name** on, select any general **Member roles** and **Guest roles**, save, then press **Sync roles & nicknames now**. Every person also needs a linked Discord identity; the sync report names anyone it could not resolve.',
       ],
       ways: [
         {
@@ -494,7 +507,7 @@ export const en = {
       title: 'Slash commands',
       body: [
         'The bot answers `/bingo` in your server (the board, the standings, the rules, your own card) plus clan commands like `/sotw`, `/stats` and `/coffer`. They read the live site, so nobody has to leave Discord to check where they stand. [Every command and its options]({commandsGuide}) has its own page.',
-        'They appear a minute or so after the bot joins. If they never appear at all, the invite granted the bot but not its commands — the two are separate permissions and an older invite link only asked for one. Re-run the invite link from the Discord bot tab; it does not kick the bot or reset anything.',
+        'They appear a minute or so after the bot joins. If they never appear at all, the invite granted the bot but not its commands — the two are separate permissions and an older invite link only asked for one. Re-run **Invite / re-invite the bot** under **Connection** on the Discord page; it does not kick the bot or reset anything.',
       ],
       note: {
         tag: 'It replies in each person’s own language',
@@ -515,6 +528,45 @@ export const en = {
       },
     },
 
+    modes: {
+      title: 'Leagues, Deadman and other modes',
+      body: [
+        'Leagues, Deadman, hardcore and other modes run on their own worlds with their own characters. Their posts are always labelled and never count toward boards or competitions. They have their own tab: **Admin → Discord → What goes where → Game modes**. A mode appears there the first time a member plays it.',
+        'Each mode has a switch and a **To** channel. Turn on **Send game-mode posts to their own channels** to use those channels; leave it off and every mode posts to the normal channels, still labelled. The **Posts** button on a mode’s row lists every kind it sends — the usual ones and the mode’s own events — each with its own switch.',
+        'Under that list, **Custom filters** make a mode post less than the main game. **Post drops rarer than 1 in…** sets its own rarity floor (blank = same as the main game): always-post items still post, but drops that only count for their value don’t. **Use its own level milestones** posts a level-up only if it matches both sets of rules.',
+      ],
+      note: {
+        tag: 'Stricter, never looser',
+        body: 'A mode’s filters can only take posts away. The plugin has already applied your main-game settings, so nothing a mode filter does can bring a post back.',
+      },
+    },
+
+    cleanup: {
+      title: 'Old webhooks from Dink or other bots',
+      body: [
+        'With the bot in your server, the Discord page lists every webhook in it that isn’t Anvil’s. **Coming from Dink?** offers **Use the same channels**, so **Set it up for me** posts where your old feeds did and nothing moves for your members.',
+        'Once your members are on Anvil, go to **Remove Dink’s old webhooks**, tick the ones to go and press **Remove … webhooks**, then **Yes, remove them**. That deletes them in Discord for good — it cannot be undone.',
+        'The list holds any webhook that isn’t Anvil’s, not just Dink’s. One you want to keep, like another bot’s feed? Press **Keep** and it leaves the list; **Show kept** and **Put back** bring it back. Keeping only hides it here — nothing changes in Discord.',
+      ],
+      note: {
+        tag: 'Needs Manage Webhooks',
+        body: 'The bot reads your server’s webhooks to find them. Without _Manage Webhooks_ on its role, the page says it can’t see them.',
+      },
+    },
+
+    announce: {
+      title: 'Post to Discord',
+      body: [
+        'Admins can post as the bot from **Post to Discord**, under **Clan** in the admin menu. Pick a **Channel**, write the **Message** and press **Send message**. Long text, like a rulebook, is split into several messages by itself.',
+        '**Send as an embed** is on by default and adds an optional **Title** and an **Accent colour**; turn it off for plain text. **Ping** picks a role, or @everyone, to mention, and Anvil asks before it sends.',
+        'Every post you send is listed under **Sent from here**. **Edit** changes it in Discord without pinging again, and **Delete** removes it.',
+      ],
+      note: {
+        tag: 'Admins only, with the bot',
+        body: 'It posts as Anvil’s bot, so connect your server first. Moderators don’t see it. It is the **Post to Discord** switch under **Clan settings → Features**; switched off, it leaves the menu.',
+      },
+    },
+
     quiet: {
       title: 'When it goes quiet',
       body: [
@@ -523,7 +575,7 @@ export const en = {
       checks: [
         {
           term: 'Is the bot actually in the server?',
-          body: 'The Discord bot tab says so directly. "Token valid" and "in your server" are different facts and the first does not imply the second — with a shared bot the token is always valid.',
+          body: '**Connection** on the Discord page says so directly. "Token valid" and "in your server" are different facts and the first does not imply the second — with a shared bot the token is always valid.',
         },
         {
           term: 'Is the server ID right?',
@@ -531,7 +583,7 @@ export const en = {
         },
         {
           term: 'Is the webhook still there?',
-          body: 'Deleting a Discord channel deletes its webhook, and Anvil keeps the dead URL. Re-create it on the Webhooks tab.',
+          body: 'Deleting a Discord channel deletes its webhook, and Anvil keeps the dead URL. Pick a channel for it again under **What goes where**.',
         },
         {
           term: 'Is the bot’s role high enough?',
@@ -910,7 +962,7 @@ export const en = {
     access: {
       title: 'Who can do what',
       intro:
-        'Everyone signs in with Discord — there are no passwords. The first admin is seeded from the server config; after that, an admin promotes people from **Clan → Members & staff**. Roles stack downward: everything a moderator can do, a treasurer and an admin can do too.',
+        'Everyone signs in with Discord — there are no passwords. The first admin is the owner, whoever created the clan; after that, an admin promotes people from **People → Staff & roles**. Roles stack downward: everything a moderator can do, a treasurer and an admin can do too.',
       rows: [
         {
           term: 'Admin',
@@ -919,7 +971,7 @@ export const en = {
         { term: 'Treasurer', body: 'everything a moderator can do, plus sign-up fees and payouts.' },
         {
           term: 'Moderator',
-          body: 'the day-to-day: roster, verifications, weekly competitions, schedule, feedback. Cannot create or edit events.',
+          body: 'the day-to-day: roster, verifications, proofs to check, weekly competitions, the schedule and clan events. Cannot create or edit events.',
         },
         {
           term: 'Editor',
@@ -938,7 +990,7 @@ export const en = {
     setup: {
       title: 'Name the clan, connect Discord',
       intro:
-        '**System → Setup** is a short wizard, and the dashboard keeps a five-step checklist until it’s done: name the clan, connect Discord, load your members, create an event, add tiles. Status is computed from real data, so a step only ticks when it’s genuinely finished.',
+        '**Settings → Finish setup** is a short wizard (it stays in the menu until you’re done), and the dashboard keeps a five-step checklist until it’s done: name the clan, connect Discord, load your members, create an event, add tiles. Status is computed from real data, so a step only ticks when it’s genuinely finished.',
       discord:
         'For Discord you have two routes, and they compose: give Anvil a **bot** and it can create webhooks, sync roles and nicknames, and build private team channels for you; give it a single **webhook URL** and it can post announcements and nothing else. Start with the webhook if you want to be live in two minutes, add the bot when you want the automation.',
       permsNote: {
@@ -952,8 +1004,8 @@ export const en = {
     channels: {
       title: 'Split posts across channels',
       body: [
-        'Everything posts to one master announcements channel by default. When that gets noisy, open **Discord → Where posts go** and give the loud categories their own homes — bingo events, weekly competitions, rare drops, deaths, PvP kills, combat achievements. Anything left blank falls back to the master channel, so you can split one category at a time.',
-        'With the bot connected you never touch a webhook URL: pick a channel from the dropdown and press **Post here**. On a busy event you can add a second webhook to the same channel — Anvil rotates between them so Discord’s rate limit doesn’t swallow posts.',
+        'Everything posts to one catch-all channel by default. When that gets noisy, open **Discord → What goes where** and give the loud categories their own homes — event posts, weekly competitions, rare drops, deaths, PvP kills, combat achievements. Anything left blank falls back to its catch-all, so you can split one category at a time.',
+        'With the bot connected you never touch a webhook URL: pick a channel from the row’s dropdown and it saves. On a busy event you can add a second webhook with **Add another** under **Post without a bot** — Anvil rotates between them so Discord’s rate limit doesn’t swallow posts.',
       ],
       clipsNote: {
         tag: 'The clips channel is different',
@@ -964,16 +1016,16 @@ export const en = {
     roster: {
       title: 'Get your roster in',
       body: [
-        'Clan membership comes from one place: an in-game roster sync. Install the [Anvil RuneLite plugin]({pluginGuide}) on an _admin’s_ account, open the in-game Collection Log’s **Bingo** tab, and press **Sync clan roster**. That pushes your actual in-game clan list to the site in one click.',
+        'Clan membership comes from one place: an in-game roster sync. Install the [Anvil RuneLite plugin]({pluginGuide}) on an _admin’s_ account, open your in-game clan window, and press the **Anvil** button in its title bar. That pushes your actual in-game clan list to the site in one click.',
         'Anyone who links or verifies an account on the website without being on that roster is a **guest** — tracked, visible, but not a member until an admin promotes them or the next roster sync picks them up. That’s deliberate: it means nobody can self-promote into your clan by typing a name.',
-        'You can also add someone by hand from **Clan → Members & staff**, including signing them up to an event on their behalf when they can’t reach the site.',
+        'You can also add someone by hand from **People → + Add Manually**, and sign them up to an event on their behalf with **Add member** on the event’s **Sign-ups** page when they can’t reach the site.',
       ],
     },
 
     board: {
       title: 'Create your first board',
       intro:
-        '**Events → All events → New event**. Pick a format first — it decides how the board is scored and what the rest of the form asks you for.',
+        '**Events → All events → + New event**. Pick a format first — it decides how the board is scored and what the rest of the form asks you for.',
       formats: {
         classic: { label: 'Classic bingo', blurb: 'A square N×N grid — teams complete tiles in any order, each worth 1.' },
         leagues: { label: 'Leagues bingo', blurb: 'A task list where each tile carries a point value — any number of tiles.' },
@@ -1011,13 +1063,13 @@ export const en = {
     tiles: {
       title: 'Fill the board',
       body: [
-        'The event’s **Tiles** tab is where a board becomes a bingo. Each tile is one _kind_ of task, and the kind decides what the plugin watches for: a drop, a boss kill-count, skill XP, an NPC kill, a timed clear, an achievement diary, a Combat Achievement, a collection-log unlock, a PvP kill, an inventory gain, or a deathless run. Manual tiles — the ones a human verifies from a screenshot — are always an option too.',
+        'The event’s **Board & tiles** page is where a board becomes a bingo. Each tile is one _kind_ of task, and the kind decides what the plugin watches for: a drop, a boss kill-count, skill XP, an NPC kill, a timed clear, an achievement diary, a Combat Achievement, a collection-log unlock, a PvP kill, an inventory gain, or a deathless run. Manual tiles — the ones a human verifies from a screenshot — are always an option too.',
         'For a full board, author in bulk: export the sheet, fill it in a spreadsheet, and import it back. CSV and .xlsx both round-trip, and rows map to positions, so you can rewrite a whole 25-tile grid in one paste.',
       ],
       rows: [
         {
           term: 'Difficulty tiers',
-          body: 'point values map to named bands (easy → elite). Edit the bands in Rules & scoring if your clan grades differently.',
+          body: 'point values map to named bands (easy → elite). Edit the bands in **Clan settings → Rules & scoring → Difficulty & balance** if your clan grades differently.',
         },
         {
           term: 'Balance auditor',
@@ -1035,7 +1087,7 @@ export const en = {
     teams: {
       title: 'Teams and the draft',
       body: [
-        'The **Teams & Draft** tab adapts to the format you chose: a format that doesn’t use teams skips straight past it. For a normal team bingo you create the teams, decide who captains them, and either assign players yourself or run a live draft.',
+        'The **Teams & draft** page adapts to the format you chose: a format that doesn’t use teams skips straight past it. For a normal team bingo you create the teams, decide who captains them, and either assign players yourself or run a live draft.',
         'Captains draft from the sign-up pool in your chosen order, and each captain sees the answers people gave on the sign-up form — frozen as they were submitted, so nobody edits their “hours per week” after being picked.',
       ],
       placementIntro:
@@ -1085,7 +1137,7 @@ export const en = {
         },
         {
           term: 'Announcements',
-          body: 'System → Announce posts a message to your channels mid-event without you writing a webhook by hand.',
+          body: '**Post to Discord** (under **Clan** in the menu) posts a message to any channel as the bot mid-event without you writing a webhook by hand.',
         },
       ],
       missionNote: {
@@ -1095,9 +1147,9 @@ export const en = {
       startProofNote: {
         tag: 'Stopping pre-event stacking',
         body: [
-          'Turn on **Starting shot** (event → Overview) and every player has to file one screenshot taken after the event goes live, at a location Anvil draws at the start moment — so nobody can be sat on a week of banked clues and caskets at T0. The location is announced with the start; each player’s keyword is personal, derived from the draw, and doesn’t exist until the event starts, so it can’t be staged in advance by anyone.',
+          'Turn on **Starting shot** (event → Home → **Extras**) and every player has to file one screenshot taken after the event goes live, at a location Anvil draws at the start moment — so nobody can be sat on a week of banked clues and caskets at T0. The location is announced with the start; each player’s keyword is personal, derived from the draw, and doesn’t exist until the event starts, so it can’t be staged in advance by anyone.',
           'Pin the spots on the world map (the pool editor has one) and the plugin checks players are actually standing there instead of just being told to. You can also require a **fresh session** — 15 minutes by default: hiscores only save when a player logs out, so making everyone relog right before their shot is what makes the starting totals behind every XP and KC tile honest.',
-          'Plugin users press one button. Everyone else types their keyword in-game and uploads on My Team. You choose what happens to a credit from someone who hasn’t filed: flag it for review (default) or refuse it until they do. The same Overview panel is the review list — plugin captures with a verified keyword arrive already accepted, so in practice you’re only eyeballing the phone players.',
+          'Plugin users press one button. Everyone else types their keyword in-game and uploads on My Team. You choose what happens to a credit from someone who hasn’t filed: flag it for review (default) or refuse it until they do. The same panel on the event’s Home is the review list — plugin captures with a verified keyword arrive already accepted, so in practice you’re only eyeballing the phone players.',
         ],
       },
     },
@@ -1109,7 +1161,7 @@ export const en = {
       rows: [
         {
           term: 'Payouts',
-          body: 'the event’s Payouts tab turns the prize pool into a list of who gets what, tracked as you pay it out.',
+          body: 'the event’s **Prizes** page turns the prize pool into a list of who gets what, tracked as you pay it out.',
         },
         {
           term: 'Recap',
@@ -1120,8 +1172,8 @@ export const en = {
           body: 'ask the clan what they thought. Build it on the Survey tab; players answer once the event ends and only staff see the results.',
         },
         {
-          term: 'Save as template',
-          body: 'keep the board you just built. Next bingo starts from it instead of an empty grid.',
+          term: 'Save as a template',
+          body: 'keep the board you just built, from the event’s **Settings → More**. Next bingo starts from it instead of an empty grid.',
         },
       ],
       federation:
@@ -1170,9 +1222,9 @@ export const en = {
     team: {
       title: 'Make the team first',
       body: [
-        'Open your event and go to the **Teams & Draft** tab. Create one team per clan you’ve invited and name it after them — the name is what their players see on the sign-up form, so “Ironforge” beats “Team 2”.',
+        'Open your event and go to the **Teams & draft** page. Create one team per clan you’ve invited and name it after them — the name is what their players see on the sign-up form, so “Ironforge” beats “Team 2”.',
         'You do _not_ need to run a draft. Invite links and a draft are alternatives: a draft distributes a shared sign-up pool, a link seats people directly. On a pure clan-v-clan most hosts create the teams, hand out one link each, and never open the draft at all.',
-        'Then open the team itself — **Teams & Draft → the team** — which is where both of the next two steps live.',
+        'Then open the team itself — **Teams & draft → the team** — which is where both of the next two steps live.',
       ],
       captainNote: {
         tag: 'Captain first',
@@ -1186,7 +1238,7 @@ export const en = {
         'The **Team staff** panel on the team page is how the visiting clan’s own moderator gets to work without you granting them anything on your site. Press **Add someone**, search for them, add a note like “Ironforge’s mod” so the next admin knows why they’re there, and press **Give a seat**.',
       ],
       figure: {
-        caption: 'Event → Teams & Draft → the team → Team staff',
+        caption: 'Event → Teams & draft → the team → Team staff',
         alt: 'The Team staff panel with one seat granted and the add-someone search open',
         legend: [
           {
@@ -1229,7 +1281,7 @@ export const en = {
         'Still on the team page, the **Invite links** panel makes the link. Two fields decide what the link promises, and both take `0` to mean “don’t promise anything”.',
       ],
       figure: {
-        caption: 'Event → Teams & Draft → the team → Invite links',
+        caption: 'Event → Teams & draft → the team → Invite links',
         alt: 'The Invite links panel with the seats and expiry fields, the Make a link button, and one live link listed',
         legend: [
           {
@@ -1444,7 +1496,7 @@ export const en = {
         'Clicking out a 25-tile grid is fine. Clicking out a 200-task Leagues board is not, and neither is proof-reading it afterwards. The Tiles tab has a round trip built for exactly this.',
       ],
       steps: [
-        '**Download spreadsheet** on the event’s **Tiles** tab. You get an .xlsx of the board as it stands, with dropdowns, the item list and the column instructions on their own sheets.',
+        '**Download spreadsheet** on the event’s **Board & tiles** page. You get an .xlsx of the board as it stands, with dropdowns, the item list and the column instructions on their own sheets.',
         'Edit it. One row per tile; row order is tile order.',
         '**Upload CSV / Excel** on the same tab. Only the **Tiles** sheet is read.',
       ],
@@ -1675,7 +1727,7 @@ export const en = {
       { strong: '3 modifiers', rest: 'what a completion is worth' },
     ],
     footnote:
-      'Format is fixed at creation but changeable afterwards from the event’s Overview tab; reveal policy and the scoring modifiers can be changed any time before the tiles they affect are revealed.',
+      'Format is fixed at creation but changeable afterwards from the event’s Settings → Event tab; reveal policy and the scoring modifiers can be changed any time before the tiles they affect are revealed.',
 
     shape: {
       title: 'The shape of the board',
@@ -1822,7 +1874,7 @@ export const en = {
       title: 'The second signature',
       body: [
         'A fee sits at **collected** until a _different_ staff member confirms it arrived. Whoever handled the money cannot also be the person who signs off that it turned up — that is the whole control, and it is why the site refuses a collector’s own confirmation rather than merely discouraging it.',
-        'How many signatures a fee needs is a clan setting, from zero to five. Zero exists for a real reason: in a clan where the treasurer _is_ the owner, there is nobody else to sign, and “34 fees waiting on a second signature” becomes a queue that can never be cleared and permanently the loudest thing on the dashboard. At zero, marking a fee paid **is** the sign-off.',
+        'How many signatures a fee needs is a clan setting (**Clan settings → Rules & scoring → Fee sign-off**), from zero to five. Zero exists for a real reason: in a clan where the treasurer _is_ the owner, there is nobody else to sign, and “34 fees waiting on a second signature” becomes a queue that can never be cleared and permanently the loudest thing on the dashboard. At zero, marking a fee paid **is** the sign-off.',
         'Set it to one — the default — if you have two people. Set it to zero if you honestly do not, and set it higher only if your clan has both the staff and the reason.',
       ],
     },
@@ -1830,7 +1882,7 @@ export const en = {
     pay: {
       title: 'Paying out',
       body: [
-        'When the event ends, the event’s **Payouts** tab turns the pool into a list of people. Generate it and you get one row per recipient, not per team: a winning team’s prize divides equally across its members so that paying out is a list of names and numbers rather than an arithmetic problem at midnight.',
+        'When the event ends, the event’s **Prizes** page turns the pool into a list of people. Generate it and you get one row per recipient, not per team: a winning team’s prize divides equally across its members so that paying out is a list of names and numbers rather than an arithmetic problem at midnight.',
         'Amounts start from a suggested split — winner-heavy, and the more paid places you set the flatter it gets — and every row is editable. The suggestion is a starting point, not a policy.',
         'Then pay them, ticking rows off as you go. The point is that a week later anybody can look at the list and see who was paid what, rather than reconstructing it from Discord scrollback.',
       ],
@@ -1927,7 +1979,7 @@ export const en = {
         },
         {
           term: 'Several people together',
-          body: 'pick all of them, type the total and press **Split**, then adjust any share by hand. It writes one line each rather than one line with a list, so each of them shows up in the top donors under their own name.',
+          body: 'pick all of them, type the total and press **Split … ways**, then adjust any share by hand. It writes one line each rather than one line with a list, so each of them shows up in the top donors under their own name.',
         },
       ],
       note: {
@@ -1951,7 +2003,7 @@ export const en = {
         },
         {
           term: 'A board’s prize pool',
-          body: 'a bingo divides its own pot across placements, so the coffer just hands it one number. Event → **Payouts** → *From the clan coffer*. It joins the entry fees and anything you added by hand, and the split across places is set on that same page. You also choose whether the coffer **holds** that gp now or only records the promise — it has not left yet, and a board six weeks out does not need half the pot frozen until then.',
+          body: 'a bingo divides its own pot across placements, so the coffer just hands it one number. Event → **Prizes** → *From the clan coffer*. It joins the entry fees and anything you added by hand, and the split across places is set on that same page. You also choose whether the coffer **holds** that gp now or only records the promise — it has not left yet, and a board six weeks out does not need half the pot frozen until then.',
         },
       ],
       note: {
@@ -1984,7 +2036,7 @@ export const en = {
       ],
       note: {
         tag: 'Tell the clan, in a channel',
-        body: 'Point the **Coffer channel** at a Discord channel under Admin → Discord → Where posts go and every movement posts with the balance it leaves behind. It is the one feed with no fallback: leave it blank and nothing about the money is posted anywhere. See [Anvil in Discord]({discordGuide}).',
+        body: 'Point the **Coffer ledger** at a Discord channel under Admin → Discord → What goes where → **Staff only** and every movement posts with the balance it leaves behind. It is the one feed with no fallback: leave it blank and nothing about the money is posted anywhere. See [Anvil in Discord]({discordGuide}).',
       },
     },
 
@@ -2025,7 +2077,7 @@ export const en = {
         'account verifications — the XP challenge and manual review',
         'submissions and proof screenshots',
         'weekly competitions and the schedule',
-        'feedback from members',
+        'clan calendar events',
       ],
       cantIntro: 'What they cannot do, on purpose:',
       cantList: [
@@ -2229,7 +2281,7 @@ export const en = {
       rows: [
         {
           term: 'No Anvil commands in the list',
-          body: 'the bot was invited without its commands — that is a separate permission, and older invite links only asked for one. An admin re-runs the invite link from Admin → Integrations → Discord bot. It doesn’t kick the bot or reset anything. Newly added commands can take up to an hour to appear.',
+          body: 'the bot was invited without its commands — that is a separate permission, and older invite links only asked for one. An admin re-runs **Invite / re-invite the bot** from Admin → Discord → **Connection**. It doesn’t kick the bot or reset anything. Newly added commands can take up to an hour to appear.',
         },
         {
           term: '“The application did not respond”',
@@ -2445,7 +2497,7 @@ export const en = {
     who: {
       title: 'Choose who can join',
       body: [
-        'Every event starts open to **Anyone**. To keep it for your community, open the event’s **Settings** → **Who can join?** and pick one or more choices. The same choices are on the first-event screen.',
+        'Every event starts open to **Anyone**. To keep it for your community, open the event’s **Settings** → **Viewers** → **Who can join?** and pick one or more choices. The same choices are on the first-event screen.',
         'If you pick more than one, **any one of them is enough**. A follower OR a server booster gets in.',
       ],
       intro: 'Each choice, and what a viewer has to do:',
@@ -2496,7 +2548,7 @@ export const en = {
     approve: {
       title: 'Say yes to each player (optional)',
       body: [
-        'Want to pick who plays? Open the event’s **Settings** → **Who can play** → **Who can enter it** and choose **Ask me about everyone**. Press **Save changes**.',
+        'Want to pick who plays? Open the event’s **Settings** → **Viewers** → **Who can enter** and choose **Ask me about everyone**. Press **Save changes**.',
         'Now viewers press **Ask to join** instead of **Join**. They still have to pass your **Who can join?** choices first.',
         'Their requests show on **Your events** as **N waiting for you**. Click it, or open the event’s **Sign-ups** tab. The list at the top is called **Waiting for your yes**. Accept or turn down each one.',
       ],
@@ -2583,7 +2635,7 @@ export const en = {
       body: [
         'Your space is unlisted when you make it. Only people with your link can find it.',
         'Open **Settings** → **Advertise on Anvil** and turn it on. Your space shows in Anvil’s creators list, and your new events show on `{apex}/events`.',
-        'To list one event only, open its **Settings** → **Who can play** → **Advertise on Anvil**. It shows while the event is upcoming or live.',
+        'To list one event only, open its **Settings** → **Viewers** → **List on Anvil**. It shows while the event is upcoming or live.',
         'An event with no dates shows under **Open to join**, marked “Open now · starts when the host starts it”.',
       ],
     },
@@ -2790,7 +2842,7 @@ export const en = {
     on: {
       title: 'Turn on Streaming',
       body: [
-        'Go to Admin → **Clan settings** → **Streaming** and turn it on.',
+        'Go to Admin → **Clan settings** → **Profile** and turn on **Streaming**.',
         'Only a public clan can stream. Viewers have to open your event page, and a private clan hides it from them. A clan with Streaming on can’t go private until you turn it off.',
         'Once it is on, connect your Twitch, YouTube or Kick channel right below it.',
       ],
@@ -2800,7 +2852,7 @@ export const en = {
       title: 'Open an event to viewers',
       body: [
         'Every event stays **Members only** until you say otherwise. That is how it worked before.',
-        'Open the event’s **Settings** → **Who can join?** and pick **Members and viewers**. Then choose **Which viewers?**: anyone, or followers, subs, a Discord role and so on. Press **Save**.',
+        'Open the event’s **Settings** → **Entry & co-hosts** → **Who can join?** and pick **Members and viewers**. Then choose **Which viewers?**: anyone, or followers, subs, a Discord role and so on. Press **Save**.',
         'These checks are for viewers only. Your clan members always get in, as before.',
       ],
     },
@@ -2818,7 +2870,7 @@ export const en = {
       title: 'Your stream tools',
       body: [
         'The streamer tools work the same as in a creator space: verified channel links, **Who can join?** checks, the OBS overlay and `!join` in chat.',
-        'The overlay links for a clan event are in the event’s **Settings**, under **Who can play** → **Stream overlay**. `!join` and the overlay mark are under **Clan settings** → **Streaming**.',
+        'The overlay links for a clan event are in the event’s **Settings** → **Stream** → **Stream overlay**. `!join` and the overlay mark are under **Clan settings** → **Profile** → **Streaming**.',
         'The [creator guide]({creatorsGuide}) explains each one step by step.',
         'Stream highlights work here too: with Twitch or YouTube connected, Anvil clips the big moments of events open to viewers. `!join` in Kick chat has its own switch in the **Kick channel** box.',
       ],

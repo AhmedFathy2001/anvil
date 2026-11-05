@@ -45,6 +45,7 @@ export default async function ClanGuide({ lang }: { lang: string }) {
     { id: 'members', n: 5, title: c.members.title },
     { id: 'first', n: 6, title: c.first.title },
     { id: 'together', n: 7, title: c.together.title },
+    { id: 'boosts', n: 8, title: c.boosts.title },
   ];
 
   return (
@@ -52,7 +53,7 @@ export default async function ClanGuide({ lang }: { lang: string }) {
       eyebrow={c.eyebrow}
       title={c.title}
       sections={SECTIONS}
-      minutes={4}
+      minutes={5}
       locale={{ code: locale.code, dir: locale.dir }}
       labels={t.common}
       languages={languages}
@@ -102,6 +103,11 @@ export default async function ClanGuide({ lang }: { lang: string }) {
       <Section id="together" n={7} title={c.together.title} labels={t.common}>
         {paragraphs(c.together.body, v)}
         <Note tag={c.together.note.tag}>{rt(c.together.note.body, v)}</Note>
+      </Section>
+
+      <Section id="boosts" n={8} title={c.boosts.title} labels={t.common}>
+        {paragraphs(c.boosts.body, v)}
+        <Note tag={c.boosts.note.tag}>{rt(c.boosts.note.body, v)}</Note>
       </Section>
     </GuideShell>
   );

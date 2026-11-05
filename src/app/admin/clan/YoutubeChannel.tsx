@@ -61,7 +61,7 @@ export default function YoutubeChannel() {
   }
 
   return (
-    <section className="rounded-xl border border-card-border bg-card-bg p-5">
+    <section id="youtube-channel" className="scroll-mt-24 rounded-xl border border-card-border bg-card-bg p-5">
       <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">
         <span className="h-5 w-1 rounded-full bg-gold" />
         YouTube channel

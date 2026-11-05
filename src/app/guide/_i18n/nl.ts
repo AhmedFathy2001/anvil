@@ -187,7 +187,7 @@ const nl: PartialGuideDict = {
         '**Synchroniseer je clanlijst.** Open in RuneLite de instellingen van de Anvil-plugin. Zet **Keep the clan roster in sync** aan. Eén admin doet dit één keer, in het spel. Dit vervangt je Wise Old Man-groep.',
         '**Start een Skill of Boss of the Week.** Ga naar Admin → All events → **+ New event** en kies Skill of the Week of Boss of the Week. Iedereen op de clanlijst doet automatisch mee. Dit vervangt de Wise Old Man-wedstrijden.',
         '**Vertel het je leden.** Ga naar Admin → Discord → **Tell your members** → **Post it**. De bot post de stappen voor spelers voor je.',
-        '**Een week later: opruimen.** Ga naar Admin → Discord, vink de oude webhooks van Dink aan en klik op **Remove**. Daarna kan niets meer dubbel posten.',
+        '**Een week later: opruimen.** Ga naar Admin → Discord → **Remove Dink’s old webhooks**, vink aan welke weg mogen, klik op **Remove … webhooks** en daarna op **Yes, remove them**. Daarna kan niets meer dubbel posten. Klik op **Keep** bij elke webhook die je met rust wilt laten.',
       ],
     },
 
@@ -244,7 +244,7 @@ const nl: PartialGuideDict = {
         rest: 'tot een werkende clan',
       },
     ],
-    footnote: 'Dit kun je later allemaal aanpassen via Admin → Clan, behalve het adres — daar is het nu even over nadenken waard.',
+    footnote: 'Dit kun je later allemaal aanpassen via Admin → **Clan settings**, behalve het adres — daar is het nu even over nadenken waard.',
     before: {
       title: 'Voordat je begint',
       body: [
@@ -254,7 +254,7 @@ const nl: PartialGuideDict = {
       ],
       note: {
         tag: 'Jij wordt de eigenaar',
-        body: 'Eigenaar is de ene rol die niemand je kan afnemen, en die gaat naar wie de clan aanmaakt. Voeg daarna staf toe via Admin → Clan; zie [Op het rooster]({moderatorGuide}).',
+        body: 'Eigenaar is de ene rol die niemand je kan afnemen, en die gaat naar wie de clan aanmaakt. Voeg daarna staf toe via Admin → **People** → **Staff & roles**; zie [Op het rooster]({moderatorGuide}).',
       },
     },
     create: {
@@ -288,27 +288,27 @@ const nl: PartialGuideDict = {
     },
     setup: {
       title: 'De installatiewizard',
-      intro: 'Vier dingen staan tussen een verse clan en een lopend event. De wizard loopt ze op volgorde af en slaat over wat je al gedaan hebt.',
+      intro: 'Drie stappen staan tussen een verse clan en een lopend event, en de wizard loopt ze op volgorde af en slaat over wat je al gedaan hebt. Het bord komt direct daarna.',
       steps: [
         {
-          term: 'Naam geven in Discord',
+          term: 'Je clan',
           body: 'Je weergavenaam, je clannaam in het spel, en een uitnodigingslink naar je server. Die uitnodiging is wat aanmeldpagina’s en gidsen naar je laat verwijzen.',
         },
         {
           term: 'Discord koppelen',
-          body: 'Eén gedeelde bot, dus geen applicatie te registreren en geen token te plakken. Keur hem één keer goed en hij kan in je kanalen posten en je rollen lezen.',
+          body: 'Eén gedeelde bot, dus geen applicatie te registreren en geen token te plakken. Druk op **Connect your bot** en keur hem één keer goed, kies dan **A few channels** of **Just one channel** en druk op **Set it up for me** — de bot maakt de kanalen voor je aan.',
         },
         {
-          term: 'Geef hem een kanaal',
-          body: 'Een aankondigingskanaal voor eventposts. Splits eventueel de feeds van de plugin uit: zeldzame drops in het ene kanaal, doden in het andere, zodat ze elkaar niet overstemmen.',
+          term: 'Haal je leden binnen',
+          body: 'Installeer de plugin, meld je aan met Discord, open dan in het spel je clanvenster en druk op de **Anvil**-knop in de titelbalk. Niemand kan zich voor een event aanmelden tot je ledenlijst binnen is.',
         },
         {
           term: 'Maak een bord',
-          body: 'Het eerste event. Kies een formaat, voeg tegels toe, open aanmeldingen — dat is [Je eerste event draaien]({adminGuide}), en veruit de langste van de vier.',
+          body: 'De wizard eindigt op **Create your first event →**. Kies een formaat, voeg tegels toe, open aanmeldingen — dat is [Je eerste event draaien]({adminGuide}), en veruit de langste stap.',
         },
       ],
       after: [
-        'Je kunt de wizard helemaal overslaan en alles later via Admin → Clan doen. Hij bestaat omdat de volgorde ertoe doet als je het nooit eerder gedaan hebt: Discord vóór kanalen, kanalen vóór een bord dat erin wil posten.',
+        'Je kunt de wizard helemaal overslaan met **Skip setup** en alles later doen via Admin → **Clan settings** en Admin → **Discord**. Hij bestaat omdat de volgorde ertoe doet als je het nooit eerder gedaan hebt: Discord vóór kanalen, leden vóór een bord waarvoor ze zich moeten aanmelden.',
       ],
     },
     members: {
@@ -327,7 +327,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Met de hand',
-          body: 'Via Admin → Clan voeg je namen één voor één toe, voor de persoon op mobiel of de officiële client die de plugin helemaal niet kan draaien.',
+          body: 'Via Admin → **People** → **+ Add Manually** voeg je namen één voor één toe, voor de persoon op mobiel of de officiële client die de plugin helemaal niet kan draaien.',
         },
       ],
       note: {
@@ -355,6 +355,18 @@ const nl: PartialGuideDict = {
         body: 'Meedoen aan andermans event is gratis, en er zelf een organiseren ook. Een clan die alleen ooit op andermans borden verschijnt heeft nooit meer nodig dan zijn eigen gratis clan.',
       },
     },
+    boosts: {
+      title: 'Clanboosts',
+      body: [
+        'Leden die Anvil Supporter op **Champion** (één boost) of **Patron** (twee) betalen, kunnen de clan boosten via hun eigen **Settings → Clan boosts**. Een boost telt zodra hun plek in de clan 14 dagen oud is, en van één persoon tellen er nooit meer dan twee.',
+        'Waar je staat zie je op Admin → **Clan settings** → **Boosts**: het level van de clan, hoeveel boosts er meetellen en hoeveel het volgende level er nog nodig heeft. Level 1 vraagt 3 boosts, Level 2 vraagt er 8 en Level 3 vraagt er 15. Zakken de boosts onder een level, dan blijven de voordelen ervan eerst nog een week.',
+        'Level 1 zet een **Boosted**-badge op je clanpagina, op je kaart in de Clan Hall en in de zoekresultaten, zet je in de Clan Hall boven clans zonder boost en geeft je naam een kleurverloop. Level 2 voegt een plek in de Featured-rij van de Clan Hall toe, speelt je geanimeerde banner af en ontgrendelt een **Recruiting line**: één zin, tot 140 tekens, die bezoekers te zien krijgen. Level 3 voegt een Spotlight bovenaan de Clan Hall toe en één **Recruitment post in the Anvil Discord** per maand, tot 500 tekens, één keer verstuurd met **Post to the Anvil Discord**, met een link naar je clanpagina en zonder dat iemand gepingd wordt.',
+      ],
+      note: {
+        tag: 'Alleen het uiterlijk',
+        body: 'Boosts veranderen hoe de clan eruitziet en waar hij vermeld staat. Ze veranderen nooit een rang, een score, je zetels of je abonnement.',
+      },
+    },
   },
 
   discord: {
@@ -377,12 +389,12 @@ const nl: PartialGuideDict = {
         rest: 'elke feed staat uit tot je hem ergens op richt',
       },
     ],
-    footnote: 'Alles hier staat onder Admin → Instellingen, verdeeld over de tabbladen Discord-bot, Webhooks, Rollen & kanalen en Meldingen.',
+    footnote: 'Alles hier staat op Admin → **Discord**: bovenaan de snelle installatie, daaronder **More settings** — Connection, What goes where, Event posts, Roles & nicknames, Team channels, Commands en Post without a bot.',
     bot: {
       title: 'Eén bot, al gebouwd',
       body: [
         'Er is geen Discord-applicatie aan te maken, geen token te genereren en geen geheim te plakken. Anvil draait één bot die elke clan deelt, dus koppelen is een uitnodiging en verder niets.',
-        'Je kunt nog steeds je eigen meebrengen — plak een token onder **Discord-bot** en die wordt in plaats daarvan gebruikt. Alleen de moeite waard als je wilt dat de bot de naam en avatar van je clan draagt in de ledenlijst; alles in deze gids werkt hoe dan ook hetzelfde.',
+        'Je kunt nog steeds je eigen meebrengen — plak een token onder **Use your own bot instead (advanced)** en die wordt in plaats daarvan gebruikt. Alleen de moeite waard als je wilt dat de bot de naam en avatar van je clan draagt in de ledenlijst; alles in deze gids werkt hoe dan ook hetzelfde.',
       ],
       permissions: [
         {
@@ -391,7 +403,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Webhooks beheren',
-          body: 'Zodat de knop **Aanmaken** op het tabblad Webhooks er een voor je kan maken, in plaats van dat jij URL’s met de hand uit Discord kopieert.',
+          body: 'Zodat **Set it up for me** en **Post here** webhooks voor je kunnen maken, in plaats van dat jij URL’s met de hand uit Discord kopieert, en zodat Anvil oude webhooks voor je kan opsporen om te verwijderen.',
         },
         {
           term: 'Rollen beheren',
@@ -411,7 +423,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Bijnaam wijzigen',
-          body: 'Alleen als je de bot de naam van je clan geeft onder **Settings → Bot appearance**. Het verandert alleen de naam van de bot in jouw server.',
+          body: 'Alleen als je de bot de naam van je clan geeft onder **Connection → Bot appearance in your server**. Het verandert alleen de naam van de bot in jouw server.',
         },
       ],
       note: {
@@ -425,11 +437,11 @@ const nl: PartialGuideDict = {
       steps: [
         {
           term: 'Nodig de bot uit',
-          body: 'Admin → Instellingen → **Discord-bot** → **Bot uitnodigen / opnieuw uitnodigen**. De link selecteert je server vooraf zodra het ID ingesteld is, dus je kunt hem niet per ongeluk aan de verkeerde toevoegen.',
+          body: 'Admin → **Discord** → **Connect your Discord server** (of **Add Anvil to Discord**). Discord vraagt aan welke server je Anvil wilt toevoegen en stuurt je daarna hierheen terug, dus je kunt hem niet per ongeluk aan de verkeerde toevoegen. Later staat **Invite / re-invite the bot** onder **More settings → Connection**.',
         },
         {
           term: 'Stel het server-ID in',
-          body: 'Rechtsklik op je servericoon in Discord → **Server-ID kopiëren** (vereist Ontwikkelaarsmodus, onder Discords eigen geavanceerde instellingen) en plak het. Dit veld maakt de koppeling specifiek van jou.',
+          body: 'Alleen als de knop het niet kan: open **Can’t use the button? Enter the server ID**, rechtsklik op je servericoon in Discord → **Copy Server ID** (vereist Ontwikkelaarsmodus, onder Discords eigen geavanceerde instellingen), plak het in **Your Discord server’s ID** en druk op **Save**. Dit veld maakt de koppeling specifiek van jou.',
         },
       ],
       after: [
@@ -444,20 +456,20 @@ const nl: PartialGuideDict = {
       title: 'Webhooks instellen',
       body: [
         'Anvil post via **webhooks**, één per kanaal, en elk daarvan is optioneel. Er wordt nergens iets gepost tot je een feed op een kanaal richt — een verse clan is stil met opzet, niet per ongeluk.',
-        'Open **Beheer → Instellingen → Webhooks** en begin met de hoofdwebhook voor aankondigingen. Is de bot verbonden, kies dan een kanaal, druk op **Webhook maken** en daarna op **Testen**. Zonder bot open je in Discord bij het kanaal **Kanaal bewerken → Integraties → Webhooks**, maak je er een, kopieer je de URL, plak je die in Anvil en druk je op **Toevoegen**. Een webhook-URL kan in het kanaal posten, dus behandel hem als een wachtwoord; verwijder hem in Discord en maak een nieuwe als hij uitlekt. **Webhook maken** vervangt de bestemming, terwijl **Nog een toevoegen** beide bewaart en drukke posts over ze verdeelt.',
+        'Zit de Anvil-bot in je server, dan maakt **Set it up for me** bovenaan **Admin → Discord** de kanalen aan en richt hij elke feed erop. Wil je het met de hand doen, open dan **More settings → What goes where** en begin met het **Catch-all channel** op **Clan & events**, daarna de **In-game catch-all** op **In-game (plugin)**: kies een kanaal uit de keuzelijst en het wordt opgeslagen. Zonder bot open je in Discord bij dat kanaal **Edit Channel → Integrations → Webhooks**, maak je er een, kopieer je de URL, kies je **Paste a webhook…** in de keuzelijst, plak je hem en druk je op **Save**. Een webhook-URL kan in zijn kanaal posten, dus behandel hem als een wachtwoord; verwijder hem in Discord en maak een nieuwe als hij uitlekt. **Test**, en **Add another** om drukke posts over twee webhooks te verdelen, staan onder **Post without a bot**.',
       ],
       feeds: [
         {
-          term: 'Aankondigingen',
-          body: 'De belangrijkste. Starts en eindes van events, aanmeldingen die opengaan, standen, weekresultaten. Stel alleen deze in en je hebt een werkende clan.',
+          term: 'Catch-all channel',
+          body: 'De belangrijkste, op het tabblad **Clan & events**. Starts en eindes van events, aanmeldingen die opengaan, standen, weekresultaten — alles wat de site post zonder eigen kanaal. Stel alleen deze in en je hebt een werkende clan.',
         },
         {
-          term: 'Standaard voor de plugin',
-          body: 'Waar alles uit het spel heen gaat dat geen eigen kanaal heeft. Stel deze als tweede in.',
+          term: 'In-game catch-all',
+          body: 'Op het tabblad **In-game (plugin)**: waar alles uit het spel heen gaat dat geen eigen kanaal heeft. Stel deze als tweede in.',
         },
         {
           term: 'De gesplitste feeds',
-          body: 'Zeldzame drops, pets, doden, collection log, combat achievements, levels, quests, diaries, PvP-kills en Leagues krijgen elk een eigen kanaal. Dat splitsen is het verschil tussen een feed die mensen lezen en een die ze dempen.',
+          body: 'Eventposts, borden die je samen met andere clans organiseert, Skill & boss of the week en activiteiten uit de clanagenda kunnen afsplitsen van de catch-all; zeldzame drops, pets, collection log, levels, combat achievements, quests, diaries, doden en PvP-kills kunnen afsplitsen van de in-game catch-all. Wijzigingen in de ledenlijst, goedgekeurde aanmeldingen en het kasboek staan op **Staff only**. Lege gesplitste feeds vallen terug op hun catch-all. De kas is de uitzondering: leeg betekent helemaal geen posts over geld. Leagues en andere modi hebben hun eigen tabblad **Game modes**.',
         },
       ],
       note: {
@@ -468,12 +480,12 @@ const nl: PartialGuideDict = {
     roles: {
       title: 'Rollen en bijnamen',
       body: [
-        'Beide synchronisaties staan uit tot je ze inschakelt onder **Beheer → Instellingen → Rollen & kanalen**. Zet rolsynchronisatie aan, laat automatisch rang op naam koppelen ingeschakeld, kies eventueel algemene leden- en gastrollen, sla op en druk op **Rollen & bijnamen nu synchroniseren**. Iedereen moet ook een gekoppeld Discord-account hebben. Voor automatisch koppelen moet de Discord-rol dezelfde naam hebben als de rang in het spel: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` of `Recruit`; eigen rangen werken met dezelfde naam. Hoofdletters maken niet uit en onderstrepingstekens tellen als spaties, maar extra woorden komen niet overeen — `General` werkt, `OSRS General` niet. Algemene leden- en gastrollen kies je apart en mogen elke naam hebben.',
+        'Beide synchronisaties staan uit tot je ze inschakelt onder **Admin → Discord → Roles & nicknames**, en beide worden aangestuurd door de ledenlijst. Zet **Enable Discord role sync** aan, laat **Auto-match in-game rank → Discord role by name** aanstaan, kies eventueel algemene **Member roles** en **Guest roles**, sla op en druk op **Sync roles & nicknames now**. Iedereen heeft ook een gekoppelde Discord-identiteit nodig; het synchronisatierapport noemt iedereen die het niet kon thuisbrengen.',
       ],
       ways: [
         {
           term: 'Rolsynchronisatie',
-          body: 'Koppel je rangen uit het spel aan Discord-rollen en Anvil houdt ze gelijk. Er zijn ook losse rollen voor leden, gasten, captains en het lopende event, zodat je de juiste mensen kunt pingen zonder met de hand een lijst bij te houden.',
+          body: 'Voor automatisch koppelen van rangen moet de naam van de Discord-rol overeenkomen met de clanrang in het spel: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` of `Recruit`. Eigen rangen werken ook, als hun Discord-rol precies diezelfde naam heeft. Hoofdletters maken niet uit en onderstrepingstekens tellen als spaties, maar extra woorden komen niet overeen: `General` werkt, `OSRS General` niet. Leden- en gastrollen kies je apart, dus die mogen elke naam hebben.',
         },
         {
           term: 'Bijnaamsynchronisatie',
@@ -489,7 +501,7 @@ const nl: PartialGuideDict = {
       title: 'Slash-commando’s',
       body: [
         'De bot beantwoordt `/bingo` in je server (het bord, de stand, de regels, je eigen kaart) plus clancommando’s zoals `/sotw`, `/stats` en `/coffer`. Ze lezen de live site, dus niemand hoeft Discord te verlaten om te zien hoe hij ervoor staat. [Elk commando en zijn opties]({commandsGuide}) heeft een eigen pagina.',
-        'Ze verschijnen ongeveer een minuut nadat de bot binnenkomt. Verschijnen ze helemaal niet, dan gaf de uitnodiging de bot wel maar zijn commando’s niet — dat zijn twee losse permissies, en een oudere uitnodigingslink vroeg er maar één. Open de link opnieuw op het tabblad Discord-bot; dat schopt de bot er niet uit en zet niets terug.',
+        'Ze verschijnen ongeveer een minuut nadat de bot binnenkomt. Verschijnen ze helemaal niet, dan gaf de uitnodiging de bot wel maar zijn commando’s niet — dat zijn twee losse permissies, en een oudere uitnodigingslink vroeg er maar één. Gebruik opnieuw **Invite / re-invite the bot** onder **Connection** op de Discord-pagina; dat schopt de bot er niet uit en zet niets terug.',
       ],
       note: {
         tag: 'Hij antwoordt in ieders eigen taal',
@@ -508,6 +520,42 @@ const nl: PartialGuideDict = {
         body: 'Een drop die een tegel afrondt is één post, niet één van de plugin en nog een van het bord.',
       },
     },
+    modes: {
+      title: 'Leagues, Deadman en andere modi',
+      body: [
+        'Leagues, Deadman, hardcore en andere modi draaien op hun eigen werelden met hun eigen personages. Hun posts zijn altijd gelabeld en tellen nooit mee voor borden of competities. Ze hebben hun eigen tabblad: **Admin → Discord → What goes where → Game modes**. Een modus verschijnt daar zodra een lid hem voor het eerst speelt.',
+        'Elke modus heeft een schakelaar en een **To**-kanaal. Zet **Send game-mode posts to their own channels** aan om die kanalen te gebruiken; laat het uit en elke modus post in de gewone kanalen, nog steeds gelabeld. De knop **Posts** op de rij van een modus toont elk soort post dat hij verstuurt — de gebruikelijke en de eigen events van de modus — elk met een eigen schakelaar.',
+        'Onder die lijst laten **Custom filters** een modus minder posten dan het hoofdspel. **Post drops rarer than 1 in…** stelt een eigen zeldzaamheidsgrens in (leeg = hetzelfde als het hoofdspel): items die altijd gepost worden, worden nog steeds gepost, maar drops die alleen om hun waarde meetellen niet. **Use its own level milestones** post een level-up alleen als die aan beide sets regels voldoet.',
+      ],
+      note: {
+        tag: 'Strenger, nooit losser',
+        body: 'De filters van een modus kunnen alleen posts weghalen. De plugin heeft je instellingen voor het hoofdspel al toegepast, dus niets wat een modusfilter doet kan een post terugbrengen.',
+      },
+    },
+    cleanup: {
+      title: 'Oude webhooks van Dink of andere bots',
+      body: [
+        'Zit de bot in je server, dan toont de Discord-pagina elke webhook daarin die niet van Anvil is. **Coming from Dink?** biedt **Use the same channels** aan, zodat **Set it up for me** post waar je oude feeds postten en er voor je leden niets verschuift.',
+        'Zodra je leden op Anvil zitten, ga je naar **Remove Dink’s old webhooks**, vink je aan welke weg mogen en druk je op **Remove … webhooks**, daarna op **Yes, remove them**. Dat verwijdert ze voorgoed in Discord — het kan niet ongedaan worden gemaakt.',
+        'De lijst bevat elke webhook die niet van Anvil is, niet alleen die van Dink. Wil je er een houden, zoals de feed van een andere bot? Druk op **Keep** en hij verdwijnt uit de lijst; met **Show kept** en **Put back** haal je hem terug. Houden verbergt hem alleen hier — in Discord verandert er niets.',
+      ],
+      note: {
+        tag: 'Vereist Manage Webhooks',
+        body: 'De bot leest de webhooks van je server om ze te vinden. Zonder _Manage Webhooks_ op zijn rol meldt de pagina dat hij ze niet kan zien.',
+      },
+    },
+    announce: {
+      title: 'Posten in Discord',
+      body: [
+        'Admins kunnen als de bot posten via **Post to Discord**, onder **Clan** in het adminmenu. Kies een **Channel**, schrijf je tekst in **Message** en druk op **Send message**. Lange tekst, zoals een reglement, wordt vanzelf over meerdere berichten verdeeld.',
+        '**Send as an embed** staat standaard aan en voegt een optionele **Title** en een **Accent colour** toe; zet het uit voor platte tekst. Met **Ping** kies je een rol, of @everyone, om te vermelden, en Anvil vraagt het je voordat het verstuurt.',
+        'Elke post die je verstuurt staat onder **Sent from here**. **Edit** past hem aan in Discord zonder opnieuw te pingen, en **Delete** verwijdert hem.',
+      ],
+      note: {
+        tag: 'Alleen admins, met de bot',
+        body: 'Het post als de bot van Anvil, dus koppel eerst je server. Moderators zien het niet. Het is de schakelaar **Post to Discord** onder **Clan settings → Features**; staat die uit, dan verdwijnt het uit het menu.',
+      },
+    },
     quiet: {
       title: 'Als het stil wordt',
       body: [
@@ -516,7 +564,7 @@ const nl: PartialGuideDict = {
       checks: [
         {
           term: 'Zit de bot echt in de server?',
-          body: 'Het tabblad Discord-bot zegt het rechtstreeks. „Token geldig” en „in je server” zijn verschillende feiten en het eerste impliceert het tweede niet — bij een gedeelde bot is het token altijd geldig.',
+          body: '**Connection** op de Discord-pagina zegt het rechtstreeks. „Token geldig” en „in je server” zijn verschillende feiten en het eerste impliceert het tweede niet — bij een gedeelde bot is het token altijd geldig.',
         },
         {
           term: 'Klopt het server-ID?',
@@ -524,7 +572,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Bestaat de webhook nog?',
-          body: 'Een Discord-kanaal verwijderen verwijdert zijn webhook, en Anvil houdt de dode URL. Maak hem opnieuw aan op het tabblad Webhooks.',
+          body: 'Een Discord-kanaal verwijderen verwijdert zijn webhook, en Anvil houdt de dode URL. Kies er opnieuw een kanaal voor onder **What goes where**.',
         },
         {
           term: 'Staat de rol van de bot hoog genoeg?',
@@ -924,7 +972,7 @@ const nl: PartialGuideDict = {
     access: {
       title: 'Wie mag wat',
       intro:
-        'Iedereen logt in met Discord — er zijn geen wachtwoorden. De eerste admin komt uit de serverconfiguratie; daarna promoveert een admin anderen via **Clan → Members & staff**. De rollen stapelen naar beneden: alles wat een moderator kan, kunnen een penningmeester en een admin ook.',
+        'Iedereen logt in met Discord — er zijn geen wachtwoorden. De eerste admin is de eigenaar, degene die de clan heeft aangemaakt; daarna promoveert een admin anderen via **People → Staff & roles**. De rollen stapelen naar beneden: alles wat een moderator kan, kunnen een penningmeester en een admin ook.',
       rows: [
         {
           term: 'Admin',
@@ -933,7 +981,7 @@ const nl: PartialGuideDict = {
         { term: 'Treasurer', body: 'alles wat een moderator kan, plus inleg en uitbetalingen.' },
         {
           term: 'Moderator',
-          body: 'het dagelijkse werk: ledenlijst, verificaties, weekcompetities, agenda, feedback. Kan geen events aanmaken of bewerken.',
+          body: 'het dagelijkse werk: ledenlijst, verificaties, bewijs om te controleren, weekcompetities, de agenda en clanactiviteiten. Kan geen events aanmaken of bewerken.',
         },
         {
           term: 'Editor',
@@ -952,7 +1000,7 @@ const nl: PartialGuideDict = {
     setup: {
       title: 'Noem de clan, koppel Discord',
       intro:
-        '**System → Setup** is een korte wizard, en het dashboard houdt een checklist van vijf stappen tot ze klaar zijn: noem de clan, koppel Discord, laad je leden, maak een event aan, voeg vakjes toe. De status wordt uit echte gegevens berekend, dus een stap wordt pas afgevinkt als hij echt af is.',
+        '**Settings → Finish setup** is een korte wizard (hij blijft in het menu staan tot je klaar bent), en het dashboard houdt een checklist van vijf stappen tot ze klaar zijn: noem de clan, koppel Discord, laad je leden, maak een event aan, voeg vakjes toe. De status wordt uit echte gegevens berekend, dus een stap wordt pas afgevinkt als hij echt af is.',
       discord:
         'Voor Discord heb je twee routes, en ze vullen elkaar aan: geef Anvil een **bot**, dan kan hij webhooks aanmaken, rollen en bijnamen synchroniseren en privé teamkanalen bouwen; geef hem één **webhook-URL**, dan kan hij aankondigingen posten en verder niets. Begin met de webhook als je binnen twee minuten live wil zijn, en voeg de bot toe wanneer je de automatisering wil.',
       permsNote: {
@@ -966,8 +1014,8 @@ const nl: PartialGuideDict = {
     channels: {
       title: 'Verdeel de berichten over kanalen',
       body: [
-        'Standaard gaat alles naar één hoofdkanaal voor aankondigingen. Wordt dat rumoerig, open dan **Discord → Where posts go** en geef de luide categorieën hun eigen plek — bingo-events, weekcompetities, zeldzame drops, sterfgevallen, PvP-kills, combat achievements. Alles wat je leeg laat, valt terug op het hoofdkanaal, je kunt dus één categorie tegelijk afsplitsen.',
-        'Met de bot verbonden raak je nooit een webhook-URL aan: kies een kanaal uit de lijst en druk **Post here**. Bij een druk event kun je een tweede webhook op hetzelfde kanaal zetten — Anvil wisselt ertussen zodat de snelheidslimiet van Discord geen berichten opslokt.',
+        'Standaard gaat alles naar één catch-all-kanaal. Wordt dat rumoerig, open dan **Discord → What goes where** en geef de luide categorieën hun eigen plek — eventposts, weekcompetities, zeldzame drops, sterfgevallen, PvP-kills, combat achievements. Alles wat je leeg laat, valt terug op zijn catch-all, je kunt dus één categorie tegelijk afsplitsen.',
+        'Met de bot verbonden raak je nooit een webhook-URL aan: kies een kanaal uit de keuzelijst van de rij en het wordt opgeslagen. Bij een druk event kun je met **Add another** onder **Post without a bot** een tweede webhook toevoegen — Anvil wisselt ertussen zodat de snelheidslimiet van Discord geen berichten opslokt.',
       ],
       clipsNote: {
         tag: 'Het clipkanaal is anders',
@@ -978,16 +1026,16 @@ const nl: PartialGuideDict = {
     roster: {
       title: 'Haal je ledenlijst binnen',
       body: [
-        'Clanlidmaatschap komt uit precies één plek: een synchronisatie van de ledenlijst vanuit het spel. Installeer [Anvils RuneLite-plugin]({pluginGuide}) op het account van een _admin_, open het **Bingo**-tabblad in de Collection Log in het spel, en druk **Sync clan roster**. Dat duwt jullie werkelijke clanlijst met één klik vanuit het spel naar de site.',
+        'Clanlidmaatschap komt uit precies één plek: een synchronisatie van de ledenlijst vanuit het spel. Installeer [Anvils RuneLite-plugin]({pluginGuide}) op het account van een _admin_, open je clanvenster in het spel, en druk op de **Anvil**-knop in de titelbalk. Dat duwt jullie werkelijke clanlijst met één klik vanuit het spel naar de site.',
         'Iedereen die een account op de website koppelt of verifieert zonder op die lijst te staan is een **gast** — bijgehouden en zichtbaar, maar geen lid tot een admin hem promoveert of de volgende synchronisatie hem oppikt. Dat is opzet: het betekent dat niemand zichzelf jullie clan in kan promoveren door een naam in te tikken.',
-        'Je kunt iemand ook met de hand toevoegen via **Clan → Members & staff**, inclusief hem namens hemzelf inschrijven voor een event wanneer hij de site niet kan bereiken.',
+        'Je kunt iemand ook met de hand toevoegen via **People → + Add Manually**, en hem met **Add member** op de **Sign-ups**-pagina van het event namens zichzelf inschrijven wanneer hij de site niet kan bereiken.',
       ],
     },
 
     board: {
       title: 'Maak je eerste bord',
       intro:
-        '**Events → All events → New event**. Kies eerst een format — dat bepaalt hoe het bord scoort en wat de rest van het formulier je vraagt.',
+        '**Events → All events → + New event**. Kies eerst een format — dat bepaalt hoe het bord scoort en wat de rest van het formulier je vraagt.',
       formats: {
         classic: {
           label: 'Klassieke bingo',
@@ -1034,13 +1082,13 @@ const nl: PartialGuideDict = {
     tiles: {
       title: 'Vul het bord',
       body: [
-        'Het **Tiles**-tabblad van het event is waar een bord een bingo wordt. Elk vakje is één _soort_ taak, en de soort bepaalt waar de plugin op let: een drop, een boss-killcount, skill-XP, een NPC-kill, een tijd halen, een achievement diary, een Combat Achievement, een collection log-ontgrendeling, een PvP-kill, itemwinst, of een run zonder doodgaan. Handmatige vakjes — die een mens goedkeurt aan de hand van een schermafbeelding — kunnen ook altijd.',
+        'De pagina **Board & tiles** van het event is waar een bord een bingo wordt. Elk vakje is één _soort_ taak, en de soort bepaalt waar de plugin op let: een drop, een boss-killcount, skill-XP, een NPC-kill, een tijd halen, een achievement diary, een Combat Achievement, een collection log-ontgrendeling, een PvP-kill, itemwinst, of een run zonder doodgaan. Handmatige vakjes — die een mens goedkeurt aan de hand van een schermafbeelding — kunnen ook altijd.',
         'Voor een vol bord werk je in bulk: exporteer het blad, vul het in een spreadsheet, en importeer het terug. CSV en .xlsx gaan allebei heen en weer, en rijen volgen posities, dus je kunt een heel raster van 25 vakjes met één plakactie herschrijven.',
       ],
       rows: [
         {
           term: 'Moeilijkheidsgraden',
-          body: 'puntenwaarden vertalen naar benoemde banden (easy → elite). Pas de banden aan onder Rules & scoring als je clan anders indeelt.',
+          body: 'puntenwaarden vertalen naar benoemde banden (easy → elite). Pas de banden aan onder **Clan settings → Rules & scoring → Difficulty & balance** als je clan anders indeelt.',
         },
         {
           term: 'Balanscontrole',
@@ -1058,7 +1106,7 @@ const nl: PartialGuideDict = {
     teams: {
       title: 'Teams en de draft',
       body: [
-        'Het tabblad **Teams & Draft** past zich aan het gekozen format aan: een format zonder teams slaat het helemaal over. Voor een gewone teambingo maak je de teams aan, bepaal je wie er captain is, en verdeel je de spelers zelf of draai je een live draft.',
+        'De pagina **Teams & draft** past zich aan het gekozen format aan: een format zonder teams slaat hem helemaal over. Voor een gewone teambingo maak je de teams aan, bepaal je wie er captain is, en verdeel je de spelers zelf of draai je een live draft.',
         'De captains draften uit de inschrijfpool in de volgorde die jij kiest, en elke captain ziet de antwoorden die mensen op het inschrijfformulier gaven — bevroren zoals ze zijn ingediend, zodat niemand zijn “uren per week” aanpast nadat hij gekozen is.',
       ],
       placementIntro:
@@ -1108,7 +1156,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Aankondigingen',
-          body: 'System → Announce post midden in het event een bericht in jullie kanalen zonder dat je zelf een webhook schrijft.',
+          body: '**Post to Discord** (onder **Clan** in het menu) post midden in het event als de bot een bericht in elk kanaal dat je kiest, zonder dat je zelf een webhook schrijft.',
         },
       ],
       missionNote: {
@@ -1118,9 +1166,9 @@ const nl: PartialGuideDict = {
       startProofNote: {
         tag: 'Hamsteren vóór het event stoppen',
         body: [
-          'Zet **Starting shot** aan (event → Overview), dan moet elke speler één schermafbeelding indienen, gemaakt nadat het event live ging, op een locatie die Anvil op het startmoment loot — zodat niemand op nul op een week aan opgespaarde clues en kisten zit. De locatie wordt bij de start bekendgemaakt; het codewoord van elke speler is persoonlijk, afgeleid uit de trekking, en bestaat pas als het event begint, dus niemand kan het van tevoren opzetten.',
+          'Zet **Starting shot** aan (event → Home → **Extras**), dan moet elke speler één schermafbeelding indienen, gemaakt nadat het event live ging, op een locatie die Anvil op het startmoment loot — zodat niemand op nul op een week aan opgespaarde clues en kisten zit. De locatie wordt bij de start bekendgemaakt; het codewoord van elke speler is persoonlijk, afgeleid uit de trekking, en bestaat pas als het event begint, dus niemand kan het van tevoren opzetten.',
           'Zet de plekken op de wereldkaart (de pool-editor heeft er een), dan controleert de plugin of spelers er ook echt staan in plaats van het alleen te horen. Je kunt ook een **verse sessie** eisen — standaard 15 minuten: hiscores worden alleen bij uitloggen bewaard, dus iedereen vlak voor zijn foto opnieuw laten inloggen is wat de startwaarden achter elk XP- en KC-vakje eerlijk maakt.',
-          'Pluginfgebruikers drukken op één knop. Alle anderen tikken hun codewoord in het spel en uploaden op My Team. Jij kiest wat er gebeurt met een bijschrijving van iemand die niets heeft ingediend: markeer hem voor beoordeling (standaard) of weiger hem tot ze het doen. Datzelfde Overview-paneel is de beoordelingslijst — plugin-opnames met een geverifieerd codewoord komen al goedgekeurd binnen, in de praktijk kijk je dus alleen naar de mobiele spelers.',
+          'Plugingebruikers drukken op één knop. Alle anderen tikken hun codewoord in het spel en uploaden op My Team. Jij kiest wat er gebeurt met een bijschrijving van iemand die niets heeft ingediend: markeer hem voor beoordeling (standaard) of weiger hem tot ze het doen. Datzelfde paneel op de Home van het event is de beoordelingslijst — plugin-opnames met een geverifieerd codewoord komen al goedgekeurd binnen, in de praktijk kijk je dus alleen naar de mobiele spelers.',
         ],
       },
     },
@@ -1132,7 +1180,7 @@ const nl: PartialGuideDict = {
       rows: [
         {
           term: 'Uitbetalingen',
-          body: 'het Payouts-tabblad van het event maakt van de prijzenpot een lijst van wie wat krijgt, en vinkt af terwijl je uitbetaalt.',
+          body: 'de pagina **Prizes** van het event maakt van de prijzenpot een lijst van wie wat krijgt, en vinkt af terwijl je uitbetaalt.',
         },
         {
           term: 'Terugblik',
@@ -1144,7 +1192,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Opslaan als sjabloon',
-          body: 'houd het bord dat je net gebouwd hebt. De volgende bingo begint daaruit in plaats van uit een leeg raster.',
+          body: 'houd het bord dat je net gebouwd hebt, via **Settings → More** van het event. De volgende bingo begint daaruit in plaats van uit een leeg raster.',
         },
       ],
       federation:
@@ -1193,9 +1241,9 @@ const nl: PartialGuideDict = {
     team: {
       title: 'Maak eerst het team',
       body: [
-        'Open je event en ga naar het tabblad **Teams & Draft**. Maak één team per uitgenodigde clan en noem het naar hen — de naam is wat hun spelers op het inschrijfformulier zien, dus “Ironforge” verslaat “Team 2”.',
+        'Open je event en ga naar de pagina **Teams & draft**. Maak één team per uitgenodigde clan en noem het naar hen — de naam is wat hun spelers op het inschrijfformulier zien, dus “Ironforge” verslaat “Team 2”.',
         'Je hoeft _geen_ draft te draaien. Uitnodigingslinks en een draft zijn alternatieven: een draft verdeelt een gedeelde inschrijfpool, een link zet mensen rechtstreeks neer. Bij een zuivere clan-tegen-clan maken de meeste organisatoren de teams aan, geven ze er één link per stuk uit, en openen ze de draft nooit.',
-        'Open daarna het team zelf — **Teams & Draft → het team** — want daar spelen beide volgende stappen zich af.',
+        'Open daarna het team zelf — **Teams & draft → het team** — want daar spelen beide volgende stappen zich af.',
       ],
       captainNote: {
         tag: 'Eerst de captain',
@@ -1209,7 +1257,7 @@ const nl: PartialGuideDict = {
         'Het paneel **Team staff** op de teampagina is hoe de eigen moderator van de bezoekende clan aan de slag gaat zonder dat jij hem iets op jouw site geeft. Druk **Add someone**, zoek hem op, voeg een notitie toe zoals “Ironforge’s mod” zodat de volgende admin weet waarom hij er is, en druk **Give a seat**.',
       ],
       figure: {
-        caption: 'Event → Teams & Draft → het team → Team staff',
+        caption: 'Event → Teams & draft → het team → Team staff',
         alt: 'Het Team staff-paneel met één toegekende plek en het zoekveld open om er meer toe te voegen',
         legend: [
           {
@@ -1252,7 +1300,7 @@ const nl: PartialGuideDict = {
         'Nog steeds op de teampagina maakt het paneel **Invite links** de link. Twee velden bepalen wat de link belooft, en allebei lezen ze `0` als “beloof niets”.',
       ],
       figure: {
-        caption: 'Event → Teams & Draft → het team → Invite links',
+        caption: 'Event → Teams & draft → het team → Invite links',
         alt: 'Het Invite links-paneel met de velden voor plekken en verloop, de knop Make a link, en één actieve link in de lijst',
         legend: [
           {
@@ -1465,7 +1513,7 @@ const nl: PartialGuideDict = {
         'Een raster van 25 vakjes bij elkaar klikken gaat prima. Een Leagues-bord met 200 taken bij elkaar klikken niet, en het daarna nalezen evenmin. Het Tiles-tabblad heeft daar een heen-en-weer voor.',
       ],
       steps: [
-        '**Download spreadsheet** op het **Tiles**-tabblad van het event. Je krijgt een .xlsx van het bord zoals het nu is, met keuzelijsten, de itemlijst en de kolomuitleg op eigen bladen.',
+        '**Download spreadsheet** op de pagina **Board & tiles** van het event. Je krijgt een .xlsx van het bord zoals het nu is, met keuzelijsten, de itemlijst en de kolomuitleg op eigen bladen.',
         'Bewerk het. Eén rij per vakje; de rijvolgorde is de vakjesvolgorde.',
         '**Upload CSV / Excel** op hetzelfde tabblad. Alleen het blad **Tiles** wordt gelezen.',
       ],
@@ -1696,7 +1744,7 @@ const nl: PartialGuideDict = {
       { strong: '3 modifiers', rest: 'wat een voltooiing waard is' },
     ],
     footnote:
-      'Het format wordt bij het aanmaken gekozen maar is daarna te wijzigen via het Overview-tabblad van het event; de onthullingsregel en de puntenmodifiers kun je altijd wijzigen voordat de vakjes die ze raken onthuld zijn.',
+      'Het format wordt bij het aanmaken gekozen maar is daarna te wijzigen via het tabblad Settings → Event van het event; de onthullingsregel en de puntenmodifiers kun je altijd wijzigen voordat de vakjes die ze raken onthuld zijn.',
 
     shape: {
       title: 'De vorm van het bord',
@@ -1843,7 +1891,7 @@ const nl: PartialGuideDict = {
       title: 'De tweede handtekening',
       body: [
         'Inleg staat op **geïnd** tot een _ander_ staflid bevestigt dat hij is aangekomen. Wie het geld heeft aangenomen kan niet ook degene zijn die tekent dat het is aangekomen — dat is de hele controle, en daarom weigert de site de eigen bevestiging van een inner in plaats van er alleen van af te raden.',
-        'Hoeveel handtekeningen een inleg vraagt is een claninstelling, van nul tot vijf. Nul bestaat om een echte reden: in een clan waar de penningmeester _de_ eigenaar is, is er niemand anders om te tekenen, en “34 inlegposten wachten op een tweede handtekening” wordt een rij die nooit leeg kan en permanent het luidste op het dashboard. Bij nul **is** het als betaald markeren de handtekening.',
+        'Hoeveel handtekeningen een inleg vraagt is een claninstelling (**Clan settings → Rules & scoring → Fee sign-off**), van nul tot vijf. Nul bestaat om een echte reden: in een clan waar de penningmeester _de_ eigenaar is, is er niemand anders om te tekenen, en “34 inlegposten wachten op een tweede handtekening” wordt een rij die nooit leeg kan en permanent het luidste op het dashboard. Bij nul **is** het als betaald markeren de handtekening.',
         'Zet hem op één — de standaard — als jullie met z’n tweeën zijn. Zet hem op nul als dat eerlijk gezegd niet zo is, en hoger alleen als je clan zowel de mensen als de reden heeft.',
       ],
     },
@@ -1851,7 +1899,7 @@ const nl: PartialGuideDict = {
     pay: {
       title: 'Uitbetalen',
       body: [
-        'Als het event afloopt, maakt het **Payouts**-tabblad van het event van de pot een lijst met mensen. Genereer hem en je krijgt één rij per ontvanger, niet per team: de prijs van een winnend team wordt gelijk over de leden verdeeld, zodat uitbetalen een lijst met namen en getallen is en geen rekensom om middernacht.',
+        'Als het event afloopt, maakt de pagina **Prizes** van het event van de pot een lijst met mensen. Genereer hem en je krijgt één rij per ontvanger, niet per team: de prijs van een winnend team wordt gelijk over de leden verdeeld, zodat uitbetalen een lijst met namen en getallen is en geen rekensom om middernacht.',
         'De bedragen beginnen bij een voorgestelde verdeling — zwaar naar de winnaar, en hoe meer betaalde plaatsen je instelt hoe vlakker hij wordt — en elke rij is aan te passen. Het voorstel is een startpunt, geen beleid.',
         'Daarna betaal je ze uit en vink je rijen af terwijl je bezig bent. Het punt is dat iemand een week later naar de lijst kan kijken en kan zien wie wat kreeg, in plaats van het uit de Discord-geschiedenis te reconstrueren.',
       ],
@@ -1948,7 +1996,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Meerdere samen',
-          body: 'kies ze allemaal, tik het totaal in en druk op **Split**, en pas daarna een enkel aandeel met de hand aan. Het schrijft één regel per persoon in plaats van één regel met een lijst, zodat ieder van hen onder zijn eigen naam in de geverslijst staat.',
+          body: 'kies ze allemaal, tik het totaal in en druk op **Split … ways**, en pas daarna een enkel aandeel met de hand aan. Het schrijft één regel per persoon in plaats van één regel met een lijst, zodat ieder van hen onder zijn eigen naam in de geverslijst staat.',
         },
       ],
       note: {
@@ -1971,7 +2019,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'De prijzenpot van een bord',
-          body: 'een bingo verdeelt zijn eigen pot over plaatsen, dus de kas geeft hem gewoon één getal. Event → **Payouts** → *From the clan coffer*. Het komt bij het inschrijfgeld en bij wat je zelf hebt toegevoegd,  Je kiest ook of de kas dat gp meteen **vasthoudt** of alleen de belofte vastlegt — het is nog niet weg, en een bord over zes weken hoeft niet de halve pot tot dan vastgezet te hebben.en de verdeling over plaatsen zet je op diezelfde pagina.',
+          body: 'een bingo verdeelt zijn eigen pot over plaatsen, dus de kas geeft hem gewoon één getal. Event → **Prizes** → *From the clan coffer*. Het komt bij het inschrijfgeld en bij wat je zelf hebt toegevoegd, en de verdeling over plaatsen zet je op diezelfde pagina. Je kiest ook of de kas dat gp meteen **vasthoudt** of alleen de belofte vastlegt — het is nog niet weg, en een bord over zes weken hoeft niet de halve pot tot dan vastgezet te hebben.',
         },
       ],
       note: {
@@ -2003,7 +2051,7 @@ const nl: PartialGuideDict = {
       ],
       note: {
         tag: 'Vertel het de clan, in een kanaal',
-        body: 'Richt **Coffer channel** onder Admin → Discord → Where posts go op een Discord-kanaal, dan wordt elke beweging geplaatst met het saldo dat ze achterlaat. Het is de enige feed zonder terugval: laat hem leeg en er wordt nergens iets over het geld geplaatst. Zie [Anvil in Discord]({discordGuide}).',
+        body: 'Richt het **Coffer ledger** onder Admin → Discord → What goes where → **Staff only** op een Discord-kanaal, dan wordt elke beweging geplaatst met het saldo dat ze achterlaat. Het is de enige feed zonder terugval: laat hem leeg en er wordt nergens iets over het geld geplaatst. Zie [Anvil in Discord]({discordGuide}).',
       },
     },
 
@@ -2043,7 +2091,7 @@ const nl: PartialGuideDict = {
         'accountverificaties — de XP-uitdaging en handmatige beoordeling',
         'inzendingen en bewijsafbeeldingen',
         'weekcompetities en de agenda',
-        'feedback van leden',
+        'activiteiten in de clanagenda',
       ],
       cantIntro: 'Wat ze bewust niet kunnen:',
       cantList: [
@@ -2247,7 +2295,7 @@ const nl: PartialGuideDict = {
       rows: [
         {
           term: 'Geen Anvil-commando’s in de lijst',
-          body: 'de bot is uitgenodigd zonder zijn commando’s — dat is een losse permissie, en oudere uitnodigingslinks vroegen er maar één. Een admin opent de uitnodigingslink opnieuw via Admin → Integrations → Discord bot. Dat schopt de bot er niet uit en zet niets terug. Nieuw toegevoegde commando’s kunnen tot een uur nodig hebben om te verschijnen.',
+          body: 'de bot is uitgenodigd zonder zijn commando’s — dat is een losse permissie, en oudere uitnodigingslinks vroegen er maar één. Een admin gebruikt opnieuw **Invite / re-invite the bot** via Admin → Discord → **Connection**. Dat schopt de bot er niet uit en zet niets terug. Nieuw toegevoegde commando’s kunnen tot een uur nodig hebben om te verschijnen.',
         },
         {
           term: '"The application did not respond"',
@@ -2456,7 +2504,7 @@ const nl: PartialGuideDict = {
     who: {
       title: 'Kies wie mee mag doen',
       body: [
-        'Elk event begint open voor **Anyone**. Om het voor je community te houden, open je de **Settings** van het event → **Who can join?** en kies je een of meer opties. Dezelfde opties staan op het scherm voor het eerste event.',
+        'Elk event begint open voor **Anyone**. Om het voor je community te houden, open je de **Settings** van het event → **Viewers** → **Who can join?** en kies je een of meer opties. Dezelfde opties staan op het scherm voor het eerste event.',
         'Kies je er meer dan één, dan **is één van hen genoeg**. Een volger OF een server booster komt binnen.',
       ],
       intro: 'Elke optie, en wat een kijker moet doen:',
@@ -2507,7 +2555,7 @@ const nl: PartialGuideDict = {
     approve: {
       title: 'Zeg ja tegen elke speler (optioneel)',
       body: [
-        'Wil je zelf kiezen wie speelt? Open de **Settings** van het event → **Who can play** → **Who can enter it** en kies **Ask me about everyone**. Druk op **Save changes**.',
+        'Wil je zelf kiezen wie speelt? Open de **Settings** van het event → **Viewers** → **Who can enter** en kies **Ask me about everyone**. Druk op **Save changes**.',
         'Nu drukken kijkers op **Ask to join** in plaats van **Join**. Ze moeten eerst nog steeds door je **Who can join?**-opties heen.',
         'Hun verzoeken staan bij **Your events** als **N waiting for you**. Klik erop, of open het tabblad **Sign-ups** van het event. De lijst bovenaan heet **Waiting for your yes**. Accepteer of wijs elk verzoek af.',
       ],
@@ -2594,7 +2642,7 @@ const nl: PartialGuideDict = {
       body: [
         'Je space staat bij het maken niet in de lijst. Alleen mensen met je link kunnen hem vinden.',
         'Open **Settings** → **Advertise on Anvil** en zet het aan. Je space staat dan in de Anvil-clangids en je nieuwe events staan op `{apex}/events`.',
-        'Wil je maar één event vermelden, open dan de **Settings** ervan → **Who can play** → **Advertise on Anvil**. Het staat erin zolang het event gepland of live is.',
+        'Wil je maar één event vermelden, open dan de **Settings** ervan → **Viewers** → **List on Anvil**. Het staat erin zolang het event gepland of live is.',
         'Een event zonder datums staat onder **Open to join**, met de tekst “Open now · starts when the host starts it”.',
       ],
     },
@@ -2798,7 +2846,7 @@ const nl: PartialGuideDict = {
     on: {
       title: 'Zet Streaming aan',
       body: [
-        'Ga naar Admin → **Clan settings** → **Streaming** en zet het aan.',
+        'Ga naar Admin → **Clan settings** → **Profile** en zet **Streaming** aan.',
         'Alleen een openbare clan kan streamen. Kijkers moeten je eventpagina kunnen openen, en een privéclan verbergt die. Een clan met Streaming aan kan niet privé worden totdat je het uitzet.',
         'Staat het aan, koppel dan direct eronder je Twitch-, YouTube- of Kick-kanaal.',
       ],
@@ -2808,7 +2856,7 @@ const nl: PartialGuideDict = {
       title: 'Open een event voor kijkers',
       body: [
         'Elk event blijft **Members only** totdat je iets anders zegt. Zo werkte het ook al eerder.',
-        'Open de **Settings** van het event → **Who can join?** en kies **Members and viewers**. Kies dan **Which viewers?**: iedereen, of volgers, subs, een Discord-rol enzovoort. Druk op **Save**.',
+        'Open de **Settings** van het event → **Entry & co-hosts** → **Who can join?** en kies **Members and viewers**. Kies dan **Which viewers?**: iedereen, of volgers, subs, een Discord-rol enzovoort. Druk op **Save**.',
         'Deze controles gelden alleen voor kijkers. Je clanleden komen er, zoals eerder, altijd in.',
       ],
     },
@@ -2826,7 +2874,7 @@ const nl: PartialGuideDict = {
       title: 'Je streamtools',
       body: [
         'De streamertools werken hetzelfde als in een creator-space: geverifieerde kanaallinks, **Who can join?**-controles, de OBS-overlay en `!join` in de chat.',
-        'De overlaylinks voor een clanevent staan in de **Settings** van het event, onder **Who can play** → **Stream overlay**. `!join` en het overlayteken staan onder **Clan settings** → **Streaming**.',
+        'De overlaylinks voor een clanevent staan in de **Settings** van het event → **Stream** → **Stream overlay**. `!join` en het overlayteken staan onder **Clan settings** → **Profile** → **Streaming**.',
         'De [creatorgids]({creatorsGuide}) legt elk ervan stap voor stap uit.',
         'Stream-highlights werken hier ook: is Twitch of YouTube gekoppeld, dan clipt Anvil de grote momenten van events die open zijn voor kijkers. `!join` in de Kick-chat heeft een eigen schakelaar in het vak **Kick channel**.',
       ],

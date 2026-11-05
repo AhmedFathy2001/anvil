@@ -75,7 +75,7 @@ export default function CreatorSettings() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border border-card-border bg-card-bg p-5">
+      <section id="your-space" className="scroll-mt-24 rounded-xl border border-card-border bg-card-bg p-5">
         <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">
           <span className="h-5 w-1 rounded-full bg-gold" />
           Your space
@@ -110,7 +110,7 @@ export default function CreatorSettings() {
       {/* Bio, logo and banner, panels, schedule, featured clip (lib/spacePage). */}
       <CreatorPageEditor />
 
-      <section className="rounded-xl border border-card-border bg-card-bg p-5">
+      <section id="advertise" className="scroll-mt-24 rounded-xl border border-card-border bg-card-bg p-5">
         <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">
           <span className="h-5 w-1 rounded-full bg-gold" />
           Advertise on Anvil
@@ -189,7 +189,7 @@ export default function CreatorSettings() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-card-border bg-card-bg p-5">
+      <section id="overlay-mark" className="scroll-mt-24 rounded-xl border border-card-border bg-card-bg p-5">
         <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">
           <span className="h-5 w-1 rounded-full bg-gold" />
           Anvil mark on your overlay

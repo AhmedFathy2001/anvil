@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
-
+import ClanLink from '@/components/ClanLink';
 import FoldSection from '@/components/FoldSection';
 import PlainSetting from '@/components/PlainSetting';
 import ToggleSetting from '@/components/ToggleSetting';
@@ -9,16 +8,8 @@ import TierBandsSetting from '@/components/TierBandsSetting';
 import BalanceRatesSetting from '@/components/BalanceRatesSetting';
 
 export default function RulesSettings() {
-  // Links from elsewhere (#fees from an event's sign-ups, #scoring from the balance panel) should land
-  // on that section open, not on a page of folded lines.
-  useEffect(() => {
-    const el = window.location.hash ? document.getElementById(window.location.hash.slice(1)) : null;
-    if (el instanceof HTMLDetailsElement) {
-      el.open = true;
-      el.scrollIntoView();
-    }
-  }, []);
-
+  // Links from elsewhere (#fees from an event's sign-ups, #feeds from Discord) are opened and ringed by
+  // components/HashReveal, which the admin layout mounts for every admin page.
   return (
     <div className="space-y-3.5">
       <FoldSection id="house-rules" sprite="clue" title="House rules" summary="Your clan’s rules in your words, shown by /bingo rules and the rules post.">
@@ -71,6 +62,13 @@ export default function RulesSettings() {
       </FoldSection>
 
       <FoldSection id="feeds" sprite="casket" title="Lately feed & luck" summary="What the clan’s Lately feed keeps, and which drops count on the Luck boards.">
+        <p className="text-sm text-text-muted">
+          This is the clan&rsquo;s own feed on Anvil. Which of these also post in your Discord, and where, is under{' '}
+          <ClanLink href="/admin/integrations#discord-feeds" className="text-gold hover:text-gold-light">
+            Discord → What goes where
+          </ClanLink>
+          .
+        </p>
         <PlainSetting
           settingKey="moments_clan_min_loot_gp"
           label="Keep drops worth at least (gp)"

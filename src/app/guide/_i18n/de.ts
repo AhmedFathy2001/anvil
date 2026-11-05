@@ -187,7 +187,7 @@ const de: PartialGuideDict = {
         '**Synchronisiere die Clanliste.** Öffne in RuneLite die Einstellungen des Anvil-Plugins. Schalte **Keep the clan roster in sync** ein. Ein Admin macht das einmal, im Spiel. Das ersetzt deine Wise-Old-Man-Gruppe.',
         '**Starte einen Skill oder Boss of the Week.** Gehe zu Admin → All events → **+ New event** und wähle Skill of the Week oder Boss of the Week. Alle auf der Clanliste sind automatisch dabei. Das ersetzt die Wise-Old-Man-Wettbewerbe.',
         '**Informiere deine Mitglieder.** Gehe zu Admin → Discord → **Tell your members** → **Post it**. Der Bot postet die Schritte für Spieler für dich.',
-        '**Eine Woche später: aufräumen.** Gehe zu Admin → Discord, hake die alten Webhooks von Dink an und klicke auf **Remove**. Danach kann nichts mehr doppelt gepostet werden.',
+        '**Eine Woche später: aufräumen.** Gehe zu Admin → Discord → **Remove Dink’s old webhooks**, hake die an, die weg sollen, klicke auf **Remove … webhooks** und dann auf **Yes, remove them**. Danach kann nichts mehr doppelt gepostet werden. Klicke bei allen, die du in Ruhe lassen willst, auf **Keep**.',
       ],
     },
 
@@ -244,7 +244,7 @@ const de: PartialGuideDict = {
         rest: 'bis zum fertigen Clan',
       },
     ],
-    footnote: 'Alles davon kannst du später unter Admin → Clan ändern — außer der Adresse. Über die lohnt sich jetzt ein kurzer Gedanke.',
+    footnote: 'Alles davon kannst du später unter Admin → **Clan settings** ändern — außer der Adresse. Über die lohnt sich jetzt ein kurzer Gedanke.',
     before: {
       title: 'Bevor du loslegst',
       body: [
@@ -254,7 +254,7 @@ const de: PartialGuideDict = {
       ],
       note: {
         tag: 'Du wirst sein Besitzer',
-        body: 'Besitzer ist die eine Rolle, die dir niemand nehmen kann, und sie geht an den, der den Clan erstellt. Weitere Team-Mitglieder fügst du danach unter Admin → Clan hinzu; siehe [Im Dienstplan]({moderatorGuide}).',
+        body: 'Besitzer ist die eine Rolle, die dir niemand nehmen kann, und sie geht an den, der den Clan erstellt. Weitere Team-Mitglieder fügst du danach unter Admin → **People** → **Staff & roles** hinzu; siehe [Im Dienstplan]({moderatorGuide}).',
       },
     },
     create: {
@@ -288,27 +288,27 @@ const de: PartialGuideDict = {
     },
     setup: {
       title: 'Der Einrichtungsassistent',
-      intro: 'Vier Dinge stehen zwischen einem frischen Clan und einem laufenden Event. Der Assistent geht sie der Reihe nach durch und überspringt, was schon erledigt ist.',
+      intro: 'Drei Schritte stehen zwischen einem frischen Clan und einem laufenden Event, und der Assistent geht sie der Reihe nach durch und überspringt, was schon erledigt ist. Das Board kommt direkt danach.',
       steps: [
         {
-          term: 'Namen in Discord',
+          term: 'Dein Clan',
           body: 'Dein Anzeigename, dein Clanname im Spiel und ein Einladungslink zu deinem Server. Über die Einladung können Anmeldeseiten und Guides auf dich verweisen.',
         },
         {
           term: 'Discord verbinden',
-          body: 'Ein gemeinsamer Bot, also keine App zu registrieren und kein Token einzufügen. Einmal bestätigen, und er kann in deine Kanäle posten und deine Rollen lesen.',
+          body: 'Ein gemeinsamer Bot, also keine App zu registrieren und kein Token einzufügen. Drück **Connect your bot** und bestätige einmal, wähle dann **A few channels** oder **Just one channel** und drück **Set it up for me** — der Bot legt die Kanäle für dich an.',
         },
         {
-          term: 'Kanal zuweisen',
-          body: 'Ein Ankündigungskanal für Event-Posts. Optional kannst du die Feeds des Plugins aufteilen: seltene Drops in den einen Kanal, Tode in den anderen, damit keiner den anderen übertönt.',
+          term: 'Deine Mitglieder hereinholen',
+          body: 'Installiere das Plugin, melde dich mit Discord an, öffne dann im Spiel dein Clan-Fenster und drück den **Anvil**-Button in seiner Titelleiste. Niemand kann sich für ein Event anmelden, bevor deine Mitgliederliste drin ist.',
         },
         {
           term: 'Board erstellen',
-          body: 'Das erste Event. Format wählen, Felder anlegen, Anmeldungen öffnen — das ist [Dein erstes Event durchführen]({adminGuide}), und mit Abstand der längste der vier Schritte.',
+          body: 'Der Assistent endet bei **Create your first event →**. Format wählen, Felder anlegen, Anmeldungen öffnen — das ist [Dein erstes Event durchführen]({adminGuide}), und mit Abstand der längste Schritt.',
         },
       ],
       after: [
-        'Du kannst den Assistenten komplett überspringen und alles später unter Admin → Clan erledigen. Er existiert, weil die Reihenfolge zählt, wenn man es noch nie gemacht hat: Discord vor Kanälen, Kanäle vor einem Board, das dorthin posten will.',
+        'Du kannst den Assistenten mit **Skip setup** komplett überspringen und alles später unter Admin → **Clan settings** und Admin → **Discord** erledigen. Er existiert, weil die Reihenfolge zählt, wenn man es noch nie gemacht hat: Discord vor Kanälen, Mitglieder vor einem Board, für das sie sich anmelden müssen.',
       ],
     },
     members: {
@@ -327,7 +327,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Von Hand',
-          body: 'Unter Admin → Clan kannst du Namen einzeln eintragen — für die Person am Handy oder im offiziellen Client, die das Plugin gar nicht nutzen kann.',
+          body: 'Unter Admin → **People** → **+ Add Manually** kannst du Namen einzeln eintragen — für die Person am Handy oder im offiziellen Client, die das Plugin gar nicht nutzen kann.',
         },
       ],
       note: {
@@ -355,6 +355,18 @@ const de: PartialGuideDict = {
         body: 'An fremden Events teilzunehmen ist kostenlos, und eines auszurichten ebenfalls. Ein Clan, der nur bei den Boards anderer auftaucht, braucht nie mehr als seinen eigenen kostenlosen Clan.',
       },
     },
+    boosts: {
+      title: 'Clan-Boosts',
+      body: [
+        'Mitglieder, die Anvil Supporter als **Champion** (ein Boost) oder **Patron** (zwei) bezahlen, können den Clan in ihren eigenen **Settings → Clan boosts** boosten. Ein Boost zählt, sobald ihr Platz im Clan 14 Tage alt ist, und von einer Person zählen höchstens zwei.',
+        'Wo du stehst, siehst du unter Admin → **Clan settings** → **Boosts**: die Stufe des Clans, wie viele Boosts gerade zählen und wie viele die nächste Stufe noch braucht. Stufe 1 braucht 3 Boosts, Stufe 2 braucht 8 und Stufe 3 braucht 15. Fallen die Boosts unter eine Stufe, bleiben ihre Vorteile zuerst noch eine Woche erhalten.',
+        'Stufe 1 setzt ein **Boosted**-Abzeichen auf deine Clanseite, deine Karte in der Clan Hall und in die Suche, listet dich in der Clan Hall über Clans ohne Boost und gibt deinem Namen einen Farbverlauf. Stufe 2 bringt einen Platz in der Featured-Reihe der Clan Hall, spielt dein animiertes Banner ab und schaltet eine **Recruiting line** frei: ein Satz mit bis zu 140 Zeichen, den Besucher sehen. Stufe 3 bringt ein Spotlight ganz oben in der Clan Hall und einen **Recruitment post in the Anvil Discord** pro Monat, bis zu 500 Zeichen, einmal gesendet mit **Post to the Anvil Discord**, mit einem Link zu deiner Clanseite und ohne dass jemand gepingt wird.',
+      ],
+      note: {
+        tag: 'Nur die Optik',
+        body: 'Boosts ändern, wie der Clan aussieht und wo er gelistet wird. Sie ändern nie einen Rang, eine Wertung, deine Sitze oder deinen Tarif.',
+      },
+    },
   },
 
   discord: {
@@ -377,12 +389,12 @@ const de: PartialGuideDict = {
         rest: 'jeder Feed ist aus, bis du ihn zuweist',
       },
     ],
-    footnote: 'Alles hier liegt unter Admin → Einstellungen, verteilt auf die Tabs Discord-Bot, Webhooks, Rollen & Kanäle und Benachrichtigungen.',
+    footnote: 'Alles hier liegt unter Admin → **Discord**: oben die Schnelleinrichtung, darunter **More settings** — Connection, What goes where, Event posts, Roles & nicknames, Team channels, Commands und Post without a bot.',
     bot: {
       title: 'Ein Bot, schon fertig',
       body: [
         'Es gibt keine Discord-App zu erstellen, kein Token zu generieren und kein Geheimnis einzufügen. Anvil betreibt einen Bot, den sich alle Clans teilen — verbinden ist eine Einladung und sonst nichts.',
-        'Du kannst trotzdem deinen eigenen mitbringen — füge unter **Discord-Bot** ein Token ein, und es wird stattdessen benutzt. Lohnt sich nur, wenn der Bot in der Mitgliederliste den Namen und das Bild deines Clans tragen soll; alles hier funktioniert so oder so gleich.',
+        'Du kannst trotzdem deinen eigenen mitbringen — füge unter **Use your own bot instead (advanced)** ein Token ein, und es wird stattdessen benutzt. Lohnt sich nur, wenn der Bot in der Mitgliederliste den Namen und das Bild deines Clans tragen soll; alles hier funktioniert so oder so gleich.',
       ],
       permissions: [
         {
@@ -391,7 +403,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Webhooks verwalten',
-          body: 'Damit der **Erstellen**-Button im Webhooks-Tab einen Webhook für dich anlegen kann, statt dass du URLs von Hand aus Discord kopierst.',
+          body: 'Damit **Set it up for me** und **Post here** Webhooks für dich anlegen können, statt dass du URLs von Hand aus Discord kopierst, und damit Anvil alte Webhooks finden kann, die du entfernen kannst.',
         },
         {
           term: 'Rollen verwalten',
@@ -411,7 +423,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Nickname ändern',
-          body: 'Nur wenn du dem Bot unter **Settings → Bot appearance** den Namen eures Clans gibst. Das ändert nur seinen Namen auf eurem Server.',
+          body: 'Nur wenn du dem Bot unter **Connection → Bot appearance in your server** den Namen eures Clans gibst. Das ändert nur seinen Namen auf eurem Server.',
         },
       ],
       note: {
@@ -425,11 +437,11 @@ const de: PartialGuideDict = {
       steps: [
         {
           term: 'Bot einladen',
-          body: 'Admin → Einstellungen → **Discord-Bot** → **Bot einladen / erneut einladen**. Der Link wählt deinen Server vor, sobald die ID gesetzt ist, du kannst ihn also nicht versehentlich dem falschen hinzufügen.',
+          body: 'Admin → **Discord** → **Connect your Discord server** (oder **Add Anvil to Discord**). Discord fragt, zu welchem Server Anvil hinzugefügt werden soll, und schickt dich hierher zurück, du kannst ihn also nicht versehentlich dem falschen hinzufügen. Später findest du **Invite / re-invite the bot** unter **More settings → Connection**.',
         },
         {
           term: 'Server-ID setzen',
-          body: 'Rechtsklick auf dein Server-Symbol in Discord → **Server-ID kopieren** (dafür muss der Entwicklermodus in Discords eigenen erweiterten Einstellungen an sein) und einfügen. Dieses Feld macht die Verbindung zu deiner.',
+          body: 'Nur wenn der Button es nicht schafft: Öffne **Can’t use the button? Enter the server ID**, klick in Discord mit rechts auf dein Server-Symbol → **Server-ID kopieren** (dafür muss der Entwicklermodus in Discords eigenen erweiterten Einstellungen an sein), füge sie in **Your Discord server’s ID** ein und drück **Save**. Dieses Feld macht die Verbindung zu deiner.',
         },
       ],
       after: [
@@ -444,20 +456,20 @@ const de: PartialGuideDict = {
       title: 'Webhooks einrichten',
       body: [
         'Anvil postet über **Webhooks**, einen pro Kanal, und jeder davon ist optional. Nichts wird irgendwo gepostet, bis du einen Feed auf einen Kanal richtest — ein frischer Clan ist absichtlich still, nicht versehentlich.',
-        'Öffne **Admin → Einstellungen → Webhooks** und beginne mit dem Haupt-Webhook für Ankündigungen. Ist der Bot verbunden, wählst du einen Kanal, klickst **Webhook erstellen** und danach **Testen**. Ohne Bot öffnest du in Discord beim Kanal **Kanal bearbeiten → Integrationen → Webhooks**, erstellst einen Webhook, kopierst seine URL, fügst sie in Anvil ein und klickst **Hinzufügen**. Eine Webhook-URL kann in den Kanal posten; behandle sie daher wie ein Passwort. Wenn sie bekannt wird, lösche sie in Discord und erstelle eine neue. **Webhook erstellen** ersetzt das gespeicherte Ziel, **Weiteren hinzufügen** behält beide und verteilt viele Posts auf sie.',
+        'Ist der Anvil-Bot auf deinem Server, legt **Set it up for me** oben auf **Admin → Discord** die Kanäle an und richtet jeden Feed auf sie aus. Willst du es von Hand machen, öffne **More settings → What goes where** und beginne mit dem **Catch-all channel** im Reiter **Clan & events**, dann mit dem **In-game catch-all** im Reiter **In-game (plugin)**: Wähle einen Kanal aus der Auswahlliste, und er wird gespeichert. Ohne Bot öffnest du in Discord beim Kanal **Kanal bearbeiten → Integrationen → Webhooks**, erstellst einen Webhook, kopierst seine URL, wählst in der Auswahlliste **Paste a webhook…**, fügst sie ein und drückst **Save**. Eine Webhook-URL kann in den Kanal posten; behandle sie daher wie ein Passwort. Wenn sie bekannt wird, lösche sie in Discord und erstelle eine neue. **Test** und **Add another**, mit dem du viele Posts auf zwei Webhooks verteilst, liegen unter **Post without a bot**.',
       ],
       feeds: [
         {
-          term: 'Ankündigungen',
-          body: 'Der wichtigste. Event-Starts und -Enden, geöffnete Anmeldungen, Wertungen, Wochenergebnisse. Setz nur diesen, und du hast einen funktionierenden Clan.',
+          term: 'Catch-all channel',
+          body: 'Der wichtigste, im Reiter **Clan & events**. Event-Starts und -Enden, geöffnete Anmeldungen, Wertungen, Wochenergebnisse — alles, was die Seite postet und keinen eigenen Kanal hat. Setz nur diesen, und du hast einen funktionierenden Clan.',
         },
         {
-          term: 'Plugin-Standard',
-          body: 'Wohin alles aus dem Spiel geht, das keinen eigenen Kanal hat. Setz diesen als zweites.',
+          term: 'In-game catch-all',
+          body: 'Im Reiter **In-game (plugin)**: wohin alles aus dem Spiel geht, das keinen eigenen Kanal hat. Setz diesen als zweites.',
         },
         {
           term: 'Die aufgeteilten Feeds',
-          body: 'Seltene Drops, Pets, Tode, Sammlungslog, Combat Achievements, Level, Quests, Diaries, PvP-Kills und Leagues bekommen je einen eigenen Kanal. Diese Aufteilung ist der Unterschied zwischen einem Feed, den man liest, und einem, den man stummschaltet.',
+          body: 'Event-Posts, Boards, die du mit ausrichtest, Skill & Boss of the Week und Termine im Clan-Kalender lassen sich vom Catch-all abtrennen; seltene Drops, Pets, Sammlungslog, Level, Combat Achievements, Quests, Diaries, Tode und PvP-Kills vom In-game catch-all. Änderungen der Mitgliederliste, Freigaben von Anmeldungen und das Kassenbuch liegen unter **Staff only**. Leere abgetrennte Feeds fallen auf ihren Catch-all zurück. Die Kasse ist die Ausnahme: Leer heißt, über Geld wird gar nichts gepostet. Leagues und andere Modi haben ihren eigenen Reiter **Game modes**.',
         },
       ],
       note: {
@@ -468,7 +480,7 @@ const de: PartialGuideDict = {
     roles: {
       title: 'Rollen und Nicknamen',
       body: [
-        'Beide Syncs sind aus, bis du sie unter **Admin → Einstellungen → Rollen & Kanäle** aktivierst. Schalte den Rollen-Sync ein, lass die automatische Rangzuordnung an, wähle gegebenenfalls Mitglieder- und Gastrollen, speichere und klicke **Rollen & Nicknamen jetzt synchronisieren**. Jede Person braucht außerdem ein verknüpftes Discord-Konto. Für die automatische Zuordnung muss die Discord-Rolle wie der Rang im Spiel heißen: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` oder `Recruit`; eigene Ränge funktionieren mit demselben Namen. Groß-/Kleinschreibung ist egal und Unterstriche gelten als Leerzeichen, zusätzliche Wörter passen aber nicht — `General` funktioniert, `OSRS General` nicht. Allgemeine Mitglieder- und Gastrollen werden separat gewählt und dürfen beliebig heißen.',
+        'Beide Syncs sind aus, bis du sie unter **Admin → Discord → Roles & nicknames** aktivierst, und beide richten sich nach der Mitgliederliste. Schalte **Enable Discord role sync** ein, lass **Auto-match in-game rank → Discord role by name** an, wähle gegebenenfalls allgemeine **Member roles** und **Guest roles**, speichere und drück dann **Sync roles & nicknames now**. Jede Person braucht außerdem ein verknüpftes Discord-Konto; der Sync-Bericht nennt jeden, den er nicht zuordnen konnte.',
       ],
       ways: [
         {
@@ -489,7 +501,7 @@ const de: PartialGuideDict = {
       title: 'Slash-Befehle',
       body: [
         'Der Bot beantwortet `/bingo` in deinem Server (das Board, den Stand, die Regeln, deine eigene Karte) und dazu Clan-Befehle wie `/sotw`, `/stats` und `/coffer`. Sie lesen die Seite live mit, sodass niemand Discord verlassen muss, um seinen Stand zu prüfen. [Jeder Befehl und seine Optionen]({commandsGuide}) hat eine eigene Seite.',
-        'Sie erscheinen etwa eine Minute nachdem der Bot beigetreten ist. Erscheinen sie gar nicht, hat die Einladung den Bot gewährt, aber nicht seine Befehle — das sind zwei getrennte Berechtigungen, und ein älterer Einladungslink hat nur eine davon angefragt. Öffne den Link im Discord-Bot-Tab erneut; das wirft den Bot nicht raus und setzt nichts zurück.',
+        'Sie erscheinen etwa eine Minute nachdem der Bot beigetreten ist. Erscheinen sie gar nicht, hat die Einladung den Bot gewährt, aber nicht seine Befehle — das sind zwei getrennte Berechtigungen, und ein älterer Einladungslink hat nur eine davon angefragt. Führ **Invite / re-invite the bot** unter **Connection** auf der Discord-Seite erneut aus; das wirft den Bot nicht raus und setzt nichts zurück.',
       ],
       note: {
         tag: 'Er antwortet in der Sprache jedes Einzelnen',
@@ -508,6 +520,42 @@ const de: PartialGuideDict = {
         body: 'Ein Drop, der ein Feld abschließt, ist ein Post — nicht einer vom Plugin und noch einer vom Board.',
       },
     },
+    modes: {
+      title: 'Leagues, Deadman und andere Modi',
+      body: [
+        'Leagues, Deadman, Hardcore und andere Modi laufen auf eigenen Welten mit eigenen Charakteren. Ihre Posts sind immer gekennzeichnet und zählen nie für Boards oder Wettbewerbe. Sie haben ihren eigenen Reiter: **Admin → Discord → What goes where → Game modes**. Ein Modus erscheint dort, sobald ein Mitglied ihn zum ersten Mal spielt.',
+        'Jeder Modus hat einen Schalter und einen **To**-Kanal. Schalte **Send game-mode posts to their own channels** ein, um diese Kanäle zu nutzen; lässt du es aus, postet jeder Modus in die normalen Kanäle, weiterhin gekennzeichnet. Der Button **Posts** in der Zeile eines Modus listet jede Art von Post, die er sendet — die üblichen und die eigenen Events des Modus —, jede mit eigenem Schalter.',
+        'Unter dieser Liste lassen **Custom filters** einen Modus weniger posten als das Hauptspiel. **Post drops rarer than 1 in…** setzt eine eigene Seltenheitsgrenze (leer = wie im Hauptspiel): Gegenstände, die immer gepostet werden, werden weiterhin gepostet, Drops, die nur wegen ihres Werts zählen, dagegen nicht. **Use its own level milestones** postet einen Levelaufstieg nur, wenn er beide Regelsätze erfüllt.',
+      ],
+      note: {
+        tag: 'Strenger, nie lockerer',
+        body: 'Die Filter eines Modus können Posts nur wegnehmen. Das Plugin hat deine Einstellungen fürs Hauptspiel schon angewendet, also kann kein Modusfilter einen Post zurückholen.',
+      },
+    },
+    cleanup: {
+      title: 'Alte Webhooks von Dink oder anderen Bots',
+      body: [
+        'Ist der Bot auf deinem Server, listet die Discord-Seite jeden Webhook dort auf, der nicht von Anvil ist. **Coming from Dink?** bietet **Use the same channels** an, damit **Set it up for me** dorthin postet, wo deine alten Feeds gepostet haben, und sich für deine Mitglieder nichts verschiebt.',
+        'Sobald deine Mitglieder auf Anvil sind, geh zu **Remove Dink’s old webhooks**, hake die an, die weg sollen, und drück **Remove … webhooks**, dann **Yes, remove them**. Das löscht sie in Discord endgültig — rückgängig machen lässt sich das nicht.',
+        'Die Liste enthält jeden Webhook, der nicht von Anvil ist, nicht nur die von Dink. Einen willst du behalten, etwa den Feed eines anderen Bots? Drück **Keep**, und er verschwindet aus der Liste; **Show kept** und **Put back** holen ihn zurück. Behalten blendet ihn nur hier aus — in Discord ändert sich nichts.',
+      ],
+      note: {
+        tag: 'Braucht „Webhooks verwalten“',
+        body: 'Der Bot liest die Webhooks deines Servers, um sie zu finden. Ohne _Webhooks verwalten_ auf seiner Rolle sagt die Seite, dass sie sie nicht sehen kann.',
+      },
+    },
+    announce: {
+      title: 'Post to Discord',
+      body: [
+        'Admins können über **Post to Discord**, unter **Clan** im Admin-Menü, als Bot posten. Wähle einen **Channel**, schreib die **Message** und drück **Send message**. Lange Texte wie ein Regelwerk werden von selbst auf mehrere Nachrichten aufgeteilt.',
+        '**Send as an embed** ist standardmäßig an und fügt einen optionalen **Title** und eine **Accent colour** hinzu; schalte es für reinen Text aus. **Ping** wählt eine Rolle oder @everyone, die erwähnt werden soll, und Anvil fragt nach, bevor es sendet.',
+        'Jeder Post, den du sendest, steht unter **Sent from here**. **Edit** ändert ihn in Discord, ohne erneut zu pingen, und **Delete** entfernt ihn.',
+      ],
+      note: {
+        tag: 'Nur für Admins, mit dem Bot',
+        body: 'Es postet als Anvils Bot, verbinde also zuerst deinen Server. Moderatoren sehen es nicht. Es ist der Schalter **Post to Discord** unter **Clan settings → Features**; ausgeschaltet verschwindet es aus dem Menü.',
+      },
+    },
     quiet: {
       title: 'Wenn es still wird',
       body: [
@@ -516,7 +564,7 @@ const de: PartialGuideDict = {
       checks: [
         {
           term: 'Ist der Bot wirklich im Server?',
-          body: 'Der Discord-Bot-Tab sagt es direkt. „Token gültig“ und „in deinem Server“ sind zwei verschiedene Tatsachen, und die erste bedeutet die zweite nicht — bei einem gemeinsamen Bot ist das Token immer gültig.',
+          body: '**Connection** auf der Discord-Seite sagt es direkt. „Token gültig“ und „in deinem Server“ sind zwei verschiedene Tatsachen, und die erste bedeutet die zweite nicht — bei einem gemeinsamen Bot ist das Token immer gültig.',
         },
         {
           term: 'Stimmt die Server-ID?',
@@ -524,7 +572,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Gibt es den Webhook noch?',
-          body: 'Einen Discord-Kanal zu löschen löscht seinen Webhook, und Anvil behält die tote URL. Leg ihn im Webhooks-Tab neu an.',
+          body: 'Einen Discord-Kanal zu löschen löscht seinen Webhook, und Anvil behält die tote URL. Wähl unter **What goes where** wieder einen Kanal dafür.',
         },
         {
           term: 'Ist die Rolle des Bots hoch genug?',
@@ -924,7 +972,7 @@ const de: PartialGuideDict = {
     access: {
       title: 'Wer darf was',
       intro:
-        'Alle melden sich mit Discord an — es gibt keine Passwörter. Der erste Admin kommt aus der Serverkonfiguration; danach befördert ein Admin andere über **Clan → Members & staff**. Die Rollen stapeln sich nach unten: alles, was ein Moderator kann, können auch ein Kassenwart und ein Admin.',
+        'Alle melden sich mit Discord an — es gibt keine Passwörter. Der erste Admin ist der Besitzer, also wer den Clan erstellt hat; danach befördert ein Admin andere über **People → Staff & roles**. Die Rollen stapeln sich nach unten: alles, was ein Moderator kann, können auch ein Kassenwart und ein Admin.',
       rows: [
         {
           term: 'Admin',
@@ -933,7 +981,7 @@ const de: PartialGuideDict = {
         { term: 'Treasurer', body: 'alles, was ein Moderator kann, plus Teilnahmegebühren und Auszahlungen.' },
         {
           term: 'Moderator',
-          body: 'das Tagesgeschäft: Mitgliederliste, Verifizierungen, Wochenwettbewerbe, Terminplan, Rückmeldungen. Kann keine Events anlegen oder bearbeiten.',
+          body: 'das Tagesgeschäft: Mitgliederliste, Verifizierungen, zu prüfende Nachweise, Wochenwettbewerbe, der Terminplan und Clan-Events. Kann keine Events anlegen oder bearbeiten.',
         },
         {
           term: 'Editor',
@@ -952,7 +1000,7 @@ const de: PartialGuideDict = {
     setup: {
       title: 'Clan benennen, Discord verbinden',
       intro:
-        '**System → Setup** ist ein kurzer Assistent, und das Dashboard behält eine Checkliste mit fünf Schritten, bis sie erledigt sind: Clan benennen, Discord verbinden, Mitglieder laden, ein Event anlegen, Felder hinzufügen. Der Status wird aus echten Daten berechnet, ein Schritt wird also erst abgehakt, wenn er wirklich fertig ist.',
+        '**Settings → Finish setup** ist ein kurzer Assistent (er bleibt im Menü, bis du fertig bist), und das Dashboard behält eine Checkliste mit fünf Schritten, bis sie erledigt sind: Clan benennen, Discord verbinden, Mitglieder laden, ein Event anlegen, Felder hinzufügen. Der Status wird aus echten Daten berechnet, ein Schritt wird also erst abgehakt, wenn er wirklich fertig ist.',
       discord:
         'Für Discord hast du zwei Wege, und sie ergänzen sich: gib Anvil einen **Bot**, dann kann es Webhooks anlegen, Rollen und Spitznamen synchronisieren und private Teamkanäle bauen; gib ihm eine einzelne **Webhook-URL**, dann kann es Ankündigungen posten und sonst nichts. Fang mit dem Webhook an, wenn du in zwei Minuten live sein willst, und ergänze den Bot, wenn du die Automatik willst.',
       permsNote: {
@@ -966,8 +1014,8 @@ const de: PartialGuideDict = {
     channels: {
       title: 'Beiträge auf mehrere Kanäle verteilen',
       body: [
-        'Standardmäßig geht alles in einen zentralen Ankündigungskanal. Wenn der laut wird, öffne **Discord → Where posts go** und gib den lauten Kategorien ein eigenes Zuhause — Bingo-Events, Wochenwettbewerbe, seltene Drops, Tode, PvP-Kills, Combat Achievements. Alles, was du leer lässt, fällt auf den Hauptkanal zurück, du kannst also eine Kategorie nach der anderen abtrennen.',
-        'Mit verbundenem Bot fasst du nie eine Webhook-URL an: wähle einen Kanal aus der Liste und drück **Post here**. Bei einem vollen Event kannst du einen zweiten Webhook auf denselben Kanal legen — Anvil wechselt zwischen ihnen, damit Discords Ratenbegrenzung keine Beiträge verschluckt.',
+        'Standardmäßig geht alles in einen einzigen Catch-all-Kanal. Wenn der laut wird, öffne **Discord → What goes where** und gib den lauten Kategorien ein eigenes Zuhause — Event-Posts, Wochenwettbewerbe, seltene Drops, Tode, PvP-Kills, Combat Achievements. Alles, was du leer lässt, fällt auf seinen Catch-all zurück, du kannst also eine Kategorie nach der anderen abtrennen.',
+        'Mit verbundenem Bot fasst du nie eine Webhook-URL an: Wähle in der Auswahlliste der Zeile einen Kanal, und er wird gespeichert. Bei einem vollen Event kannst du mit **Add another** unter **Post without a bot** einen zweiten Webhook hinzufügen — Anvil wechselt zwischen ihnen, damit Discords Ratenbegrenzung keine Beiträge verschluckt.',
       ],
       clipsNote: {
         tag: 'Der Clip-Kanal ist anders',
@@ -978,16 +1026,16 @@ const de: PartialGuideDict = {
     roster: {
       title: 'Die Mitgliederliste hereinholen',
       body: [
-        'Clanmitgliedschaft kommt aus genau einer Quelle: einer Synchronisierung der Mitgliederliste aus dem Spiel. Installiere [Anvils RuneLite-Plugin]({pluginGuide}) auf dem Account eines _Admins_, öffne den **Bingo**-Reiter im Collection Log im Spiel und drück **Sync clan roster**. Das schiebt eure tatsächliche Clanliste aus dem Spiel mit einem Klick auf die Seite.',
+        'Clanmitgliedschaft kommt aus genau einer Quelle: einer Synchronisierung der Mitgliederliste aus dem Spiel. Installiere [Anvils RuneLite-Plugin]({pluginGuide}) auf dem Account eines _Admins_, öffne im Spiel dein Clan-Fenster und drück den **Anvil**-Button in seiner Titelleiste. Das schiebt eure tatsächliche Clanliste aus dem Spiel mit einem Klick auf die Seite.',
         'Wer einen Account auf der Website verknüpft oder verifiziert, ohne auf dieser Liste zu stehen, ist ein **Gast** — erfasst, sichtbar, aber kein Mitglied, bis ein Admin ihn befördert oder die nächste Synchronisierung ihn aufnimmt. Das ist Absicht: es bedeutet, dass sich niemand durch das Eintippen eines Namens in euren Clan befördern kann.',
-        'Du kannst jemanden auch von Hand über **Clan → Members & staff** hinzufügen — einschließlich der Anmeldung zu einem Event stellvertretend, wenn er die Seite nicht erreicht.',
+        'Du kannst jemanden auch von Hand über **People → + Add Manually** hinzufügen und ihn mit **Add member** auf der **Sign-ups**-Seite des Events stellvertretend zu einem Event anmelden, wenn er die Seite nicht erreicht.',
       ],
     },
 
     board: {
       title: 'Dein erstes Board anlegen',
       intro:
-        '**Events → All events → New event**. Wähle zuerst ein Format — es entscheidet, wie das Board gewertet wird und was das restliche Formular von dir will.',
+        '**Events → All events → + New event**. Wähle zuerst ein Format — es entscheidet, wie das Board gewertet wird und was das restliche Formular von dir will.',
       formats: {
         classic: {
           label: 'Klassisches Bingo',
@@ -1034,13 +1082,13 @@ const de: PartialGuideDict = {
     tiles: {
       title: 'Das Board füllen',
       body: [
-        'Der **Tiles**-Reiter des Events ist der Ort, an dem aus einem Board ein Bingo wird. Jedes Feld ist eine _Art_ von Aufgabe, und die Art entscheidet, worauf das Plugin achtet: einen Drop, einen Boss-Killcount, Skill-XP, einen NPC-Kill, eine Zeitvorgabe, ein Achievement Diary, ein Combat Achievement, eine Collection-Log-Freischaltung, einen PvP-Kill, einen Gegenstandsgewinn, oder einen Durchlauf ohne Tod. Manuelle Felder — die, die ein Mensch anhand eines Screenshots bestätigt — sind immer auch eine Option.',
+        'Die Seite **Board & tiles** des Events ist der Ort, an dem aus einem Board ein Bingo wird. Jedes Feld ist eine _Art_ von Aufgabe, und die Art entscheidet, worauf das Plugin achtet: einen Drop, einen Boss-Killcount, Skill-XP, einen NPC-Kill, eine Zeitvorgabe, ein Achievement Diary, ein Combat Achievement, eine Collection-Log-Freischaltung, einen PvP-Kill, einen Gegenstandsgewinn, oder einen Durchlauf ohne Tod. Manuelle Felder — die, die ein Mensch anhand eines Screenshots bestätigt — sind immer auch eine Option.',
         'Für ein volles Board arbeitest du in Bulk: exportiere die Tabelle, füll sie in einem Tabellenprogramm aus, und importiere sie zurück. CSV und .xlsx laufen beide in beide Richtungen, und Zeilen entsprechen Positionen — du kannst also ein ganzes 25-Felder-Raster mit einem Einfügen neu schreiben.',
       ],
       rows: [
         {
           term: 'Schwierigkeitsstufen',
-          body: 'Punktwerte werden auf benannte Bänder abgebildet (easy → elite). Bearbeite die Bänder unter Rules & scoring, wenn dein Clan anders einstuft.',
+          body: 'Punktwerte werden auf benannte Bänder abgebildet (easy → elite). Bearbeite die Bänder unter **Clan settings → Rules & scoring → Difficulty & balance**, wenn dein Clan anders einstuft.',
         },
         {
           term: 'Balance-Prüfer',
@@ -1058,7 +1106,7 @@ const de: PartialGuideDict = {
     teams: {
       title: 'Teams und der Draft',
       body: [
-        'Der Reiter **Teams & Draft** passt sich dem gewählten Format an: ein Format ohne Teams überspringt ihn ganz. Für ein normales Teambingo legst du die Teams an, bestimmst die Kapitäne, und verteilst die Spieler entweder selbst oder führst einen Live-Draft durch.',
+        'Die Seite **Teams & draft** passt sich dem gewählten Format an: Ein Format ohne Teams überspringt sie ganz. Für ein normales Teambingo legst du die Teams an, bestimmst die Kapitäne, und verteilst die Spieler entweder selbst oder führst einen Live-Draft durch.',
         'Die Kapitäne draften aus dem Anmeldepool in der Reihenfolge, die du festlegst, und jeder Kapitän sieht die Antworten, die die Leute im Anmeldeformular gegeben haben — eingefroren, wie sie eingereicht wurden, damit niemand seine „Stunden pro Woche“ nachträglich anpasst.',
       ],
       placementIntro:
@@ -1108,7 +1156,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Ankündigungen',
-          body: 'System → Announce postet mitten im Event eine Nachricht in eure Kanäle, ohne dass du einen Webhook von Hand schreibst.',
+          body: '**Post to Discord** (unter **Clan** im Menü) postet mitten im Event als Bot eine Nachricht in einen beliebigen Kanal, ohne dass du einen Webhook von Hand schreibst.',
         },
       ],
       missionNote: {
@@ -1118,9 +1166,9 @@ const de: PartialGuideDict = {
       startProofNote: {
         tag: 'Horten vor dem Event unterbinden',
         body: [
-          'Schalte **Starting shot** ein (Event → Overview), dann muss jeder Spieler einen Screenshot einreichen, aufgenommen nach dem Eventstart, an einem Ort, den Anvil im Startmoment auslost — damit niemand bei null auf einer Woche gebunkerter Clues und Kisten sitzt. Der Ort wird mit dem Start angekündigt; das Kennwort jedes Spielers ist persönlich, aus der Ziehung abgeleitet, und existiert vor dem Eventstart nicht, es kann also von niemandem vorbereitet werden.',
+          'Schalte **Starting shot** ein (Event → Home → **Extras**), dann muss jeder Spieler einen Screenshot einreichen, aufgenommen nach dem Eventstart, an einem Ort, den Anvil im Startmoment auslost — damit niemand bei null auf einer Woche gebunkerter Clues und Kisten sitzt. Der Ort wird mit dem Start angekündigt; das Kennwort jedes Spielers ist persönlich, aus der Ziehung abgeleitet, und existiert vor dem Eventstart nicht, es kann also von niemandem vorbereitet werden.',
           'Markiere die Orte auf der Weltkarte (der Pool-Editor hat eine), dann prüft das Plugin, ob die Spieler tatsächlich dort stehen, statt es ihnen nur gesagt zu haben. Du kannst außerdem eine **frische Sitzung** verlangen — standardmäßig 15 Minuten: Hiscores werden nur beim Ausloggen gespeichert, alle kurz vor ihrer Aufnahme zum Relog zu zwingen ist also das, was die Startwerte hinter jedem XP- und KC-Feld ehrlich macht.',
-          'Plugin-Nutzer drücken eine Taste. Alle anderen tippen ihr Kennwort im Spiel und laden auf My Team hoch. Du entscheidest, was mit einer Gutschrift von jemandem passiert, der nichts eingereicht hat: zur Prüfung markieren (Standard) oder ablehnen, bis er es tut. Dasselbe Overview-Panel ist die Prüfliste — Plugin-Aufnahmen mit verifiziertem Kennwort kommen bereits bestätigt an, in der Praxis siehst du dir also nur die Handyspieler an.',
+          'Plugin-Nutzer drücken eine Taste. Alle anderen tippen ihr Kennwort im Spiel und laden auf My Team hoch. Du entscheidest, was mit einer Gutschrift von jemandem passiert, der nichts eingereicht hat: zur Prüfung markieren (Standard) oder ablehnen, bis er es tut. Dasselbe Panel auf der Home-Seite des Events ist die Prüfliste — Plugin-Aufnahmen mit verifiziertem Kennwort kommen bereits bestätigt an, in der Praxis siehst du dir also nur die Handyspieler an.',
         ],
       },
     },
@@ -1132,7 +1180,7 @@ const de: PartialGuideDict = {
       rows: [
         {
           term: 'Auszahlungen',
-          body: 'der Payouts-Reiter des Events macht aus dem Preistopf eine Liste, wer was bekommt, und hakt sie ab, während du auszahlst.',
+          body: 'die **Prizes**-Seite des Events macht aus dem Preistopf eine Liste, wer was bekommt, und hakt sie ab, während du auszahlst.',
         },
         {
           term: 'Rückblick',
@@ -1144,7 +1192,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Als Vorlage speichern',
-          body: 'behalte das Board, das du gerade gebaut hast. Das nächste Bingo startet daraus statt aus einem leeren Raster.',
+          body: 'behalte das Board, das du gerade gebaut hast, über **Settings → More** des Events. Das nächste Bingo startet daraus statt aus einem leeren Raster.',
         },
       ],
       federation:
@@ -1193,9 +1241,9 @@ const de: PartialGuideDict = {
     team: {
       title: 'Zuerst das Team anlegen',
       body: [
-        'Öffne dein Event und geh zum Reiter **Teams & Draft**. Lege ein Team pro eingeladenem Clan an und benenne es nach ihm — der Name ist das, was ihre Spieler im Anmeldeformular sehen, „Ironforge“ schlägt also „Team 2“.',
+        'Öffne dein Event und geh zur Seite **Teams & draft**. Lege ein Team pro eingeladenem Clan an und benenne es nach ihm — der Name ist das, was ihre Spieler im Anmeldeformular sehen, „Ironforge“ schlägt also „Team 2“.',
         'Du musst _keinen_ Draft durchführen. Einladungslinks und ein Draft sind Alternativen: ein Draft verteilt einen gemeinsamen Anmeldepool, ein Link setzt Leute direkt. Bei einem reinen Clan-gegen-Clan legen die meisten Ausrichter die Teams an, geben je einen Link heraus, und öffnen den Draft nie.',
-        'Öffne dann das Team selbst — **Teams & Draft → das Team** — denn dort passieren beide nächsten Schritte.',
+        'Öffne dann das Team selbst — **Teams & draft → das Team** — denn dort passieren beide nächsten Schritte.',
       ],
       captainNote: {
         tag: 'Erst der Kapitän',
@@ -1209,7 +1257,7 @@ const de: PartialGuideDict = {
         'Das Panel **Team staff** auf der Teamseite ist der Weg, wie der eigene Moderator des Gastclans loslegt, ohne dass du ihm auf deiner Seite irgendetwas einräumst. Drück **Add someone**, such ihn, füge eine Notiz wie „Ironforge’s mod“ hinzu, damit der nächste Admin weiß, warum er da ist, und drück **Give a seat**.',
       ],
       figure: {
-        caption: 'Event → Teams & Draft → das Team → Team staff',
+        caption: 'Event → Teams & draft → das Team → Team staff',
         alt: 'Das Team-staff-Panel mit einem vergebenen Platz und geöffneter Suche zum Hinzufügen',
         legend: [
           {
@@ -1252,7 +1300,7 @@ const de: PartialGuideDict = {
         'Weiterhin auf der Teamseite erzeugt das Panel **Invite links** den Link. Zwei Felder legen fest, was der Link verspricht, und beide verstehen `0` als „versprich nichts“.',
       ],
       figure: {
-        caption: 'Event → Teams & Draft → das Team → Invite links',
+        caption: 'Event → Teams & draft → das Team → Invite links',
         alt: 'Das Invite-links-Panel mit den Feldern für Plätze und Ablauf, der Schaltfläche Make a link, und einem aktiven Link in der Liste',
         legend: [
           {
@@ -1465,7 +1513,7 @@ const de: PartialGuideDict = {
         'Ein 25-Felder-Raster zusammenzuklicken geht. Ein Leagues-Board mit 200 Aufgaben zusammenzuklicken nicht, und Korrekturlesen danach ebenso wenig. Der Tiles-Reiter hat genau dafür einen Hin- und Rückweg.',
       ],
       steps: [
-        '**Download spreadsheet** im **Tiles**-Reiter des Events. Du bekommst eine .xlsx des Boards, wie es gerade ist, mit Auswahllisten, der Gegenstandsliste und den Spaltenhinweisen auf eigenen Blättern.',
+        '**Download spreadsheet** auf der Seite **Board & tiles** des Events. Du bekommst eine .xlsx des Boards, wie es gerade ist, mit Auswahllisten, der Gegenstandsliste und den Spaltenhinweisen auf eigenen Blättern.',
         'Bearbeite sie. Eine Zeile pro Feld; die Zeilenreihenfolge ist die Feldreihenfolge.',
         '**Upload CSV / Excel** im selben Reiter. Nur das Blatt **Tiles** wird gelesen.',
       ],
@@ -1696,7 +1744,7 @@ const de: PartialGuideDict = {
       { strong: '3 Modifikatoren', rest: 'was eine Erledigung wert ist' },
     ],
     footnote:
-      'Das Format wird bei der Anlage festgelegt, lässt sich danach aber im Overview-Reiter des Events ändern; die Aufdeckregel und die Punktmodifikatoren lassen sich jederzeit ändern, bevor die betroffenen Felder aufgedeckt sind.',
+      'Das Format wird bei der Anlage festgelegt, lässt sich danach aber unter Settings → Event des Events ändern; die Aufdeckregel und die Punktmodifikatoren lassen sich jederzeit ändern, bevor die betroffenen Felder aufgedeckt sind.',
 
     shape: {
       title: 'Die Form des Boards',
@@ -1843,7 +1891,7 @@ const de: PartialGuideDict = {
       title: 'Die zweite Unterschrift',
       body: [
         'Eine Gebühr steht auf **eingesammelt**, bis ein _anderes_ Teammitglied bestätigt, dass sie angekommen ist. Wer das Geld angefasst hat, kann nicht auch derjenige sein, der unterschreibt, dass es aufgetaucht ist — das ist die ganze Kontrolle, und deshalb weist die Seite die eigene Bestätigung eines Einsammlers zurück, statt bloß davon abzuraten.',
-        'Wie viele Unterschriften eine Gebühr braucht, ist eine Clan-Einstellung, von null bis fünf. Null gibt es aus einem echten Grund: in einem Clan, in dem der Kassenwart _der_ Eigentümer ist, gibt es niemanden sonst zum Unterschreiben, und „34 Gebühren warten auf eine zweite Unterschrift“ wird zu einer Warteschlange, die sich nie leeren lässt, und dauerhaft zum Lautesten auf dem Dashboard. Bei null **ist** das Markieren als bezahlt die Unterschrift.',
+        'Wie viele Unterschriften eine Gebühr braucht, ist eine Clan-Einstellung (**Clan settings → Rules & scoring → Fee sign-off**), von null bis fünf. Null gibt es aus einem echten Grund: In einem Clan, in dem der Kassenwart _der_ Eigentümer ist, gibt es niemanden sonst zum Unterschreiben, und „34 Gebühren warten auf eine zweite Unterschrift“ wird zu einer Warteschlange, die sich nie leeren lässt, und dauerhaft zum Lautesten auf dem Dashboard. Bei null **ist** das Markieren als bezahlt die Unterschrift.',
         'Stell sie auf eins — den Standard — wenn ihr zu zweit seid. Stell sie auf null, wenn ihr das ehrlich nicht seid, und höher nur dann, wenn dein Clan sowohl die Leute als auch den Grund hat.',
       ],
     },
@@ -1851,7 +1899,7 @@ const de: PartialGuideDict = {
     pay: {
       title: 'Auszahlen',
       body: [
-        'Wenn das Event endet, macht der **Payouts**-Reiter des Events aus dem Topf eine Liste von Menschen. Erzeuge sie, und du bekommst eine Zeile pro Empfänger, nicht pro Team: der Preis eines Siegerteams teilt sich zu gleichen Teilen auf seine Mitglieder auf, damit die Auszahlung eine Liste aus Namen und Zahlen ist und keine Rechenaufgabe um Mitternacht.',
+        'Wenn das Event endet, macht die **Prizes**-Seite des Events aus dem Topf eine Liste von Menschen. Erzeuge sie, und du bekommst eine Zeile pro Empfänger, nicht pro Team: Der Preis eines Siegerteams teilt sich zu gleichen Teilen auf seine Mitglieder auf, damit die Auszahlung eine Liste aus Namen und Zahlen ist und keine Rechenaufgabe um Mitternacht.',
         'Die Beträge starten aus einer vorgeschlagenen Aufteilung — siegerlastig, und je mehr bezahlte Plätze du setzt, desto flacher wird sie — und jede Zeile ist bearbeitbar. Der Vorschlag ist ein Ausgangspunkt, keine Vorgabe.',
         'Dann zahlst du aus und hakst die Zeilen dabei ab. Der Punkt ist, dass eine Woche später jeder auf die Liste schauen und sehen kann, wer was bekommen hat, statt es aus dem Discord-Verlauf zu rekonstruieren.',
       ],
@@ -1948,7 +1996,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Mehrere zusammen',
-          body: 'wähl sie alle aus, tipp die Summe und drück **Split**, und pass einzelne Anteile danach von Hand an. Es schreibt je eine Zeile statt einer Zeile mit einer Liste, damit jeder unter seinem eigenen Namen in der Spenderliste steht.',
+          body: 'wähl sie alle aus, tipp die Summe und drück **Split … ways**, und pass einzelne Anteile danach von Hand an. Es schreibt je eine Zeile statt einer Zeile mit einer Liste, damit jeder unter seinem eigenen Namen in der Spenderliste steht.',
         },
       ],
       note: {
@@ -1971,7 +2019,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Der Preistopf eines Boards',
-          body: 'ein Bingo verteilt seinen Topf selbst auf Platzierungen, die Kasse reicht ihm also nur eine Zahl. Event → **Payouts** → *From the clan coffer*. Sie kommt zu den Startgeldern und zu dem, was du selbst zugelegt hast,  Du entscheidest außerdem, ob die Kasse dieses Gold sofort **bindet** oder nur das Versprechen festhält — es ist ja noch nicht weg, und ein Board in sechs Wochen braucht nicht den halben Topf bis dahin eingefroren.und die Aufteilung auf Plätze wird auf derselben Seite gesetzt.',
+          body: 'ein Bingo verteilt seinen Topf selbst auf Platzierungen, die Kasse reicht ihm also nur eine Zahl. Event → **Prizes** → *From the clan coffer*. Sie kommt zu den Startgeldern und zu dem, was du selbst zugelegt hast, und die Aufteilung auf Plätze wird auf derselben Seite gesetzt. Du entscheidest außerdem, ob die Kasse dieses Gold sofort **bindet** oder nur das Versprechen festhält — es ist ja noch nicht weg, und ein Board in sechs Wochen braucht nicht den halben Topf bis dahin eingefroren.',
         },
       ],
       note: {
@@ -2003,7 +2051,7 @@ const de: PartialGuideDict = {
       ],
       note: {
         tag: 'Sag es dem Clan, in einem Kanal',
-        body: 'Richte **Coffer channel** unter Admin → Discord → Where posts go auf einen Discord-Kanal, dann wird jede Bewegung mit dem Stand gepostet, den sie hinterlässt. Es ist der einzige Feed ohne Rückfallkanal: bleibt er leer, wird über das Geld nirgends etwas gepostet. Siehe [Anvil in Discord]({discordGuide}).',
+        body: 'Richte das **Coffer ledger** unter Admin → Discord → What goes where → **Staff only** auf einen Discord-Kanal, dann wird jede Bewegung mit dem Stand gepostet, den sie hinterlässt. Es ist der einzige Feed ohne Rückfallkanal: Bleibt er leer, wird über das Geld nirgends etwas gepostet. Siehe [Anvil in Discord]({discordGuide}).',
       },
     },
 
@@ -2043,7 +2091,7 @@ const de: PartialGuideDict = {
         'Accountverifizierungen — die XP-Aufgabe und die manuelle Prüfung',
         'Einreichungen und Nachweis-Screenshots',
         'Wochenwettbewerbe und den Terminplan',
-        'Rückmeldungen der Mitglieder',
+        'Termine im Clan-Kalender',
       ],
       cantIntro: 'Was sie bewusst nicht können:',
       cantList: [
@@ -2247,7 +2295,7 @@ const de: PartialGuideDict = {
       rows: [
         {
           term: 'Keine Anvil-Befehle in der Liste',
-          body: 'der Bot wurde ohne seine Befehle eingeladen — das ist eine eigene Berechtigung, und ältere Einladungslinks haben nur eine davon angefragt. Ein Admin öffnet den Einladungslink erneut unter Admin → Integrations → Discord bot. Das wirft den Bot nicht raus und setzt nichts zurück. Neu hinzugefügte Befehle können bis zu einer Stunde brauchen, bis sie erscheinen.',
+          body: 'der Bot wurde ohne seine Befehle eingeladen — das ist eine eigene Berechtigung, und ältere Einladungslinks haben nur eine davon angefragt. Ein Admin führt **Invite / re-invite the bot** unter Admin → Discord → **Connection** erneut aus. Das wirft den Bot nicht raus und setzt nichts zurück. Neu hinzugefügte Befehle können bis zu einer Stunde brauchen, bis sie erscheinen.',
         },
         {
           term: '„The application did not respond“',
@@ -2456,7 +2504,7 @@ const de: PartialGuideDict = {
     who: {
       title: 'Wählen, wer mitmachen darf',
       body: [
-        'Jedes Event startet offen für **Anyone**. Um es für deine Community zu reservieren, öffne die **Settings** des Events → **Who can join?** und wähle eine oder mehrere Optionen. Dieselben Optionen gibt es auf dem Bildschirm fürs erste Event.',
+        'Jedes Event startet offen für **Anyone**. Um es für deine Community zu reservieren, öffne die **Settings** des Events → **Viewers** → **Who can join?** und wähle eine oder mehrere Optionen. Dieselben Optionen gibt es auf dem Bildschirm fürs erste Event.',
         'Wenn du mehr als eine wählst, **reicht eine davon**. Ein Follower ODER ein Server-Booster kommt rein.',
       ],
       intro: 'Jede Option, und was ein Zuschauer tun muss:',
@@ -2507,7 +2555,7 @@ const de: PartialGuideDict = {
     approve: {
       title: 'Zu jedem Spieler Ja sagen (optional)',
       body: [
-        'Du willst auswählen, wer spielt? Öffne die **Settings** des Events → **Who can play** → **Who can enter it** und wähle **Ask me about everyone**. Drück **Save changes**.',
+        'Du willst auswählen, wer spielt? Öffne die **Settings** des Events → **Viewers** → **Who can enter** und wähle **Ask me about everyone**. Drück **Save changes**.',
         'Jetzt drücken Zuschauer **Ask to join** statt **Join**. Sie müssen vorher trotzdem deine **Who can join?**-Optionen erfüllen.',
         'Ihre Anfragen erscheinen bei **Your events** als **N waiting for you**. Klick darauf, oder öffne den Tab **Sign-ups** des Events. Die Liste oben heißt **Waiting for your yes**. Nimm jede an oder lehne sie ab.',
       ],
@@ -2594,7 +2642,7 @@ const de: PartialGuideDict = {
       body: [
         'Dein Space ist beim Erstellen nicht gelistet. Nur Leute mit deinem Link finden ihn.',
         'Öffne **Settings** → **Advertise on Anvil** und schalte es ein. Dein Space erscheint im Anvil-Clan-Verzeichnis, und deine neuen Events erscheinen auf `{apex}/events`.',
-        'Um nur ein Event zu listen, öffne dessen **Settings** → **Who can play** → **Advertise on Anvil**. Es erscheint, solange das Event bevorsteht oder läuft.',
+        'Um nur ein Event zu listen, öffne dessen **Settings** → **Viewers** → **List on Anvil**. Es erscheint, solange das Event bevorsteht oder läuft.',
         'Ein Event ohne Termine erscheint unter **Open to join**, markiert mit „Open now · starts when the host starts it“.',
       ],
     },
@@ -2798,7 +2846,7 @@ const de: PartialGuideDict = {
     on: {
       title: 'Streaming einschalten',
       body: [
-        'Geh zu Admin → **Clan settings** → **Streaming** und schalte es ein.',
+        'Geh zu Admin → **Clan settings** → **Profile** und schalte **Streaming** ein.',
         'Nur ein öffentlicher Clan kann streamen. Zuschauer müssen deine Event-Seite öffnen können, und ein privater Clan versteckt sie. Ein Clan mit eingeschaltetem Streaming kann nicht privat werden, bis du es ausschaltest.',
         'Ist es an, verbinde direkt darunter deinen Twitch-, YouTube- oder Kick-Kanal.',
       ],
@@ -2808,7 +2856,7 @@ const de: PartialGuideDict = {
       title: 'Ein Event für Zuschauer öffnen',
       body: [
         'Jedes Event bleibt **Members only**, bis du etwas anderes sagst. So war es auch vorher.',
-        'Öffne die **Settings** des Events → **Who can join?** und wähle **Members and viewers**. Wähle dann **Which viewers?**: jeder, oder Follower, Subs, eine Discord-Rolle und so weiter. Drück **Save**.',
+        'Öffne die **Settings** des Events → **Entry & co-hosts** → **Who can join?** und wähle **Members and viewers**. Wähle dann **Which viewers?**: jeder, oder Follower, Subs, eine Discord-Rolle und so weiter. Drück **Save**.',
         'Diese Prüfungen gelten nur für Zuschauer. Deine Clan-Mitglieder kommen wie bisher immer rein.',
       ],
     },
@@ -2826,7 +2874,7 @@ const de: PartialGuideDict = {
       title: 'Deine Stream-Werkzeuge',
       body: [
         'Die Streamer-Werkzeuge funktionieren wie in einem Creator-Space: verifizierte Kanal-Links, **Who can join?**-Prüfungen, das OBS-Overlay und `!join` im Chat.',
-        'Die Overlay-Links für ein Clan-Event findest du in den **Settings** des Events unter **Who can play** → **Stream overlay**. `!join` und das Overlay-Zeichen liegen unter **Clan settings** → **Streaming**.',
+        'Die Overlay-Links für ein Clan-Event findest du in den **Settings** des Events → **Stream** → **Stream overlay**. `!join` und das Overlay-Zeichen liegen unter **Clan settings** → **Profile** → **Streaming**.',
         'Die [Creator-Anleitung]({creatorsGuide}) erklärt jedes Werkzeug Schritt für Schritt.',
         'Stream-Highlights funktionieren hier auch: Mit verbundenem Twitch oder YouTube clippt Anvil die großen Momente von Events, die für Zuschauer offen sind. `!join` im Kick-Chat hat einen eigenen Schalter im Kasten **Kick channel**.',
       ],

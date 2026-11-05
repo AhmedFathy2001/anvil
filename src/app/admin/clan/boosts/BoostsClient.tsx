@@ -79,7 +79,7 @@ export default function BoostsClient({
 
   return (
     <>
-      <section className={card}>
+      <section id="boost-recruiting-line" className={`scroll-mt-24 ${card}`}>
         <h2 className="mb-1 font-semibold">Recruiting line</h2>
         <p className="mb-3 text-sm text-text-muted">
           {lineUnlocked
@@ -113,7 +113,7 @@ export default function BoostsClient({
         </p>
       </section>
 
-      <section className={card}>
+      <section id="boost-recruitment-post" className={`scroll-mt-24 ${card}`}>
         <h2 className="mb-1 font-semibold">Recruitment post in the Anvil Discord</h2>
         <p className="mb-3 text-sm text-text-muted">
           {!postUnlocked

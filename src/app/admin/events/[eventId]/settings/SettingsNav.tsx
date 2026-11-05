@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
 import { clanUrl } from '@/lib/clanFetch';
+import { revealHash } from '@/components/HashReveal';
 import { searchSettings, tabHref, type SettingsKind, type TabInfo } from '@/lib/eventSettingsTabs';
 
 /**
@@ -34,32 +35,8 @@ export default function SettingsNav({ eventId, kind, tabs }: { eventId: number; 
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Arriving with #setting (a search result, or a link from elsewhere): scroll to it and ring it. The
-  // tab streams in after navigation, so look for the element for up to a second.
-  useEffect(() => {
-    const id = decodeURIComponent(window.location.hash.slice(1));
-    if (!id) return;
-    let tries = 0;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const find = () => {
-      const el = document.getElementById(id);
-      if (!el) {
-        if (tries++ < 20) timer = setTimeout(find, 50);
-        return;
-      }
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      const before = el.style.boxShadow;
-      el.style.transition = 'box-shadow .3s';
-      el.style.boxShadow = '0 0 0 3px var(--gold)';
-      timer = setTimeout(() => {
-        el.style.boxShadow = before;
-      }, 1800);
-    };
-    find();
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [pathname]);
+  // Arriving with #setting (a search result, or a link from elsewhere) is components/HashReveal's job:
+  // the admin layout mounts it, and it waits for the tab to stream in, scrolls and rings the setting.
 
   function go(href: string) {
     setOpen(false);
@@ -69,13 +46,7 @@ export default function SettingsNav({ eventId, kind, tabs }: { eventId: number; 
     // Same tab: the router won't re-run the effect above, so ring it here.
     if (path === pathname && hash) {
       window.history.replaceState(null, '', `${window.location.pathname}#${hash}`);
-      const el = document.getElementById(hash);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        el.style.transition = 'box-shadow .3s';
-        el.style.boxShadow = '0 0 0 3px var(--gold)';
-        setTimeout(() => (el.style.boxShadow = ''), 1800);
-      }
+      revealHash(hash);
       return;
     }
     router.push(clanUrl(href));
