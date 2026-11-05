@@ -67,7 +67,7 @@ export default function ToggleSetting({ settingKey, label, helpText, defaultOn =
   if (loading) return <div className="text-text-muted text-sm">Loading…</div>;
 
   return (
-    <div className="space-y-2">
+    <div id={`setting-${settingKey}`} className="scroll-mt-24 space-y-2">
       {/* The save state rides in the label: this toggle writes immediately, so "Saving…" belongs
           beside the thing being saved rather than somewhere else on the page. */}
       <Checkbox

@@ -230,7 +230,7 @@ export default function WebhookField({
   if (loading) return <div className="text-text-muted text-sm">Loading…</div>;
 
   return (
-    <div className="space-y-3">
+    <div id={`setting-${settingKey}`} className="scroll-mt-24 space-y-3">
       {label && <p className="text-sm font-medium">{label}</p>}
 
       {/* Configured webhook(s) */}

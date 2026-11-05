@@ -2,11 +2,13 @@ import type { PartialGuideDict } from './en';
 
 // Suomi — Finnish.
 //
-// Sama käytäntö kuin kaikissa muissakin kielitiedostoissa: kaikki, mitä lukija NÄKEE ruudullaan,
-// jää englanniksi — RuneLiten ja OBS:n valikot, pluginin omat chat-rivit, ja Anvilin omat
-// hallintapaneelin nimikkeet, jotka ovat englanniksi kunnes sekin pinta käännetään. Käännetty
-// "Tracked drop detected" on rivi, jota kukaan ei löydä uudestaan. Kaikki muu — selitys, järjestys,
-// miksi — on suomea.
+// Sama käytäntö kuin kaikissa muissakin kielitiedostoissa: kaikki, mitä lukija NÄKEE ruudullaan
+// Anvilissa, RuneLitessä ja OBS:ssä, jää englanniksi — RuneLiten ja OBS:n valikot, pluginin omat
+// chat-rivit, ja Anvilin omat hallintapaneelin nimikkeet, jotka ovat englanniksi kunnes sekin pinta
+// käännetään. Käännetty "Tracked drop detected" on rivi, jota kukaan ei löydä uudestaan. Kaikki muu
+// — selitys, järjestys, miksi — on suomea. Discordin omat nimikkeet (valikot, asetukset, oikeudet)
+// sen sijaan noudattavat Discordin virallista suomennosta — sitä, mitä suomeksi asetettu Discord
+// näyttää; jos Discordia ei olisi käännetty, ne jäisivät englanniksi.
 
 const fi: PartialGuideDict = {
   common: {
@@ -187,7 +189,7 @@ const fi: PartialGuideDict = {
         '**Synkronoi klaanilista.** Avaa Anvil-lisäosan asetukset RuneLitessa. Laita päälle **Keep the clan roster in sync**. Yksi admin tekee tämän kerran pelissä. Tämä korvaa Wise Old Man -ryhmäsi.',
         '**Aloita Skill tai Boss of the Week.** Mene kohtaan Admin → All events → **+ New event** ja valitse Skill of the Week tai Boss of the Week. Kaikki klaanilistalla olevat ovat mukana automaattisesti. Tämä korvaa Wise Old Manin kilpailut.',
         '**Kerro jäsenillesi.** Mene kohtaan Admin → Discord → **Tell your members** → **Post it**. Botti postaa pelaajien ohjeet puolestasi.',
-        '**Viikon päästä: siivoa.** Mene kohtaan Admin → Discord, rastita Dinkin vanhat webhookit ja paina **Remove**. Sen jälkeen mikään ei voi postautua kahdesti.',
+        '**Viikon päästä: siivoa.** Mene kohtaan Admin → Discord → **Remove Dink’s old webhooks**, rastita poistettavat, paina **Remove … webhooks** ja sitten **Yes, remove them**. Sen jälkeen mikään ei voi postautua kahdesti. Paina **Keep** niiden kohdalla, jotka haluat jättää rauhaan.',
       ],
     },
 
@@ -244,7 +246,7 @@ const fi: PartialGuideDict = {
         rest: 'toimivaan klaaniin',
       },
     ],
-    footnote: 'Kaikkea tätä voi muuttaa myöhemmin kohdasta Admin → Klaani, paitsi osoitetta — sitä kannattaa miettiä hetki nyt.',
+    footnote: 'Kaikkea tätä voi muuttaa myöhemmin kohdasta Admin → **Clan settings**, paitsi osoitetta — sitä kannattaa miettiä hetki nyt.',
     before: {
       title: 'Ennen kuin aloitat',
       body: [
@@ -254,7 +256,7 @@ const fi: PartialGuideDict = {
       ],
       note: {
         tag: 'Sinusta tulee sen omistaja',
-        body: 'Omistaja on se yksi rooli jota kukaan ei voi ottaa sinulta, ja se menee sille joka luo klaanin. Lisää henkilökuntaa jälkeenpäin kohdasta Admin → Klaani; katso [Vuorolistalla]({moderatorGuide}).',
+        body: 'Omistaja on se yksi rooli jota kukaan ei voi ottaa sinulta, ja se menee sille joka luo klaanin. Lisää henkilökuntaa jälkeenpäin kohdasta Admin → **People** → **Staff & roles**; katso [Vuorolistalla]({moderatorGuide}).',
       },
     },
     create: {
@@ -288,27 +290,27 @@ const fi: PartialGuideDict = {
     },
     setup: {
       title: 'Ohjattu käyttöönotto',
-      intro: 'Neljä asiaa erottaa tuoreen klaanin käynnissä olevasta tapahtumasta. Ohjattu toiminto käy ne järjestyksessä ja ohittaa sen minkä olet jo tehnyt.',
+      intro: 'Kolme vaihetta erottaa tuoreen klaanin käynnissä olevasta tapahtumasta, ja ohjattu toiminto käy ne järjestyksessä ja ohittaa sen minkä olet jo tehnyt. Taulu tulee heti perään.',
       steps: [
         {
-          term: 'Nimeä se Discordissa',
+          term: 'Klaanisi',
           body: 'Näyttönimesi, klaanin nimi pelissä ja kutsulinkki palvelimellesi. Kutsu on se, minkä avulla ilmoittautumissivut ja oppaat voivat ohjata ihmisiä luoksesi.',
         },
         {
           term: 'Yhdistä Discord',
-          body: 'Yksi jaettu botti, joten ei sovellusta rekisteröitävänä eikä tokenia liitettävänä. Hyväksy se kerran, niin se voi julkaista kanavillesi ja lukea roolisi.',
+          body: 'Yksi jaettu botti, joten ei sovellusta rekisteröitävänä eikä tokenia liitettävänä. Paina **Connect your bot** ja hyväksy se kerran, valitse sitten **A few channels** tai **Just one channel** ja paina **Set it up for me** — botti tekee kanavat puolestasi.',
         },
         {
-          term: 'Anna sille kanava',
-          body: 'Ilmoituskanava tapahtumajulkaisuille. Halutessasi jaa lisäosan syötteet erilleen: harvinaiset dropit yhdelle kanavalle, kuolemat toiselle, jottei kumpikaan huku toiseen.',
+          term: 'Tuo jäsenesi mukaan',
+          body: 'Asenna lisäosa, kirjaudu sisään Discordilla, avaa sitten pelissä klaani-ikkunasi ja paina sen otsikkopalkin **Anvil**-painiketta. Kukaan ei voi ilmoittautua tapahtumaan ennen kuin jäsenlistasi on sisällä.',
         },
         {
           term: 'Tee taulu',
-          body: 'Ensimmäinen tapahtuma. Valitse muoto, lisää ruudut, avaa ilmoittautuminen — se on [Ensimmäisen tapahtuman pitäminen]({adminGuide}), ja selvästi pisin näistä neljästä.',
+          body: 'Ohjattu toiminto päättyy painikkeeseen **Create your first event →**. Valitse muoto, lisää ruudut, avaa ilmoittautuminen — se on [Ensimmäisen tapahtuman pitäminen]({adminGuide}), ja selvästi pisin vaihe.',
         },
       ],
       after: [
-        'Voit ohittaa ohjatun toiminnon kokonaan ja tehdä kaiken myöhemmin kohdasta Admin → Klaani. Se on olemassa koska järjestys merkitsee kun ei ole koskaan tehnyt tätä: Discord ennen kanavia, kanavat ennen taulua joka haluaa julkaista niille.',
+        'Voit ohittaa ohjatun toiminnon kokonaan painikkeella **Skip setup** ja tehdä kaiken myöhemmin kohdista Admin → **Clan settings** ja Admin → **Discord**. Se on olemassa koska järjestys merkitsee kun ei ole koskaan tehnyt tätä: Discord ennen kanavia, jäsenet ennen taulua johon heidän pitää ilmoittautua.',
       ],
     },
     members: {
@@ -327,7 +329,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Käsin',
-          body: 'Admin → Klaani ottaa nimiä yksitellen, sitä varten joka pelaa mobiililla tai virallisella clientilla eikä voi ajaa lisäosaa lainkaan.',
+          body: 'Admin → **People** → **+ Add Manually** ottaa nimiä yksitellen, sitä varten joka pelaa mobiililla tai virallisella clientilla eikä voi ajaa lisäosaa lainkaan.',
         },
       ],
       note: {
@@ -355,6 +357,18 @@ const fi: PartialGuideDict = {
         body: 'Toisen tapahtumaan osallistuminen on ilmaista, ja sellaisen järjestäminen myös. Klaani joka vain ilmestyy muiden tauluille ei koskaan tarvitse muuta kuin oman ilmaisen klaaninsa.',
       },
     },
+    boosts: {
+      title: 'Klaanin boostit',
+      body: [
+        'Jäsenet, jotka maksavat Anvil Supporterista tasolla **Champion** (yksi boosti) tai **Patron** (kaksi), voivat boostata klaania omista asetuksistaan kohdasta **Settings → Clan boosts**. Boosti lasketaan, kun heidän paikkansa klaanissa on 14 päivää vanha, eikä yhdeltä ihmiseltä lasketa enempää kuin kaksi.',
+        'Näet tilanteesi kohdasta Admin → **Clan settings** → **Boosts**: klaanin tason, montako boostia lasketaan ja montako lisää seuraava taso vaatii. Taso 1 vaatii 3 boostia, taso 2 vaatii 8 ja taso 3 vaatii 15. Jos boostit putoavat tason alle, sen edut pysyvät vielä viikon.',
+        'Taso 1 lisää **Boosted**-merkin klaanisivullesi, Clan Hall -kortillesi ja hakuun, listaa klaanisi boostaamattomien klaanien yläpuolelle Clan Hallissa ja antaa klaanisi nimelle liukuvärin. Taso 2 lisää paikan Clan Hallin Featured-rivillä, toistaa animoidun bannerisi ja avaa rekrytointirivin (**Recruiting line**): yksi lause, enintään 140 merkkiä, joka näytetään vierailijoille. Taso 3 lisää Spotlightin Clan Hallin yläreunaan ja yhden rekrytointijulkaisun kuukaudessa Anvilin Discordiin (**Recruitment post in the Anvil Discord**): enintään 500 merkkiä, lähetetään kerran painikkeella **Post to the Anvil Discord**, mukana linkki klaanisivullesi, eikä ketään pingata.',
+      ],
+      note: {
+        tag: 'Vain ulkonäköä',
+        body: 'Boostit muuttavat sitä, miltä klaani näyttää ja missä se listataan. Ne eivät koskaan muuta rankkia, pisteitä, paikkojasi tai tilaustasi.',
+      },
+    },
   },
 
   discord: {
@@ -377,41 +391,41 @@ const fi: PartialGuideDict = {
         rest: 'jokainen syöte on pois kunnes osoitat sen jonnekin',
       },
     ],
-    footnote: 'Kaikki tämä on kohdassa Admin → Asetukset, jaettuna välilehdille Discord-botti, Webhookit, Roolit ja kanavat sekä Ilmoitukset.',
+    footnote: 'Kaikki tämä on kohdassa Admin → **Discord**: pika-asetukset ylimpänä, sitten **More settings** — Connection, What goes where, Event posts, Roles & nicknames, Team channels, Commands ja Post without a bot.',
     bot: {
       title: 'Yksi botti, jo rakennettu',
       body: [
         'Ei Discord-sovellusta luotavana, ei tokenia luotavana eikä salaisuutta liitettävänä. Anvil ajaa yhtä bottia jonka jokainen klaani jakaa, joten yhdistäminen on kutsu eikä mitään muuta.',
-        'Voit silti tuoda omasi — liitä token kohtaan **Discord-botti**, niin sitä käytetään sen sijaan. Kannattaa vain jos haluat botin kantavan klaanisi nimeä ja kuvaa jäsenlistassa; kaikki tässä oppaassa toimii samoin kummin päin tahansa.',
+        'Voit silti tuoda omasi — liitä token kohtaan **Use your own bot instead (advanced)**, niin sitä käytetään sen sijaan. Kannattaa vain jos haluat botin kantavan klaanisi nimeä ja kuvaa jäsenlistassa; kaikki tässä oppaassa toimii samoin kummin päin tahansa.',
       ],
       permissions: [
         {
-          term: 'Näytä kanavat, lähetä viestejä, upota linkkejä, liitä tiedostoja',
+          term: 'Näytä kanavat, Lähetä viestejä, Upota linkkejä, Liitä tiedostoja',
           body: 'Perusta. Ilman näitä se on palvelimellasi ja vaiti.',
         },
         {
-          term: 'Hallinnoi webhookeja',
-          body: 'Jotta Webhookit-välilehden **Luo**-painike voi tehdä webhookin puolestasi sen sijaan että kopioisit URL-osoitteita käsin Discordista.',
+          term: 'Hallitse webhookeja',
+          body: 'Jotta **Set it up for me** ja **Post here** voivat tehdä webhookit puolestasi sen sijaan että kopioisit URL-osoitteita käsin Discordista, ja jotta Anvil voi löytää vanhat webhookit poistettaviksi.',
         },
         {
-          term: 'Hallinnoi rooleja',
+          term: 'Hallitse rooleja',
           body: 'Vain jos otat roolisynkronoinnin käyttöön. Silloin se voi jakaa kartoittamasi roolit — eikä se voi koskaan koskea omaansa ylempään rooliin, mikä on Discordin sääntö, ei meidän.',
         },
         {
-          term: 'Hallinnoi nimimerkkejä',
+          term: 'Hallitse lempinimiä',
           body: 'Vain jos otat nimimerkkisynkronoinnin käyttöön, jotta jäsenen palvelinnimimerkki voidaan asettaa hänen RSN:kseen.',
         },
         {
-          term: 'Hallinnoi kanavia',
+          term: 'Hallitse kanavia',
           body: 'Joukkueiden yksityisiin kanaviin draftin aikana sekä oppaisiin, jotka julkaistaan uutena kategoriana tai foorumina. Ilman sitä kaikki muu toimii silti.',
         },
         {
-          term: 'Hallitse ketjuja, lähetä viestejä ketjuihin',
+          term: 'Hallitse ketjuja, Lähetä viestejä ketjuihin',
           body: 'Foorumiin julkaistuja oppaita varten: julkaisuun kirjoittamiseen ja sen poistamiseen — ilman tätä Discord ei anna botin poistaa edes omaa foorumijulkaisuaan.',
         },
         {
           term: 'Vaihda lempinimi',
-          body: 'Vain jos annat botille klaanisi nimen kohdassa **Settings → Bot appearance**. Se muuttaa botin nimen vain teidän palvelimellanne.',
+          body: 'Vain jos annat botille klaanisi nimen kohdassa **Connection → Bot appearance in your server**. Se muuttaa botin nimen vain teidän palvelimellanne.',
         },
       ],
       note: {
@@ -425,11 +439,11 @@ const fi: PartialGuideDict = {
       steps: [
         {
           term: 'Kutsu botti',
-          body: 'Admin → Asetukset → **Discord-botti** → **Kutsu / kutsu botti uudelleen**. Linkki esivalitsee palvelimesi kun tunnus on asetettu, joten et voi lisätä sitä väärään vahingossa.',
+          body: 'Admin → **Discord** → **Connect your Discord server** (tai **Add Anvil to Discord**). Discord kysyy, mille palvelimelle Anvil lisätään, ja palauttaa sinut tänne, joten et voi lisätä sitä väärään vahingossa. Myöhemmin **Invite / re-invite the bot** löytyy kohdasta **More settings → Connection**.',
         },
         {
           term: 'Aseta palvelintunnus',
-          body: 'Napsauta palvelimesi kuvaketta Discordissa hiiren oikealla → **Kopioi palvelimen tunnus** (vaatii kehittäjätilan Discordin omista lisäasetuksista) ja liitä se. Tämä kenttä tekee yhteydestä nimenomaan sinun.',
+          body: 'Vain jos painike ei onnistu: avaa **Can’t use the button? Enter the server ID**, napsauta palvelimesi kuvaketta Discordissa hiiren oikealla → **Kopioi palvelimen ID** (vaatii, että Kehittäjätila on päällä Discordin omissa asetuksissa kohdassa Lisäasetukset), liitä se kenttään **Your Discord server’s ID** ja paina **Save**. Tämä kenttä tekee yhteydestä nimenomaan sinun.',
         },
       ],
       after: [
@@ -444,20 +458,20 @@ const fi: PartialGuideDict = {
       title: 'Webhookien määritys',
       body: [
         'Anvil julkaisee **webhookien** kautta, yksi per kanava, ja jokainen niistä on valinnainen. Mitään ei julkaista minnekään ennen kuin osoitat syötteen kanavalle — tuore klaani on hiljainen tarkoituksella, ei vahingossa.',
-        'Avaa **Ylläpito → Asetukset → Webhookit** ja aloita ilmoitusten pää-webhookista. Kun botti on yhdistetty, valitse kanava, paina **Luo webhook** ja sitten **Testaa**. Ilman bottia avaa Discordissa kanavan **Muokkaa kanavaa → Integraatiot → Webhooks**, luo webhook, kopioi sen URL, liitä se Anviliin ja paina **Lisää**. Webhook-URL voi julkaista kanavalle, joten käsittele sitä salasanana; jos se vuotaa, poista se Discordissa ja luo uusi. **Luo webhook** korvaa tallennetun kohteen, kun taas **Lisää toinen** säilyttää molemmat ja kierrättää vilkkaat julkaisut niiden välillä.',
+        'Kun Anvil-botti on palvelimellasi, **Set it up for me** sivun **Admin → Discord** yläosassa tekee kanavat ja osoittaa jokaisen syötteen niihin. Jos teet sen käsin, avaa **More settings → What goes where** ja aloita kanavasta **Catch-all channel** välilehdellä **Clan & events**, sitten **In-game catch-all** välilehdellä **In-game (plugin)**: valitse kanava pudotusvalikosta, niin se tallentuu. Ilman bottia avaa Discord-kanavan **Muokkaa kanavaa → Integraatiot → Webhookit**, luo webhook, kopioi sen URL, valitse pudotusvalikosta **Paste a webhook…**, liitä se ja paina **Save**. Webhook-URL voi julkaista kanavalleen, joten käsittele sitä salasanana; jos se vuotaa, poista se Discordissa ja luo uusi. **Test** sekä **Add another**, jolla vilkkaat julkaisut kierrätetään kahden webhookin välillä, löytyvät kohdasta **Post without a bot**.',
       ],
       feeds: [
         {
-          term: 'Ilmoitukset',
-          body: 'Tärkein. Tapahtumien alut ja loput, ilmoittautumisen avautuminen, tilanteet, viikkotulokset. Aseta tämä äläkä mitään muuta, niin sinulla on toimiva klaani.',
+          term: 'Yleiskanava (Catch-all channel)',
+          body: 'Tärkein, välilehdellä **Clan & events**. Tapahtumien alut ja loput, ilmoittautumisen avautuminen, tilanteet, viikkotulokset — kaikki mitä sivusto julkaisee ilman omaa kanavaa. Aseta tämä äläkä mitään muuta, niin sinulla on toimiva klaani.',
         },
         {
-          term: 'Lisäosan oletus',
-          body: 'Minne kaikki pelistä tuleva menee kun sillä ei ole omaa kanavaa. Aseta tämä toisena.',
+          term: 'Pelin yleiskanava (In-game catch-all)',
+          body: 'Välilehdellä **In-game (plugin)**: minne kaikki pelistä tuleva menee kun sillä ei ole omaa kanavaa. Aseta tämä toisena.',
         },
         {
           term: 'Eriytetyt syötteet',
-          body: 'Harvinaiset dropit, lemmikit, kuolemat, collection log, combat achievementit, tasot, questit, diaryt, PvP-tapot ja Leagues saavat kukin oman kanavansa. Tuo eriyttäminen on ero syötteen jota luetaan ja syötteen jonka ihmiset mykistävät välillä.',
+          body: 'Tapahtumajulkaisut, yhdessä isännöimäsi taulut, Skill & boss of the week ja klaanikalenterin tapahtumat voi erottaa yleiskanavasta; harvinaiset dropit, lemmikit, collection log, tasot, combat achievementit, questit, diaryt, kuolemat ja PvP-tapot voi erottaa pelin yleiskanavasta. Jäsenlistan muutokset, ilmoittautumisten hyväksynnät ja kassan kirjanpito ovat välilehdellä **Staff only**. Tyhjiksi jätetyt erilliset syötteet putoavat takaisin omaan yleiskanavaansa. Kassa on poikkeus: tyhjä tarkoittaa, ettei rahasta julkaista mitään. Leaguesilla ja muilla pelimuodoilla on oma välilehtensä **Game modes**.',
         },
       ],
       note: {
@@ -468,7 +482,7 @@ const fi: PartialGuideDict = {
     roles: {
       title: 'Roolit ja nimimerkit',
       body: [
-        'Molemmat synkronoinnit ovat pois käytöstä, kunnes otat ne käyttöön kohdassa **Ylläpito → Asetukset → Roolit ja kanavat**. Ota roolisynkronointi käyttöön, jätä automaattinen rankin nimivastaavuus päälle, valitse mahdolliset jäsen- ja vierasroolit, tallenna ja paina **Synkronoi roolit ja nimimerkit nyt**. Jokaisella henkilöllä pitää myös olla yhdistetty Discord-tili. Automaattinen vastaavuus vaatii pelin rankin nimen: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` tai `Recruit`; omat rankit toimivat samalla nimellä. Kirjainkoolla ei ole väliä ja alaviiva vastaa välilyöntiä, mutta ylimääräiset sanat eivät täsmää — `General` toimii, `OSRS General` ei. Yleiset jäsen- ja vierasroolit valitaan erikseen ja ne voidaan nimetä vapaasti.',
+        'Molemmat synkronoinnit ovat pois käytöstä, kunnes otat ne käyttöön kohdassa **Admin → Discord → Roles & nicknames**, ja molempia ohjaa jäsenlista. Laita **Enable Discord role sync** päälle, jätä **Auto-match in-game rank → Discord role by name** päälle, valitse mahdolliset yleiset **Member roles** ja **Guest roles**, tallenna ja paina sitten **Sync roles & nicknames now**. Jokaisella henkilöllä pitää myös olla yhdistetty Discord-tili; synkronointiraportti nimeää kaikki, joita se ei pystynyt tunnistamaan.',
       ],
       ways: [
         {
@@ -482,14 +496,14 @@ const fi: PartialGuideDict = {
       ],
       note: {
         tag: 'Botin roolin on oltava hallitsemiensa yläpuolella',
-        body: 'Discord ei anna minkään botin koskea omaansa vastaavaan tai ylempään rooliin, ja se kieltäytyy siitä hiljaa sinun päästäsi — synkronointi ei silloin yksinkertaisesti tee mitään. Vedä Anvil-rooli ylös kohdassa Palvelimen asetukset → Roolit, niin se alkaa toimia; mitään ei tarvitse kutsua uudelleen.',
+        body: 'Discord ei anna minkään botin koskea omaansa vastaavaan tai ylempään rooliin, ja se kieltäytyy siitä hiljaa sinun päästäsi — synkronointi ei silloin yksinkertaisesti tee mitään. Vedä Anvil-rooli ylös kohdassa **Palvelimen asetukset → Roolit**, niin se alkaa toimia; mitään ei tarvitse kutsua uudelleen.',
       },
     },
     commands: {
       title: 'Kauttaviivakomennot',
       body: [
         'Botti vastaa palvelimellasi komentoon `/bingo` (taulu, tilanne, säännöt, oma korttisi) sekä klaanikomentoihin kuten `/sotw`, `/stats` ja `/coffer`. Ne lukevat sivustoa reaaliajassa, joten kenenkään ei tarvitse poistua Discordista nähdäkseen tilanteensa. [Jokaisella komennolla ja sen valinnoilla]({commandsGuide}) on oma sivunsa.',
-        'Ne ilmestyvät noin minuutin kuluttua botin liittymisestä. Jos ne eivät ilmesty lainkaan, kutsu myönsi botin muttei sen komentoja — ne ovat kaksi erillistä oikeutta, ja vanhempi kutsulinkki pyysi vain toista. Avaa kutsulinkki uudelleen Discord-botti-välilehdeltä; se ei poista bottia eikä nollaa mitään.',
+        'Ne ilmestyvät noin minuutin kuluttua botin liittymisestä. Jos ne eivät ilmesty lainkaan, kutsu myönsi botin muttei sen komentoja — ne ovat kaksi erillistä oikeutta, ja vanhempi kutsulinkki pyysi vain toista. Aja **Invite / re-invite the bot** uudelleen Discord-sivun kohdasta **Connection**; se ei poista bottia eikä nollaa mitään.',
       ],
       note: {
         tag: 'Se vastaa kunkin omalla kielellä',
@@ -508,6 +522,42 @@ const fi: PartialGuideDict = {
         body: 'Droppi joka täydentää ruudun on yksi julkaisu, ei yksi lisäosalta ja toinen taululta.',
       },
     },
+    modes: {
+      title: 'Leagues, Deadman ja muut pelimuodot',
+      body: [
+        'Leagues, Deadman, hardcore ja muut pelimuodot pyörivät omilla maailmoillaan omilla hahmoillaan. Niiden julkaisut on aina merkitty, eivätkä ne koskaan laske tauluihin tai kilpailuihin. Niillä on oma välilehtensä: **Admin → Discord → What goes where → Game modes**. Pelimuoto ilmestyy sinne, kun joku jäsen pelaa sitä ensimmäisen kerran.',
+        'Jokaisella pelimuodolla on kytkin ja **To**-kanava. Laita **Send game-mode posts to their own channels** päälle käyttääksesi noita kanavia; jos jätät sen pois päältä, jokainen pelimuoto julkaisee tavallisille kanaville, yhä merkittynä. Pelimuodon rivin **Posts**-painike listaa kaikki sen lähettämät julkaisutyypit — tavalliset ja pelimuodon omat tapahtumat — ja jokaisella on oma kytkimensä.',
+        'Listan alla **Custom filters** saavat pelimuodon julkaisemaan vähemmän kuin pääpeli. **Post drops rarer than 1 in…** asettaa oman harvinaisuusrajan (tyhjä = sama kuin pääpelissä): aina julkaistavat esineet julkaistaan silti, mutta dropit, jotka lasketaan vain arvonsa vuoksi, eivät. **Use its own level milestones** julkaisee tason nousun vain, jos se täyttää molemmat sääntökokonaisuudet.',
+      ],
+      note: {
+        tag: 'Tiukempi, ei koskaan löysempi',
+        body: 'Pelimuodon suodattimet voivat vain karsia julkaisuja. Lisäosa on jo soveltanut pääpelin asetuksesi, joten mikään pelimuodon suodatin ei voi tuoda julkaisua takaisin.',
+      },
+    },
+    cleanup: {
+      title: 'Vanhat webhookit Dinkiltä tai muilta boteilta',
+      body: [
+        'Kun botti on palvelimellasi, Discord-sivu listaa sen jokaisen webhookin, joka ei ole Anvilin. **Coming from Dink?** tarjoaa vaihtoehdon **Use the same channels**, jolloin **Set it up for me** julkaisee sinne minne vanhat syötteesi julkaisivat, eikä jäsenillesi siirry mikään.',
+        'Kun jäsenesi ovat Anvilissa, mene kohtaan **Remove Dink’s old webhooks**, rastita poistettavat ja paina **Remove … webhooks**, sitten **Yes, remove them**. Se poistaa ne Discordista lopullisesti — sitä ei voi perua.',
+        'Listassa on jokainen webhook, joka ei ole Anvilin, ei pelkästään Dinkin. Onko joukossa jokin, jonka haluat pitää, kuten toisen botin syöte? Paina **Keep**, niin se poistuu listalta; **Show kept** ja **Put back** tuovat sen takaisin. Pitäminen vain piilottaa sen täällä — Discordissa mikään ei muutu.',
+      ],
+      note: {
+        tag: 'Vaatii Hallitse webhookeja -oikeuden',
+        body: 'Botti lukee palvelimesi webhookit löytääkseen ne. Ilman _Hallitse webhookeja_ -oikeutta sen roolissa sivu kertoo, ettei se näe niitä.',
+      },
+    },
+    announce: {
+      title: 'Julkaise Discordiin',
+      body: [
+        'Adminit voivat julkaista bottina kohdasta **Post to Discord**, joka on ylläpitovalikossa kohdan **Clan** alla. Valitse **Channel**, kirjoita **Message** ja paina **Send message**. Pitkä teksti, kuten sääntökirja, jaetaan itsestään useaksi viestiksi.',
+        '**Send as an embed** on oletuksena päällä ja lisää valinnaisen otsikon (**Title**) ja korostusvärin (**Accent colour**); ota se pois päältä, jos haluat pelkkää tekstiä. **Ping** valitsee roolin, tai @everyonen, joka mainitaan, ja Anvil kysyy ennen lähettämistä.',
+        'Jokainen lähettämäsi julkaisu näkyy kohdassa **Sent from here**. **Edit** muuttaa sitä Discordissa pingaamatta uudelleen, ja **Delete** poistaa sen.',
+      ],
+      note: {
+        tag: 'Vain adminit, botin kanssa',
+        body: 'Se julkaisee Anvilin bottina, joten yhdistä palvelimesi ensin. Moderaattorit eivät näe sitä. Se on **Post to Discord** -kytkin kohdassa **Clan settings → Features**; pois päältä se katoaa valikosta.',
+      },
+    },
     quiet: {
       title: 'Kun se hiljenee',
       body: [
@@ -516,7 +566,7 @@ const fi: PartialGuideDict = {
       checks: [
         {
           term: 'Onko botti todella palvelimella?',
-          body: 'Discord-botti-välilehti kertoo sen suoraan. ”Token kelpaa” ja ”palvelimellasi” ovat eri asioita, eikä ensimmäinen tarkoita toista — jaetulla botilla token on aina kelvollinen.',
+          body: '**Connection** Discord-sivulla kertoo sen suoraan. ”Token kelpaa” ja ”palvelimellasi” ovat eri asioita, eikä ensimmäinen tarkoita toista — jaetulla botilla token on aina kelvollinen.',
         },
         {
           term: 'Onko palvelintunnus oikein?',
@@ -524,7 +574,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Onko webhook yhä olemassa?',
-          body: 'Discord-kanavan poistaminen poistaa sen webhookin, ja Anvil säilyttää kuolleen URL-osoitteen. Luo se uudelleen Webhookit-välilehdellä.',
+          body: 'Discord-kanavan poistaminen poistaa sen webhookin, ja Anvil säilyttää kuolleen URL-osoitteen. Valitse sille kanava uudelleen kohdassa **What goes where**.',
         },
         {
           term: 'Onko botin rooli tarpeeksi korkealla?',
@@ -924,7 +974,7 @@ const fi: PartialGuideDict = {
     access: {
       title: 'Kuka saa tehdä mitä',
       intro:
-        'Kaikki kirjautuvat sisään Discordilla — salasanoja ei ole. Ensimmäinen ylläpitäjä tulee palvelinasetuksista; sen jälkeen ylläpitäjä ylentää muita kohdasta **Clan → Members & staff**. Roolit pinoutuvat alaspäin: kaiken minkä moderaattori voi, voi myös rahastonhoitaja ja ylläpitäjä.',
+        'Kaikki kirjautuvat sisään Discordilla — salasanoja ei ole. Ensimmäinen ylläpitäjä on omistaja, eli se joka loi klaanin; sen jälkeen ylläpitäjä ylentää muita kohdasta **People → Staff & roles**. Roolit pinoutuvat alaspäin: kaiken minkä moderaattori voi, voi myös rahastonhoitaja ja ylläpitäjä.',
       rows: [
         {
           term: 'Admin',
@@ -933,7 +983,7 @@ const fi: PartialGuideDict = {
         { term: 'Treasurer', body: 'kaiken minkä moderaattori voi, sekä osallistumismaksut ja palkintojen maksun.' },
         {
           term: 'Moderator',
-          body: 'arjen työ: jäsenlista, vahvistukset, viikkokilpailut, aikataulu, palaute. Ei voi luoda tai muokata tapahtumia.',
+          body: 'arjen työ: jäsenlista, vahvistukset, tarkistettavat todisteet, viikkokilpailut, aikataulu ja klaanikalenterin tapahtumat. Ei voi luoda tai muokata tapahtumia.',
         },
         {
           term: 'Editor',
@@ -952,12 +1002,12 @@ const fi: PartialGuideDict = {
     setup: {
       title: 'Nimeä klaani, yhdistä Discord',
       intro:
-        '**System → Setup** on lyhyt velho, ja työpöytä pitää viiden vaiheen tarkistuslistan kunnes ne on tehty: nimeä klaani, yhdistä Discord, lataa jäsenet, luo tapahtuma, lisää ruudut. Tila lasketaan oikeasta datasta, joten vaihe kuittautuu vasta kun se on aidosti valmis.',
+        '**Settings → Finish setup** on lyhyt velho (se pysyy valikossa kunnes olet valmis), ja työpöytä pitää viiden vaiheen tarkistuslistan kunnes ne on tehty: nimeä klaani, yhdistä Discord, lataa jäsenet, luo tapahtuma, lisää ruudut. Tila lasketaan oikeasta datasta, joten vaihe kuittautuu vasta kun se on aidosti valmis.',
       discord:
         'Discordiin on kaksi reittiä, ja ne täydentävät toisiaan: anna Anvilille **botti**, niin se voi luoda webhookeja, synkronoida rooleja ja nimimerkkejä sekä rakentaa yksityisiä joukkuekanavia; anna sille yksi **webhook-osoite**, niin se voi julkaista ilmoituksia eikä mitään muuta. Aloita webhookista jos haluat olla pystyssä kahdessa minuutissa, ja lisää botti kun haluat automatiikan.',
       permsNote: {
         tag: 'Botin oikeudet',
-        body: 'Botti tarvitsee oikeudet _Manage Webhooks_, _Manage Roles_, _Manage Channels_ ja _Manage Nicknames_, ja sen roolin on oltava _yläpuolella_ hallitsemiaan rooleja palvelimesi roolilistassa. Muuten Discord kieltäytyy hiljaisesti.',
+        body: 'Botti tarvitsee oikeudet _Hallitse webhookeja_, _Hallitse rooleja_, _Hallitse kanavia_ ja _Hallitse lempinimiä_, ja sen roolin on oltava _yläpuolella_ hallitsemiaan rooleja palvelimesi roolilistassa. Muuten Discord kieltäytyy hiljaisesti.',
       },
       hosted:
         'Ylläpidetyllä tilauksella kohtasit tuon näkymän jo kerran: botin lisääminen käyttöönoton aikana oli tapa jolla Anvil sai tietää mikä palvelin on teidän, joten palvelin-ID:tä ei koskaan tarvinnut kopioida. Sama linkki on täällä kun haluat siirtää botin toiselle palvelimelle.',
@@ -966,8 +1016,8 @@ const fi: PartialGuideDict = {
     channels: {
       title: 'Jaa julkaisut useaan kanavaan',
       body: [
-        'Kaikki julkaistaan oletuksena yhteen pääilmoituskanavaan. Kun se käy meluisaksi, avaa **Discord → Where posts go** ja anna äänekkäille kategorioille omat kotinsa — bingotapahtumat, viikkokilpailut, harvinaiset dropit, kuolemat, PvP-tapot, combat achievementit. Kaikki minkä jätät tyhjäksi putoaa takaisin pääkanavaan, joten voit erottaa yhden kategorian kerrallaan.',
-        'Botin ollessa yhdistettynä et koskaan koske webhook-osoitteeseen: valitse kanava valikosta ja paina **Post here**. Kiireisessä tapahtumassa voit lisätä toisen webhookin samaan kanavaan — Anvil vuorottelee niiden välillä, jottei Discordin nopeusraja niele julkaisuja.',
+        'Kaikki julkaistaan oletuksena yhteen yleiskanavaan. Kun se käy meluisaksi, avaa **Discord → What goes where** ja anna äänekkäille kategorioille omat kotinsa — tapahtumajulkaisut, viikkokilpailut, harvinaiset dropit, kuolemat, PvP-tapot, combat achievementit. Kaikki minkä jätät tyhjäksi putoaa takaisin omaan yleiskanavaansa, joten voit erottaa yhden kategorian kerrallaan.',
+        'Botin ollessa yhdistettynä et koskaan koske webhook-osoitteeseen: valitse kanava rivin pudotusvalikosta, niin se tallentuu. Kiireisessä tapahtumassa voit lisätä toisen webhookin painikkeella **Add another** kohdassa **Post without a bot** — Anvil vuorottelee niiden välillä, jottei Discordin nopeusraja niele julkaisuja.',
       ],
       clipsNote: {
         tag: 'Leikekanava on erilainen',
@@ -978,16 +1028,16 @@ const fi: PartialGuideDict = {
     roster: {
       title: 'Saa jäsenlistasi sisään',
       body: [
-        'Klaanijäsenyys tulee yhdestä paikasta: pelinsisäisestä jäsenlistan synkronoinnista. Asenna [Anvilin RuneLite-plugin]({pluginGuide}) _ylläpitäjän_ tilille, avaa pelinsisäisen Collection Login **Bingo**-välilehti, ja paina **Sync clan roster**. Se työntää todellisen klaanilistanne pelistä sivustolle yhdellä klikkauksella.',
+        'Klaanijäsenyys tulee yhdestä paikasta: pelinsisäisestä jäsenlistan synkronoinnista. Asenna [Anvilin RuneLite-plugin]({pluginGuide}) _ylläpitäjän_ tilille, avaa pelin klaani-ikkunasi, ja paina sen otsikkopalkin **Anvil**-painiketta. Se työntää todellisen klaanilistanne pelistä sivustolle yhdellä klikkauksella.',
         'Kuka tahansa joka yhdistää tai vahvistaa tilin verkkosivulla olematta sillä listalla on **vieras** — seurattu ja näkyvä, mutta ei jäsen ennen kuin ylläpitäjä ylentää heidät tai seuraava synkronointi poimii heidät. Se on tarkoituksellista: se tarkoittaa ettei kukaan voi ylentää itseään klaaniinne kirjoittamalla nimeä.',
-        'Voit myös lisätä jonkun käsin kohdasta **Clan → Members & staff**, mukaan lukien ilmoittaa heidät tapahtumaan heidän puolestaan kun he eivät pääse sivustolle.',
+        'Voit myös lisätä jonkun käsin kohdasta **People → + Add Manually**, ja ilmoittaa hänet tapahtumaan hänen puolestaan painikkeella **Add member** tapahtuman **Sign-ups**-sivulla, kun hän ei pääse sivustolle.',
       ],
     },
 
     board: {
       title: 'Luo ensimmäinen taulusi',
       intro:
-        '**Events → All events → New event**. Valitse formaatti ensin — se ratkaisee miten taulu pisteytetään ja mitä loput lomakkeesta sinulta kysyy.',
+        '**Events → All events → + New event**. Valitse formaatti ensin — se ratkaisee miten taulu pisteytetään ja mitä loput lomakkeesta sinulta kysyy.',
       formats: {
         classic: {
           label: 'Klassinen bingo',
@@ -1034,13 +1084,13 @@ const fi: PartialGuideDict = {
     tiles: {
       title: 'Täytä taulu',
       body: [
-        'Tapahtuman **Tiles**-välilehti on se paikka jossa taulusta tulee bingo. Jokainen ruutu on yhtä _tyyppiä_ oleva tehtävä, ja tyyppi ratkaisee mitä plugin tarkkailee: droppia, bossin tappomäärää, taidon XP:tä, NPC-tappoa, aikarajassa suorittamista, achievement diarya, Combat Achievementia, collection log -avausta, PvP-tappoa, esinesaalista, tai kuolematonta suoritusta. Manuaaliset ruudut — ne jotka ihminen vahvistaa kuvakaappauksesta — ovat myös aina vaihtoehto.',
+        'Tapahtuman **Board & tiles** -sivu on se paikka jossa taulusta tulee bingo. Jokainen ruutu on yhtä _tyyppiä_ oleva tehtävä, ja tyyppi ratkaisee mitä plugin tarkkailee: droppia, bossin tappomäärää, taidon XP:tä, NPC-tappoa, aikarajassa suorittamista, achievement diarya, Combat Achievementia, collection log -avausta, PvP-tappoa, esinesaalista, tai kuolematonta suoritusta. Manuaaliset ruudut — ne jotka ihminen vahvistaa kuvakaappauksesta — ovat myös aina vaihtoehto.',
         'Täyttä taulua varten laadi ruudut massana: vie taulukko ulos, täytä se taulukkolaskennassa, ja tuo takaisin. Sekä CSV että .xlsx kulkevat molempiin suuntiin, ja rivit vastaavat paikkoja, joten voit kirjoittaa koko 25 ruudun ruudukon uusiksi yhdellä liittämisellä.',
       ],
       rows: [
         {
           term: 'Vaikeusasteet',
-          body: 'pistearvot kääntyvät nimetyiksi kaistoiksi (easy → elite). Muokkaa kaistoja kohdassa Rules & scoring jos klaanisi luokittelee toisin.',
+          body: 'pistearvot kääntyvät nimetyiksi kaistoiksi (easy → elite). Muokkaa kaistoja kohdassa **Clan settings → Rules & scoring → Difficulty & balance** jos klaanisi luokittelee toisin.',
         },
         {
           term: 'Tasapainotarkastaja',
@@ -1058,7 +1108,7 @@ const fi: PartialGuideDict = {
     teams: {
       title: 'Joukkueet ja draft',
       body: [
-        'Välilehti **Teams & Draft** mukautuu valitsemaasi formaattiin: formaatti joka ei käytä joukkueita ohittaa sen kokonaan. Tavallisessa joukkuebingossa luot joukkueet, päätät kuka kutakin kapteenoi, ja joko jaat pelaajat itse tai pidät live-draftin.',
+        'Sivu **Teams & draft** mukautuu valitsemaasi formaattiin: formaatti joka ei käytä joukkueita ohittaa sen kokonaan. Tavallisessa joukkuebingossa luot joukkueet, päätät kuka kutakin kapteenoi, ja joko jaat pelaajat itse tai pidät live-draftin.',
         'Kapteenit draftaavat ilmoittautuneiden poolista valitsemassasi järjestyksessä, ja jokainen kapteeni näkee vastaukset jotka ihmiset antoivat ilmoittautumislomakkeella — jäädytettyinä sellaisina kuin ne lähetettiin, jottei kukaan muokkaa “tuntejaan viikossa” tultuaan valituksi.',
       ],
       placementIntro:
@@ -1108,7 +1158,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Ilmoitukset',
-          body: 'System → Announce julkaisee viestin kanaviinne kesken tapahtuman ilman että kirjoitat webhookia käsin.',
+          body: '**Post to Discord** (valikossa kohdan **Clan** alla) julkaisee viestin mille tahansa kanavalle bottina kesken tapahtuman ilman että kirjoitat webhookia käsin.',
         },
       ],
       missionNote: {
@@ -1118,9 +1168,9 @@ const fi: PartialGuideDict = {
       startProofNote: {
         tag: 'Etukäteisvarastoinnin pysäyttäminen',
         body: [
-          'Laita **Starting shot** päälle (tapahtuma → Overview), niin jokaisen pelaajan on toimitettava yksi kuvakaappaus otettuna sen jälkeen kun tapahtuma on alkanut, paikassa jonka Anvil arpoo aloitushetkellä — jottei kukaan istu viikon verran säästetyillä cluilla ja arkuilla nollahetkellä. Paikka ilmoitetaan käynnistyksen yhteydessä; kunkin pelaajan salasana on henkilökohtainen, johdettu arvonnasta, eikä sitä ole olemassa ennen tapahtuman alkua, joten kukaan ei voi lavastaa sitä etukäteen.',
+          'Laita **Starting shot** päälle (tapahtuma → Home → **Extras**), niin jokaisen pelaajan on toimitettava yksi kuvakaappaus otettuna sen jälkeen kun tapahtuma on alkanut, paikassa jonka Anvil arpoo aloitushetkellä — jottei kukaan istu viikon verran säästetyillä cluilla ja arkuilla nollahetkellä. Paikka ilmoitetaan käynnistyksen yhteydessä; kunkin pelaajan salasana on henkilökohtainen, johdettu arvonnasta, eikä sitä ole olemassa ennen tapahtuman alkua, joten kukaan ei voi lavastaa sitä etukäteen.',
           'Kiinnitä paikat maailmankartalle (pooliedittorissa on sellainen), niin plugin tarkistaa että pelaajat oikeasti seisovat siellä sen sijaan että heille vain kerrottiin. Voit myös vaatia **tuoreen istunnon** — oletuksena 15 minuuttia: hiscores tallentuu vain kun pelaaja kirjautuu ulos, joten kaikkien pakottaminen kirjautumaan uudelleen juuri ennen kuvaansa on se, mikä tekee jokaisen XP- ja KC-ruudun takana olevista aloituslukemista rehelliset.',
-          'Pluginin käyttäjät painavat yhtä painiketta. Kaikki muut kirjoittavat salasanansa pelissä ja lataavat kuvan My Team -sivulla. Sinä valitset mitä tapahtuu hyvitykselle joltakulta joka ei ole toimittanut: merkitse se tarkistettavaksi (oletus) tai kiellä se kunnes he toimittavat. Sama Overview-paneeli on tarkistuslista — pluginin ottamat kuvat vahvistetulla salasanalla saapuvat jo hyväksyttyinä, joten käytännössä katsot vain mobiilipelaajia.',
+          'Pluginin käyttäjät painavat yhtä painiketta. Kaikki muut kirjoittavat salasanansa pelissä ja lataavat kuvan My Team -sivulla. Sinä valitset mitä tapahtuu hyvitykselle joltakulta joka ei ole toimittanut: merkitse se tarkistettavaksi (oletus) tai kiellä se kunnes he toimittavat. Sama paneeli tapahtuman Home-sivulla on tarkistuslista — pluginin ottamat kuvat vahvistetulla salasanalla saapuvat jo hyväksyttyinä, joten käytännössä katsot vain mobiilipelaajia.',
         ],
       },
     },
@@ -1132,7 +1182,7 @@ const fi: PartialGuideDict = {
       rows: [
         {
           term: 'Palkintojen maksu',
-          body: 'tapahtuman Payouts-välilehti muuttaa palkintopotin listaksi siitä kuka saa mitäkin, ja seuraa maksuja sitä mukaa kun maksat.',
+          body: 'tapahtuman **Prizes**-sivu muuttaa palkintopotin listaksi siitä kuka saa mitäkin, ja seuraa maksuja sitä mukaa kun maksat.',
         },
         {
           term: 'Yhteenveto',
@@ -1144,7 +1194,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Tallenna pohjaksi',
-          body: 'säilytä juuri rakentamasi taulu. Seuraava bingo alkaa siitä tyhjän ruudukon sijaan.',
+          body: 'säilytä juuri rakentamasi taulu, tapahtuman kohdasta **Settings → More**. Seuraava bingo alkaa siitä tyhjän ruudukon sijaan.',
         },
       ],
       federation:
@@ -1193,9 +1243,9 @@ const fi: PartialGuideDict = {
     team: {
       title: 'Luo joukkue ensin',
       body: [
-        'Avaa tapahtumasi ja mene välilehdelle **Teams & Draft**. Luo yksi joukkue kutakin kutsumaasi klaania kohden ja nimeä se heidän mukaansa — nimi on se minkä heidän pelaajansa näkevät ilmoittautumislomakkeella, joten “Ironforge” voittaa nimen “Joukkue 2”.',
+        'Avaa tapahtumasi ja mene sivulle **Teams & draft**. Luo yksi joukkue kutakin kutsumaasi klaania kohden ja nimeä se heidän mukaansa — nimi on se minkä heidän pelaajansa näkevät ilmoittautumislomakkeella, joten “Ironforge” voittaa nimen “Joukkue 2”.',
         'Sinun _ei_ tarvitse pitää draftia. Kutsulinkit ja draft ovat vaihtoehtoja: draft jakaa yhteisen ilmoittautumispoolin, linkki istuttaa ihmiset suoraan. Puhtaassa klaani vastaan klaani -tapahtumassa useimmat isännät luovat joukkueet, jakavat kullekin yhden linkin, eivätkä avaa draftia lainkaan.',
-        'Avaa sitten itse joukkue — **Teams & Draft → joukkue** — sillä siellä molemmat seuraavat vaiheet tapahtuvat.',
+        'Avaa sitten itse joukkue — **Teams & draft → joukkue** — sillä siellä molemmat seuraavat vaiheet tapahtuvat.',
       ],
       captainNote: {
         tag: 'Kapteeni ensin',
@@ -1209,7 +1259,7 @@ const fi: PartialGuideDict = {
         'Joukkuesivun **Team staff** -paneeli on tapa jolla vierailevan klaanin oma moderaattori pääsee töihin ilman että annat heille yhtään mitään omalla sivustollasi. Paina **Add someone**, hae heidät, lisää huomautus kuten “Ironforge’s mod” jotta seuraava ylläpitäjä tietää miksi he ovat siellä, ja paina **Give a seat**.',
       ],
       figure: {
-        caption: 'Tapahtuma → Teams & Draft → joukkue → Team staff',
+        caption: 'Tapahtuma → Teams & draft → joukkue → Team staff',
         alt: 'Team staff -paneeli, jossa yksi paikka on myönnetty ja hakukenttä auki lisäämistä varten',
         legend: [
           {
@@ -1252,7 +1302,7 @@ const fi: PartialGuideDict = {
         'Yhä joukkuesivulla **Invite links** -paneeli luo linkin. Kaksi kenttää ratkaisee mitä linkki lupaa, ja molemmat tulkitsevat arvon `0` niin että “älä lupaa mitään”.',
       ],
       figure: {
-        caption: 'Tapahtuma → Teams & Draft → joukkue → Invite links',
+        caption: 'Tapahtuma → Teams & draft → joukkue → Invite links',
         alt: 'Invite links -paneeli, jossa paikka- ja vanhenemiskentät, Make a link -painike, ja yksi voimassa oleva linkki listalla',
         legend: [
           {
@@ -1465,7 +1515,7 @@ const fi: PartialGuideDict = {
         '25 ruudun ruudukon klikkaaminen käy hyvin. 200 tehtävän Leagues-taulun klikkaaminen ei käy, eikä sen oikoluku jälkikäteen. Tiles-välilehdellä on juuri tähän rakennettu edestakainen kierto.',
       ],
       steps: [
-        '**Download spreadsheet** tapahtuman **Tiles**-välilehdellä. Saat .xlsx-tiedoston taulusta sellaisena kuin se on, pudotusvalikoineen, esinelistoineen ja sarakeohjeineen omilla välilehdillään.',
+        '**Download spreadsheet** tapahtuman **Board & tiles** -sivulla. Saat .xlsx-tiedoston taulusta sellaisena kuin se on, pudotusvalikoineen, esinelistoineen ja sarakeohjeineen omilla välilehdillään.',
         'Muokkaa sitä. Yksi rivi ruutua kohden; rivijärjestys on ruutujärjestys.',
         '**Upload CSV / Excel** samalla välilehdellä. Vain **Tiles**-välilehti luetaan.',
       ],
@@ -1696,7 +1746,7 @@ const fi: PartialGuideDict = {
       { strong: '3 kerrointa', rest: 'mitä suoritus on arvoltaan' },
     ],
     footnote:
-      'Formaatti asetetaan luonnissa mutta sen voi muuttaa jälkikäteen tapahtuman Overview-välilehdeltä; paljastuskäytäntöä ja pistekertoimia voi muuttaa milloin tahansa ennen kuin niiden koskettamat ruudut paljastetaan.',
+      'Formaatti asetetaan luonnissa mutta sen voi muuttaa jälkikäteen tapahtuman Settings → Event -välilehdeltä; paljastuskäytäntöä ja pistekertoimia voi muuttaa milloin tahansa ennen kuin niiden koskettamat ruudut paljastetaan.',
 
     shape: {
       title: 'Taulun muoto',
@@ -1843,7 +1893,7 @@ const fi: PartialGuideDict = {
       title: 'Toinen allekirjoitus',
       body: [
         'Maksu on tilassa **kerätty** kunnes _toinen_ henkilökunnan jäsen vahvistaa sen saapuneen. Se joka käsitteli rahat ei voi olla myös se joka allekirjoittaa niiden ilmestyneen — se on koko kontrolli, ja siksi sivusto hylkää kerääjän oman vahvistuksen sen sijaan että vain paheksuisi sitä.',
-        'Montako allekirjoitusta maksu vaatii on klaaniasetus, nollasta viiteen. Nolla on olemassa todellisesta syystä: klaanissa jossa rahastonhoitaja _on_ omistaja ei ole ketään muuta allekirjoittamaan, ja “34 maksua odottaa toista allekirjoitusta” muuttuu jonoksi jota ei voi koskaan tyhjentää ja pysyvästi äänekkäimmäksi asiaksi työpöydällä. Nollalla maksun merkitseminen maksetuksi **on** allekirjoitus.',
+        'Montako allekirjoitusta maksu vaatii on klaaniasetus (**Clan settings → Rules & scoring → Fee sign-off**), nollasta viiteen. Nolla on olemassa todellisesta syystä: klaanissa jossa rahastonhoitaja _on_ omistaja ei ole ketään muuta allekirjoittamaan, ja “34 maksua odottaa toista allekirjoitusta” muuttuu jonoksi jota ei voi koskaan tyhjentää ja pysyvästi äänekkäimmäksi asiaksi työpöydällä. Nollalla maksun merkitseminen maksetuksi **on** allekirjoitus.',
         'Aseta se yhteen — oletus — jos teitä on kaksi. Aseta se nollaan jos rehellisesti sanottuna ei ole, ja aseta korkeammaksi vain jos klaanillasi on sekä ihmiset että syy.',
       ],
     },
@@ -1851,7 +1901,7 @@ const fi: PartialGuideDict = {
     pay: {
       title: 'Maksaminen',
       body: [
-        'Kun tapahtuma päättyy, tapahtuman **Payouts**-välilehti muuttaa potin listaksi ihmisiä. Luo se, niin saat yhden rivin saajaa kohden, ei joukkuetta kohden: voittavan joukkueen palkinto jaetaan tasan jäsenten kesken, jotta maksaminen on lista nimiä ja lukuja eikä laskutoimitus keskiyöllä.',
+        'Kun tapahtuma päättyy, tapahtuman **Prizes**-sivu muuttaa potin listaksi ihmisiä. Luo se, niin saat yhden rivin saajaa kohden, ei joukkuetta kohden: voittavan joukkueen palkinto jaetaan tasan jäsenten kesken, jotta maksaminen on lista nimiä ja lukuja eikä laskutoimitus keskiyöllä.',
         'Summat alkavat ehdotetusta jaosta — voittajapainotteinen, ja mitä useampia maksettuja sijoja asetat, sitä tasaisempi siitä tulee — ja jokainen rivi on muokattavissa. Ehdotus on lähtökohta, ei linjaus.',
         'Sitten maksat heille ja kuittaat rivejä sitä mukaa. Pointti on se että joku voi viikkoa myöhemmin katsoa listaa ja nähdä kuka sai mitä, sen sijaan että rakentaisi sen uudelleen Discordin historiasta.',
       ],
@@ -1948,7 +1998,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Useampi yhdessä',
-          body: 'valitse kaikki, kirjoita kokonaissumma ja paina **Split**, ja säädä yksittäistä osuutta käsin jos on tarpeen. Se kirjoittaa yhden rivin kullekin eikä yhtä riviä listalla, joten jokainen näkyy lahjoittajalistassa omalla nimellään.',
+          body: 'valitse kaikki, kirjoita kokonaissumma ja paina **Split … ways**, ja säädä yksittäistä osuutta käsin jos on tarpeen. Se kirjoittaa yhden rivin kullekin eikä yhtä riviä listalla, joten jokainen näkyy lahjoittajalistassa omalla nimellään.',
         },
       ],
       note: {
@@ -1971,7 +2021,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Laudan palkintopotti',
-          body: 'bingo jakaa oman pottinsa sijoituksille, joten kassa ojentaa sille vain yhden luvun. Event → **Payouts** → *From the clan coffer*. Se lisätään ilmoittautumismaksuihin ja siihen mitä olet itse lisännyt,  Valitset myös, **varaako** kassa nuo gp:t heti vai kirjaako se vain lupauksen — ne eivät ole vielä lähteneet, eikä kuuden viikon päässä oleva lauta tarvitse puolta potista jäädytettynä siihen asti.ja jako sijoille asetetaan samalla sivulla.',
+          body: 'bingo jakaa oman pottinsa sijoituksille, joten kassa ojentaa sille vain yhden luvun. Event → **Prizes** → *From the clan coffer*. Se lisätään ilmoittautumismaksuihin ja siihen mitä olet itse lisännyt, ja jako sijoille asetetaan samalla sivulla. Valitset myös, **varaako** kassa nuo gp:t heti vai kirjaako se vain lupauksen — ne eivät ole vielä lähteneet, eikä kuuden viikon päässä oleva lauta tarvitse puolta potista jäädytettynä siihen asti.',
         },
       ],
       note: {
@@ -2003,7 +2053,7 @@ const fi: PartialGuideDict = {
       ],
       note: {
         tag: 'Kerro klaanille, kanavalla',
-        body: 'Osoita **Coffer channel** Discord-kanavalle kohdassa Admin → Discord → Where posts go, niin jokainen liike julkaistaan sen jättämän saldon kanssa. Se on ainoa syöte ilman varareittiä: jätä tyhjäksi, eikä rahasta julkaista mitään missään. Katso [Anvil Discordissa]({discordGuide}).',
+        body: 'Osoita **Coffer ledger** Discord-kanavalle kohdassa Admin → Discord → What goes where → **Staff only**, niin jokainen liike julkaistaan sen jättämän saldon kanssa. Se on ainoa syöte ilman varareittiä: jätä tyhjäksi, eikä rahasta julkaista mitään missään. Katso [Anvil Discordissa]({discordGuide}).',
       },
     },
 
@@ -2043,7 +2093,7 @@ const fi: PartialGuideDict = {
         'tilien vahvistukset — XP-haaste ja manuaalinen tarkistus',
         'lähetykset ja todistekuvakaappaukset',
         'viikkokilpailut ja aikataulu',
-        'jäsenten palaute',
+        'klaanikalenterin tapahtumat',
       ],
       cantIntro: 'Mitä he eivät voi, tarkoituksella:',
       cantList: [
@@ -2247,7 +2297,7 @@ const fi: PartialGuideDict = {
       rows: [
         {
           term: 'Listalla ei ole Anvil-komentoja',
-          body: 'botti kutsuttiin ilman sen komentoja — se on erillinen oikeus, ja vanhemmat kutsulinkit pyysivät vain toista. Admin avaa kutsulinkin uudelleen kohdasta Admin → Integrations → Discord bot. Se ei poista bottia eikä nollaa mitään. Uusien komentojen ilmestyminen voi kestää jopa tunnin.',
+          body: 'botti kutsuttiin ilman sen komentoja — se on erillinen oikeus, ja vanhemmat kutsulinkit pyysivät vain toista. Admin ajaa **Invite / re-invite the bot** uudelleen kohdasta Admin → Discord → **Connection**. Se ei poista bottia eikä nollaa mitään. Uusien komentojen ilmestyminen voi kestää jopa tunnin.',
         },
         {
           term: '"The application did not respond"',
@@ -2457,7 +2507,7 @@ const fi: PartialGuideDict = {
     who: {
       title: 'Valitse kuka voi liittyä',
       body: [
-        'Jokainen tapahtuma alkaa avoimena kaikille (**Anyone**). Jos haluat pitää sen yhteisöllesi, avaa tapahtuman **Settings** → **Who can join?** ja valitse yksi tai useampi vaihtoehto. Samat vaihtoehdot ovat ensimmäisen tapahtuman näkymässä.',
+        'Jokainen tapahtuma alkaa avoimena kaikille (**Anyone**). Jos haluat pitää sen yhteisöllesi, avaa tapahtuman **Settings** → **Viewers** → **Who can join?** ja valitse yksi tai useampi vaihtoehto. Samat vaihtoehdot ovat ensimmäisen tapahtuman näkymässä.',
         'Jos valitset useamman, **mikä tahansa niistä riittää**. Seuraaja TAI palvelimen boostaaja pääsee sisään.',
       ],
       intro: 'Jokainen vaihtoehto ja mitä katsojan pitää tehdä:',
@@ -2508,7 +2558,7 @@ const fi: PartialGuideDict = {
     approve: {
       title: 'Hyväksy jokainen pelaaja (valinnainen)',
       body: [
-        'Haluatko valita, ketkä pelaavat? Avaa tapahtuman **Settings** → **Who can play** → **Who can enter it** ja valitse **Ask me about everyone**. Paina **Save changes**.',
+        'Haluatko valita, ketkä pelaavat? Avaa tapahtuman **Settings** → **Viewers** → **Who can enter** ja valitse **Ask me about everyone**. Paina **Save changes**.',
         'Nyt katsojat painavat **Join**-painikkeen sijaan **Ask to join**. Heidän pitää silti ensin läpäistä **Who can join?** -valintasi.',
         'Heidän pyyntönsä näkyvät kohdassa **Your events** tekstinä **N waiting for you**. Klikkaa sitä tai avaa tapahtuman **Sign-ups**-välilehti. Ylälistan nimi on **Waiting for your yes**. Hyväksy tai hylkää jokainen.',
       ],
@@ -2595,7 +2645,7 @@ const fi: PartialGuideDict = {
       body: [
         'Tilasi ei ole listalla, kun teet sen. Vain linkin saaneet löytävät sen.',
         'Avaa **Settings** → **Advertise on Anvil** ja laita se päälle. Tilasi näkyy Anvilin klaanihakemistossa, ja uudet tapahtumasi näkyvät osoitteessa `{apex}/events`.',
-        'Jos haluat listata vain yhden tapahtuman, avaa sen **Settings** → **Who can play** → **Advertise on Anvil**. Se näkyy, kun tapahtuma on tulossa tai käynnissä.',
+        'Jos haluat listata vain yhden tapahtuman, avaa sen **Settings** → **Viewers** → **List on Anvil**. Se näkyy, kun tapahtuma on tulossa tai käynnissä.',
         'Tapahtuma ilman päivämääriä näkyy kohdassa **Open to join** merkinnällä “Open now · starts when the host starts it”.',
       ],
     },
@@ -2799,7 +2849,7 @@ const fi: PartialGuideDict = {
     on: {
       title: 'Laita Streaming päälle',
       body: [
-        'Mene kohtaan Admin → **Clan settings** → **Streaming** ja laita se päälle.',
+        'Mene kohtaan Admin → **Clan settings** → **Profile** ja laita **Streaming** päälle.',
         'Vain julkinen klaani voi striimata. Katsojien pitää voida avata tapahtumasivusi, ja yksityinen klaani piilottaa sen heiltä. Klaanista, jolla Streaming on päällä, ei voi tehdä yksityistä ennen kuin laitat sen pois.',
         'Kun se on päällä, yhdistä Twitch-, YouTube- tai Kick-kanavasi heti sen alla.',
       ],
@@ -2809,7 +2859,7 @@ const fi: PartialGuideDict = {
       title: 'Avaa tapahtuma katsojille',
       body: [
         'Jokainen tapahtuma pysyy tilassa **Members only**, kunnes toisin sanot. Niin se toimi ennenkin.',
-        'Avaa tapahtuman **Settings** → **Who can join?** ja valitse **Members and viewers**. Valitse sitten **Which viewers?**: kuka tahansa tai seuraajat, tilaajat, Discord-rooli ja niin edelleen. Paina **Save**.',
+        'Avaa tapahtuman **Settings** → **Entry & co-hosts** → **Who can join?** ja valitse **Members and viewers**. Valitse sitten **Which viewers?**: kuka tahansa tai seuraajat, tilaajat, Discord-rooli ja niin edelleen. Paina **Save**.',
         'Nämä tarkistukset koskevat vain katsojia. Klaanisi jäsenet pääsevät aina sisään, kuten ennenkin.',
       ],
     },
@@ -2827,7 +2877,7 @@ const fi: PartialGuideDict = {
       title: 'Striimityökalusi',
       body: [
         'Striimaajan työkalut toimivat kuten creator-tilassa: vahvistetut kanavalinkit, **Who can join?** -tarkistukset, OBS-overlay ja `!join` chatissa.',
-        'Klaanitapahtuman overlay-linkit ovat tapahtuman **Settings**-kohdassa, **Who can play** → **Stream overlay**. `!join` ja overlay-merkki ovat kohdassa **Clan settings** → **Streaming**.',
+        'Klaanitapahtuman overlay-linkit ovat tapahtuman kohdassa **Settings** → **Stream** → **Stream overlay**. `!join` ja overlay-merkki ovat kohdassa **Clan settings** → **Profile** → **Streaming**.',
         '[Creator-opas]({creatorsGuide}) selittää jokaisen vaihe vaiheelta.',
         'Striimin kohokohdat toimivat täälläkin: kun Twitch tai YouTube on yhdistetty, Anvil klippaa katsojille avoimien tapahtumien isot hetket. `!join` Kick-chatissa on omalla kytkimellään **Kick channel** -laatikossa.',
       ],

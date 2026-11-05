@@ -31,13 +31,13 @@ export interface FeatureDef {
 }
 
 export const FEATURES: readonly FeatureDef[] = [
-  { key: 'weekly', group: 'Events', name: 'Skill & Boss of the Week', what: 'Week-long competitions the whole roster is entered in automatically.', guide: '/guide/admin#weekly', offForNewClans: false },
+  { key: 'weekly', group: 'Events', name: 'Skill & Boss of the Week', what: 'Week-long competitions the whole roster is entered in automatically.', guide: '/guide/clan#first', offForNewClans: false },
   { key: 'poolFormats', group: 'Events', name: 'Surprise-task formats', what: 'Showdown, Lucky draw, Bounty hunt and Ladder in the New event picker.', guide: '/guide/formats', offForNewClans: true },
-  { key: 'missions', group: 'Events', name: 'Missions', what: 'Extra tasks you announce in the middle of an event, for bonus points.', guide: '/guide/admin#missions', offForNewClans: true },
-  { key: 'survey', group: 'Events', name: 'Post-event survey', what: 'Ask players what they thought once an event ends.', guide: '/guide/admin#survey', offForNewClans: true },
+  { key: 'missions', group: 'Events', name: 'Missions', what: 'Extra tasks you announce in the middle of an event, for bonus points.', guide: '/guide/admin#launch', offForNewClans: true },
+  { key: 'survey', group: 'Events', name: 'Post-event survey', what: 'Ask players what they thought once an event ends.', guide: '/guide/admin#after', offForNewClans: true },
   { key: 'fees', group: 'Money', name: 'Sign-up fees', what: 'Charge gp to join an event and keep track of who has paid.', guide: '/guide/fees', offForNewClans: false },
   { key: 'coffer', group: 'Money', name: 'Clan coffer', what: 'A record of the clan’s gp: donations in, prizes out.', guide: '/guide/coffer', offForNewClans: true },
-  { key: 'announce', group: 'Discord & plugin', name: 'Post to Discord', what: 'Write an announcement here and the bot posts it in a channel.', guide: '/guide/discord', offForNewClans: false },
+  { key: 'announce', group: 'Discord & plugin', name: 'Post to Discord', what: 'Write an announcement here and the bot posts it in a channel.', guide: '/guide/discord#announce', offForNewClans: false },
   { key: 'funMessages', group: 'Discord & plugin', name: 'Death & fun messages', what: 'Light-hearted posts when someone dies or gets unlucky.', guide: '/guide/plugin', offForNewClans: true },
   { key: 'clanHall', group: 'Discord & plugin', name: 'Clan Hall card', what: 'Shows who’s online in your Discord on your public clan page.', guide: '/guide/discord', offForNewClans: false },
 ];

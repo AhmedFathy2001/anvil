@@ -13,6 +13,7 @@ import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
 import AdminSidebar, { type SidebarGroup } from './_components/AdminSidebar';
 import AdminSettingsSearch from './_components/AdminSettingsSearch';
+import HashReveal from '@/components/HashReveal';
 import { FEATURES } from '@/lib/features';
 import { getSetupStatus } from '@/lib/setupStatus';
 import { creatorHidesAdminPath, isCreatorSpace } from '@/lib/creatorSpaces';
@@ -203,6 +204,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <div className="lg:flex lg:gap-6">
         <AdminSidebar groups={scopedGroups} user={scopedUser} search />
         <AdminSettingsSearch access={access} features={FEATURES.filter((f) => scopedFeatures.on(f.key)).map((f) => f.key)} creator={creator} />
+        <HashReveal />
         <div className="flex-1 min-w-0">{children}</div>
       </div>
     );
@@ -316,6 +318,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           alsoMatch: ['/admin/features', '/admin/rules'],
           // The Activity log has its own item above.
           exclude: ['/admin/clan/audit'],
+          // The hub's tabs, named under it: "Keep deaths too" lives in Rules & scoring, and nobody
+          // guessed that from the one word "Clan settings". Same pages as ClanSettingsHeader.
+          children: [
+            { href: '/admin/clan', label: 'Profile', exact: true },
+            { href: '/admin/features', label: 'Features' },
+            { href: '/admin/rules', label: 'Rules & scoring' },
+            { href: '/admin/clan/boosts', label: 'Boosts' },
+          ],
         },
       ],
     });
@@ -371,6 +381,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <AdminSidebar groups={groups} user={user} primary={primary} guideHref={creator ? '/guide/creators' : '/guide/admin'} search />
       {/* Ctrl/Cmd+K from anywhere in the admin area — inside an event too, where the rail above is hidden. */}
       <AdminSettingsSearch access={access} features={FEATURES.filter((f) => features.on(f.key)).map((f) => f.key)} creator={creator} />
+      {/* #anchors land opened, scrolled to and ringed — search results, cross-page links, pasted URLs. */}
+      <HashReveal />
       <div className="flex-1 min-w-0">
         {session.actingAs && (
           // Borrowed authority, said out loud. An operator working inside someone else's clan should

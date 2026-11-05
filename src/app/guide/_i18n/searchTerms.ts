@@ -44,13 +44,15 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
   clan: [
     'clan', 'create', 'start', 'new', 'make', 'register', 'setup', 'set up', 'owner',
     'address', 'slug', 'url', 'subdomain', 'name', 'rename', 'free', 'first', 'billing', 'portal',
-    'plan and billing',
+    'plan and billing', 'boost', 'boosts', 'boosted', 'recruiting line', 'recruitment post',
   ],
   discord: [
     'discord', 'bot', 'webhook', 'hook', 'channel', 'server', 'guild', 'invite', 'role', 'roles',
     'nickname', 'nick', 'rank', 'ping', 'mention', 'announce', 'announcement', 'notification',
     'notify', 'slash', 'command', 'commands', 'embed', 'post', 'posting', 'silent', 'quiet',
-    'not posting', 'permissions',
+    'not posting', 'permissions', 'leagues', 'deadman', 'game mode', 'game modes', 'hardcore', 'seasonal',
+    'threshold', 'rarity', 'dink', 'old webhooks', 'remove webhook', 'keep webhook', 'post to discord',
+    'announcement post',
   ],
   plugin: [
     'plugin', 'runelite', 'install', 'hub', 'client', 'token', 'link', 'linking', 'verify',

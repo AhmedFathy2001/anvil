@@ -35,3 +35,14 @@ test('foughtBoss knows aliases and ignores junk', () => {
   assert.ok(foughtBoss('Vorkath'));
   assert.equal(foughtBoss(42), null);
 });
+
+test('Death (the NPC in Death\'s Domain) is never the killer', async () => {
+  const { settleDeathSource } = await import('../src/lib/deathSource');
+  const raw: Record<string, unknown> = { kind: 'death', source: 'Death', sourceKind: 'npc' };
+  settleDeathSource(raw);
+  assert.equal(raw.source, null);
+  assert.equal(raw.sourceKind, null);
+  const real: Record<string, unknown> = { kind: 'death', source: 'Vorkath', sourceKind: 'npc' };
+  settleDeathSource(real);
+  assert.equal(real.source, 'Vorkath');
+});

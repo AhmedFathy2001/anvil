@@ -366,3 +366,17 @@ input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; marg
     animation: supporter-shift 5s linear infinite;
   }
 }
+
+/* Landing on #a-setting (components/HashReveal): a gold ring that fades, so you can see which line it meant. */
+@keyframes anvil-hash-flash {
+  0%, 35% { outline-color: var(--gold); box-shadow: 0 0 22px 2px rgb(224 170 30 / 0.28); }
+  100% { outline-color: rgb(224 170 30 / 0); box-shadow: 0 0 22px 2px rgb(224 170 30 / 0); }
+}
+.anvil-hash-flash {
+  outline: 2px solid transparent;
+  outline-offset: 4px;
+  animation: anvil-hash-flash 2.6s ease-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .anvil-hash-flash { animation: none; outline-color: var(--gold); }
+}

@@ -26,6 +26,19 @@ export interface SidebarItem {
   exclude?: string[];
   /** Other path prefixes that belong to this item — a hub whose tabs live at other addresses. */
   alsoMatch?: string[];
+  /**
+   * A hub's own pages, listed indented under it: always while you are inside the hub, and on demand
+   * (the chevron) from anywhere else. A tabbed hub hides what it holds behind one word, so its tabs
+   * are named here without each becoming a top-level item.
+   */
+  children?: SidebarChild[];
+}
+
+export interface SidebarChild {
+  href: string;
+  label: string;
+  /** Lit only on exactly this path — the hub's first tab shares its address with the hub. */
+  exact?: boolean;
 }
 
 export interface SidebarGroup {
@@ -68,6 +81,13 @@ function under(here: string, path: string): boolean {
   return here === path || here.startsWith(path.endsWith('/') ? path : `${path}/`);
 }
 
+function isActive(here: string, item: SidebarItem): boolean {
+  return (
+    ((item.matchPrefix ? under(here, item.href) : here === item.href) || !!item.alsoMatch?.some((x) => under(here, x))) &&
+    !item.exclude?.some((x) => under(here, x))
+  );
+}
+
 function isInsideAnEvent(pathname: string): boolean {
   return /^\/admin\/events\/(weekly\/)?\d+(\/|$)/.test(pathname);
 }
@@ -76,6 +96,15 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
   // Clan-relative, so a bare item.href can be compared to where we actually are.
   const here = useClanRelativePath();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Hubs opened by their chevron while you are elsewhere; inside a hub its pages always show.
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
+  const toggle = (href: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(href)) next.delete(href);
+      else next.add(href);
+      return next;
+    });
 
   // Clan-relative: the browser is at /c/<slug>/admin/events/12, and testing the raw pathname never
   // matched once clans moved under /c/ — so inside an event the clan nav stayed up beside the event's
@@ -174,11 +203,11 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
                   {group.items.map((item) => {
                     // Compared clan-RELATIVE: item.href is a bare path and the browser is at
                     // /c/<slug>/… , so a direct comparison never matches and nothing looks active.
-                    const active = ((item.matchPrefix ? under(here, item.href) : here === item.href)
-                      || !!item.alsoMatch?.some((x) => under(here, x)))
-                      && !item.exclude?.some((x) => under(here, x));
+                    const active = isActive(here, item);
+                    const kids = item.children ?? [];
+                    const showKids = kids.length > 0 && (active || expanded.has(item.href));
                     return (
-                      <li key={item.href}>
+                      <li key={item.href} className={kids.length ? 'relative' : undefined}>
                         <ClanLink
                           href={item.href}
                           onClick={() => setMobileOpen(false)}
@@ -211,7 +240,41 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
                               {item.badge}
                             </span>
                           )}
+                          {/* Room for the chevron, which sits over the row's right edge. */}
+                          {kids.length > 0 && !active && <span aria-hidden="true" className="w-5 shrink-0" />}
                         </ClanLink>
+                        {kids.length > 0 && !active && (
+                          <button
+                            type="button"
+                            onClick={() => toggle(item.href)}
+                            aria-expanded={showKids}
+                            aria-label={`${showKids ? 'Hide' : 'Show'} the pages in ${item.label}`}
+                            className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-md text-text-dim hover:bg-brown-light hover:text-gold"
+                          >
+                            <span aria-hidden="true" className={`text-base leading-none transition-transform ${showKids ? 'rotate-90' : ''}`}>›</span>
+                          </button>
+                        )}
+                        {showKids && (
+                          <ul className="mb-1 ml-[22px] mt-0.5 space-y-px border-l border-card-border pl-2.5">
+                            {kids.map((kid) => {
+                              const on = kid.exact ? here === kid.href : under(here, kid.href);
+                              return (
+                                <li key={kid.href}>
+                                  <ClanLink
+                                    href={kid.href}
+                                    onClick={() => setMobileOpen(false)}
+                                    aria-current={on ? 'page' : undefined}
+                                    className={`block rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
+                                      on ? 'bg-gold/10 text-gold-light' : 'text-text-muted hover:bg-brown-light hover:text-foreground'
+                                    }`}
+                                  >
+                                    {kid.label}
+                                  </ClanLink>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
                       </li>
                     );
                   })}

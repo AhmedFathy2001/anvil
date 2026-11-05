@@ -7,8 +7,9 @@ import Input from '@/components/Input';
 import LevelRulesEditor from '@/components/LevelRulesEditor';
 import Select, { type SelectOption } from '@/components/Select';
 import { clanFetch } from '@/lib/clanFetch';
-import { FEED_TABS, effectiveKey, type DiscordFeed, type FeedTab } from '@/lib/discordFeeds';
+import { DISCORD_FEEDS, FEED_TABS, effectiveKey, type DiscordFeed, type FeedTab } from '@/lib/discordFeeds';
 import { CREATOR_HIDDEN_FEEDS, CREATOR_HIDDEN_FEED_TABS } from '@/lib/creatorSpaces';
+import { useRevealTarget } from '@/components/HashReveal';
 import { DEFAULT_LEVEL_RULES, DEFAULT_XP_RULES, levelHalf, type LevelRules, type MilestoneRules } from '@/lib/levelRules';
 import { MIN_MODE_DROP_FLOOR, MIN_MODE_DROP_VALUE } from '@/lib/modeFilters';
 
@@ -176,6 +177,39 @@ export default function DiscordFeedsPanel({
   const [pasted, setPasted] = useState('');
   const [open, setOpen] = useState<string | null>(null);
 
+  // Deep links (the settings search, other pages): #discord-feeds-<tab> opens that tab,
+  // #discord-feed-<id> the tab holding that row, #discord-feed-<id>-filters its filters too, and
+  // #discord-mode-<key> a game mode's row with its posts and filters. HashReveal then rings it.
+  useRevealTarget((id) => {
+    const tabId = /^discord-feeds-(\w+)$/.exec(id)?.[1];
+    if (tabId && feedTabs.some((t) => t.id === tabId)) {
+      setTab(tabId as FeedTab);
+      return;
+    }
+    const row = /^discord-feed-(\w+?)(-filters)?$/.exec(id);
+    if (row) {
+      const feed = DISCORD_FEEDS.find((f) => f.id === row[1]);
+      if (feed && feedTabs.some((t) => t.id === feed.tab)) {
+        setTab(feed.tab);
+        if (row[2]) setOpen(feed.id);
+      }
+      return;
+    }
+    const mode = /^discord-mode-(.+)$/.exec(id)?.[1];
+    if (mode && feedTabs.some((t) => t.id === 'modes')) {
+      setTab('modes');
+      setWantMode(mode);
+    }
+  });
+  // A mode's row is keyed by its own id, known only once the view has loaded.
+  const [wantMode, setWantMode] = useState<string | null>(null);
+  useEffect(() => {
+    const row = wantMode ? rawView?.modes.rows.find((m) => m.key === wantMode) : null;
+    if (!row) return;
+    setOpen(row.id);
+    setWantMode(null);
+  }, [wantMode, rawView]);
+
   const load = useCallback(async () => {
     const res = await clanFetch('/api/admin/discord/feeds');
     const data = await res.json().catch(() => ({}));
@@ -324,7 +358,7 @@ export default function DiscordFeedsPanel({
                 ? `Posts to ${keyLabel(m.hookKey)}`
                 : 'Posts to the normal channels';
           return (
-            <li key={m.key} className="border-b border-card-border-soft last:border-b-0">
+            <li key={m.key} id={`discord-mode-${m.key}`} className="scroll-mt-24 border-b border-card-border-soft last:border-b-0">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-5 py-3.5">
                 <div className="min-w-0 flex-[1_1_280px]">
                   <Checkbox
@@ -432,6 +466,7 @@ export default function DiscordFeedsPanel({
           return (
             <button
               key={t.id}
+              id={`discord-feeds-${t.id}`}
               type="button"
               role="tab"
               aria-selected={tab === t.id}
@@ -456,7 +491,7 @@ export default function DiscordFeedsPanel({
           const fallbackLabel = f.fallback.length === 0 ? 'Nowhere (off)' : firstFallback ? `Same as ${keyLabel(firstFallback)}` : 'Nowhere yet (set the catch-all)';
           const where = isOff ? 'Off' : eff ? `Posts to ${keyLabel(eff)}` : 'Posts nowhere';
           return (
-            <li key={f.id} className="border-b border-card-border-soft last:border-b-0">
+            <li key={f.id} id={`discord-feed-${f.id}`} className="scroll-mt-24 border-b border-card-border-soft last:border-b-0">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-5 py-3.5">
                 <div className="min-w-0 flex-[1_1_280px]">
                   {f.off === 'perPost' ? (
@@ -492,7 +527,7 @@ export default function DiscordFeedsPanel({
               </div>
               {pasteRow(f.key, f.label)}
               {open === f.id && f.filters && (
-                <div className="space-y-4 border-t border-card-border-soft bg-brown-light px-5 py-4">{filters?.[f.filters]}</div>
+                <div id={`discord-feed-${f.id}-filters`} className="scroll-mt-24 space-y-4 border-t border-card-border-soft bg-brown-light px-5 py-4">{filters?.[f.filters]}</div>
               )}
             </li>
           );

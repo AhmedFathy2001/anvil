@@ -44,3 +44,15 @@ test('versions sort newest first; the embed and the chat line read well', () => 
   assert.deepEqual(e.fields.map((f) => f.name), ['New', 'Fixed']);
   assert.equal(releaseBriefLine(r), 'New in Anvil 1.15.0: Big drops show in your chat. · anvilosrs.com/changelog');
 });
+
+test('a silent release waits for the next loud one, or Announce now', async () => {
+  const { parseReleaseNote, releaseIsDue } = await import('../src/lib/releaseNotes.ts');
+  const silent = parseReleaseNote('---\nversion: 1.18.1\ntitle: Quiet fixes\nsilent: true\n---\n## Fixed\n- A thing.\n');
+  assert.equal(silent.silent, true);
+  assert.equal(parseReleaseNote('---\nversion: 1.18.2\ntitle: Loud\n---\n## Fixed\n- B.\n').silent, false);
+  const older = { version: '1.18.0', silent: false };
+  assert.equal(releaseIsDue(silent, [older, silent], new Set()), false);
+  assert.equal(releaseIsDue(silent, [older, silent], new Set(['1.18.1'])), true);
+  assert.equal(releaseIsDue(silent, [older, silent, { version: '1.18.2', silent: false }], new Set()), true);
+  assert.equal(releaseIsDue(older, [older, silent], new Set()), true);
+});

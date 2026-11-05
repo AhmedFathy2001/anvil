@@ -249,7 +249,7 @@ export default function AnnounceClient() {
         </div>
       )}
       {/* Channel */}
-      <div>
+      <div id="announce-channel" className="scroll-mt-24">
         <label className="block text-sm font-medium mb-1">Channel</label>
         <Select
           value={channelId}
@@ -297,7 +297,7 @@ export default function AnnounceClient() {
       </div>
 
       {/* Options */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+      <div id="announce-options" className="scroll-mt-24 flex flex-wrap items-center gap-x-6 gap-y-3">
         <Checkbox checked={asEmbed} onChange={setAsEmbed} label="Send as an embed" />
 
         {asEmbed && (
@@ -343,7 +343,7 @@ export default function AnnounceClient() {
       </div>
     </div>
 
-    <section className="space-y-3">
+    <section id="announce-sent" className="scroll-mt-24 space-y-3">
       <h2 className="flex items-center gap-2 text-lg font-semibold">
         <span className="h-5 w-1 rounded-full bg-gold" />
         Sent from here

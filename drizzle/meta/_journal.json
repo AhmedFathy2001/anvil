@@ -1132,8 +1132,15 @@
     {
       "idx": 220,
       "version": "7",
+      "when": 1793825080000,
+      "tag": "0220_deaths_default_on",
+      "breakpoints": true
+    },
+    {
+      "idx": 221,
+      "version": "7",
       "when": 1793911420000,
-      "tag": "0220_mode_feed",
+      "tag": "0221_mode_feed",
       "breakpoints": true
     }
   ]

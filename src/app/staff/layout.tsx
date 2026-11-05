@@ -122,7 +122,18 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         // Test any tile kind on your own account without a real bingo (lib/lab).
         { href: '/staff/lab', label: 'Tile lab', icon: '⚗', matchPrefix: true },
         // The chat lines every plugin parses (lib/chatPatterns) and game-mode lines (lib/modeLines).
-        { href: '/staff/chat-patterns', label: 'Chat lines', icon: '✎', matchPrefix: true, alsoMatch: ['/staff/mode-lines'] },
+        // Named under it too: Game-mode lines was only ever a tab on the Chat patterns page.
+        {
+          href: '/staff/chat-patterns',
+          label: 'Chat lines',
+          icon: '✎',
+          matchPrefix: true,
+          alsoMatch: ['/staff/mode-lines'],
+          children: [
+            { href: '/staff/chat-patterns', label: 'Chat patterns' },
+            { href: '/staff/mode-lines', label: 'Game-mode lines' },
+          ],
+        },
         // Clips of streamed events (lib/highlights), with the ones hosts let Anvil promote.
         { href: '/staff/highlights', label: 'Stream highlights', icon: '▶', matchPrefix: true },
       ],

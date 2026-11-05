@@ -119,7 +119,18 @@ export default function WeeklyHomeClient({
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-text-muted -mt-2">{STAGE_BLURB[stage]}</p>
+      {/* Settings is a rail item, which on a phone sits behind the menu button, and the in-card link
+          only shows before the start. The name, dates, repeat and status are asked about all the way
+          through, so the way there is on the page at every stage. */}
+      <div className="-mt-2 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-text-muted">{STAGE_BLURB[stage]}</p>
+        <ClanLink
+          href={`${base}/settings`}
+          className="shrink-0 rounded-lg border border-card-border bg-card-bg px-3 py-1.5 text-sm text-text-muted transition-colors hover:border-gold/40 hover:text-gold"
+        >
+          Settings <span className="text-text-dim">· name, dates, repeat</span>
+        </ClanLink>
+      </div>
 
       {stage === 'build' && (
         <section className="border border-gold/30 rounded-xl bg-card-bg p-5 bg-gradient-to-br from-gold/[0.07] to-transparent">

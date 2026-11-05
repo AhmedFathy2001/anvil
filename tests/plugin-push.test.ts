@@ -360,3 +360,28 @@ test('board feed rows and a listener reconnect nudge overlays too; stopping ends
   await advance(2_000);
   assert.equal(got.length, 2);
 });
+
+test('a board row\'s reaction chips go to its players; a clanmate only watching it gets the row bare', () => {
+  const hub = new ViewHub({ fetchView: async () => null, later: () => () => {} });
+  const got: Record<string, string[]> = { player: [], extra: [], watcher: [], staff: [] };
+  hub.add({ scope: { userId: 1, eventIds: [5], teamId: 10, rows: true }, send: (m) => got.player.push(m) });
+  // Seated on 5 as an extra board: the first one is the seat's elsewhere.
+  hub.add({ scope: { userId: 2, eventIds: [9, 5], teamId: 3, rows: true }, send: (m) => got.extra.push(m) });
+  // Board 5 is only this clanmate's home board: no seat, no team.
+  hub.add({ scope: { userId: 3, eventIds: [5], teamId: null, rows: true }, send: (m) => got.watcher.push(m) });
+  // A mod watching it the same way, but named (lib/panelRows boardUserIds names the clan's staff).
+  hub.add({ scope: { userId: 4, eventIds: [5], teamId: null, rows: true }, send: (m) => got.staff.push(m) });
+  const row = { id: 'm7', title: 'Tanzanite fang', gz: { n: 0, mine: false, on: { a: 'post', act: 'react-row' } } };
+  hub.deliverRows(parseRows(JSON.stringify({ k: 'rows', e: 5, u: [1, 4], rx: 1, m: { t: 'rows', feeds: ['moments:event:5'], rows: [row] } }))!);
+  const rows = (s: string[]) => s.map((m) => JSON.parse(m).rows[0]);
+  assert.deepEqual(rows(got.player).map((r) => !!r.gz), [true]);
+  assert.deepEqual(rows(got.extra).map((r) => !!r.gz), [true]);
+  assert.deepEqual(rows(got.staff).map((r) => !!r.gz), [true], 'named staff get the chip, once');
+  assert.deepEqual(rows(got.watcher), [{ id: 'm7', title: 'Tanzanite fang' }]);
+
+  // Without rx (a chat line, a finished tile) everyone gets the same text.
+  for (const g of Object.values(got)) g.splice(0);
+  hub.deliverRows(parseRows(JSON.stringify({ k: 'rows', e: 5, m: { t: 'rows', rows: [row] } }))!);
+  assert.equal(rows(got.watcher)[0].gz.n, 0);
+  assert.equal(parseRows(JSON.stringify({ k: 'rows', u: [1], rx: 1, m: {} }))!.rx, undefined, 'rx means nothing without a board');
+});
