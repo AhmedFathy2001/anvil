@@ -81,7 +81,9 @@ export function SettingRow({ title, hint, children, stack = false }: { title?: R
   return (
     <div className={`flex gap-x-5 gap-y-3 border-t border-card-border/70 px-5 py-4 first:border-t-0 ${stack ? 'flex-col' : 'flex-wrap items-center justify-between'}`}>
       {(title || hint) && (
-        <div className="min-w-0 flex-[1_1_14rem]">
+        // The 14rem basis is a width for the side-by-side layout; in a column it became a 14rem
+        // height and left a blank gap above the control.
+        <div className={`min-w-0 ${stack ? '' : 'flex-[1_1_14rem]'}`}>
           {title && <div className="text-[14px] font-medium">{title}</div>}
           {hint && <div className="mt-0.5 text-[12.5px] leading-relaxed text-text-muted">{hint}</div>}
         </div>

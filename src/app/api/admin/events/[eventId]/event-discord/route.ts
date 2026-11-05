@@ -99,13 +99,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     case 'teardown-event-server': {
       if (!drivesEventServer) return denyEventServer();
       const r = await teardownEventServer(id);
-      if (!r.ok) return NextResponse.json({ error: r.error, report: r }, { status: 400 });
-      break;
+      // Partial failures still deleted things: send the fresh status either way so the page stops
+      // showing roles and channels that are already gone.
+      return NextResponse.json(r.ok ? { success: true, report: r, status: await adminStatus(id, clan.id) } : { error: r.error, report: r, status: await adminStatus(id, clan.id) }, { status: r.ok ? 200 : 400 });
     }
     case 'teardown-planning': {
       const r = await teardownClanPlanning(id, clan.id);
-      if (!r.ok) return NextResponse.json({ error: r.error, report: r }, { status: 400 });
-      break;
+      return NextResponse.json(r.ok ? { success: true, report: r, status: await adminStatus(id, clan.id) } : { error: r.error, report: r, status: await adminStatus(id, clan.id) }, { status: r.ok ? 200 : 400 });
     }
     case 'cohost-role-assign':
     case 'cohost-role-remove': {
