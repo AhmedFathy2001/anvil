@@ -92,7 +92,7 @@ export default function WeeklySettingsPanel({
   }
 
   return (
-    <section className="rounded-xl border border-card-border bg-card-bg p-5">
+    <section id="weekly-details" className="scroll-mt-24 rounded-xl border border-card-border bg-card-bg p-5">
       <h2 className="mb-4 flex items-center gap-2 font-semibold">
         <span className="h-5 w-1 rounded-full bg-gold" />
         Name, dates and status

@@ -171,7 +171,7 @@ export default function StreamingSettings() {
 
   return (
     <div className="mb-6 space-y-6">
-      <section className="rounded-xl border border-card-border bg-card-bg p-5">
+      <section id="streaming" className="scroll-mt-24 rounded-xl border border-card-border bg-card-bg p-5">
         <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">
           <span className="h-5 w-1 rounded-full bg-gold" />
           Streaming
@@ -227,7 +227,7 @@ export default function StreamingSettings() {
             </div>
           </section>
 
-          <section className="rounded-xl border border-card-border bg-card-bg p-5">
+          <section id="overlay-mark" className="scroll-mt-24 rounded-xl border border-card-border bg-card-bg p-5">
             <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">
               <span className="h-5 w-1 rounded-full bg-gold" />
               Anvil mark on your overlay

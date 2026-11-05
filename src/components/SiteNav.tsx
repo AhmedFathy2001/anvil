@@ -354,6 +354,10 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
               <ClanLink href="/profile" role="menuitem" className={MENU_ITEM}>
                 Your profile
               </ClanLink>
+              {/* Head-to-head lives on the apex and belongs to the person, like the profile. */}
+              <ClanLink href="/challenges" role="menuitem" className={MENU_ITEM}>
+                Challenges
+              </ClanLink>
               <ClanLink href="/settings" role="menuitem" className={MENU_ITEM}>
                 Settings
               </ClanLink>
@@ -462,6 +466,15 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                 {l.label}
               </ClanLink>
             ))}
+            {signedIn && (
+              <ClanLink
+                href="/challenges"
+                onClick={() => setOpen(false)}
+                className="px-3 py-2.5 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
+              >
+                Challenges
+              </ClanLink>
+            )}
             {isStaff && (
               <ClanLink
                 href={adminHref}

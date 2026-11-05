@@ -136,6 +136,9 @@ export default function PlatformRail({
         {item('/', 'Home', <HomeIcon />)}
         {/* Your own page, one click from anywhere — it used to take a search of the Hall of Records. */}
         {myProfileHref && item(myProfileHref, 'My profile', <ProfileIcon />)}
+        {/* Head-to-head (lib/h2h): yours across every clan, and free (one open at a time). Only a
+            profile card and a DM linked it, so most people never learned it existed. */}
+        {signedIn && item('/challenges', 'Challenges', <SwordsIcon />)}
         {item('/clans', 'Clan Hall', <SearchIcon />, true)}
         {/* The public events directory: every event a host advertised on Anvil. The rail is apex-only,
             so this resolves to the apex /events, never a clan's hub. */}
@@ -317,6 +320,7 @@ const HomeIcon = () => <svg {...s}><path d="M2 7l6-4.5L14 7v6.5a1 1 0 01-1 1H3a1
 const ProfileIcon = () => <svg {...s}><circle cx="8" cy="5.5" r="2.75" /><path d="M2.75 14c.6-2.9 2.7-4.5 5.25-4.5s4.65 1.6 5.25 4.5" /></svg>;
 const SearchIcon = () => <svg {...s}><circle cx="7" cy="7" r="4.4" /><path d="M10.4 10.4L14 14" /></svg>;
 const CalendarIcon = () => <svg {...s}><rect x="2.5" y="3.5" width="11" height="10" rx="1.2" /><path d="M2.5 6.8h11M5.5 2v3M10.5 2v3" /></svg>;
+const SwordsIcon = () => <svg {...s}><path d="M2.5 2.5l7.5 7.5M13.5 2.5L6 10M4 12l-1.5 1.5M12 12l1.5 1.5M8.8 11.2l2 -2M7.2 11.2l-2 -2" /></svg>;
 const ChartIcon = () => <svg {...s}><path d="M3 13V8.5M8 13V3.5M13 13V6" /></svg>;
 const BookIcon = () => <svg {...s}><path d="M3 2.8h7a2 2 0 012 2v8.4H5a2 2 0 01-2-2V2.8z" /><path d="M6 6h5M6 8.6h5" /></svg>;
 const PersonIcon = () => <svg {...s}><circle cx="8" cy="5.5" r="2.4" /><path d="M2.8 13.2c.5-2.5 2.6-3.8 5.2-3.8s4.7 1.3 5.2 3.8" /></svg>;

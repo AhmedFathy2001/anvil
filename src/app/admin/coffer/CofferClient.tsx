@@ -245,7 +245,7 @@ export default function CofferClient({
 
       {msg && <p className="text-sm text-amber-300 mb-4">{msg}</p>}
 
-      <Section title="To confirm" count={pendingDonations.length}>
+      <Section id="coffer-to-confirm" title="To confirm" count={pendingDonations.length}>
         {pendingDonations.length === 0 ? (
           <Empty>Nothing waiting. Members file donations from the clan&apos;s Coffer page; in-game coffer readings land here when only one client saw them.</Empty>
         ) : (
@@ -308,7 +308,7 @@ export default function CofferClient({
         )}
       </Section>
 
-      <Section title="Prizes to send" count={owedPrizes.length}>
+      <Section id="coffer-prizes" title="Prizes to send" count={owedPrizes.length}>
         {owedPrizes.length === 0 ? (
           <Empty>Nothing is waiting to be sent.</Empty>
         ) : (
@@ -504,7 +504,7 @@ export default function CofferClient({
       {/* What has gone out, as one line over the ledger. It used to be its own list, so a single 30m
           prize showed three times on one page — under Prizes to send, here, and in the ledger. The
           rows are all in the ledger; the totals are the part only this added. */}
-      <Section title="Everything that has moved" count={entries.length}>
+      <Section id="coffer-ledger" title="Everything that has moved" count={entries.length}>
         {moneyOut.length > 0 && (
           <div className="px-3 py-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-text-muted border-b border-card-border/60">
             <span>

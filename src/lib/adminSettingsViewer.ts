@@ -24,5 +24,6 @@ export function settingsViewer(
     featureOn: (key) => on.has(key),
     // …nor the clan-only sections inside the pages it does reach (Discord's role sync, commands, …).
     hides: (id) => creator && creatorHidesSetting(id),
+    space: creator,
   };
 }

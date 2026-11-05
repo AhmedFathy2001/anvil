@@ -2,10 +2,13 @@ import type { PartialGuideDict } from './en';
 
 // Svenska — Swedish.
 //
-// Samma konvention som i alla andra språkfiler här: allt läsaren FAKTISKT SER på skärmen står kvar
-// på engelska — menyer i RuneLite och OBS, pluginets egna chattrader, och Anvils adminetiketter,
-// som är engelska tills den ytan också översätts. En översatt "Tracked drop detected" är en rad
-// ingen hittar igen. Allt annat — förklaringen, ordningen, varför — är svenska.
+// Samma konvention som i alla andra språkfiler här: allt läsaren FAKTISKT SER på skärmen i Anvil,
+// RuneLite och OBS står kvar på engelska — menyer i RuneLite och OBS, pluginets egna chattrader, och
+// Anvils adminetiketter, som är engelska tills den ytan också översätts. En översatt "Tracked drop
+// detected" är en rad ingen hittar igen. Discords egna UI-etiketter (menyer, inställningar,
+// behörighetsnamn) följer Discords svenska översättning: "Kopiera server-ID",
+// "Serverinställningar → Roller", "Hantera webhooks". Allt annat — förklaringen, ordningen, varför —
+// är svenska.
 
 const sv: PartialGuideDict = {
   common: {
@@ -186,7 +189,7 @@ const sv: PartialGuideDict = {
         '**Synka klanlistan.** Öppna Anvil-pluginets inställningar i RuneLite. Slå på **Keep the clan roster in sync**. En admin gör detta en gång, i spelet. Det ersätter din Wise Old Man-grupp.',
         '**Starta en Skill eller Boss of the Week.** Gå till Admin → All events → **+ New event** och välj Skill of the Week eller Boss of the Week. Alla på klanlistan är med automatiskt. Det ersätter Wise Old Man-tävlingar.',
         '**Berätta för dina medlemmar.** Gå till Admin → Discord → **Tell your members** → **Post it**. Boten postar spelarstegen åt dig.',
-        '**En vecka senare: städa upp.** Gå till Admin → Discord, kryssa i Dinks gamla webhooks och tryck på **Remove**. Efter det kan inget postas två gånger.',
+        '**En vecka senare: städa upp.** Gå till Admin → Discord → **Remove Dink’s old webhooks**, kryssa i dem som ska bort, tryck på **Remove … webhooks** och sedan **Yes, remove them**. Efter det kan inget postas två gånger. Tryck på **Keep** på dem du vill låta vara.',
       ],
     },
 
@@ -243,7 +246,7 @@ const sv: PartialGuideDict = {
         rest: 'till en fungerande klan',
       },
     ],
-    footnote: 'Allt detta kan du ändra senare under Admin → Klan, utom adressen — den är värd en tanke nu.',
+    footnote: 'Allt detta kan du ändra senare under Admin → **Clan settings**, utom adressen — den är värd en tanke nu.',
     before: {
       title: 'Innan du börjar',
       body: [
@@ -253,7 +256,7 @@ const sv: PartialGuideDict = {
       ],
       note: {
         tag: 'Du blir dess ägare',
-        body: 'Ägare är den enda roll ingen kan ta ifrån dig, och den går till den som skapar klanen. Lägg till personal efteråt under Admin → Klan; se [På schemat]({moderatorGuide}).',
+        body: 'Ägare är den enda roll ingen kan ta ifrån dig, och den går till den som skapar klanen. Lägg till personal efteråt under Admin → **People** → **Staff & roles**; se [På schemat]({moderatorGuide}).',
       },
     },
     create: {
@@ -287,27 +290,27 @@ const sv: PartialGuideDict = {
     },
     setup: {
       title: 'Installationsguiden',
-      intro: 'Fyra saker står mellan en färsk klan och ett event i gång. Guiden går igenom dem i ordning och hoppar över det du redan gjort.',
+      intro: 'Tre steg står mellan en färsk klan och ett event i gång, och guiden går igenom dem i ordning och hoppar över det du redan gjort. Brädet kommer direkt efter.',
       steps: [
         {
-          term: 'Namnge den i Discord',
+          term: 'Din klan',
           body: 'Ditt visningsnamn, ditt klannamn i spelet och en inbjudningslänk till din server. Inbjudan är det som låter anmälningssidor och guider peka folk till dig.',
         },
         {
           term: 'Koppla Discord',
-          body: 'En delad bot, så det finns ingen applikation att registrera och ingen token att klistra in. Godkänn den en gång, så kan den posta i dina kanaler och läsa dina roller.',
+          body: 'En delad bot, så det finns ingen applikation att registrera och ingen token att klistra in. Tryck på **Connect your bot** och godkänn den en gång, välj sedan **A few channels** eller **Just one channel** och tryck på **Set it up for me** — boten skapar kanalerna åt dig.',
         },
         {
-          term: 'Ge den en kanal',
-          body: 'En annonseringskanal för eventinlägg. Dela eventuellt upp pluginets flöden: sällsynta drops i en kanal, dödsfall i en annan, så att de inte dränker varandra.',
+          term: 'Få in dina medlemmar',
+          body: 'Installera pluginet, logga in med Discord, öppna sedan klanfönstret i spelet och tryck på **Anvil**-knappen i titelraden. Ingen kan anmäla sig till ett event förrän din medlemslista är inne.',
         },
         {
           term: 'Gör ett bräde',
-          body: 'Det första eventet. Välj format, lägg till rutor, öppna anmälan — det är [Kör ditt första event]({adminGuide}), och klart den längsta av de fyra.',
+          body: 'Guiden slutar på **Create your first event →**. Välj format, lägg till rutor, öppna anmälan — det är [Kör ditt första event]({adminGuide}), och klart det längsta steget.',
         },
       ],
       after: [
-        'Du kan hoppa över guiden helt och göra allt senare under Admin → Klan. Den finns för att ordningen spelar roll när man aldrig gjort det förut: Discord före kanaler, kanaler före ett bräde som vill posta i dem.',
+        'Du kan hoppa över guiden helt med **Skip setup** och göra allt senare under Admin → **Clan settings** och Admin → **Discord**. Den finns för att ordningen spelar roll när man aldrig gjort det förut: Discord före kanaler, medlemmar före ett bräde de behöver anmäla sig till.',
       ],
     },
     members: {
@@ -326,7 +329,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'För hand',
-          body: 'Admin → Klan tar namn ett i taget, för den som spelar på mobil eller den officiella klienten och inte kan köra pluginet alls.',
+          body: 'Admin → **People** → **+ Add Manually** tar namn ett i taget, för den som spelar på mobil eller den officiella klienten och inte kan köra pluginet alls.',
         },
       ],
       note: {
@@ -354,6 +357,19 @@ const sv: PartialGuideDict = {
         body: 'Att delta i någon annans event är gratis, och att arrangera ett är också gratis. En klan som bara dyker upp på andras bräden behöver aldrig mer än sin egen gratisklan.',
       },
     },
+
+    boosts: {
+      title: 'Klanboosts',
+      body: [
+        'Medlemmar som betalar för Anvil Supporter på nivån **Champion** (en boost) eller **Patron** (två) kan boosta klanen från sina egna **Settings → Clan boosts**. En boost räknas när personens plats i klanen är 14 dagar gammal, och högst två räknas från en och samma person.',
+        'Du ser var ni står på Admin → **Clan settings** → **Boosts**: klanens nivå, hur många boosts som räknas och hur många fler nästa nivå behöver. Nivå 1 kräver 3 boosts, nivå 2 kräver 8 och nivå 3 kräver 15. Faller boostarna under en nivå ligger dess förmåner kvar en vecka först.',
+        'Nivå 1 sätter ett **Boosted**-märke på er klansida, ert Clan Hall-kort och i sökningen, listar er ovanför oboostade klaner i Clan Hall och ger ert namn en gradient. Nivå 2 lägger till en plats i Clan Halls Featured-rad, spelar upp er animerade banner och låser upp en **Recruiting line**: en mening, upp till 140 tecken, som visas för besökare. Nivå 3 lägger till en Spotlight högst upp i Clan Hall och ett **Recruitment post in the Anvil Discord** i månaden, upp till 500 tecken, som skickas en gång med **Post to the Anvil Discord**, med en länk till er klansida och utan att någon pingas.',
+      ],
+      note: {
+        tag: 'Bara utseende',
+        body: 'Boosts ändrar hur klanen ser ut och var den listas. De ändrar aldrig en rang, en poäng, era platser eller er plan.',
+      },
+    },
   },
 
   discord: {
@@ -376,21 +392,21 @@ const sv: PartialGuideDict = {
         rest: 'varje flöde är av tills du riktar det någonstans',
       },
     ],
-    footnote: 'Allt här ligger under Admin → Inställningar, fördelat på flikarna Discord-bot, Webhooks, Roller och kanaler samt Aviseringar.',
+    footnote: 'Allt här ligger på Admin → **Discord**: snabbinstallationen överst, sedan **More settings** — Connection, What goes where, Event posts, Roles & nicknames, Team channels, Commands och Post without a bot.',
     bot: {
       title: 'En bot, redan byggd',
       body: [
         'Det finns ingen Discord-applikation att skapa, ingen token att generera och ingen hemlighet att klistra in. Anvil kör en bot som varje klan delar, så att koppla är en inbjudan och inget mer.',
-        'Du kan ändå ta med din egen — klistra in en token under **Discord-bot** så används den i stället. Värt det bara om du vill att boten ska bära din klans namn och avatar i medlemslistan; allt i den här guiden fungerar likadant oavsett.',
+        'Du kan ändå ta med din egen — klistra in en token under **Use your own bot instead (advanced)** så används den i stället. Värt det bara om du vill att boten ska bära din klans namn och avatar i medlemslistan; allt i den här guiden fungerar likadant oavsett.',
       ],
       permissions: [
         {
-          term: 'Se kanaler, skicka meddelanden, bädda in länkar, bifoga filer',
+          term: 'Visa kanaler, Skicka meddelanden, Bädda in länkar, Bifoga filer',
           body: 'Grunderna. Utan dem är den på din server och tyst.',
         },
         {
           term: 'Hantera webhooks',
-          body: 'Så att knappen **Skapa** på Webhooks-fliken kan göra en webhook åt dig i stället för att du kopierar URL:er ur Discord för hand.',
+          body: 'Så att **Set it up for me** och **Post here** kan skapa webhooks åt dig i stället för att du kopierar URL:er ur Discord för hand, och så att Anvil kan hitta gamla webhooks som du kan ta bort.',
         },
         {
           term: 'Hantera roller',
@@ -405,12 +421,12 @@ const sv: PartialGuideDict = {
           body: 'För privata lagkanaler under en draft, och för guider som postas som en ny kategori eller ett forum. Hoppa över den så fungerar allt annat ändå.',
         },
         {
-          term: 'Hantera trådar, skicka meddelanden i trådar',
+          term: 'Hantera trådar, Skicka meddelanden i trådar',
           body: 'För guider i ett forum: att skriva i inlägget och ta bort det igen — Discord låter inte en bot radera ens sitt eget foruminlägg utan den.',
         },
         {
           term: 'Ändra smeknamn',
-          body: 'Bara om du ger boten er klans namn under **Settings → Bot appearance**. Det ändrar bara botens namn på er server.',
+          body: 'Bara om du ger boten er klans namn under **Connection → Bot appearance in your server**. Det ändrar bara botens namn på er server.',
         },
       ],
       note: {
@@ -424,11 +440,11 @@ const sv: PartialGuideDict = {
       steps: [
         {
           term: 'Bjud in boten',
-          body: 'Admin → Inställningar → **Discord-bot** → **Bjud in / bjud in boten igen**. Länken förväljer din server när id:t är satt, så du kan inte lägga till den på fel server av misstag.',
+          body: 'Admin → **Discord** → **Connect your Discord server** (eller **Add Anvil to Discord**). Discord frågar vilken server Anvil ska läggas till på och skickar dig tillbaka hit, så du kan inte lägga till den på fel server av misstag. Senare finns **Invite / re-invite the bot** under **More settings → Connection**.',
         },
         {
           term: 'Ange server-id',
-          body: 'Högerklicka din serverikon i Discord → **Kopiera server-ID** (kräver Utvecklarläge, under Discords egna avancerade inställningar) och klistra in det. Det är fältet som gör kopplingen till din.',
+          body: 'Bara om knappen inte klarar det: öppna **Can’t use the button? Enter the server ID**, högerklicka din serverikon i Discord → **Kopiera server-ID** (kräver att Utvecklarläge är på, under Avancerat i Discords egna inställningar), klistra in det i **Your Discord server’s ID** och tryck på **Save**. Det är fältet som gör kopplingen till din.',
         },
       ],
       after: [
@@ -443,20 +459,20 @@ const sv: PartialGuideDict = {
       title: 'Konfigurera webhooks',
       body: [
         'Anvil postar genom **webhooks**, en per kanal, och varenda en är valfri. Inget postas någonstans förrän du riktar ett flöde mot en kanal — en färsk klan är tyst med flit, inte av misstag.',
-        'Öppna **Admin → Inställningar → Webhooks** och börja med den primära webhooken för annonseringar. Med boten ansluten väljer du en kanal, trycker **Skapa webhook** och sedan **Testa**. Utan boten går du i Discord till kanalens **Redigera kanal → Integrationer → Webhooks**, skapar en, kopierar URL:en, klistrar in den i Anvil och trycker **Lägg till**. En webhook-URL kan posta i kanalen, så behandla den som ett lösenord; radera den i Discord och skapa en ny om den läcker. **Skapa webhook** ersätter destinationen, medan **Lägg till en till** behåller båda och fördelar täta inlägg mellan dem.',
+        'Med Anvil-boten på din server skapar **Set it up for me** högst upp på **Admin → Discord** kanalerna och riktar varje flöde mot dem. Vill du göra det för hand öppnar du **More settings → What goes where** och börjar med **Catch-all channel** på **Clan & events**, sedan **In-game catch-all** på **In-game (plugin)**: välj en kanal i rullgardinen så sparas den. Utan boten går du i Discord till kanalens **Redigera kanal → Integrationer → Webhooks**, skapar en, kopierar URL:en, väljer **Paste a webhook…** i rullgardinen, klistrar in den och trycker på **Save**. En webhook-URL kan posta i kanalen, så behandla den som ett lösenord; radera den i Discord och skapa en ny om den läcker. **Test**, och **Add another** för att växla täta inlägg mellan två webhooks, finns under **Post without a bot**.',
       ],
       feeds: [
         {
-          term: 'Annonseringar',
-          body: 'Den viktigaste. Event som startar och slutar, anmälan som öppnar, ställningar, veckoresultat. Ange bara den, så har du en fungerande klan.',
+          term: 'Catch-all channel',
+          body: 'Den viktigaste, på fliken **Clan & events**. Event som startar och slutar, anmälan som öppnar, ställningar, veckoresultat — allt som sajten postar utan en egen kanal. Ange bara den, så har du en fungerande klan.',
         },
         {
-          term: 'Plugin-standard',
-          body: 'Dit allt från spelet går när det inte har en egen kanal. Ange den som nummer två.',
+          term: 'In-game catch-all',
+          body: 'På fliken **In-game (plugin)**: dit allt från spelet går när det inte har en egen kanal. Ange den som nummer två.',
         },
         {
           term: 'De uppdelade flödena',
-          body: 'Sällsynta drops, pets, dödsfall, collection log, combat achievements, nivåer, quests, diaries, PvP-kills och Leagues får var sin kanal. Den uppdelningen är skillnaden mellan ett flöde folk läser och ett de tystar.',
+          body: 'Eventinlägg, bräden du är medarrangör för, Skill & boss of the week och händelser i klankalendern kan delas av från samlingskanalen; sällsynta drops, pets, collection log, nivåer, combat achievements, quests, diaries, dödsfall och PvP-kills kan delas av från spelets samlingskanal. Ändringar i medlemslistan, godkännanden av anmälningar och kassaboken ligger på **Staff only**. Tomma uppdelade flöden faller tillbaka till sin samlingskanal. Kassan är undantaget: tomt betyder inga inlägg om pengar alls. Leagues och andra spellägen har en egen flik, **Game modes**.',
         },
       ],
       note: {
@@ -467,12 +483,12 @@ const sv: PartialGuideDict = {
     roles: {
       title: 'Roller och smeknamn',
       body: [
-        'Båda synkroniseringarna är av tills du aktiverar dem under **Admin → Inställningar → Roller & kanaler**. Slå på rollsynkronisering, lämna automatisk rangmatchning på, välj eventuella medlems- och gästroller, spara och tryck **Synkronisera roller och smeknamn nu**. Varje person måste också ha ett länkat Discord-konto. Automatisk matchning kräver samma namn som rangen i spelet: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` eller `Recruit`; egna ranger fungerar med samma namn. Versaler spelar ingen roll och understreck räknas som mellanslag, men extra ord matchar inte — `General` fungerar, `OSRS General` gör det inte. Vanliga medlems- och gästroller väljs separat och kan heta vad som helst.',
+        'Båda synkroniseringarna är av tills du aktiverar dem under **Admin → Discord → Roles & nicknames**, och båda styrs av medlemslistan. Slå på **Enable Discord role sync**, lämna **Auto-match in-game rank → Discord role by name** på, välj eventuella allmänna **Member roles** och **Guest roles**, spara och tryck sedan på **Sync roles & nicknames now**. Varje person måste också ha en länkad Discord-identitet; synkrapporten namnger alla den inte kunde koppla.',
       ],
       ways: [
         {
           term: 'Rollsynkronisering',
-          body: 'Koppla dina ranger från spelet till Discord-roller, så håller Anvil dem i takt. Det finns också enskilda roller för medlemmar, gäster, lagkaptener och det pågående eventet, så att du kan pinga rätt personer utan att sköta en lista för hand.',
+          body: 'För automatisk rangmatchning måste Discord-rollens namn stämma med klanrangen i spelet: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` eller `Recruit`. Egna ranger fungerar också när deras Discord-roll har samma namn. Matchningen bryr sig inte om versaler och räknar understreck som mellanslag, men extra ord matchar inte: `General` fungerar; `OSRS General` gör det inte. Medlems- och gästroller väljs separat, så de kan heta vad som helst.',
         },
         {
           term: 'Smeknamnssynkronisering',
@@ -488,7 +504,7 @@ const sv: PartialGuideDict = {
       title: 'Snedstreckskommandon',
       body: [
         'Boten svarar på `/bingo` på din server (brädet, ställningen, reglerna, ditt eget kort) plus klankommandon som `/sotw`, `/stats` och `/coffer`. De läser den levande sajten, så ingen behöver lämna Discord för att se hur de ligger till. [Varje kommando och dess alternativ]({commandsGuide}) har en egen sida.',
-        'De dyker upp ungefär en minut efter att boten gått med. Dyker de inte upp alls gav inbjudan boten men inte dess kommandon — det är två separata behörigheter, och en äldre inbjudningslänk bad bara om den ena. Öppna länken igen från Discord-bot-fliken; det sparkar inte ut boten och återställer ingenting.',
+        'De dyker upp ungefär en minut efter att boten gått med. Dyker de inte upp alls gav inbjudan boten men inte dess kommandon — det är två separata behörigheter, och en äldre inbjudningslänk bad bara om den ena. Kör **Invite / re-invite the bot** igen under **Connection** på Discord-sidan; det sparkar inte ut boten och återställer ingenting.',
       ],
       note: {
         tag: 'Den svarar på var och ens eget språk',
@@ -507,6 +523,42 @@ const sv: PartialGuideDict = {
         body: 'Ett drop som fullbordar en ruta är ett inlägg, inte ett från pluginet och ytterligare ett från brädet.',
       },
     },
+    modes: {
+      title: 'Leagues, Deadman och andra spellägen',
+      body: [
+        'Leagues, Deadman, hardcore och andra spellägen körs på egna världar med egna karaktärer. Deras inlägg är alltid märkta och räknas aldrig mot bräden eller tävlingar. De har en egen flik: **Admin → Discord → What goes where → Game modes**. Ett spelläge dyker upp där första gången en medlem spelar det.',
+        'Varje spelläge har en brytare och en **To**-kanal. Slå på **Send game-mode posts to their own channels** för att använda de kanalerna; lämna den av så postar varje spelläge i de vanliga kanalerna, fortfarande märkt. Knappen **Posts** på ett spelläges rad listar varje sorts inlägg det skickar — de vanliga och spellägets egna händelser — var och en med sin egen brytare.',
+        'Under den listan får du med **Custom filters** ett spelläge att posta mindre än huvudspelet. **Post drops rarer than 1 in…** sätter en egen sällsynthetsgräns (tomt = samma som huvudspelet): föremål som alltid postas postas ändå, men drops som bara räknas för sitt värde gör det inte. **Use its own level milestones** postar en nivåhöjning bara om den uppfyller båda regeluppsättningarna.',
+      ],
+      note: {
+        tag: 'Striktare, aldrig lösare',
+        body: 'Ett spelläges filter kan bara ta bort inlägg. Pluginet har redan tillämpat dina inställningar för huvudspelet, så inget ett spelläges filter gör kan få tillbaka ett inlägg.',
+      },
+    },
+    cleanup: {
+      title: 'Gamla webhooks från Dink eller andra botar',
+      body: [
+        'Med boten på din server listar Discord-sidan varje webhook på servern som inte är Anvils. **Coming from Dink?** erbjuder **Use the same channels**, så att **Set it up for me** postar där dina gamla flöden gjorde och ingenting flyttas för dina medlemmar.',
+        'När dina medlemmar väl är på Anvil går du till **Remove Dink’s old webhooks**, kryssar i dem som ska bort och trycker på **Remove … webhooks**, sedan **Yes, remove them**. Det raderar dem i Discord för gott — det går inte att ångra.',
+        'Listan rymmer alla webhooks som inte är Anvils, inte bara Dinks. Finns det en du vill behålla, som en annan bots flöde? Tryck på **Keep** så försvinner den från listan; **Show kept** och **Put back** tar tillbaka den. Att behålla döljer den bara här — ingenting ändras i Discord.',
+      ],
+      note: {
+        tag: 'Kräver behörigheten Hantera webhooks',
+        body: 'Boten läser serverns webhooks för att hitta dem. Utan _Hantera webhooks_ på sin roll säger sidan att den inte kan se dem.',
+      },
+    },
+    announce: {
+      title: 'Posta i Discord',
+      body: [
+        'Admins kan posta som boten från **Post to Discord**, under **Clan** i adminmenyn. Välj en **Channel**, skriv ditt **Message** och tryck på **Send message**. Lång text, som en regelbok, delas av sig själv upp i flera meddelanden.',
+        '**Send as an embed** är på som standard och lägger till en valfri **Title** och en **Accent colour**; slå av den för ren text. **Ping** väljer en roll, eller @everyone, att nämna, och Anvil frågar innan det skickas.',
+        'Varje inlägg du skickar listas under **Sent from here**. **Edit** ändrar det i Discord utan att pinga igen, och **Delete** tar bort det.',
+      ],
+      note: {
+        tag: 'Bara admins, med boten',
+        body: 'Det postas som Anvils bot, så koppla din server först. Moderatorer ser det inte. Det är brytaren **Post to Discord** under **Clan settings → Features**; är den avslagen försvinner sidan ur menyn.',
+      },
+    },
     quiet: {
       title: 'När det tystnar',
       body: [
@@ -515,7 +567,7 @@ const sv: PartialGuideDict = {
       checks: [
         {
           term: 'Är boten faktiskt på servern?',
-          body: 'Discord-bot-fliken säger det direkt. ”Token giltig” och ”på din server” är två olika fakta, och det första innebär inte det andra — med en delad bot är token alltid giltig.',
+          body: '**Connection** på Discord-sidan säger det direkt. ”Token giltig” och ”på din server” är två olika fakta, och det första innebär inte det andra — med en delad bot är token alltid giltig.',
         },
         {
           term: 'Är server-id:t rätt?',
@@ -523,7 +575,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Finns webhooken kvar?',
-          body: 'Att radera en Discord-kanal raderar dess webhook, och Anvil behåller den döda URL:en. Skapa den på nytt på Webhooks-fliken.',
+          body: 'Att radera en Discord-kanal raderar dess webhook, och Anvil behåller den döda URL:en. Välj en kanal för den igen under **What goes where**.',
         },
         {
           term: 'Ligger botens roll tillräckligt högt?',
@@ -923,7 +975,7 @@ const sv: PartialGuideDict = {
     access: {
       title: 'Vem får göra vad',
       intro:
-        'Alla loggar in med Discord — inga lösenord. Den första administratören kommer från serverkonfigurationen; därefter befordrar en admin folk från **Clan → Members & staff**. Rollerna staplas nedåt: allt en moderator kan, kan en kassör och en admin också.',
+        'Alla loggar in med Discord — inga lösenord. Den första administratören är ägaren, den som skapade klanen; därefter befordrar en admin folk från **People → Staff & roles**. Rollerna staplas nedåt: allt en moderator kan, kan en kassör och en admin också.',
       rows: [
         {
           term: 'Admin',
@@ -932,7 +984,7 @@ const sv: PartialGuideDict = {
         { term: 'Treasurer', body: 'allt en moderator kan, plus anmälningsavgifter och utbetalningar.' },
         {
           term: 'Moderator',
-          body: 'det dagliga: medlemslista, verifieringar, veckotävlingar, schema, feedback. Kan inte skapa eller redigera event.',
+          body: 'det dagliga: medlemslista, verifieringar, bevis att granska, veckotävlingar, schemat och klanens kalenderhändelser. Kan inte skapa eller redigera event.',
         },
         {
           term: 'Editor',
@@ -951,12 +1003,12 @@ const sv: PartialGuideDict = {
     setup: {
       title: 'Namnge klanen, koppla Discord',
       intro:
-        '**System → Setup** är en kort guide, och instrumentpanelen håller kvar en checklista i fem steg tills de är klara: namnge klanen, koppla Discord, läs in dina medlemmar, skapa ett event, lägg till rutor. Statusen räknas ut från riktiga data, så ett steg bockas av först när det verkligen är färdigt.',
+        '**Settings → Finish setup** är en kort guide (den ligger kvar i menyn tills du är klar), och instrumentpanelen håller kvar en checklista i fem steg tills de är klara: namnge klanen, koppla Discord, läs in dina medlemmar, skapa ett event, lägg till rutor. Statusen räknas ut från riktiga data, så ett steg bockas av först när det verkligen är färdigt.',
       discord:
         'För Discord har du två vägar, och de går att kombinera: ge Anvil en **bot** så kan den skapa webhooks, synka roller och smeknamn och bygga privata lagkanaler; ge den en enda **webhook-URL** så kan den posta meddelanden och inget annat. Börja med webhooken om du vill vara igång på två minuter, och lägg till boten när du vill ha automatiken.',
       permsNote: {
         tag: 'Botens behörigheter',
-        body: 'Boten behöver _Manage Webhooks_, _Manage Roles_, _Manage Channels_ och _Manage Nicknames_, och dess roll måste ligga _ovanför_ de roller den hanterar i serverns rollista. Annars vägrar Discord tyst.',
+        body: 'Boten behöver behörigheterna _Hantera webhooks_, _Hantera roller_, _Hantera kanaler_ och _Hantera smeknamn_, och dess roll måste ligga _ovanför_ de roller den hanterar i serverns rollista. Annars vägrar Discord tyst.',
       },
       hosted:
         'På ett hostat abonnemang mötte du den skärmen en gång redan: att lägga till boten under installationen var hur Anvil fick veta vilken server som är er, så det fanns aldrig något server-ID att kopiera. Samma länk finns här när du vill flytta boten till en annan server.',
@@ -965,8 +1017,8 @@ const sv: PartialGuideDict = {
     channels: {
       title: 'Sprid inläggen över flera kanaler',
       body: [
-        'Allt postas som standard i en enda huvudkanal för meddelanden. När den blir stökig, öppna **Discord → Where posts go** och ge de högljudda kategorierna egna hem — bingoevent, veckotävlingar, sällsynta drops, dödsfall, PvP-kills, combat achievements. Allt du lämnar tomt faller tillbaka till huvudkanalen, så du kan flytta en kategori i taget.',
-        'Med boten ansluten rör du aldrig en webhook-URL: välj en kanal i listan och tryck **Post here**. Under ett hektiskt event kan du lägga till en andra webhook till samma kanal — Anvil växlar mellan dem så att Discords hastighetsgräns inte sväljer inlägg.',
+        'Allt postas som standard i en enda samlingskanal. När den blir stökig, öppna **Discord → What goes where** och ge de högljudda kategorierna egna hem — eventinlägg, veckotävlingar, sällsynta drops, dödsfall, PvP-kills, combat achievements. Allt du lämnar tomt faller tillbaka till sin samlingskanal, så du kan flytta en kategori i taget.',
+        'Med boten ansluten rör du aldrig en webhook-URL: välj en kanal i radens rullgardin så sparas den. Under ett hektiskt event kan du lägga till en andra webhook med **Add another** under **Post without a bot** — Anvil växlar mellan dem så att Discords hastighetsgräns inte sväljer inlägg.',
       ],
       clipsNote: {
         tag: 'Klippkanalen är annorlunda',
@@ -977,16 +1029,16 @@ const sv: PartialGuideDict = {
     roster: {
       title: 'Få in din medlemslista',
       body: [
-        'Klanmedlemskap kommer från ett enda ställe: en synkning av medlemslistan från spelet. Installera [Anvils RuneLite-plugin]({pluginGuide}) på en _admins_ konto, öppna **Bingo**-fliken i spelets Collection Log och tryck **Sync clan roster**. Det skickar upp er faktiska klanlista från spelet till sajten med ett klick.',
+        'Klanmedlemskap kommer från ett enda ställe: en synkning av medlemslistan från spelet. Installera [Anvils RuneLite-plugin]({pluginGuide}) på en _admins_ konto, öppna klanfönstret i spelet och tryck på **Anvil**-knappen i titelraden. Det skickar upp er faktiska klanlista från spelet till sajten med ett klick.',
         'Alla som kopplar eller verifierar ett konto på webbplatsen utan att stå på den listan är en **gäst** — spårad och synlig, men inte medlem förrän en admin befordrar dem eller nästa synkning plockar upp dem. Det är avsiktligt: det betyder att ingen kan befordra sig själv in i er klan genom att skriva ett namn.',
-        'Du kan också lägga till någon för hand från **Clan → Members & staff**, inklusive att anmäla dem till ett event å deras vägnar när de inte når sajten.',
+        'Du kan också lägga till någon för hand från **People → + Add Manually**, och anmäla dem till ett event å deras vägnar med **Add member** på eventets **Sign-ups**-sida när de inte når sajten.',
       ],
     },
 
     board: {
       title: 'Skapa din första bräda',
       intro:
-        '**Events → All events → New event**. Välj format först — det avgör hur brädan poängsätts och vad resten av formuläret frågar dig om.',
+        '**Events → All events → + New event**. Välj format först — det avgör hur brädan poängsätts och vad resten av formuläret frågar dig om.',
       formats: {
         classic: {
           label: 'Klassisk bingo',
@@ -1033,13 +1085,13 @@ const sv: PartialGuideDict = {
     tiles: {
       title: 'Fyll brädan',
       body: [
-        'Eventets **Tiles**-flik är där en bräda blir en bingo. Varje ruta är en _sorts_ uppgift, och sorten avgör vad pluginet håller utkik efter: en drop, ett boss-killcount, färdighets-XP, ett NPC-kill, en klarning på tid, en achievement diary, en Combat Achievement, en upplåsning i collection log, ett PvP-kill, en föremålsvinst, eller en dödsfri runda. Manuella rutor — de som en människa godkänner från en skärmbild — finns alltid som alternativ också.',
+        'Eventets **Board & tiles**-sida är där en bräda blir en bingo. Varje ruta är en _sorts_ uppgift, och sorten avgör vad pluginet håller utkik efter: en drop, ett boss-killcount, färdighets-XP, ett NPC-kill, en klarning på tid, en achievement diary, en Combat Achievement, en upplåsning i collection log, ett PvP-kill, en föremålsvinst, eller en dödsfri runda. Manuella rutor — de som en människa godkänner från en skärmbild — finns alltid som alternativ också.',
         'För en full bräda, redigera i klump: exportera arket, fyll i det i ett kalkylprogram och importera tillbaka. Både CSV och .xlsx går fram och tillbaka, och rader följer positioner, så du kan skriva om ett helt 25-rutors nät med en enda inklistring.',
       ],
       rows: [
         {
           term: 'Svårighetsgrader',
-          body: 'poängvärden översätts till namngivna band (easy → elite). Redigera banden under Rules & scoring om din klan graderar annorlunda.',
+          body: 'poängvärden översätts till namngivna band (easy → elite). Redigera banden under **Clan settings → Rules & scoring → Difficulty & balance** om din klan graderar annorlunda.',
         },
         {
           term: 'Balansgranskaren',
@@ -1057,7 +1109,7 @@ const sv: PartialGuideDict = {
     teams: {
       title: 'Lag och draft',
       body: [
-        'Fliken **Teams & Draft** anpassar sig efter formatet du valde: ett format som inte använder lag hoppar rakt förbi den. För en vanlig lagbingo skapar du lagen, bestämmer vilka som är kaptener, och antingen fördelar spelarna själv eller kör en livedraft.',
+        'Sidan **Teams & draft** anpassar sig efter formatet du valde: ett format som inte använder lag hoppar rakt förbi den. För en vanlig lagbingo skapar du lagen, bestämmer vilka som är kaptener, och antingen fördelar spelarna själv eller kör en livedraft.',
         'Kaptenerna draftar ur anmälningspoolen i den ordning du väljer, och varje kapten ser svaren folk gav i anmälningsformuläret — frysta som de skickades in, så att ingen redigerar sina “timmar per vecka” efter att ha blivit vald.',
       ],
       placementIntro:
@@ -1107,7 +1159,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Meddelanden',
-          body: 'System → Announce postar ett meddelande i era kanaler mitt under eventet utan att du skriver en webhook för hand.',
+          body: '**Post to Discord** (under **Clan** i menyn) postar ett meddelande i valfri kanal som boten mitt under eventet utan att du skriver en webhook för hand.',
         },
       ],
       missionNote: {
@@ -1117,9 +1169,9 @@ const sv: PartialGuideDict = {
       startProofNote: {
         tag: 'Att stoppa hamstring före eventet',
         body: [
-          'Slå på **Starting shot** (eventet → Overview) så måste varje spelare lämna in en skärmbild tagen efter att eventet gått igång, på en plats Anvil lottar i startögonblicket — så att ingen sitter på en vecka av sparade clues och kistor vid noll. Platsen annonseras vid starten; varje spelares lösenord är personligt, härlett ur dragningen, och existerar inte förrän eventet startar, så det kan inte iscensättas i förväg av någon.',
+          'Slå på **Starting shot** (eventet → Home → **Extras**) så måste varje spelare lämna in en skärmbild tagen efter att eventet gått igång, på en plats Anvil lottar i startögonblicket — så att ingen sitter på en vecka av sparade clues och kistor vid noll. Platsen annonseras vid starten; varje spelares lösenord är personligt, härlett ur dragningen, och existerar inte förrän eventet startar, så det kan inte iscensättas i förväg av någon.',
           'Nåla platserna på världskartan (poolredigeraren har en) så kontrollerar pluginet att spelarna faktiskt står där i stället för att bara ha blivit tillsagda. Du kan också kräva en **färsk session** — 15 minuter som standard: hiscores sparas bara när en spelare loggar ut, så att få alla att logga om precis före sin bild är det som gör startsiffrorna bakom varje XP- och KC-ruta ärliga.',
-          'Pluginanvändare trycker på en knapp. Alla andra skriver sitt lösenord i spelet och laddar upp på My Team. Du väljer vad som händer med en kreditering från någon som inte lämnat in: flagga den för granskning (standard) eller neka den tills de gör det. Samma Overview-panel är granskningslistan — pluginbilder med verifierat lösenord kommer in redan godkända, så i praktiken tittar du bara på mobilspelarna.',
+          'Pluginanvändare trycker på en knapp. Alla andra skriver sitt lösenord i spelet och laddar upp på My Team. Du väljer vad som händer med en kreditering från någon som inte lämnat in: flagga den för granskning (standard) eller neka den tills de gör det. Samma panel på eventets Home är granskningslistan — pluginbilder med verifierat lösenord kommer in redan godkända, så i praktiken tittar du bara på mobilspelarna.',
         ],
       },
     },
@@ -1131,7 +1183,7 @@ const sv: PartialGuideDict = {
       rows: [
         {
           term: 'Utbetalningar',
-          body: 'eventets Payouts-flik gör prispotten till en lista över vem som får vad, som bockas av medan du betalar ut.',
+          body: 'eventets **Prizes**-sida gör prispotten till en lista över vem som får vad, som bockas av medan du betalar ut.',
         },
         {
           term: 'Sammanfattning',
@@ -1143,7 +1195,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Spara som mall',
-          body: 'behåll brädan du just byggt. Nästa bingo börjar från den i stället för ett tomt rutnät.',
+          body: 'behåll brädan du just byggt, från eventets **Settings → More**. Nästa bingo börjar från den i stället för ett tomt rutnät.',
         },
       ],
       federation:
@@ -1192,9 +1244,9 @@ const sv: PartialGuideDict = {
     team: {
       title: 'Skapa laget först',
       body: [
-        'Öppna ditt event och gå till fliken **Teams & Draft**. Skapa ett lag per klan du bjudit in och döp det efter dem — namnet är det deras spelare ser i anmälningsformuläret, så “Ironforge” slår “Lag 2”.',
+        'Öppna ditt event och gå till sidan **Teams & draft**. Skapa ett lag per klan du bjudit in och döp det efter dem — namnet är det deras spelare ser i anmälningsformuläret, så “Ironforge” slår “Lag 2”.',
         'Du behöver _inte_ köra en draft. Inbjudningslänkar och en draft är alternativ: en draft fördelar en gemensam anmälningspool, en länk placerar folk direkt. I ett rent klan-mot-klan skapar de flesta värdar lagen, delar ut en länk var, och öppnar aldrig draften.',
-        'Öppna sedan laget självt — **Teams & Draft → laget** — för det är där båda de två nästa stegen sker.',
+        'Öppna sedan laget självt — **Teams & draft → laget** — för det är där båda de två nästa stegen sker.',
       ],
       captainNote: {
         tag: 'Kaptenen först',
@@ -1208,7 +1260,7 @@ const sv: PartialGuideDict = {
         'Panelen **Team staff** på lagsidan är hur gästklanens egen moderator kommer igång utan att du ger dem något alls på din sajt. Tryck **Add someone**, sök upp dem, lägg till en notering som “Ironforge’s mod” så nästa admin vet varför de är där, och tryck **Give a seat**.',
       ],
       figure: {
-        caption: 'Eventet → Teams & Draft → laget → Team staff',
+        caption: 'Eventet → Teams & draft → laget → Team staff',
         alt: 'Team staff-panelen med en tilldelad plats och sökfältet öppet för att lägga till fler',
         legend: [
           {
@@ -1251,7 +1303,7 @@ const sv: PartialGuideDict = {
         'Fortfarande på lagsidan skapar panelen **Invite links** länken. Två fält avgör vad länken lovar, och båda tolkar `0` som “lova ingenting”.',
       ],
       figure: {
-        caption: 'Eventet → Teams & Draft → laget → Invite links',
+        caption: 'Eventet → Teams & draft → laget → Invite links',
         alt: 'Invite links-panelen med fälten för platser och giltighetstid, knappen Make a link, och en aktiv länk i listan',
         legend: [
           {
@@ -1464,7 +1516,7 @@ const sv: PartialGuideDict = {
         'Att klicka fram ett 25-rutors nät går bra. Att klicka fram en Leagues-bräda med 200 uppgifter gör det inte, och inte heller att korrekturläsa den efteråt. Tiles-fliken har en tur-och-retur byggd för precis det.',
       ],
       steps: [
-        '**Download spreadsheet** i eventets **Tiles**-flik. Du får en .xlsx av brädan som den ser ut nu, med rullgardiner, föremålslistan och kolumnanvisningarna på egna blad.',
+        '**Download spreadsheet** på eventets **Board & tiles**-sida. Du får en .xlsx av brädan som den ser ut nu, med rullgardiner, föremålslistan och kolumnanvisningarna på egna blad.',
         'Redigera den. En rad per ruta; radordningen är rutordningen.',
         '**Upload CSV / Excel** i samma flik. Bara **Tiles**-bladet läses.',
       ],
@@ -1695,7 +1747,7 @@ const sv: PartialGuideDict = {
       { strong: '3 modifierare', rest: 'vad ett avklarat mål är värt' },
     ],
     footnote:
-      'Formatet bestäms vid skapandet men går att ändra efteråt från eventets Overview-flik; avslöjandepolicyn och poängmodifierarna kan ändras när som helst innan rutorna de påverkar avslöjas.',
+      'Formatet bestäms vid skapandet men går att ändra efteråt från eventets flik Settings → Event; avslöjandepolicyn och poängmodifierarna kan ändras när som helst innan rutorna de påverkar avslöjas.',
 
     shape: {
       title: 'Brädans form',
@@ -1842,7 +1894,7 @@ const sv: PartialGuideDict = {
       title: 'Den andra signaturen',
       body: [
         'En avgift står som **insamlad** tills en _annan_ i staben bekräftar att den kommit fram. Den som hanterat pengarna kan inte också vara den som skriver under på att de dök upp — det är hela kontrollen, och därför vägrar sajten en insamlares egen bekräftelse i stället för att bara avråda från den.',
-        'Hur många signaturer en avgift kräver är en klaninställning, från noll till fem. Noll finns av ett riktigt skäl: i en klan där kassören _är_ ägaren finns det ingen annan att skriva under, och “34 avgifter väntar på en andra signatur” blir en kö som aldrig går att tömma och permanent det högsta på instrumentpanelen. Vid noll **är** det att markera en avgift betald själva underskriften.',
+        'Hur många signaturer en avgift kräver är en klaninställning (**Clan settings → Rules & scoring → Fee sign-off**), från noll till fem. Noll finns av ett riktigt skäl: i en klan där kassören _är_ ägaren finns det ingen annan att skriva under, och “34 avgifter väntar på en andra signatur” blir en kö som aldrig går att tömma och permanent det högsta på instrumentpanelen. Vid noll **är** det att markera en avgift betald själva underskriften.',
         'Sätt den till ett — standard — om ni är två. Sätt den till noll om ni ärligt talat inte är det, och sätt den högre bara om din klan har både folket och skälet.',
       ],
     },
@@ -1850,7 +1902,7 @@ const sv: PartialGuideDict = {
     pay: {
       title: 'Att betala ut',
       body: [
-        'När eventet är slut gör eventets **Payouts**-flik potten till en lista över människor. Generera den så får du en rad per mottagare, inte per lag: ett vinnande lags pris delas jämnt mellan medlemmarna, så att utbetalningen blir en lista med namn och tal snarare än ett räkneproblem vid midnatt.',
+        'När eventet är slut gör eventets **Prizes**-sida potten till en lista över människor. Generera den så får du en rad per mottagare, inte per lag: ett vinnande lags pris delas jämnt mellan medlemmarna, så att utbetalningen blir en lista med namn och tal snarare än ett räkneproblem vid midnatt.',
         'Beloppen börjar från en föreslagen fördelning — tung i toppen, och ju fler betalda placeringar du sätter desto flackare blir den — och varje rad går att redigera. Förslaget är en utgångspunkt, inte en policy.',
         'Betala dem sedan och bocka av rader medan du går. Poängen är att någon en vecka senare kan titta på listan och se vem som fick vad, i stället för att rekonstruera det ur Discord-historiken.',
       ],
@@ -1947,7 +1999,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Flera tillsammans',
-          body: 'välj alla, skriv totalen och tryck **Split**, och justera sedan en enskild andel för hand. Det skriver en rad var i stället för en rad med en lista, så var och en syns i givarlistan under sitt eget namn.',
+          body: 'välj alla, skriv totalen och tryck **Split … ways**, och justera sedan en enskild andel för hand. Det skriver en rad var i stället för en rad med en lista, så var och en syns i givarlistan under sitt eget namn.',
         },
       ],
       note: {
@@ -1970,7 +2022,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'En tavlas prispott',
-          body: 'ett bingo fördelar själv sin pott över placeringar, så kassan räcker den bara ett tal. Event → **Payouts** → *From the clan coffer*. Det läggs till anmälningsavgifterna och det du lagt till för hand,  Du väljer också om kassan **håller** de gp:na direkt eller bara noterar löftet — de har ju inte lämnat än, och en tavla om sex veckor behöver inte halva potten låst till dess.och fördelningen över platser sätts på samma sida.',
+          body: 'ett bingo fördelar själv sin pott över placeringar, så kassan räcker den bara ett tal. Event → **Prizes** → *From the clan coffer*. Det läggs till anmälningsavgifterna och det du lagt till för hand, och fördelningen över platser sätts på samma sida. Du väljer också om kassan **håller** de gp:na direkt eller bara noterar löftet — de har ju inte lämnat än, och en tavla om sex veckor behöver inte halva potten låst till dess.',
         },
       ],
       note: {
@@ -2002,7 +2054,7 @@ const sv: PartialGuideDict = {
       ],
       note: {
         tag: 'Berätta för klanen, i en kanal',
-        body: 'Peka **Coffer channel** mot en Discord-kanal under Admin → Discord → Where posts go, så postas varje rörelse med saldot den lämnar efter sig. Det är det enda flödet utan reservväg: lämna det tomt och ingenting om pengarna postas någonstans. Se [Anvil i Discord]({discordGuide}).',
+        body: 'Peka **Coffer ledger** mot en Discord-kanal under Admin → Discord → What goes where → **Staff only**, så postas varje rörelse med saldot den lämnar efter sig. Det är det enda flödet utan reservväg: lämna det tomt och ingenting om pengarna postas någonstans. Se [Anvil i Discord]({discordGuide}).',
       },
     },
 
@@ -2113,7 +2165,7 @@ const sv: PartialGuideDict = {
       rows: [
         {
           term: 'Inga Anvil-kommandon i listan',
-          body: 'boten bjöds in utan sina kommandon — det är en separat behörighet, och äldre inbjudningslänkar bad bara om den ena. En admin öppnar inbjudningslänken igen från Admin → Integrations → Discord bot. Det sparkar inte ut boten och återställer ingenting. Nytillagda kommandon kan ta upp till en timme att dyka upp.',
+          body: 'boten bjöds in utan sina kommandon — det är en separat behörighet, och äldre inbjudningslänkar bad bara om den ena. En admin kör **Invite / re-invite the bot** igen från Admin → Discord → **Connection**. Det sparkar inte ut boten och återställer ingenting. Nytillagda kommandon kan ta upp till en timme att dyka upp.',
         },
         {
           term: '"The application did not respond"',
@@ -2276,7 +2328,7 @@ const sv: PartialGuideDict = {
         'kontoverifieringar — XP-utmaningen och manuell granskning',
         'inskickade bevis och skärmbilder',
         'veckotävlingar och schemat',
-        'feedback från medlemmarna',
+        'klanens kalenderhändelser',
       ],
       cantIntro: 'Vad de inte kan, med flit:',
       cantList: [
@@ -2456,7 +2508,7 @@ const sv: PartialGuideDict = {
     who: {
       title: 'Välj vem som får gå med',
       body: [
-        'Varje event börjar öppet för **Anyone**. För att behålla det för din community öppnar du eventets **Settings** → **Who can join?** och väljer ett eller flera alternativ. Samma alternativ finns på skärmen för första eventet.',
+        'Varje event börjar öppet för **Anyone**. För att behålla det för din community öppnar du eventets **Settings** → **Viewers** → **Who can join?** och väljer ett eller flera alternativ. Samma alternativ finns på skärmen för första eventet.',
         'Väljer du fler än ett räcker **vilket som helst av dem**. En följare ELLER en serverbooster kommer in.',
       ],
       intro: 'Varje alternativ, och vad en tittare behöver göra:',
@@ -2507,7 +2559,7 @@ const sv: PartialGuideDict = {
     approve: {
       title: 'Säg ja till varje spelare (valfritt)',
       body: [
-        'Vill du välja vem som spelar? Öppna eventets **Settings** → **Who can play** → **Who can enter it** och välj **Ask me about everyone**. Tryck på **Save changes**.',
+        'Vill du välja vem som spelar? Öppna eventets **Settings** → **Viewers** → **Who can enter** och välj **Ask me about everyone**. Tryck på **Save changes**.',
         'Nu trycker tittarna på **Ask to join** i stället för **Join**. De måste fortfarande klara dina val under **Who can join?** först.',
         'Deras förfrågningar syns under **Your events** som **N waiting for you**. Klicka på den, eller öppna eventets flik **Sign-ups**. Listan högst upp heter **Waiting for your yes**. Godkänn eller avslå varje förfrågan.',
       ],
@@ -2594,7 +2646,7 @@ const sv: PartialGuideDict = {
       body: [
         'Ditt utrymme är olistat när du skapar det. Bara de som har din länk kan hitta det.',
         'Öppna **Settings** → **Advertise on Anvil** och slå på det. Ditt utrymme syns i Anvils klankatalog, och dina nya event syns på `{apex}/events`.',
-        'För att lista bara ett event öppnar du dess **Settings** → **Who can play** → **Advertise on Anvil**. Det syns medan eventet är kommande eller pågår.',
+        'För att lista bara ett event öppnar du dess **Settings** → **Viewers** → **List on Anvil**. Det syns medan eventet är kommande eller pågår.',
         'Ett event utan datum visas under **Open to join**, märkt “Open now · starts when the host starts it”.',
       ],
     },
@@ -2798,7 +2850,7 @@ const sv: PartialGuideDict = {
     on: {
       title: 'Slå på Streaming',
       body: [
-        'Gå till Admin → **Clan settings** → **Streaming** och slå på det.',
+        'Gå till Admin → **Clan settings** → **Profile** och slå på **Streaming**.',
         'Bara en publik klan kan streama. Tittarna måste kunna öppna din eventsida, och en privat klan döljer den för dem. En klan med Streaming på kan inte bli privat förrän du slår av det.',
         'När det är på kopplar du din Twitch-, YouTube- eller Kick-kanal precis under.',
       ],
@@ -2808,7 +2860,7 @@ const sv: PartialGuideDict = {
       title: 'Öppna ett event för tittare',
       body: [
         'Varje event förblir **Members only** tills du säger något annat. Så fungerade det tidigare.',
-        'Öppna eventets **Settings** → **Who can join?** och välj **Members and viewers**. Välj sedan **Which viewers?**: vem som helst, eller följare, subs, en Discord-roll och så vidare. Tryck på **Save**.',
+        'Öppna eventets **Settings** → **Entry & co-hosts** → **Who can join?** och välj **Members and viewers**. Välj sedan **Which viewers?**: vem som helst, eller följare, subs, en Discord-roll och så vidare. Tryck på **Save**.',
         'De här kontrollerna gäller bara tittare. Dina klanmedlemmar kommer alltid in, som förut.',
       ],
     },
@@ -2826,7 +2878,7 @@ const sv: PartialGuideDict = {
       title: 'Dina streamverktyg',
       body: [
         'Streamerverktygen fungerar som i ett creator-utrymme: verifierade kanallänkar, kontroller under **Who can join?**, OBS-overlayen och `!join` i chatten.',
-        'Overlay-länkarna för ett klanevent finns i eventets **Settings**, under **Who can play** → **Stream overlay**. `!join` och overlay-märket finns under **Clan settings** → **Streaming**.',
+        'Overlay-länkarna för ett klanevent finns i eventets **Settings** → **Stream** → **Stream overlay**. `!join` och overlay-märket finns under **Clan settings** → **Profile** → **Streaming**.',
         '[Creator-guiden]({creatorsGuide}) förklarar var och en steg för steg.',
         'Stream-höjdpunkter fungerar här också: med Twitch eller YouTube kopplat klipper Anvil de stora ögonblicken i event som är öppna för tittare. `!join` i Kick-chatten har ett eget reglage i avsnittet **Kick channel**.',
       ],

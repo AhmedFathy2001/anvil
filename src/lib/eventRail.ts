@@ -81,6 +81,9 @@ export function eventRailGroups(opts: {
     matchPrefix: true,
   };
   const settings = { href: `${base}/settings`, label: 'Settings', icon: '⚙', sprite: 'hammer' as const, matchPrefix: true };
+  // What this event posts, where, who it pings, its team channels and the in-game chat feed. It was
+  // reachable only from a link on Settings → Entry and the settings search.
+  const discord = { href: `${base}/discord`, label: 'Discord', icon: '✉', sprite: 'discord' as const, matchPrefix: true };
 
   const elsewhere: SidebarGroup = {
     label: 'Elsewhere',
@@ -118,6 +121,7 @@ export function eventRailGroups(opts: {
           teams,
           signups,
           settings,
+          discord,
           survey,
         ],
       },
@@ -138,7 +142,7 @@ export function eventRailGroups(opts: {
           signups,
         ],
       },
-      { label: 'Still editable', items: [{ ...tiles, quiet: true }, { ...settings, quiet: true }] },
+      { label: 'Still editable', items: [{ ...tiles, quiet: true }, { ...settings, quiet: true }, { ...discord, quiet: true }] },
       { label: 'After it ends', items: [{ ...payouts, quiet: true }, { ...survey, quiet: true }] },
       elsewhere,
     ]);
@@ -161,6 +165,7 @@ export function eventRailGroups(opts: {
         { ...tiles, badge: counts.tileCount, attn: false, quiet: true },
         { ...teams, badge: counts.teamCount, attn: false, quiet: true },
         { ...settings, quiet: true },
+        { ...discord, quiet: true },
       ],
     },
     elsewhere,

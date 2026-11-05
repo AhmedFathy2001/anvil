@@ -55,7 +55,7 @@ export default async function AdminPlanPage() {
         </p>
       </header>
 
-      <section className="rounded-xl border border-card-border bg-card-bg p-5">
+      <section id="plan-usage" className="scroll-mt-24 rounded-xl border border-card-border bg-card-bg p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <span className="text-base font-semibold">
             {plan.name} plan · {members.toLocaleString()} member{members === 1 ? '' : 's'}

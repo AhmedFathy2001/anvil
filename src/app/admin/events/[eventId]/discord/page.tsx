@@ -30,12 +30,25 @@ export default async function EventDiscordPage({ params }: { params: Promise<{ e
 
   return (
     <div className="space-y-8">
-      <EventDiscordInventory eventId={id} />
+      {/* Ids are the settings search's anchors (lib/adminSettingsIndex). */}
+      <div id="event-discord-now" className="scroll-mt-24">
+        <EventDiscordInventory eventId={id} />
+      </div>
       {/* A creator space never co-hosts (lib/coHost coHostKindRefusal): no co-host posts, no joint server. */}
-      <EventDiscordClient eventId={id} hasCohosts={!creator && cohosts.length > 0} />
-      <EventChatFeedCard eventId={id} creator={creator} />
-      {!creator && <EventDiscordServerPanel eventId={id} />}
-      <EventWebhooksPanel eventId={id} teams={eventTeams} />
+      <div id="event-discord-posts" className="scroll-mt-24">
+        <EventDiscordClient eventId={id} hasCohosts={!creator && cohosts.length > 0} />
+      </div>
+      <div id="event-chat" className="scroll-mt-24">
+        <EventChatFeedCard eventId={id} creator={creator} />
+      </div>
+      {!creator && (
+        <div id="event-discord-server" className="scroll-mt-24">
+          <EventDiscordServerPanel eventId={id} />
+        </div>
+      )}
+      <div id="event-discord-extra" className="scroll-mt-24">
+        <EventWebhooksPanel eventId={id} teams={eventTeams} />
+      </div>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import { useDialog } from '@/components/Confirm';
 import type { AdminStatus } from '@/lib/eventDiscord';
 import Radio from '@/components/Radio';
+import CopyLinkButton from '@/components/CopyLinkButton';
 
 type Layout = AdminStatus['layout'];
 
@@ -130,6 +131,15 @@ export default function EventDiscordServerPanel({ eventId }: { eventId: number }
             </label>
           ))}
         </div>
+
+        {/* The players' way in (app/events/[eventId]/discord). Until now only the bot's DM linked it,
+            so a host had nothing to paste for someone who missed or blocked that DM. */}
+        {status.server && status.layout !== 'own' && (
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12.5px] text-text-muted">
+            Players join from the event&rsquo;s Discord page. Anvil DMs it to anyone not in yet; share it with anyone who missed it.
+            <CopyLinkButton path={`/events/${eventId}/discord`} label="Copy the join link" />
+          </p>
+        )}
 
         {layout !== 'own' && (
           <div className="space-y-2">

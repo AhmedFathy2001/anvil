@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
+import ClanLink from '@/components/ClanLink';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 import Select, { type SelectOption } from '@/components/Select';
@@ -50,9 +51,25 @@ const LAYOUTS: { id: QuickSetupLayout; title: string; blurb: string; recommended
   { id: 'all', title: 'Every kind on its own', blurb: 'Drops, pets, deaths, levels, collection log and PvP each separate.' },
 ];
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+/**
+ * Asked here more than anywhere: "why did that death not show / where do I keep deaths?". What the
+ * clan's own Lately feed keeps is a clan rule, not a Discord channel, so it lives on Rules & scoring.
+ */
+export function FeedRulesHint() {
   return (
-    <section className="border border-card-border rounded-xl p-5 bg-card-bg space-y-4">
+    <p className="text-[13px] text-text-muted">
+      What the clan&rsquo;s own Lately feed keeps (deaths, the loot floor, combat tasks) is set under{' '}
+      <ClanLink href="/admin/rules#feeds" className="text-gold hover:text-gold-light">
+        Clan settings → Rules &amp; scoring
+      </ClanLink>
+      .
+    </p>
+  );
+}
+
+function Card({ id, title, children }: { id?: string; title: string; children: React.ReactNode }) {
+  return (
+    <section id={id} className="scroll-mt-24 border border-card-border rounded-xl p-5 bg-card-bg space-y-4">
       <h2 className="display text-xl font-semibold">{title}</h2>
       {children}
     </section>
@@ -93,10 +110,13 @@ export default function DiscordQuickSetup({
   channels,
   siteUrl,
   onRoutingChanged,
+  feedRulesHint = false,
 }: {
   channels: BroadcastChannel[];
   siteUrl: string;
   onRoutingChanged: () => void;
+  /** Point at Rules & scoring for what the clan's own feed keeps (a clan; a creator space has no feed). */
+  feedRulesHint?: boolean;
 }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -262,13 +282,13 @@ export default function DiscordQuickSetup({
   const showChooser = !alreadySetUp || redo;
 
   return (
-    <div className="space-y-4">
+    <div id="discord-quick-setup" className="scroll-mt-24 space-y-4">
       {loadError && (
         <p className="text-sm text-amber-400 border border-amber-500/30 bg-amber-500/5 rounded-lg px-3 py-2">{loadError}</p>
       )}
 
       {foreign.length > 0 && (
-        <Card title="Coming from Dink?">
+        <Card id="discord-from-dink" title="Coming from Dink?">
           <p className="text-sm text-text-muted">
             The bot found {foreign.length} {foreign.length === 1 ? 'webhook' : 'webhooks'} that{' '}
             {foreign.length === 1 ? 'isn’t' : 'aren’t'} Anvil’s in{' '}
@@ -284,7 +304,7 @@ export default function DiscordQuickSetup({
         </Card>
       )}
 
-      <Card title="Where should posts go?">
+      <Card id="discord-channel-layout" title="Where should posts go?">
         {result && (
           <div className="space-y-2">
             <ul className="space-y-1.5">
@@ -390,9 +410,10 @@ export default function DiscordQuickSetup({
             </div>
           </>
         )}
+        {feedRulesHint && <FeedRulesHint />}
       </Card>
 
-      <Card title="Tell your members">
+      <Card id="discord-tell-members" title="Tell your members">
         <div className="rounded-lg border-l-4 border-gold bg-black/20 px-4 py-3">
           <p className="font-semibold">{announceTitle}</p>
           <p className="text-sm text-text-muted mt-1 break-words">{announceBody}</p>
@@ -416,7 +437,7 @@ export default function DiscordQuickSetup({
       </Card>
 
       {(removable.length > 0 || keptHooks.length > 0 || removeMsg) && (
-        <Card title="Remove Dink’s old webhooks">
+        <Card id="discord-old-webhooks" title="Remove Dink’s old webhooks">
           {removable.length > 0 ? (
             <>
               <p className="text-sm text-text-muted">

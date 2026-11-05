@@ -40,7 +40,7 @@ export default function WeeklyRepeatToggle({
   }
 
   return (
-    <section className="rounded-xl border border-gold/25 bg-gold/[0.05] p-4 mb-6 space-y-2">
+    <section id="weekly-repeat" className="scroll-mt-24 rounded-xl border border-gold/25 bg-gold/[0.05] p-4 mb-6 space-y-2">
       <Checkbox
         checked={on}
         onChange={toggle}

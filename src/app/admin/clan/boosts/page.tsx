@@ -33,7 +33,7 @@ export default async function ClanBoostsPage() {
 
   return (
     <div className="max-w-3xl">
-      <section className="mb-6 rounded-xl border border-card-border bg-card-bg p-5">
+      <section id="boost-level" className="scroll-mt-24 mb-6 rounded-xl border border-card-border bg-card-bg p-5">
         <div className="mb-2 flex flex-wrap items-center gap-2.5">
           <span className="h-5 w-1 rounded-full bg-gold" />
           <h2 className="text-[16.5px] font-semibold">{summary.level > 0 ? `Level ${summary.level}` : 'Not boosted yet'}</h2>
@@ -84,7 +84,7 @@ export default async function ClanBoostsPage() {
       />
 
       {summary.wall.length > 0 && (
-        <section className="mt-6 rounded-xl border border-card-border bg-card-bg p-5">
+        <section id="boosters" className="scroll-mt-24 mt-6 rounded-xl border border-card-border bg-card-bg p-5">
           <div className="mb-2 flex items-center gap-2.5">
             <span className="h-5 w-1 rounded-full bg-gold" />
             <h2 className="text-[16.5px] font-semibold">Boosters</h2>

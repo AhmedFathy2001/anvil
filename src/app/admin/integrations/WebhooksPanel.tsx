@@ -18,6 +18,7 @@ import {
   type WebhookGroupId,
 } from '@/lib/webhookFields';
 import { creatorHidesSettingKey } from '@/lib/creatorSpaces';
+import { useRevealTarget } from '@/components/HashReveal';
 
 interface Props {
   channels: BroadcastChannel[];
@@ -81,6 +82,15 @@ function Stack({ fields, channels, botEnabled }: { fields: readonly SettingField
 export default function WebhooksPanel({ channels, botEnabled, creator = false }: Props & { creator?: boolean }) {
   const [group, setGroup] = useState<WebhookGroupId>('site');
   const [query, setQuery] = useState('');
+
+  // #setting-<key> (the settings search, a link from elsewhere): open the tab that field sits on.
+  useRevealTarget((id) => {
+    const key = /^setting-(.+)$/.exec(id)?.[1];
+    const section = key ? WEBHOOK_SECTIONS.find((s) => s.fields.some((f) => f.key === key)) : undefined;
+    if (!section) return;
+    setGroup(section.group);
+    setQuery('');
+  });
 
   // A creator space: everybody who plays is a guest of it, so "who gets announced" (members vs
   // guests) has no answer there — switching "only your own members" on would silence every player.

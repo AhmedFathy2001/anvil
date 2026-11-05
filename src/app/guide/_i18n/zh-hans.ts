@@ -2,9 +2,11 @@ import type { PartialGuideDict } from './en';
 
 // 简体中文 — Simplified Chinese.
 //
-// 与此处其他语言文件相同的约定：读者在屏幕上「真正看到」的东西一律保留英文 —— RuneLite 与 OBS 的菜单、
-// 插件本身输出的聊天行，以及 Anvil 管理界面的标签（在该界面本身被翻译之前都是英文）。把
-// "Tracked drop detected" 翻译掉，就等于让人再也搜不到那一行。其余的一切 —— 解释、顺序、原因 —— 都是中文。
+// 与此处其他语言文件相同的约定：读者在 Anvil、RuneLite 与 OBS 屏幕上「真正看到」的东西一律保留英文 ——
+// RuneLite 与 OBS 的菜单、插件本身输出的聊天行，以及 Anvil 管理界面的标签（在该界面本身被翻译之前都是英文）。把
+// "Tracked drop detected" 翻译掉，就等于让人再也搜不到那一行。Discord 自身的界面标签（菜单、设置、权限名）
+// 则沿用 Discord 简体中文版的官方译名：「复制服务器 ID」「服务器设置 → 身份组」「管理 Webhook」。
+// 其余的一切 —— 解释、顺序、原因 —— 都是中文。
 
 const zhHans: PartialGuideDict = {
   common: {
@@ -185,7 +187,7 @@ const zhHans: PartialGuideDict = {
         '**同步公会名单。** 在 RuneLite 里打开 Anvil 插件的设置，开启 **Keep the clan roster in sync**。由一位管理员在游戏里操作一次即可。这会取代你的 Wise Old Man 小组。',
         '**开始一场 Skill 或 Boss of the Week。** 前往 Admin → All events → **+ New event**，选择 Skill of the Week 或 Boss of the Week。公会名单里的所有人会自动参加。这会取代 Wise Old Man 的比赛。',
         '**通知你的成员。** 前往 Admin → Discord → **Tell your members** → **Post it**。机器人会替你发布玩家要做的步骤。',
-        '**一周后，清理一下。** 前往 Admin → Discord，勾选 Dink 旧的 webhook，然后点 **Remove**。之后就不会再有重复发布了。',
+        '**一周后，清理一下。** 前往 Admin → Discord → **Remove Dink’s old webhooks**，勾选要删掉的那些，按 **Remove … webhooks**，再按 **Yes, remove them**。之后就不会再有重复发布了。想保留的，就在它上面按 **Keep**。',
       ],
     },
 
@@ -242,7 +244,7 @@ const zhHans: PartialGuideDict = {
         rest: '到一个能用的氏族',
       },
     ],
-    footnote: '这些以后都能在 管理 → 氏族 里改，只有地址例外——那个现在值得想一下。',
+    footnote: '这些以后都能在 管理 → **Clan settings** 里改，只有地址例外——那个现在值得想一下。',
     before: {
       title: '开始之前',
       body: [
@@ -252,7 +254,7 @@ const zhHans: PartialGuideDict = {
       ],
       note: {
         tag: '你会成为它的所有者',
-        body: '所有者是唯一没人能从你手里拿走的角色，它归创建氏族的人。之后从 管理 → 氏族 添加管理团队；参见[值班表上]({moderatorGuide})。',
+        body: '所有者是唯一没人能从你手里拿走的角色，它归创建氏族的人。之后从 管理 → **People** → **Staff & roles** 添加管理团队；参见[值班表上]({moderatorGuide})。',
       },
     },
     create: {
@@ -286,27 +288,27 @@ const zhHans: PartialGuideDict = {
     },
     setup: {
       title: '设置向导',
-      intro: '一个崭新的氏族和一场正在进行的活动之间隔着四件事。向导按顺序走一遍，并跳过你已经做完的。',
+      intro: '一个崭新的氏族和一场正在进行的活动之间隔着三个步骤，向导按顺序走一遍，并跳过你已经做完的。紧接着就是做板。',
       steps: [
         {
-          term: '在 Discord 里起名',
+          term: '你的氏族',
           body: '你的显示名称、游戏内氏族名，以及一个指向你服务器的邀请链接。有了邀请，报名页面和指南才能把人指引到你这里。',
         },
         {
           term: '连接 Discord',
-          body: '一个共享机器人，所以没有应用要注册，也没有令牌要粘贴。批准一次，它就能在你的频道里发帖并读取你的身份组。',
+          body: '一个共享机器人，所以没有应用要注册，也没有令牌要粘贴。按 **Connect your bot** 并批准一次，然后选择 **A few channels** 或 **Just one channel**，再按 **Set it up for me**——机器人会替你建好频道。',
         },
         {
-          term: '给它一个频道',
-          body: '一个用于活动帖子的公告频道。也可以把插件的信息流拆开：稀有掉落发一个频道，死亡发另一个，免得互相淹没。',
+          term: '把成员拉进来',
+          body: '安装插件，用 Discord 登录，然后在游戏里打开氏族窗口，按标题栏上的 **Anvil** 按钮。在你的成员名单进来之前，没有人能报名活动。',
         },
         {
           term: '做一块板',
-          body: '第一场活动。选格式、加格子、开报名——那是[举办你的第一场活动]({adminGuide})，也是四件事里明显最长的一件。',
+          body: '向导的最后一步是 **Create your first event →**。选格式、加格子、开报名——那是[举办你的第一场活动]({adminGuide})，也是明显最长的一步。',
         },
       ],
       after: [
-        '你完全可以跳过向导，之后在 管理 → 氏族 里把这些做完。它之所以存在，是因为第一次做的时候顺序很重要：先 Discord 后频道，先频道后想往里发帖的板。',
+        '你完全可以用 **Skip setup** 跳过向导，之后在 管理 → **Clan settings** 和 管理 → **Discord** 里把这些做完。它之所以存在，是因为第一次做的时候顺序很重要：先 Discord 后频道，先成员后他们要报名的板。',
       ],
     },
     members: {
@@ -325,7 +327,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '手动添加',
-          body: '管理 → 氏族 可以一个一个地添加名字，适合那些用手机或官方客户端、完全无法运行插件的人。',
+          body: '管理 → **People** → **+ Add Manually** 可以一个一个地添加名字，适合那些用手机或官方客户端、完全无法运行插件的人。',
         },
       ],
       note: {
@@ -353,6 +355,19 @@ const zhHans: PartialGuideDict = {
         body: '参加别人的活动是免费的，自己主办也是免费的。一个只出现在别人板上的氏族，永远不需要超出它自己那个免费氏族的东西。',
       },
     },
+
+    boosts: {
+      title: '氏族助力',
+      body: [
+        '购买了 Anvil Supporter **Champion**（一次助力）或 **Patron**（两次）档位的成员，可以在自己的 **Settings → Clan boosts** 里为氏族助力。一次助力要等此人在氏族里的席位满 14 天才算数，而且同一个人最多只有两次算数。',
+        '你可以在 管理 → **Clan settings** → **Boosts** 看到当前情况：氏族的等级、有多少次助力正在算数，以及升到下一级还需要多少次。1 级需要 3 次助力，2 级需要 8 次，3 级需要 15 次。如果助力数掉到某一级以下，该级的福利还会先保留一周。',
+        '1 级会在你的氏族页面、Clan Hall 卡片和搜索结果上加一个 **Boosted** 徽章，在 Clan Hall 里把你排在未助力的氏族之前，并让你的名字显示渐变色。2 级增加 Clan Hall 中 Featured 一栏里的一个位置，播放你的动态横幅，并解锁一条 **Recruiting line**：一句话，最多 140 个字符，展示给访客。3 级增加 Clan Hall 顶部的一个 Spotlight，以及每月一条 **Recruitment post in the Anvil Discord**，最多 500 个字符，用 **Post to the Anvil Discord** 发送一次，附带你氏族页面的链接，且不会 @ 任何人。',
+      ],
+      note: {
+        tag: '只影响外观',
+        body: '助力只改变氏族的外观和它在列表中的位置。它从不改变等级、分数、你的席位或你的套餐。',
+      },
+    },
   },
 
   discord: {
@@ -375,12 +390,12 @@ const zhHans: PartialGuideDict = {
         rest: '每个信息流在你指定去处前都是关的',
       },
     ],
-    footnote: '这里的一切都在 管理 → 设置 下，分布在 Discord 机器人、Webhook、身份组与频道、通知 四个标签页。',
+    footnote: '这里的一切都在 管理 → **Discord** 上：顶部是快速设置，下面是 **More settings**——Connection、What goes where、Event posts、Roles & nicknames、Team channels、Commands 和 Post without a bot。',
     bot: {
       title: '一个机器人，已经建好',
       body: [
         '没有 Discord 应用要创建，没有令牌要生成，也没有密钥要粘贴。Anvil 运行一个所有氏族共用的机器人，所以接入就是一次邀请，仅此而已。',
-        '你仍然可以自带——在 **Discord 机器人** 下粘贴一个令牌，就会改用它。只有当你希望机器人在成员列表里显示你氏族的名字和头像时才值得；本指南里的一切在两种情况下表现完全相同。',
+        '你仍然可以自带——在 **Use your own bot instead (advanced)** 下粘贴一个令牌，就会改用它。只有当你希望机器人在成员列表里显示你氏族的名字和头像时才值得；本指南里的一切在两种情况下表现完全相同。',
       ],
       permissions: [
         {
@@ -389,7 +404,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '管理 Webhook',
-          body: '好让 Webhook 标签页上的 **创建** 按钮替你生成一个，而不必你手动从 Discord 复制网址。',
+          body: '好让 **Set it up for me** 和 **Post here** 替你创建 Webhook，而不必你手动从 Discord 复制网址；Anvil 也靠它找出旧的 Webhook 供你删除。',
         },
         {
           term: '管理身份组',
@@ -409,7 +424,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '更改昵称',
-          body: '仅当你在 **Settings → Bot appearance** 中让机器人使用你们部落的名字时需要。只会改变机器人在你们服务器里的名字。',
+          body: '仅当你在 **Connection → Bot appearance in your server** 中让机器人使用你们氏族的名字时需要。只会改变机器人在你们服务器里的名字。',
         },
       ],
       note: {
@@ -423,11 +438,11 @@ const zhHans: PartialGuideDict = {
       steps: [
         {
           term: '邀请机器人',
-          body: '管理 → 设置 → **Discord 机器人** → **邀请／重新邀请机器人**。设好 ID 之后，链接会预先选中你的服务器，所以你不会误加到别的服务器。',
+          body: '管理 → **Discord** → **Connect your Discord server**（或 **Add Anvil to Discord**）。Discord 会问你要把 Anvil 加到哪个服务器，然后把你送回这里，所以你不会误加到别的服务器。之后，**Invite / re-invite the bot** 在 **More settings → Connection** 下。',
         },
         {
           term: '填入服务器 ID',
-          body: '在 Discord 里右键你的服务器图标 → **复制服务器 ID**（需要在 Discord 自身的高级设置里打开开发者模式），然后粘贴。正是这个字段让连接专属于你。',
+          body: '仅当按钮办不到时：展开 **Can’t use the button? Enter the server ID**，在 Discord 里右键你的服务器图标 → **复制服务器 ID**（需要在 Discord 自身的“高级设置”里打开“开发者模式”），粘贴到 **Your Discord server’s ID**，然后按 **Save**。正是这个字段让连接专属于你。',
         },
       ],
       after: [
@@ -442,20 +457,20 @@ const zhHans: PartialGuideDict = {
       title: '设置 Webhook',
       body: [
         'Anvil 通过 **Webhook** 发帖，每个频道一个，而且全都是可选的。在你把某个信息流指向某个频道之前，什么都不会发到任何地方——崭新的氏族是刻意安静，不是出了差错。',
-        '打开 **管理 → 设置 → Webhook**，先设置主要公告 Webhook。机器人已连接时，选择频道，按 **创建 Webhook**，再点 **测试**。没有机器人时，在 Discord 中打开该频道的 **编辑频道 → 集成 → Webhook**，创建一个，复制网址，粘贴到 Anvil 并按 **添加**。Webhook 网址可以向频道发帖，所以要像密码一样保管；如果泄露，请在 Discord 中删除并新建。**创建 Webhook** 会替换已保存的目标，而 **再添加一个** 会保留两者，并在繁忙时轮换发帖。',
+        'Anvil 机器人在你的服务器里时，**Admin → Discord** 顶部的 **Set it up for me** 会建好频道，并把每个信息流都指向它们。想手动设置，就打开 **More settings → What goes where**，先设 **Clan & events** 上的 **Catch-all channel**，再设 **In-game (plugin)** 上的 **In-game catch-all**：从下拉菜单里选一个频道，就会自动保存。没有机器人时，在 Discord 中打开该频道的 **编辑频道 → 整合 → Webhook**，创建一个，复制网址，在下拉菜单里选 **Paste a webhook…**，粘贴后按 **Save**。Webhook 网址可以向频道发帖，所以要像密码一样保管；如果泄露，请在 Discord 中删除并新建。**Test**，以及用来在两个 Webhook 之间轮换繁忙帖子的 **Add another**，都在 **Post without a bot** 下。',
       ],
       feeds: [
         {
-          term: '公告',
-          body: '最主要的一个。活动的开始与结束、报名开放、排名、每周结果。只设这一个，你就有了一个能用的氏族。',
+          term: 'Catch-all channel',
+          body: '最主要的一个，在 **Clan & events** 标签页上。活动的开始与结束、报名开放、排名、每周结果——网站发布的、没有专属频道的一切内容。只设这一个，你就有了一个能用的氏族。',
         },
         {
-          term: '插件默认',
-          body: '来自游戏、又没有专属频道的内容都去那里。第二个设它。',
+          term: 'In-game catch-all',
+          body: '在 **In-game (plugin)** 标签页上：来自游戏、又没有专属频道的内容都去那里。第二个设它。',
         },
         {
           term: '拆分出来的信息流',
-          body: '稀有掉落、宠物、死亡、收集日志、战斗成就、等级、任务、日常、PvP 击杀和 Leagues 各占一个频道。这种拆分，就是一个大家会读的信息流和一个大家会静音的信息流之间的区别。',
+          body: '活动帖子、你联合主办的板、Skill & boss of the week 和氏族日历活动可以从总频道拆出去；稀有掉落、宠物、收集日志、等级、战斗成就、任务、日记、死亡和 PvP 击杀可以从游戏内总频道拆出去。名单变动、报名审批和金库账本在 **Staff only** 上。留空的拆分信息流会回落到各自的总频道。金库是例外：留空就意味着完全不发任何关于钱的帖子。Leagues 和其他模式有自己的 **Game modes** 标签页。',
         },
       ],
       note: {
@@ -466,12 +481,12 @@ const zhHans: PartialGuideDict = {
     roles: {
       title: '身份组与昵称',
       body: [
-        '两种同步默认关闭，需要在 **管理 → 设置 → 身份组与频道** 中启用。打开身份组同步，保持“按名称自动匹配游戏内等级”开启，按需选择通用成员与访客身份组，保存后按 **立即同步身份组与昵称**。每个人还必须关联 Discord 账号。自动匹配要求 Discord 身份组与游戏内等级同名：`Owner`、`Deputy Owner`、`Coordinator`、`Overseer`、`General`、`Captain`、`Lieutenant`、`Sergeant`、`Corporal` 或 `Recruit`；自定义等级也要使用相同名称。大小写不敏感，下划线等同于空格，但多余单词不会匹配：`General` 可以，`OSRS General` 不可以。通用成员和访客身份组需另外选择，名称可以任意。',
+        '两种同步默认关闭，需要在 **Admin → Discord → Roles & nicknames** 中启用，而且两者都以成员名单为依据。打开 **Enable Discord role sync**，保持 **Auto-match in-game rank → Discord role by name** 开启，按需选择通用的 **Member roles** 和 **Guest roles**，保存后按 **Sync roles & nicknames now**。每个人还必须关联一个 Discord 身份；同步报告会列出它无法识别的人。',
       ],
       ways: [
         {
           term: '身份组同步',
-          body: '把你游戏内的等级映射到 Discord 身份组，Anvil 会保持二者一致。另外还有面向成员、访客、队长和当前活动的单独身份组，让你不必手工维护名单就能 @ 到对的人。',
+          body: '要自动匹配等级，Discord 身份组的名称必须与游戏内的氏族等级一致：`Owner`、`Deputy Owner`、`Coordinator`、`Overseer`、`General`、`Captain`、`Lieutenant`、`Sergeant`、`Corporal` 或 `Recruit`。自定义等级只要其 Discord 身份组使用同一名称，也同样适用。匹配不区分大小写，下划线视同空格，但多余的单词不会匹配：`General` 可以；`OSRS General` 不行。成员和访客身份组是另外选的，所以名称可以任意。',
         },
         {
           term: '昵称同步',
@@ -487,7 +502,7 @@ const zhHans: PartialGuideDict = {
       title: '斜杠命令',
       body: [
         '机器人在你的服务器里响应 `/bingo`（棋盘、排名、规则、你自己的卡片），以及 `/sotw`、`/stats`、`/coffer` 等氏族命令。它们读取网站上的实时数据，所以没人需要离开 Discord 就能看到自己的位置。[每条命令及其选项]({commandsGuide})都有专门的页面。',
-        '机器人加入后大约一分钟它们才会出现。如果始终不出现，说明那次邀请授予了机器人却没有授予它的命令——这是两项独立权限，而较早的邀请链接只申请了其中一项。从 Discord 机器人标签页重新打开邀请链接即可；这不会踢出机器人，也不会重置任何东西。',
+        '机器人加入后大约一分钟它们才会出现。如果始终不出现，说明那次邀请授予了机器人却没有授予它的命令——这是两项独立权限，而较早的邀请链接只申请了其中一项。在 Discord 页面的 **Connection** 下重新运行 **Invite / re-invite the bot** 即可；这不会踢出机器人，也不会重置任何东西。',
       ],
       note: {
         tag: '它用每个人自己的语言回复',
@@ -506,6 +521,42 @@ const zhHans: PartialGuideDict = {
         body: '一次完成格子的掉落只会发一条，而不是插件发一条、板再发一条。',
       },
     },
+    modes: {
+      title: 'Leagues、Deadman 及其他模式',
+      body: [
+        'Leagues、Deadman、hardcore 及其他模式运行在各自的世界里，使用各自的角色。它们的帖子总会带有标注，而且从不计入板或竞赛。它们有自己的标签页：**Admin → Discord → What goes where → Game modes**。某个模式会在成员第一次玩它时出现在那里。',
+        '每个模式都有一个开关和一个 **To** 频道。打开 **Send game-mode posts to their own channels** 就会使用这些频道；关着的话，每个模式都发到普通频道，仍然带标注。模式那一行上的 **Posts** 按钮会列出它发送的每一类帖子——常规的那些和该模式自己的事件——每一类都有自己的开关。',
+        '在这个列表下面，**Custom filters** 可以让某个模式发得比主游戏更少。**Post drops rarer than 1 in…** 设定它自己的稀有度下限（留空 = 与主游戏相同）：总是发布的物品照样发布，但只因价值才算数的掉落不会发布。**Use its own level milestones** 只有在升级同时符合两套规则时才会发帖。',
+      ],
+      note: {
+        tag: '只会更严，不会更松',
+        body: '模式的过滤器只能减少帖子。插件已经应用了你的主游戏设置，所以模式过滤器无论怎么设，都不能把一条帖子找回来。',
+      },
+    },
+    cleanup: {
+      title: '来自 Dink 或其他机器人的旧 Webhook',
+      body: [
+        '机器人在你的服务器里时，Discord 页面会列出服务器里所有不属于 Anvil 的 Webhook。**Coming from Dink?** 提供 **Use the same channels**，这样 **Set it up for me** 会发到你旧信息流原来发的地方，你的成员那边什么都不用变。',
+        '等你的成员都用上 Anvil 之后，前往 **Remove Dink’s old webhooks**，勾选要删掉的那些，按 **Remove … webhooks**，再按 **Yes, remove them**。这会在 Discord 里把它们永久删除——无法撤销。',
+        '这个列表包含任何不属于 Anvil 的 Webhook，而不只是 Dink 的。有想保留的，比如另一个机器人的信息流？按 **Keep**，它就离开列表；**Show kept** 和 **Put back** 可以把它找回来。保留只是在这里隐藏它——Discord 里什么都不会变。',
+      ],
+      note: {
+        tag: '需要“管理 Webhook”权限',
+        body: '机器人要读取你服务器的 Webhook 才能找到它们。如果它的身份组没有 _管理 Webhook_ 权限，页面会提示它看不到这些 Webhook。',
+      },
+    },
+    announce: {
+      title: '发布到 Discord',
+      body: [
+        '管理员可以在管理菜单 **Clan** 下的 **Post to Discord** 以机器人身份发帖。选一个 **Channel**，写好 **Message**，然后按 **Send message**。较长的文本，比如一本规则手册，会自动拆成几条消息。',
+        '**Send as an embed** 默认开启，并增加可选的 **Title** 和 **Accent colour**；关掉它就发纯文本。**Ping** 用来选择要提及的身份组或 @everyone，Anvil 会在发送前先问你一下。',
+        '你发出的每条帖子都会列在 **Sent from here** 下。**Edit** 会在 Discord 里修改它而不再次提及任何人，**Delete** 会把它删掉。',
+      ],
+      note: {
+        tag: '仅限管理员，需要机器人',
+        body: '它以 Anvil 机器人的身份发帖，所以请先连接你的服务器。版主看不到它。它就是 **Clan settings → Features** 下的 **Post to Discord** 开关；关掉后，它会从菜单中消失。',
+      },
+    },
     quiet: {
       title: '当它安静下来',
       body: [
@@ -514,7 +565,7 @@ const zhHans: PartialGuideDict = {
       checks: [
         {
           term: '机器人真的在服务器里吗？',
-          body: 'Discord 机器人标签页会直接告诉你。“令牌有效”和“在你的服务器里”是两回事，前者并不蕴含后者——用共享机器人时，令牌永远有效。',
+          body: 'Discord 页面上的 **Connection** 会直接告诉你。“令牌有效”和“在你的服务器里”是两回事，前者并不蕴含后者——用共享机器人时，令牌永远有效。',
         },
         {
           term: '服务器 ID 对吗？',
@@ -522,7 +573,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: 'Webhook 还在吗？',
-          body: '删除 Discord 频道会连同它的 Webhook 一起删掉，而 Anvil 会留着那个失效网址。到 Webhook 标签页重新创建。',
+          body: '删除 Discord 频道会连同它的 Webhook 一起删掉，而 Anvil 会留着那个失效网址。到 **What goes where** 下重新为它选一个频道。',
         },
         {
           term: '机器人的身份组够高吗？',
@@ -922,7 +973,7 @@ const zhHans: PartialGuideDict = {
     access: {
       title: '谁能做什么',
       intro:
-        '所有人都用 Discord 登录 —— 没有密码。第一位管理员来自服务器配置；之后由管理员在 **Clan → Members & staff** 中提升他人。角色是向下叠加的：管理员（moderator）能做的一切，司库和 admin 也都能做。',
+        '所有人都用 Discord 登录 —— 没有密码。第一位管理员就是所有者，也就是创建氏族的人；之后由管理员在 **People → Staff & roles** 中提升他人。角色是向下叠加的：管理员（moderator）能做的一切，司库和 admin 也都能做。',
       rows: [
         {
           term: 'Admin',
@@ -931,7 +982,7 @@ const zhHans: PartialGuideDict = {
         { term: 'Treasurer', body: 'moderator 能做的一切，外加报名费与奖金发放。' },
         {
           term: 'Moderator',
-          body: '日常事务：成员名单、验证、每周竞赛、日程、反馈。不能创建或编辑活动。',
+          body: '日常事务：成员名单、验证、待核查的凭证、每周竞赛、日程和氏族日历活动。不能创建或编辑活动。',
         },
         {
           term: 'Editor',
@@ -950,12 +1001,12 @@ const zhHans: PartialGuideDict = {
     setup: {
       title: '给氏族起名，接上 Discord',
       intro:
-        '**System → Setup** 是一个简短的向导，仪表盘也会把这五项当成清单保留到它们完成为止：给氏族起名、接上 Discord、载入成员、创建活动、添加格子。状态是按真实数据算出来的，因此某一步只有真正完成时才会被勾掉。',
+        '**Settings → Finish setup** 是一个简短的向导（在你完成之前它会一直留在菜单里），仪表盘也会把这五项当成清单保留到它们完成为止：给氏族起名、接上 Discord、载入成员、创建活动、添加格子。状态是按真实数据算出来的，因此某一步只有真正完成时才会被勾掉。',
       discord:
         'Discord 有两条路，而且可以叠加：给 Anvil 一个**机器人**，它就能创建 webhook、同步身份组和昵称、并为你搭建私密的队伍频道；只给它一个 **webhook 网址**，它就只能发公告、别的什么都做不了。想两分钟内跑起来就先用 webhook，等你需要自动化时再把机器人加上。',
       permsNote: {
         tag: '机器人权限',
-        body: '机器人需要 _Manage Webhooks_、_Manage Roles_、_Manage Channels_ 和 _Manage Nicknames_，而且它的身份组在你服务器的身份组列表里必须排在它所管理的那些身份组_之上_。否则 Discord 会悄无声息地拒绝。',
+        body: '机器人需要 _管理 Webhook_、_管理身份组_、_管理频道_ 和 _管理昵称_ 权限，而且它的身份组在你服务器的身份组列表里必须排在它所管理的那些身份组_之上_。否则 Discord 会悄无声息地拒绝。',
       },
       hosted:
         '在托管方案下你已经见过那个界面一次了：设置过程中添加机器人，正是 Anvil 得知哪个服务器是你们的方式，所以从来就不存在什么服务器 ID 需要复制。想把机器人搬到另一个服务器时，同一个链接就在这里。',
@@ -964,8 +1015,8 @@ const zhHans: PartialGuideDict = {
     channels: {
       title: '把播报分散到多个频道',
       body: [
-        '默认情况下所有内容都发到一个主公告频道。等它变吵了，打开 **Discord → Where posts go**，给那些吵闹的类别各自安个家 —— 宾果活动、每周竞赛、稀有掉落、死亡、PvP 击杀、combat achievements。任何留空的类别都会回落到主频道，所以你可以一次只分出一个类别。',
-        '接上机器人之后你完全不用碰 webhook 网址：从下拉框里选一个频道，按 **Post here**。活动繁忙时你可以给同一个频道再加一个 webhook —— Anvil 会在两者之间轮换，免得 Discord 的限流吞掉播报。',
+        '默认情况下所有内容都发到一个总频道。等它变吵了，打开 **Discord → What goes where**，给那些吵闹的类别各自安个家 —— 活动帖子、每周竞赛、稀有掉落、死亡、PvP 击杀、combat achievements。任何留空的类别都会回落到它的总频道，所以你可以一次只分出一个类别。',
+        '连上机器人后你永远不用碰 webhook 网址：在那一行的下拉菜单里选一个频道，就会自动保存。活动很热闹时，你可以用 **Post without a bot** 下的 **Add another** 再加一个 webhook —— Anvil 会在它们之间轮换，免得 Discord 的速率限制吞掉帖子。',
       ],
       clipsNote: {
         tag: '片段频道不一样',
@@ -976,16 +1027,16 @@ const zhHans: PartialGuideDict = {
     roster: {
       title: '把成员名单导进来',
       body: [
-        '氏族成员资格只有一个来源：从游戏内同步一次成员名单。在一位_管理员_的账号上安装 [Anvil 的 RuneLite 插件]({pluginGuide})，打开游戏内 Collection Log 的 **Bingo** 标签页，然后按 **Sync clan roster**。这会一键把你们真实的游戏内氏族名单推送到网站。',
+        '氏族成员资格只有一个来源：从游戏内同步一次成员名单。在一位_管理员_的账号上安装 [Anvil 的 RuneLite 插件]({pluginGuide})，在游戏里打开氏族窗口，然后按标题栏上的 **Anvil** 按钮。这会一键把你们真实的游戏内氏族名单推送到网站。',
         '任何在网站上关联或验证了账号、却不在那份名单上的人都是**访客** —— 会被记录、可见，但在管理员提升他们或下一次同步把他们收进来之前都不算成员。这是有意为之：这意味着没有人能靠打一个名字把自己提升进你们的氏族。',
-        '你也可以在 **Clan → Members & staff** 里手动添加某人，包括在他们无法访问网站时代为报名某场活动。',
+        '你也可以在 **People → + Add Manually** 里手动添加某人；在他们无法访问网站时，还可以在活动的 **Sign-ups** 页面用 **Add member** 代为报名。',
       ],
     },
 
     board: {
       title: '创建你的第一块棋盘',
       intro:
-        '**Events → All events → New event**。先选赛制 —— 它决定棋盘如何计分，以及表单接下来会问你什么。',
+        '**Events → All events → + New event**。先选赛制 —— 它决定棋盘如何计分，以及表单接下来会问你什么。',
       formats: {
         classic: {
           label: '经典宾果',
@@ -1032,13 +1083,13 @@ const zhHans: PartialGuideDict = {
     tiles: {
       title: '把棋盘填满',
       body: [
-        '活动的 **Tiles** 标签页，就是一块棋盘变成宾果的地方。每个格子是一_种_任务，而这个种类决定了插件盯着什么：一次掉落、一个 boss 击杀数、技能经验、一次 NPC 击杀、限时通关、成就日记、Combat Achievement、收藏日志解锁、PvP 击杀、物品获取，或一次零死亡的通关。手动格子 —— 由人依据截图核验的那种 —— 也始终是可选项。',
+        '活动的 **Board & tiles** 页面，就是一块棋盘变成宾果的地方。每个格子是一_种_任务，而这个种类决定了插件盯着什么：一次掉落、一个 boss 击杀数、技能经验、一次 NPC 击杀、限时通关、成就日记、Combat Achievement、收藏日志解锁、PvP 击杀、物品获取，或一次零死亡的通关。手动格子 —— 由人依据截图核验的那种 —— 也始终是可选项。',
         '要填满整块棋盘，请批量编写：导出表格，在表格软件里填好，再导回来。CSV 与 .xlsx 都能双向往返，而且行与位置一一对应，所以你可以一次粘贴就把整块 25 格的网格重写一遍。',
       ],
       rows: [
         {
           term: '难度档位',
-          body: '分值会映射到有名字的档位（easy → elite）。如果你的氏族有不同的分级习惯，可以在 Rules & scoring 里编辑这些档位。',
+          body: '分值会映射到有名字的档位（easy → elite）。如果你的氏族有不同的分级习惯，可以在 **Clan settings → Rules & scoring → Difficulty & balance** 里编辑这些档位。',
         },
         {
           term: '平衡审核器',
@@ -1056,7 +1107,7 @@ const zhHans: PartialGuideDict = {
     teams: {
       title: '队伍与选秀',
       body: [
-        '**Teams & Draft** 标签页会随你选的赛制变化：不使用队伍的赛制会直接跳过它。对于普通的团队宾果，你创建队伍、决定谁当队长，然后要么自己分配玩家，要么开一场实时选秀。',
+        '**Teams & draft** 页面会随你选的赛制变化：不使用队伍的赛制会直接跳过它。对于普通的团队宾果，你创建队伍、决定谁当队长，然后要么自己分配玩家，要么开一场实时选秀。',
         '队长们按你指定的顺序从报名池里挑人，并且每位队长都能看到大家在报名表里填的答案 —— 这些答案在提交那一刻就被冻结，所以没人能在被选中之后改自己的「每周时长」。',
       ],
       placementIntro:
@@ -1106,7 +1157,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '公告',
-          body: 'System → Announce 能在活动进行中往你们的频道发一条消息，不用你自己手写 webhook。',
+          body: '**Post to Discord**（在菜单的 **Clan** 下）能在活动进行中以机器人身份往任意频道发一条消息，不用你自己手写 webhook。',
         },
       ],
       missionNote: {
@@ -1116,9 +1167,9 @@ const zhHans: PartialGuideDict = {
       startProofNote: {
         tag: '阻止赛前囤积',
         body: [
-          '打开 **Starting shot**（活动 → Overview），每位玩家就必须提交一张在开赛之后拍摄的截图，地点由 Anvil 在开赛那一刻抽取 —— 这样就没人能在零点坐拥一周攒下的线索卷和宝箱。地点随开赛一同公布；每位玩家的口令都是个人专属、由抽取结果推导而来，并且在活动开始前根本不存在，因此任何人都无法提前布置。',
+          '打开 **Starting shot**（活动 → Home → **Extras**），每位玩家就必须提交一张在开赛之后拍摄的截图，地点由 Anvil 在开赛那一刻抽取 —— 这样就没人能在零点坐拥一周攒下的线索卷和宝箱。地点随开赛一同公布；每位玩家的口令都是个人专属、由抽取结果推导而来，并且在活动开始前根本不存在，因此任何人都无法提前布置。',
           '把这些地点钉在世界地图上（地点池编辑器自带一个），插件就会检查玩家是否真的站在那里，而不是仅仅被口头告知。你还可以要求**新开的会话** —— 默认 15 分钟：hiscores 只在玩家退出登录时保存，所以让所有人在拍照前重登一次，才能让每个经验与击杀数格子背后的起始数值是诚实的。',
-          '用插件的人按一个按钮就好。其余的人在游戏里打出自己的口令，然后在 My Team 上传。至于没交的人所产生的记账怎么处理，由你决定：标记待审（默认），或者在他们交上来之前一律拒绝。同一个 Overview 面板就是待审列表 —— 带有已验证口令的插件截图会以「已接受」的状态到达，所以实际上你只需要过一眼手机玩家。',
+          '用插件的人按一个按钮就好。其余的人在游戏里打出自己的口令，然后在 My Team 上传。至于没交的人所产生的记账怎么处理，由你决定：标记待审（默认），或者在他们交上来之前一律拒绝。活动 Home 上的同一个面板就是待审列表 —— 带有已验证口令的插件截图会以「已接受」的状态到达，所以实际上你只需要过一眼手机玩家。',
         ],
       },
     },
@@ -1130,7 +1181,7 @@ const zhHans: PartialGuideDict = {
       rows: [
         {
           term: '奖金发放',
-          body: '活动的 Payouts 标签页会把奖池变成一份「谁拿多少」的名单，并在你发放的过程中逐条勾掉。',
+          body: '活动的 **Prizes** 页面会把奖池变成一份「谁拿多少」的名单，并在你发放的过程中逐条勾掉。',
         },
         {
           term: '总结',
@@ -1142,7 +1193,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '存为模板',
-          body: '把你刚搭好的这块棋盘留下来。下一场宾果就从它开始，而不是从空网格开始。',
+          body: '在活动的 **Settings → More** 里，把你刚搭好的这块棋盘留下来。下一场宾果就从它开始，而不是从空网格开始。',
         },
       ],
       federation:
@@ -1191,9 +1242,9 @@ const zhHans: PartialGuideDict = {
     team: {
       title: '先把队伍建起来',
       body: [
-        '打开你的活动，进入 **Teams & Draft** 标签页。为每个受邀氏族各建一支队伍，并以他们的名字命名 —— 这个名字就是他们的玩家在报名表上看到的，所以「Ironforge」胜过「队伍 2」。',
+        '打开你的活动，进入 **Teams & draft** 页面。为每个受邀氏族各建一支队伍，并以他们的名字命名 —— 这个名字就是他们的玩家在报名表上看到的，所以「Ironforge」胜过「队伍 2」。',
         '你_不需要_跑选秀。邀请链接和选秀是两种替代方案：选秀是把一个共享的报名池分配出去，链接则是把人直接安排到位。在纯粹的氏族对抗赛里，大多数主办方会把队伍建好、每队发一条链接，然后压根不开选秀。',
-        '接着打开队伍本身 —— **Teams & Draft → 该队伍** —— 因为接下来两步都在那里进行。',
+        '接着打开队伍本身 —— **Teams & draft → 该队伍** —— 因为接下来两步都在那里进行。',
       ],
       captainNote: {
         tag: '先定队长',
@@ -1207,7 +1258,7 @@ const zhHans: PartialGuideDict = {
         '队伍页面上的 **Team staff** 面板，就是来访氏族自己的管理员开始干活的方式 —— 而你不需要在自己的站点上授予他任何东西。按 **Add someone**，搜索到他，加一条像「Ironforge’s mod」这样的备注，好让下一位 admin 知道他为什么在这里，然后按 **Give a seat**。',
       ],
       figure: {
-        caption: '活动 → Teams & Draft → 该队伍 → Team staff',
+        caption: '活动 → Teams & draft → 该队伍 → Team staff',
         alt: 'Team staff 面板，已授予一个席位，添加成员的搜索框处于打开状态',
         legend: [
           {
@@ -1250,7 +1301,7 @@ const zhHans: PartialGuideDict = {
         '仍在队伍页面上，**Invite links** 面板负责生成链接。两个字段决定这条链接承诺了什么，而且它们都把 `0` 理解为「什么都不承诺」。',
       ],
       figure: {
-        caption: '活动 → Teams & Draft → 该队伍 → Invite links',
+        caption: '活动 → Teams & draft → 该队伍 → Invite links',
         alt: 'Invite links 面板，含席位与过期字段、Make a link 按钮，以及列表中一条有效链接',
         legend: [
           {
@@ -1463,7 +1514,7 @@ const zhHans: PartialGuideDict = {
         '手点一块 25 格的网格没问题。手点一块 200 项任务的 Leagues 棋盘就不行了，事后校对更不行。Tiles 标签页里有一条正为此而设的往返通道。',
       ],
       steps: [
-        '在活动的 **Tiles** 标签页点 **Download spreadsheet**。你会拿到一份反映棋盘当前状态的 .xlsx，下拉选项、物品清单和字段说明各占一个工作表。',
+        '在活动的 **Board & tiles** 页面点 **Download spreadsheet**。你会拿到一份反映棋盘当前状态的 .xlsx，下拉选项、物品清单和字段说明各占一个工作表。',
         '编辑它。一行一个格子；行的顺序就是格子的顺序。',
         '在同一个标签页点 **Upload CSV / Excel**。只有 **Tiles** 工作表会被读取。',
       ],
@@ -1694,7 +1745,7 @@ const zhHans: PartialGuideDict = {
       { strong: '3 个修正项', rest: '一次完成值多少' },
     ],
     footnote:
-      '赛制在创建时确定，但之后可以在活动的 Overview 标签页里更改；公布策略和分数修正项，只要它们影响的格子尚未公布，随时都能改。',
+      '赛制在创建时确定，但之后可以在活动的 Settings → Event 标签页里更改；公布策略和分数修正项，只要它们影响的格子尚未公布，随时都能改。',
 
     shape: {
       title: '棋盘的形状',
@@ -1841,7 +1892,7 @@ const zhHans: PartialGuideDict = {
       title: '第二个签名',
       body: [
         '一笔费用会停在**已收**状态，直到_另一位_管理层成员确认它确实到账。经手钱的人不能同时是签字确认钱已到的人 —— 这就是整套控制的全部，也正因如此，网站是直接拒绝收款人给自己确认，而不只是劝阻。',
-        '一笔费用需要几个签名，是一项氏族设置，范围是零到五。零之所以存在，是有真实理由的：在司库_就是_所有者的氏族里，根本没有第二个人可以签，于是「34 笔费用等待第二个签名」会变成一条永远清不空的队列，并且永远是仪表盘上最刺眼的东西。设为零时，把费用标记为已付**本身就是**那个签名。',
+        '一笔费用需要几个签名，是一项氏族设置（**Clan settings → Rules & scoring → Fee sign-off**），范围是零到五。零之所以存在，是有真实理由的：在司库_就是_所有者的氏族里，根本没有第二个人可以签，于是「34 笔费用等待第二个签名」会变成一条永远清不空的队列，并且永远是仪表盘上最刺眼的东西。设为零时，把费用标记为已付**本身就是**那个签名。',
         '你们有两个人就设为一 —— 也就是默认值。如果坦白讲并没有第二个人，就设为零；只有在你们既有人手也有理由时，才把它调得更高。',
       ],
     },
@@ -1849,7 +1900,7 @@ const zhHans: PartialGuideDict = {
     pay: {
       title: '发放',
       body: [
-        '活动结束时，活动的 **Payouts** 标签页会把奖池变成一份人的名单。生成它，你得到的是每位受款人一行，而不是每支队伍一行：获胜队伍的奖金会在成员之间平分，好让「发钱」变成一份姓名与数字的清单，而不是半夜里的一道算术题。',
+        '活动结束时，活动的 **Prizes** 页面会把奖池变成一份人的名单。生成它，你得到的是每位受款人一行，而不是每支队伍一行：获胜队伍的奖金会在成员之间平分，好让「发钱」变成一份姓名与数字的清单，而不是半夜里的一道算术题。',
         '金额从一份建议分配开始 —— 向冠军倾斜，而你设的获奖名次越多它就越平缓 —— 并且每一行都可以改。这个建议是起点，不是政策。',
         '然后你一边发一边把行勾掉。要点在于：一周之后，任何人都能看着这份名单知道谁拿了多少，而不必从 Discord 的聊天记录里去还原。',
       ],
@@ -1946,7 +1997,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '几个人一起凑',
-          body: '把他们都选上，输入总额并按 **Split**，之后可以手动微调某一份。它为每个人各写一行，而不是一行里列一串名字，这样每个人都以自己的名字出现在捐款榜上。',
+          body: '把他们都选上，输入总额并按 **Split … ways**，之后可以手动微调某一份。它为每个人各写一行，而不是一行里列一串名字，这样每个人都以自己的名字出现在捐款榜上。',
         },
       ],
       note: {
@@ -1969,7 +2020,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '板子的奖池',
-          body: '宾果自己会把奖池分配到各个名次上，所以金库只递给它一个数字。Event → **Payouts** → *From the clan coffer*。它会加到报名费和你手工添的那部分上，你还可以选择金库是立刻**冻结**这笔金币，还是只记下这个承诺 —— 钱毕竟还没出去，而六周后才开的板子没必要把半个池子锁到那时候。名次之间怎么分则在同一页设置。',
+          body: '宾果自己会把奖池分配到各个名次上，所以金库只递给它一个数字。Event → **Prizes** → *From the clan coffer*。它会加到报名费和你手工添的那部分上，名次之间怎么分则在同一页设置。你还可以选择金库是立刻**冻结**这笔金币，还是只记下这个承诺 —— 钱毕竟还没出去，而六周后才开的板子没必要把半个池子锁到那时候。',
         },
       ],
       note: {
@@ -2001,7 +2052,7 @@ const zhHans: PartialGuideDict = {
       ],
       note: {
         tag: '在频道里告诉全氏族',
-        body: '在 Admin → Discord → Where posts go 里把 **Coffer channel** 指向一个 Discord 频道，每一笔进出都会连同它留下的余额一起发出来。这是唯一没有后备通道的推送：留空，关于钱的事哪里都不会发。参见 [Anvil 与 Discord]({discordGuide})。',
+        body: '在 Admin → Discord → What goes where → **Staff only** 里把 **Coffer ledger** 指向一个 Discord 频道，每一笔进出都会连同它留下的余额一起发出来。这是唯一没有后备通道的推送：留空，关于钱的事哪里都不会发。参见 [Anvil 与 Discord]({discordGuide})。',
       },
     },
 
@@ -2041,7 +2092,7 @@ const zhHans: PartialGuideDict = {
         '账号验证 —— 经验挑战和人工审核',
         '提交与凭证截图',
         '每周竞赛与日程',
-        '来自成员的反馈',
+        '氏族日历活动',
       ],
       cantIntro: '刻意不让他们做的：',
       cantList: [
@@ -2245,7 +2296,7 @@ const zhHans: PartialGuideDict = {
       rows: [
         {
           term: '列表里没有 Anvil 命令',
-          body: '机器人被邀请时没带上它的命令 — 这是一项单独的权限，较早的邀请链接只申请了其中一项。由管理员在 Admin → Integrations → Discord bot 重新打开邀请链接。这不会踢出机器人，也不会重置任何东西。新加入的命令最多可能要一小时才会出现。',
+          body: '机器人被邀请时没带上它的命令 — 这是一项单独的权限，较早的邀请链接只申请了其中一项。由管理员在 Admin → Discord → **Connection** 重新运行 **Invite / re-invite the bot**。这不会踢出机器人，也不会重置任何东西。新加入的命令最多可能要一小时才会出现。',
         },
         {
           term: '“The application did not respond”',
@@ -2455,7 +2506,7 @@ const zhHans: PartialGuideDict = {
     who: {
       title: '选择谁能加入',
       body: [
-        '每场活动一开始都对 **Anyone** 开放。想只留给你的社区，就打开活动的 **Settings** → **Who can join?**，选一个或多个选项。第一场活动的页面上也有同样的选项。',
+        '每场活动一开始都对 **Anyone** 开放。想只留给你的社区，就打开活动的 **Settings** → **Viewers** → **Who can join?**，选一个或多个选项。第一场活动的页面上也有同样的选项。',
         '如果你选了不止一个，**满足其中任何一个就够了**。关注者或者服务器加成者都能进。',
       ],
       intro: '每个选项，以及观众要做什么：',
@@ -2506,7 +2557,7 @@ const zhHans: PartialGuideDict = {
     approve: {
       title: '逐个批准玩家（可选）',
       body: [
-        '想自己挑谁来玩？打开活动的 **Settings** → **Who can play** → **Who can enter it**，选 **Ask me about everyone**。按 **Save changes**。',
+        '想自己挑谁来玩？打开活动的 **Settings** → **Viewers** → **Who can enter**，选 **Ask me about everyone**。按 **Save changes**。',
         '这样观众会看到 **Ask to join**，而不是 **Join**。他们仍然要先通过你的 **Who can join?** 选项。',
         '他们的申请会在 **Your events** 里显示为 **N waiting for you**。点它，或者打开活动的 **Sign-ups** 标签页。顶部的列表叫 **Waiting for your yes**。逐个接受或拒绝。',
       ],
@@ -2593,7 +2644,7 @@ const zhHans: PartialGuideDict = {
       body: [
         '你的空间建好时是不公开的。只有拿到你链接的人才能找到它。',
         '打开 **Settings** → **Advertise on Anvil** 并打开它。你的空间会出现在 Anvil 氏族目录里，你的新活动会显示在 `{apex}/events`。',
-        '只想展示某一场活动，就打开它的 **Settings** → **Who can play** → **Advertise on Anvil**。它会在活动即将开始或进行中时显示。',
+        '只想展示某一场活动，就打开它的 **Settings** → **Viewers** → **List on Anvil**。它会在活动即将开始或进行中时显示。',
         '没有日期的活动会显示在 **Open to join** 下，标着“Open now · starts when the host starts it”。',
       ],
     },
@@ -2797,7 +2848,7 @@ const zhHans: PartialGuideDict = {
     on: {
       title: '打开 Streaming',
       body: [
-        '打开 Admin → **Clan settings** → **Streaming**，把它打开。',
+        '打开 Admin → **Clan settings** → **Profile**，把 **Streaming** 打开。',
         '只有公开氏族可以直播。观众必须能打开你的活动页面，而私密氏族会把它对他们隐藏。打开了 Streaming 的氏族，在你关掉它之前不能设为私密。',
         '打开之后，就在它下面连接你的 Twitch、YouTube 或 Kick 频道。',
       ],
@@ -2807,7 +2858,7 @@ const zhHans: PartialGuideDict = {
       title: '向观众开放一场活动',
       body: [
         '每场活动在你另行设置之前都保持 **Members only**。和以前一样。',
-        '打开活动的 **Settings** → **Who can join?**，选 **Members and viewers**。然后选择 **Which viewers?**：任何人，或者关注者、订阅者、某个 Discord 身份组等等。按 **Save**。',
+        '打开活动的 **Settings** → **Entry & co-hosts** → **Who can join?**，选 **Members and viewers**。然后选择 **Which viewers?**：任何人，或者关注者、订阅者、某个 Discord 身份组等等。按 **Save**。',
         '这些检查只针对观众。你的氏族成员和以前一样，始终能进。',
       ],
     },
@@ -2825,7 +2876,7 @@ const zhHans: PartialGuideDict = {
       title: '你的直播工具',
       body: [
         '直播工具和创作者空间里一样：已验证的频道链接、**Who can join?** 检查、OBS 浮层和聊天里的 `!join`。',
-        '氏族活动的浮层链接在活动的 **Settings** 里，位于 **Who can play** → **Stream overlay**。`!join` 和浮层标记在 **Clan settings** → **Streaming** 下。',
+        '氏族活动的浮层链接在活动的 **Settings** → **Stream** → **Stream overlay**。`!join` 和浮层标记在 **Clan settings** → **Profile** → **Streaming** 下。',
         '[创作者指南]({creatorsGuide})会一步一步讲每一项。',
         '直播高光在这里也能用：连接 Twitch 或 YouTube 后，Anvil 会剪下向观众开放的活动里的精彩时刻。Kick 聊天里的 `!join` 在 **Kick channel** 框里有自己的开关。',
       ],

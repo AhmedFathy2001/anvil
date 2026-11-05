@@ -191,7 +191,7 @@ function BioEditor({ initial }: { initial: string }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
   return (
-    <div>
+    <div id="page-bio" className="scroll-mt-24">
       <Heading lede="A few lines about you. Plain text; https links become clickable.">Bio</Heading>
       <textarea value={bio} maxLength={BIO_MAX} rows={4} onChange={(e) => setBio(e.target.value)} className={textareaCls} placeholder="Who you are and what your streams are like…" />
       <div className="mt-2 flex items-center gap-3">
@@ -242,7 +242,7 @@ function PicturesEditor({ data, onChange }: { data: PageData; onChange: () => Pr
   }
 
   return (
-    <div>
+    <div id="page-logo" className="scroll-mt-24">
       <Heading lede="Your logo shows wherever your space does; the banner goes across the top of your page (3:1, e.g. 1500×500). PNG, JPEG, GIF or WebP — both may be animated.">
         Logo and banner
       </Heading>
@@ -313,7 +313,7 @@ function PanelsEditor({ panels, onChange }: { panels: Panel[]; onChange: () => P
   }
 
   return (
-    <div>
+    <div id="page-panels" className="scroll-mt-24">
       <Heading lede={`Up to ${PANELS_MAX} cards under your events: a title, some text, an optional picture and link. Use the arrows to reorder.`}>
         Panels
       </Heading>
@@ -502,7 +502,7 @@ function ScheduleEditor({ tz: initialTz, slots: initialSlots }: { tz: string | n
   const set = (i: number, patch: Partial<Slot>) => setSlots((s) => s.map((x, j) => (j === i ? { ...x, ...patch } : x)));
 
   return (
-    <div>
+    <div id="page-schedule" className="scroll-mt-24">
       <Heading lede="When you usually go live, in your own time zone. Visitors see each time on their own clock.">Schedule</Heading>
       <label className="mb-3 flex flex-wrap items-center gap-2 text-[13px] text-text-muted">
         Your time zone
@@ -584,7 +584,7 @@ function FeaturedEditor({ featured, highlights }: { featured: PageData['featured
   );
 
   return (
-    <div>
+    <div id="page-featured" className="scroll-mt-24">
       <Heading lede="One clip pinned to the top of your page.">Featured</Heading>
       <div className="mb-3 flex flex-wrap gap-4">
         {radio('none', 'Nothing')}

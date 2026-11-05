@@ -3,7 +3,8 @@ import SectionHeader from '@/components/SectionHeader';
 /**
  * The heading + tabs for the clan's settings hub: Clan profile, Features, Rules & scoring and the
  * Activity log. Things an admin sets once and rarely touches, so the sidebar carries ONE "Clan
- * settings" item for all of them instead of three daily-looking entries.
+ * settings" item for all of them instead of daily-looking entries — with these tabs named under it
+ * (app/admin/layout `children`), because nobody found Rules & scoring behind that one word.
  *
  * Features and Rules & scoring live outside /admin/clan (their paths are bookmarked and linked from
  * guides), so this is rendered by the clan layout AND by those two pages. SectionHeader tabs every

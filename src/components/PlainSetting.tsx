@@ -77,15 +77,16 @@ export default function PlainSetting({ settingKey, label, placeholder, helpText,
 
   if (loading) return <div className="text-text-muted text-sm">Loading…</div>;
 
+  // `setting-<key>` is the whole setting (a deep link rings label, box and help together); the box is `-input`.
   return (
-    <div className="space-y-3">
+    <div id={`setting-${settingKey}`} className="scroll-mt-24 space-y-3">
       <div>
-        <label htmlFor={`setting-${settingKey}`} className="block text-sm font-medium mb-2">
+        <label htmlFor={`setting-${settingKey}-input`} className="block text-sm font-medium mb-2">
           {label}
         </label>
         {multiline ? (
           <textarea
-            id={`setting-${settingKey}`}
+            id={`setting-${settingKey}-input`}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={placeholder}
@@ -94,7 +95,7 @@ export default function PlainSetting({ settingKey, label, placeholder, helpText,
           />
         ) : (
           <Input
-            id={`setting-${settingKey}`}
+            id={`setting-${settingKey}-input`}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={placeholder}

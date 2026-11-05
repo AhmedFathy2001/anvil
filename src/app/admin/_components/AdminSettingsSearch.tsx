@@ -2,9 +2,19 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
-import ClanLink from '@/components/ClanLink';
+import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
+import { revealHash } from '@/components/HashReveal';
 import type { AdminAccess } from '@/lib/adminAccess';
-import { searchSettings, visibleSettings, type SettingEntry } from '@/lib/adminSettingsIndex';
+import {
+  GUIDE_ENTRIES,
+  NEW_SETTING_IDS,
+  pathOf,
+  resolveHref,
+  searchSettings,
+  startingPoints,
+  visibleSettings,
+  type SettingEntry,
+} from '@/lib/adminSettingsIndex';
 import { settingsViewer } from '@/lib/adminSettingsViewer';
 import type { FeatureKey } from '@/lib/features';
 
@@ -13,28 +23,6 @@ const OPEN_EVENT = 'anvil:open-settings-search';
 
 export function openSettingsSearch() {
   window.dispatchEvent(new Event(OPEN_EVENT));
-}
-
-/**
- * Land on an #anchor that may not exist yet (the page is still loading) and may sit inside a folded
- * <details> (Discord, Rules & scoring). Next scrolls to a hash it can find, but never opens a fold.
- */
-function revealHash(hash: string) {
-  const id = hash.replace(/^#/, '');
-  if (!id) return;
-  let tries = 0;
-  const tick = () => {
-    const el = document.getElementById(id);
-    if (!el) {
-      if (++tries < 40) window.setTimeout(tick, 100);
-      return;
-    }
-    for (let node: HTMLElement | null = el; node; node = node.parentElement) {
-      if (node instanceof HTMLDetailsElement) node.open = true;
-    }
-    el.scrollIntoView({ block: 'start' });
-  };
-  tick();
 }
 
 const noSubscribe = () => () => {};
@@ -68,10 +56,24 @@ export function SettingsSearchTrigger({ onOpen }: { onOpen?: () => void }) {
   );
 }
 
+interface Row {
+  entry: SettingEntry;
+  href: string;
+}
+
+interface Group {
+  title: string;
+  rows: Row[];
+}
+
+const NEW = new Set(NEW_SETTING_IDS);
+
 /**
  * Admin settings search: Ctrl/Cmd+K anywhere in the admin area, or the rail's trigger. Reads the
- * static catalogue in lib/adminSettingsIndex, filtered to what this viewer can actually open — the
- * path gate is lib/adminAccess `redirectFor`, the same one the admin layout enforces.
+ * static catalogue in lib/adminSettingsIndex — every setting, not just every page — filtered to what
+ * this viewer can actually open; the path gate is lib/adminAccess `redirectFor`, the same one the
+ * admin layout enforces. Nothing typed shows what is new and what admins open most, so the box also
+ * answers "what is there?" for someone who doesn't know what to type.
  */
 export default function AdminSettingsSearch({
   access,
@@ -93,10 +95,29 @@ export default function AdminSettingsSearch({
   const baseId = useId();
   const listId = `${baseId}-list`;
   const titleId = `${baseId}-title`;
+  // Inside an event, its settings open on THAT event rather than the events list.
+  const here = useClanRelativePath();
 
-  const entries = useMemo(() => visibleSettings(settingsViewer(access, features, creator)), [access, features, creator]);
+  const viewer = useMemo(() => settingsViewer(access, features, creator), [access, features, creator]);
+  const entries = useMemo(() => visibleSettings(viewer), [viewer]);
+  const guides = useMemo(() => visibleSettings(viewer, GUIDE_ENTRIES), [viewer]);
 
-  const results = useMemo(() => searchSettings(query, entries, 12), [query, entries]);
+  const groups = useMemo((): Group[] => {
+    const row = (entry: SettingEntry): Row => ({ entry, href: resolveHref(entry, here) });
+    if (!query.trim()) {
+      const { fresh, popular } = startingPoints(entries);
+      return [
+        { title: 'New', rows: fresh.map(row) },
+        { title: 'Popular', rows: popular.map(row) },
+      ].filter((g) => g.rows.length > 0);
+    }
+    return [
+      { title: 'Settings', rows: searchSettings(query, entries, 10).map(row) },
+      { title: 'From the guides', rows: searchSettings(query, guides, 4).map(row) },
+    ].filter((g) => g.rows.length > 0);
+  }, [query, entries, guides, here]);
+
+  const rows = useMemo(() => groups.flatMap((g) => g.rows), [groups]);
 
   const show = useCallback(() => {
     returnFocus.current = document.activeElement as HTMLElement | null;
@@ -137,10 +158,14 @@ export default function AdminSettingsSearch({
 
   if (!open) return null;
 
-  const choose = (entry: SettingEntry) => {
+  const choose = (row: Row) => {
     setOpen(false);
-    const hash = entry.href.includes('#') ? entry.href.slice(entry.href.indexOf('#')) : '';
-    if (hash) revealHash(hash);
+    const at = row.href.indexOf('#');
+    if (at < 0) return;
+    // Same page: the router moves no pathname and fires no hashchange, so ring it from here. On
+    // another page components/HashReveal does it on arrival; calling it here too just starts the
+    // wait for the element sooner.
+    revealHash(row.href.slice(at), row.entry.fallbackAnchor);
   };
 
   const onInputKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -149,10 +174,10 @@ export default function AdminSettingsSearch({
       close();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setActive((i) => (results.length ? (i + 1) % results.length : 0));
+      setActive((i) => (rows.length ? (i + 1) % rows.length : 0));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setActive((i) => (results.length ? (i - 1 + results.length) % results.length : 0));
+      setActive((i) => (rows.length ? (i - 1 + rows.length) % rows.length : 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
       // Clicking the row's own link keeps ClanLink in charge of the address (clan prefix, hard
@@ -165,6 +190,8 @@ export default function AdminSettingsSearch({
   };
 
   const optionId = (i: number) => `${baseId}-opt-${i}`;
+  const typed = query.trim();
+  let index = -1;
 
   return (
     <div className="fixed inset-0 z-[70] flex items-start justify-center bg-black/60 px-4 pt-[12vh]" onMouseDown={close}>
@@ -191,10 +218,10 @@ export default function AdminSettingsSearch({
             ref={inputRef}
             type="text"
             role="combobox"
-            aria-expanded={results.length > 0}
+            aria-expanded={rows.length > 0}
             aria-controls={listId}
             aria-autocomplete="list"
-            aria-activedescendant={results.length ? optionId(active) : undefined}
+            aria-activedescendant={rows.length ? optionId(active) : undefined}
             autoComplete="off"
             spellCheck={false}
             value={query}
@@ -203,53 +230,67 @@ export default function AdminSettingsSearch({
               setActive(0);
             }}
             onKeyDown={onInputKey}
-            placeholder="Webhooks, roles, billing, rules…"
+            placeholder="Deaths, webhooks, boosts, roles, billing…"
             className="h-12 flex-1 bg-transparent text-[15px] text-foreground placeholder:text-text-dim focus:outline-none"
           />
           <kbd className="rounded border border-card-border px-1.5 py-0.5 text-[10px] text-text-dim">Esc</kbd>
         </div>
 
-        <ul id={listId} role="listbox" aria-label="Settings" className="max-h-[60vh] overflow-y-auto py-1.5">
-          {results.map((entry, i) => (
-            <li
-              key={entry.id}
-              id={optionId(i)}
-              role="option"
-              aria-selected={i === active}
-              onMouseMove={() => i !== active && setActive(i)}
-            >
-              <ClanLink
-                href={entry.href}
-                ref={(el: HTMLAnchorElement | null) => {
-                  linkRefs.current[i] = el;
-                }}
-                tabIndex={-1}
-                onClick={() => choose(entry)}
-                className={`mx-1.5 block rounded-lg px-3 py-2 ${i === active ? 'bg-gold/10' : ''}`}
-              >
-                <span className="flex items-baseline justify-between gap-3">
-                  <span className={`truncate text-sm font-medium ${i === active ? 'text-gold-light' : 'text-foreground'}`}>
-                    {entry.label}
-                  </span>
-                  <span className="shrink-0 text-[11px] text-text-dim">{entry.section}</span>
-                </span>
-                <span className="mt-0.5 line-clamp-2 block text-[12.5px] text-text-muted">{entry.description}</span>
-              </ClanLink>
-            </li>
+        <div id={listId} role="listbox" aria-label="Settings" className="max-h-[60vh] overflow-y-auto py-1.5">
+          {groups.map((group) => (
+            <div key={group.title} role="group" aria-label={group.title}>
+              <div className="px-4 pb-1 pt-2.5 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-text-dim">{group.title}</div>
+              {group.rows.map((row) => {
+                index += 1;
+                const i = index;
+                const { entry } = row;
+                const on = i === active;
+                // An event setting opened outside any event lands on the events list first.
+                const viaList = entry.needsEvent && pathOf(row.href) === '/admin/events';
+                return (
+                  <div key={`${group.title}-${entry.id}`} id={optionId(i)} role="option" aria-selected={on} onMouseMove={() => !on && setActive(i)}>
+                    <ClanLink
+                      href={row.href}
+                      ref={(el: HTMLAnchorElement | null) => {
+                        linkRefs.current[i] = el;
+                      }}
+                      tabIndex={-1}
+                      onClick={() => choose(row)}
+                      className={`mx-1.5 block rounded-lg px-3 py-2 ${on ? 'bg-gold/10' : ''}`}
+                    >
+                      <span className="flex items-baseline justify-between gap-3">
+                        <span className={`flex min-w-0 items-baseline gap-2 text-sm font-medium ${on ? 'text-gold-light' : 'text-foreground'}`}>
+                          {entry.guide && <span className="shrink-0 text-[11px] font-normal text-text-dim">Guide:</span>}
+                          <span className="truncate">{entry.label}</span>
+                          {NEW.has(entry.id) && (
+                            <span className="shrink-0 rounded-full border border-gold/40 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-gold">
+                              New
+                            </span>
+                          )}
+                        </span>
+                        <span className="max-w-[45%] shrink-0 truncate text-right text-[11px] text-text-dim">{entry.section}</span>
+                      </span>
+                      <span className="mt-0.5 line-clamp-2 block text-[12.5px] text-text-muted">{entry.description}</span>
+                      {viaList && <span className="mt-0.5 block text-[11px] text-text-dim">Opens your events list: pick one, then {entry.section}.</span>}
+                    </ClanLink>
+                  </div>
+                );
+              })}
+            </div>
           ))}
-        </ul>
+        </div>
 
-        {query.trim() && results.length === 0 && (
+        {typed && rows.length === 0 && (
           <p className="px-4 pb-4 pt-2 text-sm text-text-muted">
-            Nothing matches &ldquo;{query.trim()}&rdquo;. Try a broader word, like <em>discord</em>, <em>rules</em> or{' '}
+            Nothing matches &ldquo;{typed}&rdquo;. Try a broader word, like <em>discord</em>, <em>rules</em> or{' '}
             <em>roles</em>.
           </p>
         )}
-        {!query.trim() && (
-          <p className="px-4 pb-4 pt-2 text-sm text-text-muted">
-            Find any setting by name: a channel, a role, a rule, billing. Arrows to move, Enter to open.
-          </p>
-        )}
+        <p className="border-t border-card-border px-4 py-2.5 text-[12px] text-text-dim">
+          {typed
+            ? 'Arrows to move, Enter to open. It opens on the setting itself.'
+            : 'Type what you are after: a setting, a channel, a role, a word like “deaths” or “dink”.'}
+        </p>
       </div>
     </div>
   );
