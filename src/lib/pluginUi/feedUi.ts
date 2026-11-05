@@ -1,4 +1,5 @@
 import { formatGp } from '@/lib/itemPrices';
+import { shownKiller } from '@/lib/deathSource';
 import { fallenTitle, isFallenDeath } from '@/lib/hardcoreFall';
 import { whoText } from '@/lib/reactionWho';
 import { runSuffix } from '@/lib/feedRuns';
@@ -109,8 +110,8 @@ export function momentTitle(m: MomentLike): string {
 function oneTitle(m: MomentLike): string {
   const name = m.itemName ?? m.source ?? m.kind;
   if (m.kind === 'pet') return `Pet: ${name}`;
-  if (isFallenDeath(m)) return fallenTitle(m.source);
-  if (m.kind === 'death') return m.source ? `Died to ${m.source}` : 'Died';
+  if (isFallenDeath(m)) return fallenTitle(shownKiller(m.source));
+  if (m.kind === 'death') return shownKiller(m.source) ? `Died to ${m.source}` : 'Died';
   if (m.kind === 'ca') return m.tier ? `${m.tier} combat task: ${name}` : `Combat task: ${name}`;
   if (m.kind === 'level') {
     // The number reached rides in `quantity`, the skill in `itemName` (lib/moments Observation).

@@ -4,6 +4,7 @@ import skillPets from '@/data/skillPets.json';
 import combatAchievements from '@/data/combatAchievements.json';
 import { BOSSES, metricKeys } from '@/lib/constants';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
+import { shownKiller } from '@/lib/deathSource';
 import { FALLEN_MODE, fallenSentence, isFallenDeath } from '@/lib/hardcoreFall';
 import { DEFAULT_LEVEL_RULES, levelPostMatches, type LevelPost, type LevelRules } from '@/lib/levelRules';
 
@@ -939,8 +940,8 @@ function oneSentence(m: Parameters<typeof momentSentence>[0]): string {
     case 'unique':
       return m.source ? `got ${qty}${item} from ${m.source}` : `got ${qty}${item}`;
     case 'death':
-      if (isFallenDeath(m)) return fallenSentence(m.source);
-      return m.source ? `died to ${m.source}` : 'died';
+      if (isFallenDeath(m)) return fallenSentence(shownKiller(m.source));
+      return shownKiller(m.source) ? `died to ${m.source}` : 'died';
     case 'level': {
       // The quantity column holds the number reached, and sourceKind says what kind of number it is.
       const n = m.quantity.toLocaleString();
