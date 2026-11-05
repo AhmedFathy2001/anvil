@@ -43,6 +43,7 @@ import { highlightsForEvent, linksByMoment } from '@/lib/highlights/store';
 import { getEventLuck } from '@/lib/eventLuck';
 import EventLuck from './EventLuck';
 import { eventFeed } from '@/lib/momentsStore';
+import { collapseMomentRuns } from '@/lib/feedRuns';
 import { isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { eventAxes } from '@/lib/eventAxes';
 import {
@@ -416,12 +417,13 @@ export default async function EventScoreboardPage({
   const firsts = curtain ? [] : await loadEventFirsts(event.id, event.startDate);
   // The week's colour: pets, clog slots, 1M+ drops and deaths that happened while the board ran
   // (lib/moments isEventFeedWorthy) — never any part of the scoring.
-  const eventMoments = (await eventFeed(event.id, curtain ? 60 : 12))
+  // Back-to-back repeats (someone's run of deaths) collapse to one line with a count (lib/feedRuns)
+  // in what this viewer sees, before the cut to twelve.
+  const eventMoments = collapseMomentRuns((await eventFeed(event.id, curtain ? 60 : 36))
     .filter((moment) => eventActivityIsValid(event, moment.occurredAt))
     // Behind the curtain: only the viewer's own team's moments (a teamless moment names no side
     // and can't be placed, so it waits too).
-    .filter((moment) => canSeeTeamProgress(standingsScope, moment.teamId))
-    .slice(0, 12);
+    .filter((moment) => canSeeTeamProgress(standingsScope, moment.teamId))).slice(0, 12);
   // Stream highlights (lib/highlights): a streamed board's clips and stream timestamps, under the same
   // curtain as the feed above. The page's own gate already decided the event is this viewer's to see.
   const streamHighlights = creatorEvent

@@ -1,6 +1,7 @@
 import { MOMENT_EMOJI, momentSentence } from '@/lib/moments';
 import { BoosterMark } from '@/components/ClanBoost';
 import type { MomentRow } from '@/lib/momentsStore';
+import { runTooltip, type WithRun } from '@/lib/feedRuns';
 import { MomentStreamLinks } from '@/components/HighlightsStrip';
 import type { SiteReactions } from '@/lib/siteReactions';
 import MomentReactions from './MomentReactions';
@@ -32,7 +33,8 @@ export default function MomentsFeed({
 }: {
   /** This clan's boosting characters by name (lib/clanBoosts boosterMarks): the Booster mark. */
   boosters?: Record<string, number>;
-  moments: MomentRow[];
+  /** Back-to-back repeats already collapsed (lib/feedRuns collapseMomentRuns): a run reads "×N". */
+  moments: WithRun<MomentRow>[];
   title?: string;
   blurb?: string;
   emptyNote?: string;
@@ -66,7 +68,7 @@ export default function MomentsFeed({
             <span aria-hidden className="text-base leading-none">
               {MOMENT_EMOJI[m.kind] ?? '⭐'}
             </span>
-            <span className="min-w-0 flex-1 truncate text-text-muted">
+            <span className="min-w-0 flex-1 truncate text-text-muted" title={runTooltip(m.run, m.occurredAt)}>
               <b className="font-semibold text-foreground">{m.rsn}</b>
               {boosters?.[m.rsn] ? <span className="mx-1 inline-flex align-[-2px]"><BoosterMark count={boosters[m.rsn]} /></span> : ' '}
               {momentSentence(m)}
