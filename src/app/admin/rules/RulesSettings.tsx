@@ -87,7 +87,7 @@ export default function RulesSettings() {
           settingKey="moments_clan_deaths"
           label="Keep deaths too"
           defaultOn
-          helpText="On by default. Deaths show under the feed's Deaths tab, never in All."
+          helpText="On by default. Deaths show in the clan feed (All and the Deaths tab), live as they happen."
         />
         <PlainSetting
           settingKey="moments_min_loot_gp"
