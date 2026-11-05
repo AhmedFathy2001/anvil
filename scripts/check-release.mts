@@ -8,6 +8,7 @@ try {
   const r = parseReleaseNote(text);
   const out: string[] = [`Anvil ${r.version}: ${r.title}`];
   if (r.pluginVersion) out.push(`(plugin ${r.pluginVersion})`);
+  if (r.silent) out.push('(SILENT: ships without announcing; goes out with the next release, or Announce now on /staff/releases)');
   for (const [label, xs] of [['Highlights', r.highlights], ['New', r.added], ['Improved', r.improved], ['Fixed', r.fixed]] as const) {
     if (xs.length) out.push('', label, ...xs.map((x) => `  • ${x}`));
   }
