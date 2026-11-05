@@ -291,7 +291,7 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
       filter,
       teamId,
       rows,
-      floorNote: `Drops ≥ ${formatGp(floor)} · pets · achievements`,
+      floorNote: `Drops ${formatGp(floor)}+ · pets · achievements`,
     }),
   };
 }
