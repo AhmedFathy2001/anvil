@@ -2,10 +2,13 @@ import type { PartialGuideDict } from './en';
 
 // 한국어 — Korean.
 //
-// 여기 있는 다른 언어 파일들과 같은 원칙: 독자가 화면에서 "실제로 보는" 것은 영어 그대로 둔다 ——
-// RuneLite와 OBS의 메뉴, 플러그인이 직접 출력하는 채팅 줄, 그리고 Anvil 관리 화면의 라벨
+// 여기 있는 다른 언어 파일들과 같은 원칙: 독자가 Anvil·RuneLite·OBS 화면에서 "실제로 보는" 것은 영어 그대로
+// 둔다 —— RuneLite와 OBS의 메뉴, 플러그인이 직접 출력하는 채팅 줄, 그리고 Anvil 관리 화면의 라벨
 // (그 화면 자체가 번역되기 전까지는 영어다). "Tracked drop detected"를 번역해 버리면,
-// 화면에서 그 줄을 찾는 사람이 다시는 찾지 못한다. 그 밖의 모든 것 —— 설명, 순서, 이유 —— 은 한국어다.
+// 화면에서 그 줄을 찾는 사람이 다시는 찾지 못한다.
+// Discord의 UI 라벨(메뉴, 설정, 권한 이름: "서버 ID 복사하기", "서버 설정 → 역할", "웹후크 관리")은 Discord 자체의
+// 한국어 번역 —— 독자의 Discord 클라이언트에 보이는 표기 —— 을 따른다(Discord가 번역되지 않은 언어라면 영어 그대로).
+// 그 밖의 모든 것 —— 설명, 순서, 이유 —— 은 한국어다.
 
 const ko: PartialGuideDict = {
   common: {
@@ -401,7 +404,7 @@ const ko: PartialGuideDict = {
           body: '기본입니다. 이게 없으면 서버에 있으면서 아무 말도 못 합니다.',
         },
         {
-          term: '웹훅 관리',
+          term: '웹후크 관리',
           body: '**Set it up for me**와 **Post here**가 웹훅을 대신 만들어 줄 수 있게 하려는 것입니다. 없으면 당신이 Discord에서 URL을 손으로 복사해야 합니다. 또 Anvil이 지울 만한 예전 웹훅을 찾아 줄 때도 필요합니다.',
         },
         {
@@ -440,7 +443,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '서버 ID 설정',
-          body: '버튼으로 안 될 때만 필요합니다. **Can’t use the button? Enter the server ID**를 열고, Discord에서 서버 아이콘을 우클릭 → **Copy Server ID**(Discord 자체 고급 설정에서 개발자 모드를 켜야 합니다)한 뒤, **Your Discord server’s ID**에 붙여넣고 **Save**를 누르세요. 이 항목이 연결을 당신만의 것으로 만듭니다.',
+          body: '버튼으로 안 될 때만 필요합니다. **Can’t use the button? Enter the server ID**를 열고, Discord에서 서버 아이콘을 우클릭 → **서버 ID 복사하기**(Discord 자체 설정의 고급에서 개발자 모드를 켜야 합니다)한 뒤, **Your Discord server’s ID**에 붙여넣고 **Save**를 누르세요. 이 항목이 연결을 당신만의 것으로 만듭니다.',
         },
       ],
       after: [
@@ -455,7 +458,7 @@ const ko: PartialGuideDict = {
       title: '웹훅 설정',
       body: [
         'Anvil은 **웹훅**으로 올립니다. 채널마다 하나씩이고, 전부 선택 사항입니다. 피드를 채널로 향하게 하기 전까지는 아무 데도 아무것도 올라가지 않습니다 — 갓 만든 클랜이 조용한 건 사고가 아니라 설계입니다.',
-        'Anvil 봇이 서버에 있다면 **Admin → Discord** 맨 위의 **Set it up for me**가 채널을 만들고 모든 피드를 거기로 연결합니다. 손으로 하려면 **More settings → What goes where**를 열고 **Clan & events** 탭의 **Catch-all channel**부터, 그다음 **In-game (plugin)** 탭의 **In-game catch-all**을 설정하세요. 드롭다운에서 채널을 고르면 바로 저장됩니다. 봇이 없다면 Discord에서 해당 채널의 **Edit Channel → Integrations → Webhooks**를 열어 웹훅을 만들고, URL을 복사한 뒤 드롭다운에서 **Paste a webhook…**을 골라 붙여넣고 **Save**를 누르세요. 웹훅 URL은 채널에 글을 올릴 수 있으므로 비밀번호처럼 다뤄야 합니다. 유출되면 Discord에서 삭제하고 새로 만드세요. **Test**와, 게시량이 많을 때 웹훅 두 개를 번갈아 쓰게 하는 **Add another**는 **Post without a bot** 아래에 있습니다.',
+        'Anvil 봇이 서버에 있다면 **Admin → Discord** 맨 위의 **Set it up for me**가 채널을 만들고 모든 피드를 거기로 연결합니다. 손으로 하려면 **More settings → What goes where**를 열고 **Clan & events** 탭의 **Catch-all channel**부터, 그다음 **In-game (plugin)** 탭의 **In-game catch-all**을 설정하세요. 드롭다운에서 채널을 고르면 바로 저장됩니다. 봇이 없다면 Discord에서 해당 채널의 **채널 편집 → 연동 → 웹후크**를 열어 웹훅을 만들고, URL을 복사한 뒤 드롭다운에서 **Paste a webhook…**을 골라 붙여넣고 **Save**를 누르세요. 웹훅 URL은 채널에 글을 올릴 수 있으므로 비밀번호처럼 다뤄야 합니다. 유출되면 Discord에서 삭제하고 새로 만드세요. **Test**와, 게시량이 많을 때 웹훅 두 개를 번갈아 쓰게 하는 **Add another**는 **Post without a bot** 아래에 있습니다.',
       ],
       feeds: [
         {
@@ -493,7 +496,7 @@ const ko: PartialGuideDict = {
       ],
       note: {
         tag: '봇의 역할이 관리 대상 역할보다 위에 있어야 합니다',
-        body: 'Discord는 어떤 봇도 자기와 같거나 높은 역할을 건드리지 못하게 하고, 당신 쪽에서는 조용히 거부됩니다 — 동기화가 그냥 아무 일도 하지 않습니다. 서버 설정 → 역할에서 Anvil 역할을 위로 끌어올리면 작동하기 시작합니다. 다시 초대할 필요는 없습니다.',
+        body: 'Discord는 어떤 봇도 자기와 같거나 높은 역할을 건드리지 못하게 하고, 당신 쪽에서는 조용히 거부됩니다 — 동기화가 그냥 아무 일도 하지 않습니다. **서버 설정 → 역할**에서 Anvil 역할을 위로 끌어올리면 작동하기 시작합니다. 다시 초대할 필요는 없습니다.',
       },
     },
     commands: {
@@ -539,8 +542,8 @@ const ko: PartialGuideDict = {
         '이 목록에는 Dink 것만이 아니라 Anvil 것이 아닌 웹훅이 모두 들어갑니다. 다른 봇의 피드처럼 남겨 두고 싶은 게 있나요? **Keep**을 누르면 목록에서 빠지고, **Show kept**와 **Put back**으로 다시 돌려놓을 수 있습니다. Keep은 여기서 숨기기만 할 뿐 — Discord에서는 아무것도 바뀌지 않습니다.',
       ],
       note: {
-        tag: 'Manage Webhooks 필요',
-        body: '봇은 서버의 웹훅을 읽어서 찾아냅니다. 봇 역할에 _Manage Webhooks_가 없으면 페이지에 웹훅을 볼 수 없다고 나옵니다.',
+        tag: '웹후크 관리 권한 필요',
+        body: '봇은 서버의 웹훅을 읽어서 찾아냅니다. 봇 역할에 _웹후크 관리_ 권한이 없으면 페이지에 웹훅을 볼 수 없다고 나옵니다.',
       },
     },
     announce: {
@@ -1004,7 +1007,7 @@ const ko: PartialGuideDict = {
         'Discord에는 두 갈래가 있고 함께 쓸 수 있습니다: Anvil에 **봇**을 주면 웹훅 생성, 역할과 별명 동기화, 비공개 팀 채널 생성까지 할 수 있습니다. **웹훅 주소** 하나만 주면 공지를 올리는 것 외엔 아무것도 못 합니다. 2분 만에 돌리고 싶다면 웹훅으로 시작하고, 자동화가 필요해지면 봇을 더하세요.',
       permsNote: {
         tag: '봇 권한',
-        body: '봇에는 _Manage Webhooks_, _Manage Roles_, _Manage Channels_, _Manage Nicknames_가 필요하고, 서버 역할 목록에서 봇의 역할이 관리 대상 역할들보다 _위에_ 있어야 합니다. 그러지 않으면 Discord가 조용히 거부합니다.',
+        body: '봇에는 _웹후크 관리_, _역할 관리_, _채널 관리_, _별명 관리_ 권한이 필요하고, 서버 역할 목록에서 봇의 역할이 관리 대상 역할들보다 _위에_ 있어야 합니다. 그러지 않으면 Discord가 조용히 거부합니다.',
       },
       hosted:
         '호스팅 요금제라면 그 화면을 이미 한 번 만났을 겁니다: 설정 중에 봇을 추가한 것이 곧 Anvil이 어느 서버가 여러분 것인지 알게 된 방법이었고, 그래서 애초에 복사할 서버 ID 같은 건 없었습니다. 봇을 다른 서버로 옮기고 싶을 때를 위해 같은 링크가 여기 있습니다.',

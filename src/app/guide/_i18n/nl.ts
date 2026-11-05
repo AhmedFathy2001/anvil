@@ -2,11 +2,14 @@ import type { PartialGuideDict } from './en';
 
 // Nederlands — Dutch.
 //
-// Zelfde afspraak als in alle andere taalbestanden hier: alles wat de lezer daadwerkelijk OP HET
-// SCHERM ZIET blijft Engels — menu's in RuneLite en OBS, de chatregels van de plugin zelf, en
-// Anvils eigen adminlabels, die Engels zijn tot ook die kant vertaald wordt. Een vertaalde
-// "Tracked drop detected" is een regel die niemand terugvindt. Al het andere — de uitleg, de
-// volgorde, het waarom — is Nederlands.
+// Zelfde afspraak als in alle andere taalbestanden hier: alles wat de lezer in Anvil, RuneLite en
+// OBS daadwerkelijk OP HET SCHERM ZIET blijft Engels — menu's in RuneLite en OBS, de chatregels van
+// de plugin zelf, en Anvils eigen adminlabels, die Engels zijn tot ook die kant vertaald wordt. Een
+// vertaalde "Tracked drop detected" is een regel die niemand terugvindt.
+// Discords eigen UI-labels (menu's, instellingen, namen van machtigingen: "Server-ID kopiëren",
+// "Serverinstellingen → Rollen", "Webhooks beheren") volgen Discords eigen Nederlandse vertaling — wat
+// de Discord-client van de lezer toont — en zouden Engels blijven waar Discord niet vertaald is.
+// Al het andere — de uitleg, de volgorde, het waarom — is Nederlands.
 
 const nl: PartialGuideDict = {
   common: {
@@ -398,7 +401,7 @@ const nl: PartialGuideDict = {
       ],
       permissions: [
         {
-          term: 'Kanalen bekijken, berichten sturen, links insluiten, bestanden bijvoegen',
+          term: 'Kanalen bekijken, Berichten versturen, Links insluiten, Bestanden bijvoegen',
           body: 'De basis. Zonder deze staat hij in je server en zwijgt hij.',
         },
         {
@@ -418,7 +421,7 @@ const nl: PartialGuideDict = {
           body: 'Voor privé-teamkanalen tijdens een draft, en voor gidsen die als nieuwe categorie of forum worden geplaatst. Sla het over en de rest werkt gewoon.',
         },
         {
-          term: 'Threads beheren, berichten sturen in threads',
+          term: 'Threads beheren, Berichten versturen in threads',
           body: 'Voor gidsen in een forum: schrijven in de post en die weer verwijderen — zonder dit laat Discord een bot zelfs zijn eigen forumpost niet verwijderen.',
         },
         {
@@ -441,7 +444,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Stel het server-ID in',
-          body: 'Alleen als de knop het niet kan: open **Can’t use the button? Enter the server ID**, rechtsklik op je servericoon in Discord → **Copy Server ID** (vereist Ontwikkelaarsmodus, onder Discords eigen geavanceerde instellingen), plak het in **Your Discord server’s ID** en druk op **Save**. Dit veld maakt de koppeling specifiek van jou.',
+          body: 'Alleen als de knop het niet kan: open **Can’t use the button? Enter the server ID**, rechtsklik op je servericoon in Discord → **Server-ID kopiëren** (vereist Ontwikkelaarsmodus, onder Geavanceerd in Discords eigen instellingen), plak het in **Your Discord server’s ID** en druk op **Save**. Dit veld maakt de koppeling specifiek van jou.',
         },
       ],
       after: [
@@ -456,7 +459,7 @@ const nl: PartialGuideDict = {
       title: 'Webhooks instellen',
       body: [
         'Anvil post via **webhooks**, één per kanaal, en elk daarvan is optioneel. Er wordt nergens iets gepost tot je een feed op een kanaal richt — een verse clan is stil met opzet, niet per ongeluk.',
-        'Zit de Anvil-bot in je server, dan maakt **Set it up for me** bovenaan **Admin → Discord** de kanalen aan en richt hij elke feed erop. Wil je het met de hand doen, open dan **More settings → What goes where** en begin met het **Catch-all channel** op **Clan & events**, daarna de **In-game catch-all** op **In-game (plugin)**: kies een kanaal uit de keuzelijst en het wordt opgeslagen. Zonder bot open je in Discord bij dat kanaal **Edit Channel → Integrations → Webhooks**, maak je er een, kopieer je de URL, kies je **Paste a webhook…** in de keuzelijst, plak je hem en druk je op **Save**. Een webhook-URL kan in zijn kanaal posten, dus behandel hem als een wachtwoord; verwijder hem in Discord en maak een nieuwe als hij uitlekt. **Test**, en **Add another** om drukke posts over twee webhooks te verdelen, staan onder **Post without a bot**.',
+        'Zit de Anvil-bot in je server, dan maakt **Set it up for me** bovenaan **Admin → Discord** de kanalen aan en richt hij elke feed erop. Wil je het met de hand doen, open dan **More settings → What goes where** en begin met het **Catch-all channel** op **Clan & events**, daarna de **In-game catch-all** op **In-game (plugin)**: kies een kanaal uit de keuzelijst en het wordt opgeslagen. Zonder bot open je in Discord bij dat kanaal **Kanaal bewerken → Integraties → Webhooks**, maak je er een, kopieer je de URL, kies je **Paste a webhook…** in de keuzelijst, plak je hem en druk je op **Save**. Een webhook-URL kan in zijn kanaal posten, dus behandel hem als een wachtwoord; verwijder hem in Discord en maak een nieuwe als hij uitlekt. **Test**, en **Add another** om drukke posts over twee webhooks te verdelen, staan onder **Post without a bot**.',
       ],
       feeds: [
         {
@@ -494,7 +497,7 @@ const nl: PartialGuideDict = {
       ],
       note: {
         tag: 'De rol van de bot moet boven de rollen staan die hij beheert',
-        body: 'Discord laat geen enkele bot aan een rol op of boven zijn eigen komen, en weigert dat van jouw kant zwijgend — de synchronisatie doet dan gewoon niets. Sleep de Anvil-rol omhoog in Serverinstellingen → Rollen en hij werkt; opnieuw uitnodigen hoeft niet.',
+        body: 'Discord laat geen enkele bot aan een rol op of boven zijn eigen komen, en weigert dat van jouw kant zwijgend — de synchronisatie doet dan gewoon niets. Sleep de Anvil-rol omhoog in **Serverinstellingen → Rollen** en hij werkt; opnieuw uitnodigen hoeft niet.',
       },
     },
     commands: {
@@ -540,8 +543,8 @@ const nl: PartialGuideDict = {
         'De lijst bevat elke webhook die niet van Anvil is, niet alleen die van Dink. Wil je er een houden, zoals de feed van een andere bot? Druk op **Keep** en hij verdwijnt uit de lijst; met **Show kept** en **Put back** haal je hem terug. Houden verbergt hem alleen hier — in Discord verandert er niets.',
       ],
       note: {
-        tag: 'Vereist Manage Webhooks',
-        body: 'De bot leest de webhooks van je server om ze te vinden. Zonder _Manage Webhooks_ op zijn rol meldt de pagina dat hij ze niet kan zien.',
+        tag: 'Vereist Webhooks beheren',
+        body: 'De bot leest de webhooks van je server om ze te vinden. Zonder _Webhooks beheren_ op zijn rol meldt de pagina dat hij ze niet kan zien.',
       },
     },
     announce: {
@@ -1005,7 +1008,7 @@ const nl: PartialGuideDict = {
         'Voor Discord heb je twee routes, en ze vullen elkaar aan: geef Anvil een **bot**, dan kan hij webhooks aanmaken, rollen en bijnamen synchroniseren en privé teamkanalen bouwen; geef hem één **webhook-URL**, dan kan hij aankondigingen posten en verder niets. Begin met de webhook als je binnen twee minuten live wil zijn, en voeg de bot toe wanneer je de automatisering wil.',
       permsNote: {
         tag: 'Rechten van de bot',
-        body: 'De bot heeft _Manage Webhooks_, _Manage Roles_, _Manage Channels_ en _Manage Nicknames_ nodig, en zijn rol moet in de rollenlijst van je server _boven_ de rollen staan die hij beheert. Anders weigert Discord het stilletjes.',
+        body: 'De bot heeft _Webhooks beheren_, _Rollen beheren_, _Kanalen beheren_ en _Bijnamen beheren_ nodig, en zijn rol moet in de rollenlijst van je server _boven_ de rollen staan die hij beheert. Anders weigert Discord het stilletjes.',
       },
       hosted:
         'Op een gehost pakket kwam je dat scherm al eens tegen: de bot tijdens de installatie toevoegen was hoe Anvil te weten kwam welke server van jullie is, er viel dus nooit een server-ID te kopiëren. Dezelfde link staat hier wanneer je de bot naar een andere server wil verhuizen.',

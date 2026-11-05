@@ -10,6 +10,10 @@ import type { PartialGuideDict } from './en';
 //   2. Navnene på felterne i Anvils egen adminflade, indtil den flade også bliver oversat. Så længe
 //      knappen hedder "Make a link", skal vejledningen sige "Make a link".
 //
+// Discords egne menuer, indstillinger og rettighedsnavne følger derimod Discords officielle danske
+// oversættelse — det, læserens Discord-app viser på dansk (og de ville blive på engelsk, hvis
+// Discord ikke var oversat til sproget).
+//
 // Alt andet — forklaringen, rækkefølgen, hvorfor man gør det — er dansk.
 
 const da: PartialGuideDict = {
@@ -402,27 +406,27 @@ const da: PartialGuideDict = {
       ],
       permissions: [
         {
-          term: 'Se kanaler, sende beskeder, indlejre links, vedhæfte filer',
+          term: 'Se kanaler, Send beskeder, Indlejr links, Vedhæft filer',
           body: 'Det basale. Uden dem er den på din server og tavs.',
         },
         {
-          term: 'Administrere webhooks',
+          term: 'Administrer webhooks',
           body: 'Så **Set it up for me** og **Post here** kan lave webhooks for dig i stedet for, at du kopierer URL’er ud af Discord i hånden, og så Anvil kan finde gamle webhooks, du kan fjerne.',
         },
         {
-          term: 'Administrere roller',
+          term: 'Administrer roller',
           body: 'Kun hvis du slår rollesynkronisering til. Så kan den uddele de roller, du kobler — og den kan aldrig røre en rolle over sin egen, hvilket er Discords regel, ikke vores.',
         },
         {
-          term: 'Administrere kaldenavne',
+          term: 'Administrer kaldenavne',
           body: 'Kun hvis du slår kaldenavnssynkronisering til, så et medlems servernavn kan sættes til deres RSN.',
         },
         {
-          term: 'Administrere kanaler',
+          term: 'Administrer kanaler',
           body: 'Til private holdkanaler under en draft, og til guides der postes som en ny kategori eller et forum. Spring det over, og alt andet virker stadig.',
         },
         {
-          term: 'Administrere tråde, sende beskeder i tråde',
+          term: 'Administrer tråde, Send beskeder i tråde',
           body: 'Til guides i et forum: at skrive i opslaget og fjerne det igen — Discord lader ikke en bot slette selv sit eget forumopslag uden.',
         },
         {
@@ -445,7 +449,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Sæt server-id’et',
-          body: 'Kun hvis knappen ikke kan klare det: åbn **Can’t use the button? Enter the server ID**, højreklik på dit serverikon i Discord → **Kopiér server-id** (kræver Udviklertilstand, under Discords egne avancerede indstillinger), indsæt det i **Your Discord server’s ID**, og tryk **Save**. Det er feltet, der gør forbindelsen til din.',
+          body: 'Kun hvis knappen ikke kan klare det: åbn **Can’t use the button? Enter the server ID**, højreklik på dit serverikon i Discord → **Kopiér server-ID** (kræver, at Udviklertilstand er slået til under Avanceret i Discords egne indstillinger), indsæt det i **Your Discord server’s ID**, og tryk **Save**. Det er feltet, der gør forbindelsen til din.',
         },
       ],
       after: [
@@ -498,7 +502,7 @@ const da: PartialGuideDict = {
       ],
       note: {
         tag: 'Bottens rolle skal ligge over dem, den styrer',
-        body: 'Discord lader ingen bot røre en rolle på eller over sin egen, og den nægter det tavst fra din side — synkroniseringen gør så bare ingenting. Træk Anvil-rollen op under Serverindstillinger → Roller, så begynder den at virke; der skal ikke geninviteres noget.',
+        body: 'Discord lader ingen bot røre en rolle på eller over sin egen, og den nægter det tavst fra din side — synkroniseringen gør så bare ingenting. Træk Anvil-rollen op under **Serverindstillinger → Roller**, så begynder den at virke; der skal ikke geninviteres noget.',
       },
     },
     commands: {
@@ -544,8 +548,8 @@ const da: PartialGuideDict = {
         'Listen rummer enhver webhook, der ikke er Anvils, ikke kun Dinks. Er der én, du vil beholde, som en anden bots feed? Tryk **Keep**, så forsvinder den fra listen; **Show kept** og **Put back** henter den tilbage. At beholde skjuler den kun her — intet ændrer sig i Discord.',
       ],
       note: {
-        tag: 'Kræver Administrere webhooks',
-        body: 'Botten læser din servers webhooks for at finde dem. Uden _Administrere webhooks_ på dens rolle siger siden, at den ikke kan se dem.',
+        tag: 'Kræver „Administrer webhooks“',
+        body: 'Botten læser din servers webhooks for at finde dem. Uden _Administrer webhooks_ på dens rolle siger siden, at den ikke kan se dem.',
       },
     },
     announce: {
@@ -1010,7 +1014,7 @@ const da: PartialGuideDict = {
         'Til Discord har du to veje, og de kan kombineres: giv Anvil en **bot**, og den kan oprette webhooks, synkronisere roller og kaldenavne og bygge private holdkanaler for dig; giv den en enkelt **webhook-URL**, og den kan poste beskeder og intet andet. Start med webhooken, hvis du vil være i luften om to minutter, og tilføj botten, når du vil have automatikken.',
       permsNote: {
         tag: 'Bottens rettigheder',
-        body: 'Botten skal bruge _Manage Webhooks_, _Manage Roles_, _Manage Channels_ og _Manage Nicknames_, og dens rolle skal ligge _over_ de roller, den styrer, i din servers rolleliste. Ellers nægter Discord i stilhed.',
+        body: 'Botten skal bruge _Administrer webhooks_, _Administrer roller_, _Administrer kanaler_ og _Administrer kaldenavne_, og dens rolle skal ligge _over_ de roller, den styrer, i din servers rolleliste. Ellers nægter Discord i stilhed.',
       },
       hosted:
         'På en hostet plan har du mødt den skærm én gang før: det var ved at tilføje botten under opsætningen, at Anvil fandt ud af, hvilken server der er jeres — derfor var der aldrig et server-ID at kopiere. Det samme link ligger her, når du vil flytte botten til en anden server.',

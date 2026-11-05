@@ -2,11 +2,14 @@ import type { PartialGuideDict } from './en';
 
 // Deutsch — German.
 //
-// Gleiche Konvention wie in allen anderen Sprachdateien hier: alles, was der Leser tatsächlich AUF
-// DEM BILDSCHIRM SIEHT, bleibt auf Englisch — Menüs in RuneLite und OBS, die Chatzeilen des Plugins
-// selbst, und Anvils eigene Admin-Beschriftungen, die englisch sind, bis auch jene Oberfläche
-// übersetzt wird. Ein übersetztes „Tracked drop detected“ ist eine Zeile, die niemand wiederfindet.
-// Alles andere — die Erklärung, die Reihenfolge, das Warum — ist deutsch.
+// Gleiche Konvention wie in allen anderen Sprachdateien hier: alles, was der Leser in Anvil,
+// RuneLite und OBS tatsächlich AUF DEM BILDSCHIRM SIEHT, bleibt auf Englisch — Menüs in RuneLite
+// und OBS, die Chatzeilen des Plugins selbst, und Anvils eigene Admin-Beschriftungen, die englisch
+// sind, bis auch jene Oberfläche übersetzt wird. Ein übersetztes „Tracked drop detected“ ist eine
+// Zeile, die niemand wiederfindet. Discords eigene Beschriftungen (Menüs, Einstellungen,
+// Berechtigungen) folgen dagegen Discords offizieller deutscher Übersetzung — dem, was ein auf
+// Deutsch gestelltes Discord anzeigt; wo Discord nicht übersetzt ist, blieben sie englisch. Alles
+// andere — die Erklärung, die Reihenfolge, das Warum — ist deutsch.
 
 const de: PartialGuideDict = {
   common: {
@@ -410,7 +413,7 @@ const de: PartialGuideDict = {
           body: 'Nur wenn du den Rollen-Sync einschaltest. Er vergibt dann die Rollen, die du zuordnest — und kann nie eine Rolle über seiner eigenen anfassen, was Discords Regel ist, nicht unsere.',
         },
         {
-          term: 'Nicknamen verwalten',
+          term: 'Nicknames verwalten',
           body: 'Nur wenn du den Nicknamen-Sync einschaltest, damit der Servername eines Mitglieds auf seinen RSN gesetzt werden kann.',
         },
         {
@@ -441,7 +444,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Server-ID setzen',
-          body: 'Nur wenn der Button es nicht schafft: Öffne **Can’t use the button? Enter the server ID**, klick in Discord mit rechts auf dein Server-Symbol → **Server-ID kopieren** (dafür muss der Entwicklermodus in Discords eigenen erweiterten Einstellungen an sein), füge sie in **Your Discord server’s ID** ein und drück **Save**. Dieses Feld macht die Verbindung zu deiner.',
+          body: 'Nur wenn der Button es nicht schafft: Öffne **Can’t use the button? Enter the server ID**, klick in Discord mit rechts auf dein Server-Symbol → **Server-ID kopieren** (dafür muss der Entwicklermodus an sein, zu finden in Discords eigenen Einstellungen unter Erweitert), füge sie in **Your Discord server’s ID** ein und drück **Save**. Dieses Feld macht die Verbindung zu deiner.',
         },
       ],
       after: [
@@ -494,7 +497,7 @@ const de: PartialGuideDict = {
       ],
       note: {
         tag: 'Die Rolle des Bots muss über den verwalteten liegen',
-        body: 'Discord lässt keinen Bot eine Rolle auf oder über seiner eigenen anfassen, und es verweigert das von deiner Seite aus stillschweigend — der Sync tut dann einfach nichts. Zieh die Anvil-Rolle in den Servereinstellungen → Rollen nach oben, und er funktioniert; neu einladen musst du nichts.',
+        body: 'Discord lässt keinen Bot eine Rolle auf oder über seiner eigenen anfassen, und es verweigert das von deiner Seite aus stillschweigend — der Sync tut dann einfach nichts. Zieh die Anvil-Rolle unter **Servereinstellungen → Rollen** nach oben, und er funktioniert; neu einladen musst du nichts.',
       },
     },
     commands: {
@@ -1005,7 +1008,7 @@ const de: PartialGuideDict = {
         'Für Discord hast du zwei Wege, und sie ergänzen sich: gib Anvil einen **Bot**, dann kann es Webhooks anlegen, Rollen und Spitznamen synchronisieren und private Teamkanäle bauen; gib ihm eine einzelne **Webhook-URL**, dann kann es Ankündigungen posten und sonst nichts. Fang mit dem Webhook an, wenn du in zwei Minuten live sein willst, und ergänze den Bot, wenn du die Automatik willst.',
       permsNote: {
         tag: 'Bot-Rechte',
-        body: 'Der Bot braucht _Manage Webhooks_, _Manage Roles_, _Manage Channels_ und _Manage Nicknames_, und seine Rolle muss in der Rollenliste deines Servers _über_ den Rollen stehen, die er verwaltet. Sonst verweigert Discord es stillschweigend.',
+        body: 'Der Bot braucht _Webhooks verwalten_, _Rollen verwalten_, _Kanäle verwalten_ und _Nicknames verwalten_, und seine Rolle muss in der Rollenliste deines Servers _über_ den Rollen stehen, die er verwaltet. Sonst verweigert Discord es stillschweigend.',
       },
       hosted:
         'Bei einem gehosteten Tarif hast du diesen Bildschirm schon einmal gesehen: den Bot während der Einrichtung hinzuzufügen war der Weg, über den Anvil erfahren hat, welcher Server eurer ist — es gab also nie eine Server-ID zu kopieren. Derselbe Link liegt hier, wann immer du den Bot auf einen anderen Server umziehen willst.',

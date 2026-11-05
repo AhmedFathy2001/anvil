@@ -2,9 +2,11 @@ import type { PartialGuideDict } from './en';
 
 // 简体中文 — Simplified Chinese.
 //
-// 与此处其他语言文件相同的约定：读者在屏幕上「真正看到」的东西一律保留英文 —— RuneLite 与 OBS 的菜单、
-// 插件本身输出的聊天行，以及 Anvil 管理界面的标签（在该界面本身被翻译之前都是英文）。把
-// "Tracked drop detected" 翻译掉，就等于让人再也搜不到那一行。其余的一切 —— 解释、顺序、原因 —— 都是中文。
+// 与此处其他语言文件相同的约定：读者在 Anvil、RuneLite 与 OBS 屏幕上「真正看到」的东西一律保留英文 ——
+// RuneLite 与 OBS 的菜单、插件本身输出的聊天行，以及 Anvil 管理界面的标签（在该界面本身被翻译之前都是英文）。把
+// "Tracked drop detected" 翻译掉，就等于让人再也搜不到那一行。Discord 自身的界面标签（菜单、设置、权限名）
+// 则沿用 Discord 简体中文版的官方译名：「复制服务器 ID」「服务器设置 → 身份组」「管理 Webhook」。
+// 其余的一切 —— 解释、顺序、原因 —— 都是中文。
 
 const zhHans: PartialGuideDict = {
   common: {
@@ -440,7 +442,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '填入服务器 ID',
-          body: '仅当按钮办不到时：展开 **Can’t use the button? Enter the server ID**，在 Discord 里右键你的服务器图标 → **Copy Server ID**（需要在 Discord 自身的高级设置里打开开发者模式），粘贴到 **Your Discord server’s ID**，然后按 **Save**。正是这个字段让连接专属于你。',
+          body: '仅当按钮办不到时：展开 **Can’t use the button? Enter the server ID**，在 Discord 里右键你的服务器图标 → **复制服务器 ID**（需要在 Discord 自身的“高级设置”里打开“开发者模式”），粘贴到 **Your Discord server’s ID**，然后按 **Save**。正是这个字段让连接专属于你。',
         },
       ],
       after: [
@@ -455,7 +457,7 @@ const zhHans: PartialGuideDict = {
       title: '设置 Webhook',
       body: [
         'Anvil 通过 **Webhook** 发帖，每个频道一个，而且全都是可选的。在你把某个信息流指向某个频道之前，什么都不会发到任何地方——崭新的氏族是刻意安静，不是出了差错。',
-        'Anvil 机器人在你的服务器里时，**Admin → Discord** 顶部的 **Set it up for me** 会建好频道，并把每个信息流都指向它们。想手动设置，就打开 **More settings → What goes where**，先设 **Clan & events** 上的 **Catch-all channel**，再设 **In-game (plugin)** 上的 **In-game catch-all**：从下拉菜单里选一个频道，就会自动保存。没有机器人时，在 Discord 中打开该频道的 **Edit Channel → Integrations → Webhooks**，创建一个，复制网址，在下拉菜单里选 **Paste a webhook…**，粘贴后按 **Save**。Webhook 网址可以向频道发帖，所以要像密码一样保管；如果泄露，请在 Discord 中删除并新建。**Test**，以及用来在两个 Webhook 之间轮换繁忙帖子的 **Add another**，都在 **Post without a bot** 下。',
+        'Anvil 机器人在你的服务器里时，**Admin → Discord** 顶部的 **Set it up for me** 会建好频道，并把每个信息流都指向它们。想手动设置，就打开 **More settings → What goes where**，先设 **Clan & events** 上的 **Catch-all channel**，再设 **In-game (plugin)** 上的 **In-game catch-all**：从下拉菜单里选一个频道，就会自动保存。没有机器人时，在 Discord 中打开该频道的 **编辑频道 → 整合 → Webhook**，创建一个，复制网址，在下拉菜单里选 **Paste a webhook…**，粘贴后按 **Save**。Webhook 网址可以向频道发帖，所以要像密码一样保管；如果泄露，请在 Discord 中删除并新建。**Test**，以及用来在两个 Webhook 之间轮换繁忙帖子的 **Add another**，都在 **Post without a bot** 下。',
       ],
       feeds: [
         {
@@ -539,8 +541,8 @@ const zhHans: PartialGuideDict = {
         '这个列表包含任何不属于 Anvil 的 Webhook，而不只是 Dink 的。有想保留的，比如另一个机器人的信息流？按 **Keep**，它就离开列表；**Show kept** 和 **Put back** 可以把它找回来。保留只是在这里隐藏它——Discord 里什么都不会变。',
       ],
       note: {
-        tag: '需要 Manage Webhooks',
-        body: '机器人要读取你服务器的 Webhook 才能找到它们。如果它的身份组没有 _Manage Webhooks_，页面会提示它看不到这些 Webhook。',
+        tag: '需要“管理 Webhook”权限',
+        body: '机器人要读取你服务器的 Webhook 才能找到它们。如果它的身份组没有 _管理 Webhook_ 权限，页面会提示它看不到这些 Webhook。',
       },
     },
     announce: {
@@ -1004,7 +1006,7 @@ const zhHans: PartialGuideDict = {
         'Discord 有两条路，而且可以叠加：给 Anvil 一个**机器人**，它就能创建 webhook、同步身份组和昵称、并为你搭建私密的队伍频道；只给它一个 **webhook 网址**，它就只能发公告、别的什么都做不了。想两分钟内跑起来就先用 webhook，等你需要自动化时再把机器人加上。',
       permsNote: {
         tag: '机器人权限',
-        body: '机器人需要 _Manage Webhooks_、_Manage Roles_、_Manage Channels_ 和 _Manage Nicknames_，而且它的身份组在你服务器的身份组列表里必须排在它所管理的那些身份组_之上_。否则 Discord 会悄无声息地拒绝。',
+        body: '机器人需要 _管理 Webhook_、_管理身份组_、_管理频道_ 和 _管理昵称_ 权限，而且它的身份组在你服务器的身份组列表里必须排在它所管理的那些身份组_之上_。否则 Discord 会悄无声息地拒绝。',
       },
       hosted:
         '在托管方案下你已经见过那个界面一次了：设置过程中添加机器人，正是 Anvil 得知哪个服务器是你们的方式，所以从来就不存在什么服务器 ID 需要复制。想把机器人搬到另一个服务器时，同一个链接就在这里。',

@@ -3,10 +3,12 @@ import type { PartialGuideDict } from './en';
 // Polski — Polish.
 //
 // Ta sama zasada co w pozostałych plikach językowych: po angielsku zostaje wszystko, co czytelnik
-// naprawdę widzi na ekranie —— menu RuneLite i OBS, linie czatu wypisywane przez sam plugin oraz
-// etykiety panelu administracyjnego Anvil (po angielsku, dopóki te ekrany nie zostaną
-// przetłumaczone). Przetłumaczone „Tracked drop detected” sprawia, że ktoś szukający tej linii już
-// jej nie znajdzie. Cała reszta —— wyjaśnienia, kolejność, powody —— jest po polsku.
+// naprawdę widzi na ekranie w Anvil, RuneLite i OBS —— menu RuneLite i OBS, linie czatu wypisywane
+// przez sam plugin oraz etykiety panelu administracyjnego Anvil (po angielsku, dopóki te ekrany nie
+// zostaną przetłumaczone). Przetłumaczone „Tracked drop detected” sprawia, że ktoś szukający tej
+// linii już jej nie znajdzie. Etykiety interfejsu Discorda (menu, ustawienia, nazwy uprawnień) piszemy
+// tak, jak pokazuje je polska wersja Discorda: „Kopiuj ID serwera”, „Ustawienia serwera → Role”,
+// „Zarządzanie webhookami”. Cała reszta —— wyjaśnienia, kolejność, powody —— jest po polsku.
 
 const pl: PartialGuideDict = {
   common: {
@@ -398,7 +400,7 @@ const pl: PartialGuideDict = {
       ],
       permissions: [
         {
-          term: 'Wyświetlanie kanałów, wysyłanie wiadomości, osadzanie linków, załączanie plików',
+          term: 'Wyświetlanie kanałów, Wysyłanie wiadomości, Osadzanie linków, Załączanie plików',
           body: 'Podstawy. Bez nich jest na twoim serwerze i milczy.',
         },
         {
@@ -418,7 +420,7 @@ const pl: PartialGuideDict = {
           body: 'Do prywatnych kanałów drużyn podczas draftu oraz do poradników publikowanych jako nowa kategoria lub forum. Bez tego wszystko inne i tak działa.',
         },
         {
-          term: 'Zarządzanie wątkami, wysyłanie wiadomości w wątkach',
+          term: 'Zarządzanie wątkami, Wysyłanie wiadomości w wątkach',
           body: 'Do poradników na forum: pisania w poście i ponownego usunięcia go — bez tego Discord nie pozwoli botowi usunąć nawet własnego posta na forum.',
         },
         {
@@ -441,7 +443,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Ustaw identyfikator serwera',
-          body: 'Tylko jeśli przycisk sobie nie poradzi: otwórz **Can’t use the button? Enter the server ID**, kliknij prawym na ikonę serwera w Discordzie → **Copy Server ID** (wymaga trybu dewelopera w zaawansowanych ustawieniach Discorda), wklej go w **Your Discord server’s ID** i naciśnij **Save**. To pole sprawia, że połączenie dotyczy właśnie ciebie.',
+          body: 'Tylko jeśli przycisk sobie nie poradzi: otwórz **Can’t use the button? Enter the server ID**, kliknij prawym na ikonę serwera w Discordzie → **Kopiuj ID serwera** (wymaga włączonej opcji Tryb dewelopera w ustawieniach Discorda, w sekcji Zaawansowane), wklej go w **Your Discord server’s ID** i naciśnij **Save**. To pole sprawia, że połączenie dotyczy właśnie ciebie.',
         },
       ],
       after: [
@@ -456,7 +458,7 @@ const pl: PartialGuideDict = {
       title: 'Konfiguracja webhooków',
       body: [
         'Anvil publikuje przez **webhooki**, po jednym na kanał, i każdy z nich jest opcjonalny. Nic nigdzie nie trafia, dopóki nie skierujesz strumienia na kanał — świeży klan milczy celowo, nie przez przypadek.',
-        'Gdy bot Anvil jest na twoim serwerze, **Set it up for me** na górze **Admin → Discord** tworzy kanały i kieruje na nie każdy strumień. Żeby zrobić to ręcznie, otwórz **More settings → What goes where** i zacznij od **Catch-all channel** w **Clan & events**, potem **In-game catch-all** w **In-game (plugin)**: wybierz kanał z listy rozwijanej, a zapisze się sam. Bez bota otwórz w Discordzie dla tego kanału **Edit Channel → Integrations → Webhooks**, utwórz webhook, skopiuj jego URL, wybierz **Paste a webhook…** z listy rozwijanej, wklej go i naciśnij **Save**. URL webhooka pozwala publikować na jego kanale, więc traktuj go jak hasło; jeśli wycieknie, usuń go w Discordzie i utwórz nowy. **Test** oraz **Add another**, by rozdzielać intensywny ruch między dwa webhooki, są w **Post without a bot**.',
+        'Gdy bot Anvil jest na twoim serwerze, **Set it up for me** na górze **Admin → Discord** tworzy kanały i kieruje na nie każdy strumień. Żeby zrobić to ręcznie, otwórz **More settings → What goes where** i zacznij od **Catch-all channel** w **Clan & events**, potem **In-game catch-all** w **In-game (plugin)**: wybierz kanał z listy rozwijanej, a zapisze się sam. Bez bota otwórz w Discordzie dla tego kanału **Edytuj kanał → Integracje → Webhooki**, utwórz webhook, skopiuj jego URL, wybierz **Paste a webhook…** z listy rozwijanej, wklej go i naciśnij **Save**. URL webhooka pozwala publikować na jego kanale, więc traktuj go jak hasło; jeśli wycieknie, usuń go w Discordzie i utwórz nowy. **Test** oraz **Add another**, by rozdzielać intensywny ruch między dwa webhooki, są w **Post without a bot**.',
       ],
       feeds: [
         {
@@ -540,8 +542,8 @@ const pl: PartialGuideDict = {
         'Lista obejmuje każdy webhook, który nie należy do Anvila, nie tylko te od Dinka. Chcesz jakiś zachować, na przykład strumień innego bota? Naciśnij **Keep**, a zniknie z listy; **Show kept** i **Put back** go przywracają. Zachowanie tylko ukrywa go tutaj — na Discordzie nic się nie zmienia.',
       ],
       note: {
-        tag: 'Wymaga Manage Webhooks',
-        body: 'Bot odczytuje webhooki twojego serwera, żeby je znaleźć. Bez _Manage Webhooks_ w jego roli strona pokaże, że ich nie widzi.',
+        tag: 'Wymaga uprawnienia Zarządzanie webhookami',
+        body: 'Bot odczytuje webhooki twojego serwera, żeby je znaleźć. Bez uprawnienia _Zarządzanie webhookami_ w jego roli strona pokaże, że ich nie widzi.',
       },
     },
     announce: {
@@ -997,7 +999,7 @@ const pl: PartialGuideDict = {
         'Do Discorda masz dwie drogi i one się uzupełniają: daj Anvil **bota**, a będzie mógł tworzyć webhooki, synchronizować role i pseudonimy oraz budować prywatne kanały drużyn; daj mu jeden **URL webhooka**, a będzie mógł publikować ogłoszenia i nic więcej. Zacznij od webhooka, jeśli chcesz działać w dwie minuty, a bota dodaj, gdy zechcesz automatyzacji.',
       permsNote: {
         tag: 'Uprawnienia bota',
-        body: 'Bot potrzebuje _Manage Webhooks_, _Manage Roles_, _Manage Channels_ i _Manage Nicknames_, a jego rola musi stać _powyżej_ ról, którymi zarządza, na liście ról twojego serwera. Inaczej Discord po cichu odmawia.',
+        body: 'Bot potrzebuje uprawnień _Zarządzanie webhookami_, _Zarządzanie rolami_, _Zarządzanie kanałami_ i _Zarządzanie pseudonimami_, a jego rola musi stać _powyżej_ ról, którymi zarządza, na liście ról twojego serwera. Inaczej Discord po cichu odmawia.',
       },
       hosted:
         'W planie hostowanym ten ekran już raz spotkałeś: dodanie bota podczas konfiguracji to sposób, w jaki Anvil dowiedział się, który serwer jest twój, więc nigdy nie było ID do przepisywania. Ten sam link jest tutaj, gdy zechcesz przenieść bota na inny serwer.',

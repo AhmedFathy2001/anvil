@@ -3,10 +3,13 @@ import type { PartialGuideDict } from './en';
 // Français — French.
 //
 // Même convention que dans tous les autres fichiers de langue ici : tout ce que le lecteur VOIT
-// RÉELLEMENT à l’écran reste en anglais — les menus de RuneLite et d’OBS, les lignes de chat du
-// plugin lui-même, et les libellés de l’interface d’administration d’Anvil, qui sont en anglais
-// jusqu’à ce que cette surface soit traduite elle aussi. Un « Tracked drop detected » traduit est
-// une ligne que personne ne retrouve. Tout le reste — l’explication, l’ordre, le pourquoi — est en
+// RÉELLEMENT à l’écran dans Anvil, RuneLite et OBS reste en anglais — les menus de RuneLite et
+// d’OBS, les lignes de chat du plugin lui-même, et les libellés de l’interface d’administration
+// d’Anvil, qui sont en anglais jusqu’à ce que cette surface soit traduite elle aussi. Un « Tracked
+// drop detected » traduit est une ligne que personne ne retrouve. Les libellés de l’interface de
+// Discord elle-même (menus, paramètres, permissions) suivent en revanche la traduction officielle
+// de Discord en français — ce qu’affiche un Discord réglé en français ; là où Discord ne serait pas
+// traduit, ils resteraient en anglais. Tout le reste — l’explication, l’ordre, le pourquoi — est en
 // français.
 
 const fr: PartialGuideDict = {
@@ -399,7 +402,7 @@ const fr: PartialGuideDict = {
       ],
       permissions: [
         {
-          term: 'Voir les salons, envoyer des messages, intégrer des liens, joindre des fichiers',
+          term: 'Voir les salons, Envoyer des messages, Intégrer des liens, Joindre des fichiers',
           body: 'La base. Sans cela, il est sur votre serveur et muet.',
         },
         {
@@ -419,7 +422,7 @@ const fr: PartialGuideDict = {
           body: 'Pour les salons privés des équipes pendant une draft, et pour les guides publiés comme nouvelle catégorie ou forum. Sans elle, tout le reste fonctionne quand même.',
         },
         {
-          term: 'Gérer les fils, envoyer des messages dans les fils',
+          term: 'Gérer les fils, Envoyer des messages dans les fils',
           body: 'Pour les guides publiés dans un forum : écrire dans la publication, puis la supprimer — sans cette permission, Discord ne laisse pas un bot supprimer même sa propre publication.',
         },
         {
@@ -442,7 +445,7 @@ const fr: PartialGuideDict = {
         },
         {
           term: 'Renseigner l’identifiant du serveur',
-          body: 'Seulement si le bouton n’y arrive pas : ouvrez **Can’t use the button? Enter the server ID**, faites un clic droit sur l’icône de votre serveur dans Discord → **Copy Server ID** (nécessite le mode développeur, dans les paramètres avancés de Discord lui-même), collez-le dans **Your Discord server’s ID** et appuyez sur **Save**. C’est ce champ qui rend la connexion propre à vous.',
+          body: 'Seulement si le bouton n’y arrive pas : ouvrez **Can’t use the button? Enter the server ID**, faites un clic droit sur l’icône de votre serveur dans Discord → **Copier l’identifiant du serveur** (nécessite d’activer le Mode développeur, dans la section Avancés des paramètres de Discord lui-même), collez-le dans **Your Discord server’s ID** et appuyez sur **Save**. C’est ce champ qui rend la connexion propre à vous.',
         },
       ],
       after: [
@@ -457,7 +460,7 @@ const fr: PartialGuideDict = {
       title: 'Configurer les webhooks',
       body: [
         'Anvil publie via des **webhooks**, un par salon, et chacun est facultatif. Rien n’est publié nulle part tant que vous ne dirigez pas un flux vers un salon — un clan tout neuf est silencieux à dessein, pas par accident.',
-        'Avec le bot Anvil sur votre serveur, **Set it up for me**, en haut de **Admin → Discord**, crée les salons et y dirige chaque flux. Pour le faire à la main, ouvrez **More settings → What goes where** et commencez par le **Catch-all channel** de l’onglet **Clan & events**, puis le **In-game catch-all** de l’onglet **In-game (plugin)** : choisissez un salon dans la liste déroulante et c’est enregistré. Sans le bot, ouvrez dans ce salon Discord **Edit Channel → Integrations → Webhooks**, créez-en un, copiez son URL, choisissez **Paste a webhook…** dans la liste déroulante, collez-la et appuyez sur **Save**. Une URL de webhook peut publier dans son salon : traitez-la comme un mot de passe ; si elle fuit, supprimez-la dans Discord et recréez-en une. **Test**, et **Add another** pour répartir les publications chargées entre deux webhooks, se trouvent sous **Post without a bot**.',
+        'Avec le bot Anvil sur votre serveur, **Set it up for me**, en haut de **Admin → Discord**, crée les salons et y dirige chaque flux. Pour le faire à la main, ouvrez **More settings → What goes where** et commencez par le **Catch-all channel** de l’onglet **Clan & events**, puis le **In-game catch-all** de l’onglet **In-game (plugin)** : choisissez un salon dans la liste déroulante et c’est enregistré. Sans le bot, ouvrez dans ce salon Discord **Modifier le salon → Intégrations → Webhooks**, créez-en un, copiez son URL, choisissez **Paste a webhook…** dans la liste déroulante, collez-la et appuyez sur **Save**. Une URL de webhook peut publier dans son salon : traitez-la comme un mot de passe ; si elle fuit, supprimez-la dans Discord et recréez-en une. **Test**, et **Add another** pour répartir les publications chargées entre deux webhooks, se trouvent sous **Post without a bot**.',
       ],
       feeds: [
         {
@@ -495,7 +498,7 @@ const fr: PartialGuideDict = {
       ],
       note: {
         tag: 'Le rôle du bot doit être au-dessus de ceux qu’il gère',
-        body: 'Discord n’autorise aucun bot à toucher un rôle au niveau du sien ou au-dessus, et il refuse en silence de votre côté — la synchronisation ne fait alors simplement rien. Remontez le rôle Anvil dans Paramètres du serveur → Rôles et ça se met à marcher ; rien n’a besoin d’être réinvité.',
+        body: 'Discord n’autorise aucun bot à toucher un rôle au niveau du sien ou au-dessus, et il refuse en silence de votre côté — la synchronisation ne fait alors simplement rien. Remontez le rôle Anvil dans **Paramètres du serveur → Rôles** et ça se met à marcher ; rien n’a besoin d’être réinvité.',
       },
     },
     commands: {
@@ -541,8 +544,8 @@ const fr: PartialGuideDict = {
         'La liste contient tout webhook qui n’appartient pas à Anvil, pas seulement ceux de Dink. Il y en a un que vous voulez garder, comme le flux d’un autre bot ? Appuyez sur **Keep** et il quitte la liste ; **Show kept** et **Put back** le font revenir. Le garder ne fait que le masquer ici — rien ne change dans Discord.',
       ],
       note: {
-        tag: 'Nécessite Manage Webhooks',
-        body: 'Le bot lit les webhooks de votre serveur pour les trouver. Sans _Manage Webhooks_ sur son rôle, la page indique qu’il ne peut pas les voir.',
+        tag: 'Nécessite « Gérer les webhooks »',
+        body: 'Le bot lit les webhooks de votre serveur pour les trouver. Sans _Gérer les webhooks_ sur son rôle, la page indique qu’il ne peut pas les voir.',
       },
     },
     announce: {
@@ -1006,7 +1009,7 @@ const fr: PartialGuideDict = {
         'Pour Discord vous avez deux voies, et elles se combinent : donnez un **bot** à Anvil et il pourra créer des webhooks, synchroniser rôles et surnoms, et construire des salons d’équipe privés ; donnez-lui une simple **URL de webhook** et il pourra publier des annonces et rien d’autre. Commencez par le webhook si vous voulez être en ligne en deux minutes, ajoutez le bot quand vous voulez l’automatisation.',
       permsNote: {
         tag: 'Permissions du bot',
-        body: 'Le bot a besoin de _Manage Webhooks_, _Manage Roles_, _Manage Channels_ et _Manage Nicknames_, et son rôle doit se situer _au-dessus_ des rôles qu’il gère dans la liste des rôles de votre serveur. Sinon Discord refuse en silence.',
+        body: 'Le bot a besoin de _Gérer les webhooks_, _Gérer les rôles_, _Gérer les salons_ et _Gérer les pseudos_, et son rôle doit se situer _au-dessus_ des rôles qu’il gère dans la liste des rôles de votre serveur. Sinon Discord refuse en silence.',
       },
       hosted:
         'Sur une formule hébergée, vous avez déjà croisé cet écran une fois : ajouter le bot pendant l’installation, c’est ainsi qu’Anvil a su quel serveur est le vôtre — il n’y a donc jamais eu d’ID de serveur à copier. Le même lien est ici quand vous voudrez déplacer le bot sur un autre serveur.',

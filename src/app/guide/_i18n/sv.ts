@@ -2,10 +2,13 @@ import type { PartialGuideDict } from './en';
 
 // Svenska — Swedish.
 //
-// Samma konvention som i alla andra språkfiler här: allt läsaren FAKTISKT SER på skärmen står kvar
-// på engelska — menyer i RuneLite och OBS, pluginets egna chattrader, och Anvils adminetiketter,
-// som är engelska tills den ytan också översätts. En översatt "Tracked drop detected" är en rad
-// ingen hittar igen. Allt annat — förklaringen, ordningen, varför — är svenska.
+// Samma konvention som i alla andra språkfiler här: allt läsaren FAKTISKT SER på skärmen i Anvil,
+// RuneLite och OBS står kvar på engelska — menyer i RuneLite och OBS, pluginets egna chattrader, och
+// Anvils adminetiketter, som är engelska tills den ytan också översätts. En översatt "Tracked drop
+// detected" är en rad ingen hittar igen. Discords egna UI-etiketter (menyer, inställningar,
+// behörighetsnamn) följer Discords svenska översättning: "Kopiera server-ID",
+// "Serverinställningar → Roller", "Hantera webhooks". Allt annat — förklaringen, ordningen, varför —
+// är svenska.
 
 const sv: PartialGuideDict = {
   common: {
@@ -398,7 +401,7 @@ const sv: PartialGuideDict = {
       ],
       permissions: [
         {
-          term: 'Se kanaler, skicka meddelanden, bädda in länkar, bifoga filer',
+          term: 'Visa kanaler, Skicka meddelanden, Bädda in länkar, Bifoga filer',
           body: 'Grunderna. Utan dem är den på din server och tyst.',
         },
         {
@@ -418,7 +421,7 @@ const sv: PartialGuideDict = {
           body: 'För privata lagkanaler under en draft, och för guider som postas som en ny kategori eller ett forum. Hoppa över den så fungerar allt annat ändå.',
         },
         {
-          term: 'Hantera trådar, skicka meddelanden i trådar',
+          term: 'Hantera trådar, Skicka meddelanden i trådar',
           body: 'För guider i ett forum: att skriva i inlägget och ta bort det igen — Discord låter inte en bot radera ens sitt eget foruminlägg utan den.',
         },
         {
@@ -441,7 +444,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Ange server-id',
-          body: 'Bara om knappen inte klarar det: öppna **Can’t use the button? Enter the server ID**, högerklicka din serverikon i Discord → **Copy Server ID** (kräver Utvecklarläge, under Discords egna avancerade inställningar), klistra in det i **Your Discord server’s ID** och tryck på **Save**. Det är fältet som gör kopplingen till din.',
+          body: 'Bara om knappen inte klarar det: öppna **Can’t use the button? Enter the server ID**, högerklicka din serverikon i Discord → **Kopiera server-ID** (kräver att Utvecklarläge är på, under Avancerat i Discords egna inställningar), klistra in det i **Your Discord server’s ID** och tryck på **Save**. Det är fältet som gör kopplingen till din.',
         },
       ],
       after: [
@@ -456,7 +459,7 @@ const sv: PartialGuideDict = {
       title: 'Konfigurera webhooks',
       body: [
         'Anvil postar genom **webhooks**, en per kanal, och varenda en är valfri. Inget postas någonstans förrän du riktar ett flöde mot en kanal — en färsk klan är tyst med flit, inte av misstag.',
-        'Med Anvil-boten på din server skapar **Set it up for me** högst upp på **Admin → Discord** kanalerna och riktar varje flöde mot dem. Vill du göra det för hand öppnar du **More settings → What goes where** och börjar med **Catch-all channel** på **Clan & events**, sedan **In-game catch-all** på **In-game (plugin)**: välj en kanal i rullgardinen så sparas den. Utan boten går du i Discord till kanalens **Edit Channel → Integrations → Webhooks**, skapar en, kopierar URL:en, väljer **Paste a webhook…** i rullgardinen, klistrar in den och trycker på **Save**. En webhook-URL kan posta i kanalen, så behandla den som ett lösenord; radera den i Discord och skapa en ny om den läcker. **Test**, och **Add another** för att växla täta inlägg mellan två webhooks, finns under **Post without a bot**.',
+        'Med Anvil-boten på din server skapar **Set it up for me** högst upp på **Admin → Discord** kanalerna och riktar varje flöde mot dem. Vill du göra det för hand öppnar du **More settings → What goes where** och börjar med **Catch-all channel** på **Clan & events**, sedan **In-game catch-all** på **In-game (plugin)**: välj en kanal i rullgardinen så sparas den. Utan boten går du i Discord till kanalens **Redigera kanal → Integrationer → Webhooks**, skapar en, kopierar URL:en, väljer **Paste a webhook…** i rullgardinen, klistrar in den och trycker på **Save**. En webhook-URL kan posta i kanalen, så behandla den som ett lösenord; radera den i Discord och skapa en ny om den läcker. **Test**, och **Add another** för att växla täta inlägg mellan två webhooks, finns under **Post without a bot**.',
       ],
       feeds: [
         {
@@ -540,8 +543,8 @@ const sv: PartialGuideDict = {
         'Listan rymmer alla webhooks som inte är Anvils, inte bara Dinks. Finns det en du vill behålla, som en annan bots flöde? Tryck på **Keep** så försvinner den från listan; **Show kept** och **Put back** tar tillbaka den. Att behålla döljer den bara här — ingenting ändras i Discord.',
       ],
       note: {
-        tag: 'Kräver Manage Webhooks',
-        body: 'Boten läser serverns webhooks för att hitta dem. Utan _Manage Webhooks_ på sin roll säger sidan att den inte kan se dem.',
+        tag: 'Kräver behörigheten Hantera webhooks',
+        body: 'Boten läser serverns webhooks för att hitta dem. Utan _Hantera webhooks_ på sin roll säger sidan att den inte kan se dem.',
       },
     },
     announce: {
@@ -1005,7 +1008,7 @@ const sv: PartialGuideDict = {
         'För Discord har du två vägar, och de går att kombinera: ge Anvil en **bot** så kan den skapa webhooks, synka roller och smeknamn och bygga privata lagkanaler; ge den en enda **webhook-URL** så kan den posta meddelanden och inget annat. Börja med webhooken om du vill vara igång på två minuter, och lägg till boten när du vill ha automatiken.',
       permsNote: {
         tag: 'Botens behörigheter',
-        body: 'Boten behöver _Manage Webhooks_, _Manage Roles_, _Manage Channels_ och _Manage Nicknames_, och dess roll måste ligga _ovanför_ de roller den hanterar i serverns rollista. Annars vägrar Discord tyst.',
+        body: 'Boten behöver behörigheterna _Hantera webhooks_, _Hantera roller_, _Hantera kanaler_ och _Hantera smeknamn_, och dess roll måste ligga _ovanför_ de roller den hanterar i serverns rollista. Annars vägrar Discord tyst.',
       },
       hosted:
         'På ett hostat abonnemang mötte du den skärmen en gång redan: att lägga till boten under installationen var hur Anvil fick veta vilken server som är er, så det fanns aldrig något server-ID att kopiera. Samma länk finns här när du vill flytta boten till en annan server.',

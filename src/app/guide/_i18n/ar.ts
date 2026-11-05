@@ -2,10 +2,13 @@ import type { PartialGuideDict } from './en';
 
 // العربية — Arabic. Right-to-left; GuideShell sets `dir` from the registry.
 //
-// Same convention as every other locale here: anything the reader is LOOKING AT on their screen
-// stays in English — RuneLite and OBS menus, the plugin's own chat lines, and Anvil's admin labels,
-// which are English until that surface is translated too. A translated "Tracked drop detected" is a
-// line nobody can find again. Everything else — the explanation, the order, the why — is Arabic.
+// Same convention as every other locale here: anything the reader is LOOKING AT in Anvil, RuneLite
+// or OBS stays in English — RuneLite and OBS menus, the plugin's own chat lines, and Anvil's admin
+// labels, which are English until that surface is translated too. A translated "Tracked drop
+// detected" is a line nobody can find again. Discord's own UI labels (menus, settings, permission
+// names: "Copy Server ID", "Server Settings → Roles", "Manage Webhooks") stay English as well,
+// because Discord has no Arabic interface. Everything else — the explanation, the order, the why —
+// is Arabic.
 
 const ar: PartialGuideDict = {
   common: {
@@ -397,31 +400,31 @@ const ar: PartialGuideDict = {
       ],
       permissions: [
         {
-          term: 'عرض القنوات، وإرسال الرسائل، وتضمين الروابط، وإرفاق الملفات',
+          term: 'View Channels, Send Messages, Embed Links, Attach Files',
           body: 'الأساسيات. بدونها يكون في خادمك وصامتًا.',
         },
         {
-          term: 'إدارة الويب هوك',
+          term: 'Manage Webhooks',
           body: 'كي يستطيع **Set it up for me** و**Post here** صنع الويب هوك لك بدل أن تنسخ الروابط من ديسكورد يدويًا، وكي يجد Anvil الويب هوك القديمة لتزيلها.',
         },
         {
-          term: 'إدارة الأدوار',
+          term: 'Manage Roles',
           body: 'فقط إن فعّلت مزامنة الأدوار. عندها يوزع الأدوار التي تربطها — ولا يستطيع أبدًا لمس دور أعلى من دوره، وهذه قاعدة ديسكورد لا قاعدتنا.',
         },
         {
-          term: 'إدارة الألقاب',
+          term: 'Manage Nicknames',
           body: 'فقط إن فعّلت مزامنة الألقاب، كي يُضبط لقب العضو في الخادم على اسمه في اللعبة.',
         },
         {
-          term: 'إدارة القنوات',
+          term: 'Manage Channels',
           body: 'للقنوات الخاصة بكل فريق أثناء الدرافت، وللأدلة المنشورة كفئة جديدة أو منتدى. بدونه يعمل كل شيء آخر كالمعتاد.',
         },
         {
-          term: 'إدارة المواضيع، إرسال الرسائل في المواضيع',
+          term: 'Manage Threads, Send Messages in Threads',
           body: 'للأدلة المنشورة في منتدى: الكتابة داخل المنشور ثم حذفه لاحقًا — بدون هذا الإذن لا يسمح Discord للبوت بحذف حتى منشوره هو في المنتدى.',
         },
         {
-          term: 'تغيير اللقب',
+          term: 'Change Nickname',
           body: 'فقط إذا أعطيت البوت اسم عشيرتك من **Connection → Bot appearance in your server**. يغيّر اسم البوت في خادمك فقط.',
         },
       ],
@@ -440,7 +443,7 @@ const ar: PartialGuideDict = {
         },
         {
           term: 'اضبط معرّف الخادم',
-          body: 'فقط إذا تعذّر ذلك على الزر: افتح **Can’t use the button? Enter the server ID**، وانقر بزر الفأرة الأيمن على أيقونة خادمك في ديسكورد ← **نسخ معرّف الخادم** (يتطلب وضع المطوّر، ضمن إعدادات ديسكورد المتقدمة)، والصقه في **Your Discord server’s ID** واضغط **Save**. هذا هو الحقل الذي يجعل الربط خاصًا بك.',
+          body: 'فقط إذا تعذّر ذلك على الزر: افتح **Can’t use the button? Enter the server ID**، وانقر بزر الفأرة الأيمن على أيقونة خادمك في ديسكورد ← **Copy Server ID** (يتطلب تفعيل Developer Mode، ضمن إعدادات Advanced في ديسكورد نفسه)، والصقه في **Your Discord server’s ID** واضغط **Save**. هذا هو الحقل الذي يجعل الربط خاصًا بك.',
         },
       ],
       after: [
@@ -455,7 +458,7 @@ const ar: PartialGuideDict = {
       title: 'إعداد الويب هوك',
       body: [
         'ينشر Anvil عبر **الويب هوك**، واحد لكل قناة، وكلها اختيارية. لا يُنشر شيء في أي مكان حتى توجّه تدفقًا إلى قناة — العشيرة الجديدة صامتة عن قصد لا عن خطأ.',
-        'مع وجود بوت Anvil في خادمك، ينشئ **Set it up for me** في أعلى **Admin → Discord** القنوات ويوجّه كل تدفق إليها. ولتفعل ذلك يدويًا، افتح **More settings → What goes where** وابدأ بـ **Catch-all channel** في **Clan & events**، ثم **In-game catch-all** في **In-game (plugin)**: اختر قناة من القائمة المنسدلة فتُحفظ. من دون البوت، افتح في ديسكورد **تعديل القناة ← التكاملات ← Webhooks** لتلك القناة، وأنشئ واحدًا وانسخ رابطه، ثم اختر **Paste a webhook…** من القائمة المنسدلة والصقه واضغط **Save**. يستطيع رابط الويب هوك النشر في قناته، فعامله ككلمة مرور؛ إن تسرّب فاحذفه من ديسكورد وأنشئ غيره. أما **Test**، و**Add another** لتوزيع المنشورات المزدحمة بين ويب هوكين، فموجودان تحت **Post without a bot**.',
+        'مع وجود بوت Anvil في خادمك، ينشئ **Set it up for me** في أعلى **Admin → Discord** القنوات ويوجّه كل تدفق إليها. ولتفعل ذلك يدويًا، افتح **More settings → What goes where** وابدأ بـ **Catch-all channel** في **Clan & events**، ثم **In-game catch-all** في **In-game (plugin)**: اختر قناة من القائمة المنسدلة فتُحفظ. من دون البوت، افتح في ديسكورد **Edit Channel → Integrations → Webhooks** لتلك القناة، وأنشئ واحدًا وانسخ رابطه، ثم اختر **Paste a webhook…** من القائمة المنسدلة والصقه واضغط **Save**. يستطيع رابط الويب هوك النشر في قناته، فعامله ككلمة مرور؛ إن تسرّب فاحذفه من ديسكورد وأنشئ غيره. أما **Test**، و**Add another** لتوزيع المنشورات المزدحمة بين ويب هوكين، فموجودان تحت **Post without a bot**.',
       ],
       feeds: [
         {
@@ -493,7 +496,7 @@ const ar: PartialGuideDict = {
       ],
       note: {
         tag: 'يجب أن يعلو دور البوت الأدوار التي يديرها',
-        body: 'لا يسمح ديسكورد لأي بوت بلمس دور بمستوى دوره أو أعلى، ويرفض ذلك صامتًا من جهتك — فلا تفعل المزامنة شيئًا البتة. اسحب دور Anvil إلى الأعلى في إعدادات الخادم ← الأدوار فيبدأ العمل؛ ولا شيء يحتاج إعادة دعوة.',
+        body: 'لا يسمح ديسكورد لأي بوت بلمس دور بمستوى دوره أو أعلى، ويرفض ذلك صامتًا من جهتك — فلا تفعل المزامنة شيئًا البتة. اسحب دور Anvil إلى الأعلى في Server Settings → Roles فيبدأ العمل؛ ولا شيء يحتاج إعادة دعوة.',
       },
     },
     commands: {
@@ -539,8 +542,8 @@ const ar: PartialGuideDict = {
         'تضم القائمة كل ويب هوك ليس تابعًا لـ Anvil، لا ويب هوك Dink وحدها. أهناك واحد تريد إبقاءه، كتدفق بوت آخر؟ اضغط **Keep** فيخرج من القائمة؛ ويعيده **Show kept** و**Put back**. والإبقاء يخفيه هنا فقط — لا يتغير شيء في ديسكورد.',
       ],
       note: {
-        tag: 'يحتاج صلاحية إدارة الويب هوك',
-        body: 'يقرأ البوت الويب هوك في خادمك ليجدها. ومن دون _إدارة الويب هوك_ على دوره، تقول الصفحة إنها لا تستطيع رؤيتها.',
+        tag: 'يحتاج صلاحية Manage Webhooks',
+        body: 'يقرأ البوت الويب هوك في خادمك ليجدها. ومن دون _Manage Webhooks_ على دوره، تقول الصفحة إنها لا تستطيع رؤيتها.',
       },
     },
     announce: {

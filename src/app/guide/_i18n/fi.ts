@@ -2,11 +2,13 @@ import type { PartialGuideDict } from './en';
 
 // Suomi — Finnish.
 //
-// Sama käytäntö kuin kaikissa muissakin kielitiedostoissa: kaikki, mitä lukija NÄKEE ruudullaan,
-// jää englanniksi — RuneLiten ja OBS:n valikot, pluginin omat chat-rivit, ja Anvilin omat
-// hallintapaneelin nimikkeet, jotka ovat englanniksi kunnes sekin pinta käännetään. Käännetty
-// "Tracked drop detected" on rivi, jota kukaan ei löydä uudestaan. Kaikki muu — selitys, järjestys,
-// miksi — on suomea.
+// Sama käytäntö kuin kaikissa muissakin kielitiedostoissa: kaikki, mitä lukija NÄKEE ruudullaan
+// Anvilissa, RuneLitessä ja OBS:ssä, jää englanniksi — RuneLiten ja OBS:n valikot, pluginin omat
+// chat-rivit, ja Anvilin omat hallintapaneelin nimikkeet, jotka ovat englanniksi kunnes sekin pinta
+// käännetään. Käännetty "Tracked drop detected" on rivi, jota kukaan ei löydä uudestaan. Kaikki muu
+// — selitys, järjestys, miksi — on suomea. Discordin omat nimikkeet (valikot, asetukset, oikeudet)
+// sen sijaan noudattavat Discordin virallista suomennosta — sitä, mitä suomeksi asetettu Discord
+// näyttää; jos Discordia ei olisi käännetty, ne jäisivät englanniksi.
 
 const fi: PartialGuideDict = {
   common: {
@@ -398,27 +400,27 @@ const fi: PartialGuideDict = {
       ],
       permissions: [
         {
-          term: 'Näytä kanavat, lähetä viestejä, upota linkkejä, liitä tiedostoja',
+          term: 'Näytä kanavat, Lähetä viestejä, Upota linkkejä, Liitä tiedostoja',
           body: 'Perusta. Ilman näitä se on palvelimellasi ja vaiti.',
         },
         {
-          term: 'Hallinnoi webhookeja',
+          term: 'Hallitse webhookeja',
           body: 'Jotta **Set it up for me** ja **Post here** voivat tehdä webhookit puolestasi sen sijaan että kopioisit URL-osoitteita käsin Discordista, ja jotta Anvil voi löytää vanhat webhookit poistettaviksi.',
         },
         {
-          term: 'Hallinnoi rooleja',
+          term: 'Hallitse rooleja',
           body: 'Vain jos otat roolisynkronoinnin käyttöön. Silloin se voi jakaa kartoittamasi roolit — eikä se voi koskaan koskea omaansa ylempään rooliin, mikä on Discordin sääntö, ei meidän.',
         },
         {
-          term: 'Hallinnoi nimimerkkejä',
+          term: 'Hallitse lempinimiä',
           body: 'Vain jos otat nimimerkkisynkronoinnin käyttöön, jotta jäsenen palvelinnimimerkki voidaan asettaa hänen RSN:kseen.',
         },
         {
-          term: 'Hallinnoi kanavia',
+          term: 'Hallitse kanavia',
           body: 'Joukkueiden yksityisiin kanaviin draftin aikana sekä oppaisiin, jotka julkaistaan uutena kategoriana tai foorumina. Ilman sitä kaikki muu toimii silti.',
         },
         {
-          term: 'Hallitse ketjuja, lähetä viestejä ketjuihin',
+          term: 'Hallitse ketjuja, Lähetä viestejä ketjuihin',
           body: 'Foorumiin julkaistuja oppaita varten: julkaisuun kirjoittamiseen ja sen poistamiseen — ilman tätä Discord ei anna botin poistaa edes omaa foorumijulkaisuaan.',
         },
         {
@@ -441,7 +443,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Aseta palvelintunnus',
-          body: 'Vain jos painike ei onnistu: avaa **Can’t use the button? Enter the server ID**, napsauta palvelimesi kuvaketta Discordissa hiiren oikealla → **Copy Server ID** (vaatii kehittäjätilan Discordin omista lisäasetuksista), liitä se kenttään **Your Discord server’s ID** ja paina **Save**. Tämä kenttä tekee yhteydestä nimenomaan sinun.',
+          body: 'Vain jos painike ei onnistu: avaa **Can’t use the button? Enter the server ID**, napsauta palvelimesi kuvaketta Discordissa hiiren oikealla → **Kopioi palvelimen ID** (vaatii, että Kehittäjätila on päällä Discordin omissa asetuksissa kohdassa Lisäasetukset), liitä se kenttään **Your Discord server’s ID** ja paina **Save**. Tämä kenttä tekee yhteydestä nimenomaan sinun.',
         },
       ],
       after: [
@@ -456,7 +458,7 @@ const fi: PartialGuideDict = {
       title: 'Webhookien määritys',
       body: [
         'Anvil julkaisee **webhookien** kautta, yksi per kanava, ja jokainen niistä on valinnainen. Mitään ei julkaista minnekään ennen kuin osoitat syötteen kanavalle — tuore klaani on hiljainen tarkoituksella, ei vahingossa.',
-        'Kun Anvil-botti on palvelimellasi, **Set it up for me** sivun **Admin → Discord** yläosassa tekee kanavat ja osoittaa jokaisen syötteen niihin. Jos teet sen käsin, avaa **More settings → What goes where** ja aloita kanavasta **Catch-all channel** välilehdellä **Clan & events**, sitten **In-game catch-all** välilehdellä **In-game (plugin)**: valitse kanava pudotusvalikosta, niin se tallentuu. Ilman bottia avaa Discord-kanavan **Edit Channel → Integrations → Webhooks**, luo webhook, kopioi sen URL, valitse pudotusvalikosta **Paste a webhook…**, liitä se ja paina **Save**. Webhook-URL voi julkaista kanavalleen, joten käsittele sitä salasanana; jos se vuotaa, poista se Discordissa ja luo uusi. **Test** sekä **Add another**, jolla vilkkaat julkaisut kierrätetään kahden webhookin välillä, löytyvät kohdasta **Post without a bot**.',
+        'Kun Anvil-botti on palvelimellasi, **Set it up for me** sivun **Admin → Discord** yläosassa tekee kanavat ja osoittaa jokaisen syötteen niihin. Jos teet sen käsin, avaa **More settings → What goes where** ja aloita kanavasta **Catch-all channel** välilehdellä **Clan & events**, sitten **In-game catch-all** välilehdellä **In-game (plugin)**: valitse kanava pudotusvalikosta, niin se tallentuu. Ilman bottia avaa Discord-kanavan **Muokkaa kanavaa → Integraatiot → Webhookit**, luo webhook, kopioi sen URL, valitse pudotusvalikosta **Paste a webhook…**, liitä se ja paina **Save**. Webhook-URL voi julkaista kanavalleen, joten käsittele sitä salasanana; jos se vuotaa, poista se Discordissa ja luo uusi. **Test** sekä **Add another**, jolla vilkkaat julkaisut kierrätetään kahden webhookin välillä, löytyvät kohdasta **Post without a bot**.',
       ],
       feeds: [
         {
@@ -494,7 +496,7 @@ const fi: PartialGuideDict = {
       ],
       note: {
         tag: 'Botin roolin on oltava hallitsemiensa yläpuolella',
-        body: 'Discord ei anna minkään botin koskea omaansa vastaavaan tai ylempään rooliin, ja se kieltäytyy siitä hiljaa sinun päästäsi — synkronointi ei silloin yksinkertaisesti tee mitään. Vedä Anvil-rooli ylös kohdassa Palvelimen asetukset → Roolit, niin se alkaa toimia; mitään ei tarvitse kutsua uudelleen.',
+        body: 'Discord ei anna minkään botin koskea omaansa vastaavaan tai ylempään rooliin, ja se kieltäytyy siitä hiljaa sinun päästäsi — synkronointi ei silloin yksinkertaisesti tee mitään. Vedä Anvil-rooli ylös kohdassa **Palvelimen asetukset → Roolit**, niin se alkaa toimia; mitään ei tarvitse kutsua uudelleen.',
       },
     },
     commands: {
@@ -540,8 +542,8 @@ const fi: PartialGuideDict = {
         'Listassa on jokainen webhook, joka ei ole Anvilin, ei pelkästään Dinkin. Onko joukossa jokin, jonka haluat pitää, kuten toisen botin syöte? Paina **Keep**, niin se poistuu listalta; **Show kept** ja **Put back** tuovat sen takaisin. Pitäminen vain piilottaa sen täällä — Discordissa mikään ei muutu.',
       ],
       note: {
-        tag: 'Vaatii Manage Webhooks -oikeuden',
-        body: 'Botti lukee palvelimesi webhookit löytääkseen ne. Ilman _Manage Webhooks_ -oikeutta sen roolissa sivu kertoo, ettei se näe niitä.',
+        tag: 'Vaatii Hallitse webhookeja -oikeuden',
+        body: 'Botti lukee palvelimesi webhookit löytääkseen ne. Ilman _Hallitse webhookeja_ -oikeutta sen roolissa sivu kertoo, ettei se näe niitä.',
       },
     },
     announce: {
@@ -1005,7 +1007,7 @@ const fi: PartialGuideDict = {
         'Discordiin on kaksi reittiä, ja ne täydentävät toisiaan: anna Anvilille **botti**, niin se voi luoda webhookeja, synkronoida rooleja ja nimimerkkejä sekä rakentaa yksityisiä joukkuekanavia; anna sille yksi **webhook-osoite**, niin se voi julkaista ilmoituksia eikä mitään muuta. Aloita webhookista jos haluat olla pystyssä kahdessa minuutissa, ja lisää botti kun haluat automatiikan.',
       permsNote: {
         tag: 'Botin oikeudet',
-        body: 'Botti tarvitsee oikeudet _Manage Webhooks_, _Manage Roles_, _Manage Channels_ ja _Manage Nicknames_, ja sen roolin on oltava _yläpuolella_ hallitsemiaan rooleja palvelimesi roolilistassa. Muuten Discord kieltäytyy hiljaisesti.',
+        body: 'Botti tarvitsee oikeudet _Hallitse webhookeja_, _Hallitse rooleja_, _Hallitse kanavia_ ja _Hallitse lempinimiä_, ja sen roolin on oltava _yläpuolella_ hallitsemiaan rooleja palvelimesi roolilistassa. Muuten Discord kieltäytyy hiljaisesti.',
       },
       hosted:
         'Ylläpidetyllä tilauksella kohtasit tuon näkymän jo kerran: botin lisääminen käyttöönoton aikana oli tapa jolla Anvil sai tietää mikä palvelin on teidän, joten palvelin-ID:tä ei koskaan tarvinnut kopioida. Sama linkki on täällä kun haluat siirtää botin toiselle palvelimelle.',

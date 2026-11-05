@@ -8,6 +8,11 @@
 // Copy uses the inline markup from ./rich: **UI label**, _emphasis_, `verbatim`, [link](/href), and
 // {value} for something the page fills in (site URL, clan name). Anything structural — image paths,
 // sizes, which section is conditional — stays in the page, not here.
+//
+// For translators: Anvil's own on-screen labels stay English in every locale. Discord's UI labels
+// (menus, settings, permission names: "Copy Server ID", "Server Settings → Roles", "Manage Webhooks")
+// follow Discord's own translation for that language — what the reader's Discord client shows — and
+// stay English where Discord isn't localized (Arabic, for one).
 
 export const en = {
   common: {

@@ -2,10 +2,14 @@ import type { PartialGuideDict } from './en';
 
 // Italiano — Italian.
 //
-// Stessa convenzione degli altri file di lingua: resta in inglese tutto ciò che il lettore vede
-// davvero sullo schermo —— i menu di RuneLite e OBS, le righe di chat che il plugin stampa da sé e le
-// etichette del pannello di amministrazione di Anvil (in inglese finché quelle schermate non saranno
-// tradotte). Tradurre “Tracked drop detected” significa che chi cerca quella riga non la trova più.
+// Stessa convenzione degli altri file di lingua: resta in inglese ciò che il lettore vede davvero
+// sullo schermo di Anvil, RuneLite e OBS —— i menu di RuneLite e OBS, le righe di chat che il plugin
+// stampa da sé e le etichette del pannello di amministrazione di Anvil (in inglese finché quelle
+// schermate non saranno tradotte). Tradurre “Tracked drop detected” significa che chi cerca quella
+// riga non la trova più.
+// Le etichette dell’interfaccia di Discord (menu, impostazioni, nomi dei permessi: “Copia ID server”,
+// “Impostazioni server → Ruoli”, “Gestisci webhook”) seguono invece la traduzione italiana di Discord
+// stesso —— ciò che mostra il client del lettore —— e resterebbero in inglese dove Discord non è tradotto.
 // Tutto il resto —— le spiegazioni, l’ordine, il perché —— è in italiano.
 
 const it: PartialGuideDict = {
@@ -398,31 +402,31 @@ const it: PartialGuideDict = {
       ],
       permissions: [
         {
-          term: 'Vedere i canali, inviare messaggi, incorporare link, allegare file',
+          term: 'Visualizza canali, Invia messaggi, Incorpora link, Allega file',
           body: 'Le basi. Senza queste è nel tuo server e muto.',
         },
         {
-          term: 'Gestire i webhook',
+          term: 'Gestisci webhook',
           body: 'Perché **Set it up for me** e **Post here** possano creare i webhook per te invece che tu copi URL da Discord a mano, e perché Anvil possa trovare i vecchi webhook da farti rimuovere.',
         },
         {
-          term: 'Gestire i ruoli',
+          term: 'Gestisci ruoli',
           body: 'Solo se attivi la sincronizzazione dei ruoli. Allora può assegnare i ruoli che colleghi — e non può mai toccare un ruolo sopra il proprio, che è una regola di Discord, non nostra.',
         },
         {
-          term: 'Gestire i nickname',
+          term: 'Gestisci nickname',
           body: 'Solo se attivi la sincronizzazione dei nickname, perché il nickname sul server di un membro possa essere impostato al suo RSN.',
         },
         {
-          term: 'Gestire i canali',
+          term: 'Gestisci canali',
           body: 'Per i canali privati delle squadre durante un draft, e per le guide pubblicate come nuova categoria o forum. Senza, tutto il resto funziona comunque.',
         },
         {
-          term: 'Gestire i thread, inviare messaggi nei thread',
+          term: 'Gestisci thread, Invia messaggi nei thread',
           body: 'Per le guide pubblicate in un forum: scrivere nel post e rimuoverlo di nuovo — senza questo permesso Discord non lascia a un bot eliminare nemmeno il proprio post.',
         },
         {
-          term: 'Cambiare nickname',
+          term: 'Cambia nickname',
           body: 'Solo se dai al bot il nome del tuo clan sotto **Connection → Bot appearance in your server**. Cambia il nome del bot solo nel tuo server.',
         },
       ],
@@ -441,7 +445,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Imposta l’ID del server',
-          body: 'Solo se il pulsante non ci riesce: apri **Can’t use the button? Enter the server ID**, fai clic destro sull’icona del tuo server in Discord → **Copy Server ID** (richiede la modalità sviluppatore, nelle impostazioni avanzate di Discord), incollalo in **Your Discord server’s ID** e premi **Save**. È il campo che rende il collegamento specificamente tuo.',
+          body: 'Solo se il pulsante non ci riesce: apri **Can’t use the button? Enter the server ID**, fai clic destro sull’icona del tuo server in Discord → **Copia ID server** (richiede la Modalità sviluppatore attiva, sotto Avanzate nelle impostazioni di Discord), incollalo in **Your Discord server’s ID** e premi **Save**. È il campo che rende il collegamento specificamente tuo.',
         },
       ],
       after: [
@@ -456,7 +460,7 @@ const it: PartialGuideDict = {
       title: 'Configurare i webhook',
       body: [
         'Anvil pubblica tramite **webhook**, uno per canale, e sono tutti facoltativi. Non viene pubblicato niente da nessuna parte finché non indirizzi un feed a un canale — un clan appena nato è silenzioso di proposito, non per sbaglio.',
-        'Con il bot di Anvil nel tuo server, **Set it up for me** in cima ad **Admin → Discord** crea i canali e ci punta ogni feed. Per farlo a mano, apri **More settings → What goes where** e parti dal **Catch-all channel** in **Clan & events**, poi dall’**In-game catch-all** in **In-game (plugin)**: scegli un canale dal menu a tendina e si salva da solo. Senza il bot, in Discord apri **Edit Channel → Integrations → Webhooks** di quel canale, creane uno, copia l’URL, scegli **Paste a webhook…** nel menu a tendina, incollalo e premi **Save**. Un URL webhook può pubblicare nel canale, quindi trattalo come una password; se viene esposto, eliminalo in Discord e creane uno nuovo. **Test**, e **Add another** per distribuire i post più intensi fra due webhook, si trovano sotto **Post without a bot**.',
+        'Con il bot di Anvil nel tuo server, **Set it up for me** in cima ad **Admin → Discord** crea i canali e ci punta ogni feed. Per farlo a mano, apri **More settings → What goes where** e parti dal **Catch-all channel** in **Clan & events**, poi dall’**In-game catch-all** in **In-game (plugin)**: scegli un canale dal menu a tendina e si salva da solo. Senza il bot, in Discord apri **Modifica canale → Integrazioni → Webhook** di quel canale, creane uno, copia l’URL, scegli **Paste a webhook…** nel menu a tendina, incollalo e premi **Save**. Un URL webhook può pubblicare nel canale, quindi trattalo come una password; se viene esposto, eliminalo in Discord e creane uno nuovo. **Test**, e **Add another** per distribuire i post più intensi fra due webhook, si trovano sotto **Post without a bot**.',
       ],
       feeds: [
         {
@@ -494,7 +498,7 @@ const it: PartialGuideDict = {
       ],
       note: {
         tag: 'Il ruolo del bot deve stare sopra quelli che gestisce',
-        body: 'Discord non permette a nessun bot di toccare un ruolo pari o superiore al proprio, e lo rifiuta in silenzio dal tuo lato — la sincronizzazione semplicemente non fa nulla. Trascina il ruolo Anvil più in alto in Impostazioni server → Ruoli e comincia a funzionare; non serve reinvitare niente.',
+        body: 'Discord non permette a nessun bot di toccare un ruolo pari o superiore al proprio, e lo rifiuta in silenzio dal tuo lato — la sincronizzazione semplicemente non fa nulla. Trascina il ruolo Anvil più in alto in **Impostazioni server → Ruoli** e comincia a funzionare; non serve reinvitare niente.',
       },
     },
     commands: {
@@ -540,8 +544,8 @@ const it: PartialGuideDict = {
         'La lista contiene qualsiasi webhook che non sia di Anvil, non solo quelli di Dink. Ce n’è uno che vuoi tenere, come il feed di un altro bot? Premi **Keep** ed esce dalla lista; **Show kept** e **Put back** lo riportano dentro. Tenerlo lo nasconde soltanto qui — in Discord non cambia niente.',
       ],
       note: {
-        tag: 'Richiede Manage Webhooks',
-        body: 'Il bot legge i webhook del tuo server per trovarli. Senza _Manage Webhooks_ sul suo ruolo, la pagina dice che non riesce a vederli.',
+        tag: 'Richiede il permesso Gestisci webhook',
+        body: 'Il bot legge i webhook del tuo server per trovarli. Senza _Gestisci webhook_ sul suo ruolo, la pagina dice che non riesce a vederli.',
       },
     },
     announce: {
@@ -997,7 +1001,7 @@ const it: PartialGuideDict = {
         'Per Discord hai due strade, e si combinano: dai ad Anvil un **bot** e potrà creare webhook, sincronizzare ruoli e nickname e costruire canali privati per le squadre; dagli un singolo **URL di webhook** e potrà pubblicare annunci e nient’altro. Parti dal webhook se vuoi essere operativo in due minuti, aggiungi il bot quando vuoi l’automazione.',
       permsNote: {
         tag: 'Permessi del bot',
-        body: 'Il bot ha bisogno di _Manage Webhooks_, _Manage Roles_, _Manage Channels_ e _Manage Nicknames_, e il suo ruolo deve stare _sopra_ i ruoli che gestisce nell’elenco dei ruoli del tuo server. Altrimenti Discord rifiuta in silenzio.',
+        body: 'Il bot ha bisogno dei permessi _Gestisci webhook_, _Gestisci ruoli_, _Gestisci canali_ e _Gestisci nickname_, e il suo ruolo deve stare _sopra_ i ruoli che gestisce nell’elenco dei ruoli del tuo server. Altrimenti Discord rifiuta in silenzio.',
       },
       hosted:
         'Con un piano ospitato quella schermata l’hai già incontrata una volta: aggiungere il bot durante la configurazione è il modo in cui Anvil ha capito qual è il tuo server, quindi non c’è mai stato un ID da copiare. Lo stesso link è qui ogni volta che vuoi spostare il bot su un altro server.',

@@ -2,10 +2,14 @@ import type { PartialGuideDict } from './en';
 
 // Norsk (bokmål) — Norwegian.
 //
-// Samme konvensjon som i alle de andre språkfilene her: alt leseren FAKTISK SER på skjermen blir
-// stående på engelsk — menyer i RuneLite og OBS, pluginets egne chattelinjer, og Anvils egne
-// adminetiketter, som er engelske til den flaten også blir oversatt. En oversatt "Tracked drop
-// detected" er en linje ingen finner igjen. Alt annet — forklaringen, rekkefølgen, hvorfor — er norsk.
+// Samme konvensjon som i alle de andre språkfilene her: alt leseren FAKTISK SER på skjermen i Anvil,
+// RuneLite og OBS blir stående på engelsk — menyer i RuneLite og OBS, pluginets egne chattelinjer, og
+// Anvils egne adminetiketter, som er engelske til den flaten også blir oversatt. En oversatt "Tracked
+// drop detected" er en linje ingen finner igjen.
+// Discords egne UI-etiketter (menyer, innstillinger, navn på tillatelser: "Kopier server-ID",
+// "Serverinnstillinger → Roller", "Administrer webhooks") følger Discords egen norske oversettelse — det
+// leserens Discord-klient viser — og ville blitt stående på engelsk der Discord ikke er oversatt.
+// Alt annet — forklaringen, rekkefølgen, hvorfor — er norsk.
 
 const no: PartialGuideDict = {
   common: {
@@ -397,27 +401,27 @@ const no: PartialGuideDict = {
       ],
       permissions: [
         {
-          term: 'Se kanaler, sende meldinger, bygge inn lenker, legge ved filer',
+          term: 'Se kanaler, Send meldinger, Bygg inn lenker, Legg ved filer',
           body: 'Det grunnleggende. Uten disse er den på serveren din og taus.',
         },
         {
-          term: 'Administrere webhooks',
+          term: 'Administrer webhooks',
           body: 'Så **Set it up for me** og **Post here** kan lage webhooks for deg i stedet for at du kopierer URL-er ut av Discord for hånd, og så Anvil kan finne gamle webhooks du kan fjerne.',
         },
         {
-          term: 'Administrere roller',
+          term: 'Administrer roller',
           body: 'Bare hvis du slår på rollesynkronisering. Da kan den dele ut rollene du kobler — og den kan aldri røre en rolle over sin egen, som er Discords regel, ikke vår.',
         },
         {
-          term: 'Administrere kallenavn',
+          term: 'Administrer kallenavn',
           body: 'Bare hvis du slår på kallenavnsynkronisering, så et medlems servernavn kan settes til RSN-et deres.',
         },
         {
-          term: 'Administrere kanaler',
+          term: 'Administrer kanaler',
           body: 'For private lagkanaler under en draft, og for guider som postes som en ny kategori eller et forum. Hopp over den, så fungerer alt annet likevel.',
         },
         {
-          term: 'Administrere tråder, sende meldinger i tråder',
+          term: 'Administrer tråder, Send meldinger i tråder',
           body: 'For guider i et forum: å skrive i innlegget og fjerne det igjen — Discord lar ikke en bot slette selv sitt eget foruminnlegg uten den.',
         },
         {
@@ -440,7 +444,7 @@ const no: PartialGuideDict = {
         },
         {
           term: 'Sett server-id-en',
-          body: 'Bare hvis knappen ikke får det til: åpne **Can’t use the button? Enter the server ID**, høyreklikk serverikonet i Discord → **Copy Server ID** (krever Utviklermodus, under Discords egne avanserte innstillinger), lim den inn i **Your Discord server’s ID** og trykk **Save**. Det er feltet som gjør koblingen til din.',
+          body: 'Bare hvis knappen ikke får det til: åpne **Can’t use the button? Enter the server ID**, høyreklikk serverikonet i Discord → **Kopier server-ID** (krever Utviklermodus, under Avansert i Discords egne innstillinger), lim den inn i **Your Discord server’s ID** og trykk **Save**. Det er feltet som gjør koblingen til din.',
         },
       ],
       after: [
@@ -455,7 +459,7 @@ const no: PartialGuideDict = {
       title: 'Sett opp webhooks',
       body: [
         'Anvil poster gjennom **webhooks**, én per kanal, og hver eneste er valgfri. Ingenting postes noe sted før du peker en feed mot en kanal — en fersk klan er taus med vilje, ikke ved et uhell.',
-        'Med Anvil-boten på serveren lager **Set it up for me** øverst på **Admin → Discord** kanalene og peker hver feed mot dem. Vil du gjøre det for hånd, åpner du **More settings → What goes where** og starter med **Catch-all channel** på **Clan & events**, deretter **In-game catch-all** på **In-game (plugin)**: velg en kanal i nedtrekkslista, så lagres den. Uten boten går du i Discord til kanalens **Edit Channel → Integrations → Webhooks**, oppretter en, kopierer URL-en, velger **Paste a webhook…** i nedtrekkslista, limer den inn og trykker **Save**. En webhook-URL kan poste i kanalen sin, så behandle den som et passord; slett den i Discord og lag en ny hvis den lekker. **Test**, og **Add another** for å fordele travle poster mellom to webhooks, ligger under **Post without a bot**.',
+        'Med Anvil-boten på serveren lager **Set it up for me** øverst på **Admin → Discord** kanalene og peker hver feed mot dem. Vil du gjøre det for hånd, åpner du **More settings → What goes where** og starter med **Catch-all channel** på **Clan & events**, deretter **In-game catch-all** på **In-game (plugin)**: velg en kanal i nedtrekkslista, så lagres den. Uten boten går du i Discord til kanalens **Rediger kanal → Integrasjoner → Webhooks**, oppretter en, kopierer URL-en, velger **Paste a webhook…** i nedtrekkslista, limer den inn og trykker **Save**. En webhook-URL kan poste i kanalen sin, så behandle den som et passord; slett den i Discord og lag en ny hvis den lekker. **Test**, og **Add another** for å fordele travle poster mellom to webhooks, ligger under **Post without a bot**.',
       ],
       feeds: [
         {
@@ -493,7 +497,7 @@ const no: PartialGuideDict = {
       ],
       note: {
         tag: 'Botens rolle må ligge over dem den styrer',
-        body: 'Discord lar ingen bot røre en rolle på eller over sin egen, og nekter det tause fra din side — synkroniseringen gjør da rett og slett ingenting. Dra Anvil-rollen opp under Serverinnstillinger → Roller, så begynner den å virke; ingenting må inviteres på nytt.',
+        body: 'Discord lar ingen bot røre en rolle på eller over sin egen, og nekter det tause fra din side — synkroniseringen gjør da rett og slett ingenting. Dra Anvil-rollen opp under **Serverinnstillinger → Roller**, så begynner den å virke; ingenting må inviteres på nytt.',
       },
     },
     commands: {
@@ -539,8 +543,8 @@ const no: PartialGuideDict = {
         'Lista inneholder alle webhooks som ikke er Anvils, ikke bare Dinks. Vil du beholde en, som feeden til en annen bot? Trykk **Keep**, så forsvinner den fra lista; **Show kept** og **Put back** henter den tilbake. Å beholde skjuler den bare her — ingenting endres i Discord.',
       ],
       note: {
-        tag: 'Krever Manage Webhooks',
-        body: 'Boten leser serverens webhooks for å finne dem. Uten _Manage Webhooks_ på rollen sin sier siden at den ikke kan se dem.',
+        tag: 'Krever Administrer webhooks',
+        body: 'Boten leser serverens webhooks for å finne dem. Uten _Administrer webhooks_ på rollen sin sier siden at den ikke kan se dem.',
       },
     },
     announce: {
@@ -1004,7 +1008,7 @@ const no: PartialGuideDict = {
         'For Discord har du to veier, og de lar seg kombinere: gi Anvil en **bot**, så kan den opprette webhooks, synkronisere roller og kallenavn og bygge private lagkanaler; gi den én enkelt **webhook-URL**, så kan den poste kunngjøringer og ingenting annet. Start med webhooken hvis du vil være i gang på to minutter, og legg til boten når du vil ha automatikken.',
       permsNote: {
         tag: 'Botens rettigheter',
-        body: 'Boten trenger _Manage Webhooks_, _Manage Roles_, _Manage Channels_ og _Manage Nicknames_, og rollen dens må ligge _over_ rollene den styrer i serverens rolleliste. Ellers nekter Discord i stillhet.',
+        body: 'Boten trenger _Administrer webhooks_, _Administrer roller_, _Administrer kanaler_ og _Administrer kallenavn_, og rollen dens må ligge _over_ rollene den styrer i serverens rolleliste. Ellers nekter Discord i stillhet.',
       },
       hosted:
         'På en hostet plan møtte du den skjermen én gang allerede: å legge til boten under oppsettet var måten Anvil fant ut hvilken server som er deres, så det fantes aldri en server-ID å kopiere. Den samme lenken ligger her når du vil flytte boten til en annen server.',

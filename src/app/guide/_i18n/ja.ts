@@ -2,10 +2,13 @@ import type { PartialGuideDict } from './en';
 
 // 日本語 — Japanese.
 //
-// ここにある他の言語ファイルと同じ方針：読者が画面上で「実際に目にする」ものは英語のまま残す ——
-// RuneLite と OBS のメニュー、プラグイン自身が出すチャット行、そして Anvil の管理画面のラベル
+// ここにある他の言語ファイルと同じ方針：Anvil・RuneLite・OBS の画面上で読者が「実際に目にする」ものは
+// 英語のまま残す —— RuneLite と OBS のメニュー、プラグイン自身が出すチャット行、そして Anvil の管理画面のラベル
 // （その画面自体が翻訳されるまでは英語）。"Tracked drop detected" を訳してしまうと、
-// 画面上のその行を探している人が二度と見つけられなくなる。それ以外 —— 説明、順序、理由 —— はすべて日本語。
+// 画面上のその行を探している人が二度と見つけられなくなる。
+// Discord の UI ラベル（メニュー、設定、権限名：「サーバーIDをコピー」「サーバー設定 → ロール」「ウェブフックの管理」）は
+// Discord 自身の日本語訳 —— 読者の Discord クライアントに出る表記 —— に従う（Discord が未対応の言語なら英語のまま）。
+// それ以外 —— 説明、順序、理由 —— はすべて日本語。
 
 const ja: PartialGuideDict = {
   common: {
@@ -397,11 +400,11 @@ const ja: PartialGuideDict = {
       ],
       permissions: [
         {
-          term: 'チャンネルを見る、メッセージを送信、リンクを埋め込む、ファイルを添付',
+          term: 'チャンネルを見る、メッセージを送信、埋め込みリンク、ファイルを添付',
           body: '基本です。これがないと、サーバーにいて黙っているだけになります。',
         },
         {
-          term: 'Webhook の管理',
+          term: 'ウェブフックの管理',
           body: '**Set it up for me** と **Post here** が代わりに Webhook を作れるようにするためです。そうでなければ、あなたが Discord から URL を手でコピーすることになります。また、削除すべき古い Webhook を Anvil が見つけるためにも使います。',
         },
         {
@@ -440,7 +443,7 @@ const ja: PartialGuideDict = {
         },
         {
           term: 'サーバー ID を設定する',
-          body: 'ボタンでうまくいかない場合のみ：**Can’t use the button? Enter the server ID** を開き、Discord でサーバーアイコンを右クリック → **Copy Server ID**（Discord 自身の詳細設定で開発者モードを有効にする必要があります）、それを **Your Discord server’s ID** に貼って **Save** を押します。この項目こそが、接続をあなた固有のものにします。',
+          body: 'ボタンでうまくいかない場合のみ：**Can’t use the button? Enter the server ID** を開き、Discord でサーバーアイコンを右クリック → **サーバーIDをコピー**（Discord 自身の設定の「詳細設定」で開発者モードをオンにする必要があります）、それを **Your Discord server’s ID** に貼って **Save** を押します。この項目こそが、接続をあなた固有のものにします。',
         },
       ],
       after: [
@@ -455,7 +458,7 @@ const ja: PartialGuideDict = {
       title: 'Webhook の設定',
       body: [
         'Anvil は **Webhook** を通じて投稿します。チャンネルごとにひとつで、そのすべてが任意です。フィードをチャンネルに向けるまで、どこにも何も投稿されません——できたてのクランが静かなのは、事故ではなく設計です。',
-        'Anvil のボットがサーバーにいれば、**Admin → Discord** 上部の **Set it up for me** がチャンネルを作り、すべてのフィードをそこへ向けます。手作業でやるなら **More settings → What goes where** を開き、まず **Clan & events** の **Catch-all channel**、次に **In-game (plugin)** の **In-game catch-all** を設定します：ドロップダウンからチャンネルを選べば保存されます。ボットなしなら Discord でそのチャンネルの **Edit Channel → Integrations → Webhooks** を開いて作成し、URL をコピーして、ドロップダウンで **Paste a webhook…** を選び、貼って **Save** を押します。Webhook URL はチャンネルへ投稿できるため、パスワード同様に扱ってください。漏れたら Discord で削除し、作り直します。**Test** と、投稿量が多いときに 2 本の Webhook を交互に使う **Add another** は **Post without a bot** にあります。',
+        'Anvil のボットがサーバーにいれば、**Admin → Discord** 上部の **Set it up for me** がチャンネルを作り、すべてのフィードをそこへ向けます。手作業でやるなら **More settings → What goes where** を開き、まず **Clan & events** の **Catch-all channel**、次に **In-game (plugin)** の **In-game catch-all** を設定します：ドロップダウンからチャンネルを選べば保存されます。ボットなしなら Discord でそのチャンネルの **チャンネルの編集 → 連携サービス → ウェブフック** を開いて作成し、URL をコピーして、ドロップダウンで **Paste a webhook…** を選び、貼って **Save** を押します。Webhook URL はチャンネルへ投稿できるため、パスワード同様に扱ってください。漏れたら Discord で削除し、作り直します。**Test** と、投稿量が多いときに 2 本の Webhook を交互に使う **Add another** は **Post without a bot** にあります。',
       ],
       feeds: [
         {
@@ -493,7 +496,7 @@ const ja: PartialGuideDict = {
       ],
       note: {
         tag: 'ボットのロールは管理対象より上にある必要があります',
-        body: 'Discord はどのボットにも、自分と同格か上のロールに触れることを許しません。しかもあなたの側からは黙って拒否されます——同期がただ何もしないのです。サーバー設定 → ロール で Anvil のロールを上へドラッグすれば動き出します。再招待は要りません。',
+        body: 'Discord はどのボットにも、自分と同格か上のロールに触れることを許しません。しかもあなたの側からは黙って拒否されます——同期がただ何もしないのです。**サーバー設定 → ロール** で Anvil のロールを上へドラッグすれば動き出します。再招待は要りません。',
       },
     },
     commands: {
@@ -539,8 +542,8 @@ const ja: PartialGuideDict = {
         'この一覧には Dink のものに限らず、Anvil のものではない Webhook がすべて入ります。別のボットのフィードなど、残したいものがある？ **Keep** を押せば一覧から外れます。**Show kept** と **Put back** で戻せます。Keep はここで隠すだけです——Discord では何も変わりません。',
       ],
       note: {
-        tag: 'Manage Webhooks が必要',
-        body: 'ボットはサーバーの Webhook を読んで見つけます。ボットのロールに _Manage Webhooks_ がないと、ページには見えないと表示されます。',
+        tag: '「ウェブフックの管理」権限が必要',
+        body: 'ボットはサーバーの Webhook を読んで見つけます。ボットのロールに _ウェブフックの管理_ 権限がないと、ページには見えないと表示されます。',
       },
     },
     announce: {
@@ -1004,7 +1007,7 @@ const ja: PartialGuideDict = {
         'Discord には 2 つの道があり、併用できます：Anvil に**ボット**を与えれば、webhook の作成、ロールとニックネームの同期、プライベートなチームチャンネルの作成までできます。**webhook の URL** を 1 本だけ与えた場合は、告知の投稿だけができます。2 分で動かしたいなら webhook から始め、自動化が欲しくなったらボットを足してください。',
       permsNote: {
         tag: 'ボットの権限',
-        body: 'ボットには _Manage Webhooks_、_Manage Roles_、_Manage Channels_、_Manage Nicknames_ が必要で、そのロールはサーバーのロール一覧で、管理対象のロールより_上_に置かれていなければなりません。さもないと Discord は黙って拒否します。',
+        body: 'ボットには _ウェブフックの管理_、_ロールの管理_、_チャンネルの管理_、_ニックネームの管理_ の権限が必要で、そのロールはサーバーのロール一覧で、管理対象のロールより_上_に置かれていなければなりません。さもないと Discord は黙って拒否します。',
       },
       hosted:
         'ホスト型のプランでは、その画面に一度出会っているはずです：セットアップ中にボットを追加したことが、Anvil がどのサーバーがあなた方のものかを知った方法でした。だからサーバー ID をコピーする場面は最初からなかったのです。ボットを別のサーバーへ移したくなったときのために、同じリンクがここにあります。',

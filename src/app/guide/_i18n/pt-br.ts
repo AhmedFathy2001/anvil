@@ -3,9 +3,12 @@ import type { PartialGuideDict } from './en';
 // Português (Brasil) — Brazilian Portuguese.
 //
 // Mesma convenção dos outros arquivos de idioma: fica em inglês tudo o que o leitor realmente vê na
-// tela —— os menus do RuneLite e do OBS, as linhas de chat que o próprio plugin imprime e os rótulos
-// do painel administrativo do Anvil (em inglês enquanto aquelas telas não forem traduzidas).
-// Traduzir “Tracked drop detected” faz com que quem procura aquela linha nunca mais a encontre.
+// tela do Anvil, do RuneLite e do OBS —— os menus do RuneLite e do OBS, as linhas de chat que o
+// próprio plugin imprime e os rótulos do painel administrativo do Anvil (em inglês enquanto aquelas
+// telas não forem traduzidas). Traduzir “Tracked drop detected” faz com que quem procura aquela linha
+// nunca mais a encontre. Os rótulos da interface do Discord (menus, configurações, nomes de
+// permissões) seguem a tradução oficial do Discord em Português do Brasil: “Copiar ID do servidor”,
+// “Configurações do servidor → Cargos”, “Gerenciar webhooks”.
 // Todo o resto —— as explicações, a ordem, o porquê —— está em português.
 
 const ptBr: PartialGuideDict = {
@@ -399,7 +402,7 @@ const ptBr: PartialGuideDict = {
       ],
       permissions: [
         {
-          term: 'Ver canais, enviar mensagens, incorporar links, anexar arquivos',
+          term: 'Ver canais, Enviar mensagens, Inserir links, Anexar arquivos',
           body: 'O básico. Sem isso ele fica no seu servidor e mudo.',
         },
         {
@@ -419,7 +422,7 @@ const ptBr: PartialGuideDict = {
           body: 'Para canais privados dos times durante um draft e para guias publicados como uma nova categoria ou fórum. Sem ela, todo o resto continua funcionando.',
         },
         {
-          term: 'Gerenciar tópicos, enviar mensagens em tópicos',
+          term: 'Gerenciar tópicos, Enviar mensagens em tópicos',
           body: 'Para guias publicados em um fórum: escrever dentro da postagem e removê-la depois — sem isso o Discord não deixa um bot apagar nem a própria postagem.',
         },
         {
@@ -442,7 +445,7 @@ const ptBr: PartialGuideDict = {
         },
         {
           term: 'Defina o ID do servidor',
-          body: 'Só se o botão não der conta: abra **Can’t use the button? Enter the server ID**, clique com o botão direito no ícone do seu servidor no Discord → **Copy Server ID** (precisa do modo desenvolvedor, nas configurações avançadas do próprio Discord), cole em **Your Discord server’s ID** e aperte **Save**. É esse campo que torna a conexão especificamente sua.',
+          body: 'Só se o botão não der conta: abra **Can’t use the button? Enter the server ID**, clique com o botão direito no ícone do seu servidor no Discord → **Copiar ID do servidor** (precisa do Modo desenvolvedor ativado, em Avançado, nas configurações do próprio Discord), cole em **Your Discord server’s ID** e aperte **Save**. É esse campo que torna a conexão especificamente sua.',
         },
       ],
       after: [
@@ -457,7 +460,7 @@ const ptBr: PartialGuideDict = {
       title: 'Configurar webhooks',
       body: [
         'O Anvil posta por **webhooks**, um por canal, e cada um deles é opcional. Nada é postado em lugar nenhum até você apontar um feed para um canal — um clã recém-criado fica em silêncio de propósito, não por acidente.',
-        'Com o bot do Anvil no seu servidor, **Set it up for me** no topo de **Admin → Discord** cria os canais e aponta cada feed para eles. Para fazer na mão, abra **More settings → What goes where** e comece pelo **Catch-all channel** em **Clan & events**, depois pelo **In-game catch-all** em **In-game (plugin)**: escolha um canal na lista suspensa e ele salva. Sem o bot, abra no Discord **Edit Channel → Integrations → Webhooks** daquele canal, crie um, copie a URL, escolha **Paste a webhook…** na lista suspensa, cole e aperte **Save**. Uma URL de webhook pode postar no canal, então trate-a como senha; se vazar, apague-a no Discord e crie outra. **Test**, e **Add another** para alternar as postagens de maior volume entre dois webhooks, ficam em **Post without a bot**.',
+        'Com o bot do Anvil no seu servidor, **Set it up for me** no topo de **Admin → Discord** cria os canais e aponta cada feed para eles. Para fazer na mão, abra **More settings → What goes where** e comece pelo **Catch-all channel** em **Clan & events**, depois pelo **In-game catch-all** em **In-game (plugin)**: escolha um canal na lista suspensa e ele salva. Sem o bot, abra no Discord **Editar canal → Integrações → Webhooks** daquele canal, crie um, copie a URL, escolha **Paste a webhook…** na lista suspensa, cole e aperte **Save**. Uma URL de webhook pode postar no canal, então trate-a como senha; se vazar, apague-a no Discord e crie outra. **Test**, e **Add another** para alternar as postagens de maior volume entre dois webhooks, ficam em **Post without a bot**.',
       ],
       feeds: [
         {
@@ -541,8 +544,8 @@ const ptBr: PartialGuideDict = {
         'A lista mostra qualquer webhook que não seja do Anvil, não só os do Dink. Tem um que você quer manter, como o feed de outro bot? Aperte **Keep** e ele sai da lista; **Show kept** e **Put back** o trazem de volta. Manter só o esconde aqui — nada muda no Discord.',
       ],
       note: {
-        tag: 'Precisa de Manage Webhooks',
-        body: 'O bot lê os webhooks do seu servidor para encontrá-los. Sem _Manage Webhooks_ no cargo dele, a página avisa que não consegue vê-los.',
+        tag: 'Precisa da permissão Gerenciar webhooks',
+        body: 'O bot lê os webhooks do seu servidor para encontrá-los. Sem a permissão _Gerenciar webhooks_ no cargo dele, a página avisa que não consegue vê-los.',
       },
     },
     announce: {
@@ -998,7 +1001,7 @@ const ptBr: PartialGuideDict = {
         'Para o Discord você tem dois caminhos, e eles se somam: dê ao Anvil um **bot** e ele poderá criar webhooks, sincronizar cargos e apelidos e montar canais privados de time; dê a ele uma única **URL de webhook** e ele poderá publicar anúncios e nada mais. Comece pelo webhook se quer estar no ar em dois minutos, e adicione o bot quando quiser a automação.',
       permsNote: {
         tag: 'Permissões do bot',
-        body: 'O bot precisa de _Manage Webhooks_, _Manage Roles_, _Manage Channels_ e _Manage Nicknames_, e o cargo dele precisa ficar _acima_ dos cargos que administra na lista de cargos do seu servidor. Caso contrário o Discord recusa em silêncio.',
+        body: 'O bot precisa das permissões _Gerenciar webhooks_, _Gerenciar cargos_, _Gerenciar canais_ e _Gerenciar apelidos_, e o cargo dele precisa ficar _acima_ dos cargos que administra na lista de cargos do seu servidor. Caso contrário o Discord recusa em silêncio.',
       },
       hosted:
         'Num plano hospedado você já viu essa tela uma vez: adicionar o bot durante a configuração foi como o Anvil descobriu qual servidor é o seu, então nunca houve um ID de servidor para copiar. O mesmo link está aqui sempre que você quiser mover o bot para outro servidor.',
