@@ -917,7 +917,16 @@ export function momentSentence(m: {
   sourceKind?: string | null;
   valueGp: number | null;
   tier?: string | null;
+  /** Back-to-back repeats it stands for (lib/feedRuns): "died to Vorkath ×12". */
+  run?: { n: number; mixed?: boolean } | null;
 }): string {
+  const run = m.run && m.run.n > 1 ? m.run : null;
+  if (!run) return oneSentence(m);
+  if (m.kind === 'death' && run.mixed) return m.source ? `died ×${run.n}, last to ${m.source}` : `died ×${run.n}`;
+  return `${oneSentence(m)} ×${run.n}`;
+}
+
+function oneSentence(m: Parameters<typeof momentSentence>[0]): string {
   const item = m.itemName ?? 'something';
   const qty = m.quantity > 1 ? `${m.quantity.toLocaleString()} × ` : '';
   switch (m.kind) {

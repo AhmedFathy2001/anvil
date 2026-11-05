@@ -4,6 +4,7 @@ import { and, eq, gte, inArray, isNull, lte, ne, lt, desc } from 'drizzle-orm';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { buildCompetitionAwards, type CompetitionAward } from '@/lib/competitionAwards';
 import { momentsForCompetition } from '@/lib/momentsStore';
+import { collapseMomentRuns } from '@/lib/feedRuns';
 import { rosterClanSeat } from '@/lib/seatScope';
 import { MOMENT_EMOJI, momentSentence } from '@/lib/moments';
 import { EFFICIENCY_SCALE, weeklyMetricLabel as metricLabel } from '@/lib/constants';
@@ -481,7 +482,8 @@ async function loadMilestones(
  * page needs neither. It's a read of rows that were already scoped.
  */
 async function loadHighlights(competitionId: number): Promise<CompetitionHighlight[]> {
-  const rows = await momentsForCompetition(competitionId, 8);
+  // Back-to-back repeats (someone's fifteen deaths) are one line with a count (lib/feedRuns).
+  const rows = collapseMomentRuns(await momentsForCompetition(competitionId, 24)).slice(0, 8);
   return rows.map((m) => {
     const bits: string[] = [];
     if (m.rarityDenominator && m.rarityDenominator >= 100) {

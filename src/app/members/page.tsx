@@ -15,6 +15,7 @@ import { RANK_NUMBERS_KEY, RANK_ORDER_KEY, effectiveRankOrder, parseRankNumbers,
 import MembersTabs from './MembersTabs';
 import { getLuckBoards } from '@/lib/clogLuckBoard';
 import { momentsForClan } from '@/lib/momentsStore';
+import { collapseMomentRuns } from '@/lib/feedRuns';
 import MomentsFeed from '@/components/MomentsFeed';
 import { supporterLooksByName } from '@/lib/supporter';
 import { verifyUser } from '@/lib/auth';
@@ -71,7 +72,8 @@ export default async function MembersPage() {
     getLuckBoards(clan.id),
     // Every scope's moments together — see momentsForClan for why a board's drop and a quiet
     // Tuesday's pet are the same news to someone reading this page.
-    momentsForClan(clan.id, 30),
+    // Back-to-back repeats are one line with a count (lib/feedRuns), cut to 30 after.
+    momentsForClan(clan.id, 90).then((rows) => collapseMomentRuns(rows).slice(0, 30)),
     // Supporter flair on each character's name: one query for the whole roster (the podium's names
     // are roster names, so the same record covers them).
     supporterLooksByName(members.map((m) => m.rsn)),
