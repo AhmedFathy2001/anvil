@@ -4,6 +4,7 @@ import skillPets from '@/data/skillPets.json';
 import combatAchievements from '@/data/combatAchievements.json';
 import { BOSSES, metricKeys } from '@/lib/constants';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
+import { shownKiller } from '@/lib/deathSource';
 import { FALLEN_MODE, fallenSentence, isFallenDeath } from '@/lib/hardcoreFall';
 import { DEFAULT_LEVEL_RULES, levelPostMatches, type LevelPost, type LevelRules } from '@/lib/levelRules';
 
@@ -560,7 +561,8 @@ export function classifyObservation(
   const ca = obs.kind === 'ca' ? caFacts(obs) : null;
   const base = {
     // A log slot arrives by name (the chat line); the log's own id gives the feed its icon.
-    itemId: obs.itemId ?? (obs.kind === 'clog' ? clogItemIdByName(obs.itemName) : null),
+    // A pet arrives by name too (its collection-log line); the log's own id gives it its picture.
+    itemId: obs.itemId ?? (obs.kind === 'clog' || obs.kind === 'pet' ? clogItemIdByName(obs.itemName) : null),
     itemName: obs.kind === 'ca' ? obs.taskName ?? null : obs.itemName ?? null,
     quantity: Math.max(1, obs.quantity ?? 1),
     valueGp: obs.valueGp ?? null,
@@ -917,7 +919,16 @@ export function momentSentence(m: {
   sourceKind?: string | null;
   valueGp: number | null;
   tier?: string | null;
+  /** Back-to-back repeats it stands for (lib/feedRuns): "died to Vorkath ×12". */
+  run?: { n: number; mixed?: boolean } | null;
 }): string {
+  const run = m.run && m.run.n > 1 ? m.run : null;
+  if (!run) return oneSentence(m);
+  if (m.kind === 'death' && run.mixed) return m.source ? `died ×${run.n}, last to ${m.source}` : `died ×${run.n}`;
+  return `${oneSentence(m)} ×${run.n}`;
+}
+
+function oneSentence(m: Parameters<typeof momentSentence>[0]): string {
   const item = m.itemName ?? 'something';
   const qty = m.quantity > 1 ? `${m.quantity.toLocaleString()} × ` : '';
   switch (m.kind) {
@@ -930,8 +941,8 @@ export function momentSentence(m: {
     case 'unique':
       return m.source ? `got ${qty}${item} from ${m.source}` : `got ${qty}${item}`;
     case 'death':
-      if (isFallenDeath(m)) return fallenSentence(m.source);
-      return m.source ? `died to ${m.source}` : 'died';
+      if (isFallenDeath(m)) return fallenSentence(shownKiller(m.source));
+      return shownKiller(m.source) ? `died to ${m.source}` : 'died';
     case 'level': {
       // The quantity column holds the number reached, and sourceKind says what kind of number it is.
       const n = m.quantity.toLocaleString();

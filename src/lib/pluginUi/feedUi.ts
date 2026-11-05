@@ -1,6 +1,9 @@
 import { formatGp } from '@/lib/itemPrices';
+import { shownKiller } from '@/lib/deathSource';
+import { clogItemIdByName } from '@/lib/moments';
 import { fallenTitle, isFallenDeath } from '@/lib/hardcoreFall';
 import { whoText } from '@/lib/reactionWho';
+import { runSuffix } from '@/lib/feedRuns';
 
 import type { Action, Color, FeedRow, Node } from './nodes';
 import { button, col, gap, muted, text } from './nodes';
@@ -34,6 +37,19 @@ export function momentsFeedId(scope: { kind: 'clan' | 'event'; id: number }, fil
   const base = `moments:${scope.kind}:${scope.id}`;
   if (filter === 'team') return teamId != null ? `${base}:team:${teamId}` : base;
   return filter ? `${base}:${filter}` : base;
+}
+
+/** "moments:event:9:team:4" → the list's scope, filter and team (pluginUi/feedUi momentsFeedId). */
+export function parseMomentsFeedId(feed: string): { kind: 'clan' | 'event'; id: number; filter: string; teamId: number | null } | null {
+  const p = feed.split(':');
+  if (p[0] !== 'moments' || (p[1] !== 'clan' && p[1] !== 'event')) return null;
+  const id = Number(p[2]);
+  if (!Number.isInteger(id)) return null;
+  if (p[3] === 'team') {
+    const t = Number(p[4]);
+    return Number.isInteger(t) ? { kind: p[1], id, filter: 'team', teamId: t } : null;
+  }
+  return { kind: p[1], id, filter: p[3] ?? 'all', teamId: null };
 }
 
 /** Every list a moment belongs in: its scope's, its kind group's, and its team's on a board. */
@@ -77,16 +93,26 @@ export interface MomentLike {
   tier?: string | null;
   /** 'level': skill / total / max. 'quest': 'cape' on the last quest. */
   sourceKind?: string | null;
+  /** Back-to-back repeats this row stands for (lib/feedRuns): "×12" after the title. */
+  run?: { n: number; mixed?: boolean } | null;
 }
 
 const PET = '#ff7f27';
 const ACHIEVEMENT = '#ffd35c';
 
 export function momentTitle(m: MomentLike): string {
+  const run = m.run && m.run.n > 1 ? m.run : null;
+  if (!run) return oneTitle(m);
+  // Deaths to different killers: the count leads, the latest killer after it.
+  if (m.kind === 'death' && run.mixed) return m.source ? `Died ×${run.n} · last to ${m.source}` : `Died ×${run.n}`;
+  return `${oneTitle(m)}${runSuffix(run)}`;
+}
+
+function oneTitle(m: MomentLike): string {
   const name = m.itemName ?? m.source ?? m.kind;
   if (m.kind === 'pet') return `Pet: ${name}`;
-  if (isFallenDeath(m)) return fallenTitle(m.source);
-  if (m.kind === 'death') return m.source ? `Died to ${m.source}` : 'Died';
+  if (isFallenDeath(m)) return fallenTitle(shownKiller(m.source));
+  if (m.kind === 'death') return shownKiller(m.source) ? `Died to ${m.source}` : 'Died';
   if (m.kind === 'ca') return m.tier ? `${m.tier} combat task: ${name}` : `Combat task: ${name}`;
   if (m.kind === 'level') {
     // The number reached rides in `quantity`, the skill in `itemName` (lib/moments Observation).
@@ -154,12 +180,18 @@ function whoInk(o: MomentRowOptions): Pick<FeedRow, 'whoColor' | 'grad' | 'move'
   return { whoColor: 'muted' };
 }
 
+/** A row's item picture. Pets stored by name only (their log line names them) are looked up in the log. */
+function itemOf(m: { kind: string; itemId?: number | null; itemName?: string | null }): number | null {
+  if (m.itemId != null) return m.itemId;
+  return m.kind === 'pet' ? clogItemIdByName(m.itemName) : null;
+}
+
 export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
   const value = m.valueGp != null && m.valueGp > 0 ? formatGp(m.valueGp * Math.max(1, m.quantity)) : undefined;
   return {
     id: `m${m.id}`,
     // A death has no item: the game's Skull (item 964) stands for it.
-    ...(m.itemId != null ? { item: m.itemId } : m.kind === 'death' ? { item: 964 } : glyphOf(m.kind)),
+    ...(itemOf(m) != null ? { item: itemOf(m)! } : m.kind === 'death' ? { item: 964 } : glyphOf(m.kind)),
     title: momentTitle(m),
     who: m.rsn,
     ...whoInk(o),
@@ -309,7 +341,7 @@ export interface FeedTabOptions {
   /** The viewer's team on this board, for "My team". */
   teamId: number | null;
   rows: FeedRow[];
-  /** The floor line under the list: "Drops ≥ 5m · pets". */
+  /** The floor line under the list: "Drops 5m+ · pets". */
   floorNote?: string;
   /** For the chat pane. */
   send?: { act: string; args: Record<string, string>; hint: string } | null;
