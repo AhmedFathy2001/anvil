@@ -560,7 +560,8 @@ export function classifyObservation(
   const ca = obs.kind === 'ca' ? caFacts(obs) : null;
   const base = {
     // A log slot arrives by name (the chat line); the log's own id gives the feed its icon.
-    itemId: obs.itemId ?? (obs.kind === 'clog' ? clogItemIdByName(obs.itemName) : null),
+    // A pet arrives by name too (its collection-log line); the log's own id gives it its picture.
+    itemId: obs.itemId ?? (obs.kind === 'clog' || obs.kind === 'pet' ? clogItemIdByName(obs.itemName) : null),
     itemName: obs.kind === 'ca' ? obs.taskName ?? null : obs.itemName ?? null,
     quantity: Math.max(1, obs.quantity ?? 1),
     valueGp: obs.valueGp ?? null,

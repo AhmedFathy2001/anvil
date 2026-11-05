@@ -1,4 +1,5 @@
 import { formatGp } from '@/lib/itemPrices';
+import { clogItemIdByName } from '@/lib/moments';
 import { fallenTitle, isFallenDeath } from '@/lib/hardcoreFall';
 import { whoText } from '@/lib/reactionWho';
 
@@ -154,12 +155,18 @@ function whoInk(o: MomentRowOptions): Pick<FeedRow, 'whoColor' | 'grad' | 'move'
   return { whoColor: 'muted' };
 }
 
+/** A row's item picture. Pets stored by name only (their log line names them) are looked up in the log. */
+function itemOf(m: { kind: string; itemId?: number | null; itemName?: string | null }): number | null {
+  if (m.itemId != null) return m.itemId;
+  return m.kind === 'pet' ? clogItemIdByName(m.itemName) : null;
+}
+
 export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
   const value = m.valueGp != null && m.valueGp > 0 ? formatGp(m.valueGp * Math.max(1, m.quantity)) : undefined;
   return {
     id: `m${m.id}`,
     // A death has no item: the game's Skull (item 964) stands for it.
-    ...(m.itemId != null ? { item: m.itemId } : m.kind === 'death' ? { item: 964 } : glyphOf(m.kind)),
+    ...(itemOf(m) != null ? { item: itemOf(m)! } : m.kind === 'death' ? { item: 964 } : glyphOf(m.kind)),
     title: momentTitle(m),
     who: m.rsn,
     ...whoInk(o),
@@ -290,7 +297,7 @@ export interface FeedTabOptions {
   /** The viewer's team on this board, for "My team". */
   teamId: number | null;
   rows: FeedRow[];
-  /** The floor line under the list: "Drops ≥ 5m · pets". */
+  /** The floor line under the list: "Drops 5m+ · pets". */
   floorNote?: string;
   /** For the chat pane. */
   send?: { act: string; args: Record<string, string>; hint: string } | null;
