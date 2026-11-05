@@ -17,7 +17,7 @@ import { supporterInksForRsns } from '@/lib/supporter';
 import { log } from '@/lib/logger';
 import { eventFeedFloor, isClanWorthy, panelFeedWorthy } from '@/lib/moments';
 import { boardTileItemIds, clanScopeFor } from '@/lib/momentsStore';
-import { completionFeedIds, completionRow, momentFeedIds, momentRow, rollupRow, type MomentLike } from '@/lib/pluginUi/feedUi';
+import { completionFeedIds, completionRow, modeMomentFeedIds, momentFeedIds, momentRow, rollupRow, type MomentLike } from '@/lib/pluginUi/feedUi';
 import { standingsHidden } from '@/lib/standingsVisibility';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { ttlMemo } from '@/lib/ttlMemo';
@@ -187,7 +187,12 @@ export async function emitMomentRows(clanId: number, seatKind: string, list: New
     const scope = await clanScopeFor(clanId);
     if (seatKind === 'member') {
       const shown: NewMoment[] = [];
+      const modeShown: NewMoment[] = [];
       for (const m of list) {
+        if (m.worldMode) {
+          modeShown.push(m);
+          continue;
+        }
         if (!isClanWorthy(m, scope) || !panelFeedWorthy(m, scope.minLootGp)) continue;
         // A drop filed on a board with hidden standings is that team's secret: not the clan's feed.
         if (m.eventId != null && (await boardHidden(m.eventId, now))) continue;
@@ -199,8 +204,15 @@ export async function emitMomentRows(clanId: number, seatKind: string, list: New
           await notifyRows({ u: ids }, { t: 'rows', feeds: momentFeedIds({ kind: 'clan', id: clanId }, m.kind, null), rows: [momentRow(m, { ink: await inkOf(m.rsn) })] });
         }
       }
+      if (modeShown.length) {
+        const ids = await clanUserIds(clanId);
+        for (const m of modeShown) {
+          await notifyRows({ u: ids }, { t: 'rows', feeds: modeMomentFeedIds(clanId, m.kind, m.worldMode), rows: [momentRow(m, { ink: await inkOf(m.rsn) })] });
+        }
+      }
     }
     for (const m of list) {
+      if (m.worldMode) continue;
       if (m.eventId == null) continue;
       const floor = eventFeedFloor(await boardSize(m.eventId));
       // An item one of the board's tiles wants shows whatever it's worth.

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { eventFeedFloor, panelFeedWorthy } from '../src/lib/moments.ts';
-import { chatFeedIds, chatRow, feedTabUi, momentFeedIds, momentRow } from '../src/lib/pluginUi/feedUi.ts';
+import { chatFeedIds, chatRow, feedTabUi, modeFeedId, modeMomentFeedIds, momentFeedIds, momentRow } from '../src/lib/pluginUi/feedUi.ts';
 
 const drop = (valueGp: number | null, extra: Record<string, unknown> = {}) => ({
   id: 1,
@@ -35,6 +35,32 @@ test('a board’s floor rises with its size', () => {
 test('a moment names every list it belongs in', () => {
   assert.deepEqual(momentFeedIds({ kind: 'clan', id: 3 }, 'loot', null), ['moments:clan:3', 'moments:clan:3:drops']);
   assert.deepEqual(momentFeedIds({ kind: 'event', id: 9 }, 'pet', 4), ['moments:event:9', 'moments:event:9:pets', 'moments:event:9:team:4']);
+});
+
+test('game modes stay behind one quiet doorway, then reuse the familiar filters', () => {
+  const clan = { kind: 'clan' as const, id: 3, slug: 'afk', name: 'The AFK Spot' };
+  const ordinary = JSON.stringify(feedTabUi({
+    scopes: [clan], current: clan, pane: 'feed', chatAvailable: false, filter: 'all', teamId: null,
+    rows: [], mode: { active: false, count: 6 },
+  }));
+  assert.match(ordinary, /Game-mode activity · 6/);
+  assert.doesNotMatch(ordinary, /moments:clan:3:modes/);
+
+  const modes = JSON.stringify(feedTabUi({
+    scopes: [clan], current: clan, pane: 'feed', chatAvailable: false, filter: 'pets', teamId: null,
+    rows: [], mode: { active: true, count: 6 },
+  }));
+  assert.match(modes, /moments:clan:3:modes:pets/);
+  for (const label of ['All', 'Drops', 'Pets', 'Achievements', 'Deaths']) assert.match(modes, new RegExp(label));
+  assert.match(modes, /separate from main-game progress/);
+  assert.deepEqual(modeMomentFeedIds(3, 'pet', 'leagues'), [modeFeedId(3), modeFeedId(3, 'pets')]);
+  assert.deepEqual(modeMomentFeedIds(3, 'death', 'hardcore'), [modeFeedId(3), modeFeedId(3, 'deaths'), 'moments:clan:3:deaths']);
+});
+
+test('a game-mode row wears a compact mode tag', () => {
+  const row = momentRow(drop(null, { worldMode: 'leagues', worldModeLabel: 'Leagues' }));
+  assert.equal(row.tag, 'Leagues');
+  assert.equal(row.tagColor, 'brand');
 });
 
 test('a chat line goes to everyone’s list, its team’s, and staff’s', () => {

@@ -3152,6 +3152,10 @@ export const moments = pgTable('moments', {
    * re-derived so an old line still reads right after the dataset moves on. NULL on every other kind.
    */
   tier: text('tier'),
+  /** Separate-save world this happened on. Null is the main game. Kept out of normal feeds. */
+  worldMode: text('world_mode'),
+  /** Display label frozen at ingest, including modes discovered from the world-list activity. */
+  worldModeLabel: text('world_mode_label'),
   /** When it happened in game (client clock, clamped server-side) vs when we stored it. */
   occurredAt: text('occurred_at').notNull(),
   noticedAt: text('noticed_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
@@ -3166,6 +3170,7 @@ export const moments = pgTable('moments', {
   index('moments_weekly_idx').on(t.weeklyCompetitionId, t.occurredAt),
   index('moments_event_idx').on(t.eventId, t.occurredAt),
   index('moments_member_idx').on(t.clanMemberId, t.occurredAt),
+  index('moments_world_mode_idx').on(t.worldMode, t.occurredAt),
   // The clan-wide rows (no board, no week) by age: what the 30-day achievement sweep reads.
   index('moments_clanwide_idx').on(t.occurredAt).where(sql`event_id is null and weekly_competition_id is null`),
 ]);

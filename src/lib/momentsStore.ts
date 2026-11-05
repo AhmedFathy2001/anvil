@@ -6,7 +6,7 @@ import { getSetting, getSettingMap } from '@/lib/settings';
 // Setting names only; pluginConfig is a heavy module, but momentsStore is server-side already.
 import { DROP_RARITY_FLOOR_SETTING_KEY } from '@/lib/pluginConfig';
 import { clanMemberships, events, moments, eventParticipants, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { type SQL, and, desc, eq, inArray, isNull, like, lt, ne } from 'drizzle-orm';
+import { type SQL, and, count, desc, eq, gte, inArray, isNotNull, isNull, like, lt, ne, or } from 'drizzle-orm';
 import { LEVEL_RULES_SETTING_KEY } from '@/lib/levelRulesStore';
 import { parseMilestoneRules } from '@/lib/levelRules';
 import { eventHasStarted } from '@/lib/completionGate';
@@ -284,6 +284,7 @@ export async function recordMoments(
   member: { clanMemberId: number; rsn: string },
   observations: Observation[],
   scopes: ActiveScopes,
+  mode?: { key: string; label: string } | null,
 ): Promise<{ stored: number; matched: number; inserted: StoredMoment[] }> {
   const planned: PlannedMoment[] = [];
   for (const obs of observations) {
@@ -303,7 +304,8 @@ export async function recordMoments(
     // clan's own copy (':clan') is skipped when a board or week already holds it, and a board's or
     // week's when the clan already has it — a 99 reported during a week and replayed after it ended
     // would otherwise read twice. (A week and a board both keeping it is their own business.)
-    if (isAchievementKind(row.kind) && (await achievementHeld(member.clanMemberId, row.dedupKey))) continue;
+    if (!mode && isAchievementKind(row.kind) && (await achievementHeld(member.clanMemberId, row.dedupKey))) continue;
+    const dedupKey = mode ? `mode:${mode.key}:${row.dedupKey}` : row.dedupKey;
     const rows = await db
       .insert(moments)
       .values({
@@ -322,8 +324,10 @@ export async function recordMoments(
         kc: row.kc,
         rarityDenominator: row.rarityDenominator,
         tier: row.tier,
+        worldMode: mode?.key ?? null,
+        worldModeLabel: mode?.label ?? null,
         occurredAt: row.occurredAt,
-        dedupKey: row.dedupKey,
+        dedupKey,
       })
       .onConflictDoNothing()
       .returning({ id: moments.id, occurredAt: moments.occurredAt });
@@ -342,12 +346,80 @@ export async function recordMoments(
         teamId: row.teamId,
         eventId: row.eventId,
         tier: row.tier,
+        worldMode: mode?.key ?? null,
+        worldModeLabel: mode?.label ?? null,
         kc: row.kc,
         occurredAt: rows[0].occurredAt,
       });
     }
   }
   return { stored, matched: planned.length, inserted };
+}
+
+/**
+ * Keep notable activity from a separate-save world in its own clan timeline. It deliberately gets
+ * no board or weekly scope: those saves never become main-game progress merely because a board is
+ * running. The clan's existing floors still decide what is worth retaining.
+ */
+export async function recordModeMoments(
+  member: { clanMemberId: number; rsn: string },
+  observations: Observation[],
+  clan: ClanScope,
+  mode: { key: string; label: string },
+): Promise<{ stored: number; matched: number; inserted: StoredMoment[]; seatKind: string; idle: true }> {
+  const seat = await db.query.clanMemberships.findFirst({ where: eq(clanMemberships.id, member.clanMemberId), columns: { kind: true } });
+  const seatKind = seat?.kind ?? 'guest';
+  if (seatKind !== 'member') return { stored: 0, matched: 0, inserted: [], seatKind, idle: true };
+  const kept = observations.filter((o) => classifyObservation(o, { weeklies: [], event: null, clan }).length > 0);
+  if (!kept.length) return { stored: 0, matched: 0, inserted: [], seatKind, idle: true };
+  return { ...(await recordMoments(member, kept, { weeklies: [], event: null, clan }, mode)), seatKind, idle: true };
+}
+
+/** Persist the mode-only unlocks that arrive through /mode-lines rather than the normal moments push. */
+export async function recordModeLineMoments(
+  member: { clanMemberId: number; rsn: string },
+  mode: { key: string; label: string },
+  events: readonly { kind: 'mode' | 'level' | 'quest'; title: string; itemName?: string | null; quantity?: number; sourceKind?: string | null }[],
+): Promise<StoredMoment[]> {
+  const seat = await db.query.clanMemberships.findFirst({ where: eq(clanMemberships.id, member.clanMemberId), columns: { kind: true } });
+  if (seat?.kind !== 'member') return [];
+  const inserted: StoredMoment[] = [];
+  const occurredAt = new Date().toISOString();
+  for (const e of events) {
+    const key = e.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 100) || 'event';
+    const [row] = await db
+      .insert(moments)
+      .values({
+        clanMemberId: member.clanMemberId,
+        rsn: member.rsn,
+        kind: e.kind,
+        weeklyCompetitionId: null,
+        eventId: null,
+        teamId: null,
+        itemId: null,
+        itemName: e.itemName ?? e.title,
+        quantity: e.quantity ?? 1,
+        valueGp: null,
+        source: null,
+        sourceKind: e.sourceKind ?? (e.kind === 'mode' ? 'mode' : null),
+        kc: null,
+        rarityDenominator: null,
+        tier: null,
+        worldMode: mode.key,
+        worldModeLabel: mode.label,
+        occurredAt,
+        dedupKey: `mode:${mode.key}:line:${e.kind}:${key}`,
+      })
+      .onConflictDoNothing()
+      .returning({ id: moments.id });
+    if (!row) continue;
+    inserted.push({
+      id: row.id, rsn: member.rsn, kind: e.kind, itemId: null, itemName: e.itemName ?? e.title,
+      quantity: e.quantity ?? 1, valueGp: null, source: null, sourceKind: e.sourceKind ?? (e.kind === 'mode' ? 'mode' : null),
+      teamId: null, eventId: null, tier: null, worldMode: mode.key, worldModeLabel: mode.label, kc: null, occurredAt,
+    });
+  }
+  return inserted;
 }
 
 /**
@@ -406,8 +478,9 @@ export const CLAN_ACHIEVEMENT_KEEP_DAYS = 30;
 const ACHIEVEMENT_SWEEP_BATCH = 1000;
 
 /**
- * Forget clan-wide achievements older than {@link CLAN_ACHIEVEMENT_KEEP_DAYS}. Rows a board or a
- * competition week holds are theirs, kept with them. Bounded per call; returns how many went.
+ * Forget clan-wide achievements and separate-save timeline rows older than
+ * {@link CLAN_ACHIEVEMENT_KEEP_DAYS}. Rows a board or competition week holds are theirs, kept with
+ * them. Bounded per call; returns how many went.
  */
 export async function sweepClanAchievements(now: Date = new Date()): Promise<number> {
   const cutoff = new Date(now.getTime() - CLAN_ACHIEVEMENT_KEEP_DAYS * 86_400_000).toISOString();
@@ -424,7 +497,7 @@ export async function sweepClanAchievements(now: Date = new Date()): Promise<num
             and(
               isNull(moments.eventId),
               isNull(moments.weeklyCompetitionId),
-              inArray(moments.kind, [...ACHIEVEMENT_KINDS]),
+              or(inArray(moments.kind, [...ACHIEVEMENT_KINDS]), isNotNull(moments.worldMode)),
               lt(moments.occurredAt, cutoff),
             ),
           )
@@ -451,6 +524,8 @@ export interface StoredMoment {
   teamId: number | null;
   eventId: number | null;
   tier: string | null;
+  worldMode: string | null;
+  worldModeLabel: string | null;
   kc: number | null;
   occurredAt: string;
 }
@@ -468,6 +543,8 @@ const MOMENT_COLUMNS = {
   kc: moments.kc,
   rarityDenominator: moments.rarityDenominator,
   tier: moments.tier,
+  worldMode: moments.worldMode,
+  worldModeLabel: moments.worldModeLabel,
   sourceKind: moments.sourceKind,
   teamId: moments.teamId,
   eventId: moments.eventId,
@@ -487,6 +564,9 @@ export interface MomentRow {
   rarityDenominator: number | null;
   /** Combat tasks only — the feed line leads with it. */
   tier: string | null;
+  /** Separate-save mode, null for ordinary main-game activity. */
+  worldMode?: string | null;
+  worldModeLabel?: string | null;
   /** 'level' reads this to tell a 99 from a total-level milestone from a max. */
   sourceKind: string | null;
   /** Which side it happened on, stamped at ingest. Null on weekly/solo moments. */
@@ -571,6 +651,9 @@ export async function momentsForClan(clanId: number, limit = 20, kinds?: readonl
       and(
         eq(clanMemberships.clanId, clanId),
         eq(clanMemberships.kind, 'member'),
+        kinds?.includes('death')
+          ? or(isNull(moments.worldMode), and(eq(moments.worldMode, 'hardcore'), eq(moments.kind, 'death')))
+          : isNull(moments.worldMode),
         kinds && kinds.length ? inArray(moments.kind, [...kinds]) : undefined,
       ),
     )
@@ -579,12 +662,44 @@ export async function momentsForClan(clanId: number, limit = 20, kinds?: readonl
   return rows.filter((row) => isClanWorthy(row, clan)).slice(0, limit);
 }
 
+/** Separate-save activity for the compact Modes timeline, never mixed into the ordinary clan feed. */
+export async function modeMomentsForClan(clanId: number, limit = 80, kinds?: readonly string[]): Promise<MomentRow[]> {
+  return db
+    .select(MOMENT_COLUMNS)
+    .from(moments)
+    .innerJoin(clanMemberships, eq(moments.clanMemberId, clanMemberships.id))
+    .where(and(
+      eq(clanMemberships.clanId, clanId),
+      eq(clanMemberships.kind, 'member'),
+      isNotNull(moments.worldMode),
+      kinds && kinds.length ? inArray(moments.kind, [...kinds]) : undefined,
+    ))
+    .orderBy(desc(moments.occurredAt))
+    .limit(limit);
+}
+
+/** Number shown on the quiet doorway. Old seasons do not keep the doorway permanently visible. */
+export async function recentModeMomentCount(clanId: number, now = Date.now()): Promise<number> {
+  const cutoff = new Date(now - 30 * 86_400_000).toISOString();
+  const [row] = await db
+    .select({ n: count() })
+    .from(moments)
+    .innerJoin(clanMemberships, eq(moments.clanMemberId, clanMemberships.id))
+    .where(and(
+      eq(clanMemberships.clanId, clanId),
+      eq(clanMemberships.kind, 'member'),
+      isNotNull(moments.worldMode),
+      gte(moments.occurredAt, cutoff),
+    ));
+  return Number(row?.n ?? 0);
+}
+
 export async function momentsForMembers(clanMemberIds: number[], limit = 20): Promise<MomentRow[]> {
   if (clanMemberIds.length === 0) return [];
   return db
     .select(MOMENT_COLUMNS)
     .from(moments)
-    .where(inArray(moments.clanMemberId, clanMemberIds))
+    .where(and(inArray(moments.clanMemberId, clanMemberIds), isNull(moments.worldMode)))
     .orderBy(desc(moments.occurredAt))
     .limit(limit);
 }

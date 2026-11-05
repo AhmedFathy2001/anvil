@@ -18,6 +18,8 @@ import { levelPostMatches } from '@/lib/levelRules';
 import { getMemberLevelPrefs } from '@/lib/levelRulesStore';
 import { modeLevelRules, pluginPostsModeLevels } from '@/lib/modeFilters';
 import { pluginVersionHeader } from '@/lib/pluginSeen';
+import { recordModeLineMoments } from '@/lib/momentsStore';
+import { emitMomentRows } from '@/lib/panelRows';
 
 // POST /api/plugin/mode-lines — the highlighted game messages a player saw on a GAME-MODE world
 // (Leagues, Deadman, …), for the site to turn into posts: "Relic unlocked: …", "Area unlocked: …".
@@ -114,6 +116,21 @@ export async function POST(request: Request) {
   const fresh = events.filter((e) => !seenRecently(`${member.userId}:${e.title}`, now)).slice(0, MAX_POSTS);
   if (fresh.length === 0 && levelUps.length === 0 && quests.length === 0) return NextResponse.json({ ok: true, posted: 0 });
   const levelPrefs = levelUps.length ? await getMemberLevelPrefs(member.userId) : null;
+
+  // The compact Modes timeline keeps only meaningful unlocks and the level-ups this clan chose.
+  // Easy/medium task churn remains Discord-only when explicitly enabled and never clutters Feed.
+  const feedRules = levelPrefs
+    ? modeLevelRules((await getModeFilters(member.clanId, mode.key)).levels, levelPrefs.clanChoice)
+    : null;
+  const feedLevels = feedRules
+    ? levelUps.filter((lv) => levelPostMatches({ type: 'skill', level: lv.level }, feedRules))
+    : [];
+  const stored = await recordModeLineMoments(member, mode, [
+    ...fresh.filter((e) => e.kind !== 'modeTaskMinor').map((e) => ({ kind: 'mode' as const, title: e.title, sourceKind: e.kind })),
+    ...feedLevels.map((lv) => ({ kind: 'level' as const, title: `Reached level ${lv.level} ${lv.skill}`, itemName: lv.skill, quantity: lv.level, sourceKind: 'skill' })),
+    ...quests.map((q) => ({ kind: 'quest' as const, title: `Quest complete: ${q}`, itemName: q })),
+  ]);
+  if (stored.length) await emitMomentRows(member.clanId, 'member', stored);
 
   // Other players' in-game chat (lib/chatFeed), the minor tasks aside — a league has hundreds.
   for (const e of fresh) {

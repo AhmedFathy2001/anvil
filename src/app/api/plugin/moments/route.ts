@@ -4,11 +4,11 @@ import { resolvePluginClan } from '@/lib/auth';
 import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { pluginParticipantScope, resolvePluginMember } from '@/lib/auth';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
-import { activeScopesFor, recordSeatMoments } from '@/lib/momentsStore';
+import { activeScopesFor, recordModeMoments, recordSeatMoments } from '@/lib/momentsStore';
 import { achievementDedupKey, caTierRank, diaryTier, type Observation } from '@/lib/moments';
 import { stripChatTags } from '@/lib/chatTags';
 import { labQuarantine } from '@/lib/lab';
-import { worldModeIgnored, worldModeOf } from '@/lib/worldModeRequest';
+import { worldModeOf } from '@/lib/worldModeRequest';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts } from '@/db/schema';
@@ -18,7 +18,7 @@ import { claimFeedItem, emitPersonalItem } from '@/lib/chatFeed';
 import { feedItemFromMoment } from '@/lib/chatFeedRules';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { settleDeathSource } from '@/lib/deathSource';
-import { FALLEN_MODE, fallenMoments } from '@/lib/hardcoreFall';
+import { FALLEN_MODE } from '@/lib/hardcoreFall';
 import { recordH2hDrops, type ReportedDrop } from '@/lib/h2h';
 
 // Highlight ingest: the pets, uniques, big hauls, deaths and combat tasks that happen while a competition week or
@@ -139,15 +139,10 @@ function h2hDropsFrom(raws: unknown[], now: number): ReportedDrop[] {
 }
 
 export async function POST(request: Request) {
-  // Kills, drops, XP and logs from a game-mode world (Leagues, Deadman, hardcore, …) are another
-  // save's progress, never this one's (lib/worldModeRequest).
-  // One exception (lib/hardcoreFall): a death on Hardcore Worlds ends that character, so the clan
-  // feed keeps it, marked as fallen. Nothing else from that world is kept.
-  const fallen = worldModeOf(request)?.key === FALLEN_MODE;
-  if (!fallen) {
-    const otherSave = worldModeIgnored(request);
-    if (otherSave) return otherSave;
-  }
+  // A separate save never becomes main-game progression. Its notable moments are retained only for
+  // the opt-in Modes timeline; a Hardcore death is additionally marked Fallen there.
+  const mode = worldModeOf(request);
+  const fallen = mode?.key === FALLEN_MODE;
   const member = await resolvePluginMember(request);
   // A character with no seat anywhere still has a chat-feed audience (a clan it guests in), so it is
   // heard for the feed; nothing is stored for it.
@@ -182,7 +177,7 @@ export async function POST(request: Request) {
   if (!Array.isArray(body?.moments)) {
     return NextResponse.json({ error: 'moments[] required' }, { status: 400 });
   }
-  const pushed: unknown[] = fallen ? fallenMoments(body.moments) : body.moments;
+  const pushed: unknown[] = body.moments;
   if (pushed.length > MAX_OBSERVATIONS) {
     return NextResponse.json({ error: `At most ${MAX_OBSERVATIONS} moments per push` }, { status: 400 });
   }
@@ -191,11 +186,11 @@ export async function POST(request: Request) {
 
   // Head-to-head drop races (lib/h2h) read every drop and live log unlock first, seat or no seat:
   // a race is the character's, not a clan's. Never scoring anything else.
-  await recordH2hDrops(character.accountId, h2hDropsFrom(pushed as unknown[], Date.now())).catch(() => 0);
+  if (!mode) await recordH2hDrops(character.accountId, h2hDropsFrom(pushed as unknown[], Date.now())).catch(() => 0);
 
   // Other players' in-game chat reads every report first (lib/chatFeed) — the board, the clan and the
   // competition rules below decide only what is STORED. Off the request's path: nobody waits on it.
-  void feedFrom(character, pushed as unknown[]);
+  if (!mode) void feedFrom(character, pushed as unknown[]);
   if (!member) return NextResponse.json({ ok: true, stored: 0, matched: 0, scoped: false });
 
   const now = Date.now();
@@ -251,11 +246,13 @@ export async function POST(request: Request) {
   const scopes = fallen ? { ...found, weeklies: [], event: null } : found;
   // Nothing running still keeps the clan's achievements (momentsStore recordSeatMoments); `scoped:
   // false` tells a client's log that was the case.
-  const { inserted, seatKind, idle, ...result } = await recordSeatMoments(member, observations, scopes);
+  const { inserted, seatKind, idle, ...result } = mode
+    ? await recordModeMoments(member, observations, found.clan, mode)
+    : await recordSeatMoments(member, observations, scopes);
   // The panel's live Feed lists (lib/panelRows). Not awaited past a failure: the reply is the plugin's.
   if (inserted.length) await emitMomentRows(clan.id, seatKind, inserted);
   // Stream highlights (lib/highlights): a big drop or pet on a STREAMED board is clipped on a live
   // channel that wants it. Queued, never awaited: Twitch is nobody's reason to hold this reply.
-  if (inserted.length) queueMomentHighlights(member.clanMemberId, inserted);
+  if (!mode && inserted.length) queueMomentHighlights(member.clanMemberId, inserted);
   return NextResponse.json({ ok: true, ...result, scoped: !idle });
 }

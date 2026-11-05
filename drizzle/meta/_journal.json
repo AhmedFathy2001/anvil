@@ -1128,6 +1128,13 @@
       "when": 1793825020000,
       "tag": "0219_gift_boost_slots",
       "breakpoints": true
+    },
+    {
+      "idx": 220,
+      "version": "7",
+      "when": 1793911420000,
+      "tag": "0220_mode_feed",
+      "breakpoints": true
     }
   ]
 }

@@ -9,7 +9,7 @@ import { chatPaceHint } from '@/lib/eventChatRules';
 import { formatGp } from '@/lib/itemPrices';
 import { NO_REACTIONS, isClanMember, reactionSummaries, reactorNames, tallyOf } from '@/lib/momentReactions';
 import { eventFeedFloor, isClanWorthy, panelFeedWorthy } from '@/lib/moments';
-import { boardTileItemIds, clanScopeFor, momentsForClan, momentsForEvent, type MomentRow } from '@/lib/momentsStore';
+import { boardTileItemIds, clanScopeFor, modeMomentsForClan, momentsForClan, momentsForEvent, recentModeMomentCount, type MomentRow } from '@/lib/momentsStore';
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
 import { labMomentsForEvent } from '@/lib/lab';
 import { rateLimit } from '@/lib/rate-limit';
@@ -184,7 +184,32 @@ function asLike(m: MomentRow) {
     occurredAt: m.occurredAt,
     tier: m.tier,
     sourceKind: m.sourceKind,
+    worldMode: m.worldMode,
+    worldModeLabel: m.worldModeLabel,
   };
+}
+
+/** The separate-save list uses the same rows and reactions, but never the ordinary clan floor twice. */
+async function clanModeRows(clan: Extract<Scope, { kind: 'clan' }>, filter: string, viewer: number | null): Promise<FeedRow[]> {
+  const g = groupOf(filter);
+  const list = await modeMomentsForClan(clan.id, 80, g ? KINDS_OF[g] : undefined);
+  const member = viewer != null && (await isClanMember(viewer, clan.id));
+  const [summaries, inks, who] = await Promise.all([
+    reactionSummaries(list.map((m) => m.id), viewer),
+    inksFor(list.map((m) => m.rsn)),
+    member ? reactorNames(list.map((m) => m.id), { clanId: clan.id }) : Promise.resolve(null),
+  ]);
+  return list.map((m) => {
+    const s = summaries.get(m.id) ?? NO_REACTIONS;
+    const reacts = member
+      ? {
+          tally: (k: RowReactKind) => tallyOf(s, k),
+          act: (k: RowReactKind) => ({ a: 'post' as const, act: 'react-row', args: { slug: clan.slug, id: String(m.id), kind: k, m: '1' } }),
+          who: (k: RowReactKind) => who?.get(m.id)?.[k],
+        }
+      : undefined;
+    return momentRow(asLike(m), { reacts, ink: inks.get(normalizeRsn(m.rsn)) });
+  });
 }
 
 /**
@@ -318,7 +343,9 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
   const access: ChatAccess | null = current.kind === 'event' && viewer ? await chatAccess(current.id, viewer.userId, chatCharacter(request)) : null;
   const chatAvailable = !!access && access.member && access.open;
   const pane = a.p === 'chat' && chatAvailable ? 'chat' : 'feed';
-  const filter = a.f || 'all';
+  const modeActive = pane === 'feed' && a.m === '1' && current.kind === 'clan';
+  const requestedFilter = a.f || 'all';
+  const filter = modeActive && requestedFilter !== 'all' && !groupOf(requestedFilter) ? 'all' : requestedFilter;
   const teamId = access?.teamId ?? null;
 
   if (pane === 'chat' && access && viewer) {
@@ -351,10 +378,13 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
     };
   }
 
-  const { rows, floor } =
-    current.kind === 'clan'
+  const modeCount = current.kind === 'clan' ? await recentModeMomentCount(current.id) : 0;
+  const data = modeActive
+    ? { rows: await clanModeRows(current, filter, viewer?.userId ?? null), floor: 0 }
+    : current.kind === 'clan'
       ? await clanRows(current, filter, viewer?.userId ?? null)
       : await eventRows(current.id, filter, teamId, viewer?.userId ?? null, !!access?.member);
+  const { rows, floor } = data;
   return {
     ui: feedTabUi({
       scopes,
@@ -364,7 +394,8 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
       filter,
       teamId,
       rows,
-      floorNote: `Drops ≥ ${formatGp(floor)} · pets · achievements`,
+      floorNote: modeActive ? undefined : `Drops ≥ ${formatGp(floor)} · pets · achievements`,
+      mode: current.kind === 'clan' ? { active: modeActive, count: modeCount } : null,
     }),
   };
 }

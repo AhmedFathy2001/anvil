@@ -24,7 +24,7 @@ export function kindGroup(kind: string): KindGroup | null {
   if (kind === 'pet') return 'pets';
   if (kind === 'death') return 'deaths';
   // Combat tasks, level milestones, log slots, diaries, quests (lib/moments ACHIEVEMENT_KINDS).
-  if (kind === 'ca' || kind === 'level' || kind === 'clog' || kind === 'diary' || kind === 'quest') return 'achievements';
+  if (kind === 'ca' || kind === 'level' || kind === 'clog' || kind === 'diary' || kind === 'quest' || kind === 'mode') return 'achievements';
   return null;
 }
 
@@ -42,6 +42,20 @@ export function momentFeedIds(scope: { kind: 'clan' | 'event'; id: number }, kin
   const g = kindGroup(kind);
   if (g) ids.push(momentsFeedId(scope, g));
   if (scope.kind === 'event' && teamId != null) ids.push(momentsFeedId(scope, 'team', teamId));
+  return ids;
+}
+
+/** The opt-in separate-save timeline. It is deliberately outside every ordinary moments feed id. */
+export function modeFeedId(clanId: number, filter?: KindGroup): string {
+  return `moments:clan:${clanId}:modes${filter ? `:${filter}` : ''}`;
+}
+
+export function modeMomentFeedIds(clanId: number, kind: string, mode?: string | null): string[] {
+  const ids = [modeFeedId(clanId)];
+  const g = kindGroup(kind);
+  if (g) ids.push(modeFeedId(clanId, g));
+  // A Fallen row is one stored moment with two doorways: Modes and the familiar Deaths filter.
+  if (mode === 'hardcore' && kind === 'death') ids.push(momentsFeedId({ kind: 'clan', id: clanId }, 'deaths'));
   return ids;
 }
 
@@ -77,6 +91,8 @@ export interface MomentLike {
   tier?: string | null;
   /** 'level': skill / total / max. 'quest': 'cape' on the last quest. */
   sourceKind?: string | null;
+  worldMode?: string | null;
+  worldModeLabel?: string | null;
 }
 
 const PET = '#ff7f27';
@@ -163,7 +179,11 @@ export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
     title: momentTitle(m),
     who: m.rsn,
     ...whoInk(o),
-    ...(o.team ? { tag: o.team.name, tagColor: (o.team.color as Color | null) ?? 'muted' } : {}),
+    ...(o.team
+      ? { tag: o.team.name, tagColor: (o.team.color as Color | null) ?? 'muted' }
+      : m.worldModeLabel
+        ? { tag: m.worldModeLabel, tagColor: (m.worldMode === 'hardcore' ? 'error' : 'brand') as Color }
+        : {}),
     at: m.occurredAt,
     ...(value ? { value } : {}),
     ...(m.kind === 'pet' ? { textColor: PET as Color } : m.kind === 'death' ? { textColor: 'error' as Color } : {}),
@@ -300,6 +320,8 @@ export interface FeedTabOptions {
   /** The viewer moderates this chat: the mods filter and the pause switch show. */
   staff?: boolean;
   paused?: boolean;
+  /** Quiet doorway on the ordinary clan feed; when active, this view is the separate-save timeline. */
+  mode?: { active: boolean; count: number } | null;
 }
 
 const scopeKey = (s: Scope) => (s.kind === 'clan' ? `clan:${s.slug}` : `event:${s.id}`);
@@ -331,7 +353,13 @@ export function feedTabUi(o: FeedTabOptions): Node {
     parts.push(text(o.current.name, 'brand', { font: 'bold' }), gap(4));
   }
 
-  if (o.chatAvailable) {
+  if (o.mode?.active) {
+    parts.push(
+      text('‹ Feed', 'muted', { font: 'small', on: load({ s: key, p: 'feed' }) }),
+      muted('Game-mode activity · separate from main-game progress', { font: 'small' }),
+      gap(4),
+    );
+  } else if (o.chatAvailable) {
     parts.push(
       rowOf([
         chip('Feed', o.pane === 'feed', load({ s: key, p: 'feed' })),
@@ -358,10 +386,12 @@ export function feedTabUi(o: FeedTabOptions): Node {
           ...(o.current.kind === 'event' && o.teamId != null ? [['team', 'My team'] as [string, string]] : []),
         ];
   // Three to a row: the panel splits a row evenly, and "Achievements" is too wide for a quarter of it.
-  parts.push(rowOf(filters.map(([id, label]) => chip(label, o.filter === id, load({ s: key, p: o.pane, f: id }))), 3), gap(4));
+  parts.push(rowOf(filters.map(([id, label]) => chip(label, o.filter === id, load({ s: key, p: o.pane, f: id, ...(o.mode?.active ? { m: '1' } : {}) }))), 3), gap(4));
 
   const id =
-    o.pane === 'chat' && o.current.kind === 'event'
+    o.mode?.active && o.current.kind === 'clan'
+      ? modeFeedId(o.current.id, o.filter === 'all' ? undefined : (o.filter as KindGroup))
+      : o.pane === 'chat' && o.current.kind === 'event'
       ? chatFeedId(o.current.id, o.filter === 'team' ? 'team' : o.filter === 'mods' ? 'mods' : undefined, o.teamId)
       : momentsFeedId(o.current, o.filter === 'all' ? undefined : (o.filter as KindGroup | 'team' | 'tiles'), o.teamId);
 
@@ -371,11 +401,22 @@ export function feedTabUi(o: FeedTabOptions): Node {
     rows: o.rows,
     cap: o.pane === 'chat' ? 300 : 200,
     h: 460,
-    empty: emptyLine(o.pane, o.filter),
+    empty: o.mode?.active ? emptyModeLine(o.filter) : emptyLine(o.pane, o.filter),
     ...(o.pane === 'chat' && o.send ? { send: { ...o.send, max: 200 } } : {}),
     ...(o.pane === 'chat' && o.mine?.length ? { mine: o.mine } : {}),
     ...(o.locked ? { locked: o.locked } : {}),
   });
+
+  if (!o.mode?.active && o.mode && o.mode.count > 0 && o.pane === 'feed' && o.current.kind === 'clan') {
+    parts.push(
+      gap(4),
+      text(`Game-mode activity · ${o.mode.count} ›`, 'muted', {
+        font: 'small',
+        on: load({ s: key, p: 'feed', m: '1', f: 'all' }),
+        tip: 'Leagues, Hardcore Worlds, Deadman and other separate saves',
+      }),
+    );
+  }
 
   if (o.pane === 'chat' && o.staff && o.current.kind === 'event') {
     parts.push(
@@ -388,6 +429,14 @@ export function feedTabUi(o: FeedTabOptions): Node {
   }
   if (o.floorNote && o.pane === 'feed') parts.push(gap(4), muted(o.floorNote, { font: 'small' }));
   return col(parts);
+}
+
+function emptyModeLine(filter: string): string {
+  if (filter === 'pets') return 'No game-mode pets yet.';
+  if (filter === 'drops') return 'No notable game-mode drops yet.';
+  if (filter === 'achievements') return 'No game-mode achievements yet.';
+  if (filter === 'deaths') return 'No game-mode deaths yet.';
+  return 'No game-mode activity yet.';
 }
 
 /** What an empty list says, for the filter that's on. */

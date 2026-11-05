@@ -89,6 +89,24 @@ test('a guest seat’s achievement is not kept for the clan', async () => {
   assert.ok(!(await M.momentsForClan(clanId, 80)).some((m) => m.rsn === 'Visitor'));
 });
 
+test('game-mode moments live behind their own timeline; Fallen also appears under Deaths', async () => {
+  const scopes = await M.activeScopesFor(seat.member.clanMemberId, clanId);
+  const r = await M.recordModeMoments(seat.member, [
+    { kind: 'pet', itemName: 'Pet snakeling', occurredAt: now(), dedupKey: 'mode-pet' },
+    { kind: 'death', source: 'Vorkath', tier: 'hardcore', occurredAt: now(), dedupKey: 'mode-fallen' },
+  ], scopes.clan, { key: 'hardcore', label: 'Hardcore' });
+  assert.equal(r.stored, 2);
+  assert.ok(r.inserted.every((m) => m.worldMode === 'hardcore'));
+
+  const ordinary = await M.momentsForClan(clanId, 80);
+  assert.ok(ordinary.every((m) => !m.worldMode), 'mode rows stay out of All');
+  const deaths = await M.momentsForClan(clanId, 80, ['death']);
+  assert.ok(deaths.some((m) => m.worldMode === 'hardcore'), 'Fallen is still reachable through Deaths');
+  const modes = await M.modeMomentsForClan(clanId, 80);
+  assert.deepEqual(modes.map((m) => m.kind).sort(), ['death', 'pet']);
+  assert.equal(await M.recentModeMomentCount(clanId), 2);
+});
+
 test('a log slot is stored once', async () => {
   const again = await push('member', [clog(), clog()]);
   assert.equal(again.stored, 0);
