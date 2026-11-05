@@ -10,14 +10,14 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clanStaff, completions, eventParticipants, events, teams, tiles, users } from '@/db/schema';
+import { accounts, clanMemberships, clanStaff, clans, completions, eventParticipants, events, teams, tiles, users } from '@/db/schema';
 import { atLeast } from '@/lib/clanRoles';
 import { normalizeRsn } from '@/lib/auth';
 import { supporterInksForRsns } from '@/lib/supporter';
 import { log } from '@/lib/logger';
 import { eventFeedFloor, isClanWorthy, panelFeedWorthy } from '@/lib/moments';
 import { boardTileItemIds, clanScopeFor } from '@/lib/momentsStore';
-import { completionFeedIds, completionRow, momentFeedIds, momentRow, parseMomentsFeedId, rollupRow, type MomentLike } from '@/lib/pluginUi/feedUi';
+import { completionFeedIds, completionRow, freshReacts, momentFeedIds, momentRow, parseMomentsFeedId, rollupRow, type MomentLike } from '@/lib/pluginUi/feedUi';
 import type { FeedRow } from '@/lib/pluginUi/nodes';
 import { RUN_GAP_MS, runKey, stampMs, type RunInfo } from '@/lib/feedRuns';
 import { standingsHidden } from '@/lib/standingsVisibility';
@@ -29,7 +29,14 @@ const IDS_PER_NOTIFY = 300;
 
 export type RowsTarget = { e: number; t?: number } | { u: number[] };
 
-export async function notifyRows(target: RowsTarget, m: Record<string, unknown>): Promise<void> {
+/**
+ * `playersReact`: the rows carry GZ / Sad / Sit chips, which only the board's players and its clan's
+ * staff may use. They are all named (boardUserIds); the board's room also holds clanmates only
+ * WATCHING it as their clan's home board, and the hub hands those the rows without the chips
+ * (lib/push/hub deliverRows).
+ */
+export async function notifyRows(target: RowsTarget, m: Record<string, unknown>, opts: { playersReact?: boolean } = {}): Promise<void> {
+  const rx = opts.playersReact ? { rx: 1 } : {};
   if ('u' in target) {
     for (let i = 0; i < target.u.length; i += IDS_PER_NOTIFY) {
       await db.execute(sql`select pg_notify('anvil_push', ${JSON.stringify({ k: 'rows', u: target.u.slice(i, i + IDS_PER_NOTIFY), m })})`);
@@ -41,10 +48,10 @@ export async function notifyRows(target: RowsTarget, m: Record<string, unknown>)
   // sends once per plugin within a notice, so nobody in both gets a row twice.
   const people = await boardUserIds(target.e, target.t ?? null);
   if (people.length <= IDS_PER_NOTIFY) {
-    await db.execute(sql`select pg_notify('anvil_push', ${JSON.stringify({ k: 'rows', ...target, ...(people.length ? { u: people } : {}), m })})`);
+    await db.execute(sql`select pg_notify('anvil_push', ${JSON.stringify({ k: 'rows', ...target, ...(people.length ? { u: people } : {}), ...rx, m })})`);
     return;
   }
-  await db.execute(sql`select pg_notify('anvil_push', ${JSON.stringify({ k: 'rows', ...target, m })})`);
+  await db.execute(sql`select pg_notify('anvil_push', ${JSON.stringify({ k: 'rows', ...target, ...rx, m })})`);
   for (let i = 0; i < people.length; i += IDS_PER_NOTIFY) {
     await db.execute(sql`select pg_notify('anvil_push', ${JSON.stringify({ k: 'rows', u: people.slice(i, i + IDS_PER_NOTIFY), m })})`);
   }
@@ -142,6 +149,15 @@ export async function boardHidden(eventId: number, now: number = Date.now()): Pr
   return ev ? standingsHidden(ev, now) : false;
 }
 
+/** A clan's slug, for its Feed rows' reaction chips (views reactRowAct finds the clan by it). Held five minutes. */
+function clanSlug(clanId: number): Promise<string | null> {
+  return ttlMemo(
+    `panel-rows-clan-slug:${clanId}`,
+    async () => (await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { slug: true } }))?.slug ?? null,
+    5 * 60_000,
+  );
+}
+
 function teamOf(teamId: number): Promise<{ name: string; color: string | null } | null> {
   return ttlMemo(
     `panel-rows-team:${teamId}`,
@@ -204,9 +220,12 @@ export async function emitMomentRows(clanId: number, seatKind: string, list: New
       }
       if (shown.length) {
         const ids = await clanUserIds(clanId);
+        // Everyone named is a member seat, so every one of them may GZ (isClanMember): the chip goes on the row.
+        const slug = await clanSlug(clanId);
         for (const { m, i } of shown) {
           const ink = await inkOf(m.rsn);
-          await sendMomentRow({ u: ids }, m, momentFeedIds({ kind: 'clan', id: clanId }, m.kind, null), (run) => momentRow({ ...m, run }, { ink }), later(i));
+          const reacts = slug ? freshReacts({ slug }, m.id) : undefined;
+          await sendMomentRow({ u: ids }, m, momentFeedIds({ kind: 'clan', id: clanId }, m.kind, null), (run) => momentRow({ ...m, run }, { ink, reacts }), later(i));
         }
       }
     }
@@ -221,7 +240,8 @@ export async function emitMomentRows(clanId: number, seatKind: string, list: New
       }
       const team = m.teamId != null ? await teamOf(m.teamId) : null;
       const ink = await inkOf(m.rsn);
-      const build = (run?: RunInfo) => momentRow({ ...m, run }, { team, ink });
+      const reacts = freshReacts({ e: m.eventId }, m.id);
+      const build = (run?: RunInfo) => momentRow({ ...m, run }, { team, ink, reacts });
       // A board hiding its standings keeps each team's haul to the team.
       if (await boardHidden(m.eventId, now)) {
         if (m.teamId != null) {
@@ -229,7 +249,7 @@ export async function emitMomentRows(clanId: number, seatKind: string, list: New
         }
         continue;
       }
-      await sendMomentRow({ e: m.eventId }, m, momentFeedIds({ kind: 'event', id: m.eventId }, m.kind, m.teamId), build, later(i));
+      await sendMomentRow({ e: m.eventId }, m, momentFeedIds({ kind: 'event', id: m.eventId }, m.kind, m.teamId), build, later(i), { playersReact: true });
     }
   } catch (err) {
     log.warn('panel-rows.emit-failed', { message: (err as Error).message });
@@ -241,8 +261,15 @@ export async function emitMomentRows(clanId: number, seatKind: string, list: New
  * the old top row deleted and the row with its count instead; lists can differ (a drop between two
  * deaths breaks the run in All, not in Deaths), so each outcome is its own pair of messages.
  */
-async function sendMomentRow(target: RowsTarget, m: NewMoment, feeds: string[], build: (run?: RunInfo) => FeedRow, skip: ReadonlySet<number>): Promise<void> {
-  const plain = () => notifyRows(target, { t: 'rows', feeds, rows: [build()] });
+async function sendMomentRow(
+  target: RowsTarget,
+  m: NewMoment,
+  feeds: string[],
+  build: (run?: RunInfo) => FeedRow,
+  skip: ReadonlySet<number>,
+  opts: { playersReact?: boolean } = {},
+): Promise<void> {
+  const plain = () => notifyRows(target, { t: 'rows', feeds, rows: [build()] }, opts);
   if (!(await mayExtendRun(m, skip))) return plain();
   const outcomes = new Map<string, { feeds: string[]; run?: RunInfo; del?: string }>();
   for (const feed of feeds) {
@@ -256,7 +283,7 @@ async function sendMomentRow(target: RowsTarget, m: NewMoment, feeds: string[], 
   for (const o of outcomes.values()) {
     // The plugin drops a list's deleted ids before it adds new rows, in one flush.
     if (o.del) await notifyRows(target, { t: 'rowsdel', feeds: o.feeds, ids: [o.del] });
-    await notifyRows(target, { t: 'rows', feeds: o.feeds, rows: [build(o.run)] });
+    await notifyRows(target, { t: 'rows', feeds: o.feeds, rows: [build(o.run)] }, opts);
   }
 }
 
