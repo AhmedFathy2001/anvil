@@ -132,7 +132,7 @@ export type Node =
    * X-Anvil-Panel-Images): `src` is a PATH here, never a URL, drawn fitted inside w×h with a
    * placeholder until it arrives. Only the proof thumbnails use it (lib/proofImage).
    */
-  | (Common & { t: 'img'; src: string; w: number; h: number; /** Animated image; client may freeze it. */ motion?: boolean })
+  | (Common & { t: 'img'; src: string; w: number; h: number; /** Animated image; client may freeze it. */ motion?: boolean; /** Clip to a circle (avatars and clan marks). */ round?: boolean })
   | (Common & { t: 'bar'; pct: number; color?: Color; h?: number; label?: string; bg?: 'card' | 'panel' })
   | (Common & { t: 'tabs'; key: string; tabs: { label: string; c: Node }[]; open?: string })
   | (Common & { t: 'fold'; head: Node; c: Node; open?: boolean; /** A chevron at the head's right that turns when open. */ chev?: boolean })
@@ -217,7 +217,7 @@ export interface FeedRow {
   /** A picture at the left: an item, or a glyph. */
   item?: number;
   /** A native game sprite, loaded and cached by RuneLite. */
-  sprite?: 'quest' | 'diary' | 'combat' | 'collection-log';
+  sprite?: 'quest' | 'diary' | 'combat' | 'collection-log' | 'total';
   /** A native skill icon; `overall` is the total-level icon. */
   skill?: string;
   glyph?: 'check' | 'star' | 'chevron-right';

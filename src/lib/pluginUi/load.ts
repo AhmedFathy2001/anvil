@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clans, users } from '@/db/schema';
@@ -12,6 +12,8 @@ import { publicHiscoresCard } from '@/lib/publicHiscoresCard';
 import { rateLimit } from '@/lib/rate-limit';
 import { profileMediaForPlayer } from '@/lib/profileMedia';
 import { clanSeat } from '@/lib/seatScope';
+import { avatarUrl } from '@/lib/discord-oauth';
+import { displayCaseForPlayer } from '@/lib/displayCase';
 
 // The reads behind the plugin's cards, shared by the card routes (/api/players/<rsn>/card,
 // /api/clans/<slug>/card) and the panel's views (/api/plugin/ui), so both answer the same.
@@ -52,14 +54,36 @@ export async function lookupPlayerCard(request: Request, rsn: string): Promise<C
 export async function loadPanelPlayerCard(character: ApexCharacter): Promise<PlayerCard> {
   const card = await loadPlayerCard(character);
   if (!character.personId || (!character.personPublic && !character.viewerOwns)) return card;
-  const media = await profileMediaForPlayer(character.personId).catch(() => ({ avatar: null, banner: null }));
+  const [media, discordAvatar, displayCase] = await Promise.all([
+    profileMediaForPlayer(character.personId).catch(() => ({ avatar: null, banner: null })),
+    panelDiscordAvatar(character.personId),
+    displayCaseForPlayer(character.personId, { accountId: character.accountId, publicView: !character.viewerOwns }),
+  ]);
   card.panelMedia = {
-    avatar: !!media.avatar,
-    avatarAnimated: !!media.avatar?.animated,
+    avatar: !!media.avatar || !!discordAvatar,
+    avatarAnimated: !!media.avatar?.animated || (!media.avatar && !!discordAvatar?.animated),
     banner: !!media.banner,
     bannerAnimated: !!media.banner?.animated,
   };
+  card.displayCase = displayCase;
   return card;
+}
+
+/** Most recently used Discord login for a person, used only when they uploaded no Anvil avatar. */
+export async function panelDiscordAvatar(playerId: number): Promise<{ src: string; animated: boolean } | null> {
+  try {
+    const [row] = await db
+      .select({ discordId: users.discordId, discordAvatar: users.discordAvatar })
+      .from(users)
+      .where(and(eq(users.playerId, playerId), isNotNull(users.discordId), isNotNull(users.discordAvatar)))
+      .orderBy(desc(users.lastLoginAt), desc(users.id))
+      .limit(1);
+    if (!row?.discordId) return null;
+    const src = avatarUrl(row.discordId, row.discordAvatar);
+    return src ? { src, animated: !!row.discordAvatar?.startsWith('a_') } : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

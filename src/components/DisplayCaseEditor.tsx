@@ -42,6 +42,7 @@ export default function DisplayCaseEditor({ initialPins, slots }: { initialPins:
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<Tab>('item');
+  const [account, setAccount] = useState('all');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -113,12 +114,22 @@ export default function DisplayCaseEditor({ initialPins, slots }: { initialPins:
     if (!candidates) return [];
     const q = query.trim().toLowerCase();
     return candidates
-      .filter((c) => tabOf(c.kind) === tab && (!q || c.name.toLowerCase().includes(q) || (c.source ?? '').toLowerCase().includes(q) || c.rsn.toLowerCase().includes(q)))
+      .filter((c) =>
+        tabOf(c.kind) === tab &&
+        (account === 'all' || String(c.accountId) === account) &&
+        (!q || c.name.toLowerCase().includes(q) || (c.source ?? '').toLowerCase().includes(q) || c.rsn.toLowerCase().includes(q)),
+      )
       .sort((a, b) =>
         tab === 'item' ? (b.valueGp ?? 0) - (a.valueGp ?? 0) : tab === 'kc' ? (b.kc ?? 0) - (a.kc ?? 0) : a.name.localeCompare(b.name),
       )
       .slice(0, SHOW);
-  }, [candidates, query, tab]);
+  }, [account, candidates, query, tab]);
+
+  const characters = useMemo(() => {
+    const byId = new Map<number, string>();
+    for (const c of candidates ?? []) byId.set(c.accountId, c.rsn);
+    return [...byId].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [candidates]);
 
   const full = pins.length >= slots;
 
@@ -192,6 +203,19 @@ export default function DisplayCaseEditor({ initialPins, slots }: { initialPins:
       {open && (
         <div className="mt-4 border-t border-card-border pt-4">
           <div className="mb-3 flex flex-wrap items-center gap-2">
+            {characters.length > 1 && (
+              <select
+                value={account}
+                onChange={(e) => setAccount(e.target.value)}
+                aria-label="Character whose records to show"
+                className="rounded-lg border border-card-border bg-brown-dark/60 px-3 py-1.5 text-sm"
+              >
+                <option value="all">All characters</option>
+                {characters.map(([id, rsn]) => (
+                  <option key={id} value={id}>{rsn}</option>
+                ))}
+              </select>
+            )}
             <input
               type="search"
               value={query}

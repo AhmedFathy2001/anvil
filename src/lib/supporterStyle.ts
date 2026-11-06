@@ -235,9 +235,9 @@ export function readableHexOn(hex: Hex, background: Hex, toward: Hex, minimum = 
 }
 
 /** Derive a whole style once for a surface; never mutate the stored source colours. */
-export function supporterInkOn<T extends SupporterInk>(ink: T, background: Hex, toward: Hex): T {
-  const color = readableHexOn(ink.color, background, toward);
-  const grad = ink.grad?.map((stop) => readableHexOn(stop, background, toward));
+export function supporterInkOn<T extends SupporterInk>(ink: T, background: Hex, toward: Hex, minimum = MIN_STOP_CONTRAST): T {
+  const color = readableHexOn(ink.color, background, toward, minimum);
+  const grad = ink.grad?.map((stop) => readableHexOn(stop, background, toward, minimum));
   return {
     ...ink,
     color,

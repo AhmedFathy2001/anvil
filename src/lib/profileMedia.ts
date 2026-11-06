@@ -5,7 +5,7 @@ import { asc, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { profileMedia, users } from '@/db/schema';
-import { supporterForUser } from '@/lib/supporter';
+import { supporterForUser, supporterForUsers } from '@/lib/supporter';
 import { shownProfileMedia, type ProfileMediaRowLike, type ShownProfileMedia } from '@/lib/profileMediaRules';
 import type { SupporterTierId } from '@/lib/supporterTiers';
 
@@ -61,7 +61,10 @@ export async function profileMediaForPlayer(playerId: number, opts: { still?: bo
   try {
     const userId = await mediaUserForPlayer(playerId);
     if (userId == null) return { avatar: null, banner: null };
-    return profileMediaForUser(userId, opts);
+    // The upload may live on one login while the person's subscription lives on another. Public
+    // person/character cards follow the linked person, just like Supporter flair everywhere else.
+    const supporter = (await supporterForUsers([userId])).get(userId) ?? null;
+    return profileMediaForUser(userId, { ...opts, tier: supporter?.tier.id ?? null });
   } catch {
     return { avatar: null, banner: null };
   }

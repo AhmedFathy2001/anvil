@@ -13,6 +13,7 @@ import type {
   RosterMovement,
 } from '@/lib/memberProfile';
 import type { SupporterLook } from '@/lib/supporterStyle';
+import type { MemberSortKey } from '@/lib/memberSort';
 
 // The roster is what people come here for, so it stays the landing view and keeps the length it
 // always had. The clue/minigame/collection-log analytics are a whole page of their own — parked on
@@ -40,6 +41,7 @@ export default function MembersTabs({
   supporterLooks,
   boosters = {},
   lately,
+  initialSort = 'week',
 }: {
   /** This clan's boosting characters by name, for the Booster mark (lib/clanBoosts boosterMarks). */
   boosters?: Record<string, number>;
@@ -63,6 +65,7 @@ export default function MembersTabs({
    * account-progress card down.
    */
   lately: React.ReactNode;
+  initialSort?: MemberSortKey;
 }) {
   const [tab, setTab] = useState<Tab>('roster');
 
@@ -89,7 +92,7 @@ export default function MembersTabs({
       {tab === 'roster' && (
         <>
           <ClanPulse analytics={analytics} members={members} rosterLog={rosterLog} supporterLooks={supporterLooks} />
-          <MembersDirectory members={members} movement={movement} rankOrder={rankOrder} supporterLooks={supporterLooks} boosters={boosters} />
+          <MembersDirectory members={members} movement={movement} rankOrder={rankOrder} supporterLooks={supporterLooks} boosters={boosters} initialSort={initialSort} />
         </>
       )}
 

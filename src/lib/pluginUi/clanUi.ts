@@ -14,6 +14,15 @@ function nameLine(label: string, value: string, rsn: string): Node {
   return row(undefined, text(label, 'white', { who: rsn }), text(value, 'brand'), { pad: 2, inset: 2, tip: `Look up ${rsn}`, on: { a: 'lookup', rsn } });
 }
 
+function siteHeader(label: string, note: string, path: string): Node {
+  return row(text(label, 'brand'), undefined, text(note), {
+    gap: 0,
+    pad: 2,
+    tip: 'Open this ranking on the clan website',
+    on: { a: 'site', path },
+  });
+}
+
 /** @param compare offer "Compare with my clan" (another clan, and the viewer has one) */
 /**
  * `feedTab`: the plugin has the Feed tab (it sends X-Anvil-Feed-Tab), so the full drop log lives
@@ -34,7 +43,9 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
     }, gap(4));
   }
   const id: Node[] = [
-    row(undefined, text(c.name, boost?.color ?? 'white', {
+    row(images && c.logoUrl
+      ? { t: 'img', src: `/api/plugin/media/clan/${seg(c.slug)}?kind=logo`, w: 36, h: 36, motion: true, round: true }
+      : undefined, text(c.name, boost?.color ?? 'white', {
       font: 'bold',
       ...(boost?.grad ? { grad: boost.grad } : {}),
       ...(boost?.move ? { move: true } : {}),
@@ -62,14 +73,14 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
     parts.push(
       gap(6),
       card([
-        header('This week', `+${fmt(Math.round(c.weekHours))}h gained`),
+        siteHeader('This week', `+${fmt(Math.round(c.weekHours))}h gained`, `/members?sort=week`),
         gap(4),
         ...c.topWeek.map((g, i) => nameLine(`${i + 1}.  ${g.rsn}`, `+${g.hours.toFixed(1)}h`, g.rsn)),
       ]),
     );
   }
   if (c.topPlayers.length) {
-    parts.push(gap(6), card([header('Top accounts', 'by total XP'), gap(4), ...c.topPlayers.map((p) => nameLine(p.rsn, `${count(p.overallXp)} xp`, p.rsn))]));
+    parts.push(gap(6), card([siteHeader('Top accounts', 'by total XP', `/members?sort=xp`), gap(4), ...c.topPlayers.map((p) => nameLine(p.rsn, `${count(p.overallXp)} xp`, p.rsn))]));
   }
   if (c.highlights.length) {
     // The cached list shows at once; the live feed (counts, GZ buttons, more lines) replaces it.

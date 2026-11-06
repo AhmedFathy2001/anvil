@@ -565,7 +565,7 @@ async function flaired(view: View | null): Promise<View | null> {
   const inks = names.length ? await supporterInksForRsns(names).catch(() => new Map<string, SupporterInk>()) : new Map<string, SupporterInk>();
   applyFlair(view.ui, (name) => {
     const ink = inks.get(normalizeRsn(name));
-    return ink ? supporterInkOn(ink, FLAIR_BACKGROUND, '#ffffff') : null;
+    return ink ? supporterInkOn(ink, FLAIR_BACKGROUND, '#ffffff', 4.5) : null;
   });
   return view;
 }

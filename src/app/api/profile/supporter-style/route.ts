@@ -20,6 +20,7 @@ export async function PUT(request: Request) {
   const supporter = await supporterForUser(session.userId);
   const payload = body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>) : null;
   const accountId = typeof payload?.accountId === 'number' && Number.isInteger(payload.accountId) ? payload.accountId : null;
+  const allCharacters = payload?.allCharacters === true;
   const requested = accountId == null ? body : payload?.style;
   const check = validateSupporterStyle(requested, supporter?.tier.id ?? null);
   if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 });
@@ -35,7 +36,7 @@ export async function PUT(request: Request) {
         .where(and(eq(accounts.id, accountId), eq(accounts.playerId, playerId)))
         .limit(1);
       if (!account) return { error: 'That character is not yours.', status: 404 } as const;
-      if (supporter?.tier.id === 'champion') {
+      if (supporter?.tier.id === 'champion' && !allCharacters) {
         const rows = await tx
           .select({ style: accounts.supporterStyle })
           .from(accounts)
@@ -46,11 +47,13 @@ export async function PUT(request: Request) {
         ]);
         if (colours.size > 2) return { error: 'Champions may use at most two custom colours across their characters.', status: 400 } as const;
       }
-      await tx.update(accounts).set({ supporterStyle: check.style ? JSON.stringify(check.style) : null }).where(eq(accounts.id, accountId));
+      await tx.update(accounts).set({ supporterStyle: check.style ? JSON.stringify(check.style) : null }).where(
+        allCharacters ? eq(accounts.playerId, playerId) : eq(accounts.id, accountId),
+      );
       return { ok: true } as const;
     });
     if ('error' in result) return NextResponse.json({ error: result.error }, { status: result.status });
-    return NextResponse.json({ accountId, style: check.style, tier: supporter?.tier.id ?? null });
+    return NextResponse.json({ accountId, allCharacters, style: check.style, tier: supporter?.tier.id ?? null });
   }
   await db
     .update(users)

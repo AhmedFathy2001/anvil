@@ -8,8 +8,9 @@ import ClanLink from '@/components/ClanLink';
 import ClanEditor from './ClanEditor';
 import PlatformHiddenToggle from './PlatformHiddenToggle';
 import { db } from '@/db';
-import { clans } from '@/db/schema';
+import { clanBoostState, clans } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import ClanBoostGift from './ClanBoostGift';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +46,7 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
   const canWrite = hasPlatformRole(actor.role, 'staff');
   // clan-scope: this clan -- its own row, by id.
   const hidden = !!(await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { platformHidden: true } }))?.platformHidden;
+  const boostGift = await db.query.clanBoostState.findFirst({ where: eq(clanBoostState.clanId, clan.id), columns: { giftLevel: true, giftExpiresAt: true } });
   const canDelete = hasPlatformRole(actor.role, CAN_DELETE_CLAN);
 
   return (
@@ -192,6 +194,12 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
               Every clan’s errors →
             </ClanLink>
           </p>
+        </Section>
+      )}
+
+      {canWrite && (
+        <Section title="Gifted clan boost">
+          <ClanBoostGift clanId={clan.id} level={boostGift?.giftLevel ?? null} expiresAt={boostGift?.giftExpiresAt ?? null} />
         </Section>
       )}
 

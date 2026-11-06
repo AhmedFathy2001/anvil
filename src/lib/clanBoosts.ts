@@ -206,9 +206,9 @@ async function reconcileLevels(clanIds: number[] | 'all', now: number): Promise<
     activeBoosts(db, clanIds),
     // clan-scope: global -- the stored levels of exactly the clans asked about (or all, for the Clan Hall).
     db
-      .select({ clanId: clanBoostState.clanId, level: clanBoostState.level, droppedAt: clanBoostState.droppedAt })
+      .select({ clanId: clanBoostState.clanId, level: clanBoostState.level, droppedAt: clanBoostState.droppedAt, giftLevel: clanBoostState.giftLevel, giftExpiresAt: clanBoostState.giftExpiresAt })
       .from(clanBoostState)
-      .where(clanIds === 'all' ? sql`${clanBoostState.level} > 0` : inArray(clanBoostState.clanId, clanIds)),
+      .where(clanIds === 'all' ? sql`${clanBoostState.level} > 0 or ${clanBoostState.giftLevel} > 0` : inArray(clanBoostState.clanId, clanIds)),
   ]);
   const counted = new Map<number, number>();
   for (const r of countedRows(active)) counted.set(r.clanId, (counted.get(r.clanId) ?? 0) + 1);
@@ -220,7 +220,9 @@ async function reconcileLevels(clanIds: number[] | 'all', now: number): Promise<
     const n = counted.get(clanId) ?? 0;
     const state = reconcileLevel(s ? { level: s.level, droppedAt: s.droppedAt ? stampMs(s.droppedAt) : null } : null, n, now);
     if (state.changed) writes.push(writeLevel(clanId, state));
-    if (state.level > 0 || n > 0) out.set(clanId, { ...state, clanId, counted: n });
+    const giftActive = (s?.giftLevel ?? 0) > 0 && (!s?.giftExpiresAt || stampMs(s.giftExpiresAt) > now);
+    const effective = giftActive ? Math.max(state.level, Math.min(3, s!.giftLevel!)) as BoostLevel : state.level;
+    if (effective > 0 || n > 0) out.set(clanId, { ...state, level: effective, clanId, counted: n });
   }
   // A failed write only means the next read reconciles again; the answer above is still right.
   await Promise.all(writes.map((w) => w.catch((err) => log.warn('clan-boosts.level-write-failed', {}, err))));
@@ -254,7 +256,7 @@ export async function reconcileClanBoostLevels(now = Date.now()): Promise<number
   // clan-scope: global -- the sweep visits every clan with a live boost or a stored level, by design.
   const [live, stored] = await Promise.all([
     db.selectDistinct({ clanId: clanBoosts.clanId }).from(clanBoosts).where(and(isNull(clanBoosts.endedAt), sql`${clanBoosts.clanId} > ${cursor}`)),
-    db.select({ clanId: clanBoostState.clanId }).from(clanBoostState).where(and(sql`${clanBoostState.level} > 0`, sql`${clanBoostState.clanId} > ${cursor}`)),
+    db.select({ clanId: clanBoostState.clanId }).from(clanBoostState).where(and(sql`(${clanBoostState.level} > 0 or ${clanBoostState.giftLevel} > 0)`, sql`${clanBoostState.clanId} > ${cursor}`)),
   ]);
   const ids = [...new Set([...live, ...stored].map((r) => r.clanId))].sort((a, b) => a - b);
   const batch = ids.slice(0, RECONCILE_BATCH);

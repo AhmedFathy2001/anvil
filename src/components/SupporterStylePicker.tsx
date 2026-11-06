@@ -27,12 +27,15 @@ export default function SupporterStylePicker({
   name,
   initial,
   accountId,
+  applyAll = false,
 }: {
   tier: SupporterTierId;
   name: string;
   initial: SupporterStyle | null;
   /** Save this character's override; omitted preserves the legacy account-wide picker. */
   accountId?: number;
+  /** Apply this choice to every linked character. */
+  applyAll?: boolean;
 }) {
   const presets = presetsFor(tier);
   const custom = canCustomise(tier);
@@ -65,7 +68,7 @@ export default function SupporterStylePicker({
       const res = await fetch('/api/profile/supporter-style', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(accountId == null ? next : { accountId, style: next }),
+        body: JSON.stringify(accountId == null ? next : { accountId, style: next, allCharacters: applyAll }),
       });
       const json = (await res.json().catch(() => ({}))) as { style?: SupporterStyle | null; error?: string };
       if (!res.ok) {
@@ -73,7 +76,7 @@ export default function SupporterStylePicker({
         return;
       }
       setSaved(json.style ?? null);
-      setNote({ ok: true, text: 'Saved. Your name looks like this everywhere now.' });
+      setNote({ ok: true, text: applyAll ? 'Saved for every character.' : 'Saved. Your name looks like this everywhere now.' });
     } catch {
       setNote({ ok: false, text: 'Could not reach Anvil. Try again.' });
     } finally {
@@ -199,7 +202,7 @@ export default function SupporterStylePicker({
           onClick={() => void save(draft)}
           className="rounded-lg bg-gold px-3 py-1.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
         >
-          {busy ? 'Saving…' : 'Save'}
+          {busy ? 'Saving…' : applyAll ? 'Save for all characters' : 'Save'}
         </button>
         <button
           type="button"

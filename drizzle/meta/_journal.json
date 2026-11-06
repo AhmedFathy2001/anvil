@@ -1149,6 +1149,13 @@
       "when": 1793911480000,
       "tag": "0222_character_supporter_style",
       "breakpoints": true
+    },
+    {
+      "idx": 223,
+      "version": "7",
+      "when": 1793997880000,
+      "tag": "0223_clan_boost_gifts",
+      "breakpoints": true
     }
   ]
 }

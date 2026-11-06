@@ -146,6 +146,7 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
     }, gap(4));
   }
   parts.push(identity(c, anvil, !!opts.images));
+  if (anvil && c.displayCase?.length) parts.push(gap(6), displayCase(c));
   const kills = pageKills(c);
   if (anvil && c.clog && c.clog.total > 0) parts.push(gap(6), clogSummary(c, kills));
   if (anvil && c.latest.length) parts.push(gap(6), latest(c));
@@ -203,27 +204,62 @@ export function notFoundUi(rsn: string): Node {
 }
 
 function identity(c: PlayerCard, anvil: boolean, images: boolean): Node {
-  const parts: Node[] = [
-    row(
-      anvil && images && c.panelMedia?.avatar
-        ? { t: 'img', src: `/api/plugin/media/player/${seg(c.rsn)}?kind=avatar`, w: 48, h: 48, ...(c.panelMedia.avatarAnimated ? { motion: true } : {}) }
-        : undefined,
-      anvil ? nameText(c.rsn, 'white', { font: 'bold' }) : text(c.rsn, 'white', { font: 'bold' }),
-      anvil ? icon({ glyph: 'external', w: 12, h: 12, color: 'muted', tip: 'Open on the Anvil website', on: { a: 'site', path: profilePath(c.rsn) } }) : undefined,
-    ),
-  ];
-  if (!anvil) parts.push(gap(2), row(undefined, muted('From the hiscores — not on Anvil'), c.fetchedAt ? muted('', { at: c.fetchedAt }) : undefined));
-  if (c.clan?.name) parts.push(gap(2), text(c.clan.name, 'brand'));
   const line = [
     c.totalLevel > 0 ? `${fmt(c.totalLevel)} total` : null,
     c.combatLevel != null ? `cb ${c.combatLevel}` : null,
     c.accountType ? accountTypeLabel(c.accountType) : null,
   ].filter(Boolean);
-  if (line.length) parts.push(gap(2), muted(line.join(' · ')));
+  const details: Node[] = [
+    row(
+      anvil ? nameText(c.rsn, 'white', { font: 'bold' }) : text(c.rsn, 'white', { font: 'bold' }),
+      undefined,
+      anvil ? icon({ glyph: 'external', w: 12, h: 12, color: 'muted', tip: 'Open on the Anvil website', on: { a: 'site', path: profilePath(c.rsn) } }) : undefined,
+    ),
+  ];
+  if (!anvil) details.push(gap(2), row(undefined, muted('From the hiscores — not on Anvil'), c.fetchedAt ? muted('', { at: c.fetchedAt }) : undefined));
+  if (c.clan?.name) {
+    details.push(gap(2), row(
+      images && c.clan.logoUrl
+        ? { t: 'img', src: `/api/plugin/media/clan/${seg(c.clan.slug)}?kind=logo`, w: 18, h: 18, motion: true, round: true }
+        : undefined,
+      text(c.clan.name, 'brand', { font: 'small' }),
+      undefined,
+    ));
+  }
+  if (line.length) details.push(gap(2), muted(line.join(' · ')));
+  const avatar = anvil && images && c.panelMedia?.avatar
+    ? { t: 'img' as const, src: `/api/plugin/media/player/${seg(c.rsn)}?kind=avatar`, w: 44, h: 44, round: true, ...(c.panelMedia.avatarAnimated ? { motion: true } : {}) }
+    : undefined;
+  const parts: Node[] = [row(avatar, col(details), undefined, { gap: 7 })];
   const empty =
     c.totalLevel <= 0 && (!c.clog || c.clog.total <= 0) && !c.latest.length && !c.skills.length && !c.bosses.length && !c.topBosses.length;
   if (empty) parts.push(gap(6), muted('No stats tracked yet.'));
   return card(parts);
+}
+
+/** This character's pins, compact enough to remain useful in the 220px panel. */
+function displayCase(c: PlayerCard): Node {
+  const pins = c.displayCase ?? [];
+  const picture = (p: NonNullable<PlayerCard['displayCase']>[number]): Node => {
+    if ((p.kind === 'drop' || p.kind === 'clog') && p.itemId > 0) return icon({ item: p.itemId, w: 30, h: 28 });
+    const key = p.kind === 'pb' ? (p.statKey?.replace(/^\d+:/, '') ?? '') : (p.statKey ?? '');
+    return icon({ boss: key, w: 28, h: 28, or: icon({ glyph: 'star', color: 'brand', w: 14, h: 14 }) });
+  };
+  return card([
+    header('Display case'),
+    gap(4),
+    {
+      t: 'grid',
+      cols: 2,
+      gap: 4,
+      vgap: 4,
+      c: pins.map((p) => col([
+        picture(p),
+        text(p.headline ?? p.name, p.headline ? 'brand' : 'white', { font: 'small', align: 'c', tip: p.name }),
+        ...(p.headline ? [muted(p.name, { font: 'small', align: 'c' })] : []),
+      ], { bg: 'panel', inset: 4, tip: [p.name, p.source].filter(Boolean).join(' · ') })),
+    },
+  ]);
 }
 
 function clogSummary(c: PlayerCard, kills: Map<string, number>): Node {

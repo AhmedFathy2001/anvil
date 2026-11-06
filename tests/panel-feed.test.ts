@@ -78,14 +78,14 @@ test('achievement rows use compact titles and their native game icons', () => {
   const base = { ...drop(null), itemId: null, itemName: null, source: null };
   const total = momentRow({ ...base, kind: 'level', quantity: 375, sourceKind: 'total' });
   assert.equal(total.title, '375 total');
-  assert.equal(total.skill, 'overall');
+  assert.equal(total.sprite, 'total');
   const legacyTotal = momentRow({
     ...base,
     kind: 'mode',
     itemName: "Congratulations, you've reached a total level of 375.",
   });
   assert.equal(legacyTotal.title, '375 total', 'already-stored raw announcements are cleaned too');
-  assert.equal(legacyTotal.skill, 'overall');
+  assert.equal(legacyTotal.sprite, 'total');
 
   const level = momentRow({ ...base, kind: 'level', itemName: 'Prayer', quantity: 99, sourceKind: 'skill' });
   assert.equal(level.title, '99 Prayer');
@@ -164,6 +164,11 @@ test('more than one clan or board: a dropdown of all of them, on the one showing
   const boostedClan = { kind: 'clan' as const, id: 1, slug: 'afk', name: 'The AFK Spot', boostLevel: 2 };
   const boosted = JSON.stringify(feedTabUi({ scopes: [boostedClan], current: boostedClan, pane: 'feed', chatAvailable: false, filter: 'all', teamId: null, rows: [], floorNote: 'x' }));
   assert.match(boosted, /"grad":\["#ffd27a","#ff7ab8","#7ae0ff"\],"move":true/);
+
+  const markedClan = { ...scopes[0], logo: true };
+  const marked = JSON.stringify(feedTabUi({ scopes: [markedClan], current: markedClan, pane: 'feed', chatAvailable: false, filter: 'all', teamId: null, rows: [], floorNote: 'x', images: true }));
+  assert.match(marked, /kind=logo/);
+  assert.match(marked, /"motion":true,"round":true/);
 });
 
 test('a finished tile: its row, its lists, and a Tiles chip on a board only', async () => {

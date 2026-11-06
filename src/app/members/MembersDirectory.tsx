@@ -94,6 +94,7 @@ export default function MembersDirectory({
   rankOrder,
   supporterLooks = {},
   boosters = {},
+  initialSort = 'week',
 }: {
   /** This clan's boosting characters by name (lib/clanBoosts boosterMarks). */
   boosters?: Record<string, number>;
@@ -103,10 +104,11 @@ export default function MembersDirectory({
   rankOrder: string[];
   /** Supporter look (tier and colours) by roster name; only supporters appear. */
   supporterLooks?: Record<string, SupporterLook>;
+  initialSort?: SortKey;
 }) {
   const [query, setQuery] = useState('');
   const [membership, setMembership] = useState<Membership>('all');
-  const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: 'week', desc: true });
+  const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: initialSort, desc: FIRST_DESC[initialSort] });
   // Click a column to sort by it; click it again to flip the direction.
   const pick = (key: SortKey) =>
     setSort((s) => (s.key === key ? { key, desc: !s.desc } : { key, desc: FIRST_DESC[key] }));

@@ -6,6 +6,7 @@ import SupporterName from '@/components/SupporterName';
 import SupporterAnnounceToggle from '@/components/SupporterAnnounceToggle';
 import SupporterGameChatToggle from '@/components/SupporterGameChatToggle';
 import SupporterStylePicker from '@/components/SupporterStylePicker';
+import SupporterCharacterStyles from '@/components/SupporterCharacterStyles';
 import type { SupporterStyle } from '@/lib/supporterStyle';
 import { tenureStep, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
 
@@ -178,15 +179,9 @@ export default function SupporterSection({
           </a>
         </div>
         <div className="mt-4 space-y-3">
-          {characters.length > 0 ? characters.map((character) => (
-            <SupporterStylePicker
-              key={character.accountId}
-              tier={supporter.tier}
-              name={character.rsn}
-              accountId={character.accountId}
-              initial={character.style ?? supporter.style}
-            />
-          )) : (
+          {characters.length > 0 ? (
+            <SupporterCharacterStyles tier={supporter.tier} characters={characters.map((c) => ({ ...c, style: c.style ?? supporter.style }))} />
+          ) : (
             <SupporterStylePicker tier={supporter.tier} name={name || 'Your name'} initial={supporter.style} />
           )}
         </div>

@@ -7,7 +7,7 @@ import { runSuffix } from '@/lib/feedRuns';
 import { clanBoostInk } from '@/lib/clanBoostRules';
 
 import type { Action, Color, FeedRow, Node } from './nodes';
-import { button, col, gap, muted, text } from './nodes';
+import { button, col, gap, muted, row, text } from './nodes';
 
 // The plugin panel's Feed tab (view 'feed'): one live list per scope — the clan's moments, a board's
 // moments, a board's chat — drawn once and then grown by push rows (lib/panelRows). Pure: the view
@@ -32,7 +32,7 @@ export function kindGroup(kind: string): KindGroup | null {
   return null;
 }
 
-export type Scope = { kind: 'clan'; id: number; slug: string; name: string; boostLevel?: number; banner?: boolean } | { kind: 'event'; id: number; name: string };
+export type Scope = { kind: 'clan'; id: number; slug: string; name: string; boostLevel?: number; banner?: boolean; logo?: boolean } | { kind: 'event'; id: number; name: string };
 
 export function momentsFeedId(scope: { kind: 'clan' | 'event'; id: number }, filter?: KindGroup | 'team' | 'tiles', teamId?: number | null): string {
   const base = `moments:${scope.kind}:${scope.id}`;
@@ -223,13 +223,14 @@ function itemOf(m: { kind: string; itemId?: number | null; itemName?: string | n
 
 export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
   const value = m.valueGp != null && m.valueGp > 0 ? formatGp(m.valueGp * Math.max(1, m.quantity)) : undefined;
-  const levelSkill = m.kind === 'level'
-    ? m.sourceKind === 'total' || m.sourceKind === 'max' ? 'overall' : m.itemName?.trim().toLowerCase()
-    : rawTotalLevel(m) != null ? 'overall' : null;
+  const totalLevel = (m.kind === 'level' && (m.sourceKind === 'total' || m.sourceKind === 'max')) || rawTotalLevel(m) != null;
+  const levelSkill = m.kind === 'level' && !totalLevel ? m.itemName?.trim().toLowerCase() : null;
   return {
     id: `m${m.id}`,
     // A death has no item: the game's Skull (item 964) stands for it.
-    ...(levelSkill
+    ...(totalLevel
+      ? { sprite: 'total' as const }
+      : levelSkill
       ? { skill: levelSkill }
       : m.kind === 'clog'
         ? { sprite: 'collection-log' as const }
@@ -456,11 +457,17 @@ export function feedTabUi(o: FeedTabOptions): Node {
     );
   } else {
     const boost = o.current.kind === 'clan' ? clanBoostInk(o.current.boostLevel ?? 0) : null;
-    parts.push(text(o.current.name, boost?.color ?? 'brand', {
-      font: 'bold',
-      ...(boost?.grad ? { grad: boost.grad } : {}),
-      ...(boost?.move ? { move: true } : {}),
-    }), gap(4));
+    parts.push(row(
+      o.images && o.current.kind === 'clan' && o.current.logo
+        ? { t: 'img', src: `/api/plugin/media/clan/${encodeURIComponent(o.current.slug)}?kind=logo`, w: 28, h: 28, motion: true, round: true }
+        : undefined,
+      text(o.current.name, boost?.color ?? 'brand', {
+        font: 'bold',
+        ...(boost?.grad ? { grad: boost.grad } : {}),
+        ...(boost?.move ? { move: true } : {}),
+      }),
+      undefined,
+    ), gap(4));
   }
 
   if (o.mode?.active) {

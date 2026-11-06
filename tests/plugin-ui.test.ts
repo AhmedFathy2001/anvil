@@ -78,6 +78,23 @@ test('a card: identity, log, latest, then the profile sections', () => {
   assert.equal(tabs.key, 'lookup');
 });
 
+test('panel media, clan mark and this character’s display case are part of the player card', () => {
+  const shown: PlayerCard = {
+    ...card,
+    clan: { slug: 'theafkspot', name: 'The AFK Spot', logoUrl: 'stored-but-never-sent-directly' },
+    panelMedia: { avatar: true, avatarAnimated: true, banner: true, bannerAnimated: true },
+    displayCase: [{ id: 1, kind: 'clog', itemId: 27277, statKey: null, headline: null, name: "Tumeken's shadow", source: 'Tombs of Amascut' }],
+  };
+  const ui = playerCardUi(shown, { sectionKey: 'lookup', cas: false, images: true });
+  const images = walk(ui).filter((n): n is Extract<Node, { t: 'img' }> => n.t === 'img');
+  assert.ok(images.some((n) => n.src.includes('kind=banner') && n.motion));
+  assert.ok(images.some((n) => n.src.includes('kind=avatar') && n.motion && n.round));
+  assert.ok(images.some((n) => n.src.includes('kind=logo') && n.motion && n.round));
+  assert.ok(texts(ui).includes('Display case'));
+  assert.ok(texts(ui).includes("Tumeken's shadow"));
+  assert.ok(!JSON.stringify(ui).includes('stored-but-never-sent-directly'));
+});
+
 test('the log opens in place: categories, then pages, then a fetched page', () => {
   const ui = playerCardUi(card, { sectionKey: 'lookup', cas: false });
   const log = walk(ui).find((x) => x.t === 'slot' && x.id === 'log') as Extract<Node, { t: 'slot' }>;
@@ -216,12 +233,15 @@ test('clans: members open in Lookup, compare only when offered, search rows open
       highlights: [],
       competitions: [{ type: 'boss', metric: 'vorkath', label: 'Vorkath' }],
     },
-    false,
+    false, false, false, true,
   );
   assert.ok(!JSON.stringify(ui).includes('http'), 'the clan logo URL never reaches the plugin');
   assert.ok(actions(ui).some((a) => a.a === 'lookup' && a.rsn === 'Zezima'));
   assert.ok(!walk(ui).some((x) => x.t === 'button'));
   assert.ok(texts(ui).includes('Running: BOTW Vorkath'));
+  const mark = walk(ui).find((n) => n.t === 'img' && n.src.includes('kind=logo')) as Extract<Node, { t: 'img' }>;
+  assert.equal(mark.round, true);
+  assert.equal(mark.motion, true, 'an uploaded clan logo may animate without the banner boost gate');
   assert.ok(actions(clanSearchUi('afk', [{ slug: 'theafkspot', name: 'The AFK Spot' }])).some((a) => a.a === 'load' && a.v === 'clan'));
 });
 

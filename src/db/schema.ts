@@ -4332,6 +4332,10 @@ export const clanBoostState = pgTable('clan_boost_state', {
   clanId: integer('clan_id').primaryKey().references(() => clans.id, { onDelete: 'cascade' }),
   level: integer('level').notNull().default(0),
   droppedAt: text('dropped_at'),
+  /** Platform-gifted minimum tier; null means no gift. A null expiry means it is indefinite. */
+  giftLevel: integer('gift_level'),
+  giftExpiresAt: text('gift_expires_at'),
+  giftedBy: integer('gifted_by').references(() => users.id, { onDelete: 'set null' }),
   recruitingLine: text('recruiting_line'),
   lastRecruitPostAt: text('last_recruit_post_at'),
   lastRecruitPostBy: integer('last_recruit_post_by').references(() => users.id, { onDelete: 'set null' }),

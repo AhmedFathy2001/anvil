@@ -38,7 +38,7 @@ async function scopesFor(request: Request, userId: number | null): Promise<Scope
   const out: Scope[] = [];
   // A creator space has no clan feed of its own (no members whose drops it collects): its boards
   // are the feed, added below as event scopes. Only an in-game clan gets a "Clan · X" scope.
-  if (clan && !isCreatorSpace(clan)) out.push({ kind: 'clan', id: clan.id, slug: clan.slug, name: clan.name, banner: !!clan.bannerUrl });
+  if (clan && !isCreatorSpace(clan)) out.push({ kind: 'clan', id: clan.id, slug: clan.slug, name: clan.name, banner: !!clan.bannerUrl, logo: !!clan.logoUrl });
   const seat = clan ? await verifyPluginToken(request, { hintOnly: pluginRsnHintOnly(request) }).catch(() => null) : null;
   let eventId = seat?.eventId ?? null;
   if (eventId == null && clan && userId != null) eventId = (await homeBoardForUser(clan.id, userId).catch(() => null))?.eventId ?? null;
@@ -70,7 +70,7 @@ async function addEverythingElse(request: Request, out: Scope[], userId: number)
   if (!accountIds.length) return;
   // clan-scope: global -- the clans this viewer's own characters are members of.
   const clanRowsMine = await db
-    .selectDistinct({ id: clans.id, slug: clans.slug, name: clans.name, bannerUrl: clans.bannerUrl })
+    .selectDistinct({ id: clans.id, slug: clans.slug, name: clans.name, bannerUrl: clans.bannerUrl, logoUrl: clans.logoUrl })
     .from(clanMemberships)
     .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
     .where(and(inArray(clanMemberships.accountId, accountIds), eq(clanMemberships.kind, 'member'), isNull(clanMemberships.leftAt)));
@@ -80,7 +80,7 @@ async function addEverythingElse(request: Request, out: Scope[], userId: number)
     return seen.get(slug)!;
   };
   for (const c of clanRowsMine) {
-    if (!has('clan', c.id) && (await visible(c.slug))) out.push({ kind: 'clan', id: c.id, slug: c.slug, name: c.name, banner: !!c.bannerUrl });
+    if (!has('clan', c.id) && (await visible(c.slug))) out.push({ kind: 'clan', id: c.id, slug: c.slug, name: c.name, banner: !!c.bannerUrl, logo: !!c.logoUrl });
   }
   // clan-scope: global -- the boards this viewer's own characters are seated on, in any clan.
   const boards = await db
@@ -152,7 +152,7 @@ async function clanRows(clan: Extract<Scope, { kind: 'clan' }>, filter: string, 
 async function inksFor(rsns: string[]) {
   if (!rsns.length) return new Map();
   const source = await supporterInksForRsns(rsns).catch(() => new Map());
-  return new Map([...source].map(([name, ink]) => [name, supporterInkOn(ink, FLAIR_BACKGROUND, '#ffffff')]));
+  return new Map([...source].map(([name, ink]) => [name, supporterInkOn(ink, FLAIR_BACKGROUND, '#ffffff', 4.5)]));
 }
 
 function asLike(m: WithRun<MomentRow>) {
