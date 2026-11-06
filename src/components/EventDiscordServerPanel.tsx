@@ -77,6 +77,12 @@ export default function EventDiscordServerPanel({ eventId }: { eventId: number }
         body: JSON.stringify({ action, ...extra }),
       });
       const data = await res.json().catch(() => null);
+      // A failed call can still have changed Discord (a teardown that got half way): take the
+      // fresh status it sends so the page never shows what's already gone.
+      if (!res.ok && data?.status) {
+        setStatus(data.status);
+        setLayout(data.status.layout);
+      }
       if (!res.ok) throw new Error(data?.error ?? 'Something went wrong');
       if (data?.status) {
         setStatus(data.status);
@@ -238,7 +244,7 @@ export default function EventDiscordServerPanel({ eventId }: { eventId: number }
                   <li key={t.id}>
                     {status.layout === 'own'
                       ? `${t.name}: channels in your server ${t.planning ? '✓' : '—'}`
-                      : `${t.name}: event role ${t.eventRole ? '✓' : '—'} · planning ${t.planning ? '✓' : '—'}`}
+                      : `${t.name}: team role in the event server ${t.eventRole ? '✓' : '—'} · planning role + channels in your server ${t.planning ? '✓' : '—'}`}
                   </li>
                 ))}
               </ul>
@@ -326,6 +332,13 @@ function summarise(action: string, report: unknown): string {
   }
   if (action === 'sync-members') {
     return `${r.joined ?? 0} in the server, ${r.pending ?? 0} still to join${r.dmSent ? `, ${r.dmSent} newly DMed` : ''}.`;
+  }
+  if (action === 'teardown-planning' || action === 'teardown-event-server') {
+    const t = r as { deleted?: number; failed?: number };
+    if (!t.deleted && !t.failed) return 'Nothing to delete: it was already gone.';
+    return action === 'teardown-planning'
+      ? `Deleted ${t.deleted ?? 0} ${t.deleted === 1 ? 'team’s' : 'teams’'} planning role + text and voice channels from your server. Team roles in the event server stay until you delete those too.`
+      : `Deleted the event server’s team roles and channels (${t.deleted ?? 0} removed).`;
   }
   if (action === 'planning') {
     return `Channels ready. ${r.membersAssigned ?? 0} teammates given the role${r.membersNotInServer ? `, ${r.membersNotInServer} aren’t in your server` : ''}.`;
