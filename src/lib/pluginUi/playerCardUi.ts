@@ -222,8 +222,10 @@ function identity(c: PlayerCard, anvil: boolean, images: boolean): Node {
       images && c.clan.logoUrl
         ? { t: 'img', src: `/api/plugin/media/clan/${seg(c.clan.slug)}?kind=logo`, w: 18, h: 18, motion: true, round: true }
         : undefined,
-      text(c.clan.name, 'brand', { font: 'small' }),
+      text(`${c.clan.name} \u203a`, 'brand', { font: 'small' }),
       undefined,
+      // The clan opens its own card in Lookup, the same as searching for it.
+      { tip: `Look up ${c.clan.name}`, on: { a: 'clan', slug: c.clan.slug } },
     ));
   }
   if (line.length) details.push(gap(2), muted(line.join(' · ')));
