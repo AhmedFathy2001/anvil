@@ -228,7 +228,7 @@ function identity(c: PlayerCard, anvil: boolean, images: boolean): Node {
   }
   if (line.length) details.push(gap(2), muted(line.join(' · ')));
   const avatar = anvil && images && c.panelMedia?.avatar
-    ? { t: 'img' as const, src: `/api/plugin/media/player/${seg(c.rsn)}?kind=avatar`, w: 44, h: 44, round: true, ...(c.panelMedia.avatarAnimated ? { motion: true } : {}) }
+    ? { t: 'img' as const, src: `/api/plugin/media/player/${seg(c.rsn)}?kind=avatar`, w: 48, h: 48, round: true, ...(c.panelMedia.avatarAnimated ? { motion: true } : {}) }
     : undefined;
   const parts: Node[] = [row(avatar, col(details), undefined, { gap: 7 })];
   const empty =

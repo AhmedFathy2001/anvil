@@ -11,15 +11,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ rsn:
   if (!character?.personId || (!character.personPublic && !character.viewerOwns)) return new Response('Not found', { status: 404 });
   const query = new URL(request.url).searchParams;
   const kind = query.get('kind') === 'avatar' ? 'avatar' : 'banner';
+  const requested = (key: string, fallback: number, max: number) => {
+    const n = Number(query.get(key));
+    return Number.isInteger(n) && n >= 12 && n <= max ? n : fallback;
+  };
+  const width = requested('w', kind === 'avatar' ? 48 : 220, kind === 'avatar' ? 48 : 220);
+  const height = requested('h', kind === 'avatar' ? 48 : 73, kind === 'avatar' ? 48 : 73);
   const requestedMotion = query.get('motion') === '1';
   const media = await profileMediaForPlayer(character.personId, { still: !requestedMotion });
   const image = media[kind];
   if (image) {
-    return pluginPanelImage(image.src, kind === 'avatar' ? 48 : 220, kind === 'avatar' ? 48 : 73, requestedMotion && image.animated, kind === 'banner');
+    return pluginPanelImage(image.src, width, height, requestedMotion && image.animated, kind === 'banner');
   }
   if (kind === 'avatar') {
     const discord = await panelDiscordAvatar(character.personId);
-    if (discord) return pluginPanelImage(discord.src, 48, 48, requestedMotion && discord.animated);
+    if (discord) return pluginPanelImage(discord.src, width, height, requestedMotion && discord.animated);
   }
   return new Response('Not found', { status: 404 });
 }

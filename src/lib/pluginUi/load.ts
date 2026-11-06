@@ -14,6 +14,8 @@ import { profileMediaForPlayer } from '@/lib/profileMedia';
 import { clanSeat } from '@/lib/seatScope';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { displayCaseForPlayer } from '@/lib/displayCase';
+import { supporterForPlayer } from '@/lib/supporter';
+import { canUseProfileMedia } from '@/lib/profileMediaRules';
 
 // The reads behind the plugin's cards, shared by the card routes (/api/players/<rsn>/card,
 // /api/clans/<slug>/card) and the panel's views (/api/plugin/ui), so both answer the same.
@@ -72,15 +74,19 @@ export async function loadPanelPlayerCard(character: ApexCharacter): Promise<Pla
 /** Most recently used Discord login for a person, used only when they uploaded no Anvil avatar. */
 export async function panelDiscordAvatar(playerId: number): Promise<{ src: string; animated: boolean } | null> {
   try {
-    const [row] = await db
-      .select({ discordId: users.discordId, discordAvatar: users.discordAvatar })
-      .from(users)
-      .where(and(eq(users.playerId, playerId), isNotNull(users.discordId), isNotNull(users.discordAvatar)))
-      .orderBy(desc(users.lastLoginAt), desc(users.id))
-      .limit(1);
+    const [[row], supporter] = await Promise.all([
+      db
+        .select({ discordId: users.discordId, discordAvatar: users.discordAvatar })
+        .from(users)
+        .where(and(eq(users.playerId, playerId), isNotNull(users.discordId), isNotNull(users.discordAvatar)))
+        .orderBy(desc(users.lastLoginAt), desc(users.id))
+        .limit(1),
+      supporterForPlayer(playerId).catch(() => null),
+    ]);
     if (!row?.discordId) return null;
     const src = avatarUrl(row.discordId, row.discordAvatar);
-    return src ? { src, animated: !!row.discordAvatar?.startsWith('a_') } : null;
+    const mayMove = canUseProfileMedia(supporter?.tier.id ?? null);
+    return src ? { src, animated: mayMove && !!row.discordAvatar?.startsWith('a_') } : null;
   } catch {
     return null;
   }
