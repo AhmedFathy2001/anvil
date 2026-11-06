@@ -1,4 +1,5 @@
 import type { ClanCard } from '@/lib/clanCard';
+import { clanBoostInk } from '@/lib/clanBoostRules';
 
 import { FEED_STEP, dropLine } from './momentsUi';
 import { type Node, backRow, button, card, col, count, fmt, gap, header, icon, message, muted, nameText, row, seg, text } from './nodes';
@@ -19,11 +20,25 @@ function nameLine(label: string, value: string, rsn: string): Node {
  * there and this card keeps only a short taste of it.
  * `tabLinks`: the plugin can open its Feed tab from a row, so the pointer is a link, not a hint.
  */
-export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLinks = false): Node {
+export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLinks = false, images = false): Node {
   if (c.kind === 'creator') return spaceCardUi(c);
   const parts: Node[] = [];
+  const boost = clanBoostInk(c.boostLevel ?? 0);
+  if (images && c.bannerUrl) {
+    parts.push({
+      t: 'img',
+      src: `/api/plugin/media/clan/${seg(c.slug)}?kind=banner`,
+      w: 220,
+      h: 73,
+      ...(boost?.move ? { motion: true } : {}),
+    }, gap(4));
+  }
   const id: Node[] = [
-    row(undefined, text(c.name, 'white', { font: 'bold' }), icon({
+    row(undefined, text(c.name, boost?.color ?? 'white', {
+      font: 'bold',
+      ...(boost?.grad ? { grad: boost.grad } : {}),
+      ...(boost?.move ? { move: true } : {}),
+    }), icon({
       glyph: 'external',
       w: 12,
       h: 12,
@@ -130,12 +145,18 @@ export function clanCompareUi(a: ClanCard, b: ClanCard): Node {
 }
 
 /** Lookup's clan search: a row per listed clan that matches, each opening its card. */
-export function clanSearchUi(q: string, found: { slug: string; name: string }[]): Node {
+export function clanSearchUi(q: string, found: { slug: string; name: string; boostLevel?: number }[]): Node {
   if (!found.length) return message(`No listed clan matches "${q}".`).ui;
   return col(
-    found.flatMap((f) => [
-      row(undefined, text(f.name), icon({ glyph: 'chevron-right', w: 9, h: 9, color: 'muted' }), { bg: 'card', pad: 6, inset: 8, on: { a: 'load', v: 'clan', args: { slug: f.slug } } }),
-      gap(2),
-    ]),
+    found.flatMap((f) => {
+      const boost = clanBoostInk(f.boostLevel ?? 0);
+      return [
+        row(undefined, text(f.name, boost?.color ?? 'white', {
+          ...(boost?.grad ? { grad: boost.grad } : {}),
+          ...(boost?.move ? { move: true } : {}),
+        }), icon({ glyph: 'chevron-right', w: 9, h: 9, color: 'muted' }), { bg: 'card', pad: 6, inset: 8, on: { a: 'load', v: 'clan', args: { slug: f.slug } } }),
+        gap(2),
+      ];
+    }),
   );
 }

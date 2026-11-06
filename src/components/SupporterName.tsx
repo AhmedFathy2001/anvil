@@ -1,7 +1,14 @@
 import { useId } from 'react';
 
 import SupporterFlairPopover from '@/components/SupporterFlairPopover';
-import { supporterGradientCss, supporterInk, type SupporterStyle } from '@/lib/supporterStyle';
+import {
+  FLAIR_BACKGROUND,
+  OPAQUE_CHAT_BACKGROUND,
+  supporterGradientCss,
+  supporterInk,
+  supporterInkOn,
+  type SupporterStyle,
+} from '@/lib/supporterStyle';
 import type { SupporterTierId } from '@/lib/supporterTiers';
 
 /**
@@ -19,6 +26,7 @@ export default function SupporterName({
   plain = false,
   style = null,
   star = true,
+  surface = 'site',
 }: {
   name: string;
   tier: SupporterTierId | null | undefined;
@@ -29,21 +37,33 @@ export default function SupporterName({
   style?: SupporterStyle | null;
   /** Leave the star off where the row already carries a star of its own (the locker's "main" chip). */
   star?: boolean;
+  /** Preview the derived readable colours used over RuneScape's opaque chat background. */
+  surface?: 'site' | 'opaque-chat';
 }) {
   if (!tier) return <span className={className}>{name}</span>;
-  const gradient = style ? supporterGradientCss(supporterInk(tier, style)) : null;
+  const sourceInk = supporterInk(tier, style);
+  const ink = surface === 'opaque-chat'
+    ? supporterInkOn(sourceInk, OPAQUE_CHAT_BACKGROUND, '#000000')
+    : supporterInkOn(sourceInk, FLAIR_BACKGROUND, '#ffffff');
+  const gradient = supporterGradientCss(ink);
   // The star in the name's own stops (their chosen ones, else the tier's); gold has none.
-  const stops = supporterInk(tier, style).grad ?? null;
+  const stops = ink.grad ?? null;
+  const solid = stops ? null : ink.color;
   return (
     <span className={`supporter-flair inline-flex items-center gap-1.5 min-w-0 ${className}`}>
       {!star ? null : plain ? (
-        <SupporterStar stops={stops} />
+        <SupporterStar stops={stops} color={solid} />
       ) : (
         <SupporterFlairPopover tier={tier}>
-          <SupporterStar decorative stops={stops} />
+          <SupporterStar decorative stops={stops} color={solid} />
         </SupporterFlairPopover>
       )}
-      <span className={`supporter-name-${tier} truncate`} style={gradient ? { backgroundImage: gradient } : undefined}>
+      <span
+        className={`supporter-name-${tier} truncate`}
+        style={gradient
+          ? { backgroundImage: gradient }
+          : { backgroundImage: 'none', color: ink.color, WebkitTextFillColor: ink.color }}
+      >
         {name}
       </span>
     </span>
@@ -54,11 +74,14 @@ export function SupporterStar({
   size = 14,
   decorative = false,
   stops = null,
+  color = null,
 }: {
   size?: number;
   decorative?: boolean;
   /** Paint the star with these gradient stops instead of gold. */
   stops?: readonly string[] | null;
+  /** Static custom colour when there is no gradient. */
+  color?: string | null;
 }) {
   const id = useId();
   const grad = stops && stops.length >= 2 ? stops : null;
@@ -69,6 +92,7 @@ export function SupporterStar({
       viewBox="0 0 24 24"
       fill={grad ? `url(#${id})` : 'currentColor'}
       className="shrink-0 text-gold-light"
+      style={color ? { color } : undefined}
       {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': 'Anvil Supporter' })}
     >
       {grad && (

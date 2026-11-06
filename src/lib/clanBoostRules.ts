@@ -317,6 +317,18 @@ export interface BoostPerks {
   discordPost: boolean;
 }
 
+/** The exact source palettes shared by the website and RuneLite surfaces. */
+export const CLAN_BOOST_GRADIENTS = {
+  still: ['#ff9a5a', '#e05ad0', '#7a8cff'],
+  animated: ['#ffd27a', '#ff7ab8', '#7ae0ff'],
+} as const;
+
+export function clanBoostInk(level: number): { color: `#${string}`; grad?: `#${string}`[]; move?: boolean } | null {
+  if (level < 1) return null;
+  const grad = [...(level >= 2 ? CLAN_BOOST_GRADIENTS.animated : CLAN_BOOST_GRADIENTS.still)] as `#${string}`[];
+  return { color: grad[0], grad, ...(level >= 2 ? { move: true } : {}) };
+}
+
 export function boostPerks(level: number): BoostPerks {
   return {
     badge: level >= 1,

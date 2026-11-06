@@ -65,6 +65,8 @@ export interface PlayerCardPage {
 
 export interface PlayerCard {
   rsn: string;
+  /** Only presence/motion flags; panel image bytes stay behind same-origin authenticated routes. */
+  panelMedia?: { avatar: boolean; avatarAnimated: boolean; banner: boolean; bannerAnimated: boolean };
   accountType: string | null;
   /** `logoUrl` is the clan's own image; absent/null = the crest. */
   clan: { slug: string; name: string; logoUrl?: string | null } | null;

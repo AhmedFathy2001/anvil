@@ -27,7 +27,7 @@ import { effectiveClanRules, levelPostMatches, levelPostOf } from '@/lib/levelRu
 import { getClanMilestoneRules, getMemberLevelPrefs } from '@/lib/levelRulesStore';
 import { labQuarantine } from '@/lib/lab';
 import { apexOrigin } from '@/lib/seo';
-import { supporterForUser, withSupporterAuthor } from '@/lib/supporter';
+import { supporterForUsers, withSupporterAuthor } from '@/lib/supporter';
 import { boostedClanIdsForAccount, withBoosterAuthor } from '@/lib/clanBoosts';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { refuseForeignCharacter } from '@/lib/pluginForeign';
@@ -261,7 +261,7 @@ export async function POST(request: Request) {
   // An Anvil Supporter's posts carry their tier's star beside their name. Cosmetic: a failed read
   // posts without it.
   if (outEmbed?.author) {
-    const s = await supporterForUser(auth.userId).catch(() => null);
+    const s = (await supporterForUsers([auth.userId]).catch(() => new Map())).get(auth.userId) ?? null;
     outEmbed = withSupporterAuthor(outEmbed, s?.tier.id ?? null, apexOrigin(), s?.style ?? null);
   }
 

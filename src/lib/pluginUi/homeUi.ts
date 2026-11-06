@@ -62,7 +62,7 @@ export interface HomeConfig {
     liveCount?: number;
   }[];
   /** `kind` 'creator': a creator space (lib/creatorSpaces) — the tab speaks of it by name, not as "your clan". */
-  activeClan?: { slug: string; name?: string | null; kind?: string | null } | null;
+  activeClan?: { slug: string; name?: string | null; gameName?: string | null; kind?: string | null; boostLevel?: number } | null;
 }
 
 export interface WeeklyStanding {

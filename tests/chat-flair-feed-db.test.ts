@@ -116,7 +116,7 @@ test('a gift is heard, and its refresh is a delta adding just that person\'s cha
   // A plugin one behind gets the delta; one current gets nothing to do.
   F.resetChatFlairMemory();
   assert.deepEqual((await F.flairSince(base)).deltas?.map((x) => x.v), [v]);
-  assert.deepEqual(await F.flairSince(v), { v });
+  assert.deepEqual(await F.flairSince(v), { v, n: 2 });
 });
 
 test('the rule: verified + shared wears it, provisional or not; unverified and hidden do not', async () => {

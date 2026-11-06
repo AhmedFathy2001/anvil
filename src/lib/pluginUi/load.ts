@@ -2,7 +2,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clans, users } from '@/db/schema';
-import { apexCharacter, apexClan } from '@/lib/apexProfiles';
+import { apexCharacter, apexClan, type ApexCharacter } from '@/lib/apexProfiles';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { hasPlatformRole } from '@/lib/clanRoles';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
@@ -10,6 +10,7 @@ import { loadPlayerCard } from '@/lib/playerCard';
 import type { PlayerCard } from '@/lib/playerCardShape';
 import { publicHiscoresCard } from '@/lib/publicHiscoresCard';
 import { rateLimit } from '@/lib/rate-limit';
+import { profileMediaForPlayer } from '@/lib/profileMedia';
 import { clanSeat } from '@/lib/seatScope';
 
 // The reads behind the plugin's cards, shared by the card routes (/api/players/<rsn>/card,
@@ -38,7 +39,7 @@ export type CardLookup =
 export async function lookupPlayerCard(request: Request, rsn: string): Promise<CardLookup> {
   if (!rsn || rsn.length > 12) return { kind: 'missing' };
   const character = await apexCharacter(rsn, await viewerPlayerId(request));
-  if (character) return { kind: 'card', card: await loadPlayerCard(character) };
+  if (character) return { kind: 'card', card: await loadPanelPlayerCard(character) };
 
   const limit = await rateLimit(request, 'player-card-lookup', { limit: 30, windowMs: 60_000 });
   if (!limit.ok) return { kind: 'limited', retryAfterSec: Math.max(1, Math.ceil((limit.reset - Date.now()) / 1000)) };
@@ -46,6 +47,19 @@ export async function lookupPlayerCard(request: Request, rsn: string): Promise<C
   if (result.kind === 'card') return { kind: 'card', card: result.card };
   if (result.kind === 'busy') return { kind: 'busy', retryAfterSec: result.retryAfterSec };
   return { kind: 'missing' };
+}
+
+export async function loadPanelPlayerCard(character: ApexCharacter): Promise<PlayerCard> {
+  const card = await loadPlayerCard(character);
+  if (!character.personId || (!character.personPublic && !character.viewerOwns)) return card;
+  const media = await profileMediaForPlayer(character.personId).catch(() => ({ avatar: null, banner: null }));
+  card.panelMedia = {
+    avatar: !!media.avatar,
+    avatarAnimated: !!media.avatar?.animated,
+    banner: !!media.banner,
+    bannerAnimated: !!media.banner?.animated,
+  };
+  return card;
 }
 
 /**
@@ -59,7 +73,7 @@ export async function visibleClan(request: Request, rawSlug: string) {
   // clan-scope: global -- resolving a clan by slug is what this is.
   const clan = await db.query.clans.findFirst({
     where: eq(clans.slug, slug),
-    columns: { id: true, slug: true, name: true, logoUrl: true, status: true, kind: true },
+    columns: { id: true, slug: true, name: true, logoUrl: true, bannerUrl: true, bannerPosition: true, status: true, kind: true },
   });
   if (!clan || clan.status === 'suspended') return null;
   if ((await apexClan(slug)) != null) return clan;

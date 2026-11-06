@@ -20,13 +20,18 @@ import { modeLevelRules, pluginPostsModeLevels } from '@/lib/modeFilters';
 import { pluginVersionHeader } from '@/lib/pluginSeen';
 import { recordModeLineMoments } from '@/lib/momentsStore';
 import { emitMomentRows } from '@/lib/panelRows';
+import { apexOrigin } from '@/lib/seo';
+import { supporterForUsers, withSupporterAuthor } from '@/lib/supporter';
+import { boostedClanIdsForAccount, withBoosterAuthor } from '@/lib/clanBoosts';
 
 // POST /api/plugin/mode-lines — the highlighted game messages a player saw on a GAME-MODE world
 // (Leagues, Deadman, …), for the site to turn into posts: "Relic unlocked: …", "Area unlocked: …".
-// Capability 'mode-lines'. The plugin sends lines and nothing else; lib/modeLines decides what each
-// one is, so a new league's unlocks are recognised by a site edit on launch day.
+// Capability 'mode-lines'. The plugin sends the lines plus, when 'mode-line-screenshots' is also
+// advertised, one frame for the whole batch; lib/modeLines decides what each line is, so a new
+// league's unlocks are recognised by a site edit on launch day.
 //
-// Body: { lines: string[], world?: { types, activity } }. `world` is the world the lines were seen
+// JSON or multipart payload_json: { lines: string[], world?: { types, activity } }.
+// `world` is the world the lines were seen
 // on, frozen in by the plugin when it batched them (a hop between the line and the send would
 // otherwise label them with the next world); without it, the request's own world headers.
 
@@ -34,6 +39,7 @@ import { emitMomentRows } from '@/lib/panelRows';
 const MAX_LINES = 20;
 /** Posts made from one request, so one batch can't flood a channel. */
 const MAX_POSTS = 5;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 // The same line arrives twice when the game prints it on two channels, and again when the outbox
 // retries a batch. Remembered for a minute, per person.
@@ -65,15 +71,33 @@ export async function POST(request: Request) {
   }
 
   let body: { lines?: unknown; world?: unknown };
+  let image: { bytes: ArrayBuffer; filename: string } | null = null;
   try {
-    body = (await request.json()) as typeof body;
+    if ((request.headers.get('content-type') || '').includes('multipart/form-data')) {
+      const form = await request.formData();
+      const raw = form.get('payload_json');
+      if (typeof raw !== 'string') throw new Error('payload_json');
+      body = JSON.parse(raw) as typeof body;
+      const file = form.get('file');
+      if (file instanceof File) {
+        if (file.size > MAX_IMAGE_BYTES) {
+          return NextResponse.json({ error: 'Image too large' }, { status: 413 });
+        }
+        image = { bytes: await file.arrayBuffer(), filename: file.name || 'anvil-mode.png' };
+      }
+    } else {
+      body = (await request.json()) as typeof body;
+    }
   } catch {
     return NextResponse.json({ error: 'Malformed body' }, { status: 400 });
   }
   if (!Array.isArray(body.lines)) return NextResponse.json({ error: 'lines' }, { status: 400 });
 
   // A tile-lab session logs this push (lib/lab). A replayed scenario stops there; real play goes on as usual.
-  const quarantined = await labQuarantine(request, member.accountId, 'mode-lines', body);
+  const quarantined = await labQuarantine(request, member.accountId, 'mode-lines', {
+    ...body,
+    image: image?.filename ?? null,
+  });
   if (quarantined) return quarantined;
 
   const mode = worldModeOf(request, { world: body.world });
@@ -144,6 +168,16 @@ export async function POST(request: Request) {
   // Routed by person, like /api/plugin/notify: the clans this account has a seat in, each by its own
   // Game modes settings. With no mode channel the post lands where an achievement would.
   const icon = await modeIconUrl(member.clanId, mode);
+  // Flair follows the person, not whichever login happened to mint the plugin token. A booster gem
+  // replaces the Supporter star only in the clan this character boosts; all other clans keep the star.
+  const supporter = (await supporterForUsers([member.userId]).catch(() => new Map())).get(member.userId) ?? null;
+  const boosted = await boostedClanIdsForAccount(member.accountId).catch(() => new Set<number>());
+  const decorate = (embed: Record<string, unknown>, clanId: number) => {
+    const flaired = boosted.has(clanId)
+      ? withBoosterAuthor(embed, apexOrigin())
+      : withSupporterAuthor(embed, supporter?.tier.id ?? null, apexOrigin(), supporter?.style ?? null);
+    return image ? { ...flaired, image: { url: `attachment://${image.filename}` } } : flaired;
+  };
   let posted = 0;
   for (const ec of await socialEmissionClans(member.accountId)) {
     await rememberSeenMode(ec.clanId, mode);
@@ -153,9 +187,14 @@ export async function POST(request: Request) {
     const asGuest = ec.kind === 'guest' && (await clanTagsGuestEmissions(ec.clanId));
     const send = async (url: string | null, title: string, kind: string) => {
       if (!url) return;
-      const embed = markMode(modeEventEmbed(title, member.rsn), mode.label, icon);
+      const embed = decorate(markMode(modeEventEmbed(title, member.rsn), mode.label, icon)!, ec.clanId);
       const post = asGuest ? markGuestPost(embed, undefined) : { embed, content: undefined };
-      const ok = await forwardPluginNotification(url, { embed: post.embed ?? null, content: post.content ?? undefined, clanId: ec.clanId });
+      const ok = await forwardPluginNotification(url, {
+        embed: post.embed ?? null,
+        content: post.content ?? undefined,
+        attachment: image,
+        clanId: ec.clanId,
+      });
       if (ok) posted++;
       else log.warn('plugin-mode-lines.post-failed', { clanId: ec.clanId, mode: mode.key, kind });
     };
@@ -175,9 +214,14 @@ export async function POST(request: Request) {
     for (const e of fresh) {
       const url = routeModePost(e.kind, { ...routing, normalHook });
       if (!url) continue;
-      const embed = markMode(modeEventEmbed(e.title, member.rsn), mode.label, icon);
+      const embed = decorate(markMode(modeEventEmbed(e.title, member.rsn), mode.label, icon)!, ec.clanId);
       const post = asGuest ? markGuestPost(embed, undefined) : { embed, content: undefined };
-      const ok = await forwardPluginNotification(url, { embed: post.embed ?? null, content: post.content ?? undefined, clanId: ec.clanId });
+      const ok = await forwardPluginNotification(url, {
+        embed: post.embed ?? null,
+        content: post.content ?? undefined,
+        attachment: image,
+        clanId: ec.clanId,
+      });
       if (ok) posted++;
       else log.warn('plugin-mode-lines.post-failed', { clanId: ec.clanId, mode: mode.key, kind: e.kind });
     }

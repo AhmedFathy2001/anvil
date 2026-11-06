@@ -8,14 +8,16 @@ import { boardChatSlow, myChatNames, chatAccess, chatHistory, deleteChat, muteCh
 import { chatPaceHint } from '@/lib/eventChatRules';
 import { formatGp } from '@/lib/itemPrices';
 import { NO_REACTIONS, isClanMember, reactionSummaries, reactorNames, tallyOf } from '@/lib/momentReactions';
-import { modeMomentsForClan, recentModeMomentCount, type MomentRow } from '@/lib/momentsStore';
+import { modeMomentModesForClan, modeMomentsForClan, recentModeMomentCount, type MomentRow } from '@/lib/momentsStore';
 import type { WithRun } from '@/lib/feedRuns';
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
 import { rateLimit } from '@/lib/rate-limit';
 import { supporterForUser, supporterInksForRsns } from '@/lib/supporter';
+import { FLAIR_BACKGROUND, supporterInkOn } from '@/lib/supporterStyle';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { clanBoostLevels } from '@/lib/clanBoosts';
 
-import { visibleClan } from './load';
+import { hasPanelImages, visibleClan } from './load';
 import { boardCompletions, clanFeedList, eventFeedList, groupOf, KINDS_OF } from './feedLists';
 import { completionRow, feedTabUi, momentRow, reactRowAction, type RowReactKind, type Scope } from './feedUi';
 import type { FeedRow, View } from './nodes';
@@ -36,7 +38,7 @@ async function scopesFor(request: Request, userId: number | null): Promise<Scope
   const out: Scope[] = [];
   // A creator space has no clan feed of its own (no members whose drops it collects): its boards
   // are the feed, added below as event scopes. Only an in-game clan gets a "Clan · X" scope.
-  if (clan && !isCreatorSpace(clan)) out.push({ kind: 'clan', id: clan.id, slug: clan.slug, name: clan.name });
+  if (clan && !isCreatorSpace(clan)) out.push({ kind: 'clan', id: clan.id, slug: clan.slug, name: clan.name, banner: !!clan.bannerUrl });
   const seat = clan ? await verifyPluginToken(request, { hintOnly: pluginRsnHintOnly(request) }).catch(() => null) : null;
   let eventId = seat?.eventId ?? null;
   if (eventId == null && clan && userId != null) eventId = (await homeBoardForUser(clan.id, userId).catch(() => null))?.eventId ?? null;
@@ -68,7 +70,7 @@ async function addEverythingElse(request: Request, out: Scope[], userId: number)
   if (!accountIds.length) return;
   // clan-scope: global -- the clans this viewer's own characters are members of.
   const clanRowsMine = await db
-    .selectDistinct({ id: clans.id, slug: clans.slug, name: clans.name })
+    .selectDistinct({ id: clans.id, slug: clans.slug, name: clans.name, bannerUrl: clans.bannerUrl })
     .from(clanMemberships)
     .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
     .where(and(inArray(clanMemberships.accountId, accountIds), eq(clanMemberships.kind, 'member'), isNull(clanMemberships.leftAt)));
@@ -78,7 +80,7 @@ async function addEverythingElse(request: Request, out: Scope[], userId: number)
     return seen.get(slug)!;
   };
   for (const c of clanRowsMine) {
-    if (!has('clan', c.id) && (await visible(c.slug))) out.push({ kind: 'clan', id: c.id, slug: c.slug, name: c.name });
+    if (!has('clan', c.id) && (await visible(c.slug))) out.push({ kind: 'clan', id: c.id, slug: c.slug, name: c.name, banner: !!c.bannerUrl });
   }
   // clan-scope: global -- the boards this viewer's own characters are seated on, in any clan.
   const boards = await db
@@ -148,7 +150,9 @@ async function clanRows(clan: Extract<Scope, { kind: 'clan' }>, filter: string, 
 
 /** Supporters' name colours by normalised name; flair is decoration, so a failed read is none. */
 async function inksFor(rsns: string[]) {
-  return rsns.length ? supporterInksForRsns(rsns).catch(() => new Map()) : new Map();
+  if (!rsns.length) return new Map();
+  const source = await supporterInksForRsns(rsns).catch(() => new Map());
+  return new Map([...source].map(([name, ink]) => [name, supporterInkOn(ink, FLAIR_BACKGROUND, '#ffffff')]));
 }
 
 function asLike(m: WithRun<MomentRow>) {
@@ -172,9 +176,9 @@ function asLike(m: WithRun<MomentRow>) {
 }
 
 /** The separate-save list uses the same rows and reactions, but never the ordinary clan floor twice. */
-async function clanModeRows(clan: Extract<Scope, { kind: 'clan' }>, filter: string, viewer: number | null): Promise<FeedRow[]> {
+async function clanModeRows(clan: Extract<Scope, { kind: 'clan' }>, filter: string, viewer: number | null, worldMode: string | null): Promise<FeedRow[]> {
   const g = groupOf(filter);
-  const list = await modeMomentsForClan(clan.id, 80, g ? KINDS_OF[g] : undefined);
+  const list = await modeMomentsForClan(clan.id, 80, g ? KINDS_OF[g] : undefined, worldMode);
   const member = viewer != null && (await isClanMember(viewer, clan.id));
   const [summaries, inks, who] = await Promise.all([
     reactionSummaries(list.map((m) => m.id), viewer),
@@ -264,6 +268,11 @@ export async function feedView(request: Request, a: Args): Promise<View> {
 async function feedViewInner(request: Request, a: Args): Promise<View> {
   const viewer = await verifyPluginTokenUser(request);
   const scopes = await scopesFor(request, viewer?.userId ?? null);
+  const clanScopes = scopes.filter((s): s is Extract<Scope, { kind: 'clan' }> => s.kind === 'clan');
+  if (clanScopes.length) {
+    const levels = await clanBoostLevels(clanScopes.map((s) => s.id)).catch(() => new Map());
+    for (const scope of clanScopes) scope.boostLevel = levels.get(scope.id)?.level ?? 0;
+  }
   const current = pick(scopes, a.s);
   if (!current) return message('Sign in with the plugin and join a clan or an event to see its feed.');
 
@@ -287,6 +296,7 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
         filter: f,
         teamId,
         rows,
+        images: hasPanelImages(request),
         mine: await myChatNames(viewer.userId),
         send: {
           act: 'chat-send',
@@ -305,9 +315,13 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
     };
   }
 
-  const modeCount = current.kind === 'clan' ? await recentModeMomentCount(current.id) : 0;
+  const [modeCount, modeOptions] = current.kind === 'clan'
+    ? await Promise.all([recentModeMomentCount(current.id), modeActive ? modeMomentModesForClan(current.id) : Promise.resolve([])])
+    : [0, []];
+  const requestedMode = a.wm?.trim() || 'all';
+  const selectedMode = requestedMode !== 'all' && modeOptions.some((m) => m.key === requestedMode) ? requestedMode : 'all';
   const data = modeActive
-    ? { rows: await clanModeRows(current, filter, viewer?.userId ?? null), floor: 0 }
+    ? { rows: await clanModeRows(current, filter, viewer?.userId ?? null, selectedMode === 'all' ? null : selectedMode), floor: 0 }
     : current.kind === 'clan'
       ? await clanRows(current, filter, viewer?.userId ?? null)
       : await eventRows(current.id, filter, teamId, viewer?.userId ?? null, !!access?.member);
@@ -321,8 +335,9 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
       filter,
       teamId,
       rows,
+      images: hasPanelImages(request),
       floorNote: modeActive ? undefined : `Drops ${formatGp(floor)}+ · pets · achievements`,
-      mode: current.kind === 'clan' ? { active: modeActive, count: modeCount } : null,
+      mode: current.kind === 'clan' ? { active: modeActive, count: modeCount, selected: selectedMode, options: modeOptions } : null,
     }),
   };
 }

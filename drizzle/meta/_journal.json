@@ -1142,6 +1142,13 @@
       "when": 1793911420000,
       "tag": "0221_mode_feed",
       "breakpoints": true
+    },
+    {
+      "idx": 222,
+      "version": "7",
+      "when": 1793911480000,
+      "tag": "0222_character_supporter_style",
+      "breakpoints": true
     }
   ]
 }

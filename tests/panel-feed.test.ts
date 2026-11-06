@@ -44,23 +44,62 @@ test('game modes stay behind one quiet doorway, then reuse the familiar filters'
     rows: [], mode: { active: false, count: 6 },
   }));
   assert.match(ordinary, /Game-mode activity · 6/);
+  assert.match(ordinary, /"t":"button"/, 'the mode doorway is a visible full-width button');
   assert.doesNotMatch(ordinary, /moments:clan:3:modes/);
 
   const modes = JSON.stringify(feedTabUi({
     scopes: [clan], current: clan, pane: 'feed', chatAvailable: false, filter: 'pets', teamId: null,
-    rows: [], mode: { active: true, count: 6 },
+    rows: [], mode: {
+      active: true, count: 6, selected: 'hardcore',
+      options: [{ key: 'hardcore', label: 'Hardcore' }, { key: 'leagues', label: 'Leagues' }],
+    },
   }));
-  assert.match(modes, /moments:clan:3:modes:pets/);
+  assert.match(modes, /All game modes/);
+  assert.match(modes, /Hardcore/);
+  assert.match(modes, /Leagues/);
+  assert.match(modes, /moments:clan:3:modes:mode:hardcore:pets/);
   for (const label of ['All', 'Drops', 'Pets', 'Achievements', 'Deaths']) assert.match(modes, new RegExp(label));
-  assert.match(modes, /separate from main-game progress/);
-  assert.deepEqual(modeMomentFeedIds(3, 'pet', 'leagues'), [modeFeedId(3), modeFeedId(3, 'pets')]);
-  assert.deepEqual(modeMomentFeedIds(3, 'death', 'hardcore'), [modeFeedId(3), modeFeedId(3, 'deaths'), 'moments:clan:3:deaths']);
+  assert.match(modes, /Separate from main-game progress/);
+  assert.deepEqual(modeMomentFeedIds(3, 'pet', 'leagues'), [
+    modeFeedId(3), modeFeedId(3, 'pets'), modeFeedId(3, undefined, 'leagues'), modeFeedId(3, 'pets', 'leagues'),
+  ]);
+  assert.deepEqual(modeMomentFeedIds(3, 'death', 'hardcore'), [
+    modeFeedId(3), modeFeedId(3, 'deaths'), modeFeedId(3, undefined, 'hardcore'), modeFeedId(3, 'deaths', 'hardcore'), 'moments:clan:3:deaths',
+  ]);
 });
 
 test('a game-mode row wears a compact mode tag', () => {
   const row = momentRow(drop(null, { worldMode: 'leagues', worldModeLabel: 'Leagues' }));
   assert.equal(row.tag, 'Leagues');
   assert.equal(row.tagColor, 'brand');
+});
+
+test('achievement rows use compact titles and their native game icons', () => {
+  const base = { ...drop(null), itemId: null, itemName: null, source: null };
+  const total = momentRow({ ...base, kind: 'level', quantity: 375, sourceKind: 'total' });
+  assert.equal(total.title, '375 total');
+  assert.equal(total.skill, 'overall');
+  const legacyTotal = momentRow({
+    ...base,
+    kind: 'mode',
+    itemName: "Congratulations, you've reached a total level of 375.",
+  });
+  assert.equal(legacyTotal.title, '375 total', 'already-stored raw announcements are cleaned too');
+  assert.equal(legacyTotal.skill, 'overall');
+
+  const level = momentRow({ ...base, kind: 'level', itemName: 'Prayer', quantity: 99, sourceKind: 'skill' });
+  assert.equal(level.title, '99 Prayer');
+  assert.equal(level.skill, 'prayer');
+
+  const quest = momentRow({ ...base, kind: 'quest', itemName: 'The Tourist Trap' });
+  assert.equal(quest.title, 'The Tourist Trap');
+  assert.equal(quest.sprite, 'quest');
+  const diary = momentRow({ ...base, kind: 'diary', itemName: 'Varrock', tier: 'Hard' });
+  assert.equal(diary.title, 'Hard Varrock');
+  assert.equal(diary.sprite, 'diary');
+  const ca = momentRow({ ...base, kind: 'ca', itemName: 'No Pressure', tier: 'Elite' });
+  assert.equal(ca.title, 'Elite: No Pressure');
+  assert.equal(ca.sprite, 'combat');
 });
 
 test('a chat line goes to everyone’s list, its team’s, and staff’s', () => {
@@ -122,6 +161,9 @@ test('more than one clan or board: a dropdown of all of them, on the one showing
   assert.deepEqual(select.options.map((o) => o.label), ['Clan · The AFK Spot', 'Event · Chat Test', 'Clan · Other Clan', 'Event · Summer Bingo']);
   const one = JSON.stringify(feedTabUi({ scopes: [scopes[0]], current: scopes[0], pane: 'feed', chatAvailable: false, filter: 'all', teamId: null, rows: [], floorNote: 'x' }));
   assert.doesNotMatch(one, /"kind":"select"/, 'one scope is a heading, not a dropdown');
+  const boostedClan = { kind: 'clan' as const, id: 1, slug: 'afk', name: 'The AFK Spot', boostLevel: 2 };
+  const boosted = JSON.stringify(feedTabUi({ scopes: [boostedClan], current: boostedClan, pane: 'feed', chatAvailable: false, filter: 'all', teamId: null, rows: [], floorNote: 'x' }));
+  assert.match(boosted, /"grad":\["#ffd27a","#ff7ab8","#7ae0ff"\],"move":true/);
 });
 
 test('a finished tile: its row, its lists, and a Tiles chip on a board only', async () => {

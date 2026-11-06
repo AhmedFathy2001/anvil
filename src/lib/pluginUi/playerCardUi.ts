@@ -129,11 +129,23 @@ export interface CardOptions {
   cas: boolean;
   /** The character the viewer is playing, for "Compare with me". */
   me?: string | null;
+  /** This plugin advertises panel image support. */
+  images?: boolean;
 }
 
 export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
   const anvil = c.source !== 'hiscores';
-  const parts: Node[] = [identity(c, anvil)];
+  const parts: Node[] = [];
+  if (anvil && opts.images && c.panelMedia?.banner) {
+    parts.push({
+      t: 'img',
+      src: `/api/plugin/media/player/${seg(c.rsn)}?kind=banner`,
+      w: 220,
+      h: 73,
+      ...(c.panelMedia.bannerAnimated ? { motion: true } : {}),
+    }, gap(4));
+  }
+  parts.push(identity(c, anvil, !!opts.images));
   const kills = pageKills(c);
   if (anvil && c.clog && c.clog.total > 0) parts.push(gap(6), clogSummary(c, kills));
   if (anvil && c.latest.length) parts.push(gap(6), latest(c));
@@ -190,10 +202,12 @@ export function notFoundUi(rsn: string): Node {
   return card([text(rsn, 'white', { font: 'bold' }), gap(4), muted('Not on Anvil yet — or they haven’t shared their profile.', { wrap: true })]);
 }
 
-function identity(c: PlayerCard, anvil: boolean): Node {
+function identity(c: PlayerCard, anvil: boolean, images: boolean): Node {
   const parts: Node[] = [
     row(
-      undefined,
+      anvil && images && c.panelMedia?.avatar
+        ? { t: 'img', src: `/api/plugin/media/player/${seg(c.rsn)}?kind=avatar`, w: 48, h: 48, ...(c.panelMedia.avatarAnimated ? { motion: true } : {}) }
+        : undefined,
       anvil ? nameText(c.rsn, 'white', { font: 'bold' }) : text(c.rsn, 'white', { font: 'bold' }),
       anvil ? icon({ glyph: 'external', w: 12, h: 12, color: 'muted', tip: 'Open on the Anvil website', on: { a: 'site', path: profilePath(c.rsn) } }) : undefined,
     ),

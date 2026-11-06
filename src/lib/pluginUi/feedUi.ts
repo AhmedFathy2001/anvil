@@ -4,6 +4,7 @@ import { clogItemIdByName } from '@/lib/moments';
 import { fallenTitle, isFallenDeath } from '@/lib/hardcoreFall';
 import { whoText } from '@/lib/reactionWho';
 import { runSuffix } from '@/lib/feedRuns';
+import { clanBoostInk } from '@/lib/clanBoostRules';
 
 import type { Action, Color, FeedRow, Node } from './nodes';
 import { button, col, gap, muted, text } from './nodes';
@@ -31,7 +32,7 @@ export function kindGroup(kind: string): KindGroup | null {
   return null;
 }
 
-export type Scope = { kind: 'clan'; id: number; slug: string; name: string } | { kind: 'event'; id: number; name: string };
+export type Scope = { kind: 'clan'; id: number; slug: string; name: string; boostLevel?: number; banner?: boolean } | { kind: 'event'; id: number; name: string };
 
 export function momentsFeedId(scope: { kind: 'clan' | 'event'; id: number }, filter?: KindGroup | 'team' | 'tiles', teamId?: number | null): string {
   const base = `moments:${scope.kind}:${scope.id}`;
@@ -62,14 +63,20 @@ export function momentFeedIds(scope: { kind: 'clan' | 'event'; id: number }, kin
 }
 
 /** The opt-in separate-save timeline. It is deliberately outside every ordinary moments feed id. */
-export function modeFeedId(clanId: number, filter?: KindGroup): string {
-  return `moments:clan:${clanId}:modes${filter ? `:${filter}` : ''}`;
+export function modeFeedId(clanId: number, filter?: KindGroup, worldMode?: string | null): string {
+  const mode = worldMode ? `:mode:${encodeURIComponent(worldMode)}` : '';
+  return `moments:clan:${clanId}:modes${mode}${filter ? `:${filter}` : ''}`;
 }
 
 export function modeMomentFeedIds(clanId: number, kind: string, mode?: string | null): string[] {
   const ids = [modeFeedId(clanId)];
   const g = kindGroup(kind);
   if (g) ids.push(modeFeedId(clanId, g));
+  // A filtered mode list is a separate live address: a Leagues row must not enter Hardcore's view.
+  if (mode) {
+    ids.push(modeFeedId(clanId, undefined, mode));
+    if (g) ids.push(modeFeedId(clanId, g, mode));
+  }
   // A Fallen row is one stored moment with two doorways: Modes and the familiar Deaths filter.
   if (mode === 'hardcore' && kind === 'death') ids.push(momentsFeedId({ kind: 'clan', id: clanId }, 'deaths'));
   return ids;
@@ -115,7 +122,6 @@ export interface MomentLike {
 
 const PET = '#ff7f27';
 const ACHIEVEMENT = '#ffd35c';
-
 export function momentTitle(m: MomentLike): string {
   const run = m.run && m.run.n > 1 ? m.run : null;
   if (!run) return oneTitle(m);
@@ -124,22 +130,35 @@ export function momentTitle(m: MomentLike): string {
   return `${oneTitle(m)}${runSuffix(run)}`;
 }
 
+function rawTotalLevel(m: Pick<MomentLike, 'itemName' | 'source'>): number | null {
+  for (const line of [m.itemName, m.source]) {
+    if (!line) continue;
+    const match = /\breached a total level of\s+([\d,]+)/i.exec(line);
+    if (match) return Number(match[1].replace(/,/g, ''));
+  }
+  return null;
+}
+
 function oneTitle(m: MomentLike): string {
   const name = m.itemName ?? m.source ?? m.kind;
+  // Older mode rows stored this main-game announcement verbatim. Normalize it at presentation time
+  // as well as structured `level` rows, so historical rows become compact without a migration.
+  const rawTotal = rawTotalLevel(m);
+  if (rawTotal != null) return `${rawTotal.toLocaleString('en-US')} total`;
   if (m.kind === 'pet') return `Pet: ${name}`;
   if (isFallenDeath(m)) return fallenTitle(shownKiller(m.source));
   if (m.kind === 'death') return shownKiller(m.source) ? `Died to ${m.source}` : 'Died';
-  if (m.kind === 'ca') return m.tier ? `${m.tier} combat task: ${name}` : `Combat task: ${name}`;
+  if (m.kind === 'ca') return m.tier ? `${m.tier}: ${name}` : name;
   if (m.kind === 'level') {
     // The number reached rides in `quantity`, the skill in `itemName` (lib/moments Observation).
     const n = m.quantity.toLocaleString('en-US');
     if (m.sourceKind === 'max') return `Maxed: ${n} total level`;
-    if (m.sourceKind === 'total') return `${n} total level`;
+    if (m.sourceKind === 'total') return `${n} total`;
     return m.itemName ? `${n} ${m.itemName}` : `Level ${n}`;
   }
-  if (m.kind === 'clog') return `New log slot: ${name}`;
-  if (m.kind === 'diary') return `Completed the ${m.tier ? `${m.tier} ` : ''}${name} Diary`;
-  if (m.kind === 'quest') return m.sourceKind === 'cape' ? `Quest cape: ${name}` : `Quest: ${name}`;
+  if (m.kind === 'clog') return name;
+  if (m.kind === 'diary') return `${m.tier ? `${m.tier} ` : ''}${name}`;
+  if (m.kind === 'quest') return m.sourceKind === 'cape' ? `Quest cape: ${name}` : name;
   return m.quantity > 1 ? `${m.quantity} × ${name}` : name;
 }
 
@@ -204,10 +223,27 @@ function itemOf(m: { kind: string; itemId?: number | null; itemName?: string | n
 
 export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
   const value = m.valueGp != null && m.valueGp > 0 ? formatGp(m.valueGp * Math.max(1, m.quantity)) : undefined;
+  const levelSkill = m.kind === 'level'
+    ? m.sourceKind === 'total' || m.sourceKind === 'max' ? 'overall' : m.itemName?.trim().toLowerCase()
+    : rawTotalLevel(m) != null ? 'overall' : null;
   return {
     id: `m${m.id}`,
     // A death has no item: the game's Skull (item 964) stands for it.
-    ...(itemOf(m) != null ? { item: itemOf(m)! } : m.kind === 'death' ? { item: 964 } : glyphOf(m.kind)),
+    ...(levelSkill
+      ? { skill: levelSkill }
+      : m.kind === 'clog'
+        ? { sprite: 'collection-log' as const }
+        : itemOf(m) != null
+          ? { item: itemOf(m)! }
+          : m.kind === 'death'
+            ? { item: 964 }
+            : m.kind === 'quest'
+              ? { sprite: 'quest' as const }
+              : m.kind === 'diary'
+                ? { sprite: 'diary' as const }
+                : m.kind === 'ca'
+                  ? { sprite: 'combat' as const }
+                  : glyphOf(m.kind)),
     title: momentTitle(m),
     who: m.rsn,
     ...whoInk(o),
@@ -361,6 +397,8 @@ export interface FeedTabOptions {
   /** The viewer's team on this board, for "My team". */
   teamId: number | null;
   rows: FeedRow[];
+  /** This plugin advertises panel image support. */
+  images?: boolean;
   /** The floor line under the list: "Drops 5m+ · pets". */
   floorNote?: string;
   /** For the chat pane. */
@@ -372,7 +410,12 @@ export interface FeedTabOptions {
   staff?: boolean;
   paused?: boolean;
   /** Quiet doorway on the ordinary clan feed; when active, this view is the separate-save timeline. */
-  mode?: { active: boolean; count: number } | null;
+  mode?: {
+    active: boolean;
+    count: number;
+    selected?: string;
+    options?: { key: string; label: string }[];
+  } | null;
 }
 
 const scopeKey = (s: Scope) => (s.kind === 'clan' ? `clan:${s.slug}` : `event:${s.id}`);
@@ -384,6 +427,17 @@ function load(args: Record<string, string>): Action {
 export function feedTabUi(o: FeedTabOptions): Node {
   const key = scopeKey(o.current);
   const parts: Node[] = [];
+
+  if (o.images && o.current.kind === 'clan' && o.current.banner) {
+    const moving = (o.current.boostLevel ?? 0) >= 2;
+    parts.push({
+      t: 'img',
+      src: `/api/plugin/media/clan/${encodeURIComponent(o.current.slug)}?kind=banner`,
+      w: 220,
+      h: 73,
+      ...(moving ? { motion: true } : {}),
+    }, gap(4));
+  }
 
   // Which feed: a dropdown of every clan the viewer is in and every board they're on (chips ran out
   // of room past two). One scope is just a heading.
@@ -401,15 +455,38 @@ export function feedTabUi(o: FeedTabOptions): Node {
       gap(4),
     );
   } else {
-    parts.push(text(o.current.name, 'brand', { font: 'bold' }), gap(4));
+    const boost = o.current.kind === 'clan' ? clanBoostInk(o.current.boostLevel ?? 0) : null;
+    parts.push(text(o.current.name, boost?.color ?? 'brand', {
+      font: 'bold',
+      ...(boost?.grad ? { grad: boost.grad } : {}),
+      ...(boost?.move ? { move: true } : {}),
+    }), gap(4));
   }
 
   if (o.mode?.active) {
     parts.push(
       text('‹ Feed', 'muted', { font: 'small', on: load({ s: key, p: 'feed' }) }),
-      muted('Game-mode activity · separate from main-game progress', { font: 'small' }),
+      text('Game-mode activity', 'brand', { font: 'bold' }),
+      muted('Separate from main-game progress', { font: 'small' }),
       gap(4),
     );
+    if ((o.mode.options?.length ?? 0) > 1) {
+      parts.push(
+        {
+          t: 'input',
+          name: 'wm',
+          kind: 'select',
+          options: [
+            { v: 'all', label: 'All game modes' },
+            ...o.mode.options!.map((m) => ({ v: m.key, label: m.label })),
+          ],
+          value: o.mode.selected || 'all',
+          tip: 'Show activity from one separate-save mode',
+          on: load({ s: key, p: 'feed', m: '1', f: o.filter }),
+        } as Node,
+        gap(4),
+      );
+    }
   } else if (o.chatAvailable) {
     parts.push(
       rowOf([
@@ -437,11 +514,20 @@ export function feedTabUi(o: FeedTabOptions): Node {
           ...(o.current.kind === 'event' && o.teamId != null ? [['team', 'My team'] as [string, string]] : []),
         ];
   // Three to a row: the panel splits a row evenly, and "Achievements" is too wide for a quarter of it.
-  parts.push(rowOf(filters.map(([id, label]) => chip(label, o.filter === id, load({ s: key, p: o.pane, f: id, ...(o.mode?.active ? { m: '1' } : {}) }))), 3), gap(4));
+  parts.push(rowOf(filters.map(([id, label]) => chip(label, o.filter === id, load({
+    s: key,
+    p: o.pane,
+    f: id,
+    ...(o.mode?.active ? { m: '1', ...(o.mode.selected && o.mode.selected !== 'all' ? { wm: o.mode.selected } : {}) } : {}),
+  }))), 3), gap(4));
 
   const id =
     o.mode?.active && o.current.kind === 'clan'
-      ? modeFeedId(o.current.id, o.filter === 'all' ? undefined : (o.filter as KindGroup))
+      ? modeFeedId(
+          o.current.id,
+          o.filter === 'all' ? undefined : (o.filter as KindGroup),
+          o.mode.selected === 'all' ? undefined : o.mode.selected,
+        )
       : o.pane === 'chat' && o.current.kind === 'event'
       ? chatFeedId(o.current.id, o.filter === 'team' ? 'team' : o.filter === 'mods' ? 'mods' : undefined, o.teamId)
       : momentsFeedId(o.current, o.filter === 'all' ? undefined : (o.filter as KindGroup | 'team' | 'tiles'), o.teamId);
@@ -461,11 +547,11 @@ export function feedTabUi(o: FeedTabOptions): Node {
   if (!o.mode?.active && o.mode && o.mode.count > 0 && o.pane === 'feed' && o.current.kind === 'clan') {
     parts.push(
       gap(4),
-      text(`Game-mode activity · ${o.mode.count} ›`, 'muted', {
-        font: 'small',
-        on: load({ s: key, p: 'feed', m: '1', f: 'all' }),
-        tip: 'Leagues, Hardcore Worlds, Deadman and other separate saves',
-      }),
+      button(
+        `Game-mode activity · ${o.mode.count}`,
+        load({ s: key, p: 'feed', m: '1', f: 'all', wm: 'all' }),
+        'Leagues, Hardcore Worlds, Deadman and other separate saves',
+      ),
     );
   }
 

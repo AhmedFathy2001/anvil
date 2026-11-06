@@ -1,12 +1,13 @@
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { users } from '@/db/schema';
+import { accounts, users } from '@/db/schema';
 import { supporterForUser } from '@/lib/supporter';
 import { referralSummary } from '@/lib/referrals';
 import { myBoosts } from '@/lib/clanBoosts';
 import { apexOrigin } from '@/lib/seo';
 import { SUPPORTER_TIER_ORDER, type SupporterTierId } from '@/lib/supporterTiers';
+import { parseSupporterStyle } from '@/lib/supporterStyle';
 import ClanLink from '@/components/ClanLink';
 import SupporterSection, { supporterView } from '@/components/SupporterSection';
 import { Pill, SettingsGroup, SettingsRow, SettingsTitle } from '../_ui';
@@ -35,11 +36,15 @@ const TIER_NAME: Record<SupporterTierId, string> = { supporter: 'Supporter', cha
 
 export default async function SupporterSettingsPage() {
   const session = await settingsSession();
-  const [user, supporter, referral, boosts] = await Promise.all([
+  const [user, supporter, referral, boosts, characters] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, session.userId) }),
     supporterForUser(session.userId),
     referralSummary(session.userId).catch(() => null),
     myBoosts(session.userId, session.playerId ?? null).catch(() => null),
+    session.playerId
+      ? db.select({ accountId: accounts.id, rsn: accounts.rsn, style: accounts.supporterStyle })
+          .from(accounts).where(eq(accounts.playerId, session.playerId)).orderBy(desc(accounts.isPrimary), accounts.rsn)
+      : Promise.resolve([]),
   ]);
   const tier = supporter?.tier.id ?? null;
 
@@ -84,6 +89,7 @@ export default async function SupporterSettingsPage() {
         name={user?.displayName ?? null}
         announce={user?.announceSupporter ?? true}
         gameChat={user?.gameChatFlair ?? true}
+        characters={characters.map((c) => ({ ...c, style: parseSupporterStyle(c.style) }))}
         invite={
           referral && process.env.GUMROAD_URL_SUPPORTER
             ? { link: `${apexOrigin()}/r/${referral.code}`, held: referral.held, granted: referral.granted, monthsEarned: referral.monthsEarned, next: referral.next }

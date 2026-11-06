@@ -4,7 +4,7 @@ import { flairSince } from '@/lib/chatFlairFeed';
 import { log } from '@/lib/logger';
 
 // GET /api/plugin/chat-flair/v?since=<v> — capability 'chat-flair-v'. The Supporter name list's
-// current version, tiny: `{v}` when the caller is current, `{v, deltas:[…]}` (lib/chatFlairWire's
+// current version and expected name count: `{v,n}` when current, `{v,n,deltas:[…]}` (lib/chatFlairWire's
 // delta, oldest first) when it is a few behind, `{v, full:true}` when it should fetch ./v/<v>. Public
 // and the same for everyone who asks with the same `since`, so a CDN may hold it briefly.
 

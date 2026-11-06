@@ -13,7 +13,7 @@ import { normalizeRsn } from '@/lib/auth';
 import { newCheckoutRef } from '@/lib/billing';
 import { hasChatStar } from '@/lib/chatLook';
 import { styleKey, type FlairRecord } from '@/lib/chatFlairWire';
-import { supporterInk, type SupporterInk, type SupporterLook } from '@/lib/supporterStyle';
+import { effectiveSupporterStyle, parseSupporterStyle, supporterInk, type SupporterInk, type SupporterLook } from '@/lib/supporterStyle';
 import { SUPPORTER_TIERS, rowInForce, supporterState, tiersByName, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
 
 export * from '@/lib/supporterTiers';
@@ -127,7 +127,7 @@ async function supporterStatesForRsns(rsns: string[]): Promise<Map<string, Suppo
   const keys = [...new Set(rsns.map(normalizeRsn))].filter((k) => k.length > 0 && k.length <= 12).slice(0, 500);
   if (keys.length === 0) return out;
   const rows = await db
-    .select({ rsn: accounts.rsnNormalized, ...ROW_COLUMNS })
+    .select({ rsn: accounts.rsnNormalized, accountStyle: accounts.supporterStyle, ...ROW_COLUMNS })
     .from(accounts)
     .innerJoin(users, eq(users.playerId, accounts.playerId))
     .innerJoin(supporterSubscriptions, eq(supporterSubscriptions.userId, users.id))
@@ -142,7 +142,10 @@ async function supporterStatesForRsns(rsns: string[]): Promise<Map<string, Suppo
   for (const r of rows) byRsn.set(r.rsn, [...(byRsn.get(r.rsn) ?? []), r]);
   for (const [rsn, list] of byRsn) {
     const state = supporterState(list);
-    if (state) out.set(rsn, state);
+    if (state) {
+      const raw = list[0]?.accountStyle;
+      out.set(rsn, raw == null ? state : { ...state, style: effectiveSupporterStyle(state.tier.id, parseSupporterStyle(raw)) });
+    }
   }
   return out;
 }
@@ -261,24 +264,25 @@ export async function gameChatFlairRecords(rsns?: string[]): Promise<Map<string,
   if (states.size === 0) return out;
 
   const ids = [...states.keys()];
-  const chars: { userId: number; rsn: string; playerId: number }[] = [];
+  const chars: { userId: number; rsn: string; playerId: number; style: string | null }[] = [];
   // Chunked: a full rebuild can name tens of thousands of supporters.
   for (let i = 0; i < ids.length; i += 5_000) {
     chars.push(
       ...(await db
-        .select({ userId: users.id, rsn: accounts.rsnNormalized, playerId: accounts.playerId })
+        .select({ userId: users.id, rsn: accounts.rsnNormalized, playerId: accounts.playerId, style: accounts.supporterStyle })
         .from(users)
         .innerJoin(accounts, eq(accounts.playerId, users.playerId))
         .where(and(inArray(users.id, ids.slice(i, i + 5_000)), charWhere))),
     );
   }
   const starred = new Set<string>();
-  for (const { userId, rsn, playerId } of chars) {
+  for (const { userId, rsn, playerId, style } of chars) {
     const state = states.get(userId);
     if (!state || !rsn || rsn.length > 12) continue;
     // Two logins on one character (rare): the higher tier wins.
     if (out.has(rsn) && (starred.has(rsn) || !hasChatStar(state.tier.id))) continue;
-    const ink = supporterInk(state.tier.id, state.style);
+    const characterStyle = style == null ? state.style : effectiveSupporterStyle(state.tier.id, parseSupporterStyle(style));
+    const ink = supporterInk(state.tier.id, characterStyle);
     const star = hasChatStar(state.tier.id);
     if (star) starred.add(rsn);
     out.set(rsn, {

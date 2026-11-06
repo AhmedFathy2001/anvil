@@ -23,14 +23,16 @@ import { absoluteAssetUrl, discordAssetUrl } from '../src/lib/seo.ts';
 // One more intentional difference: the plugin hotlinked game art from the wiki and RuneLite's static
 // host, and the site now serves the same images through its own asset cache (lib/assetUrls), so the
 // fixture's sprite URLs are mapped onto those addresses before comparing. The fixture stays verbatim.
-// And a THUMBNAIL sprite goes out as its 4× nearest-neighbour upscale (lib/seo discordAssetUrl), so
-// Discord draws it thumbnail-sized rather than at 32px.
+// Item thumbnails intentionally remain native-sized; other small sprites retain the legacy 4×
+// treatment. Event/boss artwork owns the larger visual treatment in current embeds.
 const legacy = JSON.parse(
   readFileSync(new URL('./fixtures/legacy-plugin-embeds.json', import.meta.url), 'utf8'),
   (key, value) => {
     // Strings stay relative here; the thumbnail/image objects make theirs absolute just below.
     if (typeof value === 'string') return proxyWikiUrl(value);
-    if (key === 'thumbnail' && value && typeof value.url === 'string') return { ...value, url: discordAssetUrl(value.url) };
+    if (key === 'thumbnail' && value && typeof value.url === 'string') {
+      return { ...value, url: value.url.includes('/img/item/') ? absoluteAssetUrl(value.url) : discordAssetUrl(value.url) };
+    }
     if (key === 'image' && value && typeof value.url === 'string') return { ...value, url: absoluteAssetUrl(value.url) };
     return value;
   },

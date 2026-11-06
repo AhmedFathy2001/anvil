@@ -31,6 +31,7 @@ import { claimTile, cleanNote, unclaimTile } from '@/lib/tileClaims';
 import { normalizeRsn, pluginRsnHintOnly, resolvePluginClan, resolvePluginMember, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { type BoardSummary, liveBoardsForCharacter, summarizeBoards } from '@/lib/pluginBoards';
 import { type SupporterInk, supporterForUser, supporterInksForRsns } from '@/lib/supporter';
+import { FLAIR_BACKGROUND, supporterInkOn } from '@/lib/supporterStyle';
 import { momentsForClan } from '@/lib/momentsStore';
 import { NO_REACTIONS, isClanMember, momentInClan, reactionSummaries, toggleReaction } from '@/lib/momentReactions';
 import { REACT_ERRORS, checkReaction } from '@/lib/reactionAccess';
@@ -45,9 +46,10 @@ import { gatesForEvent } from '@/lib/entryGatesDb';
 import { gatesShortLabel } from '@/lib/entryGates';
 import { deleteTileProof, listTileProofs } from '@/lib/tileProofs';
 import { PROOFS_MAX, PROOFS_STEP, type ProofRow, proofsUi } from './proofsUi';
-import { hasFeedTab, hasPanelImages, hasTabLinks, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
+import { hasFeedTab, hasPanelImages, hasTabLinks, loadPanelPlayerCard, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { clanBoostLevels } from '@/lib/clanBoosts';
 import { type Node, type View, applyFlair, backRow, button, card, col, gap, message, muted, namesIn, text } from './nodes';
 import { notFoundUi, playerCardUi } from './playerCardUi';
 import { casUi, clogPageUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from './playerMoreUi';
@@ -83,7 +85,7 @@ async function playerView(request: Request, rsn: string): Promise<View> {
   const retry = button('Try again', { a: 'load', v: 'player', args: { rsn } });
   switch (found.kind) {
     case 'card':
-      return { ui: playerCardUi(found.card, { sectionKey: 'lookup', cas: true, me: playedCharacter(request)?.rsn ?? null }) };
+      return { ui: playerCardUi(found.card, { sectionKey: 'lookup', cas: true, me: playedCharacter(request)?.rsn ?? null, images: hasPanelImages(request) }) };
     case 'busy':
       return message('Hiscores busy — try again in a moment.', [gap(6), retry]);
     case 'limited':
@@ -149,7 +151,7 @@ async function youView(request: Request, note: string | null = null): Promise<Vi
   const ownership = await ownershipCard(request, note).catch(() => null);
   const character = await apexCharacter(me.rsn, await viewerPlayerId(request));
   const cardUi = character
-    ? playerCardUi(await loadPlayerCard(character), { sectionKey: 'you', cas: true })
+    ? playerCardUi(await loadPanelPlayerCard(character), { sectionKey: 'you', cas: true, images: hasPanelImages(request) })
     : notFoundUi(me.rsn);
   // Head-to-head only when something is open: an empty card on everybody's tab is noise.
   const owner = await ownedAccount(request);
@@ -226,7 +228,7 @@ async function clanView(request: Request, a: Args): Promise<View> {
   const mine = (a.clan ?? '').trim().toLowerCase();
   // "Compare with my clan" only between two clans: a creator space has no members to compare.
   const compare = !!mine && mine !== clan.slug && a.own !== '1' && !isCreatorSpace(clan) && !(await mineIsSpace(request, mine));
-  return { ui: clanCardUi(await loadClanCard(clan), compare, hasFeedTab(request), hasTabLinks(request)) };
+  return { ui: clanCardUi(await loadClanCard(clan), compare, hasFeedTab(request), hasTabLinks(request), hasPanelImages(request)) };
 }
 
 /** Is the place the plugin is pointed at a creator space? */
@@ -250,7 +252,7 @@ async function clansView(request: Request, q: string): Promise<View> {
   const like = `%${query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   // clan-scope: global -- searching the public directory is a platform question.
   const found = await db
-    .select({ slug: clans.slug, name: clans.name })
+    .select({ id: clans.id, slug: clans.slug, name: clans.name })
     .from(clans)
     .leftJoin(settings, showcaseJoinOn())
     .where(and(listedClanWhere(), or(ilike(clans.name, like), ilike(clans.slug, like))))
@@ -258,9 +260,10 @@ async function clansView(request: Request, q: string): Promise<View> {
     .limit(8);
   // Staff can find the hidden lab clan (its test drops, /staff/lab/supporter); nobody else ever sees it.
   if ('anvil tile lab'.includes(query.toLowerCase()) || LAB_CLAN_SLUG.includes(query.toLowerCase())) {
-    if (await pluginStaff(request)) found.unshift({ slug: LAB_CLAN_SLUG, name: 'Anvil Tile Lab (staff)' });
+    if (await pluginStaff(request)) found.unshift({ id: -1, slug: LAB_CLAN_SLUG, name: 'Anvil Tile Lab (staff)' });
   }
-  return { ui: clanSearchUi(query, found) };
+  const levels = await clanBoostLevels(found.filter((c) => c.id > 0).map((c) => c.id)).catch(() => new Map());
+  return { ui: clanSearchUi(query, found.map((c) => ({ ...c, boostLevel: levels.get(c.id)?.level ?? 0 }))) };
 }
 
 async function goalFormView(request: Request, kind: string): Promise<View> {
@@ -551,7 +554,7 @@ async function clanEventGoingAct(request: Request, a: Args): Promise<View> {
 async function ownClanCard(request: Request, slug: string): Promise<Node | null> {
   const clan = await visibleClan(request, slug);
   if (!clan) return null;
-  return clanCardUi(await ttlMemo(`plugin-ui-clan-card:${clan.id}`, () => loadClanCard(clan), 5 * 60_000), false, hasFeedTab(request), hasTabLinks(request));
+  return clanCardUi(await ttlMemo(`plugin-ui-clan-card:${clan.id}`, () => loadClanCard(clan), 5 * 60_000), false, hasFeedTab(request), hasTabLinks(request), hasPanelImages(request));
 }
 
 /** Supporters' names in a finished view get their flair: one lookup for every name it shows. */
@@ -560,7 +563,10 @@ async function flaired(view: View | null): Promise<View | null> {
   const names = namesIn(view.ui);
   // Each name in its owner's own colours (a Champion's preset, a Patron's custom stops).
   const inks = names.length ? await supporterInksForRsns(names).catch(() => new Map<string, SupporterInk>()) : new Map<string, SupporterInk>();
-  applyFlair(view.ui, (name) => inks.get(normalizeRsn(name)) ?? null);
+  applyFlair(view.ui, (name) => {
+    const ink = inks.get(normalizeRsn(name));
+    return ink ? supporterInkOn(ink, FLAIR_BACKGROUND, '#ffffff') : null;
+  });
   return view;
 }
 

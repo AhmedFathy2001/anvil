@@ -18,12 +18,12 @@
 // Pure: no database, no network — the route validates and calls `buildPluginEmbed`.
 
 import { clamp, code, LIMIT, type DiscordEmbed, type DiscordEmbedField } from './discordEmbeds';
-import { discordAssetUrl } from './seo';
+import { absoluteAssetUrl, discordAssetUrl } from './seo';
 import { itemIconUrl as itemIconPath, skillIconUrl as skillIconPath, wikiImageUrl } from './tileIcons';
 
-// Discord fetches thumbnails itself, so our cached-art paths go out apex-absolute — and as a 4×
-// nearest-neighbour upscale (lib/seo discordAssetUrl), or Discord draws a 32px sprite at 32px.
-const itemIconUrl = (id: number) => discordAssetUrl(itemIconPath(id));
+// Item sprites stay at their native size in ordinary drop/log posts. Upscaling them 4× made Discord
+// fill the whole thumbnail box; that large treatment is reserved for event/boss artwork.
+const itemIconUrl = (id: number) => absoluteAssetUrl(itemIconPath(id));
 const skillIconUrl = (skill: string | null | undefined) => discordAssetUrl(skillIconPath(skill));
 
 export const PLUGIN_EMBED_KINDS = [

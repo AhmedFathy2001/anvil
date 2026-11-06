@@ -12,6 +12,9 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { labDivert, labEvent } from '@/lib/lab';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { refuseForeignCharacter } from '@/lib/pluginForeign';
+import { apexOrigin } from '@/lib/seo';
+import { supporterForUsers, withSupporterAuthor } from '@/lib/supporter';
+import { boostedClanIdsForAccount, withBoosterAuthor } from '@/lib/clanBoosts';
 
 /**
  * Clip relay — the clan's clips channel, without every member pasting a webhook.
@@ -157,16 +160,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No clips channel is configured for this clan' }, { status: 501 });
   }
 
-  const embed = clipEmbed({
+  const rawEmbed = clipEmbed({
     rsn: await posterRsn(request, auth.userId),
     moment,
     eventName,
     seconds,
     standing,
-  });
+  }) as unknown as Record<string, unknown>;
+  const character = await resolvePluginCharacter(request);
+  const supporter = (await supporterForUsers([auth.userId]).catch(() => new Map())).get(auth.userId) ?? null;
+  const embed = character && (await boostedClanIdsForAccount(character.accountId).catch(() => new Set<number>())).has(clan.id)
+    ? withBoosterAuthor(rawEmbed, apexOrigin())
+    : withSupporterAuthor(rawEmbed, supporter?.tier.id ?? null, apexOrigin(), supporter?.style ?? null);
   const ok = await forwardPluginNotification(url, {
     clanId: clan.id,
-    embed: embed as unknown as Record<string, unknown>,
+    embed,
     attachment: { bytes: await file.arrayBuffer(), filename: file.name || 'clip.mp4' },
   });
   if (!ok) {

@@ -223,12 +223,12 @@ async function current(): Promise<Mem> {
 }
 
 /** The current version alone, and the deltas from `since` when few enough (else full: fetch /v/<v>). */
-export async function flairSince(since: number): Promise<{ v: number; deltas?: FlairDelta[]; full?: true }> {
+export async function flairSince(since: number): Promise<{ v: number; n: number; deltas?: FlairDelta[]; full?: true }> {
   const m = await current();
-  if (since === m.v) return { v: m.v };
+  if (since === m.v) return { v: m.v, n: m.state.size };
   const rows = since > 0 && since < m.v ? await db.select({ msg: chatFlairLog.msg }).from(chatFlairLog).where(gt(chatFlairLog.version, since)).orderBy(chatFlairLog.version) : [];
   const chain = catchUp(since, m.v, rows.map((r) => JSON.parse(r.msg) as FlairDelta));
-  return chain && chain.length ? { v: m.v, deltas: chain } : { v: m.v, full: true };
+  return chain && chain.length ? { v: m.v, n: m.state.size, deltas: chain } : { v: m.v, n: m.state.size, full: true };
 }
 
 /** The whole list at the current version: JSON and gzip, built once per version per instance. */

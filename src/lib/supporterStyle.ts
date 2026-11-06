@@ -1,7 +1,7 @@
 // Anvil Supporter name colours, per person: the pure half (no database), so the profile picker, the
 // plugin panel, Discord and the tests all agree on what a name looks like.
 //
-// A Champion picks one of the curated preset gradients; a Patron a preset or their own 2–4 stops.
+// A Champion picks a preset or one static colour; a Patron a preset or their own 1–4 colours.
 // Supporter stays solid gold. What is stored is only a WISH (users.supporter_style); every read
 // checks it against the tier in force right now, so a lapsed Patron's custom colours fall back to the
 // default on their own, with nothing to clean up.
@@ -11,7 +11,7 @@ import type { SupporterTierId } from './supporterTiers.ts';
 
 export type Hex = `#${string}`;
 
-/** What a person asked for. Both optional; stops win over a preset when the tier allows them. */
+/** What a character wears. One stop is static; 2–4 are a gradient and win over a preset. */
 export interface SupporterStyle {
   preset?: string;
   stops?: Hex[];
@@ -70,10 +70,12 @@ export const SUPPORTER_PRESETS: SupporterPreset[] = [
 /** The tier's own preset, worn when nothing (valid) is chosen. Supporter has none: it is solid gold. */
 export const DEFAULT_PRESET: Partial<Record<SupporterTierId, string>> = { champion: 'classic', patron: 'prism' };
 
-export const MIN_STOPS = 2;
+export const MIN_STOPS = 1;
 export const MAX_STOPS = 4;
 /** The dark card every name sits on. */
 export const FLAIR_BACKGROUND: Hex = '#1c1714';
+export const TRANSPARENT_CHAT_BACKGROUND: Hex = '#262626';
+export const OPAQUE_CHAT_BACKGROUND: Hex = '#c4b48c';
 /** A custom stop must read at least this well against FLAIR_BACKGROUND (WCAG large-text contrast). */
 export const MIN_STOP_CONTRAST = 3;
 
@@ -93,9 +95,22 @@ export function presetsFor(tier: SupporterTierId | null | undefined): SupporterP
   return SUPPORTER_PRESETS.filter((p) => rank(p.minTier) <= rank(tier));
 }
 
-/** Can this tier set its own stops? Patron only. */
+/** Champion gets one custom solid; Patron gets one solid or a custom gradient. */
 export function canCustomise(tier: SupporterTierId | null | undefined): boolean {
-  return tier === 'patron';
+  return tier === 'champion' || tier === 'patron';
+}
+
+export function maxCustomStops(tier: SupporterTierId | null | undefined): number {
+  return tier === 'patron' ? MAX_STOPS : tier === 'champion' ? 1 : 0;
+}
+
+/** Distinct custom static colours worn by Champion characters; presets do not consume this allowance. */
+export function distinctStaticColours(styles: readonly (SupporterStyle | null | undefined)[]): Set<Hex> {
+  const colours = new Set<Hex>();
+  for (const style of styles) {
+    if (style?.stops?.length === 1) colours.add(style.stops[0]);
+  }
+  return colours;
 }
 
 /** '#RRGGBB' / 'rrggbb' → '#rrggbb', anything else null. */
@@ -127,13 +142,13 @@ export function tooDark(hex: Hex): boolean {
   return contrastOnCard(hex) < MIN_STOP_CONTRAST;
 }
 
-/** A stop list that may be worn: 2–4 valid colours, none too dark to read. */
+/** One static colour or a 2–4 stop gradient. Source colours are unrestricted. */
 function cleanStops(v: unknown): Hex[] | null {
   if (!Array.isArray(v) || v.length < MIN_STOPS || v.length > MAX_STOPS) return null;
   const out: Hex[] = [];
   for (const s of v) {
     const h = normalizeHex(s);
-    if (!h || tooDark(h)) return null;
+    if (!h) return null;
     out.push(h);
   }
   return out;
@@ -169,7 +184,7 @@ export function effectiveSupporterStyle(
   style: SupporterStyle | null | undefined,
 ): SupporterStyle | null {
   if (!tier || !style || tier === 'supporter') return null;
-  if (style.stops && canCustomise(tier)) {
+  if (style.stops && canCustomise(tier) && style.stops.length <= maxCustomStops(tier)) {
     const stops = cleanStops(style.stops);
     if (stops) return { stops };
   }
@@ -187,7 +202,48 @@ export function supporterInk(tier: SupporterTierId, style?: SupporterStyle | nul
   // The solid colour (Discord, chat lines, old plugins) is the brightest-reading stop of the middle
   // ones: the first stop alone is often the pale end of a gradient.
   const color = stops.length > 2 ? stops[1] : stops[0];
+  if (stops.length === 1) return { color };
   return { color, grad: [...stops], ...(base.move ? { move: true } : {}) };
+}
+
+/** Stored/source colour adjusted only for display on one known background. */
+export function readableHexOn(hex: Hex, background: Hex, toward: Hex, minimum = MIN_STOP_CONTRAST): Hex {
+  const ratio = (a: Hex, b: Hex) => {
+    const x = luminance(a);
+    const y = luminance(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  };
+  if (ratio(hex, background) >= minimum) return hex;
+  const rgb = (v: Hex) => [1, 3, 5].map((i) => parseInt(v.slice(i, i + 2), 16));
+  const source = rgb(hex);
+  const target = rgb(toward);
+  const mix = (t: number): Hex => (`#${source.map((c, i) => Math.round(c * (1 - t) + target[i] * t).toString(16).padStart(2, '0')).join('')}` as Hex);
+  let lo = 0;
+  let hi = 1;
+  let readable = toward;
+  for (let i = 0; i < 12; i++) {
+    const mid = (lo + hi) / 2;
+    const candidate = mix(mid);
+    if (ratio(candidate, background) >= minimum) {
+      hi = mid;
+      readable = candidate;
+    } else {
+      lo = mid;
+    }
+  }
+  return readable;
+}
+
+/** Derive a whole style once for a surface; never mutate the stored source colours. */
+export function supporterInkOn<T extends SupporterInk>(ink: T, background: Hex, toward: Hex): T {
+  const color = readableHexOn(ink.color, background, toward);
+  const grad = ink.grad?.map((stop) => readableHexOn(stop, background, toward));
+  return {
+    ...ink,
+    color,
+    ...(grad && grad.length >= 2 ? { grad } : {}),
+    ...(ink.move && grad && grad.length >= 2 ? { move: true } : {}),
+  } as T;
 }
 
 /**
@@ -217,15 +273,15 @@ export function validateSupporterStyle(input: unknown, tier: SupporterTierId | n
   if (tier === 'supporter') return { ok: false, error: 'Supporter names are gold. Gradients start at Champion.' };
 
   if (hasStops) {
-    if (!canCustomise(tier)) return { ok: false, error: 'Your own colours are a Patron perk.' };
-    if (!Array.isArray(o.stops) || o.stops.length < MIN_STOPS || o.stops.length > MAX_STOPS) {
-      return { ok: false, error: `Pick ${MIN_STOPS} to ${MAX_STOPS} colours.` };
+    if (!canCustomise(tier)) return { ok: false, error: 'Custom name colours start at Champion.' };
+    const max = maxCustomStops(tier);
+    if (!Array.isArray(o.stops) || o.stops.length < MIN_STOPS || o.stops.length > max) {
+      return { ok: false, error: tier === 'champion' ? 'Champions may pick one static colour.' : `Pick ${MIN_STOPS} to ${max} colours.` };
     }
     const stops: Hex[] = [];
     for (const s of o.stops) {
       const h = normalizeHex(s);
       if (!h) return { ok: false, error: 'Colours must look like #ff9a5a.' };
-      if (tooDark(h)) return { ok: false, error: `${h} is too dark to read on Anvil's background.` };
       stops.push(h);
     }
     return { ok: true, style: { stops } };

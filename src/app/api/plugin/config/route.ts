@@ -20,6 +20,7 @@ import { accountForCharacter, accountStanding, playedCharacter, type PlayedChara
 import { h2hDropItemIdsForAccount } from '@/lib/h2h';
 import { clanlessPluginConfig } from '@/lib/pluginConfigClanless';
 import { pluginModeThresholds } from '@/lib/worldModeStore';
+import { clanBoostLevel } from '@/lib/clanBoosts';
 
 /** Item ids of this (owned) character's running head-to-head drop races. Never fails the config. */
 async function h2hDropIdsFor(character: PlayedCharacter): Promise<number[]> {
@@ -137,7 +138,13 @@ export async function GET(request: Request) {
         // once, every later call is addressed rather than re-resolved (lib/pluginClans).
         // `kind` ('clan' | 'creator'): a creator space's panel speaks of the space, not a clan.
         // A friends host (lib/friendEventRules) reads as a space to the plugin: no clan card, its name as the heading.
-        activeClan: { slug: clan.slug, name: clan.name, kind: clan.kind === 'friends' ? 'creator' : clan.kind },
+        activeClan: {
+          slug: clan.slug,
+          name: clan.name,
+          gameName: clan.inGameName || clan.name,
+          kind: clan.kind === 'friends' ? 'creator' : clan.kind,
+          boostLevel: (await clanBoostLevel(clan.id).catch(() => null))?.level ?? 0,
+        },
         clans: switchableClans,
         // Server-resolved board summary off the token's USER (linked member → live enrollment), so
         // the sidebar shows the home board even at the login screen. Null when not enrolled anywhere.

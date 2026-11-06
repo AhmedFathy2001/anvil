@@ -62,6 +62,7 @@ import { playedCharacter } from '@/lib/pluginAccount';
 import { activeNow, panelSchedule, panelTiles, ACTIVE_WINDOW_MS, type WorkSighting } from '@/lib/pluginPanel';
 import { parseStamp } from '@/lib/dbTime';
 import { tilePingMax } from '@/lib/pingMax';
+import { clanBoostLevel } from '@/lib/clanBoosts';
 import { capEligible, capEntryLabel, cappedProgress, capVirtualTileId, CAP_REQUIRED, counterNoun, parseCapBy, type CapRow } from '@/lib/tileCaps';
 import { comboNeeded, comboWeightOf, evaluateCombo, isComboTile, parseComboRule, partsByParent } from '@/lib/combo';
 
@@ -947,7 +948,13 @@ export async function buildEnrolledConfig(args: {
     // Same two fields as the not-enrolled shape above: which clan answered, and the rest of this
     // person's clans for the switcher. Present on BOTH shapes so the dropdown does not empty out
     // the moment somebody's event ends (lib/pluginClans).
-    activeClan: { slug: clan.slug, name: clan.name, kind: clan.kind },
+    activeClan: {
+      slug: clan.slug,
+      name: clan.name,
+      gameName: clan.inGameName || clan.name,
+      kind: clan.kind,
+      boostLevel: (await clanBoostLevel(clan.id).catch(() => null))?.level ?? 0,
+    },
     clans: viewer && !trackedOnly ? await pluginClansFor(viewer.userId, viewer.rsn) : [],
     event: {
       id: event.id,

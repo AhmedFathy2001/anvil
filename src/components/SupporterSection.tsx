@@ -67,6 +67,7 @@ export default function SupporterSection({
   name = null,
   announce = null,
   gameChat = null,
+  characters = [],
   bare = false,
 }: {
   /** On /settings, where the page already has its title: no section heading or top margin. */
@@ -77,6 +78,8 @@ export default function SupporterSection({
   announce?: boolean | null;
   /** Their "colours in game chat" choice; null hides the toggle. */
   gameChat?: boolean | null;
+  /** Linked RuneScape characters and their own flair overrides. */
+  characters?: { accountId: number; rsn: string; style: SupporterStyle | null }[];
   /** Their own display name, previewed in each tier's flair. */
   name?: string | null;
 }) {
@@ -174,7 +177,19 @@ export default function SupporterSection({
             Manage on Gumroad
           </a>
         </div>
-        <SupporterStylePicker tier={supporter.tier} name={name || 'Your name'} initial={supporter.style} />
+        <div className="mt-4 space-y-3">
+          {characters.length > 0 ? characters.map((character) => (
+            <SupporterStylePicker
+              key={character.accountId}
+              tier={supporter.tier}
+              name={character.rsn}
+              accountId={character.accountId}
+              initial={character.style ?? supporter.style}
+            />
+          )) : (
+            <SupporterStylePicker tier={supporter.tier} name={name || 'Your name'} initial={supporter.style} />
+          )}
+        </div>
         {gameChat != null && <SupporterGameChatToggle initial={gameChat} />}
       </div>
       {invite && <InviteCard invite={invite} />}

@@ -335,6 +335,9 @@ export const accounts = pgTable('accounts', {
   previousRsns: text('previous_rsns'),
   // The person's "main" among their accounts.
   isPrimary: integer('is_primary').default(0).notNull(),
+  // This character's Supporter name look (lib/supporterStyle). NULL inherits the owning login's
+  // legacy/default style; one stop is static, 2–4 are a Patron gradient.
+  supporterStyle: text('supporter_style'),
 
   // ── Proof of ownership ───────────────────────────────────────────────────────────────────
   // Global, because it is a fact about the account and not about any clan: proving ownership once

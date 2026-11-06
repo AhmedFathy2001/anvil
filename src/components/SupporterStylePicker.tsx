@@ -5,13 +5,12 @@ import { useState } from 'react';
 import SupporterName from '@/components/SupporterName';
 import {
   DEFAULT_PRESET,
-  MAX_STOPS,
   MIN_STOPS,
   canCustomise,
+  maxCustomStops,
   normalizeHex,
   presetById,
   presetsFor,
-  tooDark,
   type Hex,
   type SupporterStyle,
 } from '@/lib/supporterStyle';
@@ -27,13 +26,17 @@ export default function SupporterStylePicker({
   tier,
   name,
   initial,
+  accountId,
 }: {
   tier: SupporterTierId;
   name: string;
   initial: SupporterStyle | null;
+  /** Save this character's override; omitted preserves the legacy account-wide picker. */
+  accountId?: number;
 }) {
   const presets = presetsFor(tier);
   const custom = canCustomise(tier);
+  const customMax = maxCustomStops(tier);
   const fallback = DEFAULT_PRESET[tier] ?? presets[0]?.id ?? '';
   const startStops = (): Hex[] => [...(initial?.stops ?? presetById(initial?.preset ?? fallback)?.stops ?? ['#ffd27a', '#ff7ab8'])];
 
@@ -52,7 +55,6 @@ export default function SupporterStylePicker({
     );
   }
 
-  const dark = stops.filter((s) => tooDark(s));
   const draft: SupporterStyle = mode === 'custom' ? { stops } : preset === fallback ? {} : { preset };
   const same = JSON.stringify(normal(draft)) === JSON.stringify(normal(saved));
 
@@ -63,7 +65,7 @@ export default function SupporterStylePicker({
       const res = await fetch('/api/profile/supporter-style', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(next),
+        body: JSON.stringify(accountId == null ? next : { accountId, style: next }),
       });
       const json = (await res.json().catch(() => ({}))) as { style?: SupporterStyle | null; error?: string };
       if (!res.ok) {
@@ -96,6 +98,10 @@ export default function SupporterStylePicker({
       <div className="mt-3 flex min-h-11 items-center rounded-lg border border-card-border bg-card-bg px-3 py-2">
         <SupporterName name={name} tier={tier} style={draft} className="text-base font-semibold" plain />
       </div>
+      <div className="mt-2 flex min-h-11 items-center rounded-lg border border-[#8f805f] bg-[#c4b48c] px-3 py-2">
+        <SupporterName name={name} tier={tier} style={draft} surface="opaque-chat" className="text-base font-semibold" plain />
+        <span className="ml-auto text-[10px] font-medium uppercase tracking-wide text-black/55">opaque game chat</span>
+      </div>
 
       <div className="mt-3 flex flex-wrap gap-2" role="radiogroup" aria-label="Preset gradients">
         {presets.map((p) => {
@@ -125,7 +131,10 @@ export default function SupporterStylePicker({
             type="button"
             role="radio"
             aria-checked={mode === 'custom'}
-            onClick={() => setMode('custom')}
+            onClick={() => {
+              setMode('custom');
+              setStops((cur) => cur.slice(0, customMax));
+            }}
             className={`rounded-lg border px-2.5 py-1.5 text-[12.5px] transition-colors ${
               mode === 'custom' ? 'border-gold/70 bg-gold/10 text-foreground' : 'border-card-border text-text-muted hover:border-gold/40'
             }`}
@@ -141,7 +150,7 @@ export default function SupporterStylePicker({
             {stops.map((s, i) => (
               <label
                 key={i}
-                className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 ${tooDark(s) ? 'border-red-500/60' : 'border-card-border'}`}
+                className="flex items-center gap-1.5 rounded-lg border border-card-border px-2 py-1"
               >
                 <ColorSwatch
                   value={s}
@@ -165,7 +174,7 @@ export default function SupporterStylePicker({
                 )}
               </label>
             ))}
-            {stops.length < MAX_STOPS && (
+            {stops.length < customMax && (
               <button
                 type="button"
                 onClick={() => setStops((cur) => [...cur, cur[cur.length - 1]])}
@@ -175,10 +184,10 @@ export default function SupporterStylePicker({
               </button>
             )}
           </div>
-          <p className={`mt-2 text-[12px] ${dark.length ? 'text-red-400' : 'text-text-dim'}`}>
-            {dark.length
-              ? `${dark.join(', ')} ${dark.length === 1 ? 'is' : 'are'} too dark to read on Anvil's background. Pick something lighter.`
-              : `${MIN_STOPS} to ${MAX_STOPS} colours, left to right. Very dark ones are refused so your name stays readable.`}
+          <p className="mt-2 text-[12px] text-text-dim">
+            {tier === 'champion'
+              ? 'One static colour. Champions may use at most two distinct custom colours across all characters.'
+              : `${MIN_STOPS} colour is static; 2 to ${customMax} animate left to right. Dark source colours are converted for each background.`}
           </p>
         </div>
       )}
@@ -186,7 +195,7 @@ export default function SupporterStylePicker({
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
-          disabled={busy || same || (mode === 'custom' && dark.length > 0)}
+          disabled={busy || same}
           onClick={() => void save(draft)}
           className="rounded-lg bg-gold px-3 py-1.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
         >

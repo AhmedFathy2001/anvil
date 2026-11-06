@@ -111,26 +111,27 @@ const like = (extra: Record<string, unknown>) => ({
 });
 
 test('achievement rows read well', () => {
-  assert.equal(momentTitle(like({ kind: 'clog', itemName: 'Dragon warhammer' })), 'New log slot: Dragon warhammer');
+  assert.equal(momentTitle(like({ kind: 'clog', itemName: 'Dragon warhammer' })), 'Dragon warhammer');
   assert.equal(momentTitle(like({ kind: 'level', itemName: 'Slayer', quantity: 99, sourceKind: 'skill' })), '99 Slayer');
-  assert.equal(momentTitle(like({ kind: 'level', quantity: 2000, sourceKind: 'total' })), '2,000 total level');
+  assert.equal(momentTitle(like({ kind: 'level', quantity: 2000, sourceKind: 'total' })), '2,000 total');
   assert.equal(momentTitle(like({ kind: 'level', quantity: 2277, sourceKind: 'max' })), 'Maxed: 2,277 total level');
-  assert.equal(momentTitle(like({ kind: 'ca', itemName: 'Vault of Death', tier: 'Elite' })), 'Elite combat task: Vault of Death');
-  assert.equal(momentTitle(like({ kind: 'diary', itemName: 'Varrock', tier: 'Hard' })), 'Completed the Hard Varrock Diary');
-  assert.equal(momentTitle(like({ kind: 'quest', itemName: 'Desert Treasure II' })), 'Quest: Desert Treasure II');
+  assert.equal(momentTitle(like({ kind: 'ca', itemName: 'Vault of Death', tier: 'Elite' })), 'Elite: Vault of Death');
+  assert.equal(momentTitle(like({ kind: 'diary', itemName: 'Varrock', tier: 'Hard' })), 'Hard Varrock');
+  assert.equal(momentTitle(like({ kind: 'quest', itemName: 'Desert Treasure II' })), 'Desert Treasure II');
   assert.equal(momentSentence(like({ kind: 'diary', itemName: 'Varrock', tier: 'Hard' })), 'completed the Hard Varrock Diary');
   assert.equal(momentSentence(like({ kind: 'clog', itemName: 'Dragon warhammer' })), 'filled a new collection log slot: Dragon warhammer');
 });
 
-test('an item icon where there is one, else a gold tick', () => {
+test('achievement rows use their native type icon', () => {
   const withIcon = momentRow(like({ kind: 'clog', itemId: 13576, itemName: 'Dragon warhammer' }));
-  assert.equal(withIcon.item, 13576);
+  assert.equal(withIcon.item, undefined);
+  assert.equal(withIcon.sprite, 'collection-log');
   assert.equal(withIcon.glyph, undefined);
   const glyph = momentRow(like({ kind: 'diary', itemName: 'Varrock', tier: 'Hard' }));
   assert.equal(glyph.item, undefined);
-  assert.equal(glyph.glyph, 'check');
-  assert.equal(glyph.glyphColor, '#ffd35c');
-  assert.equal(glyph.title, 'Completed the Hard Varrock Diary');
+  assert.equal(glyph.sprite, 'diary');
+  assert.equal(glyph.glyph, undefined);
+  assert.equal(glyph.title, 'Hard Varrock');
 });
 
 test('achievements have their own list, and are in All', () => {

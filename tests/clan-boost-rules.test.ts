@@ -11,6 +11,7 @@ import {
   GRACE_DAYS,
   activeBoostIds,
   boostNameClass,
+  clanBoostInk,
   boostPerks,
   boostersWall,
   byBoostLevel,
@@ -41,6 +42,12 @@ import {
 
 const NOW = Date.parse('2026-11-05T12:00:00Z');
 const days = (n: number) => n * DAY_MS;
+
+test('clan name ink is absent at zero, still at level one, and moving from level two', () => {
+  assert.equal(clanBoostInk(0), null);
+  assert.deepEqual(clanBoostInk(1), { color: '#ff9a5a', grad: ['#ff9a5a', '#e05ad0', '#7a8cff'] });
+  assert.deepEqual(clanBoostInk(2), { color: '#ffd27a', grad: ['#ffd27a', '#ff7ab8', '#7ae0ff'], move: true });
+});
 
 // ---------------------------------------------------------------------------------------------
 // Slots

@@ -1,10 +1,10 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { db } from '@/db';
-import { users } from '@/db/schema';
+import { accounts, users } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
-import { supporterForUser, validateSupporterStyle } from '@/lib/supporter';
+import { distinctStaticColours, parseSupporterStyle, supporterForUser, validateSupporterStyle } from '@/lib/supporter';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,8 +18,40 @@ export async function PUT(request: Request) {
   const body = await request.json().catch(() => undefined);
   if (body === undefined) return NextResponse.json({ error: 'Bad body' }, { status: 400 });
   const supporter = await supporterForUser(session.userId);
-  const check = validateSupporterStyle(body, supporter?.tier.id ?? null);
+  const payload = body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>) : null;
+  const accountId = typeof payload?.accountId === 'number' && Number.isInteger(payload.accountId) ? payload.accountId : null;
+  const requested = accountId == null ? body : payload?.style;
+  const check = validateSupporterStyle(requested, supporter?.tier.id ?? null);
   if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 });
+  if (accountId != null) {
+    const owner = await db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { playerId: true } });
+    if (!owner?.playerId) return NextResponse.json({ error: 'Link a character first.' }, { status: 409 });
+    const playerId = owner.playerId;
+    const result = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(${playerId})`);
+      const [account] = await tx
+        .select({ id: accounts.id })
+        .from(accounts)
+        .where(and(eq(accounts.id, accountId), eq(accounts.playerId, playerId)))
+        .limit(1);
+      if (!account) return { error: 'That character is not yours.', status: 404 } as const;
+      if (supporter?.tier.id === 'champion') {
+        const rows = await tx
+          .select({ style: accounts.supporterStyle })
+          .from(accounts)
+          .where(and(eq(accounts.playerId, playerId), ne(accounts.id, accountId)));
+        const colours = distinctStaticColours([
+          ...rows.map((row) => parseSupporterStyle(row.style) ?? supporter.style),
+          check.style ?? supporter.style,
+        ]);
+        if (colours.size > 2) return { error: 'Champions may use at most two custom colours across their characters.', status: 400 } as const;
+      }
+      await tx.update(accounts).set({ supporterStyle: check.style ? JSON.stringify(check.style) : null }).where(eq(accounts.id, accountId));
+      return { ok: true } as const;
+    });
+    if ('error' in result) return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json({ accountId, style: check.style, tier: supporter?.tier.id ?? null });
+  }
   await db
     .update(users)
     .set({ supporterStyle: check.style ? JSON.stringify(check.style) : null })

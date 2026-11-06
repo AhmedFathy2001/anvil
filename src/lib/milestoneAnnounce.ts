@@ -15,8 +15,10 @@ import { effectiveClanRules, xpPostsFor, type XpMilestoneRow, type XpRules } fro
 import { getClanMilestoneRules, levelPrefsForAccount } from '@/lib/levelRulesStore';
 import { getNotificationWebhooks } from '@/lib/pluginConfig';
 import { skillIconUrl } from '@/lib/tileIcons';
-import { discordAssetUrl } from '@/lib/seo';
+import { apexOrigin, discordAssetUrl } from '@/lib/seo';
 import { totalXpLabel } from '@/lib/totalXpMilestones';
+import { supporterForUsers, withSupporterAuthor } from '@/lib/supporter';
+import { boostedClanIdsForAccount, withBoosterAuthor } from '@/lib/clanBoosts';
 
 /** The embed for a total-XP step. Exported for tests. */
 export function totalXpEmbed(rsn: string, millions: number): DiscordEmbed {
@@ -61,6 +63,16 @@ export async function announceMilestones(accountId: number, milestones: XpMilest
 
   const { userId, rsn, prefs } = await levelPrefsForAccount(accountId);
   if (!rsn) return;
+  const supporter = userId == null
+    ? null
+    : (await supporterForUsers([userId]).catch(() => new Map())).get(userId) ?? null;
+  const boosted = await boostedClanIdsForAccount(accountId).catch(() => new Set<number>());
+  const flaired = (embed: DiscordEmbed, clanId?: number) => {
+    const raw = embed as unknown as Record<string, unknown>;
+    return clanId != null && boosted.has(clanId)
+      ? withBoosterAuthor(raw, apexOrigin())
+      : withSupporterAuthor(raw, supporter?.tier.id ?? null, apexOrigin(), supporter?.style ?? null);
+  };
 
   // Same routing as the plugin's own posts (api/plugin/notify): the member's clans plus shared guest
   // seats, behind the same privacy gate, each to its levels channel under that clan's rules.
@@ -74,7 +86,7 @@ export async function announceMilestones(accountId: number, milestones: XpMilest
     sent.add(url);
     const guest = ec.kind === 'guest' && (await clanTagsGuestEmissions(ec.clanId));
     for (const embed of embeds) {
-      const raw = embed as unknown as Record<string, unknown>;
+      const raw = flaired(embed, ec.clanId);
       const post = guest ? markGuestPost(raw, null) : { embed: raw, content: null };
       await forwardPluginNotification(url, { embed: post.embed ?? null, content: post.content ?? undefined, clanId: ec.clanId });
     }
@@ -88,7 +100,7 @@ export async function announceMilestones(accountId: number, milestones: XpMilest
     if (sent.has(t.url)) continue;
     sent.add(t.url);
     for (const embed of personal) {
-      await forwardPluginNotification(t.url, { embed: embed as unknown as Record<string, unknown>, clanId: undefined });
+      await forwardPluginNotification(t.url, { embed: flaired(embed), clanId: undefined });
     }
   }
 }

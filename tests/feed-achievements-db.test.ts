@@ -76,9 +76,9 @@ test('with nothing running, a member’s achievement is kept and listed in the c
   const feed = await M.momentsForClan(clanId, 80);
   assert.deepEqual(feed.map((m) => m.kind).sort(), ['clog', 'diary', 'level']);
   const rows = feed.filter((m) => F.kindGroup(m.kind) === 'achievements').map((m) => F.momentTitle(m));
-  assert.ok(rows.includes('New log slot: Dragon warhammer'));
+  assert.ok(rows.includes('Dragon warhammer'));
   assert.ok(rows.includes('99 Slayer'));
-  assert.ok(rows.includes('Completed the Hard Varrock Diary'));
+  assert.ok(rows.includes('Hard Varrock'));
 });
 
 test('a guest seat’s achievement is not kept for the clan', async () => {
@@ -97,14 +97,24 @@ test('game-mode moments live behind their own timeline; Fallen also appears unde
   ], scopes.clan, { key: 'hardcore', label: 'Hardcore' });
   assert.equal(r.stored, 2);
   assert.ok(r.inserted.every((m) => m.worldMode === 'hardcore'));
+  const leagues = await M.recordModeMoments(seat.member, [
+    { kind: 'ca', itemName: 'League task', occurredAt: now(), dedupKey: 'mode-league-task' },
+  ], scopes.clan, { key: 'leagues', label: 'Leagues' });
+  assert.equal(leagues.stored, 1);
 
   const ordinary = await M.momentsForClan(clanId, 80);
   assert.ok(ordinary.every((m) => !m.worldMode), 'mode rows stay out of All');
   const deaths = await M.momentsForClan(clanId, 80, ['death']);
   assert.ok(deaths.some((m) => m.worldMode === 'hardcore'), 'Fallen is still reachable through Deaths');
   const modes = await M.modeMomentsForClan(clanId, 80);
-  assert.deepEqual(modes.map((m) => m.kind).sort(), ['death', 'pet']);
-  assert.equal(await M.recentModeMomentCount(clanId), 2);
+  assert.deepEqual(modes.map((m) => m.kind).sort(), ['ca', 'death', 'pet']);
+  assert.deepEqual((await M.modeMomentsForClan(clanId, 80, undefined, 'hardcore')).map((m) => m.kind).sort(), ['death', 'pet']);
+  assert.deepEqual((await M.modeMomentsForClan(clanId, 80, undefined, 'leagues')).map((m) => m.kind), ['ca']);
+  assert.deepEqual(await M.modeMomentModesForClan(clanId), [
+    { key: 'hardcore', label: 'Hardcore' },
+    { key: 'leagues', label: 'Leagues' },
+  ]);
+  assert.equal(await M.recentModeMomentCount(clanId), 3);
 });
 
 test('a log slot is stored once', async () => {

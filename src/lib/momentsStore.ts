@@ -6,7 +6,7 @@ import { getSetting, getSettingMap } from '@/lib/settings';
 // Setting names only; pluginConfig is a heavy module, but momentsStore is server-side already.
 import { DROP_RARITY_FLOOR_SETTING_KEY } from '@/lib/pluginConfig';
 import { clanMemberships, events, moments, eventParticipants, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { type SQL, and, count, desc, eq, gte, inArray, isNotNull, isNull, like, lt, ne, or } from 'drizzle-orm';
+import { type SQL, and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, like, lt, ne, or } from 'drizzle-orm';
 import { LEVEL_RULES_SETTING_KEY } from '@/lib/levelRulesStore';
 import { parseMilestoneRules } from '@/lib/levelRules';
 import { eventHasStarted } from '@/lib/completionGate';
@@ -663,7 +663,7 @@ export async function momentsForClan(clanId: number, limit = 20, kinds?: readonl
 }
 
 /** Separate-save activity for the compact Modes timeline, never mixed into the ordinary clan feed. */
-export async function modeMomentsForClan(clanId: number, limit = 80, kinds?: readonly string[]): Promise<MomentRow[]> {
+export async function modeMomentsForClan(clanId: number, limit = 80, kinds?: readonly string[], worldMode?: string | null): Promise<MomentRow[]> {
   return db
     .select(MOMENT_COLUMNS)
     .from(moments)
@@ -673,9 +673,30 @@ export async function modeMomentsForClan(clanId: number, limit = 80, kinds?: rea
       eq(clanMemberships.kind, 'member'),
       isNotNull(moments.worldMode),
       kinds && kinds.length ? inArray(moments.kind, [...kinds]) : undefined,
+      worldMode ? eq(moments.worldMode, worldMode) : undefined,
     ))
     .orderBy(desc(moments.occurredAt))
     .limit(limit);
+}
+
+/** Modes that have actually appeared in this clan's timeline, for the plugin's compact selector. */
+export async function modeMomentModesForClan(clanId: number): Promise<{ key: string; label: string }[]> {
+  const rows = await db
+    .selectDistinct({ key: moments.worldMode, label: moments.worldModeLabel })
+    .from(moments)
+    .innerJoin(clanMemberships, eq(moments.clanMemberId, clanMemberships.id))
+    .where(and(
+      eq(clanMemberships.clanId, clanId),
+      eq(clanMemberships.kind, 'member'),
+      isNotNull(moments.worldMode),
+    ))
+    .orderBy(asc(moments.worldModeLabel), asc(moments.worldMode));
+  const out = new Map<string, string>();
+  for (const row of rows) {
+    const key = row.key?.trim();
+    if (key && !out.has(key)) out.set(key, row.label?.trim() || key);
+  }
+  return [...out].map(([key, label]) => ({ key, label }));
 }
 
 /** Number shown on the quiet doorway. Old seasons do not keep the doorway permanently visible. */

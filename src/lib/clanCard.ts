@@ -8,6 +8,7 @@ import { momentsForClan } from '@/lib/momentsStore';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
 import { getItemMapping } from '@/lib/osrsItems';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
+import { clanBoostLevel } from '@/lib/clanBoosts';
 
 /** What counts as a drop worth showing: pets, uniques and big loot (never a death). */
 export const FEED_KINDS = new Set(['pet', 'unique', 'loot']);
@@ -22,6 +23,9 @@ export interface ClanCard {
   /** 'creator' for a creator space (lib/creatorSpaces): no members, so none of the numbers below. */
   kind?: 'clan' | 'creator';
   logoUrl: string | null;
+  bannerUrl?: string | null;
+  bannerPosition?: number | null;
+  boostLevel?: number;
   members: number;
   /** Members who gained anything in the last 7 days. */
   activeThisWeek: number;
@@ -48,8 +52,11 @@ export async function loadClanCard(clan: {
   slug: string;
   name: string;
   logoUrl: string | null;
+  bannerUrl?: string | null;
+  bannerPosition?: number | null;
   kind?: string | null;
 }): Promise<ClanCard> {
+  const boostLevel = (await clanBoostLevel(clan.id).catch(() => null))?.level ?? 0;
   // A creator space has no roster to count, rank or compare: the card is who it is, nothing more.
   if (isCreatorSpace(clan)) {
     return {
@@ -57,6 +64,9 @@ export async function loadClanCard(clan: {
       name: clan.name,
       kind: 'creator',
       logoUrl: clan.logoUrl,
+      bannerUrl: clan.bannerUrl ?? null,
+      bannerPosition: clan.bannerPosition ?? null,
+      boostLevel,
       members: 0,
       activeThisWeek: 0,
       weekHours: 0,
@@ -100,6 +110,9 @@ export async function loadClanCard(clan: {
     slug: clan.slug,
     name: clan.name,
     logoUrl: clan.logoUrl,
+    bannerUrl: clan.bannerUrl ?? null,
+    bannerPosition: clan.bannerPosition ?? null,
+    boostLevel,
     members: analytics.memberCount,
     activeThisWeek: analytics.activeThisWeek,
     weekHours: Math.round(analytics.activity.slice(-7).reduce((t, d) => t + d.value, 0) * 10) / 10,
