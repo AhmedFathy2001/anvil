@@ -228,7 +228,10 @@ async function clanView(request: Request, a: Args): Promise<View> {
   const mine = (a.clan ?? '').trim().toLowerCase();
   // "Compare with my clan" only between two clans: a creator space has no members to compare.
   const compare = !!mine && mine !== clan.slug && a.own !== '1' && !isCreatorSpace(clan) && !(await mineIsSpace(request, mine));
-  return { ui: clanCardUi(await loadClanCard(clan), compare, hasFeedTab(request), hasTabLinks(request), hasPanelImages(request)) };
+  // The Feed tab is the plugin's own clan's feed, so pointing at it from someone else's card opened
+  // the wrong clan. Any other clan gets its drops live in place instead.
+  const own = mine === clan.slug;
+  return { ui: clanCardUi(await loadClanCard(clan), compare, own && hasFeedTab(request), own && hasTabLinks(request), hasPanelImages(request)) };
 }
 
 /** Is the place the plugin is pointed at a creator space? */
