@@ -135,6 +135,22 @@ export type CharacterGameClan = {
   anvilClanUnlisted: boolean;
 };
 
+/**
+ * The Anvil clan (by verified in-game name) this character last reported being in, fresh reports
+ * only; null when unknown, stale, or a clan that isn't on Anvil. Admission uses it: being in the
+ * clan in game is what makes "not on the roster yet" worth a request for the clan's staff.
+ */
+export async function reportedAnvilClanId(accountId: number): Promise<number | null> {
+  const [row] = await db
+    .select({ key: gameClans.nameKey })
+    .from(accountGameClans)
+    .innerJoin(gameClans, eq(gameClans.id, accountGameClans.gameClanId))
+    .where(and(eq(accountGameClans.accountId, accountId), gte(accountGameClans.observedAt, freshSince())))
+    .limit(1);
+  if (!row) return null;
+  return (await anvilClansByKey([row.key])).get(row.key)?.id ?? null;
+}
+
 /** A character's in-game clan for its profile, or null when unknown or stale. Hidden rows are returned (the owner sees them). */
 export async function gameClanForAccount(accountId: number): Promise<CharacterGameClan | null> {
   const [row] = await db

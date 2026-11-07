@@ -98,7 +98,7 @@ export async function clanMark(name: string, logoUrl: string | null | undefined)
         // An animated logo stays animated in Discord, which plays a GIF thumbnail (not reliably a
         // WebP one) — every frame, at the same 128px. A still logo stays a PNG.
         if (((await sharp(input).metadata()).pages ?? 1) > 1) {
-          const gif = await sharp(input, { animated: true }).resize(128, 128, { fit: 'cover' }).gif().toBuffer();
+          const gif = await sharp(input, { animated: true }).resize(128, 128, { fit: 'cover' }).gif({ loop: 0 }).toBuffer();
           return new Response(new Uint8Array(gif), { headers: { 'Content-Type': 'image/gif', 'Cache-Control': OG_CACHE_CONTROL } });
         }
         const png = await sharp(input)

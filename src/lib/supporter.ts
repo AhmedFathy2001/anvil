@@ -12,7 +12,7 @@ import { accounts, supporterSubscriptions, users } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { newCheckoutRef } from '@/lib/billing';
 import { hasChatStar } from '@/lib/chatLook';
-import { styleKey, type FlairRecord } from '@/lib/chatFlairWire';
+import { styleFromKey, styleKey, type FlairRecord, type FlairStyle, type FlairSurface } from '@/lib/chatFlairWire';
 import { effectiveSupporterStyle, parseSupporterStyle, supporterInk, type SupporterInk, type SupporterLook } from '@/lib/supporterStyle';
 import { SUPPORTER_TIERS, rowInForce, supporterState, tiersByName, type SupporterState, type SupporterTierId } from '@/lib/supporterTiers';
 
@@ -205,12 +205,9 @@ export function supporterCheckoutUrl(ref: string, via?: string | null): string |
   return url.toString();
 }
 
-/** One character's flair in normal game chat: its name (normalized), colour, gradient and star. */
-export interface GameChatFlair {
+/** One character's flair in normal game chat: its name (normalized), colour, gradient, star and own dark/light looks. */
+export interface GameChatFlair extends FlairStyle {
   n: string;
-  c: string;
-  g?: string[];
-  s?: true;
 }
 
 /**
@@ -220,13 +217,8 @@ export interface GameChatFlair {
  */
 export async function gameChatFlair(): Promise<GameChatFlair[]> {
   const out: GameChatFlair[] = [];
-  for (const [n, r] of await gameChatFlairRecords()) out.push({ n, ...JSON.parse(styleAsEntry(r.k)) });
+  for (const [n, r] of await gameChatFlairRecords()) out.push({ n, ...styleFromKey(r.k) });
   return out.sort((a, b) => a.n.localeCompare(b.n));
-}
-
-function styleAsEntry(key: string): string {
-  const [c, g, s] = JSON.parse(key) as [string, string[] | null, number];
-  return JSON.stringify({ c, ...(g ? { g } : {}), ...(s ? { s: true } : {}) });
 }
 
 /**
@@ -286,9 +278,20 @@ export async function gameChatFlairRecords(rsns?: string[]): Promise<Map<string,
     const star = hasChatStar(state.tier.id);
     if (star) starred.add(rsn);
     out.set(rsn, {
-      k: styleKey({ c: ink.color, ...(ink.grad && ink.grad.length >= 2 ? { g: ink.grad.slice(0, 4) } : {}), ...(star ? { s: true as const } : {}) }),
+      k: styleKey({
+        c: ink.color,
+        ...(ink.grad && ink.grad.length >= 2 ? { g: ink.grad.slice(0, 4) } : {}),
+        ...(star ? { s: true as const } : {}),
+        ...(ink.dark ? { d: flairSurface(ink.dark) } : {}),
+        ...(ink.light ? { l: flairSurface(ink.light) } : {}),
+      }),
       p: playerId,
     });
   }
   return out;
+}
+
+/** A surface's own look on the chat-flair wire: {c, g?}, g only for a gradient. */
+function flairSurface(ink: { color: string; grad?: string[] }): FlairSurface {
+  return { c: ink.color, ...(ink.grad && ink.grad.length >= 2 ? { g: ink.grad.slice(0, 4) } : {}) };
 }

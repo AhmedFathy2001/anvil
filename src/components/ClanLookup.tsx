@@ -43,6 +43,7 @@ export interface LookupClan {
   xpThisWeek: number;
   /** Its clan boost level in force (lib/clanBoosts): badge, name colour, order, featured row. */
   boostLevel?: number;
+  boostNameStyle?: import('@/lib/clanBoostRules').ClanBoostNameStyle | null;
   /** Level 2+: the clan's own one-line pitch to recruits. */
   recruitingLine?: string | null;
 }
@@ -424,7 +425,7 @@ function Card({ clan }: { clan: LookupClan }) {
         </div>
 
         <div className="mt-2 flex items-center gap-1.5">
-          <BoostedClanName name={clan.name} level={level} className="truncate text-[16px] font-semibold" />
+          <BoostedClanName name={clan.name} level={level} nameStyle={clan.boostNameStyle} className="truncate text-[16px] font-semibold" />
           {clan.verified && (
             // The badge means the in-game name is proven — the thing that stops somebody
             // registering a famous clan's name and collecting its members.

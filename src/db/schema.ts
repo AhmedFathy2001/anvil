@@ -4336,6 +4336,8 @@ export const clanBoostState = pgTable('clan_boost_state', {
   giftLevel: integer('gift_level'),
   giftExpiresAt: text('gift_expires_at'),
   giftedBy: integer('gifted_by').references(() => users.id, { onDelete: 'set null' }),
+  /** Clan-admin chosen 1–4 colour stops for its boosted name. */
+  nameStyle: text('name_style'),
   recruitingLine: text('recruiting_line'),
   lastRecruitPostAt: text('last_recruit_post_at'),
   lastRecruitPostBy: integer('last_recruit_post_by').references(() => users.id, { onDelete: 'set null' }),

@@ -5,9 +5,11 @@ import { db } from '@/db';
 import { users } from '@/db/schema';
 import { CAN_GRANT, requirePlatformApi } from '@/lib/platformAccess';
 import { syncAnvilSupporterRoles } from '@/lib/anvilDiscord';
-import { MAX_GIFT_DAYS, endGift, giveGift, isGiftTier, listGifts } from '@/lib/supporterGifts';
+import { MAX_GIFT_DAYS, endGift, giveGift, isGiftTier, listGifts, standingForPlayer } from '@/lib/supporterGifts';
 
 // /api/staff/people/<playerId>/supporter — free Supporter time from Anvil staff (lib/supporterGifts).
+//   Every answer is { gifts, standing }: their gifts (with who gave / ended each, from the audit log)
+//   and what they pay for vs. wear now (lib/supporterGiftRules supporterStanding).
 //   GET                          this person's gifts
 //   POST { tier, days, note?, boostSlots? }   give one; boostSlots (default false) also gives the
 //                                tier's clan boost slots (lib/clanBoostRules slotTier)
@@ -19,7 +21,13 @@ import { MAX_GIFT_DAYS, endGift, giveGift, isGiftTier, listGifts } from '@/lib/s
 async function loginFor(params: Promise<{ id: string }>) {
   const playerId = Number((await params).id);
   if (!Number.isInteger(playerId) || playerId <= 0) return null;
-  return (await db.query.users.findFirst({ where: eq(users.playerId, playerId), columns: { id: true } })) ?? null;
+  const login = await db.query.users.findFirst({ where: eq(users.playerId, playerId), columns: { id: true } });
+  return login ? { id: login.id, playerId } : null;
+}
+
+async function answer(login: { id: number; playerId: number }) {
+  const [gifts, standing] = await Promise.all([listGifts(login.id), standingForPlayer(login.playerId)]);
+  return NextResponse.json({ gifts, standing });
 }
 
 const noLogin = () => NextResponse.json({ error: 'That person has no Discord login to give Supporter to.' }, { status: 400 });
@@ -29,7 +37,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if ('response' in gate) return gate.response;
   const login = await loginFor(params);
   if (!login) return noLogin();
-  return NextResponse.json({ gifts: await listGifts(login.id) });
+  return answer(login);
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -52,7 +60,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     boostSlots: body.boostSlots === true,
   });
   void syncAnvilSupporterRoles(login.id);
-  return NextResponse.json({ gifts: await listGifts(login.id) });
+  return answer(login);
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -66,5 +74,5 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     return NextResponse.json({ error: 'No running gift with that id.' }, { status: 404 });
   }
   void syncAnvilSupporterRoles(login.id);
-  return NextResponse.json({ gifts: await listGifts(login.id) });
+  return answer(login);
 }

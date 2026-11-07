@@ -4,7 +4,8 @@ import { foreignOr } from '@/lib/pluginForeign';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { rateLimitByKey } from '@/lib/rate-limit';
 import { parseGameClanReport } from '@/lib/gameClanReport';
-import { recordGameClan } from '@/lib/gameClans';
+import { recordGameClan, reportedAnvilClanId } from '@/lib/gameClans';
+import { admit } from '@/lib/guestAdmission';
 
 // POST /api/plugin/game-clan — { clan: { name, rank, title, joinedOn } | null }
 //
@@ -33,5 +34,11 @@ export async function POST(request: Request) {
   if (report === undefined) return NextResponse.json({ error: 'Expected { clan: {...} | null }' }, { status: 400 });
 
   const { stored } = await recordGameClan(who.accountId, report);
+  // In a verified Anvil clan in game but not on its roster yet (the sync hasn't caught up): ask that
+  // clan's staff. admit() returns an existing seat or pending request rather than filing another.
+  if (report) {
+    const clanId = await reportedAnvilClanId(who.accountId).catch(() => null);
+    if (clanId != null) await admit({ clanId, accountId: who.accountId, source: 'plugin' }).catch(() => null);
+  }
   return NextResponse.json({ ok: true, stored });
 }

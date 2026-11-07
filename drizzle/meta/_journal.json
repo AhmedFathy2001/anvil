@@ -1156,6 +1156,13 @@
       "when": 1793997880000,
       "tag": "0223_clan_boost_gifts",
       "breakpoints": true
+    },
+    {
+      "idx": 224,
+      "version": "7",
+      "when": 1794045600000,
+      "tag": "0224_clan_boost_name_style",
+      "breakpoints": true
     }
   ]
 }

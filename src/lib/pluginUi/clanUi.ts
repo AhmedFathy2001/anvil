@@ -1,9 +1,11 @@
 import type { ClanCard } from '@/lib/clanCard';
 import { clanBoostInk } from '@/lib/clanBoostRules';
+import { inkForSurface } from '@/lib/supporterStyle';
 
 import { FEED_STEP, dropLine } from './momentsUi';
 import { type Node, backRow, button, card, col, count, fmt, gap, header, icon, message, muted, nameText, row, seg, text } from './nodes';
 import { namesRow, vsRow } from './playerMoreUi';
+import { mediaRevision, revisedMediaPath } from './mediaRevision';
 
 // A clan as the plugin's panel draws it (was ClanCardView.java): who the clan is, how hard it played
 // this week and who carried it, its strongest accounts, what dropped lately and what's running. Under
@@ -32,11 +34,13 @@ function siteHeader(label: string, note: string, path: string): Node {
 export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLinks = false, images = false): Node {
   if (c.kind === 'creator') return spaceCardUi(c);
   const parts: Node[] = [];
-  const boost = clanBoostInk(c.boostLevel ?? 0);
+  const sourceBoost = clanBoostInk(c.boostLevel ?? 0, c.boostNameStyle);
+  const boost = sourceBoost ? inkForSurface(sourceBoost, 'dark') : null;
+  const mediaRev = mediaRevision(c.logoUrl, c.bannerUrl);
   if (images && c.bannerUrl) {
     parts.push({
       t: 'img',
-      src: `/api/plugin/media/clan/${seg(c.slug)}?kind=banner`,
+      src: revisedMediaPath(`/api/plugin/media/clan/${seg(c.slug)}?kind=banner`, mediaRev, c.boostLevel ?? 0),
       w: 220,
       h: 73,
       ...(boost?.move ? { motion: true } : {}),
@@ -44,7 +48,7 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
   }
   const id: Node[] = [
     row(images && c.logoUrl
-      ? { t: 'img', src: `/api/plugin/media/clan/${seg(c.slug)}?kind=logo`, w: 36, h: 36, motion: true, round: true }
+      ? { t: 'img', src: revisedMediaPath(`/api/plugin/media/clan/${seg(c.slug)}?kind=logo`, mediaRev, c.boostLevel ?? 0), w: 36, h: 36, motion: true, round: true }
       : undefined, text(c.name, boost?.color ?? 'white', {
       font: 'bold',
       ...(boost?.grad ? { grad: boost.grad } : {}),
@@ -156,11 +160,12 @@ export function clanCompareUi(a: ClanCard, b: ClanCard): Node {
 }
 
 /** Lookup's clan search: a row per listed clan that matches, each opening its card. */
-export function clanSearchUi(q: string, found: { slug: string; name: string; boostLevel?: number }[]): Node {
+export function clanSearchUi(q: string, found: { slug: string; name: string; boostLevel?: number; boostNameStyle?: import('@/lib/clanBoostRules').ClanBoostNameStyle | null }[]): Node {
   if (!found.length) return message(`No listed clan matches "${q}".`).ui;
   return col(
     found.flatMap((f) => {
-      const boost = clanBoostInk(f.boostLevel ?? 0);
+      const source = clanBoostInk(f.boostLevel ?? 0, f.boostNameStyle);
+      const boost = source ? inkForSurface(source, 'dark') : null;
       return [
         row(undefined, text(f.name, boost?.color ?? 'white', {
           ...(boost?.grad ? { grad: boost.grad } : {}),

@@ -119,6 +119,7 @@ export async function GET(request: Request) {
         // "linked to another Anvil account" instead of tracking nothing without a word.
         const character = playedCharacter(request);
         const standing = character ? await accountStanding(userOnly.userId, character) : null;
+        const activeBoost = await clanBoostLevel(clan.id).catch(() => null);
         const { activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, facts, alwaysNotifyItemIds } = clanSettings;
       const body: Record<string, unknown> = {
         // Version + capability handshake — present on every /config shape (enrolled or not) so the
@@ -143,7 +144,11 @@ export async function GET(request: Request) {
           name: clan.name,
           gameName: clan.inGameName || clan.name,
           kind: clan.kind === 'friends' ? 'creator' : clan.kind,
-          boostLevel: (await clanBoostLevel(clan.id).catch(() => null))?.level ?? 0,
+          boostLevel: activeBoost?.level ?? 0,
+          boostNameStops: activeBoost?.nameStyle?.stops ?? null,
+          // The clan's own looks for dark / light backgrounds, worn as-is there (null: adapt boostNameStops).
+          boostNameDarkStops: activeBoost?.nameStyle?.dark?.stops ?? null,
+          boostNameLightStops: activeBoost?.nameStyle?.light?.stops ?? null,
         },
         clans: switchableClans,
         // Server-resolved board summary off the token's USER (linked member → live enrollment), so

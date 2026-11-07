@@ -11,10 +11,23 @@ import type { SupporterTierId } from './supporterTiers.ts';
 
 export type Hex = `#${string}`;
 
-/** What a character wears. One stop is static; 2–4 are a gradient and win over a preset. */
-export interface SupporterStyle {
+/** One look: a preset, or 1 stop (static) / 2–4 stops (a gradient, which wins over a preset). */
+export interface SupporterLookStyle {
   preset?: string;
   stops?: Hex[];
+}
+
+/** The two kinds of background a name is drawn on. The site, the plugin panel and Discord are dark. */
+export type NameSurface = 'dark' | 'light';
+export const NAME_SURFACES: readonly NameSurface[] = ['dark', 'light'];
+
+/**
+ * What a character wears: the main look, plus an optional look per surface. An override is worn
+ * AS-IS on its surface; without one, the main look is adapted for contrast there.
+ */
+export interface SupporterStyle extends SupporterLookStyle {
+  dark?: SupporterLookStyle;
+  light?: SupporterLookStyle;
 }
 
 /** Everything a page needs to draw one person's flair: their tier and their (gated) colours. */
@@ -23,11 +36,20 @@ export interface SupporterLook {
   style: SupporterStyle | null;
 }
 
+/** A surface's own look, raw: worn as-is on that surface (animation follows the main look). */
+export interface SurfaceInk {
+  color: Hex;
+  grad?: Hex[];
+}
+
 /** How a name is drawn: a solid colour every renderer understands, and the gradient a newer one draws. */
 export interface SupporterInk {
   color: Hex;
   grad?: Hex[];
   move?: boolean;
+  /** The person's own look for dark / light backgrounds, when they set one. See inkForSurface. */
+  dark?: SurfaceInk;
+  light?: SurfaceInk;
 }
 
 /**
@@ -78,6 +100,12 @@ export const TRANSPARENT_CHAT_BACKGROUND: Hex = '#262626';
 export const OPAQUE_CHAT_BACKGROUND: Hex = '#c4b48c';
 /** A custom stop must read at least this well against FLAIR_BACKGROUND (WCAG large-text contrast). */
 export const MIN_STOP_CONTRAST = 3;
+/** The reference background of each surface: the card, and RuneScape's opaque parchment chat. */
+export const SURFACE_BACKGROUND: Record<NameSurface, Hex> = { dark: FLAIR_BACKGROUND, light: OPAQUE_CHAT_BACKGROUND };
+/** Which way an adapted colour is pushed on each surface. */
+const SURFACE_TOWARD: Record<NameSurface, Hex> = { dark: '#ffffff', light: '#000000' };
+/** The contrast an adapted name is lifted to (WCAG normal text). */
+export const SURFACE_MIN_CONTRAST = 4.5;
 
 const HEX = /^#[0-9a-f]{6}$/;
 
@@ -130,11 +158,22 @@ export function luminance(hex: Hex): number {
   return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
 }
 
+/** Contrast ratio of two colours (1–21). */
+export function contrastRatio(a: Hex, b: Hex): number {
+  const x = luminance(a);
+  const y = luminance(b);
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
 /** Contrast ratio of a colour against the card background (1–21). */
 export function contrastOnCard(hex: Hex): number {
-  const a = luminance(hex);
-  const b = luminance(FLAIR_BACKGROUND);
-  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  return contrastRatio(hex, FLAIR_BACKGROUND);
+}
+
+/** The worst-reading stop of an ink on a background: what a "hard to read" hint checks. */
+export function weakestContrast(ink: { color: Hex; grad?: Hex[] }, background: Hex): number {
+  const stops = ink.grad && ink.grad.length >= 2 ? ink.grad : [ink.color];
+  return Math.min(...stops.map((h) => contrastRatio(h, background)));
 }
 
 /** Would this stop vanish into the card? */
@@ -154,6 +193,22 @@ function cleanStops(v: unknown): Hex[] | null {
   return out;
 }
 
+/** One look read leniently (bad fields dropped). */
+function parseLook(v: unknown): SupporterLookStyle | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const o = v as Record<string, unknown>;
+  const look: SupporterLookStyle = {};
+  if (typeof o.preset === 'string' && presetById(o.preset)) look.preset = o.preset;
+  const stops = cleanStops(o.stops);
+  if (stops) look.stops = stops;
+  return look.preset || look.stops ? look : null;
+}
+
+/** True when a style says anything at all (main look or a surface override). */
+function hasAny(s: SupporterStyle): boolean {
+  return !!(s.preset || s.stops || s.dark || s.light);
+}
+
 /**
  * The stored column, read leniently: malformed JSON or a bad field is dropped, never thrown, so a
  * name always renders. Tier gating happens later (effectiveSupporterStyle).
@@ -168,11 +223,12 @@ export function parseSupporterStyle(raw: string | null | undefined): SupporterSt
   }
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
   const o = v as Record<string, unknown>;
-  const style: SupporterStyle = {};
-  if (typeof o.preset === 'string' && presetById(o.preset)) style.preset = o.preset;
-  const stops = cleanStops(o.stops);
-  if (stops) style.stops = stops;
-  return style.preset || style.stops ? style : null;
+  const style: SupporterStyle = { ...parseLook(o) };
+  for (const surface of NAME_SURFACES) {
+    const look = parseLook(o[surface]);
+    if (look) style[surface] = look;
+  }
+  return hasAny(style) ? style : null;
 }
 
 /**
@@ -184,13 +240,34 @@ export function effectiveSupporterStyle(
   style: SupporterStyle | null | undefined,
 ): SupporterStyle | null {
   if (!tier || !style || tier === 'supporter') return null;
-  if (style.stops && canCustomise(tier) && style.stops.length <= maxCustomStops(tier)) {
-    const stops = cleanStops(style.stops);
+  const out: SupporterStyle = { ...gateLook(tier, style, false) };
+  for (const surface of NAME_SURFACES) {
+    const look = style[surface] ? gateLook(tier, style[surface], true) : null;
+    if (look) out[surface] = look;
+  }
+  return hasAny(out) ? out : null;
+}
+
+/**
+ * One look as a tier may wear it. A surface override keeps the tier's default preset (choosing it
+ * for a surface means "this, as-is"); the main look drops it, since it is the default anyway.
+ */
+function gateLook(tier: SupporterTierId, look: SupporterLookStyle, keepDefault: boolean): SupporterLookStyle | null {
+  if (look.stops && canCustomise(tier) && look.stops.length <= maxCustomStops(tier)) {
+    const stops = cleanStops(look.stops);
     if (stops) return { stops };
   }
-  const preset = presetById(style.preset);
-  if (preset && rank(preset.minTier) <= rank(tier) && preset.id !== DEFAULT_PRESET[tier]) return { preset: preset.id };
+  const preset = presetById(look.preset);
+  if (preset && rank(preset.minTier) <= rank(tier) && (keepDefault || preset.id !== DEFAULT_PRESET[tier])) return { preset: preset.id };
   return null;
+}
+
+/** A look's stops as drawn: the solid colour every renderer understands, and the gradient if any. */
+function inkOfStops(stops: Hex[]): SurfaceInk {
+  // The solid colour (Discord, chat lines, old plugins) is the brightest-reading stop of the middle
+  // ones: the first stop alone is often the pale end of a gradient.
+  const color = stops.length > 2 ? stops[1] : stops[0];
+  return stops.length === 1 ? { color } : { color, grad: [...stops] };
 }
 
 /** The one answer to "what colour is this name": tier plus their (gated) choice. */
@@ -198,12 +275,15 @@ export function supporterInk(tier: SupporterTierId, style?: SupporterStyle | nul
   const base = SUPPORTER_INK[tier];
   const eff = effectiveSupporterStyle(tier, style);
   const stops = eff?.stops ?? presetById(eff?.preset)?.stops;
-  if (!stops) return { ...base, ...(base.grad ? { grad: [...base.grad] } : {}) };
-  // The solid colour (Discord, chat lines, old plugins) is the brightest-reading stop of the middle
-  // ones: the first stop alone is often the pale end of a gradient.
-  const color = stops.length > 2 ? stops[1] : stops[0];
-  if (stops.length === 1) return { color };
-  return { color, grad: [...stops], ...(base.move ? { move: true } : {}) };
+  const ink: SupporterInk = !stops
+    ? { color: base.color, ...(base.grad ? { grad: [...base.grad] } : {}), ...(base.move ? { move: true } : {}) }
+    : { ...inkOfStops(stops), ...(stops.length > 1 && base.move ? { move: true } : {}) };
+  for (const surface of NAME_SURFACES) {
+    const look = eff?.[surface];
+    const own = look?.stops ?? presetById(look?.preset)?.stops;
+    if (own) ink[surface] = inkOfStops(own);
+  }
+  return ink;
 }
 
 /** Stored/source colour adjusted only for display on one known background. */
@@ -236,14 +316,41 @@ export function readableHexOn(hex: Hex, background: Hex, toward: Hex, minimum = 
 
 /** Derive a whole style once for a surface; never mutate the stored source colours. */
 export function supporterInkOn<T extends SupporterInk>(ink: T, background: Hex, toward: Hex, minimum = MIN_STOP_CONTRAST): T {
-  const color = readableHexOn(ink.color, background, toward, minimum);
-  const grad = ink.grad?.map((stop) => readableHexOn(stop, background, toward, minimum));
+  const main: SupporterInk = { ...ink };
+  delete main.dark;
+  delete main.light;
+  const color = readableHexOn(main.color, background, toward, minimum);
+  const grad = main.grad?.map((stop) => readableHexOn(stop, background, toward, minimum));
   return {
-    ...ink,
+    ...main,
     color,
     ...(grad && grad.length >= 2 ? { grad } : {}),
-    ...(ink.move && grad && grad.length >= 2 ? { move: true } : {}),
+    ...(main.move && grad && grad.length >= 2 ? { move: true } : {}),
   } as T;
+}
+
+/**
+ * The ink a name wears on one kind of surface. The person's own look for that surface is worn as-is
+ * (no contrast adaption); without one the main look is adapted to `background` (null: left raw, for
+ * callers whose renderer adapts on its own). Animation follows the main look. The answer carries no
+ * `dark` / `light`, so it can go on the wire as it is.
+ */
+export function inkForSurface<T extends SupporterInk>(
+  ink: T,
+  surface: NameSurface,
+  background: Hex | null = SURFACE_BACKGROUND[surface],
+): Omit<T, 'dark' | 'light'> {
+  const { dark, light, ...main } = ink;
+  const own = surface === 'dark' ? dark : light;
+  if (own) {
+    const rest: Partial<SupporterInk> = { ...main };
+    delete rest.grad;
+    delete rest.move;
+    const grad = own.grad && own.grad.length >= 2 ? [...own.grad] : null;
+    return { ...rest, color: own.color, ...(grad ? { grad } : {}), ...(grad && main.move ? { move: true } : {}) } as Omit<T, 'dark' | 'light'>;
+  }
+  if (!background) return main;
+  return supporterInkOn(main as T, background, SURFACE_TOWARD[surface], SURFACE_MIN_CONTRAST);
 }
 
 /**
@@ -257,19 +364,39 @@ export function supporterGradientCss(ink: SupporterInk): string | null {
 }
 
 export type StyleCheck = { ok: true; style: SupporterStyle | null } | { ok: false; error: string };
+type LookCheck = { ok: true; look: SupporterLookStyle | null } | { ok: false; error: string };
+
+const SURFACE_LABEL: Record<NameSurface, string> = { dark: 'Dark backgrounds', light: 'Light backgrounds' };
 
 /**
  * A style sent from the picker, checked strictly against the tier in force (the server's answer, not
- * the browser's). `null` / `{}` resets to the default. Returns what will be stored.
+ * the browser's). `null` / `{}` resets to the default. Each surface override (`dark`, `light`) is a
+ * whole look under the same rules; `null` / `{}` clears it. Returns what will be stored.
  */
 export function validateSupporterStyle(input: unknown, tier: SupporterTierId | null | undefined): StyleCheck {
   if (input == null) return { ok: true, style: null };
   if (typeof input !== 'object' || Array.isArray(input)) return { ok: false, error: 'Send a style object.' };
   const o = input as Record<string, unknown>;
-  if (!tier) return { ok: false, error: 'Name colours come with Anvil Supporter.' };
+  const main = validateLook(o, tier, false);
+  if (!main.ok) return main;
+  const style: SupporterStyle = { ...main.look };
+  for (const surface of NAME_SURFACES) {
+    const v = o[surface];
+    if (v == null) continue;
+    if (typeof v !== 'object' || Array.isArray(v)) return { ok: false, error: `${SURFACE_LABEL[surface]}: send a style object.` };
+    const check = validateLook(v as Record<string, unknown>, tier, true);
+    if (!check.ok) return { ok: false, error: `${SURFACE_LABEL[surface]}: ${check.error}` };
+    if (check.look) style[surface] = check.look;
+  }
+  return { ok: true, style: hasAny(style) ? style : null };
+}
+
+/** One look checked against the tier. `keepDefault`: a surface override may name the default preset. */
+function validateLook(o: Record<string, unknown>, tier: SupporterTierId | null | undefined, keepDefault: boolean): LookCheck {
   const hasPreset = o.preset != null && o.preset !== '';
   const hasStops = o.stops != null;
-  if (!hasPreset && !hasStops) return { ok: true, style: null };
+  if (!hasPreset && !hasStops) return { ok: true, look: null };
+  if (!tier) return { ok: false, error: 'Name colours come with Anvil Supporter.' };
   if (tier === 'supporter') return { ok: false, error: 'Supporter names are gold. Gradients start at Champion.' };
 
   if (hasStops) {
@@ -284,11 +411,11 @@ export function validateSupporterStyle(input: unknown, tier: SupporterTierId | n
       if (!h) return { ok: false, error: 'Colours must look like #ff9a5a.' };
       stops.push(h);
     }
-    return { ok: true, style: { stops } };
+    return { ok: true, look: { stops } };
   }
 
   const preset = typeof o.preset === 'string' ? presetById(o.preset) : null;
   if (!preset) return { ok: false, error: 'Unknown preset.' };
   if (rank(preset.minTier) > rank(tier)) return { ok: false, error: `${preset.name} is a ${TIER_NAME[preset.minTier]} preset.` };
-  return { ok: true, style: preset.id === DEFAULT_PRESET[tier] ? null : { preset: preset.id } };
+  return { ok: true, look: !keepDefault && preset.id === DEFAULT_PRESET[tier] ? null : { preset: preset.id } };
 }

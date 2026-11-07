@@ -562,6 +562,9 @@ export default async function CharacterProfile({
       <GoalsCard accountId={accountId} goals={goals.goals} editable={show.ownerControls} options={goals.options} />
 
       <ProfileTabs
+        // A same-profile display-case link changes only the query. Keying its destination remounts
+        // the tab state so the requested collection page opens instead of preserving a stale tab.
+        key={`${progressTab && !link.tab ? 'collection' : link.tab ?? 'stats'}:${link.page ?? ''}`}
         bossPages={bossPagesFor(profile.bosses)}
         initial={progressTab && !link.tab ? { ...link, tab: 'collection' } : link}
         profile={profile}

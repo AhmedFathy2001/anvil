@@ -12,13 +12,18 @@ import {
   activeBoostIds,
   boostNameClass,
   clanBoostInk,
+  clanBoostNameStyle,
+  validateClanBoostNameStyle,
   boostPerks,
   boostersWall,
   byBoostLevel,
   cleanRecruitPost,
   cleanRecruitingLine,
   countedBoosts,
+  effectiveBoostLevel,
+  giftTargetLevel,
   levelFor,
+  platformBoostsFor,
   levelProgress,
   levelUpFrom,
   movableAt,
@@ -47,6 +52,24 @@ test('clan name ink is absent at zero, still at level one, and moving from level
   assert.equal(clanBoostInk(0), null);
   assert.deepEqual(clanBoostInk(1), { color: '#ff9a5a', grad: ['#ff9a5a', '#e05ad0', '#7a8cff'] });
   assert.deepEqual(clanBoostInk(2), { color: '#ffd27a', grad: ['#ffd27a', '#ff7ab8', '#7ae0ff'], move: true });
+});
+
+test('a clan boost name accepts one to four safe custom colours', () => {
+  const style = clanBoostNameStyle({ stops: ['#000000', '#ABCDEF'] });
+  assert.deepEqual(style, { stops: ['#000000'.toLowerCase(), '#abcdef'] });
+  assert.deepEqual(clanBoostInk(2, style), { color: '#000000', grad: ['#000000', '#abcdef'], move: true });
+  assert.deepEqual(clanBoostInk(1, { stops: ['#123456'] }), { color: '#123456' });
+  assert.equal(clanBoostNameStyle({ stops: ['red'] }), null);
+  assert.equal(clanBoostNameStyle({ stops: [] }), null);
+});
+
+test('platform gifts dynamically fill only the missing boosts to their target level', () => {
+  assert.equal(platformBoostsFor(3, 2), 5);
+  assert.equal(platformBoostsFor(2, 2), 6);
+  assert.equal(platformBoostsFor(4, 2), 4);
+  assert.equal(platformBoostsFor(9, 2), 0);
+  assert.equal(platformBoostsFor(3, 3), 12);
+  assert.equal(platformBoostsFor(3, 0), 0);
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -249,6 +272,94 @@ test('dropping below a level keeps its perks for seven days, then settles', () =
 });
 
 // ---------------------------------------------------------------------------------------------
+// Platform gifts on top of the members' own boosts (effectiveBoostLevel)
+// ---------------------------------------------------------------------------------------------
+
+const gift = (level: number, expiresAt: string | number | null = null) => ({ level, expiresAt });
+const iso = (ms: number) => new Date(ms).toISOString();
+
+test('a gift to Level 2 tops up the gap and shrinks as real boosts arrive', () => {
+  const g = gift(2, iso(NOW + days(30)));
+  let e = effectiveBoostLevel(null, 0, g, NOW);
+  assert.deepEqual([e.level, e.counted, e.organicCounted, e.platformCount, e.giftTargetLevel], [2, 8, 0, 8, 2]);
+  e = effectiveBoostLevel(null, 3, g, NOW);
+  assert.deepEqual([e.level, e.counted, e.platformCount], [2, 8, 5]);
+  e = effectiveBoostLevel(null, 7, g, NOW);
+  assert.deepEqual([e.level, e.counted, e.platformCount], [2, 8, 1]);
+  assert.equal(e.organic.level, 1, 'what is stored is the members’ own level, never the gift');
+});
+
+test('real boosts falling under a gift are refilled by it, with no grace week shown', () => {
+  const g = gift(2, null);
+  // Organic was Level 2 (8 boosts) and falls to 4: the gift holds Level 2, so no grace is showing...
+  const e = effectiveBoostLevel({ level: 2, droppedAt: null }, 4, g, NOW);
+  assert.deepEqual([e.level, e.counted, e.platformCount, e.graceEndsAt], [2, 8, 4, null]);
+  // ...but the organic grace week still starts underneath (written to the stored row).
+  assert.deepEqual([e.organic.level, e.organic.droppedAt, e.organic.changed], [2, NOW, true]);
+});
+
+test('members boosting past the target win: the gift adds nothing and the higher level shows', () => {
+  const g = gift(1, null);
+  const at = effectiveBoostLevel(null, 3, g, NOW);
+  assert.deepEqual([at.level, at.platformCount], [1, 0]);
+  const over = effectiveBoostLevel({ level: 1, droppedAt: null }, 9, g, NOW);
+  assert.deepEqual([over.level, over.counted, over.organicCounted, over.platformCount], [2, 9, 9, 0]);
+  const top = effectiveBoostLevel(null, 20, gift(3, null), NOW);
+  assert.deepEqual([top.level, top.counted, top.platformCount], [3, 20, 0]);
+});
+
+test('an organic grace level above the gift target outranks the gift until the week ends', () => {
+  const stored = { level: 3, droppedAt: NOW };
+  const mid = effectiveBoostLevel(stored, 9, gift(1, null), NOW + days(3));
+  assert.deepEqual([mid.level, mid.countedLevel, mid.platformCount], [3, 2, 0]);
+  assert.equal(mid.graceEndsAt, NOW + days(GRACE_DAYS));
+  const after = effectiveBoostLevel(stored, 9, gift(1, null), NOW + days(GRACE_DAYS));
+  assert.deepEqual([after.level, after.graceEndsAt], [2, null]);
+});
+
+test('a gift that has lapsed contributes nothing: the clan is back on its organic level', () => {
+  const ends = NOW + days(10);
+  const before = effectiveBoostLevel({ level: 0, droppedAt: null }, 4, gift(2, iso(ends)), ends - 1);
+  assert.deepEqual([before.level, before.platformCount], [2, 4]);
+  const at = effectiveBoostLevel({ level: 1, droppedAt: null }, 4, gift(2, iso(ends)), ends);
+  assert.deepEqual([at.level, at.counted, at.platformCount, at.giftTargetLevel, at.graceEndsAt], [1, 4, 0, 0, null]);
+  // A lapsed gift on a clan with no boosts at all leaves nothing (the reader then drops the clan).
+  const none = effectiveBoostLevel(null, 0, gift(3, iso(ends)), ends + 1);
+  assert.deepEqual([none.level, none.counted], [0, 0]);
+});
+
+test('a lapsed gift falls back into a running organic grace week, not past it', () => {
+  // Organic dropped from 2 to 1 two days ago while the gift held Level 3; the gift ends today.
+  const dropped = NOW - days(2);
+  const e = effectiveBoostLevel({ level: 2, droppedAt: dropped }, 4, gift(3, iso(NOW)), NOW);
+  assert.deepEqual([e.level, e.countedLevel, e.giftTargetLevel], [2, 1, 0]);
+  assert.equal(e.graceEndsAt, dropped + days(GRACE_DAYS));
+  // Once that week is over too, Level 1.
+  const later = effectiveBoostLevel({ level: 2, droppedAt: dropped }, 4, gift(3, iso(NOW)), dropped + days(GRACE_DAYS));
+  assert.deepEqual([later.level, later.graceEndsAt], [1, null]);
+});
+
+test('indefinite gifts never lapse; a cleared or zero gift is no gift', () => {
+  const far = NOW + days(3650 * 3);
+  assert.equal(giftTargetLevel(gift(2, null), far), 2);
+  assert.equal(giftTargetLevel({ level: 2, expiresAt: undefined }, far), 2);
+  assert.equal(giftTargetLevel({ level: 2, expiresAt: '' }, far), 2);
+  assert.equal(effectiveBoostLevel(null, 0, gift(2, null), far).level, 2);
+  assert.equal(giftTargetLevel(null, NOW), 0);
+  assert.equal(giftTargetLevel({ level: null, expiresAt: null }, NOW), 0);
+  assert.equal(giftTargetLevel(gift(0, null), NOW), 0);
+});
+
+test('gift expiry reads every stored stamp shape, clamps the level, and fails closed on junk', () => {
+  assert.equal(giftTargetLevel(gift(2, '2026-11-05 12:00:01'), NOW), 2);
+  assert.equal(giftTargetLevel(gift(2, '2026-11-05 12:00:00'), NOW), 0, 'ends exactly now = ended');
+  assert.equal(giftTargetLevel(gift(2, '2026-11-06'), NOW), 2);
+  assert.equal(giftTargetLevel(gift(2, NOW + 1), NOW), 2);
+  assert.equal(giftTargetLevel(gift(2, 'not a date'), NOW), 0);
+  assert.equal(giftTargetLevel(gift(7, null), NOW), 3);
+});
+
+// ---------------------------------------------------------------------------------------------
 // Perks
 // ---------------------------------------------------------------------------------------------
 
@@ -391,4 +502,28 @@ test('the booster gem replaces nothing the post already has, and only on an auth
   assert.equal(withBoosterAuthor(bare, 'o'), bare);
   const own = { author: { name: 'Z', icon_url: 'mine.png' } };
   assert.equal(withBoosterAuthor(own, 'o'), own);
+});
+
+test('clan-name surface overrides: lenient read, strict check, raw on the ink', () => {
+  const style = clanBoostNameStyle(JSON.stringify({ stops: ['#ff9a5a'], dark: { stops: ['#FFFFFF', '#ffe0a0'] }, light: { stops: ['bad'] } }));
+  assert.deepEqual(style, { stops: ['#ff9a5a'], dark: { stops: ['#ffffff', '#ffe0a0'] } });
+  // Overrides ride along raw; animation still follows the level and the main look.
+  assert.deepEqual(clanBoostInk(2, { stops: ['#000000', '#111111'], light: { stops: ['#202020'] } }), {
+    color: '#000000',
+    grad: ['#000000', '#111111'],
+    move: true,
+    light: { color: '#202020' },
+  });
+  assert.equal(clanBoostInk(0, style), null);
+
+  assert.deepEqual(validateClanBoostNameStyle(null), { ok: true, style: null });
+  assert.deepEqual(validateClanBoostNameStyle({ stops: [] }), { ok: true, style: null });
+  assert.deepEqual(validateClanBoostNameStyle({ stops: ['#ABCDEF'], dark: { stops: ['#000000', '#111111', '#222222', '#333333'] }, light: { stops: [] } }), {
+    ok: true,
+    style: { stops: ['#abcdef'], dark: { stops: ['#000000', '#111111', '#222222', '#333333'] } },
+  });
+  assert.equal(validateClanBoostNameStyle({ stops: ['#abcdef'], light: { stops: ['#000000', '#111111', '#222222', '#333333', '#444444'] } }).ok, false);
+  assert.equal(validateClanBoostNameStyle({ stops: ['#abcdef'], dark: { stops: ['red'] } }).ok, false);
+  assert.equal(validateClanBoostNameStyle({ stops: ['#abcdef'], dark: 'red' }).ok, false);
+  assert.equal(validateClanBoostNameStyle({ stops: ['red'] }).ok, false);
 });

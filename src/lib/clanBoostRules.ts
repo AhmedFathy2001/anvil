@@ -238,6 +238,12 @@ export function levelFor(counted: number): BoostLevel {
   return 0;
 }
 
+/** Platform gifts fill only the gap to a target level; real member boosts always displace them. */
+export function platformBoostsFor(organic: number, target: BoostLevel): number {
+  if (target <= 0) return 0;
+  return Math.max(0, LEVEL_AT[target - 1] - Math.max(0, organic));
+}
+
 /** "5 of 8 to Level 2", or null at the top. */
 export function levelProgress(counted: number): { next: 1 | 2 | 3; need: number; have: number } | null {
   const lvl = levelFor(counted);
@@ -288,6 +294,63 @@ export function reconcileLevel(stored: StoredLevel | null, counted: number, now:
   return { level: countedLevel, countedLevel, droppedAt: null, graceEndsAt: null, changed: true };
 }
 
+/** A platform gift as stored on clan_boost_state: a target level and an expiry (null = indefinite). */
+export interface BoostGift {
+  level: number | null | undefined;
+  /** Stored stamp or ms; null/undefined = no end. An unreadable stamp counts as expired (fail closed). */
+  expiresAt: string | number | null | undefined;
+}
+
+/** The level a gift lifts a clan to right now: 0 with no gift, a lapsed one, or level 0. */
+export function giftTargetLevel(gift: BoostGift | null | undefined, now: number): BoostLevel {
+  const lvl = Number(gift?.level ?? 0);
+  if (!(lvl > 0)) return 0;
+  const exp = gift?.expiresAt;
+  if (exp != null && exp !== '') {
+    const ends = typeof exp === 'number' ? exp : stampMs(exp);
+    if (!(ends > now)) return 0;
+  }
+  return clampLevel(lvl);
+}
+
+export interface EffectiveBoost extends LevelState {
+  /** Organic plus the platform's gap filler: what perks and progress read. */
+  counted: number;
+  organicCounted: number;
+  platformCount: number;
+  giftTargetLevel: BoostLevel;
+  /** The organic-only reconcile: what clan_boost_state.level/dropped_at store (a gift never does). */
+  organic: LevelState;
+}
+
+/**
+ * A clan's boost level with any platform gift on top. The stored level and its grace week track the
+ * members' own boosts only; the gift adds just enough boosts to reach its target
+ * (platformBoostsFor), so real boosts displace it one for one, a clan already above the target keeps
+ * its own higher level, and when the gift lapses or is cleared the clan falls straight back to its
+ * organic level — or to that level's grace week, if one is running.
+ */
+export function effectiveBoostLevel(stored: StoredLevel | null, organic: number, gift: BoostGift | null | undefined, now: number): EffectiveBoost {
+  const state = reconcileLevel(stored, organic, now);
+  const target = giftTargetLevel(gift, now);
+  const n = Math.max(0, organic);
+  const platformCount = platformBoostsFor(n, target);
+  const counted = n + platformCount;
+  const countedLevel = levelFor(counted);
+  const level = Math.max(state.level, countedLevel) as BoostLevel;
+  return {
+    ...state,
+    level,
+    countedLevel,
+    graceEndsAt: level > countedLevel ? state.graceEndsAt : null,
+    counted,
+    organicCounted: n,
+    platformCount,
+    giftTargetLevel: target,
+    organic: state,
+  };
+}
+
 function clampLevel(n: number): BoostLevel {
   return n >= 3 ? 3 : n >= 2 ? 2 : n >= 1 ? 1 : 0;
 }
@@ -323,10 +386,98 @@ export const CLAN_BOOST_GRADIENTS = {
   animated: ['#ffd27a', '#ff7ab8', '#7ae0ff'],
 } as const;
 
-export function clanBoostInk(level: number): { color: `#${string}`; grad?: `#${string}`[]; move?: boolean } | null {
+export interface ClanBoostNameStyle {
+  stops: `#${string}`[];
+  /** Worn as-is on dark backgrounds (site, plugin panel, Discord); else `stops` is adapted there. */
+  dark?: { stops: `#${string}`[] };
+  /** Worn as-is on light backgrounds (opaque game chat); else `stops` is adapted there. */
+  light?: { stops: `#${string}`[] };
+}
+
+const BOOST_HEX = /^#[0-9a-f]{6}$/;
+const BOOST_SURFACES = ['dark', 'light'] as const;
+
+/** 1–4 '#rrggbb' stops (case and spaces forgiven), else null. */
+function boostStops(raw: unknown): `#${string}`[] | null {
+  if (!Array.isArray(raw) || raw.length < 1 || raw.length > 4) return null;
+  const stops = raw.map((s) => (typeof s === 'string' ? s.trim().toLowerCase() : ''));
+  return stops.every((s) => BOOST_HEX.test(s)) ? (stops as `#${string}`[]) : null;
+}
+
+/**
+ * Stored/custom clan-name colours; malformed legacy data safely falls back to the level palette. A
+ * malformed surface override is dropped on its own (the main colours still apply).
+ */
+export function clanBoostNameStyle(value: unknown): ClanBoostNameStyle | null {
+  let input = value;
+  if (typeof input === 'string') {
+    try { input = JSON.parse(input); } catch { return null; }
+  }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+  const o = input as Record<string, unknown>;
+  const stops = boostStops(o.stops);
+  if (!stops) return null;
+  const style: ClanBoostNameStyle = { stops };
+  for (const surface of BOOST_SURFACES) {
+    const v = o[surface];
+    const own = v && typeof v === 'object' && !Array.isArray(v) ? boostStops((v as { stops?: unknown }).stops) : null;
+    if (own) style[surface] = { stops: own };
+  }
+  return style;
+}
+
+export type ClanNameStyleCheck = { ok: true; style: ClanBoostNameStyle | null } | { ok: false; error: string };
+
+/**
+ * A clan-name style sent by clan staff, checked strictly: `null` or `{stops: []}` resets it; each
+ * surface override is cleared by `null` / `{}` / `{stops: []}` and otherwise follows the same 1–4 hex rule.
+ * Level gating is the caller's (it needs the database).
+ */
+export function validateClanBoostNameStyle(raw: unknown): ClanNameStyleCheck {
+  if (raw == null) return { ok: true, style: null };
+  if (typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'Send a style object.' };
+  const o = raw as Record<string, unknown>;
+  if (Array.isArray(o.stops) && o.stops.length === 0) return { ok: true, style: null };
+  const stops = boostStops(o.stops);
+  if (!stops) return { ok: false, error: 'Choose between one and four #RRGGBB colours.' };
+  const style: ClanBoostNameStyle = { stops };
+  for (const surface of BOOST_SURFACES) {
+    const v = o[surface];
+    if (v == null) continue;
+    if (typeof v !== 'object' || Array.isArray(v)) return { ok: false, error: 'Send a style object.' };
+    const list = (v as { stops?: unknown }).stops;
+    if (list == null || (Array.isArray(list) && list.length === 0)) continue;
+    const own = boostStops(list);
+    if (!own) return { ok: false, error: `${surface === 'dark' ? 'Dark' : 'Light'} backgrounds: choose between one and four #RRGGBB colours.` };
+    style[surface] = { stops: own };
+  }
+  return { ok: true, style };
+}
+
+type BoostInk = { color: `#${string}`; grad?: `#${string}`[] };
+
+function boostInkOf(stops: `#${string}`[]): BoostInk {
+  return { color: stops[0], ...(stops.length > 1 ? { grad: [...stops] } : {}) };
+}
+
+/**
+ * A boosted clan's name colours (null below Level 1), with its own dark / light looks riding along
+ * raw for supporterStyle's inkForSurface to pick.
+ */
+export function clanBoostInk(
+  level: number,
+  style?: ClanBoostNameStyle | null,
+): { color: `#${string}`; grad?: `#${string}`[]; move?: boolean; dark?: BoostInk; light?: BoostInk } | null {
   if (level < 1) return null;
-  const grad = [...(level >= 2 ? CLAN_BOOST_GRADIENTS.animated : CLAN_BOOST_GRADIENTS.still)] as `#${string}`[];
-  return { color: grad[0], grad, ...(level >= 2 ? { move: true } : {}) };
+  const custom = clanBoostNameStyle(style);
+  const grad = custom?.stops ?? ([...(level >= 2 ? CLAN_BOOST_GRADIENTS.animated : CLAN_BOOST_GRADIENTS.still)] as `#${string}`[]);
+  return {
+    color: grad[0],
+    ...(grad.length > 1 ? { grad } : {}),
+    ...(level >= 2 && grad.length > 1 ? { move: true } : {}),
+    ...(custom?.dark ? { dark: boostInkOf(custom.dark.stops) } : {}),
+    ...(custom?.light ? { light: boostInkOf(custom.light.stops) } : {}),
+  };
 }
 
 export function boostPerks(level: number): BoostPerks {

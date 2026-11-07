@@ -3,10 +3,16 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { BoostedClanName } from '@/components/ClanBoost';
 import { useDialog } from '@/components/Confirm';
 import Input from '@/components/Input';
+import { StopsEditor, SurfaceOverride, SurfacePreview } from '@/components/NameSurfaceLooks';
 import Textarea from '@/components/Textarea';
+import { clanBoostInk, type ClanBoostNameStyle } from '@/lib/clanBoostRules';
 import { clanFetch } from '@/lib/clanFetch';
+import { NAME_SURFACES, SURFACE_BACKGROUND, weakestContrast, type Hex, type NameSurface } from '@/lib/supporterStyle';
+
+const ANVIL_STOPS: Hex[] = ['#ff9a5a', '#e05ad0', '#7a8cff'];
 
 const card = 'mb-6 rounded-xl border border-card-border bg-card-bg p-5';
 const primary =
@@ -24,6 +30,9 @@ async function send(method: 'PUT' | 'POST', body: unknown): Promise<{ ok: boolea
 
 /** The recruiting line (Level 2) and the monthly Anvil Discord post (Level 3). */
 export default function BoostsClient({
+  clanName,
+  boostLevel,
+  nameStyle,
   recruitingLine,
   lineUnlocked,
   lineMax,
@@ -32,6 +41,9 @@ export default function BoostsClient({
   postNextAt,
   lastPostAt,
 }: {
+  clanName: string;
+  boostLevel: number;
+  nameStyle: ClanBoostNameStyle | null;
   recruitingLine: string;
   lineUnlocked: boolean;
   lineMax: number;
@@ -44,10 +56,51 @@ export default function BoostsClient({
   const router = useRouter();
   const { confirm } = useDialog();
   const [line, setLine] = useState(recruitingLine);
+  const [stops, setStops] = useState<Hex[]>(nameStyle?.stops ?? ANVIL_STOPS);
+  const [over, setOver] = useState<Record<NameSurface, Hex[] | null>>({
+    dark: nameStyle?.dark?.stops ?? null,
+    light: nameStyle?.light?.stops ?? null,
+  });
   const [post, setPost] = useState('');
   const [busy, setBusy] = useState(false);
   const [lineMsg, setLineMsg] = useState<string | null>(null);
   const [postMsg, setPostMsg] = useState<string | null>(null);
+  const [styleMsg, setStyleMsg] = useState<string | null>(null);
+
+  // What the editor would save; previews draw it at the clan's level (Level 1 when not boosted yet).
+  const draft: ClanBoostNameStyle = {
+    stops,
+    ...(over.dark ? { dark: { stops: over.dark } } : {}),
+    ...(over.light ? { light: { stops: over.light } } : {}),
+  };
+  const previewLevel = Math.max(boostLevel, 1);
+  const draftInk = clanBoostInk(previewLevel, draft);
+  const contrastOn = (surface: NameSurface) => {
+    const own = draftInk?.[surface];
+    return own ? weakestContrast(own, SURFACE_BACKGROUND[surface]) : null;
+  };
+
+  async function saveStyle(value: ClanBoostNameStyle) {
+    setBusy(true);
+    setStyleMsg(null);
+    const r = await send('PUT', { nameStyle: value });
+    setBusy(false);
+    if (!r.ok) return setStyleMsg(r.data.error ?? 'Could not save.');
+    setStyleMsg('Saved. The panel picks it up on its next refresh.');
+    router.refresh();
+  }
+
+  async function resetStyle() {
+    setBusy(true);
+    setStyleMsg(null);
+    const r = await send('PUT', { nameStyle: { stops: [] } });
+    setBusy(false);
+    if (!r.ok) return setStyleMsg(r.data.error ?? 'Could not reset.');
+    setStops(ANVIL_STOPS);
+    setOver({ dark: null, light: null });
+    setStyleMsg('Reset to the Anvil palette.');
+    router.refresh();
+  }
 
   async function saveLine(value: string) {
     setBusy(true);
@@ -79,6 +132,45 @@ export default function BoostsClient({
 
   return (
     <>
+      <section id="boost-name-style" className={`scroll-mt-24 ${card}`}>
+        <h2 className="mb-1 font-semibold">Clan name colours</h2>
+        <p className="mb-3 text-sm text-text-muted">
+          {boostLevel > 0 ? 'Choose one static colour or up to four gradient colours. Level 2+ animates gradients.' : 'Unlocks at Level 1. Your saved palette is kept if the clan later drops a level.'}
+        </p>
+        <div className="mb-4 space-y-2">
+          {NAME_SURFACES.map((surface) => (
+            <SurfacePreview key={surface} surface={surface} contrast={contrastOn(surface)}>
+              <BoostedClanName name={clanName} level={previewLevel} nameStyle={draft} surface={surface} className="truncate text-2xl font-semibold" />
+            </SurfacePreview>
+          ))}
+        </div>
+        <StopsEditor stops={stops} max={4} onChange={setStops} disabled={boostLevel < 1 || busy} label="Clan name colour" />
+        {NAME_SURFACES.map((surface) => (
+          <SurfaceOverride
+            key={surface}
+            surface={surface}
+            open={over[surface] != null}
+            disabled={boostLevel < 1 || busy}
+            onToggle={(open) => setOver((cur) => ({ ...cur, [surface]: open ? [...stops] : null }))}
+          >
+            {over[surface] && (
+              <StopsEditor
+                stops={over[surface]}
+                max={4}
+                onChange={(next) => setOver((cur) => ({ ...cur, [surface]: next }))}
+                disabled={boostLevel < 1 || busy}
+                label={`${surface === 'dark' ? 'Dark' : 'Light'} background colour`}
+              />
+            )}
+          </SurfaceOverride>
+        ))}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button type="button" disabled={busy || boostLevel < 1} onClick={() => void saveStyle(draft)} className={primary}>Save colours</button>
+          <button type="button" disabled={busy || boostLevel < 1} onClick={() => void resetStyle()} className={quiet}>Reset to Anvil</button>
+          {styleMsg && <span className="text-xs text-text-muted">{styleMsg}</span>}
+        </div>
+      </section>
+
       <section id="boost-recruiting-line" className={`scroll-mt-24 ${card}`}>
         <h2 className="mb-1 font-semibold">Recruiting line</h2>
         <p className="mb-3 text-sm text-text-muted">

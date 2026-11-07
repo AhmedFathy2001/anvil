@@ -20,6 +20,7 @@ import {
   notifyMessage,
   ownersOf,
   replay,
+  styleFromKey,
   styleKey,
   MAX_DELTA_NAMES,
   type FlairDelta,
@@ -158,4 +159,42 @@ test('load: 200k names build, encode and gzip quickly and small', () => {
   );
   assert.ok(gz.length < 2_000_000, `gzip ${gz.length}`);
   assert.ok(t1 - t0 < 3_000);
+});
+
+test('per-surface looks: d/l ride in the style table, dedupe on them, and are omitted when unset', () => {
+  const plain = { c: '#ff7ab8', g: ['#ffd27a', '#ff7ab8', '#7ae0ff'], s: true as const };
+  const withDark = { ...plain, d: { c: '#ffffff', g: ['#ffffff', '#ffe0a0'] } };
+  const withLight = { ...plain, l: { c: '#3a2000' } };
+  // Unset: the key and the entry are exactly what they were before overrides existed.
+  assert.equal(styleKey(plain), JSON.stringify(['#ff7ab8', ['#ffd27a', '#ff7ab8', '#7ae0ff'], 1]));
+  assert.deepEqual(styleFromKey(styleKey(plain)), plain);
+  // Round trip with overrides; g only on a gradient.
+  assert.deepEqual(styleFromKey(styleKey(withDark)), withDark);
+  assert.deepEqual(styleFromKey(styleKey(withLight)), withLight);
+  assert.deepEqual(styleFromKey(styleKey({ c: '#111111', l: { c: '#222222', g: ['#222222'] } })), { c: '#111111', l: { c: '#222222' } });
+  // Same main look, different overrides: three distinct keys.
+  assert.equal(new Set([styleKey(plain), styleKey(withDark), styleKey(withLight)]).size, 3);
+
+  const state: FlairState = new Map([
+    ['alice', { k: styleKey(plain), p: 1 }],
+    ['bob', { k: styleKey(withDark), p: 2 }],
+    ['carol', { k: styleKey(withDark), p: 3 }],
+    ['dave', { k: styleKey(withLight), p: 4 }],
+  ]);
+  const list = encodeList(5, state);
+  assert.equal(list.styles.length, 3);
+  assert.deepEqual(list.names, ['alice', 'bob', 'carol', 'dave']);
+  assert.equal(list.ix[1], list.ix[2]);
+  const byName = decodeEntries(list);
+  assert.deepEqual(byName.get('bob'), withDark);
+  assert.deepEqual(byName.get('dave'), withLight);
+  assert.ok(!('d' in byName.get('alice')!) && !('l' in byName.get('alice')!));
+  assert.equal(JSON.stringify(list.styles[list.ix[0]]), JSON.stringify(plain));
+
+  // A changed override alone is a change on the wire (delta path).
+  const fresh = new Map<string, FlairRecord>([['alice', { k: styleKey({ ...plain, d: { c: '#eeeeee' } }), p: 1 }]]);
+  const diff = diffFlair(state, fresh, ['alice']);
+  const msg = deltaMessage(6, 5, diff);
+  assert.deepEqual(msg.styles, [{ ...plain, d: { c: '#eeeeee' } }]);
+  assert.deepEqual(msg.names, ['alice']);
 });

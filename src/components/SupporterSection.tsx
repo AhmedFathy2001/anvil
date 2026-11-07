@@ -179,11 +179,17 @@ export default function SupporterSection({
           </a>
         </div>
         <div className="mt-4 space-y-3">
-          {characters.length > 0 ? (
-            <SupporterCharacterStyles tier={supporter.tier} characters={characters.map((c) => ({ ...c, style: c.style ?? supporter.style }))} />
-          ) : (
+          <div className="rounded-xl border border-card-border bg-black/10 p-4">
+            <p className="mb-1 text-[13px] font-semibold">Your Anvil display name</p>
+            <p className="mb-3 text-[12px] text-text-dim">Used for your Discord-linked identity, separate from your RuneScape characters.</p>
             <SupporterStylePicker tier={supporter.tier} name={name || 'Your name'} initial={supporter.style} />
-          )}
+          </div>
+          {characters.length > 0 ? (
+            <div className="rounded-xl border border-card-border bg-black/10 p-4">
+              <p className="mb-3 text-[13px] font-semibold">Your RuneScape characters</p>
+              <SupporterCharacterStyles tier={supporter.tier} characters={characters.map((c) => ({ ...c, style: c.style ?? supporter.style }))} />
+            </div>
+          ) : null}
         </div>
         {gameChat != null && <SupporterGameChatToggle initial={gameChat} />}
       </div>

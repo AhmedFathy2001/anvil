@@ -9,7 +9,7 @@ import LocalTime from '@/components/LocalTime';
 import AnvilMark from '@/components/AnvilMark';
 import ClanCrest from '@/components/ClanCrest';
 import ClanLink from '@/components/ClanLink';
-import { BoostedBadge } from '@/components/ClanBoost';
+import { BoostedBadge, boostedClanNameStyle } from '@/components/ClanBoost';
 import { boostNameClass, boostPerks } from '@/lib/clanBoostRules';
 
 /**
@@ -55,7 +55,7 @@ function weeklyValue(w: HomeWeekly, value: number): string {
 /* ---------------------------------------------------------------- hero ---- */
 
 /** `boostLevel`: the clan's boost level in force (lib/clanBoosts): the badge, the name's gradient, and whether an animated banner plays. */
-export function Hero({ view, boostLevel = 0 }: { view: HomeView; boostLevel?: number }) {
+export function Hero({ view, boostLevel = 0, boostNameStyle }: { view: HomeView; boostLevel?: number; boostNameStyle?: import('@/lib/clanBoostRules').ClanBoostNameStyle | null }) {
   const boost = boostPerks(boostLevel);
   const { clanWeek, live } = view;
   const stats = [
@@ -124,6 +124,7 @@ export function Hero({ view, boostLevel = 0 }: { view: HomeView; boostLevel?: nu
           className={`display display-lg mt-2 text-[clamp(2.2rem,5vw,3.4rem)] font-semibold leading-[1.03] ${
             boost.gradientName ? boostNameClass(boostLevel) : 'bg-gradient-to-b from-[#ffe9a8] via-[#f2c14e] to-[#c8962c] bg-clip-text text-transparent'
           }`}
+          style={boostedClanNameStyle(boostLevel, boostNameStyle)}
         >
           {view.clanName}
         </h1>

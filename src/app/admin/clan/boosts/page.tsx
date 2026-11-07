@@ -43,6 +43,11 @@ export default async function ClanBoostsPage() {
             {summary.progress && <> · {summary.progress.need - summary.progress.have} more to Level {summary.progress.next}</>}
           </span>
         </div>
+        {summary.platformCount > 0 && (
+          <p className="mb-2 text-[12.5px] text-[#ff9fcd]">
+            {summary.organicCounted} member boost{summary.organicCounted === 1 ? '' : 's'} + {summary.platformCount} dynamic Anvil gift boost{summary.platformCount === 1 ? '' : 's'} to hold Level {summary.giftTargetLevel}.
+          </p>
+        )}
         {summary.graceEndsAt && (
           <p className="mb-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-[13px] text-yellow-300">
             Your boosts fell below Level {summary.level}. Its perks stay until {day(summary.graceEndsAt)}; after that the clan is
@@ -74,6 +79,9 @@ export default async function ClanBoostsPage() {
       </section>
 
       <BoostsClient
+        clanName={clan.name}
+        boostLevel={summary.level}
+        nameStyle={summary.nameStyle}
         recruitingLine={summary.recruitingLineDraft ?? ''}
         lineUnlocked={perks.recruitingLine}
         lineMax={RECRUITING_LINE_MAX}

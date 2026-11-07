@@ -940,6 +940,7 @@ export async function buildEnrolledConfig(args: {
     return pluginClogEntry(t, playerId != null ? memberProgress(rows, playerId, 'slots') : 0, done);
   });
 
+  const activeBoost = await clanBoostLevel(clan.id).catch(() => null);
   const body = {
     server: serverInfo(),
     // Resolved to an entry, so the logged-in character is this login's own (null on a hint-only read).
@@ -953,7 +954,11 @@ export async function buildEnrolledConfig(args: {
       name: clan.name,
       gameName: clan.inGameName || clan.name,
       kind: clan.kind,
-      boostLevel: (await clanBoostLevel(clan.id).catch(() => null))?.level ?? 0,
+      boostLevel: activeBoost?.level ?? 0,
+      boostNameStops: activeBoost?.nameStyle?.stops ?? null,
+      // The clan's own looks for dark / light backgrounds, worn as-is there (null: adapt boostNameStops).
+      boostNameDarkStops: activeBoost?.nameStyle?.dark?.stops ?? null,
+      boostNameLightStops: activeBoost?.nameStyle?.light?.stops ?? null,
     },
     clans: viewer && !trackedOnly ? await pluginClansFor(viewer.userId, viewer.rsn) : [],
     event: {

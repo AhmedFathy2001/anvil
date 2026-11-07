@@ -1,8 +1,9 @@
-import { useId } from 'react';
+import { useId, type CSSProperties } from 'react';
 
 import ClanLink from '@/components/ClanLink';
 import BoostHereButton from '@/components/BoostHereButton';
-import { badgeLabel, badgeTitle, boostNameClass, type BoostBadge, type WallEntry } from '@/lib/clanBoostRules';
+import { badgeLabel, badgeTitle, boostNameClass, clanBoostInk, type BoostBadge, type ClanBoostNameStyle, type WallEntry } from '@/lib/clanBoostRules';
+import { inkForSurface, type NameSurface } from '@/lib/supporterStyle';
 
 /**
  * Clan boost pieces (lib/clanBoosts): the gem, the "Boosted" badge, the Booster mark on a character,
@@ -49,10 +50,22 @@ export function BoostedBadge({ level, compact = false }: { level: number; compac
   );
 }
 
-/** A clan's name in its boost gradient (Level 1) or moving gradient (Level 2+). */
-export function BoostedClanName({ name, level, className = '' }: { name: string; level: number; className?: string }) {
+/**
+ * A clan's name in its boost gradient (Level 1) or moving gradient (Level 2+). The site is dark;
+ * `surface` 'light' is for previewing the clan's look on light backgrounds.
+ */
+export function boostedClanNameStyle(level: number, nameStyle?: ClanBoostNameStyle | null, surface: NameSurface = 'dark'): CSSProperties | undefined {
+  const source = clanBoostInk(level, nameStyle);
+  if (!source) return undefined;
+  const ink = inkForSurface(source, surface);
+  if (!ink.grad?.length) return { color: ink.color };
+  const stops = ink.move ? [...ink.grad, ink.grad[0]] : ink.grad;
+  return { backgroundImage: `linear-gradient(90deg, ${stops.join(', ')})`, ...(ink.move ? { backgroundSize: '200% 100%' } : {}) };
+}
+
+export function BoostedClanName({ name, level, nameStyle, className = '', surface = 'dark' }: { name: string; level: number; nameStyle?: ClanBoostNameStyle | null; className?: string; surface?: NameSurface }) {
   const cls = boostNameClass(level);
-  return <span className={`${cls} ${className}`.trim()}>{name}</span>;
+  return <span className={`${cls} ${className}`.trim()} style={boostedClanNameStyle(level, nameStyle, surface)}>{name}</span>;
 }
 
 /** The Booster mark beside a character who boosts this clan. */
@@ -136,6 +149,7 @@ export interface BoostPanelViewer {
 export function ClanBoostPanel({
   level,
   counted,
+  platformBoosts = 0,
   progress,
   graceEndsAt,
   wall,
@@ -144,6 +158,8 @@ export function ClanBoostPanel({
 }: {
   level: number;
   counted: number;
+  /** Dynamic Anvil contribution that fills the gap to a staff-gifted target level. */
+  platformBoosts?: number;
   progress: { next: number; need: number; have: number } | null;
   graceEndsAt: number | null;
   wall: WallEntry[];
@@ -185,6 +201,12 @@ export function ClanBoostPanel({
         </p>
       )}
       <BoostersWall wall={wall} />
+      {platformBoosts > 0 && (
+        <div className="mt-2 flex items-center justify-between rounded-lg border border-[#ff7ab8]/25 bg-[#ff7ab8]/[0.05] px-3 py-2 text-[13px]">
+          <span className="font-medium text-[#ff9fcd]">Anvil gift</span>
+          <span className="tabular-nums text-text-muted">×{platformBoosts} platform boost{platformBoosts === 1 ? '' : 's'}</span>
+        </div>
+      )}
       {wall.length === 0 && member && <p className="text-[13px] text-text-muted">Nobody boosts this clan yet.</p>}
       {(canBoost || viewer?.note || (viewer && viewer.mine > 0)) && (
         <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-card-border pt-3 text-[13px]">

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { verifyAdmin, verifyUser } from '@/lib/auth';
-import { clanBoostSummary, sendRecruitPost, setRecruitingLine } from '@/lib/clanBoosts';
+import { clanBoostSummary, sendRecruitPost, setClanBoostNameStyle, setRecruitingLine } from '@/lib/clanBoosts';
 import { requireClan } from '@/lib/clanContext';
 
 export const dynamic = 'force-dynamic';
@@ -24,10 +24,12 @@ export async function GET() {
 export async function PUT(request: Request) {
   const clan = await requireClan();
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const body = (await request.json().catch(() => null)) as { recruitingLine?: unknown } | null;
-  if (!body || !('recruitingLine' in body)) return NextResponse.json({ error: 'Bad body' }, { status: 400 });
+  const body = (await request.json().catch(() => null)) as { recruitingLine?: unknown; nameStyle?: unknown } | null;
+  if (!body || (!('recruitingLine' in body) && !('nameStyle' in body))) return NextResponse.json({ error: 'Bad body' }, { status: 400 });
   const actor = await verifyUser();
-  const res = await setRecruitingLine(clan.id, body.recruitingLine ?? '', actor?.userId ?? null);
+  const res = 'nameStyle' in body
+    ? await setClanBoostNameStyle(clan.id, body.nameStyle, actor?.userId ?? null)
+    : await setRecruitingLine(clan.id, body.recruitingLine ?? '', actor?.userId ?? null);
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
   return NextResponse.json({ ok: true, summary: await clanBoostSummary(clan.id) });
 }

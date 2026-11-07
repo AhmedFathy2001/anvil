@@ -1,14 +1,7 @@
 import { useId } from 'react';
 
 import SupporterFlairPopover from '@/components/SupporterFlairPopover';
-import {
-  FLAIR_BACKGROUND,
-  OPAQUE_CHAT_BACKGROUND,
-  supporterGradientCss,
-  supporterInk,
-  supporterInkOn,
-  type SupporterStyle,
-} from '@/lib/supporterStyle';
+import { inkForSurface, supporterGradientCss, supporterInk, type SupporterStyle } from '@/lib/supporterStyle';
 import type { SupporterTierId } from '@/lib/supporterTiers';
 
 /**
@@ -42,9 +35,8 @@ export default function SupporterName({
 }) {
   if (!tier) return <span className={className}>{name}</span>;
   const sourceInk = supporterInk(tier, style);
-  const ink = surface === 'opaque-chat'
-    ? supporterInkOn(sourceInk, OPAQUE_CHAT_BACKGROUND, '#000000', 4.5)
-    : supporterInkOn(sourceInk, FLAIR_BACKGROUND, '#ffffff', 4.5);
+  // The site is dark-only; the opaque chat preview is the light surface.
+  const ink = inkForSurface(sourceInk, surface === 'opaque-chat' ? 'light' : 'dark');
   const gradient = supporterGradientCss(ink);
   // The star in the name's own stops (their chosen ones, else the tier's); gold has none.
   const stops = ink.grad ?? null;

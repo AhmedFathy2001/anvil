@@ -9,6 +9,7 @@ import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
 import { getItemMapping } from '@/lib/osrsItems';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { clanBoostLevel } from '@/lib/clanBoosts';
+import type { ClanBoostNameStyle } from '@/lib/clanBoostRules';
 
 /** What counts as a drop worth showing: pets, uniques and big loot (never a death). */
 export const FEED_KINDS = new Set(['pet', 'unique', 'loot']);
@@ -26,6 +27,7 @@ export interface ClanCard {
   bannerUrl?: string | null;
   bannerPosition?: number | null;
   boostLevel?: number;
+  boostNameStyle?: ClanBoostNameStyle | null;
   members: number;
   /** Members who gained anything in the last 7 days. */
   activeThisWeek: number;
@@ -56,7 +58,9 @@ export async function loadClanCard(clan: {
   bannerPosition?: number | null;
   kind?: string | null;
 }): Promise<ClanCard> {
-  const boostLevel = (await clanBoostLevel(clan.id).catch(() => null))?.level ?? 0;
+  const boost = await clanBoostLevel(clan.id).catch(() => null);
+  const boostLevel = boost?.level ?? 0;
+  const boostNameStyle = boost?.nameStyle ?? null;
   // A creator space has no roster to count, rank or compare: the card is who it is, nothing more.
   if (isCreatorSpace(clan)) {
     return {
@@ -67,6 +71,7 @@ export async function loadClanCard(clan: {
       bannerUrl: clan.bannerUrl ?? null,
       bannerPosition: clan.bannerPosition ?? null,
       boostLevel,
+      boostNameStyle,
       members: 0,
       activeThisWeek: 0,
       weekHours: 0,
@@ -113,6 +118,7 @@ export async function loadClanCard(clan: {
     bannerUrl: clan.bannerUrl ?? null,
     bannerPosition: clan.bannerPosition ?? null,
     boostLevel,
+    boostNameStyle,
     members: analytics.memberCount,
     activeThisWeek: analytics.activeThisWeek,
     weekHours: Math.round(analytics.activity.slice(-7).reduce((t, d) => t + d.value, 0) * 10) / 10,

@@ -6,10 +6,11 @@
 // force wins, so a gift above what someone pays shows the gift's tier until it ends, then their
 // own again. Every grant and early end is in the platform audit log.
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, like } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanAuditLog, supporterSubscriptions } from '@/db/schema';
+import { clanAuditLog, supporterSubscriptions, users } from '@/db/schema';
+import { giftSources, supporterStanding, type SupporterStanding } from '@/lib/supporterGiftRules';
 import { GIFT_RECURRENCE, SUPPORTER_TIERS, type SupporterTierId } from '@/lib/supporterTiers';
 
 /** The longest one gift runs. Longer is a decision to make twice. */
@@ -24,6 +25,11 @@ export interface SupporterGift {
   live: boolean;
   /** Also gives clan boost slots (lib/clanBoostRules slotTier); off unless staff chose it. */
   boostSlots: boolean;
+  /** The staff login that gave it (from the audit log), or null when no entry matches. */
+  grantedBy: string | null;
+  /** Who ended it early, or null (still running, or ran its course). */
+  endedBy: string | null;
+  note: string | null;
 }
 
 export function isGiftTier(v: unknown): v is SupporterTierId {
@@ -37,6 +43,22 @@ export async function listGifts(userId: number, now = Date.now()): Promise<Suppo
     .where(and(eq(supporterSubscriptions.userId, userId), eq(supporterSubscriptions.recurrence, GIFT_RECURRENCE)))
     .orderBy(desc(supporterSubscriptions.id))
     .limit(20);
+  // Who gave / ended each: the platform audit entries about this login (their JSON opens with its id).
+  // clan-scope: global -- supporter gifts belong to no clan (clan_id null).
+  const audit = rows.length
+    ? await db
+        .select({ eventType: clanAuditLog.eventType, actorName: users.displayName, newValue: clanAuditLog.newValue, occurredAt: clanAuditLog.occurredAt })
+        .from(clanAuditLog)
+        .leftJoin(users, eq(users.id, clanAuditLog.actorUserId))
+        .where(
+          and(
+            isNull(clanAuditLog.clanId),
+            inArray(clanAuditLog.eventType, ['supporter_gift_granted', 'supporter_gift_ended']),
+            like(clanAuditLog.newValue, `{"userId":${userId},%`),
+          ),
+        )
+    : [];
+  const sources = giftSources(rows, audit);
   return rows.map((r) => ({
     id: r.id,
     tier: r.tier as SupporterTierId,
@@ -44,7 +66,30 @@ export async function listGifts(userId: number, now = Date.now()): Promise<Suppo
     endsAt: r.currentPeriodEnd,
     live: r.status === 'granted' && (!r.currentPeriodEnd || Date.parse(r.currentPeriodEnd) > now),
     boostSlots: r.grantsBoostSlots,
+    grantedBy: sources.get(r.id)?.grantedBy ?? null,
+    endedBy: sources.get(r.id)?.endedBy ?? null,
+    note: sources.get(r.id)?.note ?? null,
   }));
+}
+
+/**
+ * What a person pays for and what they wear, for staff deciding on a gift: every login of theirs
+ * (players.id) counts, like their public flair (lib/supporter supporterForPlayer).
+ */
+export async function standingForPlayer(playerId: number, now = Date.now()): Promise<SupporterStanding> {
+  const rows = await db
+    .select({
+      id: supporterSubscriptions.id,
+      tier: supporterSubscriptions.tier,
+      status: supporterSubscriptions.status,
+      currentPeriodEnd: supporterSubscriptions.currentPeriodEnd,
+      startedAt: supporterSubscriptions.startedAt,
+      recurrence: supporterSubscriptions.recurrence,
+    })
+    .from(supporterSubscriptions)
+    .innerJoin(users, eq(users.id, supporterSubscriptions.userId))
+    .where(eq(users.playerId, playerId));
+  return supporterStanding(rows, now);
 }
 
 export async function giveGift(opts: {
@@ -77,9 +122,9 @@ export async function giveGift(opts: {
     clanId: null,
     eventType: 'supporter_gift_granted',
     actorUserId: opts.actorUserId,
-    newValue: JSON.stringify({ userId: opts.userId, tier: opts.tier, days, endsAt: end.toISOString(), boostSlots, note: opts.note?.slice(0, 200) || null }),
+    newValue: JSON.stringify({ userId: opts.userId, giftId: row.id, tier: opts.tier, days, endsAt: end.toISOString(), boostSlots, note: opts.note?.slice(0, 200) || null }),
   });
-  return { id: row.id, tier: opts.tier, startedAt: row.startedAt, endsAt: row.currentPeriodEnd, live: true, boostSlots };
+  return { id: row.id, tier: opts.tier, startedAt: row.startedAt, endsAt: row.currentPeriodEnd, live: true, boostSlots, grantedBy: null, endedBy: null, note: opts.note?.slice(0, 200) || null };
 }
 
 /** End a gift now. False when it isn't this person's gift or already ended. */

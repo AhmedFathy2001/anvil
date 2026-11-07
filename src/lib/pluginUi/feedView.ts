@@ -13,7 +13,7 @@ import type { WithRun } from '@/lib/feedRuns';
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
 import { rateLimit } from '@/lib/rate-limit';
 import { supporterForUser, supporterInksForRsns } from '@/lib/supporter';
-import { FLAIR_BACKGROUND, supporterInkOn } from '@/lib/supporterStyle';
+import { inkForSurface } from '@/lib/supporterStyle';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { clanBoostLevels } from '@/lib/clanBoosts';
 
@@ -22,6 +22,7 @@ import { boardCompletions, clanFeedList, eventFeedList, groupOf, KINDS_OF } from
 import { completionRow, feedTabUi, momentRow, reactRowAction, type RowReactKind, type Scope } from './feedUi';
 import type { FeedRow, View } from './nodes';
 import { backRow, col, gap, message, text } from './nodes';
+import { mediaRevision } from './mediaRevision';
 
 // The Feed tab's data (view 'feed') and the event chat's actions. The look is lib/pluginUi/feedUi.
 
@@ -38,7 +39,7 @@ async function scopesFor(request: Request, userId: number | null): Promise<Scope
   const out: Scope[] = [];
   // A creator space has no clan feed of its own (no members whose drops it collects): its boards
   // are the feed, added below as event scopes. Only an in-game clan gets a "Clan · X" scope.
-  if (clan && !isCreatorSpace(clan)) out.push({ kind: 'clan', id: clan.id, slug: clan.slug, name: clan.name, banner: !!clan.bannerUrl, logo: !!clan.logoUrl });
+  if (clan && !isCreatorSpace(clan)) out.push({ kind: 'clan', id: clan.id, slug: clan.slug, name: clan.name, banner: !!clan.bannerUrl, logo: !!clan.logoUrl, mediaRevision: mediaRevision(clan.logoUrl, clan.bannerUrl) });
   const seat = clan ? await verifyPluginToken(request, { hintOnly: pluginRsnHintOnly(request) }).catch(() => null) : null;
   let eventId = seat?.eventId ?? null;
   if (eventId == null && clan && userId != null) eventId = (await homeBoardForUser(clan.id, userId).catch(() => null))?.eventId ?? null;
@@ -80,7 +81,7 @@ async function addEverythingElse(request: Request, out: Scope[], userId: number)
     return seen.get(slug)!;
   };
   for (const c of clanRowsMine) {
-    if (!has('clan', c.id) && (await visible(c.slug))) out.push({ kind: 'clan', id: c.id, slug: c.slug, name: c.name, banner: !!c.bannerUrl, logo: !!c.logoUrl });
+    if (!has('clan', c.id) && (await visible(c.slug))) out.push({ kind: 'clan', id: c.id, slug: c.slug, name: c.name, banner: !!c.bannerUrl, logo: !!c.logoUrl, mediaRevision: mediaRevision(c.logoUrl, c.bannerUrl) });
   }
   // clan-scope: global -- the boards this viewer's own characters are seated on, in any clan.
   const boards = await db
@@ -152,7 +153,7 @@ async function clanRows(clan: Extract<Scope, { kind: 'clan' }>, filter: string, 
 async function inksFor(rsns: string[]) {
   if (!rsns.length) return new Map();
   const source = await supporterInksForRsns(rsns).catch(() => new Map());
-  return new Map([...source].map(([name, ink]) => [name, supporterInkOn(ink, FLAIR_BACKGROUND, '#ffffff', 4.5)]));
+  return new Map([...source].map(([name, ink]) => [name, inkForSurface(ink, 'dark')]));
 }
 
 function asLike(m: WithRun<MomentRow>) {
@@ -271,7 +272,11 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
   const clanScopes = scopes.filter((s): s is Extract<Scope, { kind: 'clan' }> => s.kind === 'clan');
   if (clanScopes.length) {
     const levels = await clanBoostLevels(clanScopes.map((s) => s.id)).catch(() => new Map());
-    for (const scope of clanScopes) scope.boostLevel = levels.get(scope.id)?.level ?? 0;
+    for (const scope of clanScopes) {
+      const boost = levels.get(scope.id);
+      scope.boostLevel = boost?.level ?? 0;
+      scope.boostNameStyle = boost?.nameStyle ?? null;
+    }
   }
   const current = pick(scopes, a.s);
   if (!current) return message('Sign in with the plugin and join a clan or an event to see its feed.');

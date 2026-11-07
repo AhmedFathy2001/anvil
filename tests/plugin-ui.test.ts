@@ -411,3 +411,16 @@ test('teams: the ranked list opens a team; a team page goes back; search rows op
   assert.ok(actions(members).some((a) => a.a === 'lookup' && a.rsn === 'Cap'));
   assert.ok(texts(members).includes('Captain'));
 });
+
+test('clan search: a boosted name wears its own dark look as-is on the panel, else the adapted main look', () => {
+  const textOf = (n: Node): Record<string, unknown> | null => {
+    const found = JSON.stringify(n).match(/\{"t":"text","s":"Dim Clan"[^}]*\}/);
+    return found ? (JSON.parse(found[0]) as Record<string, unknown>) : null;
+  };
+  const style = { stops: ['#101010', '#202020'] as `#${string}`[] };
+  const adapted = textOf(clanSearchUi('dim', [{ slug: 'dim', name: 'Dim Clan', boostLevel: 1, boostNameStyle: style }]));
+  assert.ok(adapted && adapted.color !== '#101010', 'too dark for the panel: lifted');
+  const own = textOf(clanSearchUi('dim', [{ slug: 'dim', name: 'Dim Clan', boostLevel: 1, boostNameStyle: { ...style, dark: { stops: ['#303030', '#404040'] } } }]));
+  assert.equal(own?.color, '#303030');
+  assert.deepEqual(own?.grad, ['#303030', '#404040']);
+});

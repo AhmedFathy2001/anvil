@@ -290,11 +290,11 @@ export default async function HomePage() {
             canReport={showReportButton({ signedIn: !!session?.userId, staffOfTarget: staffHere })}
             hall={hall ? <ClanHall initial={hall} src="public" /> : null}
             activity={activity}
-            boost={boost ? { level: boost.level, recruitingLine: boost.recruitingLine } : null}
+            boost={boost ? { level: boost.level, recruitingLine: boost.recruitingLine, nameStyle: boost.nameStyle } : null}
             // Visitors see the badge and the wall, never the progress line.
             boosters={
-              boost && boost.wall.length > 0 ? (
-                <ClanBoostPanel level={boost.level} counted={boost.counted} progress={null} graceEndsAt={null} wall={boost.wall} member={false} viewer={null} />
+              boost && boost.counted > 0 ? (
+                <ClanBoostPanel level={boost.level} counted={boost.counted} platformBoosts={boost.platformCount} progress={null} graceEndsAt={null} wall={boost.wall} member={false} viewer={null} />
               ) : null
             }
           />
@@ -314,7 +314,7 @@ export default async function HomePage() {
 
   return (
     <div>
-      <Hero view={view} boostLevel={boost?.level ?? 0} />
+      <Hero view={view} boostLevel={boost?.level ?? 0} boostNameStyle={boost?.nameStyle} />
       {hall && <ClanHall initial={hall} src="home" />}
       <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} />
       <LiveNow view={view} />
@@ -325,6 +325,7 @@ export default async function HomePage() {
         <ClanBoostPanel
           level={boost.level}
           counted={boost.counted}
+          platformBoosts={boost.platformCount}
           progress={boost.progress}
           graceEndsAt={boost.graceEndsAt}
           wall={boost.wall}

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { composeBrief } from '../src/lib/chatBrief.ts';
 import { DEFAULT_PREFS, cleanPrefs, feedMessage } from '../src/lib/chatFeedRules.ts';
 import { ANVIL_COLORS, effectiveBrief, effectiveLook } from '../src/lib/chatLook.ts';
+import { weeklyRsnKey } from '../src/lib/weeklyRsn.ts';
 
 test('own colours are a Supporter perk; without it the Anvil palette applies', () => {
   const prefs = cleanPrefs({ palette: 'custom', colors: { done: '#00FF00', drop: 'red' } });
@@ -45,9 +46,25 @@ test('the brief says where you stand in one line', () => {
   assert.equal(lines[0].tone, 'near');
   assert.equal(
     lines[0].text,
-    'Autumn Bingo is live: your team is 2nd of 5, 3 tiles nearly done · BOTW Phosani: not on the board yet · SOTW Mining: 3rd, 1.2M XP to 2nd',
+    'Autumn Bingo is live: your team is 2nd of 5, 3 tiles nearly done · BOTW Phosani: 9th with 0 KC · SOTW Mining: 3rd, 1.2M XP to 2nd',
   );
   assert.deepEqual(composeBrief(['bingo', 'weekly'], { bingo: null, weeklies: [], clanEvents: [], goal: null }), []);
+});
+
+test('weekly board membership is rank-based, including zero, while a genuinely absent row says so', () => {
+  const base = { bingo: null, clanEvents: [], goal: null };
+  assert.equal(composeBrief(['weekly'], {
+    ...base,
+    weeklies: [{ label: 'BOTW Phosani', unit: 'KC', rank: 1, gained: 4, ahead: null }],
+  })[0].text, 'BOTW Phosani: leading with 4 KC');
+  assert.equal(composeBrief(['weekly'], {
+    ...base,
+    weeklies: [{ label: 'BOTW Phosani', unit: 'KC', rank: null, gained: 0, ahead: null }],
+  })[0].text, 'BOTW Phosani: not on the board yet');
+});
+
+test('weekly RSNs match across case and RuneScape whitespace variants', () => {
+  assert.equal(weeklyRsnKey('  Drenvox\u00a0\u00a0HCM '), weeklyRsnKey('drenvox hcm'));
 });
 
 test('Champion extras go on a second line', () => {

@@ -38,7 +38,9 @@ export async function pluginPanelImage(url: string, width: number, height: numbe
     if (motion) {
       const animated = await sharp(input, { animated: true, limitInputPixels: 80_000_000 })
         .resize(width, height, { fit: 'cover', position: focus ? 'attention' : 'centre' })
-        .gif({ colours: 96, effort: 4 })
+        // Loop forever explicitly: libvips otherwise copies the upload's loop count, and Java's GIF
+        // decoder plays a file without an infinite NETSCAPE loop once and then stops.
+        .gif({ colours: 96, effort: 4, loop: 0 })
         .toBuffer();
       if (animated.length <= MAX_PANEL_BYTES) {
         return new Response(new Uint8Array(animated), { headers: { 'Content-Type': 'image/gif', 'Cache-Control': CACHE } });

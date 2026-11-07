@@ -186,7 +186,9 @@ export function withSupporterAuthor<T extends Record<string, unknown>>(
 /** The star picture for a tier as this person wears it (see withSupporterAuthor). */
 export function supporterStarUrl(tier: SupporterTierId, style: SupporterStyle | null, origin: string): string {
   const eff = effectiveSupporterStyle(tier, style);
-  const stops = eff?.stops ?? (eff?.preset ? presetById(eff.preset)?.stops : undefined);
+  // Discord is a dark surface: their own dark look when they set one, else the main look.
+  const look = eff?.dark ?? eff;
+  const stops = look?.stops ?? (look?.preset ? presetById(look.preset)?.stops : undefined);
   if (!stops) return `${origin}/icons/supporter-${tier}.png`;
   return `${origin}/api/og/supporter-star/${stops.map((h) => h.slice(1)).join('-')}`;
 }

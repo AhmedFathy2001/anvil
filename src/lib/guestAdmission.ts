@@ -12,6 +12,7 @@ import { and, count, desc, eq, inArray, isNotNull, isNull, ne } from 'drizzle-or
 
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clanStaff, clans, eventInvites, events, users } from '@/db/schema';
+import { isPlausibleRsn } from '@/lib/auth';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { findOrCreateSeat } from '@/lib/roster';
 import { clanKindOf, declinedRequestText, isCreatorSpace, seatsEventPlayers } from '@/lib/creatorSpaces';
@@ -462,8 +463,9 @@ export async function pendingRequests(clanId: number, opts: { eventId?: number }
     )
     .orderBy(desc(clanJoinRequests.requestedAt));
 
+  // "#Player1281" rows came from the client's pre-login placeholder name: no real character to admit.
   return Promise.all(
-    rows.map(async (r) => {
+    rows.filter((r) => isPlausibleRsn(r.rsn)).map(async (r) => {
       // Where else this account sits. Visible without any sharing rule, because an account's CLAN is
       // not a private fact — it is on the in-game roster — and a clan deciding whether to admit a
       // guest is entitled to know they are somebody else's member.

@@ -25,13 +25,15 @@ import {
   boostersWall,
   cleanRecruitPost,
   cleanRecruitingLine,
+  clanBoostNameStyle,
+  validateClanBoostNameStyle,
   countedRows,
+  effectiveBoostLevel,
   levelProgress,
   levelUpFrom,
   movableAt,
   slotTier,
   pickSlot,
-  reconcileLevel,
   recruitPostAllowed,
   seatHeldSince,
   seatVerdict,
@@ -41,6 +43,7 @@ import {
   wallForViewer,
   type BoostBadge,
   type BoostLevel,
+  type ClanBoostNameStyle,
   type LevelState,
   type SeatVerdict,
   type WallEntry,
@@ -187,7 +190,12 @@ async function countedFor(ex: Exec, clanId: number): Promise<number> {
 
 export interface ClanBoostLevel extends LevelState {
   clanId: number;
+  /** Effective count used for perks/progress: organic plus the platform's current gap filler. */
   counted: number;
+  organicCounted: number;
+  platformCount: number;
+  giftTargetLevel: BoostLevel;
+  nameStyle: ClanBoostNameStyle | null;
 }
 
 /**
@@ -206,7 +214,7 @@ async function reconcileLevels(clanIds: number[] | 'all', now: number): Promise<
     activeBoosts(db, clanIds),
     // clan-scope: global -- the stored levels of exactly the clans asked about (or all, for the Clan Hall).
     db
-      .select({ clanId: clanBoostState.clanId, level: clanBoostState.level, droppedAt: clanBoostState.droppedAt, giftLevel: clanBoostState.giftLevel, giftExpiresAt: clanBoostState.giftExpiresAt })
+      .select({ clanId: clanBoostState.clanId, level: clanBoostState.level, droppedAt: clanBoostState.droppedAt, giftLevel: clanBoostState.giftLevel, giftExpiresAt: clanBoostState.giftExpiresAt, nameStyle: clanBoostState.nameStyle })
       .from(clanBoostState)
       .where(clanIds === 'all' ? sql`${clanBoostState.level} > 0 or ${clanBoostState.giftLevel} > 0` : inArray(clanBoostState.clanId, clanIds)),
   ]);
@@ -218,11 +226,19 @@ async function reconcileLevels(clanIds: number[] | 'all', now: number): Promise<
   for (const clanId of ids) {
     const s = storedBy.get(clanId);
     const n = counted.get(clanId) ?? 0;
-    const state = reconcileLevel(s ? { level: s.level, droppedAt: s.droppedAt ? stampMs(s.droppedAt) : null } : null, n, now);
-    if (state.changed) writes.push(writeLevel(clanId, state));
-    const giftActive = (s?.giftLevel ?? 0) > 0 && (!s?.giftExpiresAt || stampMs(s.giftExpiresAt) > now);
-    const effective = giftActive ? Math.max(state.level, Math.min(3, s!.giftLevel!)) as BoostLevel : state.level;
-    if (effective > 0 || n > 0) out.set(clanId, { ...state, level: effective, clanId, counted: n });
+    const eff = effectiveBoostLevel(
+      s ? { level: s.level, droppedAt: s.droppedAt ? stampMs(s.droppedAt) : null } : null,
+      n,
+      s ? { level: s.giftLevel, expiresAt: s.giftExpiresAt } : null,
+      now,
+    );
+    const { organic, ...level } = eff;
+    if (organic.changed) writes.push(writeLevel(clanId, organic));
+    if (level.level > 0 || level.counted > 0) out.set(clanId, {
+      ...level,
+      clanId,
+      nameStyle: clanBoostNameStyle(s?.nameStyle),
+    });
   }
   // A failed write only means the next read reconciles again; the answer above is still right.
   await Promise.all(writes.map((w) => w.catch((err) => log.warn('clan-boosts.level-write-failed', {}, err))));
@@ -281,13 +297,14 @@ export async function clanBoostLevel(clanId: number): Promise<ClanBoostLevel> {
 }
 
 function emptyLevel(clanId: number): ClanBoostLevel {
-  return { clanId, counted: 0, level: 0, countedLevel: 0, droppedAt: null, graceEndsAt: null, changed: false };
+  return { clanId, counted: 0, organicCounted: 0, platformCount: 0, giftTargetLevel: 0, nameStyle: null, level: 0, countedLevel: 0, droppedAt: null, graceEndsAt: null, changed: false };
 }
 
 /** What the Clan Hall needs per clan: the level in force and (Level 2+) the recruiting line. */
 export interface ClanBoostDisplay {
   level: BoostLevel;
   recruitingLine: string | null;
+  nameStyle: ClanBoostNameStyle | null;
 }
 
 export async function clanBoostDisplays(clanIds: number[] | 'all'): Promise<Map<number, ClanBoostDisplay>> {
@@ -297,13 +314,14 @@ export async function clanBoostDisplays(clanIds: number[] | 'all'): Promise<Map<
   const ids = [...levels.keys()];
   // clan-scope: global -- the recruiting lines of the boosted clans just read.
   const lines = await db
-    .select({ clanId: clanBoostState.clanId, line: clanBoostState.recruitingLine })
+    .select({ clanId: clanBoostState.clanId, line: clanBoostState.recruitingLine, nameStyle: clanBoostState.nameStyle })
     .from(clanBoostState)
     .where(inArray(clanBoostState.clanId, ids));
   const lineBy = new Map(lines.map((l) => [l.clanId, l.line]));
+  const styleBy = new Map(lines.map((l) => [l.clanId, clanBoostNameStyle(l.nameStyle)]));
   for (const [id, l] of levels) {
     if (l.level <= 0) continue;
-    out.set(id, { level: l.level, recruitingLine: boostPerks(l.level).recruitingLine ? lineBy.get(id)?.trim() || null : null });
+    out.set(id, { level: l.level, recruitingLine: boostPerks(l.level).recruitingLine ? lineBy.get(id)?.trim() || null : null, nameStyle: styleBy.get(id) ?? null });
   }
   return out;
 }
@@ -315,6 +333,10 @@ export async function clanBoostDisplays(clanIds: number[] | 'all'): Promise<Map<
 export interface ClanBoostSummary {
   level: BoostLevel;
   counted: number;
+  organicCounted: number;
+  platformCount: number;
+  giftTargetLevel: BoostLevel;
+  nameStyle: ClanBoostNameStyle | null;
   countedLevel: BoostLevel;
   graceEndsAt: number | null;
   progress: { next: 1 | 2 | 3; need: number; have: number } | null;
@@ -359,6 +381,10 @@ export async function clanBoostSummary(clanId: number, opts: { showNames?: boole
   return {
     level: level.level,
     counted: level.counted,
+    organicCounted: level.organicCounted,
+    platformCount: level.platformCount,
+    giftTargetLevel: level.giftTargetLevel,
+    nameStyle: level.nameStyle,
     countedLevel: level.countedLevel,
     graceEndsAt: level.graceEndsAt,
     progress: levelProgress(level.counted),
@@ -702,6 +728,25 @@ function dateText(ms: number): string {
 // =============================================================================
 
 export type StaffResult = { ok: true; note?: string } | { ok: false; status: number; error: string };
+
+/** Set or reset the boosted clan-name palette. A saved look remains through later downgrades. */
+export async function setClanBoostNameStyle(clanId: number, raw: unknown, actorUserId: number | null): Promise<StaffResult> {
+  const check = validateClanBoostNameStyle(raw);
+  if (!check.ok) return { ok: false, status: 400, error: check.error };
+  const style = check.style;
+  const level = await clanBoostLevel(clanId);
+  if (style && level.level < 1) return { ok: false, status: 403, error: 'Custom clan-name colours need boost Level 1.' };
+  const encoded = style ? JSON.stringify(style) : null;
+  await db
+    .insert(clanBoostState)
+    .values({ clanId, nameStyle: encoded, updatedAt: nowIso() })
+    .onConflictDoUpdate({ target: clanBoostState.clanId, set: { nameStyle: encoded, updatedAt: nowIso() } });
+  await db
+    .insert(clanAuditLog)
+    .values({ clanId, eventType: 'boost_name_style_set', actorUserId, newValue: JSON.stringify({ style }) })
+    .catch(() => {});
+  return { ok: true };
+}
 
 /** Set or clear the clan's recruiting line. Saving needs Level 2; clearing never does. */
 export async function setRecruitingLine(clanId: number, raw: unknown, actorUserId: number | null): Promise<StaffResult> {

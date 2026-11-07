@@ -36,6 +36,11 @@ const WHAT: Record<string, string> = {
   platform_promo_report_resolved: 'Report marked handled',
   platform_promo_report_note: 'Report note',
   platform_promo_highlight_shown: 'Highlight shown again',
+  // Free Supporter time (lib/supporterGifts) and platform clan-boost gifts (/staff/clans/<id>).
+  supporter_gift_granted: 'Supporter gift given',
+  supporter_gift_ended: 'Supporter gift ended early',
+  platform_boost_gifted: 'Clan boost gift set',
+  platform_boost_gift_cleared: 'Clan boost gift cleared',
 };
 
 /** The ones that change who can sign in, or cannot be undone. Worth spotting in a long list. */
@@ -166,6 +171,17 @@ function describe(a: PlatformAction): string | null {
       return after?.reason ? `“${String(after.reason)}”` : null;
     case 'platform_owner_appointed':
       return after?.to ? `to ${String(after.to)}` : null;
+    case 'supporter_gift_granted': {
+      const tier = typeof after?.tier === 'string' ? after.tier : '?';
+      const parts = [`${tier} to login #${String(after?.userId ?? '?')}`, `${String(after?.days ?? '?')} days`];
+      if (after?.boostSlots) parts.push('with boost slots');
+      if (after?.note) parts.push(`“${String(after.note)}”`);
+      return parts.join(' · ');
+    }
+    case 'supporter_gift_ended':
+      return `${String(after?.tier ?? '?')} gift #${String(after?.giftId ?? '?')} of login #${String(after?.userId ?? '?')}`;
+    case 'platform_boost_gifted':
+      return `to Level ${String(after?.level ?? '?')}${after?.expiresAt ? ` until ${String(after.expiresAt).slice(0, 10)}` : ', indefinitely'}`;
     default:
       return a.notes;
   }

@@ -5,8 +5,9 @@ import { refuseForeignCharacter } from '@/lib/pluginForeign';
 import { lastSeenIsFresh } from '@/lib/rosterSync';
 import { clanMemberships, clanRoster, events, weeklyCompetitions } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
+import { reportedAnvilClanId } from '@/lib/gameClans';
 import { eq, and, lte, gt, isNull, or } from 'drizzle-orm';
-import { normalizeRsn } from '@/lib/auth';
+import { isPlausibleRsn, normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { weeklyMetricLabel } from '@/lib/constants';
 import { admit } from '@/lib/guestAdmission';
@@ -76,6 +77,9 @@ export async function POST(request: Request) {
   }
   const rsn = (body.rsn || '').trim();
   if (!rsn) return NextResponse.json({ error: 'rsn required' }, { status: 400 });
+  // The client calls the player "#Player1281" for a tick after login; older plugins said hello with
+  // it, creating a statless character and a join request nobody can place. Write nothing for it.
+  if (!isPlausibleRsn(sanitizeRsn(rsn))) return NextResponse.json({ knownMember: false });
 
   const rsnNormalized = normalizeRsn(rsn);
   const signedIn = (await verifyPluginTokenUser(request)) != null;
@@ -101,9 +105,15 @@ export async function POST(request: Request) {
     // used to create a guest seat anyway, so anyone who logged in once appeared on a roster nobody
     // had agreed to put them on. Unauthenticated, at that.
     //
-    // Now it asks. Under the default policy that means a request for staff, and no seat.
+    // Now it asks — but only someone the game itself places in this clan. Anyone else is an Anvil
+    // character with no clan (their own in-game clan becomes a ghost clan via /game-clan); a login
+    // ping alone never puts a stranger in a clan's queue. Under the default policy that request
+    // needs staff approval. (/game-clan files the same request when the report arrives later.)
     const account = await findOrCreateAccount({ rsn, rsnNormalized });
-    const result = await admit({ clanId: clan.id, accountId: account.id, source: 'plugin' });
+    const inClanInGame = (await reportedAnvilClanId(account.id)) === clan.id;
+    const result: Awaited<ReturnType<typeof admit>> = inClanInGame
+      ? await admit({ clanId: clan.id, accountId: account.id, source: 'plugin' })
+      : { outcome: 'refused', reason: 'approval' };
     // A login ping is the plugin being used today — counted once per (clan, account, day).
     trackPluginDay(clan.id, account.id);
 

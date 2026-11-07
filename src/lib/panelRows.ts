@@ -14,6 +14,7 @@ import { accounts, clanMemberships, clanStaff, clans, completions, eventParticip
 import { atLeast } from '@/lib/clanRoles';
 import { normalizeRsn } from '@/lib/auth';
 import { supporterInksForRsns } from '@/lib/supporter';
+import { inkForSurface } from '@/lib/supporterStyle';
 import { log } from '@/lib/logger';
 import { eventFeedFloor, isClanWorthy, panelFeedWorthy } from '@/lib/moments';
 import { boardTileItemIds, clanScopeFor } from '@/lib/momentsStore';
@@ -189,7 +190,8 @@ export interface NewMoment extends MomentLike {
 /** A Supporter's name colours for a live row; none on any failure (flair is decoration). */
 async function inkOf(rsn: string) {
   try {
-    return (await supporterInksForRsns([rsn])).get(normalizeRsn(rsn)) ?? null;
+    const ink = (await supporterInksForRsns([rsn])).get(normalizeRsn(rsn)) ?? null;
+    return ink ? inkForSurface(ink, 'dark') : null;
   } catch {
     return null;
   }

@@ -5,6 +5,7 @@ import { weeklyCompetitions } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { weeklyMetricLabel } from '@/lib/constants';
+import { weeklyRsnKey } from '@/lib/weeklyRsn';
 
 // GET /api/plugin/weekly-leaderboard[?id=<competitionId>]
 // Returns the ranked standings for a weekly competition (the active one when no id is given),
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
   // "Drenvox mdps" can arrive with mismatched spacing and dodge a plain lowercase compare.
   const byRsn = new Map<string, (typeof participants)[number]>();
   for (const p of participants) {
-    const key = (p.rsn ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const key = weeklyRsnKey(p.rsn);
     const existing = byRsn.get(key);
     if (!existing || (p.currentValue ?? 0) > (existing.currentValue ?? 0)) {
       byRsn.set(key, p);
@@ -69,9 +70,8 @@ export async function GET(request: Request) {
     gained: Math.max(0, e.gained),
   });
   const entries = board.slice(0, MAX_ENTRIES).map(row);
-  const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
-  const wanted = norm(searchParams.get('rsn') ?? '');
-  const at = wanted ? board.findIndex((e) => norm(e.rsn ?? '') === wanted) : -1;
+  const wanted = weeklyRsnKey(searchParams.get('rsn'));
+  const at = wanted ? board.findIndex((e) => weeklyRsnKey(e.rsn) === wanted) : -1;
   const you = at >= 0 ? row(board[at], at) : null;
 
   return NextResponse.json({

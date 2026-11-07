@@ -31,7 +31,7 @@ import { claimTile, cleanNote, unclaimTile } from '@/lib/tileClaims';
 import { normalizeRsn, pluginRsnHintOnly, resolvePluginClan, resolvePluginMember, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { type BoardSummary, liveBoardsForCharacter, summarizeBoards } from '@/lib/pluginBoards';
 import { type SupporterInk, supporterForUser, supporterInksForRsns } from '@/lib/supporter';
-import { FLAIR_BACKGROUND, supporterInkOn } from '@/lib/supporterStyle';
+import { inkForSurface } from '@/lib/supporterStyle';
 import { momentsForClan } from '@/lib/momentsStore';
 import { NO_REACTIONS, isClanMember, momentInClan, reactionSummaries, toggleReaction } from '@/lib/momentReactions';
 import { REACT_ERRORS, checkReaction } from '@/lib/reactionAccess';
@@ -263,7 +263,11 @@ async function clansView(request: Request, q: string): Promise<View> {
     if (await pluginStaff(request)) found.unshift({ id: -1, slug: LAB_CLAN_SLUG, name: 'Anvil Tile Lab (staff)' });
   }
   const levels = await clanBoostLevels(found.filter((c) => c.id > 0).map((c) => c.id)).catch(() => new Map());
-  return { ui: clanSearchUi(query, found.map((c) => ({ ...c, boostLevel: levels.get(c.id)?.level ?? 0 }))) };
+  return { ui: clanSearchUi(query, found.map((c) => ({
+    ...c,
+    boostLevel: levels.get(c.id)?.level ?? 0,
+    boostNameStyle: levels.get(c.id)?.nameStyle ?? null,
+  }))) };
 }
 
 async function goalFormView(request: Request, kind: string): Promise<View> {
@@ -565,7 +569,7 @@ async function flaired(view: View | null): Promise<View | null> {
   const inks = names.length ? await supporterInksForRsns(names).catch(() => new Map<string, SupporterInk>()) : new Map<string, SupporterInk>();
   applyFlair(view.ui, (name) => {
     const ink = inks.get(normalizeRsn(name));
-    return ink ? supporterInkOn(ink, FLAIR_BACKGROUND, '#ffffff', 4.5) : null;
+    return ink ? inkForSurface(ink, 'dark') : null;
   });
   return view;
 }

@@ -16,6 +16,7 @@ import { avatarUrl } from '@/lib/discord-oauth';
 import { displayCaseForPlayer } from '@/lib/displayCase';
 import { supporterForPlayer } from '@/lib/supporter';
 import { canUseProfileMedia } from '@/lib/profileMediaRules';
+import { mediaRevision } from '@/lib/pluginUi/mediaRevision';
 
 // The reads behind the plugin's cards, shared by the card routes (/api/players/<rsn>/card,
 // /api/clans/<slug>/card) and the panel's views (/api/plugin/ui), so both answer the same.
@@ -66,6 +67,7 @@ export async function loadPanelPlayerCard(character: ApexCharacter): Promise<Pla
     avatarAnimated: !!media.avatar?.animated || (!media.avatar && !!discordAvatar?.animated),
     banner: !!media.banner,
     bannerAnimated: !!media.banner?.animated,
+    revision: mediaRevision(media.avatar?.src, media.banner?.src, discordAvatar?.src),
   };
   card.displayCase = displayCase;
   return card;

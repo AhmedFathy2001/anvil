@@ -543,9 +543,10 @@ export const MODERATION_TYPES = [
 
 /**
  * Events that legitimately belong to no clan: an account being created, and a login claiming a seat
- * before any clan is in the picture. Everything else with a null clan is a writer that forgot.
+ * before any clan is in the picture, and staff giving or ending free Supporter time (lib/supporterGifts:
+ * a person's membership, not a clan's). Everything else with a null clan is a writer that forgot.
  */
-const CLANLESS_TYPES = ['user_signed_up', 'claimed'] as const;
+const CLANLESS_TYPES = ['user_signed_up', 'claimed', 'supporter_gift_granted', 'supporter_gift_ended'] as const;
 
 export async function platformActions(
   limit = 100,

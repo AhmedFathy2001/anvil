@@ -56,7 +56,8 @@ export function composeBrief(items: BriefItem[], f: BriefFacts): BriefLine[] {
   }
   if (want.has('weekly')) {
     for (const w of f.weeklies.slice(0, 2)) {
-      if (w.rank == null || w.gained <= 0) first.push(`${w.label}: not on the board yet`);
+      if (w.rank == null) first.push(`${w.label}: not on the board yet`);
+      else if (w.gained <= 0) first.push(`${w.label}: ${ord(w.rank)} with ${amount(0, w.unit)}`);
       else if (w.rank === 1) first.push(`${w.label}: leading with ${amount(w.gained, w.unit)}`);
       else first.push(`${w.label}: ${ord(w.rank)}${w.ahead != null ? `, ${amount(Math.max(1, w.ahead - w.gained), w.unit)} to ${ord(w.rank - 1)}` : ''}`);
     }

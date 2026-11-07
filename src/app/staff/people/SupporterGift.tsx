@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import LocalTime from '@/components/LocalTime';
 import { clanFetch } from '@/lib/clanFetch';
+import type { SupporterStanding } from '@/lib/supporterGiftRules';
 import { SUPPORTER_TIERS, type SupporterTierId } from '@/lib/supporterTiers';
 import Select from '@/components/Select';
 import Checkbox from '@/components/Checkbox';
@@ -16,7 +17,12 @@ interface Gift {
   endsAt: string | null;
   live: boolean;
   boostSlots?: boolean;
+  grantedBy?: string | null;
+  endedBy?: string | null;
+  note?: string | null;
 }
+
+const tierName = (t: SupporterTierId | null) => (t ? SUPPORTER_TIERS[t].name : 'None');
 
 const LENGTHS = [
   { days: 7, label: '7 days' },
@@ -30,6 +36,7 @@ const LENGTHS = [
 export default function SupporterGift({ playerId }: { playerId: number }) {
   const [open, setOpen] = useState(false);
   const [gifts, setGifts] = useState<Gift[] | null>(null);
+  const [standing, setStanding] = useState<SupporterStanding | null>(null);
   const [tier, setTier] = useState<SupporterTierId>('supporter');
   const [days, setDays] = useState(30);
   const [custom, setCustom] = useState('');
@@ -48,7 +55,10 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
       const res = await clanFetch(url + query, init);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) setError(data.error ?? 'Failed');
-      else setGifts(data.gifts);
+      else {
+        setGifts(data.gifts);
+        setStanding(data.standing ?? null);
+      }
     } finally {
       setBusy(false);
     }
@@ -138,6 +148,39 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
             description={`${SUPPORTER_TIERS[tier].name} slots to boost clans they're a member of. Off: flair and perks only, no boosts.`}
           />
           {error && <p className="text-red-300">{error}</p>}
+          {standing && (
+            // Paid vs. worn: a gift is a separate row laid over the paid one, never an edit of it.
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-lg border border-card-border px-3 py-2">
+              <dt className="text-gray-500">Pays for</dt>
+              <dd className="text-gray-200">{tierName(standing.paid)}</dd>
+              {standing.earned && (
+                <>
+                  <dt className="text-gray-500">Invite time</dt>
+                  <dd className="text-gray-200">{tierName(standing.earned)}</dd>
+                </>
+              )}
+              <dt className="text-gray-500">Wears now</dt>
+              <dd className={standing.source === 'gift' ? 'text-gold' : 'text-gray-200'}>
+                {tierName(standing.effective)}
+                {standing.source === 'gift' && standing.gift && (
+                  <span className="text-gray-400">
+                    {' '}
+                    · temporary, from a staff gift
+                    {(() => {
+                      const by = gifts?.find((g) => g.id === standing.gift?.id)?.grantedBy;
+                      return by ? ` by ${by}` : '';
+                    })()}
+                    {standing.gift.endsAt ? (
+                      <>
+                        {' '}
+                        until <LocalTime date={standing.gift.endsAt} />, then {tierName(standing.paid ?? standing.earned)}
+                      </>
+                    ) : null}
+                  </span>
+                )}
+              </dd>
+            </dl>
+          )}
           {gifts && gifts.length > 0 && (
             <ul className="space-y-1">
               {gifts.map((g) => (
@@ -152,8 +195,10 @@ export default function SupporterGift({ playerId }: { playerId: number }) {
                         to <LocalTime date={g.endsAt} />
                       </>
                     )}
-                    {!g.live && ' · ended'}
+                    {!g.live && (g.endedBy ? ` · ended early by ${g.endedBy}` : ' · ended')}
                   </span>
+                  <span className="text-gray-500">· given by {g.grantedBy ?? 'unknown (no audit entry)'}</span>
+                  {g.note && <span className="text-gray-500">· “{g.note}”</span>}
                   {g.live && (
                     <button
                       type="button"

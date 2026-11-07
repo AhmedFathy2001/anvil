@@ -66,7 +66,7 @@ export interface PlayerCardPage {
 export interface PlayerCard {
   rsn: string;
   /** Only presence/motion flags; panel image bytes stay behind same-origin authenticated routes. */
-  panelMedia?: { avatar: boolean; avatarAnimated: boolean; banner: boolean; bannerAnimated: boolean };
+  panelMedia?: { avatar: boolean; avatarAnimated: boolean; banner: boolean; bannerAnimated: boolean; revision?: string };
   /** This character's visible pins from its owner's display case. */
   displayCase?: {
     id: number;

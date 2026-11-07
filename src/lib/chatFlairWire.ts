@@ -6,16 +6,26 @@
 // name's look in `styles`). Most Supporters wear their tier's default, so the palette stays small and
 // each name costs its own letters and a digit or two — and sorted names gzip well.
 //
-//   full:  {v, styles:[{c,g?,s?}…], names:[…], ix:[…]}
+//   full:  {v, styles:[{c,g?,s?,d?,l?}…], names:[…], ix:[…]}
+//          d / l: the person's own look for dark / light chat, {c, g?}, worn as-is there (omitted
+//          when unset: the plugin then adapts c/g for contrast itself).
 //   delta: {t:'flair', v, from, styles, names, ix, del:[…]}   names set to a look (palette local to
 //          the message), del dropped. A plugin holding `from` applies it; anything else catches up.
 //   big:   {t:'flair', v, from, full:true}                     too large for a socket message.
 
-/** One look: solid colour, optional gradient stops, Patron star — GET /api/plugin/chat-flair's entry minus the name. */
+/** A surface's own look, raw: solid colour and gradient stops (g only with 2+). */
+export interface FlairSurface {
+  c: string;
+  g?: string[];
+}
+
+/** One look: solid colour, optional gradient stops, Patron star, own dark/light looks — GET /api/plugin/chat-flair's entry minus the name. */
 export interface FlairStyle {
   c: string;
   g?: string[];
   s?: true;
+  d?: FlairSurface;
+  l?: FlairSurface;
 }
 
 /** What the server tracks per name: its look (as a key) and whose character it is (never sent). */
@@ -51,13 +61,31 @@ export const MAX_DELTA_NAMES = 2_000;
 /** Postgres NOTIFY carries at most 8000 bytes; a delta bigger than this goes out as {full:true}. */
 export const MAX_NOTIFY_BYTES = 7_500;
 
+type SurfaceKey = [string, string[] | null] | null;
+
+function surfaceKey(x: FlairSurface | undefined): SurfaceKey {
+  return x ? [x.c, x.g && x.g.length >= 2 ? x.g : null] : null;
+}
+
+function surfaceFromKey(k: SurfaceKey | undefined): FlairSurface | null {
+  return k ? { c: k[0], ...(k[1] ? { g: k[1] } : {}) } : null;
+}
+
+/**
+ * A look as a palette/state key. Looks without a dark/light override keep the original 3-part key,
+ * so stored states and logged versions from before overrides existed still match.
+ */
 export function styleKey(s: FlairStyle): string {
-  return JSON.stringify([s.c, s.g ?? null, s.s ? 1 : 0]);
+  const base: unknown[] = [s.c, s.g ?? null, s.s ? 1 : 0];
+  if (s.d || s.l) base.push(surfaceKey(s.d), surfaceKey(s.l));
+  return JSON.stringify(base);
 }
 
 export function styleFromKey(key: string): FlairStyle {
-  const [c, g, s] = JSON.parse(key) as [string, string[] | null, number];
-  return { c, ...(g ? { g } : {}), ...(s ? { s: true as const } : {}) };
+  const [c, g, s, d, l] = JSON.parse(key) as [string, string[] | null, number, SurfaceKey?, SurfaceKey?];
+  const dark = surfaceFromKey(d);
+  const light = surfaceFromKey(l);
+  return { c, ...(g ? { g } : {}), ...(s ? { s: true as const } : {}), ...(dark ? { d: dark } : {}), ...(light ? { l: light } : {}) };
 }
 
 /** Names with their looks as palette + parallel arrays, names sorted. */

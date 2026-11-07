@@ -20,6 +20,7 @@ import {
   seg,
   text,
 } from './nodes';
+import { mediaRevision, revisedMediaPath } from './mediaRevision';
 
 // A player card as the plugin's Lookup and You tabs draw it (was PlayerCardView.java). Pure: the
 // route loads the card, this decides every line.
@@ -139,7 +140,7 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
   if (anvil && opts.images && c.panelMedia?.banner) {
     parts.push({
       t: 'img',
-      src: `/api/plugin/media/player/${seg(c.rsn)}?kind=banner`,
+      src: revisedMediaPath(`/api/plugin/media/player/${seg(c.rsn)}?kind=banner`, c.panelMedia.revision),
       w: 220,
       h: 73,
       ...(c.panelMedia.bannerAnimated ? { motion: true } : {}),
@@ -218,17 +219,19 @@ function identity(c: PlayerCard, anvil: boolean, images: boolean): Node {
   ];
   if (!anvil) details.push(gap(2), row(undefined, muted('From the hiscores — not on Anvil'), c.fetchedAt ? muted('', { at: c.fetchedAt }) : undefined));
   if (c.clan?.name) {
+    const clanMediaRev = mediaRevision(c.clan.logoUrl);
     details.push(gap(2), row(
       images && c.clan.logoUrl
-        ? { t: 'img', src: `/api/plugin/media/clan/${seg(c.clan.slug)}?kind=logo`, w: 18, h: 18, motion: true, round: true }
+        ? { t: 'img', src: revisedMediaPath(`/api/plugin/media/clan/${seg(c.clan.slug)}?kind=logo`, clanMediaRev), w: 18, h: 18, motion: true, round: true }
         : undefined,
       text(c.clan.name, 'brand', { font: 'small' }),
       undefined,
+      { tip: `Open ${c.clan.name} in clan lookup`, on: { a: 'clan', slug: c.clan.slug } },
     ));
   }
   if (line.length) details.push(gap(2), muted(line.join(' · ')));
   const avatar = anvil && images && c.panelMedia?.avatar
-    ? { t: 'img' as const, src: `/api/plugin/media/player/${seg(c.rsn)}?kind=avatar`, w: 48, h: 48, round: true, ...(c.panelMedia.avatarAnimated ? { motion: true } : {}) }
+    ? { t: 'img' as const, src: revisedMediaPath(`/api/plugin/media/player/${seg(c.rsn)}?kind=avatar`, c.panelMedia.revision), w: 48, h: 48, round: true, ...(c.panelMedia.avatarAnimated ? { motion: true } : {}) }
     : undefined;
   const parts: Node[] = [row(avatar, col(details), undefined, { gap: 7 })];
   const empty =

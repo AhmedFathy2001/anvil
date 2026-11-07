@@ -9,7 +9,7 @@ import ApplyToClan from '@/components/ApplyToClan';
 import ReportButton from '@/components/ReportButton';
 import { accentStyle } from '@/lib/accentStyle';
 import type { Moment } from '@/lib/clanMomentsRules';
-import { BoostedBadge } from '@/components/ClanBoost';
+import { BoostedBadge, boostedClanNameStyle } from '@/components/ClanBoost';
 import { boostNameClass, boostPerks } from '@/lib/clanBoostRules';
 
 const FOCUS_LABEL: Record<ClanFocus, string> = {
@@ -95,7 +95,7 @@ export default function PublicClanHome({
   boosters = null,
 }: {
   /** Its boost level in force and (Level 2+) recruiting line (lib/clanBoosts). */
-  boost?: { level: number; recruitingLine: string | null } | null;
+  boost?: { level: number; recruitingLine: string | null; nameStyle?: import('@/lib/clanBoostRules').ClanBoostNameStyle | null } | null;
   /** The boosters wall (components/ClanBoost ClanBoostPanel), when anyone boosts it. */
   boosters?: ReactNode;
   view: View;
@@ -145,7 +145,7 @@ export default function PublicClanHome({
         </div>
         <div className="min-w-0 flex-[1_1_18rem] sm:pt-[4.25rem]">
           <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className={`display text-4xl font-semibold leading-none sm:text-5xl ${perks.gradientName ? boostNameClass(level) : 'text-foreground'}`}>
+            <h1 className={`display text-4xl font-semibold leading-none sm:text-5xl ${perks.gradientName ? boostNameClass(level) : 'text-foreground'}`} style={boostedClanNameStyle(level, boost?.nameStyle)}>
               {view.name}
             </h1>
             <BoostedBadge level={level} />

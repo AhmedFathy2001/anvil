@@ -90,6 +90,7 @@ export default async function ClansPage() {
     xpThisWeek: r.xpThisWeek,
     // Creator spaces aren't boosted (boosts ride on in-game clan member seats).
     boostLevel: r.kind === 'clan' && r.id != null ? (boosts.get(r.id)?.level ?? 0) : 0,
+    boostNameStyle: r.kind === 'clan' && r.id != null ? (boosts.get(r.id)?.nameStyle ?? null) : null,
     recruitingLine: r.kind === 'clan' && r.id != null ? (boosts.get(r.id)?.recruitingLine ?? null) : null,
   }));
 

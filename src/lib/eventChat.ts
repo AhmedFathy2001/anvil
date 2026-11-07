@@ -33,7 +33,7 @@ import { notifyRows, teamUserIds } from '@/lib/panelRows';
 import { getPlatformSetting, setPlatformSetting } from '@/lib/platformSettings';
 import { chatFeedIds, chatRow, type ChatRowOptions } from '@/lib/pluginUi/feedUi';
 import type { Action, Color, FeedRow } from '@/lib/pluginUi/nodes';
-import { supporterForUser, supporterForUsers, supporterInk } from '@/lib/supporter';
+import { inkForSurface, supporterForUser, supporterForUsers, supporterInk } from '@/lib/supporter';
 
 /**
  * Staff's switch for every event chat. OFF until staff turn it on ('true'): the chat needs the
@@ -234,7 +234,8 @@ async function rowsFor(
   const teamById = new Map(teamRows.map((t) => [t.id, t]));
   return lines.map((l) => {
     const s = supporters.get(l.userId);
-    const ink = s ? supporterInk(s.tier.id, s.style) : null;
+    // The panel is dark: their own dark look as-is when set, else the main look (the plugin adapts it).
+    const ink = s ? inkForSurface(supporterInk(s.tier.id, s.style), 'dark', null) : null;
     const team = l.teamId != null ? teamById.get(l.teamId) : null;
     const o: ChatRowOptions = {
       // Per PERSON: every line they sent, as any of their characters or as host staff, is theirs.

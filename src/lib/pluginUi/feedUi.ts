@@ -5,9 +5,12 @@ import { fallenTitle, isFallenDeath } from '@/lib/hardcoreFall';
 import { whoText } from '@/lib/reactionWho';
 import { runSuffix } from '@/lib/feedRuns';
 import { clanBoostInk } from '@/lib/clanBoostRules';
+import type { ClanBoostNameStyle } from '@/lib/clanBoostRules';
+import { inkForSurface } from '@/lib/supporterStyle';
 
 import type { Action, Color, FeedRow, Node } from './nodes';
 import { button, col, gap, muted, row, text } from './nodes';
+import { revisedMediaPath } from './mediaRevision';
 
 // The plugin panel's Feed tab (view 'feed'): one live list per scope — the clan's moments, a board's
 // moments, a board's chat — drawn once and then grown by push rows (lib/panelRows). Pure: the view
@@ -32,7 +35,7 @@ export function kindGroup(kind: string): KindGroup | null {
   return null;
 }
 
-export type Scope = { kind: 'clan'; id: number; slug: string; name: string; boostLevel?: number; banner?: boolean; logo?: boolean } | { kind: 'event'; id: number; name: string };
+export type Scope = { kind: 'clan'; id: number; slug: string; name: string; boostLevel?: number; boostNameStyle?: ClanBoostNameStyle | null; banner?: boolean; logo?: boolean; mediaRevision?: string } | { kind: 'event'; id: number; name: string };
 
 export function momentsFeedId(scope: { kind: 'clan' | 'event'; id: number }, filter?: KindGroup | 'team' | 'tiles', teamId?: number | null): string {
   const base = `moments:${scope.kind}:${scope.id}`;
@@ -433,7 +436,7 @@ export function feedTabUi(o: FeedTabOptions): Node {
     const moving = (o.current.boostLevel ?? 0) >= 2;
     parts.push({
       t: 'img',
-      src: `/api/plugin/media/clan/${encodeURIComponent(o.current.slug)}?kind=banner`,
+      src: revisedMediaPath(`/api/plugin/media/clan/${encodeURIComponent(o.current.slug)}?kind=banner`, o.current.mediaRevision, o.current.boostLevel ?? 0),
       w: 220,
       h: 73,
       ...(moving ? { motion: true } : {}),
@@ -456,10 +459,11 @@ export function feedTabUi(o: FeedTabOptions): Node {
       gap(4),
     );
   } else {
-    const boost = o.current.kind === 'clan' ? clanBoostInk(o.current.boostLevel ?? 0) : null;
+    const sourceBoost = o.current.kind === 'clan' ? clanBoostInk(o.current.boostLevel ?? 0, o.current.boostNameStyle) : null;
+    const boost = sourceBoost ? inkForSurface(sourceBoost, 'dark') : null;
     parts.push(row(
       o.images && o.current.kind === 'clan' && o.current.logo
-        ? { t: 'img', src: `/api/plugin/media/clan/${encodeURIComponent(o.current.slug)}?kind=logo`, w: 28, h: 28, motion: true, round: true }
+        ? { t: 'img', src: revisedMediaPath(`/api/plugin/media/clan/${encodeURIComponent(o.current.slug)}?kind=logo`, o.current.mediaRevision, o.current.boostLevel ?? 0), w: 28, h: 28, motion: true, round: true }
         : undefined,
       text(o.current.name, boost?.color ?? 'brand', {
         font: 'bold',
