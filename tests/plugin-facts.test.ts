@@ -354,6 +354,21 @@ test('buildRuleTable stats: a skill rides xp with active gating, a boss rides kc
   assert.ok(boss.names.includes('vorkath'), `names: ${boss.names.join(', ')}`);
 });
 
+test('buildRuleTable stats: names come folded to letters and digits, a composite tile carries every mode', () => {
+  const table = buildRuleTable({
+    trackedStats: [
+      { tileId: 3, label: "Kree'Arra", statName: 'kreeArra', statType: 'boss', currentAmount: 0, goalAmount: 50 },
+      { tileId: 4, label: 'CoX + CoX: CM', statName: 'chambersOfXeric,chambersOfXericChallengeMode', statType: 'boss', currentAmount: 0, goalAmount: 50 },
+    ],
+  });
+  const kree = table.stats.find((s) => s.t === 3)!;
+  assert.ok(kree.names.includes('kreearra'), `names: ${kree.names.join(', ')}`);
+  assert.ok(kree.names.every((n) => /^[a-z0-9]+$/.test(n)));
+  const cox = table.stats.find((s) => s.t === 4)!;
+  assert.ok(cox.names.includes('chambersofxeric') && cox.names.includes('chambersofxericchallengemode'), `names: ${cox.names.join(', ')}`);
+  assert.equal(new Set(cox.names).size, cox.names.length);
+});
+
 // ---------------------------------------------------------------------------------------------
 // parse.parseFacts
 

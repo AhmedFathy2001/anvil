@@ -70,7 +70,7 @@ export interface StatRule {
   label: string;
   /** "xp" (skill) or "kc" (boss / activity count). */
   on: 'xp' | 'kc';
-  /** The game names that feed it (a composite tile lists several). */
+  /** The game names that feed it (a composite tile lists several), as {@link statRuleName} spells them. */
   names: string[];
   have: number;
   of: number;
@@ -108,6 +108,11 @@ export function statStep(of: number, on: 'xp' | 'kc'): number {
   const m = raw / p;
   const nice = m < 1.5 ? 1 : m < 2.25 ? 2 : m < 3.75 ? 2.5 : m < 7.5 ? 5 : 10;
   return Math.max(1, Math.round(nice * p));
+}
+
+/** A stat name reduced to lowercase letters and digits ("Kree'Arra", "kree arra" → "kreearra"); the plugin folds the KC line / skill the same way. */
+export function statRuleName(n: string): string {
+  return n.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 function isSimpleDrop(d: DropTile): boolean {
@@ -175,7 +180,8 @@ export function buildRuleTable(cfg: RulesConfigIn): RuleTable {
     // A composite tile lists several keys; a boss key answers to every name its KC line can carry.
     const keys = statKeys(s.statName);
     const names = (on === 'kc' ? keys.flatMap((k) => { const n = kcNamesForKey(k); return n.length ? n : [k]; }) : keys)
-      .map((n) => n.toLowerCase());
+      .map(statRuleName)
+      .filter(Boolean);
     if (names.length === 0) continue;
     stats.push({
       t: s.tileId,
