@@ -73,6 +73,10 @@ export interface GumroadEvent {
   subscriptionId: string | null;
   productId: string | null;
   productPermalink: string | null;
+  /** The product's name as Gumroad shows it — display only (the staff inbox of unmatched purchases). */
+  productName?: string | null;
+  /** Currency of `priceCents` (Gumroad's `currency`, e.g. "usd") — display only. */
+  currency?: string | null;
   /** Membership tier name, e.g. "Gold" — set when one product has multiple tiers (variants[Tier]). */
   tier: string | null;
   email: string | null;
@@ -145,6 +149,8 @@ export function parseWebhook(raw: string): GumroadEvent {
     subscriptionId: get('subscription_id'),
     productId: get('product_id'),
     productPermalink: get('product_permalink'),
+    productName: get('product_name'),
+    currency: get('currency'),
     tier,
     email: get('email'),
     priceCents: priceStr != null ? Number(priceStr) : null,

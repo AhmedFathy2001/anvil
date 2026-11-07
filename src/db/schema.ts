@@ -4246,6 +4246,50 @@ export const supporterSubscriptions = pgTable('supporter_subscriptions', {
   index('supporter_subscriptions_user_idx').on(table.userId),
 ]);
 
+// Gumroad sales the webhook could not attach to anything (drizzle/0228), for staff to attach or
+// dismiss on /staff/subscriptions (lib/unmatchedPurchases). A clan/creator plan sale with no known
+// checkout ref ('no-ref'), a creator product bought through a clan's checkout or the other way round
+// ('cross-catalogue', ref_clan_id = the clan whose checkout it came through), or a Supporter sale
+// with no buyer ref ('no-buyer'). One row per sale; later notifications for the same subscription only
+// move gumroad_state while the row is open. buyer_email is unverified and staff-only.
+export const unmatchedPurchases = pgTable('unmatched_purchases', {
+  id: serial('id').primaryKey(),
+  receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+  kind: text('kind').notNull(),          // 'plan' | 'creator' | 'supporter'
+  reason: text('reason').notNull(),      // 'no-ref' | 'cross-catalogue' | 'no-buyer'
+  gumroadSaleId: text('gumroad_sale_id'),
+  gumroadSubscriptionId: text('gumroad_subscription_id'),
+  productId: text('product_id'),
+  productName: text('product_name'),
+  productPermalink: text('product_permalink'),
+  tier: text('tier'),                    // as Gumroad named it
+  planId: text('plan_id'),               // what we read it as (lib/billingCatalog, lib/supporterTiers); null = unknown
+  recurrence: text('recurrence'),
+  priceCents: integer('price_cents'),
+  currency: text('currency'),
+  buyerEmail: text('buyer_email'),
+  ref: text('ref'),
+  urlParams: jsonb('url_params').$type<Record<string, string>>(),
+  freeTrialEndsAt: text('free_trial_ends_at'),
+  saleTimestamp: text('sale_timestamp'),
+  refClanId: integer('ref_clan_id').references(() => clans.id, { onDelete: 'set null' }),
+  gumroadState: text('gumroad_state').notNull().default('sold'), // lib/unmatchedPurchaseRules GumroadState
+  lastEventAt: timestamp('last_event_at', { withTimezone: true }),
+  status: text('status').notNull().default('open'), // 'open' | 'attached' | 'dismissed'
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  resolvedByUserId: integer('resolved_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  resolutionNote: text('resolution_note'),
+  attachedClanId: integer('attached_clan_id').references(() => clans.id, { onDelete: 'set null' }),
+  attachedUserId: integer('attached_user_id').references(() => users.id, { onDelete: 'set null' }),
+}, (table) => [
+  uniqueIndex('unmatched_purchases_sale_unique').on(table.gumroadSaleId),
+  index('unmatched_purchases_subscription_idx').on(table.gumroadSubscriptionId),
+  index('unmatched_purchases_status_idx').on(table.status, table.receivedAt),
+  check('unmatched_purchases_kind_check', sql`${table.kind} IN ('plan', 'creator', 'supporter')`),
+  check('unmatched_purchases_reason_check', sql`${table.reason} IN ('no-ref', 'cross-catalogue', 'no-buyer')`),
+  check('unmatched_purchases_status_check', sql`${table.status} IN ('open', 'attached', 'dismissed')`),
+]);
+
 // The in-game Supporter name list's history (lib/chatFlairFeed). Each change to who wears which colours
 // is one version: its delta as the plugins get it (`msg`, lib/chatFlairWire) and the owners of the
 // names it sets (`owners`, {name: players.id} — never sent), so any app instance can bring its copy

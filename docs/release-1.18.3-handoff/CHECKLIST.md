@@ -382,7 +382,7 @@ Reference:
 
 ## 18. Migration ordering with feat/reach-out (IMPORTANT)
 
-- [ ] `0226_account_media` (per-character banner/avatar overrides) has journal `when` 1794059660668; reach-out's `0225_reach_out` has 1794049679413. `scripts/migrate.mjs` uses drizzle `migrate()`, which skips any migration whose `when` is older than the last applied one. **Whichever branch merges second must bump its journal `when` above the other's** (both SQL files use IF NOT EXISTS, so re-running is safe). Expected: 0226 ships first, so reach-out bumps 0225's `when` above 1794059660668 on rebase.
+- [ ] `0226_account_media` (per-character banner/avatar overrides) has journal `when` 1794059660668; reach-out's `0225_reach_out` has 1794049679413. `scripts/migrate.mjs` uses drizzle `migrate()`, which skips any migration whose `when` is older than the last applied one. **Whichever branch merges second must bump its journal `when` above the other's** (both SQL files use IF NOT EXISTS, so re-running is safe). Expected: 0226 ships first, so reach-out bumps 0225's `when` above the newest of ours on rebase (now 0228 at 1794059860668; 0226 and 0227 sit below it).
 
 ---
 

@@ -91,3 +91,8 @@ export const CAN_WRITE: PlatformRole = 'staff';
 export const CAN_GRANT: PlatformRole = 'root';
 /** Deleting a clan outright cannot be undone, so it is root's too; staff can archive. */
 export const CAN_DELETE_CLAN: PlatformRole = 'root';
+/**
+ * Moving money onto a space or a person by hand — attaching an unmatched Gumroad purchase
+ * (lib/unmatchedPurchaseActions). Root, like Supporter gifts: it hands out what people otherwise pay for.
+ */
+export const CAN_BILL: PlatformRole = 'root';

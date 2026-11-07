@@ -41,6 +41,9 @@ const WHAT: Record<string, string> = {
   supporter_gift_ended: 'Supporter gift ended early',
   platform_boost_gifted: 'Clan boost gift set',
   platform_boost_gift_cleared: 'Clan boost gift cleared',
+  // The unmatched Gumroad purchases inbox (/staff/subscriptions, lib/unmatchedPurchaseActions).
+  platform_purchase_attached: 'Unmatched purchase attached',
+  platform_purchase_dismissed: 'Unmatched purchase dismissed',
 };
 
 /** The ones that change who can sign in, or cannot be undone. Worth spotting in a long list. */
@@ -182,6 +185,17 @@ function describe(a: PlatformAction): string | null {
       return `${String(after?.tier ?? '?')} gift #${String(after?.giftId ?? '?')} of login #${String(after?.userId ?? '?')}`;
     case 'platform_boost_gifted':
       return `to Level ${String(after?.level ?? '?')}${after?.expiresAt ? ` until ${String(after.expiresAt).slice(0, 10)}` : ', indefinitely'}`;
+    case 'platform_purchase_attached':
+    case 'platform_purchase_dismissed': {
+      const parts = [`#${String(after?.unmatchedId ?? '?')}`, String(after?.product ?? 'unknown product')];
+      if (after?.tier) parts.push(String(after.tier));
+      if (after?.plan) parts.push(`as ${String(after.plan)}`);
+      if (after?.held) parts.push(String(after.held));
+      if (after?.userId) parts.push(`to login #${String(after.userId)}`);
+      if (after?.replaced) parts.push('replaced the previous membership');
+      if (after?.note) parts.push(`“${String(after.note)}”`);
+      return parts.join(' · ');
+    }
     default:
       return a.notes;
   }

@@ -15,7 +15,8 @@ import { supporterSubscriptions, users } from '@/db/schema';
 import { afterSupporterChange } from '@/lib/anvilDiscord';
 import { recordSupporterReferral, revokeReferrals } from '@/lib/referrals';
 import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, type GumroadEvent } from '@/lib/gumroad';
-import { parseStamp, supporterTierForGumroad } from '@/lib/supporterTiers';
+import { parseStamp, supporterTierForGumroad, type SupporterTierId } from '@/lib/supporterTiers';
+import { noteUnmatchedFollowUp, recordUnmatchedPurchase } from '@/lib/unmatchedPurchases';
 
 /** Is this notification about the Supporter product (rather than a clan plan)? */
 export function isSupporterEvent(ev: Pick<GumroadEvent, 'productId' | 'productPermalink'>): boolean {
@@ -37,6 +38,54 @@ function chargedAt(stamp: string | null): number {
 
 type Result = { status: number; body: Record<string, unknown> };
 const ok = (body: Record<string, unknown> = {}): Result => ({ status: 200, body: { received: true, ...body } });
+
+/** When a sale's first period ends (a free trial's end, else a term after the charge), and whether it is a trial. */
+function saleTerms(ev: GumroadEvent): { trialEnd: number; periodEnd: string; isTrial: boolean } {
+  // A free trial's first charge is due when the trial runs out, not a whole term from now.
+  const trialEnd = parseStamp(ev.freeTrialEndsAt);
+  const periodEnd = Number.isFinite(trialEnd) ? new Date(trialEnd).toISOString() : nextChargeDue(ev.recurrence, chargedAt(ev.saleTimestamp));
+  // The Anvil Discord announces a membership once it is paid for: a trial waits for its first charge.
+  const isTrial = Number.isFinite(trialEnd) && trialEnd > Date.now();
+  return { trialEnd, periodEnd, isTrial };
+}
+
+/**
+ * A new Supporter membership for this login, from its sale — what the webhook does for a sale whose
+ * checkout ref found the buyer, and what staff attaching an unmatched sale (lib/unmatchedPurchaseActions)
+ * does for the person they picked. The caller has already checked the sale, its subscription and tier.
+ */
+export async function startSupporterMembership(userId: number, ev: GumroadEvent, tier: SupporterTierId): Promise<number | null> {
+  const { trialEnd, periodEnd, isTrial } = saleTerms(ev);
+  const [created] = await db.insert(supporterSubscriptions).values({
+    userId,
+    tier,
+    status: 'active',
+    recurrence: ev.recurrence,
+    gumroadSubscriptionId: ev.subscriptionId,
+    gumroadSaleId: ev.saleId,
+    currentPeriodEnd: periodEnd,
+    startedAt: nowIso(),
+  }).returning({ id: supporterSubscriptions.id });
+  if (created) afterSupporterChange(userId, { announceRowId: isTrial ? null : created.id });
+  // Bought through somebody's invite link: their reward is held until the money has settled.
+  if (created && ev.urlParams.via) {
+    await recordSupporterReferral({
+      code: ev.urlParams.via,
+      buyerUserId: userId,
+      subscriptionId: ev.subscriptionId,
+      saleId: ev.saleId,
+      recurrence: ev.recurrence,
+      trialEndsAt: Number.isFinite(trialEnd) ? trialEnd : null,
+    });
+  }
+  return created?.id ?? null;
+}
+
+/** A notification about a membership nobody holds: it may be one waiting in the unmatched inbox. */
+async function unknownMembership(ev: GumroadEvent): Promise<Result> {
+  await noteUnmatchedFollowUp(ev);
+  return ok({ note: 'unknown membership' });
+}
 
 /** Apply one Supporter notification. Returns what the route should answer. */
 export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
@@ -68,11 +117,7 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
         console.warn('[supporter] sale with unknown tier', ev.tier, ev.subscriptionId);
         return ok({ note: 'unknown tier' });
       }
-      // A free trial's first charge is due when the trial runs out, not a whole term from now.
-      const trialEnd = parseStamp(ev.freeTrialEndsAt);
-      const periodEnd = Number.isFinite(trialEnd) ? new Date(trialEnd).toISOString() : nextChargeDue(ev.recurrence, chargedAt(ev.saleTimestamp));
-      // The Anvil Discord announces a membership once it is paid for: a trial waits for its first charge.
-      const isTrial = Number.isFinite(trialEnd) && trialEnd > Date.now();
+      const { periodEnd, isTrial } = saleTerms(ev);
       if (row) {
         await db
           .update(supporterSubscriptions)
@@ -85,36 +130,17 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
       const ref = ev.urlParams.ref;
       const buyer = ref ? await db.query.users.findFirst({ where: eq(users.supporterRef, ref), columns: { id: true } }) : undefined;
       if (!buyer) {
+        // Kept for staff to attach by hand (the unmatched inbox, /staff/subscriptions). Best-effort.
         console.warn('[supporter] no buyer for sale', ev.saleId, ev.subscriptionId);
+        await recordUnmatchedPurchase(ev, { kind: 'supporter', reason: 'no-buyer' });
         return ok({ note: 'no matching user' });
       }
-      const [created] = await db.insert(supporterSubscriptions).values({
-        userId: buyer.id,
-        tier,
-        status: 'active',
-        recurrence: ev.recurrence,
-        gumroadSubscriptionId: ev.subscriptionId,
-        gumroadSaleId: ev.saleId,
-        currentPeriodEnd: periodEnd,
-        startedAt: nowIso(),
-      }).returning({ id: supporterSubscriptions.id });
-      if (created) afterSupporterChange(buyer.id, { announceRowId: isTrial ? null : created.id });
-      // Bought through somebody's invite link: their reward is held until the money has settled.
-      if (created && ev.urlParams.via) {
-        await recordSupporterReferral({
-          code: ev.urlParams.via,
-          buyerUserId: buyer.id,
-          subscriptionId: ev.subscriptionId,
-          saleId: ev.saleId,
-          recurrence: ev.recurrence,
-          trialEndsAt: Number.isFinite(trialEnd) ? trialEnd : null,
-        });
-      }
+      await startSupporterMembership(buyer.id, ev, tier);
       return ok({ tier });
     }
 
     case 'recurring_charge': {
-      if (!row) return ok({ note: 'unknown membership' });
+      if (!row) return unknownMembership(ev);
       // A renewal carries the tier it charged for, so an upgrade or downgrade made on Gumroad lands here.
       const tier = supporterTierForGumroad(ev.tier) ?? row.tier;
       await db
@@ -134,7 +160,7 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
     }
 
     case 'cancellation': {
-      if (!row) return ok({ note: 'unknown membership' });
+      if (!row) return unknownMembership(ev);
       // They paid for this term; it runs to its end.
       if (row.status === 'active') {
         await db.update(supporterSubscriptions).set({ status: 'cancelling' }).where(eq(supporterSubscriptions.id, row.id));
@@ -143,7 +169,7 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
     }
 
     case 'subscription_ended': {
-      if (!row) return ok({ note: 'unknown membership' });
+      if (!row) return unknownMembership(ev);
       if (row.status !== 'refunded') {
         await db.update(supporterSubscriptions).set({ status: 'ended', endedAt: nowIso() }).where(eq(supporterSubscriptions.id, row.id));
       }
@@ -154,7 +180,7 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
     }
 
     case 'restarted': {
-      if (!row) return ok({ note: 'unknown membership' });
+      if (!row) return unknownMembership(ev);
       if (row.status === 'refunded') return ok({ note: 'refunded' });
       const check = await checkSubscriptionWithGumroad(ev.subscriptionId);
       if (check === 'error') return { status: 503, body: { error: 'Could not confirm the subscription with Gumroad' } };
@@ -173,7 +199,7 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
 
     case 'refund':
     case 'dispute': {
-      if (!row) return ok({ note: 'unknown membership' });
+      if (!row) return unknownMembership(ev);
       await db.update(supporterSubscriptions).set({ status: 'refunded', endedAt: nowIso() }).where(eq(supporterSubscriptions.id, row.id));
       // Money taken back takes the referrer's reward with it, granted or not.
       const lost = row.gumroadSubscriptionId ? await revokeReferrals(row.gumroadSubscriptionId, { heldOnly: false }) : [];

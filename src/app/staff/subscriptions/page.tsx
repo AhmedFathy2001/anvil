@@ -3,7 +3,9 @@ import { eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clans, supporterSubscriptions, users } from '@/db/schema';
-import { requirePlatformPage } from '@/lib/platformAccess';
+import { CAN_BILL, requirePlatformPage } from '@/lib/platformAccess';
+import { hasPlatformRole } from '@/lib/clanRoles';
+import { listUnmatchedPurchases } from '@/lib/unmatchedPurchases';
 import { billingStatus, subscriptionFacts, type BillingState } from '@/lib/clanBilling';
 import { PLANS, PLAN_IDS } from '@/lib/plans';
 import { CREATOR_FREE_ID, CREATOR_PLANS, CREATOR_PLAN_IDS } from '@/lib/creatorCatalog';
@@ -16,6 +18,7 @@ import {
   type SupporterTierId,
 } from '@/lib/supporterTiers';
 import ClanLink from '@/components/ClanLink';
+import UnmatchedPurchases from './UnmatchedPurchases';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +42,8 @@ function day(stamp: string | null | undefined): string {
 /**
  * Who is paying Anvil, by tier. Two kinds of subscription that never mix: a CLAN's plan
  * (lib/plans — what the clan may do) and a PERSON's Supporter tier (lib/supporterTiers — flair and
- * hosting room, following the login into every clan). Read-only, so support sees it too.
+ * hosting room, following the login into every clan). Read-only, so support sees it too — except the
+ * unmatched-purchases inbox at the top, whose attach / dismiss are root's (platformAccess CAN_BILL).
  */
 export default async function StaffSubscriptionsPage({
   searchParams,
@@ -50,6 +54,8 @@ export default async function StaffSubscriptionsPage({
   if (!actor) notFound();
   const view: View = (await searchParams).view === 'people' ? 'people' : 'clans';
   const now = Date.now();
+  // Purchases the webhook could not place (lib/unmatchedPurchases), shown on both tabs.
+  const unmatched = await listUnmatchedPurchases();
 
   // ── Clans ────────────────────────────────────────────────────────────────────────────────
   // clan-scope: global -- the platform's own view of every clan's billing.
@@ -153,6 +159,8 @@ export default async function StaffSubscriptionsPage({
         Who is paying, by tier. Clan plans and personal Supporter tiers are separate subscriptions. Run-rate is at list
         price: ≈ ${clanMrr.toFixed(2)}/mo from clans, ≈ ${peopleMrr.toFixed(2)}/mo from individuals.
       </p>
+
+      <UnmatchedPurchases open={unmatched.open} resolved={unmatched.resolved} canResolve={hasPlatformRole(actor.role, CAN_BILL)} />
 
       <div className="mt-5 flex gap-1 border-b border-card-border overflow-x-auto overflow-y-hidden scroll-quiet">
         {tab('clans', 'Clans', paidClans.length)}
