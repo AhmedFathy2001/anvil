@@ -7,6 +7,7 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import LevelRulesEditor from '@/components/LevelRulesEditor';
 import type { EmissionSettingsView, EmissionState } from '@/lib/emissionSettings';
+import { CA_TIERS, QUEST_TIERS, NOTIFY_DEFAULTS, type NotifyPrefs } from '@/lib/notifyPrefs';
 import type { LevelPostsChoice, MilestoneRules } from '@/lib/levelRules';
 
 const KIND_LABELS: Record<string, string> = {
@@ -364,4 +365,159 @@ function PersonalLevelRules({
 function maskUrl(url: string): string {
   const m = /webhooks\/(\d+)\//.exec(url);
   return m ? `Discord webhook …${m[1].slice(-4)}` : 'Discord webhook';
+}
+
+const CA_OPTIONS = [
+  ...CA_TIERS.map((t) => ({ value: t, label: t.charAt(0) + t.slice(1).toLowerCase() })),
+  { value: 'OFF', label: 'Off' },
+];
+const QUEST_OPTIONS = [
+  { value: 'ALL', label: 'All' },
+  ...QUEST_TIERS.filter((t) => t !== 'ALL').map((t) => ({ value: t, label: t.charAt(0) + t.slice(1).toLowerCase() })),
+  { value: 'OFF', label: 'Off' },
+];
+
+/** A whole-number field shown with thousands separators; commits on blur or Enter, not per keystroke. */
+function CommitNumber({
+  value,
+  onCommit,
+  min,
+  disabled,
+  ariaLabel,
+}: {
+  value: number;
+  onCommit: (n: number) => void;
+  /** Smallest value other than 0 (0 always means off). */
+  min: number;
+  disabled?: boolean;
+  ariaLabel: string;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  function commit() {
+    if (draft === null) return;
+    const digits = draft.replace(/[^0-9]/g, '');
+    setDraft(null);
+    let n = digits === '' ? 0 : Number(digits);
+    if (n > 0 && n < min) n = min;
+    if (n !== value) onCommit(n);
+  }
+  return (
+    <Input
+      value={draft ?? value.toLocaleString('en-US')}
+      onChange={(e) => setDraft(e.target.value)}
+      onFocus={(e) => e.target.select()}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+      inputMode="numeric"
+      disabled={disabled}
+      aria-label={ariaLabel}
+      className="w-36 shrink-0 text-right"
+    />
+  );
+}
+
+function PrefRow({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{title}</p>
+        <p className="text-[12px] text-text-muted">{hint}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function PrefGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="grid gap-4">
+      <h3 className="flex items-center gap-2 text-sm font-semibold">
+        <span className="h-4 w-1 bg-gold" aria-hidden />
+        {title}
+      </h3>
+      {children}
+    </div>
+  );
+}
+
+/** "What your plugin posts" — the switches and floors that used to be RuneLite config items. */
+export function PluginPostsPanel({ initial }: { initial: EmissionSettingsView }) {
+  const { view, busy, error, patch } = useEmissions(initial);
+  const p = view.notifyPrefs;
+  const save = (change: Partial<NotifyPrefs>) => patch({ notifyPrefs: change });
+  const toggle = (key: 'drops' | 'pets' | 'deaths' | 'pvp' | 'clog' | 'levels' | 'diaries', label: string, description?: string) => (
+    <Checkbox checked={p[key]} onChange={(v) => save({ [key]: v })} disabled={busy} label={label} description={description} />
+  );
+  const [deathMsg, setDeathMsg] = useState<string | null>(null);
+  function commitDeathMsg() {
+    if (deathMsg === null) return;
+    const next = deathMsg.trim();
+    setDeathMsg(null);
+    if (next !== p.deathMsg) save({ deathMsg: next || NOTIFY_DEFAULTS.deathMsg });
+  }
+  return (
+    <div className="grid gap-6">
+      <p className="max-w-[70ch] text-[12.5px] text-text-muted">
+        Your clan&rsquo;s own channel switches still apply on top of these. Changes reach your plugin within about a minute.
+      </p>
+      <ErrorLine error={error} />
+
+      <PrefGroup title="Drops & pets">
+        {toggle('drops', 'Rare drops', 'Post valuable or very rare drops to the clan drops channel.')}
+        <PrefRow title="Min drop value" hint="Post drops worth at least this, in gp (min 1,000,000; 0 = off).">
+          <CommitNumber value={p.dropMin} min={1_000_000} disabled={busy} ariaLabel="Min drop value" onCommit={(n) => save({ dropMin: n })} />
+        </PrefRow>
+        <PrefRow title="Min drop rarity (1 in N)" hint="Also post drops rarer than 1 in N whatever their value (min 1000; 0 = off).">
+          <CommitNumber value={p.rarity} min={1000} disabled={busy} ariaLabel="Min drop rarity" onCommit={(n) => save({ rarity: n })} />
+        </PrefRow>
+        <PrefRow title="Loot key value" hint="Post a loot key whose contents total at least this, in gp (0 = off).">
+          <CommitNumber value={p.keyMin} min={1} disabled={busy} ariaLabel="Loot key value" onCommit={(n) => save({ keyMin: n })} />
+        </PrefRow>
+        {toggle('pets', 'Pets', 'Post to the clan drops channel when you get a pet.')}
+      </PrefGroup>
+
+      <PrefGroup title="Deaths & PvP">
+        {toggle('deaths', 'Deaths', 'Post a screenshot to the clan deaths channel when you die.')}
+        <PrefRow title="Death message" hint="Use {name} for your RSN.">
+          <Input
+            value={deathMsg ?? p.deathMsg}
+            onChange={(e) => setDeathMsg(e.target.value)}
+            onBlur={commitDeathMsg}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            maxLength={200}
+            disabled={busy}
+            aria-label="Death message"
+            className="w-full sm:w-72"
+          />
+        </PrefRow>
+        {toggle('pvp', 'PvP kills', 'Post a screenshot to the clan PvP channel when you kill a player.')}
+      </PrefGroup>
+
+      <PrefGroup title="Achievements">
+        {toggle('clog', 'Collection log slots', 'Post every new collection-log slot to the clan achievements channel.')}
+        {toggle('levels', 'Level milestones', 'Post level milestones (your clan’s rules) to the clan and your own webhooks.')}
+        {toggle('diaries', 'Diary completions')}
+        <PrefRow title="Combat task tier" hint="Post combat tasks at or above this tier, plus tier clears; Off posts none.">
+          <Select
+            value={p.ca}
+            onChange={(v) => save({ ca: v as NotifyPrefs['ca'] })}
+            options={CA_OPTIONS}
+            disabled={busy}
+            ariaLabel="Combat task tier"
+            className="w-48 shrink-0"
+          />
+        </PrefRow>
+        <PrefRow title="Quest tier" hint="Post quests at or above this difficulty; Off posts none.">
+          <Select
+            value={p.quests}
+            onChange={(v) => save({ quests: v as NotifyPrefs['quests'] })}
+            options={QUEST_OPTIONS}
+            disabled={busy}
+            ariaLabel="Quest tier"
+            className="w-48 shrink-0"
+          />
+        </PrefRow>
+      </PrefGroup>
+    </div>
+  );
 }

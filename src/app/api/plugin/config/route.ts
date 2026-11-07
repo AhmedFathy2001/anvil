@@ -35,6 +35,8 @@ import { homeBoardForUser } from '@/lib/pluginHomeBoard';
 import { panelSchedule } from '@/lib/pluginPanel';
 import { foldOtherBoards, summaryOf, wantsAllBoards } from '@/lib/pluginBoards';
 import { buildEnrolledConfig, clanPluginSettings, notifyFlags, pluginRollTables } from '@/lib/pluginConfigEnrolled';
+import { normalizeNotifyPrefs, pluginMe } from '@/lib/notifyPrefs';
+import { getNotifyPrefs } from '@/lib/notifyPrefsStore';
 
 /**
  * When a token holder resolves to no active event, check whether the RSN they're logged into is
@@ -220,6 +222,9 @@ export async function GET(request: Request) {
           ...panelSchedule(schedule, { ids: [homeBoard?.eventId ?? -1], title: homeBoard ? null : unlinkedActiveEvent }),
         },
       };
+      // What this person's posts do (lib/notifyPrefs): their /settings choices AND the clan's channel
+      // switches, floors applied. Capability 'notify-prefs'; the plugin reads only this.
+      body.me = pluginMe(await getNotifyPrefs(userOnly.userId), notifyFlags(webhooks), dropRarityFloor, body.modeThresholds as never);
       // No board live HERE, but the character may be on boards elsewhere: a multi-board plugin
       // tracks those too (lib/pluginBoards). Keyed to the played character, so nothing at the
       // login screen beyond what the launcher hint already names.
@@ -255,6 +260,13 @@ export async function GET(request: Request) {
     addressedClanId: clan.id,
     accountId: async () => auth.accountId,
   });
+  // See the unenrolled branch (lib/notifyPrefs). An event token with no login behind it has no prefs of
+  // its own: the defaults stand.
+  {
+    const b = built.body as unknown as Record<string, unknown>;
+    const prefs = auth.userId != null ? await getNotifyPrefs(auth.userId) : normalizeNotifyPrefs(null);
+    b.me = pluginMe(prefs, b.notify as never, b.dropRarityFloor as never, b.modeThresholds as never);
+  }
   // ONE DROP, EVERY BOARD. Only for a plugin that says it reads the `board` tag (X-Anvil-Boards):
   // an older one would file board B's tiles against board A, so it keeps exactly today's answer.
   if (wantsAllBoards(request)) {

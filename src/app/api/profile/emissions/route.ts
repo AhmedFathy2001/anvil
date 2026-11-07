@@ -12,6 +12,8 @@ import {
   type EmissionState,
 } from '@/lib/emissionSettings';
 import { isLevelPostsChoice, normalizeMilestoneRules } from '@/lib/levelRules';
+import { normalizeNotifyPrefs } from '@/lib/notifyPrefs';
+import { getNotifyPrefs, setNotifyPrefs } from '@/lib/notifyPrefsStore';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +58,14 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'levelPostsClan must be clan | ninetyNinesAndMax | off' }, { status: 400 });
     }
     await db.update(users).set({ levelPostsClan: body.levelPostsClan }).where(eq(users.id, session.userId));
+    return NextResponse.json(await emissionSettingsView(session.userId, session.playerId));
+  }
+
+  // What their plugin posts (lib/notifyPrefs): the whole set, merged onto what's stored.
+  if ('notifyPrefs' in body) {
+    const current = await getNotifyPrefs(session.userId);
+    const patch = body.notifyPrefs && typeof body.notifyPrefs === 'object' ? body.notifyPrefs : {};
+    await setNotifyPrefs(session.userId, normalizeNotifyPrefs({ ...current, ...patch }));
     return NextResponse.json(await emissionSettingsView(session.userId, session.playerId));
   }
 

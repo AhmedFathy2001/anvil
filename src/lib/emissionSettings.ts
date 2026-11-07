@@ -3,6 +3,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { accountClanEmission, accounts, clanMemberships, clans, userWebhooks, users } from '@/db/schema';
 import { clanSeat } from '@/lib/seatScope';
+import { parseNotifyPrefs, type NotifyPrefs } from '@/lib/notifyPrefs';
 import { isLevelPostsChoice, parseMilestoneRules, type LevelPostsChoice, type MilestoneRules } from '@/lib/levelRules';
 
 /**
@@ -53,11 +54,13 @@ export interface EmissionSettingsView {
   levelPostsClan: LevelPostsChoice;
   /** The rules for level / XP posts on the person's own webhooks. */
   personalLevelRules: MilestoneRules;
+  /** What this person's plugin posts (lib/notifyPrefs) — once RuneLite settings. */
+  notifyPrefs: NotifyPrefs;
 }
 
 export async function emissionSettingsView(userId: number, playerId: number): Promise<EmissionSettingsView> {
   const [user] = await db
-    .select({ block: users.blockGuestEmissions, levelPostsClan: users.levelPostsClan, levelRules: users.levelRules })
+    .select({ block: users.blockGuestEmissions, levelPostsClan: users.levelPostsClan, levelRules: users.levelRules, notifyPrefs: users.notifyPrefs })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
@@ -165,6 +168,7 @@ export async function emissionSettingsView(userId: number, playerId: number): Pr
     })),
     levelPostsClan: isLevelPostsChoice(user?.levelPostsClan) ? user.levelPostsClan : 'clan',
     personalLevelRules: parseMilestoneRules(user?.levelRules),
+    notifyPrefs: parseNotifyPrefs(user?.notifyPrefs),
   };
 }
 

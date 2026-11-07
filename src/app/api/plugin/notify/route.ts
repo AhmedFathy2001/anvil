@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { judgeDropRequest } from '@/lib/notifyDropJudge';
 import { requirePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import {
   getDropRarityFloor,
@@ -207,6 +208,14 @@ export async function POST(request: Request) {
 
   if (!isChannel(channel)) {
     return NextResponse.json({ error: 'Unknown channel' }, { status: 400 });
+  }
+
+  // A drop the plugin's screenshot gate let through (capability 'notify-prefs'): whether it posts, and
+  // what the post says about it, is decided here (lib/notifyDrops) — the person's floors live on the site.
+  if (kind === 'drop' && facts && typeof facts === 'object' && (facts as { judge?: unknown }).judge === true) {
+    const judged = await judgeDropRequest(request, clan.id, auth.userId, member?.accountId ?? null, facts);
+    if (!judged) return NextResponse.json({ ok: true, declined: 1 });
+    facts = judged;
   }
 
   // ── Build the message once, then fan it out ─────────────────────────────────────────────────

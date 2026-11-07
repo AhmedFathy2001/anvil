@@ -207,6 +207,10 @@ export const PLUGIN_CAPABILITIES = [
   // the spot (screenshots, instant chat lines, XP/KC step lines); POST /api/plugin/facts takes what
   // it saw (loot, hauls, kills) and credits drop, kill and value tiles through the submissions route.
   'rules',
+  // What a person's plugin posts lives on the site (lib/notifyPrefs, /settings): /config carries the
+  // resolved `me` block, /rules the rare-drop screenshot gate, and /notify judges a drop candidate
+  // (facts.judge, lib/notifyDrops). POST /api/plugin/notify-prefs takes the old RuneLite values once.
+  'notify-prefs',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */
