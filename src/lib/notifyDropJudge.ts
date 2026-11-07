@@ -1,4 +1,4 @@
-import { judgeDrop, type CandidateItem, type DropCandidate } from '@/lib/notifyDrops';
+import { dropRarity, judgeDrop, type CandidateItem, type DropCandidate } from '@/lib/notifyDrops';
 import { itemNameIndex } from '@/lib/notifyDropItems';
 import { getNotifyPrefs } from '@/lib/notifyPrefsStore';
 import { clanPluginSettings } from '@/lib/pluginConfigEnrolled';
@@ -60,4 +60,21 @@ export async function judgeDropRequest(
     guaranteed: settings.facts?.guaranteed,
     nameOf: names.nameOf,
   });
+}
+
+/**
+ * A named pet's drop rate, filled in here off the same tables as rare drops (the plugin used to price it
+ * itself). Unchanged facts when it already has one, or when there's nothing to price it by.
+ */
+export async function withPetRarity(facts: unknown): Promise<unknown> {
+  if (!facts || typeof facts !== 'object') return facts;
+  const o = facts as Record<string, unknown>;
+  const itemId = num(o.itemId);
+  const name = str(o.name);
+  const source = str(o.source);
+  if (o.dropRate != null || itemId == null || itemId <= 0 || !name || !source) return facts;
+  const { nameOf } = await itemNameIndex();
+  // A pet the server files under a killable monster is by definition an npc drop.
+  const rate = dropRarity(str(o.sourceKind, 32) ?? 'npc', source, { id: itemId, name, qty: 1 }, nameOf);
+  return rate != null && rate > 0 ? { ...o, dropRate: rate } : facts;
 }

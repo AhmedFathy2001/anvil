@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { judgeDropRequest } from '@/lib/notifyDropJudge';
+import { judgeDropRequest, withPetRarity } from '@/lib/notifyDropJudge';
 import { requirePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import {
   getDropRarityFloor,
@@ -217,6 +217,7 @@ export async function POST(request: Request) {
     if (!judged) return NextResponse.json({ ok: true, declined: 1 });
     facts = judged;
   }
+  if (kind === 'pet') facts = await withPetRarity(facts);
 
   // ── Build the message once, then fan it out ─────────────────────────────────────────────────
   //
