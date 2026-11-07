@@ -1,6 +1,6 @@
 {
   "source": "https://oldschool.runescape.wiki/w/Module:Collection_log/data.json",
-  "generatedAt": "2026-10-20T17:14:51.684Z",
+  "generatedAt": "2026-11-07T13:15:18.733Z",
   "activityCount": 125,
   "itemCount": 1734,
   "manualOnlyIds": [
@@ -147,7 +147,6 @@
     13642,
     13644,
     13646,
-    19707,
     19912,
     20659,
     20661,
@@ -7049,7 +7048,7 @@
       },
       {
         "id": 21009,
-        "name": "Dragon sword"
+        "name": "Dragon shortsword"
       },
       {
         "id": 21028,
