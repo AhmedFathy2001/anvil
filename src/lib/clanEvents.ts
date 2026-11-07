@@ -7,7 +7,7 @@ import { type ClanEventModules, anyModule, keyFor, parseModules, signupWindow, s
 import { loadQuestions } from '@/lib/clanEventQuestions';
 import { activeCount, activeNames, mySignup, signUp, withdraw } from '@/lib/clanEventSignups';
 import { type Occurrence, currentOccurrence, dueNotice, pastOccurrences, phaseOf } from '@/lib/clanEventTimes';
-import { clanEventThumbnail, sendClanEventPost, siteBaseUrl, upsertClanEventPost } from '@/lib/discord';
+import { clanEventThumbnail, deleteClanEventPost, sendClanEventPost, siteBaseUrl, upsertClanEventPost } from '@/lib/discord';
 import { listLinkableChannels } from '@/lib/discord-broadcast';
 import { getBotCredentials } from '@/lib/discord-roles';
 import { findOrCreateAnvilWebhook } from '@/lib/discord-webhooks';
@@ -282,9 +282,23 @@ export async function updateClanEvent(clanId: number, id: number, input: ClanEve
   const prior = await db.query.clanEvents.findFirst({ where: and(eq(clanEvents.id, id), eq(clanEvents.clanId, clanId)) });
   if (!prior) return null;
   const moved = prior.startsAt !== input.startsAt || prior.repeat !== input.repeat || prior.timezone !== input.timezone;
+  // "Post to" changed (default ↔ a channel, or one channel to another): the old announcement belongs
+  // to the old webhook, which is the only one that can edit it — so take it down and post once in the
+  // new place, instead of a second copy (a channel picked equal to the default channel doubled up).
+  const next = columns(input);
+  const priorMessage = (prior.discordMessageIds ?? {})[MESSAGE];
+  const destinationChanged = (prior.postWebhookUrl ?? null) !== (next.postWebhookUrl ?? null);
+  if (destinationChanged && priorMessage) {
+    await deleteClanEventPost(clanId, priorMessage, prior.postWebhookUrl).catch(() => {});
+  }
   const [row] = await db
     .update(clanEvents)
-    .set({ ...columns(input), updatedAt: new Date().toISOString(), ...(moved ? { remindedFor: null, startedFor: null } : {}) })
+    .set({
+      ...next,
+      updatedAt: new Date().toISOString(),
+      ...(moved ? { remindedFor: null, startedFor: null } : {}),
+      ...(destinationChanged && priorMessage ? { discordMessageIds: {} } : {}),
+    })
     .where(eq(clanEvents.id, id))
     .returning();
   void announce(row).catch((e) => log.warn('clan-events.announce-failed', { id }, e));
@@ -394,7 +408,26 @@ const MESSAGE = 'message';
 const ANNOUNCED_FOR = 'for';
 
 /** Post the announcement, or edit the one already up (the going count, a new time, the next week). */
-async function announce(e: ClanEvent): Promise<void> {
+/**
+ * One announcement at a time per event, each from a fresh read: two updates landing together
+ * (created, then the first "going") both saw "no message yet" and both posted.
+ */
+const announcing = new Map<number, Promise<void>>();
+function announce(e: ClanEvent): Promise<void> {
+  const run = (announcing.get(e.id) ?? Promise.resolve())
+    .catch(() => {})
+    .then(async () => {
+      const fresh = await db.query.clanEvents.findFirst({ where: and(eq(clanEvents.id, e.id), eq(clanEvents.clanId, e.clanId)) });
+      if (fresh) await announceNow(fresh);
+    });
+  announcing.set(e.id, run);
+  void run.finally(() => {
+    if (announcing.get(e.id) === run) announcing.delete(e.id);
+  }).catch(() => {});
+  return run;
+}
+
+async function announceNow(e: ClanEvent): Promise<void> {
   const o = currentOccurrence(e, Date.now());
   const ids = e.discordMessageIds ?? {};
   const prior = ids[MESSAGE];

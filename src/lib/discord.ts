@@ -1957,6 +1957,29 @@ export async function upsertClanEventPost(clanId: number, embed: DiscordEmbed, e
   return upsertWebhookMessage(destination, { ...mention, embeds: [await withClanCrest(clanId, embed)] }, clanId, existingMessageId);
 }
 
+/**
+ * Take a clan event's announcement down from where it was posted (the event's own channel webhook,
+ * or the clan default when null). Used when "Post to" changes: a webhook can only edit its own
+ * messages, so the new destination would otherwise post a second copy beside the old one.
+ */
+export async function deleteClanEventPost(clanId: number, messageId: string, postWebhookUrl?: string | null): Promise<void> {
+  const destination = await clanEventDestination(clanId, postWebhookUrl);
+  for (const webhookUrl of destination?.urls ?? []) {
+    try {
+      const res = await fetch(webhookRequestUrl(webhookUrl, { messageId }), { method: 'DELETE', signal: AbortSignal.timeout(8_000) });
+      if (res.ok || res.status === 404) {
+        if (res.ok) return;
+        continue; // not this webhook's message: try the next configured one
+      }
+      log.warn('discord.webhook-delete-fail', { clanId, status: res.status });
+      return;
+    } catch (err) {
+      log.warn('discord.webhook-delete-fail', { clanId }, err);
+      return;
+    }
+  }
+}
+
 /** A clan event's reminder or "starting now": a fresh post, pinging the member role when asked. */
 export async function sendClanEventPost(clanId: number, embed: DiscordEmbed, ping: boolean, postWebhookUrl?: string | null): Promise<boolean> {
   if (await feedOff(clanId, 'clanEvents')) return false;
