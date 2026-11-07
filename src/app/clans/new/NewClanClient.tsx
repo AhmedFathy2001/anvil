@@ -1,8 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Checkbox from '@/components/Checkbox';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
+import Select from '@/components/Select';
+import { FOUND_VIA } from '@/lib/noticeRules';
+import PersonalNote from '@/components/PersonalNote';
 
 /**
  * Create a clan.
@@ -15,11 +19,17 @@ export default function NewClanClient({
   apex,
   signedIn,
   trialPlan,
+  created = null,
+  contactId = null,
 }: {
   apex: string;
   signedIn: boolean;
   /** A paid tier picked on /pricing — the form then ends on its Gumroad checkout. */
   trialPlan: { id: string; name: string; trialDays: number } | null;
+  /** Back from "Join the Anvil Discord" (?created=<slug>): straight to the finished screen. */
+  created?: string | null;
+  /** Ahmed's Discord id, for "Message me". */
+  contactId?: string | null;
 }) {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -29,7 +39,10 @@ export default function NewClanClient({
   const [nameCheck, setNameCheck] = useState<{ ok: boolean; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(created);
+  const [foundVia, setFoundVia] = useState('');
+  const [foundViaNote, setFoundViaNote] = useState('');
+  const [joinAnvil, setJoinAnvil] = useState(true);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
 
   // Suggest the slug from the display name — or the in-game name when no display name is given, since
@@ -81,15 +94,26 @@ export default function NewClanClient({
       const res = await fetch('/api/clans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, slug, inGameName, plan: trialPlan?.id }),
+        body: JSON.stringify({ name, slug, inGameName, plan: trialPlan?.id, foundVia: foundVia || null, foundViaNote }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(j.error ?? `Failed (${res.status})`);
         return;
       }
+      const made = j.clan?.slug ?? slug;
+      // "Join the Anvil Discord": one Discord consent screen, then back to the finished screen here.
+      // Not when a trial checkout is waiting — that link would be lost on the round trip, so the
+      // finished screen offers the join as a button instead.
+      if (joinAnvil && !j.checkoutUrl) {
+        const back = `/clans/new?created=${encodeURIComponent(made)}`;
+        // A full navigation on purpose: it's an API route that redirects to Discord, not a page.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+        window.location.href = `/api/auth/discord/start?anvil=1&return=${encodeURIComponent(back)}`;
+        return;
+      }
       setCheckoutUrl(j.checkoutUrl ?? null);
-      setDone(j.clan?.slug ?? slug);
+      setDone(made);
     } finally {
       setBusy(false);
     }
@@ -131,6 +155,14 @@ export default function NewClanClient({
           A few things left: name it in Discord, point it at a channel, load your members, make a board,
           fill it. The checklist on your dashboard walks them and knows which you have done.
         </p>
+        <PersonalNote
+          contactId={contactId}
+          joinBack={created ? null : `/clans/new?created=${encodeURIComponent(done)}`}
+          className="mt-5"
+        >
+          Hey, I&rsquo;m Ahmed, I build Anvil. If you get stuck, or something isn&rsquo;t how you&rsquo;d want it,
+          tell me. I read everything, and I&rsquo;d really like to hear what&rsquo;s getting in your way.
+        </PersonalNote>
         <div className="mt-4 flex flex-wrap gap-3">
           {/* ClanLink, not a raw anchor, and it matters here more than almost anywhere: these cross
               from the apex INTO a clan, and ClanLink is what turns a clan change into a real
@@ -237,6 +269,36 @@ export default function NewClanClient({
         )}
       </div>
 
+      <div>
+        <label className="mb-1.5 block text-sm text-gray-300">
+          Where did you find Anvil? <span className="text-gray-600">(optional)</span>
+        </label>
+        <Select
+          value={foundVia}
+          onChange={setFoundVia}
+          placeholder="Pick one"
+          ariaLabel="Where did you find Anvil?"
+          options={FOUND_VIA.map((o) => ({ value: o.id, label: o.label }))}
+        />
+        {foundVia && foundVia !== 'plugin-hub' && (
+          <Input
+            value={foundViaNote}
+            onChange={(e) => setFoundViaNote(e.target.value)}
+            maxLength={120}
+            placeholder={foundVia === 'other' ? 'Where?' : 'Which one? (optional)'}
+            className="mt-2 rounded-xl px-4 py-2.5 outline-none"
+          />
+        )}
+        <p className="mt-1 text-xs text-gray-500">Helps me know what&rsquo;s working. Only Anvil staff see it.</p>
+      </div>
+
+      <Checkbox
+        checked={joinAnvil}
+        onChange={setJoinAnvil}
+        label="Join the Anvil Discord"
+        description="Where help, updates and other clan admins are. Discord asks you once to allow it."
+      />
+
       {error && <p className="text-sm text-red-300">{error}</p>}
 
       <button
@@ -258,3 +320,4 @@ export default function NewClanClient({
 </form>
   );
 }
+

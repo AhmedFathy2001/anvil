@@ -11,11 +11,13 @@ import { safeReturnPath } from '@/lib/safe-redirect';
 import { completeDiscordLogin, loginFailPage } from '@/lib/discord-login';
 import { apexDomain, originForHost, resolveReturnHost, sessionCookieDomain } from '@/lib/clanContext';
 import { BOT_CONNECT_COOKIE } from '@/lib/discordGuildBinding';
+import { joinAnvilDiscord, sendWelcomeDm, welcomeContextFor } from '@/lib/welcomeDm';
 import { finishBotConnect } from '@/lib/discordBotConnect';
 
 const STATE_COOKIE = 'discord_oauth_state';
 const RETURN_COOKIE = 'discord_oauth_return';
 const RETURN_HOST_COOKIE = 'discord_oauth_return_host';
+const ANVIL_JOIN_COOKIE = 'discord_oauth_anvil_join';
 
 function parseCookies(request: Request): Map<string, string> {
   const cookieHeader = request.headers.get('cookie') || '';
@@ -49,6 +51,16 @@ export async function GET(request: Request) {
     return handleBotConnect(request, cookieMap, botClan, { code, state, error }, botThen === 'setup');
   }
 
+  // Said no on Discord's screen to "Join the Anvil Discord": they're already signed in, so that's not
+  // a failed login. Back to where they were, the clan they just made.
+  if (error && cookieMap.get(ANVIL_JOIN_COOKIE) === '1') {
+    const back = NextResponse.redirect(new URL(safeReturnPath(cookieMap.get(RETURN_COOKIE)), originForHost(apexDomain())));
+    const domain = sessionCookieDomain();
+    for (const c of [STATE_COOKIE, RETURN_COOKIE, RETURN_HOST_COOKIE, ANVIL_JOIN_COOKIE]) {
+      back.cookies.set(c, '', { path: '/', maxAge: 0, ...(domain ? { domain } : {}) });
+    }
+    return back;
+  }
   if (error) return loginFailPage(`Discord returned: ${error}`);
   if (!code || !state) return loginFailPage('Missing code or state.');
 
@@ -80,7 +92,7 @@ export async function GET(request: Request) {
       returnTo,
       returnHost,
       request,
-      clearCookies: [STATE_COOKIE, RETURN_COOKIE, RETURN_HOST_COOKIE],
+      clearCookies: [STATE_COOKIE, RETURN_COOKIE, RETURN_HOST_COOKIE, ANVIL_JOIN_COOKIE],
     });
     // The event page's auto-join opt-in (start?join=1). Only kept when Discord actually granted
     // guilds.join; a plain login carries no such scope and stores nothing. Best-effort: failing to
@@ -99,6 +111,15 @@ export async function GET(request: Request) {
         await joinPendingEventServersNow(discordUser.id, tokenSet.accessToken).catch((err) => {
           log.warn('oauth.join-now-fail', { userId: user.id }, err);
         });
+        // "Join the Anvil Discord" from clan creation: in they go, and now that the bot shares a
+        // server with them, the welcome DM that couldn't reach them before can (lib/welcomeDm).
+        if (cookieMap.get(ANVIL_JOIN_COOKIE) === '1') {
+          const joined = await joinAnvilDiscord(user.id, tokenSet.accessToken);
+          if (joined === 'joined' || joined === 'already') {
+            const what = await welcomeContextFor(user.id).catch(() => null);
+            if (what) await sendWelcomeDm(user.id, what);
+          }
+        }
       }
     }
     return res;

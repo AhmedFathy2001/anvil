@@ -460,6 +460,15 @@ export function afterSupporterChange(userIds: number | number[], opts: { announc
   const work = (async () => {
     if (opts.announceRowId != null) await announceNewSupporter(opts.announceRowId);
     for (const id of ids) await syncAnvilSupporterRoles(id);
+    // A membership that just started: the one welcome DM (lib/welcomeDm), if they haven't had it from
+    // making a clan. Imported here, not at the top: welcomeDm reads this module's guild key.
+    if (opts.announceRowId != null) {
+      const { sendWelcomeDm } = await import('@/lib/welcomeDm');
+      for (const id of ids) {
+        const s = await supporterForUser(id).catch(() => null);
+        if (s) await sendWelcomeDm(id, { kind: 'supporter', tierName: s.tier.name });
+      }
+    }
   })().catch((err) => log.warn('anvil-discord.after-change-failed', {}, err));
   inFlight.add(work);
   void work.finally(() => inFlight.delete(work));

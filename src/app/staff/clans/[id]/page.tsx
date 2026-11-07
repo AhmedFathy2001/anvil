@@ -1,3 +1,4 @@
+import { foundViaLabel } from '@/lib/noticeRules';
 import { notFound } from 'next/navigation';
 
 import { clanDetail, platformActions } from '@/lib/platformView';
@@ -45,7 +46,9 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
   const actions = await platformActions(20, { clanId: clan.id });
   const canWrite = hasPlatformRole(actor.role, 'staff');
   // clan-scope: this clan -- its own row, by id.
-  const hidden = !!(await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { platformHidden: true } }))?.platformHidden;
+  const own = await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { platformHidden: true, foundVia: true, foundViaNote: true } });
+  const hidden = !!own?.platformHidden;
+  const foundVia = foundViaLabel(own?.foundVia);
   const boostGift = await db.query.clanBoostState.findFirst({ where: eq(clanBoostState.clanId, clan.id), columns: { giftLevel: true, giftExpiresAt: true } });
   const canDelete = hasPlatformRole(actor.role, CAN_DELETE_CLAN);
 
@@ -70,6 +73,10 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
                 unverified{clan.inGameName ? ` · claims “${clan.inGameName}”` : ''}
               </span>
             )}
+          </p>
+          {/* What the owner answered on /clans/new (lib/noticeRules FOUND_VIA). */}
+          <p className="mt-1 text-xs text-text-dim">
+            Found Anvil via: {foundVia ? <span className="text-gray-300">{foundVia}{own?.foundViaNote ? ` · “${own.foundViaNote}”` : ''}</span> : 'not answered'}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs">

@@ -102,6 +102,8 @@ export interface HomeData {
   clanEvents?: ClanEventView[];
   /** Every OTHER live board this character is on, any clan (lib/pluginBoards). Absent = not looked up. */
   myBoards?: BoardSummary[];
+  /** A notice from Anvil for this login (lib/notices): text only, never a link. */
+  notice?: { id: number; title: string; body: string; important: boolean } | null;
 }
 
 // ---- Small words ----------------------------------------------------------------------------------
@@ -290,6 +292,7 @@ const thickBar = (p: number): Node => ({ t: 'bar', pct: p, color: p >= 100 ? 'do
 /** The clan's events as cards, then your other clans' boards, then your clan's card. */
 export function homeUi(d: HomeData): Node {
   const parts: Node[] = [];
+  if (d.notice) parts.push(noticeCard(d.notice, d.cfg.activeClan?.slug ?? null, d.chosen), gap(12));
   const b = boardOf(d);
   const cards: Node[] = [];
   if (b) {
@@ -757,4 +760,27 @@ export function supportLine(): Node {
       tip: 'Anvil is free and made by one dev. Supporters pay for the servers, and their name shows it.',
     },
   );
+}
+
+/**
+ * "From Anvil": a notice the operator wrote, at the top of the panel until it's read on the site or
+ * hidden. TEXT ONLY, on purpose (Plugin Hub review): the notice's own link never reaches the plugin.
+ * The one place it can go is the person's inbox on Anvil, a fixed site path.
+ */
+export function noticeCard(n: NonNullable<HomeData['notice']>, slug: string | null, chosen: boolean): Node {
+  const args: Record<string, string> = { id: String(n.id) };
+  if (slug) args.clan = slug;
+  if (chosen) args.chosen = '1';
+  return card([
+    row(
+      text('From Anvil', n.important ? '#ffd35c' : 'brand', { font: 'small' }),
+      undefined,
+      muted('Hide', { font: 'small', on: { a: 'post', act: 'notice-hide', args }, tip: 'Hide this here. It stays in your inbox on Anvil.' }),
+    ),
+    gap(4),
+    text(n.title, 'white', { font: 'bold', wrap: true }),
+    n.body ? muted(n.body, { wrap: true }) : null,
+    gap(6),
+    text('Open in your Anvil inbox', 'brand', { font: 'small', on: { a: 'site', path: '/inbox' } }),
+  ]);
 }
