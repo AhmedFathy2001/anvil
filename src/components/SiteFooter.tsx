@@ -26,8 +26,8 @@ import { SITE } from '@/lib/site';
 type FooterLink = { href: string; label: string; apexOnly?: boolean; highlight?: boolean };
 
 // About, Features, Events, Pricing and Billing are apex-only pages (they 404 on a clan host by
-// design), so they are linked only where they resolve. /guide, /feedback, /supporter and /legal are
-// instance-aware and work on every host. `/events` here is the apex's public events directory.
+// design), so they are linked only where they resolve. /guide, /feedback, /supporter, /whats-new and
+// /legal are instance-aware and work on every host. `/events` here is the apex's public events directory.
 const COLUMNS: { title: string; links: FooterLink[] }[] = [
   {
     title: 'Product',
@@ -36,6 +36,7 @@ const COLUMNS: { title: string; links: FooterLink[] }[] = [
       { href: '/features', label: 'Features', apexOnly: true },
       { href: '/events', label: 'Events', apexOnly: true },
       { href: '/pricing', label: 'Pricing', apexOnly: true },
+      { href: '/whats-new', label: 'What’s new' },
     ],
   },
   {

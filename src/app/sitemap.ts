@@ -49,6 +49,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: absoluteUrl('/about'), changeFrequency: 'monthly', priority: 0.5 },
     { url: absoluteUrl('/pricing'), changeFrequency: 'monthly', priority: 0.6 },
     { url: absoluteUrl('/features'), changeFrequency: 'monthly', priority: 0.7 },
+    { url: absoluteUrl('/whats-new'), changeFrequency: 'weekly', priority: 0.5 },
     // One page per search worth answering (lib/answers). Ranked just under the home.
     ...FEATURE_PAGES.map((p) => ({
       url: absoluteUrl(`/features/${p.slug}`),

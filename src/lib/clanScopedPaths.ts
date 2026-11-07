@@ -106,6 +106,8 @@ export const PLATFORM_ROOTS = [
   '/api/friends',
   // Release notes (lib/releases): Anvil's, not a clan's.
   '/changelog',
+  // Its plain-words companion, personal to the reader (lib/whatsNew), still the platform's.
+  '/whats-new',
   // Invite links (lib/referrals): a person's, never a clan's.
   '/r/',
   '/portal',
