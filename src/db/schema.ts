@@ -4582,6 +4582,21 @@ export const profileMedia = pgTable('profile_media', {
 });
 
 /**
+ * A CHARACTER's own avatar and/or banner (0226), replacing the person's (profile_media) on that
+ * character's pages only. Each part is independent: a null still URL means "use my default" for that
+ * part. Same tier gating on read as profile_media (motion for Champion+, the still otherwise).
+ */
+export const accountMedia = pgTable('account_media', {
+  accountId: integer('account_id').primaryKey().references(() => accounts.id, { onDelete: 'cascade' }),
+  avatarUrl: text('avatar_url'),
+  avatarStillUrl: text('avatar_still_url'),
+  bannerUrl: text('banner_url'),
+  bannerStillUrl: text('banner_still_url'),
+  bannerPosition: integer('banner_position'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
  * One pinned item in a person's display case. 'clog' points at an obtained collection-log slot
  * (account + item), 'drop' at a drop moment, 'kc' / 'pb' at a kill count or personal best of the
  * character (stat_key; item_id is 0). The owner, the character and the item are re-checked
@@ -4607,6 +4622,7 @@ export const displayCaseItems = pgTable('display_case_items', {
 ]);
 
 export type ProfileMedia = typeof profileMedia.$inferSelect;
+export type AccountMedia = typeof accountMedia.$inferSelect;
 export type DisplayCaseItem = typeof displayCaseItems.$inferSelect;
 
 /**

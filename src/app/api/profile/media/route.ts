@@ -1,14 +1,14 @@
 import crypto from 'crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { db } from '@/db';
-import { profileMedia } from '@/db/schema';
+import { accountMedia, accounts, profileMedia, users } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { del, put } from '@/lib/storage';
 import { supporterForUser } from '@/lib/supporter';
-import { canUseProfileMedia, isProfileMediaUrl, MEDIA_LIMITS, profileMediaRow, type ProfileMediaKind } from '@/lib/profileMedia';
+import { accountMediaRow, canUseProfileMedia, isProfileMediaUrl, MEDIA_LIMITS, profileMediaRow, type ProfileMediaKind } from '@/lib/profileMedia';
 import { processProfileMedia } from '@/lib/profileMediaProcess';
 
 export const dynamic = 'force-dynamic';
@@ -22,6 +22,12 @@ export const dynamic = 'force-dynamic';
 // point at somebody else's server.
 //
 // Uploading needs Champion+ NOW. Removing never does: a lapsed supporter can always take theirs down.
+//
+// PER CHARACTER: every verb also takes an `accountId` (POST: a form field; PATCH: in the JSON body;
+// DELETE: ?accountId=) to act on that character's OWN override (account_media) instead of the
+// person's default. Only a character the signed-in person owns (accounts.player_id = their
+// users.player_id, the check the per-character Supporter style uses). DELETE there means "use my
+// default" for that part. Objects live under profiles/accounts/<accountId>/.
 
 const KINDS: readonly ProfileMediaKind[] = ['avatar', 'banner'];
 
@@ -34,10 +40,42 @@ function mediaKey(userId: number): string {
   return `profiles/${userId}/${crypto.randomUUID()}.webp`;
 }
 
+/** Object key for one character's own override picture. */
+function accountMediaKey(accountId: number): string {
+  return `profiles/accounts/${accountId}/${crypto.randomUUID()}.webp`;
+}
+
 /** Only ever delete objects that are this person's own profile media. */
 function ownObjects(userId: number, urls: (string | null | undefined)[]): string[] {
   return [...new Set(urls.filter((u): u is string => isProfileMediaUrl(u) && u.includes(`/profiles/${userId}/`)))];
 }
+
+/** Only ever delete objects that are this character's own override media. */
+function ownAccountObjects(accountId: number, urls: (string | null | undefined)[]): string[] {
+  return [...new Set(urls.filter((u): u is string => isProfileMediaUrl(u) && u.includes(`/profiles/accounts/${accountId}/`)))];
+}
+
+/** A positive integer account id from a form field, JSON value or query param; undefined = absent. */
+function accountIdOf(v: unknown): number | null | undefined {
+  if (v == null || v === '') return undefined;
+  const n = typeof v === 'number' ? v : typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : NaN;
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
+/** Does the signed-in login's person own this character? */
+async function ownsAccount(userId: number, accountId: number): Promise<boolean> {
+  const owner = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { playerId: true } });
+  if (!owner?.playerId) return false;
+  const [row] = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(and(eq(accounts.id, accountId), eq(accounts.playerId, owner.playerId)))
+    .limit(1);
+  return !!row;
+}
+
+const NOT_YOURS = () => NextResponse.json({ error: 'That character is not yours.' }, { status: 404 });
+const BAD_ACCOUNT = () => NextResponse.json({ error: 'accountId must be a character id' }, { status: 400 });
 
 export async function POST(request: Request) {
   const session = await verifyUser();
@@ -62,6 +100,9 @@ export async function POST(request: Request) {
   const kind = kindOf(form?.get('kind'));
   const file = form?.get('file');
   if (!kind || !(file instanceof File)) return NextResponse.json({ error: 'Choose an image.' }, { status: 400 });
+  const accountId = accountIdOf(form?.get('accountId'));
+  if (accountId === null) return BAD_ACCOUNT();
+  if (accountId !== undefined && !(await ownsAccount(session.userId, accountId))) return NOT_YOURS();
   if (file.size > MEDIA_LIMITS[kind].maxBytes) {
     return NextResponse.json({ error: `That file is too large — at most ${MEDIA_LIMITS[kind].maxBytes / (1024 * 1024)} MB.` }, { status: 413 });
   }
@@ -69,8 +110,22 @@ export async function POST(request: Request) {
   const processed = await processProfileMedia(Buffer.from(await file.arrayBuffer()), kind, true);
   if (!processed.ok) return NextResponse.json({ error: processed.error }, { status: 400 });
 
-  const still = (await put(mediaKey(session.userId), processed.still, 'image/webp')).url;
-  const full = processed.animated ? (await put(mediaKey(session.userId), processed.animated, 'image/webp')).url : still;
+  const key = () => (accountId !== undefined ? accountMediaKey(accountId) : mediaKey(session.userId));
+  const still = (await put(key(), processed.still, 'image/webp')).url;
+  const full = processed.animated ? (await put(key(), processed.animated, 'image/webp')).url : still;
+
+  if (accountId !== undefined) {
+    const before = await accountMediaRow(accountId);
+    // A new banner starts centred: the old focal point was for a different picture.
+    const patch =
+      kind === 'avatar'
+        ? { avatarUrl: full, avatarStillUrl: still, updatedAt: new Date() }
+        : { bannerUrl: full, bannerStillUrl: still, bannerPosition: null, updatedAt: new Date() };
+    await db.insert(accountMedia).values({ accountId, ...patch }).onConflictDoUpdate({ target: accountMedia.accountId, set: patch });
+    const old = kind === 'avatar' ? [before?.avatarUrl, before?.avatarStillUrl] : [before?.bannerUrl, before?.bannerStillUrl];
+    void del(ownAccountObjects(accountId, old)).catch(() => {});
+    return NextResponse.json({ kind, accountId, url: full, still, animated: full !== still });
+  }
 
   const before = await profileMediaRow(session.userId);
   const patch =
@@ -93,10 +148,20 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   const session = await verifyUser();
   if (!session?.userId) return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
-  const body = (await request.json().catch(() => null)) as { bannerPosition?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { bannerPosition?: unknown; accountId?: unknown } | null;
   const pos = body?.bannerPosition;
   if (!body || !('bannerPosition' in body) || (pos !== null && (typeof pos !== 'number' || !Number.isFinite(pos) || pos < 0 || pos > 100))) {
     return NextResponse.json({ error: 'bannerPosition must be a number from 0 to 100, or null' }, { status: 400 });
+  }
+  const accountId = accountIdOf(body.accountId);
+  if (accountId === null) return BAD_ACCOUNT();
+  if (accountId !== undefined) {
+    if (!(await ownsAccount(session.userId, accountId))) return NOT_YOURS();
+    await db
+      .update(accountMedia)
+      .set({ bannerPosition: pos == null ? null : Math.round(pos as number), updatedAt: new Date() })
+      .where(eq(accountMedia.accountId, accountId));
+    return NextResponse.json({ success: true });
   }
   await db
     .update(profileMedia)
@@ -109,8 +174,25 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   const session = await verifyUser();
   if (!session?.userId) return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
-  const kind = kindOf(new URL(request.url).searchParams.get('kind'));
+  const query = new URL(request.url).searchParams;
+  const kind = kindOf(query.get('kind'));
   if (!kind) return NextResponse.json({ error: 'kind must be avatar or banner' }, { status: 400 });
+  const accountId = accountIdOf(query.get('accountId'));
+  if (accountId === null) return BAD_ACCOUNT();
+  if (accountId !== undefined) {
+    // "Use my default" for this part of this character.
+    if (!(await ownsAccount(session.userId, accountId))) return NOT_YOURS();
+    const before = await accountMediaRow(accountId);
+    if (!before) return NextResponse.json({ success: true });
+    const patch =
+      kind === 'avatar'
+        ? { avatarUrl: null, avatarStillUrl: null, updatedAt: new Date() }
+        : { bannerUrl: null, bannerStillUrl: null, bannerPosition: null, updatedAt: new Date() };
+    await db.update(accountMedia).set(patch).where(eq(accountMedia.accountId, accountId));
+    const old = kind === 'avatar' ? [before.avatarUrl, before.avatarStillUrl] : [before.bannerUrl, before.bannerStillUrl];
+    void del(ownAccountObjects(accountId, old)).catch(() => {});
+    return NextResponse.json({ success: true });
+  }
 
   const before = await profileMediaRow(session.userId);
   if (!before) return NextResponse.json({ success: true });

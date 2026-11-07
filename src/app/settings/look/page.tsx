@@ -1,12 +1,13 @@
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { users } from '@/db/schema';
+import { accounts, users } from '@/db/schema';
 import { supporterForUser } from '@/lib/supporter';
-import { canUseProfileMedia, displayCaseSlots, profileMediaForUser } from '@/lib/profileMedia';
+import { accountMediaRows, canUseProfileMedia, displayCaseSlots, profileMediaForUser, shownProfileMedia } from '@/lib/profileMedia';
 import { readDisplayCase } from '@/lib/displayCase';
 import ClanLink from '@/components/ClanLink';
 import ProfileLookEditor from '@/components/ProfileLookEditor';
+import CharacterLookOverrides from '@/components/CharacterLookOverrides';
 import DisplayCaseEditor from '@/components/DisplayCaseEditor';
 import { SettingsBlock, SettingsGroup, SettingsTitle, TierChip } from '../_ui';
 import { settingsSession } from '@/app/settings/settingsSession';
@@ -23,10 +24,18 @@ export default async function LookSettingsPage() {
     supporterForUser(session.userId),
   ]);
   const tier = supporter?.tier.id ?? null;
-  const [media, pins] = await Promise.all([
+  const [media, pins, characters] = await Promise.all([
     profileMediaForUser(session.userId, { tier }),
     session.playerId ? readDisplayCase(session.userId, session.playerId).catch(() => []) : Promise.resolve([]),
+    session.playerId
+      ? db.select({ accountId: accounts.id, rsn: accounts.rsn })
+          .from(accounts).where(eq(accounts.playerId, session.playerId)).orderBy(desc(accounts.isPrimary), accounts.rsn)
+      : Promise.resolve([]),
   ]);
+  // Each character's OWN pictures only (account_media), gated like the default; null parts use it.
+  const overrides = await accountMediaRows(characters.map((c) => c.accountId)).catch(() => new Map());
+  const characterLooks = characters.map((c) => ({ ...c, own: shownProfileMedia(overrides.get(c.accountId), tier) }));
+  const showPerCharacter = characterLooks.length > 0 && (canUseProfileMedia(tier) || characterLooks.some((c) => c.own.avatar || c.own.banner));
   const slots = displayCaseSlots(tier);
 
   return (
@@ -51,6 +60,17 @@ export default async function LookSettingsPage() {
           <ProfileLookEditor initial={media} canUpload={canUseProfileMedia(tier)} name={user?.displayName ?? 'You'} />
         </SettingsBlock>
       </SettingsGroup>
+
+      {showPerCharacter && (
+        <SettingsGroup
+          title="Per character"
+          note="Give a character its own banner or avatar (or both). It replaces your default on that character’s pages and plugin card only."
+        >
+          <SettingsBlock>
+            <CharacterLookOverrides characters={characterLooks} fallback={media} canUpload={canUseProfileMedia(tier)} />
+          </SettingsBlock>
+        </SettingsGroup>
+      )}
 
       <SettingsGroup
         title={`Display case${slots ? ` · ${slots} slots` : ''}`}

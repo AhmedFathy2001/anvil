@@ -151,7 +151,8 @@ export function isProfileMediaUrl(raw: string | null | undefined, publicBase = p
   }
   if (!hostOk) return false;
   // Vercel Blob may append its own random suffix to the name.
-  return /\/profiles\/\d+\/[0-9a-f-]{36}(-[A-Za-z0-9]+)?\.webp$/.test(u.pathname);
+  // A character's own override lives under `profiles/accounts/<accountId>/` (lib/profileMedia).
+  return /\/profiles\/(?:accounts\/)?\d+\/[0-9a-f-]{36}(-[A-Za-z0-9]+)?\.webp$/.test(u.pathname);
 }
 
 /** A stored profile picture, as one place renders it. */
@@ -202,4 +203,49 @@ export function shownProfileMedia(
     out.banner = { ...b, position: typeof p === 'number' && p >= 0 && p <= 100 ? Math.round(p) : 50 };
   }
   return out;
+}
+
+/** Which parts of a character's own row (account_media) replace the person's: a part counts only
+    when its still is one of our objects; anything else falls back to the person's. */
+export function characterMediaOverrides(
+  override: ProfileMediaRowLike | null | undefined,
+  publicBase?: string,
+): { avatar: boolean; banner: boolean } {
+  return {
+    avatar: !!override && isProfileMediaUrl(override.avatarStillUrl, publicBase),
+    banner: !!override && isProfileMediaUrl(override.bannerStillUrl, publicBase),
+  };
+}
+
+/**
+ * The row a character's pages draw from: each part (avatar; banner with its focal position) from the
+ * character's own override when it has one, else from the person's. Pure; tier gating is applied
+ * after, by shownProfileMedia, exactly as for the person's own media.
+ */
+export function characterMediaRow(
+  override: ProfileMediaRowLike | null | undefined,
+  person: ProfileMediaRowLike | null | undefined,
+  publicBase?: string,
+): ProfileMediaRowLike | null {
+  const own = characterMediaOverrides(override, publicBase);
+  if (!own.avatar && !own.banner) return person ?? null;
+  const a = own.avatar ? override! : person;
+  const b = own.banner ? override! : person;
+  return {
+    avatarUrl: a?.avatarUrl ?? null,
+    avatarStillUrl: a?.avatarStillUrl ?? null,
+    bannerUrl: b?.bannerUrl ?? null,
+    bannerStillUrl: b?.bannerStillUrl ?? null,
+    bannerPosition: b?.bannerPosition ?? null,
+  };
+}
+
+/** What a character's page shows: its own parts over the person's, gated by the person's tier now. */
+export function shownCharacterMedia(
+  override: ProfileMediaRowLike | null | undefined,
+  person: ProfileMediaRowLike | null | undefined,
+  tier: SupporterTierId | null | undefined,
+  opts: { still?: boolean; publicBase?: string } = {},
+): ShownProfileMedia {
+  return shownProfileMedia(characterMediaRow(override, person, opts.publicBase), tier, opts);
 }

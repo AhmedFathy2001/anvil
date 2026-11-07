@@ -10,7 +10,7 @@ import { loadPlayerCard } from '@/lib/playerCard';
 import type { PlayerCard } from '@/lib/playerCardShape';
 import { publicHiscoresCard } from '@/lib/publicHiscoresCard';
 import { rateLimit } from '@/lib/rate-limit';
-import { profileMediaForPlayer } from '@/lib/profileMedia';
+import { mediaForCharacter } from '@/lib/profileMedia';
 import { clanSeat } from '@/lib/seatScope';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { displayCaseForPlayer } from '@/lib/displayCase';
@@ -61,7 +61,7 @@ export async function loadPanelPlayerCard(character: ApexCharacter): Promise<Pla
   // person is, so it only stands in where they link characters publicly.
   const discordOk = character.personPublic || character.viewerOwns;
   const [media, discordAvatar, displayCase] = await Promise.all([
-    profileMediaForPlayer(character.personId).catch(() => ({ avatar: null, banner: null })),
+    mediaForCharacter(character.accountId, character.personId).catch(() => ({ avatar: null, banner: null })),
     discordOk ? panelDiscordAvatar(character.personId) : Promise.resolve(null),
     displayCaseForPlayer(character.personId, { accountId: character.accountId, publicView: !character.viewerOwns }),
   ]);
@@ -70,7 +70,9 @@ export async function loadPanelPlayerCard(character: ApexCharacter): Promise<Pla
     avatarAnimated: !!media.avatar?.animated || (!media.avatar && !!discordAvatar?.animated),
     banner: !!media.banner,
     bannerAnimated: !!media.banner?.animated,
-    revision: mediaRevision(media.avatar?.src, media.banner?.src, discordAvatar?.src),
+    // A character override is a different URL, so switching to/from one changes this; the banner's
+    // focal point is in it too, since the panel crops there.
+    revision: mediaRevision(media.avatar?.src, media.banner?.src, media.banner ? `p${media.banner.position}` : null, discordAvatar?.src),
   };
   card.displayCase = displayCase;
   return card;

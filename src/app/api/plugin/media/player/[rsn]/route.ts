@@ -1,5 +1,5 @@
 import { apexCharacter } from '@/lib/apexProfiles';
-import { profileMediaForPlayer } from '@/lib/profileMedia';
+import { mediaForCharacter } from '@/lib/profileMedia';
 import { pluginPanelImage } from '@/lib/pluginPanelMedia';
 import { panelDiscordAvatar, viewerPlayerId } from '@/lib/pluginUi/load';
 
@@ -18,7 +18,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ rsn:
   const width = requested('w', kind === 'avatar' ? 48 : 220, kind === 'avatar' ? 48 : 220);
   const height = requested('h', kind === 'avatar' ? 48 : 73, kind === 'avatar' ? 48 : 73);
   const requestedMotion = query.get('motion') === '1';
-  const media = await profileMediaForPlayer(character.personId, { still: !requestedMotion });
+  // The character's own override where it has one, else the person's.
+  const media = await mediaForCharacter(character.accountId, character.personId, { still: !requestedMotion });
   const image = media[kind];
   if (image) {
     return pluginPanelImage(image.src, width, height, requestedMotion && image.animated, kind === 'banner' && 'position' in image ? image.position : null);

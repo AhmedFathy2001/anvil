@@ -1163,6 +1163,13 @@
       "when": 1794045600000,
       "tag": "0224_clan_boost_name_style",
       "breakpoints": true
+    },
+    {
+      "idx": 226,
+      "version": "7",
+      "when": 1794059660668,
+      "tag": "0226_account_media",
+      "breakpoints": true
     }
   ]
 }

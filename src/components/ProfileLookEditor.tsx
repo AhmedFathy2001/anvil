@@ -18,20 +18,45 @@ export default function ProfileLookEditor({
   initial,
   canUpload,
   name,
+  accountId,
+  fallback,
+  onChange,
 }: {
+  /** For a character (`accountId`): ONLY its own override parts; a null part uses the default. */
   initial: ShownProfileMedia;
   /** Champion+ now. Without it, what they uploaded shows as a still and the pickers are hidden. */
   canUpload: boolean;
   name: string;
+  /** Edit this character's own override (account_media) instead of the person's default. */
+  accountId?: number;
+  /** The person's default, previewed (dimmed) where the character has no picture of its own. */
+  fallback?: ShownProfileMedia | null;
+  /** Which parts the character now has of its own, after each upload or removal. */
+  onChange?: (own: { avatar: boolean; banner: boolean }) => void;
 }) {
-  const [avatar, setAvatar] = useState<ShownMedia | null>(initial.avatar);
-  const [banner, setBanner] = useState<ShownMedia | null>(initial.banner);
+  const forCharacter = accountId != null;
+  const [avatar, setAvatarState] = useState<ShownMedia | null>(initial.avatar);
+  const [banner, setBannerState] = useState<ShownMedia | null>(initial.banner);
+  const own = useRef({ avatar: !!initial.avatar, banner: !!initial.banner });
+  const setAvatar = (m: ShownMedia | null) => {
+    setAvatarState(m);
+    own.current = { ...own.current, avatar: !!m };
+    onChange?.(own.current);
+  };
+  const setBanner = (m: ShownMedia | null) => {
+    setBannerState(m);
+    own.current = { ...own.current, banner: !!m };
+    onChange?.(own.current);
+  };
+  // A character with no picture of its own previews the default, dimmed, so the owner sees what shows.
+  const shownBanner = banner ?? (forCharacter ? fallback?.banner ?? null : null);
+  const shownAvatar = avatar ?? (forCharacter ? fallback?.avatar ?? null : null);
   const [position, setPosition] = useState<number>(initial.banner?.position ?? 50);
   const [busy, setBusy] = useState<ProfileMediaKind | null>(null);
   const [error, setError] = useState('');
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  if (!canUpload && !avatar && !banner) {
+  if (!canUpload && !avatar && !banner && !forCharacter) {
     return (
       <p className="rounded-xl border border-card-border bg-card-bg p-4 text-sm text-text-muted">
         Your own avatar and banner — animated if you like — come with{' '}
@@ -60,6 +85,7 @@ export default function ProfileLookEditor({
       const body = new FormData();
       body.append('kind', kind);
       body.append('file', file);
+      if (forCharacter) body.append('accountId', String(accountId));
       const res = await clanFetch('/api/profile/media', { method: 'POST', body });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || typeof data.still !== 'string') {
@@ -81,7 +107,7 @@ export default function ProfileLookEditor({
     setError('');
     setBusy(kind);
     try {
-      const res = await clanFetch(`/api/profile/media?kind=${kind}`, { method: 'DELETE' });
+      const res = await clanFetch(`/api/profile/media?kind=${kind}${forCharacter ? `&accountId=${accountId}` : ''}`, { method: 'DELETE' });
       if (!res.ok) {
         setError('Could not remove that — try again.');
         return;
@@ -100,14 +126,14 @@ export default function ProfileLookEditor({
       void clanFetch('/api/profile/media', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bannerPosition: pos === 50 ? null : pos }),
+        body: JSON.stringify(forCharacter ? { accountId, bannerPosition: pos === 50 ? null : pos } : { bannerPosition: pos === 50 ? null : pos }),
       });
     }, 400);
   }
 
   return (
     <div className="rounded-xl border border-card-border bg-card-bg p-4">
-      {!canUpload && (
+      {!canUpload && (avatar || banner) && (
         <p className="mb-3 text-[13px] text-text-muted">
           Your membership no longer includes your own pictures, so they show as a still frame. Remove them here, or{' '}
           <ClanLink href="/supporter" className="text-gold hover:text-gold-light">
@@ -120,7 +146,13 @@ export default function ProfileLookEditor({
       <div className="mb-2 text-[13px] font-medium">Banner</div>
       <div className="mb-2 flex items-stretch gap-3">
         <div className="aspect-[4/1] min-w-0 flex-1 overflow-hidden rounded-lg border border-card-border bg-gradient-to-r from-gold/15 via-card-bg to-gold/10">
-          {banner && <MotionImage media={banner} className="h-full w-full object-cover" style={{ objectPosition: `50% ${position}%` }} />}
+          {shownBanner && (
+            <MotionImage
+              media={shownBanner}
+              className={`h-full w-full object-cover ${banner ? '' : 'opacity-45'}`}
+              style={{ objectPosition: `50% ${banner ? position : (fallback?.banner?.position ?? 50)}%` }}
+            />
+          )}
         </div>
         {banner && (
           <div className="flex flex-col items-center gap-1 text-[10px] text-text-muted">
@@ -138,24 +170,35 @@ export default function ProfileLookEditor({
           </div>
         )}
       </div>
-      <Controls kind="banner" has={!!banner} busy={busy} canUpload={canUpload} onFile={upload} onRemove={remove} />
+      {forCharacter && !banner && <p className="mb-2 text-[12px] text-text-dim">{shownBanner ? 'Using your default banner.' : 'Using your default (none set).'}</p>}
+      <Controls kind="banner" has={!!banner} busy={busy} canUpload={canUpload} onFile={upload} onRemove={remove} removeLabel={forCharacter ? 'Use my default' : 'Remove'} />
       <p className="mt-1 text-[12px] text-text-dim">
         PNG, JPEG, GIF or WebP, up to {MEDIA_LIMITS.banner.maxBytes / (1024 * 1024)} MB — a wide picture works best (about 1500×500).
       </p>
 
       <div className="mb-2 mt-5 text-[13px] font-medium">Avatar</div>
       <div className="flex items-center gap-4">
-        {avatar ? (
-          <MotionImage media={avatar} width={64} height={64} className="h-16 w-16 rounded-full border-2 border-gold/45 object-cover" />
+        {shownAvatar ? (
+          <MotionImage
+            media={shownAvatar}
+            width={64}
+            height={64}
+            className={`h-16 w-16 rounded-full border-2 border-gold/45 object-cover ${avatar ? '' : 'opacity-45'}`}
+          />
         ) : (
           <span className="grid h-16 w-16 place-items-center rounded-full border-2 border-gold/45 bg-gold/15 text-xl font-bold text-gold-light">
             {(name || '?').charAt(0).toUpperCase()}
           </span>
         )}
         <div>
-          <Controls kind="avatar" has={!!avatar} busy={busy} canUpload={canUpload} onFile={upload} onRemove={remove} />
+          <Controls kind="avatar" has={!!avatar} busy={busy} canUpload={canUpload} onFile={upload} onRemove={remove} removeLabel={forCharacter ? 'Use my default' : 'Remove'} />
           <p className="mt-1 text-[12px] text-text-dim">
-            Square, up to {MEDIA_LIMITS.avatar.maxBytes / (1024 * 1024)} MB. Without one, your Discord picture is used where it was before.
+            Square, up to {MEDIA_LIMITS.avatar.maxBytes / (1024 * 1024)} MB.{' '}
+            {forCharacter
+              ? avatar
+                ? 'Shown on this character only.'
+                : 'Using your default avatar.'
+              : 'Without one, your Discord picture is used where it was before.'}
           </p>
         </div>
       </div>
@@ -180,7 +223,9 @@ function Controls({
   canUpload,
   onFile,
   onRemove,
+  removeLabel = 'Remove',
 }: {
+  removeLabel?: string;
   kind: ProfileMediaKind;
   has: boolean;
   busy: ProfileMediaKind | null;
@@ -223,7 +268,7 @@ function Controls({
           onClick={() => void onRemove(kind)}
           className="text-[13px] text-text-dim underline-offset-4 enabled:hover:text-gold enabled:hover:underline disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Remove
+          {removeLabel}
         </button>
       )}
     </div>

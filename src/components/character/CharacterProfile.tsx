@@ -52,7 +52,7 @@ import type { verifyUser } from '@/lib/auth';
 import ClanLink from '@/components/ClanLink';
 import SupporterName from '@/components/SupporterName';
 import { supporterLooksByName } from '@/lib/supporter';
-import { profileMediaForPlayer } from '@/lib/profileMedia';
+import { mediaForCharacter } from '@/lib/profileMedia';
 import { displayCaseForPlayer } from '@/lib/displayCase';
 import { profileConnectedAccounts } from '@/lib/connectedAccounts';
 import { profileSections } from '@/lib/characterProfileRules';
@@ -248,7 +248,8 @@ export default async function CharacterProfile({
     // Supporter flair on this character's name only — the person behind it stays out of it.
     supporterLooksByName([rsn]),
 
-    show.personMedia ? profileMediaForPlayer(personId!) : Promise.resolve({ avatar: null, banner: null }),
+    // This character's own banner/avatar where it has one, else the person's (lib/profileMedia).
+    show.personMedia ? mediaForCharacter(accountId, personId) : Promise.resolve({ avatar: null, banner: null }),
     // This character's own pins only; a pin from a non-shared character reaches only its owner.
     show.displayCase
       ? displayCaseForPlayer(personId!, { accountId, publicView: show.displayCasePublicView })
