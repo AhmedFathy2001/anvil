@@ -171,6 +171,8 @@ export interface DeathFacts {
   source?: string | null;
   /** 'npc' or 'player' once parsed ('pvp' is read as 'player'; 'fought' is settled to a boss or nothing). */
   sourceKind?: 'npc' | 'player' | null;
+  /** Distinct players who attacked them in the last few seconds before the death (the plugin's attacker window). */
+  pile?: number | null;
 }
 
 /** The server-side half of a death post: what the route looked up for this person and clan. */
@@ -227,6 +229,17 @@ export const DEATH_TAUNT_LINES = [
   "That's gotta hurt.",
   "Prayer was off, wasn't it?",
   'Get good. 🤡',
+] as const;
+
+/** A pile-on: this many players on one person turns the reaction line into one of these ({n} = how many). */
+export const GANG_MIN = 3;
+export const GANG_LINES = [
+  'Ganged by {n} players. 🐺',
+  '{n}v1. Totally fair fight.',
+  'Took {n} of them to do it. Respect, honestly.',
+  'Needed a whole {n}-man team for that one.',
+  "{n} people woke up and chose violence.",
+  'Outnumbered {n} to 1. Never stood a chance.',
 ] as const;
 
 /** How often a death reads as a fun line instead of the person's own message (the plugin's 1 in 100). */
@@ -353,9 +366,16 @@ function deathEmbed(f: DeathFacts, wording: DeathWording, random: () => number):
     template = wording.message?.trim() || NOTIFY_DEFAULTS.deathMsg;
   }
   const taunts = lines(wording.taunts);
-  const desc = `${template.replaceAll('{name}', name)}\n${pick(taunts.length ? taunts : DEATH_TAUNT_LINES, random)}`;
+  const pile = f.pile ?? 0;
+  const reaction = pile >= GANG_MIN
+    ? pick(GANG_LINES, random).replaceAll('{n}', String(pile))
+    : pick(taunts.length ? taunts : DEATH_TAUNT_LINES, random);
+  const desc = `${template.replaceAll('{name}', name)}\n${reaction}`;
   const e = base(f.rsn, '💀 Death', desc, EMBED_COLOR.red);
-  if (f.source) e.fields = [stat('Killed by', f.sourceKind === 'player' ? `${f.source} (PvP)` : f.source)];
+  if (f.source) {
+    const others = f.sourceKind === 'player' && pile > 1 ? ` + ${pile - 1} other${pile === 2 ? '' : 's'}` : '';
+    e.fields = [stat('Killed by', f.sourceKind === 'player' ? `${f.source} (PvP)${others}` : f.source)];
+  }
   return e;
 }
 
@@ -714,7 +734,8 @@ function parseFacts(kind: PluginEmbedKind, raw: unknown): PluginEmbedFacts {
       let sourceKind: DeathFacts['sourceKind'] = rawKind === 'player' || rawKind === 'pvp' ? 'player' : 'npc';
       if (rawKind === FOUGHT_SOURCE_KIND) source = foughtBoss(source);
       if (!source) sourceKind = null;
-      return { kind, facts: { rsn: rsnOf(o), source, sourceKind } };
+      const pile = optInt(o, 'pile');
+      return { kind, facts: { rsn: rsnOf(o), source, sourceKind, pile: pile == null ? null : Math.min(Math.max(pile, 0), 50) } };
     }
   }
 }

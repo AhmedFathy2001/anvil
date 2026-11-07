@@ -431,6 +431,18 @@ test('death: 1 in 100 reads as a fun line, the clan\'s pool first, else the ship
   assert.equal(shipped.description, `${FUN_DEATH_MESSAGES[0].replaceAll('{name}', 'Zezima')}\nSit.`);
 });
 
+test('death: a pile-on of 3+ players swaps the reaction for a gang line and counts the others', () => {
+  const ganged = deathOf({ rsn: 'A', source: 'Pker99', sourceKind: 'player', pile: 4 }, { taunts: ['Sit.'] }, seq(0.5, 0));
+  assert.equal(ganged.description, 'A just died!\nGanged by 4 players. 🐺');
+  assert.equal(ganged.fields?.[0].value, '`Pker99 (PvP) + 3 others`');
+  // Two players: no gang line yet, but the second one is still counted.
+  const duo = deathOf({ rsn: 'A', source: 'Pker99', sourceKind: 'player', pile: 2 }, { taunts: ['Sit.'] }, seq(0.5, 0));
+  assert.equal(duo.description, 'A just died!\nSit.');
+  assert.equal(duo.fields?.[0].value, '`Pker99 (PvP) + 1 other`');
+  // Junk counts are clamped, never trusted as-is.
+  assert.equal(buildPluginEmbed('death', { pile: 'many' }).ok, false);
+});
+
 test('bad death facts are refused', () => {
   assert.equal(buildPluginEmbed('death', 'x').ok, false);
   assert.equal(buildPluginEmbed('death', { source: 5 }).ok, false);
