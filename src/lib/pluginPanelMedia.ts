@@ -40,7 +40,9 @@ export async function pluginPanelImage(url: string, width: number, height: numbe
         .resize(width, height, { fit: 'cover', position: focus ? 'attention' : 'centre' })
         // Loop forever explicitly: libvips otherwise copies the upload's loop count, and Java's GIF
         // decoder plays a file without an infinite NETSCAPE loop once and then stops.
-        .gif({ colours: 96, effort: 4, loop: 0 })
+        // Inter-frame/palette reuse: a 60-frame 1500x500 banner was 763 KB at 220x73 (over the cap, so
+        // the panel silently got the still) and is ~200 KB with it. Fewer colours alone saved nothing.
+        .gif({ colours: 96, effort: 7, loop: 0, interFrameMaxError: 8, interPaletteMaxError: 8 })
         .toBuffer();
       if (animated.length <= MAX_PANEL_BYTES) {
         return new Response(new Uint8Array(animated), { headers: { 'Content-Type': 'image/gif', 'Cache-Control': CACHE } });
