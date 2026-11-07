@@ -6,10 +6,13 @@ import { guideMetadata } from '../_i18n/meta';
 import { SEARCH_TERMS } from '../_i18n/searchTerms';
 import GuideSearch, { type GuideCard } from '../_components/GuideSearch';
 import { rt } from '../_i18n/rich';
+import GuideTabs from '../_components/GuideTabs';
+import { libraryCards, groupLibraryCards, type GuideTab } from '../_i18n/guideTabs';
 import { currentClan } from '@/lib/clanContext';
-import { publicGuides } from '@/lib/guides';
-import { categoryOf } from '@/lib/guideCategories';
+import { listLibrary } from '@/lib/guides';
+import { categoryOf, readingMinutes } from '@/lib/guideCategories';
 import { listCategories } from '@/lib/guideCategoryStore';
+import { absoluteUrl } from '@/lib/seo';
 
 // Eight guides is too many for one flat grid — grouped by who is reading, so a captain looking for
 // their own page doesn't have to read the treasurer's blurb first. The grouping lives here rather
@@ -46,18 +49,35 @@ const CARD_KEY = {
   'streaming-for-clans': 'streamingClans',
 } as const;
 
-export async function guideIndexMetadata(lang: string): Promise<Metadata> {
+export async function guideIndexMetadata(lang: string, tab: GuideTab = 'anvil'): Promise<Metadata> {
   const t = await getDict(lang);
-  return guideMetadata(lang, '', t.index.metaTitle, t.index.metaDescription);
+  // The canonical stays the bare index for both tabs: they are one document (both lists are in the
+  // HTML), and a second canonical would split it. The title and description follow the tab, so a
+  // shared `?tab=ingame` link previews as what it opens on.
+  return tab === 'ingame'
+    ? guideMetadata(lang, '', t.index.ingame.metaTitle, t.index.ingame.metaDescription)
+    : guideMetadata(lang, '', t.index.metaTitle, t.index.metaDescription);
 }
 
-export default async function GuideIndex({ lang }: { lang: string }) {
+export default async function GuideIndex({ lang, tab = 'anvil' }: { lang: string; tab?: GuideTab }) {
   const t = await getDict(lang);
   const locale = findLocale(lang) ?? LOCALES[0];
   const clan = await currentClan();
-  // Never let the guides module take the setup guides down with it: they are how people get unstuck.
-  const ingame = await publicGuides(clan?.id ?? null).catch(() => []);
-  const cats = await listCategories(clan?.id ?? null).catch(() => []);
+  // The Anvil library only — never a clan's own guides or its copies, which are that clan's to show
+  // (on its /guides). Never let the guides module take the setup guides down with it either: they
+  // are how people get unstuck.
+  const [library, cats] = await Promise.all([
+    listLibrary().catch(() => []),
+    listCategories(null).catch(() => []),
+  ]);
+  // Inside a clan, `/guides/<slug>` is the CLAN's reading of that slug (its copy, or nothing if it
+  // hides the library), so library links go to the apex, where the slug is always the original.
+  const libraryHref = (path: string) => (clan ? absoluteUrl(path) : path);
+  const ingameCards = libraryCards(
+    library.map((g) => ({ ...g, minutes: readingMinutes(g.body) })),
+    { category: (key) => categoryOf(key, cats), href: (slug) => libraryHref(`/guides/${slug}`), readTime: t.index.ingame.readTime },
+  );
+  const ingameGroups = groupLibraryCards(ingameCards, cats.map((c) => c.key));
 
   // The same cards the grid renders, flattened for the search box. Built from GROUPS rather than a
   // second list, so a guide can never be searchable but unlisted (or listed but unfindable).
@@ -76,16 +96,8 @@ export default async function GuideIndex({ lang }: { lang: string }) {
     }),
   );
 
-  return (
-    <div className="max-w-3xl" lang={locale.code} dir={locale.dir}>
-      <LanguageBar current={locale.code} page="" label={t.common.language} />
-
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-gold sm:text-3xl">{t.index.title}</h1>
-        <p className="mt-1 text-sm text-text-muted">{rt(t.index.dek)}</p>
-      </header>
-
-      <GuideSearch cards={cards} labels={t.index.search}>
+  const anvilPanel = (
+    <GuideSearch cards={cards} labels={t.index.search}>
       <div className="space-y-8">
         {GROUPS.map((group) => (
           <section key={group.key}>
@@ -115,49 +127,81 @@ export default async function GuideIndex({ lang }: { lang: string }) {
           </section>
         ))}
       </div>
-      </GuideSearch>
+    </GuideSearch>
+  );
 
-      {/* The in-game guides module (/guides): what the clan and the Anvil library have written about
-          the game itself, as opposed to the pages above about using Anvil. Content, not dictionary —
-          the guides are written in whatever language their author wrote them in. */}
-      {ingame.length > 0 && (
-        <section className="mt-10">
-          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <h2 className="flex items-center gap-2 text-[17px] font-bold">
-                <span aria-hidden className="h-5 w-1 shrink-0 rounded-full bg-gold" />
-                {t.index.ingame.title}
-              </h2>
-              <p className="mt-1 text-[13px] text-text-muted">{t.index.ingame.dek}</p>
-            </div>
-            <ClanLink href="/guides" className="text-sm text-gold hover:underline">
-              {t.index.ingame.browse} →
-            </ClanLink>
+  // The in-game guides module's library: OSRS content (raids, bosses, skilling, money makers), the
+  // same guides the plugin shows in-game and the bot posts to Discord. Content, not dictionary — the
+  // guides are not translated, and the note says so rather than letting the picker imply otherwise.
+  const ingamePanel = (
+    <>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] text-text-muted">{t.index.ingame.dek}</p>
+          <p className="mt-1 text-[12px] text-text-muted/80">{t.index.ingame.language}</p>
+        </div>
+        <ClanLink href={libraryHref('/guides')} className="shrink-0 text-sm text-gold hover:underline">
+          {t.index.ingame.browse} →
+        </ClanLink>
+      </div>
+      {ingameCards.length === 0 ? (
+        <p className="rounded-xl border border-card-border bg-card-bg px-5 py-8 text-center text-sm text-text-muted">
+          {t.index.ingame.empty}
+        </p>
+      ) : (
+        <GuideSearch
+          cards={ingameCards}
+          labels={{ ...t.index.search, placeholder: t.index.ingame.placeholder }}
+        >
+          <div className="space-y-8">
+            {ingameGroups.map((group) => {
+              const cat = categoryOf(group.category, cats);
+              return (
+                <section key={group.category}>
+                  <h2 className="mb-3 flex items-center gap-2 text-[17px] font-bold">
+                    <span aria-hidden className="h-5 w-1 shrink-0 rounded-full bg-gold" />
+                    {cat.label}
+                  </h2>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {group.cards.map((card) => (
+                      <ClanLink
+                        key={card.page}
+                        href={card.href}
+                        className="group rounded-xl border border-card-border bg-card-bg p-4 transition-colors hover:border-gold/40 hover:bg-brown-light/20"
+                      >
+                        <div className="mb-2 text-[11px] uppercase tracking-widest text-gold/80">{card.eyebrow}</div>
+                        <div className="mb-1 text-[15px] font-bold transition-colors group-hover:text-gold-light">
+                          {card.title}
+                        </div>
+                        {card.blurb && <p className="mb-3 line-clamp-2 text-[13px] text-text-muted">{card.blurb}</p>}
+                        <div className="text-[11.5px] text-text-muted/80">{card.minutes}</div>
+                      </ClanLink>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {ingame.slice(0, 6).map(({ guide: g, origin }) => (
-              <ClanLink
-                key={g.id}
-                href={`/guides/${g.slug}`}
-                className="group rounded-xl border border-card-border bg-card-bg p-4 transition-colors hover:border-gold/40 hover:bg-brown-light/20"
-              >
-                <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-widest text-gold/80">
-                  <span>
-                    {categoryOf(g.category, cats).icon} {categoryOf(g.category, cats).label}
-                  </span>
-                  {origin === 'library' && clan && (
-                    <span className="rounded-full bg-white/5 px-2 py-0.5 normal-case tracking-normal text-text-muted">
-                      {t.index.ingame.library}
-                    </span>
-                  )}
-                </div>
-                <div className="mb-1 text-[15px] font-bold transition-colors group-hover:text-gold-light">{g.title}</div>
-                {g.summary && <p className="line-clamp-2 text-[13px] text-text-muted">{g.summary}</p>}
-              </ClanLink>
-            ))}
-          </div>
-        </section>
+        </GuideSearch>
       )}
+    </>
+  );
+
+  return (
+    <div className="max-w-3xl" lang={locale.code} dir={locale.dir}>
+      <LanguageBar current={locale.code} page="" label={t.common.language} />
+
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold text-gold sm:text-3xl">{t.index.title}</h1>
+        <p className="mt-1 text-sm text-text-muted">{rt(t.index.dek)}</p>
+      </header>
+
+      <GuideTabs
+        initial={tab}
+        labels={{ anvil: t.index.anvilTab, ingame: t.index.ingame.title }}
+        anvil={anvilPanel}
+        ingame={ingamePanel}
+      />
     </div>
   );
 }

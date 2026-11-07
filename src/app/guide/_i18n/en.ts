@@ -46,12 +46,20 @@ export const en = {
       clan: 'Running the clan',
       streamers: 'Streamers',
     },
-    // The in-game guides module (/guides) — surfaced on this index beside the setup guides.
+    // The index has two tabs: "Using Anvil" (the setup guides above) and the in-game guides module's
+    // library (/guides). `ingame.title` doubles as the second tab's label. The library guides are
+    // content, not dictionary — they are never translated, and `ingame.language` says so.
+    anvilTab: 'Using Anvil',
     ingame: {
       title: 'In-game guides',
-      dek: 'Raids, bosses, skilling and money makers — from the Anvil library and your clan, readable here and posted to Discord by the bot.',
+      dek: 'Raids, bosses, skilling and money makers from the Anvil library — the same guides the plugin shows in-game and the bot posts to Discord.',
       browse: 'Browse all guides',
-      library: 'Anvil library',
+      language: 'These guides aren\'t translated: they read as written, whatever language this page is in.',
+      empty: 'The Anvil library has no published guides yet. Check back soon.',
+      placeholder: 'Search in-game guides — try "zulrah", "raids" or "money"',
+      readTime: '{n} min read',
+      metaTitle: 'In-game OSRS guides — Anvil',
+      metaDescription: 'Raids, bossing, skilling and money-making guides from the Anvil library, readable on the site, in-game through the RuneLite plugin, and in Discord.',
     },
     search: {
       placeholder: 'Search the guides — try "webhook", "tiles", or "drops not showing"',
