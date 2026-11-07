@@ -5,7 +5,7 @@ import { rosterClanSeat } from '@/lib/seatScope';
 import { and, count, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import SectionHeader from '@/components/SectionHeader';
-import { atLeast } from '@/lib/clanRoles';
+import { atLeast, holdsModeratorTier } from '@/lib/clanRoles';
 import { pendingClaimRequests } from '@/lib/claimRequests';
 import { isCreatorSpace, streamsEvents } from '@/lib/creatorSpaces';
 
@@ -17,7 +17,8 @@ export default async function PeopleLayout({ children }: { children: React.React
   const session = await verifyUser();
   const isAdmin = atLeast(session?.role, 'admin');
   // "Past viewers" (lib/eventPlayers): moderator work, like the roster; only where events stream.
-  const isModerator = atLeast(session?.role, 'moderator') && session?.role !== 'treasurer';
+  // Moderator TIER, as the API behind it asks (lib/clanRoles holdsModeratorTier): a clan treasurer is in.
+  const isModerator = holdsModeratorTier(session);
 
   const clan = await requireClan();
   // BOTH KINDS OF WAITING, because the tab holds both and only one of them was counted.

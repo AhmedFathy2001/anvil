@@ -6,7 +6,7 @@ import { events, eventSignups, signupFees } from '@/db/schema';
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import ClanLink from '@/components/ClanLink';
-import { verifyAdminOrModerator } from '@/lib/auth';
+import { verifyFeeCollector } from '@/lib/auth';
 import { getRequiredConfirmations } from '@/lib/feeConfirmations';
 import { eventStage } from '@/lib/eventStage';
 import FeesBoardList, { type FeeBoard } from './FeesBoardList';
@@ -27,7 +27,9 @@ export const dynamic = 'force-dynamic';
  * event is over) close its ledger out in one action.
  */
 export default async function AdminFeesPage() {
-  const session = await verifyAdminOrModerator();
+  // Treasurer or admin, as collecting on its API is (verifyFeeCollector) — a moderator cannot act on
+  // anything here, so the page is not theirs either. Same gate as the coffer.
+  const session = await verifyFeeCollector();
   if (!session) redirect(await clanHref('/admin'));
 
   // Resolved before the ledger query, which is now scoped by it.

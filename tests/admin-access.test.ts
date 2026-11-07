@@ -59,7 +59,22 @@ test('moderators get the moderator surfaces and are turned away from the rest', 
 test('a treasurer is the same tier as a moderator', () => {
   assert.equal(redirectFor('/admin/fees', treasurer), allowed);
   assert.equal(redirectFor('/admin/dashboard', treasurer), allowed);
+  assert.equal(redirectFor('/admin/people', treasurer), allowed);
+  assert.equal(redirectFor('/admin/schedule', treasurer), allowed);
   assert.equal(redirectFor('/admin/integrations', treasurer), '/admin/dashboard');
+  // …but money is the treasurer's: the same tier without it does not reach the ledger.
+  assert.equal(redirectFor('/admin/fees', moderator), '/admin/dashboard');
+  assert.equal(redirectFor('/admin/coffer', moderator), '/admin/dashboard');
+});
+
+test('a board-only treasurer is confined to their boards, not the moderator tier', () => {
+  const boardTreasurer = { ...treasurer, treasurerScope: 'assigned' };
+  assert.equal(redirectFor('/admin/events', boardTreasurer), allowed);
+  assert.equal(redirectFor('/admin/events/3/payouts', boardTreasurer), allowed);
+  assert.equal(redirectFor('/admin/dashboard', boardTreasurer), '/admin/events');
+  assert.equal(redirectFor('/admin/people', boardTreasurer), '/admin/events');
+  assert.equal(redirectFor('/admin/clan/audit', boardTreasurer), '/admin/events');
+  assert.equal(adminLanding(boardTreasurer), '/admin/events');
 });
 
 test('authoring is a capability, so a moderator can build boards without being promoted', () => {

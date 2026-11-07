@@ -107,7 +107,7 @@ export default function PolicyClient() {
             {
               value: 'approval',
               label: 'Ask first',
-              hint: 'Requests land on Needs review and nobody plays until you say yes.',
+              hint: 'Requests show under “Asking to join” at the top of the Roster tab, and nobody plays until you say yes.',
             },
             { value: 'open', label: 'Let anyone in', hint: 'Turning up is enough. Good for an open event, noisy otherwise.' },
             {

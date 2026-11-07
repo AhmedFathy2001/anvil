@@ -452,8 +452,9 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
         <p className="text-text-muted text-sm mt-1">
           One row per <span className="text-foreground/80">person</span> (their Discord site account) with
           the RuneScape <span className="text-foreground/80">characters</span> they own. Set a staff role,
-          add or remove characters, and ban anyone who shouldn&rsquo;t have access. Everyone who signs in
-          with Discord starts as a plain Member.
+          choose the boards someone may build or the guides they may write, and ban anyone who
+          shouldn&rsquo;t have access. Players link their own characters. Everyone who signs in with
+          Discord starts as a plain Member.
         </p>
       </div>
 

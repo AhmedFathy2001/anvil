@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { cache } from 'react';
-import { atLeast, hasPlatformRole, type ClanRole } from '@/lib/clanRoles';
+import { atLeast, hasPlatformRole, holdsModeratorTier, type ClanRole } from '@/lib/clanRoles';
 import { LAB_DUMMY_LOGIN } from '@/lib/labRules';
 import { clanGrant } from '@/lib/clanGrants';
 import { cohostBoardEventIds, grantedCohostedEventIds } from '@/lib/eventEditors';
@@ -286,7 +286,13 @@ async function verifyUserUncached(): Promise<UserPayload | null> {
     // No clan (the apex, or a host that names none) means no clan authority: the apex has no roster
     // to administer, and platform capability is a separate axis that lives on users.platformRole.
     const clan = await currentClan();
-    const grant = clan ? await clanGrant(clan.id, dbUser.id) : null;
+    const heldGrant = clan ? await clanGrant(clan.id, dbUser.id) : null;
+    // BANNED HERE MEANS NO AUTHORITY HERE. A clan ban removes the person's staff row (lib/clanBans),
+    // but this is the backstop for any row that survived it — one written before that cleanup existed,
+    // or put back by a path that forgot to ask. Asked only when there is something to lose, so a
+    // plain member pays nothing for it.
+    const bannedHere = heldGrant != null && clan != null && (await isBannedFromClan(clan.id, playerId));
+    const grant = bannedHere ? null : heldGrant;
 
     // THE ONE EXCEPTION, and it is deliberately narrow.
     //
@@ -316,7 +322,9 @@ async function verifyUserUncached(): Promise<UserPayload | null> {
     // editor out once already — see lib/clanGrants.
     const holdsNothing = !grant || (grant.role === 'member' && !grant.canEditTiles);
     const boardGrant =
-      holdsNothing && !borrowed && clan ? await hasBoardGrantInClan(clan.id, dbUser.id) : false;
+      holdsNothing && !borrowed && clan && !bannedHere
+        ? (await hasBoardGrantInClan(clan.id, dbUser.id)) && !(await isBannedFromClan(clan.id, playerId))
+        : false;
 
     return {
       userId: dbUser.id,
@@ -381,12 +389,10 @@ export async function verifyAdminOrModerator(): Promise<UserPayload | null> {
   //
   // SCOPED grants are not tiers. Someone given one board to author, or one event's money to run,
   // must not reach the roster, verification or weekly moderation surfaces through it.
-  if (user.role === 'editor' && user.editorScope === 'assigned') return null;
-  if (user.role === 'treasurer' && user.treasurerScope === 'assigned') return null;
-  // A GLOBAL editor does everything a moderator can. Named explicitly because lib/clanRoles does not
-  // rank 'editor' — it is a capability, not a tier — so atLeast() reads it as 'member'.
-  if (user.role === 'editor') return user;
-  return atLeast(user.role, 'moderator') ? user : null;
+  // A GLOBAL editor does everything a moderator can. lib/clanRoles does not rank 'editor' — it is a
+  // capability, not a tier — so holdsModeratorTier names it explicitly. One rule, shared with the
+  // admin pages that gate on the same question.
+  return holdsModeratorTier(user) ? user : null;
 }
 
 // Per-event bingo-authoring gate. A caller may build/edit THIS event's tiles (Quick Build grid, CSV

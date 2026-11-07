@@ -281,10 +281,11 @@ test('New and Popular name real entries and never repeat each other', () => {
 test('moderators only see what their role can open', () => {
   const mod = visibleSettings(moderator);
   const modIds = new Set(mod.map((e) => e.id));
-  for (const hidden of ['discord', 'plan', 'features', 'rules-house', 'rules-feed-deaths', 'people-staff', 'access-guests', 'clan-name', 'boosts', 'events-new', 'events-all', 'event-tiles', 'event-setting-reveal', 'coffer', 'webhook-discord_webhook_url', 'discord-old-webhooks', 'announce']) {
+  for (const hidden of ['discord', 'plan', 'features', 'rules-house', 'rules-feed-deaths', 'people-staff', 'access-guests', 'clan-name', 'boosts', 'events-new', 'events-all', 'event-tiles', 'event-setting-reveal', 'coffer', 'fees', 'webhook-discord_webhook_url', 'discord-old-webhooks', 'announce']) {
+    // Fees, like the coffer, is the treasurer's: the page and its collect API refuse a moderator.
     assert.ok(!modIds.has(hidden), `moderator should not see ${hidden}`);
   }
-  for (const shown of ['dashboard', 'schedule', 'proofs', 'people-roster', 'people-review', 'activity-log', 'fees', 'profile-announcements', 'challenges']) {
+  for (const shown of ['dashboard', 'schedule', 'proofs', 'people-roster', 'people-review', 'activity-log', 'profile-announcements', 'challenges']) {
     assert.ok(modIds.has(shown), `moderator should see ${shown}`);
   }
   // Everything a moderator sees really is reachable by the admin gate.

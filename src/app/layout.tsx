@@ -209,6 +209,7 @@ export default async function RootLayout({
         canEditTiles: session.canEditTiles,
         editorScope: session.editorScope,
         canEditGuides: session.canEditGuides,
+        treasurerScope: session.treasurerScope,
       })
     : '/admin/dashboard';
 

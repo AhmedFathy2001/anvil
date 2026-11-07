@@ -6,8 +6,8 @@ import { clanAuditLog, clanMemberships, clanRoster, clanStaff, users } from '@/d
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
-import { banFromClan, isBannedFromClan, liftClanBan } from '@/lib/clanBans';
-import { atLeast } from '@/lib/clanRoles';
+import { banFromClan, highestClanRoleOfPerson, isBannedFromClan, liftClanBan } from '@/lib/clanBans';
+import { atLeast, canModify, canSetPendingRole } from '@/lib/clanRoles';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 import { isEventSeat } from '@/lib/seatKinds';
 
@@ -42,11 +42,12 @@ const ACTIONS = new Set<BulkAction>([
 // from turning into an unbounded write loop.
 const MAX_IDS = 500;
 
-// Actions a MODERATOR may run. Everything here is roster work — who is in the clan, who's banned
-// from it. What's deliberately absent is 'set-role', 'promote' and 'demote': those change what
-// someone can DO on the site, and a moderator handing out roles (including their own) is how a
-// moderation account becomes an admin account.
-const MODERATOR_ACTIONS = new Set<BulkAction>(['remove', 'rejoin', 'ban', 'unban']);
+// Actions a MODERATOR may run. Everything here is roster work — who is on the roster. What's
+// deliberately absent is 'set-role', 'promote' and 'demote' (those change what someone can DO on the
+// site, and a moderator handing out roles is how a moderation account becomes an admin account) and
+// 'ban'/'unban': barring someone is admin-only on the per-person route (admin/users/[id]/ban), and
+// the bulk path must not be the side door around it.
+const MODERATOR_ACTIONS = new Set<BulkAction>(['remove', 'rejoin']);
 
 export async function POST(request: Request) {
   // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
@@ -77,7 +78,11 @@ export async function POST(request: Request) {
   if (!ACTIONS.has(action)) return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   if (!atLeast(actor.role, 'admin') && !MODERATOR_ACTIONS.has(action)) {
     return NextResponse.json(
-      { error: 'Only an admin can change site roles.' },
+      {
+        error: action === 'ban' || action === 'unban'
+          ? 'Only an admin can ban or unban.'
+          : 'Only an admin can change site roles.',
+      },
       { status: 403 },
     );
   }
@@ -88,6 +93,11 @@ export async function POST(request: Request) {
       { error: "role must be 'admin', 'moderator', 'editor', 'treasurer', or null" },
       { status: 400 },
     );
+  }
+  // The Staff & roles rule: never hand out a role at or above your own. A pre-assigned role becomes a
+  // grant (now for a verified character, on claim otherwise), so it is checked here, where it is set.
+  if (action === 'set-role' && !canSetPendingRole(actor.role, role)) {
+    return NextResponse.json({ error: 'You cannot grant a role at or above your own' }, { status: 403 });
   }
   const reason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 500) || null : null;
 
@@ -144,11 +154,17 @@ export async function POST(request: Request) {
 
     switch (action) {
       case 'set-role': {
+        // Never act on a peer or a superior (Staff & roles' canModify), read for the whole person.
+        if (role !== null && m.playerId != null && !canModify(actor.role, await highestClanRoleOfPerson(clan.id, m.playerId))) {
+          skipped.push({ id: m.id, rsn: m.rsn, reason: 'at or above your own role' });
+          break;
+        }
         await db.update(clanMemberships).set({ pendingRole: role }).where(eq(clanMemberships.id, m.id));
         db.insert(clanAuditLog)
           .values({
             clanMemberId: m.id,
             eventType: 'role_pre_assigned',
+            clanId: clan.id,
             oldValue: JSON.stringify({ pendingRole: m.pendingRole }),
             newValue: JSON.stringify({ pendingRole: role }),
             actorUserId: actor.userId > 0 ? actor.userId : null,
@@ -217,6 +233,12 @@ export async function POST(request: Request) {
         // Owner OF THIS CLAN, read from the grant. Owning some other clan is no protection here.
         if (ownerPersonId != null && m.playerId === ownerPersonId) {
           skipped.push({ id: m.id, rsn: m.rsn, reason: 'clan owner' });
+          break;
+        }
+        // The per-person ban route's rule: never act on a peer or a superior. Without it a bulk
+        // selection could bar an admin out of the clan.
+        if (!canModify(actor.role, await highestClanRoleOfPerson(clan.id, m.playerId))) {
+          skipped.push({ id: m.id, rsn: m.rsn, reason: 'at or above your own role' });
           break;
         }
 

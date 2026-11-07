@@ -3,8 +3,7 @@ import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanRoster, events } from '@/db/schema';
-import { verifyUser } from '@/lib/auth';
-import { atLeast } from '@/lib/clanRoles';
+import { verifyAdminOrModerator } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
 import { makeEventPlayer, makeGuest, pastViewers } from '@/lib/eventPlayers';
 
@@ -15,11 +14,11 @@ import { makeEventPlayer, makeGuest, pastViewers } from '@/lib/eventPlayers';
  *   POST { action: 'make-guest',  seatId }           an event player becomes a guest of the clan
  *   POST { action: 'make-viewer', seatId, eventId }  a guest goes back to being one event's player
  *
- * Moderator tier, like the roster (treasurer stays out: money-only). Bans stay on the roster.
+ * Moderator tier, like the roster (a clan treasurer included; a board-only grant not). Bans stay on the roster.
  */
 async function guard() {
-  const user = await verifyUser();
-  if (!user || !atLeast(user.role, 'moderator') || user.role === 'treasurer') {
+  const user = await verifyAdminOrModerator();
+  if (!user) {
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
   }
   return { user, clan: await requireClan() };

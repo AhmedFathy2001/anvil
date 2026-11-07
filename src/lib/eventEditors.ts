@@ -22,14 +22,21 @@ export async function getEventEditorUserIds(eventId: number): Promise<number[]> 
 
 // Event ids this user may edit via a board grant (does NOT include the all-events reach a global
 // editor or admin has — this is purely the explicit grant set). Used to scope the admin events list.
-export async function assignedEventIdsForUser(userId: number, role?: BoardRole): Promise<number[]> {
+//
+// `clanId` narrows it to boards that clan owns. Anything that WRITES from this list must pass it: the
+// per-user "Boards…" save diffed against every grant the person held anywhere, so saving one clan's
+// picker revoked the boards other clans had given them.
+export async function assignedEventIdsForUser(userId: number, role?: BoardRole, clanId?: number): Promise<number[]> {
   const rows = await db
     .select({ eventId: eventEditors.eventId })
     .from(eventEditors)
+    .innerJoin(events, eq(events.id, eventEditors.eventId))
     .where(
-      role
-        ? and(eq(eventEditors.userId, userId), eq(eventEditors.role, role))
-        : eq(eventEditors.userId, userId),
+      and(
+        eq(eventEditors.userId, userId),
+        role ? eq(eventEditors.role, role) : undefined,
+        clanId != null ? eq(events.clanId, clanId) : undefined,
+      ),
     );
   return [...new Set(rows.map((r) => r.eventId))];
 }
@@ -207,11 +214,10 @@ export async function revokeEventEditor(
   if (!u) return;
   // Deprovision only the scoped flavours, and only once their LAST grant of that job is gone. A
   // global editor or a real clan treasurer is never touched by revoking one board.
+  // Grants on THIS clan's boards: the scoped role being decided is this clan's, and a board another
+  // clan handed them is no reason to keep a door open here.
   const remainingOfRole = async (r: BoardRole) =>
-    !!(await db.query.eventEditors.findFirst({
-      where: and(eq(eventEditors.userId, userId), eq(eventEditors.role, r)),
-      columns: { id: true },
-    }));
+    (await assignedEventIdsForUser(userId, r, ev.clanId)).length > 0;
   if (u.role === 'editor' && u.editorScope === 'assigned' && !(await remainingOfRole('editor'))) {
     // They may still hold treasurer grants — hand them that door instead of locking them out.
     const nextRole = (await remainingOfRole('treasurer')) ? 'treasurer' : 'member';
@@ -232,12 +238,16 @@ export async function revokeEventEditor(
 // grants and routes each change through grant/revoke so the auto-provision/-deprovision side effects
 // stay consistent. Additions run before removals so a member is promoted before any final revoke
 // could consider demoting them.
+//
+// SCOPED TO ONE CLAN. `eventIds` is that clan's picker, so only that clan's grants are diffed against
+// it; grants on other clans' boards are not this caller's to revoke.
 export async function setUserAssignedEvents(
+  clanId: number,
   userId: number,
   eventIds: number[],
   grantedByUserId: number | null,
 ): Promise<void> {
-  const current = new Set(await assignedEventIdsForUser(userId, 'editor'));
+  const current = new Set(await assignedEventIdsForUser(userId, 'editor', clanId));
   const next = new Set(eventIds);
   for (const id of next) {
     if (!current.has(id)) await grantEventEditor(id, userId, grantedByUserId, 'editor');

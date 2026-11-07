@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 
 import { verifyUser } from '@/lib/auth';
-import { atLeast } from '@/lib/clanRoles';
+import { holdsModeratorTier } from '@/lib/clanRoles';
 import { requireClan } from '@/lib/clanContext';
 import { clanHref } from '@/lib/clanPath';
 import { streamsEvents } from '@/lib/creatorSpaces';
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 // Moderator tier, like the roster. A clan without Streaming has none to show, so it goes back to People.
 export default async function PastViewersPage() {
   const [session, clan] = await Promise.all([verifyUser(), requireClan()]);
-  if (!streamsEvents(clan) || !atLeast(session?.role, 'moderator') || session?.role === 'treasurer') {
+  if (!streamsEvents(clan) || !holdsModeratorTier(session)) {
     redirect(await clanHref('/admin/people'));
   }
   return <PastViewersClient />;

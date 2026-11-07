@@ -217,3 +217,97 @@ test('one live ban per person per clan, enforced by the database', async () => {
     'two live bans for one person in one clan is not a state that should exist',
   );
 });
+
+// ── A ban takes away the job too ──────────────────────────────────────────────────────────────
+//
+// A ban used to end the seats and leave the clan_staff row, so a banned moderator kept moderating:
+// verifyUser reads authority from that row and never asked about bans.
+
+test('a ban removes their staff job and board grants in THIS clan only, on the record', async () => {
+  const { db, schema: s } = await loadDb();
+  const { highestClanRoleOfPerson } = await import('../src/lib/clanBans.ts');
+  const [home, other] = await db
+    .insert(s.clans)
+    .values([
+      { slug: 'staffban-home', name: 'Home' },
+      { slug: 'staffban-other', name: 'Other' },
+    ])
+    .returning();
+  const [mod] = await db.insert(s.players).values({ displayName: 'Rogue Mod' }).returning();
+  // Two logins for one person: the job sits on one, the board grant on the other.
+  const [loginA, loginB] = await db
+    .insert(s.users)
+    .values([
+      { displayName: 'Rogue A', discordId: '980000000000000101', playerId: mod.id },
+      { displayName: 'Rogue B', discordId: '980000000000000102', playerId: mod.id },
+    ])
+    .returning();
+  await db.insert(s.clanStaff).values([
+    { clanId: home.id, userId: loginA.id, role: 'moderator' },
+    { clanId: other.id, userId: loginA.id, role: 'admin' },
+  ]);
+  const [homeBoard, otherBoard] = await db
+    .insert(s.events)
+    .values([
+      { clanId: home.id, name: 'Home Bingo', boardSize: 5 },
+      { clanId: other.id, name: 'Other Bingo', boardSize: 5 },
+    ])
+    .returning();
+  await db.insert(s.eventEditors).values([
+    { eventId: homeBoard.id, userId: loginB.id, role: 'editor' },
+    { eventId: homeBoard.id, userId: loginB.id, role: 'treasurer' },
+    { eventId: otherBoard.id, userId: loginB.id, role: 'editor' },
+  ]);
+
+  assert.equal(await highestClanRoleOfPerson(home.id, mod.id), 'moderator');
+  assert.equal(await highestClanRoleOfPerson(other.id, mod.id), 'admin', 'read across every login');
+
+  const r = await banFromClan({ clanId: home.id, playerId: mod.id, byUserId: staffUser });
+  assert.equal(r.ok, true);
+
+  const homeStaff = await db.select().from(s.clanStaff).where(eq(s.clanStaff.clanId, home.id));
+  assert.equal(homeStaff.length, 0, 'the moderator job here is gone');
+  const otherStaff = await db.select().from(s.clanStaff).where(eq(s.clanStaff.clanId, other.id));
+  assert.equal(otherStaff.length, 1, 'their admin seat in another clan is that clan’s business');
+
+  const grants = await db.select().from(s.eventEditors).where(eq(s.eventEditors.userId, loginB.id));
+  assert.deepEqual(grants.map((g) => g.eventId), [otherBoard.id], 'only the other clan’s board grant survives');
+
+  const log = await db
+    .select()
+    .from(s.clanAuditLog)
+    .where(and(eq(s.clanAuditLog.clanId, home.id), eq(s.clanAuditLog.eventType, 'staff_removed_on_ban')));
+  assert.equal(log.length, 1, 'audit-logged in this clan');
+  assert.match(log[0].oldValue ?? '', /moderator/);
+  assert.equal(await highestClanRoleOfPerson(home.id, mod.id), 'member');
+});
+
+test('a ban clears a role pre-assigned on their seat, so rejoining does not hand it back', async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db.insert(s.clans).values({ slug: 'staffban-pending', name: 'Pending' }).returning();
+  const [who] = await db.insert(s.players).values({ displayName: 'Queued' }).returning();
+  const [acct] = await db.insert(s.accounts).values({ playerId: who.id, rsn: 'Queued', rsnNormalized: 'queued' }).returning();
+  const [seat] = await db
+    .insert(s.clanMemberships)
+    .values({ clanId: clan.id, accountId: acct.id, kind: 'member', source: 'roster', pendingRole: 'moderator' })
+    .returning();
+  await banFromClan({ clanId: clan.id, playerId: who.id, byUserId: staffUser });
+  const after = await db.query.clanMemberships.findFirst({ where: eq(s.clanMemberships.id, seat.id) });
+  assert.equal(after?.pendingRole, null);
+});
+
+test('the clan owner cannot be banned, even through the library', async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db.insert(s.clans).values({ slug: 'staffban-owner', name: 'Owned' }).returning();
+  const [boss] = await db.insert(s.players).values({ displayName: 'Boss' }).returning();
+  const [login] = await db
+    .insert(s.users)
+    .values({ displayName: 'Boss', discordId: '980000000000000103', playerId: boss.id })
+    .returning();
+  await db.insert(s.clanStaff).values({ clanId: clan.id, userId: login.id, role: 'owner' });
+  const r = await banFromClan({ clanId: clan.id, playerId: boss.id, byUserId: staffUser });
+  assert.equal(r.ok, false);
+  assert.equal(await isBannedFromClan(clan.id, boss.id), false, 'no ban row written');
+  const staff = await db.select().from(s.clanStaff).where(eq(s.clanStaff.clanId, clan.id));
+  assert.equal(staff[0]?.role, 'owner', 'the owner row is untouched');
+});

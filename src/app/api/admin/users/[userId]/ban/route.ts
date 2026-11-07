@@ -6,7 +6,7 @@ import { clanStaff, users } from '@/db/schema';
 import { personOf } from '@/lib/roster';
 import { verifyUser } from '@/lib/auth';
 import { requireClanFromRequest } from '@/lib/clanContext';
-import { banFromClan, liftClanBan } from '@/lib/clanBans';
+import { banFromClan, highestClanRoleOfPerson, liftClanBan } from '@/lib/clanBans';
 import { atLeast, canModify } from '@/lib/clanRoles';
 
 // POST /api/admin/users/[userId]/ban   Body: { banned: boolean, reason?: string }
@@ -67,6 +67,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   const playerId = await personOf(targetId);
   if (playerId == null) {
     return NextResponse.json({ error: 'That login has no person to ban' }, { status: 400 });
+  }
+  // The ban is on the PERSON, so the rank rule sees every login they hold here, not just this one.
+  if (!canModify(actor.role, await highestClanRoleOfPerson(clan.id, playerId))) {
+    return NextResponse.json({ error: 'You cannot ban someone at or above your own role' }, { status: 403 });
   }
 
   if (!banned) {

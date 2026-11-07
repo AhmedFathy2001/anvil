@@ -55,7 +55,13 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
   // here. Asking the real routing table means the dashboard and the gate can never disagree.
   const session = await verifyUser();
   const access = session
-    ? { role: session.role, canEditTiles: session.canEditTiles, editorScope: session.editorScope, canEditGuides: session.canEditGuides }
+    ? {
+        role: session.role,
+        canEditTiles: session.canEditTiles,
+        editorScope: session.editorScope,
+        canEditGuides: session.canEditGuides,
+        treasurerScope: session.treasurerScope,
+      }
     : null;
   const canReach = (href: string) => redirectFor(href, access) === null;
   const canManageEvents = canReach('/admin/events');
@@ -535,7 +541,11 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
             href={
               feeCounts.owed + feeCounts.toSign === 0 && provisionalCount > 0 && canReach('/admin/people/needs-review')
                 ? '/admin/people/needs-review'
-                : '/admin/fees'
+                : canReach('/admin/fees')
+                  ? '/admin/fees'
+                  : canReach('/admin/people/needs-review')
+                    ? '/admin/people/needs-review'
+                    : null
             }
           />
         </div>
@@ -553,6 +563,7 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
             activeMembers={activeMembers}
             provisionalCount={provisionalCount}
             feeCounts={feeCounts}
+            canOpenFees={canReach('/admin/fees')}
             unscheduled={unscheduled.length}
             creator={creator}
           />
@@ -1139,6 +1150,7 @@ function Snapshot({
   activeMembers,
   provisionalCount,
   feeCounts,
+  canOpenFees,
   unscheduled,
   creator = false,
 }: {
@@ -1146,6 +1158,8 @@ function Snapshot({
   activeMembers: number;
   provisionalCount: number;
   feeCounts: { owed: number; toSign: number };
+  /** The fee rows link to /admin/fees, which only a treasurer or admin may open. */
+  canOpenFees: boolean;
   unscheduled: number;
   /** A creator space: the roster and weekly rows mean nothing there. */
   creator?: boolean;
@@ -1176,13 +1190,15 @@ function Snapshot({
           />
         )}
         {!creator && <SnapshotRow label="Roster size" value={`${activeMembers} active`} href="/admin/people" />}
-        <SnapshotRow
-          label="Fees to collect"
-          value={`${feeCounts.owed} fee${feeCounts.owed === 1 ? '' : 's'}`}
-          href="/admin/fees"
-          emphasize={feeCounts.owed > 0}
-        />
-        {feeCounts.toSign > 0 && (
+        {canOpenFees && (
+          <SnapshotRow
+            label="Fees to collect"
+            value={`${feeCounts.owed} fee${feeCounts.owed === 1 ? '' : 's'}`}
+            href="/admin/fees"
+            emphasize={feeCounts.owed > 0}
+          />
+        )}
+        {canOpenFees && feeCounts.toSign > 0 && (
           <SnapshotRow label="Fees awaiting sign-off" value={`${feeCounts.toSign} paid`} href="/admin/fees" />
         )}
         {unscheduled > 0 && (

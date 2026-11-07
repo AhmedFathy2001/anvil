@@ -2,7 +2,7 @@ import { verifyUser } from '@/lib/auth';
 import ClanRosterClient from './ClanRosterClient';
 import PendingCoHostInvites from './PendingCoHostInvites';
 import JoinRequests from './JoinRequests';
-import { atLeast } from '@/lib/clanRoles';
+import { atLeast, canGrantRole, holdsModeratorTier } from '@/lib/clanRoles';
 import { requireClan } from '@/lib/clanContext';
 import { pendingCoHostInvites } from '@/lib/coHost';
 import { pendingRequests } from '@/lib/guestAdmission';
@@ -20,7 +20,8 @@ export default async function AdminClanPage() {
   // Join requests are MODERATOR work — the same tier that can already remove somebody — while a
   // co-host invite speaks for the whole clan and stays with an admin. Two different bars, so two
   // different reads rather than one `isStaff`.
-  const isModerator = atLeast(session?.role, 'moderator');
+  // Moderator TIER: a clan treasurer is in it, a board-only grant is not (lib/clanRoles).
+  const isModerator = holdsModeratorTier(session);
   const [pending, requests] = await Promise.all([
     isAdmin ? pendingCoHostInvites(clan.id) : Promise.resolve([]),
     isModerator ? pendingRequests(clan.id) : Promise.resolve([]),
@@ -38,7 +39,8 @@ export default async function AdminClanPage() {
     <>
       {requests.length > 0 && <JoinRequests initial={requests} />}
       {pending.length > 0 && <PendingCoHostInvites initial={pending} />}
-      <ClanRosterClient isAdmin={isAdmin} />
+      {/* Only the owner can hand out Admin (Staff & roles' rule), so only they are offered it. */}
+      <ClanRosterClient isAdmin={isAdmin} canGrantAdmin={canGrantRole(session?.role, 'admin')} />
     </>
   );
 }

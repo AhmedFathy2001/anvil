@@ -1,22 +1,22 @@
 import { NextResponse } from 'next/server';
-import { verifyAdminOrModerator, verifyUser } from '@/lib/auth';
+import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
 import { requireClan, requireClanFromRequest } from '@/lib/clanContext';
 import { accounts, clanBans, clanMemberships, clanRoster, clanStaff, users } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
-import { atLeast } from '@/lib/clanRoles';
 import { latestClanReportByAccount } from '@/lib/characterReports';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 import { rosterClanSeat } from '@/lib/seatScope';
 
 // GET — list all clan members (active + departed) for the admin roster view.
 export async function GET(request: Request) {
-  const user = await verifyUser();
-  // Moderator tier and up. Treasurer TIES with moderator in lib/clanRoles but is money-only, and
-  // this is a moderation surface, so it stays out — explicitly, as it always was.
-  if (!user || !atLeast(user.role, 'moderator') || user.role === 'treasurer') {
+  // Moderator tier — the same gate as adding, editing and removing on this roster (POST/PUT/DELETE
+  // below). A clan treasurer is in that tier ("everything a moderator can do, plus fees"); it used to
+  // be refused the LIST while being allowed to edit the rows on it. A board-only grant is not.
+  const user = await verifyAdminOrModerator();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

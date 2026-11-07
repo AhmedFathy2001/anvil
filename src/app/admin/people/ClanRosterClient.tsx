@@ -332,7 +332,7 @@ function PendingRoleBadge({ m }: { m: ClanMember }) {
   );
 }
 
-export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
+export default function ClanRosterClient({ isAdmin, canGrantAdmin = false }: { isAdmin: boolean; canGrantAdmin?: boolean }) {
   // One reading of the clock for the page's lifetime, so "6d ago" and the Idle view can never
   // disagree with each other across a re-render.
   const [nowMs] = useState(() => Date.now());
@@ -1023,7 +1023,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                     { value: 'moderator', label: 'Moderator' },
                     { value: 'treasurer', label: 'Treasurer' },
                     { value: 'editor', label: 'Board builder' },
-                    { value: 'admin', label: 'Admin' },
+                    ...(canGrantAdmin ? [{ value: 'admin', label: 'Admin' }] : []),
                     { value: 'none', label: 'Clear pending role' },
                   ]}
                 />
@@ -1321,7 +1321,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                   { value: 'moderator', label: ROLE_BLURB.moderator },
                   { value: 'editor', label: ROLE_BLURB.editor },
                   { value: 'treasurer', label: ROLE_BLURB.treasurer },
-                  { value: 'admin', label: ROLE_BLURB.admin },
+                  ...(canGrantAdmin ? [{ value: 'admin', label: ROLE_BLURB.admin }] : []),
                 ]}
               />
             </div>

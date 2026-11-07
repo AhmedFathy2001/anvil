@@ -1,19 +1,18 @@
 import { NextResponse } from 'next/server';
-import { verifyUser } from '@/lib/auth';
+import { verifyAdminOrModerator } from '@/lib/auth';
 import { listClanEventItems, listEventIndex } from '@/lib/eventIndex';
 import { lifecycleSteps } from '@/lib/eventStage';
 import { getEventRow, getStageCounts } from '@/lib/eventStageCounts';
-import { atLeast } from '@/lib/clanRoles';
 import { requireClan } from '@/lib/clanContext';
 
 // GET — everything this clan runs, boards and weeklies together, for the admin schedule calendar.
 // One shape for both (lib/eventIndex) rather than two lists the client has to reconcile; the
 // weekly links land on their admin workspace, not the player page. Any admin/moderator may view.
 export async function GET() {
-  const user = await verifyUser();
-  // Moderator tier and up. Treasurer TIES with moderator in lib/clanRoles but is money-only, and
-  // this is a moderation surface, so it stays out — explicitly, as it always was.
-  if (!user || !atLeast(user.role, 'moderator') || user.role === 'treasurer') {
+  // Moderator tier, as the sidebar that links here: a clan treasurer is in it (they schedule weekly
+  // competitions and handle event money), a board-only grant is not.
+  const user = await verifyAdminOrModerator();
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

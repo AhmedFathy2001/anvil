@@ -30,8 +30,25 @@ function isTilesTab(sub: string): boolean {
   return sub === '/tiles' || sub.startsWith('/tiles/');
 }
 
+/** A board's money tabs — the two a board treasurer is given (EventTabNav `moneyOnly`). */
+function isMoneyTab(sub: string): boolean {
+  return ['/signups', '/payouts'].some((t) => sub === t || sub.startsWith(`${t}/`));
+}
+
+/** Treasurer of one or more boards only — not of the clan (clan_staff.treasurer_scope 'assigned'). */
+function isBoardTreasurer(access: AdminAccess): boolean {
+  return access.role === 'treasurer' && access.treasurerScope === 'assigned';
+}
+
+/**
+ * The clan's money pages. Rank alone does not reach them: treasurer and moderator tie, and collecting
+ * money is the treasurer's job (lib/auth verifyFeeCollector, which the pages and their APIs check).
+ */
+const MONEY_PATHS = ['/admin/fees', '/admin/coffer'];
+
 /** What the holder of this grant sees when they open /admin with nowhere particular to go. */
 export function adminLanding(access: AdminAccess): string {
+  if (isBoardTreasurer(access)) return '/admin/events';
   if (atLeast(access.role, 'moderator')) return '/admin/dashboard';
   if (!access.canEditTiles && access.canEditGuides) return '/admin/guides';
   return '/admin/events';
@@ -43,6 +60,8 @@ export interface AdminAccess {
   editorScope: string;
   /** Guide authoring — like canEditTiles, a capability that can sit on a plain member. */
   canEditGuides?: boolean;
+  /** 'assigned' = treasurer of the boards they were named on only, not of the clan. */
+  treasurerScope?: string;
 }
 
 /** Surfaces a moderator-tier grant reaches. Admins reach everything, so this is not consulted. */
@@ -60,8 +79,8 @@ const MODERATOR_PATHS = [
   '/admin/fees',
   // Checking flagged proofs is moderation; this is the cross-board queue for people who can't open events.
   '/admin/proofs',
-  // The coffer is the same job as fees — a treasurer's — so it reaches the same tier. The page
-  // itself re-checks with verifyFeeCollector, which is what actually keeps a plain moderator out.
+  // The coffer is the same job as fees — a treasurer's — so it reaches the same tier. MONEY_PATHS
+  // below then keeps a plain moderator out of both, as the pages' verifyFeeCollector does.
   '/admin/coffer',
   '/admin/tile-library',
   // Every staff seat may read the clan's guides; the pages and routes check canEditGuides to write.
@@ -95,6 +114,17 @@ export function redirectFor(pathname: string, access: AdminAccess | null): strin
   // Nothing at all: not staff, and no authoring capability either.
   if (rankOf(access.role) < rankOf('moderator') && !authoring) return guides ? '/admin/guides' : '/';
 
+  // A board-only treasurer: their boards' money tabs and the (filtered) events list, nothing else —
+  // not the dashboard, the roster or the activity log. Every API behind those refuses them
+  // (verifyAdminOrModerator), so the pages must too.
+  if (isBoardTreasurer(access)) {
+    if (pathname === '/admin/events') return null;
+    const page = eventSubPage(pathname);
+    if (page && isMoneyTab(page.sub)) return null;
+    if (page && authoring && isTilesTab(page.sub)) return null;
+    return page ? `/admin/events/${page.id}/signups` : '/admin/events';
+  }
+
   // A plain member with authoring, or a board-scoped grant: the authoring surfaces only.
   if (rankOf(access.role) < rankOf('moderator') || scoped) {
     if (!isAuthoringPath(pathname)) return '/admin/events';
@@ -107,6 +137,9 @@ export function redirectFor(pathname: string, access: AdminAccess | null): strin
   // Moderator tier (moderator, treasurer): the moderator surfaces, plus authoring if granted.
   const permitted = MODERATOR_PATHS.some((p) => pathname.startsWith(p)) || (authoring && isAuthoringPath(pathname));
   if (!permitted) return '/admin/dashboard';
+  // Money is the treasurer's, not the tier's: a moderator is sent home rather than shown a page they
+  // cannot act on.
+  if (MONEY_PATHS.some((p) => pathname.startsWith(p)) && access.role !== 'treasurer') return '/admin/dashboard';
 
   // They may open a board to author on, but the rest of it is administration.
   if (authoring) {

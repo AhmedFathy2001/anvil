@@ -4,7 +4,9 @@ import { db } from '@/db';
 import { clanAuditLog, clanMemberships, users } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
-import { verifyAdmin, verifyUser } from '@/lib/auth';
+import { verifyUser } from '@/lib/auth';
+import { atLeast, canModify, canSetPendingRole } from '@/lib/clanRoles';
+import { highestClanRoleOfPerson } from '@/lib/clanBans';
 import { applyPendingRole } from '@/lib/pending-role';
 import { refuseForCreatorSpace } from '@/lib/creatorGuard';
 import { isEventSeat } from '@/lib/seatKinds';
@@ -27,10 +29,8 @@ export async function PUT(
   // In-game clans only: a creator space has no roster, weeklies or coffer (lib/creatorGuard).
   const notForCreators = await refuseForCreatorSpace();
   if (notForCreators) return notForCreators;
-  const isAdmin = await verifyAdmin();
-  if (!isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
   const session = await verifyUser();
+  if (!session || !atLeast(session.role, 'admin')) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const actorUserId = session && session.userId > 0 ? session.userId : null;
 
   const { id } = await params;
@@ -50,10 +50,20 @@ export async function PUT(
     return NextResponse.json({ error: "role must be 'admin', 'moderator', 'editor', 'treasurer', or null" }, { status: 400 });
   }
 
+  // The Staff & roles rule: never hand out a role at or above your own. A pre-assigned role becomes a
+  // grant — straight away below for a verified character, on claim otherwise — so it is checked here.
+  if (!canSetPendingRole(session.role, role)) {
+    return NextResponse.json({ error: 'You cannot grant a role at or above your own' }, { status: 403 });
+  }
+
   const member = await seatForRequest(request, memberId);
   if (!member) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
   // An event player's seat is not a roster seat: no role is pre-assigned through it.
   if (isEventSeat(member)) return NextResponse.json({ error: 'That is an event player, not a roster seat.' }, { status: 409 });
+  // And never act on a peer or a superior — read for the whole person, every login they hold here.
+  if (role !== null && member.playerId != null && !canModify(session.role, await highestClanRoleOfPerson(member.clanId, member.playerId))) {
+    return NextResponse.json({ error: 'You cannot change the role of someone at or above your own' }, { status: 403 });
+  }
 
   await db.update(clanMemberships).set({ pendingRole: role }).where(eq(clanMemberships.id, memberId));
 
@@ -61,6 +71,7 @@ export async function PUT(
     .values({
       clanMemberId: memberId,
       eventType: 'role_pre_assigned',
+      clanId: member.clanId,
       oldValue: JSON.stringify({ pendingRole: member.pendingRole }),
       newValue: JSON.stringify({ pendingRole: role }),
       actorUserId,

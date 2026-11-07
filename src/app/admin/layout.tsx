@@ -55,6 +55,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     canEditTiles: session.canEditTiles,
     editorScope: session.editorScope,
     canEditGuides: session.canEditGuides,
+    treasurerScope: session.treasurerScope,
   };
   const target = redirectFor(pathname || '/admin/dashboard', access);
   if (target && target !== pathname) redirect(href(target));
@@ -100,7 +101,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   // Donations waiting to be believed, badged on the Money group so a treasurer sees them without
   // opening the page. Only counted for the people who can act on them.
-  const canHandleMoney = atLeast(session.role, 'admin') || session.role === 'treasurer';
+  // A board-only treasurer runs their boards' money from the board, not the clan's ledger.
+  const isBoardTreasurer = session.role === 'treasurer' && session.treasurerScope === 'assigned';
+  const canHandleMoney = atLeast(session.role, 'admin') || (session.role === 'treasurer' && !isBoardTreasurer);
   const cofferPending = canHandleMoney
     ? await db
         .select({ c: count() })
@@ -159,11 +162,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const isScopedEditor = !isStaffRole(session.role) && session.canEditTiles;
   // The same, for guides: a member who writes guides sees the guides and nothing else.
   const isGuideWriter = !isStaffRole(session.role) && session.canEditGuides;
+  // And for a board-only treasurer: "My boards", where their money tabs are — not the moderator menu
+  // (dashboard, people, activity log), which lib/adminAccess no longer lets them open.
+  const boardsOnly = isScopedEditor || isBoardTreasurer;
 
   // Boards on other clans this one co-hosts. They live at the host's address, so nothing under this
   // clan's admin reached them — and a moderator, who cannot open the events list, had no way at all.
   // Linked straight across: to the host's Tiles tab when they may author it, else to the board.
-  const cohosted = await coHostedBoardLinks(clan.id, session.userId, isScopedEditor);
+  const cohosted = isBoardTreasurer ? [] : await coHostedBoardLinks(clan.id, session.userId, isScopedEditor);
   const cohostedGroup: SidebarGroup | null = cohosted.length
     ? {
         label: 'Co-hosted',
@@ -171,9 +177,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       }
     : null;
 
-  if (isScopedEditor || isGuideWriter) {
+  if (boardsOnly || isGuideWriter) {
     const scopedGroups: SidebarGroup[] = [
-      ...(isScopedEditor
+      ...(boardsOnly
         ? [
             {
               label: 'Events',
@@ -181,7 +187,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             },
           ]
         : []),
-      ...(isGuideWriter
+      ...(isGuideWriter || (isBoardTreasurer && session.canEditGuides)
         ? [
             {
               label: 'Content',
@@ -195,7 +201,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     ];
     const scopedUser = {
       displayName: userRow?.displayName ?? session.username ?? 'Editor',
-      role: isScopedEditor && isGuideWriter ? 'board & guide editor' : isScopedEditor ? 'board editor' : 'guide editor',
+      role: isBoardTreasurer
+        ? 'board treasurer'
+        : isScopedEditor && isGuideWriter
+          ? 'board & guide editor'
+          : isScopedEditor
+            ? 'board editor'
+            : 'guide editor',
       avatarUrl: userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null,
       supporter,
     };

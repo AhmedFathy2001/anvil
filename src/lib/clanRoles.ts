@@ -80,6 +80,41 @@ export function canModify(actorRole: string | null | undefined, subjectRole: str
   return rankOf(actorRole) > rankOf(subjectRole);
 }
 
+/**
+ * May `actor` pre-assign `pending` on a roster seat (Roster → "Set role", bulk set-role)?
+ *
+ * The same rule as Staff & roles, because a pre-assigned role BECOMES a grant — immediately for a
+ * verified character, later on claim otherwise. Checking it only where it lands would let an admin
+ * mint another admin by pre-assigning it. 'editor' (board builder) is a capability, not a rank: Staff
+ * & roles lets an admin hand it out, so it needs admin. Clearing (null) needs only the admin gate the
+ * routes already apply.
+ */
+export function canSetPendingRole(actorRole: string | null | undefined, pending: string | null): boolean {
+  if (pending === null) return true;
+  if (pending === 'editor') return atLeast(actorRole, 'admin');
+  if (!(CLAN_ROLES as readonly string[]).includes(pending)) return false;
+  return canGrantRole(actorRole, pending as ClanRole);
+}
+
+/**
+ * Moderator-tier reach in this clan: moderator, clan-wide treasurer, global editor, admin, owner.
+ *
+ * A SCOPED grant is not a tier — someone handed one board to author, or one event's money, holds
+ * 'editor'/'treasurer' with scope 'assigned' and must not reach the roster, schedule or moderation
+ * surfaces through it. lib/auth `verifyAdminOrModerator` and the admin page gating both ask this, so
+ * the API and the page it backs cannot disagree about a treasurer.
+ */
+export function holdsModeratorTier(grant: {
+  role: string | null | undefined;
+  editorScope?: string | null;
+  treasurerScope?: string | null;
+} | null | undefined): boolean {
+  if (!grant) return false;
+  if (grant.role === 'editor') return grant.editorScope !== 'assigned';
+  if (grant.role === 'treasurer' && grant.treasurerScope === 'assigned') return false;
+  return atLeast(grant.role, 'moderator');
+}
+
 // ── Platform authority ───────────────────────────────────────────────────────────────────────
 //
 // A separate axis on purpose. A clan role never grants platform capability, and platform staff never

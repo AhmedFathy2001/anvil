@@ -5,13 +5,21 @@ import { events, users, clanAuditLog } from '@/db/schema';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { assignedEventIdsForUser, setUserAssignedEvents } from '@/lib/eventEditors';
-import { atLeast } from '@/lib/clanRoles';
+import { atLeast, canModify } from '@/lib/clanRoles';
+import { clanGrant, hasClanPresence } from '@/lib/clanGrants';
+import { isBannedFromClan } from '@/lib/clanBans';
+import { personOf } from '@/lib/roster';
 
 // Per-user board-editing assignment (the Users-page counterpart to the per-event editors panel).
 // Admin-only. Manages the board grants for role 'member' / scoped 'editor' users; a global editor
 // (role 'editor' + scope 'all') or admin already edits every board, so grants there are redundant.
 //   GET → { scope, assignedEventIds, events: [{id,name,...}] }
-//   PUT { eventIds: number[] } → replace the user's board set
+//   PUT { eventIds: number[] } → replace the user's board set ON THIS CLAN'S BOARDS
+//
+// Everything here is THIS clan's: the person must have a presence here, the role shown is the one
+// they hold here (clan_staff, not the legacy global users.role), and the set read and replaced is
+// their grants on this clan's boards only — other clans' grants are not ours to show or revoke. The
+// Staff & roles rank rule applies: never act on a peer or a superior.
 
 export async function GET(
   request: Request,
@@ -25,17 +33,17 @@ export async function GET(
   const uId = parseInt(userId, 10);
   if (!Number.isFinite(uId)) return NextResponse.json({ error: 'Invalid user id' }, { status: 400 });
 
-  const target = await db.query.users.findFirst({
-    where: eq(users.id, uId),
-    columns: { id: true, role: true, editorScope: true },
-  });
-  if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 });
-
   const clan = await requireClanFromRequest(request);
   if (!clan) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  // Only someone this clan can see — the same rule as every other grant on the People pages.
+  if (!(await hasClanPresence(clan.id, uId))) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+  const grant = await clanGrant(clan.id, uId);
+  const role = grant?.role ?? 'member';
+  const editorScope = grant?.editorScope ?? 'all';
 
   const [assignedEventIds, allEvents] = await Promise.all([
-    assignedEventIdsForUser(uId),
+    assignedEventIdsForUser(uId, 'editor', clan.id),
     db
       .select({
         id: events.id,
@@ -51,10 +59,10 @@ export async function GET(
   ]);
 
   return NextResponse.json({
-    role: target.role,
-    editorScope: target.editorScope,
-    // True when board grants are moot because the user already edits everything.
-    editsAllBoards: atLeast(target.role, 'admin') || (target.role === 'editor' && target.editorScope === 'all'),
+    role,
+    editorScope,
+    // True when board grants are moot because the user already edits everything HERE.
+    editsAllBoards: atLeast(role, 'admin') || (grant?.canEditTiles === true && editorScope === 'all'),
     assignedEventIds,
     events: allEvents,
   });
@@ -72,12 +80,25 @@ export async function PUT(
   const uId = parseInt(userId, 10);
   if (!Number.isFinite(uId)) return NextResponse.json({ error: 'Invalid user id' }, { status: 400 });
 
+  const clan = await requireClanFromRequest(request);
+  if (!clan) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
   const target = await db.query.users.findFirst({
     where: eq(users.id, uId),
-    columns: { id: true, banned: true, isOwner: true },
+    columns: { id: true, banned: true },
   });
   if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 });
   if (target.banned) return NextResponse.json({ error: 'User is banned' }, { status: 400 });
+  // In this clan, or not at all: no presence here means no grants from here.
+  if (!(await hasClanPresence(clan.id, uId))) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  if (await isBannedFromClan(clan.id, await personOf(uId))) {
+    return NextResponse.json({ error: 'That person is banned from this clan' }, { status: 400 });
+  }
+  // Never act on a peer or a superior (Staff & roles' rule).
+  const grant = await clanGrant(clan.id, uId);
+  if (!canModify(session.role, grant?.role ?? 'member')) {
+    return NextResponse.json({ error: 'You cannot modify someone at or above your own role' }, { status: 403 });
+  }
 
   const body = await request.json().catch(() => ({}));
   const rawIds: unknown = body.eventIds;
@@ -88,7 +109,6 @@ export async function PUT(
   const requested = Array.from(new Set(rawIds as number[]));
   // Real events BELONGING TO THIS CLAN. Checking only that an id exists let an admin grant somebody
   // editor rights over another clan's boards — ids are global, and this list arrives in the body.
-  const clan = await requireClanFromRequest(request);
   const existing = requested.length
     ? await db
         .select({ id: events.id })
@@ -98,16 +118,17 @@ export async function PUT(
   const validIds = new Set(existing.map((e) => e.id));
   const eventIds = requested.filter((id) => validIds.has(id));
 
-  await setUserAssignedEvents(uId, eventIds, session.userId > 0 ? session.userId : null);
+  await setUserAssignedEvents(clan.id, uId, eventIds, session.userId > 0 ? session.userId : null);
 
   db.insert(clanAuditLog)
     .values({
       eventType: 'editor_boards_set',
+      clanId: clan.id,
       newValue: JSON.stringify({ userId: uId, eventIds }),
       actorUserId: session.userId > 0 ? session.userId : null,
     })
     .catch(() => {});
 
-  const assignedEventIds = await assignedEventIdsForUser(uId);
+  const assignedEventIds = await assignedEventIdsForUser(uId, 'editor', clan.id);
   return NextResponse.json({ ok: true, assignedEventIds });
 }

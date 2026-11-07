@@ -14,7 +14,7 @@ import SurveyClient from '../survey/SurveyClient';
 import { surveyQuestions } from '@/db/schema';
 import { and } from 'drizzle-orm';
 import { toQuestionView } from '@/lib/survey';
-import { atLeast } from '@/lib/clanRoles';
+import { holdsModeratorTier } from '@/lib/clanRoles';
 import { pendingRequests } from '@/lib/guestAdmission';
 import JoinRequests from '../../../people/JoinRequests';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
@@ -49,7 +49,7 @@ export default async function EventSignupsPage({
       .then((rows) => rows.sort((a, b) => a.position - b.position).map(toQuestionView)),
     // clan-scope: this clan's requests to play THIS board (an approval event on a creator space).
     // Deciding them is moderator work, as on the People page, so a board treasurer doesn't get them.
-    atLeast(session.role, 'moderator') ? pendingRequests(clan.id, { eventId: id }) : Promise.resolve([]),
+    holdsModeratorTier(session) ? pendingRequests(clan.id, { eventId: id }) : Promise.resolve([]),
   ]);
 
   return (

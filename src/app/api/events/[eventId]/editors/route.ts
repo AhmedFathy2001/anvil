@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
-import { atLeast } from '@/lib/clanRoles';
+import { atLeast, canModify } from '@/lib/clanRoles';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { eventEditors, events, users, clanAuditLog } from '@/db/schema';
 import { and, eq, desc } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
-import { hasClanPresence } from '@/lib/clanGrants';
+import { clanGrant, hasClanPresence } from '@/lib/clanGrants';
+import { isBannedFromClan } from '@/lib/clanBans';
+import { personOf } from '@/lib/roster';
 import { getPeopleWithCharacters } from '@/lib/identity';
 import { grantEventEditor, revokeEventEditor, type BoardRole } from '@/lib/eventEditors';
 
@@ -84,7 +86,8 @@ export async function POST(
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, eId))) {
+  const scoped = await eventForRequest(request, eId);
+  if (!scoped) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   if (!Number.isFinite(eId)) return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
@@ -108,12 +111,21 @@ export async function POST(
   });
   if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 });
   if (target.banned) return NextResponse.json({ error: 'User is banned' }, { status: 400 });
+  // A clan ban took their board grants away (lib/clanBans); handing one back would undo it.
+  if (await isBannedFromClan(scoped.clanId, await personOf(userId))) {
+    return NextResponse.json({ error: 'That person is banned from this clan' }, { status: 400 });
+  }
+  // Staff & roles' rule: never act on a peer or a superior.
+  if (!canModify(session.role, (await clanGrant(scoped.clanId, userId))?.role ?? 'member')) {
+    return NextResponse.json({ error: 'You cannot modify someone at or above your own role' }, { status: 403 });
+  }
 
   await grantEventEditor(eId, userId, session.userId > 0 ? session.userId : null, boardRole);
 
   db.insert(clanAuditLog)
     .values({
       eventType: boardRole === 'treasurer' ? 'board_treasurer_granted' : 'editor_granted',
+      clanId: scoped.clanId,
       newValue: JSON.stringify({ userId, eventId: eId, role: boardRole }),
       actorUserId: session.userId > 0 ? session.userId : null,
     })
@@ -133,7 +145,8 @@ export async function DELETE(
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, eId))) {
+  const scoped = await eventForRequest(request, eId);
+  if (!scoped) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   if (!Number.isFinite(eId)) return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
@@ -156,12 +169,16 @@ export async function DELETE(
     columns: { id: true },
   });
   if (!existing) return NextResponse.json({ ok: true });
+  if (!canModify(session.role, (await clanGrant(scoped.clanId, userId))?.role ?? 'member')) {
+    return NextResponse.json({ error: 'You cannot modify someone at or above your own role' }, { status: 403 });
+  }
 
   await revokeEventEditor(eId, userId, boardRole);
 
   db.insert(clanAuditLog)
     .values({
       eventType: boardRole === 'treasurer' ? 'board_treasurer_revoked' : 'editor_revoked',
+      clanId: scoped.clanId,
       oldValue: JSON.stringify({ userId, eventId: eId, role: boardRole ?? 'all' }),
       actorUserId: session.userId > 0 ? session.userId : null,
     })
