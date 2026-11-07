@@ -3339,11 +3339,11 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Champion',
-          body: '$2 i månaden eller $20 om året. Namnfärger i gradient som du väljer själv, egen avatar och egen banner (animerade om du vill), 8 platser i montern, snabbare eventchatt och 1 klanboost.',
+          body: '$2 i månaden eller $20 om året. Ett gradientnamn från våra förval (eller en egen färg), egen avatar och egen banner (animerade om du vill), 8 platser i montern, snabbare eventchatt och 1 klanboost.',
         },
         {
           term: 'Patron',
-          body: '$5 i månaden eller $50 om året. Vilka färger du vill, med en gradient som rör sig, 12 platser i montern, ingen väntan i eventchatten, 2 vänevent samtidigt och 2 klanboosts.',
+          body: '$5 i månaden eller $50 om året. Din egen gradient med upp till 4 färger, som rör sig, 12 platser i montern, ingen väntan i eventchatten, 2 vänevent samtidigt och 2 klanboosts.',
         },
       ],
       note: {

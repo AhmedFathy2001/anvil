@@ -3339,11 +3339,11 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Champion',
-          body: '$2 im Monat oder $20 im Jahr. Namensfarben als Verlauf nach deiner Wahl, dein eigener Avatar und Banner (auf Wunsch animiert), 8 Vitrinenplätze, schnellerer Event-Chat und 1 Clan-Boost.',
+          body: '$2 im Monat oder $20 im Jahr. Ein Namensverlauf aus unseren Vorlagen (oder eine eigene Farbe), dein eigener Avatar und Banner (auf Wunsch animiert), 8 Vitrinenplätze, schnellerer Event-Chat und 1 Clan-Boost.',
         },
         {
           term: 'Patron',
-          body: '$5 im Monat oder $50 im Jahr. Beliebige Farben, mit einem Verlauf, der sich bewegt, 12 Vitrinenplätze, keine Wartezeit im Event-Chat, 2 Freundes-Events gleichzeitig und 2 Clan-Boosts.',
+          body: '$5 im Monat oder $50 im Jahr. Dein eigener Verlauf aus bis zu 4 Farben, der sich bewegt, 12 Vitrinenplätze, keine Wartezeit im Event-Chat, 2 Freundes-Events gleichzeitig und 2 Clan-Boosts.',
         },
       ],
       note: {

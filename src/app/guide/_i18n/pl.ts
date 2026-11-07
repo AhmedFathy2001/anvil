@@ -3320,11 +3320,11 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Champion',
-          body: '$2 miesięcznie albo $20 rocznie. Gradientowe kolory nazwy do wyboru, własny awatar i baner (animowane, jeśli chcesz), 8 miejsc w gablocie, szybszy czat wydarzenia i 1 boost klanu.',
+          body: '$2 miesięcznie albo $20 rocznie. Gradient nazwy z naszych gotowych zestawów (albo jeden własny kolor), własny awatar i baner (animowane, jeśli chcesz), 8 miejsc w gablocie, szybszy czat wydarzenia i 1 boost klanu.',
         },
         {
           term: 'Patron',
-          body: '$5 miesięcznie albo $50 rocznie. Dowolne kolory, z ruchomym gradientem, 12 miejsc w gablocie, brak czekania na czacie wydarzenia, 2 wydarzenia dla znajomych naraz i 2 boosty klanu.',
+          body: '$5 miesięcznie albo $50 rocznie. Własny ruchomy gradient z maksymalnie 4 kolorów, 12 miejsc w gablocie, brak czekania na czacie wydarzenia, 2 wydarzenia dla znajomych naraz i 2 boosty klanu.',
         },
       ],
       note: {

@@ -3342,11 +3342,11 @@ const no: PartialGuideDict = {
         },
         {
           term: 'Champion',
-          body: '$2 i måneden eller $20 i året. Navnefarger med fargeovergang som du velger selv, egen avatar og eget banner (animert om du vil), 8 plasser i monteren, raskere eventchat og 1 klanboost.',
+          body: '$2 i måneden eller $20 i året. Et navn med fargeovergang fra våre forhåndsvalg (eller én egen farge), egen avatar og eget banner (animert om du vil), 8 plasser i monteren, raskere eventchat og 1 klanboost.',
         },
         {
           term: 'Patron',
-          body: '$5 i måneden eller $50 i året. Hvilke farger du vil, med en fargeovergang som beveger seg, 12 plasser i monteren, ingen venting i eventchatten, 2 venneeventer samtidig og 2 klanboosts.',
+          body: '$5 i måneden eller $50 i året. Din egen fargeovergang med opptil 4 farger, som beveger seg, 12 plasser i monteren, ingen venting i eventchatten, 2 venneeventer samtidig og 2 klanboosts.',
         },
       ],
       note: {

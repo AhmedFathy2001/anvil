@@ -3338,11 +3338,11 @@ export const en = {
         },
         {
           term: 'Champion',
-          body: '$2 a month or $20 a year. Gradient name colours you pick, your own avatar and banner (animated if you like), 8 display case slots, faster event chat and 1 clan boost.',
+          body: '$2 a month or $20 a year. A gradient name from our presets (or one colour of your own), your own avatar and banner (animated if you like), 8 display case slots, faster event chat and 1 clan boost.',
         },
         {
           term: 'Patron',
-          body: '$5 a month or $50 a year. Any colours you like, with a gradient that moves, 12 display case slots, no wait in event chat, 2 friend events at once and 2 clan boosts.',
+          body: '$5 a month or $50 a year. Your own gradient of up to 4 colours, and it moves, 12 display case slots, no wait in event chat, 2 friend events at once and 2 clan boosts.',
         },
       ],
       note: {
