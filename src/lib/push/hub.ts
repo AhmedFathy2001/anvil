@@ -184,23 +184,25 @@ export class ViewHub {
     const text = JSON.stringify(notice.m);
     // `rx`: the rows' reaction chips are for the board's players and staff. A room client not seated on
     // the board (a clanmate watching it as the clan's home board) gets the rows without them, encoded once.
-    let bare: string | null = null;
-    const bareText = () => (bare ??= JSON.stringify(withoutReacts(notice.m)));
+    // A reaction update ('rowsreact') is nothing but chips: such a client gets none of it.
+    let bare: string | null | undefined;
+    const bareText = () => (bare !== undefined ? bare : (bare = notice.m.t === 'rowsreact' ? null : JSON.stringify(withoutReacts(notice.m))));
     const sent = new Set<PushClient>();
     const send = (set: Set<PushClient> | undefined, room = false) => {
       for (const c of set ?? []) {
         // Only a plugin that said it reads rows: an older one would log a warning for each.
         if (sent.has(c) || !c.scope.rows) continue;
         sent.add(c);
-        c.send(room && notice.rx && !seatedOn(c.scope, notice.e!) ? bareText() : text);
+        const out = room && notice.rx && !seatedOn(c.scope, notice.e!) ? bareText() : text;
+        if (out != null) c.send(out);
       }
     };
     // The people named first: they're the ones a row was meant for as it is (a staff member watching
     // the board from their home board is named too, and gets the chips).
     for (const u of notice.u ?? []) send(this.people.get(u));
     if (notice.e != null) send(notice.t != null ? this.teams.get(teamKey(notice.e, notice.t)) : this.events.get(notice.e), true);
-    // A feed row on a board is news for its overlays' feed view.
-    if (notice.e != null) this.nudge(notice.e);
+    // A feed row on a board is news for its overlays' feed view (a reaction count isn't).
+    if (notice.e != null && notice.m.t !== 'rowsreact') this.nudge(notice.e);
   }
 
   /**

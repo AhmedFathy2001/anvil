@@ -221,6 +221,15 @@ body {
 .molten-btn:hover { filter: brightness(1.06); }
 .molten-btn:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
 
+/* Every disabled control reads as disabled under the pointer, whatever its own classes say about
+   opacity. In the base layer so a utility (cursor-wait, say) still wins. */
+@layer base {
+  button:disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+}
+
 /* Section marker: the struck edge, vertical. */
 .molten-bar {
   width: 4px;

@@ -28,6 +28,7 @@ import {
   levelUpFrom,
   movableAt,
   nextMonthStart,
+  onePerClan,
   rowGivesSlots,
   slotTier,
   pickSlot,
@@ -526,4 +527,38 @@ test('clan-name surface overrides: lenient read, strict check, raw on the ink', 
   assert.equal(validateClanBoostNameStyle({ stops: ['#abcdef'], dark: { stops: ['red'] } }).ok, false);
   assert.equal(validateClanBoostNameStyle({ stops: ['#abcdef'], dark: 'red' }).ok, false);
   assert.equal(validateClanBoostNameStyle({ stops: ['red'] }).ok, false);
+});
+
+test('boost candidates collapse to one per clan, the seat picked for the person', () => {
+  const ok = { ok: true } as const;
+  const seat = (clanId: number, clanName: string, rsn: string, isMain: boolean, heldDaysAgo: number, kind = 'member') => {
+    const heldSince = NOW - days(heldDaysAgo);
+    return { clanId, clanName, rsn, isMain, heldSince, verdict: seatVerdict({ kind, leftAt: null, heldSince }, NOW) };
+  };
+  const out = onePerClan([
+    seat(1, 'The AFK Spot', 'Denoverse', false, 400),
+    seat(1, 'The AFK Spot', 'Drenvox', true, 30),
+    seat(1, 'The AFK Spot', 'GIM Drenvox', false, 3),
+    seat(2, 'LFL', 'Drenvox', true, 100, 'guest'),
+    seat(2, 'LFL', 'Denoverse', false, 100, 'guest'),
+    seat(3, 'Alpha', 'Denoverse', false, 400),
+    seat(3, 'Alpha', 'GIM Drenvox', false, 20),
+    seat(4, 'Newbies', 'Denoverse', false, 2, 'guest'),
+    seat(4, 'Newbies', 'GIM Drenvox', false, 10),
+    seat(4, 'Newbies', 'Drenvox', true, 5),
+  ]);
+  assert.deepEqual(
+    out.map((c) => [c.clanName, c.rsn]),
+    [
+      ['Alpha', 'Denoverse'], // no main there: the longest-held member seat
+      ['The AFK Spot', 'Drenvox'], // the main, though another seat is older
+      ['LFL', 'Denoverse'], // guest only: one row, either seat explains it
+      ['Newbies', 'GIM Drenvox'], // not yet: the soonest-boostable member seat, over a guest seat
+    ],
+  );
+  assert.deepEqual(out[0].verdict, ok);
+  assert.equal(out[2].verdict.ok, false);
+  // Never a main's seat that isn't boostable over an older one that is.
+  const notYet = onePerClan([seat(1, 'X', 'Main', true, 3), seat(1, 'X', 'Alt', false, 30)]);
+  assert.equal(notYet[0].rsn, 'Alt');
 });

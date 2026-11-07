@@ -34,6 +34,7 @@ import { type SupporterInk, supporterForUser, supporterInksForRsns } from '@/lib
 import { inkForSurface } from '@/lib/supporterStyle';
 import { momentsForClan } from '@/lib/momentsStore';
 import { NO_REACTIONS, isClanMember, momentInClan, reactionSummaries, toggleReaction } from '@/lib/momentReactions';
+import { emitReactionRows } from '@/lib/panelRows';
 import { REACT_ERRORS, checkReaction } from '@/lib/reactionAccess';
 import { FEED_MAX, FEED_STEP, type FeedItem, momentsFeedUi } from './momentsUi';
 import { chatAct, chatCharacter, feedView } from './feedView';
@@ -621,6 +622,7 @@ async function reactAct(request: Request, a: Args): Promise<View> {
   }
   if (!(await momentInClan(id, clan.id))) return momentsView(request, a, 'That drop isn’t in this clan’s feed.');
   await toggleReaction(id, viewer.userId, kind);
+  emitReactionRows(id, viewer.userId);
   return momentsView(request, a);
 }
 
@@ -645,6 +647,8 @@ async function reactRowAct(request: Request, a: Args): Promise<View> {
       });
   if (!verdict.ok) return { ui: text(verdict.error, 'error') };
   await toggleReaction(id, viewer.userId, verdict.kind);
+  // Everyone else's open Feed (and this person's other clients) follows live.
+  emitReactionRows(id, viewer.userId);
   return { ui: gap(0) };
 }
 

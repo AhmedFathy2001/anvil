@@ -385,3 +385,19 @@ test('a board row\'s reaction chips go to its players; a clanmate only watching 
   assert.equal(rows(got.watcher)[0].gz.n, 0);
   assert.equal(parseRows(JSON.stringify({ k: 'rows', u: [1], rx: 1, m: {} }))!.rx, undefined, 'rx means nothing without a board');
 });
+
+test('a reaction update goes to the board\'s players, never to a clanmate only watching it, and nudges no overlay', () => {
+  const sent: (() => void)[] = [];
+  const hub = new ViewHub({ fetchView: async () => null, later: (fn) => (sent.push(fn), () => {}) });
+  const got: Record<string, string[]> = { player: [], watcher: [] };
+  hub.add({ scope: { userId: 1, eventIds: [5], teamId: 10, rows: true }, send: (m) => got.player.push(m) });
+  hub.add({ scope: { userId: 3, eventIds: [5], teamId: null, rows: true }, send: (m) => got.watcher.push(m) });
+  const overlay: string[] = [];
+  hub.watch(5, { send: (m) => overlay.push(m) });
+  const before = sent.length; // the team views scheduled on add
+  hub.deliverRows(parseRows(JSON.stringify({ k: 'rows', e: 5, rx: 1, m: { t: 'rowsreact', feeds: ['moments:event:5'], id: 'm7', gz: 2, gold: 0, sad: 0, sit: 0 } }))!);
+  assert.equal(got.player.length, 1);
+  assert.equal(JSON.parse(got.player[0]).gz, 2);
+  assert.deepEqual(got.watcher, []);
+  assert.equal(sent.length, before, 'no overlay nudge scheduled for a count');
+});

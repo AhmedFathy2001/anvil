@@ -189,15 +189,23 @@ function Controls({
   onRemove: (kind: ProfileMediaKind) => Promise<void>;
 }) {
   const mine = busy === kind;
+  // One upload or removal at a time across both pictures (they share `busy`), so while either runs
+  // every control here is off, and looks it.
+  const off = busy != null;
   return (
     <div className="flex items-center gap-3">
       {canUpload && (
-        <label className="inline-flex cursor-pointer items-center rounded-lg border border-card-border px-3 py-1.5 text-sm transition-colors hover:border-gold/45">
+        <label
+          aria-disabled={off || undefined}
+          className={`inline-flex items-center rounded-lg border border-card-border px-3 py-1.5 text-sm transition-colors ${
+            off ? (mine ? 'cursor-wait' : 'cursor-not-allowed opacity-50') : 'cursor-pointer hover:border-gold/45'
+          }`}
+        >
           <input
             type="file"
             accept={ACCEPT}
             className="hidden"
-            disabled={busy != null}
+            disabled={off}
             onChange={(e) => {
               const file = e.target.files?.[0];
               // Cleared so choosing the same file again still fires.
@@ -211,9 +219,9 @@ function Controls({
       {has && (
         <button
           type="button"
-          disabled={busy != null}
+          disabled={off}
           onClick={() => void onRemove(kind)}
-          className="text-[13px] text-text-dim underline-offset-4 hover:text-gold hover:underline disabled:opacity-50"
+          className="text-[13px] text-text-dim underline-offset-4 enabled:hover:text-gold enabled:hover:underline disabled:cursor-not-allowed disabled:opacity-40"
         >
           Remove
         </button>

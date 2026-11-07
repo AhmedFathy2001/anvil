@@ -6,11 +6,12 @@
 //   {t:'rows',     feeds:[id…], rows:[FeedRow…]}   grow these lists (newest first)
 //   {t:'rowsdel',  feeds:[id…], ids:[rowId…]}      drop rows (a mod deleted a chat line; a run's old top row)
 //   {t:'rowslock', feeds:[prefix…], locked}        grey a chat box out (paused / turned off), or null to reopen
+//   {t:'rowsreact', feeds:[id…], id, gz, gold, sad, sit, who?, mine…?}  a row's reaction counts (lib/reactionPushWire)
 
 import { and, eq, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clanStaff, clans, completions, eventParticipants, events, teams, tiles, users } from '@/db/schema';
+import { accounts, clanMemberships, clanStaff, clans, completions, eventParticipants, events, moments, teams, tiles, users } from '@/db/schema';
 import { atLeast } from '@/lib/clanRoles';
 import { normalizeRsn } from '@/lib/auth';
 import { supporterInksForRsns } from '@/lib/supporter';
@@ -18,12 +19,14 @@ import { inkForSurface } from '@/lib/supporterStyle';
 import { log } from '@/lib/logger';
 import { eventFeedFloor, isClanWorthy, panelFeedWorthy } from '@/lib/moments';
 import { boardTileItemIds, clanScopeFor } from '@/lib/momentsStore';
-import { completionFeedIds, completionRow, freshReacts, modeMomentFeedIds, momentFeedIds, momentRow, parseMomentsFeedId, rollupRow, type MomentLike } from '@/lib/pluginUi/feedUi';
+import { completionFeedIds, completionRow, freshReacts, modeMomentFeedIds, momentFeedIds, momentRow, momentsFeedId, parseMomentsFeedId, rollupRow, type MomentLike } from '@/lib/pluginUi/feedUi';
 import type { FeedRow } from '@/lib/pluginUi/nodes';
 import { RUN_GAP_MS, runKey, stampMs, type RunInfo } from '@/lib/feedRuns';
 import { standingsHidden } from '@/lib/standingsVisibility';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { ttlMemo } from '@/lib/ttlMemo';
+import { NO_REACTIONS, reactionSummaries, reactorNames } from '@/lib/momentReactions';
+import { reactPushMessage } from '@/lib/reactionPushWire';
 
 /** NOTIFY payloads cap at 8000 bytes: this many ids leaves room for the row beside them. */
 const IDS_PER_NOTIFY = 300;
@@ -385,4 +388,55 @@ export function emitCompletionRow(tileId: number, teamId: number): void {
     const target = (await boardHidden(c.eventId)) ? { e: c.eventId, t: teamId } : { e: c.eventId };
     await notifyRows(target, { t: 'rows', feeds: completionFeedIds(c.eventId, teamId), rows: [row] });
   })().catch((err: unknown) => log.warn('panel-rows.completion-failed', { tileId, teamId, message: (err as Error).message }));
+}
+
+/**
+ * Somebody just gave or took back a reaction: the moment's counts, as they now stand, to every list its
+ * live row went to (the same audiences emitMomentRows uses: the clan's members, the board's room or, on
+ * a board hiding its standings, the team) — and first, with their own highlight, to the reactor's
+ * clients, so their other client (another character, the same login) follows. Fire-and-forget: never
+ * throws; a missed update is fixed when the list opens again.
+ */
+export function emitReactionRows(momentId: number, userId: number): void {
+  void (async () => {
+    // clan-scope: global -- the moment a reaction was just checked and stored against.
+    const [m] = await db
+      .select({
+        kind: moments.kind,
+        eventId: moments.eventId,
+        teamId: moments.teamId,
+        worldMode: moments.worldMode,
+        clanId: clanMemberships.clanId,
+        seat: clanMemberships.kind,
+      })
+      .from(moments)
+      .innerJoin(clanMemberships, eq(clanMemberships.id, moments.clanMemberId))
+      .where(eq(moments.id, momentId))
+      .limit(1);
+    if (!m) return;
+    const summary = (await reactionSummaries([momentId], userId)).get(momentId) ?? NO_REACTIONS;
+    const hidden = m.eventId != null && (await boardHidden(m.eventId));
+    const send = async (target: RowsTarget, feeds: string[], who: Awaited<ReturnType<typeof reactorNames>>, opts: { playersReact?: boolean } = {}) => {
+      const base = { feeds, momentId, momentKind: m.kind, summary, who: who.get(momentId) ?? {} };
+      await notifyRows({ u: [userId] }, reactPushMessage({ ...base, mine: true }));
+      await notifyRows(target, reactPushMessage(base), opts);
+    };
+    // The clan's Feed: a member's moment, unless a hidden board keeps it the team's.
+    if (m.seat === 'member' && !hidden) {
+      const feeds = m.worldMode ? modeMomentFeedIds(m.clanId, m.kind, m.worldMode) : momentFeedIds({ kind: 'clan', id: m.clanId }, m.kind, null);
+      await send({ u: await clanUserIds(m.clanId) }, feeds, await reactorNames([momentId], { clanId: m.clanId }));
+    }
+    // The board's Feed (a separate-save moment is never on one).
+    if (m.eventId != null && !m.worldMode) {
+      // clan-scope: global -- the board this moment was filed on: its host clan names its reactors.
+      const ev = await db.query.events.findFirst({ where: eq(events.id, m.eventId), columns: { clanId: true } });
+      if (!ev) return;
+      const who = await reactorNames([momentId], { eventId: m.eventId, hostClanId: ev.clanId });
+      if (hidden) {
+        if (m.teamId != null) await send({ u: await teamUserIds(m.teamId) }, [momentsFeedId({ kind: 'event', id: m.eventId }, 'team', m.teamId)], who);
+      } else {
+        await send({ e: m.eventId }, momentFeedIds({ kind: 'event', id: m.eventId }, m.kind, m.teamId), who, { playersReact: true });
+      }
+    }
+  })().catch((err: unknown) => log.warn('panel-rows.reaction-failed', { momentId, message: (err as Error).message }));
 }

@@ -127,6 +127,38 @@ export function seatVerdictText(v: SeatVerdict, clanName: string): string | null
   return `Your seat in ${clanName} is ${held} old; boostable in ${left}.`;
 }
 
+export interface ClanSeatChoice {
+  clanId: number;
+  clanName: string;
+  rsn: string;
+  /** The person's main character. */
+  isMain: boolean;
+  heldSince: number;
+  verdict: SeatVerdict;
+}
+
+/**
+ * Boosts belong to the person, not a character: collapse their seats to one per clan. A clan with a
+ * boostable seat keeps the one a boost would ride on (the main's, else the longest-held); a clan
+ * without one keeps the seat that best explains why (the soonest-boostable member seat, else a guest
+ * seat). Boostable clans first, then by name.
+ */
+export function onePerClan<T extends ClanSeatChoice>(seats: T[]): T[] {
+  const held = (s: T) => (Number.isFinite(s.heldSince) ? s.heldSince : Infinity);
+  const soonest = (s: T) => (!s.verdict.ok && s.verdict.reason === 'too-new' ? s.verdict.boostableAt : Infinity);
+  const rank = (s: T) => (s.verdict.ok ? 0 : s.verdict.reason === 'too-new' ? 1 : s.verdict.reason === 'not-member' ? 2 : 3);
+  const better = (a: T, b: T) =>
+    rank(a) - rank(b) ||
+    (a.verdict.ok ? Number(b.isMain) - Number(a.isMain) || held(a) - held(b) : soonest(a) - soonest(b)) ||
+    a.rsn.localeCompare(b.rsn);
+  const best = new Map<number, T>();
+  for (const s of seats) {
+    const cur = best.get(s.clanId);
+    if (!cur || better(s, cur) < 0) best.set(s.clanId, s);
+  }
+  return [...best.values()].sort((a, b) => Number(b.verdict.ok) - Number(a.verdict.ok) || a.clanName.localeCompare(b.clanName));
+}
+
 // =============================================================================
 // Moving and slot reuse
 // =============================================================================

@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { events, moments } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { toggleReaction } from '@/lib/momentReactions';
+import { emitReactionRows } from '@/lib/panelRows';
 import { rateLimit } from '@/lib/rate-limit';
 import { type ReactTarget, checkReaction } from '@/lib/reactionAccess';
 import { siteReactions } from '@/lib/siteReactions';
@@ -33,6 +34,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const verdict = await checkReaction(session.userId, target, momentId, body?.kind);
   if (!verdict.ok) return NextResponse.json({ error: verdict.error }, { status: verdict.status });
   const on = await toggleReaction(momentId, session.userId, verdict.kind);
+  // The plugin panel's open Feeds follow live (lib/panelRows).
+  emitReactionRows(momentId, session.userId);
 
   // clan-scope: global -- the moment checkReaction just placed in this feed.
   const [m] = await db.select({ kind: moments.kind }).from(moments).where(eq(moments.id, momentId)).limit(1);

@@ -32,6 +32,7 @@ import {
   levelProgress,
   levelUpFrom,
   movableAt,
+  onePerClan,
   slotTier,
   pickSlot,
   recruitPostAllowed,
@@ -452,12 +453,16 @@ export interface MyPlacement {
   badges: BoostBadge[];
 }
 
+/** One clan the person could boost (or can't yet), with the seat a boost there would ride on. */
 export interface BoostCandidate {
   seatId: number;
   clanId: number;
   clanName: string;
   clanSlug: string;
   rsn: string;
+  /** The seat's character is the person's main. */
+  isMain: boolean;
+  heldSince: number;
   verdict: SeatVerdict;
   /** The plain sentence when it can't take a boost yet. */
   why: string | null;
@@ -476,6 +481,7 @@ export interface MyBoosts {
   /** A free slot still cooling after a removal: when it opens. */
   coolingUntil: number | null;
   placements: MyPlacement[];
+  /** One per clan (boosts are the person's): the seat picked automatically, see onePerClan. */
   candidates: BoostCandidate[];
 }
 
@@ -501,6 +507,7 @@ async function personSeats(playerId: number) {
       joinedAt: clanMemberships.joinedAt,
       ingameJoinedOn: clanMemberships.ingameJoinedOn,
       rsn: accounts.rsn,
+      isPrimary: accounts.isPrimary,
       clanName: clans.name,
       clanSlug: clans.slug,
     })
@@ -565,21 +572,24 @@ export async function myBoosts(userId: number, playerId: number | null): Promise
 
   const pick = pickSlot(slots, slotHistory, now);
   const used = mine.length;
-  const candidates: BoostCandidate[] = seats
-    .map((s) => {
-      const verdict = seatVerdict({ kind: s.kind, leftAt: s.leftAt, heldSince: seatHeldSince(s.joinedAt, s.ingameJoinedOn) }, now);
+  const candidates: BoostCandidate[] = onePerClan(
+    seats.map((s) => {
+      const heldSince = seatHeldSince(s.joinedAt, s.ingameJoinedOn);
+      const verdict = seatVerdict({ kind: s.kind, leftAt: s.leftAt, heldSince }, now);
       return {
         seatId: s.seatId,
         clanId: s.clanId,
         clanName: s.clanName,
         clanSlug: s.clanSlug,
         rsn: s.rsn,
+        isMain: s.isPrimary === 1,
+        heldSince,
         verdict,
         why: seatVerdictText(verdict, s.clanName),
         mine: mine.filter((m) => m.clanId === s.clanId).length,
       };
-    })
-    .sort((a, b) => Number(b.verdict.ok) - Number(a.verdict.ok) || a.clanName.localeCompare(b.clanName) || a.rsn.localeCompare(b.rsn));
+    }),
+  );
 
   return {
     now,

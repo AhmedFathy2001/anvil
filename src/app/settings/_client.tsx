@@ -161,9 +161,9 @@ export function ActionButton({
 }
 
 export const BTN =
-  'rounded-lg border border-card-border bg-card-bg-hover px-3 py-1.5 text-[13px] text-foreground transition-colors hover:border-gold/40 disabled:opacity-50';
+  'rounded-lg border border-card-border bg-card-bg-hover px-3 py-1.5 text-[13px] text-foreground transition-colors hover:border-gold/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-card-border';
 export const BTN_DANGER =
-  'rounded-lg border border-accent-red/40 px-3 py-1.5 text-[13px] text-accent-red transition-colors hover:bg-accent-red/10 disabled:opacity-50';
+  'rounded-lg border border-accent-red/40 px-3 py-1.5 text-[13px] text-accent-red transition-colors hover:bg-accent-red/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent';
 
 export interface NavCharacter {
   accountId: number;

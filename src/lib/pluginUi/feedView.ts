@@ -6,7 +6,6 @@ import { completionAt } from '@/lib/panelRows';
 import { normalizeRsn, pluginRsnHintOnly, pluginViewerRsn, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { boardChatSlow, myChatNames, chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess, type ChatSeatPick } from '@/lib/eventChat';
 import { chatPaceHint } from '@/lib/eventChatRules';
-import { formatGp } from '@/lib/itemPrices';
 import { NO_REACTIONS, isClanMember, reactionSummaries, reactorNames, tallyOf } from '@/lib/momentReactions';
 import { modeMomentModesForClan, modeMomentsForClan, recentModeMomentCount, type MomentRow } from '@/lib/momentsStore';
 import type { WithRun } from '@/lib/feedRuns';
@@ -330,7 +329,7 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
     : current.kind === 'clan'
       ? await clanRows(current, filter, viewer?.userId ?? null)
       : await eventRows(current.id, filter, teamId, viewer?.userId ?? null, !!access?.member);
-  const { rows, floor } = data;
+  const { rows } = data;
   return {
     ui: feedTabUi({
       scopes,
@@ -341,7 +340,8 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
       teamId,
       rows,
       images: hasPanelImages(request),
-      floorNote: modeActive ? undefined : `Drops ${formatGp(floor)}+ · pets · achievements`,
+      // No "Drops 5m+" floor line: the floor differs per clan, per mode and per user, so a single
+      // number under the list was wrong for most of them.
       mode: current.kind === 'clan' ? { active: modeActive, count: modeCount, selected: selectedMode, options: modeOptions } : null,
     }),
   };

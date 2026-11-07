@@ -24,7 +24,8 @@ export default async function BoostsSettingsPage() {
   const mine = await myBoosts(session.userId, session.playerId ?? null);
   const now = mine.now;
   const eligible = mine.candidates.filter((c) => c.verdict.ok);
-  const moveTargets = eligible.map((c) => ({ seatId: c.seatId, label: `${c.clanName} · ${c.rsn}` }));
+  // One per clan, its seat picked for them (lib/clanBoostRules onePerClan): boosts are the person's.
+  const moveTargets = eligible.map((c) => ({ seatId: c.seatId, clanId: c.clanId, label: c.clanName }));
   const paused = mine.placements.filter((p) => p.state === 'paused').length;
 
   return (
@@ -78,9 +79,9 @@ export default async function BoostsSettingsPage() {
               description={
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span>
-                    via {p.rsn} · since {day(p.since)}
+                    since {day(p.since)}
                     {p.state !== 'seat-gone' && p.movableAt > now && <> · move available on {day(p.movableAt)}</>}
-                    {p.state === 'seat-gone' && <> · that character isn&rsquo;t a member there any more</>}
+                    {p.state === 'seat-gone' && <> · {p.rsn}, the character it rode on, isn&rsquo;t a member there any more</>}
                   </span>
                   <BoostBadgeChips badges={p.badges} />
                 </span>
@@ -90,7 +91,10 @@ export default async function BoostsSettingsPage() {
                 boostId={p.id}
                 canMove={p.movableAt <= now}
                 movableOn={p.movableAt > now ? day(p.movableAt) : null}
-                targets={moveTargets.filter((t) => t.seatId !== p.seatId)}
+                // Another clan; or, once its character left, another of your seats in the same one.
+                targets={moveTargets
+                  .filter((t) => (p.state === 'seat-gone' ? t.seatId !== p.seatId : t.clanId !== p.clanId))
+                  .map(({ seatId, label }) => ({ seatId, label }))}
                 clanName={p.clanName}
               />
             </SettingsRow>
@@ -108,7 +112,7 @@ export default async function BoostsSettingsPage() {
       {(mine.slots > 0 || mine.placements.length > 0) && (
         <SettingsGroup
           title="Clans you can boost"
-          note={`A boost rides on one of your characters' member seats from the in-game clan, ${SEAT_MIN_DAYS} days old or more. The clan sees that character, never your others. Up to ${PER_PERSON_CAP} of yours count toward one clan's level; levels at ${LEVEL_AT.join(', ')}. A placed boost can move once every ${MOVE_COOLDOWN_DAYS} days.`}
+          note={`Boosts are yours, not a character's. Each one rides on a member seat one of your characters holds in the in-game clan, ${SEAT_MIN_DAYS} days old or more; we pick it for you (your main where it can). The clan sees that character, never your others. Up to ${PER_PERSON_CAP} of yours count toward one clan's level; levels at ${LEVEL_AT.join(', ')}. A placed boost can move once every ${MOVE_COOLDOWN_DAYS} days.`}
         >
           {mine.candidates.length === 0 && (
             <SettingsBlock>
@@ -122,7 +126,7 @@ export default async function BoostsSettingsPage() {
           )}
           {mine.candidates.map((c) => (
             <SettingsRow
-              key={c.seatId}
+              key={c.clanId}
               label={
                 <>
                   <ClanLink href={`/c/${c.clanSlug}`} className="hover:text-gold">
@@ -131,7 +135,7 @@ export default async function BoostsSettingsPage() {
                   {c.mine > 0 && <Pill tone="gold">{c.mine === 1 ? 'boosted by you' : `${c.mine} of yours`}</Pill>}
                 </>
               }
-              description={c.why ?? `via ${c.rsn}`}
+              description={c.why ?? undefined}
             >
               {c.verdict.ok && mine.slots > 0 && (
                 <PlaceBoost
