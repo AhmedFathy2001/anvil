@@ -144,6 +144,8 @@ export interface ApexCharacter {
   /** They agreed to be shown as one person (players.linkAccountsPublicly), so person-level things
       like their own avatar and banner may appear here without tying characters together unasked. */
   personPublic: boolean;
+  /** Their own uploaded avatar/banner may show here: on by default for anyone not banned. */
+  personMedia: boolean;
 }
 
 /**
@@ -232,6 +234,7 @@ export async function apexCharacter(rsn: string, viewerPlayerId?: number | null)
     viewerOwns: ownedByViewer,
     personId: acct.playerId ?? null,
     personPublic: !!owner && !owner.banned && !!owner.linkAccountsPublicly,
+    personMedia: ownedByViewer || (!!owner && !owner.banned),
   };
 }
 

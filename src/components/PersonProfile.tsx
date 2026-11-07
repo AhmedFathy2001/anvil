@@ -214,16 +214,21 @@ export default function PersonProfile({
               </div>
               {boosts.placements.length > 0 && (
                 <ul className="mb-2 grid gap-1.5">
-                  {boosts.placements.map((p) => (
-                    <li key={p.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
-                      <ClanLink href={`/c/${p.clanSlug}`} className="font-medium hover:text-gold">
-                        {p.clanName}
-                      </ClanLink>
-                      <span className="text-text-dim">via {p.rsn}</span>
-                      {p.state !== 'active' && <span className="text-[11px] text-text-dim">({p.state === 'paused' ? 'paused' : 'seat gone'})</span>}
-                      <BoostBadgeChips badges={p.badges} />
-                    </li>
-                  ))}
+                  {/* Boosts are the person's, not a character's: one line per clan, with how many. */}
+                  {[...new Map(boosts.placements.map((p) => [p.clanSlug, boosts.placements.filter((q) => q.clanSlug === p.clanSlug)])).values()].map((group) => {
+                    const p = group[0];
+                    const idle = group.filter((q) => q.state !== 'active');
+                    return (
+                      <li key={p.clanSlug} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
+                        <ClanLink href={`/c/${p.clanSlug}`} className="font-medium hover:text-gold">
+                          {p.clanName}
+                        </ClanLink>
+                        {group.length > 1 && <span className="font-mono text-[11px] text-text-dim">×{group.length}</span>}
+                        {idle.length > 0 && <span className="text-[11px] text-text-dim">({idle.length === group.length ? '' : `${idle.length} `}{idle[0].state === 'paused' ? 'paused' : 'seat gone'})</span>}
+                        <BoostBadgeChips badges={[...new Set(group.flatMap((q) => q.badges))]} />
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
               {boosts.free > 0 && (

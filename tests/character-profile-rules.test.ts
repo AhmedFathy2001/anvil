@@ -71,3 +71,13 @@ test('the locker shows the picked character, else the main, else the first', () 
   assert.equal(pickProfileCharacter([{ rsn: 'Only', isPrimary: false }], null)?.rsn, 'Only');
   assert.equal(pickProfileCharacter([], null), null);
 });
+
+test('a person\'s own banner/avatar shows on their characters by default; streams still need public linking', async () => {
+  const { personMediaVisible, personSectionsVisible } = await import('../src/lib/characterProfileRules.ts');
+  const quiet = { personId: 7, owner: { banned: false, linkAccountsPublicly: false }, viewerOwns: false };
+  assert.equal(personMediaVisible(quiet), true);
+  assert.equal(personSectionsVisible(quiet), false);
+  assert.equal(personMediaVisible({ ...quiet, owner: { banned: true, linkAccountsPublicly: true } }), false);
+  assert.equal(personMediaVisible({ ...quiet, personId: null }), false);
+});
+

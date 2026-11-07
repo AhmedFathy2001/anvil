@@ -40,7 +40,7 @@ export default async function LookSettingsPage() {
 
       <SettingsGroup
         title="Avatar & banner"
-        note="Shown on your own card, your person page, and your shared characters’ pages if you show your characters as one person."
+        note="Shown on your card, your person page and every character of yours, on the site and in the plugin."
       >
         <SettingsBlock>
           {!canUseProfileMedia(tier) && (

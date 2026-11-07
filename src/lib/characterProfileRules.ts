@@ -27,9 +27,11 @@ export interface ProfileSectionInput {
 }
 
 export interface ProfileSections {
-  /** Owner's banner/avatar and connected streams: only when they show their characters as one
-      person, or to themselves (the same banner on two characters says they are one person). */
+  /** Owner's uploaded banner/avatar: shown on every character of theirs by default (the owner's call,
+      7 Nov 2026), unless they are banned. */
   personMedia: boolean;
+  /** Connected streams: only when they show their characters as one person, or to themselves. */
+  personStreams: boolean;
   /** The Supporter display case. Always this character's pins only. */
   displayCase: boolean;
   /** Filter out pins from non-shared characters — everyone but the owner. */
@@ -50,6 +52,12 @@ export interface ProfileSections {
   publicSwitcher: boolean;
 }
 
+/** A person's own uploads on their characters: on by default; a banned person's are not shown. */
+export function personMediaVisible(input: Pick<ProfileSectionInput, 'personId' | 'owner' | 'viewerOwns'>): boolean {
+  if (input.personId == null) return false;
+  return input.viewerOwns || (!!input.owner && !input.owner.banned);
+}
+
 export function personSectionsVisible(input: Pick<ProfileSectionInput, 'personId' | 'owner' | 'viewerOwns'>): boolean {
   if (input.personId == null) return false;
   if (input.viewerOwns) return true;
@@ -62,7 +70,8 @@ export function profileSections(i: ProfileSectionInput): ProfileSections {
   return {
     // Shared (or the owner looking) as well: a banner or connected stream on a private character's
     // clan page would tie that private character to the person's public ones.
-    personMedia: platformOpen && personSectionsVisible(i),
+    personMedia: platformOpen && personMediaVisible(i),
+    personStreams: platformOpen && personSectionsVisible(i),
     displayCase: i.personId != null,
     displayCasePublicView: !i.viewerOwns,
     h2h: platformOpen,

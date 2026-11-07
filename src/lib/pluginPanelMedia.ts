@@ -20,8 +20,26 @@ function panelImageUrl(url: string): URL | null {
   return null;
 }
 
-/** Fetch one of our uploads and turn it into an exact, small panel asset. */
-export async function pluginPanelImage(url: string, width: number, height: number, motion: boolean, focus = false): Promise<Response> {
+/**
+ * The cover crop for a `W`x`H` source into `w`x`h`: scale so both sides cover, centre horizontally,
+ * and place vertically at `position` percent (0 top … 100 bottom) — the banner focal point a person or
+ * clan set on the site, so the panel shows the same part of the picture as their profile.
+ */
+export function coverCrop(W: number, H: number, w: number, h: number, position: number | null | undefined) {
+  const k = Math.max(w / W, h / H);
+  const rw = Math.max(w, Math.round(W * k));
+  const rh = Math.max(h, Math.round(H * k));
+  const p = typeof position === 'number' && position >= 0 && position <= 100 ? position : 50;
+  return { rw, rh, left: Math.round((rw - w) / 2), top: Math.round(((rh - h) * p) / 100) };
+}
+
+/**
+ * Fetch one of our uploads and turn it into an exact, small panel asset. `position` is a banner's
+ * vertical focal point (null: centred). The crop is done by hand rather than with sharp's
+ * 'attention' strategy, which sharp refuses for animated images: every animated banner that needed
+ * cropping (anything not already 3:1) failed and the panel showed nothing.
+ */
+export async function pluginPanelImage(url: string, width: number, height: number, motion: boolean, position: number | null = null): Promise<Response> {
   const target = panelImageUrl(url);
   if (!target) return new Response('Not found', { status: 404 });
   try {
@@ -31,13 +49,21 @@ export async function pluginPanelImage(url: string, width: number, height: numbe
     const input = Buffer.from(await upstream.arrayBuffer());
     if (input.length > MAX_SOURCE_BYTES) return new Response('Not found', { status: 404 });
     const { default: sharp } = await import('sharp');
+    const meta = await sharp(input, { animated: false, limitInputPixels: 4096 * 4096 }).metadata();
+    const W = meta.width ?? 0;
+    const H = meta.pageHeight ?? meta.height ?? 0;
+    if (W <= 0 || H <= 0) return new Response('Not found', { status: 404 });
+    const crop = coverCrop(W, H, width, height, position);
+    const cut = { left: crop.left, top: crop.top, width, height };
     const still = () => sharp(input, { animated: false, limitInputPixels: 4096 * 4096 })
-      .resize(width, height, { fit: 'cover', position: focus ? 'attention' : 'centre' })
+      .resize(crop.rw, crop.rh, { fit: 'fill' })
+      .extract(cut)
       .jpeg({ quality: 82 })
       .toBuffer();
     if (motion) {
       const animated = await sharp(input, { animated: true, limitInputPixels: 80_000_000 })
-        .resize(width, height, { fit: 'cover', position: focus ? 'attention' : 'centre' })
+        .resize(crop.rw, crop.rh, { fit: 'fill' })
+        .extract(cut)
         // Loop forever explicitly: libvips otherwise copies the upload's loop count, and Java's GIF
         // decoder plays a file without an infinite NETSCAPE loop once and then stops.
         // Inter-frame/palette reuse: a 60-frame 1500x500 banner was 763 KB at 220x73 (over the cap, so

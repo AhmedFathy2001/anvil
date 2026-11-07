@@ -253,7 +253,7 @@ export default async function CharacterProfile({
     show.displayCase
       ? displayCaseForPlayer(personId!, { accountId, publicView: show.displayCasePublicView })
       : Promise.resolve([]),
-    show.personMedia ? profileConnectedAccounts(personId!, viewerOwns) : Promise.resolve([]),
+    show.personStreams ? profileConnectedAccounts(personId!, viewerOwns) : Promise.resolve([]),
 
     // ── What only a clan knows ──
     clanCtx ? ingameJoinDates([clanCtx.seat.id]).then((m) => m.get(clanCtx.seat.id) ?? null) : Promise.resolve(null),

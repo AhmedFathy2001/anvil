@@ -56,10 +56,13 @@ export async function lookupPlayerCard(request: Request, rsn: string): Promise<C
 
 export async function loadPanelPlayerCard(character: ApexCharacter): Promise<PlayerCard> {
   const card = await loadPlayerCard(character);
-  if (!character.personId || (!character.personPublic && !character.viewerOwns)) return card;
+  if (!character.personId || !character.personMedia) return card;
+  // Their own uploads show on every character by default; the Discord picture fallback says who the
+  // person is, so it only stands in where they link characters publicly.
+  const discordOk = character.personPublic || character.viewerOwns;
   const [media, discordAvatar, displayCase] = await Promise.all([
     profileMediaForPlayer(character.personId).catch(() => ({ avatar: null, banner: null })),
-    panelDiscordAvatar(character.personId),
+    discordOk ? panelDiscordAvatar(character.personId) : Promise.resolve(null),
     displayCaseForPlayer(character.personId, { accountId: character.accountId, publicView: !character.viewerOwns }),
   ]);
   card.panelMedia = {

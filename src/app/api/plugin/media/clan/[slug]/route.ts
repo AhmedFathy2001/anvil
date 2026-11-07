@@ -23,5 +23,5 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   // Match Discord: uploaded art may exist at every level, but animation is a Level 2+ perk for
   // both the wide banner and the clan mark. Below that, pluginPanelImage returns its first frame.
   const motion = requestedMotion && level >= 2;
-  return pluginPanelImage(source, width, height, motion, kind === 'banner');
+  return pluginPanelImage(source, width, height, motion, kind === 'banner' ? (clan.bannerPosition ?? null) : null);
 }
