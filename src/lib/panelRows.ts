@@ -418,7 +418,10 @@ export function emitReactionRows(momentId: number, userId: number): void {
     const hidden = m.eventId != null && (await boardHidden(m.eventId));
     const send = async (target: RowsTarget, feeds: string[], who: Awaited<ReturnType<typeof reactorNames>>, opts: { playersReact?: boolean } = {}) => {
       const base = { feeds, momentId, momentKind: m.kind, summary, who: who.get(momentId) ?? {} };
-      await notifyRows({ u: [userId] }, reactPushMessage({ ...base, mine: true }));
+      // The reactor's own copy (their highlight) only for an audience they're in: a clan or team list
+      // must name them. A board's room already shows these names to everyone watching it.
+      const reactorIn = 'u' in target ? target.u.includes(userId) : true;
+      if (reactorIn) await notifyRows({ u: [userId] }, reactPushMessage({ ...base, mine: true }));
       await notifyRows(target, reactPushMessage(base), opts);
     };
     // The clan's Feed: a member's moment, unless a hidden board keeps it the team's.
