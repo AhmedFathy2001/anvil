@@ -7,11 +7,13 @@ import { clanStaff, clans, users } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { isApexHost } from '@/lib/clanContext';
 import { checkDomain, checkInGameName, checkSlug, availabilityMessage, createClan } from '@/lib/clanCreate';
+import { parseFoundVia } from '@/lib/noticeRules';
 import { notifyClanCreated } from '@/lib/opsEvents';
 import { rateLimitByKey } from '@/lib/rate-limit';
 import { track } from '@/lib/analytics';
 import { PLANS, checkoutUrlWithRef } from '@/lib/plans';
 import { freemiumEnforced } from '@/lib/entitlements';
+import { welcomeLater } from '@/lib/welcomeDm';
 
 /**
  * Creating a clan, and checking whether a name is free.
@@ -114,7 +116,17 @@ export async function POST(request: Request) {
 
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
 
+  // "Where did you find Anvil?" — optional, one answer, kept on the clan for /staff/clans.
+  const found = parseFoundVia(body.foundVia, body.foundViaNote);
+  if (found.foundVia) {
+    await db.update(clans).set({ foundVia: found.foundVia, foundViaNote: found.note }).where(eq(clans.id, result.clanId));
+  }
+
   const row = await db.query.clans.findFirst({ where: eq(clans.id, result.clanId) });
+
+  // The welcome DM, in Ahmed's voice (lib/welcomeDm). Tried now in case the bot already shares a
+  // server with them; when it doesn't, it goes out after "Join the Anvil Discord" instead.
+  welcomeLater(session.userId, { kind: 'clan', clanName: row?.name ?? result.slug });
 
   // TELL THE OPERATOR, because nothing did. A clan created at midnight was recorded in
   // `clan_audit_log` and announced to nobody — so it sat unverified until its owner either worked

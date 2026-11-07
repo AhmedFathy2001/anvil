@@ -31,6 +31,7 @@ import { claimTile, cleanNote, unclaimTile } from '@/lib/tileClaims';
 import { normalizeRsn, pluginRsnHintOnly, resolvePluginClan, resolvePluginMember, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { type BoardSummary, liveBoardsForCharacter, summarizeBoards } from '@/lib/pluginBoards';
 import { type SupporterInk, supporterForUser, supporterInksForRsns } from '@/lib/supporter';
+import { hidePanelNotice, panelNoticeFor } from '@/lib/notices';
 import { FLAIR_BACKGROUND, supporterInkOn } from '@/lib/supporterStyle';
 import { momentsForClan } from '@/lib/momentsStore';
 import { NO_REACTIONS, isClanMember, momentInClan, reactionSummaries, toggleReaction } from '@/lib/momentReactions';
@@ -484,7 +485,10 @@ async function homeView(request: Request, a: Args): Promise<View> {
   }
   // Cheap and best effort: the support line is a nudge, never a reason the panel fails.
   const viewer = await verifyPluginTokenUser(request).catch(() => null);
-  const supportCta = !(viewer && (await supporterForUser(viewer.userId).catch(() => null)));
+  const [supporterNow, notice] = viewer
+    ? await Promise.all([supporterForUser(viewer.userId).catch(() => null), open ? null : panelNoticeFor(viewer.userId).catch(() => null)])
+    : [null, null];
+  const supportCta = !supporterNow;
   const data: HomeData = {
     cfg,
     supportCta,
@@ -505,6 +509,7 @@ async function homeView(request: Request, a: Args): Promise<View> {
     now,
     clanEvents,
     myBoards,
+    notice,
   };
   return { ui: (open && eventUi(data, open)) || homeUi(data) };
 }
@@ -707,6 +712,13 @@ async function actFor(request: Request, act: string, args: Args, fields: Args): 
   if (act === 'react') return reactAct(request, args);
   if (act === 'react-row') return reactRowAct(request, args);
   if (act === 'h2h-accept' || act === 'h2h-decline') return h2hAct(request, act, args);
+  if (act === 'notice-hide') {
+    // Hide a "From Anvil" card on this login, then the home list again (lib/notices).
+    const viewer = await verifyPluginTokenUser(request).catch(() => null);
+    const id = Number(args.id);
+    if (viewer && Number.isInteger(id) && id > 0) await hidePanelNotice(viewer.userId, id).catch(() => {});
+    return homeView(request, { clan: args.clan ?? '', ...(args.chosen === '1' ? { chosen: '1' } : {}) });
+  }
   const chat = await chatAct(request, act, args, fields);
   if (chat) return chat;
   if (act !== 'goal-add' && act !== 'goal-remove') return null;

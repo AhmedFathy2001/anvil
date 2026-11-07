@@ -1156,6 +1156,13 @@
       "when": 1793997880000,
       "tag": "0223_clan_boost_gifts",
       "breakpoints": true
+    },
+    {
+      "idx": 225,
+      "version": "7",
+      "when": 1794049679413,
+      "tag": "0225_reach_out",
+      "breakpoints": true
     }
   ]
 }

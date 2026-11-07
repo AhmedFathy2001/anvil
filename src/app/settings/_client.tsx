@@ -174,6 +174,7 @@ export interface NavCharacter {
 const ACCOUNT_ITEMS: { href: string; label: string; icon: string }[] = [
   { href: '/settings/account', label: 'Login & devices', icon: '⏻' },
   { href: '/settings/plugin', label: 'Plugin token', icon: '⚿' },
+  { href: '/settings/notifications', label: 'Notifications', icon: '🔔' },
   { href: '/settings/announcements', label: 'Announcements', icon: '📣' },
   { href: '/settings/webhooks', label: 'Discord webhooks', icon: '⌁' },
   { href: '/settings/chat', label: 'In-game chat', icon: '💬' },

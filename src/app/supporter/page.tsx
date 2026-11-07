@@ -11,6 +11,9 @@ import { isApexHost } from '@/lib/clanContext';
 import { FRIENDS_CAPS } from '@/lib/friendEventRules';
 import { verifyUser } from '@/lib/auth';
 import { ensureSupporterRef, supporterCheckoutUrl, supporterForUser } from '@/lib/supporter';
+import PersonalNote from '@/components/PersonalNote';
+import { anvilServerMember } from '@/lib/anvilDiscord';
+import { operatorDiscordId } from '@/lib/welcomeDm';
 import { BOOST_SLOTS, boostSlotsFor } from '@/lib/clanBoosts';
 import { SUPPORTER_TIERS, SUPPORTER_TIER_ORDER, type SupporterTierId } from '@/lib/supporterTiers';
 import AnvilMark from '@/components/AnvilMark';
@@ -74,6 +77,16 @@ export default async function SupporterPage() {
     ? (await db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { displayName: true } }))?.displayName ?? null
     : null;
   const configured = !!process.env.GUMROAD_URL_SUPPORTER;
+  // For a supporter: a note from Ahmed, and "Join the Anvil Discord" when they aren't in it yet.
+  const [contactId, inAnvilServer] = current && session
+    ? await Promise.all([
+        operatorDiscordId().catch(() => null),
+        db.query.users
+          .findFirst({ where: eq(users.id, session.userId), columns: { discordId: true } })
+          .then((u) => anvilServerMember(u?.discordId))
+          .catch(() => null),
+      ])
+    : [null, null];
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:py-16">
@@ -115,6 +128,12 @@ export default async function SupporterPage() {
               </ClanLink>
             )}
           </p>
+        )}
+        {current && (
+          <PersonalNote contactId={contactId} joinBack={inAnvilServer ? null : '/supporter'} className="relative mx-auto mt-6 max-w-xl">
+            Thank you, really. I&rsquo;m Ahmed, I build Anvil, and you&rsquo;re a big part of why it keeps going.
+            If anything&rsquo;s off with your perks, or you&rsquo;ve got an idea, tell me.
+          </PersonalNote>
         )}
       </header>
 

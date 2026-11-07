@@ -4,12 +4,16 @@ import { getAppPublicKey } from '@/lib/discord-roles';
 import { handleCommand, handleComponent, handleAutocomplete } from '@/lib/discordCommands';
 import {
   INTERACTION_TYPE,
+  invokerId,
   pong,
   textReply,
   verifyDiscordSignature,
   type Interaction,
 } from '@/lib/discordInteractions';
 import { log } from '@/lib/logger';
+import { SITE } from '@/lib/site';
+import { setDmsChoice } from '@/lib/welcomeDm';
+import { choiceFor, choiceRow } from '@/lib/welcomeDmText';
 
 // Raw body + Node crypto. Never cache: every interaction is a distinct signed request.
 export const runtime = 'nodejs';
@@ -87,6 +91,17 @@ export async function POST(req: NextRequest) {
   const isComponent = interaction.type === INTERACTION_TYPE.MESSAGE_COMPONENT;
   if (!isCommand && !isComponent) {
     return NextResponse.json(textReply('That interaction type is not supported yet.'));
+  }
+
+  // Yes / No / Stop on a DM from Anvil (lib/welcomeDmText). Before the clan dispatcher: a DM has no
+  // server, so there's no clan to resolve, and the choice belongs to the person, not a clan. The
+  // buttons become one greyed-out line saying what was recorded (UPDATE_MESSAGE), so it reads as done.
+  const dmsChoice = isComponent ? choiceFor(interaction.data?.custom_id ?? '') : null;
+  if (dmsChoice) {
+    const who = invokerId(interaction);
+    const saved = who ? await setDmsChoice(who, dmsChoice).catch(() => false) : false;
+    if (!saved) return NextResponse.json(textReply('Sign in to Anvil once with this Discord account, then try again.'));
+    return NextResponse.json({ type: 7, data: { components: [choiceRow(dmsChoice, SITE.supportDiscord)] } });
   }
 
   try {
