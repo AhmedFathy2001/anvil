@@ -354,6 +354,14 @@ test('buildRuleTable stats: a skill rides xp with active gating, a boss rides kc
   assert.ok(boss.names.includes('vorkath'), `names: ${boss.names.join(', ')}`);
 });
 
+test('buildRuleTable blackout: only when there are drop tiles and every one is done', () => {
+  const drop = (tileId: number, currentAmount: number) => ({ tileId, label: 'D', itemIds: [1], currentAmount, requiredAmount: 2 });
+  assert.equal(buildRuleTable({}).blackout, false);
+  assert.equal(buildRuleTable({ trackedDrops: [] }).blackout, false);
+  assert.equal(buildRuleTable({ trackedDrops: [drop(1, 2), drop(2, 1)] }).blackout, false);
+  assert.equal(buildRuleTable({ trackedDrops: [drop(1, 2), drop(2, 3)] }).blackout, true);
+});
+
 test('buildRuleTable stats: names come folded to letters and digits, a composite tile carries every mode', () => {
   const table = buildRuleTable({
     trackedStats: [

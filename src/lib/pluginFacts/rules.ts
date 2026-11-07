@@ -92,6 +92,8 @@ export interface RuleTable {
   proof: { min: number; frac: number };
   /** Chat templates; {label} {have} {of} {unit} {pct} are filled in by the client. */
   say: Record<string, string>;
+  /** Every drop tile is done (and there is at least one): the client stops counting item gains. */
+  blackout: boolean;
 }
 
 /** Where a sustained-activity gate sits for XP lines: gains in 5 distinct minutes of the last 10. */
@@ -195,8 +197,10 @@ export function buildRuleTable(cfg: RulesConfigIn): RuleTable {
     });
   }
 
+  const allDrops = cfg.trackedDrops ?? [];
   return {
     v: 1,
+    blackout: allDrops.length > 0 && allDrops.every((d) => d.currentAmount >= d.requiredAmount),
     drops,
     kills,
     values,
