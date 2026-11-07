@@ -14,6 +14,7 @@
 import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
+import { normalizeRsn } from '@/lib/auth';
 import { clanRoster, memberClog, memberClogItems, memberClogKc, memberPersonalBests, weeklyCompetitions } from '@/db/schema';
 
 import {
@@ -48,6 +49,7 @@ import {
   getCofferBalance,
   listCofferEntries,
   recordAdjustment,
+  recordDonations,
   topDonors,
 } from '@/lib/coffer';
 import { cofferLine } from '@/lib/cofferFeedText';
@@ -436,6 +438,42 @@ async function cofferWriteResult(ctx: ClanCommandCtx, sign: 1 | -1): Promise<Cla
   const amount = magnitude * sign;
 
   const note = typeof ctx.options.note === 'string' ? ctx.options.note.slice(0, 500) : null;
+
+  // Named donors (add only): each one's donation, credited on the top-donor list, rather than an
+  // adjustment that thanks nobody. Every donor must be on THIS clan's roster, as on the coffer page.
+  const named = sign > 0
+    ? [...new Set(['donor', 'donor2', 'donor3']
+        .map((k) => (typeof ctx.options[k] === 'string' ? (ctx.options[k] as string).trim() : ''))
+        .filter(Boolean))]
+    : [];
+  if (named.length) {
+    const seats: { id: number; rsn: string }[] = [];
+    for (const rsn of named) {
+      const [seat] = await db
+        .select({ id: clanRoster.id, rsn: clanRoster.rsn })
+        .from(clanRoster)
+        // clan-scope: this clan -- clanRoster.clanId = clan.clanId below.
+        .where(and(eq(clanRoster.clanId, clan.clanId), eq(clanRoster.rsnNormalized, normalizeRsn(rsn)), rosterClanSeat()))
+        .limit(1);
+      if (!seat) return { text: fmt(t.coffer.notOnRoster, { rsn: clamp(rsn, 40) }) };
+      seats.push(seat);
+    }
+    // recordDonations announces each row to the coffer feed itself, like an adjustment does.
+    await recordDonations({
+      clanId: clan.clanId,
+      donors: seats.map((s) => ({ clanMemberId: s.id, rsn: s.rsn, amount: magnitude })),
+      userId: identity.userId,
+      note,
+    });
+    const balance = await getCofferBalance(clan.clanId);
+    return {
+      text: fmt(t.coffer.addedFrom, {
+        amount: formatGp(magnitude * seats.length),
+        donors: seats.map((s) => s.rsn).join(', '),
+        available: formatGp(balance.available),
+      }),
+    };
+  }
   // recordAdjustment announces the movement to the coffer feed channel itself, so the runner gets a
   // private confirmation and the channel gets the standard post — no double announcement here.
   //

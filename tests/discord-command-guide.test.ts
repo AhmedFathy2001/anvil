@@ -47,7 +47,7 @@ test('examples only use the command’s own options, and include every required 
 
 test('usage lines read the way Discord shows them', () => {
   const byPath = new Map(commands.map((c) => [c.path, c]));
-  assert.equal(byPath.get('coffer add')?.usage, '/coffer add <amount> [note]');
+  assert.equal(byPath.get('coffer add')?.usage, '/coffer add <amount> [donor] [donor2] [donor3] [note]');
   assert.equal(byPath.get('bingo board')?.usage, '/bingo board');
   assert.equal(byPath.get('setup')?.usage, '/setup <topic> [step] [language]');
   assert.equal(byPath.get('guide')?.usage, '/guide <guide>');

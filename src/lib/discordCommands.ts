@@ -1272,6 +1272,14 @@ export async function handleAutocomplete(interaction: Interaction): Promise<Inte
     return autocompleteReply(clan ? await suggestGameGuides(clan.clanId, focused.value) : []);
   }
 
+  // /coffer add's donors: anyone on this clan's roster.
+  if (focused.name === 'donor' || focused.name === 'donor2' || focused.name === 'donor3') {
+    const clan = await getClanContext(interaction.guild_id ?? null);
+    if (!clan) return autocompleteReply([]);
+    const roster = await searchRosterPlayers(focused.value, clan.clanId);
+    return autocompleteReply(roster.slice(0, 25).map((p) => ({ name: p.rsn, value: p.rsn })));
+  }
+
   if (focused.name === 'player' || focused.name === 'account') {
     const clan =
       (await getClanContext(interaction.guild_id ?? null)) ??

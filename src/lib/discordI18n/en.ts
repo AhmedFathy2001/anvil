@@ -318,6 +318,8 @@ export const en = {
       'Do it on the coffer page if you mean to record it anyway.',
     added: '✅ Added {amount} to the coffer — {available} available now.',
     removed: '✅ Removed {amount} from the coffer — {available} available now.',
+    addedFrom: '✅ Added {amount} from {donors} to the coffer — {available} available now.',
+    notOnRoster: '{rsn} isn’t on this clan’s roster. Pick a donor from the list, or add it without one.',
   },
 
   // /clog

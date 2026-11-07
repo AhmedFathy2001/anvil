@@ -90,6 +90,13 @@ const AMOUNT_OPTION = {
   required: true,
 } as const;
 
+/** Who gave it, on /coffer add: a roster RSN, type-ahead from the clan roster. */
+const DONOR_OPTIONS = [
+  { name: 'donor', description: 'Who gave it — a clan member (the amount is credited to each donor named)', type: OPTION_TYPE.STRING, required: false, autocomplete: true },
+  { name: 'donor2', description: 'Another donor (optional)', type: OPTION_TYPE.STRING, required: false, autocomplete: true },
+  { name: 'donor3', description: 'Another donor (optional)', type: OPTION_TYPE.STRING, required: false, autocomplete: true },
+] as const;
+
 const NOTE_OPTION = {
   name: 'note',
   description: "What it's for (optional)",
@@ -181,7 +188,7 @@ const CLAN_DEFINITIONS = [
         name: 'add',
         description: 'Add gp to the coffer (treasurer, admin or owner)',
         type: OPTION_TYPE.SUB_COMMAND,
-        options: [AMOUNT_OPTION, NOTE_OPTION],
+        options: [AMOUNT_OPTION, ...DONOR_OPTIONS, NOTE_OPTION],
       },
       {
         name: 'remove',
