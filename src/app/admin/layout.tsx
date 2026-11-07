@@ -16,7 +16,7 @@ import AdminSettingsSearch from './_components/AdminSettingsSearch';
 import HashReveal from '@/components/HashReveal';
 import { FEATURES } from '@/lib/features';
 import { getSetupStatus } from '@/lib/setupStatus';
-import { creatorHidesAdminPath, isCreatorSpace } from '@/lib/creatorSpaces';
+import { creatorHidesAdminPath, isCreatorSpace, placeWord } from '@/lib/creatorSpaces';
 import { friendsAllowsAdminPath, isFriendsHost } from '@/lib/friendEventRules';
 import { pendingClaimRequests } from '@/lib/claimRequests';
 import { pendingUpdateCount } from '@/lib/guides';
@@ -378,7 +378,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="lg:flex lg:gap-6">
-      <AdminSidebar groups={groups} user={user} primary={primary} guideHref={creator ? '/guide/creators' : '/guide/admin'} search />
+      <AdminSidebar groups={groups} user={user} primary={primary} guideHref={creator ? '/guide/creators' : '/guide/admin'} guideLabel={creator ? 'Creator guide' : 'Admin guide'} search />
       {/* Ctrl/Cmd+K from anywhere in the admin area — inside an event too, where the rail above is hidden. */}
       <AdminSettingsSearch access={access} features={FEATURES.filter((f) => features.on(f.key)).map((f) => f.key)} creator={creator} />
       {/* #anchors land opened, scrolled to and ringed — search results, cross-page links, pasted URLs. */}
@@ -390,9 +390,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           // already carries the same fact, so this is the half the operator sees.
           <div className="mb-4 rounded-xl border border-amber-700 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
             You are acting as staff of <span className="font-semibold">{clan.name}</span> on a
-            temporary platform grant, not a role in this clan. It expires{' '}
-            {session.actingAs.expiresAt.replace('T', ' ').slice(0, 16)} UTC and this clan can see it
-            in their history.
+            temporary platform grant, not a role in this {placeWord(clan.kind)}. It expires{' '}
+            {session.actingAs.expiresAt.replace('T', ' ').slice(0, 16)} UTC and this {placeWord(clan.kind)} can
+            see it in their history.
           </div>
         )}
         {children}

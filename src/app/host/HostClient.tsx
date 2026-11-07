@@ -11,11 +11,16 @@ import { suggestSlug } from '@/lib/creatorSpaces';
 export default function HostClient({
   apex,
   signedIn,
+  plan = null,
+  billing = 'monthly',
   defaultName,
   defaultSlug,
 }: {
   apex: string;
   signedIn: boolean;
+  /** A paid creator tier picked on /pricing: after creating, go to the space's plan card, not the wizard. */
+  plan?: string | null;
+  billing?: 'monthly' | 'yearly';
   defaultName: string;
   defaultSlug: string;
 }) {
@@ -61,18 +66,28 @@ export default function HostClient({
         return;
       }
       // A full navigation, not a client route: this crosses from the apex into the new space.
-      window.location.assign(j.next ?? `/c/${j.slug ?? slug}/admin/events/first`);
+      const made = j.slug ?? slug;
+      window.location.assign(
+        plan
+          ? `/c/${made}/admin/dashboard${billing === 'yearly' ? '?billing=yearly' : ''}#plan`
+          : (j.next ?? `/c/${made}/admin/events/first`),
+      );
     } finally {
       setBusy(false);
     }
   }
 
   if (!signedIn) {
+    const q = new URLSearchParams();
+    if (plan) q.set('plan', plan);
+    if (plan && billing === 'yearly') q.set('billing', 'yearly');
+    const returnTo = `/host${q.size ? `?${q}` : ''}`;
     return (
       <div className="rounded-xl border border-card-border bg-card-bg p-6">
         <p className="text-base text-text-muted">Sign in with Discord to make your space.</p>
         <a
-          href="/login?return=%2Fhost"
+          // eslint-disable-next-line clan-scope/clan-prefix -- platform: /host and /login are apex pages
+          href={`/login?return=${encodeURIComponent(returnTo)}`}
           className="mt-4 block w-full rounded-xl bg-gold px-6 py-4 text-center text-lg font-semibold text-brown-dark transition-colors hover:bg-gold-light"
         >
           Sign in with Discord

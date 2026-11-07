@@ -1,4 +1,5 @@
 import { and, count, desc, eq, inArray } from 'drizzle-orm';
+import type { BillingInterval } from '@/lib/billingInterval';
 
 import { db } from '@/db';
 import { events, eventSignups } from '@/db/schema';
@@ -30,6 +31,7 @@ export default async function CreatorDashboard({
   setup,
   clanPlan,
   canBuy,
+  billing = 'monthly',
 }: {
   clanId: number;
   setup: SetupStatus;
@@ -37,6 +39,8 @@ export default async function CreatorDashboard({
   clanPlan: string;
   /** Admin or owner: may see the checkout button. */
   canBuy: boolean;
+  /** ?billing= on the dashboard (from /pricing's switch): which price the plan card leads with. */
+  billing?: BillingInterval;
 }) {
   const [list, players, waiting] = await Promise.all([
     db
@@ -125,7 +129,7 @@ export default async function CreatorDashboard({
       )}
 
       <div className="mt-8">
-        <CreatorPlanCard clanId={clanId} clanPlan={clanPlan} canBuy={canBuy} />
+        <CreatorPlanCard clanId={clanId} clanPlan={clanPlan} canBuy={canBuy} billing={billing} />
       </div>
 
       <div className="mt-8">

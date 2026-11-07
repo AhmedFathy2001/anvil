@@ -8,7 +8,7 @@
 //
 // Pure: no database import.
 
-import { PLANS, PLAN_IDS, isPlanId, planForGumroadProduct, planForGumroadTier, planOf, type Plan } from '@/lib/plans';
+import { PLANS, PLAN_IDS, isPlanId, isYearlyClanProduct, planForGumroadProduct, planForGumroadTier, planOf, type Plan } from '@/lib/plans';
 import {
   CREATOR_FREE_ID,
   CREATOR_PLANS,
@@ -18,6 +18,7 @@ import {
   creatorPlanFromLegacy,
   creatorPlanOf,
   isCreatorPlanId,
+  isYearlyCreatorProduct,
   type CreatorPlan,
 } from '@/lib/creatorCatalog';
 
@@ -116,4 +117,14 @@ export function gumroadPurchase(ev: { productId: string | null; tier: string | n
   const clanTier = planForGumroadTier(ev.tier);
   if (clanTier) return { catalog: 'clan', tier: fromClan(clanTier) };
   return null;
+}
+
+/**
+ * A ping for a tier's yearly-only product (GUMROAD_PRODUCT_*_YEARLY) is a one-year term even if
+ * Gumroad left `recurrence` out — read as monthly, the lapse sweep would drop a paid year after a
+ * month. Anything else is returned as it came.
+ */
+export function withYearlyRecurrence<T extends { productId: string | null; recurrence: string | null }>(ev: T): T {
+  if (ev.recurrence || !(isYearlyClanProduct(ev.productId) || isYearlyCreatorProduct(ev.productId))) return ev;
+  return { ...ev, recurrence: 'yearly' };
 }

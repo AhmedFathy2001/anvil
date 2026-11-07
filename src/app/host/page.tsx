@@ -13,6 +13,8 @@ import ClanLink from '@/components/ClanLink';
 import { FRIENDS_CAPS } from '@/lib/friendEventRules';
 import { friendsHostOf, hostingTierOf } from '@/lib/friendEvents';
 import { SUPPORTER_TIERS } from '@/lib/supporterTiers';
+import { hostPlanParam } from '@/lib/creatorPricingCta';
+import { parseBillingInterval } from '@/lib/billingInterval';
 import HostClient from './HostClient';
 
 export const dynamic = 'force-dynamic';
@@ -32,8 +34,13 @@ export const metadata: Metadata = {
  * They never share a cap: a creator who is also a Patron sees, and gets, both. Apex only, like
  * /clans/new: making either is a platform act.
  */
-export default async function HostPage() {
+export default async function HostPage({ searchParams }: { searchParams: Promise<{ plan?: string; billing?: string }> }) {
   if (!isApexHost((await headers()).get('host'))) notFound();
+  // A paid column on /pricing: the new space lands on its plan card (that tier's checkout) instead of
+  // the event wizard. ?billing=yearly rides along so the card opens on the yearly price.
+  const sp = await searchParams;
+  const plan = hostPlanParam(sp.plan);
+  const billing = parseBillingInterval(sp.billing);
   const session = await verifyUser();
   const [userRow, existing, tier, friendsHost] = session
     ? await Promise.all([
@@ -144,6 +151,8 @@ export default async function HostPage() {
             <HostClient
               apex={apexDomain()}
               signedIn={session != null}
+              plan={plan}
+              billing={billing}
               defaultName={defaultName}
               defaultSlug={suggestSlug(defaultName)}
             />

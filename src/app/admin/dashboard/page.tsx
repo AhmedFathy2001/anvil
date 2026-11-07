@@ -1,4 +1,5 @@
 import { requireClan } from '@/lib/clanContext';
+import { parseBillingInterval } from '@/lib/billingInterval';
 import { pendingUpdateCount } from '@/lib/guides';
 import { redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
@@ -46,7 +47,7 @@ function betweenDays(column: unknown, now: number, fromDaysAgo: number, toDaysAg
   return sql`substr(${column}, 1, 10) >= ${dayKey(now, fromDaysAgo)} AND substr(${column}, 1, 10) < ${dayKey(now, toDaysAgo)}`;
 }
 
-export default async function AdminDashboardPage() {
+export default async function AdminDashboardPage({ searchParams }: { searchParams: Promise<{ billing?: string }> }) {
   const clan = await requireClan();
   // WHAT THIS READER CAN ACTUALLY OPEN. This page is the landing tile for every staff tier, and it
   // was written for an admin: a moderator without the authoring capability cannot reach /admin/events
@@ -66,7 +67,15 @@ export default async function AdminDashboardPage() {
   // A creator space (lib/creatorSpaces) has no roster: no member counts, no roster nags, no weeklies.
   const creator = setup.creator;
   if (creator) {
-    return <CreatorDashboard clanId={clan.id} setup={setup} clanPlan={clan.plan} canBuy={!!session && atLeast(session.role, 'admin')} />;
+    return (
+      <CreatorDashboard
+        clanId={clan.id}
+        setup={setup}
+        clanPlan={clan.plan}
+        canBuy={!!session && atLeast(session.role, 'admin')}
+        billing={parseBillingInterval((await searchParams).billing)}
+      />
+    );
   }
   if (setup.isFresh && !setup.wizardShown) {
     await setSetting(clan.id, 'setup_wizard_shown', new Date().toISOString());

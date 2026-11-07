@@ -5,6 +5,7 @@ import { apexDomain, isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
 import { PLANS, TRIAL_DAYS, checkoutUrl } from '@/lib/plans';
 import { freemiumEnforced } from '@/lib/entitlements';
+import { parseBillingInterval, type BillingInterval } from '@/lib/billingInterval';
 import NewClanClient from './NewClanClient';
 
 export const dynamic = 'force-dynamic';
@@ -15,16 +16,22 @@ export const dynamic = 'force-dynamic';
  * Not reachable from inside a clan's site: making a clan is a platform act, and offering it on
  * someone else's subdomain would read as that clan's doing.
  */
-export default async function NewClanPage({ searchParams }: { searchParams: Promise<{ plan?: string }> }) {
+export default async function NewClanPage({ searchParams }: { searchParams: Promise<{ plan?: string; billing?: string }> }) {
   if (!isApexHost((await headers()).get('host'))) notFound();
 
   const session = await verifyUser();
 
   // A paid tier picked on /pricing. Only honoured once caps are enforced and its checkout is configured —
   // before that every size is free and asking for a card would be for nothing.
-  const { plan: planParam } = await searchParams;
+  // ?billing=yearly (the /pricing switch) picks the yearly checkout when that tier has one configured.
+  const { plan: planParam, billing: billingParam } = await searchParams;
   const picked = planParam ? PLANS[planParam as keyof typeof PLANS] : undefined;
-  const trialPlan = freemiumEnforced() && picked?.priceUsd && checkoutUrl(picked) ? { id: picked.id, name: picked.name, trialDays: TRIAL_DAYS } : null;
+  const wanted = parseBillingInterval(billingParam);
+  const billing: BillingInterval = picked && wanted === 'yearly' && checkoutUrl(picked, 'yearly') ? 'yearly' : 'monthly';
+  const trialPlan =
+    freemiumEnforced() && picked?.priceUsd && checkoutUrl(picked, billing)
+      ? { id: picked.id, name: picked.name, trialDays: TRIAL_DAYS, billing }
+      : null;
 
   return (
     <div className="mx-auto max-w-xl px-4 py-10">

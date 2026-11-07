@@ -38,6 +38,8 @@ import {
   mayCreateCreatorSpace,
   outsiderNeedsApproval,
   outsiderWord,
+  adminMenuLabel,
+  placeWord,
   showcaseOn,
   showcaseValueFor,
   suggestSlug,
@@ -343,4 +345,13 @@ test('a first sign-in into a creator space goes straight back to the event, not 
   assert.equal(firstLoginDestination('/c/cool-streamer/events/5', false, true), '/c/cool-streamer/events/5');
   // A clan's deep link still goes through onboarding, carrying the target along.
   assert.equal(firstLoginDestination('/c/afk/events/5', false), `/welcome?next=${encodeURIComponent('/c/afk/events/5')}`);
+});
+
+test('admin chrome words: a creator space or friends host is a "space", never a "clan"', () => {
+  assert.equal(adminMenuLabel('creator'), 'Space admin');
+  assert.equal(adminMenuLabel('friends'), 'Space admin');
+  assert.equal(adminMenuLabel('clan'), 'Clan admin');
+  assert.equal(adminMenuLabel(null), 'Clan admin');
+  assert.equal(placeWord('creator'), 'space');
+  assert.equal(placeWord(undefined), 'clan');
 });

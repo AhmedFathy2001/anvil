@@ -10,6 +10,8 @@
 // churn when marketing changed; there is no provisioning code left to protect, and two vocabularies
 // for one concept is a translation layer that only ever produces bugs.
 
+import { urlEnvFor, withRef, type BillingInterval } from './billingInterval.ts';
+
 export const TRIAL_DAYS = Number(process.env.GUMROAD_TRIAL_DAYS || 30);
 
 export const PLAN_IDS = ['free', 'bronze', 'silver', 'gold', 'custom'] as const;
@@ -31,6 +33,10 @@ export interface Plan {
   gumroadProductEnv?: string;
   /** Env holding this tier's hosted checkout URL. */
   gumroadUrlEnv?: string;
+  /** Env holding the YEARLY product id, when yearly is its own Gumroad product (lib/billingInterval). */
+  gumroadProductYearlyEnv?: string;
+  /** Env holding the yearly checkout URL. Unset = no yearly button for this tier. */
+  gumroadUrlYearlyEnv?: string;
 }
 
 export const PLANS: Record<PlanId, Plan> = {
@@ -64,6 +70,8 @@ export const PLANS: Record<PlanId, Plan> = {
     ],
     gumroadProductEnv: 'GUMROAD_PRODUCT_BRONZE',
     gumroadUrlEnv: 'GUMROAD_URL_BRONZE',
+    gumroadProductYearlyEnv: 'GUMROAD_PRODUCT_BRONZE_YEARLY',
+    gumroadUrlYearlyEnv: 'GUMROAD_URL_BRONZE_YEARLY',
   },
   silver: {
     id: 'silver',
@@ -82,6 +90,8 @@ export const PLANS: Record<PlanId, Plan> = {
     popular: true,
     gumroadProductEnv: 'GUMROAD_PRODUCT_SILVER',
     gumroadUrlEnv: 'GUMROAD_URL_SILVER',
+    gumroadProductYearlyEnv: 'GUMROAD_PRODUCT_SILVER_YEARLY',
+    gumroadUrlYearlyEnv: 'GUMROAD_URL_SILVER_YEARLY',
   },
   gold: {
     id: 'gold',
@@ -99,6 +109,8 @@ export const PLANS: Record<PlanId, Plan> = {
     ],
     gumroadProductEnv: 'GUMROAD_PRODUCT_GOLD',
     gumroadUrlEnv: 'GUMROAD_URL_GOLD',
+    gumroadProductYearlyEnv: 'GUMROAD_PRODUCT_GOLD_YEARLY',
+    gumroadUrlYearlyEnv: 'GUMROAD_URL_GOLD_YEARLY',
   },
   custom: {
     id: 'custom',
@@ -169,19 +181,28 @@ export function planForGumroadTier(tier: string | null | undefined): Plan | null
   return Object.values(PLANS).find((p) => p.name.toLowerCase() === want) ?? null;
 }
 
-/** The tier matching a Gumroad product id, for the per-tier-product setup. */
+/** The tier matching a Gumroad product id (monthly or yearly), for the per-tier-product setup. */
 export function planForGumroadProduct(productId: string | null | undefined): Plan | null {
   if (!productId) return null;
   return (
     Object.values(PLANS).find(
-      (p) => p.gumroadProductEnv && process.env[p.gumroadProductEnv] === productId,
+      (p) =>
+        (p.gumroadProductEnv && process.env[p.gumroadProductEnv] === productId) ||
+        (p.gumroadProductYearlyEnv && process.env[p.gumroadProductYearlyEnv] === productId),
     ) ?? null
   );
 }
 
-/** Hosted checkout URL for a tier, if one is configured. */
-export function checkoutUrl(plan: Plan): string | null {
-  return plan.gumroadUrlEnv ? (process.env[plan.gumroadUrlEnv] ?? null) : null;
+/** Is this the id of a clan tier's yearly-only Gumroad product? */
+export function isYearlyClanProduct(productId: string | null | undefined): boolean {
+  if (!productId) return false;
+  return Object.values(PLANS).some((p) => p.gumroadProductYearlyEnv && process.env[p.gumroadProductYearlyEnv] === productId);
+}
+
+/** Hosted checkout URL for a tier at an interval, if one is configured. */
+export function checkoutUrl(plan: Plan, interval: BillingInterval = 'monthly'): string | null {
+  const env = urlEnvFor(plan, interval);
+  return env ? (process.env[env] || null) : null;
 }
 
 /**
@@ -189,10 +210,8 @@ export function checkoutUrl(plan: Plan): string | null {
  * forwards a product URL's params to the ping as `url_params`, so this is how a payment finds its clan
  * even when the buyer pays with a different email than the clan's contact.
  */
-export function checkoutUrlWithRef(plan: Plan, ref: string | null | undefined): string | null {
-  const base = checkoutUrl(plan);
-  if (!base || !ref) return base;
-  return `${base}${base.includes('?') ? '&' : '?'}ref=${encodeURIComponent(ref)}`;
+export function checkoutUrlWithRef(plan: Plan, ref: string | null | undefined, interval: BillingInterval = 'monthly'): string | null {
+  return withRef(checkoutUrl(plan, interval), ref);
 }
 
 /**

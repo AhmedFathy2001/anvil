@@ -5,7 +5,7 @@ import { db } from '@/db';
 import { clanAuditLog, clans } from '@/db/schema';
 import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, trialEndWithGumroad, parseWebhook, verifySeller, verifyWebhookSecret, TRIAL_DAYS } from '@/lib/gumroad';
 import { endMembership, logBilling } from '@/lib/billingLapse';
-import { billingTierOf, catalogOfKind, endedTierFor, entryTierFor, freeTierFor, gumroadPurchase, type BillingTier } from '@/lib/billingCatalog';
+import { billingTierOf, catalogOfKind, endedTierFor, entryTierFor, freeTierFor, gumroadPurchase, withYearlyRecurrence, type BillingTier } from '@/lib/billingCatalog';
 import { log } from '@/lib/logger';
 import { handleSupporterEvent, isSupporterEvent } from '@/lib/supporterBilling';
 
@@ -185,7 +185,8 @@ export async function POST(req: NextRequest) {
   }
 
   const raw = await req.text();
-  const ev = parseWebhook(raw);
+  // A yearly-only product's ping is a one-year term even without `recurrence` (lib/billingInterval).
+  const ev = withYearlyRecurrence(parseWebhook(raw));
 
   if (!verifySeller(ev.sellerId)) {
     return new Response('Invalid seller', { status: 401 });

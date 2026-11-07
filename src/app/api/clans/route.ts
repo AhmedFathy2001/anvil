@@ -12,6 +12,7 @@ import { rateLimitByKey } from '@/lib/rate-limit';
 import { track } from '@/lib/analytics';
 import { PLANS, checkoutUrlWithRef } from '@/lib/plans';
 import { freemiumEnforced } from '@/lib/entitlements';
+import { parseBillingInterval } from '@/lib/billingInterval';
 
 /**
  * Creating a clan, and checking whether a name is free.
@@ -141,7 +142,12 @@ export async function POST(request: Request) {
   // Came from a paid tier on /pricing: hand back that tier's checkout, carrying this clan's ref so the
   // webhook can find it. The clan itself still starts free — Gumroad starting the trial is what moves it.
   const picked = typeof body.plan === 'string' ? PLANS[body.plan as keyof typeof PLANS] : undefined;
-  const checkoutUrl = freemiumEnforced() && picked?.priceUsd ? checkoutUrlWithRef(picked, row?.gumroadRef) : null;
+  // `billing: 'yearly'` (the /pricing switch) takes the yearly checkout; unconfigured → the monthly one.
+  const billing = parseBillingInterval(typeof body.billing === 'string' ? body.billing : null);
+  const checkoutUrl =
+    freemiumEnforced() && picked?.priceUsd
+      ? (billing === 'yearly' ? checkoutUrlWithRef(picked, row?.gumroadRef, 'yearly') : null) ?? checkoutUrlWithRef(picked, row?.gumroadRef)
+      : null;
 
   return NextResponse.json({ ok: true, clan: row, checkoutUrl });
 }

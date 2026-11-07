@@ -524,6 +524,16 @@ export function outsiderWord(kind: string | null | undefined, plural = false): s
   return creator ? 'player' : 'guest';
 }
 
+/** What the place calls itself in its own chrome: "clan" for an in-game clan, "space" for anything else. */
+export function placeWord(kind: string | null | undefined): 'clan' | 'space' {
+  return clanKindOf(kind) === 'clan' ? 'clan' : 'space';
+}
+
+/** The header's "Manage" menu item for this place's admin: "Clan admin" or "Space admin". */
+export function adminMenuLabel(kind: string | null | undefined): string {
+  return placeWord(kind) === 'clan' ? 'Clan admin' : 'Space admin';
+}
+
 /** The Discord DM somebody gets when the host says no to their request. */
 export function declinedRequestText(opts: {
   kind: string | null | undefined;

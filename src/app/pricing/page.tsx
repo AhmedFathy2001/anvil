@@ -2,19 +2,41 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
+import { eq } from 'drizzle-orm';
+
+import { db } from '@/db';
+import { clans } from '@/db/schema';
 import { isApexHost } from '@/lib/clanContext';
-import { PLANS, type Plan } from '@/lib/plans';
+import { verifyUser } from '@/lib/auth';
+import { ownedCreatorSpace } from '@/lib/clanCreate';
+import { ensureClanCheckoutRef } from '@/lib/billing';
+import { PLANS, checkoutUrl, type Plan } from '@/lib/plans';
 import {
   CREATOR_CAPABILITY_MIN_PLAN,
   CREATOR_PLANS,
   CREATOR_PLAN_IDS,
+  creatorCheckoutUrl,
+  creatorCheckoutUrlWithRef,
   creatorPlanHasCapability,
+  creatorPlanOf,
   type CreatorCapability,
   type CreatorPlan,
 } from '@/lib/creatorCatalog';
+import { creatorPricingCta, type CreatorCta, type CreatorCtaViewer } from '@/lib/creatorPricingCta';
+import {
+  parseBillingInterval,
+  priceLine,
+  usd,
+  withBilling,
+  yearlyPerMonthUsd,
+  yearlyPriceUsd,
+  type BillingInterval,
+} from '@/lib/billingInterval';
 import { freemiumEnforced } from '@/lib/entitlements';
+import { SITE } from '@/lib/site';
 import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
+import BillingSwitch from './BillingSwitch';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,8 +53,26 @@ export const metadata: Metadata = {
  * read, so a price is never a marketing figure someone has to remember to update. On a clan host
  * this is a 404 — pricing is a platform concern, not something a clan advertises on its own site.
  */
-export default async function PricingPage() {
+export default async function PricingPage({ searchParams }: { searchParams: Promise<{ billing?: string }> }) {
   if (!isApexHost((await headers()).get('host'))) notFound();
+  // One Monthly / Yearly switch for the page, kept in the URL (?billing=yearly) so links can open it.
+  const interval = parseBillingInterval((await searchParams).billing);
+
+  // Who is looking decides the creator table's buttons (lib/creatorPricingCta): signed out, signed in
+  // with no space, or the owner of one (one each, lib/creatorSpaces MAX_CREATOR_SPACES).
+  const session = await verifyUser();
+  const owned = session ? await ownedCreatorSpace(session.userId) : null;
+  const ownedRow = owned
+    ? await db.query.clans.findFirst({ where: eq(clans.id, owned.id), columns: { plan: true } })
+    : null;
+  const ownedPlan = owned ? creatorPlanOf(ownedRow?.plan) : null;
+  // The same checkout the space's dashboard card offers: the creator tier's Gumroad link + the space's
+  // ref. Only fetched (and, if missing, created — as the dashboard does) when a Free space could buy.
+  const ref = owned && ownedPlan?.id === 'creator_free' ? await ensureClanCheckoutRef(owned.id) : null;
+  const viewer: CreatorCtaViewer = {
+    signedIn: session != null,
+    space: owned && ownedPlan ? { slug: owned.slug, plan: ownedPlan.id } : null,
+  };
 
   // The four buyable tiers, in order. `custom` is negotiated, not bought, so it gets a footnote
   // rather than a card — a card with no price reads as broken.
@@ -64,11 +104,14 @@ export default async function PricingPage() {
             Streamer or creator? See creator plans
           </a>
         </p>
+        <div className="relative mt-5 flex justify-center">
+          <BillingSwitch value={interval} />
+        </div>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tiers.map((t) => (
-          <TierCard key={t.id} plan={t} enforced={enforced} />
+          <TierCard key={t.id} plan={t} enforced={enforced} interval={interval} />
         ))}
       </div>
 
@@ -108,18 +151,34 @@ export default async function PricingPage() {
       </section>
 
       <p className="mt-8 text-center text-[12.5px] text-text-dim">
-        Prices in USD, billed monthly through Gumroad, cancel anytime. Caps are active roster members —
+        Prices in USD, billed {interval === 'yearly' ? 'yearly (a year costs ten months)' : 'monthly'} through Gumroad, cancel anytime. Caps are active roster members —
         guests from other clans don&rsquo;t count against yours.
       </p>
 
-      <CreatorPricing enforced={enforced} />
+      <CreatorPricing
+        enforced={enforced}
+        interval={interval}
+        viewer={viewer}
+        checkoutFor={(p) => creatorCheckoutUrlWithRef(p, ref, interval)}
+        yearlyOffered={(p) => creatorCheckoutUrl(p, 'yearly') != null}
+      />
     </div>
   );
 }
 
-function TierCard({ plan, enforced }: { plan: Plan; enforced: boolean }) {
+function TierCard({ plan, enforced, interval }: { plan: Plan; enforced: boolean; interval: BillingInterval }) {
+  const paid = plan.priceUsd != null && plan.priceUsd > 0;
+  const yearly = interval === 'yearly' && paid;
   const price =
-    plan.priceUsd === 0 ? 'Free' : plan.priceUsd == null ? '—' : `$${plan.priceUsd.toFixed(2)}`;
+    plan.priceUsd === 0
+      ? 'Free'
+      : plan.priceUsd == null
+        ? '—'
+        : usd(yearly ? (yearlyPriceUsd(plan.priceUsd) ?? 0) : plan.priceUsd);
+  // A paid start asks for a card only once caps bite. Yearly then needs its own checkout configured;
+  // without one the card says so rather than quietly sending them to the monthly one.
+  const paidStart = enforced && paid;
+  const yearlyMissing = yearly && paidStart && checkoutUrl(plan, 'yearly') == null;
   return (
     <div
       className={`relative flex flex-col rounded-2xl border p-5 ${
@@ -134,10 +193,11 @@ function TierCard({ plan, enforced }: { plan: Plan; enforced: boolean }) {
       <h3 className="display text-[19px] font-semibold">{plan.name}</h3>
       <div className="mt-2 flex items-baseline gap-1">
         <span className="font-mono text-[26px] font-medium tabular-nums tracking-tight">{price}</span>
-        {plan.priceUsd != null && plan.priceUsd > 0 && (
-          <span className="text-[12.5px] text-text-muted">/mo</span>
-        )}
+        {paid && <span className="text-[12.5px] text-text-muted">{yearly ? '/yr' : '/mo'}</span>}
       </div>
+      {yearly && plan.priceUsd != null && (
+        <p className="text-[12px] text-text-muted">{usd(yearlyPerMonthUsd(plan.priceUsd))}/mo · two months free</p>
+      )}
       <p className="mt-1 text-[12.5px] font-medium text-gold">{plan.capLabel}</p>
       <p className="mt-2.5 text-[13px] leading-relaxed text-text-muted">{plan.blurb}</p>
 
@@ -152,18 +212,28 @@ function TierCard({ plan, enforced }: { plan: Plan; enforced: boolean }) {
         ))}
       </ul>
 
-      {/* Once caps bite, the tier rides along and the create form ends on its Gumroad checkout — that is
-          where the trial starts. Until then every clan size is free, so no button asks for a card. */}
-      <ClanLink
-        href={enforced && plan.priceUsd ? `/clans/new?plan=${plan.id}` : '/clans/new'}
-        className={`mt-5 rounded-lg px-4 py-2.5 text-center text-sm font-semibold transition-colors ${
-          plan.popular
-            ? 'bg-gold text-brown-dark hover:bg-gold-light'
-            : 'border border-card-border hover:border-gold/45'
-        }`}
-      >
-        {plan.priceUsd === 0 || !enforced ? 'Start free' : 'Start 30-day trial'}
-      </ClanLink>
+      {/* Once caps bite, the tier (and ?billing=) rides along and the create form ends on its Gumroad
+          checkout — that is where the trial starts. Until then every clan size is free, so no button
+          asks for a card. */}
+      {yearlyMissing ? (
+        <span
+          aria-disabled="true"
+          className="mt-5 cursor-default rounded-lg border border-card-border px-4 py-2.5 text-center text-sm font-semibold text-text-dim opacity-60"
+        >
+          Yearly coming soon
+        </span>
+      ) : (
+        <ClanLink
+          href={paidStart ? withBilling(`/clans/new?plan=${plan.id}`, interval) : '/clans/new'}
+          className={`mt-5 rounded-lg px-4 py-2.5 text-center text-sm font-semibold transition-colors ${
+            plan.popular
+              ? 'bg-gold text-brown-dark hover:bg-gold-light'
+              : 'border border-card-border hover:border-gold/45'
+          }`}
+        >
+          {paidStart ? 'Start 30-day trial' : 'Start free'}
+        </ClanLink>
+      )}
     </div>
   );
 }
@@ -174,14 +244,26 @@ function TierCard({ plan, enforced }: { plan: Plan; enforced: boolean }) {
  * across its events whose dates overlap (lib/creatorPlans, lib/concurrentSeats). Rendered from CREATOR_PLANS and CREATOR_CAPABILITY_MIN_PLAN, so the table cannot
  * drift from what is billed and enforced.
  */
-function CreatorPricing({ enforced }: { enforced: boolean }) {
+function CreatorPricing({
+  enforced,
+  interval,
+  viewer,
+  checkoutFor,
+  yearlyOffered,
+}: {
+  enforced: boolean;
+  interval: BillingInterval;
+  viewer: CreatorCtaViewer;
+  checkoutFor: (p: CreatorPlan) => string | null;
+  yearlyOffered: (p: CreatorPlan) => boolean;
+}) {
   const cols = CREATOR_PLAN_IDS.map((id) => CREATOR_PLANS[id]);
   const has = (p: CreatorPlan, c: CreatorCapability) => creatorPlanHasCapability(p, c);
   const yes = 'Yes';
   const rows: { label: string; cell: (p: CreatorPlan) => string }[] = [
     {
       label: 'Price',
-      cell: (p) => (p.priceUsd == null ? 'Talk to us' : p.priceUsd === 0 ? 'Free' : `$${p.priceUsd.toFixed(2)}/mo`),
+      cell: (p) => (p.priceUsd == null ? 'Talk to us' : p.priceUsd === 0 ? 'Free' : priceLine(p.priceUsd, interval)),
     },
     {
       label: 'Players at once across your events',
@@ -196,6 +278,10 @@ function CreatorPricing({ enforced }: { enforced: boolean }) {
     { label: '!join in your Twitch or Kick chat', cell: (p) => (has(p, 'chat-join-bot') ? yes : '—') },
     { label: 'Listed on Anvil (if you want)', cell: (p) => (has(p, 'featured-listing') ? 'Featured first' : yes) },
   ];
+  const ctas = cols.map((p) => ({
+    id: p.id,
+    cta: creatorPricingCta(p, viewer, { enforced, interval, checkoutFor, yearlyOffered, contactUrl: SITE.supportDiscord }),
+  }));
   return (
     <section id="creators" className="mt-16 scroll-mt-24">
       <div className="mb-1.5 flex items-center gap-2.5">
@@ -236,6 +322,19 @@ function CreatorPricing({ enforced }: { enforced: boolean }) {
               </tr>
             ))}
           </tbody>
+          {/* One action per column, the same steps as the clan cards above (lib/creatorPricingCta). */}
+          <tfoot>
+            <tr className="border-t border-card-border">
+              <th scope="row" className="px-4 py-3">
+                <span className="sr-only">Get this plan</span>
+              </th>
+              {ctas.map(({ id, cta }) => (
+                <td key={id} className="px-3 py-3 align-top">
+                  <CreatorCtaButton cta={cta} />
+                </td>
+              ))}
+            </tr>
+          </tfoot>
         </table>
       </div>
       <p className="mt-3 text-center text-[12.5px] text-text-dim">
@@ -247,5 +346,36 @@ function CreatorPricing({ enforced }: { enforced: boolean }) {
         </ClanLink>
       </p>
     </section>
+  );
+}
+
+/** A creator column's button, styled like the clan cards' (gold for the lead, outlined otherwise). */
+function CreatorCtaButton({ cta }: { cta: CreatorCta }) {
+  const base = 'block whitespace-nowrap rounded-lg px-3 py-2 text-center text-[13px] font-semibold transition-colors';
+  if (cta.kind === 'inert') {
+    return (
+      <span aria-disabled="true" className={`${base} cursor-default border border-card-border text-text-dim opacity-60`}>
+        {cta.label}
+      </span>
+    );
+  }
+  const look = cta.primary ? 'bg-gold text-brown-dark hover:bg-gold-light' : 'border border-card-border hover:border-gold/45';
+  if (cta.kind === 'external') {
+    const offSite = !cta.href.startsWith('/');
+    return (
+      <a
+        // eslint-disable-next-line clan-scope/clan-prefix -- Gumroad checkout or the Anvil Discord, never a clan path
+        href={cta.href}
+        {...(offSite && cta.label === 'Talk to us' ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+        className={`${base} ${look}`}
+      >
+        {cta.label}
+      </a>
+    );
+  }
+  return (
+    <ClanLink href={cta.href} className={`${base} ${look}`}>
+      {cta.label}
+    </ClanLink>
   );
 }

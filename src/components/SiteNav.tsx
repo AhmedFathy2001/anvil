@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import ClanLink from '@/components/ClanLink';
 import PendingBadge from '@/components/PendingBadge';
 import CreatorChip from '@/components/CreatorChip';
-import { groupClansAndSpaces, outsiderWord } from '@/lib/creatorSpaces';
+import { adminMenuLabel, groupClansAndSpaces, outsiderWord, placeWord } from '@/lib/creatorSpaces';
 
 interface NavUser {
   displayName: string;
@@ -301,7 +301,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
               pathname={pathname}
             >
               <ClanLink href={adminHref} role="menuitem" className={MENU_ITEM}>
-                Clan admin
+                {adminMenuLabel(clan?.kind)}
               </ClanLink>
               <a href="/staff" role="menuitem" className={MENU_ITEM}>
                 Platform staff
@@ -324,8 +324,8 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
               href={discordInvite}
               target="_blank"
               rel="noopener noreferrer"
-              title="The clan's Discord"
-              aria-label="The clan's Discord"
+              title={`The ${placeWord(clan?.kind)}'s Discord`}
+              aria-label={`The ${placeWord(clan?.kind)}'s Discord`}
               className="p-2 rounded-md text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition-all"
             >
               {DiscordIcon}

@@ -19,7 +19,7 @@ export default function NewClanClient({
   apex: string;
   signedIn: boolean;
   /** A paid tier picked on /pricing — the form then ends on its Gumroad checkout. */
-  trialPlan: { id: string; name: string; trialDays: number } | null;
+  trialPlan: { id: string; name: string; trialDays: number; billing: 'monthly' | 'yearly' } | null;
 }) {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -81,7 +81,7 @@ export default function NewClanClient({
       const res = await fetch('/api/clans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, slug, inGameName, plan: trialPlan?.id }),
+        body: JSON.stringify({ name, slug, inGameName, plan: trialPlan?.id, billing: trialPlan?.billing }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {

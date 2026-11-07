@@ -14,6 +14,8 @@
 //   GUMROAD_URL_{BRONZE,SILVER,GOLD}     — the hosted checkout URL per tier (see plans.ts).
 //   GUMROAD_PRODUCT_CREATOR_{BRONZE,SILVER,GOLD} / GUMROAD_URL_CREATOR_{…} — the creator-space
 //                                catalogue's own products and checkouts (see creatorCatalog.ts).
+//   …_YEARLY on each of the above — the yearly checkout (and product id, if yearly is its own
+//                                product) per tier; unset = no yearly button (see billingInterval.ts).
 //   GUMROAD_TRIAL_DAYS         — cosmetic only; mirrors the free trial set on the Gumroad products
 //                                so we can show "trial ends in N days" (default 30).
 

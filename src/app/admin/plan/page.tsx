@@ -8,6 +8,7 @@ import { requireClan } from '@/lib/clanContext';
 import { freemiumEnforced } from '@/lib/entitlements';
 import { PLANS, checkoutUrlWithRef, planOf, type Plan } from '@/lib/plans';
 import { SITE } from '@/lib/site';
+import { parseBillingInterval, usd, withBilling, yearlyPriceUsd } from '@/lib/billingInterval';
 import { redirect } from 'next/navigation';
 import { clanHref } from '@/lib/clanPath';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
@@ -21,8 +22,9 @@ export const dynamic = 'force-dynamic';
  * where nobody running a clan looks. The tone is AWARENESS, not a paywall: Anvil is free for small
  * clans, and the big ones are what keep it running. Nothing here takes anything away from anybody.
  */
-export default async function AdminPlanPage() {
+export default async function AdminPlanPage({ searchParams }: { searchParams: Promise<{ billing?: string }> }) {
   const clan = await requireClan();
+  const billing = parseBillingInterval((await searchParams).billing);
   // A creator space is billed from its own catalogue, on its dashboard's plan card — never offered the
   // clan tiers this page sells (lib/creatorCatalog).
   if (isCreatorSpace(clan)) redirect(await clanHref('/admin/dashboard#plan'));
@@ -41,6 +43,15 @@ export default async function AdminPlanPage() {
     (['bronze', 'silver', 'gold'] as const).map((id) => PLANS[id]).find((p) => (p.memberCap ?? Infinity) >= members) ?? PLANS.gold;
   const ref = paying ? null : await ensureClanCheckoutRef(clan.id);
   const checkout = fits && ref ? checkoutUrlWithRef(fits, ref) : null;
+  // Yearly = ten months (lib/billingInterval), offered only once that tier's yearly checkout is set.
+  const checkoutYearly = fits && ref ? checkoutUrlWithRef(fits, ref, 'yearly') : null;
+  const yearly = fits ? yearlyPriceUsd(fits.priceUsd) : null;
+  const buys = [
+    checkout && { href: checkout, label: `Choose ${fits?.name}`, interval: 'monthly' as const },
+    checkoutYearly && { href: checkoutYearly, label: `${fits?.name} yearly (${usd(yearly ?? 0)})`, interval: 'yearly' as const },
+  ]
+    .filter((b): b is { href: string; label: string; interval: 'monthly' | 'yearly' } => !!b)
+    .sort((a, b) => (a.interval === billing ? -1 : b.interval === billing ? 1 : 0));
   const cap = plan.memberCap;
   const usedPct = cap ? Math.min(100, Math.round((Math.min(members, cap) / Math.max(members, cap)) * 100)) : 100;
   const over = cap != null && members > cap;
@@ -97,22 +108,30 @@ export default async function AdminPlanPage() {
               <h2 className="text-xl font-semibold">
                 {fits.name} · {fits.capLabel.toLowerCase()}
               </h2>
-              <p className="text-[14px] text-text-muted">From ${fits.priceUsd} a month</p>
+              <p className="text-[14px] text-text-muted">
+                From ${fits.priceUsd} a month
+                {checkoutYearly && yearly != null && <> or {usd(yearly)} a year (two months free)</>}
+              </p>
               <ul className="grid gap-1 text-[13.5px] text-text-muted">
                 {fits.features.map((f) => (
                   <li key={f}>{f}</li>
                 ))}
               </ul>
-              {checkout && (
+              {buys.map((b, i) => (
                 <a
+                  key={b.interval}
                   // eslint-disable-next-line clan-scope/clan-prefix -- external Gumroad checkout, never a clan path
-                  href={checkout}
-                  className="mt-1 rounded-lg bg-gold px-4 py-2.5 text-center text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+                  href={b.href}
+                  className={
+                    i === 0
+                      ? 'mt-1 rounded-lg bg-gold px-4 py-2.5 text-center text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light'
+                      : 'rounded-lg border border-gold/40 px-4 py-2.5 text-center text-sm text-gold transition-colors hover:border-gold'
+                  }
                 >
-                  Choose {fits.name}
+                  {b.label}
                 </a>
-              )}
-              <ClanLink href="/pricing" className="text-center text-[13px] text-gold hover:text-gold-light">
+              ))}
+              <ClanLink href={withBilling('/pricing', billing)} className="text-center text-[13px] text-gold hover:text-gold-light">
                 Compare all plans
               </ClanLink>
             </section>

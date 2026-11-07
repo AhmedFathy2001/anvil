@@ -68,6 +68,8 @@ interface Props {
   primary?: { href: string; label: string };
   /** Where "Admin guide" at the foot of the rail goes. Omitted = no link. */
   guideHref?: string;
+  /** The link's words — "Admin guide" for a clan, "Creator guide" for a creator space. */
+  guideLabel?: string;
   /** Show the "Search settings" trigger (the dialog itself is mounted by the admin layout). */
   search?: boolean;
 }
@@ -92,7 +94,7 @@ function isInsideAnEvent(pathname: string): boolean {
   return /^\/admin\/events\/(weekly\/)?\d+(\/|$)/.test(pathname);
 }
 
-export default function AdminSidebar({ groups, user, scope = 'clan', header, primary, guideHref, search }: Props) {
+export default function AdminSidebar({ groups, user, scope = 'clan', header, primary, guideHref, guideLabel = 'Admin guide', search }: Props) {
   // Clan-relative, so a bare item.href can be compared to where we actually are.
   const here = useClanRelativePath();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -290,7 +292,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
               className="mt-6 flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-dashed border-tile-border text-sm text-text-muted hover:text-gold hover:border-gold/40 transition-colors"
             >
               <Sprite name="casket" className="w-[22px] h-auto" />
-              Admin guide
+              {guideLabel}
             </ClanLink>
           )}
         </div>

@@ -14,6 +14,7 @@
 // Pure: no database import (tests/pure-module-imports).
 
 import { freemiumEnforced } from '@/lib/entitlements';
+import { urlEnvFor, withRef, type BillingInterval } from '@/lib/billingInterval';
 
 export const CREATOR_PLAN_IDS = ['creator_free', 'creator_bronze', 'creator_silver', 'creator_gold', 'creator_partner'] as const;
 export type CreatorPlanId = (typeof CREATOR_PLAN_IDS)[number];
@@ -48,6 +49,10 @@ export interface CreatorPlan {
   gumroadProductEnv?: string;
   /** Env holding this tier's hosted checkout URL. */
   gumroadUrlEnv?: string;
+  /** Env holding the YEARLY product id, when yearly is its own Gumroad product (lib/billingInterval). */
+  gumroadProductYearlyEnv?: string;
+  /** Env holding the yearly checkout URL. Unset = no yearly button for this tier. */
+  gumroadUrlYearlyEnv?: string;
 }
 
 export const CREATOR_PLANS: Record<CreatorPlanId, CreatorPlan> = {
@@ -73,6 +78,8 @@ export const CREATOR_PLANS: Record<CreatorPlanId, CreatorPlan> = {
     buyable: true,
     gumroadProductEnv: 'GUMROAD_PRODUCT_CREATOR_BRONZE',
     gumroadUrlEnv: 'GUMROAD_URL_CREATOR_BRONZE',
+    gumroadProductYearlyEnv: 'GUMROAD_PRODUCT_CREATOR_BRONZE_YEARLY',
+    gumroadUrlYearlyEnv: 'GUMROAD_URL_CREATOR_BRONZE_YEARLY',
   },
   creator_silver: {
     id: 'creator_silver',
@@ -86,6 +93,8 @@ export const CREATOR_PLANS: Record<CreatorPlanId, CreatorPlan> = {
     buyable: true,
     gumroadProductEnv: 'GUMROAD_PRODUCT_CREATOR_SILVER',
     gumroadUrlEnv: 'GUMROAD_URL_CREATOR_SILVER',
+    gumroadProductYearlyEnv: 'GUMROAD_PRODUCT_CREATOR_SILVER_YEARLY',
+    gumroadUrlYearlyEnv: 'GUMROAD_URL_CREATOR_SILVER_YEARLY',
   },
   creator_gold: {
     id: 'creator_gold',
@@ -99,6 +108,8 @@ export const CREATOR_PLANS: Record<CreatorPlanId, CreatorPlan> = {
     buyable: true,
     gumroadProductEnv: 'GUMROAD_PRODUCT_CREATOR_GOLD',
     gumroadUrlEnv: 'GUMROAD_URL_CREATOR_GOLD',
+    gumroadProductYearlyEnv: 'GUMROAD_PRODUCT_CREATOR_GOLD_YEARLY',
+    gumroadUrlYearlyEnv: 'GUMROAD_URL_CREATOR_GOLD_YEARLY',
   },
   creator_partner: {
     id: 'creator_partner',
@@ -209,10 +220,22 @@ export function creatorMinPlanNameFor(capability: CreatorCapability): string {
 
 // ── Gumroad ──────────────────────────────────────────────────────────────────────────────────────
 
-/** The creator tier matching a Gumroad product id (GUMROAD_PRODUCT_CREATOR_*), or null. */
+/** The creator tier matching a Gumroad product id (GUMROAD_PRODUCT_CREATOR_*, monthly or yearly), or null. */
 export function creatorPlanForGumroadProduct(productId: string | null | undefined): CreatorPlan | null {
   if (!productId) return null;
-  return CREATOR_BUYABLE.find((p) => p.gumroadProductEnv && process.env[p.gumroadProductEnv] === productId) ?? null;
+  return (
+    CREATOR_BUYABLE.find(
+      (p) =>
+        (p.gumroadProductEnv && process.env[p.gumroadProductEnv] === productId) ||
+        (p.gumroadProductYearlyEnv && process.env[p.gumroadProductYearlyEnv] === productId),
+    ) ?? null
+  );
+}
+
+/** Is this the id of a creator tier's yearly-only Gumroad product? */
+export function isYearlyCreatorProduct(productId: string | null | undefined): boolean {
+  if (!productId) return false;
+  return CREATOR_BUYABLE.some((p) => p.gumroadProductYearlyEnv && process.env[p.gumroadProductYearlyEnv] === productId);
 }
 
 /**
@@ -229,14 +252,17 @@ export function creatorPlanForGumroadTier(tier: string | null | undefined, opts:
   return CREATOR_BUYABLE.find((p) => p.name.toLowerCase() === want) ?? null;
 }
 
-/** Hosted checkout URL for a creator tier, if one is configured. Null hides that tier's button. */
-export function creatorCheckoutUrl(plan: CreatorPlan): string | null {
-  return plan.gumroadUrlEnv ? (process.env[plan.gumroadUrlEnv] || null) : null;
+/** Hosted checkout URL for a creator tier at an interval, if one is configured. Null hides that button. */
+export function creatorCheckoutUrl(plan: CreatorPlan, interval: BillingInterval = 'monthly'): string | null {
+  const env = urlEnvFor(plan, interval);
+  return env ? (process.env[env] || null) : null;
 }
 
 /** The checkout URL carrying the space's `ref` (clans.gumroad_ref) — the webhook's correlation key. */
-export function creatorCheckoutUrlWithRef(plan: CreatorPlan, ref: string | null | undefined): string | null {
-  const base = creatorCheckoutUrl(plan);
-  if (!base || !ref) return base;
-  return `${base}${base.includes('?') ? '&' : '?'}ref=${encodeURIComponent(ref)}`;
+export function creatorCheckoutUrlWithRef(
+  plan: CreatorPlan,
+  ref: string | null | undefined,
+  interval: BillingInterval = 'monthly',
+): string | null {
+  return withRef(creatorCheckoutUrl(plan, interval), ref);
 }

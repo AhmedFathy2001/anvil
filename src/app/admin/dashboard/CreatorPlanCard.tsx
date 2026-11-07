@@ -3,6 +3,7 @@ import { ensureClanCheckoutRef } from '@/lib/billing';
 import { creatorPlanCard, liveEventLimit } from '@/lib/creatorPlans';
 import { creatorSeatMeter, liveEventCount } from '@/lib/creatorPlansDb';
 import { CREATOR_PLANS, creatorCheckoutUrlWithRef, creatorPlanOf } from '@/lib/creatorCatalog';
+import { usd, withBilling, yearlyPriceUsd, type BillingInterval } from '@/lib/billingInterval';
 
 /**
  * A creator's plan, in plain words, on their dashboard (lib/creatorPlans): which plan, the most
@@ -14,7 +15,18 @@ import { CREATOR_PLANS, creatorCheckoutUrlWithRef, creatorPlanOf } from '@/lib/c
  * `ref`): its own Gumroad products, never a clan tier. The webhook finds the space by that ref and
  * moves `clans.plan` within the creator catalogue. No checkout URL configured → no button.
  */
-export default async function CreatorPlanCard({ clanId, clanPlan, canBuy }: { clanId: number; clanPlan: string; canBuy: boolean }) {
+export default async function CreatorPlanCard({
+  clanId,
+  clanPlan,
+  canBuy,
+  billing = 'monthly',
+}: {
+  clanId: number;
+  clanPlan: string;
+  canBuy: boolean;
+  /** Which price leads (?billing= from /pricing). Both are offered when the yearly checkout exists. */
+  billing?: BillingInterval;
+}) {
   const [meter, live] = await Promise.all([creatorSeatMeter(clanId), liveEventCount(clanId)]);
   const card = creatorPlanCard({ clanPlan, meter });
   const plan = creatorPlanOf(clanPlan);
@@ -22,6 +34,15 @@ export default async function CreatorPlanCard({ clanId, clanPlan, canBuy }: { cl
   const next = card.next ? CREATOR_PLANS[card.next.id] : null;
   const ref = canBuy && next && !paying ? await ensureClanCheckoutRef(clanId) : null;
   const checkout = next && ref ? creatorCheckoutUrlWithRef(next, ref) : null;
+  // Yearly (lib/billingInterval): ten months' price for a year. Only offered once its checkout is set.
+  const checkoutYearly = next && ref ? creatorCheckoutUrlWithRef(next, ref, 'yearly') : null;
+  const yearly = next ? yearlyPriceUsd(next.priceUsd) : null;
+  const buttons = [
+    checkout && { href: checkout, label: `Upgrade to ${next!.name}`, interval: 'monthly' as const },
+    checkoutYearly && { href: checkoutYearly, label: `${next!.name} yearly (${usd(yearly ?? 0)})`, interval: 'yearly' as const },
+  ].filter((b): b is { href: string; label: string; interval: BillingInterval } => !!b);
+  // The interval asked for leads; the other sits beside it as the quieter button.
+  buttons.sort((a, b) => (a.interval === billing ? -1 : b.interval === billing ? 1 : 0));
   const cap = card.playersCap;
   const players = meter?.peak ?? 0;
   const fmt = (n: number) => n.toLocaleString('en-US');
@@ -97,6 +118,9 @@ export default async function CreatorPlanCard({ clanId, clanPlan, canBuy }: { cl
         <div className="mt-4 rounded-lg border border-gold/40 bg-gold/[0.05] p-4">
           <p className="text-[15px] font-semibold">
             {next.name}: ${next.priceUsd} a month
+            {checkoutYearly && yearly != null && (
+              <span className="font-normal text-text-muted"> or {usd(yearly)} a year (two months free)</span>
+            )}
           </p>
           <ul className="mt-1.5 grid gap-1 text-[13.5px] text-text-muted">
             <li>Up to {fmt(next.playersPerEvent ?? 0)} players at once across your events</li>
@@ -105,16 +129,21 @@ export default async function CreatorPlanCard({ clanId, clanPlan, canBuy }: { cl
             ))}
           </ul>
           <div className="mt-3 flex flex-wrap items-center gap-4">
-            {checkout && (
+            {buttons.map((b, i) => (
               <a
+                key={b.interval}
                 // eslint-disable-next-line clan-scope/clan-prefix -- external Gumroad checkout, never a clan path
-                href={checkout}
-                className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+                href={b.href}
+                className={
+                  i === 0
+                    ? 'rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light'
+                    : 'rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold transition-colors hover:border-gold'
+                }
               >
-                Upgrade to {next.name}
+                {b.label}
               </a>
-            )}
-            <ClanLink href="/pricing#creators" className="text-[13px] text-gold hover:text-gold-light">
+            ))}
+            <ClanLink href={withBilling('/pricing#creators', billing)} className="text-[13px] text-gold hover:text-gold-light">
               Compare plans
             </ClanLink>
           </div>
