@@ -372,8 +372,10 @@ export function matchKill(fact: KillFact, t: Tracked, out: MatchResult, index = 
       if (unverified.has(name.toLowerCase())) flagged.add(kill);
     }
   }
-  for (const [kill, amount] of amountByTile) {
+  for (const [kill, moved] of amountByTile) {
     if (kill.currentAmount >= kill.requiredAmount) continue;
+    // Never more than the tile still needs: an inflated count must not fan out into a flood of pings.
+    const amount = Math.min(moved, kill.requiredAmount - kill.currentAmount);
     const cap = kill.capOf != null && kill.capOf > 0;
     if (cap && done.has(kill.capOf!)) continue;
     kill.currentAmount += amount;

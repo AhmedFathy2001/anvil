@@ -7,6 +7,8 @@ import { rateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
+const MAX_SUBMISSIONS = 40;
+
 // POST /api/plugin/facts — what a `rules` plugin saw (loot, hauls, kills), for the site to credit.
 // The plugin no longer picks tiles: lib/pluginFacts/match decides, and every credit goes through the
 // submissions route exactly as the plugin's own POST used to, so caps, completions, the live push and
@@ -33,8 +35,11 @@ export async function POST(request: Request) {
   const units = new Map((cfg.trackedKills ?? []).map((k) => [k.tileId, k.unit?.trim() || 'kill']));
   const plans = planSubmissions(credits, (c: Credit) => boardFor(cfg, c.board), img, proof, coop, units);
 
-  const results = await Promise.all(
-    plans.map(async (p) => {
+  // One at a time, and a bounded number per request: same-tile credits must land in order (the
+  // completion check reads the previous one), and one request must not fan out without limit.
+  const results: { tileId: number; ok: boolean; completed: boolean; error?: string }[] = [];
+  for (const p of plans.slice(0, MAX_SUBMISSIONS)) {
+    results.push(await (async () => {
       const headers = new Headers(request.headers);
       headers.set('content-type', 'application/json');
       headers.delete('content-length');
@@ -45,8 +50,8 @@ export async function POST(request: Request) {
       });
       const json = (await res.json().catch(() => ({}))) as { completed?: boolean; error?: string };
       return { tileId: p.credit.tileId, ok: res.ok, completed: !!json.completed, error: res.ok ? undefined : json.error };
-    }),
-  );
+    })());
+  }
 
   const byTile = new Map<number, { ok: boolean; completed: boolean; error?: string }>();
   for (const r of results) {
