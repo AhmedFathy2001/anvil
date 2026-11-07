@@ -15,7 +15,7 @@ import {
   type CofferObservation,
   type CofferSyncOutcome,
 } from '@/lib/cofferSyncDecision';
-import { LINE_AUTO_MAX_GP, book, isLineEntry, lineFor } from '@/lib/cofferBroadcast';
+import { LINE_AUTO_MAX_GP, book, isLineEntry, lineFor, waitingLineForChange } from '@/lib/cofferBroadcast';
 
 export interface PhysicalCofferSyncResult {
   duplicateEvent: boolean;
@@ -257,11 +257,23 @@ export async function syncPhysicalCoffer(args: PhysicalCofferObservation): Promi
     const line = decision.ledgerAmount !== 0 && decision.attributeActor
       ? await lineFor(tx, args.clanId, args.clanMemberId, decision.ledgerAmount)
       : null;
+    // Not the mover's own reading (a snapshot that finds the balance moved, a movement we can't pin on
+    // this observer): a clan-chat line already waiting for exactly these coins is what they were, so
+    // this reading confirms it instead of filing the same gp again as an anonymous reconciliation.
+    const waiting = !line && decision.ledgerAmount !== 0 && !decision.attributeActor
+      ? await waitingLineForChange(tx, args.clanId, decision.ledgerAmount)
+      : null;
     if (line) {
       pendingEntry = line;
       if (line.status === 'pending' && Math.abs(decision.ledgerAmount) <= LINE_AUTO_MAX_GP) {
         booked = (await book(tx, args.clanId, line, 'matched their coffer reading')).at(-1) ?? null;
       }
+    } else if (waiting) {
+      pendingEntry = waiting;
+      if (Math.abs(decision.ledgerAmount) <= LINE_AUTO_MAX_GP) {
+        booked = (await book(tx, args.clanId, waiting, `confirmed by ${args.rsn}'s coffer reading`)).at(-1) ?? null;
+      }
+      if (booked) outcome = 'corroborated';
     } else if (decision.ledgerAmount !== 0) {
       const attributed = decision.attributeActor;
       const [row] = await tx

@@ -133,6 +133,27 @@ test('another clan’s chat, and lines that aren’t coffer lines, are refused',
   assert.ok(!junk.ok && junk.status === 400);
 });
 
+test('a waiting line is confirmed by another member opening the coffer — one entry, not a second "reconciliation"', async () => {
+  // 1BM deposits but their own client never reads the coffer; Steeldeck opens it a minute later.
+  await fresh(1_000);
+  const line = await report(0, 'Nisbro has deposited 5,000,000 coins into the coffer.');
+  assert.ok(line.ok && line.outcome === 'new');
+  const r = await obs(2, 'snapshot', 5_001_000, 5_001_000);
+  assert.equal(r.ledgerEntry?.rsn, 'Nisbro', 'the line booked, named');
+  assert.equal(r.outcome, 'corroborated');
+  assert.deepEqual((await entries()).map((e) => [e.kind, e.status, e.rsn]), [['donation', 'approved', 'Nisbro']], 'no anonymous reconciliation beside it');
+  assert.equal(await confirmed(), 5_000_000);
+});
+
+test('two waiting lines of the same amount: a reading of one movement names neither', async () => {
+  await fresh(1_000);
+  await report(0, 'Nisbro has deposited 2,000 coins into the coffer.');
+  await report(1, 'Drenvox has deposited 2,000 coins into the coffer.');
+  const r = await obs(2, 'snapshot', 3_000, 3_000);
+  assert.equal(r.ledgerEntry, null, 'ambiguous: nothing is booked on a guess');
+  assert.equal((await entries()).filter((e) => e.status === 'approved').length, 0);
+});
+
 test('a line no reading confirmed waits for a treasurer, who books it the same way', async () => {
   await fresh(0);
   await report(2, 'Steeldeck has deposited 1,000 coins into the coffer.');

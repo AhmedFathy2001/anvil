@@ -160,6 +160,40 @@ export async function lineFor(tx: Tx, clanId: number, seatId: number, signedAmou
   return row?.entry ?? null;
 }
 
+/** How long a waiting clan-chat line may wait for SOMEONE ELSE's coffer reading to show its coins. */
+export const LINE_WAITS_FOR_ANY_READING_MS = 10 * 60_000;
+
+/**
+ * The one waiting clan-chat line, from ANY member, that explains a coffer change a reading just saw
+ * when that reading isn't the mover's own: same direction and exact amount, reported in the last
+ * LINE_WAITS_FOR_ANY_READING_MS, before this reading, and not joined by a reading yet. Null unless
+ * exactly one qualifies.
+ *
+ * Without it, a depositor whose own client never read the coffer left their line pending, and the
+ * next member to open the coffer saw the coins as an anonymous "reconciliation" — the same gp twice
+ * in the feed, and a treasurer to untangle it. Exactly one candidate, a short window, the line first
+ * and the 50m cap keep the old worry small: a line is only ever its reporter's own name, so the
+ * worst a forged one could do is take donor credit for a deposit nobody else claimed in that window.
+ */
+export async function waitingLineForChange(tx: Tx, clanId: number, signedAmount: number): Promise<CofferEntry | null> {
+  const rows = await tx
+    .select({ entry: cofferEntries })
+    .from(clanCofferBroadcasts)
+    .innerJoin(cofferEntries, eq(cofferEntries.id, clanCofferBroadcasts.cofferEntryId))
+    .where(
+      and(
+        eq(clanCofferBroadcasts.clanId, clanId),
+        eq(clanCofferBroadcasts.direction, signedAmount > 0 ? 'deposit' : 'withdrawal'),
+        eq(clanCofferBroadcasts.amount, Math.abs(signedAmount)),
+        eq(cofferEntries.status, 'pending'),
+        gte(clanCofferBroadcasts.createdAt, new Date(Date.now() - LINE_WAITS_FOR_ANY_READING_MS)),
+        sql`not exists (select 1 from ${clanCofferSyncEvents} e where e.coffer_entry_id = ${cofferEntries.id})`,
+      ),
+    )
+    .limit(2);
+  return rows.length === 1 ? rows[0].entry : null;
+}
+
 /** Whether a coffer entry is a clan-chat line's (booked with `book`, not as a reading). */
 export async function isLineEntry(tx: Tx, entryId: number): Promise<boolean> {
   const [row] = await tx.select({ id: clanCofferBroadcasts.id }).from(clanCofferBroadcasts).where(eq(clanCofferBroadcasts.cofferEntryId, entryId)).limit(1);
