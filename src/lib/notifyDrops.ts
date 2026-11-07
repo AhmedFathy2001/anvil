@@ -180,6 +180,8 @@ export interface DropCandidate {
   key?: boolean;
   /** The vestige rotation line; rides on a single-item post only, as it did. */
   note?: string | null;
+  /** An always-notify prestige item ('loot' or 'unlock'): posts past every gate but the drops switch. */
+  notable?: 'loot' | 'unlock' | null;
 }
 
 export interface JudgeContext {
@@ -224,6 +226,22 @@ export function judgeDrop(c: DropCandidate, ctx: JudgeContext): Record<string, u
       note: c.note ?? null,
     };
   };
+
+  if (c.notable) {
+    // Two kinds of notable item the lucky-drop line insults: an EARNED award (the reward for finishing
+    // the content) and a GUARANTEED drop (never rolled for). The plugin's postNotable, moved.
+    const it = c.items[0];
+    const earned = isEarnedAward(it.name);
+    const guaranteed = isGuaranteed(ctx.guaranteed, it.name, c.source);
+    return {
+      ...base,
+      items: [{ id: it.id ?? null, name: it.name, qty: it.qty, value: it.value }],
+      notable: c.notable,
+      earned,
+      guaranteed,
+      spoon: !earned && !guaranteed,
+    };
+  }
 
   if (c.key) {
     const total = c.items.reduce((s, it) => s + it.value, 0);

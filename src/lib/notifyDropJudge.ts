@@ -29,6 +29,7 @@ export function parseCandidate(raw: unknown): DropCandidate | null {
     items,
     key: o.key === true,
     note: str(o.note, 512),
+    notable: o.notable === 'loot' || o.notable === 'unlock' ? o.notable : null,
   };
 }
 

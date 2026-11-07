@@ -156,3 +156,13 @@ test('the rare screenshot gate lists every item judgeDrop could pass at that flo
   const named = rareTable(1000, new Map([['pet snakeling', [12921, 99999]]]), (id) => (id === 12921 ? 'Pet snakeling' : undefined));
   assert.ok(named.zulrah.includes(99999));
 });
+
+test('notable items post past every gate; earned and guaranteed ones get no spoon line', () => {
+  const cape = judgeDrop({ source: null, items: [{ id: -1, name: 'Infernal cape', qty: 1, value: 0 }], notable: 'unlock' }, ctx());
+  assert.equal(cape?.notable, 'unlock');
+  assert.equal(cape?.earned, true);
+  assert.equal(cape?.spoon, false);
+  const shard = judgeDrop({ source: 'Vardorvis', sourceKind: 'npc', items: [{ id: 5, name: 'Blood shard', qty: 1, value: 0 }], notable: 'loot' }, ctx());
+  assert.equal(shard?.spoon, true);
+  assert.equal(judgeDrop({ items: [{ id: 5, name: 'Blood shard', qty: 1, value: 0 }], notable: 'loot' }, ctx({ prefs: { ...NOTIFY_DEFAULTS, drops: false } })), null);
+});
