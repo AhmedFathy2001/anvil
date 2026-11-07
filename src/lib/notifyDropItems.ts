@@ -26,9 +26,18 @@ let index: { nameOf: (id: number) => string | undefined; idsByName: Map<string, 
 };
 const tables = new Map<number, Record<string, number[]>>();
 
-/** The plugin's rarity screenshot gate at this floor (lib/notifyDrops rareTable), built once per floor. */
+/**
+ * Floors snap DOWN to one of these before a table is built. The floor is the person's own number (any
+ * integer, via /settings), so caching per exact floor would grow without bound; a looser gate is safe
+ * because it only decides what gets screenshotted — /api/plugin/notify judges at the exact floor.
+ */
+const FLOOR_BUCKETS = [1000, 2000, 5000, 10_000, 20_000, 50_000, 100_000, 250_000, 1_000_000];
+export const floorBucket = (floor: number | null | undefined) =>
+  !floor || floor <= 0 ? 0 : [...FLOOR_BUCKETS].reverse().find((b) => b <= floor) ?? FLOOR_BUCKETS[0];
+
+/** The plugin's rarity screenshot gate at this floor (lib/notifyDrops rareTable), one table per bucket. */
 export async function rareTableFor(floor: number | null | undefined): Promise<Record<string, number[]>> {
-  const f = floor && floor > 0 ? floor : 0;
+  const f = floorBucket(floor);
   const { nameOf, idsByName } = await itemNameIndex();
   let t = tables.get(f);
   if (!t) tables.set(f, (t = rareTable(f, idsByName, nameOf)));
