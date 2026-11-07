@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import { judgeDropRequest, withPetRarity } from '@/lib/notifyDropJudge';
 import { requirePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import {
+  getDeathTaunts,
   getDropRarityFloor,
+  getFunDeathMessages,
   getNotificationWebhooks,
   NOTIFY_CHANNELS,
   type NotifyChannel,
@@ -10,7 +12,8 @@ import {
 } from '@/lib/pluginConfig';
 import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
 import { playerEventEmbed } from '@/lib/discordEmbeds';
-import { buildPluginEmbed } from '@/lib/pluginEmbeds';
+import { buildPluginEmbed, type DeathWording } from '@/lib/pluginEmbeds';
+import { getNotifyPrefs } from '@/lib/notifyPrefsStore';
 import { FALLEN_MODE, fallenEmbed } from '@/lib/hardcoreFall';
 import { markMode, routeModePost, type WorldMode } from '@/lib/worldModes';
 import { worldModeOf } from '@/lib/worldModeRequest';
@@ -218,6 +221,18 @@ export async function POST(request: Request) {
     facts = judged;
   }
   if (kind === 'pet') facts = await withPetRarity(facts);
+  // A death is facts only (what killed them); the words are the person's and the clan's, read here.
+  let death: DeathWording | null = null;
+  if (kind === 'death' && facts && typeof facts === 'object' && !Array.isArray(facts)) {
+    const f = facts as { rsn?: unknown };
+    if (typeof f.rsn !== 'string' || !f.rsn.trim()) facts = { ...f, rsn: await posterRsn(request, auth.userId) };
+    const [prefs, funLines, taunts] = await Promise.all([
+      getNotifyPrefs(auth.userId),
+      getFunDeathMessages(clan.id),
+      getDeathTaunts(clan.id),
+    ]);
+    death = { message: prefs.deathMsg, funLines, taunts };
+  }
 
   // ── Build the message once, then fan it out ─────────────────────────────────────────────────
   //
@@ -231,7 +246,7 @@ export async function POST(request: Request) {
   let finalEmbed: Record<string, unknown> | null = embed ? stripChatTagsDeep(embed) : null;
   let finalContent = stripChatTags(content);
   if (kind !== undefined) {
-    const built = buildPluginEmbed(kind, facts, { imageFilename: image?.filename ?? null });
+    const built = buildPluginEmbed(kind, facts, { imageFilename: image?.filename ?? null, death });
     if (!built.ok) {
       return NextResponse.json({ error: built.error }, { status: 400 });
     }

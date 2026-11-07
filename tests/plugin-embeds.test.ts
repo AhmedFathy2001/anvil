@@ -4,11 +4,14 @@ import { readFileSync } from 'node:fs';
 import {
   buildPluginEmbed,
   clogRank,
+  DEATH_TAUNT_LINES,
+  FUN_DEATH_CHANCE,
   luckLabel,
   SPOON_LINES,
   type PluginEmbedKind,
 } from '../src/lib/pluginEmbeds.ts';
 import { proxyWikiUrl } from '../src/lib/assetUrls.ts';
+import { FUN_DEATH_MESSAGES } from '../src/lib/constants.ts';
 import { absoluteAssetUrl, discordAssetUrl } from '../src/lib/seo.ts';
 
 // Parity with the plugin. Until site-embeds the plugin built every clan-notification embed itself;
@@ -365,4 +368,71 @@ test('totalLevel accepts `milestone` and still renders the legacy post', () => {
   assert.ok(out.ok);
   assert.deepEqual(JSON.parse(JSON.stringify(out.embed)), legacy['totalLevel.milestone']);
   assert.equal(buildPluginEmbed('totalLevel', { total: 1800, milestone: 'x' }).ok, false);
+});
+
+// ── death ──────────────────────────────────────────────────────────────────────────────────────
+
+/** A random() that hands out the given values in order (then repeats the last). */
+const seq = (...vals: number[]) => {
+  let i = 0;
+  return () => vals[Math.min(i++, vals.length - 1)];
+};
+const deathOf = (facts: unknown, death: unknown, random: () => number) => {
+  const r = buildPluginEmbed('death', facts, { random, death: death as never });
+  assert.ok(r.ok, !r.ok ? r.error : '');
+  return r.embed;
+};
+
+test('death: the person\'s message with {name}, a reaction line, red skull post', () => {
+  const e = deathOf(
+    { rsn: 'Zezima', source: null, sourceKind: null },
+    { message: 'RIP {name} ({name})', funLines: [], taunts: ['Sit.'] },
+    seq(0.5, 0),
+  );
+  assert.equal(e.title, '💀 Death');
+  assert.equal(e.color, 0xc0392b);
+  assert.deepEqual(e.author, { name: 'Zezima' });
+  assert.equal(e.description, 'RIP Zezima (Zezima)\nSit.');
+  assert.equal(e.fields, undefined);
+});
+
+test('death: no message falls back to the default, no clan taunts to the shipped list', () => {
+  const e = deathOf({ rsn: 'Zezima' }, { message: '  ', taunts: [] }, seq(0.5, 0));
+  assert.equal(e.description, `Zezima just died!\n${DEATH_TAUNT_LINES[0]}`);
+  const anon = deathOf({}, {}, seq(0.5, 0));
+  assert.equal(anon.author, undefined);
+  assert.ok(String(anon.description).startsWith('Someone just died!\n'));
+});
+
+test('death: killed by an NPC, a player (PvP), or nobody named', () => {
+  const npc = deathOf({ rsn: 'A', source: 'Vorkath', sourceKind: 'npc' }, {}, seq(0.5, 0));
+  assert.deepEqual(npc.fields, [{ name: 'Killed by', value: '`Vorkath`', inline: true }]);
+  const pvp = deathOf({ rsn: 'A', source: 'Pker99', sourceKind: 'player' }, {}, seq(0.5, 0));
+  assert.deepEqual(pvp.fields, [{ name: 'Killed by', value: '`Pker99 (PvP)`', inline: true }]);
+  const pvpAlias = deathOf({ rsn: 'A', source: 'Pker99', sourceKind: 'pvp' }, {}, seq(0.5, 0));
+  assert.deepEqual(pvpAlias.fields, pvp.fields);
+  assert.equal(deathOf({ rsn: 'A', source: null, sourceKind: null }, {}, seq(0.5, 0)).fields, undefined);
+  // Death himself is never the killer; a 'fought' guess stays only when it's a boss.
+  assert.equal(deathOf({ rsn: 'A', source: 'Death', sourceKind: 'npc' }, {}, seq(0.5, 0)).fields, undefined);
+  assert.equal(deathOf({ rsn: 'A', source: 'Jug', sourceKind: 'fought' }, {}, seq(0.5, 0)).fields, undefined);
+  const boss = deathOf({ rsn: 'A', source: 'Vorkath', sourceKind: 'fought' }, {}, seq(0.5, 0));
+  assert.equal(boss.fields?.[0].name, 'Killed by');
+  assert.ok(!String(boss.fields?.[0].value).includes('PvP'));
+});
+
+test('death: 1 in 100 reads as a fun line, the clan\'s pool first, else the shipped one', () => {
+  const wording = { message: '{name} died', funLines: ['F for {name}', 'Bye {name}'], taunts: ['Sit.'] };
+  // Just under the 1% roll → fun; the second draw picks from the pool.
+  assert.equal(deathOf({ rsn: 'Zezima' }, wording, seq(FUN_DEATH_CHANCE - 0.0001, 0.99, 0)).description, 'Bye Zezima\nSit.');
+  // At the threshold → the person's own message.
+  assert.equal(deathOf({ rsn: 'Zezima' }, wording, seq(FUN_DEATH_CHANCE, 0.99, 0)).description, 'Zezima died\nSit.');
+  // No clan fun lines → the shipped list.
+  const shipped = deathOf({ rsn: 'Zezima' }, { funLines: [], taunts: ['Sit.'] }, seq(0, 0, 0));
+  assert.equal(shipped.description, `${FUN_DEATH_MESSAGES[0].replaceAll('{name}', 'Zezima')}\nSit.`);
+});
+
+test('bad death facts are refused', () => {
+  assert.equal(buildPluginEmbed('death', 'x').ok, false);
+  assert.equal(buildPluginEmbed('death', { source: 5 }).ok, false);
+  assert.equal(buildPluginEmbed('death', { sourceKind: 1 }).ok, false);
 });
