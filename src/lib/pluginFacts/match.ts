@@ -87,6 +87,8 @@ export interface LootFact {
   items: [number, number][];
   /** Raid party size when the player was in an instance; null/absent otherwise. */
   party?: number | null;
+  /** The item was worked out, not seen (a duplicate pet or scroll); the site flags it for review. */
+  inf?: string | null;
 }
 
 /** A haul priced by the client (GE value of the whole loot), for loot-value tiles. */
@@ -320,7 +322,7 @@ export function matchLoot(fact: LootFact, t: Tracked, out: MatchResult): void {
       const [have, of] = perItem
         ? collectionProgress(drop.itemRequirements!, drop.groupMode, drop.setsRequired)
         : [drop.currentAmount, drop.requiredAmount];
-      out.credits.push({ kind: 'drop', tileId: drop.tileId, label: drop.label, amount, itemId: trackingItemId, have, of, board: drop.board });
+      out.credits.push({ kind: 'drop', tileId: drop.tileId, label: drop.label, amount, itemId: trackingItemId, have, of, board: drop.board, inferred: fact.inf ?? null });
     }
   }
 }

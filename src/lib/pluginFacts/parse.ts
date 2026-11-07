@@ -19,7 +19,7 @@ export function parseFacts(raw: unknown): Fact[] {
         .slice(0, MAX_ITEMS)
         .filter((p): p is [number, number] => Array.isArray(p) && int(p[0], 1_000_000) != null && int(p[1]) != null)
         .map(([id, q]) => [id, q] as [number, number]);
-      if (items.length) out.push({ k: 'loot', src: str(o.src), kind, items, party: int(o.party, 255) });
+      if (items.length) out.push({ k: 'loot', src: str(o.src), kind, items, party: int(o.party, 255), inf: str(o.inf, 48) });
     } else if (o.k === 'value' && kind && int(o.gp) != null) {
       out.push({ k: 'value', src: str(o.src), kind, gp: o.gp as number });
     } else if (o.k === 'kill' && o.n && typeof o.n === 'object') {
