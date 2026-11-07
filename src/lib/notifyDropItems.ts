@@ -31,7 +31,7 @@ const tables = new Map<number, Record<string, number[]>>();
  * integer, via /settings), so caching per exact floor would grow without bound; a looser gate is safe
  * because it only decides what gets screenshotted — /api/plugin/notify judges at the exact floor.
  */
-const FLOOR_BUCKETS = [1000, 2000, 5000, 10_000, 20_000, 50_000, 100_000, 250_000, 1_000_000];
+const FLOOR_BUCKETS = [1, 10, 50, 100, 250, 500, 1000, 2000, 5000, 10_000, 20_000, 50_000, 100_000, 250_000, 1_000_000];
 export const floorBucket = (floor: number | null | undefined) =>
   !floor || floor <= 0 ? 0 : [...FLOOR_BUCKETS].reverse().find((b) => b <= floor) ?? FLOOR_BUCKETS[0];
 
