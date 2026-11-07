@@ -32,6 +32,8 @@ const CARD_KEY = {
   creators: 'creators',
   'joining-a-streamer-event': 'joiningStream',
   'streaming-for-clans': 'streamingClans',
+  people: 'people',
+  'staff-roles': 'staffRoles',
 } as const;
 
 const ITEMS = (Object.keys(SEARCH_TERMS) as (keyof typeof SEARCH_TERMS)[]).map((page) => {
@@ -68,7 +70,8 @@ test('a symptom finds the page, not just the name of the thing', () => {
 test('one typo is forgiven on a word long enough for it to be a typo', () => {
   assert.equal(top('webhok'), 'discord');
   assert.equal(top('payout'), 'fees');
-  assert.equal(top('rosterr'), 'plugin');
+  // The people guide (roster, guests, who can join) is the page about the roster, so it wins.
+  assert.equal(top('rosterr'), 'people');
 });
 
 test('words AND rather than OR — a second word narrows, it does not widen', () => {

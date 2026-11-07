@@ -22,7 +22,7 @@ const GROUPS: { key: 'playing' | 'running' | 'clan' | 'streamers'; pages: Exclud
   { key: 'running', pages: ['admin', 'formats', 'board', 'clan-vs-clan'] },
   // Starting a clan comes first here on purpose: it is the only guide whose reader does not have one
   // yet, and the rest of this group is written for someone already running it.
-  { key: 'clan', pages: ['switching', 'clan', 'discord', 'moderator', 'fees', 'coffer'] },
+  { key: 'clan', pages: ['switching', 'clan', 'discord', 'people', 'staff-roles', 'moderator', 'fees', 'coffer'] },
   // Streamers: the host's guide first (it is the one the admin sidebar sends a creator to), then the
   // page their viewers need, then the clan that streams.
   { key: 'streamers', pages: ['creators', 'joining-a-streamer-event', 'streaming-for-clans'] },
@@ -47,6 +47,8 @@ const CARD_KEY = {
   creators: 'creators',
   'joining-a-streamer-event': 'joiningStream',
   'streaming-for-clans': 'streamingClans',
+  people: 'people',
+  'staff-roles': 'staffRoles',
 } as const;
 
 export async function guideIndexMetadata(lang: string, tab: GuideTab = 'anvil'): Promise<Metadata> {

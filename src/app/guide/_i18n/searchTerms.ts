@@ -88,6 +88,19 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
     'prize', 'prizes', 'prize pool', 'reward', 'rewards', 'ladder', 'split', 'tie', 'top donors',
     'balance', 'owed', 'unfunded', 'treasurer', 'adjustment', 'sotw prize', 'botw prize',
   ],
+  people: [
+    'roster', 'members', 'member list', 'guest', 'guests', 'join request', 'join requests', 'apply',
+    'application', 'needs review', 'who can join', 'ask first', 'let anyone in', 'no guests',
+    'add manually', 'remove', 'kick', 'ban', 'banned', 'unban', 'departed', 'left', 'quiet',
+    'inactive', 'roster only', 'missing member', 'not on roster', 'showing as guest', 'promote',
+    'demote', '#player', 'placeholder', 'claim request', 'visibility', 'members only', 'clan hall',
+  ],
+  'staff-roles': [
+    'roles', 'role', 'staff', 'permissions', 'access', 'who can', 'owner', 'admin', 'treasurer',
+    'moderator', 'make moderator', 'promote staff', 'demote staff', 'staff & roles', 'grant',
+    'revoke', 'transfer ownership', 'make owner', 'board editor', 'board treasurer', 'team staff',
+    'board builder', 'write guides', 'protected',
+  ],
   moderator: [
     'moderator', 'mod', 'mods', 'staff', 'proof', 'proofs', 'approve', 'approval', 'reject',
     'screenshot', 'review', 'queue', 'rota', 'evidence', 'dispute',

@@ -99,6 +99,8 @@ export const GUIDE_PAGES = [
   'creators',
   'joining-a-streamer-event',
   'streaming-for-clans',
+  'people',
+  'staff-roles',
 ] as const;
 
 // A VALUE, not just a type, because the sitemap has to walk it — 12 pages times 16 locales is 192

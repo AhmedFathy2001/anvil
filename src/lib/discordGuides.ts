@@ -69,6 +69,9 @@ export const GUIDE_OUTLINES: Record<string, GuideOutline> = {
   },
   joining: { ns: 'joiningStream', page: 'joining-a-streamer-event', sections: ['join', 'gated', 'plugin', 'play', 'accounts', 'faq'] },
   streamingclans: { ns: 'streamingClans', page: 'streaming-for-clans', sections: ['on', 'event', 'viewers', 'tools', 'faq'] },
+  // Mirror PEOPLE_SECTIONS in _pages/PeopleGuide and STAFF_SECTIONS in _pages/StaffRolesGuide.
+  people: { ns: 'people', page: 'people', sections: ['roster', 'filters', 'review', 'policy', 'manual', 'removing', 'faq'] },
+  staffroles: { ns: 'staffRoles', page: 'staff-roles', sections: ['roles', 'assign', 'who', 'table', 'event', 'safety'] },
   // Mirrors TilesGuide: one section per registry group that has entries.
   tiles: {
     ns: 'tiles',

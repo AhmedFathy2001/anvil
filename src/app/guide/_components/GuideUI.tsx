@@ -174,6 +174,46 @@ export function Rows({ rows }: { rows: { term: React.ReactNode; body: React.Reac
   );
 }
 
+/**
+ * A grid of answers: rows are things you might do, columns are who is asking. For the one question
+ * <Rows> can't answer — "can a treasurer do this?" across twenty areas at once — without turning
+ * into twenty paragraphs. Scrolls sideways inside its own frame on a phone, never the page.
+ */
+export function AccessTable({
+  areaLabel,
+  columns,
+  rows,
+}: {
+  areaLabel: string;
+  columns: readonly string[];
+  rows: { area: React.ReactNode; cells: readonly React.ReactNode[] }[];
+}) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-card-border bg-card-bg">
+      <table className="w-full min-w-[34rem] text-left text-[13px]">
+        <thead>
+          <tr className="border-b border-card-border text-[11px] uppercase tracking-widest text-text-muted">
+            <th scope="col" className="px-3 py-2.5 font-medium">{areaLabel}</th>
+            {columns.map((c) => (
+              <th key={c} scope="col" className="px-2 py-2.5 font-medium">{c}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-card-border">
+          {rows.map((r, i) => (
+            <tr key={i}>
+              <th scope="row" className="px-3 py-2 font-semibold text-gold">{r.area}</th>
+              {r.cells.map((cell, j) => (
+                <td key={j} className="px-2 py-2 text-text-muted">{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /** Sticky contents rail + the guide's masthead, shared so every guide frames identically. */
 export function GuideShell({
   eyebrow,

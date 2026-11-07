@@ -187,6 +187,20 @@ export const en = {
           'Let your viewers play one event without joining the clan. Turn on Streaming, then open an event to viewers.',
         minutes: '~2 min',
       },
+      people: {
+        eyebrow: 'For clan staff',
+        title: 'Your people: roster, guests and who can join',
+        blurb:
+          'Where members come from, what the Roster tab’s filters mean, join requests and Needs review, the three Who can join settings, and removing or banning someone.',
+        minutes: '~6 min',
+      },
+      staffRoles: {
+        eyebrow: 'For owners and admins',
+        title: 'Staff roles: who can do what',
+        blurb:
+          'Owner, admin, treasurer and moderator: what each one reaches, how to make someone a moderator, who can grant which role, and jobs that cover one event.',
+        minutes: '~6 min',
+      },
     },
   },
 
@@ -2904,6 +2918,376 @@ export const en = {
         {
           term: 'Should I make a creator space instead?',
           body: 'Only if you have no clan. A space is for streamers without an in-game clan.',
+        },
+      ],
+    },
+  },
+
+  people: {
+    metaTitle: 'Your people: roster, guests and who can join — Anvil',
+    metaDescription:
+      'Where an Anvil clan’s roster comes from, what Members, Guests, Roster only, Departed and Quiet mean, how join requests and Needs review work, the three Who can join settings, and removing or banning someone.',
+    eyebrow: 'Anvil · for clan staff',
+    title: 'Your people: roster, guests and who can join',
+    dek: 'Everyone under Admin → **People** got there one of four ways: the in-game clan list named them, staff approved them, the clan lets anyone in, or somebody added them by hand. This is how each one works, what the Roster tab is telling you, and what to check when someone is in the wrong place.',
+    facts: [
+      { strong: 'In-game roster', rest: 'the only automatic way to become a member' },
+      { strong: 'Signing in', rest: 'never puts anyone on the roster' },
+      { strong: 'Two queues', rest: 'on two different tabs' },
+    ],
+    footnote:
+      'Everything here is under Admin → **People**. Roster and Needs review are moderator work. **Who can join** and **Staff & roles** are admin-only tabs. For who can do what across the whole admin area, see [Staff roles: who can do what]({staffGuide}).',
+
+    roster: {
+      title: 'Where the roster comes from',
+      body: [
+        'The roster is your in-game clan list, copied onto the site. An admin sends it from RuneLite with the Anvil plugin: press the **Anvil** button in the clan window’s title bar, or **Sync roster** in the plugin’s side panel. Everyone on the list arrives as a **member**, with their in-game rank. Only someone with the Admin role on the site can send it. Anyone else is told so in game.',
+        'A sync is the only thing that makes someone a member by itself. Someone who leaves the clan in game is marked as departed by the next sync, and someone who rejoins comes back on the sync after that. Their history stays either way.',
+        'Every other seat is a **guest** seat: someone who plays in your events without being in your in-game clan. Guests are tracked and can enter events. They are not members, and they do not count towards your plan.',
+      ],
+      note: {
+        tag: 'Signing in never puts anyone on the roster',
+        body: 'Signing in with Discord, linking a character or playing with the plugin does not give anyone a seat. If the plugin sees someone whose in-game clan is yours but who is not on the roster yet, it asks for them (see step 3). Anyone else just has an Anvil account with no clan. That is what stops a stranger joining your clan by typing its name.',
+      },
+    },
+
+    filters: {
+      title: 'Reading the Roster tab',
+      intro:
+        'The bar at the top splits the roster into **Members**, **Guests** and **Departed**. Click a segment to filter by it. The chips under it cut the list further:',
+      rows: [
+        {
+          term: 'Active',
+          body: 'members still on the roster. Guests and departed people are left out.',
+        },
+        {
+          term: 'Quiet 7d+',
+          body: 'members the plugin has not seen play for seven days or more. Someone who has never used the plugin is not in here, because there is nothing to judge them by. Their **Last played** reads **no plugin data** instead.',
+        },
+        {
+          term: 'Guests',
+          body: 'current guest seats: people who play in your events but are not in your in-game clan.',
+        },
+        {
+          term: 'Roster only',
+          body: 'current members and guests with no site account behind them yet. Normal for anyone who has never signed in with Discord. They stay on the roster; they sign in and link the character when they want to sign up for something.',
+        },
+        {
+          term: 'Departed',
+          body: 'people who left in game, or whom staff removed. Their results and history stay.',
+        },
+        {
+          term: 'All',
+          body: 'everyone above.',
+        },
+      ],
+      outro:
+        'The **Source** column says how each seat started: **Clan sync**, **Added manually**, or **Applied or self-reported**. **Last played** comes from the plugin, not from the roster sync.',
+      note: {
+        tag: 'Rank and role are different things',
+        body: 'The two dropdowns beside the chips filter by in-game rank and by site role. The rank is whatever the game reports. The site role is what an admin sets under **Staff & roles**. One never sets the other.',
+      },
+    },
+
+    review: {
+      title: 'Join requests and Needs review',
+      intro: 'Two kinds of people wait for a yes, and they wait on different tabs.',
+      rows: [
+        {
+          term: 'Asking to join',
+          body: 'at the top of the **Roster** tab, shown only while someone is waiting. A request comes from the site (they pressed **Apply** on your clan page, or tried to enter one of your events) or from the plugin (it saw them playing in your in-game clan before the roster had them). Each row says which, and whether they are a member of another clan. **Approve** gives them a guest seat. **Decline** tells them, by Discord DM when your bot can reach them. Tick several to answer them at once.',
+        },
+        {
+          term: 'Awaiting confirmation',
+          body: 'on **Needs review**. People who linked one of your roster characters by gaining XP on it, by asking, or by playing it with the plugin. They can already play while they wait. Check the Discord name matches the character, then press **Approve**. **Not our member** takes the character off your list and leaves it with its owner. **Report to Anvil** is for a character that is not theirs.',
+        },
+        {
+          term: 'Claim requests',
+          body: 'also on **Needs review**. Someone played a character that is already an established member here, so Anvil would not link it to them by itself. If you know it is them, press **Yes, that’s them**; if not, **Not them**. A character that has only ever been in your clan is linked straight away. One that is also in another clan goes to Anvil to decide.',
+        },
+      ],
+      note: {
+        tag: 'The badge does not count join requests',
+        body: 'The number on **Needs review**, and on **People** in the sidebar, counts Awaiting confirmation and Claim requests. Join requests are not in it, so look at the top of the Roster tab as well.',
+      },
+    },
+
+    policy: {
+      title: 'Who can join',
+      intro:
+        'Admin → People → **Who can join** holds three settings, and only admins see the tab. The one that decides how outsiders get in is **Players from other clans**:',
+      rows: [
+        {
+          term: 'Ask first',
+          body: 'the default. Someone who applies, or whom the plugin picks up from your in-game clan, waits as a join request until staff approve them. Nobody gets a seat without a yes.',
+        },
+        {
+          term: 'Let anyone in',
+          body: 'asking is enough. They get a guest seat straight away and no request is filed. Good for an open event, noisy otherwise.',
+        },
+        {
+          term: 'No guests',
+          body: 'only your own members play. Players from other clans cannot enter your events or ask to join, and the plugin files nothing for them.',
+        },
+      ],
+      outro:
+        '**Who can see this clan** is **Anyone** (a board link works for whoever you send it to) or **Members only** (everyone else sees the clan’s card and an invitation to apply). **List in the Clan Hall** puts the clan on the public list of clans. Turning it off does not make the clan private.',
+      note: {
+        tag: 'None of these touch your members',
+        body: 'The roster sync seats members whatever these say. Your own staff are never treated as guests either: a staff member’s character gets a member seat without a request.',
+      },
+    },
+
+    manual: {
+      title: 'Adding someone by hand',
+      body: [
+        'Roster → **+ Add Manually** puts one character on the roster. Fill in the **RSN**, and optionally their **Discord ID** and **Rank**. Tick **Add as guest** for someone who is not in your in-game clan. Moderators and admins can both do this.',
+        'Use it for someone the sync cannot see yet, such as a recruit who joined after the last sync. The seat is marked **Added manually**, and the sync treats it as your decision: if you later remove a seat you added by hand, the next sync does not bring it back.',
+        'Adding someone to the roster does not sign them up for an event. For that, open the event’s **Sign-ups** tab and use **Add member**. That one is admin-only.',
+      ],
+    },
+
+    removing: {
+      title: 'Removing and banning',
+      intro: 'Each roster row has an actions menu. These do different things:',
+      rows: [
+        {
+          term: 'Demote to guest',
+          body: 'they stay on the list and can still be entered into events, but stop counting as a member. **Promote to member** reverses it.',
+        },
+        {
+          term: 'Remove from roster',
+          body: 'marks them as departed. Their history and results stay. If they are still in your in-game clan, the next roster sync can add them back.',
+        },
+        {
+          term: 'Not our member',
+          body: 'on Needs review, for a character someone linked that is not in your clan. It comes off your list and stays with its owner.',
+        },
+        {
+          term: 'Ban from this clan',
+          body: 'ends every seat the person has here, alts included, and stops them coming back: the roster sync, the plugin and join requests all refuse them until the ban is lifted. Their Anvil account and their other clans are not touched. Admins only, for someone with a site account, from the row menu or from **Staff & roles**. Lifting a ban does not put them back; they rejoin in game or you add them.',
+        },
+      ],
+      note: {
+        tag: 'A ban does not remove a staff role',
+        body: 'Banning someone ends their seats but leaves any staff role they hold here. To remove a staff member, set their role to **Member** on Staff & roles first, then ban them.',
+      },
+    },
+
+    faq: {
+      title: 'Common questions',
+      intro: 'What usually explains someone in the wrong place.',
+      rows: [
+        {
+          term: 'Someone in the clan is missing',
+          body: 'Run a roster sync first: the list only changes when an admin sends it. Then check **Departed**, in case they were removed, and whether they are banned; the sync skips anyone banned here and reports who it skipped. If the clan is over its plan and the grace period has ended, a sync stops adding new members until you upgrade or trim the roster.',
+        },
+        {
+          term: 'Someone shows as a guest but is in the clan',
+          body: 'Usually they are still a member of another clan on Anvil. A character can be a member of one clan at a time, so the sync seats them here as a guest and makes them a member on the first sync after they leave the other clan. Otherwise they came in through a join request, or someone demoted them or added them as a guest. Run a sync, or use **Promote to member**.',
+        },
+        {
+          term: 'Someone signed in but is not on the roster',
+          body: 'That is expected. Signing in creates an Anvil account, not a seat. They appear when the sync lists them, when you approve their request, or when you add them by hand.',
+        },
+        {
+          term: 'Names like #Player1234',
+          body: 'RuneLite shows a placeholder like that for a moment while a player logs in, and for clan members it cannot name. Anvil ignores those names now: the sync skips them, the plugin files no request for them, and old requests under one are hidden. If one is still on your roster, it is an old row. **Remove from roster** clears it.',
+        },
+        {
+          term: 'A removed member keeps coming back',
+          body: 'Removing someone does not change the in-game clan, so the next sync adds them back while the game still lists them. Remove them in game, or ban them here.',
+        },
+        {
+          term: 'A moderator cannot see Who can join',
+          body: 'It is an admin-only tab, like Staff & roles. See [Staff roles: who can do what]({staffGuide}).',
+        },
+      ],
+    },
+  },
+
+  staffRoles: {
+    metaTitle: 'Staff roles: who can do what — Anvil',
+    metaDescription:
+      'The clan roles on Anvil (owner, admin, treasurer, moderator, member), what each one can reach, how to make someone a moderator, who can grant which role, and the jobs that cover one event.',
+    eyebrow: 'Anvil · for owners and admins',
+    title: 'Staff roles: who can do what',
+    dek: 'Five roles, set per clan under Admin → People → **Staff & roles**. A role here gives nothing in any other clan, and nobody can hand out a role at or above their own. This page is the whole map: what each role reaches, how to give one out, and the jobs that cover a single event.',
+    facts: [
+      { strong: 'Per clan', rest: 'a role here means nothing elsewhere' },
+      { strong: 'Below your own', rest: 'is all you can grant' },
+      { strong: 'Owner', rest: 'moves only by transfer' },
+    ],
+    footnote:
+      'Roles are checked again on every page load, so a change applies on the person’s next click; they do not need to sign out. For the roster itself, see [Your people]({peopleGuide}). For a moderator’s day, see [On the rota]({moderatorGuide}).',
+
+    roles: {
+      title: 'The roles',
+      intro: 'Everyone who signs in with Discord starts as a plain **Member**. Above that:',
+      rows: [
+        {
+          term: 'Owner',
+          body: 'the person who created the clan, until they hand it on. Everything an admin can do, plus transferring ownership and deleting the clan. There is exactly one, and nobody can demote, remove or ban them.',
+        },
+        {
+          term: 'Admin',
+          body: 'everything except handing over the clan: events and boards, settings, Discord, staff and the clan’s money.',
+        },
+        {
+          term: 'Treasurer',
+          body: 'fees, the coffer and prizes. A treasurer also reaches most moderator pages (proofs, competitions, Needs review) but not the roster list or the Schedule.',
+        },
+        {
+          term: 'Moderator',
+          body: 'newcomers, the roster, proofs, weekly competitions and clan events. No events or boards, no settings, no staff and no money.',
+        },
+        {
+          term: 'Member',
+          body: 'no staff job. Plays, signs up, and can report a donation to the coffer.',
+        },
+      ],
+      outro:
+        'Two boxes sit under the role on Staff & roles, for anyone below admin, plain members included. **Can build bingo boards** opens the Tiles tab of every board and the Task library. **Can write guides** lets them write the clan’s guides. Admins have both already.',
+    },
+
+    assign: {
+      title: 'Making someone a moderator',
+      intro:
+        'They need to have signed in with Discord and linked a character that is on your roster, as a member or a guest. Then:',
+      steps: [
+        'Open Admin → **People** → **Staff & roles**.',
+        'The list opens on **Staff**. Switch to **Members** or **All accounts** and search for their name.',
+        'In the **Role** column, pick **Moderator: newcomers, roster, sign-ups, proofs**. It saves as soon as you pick it.',
+        'If they should build boards too, tick **Can build bingo boards**.',
+      ],
+      outro:
+        'Not signed in yet? Find their character on the **Roster** tab, open its menu and choose **Set role**. That saves the role against the character. They get it the first time they sign in and link it, or, if they are waiting on Needs review, when a moderator approves them.',
+      note: {
+        tag: 'Taking it away',
+        body: 'Set the role back to **Member**. Changing someone’s role also removes any board jobs they had on this clan’s boards (see step 5), so add those again afterwards if they should keep them.',
+      },
+    },
+
+    who: {
+      title: 'Who can grant what',
+      intro:
+        'Staff & roles is an admin-only tab, and every change on it is checked against two rules: you can only give a role below your own, and you can only change someone whose role is below your own.',
+      rows: [
+        {
+          term: 'The owner',
+          body: 'can give or take away Admin, Treasurer and Moderator.',
+        },
+        {
+          term: 'An admin',
+          body: 'can give or take away Treasurer and Moderator. An admin cannot make another admin, change another admin, or change their own role.',
+        },
+        {
+          term: 'Treasurers and moderators',
+          body: 'cannot change anyone’s role. The tab is hidden from them.',
+        },
+        {
+          term: 'Nobody',
+          body: 'can change the owner’s role, remove them or ban them. The clan also always keeps one admin: the last one cannot be demoted.',
+        },
+      ],
+      note: {
+        tag: 'Handing over the clan',
+        body: 'Only the owner can, and only to someone who is already an admin: that admin’s row gets a **Make owner** action. They become the owner and you become an ordinary admin. You cannot undo it yourself; only the new owner can transfer it back.',
+      },
+    },
+
+    table: {
+      title: 'Who can do what',
+      intro:
+        'What each role reaches in the admin area. “If ticked” means the **Can build bingo boards** or **Can write guides** box on Staff & roles.',
+      areaLabel: 'Area',
+      columns: ['Owner', 'Admin', 'Treasurer', 'Moderator', 'Member'],
+      rows: [
+        { area: 'Dashboard', cells: ['Yes', 'Yes', 'Yes', 'Yes', 'No'] },
+        { area: 'Events: create, edit, teams, sign-ups, launch', cells: ['Yes', 'Yes', 'No', 'No', 'No'] },
+        { area: 'Board tiles and the Task library', cells: ['Yes', 'Yes', 'If ticked', 'If ticked', 'If ticked'] },
+        { area: 'Proofs to check', cells: ['Yes', 'Yes', 'Yes', 'Yes', 'No'] },
+        { area: 'Weekly competitions', cells: ['Yes', 'Yes', 'Yes', 'Yes', 'No'] },
+        { area: 'Clan events', cells: ['Yes', 'Yes', 'Yes', 'Yes', 'No'] },
+        { area: 'Schedule', cells: ['Yes', 'Yes', 'No', 'Yes', 'No'] },
+        { area: 'Roster: view, add, remove', cells: ['Yes', 'Yes', 'No', 'Yes', 'No'] },
+        { area: 'Join requests and Needs review', cells: ['Yes', 'Yes', 'Yes', 'Yes', 'No'] },
+        { area: 'Ban someone from the clan', cells: ['Yes', 'Below admin', 'No', 'No', 'No'] },
+        { area: 'Staff & roles', cells: ['Yes', 'Below admin', 'No', 'No', 'No'] },
+        { area: 'Who can join', cells: ['Yes', 'Yes', 'No', 'No', 'No'] },
+        { area: 'Coffer and prize ladders', cells: ['Yes', 'Yes', 'Yes', 'No', 'No'] },
+        { area: 'Fees: mark collected', cells: ['Yes', 'Yes', 'Yes', 'No', 'No'] },
+        { area: 'Fees: confirm (the second signature)', cells: ['Yes', 'Yes', 'No', 'No', 'No'] },
+        { area: 'Discord settings', cells: ['Yes', 'Yes', 'No', 'No', 'No'] },
+        { area: 'Post to Discord', cells: ['Yes', 'Yes', 'No', 'No', 'No'] },
+        { area: 'Clan settings: Profile, Features, Rules & scoring, Boosts', cells: ['Yes', 'Yes', 'No', 'No', 'No'] },
+        { area: 'Plan and billing', cells: ['Yes', 'Yes', 'No', 'No', 'No'] },
+        { area: 'Guides', cells: ['Write', 'Write', 'Read; write if ticked', 'Read; write if ticked', 'Write if ticked'] },
+        { area: 'Activity log', cells: ['Yes', 'Yes', 'Yes', 'Yes', 'No'] },
+        { area: 'Sync the roster from RuneLite', cells: ['Yes', 'Yes', 'No', 'No', 'No'] },
+        { area: 'Transfer ownership, delete the clan', cells: ['Yes', 'No', 'No', 'No', 'No'] },
+      ],
+      note: {
+        tag: 'Hidden is not the same as allowed',
+        body: 'The sidebar only lists what your role can use, but the check that counts runs on the server. Typing the address of a page your role cannot use sends you back to the dashboard, and the action behind it is refused.',
+      },
+    },
+
+    event: {
+      title: 'Jobs on one event',
+      intro:
+        'Some jobs cover a single event instead of the clan. An admin gives them on the event itself, and they reach that event and nothing else, so they are safe to give to a plain member.',
+      rows: [
+        {
+          term: 'Board editor',
+          body: 'builds and edits that board’s tiles. Given under the event’s **Settings** → **Staff** → **Board staff**, or with **Boards…** in a person’s actions on Staff & roles. A member given one sees only their boards in the admin area.',
+        },
+        {
+          term: 'Board treasurer',
+          body: 'collects that board’s fees and runs its payouts, without reaching the clan coffer. Given under **Board staff** as well.',
+        },
+        {
+          term: 'Team staff',
+          body: 'runs one team: its roster, its submissions and proof, and marking its players’ fees paid. They cannot touch another team, edit the board, make draft picks or sub anyone out once the event is live. Added on the team’s page under **Team staff**. This is how a visiting clan’s moderator runs their half of a clan-v-clan.',
+        },
+        {
+          term: 'Captain',
+          body: 'named by the host for one team. Everything team staff can do, plus making the team’s draft picks.',
+        },
+      ],
+      note: {
+        tag: 'A clan role replaces board jobs',
+        body: 'Giving someone a clan role, or changing it, removes their board editor and board treasurer jobs on this clan’s boards. Staff & roles warns you first when board jobs are all they have. Add them again afterwards if they should keep them.',
+      },
+    },
+
+    safety: {
+      title: 'Keeping it safe',
+      intro: 'These hold however the roles are set.',
+      rows: [
+        {
+          term: 'The owner is protected',
+          body: 'their row on Staff & roles reads **Protected**. Their role cannot be changed and they cannot be banned. Ownership only moves when they transfer it.',
+        },
+        {
+          term: 'Admins cannot remove each other',
+          body: 'an admin can neither demote nor ban another admin. When two admins disagree, the owner decides.',
+        },
+        {
+          term: 'Money takes two people',
+          body: 'when a fee needs confirming, the confirmation has to come from an admin other than whoever marked it collected. How many confirmations a fee needs, from zero to five, is set under **Clan settings** → **Rules & scoring** → **Fee sign-off**. An admin who is the only one handling money can still force a fee closed, with a separate button.',
+        },
+        {
+          term: 'What a moderator cannot do',
+          body: 'create or edit events, change settings or Discord, give anyone a role (themselves included), or touch the clan’s money.',
+        },
+        {
+          term: 'It is all on the record',
+          body: 'role changes, ownership transfers, bans and answered join requests are written to the **Activity log**, which every staff member can read.',
+        },
+        {
+          term: 'Discord roles are separate',
+          body: 'Anvil’s role sync matches Discord roles to **in-game ranks**, not to site roles. Making someone a moderator here gives them nothing in your Discord server, and a moderator role you gave out in Discord by hand is left alone. The one bot command that changes anything, adding to the coffer with `/coffer`, checks the site role: treasurer, admin or owner.',
         },
       ],
     },

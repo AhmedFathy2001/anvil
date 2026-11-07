@@ -245,6 +245,8 @@ const CLAN_DEFINITIONS = [
           { name: 'Hosting as a streamer', value: 'creators' },
           { name: 'Joining a streamer event', value: 'joining' },
           { name: 'Streaming for clans', value: 'streamingclans' },
+          { name: 'Roster, guests & who can join', value: 'people' },
+          { name: 'Staff roles: who can do what', value: 'staffroles' },
         ],
       },
       {
