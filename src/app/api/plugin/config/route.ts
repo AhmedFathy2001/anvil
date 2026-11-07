@@ -13,6 +13,7 @@ import {
   personalBestActivities,
 } from '@/lib/pluginConfig';
 import { jsonWithEtag } from '@/lib/httpEtag';
+import { withTileCounts } from '@/lib/pluginTileCounts';
 import { serverInfo } from '@/lib/serverInfo';
 import { pluginClansFor } from '@/lib/pluginClans';
 import { combatTaskVarps } from '@/lib/combatTasks';
@@ -98,7 +99,7 @@ export async function GET(request: Request) {
   const clan = await resolvePluginClan(request);
   if (!clan) {
     const clanless = await clanlessPluginConfig(request);
-    return clanless ? jsonWithEtag(request, clanless) : noClanForPlugin();
+    return clanless ? jsonWithEtag(request, withTileCounts(clanless)) : noClanForPlugin();
   }
   if (!auth) {
     // Distinguish "bad token" from "valid token but no active event" so the plugin
@@ -233,7 +234,7 @@ export async function GET(request: Request) {
         if (member) await foldOtherBoards(request, body, { accountId: member.accountId, userId: userOnly.userId, addressedClanId: clan.id, active: null });
         else body.boards = [];
       }
-      return jsonWithEtag(request, body);
+      return jsonWithEtag(request, withTileCounts(body));
     }
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
   }
@@ -278,5 +279,6 @@ export async function GET(request: Request) {
     );
     await foldOtherBoards(request, body, { accountId: auth.accountId, userId: auth.userId, addressedClanId: clan.id, active });
   }
-  return jsonWithEtag(request, built.body);
+  // `tiles` last: the counts of every board folded in above (lib/pluginTileCounts).
+  return jsonWithEtag(request, withTileCounts(built.body));
 }

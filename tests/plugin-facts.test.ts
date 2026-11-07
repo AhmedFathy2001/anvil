@@ -20,6 +20,7 @@ import {
 import { buildRuleTable, statStep } from '@/lib/pluginFacts/rules';
 import { planSubmissions } from '@/lib/pluginFacts/plan';
 import { parseFacts } from '@/lib/pluginFacts/parse';
+import { pluginTileCounts, withTileCounts } from '@/lib/pluginTileCounts';
 
 const board: FactBoard = { eventId: 1, teamId: 2, playerId: 3 };
 
@@ -408,4 +409,33 @@ test('parseFacts: drops malformed, unknown-kind and negative-id facts, keeps val
   const killFact = out[2];
   assert.ok(killFact.k === 'kill');
   assert.deepEqual(killFact.n, { vorkath: 1 });
+});
+
+// ---------------------------------------------------------------------------------------------
+// pluginTileCounts (the config's `tiles`)
+
+test('pluginTileCounts: one row per tile, highest count, first goal, sets marked, plain timed and values left out', () => {
+  const rows = pluginTileCounts({
+    trackedDrops: [
+      { tileId: 1, currentAmount: 2, requiredAmount: 5 },
+      { tileId: 2, currentAmount: 3, requiredAmount: 4, itemRequirements: [{ itemId: 1 }] },
+    ],
+    trackedKills: [{ tileId: 1, currentAmount: 4, requiredAmount: 9 }, { tileId: 3, requiredAmount: 10 }],
+    trackedStats: [{ tileId: 4, currentAmount: 500, goalAmount: 1000 }],
+    trackedTimed: [{ tileId: 5, thresholdSeconds: 60 }, { tileId: 6, currentAmount: 1, requiredAmount: 3 }],
+    trackedValues: [{ tileId: 7, currentGp: 10, thresholdGp: 100 }],
+    trackedCombos: [{ tileId: 8, done: 1, needed: 2 }],
+  });
+  const by = new Map(rows.map((r) => [r.t, r]));
+  assert.deepEqual(by.get(1), { t: 1, have: 4, of: 5 });
+  assert.deepEqual(by.get(2), { t: 2, have: 3, of: 4, set: true });
+  assert.deepEqual(by.get(3), { t: 3, have: 0, of: 10 });
+  assert.deepEqual(by.get(4), { t: 4, have: 500, of: 1000 });
+  assert.equal(by.has(5), false);
+  assert.deepEqual(by.get(6), { t: 6, have: 1, of: 3 });
+  assert.equal(by.has(7), false);
+  assert.equal(by.has(8), false);
+  const body: Record<string, unknown> = { trackedGains: [{ tileId: 9, currentAmount: 1, requiredAmount: 2 }] };
+  assert.equal(withTileCounts(body), body);
+  assert.deepEqual(body.tiles, [{ t: 9, have: 1, of: 2 }]);
 });
