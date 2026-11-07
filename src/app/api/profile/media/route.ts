@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { db } from '@/db';
@@ -131,7 +131,18 @@ export async function POST(request: Request) {
       ownerPlayerId: ownerPlayerId!,
       updatedAt: new Date(),
     };
-    await db.insert(accountMedia).values({ accountId, ...patch }).onConflictDoUpdate({ target: accountMedia.accountId, set: patch });
+    // Compare-and-swap, as for the person's own pictures below: a lost race saves but deletes nothing.
+    const col = kind === 'avatar' ? accountMedia.avatarUrl : accountMedia.bannerUrl;
+    const had = raw == null ? null : kind === 'avatar' ? raw.avatarUrl ?? null : raw.bannerUrl ?? null;
+    const swapped = raw
+      ? await db.update(accountMedia).set(patch)
+          .where(and(eq(accountMedia.accountId, accountId), had == null ? isNull(col) : eq(col, had)))
+          .returning({ id: accountMedia.accountId })
+      : await db.insert(accountMedia).values({ accountId, ...patch }).onConflictDoNothing().returning({ id: accountMedia.accountId });
+    if (!swapped.length) {
+      await db.update(accountMedia).set(patch).where(eq(accountMedia.accountId, accountId));
+      return NextResponse.json({ kind, accountId, url: full, still, animated: full !== still });
+    }
     const old = stale
       ? [raw.avatarUrl, raw.avatarStillUrl, raw.bannerUrl, raw.bannerStillUrl]
       : kind === 'avatar' ? [before?.avatarUrl, before?.avatarStillUrl] : [before?.bannerUrl, before?.bannerStillUrl];
@@ -144,14 +155,27 @@ export async function POST(request: Request) {
     kind === 'avatar'
       ? { avatarUrl: full, avatarStillUrl: still, updatedAt: new Date() }
       : { bannerUrl: full, bannerStillUrl: still, updatedAt: new Date() };
-  await db
-    .insert(profileMedia)
-    .values({ userId: session.userId, ...patch })
-    .onConflictDoUpdate({ target: profileMedia.userId, set: patch });
+  const replaced = kind === 'avatar' ? before?.avatarUrl ?? null : before?.bannerUrl ?? null;
+  // Compare-and-swap on the picture this replaces: two uploads overlapping (a retried request, two
+  // tabs) each deleted the other's fresh files and left the row pointing at a deleted one. Only the
+  // upload that really replaced `before` may delete it; a lost race keeps every file.
+  const column = kind === 'avatar' ? profileMedia.avatarUrl : profileMedia.bannerUrl;
+  const swapped = before
+    ? await db
+        .update(profileMedia)
+        .set(patch)
+        .where(and(eq(profileMedia.userId, session.userId), replaced == null ? isNull(column) : eq(column, replaced)))
+        .returning({ userId: profileMedia.userId })
+    : await db.insert(profileMedia).values({ userId: session.userId, ...patch }).onConflictDoNothing().returning({ userId: profileMedia.userId });
+  if (!swapped.length) {
+    // Someone else changed it first: still save ours (the newest choice), but delete nothing.
+    await db.update(profileMedia).set(patch).where(eq(profileMedia.userId, session.userId));
+    return NextResponse.json({ kind, url: full, still, animated: full !== still });
+  }
 
   // The pictures this replaced. Best effort: an orphan in the bucket is harmless.
   const old = kind === 'avatar' ? [before?.avatarUrl, before?.avatarStillUrl] : [before?.bannerUrl, before?.bannerStillUrl];
-  void del(ownObjects(session.userId, old)).catch(() => {});
+  void del(ownObjects(session.userId, old).filter((u) => u !== full && u !== still)).catch(() => {});
 
   return NextResponse.json({ kind, url: full, still, animated: full !== still });
 }
