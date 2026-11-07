@@ -247,6 +247,9 @@ const CLAN_DEFINITIONS = [
           { name: 'Streaming for clans', value: 'streamingclans' },
           { name: 'Roster, guests & who can join', value: 'people' },
           { name: 'Staff roles: who can do what', value: 'staffroles' },
+          { name: 'Anvil Supporter: tiers & perks', value: 'supporter' },
+          { name: 'The side panel, tab by tab', value: 'sidepanel' },
+          { name: 'Boosting a clan', value: 'boosts' },
         ],
       },
       {

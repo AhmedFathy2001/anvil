@@ -201,6 +201,27 @@ export const en = {
           'Owner, admin, treasurer and moderator: what each one reaches, how to make someone a moderator, who can grant which role, and jobs that cover one event.',
         minutes: '~6 min',
       },
+      supporter: {
+        eyebrow: 'For players',
+        title: 'Anvil Supporter: tiers and perks',
+        blurb:
+          'Supporter, Champion and Patron: name colours, the star, profile pictures, the display case, friend events and clan boosts, how billing works and what happens if you stop.',
+        minutes: '~6 min',
+      },
+      sidePanel: {
+        eyebrow: 'For players',
+        title: 'The side panel, tab by tab',
+        blurb:
+          'Clan, Feed, You, Lookup and the gear: what each tab shows, event chat, GZ and Sad reactions, and the settings that put the feed and Supporter colours into your game.',
+        minutes: '~6 min',
+      },
+      clanBoosts: {
+        eyebrow: 'For Supporters and clan staff',
+        title: 'Boosting a clan',
+        blurb:
+          'Placing and moving a boost, the three levels and what each one unlocks, the clan’s name colours, gifted boosts, and booster marks and badges.',
+        minutes: '~5 min',
+      },
     },
   },
 
@@ -354,8 +375,8 @@ export const en = {
           body: 'Open the clan window in game with the plugin running and press the **Anvil** button in its title bar. Your whole member list arrives with ranks intact, and it refuses a roster from a clan whose name does not match yours. Repeat it whenever people join or leave — see the [player setup guide]({pluginGuide}).',
         },
         {
-          term: 'They play once',
-          body: 'A new account played through the plugin is recognised automatically and tracked as a **guest** — visible, countable, and one sync away from being a member. An account already on the roster appears on the player’s profile and asks for a one-time XP check or moderator vouch before it links.',
+          term: 'They ask to join',
+          body: 'Signing in or playing with the plugin never gives anyone a seat by itself. If the plugin sees someone playing in your in-game clan before your roster has them, it files a join request for them, and anyone else can ask with **Apply** on your clan page. Staff answer both at the top of the **Roster** tab, and **Who can join** decides whether they wait for a yes, get in straight away, or cannot ask at all. Someone who plays a character already on your roster is confirmed under **Needs review** instead. The details are in [Your people]({peopleGuide}).',
         },
         {
           term: 'By hand',
@@ -364,7 +385,7 @@ export const en = {
       ],
       note: {
         tag: 'Guests are not a problem to solve',
-        body: 'A guest is simply somebody we have seen who is not on your roster — a visiting clan’s player, an alt, someone who joined this morning. They can play in events without ever becoming a member.',
+        body: 'A guest plays in your events without being in your in-game clan: a visiting clan’s player, a friend, an alt. They get a seat when staff approve their request, or straight away if **Who can join** is set to **Let anyone in**. They are tracked and can enter events, and they do not count towards your plan. Someone who joins you in game becomes a member on the next roster sync.',
       },
     },
 
@@ -774,8 +795,8 @@ export const en = {
       },
       panelHeading: 'The side panel',
       panelBody: [
-        'Three tabs. **Clan** is your events and your clan: every live and upcoming bingo and weekly competition with where you stand, your clan’s week, and its biggest accounts. **You** is your own profile — your collection log down to each page’s items, latest unlocks, skills, bosses, clues, best times and the goals you set on the site. **Lookup** finds anyone else’s, player or clan.',
-        'On someone’s card, **Compare with me** lines the two of you up skill by skill, boss by boss and page by page. The gear opens the panel’s own controls: syncing your profile and the clan roster, and your banner and mission sounds.',
+        'Four tabs and a gear. **Clan** is your events and your clan: every live and upcoming bingo and weekly competition with where you stand. **Feed** is your clan’s and boards’ big moments as they happen, with event chat. **You** is your own profile, and **Lookup** finds anyone else’s, player or clan. The gear holds syncing and your banner sounds.',
+        'Every tab, event chat, reactions and the settings that put the feed and Supporter colours into your game are in [The side panel, tab by tab]({panelGuide}).',
       ],
       panelFigure: {
         caption: 'Clan · You · Lookup',
@@ -1044,7 +1065,7 @@ export const en = {
       title: 'Get your roster in',
       body: [
         'Clan membership comes from one place: an in-game roster sync. Install the [Anvil RuneLite plugin]({pluginGuide}) on an _admin’s_ account, open your in-game clan window, and press the **Anvil** button in its title bar. That pushes your actual in-game clan list to the site in one click.',
-        'Anyone who links or verifies an account on the website without being on that roster is a **guest** — tracked, visible, but not a member until an admin promotes them or the next roster sync picks them up. That’s deliberate: it means nobody can self-promote into your clan by typing a name.',
+        'Signing in, linking a character or playing with the plugin never puts anyone on the roster. If the plugin sees someone playing in your in-game clan before the roster has them, it files a join request; anyone else can ask with **Apply** on your clan page. Staff answer requests at the top of **People → Roster**, and **People → Who can join** decides whether people wait for a yes, get a guest seat straight away, or cannot ask at all. That’s deliberate: nobody joins your clan by typing its name. The whole picture is in [Your people]({peopleGuide}).',
         'You can also add someone by hand from **People → + Add Manually**, and sign them up to an event on their behalf with **Add member** on the event’s **Sign-ups** page when they can’t reach the site.',
       ],
     },
@@ -1856,7 +1877,7 @@ export const en = {
       { strong: '1 row', rest: 'per person paid' },
     ],
     footnote:
-      'Fees and payouts are the treasurer’s surface. A treasurer can do everything a moderator can, plus this; a moderator can mark a fee collected but never settle one.',
+      'Fees and payouts are the treasurer’s surface. A treasurer can do everything a moderator can, plus this; a plain moderator does not see the fees pages at all.',
 
     set: {
       title: 'Setting the fee',
@@ -2100,7 +2121,7 @@ export const en = {
       intro:
         'Roles stack downward: everything a moderator can do, a treasurer and an admin can do too. What a moderator specifically owns:',
       canList: [
-        'the roster: syncing it, adding people, promoting a guest',
+        'the roster: adding and removing people, and answering join requests ([Your people]({peopleGuide}))',
         'account verifications — the XP challenge and manual review',
         'submissions and proof screenshots',
         'weekly competitions and the schedule',
@@ -2165,7 +2186,7 @@ export const en = {
       ],
       note: {
         tag: 'Verified is not a member',
-        body: 'Verifying an account says “this is really theirs”. It does not put them in the clan — clan membership comes only from an in-game roster sync or an admin adding them by hand. Someone verified but not on the roster is a **guest**: tracked, visible, and not a member. That is deliberate, and it is what stops anyone joining your clan by typing a name.',
+        body: 'Verifying an account says “this is really theirs”. It does not put them in the clan. Membership comes only from an in-game roster sync or staff adding them by hand, and a guest seat only from a join request staff approve (or straight away, if the clan lets anyone in). That is deliberate, and it is what stops anyone joining your clan by typing a name.',
       },
     },
 
@@ -2173,7 +2194,7 @@ export const en = {
       title: 'Keeping the roster true',
       body: [
         'The roster comes from one place: an admin runs a sync from the in-game clan list, with the **Anvil** button in the clan window’s title bar (or **Sync roster** in the plugin’s side panel). Everything else — verifications, links, sign-ups — hangs off it.',
-        'So the maintenance job is small but real: run the sync after any recruitment round, promote the guests who have actually joined, and look at people the site has flagged as needing review rather than waiting for them to complain.',
+        'So the maintenance job is small but real: ask an admin to run the sync after any recruitment round (it turns guests who joined in game into members), answer the join requests at the top of the **Roster** tab, and work through **Needs review** rather than waiting for people to complain. See [Your people]({peopleGuide}).',
       ],
       note: {
         tag: 'Last seen is not last played',
@@ -3065,12 +3086,12 @@ export const en = {
         },
         {
           term: 'Ban from this clan',
-          body: 'ends every seat the person has here, alts included, and stops them coming back: the roster sync, the plugin and join requests all refuse them until the ban is lifted. Their Anvil account and their other clans are not touched. Admins only, for someone with a site account, from the row menu or from **Staff & roles**. Lifting a ban does not put them back; they rejoin in game or you add them.',
+          body: 'ends every seat the person has here, alts included, removes any staff role and board jobs they hold in this clan, and stops them coming back: the roster sync, the plugin and join requests all refuse them until the ban is lifted. Their Anvil account and their other clans are not touched. Admins only, for someone with a site account and a role below admin, from the row menu, from **Staff & roles**, or for several people at once. Lifting a ban does not put them back; they rejoin in game or you add them.',
         },
       ],
       note: {
-        tag: 'A ban does not remove a staff role',
-        body: 'Banning someone ends their seats but leaves any staff role they hold here. To remove a staff member, set their role to **Member** on Staff & roles first, then ban them.',
+        tag: 'A ban also removes their staff role',
+        body: 'Banning someone ends their seats and takes away their staff role and any board editor or board treasurer jobs on this clan’s boards. Lifting the ban does not give those back: set the role again on Staff & roles if they should have it.',
       },
     },
 
@@ -3135,7 +3156,7 @@ export const en = {
         },
         {
           term: 'Treasurer',
-          body: 'fees, the coffer and prizes. A treasurer also reaches most moderator pages (proofs, competitions, Needs review) but not the roster list or the Schedule.',
+          body: 'fees, the coffer and prizes, on top of everything a moderator does: the roster, proofs, competitions, the Schedule and Needs review.',
         },
         {
           term: 'Moderator',
@@ -3209,8 +3230,8 @@ export const en = {
         { area: 'Proofs to check', cells: ['Yes', 'Yes', 'Yes', 'Yes', 'No'] },
         { area: 'Weekly competitions', cells: ['Yes', 'Yes', 'Yes', 'Yes', 'No'] },
         { area: 'Clan events', cells: ['Yes', 'Yes', 'Yes', 'Yes', 'No'] },
-        { area: 'Schedule', cells: ['Yes', 'Yes', 'No', 'Yes', 'No'] },
-        { area: 'Roster: view, add, remove', cells: ['Yes', 'Yes', 'No', 'Yes', 'No'] },
+        { area: 'Schedule', cells: ['Yes', 'Yes', 'Yes', 'Yes', 'No'] },
+        { area: 'Roster: view, add, remove', cells: ['Yes', 'Yes', 'Yes', 'Yes', 'No'] },
         { area: 'Join requests and Needs review', cells: ['Yes', 'Yes', 'Yes', 'Yes', 'No'] },
         { area: 'Ban someone from the clan', cells: ['Yes', 'Below admin', 'No', 'No', 'No'] },
         { area: 'Staff & roles', cells: ['Yes', 'Below admin', 'No', 'No', 'No'] },
@@ -3244,7 +3265,7 @@ export const en = {
         },
         {
           term: 'Board treasurer',
-          body: 'collects that board’s fees and runs its payouts, without reaching the clan coffer. Given under **Board staff** as well.',
+          body: 'collects that board’s fees and runs its payouts, without reaching the clan coffer. In the admin area they see only their own boards, and only each board’s **Sign-ups** and **Prizes** tabs. Given under **Board staff** as well.',
         },
         {
           term: 'Team staff',
@@ -3271,7 +3292,7 @@ export const en = {
         },
         {
           term: 'Admins cannot remove each other',
-          body: 'an admin can neither demote nor ban another admin. When two admins disagree, the owner decides.',
+          body: 'an admin can neither demote nor ban another admin, one at a time or several at once. When two admins disagree, the owner decides. A ban also takes away the person’s staff role and board jobs in this clan.',
         },
         {
           term: 'Money takes two people',
@@ -3290,6 +3311,595 @@ export const en = {
           body: 'Anvil’s role sync matches Discord roles to **in-game ranks**, not to site roles. Making someone a moderator here gives them nothing in your Discord server, and a moderator role you gave out in Discord by hand is left alone. The one bot command that changes anything, adding to the coffer with `/coffer`, checks the site role: treasurer, admin or owner.',
         },
       ],
+    },
+  },
+  supporter: {
+    metaTitle: 'Anvil Supporter: tiers and perks — Anvil',
+    metaDescription:
+      'What Anvil Supporter, Champion and Patron each get: name colours and the star, gold GZ, animated avatar and banner, the display case, friend events, head-to-head, event chat and clan boosts. How Gumroad billing works and what happens when you cancel.',
+    eyebrow: 'Anvil · for players',
+    title: 'Anvil Supporter: tiers and perks',
+    dek: 'Anvil Supporter is a personal subscription that pays for Anvil’s servers. It comes in three tiers, each with everything the one below has. Every perk is looks or hosting room: tracking, events, scoring and your own stats stay free for everyone, and nothing here changes what an event counts.',
+    facts: [
+      { strong: 'From $1 a month', rest: 'or $10 a year' },
+      { strong: 'Looks only', rest: 'never a score, a rank or an item' },
+      { strong: 'Nothing deleted', rest: 'when you stop' },
+    ],
+    footnote:
+      'Everything here is set on the website under **Settings** → **Supporter**, **Profile look** and **Clan boosts**. For boosts in detail, see [Boosting a clan]({boostsGuide}). For where your colours show in RuneLite, see [The side panel, tab by tab]({panelGuide}).',
+
+    tiers: {
+      title: 'The three tiers',
+      intro: 'Prices are on the **Anvil Supporter** page, `/supporter`. A yearly plan costs ten months.',
+      rows: [
+        {
+          term: 'Supporter',
+          body: '$1 a month or $10 a year. A gold name and a star, a gold GZ, a display case with 4 slots, and you can host a friend event.',
+        },
+        {
+          term: 'Champion',
+          body: '$2 a month or $20 a year. Gradient name colours you pick, your own avatar and banner (animated if you like), 8 display case slots, faster event chat and 1 clan boost.',
+        },
+        {
+          term: 'Patron',
+          body: '$5 a month or $50 a year. Any colours you like, with a gradient that moves, 12 display case slots, no wait in event chat, 2 friend events at once and 2 clan boosts.',
+        },
+      ],
+      note: {
+        tag: 'Time from invites',
+        body: 'Under Settings → Supporter you get an invite link. When a friend you invited pays, you earn free months; the reward lands two weeks after their first payment. Time earned this way gives every perk of its tier except clan boosts.',
+      },
+    },
+
+    compare: {
+      title: 'What each tier gets',
+      intro: 'The same table as on the Supporter page, plus the chat perks.',
+      table: {
+        areaLabel: 'Perk',
+        columns: ['Free', 'Supporter', 'Champion', 'Patron'],
+        rows: [
+          { area: 'Name colours', cells: ['—', 'Gold', 'Presets or one colour of your own', 'Presets or up to four colours, moving'] },
+          { area: 'Star by your name', cells: ['—', 'Yes', 'Yes', 'Yes'] },
+          { area: 'Gold GZ', cells: ['—', 'Yes', 'Yes', 'Yes'] },
+          { area: 'Own avatar and banner, animated', cells: ['—', '—', 'Yes', 'Yes'] },
+          { area: 'Display case', cells: ['—', '4 slots', '8 slots', '12 slots'] },
+          { area: 'Friend events (at once · players)', cells: ['Join only', '1 · 10', '1 · 25', '2 · 50'] },
+          { area: 'Head-to-head challenges', cells: ['1 active', '5 active', 'Unlimited', 'Unlimited'] },
+          { area: 'Event chat: wait between lines', cells: ['5 s', '3 s', '1 s', 'None'] },
+          { area: 'Clan boosts', cells: ['—', '—', '1', '2'] },
+        ],
+      },
+      outro:
+        'Under **Settings** → **In-game chat** there are three more: your own chat feed colours (Supporter), choosing what your login brief covers (Champion), and a star by your name in other players’ chat feeds (Patron).',
+    },
+
+    names: {
+      title: 'Name colours',
+      intro:
+        'Set them under **Settings** → **Supporter**, in **Your name’s look**. The preview shows your name on a dark background and on a light one.',
+      rows: [
+        {
+          term: 'Supporter',
+          body: 'solid gold. There is nothing to pick.',
+        },
+        {
+          term: 'Champion',
+          body: 'one of the preset gradients (**Classic**, the default, **Ember**, **Ocean**, **Aurora**, **Rose gold** or **Toxic**), or **Your own**: one static colour. Across all your characters you can use at most two different colours of your own.',
+        },
+        {
+          term: 'Patron',
+          body: 'every preset plus **Prism**, the Patron default, or **Your own** with one to four colours. One colour stays still; two to four make a gradient that moves left to right.',
+        },
+      ],
+      outro:
+        '**Your Anvil display name** is the name on your Discord-linked account. Under **Your RuneScape characters**, choose **Same for all** or **Customize each** to give each character its own look. Press **Save** (or **Save for all characters**); **Reset to default** goes back to your tier’s colours.',
+      note: {
+        tag: 'Dark and light backgrounds',
+        body: 'The site, the plugin panel and Discord are dark; the game’s solid chatbox is light. Anvil adjusts your colours so they stay readable on each. If you want a different look on one of them, switch on **Set a separate look for dark backgrounds** or **for light backgrounds**. That look is shown exactly as you picked it, with no contrast fix, and the preview warns you when it is hard to read.',
+      },
+    },
+
+    where: {
+      title: 'Where your flair shows',
+      intro: 'Your colours and the star go wherever your name does:',
+      rows: [
+        {
+          term: 'On the site',
+          body: 'boards, rosters, profiles, your own name in the top bar, and your character names. The star wears your colours.',
+        },
+        {
+          term: 'In the plugin panel',
+          body: 'the Feed, event chat, cards and the **Tracking** line. A Patron’s gradient slides; each player can stop it with **Animated names**.',
+        },
+        {
+          term: 'In game',
+          body: 'for other players who use the Anvil plugin: public, clan, friends and private chat, clan broadcasts, login notices, friends and clan lists, and the right-click menu (never on PvP worlds or in the Wilderness). In game chat, the star is a Patron’s.',
+        },
+        {
+          term: 'In Discord',
+          body: 'a star beside your name on Anvil’s posts, drawn in your own colours if you picked some.',
+        },
+        {
+          term: 'Gold GZ',
+          body: 'on a clanmate’s drop in your clan’s feed on the site, your GZ can be gold. Only Supporters can give one.',
+        },
+      ],
+      note: {
+        tag: 'Only on characters proven to be yours',
+        body: 'Colours show only on characters the plugin has confirmed are yours, on the site and in game. To keep them off your names in other people’s game chat, untick **Show my colours on my characters’ names in game chat** under Settings → Supporter.',
+      },
+    },
+
+    profile: {
+      title: 'Avatar, banner and display case',
+      intro: 'All three are under **Settings** → **Profile look**.',
+      rows: [
+        {
+          term: 'Avatar & banner',
+          body: 'Champion and Patron. Upload your own; a GIF or WebP stays animated. They show on your card, your profile and every character of yours, on the site and in the plugin. A banner can be up to 6 MB and at least 600×150; an avatar up to 2 MB.',
+        },
+        {
+          term: 'Per character',
+          body: 'give one character its own banner or avatar, or both. It replaces your default on that character’s pages and plugin card only.',
+        },
+        {
+          term: 'Display case',
+          body: 'your best drops, kill counts and times pinned to your profile: 4 slots for Supporter, 8 for Champion, 12 for Patron. Pins from characters you don’t share stay private.',
+        },
+      ],
+    },
+
+    hosting: {
+      title: 'Friend events, head-to-head and chat',
+      intro: 'The perks that give you more room to play, rather than a look:',
+      rows: [
+        {
+          term: 'Friend events',
+          body: 'run your own bingo, solo bingo or race for friends from **Host an event for your friends**, tracked by the plugin like a clan event. Friends join with your invite link. Supporter: 1 live event, 10 players. Champion: 1 event, 25 players. Patron: 2 at a time, 50 players between them. Anyone can join one.',
+        },
+        {
+          term: 'Head-to-head',
+          body: 'challenge a friend from their profile: first to a drop, or most kills or XP in 1 hour, 24 hours or 7 days. Bragging rights only. Free players can have 1 open at a time, Supporters 5, Champions and Patrons as many as they like.',
+        },
+        {
+          term: 'Event chat',
+          body: 'how long you wait between lines: 5 seconds without a tier, 3 for Supporters, 1 for Champions, none for Patrons. When a board’s chat gets busy, everyone waits 10 seconds, Patrons too.',
+        },
+        {
+          term: 'Clan boosts',
+          body: 'Champion 1, Patron 2, while you pay. See [Boosting a clan]({boostsGuide}).',
+        },
+      ],
+    },
+
+    billing: {
+      title: 'Paying, changing and cancelling',
+      intro: 'Anvil Supporter is billed through Gumroad, monthly or yearly.',
+      steps: [
+        'Sign in on Anvil and open `/supporter`.',
+        'Press **Choose Supporter**, **Choose Champion** or **Choose Patron**. Gumroad’s checkout opens, with monthly or yearly billing.',
+        'Pay. Your perks switch on as soon as Gumroad tells Anvil, and your tier shows on the Supporter page as **Your tier**.',
+      ],
+      outro:
+        'To change tier, use **Change tier** under Settings → Supporter. To cancel or update your card, use **Manage on Gumroad** there. A cancelled membership keeps every perk until the end of the term you paid for.',
+      note: {
+        tag: 'Always start from /supporter',
+        body: 'The **Choose** button carries a code that tells Anvil which account paid. Anvil never matches a payment by email, so buying from Gumroad directly, without that button, leaves the payment unlinked. If that happened, ask in the Anvil Discord and staff can attach it to your account by hand.',
+      },
+    },
+
+    lapse: {
+      title: 'Moving down or stopping',
+      intro:
+        'Nothing you set is deleted. Every perk is checked against the tier you have right now, so it switches off on its own and comes back as soon as you renew.',
+      rows: [
+        {
+          term: 'Name colours',
+          body: 'your saved choice stays stored. You wear your new tier’s colours, or none, until a tier that allows it comes back.',
+        },
+        {
+          term: 'Avatar & banner',
+          body: 'below Champion, they show their still first frame instead of moving.',
+        },
+        {
+          term: 'Display case',
+          body: 'shows the first pins your tier allows and hides the rest. With no tier it is hidden; the pins wait for you.',
+        },
+        {
+          term: 'Clan boosts',
+          body: 'your oldest boosts keep counting and the rest are paused, not removed.',
+        },
+      ],
+      note: {
+        tag: 'A temporary upgrade from Anvil staff',
+        body: 'Staff can give someone a higher tier for a while, for example as a thank-you. It sits on top of what you pay and never changes your subscription. Settings → Supporter shows **A gift from Anvil** and when it ends; after that you are back on your paid tier. A gift only gives clan boost slots when staff include them.',
+      },
+    },
+  },
+
+  sidePanel: {
+    metaTitle: 'The Anvil side panel, tab by tab — Anvil',
+    metaDescription:
+      'What each tab of the Anvil RuneLite side panel shows (Clan, Feed, You, Lookup and the gear), how event chat and Feed reactions work, and the plugin settings for the feed in game chat, Supporter colours and animated names.',
+    eyebrow: 'Anvil · for players',
+    title: 'The side panel, tab by tab',
+    dek: 'The Anvil button in RuneLite’s sidebar opens a panel with four tabs and a gear: **Clan**, **Feed**, **You**, **Lookup** and ⚙. Most of what it shows comes from the site, so it stays current without a plugin update. A few things below are marked as coming in the next plugin update.',
+    facts: [
+      { strong: 'Four tabs', rest: 'and a gear for syncing and settings' },
+      { strong: 'Event chat', rest: 'in the Feed tab' },
+      { strong: 'GZ, Sad, Sit', rest: 'on Feed rows' },
+    ],
+    footnote:
+      'Installing the plugin and signing in is in [RuneLite plugin setup]({pluginGuide}). Supporter colours, the star and the chat perks are explained in [Anvil Supporter: tiers and perks]({supporterGuide}).',
+
+    header: {
+      title: 'The top of the panel',
+      intro: 'Above the tabs sit the title, **Refresh** and the account line.',
+      rows: [
+        {
+          term: 'Refresh',
+          body: 'reloads the panel, the Feed tab included. It reads **Refreshing…** while it works. In the next plugin update it also reloads You and Lookup, so a new avatar or banner shows at once, and it no longer blanks the Feed tab.',
+        },
+        {
+          term: 'Tracking',
+          body: 'the line under the title names the character being tracked, in its Supporter colours if it has some. **Not my account…** stops tracking a character someone else plays on this computer; **Track again** undoes it.',
+        },
+        {
+          term: 'The account menu',
+          body: 'the ⋯ link opens **View my profile on Anvil**, **Not my account…** and **Sign out…**. In the next plugin update it also has **Become a Supporter**, or **Your Supporter perks** if you already are one.',
+        },
+        {
+          term: 'Season progress',
+          body: 'in the next plugin update, on Leagues, Deadman and other seasonal worlds, a line reads **Sharing season progress · Turn off**. It sends your relics, areas and tasks (with a screenshot) to your clan; your clan chooses on the website what gets posted. **Turn on** shares it again. The same switch is **Share seasonal activity** in the plugin settings.',
+        },
+      ],
+    },
+
+    clan: {
+      title: 'Clan',
+      intro:
+        'Your events and your clan. In a creator’s space the tab says **Space**.',
+      rows: [
+        {
+          term: 'The clan dropdown',
+          body: 'shown when you play in more than one clan or space. **All clans** (the default) shows everything you are playing, live event first. Picking one clan narrows the panel to it and files your submissions there.',
+        },
+        {
+          term: 'Events',
+          body: 'every live and upcoming board, Skill or Boss of the Week and clan event, with where you stand. Then **Your other boards**, **Also live** and **Your clan**.',
+        },
+        {
+          term: 'A board',
+          body: 'open one for its standings, teams, missions, recent activity, the nearest tiles and **View all tiles**. Its **Feed** and **Chat** buttons open that board in the Feed tab.',
+        },
+        {
+          term: 'A clan event',
+          body: '**I’m going**, **Sign me up** or **Answer the survey**, depending on the event.',
+        },
+      ],
+    },
+
+    feed: {
+      title: 'Feed',
+      intro:
+        'Your clan’s and boards’ big moments, live: drops, pets, achievements, quests, deaths and finished tiles.',
+      rows: [
+        {
+          term: 'Whose feed',
+          body: 'the dropdown at the top lists **Clan ·** each clan you are a member of and **Event ·** each live board you are on. It opens on your board if you have one, otherwise your clan.',
+        },
+        {
+          term: 'Filters',
+          body: '**All**, **Tiles** (boards only), **Drops**, **Pets**, **Achievements**, **Deaths**, and **My team** on a board where you are on a team. A clan feed also has a game-mode activity button for Leagues and other modes.',
+        },
+        {
+          term: 'New rows',
+          body: 'arrive on their own. If you have scrolled away, a **↑ N new** pill takes you back to them.',
+        },
+      ],
+      note: {
+        tag: 'Not the same as the in-game chat feed',
+        body: 'The Feed tab works whatever your plugin settings say. **Show feed in game chat** (step 8) is the separate setting that also prints it in your chatbox.',
+      },
+    },
+
+    reactions: {
+      title: 'Reactions',
+      intro: 'Each row in the Feed has its reaction under it:',
+      rows: [
+        {
+          term: 'GZ',
+          body: 'on drops, pets and achievements. The count shows next to it, such as **GZ 3**.',
+        },
+        {
+          term: 'Sad and Sit',
+          body: 'on deaths, instead of GZ. Sit is the game’s way of telling someone who died to sit down.',
+        },
+        {
+          term: 'Who can react',
+          body: 'on a clan feed, clanmates. On a board, the players on it and the host’s staff; when a board hides its standings, players can react only to their own team’s rows.',
+        },
+        {
+          term: 'Who reacted',
+          body: 'hover a reaction to see names, such as “GZ · Mossy and 3 others”. Click it again to take yours back.',
+        },
+      ],
+      note: {
+        tag: 'In the next plugin update',
+        body: 'Reactions become pill buttons, tinted when one is yours, and other people’s reactions update live for everyone watching, including on your other open clients. Today the count changes when you react or when the Feed reloads. Gold GZ, the Supporter reaction, is given on the website’s feeds; the Feed tab has GZ, Sad and Sit.',
+      },
+    },
+
+    chat: {
+      title: 'Event chat',
+      intro:
+        'A board with chat turned on has a **Feed / Chat** switch at the top of the Feed tab, for the players on that board and the host’s staff. The board page in the Clan tab has a **Chat** button too.',
+      rows: [
+        {
+          term: 'Everyone or your team',
+          body: '**All** writes to the whole board, **My team** only to your team (those lines are marked **TEAM**). Staff also see **Host & mods**, and their lines are marked **HOST** or **MOD**.',
+        },
+        {
+          term: 'Sending',
+          body: 'type in the box and press Enter. Lines are up to 200 characters, and only the host and mods can post links.',
+        },
+        {
+          term: 'How often',
+          body: 'the wait between your lines follows your Supporter tier: 5 seconds without one, 3 for Supporters, 1 for Champions, none for Patrons. The line under the box says what yours is. Staff never wait.',
+        },
+        {
+          term: 'Slow mode',
+          body: 'when a board’s chat gets very busy, everyone waits at least 10 seconds for a minute, Patrons included. Nobody can send more than 10 lines in 10 seconds.',
+        },
+        {
+          term: 'Moderation',
+          body: 'the host and mods can right-click a line to **Delete message** or **Mute** someone, and pause the whole chat with **Pause chat (read-only for everyone)**.',
+        },
+      ],
+      outro:
+        'A run of lines from one person shares one name and time, until there is a 5-minute gap. Chat is kept for 7 days after the event ends.',
+    },
+
+    you: {
+      title: 'You and Lookup',
+      intro: 'Two tabs for player cards: yours, and anyone else’s.',
+      rows: [
+        {
+          term: 'You',
+          body: 'your own card for the character you are logged in on: banner and avatar, **Display case**, collection log down to each page’s items, and **Skills**, **Bosses**, **Clues**, **Times** and **CAs**. Below it, any **Head-to-head** challenge waiting for you (**Accept** or **Decline**) and your **Goals**, with **+ Add goal**.',
+        },
+        {
+          term: 'Lookup',
+          body: 'switch between **Players** and **Clans**, type a name and press Enter. **Recent** lists your last few. Right-click anyone in game and pick **Anvil** to land here.',
+        },
+        {
+          term: 'Compare',
+          body: 'on someone else’s card, **Compare with me** lines the two of you up skill by skill, boss by boss and page by page. A clan’s card has **Compare with my clan**.',
+        },
+      ],
+    },
+
+    gear: {
+      title: 'The gear tab',
+      intro: 'Syncing and settings, rather than things to look at:',
+      rows: [
+        {
+          term: 'Sync profile',
+          body: 'sends your collection log and best times to Anvil.',
+        },
+        {
+          term: 'Sync clan roster',
+          body: 'clan admins only: sends the in-game clan member list to the site. If the plugin cannot read your clan, it says **Join your clan channel to sync the roster** instead.',
+        },
+        {
+          term: 'Banner sounds',
+          body: '**Add clip** for the sound a banner plays, **Copy folder path** to manage them, and **Add mission clip** for missions.',
+        },
+        {
+          term: 'Become a Supporter',
+          body: 'in the next plugin update, a ★ link at the bottom opens the Supporter page, or reads **Your Supporter perks** if you already are one.',
+        },
+      ],
+    },
+
+    settings: {
+      title: 'Settings that change what you see',
+      intro:
+        'In RuneLite’s configuration for Anvil, under **Chat messages**. All are on to start with.',
+      rows: [
+        {
+          term: 'Show feed in game chat',
+          body: 'also prints the feed in your chatbox as it happens: big drops, pets and achievements from boards whose host turned it on and clans you guest in, your teammates’ tile progress, and other teams’ finished tiles.',
+        },
+        {
+          term: 'Supporter names in chat',
+          body: 'Supporters’ colours (and a Patron’s star) in public, clan, friends and private chat, and on your friends list and channel member lists. The list of names is downloaded from Anvil; nothing about who you see is sent.',
+        },
+        {
+          term: 'Animated names',
+          body: 'lets a Patron’s gradient slide in the panel, the Feed and event chat. Off keeps it still. In the next plugin update it also covers boosted clan names and animated banners in the panel.',
+        },
+        {
+          term: 'Supporter names in menus',
+          body: 'Supporters’ colours on their name when you right-click them, never on PvP worlds or in the Wilderness.',
+        },
+        {
+          term: 'Over other plugins’ colours',
+          body: 'on, a Supporter’s colours replace a name colour another plugin set, such as Player Indicators. Off leaves those names alone.',
+        },
+      ],
+    },
+  },
+
+  clanBoosts: {
+    metaTitle: 'Boosting a clan — Anvil',
+    metaDescription:
+      'How Anvil clan boosts work: who has them, placing and moving a boost, the three boost levels and what each one unlocks, the clan’s name colours, gifted boosts, and booster marks and badges.',
+    eyebrow: 'Anvil · for Supporters and clan staff',
+    title: 'Boosting a clan',
+    dek: 'A paying Champion or Patron can put a boost on a clan they are a member of. Enough boosts from a clan’s members raise it a level, and each level changes how the clan looks and where it is listed. Boosts are looks only: they never change a rank, a score, a seat or the clan’s plan.',
+    facts: [
+      { strong: 'Champion 1, Patron 2', rest: 'boosts while you pay' },
+      { strong: 'Levels at 3, 8 and 15', rest: 'counted boosts' },
+      { strong: 'Once a week', rest: 'a boost can move' },
+    ],
+    footnote:
+      'Members place boosts under **Settings** → **Clan boosts**. Clan staff see the level and its options under Admin → **Clan settings** → **Boosts**. For the tiers themselves, see [Anvil Supporter: tiers and perks]({supporterGuide}).',
+
+    what: {
+      title: 'Who has boosts',
+      intro: 'Boosts come with a paid membership:',
+      rows: [
+        { term: 'Champion', body: '1 boost.' },
+        { term: 'Patron', body: '2 boosts.' },
+        {
+          term: 'Supporter',
+          body: 'none. Neither does time earned through invites. A temporary upgrade from Anvil staff gives slots only when staff include them.',
+        },
+      ],
+      outro:
+        'Boosts belong to you, not to a character: three characters in three clans still share one set. **Settings** → **Clan boosts** only appears in your settings while you are a Supporter or still have a boost placed.',
+    },
+
+    place: {
+      title: 'Placing and moving a boost',
+      intro: 'You place your own boosts; nobody can place one for you.',
+      steps: [
+        'Open **Settings** → **Clan boosts**. **Your boosts** lists what you have placed and any **Free slot**.',
+        'Under **Clans you can boost**, press **Boost** beside a clan. You can also press **Boost this clan** in the Boosters section of the clan’s own page.',
+        'To move one, use **Move to…** on its row and pick another clan. **Remove** takes it off.',
+      ],
+      rows: [
+        {
+          term: 'A member seat, 14 days old',
+          body: 'each boost rides on a member seat one of your characters holds in the in-game clan. A guest seat cannot carry one. The seat counts from whichever is earlier: when Anvil first saw it, or when the game says the character joined. Until then the clan’s row says how many days are left.',
+        },
+        {
+          term: 'One row per clan',
+          body: 'the list shows each clan once, and Anvil picks the character the boost rides on: your main where it can, otherwise the longest-held seat. The clan sees that character only, never your other ones.',
+        },
+        {
+          term: 'Once a week',
+          body: 'a placed boost can move 7 days after you placed it. A removed boost’s slot opens again on the same date, so removing and placing again is no shortcut. If the character it rode on left the clan, you can move it at once.',
+        },
+      ],
+      note: {
+        tag: 'What the labels mean',
+        body: '**counting**: it counts toward the clan’s level. **paused**: your tier now has fewer slots than you placed, so your oldest boosts keep counting and the rest wait. **seat gone**: the character it rode on is no longer a member there; move it. **over the 2-per-person cap**: the clan already counts two of yours.',
+      },
+    },
+
+    levels: {
+      title: 'Levels',
+      intro:
+        'A clan’s level comes from its counted boosts. At most two boosts from any one person count toward one clan, so a level always means several members chose it.',
+      rows: [
+        { term: 'Level 1', body: '3 counted boosts.' },
+        { term: 'Level 2', body: '8 counted boosts.' },
+        { term: 'Level 3', body: '15 counted boosts.' },
+      ],
+      outro:
+        'Members see the progress on the clan’s page, for example “5 of 8 to Level 2”. A clan that rises gets the new level at once.',
+      note: {
+        tag: 'A week of grace',
+        body: 'When boosts fall below a level, the clan keeps that level’s perks for 7 days. Admin → Clan settings → Boosts shows when they end. If members boost it back in time, nothing changes.',
+      },
+    },
+
+    perks: {
+      title: 'What each level unlocks',
+      intro: 'Each level keeps everything from the one below.',
+      rows: [
+        {
+          term: 'Level 1',
+          body: 'a **Boosted** badge on the clan page, its Clan Hall card and in search; a place above unboosted clans in the Clan Hall and its search results; and the clan name in a gradient.',
+        },
+        {
+          term: 'Level 2',
+          body: 'a spot in the Clan Hall’s **Featured** row; the clan’s animated banner plays (below Level 2 it shows its still frame); a recruiting line for visitors; and the name’s gradient moves.',
+        },
+        {
+          term: 'Level 3',
+          body: 'the **Spotlight** at the very top of the Clan Hall, and one recruitment post a month in the Anvil Discord, written by the clan.',
+        },
+      ],
+      note: {
+        tag: 'The clan logo is not a perk',
+        body: 'An animated logo (a GIF or WebP clan image) plays at any level. Only the banner waits for Level 2.',
+      },
+    },
+
+    colours: {
+      title: 'The clan’s name colours',
+      intro:
+        'From Level 1 the clan’s name wears Anvil’s gradient. Owners and admins can choose their own under Admin → **Clan settings** → **Boosts** → **Clan name colours**:',
+      rows: [
+        {
+          term: 'One to four colours',
+          body: 'one colour is a static name; two to four make a gradient. From Level 2 a gradient moves.',
+        },
+        {
+          term: 'Dark and light backgrounds',
+          body: 'as with Supporter names, Anvil adjusts the colours to stay readable on dark backgrounds (the site, the plugin panel, Discord) and light ones (the game’s solid chatbox). Switch on a separate look for either and it is shown exactly as chosen.',
+        },
+        {
+          term: 'Reset to Anvil',
+          body: 'goes back to Anvil’s palette.',
+        },
+      ],
+      outro:
+        'The colours stay saved if the clan drops below Level 1, and come back when it returns. The plugin picks up a change on its next refresh.',
+    },
+
+    staff: {
+      title: 'For clan staff',
+      intro:
+        'Admin → **Clan settings** → **Boosts** is for owners and admins. Staff cannot place boosts for members; members place their own.',
+      rows: [
+        {
+          term: 'The level',
+          body: 'the clan’s level, how many boosts are counting, how many more reach the next level, and any grace week.',
+        },
+        {
+          term: 'Recruiting line',
+          body: 'Level 2. One sentence, up to 140 characters, shown to people who are not in the clan on your clan page and Clan Hall card.',
+        },
+        {
+          term: 'Recruitment post in the Anvil Discord',
+          body: 'Level 3. Once a calendar month, 20 to 500 characters, written by you and posted when you press **Post it**, with a link to your clan page. Mentions are removed and nobody is pinged. You can’t edit it or send another until next month.',
+        },
+        {
+          term: 'Boosters',
+          body: 'the list of characters boosting the clan.',
+        },
+      ],
+      note: {
+        tag: 'Gifted boosts from Anvil',
+        body: 'Anvil staff can gift a clan a level, for a set time or with no end. The gift adds only the boosts the clan is missing to reach that level, shown as **Anvil gift** on the clan’s Boosters list. Each real boost from a member replaces one gifted boost, and a clan already above the gifted level keeps its own. When the gift ends, the clan falls back to the level its members’ boosts give it.',
+      },
+    },
+
+    boosters: {
+      title: 'Booster marks and badges',
+      intro: 'What a booster gets in the clan they boost:',
+      rows: [
+        {
+          term: 'The Booster mark',
+          body: 'a small gem beside their character in that clan’s roster, feed and Discord posts. Hover it for “Boosts this clan”.',
+        },
+        {
+          term: 'The Boosters wall',
+          body: 'on the clan page: one row per character, most boosts first, then the longest standing.',
+        },
+        {
+          term: 'Badges',
+          body: '**First booster** for whoever placed the clan’s first boost ever; **1 month**, **3 months**, **6 months** and **1 year** of boosting without a break; and **Level-up 1**, **2** or **3** for the boost that lifted the clan to that level.',
+        },
+      ],
+      note: {
+        tag: 'Moving starts the clock again',
+        body: 'Badges for time count from the character’s earliest boost that is still counting, so moving or removing a boost starts them over. Your profile lists the clans you boost, once per clan.',
+      },
     },
   },
 };

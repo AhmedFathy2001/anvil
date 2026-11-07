@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { GuideShell, Note, Rows, Section } from '../_components/GuideUI';
 import { localeChrome } from '../_components/LanguageBar';
-import { getDict } from '../_i18n';
+import { getDict, guideHref } from '../_i18n';
 import { guideMetadata } from '../_i18n/meta';
 import { items, paragraphs, rows, rt } from '../_i18n/rich';
 
@@ -17,6 +17,7 @@ export default async function ModeratorGuide({ lang }: { lang: string }) {
   const t = await getDict(lang);
   const m = t.moderator;
   const { locale, languages, notice } = localeChrome(lang, 'moderator', t.common);
+  const v = { peopleGuide: guideHref(locale.code, 'people') };
 
   const SECTIONS = [
     { id: 'what', n: 1, title: m.what.title },
@@ -44,7 +45,7 @@ export default async function ModeratorGuide({ lang }: { lang: string }) {
     >
       <Section id="what" n={1} title={m.what.title} labels={t.common}>
         <p className="text-text-muted">{rt(m.what.intro)}</p>
-        <ul className="list-disc pl-5 text-text-muted space-y-1.5 text-sm">{items(m.what.canList)}</ul>
+        <ul className="list-disc pl-5 text-text-muted space-y-1.5 text-sm">{items(m.what.canList, v)}</ul>
         <p className="text-text-muted">{rt(m.what.cantIntro)}</p>
         <ul className="list-disc pl-5 text-text-muted space-y-1.5 text-sm">{items(m.what.cantList)}</ul>
       </Section>
@@ -62,12 +63,12 @@ export default async function ModeratorGuide({ lang }: { lang: string }) {
         <p className="text-text-muted">{rt(m.verify.intro)}</p>
         <Rows rows={rows(m.verify.rows)} />
         <Note tag={m.verify.note.tag}>
-          <p>{rt(m.verify.note.body)}</p>
+          <p>{rt(m.verify.note.body, v)}</p>
         </Note>
       </Section>
 
       <Section id="roster" n={5} title={m.roster.title} labels={t.common}>
-        {paragraphs(m.roster.body)}
+        {paragraphs(m.roster.body, v)}
         <Note tag={m.roster.note.tag}>
           <p>{rt(m.roster.note.body)}</p>
         </Note>

@@ -35,6 +35,7 @@ export default async function ClanGuide({ lang }: { lang: string }) {
     clanVsClanGuide: guideHref(locale.code, 'clan-vs-clan'),
     boardGuide: guideHref(locale.code, 'board'),
     moderatorGuide: guideHref(locale.code, 'moderator'),
+    peopleGuide: guideHref(locale.code, 'people'),
   };
 
   const SECTIONS = [

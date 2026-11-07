@@ -189,6 +189,27 @@ const zhHans: PartialGuideDict = {
           '所有者、admin、司库和管理员：各自能管到哪里、怎样让某人成为管理员、谁能授予哪个角色，以及只负责一场活动的职务。',
         minutes: '约 6 分钟',
       },
+      supporter: {
+        eyebrow: '面向玩家',
+        title: 'Anvil Supporter：档位与福利',
+        blurb:
+          'Supporter、Champion 和 Patron：名字颜色、星标、资料图片、展示柜、好友活动和氏族助力，付费怎样运作，以及停止付费后会怎样。',
+        minutes: '约 6 分钟',
+      },
+      sidePanel: {
+        eyebrow: '面向玩家',
+        title: '侧边面板逐个标签页讲解',
+        blurb:
+          'Clan、Feed、You、Lookup 和齿轮：每个标签页显示什么、活动聊天、GZ 和 Sad 反应，以及把动态和 Supporter 颜色带进游戏的设置。',
+        minutes: '约 6 分钟',
+      },
+      clanBoosts: {
+        eyebrow: '面向 Supporter 和氏族管理团队',
+        title: '为氏族助力',
+        blurb:
+          '放置和移动助力、三个等级及各自解锁的内容、氏族的名字颜色、赠送的助力，以及助力者标记和徽章。',
+        minutes: '约 5 分钟',
+      },
     },
   },
 
@@ -342,8 +363,8 @@ const zhHans: PartialGuideDict = {
           body: '在游戏里开着插件打开氏族窗口，按标题栏上的 **Anvil** 按钮。你的整份成员名单会连同等级一起送达，而来自名字与你不符的氏族的名单会被拒绝。有人加入或离开时重复一次即可——参见[玩家设置指南]({pluginGuide})。',
         },
         {
-          term: '他们玩一次',
-          body: '插件会自动识别新账号，并将其作为**访客**追踪。已在成员名单中的账号会显示在个人资料中，关联前需要完成一次 XP 验证或管理员批准。',
+          term: '他们申请加入',
+          body: '登录或带着插件游玩，本身都不会给任何人席位。如果插件看到有人在你们的游戏内氏族里游玩、而名单上还没有他，它会替他提交一份加入申请；其他人可以在你们的氏族页面上用 **Apply** 申请。管理团队在 **Roster** 标签页顶部处理这两种申请，而 **Who can join** 决定他们是等一个「同意」、直接进入，还是根本不能申请。玩着一个已经在你们名单上的角色的人，则改在 **Needs review** 里确认。详情见[你的成员]({peopleGuide})。',
         },
         {
           term: '手动添加',
@@ -352,7 +373,7 @@ const zhHans: PartialGuideDict = {
       ],
       note: {
         tag: '访客不是需要解决的问题',
-        body: '访客不过是我们见过、但不在你名单上的人——来访氏族的玩家、小号、今天早上刚加入的人。他们可以参加活动，而永远不必成为成员。',
+        body: '访客是不在你们游戏内氏族里、却在你们活动中游玩的人：来访氏族的玩家、朋友、小号。管理团队批准他们的申请时，他们就会得到席位；如果 **Who can join** 设为 **Let anyone in**，则立刻得到。他们会被记录、可以参加活动，并且不计入你们的套餐。在游戏里加入你们的人，会在下一次名单同步时成为成员。',
       },
     },
     first: {
@@ -757,8 +778,8 @@ const zhHans: PartialGuideDict = {
       },
       panelHeading: '侧边面板',
       panelBody: [
-        '三个标签页。**Clan** 是你的活动和你的氏族：每一场进行中和即将开始的宾果与每周竞赛，以及你所处的位置、氏族本周的情况和最大的几个账号。**You** 是你自己的资料 —— 细到每一页物品的 collection log、最新解锁、技能、Boss、线索、最佳用时，以及你在网站上设定的目标。**Lookup** 用来查找其他任何人，玩家或氏族都可以。',
-        '在某人的卡片上，**Compare with me** 会把你们两人按技能、按 Boss、按页面逐项对比。齿轮图标打开面板自己的设置：同步你的资料和氏族成员名单，以及你的横幅和任务提示音。',
+        '四个标签页和一个齿轮。**Clan** 是你的活动和你的氏族：每一场进行中和即将开始的宾果与每周竞赛，以及你所处的位置。**Feed** 是你的氏族和棋盘上发生的大事，实时滚动，还带活动聊天。**You** 是你自己的资料，**Lookup** 用来查找其他任何人，玩家或氏族都可以。齿轮里是同步和你的横幅提示音。',
+        '每个标签页、活动聊天、反应，以及把动态和 Supporter 颜色带进游戏的设置，都在[侧边面板逐个标签页讲解]({panelGuide})里。',
       ],
       panelFigure: {
         caption: 'Clan · You · Lookup',
@@ -1048,7 +1069,7 @@ const zhHans: PartialGuideDict = {
       title: '把成员名单导进来',
       body: [
         '氏族成员资格只有一个来源：从游戏内同步一次成员名单。在一位_管理员_的账号上安装 [Anvil 的 RuneLite 插件]({pluginGuide})，在游戏里打开氏族窗口，然后按标题栏上的 **Anvil** 按钮。这会一键把你们真实的游戏内氏族名单推送到网站。',
-        '任何在网站上关联或验证了账号、却不在那份名单上的人都是**访客** —— 会被记录、可见，但在管理员提升他们或下一次同步把他们收进来之前都不算成员。这是有意为之：这意味着没有人能靠打一个名字把自己提升进你们的氏族。',
+        '登录、关联角色或带着插件游玩，都不会把任何人放进名单。如果插件看到有人在你们的游戏内氏族里游玩、而名单上还没有他，它会提交一份加入申请；其他人可以在你们的氏族页面上用 **Apply** 申请。管理团队在 **People → Roster** 顶部处理申请，而 **People → Who can join** 决定大家是等一个「同意」、直接拿到访客席位，还是根本不能申请。这是有意为之：没有人能靠输入氏族名就加入你们。完整说明见[你的成员]({peopleGuide})。',
         '你也可以在 **People → + Add Manually** 里手动添加某人；在他们无法访问网站时，还可以在活动的 **Sign-ups** 页面用 **Add member** 代为报名。',
       ],
     },
@@ -1867,7 +1888,7 @@ const zhHans: PartialGuideDict = {
       { strong: '1 行', rest: '对应一位领钱的人' },
     ],
     footnote:
-      '报名费与奖金发放是司库的地盘。司库能做管理员能做的一切，外加这些；管理员可以把一笔费用标记为已收，但永远无法结清它。',
+      '报名费与奖金发放是司库的地盘。司库能做管理员能做的一切，外加这些；普通管理员根本看不到报名费相关的页面。',
 
     set: {
       title: '设定费用',
@@ -2108,7 +2129,7 @@ const zhHans: PartialGuideDict = {
       intro:
         '角色是向下叠加的：管理员能做的一切，司库和 admin 也都能做。而专属于管理员的是：',
       canList: [
-        '成员名单：同步它、添加成员、把访客提升为成员',
+        '成员名单：添加和移除成员，以及处理加入申请（[你的成员]({peopleGuide})）',
         '账号验证 —— 经验挑战和人工审核',
         '提交与凭证截图',
         '每周竞赛与日程',
@@ -2173,7 +2194,7 @@ const zhHans: PartialGuideDict = {
       ],
       note: {
         tag: '已验证不等于成员',
-        body: '验证一个账号，说的是「这确实是他的」。这并不会把他放进氏族 —— 氏族成员资格只来自游戏内的成员名单同步，或者由管理员手动添加。已验证但不在名单上的人是**访客**：被记录、可见，但不是成员。这是刻意的，也正是它挡住了任何人靠打一个名字就加入你们氏族。',
+        body: '验证一个账号，说的是「这确实是他的」。它不会把人放进氏族。成员身份只来自游戏内名单同步或管理团队手动添加，访客席位只来自管理团队批准的加入申请（如果氏族允许任何人进入，则立刻获得）。这是有意为之，也正是它挡住了任何人靠输入名字就加入你们的氏族。',
       },
     },
 
@@ -2181,7 +2202,7 @@ const zhHans: PartialGuideDict = {
       title: '让成员名单保持诚实',
       body: [
         '成员名单只有一个来源：由管理员从游戏内的氏族列表跑一次同步，入口是氏族窗口标题栏上的 **Anvil** 按钮（或插件侧边栏的 **Sync roster**）。其他一切 —— 验证、关联、报名 —— 都挂在它上面。',
-        '所以维护工作量很小但是实打实的：每轮招新之后跑一次同步、把真正加入了的访客提升为成员，并主动去看站点标记出来需要复核的人，而不是等他们来抱怨。',
+        '所以维护工作量很小但是实打实的：每轮招新之后请 admin 同步一次（这会把在游戏里加入的访客变成成员），处理 **Roster** 标签页顶部的加入申请，并主动处理 **Needs review**，而不是等人来抱怨。见[你的成员]({peopleGuide})。',
       ],
       note: {
         tag: '最后一次看到 ≠ 最后一次在玩',
@@ -3063,12 +3084,12 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: 'Ban from this clan',
-          body: '结束此人在这里的所有席位（包括小号），并阻止他们回来：在封禁解除之前，名单同步、插件和加入申请都会拒绝他们。他们的 Anvil 账号和其他氏族不受影响。仅限 admin，且只能针对有站点账号的人，可从行菜单或 **Staff & roles** 操作。解除封禁不会让他们回来；他们需要在游戏里重新加入，或由你们添加。',
+          body: '结束此人在这里的所有席位（包括小号），移除他在本氏族担任的所有管理团队角色和棋盘职务，并阻止他回来：在封禁解除之前，名单同步、插件和加入申请都会拒绝他。他的 Anvil 账号和其他氏族不受影响。仅限 admin，且只能针对有站点账号、角色低于 admin 的人；可从行菜单、**Staff & roles** 操作，也可以一次封禁多人。解除封禁不会让他回来；他需要在游戏里重新加入，或由你们添加。',
         },
       ],
       note: {
-        tag: '封禁不会移除管理团队角色',
-        body: '封禁某人会结束他的席位，但他在这里担任的管理团队角色会保留。要移除一位管理团队成员，先在 Staff & roles 把他的角色设为 **Member**，再封禁他。',
+        tag: '封禁也会移除管理团队角色',
+        body: '封禁某人会结束他的席位，并拿走他的管理团队角色，以及他在本氏族棋盘上的棋盘编辑或棋盘司库职务。解除封禁不会把这些还给他：如果他还该拥有角色，请在 Staff & roles 重新设置。',
       },
     },
 
@@ -3133,7 +3154,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: 'Treasurer',
-          body: '报名费、金库和奖金。司库也能进入大部分管理员页面（凭证、竞赛、Needs review），但进不了名单列表和日程。',
+          body: '报名费、金库和奖金，再加上管理员能做的一切：名单、凭证、竞赛、日程和 Needs review。',
         },
         {
           term: 'Moderator',
@@ -3207,8 +3228,8 @@ const zhHans: PartialGuideDict = {
         { area: '待核查的凭证', cells: ['是', '是', '是', '是', '否'] },
         { area: '每周竞赛', cells: ['是', '是', '是', '是', '否'] },
         { area: '氏族活动', cells: ['是', '是', '是', '是', '否'] },
-        { area: '日程', cells: ['是', '是', '否', '是', '否'] },
-        { area: '名单：查看、添加、移除', cells: ['是', '是', '否', '是', '否'] },
+        { area: '日程', cells: ['是', '是', '是', '是', '否'] },
+        { area: '名单：查看、添加、移除', cells: ['是', '是', '是', '是', '否'] },
         { area: '加入申请和 Needs review', cells: ['是', '是', '是', '是', '否'] },
         { area: '在氏族中封禁某人', cells: ['是', '限 admin 以下', '否', '否', '否'] },
         { area: 'Staff & roles', cells: ['是', '限 admin 以下', '否', '否', '否'] },
@@ -3242,7 +3263,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '棋盘司库',
-          body: '收取那块棋盘的报名费并执行它的奖金发放，但碰不到氏族金库。同样在 **Board staff** 下授予。',
+          body: '收取那块棋盘的报名费并执行它的奖金发放，但碰不到氏族金库。在管理区域里，他们只能看到自己的棋盘，而且每块棋盘只能看到 **Sign-ups** 和 **Prizes** 两个标签页。同样在 **Board staff** 下授予。',
         },
         {
           term: '队伍管理',
@@ -3269,7 +3290,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: 'admin 之间不能互相移除',
-          body: 'admin 既不能降级、也不能封禁另一位 admin。两位 admin 意见不合时，由所有者决定。',
+          body: 'admin 既不能降级、也不能封禁另一位 admin，无论是一次一位还是一次多位。两位 admin 意见不合时，由所有者决定。封禁也会拿走此人在本氏族的管理团队角色和棋盘职务。',
         },
         {
           term: '钱要两个人经手',
@@ -3288,6 +3309,595 @@ const zhHans: PartialGuideDict = {
           body: 'Anvil 的身份组同步把 Discord 身份组对应到**游戏内等级**，而不是站点角色。在这里让某人成为管理员，并不会在你们的 Discord 服务器里给他任何东西；你们在 Discord 里手动发出的管理身份组也不会被动。唯一会改动东西的机器人命令 —— 用 `/coffer` 往金库里添加 —— 检查的是站点角色：司库、admin 或所有者。',
         },
       ],
+    },
+  },
+  supporter: {
+    metaTitle: 'Anvil Supporter：档位与福利 — Anvil',
+    metaDescription:
+      'Anvil Supporter、Champion 和 Patron 各自得到什么：名字颜色和星标、金色 GZ、动态头像和横幅、展示柜、好友活动、一对一挑战、活动聊天和氏族助力。Gumroad 付费怎样运作，以及取消后会怎样。',
+    eyebrow: 'Anvil · 面向玩家',
+    title: 'Anvil Supporter：档位与福利',
+    dek: 'Anvil Supporter 是一项个人订阅，用来支付 Anvil 的服务器费用。它分三个档位，每一档都包含下一档的全部内容。每项福利都只关乎外观或办活动的空间：记录、活动、计分和你自己的数据对所有人始终免费，这里的任何东西都不会改变一场活动的计分。',
+    facts: [
+      { strong: '每月 $1 起', rest: '或每年 $10' },
+      { strong: '只关乎外观', rest: '绝不涉及分数、排名或物品' },
+      { strong: '什么都不会删除', rest: '即使你停止付费' },
+    ],
+    footnote:
+      '这里的一切都在网站的 **Settings** → **Supporter**、**Profile look** 和 **Clan boosts** 里设置。助力的详情见[为氏族助力]({boostsGuide})。你的颜色在 RuneLite 里出现在哪里，见[侧边面板逐个标签页讲解]({panelGuide})。',
+
+    tiers: {
+      title: '三个档位',
+      intro: '价格在 **Anvil Supporter** 页面 `/supporter` 上。年付方案的价格等于十个月。',
+      rows: [
+        {
+          term: 'Supporter',
+          body: '每月 $1 或每年 $10。金色名字和星标、金色 GZ、4 格展示柜，并且可以举办一场好友活动。',
+        },
+        {
+          term: 'Champion',
+          body: '每月 $2 或每年 $20。自选渐变名字颜色、你自己的头像和横幅（可以是动态的）、8 格展示柜、更快的活动聊天，以及 1 次氏族助力。',
+        },
+        {
+          term: 'Patron',
+          body: '每月 $5 或每年 $50。任意你喜欢的颜色，配上会流动的渐变、12 格展示柜、活动聊天无需等待、同时举办 2 场好友活动，以及 2 次氏族助力。',
+        },
+      ],
+      note: {
+        tag: '邀请换来的时长',
+        body: '在 Settings → Supporter 下有你的邀请链接。你邀请的朋友付费后，你会获得免费月份；奖励在对方首次付款两周后到账。用这种方式获得的时长，享有该档位除氏族助力之外的全部福利。',
+      },
+    },
+
+    compare: {
+      title: '每个档位得到什么',
+      intro: '和 Supporter 页面上的表格相同，另加了聊天福利。',
+      table: {
+        areaLabel: '福利',
+        columns: ['免费', 'Supporter', 'Champion', 'Patron'],
+        rows: [
+          { area: '名字颜色', cells: ['—', '金色', '预设，或一种自选颜色', '预设，或最多四种颜色，会流动'] },
+          { area: '名字旁的星标', cells: ['—', '有', '有', '有'] },
+          { area: '金色 GZ', cells: ['—', '有', '有', '有'] },
+          { area: '自己的头像和横幅，可动态', cells: ['—', '—', '有', '有'] },
+          { area: '展示柜', cells: ['—', '4 格', '8 格', '12 格'] },
+          { area: '好友活动（同时场数 · 人数）', cells: ['仅可加入', '1 · 10', '1 · 25', '2 · 50'] },
+          { area: '一对一挑战', cells: ['同时 1 个', '同时 5 个', '不限', '不限'] },
+          { area: '活动聊天：两句之间的等待', cells: ['5 秒', '3 秒', '1 秒', '无'] },
+          { area: '氏族助力', cells: ['—', '—', '1', '2'] },
+        ],
+      },
+      outro:
+        '**Settings** → **In-game chat** 下还有三项：你自己的聊天动态颜色（Supporter）、选择登录简报包含哪些内容（Champion），以及在其他玩家的聊天动态里你名字旁的星标（Patron）。',
+    },
+
+    names: {
+      title: '名字颜色',
+      intro:
+        '在 **Settings** → **Supporter** 的 **Your name’s look** 里设置。预览会显示你的名字在深色背景和浅色背景上的样子。',
+      rows: [
+        {
+          term: 'Supporter',
+          body: '纯金色。没有可选的。',
+        },
+        {
+          term: 'Champion',
+          body: '预设渐变之一（默认的 **Classic**、**Ember**、**Ocean**、**Aurora**、**Rose gold** 或 **Toxic**），或 **Your own**：一种静态颜色。在你所有的角色上，最多只能用两种不同的自选颜色。',
+        },
+        {
+          term: 'Patron',
+          body: '全部预设，外加 Patron 默认的 **Prism**；或者一到四种颜色的 **Your own**。一种颜色保持静止；两到四种颜色组成从左向右流动的渐变。',
+        },
+      ],
+      outro:
+        '**Your Anvil display name** 是你关联 Discord 的账号上的名字。在 **Your RuneScape characters** 下，选择 **Same for all** 或 **Customize each**，为每个角色设置各自的外观。按 **Save**（或 **Save for all characters**）；**Reset to default** 会恢复为你档位的颜色。',
+      note: {
+        tag: '深色和浅色背景',
+        body: '网站、插件面板和 Discord 是深色的；游戏的不透明聊天框是浅色的。Anvil 会调整你的颜色，让它在两者上都清晰可读。如果你想在其中一种上用不同的外观，打开 **Set a separate look for dark backgrounds** 或 **for light backgrounds**。那个外观会完全按你选的显示，不做对比度修正；难以阅读时预览会提醒你。',
+      },
+    },
+
+    where: {
+      title: '你的装饰出现在哪里',
+      intro: '你的颜色和星标会出现在你名字出现的每个地方：',
+      rows: [
+        {
+          term: '网站上',
+          body: '棋盘、名单、资料页、顶栏里你自己的名字，以及你的角色名。星标也用你的颜色。',
+        },
+        {
+          term: '插件面板里',
+          body: 'Feed、活动聊天、卡片和 **Tracking** 那一行。Patron 的渐变会流动；每位玩家都可以用 **Animated names** 让它停下。',
+        },
+        {
+          term: '游戏里',
+          body: '对其他使用 Anvil 插件的玩家可见：公共、氏族、好友和私聊，氏族广播，登录提示，好友和氏族列表，以及右键菜单（PvP 世界和荒野中绝不显示）。在游戏聊天里，星标是 Patron 专属的。',
+        },
+        {
+          term: 'Discord 里',
+          body: 'Anvil 发布的帖子里你名字旁的星标；如果你选了颜色，就用你的颜色绘制。',
+        },
+        {
+          term: '金色 GZ',
+          body: '在网站上氏族动态里氏族成员的掉落下，你的 GZ 可以是金色的。只有 Supporter 能给出。',
+        },
+      ],
+      note: {
+        tag: '只在被证实属于你的角色上',
+        body: '无论在网站上还是游戏里，颜色只出现在插件已确认属于你的角色上。若不想在别人的游戏聊天里让你的名字带颜色，在 Settings → Supporter 下取消勾选 **Show my colours on my characters’ names in game chat**。',
+      },
+    },
+
+    profile: {
+      title: '头像、横幅和展示柜',
+      intro: '三者都在 **Settings** → **Profile look** 下。',
+      rows: [
+        {
+          term: '头像和横幅',
+          body: 'Champion 和 Patron 可用。上传你自己的图片；GIF 或 WebP 会保持动态。它们会出现在你的卡片、你的资料页和你的每个角色上，网站和插件里都有。横幅最大 6 MB，至少 600×150；头像最大 2 MB。',
+        },
+        {
+          term: '按角色设置',
+          body: '给某个角色单独设置横幅或头像，或两者都设。它只在该角色的页面和插件卡片上替换你的默认设置。',
+        },
+        {
+          term: '展示柜',
+          body: '把你最好的掉落、击杀数和用时钉在资料页上：Supporter 4 格，Champion 8 格，Patron 12 格。来自你没有公开的角色的展示项保持私密。',
+        },
+      ],
+    },
+
+    hosting: {
+      title: '好友活动、一对一挑战和聊天',
+      intro: '这些福利给你更多玩的空间，而不是外观：',
+      rows: [
+        {
+          term: '好友活动',
+          body: '在 **Host an event for your friends** 里为朋友举办你自己的宾果、单人宾果或竞速，由插件像氏族活动一样记录。朋友通过你的邀请链接加入。Supporter：1 场进行中的活动，10 名玩家。Champion：1 场，25 名玩家。Patron：同时 2 场，合计 50 名玩家。任何人都能加入。',
+        },
+        {
+          term: '一对一挑战',
+          body: '在朋友的资料页向他发起挑战：谁先拿到某个掉落，或在 1 小时、24 小时或 7 天内谁的击杀数或经验更多。只为面子，不涉及其他。免费玩家同时可有 1 个，Supporter 5 个，Champion 和 Patron 想要多少都行。',
+        },
+        {
+          term: '活动聊天',
+          body: '两句之间要等多久：没有档位 5 秒，Supporter 3 秒，Champion 1 秒，Patron 无需等待。当某块棋盘的聊天变得繁忙时，所有人都要等 10 秒，Patron 也不例外。',
+        },
+        {
+          term: '氏族助力',
+          body: '付费期间，Champion 1 次，Patron 2 次。见[为氏族助力]({boostsGuide})。',
+        },
+      ],
+    },
+
+    billing: {
+      title: '付费、变更和取消',
+      intro: 'Anvil Supporter 通过 Gumroad 收费，按月或按年。',
+      steps: [
+        '在 Anvil 上登录，打开 `/supporter`。',
+        '按 **Choose Supporter**、**Choose Champion** 或 **Choose Patron**。Gumroad 的结账页面会打开，可选按月或按年付费。',
+        '付款。Gumroad 一通知 Anvil，你的福利就会开启，你的档位会以 **Your tier** 显示在 Supporter 页面上。',
+      ],
+      outro:
+        '要更换档位，用 Settings → Supporter 下的 **Change tier**。要取消或更新银行卡，用同一处的 **Manage on Gumroad**。已取消的会员在已付费周期结束前保留全部福利。',
+      note: {
+        tag: '始终从 /supporter 开始',
+        body: '**Choose** 按钮带着一个代码，告诉 Anvil 是哪个账号付的款。Anvil 从不按邮箱匹配付款，所以不经过那个按钮、直接在 Gumroad 上购买，付款就不会关联到任何账号。如果发生了这种情况，请到 Anvil Discord 里询问，工作人员可以手动把它关联到你的账号。',
+      },
+    },
+
+    lapse: {
+      title: '降档或停止',
+      intro:
+        '你设置的东西一样都不会删除。每项福利都按你当前的档位检查，所以它会自动关闭，并在你续费后立刻恢复。',
+      rows: [
+        {
+          term: '名字颜色',
+          body: '你保存的选择会一直保存着。在允许它的档位回来之前，你显示新档位的颜色，或者没有颜色。',
+        },
+        {
+          term: '头像和横幅',
+          body: '低于 Champion 时，它们显示静止的第一帧，而不是动起来。',
+        },
+        {
+          term: '展示柜',
+          body: '显示你的档位允许的前几个展示项，其余隐藏。没有档位时整个展示柜隐藏；展示项会等着你。',
+        },
+        {
+          term: '氏族助力',
+          body: '你最早的助力继续算数，其余的暂停，而不是被移除。',
+        },
+      ],
+      note: {
+        tag: 'Anvil 工作人员给的临时升级',
+        body: '工作人员可以在一段时间内给某人更高的档位，比如作为感谢。它叠加在你付费的档位之上，从不改变你的订阅。Settings → Supporter 会显示 **A gift from Anvil** 以及它何时结束；之后你回到自己付费的档位。只有工作人员把氏族助力名额包含在内时，赠送才会带来助力名额。',
+      },
+    },
+  },
+
+  sidePanel: {
+    metaTitle: 'Anvil 侧边面板逐个标签页讲解 — Anvil',
+    metaDescription:
+      'Anvil RuneLite 侧边面板的每个标签页（Clan、Feed、You、Lookup 和齿轮）显示什么，活动聊天和 Feed 反应怎样运作，以及关于游戏聊天中的动态、Supporter 颜色和动态名字的插件设置。',
+    eyebrow: 'Anvil · 面向玩家',
+    title: '侧边面板逐个标签页讲解',
+    dek: 'RuneLite 侧边栏里的 Anvil 按钮会打开一个面板，有四个标签页和一个齿轮：**Clan**、**Feed**、**You**、**Lookup** 和 ⚙。它显示的大部分内容来自网站，所以不用更新插件也会保持最新。下面有几项标注为将在下一次插件更新中推出。',
+    facts: [
+      { strong: '四个标签页', rest: '外加一个用于同步和设置的齿轮' },
+      { strong: '活动聊天', rest: '在 Feed 标签页里' },
+      { strong: 'GZ、Sad、Sit', rest: '在 Feed 的每一行上' },
+    ],
+    footnote:
+      '安装插件和登录见[RuneLite 插件设置]({pluginGuide})。Supporter 颜色、星标和聊天福利在[Anvil Supporter：档位与福利]({supporterGuide})里说明。',
+
+    header: {
+      title: '面板顶部',
+      intro: '标签页上方是标题、**Refresh** 和账号那一行。',
+      rows: [
+        {
+          term: 'Refresh',
+          body: '重新加载面板，包括 Feed 标签页。加载时显示 **Refreshing…**。在下一次插件更新中，它也会重新加载 You 和 Lookup，所以新头像或横幅会立刻显示，而且不再清空 Feed 标签页。',
+        },
+        {
+          term: 'Tracking',
+          body: '标题下的那一行写着正在记录的角色名；如果它有 Supporter 颜色，就用那个颜色显示。**Not my account…** 会停止记录别人在这台电脑上玩的角色；**Track again** 可以撤销。',
+        },
+        {
+          term: '账号菜单',
+          body: '⋯ 链接会打开 **View my profile on Anvil**、**Not my account…** 和 **Sign out…**。在下一次插件更新中，它还会有 **Become a Supporter**，如果你已经是 Supporter，则是 **Your Supporter perks**。',
+        },
+        {
+          term: '赛季进度',
+          body: '在下一次插件更新中，在 Leagues、Deadman 和其他赛季世界里，会有一行 **Sharing season progress · Turn off**。它把你的遗物、区域和任务（附截图）发给你的氏族；发布哪些内容由你的氏族在网站上决定。**Turn on** 会重新开始分享。同一个开关也是插件设置里的 **Share seasonal activity**。',
+        },
+      ],
+    },
+
+    clan: {
+      title: 'Clan',
+      intro:
+        '你的活动和你的氏族。在创作者空间里，这个标签页显示为 **Space**。',
+      rows: [
+        {
+          term: '氏族下拉菜单',
+          body: '当你在不止一个氏族或空间里游玩时显示。**All clans**（默认）显示你参与的一切，进行中的活动排在最前。选择一个氏族会把面板限定到它，并把你的提交归到那里。',
+        },
+        {
+          term: '活动',
+          body: '每一块进行中和即将开始的棋盘、Skill of the Week 或 Boss of the Week，以及氏族活动，还有你所处的位置。接着是 **Your other boards**、**Also live** 和 **Your clan**。',
+        },
+        {
+          term: '一块棋盘',
+          body: '打开一块棋盘，可以看到排名、队伍、任务、最近动态、最近的格子和 **View all tiles**。它的 **Feed** 和 **Chat** 按钮会在 Feed 标签页里打开那块棋盘。',
+        },
+        {
+          term: '一场氏族活动',
+          body: '视活动而定，是 **I’m going**、**Sign me up** 或 **Answer the survey**。',
+        },
+      ],
+    },
+
+    feed: {
+      title: 'Feed',
+      intro:
+        '你的氏族和棋盘上的大事，实时呈现：掉落、宠物、成就、任务、死亡和完成的格子。',
+      rows: [
+        {
+          term: '谁的动态',
+          body: '顶部的下拉菜单列出你所在的每个氏族（**Clan ·**）和你参加的每块进行中的棋盘（**Event ·**）。如果你有棋盘就打开你的棋盘，否则打开你的氏族。',
+        },
+        {
+          term: '筛选',
+          body: '**All**、**Tiles**（仅棋盘）、**Drops**、**Pets**、**Achievements**、**Deaths**，以及在你有所属队伍的棋盘上的 **My team**。氏族动态还有一个查看 Leagues 等游戏模式活动的按钮。',
+        },
+        {
+          term: '新的行',
+          body: '会自动出现。如果你已经滚动离开，一个 **↑ N new** 小标签会带你回到它们。',
+        },
+      ],
+      note: {
+        tag: '和游戏内聊天动态不是一回事',
+        body: '无论插件设置如何，Feed 标签页都能用。**Show feed in game chat**（步骤 8）是另一个设置，它会把动态也打印到你的聊天框里。',
+      },
+    },
+
+    reactions: {
+      title: '反应',
+      intro: 'Feed 里的每一行下面都有它的反应：',
+      rows: [
+        {
+          term: 'GZ',
+          body: '用于掉落、宠物和成就。旁边会显示数量，例如 **GZ 3**。',
+        },
+        {
+          term: 'Sad 和 Sit',
+          body: '用于死亡，代替 GZ。Sit 是游戏里叫死掉的人「坐下」的调侃说法。',
+        },
+        {
+          term: '谁能反应',
+          body: '在氏族动态上，是氏族成员。在棋盘上，是该棋盘的玩家和主办方的管理团队；当一块棋盘隐藏排名时，玩家只能对自己队伍的行做出反应。',
+        },
+        {
+          term: '谁做了反应',
+          body: '把鼠标悬停在反应上即可看到名字，例如「GZ · Mossy and 3 others」。再点一次就撤回你的反应。',
+        },
+      ],
+      note: {
+        tag: '下一次插件更新中',
+        body: '反应会变成胶囊按钮，你点过的会着色，其他人的反应会为所有正在看的人实时更新，包括你自己的其他客户端。目前，数量会在你做出反应或 Feed 重新加载时变化。金色 GZ 是 Supporter 的反应，在网站的动态里给出；Feed 标签页有 GZ、Sad 和 Sit。',
+      },
+    },
+
+    chat: {
+      title: '活动聊天',
+      intro:
+        '开启了聊天的棋盘，会在 Feed 标签页顶部有一个 **Feed / Chat** 切换，供该棋盘的玩家和主办方的管理团队使用。Clan 标签页里的棋盘页面也有一个 **Chat** 按钮。',
+      rows: [
+        {
+          term: '所有人或你的队伍',
+          body: '**All** 发给整块棋盘，**My team** 只发给你的队伍（这些行标有 **TEAM**）。管理团队还能看到 **Host & mods**，他们的行标有 **HOST** 或 **MOD**。',
+        },
+        {
+          term: '发送',
+          body: '在输入框里输入，按 Enter。每行最多 200 个字符，只有主办方和管理员能发链接。',
+        },
+        {
+          term: '多久一句',
+          body: '你两句之间的等待取决于你的 Supporter 档位：没有档位 5 秒，Supporter 3 秒，Champion 1 秒，Patron 无需等待。输入框下面那一行会写着你的等待时间。管理团队从不需要等待。',
+        },
+        {
+          term: '慢速模式',
+          body: '当某块棋盘的聊天非常繁忙时，所有人在一分钟内每句至少要等 10 秒，Patron 也不例外。任何人在 10 秒内都不能发超过 10 行。',
+        },
+        {
+          term: '管理',
+          body: '主办方和管理员可以右键某一行来 **Delete message** 或 **Mute** 某人，也可以用 **Pause chat (read-only for everyone)** 暂停整个聊天。',
+        },
+      ],
+      outro:
+        '同一个人连续发的多行共用一个名字和时间，直到出现 5 分钟的间隔。聊天记录在活动结束后保留 7 天。',
+    },
+
+    you: {
+      title: 'You 和 Lookup',
+      intro: '两个玩家卡片标签页：你自己的，和其他任何人的。',
+      rows: [
+        {
+          term: 'You',
+          body: '你当前登录角色的卡片：横幅和头像、**Display case**、细到每一页物品的 collection log，以及 **Skills**、**Bosses**、**Clues**、**Times** 和 **CAs**。下面是等你回应的 **Head-to-head** 挑战（**Accept** 或 **Decline**），以及带 **+ Add goal** 的 **Goals**。',
+        },
+        {
+          term: 'Lookup',
+          body: '在 **Players** 和 **Clans** 之间切换，输入名字并按 Enter。**Recent** 列出你最近查过的几个。在游戏里右键任何人并选择 **Anvil**，就会跳到这里。',
+        },
+        {
+          term: '对比',
+          body: '在别人的卡片上，**Compare with me** 会把你们两人按技能、按 Boss、按页面逐项对比。氏族的卡片上有 **Compare with my clan**。',
+        },
+      ],
+    },
+
+    gear: {
+      title: '齿轮标签页',
+      intro: '同步和设置，而不是用来看的东西：',
+      rows: [
+        {
+          term: 'Sync profile',
+          body: '把你的 collection log 和最佳用时发送到 Anvil。',
+        },
+        {
+          term: 'Sync clan roster',
+          body: '仅限氏族 admin：把游戏内氏族成员列表发送到网站。如果插件读不到你的氏族，会改为显示 **Join your clan channel to sync the roster**。',
+        },
+        {
+          term: 'Banner sounds',
+          body: '**Add clip** 设置横幅播放的声音，**Copy folder path** 用来管理这些声音，**Add mission clip** 用于任务。',
+        },
+        {
+          term: 'Become a Supporter',
+          body: '在下一次插件更新中，底部会有一个 ★ 链接，打开 Supporter 页面；如果你已经是 Supporter，则显示 **Your Supporter perks**。',
+        },
+      ],
+    },
+
+    settings: {
+      title: '改变你所见内容的设置',
+      intro:
+        '在 RuneLite 的 Anvil 配置里，位于 **Chat messages** 下。一开始全部是开启的。',
+      rows: [
+        {
+          term: 'Show feed in game chat',
+          body: '把动态也实时打印到你的聊天框：主办方开启了此功能的棋盘以及你作为访客所在的氏族里的大掉落、宠物和成就，你队友的格子进度，以及其他队伍完成的格子。',
+        },
+        {
+          term: 'Supporter names in chat',
+          body: '在公共、氏族、好友和私聊中，以及你的好友列表和频道成员列表上，显示 Supporter 的颜色（和 Patron 的星标）。名字列表从 Anvil 下载；关于你看到了谁，不会发送任何信息。',
+        },
+        {
+          term: 'Animated names',
+          body: '让 Patron 的渐变在面板、Feed 和活动聊天里流动。关闭则保持静止。在下一次插件更新中，它还会涵盖获得助力的氏族名字和面板里的动态横幅。',
+        },
+        {
+          term: 'Supporter names in menus',
+          body: '你右键 Supporter 时，在他们的名字上显示他们的颜色；PvP 世界和荒野中绝不显示。',
+        },
+        {
+          term: 'Over other plugins’ colours',
+          body: '开启时，Supporter 的颜色会替换其他插件（例如 Player Indicators）设置的名字颜色。关闭则不动那些名字。',
+        },
+      ],
+    },
+  },
+
+  clanBoosts: {
+    metaTitle: '为氏族助力 — Anvil',
+    metaDescription:
+      'Anvil 氏族助力怎样运作：谁拥有助力，放置和移动助力，三个助力等级及各自解锁的内容，氏族的名字颜色，赠送的助力，以及助力者标记和徽章。',
+    eyebrow: 'Anvil · 面向 Supporter 和氏族管理团队',
+    title: '为氏族助力',
+    dek: '正在付费的 Champion 或 Patron 可以为自己是成员的氏族放置一次助力。来自氏族成员的助力足够多时，氏族就会升一级，而每一级都会改变氏族的外观和它在列表中的位置。助力只关乎外观：它们从不改变等级、分数、席位或氏族的套餐。',
+    facts: [
+      { strong: 'Champion 1 次、Patron 2 次', rest: '付费期间的助力' },
+      { strong: '3、8、15 次', rest: '算数的助力对应 1、2、3 级' },
+      { strong: '每周一次', rest: '助力可以移动' },
+    ],
+    footnote:
+      '成员在 **Settings** → **Clan boosts** 下放置助力。氏族管理团队在 管理 → **Clan settings** → **Boosts** 下查看等级及其选项。档位本身见[Anvil Supporter：档位与福利]({supporterGuide})。',
+
+    what: {
+      title: '谁拥有助力',
+      intro: '助力随付费会员一起提供：',
+      rows: [
+        { term: 'Champion', body: '1 次助力。' },
+        { term: 'Patron', body: '2 次助力。' },
+        {
+          term: 'Supporter',
+          body: '没有。通过邀请获得的时长也没有。Anvil 工作人员给的临时升级，只有在工作人员把名额包含在内时才有。',
+        },
+      ],
+      outro:
+        '助力属于你，而不属于某个角色：三个角色在三个氏族里，仍然共用一套助力。**Settings** → **Clan boosts** 只在你是 Supporter、或者仍有已放置的助力时才会出现在你的设置里。',
+    },
+
+    place: {
+      title: '放置和移动助力',
+      intro: '助力由你自己放置；没有人能替你放。',
+      steps: [
+        '打开 **Settings** → **Clan boosts**。**Your boosts** 列出你已放置的助力和任何 **Free slot**。',
+        '在 **Clans you can boost** 下，按氏族旁边的 **Boost**。你也可以在氏族自己页面的 Boosters 区域按 **Boost this clan**。',
+        '要移动一个助力，在它那一行用 **Move to…** 选择另一个氏族。**Remove** 会把它撤下。',
+      ],
+      rows: [
+        {
+          term: '满 14 天的成员席位',
+          body: '每次助力都依附在你的某个角色在游戏内氏族中持有的成员席位上。访客席位不能承载助力。席位的天数从以下两者中较早的那个算起：Anvil 第一次看到它的时间，或游戏显示该角色加入的时间。在那之前，氏族那一行会显示还剩几天。',
+        },
+        {
+          term: '每个氏族一行',
+          body: '列表中每个氏族只出现一次，助力依附在哪个角色上由 Anvil 选择：能用主号就用主号，否则用持有席位最久的那个。氏族只看到那个角色，绝不会看到你的其他角色。',
+        },
+        {
+          term: '每周一次',
+          body: '已放置的助力在放置 7 天后可以移动。撤下的助力名额也在同一天才重新开放，所以撤下再放并不是捷径。如果它依附的角色离开了氏族，你可以立刻移动它。',
+        },
+      ],
+      note: {
+        tag: '标签的含义',
+        body: '**counting**：它计入氏族的等级。**paused**：你当前档位的名额少于你已放置的数量，所以你最早的助力继续算数，其余的等待。**seat gone**：它依附的角色已不再是那里的成员；请移动它。**over the 2-per-person cap**：该氏族已经计入了你的两次助力。',
+      },
+    },
+
+    levels: {
+      title: '等级',
+      intro:
+        '氏族的等级取决于它算数的助力。任何一个人对同一个氏族最多只有两次助力算数，所以一个等级总是意味着有好几位成员选择了它。',
+      rows: [
+        { term: '1 级', body: '3 次算数的助力。' },
+        { term: '2 级', body: '8 次算数的助力。' },
+        { term: '3 级', body: '15 次算数的助力。' },
+      ],
+      outro:
+        '成员可以在氏族页面上看到进度，例如「5 of 8 to Level 2」。升级的氏族会立刻获得新等级。',
+      note: {
+        tag: '一周宽限期',
+        body: '当助力数掉到某一级以下时，氏族会在 7 天内保留该级的福利。管理 → Clan settings → Boosts 会显示何时结束。如果成员们及时把助力补回来，就什么都不会变。',
+      },
+    },
+
+    perks: {
+      title: '每一级解锁什么',
+      intro: '每一级都保留下一级的全部内容。',
+      rows: [
+        {
+          term: '1 级',
+          body: '在氏族页面、它的 Clan Hall 卡片和搜索结果上显示 **Boosted** 徽章；在 Clan Hall 及其搜索结果中排在未获助力的氏族之前；以及渐变色的氏族名字。',
+        },
+        {
+          term: '2 级',
+          body: 'Clan Hall **Featured** 一栏里的一个位置；氏族的动态横幅会播放（低于 2 级时显示静止帧）；一条面向访客的招募语；以及名字的渐变会流动。',
+        },
+        {
+          term: '3 级',
+          body: 'Clan Hall 最顶部的 **Spotlight**，以及每月一条由氏族撰写、发布在 Anvil Discord 里的招募帖。',
+        },
+      ],
+      note: {
+        tag: '氏族标志不是福利',
+        body: '动态标志（GIF 或 WebP 的氏族图片）在任何等级都会播放。只有横幅要等到 2 级。',
+      },
+    },
+
+    colours: {
+      title: '氏族的名字颜色',
+      intro:
+        '从 1 级开始，氏族名字使用 Anvil 的渐变色。所有者和 admin 可以在 管理 → **Clan settings** → **Boosts** → **Clan name colours** 下自己选择：',
+      rows: [
+        {
+          term: '一到四种颜色',
+          body: '一种颜色是静态名字；两到四种颜色组成渐变。从 2 级开始，渐变会流动。',
+        },
+        {
+          term: '深色和浅色背景',
+          body: '和 Supporter 名字一样，Anvil 会调整颜色，让它在深色背景（网站、插件面板、Discord）和浅色背景（游戏的不透明聊天框）上都清晰可读。为其中任一种打开单独的外观，它就会完全按你选的显示。',
+        },
+        {
+          term: 'Reset to Anvil',
+          body: '恢复为 Anvil 的配色。',
+        },
+      ],
+      outro:
+        '如果氏族掉到 1 级以下，颜色仍会保存，等它回来时再恢复。插件会在下一次刷新时获取更改。',
+    },
+
+    staff: {
+      title: '给氏族管理团队',
+      intro:
+        '管理 → **Clan settings** → **Boosts** 供所有者和 admin 使用。管理团队不能替成员放置助力；成员自己放置。',
+      rows: [
+        {
+          term: '等级',
+          body: '氏族的等级、有多少次助力正在算数、升到下一级还需要多少次，以及任何宽限周。',
+        },
+        {
+          term: 'Recruiting line',
+          body: '2 级。一句话，最多 140 个字符，在你的氏族页面和 Clan Hall 卡片上展示给不在氏族里的人。',
+        },
+        {
+          term: 'Recruitment post in the Anvil Discord',
+          body: '3 级。每个自然月一次，20 到 500 个字符，由你撰写，在你按 **Post it** 时发布，并附上你氏族页面的链接。提及会被移除，不会 @ 任何人。到下个月之前，你不能编辑它，也不能再发一条。',
+        },
+        {
+          term: 'Boosters',
+          body: '为氏族助力的角色列表。',
+        },
+      ],
+      note: {
+        tag: 'Anvil 赠送的助力',
+        body: 'Anvil 工作人员可以赠送氏族一个等级，有固定期限或没有期限。赠送只补上氏族达到该等级还缺的助力，在氏族的 Boosters 列表上显示为 **Anvil gift**。成员每有一次真实的助力，就替换掉一次赠送的助力；已经高于赠送等级的氏族保持自己的等级。赠送结束后，氏族会回到成员助力所能达到的等级。',
+      },
+    },
+
+    boosters: {
+      title: '助力者标记和徽章',
+      intro: '助力者在他所助力的氏族里得到：',
+      rows: [
+        {
+          term: '助力者标记',
+          body: '在该氏族的名单、动态和 Discord 帖子里，他的角色旁边的一颗小宝石。悬停可见「Boosts this clan」。',
+        },
+        {
+          term: 'Boosters 墙',
+          body: '在氏族页面上：每个角色一行，助力最多的排在前面，然后是坚持最久的。',
+        },
+        {
+          term: '徽章',
+          body: '给放下氏族史上第一次助力的人的 **First booster**；连续不间断助力的 **1 month**、**3 months**、**6 months** 和 **1 year**；以及给把氏族推上相应等级的那次助力的 **Level-up 1**、**2** 或 **3**。',
+        },
+      ],
+      note: {
+        tag: '移动会让计时重新开始',
+        body: '时长徽章从该角色仍在算数的最早一次助力开始计算，所以移动或撤下助力会让它们从头开始。你的资料页会列出你助力的氏族，每个氏族一次。',
+      },
     },
   },
 };

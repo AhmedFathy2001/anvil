@@ -41,6 +41,7 @@ export default async function AdminGuide({ lang }: { lang: string }) {
     formatsGuide: guideHref(locale.code, 'formats'),
     feesGuide: guideHref(locale.code, 'fees'),
     moderatorGuide: guideHref(locale.code, 'moderator'),
+    peopleGuide: guideHref(locale.code, 'people'),
   };
 
   // Format names come from the app, not the guide, so the picker and this table can't disagree.

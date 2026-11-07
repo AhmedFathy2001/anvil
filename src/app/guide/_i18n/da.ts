@@ -197,6 +197,27 @@ const da: PartialGuideDict = {
           'Ejer, admin, kasserer og moderator: hvad hver rolle når, hvordan du gør nogen til moderator, hvem der kan give hvilken rolle, og opgaver, der kun gælder ét event.',
         minutes: '~6 min',
       },
+      supporter: {
+        eyebrow: 'Til spillere',
+        title: 'Anvil Supporter: niveauer og fordele',
+        blurb:
+          'Supporter, Champion og Patron: navnefarver, stjernen, profilbilleder, vitrinen, vennevents og klan-boosts, hvordan betalingen fungerer, og hvad der sker, hvis du stopper.',
+        minutes: '~6 min',
+      },
+      sidePanel: {
+        eyebrow: 'Til spillere',
+        title: 'Sidepanelet, fane for fane',
+        blurb:
+          'Clan, Feed, You, Lookup og tandhjulet: hvad hver fane viser, eventchat, GZ- og Sad-reaktioner, og de indstillinger, der bringer feedet og Supporter-farverne ind i dit spil.',
+        minutes: '~6 min',
+      },
+      clanBoosts: {
+        eyebrow: 'Til Supporters og klanens stab',
+        title: 'At booste en klan',
+        blurb:
+          'At placere og flytte et boost, de tre niveauer og hvad hvert af dem låser op for, klanens navnefarver, boosts i gave, og booster-mærker og badges.',
+        minutes: '~5 min',
+      },
     },
   },
 
@@ -350,8 +371,8 @@ const da: PartialGuideDict = {
           body: 'Åbn klanvinduet i spillet med pluginet kørende og tryk på **Anvil**-knappen i titellinjen. Hele din medlemsliste kommer ind med rangene i behold, og en liste fra en klan hvis navn ikke matcher dit, bliver afvist. Gentag det når folk kommer eller går — se [opsætningsguiden for spillere]({pluginGuide}).',
         },
         {
-          term: 'De spiller én gang',
-          body: 'En ny konto genkendes automatisk af pluginet og spores som **gæst**. En konto, der allerede står på medlemslisten, vises på spillerens profil og kræver ét XP-tjek eller en moderatorgodkendelse, før den forbindes.',
+          term: 'De beder om at komme ind',
+          body: 'At logge ind eller spille med pluginet giver aldrig nogen en plads af sig selv. Ser pluginet nogen spille i din klan i spillet, før din medlemsliste har dem, opretter det en anmodning om at komme ind for dem, og alle andre kan spørge med **Apply** på jeres klanside. Staben svarer på begge dele øverst på **Roster**-fanen, og **Who can join** afgør, om de venter på et ja, kommer ind med det samme eller slet ikke kan spørge. En, der spiller en karakter, som allerede står på din medlemsliste, bliver i stedet bekræftet under **Needs review**. Detaljerne står i [Dine folk]({peopleGuide}).',
         },
         {
           term: 'I hånden',
@@ -360,7 +381,7 @@ const da: PartialGuideDict = {
       ],
       note: {
         tag: 'Gæster er ikke et problem, der skal løses',
-        body: 'En gæst er simpelthen en, vi har set, som ikke står på din liste — en spiller fra en gæsteklan, en alt, en der meldte sig ind i morges. De kan deltage i events uden nogensinde at blive medlem.',
+        body: 'En gæst spiller med i dine events uden at være i din klan i spillet: en spiller fra en gæsteklan, en ven, en alt. De får en plads, når staben godkender deres anmodning, eller med det samme, hvis **Who can join** er sat til **Let anyone in**. De bliver tracket og kan deltage i events, og de tæller ikke med i dit abonnement. En, der melder sig ind i din klan i spillet, bliver medlem ved næste synkronisering af medlemslisten.',
       },
     },
     first: {
@@ -765,8 +786,8 @@ const da: PartialGuideDict = {
       },
       panelHeading: 'Sidepanelet',
       panelBody: [
-        'Tre faner. **Clan** er dine events og din klan: alle igangværende og kommende bingoer og ugentlige konkurrencer med din placering, klanens uge og dens største konti. **You** er din egen profil — din Collection Log helt ned til hver sides items, seneste unlocks, skills, bosser, clues, bedste tider og de mål, du har sat på hjemmesiden. **Lookup** finder alle andres, spiller eller klan.',
-        'På en andens kort stiller **Compare with me** jer to op ved siden af hinanden — skill for skill, boss for boss og side for side. Tandhjulet åbner panelets egne indstillinger: synkronisering af din profil og klanens medlemsliste samt dit banner og dine missionslyde.',
+        'Fire faner og et tandhjul. **Clan** er dine events og din klan: alle igangværende og kommende bingoer og ugentlige konkurrencer med din placering. **Feed** er din klans og dine brætters store øjeblikke, mens de sker, med eventchat. **You** er din egen profil, og **Lookup** finder alle andres, spiller eller klan. Tandhjulet rummer synkronisering og dine bannerlyde.',
+        'Alle faner, eventchat, reaktioner og de indstillinger, der bringer feedet og Supporter-farverne ind i dit spil, står i [Sidepanelet, fane for fane]({panelGuide}).',
       ],
       panelFigure: {
         caption: 'Clan · You · Lookup',
@@ -1056,7 +1077,7 @@ const da: PartialGuideDict = {
       title: 'Få din medlemsliste ind',
       body: [
         'Medlemskab af klanen kommer ét sted fra: en synkronisering af medlemslisten inde fra spillet. Installér [Anvils RuneLite-plugin]({pluginGuide}) på en _admins_ konto, åbn dit klanvindue i spillet, og tryk på **Anvil**-knappen i dets titellinje. Det skubber jeres faktiske klanliste fra spillet op på siden med ét klik.',
-        'Alle, der forbinder eller verificerer en konto på hjemmesiden uden at stå på den liste, er en **gæst** — tracket og synlig, men ikke medlem, før en admin forfremmer dem, eller næste synkronisering samler dem op. Det er med vilje: det betyder, at ingen kan forfremme sig selv ind i jeres klan ved at skrive et navn.',
+        'At logge ind, linke en karakter eller spille med pluginet sætter aldrig nogen på medlemslisten. Ser pluginet nogen spille i jeres klan i spillet, før medlemslisten har dem, opretter det en anmodning om at komme ind; alle andre kan spørge med **Apply** på jeres klanside. Staben svarer på anmodninger øverst på **People → Roster**, og **People → Who can join** afgør, om folk venter på et ja, får en gæsteplads med det samme eller slet ikke kan spørge. Det er med vilje: ingen kommer ind i jeres klan ved at skrive dens navn. Hele billedet står i [Dine folk]({peopleGuide}).',
         'Du kan også tilføje nogen i hånden fra **People → + Add Manually** og tilmelde dem et event på deres vegne med **Add member** på eventets **Sign-ups**-side, når de ikke kan nå siden.',
       ],
     },
@@ -1875,7 +1896,7 @@ const da: PartialGuideDict = {
       { strong: '1 række', rest: 'pr. person der får penge' },
     ],
     footnote:
-      'Gebyrer og udbetalinger er kassérens flade. En kassér kan alt det, en moderator kan, plus dette; en moderator kan markere et gebyr som modtaget, men aldrig afslutte et.',
+      'Gebyrer og udbetalinger er kassérens flade. En kassér kan alt det, en moderator kan, plus dette; en almindelig moderator ser slet ikke gebyrsiderne.',
 
     set: {
       title: 'At sætte gebyret',
@@ -2350,7 +2371,7 @@ const da: PartialGuideDict = {
       intro:
         'Rollerne stabler nedad: alt en moderator kan, kan en kassér og en admin også. Det, en moderator specifikt ejer:',
       canList: [
-        'medlemslisten: at synkronisere den, tilføje folk, forfremme en gæst',
+        'medlemslisten: at tilføje og fjerne folk og svare på anmodninger om at komme ind ([Dine folk]({peopleGuide}))',
         'verificering af konti — XP-udfordringen og manuelt gennemsyn',
         'indsendelser og bevis-screenshots',
         'ugentlige konkurrencer og kalenderen',
@@ -2415,7 +2436,7 @@ const da: PartialGuideDict = {
       ],
       note: {
         tag: 'Verificeret er ikke det samme som medlem',
-        body: 'At verificere en konto siger “den er virkelig deres”. Det gør dem ikke til en del af klanen — klanmedlemskab kommer kun fra en synkronisering af medlemslisten i spillet eller fra en admin, der tilføjer dem i hånden. En, der er verificeret, men ikke står på listen, er en **gæst**: tracket, synlig og ikke medlem. Det er med vilje, og det er dét, der forhindrer nogen i at melde sig ind i din klan ved at skrive et navn.',
+        body: 'At verificere en konto siger “den er virkelig deres”. Det gør dem ikke til en del af klanen. Medlemskab kommer kun fra en synkronisering af medlemslisten i spillet eller fra staben, der tilføjer dem i hånden, og en gæsteplads kun fra en anmodning om at komme ind, som staben godkender (eller med det samme, hvis klanen lukker alle ind). Det er med vilje, og det er dét, der forhindrer nogen i at melde sig ind i din klan ved at skrive et navn.',
       },
     },
 
@@ -2423,7 +2444,7 @@ const da: PartialGuideDict = {
       title: 'At holde medlemslisten ærlig',
       body: [
         'Medlemslisten kommer ét sted fra: en admin kører en synkronisering fra klanlisten i spillet med **Anvil**-knappen i titellinjen på klanvinduet (eller **Sync roster** i pluginnets sidepanel). Alt andet — verificeringer, tilknytninger, tilmeldinger — hænger på den.',
-        'Så vedligeholdelsesjobbet er lille, men reelt: kør synkroniseringen efter enhver rekrutteringsrunde, forfrem de gæster, der faktisk er kommet med, og kig på de folk, siden har markeret som noget, der skal ses på, frem for at vente på, at de brokker sig.',
+        'Så vedligeholdelsesjobbet er lille, men reelt: bed en admin om at køre synkroniseringen efter enhver rekrutteringsrunde (den gør gæster, der er kommet ind i klanen i spillet, til medlemmer), svar på anmodningerne om at komme ind øverst på **Roster**-fanen, og arbejd dig igennem **Needs review** i stedet for at vente på, at folk brokker sig. Se [Dine folk]({peopleGuide}).',
       ],
       note: {
         tag: 'Sidst set er ikke sidst spillet',
@@ -3075,12 +3096,12 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Ban from this clan',
-          body: 'afslutter alle pladser, personen har her, alts inklusive, og forhindrer dem i at komme tilbage: synkroniseringen, pluginnet og anmodninger om at komme ind afviser dem alle, indtil bandlysningen bliver ophævet. Deres Anvil-konto og deres andre klaner bliver ikke rørt. Kun for admins, kun for en med en konto på siden, fra rækkens menu eller fra **Staff & roles**. At ophæve en bandlysning sætter dem ikke tilbage; de melder sig ind igen i spillet, eller du tilføjer dem.',
+          body: 'afslutter alle pladser, personen har her, alts inklusive, fjerner enhver stabsrolle og brætopgave, de har i denne klan, og forhindrer dem i at komme tilbage: synkroniseringen, pluginnet og anmodninger om at komme ind afviser dem alle, indtil bandlysningen bliver ophævet. Deres Anvil-konto og deres andre klaner bliver ikke rørt. Kun for admins, kun for en med en konto på siden og en rolle under admin, fra rækkens menu, fra **Staff & roles** eller for flere personer på én gang. At ophæve en bandlysning sætter dem ikke tilbage; de melder sig ind igen i spillet, eller du tilføjer dem.',
         },
       ],
       note: {
-        tag: 'En bandlysning fjerner ikke en stabsrolle',
-        body: 'At bandlyse nogen afslutter deres pladser, men lader en eventuel stabsrolle her blive. Vil du fjerne en fra staben, så sæt først deres rolle til **Member** under Staff & roles, og bandlys dem derefter.',
+        tag: 'En bandlysning fjerner også deres stabsrolle',
+        body: 'At bandlyse nogen afslutter deres pladser og fratager dem deres stabsrolle og eventuelle opgaver som brætredaktør eller brætkasserer på klanens bræt. At ophæve bandlysningen giver dem ikke tilbage: sæt rollen igen under Staff & roles, hvis de skal have den.',
       },
     },
 
@@ -3145,7 +3166,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Kasserer',
-          body: 'gebyrer, kassen og præmier. En kasserer når også de fleste moderatorsider (beviser, konkurrencer, Needs review), men ikke selve medlemslisten eller Schedule.',
+          body: 'gebyrer, kassen og præmier, oven i alt det, en moderator gør: medlemslisten, beviser, konkurrencer, Schedule og Needs review.',
         },
         {
           term: 'Moderator',
@@ -3219,8 +3240,8 @@ const da: PartialGuideDict = {
         { area: 'Beviser, der skal tjekkes', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nej'] },
         { area: 'Ugentlige konkurrencer', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nej'] },
         { area: 'Klanevents', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nej'] },
-        { area: 'Schedule', cells: ['Ja', 'Ja', 'Nej', 'Ja', 'Nej'] },
-        { area: 'Medlemsliste: se, tilføje, fjerne', cells: ['Ja', 'Ja', 'Nej', 'Ja', 'Nej'] },
+        { area: 'Schedule', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nej'] },
+        { area: 'Medlemsliste: se, tilføje, fjerne', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nej'] },
         { area: 'Anmodninger om at komme ind og Needs review', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nej'] },
         { area: 'Bandlyse nogen fra klanen', cells: ['Ja', 'Under admin', 'Nej', 'Nej', 'Nej'] },
         { area: 'Staff & roles', cells: ['Ja', 'Under admin', 'Nej', 'Nej', 'Nej'] },
@@ -3254,7 +3275,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Brætkasserer',
-          body: 'indsamler det bræts gebyrer og står for dets udbetalinger uden at nå klanens kasse. Gives også under **Board staff**.',
+          body: 'indsamler det bræts gebyrer og står for dets udbetalinger uden at nå klanens kasse. I adminområdet ser de kun deres egne bræt, og kun hvert bræts faner **Sign-ups** og **Prizes**. Gives også under **Board staff**.',
         },
         {
           term: 'Holdstab',
@@ -3281,7 +3302,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Admins kan ikke fjerne hinanden',
-          body: 'en admin kan hverken degradere eller bandlyse en anden admin. Er to admins uenige, afgør ejeren det.',
+          body: 'en admin kan hverken degradere eller bandlyse en anden admin, hverken én ad gangen eller flere på én gang. Er to admins uenige, afgør ejeren det. En bandlysning fratager også personen deres stabsrolle og brætopgaver i denne klan.',
         },
         {
           term: 'Penge kræver to personer',
@@ -3300,6 +3321,595 @@ const da: PartialGuideDict = {
           body: 'Anvils rollesynkronisering matcher Discord-roller med **rang i spillet**, ikke med roller på siden. At gøre nogen til moderator her giver dem intet på jeres Discord-server, og en moderatorrolle, du har givet i hånden i Discord, bliver ladet i fred. Den ene botkommando, der ændrer noget, at lægge til kassen med `/coffer`, tjekker rollen på siden: kasserer, admin eller ejer.',
         },
       ],
+    },
+  },
+  supporter: {
+    metaTitle: 'Anvil Supporter: niveauer og fordele — Anvil',
+    metaDescription:
+      'Hvad Anvil Supporter, Champion og Patron hver især får: navnefarver og stjernen, guld-GZ, animeret avatar og banner, vitrinen, vennevents, head-to-head, eventchat og klan-boosts. Hvordan betalingen via Gumroad fungerer, og hvad der sker, når du opsiger.',
+    eyebrow: 'Anvil · til spillere',
+    title: 'Anvil Supporter: niveauer og fordele',
+    dek: 'Anvil Supporter er et personligt abonnement, der betaler for Anvils servere. Det findes i tre niveauer, og hvert af dem har alt det, niveauet under har. Hver fordel er udseende eller plads til at arrangere: tracking, events, point og dine egne statistikker forbliver gratis for alle, og intet her ændrer, hvad et event tæller.',
+    facts: [
+      { strong: 'Fra $1 om måneden', rest: 'eller $10 om året' },
+      { strong: 'Kun udseende', rest: 'aldrig point, en rang eller et item' },
+      { strong: 'Intet bliver slettet', rest: 'når du stopper' },
+    ],
+    footnote:
+      'Alt her sættes på hjemmesiden under **Settings** → **Supporter**, **Profile look** og **Clan boosts**. Boosts i detaljer står i [At booste en klan]({boostsGuide}). Hvor dine farver vises i RuneLite, står i [Sidepanelet, fane for fane]({panelGuide}).',
+
+    tiers: {
+      title: 'De tre niveauer',
+      intro: 'Priserne står på siden **Anvil Supporter**, `/supporter`. Et årsabonnement koster det samme som ti måneder.',
+      rows: [
+        {
+          term: 'Supporter',
+          body: '$1 om måneden eller $10 om året. Et navn i guld og en stjerne, guld-GZ, en vitrine med 4 pladser, og du kan arrangere et vennevent.',
+        },
+        {
+          term: 'Champion',
+          body: '$2 om måneden eller $20 om året. Navnefarver som gradient, du selv vælger, din egen avatar og dit eget banner (animeret, hvis du vil), 8 pladser i vitrinen, hurtigere eventchat og 1 klan-boost.',
+        },
+        {
+          term: 'Patron',
+          body: '$5 om måneden eller $50 om året. Lige de farver, du vil, med en gradient, der bevæger sig, 12 pladser i vitrinen, ingen ventetid i eventchatten, 2 vennevents ad gangen og 2 klan-boosts.',
+        },
+      ],
+      note: {
+        tag: 'Tid fra invitationer',
+        body: 'Under Settings → Supporter får du et invitationslink. Når en ven, du har inviteret, betaler, optjener du gratis måneder; belønningen lander to uger efter deres første betaling. Tid optjent på den måde giver alle fordelene på sit niveau undtagen klan-boosts.',
+      },
+    },
+
+    compare: {
+      title: 'Hvad hvert niveau får',
+      intro: 'Den samme tabel som på Supporter-siden, plus fordelene i chatten.',
+      table: {
+        areaLabel: 'Fordel',
+        columns: ['Gratis', 'Supporter', 'Champion', 'Patron'],
+        rows: [
+          { area: 'Navnefarver', cells: ['—', 'Guld', 'Forudindstillede eller én egen farve', 'Forudindstillede eller op til fire farver, i bevægelse'] },
+          { area: 'Stjerne ved dit navn', cells: ['—', 'Ja', 'Ja', 'Ja'] },
+          { area: 'Guld-GZ', cells: ['—', 'Ja', 'Ja', 'Ja'] },
+          { area: 'Egen avatar og eget banner, animeret', cells: ['—', '—', 'Ja', 'Ja'] },
+          { area: 'Vitrine', cells: ['—', '4 pladser', '8 pladser', '12 pladser'] },
+          { area: 'Vennevents (ad gangen · spillere)', cells: ['Kun deltage', '1 · 10', '1 · 25', '2 · 50'] },
+          { area: 'Head-to-head-udfordringer', cells: ['1 aktiv', '5 aktive', 'Ubegrænset', 'Ubegrænset'] },
+          { area: 'Eventchat: ventetid mellem linjer', cells: ['5 s', '3 s', '1 s', 'Ingen'] },
+          { area: 'Klan-boosts', cells: ['—', '—', '1', '2'] },
+        ],
+      },
+      outro:
+        'Under **Settings** → **In-game chat** er der tre mere: dine egne farver i chatfeedet (Supporter), at vælge, hvad din login-oversigt dækker (Champion), og en stjerne ved dit navn i andre spilleres chatfeed (Patron).',
+    },
+
+    names: {
+      title: 'Navnefarver',
+      intro:
+        'Sæt dem under **Settings** → **Supporter**, i **Your name’s look**. Forhåndsvisningen viser dit navn på en mørk og på en lys baggrund.',
+      rows: [
+        {
+          term: 'Supporter',
+          body: 'helt guld. Der er intet at vælge.',
+        },
+        {
+          term: 'Champion',
+          body: 'en af de forudindstillede gradienter (**Classic**, standarden, **Ember**, **Ocean**, **Aurora**, **Rose gold** eller **Toxic**) eller **Your own**: én fast farve. På tværs af alle dine karakterer kan du højst bruge to forskellige egne farver.',
+        },
+        {
+          term: 'Patron',
+          body: 'alle de forudindstillede plus **Prism**, Patron-standarden, eller **Your own** med en til fire farver. Én farve står stille; to til fire giver en gradient, der bevæger sig fra venstre mod højre.',
+        },
+      ],
+      outro:
+        '**Your Anvil display name** er navnet på din konto, der er linket til Discord. Under **Your RuneScape characters** vælger du **Same for all** eller **Customize each** for at give hver karakter sit eget udseende. Tryk **Save** (eller **Save for all characters**); **Reset to default** går tilbage til dit niveaus farver.',
+      note: {
+        tag: 'Mørke og lyse baggrunde',
+        body: 'Siden, pluginpanelet og Discord er mørke; spillets faste chatboks er lys. Anvil justerer dine farver, så de forbliver læsbare på hver af dem. Vil du have et andet udseende på en af dem, så slå **Set a separate look for dark backgrounds** eller **for light backgrounds** til. Det udseende vises præcis, som du valgte det, uden kontrastjustering, og forhåndsvisningen advarer dig, når det er svært at læse.',
+      },
+    },
+
+    where: {
+      title: 'Hvor dit flair vises',
+      intro: 'Dine farver og stjernen følger med, overalt hvor dit navn står:',
+      rows: [
+        {
+          term: 'På siden',
+          body: 'bræt, medlemslister, profiler, dit eget navn i topbjælken og dine karakterers navne. Stjernen bærer dine farver.',
+        },
+        {
+          term: 'I pluginpanelet',
+          body: 'Feed, eventchat, kort og **Tracking**-linjen. En Patrons gradient glider; hver spiller kan stoppe den med **Animated names**.',
+        },
+        {
+          term: 'I spillet',
+          body: 'for andre spillere, der bruger Anvil-pluginnet: offentlig chat, klan-, venne- og privatchat, klanbroadcasts, login-beskeder, venne- og klanlister og højrekliksmenuen (aldrig på PvP-verdener eller i Wilderness). I spillets chat er stjernen en Patrons.',
+        },
+        {
+          term: 'På Discord',
+          body: 'en stjerne ved dit navn på Anvils opslag, tegnet i dine egne farver, hvis du har valgt nogen.',
+        },
+        {
+          term: 'Guld-GZ',
+          body: 'på en klankammerats drop i klanens feed på siden kan dit GZ være i guld. Kun Supporters kan give et.',
+        },
+      ],
+      note: {
+        tag: 'Kun på karakterer, der er bevist at være dine',
+        body: 'Farverne vises kun på karakterer, pluginnet har bekræftet er dine, på siden og i spillet. Vil du holde dem væk fra dine navne i andres chat i spillet, så fjern fluebenet i **Show my colours on my characters’ names in game chat** under Settings → Supporter.',
+      },
+    },
+
+    profile: {
+      title: 'Avatar, banner og vitrine',
+      intro: 'Alle tre ligger under **Settings** → **Profile look**.',
+      rows: [
+        {
+          term: 'Avatar og banner',
+          body: 'Champion og Patron. Upload dine egne; en GIF eller WebP forbliver animeret. De vises på dit kort, din profil og alle dine karakterer, på siden og i pluginnet. Et banner kan fylde op til 6 MB og skal være mindst 600×150; en avatar op til 2 MB.',
+        },
+        {
+          term: 'For hver karakter',
+          body: 'giv én karakter sit eget banner eller sin egen avatar, eller begge dele. Det erstatter din standard kun på den karakters sider og pluginkort.',
+        },
+        {
+          term: 'Vitrine',
+          body: 'dine bedste drops, killcounts og tider fastgjort på din profil: 4 pladser for Supporter, 8 for Champion, 12 for Patron. Fastgjorte ting fra karakterer, du ikke deler, forbliver private.',
+        },
+      ],
+    },
+
+    hosting: {
+      title: 'Vennevents, head-to-head og chat',
+      intro: 'De fordele, der giver dig mere plads til at spille i stedet for et udseende:',
+      rows: [
+        {
+          term: 'Vennevents',
+          body: 'kør din egen bingo, solobingo eller dit eget race for venner fra **Host an event for your friends**, tracket af pluginnet ligesom et klanevent. Venner deltager med dit invitationslink. Supporter: 1 igangværende event, 10 spillere. Champion: 1 event, 25 spillere. Patron: 2 ad gangen, 50 spillere i alt. Alle kan deltage i et.',
+        },
+        {
+          term: 'Head-to-head',
+          body: 'udfordr en ven fra deres profil: først til et drop, eller flest kills eller mest XP på 1 time, 24 timer eller 7 dage. Kun for prestigen. Gratis spillere kan have 1 åben ad gangen, Supporters 5, Champions og Patrons lige så mange, de vil.',
+        },
+        {
+          term: 'Eventchat',
+          body: 'hvor længe du venter mellem linjer: 5 sekunder uden niveau, 3 for Supporters, 1 for Champions, ingen for Patrons. Når et bræts chat bliver travl, venter alle 10 sekunder, også Patrons.',
+        },
+        {
+          term: 'Klan-boosts',
+          body: 'Champion 1, Patron 2, så længe du betaler. Se [At booste en klan]({boostsGuide}).',
+        },
+      ],
+    },
+
+    billing: {
+      title: 'Betale, skifte og opsige',
+      intro: 'Anvil Supporter bliver opkrævet via Gumroad, månedligt eller årligt.',
+      steps: [
+        'Log ind på Anvil, og åbn `/supporter`.',
+        'Tryk **Choose Supporter**, **Choose Champion** eller **Choose Patron**. Gumroads betalingsside åbner, med månedlig eller årlig betaling.',
+        'Betal. Dine fordele slår til, så snart Gumroad giver Anvil besked, og dit niveau står på Supporter-siden som **Your tier**.',
+      ],
+      outro:
+        'Skift niveau med **Change tier** under Settings → Supporter. Opsig eller opdatér dit kort med **Manage on Gumroad** samme sted. Et opsagt medlemskab beholder alle fordele til slutningen af den periode, du har betalt for.',
+      note: {
+        tag: 'Start altid fra /supporter',
+        body: '**Choose**-knappen bærer en kode, der fortæller Anvil, hvilken konto der betalte. Anvil matcher aldrig en betaling på e-mail, så køber du direkte hos Gumroad uden den knap, bliver betalingen ikke koblet til noget. Er det sket, så spørg på Anvils Discord, så kan staben knytte den til din konto i hånden.',
+      },
+    },
+
+    lapse: {
+      title: 'At gå ned eller stoppe',
+      intro:
+        'Intet, du har sat op, bliver slettet. Hver fordel bliver tjekket mod det niveau, du har lige nu, så den slår fra af sig selv og kommer tilbage, så snart du fornyer.',
+      rows: [
+        {
+          term: 'Navnefarver',
+          body: 'dit gemte valg bliver liggende. Du bærer dit nye niveaus farver, eller ingen, indtil et niveau, der tillader det, kommer tilbage.',
+        },
+        {
+          term: 'Avatar og banner',
+          body: 'under Champion viser de deres første stillbillede i stedet for at bevæge sig.',
+        },
+        {
+          term: 'Vitrine',
+          body: 'viser de første fastgjorte ting, dit niveau tillader, og skjuler resten. Uden niveau er den skjult; de fastgjorte ting venter på dig.',
+        },
+        {
+          term: 'Klan-boosts',
+          body: 'dine ældste boosts bliver ved med at tælle, og resten bliver sat på pause, ikke fjernet.',
+        },
+      ],
+      note: {
+        tag: 'En midlertidig opgradering fra Anvils stab',
+        body: 'Staben kan give nogen et højere niveau i en periode, fx som tak. Det ligger oven på det, du betaler, og ændrer aldrig dit abonnement. Settings → Supporter viser **A gift from Anvil** og hvornår den udløber; derefter er du tilbage på dit betalte niveau. En gave giver kun pladser til klan-boosts, når staben tager dem med.',
+      },
+    },
+  },
+
+  sidePanel: {
+    metaTitle: 'Anvils sidepanel, fane for fane — Anvil',
+    metaDescription:
+      'Hvad hver fane i Anvils sidepanel i RuneLite viser (Clan, Feed, You, Lookup og tandhjulet), hvordan eventchat og reaktioner i Feed fungerer, og pluginindstillingerne for feedet i spillets chat, Supporter-farver og animerede navne.',
+    eyebrow: 'Anvil · til spillere',
+    title: 'Sidepanelet, fane for fane',
+    dek: 'Anvil-knappen i RuneLites sidebjælke åbner et panel med fire faner og et tandhjul: **Clan**, **Feed**, **You**, **Lookup** og ⚙. Det meste af det, panelet viser, kommer fra siden, så det holder sig opdateret uden en opdatering af pluginnet. Nogle få ting nedenfor er markeret som på vej i næste pluginopdatering.',
+    facts: [
+      { strong: 'Fire faner', rest: 'og et tandhjul til synkronisering og indstillinger' },
+      { strong: 'Eventchat', rest: 'på Feed-fanen' },
+      { strong: 'GZ, Sad, Sit', rest: 'på rækkerne i Feed' },
+    ],
+    footnote:
+      'At installere pluginnet og logge ind står i [Opsætning af RuneLite-pluginnet]({pluginGuide}). Supporter-farver, stjernen og fordelene i chatten er forklaret i [Anvil Supporter: niveauer og fordele]({supporterGuide}).',
+
+    header: {
+      title: 'Toppen af panelet',
+      intro: 'Over fanerne sidder titlen, **Refresh** og kontolinjen.',
+      rows: [
+        {
+          term: 'Refresh',
+          body: 'genindlæser panelet, Feed-fanen inklusive. Der står **Refreshing…**, mens den arbejder. I næste pluginopdatering genindlæser den også You og Lookup, så en ny avatar eller et nyt banner vises med det samme, og den tømmer ikke længere Feed-fanen.',
+        },
+        {
+          term: 'Tracking',
+          body: 'linjen under titlen nævner den karakter, der bliver tracket, i dens Supporter-farver, hvis den har nogen. **Not my account…** stopper tracking af en karakter, som en anden spiller på denne computer; **Track again** gør det om.',
+        },
+        {
+          term: 'Kontomenuen',
+          body: '⋯-linket åbner **View my profile on Anvil**, **Not my account…** og **Sign out…**. I næste pluginopdatering har den også **Become a Supporter**, eller **Your Supporter perks**, hvis du allerede er det.',
+        },
+        {
+          term: 'Fremskridt i sæsonen',
+          body: 'i næste pluginopdatering står der på Leagues, Deadman og andre sæsonverdener en linje: **Sharing season progress · Turn off**. Den sender dine relics, områder og tasks (med et skærmbillede) til din klan; klanen vælger på hjemmesiden, hvad der bliver postet. **Turn on** deler det igen. Den samme kontakt hedder **Share seasonal activity** i pluginindstillingerne.',
+        },
+      ],
+    },
+
+    clan: {
+      title: 'Clan',
+      intro:
+        'Dine events og din klan. I en creators space hedder fanen **Space**.',
+      rows: [
+        {
+          term: 'Klan-rullemenuen',
+          body: 'vises, når du spiller i mere end én klan eller space. **All clans** (standarden) viser alt, du spiller, med det igangværende event først. Vælger du én klan, snævres panelet ind til den, og dine indsendelser havner der.',
+        },
+        {
+          term: 'Events',
+          body: 'alle igangværende og kommende bræt, Skill eller Boss of the Week og klanevents, med din placering. Derefter **Your other boards**, **Also live** og **Your clan**.',
+        },
+        {
+          term: 'Et bræt',
+          body: 'åbn et for at se stillingen, holdene, missionerne, seneste aktivitet, de nærmeste felter og **View all tiles**. Dets knapper **Feed** og **Chat** åbner brættet på Feed-fanen.',
+        },
+        {
+          term: 'Et klanevent',
+          body: '**I’m going**, **Sign me up** eller **Answer the survey**, alt efter eventet.',
+        },
+      ],
+    },
+
+    feed: {
+      title: 'Feed',
+      intro:
+        'Din klans og dine bræts store øjeblikke, live: drops, pets, achievements, quests, dødsfald og færdige felter.',
+      rows: [
+        {
+          term: 'Hvis feed',
+          body: 'rullemenuen øverst viser **Clan ·** for hver klan, du er medlem af, og **Event ·** for hvert igangværende bræt, du er med på. Den åbner på dit bræt, hvis du har et, ellers på din klan.',
+        },
+        {
+          term: 'Filtre',
+          body: '**All**, **Tiles** (kun bræt), **Drops**, **Pets**, **Achievements**, **Deaths** og **My team** på et bræt, hvor du er på et hold. Et klanfeed har også en knap til aktivitet i spiltilstande som Leagues og andre tilstande.',
+        },
+        {
+          term: 'Nye rækker',
+          body: 'kommer af sig selv. Har du scrollet væk, tager en **↑ N new**-knap dig tilbage til dem.',
+        },
+      ],
+      note: {
+        tag: 'Ikke det samme som chatfeedet i spillet',
+        body: 'Feed-fanen virker, uanset hvad dine pluginindstillinger siger. **Show feed in game chat** (trin 8) er den separate indstilling, der også skriver det i din chatboks.',
+      },
+    },
+
+    reactions: {
+      title: 'Reaktioner',
+      intro: 'Hver række i Feed har sin reaktion under sig:',
+      rows: [
+        {
+          term: 'GZ',
+          body: 'på drops, pets og achievements. Antallet står ved siden af, fx **GZ 3**.',
+        },
+        {
+          term: 'Sad og Sit',
+          body: 'på dødsfald i stedet for GZ. Sit er spillets måde at bede en, der er død, om at sætte sig ned.',
+        },
+        {
+          term: 'Hvem kan reagere',
+          body: 'på et klanfeed: klankammerater. På et bræt: spillerne på det og værtens stab; når et bræt skjuler stillingen, kan spillerne kun reagere på deres eget holds rækker.',
+        },
+        {
+          term: 'Hvem har reageret',
+          body: 'hold musen over en reaktion for at se navne, fx “GZ · Mossy and 3 others”. Klik igen for at tage din tilbage.',
+        },
+      ],
+      note: {
+        tag: 'I næste pluginopdatering',
+        body: 'Reaktioner bliver til pilleknapper, farvet når en af dem er din, og andres reaktioner opdateres live for alle, der kigger med, også på dine andre åbne klienter. I dag ændrer antallet sig, når du reagerer, eller når Feed genindlæses. Guld-GZ, Supporter-reaktionen, gives på hjemmesidens feeds; Feed-fanen har GZ, Sad og Sit.',
+      },
+    },
+
+    chat: {
+      title: 'Eventchat',
+      intro:
+        'Et bræt med chat slået til har en **Feed / Chat**-kontakt øverst på Feed-fanen, for spillerne på det bræt og værtens stab. Brættets side på Clan-fanen har også en **Chat**-knap.',
+      rows: [
+        {
+          term: 'Alle eller dit hold',
+          body: '**All** skriver til hele brættet, **My team** kun til dit hold (de linjer er markeret **TEAM**). Staben ser også **Host & mods**, og deres linjer er markeret **HOST** eller **MOD**.',
+        },
+        {
+          term: 'At sende',
+          body: 'skriv i feltet, og tryk Enter. Linjer kan være op til 200 tegn, og kun værten og mods kan poste links.',
+        },
+        {
+          term: 'Hvor tit',
+          body: 'ventetiden mellem dine linjer følger dit Supporter-niveau: 5 sekunder uden et, 3 for Supporters, 1 for Champions, ingen for Patrons. Linjen under feltet siger, hvad din er. Staben venter aldrig.',
+        },
+        {
+          term: 'Slow mode',
+          body: 'når et bræts chat bliver meget travl, venter alle mindst 10 sekunder i et minut, Patrons inklusive. Ingen kan sende mere end 10 linjer på 10 sekunder.',
+        },
+        {
+          term: 'Moderering',
+          body: 'værten og mods kan højreklikke på en linje for at vælge **Delete message** eller **Mute** nogen, og sætte hele chatten på pause med **Pause chat (read-only for everyone)**.',
+        },
+      ],
+      outro:
+        'En række linjer fra den samme person deler ét navn og ét tidspunkt, indtil der er en pause på 5 minutter. Chatten gemmes i 7 dage, efter eventet er slut.',
+    },
+
+    you: {
+      title: 'You og Lookup',
+      intro: 'To faner til spillerkort: dit eget og alle andres.',
+      rows: [
+        {
+          term: 'You',
+          body: 'dit eget kort for den karakter, du er logget ind på: banner og avatar, **Display case**, Collection Log helt ned til hver sides items, og **Skills**, **Bosses**, **Clues**, **Times** og **CAs**. Under det står eventuelle **Head-to-head**-udfordringer, der venter på dig (**Accept** eller **Decline**), og dine **Goals** med **+ Add goal**.',
+        },
+        {
+          term: 'Lookup',
+          body: 'skift mellem **Players** og **Clans**, skriv et navn, og tryk Enter. **Recent** viser dine seneste par opslag. Højreklik på hvem som helst i spillet, og vælg **Anvil** for at lande her.',
+        },
+        {
+          term: 'Sammenlign',
+          body: 'på en andens kort stiller **Compare with me** jer to op ved siden af hinanden — skill for skill, boss for boss og side for side. En klans kort har **Compare with my clan**.',
+        },
+      ],
+    },
+
+    gear: {
+      title: 'Tandhjulsfanen',
+      intro: 'Synkronisering og indstillinger snarere end ting at kigge på:',
+      rows: [
+        {
+          term: 'Sync profile',
+          body: 'sender din Collection Log og dine bedste tider til Anvil.',
+        },
+        {
+          term: 'Sync clan roster',
+          body: 'kun for klanens admins: sender klanens medlemsliste fra spillet til siden. Kan pluginnet ikke læse din klan, står der i stedet **Join your clan channel to sync the roster**.',
+        },
+        {
+          term: 'Bannerlyde',
+          body: '**Add clip** til den lyd, et banner afspiller, **Copy folder path** til at administrere dem, og **Add mission clip** til missioner.',
+        },
+        {
+          term: 'Become a Supporter',
+          body: 'i næste pluginopdatering åbner et ★-link nederst Supporter-siden, eller der står **Your Supporter perks**, hvis du allerede er det.',
+        },
+      ],
+    },
+
+    settings: {
+      title: 'Indstillinger, der ændrer, hvad du ser',
+      intro:
+        'I RuneLites konfiguration for Anvil, under **Chat messages**. De er alle slået til fra start.',
+      rows: [
+        {
+          term: 'Show feed in game chat',
+          body: 'skriver også feedet i din chatboks, efterhånden som det sker: store drops, pets og achievements fra bræt, hvis vært har slået det til, og klaner, du er gæst i, dine holdkammeraters fremskridt på felter og andre holds færdige felter.',
+        },
+        {
+          term: 'Supporter names in chat',
+          body: 'Supporters’ farver (og en Patrons stjerne) i offentlig chat, klan-, venne- og privatchat og på din venneliste og kanalernes medlemslister. Listen over navne hentes fra Anvil; intet om, hvem du ser, bliver sendt.',
+        },
+        {
+          term: 'Animated names',
+          body: 'lader en Patrons gradient glide i panelet, Feed og eventchatten. Slået fra står den stille. I næste pluginopdatering dækker den også boostede klannavne og animerede bannere i panelet.',
+        },
+        {
+          term: 'Supporter names in menus',
+          body: 'Supporters’ farver på deres navn, når du højreklikker på dem, aldrig på PvP-verdener eller i Wilderness.',
+        },
+        {
+          term: 'Over other plugins’ colours',
+          body: 'slået til erstatter en Supporters farver en navnefarve, et andet plugin har sat, fx Player Indicators. Slået fra lader de navne være.',
+        },
+      ],
+    },
+  },
+
+  clanBoosts: {
+    metaTitle: 'At booste en klan — Anvil',
+    metaDescription:
+      'Sådan virker klan-boosts på Anvil: hvem der har dem, at placere og flytte et boost, de tre boost-niveauer og hvad hvert af dem låser op for, klanens navnefarver, boosts i gave, og booster-mærker og badges.',
+    eyebrow: 'Anvil · til Supporters og klanens stab',
+    title: 'At booste en klan',
+    dek: 'En betalende Champion eller Patron kan sætte et boost på en klan, de er medlem af. Nok boosts fra en klans medlemmer løfter den et niveau, og hvert niveau ændrer, hvordan klanen ser ud, og hvor den bliver vist. Boosts er kun udseende: de ændrer aldrig en rang, en score, en plads eller klanens abonnement.',
+    facts: [
+      { strong: 'Champion 1, Patron 2', rest: 'boosts, så længe du betaler' },
+      { strong: 'Niveauer ved 3, 8 og 15', rest: 'tællende boosts' },
+      { strong: 'Én gang om ugen', rest: 'kan et boost flyttes' },
+    ],
+    footnote:
+      'Medlemmer placerer boosts under **Settings** → **Clan boosts**. Klanens stab ser niveauet og dets muligheder under Admin → **Clan settings** → **Boosts**. Selve niveauerne står i [Anvil Supporter: niveauer og fordele]({supporterGuide}).',
+
+    what: {
+      title: 'Hvem har boosts',
+      intro: 'Boosts følger med et betalt medlemskab:',
+      rows: [
+        { term: 'Champion', body: '1 boost.' },
+        { term: 'Patron', body: '2 boosts.' },
+        {
+          term: 'Supporter',
+          body: 'ingen. Det giver tid optjent via invitationer heller ikke. En midlertidig opgradering fra Anvils stab giver kun pladser, når staben tager dem med.',
+        },
+      ],
+      outro:
+        'Boosts tilhører dig, ikke en karakter: tre karakterer i tre klaner deler stadig ét sæt. **Settings** → **Clan boosts** vises kun i dine indstillinger, mens du er Supporter eller stadig har et boost placeret.',
+    },
+
+    place: {
+      title: 'At placere og flytte et boost',
+      intro: 'Du placerer selv dine boosts; ingen kan placere et for dig.',
+      steps: [
+        'Åbn **Settings** → **Clan boosts**. **Your boosts** viser, hvad du har placeret, og eventuelle **Free slot**.',
+        'Under **Clans you can boost** trykker du **Boost** ud for en klan. Du kan også trykke **Boost this clan** i Boosters-afsnittet på klanens egen side.',
+        'Vil du flytte et, så brug **Move to…** på dets række, og vælg en anden klan. **Remove** tager det af.',
+      ],
+      rows: [
+        {
+          term: 'En medlemsplads, 14 dage gammel',
+          body: 'hvert boost hviler på en medlemsplads, som en af dine karakterer har i klanen i spillet. En gæsteplads kan ikke bære et. Pladsen tæller fra det tidligste af to tidspunkter: da Anvil første gang så den, eller da spillet siger, at karakteren kom ind. Indtil da står der på klanens række, hvor mange dage der er tilbage.',
+        },
+        {
+          term: 'Én række pr. klan',
+          body: 'listen viser hver klan én gang, og Anvil vælger den karakter, boostet hviler på: din main, hvor det kan lade sig gøre, ellers den plads, der har været holdt længst. Klanen ser kun den karakter, aldrig dine andre.',
+        },
+        {
+          term: 'Én gang om ugen',
+          body: 'et placeret boost kan flyttes 7 dage efter, du placerede det. Et fjernet boosts plads åbner igen på samme dato, så at fjerne og placere igen er ingen genvej. Har den karakter, det hvilede på, forladt klanen, kan du flytte det med det samme.',
+        },
+      ],
+      note: {
+        tag: 'Hvad mærkaterne betyder',
+        body: '**counting**: det tæller med i klanens niveau. **paused**: dit niveau har nu færre pladser, end du har placeret, så dine ældste boosts bliver ved med at tælle, og resten venter. **seat gone**: den karakter, det hvilede på, er ikke længere medlem der; flyt det. **over the 2-per-person cap**: klanen tæller allerede to af dine.',
+      },
+    },
+
+    levels: {
+      title: 'Niveauer',
+      intro:
+        'En klans niveau kommer fra dens tællende boosts. Højst to boosts fra den samme person tæller med for én klan, så et niveau betyder altid, at flere medlemmer har valgt den.',
+      rows: [
+        { term: 'Niveau 1', body: '3 tællende boosts.' },
+        { term: 'Niveau 2', body: '8 tællende boosts.' },
+        { term: 'Niveau 3', body: '15 tællende boosts.' },
+      ],
+      outro:
+        'Medlemmer ser fremskridtet på klanens side, fx “5 of 8 to Level 2”. En klan, der stiger, får det nye niveau med det samme.',
+      note: {
+        tag: 'En uges henstand',
+        body: 'Når antallet af boosts falder under et niveau, beholder klanen niveauets fordele i 7 dage. Admin → Clan settings → Boosts viser, hvornår de udløber. Booster medlemmerne den op igen i tide, ændrer intet sig.',
+      },
+    },
+
+    perks: {
+      title: 'Hvad hvert niveau låser op for',
+      intro: 'Hvert niveau beholder alt fra niveauet under.',
+      rows: [
+        {
+          term: 'Niveau 1',
+          body: 'et **Boosted**-mærke på klansiden, dens kort i Clan Hall og i søgningen; en plads over klaner uden boost i Clan Hall og dens søgeresultater; og klannavnet i en gradient.',
+        },
+        {
+          term: 'Niveau 2',
+          body: 'en plads i Clan Halls **Featured**-række; klanens animerede banner afspilles (under niveau 2 viser det sit stillbillede); en rekrutteringslinje til besøgende; og navnets gradient bevæger sig.',
+        },
+        {
+          term: 'Niveau 3',
+          body: '**Spotlight** helt øverst i Clan Hall og ét rekrutteringsopslag om måneden på Anvils Discord, skrevet af klanen.',
+        },
+      ],
+      note: {
+        tag: 'Klanens logo er ikke en fordel',
+        body: 'Et animeret logo (et klanbillede i GIF eller WebP) afspilles på ethvert niveau. Kun banneret venter på niveau 2.',
+      },
+    },
+
+    colours: {
+      title: 'Klanens navnefarver',
+      intro:
+        'Fra niveau 1 bærer klanens navn Anvils gradient. Ejere og admins kan vælge deres egne under Admin → **Clan settings** → **Boosts** → **Clan name colours**:',
+      rows: [
+        {
+          term: 'En til fire farver',
+          body: 'én farve giver et fast navn; to til fire giver en gradient. Fra niveau 2 bevæger en gradient sig.',
+        },
+        {
+          term: 'Mørke og lyse baggrunde',
+          body: 'ligesom med Supporter-navne justerer Anvil farverne, så de forbliver læsbare på mørke baggrunde (siden, pluginpanelet, Discord) og lyse (spillets faste chatboks). Slå et separat udseende til for en af dem, så vises det præcis som valgt.',
+        },
+        {
+          term: 'Reset to Anvil',
+          body: 'går tilbage til Anvils palet.',
+        },
+      ],
+      outro:
+        'Farverne forbliver gemt, hvis klanen falder under niveau 1, og kommer tilbage, når den vender tilbage. Pluginnet opfanger en ændring ved næste opdatering.',
+    },
+
+    staff: {
+      title: 'Til klanens stab',
+      intro:
+        'Admin → **Clan settings** → **Boosts** er for ejere og admins. Staben kan ikke placere boosts for medlemmer; medlemmerne placerer deres egne.',
+      rows: [
+        {
+          term: 'Niveauet',
+          body: 'klanens niveau, hvor mange boosts der tæller, hvor mange flere der skal til for næste niveau, og en eventuel henstandsuge.',
+        },
+        {
+          term: 'Rekrutteringslinje',
+          body: 'Niveau 2. Én sætning på op til 140 tegn, vist for folk, der ikke er i klanen, på jeres klanside og jeres kort i Clan Hall.',
+        },
+        {
+          term: 'Rekrutteringsopslag på Anvils Discord',
+          body: 'Niveau 3. Én gang pr. kalendermåned, 20 til 500 tegn, skrevet af dig og postet, når du trykker **Post it**, med et link til jeres klanside. Mentions bliver fjernet, og ingen bliver pinget. Du kan ikke redigere det eller sende et nyt før næste måned.',
+        },
+        {
+          term: 'Boosters',
+          body: 'listen over karakterer, der booster klanen.',
+        },
+      ],
+      note: {
+        tag: 'Boosts i gave fra Anvil',
+        body: 'Anvils stab kan give en klan et niveau i gave, for en fast periode eller uden udløb. Gaven tilføjer kun de boosts, klanen mangler for at nå det niveau, vist som **Anvil gift** på klanens Boosters-liste. Hvert rigtigt boost fra et medlem erstatter ét gaveboost, og en klan, der allerede ligger over gaveniveauet, beholder sit eget. Når gaven udløber, falder klanen tilbage til det niveau, medlemmernes boosts giver den.',
+      },
+    },
+
+    boosters: {
+      title: 'Booster-mærker og badges',
+      intro: 'Hvad en booster får i den klan, de booster:',
+      rows: [
+        {
+          term: 'Booster-mærket',
+          body: 'en lille ædelsten ved deres karakter i den klans medlemsliste, feed og Discord-opslag. Hold musen over den for at se “Boosts this clan”.',
+        },
+        {
+          term: 'Boosters-væggen',
+          body: 'på klansiden: én række pr. karakter, flest boosts først, derefter dem, der har stået længst.',
+        },
+        {
+          term: 'Badges',
+          body: '**First booster** til den, der placerede klanens allerførste boost; **1 month**, **3 months**, **6 months** og **1 year** for at booste uden afbrydelse; og **Level-up 1**, **2** eller **3** for det boost, der løftede klanen til det niveau.',
+        },
+      ],
+      note: {
+        tag: 'At flytte starter uret forfra',
+        body: 'Badges for tid tæller fra karakterens tidligste boost, der stadig tæller, så at flytte eller fjerne et boost starter dem forfra. Din profil viser de klaner, du booster, én gang pr. klan.',
+      },
     },
   },
 };

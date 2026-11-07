@@ -101,6 +101,25 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
     'revoke', 'transfer ownership', 'make owner', 'board editor', 'board treasurer', 'team staff',
     'board builder', 'write guides', 'protected',
   ],
+  supporter: [
+    'supporter', 'champion', 'patron', 'tier', 'tiers', 'perks', 'subscription', 'subscribe', 'membership',
+    'gumroad', 'billing', 'price', 'cancel', 'refund', 'name colour', 'name color', 'gradient', 'flair', 'star',
+    'gold gz', 'avatar', 'banner', 'animated', 'display case', 'friend event', 'host friends', 'head-to-head',
+    'h2h', 'challenge', 'invite', 'referral', 'free months', 'gift', 'downgrade', 'lapse', 'dark background',
+    'light background',
+  ],
+  'side-panel': [
+    'side panel', 'sidebar', 'panel', 'tab', 'tabs', 'feed', 'feed tab', 'you tab', 'lookup', 'clan tab',
+    'gear', 'event chat', 'chat', 'team chat', 'slow mode', 'reaction', 'reactions', 'gz', 'sad', 'sit',
+    'refresh', 'show feed in game chat', 'animated names', 'supporter names in chat', 'supporter names in menus',
+    'seasonal', 'leagues', 'season progress', 'sync profile', 'banner sounds', 'compare', 'goals',
+  ],
+  'clan-boosts': [
+    'boost', 'boosts', 'boosting', 'boosted', 'clan boost', 'booster', 'boosters', 'level', 'levels',
+    'boost level', 'clan hall', 'featured', 'spotlight', 'recruiting line', 'recruitment post',
+    'clan name colour', 'clan name color', 'animated banner', 'gift', 'gifted boost', 'grace', 'paused',
+    'move boost', 'first booster', 'badge',
+  ],
   moderator: [
     'moderator', 'mod', 'mods', 'staff', 'proof', 'proofs', 'approve', 'approval', 'reject',
     'screenshot', 'review', 'queue', 'rota', 'evidence', 'dispute',

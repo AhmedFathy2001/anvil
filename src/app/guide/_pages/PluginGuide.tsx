@@ -8,7 +8,7 @@ import { getClanDisplayName } from '@/lib/pluginConfig';
 import { currentClan } from '@/lib/clanContext';
 import { Chat, Figure, GuideShell, Note, Rows, Section } from '../_components/GuideUI';
 import { localeChrome } from '../_components/LanguageBar';
-import { getDict } from '../_i18n';
+import { getDict, guideHref } from '../_i18n';
 import { guideMetadata } from '../_i18n/meta';
 import { chat, items, legend, paragraphs, rows, rt } from '../_i18n/rich';
 import PluginSetupValues from '../_components/PluginSetupValues';
@@ -65,7 +65,7 @@ export default async function PluginGuide({ lang }: { lang: string }) {
   // that mention it stop rendering without ripping the strings out of fifteen locales.
   const federationEnabled = false;
 
-  const v = { origin, clanName };
+  const v = { origin, clanName, panelGuide: guideHref(locale.code, 'side-panel') };
 
   const discordLink = discordInvite ? (
     <a href={discordInvite} target="_blank" rel="noopener noreferrer" className="text-gold hover:text-gold-light">

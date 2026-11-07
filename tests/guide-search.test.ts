@@ -34,6 +34,9 @@ const CARD_KEY = {
   'streaming-for-clans': 'streamingClans',
   people: 'people',
   'staff-roles': 'staffRoles',
+  supporter: 'supporter',
+  'side-panel': 'sidePanel',
+  'clan-boosts': 'clanBoosts',
 } as const;
 
 const ITEMS = (Object.keys(SEARCH_TERMS) as (keyof typeof SEARCH_TERMS)[]).map((page) => {

@@ -72,6 +72,11 @@ export const GUIDE_OUTLINES: Record<string, GuideOutline> = {
   // Mirror PEOPLE_SECTIONS in _pages/PeopleGuide and STAFF_SECTIONS in _pages/StaffRolesGuide.
   people: { ns: 'people', page: 'people', sections: ['roster', 'filters', 'review', 'policy', 'manual', 'removing', 'faq'] },
   staffroles: { ns: 'staffRoles', page: 'staff-roles', sections: ['roles', 'assign', 'who', 'table', 'event', 'safety'] },
+  // Mirror SUPPORTER_SECTIONS, PANEL_SECTIONS and BOOSTS_SECTIONS in _pages/SupporterGuide,
+  // SidePanelGuide and ClanBoostsGuide.
+  supporter: { ns: 'supporter', page: 'supporter', sections: ['tiers', 'compare', 'names', 'where', 'profile', 'hosting', 'billing', 'lapse'] },
+  sidepanel: { ns: 'sidePanel', page: 'side-panel', sections: ['header', 'clan', 'feed', 'reactions', 'chat', 'you', 'gear', 'settings'] },
+  boosts: { ns: 'clanBoosts', page: 'clan-boosts', sections: ['what', 'place', 'levels', 'perks', 'colours', 'staff', 'boosters'] },
   // Mirrors TilesGuide: one section per registry group that has entries.
   tiles: {
     ns: 'tiles',

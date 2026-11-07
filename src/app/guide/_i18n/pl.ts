@@ -184,6 +184,27 @@ const pl: PartialGuideDict = {
           'Właściciel, admin, skarbnik i moderator: do czego każdy ma dostęp, jak zrobić kogoś moderatorem, kto może nadać jaką rolę i funkcje obejmujące jedno wydarzenie.',
         minutes: '~6 min',
       },
+      supporter: {
+        eyebrow: 'Dla graczy',
+        title: 'Anvil Supporter: pakiety i korzyści',
+        blurb:
+          'Supporter, Champion i Patron: kolory nazwy, gwiazdka, zdjęcia profilowe, gablota, wydarzenia dla znajomych i boosty klanu, jak działają płatności i co się dzieje, gdy przestaniesz płacić.',
+        minutes: '~6 min',
+      },
+      sidePanel: {
+        eyebrow: 'Dla graczy',
+        title: 'Panel boczny, zakładka po zakładce',
+        blurb:
+          'Clan, Feed, You, Lookup i zębatka: co pokazuje każda zakładka, czat wydarzenia, reakcje GZ i Sad oraz ustawienia, które przenoszą feed i kolory Supporterów do twojej gry.',
+        minutes: '~6 min',
+      },
+      clanBoosts: {
+        eyebrow: 'Dla Supporterów i sztabu klanu',
+        title: 'Boostowanie klanu',
+        blurb:
+          'Dawanie i przenoszenie boosta, trzy poziomy i co każdy odblokowuje, kolory nazwy klanu, podarowane boosty oraz znaczki i odznaki boosterów.',
+        minutes: '~5 min',
+      },
       clanVsClan: {
         eyebrow: 'Dla gospodarzy',
         title: 'Goszczenie klanu z zewnątrz',
@@ -344,8 +365,8 @@ const pl: PartialGuideDict = {
           body: 'Otwórz w grze okno klanu z działającym pluginem i naciśnij przycisk **Anvil** na jego pasku tytułu. Cała lista przychodzi wraz z rangami, a lista z klanu, którego nazwa nie zgadza się z twoją, zostaje odrzucona. Powtarzaj to, gdy ktoś dołącza lub odchodzi — zobacz [poradnik konfiguracji dla graczy]({pluginGuide}).',
         },
         {
-          term: 'Grają raz',
-          body: 'Plugin automatycznie rozpoznaje nowe konto i śledzi je jako **gościa**. Konto już obecne na liście członków pojawia się w profilu i przed połączeniem wymaga jednego sprawdzenia XP lub zgody moderatora.',
+          term: 'Proszą o dołączenie',
+          body: 'Logowanie ani granie z pluginem samo z siebie nikomu nie daje miejsca. Jeśli plugin widzi, że ktoś gra w twoim klanie w grze, zanim twój skład go ma, składa za niego prośbę o dołączenie, a każdy inny może poprosić przyciskiem **Apply** na stronie twojego klanu. Sztab odpowiada na jedno i drugie na górze zakładki **Roster**, a **Who can join** decyduje, czy czekają na zgodę, wchodzą od razu, czy w ogóle nie mogą prosić. Ktoś, kto gra postacią już obecną w twoim składzie, jest zamiast tego potwierdzany w **Needs review**. Szczegóły są w [Twoi ludzie]({peopleGuide}).',
         },
         {
           term: 'Ręcznie',
@@ -354,7 +375,7 @@ const pl: PartialGuideDict = {
       ],
       note: {
         tag: 'Goście to nie problem do rozwiązania',
-        body: 'Gość to po prostu ktoś, kogo widzieliśmy, a kogo nie ma na twojej liście — gracz odwiedzającego klanu, alt, ktoś, kto dołączył dziś rano. Mogą brać udział w wydarzeniach, nigdy nie zostając członkami.',
+        body: 'Gość gra w twoich wydarzeniach, nie będąc w twoim klanie w grze: gracz odwiedzającego klanu, znajomy, alt. Dostaje miejsce, gdy sztab zatwierdzi jego prośbę, albo od razu, jeśli **Who can join** jest ustawione na **Let anyone in**. Goście są śledzeni i mogą brać udział w wydarzeniach, a nie wliczają się do twojego planu. Ktoś, kto dołączy do ciebie w grze, zostaje członkiem przy następnej synchronizacji składu.',
       },
     },
     first: {
@@ -756,8 +777,8 @@ const pl: PartialGuideDict = {
       },
       panelHeading: 'Panel boczny',
       panelBody: [
-        'Trzy zakładki. **Clan** to twoje wydarzenia i twój klan: każde trwające i nadchodzące bingo oraz cotygodniowa rywalizacja z twoją pozycją, tydzień klanu i jego największe konta. **You** to twój własny profil —— collection log aż po przedmioty z każdej strony, ostatnie odblokowania, umiejętności, bossowie, clue, najlepsze czasy i cele ustawione na stronie. **Lookup** znajdzie każdego innego, gracza albo klan.',
-        'Na czyjejś karcie **Compare with me** zestawia was obu umiejętność po umiejętności, boss po bossie i strona po stronie. Zębatka otwiera własne ustawienia panelu: synchronizację twojego profilu i składu klanu oraz twój baner i dźwięki misji.',
+        'Cztery zakładki i zębatka. **Clan** to twoje wydarzenia i twój klan: każde trwające i nadchodzące bingo oraz cotygodniowa rywalizacja z twoją pozycją. **Feed** to wielkie chwile twojego klanu i twoich plansz na bieżąco, z czatem wydarzenia. **You** to twój własny profil, a **Lookup** znajdzie każdego innego, gracza albo klan. Pod zębatką jest synchronizacja i dźwięki twojego banera.',
+        'Każdą zakładkę, czat wydarzenia, reakcje i ustawienia, które przenoszą feed i kolory Supporterów do twojej gry, opisuje [Panel boczny, zakładka po zakładce]({panelGuide}).',
       ],
       panelFigure: {
         caption: 'Clan · You · Lookup',
@@ -1041,7 +1062,7 @@ const pl: PartialGuideDict = {
       title: 'Wciągnij swój skład',
       body: [
         'Członkostwo w klanie bierze się z jednego miejsca: z synchronizacji składu z gry. Zainstaluj [plugin Anvil do RuneLite]({pluginGuide}) na koncie _admina_, otwórz w grze okno klanu i naciśnij przycisk **Anvil** na jego pasku tytułu. To wysyła na stronę twoją prawdziwą listę klanu jednym kliknięciem.',
-        'Kto podłącza albo weryfikuje konto na stronie, nie będąc na tym składzie, jest **gościem** —— śledzony, widoczny, ale nie członkiem, dopóki admin go nie awansuje albo nie zgarnie go kolejna synchronizacja. To celowe: znaczy, że nikt nie awansuje się sam do twojego klanu przez wpisanie nazwy.',
+        'Logowanie, podłączenie postaci ani granie z pluginem nigdy nikogo nie dopisuje do składu. Jeśli plugin widzi, że ktoś gra w twoim klanie w grze, zanim skład go ma, składa prośbę o dołączenie; każdy inny może poprosić przyciskiem **Apply** na stronie twojego klanu. Sztab odpowiada na prośby na górze **People → Roster**, a **People → Who can join** decyduje, czy ludzie czekają na zgodę, od razu dostają miejsce gościa, czy w ogóle nie mogą prosić. To celowe: nikt nie dołącza do twojego klanu przez wpisanie jego nazwy. Pełny obraz znajdziesz w [Twoi ludzie]({peopleGuide}).',
         'Możesz też dodać kogoś ręcznie w **People → + Add Manually**, a zapisać go na wydarzenie w jego imieniu przyciskiem **Add member** na stronie **Sign-ups** wydarzenia, gdy nie może dotrzeć do strony.',
       ],
     },
@@ -1849,7 +1870,7 @@ const pl: PartialGuideDict = {
       { strong: '1 wiersz', rest: 'na każdą opłaconą osobę' },
     ],
     footnote:
-      'Wpisowe i wypłaty to obszar skarbnika. Skarbnik może wszystko, co moderator, plus to; moderator może oznaczyć wpisowe jako zebrane, ale nigdy go nie zamknie.',
+      'Wpisowe i wypłaty to obszar skarbnika. Skarbnik może wszystko, co moderator, plus to; zwykły moderator w ogóle nie widzi stron wpisowego.',
 
     set: {
       title: 'Ustalanie wpisowego',
@@ -2324,7 +2345,7 @@ const pl: PartialGuideDict = {
       intro:
         'Role kumulują się w dół: wszystko, co może moderator, może też skarbnik i admin. Co należy konkretnie do moderatora:',
       canList: [
-        'skład: synchronizacja, dodawanie ludzi, awansowanie gościa',
+        'skład: dodawanie i usuwanie ludzi oraz odpowiadanie na prośby o dołączenie ([Twoi ludzie]({peopleGuide}))',
         'weryfikacje kont —— wyzwanie XP i przegląd ręczny',
         'zgłoszenia i zrzuty dowodowe',
         'tygodniowe konkursy i kalendarz',
@@ -2389,15 +2410,15 @@ const pl: PartialGuideDict = {
       ],
       note: {
         tag: 'Zweryfikowany to nie członek',
-        body: 'Zweryfikowanie konta mówi „to naprawdę jego”. Nie wprowadza go do klanu —— członkostwo bierze się wyłącznie z synchronizacji składu z gry albo z ręcznego dodania przez admina. Ktoś zweryfikowany, ale spoza składu, jest **gościem**: śledzonym, widocznym i niebędącym członkiem. To celowe i to właśnie powstrzymuje kogokolwiek przed dołączeniem do twojego klanu przez wpisanie nazwy.',
+        body: 'Zweryfikowanie konta mówi „to naprawdę jego”. Nie wprowadza go do klanu. Członkostwo bierze się wyłącznie z synchronizacji składu z gry albo z ręcznego dodania przez sztab, a miejsce gościa tylko z prośby o dołączenie zatwierdzonej przez sztab (albo od razu, jeśli klan wpuszcza każdego). To celowe i to właśnie powstrzymuje kogokolwiek przed dołączeniem do twojego klanu przez wpisanie nazwy.',
       },
     },
 
     roster: {
       title: 'Utrzymywanie składu w zgodzie z prawdą',
       body: [
-        'Skład bierze się z jednego miejsca: admin uruchamia synchronizację z listy klanu w grze, przyciskiem **Anvil** na pasku tytułu okna klanu (albo **Sync roster** w panelu bocznym pluginu)u. Wszystko inne —— weryfikacje, powiązania, zapisy —— wisi na tym.',
-        'Więc utrzymanie jest małe, ale prawdziwe: puść synchronizację po każdej turze rekrutacji, awansuj gości, którzy naprawdę dołączyli, i zaglądaj do ludzi, których strona oznaczyła jako wymagających przeglądu, zamiast czekać, aż zaczną narzekać.',
+        'Skład bierze się z jednego miejsca: admin uruchamia synchronizację z listy klanu w grze, przyciskiem **Anvil** na pasku tytułu okna klanu (albo **Sync roster** w panelu bocznym pluginu). Wszystko inne —— weryfikacje, powiązania, zapisy —— wisi na tym.',
+        'Więc utrzymanie jest małe, ale prawdziwe: poproś admina o synchronizację po każdej turze rekrutacji (zamienia w członków gości, którzy dołączyli w grze), odpowiadaj na prośby o dołączenie na górze zakładki **Roster** i przerabiaj **Needs review**, zamiast czekać, aż ludzie zaczną narzekać. Zobacz [Twoi ludzie]({peopleGuide}).',
       ],
       note: {
         tag: 'Ostatnio widziany to nie ostatnio grał',
@@ -3046,12 +3067,12 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Ban from this clan',
-          body: 'kończy każde miejsce tej osoby tutaj, razem z altami, i nie pozwala jej wrócić: synchronizacja składu, plugin i prośby o dołączenie odrzucają ją, dopóki ban nie zostanie zdjęty. Jej konto Anvil i inne klany zostają nietknięte. Tylko admini, dla kogoś z kontem na stronie, z menu wiersza albo ze **Staff & roles**. Zdjęcie bana nie przywraca miejsca; osoba wraca do klanu w grze albo ty ją dodajesz.',
+          body: 'kończy każde miejsce tej osoby tutaj, razem z altami, odbiera jej każdą rolę w sztabie i funkcje na planszach w tym klanie i nie pozwala jej wrócić: synchronizacja składu, plugin i prośby o dołączenie odrzucają ją, dopóki ban nie zostanie zdjęty. Jej konto Anvil i inne klany zostają nietknięte. Tylko admini, dla kogoś z kontem na stronie i rolą poniżej admina, z menu wiersza, ze **Staff & roles** albo dla kilku osób naraz. Zdjęcie bana nie przywraca miejsca; osoba wraca do klanu w grze albo ty ją dodajesz.',
         },
       ],
       note: {
-        tag: 'Ban nie odbiera roli w sztabie',
-        body: 'Ban kończy miejsca, ale zostawia każdą rolę w sztabie, jaką ta osoba tu ma. Żeby usunąć członka sztabu, najpierw ustaw mu rolę **Member** w Staff & roles, a potem go zbanuj.',
+        tag: 'Ban odbiera też rolę w sztabie',
+        body: 'Ban kończy miejsca tej osoby i odbiera jej rolę w sztabie oraz wszystkie funkcje edytora i skarbnika planszy na planszach tego klanu. Zdjęcie bana ich nie przywraca: jeśli ma je mieć, nadaj rolę ponownie w Staff & roles.',
       },
     },
 
@@ -3116,7 +3137,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Skarbnik',
-          body: 'wpisowe, skarbiec i nagrody. Skarbnik ma też dostęp do większości stron moderatora (dowody, konkursy, Needs review), ale nie do listy składu ani harmonogramu (Schedule).',
+          body: 'wpisowe, skarbiec i nagrody, a do tego wszystko, co robi moderator: skład, dowody, konkursy, harmonogram (Schedule) i Needs review.',
         },
         {
           term: 'Moderator',
@@ -3190,8 +3211,8 @@ const pl: PartialGuideDict = {
         { area: 'Dowody do sprawdzenia', cells: ['Tak', 'Tak', 'Tak', 'Tak', 'Nie'] },
         { area: 'Tygodniowe konkursy', cells: ['Tak', 'Tak', 'Tak', 'Tak', 'Nie'] },
         { area: 'Wydarzenia klanu', cells: ['Tak', 'Tak', 'Tak', 'Tak', 'Nie'] },
-        { area: 'Harmonogram (Schedule)', cells: ['Tak', 'Tak', 'Nie', 'Tak', 'Nie'] },
-        { area: 'Skład: podgląd, dodawanie, usuwanie', cells: ['Tak', 'Tak', 'Nie', 'Tak', 'Nie'] },
+        { area: 'Harmonogram (Schedule)', cells: ['Tak', 'Tak', 'Tak', 'Tak', 'Nie'] },
+        { area: 'Skład: podgląd, dodawanie, usuwanie', cells: ['Tak', 'Tak', 'Tak', 'Tak', 'Nie'] },
         { area: 'Prośby o dołączenie i Needs review', cells: ['Tak', 'Tak', 'Tak', 'Tak', 'Nie'] },
         { area: 'Ban w klanie', cells: ['Tak', 'Poniżej admina', 'Nie', 'Nie', 'Nie'] },
         { area: 'Staff & roles', cells: ['Tak', 'Poniżej admina', 'Nie', 'Nie', 'Nie'] },
@@ -3225,7 +3246,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Skarbnik planszy',
-          body: 'zbiera wpisowe tej planszy i prowadzi jej wypłaty, bez dostępu do skarbca klanu. Też nadawany w **Board staff**.',
+          body: 'zbiera wpisowe tej planszy i prowadzi jej wypłaty, bez dostępu do skarbca klanu. W panelu administracyjnym widzi tylko swoje plansze, a w każdej tylko zakładki **Sign-ups** i **Prizes**. Też nadawany w **Board staff**.',
         },
         {
           term: 'Sztab drużyny',
@@ -3252,7 +3273,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Admini nie mogą usuwać siebie nawzajem',
-          body: 'admin nie może ani zdegradować, ani zbanować innego admina. Gdy dwóch adminów się nie zgadza, decyduje właściciel.',
+          body: 'admin nie może ani zdegradować, ani zbanować innego admina, ani pojedynczo, ani kilku naraz. Gdy dwóch adminów się nie zgadza, decyduje właściciel. Ban odbiera też danej osobie rolę w sztabie i funkcje na planszach w tym klanie.',
         },
         {
           term: 'Pieniądze wymagają dwóch osób',
@@ -3271,6 +3292,596 @@ const pl: PartialGuideDict = {
           body: 'synchronizacja ról w Anvil dopasowuje role na Discordzie do **rang w grze**, nie do ról na stronie. Zrobienie kogoś moderatorem tutaj nie daje mu nic na twoim serwerze Discord, a rola moderatora nadana ręcznie na Discordzie zostaje nietknięta. Jedyna komenda bota, która cokolwiek zmienia, czyli dodawanie do skarbca przez `/coffer`, sprawdza rolę na stronie: skarbnik, admin albo właściciel.',
         },
       ],
+    },
+  },
+
+  supporter: {
+    metaTitle: 'Anvil Supporter: pakiety i korzyści — Anvil',
+    metaDescription:
+      'Co dostają Anvil Supporter, Champion i Patron: kolory nazwy i gwiazdkę, złote GZ, animowany awatar i baner, gablotę, wydarzenia dla znajomych, pojedynki, czat wydarzenia i boosty klanu. Jak działają płatności przez Gumroad i co się dzieje po rezygnacji.',
+    eyebrow: 'Anvil · dla graczy',
+    title: 'Anvil Supporter: pakiety i korzyści',
+    dek: 'Anvil Supporter to osobista subskrypcja, która opłaca serwery Anvil. Ma trzy pakiety, a każdy zawiera wszystko, co ten niżej. Każda korzyść to wygląd albo więcej miejsca na organizowanie: śledzenie, wydarzenia, punktacja i twoje własne statystyki zostają darmowe dla wszystkich, a nic tutaj nie zmienia tego, co liczy wydarzenie.',
+    facts: [
+      { strong: 'Od $1 miesięcznie', rest: 'albo $10 rocznie' },
+      { strong: 'Tylko wygląd', rest: 'nigdy wynik, ranga ani przedmiot' },
+      { strong: 'Nic nie znika', rest: 'gdy przestaniesz' },
+    ],
+    footnote:
+      'Wszystko to ustawiasz na stronie w **Settings** → **Supporter**, **Profile look** i **Clan boosts**. Boosty szczegółowo opisuje [Boostowanie klanu]({boostsGuide}). Gdzie twoje kolory widać w RuneLite, opisuje [Panel boczny, zakładka po zakładce]({panelGuide}).',
+
+    tiers: {
+      title: 'Trzy pakiety',
+      intro: 'Ceny są na stronie **Anvil Supporter**, `/supporter`. Plan roczny kosztuje tyle, co dziesięć miesięcy.',
+      rows: [
+        {
+          term: 'Supporter',
+          body: '$1 miesięcznie albo $10 rocznie. Złota nazwa i gwiazdka, złote GZ, gablota z 4 miejscami i możliwość zorganizowania wydarzenia dla znajomych.',
+        },
+        {
+          term: 'Champion',
+          body: '$2 miesięcznie albo $20 rocznie. Gradientowe kolory nazwy do wyboru, własny awatar i baner (animowane, jeśli chcesz), 8 miejsc w gablocie, szybszy czat wydarzenia i 1 boost klanu.',
+        },
+        {
+          term: 'Patron',
+          body: '$5 miesięcznie albo $50 rocznie. Dowolne kolory, z ruchomym gradientem, 12 miejsc w gablocie, brak czekania na czacie wydarzenia, 2 wydarzenia dla znajomych naraz i 2 boosty klanu.',
+        },
+      ],
+      note: {
+        tag: 'Czas za zaproszenia',
+        body: 'W Settings → Supporter dostajesz link z zaproszeniem. Gdy zaproszony przez ciebie znajomy zapłaci, zdobywasz darmowe miesiące; nagroda przychodzi dwa tygodnie po jego pierwszej płatności. Czas zdobyty w ten sposób daje wszystkie korzyści danego pakietu poza boostami klanu.',
+      },
+    },
+
+    compare: {
+      title: 'Co daje każdy pakiet',
+      intro: 'Ta sama tabela co na stronie Supporter, plus korzyści na czacie.',
+      table: {
+        areaLabel: 'Korzyść',
+        columns: ['Za darmo', 'Supporter', 'Champion', 'Patron'],
+        rows: [
+          { area: 'Kolory nazwy', cells: ['—', 'Złoty', 'Gotowe zestawy albo jeden własny kolor', 'Gotowe zestawy albo do czterech kolorów, ruchome'] },
+          { area: 'Gwiazdka przy nazwie', cells: ['—', 'Tak', 'Tak', 'Tak'] },
+          { area: 'Złote GZ', cells: ['—', 'Tak', 'Tak', 'Tak'] },
+          { area: 'Własny awatar i baner, animowane', cells: ['—', '—', 'Tak', 'Tak'] },
+          { area: 'Gablota', cells: ['—', '4 miejsca', '8 miejsc', '12 miejsc'] },
+          { area: 'Wydarzenia dla znajomych (naraz · graczy)', cells: ['Tylko dołączanie', '1 · 10', '1 · 25', '2 · 50'] },
+          { area: 'Pojedynki jeden na jednego', cells: ['1 aktywny', '5 aktywnych', 'Bez limitu', 'Bez limitu'] },
+          { area: 'Czat wydarzenia: przerwa między wiadomościami', cells: ['5 s', '3 s', '1 s', 'Brak'] },
+          { area: 'Boosty klanu', cells: ['—', '—', '1', '2'] },
+        ],
+      },
+      outro:
+        'W **Settings** → **In-game chat** są jeszcze trzy: własne kolory feedu na czacie (Supporter), wybór, co obejmuje podsumowanie po zalogowaniu (Champion), oraz gwiazdka przy twojej nazwie w feedach na czacie innych graczy (Patron).',
+    },
+
+    names: {
+      title: 'Kolory nazwy',
+      intro:
+        'Ustawiasz je w **Settings** → **Supporter**, w sekcji **Your name’s look**. Podgląd pokazuje twoją nazwę na ciemnym i na jasnym tle.',
+      rows: [
+        {
+          term: 'Supporter',
+          body: 'jednolite złoto. Nie ma czego wybierać.',
+        },
+        {
+          term: 'Champion',
+          body: 'jeden z gotowych gradientów (**Classic**, domyślny, **Ember**, **Ocean**, **Aurora**, **Rose gold** albo **Toxic**) albo **Your own**: jeden nieruchomy kolor. Na wszystkich twoich postaciach możesz użyć najwyżej dwóch różnych własnych kolorów.',
+        },
+        {
+          term: 'Patron',
+          body: 'wszystkie gotowe zestawy plus **Prism**, domyślny dla Patronów, albo **Your own** z jednym do czterech kolorów. Jeden kolor stoi w miejscu; od dwóch do czterech tworzy gradient, który przesuwa się od lewej do prawej.',
+        },
+      ],
+      outro:
+        '**Your Anvil display name** to nazwa twojego konta połączonego z Discordem. W **Your RuneScape characters** wybierz **Same for all** albo **Customize each**, żeby dać każdej postaci własny wygląd. Naciśnij **Save** (albo **Save for all characters**); **Reset to default** przywraca kolory twojego pakietu.',
+      note: {
+        tag: 'Ciemne i jasne tła',
+        body: 'Strona, panel pluginu i Discord są ciemne; nieprzezroczyste okno czatu w grze jest jasne. Anvil dopasowuje twoje kolory, żeby na każdym z nich były czytelne. Jeśli chcesz na którymś inny wygląd, włącz **Set a separate look for dark backgrounds** albo **for light backgrounds**. Taki wygląd jest pokazywany dokładnie tak, jak go wybrałeś, bez korekty kontrastu, a podgląd ostrzega, gdy trudno go odczytać.',
+      },
+    },
+
+    where: {
+      title: 'Gdzie widać twoje kolory',
+      intro: 'Twoje kolory i gwiazdka idą wszędzie tam, gdzie twoja nazwa:',
+      rows: [
+        {
+          term: 'Na stronie',
+          body: 'plansze, składy, profile, twoja własna nazwa na górnym pasku i nazwy twoich postaci. Gwiazdka nosi twoje kolory.',
+        },
+        {
+          term: 'W panelu pluginu',
+          body: 'Feed, czat wydarzenia, karty i wiersz **Tracking**. Gradient Patrona przesuwa się; każdy gracz może go zatrzymać opcją **Animated names**.',
+        },
+        {
+          term: 'W grze',
+          body: 'dla innych graczy, którzy używają pluginu Anvil: czat publiczny, klanowy, znajomych i prywatny, ogłoszenia klanu, powiadomienia o logowaniu, listy znajomych i klanu oraz menu pod prawym przyciskiem (nigdy na światach PvP ani w Wilderness). Na czacie w grze gwiazdka przysługuje Patronom.',
+        },
+        {
+          term: 'Na Discordzie',
+          body: 'gwiazdka przy twojej nazwie w postach Anvil, w twoich własnych kolorach, jeśli jakieś wybrałeś.',
+        },
+        {
+          term: 'Złote GZ',
+          body: 'przy dropie kogoś z klanu w feedzie twojego klanu na stronie twoje GZ może być złote. Dać je mogą tylko Supporterzy.',
+        },
+      ],
+      note: {
+        tag: 'Tylko na postaciach potwierdzonych jako twoje',
+        body: 'Kolory widać tylko na postaciach, które plugin potwierdził jako twoje, na stronie i w grze. Żeby nie pokazywały się przy twoich nazwach na czacie u innych graczy, odznacz **Show my colours on my characters’ names in game chat** w Settings → Supporter.',
+      },
+    },
+
+    profile: {
+      title: 'Awatar, baner i gablota',
+      intro: 'Wszystkie trzy są w **Settings** → **Profile look**.',
+      rows: [
+        {
+          term: 'Awatar i baner',
+          body: 'Champion i Patron. Wgraj własne; GIF albo WebP zostaje animowany. Widać je na twojej karcie, profilu i każdej twojej postaci, na stronie i w pluginie. Baner może mieć do 6 MB i co najmniej 600×150; awatar do 2 MB.',
+        },
+        {
+          term: 'Dla każdej postaci',
+          body: 'daj jednej postaci własny baner albo awatar, albo jedno i drugie. Zastępuje twój domyślny tylko na stronach tej postaci i na jej karcie w pluginie.',
+        },
+        {
+          term: 'Gablota',
+          body: 'twoje najlepsze dropy, liczby zabójstw i czasy przypięte do profilu: 4 miejsca dla Supportera, 8 dla Championa, 12 dla Patrona. Przypięcia z postaci, których nie udostępniasz, pozostają prywatne.',
+        },
+      ],
+    },
+
+    hosting: {
+      title: 'Wydarzenia dla znajomych, pojedynki i czat',
+      intro: 'Korzyści, które dają ci więcej miejsca na granie, a nie wygląd:',
+      rows: [
+        {
+          term: 'Wydarzenia dla znajomych',
+          body: 'zorganizuj własne bingo, bingo solo albo wyścig dla znajomych przez **Host an event for your friends**, śledzone przez plugin jak wydarzenie klanu. Znajomi dołączają przez twój link z zaproszeniem. Supporter: 1 trwające wydarzenie, 10 graczy. Champion: 1 wydarzenie, 25 graczy. Patron: 2 naraz, łącznie 50 graczy. Dołączyć może każdy.',
+        },
+        {
+          term: 'Pojedynki',
+          body: 'wyzwij znajomego z jego profilu: kto pierwszy zdobędzie drop albo kto ma najwięcej zabójstw lub XP w 1 godzinę, 24 godziny albo 7 dni. Tylko dla chwały. Darmowi gracze mogą mieć 1 otwarty naraz, Supporterzy 5, Championi i Patroni ile chcą.',
+        },
+        {
+          term: 'Czat wydarzenia',
+          body: 'jak długo czekasz między wiadomościami: 5 sekund bez pakietu, 3 dla Supporterów, 1 dla Championów, wcale dla Patronów. Gdy na czacie planszy robi się tłoczno, wszyscy czekają 10 sekund, Patroni też.',
+        },
+        {
+          term: 'Boosty klanu',
+          body: 'Champion 1, Patron 2, dopóki płacisz. Zobacz [Boostowanie klanu]({boostsGuide}).',
+        },
+      ],
+    },
+
+    billing: {
+      title: 'Płacenie, zmiana i rezygnacja',
+      intro: 'Za Anvil Supporter płacisz przez Gumroad, miesięcznie albo rocznie.',
+      steps: [
+        'Zaloguj się w Anvil i otwórz `/supporter`.',
+        'Naciśnij **Choose Supporter**, **Choose Champion** albo **Choose Patron**. Otwiera się kasa Gumroad z płatnością miesięczną albo roczną.',
+        'Zapłać. Korzyści włączają się, gdy tylko Gumroad powiadomi Anvil, a twój pakiet pojawia się na stronie Supporter jako **Your tier**.',
+      ],
+      outro:
+        'Żeby zmienić pakiet, użyj **Change tier** w Settings → Supporter. Żeby zrezygnować albo zmienić kartę, użyj tam **Manage on Gumroad**. Anulowane członkostwo zachowuje wszystkie korzyści do końca opłaconego okresu.',
+      note: {
+        tag: 'Zawsze zaczynaj od /supporter',
+        body: 'Przycisk **Choose** niesie kod, który mówi Anvil, które konto zapłaciło. Anvil nigdy nie dopasowuje płatności po adresie e-mail, więc zakup bezpośrednio w Gumroad, bez tego przycisku, zostawia płatność niepowiązaną. Jeśli tak się stało, zapytaj na Discordzie Anvil, a sztab ręcznie przypisze ją do twojego konta.',
+      },
+    },
+
+    lapse: {
+      title: 'Niższy pakiet albo koniec subskrypcji',
+      intro:
+        'Nic z tego, co ustawiłeś, nie jest usuwane. Każda korzyść jest sprawdzana względem pakietu, który masz w tej chwili, więc wyłącza się sama i wraca, gdy tylko odnowisz.',
+      rows: [
+        {
+          term: 'Kolory nazwy',
+          body: 'twój zapisany wybór zostaje. Nosisz kolory nowego pakietu albo żadne, dopóki nie wróci pakiet, który na to pozwala.',
+        },
+        {
+          term: 'Awatar i baner',
+          body: 'poniżej Championa pokazują swoją pierwszą, nieruchomą klatkę zamiast się ruszać.',
+        },
+        {
+          term: 'Gablota',
+          body: 'pokazuje pierwsze przypięcia, na które pozwala twój pakiet, a resztę ukrywa. Bez pakietu jest ukryta; przypięcia na ciebie czekają.',
+        },
+        {
+          term: 'Boosty klanu',
+          body: 'twoje najstarsze boosty dalej się liczą, a reszta jest wstrzymana, nie usunięta.',
+        },
+      ],
+      note: {
+        tag: 'Tymczasowe podwyższenie od sztabu Anvil',
+        body: 'Sztab może dać komuś na jakiś czas wyższy pakiet, na przykład w podziękowaniu. Działa ono ponad tym, za co płacisz, i nigdy nie zmienia twojej subskrypcji. Settings → Supporter pokazuje **A gift from Anvil** i kiedy się kończy; potem wracasz do opłacanego pakietu. Taki prezent daje miejsca na boosty klanu tylko wtedy, gdy sztab je uwzględni.',
+      },
+    },
+  },
+
+  sidePanel: {
+    metaTitle: 'Panel boczny Anvil, zakładka po zakładce — Anvil',
+    metaDescription:
+      'Co pokazuje każda zakładka panelu bocznego Anvil w RuneLite (Clan, Feed, You, Lookup i zębatka), jak działają czat wydarzenia i reakcje w Feed oraz ustawienia pluginu dla feedu na czacie w grze, kolorów Supporterów i animowanych nazw.',
+    eyebrow: 'Anvil · dla graczy',
+    title: 'Panel boczny, zakładka po zakładce',
+    dek: 'Przycisk Anvil na pasku bocznym RuneLite otwiera panel z czterema zakładkami i zębatką: **Clan**, **Feed**, **You**, **Lookup** i ⚙. Większość tego, co pokazuje, przychodzi ze strony, więc jest aktualne bez aktualizacji pluginu. Kilka rzeczy poniżej oznaczono jako nadchodzące w następnej aktualizacji pluginu.',
+    facts: [
+      { strong: 'Cztery zakładki', rest: 'i zębatka do synchronizacji i ustawień' },
+      { strong: 'Czat wydarzenia', rest: 'w zakładce Feed' },
+      { strong: 'GZ, Sad, Sit', rest: 'przy wierszach Feed' },
+    ],
+    footnote:
+      'Instalację pluginu i logowanie opisuje [poradnik konfiguracji pluginu RuneLite]({pluginGuide}). Kolory Supporterów, gwiazdkę i korzyści na czacie wyjaśnia [Anvil Supporter: pakiety i korzyści]({supporterGuide}).',
+
+    header: {
+      title: 'Góra panelu',
+      intro: 'Nad zakładkami są tytuł, **Refresh** i wiersz konta.',
+      rows: [
+        {
+          term: 'Refresh',
+          body: 'przeładowuje panel, razem z zakładką Feed. W trakcie pokazuje **Refreshing…**. W następnej aktualizacji pluginu przeładowuje też You i Lookup, więc nowy awatar albo baner pojawia się od razu, i nie czyści już zakładki Feed.',
+        },
+        {
+          term: 'Tracking',
+          body: 'wiersz pod tytułem pokazuje śledzoną postać, w jej kolorach Supportera, jeśli je ma. **Not my account…** przestaje śledzić postać, którą na tym komputerze gra ktoś inny; **Track again** to cofa.',
+        },
+        {
+          term: 'Menu konta',
+          body: 'link ⋯ otwiera **View my profile on Anvil**, **Not my account…** i **Sign out…**. W następnej aktualizacji pluginu ma też **Become a Supporter** albo **Your Supporter perks**, jeśli już nim jesteś.',
+        },
+        {
+          term: 'Postępy sezonu',
+          body: 'w następnej aktualizacji pluginu, na światach Leagues, Deadman i innych sezonowych, pojawia się wiersz **Sharing season progress · Turn off**. Wysyła on twoje relikty, obszary i zadania (ze zrzutem ekranu) do twojego klanu; twój klan wybiera na stronie, co zostanie opublikowane. **Turn on** znów to udostępnia. Ten sam przełącznik to **Share seasonal activity** w ustawieniach pluginu.',
+        },
+      ],
+    },
+
+    clan: {
+      title: 'Clan',
+      intro:
+        'Twoje wydarzenia i twój klan. W przestrzeni twórcy zakładka nazywa się **Space**.',
+      rows: [
+        {
+          term: 'Lista wyboru klanu',
+          body: 'widoczna, gdy grasz w więcej niż jednym klanie albo przestrzeni. **All clans** (domyślnie) pokazuje wszystko, w czym grasz, z trwającym wydarzeniem na początku. Wybranie jednego klanu zawęża do niego panel i tam trafiają twoje zgłoszenia.',
+        },
+        {
+          term: 'Wydarzenia',
+          body: 'każda trwająca i nadchodząca plansza, Skill albo Boss of the Week i wydarzenie klanu, z twoją pozycją. Dalej **Your other boards**, **Also live** i **Your clan**.',
+        },
+        {
+          term: 'Plansza',
+          body: 'otwórz ją, żeby zobaczyć ranking, drużyny, misje, ostatnią aktywność, najbliższe pola i **View all tiles**. Jej przyciski **Feed** i **Chat** otwierają tę planszę w zakładce Feed.',
+        },
+        {
+          term: 'Wydarzenie klanu',
+          body: '**I’m going**, **Sign me up** albo **Answer the survey**, zależnie od wydarzenia.',
+        },
+      ],
+    },
+
+    feed: {
+      title: 'Feed',
+      intro:
+        'Wielkie chwile twojego klanu i twoich plansz, na żywo: dropy, pety, osiągnięcia, questy, śmierci i ukończone pola.',
+      rows: [
+        {
+          term: 'Czyj feed',
+          body: 'lista na górze pokazuje **Clan ·** każdy klan, którego jesteś członkiem, i **Event ·** każdą trwającą planszę, na której jesteś. Otwiera się na twojej planszy, jeśli ją masz, a inaczej na twoim klanie.',
+        },
+        {
+          term: 'Filtry',
+          body: '**All**, **Tiles** (tylko plansze), **Drops**, **Pets**, **Achievements**, **Deaths** oraz **My team** na planszy, na której jesteś w drużynie. Feed klanu ma też przycisk aktywności trybów gry dla Leagues i innych trybów.',
+        },
+        {
+          term: 'Nowe wiersze',
+          body: 'pojawiają się same. Jeśli przewinąłeś gdzie indziej, pigułka **↑ N new** zabierze cię z powrotem.',
+        },
+      ],
+      note: {
+        tag: 'To nie to samo co feed na czacie w grze',
+        body: 'Zakładka Feed działa bez względu na ustawienia pluginu. **Show feed in game chat** (krok 8) to osobne ustawienie, które dodatkowo wypisuje feed w oknie czatu.',
+      },
+    },
+
+    reactions: {
+      title: 'Reakcje',
+      intro: 'Każdy wiersz w Feed ma pod sobą swoją reakcję:',
+      rows: [
+        {
+          term: 'GZ',
+          body: 'przy dropach, petach i osiągnięciach. Obok widać licznik, na przykład **GZ 3**.',
+        },
+        {
+          term: 'Sad i Sit',
+          body: 'przy śmierciach, zamiast GZ. Sit to sposób gry na powiedzenie komuś, kto zginął, żeby usiadł.',
+        },
+        {
+          term: 'Kto może reagować',
+          body: 'w feedzie klanu – członkowie klanu. Na planszy – jej gracze i sztab gospodarza; gdy plansza ukrywa ranking, gracze mogą reagować tylko na wiersze własnej drużyny.',
+        },
+        {
+          term: 'Kto zareagował',
+          body: 'najedź na reakcję, żeby zobaczyć nazwy, na przykład „GZ · Mossy and 3 others”. Kliknij ją ponownie, żeby cofnąć swoją.',
+        },
+      ],
+      note: {
+        tag: 'W następnej aktualizacji pluginu',
+        body: 'Reakcje stają się przyciskami-pigułkami, podświetlonymi, gdy któraś jest twoja, a reakcje innych aktualizują się na żywo u wszystkich, którzy patrzą, także w twoich innych otwartych klientach. Dziś licznik zmienia się, gdy reagujesz albo gdy Feed się przeładuje. Złote GZ, reakcję Supporterów, daje się w feedach na stronie; zakładka Feed ma GZ, Sad i Sit.',
+      },
+    },
+
+    chat: {
+      title: 'Czat wydarzenia',
+      intro:
+        'Plansza z włączonym czatem ma przełącznik **Feed / Chat** na górze zakładki Feed, dla graczy tej planszy i sztabu gospodarza. Strona planszy w zakładce Clan też ma przycisk **Chat**.',
+      rows: [
+        {
+          term: 'Wszyscy albo twoja drużyna',
+          body: '**All** pisze do całej planszy, **My team** tylko do twojej drużyny (te wiadomości są oznaczone **TEAM**). Sztab widzi też **Host & mods**, a jego wiadomości są oznaczone **HOST** albo **MOD**.',
+        },
+        {
+          term: 'Wysyłanie',
+          body: 'wpisz w pole i naciśnij Enter. Wiadomość może mieć do 200 znaków, a linki mogą wysyłać tylko gospodarz i modzi.',
+        },
+        {
+          term: 'Jak często',
+          body: 'przerwa między twoimi wiadomościami zależy od pakietu Supportera: 5 sekund bez pakietu, 3 dla Supporterów, 1 dla Championów, żadnej dla Patronów. Wiersz pod polem mówi, jaka jest twoja. Sztab nigdy nie czeka.',
+        },
+        {
+          term: 'Tryb powolny',
+          body: 'gdy na czacie planszy robi się bardzo tłoczno, wszyscy przez minutę czekają co najmniej 10 sekund, Patroni też. Nikt nie może wysłać więcej niż 10 wiadomości w 10 sekund.',
+        },
+        {
+          term: 'Moderacja',
+          body: 'gospodarz i modzi mogą kliknąć wiadomość prawym przyciskiem, żeby wybrać **Delete message** albo **Mute** dla kogoś, i wstrzymać cały czat przez **Pause chat (read-only for everyone)**.',
+        },
+      ],
+      outro:
+        'Seria wiadomości jednej osoby ma wspólną nazwę i godzinę, dopóki nie pojawi się 5-minutowa przerwa. Czat jest przechowywany przez 7 dni po końcu wydarzenia.',
+    },
+
+    you: {
+      title: 'You i Lookup',
+      intro: 'Dwie zakładki z kartami graczy: twoją i każdego innego.',
+      rows: [
+        {
+          term: 'You',
+          body: 'twoja własna karta dla postaci, na której jesteś zalogowany: baner i awatar, **Display case**, collection log aż po przedmioty z każdej strony oraz **Skills**, **Bosses**, **Clues**, **Times** i **CAs**. Pod nią każde czekające na ciebie wyzwanie **Head-to-head** (**Accept** albo **Decline**) i twoje **Goals**, z **+ Add goal**.',
+        },
+        {
+          term: 'Lookup',
+          body: 'przełącz między **Players** i **Clans**, wpisz nazwę i naciśnij Enter. **Recent** pokazuje kilka ostatnich wyszukiwań. Kliknij kogokolwiek w grze prawym przyciskiem i wybierz **Anvil**, żeby trafić tutaj.',
+        },
+        {
+          term: 'Porównanie',
+          body: 'na czyjejś karcie **Compare with me** zestawia was obu umiejętność po umiejętności, boss po bossie i strona po stronie. Karta klanu ma **Compare with my clan**.',
+        },
+      ],
+    },
+
+    gear: {
+      title: 'Zakładka z zębatką',
+      intro: 'Synchronizacja i ustawienia, a nie rzeczy do oglądania:',
+      rows: [
+        {
+          term: 'Sync profile',
+          body: 'wysyła do Anvil twój collection log i najlepsze czasy.',
+        },
+        {
+          term: 'Sync clan roster',
+          body: 'tylko dla adminów klanu: wysyła na stronę listę członków klanu z gry. Jeśli plugin nie może odczytać twojego klanu, pokazuje zamiast tego **Join your clan channel to sync the roster**.',
+        },
+        {
+          term: 'Dźwięki banera',
+          body: '**Add clip** dla dźwięku, który gra baner, **Copy folder path**, żeby nimi zarządzać, i **Add mission clip** dla misji.',
+        },
+        {
+          term: 'Become a Supporter',
+          body: 'w następnej aktualizacji pluginu link ★ na dole otwiera stronę Supporter albo pokazuje **Your Supporter perks**, jeśli już nim jesteś.',
+        },
+      ],
+    },
+
+    settings: {
+      title: 'Ustawienia, które zmieniają to, co widzisz',
+      intro:
+        'W konfiguracji Anvil w RuneLite, w sekcji **Chat messages**. Na start wszystkie są włączone.',
+      rows: [
+        {
+          term: 'Show feed in game chat',
+          body: 'dodatkowo wypisuje feed w oknie czatu na bieżąco: duże dropy, pety i osiągnięcia z plansz, których gospodarz to włączył, i z klanów, w których jesteś gościem, postępy twoich kolegów z drużyny na polach i pola ukończone przez inne drużyny.',
+        },
+        {
+          term: 'Supporter names in chat',
+          body: 'kolory Supporterów (i gwiazdka Patrona) na czacie publicznym, klanowym, znajomych i prywatnym oraz na liście znajomych i listach członków kanałów. Lista nazw jest pobierana z Anvil; nic o tym, kogo widzisz, nie jest wysyłane.',
+        },
+        {
+          term: 'Animated names',
+          body: 'pozwala gradientowi Patrona przesuwać się w panelu, w Feed i na czacie wydarzenia. Wyłączone zatrzymuje go w miejscu. W następnej aktualizacji pluginu obejmuje też nazwy boostowanych klanów i animowane banery w panelu.',
+        },
+        {
+          term: 'Supporter names in menus',
+          body: 'kolory Supporterów na ich nazwie, gdy klikasz ich prawym przyciskiem, nigdy na światach PvP ani w Wilderness.',
+        },
+        {
+          term: 'Over other plugins’ colours',
+          body: 'włączone: kolory Supportera zastępują kolor nazwy ustawiony przez inny plugin, na przykład Player Indicators. Wyłączone: takie nazwy zostają bez zmian.',
+        },
+      ],
+    },
+  },
+
+  clanBoosts: {
+    metaTitle: 'Boostowanie klanu — Anvil',
+    metaDescription:
+      'Jak działają boosty klanu w Anvil: kto je ma, dawanie i przenoszenie boosta, trzy poziomy boostów i co każdy odblokowuje, kolory nazwy klanu, podarowane boosty oraz znaczki i odznaki boosterów.',
+    eyebrow: 'Anvil · dla Supporterów i sztabu klanu',
+    title: 'Boostowanie klanu',
+    dek: 'Płacący Champion albo Patron może dać boosta klanowi, którego jest członkiem. Odpowiednio dużo boostów od członków klanu podnosi go o poziom, a każdy poziom zmienia wygląd klanu i miejsce, w którym jest wyświetlany. Boosty to tylko wygląd: nigdy nie zmieniają rangi, wyniku, miejsca ani planu klanu.',
+    facts: [
+      { strong: 'Champion 1, Patron 2', rest: 'boosty, dopóki płacisz' },
+      { strong: 'Poziomy przy 3, 8 i 15', rest: 'liczonych boostach' },
+      { strong: 'Raz w tygodniu', rest: 'boosta można przenieść' },
+    ],
+    footnote:
+      'Członkowie dają boosty w **Settings** → **Clan boosts**. Sztab klanu widzi poziom i jego opcje w Admin → **Clan settings** → **Boosts**. O samych pakietach przeczytasz w [Anvil Supporter: pakiety i korzyści]({supporterGuide}).',
+
+    what: {
+      title: 'Kto ma boosty',
+      intro: 'Boosty przychodzą z płatnym członkostwem:',
+      rows: [
+        { term: 'Champion', body: '1 boost.' },
+        { term: 'Patron', body: '2 boosty.' },
+        {
+          term: 'Supporter',
+          body: 'żadnego. Czas zdobyty za zaproszenia też ich nie daje. Tymczasowe podwyższenie od sztabu Anvil daje miejsca tylko wtedy, gdy sztab je uwzględni.',
+        },
+      ],
+      outro:
+        'Boosty należą do ciebie, a nie do postaci: trzy postacie w trzech klanach i tak dzielą jedną pulę. **Settings** → **Clan boosts** pojawia się w twoich ustawieniach tylko wtedy, gdy jesteś Supporterem albo wciąż masz gdzieś dany boost.',
+    },
+
+    place: {
+      title: 'Dawanie i przenoszenie boosta',
+      intro: 'Swoje boosty dajesz sam; nikt nie może dać boosta za ciebie.',
+      steps: [
+        'Otwórz **Settings** → **Clan boosts**. **Your boosts** pokazuje, co dałeś, i każde **Free slot**.',
+        'W **Clans you can boost** naciśnij **Boost** obok klanu. Możesz też nacisnąć **Boost this clan** w sekcji Boosters na stronie samego klanu.',
+        'Żeby jeden przenieść, użyj **Move to…** w jego wierszu i wybierz inny klan. **Remove** go zdejmuje.',
+      ],
+      rows: [
+        {
+          term: 'Miejsce członka sprzed 14 dni',
+          body: 'każdy boost opiera się na miejscu członka, które jedna z twoich postaci ma w klanie w grze. Miejsce gościa nie może go nieść. Staż miejsca liczy się od wcześniejszej z dwóch dat: kiedy Anvil po raz pierwszy je zobaczył albo kiedy według gry postać dołączyła. Do tego czasu wiersz klanu mówi, ile dni zostało.',
+        },
+        {
+          term: 'Jeden wiersz na klan',
+          body: 'lista pokazuje każdy klan raz, a Anvil wybiera postać, na której opiera się boost: twojego maina, gdy to możliwe, a inaczej najdłużej zajmowane miejsce. Klan widzi tylko tę postać, nigdy pozostałych.',
+        },
+        {
+          term: 'Raz w tygodniu',
+          body: 'danego boosta można przenieść 7 dni po jego daniu. Miejsce zdjętego boosta zwalnia się w tym samym dniu, więc zdjęcie i ponowne danie nie jest skrótem. Jeśli postać, na której się opierał, opuściła klan, możesz go przenieść od razu.',
+        },
+      ],
+      note: {
+        tag: 'Co znaczą etykiety',
+        body: '**counting**: liczy się do poziomu klanu. **paused**: twój pakiet ma teraz mniej miejsc, niż dałeś boostów, więc najstarsze dalej się liczą, a reszta czeka. **seat gone**: postać, na której się opierał, nie jest już tam członkiem; przenieś go. **over the 2-per-person cap**: klan liczy już dwa twoje.',
+      },
+    },
+
+    levels: {
+      title: 'Poziomy',
+      intro:
+        'Poziom klanu wynika z jego liczonych boostów. Do jednego klanu liczą się najwyżej dwa boosty jednej osoby, więc poziom zawsze oznacza, że wybrało go kilku członków.',
+      rows: [
+        { term: 'Poziom 1', body: '3 liczone boosty.' },
+        { term: 'Poziom 2', body: '8 liczonych boostów.' },
+        { term: 'Poziom 3', body: '15 liczonych boostów.' },
+      ],
+      outro:
+        'Członkowie widzą postęp na stronie klanu, na przykład „5 of 8 to Level 2”. Klan, który awansuje, dostaje nowy poziom od razu.',
+      note: {
+        tag: 'Tydzień ulgi',
+        body: 'Gdy boostów spadnie poniżej progu poziomu, klan zachowuje korzyści tego poziomu przez 7 dni. Admin → Clan settings → Boosts pokazuje, kiedy się kończą. Jeśli członkowie zdążą go ponownie zboostować, nic się nie zmienia.',
+      },
+    },
+
+    perks: {
+      title: 'Co odblokowuje każdy poziom',
+      intro: 'Każdy poziom zachowuje wszystko z poziomu niżej.',
+      rows: [
+        {
+          term: 'Poziom 1',
+          body: 'odznaka **Boosted** na stronie klanu, na jego karcie w Clan Hall i w wyszukiwaniu; miejsce nad klanami bez boostów w Clan Hall i jego wynikach wyszukiwania; oraz nazwa klanu w gradiencie.',
+        },
+        {
+          term: 'Poziom 2',
+          body: 'miejsce w rzędzie **Featured** w Clan Hall; animowany baner klanu się odtwarza (poniżej poziomu 2 pokazuje nieruchomą klatkę); wiersz rekrutacyjny dla odwiedzających; i ruchomy gradient nazwy.',
+        },
+        {
+          term: 'Poziom 3',
+          body: '**Spotlight** na samej górze Clan Hall i jeden post rekrutacyjny miesięcznie na Discordzie Anvil, napisany przez klan.',
+        },
+      ],
+      note: {
+        tag: 'Logo klanu to nie korzyść',
+        body: 'Animowane logo (obrazek klanu w GIF albo WebP) odtwarza się na każdym poziomie. Tylko baner czeka na poziom 2.',
+      },
+    },
+
+    colours: {
+      title: 'Kolory nazwy klanu',
+      intro:
+        'Od poziomu 1 nazwa klanu nosi gradient Anvil. Właściciele i admini mogą wybrać własny w Admin → **Clan settings** → **Boosts** → **Clan name colours**:',
+      rows: [
+        {
+          term: 'Od jednego do czterech kolorów',
+          body: 'jeden kolor daje nieruchomą nazwę; od dwóch do czterech tworzy gradient. Od poziomu 2 gradient się porusza.',
+        },
+        {
+          term: 'Ciemne i jasne tła',
+          body: 'jak przy nazwach Supporterów, Anvil dopasowuje kolory, żeby były czytelne na ciemnych tłach (strona, panel pluginu, Discord) i jasnych (nieprzezroczyste okno czatu w grze). Włącz osobny wygląd dla jednego z nich, a będzie pokazywany dokładnie tak, jak go wybrano.',
+        },
+        {
+          term: 'Reset to Anvil',
+          body: 'wraca do palety Anvil.',
+        },
+      ],
+      outro:
+        'Kolory zostają zapisane, jeśli klan spadnie poniżej poziomu 1, i wracają, gdy znów go osiągnie. Plugin łapie zmianę przy następnym odświeżeniu.',
+    },
+
+    staff: {
+      title: 'Dla sztabu klanu',
+      intro:
+        'Admin → **Clan settings** → **Boosts** jest dla właścicieli i adminów. Sztab nie może dawać boostów za członków; członkowie dają je sami.',
+      rows: [
+        {
+          term: 'Poziom',
+          body: 'poziom klanu, ile boostów się liczy, ilu brakuje do następnego poziomu i ewentualny tydzień ulgi.',
+        },
+        {
+          term: 'Wiersz rekrutacyjny',
+          body: 'poziom 2. Jedno zdanie, do 140 znaków, pokazywane osobom spoza klanu na stronie twojego klanu i jego karcie w Clan Hall.',
+        },
+        {
+          term: 'Post rekrutacyjny na Discordzie Anvil',
+          body: 'poziom 3. Raz w miesiącu kalendarzowym, od 20 do 500 znaków, napisany przez ciebie i opublikowany, gdy naciśniesz **Post it**, z linkiem do strony twojego klanu. Wzmianki są usuwane i nikt nie dostaje pinga. Nie możesz go edytować ani wysłać kolejnego przed następnym miesiącem.',
+        },
+        {
+          term: 'Boosters',
+          body: 'lista postaci, które boostują klan.',
+        },
+      ],
+      note: {
+        tag: 'Boosty podarowane przez Anvil',
+        body: 'Sztab Anvil może podarować klanowi poziom, na określony czas albo bezterminowo. Prezent dodaje tylko boosty, których klanowi brakuje do tego poziomu, pokazane jako **Anvil gift** na liście Boosters klanu. Każdy prawdziwy boost od członka zastępuje jeden podarowany, a klan już powyżej podarowanego poziomu zachowuje swój. Gdy prezent się kończy, klan wraca do poziomu, jaki dają mu boosty członków.',
+      },
+    },
+
+    boosters: {
+      title: 'Znaczki i odznaki boosterów',
+      intro: 'Co dostaje booster w klanie, który boostuje:',
+      rows: [
+        {
+          term: 'Znaczek Booster',
+          body: 'mały klejnot obok jego postaci w składzie, feedzie i postach na Discordzie tego klanu. Najedź na niego, żeby zobaczyć „Boosts this clan”.',
+        },
+        {
+          term: 'Ściana Boosterów',
+          body: 'na stronie klanu: jeden wiersz na postać, najpierw najwięcej boostów, potem najdłuższy staż.',
+        },
+        {
+          term: 'Odznaki',
+          body: '**First booster** dla tego, kto dał pierwszego boosta w historii klanu; **1 month**, **3 months**, **6 months** i **1 year** boostowania bez przerwy; oraz **Level-up 1**, **2** albo **3** za boosta, który podniósł klan na ten poziom.',
+        },
+      ],
+      note: {
+        tag: 'Przeniesienie zeruje licznik',
+        body: 'Odznaki za czas liczą się od najwcześniejszego wciąż liczonego boosta danej postaci, więc przeniesienie albo zdjęcie boosta zaczyna je od nowa. Twój profil pokazuje klany, które boostujesz, każdy raz.',
+      },
     },
   },
 };

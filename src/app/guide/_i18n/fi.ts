@@ -191,6 +191,27 @@ const fi: PartialGuideDict = {
           'Omistaja, ylläpitäjä, rahastonhoitaja ja moderaattori: mihin kukin pääsee, miten jostakusta tehdään moderaattori, kuka voi antaa minkäkin roolin, ja yhtä tapahtumaa koskevat tehtävät.',
         minutes: '~6 min',
       },
+      supporter: {
+        eyebrow: 'Pelaajille',
+        title: 'Anvil Supporter: tasot ja edut',
+        blurb:
+          'Supporter, Champion ja Patron: nimen värit, tähti, profiilikuvat, vitriini, kaveritapahtumat ja klaanin boostit, miten laskutus toimii ja mitä tapahtuu, jos lopetat.',
+        minutes: '~6 min',
+      },
+      sidePanel: {
+        eyebrow: 'Pelaajille',
+        title: 'Sivupaneeli välilehti kerrallaan',
+        blurb:
+          'Clan, Feed, You, Lookup ja ratas: mitä kukin välilehti näyttää, tapahtumachat, GZ- ja Sad-reaktiot sekä asetukset, jotka tuovat syötteen ja Supporter-värit peliisi.',
+        minutes: '~6 min',
+      },
+      clanBoosts: {
+        eyebrow: 'Supportereille ja klaanin henkilökunnalle',
+        title: 'Klaanin boostaaminen',
+        blurb:
+          'Boostin asettaminen ja siirtäminen, kolme tasoa ja mitä kukin avaa, klaanin nimen värit, lahjoitetut boostit sekä boostaajien merkit ja kunniamerkit.',
+        minutes: '~5 min',
+      },
     },
   },
 
@@ -344,8 +365,8 @@ const fi: PartialGuideDict = {
           body: 'Avaa pelissä klaani-ikkuna lisäosan ollessa käynnissä ja paina otsikkopalkin **Anvil**-painiketta. Koko jäsenlistasi saapuu arvoineen, ja lista klaanista jonka nimi ei täsmää omaasi hylätään. Toista se kun väkeä tulee tai lähtee — katso [pelaajan asennusopas]({pluginGuide}).',
         },
         {
-          term: 'He pelaavat kerran',
-          body: 'Plugin tunnistaa uuden tilin automaattisesti ja seuraa sitä **vieraana**. Jo jäsenlistalla oleva tili näkyy pelaajan profiilissa ja vaatii yhden XP-tarkistuksen tai moderaattorin hyväksynnän ennen yhdistämistä.',
+          term: 'He pyytävät päästä mukaan',
+          body: 'Sisäänkirjautuminen tai pluginilla pelaaminen ei koskaan anna kenellekään paikkaa itsestään. Jos plugin näkee jonkun pelaavan pelin klaanissasi ennen kuin jäsenlistallasi on hänet, se tekee hänen puolestaan liittymispyynnön, ja kuka tahansa muu voi pyytää klaanisivusi **Apply**-painikkeella. Henkilökunta vastaa molempiin **Roster**-välilehden yläosassa, ja **Who can join** ratkaisee, odottavatko he hyväksyntää, pääsevätkö he heti sisään vai eivätkö he voi pyytää lainkaan. Joku, joka pelaa jäsenlistallasi jo olevaa hahmoa, vahvistetaan sen sijaan kohdassa **Needs review**. Yksityiskohdat ovat oppaassa [Väkesi]({peopleGuide}).',
         },
         {
           term: 'Käsin',
@@ -354,7 +375,7 @@ const fi: PartialGuideDict = {
       ],
       note: {
         tag: 'Vieraat eivät ole ratkaistava ongelma',
-        body: 'Vieras on yksinkertaisesti joku jonka olemme nähneet ja joka ei ole listallasi — vierailevan klaanin pelaaja, alt, joku joka liittyi tänä aamuna. He voivat osallistua tapahtumiin koskaan jäseneksi tulematta.',
+        body: 'Vieras pelaa tapahtumissasi olematta pelin klaanissasi: vierailevan klaanin pelaaja, kaveri, alt. He saavat paikan, kun henkilökunta hyväksyy heidän pyyntönsä, tai heti, jos **Who can join** on asetettu tilaan **Let anyone in**. Heitä seurataan ja he voivat osallistua tapahtumiin, eivätkä he kuluta tilauksesi paikkoja. Joku, joka liittyy klaaniisi pelissä, tulee jäseneksi seuraavassa jäsenlistan synkronoinnissa.',
       },
     },
     first: {
@@ -758,8 +779,8 @@ const fi: PartialGuideDict = {
       },
       panelHeading: 'Sivupaneeli',
       panelBody: [
-        'Kolme välilehteä. **Clan** on tapahtumasi ja klaanisi: jokainen käynnissä oleva ja tuleva bingo ja viikkokilpailu sijoituksinesi, klaanisi viikko ja sen suurimmat tilit. **You** on oma profiilisi — Collection Logisi jokaisen sivun esineisiin asti, uusimmat avaukset, taidot, bossit, cluet, parhaat ajat ja sivustolla asettamasi tavoitteet. **Lookup** löytää kenen tahansa muun, pelaajan tai klaanin.',
-        'Jonkun kortilla **Compare with me** asettaa teidät rinnakkain — taito taidolta, bossi bossilta ja sivu sivulta. Ratas avaa paneelin omat asetukset: profiilisi ja klaanin jäsenlistan synkronoinnin sekä bannerisi ja tehtävä-äänet.',
+        'Neljä välilehteä ja ratas. **Clan** on tapahtumasi ja klaanisi: jokainen käynnissä oleva ja tuleva bingo ja viikkokilpailu sijoituksinesi. **Feed** on klaanisi ja taulujesi suuret hetket sitä mukaa kuin ne tapahtuvat, tapahtumachatin kanssa. **You** on oma profiilisi, ja **Lookup** löytää kenen tahansa muun, pelaajan tai klaanin. Rattaasta löytyvät synkronointi ja banneriäänesi.',
+        'Jokainen välilehti, tapahtumachat, reaktiot ja asetukset, jotka tuovat syötteen ja Supporter-värit peliisi, ovat oppaassa [Sivupaneeli välilehti kerrallaan]({panelGuide}).',
       ],
       panelFigure: {
         caption: 'Clan · You · Lookup',
@@ -1049,7 +1070,7 @@ const fi: PartialGuideDict = {
       title: 'Saa jäsenlistasi sisään',
       body: [
         'Klaanijäsenyys tulee yhdestä paikasta: pelinsisäisestä jäsenlistan synkronoinnista. Asenna [Anvilin RuneLite-plugin]({pluginGuide}) _ylläpitäjän_ tilille, avaa pelin klaani-ikkunasi, ja paina sen otsikkopalkin **Anvil**-painiketta. Se työntää todellisen klaanilistanne pelistä sivustolle yhdellä klikkauksella.',
-        'Kuka tahansa joka yhdistää tai vahvistaa tilin verkkosivulla olematta sillä listalla on **vieras** — seurattu ja näkyvä, mutta ei jäsen ennen kuin ylläpitäjä ylentää heidät tai seuraava synkronointi poimii heidät. Se on tarkoituksellista: se tarkoittaa ettei kukaan voi ylentää itseään klaaniinne kirjoittamalla nimeä.',
+        'Sisäänkirjautuminen, hahmon yhdistäminen tai pluginilla pelaaminen ei koskaan lisää ketään jäsenlistalle. Jos plugin näkee jonkun pelaavan pelin klaanissanne ennen kuin jäsenlistalla on hänet, se tekee liittymispyynnön; kuka tahansa muu voi pyytää klaanisivunne **Apply**-painikkeella. Henkilökunta vastaa pyyntöihin kohdan **People → Roster** yläosassa, ja **People → Who can join** ratkaisee, odottavatko ihmiset hyväksyntää, saavatko he vieraspaikan heti vai eivätkö he voi pyytää lainkaan. Se on tarkoituksellista: kukaan ei liity klaaniinne kirjoittamalla sen nimen. Koko kuva on oppaassa [Väkesi]({peopleGuide}).',
         'Voit myös lisätä jonkun käsin kohdasta **People → + Add Manually**, ja ilmoittaa hänet tapahtumaan hänen puolestaan painikkeella **Add member** tapahtuman **Sign-ups**-sivulla, kun hän ei pääse sivustolle.',
       ],
     },
@@ -1868,7 +1889,7 @@ const fi: PartialGuideDict = {
       { strong: '1 rivi', rest: 'jokaista maksun saajaa kohden' },
     ],
     footnote:
-      'Maksut ja palkintojen jako ovat rahastonhoitajan pinta. Rahastonhoitaja voi kaiken minkä moderaattorikin, sekä tämän; moderaattori voi merkitä maksun kerätyksi mutta ei koskaan sulkea sitä.',
+      'Maksut ja palkintojen jako ovat rahastonhoitajan pinta. Rahastonhoitaja voi kaiken minkä moderaattorikin, sekä tämän; pelkkä moderaattori ei näe maksusivuja lainkaan.',
 
     set: {
       title: 'Maksun asettaminen',
@@ -2109,7 +2130,7 @@ const fi: PartialGuideDict = {
       intro:
         'Roolit pinoutuvat alaspäin: kaiken minkä moderaattori voi, voi myös rahastonhoitaja ja ylläpitäjä. Se mikä on nimenomaan moderaattorin:',
       canList: [
-        'jäsenlista: sen synkronointi, ihmisten lisääminen, vieraan ylentäminen',
+        'jäsenlista: ihmisten lisääminen ja poistaminen sekä liittymispyyntöihin vastaaminen ([Väkesi]({peopleGuide}))',
         'tilien vahvistukset — XP-haaste ja manuaalinen tarkistus',
         'lähetykset ja todistekuvakaappaukset',
         'viikkokilpailut ja aikataulu',
@@ -2174,7 +2195,7 @@ const fi: PartialGuideDict = {
       ],
       note: {
         tag: 'Vahvistettu ei ole sama kuin jäsen',
-        body: 'Tilin vahvistaminen sanoo “tämä on oikeasti heidän”. Se ei tee heistä osaa klaania — klaanijäsenyys tulee vain pelinsisäisestä jäsenlistan synkronoinnista tai ylläpitäjältä joka lisää heidät käsin. Joku joka on vahvistettu mutta ei listalla on **vieras**: seurattu, näkyvä, ei jäsen. Se on tarkoituksellista, ja se on se mikä estää ketään liittymästä klaaniisi kirjoittamalla nimen.',
+        body: 'Tilin vahvistaminen sanoo “tämä on oikeasti heidän”. Se ei tee heistä osaa klaania. Jäsenyys tulee vain pelinsisäisestä jäsenlistan synkronoinnista tai henkilökunnalta, joka lisää heidät käsin, ja vieraspaikka vain liittymispyynnöstä, jonka henkilökunta hyväksyy (tai heti, jos klaani päästää kaikki sisään). Se on tarkoituksellista, ja se on se, mikä estää ketään liittymästä klaaniisi kirjoittamalla nimen.',
       },
     },
 
@@ -2182,7 +2203,7 @@ const fi: PartialGuideDict = {
       title: 'Jäsenlistan pitäminen rehellisenä',
       body: [
         'Jäsenlista tulee yhdestä paikasta: ylläpitäjä ajaa synkronoinnin pelinsisäisestä klaanilistasta, pluginin Bingo-välilehdeltä Collection Logissa. Kaikki muu — vahvistukset, liitokset, ilmoittautumiset — roikkuu siinä.',
-        'Ylläpitotyö on siis pieni mutta todellinen: aja synkronointi jokaisen rekrytointikierroksen jälkeen, ylennä ne vieraat jotka oikeasti liittyivät, ja katso niitä ihmisiä jotka sivusto on merkinnyt tarkistettaviksi sen sijaan että odottaisit heidän valittavan.',
+        'Ylläpitotyö on siis pieni mutta todellinen: pyydä ylläpitäjää ajamaan synkronointi jokaisen rekrytointikierroksen jälkeen (se tekee pelissä liittyneistä vieraista jäseniä), vastaa liittymispyyntöihin **Roster**-välilehden yläosassa ja käy **Needs review** läpi sen sijaan, että odottaisit ihmisten valittavan. Katso [Väkesi]({peopleGuide}).',
       ],
       note: {
         tag: 'Viimeksi nähty ei ole viimeksi pelattu',
@@ -3065,12 +3086,12 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Ban from this clan',
-          body: 'päättää kaikki henkilön paikat täällä, myös alt-hahmot, ja estää häntä palaamasta: jäsenlistan synkronointi, plugin ja liittymispyynnöt hylkäävät hänet kaikki, kunnes porttikielto poistetaan. Hänen Anvil-tiliinsä ja muihin klaaneihinsa ei kosketa. Vain ylläpitäjät, henkilölle jolla on sivustotili, rivin valikosta tai kohdasta **Staff & roles**. Porttikiellon poistaminen ei palauta häntä; hän liittyy uudelleen pelissä, tai sinä lisäät hänet.',
+          body: 'päättää kaikki henkilön paikat täällä, myös alt-hahmot, poistaa hänen mahdollisen henkilökunnan roolinsa ja taulutehtävänsä tässä klaanissa ja estää häntä palaamasta: jäsenlistan synkronointi, plugin ja liittymispyynnöt hylkäävät hänet kaikki, kunnes porttikielto poistetaan. Hänen Anvil-tiliinsä ja muihin klaaneihinsa ei kosketa. Vain ylläpitäjät, henkilölle jolla on sivustotili ja ylläpitäjää alempi rooli, rivin valikosta, kohdasta **Staff & roles** tai useammalle ihmiselle kerralla. Porttikiellon poistaminen ei palauta häntä; hän liittyy uudelleen pelissä, tai sinä lisäät hänet.',
         },
       ],
       note: {
-        tag: 'Porttikielto ei poista henkilökunnan roolia',
-        body: 'Porttikielto päättää henkilön paikat, mutta jättää hänen mahdollisen henkilökunnan roolinsa täällä. Poistaaksesi henkilökunnan jäsenen aseta ensin hänen roolikseen **Member** kohdassa Staff & roles ja anna sitten porttikielto.',
+        tag: 'Porttikielto poistaa myös henkilökunnan roolin',
+        body: 'Porttikielto päättää henkilön paikat ja vie häneltä henkilökunnan roolin sekä mahdolliset taulun muokkaajan tai taulun rahastonhoitajan tehtävät tämän klaanin tauluilla. Porttikiellon poistaminen ei palauta niitä: aseta rooli uudelleen kohdassa Staff & roles, jos hänellä kuuluu olla se.',
       },
     },
 
@@ -3135,7 +3156,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Rahastonhoitaja',
-          body: 'maksut, kassa ja palkinnot. Rahastonhoitaja pääsee myös useimmille moderaattorin sivuille (todisteet, kilpailut, Needs review), mutta ei jäsenlistaan eikä Scheduleen.',
+          body: 'maksut, kassa ja palkinnot, kaiken sen lisäksi mitä moderaattori tekee: jäsenlista, todisteet, kilpailut, Schedule ja Needs review.',
         },
         {
           term: 'Moderaattori',
@@ -3209,8 +3230,8 @@ const fi: PartialGuideDict = {
         { area: 'Tarkistettavat todisteet', cells: ['Kyllä', 'Kyllä', 'Kyllä', 'Kyllä', 'Ei'] },
         { area: 'Viikkokilpailut', cells: ['Kyllä', 'Kyllä', 'Kyllä', 'Kyllä', 'Ei'] },
         { area: 'Klaanin tapahtumat', cells: ['Kyllä', 'Kyllä', 'Kyllä', 'Kyllä', 'Ei'] },
-        { area: 'Schedule', cells: ['Kyllä', 'Kyllä', 'Ei', 'Kyllä', 'Ei'] },
-        { area: 'Jäsenlista: katselu, lisäys, poisto', cells: ['Kyllä', 'Kyllä', 'Ei', 'Kyllä', 'Ei'] },
+        { area: 'Schedule', cells: ['Kyllä', 'Kyllä', 'Kyllä', 'Kyllä', 'Ei'] },
+        { area: 'Jäsenlista: katselu, lisäys, poisto', cells: ['Kyllä', 'Kyllä', 'Kyllä', 'Kyllä', 'Ei'] },
         { area: 'Liittymispyynnöt ja Needs review', cells: ['Kyllä', 'Kyllä', 'Kyllä', 'Kyllä', 'Ei'] },
         { area: 'Porttikielto klaanista', cells: ['Kyllä', 'Ylläpitäjää alemmille', 'Ei', 'Ei', 'Ei'] },
         { area: 'Staff & roles', cells: ['Kyllä', 'Ylläpitäjää alemmille', 'Ei', 'Ei', 'Ei'] },
@@ -3244,7 +3265,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Taulun rahastonhoitaja',
-          body: 'kerää sen taulun maksut ja hoitaa sen palkintojen maksun pääsemättä klaanin kassaan. Annetaan myös kohdassa **Board staff**.',
+          body: 'kerää sen taulun maksut ja hoitaa sen palkintojen maksun pääsemättä klaanin kassaan. Hallintapaneelissa hän näkee vain omat taulunsa, ja kustakin taulusta vain välilehdet **Sign-ups** ja **Prizes**. Annetaan myös kohdassa **Board staff**.',
         },
         {
           term: 'Team staff',
@@ -3271,7 +3292,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Ylläpitäjät eivät voi poistaa toisiaan',
-          body: 'ylläpitäjä ei voi alentaa toista ylläpitäjää eikä antaa tälle porttikieltoa. Kun kaksi ylläpitäjää on eri mieltä, omistaja päättää.',
+          body: 'ylläpitäjä ei voi alentaa toista ylläpitäjää eikä antaa tälle porttikieltoa, ei yksitellen eikä useita kerralla. Kun kaksi ylläpitäjää on eri mieltä, omistaja päättää. Porttikielto vie henkilöltä myös henkilökunnan roolin ja taulutehtävät tässä klaanissa.',
         },
         {
           term: 'Raha vaatii kaksi ihmistä',
@@ -3290,6 +3311,596 @@ const fi: PartialGuideDict = {
           body: 'Anvilin roolisynkronointi yhdistää Discord-roolit **pelin arvonimiin**, ei sivuston rooleihin. Moderaattoriksi tekeminen täällä ei anna mitään Discord-palvelimellanne, ja Discordissa käsin antamaasi moderaattoriroolia ei kosketa. Ainoa bottikomento, joka muuttaa jotain, eli kassaan lisääminen komennolla `/coffer`, tarkistaa sivuston roolin: rahastonhoitaja, ylläpitäjä tai omistaja.',
         },
       ],
+    },
+  },
+
+  supporter: {
+    metaTitle: 'Anvil Supporter: tasot ja edut — Anvil',
+    metaDescription:
+      'Mitä Anvil Supporter, Champion ja Patron kukin saavat: nimen värit ja tähti, kultainen GZ, animoitu avatar ja banneri, vitriini, kaveritapahtumat, head-to-head, tapahtumachat ja klaanin boostit. Miten Gumroad-laskutus toimii ja mitä tapahtuu, kun perut.',
+    eyebrow: 'Anvil · pelaajille',
+    title: 'Anvil Supporter: tasot ja edut',
+    dek: 'Anvil Supporter on henkilökohtainen tilaus, joka maksaa Anvilin palvelimet. Siinä on kolme tasoa, ja jokaisessa on kaikki, mitä sen alapuolisessa. Jokainen etu on ulkonäköä tai lisää tilaa järjestää: seuranta, tapahtumat, pisteytys ja omat tilastosi pysyvät ilmaisina kaikille, eikä mikään tässä muuta sitä, mitä tapahtuma laskee.',
+    facts: [
+      { strong: 'Alkaen $1 kuussa', rest: 'tai $10 vuodessa' },
+      { strong: 'Vain ulkonäköä', rest: 'ei koskaan pisteitä, rankkia tai esinettä' },
+      { strong: 'Mitään ei poisteta', rest: 'kun lopetat' },
+    ],
+    footnote:
+      'Kaikki tässä asetetaan verkkosivulla kohdissa **Settings** → **Supporter**, **Profile look** ja **Clan boosts**. Boostit tarkemmin: [Klaanin boostaaminen]({boostsGuide}). Missä värisi näkyvät RuneLitessa: [Sivupaneeli välilehti kerrallaan]({panelGuide}).',
+
+    tiers: {
+      title: 'Kolme tasoa',
+      intro: 'Hinnat ovat **Anvil Supporter** -sivulla, `/supporter`. Vuositilaus maksaa kymmenen kuukauden verran.',
+      rows: [
+        {
+          term: 'Supporter',
+          body: '$1 kuussa tai $10 vuodessa. Kultainen nimi ja tähti, kultainen GZ, vitriini 4 paikalla, ja voit järjestää kaveritapahtuman.',
+        },
+        {
+          term: 'Champion',
+          body: '$2 kuussa tai $20 vuodessa. Itse valitsemasi liukuvärit nimeen, oma avatar ja banneri (halutessasi animoituna), 8 vitriinipaikkaa, nopeampi tapahtumachat ja 1 klaaniboosti.',
+        },
+        {
+          term: 'Patron',
+          body: '$5 kuussa tai $50 vuodessa. Mitkä tahansa värit, liikkuvalla liukuvärillä, 12 vitriinipaikkaa, ei odotusta tapahtumachatissa, 2 kaveritapahtumaa kerralla ja 2 klaaniboostia.',
+        },
+      ],
+      note: {
+        tag: 'Aikaa kutsuista',
+        body: 'Kohdasta Settings → Supporter saat kutsulinkin. Kun kutsumasi kaveri maksaa, ansaitset ilmaisia kuukausia; palkkio tulee kaksi viikkoa hänen ensimmäisen maksunsa jälkeen. Näin ansaittu aika antaa tasonsa kaikki edut paitsi klaanin boostit.',
+      },
+    },
+
+    compare: {
+      title: 'Mitä kukin taso saa',
+      intro: 'Sama taulukko kuin Supporter-sivulla, sekä chat-edut.',
+      table: {
+        areaLabel: 'Etu',
+        columns: ['Ilmainen', 'Supporter', 'Champion', 'Patron'],
+        rows: [
+          { area: 'Nimen värit', cells: ['—', 'Kulta', 'Valmisvärit tai yksi oma väri', 'Valmisvärit tai enintään neljä väriä, liikkuvat'] },
+          { area: 'Tähti nimesi vieressä', cells: ['—', 'Kyllä', 'Kyllä', 'Kyllä'] },
+          { area: 'Kultainen GZ', cells: ['—', 'Kyllä', 'Kyllä', 'Kyllä'] },
+          { area: 'Oma avatar ja banneri, animoitu', cells: ['—', '—', 'Kyllä', 'Kyllä'] },
+          { area: 'Vitriini', cells: ['—', '4 paikkaa', '8 paikkaa', '12 paikkaa'] },
+          { area: 'Kaveritapahtumat (kerralla · pelaajia)', cells: ['Vain liittyminen', '1 · 10', '1 · 25', '2 · 50'] },
+          { area: 'Head-to-head-haasteet', cells: ['1 aktiivinen', '5 aktiivista', 'Rajaton', 'Rajaton'] },
+          { area: 'Tapahtumachat: odotus rivien välillä', cells: ['5 s', '3 s', '1 s', 'Ei odotusta'] },
+          { area: 'Klaanin boostit', cells: ['—', '—', '1', '2'] },
+        ],
+      },
+      outro:
+        'Kohdassa **Settings** → **In-game chat** on kolme lisää: omat värit chat-syötteellesi (Supporter), sen valitseminen, mitä kirjautumiskoosteesi kattaa (Champion), ja tähti nimesi vieressä muiden pelaajien chat-syötteissä (Patron).',
+    },
+
+    names: {
+      title: 'Nimen värit',
+      intro:
+        'Aseta ne kohdassa **Settings** → **Supporter**, osiossa **Your name’s look**. Esikatselu näyttää nimesi tummalla ja vaalealla taustalla.',
+      rows: [
+        {
+          term: 'Supporter',
+          body: 'tasainen kulta. Valittavaa ei ole.',
+        },
+        {
+          term: 'Champion',
+          body: 'jokin valmiista liukuväreistä (**Classic**, oletus, **Ember**, **Ocean**, **Aurora**, **Rose gold** tai **Toxic**) tai **Your own**: yksi kiinteä väri. Kaikilla hahmoillasi yhteensä voit käyttää enintään kahta eri omaa väriä.',
+        },
+        {
+          term: 'Patron',
+          body: 'kaikki valmisvärit sekä **Prism**, Patronin oletus, tai **Your own** yhdellä–neljällä värillä. Yksi väri pysyy paikallaan; kahdesta neljään muodostaa liukuvärin, joka liikkuu vasemmalta oikealle.',
+        },
+      ],
+      outro:
+        '**Your Anvil display name** on Discordiin yhdistetyn tilisi nimi. Kohdassa **Your RuneScape characters** valitse **Same for all** tai **Customize each**, jotta jokainen hahmo saa oman ilmeensä. Paina **Save** (tai **Save for all characters**); **Reset to default** palauttaa tasosi värit.',
+      note: {
+        tag: 'Tummat ja vaaleat taustat',
+        body: 'Sivusto, pluginin paneeli ja Discord ovat tummia; pelin kiinteä chatboksi on vaalea. Anvil säätää värejäsi, jotta ne pysyvät luettavina kummallakin. Jos haluat toiselle niistä eri ilmeen, kytke päälle **Set a separate look for dark backgrounds** tai **for light backgrounds**. Se ilme näytetään juuri niin kuin valitsit, ilman kontrastikorjausta, ja esikatselu varoittaa, jos sitä on vaikea lukea.',
+      },
+    },
+
+    where: {
+      title: 'Missä tyylisi näkyy',
+      intro: 'Värisi ja tähti kulkevat kaikkialle, missä nimesikin:',
+      rows: [
+        {
+          term: 'Sivustolla',
+          body: 'taulut, jäsenlistat, profiilit, oma nimesi yläpalkissa ja hahmojesi nimet. Tähti on sinun väreissäsi.',
+        },
+        {
+          term: 'Pluginin paneelissa',
+          body: 'Feed, tapahtumachat, kortit ja **Tracking**-rivi. Patronin liukuväri liukuu; jokainen pelaaja voi pysäyttää sen asetuksella **Animated names**.',
+        },
+        {
+          term: 'Pelissä',
+          body: 'muille Anvil-pluginia käyttäville pelaajille: julkinen, klaani-, kaveri- ja yksityischat, klaanin ilmoitukset, kirjautumisilmoitukset, kaveri- ja klaanilistat sekä hiiren oikean painikkeen valikko (ei koskaan PvP-maailmoissa eikä Wildernessissä). Pelin chatissa tähti on vain Patroneilla.',
+        },
+        {
+          term: 'Discordissa',
+          body: 'tähti nimesi vieressä Anvilin julkaisuissa, omissa väreissäsi, jos olet valinnut sellaiset.',
+        },
+        {
+          term: 'Kultainen GZ',
+          body: 'klaanitoverin dropissa klaanisi syötteessä sivustolla GZ:si voi olla kultainen. Vain Supporterit voivat antaa sellaisen.',
+        },
+      ],
+      note: {
+        tag: 'Vain hahmoissa, jotka on todistettu sinun omiksesi',
+        body: 'Värit näkyvät vain hahmoissa, jotka plugin on vahvistanut sinun omiksesi, sivustolla ja pelissä. Jos et halua niitä nimiisi muiden pelaajien pelichatissa, poista valinta **Show my colours on my characters’ names in game chat** kohdassa Settings → Supporter.',
+      },
+    },
+
+    profile: {
+      title: 'Avatar, banneri ja vitriini',
+      intro: 'Kaikki kolme löytyvät kohdasta **Settings** → **Profile look**.',
+      rows: [
+        {
+          term: 'Avatar ja banneri',
+          body: 'Champion ja Patron. Lataa omasi; GIF tai WebP pysyy animoituna. Ne näkyvät kortillasi, profiilissasi ja jokaisella hahmollasi, sivustolla ja pluginissa. Banneri voi olla enintään 6 MB ja vähintään 600×150; avatar enintään 2 MB.',
+        },
+        {
+          term: 'Hahmokohtaisesti',
+          body: 'anna yhdelle hahmolle oma banneri tai avatar, tai molemmat. Se korvaa oletuksesi vain sen hahmon sivuilla ja plugin-kortilla.',
+        },
+        {
+          term: 'Vitriini',
+          body: 'parhaat droppisi, tappomääräsi ja aikasi kiinnitettyinä profiiliisi: 4 paikkaa Supporterille, 8 Championille, 12 Patronille. Kiinnitykset hahmoista, joita et jaa, pysyvät yksityisinä.',
+        },
+      ],
+    },
+
+    hosting: {
+      title: 'Kaveritapahtumat, head-to-head ja chat',
+      intro: 'Edut, jotka antavat lisää tilaa pelata ulkonäön sijaan:',
+      rows: [
+        {
+          term: 'Kaveritapahtumat',
+          body: 'järjestä kavereille oma bingo, soolobingo tai kisa kohdasta **Host an event for your friends**, ja plugin seuraa sitä kuin klaanitapahtumaa. Kaverit liittyvät kutsulinkilläsi. Supporter: 1 käynnissä oleva tapahtuma, 10 pelaajaa. Champion: 1 tapahtuma, 25 pelaajaa. Patron: 2 kerralla, yhteensä 50 pelaajaa. Kuka tahansa voi liittyä.',
+        },
+        {
+          term: 'Head-to-head',
+          body: 'haasta kaveri hänen profiilistaan: kuka saa ensin dropin, tai eniten tappoja tai XP:tä 1 tunnissa, 24 tunnissa tai 7 päivässä. Vain kunnian vuoksi. Ilmaispelaajilla voi olla 1 avoinna kerrallaan, Supportereilla 5, Championeilla ja Patroneilla niin monta kuin haluavat.',
+        },
+        {
+          term: 'Tapahtumachat',
+          body: 'kuinka kauan odotat rivien välillä: 5 sekuntia ilman tasoa, 3 Supportereille, 1 Championeille, ei lainkaan Patroneille. Kun taulun chat ruuhkautuu, kaikki odottavat 10 sekuntia, myös Patronit.',
+        },
+        {
+          term: 'Klaanin boostit',
+          body: 'Champion 1, Patron 2, niin kauan kuin maksat. Katso [Klaanin boostaaminen]({boostsGuide}).',
+        },
+      ],
+    },
+
+    billing: {
+      title: 'Maksaminen, vaihtaminen ja peruminen',
+      intro: 'Anvil Supporter laskutetaan Gumroadin kautta, kuukausittain tai vuosittain.',
+      steps: [
+        'Kirjaudu Anviliin ja avaa `/supporter`.',
+        'Paina **Choose Supporter**, **Choose Champion** tai **Choose Patron**. Gumroadin kassa aukeaa, kuukausi- tai vuosilaskutuksella.',
+        'Maksa. Etusi kytkeytyvät päälle heti, kun Gumroad ilmoittaa Anvilille, ja tasosi näkyy Supporter-sivulla kohdassa **Your tier**.',
+      ],
+      outro:
+        'Vaihda tasoa kohdasta **Change tier** osiossa Settings → Supporter. Peru tai päivitä korttisi samasta paikasta kohdasta **Manage on Gumroad**. Peruttu jäsenyys pitää kaikki edut maksetun kauden loppuun asti.',
+      note: {
+        tag: 'Aloita aina sivulta /supporter',
+        body: '**Choose**-painikkeessa on koodi, joka kertoo Anvilille, mikä tili maksoi. Anvil ei koskaan yhdistä maksua sähköpostin perusteella, joten suoraan Gumroadista ilman sitä painiketta tehty osto jää yhdistämättä. Jos niin kävi, kysy Anvilin Discordissa, niin henkilökunta voi liittää maksun tiliisi käsin.',
+      },
+    },
+
+    lapse: {
+      title: 'Tason laskeminen tai lopettaminen',
+      intro:
+        'Mitään asettamaasi ei poisteta. Jokainen etu tarkistetaan sitä tasoa vasten, joka sinulla juuri nyt on, joten se kytkeytyy pois itsestään ja palaa heti, kun uusit tilauksen.',
+      rows: [
+        {
+          term: 'Nimen värit',
+          body: 'tallennettu valintasi pysyy tallessa. Käytät uuden tasosi värejä, tai et mitään, kunnes taso, joka sallii valintasi, palaa.',
+        },
+        {
+          term: 'Avatar ja banneri',
+          body: 'Championin alapuolella ne näyttävät liikkumattoman ensimmäisen kuvansa liikkumisen sijaan.',
+        },
+        {
+          term: 'Vitriini',
+          body: 'näyttää ensimmäiset kiinnitykset, jotka tasosi sallii, ja piilottaa loput. Ilman tasoa se on piilossa; kiinnitykset odottavat sinua.',
+        },
+        {
+          term: 'Klaanin boostit',
+          body: 'vanhimmat boostisi lasketaan edelleen ja loput keskeytetään, ei poisteta.',
+        },
+      ],
+      note: {
+        tag: 'Anvilin henkilökunnan väliaikainen korotus',
+        body: 'Henkilökunta voi antaa jollekulle korkeamman tason joksikin aikaa, esimerkiksi kiitoksena. Se tulee maksamasi päälle eikä koskaan muuta tilaustasi. Settings → Supporter näyttää **A gift from Anvil** ja milloin se päättyy; sen jälkeen olet taas maksamallasi tasolla. Lahja antaa klaaniboostipaikkoja vain, jos henkilökunta sisällyttää ne.',
+      },
+    },
+  },
+
+  sidePanel: {
+    metaTitle: 'Anvilin sivupaneeli välilehti kerrallaan — Anvil',
+    metaDescription:
+      'Mitä Anvilin RuneLite-sivupaneelin kukin välilehti näyttää (Clan, Feed, You, Lookup ja ratas), miten tapahtumachat ja Feed-reaktiot toimivat, ja pluginin asetukset syötteelle pelichatissa, Supporter-väreille ja animoiduille nimille.',
+    eyebrow: 'Anvil · pelaajille',
+    title: 'Sivupaneeli välilehti kerrallaan',
+    dek: 'Anvil-painike RuneLiten sivupalkissa avaa paneelin, jossa on neljä välilehteä ja ratas: **Clan**, **Feed**, **You**, **Lookup** ja ⚙. Suurin osa sen sisällöstä tulee sivustolta, joten se pysyy ajan tasalla ilman pluginin päivitystä. Muutama alla oleva asia on merkitty tulevaksi seuraavassa pluginin päivityksessä.',
+    facts: [
+      { strong: 'Neljä välilehteä', rest: 'ja ratas synkronointia ja asetuksia varten' },
+      { strong: 'Tapahtumachat', rest: 'Feed-välilehdellä' },
+      { strong: 'GZ, Sad, Sit', rest: 'Feedin riveillä' },
+    ],
+    footnote:
+      'Pluginin asentaminen ja sisäänkirjautuminen: [RuneLite-pluginin käyttöönotto]({pluginGuide}). Supporter-värit, tähti ja chat-edut selitetään oppaassa [Anvil Supporter: tasot ja edut]({supporterGuide}).',
+
+    header: {
+      title: 'Paneelin yläosa',
+      intro: 'Välilehtien yläpuolella ovat otsikko, **Refresh** ja tilirivi.',
+      rows: [
+        {
+          term: 'Refresh',
+          body: 'lataa paneelin uudelleen, Feed-välilehti mukaan lukien. Työskennellessään siinä lukee **Refreshing…**. Seuraavassa pluginin päivityksessä se lataa uudelleen myös You- ja Lookup-välilehdet, joten uusi avatar tai banneri näkyy heti, eikä se enää tyhjennä Feed-välilehteä.',
+        },
+        {
+          term: 'Tracking',
+          body: 'otsikon alla oleva rivi kertoo seurattavan hahmon, sen Supporter-väreissä, jos sillä on sellaiset. **Not my account…** lopettaa sellaisen hahmon seuraamisen, jota joku muu pelaa tällä tietokoneella; **Track again** kumoaa sen.',
+        },
+        {
+          term: 'Tilivalikko',
+          body: '⋯-linkki avaa kohdat **View my profile on Anvil**, **Not my account…** ja **Sign out…**. Seuraavassa pluginin päivityksessä siinä on myös **Become a Supporter**, tai **Your Supporter perks**, jos olet jo Supporter.',
+        },
+        {
+          term: 'Kauden edistyminen',
+          body: 'seuraavassa pluginin päivityksessä Leagues-, Deadman- ja muissa kausimaailmoissa näkyy rivi **Sharing season progress · Turn off**. Se lähettää reliikkisi, alueesi ja tehtäväsi (kuvakaappauksen kanssa) klaanillesi; klaanisi päättää verkkosivulla, mitä julkaistaan. **Turn on** jakaa sen taas. Sama kytkin on pluginin asetuksissa nimellä **Share seasonal activity**.',
+        },
+      ],
+    },
+
+    clan: {
+      title: 'Clan',
+      intro:
+        'Tapahtumasi ja klaanisi. Sisällöntuottajan tilassa välilehden nimi on **Space**.',
+      rows: [
+        {
+          term: 'Klaanin pudotusvalikko',
+          body: 'näkyy, kun pelaat useammassa kuin yhdessä klaanissa tai tilassa. **All clans** (oletus) näyttää kaiken, missä pelaat, käynnissä oleva tapahtuma ensin. Yhden klaanin valitseminen rajaa paneelin siihen ja ohjaa lähetyksesi sinne.',
+        },
+        {
+          term: 'Tapahtumat',
+          body: 'jokainen käynnissä oleva ja tuleva taulu, Skill tai Boss of the Week ja klaanitapahtuma sijoituksinesi. Sen jälkeen **Your other boards**, **Also live** ja **Your clan**.',
+        },
+        {
+          term: 'Taulu',
+          body: 'avaa taulu nähdäksesi sijoitukset, joukkueet, tehtävät, viimeaikaisen toiminnan, lähimmät ruudut ja **View all tiles**. Sen **Feed**- ja **Chat**-painikkeet avaavat taulun Feed-välilehdellä.',
+        },
+        {
+          term: 'Klaanitapahtuma',
+          body: '**I’m going**, **Sign me up** tai **Answer the survey**, tapahtumasta riippuen.',
+        },
+      ],
+    },
+
+    feed: {
+      title: 'Feed',
+      intro:
+        'Klaanisi ja taulujesi suuret hetket livenä: dropit, petit, saavutukset, questit, kuolemat ja valmiit ruudut.',
+      rows: [
+        {
+          term: 'Kenen syöte',
+          body: 'yläreunan pudotusvalikko listaa **Clan ·** jokaiselle klaanille, jonka jäsen olet, ja **Event ·** jokaiselle käynnissä olevalle taululle, jolla olet. Se avautuu taulullesi, jos sinulla on sellainen, muuten klaaniisi.',
+        },
+        {
+          term: 'Suodattimet',
+          body: '**All**, **Tiles** (vain taulut), **Drops**, **Pets**, **Achievements**, **Deaths**, ja **My team** taululla, jolla olet joukkueessa. Klaanin syötteessä on lisäksi pelitilojen toiminnan painike Leaguesia ja muita tiloja varten.',
+        },
+        {
+          term: 'Uudet rivit',
+          body: 'tulevat itsestään. Jos olet vierittänyt pois, **↑ N new** -pilleri vie sinut takaisin niihin.',
+        },
+      ],
+      note: {
+        tag: 'Ei sama kuin pelin chat-syöte',
+        body: 'Feed-välilehti toimii riippumatta pluginin asetuksista. **Show feed in game chat** (vaihe 8) on erillinen asetus, joka tulostaa syötteen myös chatboksiisi.',
+      },
+    },
+
+    reactions: {
+      title: 'Reaktiot',
+      intro: 'Jokaisen Feedin rivin alla on sen reaktio:',
+      rows: [
+        {
+          term: 'GZ',
+          body: 'dropeissa, peteissä ja saavutuksissa. Määrä näkyy sen vieressä, esimerkiksi **GZ 3**.',
+        },
+        {
+          term: 'Sad ja Sit',
+          body: 'kuolemissa GZ:n sijaan. Sit on pelin tapa käskeä kuollutta istumaan alas.',
+        },
+        {
+          term: 'Kuka voi reagoida',
+          body: 'klaanin syötteessä klaanitoverit. Taululla sen pelaajat ja isännän henkilökunta; kun taulu piilottaa sijoituksensa, pelaajat voivat reagoida vain oman joukkueensa riveihin.',
+        },
+        {
+          term: 'Kuka reagoi',
+          body: 'vie hiiri reaktion päälle nähdäksesi nimet, esimerkiksi “GZ · Mossy and 3 others”. Napsauta sitä uudelleen peruaksesi omasi.',
+        },
+      ],
+      note: {
+        tag: 'Seuraavassa pluginin päivityksessä',
+        body: 'Reaktioista tulee pilleripainikkeita, sävytettyjä, kun yksi on sinun, ja muiden reaktiot päivittyvät livenä kaikille katsojille, myös muissa avoimissa clienteissäsi. Nyt määrä muuttuu, kun reagoit tai kun Feed latautuu uudelleen. Kultainen GZ, Supporterin reaktio, annetaan verkkosivun syötteissä; Feed-välilehdellä on GZ, Sad ja Sit.',
+      },
+    },
+
+    chat: {
+      title: 'Tapahtumachat',
+      intro:
+        'Taululla, jonka chat on päällä, on Feed-välilehden yläreunassa **Feed / Chat** -kytkin taulun pelaajille ja isännän henkilökunnalle. Clan-välilehden taulusivulla on myös **Chat**-painike.',
+      rows: [
+        {
+          term: 'Kaikki tai oma joukkue',
+          body: '**All** kirjoittaa koko taululle, **My team** vain joukkueellesi (ne rivit on merkitty **TEAM**). Henkilökunta näkee lisäksi kohdan **Host & mods**, ja sen rivit on merkitty **HOST** tai **MOD**.',
+        },
+        {
+          term: 'Lähettäminen',
+          body: 'kirjoita kenttään ja paina Enter. Rivit ovat enintään 200 merkkiä, ja vain isäntä ja modit voivat julkaista linkkejä.',
+        },
+        {
+          term: 'Kuinka usein',
+          body: 'odotus rivien välillä määräytyy Supporter-tasosi mukaan: 5 sekuntia ilman tasoa, 3 Supportereille, 1 Championeille, ei lainkaan Patroneille. Kentän alla oleva rivi kertoo, mikä sinun odotuksesi on. Henkilökunta ei koskaan odota.',
+        },
+        {
+          term: 'Hidas tila',
+          body: 'kun taulun chat ruuhkautuu kovasti, kaikki odottavat minuutin ajan vähintään 10 sekuntia, Patronit mukaan lukien. Kukaan ei voi lähettää yli 10 riviä 10 sekunnissa.',
+        },
+        {
+          term: 'Moderointi',
+          body: 'isäntä ja modit voivat napsauttaa riviä hiiren oikealla painikkeella ja valita **Delete message** tai **Mute** jollekulle, ja keskeyttää koko chatin kohdasta **Pause chat (read-only for everyone)**.',
+        },
+      ],
+      outro:
+        'Saman henkilön peräkkäiset rivit jakavat yhden nimen ja ajan, kunnes tulee 5 minuutin tauko. Chat säilytetään 7 päivää tapahtuman päättymisen jälkeen.',
+    },
+
+    you: {
+      title: 'You ja Lookup',
+      intro: 'Kaksi välilehteä pelaajakorteille: sinun omasi ja kenen tahansa muun.',
+      rows: [
+        {
+          term: 'You',
+          body: 'oma korttisi hahmolle, jolla olet kirjautuneena: banneri ja avatar, **Display case**, Collection Log jokaisen sivun esineisiin asti, sekä **Skills**, **Bosses**, **Clues**, **Times** ja **CAs**. Sen alla mahdollinen sinua odottava **Head-to-head**-haaste (**Accept** tai **Decline**) ja tavoitteesi (**Goals**), painikkeella **+ Add goal**.',
+        },
+        {
+          term: 'Lookup',
+          body: 'vaihda **Players**- ja **Clans**-näkymän välillä, kirjoita nimi ja paina Enter. **Recent** listaa viimeisimmät hakusi. Napsauta ketä tahansa pelissä hiiren oikealla ja valitse **Anvil** päätyäksesi tänne.',
+        },
+        {
+          term: 'Vertailu',
+          body: 'jonkun toisen kortilla **Compare with me** asettaa teidät rinnakkain taito taidolta, bossi bossilta ja sivu sivulta. Klaanin kortilla on **Compare with my clan**.',
+        },
+      ],
+    },
+
+    gear: {
+      title: 'Ratas-välilehti',
+      intro: 'Synkronointia ja asetuksia katseltavan sijaan:',
+      rows: [
+        {
+          term: 'Sync profile',
+          body: 'lähettää Collection Logisi ja parhaat aikasi Anvilille.',
+        },
+        {
+          term: 'Sync clan roster',
+          body: 'vain klaanin ylläpitäjille: lähettää pelin klaanin jäsenlistan sivustolle. Jos plugin ei pysty lukemaan klaaniasi, siinä lukee sen sijaan **Join your clan channel to sync the roster**.',
+        },
+        {
+          term: 'Banner sounds',
+          body: '**Add clip** äänelle, jonka banneri soittaa, **Copy folder path** niiden hallintaan ja **Add mission clip** tehtäville.',
+        },
+        {
+          term: 'Become a Supporter',
+          body: 'seuraavassa pluginin päivityksessä alareunan ★-linkki avaa Supporter-sivun, tai siinä lukee **Your Supporter perks**, jos olet jo Supporter.',
+        },
+      ],
+    },
+
+    settings: {
+      title: 'Asetukset, jotka muuttavat näkymääsi',
+      intro:
+        'RuneLiten Anvil-asetuksissa, kohdassa **Chat messages**. Kaikki ovat aluksi päällä.',
+      rows: [
+        {
+          term: 'Show feed in game chat',
+          body: 'tulostaa syötteen myös chatboksiisi sitä mukaa kuin asioita tapahtuu: isot dropit, petit ja saavutukset tauluilta, joiden isäntä on ottanut sen käyttöön, ja klaaneista, joissa olet vieraana, joukkuetovereidesi ruutujen edistyminen ja muiden joukkueiden valmiit ruudut.',
+        },
+        {
+          term: 'Supporter names in chat',
+          body: 'Supportereiden värit (ja Patronin tähti) julkisessa, klaani-, kaveri- ja yksityischatissa sekä kaverilistallasi ja kanavien jäsenlistoilla. Nimilista ladataan Anvilista; siitä, keitä näet, ei lähetetä mitään.',
+        },
+        {
+          term: 'Animated names',
+          body: 'antaa Patronin liukuvärin liukua paneelissa, Feedissä ja tapahtumachatissa. Pois päältä se pysyy paikallaan. Seuraavassa pluginin päivityksessä se koskee myös boostattujen klaanien nimiä ja animoituja bannereita paneelissa.',
+        },
+        {
+          term: 'Supporter names in menus',
+          body: 'Supportereiden värit heidän nimessään, kun napsautat heitä hiiren oikealla, ei koskaan PvP-maailmoissa eikä Wildernessissä.',
+        },
+        {
+          term: 'Over other plugins’ colours',
+          body: 'päällä Supporterin värit korvaavat nimen värin, jonka jokin toinen plugin on asettanut, kuten Player Indicators. Pois päältä ne nimet jätetään rauhaan.',
+        },
+      ],
+    },
+  },
+
+  clanBoosts: {
+    metaTitle: 'Klaanin boostaaminen — Anvil',
+    metaDescription:
+      'Miten Anvilin klaaniboostit toimivat: kenellä niitä on, boostin asettaminen ja siirtäminen, kolme boostitasoa ja mitä kukin avaa, klaanin nimen värit, lahjoitetut boostit sekä boostaajien merkit ja kunniamerkit.',
+    eyebrow: 'Anvil · Supportereille ja klaanin henkilökunnalle',
+    title: 'Klaanin boostaaminen',
+    dek: 'Maksava Champion tai Patron voi asettaa boostin klaaniin, jonka jäsen hän on. Kun klaanin jäseniltä tulee tarpeeksi boosteja, klaani nousee tason, ja jokainen taso muuttaa sitä, miltä klaani näyttää ja missä se listataan. Boostit ovat vain ulkonäköä: ne eivät koskaan muuta rankkia, pisteitä, paikkaa tai klaanin tilausta.',
+    facts: [
+      { strong: 'Champion 1, Patron 2', rest: 'boostia niin kauan kuin maksat' },
+      { strong: 'Tasot 3, 8 ja 15', rest: 'laskettua boostia' },
+      { strong: 'Kerran viikossa', rest: 'boostia voi siirtää' },
+    ],
+    footnote:
+      'Jäsenet asettavat boostit kohdassa **Settings** → **Clan boosts**. Klaanin henkilökunta näkee tason ja sen asetukset kohdassa Admin → **Clan settings** → **Boosts**. Itse Supporter-tasoista: [Anvil Supporter: tasot ja edut]({supporterGuide}).',
+
+    what: {
+      title: 'Kenellä on boosteja',
+      intro: 'Boostit tulevat maksullisen jäsenyyden mukana:',
+      rows: [
+        { term: 'Champion', body: '1 boosti.' },
+        { term: 'Patron', body: '2 boostia.' },
+        {
+          term: 'Supporter',
+          body: 'ei yhtään. Ei myöskään kutsuilla ansaittu aika. Anvilin henkilökunnan väliaikainen korotus antaa paikkoja vain, jos henkilökunta sisällyttää ne.',
+        },
+      ],
+      outro:
+        'Boostit kuuluvat sinulle, eivät hahmolle: kolme hahmoa kolmessa klaanissa jakavat silti yhden sarjan. **Settings** → **Clan boosts** näkyy asetuksissasi vain, kun olet Supporter tai sinulla on vielä boosti asetettuna.',
+    },
+
+    place: {
+      title: 'Boostin asettaminen ja siirtäminen',
+      intro: 'Asetat boostisi itse; kukaan ei voi asettaa niitä puolestasi.',
+      steps: [
+        'Avaa **Settings** → **Clan boosts**. **Your boosts** listaa asettamasi boostit ja mahdolliset vapaat paikat (**Free slot**).',
+        'Paina kohdassa **Clans you can boost** klaanin vieressä **Boost**. Voit myös painaa **Boost this clan** klaanin oman sivun Boosters-osiossa.',
+        'Siirrä boosti valitsemalla sen riviltä **Move to…** ja toinen klaani. **Remove** poistaa sen.',
+      ],
+      rows: [
+        {
+          term: 'Jäsenpaikka, 14 päivää vanha',
+          body: 'jokainen boosti on jonkin hahmosi jäsenpaikan varassa pelin klaanissa. Vieraspaikka ei voi kantaa boostia. Paikan ikä lasketaan aiemmasta näistä: milloin Anvil näki sen ensimmäisen kerran tai milloin peli kertoo hahmon liittyneen. Siihen asti klaanin rivi kertoo, montako päivää on jäljellä.',
+        },
+        {
+          term: 'Yksi rivi klaania kohden',
+          body: 'lista näyttää jokaisen klaanin kerran, ja Anvil valitsee hahmon, jonka varassa boosti on: mainisi, jos mahdollista, muuten pisimpään pidetyn paikan. Klaani näkee vain sen hahmon, ei koskaan muita hahmojasi.',
+        },
+        {
+          term: 'Kerran viikossa',
+          body: 'asetetun boostin voi siirtää 7 päivää asettamisen jälkeen. Poistetun boostin paikka vapautuu samana päivänä, joten poistaminen ja uudelleen asettaminen ei ole oikotie. Jos hahmo, jonka varassa boosti oli, lähti klaanista, voit siirtää sen heti.',
+        },
+      ],
+      note: {
+        tag: 'Mitä merkinnät tarkoittavat',
+        body: '**counting**: se lasketaan klaanin tasoon. **paused**: Supporter-tasollasi on nyt vähemmän paikkoja kuin olet asettanut, joten vanhimmat boostisi lasketaan edelleen ja loput odottavat. **seat gone**: hahmo, jonka varassa boosti oli, ei ole enää siellä jäsen; siirrä se. **over the 2-per-person cap**: klaani laskee jo kaksi boostiasi.',
+      },
+    },
+
+    levels: {
+      title: 'Tasot',
+      intro:
+        'Klaanin taso tulee sen lasketuista boosteista. Yhdeltä ihmiseltä lasketaan yhteen klaaniin enintään kaksi boostia, joten taso tarkoittaa aina, että useampi jäsen on valinnut sen.',
+      rows: [
+        { term: 'Taso 1', body: '3 laskettua boostia.' },
+        { term: 'Taso 2', body: '8 laskettua boostia.' },
+        { term: 'Taso 3', body: '15 laskettua boostia.' },
+      ],
+      outro:
+        'Jäsenet näkevät edistymisen klaanin sivulla, esimerkiksi “5 of 8 to Level 2”. Nouseva klaani saa uuden tason heti.',
+      note: {
+        tag: 'Viikon armonaika',
+        body: 'Kun boostit putoavat tason alle, klaani pitää sen tason edut 7 päivää. Admin → Clan settings → Boosts näyttää, milloin ne päättyvät. Jos jäsenet boostaavat sen takaisin ajoissa, mikään ei muutu.',
+      },
+    },
+
+    perks: {
+      title: 'Mitä kukin taso avaa',
+      intro: 'Jokainen taso pitää kaiken alemmalta tasolta.',
+      rows: [
+        {
+          term: 'Taso 1',
+          body: '**Boosted**-merkki klaanisivulle, sen Clan Hall -kortille ja hakuun; paikka boostaamattomien klaanien yläpuolella Clan Hallissa ja sen hakutuloksissa; ja klaanin nimi liukuvärinä.',
+        },
+        {
+          term: 'Taso 2',
+          body: 'paikka Clan Hallin **Featured**-rivillä; klaanin animoitu banneri toistuu (tason 2 alapuolella se näyttää liikkumattoman kuvansa); rekrytointirivi vierailijoille; ja nimen liukuväri liikkuu.',
+        },
+        {
+          term: 'Taso 3',
+          body: '**Spotlight** Clan Hallin ylimpänä ja yksi rekrytointijulkaisu kuukaudessa Anvilin Discordissa, klaanin itse kirjoittamana.',
+        },
+      ],
+      note: {
+        tag: 'Klaanin logo ei ole etu',
+        body: 'Animoitu logo (GIF- tai WebP-klaanikuva) toistuu millä tahansa tasolla. Vain banneri odottaa tasoa 2.',
+      },
+    },
+
+    colours: {
+      title: 'Klaanin nimen värit',
+      intro:
+        'Tasolta 1 alkaen klaanin nimi on Anvilin liukuvärissä. Omistajat ja ylläpitäjät voivat valita omat kohdassa Admin → **Clan settings** → **Boosts** → **Clan name colours**:',
+      rows: [
+        {
+          term: 'Yhdestä neljään väriä',
+          body: 'yksi väri tekee nimestä kiinteän; kahdesta neljään tekee liukuvärin. Tasolta 2 alkaen liukuväri liikkuu.',
+        },
+        {
+          term: 'Tummat ja vaaleat taustat',
+          body: 'kuten Supporter-nimissä, Anvil säätää värejä, jotta ne pysyvät luettavina tummilla taustoilla (sivusto, pluginin paneeli, Discord) ja vaaleilla (pelin kiinteä chatboksi). Kytke jommallekummalle erillinen ilme, niin se näytetään juuri niin kuin valittiin.',
+        },
+        {
+          term: 'Reset to Anvil',
+          body: 'palauttaa Anvilin paletin.',
+        },
+      ],
+      outro:
+        'Värit pysyvät tallessa, jos klaani putoaa tason 1 alle, ja palaavat, kun se nousee takaisin. Plugin huomaa muutoksen seuraavassa päivityksessään.',
+    },
+
+    staff: {
+      title: 'Klaanin henkilökunnalle',
+      intro:
+        'Admin → **Clan settings** → **Boosts** on omistajille ja ylläpitäjille. Henkilökunta ei voi asettaa boosteja jäsenten puolesta; jäsenet asettavat omansa.',
+      rows: [
+        {
+          term: 'Taso',
+          body: 'klaanin taso, montako boostia lasketaan, montako lisää tarvitaan seuraavaan tasoon, ja mahdollinen armonviikko.',
+        },
+        {
+          term: 'Recruiting line',
+          body: 'Taso 2. Yksi lause, enintään 140 merkkiä, joka näytetään klaaniin kuulumattomille klaanisivullanne ja Clan Hall -kortillanne.',
+        },
+        {
+          term: 'Recruitment post in the Anvil Discord',
+          body: 'Taso 3. Kerran kalenterikuukaudessa, 20–500 merkkiä, itse kirjoittamasi ja julkaistu, kun painat **Post it**, mukana linkki klaanisivullenne. Maininnat poistetaan eikä ketään pingata. Et voi muokata sitä tai lähettää uutta ennen seuraavaa kuukautta.',
+        },
+        {
+          term: 'Boosters',
+          body: 'lista hahmoista, jotka boostaavat klaania.',
+        },
+      ],
+      note: {
+        tag: 'Anvilin lahjoittamat boostit',
+        body: 'Anvilin henkilökunta voi lahjoittaa klaanille tason, määräajaksi tai ilman loppua. Lahja lisää vain ne boostit, jotka klaanilta puuttuvat siihen tasoon, ja ne näkyvät klaanin Boosters-listalla nimellä **Anvil gift**. Jokainen jäsenen oikea boosti korvaa yhden lahjoitetun, ja klaani, joka on jo lahjoitettua tasoa ylempänä, pitää oman tasonsa. Kun lahja päättyy, klaani putoaa tasolle, jonka sen jäsenten boostit antavat.',
+      },
+    },
+
+    boosters: {
+      title: 'Boostaajien merkit ja kunniamerkit',
+      intro: 'Mitä boostaaja saa klaanissa, jota hän boostaa:',
+      rows: [
+        {
+          term: 'Boostaajan merkki',
+          body: 'pieni jalokivi hänen hahmonsa vieressä sen klaanin jäsenlistassa, syötteessä ja Discord-julkaisuissa. Vie hiiri sen päälle nähdäksesi “Boosts this clan”.',
+        },
+        {
+          term: 'Boostaajien seinä',
+          body: 'klaanisivulla: yksi rivi hahmoa kohden, eniten boosteja ensin, sitten pisimpään boostanneet.',
+        },
+        {
+          term: 'Kunniamerkit',
+          body: '**First booster** sille, joka asetti klaanin kaikkien aikojen ensimmäisen boostin; **1 month**, **3 months**, **6 months** ja **1 year** katkeamatonta boostaamista; ja **Level-up 1**, **2** tai **3** boostista, joka nosti klaanin sille tasolle.',
+        },
+      ],
+      note: {
+        tag: 'Siirtäminen nollaa kellon',
+        body: 'Aikaan perustuvat kunniamerkit lasketaan hahmon vanhimmasta yhä laskettavasta boostista, joten boostin siirtäminen tai poistaminen aloittaa ne alusta. Profiilisi listaa klaanit, joita boostaat, kerran klaania kohden.',
+      },
     },
   },
 };

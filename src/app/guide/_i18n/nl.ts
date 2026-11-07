@@ -192,6 +192,27 @@ const nl: PartialGuideDict = {
           'Eigenaar, admin, penningmeester en moderator: waar elke rol bij kan, hoe je iemand moderator maakt, wie welke rol mag geven, en taken voor één event.',
         minutes: '~6 min',
       },
+      supporter: {
+        eyebrow: 'Voor spelers',
+        title: 'Anvil Supporter: niveaus en voordelen',
+        blurb:
+          'Supporter, Champion en Patron: naamkleuren, de ster, profielfoto’s, de vitrine, vriendenevents en clanboosts, hoe betalen werkt en wat er gebeurt als je stopt.',
+        minutes: '~6 min',
+      },
+      sidePanel: {
+        eyebrow: 'Voor spelers',
+        title: 'Het zijpaneel, tabblad voor tabblad',
+        blurb:
+          'Clan, Feed, You, Lookup en het tandwiel: wat elk tabblad toont, eventchat, GZ- en Sad-reacties, en de instellingen die de feed en Supporter-kleuren in je spel brengen.',
+        minutes: '~6 min',
+      },
+      clanBoosts: {
+        eyebrow: 'Voor Supporters en clanstaf',
+        title: 'Een clan boosten',
+        blurb:
+          'Een boost plaatsen en verplaatsen, de drie levels en wat elk ervan ontgrendelt, de naamkleuren van de clan, geschonken boosts, en boostertekens en badges.',
+        minutes: '~5 min',
+      },
     },
   },
 
@@ -345,8 +366,8 @@ const nl: PartialGuideDict = {
           body: 'Open het clanvenster in het spel met de plugin actief en druk op de **Anvil**-knop in de titelbalk. Je hele ledenlijst komt binnen met rangen en al, en een lijst van een clan waarvan de naam niet klopt wordt geweigerd. Herhaal het wanneer mensen komen of gaan — zie de [installatiegids voor spelers]({pluginGuide}).',
         },
         {
-          term: 'Ze spelen één keer',
-          body: 'De plugin herkent een nieuw account automatisch en volgt het als **gast**. Een account dat al op de ledenlijst staat verschijnt op het profiel en heeft vóór het koppelen één XP-controle of goedkeuring van een moderator nodig.',
+          term: 'Ze vragen om te joinen',
+          body: 'Inloggen of spelen met de plugin geeft niemand uit zichzelf een plek. Ziet de plugin iemand spelen in je clan in het spel voordat je ledenlijst hem heeft, dan dient hij een joinverzoek voor hem in, en ieder ander kan het vragen met **Apply** op je clanpagina. De staf beantwoordt beide bovenaan het **Roster**-tabblad, en **Who can join** bepaalt of ze op een ja wachten, meteen binnenkomen of helemaal niet kunnen vragen. Wie een character speelt dat al op je ledenlijst staat, wordt in plaats daarvan bevestigd onder **Needs review**. De details staan in [Je mensen]({peopleGuide}).',
         },
         {
           term: 'Met de hand',
@@ -355,7 +376,7 @@ const nl: PartialGuideDict = {
       ],
       note: {
         tag: 'Gasten zijn geen probleem om op te lossen',
-        body: 'Een gast is simpelweg iemand die we gezien hebben en die niet op je lijst staat — een speler van een bezoekende clan, een alt, iemand die vanochtend lid werd. Ze kunnen meedoen aan events zonder ooit lid te worden.',
+        body: 'Een gast speelt mee in je events zonder in je clan in het spel te zitten: een speler van een bezoekende clan, een vriend, een alt. Hij krijgt een plek als de staf zijn verzoek goedkeurt, of meteen als **Who can join** op **Let anyone in** staat. Gasten worden bijgehouden, kunnen meedoen aan events en tellen niet mee voor je abonnement. Wie in het spel bij je clan komt, wordt lid bij de volgende synchronisatie van de ledenlijst.',
       },
     },
     first: {
@@ -759,8 +780,8 @@ const nl: PartialGuideDict = {
       },
       panelHeading: 'Het zijpaneel',
       panelBody: [
-        'Drie tabbladen. **Clan** zijn je events en je clan: elke lopende en komende bingo en wekelijkse competitie met waar je staat, de week van je clan en zijn grootste accounts. **You** is je eigen profiel — je collection log tot op de items van elke pagina, je laatste unlocks, skills, bosses, clues, beste tijden en de doelen die je op de site hebt gezet. **Lookup** vindt dat van iedereen anders, speler of clan.',
-        'Op iemands kaart zet **Compare with me** jullie twee naast elkaar, skill voor skill, boss voor boss en pagina voor pagina. Het tandwiel opent de eigen instellingen van het paneel: je profiel en de ledenlijst van de clan synchroniseren, en je banner en missiegeluiden.',
+        'Vier tabbladen en een tandwiel. **Clan** zijn je events en je clan: elke lopende en komende bingo en wekelijkse competitie met waar je staat. **Feed** zijn de grote momenten van je clan en je borden terwijl ze gebeuren, met eventchat. **You** is je eigen profiel, en **Lookup** vindt dat van iedereen anders, speler of clan. Onder het tandwiel zitten synchroniseren en je bannergeluiden.',
+        'Elk tabblad, eventchat, reacties en de instellingen die de feed en Supporter-kleuren in je spel brengen, staan in [Het zijpaneel, tabblad voor tabblad]({panelGuide}).',
       ],
       panelFigure: {
         caption: 'Clan · You · Lookup',
@@ -1050,7 +1071,7 @@ const nl: PartialGuideDict = {
       title: 'Haal je ledenlijst binnen',
       body: [
         'Clanlidmaatschap komt uit precies één plek: een synchronisatie van de ledenlijst vanuit het spel. Installeer [Anvils RuneLite-plugin]({pluginGuide}) op het account van een _admin_, open je clanvenster in het spel, en druk op de **Anvil**-knop in de titelbalk. Dat duwt jullie werkelijke clanlijst met één klik vanuit het spel naar de site.',
-        'Iedereen die een account op de website koppelt of verifieert zonder op die lijst te staan is een **gast** — bijgehouden en zichtbaar, maar geen lid tot een admin hem promoveert of de volgende synchronisatie hem oppikt. Dat is opzet: het betekent dat niemand zichzelf jullie clan in kan promoveren door een naam in te tikken.',
+        'Inloggen, een character koppelen of spelen met de plugin zet nooit iemand op de ledenlijst. Ziet de plugin iemand spelen in jullie clan in het spel voordat de ledenlijst hem heeft, dan dient hij een joinverzoek in; ieder ander kan het vragen met **Apply** op jullie clanpagina. De staf beantwoordt verzoeken bovenaan **People → Roster**, en **People → Who can join** bepaalt of mensen op een ja wachten, meteen een gastplek krijgen of helemaal niet kunnen vragen. Dat is opzet: niemand komt jullie clan binnen door de naam in te tikken. Het hele verhaal staat in [Je mensen]({peopleGuide}).',
         'Je kunt iemand ook met de hand toevoegen via **People → + Add Manually**, en hem met **Add member** op de **Sign-ups**-pagina van het event namens zichzelf inschrijven wanneer hij de site niet kan bereiken.',
       ],
     },
@@ -1869,7 +1890,7 @@ const nl: PartialGuideDict = {
       { strong: '1 rij', rest: 'per persoon die betaald krijgt' },
     ],
     footnote:
-      'Inleg en uitbetalingen zijn het terrein van de penningmeester. Een penningmeester kan alles wat een moderator kan, plus dit; een moderator kan inleg als geïnd markeren maar nooit afsluiten.',
+      'Inleg en uitbetalingen zijn het terrein van de penningmeester. Een penningmeester kan alles wat een moderator kan, plus dit; een gewone moderator ziet de inlegpagina’s helemaal niet.',
 
     set: {
       title: 'De inleg instellen',
@@ -2110,7 +2131,7 @@ const nl: PartialGuideDict = {
       intro:
         'De rollen stapelen naar beneden: alles wat een moderator kan, kunnen een penningmeester en een admin ook. Wat specifiek van een moderator is:',
       canList: [
-        'de ledenlijst: synchroniseren, mensen toevoegen, een gast promoveren',
+        'de ledenlijst: mensen toevoegen en verwijderen, en joinverzoeken beantwoorden ([Je mensen]({peopleGuide}))',
         'accountverificaties — de XP-uitdaging en handmatige beoordeling',
         'inzendingen en bewijsafbeeldingen',
         'weekcompetities en de agenda',
@@ -2175,7 +2196,7 @@ const nl: PartialGuideDict = {
       ],
       note: {
         tag: 'Geverifieerd is niet hetzelfde als lid',
-        body: 'Een account verifiëren zegt “dit is echt van hem”. Het maakt hem geen deel van de clan — clanlidmaatschap komt alleen uit een synchronisatie van de ledenlijst in het spel of van een admin die hem met de hand toevoegt. Wie geverifieerd is maar niet op de lijst staat, is een **gast**: bijgehouden, zichtbaar, geen lid. Dat is opzet, en juist dat voorkomt dat iemand jouw clan binnenkomt door een naam in te tikken.',
+        body: 'Een account verifiëren zegt “dit is echt van hem”. Het maakt hem geen deel van de clan. Lidmaatschap komt alleen uit een synchronisatie van de ledenlijst in het spel of van de staf die hem met de hand toevoegt, en een gastplek alleen uit een joinverzoek dat de staf goedkeurt (of meteen, als de clan iedereen toelaat). Dat is opzet, en juist dat voorkomt dat iemand jouw clan binnenkomt door een naam in te tikken.',
       },
     },
 
@@ -2183,7 +2204,7 @@ const nl: PartialGuideDict = {
       title: 'De ledenlijst eerlijk houden',
       body: [
         'De ledenlijst komt uit precies één plek: een admin draait een synchronisatie vanuit de clanlijst in het spel, met de **Anvil**-knop in de titelbalk van het clanvenster (of **Sync roster** in het zijpaneel van de plugin). Al het andere — verificaties, koppelingen, inschrijvingen — hangt daaraan.',
-        'Het onderhoudswerk is dus klein maar echt: draai de synchronisatie na elke wervingsronde, promoveer de gasten die daadwerkelijk zijn toegetreden, en kijk naar de mensen die de site heeft gemarkeerd in plaats van te wachten tot ze klagen.',
+        'Het onderhoudswerk is dus klein maar echt: vraag een admin de synchronisatie te draaien na elke wervingsronde (die maakt gasten die in het spel zijn toegetreden lid), beantwoord de joinverzoeken bovenaan het **Roster**-tabblad, en werk **Needs review** af in plaats van te wachten tot mensen klagen. Zie [Je mensen]({peopleGuide}).',
       ],
       note: {
         tag: 'Laatst gezien is niet laatst gespeeld',
@@ -3065,12 +3086,12 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Ban from this clan',
-          body: 'beëindigt elke plek die de persoon hier heeft, alts meegerekend, en houdt hem buiten: de synchronisatie, de plugin en joinverzoeken weigeren hem allemaal tot de ban is opgeheven. Zijn Anvil-account en zijn andere clans blijven onaangeroerd. Alleen admins, voor iemand met een siteaccount, via het rijmenu of via **Staff & roles**. Een ban opheffen zet hem niet terug; hij joint opnieuw in het spel, of jij voegt hem toe.',
+          body: 'beëindigt elke plek die de persoon hier heeft, alts meegerekend, haalt elke stafrol en elke bordtaak weg die hij in deze clan heeft, en houdt hem buiten: de synchronisatie, de plugin en joinverzoeken weigeren hem allemaal tot de ban is opgeheven. Zijn Anvil-account en zijn andere clans blijven onaangeroerd. Alleen admins, voor iemand met een siteaccount en een rol onder admin, via het rijmenu, via **Staff & roles**, of voor meerdere mensen tegelijk. Een ban opheffen zet hem niet terug; hij joint opnieuw in het spel, of jij voegt hem toe.',
         },
       ],
       note: {
-        tag: 'Een ban haalt geen stafrol weg',
-        body: 'Een ban beëindigt iemands plekken maar laat elke stafrol die hij hier heeft staan. Om een staflid kwijt te raken, zet je zijn rol eerst op **Member** onder Staff & roles, en ban je hem daarna.',
+        tag: 'Een ban haalt ook de stafrol weg',
+        body: 'Een ban beëindigt iemands plekken en neemt zijn stafrol af, plus elke taak als bordredacteur of bordpenningmeester op de borden van deze clan. Een ban opheffen geeft die niet terug: zet de rol opnieuw onder Staff & roles als hij hem hoort te hebben.',
       },
     },
 
@@ -3135,7 +3156,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Penningmeester',
-          body: 'inleg, de kas en prijzen. Een penningmeester kan ook bij de meeste moderatorpagina’s (bewijs, competities, Needs review), maar niet bij de ledenlijst of de Schedule.',
+          body: 'inleg, de kas en prijzen, bovenop alles wat een moderator doet: de ledenlijst, bewijs, competities, de Schedule en Needs review.',
         },
         {
           term: 'Moderator',
@@ -3209,8 +3230,8 @@ const nl: PartialGuideDict = {
         { area: 'Bewijs om te controleren', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nee'] },
         { area: 'Weekcompetities', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nee'] },
         { area: 'Clanactiviteiten', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nee'] },
-        { area: 'Schedule', cells: ['Ja', 'Ja', 'Nee', 'Ja', 'Nee'] },
-        { area: 'Ledenlijst: bekijken, toevoegen, verwijderen', cells: ['Ja', 'Ja', 'Nee', 'Ja', 'Nee'] },
+        { area: 'Schedule', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nee'] },
+        { area: 'Ledenlijst: bekijken, toevoegen, verwijderen', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nee'] },
         { area: 'Joinverzoeken en Needs review', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nee'] },
         { area: 'Iemand uit de clan verbannen', cells: ['Ja', 'Onder admin', 'Nee', 'Nee', 'Nee'] },
         { area: 'Staff & roles', cells: ['Ja', 'Onder admin', 'Nee', 'Nee', 'Nee'] },
@@ -3244,7 +3265,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Bordpenningmeester',
-          body: 'int de inleg van dat bord en regelt de uitbetalingen, zonder bij de kas van de clan te kunnen. Ook gegeven onder **Board staff**.',
+          body: 'int de inleg van dat bord en regelt de uitbetalingen, zonder bij de kas van de clan te kunnen. In de adminomgeving ziet hij alleen zijn eigen borden, en van elk bord alleen de tabbladen **Sign-ups** en **Prizes**. Ook gegeven onder **Board staff**.',
         },
         {
           term: 'Team staff',
@@ -3271,7 +3292,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Admins kunnen elkaar niet verwijderen',
-          body: 'een admin kan een andere admin niet degraderen en niet verbannen. Zijn twee admins het oneens, dan beslist de eigenaar.',
+          body: 'een admin kan een andere admin niet degraderen en niet verbannen, niet één tegelijk en niet meerdere tegelijk. Zijn twee admins het oneens, dan beslist de eigenaar. Een ban neemt de persoon ook zijn stafrol en bordtaken in deze clan af.',
         },
         {
           term: 'Geld vraagt om twee mensen',
@@ -3290,6 +3311,596 @@ const nl: PartialGuideDict = {
           body: 'de rolsynchronisatie van Anvil koppelt Discord-rollen aan **rangen in het spel**, niet aan rollen op de site. Iemand hier moderator maken geeft hem niets in jullie Discord-server, en een moderatorrol die je in Discord met de hand hebt gegeven, blijft ongemoeid. Het ene botcommando dat iets verandert, iets aan de kas toevoegen met `/coffer`, controleert de rol op de site: penningmeester, admin of eigenaar.',
         },
       ],
+    },
+  },
+
+  supporter: {
+    metaTitle: 'Anvil Supporter: niveaus en voordelen — Anvil',
+    metaDescription:
+      'Wat Anvil Supporter, Champion en Patron elk krijgen: naamkleuren en de ster, gouden GZ, geanimeerde avatar en banner, de vitrine, vriendenevents, head-to-head, eventchat en clanboosts. Hoe betalen via Gumroad werkt en wat er gebeurt als je opzegt.',
+    eyebrow: 'Anvil · voor spelers',
+    title: 'Anvil Supporter: niveaus en voordelen',
+    dek: 'Anvil Supporter is een persoonlijk abonnement dat de servers van Anvil betaalt. Er zijn drie niveaus, en elk heeft alles wat het niveau eronder heeft. Elk voordeel is uiterlijk of meer ruimte om te organiseren: tracking, events, scores en je eigen statistieken blijven voor iedereen gratis, en niets hier verandert wat een event telt.',
+    facts: [
+      { strong: 'Vanaf $1 per maand', rest: 'of $10 per jaar' },
+      { strong: 'Alleen uiterlijk', rest: 'nooit een score, een rang of een item' },
+      { strong: 'Niets verwijderd', rest: 'als je stopt' },
+    ],
+    footnote:
+      'Alles hier stel je op de website in onder **Settings** → **Supporter**, **Profile look** en **Clan boosts**. Boosts in detail staan in [Een clan boosten]({boostsGuide}). Waar je kleuren in RuneLite verschijnen, staat in [Het zijpaneel, tabblad voor tabblad]({panelGuide}).',
+
+    tiers: {
+      title: 'De drie niveaus',
+      intro: 'De prijzen staan op de pagina **Anvil Supporter**, `/supporter`. Een jaarplan kost tien maanden.',
+      rows: [
+        {
+          term: 'Supporter',
+          body: '$1 per maand of $10 per jaar. Een gouden naam en een ster, een gouden GZ, een vitrine met 4 plekken, en je kunt een vriendenevent organiseren.',
+        },
+        {
+          term: 'Champion',
+          body: '$2 per maand of $20 per jaar. Naamkleuren met een kleurverloop naar keuze, je eigen avatar en banner (geanimeerd als je wilt), 8 vitrineplekken, snellere eventchat en 1 clanboost.',
+        },
+        {
+          term: 'Patron',
+          body: '$5 per maand of $50 per jaar. Elke kleur die je wilt, met een kleurverloop dat beweegt, 12 vitrineplekken, geen wachttijd in eventchat, 2 vriendenevents tegelijk en 2 clanboosts.',
+        },
+      ],
+      note: {
+        tag: 'Tijd via uitnodigingen',
+        body: 'Onder Settings → Supporter krijg je een uitnodigingslink. Betaalt een vriend die je hebt uitgenodigd, dan verdien je gratis maanden; de beloning komt twee weken na zijn eerste betaling. Zo verdiende tijd geeft elk voordeel van dat niveau behalve clanboosts.',
+      },
+    },
+
+    compare: {
+      title: 'Wat elk niveau krijgt',
+      intro: 'Dezelfde tabel als op de Supporter-pagina, plus de chatvoordelen.',
+      table: {
+        areaLabel: 'Voordeel',
+        columns: ['Gratis', 'Supporter', 'Champion', 'Patron'],
+        rows: [
+          { area: 'Naamkleuren', cells: ['—', 'Goud', 'Presets of één eigen kleur', 'Presets of tot vier kleuren, bewegend'] },
+          { area: 'Ster bij je naam', cells: ['—', 'Ja', 'Ja', 'Ja'] },
+          { area: 'Gouden GZ', cells: ['—', 'Ja', 'Ja', 'Ja'] },
+          { area: 'Eigen avatar en banner, geanimeerd', cells: ['—', '—', 'Ja', 'Ja'] },
+          { area: 'Vitrine', cells: ['—', '4 plekken', '8 plekken', '12 plekken'] },
+          { area: 'Vriendenevents (tegelijk · spelers)', cells: ['Alleen meedoen', '1 · 10', '1 · 25', '2 · 50'] },
+          { area: 'Head-to-head-uitdagingen', cells: ['1 actief', '5 actief', 'Onbeperkt', 'Onbeperkt'] },
+          { area: 'Eventchat: wachten tussen regels', cells: ['5 s', '3 s', '1 s', 'Geen'] },
+          { area: 'Clanboosts', cells: ['—', '—', '1', '2'] },
+        ],
+      },
+      outro:
+        'Onder **Settings** → **In-game chat** staan er nog drie: eigen kleuren voor je chatfeed (Supporter), kiezen wat je loginoverzicht behandelt (Champion), en een ster bij je naam in de chatfeeds van andere spelers (Patron).',
+    },
+
+    names: {
+      title: 'Naamkleuren',
+      intro:
+        'Je stelt ze in onder **Settings** → **Supporter**, bij **Your name’s look**. De preview toont je naam op een donkere en op een lichte achtergrond.',
+      rows: [
+        {
+          term: 'Supporter',
+          body: 'effen goud. Er valt niets te kiezen.',
+        },
+        {
+          term: 'Champion',
+          body: 'een van de vaste kleurverlopen (**Classic**, de standaard, **Ember**, **Ocean**, **Aurora**, **Rose gold** of **Toxic**), of **Your own**: één vaste kleur. Over al je characters samen kun je hoogstens twee verschillende eigen kleuren gebruiken.',
+        },
+        {
+          term: 'Patron',
+          body: 'elke preset plus **Prism**, de standaard voor Patrons, of **Your own** met één tot vier kleuren. Eén kleur staat stil; twee tot vier vormen een kleurverloop dat van links naar rechts beweegt.',
+        },
+      ],
+      outro:
+        '**Your Anvil display name** is de naam op je aan Discord gekoppelde account. Kies onder **Your RuneScape characters** **Same for all** of **Customize each** om elk character een eigen uiterlijk te geven. Druk op **Save** (of **Save for all characters**); **Reset to default** gaat terug naar de kleuren van je niveau.',
+      note: {
+        tag: 'Donkere en lichte achtergronden',
+        body: 'De site, het pluginpaneel en Discord zijn donker; de effen chatbox van het spel is licht. Anvil past je kleuren aan zodat ze op allebei leesbaar blijven. Wil je op een ervan een ander uiterlijk, zet dan **Set a separate look for dark backgrounds** of **for light backgrounds** aan. Dat uiterlijk wordt precies getoond zoals je het koos, zonder contrastcorrectie, en de preview waarschuwt je als het slecht leesbaar is.',
+      },
+    },
+
+    where: {
+      title: 'Waar je flair te zien is',
+      intro: 'Je kleuren en de ster gaan overal mee waar je naam staat:',
+      rows: [
+        {
+          term: 'Op de site',
+          body: 'borden, ledenlijsten, profielen, je eigen naam in de bovenbalk en de namen van je characters. De ster draagt je kleuren.',
+        },
+        {
+          term: 'In het pluginpaneel',
+          body: 'de Feed, eventchat, kaarten en de **Tracking**-regel. Het kleurverloop van een Patron schuift; elke speler kan dat stoppen met **Animated names**.',
+        },
+        {
+          term: 'In het spel',
+          body: 'voor andere spelers die de Anvil-plugin gebruiken: openbare, clan-, vrienden- en privéchat, clanbroadcasts, loginmeldingen, vrienden- en clanlijsten, en het rechtsklikmenu (nooit op PvP-werelden of in de Wilderness). In de spelchat is de ster alleen voor Patrons.',
+        },
+        {
+          term: 'In Discord',
+          body: 'een ster naast je naam in de posts van Anvil, in je eigen kleuren als je die gekozen hebt.',
+        },
+        {
+          term: 'Gouden GZ',
+          body: 'bij een drop van een clangenoot in de feed van je clan op de site kan je GZ goud zijn. Alleen Supporters kunnen er een geven.',
+        },
+      ],
+      note: {
+        tag: 'Alleen op characters waarvan bewezen is dat ze van jou zijn',
+        body: 'Kleuren verschijnen alleen op characters waarvan de plugin heeft bevestigd dat ze van jou zijn, op de site en in het spel. Wil je ze niet op je namen in de spelchat van anderen, vink dan **Show my colours on my characters’ names in game chat** uit onder Settings → Supporter.',
+      },
+    },
+
+    profile: {
+      title: 'Avatar, banner en vitrine',
+      intro: 'Alle drie staan onder **Settings** → **Profile look**.',
+      rows: [
+        {
+          term: 'Avatar & banner',
+          body: 'Champion en Patron. Upload je eigen; een GIF of WebP blijft geanimeerd. Ze verschijnen op je kaart, je profiel en elk van je characters, op de site en in de plugin. Een banner mag tot 6 MB zijn en minstens 600×150; een avatar tot 2 MB.',
+        },
+        {
+          term: 'Per character',
+          body: 'geef één character een eigen banner of avatar, of allebei. Die vervangt je standaard alleen op de pagina’s en de pluginkaart van dat character.',
+        },
+        {
+          term: 'Vitrine',
+          body: 'je beste drops, killcounts en tijden, vastgepind op je profiel: 4 plekken voor Supporter, 8 voor Champion, 12 voor Patron. Pins van characters die je niet deelt, blijven privé.',
+        },
+      ],
+    },
+
+    hosting: {
+      title: 'Vriendenevents, head-to-head en chat',
+      intro: 'De voordelen die je meer ruimte geven om te spelen, in plaats van een uiterlijk:',
+      rows: [
+        {
+          term: 'Vriendenevents',
+          body: 'organiseer je eigen bingo, solobingo of race voor vrienden via **Host an event for your friends**, door de plugin bijgehouden zoals een clanevent. Vrienden doen mee via je uitnodigingslink. Supporter: 1 lopend event, 10 spelers. Champion: 1 event, 25 spelers. Patron: 2 tegelijk, samen 50 spelers. Iedereen kan meedoen.',
+        },
+        {
+          term: 'Head-to-head',
+          body: 'daag een vriend uit vanaf zijn profiel: wie het eerst een drop heeft, of de meeste kills of XP in 1 uur, 24 uur of 7 dagen. Alleen om op te scheppen. Gratis spelers kunnen er 1 tegelijk open hebben, Supporters 5, Champions en Patrons zoveel als ze willen.',
+        },
+        {
+          term: 'Eventchat',
+          body: 'hoe lang je tussen regels wacht: 5 seconden zonder niveau, 3 voor Supporters, 1 voor Champions, geen voor Patrons. Wordt de chat van een bord druk, dan wacht iedereen 10 seconden, Patrons ook.',
+        },
+        {
+          term: 'Clanboosts',
+          body: 'Champion 1, Patron 2, zolang je betaalt. Zie [Een clan boosten]({boostsGuide}).',
+        },
+      ],
+    },
+
+    billing: {
+      title: 'Betalen, wisselen en opzeggen',
+      intro: 'Anvil Supporter wordt via Gumroad gefactureerd, per maand of per jaar.',
+      steps: [
+        'Log in op Anvil en open `/supporter`.',
+        'Druk op **Choose Supporter**, **Choose Champion** of **Choose Patron**. De kassa van Gumroad opent, met betalen per maand of per jaar.',
+        'Betaal. Je voordelen gaan aan zodra Gumroad het aan Anvil doorgeeft, en je niveau staat op de Supporter-pagina als **Your tier**.',
+      ],
+      outro:
+        'Wissel van niveau met **Change tier** onder Settings → Supporter. Opzeggen of je kaart bijwerken doe je daar met **Manage on Gumroad**. Een opgezegd lidmaatschap houdt elk voordeel tot het einde van de periode waarvoor je betaald hebt.',
+      note: {
+        tag: 'Begin altijd bij /supporter',
+        body: 'De **Choose**-knop draagt een code die Anvil vertelt welk account betaald heeft. Anvil koppelt een betaling nooit op e-mailadres, dus wie rechtstreeks bij Gumroad koopt, zonder die knop, blijft met een ongekoppelde betaling zitten. Is dat gebeurd, vraag het dan in de Anvil-Discord, dan kan de staf hem met de hand aan je account koppelen.',
+      },
+    },
+
+    lapse: {
+      title: 'Omlaag gaan of stoppen',
+      intro:
+        'Niets wat je hebt ingesteld wordt verwijderd. Elk voordeel wordt getoetst aan het niveau dat je nu hebt, dus het gaat vanzelf uit en komt terug zodra je verlengt.',
+      rows: [
+        {
+          term: 'Naamkleuren',
+          body: 'je opgeslagen keuze blijft bewaard. Je draagt de kleuren van je nieuwe niveau, of geen, tot er weer een niveau is dat het toestaat.',
+        },
+        {
+          term: 'Avatar & banner',
+          body: 'onder Champion tonen ze hun stilstaande eerste beeld in plaats van te bewegen.',
+        },
+        {
+          term: 'Vitrine',
+          body: 'toont de eerste pins die je niveau toestaat en verbergt de rest. Zonder niveau is hij verborgen; de pins wachten op je.',
+        },
+        {
+          term: 'Clanboosts',
+          body: 'je oudste boosts blijven meetellen en de rest wordt gepauzeerd, niet verwijderd.',
+        },
+      ],
+      note: {
+        tag: 'Een tijdelijke upgrade van de Anvil-staf',
+        body: 'De staf kan iemand een tijdje een hoger niveau geven, bijvoorbeeld als bedankje. Dat komt bovenop wat je betaalt en verandert nooit je abonnement. Settings → Supporter toont **A gift from Anvil** en wanneer het afloopt; daarna zit je weer op je betaalde niveau. Een cadeau geeft alleen clanboostplekken als de staf die erbij doet.',
+      },
+    },
+  },
+
+  sidePanel: {
+    metaTitle: 'Het Anvil-zijpaneel, tabblad voor tabblad — Anvil',
+    metaDescription:
+      'Wat elk tabblad van het Anvil-zijpaneel in RuneLite toont (Clan, Feed, You, Lookup en het tandwiel), hoe eventchat en Feed-reacties werken, en de plugininstellingen voor de feed in de spelchat, Supporter-kleuren en geanimeerde namen.',
+    eyebrow: 'Anvil · voor spelers',
+    title: 'Het zijpaneel, tabblad voor tabblad',
+    dek: 'De Anvil-knop in de zijbalk van RuneLite opent een paneel met vier tabbladen en een tandwiel: **Clan**, **Feed**, **You**, **Lookup** en ⚙. Het meeste wat het toont komt van de site, dus het blijft actueel zonder plugin-update. Een paar dingen hieronder zijn gemarkeerd als komend in de volgende plugin-update.',
+    facts: [
+      { strong: 'Vier tabbladen', rest: 'en een tandwiel voor synchroniseren en instellingen' },
+      { strong: 'Eventchat', rest: 'in het Feed-tabblad' },
+      { strong: 'GZ, Sad, Sit', rest: 'op Feed-regels' },
+    ],
+    footnote:
+      'De plugin installeren en inloggen staat in [RuneLite-plugin instellen]({pluginGuide}). Supporter-kleuren, de ster en de chatvoordelen worden uitgelegd in [Anvil Supporter: niveaus en voordelen]({supporterGuide}).',
+
+    header: {
+      title: 'Bovenaan het paneel',
+      intro: 'Boven de tabbladen staan de titel, **Refresh** en de accountregel.',
+      rows: [
+        {
+          term: 'Refresh',
+          body: 'laadt het paneel opnieuw, het Feed-tabblad inbegrepen. Terwijl het bezig is staat er **Refreshing…**. In de volgende plugin-update laadt het ook You en Lookup opnieuw, zodat een nieuwe avatar of banner meteen verschijnt, en maakt het het Feed-tabblad niet meer leeg.',
+        },
+        {
+          term: 'Tracking',
+          body: 'de regel onder de titel noemt het character dat gevolgd wordt, in zijn Supporter-kleuren als het die heeft. **Not my account…** stopt het volgen van een character dat iemand anders op deze computer speelt; **Track again** maakt dat ongedaan.',
+        },
+        {
+          term: 'Het accountmenu',
+          body: 'de ⋯-link opent **View my profile on Anvil**, **Not my account…** en **Sign out…**. In de volgende plugin-update staat er ook **Become a Supporter** in, of **Your Supporter perks** als je er al een bent.',
+        },
+        {
+          term: 'Seizoensvoortgang',
+          body: 'in de volgende plugin-update staat er op Leagues-, Deadman- en andere seizoenswerelden een regel **Sharing season progress · Turn off**. Die stuurt je relics, gebieden en taken (met een screenshot) naar je clan; je clan kiest op de website wat er gepost wordt. **Turn on** deelt het weer. Dezelfde schakelaar is **Share seasonal activity** in de plugininstellingen.',
+        },
+      ],
+    },
+
+    clan: {
+      title: 'Clan',
+      intro:
+        'Je events en je clan. In de space van een creator heet het tabblad **Space**.',
+      rows: [
+        {
+          term: 'De clankeuzelijst',
+          body: 'verschijnt als je in meer dan één clan of space speelt. **All clans** (de standaard) toont alles waarin je speelt, lopend event eerst. Kies je één clan, dan beperkt het paneel zich daartoe en gaan je inzendingen daarheen.',
+        },
+        {
+          term: 'Events',
+          body: 'elk lopend en komend bord, Skill of Boss of the Week en clanevent, met waar je staat. Daarna **Your other boards**, **Also live** en **Your clan**.',
+        },
+        {
+          term: 'Een bord',
+          body: 'open er een voor de stand, teams, missies, recente activiteit, de dichtstbijzijnde tiles en **View all tiles**. De knoppen **Feed** en **Chat** openen dat bord in het Feed-tabblad.',
+        },
+        {
+          term: 'Een clanevent',
+          body: '**I’m going**, **Sign me up** of **Answer the survey**, afhankelijk van het event.',
+        },
+      ],
+    },
+
+    feed: {
+      title: 'Feed',
+      intro:
+        'De grote momenten van je clan en je borden, live: drops, pets, prestaties, quests, doden en voltooide tiles.',
+      rows: [
+        {
+          term: 'Wiens feed',
+          body: 'de keuzelijst bovenaan toont **Clan ·** voor elke clan waarvan je lid bent en **Event ·** voor elk lopend bord waarop je zit. Hij opent op je bord als je er een hebt, anders op je clan.',
+        },
+        {
+          term: 'Filters',
+          body: '**All**, **Tiles** (alleen borden), **Drops**, **Pets**, **Achievements**, **Deaths**, en **My team** op een bord waar je in een team zit. Een clanfeed heeft ook een knop voor spelmodusactiviteit, voor Leagues en andere modi.',
+        },
+        {
+          term: 'Nieuwe regels',
+          body: 'komen vanzelf binnen. Ben je weggescrold, dan brengt een **↑ N new**-pil je er weer naartoe.',
+        },
+      ],
+      note: {
+        tag: 'Niet hetzelfde als de chatfeed in het spel',
+        body: 'Het Feed-tabblad werkt wat je plugininstellingen ook zeggen. **Show feed in game chat** (stap 8) is de aparte instelling die hem ook in je chatbox zet.',
+      },
+    },
+
+    reactions: {
+      title: 'Reacties',
+      intro: 'Elke regel in de Feed heeft zijn reactie eronder:',
+      rows: [
+        {
+          term: 'GZ',
+          body: 'bij drops, pets en prestaties. Het aantal staat ernaast, zoals **GZ 3**.',
+        },
+        {
+          term: 'Sad en Sit',
+          body: 'bij doden, in plaats van GZ. Sit is de manier van het spel om iemand die doodging te zeggen dat hij moet gaan zitten.',
+        },
+        {
+          term: 'Wie kan reageren',
+          body: 'in een clanfeed de clangenoten. Op een bord de spelers erop en de staf van de organisator; als een bord zijn stand verbergt, kunnen spelers alleen op de regels van hun eigen team reageren.',
+        },
+        {
+          term: 'Wie reageerde',
+          body: 'beweeg over een reactie om namen te zien, zoals “GZ · Mossy and 3 others”. Klik er nog eens op om de jouwe terug te nemen.',
+        },
+      ],
+      note: {
+        tag: 'In de volgende plugin-update',
+        body: 'Reacties worden pilknoppen, gekleurd als er een van jou is, en de reacties van anderen werken live bij voor iedereen die kijkt, ook op je andere open clients. Nu verandert het aantal als jij reageert of als de Feed opnieuw laadt. Gouden GZ, de Supporter-reactie, wordt gegeven in de feeds op de website; het Feed-tabblad heeft GZ, Sad en Sit.',
+      },
+    },
+
+    chat: {
+      title: 'Eventchat',
+      intro:
+        'Een bord waarop chat aanstaat heeft bovenaan het Feed-tabblad een schakelaar **Feed / Chat**, voor de spelers op dat bord en de staf van de organisator. De bordpagina in het Clan-tabblad heeft ook een **Chat**-knop.',
+      rows: [
+        {
+          term: 'Iedereen of je team',
+          body: '**All** schrijft naar het hele bord, **My team** alleen naar je team (die regels zijn gemarkeerd met **TEAM**). De staf ziet ook **Host & mods**, en hun regels zijn gemarkeerd met **HOST** of **MOD**.',
+        },
+        {
+          term: 'Versturen',
+          body: 'typ in het vak en druk op Enter. Regels zijn tot 200 tekens, en alleen de organisator en mods kunnen links plaatsen.',
+        },
+        {
+          term: 'Hoe vaak',
+          body: 'de wachttijd tussen je regels volgt je Supporter-niveau: 5 seconden zonder niveau, 3 voor Supporters, 1 voor Champions, geen voor Patrons. De regel onder het vak zegt wat de jouwe is. De staf wacht nooit.',
+        },
+        {
+          term: 'Slow mode',
+          body: 'wordt de chat van een bord heel druk, dan wacht iedereen een minuut lang minstens 10 seconden, Patrons ook. Niemand kan meer dan 10 regels in 10 seconden versturen.',
+        },
+        {
+          term: 'Moderatie',
+          body: 'de organisator en mods kunnen met rechts op een regel klikken voor **Delete message**, of voor **Mute** om iemand het zwijgen op te leggen, en de hele chat pauzeren met **Pause chat (read-only for everyone)**.',
+        },
+      ],
+      outro:
+        'Een reeks regels van één persoon deelt één naam en tijd, tot er 5 minuten tussen zitten. Chat wordt bewaard tot 7 dagen na het einde van het event.',
+    },
+
+    you: {
+      title: 'You en Lookup',
+      intro: 'Twee tabbladen voor spelerskaarten: die van jou en die van iedereen anders.',
+      rows: [
+        {
+          term: 'You',
+          body: 'je eigen kaart voor het character waarmee je bent ingelogd: banner en avatar, **Display case**, collection log tot op de items van elke pagina, en **Skills**, **Bosses**, **Clues**, **Times** en **CAs**. Daaronder elke **Head-to-head**-uitdaging die op je wacht (**Accept** of **Decline**) en je **Goals**, met **+ Add goal**.',
+        },
+        {
+          term: 'Lookup',
+          body: 'wissel tussen **Players** en **Clans**, typ een naam en druk op Enter. **Recent** toont je laatste paar. Klik in het spel met rechts op iemand en kies **Anvil** om hier uit te komen.',
+        },
+        {
+          term: 'Vergelijken',
+          body: 'op de kaart van iemand anders zet **Compare with me** jullie twee naast elkaar, skill voor skill, boss voor boss en pagina voor pagina. De kaart van een clan heeft **Compare with my clan**.',
+        },
+      ],
+    },
+
+    gear: {
+      title: 'Het tandwieltabblad',
+      intro: 'Synchroniseren en instellingen, in plaats van dingen om naar te kijken:',
+      rows: [
+        {
+          term: 'Sync profile',
+          body: 'stuurt je collection log en beste tijden naar Anvil.',
+        },
+        {
+          term: 'Sync clan roster',
+          body: 'alleen clanadmins: stuurt de ledenlijst van de clan in het spel naar de site. Kan de plugin je clan niet lezen, dan staat er in plaats daarvan **Join your clan channel to sync the roster**.',
+        },
+        {
+          term: 'Banner sounds',
+          body: '**Add clip** voor het geluid dat een banner afspeelt, **Copy folder path** om ze te beheren, en **Add mission clip** voor missies.',
+        },
+        {
+          term: 'Become a Supporter',
+          body: 'in de volgende plugin-update opent een ★-link onderaan de Supporter-pagina, of staat er **Your Supporter perks** als je er al een bent.',
+        },
+      ],
+    },
+
+    settings: {
+      title: 'Instellingen die veranderen wat je ziet',
+      intro:
+        'In de RuneLite-configuratie van Anvil, onder **Chat messages**. Ze staan in het begin allemaal aan.',
+      rows: [
+        {
+          term: 'Show feed in game chat',
+          body: 'zet de feed ook in je chatbox terwijl het gebeurt: grote drops, pets en prestaties van borden waarvan de organisator het heeft aangezet en van clans waar je gast bent, de tilevoortgang van je teamgenoten, en voltooide tiles van andere teams.',
+        },
+        {
+          term: 'Supporter names in chat',
+          body: 'de kleuren van Supporters (en de ster van een Patron) in openbare, clan-, vrienden- en privéchat, en op je vriendenlijst en de ledenlijsten van kanalen. De lijst met namen wordt van Anvil gedownload; er wordt niets verstuurd over wie jij ziet.',
+        },
+        {
+          term: 'Animated names',
+          body: 'laat het kleurverloop van een Patron schuiven in het paneel, de Feed en eventchat. Uit houdt het stil. In de volgende plugin-update geldt het ook voor gebooste clannamen en geanimeerde banners in het paneel.',
+        },
+        {
+          term: 'Supporter names in menus',
+          body: 'de kleuren van Supporters op hun naam als je met rechts op ze klikt, nooit op PvP-werelden of in de Wilderness.',
+        },
+        {
+          term: 'Over other plugins’ colours',
+          body: 'aan vervangen de kleuren van een Supporter een naamkleur die een andere plugin heeft ingesteld, zoals Player Indicators. Uit laat die namen met rust.',
+        },
+      ],
+    },
+  },
+
+  clanBoosts: {
+    metaTitle: 'Een clan boosten — Anvil',
+    metaDescription:
+      'Hoe clanboosts op Anvil werken: wie ze heeft, een boost plaatsen en verplaatsen, de drie boostlevels en wat elk ervan ontgrendelt, de naamkleuren van de clan, geschonken boosts, en boostertekens en badges.',
+    eyebrow: 'Anvil · voor Supporters en clanstaf',
+    title: 'Een clan boosten',
+    dek: 'Een betalende Champion of Patron kan een boost zetten op een clan waarvan hij lid is. Genoeg boosts van de leden van een clan tillen hem een level hoger, en elk level verandert hoe de clan eruitziet en waar hij vermeld staat. Boosts zijn alleen uiterlijk: ze veranderen nooit een rang, een score, een plek of het abonnement van de clan.',
+    facts: [
+      { strong: 'Champion 1, Patron 2', rest: 'boosts zolang je betaalt' },
+      { strong: 'Levels bij 3, 8 en 15', rest: 'meetellende boosts' },
+      { strong: 'Eén keer per week', rest: 'kan een boost verhuizen' },
+    ],
+    footnote:
+      'Leden plaatsen boosts onder **Settings** → **Clan boosts**. De clanstaf ziet het level en de opties ervan onder Admin → **Clan settings** → **Boosts**. Voor de Supporter-niveaus zelf, zie [Anvil Supporter: niveaus en voordelen]({supporterGuide}).',
+
+    what: {
+      title: 'Wie boosts heeft',
+      intro: 'Boosts horen bij een betaald lidmaatschap:',
+      rows: [
+        { term: 'Champion', body: '1 boost.' },
+        { term: 'Patron', body: '2 boosts.' },
+        {
+          term: 'Supporter',
+          body: 'geen. Tijd verdiend via uitnodigingen ook niet. Een tijdelijke upgrade van de Anvil-staf geeft alleen plekken als de staf die erbij doet.',
+        },
+      ],
+      outro:
+        'Boosts zijn van jou, niet van een character: drie characters in drie clans delen nog steeds één set. **Settings** → **Clan boosts** verschijnt alleen in je instellingen zolang je Supporter bent of nog een boost geplaatst hebt.',
+    },
+
+    place: {
+      title: 'Een boost plaatsen en verplaatsen',
+      intro: 'Je plaatst je boosts zelf; niemand kan er een voor je plaatsen.',
+      steps: [
+        'Open **Settings** → **Clan boosts**. **Your boosts** toont wat je geplaatst hebt en elke **Free slot**.',
+        'Druk onder **Clans you can boost** op **Boost** naast een clan. Je kunt ook op **Boost this clan** drukken in het Boosters-gedeelte van de eigen pagina van de clan.',
+        'Om er een te verplaatsen, gebruik je **Move to…** op zijn regel en kies je een andere clan. **Remove** haalt hem weg.',
+      ],
+      rows: [
+        {
+          term: 'Een ledenplek van 14 dagen oud',
+          body: 'elke boost hangt aan een ledenplek die een van je characters in de clan in het spel heeft. Een gastplek kan er geen dragen. De plek telt vanaf het vroegste van twee momenten: wanneer Anvil hem voor het eerst zag, of wanneer het spel zegt dat het character lid werd. Tot dan zegt de regel van de clan hoeveel dagen er nog over zijn.',
+        },
+        {
+          term: 'Eén regel per clan',
+          body: 'de lijst toont elke clan één keer, en Anvil kiest het character waaraan de boost hangt: je main waar dat kan, anders de plek die je het langst hebt. De clan ziet alleen dat character, nooit je andere.',
+        },
+        {
+          term: 'Eén keer per week',
+          body: 'een geplaatste boost kan 7 dagen na het plaatsen verhuizen. De plek van een verwijderde boost komt op dezelfde datum weer vrij, dus verwijderen en opnieuw plaatsen is geen kortere weg. Is het character waaraan hij hing uit de clan gegaan, dan kun je hem meteen verplaatsen.',
+        },
+      ],
+      note: {
+        tag: 'Wat de labels betekenen',
+        body: '**counting**: hij telt mee voor het level van de clan. **paused**: je Supporter-niveau heeft nu minder plekken dan je geplaatst hebt, dus je oudste boosts blijven meetellen en de rest wacht. **seat gone**: het character waaraan hij hing is daar geen lid meer; verplaats hem. **over the 2-per-person cap**: de clan telt er al twee van jou.',
+      },
+    },
+
+    levels: {
+      title: 'Levels',
+      intro:
+        'Het level van een clan komt uit zijn meetellende boosts. Van één persoon tellen er hoogstens twee mee voor één clan, dus een level betekent altijd dat meerdere leden ervoor kozen.',
+      rows: [
+        { term: 'Level 1', body: '3 meetellende boosts.' },
+        { term: 'Level 2', body: '8 meetellende boosts.' },
+        { term: 'Level 3', body: '15 meetellende boosts.' },
+      ],
+      outro:
+        'Leden zien de voortgang op de pagina van de clan, bijvoorbeeld “5 of 8 to Level 2”. Een clan die stijgt, krijgt het nieuwe level meteen.',
+      note: {
+        tag: 'Een week respijt',
+        body: 'Zakken de boosts onder een level, dan houdt de clan de voordelen van dat level nog 7 dagen. Admin → Clan settings → Boosts toont wanneer ze aflopen. Boosten de leden hem op tijd weer omhoog, dan verandert er niets.',
+      },
+    },
+
+    perks: {
+      title: 'Wat elk level ontgrendelt',
+      intro: 'Elk level houdt alles van het level eronder.',
+      rows: [
+        {
+          term: 'Level 1',
+          body: 'een **Boosted**-badge op de clanpagina, op zijn kaart in de Clan Hall en in de zoekresultaten; een plek boven clans zonder boost in de Clan Hall en de zoekresultaten ervan; en de clannaam in een kleurverloop.',
+        },
+        {
+          term: 'Level 2',
+          body: 'een plek in de **Featured**-rij van de Clan Hall; de geanimeerde banner van de clan speelt af (onder Level 2 toont hij zijn stilstaande beeld); een wervingsregel voor bezoekers; en het kleurverloop van de naam beweegt.',
+        },
+        {
+          term: 'Level 3',
+          body: 'de **Spotlight** helemaal bovenaan de Clan Hall, en één wervingspost per maand in de Anvil-Discord, door de clan zelf geschreven.',
+        },
+      ],
+      note: {
+        tag: 'Het clanlogo is geen voordeel',
+        body: 'Een geanimeerd logo (een GIF- of WebP-clanafbeelding) speelt op elk level af. Alleen de banner wacht op Level 2.',
+      },
+    },
+
+    colours: {
+      title: 'De naamkleuren van de clan',
+      intro:
+        'Vanaf Level 1 draagt de naam van de clan het kleurverloop van Anvil. Eigenaars en admins kunnen hun eigen kiezen onder Admin → **Clan settings** → **Boosts** → **Clan name colours**:',
+      rows: [
+        {
+          term: 'Eén tot vier kleuren',
+          body: 'één kleur geeft een stilstaande naam; twee tot vier vormen een kleurverloop. Vanaf Level 2 beweegt een kleurverloop.',
+        },
+        {
+          term: 'Donkere en lichte achtergronden',
+          body: 'net als bij Supporter-namen past Anvil de kleuren aan zodat ze leesbaar blijven op donkere achtergronden (de site, het pluginpaneel, Discord) en lichte (de effen chatbox van het spel). Zet voor een van beide een apart uiterlijk aan, dan wordt het precies getoond zoals gekozen.',
+        },
+        {
+          term: 'Reset to Anvil',
+          body: 'gaat terug naar het palet van Anvil.',
+        },
+      ],
+      outro:
+        'De kleuren blijven bewaard als de clan onder Level 1 zakt, en komen terug als hij het weer haalt. De plugin pikt een wijziging op bij zijn volgende refresh.',
+    },
+
+    staff: {
+      title: 'Voor clanstaf',
+      intro:
+        'Admin → **Clan settings** → **Boosts** is voor eigenaars en admins. De staf kan geen boosts plaatsen voor leden; leden plaatsen hun eigen.',
+      rows: [
+        {
+          term: 'Het level',
+          body: 'het level van de clan, hoeveel boosts er meetellen, hoeveel er nog nodig zijn voor het volgende level, en een eventuele respijtweek.',
+        },
+        {
+          term: 'Recruiting line',
+          body: 'Level 2. Eén zin, tot 140 tekens, die mensen buiten de clan te zien krijgen op je clanpagina en je kaart in de Clan Hall.',
+        },
+        {
+          term: 'Recruitment post in the Anvil Discord',
+          body: 'Level 3. Eén keer per kalendermaand, 20 tot 500 tekens, door jou geschreven en geplaatst als je op **Post it** drukt, met een link naar je clanpagina. Vermeldingen worden verwijderd en niemand wordt gepingd. Je kunt hem niet bewerken of een nieuwe sturen tot volgende maand.',
+        },
+        {
+          term: 'Boosters',
+          body: 'de lijst van characters die de clan boosten.',
+        },
+      ],
+      note: {
+        tag: 'Geschonken boosts van Anvil',
+        body: 'De Anvil-staf kan een clan een level schenken, voor een bepaalde tijd of zonder einde. Het cadeau voegt alleen de boosts toe die de clan mist om dat level te halen, getoond als **Anvil gift** in de Boosters-lijst van de clan. Elke echte boost van een lid vervangt één geschonken boost, en een clan die al boven het geschonken level zit, houdt zijn eigen. Loopt het cadeau af, dan valt de clan terug naar het level dat de boosts van zijn leden hem geven.',
+      },
+    },
+
+    boosters: {
+      title: 'Boostertekens en badges',
+      intro: 'Wat een booster krijgt in de clan die hij boost:',
+      rows: [
+        {
+          term: 'Het boosterteken',
+          body: 'een klein edelsteentje naast zijn character in de ledenlijst, de feed en de Discord-posts van die clan. Beweeg erover voor “Boosts this clan”.',
+        },
+        {
+          term: 'De boostermuur',
+          body: 'op de clanpagina: één regel per character, de meeste boosts eerst, daarna wie het langst boost.',
+        },
+        {
+          term: 'Badges',
+          body: '**First booster** voor wie de allereerste boost van de clan plaatste; **1 month**, **3 months**, **6 months** en **1 year** boosten zonder onderbreking; en **Level-up 1**, **2** of **3** voor de boost die de clan naar dat level tilde.',
+        },
+      ],
+      note: {
+        tag: 'Verplaatsen zet de klok terug',
+        body: 'Badges voor tijd tellen vanaf de vroegste boost van het character die nog meetelt, dus een boost verplaatsen of verwijderen laat ze opnieuw beginnen. Je profiel toont de clans die je boost, één keer per clan.',
+      },
     },
   },
 };
