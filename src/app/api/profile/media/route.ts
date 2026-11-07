@@ -62,16 +62,16 @@ function accountIdOf(v: unknown): number | null | undefined {
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
-/** Does the signed-in login's person own this character? */
-async function ownsAccount(userId: number, accountId: number): Promise<boolean> {
+/** The signed-in login's person (players.id) when they own this character, else null. */
+async function ownerOf(userId: number, accountId: number): Promise<number | null> {
   const owner = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { playerId: true } });
-  if (!owner?.playerId) return false;
+  if (!owner?.playerId) return null;
   const [row] = await db
     .select({ id: accounts.id })
     .from(accounts)
     .where(and(eq(accounts.id, accountId), eq(accounts.playerId, owner.playerId)))
     .limit(1);
-  return !!row;
+  return row ? owner.playerId : null;
 }
 
 const NOT_YOURS = () => NextResponse.json({ error: 'That character is not yours.' }, { status: 404 });
@@ -102,7 +102,8 @@ export async function POST(request: Request) {
   if (!kind || !(file instanceof File)) return NextResponse.json({ error: 'Choose an image.' }, { status: 400 });
   const accountId = accountIdOf(form?.get('accountId'));
   if (accountId === null) return BAD_ACCOUNT();
-  if (accountId !== undefined && !(await ownsAccount(session.userId, accountId))) return NOT_YOURS();
+  const ownerPlayerId = accountId !== undefined ? await ownerOf(session.userId, accountId) : null;
+  if (accountId !== undefined && ownerPlayerId == null) return NOT_YOURS();
   if (file.size > MEDIA_LIMITS[kind].maxBytes) {
     return NextResponse.json({ error: `That file is too large — at most ${MEDIA_LIMITS[kind].maxBytes / (1024 * 1024)} MB.` }, { status: 413 });
   }
@@ -115,14 +116,25 @@ export async function POST(request: Request) {
   const full = processed.animated ? (await put(key(), processed.animated, 'image/webp')).url : still;
 
   if (accountId !== undefined) {
-    const before = await accountMediaRow(accountId);
+    const raw = await accountMediaRow(accountId);
+    const before = await accountMediaRow(accountId, ownerPlayerId);
+    // A row a previous owner of this character left is wiped, not merged: their other picture must
+    // not come back under the new owner's name.
+    const stale = raw != null && before == null;
+    const cleared = stale ? { avatarUrl: null, avatarStillUrl: null, bannerUrl: null, bannerStillUrl: null, bannerPosition: null } : {};
     // A new banner starts centred: the old focal point was for a different picture.
-    const patch =
-      kind === 'avatar'
-        ? { avatarUrl: full, avatarStillUrl: still, updatedAt: new Date() }
-        : { bannerUrl: full, bannerStillUrl: still, bannerPosition: null, updatedAt: new Date() };
+    const patch = {
+      ...cleared,
+      ...(kind === 'avatar'
+        ? { avatarUrl: full, avatarStillUrl: still }
+        : { bannerUrl: full, bannerStillUrl: still, bannerPosition: null }),
+      ownerPlayerId: ownerPlayerId!,
+      updatedAt: new Date(),
+    };
     await db.insert(accountMedia).values({ accountId, ...patch }).onConflictDoUpdate({ target: accountMedia.accountId, set: patch });
-    const old = kind === 'avatar' ? [before?.avatarUrl, before?.avatarStillUrl] : [before?.bannerUrl, before?.bannerStillUrl];
+    const old = stale
+      ? [raw.avatarUrl, raw.avatarStillUrl, raw.bannerUrl, raw.bannerStillUrl]
+      : kind === 'avatar' ? [before?.avatarUrl, before?.avatarStillUrl] : [before?.bannerUrl, before?.bannerStillUrl];
     void del(ownAccountObjects(accountId, old)).catch(() => {});
     return NextResponse.json({ kind, accountId, url: full, still, animated: full !== still });
   }
@@ -156,11 +168,12 @@ export async function PATCH(request: Request) {
   const accountId = accountIdOf(body.accountId);
   if (accountId === null) return BAD_ACCOUNT();
   if (accountId !== undefined) {
-    if (!(await ownsAccount(session.userId, accountId))) return NOT_YOURS();
+    const ownerPlayerId = await ownerOf(session.userId, accountId);
+    if (ownerPlayerId == null) return NOT_YOURS();
     await db
       .update(accountMedia)
       .set({ bannerPosition: pos == null ? null : Math.round(pos as number), updatedAt: new Date() })
-      .where(eq(accountMedia.accountId, accountId));
+      .where(and(eq(accountMedia.accountId, accountId), eq(accountMedia.ownerPlayerId, ownerPlayerId)));
     return NextResponse.json({ success: true });
   }
   await db
@@ -181,14 +194,15 @@ export async function DELETE(request: Request) {
   if (accountId === null) return BAD_ACCOUNT();
   if (accountId !== undefined) {
     // "Use my default" for this part of this character.
-    if (!(await ownsAccount(session.userId, accountId))) return NOT_YOURS();
-    const before = await accountMediaRow(accountId);
+    const ownerPlayerId = await ownerOf(session.userId, accountId);
+    if (ownerPlayerId == null) return NOT_YOURS();
+    const before = await accountMediaRow(accountId, ownerPlayerId);
     if (!before) return NextResponse.json({ success: true });
     const patch =
       kind === 'avatar'
         ? { avatarUrl: null, avatarStillUrl: null, updatedAt: new Date() }
         : { bannerUrl: null, bannerStillUrl: null, bannerPosition: null, updatedAt: new Date() };
-    await db.update(accountMedia).set(patch).where(eq(accountMedia.accountId, accountId));
+    await db.update(accountMedia).set(patch).where(and(eq(accountMedia.accountId, accountId), eq(accountMedia.ownerPlayerId, ownerPlayerId)));
     const old = kind === 'avatar' ? [before.avatarUrl, before.avatarStillUrl] : [before.bannerUrl, before.bannerStillUrl];
     void del(ownAccountObjects(accountId, old)).catch(() => {});
     return NextResponse.json({ success: true });

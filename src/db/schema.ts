@@ -4593,6 +4593,9 @@ export const accountMedia = pgTable('account_media', {
   bannerUrl: text('banner_url'),
   bannerStillUrl: text('banner_still_url'),
   bannerPosition: integer('banner_position'),
+  /** The person (players.id) who set these. A row whose owner is no longer the character's is ignored:
+      a released or re-claimed character never keeps the previous owner's pictures. */
+  ownerPlayerId: integer('owner_player_id'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

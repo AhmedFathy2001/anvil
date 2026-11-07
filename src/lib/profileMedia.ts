@@ -1,7 +1,7 @@
 // A person's own avatar and banner: the database half (lib/profileMediaRules is the pure half,
 // lib/profileMediaProcess the upload's decode and re-encode).
 
-import { asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accountMedia, profileMedia, users } from '@/db/schema';
@@ -78,18 +78,28 @@ const ACCOUNT_COLUMNS = {
   bannerPosition: accountMedia.bannerPosition,
 } as const;
 
-/** A character's own override row (account_media), or null. */
-export async function accountMediaRow(accountId: number): Promise<ProfileMediaRowLike | null> {
-  const rows = await db.select(ACCOUNT_COLUMNS).from(accountMedia).where(eq(accountMedia.accountId, accountId)).limit(1);
+/**
+ * A character's own override row (account_media), or null. With `ownerPlayerId`, only a row that
+ * person set: a row left by a previous owner of the character counts as no override.
+ */
+export async function accountMediaRow(accountId: number, ownerPlayerId?: number | null): Promise<ProfileMediaRowLike | null> {
+  if (ownerPlayerId === null) return null;
+  const where = ownerPlayerId === undefined
+    ? eq(accountMedia.accountId, accountId)
+    : and(eq(accountMedia.accountId, accountId), eq(accountMedia.ownerPlayerId, ownerPlayerId));
+  const rows = await db.select(ACCOUNT_COLUMNS).from(accountMedia).where(where).limit(1);
   return rows[0] ?? null;
 }
 
 /** Override rows for several characters at once (the settings page's per-character list). */
-export async function accountMediaRows(accountIds: number[]): Promise<Map<number, ProfileMediaRowLike>> {
+export async function accountMediaRows(accountIds: number[], ownerPlayerId: number): Promise<Map<number, ProfileMediaRowLike>> {
   const out = new Map<number, ProfileMediaRowLike>();
   const ids = [...new Set(accountIds)].filter((n) => Number.isInteger(n) && n > 0);
   if (!ids.length) return out;
-  const rows = await db.select({ accountId: accountMedia.accountId, ...ACCOUNT_COLUMNS }).from(accountMedia).where(inArray(accountMedia.accountId, ids));
+  const rows = await db
+    .select({ accountId: accountMedia.accountId, ...ACCOUNT_COLUMNS })
+    .from(accountMedia)
+    .where(and(inArray(accountMedia.accountId, ids), eq(accountMedia.ownerPlayerId, ownerPlayerId)));
   for (const { accountId, ...row } of rows) out.set(accountId, row);
   return out;
 }
@@ -108,7 +118,8 @@ export async function mediaForCharacter(
 ): Promise<ShownProfileMedia> {
   try {
     const [override, userId] = await Promise.all([
-      accountMediaRow(accountId),
+      // Only an override the character's CURRENT owner set (a previous owner's is ignored).
+      accountMediaRow(accountId, personId),
       personId != null ? mediaUserForPlayer(personId) : Promise.resolve(null),
     ]);
     const [person, supporter] = await Promise.all([

@@ -33,7 +33,9 @@ export default async function LookSettingsPage() {
       : Promise.resolve([]),
   ]);
   // Each character's OWN pictures only (account_media), gated like the default; null parts use it.
-  const overrides = await accountMediaRows(characters.map((c) => c.accountId)).catch(() => new Map());
+  const overrides = session.playerId
+    ? await accountMediaRows(characters.map((c) => c.accountId), session.playerId).catch(() => new Map())
+    : new Map();
   const characterLooks = characters.map((c) => ({ ...c, own: shownProfileMedia(overrides.get(c.accountId), tier) }));
   const showPerCharacter = characterLooks.length > 0 && (canUseProfileMedia(tier) || characterLooks.some((c) => c.own.avatar || c.own.banner));
   const slots = displayCaseSlots(tier);
