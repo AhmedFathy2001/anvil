@@ -178,6 +178,20 @@ const no: PartialGuideDict = {
           'La seerne dine spille ett event uten å være med i klanen. Slå på Streaming, og åpne så et event for seere.',
         minutes: '~2 min',
       },
+      people: {
+        eyebrow: 'For klanens stab',
+        title: 'Folkene dine: medlemsliste, gjester og hvem som kan bli med',
+        blurb:
+          'Hvor medlemmene kommer fra, hva filtrene på Roster-fanen betyr, forespørsler om å bli med og Needs review, de tre innstillingene under Who can join, og hvordan du fjerner eller utestenger noen.',
+        minutes: '~6 min',
+      },
+      staffRoles: {
+        eyebrow: 'For eiere og admins',
+        title: 'Stabsroller: hvem kan gjøre hva',
+        blurb:
+          'Eier, admin, kasserer og moderator: hva hver rolle når, hvordan du gjør noen til moderator, hvem som kan gi hvilken rolle, og oppgaver som bare gjelder ett event.',
+        minutes: '~6 min',
+      },
     },
   },
 
@@ -2908,6 +2922,376 @@ const no: PartialGuideDict = {
         {
           term: 'Bør jeg lage et creator-rom i stedet?',
           body: 'Bare hvis du ikke har en klan. Et rom er for streamere uten klan i spillet.',
+        },
+      ],
+    },
+  },
+
+  people: {
+    metaTitle: 'Folkene dine: medlemsliste, gjester og hvem som kan bli med — Anvil',
+    metaDescription:
+      'Hvor en Anvil-klans medlemsliste kommer fra, hva Members, Guests, Roster only, Departed og Quiet betyr, hvordan forespørsler om å bli med og Needs review fungerer, de tre innstillingene under Who can join, og hvordan du fjerner eller utestenger noen.',
+    eyebrow: 'Anvil · for klanens stab',
+    title: 'Folkene dine: medlemsliste, gjester og hvem som kan bli med',
+    dek: 'Alle under Admin → **People** har havnet der på en av fire måter: klanlisten i spillet hadde dem med, staben godkjente dem, klanen slipper inn alle, eller noen la dem til for hånd. Her er hvordan hver av dem virker, hva Roster-fanen forteller deg, og hva du sjekker når noen står på feil sted.',
+    facts: [
+      { strong: 'Medlemslisten i spillet', rest: 'den eneste automatiske veien til å bli medlem' },
+      { strong: 'Å logge inn', rest: 'setter aldri noen på medlemslisten' },
+      { strong: 'To køer', rest: 'på to forskjellige faner' },
+    ],
+    footnote:
+      'Alt her ligger under Admin → **People**. Roster og Needs review er moderatorarbeid. **Who can join** og **Staff & roles** er faner bare for admins. Hvem som kan gjøre hva i hele adminområdet, står i [Stabsroller: hvem kan gjøre hva]({staffGuide}).',
+
+    roster: {
+      title: 'Hvor medlemslisten kommer fra',
+      body: [
+        'Medlemslisten er klanlisten fra spillet, kopiert over til nettstedet. En admin sender den fra RuneLite med Anvil-pluginet: trykk på **Anvil**-knappen i tittellinjen på klanvinduet, eller på **Sync roster** i sidepanelet til pluginet. Alle på listen kommer inn som **medlem**, med rangen sin fra spillet. Bare noen med Admin-rollen på nettstedet kan sende den. Alle andre får beskjed om det i spillet.',
+        'En synkronisering er det eneste som gjør noen til medlem av seg selv. Forlater noen klanen i spillet, blir de merket som utmeldt ved neste synkronisering, og blir de med igjen, kommer de tilbake ved synkroniseringen etter det. Historikken deres blir liggende uansett.',
+        'Alle andre plasser er **gjesteplasser**: folk som spiller i eventene deres uten å være med i klanen i spillet. Gjester blir sporet og kan delta i eventer. De er ikke medlemmer, og de teller ikke med i planen deres.',
+      ],
+      note: {
+        tag: 'Å logge inn setter aldri noen på medlemslisten',
+        body: 'Å logge inn med Discord, koble til en karakter eller spille med pluginet gir ingen en plass. Ser pluginet noen som har deres klan i spillet, men som ikke står på medlemslisten ennå, ber det om å få dem inn (se trinn 3). Alle andre har bare en Anvil-konto uten klan. Det er det som hindrer en fremmed i å bli med i klanen deres ved å skrive navnet på den.',
+      },
+    },
+
+    filters: {
+      title: 'Slik leser du Roster-fanen',
+      intro:
+        'Linjen øverst deler medlemslisten i **Members**, **Guests** og **Departed**. Klikk på en del for å filtrere på den. Knappene under snevrer listen inn ytterligere:',
+      rows: [
+        {
+          term: 'Active',
+          body: 'medlemmer som fortsatt står på medlemslisten. Gjester og utmeldte er holdt utenfor.',
+        },
+        {
+          term: 'Quiet 7d+',
+          body: 'medlemmer pluginet ikke har sett spille på sju dager eller mer. Har noen aldri brukt pluginet, er de ikke med her, for det finnes ingenting å vurdere dem etter. **Last played** viser i stedet **no plugin data**.',
+        },
+        {
+          term: 'Guests',
+          body: 'nåværende gjesteplasser: folk som spiller i eventene deres, men ikke er med i klanen i spillet.',
+        },
+        {
+          term: 'Roster only',
+          body: 'nåværende medlemmer og gjester som ennå ikke har en konto på nettstedet. Helt vanlig for alle som aldri har logget inn med Discord. De blir stående på medlemslisten; de logger inn og kobler til karakteren når de vil melde seg på noe.',
+        },
+        {
+          term: 'Departed',
+          body: 'folk som har forlatt klanen i spillet, eller som staben har fjernet. Resultatene og historikken deres blir liggende.',
+        },
+        {
+          term: 'All',
+          body: 'alle over.',
+        },
+      ],
+      outro:
+        'Kolonnen **Source** viser hvordan hver plass startet: **Clan sync**, **Added manually** eller **Applied or self-reported**. **Last played** kommer fra pluginet, ikke fra synkroniseringen av medlemslisten.',
+      note: {
+        tag: 'Rang og rolle er to forskjellige ting',
+        body: 'De to nedtrekksmenyene ved siden av knappene filtrerer på rang i spillet og på rolle på nettstedet. Rangen er det spillet melder. Rollen på nettstedet er det en admin setter under **Staff & roles**. Den ene setter aldri den andre.',
+      },
+    },
+
+    review: {
+      title: 'Forespørsler om å bli med og Needs review',
+      intro: 'To slags folk venter på et ja, og de venter på hver sin fane.',
+      rows: [
+        {
+          term: 'Asking to join',
+          body: 'øverst på **Roster**-fanen, og vises bare mens noen venter. En forespørsel kommer fra nettstedet (de trykket **Apply** på klansiden deres, eller prøvde å delta i et av eventene deres) eller fra pluginet (det så dem spille i klanen deres i spillet før medlemslisten hadde dem). Hver rad viser hvilken, og om de er medlem av en annen klan. **Approve** gir dem en gjesteplass. **Decline** gir dem beskjed, som DM på Discord når boten deres kan nå dem. Kryss av for flere for å svare alle på én gang.',
+        },
+        {
+          term: 'Awaiting confirmation',
+          body: 'på **Needs review**. Folk som har koblet til en av karakterene på medlemslisten deres ved å få XP på den, ved å spørre, eller ved å spille den med pluginet. De kan allerede spille mens de venter. Sjekk at Discord-navnet stemmer med karakteren, og trykk så **Approve**. **Not our member** tar karakteren av listen deres og lar den bli hos eieren sin. **Report to Anvil** er for en karakter som ikke er deres.',
+        },
+        {
+          term: 'Claim requests',
+          body: 'også på **Needs review**. Noen har spilt en karakter som allerede er et etablert medlem her, så Anvil koblet den ikke til dem av seg selv. Vet du at det er dem, trykk **Yes, that’s them**; hvis ikke, **Not them**. En karakter som bare noen gang har vært i klanen deres, blir koblet til med en gang. En som også er med i en annen klan, går til Anvil for avgjørelse.',
+        },
+      ],
+      note: {
+        tag: 'Merket teller ikke forespørsler om å bli med',
+        body: 'Tallet på **Needs review**, og på **People** i sidefeltet, teller Awaiting confirmation og Claim requests. Forespørsler om å bli med er ikke med, så se øverst på Roster-fanen også.',
+      },
+    },
+
+    policy: {
+      title: 'Hvem som kan bli med',
+      intro:
+        'Admin → People → **Who can join** har tre innstillinger, og bare admins ser fanen. Den som avgjør hvordan utenforstående kommer inn, er **Players from other clans**:',
+      rows: [
+        {
+          term: 'Ask first',
+          body: 'standarden. Den som søker, eller som pluginet plukker opp fra klanen deres i spillet, venter som en forespørsel til staben godkjenner dem. Ingen får en plass uten et ja.',
+        },
+        {
+          term: 'Let anyone in',
+          body: 'det holder å spørre. De får en gjesteplass med en gang, og ingen forespørsel blir opprettet. Bra for et åpent event, ellers mest støy.',
+        },
+        {
+          term: 'No guests',
+          body: 'bare deres egne medlemmer spiller. Spillere fra andre klaner kan ikke delta i eventene deres eller be om å bli med, og pluginet oppretter ingenting for dem.',
+        },
+      ],
+      outro:
+        '**Who can see this clan** er enten **Anyone** (en lenke til et brett virker for den du sender den til) eller **Members only** (alle andre ser klanens kort og en invitasjon til å søke). **List in the Clan Hall** setter klanen på den offentlige listen over klaner. Å slå den av gjør ikke klanen privat.',
+      note: {
+        tag: 'Ingen av dem rører medlemmene deres',
+        body: 'Synkroniseringen av medlemslisten gir medlemmer en plass uansett hva som står her. Deres egen stab blir heller aldri behandlet som gjester: karakteren til noen i staben får en medlemsplass uten forespørsel.',
+      },
+    },
+
+    manual: {
+      title: 'Legge til noen for hånd',
+      body: [
+        'Roster → **+ Add Manually** setter én karakter på medlemslisten. Fyll inn **RSN**, og om du vil, **Discord ID** og **Rank**. Kryss av for **Add as guest** for noen som ikke er med i klanen deres i spillet. Både moderatorer og admins kan gjøre dette.',
+        'Bruk det for noen synkroniseringen ikke ser ennå, for eksempel en rekrutt som ble med etter forrige synkronisering. Plassen blir merket **Added manually**, og synkroniseringen behandler den som deres avgjørelse: fjerner du senere en plass du la til for hånd, henter ikke neste synkronisering den tilbake.',
+        'Å sette noen på medlemslisten melder dem ikke på et event. Det gjør du på fanen **Sign-ups** i eventet, med **Add member**. Den er bare for admins.',
+      ],
+    },
+
+    removing: {
+      title: 'Fjerne og utestenge',
+      intro: 'Hver rad på medlemslisten har en handlingsmeny. Disse gjør forskjellige ting:',
+      rows: [
+        {
+          term: 'Demote to guest',
+          body: 'de blir stående på listen og kan fortsatt settes inn i eventer, men teller ikke lenger som medlem. **Promote to member** gjør det om.',
+        },
+        {
+          term: 'Remove from roster',
+          body: 'merker dem som utmeldt. Historikken og resultatene deres blir liggende. Er de fortsatt med i klanen deres i spillet, kan neste synkronisering av medlemslisten legge dem til igjen.',
+        },
+        {
+          term: 'Not our member',
+          body: 'på Needs review, for en karakter noen har koblet til, men som ikke er med i klanen deres. Den forsvinner fra listen deres og blir hos eieren sin.',
+        },
+        {
+          term: 'Ban from this clan',
+          body: 'avslutter alle plassene personen har her, alts inkludert, og hindrer dem i å komme tilbake: synkroniseringen, pluginet og forespørsler om å bli med avviser dem alle til utestengelsen blir opphevet. Anvil-kontoen deres og de andre klanene deres blir ikke rørt. Bare for admins, bare for noen med en konto på nettstedet, fra menyen på raden eller fra **Staff & roles**. Å oppheve en utestengelse setter dem ikke tilbake; de blir med igjen i spillet, eller du legger dem til.',
+        },
+      ],
+      note: {
+        tag: 'En utestengelse fjerner ikke en stabsrolle',
+        body: 'Å utestenge noen avslutter plassene deres, men lar en eventuell stabsrolle her stå. Vil du fjerne noen fra staben, sett først rollen deres til **Member** under Staff & roles, og utesteng dem deretter.',
+      },
+    },
+
+    faq: {
+      title: 'Vanlige spørsmål',
+      intro: 'Det som som regel forklarer at noen står på feil sted.',
+      rows: [
+        {
+          term: 'Noen i klanen mangler',
+          body: 'Kjør en synkronisering av medlemslisten først: listen endres bare når en admin sender den. Sjekk så **Departed**, i tilfelle de er fjernet, og om de er utestengt; synkroniseringen hopper over alle som er utestengt her, og melder hvem den hoppet over. Er klanen over planen sin og fristen har gått ut, slutter synkroniseringen å legge til nye medlemmer til dere oppgraderer eller rydder i medlemslisten.',
+        },
+        {
+          term: 'Noen vises som gjest, men er med i klanen',
+          body: 'Som regel er de fortsatt medlem av en annen klan på Anvil. En karakter kan bare være medlem av én klan om gangen, så synkroniseringen gir dem en gjesteplass her og gjør dem til medlem ved første synkronisering etter at de har forlatt den andre klanen. Ellers kom de inn via en forespørsel, eller noen har degradert dem eller lagt dem til som gjest. Kjør en synkronisering, eller bruk **Promote to member**.',
+        },
+        {
+          term: 'Noen har logget inn, men står ikke på medlemslisten',
+          body: 'Det er som forventet. Å logge inn oppretter en Anvil-konto, ikke en plass. De dukker opp når synkroniseringen har dem med, når du godkjenner forespørselen deres, eller når du legger dem til for hånd.',
+        },
+        {
+          term: 'Navn som #Player1234',
+          body: 'RuneLite viser en slik plassholder et øyeblikk mens en spiller logger inn, og for klanmedlemmer den ikke kan navngi. Anvil ignorerer de navnene nå: synkroniseringen hopper over dem, pluginet oppretter ingen forespørsel for dem, og gamle forespørsler under et slikt navn er skjult. Står det fortsatt ett på medlemslisten deres, er det en gammel rad. **Remove from roster** fjerner den.',
+        },
+        {
+          term: 'Et fjernet medlem kommer stadig tilbake',
+          body: 'Å fjerne noen endrer ikke klanen i spillet, så neste synkronisering legger dem til igjen så lenge spillet fortsatt har dem på listen. Fjern dem i spillet, eller utesteng dem her.',
+        },
+        {
+          term: 'En moderator ser ikke Who can join',
+          body: 'Det er en fane bare for admins, akkurat som Staff & roles. Se [Stabsroller: hvem kan gjøre hva]({staffGuide}).',
+        },
+      ],
+    },
+  },
+
+  staffRoles: {
+    metaTitle: 'Stabsroller: hvem kan gjøre hva — Anvil',
+    metaDescription:
+      'Klanrollene på Anvil (eier, admin, kasserer, moderator, medlem), hva hver av dem når, hvordan du gjør noen til moderator, hvem som kan gi hvilken rolle, og oppgavene som bare gjelder ett event.',
+    eyebrow: 'Anvil · for eiere og admins',
+    title: 'Stabsroller: hvem kan gjøre hva',
+    dek: 'Fem roller, satt per klan under Admin → People → **Staff & roles**. En rolle her gir ingenting i noen annen klan, og ingen kan dele ut en rolle som er like høy som eller høyere enn sin egen. Denne siden er hele kartet: hva hver rolle når, hvordan du deler ut en, og oppgavene som dekker ett enkelt event.',
+    facts: [
+      { strong: 'Per klan', rest: 'en rolle her betyr ingenting andre steder' },
+      { strong: 'Under din egen', rest: 'er alt du kan gi' },
+      { strong: 'Eier', rest: 'byttes bare ved overføring' },
+    ],
+    footnote:
+      'Roller blir sjekket på nytt ved hver sidelasting, så en endring gjelder fra personens neste klikk; de trenger ikke logge ut. Om selve medlemslisten, se [Folkene dine]({peopleGuide}). Om hverdagen til en moderator, se [På vakt]({moderatorGuide}).',
+
+    roles: {
+      title: 'Rollene',
+      intro: 'Alle som logger inn med Discord, starter som vanlig **Member**. Over det:',
+      rows: [
+        {
+          term: 'Eier',
+          body: 'den som opprettet klanen, til de gir den videre. Alt en admin kan gjøre, pluss å overføre eierskapet og slette klanen. Det finnes nøyaktig én, og ingen kan degradere, fjerne eller utestenge dem.',
+        },
+        {
+          term: 'Admin',
+          body: 'alt bortsett fra å overlevere klanen: eventer og brett, innstillinger, Discord, staben og klanens penger.',
+        },
+        {
+          term: 'Kasserer',
+          body: 'avgifter, kassa og premier. En kasserer når også de fleste moderatorsidene (bevis, konkurranser, Needs review), men ikke selve medlemslisten eller Schedule.',
+        },
+        {
+          term: 'Moderator',
+          body: 'nykommere, medlemslisten, bevis, ukentlige konkurranser og klaneventer. Ingen eventer eller brett, ingen innstillinger, ingen stab og ingen penger.',
+        },
+        {
+          term: 'Medlem',
+          body: 'ingen oppgave i staben. Spiller, melder seg på, og kan melde inn en donasjon til kassa.',
+        },
+      ],
+      outro:
+        'Under rollen på Staff & roles står to avkrysningsbokser, for alle under admin, vanlige medlemmer inkludert. **Can build bingo boards** åpner Tiles-fanen på alle brett og Task library. **Can write guides** lar dem skrive klanens guider. Admins har begge allerede.',
+    },
+
+    assign: {
+      title: 'Gjøre noen til moderator',
+      intro:
+        'De må ha logget inn med Discord og koblet til en karakter som står på medlemslisten deres, som medlem eller gjest. Så:',
+      steps: [
+        'Åpne Admin → **People** → **Staff & roles**.',
+        'Listen åpner på **Staff**. Bytt til **Members** eller **All accounts**, og søk etter navnet deres.',
+        'Velg **Moderator: newcomers, roster, sign-ups, proofs** i kolonnen **Role**. Det lagres så snart du velger.',
+        'Skal de også bygge brett, kryss av for **Can build bingo boards**.',
+      ],
+      outro:
+        'Ikke logget inn ennå? Finn karakteren deres på **Roster**-fanen, åpne menyen og velg **Set role**. Da lagres rollen på karakteren. De får den første gang de logger inn og kobler den til, eller, hvis de venter på Needs review, når en moderator godkjenner dem.',
+      note: {
+        tag: 'Ta den fra dem igjen',
+        body: 'Sett rollen tilbake til **Member**. Å endre noens rolle fjerner også brettoppgavene de hadde på klanens brett (se trinn 5), så legg dem til igjen etterpå hvis de skal beholde dem.',
+      },
+    },
+
+    who: {
+      title: 'Hvem kan gi hva',
+      intro:
+        'Staff & roles er en fane bare for admins, og hver endring der blir sjekket mot to regler: du kan bare gi en rolle under din egen, og du kan bare endre noen som har en rolle under din egen.',
+      rows: [
+        {
+          term: 'Eieren',
+          body: 'kan gi og ta fra Admin, Treasurer og Moderator.',
+        },
+        {
+          term: 'En admin',
+          body: 'kan gi og ta fra Treasurer og Moderator. En admin kan ikke gjøre noen andre til admin, endre en annen admin eller endre sin egen rolle.',
+        },
+        {
+          term: 'Kasserere og moderatorer',
+          body: 'kan ikke endre noens rolle. Fanen er skjult for dem.',
+        },
+        {
+          term: 'Ingen',
+          body: 'kan endre rollen til eieren, fjerne dem eller utestenge dem. Klanen beholder også alltid én admin: den siste kan ikke degraderes.',
+        },
+      ],
+      note: {
+        tag: 'Overlevere klanen',
+        body: 'Det kan bare eieren, og bare til noen som allerede er admin: raden til den adminen får handlingen **Make owner**. De blir eier, og du blir en vanlig admin. Du kan ikke angre det selv; bare den nye eieren kan overføre den tilbake.',
+      },
+    },
+
+    table: {
+      title: 'Hvem kan gjøre hva',
+      intro:
+        'Hva hver rolle når i adminområdet. «Hvis avkrysset» betyr boksen **Can build bingo boards** eller **Can write guides** under Staff & roles.',
+      areaLabel: 'Område',
+      columns: ['Eier', 'Admin', 'Kasserer', 'Moderator', 'Medlem'],
+      rows: [
+        { area: 'Dashboard', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nei'] },
+        { area: 'Eventer: opprette, redigere, lag, påmeldinger, starte', cells: ['Ja', 'Ja', 'Nei', 'Nei', 'Nei'] },
+        { area: 'Ruter på brett og Task library', cells: ['Ja', 'Ja', 'Hvis avkrysset', 'Hvis avkrysset', 'Hvis avkrysset'] },
+        { area: 'Bevis som skal sjekkes', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nei'] },
+        { area: 'Ukentlige konkurranser', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nei'] },
+        { area: 'Klaneventer', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nei'] },
+        { area: 'Schedule', cells: ['Ja', 'Ja', 'Nei', 'Ja', 'Nei'] },
+        { area: 'Medlemsliste: se, legge til, fjerne', cells: ['Ja', 'Ja', 'Nei', 'Ja', 'Nei'] },
+        { area: 'Forespørsler om å bli med og Needs review', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nei'] },
+        { area: 'Utestenge noen fra klanen', cells: ['Ja', 'Under admin', 'Nei', 'Nei', 'Nei'] },
+        { area: 'Staff & roles', cells: ['Ja', 'Under admin', 'Nei', 'Nei', 'Nei'] },
+        { area: 'Who can join', cells: ['Ja', 'Ja', 'Nei', 'Nei', 'Nei'] },
+        { area: 'Kassa og premiestiger', cells: ['Ja', 'Ja', 'Ja', 'Nei', 'Nei'] },
+        { area: 'Avgifter: merke som innkrevd', cells: ['Ja', 'Ja', 'Ja', 'Nei', 'Nei'] },
+        { area: 'Avgifter: bekrefte (den andre signaturen)', cells: ['Ja', 'Ja', 'Nei', 'Nei', 'Nei'] },
+        { area: 'Discord-innstillinger', cells: ['Ja', 'Ja', 'Nei', 'Nei', 'Nei'] },
+        { area: 'Legge ut i Discord', cells: ['Ja', 'Ja', 'Nei', 'Nei', 'Nei'] },
+        { area: 'Klaninnstillinger: Profile, Features, Rules & scoring, Boosts', cells: ['Ja', 'Ja', 'Nei', 'Nei', 'Nei'] },
+        { area: 'Plan og betaling', cells: ['Ja', 'Ja', 'Nei', 'Nei', 'Nei'] },
+        { area: 'Guider', cells: ['Skrive', 'Skrive', 'Lese; skrive hvis avkrysset', 'Lese; skrive hvis avkrysset', 'Skrive hvis avkrysset'] },
+        { area: 'Aktivitetslogg', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nei'] },
+        { area: 'Synkronisere medlemslisten fra RuneLite', cells: ['Ja', 'Ja', 'Nei', 'Nei', 'Nei'] },
+        { area: 'Overføre eierskapet, slette klanen', cells: ['Ja', 'Nei', 'Nei', 'Nei', 'Nei'] },
+      ],
+      note: {
+        tag: 'Skjult er ikke det samme som tillatt',
+        body: 'Sidefeltet viser bare det rollen din kan bruke, men sjekken som teller, kjører på serveren. Skriver du inn adressen til en side rollen din ikke kan bruke, blir du sendt tilbake til dashbordet, og handlingen bak den blir avvist.',
+      },
+    },
+
+    event: {
+      title: 'Oppgaver på ett event',
+      intro:
+        'Noen oppgaver dekker ett enkelt event i stedet for klanen. En admin gir dem på selve eventet, og de når det eventet og ingenting annet, så de er trygge å gi til et vanlig medlem.',
+      rows: [
+        {
+          term: 'Brettredaktør',
+          body: 'bygger og redigerer rutene på det brettet. Gis under eventets **Settings** → **Staff** → **Board staff**, eller med **Boards…** i handlingene til en person under Staff & roles. Et medlem som har fått en, ser bare sine egne brett i adminområdet.',
+        },
+        {
+          term: 'Brettkasserer',
+          body: 'krever inn avgiftene til det brettet og tar seg av utbetalingene, uten å nå klanens kasse. Gis også under **Board staff**.',
+        },
+        {
+          term: 'Lagstab',
+          body: 'styrer ett lag: troppen, innsendingene og bevisene, og å merke spillernes avgifter som betalt. De kan ikke røre et annet lag, redigere brettet, gjøre draftvalg eller bytte ut noen når eventet er live. Legges til på lagets side under **Team staff**. Det er slik moderatoren til en gjesteklan styrer sin halvdel av en klan-mot-klan.',
+        },
+        {
+          term: 'Kaptein',
+          body: 'utnevnt av verten for ett lag. Alt lagstaben kan gjøre, pluss å gjøre lagets draftvalg.',
+        },
+      ],
+      note: {
+        tag: 'En klanrolle erstatter brettoppgaver',
+        body: 'Å gi noen en klanrolle, eller endre den, fjerner oppgavene deres som brettredaktør og brettkasserer på klanens brett. Staff & roles advarer deg først når brettoppgaver er alt de har. Legg dem til igjen etterpå hvis de skal beholde dem.',
+      },
+    },
+
+    safety: {
+      title: 'Slik holdes det trygt',
+      intro: 'Dette gjelder uansett hvordan rollene er satt.',
+      rows: [
+        {
+          term: 'Eieren er beskyttet',
+          body: 'raden deres under Staff & roles viser **Protected**. Rollen kan ikke endres, og de kan ikke utestenges. Eierskapet byttes bare når de selv overfører det.',
+        },
+        {
+          term: 'Admins kan ikke fjerne hverandre',
+          body: 'en admin kan verken degradere eller utestenge en annen admin. Når to admins er uenige, avgjør eieren.',
+        },
+        {
+          term: 'Penger krever to personer',
+          body: 'når en avgift må bekreftes, må bekreftelsen komme fra en annen admin enn den som merket den som innkrevd. Hvor mange bekreftelser en avgift trenger, fra null til fem, settes under **Clan settings** → **Rules & scoring** → **Fee sign-off**. En admin som er alene om pengene, kan fortsatt tvinge en avgift lukket, med en egen knapp.',
+        },
+        {
+          term: 'Dette kan ikke en moderator',
+          body: 'opprette eller redigere eventer, endre innstillinger eller Discord, gi noen en rolle (heller ikke seg selv) eller røre klanens penger.',
+        },
+        {
+          term: 'Alt blir loggført',
+          body: 'rolleendringer, overføringer av eierskap, utestengelser og besvarte forespørsler om å bli med blir skrevet til **Activity log**, som alle i staben kan lese.',
+        },
+        {
+          term: 'Discord-roller er noe annet',
+          body: 'Anvils rollesynkronisering matcher Discord-roller mot **rang i spillet**, ikke mot roller på nettstedet. Å gjøre noen til moderator her gir dem ingenting på Discord-serveren deres, og en moderatorrolle du har delt ut for hånd i Discord, blir latt være. Den ene botkommandoen som endrer noe, å legge til i kassa med `/coffer`, sjekker rollen på nettstedet: kasserer, admin eller eier.',
         },
       ],
     },

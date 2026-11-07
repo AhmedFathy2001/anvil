@@ -177,6 +177,20 @@ const fi: PartialGuideDict = {
           'Anna katsojiesi pelata yhtä tapahtumaa liittymättä klaaniin. Laita Streaming päälle ja avaa sitten tapahtuma katsojille.',
         minutes: '~2 min',
       },
+      people: {
+        eyebrow: 'Klaanin henkilökunnalle',
+        title: 'Väkesi: jäsenlista, vieraat ja kuka saa liittyä',
+        blurb:
+          'Mistä jäsenet tulevat, mitä Roster-välilehden suodattimet tarkoittavat, liittymispyynnöt ja Needs review, Who can join -kohdan kolme asetusta sekä jonkun poistaminen tai porttikielto.',
+        minutes: '~6 min',
+      },
+      staffRoles: {
+        eyebrow: 'Omistajille ja ylläpitäjille',
+        title: 'Henkilökunnan roolit: kuka saa tehdä mitä',
+        blurb:
+          'Omistaja, ylläpitäjä, rahastonhoitaja ja moderaattori: mihin kukin pääsee, miten jostakusta tehdään moderaattori, kuka voi antaa minkäkin roolin, ja yhtä tapahtumaa koskevat tehtävät.',
+        minutes: '~6 min',
+      },
     },
   },
 
@@ -2904,6 +2918,376 @@ const fi: PartialGuideDict = {
         {
           term: 'Pitäisikö minun tehdä sen sijaan creator-tila?',
           body: 'Vain jos sinulla ei ole klaania. Tila on striimaajille, joilla ei ole klaania pelissä.',
+        },
+      ],
+    },
+  },
+
+  people: {
+    metaTitle: 'Väkesi: jäsenlista, vieraat ja kuka saa liittyä — Anvil',
+    metaDescription:
+      'Mistä Anvil-klaanin jäsenlista tulee, mitä Members, Guests, Roster only, Departed ja Quiet tarkoittavat, miten liittymispyynnöt ja Needs review toimivat, Who can join -kohdan kolme asetusta sekä jonkun poistaminen tai porttikielto.',
+    eyebrow: 'Anvil · klaanin henkilökunnalle',
+    title: 'Väkesi: jäsenlista, vieraat ja kuka saa liittyä',
+    dek: 'Jokainen kohdassa Admin → **People** on päätynyt sinne yhtä neljästä reitistä: pelin klaanilista nimesi hänet, henkilökunta hyväksyi hänet, klaani päästää kaikki sisään, tai joku lisäsi hänet käsin. Tässä kerrotaan, miten kukin reitti toimii, mitä Roster-välilehti kertoo, ja mitä tarkistaa, kun joku on väärässä paikassa.',
+    facts: [
+      { strong: 'Pelin jäsenlista', rest: 'ainoa automaattinen tapa tulla jäseneksi' },
+      { strong: 'Kirjautuminen', rest: 'ei koskaan lisää ketään jäsenlistalle' },
+      { strong: 'Kaksi jonoa', rest: 'kahdella eri välilehdellä' },
+    ],
+    footnote:
+      'Kaikki tässä löytyy kohdasta Admin → **People**. Roster ja Needs review ovat moderaattorin työtä. **Who can join** ja **Staff & roles** ovat vain ylläpitäjille näkyviä välilehtiä. Kuka saa tehdä mitä koko hallintapaneelissa, katso [Henkilökunnan roolit: kuka saa tehdä mitä]({staffGuide}).',
+
+    roster: {
+      title: 'Mistä jäsenlista tulee',
+      body: [
+        'Jäsenlista on pelin klaanilistanne kopioituna sivustolle. Ylläpitäjä lähettää sen RuneLitestä Anvil-pluginilla: paina **Anvil**-painiketta klaani-ikkunan otsikkopalkissa tai **Sync roster** pluginin sivupaneelissa. Kaikki listalla olevat tulevat **jäseninä**, pelin arvonimensä kanssa. Vain se, jolla on sivustolla Admin-rooli, voi lähettää sen. Muille kerrotaan tästä pelissä.',
+        'Synkronointi on ainoa asia, joka tekee jostakusta jäsenen itsestään. Kun joku lähtee klaanista pelissä, seuraava synkronointi merkitsee hänet lähteneeksi, ja kun joku palaa, hän tulee takaisin sitä seuraavassa synkronoinnissa. Hänen historiansa säilyy kummassakin tapauksessa.',
+        'Kaikki muut paikat ovat **vieras**paikkoja: joku, joka pelaa tapahtumissanne olematta pelin klaanissanne. Vieraita seurataan ja he voivat osallistua tapahtumiin. He eivät ole jäseniä, eivätkä he kuluta tilauksenne jäsenpaikkoja.',
+      ],
+      note: {
+        tag: 'Kirjautuminen ei koskaan lisää ketään jäsenlistalle',
+        body: 'Discordilla kirjautuminen, hahmon yhdistäminen tai pluginilla pelaaminen ei anna kenellekään paikkaa. Jos plugin näkee jonkun, jonka pelin klaani on teidän mutta joka ei ole vielä jäsenlistalla, se pyytää häntä (katso vaihe 3). Muilla on vain Anvil-tili ilman klaania. Juuri tämä estää vierasta ihmistä liittymästä klaaniinne kirjoittamalla sen nimen.',
+      },
+    },
+
+    filters: {
+      title: 'Roster-välilehden lukeminen',
+      intro:
+        'Yläreunan palkki jakaa jäsenlistan osiin **Members**, **Guests** ja **Departed**. Napsauta osaa suodattaaksesi sen mukaan. Sen alla olevat sirut rajaavat listaa lisää:',
+      rows: [
+        {
+          term: 'Active',
+          body: 'jäsenet, jotka ovat yhä jäsenlistalla. Vieraat ja lähteneet jäävät pois.',
+        },
+        {
+          term: 'Quiet 7d+',
+          body: 'jäsenet, joita plugin ei ole nähnyt pelaavan seitsemään päivään tai pidempään. Joku, joka ei ole koskaan käyttänyt pluginia, ei ole tässä, koska häntä ei voi arvioida millään. Hänen kohdallaan **Last played** näyttää sen sijaan **no plugin data**.',
+        },
+        {
+          term: 'Guests',
+          body: 'nykyiset vieraspaikat: ihmiset, jotka pelaavat tapahtumissanne mutta eivät ole pelin klaanissanne.',
+        },
+        {
+          term: 'Roster only',
+          body: 'nykyiset jäsenet ja vieraat, joiden takana ei vielä ole sivustotiliä. Tavallista kaikille, jotka eivät ole koskaan kirjautuneet Discordilla. He pysyvät jäsenlistalla; he kirjautuvat ja yhdistävät hahmon, kun haluavat ilmoittautua johonkin.',
+        },
+        {
+          term: 'Departed',
+          body: 'ihmiset, jotka lähtivät pelissä tai jotka henkilökunta poisti. Heidän tuloksensa ja historiansa säilyvät.',
+        },
+        {
+          term: 'All',
+          body: 'kaikki yllä olevat.',
+        },
+      ],
+      outro:
+        'Sarake **Source** kertoo, miten kukin paikka sai alkunsa: **Clan sync**, **Added manually** tai **Applied or self-reported**. **Last played** tulee pluginilta, ei jäsenlistan synkronoinnista.',
+      note: {
+        tag: 'Arvonimi ja rooli ovat eri asioita',
+        body: 'Sirujen vieressä olevat kaksi pudotusvalikkoa suodattavat pelin arvonimen ja sivuston roolin mukaan. Arvonimi on se, minkä peli ilmoittaa. Sivuston roolin asettaa ylläpitäjä kohdassa **Staff & roles**. Kumpikaan ei koskaan aseta toista.',
+      },
+    },
+
+    review: {
+      title: 'Liittymispyynnöt ja Needs review',
+      intro: 'Kahdenlaiset ihmiset odottavat myöntävää vastausta, ja he odottavat eri välilehdillä.',
+      rows: [
+        {
+          term: 'Asking to join',
+          body: '**Roster**-välilehden yläosassa, näkyvissä vain silloin kun joku odottaa. Pyyntö tulee sivustolta (hän painoi **Apply** klaaninne sivulla tai yritti osallistua johonkin tapahtumaanne) tai pluginilta (se näki hänen pelaavan pelin klaanissanne ennen kuin hän oli jäsenlistalla). Jokainen rivi kertoo kummasta, ja onko hän jonkin toisen klaanin jäsen. **Approve** antaa hänelle vieraspaikan. **Decline** kertoo sen hänelle Discordin yksityisviestillä, jos bottinne tavoittaa hänet. Valitse useampi vastataksesi niihin kerralla.',
+        },
+        {
+          term: 'Awaiting confirmation',
+          body: 'kohdassa **Needs review**. Ihmiset, jotka yhdistivät jonkin jäsenlistanne hahmon keräämällä sillä XP:tä, pyytämällä tai pelaamalla sillä pluginin kanssa. He voivat jo pelata odottaessaan. Tarkista, että Discord-nimi sopii hahmoon, ja paina sitten **Approve**. **Not our member** poistaa hahmon listaltanne ja jättää sen omistajalleen. **Report to Anvil** on hahmolle, joka ei ole hänen.',
+        },
+        {
+          term: 'Claim requests',
+          body: 'myös kohdassa **Needs review**. Joku pelasi hahmolla, joka on täällä jo vakiintunut jäsen, joten Anvil ei yhdistä sitä häneen itsestään. Jos tiedät, että se on hän, paina **Yes, that’s them**; jos ei, **Not them**. Hahmo, joka on koskaan ollut vain teidän klaanissanne, yhdistetään heti. Hahmo, joka on myös toisessa klaanissa, menee Anvilin ratkaistavaksi.',
+        },
+      ],
+      note: {
+        tag: 'Merkki ei laske liittymispyyntöjä',
+        body: 'Luku kohdassa **Needs review** ja sivupalkin kohdassa **People** laskee Awaiting confirmation- ja Claim requests -rivit. Liittymispyynnöt eivät ole mukana, joten katso myös Roster-välilehden yläosa.',
+      },
+    },
+
+    policy: {
+      title: 'Kuka saa liittyä',
+      intro:
+        'Kohdassa Admin → People → **Who can join** on kolme asetusta, ja vain ylläpitäjät näkevät välilehden. Ulkopuolisten pääsyn ratkaisee **Players from other clans**:',
+      rows: [
+        {
+          term: 'Ask first',
+          body: 'oletus. Hakija, tai joku jonka plugin poimii pelin klaanistanne, odottaa liittymispyyntönä, kunnes henkilökunta hyväksyy hänet. Ilman myöntävää vastausta kukaan ei saa paikkaa.',
+        },
+        {
+          term: 'Let anyone in',
+          body: 'pyytäminen riittää. Hän saa heti vieraspaikan, eikä pyyntöä kirjata. Hyvä avoimeen tapahtumaan, muuten meluisa.',
+        },
+        {
+          term: 'No guests',
+          body: 'vain omat jäsenenne pelaavat. Muiden klaanien pelaajat eivät voi osallistua tapahtumiinne tai pyytää liittymistä, eikä plugin kirjaa heistä mitään.',
+        },
+      ],
+      outro:
+        '**Who can see this clan** on joko **Anyone** (taulun linkki toimii kenelle tahansa, jolle sen lähetät) tai **Members only** (muut näkevät klaanin kortin ja kutsun hakea). **List in the Clan Hall** lisää klaanin julkiseen klaanilistaan. Sen poistaminen käytöstä ei tee klaanista yksityistä.',
+      note: {
+        tag: 'Mikään näistä ei koske jäseniänne',
+        body: 'Jäsenlistan synkronointi antaa jäsenille paikan, sanoivat nämä mitä tahansa. Omaa henkilökuntaanne ei myöskään koskaan kohdella vieraina: henkilökunnan jäsenen hahmo saa jäsenpaikan ilman pyyntöä.',
+      },
+    },
+
+    manual: {
+      title: 'Jonkun lisääminen käsin',
+      body: [
+        'Roster → **+ Add Manually** lisää yhden hahmon jäsenlistalle. Täytä **RSN**, ja halutessasi **Discord ID** ja **Rank**. Valitse **Add as guest** jollekulle, joka ei ole pelin klaanissanne. Sekä moderaattorit että ylläpitäjät voivat tehdä tämän.',
+        'Käytä sitä jollekulle, jota synkronointi ei vielä näe, kuten tulokkaalle, joka liittyi viimeisimmän synkronoinnin jälkeen. Paikka merkitään **Added manually**, ja synkronointi pitää sitä sinun päätöksenäsi: jos myöhemmin poistat käsin lisäämäsi paikan, seuraava synkronointi ei tuo sitä takaisin.',
+        'Jäsenlistalle lisääminen ei ilmoita ketään tapahtumaan. Sitä varten avaa tapahtuman **Sign-ups**-välilehti ja käytä painiketta **Add member**. Se on vain ylläpitäjille.',
+      ],
+    },
+
+    removing: {
+      title: 'Poistaminen ja porttikielto',
+      intro: 'Jokaisella jäsenlistan rivillä on toimintovalikko. Nämä tekevät eri asioita:',
+      rows: [
+        {
+          term: 'Demote to guest',
+          body: 'hän pysyy listalla ja hänet voi yhä ilmoittaa tapahtumiin, mutta häntä ei enää lasketa jäseneksi. **Promote to member** kumoaa sen.',
+        },
+        {
+          term: 'Remove from roster',
+          body: 'merkitsee hänet lähteneeksi. Hänen historiansa ja tuloksensa säilyvät. Jos hän on yhä pelin klaanissanne, seuraava synkronointi voi lisätä hänet takaisin.',
+        },
+        {
+          term: 'Not our member',
+          body: 'kohdassa Needs review, yhdistetylle hahmolle, joka ei ole klaanissanne. Se poistuu listaltanne ja jää omistajalleen.',
+        },
+        {
+          term: 'Ban from this clan',
+          body: 'päättää kaikki henkilön paikat täällä, myös alt-hahmot, ja estää häntä palaamasta: jäsenlistan synkronointi, plugin ja liittymispyynnöt hylkäävät hänet kaikki, kunnes porttikielto poistetaan. Hänen Anvil-tiliinsä ja muihin klaaneihinsa ei kosketa. Vain ylläpitäjät, henkilölle jolla on sivustotili, rivin valikosta tai kohdasta **Staff & roles**. Porttikiellon poistaminen ei palauta häntä; hän liittyy uudelleen pelissä, tai sinä lisäät hänet.',
+        },
+      ],
+      note: {
+        tag: 'Porttikielto ei poista henkilökunnan roolia',
+        body: 'Porttikielto päättää henkilön paikat, mutta jättää hänen mahdollisen henkilökunnan roolinsa täällä. Poistaaksesi henkilökunnan jäsenen aseta ensin hänen roolikseen **Member** kohdassa Staff & roles ja anna sitten porttikielto.',
+      },
+    },
+
+    faq: {
+      title: 'Yleisiä kysymyksiä',
+      intro: 'Mikä yleensä selittää, miksi joku on väärässä paikassa.',
+      rows: [
+        {
+          term: 'Joku klaanista puuttuu',
+          body: 'Aja ensin jäsenlistan synkronointi: lista muuttuu vain, kun ylläpitäjä lähettää sen. Tarkista sitten **Departed** siltä varalta, että hänet on poistettu, ja onko hänellä porttikielto; synkronointi ohittaa kaikki, joilla on täällä porttikielto, ja kertoo, kenet se ohitti. Jos klaani on yli tilauksensa ja armonaika on päättynyt, synkronointi lakkaa lisäämästä uusia jäseniä, kunnes päivität tilauksen tai karsit jäsenlistaa.',
+        },
+        {
+          term: 'Joku näkyy vieraana, vaikka on klaanissa',
+          body: 'Yleensä hän on Anvilissa yhä toisen klaanin jäsen. Hahmo voi olla kerrallaan vain yhden klaanin jäsen, joten synkronointi antaa hänelle täällä vieraspaikan ja tekee hänestä jäsenen ensimmäisessä synkronoinnissa sen jälkeen, kun hän on lähtenyt toisesta klaanista. Muuten hän tuli liittymispyynnön kautta, tai joku alensi hänet tai lisäsi hänet vieraana. Aja synkronointi tai käytä **Promote to member**.',
+        },
+        {
+          term: 'Joku kirjautui, mutta ei ole jäsenlistalla',
+          body: 'Niin kuuluukin. Kirjautuminen luo Anvil-tilin, ei paikkaa. Hän ilmestyy, kun synkronointi listaa hänet, kun hyväksyt hänen pyyntönsä tai kun lisäät hänet käsin.',
+        },
+        {
+          term: 'Nimiä kuten #Player1234',
+          body: 'RuneLite näyttää tuollaisen paikkamerkin hetken, kun pelaaja kirjautuu sisään, sekä klaanin jäsenille, joita se ei osaa nimetä. Anvil ohittaa nyt tällaiset nimet: synkronointi ohittaa ne, plugin ei kirjaa niille pyyntöä, ja vanhat pyynnöt sellaisella nimellä on piilotettu. Jos jäsenlistallasi on vielä sellainen, se on vanha rivi. **Remove from roster** poistaa sen.',
+        },
+        {
+          term: 'Poistettu jäsen tulee aina takaisin',
+          body: 'Poistaminen ei muuta pelin klaania, joten seuraava synkronointi lisää hänet takaisin niin kauan kuin peli yhä listaa hänet. Poista hänet pelissä tai anna hänelle porttikielto täällä.',
+        },
+        {
+          term: 'Moderaattori ei näe Who can join -välilehteä',
+          body: 'Se on vain ylläpitäjille näkyvä välilehti, kuten Staff & roles. Katso [Henkilökunnan roolit: kuka saa tehdä mitä]({staffGuide}).',
+        },
+      ],
+    },
+  },
+
+  staffRoles: {
+    metaTitle: 'Henkilökunnan roolit: kuka saa tehdä mitä — Anvil',
+    metaDescription:
+      'Anvilin klaaniroolit (omistaja, ylläpitäjä, rahastonhoitaja, moderaattori, jäsen), mihin kukin pääsee, miten jostakusta tehdään moderaattori, kuka voi antaa minkäkin roolin, ja yhtä tapahtumaa koskevat tehtävät.',
+    eyebrow: 'Anvil · omistajille ja ylläpitäjille',
+    title: 'Henkilökunnan roolit: kuka saa tehdä mitä',
+    dek: 'Viisi roolia, jotka asetetaan klaanikohtaisesti kohdassa Admin → People → **Staff & roles**. Rooli täällä ei anna mitään missään muussa klaanissa, eikä kukaan voi antaa omaansa samanarvoista tai korkeampaa roolia. Tämä sivu on koko kartta: mihin kukin rooli pääsee, miten roolin antaa, ja yhtä tapahtumaa koskevat tehtävät.',
+    facts: [
+      { strong: 'Klaanikohtainen', rest: 'rooli täällä ei tarkoita mitään muualla' },
+      { strong: 'Omaasi alempi', rest: 'on kaikki, mitä voit antaa' },
+      { strong: 'Omistajuus', rest: 'siirtyy vain luovuttamalla' },
+    ],
+    footnote:
+      'Roolit tarkistetaan uudelleen jokaisella sivun latauksella, joten muutos tulee voimaan henkilön seuraavalla klikkauksella; hänen ei tarvitse kirjautua ulos. Itse jäsenlistasta katso [Väkesi]({peopleGuide}). Moderaattorin päivästä katso [Vuorossa]({moderatorGuide}).',
+
+    roles: {
+      title: 'Roolit',
+      intro: 'Jokainen Discordilla kirjautuva aloittaa tavallisena **Member**-käyttäjänä. Sen yläpuolella:',
+      rows: [
+        {
+          term: 'Omistaja',
+          body: 'henkilö, joka loi klaanin, kunnes hän luovuttaa sen eteenpäin. Kaikki, mitä ylläpitäjä voi, sekä omistajuuden siirtäminen ja klaanin poistaminen. Omistajia on tasan yksi, eikä kukaan voi alentaa, poistaa tai antaa hänelle porttikieltoa.',
+        },
+        {
+          term: 'Ylläpitäjä',
+          body: 'kaikki paitsi klaanin luovuttaminen: tapahtumat ja taulut, asetukset, Discord, henkilökunta ja klaanin rahat.',
+        },
+        {
+          term: 'Rahastonhoitaja',
+          body: 'maksut, kassa ja palkinnot. Rahastonhoitaja pääsee myös useimmille moderaattorin sivuille (todisteet, kilpailut, Needs review), mutta ei jäsenlistaan eikä Scheduleen.',
+        },
+        {
+          term: 'Moderaattori',
+          body: 'tulokkaat, jäsenlista, todisteet, viikkokilpailut ja klaanin tapahtumat. Ei tapahtumia tai tauluja, ei asetuksia, ei henkilökuntaa eikä rahaa.',
+        },
+        {
+          term: 'Jäsen',
+          body: 'ei henkilökunnan tehtävää. Pelaa, ilmoittautuu ja voi ilmoittaa lahjoituksen kassaan.',
+        },
+      ],
+      outro:
+        'Staff & roles -kohdassa roolin alla on kaksi valintaruutua kaikille ylläpitäjää alemmille, myös tavallisille jäsenille. **Can build bingo boards** avaa jokaisen taulun Tiles-välilehden ja Task libraryn. **Can write guides** antaa kirjoittaa klaanin oppaita. Ylläpitäjillä on jo molemmat.',
+    },
+
+    assign: {
+      title: 'Jonkun tekeminen moderaattoriksi',
+      intro:
+        'Hänen täytyy olla kirjautunut Discordilla ja yhdistänyt hahmon, joka on jäsenlistallanne jäsenenä tai vieraana. Sitten:',
+      steps: [
+        'Avaa Admin → **People** → **Staff & roles**.',
+        'Lista avautuu kohtaan **Staff**. Vaihda kohtaan **Members** tai **All accounts** ja hae hänen nimellään.',
+        'Valitse sarakkeesta **Role** vaihtoehto **Moderator: newcomers, roster, sign-ups, proofs**. Se tallentuu heti, kun valitset sen.',
+        'Jos hänen pitää myös rakentaa tauluja, valitse **Can build bingo boards**.',
+      ],
+      outro:
+        'Eikö hän ole vielä kirjautunut? Etsi hänen hahmonsa **Roster**-välilehdeltä, avaa sen valikko ja valitse **Set role**. Se tallentaa roolin hahmolle. Hän saa sen, kun hän kirjautuu ensimmäisen kerran ja yhdistää hahmon, tai, jos hän odottaa kohdassa Needs review, kun moderaattori hyväksyy hänet.',
+      note: {
+        tag: 'Roolin poistaminen',
+        body: 'Aseta rooliksi taas **Member**. Roolin muuttaminen poistaa myös kaikki taulutehtävät, joita hänellä oli tämän klaanin tauluilla (katso vaihe 5), joten lisää ne sen jälkeen uudelleen, jos hänen pitää säilyttää ne.',
+      },
+    },
+
+    who: {
+      title: 'Kuka voi antaa mitä',
+      intro:
+        'Staff & roles on vain ylläpitäjille näkyvä välilehti, ja jokainen siellä tehty muutos tarkistetaan kahta sääntöä vasten: voit antaa vain omaasi alemman roolin, ja voit muuttaa vain jonkun, jonka rooli on omaasi alempi.',
+      rows: [
+        {
+          term: 'Omistaja',
+          body: 'voi antaa tai poistaa ylläpitäjän, rahastonhoitajan ja moderaattorin roolin.',
+        },
+        {
+          term: 'Ylläpitäjä',
+          body: 'voi antaa tai poistaa rahastonhoitajan ja moderaattorin roolin. Ylläpitäjä ei voi tehdä toisesta ylläpitäjää, muuttaa toista ylläpitäjää eikä muuttaa omaa rooliaan.',
+        },
+        {
+          term: 'Rahastonhoitajat ja moderaattorit',
+          body: 'eivät voi muuttaa kenenkään roolia. Välilehti on heiltä piilossa.',
+        },
+        {
+          term: 'Kukaan',
+          body: 'ei voi muuttaa omistajan roolia, poistaa häntä tai antaa hänelle porttikieltoa. Klaanissa on myös aina vähintään yksi ylläpitäjä: viimeistä ei voi alentaa.',
+        },
+      ],
+      note: {
+        tag: 'Klaanin luovuttaminen',
+        body: 'Vain omistaja voi, ja vain jollekulle, joka on jo ylläpitäjä: sen ylläpitäjän riville tulee toiminto **Make owner**. Hänestä tulee omistaja ja sinusta tavallinen ylläpitäjä. Et voi itse perua sitä; vain uusi omistaja voi siirtää sen takaisin.',
+      },
+    },
+
+    table: {
+      title: 'Kuka saa tehdä mitä',
+      intro:
+        'Mihin kukin rooli pääsee hallintapaneelissa. “Jos valittu” tarkoittaa Staff & roles -kohdan valintaruutua **Can build bingo boards** tai **Can write guides**.',
+      areaLabel: 'Alue',
+      columns: ['Omistaja', 'Ylläpitäjä', 'Rahastonhoitaja', 'Moderaattori', 'Jäsen'],
+      rows: [
+        { area: 'Dashboard', cells: ['Kyllä', 'Kyllä', 'Kyllä', 'Kyllä', 'Ei'] },
+        { area: 'Tapahtumat: luonti, muokkaus, joukkueet, ilmoittautumiset, käynnistys', cells: ['Kyllä', 'Kyllä', 'Ei', 'Ei', 'Ei'] },
+        { area: 'Taulun ruudut ja Task library', cells: ['Kyllä', 'Kyllä', 'Jos valittu', 'Jos valittu', 'Jos valittu'] },
+        { area: 'Tarkistettavat todisteet', cells: ['Kyllä', 'Kyllä', 'Kyllä', 'Kyllä', 'Ei'] },
+        { area: 'Viikkokilpailut', cells: ['Kyllä', 'Kyllä', 'Kyllä', 'Kyllä', 'Ei'] },
+        { area: 'Klaanin tapahtumat', cells: ['Kyllä', 'Kyllä', 'Kyllä', 'Kyllä', 'Ei'] },
+        { area: 'Schedule', cells: ['Kyllä', 'Kyllä', 'Ei', 'Kyllä', 'Ei'] },
+        { area: 'Jäsenlista: katselu, lisäys, poisto', cells: ['Kyllä', 'Kyllä', 'Ei', 'Kyllä', 'Ei'] },
+        { area: 'Liittymispyynnöt ja Needs review', cells: ['Kyllä', 'Kyllä', 'Kyllä', 'Kyllä', 'Ei'] },
+        { area: 'Porttikielto klaanista', cells: ['Kyllä', 'Ylläpitäjää alemmille', 'Ei', 'Ei', 'Ei'] },
+        { area: 'Staff & roles', cells: ['Kyllä', 'Ylläpitäjää alemmille', 'Ei', 'Ei', 'Ei'] },
+        { area: 'Who can join', cells: ['Kyllä', 'Kyllä', 'Ei', 'Ei', 'Ei'] },
+        { area: 'Kassa ja palkintoportaat', cells: ['Kyllä', 'Kyllä', 'Kyllä', 'Ei', 'Ei'] },
+        { area: 'Maksut: merkitse kerätyksi', cells: ['Kyllä', 'Kyllä', 'Kyllä', 'Ei', 'Ei'] },
+        { area: 'Maksut: vahvista (toinen allekirjoitus)', cells: ['Kyllä', 'Kyllä', 'Ei', 'Ei', 'Ei'] },
+        { area: 'Discord-asetukset', cells: ['Kyllä', 'Kyllä', 'Ei', 'Ei', 'Ei'] },
+        { area: 'Julkaisu Discordiin', cells: ['Kyllä', 'Kyllä', 'Ei', 'Ei', 'Ei'] },
+        { area: 'Klaanin asetukset: Profile, Features, Rules & scoring, Boosts', cells: ['Kyllä', 'Kyllä', 'Ei', 'Ei', 'Ei'] },
+        { area: 'Tilaus ja laskutus', cells: ['Kyllä', 'Kyllä', 'Ei', 'Ei', 'Ei'] },
+        { area: 'Oppaat', cells: ['Kirjoitus', 'Kirjoitus', 'Luku; kirjoitus jos valittu', 'Luku; kirjoitus jos valittu', 'Kirjoitus jos valittu'] },
+        { area: 'Toimintaloki', cells: ['Kyllä', 'Kyllä', 'Kyllä', 'Kyllä', 'Ei'] },
+        { area: 'Jäsenlistan synkronointi RuneLitestä', cells: ['Kyllä', 'Kyllä', 'Ei', 'Ei', 'Ei'] },
+        { area: 'Omistajuuden siirto, klaanin poisto', cells: ['Kyllä', 'Ei', 'Ei', 'Ei', 'Ei'] },
+      ],
+      note: {
+        tag: 'Piilotettu ei tarkoita sallittua',
+        body: 'Sivupalkki listaa vain sen, mitä roolisi voi käyttää, mutta ratkaiseva tarkistus tehdään palvelimella. Jos kirjoitat osoitteen sivulle, jota roolisi ei voi käyttää, sinut palautetaan dashboardille, ja sen takana oleva toiminto hylätään.',
+      },
+    },
+
+    event: {
+      title: 'Yhden tapahtuman tehtävät',
+      intro:
+        'Jotkin tehtävät koskevat yhtä tapahtumaa eivätkä koko klaania. Ylläpitäjä antaa ne itse tapahtumassa, ja ne ulottuvat siihen tapahtumaan eivätkä mihinkään muuhun, joten ne voi turvallisesti antaa tavalliselle jäsenelle.',
+      rows: [
+        {
+          term: 'Taulun muokkaaja',
+          body: 'rakentaa ja muokkaa sen taulun ruutuja. Annetaan tapahtuman kohdassa **Settings** → **Staff** → **Board staff**, tai henkilön toiminnoista **Boards…** Staff & roles -kohdassa. Jäsen, jolle se on annettu, näkee hallintapaneelissa vain omat taulunsa.',
+        },
+        {
+          term: 'Taulun rahastonhoitaja',
+          body: 'kerää sen taulun maksut ja hoitaa sen palkintojen maksun pääsemättä klaanin kassaan. Annetaan myös kohdassa **Board staff**.',
+        },
+        {
+          term: 'Team staff',
+          body: 'hoitaa yhtä joukkuetta: sen kokoonpanoa, lähetyksiä ja todisteita sekä pelaajien maksujen merkitsemistä maksetuiksi. He eivät voi koskea toiseen joukkueeseen, muokata taulua, tehdä draft-valintoja tai vaihtaa ketään pois, kun tapahtuma on käynnissä. Lisätään joukkueen sivulla kohdassa **Team staff**. Näin vierailevan klaanin moderaattori hoitaa oman puoliskonsa klaani vastaan klaani -tapahtumasta.',
+        },
+        {
+          term: 'Kapteeni',
+          body: 'isännän nimeämä yhdelle joukkueelle. Kaikki, mitä team staff voi, sekä joukkueen draft-valinnat.',
+        },
+      ],
+      note: {
+        tag: 'Klaanirooli korvaa taulutehtävät',
+        body: 'Klaaniroolin antaminen tai muuttaminen poistaa henkilön taulun muokkaajan ja taulun rahastonhoitajan tehtävät tämän klaanin tauluilla. Staff & roles varoittaa ensin, jos taulutehtävät ovat kaikki, mitä hänellä on. Lisää ne sen jälkeen uudelleen, jos hänen pitää säilyttää ne.',
+      },
+    },
+
+    safety: {
+      title: 'Turvallisuus',
+      intro: 'Nämä pätevät, miten roolit sitten on asetettukin.',
+      rows: [
+        {
+          term: 'Omistaja on suojattu',
+          body: 'hänen rivillään Staff & roles -kohdassa lukee **Protected**. Hänen rooliaan ei voi muuttaa, eikä hänelle voi antaa porttikieltoa. Omistajuus siirtyy vain, kun hän luovuttaa sen.',
+        },
+        {
+          term: 'Ylläpitäjät eivät voi poistaa toisiaan',
+          body: 'ylläpitäjä ei voi alentaa toista ylläpitäjää eikä antaa tälle porttikieltoa. Kun kaksi ylläpitäjää on eri mieltä, omistaja päättää.',
+        },
+        {
+          term: 'Raha vaatii kaksi ihmistä',
+          body: 'kun maksu pitää vahvistaa, vahvistuksen on tultava eri ylläpitäjältä kuin siltä, joka merkitsi sen kerätyksi. Montako vahvistusta maksu tarvitsee, nollasta viiteen, asetetaan kohdassa **Clan settings** → **Rules & scoring** → **Fee sign-off**. Ylläpitäjä, joka hoitaa rahaa yksin, voi silti pakottaa maksun suljetuksi erillisellä painikkeella.',
+        },
+        {
+          term: 'Mitä moderaattori ei voi tehdä',
+          body: 'luoda tai muokata tapahtumia, muuttaa asetuksia tai Discordia, antaa kenellekään roolia (ei itselleenkään) tai koskea klaanin rahoihin.',
+        },
+        {
+          term: 'Kaikki kirjataan',
+          body: 'roolimuutokset, omistajuuden siirrot, porttikiellot ja vastatut liittymispyynnöt kirjataan **Activity log** -lokiin, jota jokainen henkilökunnan jäsen voi lukea.',
+        },
+        {
+          term: 'Discord-roolit ovat erillisiä',
+          body: 'Anvilin roolisynkronointi yhdistää Discord-roolit **pelin arvonimiin**, ei sivuston rooleihin. Moderaattoriksi tekeminen täällä ei anna mitään Discord-palvelimellanne, ja Discordissa käsin antamaasi moderaattoriroolia ei kosketa. Ainoa bottikomento, joka muuttaa jotain, eli kassaan lisääminen komennolla `/coffer`, tarkistaa sivuston roolin: rahastonhoitaja, ylläpitäjä tai omistaja.',
         },
       ],
     },

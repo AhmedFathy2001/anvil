@@ -170,6 +170,20 @@ const pl: PartialGuideDict = {
           'Pozwól widzom zagrać w jednym wydarzeniu bez wstępowania do klanu. Włącz Streaming, potem otwórz wydarzenie dla widzów.',
         minutes: '~2 min',
       },
+      people: {
+        eyebrow: 'Dla sztabu klanu',
+        title: 'Twoi ludzie: skład, goście i kto może dołączyć',
+        blurb:
+          'Skąd biorą się członkowie, co znaczą filtry zakładki Roster, prośby o dołączenie i Needs review, trzy ustawienia Who can join oraz usuwanie i banowanie.',
+        minutes: '~6 min',
+      },
+      staffRoles: {
+        eyebrow: 'Dla właścicieli i adminów',
+        title: 'Role w sztabie: kto co może',
+        blurb:
+          'Właściciel, admin, skarbnik i moderator: do czego każdy ma dostęp, jak zrobić kogoś moderatorem, kto może nadać jaką rolę i funkcje obejmujące jedno wydarzenie.',
+        minutes: '~6 min',
+      },
       clanVsClan: {
         eyebrow: 'Dla gospodarzy',
         title: 'Goszczenie klanu z zewnątrz',
@@ -2885,6 +2899,376 @@ const pl: PartialGuideDict = {
         {
           term: 'Czy zamiast tego zrobić przestrzeń twórcy?',
           body: 'Tylko jeśli nie masz klanu. Przestrzeń jest dla streamerów bez klanu w grze.',
+        },
+      ],
+    },
+  },
+
+  people: {
+    metaTitle: 'Twoi ludzie: skład, goście i kto może dołączyć — Anvil',
+    metaDescription:
+      'Skąd bierze się skład klanu w Anvil, co znaczą Members, Guests, Roster only, Departed i Quiet, jak działają prośby o dołączenie i Needs review, trzy ustawienia Who can join oraz usuwanie i banowanie.',
+    eyebrow: 'Anvil · dla sztabu klanu',
+    title: 'Twoi ludzie: skład, goście i kto może dołączyć',
+    dek: 'Każdy w Admin → **People** trafił tam na jeden z czterech sposobów: wymieniła go lista klanu w grze, zatwierdził go sztab, klan wpuszcza każdego albo ktoś dodał go ręcznie. Tu jest, jak działa każdy z nich, co mówi ci zakładka Roster i co sprawdzić, gdy ktoś jest nie tam, gdzie trzeba.',
+    facts: [
+      { strong: 'Skład z gry', rest: 'jedyna automatyczna droga do członkostwa' },
+      { strong: 'Logowanie', rest: 'nigdy nikogo nie dopisuje do składu' },
+      { strong: 'Dwie kolejki', rest: 'na dwóch różnych zakładkach' },
+    ],
+    footnote:
+      'Wszystko tutaj jest w Admin → **People**. Roster i Needs review to robota moderatora. **Who can join** i **Staff & roles** to zakładki tylko dla adminów. Kto co może w całym panelu administracyjnym, znajdziesz w [Role w sztabie: kto co może]({staffGuide}).',
+
+    roster: {
+      title: 'Skąd bierze się skład',
+      body: [
+        'Skład to twoja lista klanu z gry, skopiowana na stronę. Admin wysyła ją z RuneLite pluginem Anvil: przyciskiem **Anvil** na pasku tytułu okna klanu albo **Sync roster** w panelu bocznym pluginu. Każdy z listy trafia na stronę jako **członek**, ze swoją rangą z gry. Wysłać ją może tylko ktoś z rolą Admin na stronie. Każdy inny dostaje o tym komunikat w grze.',
+        'Synchronizacja to jedyna rzecz, która sama robi z kogoś członka. Kto opuści klan w grze, przy następnej synchronizacji zostaje oznaczony jako odszedł, a kto wróci, pojawia się przy kolejnej. Jego historia zostaje w obu przypadkach.',
+        'Każde inne miejsce to miejsce **gościa**: kogoś, kto gra w twoich wydarzeniach, nie będąc w twoim klanie w grze. Goście są śledzeni i mogą brać udział w wydarzeniach. Nie są członkami i nie liczą się do twojego planu.',
+      ],
+      note: {
+        tag: 'Logowanie nigdy nikogo nie dopisuje do składu',
+        body: 'Logowanie przez Discorda, podłączenie postaci czy granie z pluginem nikomu nie daje miejsca. Jeśli plugin widzi kogoś, kto w grze jest w twoim klanie, ale nie ma go jeszcze w składzie, składa za niego prośbę (zobacz krok 3). Każdy inny ma po prostu konto Anvil bez klanu. To właśnie powstrzymuje obcego przed dołączeniem do twojego klanu przez wpisanie jego nazwy.',
+      },
+    },
+
+    filters: {
+      title: 'Jak czytać zakładkę Roster',
+      intro:
+        'Pasek na górze dzieli skład na **Members**, **Guests** i **Departed**. Kliknij fragment, żeby po nim filtrować. Etykiety pod spodem zawężają listę dalej:',
+      rows: [
+        {
+          term: 'Active',
+          body: 'członkowie wciąż w składzie. Goście i ci, którzy odeszli, są pominięci.',
+        },
+        {
+          term: 'Quiet 7d+',
+          body: 'członkowie, których plugin nie widział w grze od siedmiu dni lub dłużej. Kto nigdy nie używał pluginu, tu nie trafia, bo nie ma go po czym ocenić. Jego **Last played** pokazuje wtedy **no plugin data**.',
+        },
+        {
+          term: 'Guests',
+          body: 'obecne miejsca gości: ludzie, którzy grają w twoich wydarzeniach, ale nie są w twoim klanie w grze.',
+        },
+        {
+          term: 'Roster only',
+          body: 'obecni członkowie i goście, za którymi nie stoi jeszcze konto na stronie. To normalne u każdego, kto nigdy nie zalogował się przez Discorda. Zostają w składzie; logują się i podłączają postać, gdy chcą się na coś zapisać.',
+        },
+        {
+          term: 'Departed',
+          body: 'ludzie, którzy odeszli w grze albo których usunął sztab. Ich wyniki i historia zostają.',
+        },
+        {
+          term: 'All',
+          body: 'wszyscy powyżej.',
+        },
+      ],
+      outro:
+        'Kolumna **Source** mówi, jak zaczęło się każde miejsce: **Clan sync**, **Added manually** albo **Applied or self-reported**. **Last played** pochodzi z pluginu, nie z synchronizacji składu.',
+      note: {
+        tag: 'Ranga i rola to dwie różne rzeczy',
+        body: 'Dwie listy rozwijane obok etykiet filtrują po randze w grze i po roli na stronie. Ranga to to, co zgłasza gra. Rola na stronie to to, co admin ustawi w **Staff & roles**. Jedno nigdy nie ustawia drugiego.',
+      },
+    },
+
+    review: {
+      title: 'Prośby o dołączenie i Needs review',
+      intro: 'Na zgodę czekają dwa rodzaje ludzi i czekają na różnych zakładkach.',
+      rows: [
+        {
+          term: 'Proszą o dołączenie',
+          body: 'na górze zakładki **Roster**, widoczne tylko wtedy, gdy ktoś czeka. Prośba przychodzi ze strony (kliknął **Apply** na stronie twojego klanu albo próbował wejść do któregoś z twoich wydarzeń) albo z pluginu (widział go w grze w twoim klanie, zanim skład go miał). Każdy wiersz mówi, skąd przyszła i czy ta osoba jest członkiem innego klanu. **Approve** daje jej miejsce gościa. **Decline** informuje ją o tym, przez prywatną wiadomość na Discordzie, gdy twój bot może do niej napisać. Zaznacz kilka, żeby odpowiedzieć wszystkim naraz.',
+        },
+        {
+          term: 'Czekają na potwierdzenie',
+          body: 'w **Needs review**. Ludzie, którzy podłączyli jedną z postaci z twojego składu, zdobywając na niej XP, prosząc o to albo grając nią z pluginem. Mogą już grać, czekając. Sprawdź, czy nazwa z Discorda pasuje do postaci, i kliknij **Approve**. **Not our member** zdejmuje postać z twojej listy i zostawia ją właścicielowi. **Report to Anvil** jest na postać, która nie należy do tej osoby.',
+        },
+        {
+          term: 'Prośby o przejęcie',
+          body: 'również w **Needs review**. Ktoś grał postacią, która jest tu już ustalonym członkiem, więc Anvil sam jej do niego nie podłączył. Jeśli wiesz, że to on, kliknij **Yes, that’s them**; jeśli nie, **Not them**. Postać, która zawsze była tylko w twoim klanie, zostaje podłączona od razu. Taką, która jest też w innym klanie, rozstrzyga Anvil.',
+        },
+      ],
+      note: {
+        tag: 'Licznik nie liczy próśb o dołączenie',
+        body: 'Liczba przy **Needs review** i przy **People** w pasku bocznym liczy Awaiting confirmation i Claim requests. Prośby o dołączenie się do niej nie wliczają, więc zaglądaj też na górę zakładki Roster.',
+      },
+    },
+
+    policy: {
+      title: 'Kto może dołączyć',
+      intro:
+        'Admin → People → **Who can join** ma trzy ustawienia, a zakładkę widzą tylko admini. O tym, jak wchodzą ludzie z zewnątrz, decyduje **Players from other clans**:',
+      rows: [
+        {
+          term: 'Ask first',
+          body: 'domyślne. Kto złoży prośbę albo kogo plugin wyłapie z twojego klanu w grze, czeka jako prośba o dołączenie, aż sztab go zatwierdzi. Nikt nie dostaje miejsca bez zgody.',
+        },
+        {
+          term: 'Let anyone in',
+          body: 'wystarczy poprosić. Od razu dostają miejsce gościa i żadna prośba nie powstaje. Dobre na otwarte wydarzenie, poza tym robi się tłoczno.',
+        },
+        {
+          term: 'No guests',
+          body: 'grają tylko twoi członkowie. Gracze z innych klanów nie mogą wejść do twoich wydarzeń ani poprosić o dołączenie, a plugin nic za nich nie składa.',
+        },
+      ],
+      outro:
+        '**Who can see this clan** to **Anyone** (link do planszy działa u każdego, komu go wyślesz) albo **Members only** (wszyscy inni widzą kartę klanu i zaproszenie do złożenia prośby). **List in the Clan Hall** umieszcza klan na publicznej liście klanów. Wyłączenie tego nie czyni klanu prywatnym.',
+      note: {
+        tag: 'Żadne z nich nie dotyczy twoich członków',
+        body: 'Synchronizacja składu daje członkom miejsca bez względu na te ustawienia. Twój sztab też nigdy nie jest traktowany jak goście: postać członka sztabu dostaje miejsce członka bez prośby.',
+      },
+    },
+
+    manual: {
+      title: 'Ręczne dodawanie',
+      body: [
+        'Roster → **+ Add Manually** dopisuje do składu jedną postać. Wpisz **RSN**, a opcjonalnie **Discord ID** i **Rank**. Zaznacz **Add as guest** dla kogoś spoza twojego klanu w grze. Mogą to zrobić zarówno moderatorzy, jak i admini.',
+        'Używaj tego dla kogoś, kogo synchronizacja jeszcze nie widzi, na przykład rekruta, który dołączył po ostatniej synchronizacji. Miejsce dostaje oznaczenie **Added manually**, a synchronizacja traktuje je jako twoją decyzję: jeśli później usuniesz miejsce dodane ręcznie, następna synchronizacja go nie przywróci.',
+        'Dodanie kogoś do składu nie zapisuje go na wydarzenie. Do tego otwórz zakładkę **Sign-ups** wydarzenia i użyj **Add member**. To może zrobić tylko admin.',
+      ],
+    },
+
+    removing: {
+      title: 'Usuwanie i banowanie',
+      intro: 'Każdy wiersz składu ma menu akcji. Każda robi co innego:',
+      rows: [
+        {
+          term: 'Demote to guest',
+          body: 'zostaje na liście i nadal można go wpisać do wydarzeń, ale przestaje liczyć się jako członek. **Promote to member** to odwraca.',
+        },
+        {
+          term: 'Remove from roster',
+          body: 'oznacza go jako tego, który odszedł. Jego historia i wyniki zostają. Jeśli wciąż jest w twoim klanie w grze, następna synchronizacja składu może go dodać z powrotem.',
+        },
+        {
+          term: 'Not our member',
+          body: 'w Needs review, dla postaci, którą ktoś podłączył, a która nie jest w twoim klanie. Schodzi z twojej listy i zostaje u właściciela.',
+        },
+        {
+          term: 'Ban from this clan',
+          body: 'kończy każde miejsce tej osoby tutaj, razem z altami, i nie pozwala jej wrócić: synchronizacja składu, plugin i prośby o dołączenie odrzucają ją, dopóki ban nie zostanie zdjęty. Jej konto Anvil i inne klany zostają nietknięte. Tylko admini, dla kogoś z kontem na stronie, z menu wiersza albo ze **Staff & roles**. Zdjęcie bana nie przywraca miejsca; osoba wraca do klanu w grze albo ty ją dodajesz.',
+        },
+      ],
+      note: {
+        tag: 'Ban nie odbiera roli w sztabie',
+        body: 'Ban kończy miejsca, ale zostawia każdą rolę w sztabie, jaką ta osoba tu ma. Żeby usunąć członka sztabu, najpierw ustaw mu rolę **Member** w Staff & roles, a potem go zbanuj.',
+      },
+    },
+
+    faq: {
+      title: 'Częste pytania',
+      intro: 'Co zwykle tłumaczy, czemu ktoś jest nie tam, gdzie trzeba.',
+      rows: [
+        {
+          term: 'Brakuje kogoś z klanu',
+          body: 'Najpierw puść synchronizację składu: lista zmienia się tylko wtedy, gdy admin ją wyśle. Potem sprawdź **Departed**, na wypadek gdyby został usunięty, i czy nie ma bana; synchronizacja pomija każdego, kto ma tu bana, i podaje, kogo pominęła. Jeśli klan przekroczył plan, a okres karencji minął, synchronizacja przestaje dodawać nowych członków, dopóki nie podniesiesz planu albo nie odchudzisz składu.',
+        },
+        {
+          term: 'Ktoś jest w klanie, a widać go jako gościa',
+          body: 'Zwykle wciąż jest członkiem innego klanu w Anvil. Postać może być członkiem tylko jednego klanu naraz, więc synchronizacja sadza ją tu jako gościa i robi z niej członka przy pierwszej synchronizacji po opuszczeniu tamtego klanu. W przeciwnym razie przyszedł przez prośbę o dołączenie albo ktoś go zdegradował lub dodał jako gościa. Puść synchronizację albo użyj **Promote to member**.',
+        },
+        {
+          term: 'Ktoś się zalogował, ale nie ma go w składzie',
+          body: 'Tak ma być. Logowanie zakłada konto Anvil, nie miejsce. Pojawi się, gdy wymieni go synchronizacja, gdy zatwierdzisz jego prośbę albo gdy dodasz go ręcznie.',
+        },
+        {
+          term: 'Nazwy w stylu #Player1234',
+          body: 'RuneLite pokazuje taką zastępczą nazwę przez chwilę, gdy gracz się loguje, i dla członków klanu, których nie umie nazwać. Anvil teraz je ignoruje: synchronizacja je pomija, plugin nie składa za nie próśb, a stare prośby pod taką nazwą są ukryte. Jeśli któraś wciąż jest w twoim składzie, to stary wiersz. **Remove from roster** go usuwa.',
+        },
+        {
+          term: 'Usunięty członek ciągle wraca',
+          body: 'Usunięcie kogoś nie zmienia klanu w grze, więc następna synchronizacja dodaje go z powrotem, dopóki gra wciąż go wymienia. Usuń go w grze albo zbanuj tutaj.',
+        },
+        {
+          term: 'Moderator nie widzi Who can join',
+          body: 'To zakładka tylko dla adminów, tak jak Staff & roles. Zobacz [Role w sztabie: kto co może]({staffGuide}).',
+        },
+      ],
+    },
+  },
+
+  staffRoles: {
+    metaTitle: 'Role w sztabie: kto co może — Anvil',
+    metaDescription:
+      'Role w klanie w Anvil (właściciel, admin, skarbnik, moderator, członek), do czego każda ma dostęp, jak zrobić kogoś moderatorem, kto może nadać jaką rolę i funkcje obejmujące jedno wydarzenie.',
+    eyebrow: 'Anvil · dla właścicieli i adminów',
+    title: 'Role w sztabie: kto co może',
+    dek: 'Pięć ról, ustawianych osobno dla każdego klanu w Admin → People → **Staff & roles**. Rola tutaj nie daje nic w żadnym innym klanie i nikt nie może nadać roli równej swojej ani wyższej. Ta strona to cała mapa: do czego sięga każda rola, jak ją nadać i jakie funkcje obejmują jedno wydarzenie.',
+    facts: [
+      { strong: 'Per klan', rest: 'rola tutaj nic nie znaczy gdzie indziej' },
+      { strong: 'Poniżej twojej', rest: 'tylko takie role możesz nadać' },
+      { strong: 'Właściciel', rest: 'zmienia się tylko przez przekazanie' },
+    ],
+    footnote:
+      'Role są sprawdzane przy każdym wczytaniu strony, więc zmiana działa od następnego kliknięcia tej osoby; nie musi się wylogowywać. O samym składzie przeczytasz w [Twoi ludzie]({peopleGuide}). Dzień moderatora opisuje [Na dyżurze]({moderatorGuide}).',
+
+    roles: {
+      title: 'Role',
+      intro: 'Każdy, kto loguje się przez Discorda, zaczyna jako zwykły **Member**. Powyżej:',
+      rows: [
+        {
+          term: 'Właściciel',
+          body: 'osoba, która założyła klan, dopóki go nie przekaże. Wszystko, co może admin, plus przekazanie własności i usunięcie klanu. Jest dokładnie jeden i nikt nie może go zdegradować, usunąć ani zbanować.',
+        },
+        {
+          term: 'Admin',
+          body: 'wszystko poza przekazaniem klanu: wydarzenia i plansze, ustawienia, Discord, sztab i pieniądze klanu.',
+        },
+        {
+          term: 'Skarbnik',
+          body: 'wpisowe, skarbiec i nagrody. Skarbnik ma też dostęp do większości stron moderatora (dowody, konkursy, Needs review), ale nie do listy składu ani harmonogramu (Schedule).',
+        },
+        {
+          term: 'Moderator',
+          body: 'nowi, skład, dowody, tygodniowe konkursy i wydarzenia klanu. Żadnych wydarzeń ani plansz, żadnych ustawień, żadnego sztabu i żadnych pieniędzy.',
+        },
+        {
+          term: 'Członek',
+          body: 'bez funkcji w sztabie. Gra, zapisuje się i może zgłosić wpłatę do skarbca.',
+        },
+      ],
+      outro:
+        'Pod rolą w Staff & roles są dwa pola wyboru dla każdego poniżej admina, także zwykłych członków. **Can build bingo boards** otwiera zakładkę Tiles każdej planszy i Task library. **Can write guides** pozwala pisać poradniki klanu. Admini mają oba z góry.',
+    },
+
+    assign: {
+      title: 'Jak zrobić kogoś moderatorem',
+      intro:
+        'Ta osoba musi być zalogowana przez Discorda i mieć podłączoną postać, która jest w twoim składzie, jako członek albo gość. Potem:',
+      steps: [
+        'Otwórz Admin → **People** → **Staff & roles**.',
+        'Lista otwiera się na **Staff**. Przełącz na **Members** albo **All accounts** i wyszukaj jej nazwę.',
+        'W kolumnie **Role** wybierz **Moderator: newcomers, roster, sign-ups, proofs**. Zapisuje się od razu po wyborze.',
+        'Jeśli ma też budować plansze, zaznacz **Can build bingo boards**.',
+      ],
+      outro:
+        'Jeszcze się nie zalogowała? Znajdź jej postać w zakładce **Roster**, otwórz jej menu i wybierz **Set role**. Rola zapisuje się przy postaci. Osoba dostaje ją przy pierwszym logowaniu i podłączeniu tej postaci albo, jeśli czeka w Needs review, gdy moderator ją zatwierdzi.',
+      note: {
+        tag: 'Odbieranie roli',
+        body: 'Ustaw rolę z powrotem na **Member**. Zmiana czyjejś roli usuwa też wszystkie jego funkcje na planszach tego klanu (zobacz krok 5), więc dodaj je potem ponownie, jeśli ma je zachować.',
+      },
+    },
+
+    who: {
+      title: 'Kto może nadać co',
+      intro:
+        'Staff & roles to zakładka tylko dla adminów, a każda zmiana na niej jest sprawdzana według dwóch zasad: możesz nadać tylko rolę niższą od swojej i możesz zmienić tylko kogoś, kto ma rolę niższą od twojej.',
+      rows: [
+        {
+          term: 'Właściciel',
+          body: 'może nadawać i odbierać role admina, skarbnika i moderatora.',
+        },
+        {
+          term: 'Admin',
+          body: 'może nadawać i odbierać role skarbnika i moderatora. Admin nie może zrobić kolejnego admina, zmienić innego admina ani zmienić własnej roli.',
+        },
+        {
+          term: 'Skarbnicy i moderatorzy',
+          body: 'nie mogą zmienić nikomu roli. Ta zakładka jest przed nimi ukryta.',
+        },
+        {
+          term: 'Nikt',
+          body: 'nie może zmienić roli właściciela, usunąć go ani zbanować. Klan zawsze ma też co najmniej jednego admina: ostatniego nie da się zdegradować.',
+        },
+      ],
+      note: {
+        tag: 'Przekazanie klanu',
+        body: 'Może to zrobić tylko właściciel i tylko komuś, kto już jest adminem: wiersz tego admina dostaje akcję **Make owner**. On zostaje właścicielem, a ty zwykłym adminem. Sam tego nie cofniesz; przekazać klan z powrotem może tylko nowy właściciel.',
+      },
+    },
+
+    table: {
+      title: 'Kto co może',
+      intro:
+        'Do czego sięga każda rola w panelu administracyjnym. „Jeśli zaznaczone” oznacza pole **Can build bingo boards** albo **Can write guides** w Staff & roles.',
+      areaLabel: 'Obszar',
+      columns: ['Właściciel', 'Admin', 'Skarbnik', 'Moderator', 'Członek'],
+      rows: [
+        { area: 'Pulpit', cells: ['Tak', 'Tak', 'Tak', 'Tak', 'Nie'] },
+        { area: 'Wydarzenia: tworzenie, edycja, drużyny, zapisy, start', cells: ['Tak', 'Tak', 'Nie', 'Nie', 'Nie'] },
+        { area: 'Pola planszy i Task library', cells: ['Tak', 'Tak', 'Jeśli zaznaczone', 'Jeśli zaznaczone', 'Jeśli zaznaczone'] },
+        { area: 'Dowody do sprawdzenia', cells: ['Tak', 'Tak', 'Tak', 'Tak', 'Nie'] },
+        { area: 'Tygodniowe konkursy', cells: ['Tak', 'Tak', 'Tak', 'Tak', 'Nie'] },
+        { area: 'Wydarzenia klanu', cells: ['Tak', 'Tak', 'Tak', 'Tak', 'Nie'] },
+        { area: 'Harmonogram (Schedule)', cells: ['Tak', 'Tak', 'Nie', 'Tak', 'Nie'] },
+        { area: 'Skład: podgląd, dodawanie, usuwanie', cells: ['Tak', 'Tak', 'Nie', 'Tak', 'Nie'] },
+        { area: 'Prośby o dołączenie i Needs review', cells: ['Tak', 'Tak', 'Tak', 'Tak', 'Nie'] },
+        { area: 'Ban w klanie', cells: ['Tak', 'Poniżej admina', 'Nie', 'Nie', 'Nie'] },
+        { area: 'Staff & roles', cells: ['Tak', 'Poniżej admina', 'Nie', 'Nie', 'Nie'] },
+        { area: 'Who can join', cells: ['Tak', 'Tak', 'Nie', 'Nie', 'Nie'] },
+        { area: 'Skarbiec i drabinki nagród', cells: ['Tak', 'Tak', 'Tak', 'Nie', 'Nie'] },
+        { area: 'Wpisowe: oznaczanie jako zebrane', cells: ['Tak', 'Tak', 'Tak', 'Nie', 'Nie'] },
+        { area: 'Wpisowe: potwierdzanie (drugi podpis)', cells: ['Tak', 'Tak', 'Nie', 'Nie', 'Nie'] },
+        { area: 'Ustawienia Discorda', cells: ['Tak', 'Tak', 'Nie', 'Nie', 'Nie'] },
+        { area: 'Publikowanie na Discordzie', cells: ['Tak', 'Tak', 'Nie', 'Nie', 'Nie'] },
+        { area: 'Ustawienia klanu: Profile, Features, Rules & scoring, Boosts', cells: ['Tak', 'Tak', 'Nie', 'Nie', 'Nie'] },
+        { area: 'Plan i płatności', cells: ['Tak', 'Tak', 'Nie', 'Nie', 'Nie'] },
+        { area: 'Poradniki', cells: ['Pisanie', 'Pisanie', 'Czytanie; pisanie, jeśli zaznaczone', 'Czytanie; pisanie, jeśli zaznaczone', 'Pisanie, jeśli zaznaczone'] },
+        { area: 'Activity log', cells: ['Tak', 'Tak', 'Tak', 'Tak', 'Nie'] },
+        { area: 'Synchronizacja składu z RuneLite', cells: ['Tak', 'Tak', 'Nie', 'Nie', 'Nie'] },
+        { area: 'Przekazanie własności, usunięcie klanu', cells: ['Tak', 'Nie', 'Nie', 'Nie', 'Nie'] },
+      ],
+      note: {
+        tag: 'Ukryte to nie to samo co dozwolone',
+        body: 'Pasek boczny pokazuje tylko to, czego twoja rola może używać, ale sprawdzenie, które naprawdę się liczy, odbywa się na serwerze. Wpisanie adresu strony niedostępnej dla twojej roli odsyła cię na pulpit, a akcja za nią zostaje odrzucona.',
+      },
+    },
+
+    event: {
+      title: 'Funkcje w jednym wydarzeniu',
+      intro:
+        'Niektóre funkcje obejmują jedno wydarzenie, a nie cały klan. Admin nadaje je w samym wydarzeniu i sięgają one tylko do tego wydarzenia, więc można je bezpiecznie dać zwykłemu członkowi.',
+      rows: [
+        {
+          term: 'Edytor planszy',
+          body: 'buduje i edytuje pola tej planszy. Nadawany w **Settings** wydarzenia → **Staff** → **Board staff** albo przez **Boards…** w akcjach danej osoby w Staff & roles. Członek z taką funkcją widzi w panelu administracyjnym tylko swoje plansze.',
+        },
+        {
+          term: 'Skarbnik planszy',
+          body: 'zbiera wpisowe tej planszy i prowadzi jej wypłaty, bez dostępu do skarbca klanu. Też nadawany w **Board staff**.',
+        },
+        {
+          term: 'Sztab drużyny',
+          body: 'prowadzi jedną drużynę: jej skład, jej zgłoszenia i dowody oraz oznaczanie wpisowego jej graczy jako zapłaconego. Nie może ruszać innej drużyny, edytować planszy, wybierać w drafcie ani nikogo zmieniać, gdy wydarzenie już trwa. Dodawany na stronie drużyny w **Team staff**. Tak moderator klanu z zewnątrz prowadzi swoją połowę meczu klan kontra klan.',
+        },
+        {
+          term: 'Kapitan',
+          body: 'wskazany przez gospodarza dla jednej drużyny. Wszystko, co może sztab drużyny, plus wybory drużyny w drafcie.',
+        },
+      ],
+      note: {
+        tag: 'Rola w klanie zastępuje funkcje na planszach',
+        body: 'Nadanie komuś roli w klanie albo jej zmiana usuwa jego funkcje edytora planszy i skarbnika planszy na planszach tego klanu. Staff & roles najpierw ostrzega, gdy funkcje na planszach to wszystko, co ta osoba ma. Dodaj je potem ponownie, jeśli ma je zachować.',
+      },
+    },
+
+    safety: {
+      title: 'Bezpieczeństwo',
+      intro: 'To obowiązuje bez względu na to, jak ustawione są role.',
+      rows: [
+        {
+          term: 'Właściciel jest chroniony',
+          body: 'jego wiersz w Staff & roles pokazuje **Protected**. Jego roli nie da się zmienić i nie można go zbanować. Własność przechodzi tylko wtedy, gdy sam ją przekaże.',
+        },
+        {
+          term: 'Admini nie mogą usuwać siebie nawzajem',
+          body: 'admin nie może ani zdegradować, ani zbanować innego admina. Gdy dwóch adminów się nie zgadza, decyduje właściciel.',
+        },
+        {
+          term: 'Pieniądze wymagają dwóch osób',
+          body: 'gdy wpisowe wymaga potwierdzenia, potwierdzenie musi przyjść od innego admina niż ten, kto oznaczył je jako zebrane. Ile potwierdzeń wymaga wpisowe, od zera do pięciu, ustawia się w **Clan settings** → **Rules & scoring** → **Fee sign-off**. Admin, który jako jedyny zajmuje się pieniędzmi, może nadal wymusić zamknięcie wpisowego osobnym przyciskiem.',
+        },
+        {
+          term: 'Czego moderator nie może',
+          body: 'tworzyć ani edytować wydarzeń, zmieniać ustawień ani Discorda, nadawać nikomu roli (sobie też nie) ani ruszać pieniędzy klanu.',
+        },
+        {
+          term: 'Wszystko jest zapisane',
+          body: 'zmiany ról, przekazania własności, bany i rozpatrzone prośby o dołączenie trafiają do **Activity log**, który może czytać każdy członek sztabu.',
+        },
+        {
+          term: 'Role na Discordzie to osobna sprawa',
+          body: 'synchronizacja ról w Anvil dopasowuje role na Discordzie do **rang w grze**, nie do ról na stronie. Zrobienie kogoś moderatorem tutaj nie daje mu nic na twoim serwerze Discord, a rola moderatora nadana ręcznie na Discordzie zostaje nietknięta. Jedyna komenda bota, która cokolwiek zmienia, czyli dodawanie do skarbca przez `/coffer`, sprawdza rolę na stronie: skarbnik, admin albo właściciel.',
         },
       ],
     },

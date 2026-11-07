@@ -171,6 +171,20 @@ const ptBr: PartialGuideDict = {
           'Deixe seus espectadores jogarem um evento sem entrar no clã. Ative o Streaming e abra um evento para os espectadores.',
         minutes: '~2 min',
       },
+      people: {
+        eyebrow: 'Para a staff do clã',
+        title: 'Sua gente: quadro de membros, convidados e quem pode entrar',
+        blurb:
+          'De onde vêm os membros, o que significam os filtros da aba Roster, pedidos para entrar e Needs review, as três opções de Who can join, e como remover ou banir alguém.',
+        minutes: '~6 min',
+      },
+      staffRoles: {
+        eyebrow: 'Para donos e admins',
+        title: 'Papéis da staff: quem pode fazer o quê',
+        blurb:
+          'Dono, admin, tesoureiro e moderador: o que cada um alcança, como tornar alguém moderador, quem pode dar qual papel, e as funções que valem para um único evento.',
+        minutes: '~6 min',
+      },
       clanVsClan: {
         eyebrow: 'Para quem recebe',
         title: 'Recebendo um clã visitante',
@@ -2887,6 +2901,376 @@ const ptBr: PartialGuideDict = {
         {
           term: 'Devo criar um espaço de criador no lugar?',
           body: 'Só se você não tem clã. Um espaço é para streamers sem clã no jogo.',
+        },
+      ],
+    },
+  },
+
+  people: {
+    metaTitle: 'Sua gente: quadro de membros, convidados e quem pode entrar — Anvil',
+    metaDescription:
+      'De onde vem o quadro de membros de um clã no Anvil, o que significam Members, Guests, Roster only, Departed e Quiet, como funcionam os pedidos para entrar e o Needs review, as três opções de Who can join, e como remover ou banir alguém.',
+    eyebrow: 'Anvil · para a staff do clã',
+    title: 'Sua gente: quadro de membros, convidados e quem pode entrar',
+    dek: 'Todo mundo em Admin → **People** chegou lá de um de quatro jeitos: a lista do clã no jogo trouxe a pessoa, a staff aprovou, o clã deixa qualquer um entrar, ou alguém adicionou na mão. Aqui está como cada um funciona, o que a aba Roster está te dizendo, e o que conferir quando alguém está no lugar errado.',
+    facts: [
+      { strong: 'Lista do jogo', rest: 'o único caminho automático para virar membro' },
+      { strong: 'Fazer login', rest: 'nunca coloca ninguém no quadro' },
+      { strong: 'Duas filas', rest: 'em duas abas diferentes' },
+    ],
+    footnote:
+      'Tudo aqui fica em Admin → **People**. Roster e Needs review são trabalho de moderador. **Who can join** e **Staff & roles** são abas só de admin. Para quem pode fazer o quê em toda a área administrativa, veja [Papéis da staff: quem pode fazer o quê]({staffGuide}).',
+
+    roster: {
+      title: 'De onde vem o quadro de membros',
+      body: [
+        'O quadro de membros é a lista do seu clã no jogo, copiada para o site. Um admin envia a lista pelo RuneLite com o plugin Anvil: aperte o botão **Anvil** na barra de título da janela do clã, ou **Sync roster** no painel lateral do plugin. Todo mundo da lista chega como **membro**, com seu rank do jogo. Só quem tem o papel Admin no site pode enviar. Qualquer outra pessoa recebe um aviso no jogo.',
+        'A sincronização é a única coisa que torna alguém membro sozinha. Quem sai do clã no jogo é marcado como saiu na próxima sincronização, e quem volta reaparece na seguinte. O histórico fica nos dois casos.',
+        'Toda outra vaga é uma vaga de **convidado**: alguém que joga nos seus eventos sem estar no seu clã no jogo. Convidados são rastreados e podem entrar em eventos. Não são membros e não contam para o seu plano.',
+      ],
+      note: {
+        tag: 'Fazer login nunca coloca ninguém no quadro',
+        body: 'Entrar com o Discord, vincular um personagem ou jogar com o plugin não dá vaga a ninguém. Se o plugin vê alguém que está no seu clã no jogo mas ainda não está no quadro, ele faz um pedido por essa pessoa (veja o passo 3). Qualquer outra pessoa só tem uma conta Anvil sem clã. É isso que impede um estranho de entrar no seu clã digitando o nome dele.',
+      },
+    },
+
+    filters: {
+      title: 'Lendo a aba Roster',
+      intro:
+        'A barra no topo divide o quadro em **Members**, **Guests** e **Departed**. Clique num trecho para filtrar por ele. Os filtros logo abaixo cortam a lista ainda mais:',
+      rows: [
+        {
+          term: 'Active',
+          body: 'membros que ainda estão no quadro. Convidados e quem saiu ficam de fora.',
+        },
+        {
+          term: 'Quiet 7d+',
+          body: 'membros que o plugin não vê jogar há sete dias ou mais. Quem nunca usou o plugin não entra aqui, porque não há nada para julgar. O **Last played** dessa pessoa mostra **no plugin data**.',
+        },
+        {
+          term: 'Guests',
+          body: 'as vagas de convidado atuais: gente que joga nos seus eventos mas não está no seu clã no jogo.',
+        },
+        {
+          term: 'Roster only',
+          body: 'membros e convidados atuais que ainda não têm uma conta no site. É normal para quem nunca entrou com o Discord. Continuam no quadro; entram e vinculam o personagem quando quiserem se inscrever em algo.',
+        },
+        {
+          term: 'Departed',
+          body: 'quem saiu no jogo, ou quem a staff removeu. Os resultados e o histórico ficam.',
+        },
+        {
+          term: 'All',
+          body: 'todos os anteriores.',
+        },
+      ],
+      outro:
+        'A coluna **Source** diz como cada vaga começou: **Clan sync**, **Added manually** ou **Applied or self-reported**. O **Last played** vem do plugin, não da sincronização do quadro.',
+      note: {
+        tag: 'Rank e papel são coisas diferentes',
+        body: 'Os dois menus ao lado dos filtros filtram por rank no jogo e por papel no site. O rank é o que o jogo informa. O papel no site é o que um admin define em **Staff & roles**. Um nunca define o outro.',
+      },
+    },
+
+    review: {
+      title: 'Pedidos para entrar e Needs review',
+      intro: 'Dois tipos de gente esperam por um sim, e esperam em abas diferentes.',
+      rows: [
+        {
+          term: 'Pedindo para entrar',
+          body: 'no topo da aba **Roster**, aparece só quando alguém está esperando. O pedido vem do site (a pessoa apertou **Apply** na página do seu clã, ou tentou entrar num dos seus eventos) ou do plugin (ele a viu jogando no seu clã no jogo antes de o quadro tê-la). Cada linha diz de onde veio e se a pessoa é membro de outro clã. **Approve** dá a ela uma vaga de convidado. **Decline** avisa a pessoa, por DM no Discord quando o seu bot consegue alcançá-la. Marque vários para responder de uma vez.',
+        },
+        {
+          term: 'Aguardando confirmação',
+          body: 'no **Needs review**. Gente que vinculou um dos personagens do seu quadro ganhando XP nele, pedindo, ou jogando com ele pelo plugin. Já podem jogar enquanto esperam. Confira se o nome no Discord bate com o personagem e aperte **Approve**. **Not our member** tira o personagem da sua lista e o deixa com o dono. **Report to Anvil** é para um personagem que não é da pessoa.',
+        },
+        {
+          term: 'Pedidos de reivindicação',
+          body: 'também no **Needs review**. Alguém jogou com um personagem que já é membro estabelecido aqui, então o Anvil não o vinculou sozinho. Se você sabe que é a pessoa, aperte **Yes, that’s them**; se não, **Not them**. Um personagem que só esteve no seu clã é vinculado na hora. Um que também está em outro clã vai para o Anvil decidir.',
+        },
+      ],
+      note: {
+        tag: 'O contador não conta pedidos para entrar',
+        body: 'O número no **Needs review**, e em **People** na barra lateral, conta Awaiting confirmation e Claim requests. Os pedidos para entrar não estão nele, então olhe também o topo da aba Roster.',
+      },
+    },
+
+    policy: {
+      title: 'Quem pode entrar',
+      intro:
+        'Admin → People → **Who can join** tem três opções, e só admins veem a aba. A que decide como gente de fora entra é **Players from other clans**:',
+      rows: [
+        {
+          term: 'Ask first',
+          body: 'o padrão. Quem pede para entrar, ou quem o plugin pega no seu clã no jogo, espera como pedido até a staff aprovar. Ninguém ganha vaga sem um sim.',
+        },
+        {
+          term: 'Let anyone in',
+          body: 'pedir basta. A pessoa ganha uma vaga de convidado na hora e nenhum pedido é criado. Bom para um evento aberto, barulhento no resto do tempo.',
+        },
+        {
+          term: 'No guests',
+          body: 'só os seus membros jogam. Jogadores de outros clãs não podem entrar nos seus eventos nem pedir para entrar, e o plugin não cria nada por eles.',
+        },
+      ],
+      outro:
+        '**Who can see this clan** é **Anyone** (o link de um tabuleiro funciona para quem você mandar) ou **Members only** (todo o resto vê o cartão do clã e um convite para pedir entrada). **List in the Clan Hall** coloca o clã na lista pública de clãs. Desligar isso não torna o clã privado.',
+      note: {
+        tag: 'Nada disso afeta seus membros',
+        body: 'A sincronização do quadro dá vaga aos membros não importa o que essas opções digam. A sua staff também nunca é tratada como convidada: o personagem de alguém da staff ganha vaga de membro sem pedido.',
+      },
+    },
+
+    manual: {
+      title: 'Adicionando alguém na mão',
+      body: [
+        'Roster → **+ Add Manually** coloca um personagem no quadro. Preencha o **RSN** e, se quiser, o **Discord ID** e o **Rank**. Marque **Add as guest** para quem não está no seu clã no jogo. Moderadores e admins podem fazer isso.',
+        'Use para alguém que a sincronização ainda não enxerga, como um recruta que entrou depois da última sincronização. A vaga fica marcada como **Added manually**, e a sincronização trata isso como decisão sua: se depois você remover uma vaga adicionada na mão, a próxima sincronização não a traz de volta.',
+        'Adicionar alguém ao quadro não inscreve a pessoa num evento. Para isso, abra a aba **Sign-ups** do evento e use **Add member**. Essa é só de admin.',
+      ],
+    },
+
+    removing: {
+      title: 'Remover e banir',
+      intro: 'Cada linha do quadro tem um menu de ações. Cada uma faz uma coisa diferente:',
+      rows: [
+        {
+          term: 'Demote to guest',
+          body: 'a pessoa continua na lista e ainda pode ser colocada em eventos, mas deixa de contar como membro. **Promote to member** desfaz isso.',
+        },
+        {
+          term: 'Remove from roster',
+          body: 'marca a pessoa como saiu. O histórico e os resultados ficam. Se ela ainda estiver no seu clã no jogo, a próxima sincronização pode trazê-la de volta.',
+        },
+        {
+          term: 'Not our member',
+          body: 'no Needs review, para um personagem que alguém vinculou e que não está no seu clã. Ele sai da sua lista e fica com o dono.',
+        },
+        {
+          term: 'Ban from this clan',
+          body: 'encerra todas as vagas da pessoa aqui, alts incluídas, e impede que ela volte: a sincronização do quadro, o plugin e os pedidos para entrar a recusam até o banimento ser retirado. A conta Anvil dela e os outros clãs não são tocados. Só admins, para alguém com conta no site, pelo menu da linha ou pelo **Staff & roles**. Retirar um banimento não a traz de volta; ela volta ao clã no jogo ou você a adiciona.',
+        },
+      ],
+      note: {
+        tag: 'Banir não tira um papel da staff',
+        body: 'Banir alguém encerra as vagas, mas mantém qualquer papel de staff que a pessoa tenha aqui. Para tirar alguém da staff, primeiro mude o papel para **Member** em Staff & roles, depois bana a pessoa.',
+      },
+    },
+
+    faq: {
+      title: 'Perguntas comuns',
+      intro: 'O que costuma explicar alguém no lugar errado.',
+      rows: [
+        {
+          term: 'Falta alguém que está no clã',
+          body: 'Rode uma sincronização do quadro primeiro: a lista só muda quando um admin a envia. Depois confira **Departed**, caso a pessoa tenha sido removida, e se ela está banida; a sincronização pula quem está banido aqui e informa quem pulou. Se o clã passou do plano e o período de carência acabou, a sincronização para de adicionar membros novos até você fazer upgrade ou enxugar o quadro.',
+        },
+        {
+          term: 'Alguém aparece como convidado mas está no clã',
+          body: 'Geralmente a pessoa ainda é membro de outro clã no Anvil. Um personagem só pode ser membro de um clã por vez, então a sincronização dá a ela uma vaga de convidado aqui e a torna membro na primeira sincronização depois que ela sai do outro clã. Se não for isso, ela entrou por um pedido, ou alguém a rebaixou ou a adicionou como convidada. Rode uma sincronização ou use **Promote to member**.',
+        },
+        {
+          term: 'Alguém fez login mas não está no quadro',
+          body: 'É o esperado. Fazer login cria uma conta Anvil, não uma vaga. A pessoa aparece quando a sincronização a lista, quando você aprova o pedido dela, ou quando você a adiciona na mão.',
+        },
+        {
+          term: 'Nomes como #Player1234',
+          body: 'O RuneLite mostra um nome provisório assim por um instante enquanto o jogador entra, e para membros do clã que ele não consegue nomear. O Anvil agora ignora esses nomes: a sincronização os pula, o plugin não cria pedido para eles, e pedidos antigos com um deles ficam ocultos. Se ainda houver um no seu quadro, é uma linha antiga. **Remove from roster** a apaga.',
+        },
+        {
+          term: 'Um membro removido sempre volta',
+          body: 'Remover alguém não muda o clã no jogo, então a próxima sincronização o traz de volta enquanto o jogo ainda o listar. Remova a pessoa no jogo, ou bana aqui.',
+        },
+        {
+          term: 'Um moderador não vê o Who can join',
+          body: 'É uma aba só de admin, como Staff & roles. Veja [Papéis da staff: quem pode fazer o quê]({staffGuide}).',
+        },
+      ],
+    },
+  },
+
+  staffRoles: {
+    metaTitle: 'Papéis da staff: quem pode fazer o quê — Anvil',
+    metaDescription:
+      'Os papéis de clã no Anvil (dono, admin, tesoureiro, moderador, membro), o que cada um alcança, como tornar alguém moderador, quem pode dar qual papel, e as funções que valem para um único evento.',
+    eyebrow: 'Anvil · para donos e admins',
+    title: 'Papéis da staff: quem pode fazer o quê',
+    dek: 'Cinco papéis, definidos por clã em Admin → People → **Staff & roles**. Um papel aqui não dá nada em nenhum outro clã, e ninguém pode dar um papel igual ou acima do seu. Esta página é o mapa inteiro: o que cada papel alcança, como dar um, e as funções que valem para um único evento.',
+    facts: [
+      { strong: 'Por clã', rest: 'um papel aqui não vale em outro lugar' },
+      { strong: 'Abaixo do seu', rest: 'é tudo o que você pode dar' },
+      { strong: 'Dono', rest: 'só muda por transferência' },
+    ],
+    footnote:
+      'Os papéis são conferidos de novo a cada carregamento de página, então uma mudança vale no próximo clique da pessoa; ela não precisa sair da conta. Para o quadro de membros em si, veja [Sua gente]({peopleGuide}). Para o dia de um moderador, veja [De plantão]({moderatorGuide}).',
+
+    roles: {
+      title: 'Os papéis',
+      intro: 'Todo mundo que entra com o Discord começa como um simples **Member**. Acima disso:',
+      rows: [
+        {
+          term: 'Dono',
+          body: 'quem criou o clã, até passá-lo adiante. Tudo o que um admin faz, mais transferir a posse e apagar o clã. Existe exatamente um, e ninguém pode rebaixar, remover ou banir o dono.',
+        },
+        {
+          term: 'Admin',
+          body: 'tudo, menos passar o clã adiante: eventos e tabuleiros, configurações, Discord, staff e o dinheiro do clã.',
+        },
+        {
+          term: 'Tesoureiro',
+          body: 'taxas, o caixa e os prêmios. Um tesoureiro também alcança a maioria das páginas de moderador (provas, competições, Needs review), mas não a lista do quadro nem a agenda (Schedule).',
+        },
+        {
+          term: 'Moderador',
+          body: 'novatos, o quadro de membros, provas, competições semanais e eventos do clã. Nada de eventos ou tabuleiros, configurações, staff ou dinheiro.',
+        },
+        {
+          term: 'Membro',
+          body: 'nenhuma função de staff. Joga, se inscreve, e pode registrar uma doação ao caixa.',
+        },
+      ],
+      outro:
+        'Duas caixas ficam abaixo do papel em Staff & roles, para qualquer um abaixo de admin, membros simples incluídos. **Can build bingo boards** abre a aba Tiles de todo tabuleiro e a Task library. **Can write guides** deixa a pessoa escrever os guias do clã. Admins já têm as duas.',
+    },
+
+    assign: {
+      title: 'Tornando alguém moderador',
+      intro:
+        'A pessoa precisa ter entrado com o Discord e vinculado um personagem que esteja no seu quadro, como membro ou convidado. Então:',
+      steps: [
+        'Abra Admin → **People** → **Staff & roles**.',
+        'A lista abre em **Staff**. Troque para **Members** ou **All accounts** e procure o nome da pessoa.',
+        'Na coluna **Role**, escolha **Moderator: newcomers, roster, sign-ups, proofs**. Salva assim que você escolhe.',
+        'Se ela também deve montar tabuleiros, marque **Can build bingo boards**.',
+      ],
+      outro:
+        'Ainda não entrou no site? Ache o personagem na aba **Roster**, abra o menu dele e escolha **Set role**. Isso salva o papel no personagem. A pessoa o recebe na primeira vez que entrar e vincular o personagem, ou, se estiver esperando no Needs review, quando um moderador a aprovar.',
+      note: {
+        tag: 'Tirando o papel',
+        body: 'Mude o papel de volta para **Member**. Mudar o papel de alguém também remove as funções que a pessoa tinha nos tabuleiros deste clã (veja o passo 5), então adicione-as de novo depois se ela deve mantê-las.',
+      },
+    },
+
+    who: {
+      title: 'Quem pode dar o quê',
+      intro:
+        'Staff & roles é uma aba só de admin, e toda mudança nela passa por duas regras: você só pode dar um papel abaixo do seu, e só pode mudar alguém cujo papel esteja abaixo do seu.',
+      rows: [
+        {
+          term: 'O dono',
+          body: 'pode dar ou tirar os papéis de admin, tesoureiro e moderador.',
+        },
+        {
+          term: 'Um admin',
+          body: 'pode dar ou tirar os papéis de tesoureiro e moderador. Um admin não pode criar outro admin, mudar outro admin, nem mudar o próprio papel.',
+        },
+        {
+          term: 'Tesoureiros e moderadores',
+          body: 'não podem mudar o papel de ninguém. A aba fica escondida para eles.',
+        },
+        {
+          term: 'Ninguém',
+          body: 'pode mudar o papel do dono, removê-lo ou bani-lo. O clã também sempre mantém um admin: o último não pode ser rebaixado.',
+        },
+      ],
+      note: {
+        tag: 'Passando o clã adiante',
+        body: 'Só o dono pode, e só para alguém que já é admin: a linha desse admin ganha a ação **Make owner**. Ele vira o dono e você vira um admin comum. Você não pode desfazer sozinho; só o novo dono pode transferir de volta.',
+      },
+    },
+
+    table: {
+      title: 'Quem pode fazer o quê',
+      intro:
+        'O que cada papel alcança na área administrativa. “Se marcado” quer dizer a caixa **Can build bingo boards** ou **Can write guides** em Staff & roles.',
+      areaLabel: 'Área',
+      columns: ['Dono', 'Admin', 'Tesoureiro', 'Moderador', 'Membro'],
+      rows: [
+        { area: 'Painel', cells: ['Sim', 'Sim', 'Sim', 'Sim', 'Não'] },
+        { area: 'Eventos: criar, editar, times, inscrições, lançar', cells: ['Sim', 'Sim', 'Não', 'Não', 'Não'] },
+        { area: 'Casas do tabuleiro e a Task library', cells: ['Sim', 'Sim', 'Se marcado', 'Se marcado', 'Se marcado'] },
+        { area: 'Provas para conferir', cells: ['Sim', 'Sim', 'Sim', 'Sim', 'Não'] },
+        { area: 'Competições semanais', cells: ['Sim', 'Sim', 'Sim', 'Sim', 'Não'] },
+        { area: 'Eventos do clã', cells: ['Sim', 'Sim', 'Sim', 'Sim', 'Não'] },
+        { area: 'Agenda (Schedule)', cells: ['Sim', 'Sim', 'Não', 'Sim', 'Não'] },
+        { area: 'Quadro de membros: ver, adicionar, remover', cells: ['Sim', 'Sim', 'Não', 'Sim', 'Não'] },
+        { area: 'Pedidos para entrar e Needs review', cells: ['Sim', 'Sim', 'Sim', 'Sim', 'Não'] },
+        { area: 'Banir alguém do clã', cells: ['Sim', 'Abaixo de admin', 'Não', 'Não', 'Não'] },
+        { area: 'Staff & roles', cells: ['Sim', 'Abaixo de admin', 'Não', 'Não', 'Não'] },
+        { area: 'Who can join', cells: ['Sim', 'Sim', 'Não', 'Não', 'Não'] },
+        { area: 'Caixa e escadas de prêmios', cells: ['Sim', 'Sim', 'Sim', 'Não', 'Não'] },
+        { area: 'Taxas: marcar como recebida', cells: ['Sim', 'Sim', 'Sim', 'Não', 'Não'] },
+        { area: 'Taxas: confirmar (a segunda assinatura)', cells: ['Sim', 'Sim', 'Não', 'Não', 'Não'] },
+        { area: 'Configurações do Discord', cells: ['Sim', 'Sim', 'Não', 'Não', 'Não'] },
+        { area: 'Postar no Discord', cells: ['Sim', 'Sim', 'Não', 'Não', 'Não'] },
+        { area: 'Configurações do clã: Profile, Features, Rules & scoring, Boosts', cells: ['Sim', 'Sim', 'Não', 'Não', 'Não'] },
+        { area: 'Plano e cobrança', cells: ['Sim', 'Sim', 'Não', 'Não', 'Não'] },
+        { area: 'Guias', cells: ['Escrever', 'Escrever', 'Ler; escrever se marcado', 'Ler; escrever se marcado', 'Escrever se marcado'] },
+        { area: 'Activity log', cells: ['Sim', 'Sim', 'Sim', 'Sim', 'Não'] },
+        { area: 'Sincronizar o quadro pelo RuneLite', cells: ['Sim', 'Sim', 'Não', 'Não', 'Não'] },
+        { area: 'Transferir a posse, apagar o clã', cells: ['Sim', 'Não', 'Não', 'Não', 'Não'] },
+      ],
+      note: {
+        tag: 'Escondido não é o mesmo que permitido',
+        body: 'A barra lateral só lista o que o seu papel pode usar, mas a checagem que vale roda no servidor. Digitar o endereço de uma página que o seu papel não pode usar te manda de volta para o painel, e a ação por trás dela é recusada.',
+      },
+    },
+
+    event: {
+      title: 'Funções num único evento',
+      intro:
+        'Algumas funções valem para um único evento em vez do clã. Um admin as dá no próprio evento, e elas alcançam aquele evento e nada mais, então é seguro dá-las a um membro simples.',
+      rows: [
+        {
+          term: 'Editor do tabuleiro',
+          body: 'monta e edita as casas daquele tabuleiro. Dada em **Settings** do evento → **Staff** → **Board staff**, ou com **Boards…** nas ações da pessoa em Staff & roles. Um membro com essa função só vê os tabuleiros dele na área administrativa.',
+        },
+        {
+          term: 'Tesoureiro do tabuleiro',
+          body: 'recolhe as taxas daquele tabuleiro e faz as premiações dele, sem alcançar o caixa do clã. Também dada em **Board staff**.',
+        },
+        {
+          term: 'Staff do time',
+          body: 'cuida de um time: o elenco, os envios e as provas, e marcar as taxas dos jogadores como pagas. Não pode mexer em outro time, editar o tabuleiro, fazer escolhas do draft nem substituir ninguém depois que o evento começou. Adicionada na página do time em **Team staff**. É assim que o moderador de um clã visitante toca a metade dele num clã contra clã.',
+        },
+        {
+          term: 'Capitão',
+          body: 'escolhido pelo anfitrião para um time. Tudo o que a staff do time faz, mais as escolhas do draft do time.',
+        },
+      ],
+      note: {
+        tag: 'Um papel no clã substitui as funções de tabuleiro',
+        body: 'Dar um papel no clã a alguém, ou mudá-lo, remove as funções de editor e tesoureiro de tabuleiro que a pessoa tinha nos tabuleiros deste clã. O Staff & roles avisa antes quando essas funções são tudo o que ela tem. Adicione-as de novo depois se ela deve mantê-las.',
+      },
+    },
+
+    safety: {
+      title: 'Mantendo tudo seguro',
+      intro: 'Isto vale seja qual for a configuração dos papéis.',
+      rows: [
+        {
+          term: 'O dono é protegido',
+          body: 'a linha dele em Staff & roles mostra **Protected**. O papel dele não pode ser mudado e ele não pode ser banido. A posse só muda quando ele a transfere.',
+        },
+        {
+          term: 'Admins não removem uns aos outros',
+          body: 'um admin não pode rebaixar nem banir outro admin. Quando dois admins discordam, o dono decide.',
+        },
+        {
+          term: 'Dinheiro exige duas pessoas',
+          body: 'quando uma taxa precisa de confirmação, ela tem de vir de um admin diferente de quem a marcou como recebida. Quantas confirmações uma taxa precisa, de zero a cinco, se define em **Clan settings** → **Rules & scoring** → **Fee sign-off**. Um admin que é o único a cuidar do dinheiro ainda pode forçar o fechamento de uma taxa, com um botão separado.',
+        },
+        {
+          term: 'O que um moderador não pode fazer',
+          body: 'criar ou editar eventos, mudar configurações ou o Discord, dar um papel a alguém (inclusive a si mesmo), ou mexer no dinheiro do clã.',
+        },
+        {
+          term: 'Tudo fica registrado',
+          body: 'mudanças de papel, transferências de posse, banimentos e pedidos para entrar respondidos são gravados no **Activity log**, que toda a staff pode ler.',
+        },
+        {
+          term: 'Cargos do Discord são outra coisa',
+          body: 'a sincronização de cargos do Anvil liga cargos do Discord a **ranks do jogo**, não a papéis do site. Tornar alguém moderador aqui não lhe dá nada no seu servidor do Discord, e um cargo de moderador que você deu na mão no Discord fica como está. O único comando do bot que muda alguma coisa, adicionar ao caixa com `/coffer`, confere o papel no site: tesoureiro, admin ou dono.',
         },
       ],
     },

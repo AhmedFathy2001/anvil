@@ -179,6 +179,20 @@ const fr: PartialGuideDict = {
           'Laisse tes viewers jouer un événement sans rejoindre le clan. Active Streaming, puis ouvre un événement aux viewers.',
         minutes: '~2 min',
       },
+      people: {
+        eyebrow: 'Pour l’équipe du clan',
+        title: 'Vos membres : liste, invités et qui peut rejoindre',
+        blurb:
+          'D’où viennent les membres, ce que veulent dire les filtres de l’onglet Roster, les demandes d’adhésion et Needs review, les trois réglages de Who can join, et retirer ou bannir quelqu’un.',
+        minutes: '~6 min',
+      },
+      staffRoles: {
+        eyebrow: 'Pour les propriétaires et les admins',
+        title: 'Rôles du staff : qui peut faire quoi',
+        blurb:
+          'Propriétaire, admin, trésorier et modérateur : ce que chacun atteint, comment nommer un modérateur, qui peut donner quel rôle, et les fonctions limitées à un seul événement.',
+        minutes: '~6 min',
+      },
     },
   },
 
@@ -2906,6 +2920,376 @@ const fr: PartialGuideDict = {
         {
           term: 'Devrais-je plutôt créer un espace créateur ?',
           body: 'Seulement si tu n’as pas de clan. Un espace est pour les streamers sans clan en jeu.',
+        },
+      ],
+    },
+  },
+
+  people: {
+    metaTitle: 'Vos membres : liste, invités et qui peut rejoindre — Anvil',
+    metaDescription:
+      'D’où vient la liste des membres d’un clan Anvil, ce que veulent dire Members, Guests, Roster only, Departed et Quiet, comment fonctionnent les demandes d’adhésion et Needs review, les trois réglages de Who can join, et retirer ou bannir quelqu’un.',
+    eyebrow: 'Anvil · pour l’équipe du clan',
+    title: 'Vos membres : liste, invités et qui peut rejoindre',
+    dek: 'Toute personne sous Admin → **People** est arrivée là de l’une de quatre façons : la liste du clan en jeu l’a nommée, le staff l’a acceptée, le clan laisse entrer tout le monde, ou quelqu’un l’a ajoutée à la main. Voici comment fonctionne chacune, ce que vous dit l’onglet Roster, et quoi vérifier quand quelqu’un n’est pas au bon endroit.',
+    facts: [
+      { strong: 'Liste du clan en jeu', rest: 'la seule façon automatique de devenir membre' },
+      { strong: 'Se connecter', rest: 'n’inscrit jamais personne sur la liste' },
+      { strong: 'Deux files d’attente', rest: 'sur deux onglets différents' },
+    ],
+    footnote:
+      'Tout ceci se trouve sous Admin → **People**. Roster et Needs review relèvent des modérateurs. **Who can join** et **Staff & roles** sont des onglets réservés aux admins. Pour savoir qui peut faire quoi dans toute l’administration, voir [Rôles du staff : qui peut faire quoi]({staffGuide}).',
+
+    roster: {
+      title: 'D’où vient la liste des membres',
+      body: [
+        'La liste des membres, c’est la liste de votre clan en jeu, recopiée sur le site. Un admin l’envoie depuis RuneLite avec le plugin Anvil : appuyez sur le bouton **Anvil** dans la barre de titre de la fenêtre du clan, ou sur **Sync roster** dans le panneau latéral du plugin. Chaque personne de la liste arrive comme **membre**, avec son rang en jeu. Seul quelqu’un qui a le rôle Admin sur le site peut l’envoyer. Les autres en sont avertis en jeu.',
+        'Une synchronisation est la seule chose qui fait de quelqu’un un membre à elle seule. Quelqu’un qui quitte le clan en jeu est marqué comme parti à la synchronisation suivante, et quelqu’un qui revient réapparaît à celle d’après. Son historique reste dans les deux cas.',
+        'Toute autre place est une place d’**invité** : quelqu’un qui joue vos événements sans être dans votre clan en jeu. Les invités sont suivis et peuvent participer aux événements. Ce ne sont pas des membres, et ils ne comptent pas dans votre formule.',
+      ],
+      note: {
+        tag: 'Se connecter n’inscrit jamais personne sur la liste',
+        body: 'Se connecter avec Discord, relier un personnage ou jouer avec le plugin ne donne de place à personne. Si le plugin voit quelqu’un dont le clan en jeu est le vôtre mais qui n’est pas encore sur la liste, il fait une demande pour lui (voir l’étape 3). Les autres ont simplement un compte Anvil sans clan. C’est ce qui empêche un inconnu de rejoindre votre clan en tapant son nom.',
+      },
+    },
+
+    filters: {
+      title: 'Lire l’onglet Roster',
+      intro:
+        'La barre du haut découpe la liste en **Members**, **Guests** et **Departed**. Cliquez sur un segment pour filtrer. Les puces en dessous affinent encore la liste :',
+      rows: [
+        {
+          term: 'Active',
+          body: 'les membres toujours sur la liste. Les invités et les partis en sont exclus.',
+        },
+        {
+          term: 'Quiet 7d+',
+          body: 'les membres que le plugin n’a pas vus jouer depuis sept jours ou plus. Quelqu’un qui n’a jamais utilisé le plugin n’y figure pas, faute de quoi le juger. Sa colonne **Last played** affiche alors **no plugin data**.',
+        },
+        {
+          term: 'Guests',
+          body: 'les places d’invité actuelles : des gens qui jouent vos événements sans être dans votre clan en jeu.',
+        },
+        {
+          term: 'Roster only',
+          body: 'les membres et invités actuels qui n’ont pas encore de compte sur le site. C’est normal pour quiconque ne s’est jamais connecté avec Discord. Ils restent sur la liste ; ils se connectent et relient leur personnage le jour où ils veulent s’inscrire à quelque chose.',
+        },
+        {
+          term: 'Departed',
+          body: 'les gens partis en jeu, ou retirés par le staff. Leurs résultats et leur historique restent.',
+        },
+        {
+          term: 'All',
+          body: 'tout ce qui précède.',
+        },
+      ],
+      outro:
+        'La colonne **Source** indique comment chaque place a commencé : **Clan sync**, **Added manually** ou **Applied or self-reported**. **Last played** vient du plugin, pas de la synchronisation de la liste.',
+      note: {
+        tag: 'Le rang et le rôle sont deux choses différentes',
+        body: 'Les deux menus déroulants à côté des puces filtrent par rang en jeu et par rôle sur le site. Le rang est ce que le jeu rapporte. Le rôle sur le site est ce qu’un admin règle sous **Staff & roles**. L’un ne règle jamais l’autre.',
+      },
+    },
+
+    review: {
+      title: 'Demandes d’adhésion et Needs review',
+      intro: 'Deux sortes de personnes attendent un oui, et elles n’attendent pas sur le même onglet.',
+      rows: [
+        {
+          term: 'Demandes pour rejoindre',
+          body: 'en haut de l’onglet **Roster**, affichées seulement quand quelqu’un attend. Une demande vient du site (la personne a appuyé sur **Apply** sur la page de votre clan, ou a tenté d’entrer dans l’un de vos événements) ou du plugin (il l’a vue jouer dans votre clan en jeu avant que la liste ne l’ait). Chaque ligne indique laquelle, et si la personne est membre d’un autre clan. **Approve** lui donne une place d’invité. **Decline** la prévient, par MP Discord quand votre bot peut la joindre. Cochez-en plusieurs pour répondre d’un coup.',
+        },
+        {
+          term: 'En attente de confirmation',
+          body: 'sur **Needs review**. Des gens qui ont relié l’un des personnages de votre liste en gagnant de l’XP dessus, en le demandant, ou en le jouant avec le plugin. Ils peuvent déjà jouer pendant qu’ils attendent. Vérifiez que le nom Discord correspond au personnage, puis appuyez sur **Approve**. **Not our member** retire le personnage de votre liste et le laisse à son propriétaire. **Report to Anvil** sert pour un personnage qui n’est pas le leur.',
+        },
+        {
+          term: 'Demandes de revendication',
+          body: 'aussi sur **Needs review**. Quelqu’un a joué un personnage qui est déjà un membre établi chez vous, donc Anvil ne le lui a pas relié tout seul. Si vous savez que c’est bien lui, appuyez sur **Yes, that’s them** ; sinon, **Not them**. Un personnage qui n’a jamais été que dans votre clan est relié tout de suite. Un personnage qui est aussi dans un autre clan part chez Anvil pour décision.',
+        },
+      ],
+      note: {
+        tag: 'Le badge ne compte pas les demandes d’adhésion',
+        body: 'Le nombre sur **Needs review**, et sur **People** dans la barre latérale, compte les confirmations en attente et les demandes de revendication. Les demandes d’adhésion n’y sont pas, alors regardez aussi le haut de l’onglet Roster.',
+      },
+    },
+
+    policy: {
+      title: 'Qui peut rejoindre',
+      intro:
+        'Admin → People → **Who can join** contient trois réglages, et seuls les admins voient cet onglet. Celui qui décide comment les gens de l’extérieur entrent est **Players from other clans** :',
+      rows: [
+        {
+          term: 'Ask first',
+          body: 'le réglage par défaut. Quelqu’un qui postule, ou que le plugin repère dans votre clan en jeu, attend sous forme de demande d’adhésion jusqu’à ce que le staff l’accepte. Personne n’a de place sans un oui.',
+        },
+        {
+          term: 'Let anyone in',
+          body: 'demander suffit. La personne reçoit tout de suite une place d’invité et aucune demande n’est créée. Bien pour un événement ouvert, bruyant sinon.',
+        },
+        {
+          term: 'No guests',
+          body: 'seuls vos propres membres jouent. Les joueurs d’autres clans ne peuvent ni entrer dans vos événements ni demander à rejoindre, et le plugin ne crée rien pour eux.',
+        },
+      ],
+      outro:
+        '**Who can see this clan** vaut **Anyone** (un lien vers un plateau marche pour quiconque le reçoit) ou **Members only** (les autres voient la carte du clan et une invitation à postuler). **List in the Clan Hall** fait figurer le clan dans la liste publique des clans. Le désactiver ne rend pas le clan privé.',
+      note: {
+        tag: 'Aucun de ces réglages ne touche vos membres',
+        body: 'La synchronisation de la liste installe les membres quoi qu’ils disent. Votre propre staff n’est jamais traité en invité non plus : le personnage d’un membre du staff reçoit une place de membre sans demande.',
+      },
+    },
+
+    manual: {
+      title: 'Ajouter quelqu’un à la main',
+      body: [
+        'Roster → **+ Add Manually** met un personnage sur la liste. Remplissez le **RSN**, et si vous voulez son **Discord ID** et son **Rank**. Cochez **Add as guest** pour quelqu’un qui n’est pas dans votre clan en jeu. Les modérateurs comme les admins peuvent le faire.',
+        'Servez-vous-en pour quelqu’un que la synchronisation ne voit pas encore, comme une recrue arrivée après la dernière. La place est marquée **Added manually**, et la synchronisation la traite comme votre décision : si vous retirez plus tard une place ajoutée à la main, la synchronisation suivante ne la remet pas.',
+        'Ajouter quelqu’un à la liste ne l’inscrit à aucun événement. Pour cela, ouvrez l’onglet **Sign-ups** de l’événement et utilisez **Add member**. Celui-là est réservé aux admins.',
+      ],
+    },
+
+    removing: {
+      title: 'Retirer et bannir',
+      intro: 'Chaque ligne de la liste a un menu d’actions. Elles ne font pas la même chose :',
+      rows: [
+        {
+          term: 'Demote to guest',
+          body: 'la personne reste sur la liste et peut toujours être inscrite aux événements, mais ne compte plus comme membre. **Promote to member** fait l’inverse.',
+        },
+        {
+          term: 'Remove from roster',
+          body: 'la marque comme partie. Son historique et ses résultats restent. Si elle est toujours dans votre clan en jeu, la synchronisation suivante peut la remettre.',
+        },
+        {
+          term: 'Not our member',
+          body: 'sur Needs review, pour un personnage que quelqu’un a relié et qui n’est pas dans votre clan. Il quitte votre liste et reste à son propriétaire.',
+        },
+        {
+          term: 'Ban from this clan',
+          body: 'met fin à toutes les places de la personne ici, alts compris, et l’empêche de revenir : la synchronisation, le plugin et les demandes d’adhésion la refusent tous jusqu’à la levée du bannissement. Son compte Anvil et ses autres clans ne sont pas touchés. Réservé aux admins, pour quelqu’un qui a un compte sur le site, depuis le menu de la ligne ou depuis **Staff & roles**. Lever un bannissement ne la remet pas en place ; elle revient en jeu ou vous l’ajoutez.',
+        },
+      ],
+      note: {
+        tag: 'Un bannissement ne retire pas un rôle de staff',
+        body: 'Bannir quelqu’un met fin à ses places mais lui laisse le rôle de staff qu’il a ici. Pour écarter un membre du staff, passez d’abord son rôle à **Member** dans Staff & roles, puis bannissez-le.',
+      },
+    },
+
+    faq: {
+      title: 'Questions fréquentes',
+      intro: 'Ce qui explique d’habitude que quelqu’un ne soit pas au bon endroit.',
+      rows: [
+        {
+          term: 'Quelqu’un du clan manque',
+          body: 'Lancez d’abord une synchronisation : la liste ne change que quand un admin l’envoie. Puis regardez **Departed**, au cas où la personne aurait été retirée, et si elle est bannie ; la synchronisation saute toute personne bannie ici et dit qui elle a sautée. Si le clan dépasse sa formule et que le délai de grâce est fini, une synchronisation n’ajoute plus de nouveaux membres tant que vous ne passez pas à la formule supérieure ou n’allégez pas la liste.',
+        },
+        {
+          term: 'Quelqu’un apparaît comme invité alors qu’il est dans le clan',
+          body: 'En général, il est encore membre d’un autre clan sur Anvil. Un personnage ne peut être membre que d’un clan à la fois, donc la synchronisation l’installe ici comme invité et en fait un membre à la première synchronisation après son départ de l’autre clan. Sinon, il est entré par une demande d’adhésion, ou quelqu’un l’a rétrogradé ou ajouté comme invité. Lancez une synchronisation, ou utilisez **Promote to member**.',
+        },
+        {
+          term: 'Quelqu’un s’est connecté mais n’est pas sur la liste',
+          body: 'C’est normal. Se connecter crée un compte Anvil, pas une place. La personne apparaît quand la synchronisation la liste, quand vous acceptez sa demande, ou quand vous l’ajoutez à la main.',
+        },
+        {
+          term: 'Des noms comme #Player1234',
+          body: 'RuneLite affiche un nom provisoire de ce genre un instant pendant qu’un joueur se connecte, et pour les membres du clan qu’il ne sait pas nommer. Anvil ignore désormais ces noms : la synchronisation les saute, le plugin ne crée aucune demande pour eux, et les anciennes demandes sous un tel nom sont masquées. S’il en reste un sur votre liste, c’est une ancienne ligne. **Remove from roster** l’efface.',
+        },
+        {
+          term: 'Un membre retiré revient sans cesse',
+          body: 'Retirer quelqu’un ne change pas le clan en jeu, donc la synchronisation suivante le remet tant que le jeu le liste encore. Retirez-le en jeu, ou bannissez-le ici.',
+        },
+        {
+          term: 'Un modérateur ne voit pas Who can join',
+          body: 'C’est un onglet réservé aux admins, comme Staff & roles. Voir [Rôles du staff : qui peut faire quoi]({staffGuide}).',
+        },
+      ],
+    },
+  },
+
+  staffRoles: {
+    metaTitle: 'Rôles du staff : qui peut faire quoi — Anvil',
+    metaDescription:
+      'Les rôles de clan sur Anvil (propriétaire, admin, trésorier, modérateur, membre), ce que chacun peut atteindre, comment nommer un modérateur, qui peut donner quel rôle, et les fonctions limitées à un seul événement.',
+    eyebrow: 'Anvil · pour les propriétaires et les admins',
+    title: 'Rôles du staff : qui peut faire quoi',
+    dek: 'Cinq rôles, réglés clan par clan sous Admin → People → **Staff & roles**. Un rôle ici ne donne rien dans un autre clan, et personne ne peut attribuer un rôle égal ou supérieur au sien. Cette page est la carte complète : ce que chaque rôle atteint, comment le donner, et les fonctions qui couvrent un seul événement.',
+    facts: [
+      { strong: 'Par clan', rest: 'un rôle ici ne vaut rien ailleurs' },
+      { strong: 'En dessous du vôtre', rest: 'c’est tout ce que vous pouvez donner' },
+      { strong: 'Propriétaire', rest: 'ne change que par transfert' },
+    ],
+    footnote:
+      'Les rôles sont revérifiés à chaque chargement de page, donc un changement s’applique au clic suivant de la personne ; elle n’a pas besoin de se déconnecter. Pour la liste elle-même, voir [Vos membres]({peopleGuide}). Pour la journée d’un modérateur, voir [De permanence]({moderatorGuide}).',
+
+    roles: {
+      title: 'Les rôles',
+      intro: 'Toute personne qui se connecte avec Discord commence comme simple **Member**. Au-dessus :',
+      rows: [
+        {
+          term: 'Propriétaire',
+          body: 'la personne qui a créé le clan, jusqu’à ce qu’elle le transmette. Tout ce qu’un admin peut faire, plus transférer la propriété et supprimer le clan. Il n’y en a qu’un, et personne ne peut le rétrograder, le retirer ou le bannir.',
+        },
+        {
+          term: 'Admin',
+          body: 'tout sauf céder le clan : événements et plateaux, réglages, Discord, staff et l’argent du clan.',
+        },
+        {
+          term: 'Trésorier',
+          body: 'les frais, la caisse et les prix. Un trésorier atteint aussi la plupart des pages des modérateurs (preuves, compétitions, Needs review), mais pas la liste des membres ni le Schedule.',
+        },
+        {
+          term: 'Modérateur',
+          body: 'les nouveaux venus, la liste des membres, les preuves, les compétitions hebdomadaires et les événements du clan. Pas d’événements ni de plateaux, pas de réglages, pas de staff et pas d’argent.',
+        },
+        {
+          term: 'Membre',
+          body: 'aucune fonction de staff. Joue, s’inscrit, et peut déclarer un don à la caisse.',
+        },
+      ],
+      outro:
+        'Deux cases se trouvent sous le rôle dans Staff & roles, pour toute personne en dessous d’admin, simples membres compris. **Can build bingo boards** ouvre l’onglet Tiles de chaque plateau et la Task library. **Can write guides** permet d’écrire les guides du clan. Les admins ont déjà les deux.',
+    },
+
+    assign: {
+      title: 'Nommer un modérateur',
+      intro:
+        'La personne doit s’être connectée avec Discord et avoir relié un personnage qui est sur votre liste, comme membre ou comme invité. Ensuite :',
+      steps: [
+        'Ouvrez Admin → **People** → **Staff & roles**.',
+        'La liste s’ouvre sur **Staff**. Passez à **Members** ou **All accounts** et cherchez son nom.',
+        'Dans la colonne **Role**, choisissez **Moderator: newcomers, roster, sign-ups, proofs**. C’est enregistré dès que vous le choisissez.',
+        'Si elle doit aussi construire des plateaux, cochez **Can build bingo boards**.',
+      ],
+      outro:
+        'Pas encore connectée ? Trouvez son personnage dans l’onglet **Roster**, ouvrez son menu et choisissez **Set role**. Le rôle est alors enregistré sur le personnage. Elle le reçoit la première fois qu’elle se connecte et le relie, ou, si elle attend sur Needs review, quand un modérateur l’accepte.',
+      note: {
+        tag: 'Le retirer',
+        body: 'Remettez le rôle sur **Member**. Changer le rôle de quelqu’un retire aussi ses fonctions sur les plateaux de ce clan (voir l’étape 5) ; rendez-les-lui ensuite s’il doit les garder.',
+      },
+    },
+
+    who: {
+      title: 'Qui peut donner quoi',
+      intro:
+        'Staff & roles est un onglet réservé aux admins, et chaque changement y est vérifié selon deux règles : vous ne pouvez donner qu’un rôle inférieur au vôtre, et vous ne pouvez modifier que quelqu’un dont le rôle est inférieur au vôtre.',
+      rows: [
+        {
+          term: 'Le propriétaire',
+          body: 'peut donner ou retirer Admin, Treasurer et Moderator.',
+        },
+        {
+          term: 'Un admin',
+          body: 'peut donner ou retirer Treasurer et Moderator. Un admin ne peut pas nommer un autre admin, modifier un autre admin, ni changer son propre rôle.',
+        },
+        {
+          term: 'Les trésoriers et les modérateurs',
+          body: 'ne peuvent changer le rôle de personne. L’onglet leur est masqué.',
+        },
+        {
+          term: 'Personne',
+          body: 'ne peut changer le rôle du propriétaire, le retirer ou le bannir. Le clan garde aussi toujours un admin : le dernier ne peut pas être rétrogradé.',
+        },
+      ],
+      note: {
+        tag: 'Céder le clan',
+        body: 'Seul le propriétaire le peut, et seulement au profit de quelqu’un qui est déjà admin : la ligne de cet admin propose une action **Make owner**. Il devient propriétaire et vous devenez un admin ordinaire. Vous ne pouvez pas l’annuler vous-même ; seul le nouveau propriétaire peut vous la retransférer.',
+      },
+    },
+
+    table: {
+      title: 'Qui peut faire quoi',
+      intro:
+        'Ce que chaque rôle atteint dans l’administration. « Si coché » désigne la case **Can build bingo boards** ou **Can write guides** dans Staff & roles.',
+      areaLabel: 'Domaine',
+      columns: ['Propriétaire', 'Admin', 'Trésorier', 'Modérateur', 'Membre'],
+      rows: [
+        { area: 'Tableau de bord', cells: ['Oui', 'Oui', 'Oui', 'Oui', 'Non'] },
+        { area: 'Événements : créer, modifier, équipes, inscriptions, lancement', cells: ['Oui', 'Oui', 'Non', 'Non', 'Non'] },
+        { area: 'Cases des plateaux et Task library', cells: ['Oui', 'Oui', 'Si coché', 'Si coché', 'Si coché'] },
+        { area: 'Preuves à contrôler', cells: ['Oui', 'Oui', 'Oui', 'Oui', 'Non'] },
+        { area: 'Compétitions hebdomadaires', cells: ['Oui', 'Oui', 'Oui', 'Oui', 'Non'] },
+        { area: 'Événements du clan', cells: ['Oui', 'Oui', 'Oui', 'Oui', 'Non'] },
+        { area: 'Calendrier', cells: ['Oui', 'Oui', 'Non', 'Oui', 'Non'] },
+        { area: 'Liste des membres : voir, ajouter, retirer', cells: ['Oui', 'Oui', 'Non', 'Oui', 'Non'] },
+        { area: 'Demandes d’adhésion et Needs review', cells: ['Oui', 'Oui', 'Oui', 'Oui', 'Non'] },
+        { area: 'Bannir quelqu’un du clan', cells: ['Oui', 'Sous admin', 'Non', 'Non', 'Non'] },
+        { area: 'Staff & roles', cells: ['Oui', 'Sous admin', 'Non', 'Non', 'Non'] },
+        { area: 'Who can join', cells: ['Oui', 'Oui', 'Non', 'Non', 'Non'] },
+        { area: 'Caisse et grilles de prix', cells: ['Oui', 'Oui', 'Oui', 'Non', 'Non'] },
+        { area: 'Frais : marquer comme encaissés', cells: ['Oui', 'Oui', 'Oui', 'Non', 'Non'] },
+        { area: 'Frais : confirmer (la seconde signature)', cells: ['Oui', 'Oui', 'Non', 'Non', 'Non'] },
+        { area: 'Réglages Discord', cells: ['Oui', 'Oui', 'Non', 'Non', 'Non'] },
+        { area: 'Publier sur Discord', cells: ['Oui', 'Oui', 'Non', 'Non', 'Non'] },
+        { area: 'Réglages du clan : Profile, Features, Rules & scoring, Boosts', cells: ['Oui', 'Oui', 'Non', 'Non', 'Non'] },
+        { area: 'Formule et facturation', cells: ['Oui', 'Oui', 'Non', 'Non', 'Non'] },
+        { area: 'Guides', cells: ['Écriture', 'Écriture', 'Lecture ; écriture si coché', 'Lecture ; écriture si coché', 'Écriture si coché'] },
+        { area: 'Journal d’activité', cells: ['Oui', 'Oui', 'Oui', 'Oui', 'Non'] },
+        { area: 'Synchroniser la liste depuis RuneLite', cells: ['Oui', 'Oui', 'Non', 'Non', 'Non'] },
+        { area: 'Transférer la propriété, supprimer le clan', cells: ['Oui', 'Non', 'Non', 'Non', 'Non'] },
+      ],
+      note: {
+        tag: 'Masqué ne veut pas dire autorisé',
+        body: 'La barre latérale ne liste que ce que votre rôle peut utiliser, mais la vérification qui compte se fait sur le serveur. Taper l’adresse d’une page que votre rôle ne peut pas utiliser vous renvoie au tableau de bord, et l’action derrière est refusée.',
+      },
+    },
+
+    event: {
+      title: 'Fonctions sur un seul événement',
+      intro:
+        'Certaines fonctions couvrent un seul événement plutôt que le clan. Un admin les donne sur l’événement lui-même, et elles n’atteignent que cet événement, donc on peut sans risque les confier à un simple membre.',
+      rows: [
+        {
+          term: 'Éditeur de plateau',
+          body: 'construit et modifie les cases de ce plateau. Se donne sous **Settings** → **Staff** → **Board staff** de l’événement, ou avec **Boards…** dans les actions d’une personne sur Staff & roles. Un membre qui en a une ne voit que ses plateaux dans l’administration.',
+        },
+        {
+          term: 'Trésorier de plateau',
+          body: 'encaisse les frais de ce plateau et gère ses versements, sans accès à la caisse du clan. Se donne aussi sous **Board staff**.',
+        },
+        {
+          term: 'Staff d’équipe',
+          body: 'gère une équipe : sa composition, ses soumissions et preuves, et le marquage des frais payés par ses joueurs. Il ne peut toucher à aucune autre équipe, ni modifier le plateau, ni faire de choix de draft, ni remplacer qui que ce soit une fois l’événement lancé. S’ajoute sur la page de l’équipe sous **Team staff**. C’est ainsi que le modérateur d’un clan invité gère sa moitié d’un clan contre clan.',
+        },
+        {
+          term: 'Capitaine',
+          body: 'désigné par l’organisateur pour une équipe. Tout ce que le staff d’équipe peut faire, plus les choix de draft de l’équipe.',
+        },
+      ],
+      note: {
+        tag: 'Un rôle de clan remplace les fonctions de plateau',
+        body: 'Donner un rôle de clan à quelqu’un, ou le changer, lui retire ses fonctions d’éditeur et de trésorier de plateau sur les plateaux de ce clan. Staff & roles vous prévient d’abord quand ce sont ses seules fonctions. Rendez-les-lui ensuite s’il doit les garder.',
+      },
+    },
+
+    safety: {
+      title: 'Garder les choses sûres',
+      intro: 'Ces règles tiennent quelle que soit la répartition des rôles.',
+      rows: [
+        {
+          term: 'Le propriétaire est protégé',
+          body: 'sa ligne dans Staff & roles affiche **Protected**. Son rôle ne peut pas être changé et il ne peut pas être banni. La propriété ne change de mains que s’il la transfère.',
+        },
+        {
+          term: 'Les admins ne peuvent pas s’écarter entre eux',
+          body: 'un admin ne peut ni rétrograder ni bannir un autre admin. Quand deux admins ne sont pas d’accord, c’est le propriétaire qui tranche.',
+        },
+        {
+          term: 'L’argent demande deux personnes',
+          body: 'quand des frais doivent être confirmés, la confirmation doit venir d’un autre admin que celui qui les a marqués encaissés. Le nombre de confirmations nécessaires, de zéro à cinq, se règle sous **Clan settings** → **Rules & scoring** → **Fee sign-off**. Un admin qui gère seul l’argent peut toujours forcer la clôture des frais, avec un bouton à part.',
+        },
+        {
+          term: 'Ce qu’un modérateur ne peut pas faire',
+          body: 'créer ou modifier des événements, changer les réglages ou Discord, donner un rôle à qui que ce soit (lui compris), ni toucher à l’argent du clan.',
+        },
+        {
+          term: 'Tout est consigné',
+          body: 'les changements de rôle, les transferts de propriété, les bannissements et les réponses aux demandes d’adhésion sont inscrits dans l’**Activity log**, que tout le staff peut lire.',
+        },
+        {
+          term: 'Les rôles Discord sont à part',
+          body: 'la synchronisation des rôles d’Anvil fait correspondre les rôles Discord aux **rangs en jeu**, pas aux rôles du site. Nommer quelqu’un modérateur ici ne lui donne rien sur votre serveur Discord, et un rôle de modérateur donné à la main dans Discord n’est pas touché. La seule commande du bot qui change quelque chose, ajouter à la caisse avec `/coffer`, vérifie le rôle sur le site : trésorier, admin ou propriétaire.',
         },
       ],
     },

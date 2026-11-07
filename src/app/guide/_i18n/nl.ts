@@ -178,6 +178,20 @@ const nl: PartialGuideDict = {
           'Laat je kijkers aan één event meedoen zonder lid van de clan te worden. Zet Streaming aan en open daarna een event voor kijkers.',
         minutes: '~2 min',
       },
+      people: {
+        eyebrow: 'Voor clanstaf',
+        title: 'Je mensen: ledenlijst, gasten en wie mag joinen',
+        blurb:
+          'Waar leden vandaan komen, wat de filters op het Roster-tabblad betekenen, joinverzoeken en Needs review, de drie instellingen onder Who can join, en iemand verwijderen of verbannen.',
+        minutes: '~6 min',
+      },
+      staffRoles: {
+        eyebrow: 'Voor eigenaars en admins',
+        title: 'Stafrollen: wie mag wat',
+        blurb:
+          'Eigenaar, admin, penningmeester en moderator: waar elke rol bij kan, hoe je iemand moderator maakt, wie welke rol mag geven, en taken voor één event.',
+        minutes: '~6 min',
+      },
     },
   },
 
@@ -2904,6 +2918,376 @@ const nl: PartialGuideDict = {
         {
           term: 'Moet ik in plaats daarvan een creator-space maken?',
           body: 'Alleen als je geen clan hebt. Een space is voor streamers zonder clan in het spel.',
+        },
+      ],
+    },
+  },
+
+  people: {
+    metaTitle: 'Je mensen: ledenlijst, gasten en wie mag joinen — Anvil',
+    metaDescription:
+      'Waar de ledenlijst van een Anvil-clan vandaan komt, wat Members, Guests, Roster only, Departed en Quiet betekenen, hoe joinverzoeken en Needs review werken, de drie instellingen onder Who can join, en iemand verwijderen of verbannen.',
+    eyebrow: 'Anvil · voor clanstaf',
+    title: 'Je mensen: ledenlijst, gasten en wie mag joinen',
+    dek: 'Iedereen onder Admin → **People** is daar op een van vier manieren gekomen: de clanlijst in het spel noemde hem, de staf keurde hem goed, de clan laat iedereen toe, of iemand voegde hem met de hand toe. Zo werkt elke route, dit vertelt het Roster-tabblad je, en dit controleer je als iemand op de verkeerde plek staat.',
+    facts: [
+      { strong: 'Ledenlijst in het spel', rest: 'de enige automatische manier om lid te worden' },
+      { strong: 'Inloggen', rest: 'zet nooit iemand op de ledenlijst' },
+      { strong: 'Twee wachtrijen', rest: 'op twee verschillende tabbladen' },
+    ],
+    footnote:
+      'Alles hier staat onder Admin → **People**. Roster en Needs review zijn werk voor moderators. **Who can join** en **Staff & roles** zijn tabbladen alleen voor admins. Wie wat mag in de hele adminomgeving staat in [Stafrollen: wie mag wat]({staffGuide}).',
+
+    roster: {
+      title: 'Waar de ledenlijst vandaan komt',
+      body: [
+        'De ledenlijst is jullie clanlijst uit het spel, gekopieerd naar de site. Een admin stuurt hem vanuit RuneLite met de Anvil-plugin: druk op de **Anvil**-knop in de titelbalk van het clanvenster, of op **Sync roster** in het zijpaneel van de plugin. Iedereen op de lijst komt binnen als **lid**, met zijn rang in het spel. Alleen iemand met de Admin-rol op de site kan hem sturen. Ieder ander krijgt dat in het spel te horen.',
+        'Een synchronisatie is het enige dat iemand vanzelf lid maakt. Wie de clan in het spel verlaat, wordt bij de volgende synchronisatie als vertrokken gemarkeerd, en wie terugkomt, staat er bij de synchronisatie daarna weer op. Zijn geschiedenis blijft in beide gevallen bewaard.',
+        'Elke andere plek is een **gast**plek: iemand die meedoet aan jullie events zonder in jullie clan in het spel te zitten. Gasten worden bijgehouden en kunnen aan events meedoen. Ze zijn geen lid en tellen niet mee voor jullie abonnement.',
+      ],
+      note: {
+        tag: 'Inloggen zet nooit iemand op de ledenlijst',
+        body: 'Inloggen met Discord, een character koppelen of spelen met de plugin geeft niemand een plek. Ziet de plugin iemand wiens clan in het spel de jouwe is maar die nog niet op de ledenlijst staat, dan vraagt hij hem aan (zie stap 3). Ieder ander heeft gewoon een Anvil-account zonder clan. Dat voorkomt dat een vreemde jullie clan binnenkomt door de naam in te tikken.',
+      },
+    },
+
+    filters: {
+      title: 'Het Roster-tabblad lezen',
+      intro:
+        'De balk bovenaan verdeelt de ledenlijst in **Members**, **Guests** en **Departed**. Klik op een deel om erop te filteren. De chips eronder maken de lijst verder kleiner:',
+      rows: [
+        {
+          term: 'Active',
+          body: 'leden die nog op de ledenlijst staan. Gasten en vertrokken mensen vallen erbuiten.',
+        },
+        {
+          term: 'Quiet 7d+',
+          body: 'leden die de plugin zeven dagen of langer niet heeft zien spelen. Wie de plugin nooit heeft gebruikt, staat hier niet in, want er is niets om hem op te beoordelen. Bij hem staat onder **Last played** dan **no plugin data**.',
+        },
+        {
+          term: 'Guests',
+          body: 'huidige gastplekken: mensen die meedoen aan jullie events maar niet in jullie clan in het spel zitten.',
+        },
+        {
+          term: 'Roster only',
+          body: 'huidige leden en gasten zonder siteaccount erachter. Normaal voor iedereen die nooit met Discord heeft ingelogd. Ze blijven op de ledenlijst; ze loggen in en koppelen het character zodra ze zich ergens voor willen inschrijven.',
+        },
+        {
+          term: 'Departed',
+          body: 'mensen die in het spel zijn vertrokken, of die de staf heeft verwijderd. Hun resultaten en geschiedenis blijven.',
+        },
+        {
+          term: 'All',
+          body: 'iedereen hierboven.',
+        },
+      ],
+      outro:
+        'De kolom **Source** zegt hoe elke plek begon: **Clan sync**, **Added manually** of **Applied or self-reported**. **Last played** komt van de plugin, niet van de synchronisatie van de ledenlijst.',
+      note: {
+        tag: 'Rang en rol zijn twee verschillende dingen',
+        body: 'De twee keuzelijsten naast de chips filteren op rang in het spel en op rol op de site. De rang is wat het spel doorgeeft. De rol op de site stelt een admin in onder **Staff & roles**. Het een stelt nooit het ander in.',
+      },
+    },
+
+    review: {
+      title: 'Joinverzoeken en Needs review',
+      intro: 'Twee soorten mensen wachten op een ja, en ze wachten op verschillende tabbladen.',
+      rows: [
+        {
+          term: 'Asking to join',
+          body: 'bovenaan het tabblad **Roster**, alleen zichtbaar zolang er iemand wacht. Een verzoek komt van de site (hij drukte op **Apply** op jullie clanpagina, of probeerde mee te doen aan een van jullie events) of van de plugin (die zag hem spelen in jullie clan in het spel voordat hij op de ledenlijst stond). Elke rij zegt welke van de twee, en of hij lid is van een andere clan. **Approve** geeft hem een gastplek. **Decline** laat het hem weten, via een Discord-DM als jullie bot hem kan bereiken. Vink er meerdere aan om ze in één keer te beantwoorden.',
+        },
+        {
+          term: 'Awaiting confirmation',
+          body: 'onder **Needs review**. Mensen die een character van jullie ledenlijst hebben gekoppeld door er XP op te halen, door het te vragen of door het met de plugin te spelen. Ze kunnen al spelen terwijl ze wachten. Controleer of de Discord-naam bij het character past en druk dan op **Approve**. **Not our member** haalt het character van jullie lijst en laat het bij de eigenaar. **Report to Anvil** is voor een character dat niet van hem is.',
+        },
+        {
+          term: 'Claim requests',
+          body: 'ook onder **Needs review**. Iemand speelde een character dat hier al een vast lid is, dus koppelt Anvil het niet vanzelf aan hem. Weet je dat hij het is, druk dan op **Yes, that’s them**; zo niet, **Not them**. Een character dat alleen ooit in jullie clan heeft gezeten, wordt meteen gekoppeld. Een character dat ook in een andere clan zit, gaat naar Anvil om over te beslissen.',
+        },
+      ],
+      note: {
+        tag: 'Het badge telt geen joinverzoeken',
+        body: 'Het getal bij **Needs review**, en bij **People** in de zijbalk, telt Awaiting confirmation en Claim requests. Joinverzoeken zitten er niet in, dus kijk ook bovenaan het Roster-tabblad.',
+      },
+    },
+
+    policy: {
+      title: 'Wie mag joinen',
+      intro:
+        'Admin → People → **Who can join** heeft drie instellingen, en alleen admins zien het tabblad. Hoe buitenstaanders binnenkomen, bepaalt **Players from other clans**:',
+      rows: [
+        {
+          term: 'Ask first',
+          body: 'de standaard. Wie zich aanmeldt, of wie de plugin oppikt uit jullie clan in het spel, wacht als joinverzoek tot de staf hem goedkeurt. Zonder ja krijgt niemand een plek.',
+        },
+        {
+          term: 'Let anyone in',
+          body: 'vragen is genoeg. Hij krijgt meteen een gastplek en er wordt geen verzoek aangemaakt. Goed voor een open event, anders onrustig.',
+        },
+        {
+          term: 'No guests',
+          body: 'alleen jullie eigen leden spelen. Spelers uit andere clans kunnen niet meedoen aan jullie events of vragen om te joinen, en de plugin maakt niets voor ze aan.',
+        },
+      ],
+      outro:
+        '**Who can see this clan** is **Anyone** (een bordlink werkt voor iedereen naar wie je hem stuurt) of **Members only** (de rest ziet de kaart van de clan en een uitnodiging om zich aan te melden). **List in the Clan Hall** zet de clan op de openbare lijst van clans. Uitzetten maakt de clan niet privé.',
+      note: {
+        tag: 'Niets hiervan raakt jullie leden',
+        body: 'De synchronisatie van de ledenlijst geeft leden hun plek, wat hier ook staat. Jullie eigen staf wordt ook nooit als gast behandeld: het character van een staflid krijgt zonder verzoek een ledenplek.',
+      },
+    },
+
+    manual: {
+      title: 'Iemand met de hand toevoegen',
+      body: [
+        'Roster → **+ Add Manually** zet één character op de ledenlijst. Vul de **RSN** in, en eventueel **Discord ID** en **Rank**. Vink **Add as guest** aan voor iemand die niet in jullie clan in het spel zit. Moderators en admins kunnen dit allebei.',
+        'Gebruik het voor iemand die de synchronisatie nog niet ziet, zoals een nieuwe rekruut die na de laatste synchronisatie is gejoind. De plek wordt gemarkeerd als **Added manually**, en de synchronisatie behandelt hem als jouw beslissing: verwijder je later een plek die je met de hand hebt toegevoegd, dan haalt de volgende synchronisatie hem niet terug.',
+        'Iemand op de ledenlijst zetten schrijft hem niet in voor een event. Open daarvoor het tabblad **Sign-ups** van het event en gebruik **Add member**. Dat kunnen alleen admins.',
+      ],
+    },
+
+    removing: {
+      title: 'Verwijderen en verbannen',
+      intro: 'Elke rij op de ledenlijst heeft een actiemenu. Deze doen verschillende dingen:',
+      rows: [
+        {
+          term: 'Demote to guest',
+          body: 'hij blijft op de lijst en kan nog steeds voor events worden ingeschreven, maar telt niet meer als lid. **Promote to member** draait het terug.',
+        },
+        {
+          term: 'Remove from roster',
+          body: 'markeert hem als vertrokken. Zijn geschiedenis en resultaten blijven. Zit hij nog in jullie clan in het spel, dan kan de volgende synchronisatie hem weer toevoegen.',
+        },
+        {
+          term: 'Not our member',
+          body: 'onder Needs review, voor een gekoppeld character dat niet in jullie clan zit. Het gaat van jullie lijst en blijft bij de eigenaar.',
+        },
+        {
+          term: 'Ban from this clan',
+          body: 'beëindigt elke plek die de persoon hier heeft, alts meegerekend, en houdt hem buiten: de synchronisatie, de plugin en joinverzoeken weigeren hem allemaal tot de ban is opgeheven. Zijn Anvil-account en zijn andere clans blijven onaangeroerd. Alleen admins, voor iemand met een siteaccount, via het rijmenu of via **Staff & roles**. Een ban opheffen zet hem niet terug; hij joint opnieuw in het spel, of jij voegt hem toe.',
+        },
+      ],
+      note: {
+        tag: 'Een ban haalt geen stafrol weg',
+        body: 'Een ban beëindigt iemands plekken maar laat elke stafrol die hij hier heeft staan. Om een staflid kwijt te raken, zet je zijn rol eerst op **Member** onder Staff & roles, en ban je hem daarna.',
+      },
+    },
+
+    faq: {
+      title: 'Veelgestelde vragen',
+      intro: 'Wat meestal verklaart waarom iemand op de verkeerde plek staat.',
+      rows: [
+        {
+          term: 'Iemand uit de clan ontbreekt',
+          body: 'Draai eerst een synchronisatie van de ledenlijst: de lijst verandert alleen als een admin hem stuurt. Kijk daarna bij **Departed**, voor het geval hij is verwijderd, en of hij verbannen is; de synchronisatie slaat iedereen over die hier verbannen is en meldt wie hij oversloeg. Zit de clan boven zijn abonnement en is de respijtperiode voorbij, dan voegt een synchronisatie geen nieuwe leden meer toe tot je upgradet of de ledenlijst inkort.',
+        },
+        {
+          term: 'Iemand staat als gast maar zit in de clan',
+          body: 'Meestal is hij op Anvil nog lid van een andere clan. Een character kan maar lid zijn van één clan tegelijk, dus de synchronisatie zet hem hier als gast en maakt hem lid bij de eerste synchronisatie nadat hij de andere clan heeft verlaten. Anders kwam hij binnen via een joinverzoek, of heeft iemand hem gedegradeerd of als gast toegevoegd. Draai een synchronisatie, of gebruik **Promote to member**.',
+        },
+        {
+          term: 'Iemand heeft ingelogd maar staat niet op de ledenlijst',
+          body: 'Dat klopt. Inloggen maakt een Anvil-account aan, geen plek. Hij verschijnt als de synchronisatie hem noemt, als je zijn verzoek goedkeurt, of als je hem met de hand toevoegt.',
+        },
+        {
+          term: 'Namen zoals #Player1234',
+          body: 'RuneLite toont zo’n plaatshouder heel even terwijl een speler inlogt, en voor clanleden die het geen naam kan geven. Anvil negeert die namen nu: de synchronisatie slaat ze over, de plugin maakt er geen verzoek voor aan, en oude verzoeken onder zo’n naam zijn verborgen. Staat er nog een op je ledenlijst, dan is het een oude rij. **Remove from roster** ruimt hem op.',
+        },
+        {
+          term: 'Een verwijderd lid blijft terugkomen',
+          body: 'Iemand verwijderen verandert niets aan de clan in het spel, dus de volgende synchronisatie voegt hem weer toe zolang het spel hem nog noemt. Verwijder hem in het spel, of verban hem hier.',
+        },
+        {
+          term: 'Een moderator ziet Who can join niet',
+          body: 'Dat is een tabblad alleen voor admins, net als Staff & roles. Zie [Stafrollen: wie mag wat]({staffGuide}).',
+        },
+      ],
+    },
+  },
+
+  staffRoles: {
+    metaTitle: 'Stafrollen: wie mag wat — Anvil',
+    metaDescription:
+      'De clanrollen op Anvil (eigenaar, admin, penningmeester, moderator, lid), waar elke rol bij kan, hoe je iemand moderator maakt, wie welke rol mag geven, en de taken voor één event.',
+    eyebrow: 'Anvil · voor eigenaars en admins',
+    title: 'Stafrollen: wie mag wat',
+    dek: 'Vijf rollen, per clan ingesteld onder Admin → People → **Staff & roles**. Een rol hier geeft niets in een andere clan, en niemand kan een rol geven die gelijk aan of hoger dan zijn eigen rol is. Deze pagina is de hele kaart: waar elke rol bij kan, hoe je er een geeft, en de taken voor één event.',
+    facts: [
+      { strong: 'Per clan', rest: 'een rol hier betekent elders niets' },
+      { strong: 'Onder je eigen rol', rest: 'is alles wat je kunt geven' },
+      { strong: 'Eigenaar', rest: 'wisselt alleen via een overdracht' },
+    ],
+    footnote:
+      'Rollen worden bij elke paginaweergave opnieuw gecontroleerd, dus een wijziging geldt bij de volgende klik van die persoon; uitloggen hoeft niet. Voor de ledenlijst zelf, zie [Je mensen]({peopleGuide}). Voor de dag van een moderator, zie [Aan de beurt]({moderatorGuide}).',
+
+    roles: {
+      title: 'De rollen',
+      intro: 'Iedereen die met Discord inlogt, begint als gewoon **Member**. Daarboven:',
+      rows: [
+        {
+          term: 'Eigenaar',
+          body: 'degene die de clan heeft aangemaakt, tot hij hem doorgeeft. Alles wat een admin kan, plus het eigendom overdragen en de clan verwijderen. Er is er precies één, en niemand kan hem degraderen, verwijderen of verbannen.',
+        },
+        {
+          term: 'Admin',
+          body: 'alles behalve de clan overdragen: events en borden, instellingen, Discord, staf en het geld van de clan.',
+        },
+        {
+          term: 'Penningmeester',
+          body: 'inleg, de kas en prijzen. Een penningmeester kan ook bij de meeste moderatorpagina’s (bewijs, competities, Needs review), maar niet bij de ledenlijst of de Schedule.',
+        },
+        {
+          term: 'Moderator',
+          body: 'nieuwkomers, de ledenlijst, bewijs, weekcompetities en clanactiviteiten. Geen events of borden, geen instellingen, geen staf en geen geld.',
+        },
+        {
+          term: 'Lid',
+          body: 'geen stafwerk. Speelt, schrijft zich in, en kan een donatie aan de kas melden.',
+        },
+      ],
+      outro:
+        'Onder de rol op Staff & roles staan twee vakjes, voor iedereen onder admin, gewone leden inbegrepen. **Can build bingo boards** opent het Tiles-tabblad van elk bord en de Task library. **Can write guides** laat ze de handleidingen van de clan schrijven. Admins hebben ze allebei al.',
+    },
+
+    assign: {
+      title: 'Iemand moderator maken',
+      intro:
+        'Hij moet met Discord hebben ingelogd en een character hebben gekoppeld dat op jullie ledenlijst staat, als lid of als gast. Dan:',
+      steps: [
+        'Open Admin → **People** → **Staff & roles**.',
+        'De lijst opent op **Staff**. Schakel naar **Members** of **All accounts** en zoek op zijn naam.',
+        'Kies in de kolom **Role** voor **Moderator: newcomers, roster, sign-ups, proofs**. Het wordt meteen opgeslagen als je kiest.',
+        'Moet hij ook borden bouwen, vink dan **Can build bingo boards** aan.',
+      ],
+      outro:
+        'Nog niet ingelogd? Zoek zijn character op het tabblad **Roster**, open het menu en kies **Set role**. Dat slaat de rol op bij het character. Hij krijgt hem de eerste keer dat hij inlogt en het koppelt, of, als hij bij Needs review wacht, zodra een moderator hem goedkeurt.',
+      note: {
+        tag: 'Het weer afnemen',
+        body: 'Zet de rol terug op **Member**. Iemands rol wijzigen haalt ook alle bordtaken weg die hij op de borden van deze clan had (zie stap 5), dus voeg die daarna opnieuw toe als hij ze moet houden.',
+      },
+    },
+
+    who: {
+      title: 'Wie wat mag geven',
+      intro:
+        'Staff & roles is een tabblad alleen voor admins, en elke wijziging daar wordt aan twee regels getoetst: je kunt alleen een rol geven die lager is dan je eigen rol, en je kunt alleen iemand wijzigen wiens rol lager is dan de jouwe.',
+      rows: [
+        {
+          term: 'De eigenaar',
+          body: 'kan admin, penningmeester en moderator geven of afnemen.',
+        },
+        {
+          term: 'Een admin',
+          body: 'kan penningmeester en moderator geven of afnemen. Een admin kan geen andere admin aanstellen, geen andere admin wijzigen en zijn eigen rol niet wijzigen.',
+        },
+        {
+          term: 'Penningmeesters en moderators',
+          body: 'kunnen niemands rol wijzigen. Het tabblad is voor hen verborgen.',
+        },
+        {
+          term: 'Niemand',
+          body: 'kan de rol van de eigenaar wijzigen, hem verwijderen of verbannen. De clan houdt ook altijd één admin: de laatste kan niet worden gedegradeerd.',
+        },
+      ],
+      note: {
+        tag: 'De clan overdragen',
+        body: 'Alleen de eigenaar kan dat, en alleen aan iemand die al admin is: de rij van die admin krijgt een actie **Make owner**. Hij wordt eigenaar en jij wordt een gewone admin. Zelf terugdraaien kan niet; alleen de nieuwe eigenaar kan het terug overdragen.',
+      },
+    },
+
+    table: {
+      title: 'Wie mag wat',
+      intro:
+        'Waar elke rol bij kan in de adminomgeving. “Indien aangevinkt” betekent het vakje **Can build bingo boards** of **Can write guides** op Staff & roles.',
+      areaLabel: 'Onderdeel',
+      columns: ['Eigenaar', 'Admin', 'Penningmeester', 'Moderator', 'Lid'],
+      rows: [
+        { area: 'Dashboard', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nee'] },
+        { area: 'Events: aanmaken, bewerken, teams, inschrijvingen, starten', cells: ['Ja', 'Ja', 'Nee', 'Nee', 'Nee'] },
+        { area: 'Bordvakjes en de Task library', cells: ['Ja', 'Ja', 'Indien aangevinkt', 'Indien aangevinkt', 'Indien aangevinkt'] },
+        { area: 'Bewijs om te controleren', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nee'] },
+        { area: 'Weekcompetities', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nee'] },
+        { area: 'Clanactiviteiten', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nee'] },
+        { area: 'Schedule', cells: ['Ja', 'Ja', 'Nee', 'Ja', 'Nee'] },
+        { area: 'Ledenlijst: bekijken, toevoegen, verwijderen', cells: ['Ja', 'Ja', 'Nee', 'Ja', 'Nee'] },
+        { area: 'Joinverzoeken en Needs review', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nee'] },
+        { area: 'Iemand uit de clan verbannen', cells: ['Ja', 'Onder admin', 'Nee', 'Nee', 'Nee'] },
+        { area: 'Staff & roles', cells: ['Ja', 'Onder admin', 'Nee', 'Nee', 'Nee'] },
+        { area: 'Who can join', cells: ['Ja', 'Ja', 'Nee', 'Nee', 'Nee'] },
+        { area: 'Kas en prijsladders', cells: ['Ja', 'Ja', 'Ja', 'Nee', 'Nee'] },
+        { area: 'Inleg: als geïnd markeren', cells: ['Ja', 'Ja', 'Ja', 'Nee', 'Nee'] },
+        { area: 'Inleg: bevestigen (de tweede handtekening)', cells: ['Ja', 'Ja', 'Nee', 'Nee', 'Nee'] },
+        { area: 'Discord-instellingen', cells: ['Ja', 'Ja', 'Nee', 'Nee', 'Nee'] },
+        { area: 'Posten op Discord', cells: ['Ja', 'Ja', 'Nee', 'Nee', 'Nee'] },
+        { area: 'Claninstellingen: Profile, Features, Rules & scoring, Boosts', cells: ['Ja', 'Ja', 'Nee', 'Nee', 'Nee'] },
+        { area: 'Abonnement en facturatie', cells: ['Ja', 'Ja', 'Nee', 'Nee', 'Nee'] },
+        { area: 'Handleidingen', cells: ['Schrijven', 'Schrijven', 'Lezen; schrijven indien aangevinkt', 'Lezen; schrijven indien aangevinkt', 'Schrijven indien aangevinkt'] },
+        { area: 'Activiteitenlog', cells: ['Ja', 'Ja', 'Ja', 'Ja', 'Nee'] },
+        { area: 'De ledenlijst synchroniseren vanuit RuneLite', cells: ['Ja', 'Ja', 'Nee', 'Nee', 'Nee'] },
+        { area: 'Eigendom overdragen, de clan verwijderen', cells: ['Ja', 'Nee', 'Nee', 'Nee', 'Nee'] },
+      ],
+      note: {
+        tag: 'Verborgen is niet hetzelfde als toegestaan',
+        body: 'De zijbalk toont alleen wat jouw rol kan gebruiken, maar de controle die telt draait op de server. Tik je het adres in van een pagina die jouw rol niet mag gebruiken, dan word je teruggestuurd naar het dashboard, en de actie erachter wordt geweigerd.',
+      },
+    },
+
+    event: {
+      title: 'Taken voor één event',
+      intro:
+        'Sommige taken gelden voor één event in plaats van voor de clan. Een admin geeft ze op het event zelf, en ze reiken tot dat event en niets anders, dus je kunt ze gerust aan een gewoon lid geven.',
+      rows: [
+        {
+          term: 'Bordredacteur',
+          body: 'bouwt en bewerkt de vakjes van dat bord. Gegeven onder **Settings** → **Staff** → **Board staff** van het event, of met **Boards…** in de acties van een persoon op Staff & roles. Een lid met deze taak ziet in de adminomgeving alleen zijn eigen borden.',
+        },
+        {
+          term: 'Bordpenningmeester',
+          body: 'int de inleg van dat bord en regelt de uitbetalingen, zonder bij de kas van de clan te kunnen. Ook gegeven onder **Board staff**.',
+        },
+        {
+          term: 'Team staff',
+          body: 'runt één team: de opstelling, de inzendingen en het bewijs, en het als betaald markeren van de inleg van de spelers. Ze kunnen geen ander team aanraken, het bord niet bewerken, geen draftpicks doen en niemand wisselen zodra het event live is. Toegevoegd op de teampagina onder **Team staff**. Zo runt de moderator van een bezoekende clan zijn helft van een clan-tegen-clan.',
+        },
+        {
+          term: 'Captain',
+          body: 'door de organisator aangewezen voor één team. Alles wat team staff kan, plus de draftpicks van het team doen.',
+        },
+      ],
+      note: {
+        tag: 'Een clanrol vervangt bordtaken',
+        body: 'Iemand een clanrol geven, of die wijzigen, haalt zijn taken als bordredacteur en bordpenningmeester op de borden van deze clan weg. Staff & roles waarschuwt je eerst als bordtaken alles zijn wat hij heeft. Voeg ze daarna opnieuw toe als hij ze moet houden.',
+      },
+    },
+
+    safety: {
+      title: 'Zo blijft het veilig',
+      intro: 'Dit geldt hoe de rollen ook zijn ingesteld.',
+      rows: [
+        {
+          term: 'De eigenaar is beschermd',
+          body: 'zijn rij op Staff & roles toont **Protected**. Zijn rol kan niet worden gewijzigd en hij kan niet worden verbannen. Het eigendom wisselt alleen als hij het overdraagt.',
+        },
+        {
+          term: 'Admins kunnen elkaar niet verwijderen',
+          body: 'een admin kan een andere admin niet degraderen en niet verbannen. Zijn twee admins het oneens, dan beslist de eigenaar.',
+        },
+        {
+          term: 'Geld vraagt om twee mensen',
+          body: 'moet inleg worden bevestigd, dan moet die bevestiging komen van een andere admin dan degene die hem als geïnd markeerde. Hoeveel bevestigingen inleg nodig heeft, van nul tot vijf, stel je in onder **Clan settings** → **Rules & scoring** → **Fee sign-off**. Een admin die als enige met geld werkt, kan inleg toch afsluiten, met een aparte knop.',
+        },
+        {
+          term: 'Wat een moderator niet kan',
+          body: 'events aanmaken of bewerken, instellingen of Discord wijzigen, iemand een rol geven (zichzelf inbegrepen) of aan het geld van de clan komen.',
+        },
+        {
+          term: 'Alles wordt vastgelegd',
+          body: 'rolwijzigingen, eigendomsoverdrachten, bans en beantwoorde joinverzoeken worden geschreven naar het **Activity log**, dat elk staflid kan lezen.',
+        },
+        {
+          term: 'Discord-rollen staan los hiervan',
+          body: 'de rolsynchronisatie van Anvil koppelt Discord-rollen aan **rangen in het spel**, niet aan rollen op de site. Iemand hier moderator maken geeft hem niets in jullie Discord-server, en een moderatorrol die je in Discord met de hand hebt gegeven, blijft ongemoeid. Het ene botcommando dat iets verandert, iets aan de kas toevoegen met `/coffer`, controleert de rol op de site: penningmeester, admin of eigenaar.',
         },
       ],
     },
