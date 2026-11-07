@@ -203,6 +203,10 @@ export const PLUGIN_CAPABILITIES = [
   // deltas, chat-flair/v/<v> for the whole compact list (CDN-cached), and {t:'flair'} deltas on the
   // push socket for a ticket that asked (?flair=1).
   'chat-flair-v',
+  // The site matches tiles (lib/pluginFacts): GET /api/plugin/rules is what the client decides on
+  // the spot (screenshots, instant chat lines, XP/KC step lines); POST /api/plugin/facts takes what
+  // it saw (loot, hauls, kills) and credits drop, kill and value tiles through the submissions route.
+  'rules',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */
