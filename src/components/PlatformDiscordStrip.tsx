@@ -21,22 +21,25 @@ export default async function PlatformDiscordStrip() {
     includeNames: false,
   });
 
+  // Sits in the footer's brand column: a small bordered block, presence on top, the way in below.
   return (
-    <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-6 sm:px-6">
-      <span className="text-sm font-semibold">Anvil on Discord</span>
-      <span className="flex flex-wrap gap-3 text-[13px] text-text-muted tabular-nums">
-        <span>
-          <i className="mr-1.5 inline-block h-[7px] w-[7px] rounded-full bg-accent-green-light" />
-          {counts.discord} online
+    <div className="max-w-sm rounded-xl border border-card-border bg-card-bg/60 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="text-[13px] font-semibold text-foreground">Anvil on Discord</span>
+        <span className="flex flex-wrap gap-3 text-[12.5px] text-text-muted tabular-nums">
+          <span>
+            <i className="mr-1.5 inline-block h-[7px] w-[7px] rounded-full bg-accent-green-light" />
+            {counts.discord} online
+          </span>
+          {counts.inGame > 0 && <span className="text-gold-light">{counts.inGame} in game</span>}
         </span>
-        {counts.inGame > 0 && <span className="text-gold-light">{counts.inGame} in game</span>}
-      </span>
+      </div>
       <a
         // Counted, then on to the invite (api/discord/join).
         href="/api/discord/join?src=footer"
         target="_blank"
         rel="noopener noreferrer"
-        className="rounded-lg border border-card-border px-3 py-1.5 text-[12.5px] text-text-muted transition-colors hover:border-gold/45 hover:text-foreground"
+        className="mt-2.5 inline-flex rounded-lg border border-card-border px-3 py-1.5 text-[12.5px] text-text-muted transition-colors hover:border-gold/45 hover:text-foreground"
       >
         Setup help and bug reports
       </a>
