@@ -204,6 +204,32 @@ export async function readDisplayCase(userId: number, playerId: number | null): 
     : [];
   const clogByKey = new Map(clogRows.map((r) => [`${r.accountId}:${r.itemId}`, r]));
 
+  // A log slot that was already filled when tracking began has no date of its own. When the site did
+  // record that drop (a moment for the same character and item), its date and kill count are the real
+  // "when" — shown instead of "before tracking".
+  const undated = clogRows.filter((r) => r.firstSeenAt == null);
+  // clan-scope: global -- the person's own drops on their own characters, as for dropRows below.
+  const firstDrops = undated.length
+    ? await db
+        .select({
+          accountId: clanMemberships.accountId,
+          itemId: moments.itemId,
+          occurredAt: sql<string>`min(${moments.occurredAt})`,
+          kc: sql<number | null>`(array_agg(${moments.kc} order by ${moments.occurredAt}))[1]`,
+        })
+        .from(moments)
+        .innerJoin(clanMemberships, eq(clanMemberships.id, moments.clanMemberId))
+        .where(
+          and(
+            inArray(clanMemberships.accountId, [...new Set(undated.map((r) => r.accountId))]),
+            inArray(moments.itemId, [...new Set(undated.map((r) => r.itemId))]),
+            inArray(moments.kind, [...DROP_KINDS]),
+          ),
+        )
+        .groupBy(clanMemberships.accountId, moments.itemId)
+    : [];
+  const firstDropByKey = new Map(firstDrops.map((r) => [`${r.accountId}:${r.itemId}`, r]));
+
   // clan-scope: global -- the subject is this person's OWN drops on their own characters, across every
   // clan they were in; the seat is joined only to prove the drop's character is the pinned one.
   const dropRows = dropPins.length
@@ -276,13 +302,14 @@ export async function readDisplayCase(userId: number, playerId: number | null): 
     if (p.kind === 'clog') {
       const row = clogByKey.get(`${p.accountId}:${p.itemId}`);
       if (!row) continue;
+      const dropped = row.firstSeenAt == null ? firstDropByKey.get(`${p.accountId}:${p.itemId}`) : undefined;
       out.push({
         ...base,
         kind: 'clog',
         name: names.get(p.itemId) ?? `Item ${p.itemId}`,
         icon: itemIconUrl(p.itemId),
-        when: row.firstSeenAt,
-        kc: row.kc,
+        when: row.firstSeenAt ?? dropped?.occurredAt ?? null,
+        kc: row.kc ?? dropped?.kc ?? null,
         valueGp: prices.get(p.itemId) ?? null,
         source: row.pageName,
         proofHref,
