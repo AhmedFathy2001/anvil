@@ -15,7 +15,7 @@ import {
   prefsFromRuneLite,
   type ClanDropSettings,
 } from '../src/lib/notifyPrefs';
-import { dropPasses, judgeDrop, judgeDropFor, type JudgeContext } from '../src/lib/notifyDrops';
+import { dropPasses, judgeDrop, judgeDropFor, keepDropDestinations, type JudgeContext } from '../src/lib/notifyDrops';
 
 const clan = (over: Partial<ClanDropSettings> = {}): ClanDropSettings => ({ ...NO_CLAN_DROPS, ...over });
 const ctx = (over: Partial<JudgeContext> = {}): JudgeContext => ({
@@ -171,4 +171,24 @@ test('pluginMe: the screenshot gate is the loosest of the person and their drop 
   assert.equal(me.dropMin, 200_000);
   assert.equal(me.floor, 500);
   assert.equal(pluginMe(NOTIFY_DEFAULTS, flags, NO_CLAN_DROPS, null, []).dropMin, 1_000_000);
+});
+
+test('a drop below the clan gate but above a webhook filter reaches only that webhook, never a clan channel', () => {
+  const item = { id: 3, name: 'Mid', qty: 1, value: 300_000 }; // person/clan gate 1m: declined
+  const verdict = judgeDropFor(zulrah([item]), ctx(), [{ id: 7, minValue: 250_000, minRarity: null, mode: null }]);
+  assert.ok(verdict);
+  assert.equal(verdict.clan, false);
+  assert.deepEqual(verdict.hooks, [7]);
+  // Whatever put clan channels in the send list (the clan itself, a guest clan, a mode channel)...
+  const urls = new Map<string, number | undefined>([
+    ['https://clan.example/drops', 1],
+    ['https://guest.example/drops', 2],
+    ['https://me.example/hook', undefined],
+  ]);
+  const kept = keepDropDestinations(urls, verdict);
+  assert.deepEqual([...kept.keys()], ['https://me.example/hook']);
+  // A drop the clan gate accepts keeps every destination; an unjudged post is untouched.
+  const rich = judgeDropFor(zulrah([richCommon]), ctx(), []);
+  assert.equal(keepDropDestinations(urls, rich).size, 3);
+  assert.equal(keepDropDestinations(urls, null).size, 3);
 });

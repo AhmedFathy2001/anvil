@@ -308,3 +308,13 @@ export function judgeDropFor(c: DropCandidate, ctx: JudgeContext, hooks: HookDro
   }
   return facts ? { facts, clan: !!person, hooks: ids } : null;
 }
+
+/**
+ * The last gate before sending a judged drop: every clan destination (a url mapped to a clan id) is
+ * dropped when the person's own gates declined it (verdict.clan false), whatever put it in the map. Only
+ * their own webhooks (no clan id) that the verdict named stay. Unjudged posts (no verdict) pass untouched.
+ */
+export function keepDropDestinations(urls: Map<string, number | undefined>, verdict: DropVerdict | null): Map<string, number | undefined> {
+  if (!verdict || verdict.clan) return urls;
+  return new Map([...urls].filter(([, clanId]) => clanId == null));
+}

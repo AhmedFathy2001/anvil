@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { judgeDropRequest, withPetRarity } from '@/lib/notifyDropJudge';
-import type { DropVerdict } from '@/lib/notifyDrops';
+import { keepDropDestinations, type DropVerdict } from '@/lib/notifyDrops';
 import { clanMainRarity } from '@/lib/notifyDefaults';
 import { requirePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import {
@@ -313,7 +313,7 @@ export async function POST(request: Request) {
   let declined = 0;
 
   // Destination → the clan it belongs to (for that clan's bot name and icon); personal webhooks have none.
-  const urls = new Map<string, number | undefined>();
+  let urls = new Map<string, number | undefined>();
   // Destinations where this account only GUESTS and the clan asked for guests' posts to be marked.
   const markAsGuest = new Set<string>();
   for (const ec of emissionClans) {
@@ -377,6 +377,8 @@ export async function POST(request: Request) {
   } else {
     for (const t of personalTargets) if (!urls.has(t.url)) urls.set(t.url, undefined);
   }
+  // A drop the clan's gate declined goes only to the personal webhooks that took it, never a clan channel.
+  urls = keepDropDestinations(urls, dropVerdict);
 
   if (urls.size === 0 && declined > 0) {
     // Every destination's rules said no. That is the rules working, not a failure.
