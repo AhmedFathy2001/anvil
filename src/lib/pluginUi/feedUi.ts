@@ -613,7 +613,7 @@ function rowOf(items: Node[], maxCols = 5): Node {
  * `tab`: the plugin opens it on its own Feed tab (hasTabArgs). Otherwise it loads in this tab, and
  * `back` (a Clan-tab page, e.g. 'board') puts a way back over the feed.
  */
-export function boardFeedLinks(eventId: number, back?: { open: string; label: string }, tab = false): Node {
+export function boardFeedLinks(eventId: number, back?: { open: string; label: string }, tab = false, chat = true): Node {
   const go = (p: 'feed' | 'chat'): Action =>
     tab
       ? { a: 'tab', tab: 'feed', args: { s: `event:${eventId}`, p } }
@@ -622,10 +622,8 @@ export function boardFeedLinks(eventId: number, back?: { open: string; label: st
           v: 'feed',
           args: { s: `event:${eventId}`, p, ...(back ? { back: back.open, backLabel: back.label } : {}) },
         };
-  return {
-    t: 'grid',
-    cols: 2,
-    gap: 6,
-    c: [button('Feed', go('feed'), 'This board’s drops, pets and finished tiles'), button('Chat', go('chat'), 'This board’s chat')],
-  };
+  const feed = button('Feed', go('feed'), 'This board’s drops, pets and finished tiles');
+  // No Chat button on a board whose chat is off: it would only open a pane saying so.
+  if (!chat) return feed;
+  return { t: 'grid', cols: 2, gap: 6, c: [feed, button('Chat', go('chat'), 'This board’s chat')] };
 }

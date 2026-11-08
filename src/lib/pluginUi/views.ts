@@ -47,6 +47,7 @@ import { gatesForEvent } from '@/lib/entryGatesDb';
 import { gatesShortLabel } from '@/lib/entryGates';
 import { deleteTileProof, listTileProofs } from '@/lib/tileProofs';
 import { PROOFS_MAX, PROOFS_STEP, type ProofRow, proofsUi } from './proofsUi';
+import { boardChatOn } from '@/lib/eventChat';
 import { hasFeedTab, hasPanelImages, hasTabArgs, hasTabLinks, loadPanelPlayerCard, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
@@ -338,6 +339,7 @@ async function boardView(request: Request, a: Args, error: string | null = null)
     // The feed opens in this tab: it needs the same way back this page has.
     feedBack: { open: a.back || 'board', label: a.backLabel || 'Back' },
     feedTab: hasTabArgs(request),
+    chatOn: await boardChatOn(scope.event.id).catch(() => true),
   };
   const tile = positive(a.tile) && a.list !== '1' ? (board.tiles as BoardTile[]).find((t) => t.tileId === Number(a.tile)) : undefined;
   const inner = boardRowsUi(board, state, ctx, tile, error);
@@ -493,8 +495,10 @@ async function homeView(request: Request, a: Args): Promise<View> {
   // Cheap and best effort: the support line is a nudge, never a reason the panel fails.
   const viewer = await verifyPluginTokenUser(request).catch(() => null);
   const supportCta = !(viewer && (await supporterForUser(viewer.userId).catch(() => null)));
+  const chatEventId = cfg.event?.id ?? null;
   const data: HomeData = {
     feedTab: hasTabArgs(request),
+    chatOn: chatEventId ? await boardChatOn(chatEventId).catch(() => true) : false,
     cfg,
     supportCta,
     live,

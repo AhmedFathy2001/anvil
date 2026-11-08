@@ -58,6 +58,8 @@ export interface BoardContext {
   feedBack?: { open: string; label: string };
   /** The plugin opens those on its Feed tab instead (hasTabArgs). */
   feedTab?: boolean;
+  /** The board's chat is on (lib/eventChat boardChatOn): offer the Chat button. */
+  chatOn?: boolean;
 }
 
 const MANUAL: Color = '#e8b83a';
@@ -273,7 +275,7 @@ export function boardUi(board: Board, s: BoardState, ctx: BoardContext, inner: N
   const reload = list({ ...s, page: 0 });
   return col([
     // This board's feed and chat, one click away (any board, not only the one the plugin tracks).
-    boardFeedLinks(ctx.eventId, ctx.feedBack, ctx.feedTab),
+    boardFeedLinks(ctx.eventId, ctx.feedBack, ctx.feedTab, ctx.chatOn ?? true),
     gap(8),
     text(`${tiles.length} visible tile${tiles.length === 1 ? '' : 's'}${hidden}`, '#cdcdcd'),
     gap(2),

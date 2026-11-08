@@ -52,6 +52,15 @@ export async function platformChatOn(fresh = false): Promise<boolean> {
   return on;
 }
 
+/** Is this board's chat open at all (Anvil-wide and for the event)? Who may use it is chatAccess's call. */
+export async function boardChatOn(eventId: number): Promise<boolean> {
+  const [platformOn, ev] = await Promise.all([
+    platformChatOn(),
+    db.query.events.findFirst({ where: eq(events.id, eventId), columns: { chatEnabled: true } }),
+  ]);
+  return platformOn && !!ev?.chatEnabled;
+}
+
 export async function setPlatformChat(on: boolean): Promise<void> {
   await setPlatformSetting(EVENT_CHAT_PLATFORM_KEY, on ? 'true' : 'false');
   platformCache = null;
