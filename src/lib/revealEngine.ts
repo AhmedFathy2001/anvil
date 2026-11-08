@@ -444,6 +444,44 @@ export async function announceNextMission(eventId: number): Promise<{ announced:
   return { announced: count };
 }
 
+/**
+ * Announce ONE named hidden mission now — the same flip, reveal-stats capture and drop post as a
+ * drawn one, without the draw. Used by the tile lab's mission controls; 0 when the tile is not a
+ * hidden mission on this event or the board is not running.
+ */
+export async function announceMissionTile(eventId: number, tileId: number): Promise<{ announced: number }> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan (the lab route pins it to a lab board).
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return { announced: 0 };
+  if (!engineActive(event, new Date().toISOString())) return { announced: 0 };
+  const eventTiles = await db.select().from(tiles).where(eventBoardTiles(eventId));
+  const hidden = eventTiles.filter((t) => t.mission && t.revealedAt == null);
+  const tile = hidden.find((t) => t.id === tileId);
+  if (!tile) return { announced: 0 };
+  return { announced: await flipAndAnnounceMissions(event, [tile], hidden.length) };
+}
+
+/**
+ * Close ONE announced mission now, as its expiry would: settle any prizes its claims are owed first
+ * (the same order as the cron pass), then stamp `closedAt`. True when it closed.
+ */
+export async function closeMissionTileNow(eventId: number, tileId: number): Promise<boolean> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan (the lab route pins it to a lab board).
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return false;
+  const eventTiles = await db.select().from(tiles).where(eventBoardTiles(eventId));
+  const missionTiles = eventTiles.filter((t) => t.mission);
+  const tile = missionTiles.find((t) => t.id === tileId && t.revealedAt != null && t.closedAt == null);
+  if (!tile) return false;
+  await settleAndAnnounceAwards(event, missionTiles);
+  const done = await db
+    .update(tiles)
+    .set({ closedAt: new Date().toISOString() })
+    .where(and(eq(tiles.id, tile.id), isNull(tiles.closedAt)))
+    .returning({ id: tiles.id });
+  return done.length > 0;
+}
+
 /** Cron pass: run the board reveal engine and the mission announce track over every live event. */
 export async function processTileReveals(): Promise<void> {
   const now = new Date().toISOString();

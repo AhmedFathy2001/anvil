@@ -65,6 +65,18 @@ import {
 } from '@/db/schema';
 import { purgeEventMedia } from '@/lib/eventMediaRetention';
 import { LAB_CLAN_SLUG, LAB_KEEP_DAYS } from '@/lib/labRules';
+import { parseEventRules, validateEventRules } from '@/lib/eventRules';
+import {
+  labBoardSize,
+  labFormat,
+  labRouteLayout,
+  labRules,
+  labTileSeeds,
+  planLabTeams,
+  type LabFormatKey,
+  type LabPlacement,
+  type LabRouteTemplate,
+} from '@/lib/labPlan';
 import { log } from '@/lib/logger';
 import { personOf } from '@/lib/roster';
 
@@ -315,15 +327,25 @@ export async function ownLabCharacters(userId: number): Promise<{ id: number; rs
 
 /**
  * "Test in lab" from a real tile: a fresh one-tile session on the caller's main character, the tile
- * copied whole. Mission and reveal state are dropped — the lab tests what the tile tracks, so it is
- * visible and open from the first poll. Null when the caller has no character.
+ * copied whole. By default mission and reveal state are dropped — the lab tests what the tile tracks,
+ * so it is visible and open from the first poll. With `keepMission`, a mission tile is copied AS a
+ * mission: its flag and its own scoring (tiles.rules: lockout, places, expiry…) come along, it starts
+ * hidden, and the session gets a manual announce policy so the mission controls can drop it. Null
+ * when the caller has no character.
  */
 /** What a lab copy of a tile leaves behind: its identity, place, and mission/reveal state. */
 const NOT_COPIED = ['id', 'eventId', 'position', 'updatedAt', 'revealAt', 'revealedAt', 'closedAt', 'revealStats', 'mission'] as const;
+/** What a lab copy that keeps the mission leaves behind: identity, place and live announce state only. */
+const NOT_COPIED_MISSION = ['id', 'eventId', 'position', 'updatedAt', 'revealAt', 'revealedAt', 'closedAt', 'revealStats'] as const;
 
-export async function labSessionFromTile(actorUserId: number, source: typeof tiles.$inferSelect): Promise<number | null> {
+export async function labSessionFromTile(
+  actorUserId: number,
+  source: typeof tiles.$inferSelect,
+  opts: { keepMission?: boolean } = {},
+): Promise<number | null> {
   const [main] = await ownLabCharacters(actorUserId);
   if (!main) return null;
+  const asMission = !!opts.keepMission && (source.mission === 1 || (source.mission as unknown) === true);
   const eventId = await createLabSession(actorUserId, {
     name: `Lab: ${source.label}`.slice(0, 80),
     hours: 2,
@@ -331,28 +353,54 @@ export async function labSessionFromTile(actorUserId: number, source: typeof til
     accounts: [{ accountId: main.id, name: main.rsn }],
   });
   const copy: Partial<typeof tiles.$inferInsert> = { ...source };
-  for (const k of NOT_COPIED) delete copy[k];
+  for (const k of asMission ? NOT_COPIED_MISSION : NOT_COPIED) delete copy[k];
   await db.update(tiles).set(copy).where(and(eq(tiles.eventId, eventId), eq(tiles.position, 0)));
+  if (asMission) await db.update(events).set({ rules: LAB_MANUAL_MISSIONS }).where(eq(events.id, eventId));
   return eventId;
 }
+
+/** A session's rules when it drops missions by hand (the mission controls' announce button). */
+const LAB_MANUAL_MISSIONS = JSON.stringify(
+  parseEventRules(JSON.stringify({ rulesAtStart: false, mission: { announceMode: 'manual', order: 'random' } })),
+);
 
 export interface LabSessionInput {
   name: string;
   /** How long the session runs from now. Capped so a forgotten session cannot hold the plugin's active board for days. */
   hours: number;
+  /** N of the grid on a square format, else the tile count (lib/labPlan labBoardSize clamps it). */
   boardSize: number;
   accounts: { accountId: number; name: string }[];
+  /** Event type (lib/labPlan LAB_FORMATS). Classic bingo when absent. */
+  format?: LabFormatKey;
+  /** Your characters on one team, or each on their own. The format's default when absent. */
+  placement?: LabPlacement;
+  /** Tile race only, and only where the branching-route columns exist: how the steps are laid out. */
+  route?: LabRouteTemplate;
 }
 
 export const MAX_LAB_HOURS = 24;
 
-/** Create a running lab board with one team holding every given account. Returns the event id. */
+/**
+ * Do tiles carry a race route on this build (tiles.race_step / race_next, the race-branches work)?
+ * Read off the schema object itself, so the lab offers route templates exactly when the columns are
+ * there and quietly sticks to the straight line when they are not.
+ */
+export const LAB_RACE_ROUTES: boolean = 'raceStep' in tiles && 'raceNext' in tiles;
+
+/** Create a running lab board of the chosen type holding every given account. Returns the event id. */
 export async function createLabSession(actorUserId: number, input: LabSessionInput): Promise<number> {
   const clanId = await ensureLabClan(actorUserId);
   const now = new Date();
   const hours = Math.min(Math.max(input.hours, 0.25), MAX_LAB_HOURS);
   const end = new Date(now.getTime() + hours * 3_600_000);
-  const size = Math.min(Math.max(Math.round(input.boardSize), 1), 7);
+  const fmt = labFormat(input.format ?? 'classic');
+  const size = labBoardSize(fmt, input.boardSize);
+  const placement: LabPlacement = input.placement ?? fmt.defaultPlacement;
+  // A minute in the past, so the plugin's "has it started" never races the first poll.
+  const startMs = now.getTime() - 60_000;
+  const validated = validateEventRules(labRules(fmt));
+  const rules = 'rules' in validated ? validated.rules : null;
 
   const eventId = await db.transaction(async (tx) => {
     const [event] = await tx
@@ -361,8 +409,12 @@ export async function createLabSession(actorUserId: number, input: LabSessionInp
         clanId,
         name: input.name.trim() || 'Lab session',
         boardSize: size,
-        // A minute in the past, so the plugin's "has it started" never races the first poll.
-        startDate: new Date(now.getTime() - 60_000).toISOString(),
+        format: fmt.format,
+        scoringMode: fmt.scoringMode,
+        rules,
+        // Solo boards rank players; the rest keep the column default (teams placed by hand).
+        teamPlacement: placement === 'solo' ? 'solo' : 'draft',
+        startDate: new Date(startMs).toISOString(),
         endDate: end.toISOString(),
         // Tiles visible from the first poll: the lab tests the tiles, not the reveal.
         tilesRevealed: 1,
@@ -377,19 +429,37 @@ export async function createLabSession(actorUserId: number, input: LabSessionInp
         draftStartNotified: 1,
       })
       .returning({ id: events.id });
-    await tx.insert(tiles).values(
-      Array.from({ length: size * size }, (_, i) => ({ eventId: event.id, position: i, label: `Lab tile ${i + 1}` })),
-    );
-    const [team] = await tx
-      .insert(teams)
-      .values({ eventId: event.id, name: 'Lab', color: '#d4a84b' })
-      .returning({ id: teams.id });
+    const made = await tx
+      .insert(tiles)
+      .values(labTileSeeds(fmt, size, startMs).map((t) => ({ eventId: event.id, ...t })))
+      .returning({ id: tiles.id, position: tiles.position });
+    if (fmt.format === 'tilerace' && LAB_RACE_ROUTES && input.route && input.route !== 'line') {
+      const ids = made.sort((a, b) => a.position - b.position).map((t) => t.id);
+      for (const entry of labRouteLayout(input.route, ids)) {
+        // Typed loosely on purpose: these columns only exist on builds that have race routes.
+        await tx
+          .update(tiles)
+          .set({ raceStep: entry.step, raceNext: entry.next } as unknown as Partial<typeof tiles.$inferInsert>)
+          .where(eq(tiles.id, entry.id));
+      }
+    }
     const seen = new Set<number>();
-    for (const a of input.accounts) {
-      if (seen.has(a.accountId)) continue;
-      seen.add(a.accountId);
-      // No seat: the account is the identity (lib/auth labParticipantScope matches on it).
-      await tx.insert(eventParticipants).values({ eventId: event.id, accountId: a.accountId, name: a.name, teamId: team.id });
+    const own = input.accounts.filter((a) => (seen.has(a.accountId) ? false : (seen.add(a.accountId), true)));
+    const planned = planLabTeams({
+      placement,
+      entrants: own.map((a) => ({ key: String(a.accountId), name: a.name, own: true })),
+      teamSize: 1,
+    });
+    for (const p of planned) {
+      const [team] = await tx
+        .insert(teams)
+        .values({ eventId: event.id, name: p.name, color: placement === 'team' ? '#d4a84b' : p.color })
+        .returning({ id: teams.id });
+      for (const key of p.members) {
+        const a = own.find((x) => String(x.accountId) === key)!;
+        // No seat: the account is the identity (lib/auth labParticipantScope matches on it).
+        await tx.insert(eventParticipants).values({ eventId: event.id, accountId: a.accountId, name: a.name, teamId: team.id });
+      }
     }
     return event.id;
   });
