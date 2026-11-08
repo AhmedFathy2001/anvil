@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { TILE_KIND_BADGES, TILE_KIND_FILTERS, type TileKindKey } from '@/lib/tileKinds';
 import { GuideShell, Note, Rows, Section } from '../_components/GuideUI';
+import { SectionBlocks } from '../_components/SectionBlocks';
 import { localeChrome } from '../_components/LanguageBar';
 import { getDict, guideHref } from '../_i18n';
 import { guideMetadata } from '../_i18n/meta';
@@ -38,6 +39,8 @@ export default async function BoardGuide({ lang }: { lang: string }) {
     { id: 'points', n: 5, title: b.points.title },
     { id: 'reveal', n: 6, title: b.reveal.title },
     { id: 'check', n: 7, title: b.check.title },
+    { id: 'library', n: 8, title: b.library.title },
+    { id: 'stats', n: 9, title: b.stats.title },
   ];
 
   return (
@@ -100,6 +103,14 @@ export default async function BoardGuide({ lang }: { lang: string }) {
         <Note tag={b.check.note.tag}>
           <p>{rt(b.check.note.body, v)}</p>
         </Note>
+      </Section>
+
+      <Section id="library" n={8} title={b.library.title} labels={t.common}>
+        <SectionBlocks s={b.library} v={v} />
+      </Section>
+
+      <Section id="stats" n={9} title={b.stats.title} labels={t.common}>
+        <SectionBlocks s={b.stats} v={v} />
       </Section>
     </GuideShell>
   );

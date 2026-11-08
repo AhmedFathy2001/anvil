@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { AccessTable, GuideShell, Note, Rows, Section } from '../_components/GuideUI';
+import { SectionBlocks } from '../_components/SectionBlocks';
 import { localeChrome } from '../_components/LanguageBar';
 import { getDict, guideHref } from '../_i18n';
 import { guideMetadata } from '../_i18n/meta';
@@ -11,7 +12,7 @@ import { items, rows, rt } from '../_i18n/rich';
 // lib/eventEditors and lib/teamStaff. When one of those changes, the access table here has to too.
 //
 // Section ids are also the Discord /setup outline (lib/discordGuides GUIDE_OUTLINES.staffroles).
-export const STAFF_SECTIONS = ['roles', 'assign', 'who', 'table', 'event', 'safety'] as const;
+export const STAFF_SECTIONS = ['roles', 'assign', 'who', 'table', 'event', 'safety', 'log'] as const;
 
 export async function staffRolesGuideMetadata(lang: string): Promise<Metadata> {
   const t = await getDict(lang);
@@ -89,6 +90,10 @@ export default async function StaffRolesGuide({ lang }: { lang: string }) {
       <Section id="safety" n={6} title={s.safety.title} labels={t.common}>
         <p className="text-text-muted">{rt(s.safety.intro, v)}</p>
         <Rows rows={rows(s.safety.rows, v)} />
+      </Section>
+
+      <Section id="log" n={7} title={s.log.title} labels={t.common}>
+        <SectionBlocks s={s.log} v={v} />
       </Section>
     </GuideShell>
   );

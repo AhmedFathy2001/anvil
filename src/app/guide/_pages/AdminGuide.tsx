@@ -4,6 +4,7 @@ import { getClanDisplayName } from '@/lib/pluginConfig';
 import { currentClan } from '@/lib/clanContext';
 import { getOAuthMode } from '@/lib/discord-oauth';
 import { GuideShell, Note, Rows, Section } from '../_components/GuideUI';
+import { SectionBlocks } from '../_components/SectionBlocks';
 import { localeChrome } from '../_components/LanguageBar';
 import { getDict, guideHref } from '../_i18n';
 import { guideMetadata } from '../_i18n/meta';
@@ -61,6 +62,7 @@ export default async function AdminGuide({ lang }: { lang: string }) {
     { id: 'teams', n: 7, title: a.teams.title },
     { id: 'launch', n: 8, title: a.launch.title },
     { id: 'after', n: 9, title: a.after.title },
+    { id: 'survey', n: 10, title: a.survey.title },
   ];
 
   return (
@@ -160,6 +162,10 @@ export default async function AdminGuide({ lang }: { lang: string }) {
         <Rows rows={rows(a.after.rows, v)} />
         {federationEnabled && <p className="text-text-muted">{rt(a.after.federation, v)}</p>}
         <p className="text-text-muted">{rt(a.after.outro, v)}</p>
+      </Section>
+
+      <Section id="survey" n={10} title={a.survey.title} labels={t.common}>
+        <SectionBlocks s={a.survey} v={v} />
       </Section>
     </GuideShell>
   );

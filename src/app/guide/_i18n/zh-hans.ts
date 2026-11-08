@@ -210,6 +210,48 @@ const zhHans: PartialGuideDict = {
           '放置和移动助力、三个等级及各自解锁的内容、氏族的名字颜色、赠送的助力，以及助力者标记和徽章。',
         minutes: '约 5 分钟',
       },
+      profile: {
+        eyebrow: '面向玩家',
+        title: '你的资料、Wrapped 与对比',
+        blurb: '你的资料、每个角色的公开页面和你的个人页面、谁能看到它们、月度与活动 Wrapped 卡片，以及两个角色的对比。',
+        minutes: '约 4 分钟',
+      },
+      settings: {
+        eyebrow: '面向玩家',
+        title: '设置，逐页讲解',
+        blurb: 'Discord 发帖与截图隐私、游戏内聊天动态、设备、你自己的 webhook、谁能看到你的角色、每个角色，以及归属认领。',
+        minutes: '约 6 分钟',
+      },
+      challenges: {
+        eyebrow: '面向玩家',
+        title: '挑战与好友活动',
+        blurb: '向一位玩家发起掉落、击杀或经验对决，并通过一个邀请链接为你的好友主办一个私人棋盘。',
+        minutes: '约 4 分钟',
+      },
+      clanHall: {
+        eyebrow: '面向玩家与氏族',
+        title: '查找氏族、活动与排行榜',
+        blurb: 'Clan Hall、两个氏族的对比、每周排行榜、公开活动列表，以及不在 Anvil 上的游戏内氏族页面。',
+        minutes: '约 3 分钟',
+      },
+      guideLibrary: {
+        eyebrow: '面向玩家与氏族工作人员',
+        title: '游戏内攻略',
+        blurb: '按等级阅读攻略库、提交新攻略或修改建议，并保留你氏族自己的副本。',
+        minutes: '约 3 分钟',
+      },
+      weekly: {
+        eyebrow: '面向氏族工作人员与玩家',
+        title: 'Skill 与 Boss of the Week',
+        blurb: '安排每周比赛、重复与轮换、起跑线、奖品、提前结束，以及玩家看到的内容。',
+        minutes: '约 4 分钟',
+      },
+      clanEvents: {
+        eyebrow: '面向氏族工作人员',
+        title: '氏族活动与日程',
+        blurb: '集合、团本夜和聚会：每周重复、“I’m going”与报名、Discord 提醒、奖金发放、问卷，以及找出日程中的空档。',
+        minutes: '约 4 分钟',
+      },
     },
   },
 
@@ -408,6 +450,25 @@ const zhHans: PartialGuideDict = {
         tag: '只影响外观',
         body: '助力只改变氏族的外观和它在列表中的位置。它从不改变等级、分数、你的席位或你的套餐。',
       },
+    },
+    features: {
+      title: '功能与套餐',
+      intro: '管理员可以在 **Features** 下整块地开启或关闭 Anvil 的各部分功能。关闭后，菜单中会隐藏它们，但不会删除任何内容。',
+      rows: [
+        {
+          term: '活动',
+          body: '**Skill & Boss of the Week**（开）、**Surprise-task formats**（关）、**Missions**（关）、**Post-event survey**（关）。',
+        },
+        {
+          term: '资金',
+          body: '**Sign-up fees**（开）、**Clan coffer**（关）。',
+        },
+        {
+          term: 'Discord 与插件',
+          body: '**Post to Discord**（开）、**Death & fun messages**（关）、**Clan Hall card**，即在你的公开氏族页面上显示谁在你的 Discord 中在线（开）。',
+        },
+      ],
+      outro: '**Plan and billing** 会显示你的套餐、你的成员数相对套餐上限的情况，以及更大的套餐。如果你付费，**Manage subscription and invoices** 也在那里。',
     },
   },
 
@@ -994,6 +1055,63 @@ const zhHans: PartialGuideDict = {
         },
       ],
     },
+    screen: {
+      title: '游戏时屏幕上的内容',
+      intro: '插件在你游戏时绘制和打印的内容，以及每项背后的设置。',
+      rows: [
+        {
+          term: '固定的格子',
+          body: '在侧边栏中打开一个格子，然后按 **Track on screen**（最多 3 个）。开启 **Pinned tiles in one panel** 后，它们共用一个小面板：每个格子的名称、你的队伍进度，以及像 _3/5 runs_ 这样的行，或组合技中哪些部分已经完成。关闭时，每个格子各有一个更大的小部件，显示你的队友和其他队伍。按住 Alt 拖动即可移动。右键可选择 **Unpin** 或 **Unpin all**。完成的格子会显示 **Done**，然后自动取消固定。',
+        },
+        {
+          term: '起跑信号卡片',
+          body: '当一场活动正在等待你的起跑信号时，屏幕顶部的 **Starting shot needed** 卡片会说明该去哪里，并以绿色或红色显示每项检查：重新登录、你的会话时长、你离出发点还有几格。提示箭头和世界地图标记（**Anvil starting shot**）会引导你过去。开启 **Auto starting shot** 后，一旦所有项都变绿，就会自动起跑；随后卡片会显示 **You’re tracked** 并消失。设置项：**Starting shot guide**。',
+        },
+        {
+          term: '横幅',
+          body: '你的队伍完成一个格子时显示 **Tile complete!**，你自己的掉落在某个格子上的进度，以及 **New mission!**。设置项：**Team completion popups** 和 **My tile popups**。',
+        },
+        {
+          term: 'Vestige 掷骰',
+          body: '在 Desert Treasure II 的首领处，每个 unique 都会打印一行，显示你在 vestige 轮换中所处的位置，例如 _Roll 2 of 4_ 或 _the next unique is the vestige_。在它见过你获得一次 vestige 之前，会显示 _(estimated)_。没有设置项；无论是否有活动都会运行。',
+        },
+        {
+          term: 'Lookup 自动补全',
+          body: '在 **Lookup** 框中输入时，会根据你最近的查询、好友、在线的氏族成员和附近的玩家帮你补全名字。按 **Enter** 确认。它只读取你自己客户端的数据，不会发送任何内容。',
+        },
+        {
+          term: '聊天颜色',
+          body: '**Chat messages** 下的 **[Anvil] tag colour** 和 **Message colour**。在你选择之前，它们会在不透明的聊天框上显示为深金色和黑色，以保证可读性。将鼠标悬停在聊天中某个 Supporter 的名字上，即可看到其档位，例如 _Anvil Patron_。',
+        },
+      ],
+    },
+    sync: {
+      title: '资料同步，以及它还会发送什么',
+      intro: '**Profile sync** 设置会填充你的 Anvil 资料。四项默认全部开启：',
+      rows: [
+        {
+          term: '同步收藏册',
+          body: '你打开的每一页收藏册都会发送到你的资料中。',
+        },
+        {
+          term: '打开时同步整本收藏册',
+          body: '打开收藏册会发送整本，而不只是你正在看的那一页。若要按需同步，请按收藏册标题栏上的 **Anvil** 按钮，或在收藏册打开时按侧边栏中的 **Sync profile**。聊天会确认：_Profile synced — N collection log slots._',
+        },
+        {
+          term: '同步个人最佳',
+          body: '首领和团本的时间会在你设定时发送。',
+        },
+        {
+          term: '一次性导入已有的最佳',
+          body: '每个角色一次，复制 RuneLite 已经保存在你电脑上的个人最佳：_Imported N personal best(s) from RuneLite._',
+        },
+        {
+          term: '与氏族分享亮点',
+          body: '你的宠物、大额掉落、死亡、战斗任务、等级里程碑、新的收藏册格子和日记，会出现在你氏族网站的动态中，以及能看到它们的玩家的聊天动态中。',
+        },
+      ],
+      outro: '另外还有三项无需单独设置即会发送的内容。**Who killed you**：你最后 15 秒内被你锁定的怪物或玩家，会在动态中被列出。**Game counters**：某些击杀格子会计入游戏自己记录的数字，例如 Tithe Farm 积分、Giants’ Foundry 声望、Doom 深渊或 slayer 连胜；只计上升。**Leagues、Deadman 及其他模式**：在这些世界中，游戏自己关于遗物、区域和任务的消息会被发送，以便你的氏族在其模式频道中发布。',
+    },
   },
 
   admin: {
@@ -1241,6 +1359,14 @@ const zhHans: PartialGuideDict = {
         '开启联合之后，成员还可以从插件里连接到其他 Anvil 氏族 —— 对跨氏族活动很方便，而且完全由每位成员自行选择。',
       outro: '之后把成员们指向[玩家设置指南]({pluginGuide})，然后开始筹备下一场。',
     },
+    survey: {
+      title: '询问玩家',
+      intro: '在 **Features** 下开启 **Post-event survey**，然后打开活动的 **Survey** 页面。',
+      body: [
+        '在 **Build** 下添加问题：**Rating (1–5)**、**Free text**、**Choose one** 或 **Choose many**，每题可选是否设为 **Required**。也可以加载模板：**Bingo wrap-up**、**Quick pulse**、**PvM mass**、**Raid team** 或 **Skilling / social**。**Preview the participant view** 会按玩家看到的样子展示。',
+        '问卷在活动结束时开放，仅对已通过的参与者开放，他们之后仍可修改答案。**Results** 可按 **By question** 或 **By person** 显示答案。它不是匿名的：工作人员能看到谁说了什么。',
+      ],
+    },
   },
 
   clanVsClan: {
@@ -1460,6 +1586,28 @@ const zhHans: PartialGuideDict = {
         body: '把链接关掉，把队伍管理席位撤掉。这两样都不会自己失效，而已结束活动上仍然有效的链接，只是一根没收好的线头。',
       },
     },
+    cohost: {
+      title: '如果你是联办方',
+      intro: '以上内容都是主办方那一侧的。来访氏族的工作人员会获得自己针对该活动的页面，标题为 **Co-hosted with <host>**。活动日期、草稿、队伍以及谁能看到它，都由主办方决定。',
+      rows: [
+        {
+          term: '你氏族的报名',
+          body: '**Approve**、**Reject** 或 **Withdraw** 你自己氏族的玩家。你永远看不到也不能操作主办方的报名。',
+        },
+        {
+          term: '棋盘',
+          body: '只有主办方给你的工作人员授权时才能编辑。否则你可以 **Suggest a tile**：提供格子、详情和分值，最多同时有 25 个等待中。每个都会显示为 **waiting**、**accepted ✓** 或 **turned down**，并附带主办方的理由。',
+        },
+        {
+          term: '你的队伍',
+          body: '**Manage** 你氏族的队伍。',
+        },
+        {
+          term: 'Discord',
+          body: '你的管理员可以选择哪些内容发到你自己的服务器：**Everything shared**、**Big moments** 或 **Nothing**，发到哪个频道，谁会被 @，以及你的玩家是否获得 **@Bingo player** 身份组。',
+        },
+      ],
+    },
   },
 
   board: {
@@ -1652,6 +1800,36 @@ const zhHans: PartialGuideDict = {
         tag: '谁能做这件事',
         body: '编写格子是唯一一个拥有专属角色的管理工作。**editor** 只能编写格子、别的什么都不能做，而且可以被限定到特定棋盘 —— 这样来自别的氏族的受邀搭建者，拿到的就恰好是你交给他的那一场活动，无法接触你运营的任何其他东西。',
       },
+    },
+    library: {
+      title: '任务库与建议',
+      body: [
+        '格子编辑者的管理菜单中有 **Task library**：你氏族保存的任务，以及可供复制的 Anvil 自带库。**⬇ Export pack** 将你的任务保存为文件，**⬆ Import pack** 则加载一个文件，棋盘就是这样在氏族之间迁移的。',
+        '发现 Anvil 库中有错误，或缺少某个任务？在该任务上按 **Suggest a fix**，或按 **Suggest a new task**。Anvil 会审核，结果显示在 **Your suggestions** 下：**Waiting for review**、**Approved** 或 **Not taken**，并附备注。你最多可以有 5 条等待中。获批的修正会送达每个仍然跟随库的氏族副本。',
+      ],
+    },
+    stats: {
+      title: '起始数据与迟到加入者',
+      intro: '经验和击杀数格子会把每位玩家现在的数据与他们的**起始数据**进行比较，起始数据在活动开始时记录。活动的 **Stats** 页面是你检查和修正它们的地方：',
+      rows: [
+        {
+          term: '记录起始数据',
+          body: '开赛前它只是预热 hiscores；真正的起跑线在开赛时记录。开赛后，按钮会变为 **Capture late joiners**，用于记录之后加入的玩家。每 30 分钟可运行一次。',
+        },
+        {
+          term: '立即更新',
+          body: '根据最新数字刷新排名。排名也会每小时自动刷新一次。',
+        },
+        {
+          term: '修正基准',
+          body: '逐个玩家：手动修改某项技能或首领的起始数字。当活动开始前的一段练级因为玩家开赛前没有登出而被计入时使用。',
+        },
+        {
+          term: '重置所有起始数据',
+          body: '收在 **Danger zone** 下：根据每个人当前的数据重新记录其起跑线，清除迄今为止的所有增长。仅用于误开的活动。',
+        },
+      ],
+      outro: '在此之下，**Member breakdown** 会显示每个队伍中谁做了什么，**Stat tile standings** 则会显示每位玩家在每个经验或击杀格子上的起始与当前数字。',
     },
   },
 
@@ -2907,9 +3085,10 @@ const zhHans: PartialGuideDict = {
     viewers: {
       title: '观众是什么',
       body: [
-        '加入的观众是一名 **event player**。他们只参加那一场活动。',
-        '他们不是氏族成员，也不是客人。他们不会出现在你的氏族名单里，也没有职位。',
+        '加入的观众是**活动玩家**，只参加那一场活动。',
+        '他们不是氏族成员，也不是访客。他们永远不会出现在你的氏族名单上，也不会获得任何等级。',
         '你可以在 **People** → **Past viewers** 下看到所有以这种方式加入的人。',
+        '有想留住的常客？在他们那一行按 **Make guest**，即可把他们变为氏族访客，这样他们就能加入你所有对访客开放的活动，而不仅限于这一场。**Make a guest a viewer again** 则会把访客改回只属于某一场活动的观众。',
       ],
     },
 
@@ -3308,6 +3487,13 @@ const zhHans: PartialGuideDict = {
           term: 'Discord 身份组是另一回事',
           body: 'Anvil 的身份组同步把 Discord 身份组对应到**游戏内等级**，而不是站点角色。在这里让某人成为管理员，并不会在你们的 Discord 服务器里给他任何东西；你们在 Discord 里手动发出的管理身份组也不会被动。唯一会改动东西的机器人命令 —— 用 `/coffer` 往金库里添加 —— 检查的是站点角色：司库、admin 或所有者。',
         },
+      ],
+    },
+    log: {
+      title: '活动日志',
+      body: [
+        '管理菜单中的 **Activity log** 列出最新的 200 条变更，每位工作人员都可以阅读：加入、离开、改名与验证、所有权转移、队长的任命与撤销、报名的批准或拒绝、费用的确认、功能的开关以及设置的更改。**Filter by event type** 可以缩小范围。',
+        '重复记录也在这里被整理。**Merge two members** 会把重复的成员并入真正的那一位，**Suspected renames** 则列出 Anvil 为你发现的改名，供你确认或驳回。',
       ],
     },
   },
@@ -3897,6 +4083,670 @@ const zhHans: PartialGuideDict = {
       note: {
         tag: '移动会让计时重新开始',
         body: '时长徽章从该角色仍在算数的最早一次助力开始计算，所以移动或撤下助力会让它们从头开始。你的资料页会列出你助力的氏族，每个氏族一次。',
+      },
+    },
+  },
+
+  profile: {
+    metaTitle: '你的资料、Wrapped 与对比 — Anvil',
+    metaDescription: 'Anvil 为你保留的页面：你的资料、每个角色的公开页面、你的个人页面、月度与年度 Wrapped、活动 Wrapped 卡片，以及并排对比两个角色。',
+    eyebrow: 'Anvil · 面向玩家',
+    title: '你的资料、Wrapped 与对比',
+    dek: 'Anvil 为**你**保留一个页面，为你游玩的**每个角色**各保留一个页面。这里说明了页面上有什么、谁可以打开它们，以及每个月和每场活动结束时推出的 Wrapped 卡片。',
+    facts: [
+      {
+        strong: '默认公开',
+        rest: '一个开关即可把任一角色设为私密',
+      },
+      {
+        strong: '月度 Wrapped',
+        rest: '在下个月 1 号推出',
+      },
+      {
+        strong: '活动 Wrapped',
+        rest: '活动结束时推出',
+      },
+    ],
+    footnote: '这里提到的每个开关，都在 [设置，逐页讲解]({settingsGuide}) 中说明了其所在位置。',
+    pages: {
+      title: '你的页面',
+      intro: '四个页面，各自回答一个不同的问题：',
+      rows: [
+        {
+          term: '你的资料',
+          body: '[/profile](/profile)，只有你自己能看到。从顶部的标签中选择一个角色，即可查看其等级、首领、收藏册和活动。队长在这里还会获得 **Captain’s deck**。',
+        },
+        {
+          term: '角色页面',
+          body: '`/p/<name>`：一个角色，只要它处于公开分享状态，拥有链接的任何人都可以阅读。它显示技能、首领、收藏册和个人最佳，并且刻意不显示你的氏族排名、活动记录和 Discord 名称。',
+        },
+        {
+          term: '你的个人页面',
+          body: '`/u/…`：你所有公开分享的角色汇集在一个页面上，包括你的展示柜以及你选择显示的直播账号。只有在你开启 **Show that my characters are one person** 时它才存在。',
+        },
+        {
+          term: '氏族的成员页面',
+          body: '`/c/<clan>/members/<name>`：某个氏族所看到的同一个角色，从该氏族的 **Members** 列表进入。私人氏族只会向其自己的成员显示其成员。',
+        },
+      ],
+    },
+    sharing: {
+      title: '谁能看到什么',
+      body: [
+        '每个角色一开始都是**公开分享**的：其页面对拥有链接的任何人开放，并且可以出现在排行榜上，也可以向其他氏族展示。在设置的 **Who sees my characters** 下关闭某个角色后，其页面对除你以外的所有人都会返回 _not found_。你会看到 **Private — only you can see this page.** 以及一个 **Share it →** 链接。',
+        '公开的页面在名字下方有 **Copy link**。登录的访客如果认为某个页面有不当内容，可以按 **Report this profile**。',
+        '在设置中，你还可以针对每个角色隐藏其所在的游戏内氏族（**Show my in-game clan**），使其从该角色的页面和该氏族的 Anvil 页面中消失。',
+      ],
+    },
+    wrapped: {
+      title: '你的月度与年度 Wrapped',
+      body: [
+        '每个月，每个角色都会获得一张 Wrapped 卡片：**XP gained**、**Boss kills**、收藏册中的 **New slots**、**Efficient** 小时数、**PBs**，以及宠物和最大的一次掉落。它会在**次月 1 号**（UTC）推出。在此之前，只有你能以预览的形式打开它。',
+        '每年也有一张，位于 `/p/<name>/wrapped/<year>`，从 **12 月 1 日**开始提供。`/p/<name>/wrapped` 总是带你前往现存的最新一张。',
+        '按 **Copy link to your Wrapped** 即可分享。粘贴到 Discord 中时，它会展开为该卡片的图片。私人角色的 Wrapped 只对你开放，其链接会以普通的 Anvil 卡片形式预览。',
+      ],
+      note: {
+        tag: '空的月份',
+        body: '如果该月没有任何内容抵达 Anvil（没有经验、击杀、收藏册格子或个人最佳），卡片会直接说明，而不是显示零。用插件游玩，或者让 hiscores 追上你，下个月就会有内容了。',
+      },
+    },
+    events: {
+      title: '活动 Wrapped',
+      body: [
+        '棋盘结束时，每位玩家和每支队伍都会获得一张卡片。打开活动的 **Wrapped** 页面：**Your card** 位于顶部，然后是 **Teams**（排名、分数和玩家）以及 **Players**。按 **Open and share your card**，再按 **Copy share link**。',
+        '在结束之前，你会看到 **Cards aren’t out yet**。工作人员可以提前打开预览，以便在玩家看到之前检查卡片。',
+        '卡片图片仅对公开氏族中、非仅限邀请的活动显示。对于其他活动，链接仍然对能看到该活动的人有效，并会以普通的 Anvil 卡片形式预览。',
+      ],
+    },
+    compare: {
+      title: '对比两个角色',
+      body: [
+        '打开 [Compare](/compare)，输入两个名字。你会看到技能、首领和收藏册页面并排展示。每项数量领先的一方以金色显示。其下是分析、每项技能的经验、你们任一方击杀过的所有首领，以及逐项对比的收藏册：双方都有、都没有，或只有一方有。**Swap sides** 会互换两边。',
+        '只有已公开分享的角色才能被对比。私人角色或 Anvil 不认识的名字，会返回 _not on Anvil, or not shared_。登录后，你永远可以对比你自己的私人角色。',
+      ],
+    },
+  },
+  settings: {
+    metaTitle: '设置，逐页讲解 — Anvil',
+    metaDescription: 'Anvil 设置下的每一页：Discord 发帖与截图隐私、游戏内聊天动态、插件连接与设备、你自己的 webhook、谁能看到你的角色、Supporter 与资料外观、直播账号、每个角色，以及归属认领。',
+    eyebrow: 'Anvil · 面向玩家',
+    title: '设置，逐页讲解',
+    dek: '[Settings](/settings) 是你自己做选择的地方：你发布什么、游戏中看到什么、谁能看到你的角色。在这里做出的选择会跟随你使用的每一台电脑。',
+    facts: [
+      {
+        strong: '搜索框',
+        rest: '在第一页可找到任何设置',
+      },
+      {
+        strong: '每个角色一页',
+        rest: '位于 Characters 下',
+      },
+      {
+        strong: '10 个 webhook',
+        rest: '由你自己设置',
+      },
+    ],
+    footnote: '你的资料页面在 [你的资料、Wrapped 与对比]({profileGuide}) 中说明；插件自己的设置在 [RuneLite 插件设置]({pluginGuide}) 中说明。',
+    find: {
+      title: '查找设置',
+      body: [
+        '第一页 **Overview & search** 有一个搜索框。用你自己的话输入你想要的内容，例如 _private messages_、_rare drop value_、_death message_、_name colour_ 或 _plugin token_，它就会带你到正确的开关。',
+        '侧边的菜单分为两组。**Account** 下是以下各页。**Characters** 下每个你已关联的角色各有一页（你的主角色标记为 **main**），之后是 **Add character**。**Add character** 上的数字表示 Anvil 见过你游玩的、尚未关联的角色。',
+      ],
+    },
+    posts: {
+      title: 'Discord 发帖与截图',
+      intro: '插件替你向你所在氏族的 Discord 频道发布哪些内容，以及它在截图中隐藏哪些内容。这些选择会由下一次插件更新读取。在你更新之前，插件自己设置中的相同开关决定一切。',
+      rows: [
+        {
+          term: '插件会发布什么',
+          body: '**Rare drops**、**Pets**、**Deaths**、**Collection log slots**、**Level milestones** 和 **Diary completions** 默认开启；**PvP kills** 默认关闭。',
+        },
+        {
+          term: '数值',
+          body: '**Min drop value**（默认 5m，至少 1m，0 则关闭）、**Min drop rarity (1 in N)**（默认 1 in 10,000）、**Loot key value**（1m）、一条最多 200 个字符的 **Death message**，其中 `{name}` 会变成你的名字，以及允许发布的最低 **Combat task tier** 和 **Quest tier**（默认 Master）。',
+        },
+        {
+          term: '你的发布去向',
+          body: '**Keep my announcements out of clans I only guest in**，以及 **Level posts in clan channels**：**Clan rules**、**Only 99s & max** 或 **Off**。**Per character** 会列出每个角色，并附带 **Clans →** 链接，以便为某个氏族单独关闭发布。',
+        },
+        {
+          term: '截图隐私',
+          body: '勾选在插件拍摄的每张截图中（包括证明截图和 Discord 帖子）都会被遮掉的聊天：**Private messages**（默认勾选）、**Public chat**、**Clan chat: others’ messages**、**Clan chat: your own messages**、**Chat channel** 和 **Group chat**。游戏消息和 Anvil 自己的行始终保留。',
+        },
+      ],
+      note: {
+        tag: '棋盘格子永远不受影响',
+        body: '关闭某项发布只会停止 Discord 帖子。掉落、击杀和成就在你正在参与的任何棋盘上仍然计入。',
+      },
+    },
+    chat: {
+      title: '游戏内聊天动态',
+      intro: '当插件设置 **Show feed in game chat** 开启时，插件会在你的聊天框中打印的内容。',
+      rows: [
+        {
+          term: '来源',
+          body: '**Boards I play on**，以及 **Clans I’m guesting in, and my clan’s guests**。',
+        },
+        {
+          term: '内容',
+          body: '价值不低于你所选金额的掉落、**Pets**、**New collection log slots**、**Other teams’ completed tiles**、**My team’s progress on item tiles**、**Leagues, Deadman and other game-mode unlocks**，以及战斗成就、等级、任务和日记。',
+        },
+        {
+          term: '登录时',
+          body: '**A short brief in chat**：你离开期间发生的事。Champion 可以选择简报涵盖的内容。',
+        },
+        {
+          term: '颜色',
+          body: '**Anvil lines in chat**：**By type (Anvil colours)**、**One colour (the plugin’s own)**，或供 Supporter 使用的 **My own colours**。',
+        },
+      ],
+    },
+    login: {
+      title: '插件连接、登录与设备',
+      intro: '插件与网站在哪里已登录，以及如何将它们登出。',
+      rows: [
+        {
+          term: '插件连接',
+          body: '你的插件令牌，适用于你极少数需要手动粘贴的情况。通常侧边面板中的 **Sign in with Discord** 会替你完成此事。',
+        },
+        {
+          term: '登录与设备',
+          body: '插件已登录的每台电脑，显示为 **RuneLite sign-in 1**、**2**……并附上创建和最后使用的时间。**Revoke** 可将其中一台登出，例如你卖掉的电脑。**Enter a code** 可关联另一台电脑。**Sessions** 会将你从所有地方的网站上登出。',
+        },
+        {
+          term: '氏族账单',
+          body: '氏族所有者可以在此处按 **Open portal →** 查看氏族账单。',
+        },
+      ],
+    },
+    webhooks: {
+      title: '你的 Discord webhook',
+      body: [
+        '你的帖子也可以发送到你自己的 Discord 服务器：私人频道、朋友的服务器，任何你能创建 webhook 的地方。粘贴 webhook 链接，勾选它要接收的内容（**Rare drops**、**Pets**、**Deaths**、**Combat achievements**、**Levels & milestones**、**Quests**、**Achievement diaries**、**Collection log**、**PvP kills**），可选择设置 **Only drops worth at least … gp**，然后按 **Add webhook**。',
+        '最多可以有 10 个。只接受 Discord webhook 链接，已保存的链接会被遮掩显示，因此这个页面的截图不会泄露它。**Level posts on my webhooks** 为它们设置你自己的等级规则，与你氏族的规则分开。',
+      ],
+    },
+    privacy: {
+      title: '谁能看到我的角色',
+      intro: '你的角色一开始是公开分享的。以下三个开关可以改变这一点：',
+      rows: [
+        {
+          term: '公开显示 <name>',
+          body: '每个角色一个开关。开启（默认）时，其页面为**公开**。关闭后则为**仅其氏族可见**：其氏族仍能在名单和活动中看到它，其他人都看不到，并且它会退出排行榜。',
+        },
+        {
+          term: '显示我的角色属于同一人',
+          body: '拥有两个或更多角色时，此开关会生成你的个人页面，把你公开分享的角色汇集在一起。关闭时，没有人能看出它们都属于你。',
+        },
+        {
+          term: '显示其他氏族的棋盘',
+          body: '首页是否列出其他氏族公开的棋盘供你查看。',
+        },
+      ],
+    },
+    look: {
+      title: 'Supporter、资料外观、直播与助力',
+      intro: '你在 Anvil 上的形象，以及背后的账号与特权。',
+      rows: [
+        {
+          term: 'Supporter 与名字颜色',
+          body: '你的档位、特权和邀请链接：邀请朋友即可赚取免费月份。档位在 [Anvil Supporter]({supporterGuide}) 中说明。',
+        },
+        {
+          term: '资料外观',
+          body: '头像和横幅（Champion 起可动态显示），如果你愿意，还可以为每个角色使用不同的外观，以及 **Display case**：按档位显示 4、8 或 12 个徽章。',
+        },
+        {
+          term: '直播账号',
+          body: '**Twitch**、**YouTube**、**Kick** 和 **Medal**。每个都会显示是否已验证，并可开关是否在你的资料上显示。已验证的账号可以让你参加粉丝与订阅者活动。',
+        },
+        {
+          term: '氏族助力',
+          body: '只有当你可以助力时才会显示：你的名额、它们放在哪里，以及你可以助力的氏族。参见 [为氏族助力]({boostsGuide})。',
+        },
+      ],
+    },
+    characters: {
+      title: '每个角色',
+      intro: '在 **Characters** 下，每个角色都有自己的页面：它的类型、是否已验证，以及通往其公开页面和完整资料的链接。',
+      rows: [
+        {
+          term: '可见性',
+          body: '**Show to other clans and on leaderboards**，以及 **Show my in-game clan**。',
+        },
+        {
+          term: '氏族',
+          body: '该角色所在的每个氏族和空间，身份为 **member** 或 **guest**，并可按氏族设置 **Announce drops & achievements** 以及 **Leave**。如果 Anvil 把它放在了错误的氏族里，**Which clan is it really in?** 会通知工作人员。',
+        },
+        {
+          term: '角色',
+          body: '**Make main**、改名后要求更名，或从你的账号中 **Remove** 它。其过去的成绩仍会保留在原处。',
+        },
+        {
+          term: '添加角色',
+          body: '在插件已登录的情况下游玩一次该角色，它就会自动关联。在手机或官方客户端上，则按名字关联。**We noticed you playing** 列出 Anvil 见过的角色；**Not mine** 会忽略其中一个。',
+        },
+      ],
+    },
+    claims: {
+      title: '归属认领',
+      body: [
+        '如果某个角色被关联到别人的 Anvil 账号，但其实是你的，请在插件侧边面板的 **You** 标签中按 **This is my account**。你需要通过一次快速的经验检查来证明你在玩这个角色，然后当前持有者会收到询问。你永远不会知道他们是谁，他们也永远不会知道你是谁。',
+        '你提出的认领会显示 **XP check**、**open**，然后显示其结果：**moved to you**、**with Anvil staff**、**withdrawn**、**check timed out** 或 **closed**。**Withdraw** 可取消某一项认领。',
+        '当有人认领你的某个角色时，它会显示在 **Claims on your characters** 下，附带 **Approve** 或 **Object — it’s mine**。未验证的角色在 7 天后会被转移，除非你提出异议。已验证的角色只有在你批准后才会转移。',
+      ],
+    },
+  },
+  weekly: {
+    metaTitle: 'Skill 与 Boss of the Week — Anvil',
+    metaDescription: '在 Anvil 上举办 Skill of the Week、Boss of the Week 或效率比赛：安排、重复与轮换、起跑线、增减参与者、奖品、提前结束，以及玩家看到的内容。',
+    eyebrow: 'Anvil · 面向氏族工作人员与玩家',
+    title: 'Skill 与 Boss of the Week',
+    dek: '每周比赛是低投入的活动：无需撰写格子、无需队伍、无需报名。名单上的每个人在开赛时都会自动参加，获胜者是在结束前获得最多增长的人。',
+    facts: [
+      {
+        strong: '没有格子，没有队伍',
+        rest: '一个排行榜',
+      },
+      {
+        strong: '开赛时自动参加',
+        rest: '整个名单，自动完成',
+      },
+      {
+        strong: '最多 10 个奖品名次',
+        rest: '从氏族金库支付',
+      },
+    ],
+    footnote: '棋盘（bingo）见 [举办你的第一场活动]({adminGuide})；奖品与金库见 [氏族金库]({cofferGuide})。',
+    schedule: {
+      title: '安排一场比赛',
+      intro: '五个选择，多数氏族使用默认值即可：',
+      steps: [
+        '打开管理菜单中的 **Schedule**，按 **+ Schedule event**（管理员可以使用 **Schedule a competition**）。',
+        '选择类型：**Skill of the Week**（获得的经验）、**Boss of the Week**（获得的击杀）或 **Efficiency race**（获得的 EHP 或 EHB）。',
+        '在 **What is measured** 下选择技能或首领。若要每周更换，请在 **Then rotate through** 下添加更多项。留空则重复同一项。',
+        '选择 **Runs** 的时间：**This weekend**、**One week**，或你自己的日期。它总是需要一个结束时间，因为它要计算开始与结束之间的增长。',
+        '保持 **Repeat every week** 开启，下一场会在这一场结束的那一刻开始，长度和奖品相同。如果你的氏族访客也应该参赛，请勾选 **Guests race too**。',
+      ],
+      outro: '没有其他需要设置的内容。起始数字在开始时从 hiscores 获取。',
+    },
+    counting: {
+      title: '计分方式',
+      body: [
+        '每位玩家的增长 = 其当前数据减去比赛开始时的数据（即其**起跑线**）。增长最高者获胜；并列时会按名字列出，奖品可以在并列的名次之间分配。',
+        '起跑线取自 hiscores。之后，插件的实时更新会在两次 hiscore 检查之间保持排行榜更新，因此使用插件的玩家在游戏中会在排行榜上前进。',
+        '下降的数字会被忽略，而看起来不可能的增长会被**标记**，交由工作人员处理，既不计入也不删除。',
+      ],
+      note: {
+        tag: '玩家：开赛前先登出',
+        body: '只有在你登出时，hiscores 才会保存你的数据。如果你一直练到开赛前都没有登出，你的起跑线会取自那段练级之前，而这段练级会被算作增长。工作人员通常会发现并修正你的起跑线，但开赛前请先登出一次。',
+      },
+    },
+    manage: {
+      title: '管理比赛',
+      intro: '从 **Schedule** 或仪表盘打开比赛。它有一个首页和三个标签页：',
+      rows: [
+        {
+          term: '首页',
+          body: '**Leaderboard**（前 25 名，并显示有多少人在计分）、**flagged** 的增长、已**离开氏族**的人，以及奖品。比赛结束时，会显示获胜者和 **Final leaderboard**。',
+        },
+        {
+          term: '起跑线',
+          body: '每位玩家的 **Started at**、**Now** 和 **Gained**。当比赛前的练级被计入时，手动修正起跑线，排行榜会随之更新。**Pull current stats** 会刷新所有人；**Reset baselines** 会根据现在的 hiscores 让所有人重新开始，并清除所有增长。',
+        },
+        {
+          term: '参与者',
+          body: '整个名单已经加入。**Add someone** 每行接受一个名字，适用于名单上还没有的访客或账号。移除玩家会移除其成绩；重新添加则会给他们一个新的起跑线。**Leave one each** 会清理在多个角色上报名的同一个人。你也可以一次性移除所有访客。',
+        },
+        {
+          term: '设置',
+          body: '名称、日期、**Repeat every week**，以及 **Status**（仅用于解除卡住的状态；它会自行推进）。管理员可以 **Delete** 它，连同其参与者和成绩一起删除。',
+        },
+      ],
+    },
+    prizes: {
+      title: '奖品与结束',
+      body: [
+        '为最多 10 个名次设置奖品，由氏族金库支付。你可以选择没有增长的玩家是否可以获奖，以及并列名次是否共享奖品。资金如何流动见 [氏族金库]({cofferGuide})。',
+        '它会在你设定的时间自动结束。**End now** 会提前停止：增长立即停止计分，结果会发布到 Discord，奖品会在 15 分钟内结算完毕。',
+      ],
+    },
+    players: {
+      title: '面向玩家',
+      body: [
+        '你无需报名。如果你在开赛时位于氏族名单上，你就已参加。可以在你氏族的 **Events** 页面、插件侧边面板的 **Clan** 标签（显示你的排名）中找到它，并在比赛开始和结束时在 Discord 中看到。',
+        '每场比赛都有自己的页面，展示实时排行榜以及每天的比赛进程。私人氏族只会向其自己的成员显示它。',
+        '使用插件游玩会让你的数字保持实时。不使用插件，你仍然会被计入，只是速度与 hiscores 同步。',
+      ],
+    },
+  },
+  clanEvents: {
+    metaTitle: '氏族活动与日程 — Anvil',
+    metaDescription: '在 Anvil 上安排氏族活动：集合、旅行与聚会，每周重复，“I’m going”与带名额、问题和费用的报名，Discord 帖子与提醒，奖金发放，问卷，以及显示空档的日程。',
+    eyebrow: 'Anvil · 面向氏族工作人员',
+    title: '氏族活动与日程',
+    dek: '并非一切都是棋盘。氏族活动是集合、团本夜、掉落派对或聚会：一个时间和一个地点，发布到 Discord 并发送提醒，报名多少由你决定。',
+    facts: [
+      {
+        strong: '一次或每周',
+        rest: '可选结束日期',
+      },
+      {
+        strong: '三种参与方式',
+        rest: '信息、“I’m going”或报名',
+      },
+      {
+        strong: '提醒',
+        rest: '开始前 15 分钟，然后开始时',
+      },
+    ],
+    footnote: '每周比赛见 [Skill 与 Boss of the Week]({weeklyGuide})；费用与奖金见 [费用与奖金发放]({feesGuide})。',
+    create: {
+      title: '安排一场',
+      intro: '在管理菜单中打开 **Clan events**，填写表单：',
+      rows: [
+        {
+          term: '名称、时间、时长',
+          body: '**Name**、**Starts (your time)**（按你自己的时区），以及 **Minutes**。',
+        },
+        {
+          term: '重复',
+          body: '**Just once** 或 **Every week**，可选 **Until** 日期。',
+        },
+        {
+          term: '地点',
+          body: '**Where**、**World** 和 **Host**，以及一张图片：选择首领或技能，或上传你自己的图片。',
+        },
+        {
+          term: '详情',
+          body: '装备、要求、需要带什么。',
+        },
+        {
+          term: '谁会参加',
+          body: '**Just information**（无按钮、无计数）、**“I’m going”**（一次点击，显示计数）或 **Sign-ups**（名额、问题和费用）。',
+        },
+        {
+          term: 'Discord',
+          body: '**Post to** 某个频道（或氏族默认频道），可选择链接 **Chat**、**Guide** 和 **Voice** 频道，并选择在公告、提醒和开始时是否 @ 成员身份组。',
+        },
+      ],
+      outro: '按 **Schedule it**。之后可以在活动自己的页面上添加奖金和问卷。',
+    },
+    discord: {
+      title: 'Discord 能看到什么',
+      body: [
+        '公告会在你安排活动时发布，并在你每次更改时原地编辑，因此永远不会有过时的副本。重复活动会标记为 **every week**。',
+        '开始前 15 分钟，它会发布 **Starting in 15 minutes**，开始时发布 **Starting now**。如果你更改时间，提醒也会随之移动。取消（**Cancel**）会把帖子标记为 **Cancelled**，这样就没人会赶来。',
+      ],
+    },
+    manage: {
+      title: '报名、费用与奖金',
+      intro: '打开活动以更改它使用的内容。所有内容默认都是关闭的：',
+      rows: [
+        {
+          term: '报名',
+          body: '包含 **Places**（留空即不限）、**Sign-ups close** 的时间，以及 **Sign-up questions**。**You approve each one** 会让每次报名都需要工作人员批准。',
+        },
+        {
+          term: '“I’m going” 按钮',
+          body: '关闭后它只作为信息显示：网站、插件或 Discord 中都没有按钮或计数。',
+        },
+        {
+          term: '参赛费',
+          body: '开启报名。在 **Added to the pot** 下添加你自己投入奖池的 gp。',
+        },
+        {
+          term: '奖金',
+          body: '奖池是费用加上你添加的部分。填写 **Who** 获得什么以及 **For** 什么，并将每一项标记为 **Paid**。如果你发放的金额超过奖池，Anvil 会发出警告。',
+        },
+        {
+          term: '之后的问卷',
+          body: '活动结束后开放。只有工作人员能看到答案。如果该活动有报名，则只会询问已报名的人。',
+        },
+        {
+          term: '每周活动',
+          body: '**Every week is…** **Its own**（每周各自的报名、奖池和问卷）或 **One run**（整个系列共用一次报名、奖池和问卷）。',
+        },
+      ],
+    },
+    players: {
+      title: '成员会看到什么',
+      body: [
+        '活动页面会显示 **When**、**Where**、**Host**、**Discord**、**Entry** 和 **Prizes**，活动进行中会显示 **Live now**。成员按 **I’m going** 或 **Sign me up**，或在工作人员逐一批准时按 **Ask to sign up**。它也会出现在插件侧边面板的 **Clan** 标签中，按钮相同。',
+        '只有氏族成员可以表示自己会参加或报名。',
+      ],
+    },
+    calendar: {
+      title: '日程',
+      body: [
+        '**Schedule** 将棋盘、每周比赛和氏族活动放在同一个日历上，并为每一类提供筛选。',
+        '任何两天或更长、没有安排任何内容的时段都会被标记为空档，并附带 **Fill the gap** 以便在那里安排活动。用它在大型活动之间保持氏族的活跃，而不是任由安静的两周溜走。',
+      ],
+    },
+  },
+  challenges: {
+    metaTitle: '挑战与好友活动 — Anvil',
+    metaDescription: 'Anvil 上的一对一挑战（先获得掉落、1 小时、24 小时或 7 天内击杀最多或经验最多）以及 Supporter 好友活动：通过一个邀请链接为朋友建立私人棋盘。',
+    eyebrow: 'Anvil · 面向玩家',
+    title: '挑战与好友活动',
+    dek: '在没有氏族活动的情况下与你认识的人对战的两种方式：**挑战**是一名玩家对一名玩家，**好友活动**则是一个通过邀请链接面向一群人的私人棋盘。',
+    facts: [
+      {
+        strong: '1 小时到 7 天',
+        rest: '每次挑战',
+      },
+      {
+        strong: '荣誉而已',
+        rest: '没有赌注，没有 gp',
+      },
+      {
+        strong: '最多 50 位好友',
+        rest: '每场好友活动，按档位',
+      },
+    ],
+    footnote: '各档位及其可主办的内容见 [Anvil Supporter：档位与特权]({supporterGuide})。',
+    start: {
+      title: '向某人发起挑战',
+      intro: '你需要一个已验证的角色，对方也需要。',
+      steps: [
+        '打开 [Challenges](/challenges)，或在玩家的资料上按 **Challenge <name>**。',
+        '在 **Who** 下输入对方的名字，在 **Playing as** 下选择你自己的角色。该角色必须已验证。',
+        '选择比赛方式：**First to a drop**（最多 5 件物品，均为怪物掉落）、**Most kills** 某个首领，或某项技能或总体的 **Most XP**。',
+        '选择时限：**1 hour**、**24 hours** 或 **7 days**。如果你不介意结果被公开，请勾选 **OK to show the result publicly**；只有双方都勾选时才会公开。',
+      ],
+      outro: '对方会收到通知和一条 Discord 消息，并有 24 小时进行 **Accept**、**Decline** 或 **Decline and block**。计时在对方接受时开始。',
+    },
+    rules: {
+      title: '如何判定',
+      intro: 'Anvil 会在结束后一分钟内自动判定。',
+      rows: [
+        {
+          term: '击杀与经验',
+          body: '双方的起跑线都在接受时记录；到结束时增长更多的一方获胜，增长相同则为平局。Hiscores 和插件都会计入，以较高者为准。',
+        },
+        {
+          term: '先获得掉落',
+          body: '你们中第一个获得某件物品的人当场获胜。掉落只有插件能看到，因此双方都需要运行插件。如果没有人在时限内获得，则为平局。',
+        },
+        {
+          term: '取消',
+          body: '在对方回应之前，你可以撤回自己的挑战。一旦开始进行，只有双方都同意才会停止。',
+        },
+      ],
+    },
+    limits: {
+      title: '限制与拒绝',
+      body: [
+        '未结束的挑战（等待中或进行中，发出或收到的）受档位限制：免费用户为 **1**，Supporter 为 **5**，Champion 和 Patron 不限。任何人每天最多可以发起 20 个，并且与同一人同时只能进行一个。',
+        '不想接受任何挑战？**Turn away all new challenges**，或在拒绝时屏蔽某一个人。无论哪种方式，向你发起挑战的人看到的拒绝都是一样的，因此他们无法判断自己是否被屏蔽。',
+        '页面会保留 **Your record**（胜、负和平局）、当前的 **Open now**，以及你的 **Your limit**。',
+      ],
+    },
+    friends: {
+      title: '举办好友活动',
+      body: [
+        '任何 Supporter、Champion 或 Patron 都可以从 [Host](/host) → **Host for friends** → **New friends event** 为朋友举办一个私人棋盘。它是完整的棋盘：bingo 或格子比赛，由插件追踪，设置与创作者活动相同。',
+        '发送 **Invite link**；这是唯一的入口。朋友打开它，用 Discord 登录，然后按 **Open the event**。加入永远免费。如果链接泄露，请生成新的：旧链接会失效，而已经在里面的人仍然留在其中。',
+        '好友活动永远不会在 Anvil 的任何地方列出，也不需要氏族。',
+      ],
+      table: {
+        areaLabel: '档位',
+        columns: [
+          '玩家数',
+          '同时进行数',
+        ],
+        rows: [
+          {
+            area: 'Supporter',
+            cells: [
+              '10',
+              '1',
+            ],
+          },
+          {
+            area: 'Champion',
+            cells: [
+              '25',
+              '1',
+            ],
+          },
+          {
+            area: 'Patron',
+            cells: [
+              '50',
+              '2',
+            ],
+          },
+        ],
+      },
+      note: {
+        tag: '如果你的档位结束',
+        body: '已经在其中的好友仍然留在其中。新的好友无法加入超过你新的上限的人数，而且在你回到上限以下之前，你无法开始另一场。',
+      },
+    },
+  },
+  clanHall: {
+    metaTitle: '查找氏族、活动与排行榜 — Anvil',
+    metaDescription: '在 Anvil 的 Clan Hall 中查找 OSRS 氏族，对比两个氏族，查看每周玩家与氏族排行榜、公开活动列表，以及不在 Anvil 上的氏族的游戏内氏族页面。',
+    eyebrow: 'Anvil · 面向玩家与氏族',
+    title: '查找氏族、活动与排行榜',
+    dek: 'Anvil 用于浏览的公开页面：**Clan Hall** 用于查找氏族，**Events** 列表用于找到可参加的活动，**Leaderboard** 用于查看谁的增长最多。',
+    facts: [
+      {
+        strong: 'Clan Hall',
+        rest: '仅限公开氏族',
+      },
+      {
+        strong: '排行榜',
+        rest: '本周、30 天、全部时间',
+      },
+      {
+        strong: '活动',
+        rest: '仅限主办方公开宣传的内容',
+      },
+    ],
+    footnote: '要让你自己的氏族被列出，见 [创建氏族]({clanGuide})；获得助力的氏族会被推荐，见 [为氏族助力]({boostsGuide})。',
+    hall: {
+      title: 'Clan Hall',
+      body: [
+        '[Clan Hall](/clans) 列出所有公开的氏族。按名称或标语搜索，然后缩小到 **Taking members** 或 **Open to challenges**。**Most active**（打开时的默认排序）会把本周成员增长最多的氏族排在前面；**Biggest** 则按成员数排序。',
+        '每张卡片会说明该氏族是否在 **Recruiting**，以及它如何接纳访客：**Guests welcome**、**Guests by approval** 或 **No guests**。获得助力的氏族会在顶部显示推荐行，创作者也有他们自己的一行。',
+      ],
+      note: {
+        tag: '没有列出？',
+        body: '只有设为公开的氏族才会出现，氏族也可以在其设置中关闭列出。私人氏族永远不会出现在 Clan Hall、排行榜或对比中。',
+      },
+    },
+    compare: {
+      title: '对比两个氏族',
+      body: [
+        '[Compare clans](/compare/clans) 可以将任意两个已列出的氏族并排展示。若要对比两个角色，请改用 [Compare](/compare)。',
+      ],
+    },
+    board: {
+      title: '排行榜',
+      body: [
+        '[Leaderboard](/leaderboard) 按经验、高效小时和首领击杀，在 **This week**、**30 days** 或 **All time** 中对玩家和氏族进行排名。玩家可以缩小到 **Regular**、**Ironman**、**Hardcore**、**Ultimate** 或 **Group** 账号。',
+        '氏族按其成员获得的经验排名。只有在 Clan Hall 中列出的已验证氏族才会出现。访客的增长计入他们自己的氏族，而不是他们访问的氏族。',
+      ],
+    },
+    events: {
+      title: '寻找可以参加的活动',
+      body: [
+        '[Events](/events) 列出 Anvil 上正在进行和即将到来的活动。可按 **Live now**、**Open to join** 或 **Starting this week** 筛选，按形式或 **Solo** 筛选，按 **Anyone can join** 或 **Ask or meet a rule** 筛选，并按 **Clans** 或 **Creators** 筛选。**Join** 会带你前往报名。',
+        '只有主办方开启 **Advertise on Anvil** 的活动才会出现。仅限成员和仅限邀请的活动永远不会出现。',
+      ],
+    },
+    ghost: {
+      title: '不在 Anvil 上的游戏内氏族',
+      body: [
+        '角色的页面会显示其所在的游戏内氏族。如果该氏族不在 Anvil 上，链接会打开一个普通页面，列出在 Anvil 上且选择显示的、属于该氏族的玩家。它并不是该氏族的名单，页面上的任何内容都不会使任何人成为成员。',
+        '如果这是你的氏族，**Bring your clan to Anvil** 会为其设置一个。一旦它成为公开的 Anvil 氏族，链接就会直接指向它。',
+      ],
+    },
+  },
+  guideLibrary: {
+    metaTitle: '游戏内攻略：阅读、提议与氏族副本 — Anvil',
+    metaDescription: 'Anvil 攻略库：网站、游戏内和 Discord 中的团本、首领、技能和赚钱攻略。按等级阅读、提议新攻略或修改建议，以及氏族如何复制和编辑库中的攻略。',
+    eyebrow: 'Anvil · 面向玩家与氏族工作人员',
+    title: '游戏内攻略',
+    dek: '除了这些操作指南页面，Anvil 还保存着一个游戏攻略库：团本、首领、技能与赚钱。任何人都可以阅读，任何登录的人都可以提出建议，而氏族也可以保留自己的副本。',
+    facts: [
+      {
+        strong: '三个等级',
+        rest: '入门、中级、高级',
+      },
+      {
+        strong: '任何人都可以提议',
+        rest: '工作人员审核每一份',
+      },
+      {
+        strong: '/guide',
+        rest: '在 Discord 中发布一份',
+      },
+    ],
+    footnote: '斜杠命令见 [斜杠命令]({commandsGuide})。',
+    read: {
+      title: '阅读攻略',
+      body: [
+        '在攻略页面上打开 **In-game guides** 标签，或在你氏族的网站上打开 [/guides](/guides)。氏族的列表包含它自己的攻略，以及它尚未复制的库中攻略。',
+        '许多攻略顶部有一个等级切换：**Beginner**、**Intermediate** 和 **Advanced**。其他等级的部分会折叠起来，因此新手和速通玩家读的是同一个页面。',
+        '在 Discord 中，`/guide` 以及攻略名称的开头会发布一张攻略卡片，并附带通往完整页面的链接。',
+      ],
+    },
+    propose: {
+      title: '提议攻略或修改',
+      body: [
+        '登录后，打开 [Propose a guide](/guides/propose) 来撰写新攻略，或对现有的库中攻略提出修改建议。告诉审核者你改了什么以及为什么；发送前，你可以将你的更改与当前攻略进行对比。',
+        '按 **Send for review**。[My guide proposals](/guides/proposals) 会显示每一份提议，状态为 **pending**、**approved**、**rejected** 或 **withdrawn**，并在审核后附上审核者的备注。在待审期间，你可以编辑它或 **Withdraw** 它。你最多可以同时有 5 份等待中。',
+        '在 Anvil 的攻略编辑批准之前，任何内容都不会上线。获批的修改还会更新每一个未被更改过的氏族副本。',
+      ],
+    },
+    clan: {
+      title: '你氏族的攻略',
+      intro: '管理员以及获准撰写攻略的管理员，在管理菜单的 **Guides** 下管理它们。',
+      rows: [
+        {
+          term: '在我们的网站上显示库中攻略',
+          body: '开启后：你尚未复制的库中攻略也会显示在你的 Guides 页面上，并且始终是最新的。',
+        },
+        {
+          term: '复制到我们的攻略',
+          body: '创建一个氏族副本。它会**跟随库**，直到你编辑它为止，因此会获得每一次库的更新。',
+        },
+        {
+          term: '编辑副本',
+          body: '使其变为**customised**，即氏族自己的版本。之后当库中的攻略发生变化时，它会显示 **update available**：你可以采用新版本，或保留你的版本。',
+        },
+        {
+          term: '新攻略',
+          body: '撰写一份只有你的氏族才有的攻略，例如你自己的团本规则或集合攻略。',
+        },
+      ],
+      note: {
+        tag: '发布它们',
+        body: '攻略可以发布到 Discord 频道，攻略更改时，这些帖子会原地编辑。',
       },
     },
   },

@@ -234,14 +234,26 @@ test('COMMAND_DEFINITIONS: every clan-wide command the tree advertises has a han
   assert.deepEqual([...advertised].sort(), [...CLAN_COMMAND_NAMES].sort());
 });
 
-test('COMMAND_DEFINITIONS: /setup topic choices are exactly the guide outlines', async () => {
-  // A choice the outline map doesn't know answers "I don't have a guide by that name"; an outline
-  // with no choice can't be reached. They must be the same set.
+test('COMMAND_DEFINITIONS: /setup topics are exactly the guide outlines, offered by type-ahead', async () => {
+  // A topic the outline map doesn't know answers "I don't have a guide by that name"; an outline
+  // with no topic can't be reached. They must be the same set. There are more than Discord's 25
+  // static choices allow, so the option autocompletes over SETUP_TOPICS instead.
   const guide = COMMAND_DEFINITIONS.find((c) => c.name === 'setup');
-  const topic = guide?.options?.find((o) => o.name === 'topic') as { choices?: { value: string }[] } | undefined;
-  const choiceValues = (topic?.choices ?? []).map((c) => c.value).sort();
+  const topic = guide?.options?.find((o) => o.name === 'topic') as { choices?: unknown[]; autocomplete?: boolean } | undefined;
+  assert.equal(topic?.autocomplete, true);
+  assert.equal(topic?.choices, undefined);
+  const { SETUP_TOPICS } = await import('../src/lib/discordCommandDefs.ts');
   const { GUIDE_TOPICS } = await import('../src/lib/discordGuides.ts');
-  assert.deepEqual(choiceValues, [...GUIDE_TOPICS].sort());
+  assert.deepEqual(SETUP_TOPICS.map((c) => c.value).sort(), [...GUIDE_TOPICS].sort());
+  for (const t of SETUP_TOPICS) assert.ok(t.name.length <= 100);
+});
+
+test('suggestSetupTopics: matches names and keys, never more than 25', async () => {
+  const { suggestSetupTopics } = await import('../src/lib/discordCommands.ts');
+  assert.ok(suggestSetupTopics('').length <= 25);
+  assert.equal(suggestSetupTopics('boss of the week')[0]?.value, 'weekly');
+  assert.ok(suggestSetupTopics('plugin').some((t) => t.value === 'plugin'));
+  assert.deepEqual(suggestSetupTopics('zzzz'), []);
 });
 
 // ── Autocomplete ──────────────────────────────────────────────────────────────────────────────────

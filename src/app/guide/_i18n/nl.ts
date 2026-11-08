@@ -213,6 +213,48 @@ const nl: PartialGuideDict = {
           'Een boost plaatsen en verplaatsen, de drie levels en wat elk ervan ontgrendelt, de naamkleuren van de clan, geschonken boosts, en boostertekens en badges.',
         minutes: '~5 min',
       },
+      profile: {
+        eyebrow: 'Voor spelers',
+        title: 'Je profiel, Wrapped en Compare',
+        blurb: 'Je profiel, de openbare pagina van elk character en je persoonspagina, wie die kan zien, de maandelijkse en event-Wrapped-kaarten, en het vergelijken van twee characters.',
+        minutes: '~4 min',
+      },
+      settings: {
+        eyebrow: 'Voor spelers',
+        title: 'Instellingen, pagina voor pagina',
+        blurb: 'Discord-berichten en privacy van screenshots, de chatfeed in het spel, apparaten, je eigen webhooks, wie je characters ziet, elk character, en eigendomsclaims.',
+        minutes: '~6 min',
+      },
+      challenges: {
+        eyebrow: 'Voor spelers',
+        title: 'Challenges en vriendenevents',
+        blurb: 'Daag één speler uit voor een race op drops, kills of XP, en host een privébord voor je vrienden achter één uitnodigingslink.',
+        minutes: '~4 min',
+      },
+      clanHall: {
+        eyebrow: 'Voor spelers en clans',
+        title: 'Clans, events en ranglijsten vinden',
+        blurb: 'De Clan Hall, twee clans vergelijken, de wekelijkse ranglijst, de openbare eventlijst, en pagina\'s voor in-game clans die niet op Anvil staan.',
+        minutes: '~3 min',
+      },
+      guideLibrary: {
+        eyebrow: 'Voor spelers en clanstaf',
+        title: 'In-game gidsen',
+        blurb: 'De gidsenbibliotheek per niveau lezen, een nieuwe gids of een wijziging voorstellen, en de eigen kopieën van je clan bijhouden.',
+        minutes: '~3 min',
+      },
+      weekly: {
+        eyebrow: 'Voor clanstaf en spelers',
+        title: 'Skill en Boss of the Week',
+        blurb: 'Een wekelijkse wedstrijd inplannen, herhalen en laten roteren, startlijnen, prijzen, vroegtijdig stoppen, en wat spelers zien.',
+        minutes: '~4 min',
+      },
+      clanEvents: {
+        eyebrow: 'Voor clanstaf',
+        title: 'Clanevents en de planning',
+        blurb: 'Massa\'s, raidavonden en meetups: wekelijkse herhalingen, “Ik ga” en aanmeldingen, Discord-herinneringen, uitbetalingen, enquêtes, en gaten in de planning vinden.',
+        minutes: '~4 min',
+      },
     },
   },
 
@@ -410,6 +452,25 @@ const nl: PartialGuideDict = {
         tag: 'Alleen het uiterlijk',
         body: 'Boosts veranderen hoe de clan eruitziet en waar hij vermeld staat. Ze veranderen nooit een rang, een score, je zetels of je abonnement.',
       },
+    },
+    features: {
+      title: 'Functies en abonnement',
+      intro: 'Admins kunnen hele onderdelen van Anvil aan of uit zetten onder **Features**. Uit verbergt ze in de menu\'s; er wordt niets verwijderd.',
+      rows: [
+        {
+          term: 'Events',
+          body: '**Skill & Boss of the Week** (aan), **formats met verrassingstaken** (uit), **Missions** (uit), **Enquête na het event** (uit).',
+        },
+        {
+          term: 'Geld',
+          body: '**Inschrijfkosten** (aan), **Clankas** (uit).',
+        },
+        {
+          term: 'Discord & plugin',
+          body: '**Posten naar Discord** (aan), **Dood- en plezierberichten** (uit), **Clan Hall-kaart**, die op je openbare clanpagina laat zien wie er in je Discord online is (aan).',
+        },
+      ],
+      outro: '**Plan and billing** toont je abonnement, hoeveel leden je hebt ten opzichte van de limiet, en de grotere abonnementen. Betaal je, dan staat ook **Manage subscription and invoices** er.',
     },
   },
 
@@ -996,6 +1057,63 @@ const nl: PartialGuideDict = {
         },
       ],
     },
+    screen: {
+      title: 'Op het scherm tijdens het spelen',
+      intro: 'Wat de plugin tijdens het spelen tekent en print, en de instelling achter elk onderdeel.',
+      rows: [
+        {
+          term: 'Vastgezette vakjes',
+          body: 'open een vakje in het zijpaneel en druk op **Track on screen** (tot 3). Met **Pinned tiles in one panel** aan delen ze één klein paneel: de naam van elk vakje, de voortgang van je team, en regels als _3/5 runs_ of welke delen van een combo al klaar zijn. Uit krijgt elk vakje een eigen, groter widget met je teamgenoten en de andere teams. Alt-slepen om het te verplaatsen. Klik er met de rechtermuisknop op voor **Unpin** of **Unpin all**. Een afgerond vakje toont **Done** en maakt zichzelf daarna los.',
+        },
+        {
+          term: 'De kaart van het startschot',
+          body: 'zolang een event op jouw startschot wacht, staat er bovenaan het scherm een kaart **Starting shot needed** die zegt waar je heen moet en elke controle groen of rood toont: de relog, hoe lang je sessie al duurt, en hoeveel vierkanten je van de plek af staat. Een pijl en een wereldkaartpin (**Anvil starting shot**) leiden je erheen. Met **Auto starting shot** aan wordt het startschot genomen zodra alles groen is; daarna zegt de kaart **You’re tracked** en gaat hij weg. Instelling: **Starting shot guide**.',
+        },
+        {
+          term: 'Banners',
+          body: '**Tile complete!** wanneer je team een vakje afrondt, de voortgang van je eigen drop op een vakje, en **New mission!**. Instellingen: **Team completion popups** en **My tile popups**.',
+        },
+        {
+          term: 'Vestige-rolls',
+          body: 'bij de Desert Treasure II-bossen print elk uniek item een regel met waar je in de vestige-rotatie staat, zoals _Roll 2 of 4_ of _the next unique is the vestige_. Er staat _(estimated)_ tot het je een vestige heeft zien krijgen. Geen instelling; het draait met of zonder event.',
+        },
+        {
+          term: 'Aanvullen bij zoeken',
+          body: 'typ je in het vak **Lookup** dan vult de plugin de naam voor je aan, uit je recente zoekopdrachten, vrienden, clanleden die online zijn en spelers in de buurt. **Enter** neemt het over. Hij leest alleen je eigen client; er wordt niets verstuurd.',
+        },
+        {
+          term: 'Chatkleuren',
+          body: '**[Anvil] tag colour** en **Message colour** onder **Chat messages**. Totdat je kiest, worden ze donkergoud en zwart op een ondoorzichtige chatbox, zodat ze leesbaar blijven. Hou de muis boven de naam van een Supporter in de chat om hun niveau te zien, zoals _Anvil Patron_.',
+        },
+      ],
+    },
+    sync: {
+      title: 'Profielsynchronisatie, en wat er verder naartoe gaat',
+      intro: 'De instellingen **Profile sync** vullen je Anvil-profiel. Alle vier staan aan om mee te beginnen:',
+      rows: [
+        {
+          term: 'Collectielog synchroniseren',
+          body: 'elke pagina van de collectielog die je opent, wordt naar je profiel gestuurd.',
+        },
+        {
+          term: 'Het hele log synchroniseren bij openen',
+          body: 'het openen van de collectielog stuurt het hele log, niet alleen de pagina die je bekijkt. Wil je het op verzoek, druk dan op de knop **Anvil** in de titelbalk van de collectielog, of op **Sync profile** in het zijpaneel terwijl het log open is. De chat bevestigt het: _Profile synced — N collection log slots._',
+        },
+        {
+          term: 'Persoonlijke records synchroniseren',
+          body: 'boss- en raidtijden worden verstuurd zodra je ze zet.',
+        },
+        {
+          term: 'Bestaande records eenmalig importeren',
+          body: 'eenmaal per character kopieert dit de persoonlijke records die RuneLite al op je computer heeft opgeslagen: _Imported N personal best(s) from RuneLite._',
+        },
+        {
+          term: 'Highlights met de clan delen',
+          body: 'je pets, grote drops, doden, combattaken, levelmijlpalen, nieuwe logplekken en dagboeken verschijnen op de feed van de site van je clan, en in de chatfeed van spelers die ze kunnen zien.',
+        },
+      ],
+      outro: 'Drie dingen worden verstuurd zonder eigen instelling. **Wie jou heeft gedood**: het monster of de speler die je in je laatste 15 seconden had getarget, wordt in de feed genoemd. **Spel-tellers**: sommige kill-vakjes tellen een getal dat het spel bijhoudt, zoals Tithe Farm-punten, Giants’ Foundry-reputatie, Doom delves of slayer-reeksen; alleen stijgingen tellen mee. **Leagues, Deadman en andere modi**: op die werelden worden de eigen regels van het spel over relics, gebieden en taken verstuurd, zodat je clan ze in het modekanaal kan plaatsen.',
+    },
   },
 
   admin: {
@@ -1243,6 +1361,14 @@ const nl: PartialGuideDict = {
         'Met federatie aan kunnen leden zich vanuit de plugin ook met andere Anvil-clans verbinden — handig voor events tussen clans, en per lid volledig vrijwillig.',
       outro: 'Wijs je leden daarna naar de [instelhandleiding voor spelers]({pluginGuide}) en begin de volgende te plannen.',
     },
+    survey: {
+      title: 'Vraag de spelers',
+      intro: 'Zet **Post-event survey** aan onder **Features**, en open daarna de pagina **Survey** van het event.',
+      body: [
+        'Voeg onder **Build** vragen toe: **Rating (1–5)**, **Free text**, **Choose one** of **Choose many**, elk optioneel **Required**. Of laad een sjabloon: **Bingo wrap-up**, **Quick pulse**, **PvM mass**, **Raid team** of **Skilling / social**. **Preview the participant view** toont het zoals een speler het ziet.',
+        'De enquête opent zodra het event eindigt, alleen voor goedgekeurde deelnemers, en zij kunnen hun antwoorden later nog wijzigen. **Results** toont de antwoorden **By question** of **By person**. Hij is niet anoniem: staf ziet wie wat heeft gezegd.',
+      ],
+    },
   },
 
   clanVsClan: {
@@ -1462,6 +1588,28 @@ const nl: PartialGuideDict = {
         body: 'Zet de links uit en haal de plekken in de teamstaf weg. Geen van beide verloopt vanzelf, en een actieve link op een afgelopen event is gewoon een losse draad.',
       },
     },
+    cohost: {
+      title: 'Als je de medehost bent',
+      intro: 'Alles hierboven is de kant van de host. De staf van de bezoekende clan krijgt een eigen pagina voor het event, **Co-hosted with <host>**. De host bepaalt de data, de draft, de teams en wie het kan zien.',
+      rows: [
+        {
+          term: 'De aanmeldingen van je clan',
+          body: '**Approve**, **Reject** of **Withdraw** de spelers van je eigen clan. Je ziet of raakt die van de host nooit aan.',
+        },
+        {
+          term: 'Het bord',
+          body: 'je kunt alleen bewerken als de host je staf dat heeft gegeven. Anders kun je **Suggest a tile** gebruiken: het vakje, de details en de punten, tot 25 tegelijk in de wachtrij. Elk toont **waiting**, **accepted ✓** of **turned down** met de reden van de host.',
+        },
+        {
+          term: 'Je team',
+          body: '**Manage** het team van je clan.',
+        },
+        {
+          term: 'Discord',
+          body: 'je admins kiezen wat je eigen server bereikt: **Everything shared**, **Big moments** of **Nothing**, welk kanaal, wie er een ping krijgt, en of je spelers de rol **@Bingo player** krijgen.',
+        },
+      ],
+    },
   },
 
   board: {
@@ -1654,6 +1802,36 @@ const nl: PartialGuideDict = {
         tag: 'Wie mag dit',
         body: 'Vakjes opstellen is de ene adminklus met een eigen rol. Een **editor** kan vakjes opstellen en verder niets, en kan tot bepaalde borden worden beperkt — een ingehuurde bordbouwer uit een andere clan krijgt dus precies het event dat je hem gaf, zonder toegang tot iets anders dat je draait.',
       },
+    },
+    library: {
+      title: 'De taakbibliotheek en suggesties',
+      body: [
+        'Vakjeseditors hebben **Task library** in het admin-menu: de opgeslagen taken van je clan, en de eigen bibliotheek van Anvil om van te kopiëren. **⬇ Export pack** slaat je taken op als bestand en **⬆ Import pack** laadt er één in, zo verhuist een bord tussen clans.',
+        'Een fout in de bibliotheek van Anvil gevonden, of een taak die ontbreekt? Druk op de taak op **Suggest a fix**, of op **Suggest a new task**. Anvil bekijkt het en het antwoord staat onder **Your suggestions**: **Waiting for review**, **Approved** of **Not taken**, met een notitie. Je kunt er 5 in de wachtrij hebben. Een goedgekeurde correctie komt bij elke clankopie die de bibliotheek nog volgt.',
+      ],
+    },
+    stats: {
+      title: 'Startstatistieken en late deelnemers',
+      intro: 'XP- en killtelvakjes vergelijken de huidige stats van elke speler met hun **starting stats**, die bij de start van het event worden genomen. Op de pagina **Stats** van het event controleer en corrigeer je ze:',
+      rows: [
+        {
+          term: 'Starting stats vastleggen',
+          body: 'vóór de start warmt het alleen de hiscores op; de startlijn zelf wordt bij de start genomen. Na de start wordt de knop **Capture late joiners**, voor spelers die later zijn toegevoegd. Dit kan één keer per 30 minuten.',
+        },
+        {
+          term: 'Nu bijwerken',
+          body: 'ververst de standen met de nieuwste cijfers. Ze worden ook elk uur vanzelf ververst.',
+        },
+        {
+          term: 'Basislijn corrigeren',
+          body: 'per speler: wijzig met de hand één vaardigheids- of bossgetal van de start. Gebruik dit als een grind van vóór het event is meegeteld, omdat de speler niet heeft uitgelogd voordat het begon.',
+        },
+        {
+          term: 'Alle starting stats resetten',
+          body: 'verborgen onder **Danger zone**: neemt ieders startlijn opnieuw op basis van hun huidige stats, en wist alle winst tot nu toe. Alleen voor een event dat per vergissing is gestart.',
+        },
+      ],
+      outro: 'Daaronder toont **Member breakdown** wie er in elk team wat heeft gedaan, en **Stat tile standings** de start- en huidige cijfers van elke speler op elk XP- of killvakje.',
     },
   },
 
@@ -2908,9 +3086,10 @@ const nl: PartialGuideDict = {
     viewers: {
       title: 'Wat kijkers zijn',
       body: [
-        'Een kijker die meedoet is een **eventspeler**. Hij speelt dat ene event.',
-        'Hij is geen clanlid en geen gast. Hij komt nooit op je clanlijst en krijgt geen rang.',
-        'Iedereen die zo meedeed, zie je onder **People** → **Past viewers**.',
+        'Een kijker die meedoet, is een **event player**. Die speelt alleen dat ene event.',
+        'Het zijn geen clanleden en ook geen gasten. Ze komen nooit op je clanlijst te staan en krijgen geen rang.',
+        'Alle mensen die zo zijn meegedaan, zie je onder **People** → **Past viewers**.',
+        'Een vaste kijker die je wilt houden? **Make guest** op hun rij maakt er een clangast van, zodat ze mee kunnen doen aan elk van je events die voor gasten openstaan, niet alleen dit ene. **Make a guest a viewer again** maakt van een gast weer een kijker van één event.',
       ],
     },
 
@@ -3310,6 +3489,13 @@ const nl: PartialGuideDict = {
           term: 'Discord-rollen staan los hiervan',
           body: 'de rolsynchronisatie van Anvil koppelt Discord-rollen aan **rangen in het spel**, niet aan rollen op de site. Iemand hier moderator maken geeft hem niets in jullie Discord-server, en een moderatorrol die je in Discord met de hand hebt gegeven, blijft ongemoeid. Het ene botcommando dat iets verandert, iets aan de kas toevoegen met `/coffer`, controleert de rol op de site: penningmeester, admin of eigenaar.',
         },
+      ],
+    },
+    log: {
+      title: 'Het activiteitenlogboek',
+      body: [
+        '**Activity log** in het admin-menu toont de nieuwste 200 wijzigingen, en elk stafflid kan het lezen: aanmeldingen, vertrekken, hernoemingen en verificaties, eigendomsoverdrachten, aangewezen en ingetrokken captains, aanmeldingen goedgekeurd of afgewezen, kosten bevestigd, functies aan- of uitgezet en instellingen gewijzigd. **Filter by event type** beperkt het overzicht.',
+        'Hier worden ook dubbelen opgeruimd. **Merge two members** voegt een dubbel toe aan het echte lid, en **Suspected renames** toont naamswijzigingen die Anvil voor je heeft gezien, om te bevestigen of af te wijzen.',
       ],
     },
   },
@@ -3900,6 +4086,670 @@ const nl: PartialGuideDict = {
       note: {
         tag: 'Verplaatsen zet de klok terug',
         body: 'Badges voor tijd tellen vanaf de vroegste boost van het character die nog meetelt, dus een boost verplaatsen of verwijderen laat ze opnieuw beginnen. Je profiel toont de clans die je boost, één keer per clan.',
+      },
+    },
+  },
+
+  profile: {
+    metaTitle: 'Je profiel, Wrapped en Compare — Anvil',
+    metaDescription: 'De pagina’s die Anvil over jou bijhoudt: je profiel, de openbare pagina van elk character, je persoonspagina, maandelijkse en jaarlijkse Wrapped, event-Wrapped-kaarten, en twee characters naast elkaar vergelijken.',
+    eyebrow: 'Anvil · voor spelers',
+    title: 'Je profiel, Wrapped en Compare',
+    dek: 'Anvil houdt één pagina voor **jou** en één voor **elk character** dat je speelt. Dit staat erop, wie ze kan openen, en de Wrapped-kaarten die aan het eind van elke maand en elk event verschijnen.',
+    facts: [
+      {
+        strong: 'Standaard gedeeld',
+        rest: 'zet elk character in één schakelaar op privé',
+      },
+      {
+        strong: 'Maandelijkse Wrapped',
+        rest: 'verschijnt op de 1e van de volgende maand',
+      },
+      {
+        strong: 'Event-Wrapped',
+        rest: 'verschijnt wanneer het event eindigt',
+      },
+    ],
+    footnote: 'Elke schakelaar die hier wordt genoemd, wordt uitgelegd waar hij staat in [Instellingen, pagina voor pagina]({settingsGuide}).',
+    pages: {
+      title: 'Je pagina’s',
+      intro: 'Vier pagina’s, elk met een ander antwoord:',
+      rows: [
+        {
+          term: 'Je profiel',
+          body: '[/profile](/profile), alleen door jou te zien. Kies bovenaan een character uit de chips om de levels, bossen, collectielog en events te zien. Captains krijgen hier ook een **Captain’s deck**.',
+        },
+        {
+          term: 'De pagina van een character',
+          body: '`/p/<name>`: één character, leesbaar voor iedereen met de link zolang het gedeeld is. Het toont skills, bossen, de collectielog en persoonlijke records, en laat met opzet je clanstanden, je eventgeschiedenis en je Discord-naam weg.',
+        },
+        {
+          term: 'Je persoonspagina',
+          body: '`/u/…`: al je gedeelde characters op één pagina, met je display case en de streamingaccounts die je wilt tonen. Die bestaat alleen als je **Show that my characters are one person** aanzet.',
+        },
+        {
+          term: 'De ledenpagina van een clan',
+          body: '`/c/<clan>/members/<name>`: hetzelfde character zoals één clan het ziet, bereikt vanuit de lijst **Members** van die clan. Een privéclan toont zijn leden alleen aan de eigen mensen.',
+        },
+      ],
+    },
+    sharing: {
+      title: 'Wie wat kan zien',
+      body: [
+        'Elk character begint als **gedeeld**: de pagina opent voor iedereen met de link, en het kan op ranglijsten en bij andere clans verschijnen. Zet er één uit onder **Who sees my characters** in Instellingen, dan antwoordt de pagina voor iedereen behalve jou met _not found_. Jij ziet **Private — only you can see this page.** met een link **Share it →**.',
+        'Een gedeelde pagina heeft **Copy link** onder de naam. Ingelogde bezoekers die een pagina misbruik vinden, kunnen op **Report this profile** drukken.',
+        'Per character kun je in Instellingen ook verbergen in welke in-game clan het zit (**Show my in-game clan**), zodat het van die pagina en van de Anvil-pagina van die clan verdwijnt.',
+      ],
+    },
+    wrapped: {
+      title: 'Je maandelijkse en jaarlijkse Wrapped',
+      body: [
+        'Elke maand krijgt elk character een Wrapped-kaart: **XP gained**, **Boss kills**, **New slots** in de collectielog, **Efficient** uren, **PBs**, plus pets en de grootste drop. Die verschijnt op de **1e van de volgende maand** (UTC). Tot die tijd kun alleen jij hem openen, als voorbeeld.',
+        'Het jaar krijgt er ook één, op `/p/<name>/wrapped/<year>`, vanaf **1 december**. `/p/<name>/wrapped` brengt je altijd naar de nieuwste die er is.',
+        'Druk op **Copy link to your Wrapped** om hem te delen. In Discord geplakt, toont hij zich als een afbeelding van de kaart. De Wrapped van een privécharacter opent alleen voor jou, en zijn link toont een gewone Anvil-kaart als voorbeeld.',
+      ],
+      note: {
+        tag: 'Een lege maand',
+        body: 'Als er die maand niets bij Anvil is aangekomen (geen XP, kills, logplekken of PB’s), zegt de kaart dat in plaats van nullen te tonen. Speel met de plugin, of laat de hiscores je vangen, en de volgende maand vult zich.',
+      },
+    },
+    events: {
+      title: 'Event-Wrapped',
+      body: [
+        'Wanneer een bord eindigt, krijgt elke speler en elk team een kaart. Open de pagina **Wrapped** van het event: **Your card** staat bovenaan, dan **Teams** (rang, score en spelers) en **Players**. Druk op **Open and share your card** en daarna op **Copy share link**.',
+        'Vóór het einde zie je **Cards aren’t out yet**. Staf kan een voorbeeld vroeg openen, zodat ze de kaarten kunnen controleren voordat spelers ze zien.',
+        'De kaartafbeeldingen verschijnen alleen bij een openbaar clanevent dat niet op uitnodiging was. Bij elk ander event werkt de link nog voor de mensen die dat event kunnen zien, en toont hij een gewone Anvil-kaart als voorbeeld.',
+      ],
+    },
+    compare: {
+      title: 'Twee characters vergelijken',
+      body: [
+        'Open [Compare](/compare) en typ twee namen. Je krijgt skills, bossen en collectielogpagina’s naast elkaar. De leider bij elk getal staat in goud. Daaronder staan een analyse, XP per skill, elke boss die een van jullie heeft gedood, en elk logonderdeel per item: jullie hebben het allebei, geen van beiden, of alleen één van jullie. **Swap sides** draait ze om.',
+        'Alleen gedeelde characters kunnen worden vergeleken. Een privécharacter, of een naam die Anvil niet kent, komt terug als _not on Anvil, or not shared_. Je kunt je eigen privécharacters altijd vergelijken als je bent ingelogd.',
+      ],
+    },
+  },
+  settings: {
+    metaTitle: 'Instellingen, pagina voor pagina — Anvil',
+    metaDescription: 'Elke pagina onder Anvil-instellingen: Discord-berichten en privacy van screenshots, de chatfeed in het spel, pluginverbinding en apparaten, je eigen webhooks, wie je characters ziet, Supporter- en profiellook, streamingaccounts, elk character, en eigendomsclaims.',
+    eyebrow: 'Anvil · voor spelers',
+    title: 'Instellingen, pagina voor pagina',
+    dek: '[Settings](/settings) is waar je eigen keuzes staan: wat je post, wat je in het spel ziet, wie je characters kan zien. Keuzes die je hier maakt, volgen je naar elke computer waarop je speelt.',
+    facts: [
+      {
+        strong: 'Zoekvak',
+        rest: 'op de eerste pagina vindt elke instelling',
+      },
+      {
+        strong: 'Eén pagina per character',
+        rest: 'onder Characters',
+      },
+      {
+        strong: '10 webhooks',
+        rest: 'van je eigen',
+      },
+    ],
+    footnote: 'Je profielpagina’s worden uitgelegd in [Je profiel, Wrapped en Compare]({profileGuide}); de eigen instellingen van de plugin in [RuneLite-plugin instellen]({pluginGuide}).',
+    find: {
+      title: 'Een instelling vinden',
+      body: [
+        'De eerste pagina, **Overview & search**, heeft een zoekvak. Typ wat je wilt in je eigen woorden, zoals _private messages_, _rare drop value_, _death message_, _name colour_ of _plugin token_, en het brengt je naar de juiste schakelaar.',
+        'Het menu aan de zijkant heeft twee groepen. **Account** bevat de pagina’s hieronder. **Characters** heeft één pagina per character dat je hebt gekoppeld (je hoofdcharacter is gemarkeerd met **main**), gevolgd door **Add character**. Een getal bij **Add character** betekent dat Anvil heeft gezien dat je characters speelt die je nog niet hebt gekoppeld.',
+      ],
+    },
+    posts: {
+      title: 'Discord-berichten & screenshots',
+      intro: 'Wat de plugin over jou post in de Discord-kanalen van je clans, en wat hij verbergt in screenshots. Deze keuzes worden gelezen door de volgende pluginupdate. Tot je die hebt, bepalen dezelfde schakelaars in de eigen instellingen van de plugin het.',
+      rows: [
+        {
+          term: 'Wat je plugin post',
+          body: '**Rare drops**, **Pets**, **Deaths**, **Collection log slots**, **Level milestones** en **Diary completions** staan standaard aan; **PvP kills** staat standaard uit.',
+        },
+        {
+          term: 'De getallen',
+          body: '**Min drop value** (standaard 5m, minimaal 1m, 0 zet het uit), **Min drop rarity (1 in N)** (standaard 1 op 10.000), **Loot key value** (1m), een **Death message** van maximaal 200 tekens waarin `{name}` je naam wordt, en de laagste **Combat task tier** en **Quest tier** die worden geplaatst (standaard Master).',
+        },
+        {
+          term: 'Waar je berichten naartoe gaan',
+          body: '**Keep my announcements out of clans I only guest in**, en **Level posts in clan channels**: **Clan rules**, **Only 99s & max** of **Off**. **Per character** toont elk character met een link **Clans →** om het posten voor één clan uit te zetten.',
+        },
+        {
+          term: 'Privacy van screenshots',
+          body: 'vink de chat aan die wordt weggelaten uit elke screenshot die de plugin maakt, zowel bewijzen als Discord-berichten: **Private messages** (standaard aangevinkt), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** en **Group chat**. Spelberichten en de eigen regels van Anvil blijven altijd erin.',
+        },
+      ],
+      note: {
+        tag: 'Bordvakjes worden nooit beïnvloed',
+        body: 'Een bericht uitzetten stopt alleen het Discord-bericht. Drops, kills en prestaties tellen nog steeds mee op elk bord dat je speelt.',
+      },
+    },
+    chat: {
+      title: 'Chatfeed in het spel',
+      intro: 'Wat de plugin in je chatvenster print als de plugininstelling **Show feed in game chat** aan staat.',
+      rows: [
+        {
+          term: 'Vandaan',
+          body: '**Boards I play on**, en **Clans I’m guesting in, and my clan’s guests**.',
+        },
+        {
+          term: 'Wat',
+          body: 'drops die minstens een bedrag waard zijn dat je kiest, **Pets**, **New collection log slots**, **Other teams’ completed tiles**, **My team’s progress on item tiles**, **Leagues, Deadman and other game-mode unlocks**, en combattaken, levels, quests en dagboeken.',
+        },
+        {
+          term: 'Wanneer je inlogt',
+          body: '**A short brief in chat**: wat er gebeurde terwijl je weg was. Champions kiezen wat het behandelt.',
+        },
+        {
+          term: 'Kleuren',
+          body: '**Anvil lines in chat**: **By type (Anvil colours)**, **One colour (the plugin’s own)**, of **My own colours** voor Supporters.',
+        },
+      ],
+    },
+    login: {
+      title: 'Pluginverbinding, login & apparaten',
+      intro: 'Waar de plugin en de website zijn ingelogd, en hoe je ze uitlogt.',
+      rows: [
+        {
+          term: 'Pluginverbinding',
+          body: 'je plugin-token, voor het zeldzame geval dat je hem met de hand plakt. Normaal regelt **Sign in with Discord** in het zijpaneel dit voor je.',
+        },
+        {
+          term: 'Login & apparaten',
+          body: 'elke computer waarop de plugin is ingelogd, als **RuneLite sign-in 1**, **2**… met wanneer hij is gemaakt en laatst gebruikt. **Revoke** logt er één uit, bijvoorbeeld een computer die je hebt verkocht. **Enter a code** koppelt een andere computer. **Sessions** logt je overal uit op de website.',
+        },
+        {
+          term: 'Clanfacturatie',
+          body: 'clan-eigenaars krijgen hier **Open portal →**, voor de facturatie van de clan.',
+        },
+      ],
+    },
+    webhooks: {
+      title: 'Je Discord-webhooks',
+      body: [
+        'Je berichten kunnen ook naar een eigen Discord-server: een privékanaal, een vriendenserver, overal waar je een webhook kunt maken. Plak de webhooklink, vink aan wat hij krijgt (**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**), stel eventueel **Only drops worth at least … gp** in, en druk op **Add webhook**.',
+        'Je kunt er tot 10 hebben. Alleen Discord-webhooklinks worden geaccepteerd, en een opgeslagen link wordt gemaskeerd getoond, zodat een screenshot van deze pagina hem niet lekt. **Level posts on my webhooks** stelt je eigen levelregels voor hen in, los van die van je clan.',
+      ],
+    },
+    privacy: {
+      title: 'Wie mijn characters ziet',
+      intro: 'Je characters worden in het begin gedeeld. Drie schakelaars veranderen dat:',
+      rows: [
+        {
+          term: 'Show <name> publicly',
+          body: 'één schakelaar per character. Aan (standaard), is de pagina **Public**. Uit, wordt het **Only its clans**: de clans van dat character zien het nog in hun ledenlijsten en events, niemand anders, en het verdwijnt van de ranglijsten.',
+        },
+        {
+          term: 'Show that my characters are one person',
+          body: 'met twee of meer characters maakt dit je persoonspagina, die je gedeelde characters samen toont. Uit, dan kan niemand zien dat ze allemaal van jou zijn.',
+        },
+        {
+          term: 'Show other clans’ boards',
+          body: 'of de startpagina open borden van andere clans toont om naar te kijken.',
+        },
+      ],
+    },
+    look: {
+      title: 'Supporter, profiellook, streaming en boosts',
+      intro: 'Hoe je eruitziet op Anvil, en de accounts en voordelen erachter.',
+      rows: [
+        {
+          term: 'Supporter & naamkleuren',
+          body: 'je niveau, je voordelen en je uitnodigingslink: breng vrienden mee en verdien gratis maanden. Niveaus worden uitgelegd in [Anvil Supporter]({supporterGuide}).',
+        },
+        {
+          term: 'Profiellook',
+          body: 'avatar en banner (geanimeerd vanaf Champion), per character verschillend als je wilt, en de **Display case**: 4, 8 of 12 pins, afhankelijk van het niveau.',
+        },
+        {
+          term: 'Streamingaccounts',
+          body: '**Twitch**, **YouTube**, **Kick** en **Medal**. Elk toont of het is geverifieerd, met een schakelaar om het op je profiel te tonen. Geverifieerde accounts zijn wat je toegang geeft tot events voor volgers en abonnees.',
+        },
+        {
+          term: 'Clanboosts',
+          body: 'alleen zichtbaar zodra je kunt boosten: je slots, waar ze staan en de clans die je kunt boosten. Zie [Een clan boosten]({boostsGuide}).',
+        },
+      ],
+    },
+    characters: {
+      title: 'Elk character',
+      intro: 'Onder **Characters** heeft elk character zijn eigen pagina: het type, of het is geverifieerd, en links naar de openbare pagina en het volledige profiel.',
+      rows: [
+        {
+          term: 'Zichtbaarheid',
+          body: '**Show to other clans and on leaderboards**, en **Show my in-game clan**.',
+        },
+        {
+          term: 'Clans',
+          body: 'elke clan en space waarin het zit, als **member** of **guest**, met **Announce drops & achievements** per clan en **Leave**. Heeft Anvil het in de verkeerde clan, dan vertelt **Which clan is it really in?** het aan de staf.',
+        },
+        {
+          term: 'Character',
+          body: '**Make main**, vraag om een nieuwe naam na een naamswijziging, of **Remove** het uit je account. De eerdere resultaten blijven staan waar ze staan.',
+        },
+        {
+          term: 'Add character',
+          body: 'speel een character één keer met de plugin ingelogd en het koppelt zichzelf. Op mobiel of de officiële client koppel je het op naam. **We noticed you playing** toont degenen die Anvil heeft gezien; **Not mine** verbergt er één.',
+        },
+      ],
+    },
+    claims: {
+      title: 'Eigendomsclaims',
+      body: [
+        'Is een character gekoppeld aan het Anvil-account van iemand anders, maar is het echt van jou, druk dan op **This is my account** in het tabblad **You** van het zijpaneel van de plugin. Je bewijst dat je het speelt met een snelle XP-controle, daarna wordt de huidige houder gevraagd. Jij komt nooit te weten wie zij zijn, en zij komen nooit te weten wie jij bent.',
+        'Je claims tonen **XP check**, **open**, en daarna hoe ze eindigden: **moved to you**, **with Anvil staff**, **withdrawn**, **check timed out** of **closed**. **Withdraw** annuleert er één.',
+        'Als iemand een van jouw characters claimt, staat die onder **Claims on your characters** met **Approve** of **Object — it’s mine**. Een niet-geverifieerd character verhuist na 7 dagen tenzij je bezwaar maakt. Een geverifieerd character verhuist alleen als jij het goedkeurt.',
+      ],
+    },
+  },
+  weekly: {
+    metaTitle: 'Skill en Boss of the Week — Anvil',
+    metaDescription: 'Een Skill of the Week, Boss of the Week of efficiency-race op Anvil draaien: er één inplannen, herhalen en laten roteren, startlijnen, mensen toevoegen en verwijderen, prijzen, vroegtijdig stoppen, en wat spelers zien.',
+    eyebrow: 'Anvil · voor clanstaf en spelers',
+    title: 'Skill en Boss of the Week',
+    dek: 'Een wekelijkse wedstrijd is het event met weinig werk: geen vakjes om te schrijven, geen teams en geen aanmeldingen. Iedereen op de ledenlijst doet automatisch mee bij de start, en de winnaar is wie het meeste wint voordat het eindigt.',
+    facts: [
+      {
+        strong: 'Geen vakjes, geen teams',
+        rest: 'één ranglijst',
+      },
+      {
+        strong: 'Automatisch bij de start',
+        rest: 'de hele ledenlijst',
+      },
+      {
+        strong: 'Tot 10 prijsplaatsen',
+        rest: 'betaald uit de kas',
+      },
+    ],
+    footnote: 'Borden (bingo) staan in [Je eerste event draaien]({adminGuide}); prijzen en de kas in [De clankas]({cofferGuide}).',
+    schedule: {
+      title: 'Er één inplannen',
+      intro: 'Vijf keuzes, en de standaardinstellingen zijn voor de meeste clans prima:',
+      steps: [
+        'Open **Schedule** in het admin-menu en druk op **+ Schedule event** (moderators kunnen **Schedule a competition** gebruiken).',
+        'Kies de soort: **Skill of the Week** (XP gewonnen), **Boss of the Week** (kills gewonnen) of **Efficiency race** (EHP of EHB gewonnen).',
+        'Kies onder **What is measured** de skill of boss. Wil je hem elke week veranderen, voeg dan meer toe onder **Then rotate through**. Laat dat leeg om steeds dezelfde te herhalen.',
+        'Kies wanneer het **Runs**: **This weekend**, **One week**, of je eigen data. Er moet altijd een einde zijn, want het telt de winst tussen start en einde.',
+        'Laat **Repeat every week** aan en de volgende begint op het moment dat deze eindigt, met dezelfde lengte en prijzen. Vink **Guests race too** aan als de gasten van je clan op het bord moeten staan.',
+      ],
+      outro: 'Er valt verder niets in te stellen. De startgetallen komen uit de hiscores zodra het begint.',
+    },
+    counting: {
+      title: 'Hoe er geteld wordt',
+      body: [
+        'De winst van elke speler is hun stat nu min hun stat toen de wedstrijd begon (hun **starting line**). De hoogste winst wint; een gelijke stand wordt op naam vermeld, en prijzen kunnen tussen gelijke plaatsen worden gedeeld.',
+        'Startlijnen komen uit de hiscores. Daarna houden de live-updates van de plugin het bord actueel tussen de hiscorecontroles, zodat spelers met de plugin omhoog gaan terwijl ze spelen.',
+        'Een getal dat daalt, wordt genegeerd, en een winst die onmogelijk lijkt, wordt voor de staf **flagged** in plaats van geteld of ingekort.',
+      ],
+      note: {
+        tag: 'Spelers: log uit voordat het begint',
+        body: 'De hiscores slaan je stats alleen op als je uitlogt. Grind je tot vlak voor de start zonder uit te loggen, dan wordt je startlijn genomen van vóór die grind en telt de grind als winst. De staf vangt dit meestal op en corrigeert je startlijn, maar log toch één keer uit voordat het begint.',
+      },
+    },
+    manage: {
+      title: 'Het draaien ervan',
+      intro: 'Open de wedstrijd via **Schedule** of het dashboard. Hij heeft een startpagina en drie tabbladen:',
+      rows: [
+        {
+          term: 'Home',
+          body: 'het **Leaderboard** (top 25, met hoeveel er scoren), **flagged** winsten, iedereen die de clan **left the clan**, en de prijzen. Als hij eindigt, de winnaars en de **Final leaderboard**.',
+        },
+        {
+          term: 'Startlijnen',
+          body: 'elke speler met **Started at**, **Now** en **Gained**. Corrigeer een startlijn met de hand als een grind van vóór de wedstrijd is meegeteld, en het klassement volgt. **Pull current stats** ververst iedereen; **Reset baselines** begint opnieuw voor iedereen op basis van hun huidige hiscores en wist alle winst.',
+        },
+        {
+          term: 'Deelnemers',
+          body: 'de hele ledenlijst zit er al in. **Add someone** neemt één naam per regel, voor een gast of een account dat nog niet op de ledenlijst staat. Een speler verwijderen haalt zijn stand weg; hem weer toevoegen geeft hem een nieuwe startlijn. **Leave one each** ruimt iemand op die op meerdere characters is ingevoerd. Je kunt ook alle gasten in één keer laten vallen.',
+        },
+        {
+          term: 'Instellingen',
+          body: 'naam, data, **Repeat every week**, en **Status** (alleen om er één weer in beweging te krijgen; hij schuift vanzelf door). Admins kunnen hem **Delete**, samen met de deelnemers en standen.',
+        },
+      ],
+    },
+    prizes: {
+      title: 'Prijzen en afsluiting',
+      body: [
+        'Stel prijzen in voor maximaal 10 plaatsen, betaald uit de clankas. Je kiest of een speler zonder winst kan worden betaald en of gelijke plaatsen hun prijzen delen. Hoe het geld beweegt, staat in [De clankas]({cofferGuide}).',
+        'Hij eindigt vanzelf op het tijdstip dat je instelt. **End now** stopt hem eerder: winsten tellen meteen niet meer, en de uitslag wordt naar Discord gepost met de prijzen binnen 15 minuten afgehandeld.',
+      ],
+    },
+    players: {
+      title: 'Voor spelers',
+      body: [
+        'Je meldt je niet aan. Als je op de ledenlijst van de clan staat wanneer het begint, doe je mee. Vind het op de pagina **Events** van je clan, in het tabblad **Clan** van het zijpaneel van de plugin met waar je staat, en in Discord bij start en einde.',
+        'Elke wedstrijd heeft een eigen pagina met het live klassement en hoe de race dag voor dag verliep. Een privéclan toont hem alleen aan de eigen leden.',
+        'Met de plugin spelen houdt je getal live. Zonder de plugin tel je ook mee, alleen in het tempo van de hiscores.',
+      ],
+    },
+  },
+  clanEvents: {
+    metaTitle: 'Clanevents en de planning — Anvil',
+    metaDescription: 'Clanevents op Anvil plannen: massa’s, trips en meetups, wekelijkse herhalingen, “Ik ga” en aanmeldingen met plaatsen, vragen en kosten, Discord-berichten en herinneringen, uitbetalingen, enquêtes, en de planning die gaten toont.',
+    eyebrow: 'Anvil · voor clanstaf',
+    title: 'Clanevents en de planning',
+    dek: 'Niet alles is een bord. Een clanevent is een massa, een raidavond, een dropfeest of een meetup: een tijd en een plek, geplaatst op Discord en met herinneringen, met zoveel of zo weinig aanmelding als je wilt.',
+    facts: [
+      {
+        strong: 'Eenmaal of elke week',
+        rest: 'met een optionele einddatum',
+      },
+      {
+        strong: 'Drie manieren om mee te doen',
+        rest: 'info, “Ik ga”, of aanmeldingen',
+      },
+      {
+        strong: 'Herinnering',
+        rest: '15 minuten vooraf, daarna bij de start',
+      },
+    ],
+    footnote: 'Wekelijkse wedstrijden staan in [Skill en Boss of the Week]({weeklyGuide}); kosten en prijzen in [Kosten en uitbetalingen]({feesGuide}).',
+    create: {
+      title: 'Er één inplannen',
+      intro: 'Open **Clan events** in het admin-menu en vul het formulier in:',
+      rows: [
+        {
+          term: 'Naam, tijd, duur',
+          body: '**Name**, **Starts (your time)** in je eigen tijdzone, en **Minutes**.',
+        },
+        {
+          term: 'Herhaling',
+          body: '**Just once** of **Every week**, met een optionele datum **Until**.',
+        },
+        {
+          term: 'Waar',
+          body: '**Where**, **World** en **Host**, plus een afbeelding: kies een boss of skill, of upload je eigen.',
+        },
+        {
+          term: 'Details',
+          body: 'uitrusting, eisen, wat je moet meenemen.',
+        },
+        {
+          term: 'Wie komt',
+          body: '**Just information** (geen knop, geen telling), **“I’m going”** (één tik, toont een telling) of **Sign-ups** (plaatsen, vragen en kosten).',
+        },
+        {
+          term: 'Discord',
+          body: '**Post to** een kanaal (of het standaardkanaal van de clan), optioneel de kanalen **Chat**, **Guide** en **Voice** om te koppelen, en of de memberrol bij de aankondiging, de herinnering en de start een ping krijgt.',
+        },
+      ],
+      outro: 'Druk op **Schedule it**. Uitbetalingen en een enquête worden daarna op de eigen pagina van het event toegevoegd.',
+    },
+    discord: {
+      title: 'Wat Discord ziet',
+      body: [
+        'De aankondiging gaat online zodra je hem plant en wordt ter plekke bijgewerkt zodra je iets wijzigt, dus er is nooit een verouderde kopie. Een herhalend event krijgt de markering **every week**.',
+        'Vijftien minuten vooraf plaatst het **Starting in 15 minutes**, en bij de start **Starting now**. Als je de tijd verzet, verschuiven de herinneringen mee. Afblazen (**Cancel**) markeert het bericht als **Cancelled**, zodat niemand komt opdagen.',
+      ],
+    },
+    manage: {
+      title: 'Aanmeldingen, kosten en uitbetalingen',
+      intro: 'Open het event om te wijzigen wat het gebruikt. Alles staat in het begin uit:',
+      rows: [
+        {
+          term: 'Aanmeldingen',
+          body: 'met **Places** (leeg voor geen limiet), wanneer **Sign-ups close**, en **Sign-up questions**. **You approve each one** laat elke aanmelding wachten op de staf.',
+        },
+        {
+          term: 'Knop “I’m going”',
+          body: 'uit maakt het alleen informatie: geen knop of telling op de site, in de plugin of in Discord.',
+        },
+        {
+          term: 'Inleg',
+          body: 'zet aanmeldingen aan. Voeg eigen gp toe aan de pot onder **Added to the pot**.',
+        },
+        {
+          term: 'Uitbetalingen',
+          body: 'de pot is de kosten plus wat je zelf hebt toegevoegd. Noem **Who** wat krijgt en **For** waarvoor, en markeer elk als **Paid**. Anvil waarschuwt je als je meer uitbetaalt dan de pot.',
+        },
+        {
+          term: 'Enquête achteraf',
+          body: 'opent zodra het eindigt. Alleen staf ziet de antwoorden. Als er aanmeldingen waren, wordt alleen aan de mensen die zich hebben aangemeld gevraagd.',
+        },
+        {
+          term: 'Een wekelijks event',
+          body: '**Every week is…** **Its own** (aanmeldingen, pot en enquête elke week) of **One run** (één aanmelding, pot en enquête voor de hele reeks).',
+        },
+      ],
+    },
+    players: {
+      title: 'Wat leden zien',
+      body: [
+        'De eventpagina toont **When**, **Where**, **Host**, **Discord**, **Entry** en **Prizes**, met **Live now** zolang het bezig is. Leden drukken op **I’m going** of **Sign me up**, of op **Ask to sign up** wanneer de staf elke aanmelding goedkeurt. Het staat ook in het tabblad **Clan** van het zijpaneel van de plugin, met dezelfde knoppen.',
+        'Alleen leden van de clan kunnen zeggen dat ze komen of zich aanmelden.',
+      ],
+    },
+    calendar: {
+      title: 'De planning',
+      body: [
+        '**Schedule** zet borden, wekelijkse wedstrijden en clanevents op één kalender, met een filter voor elk.',
+        'Elke periode van twee of meer dagen zonder iets ertussen wordt als gat gemarkeerd, met **Fill the gap** om er iets in te plannen. Gebruik dit om de clan bezig te houden tussen grote events door, in plaats van een rustige twee weken te laten verstrijken.',
+      ],
+    },
+  },
+  challenges: {
+    metaTitle: 'Challenges en vriendenevents — Anvil',
+    metaDescription: 'Challenges van man tegen man op Anvil (eerst een drop, de meeste kills of de meeste XP binnen 1 uur, 24 uur of 7 dagen) en vriendenevents voor Supporters: privéborden voor je vrienden achter één uitnodigingslink.',
+    eyebrow: 'Anvil · voor spelers',
+    title: 'Challenges en vriendenevents',
+    dek: 'Twee manieren om tegen mensen die je kent te spelen zonder clanevent: een **challenge** is de ene speler tegen één andere, en een **friends event** is een privébord voor een groep, achter een uitnodigingslink.',
+    facts: [
+      {
+        strong: '1 uur tot 7 dagen',
+        rest: 'per challenge',
+      },
+      {
+        strong: 'Bewijs van kunnen',
+        rest: 'geen inzet, geen gp',
+      },
+      {
+        strong: 'Tot 50 vrienden',
+        rest: 'per vriendenevent, op niveau',
+      },
+    ],
+    footnote: 'Niveaus en wat elk host, staan in [Anvil Supporter: niveaus en voordelen]({supporterGuide}).',
+    start: {
+      title: 'Daag iemand uit',
+      intro: 'Je hebt een geverifieerd character nodig, en zij ook.',
+      steps: [
+        'Open [Challenges](/challenges), of druk op **Challenge <name>** op het profiel van een speler.',
+        'Typ onder **Who** hun naam, en kies onder **Playing as** je eigen character. Het moet geverifieerd zijn.',
+        'Kies de race: **First to a drop** (tot 5 items, allemaal monsterdrops), **Most kills** van een boss, of **Most XP** in één skill of in totaal.',
+        'Kies de tijdslimiet: **1 hour**, **24 hours** of **7 days**. Vink **OK to show the result publicly** aan als je het niet erg vindt om gezien te worden; het is alleen openbaar als jullie beiden het aanvinken.',
+      ],
+      outro: 'Zij krijgen een melding en een Discord-bericht, en hebben 24 uur om te **Accept**, **Decline** of **Decline and block**. De klok start zodra zij accepteren.',
+    },
+    rules: {
+      title: 'Hoe het wordt beslist',
+      intro: 'Anvil regelt het zelf, binnen een minuut na het einde.',
+      rows: [
+        {
+          term: 'Kills en XP',
+          body: 'beide startlijnen worden genomen als het wordt geaccepteerd; wie aan het eind het meest wint, wint, en gelijke winst is gelijkspel. Hiscores en de plugin tellen allebei mee, welke het hoogst is.',
+        },
+        {
+          term: 'Eerst een drop',
+          body: 'de eerste van jullie die een van de items krijgt, wint, meteen. Drops worden alleen door de plugin gezien, dus jullie hebben er allebei een nodig. Krijgt niemand er op tijd een: gelijkspel.',
+        },
+        {
+          term: 'Afblazen',
+          body: 'je kunt je eigen challenge intrekken zolang er nog niet op is gereageerd. Zodra hij loopt, stopt hij alleen als jullie beiden akkoord gaan.',
+        },
+      ],
+    },
+    limits: {
+      title: 'Limieten en nee zeggen',
+      body: [
+        'Open challenges (wachtend of lopend, verstuurd of ontvangen) zijn beperkt per niveau: **1** gratis, **5** voor Supporters, onbeperkt voor Champions en Patrons. Iedereen kan er tot 20 per dag starten, en maar één tegelijk met dezelfde persoon.',
+        'Geen zin in? **Turn away all new challenges**, of blokkeer één persoon wanneer je weigert. Wie jou uitdaagt, ziet in beide gevallen dezelfde weigering, dus die kan niet zien dat hij is geblokkeerd.',
+        'De pagina houdt **Your record** bij (winst, verlies en gelijkspel), wat **Open now** is, en je **Your limit**.',
+      ],
+    },
+    friends: {
+      title: 'Een vriendenevent hosten',
+      body: [
+        'Elke Supporter, Champion of Patron kan een privébord voor vrienden draaien vanaf [Host](/host) → **Host for friends** → **New friends event**. Het is een volledig bord: bingo of een vakjesrace, bijgehouden door de plugin, met dezelfde opzet als het event van een maker.',
+        'Stuur de **Invite link**; het is de enige weg naar binnen. Vrienden openen hem, loggen in met Discord en drukken op **Open the event**. Meedoen is altijd gratis. Als de link uitlekt, maak een nieuwe: de oude werkt niet meer en iedereen die al binnen is, blijft binnen.',
+        'Een vriendenevent wordt nergens op Anvil vermeld, en heeft geen clan nodig.',
+      ],
+      table: {
+        areaLabel: 'Niveau',
+        columns: [
+          'Spelers',
+          'Tegelijk actief',
+        ],
+        rows: [
+          {
+            area: 'Supporter',
+            cells: [
+              '10',
+              '1',
+            ],
+          },
+          {
+            area: 'Champion',
+            cells: [
+              '25',
+              '1',
+            ],
+          },
+          {
+            area: 'Patron',
+            cells: [
+              '50',
+              '2',
+            ],
+          },
+        ],
+      },
+      note: {
+        tag: 'Als je niveau eindigt',
+        body: 'Vrienden die er al in zitten, blijven erin. Nieuwe vrienden kunnen niet meer meedoen zodra je de nieuwe limiet hebt bereikt, en je kunt er geen andere starten tot je er weer onder zit.',
+      },
+    },
+  },
+  clanHall: {
+    metaTitle: 'Clans, events en ranglijsten vinden — Anvil',
+    metaDescription: 'Een OSRS-clan vinden in de Clan Hall van Anvil, twee clans vergelijken, de wekelijkse ranglijsten voor spelers en clans, de openbare eventlijst, en pagina’s van in-game clans die niet op Anvil staan.',
+    eyebrow: 'Anvil · voor spelers en clans',
+    title: 'Clans, events en ranglijsten vinden',
+    dek: 'De openbare pagina’s van Anvil om rond te kijken: de **Clan Hall** om een clan te vinden, de lijst **Events** om iets te vinden om aan mee te doen, en het **Leaderboard** om te zien wie het meest wint.',
+    facts: [
+      {
+        strong: 'Clan Hall',
+        rest: 'alleen openbare clans',
+      },
+      {
+        strong: 'Leaderboard',
+        rest: 'deze week, 30 dagen, altijd',
+      },
+      {
+        strong: 'Events',
+        rest: 'alleen wat de host heeft aangekondigd',
+      },
+    ],
+    footnote: 'Om je eigen clan te laten vermelden, zie [Een clan starten]({clanGuide}); geboostte clans staan in de spotlight, zie [Een clan boosten]({boostsGuide}).',
+    hall: {
+      title: 'De Clan Hall',
+      body: [
+        '[Clan Hall](/clans) toont elke openbare clan. Zoek op naam of slogan, en beperk het tot **Taking members** of **Open to challenges**. **Most active** (de volgorde waarin het opent) zet clans waarvan de leden deze week het meest hebben gewonnen eerst; **Biggest** sorteert op leden.',
+        'Elke kaart zegt of de clan **Recruiting** is en hoe hij gasten opneemt: **Guests welcome**, **Guests by approval** of **No guests**. Geboostte clans krijgen de uitgelichte rijen bovenaan, en makers hebben een eigen rij.',
+      ],
+      note: {
+        tag: 'Niet vermeld?',
+        body: 'Alleen clans die op openbaar staan, verschijnen, en een clan kan zijn vermelding uitzetten in zijn instellingen. Privéclans staan nooit in de Clan Hall, het leaderboard of vergelijkingen.',
+      },
+    },
+    compare: {
+      title: 'Twee clans vergelijken',
+      body: [
+        '[Compare clans](/compare/clans) zet twee willekeurige vermelde clans naast elkaar. Wil je in plaats daarvan twee characters vergelijken, gebruik dan [Compare](/compare).',
+      ],
+    },
+    board: {
+      title: 'Het leaderboard',
+      body: [
+        '[Leaderboard](/leaderboard) rangschikt spelers en clans op ervaring, efficiënte uren en bossen over **This week**, **30 days** of **All time**. Spelers kunnen worden beperkt tot **Regular**, **Ironman**, **Hardcore**, **Ultimate** of **Group** accounts.',
+        'Clans worden gerangschikt op de XP die hun leden hebben gewonnen. Alleen geverifieerde clans die in de Clan Hall staan, verschijnen. De winst van een gast telt voor zijn eigen clan, niet voor de clan waar hij gast is.',
+      ],
+    },
+    events: {
+      title: 'Vind een event om aan mee te doen',
+      body: [
+        '[Events](/events) toont wat er op Anvil live is en wat eraan komt. Filter op **Live now**, **Open to join** of **Starting this week**, op format of **Solo**, op **Anyone can join** of **Ask or meet a rule**, en op **Clans** of **Creators**. **Join** brengt je naar de aanmelding.',
+        'Alleen events waarvan de host **Advertise on Anvil** heeft aangezet, verschijnen. Events alleen voor leden en op uitnodiging nooit.',
+      ],
+    },
+    ghost: {
+      title: 'In-game clans die niet op Anvil staan',
+      body: [
+        'De pagina van een character noemt de in-game clan waarin het zit. Staat die clan niet op Anvil, dan opent de link een eenvoudige pagina met de Anvil-spelers die erin zitten en ervoor kiezen dat te tonen. Het is niet de ledenlijst van die clan, en niets op de pagina maakt iemand lid.',
+        'Is het jouw clan, dan zet **Bring your clan to Anvil** er één op. Zodra het een openbare Anvil-clan is, gaat de link rechtstreeks ernaartoe.',
+      ],
+    },
+  },
+  guideLibrary: {
+    metaTitle: 'In-game gidsen: lezen, voorstellen en clankopieën — Anvil',
+    metaDescription: 'De gidsenbibliotheek van Anvil: gidsen voor raids, bossen, skilling en geldverdienen op de site, in het spel en in Discord. Lezen per niveau, een nieuwe gids of wijziging voorstellen, en hoe een clan bibliotheekgidsen kopieert en bewerkt.',
+    eyebrow: 'Anvil · voor spelers en clanstaf',
+    title: 'In-game gidsen',
+    dek: 'Naast deze how-to-pagina’s houdt Anvil een bibliotheek met spelgidsen bij: raids, bossen, skilling en geldverdienen. Iedereen kan ze lezen, iedereen die is ingelogd kan er een voorstellen, en een clan kan zijn eigen kopieën bewaren.',
+    facts: [
+      {
+        strong: 'Drie niveaus',
+        rest: 'Beginner, Intermediate, Advanced',
+      },
+      {
+        strong: 'Iedereen kan voorstellen',
+        rest: 'de staf bekijkt elk voorstel',
+      },
+      {
+        strong: '/guide',
+        rest: 'plaatst er één in Discord',
+      },
+    ],
+    footnote: 'Slash-commando’s staan in [Slash-commando’s]({commandsGuide}).',
+    read: {
+      title: 'Een gids lezen',
+      body: [
+        'Open het tabblad **In-game guides** op de gidsenpagina, of [/guides](/guides) op de site van je clan. De lijst van een clan heeft zijn eigen gidsen plus de bibliotheekgidsen die het nog niet heeft gekopieerd.',
+        'Veel gidsen hebben bovenaan een niveauschakelaar: **Beginner**, **Intermediate** en **Advanced**. De delen voor andere niveaus klappen in, zodat een nieuweling en een speedrunner dezelfde pagina lezen.',
+        'In Discord plaatsen `/guide` en het begin van een naam de kaart van een gids met een link naar de volledige pagina.',
+      ],
+    },
+    propose: {
+      title: 'Een gids of wijziging voorstellen',
+      body: [
+        'Ingelogd, open [Propose a guide](/guides/propose) om een nieuwe te schrijven, of stel een wijziging voor aan een bestaande bibliotheekgids. Vertel de beoordelaar wat je hebt veranderd en waarom; je kunt je wijzigingen naast de huidige gids tonen voordat je verstuurt.',
+        'Druk op **Send for review**. [My guide proposals](/guides/proposals) toont elk voorstel als **pending**, **approved**, **rejected** of **withdrawn**, met de notitie van de beoordelaar zodra er een antwoord is. Zolang het in behandeling is, kun je het bewerken of **Withdraw** doen. Je kunt er 5 tegelijk in de wachtrij hebben.',
+        'Niets gaat live totdat de gidsredacteuren van Anvil het goedkeuren. Een goedgekeurde wijziging werkt ook elke clankopie bij die niet is aangepast.',
+      ],
+    },
+    clan: {
+      title: 'De gidsen van je clan',
+      intro: 'Admins, en moderators die gidsen mogen schrijven, beheren ze onder **Guides** in het admin-menu.',
+      rows: [
+        {
+          term: 'Bibliotheekgidsen op onze site tonen',
+          body: 'aan: bibliotheekgidsen die je nog niet hebt gekopieerd, staan ook op je pagina Guides, altijd actueel.',
+        },
+        {
+          term: 'Naar onze gidsen kopiëren',
+          body: 'maakt een clankopie. Die **volgt de bibliotheek** tot je hem bewerkt, en neemt elke wijziging in de bibliotheek over.',
+        },
+        {
+          term: 'Een kopie bewerken',
+          body: 'maakt hem **aangepast**, de eigen versie van de clan. Verandert de bibliotheekgids later, dan staat er **update available**: neem de nieuwe versie of hou de jouwe.',
+        },
+        {
+          term: 'Nieuwe gids',
+          body: 'schrijft er één die alleen je clan heeft, zoals je eigen raidregels of een massagids.',
+        },
+      ],
+      note: {
+        tag: 'Ze posten',
+        body: 'Gidsen kunnen naar een Discord-kanaal worden gepost, en die berichten worden ter plekke bewerkt wanneer de gids verandert.',
       },
     },
   },

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { apexDomain } from '@/lib/clanContext';
 import { GuideShell, Note, Rows, Section } from '../_components/GuideUI';
+import { SectionBlocks } from '../_components/SectionBlocks';
 import { localeChrome } from '../_components/LanguageBar';
 import { getDict, guideHref } from '../_i18n';
 import { guideMetadata } from '../_i18n/meta';
@@ -47,6 +48,7 @@ export default async function ClanGuide({ lang }: { lang: string }) {
     { id: 'first', n: 6, title: c.first.title },
     { id: 'together', n: 7, title: c.together.title },
     { id: 'boosts', n: 8, title: c.boosts.title },
+    { id: 'features', n: 9, title: c.features.title },
   ];
 
   return (
@@ -109,6 +111,10 @@ export default async function ClanGuide({ lang }: { lang: string }) {
       <Section id="boosts" n={8} title={c.boosts.title} labels={t.common}>
         {paragraphs(c.boosts.body, v)}
         <Note tag={c.boosts.note.tag}>{rt(c.boosts.note.body, v)}</Note>
+      </Section>
+
+      <Section id="features" n={9} title={c.features.title} labels={t.common}>
+        <SectionBlocks s={c.features} v={v} />
       </Section>
     </GuideShell>
   );

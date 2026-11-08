@@ -212,6 +212,48 @@ const ko: PartialGuideDict = {
           '부스트를 놓고 옮기는 법, 세 가지 레벨과 각 레벨이 여는 것, 클랜 이름 색, 선물받은 부스트, 그리고 부스터 표시와 배지.',
         minutes: '약 5분',
       },
+      profile: {
+        eyebrow: '플레이어용',
+        title: '내 프로필, Wrapped와 Compare',
+        blurb: '내 프로필, 캐릭터별 공개 페이지와 내 개인 페이지, 누가 이 페이지들을 볼 수 있는지, 월간 및 이벤트 Wrapped 카드, 그리고 캐릭터 두 개를 비교하는 기능.',
+        minutes: '~4분',
+      },
+      settings: {
+        eyebrow: '플레이어용',
+        title: '설정, 페이지별로',
+        blurb: 'Discord 게시와 스크린샷 개인정보 보호, 게임 내 채팅 피드, 기기, 직접 만든 웹후크, 누가 내 캐릭터를 볼 수 있는지, 각 캐릭터, 그리고 소유권 주장.',
+        minutes: '~6분',
+      },
+      challenges: {
+        eyebrow: '플레이어용',
+        title: '도전과 친구 이벤트',
+        blurb: '한 명의 플레이어에게 드롭, 처치 수 또는 XP 경쟁을 걸고, 친구들을 위해 초대 링크 하나로 열리는 비공개 보드를 엽니다.',
+        minutes: '~4분',
+      },
+      clanHall: {
+        eyebrow: '플레이어와 클랜용',
+        title: '클랜, 이벤트, 리더보드 찾기',
+        blurb: 'Clan Hall, 두 클랜 비교, 주간 리더보드, 공개 이벤트 목록, 그리고 Anvil에 없는 게임 내 클랜의 페이지.',
+        minutes: '~3분',
+      },
+      guideLibrary: {
+        eyebrow: '플레이어와 클랜 운영진용',
+        title: '게임 내 공략',
+        blurb: '레벨별로 공략 라이브러리 읽기, 새 공략이나 수정 제안하기, 그리고 우리 클랜의 복사본 관리하기.',
+        minutes: '~3분',
+      },
+      weekly: {
+        eyebrow: '클랜 운영진과 플레이어용',
+        title: '주간 스킬과 보스',
+        blurb: '주간 대회 예약, 반복과 순환 설정, 시작 신호, 상품, 조기 종료, 그리고 플레이어가 보는 화면.',
+        minutes: '~4분',
+      },
+      clanEvents: {
+        eyebrow: '클랜 운영진용',
+        title: '클랜 이벤트와 일정',
+        blurb: '대규모 모임, 레이드 나이트, 모임: 주간 반복, “갑니다”와 참가 신청, Discord 알림, 지급, 설문, 그리고 일정의 빈 시간 찾기.',
+        minutes: '~4분',
+      },
     },
   },
 
@@ -409,6 +451,25 @@ const ko: PartialGuideDict = {
         tag: '겉모습만',
         body: '부스트는 클랜이 어떻게 보이고 어디에 노출되는지만 바꿉니다. 등급, 점수, 자리, 요금제는 절대 바꾸지 않습니다.',
       },
+    },
+    features: {
+      title: '기능과 요금제',
+      intro: '관리자는 **Features** 아래에서 Anvil의 기능 묶음 전체를 켜거나 끌 수 있습니다. 끄면 메뉴에서 숨겨지며, 아무것도 삭제되지 않습니다.',
+      rows: [
+        {
+          term: '이벤트',
+          body: '**Skill & Boss of the Week** (켜짐), **Surprise-task formats** (꺼짐), **Missions** (꺼짐), **Post-event survey** (꺼짐).',
+        },
+        {
+          term: '돈',
+          body: '**Sign-up fees** (켜짐), **Clan coffer** (꺼짐).',
+        },
+        {
+          term: 'Discord와 플러그인',
+          body: '**Post to Discord** (켜짐), **Death & fun messages** (꺼짐), **Clan Hall card**: 공개 클랜 페이지에 내 Discord에서 누가 온라인인지 표시 (켜짐).',
+        },
+      ],
+      outro: '**Plan and billing**에서 현재 요금제, 정원 대비 멤버 수, 더 큰 요금제를 볼 수 있습니다. 결제 중이라면 **Manage subscription and invoices**도 거기 있습니다.',
     },
   },
 
@@ -995,6 +1056,63 @@ const ko: PartialGuideDict = {
         },
       ],
     },
+    screen: {
+      title: '플레이 중 화면에 보이는 것',
+      intro: '플러그인이 플레이 중에 화면에 그리고 출력하는 것과 각각을 제어하는 설정.',
+      rows: [
+        {
+          term: '고정된 타일',
+          body: '사이드 패널에서 타일을 열고 **Track on screen**을 누르세요 (최대 3개). **Pinned tiles in one panel**이 켜져 있으면 하나의 작은 패널을 함께 씁니다: 각 타일의 이름, 팀 진행도, 그리고 _3/5 runs_ 같은 줄이나 콤보에서 끝난 부분. 꺼져 있으면 각 타일이 팀원과 다른 팀을 보여 주는 더 큰 위젯을 따로 갖습니다. Alt-드래그로 옮기세요. 우클릭하면 **Unpin** 또는 **Unpin all**이 있습니다. 끝난 타일은 **Done**을 표시한 뒤 스스로 고정이 해제됩니다.',
+        },
+        {
+          term: '시작 신호 카드',
+          body: '이벤트가 내 시작 신호를 기다리는 동안, 화면 상단의 **Starting shot needed** 카드가 어디로 가야 하는지 알려 주고 각 확인 항목을 초록 또는 빨강으로 보여 줍니다: 재접속, 세션 경과 시간, 지점까지 남은 칸 수. 힌트 화살표와 세계 지도 핀(**Anvil starting shot**)이 그곳으로 안내합니다. **Auto starting shot**이 켜져 있으면 모든 항목이 초록이 되는 순간 자동으로 시작되고, 카드에 **You’re tracked**가 표시된 뒤 사라집니다. 설정: **Starting shot guide**.',
+        },
+        {
+          term: '배너',
+          body: '내 팀이 타일을 끝내면 **Tile complete!**, 타일에서 내 드롭의 진행도, 그리고 **New mission!**. 설정: **Team completion popups**와 **My tile popups**.',
+        },
+        {
+          term: 'Vestige 굴림',
+          body: 'Desert Treasure II 보스에서 각 고유 아이템마다 vestige 회전에서 현재 위치를 알려 주는 줄이 나옵니다. 예: _Roll 2 of 4_ 또는 _the next unique is the vestige_. vestige를 얻는 모습을 보기 전까지는 _(estimated)_로 표시됩니다. 따로 설정은 없으며 이벤트 유무와 관계없이 작동합니다.',
+        },
+        {
+          term: 'Lookup 자동완성',
+          body: '**Lookup** 상자에 입력하면 최근 조회, 친구, 온라인 클랜원, 근처 플레이어 목록에서 이름을 완성해 줍니다. **Enter**로 확정합니다. 내 클라이언트에서만 읽으며 아무것도 전송되지 않습니다.',
+        },
+        {
+          term: '채팅 색상',
+          body: '**Chat messages** 아래의 **[Anvil] tag colour**와 **Message colour**. 고르기 전에는 불투명한 채팅창에서도 잘 보이도록 진한 금색과 검정으로 표시됩니다. 채팅에서 서포터의 이름에 마우스를 올리면 _Anvil Patron_ 같은 등급이 보입니다.',
+        },
+      ],
+    },
+    sync: {
+      title: '프로필 동기화와 그 밖에 보내는 것',
+      intro: '**Profile sync** 설정이 내 Anvil 프로필을 채웁니다. 시작할 때는 네 가지가 모두 켜져 있습니다:',
+      rows: [
+        {
+          term: '컬렉션 로그 동기화',
+          body: '열어 보는 컬렉션 로그 페이지마다 프로필로 전송됩니다.',
+        },
+        {
+          term: '열 때 전체 로그 동기화',
+          body: '컬렉션 로그를 열면 보고 있는 페이지뿐 아니라 전체가 전송됩니다. 원할 때 하려면 컬렉션 로그 제목 표시줄의 **Anvil** 버튼을 누르거나, 로그가 열린 상태에서 사이드 패널의 **Sync profile**을 누르세요. 채팅에 확인 메시지가 뜹니다: _Profile synced — N collection log slots._',
+        },
+        {
+          term: '개인 최고 기록 동기화',
+          body: '보스와 레이드 기록은 설정하는 대로 전송됩니다.',
+        },
+        {
+          term: '기존 기록 한 번 가져오기',
+          body: '캐릭터당 한 번, 컴퓨터에 이미 RuneLite가 저장해 둔 개인 최고 기록을 복사합니다: _Imported N personal best(s) from RuneLite._',
+        },
+        {
+          term: '하이라이트를 클랜과 공유',
+          body: '펫, 큰 드롭, 사망, 전투 과제, 레벨 달성, 새 로그 슬롯, 다이어리가 클랜 사이트의 피드와, 이를 볼 수 있는 플레이어의 채팅 피드에 나타납니다.',
+        },
+      ],
+      outro: '설정이 따로 없는 것 세 가지도 전송됩니다. **Who killed you**: 마지막 15초 동안 내가 타겟으로 잡고 있던 몬스터나 플레이어가 피드에 표시됩니다. **Game counters**: 일부 처치 타일은 게임이 기록하는 수치를 셉니다. 예: Tithe Farm 점수, Giants’ Foundry 평판, Doom 탐험, 슬레이어 연속 기록. 증가만 집계됩니다. **Leagues, Deadman 및 기타 모드**: 해당 월드에서는 게임이 출력하는 유물, 지역, 과제 관련 줄이 전송되어 클랜이 모드 채널에 올릴 수 있습니다.',
+    },
   },
 
   admin: {
@@ -1242,6 +1360,14 @@ const ko: PartialGuideDict = {
         '연합을 켜면 멤버들이 플러그인에서 다른 Anvil 클랜에도 연결할 수 있습니다 —— 클랜 간 이벤트에 편리하고, 멤버별로 완전히 선택 사항입니다.',
       outro: '그다음 멤버들을 [플레이어용 설정 가이드]({pluginGuide})로 안내하고, 다음 이벤트를 준비하세요.',
     },
+    survey: {
+      title: '플레이어에게 묻기',
+      intro: '**Features**에서 **Post-event survey**를 켠 다음, 이벤트의 **Survey** 페이지를 여세요.',
+      body: [
+        '**Build** 아래에서 질문을 추가하세요: **Rating (1–5)**, **Free text**, **Choose one** 또는 **Choose many**. 각 질문은 선택적으로 **Required**로 설정할 수 있습니다. 또는 템플릿을 불러오세요: **Bingo wrap-up**, **Quick pulse**, **PvM mass**, **Raid team** 또는 **Skilling / social**. **Preview the participant view**는 플레이어가 보게 될 모습을 보여 줍니다.',
+        '이벤트가 끝나면 승인된 참가자에게만 열리며, 참가자는 나중에 답변을 바꿀 수 있습니다. **Results**에서 **By question** 또는 **By person** 기준으로 답변을 볼 수 있습니다. 익명이 아니므로 운영진은 누가 무엇을 답했는지 볼 수 있습니다.',
+      ],
+    },
   },
 
   clanVsClan: {
@@ -1461,6 +1587,28 @@ const ko: PartialGuideDict = {
         body: '링크를 끄고 팀 스태프 자리를 회수하세요. 둘 다 저절로 만료되지 않고, 끝난 이벤트에 살아 있는 링크는 그저 풀린 실 한 가닥일 뿐입니다.',
       },
     },
+    cohost: {
+      title: '공동 호스트라면',
+      intro: '위 내용은 모두 호스트 쪽 설명입니다. 방문 클랜의 운영진은 이벤트를 위한 자신들만의 페이지 **Co-hosted with <host>**를 받습니다. 날짜, 초안, 팀, 그리고 누가 볼 수 있는지는 호스트가 관리합니다.',
+      rows: [
+        {
+          term: '우리 클랜의 참가 신청',
+          body: '우리 클랜 플레이어를 **Approve**, **Reject** 또는 **Withdraw**할 수 있습니다. 호스트 쪽 신청은 보거나 건드릴 수 없습니다.',
+        },
+        {
+          term: '보드',
+          body: '호스트가 운영진에게 권한을 준 경우에만 편집할 수 있습니다. 그렇지 않다면 **Suggest a tile**을 할 수 있습니다: 타일, 세부 내용, 점수를 적어 최대 25개까지 대기시킬 수 있습니다. 각 제안은 **waiting**, **accepted ✓** 또는 **turned down**으로 표시되며, 호스트의 사유가 함께 보입니다.',
+        },
+        {
+          term: '우리 팀',
+          body: '우리 클랜의 팀을 **Manage**하세요.',
+        },
+        {
+          term: 'Discord',
+          body: '우리 클랜 관리자가 자기 서버로 무엇이 전달될지 고릅니다: **Everything shared**, **Big moments** 또는 **Nothing**, 어떤 채널인지, 누구에게 멘션이 가는지, 그리고 우리 플레이어가 **@Bingo player** 역할을 받을지 여부.',
+        },
+      ],
+    },
   },
 
   board: {
@@ -1653,6 +1801,36 @@ const ko: PartialGuideDict = {
         tag: '누가 이 일을 할 수 있나',
         body: '칸 작성은 전용 역할이 있는 유일한 관리 업무입니다. **editor**는 칸을 만드는 것 말고는 아무것도 못 하고, 특정 보드로 한정할 수도 있습니다 —— 그래서 다른 클랜에서 초대한 제작자는 당신이 넘겨준 그 이벤트만 받게 되고, 당신이 굴리는 다른 어떤 것에도 접근하지 못합니다.',
       },
+    },
+    library: {
+      title: '과제 라이브러리와 제안',
+      body: [
+        '타일 편집자는 관리자 메뉴의 **Task library**를 쓸 수 있습니다: 우리 클랜에 저장된 과제와, 복사해 올 수 있는 Anvil 자체 라이브러리. **⬇ Export pack**은 과제를 파일로 저장하고, **⬆ Import pack**은 파일을 불러옵니다. 보드를 클랜 사이에 옮길 때 이 방식을 씁니다.',
+        'Anvil 라이브러리에서 잘못된 부분을 찾았거나 빠진 과제가 있나요? 과제에서 **Suggest a fix**를 누르거나 **Suggest a new task**를 누르세요. Anvil이 검토하며, 답변은 **Your suggestions** 아래에 **Waiting for review**, **Approved** 또는 **Not taken**과 메모로 표시됩니다. 대기 중인 제안은 5개까지 가능합니다. 승인된 수정은 라이브러리를 계속 따르는 모든 클랜 복사본에 반영됩니다.',
+      ],
+    },
+    stats: {
+      title: '시작 스탯과 늦게 합류한 플레이어',
+      intro: 'XP와 처치 수 타일은 각 플레이어의 현재 스탯을 이벤트 시작 시 찍은 **starting stats**와 비교합니다. 이벤트의 **Stats** 페이지에서 이를 확인하고 고칠 수 있습니다:',
+      rows: [
+        {
+          term: '시작 스탯 캡처',
+          body: '시작 전에는 순위표(hiscores)만 미리 데울 뿐이며, 실제 시작선은 시작 시점에 잡힙니다. 시작 후에는 버튼이 **Capture late joiners**로 바뀌어, 그 뒤에 추가된 플레이어를 기록합니다. 30분에 한 번만 실행할 수 있습니다.',
+        },
+        {
+          term: '지금 업데이트',
+          body: '최신 수치로 순위를 새로 고칩니다. 순위도 한 시간마다 자동으로 새로 고쳐집니다.',
+        },
+        {
+          term: '기준선 수정',
+          body: '플레이어별로 스킬이나 보스의 시작 수치 하나를 직접 바꿉니다. 이벤트 시작 전에 로그아웃하지 않아서 시작 전 사냥이 집계되었을 때 사용하세요.',
+        },
+        {
+          term: '모든 시작 스탯 재설정',
+          body: '**Danger zone** 아래에 숨겨져 있습니다: 지금의 스탯으로 모든 사람의 시작선을 다시 잡아, 지금까지의 증가를 모두 지웁니다. 실수로 시작된 이벤트에만 사용하세요.',
+        },
+      ],
+      outro: '그 아래 **Member breakdown**에서는 각 팀에서 누가 무엇을 했는지 보여 주고, **Stat tile standings**에서는 XP 또는 처치 타일마다 모든 플레이어의 시작 수치와 현재 수치를 보여 줍니다.',
     },
   },
 
@@ -2908,9 +3086,10 @@ const ko: PartialGuideDict = {
     viewers: {
       title: '시청자란',
       body: [
-        '참여한 시청자는 **event player**입니다. 그 이벤트 하나만 플레이해요.',
-        '클랜 멤버도 게스트도 아닙니다. 클랜 목록에 올라가지 않고, 계급도 받지 않아요.',
-        '이렇게 참여한 사람은 모두 **People** → **Past viewers**에서 볼 수 있어요.',
+        '합류한 시청자는 **event player**입니다. 그 이벤트 하나만 플레이합니다.',
+        '클랜 멤버도 게스트도 아닙니다. 클랜 목록에 올라가지 않으며 계급도 받지 않습니다.',
+        '이런 방식으로 들어온 모든 사람은 **People** → **Past viewers**에서 볼 수 있습니다.',
+        '계속 함께하고 싶은 단골이 있나요? 그 사람의 행에서 **Make guest**를 누르면 클랜 게스트가 되어, 이 이벤트뿐 아니라 게스트에게 열린 이벤트 어디든 참여할 수 있습니다. **Make a guest a viewer again**은 게스트를 다시 한 이벤트의 시청자로 되돌립니다.',
       ],
     },
 
@@ -3309,6 +3488,13 @@ const ko: PartialGuideDict = {
           term: 'Discord 역할은 별개입니다',
           body: 'Anvil의 역할 동기화는 Discord 역할을 사이트 역할이 아니라 **게임 내 등급**에 맞춥니다. 여기서 누군가를 관리자로 만들어도 Discord 서버에서는 아무것도 생기지 않고, Discord에서 직접 준 관리자 역할도 그대로 둡니다. 무언가를 바꾸는 봇 명령은 단 하나 —— `/coffer`로 금고에 추가하기 —— 이고, 이것은 사이트 역할(회계 담당, admin, 소유자)을 확인합니다.',
         },
+      ],
+    },
+    log: {
+      title: '활동 로그',
+      body: [
+        '관리자 메뉴의 **Activity log**는 최근 200개의 변경 내역을 보여 주며, 모든 운영진이 읽을 수 있습니다: 가입, 탈퇴, 이름 변경, 인증, 소유권 이전, 주장 임명 및 해제, 참가 신청 승인 또는 거절, 참가비 확인, 기능 전환, 설정 변경. **Filter by event type**으로 범위를 좁힙니다.',
+        '중복 정리도 여기서 합니다. **Merge two members**는 중복 항목을 실제 멤버로 합치고, **Suspected renames**는 Anvil이 찾아낸 이름 변경 목록을 보여 주어 확인하거나 거절할 수 있게 합니다.',
       ],
     },
   },
@@ -3898,6 +4084,670 @@ const ko: PartialGuideDict = {
       note: {
         tag: '옮기면 시계가 다시 시작됩니다',
         body: '기간 배지는 그 캐릭터의 아직 집계 중인 가장 오래된 부스트부터 셉니다. 그래서 부스트를 옮기거나 빼면 처음부터 다시 셉니다. 내 프로필에는 내가 부스트하는 클랜이 클랜마다 한 번씩 나열됩니다.',
+      },
+    },
+  },
+
+  profile: {
+    metaTitle: '내 프로필, Wrapped와 Compare — Anvil',
+    metaDescription: 'Anvil이 여러분에 대해 보관하는 페이지들: 프로필, 캐릭터별 공개 페이지, 개인 페이지, 월간 및 연간 Wrapped, 이벤트 Wrapped 카드, 그리고 캐릭터 두 개를 나란히 비교하는 페이지.',
+    eyebrow: 'Anvil · 플레이어용',
+    title: '내 프로필, Wrapped와 Compare',
+    dek: 'Anvil은 **여러분**을 위한 페이지 하나와, 여러분이 플레이하는 **캐릭터마다** 하나씩 페이지를 보관합니다. 그 페이지에 무엇이 있는지, 누가 열어 볼 수 있는지, 그리고 매달과 이벤트가 끝날 때마다 나오는 Wrapped 카드를 정리했습니다.',
+    facts: [
+      {
+        strong: '기본값은 공유',
+        rest: '스위치 하나로 어떤 캐릭터든 비공개로 전환',
+      },
+      {
+        strong: '월간 Wrapped',
+        rest: '다음 달 1일에 공개',
+      },
+      {
+        strong: '이벤트 Wrapped',
+        rest: '이벤트가 끝나면 공개',
+      },
+    ],
+    footnote: '여기 언급된 모든 스위치는 [설정, 페이지별로]({settingsGuide})에서 있는 곳마다 설명되어 있습니다.',
+    pages: {
+      title: '내 페이지',
+      intro: '네 개의 페이지가 각각 다른 질문에 답합니다:',
+      rows: [
+        {
+          term: '내 프로필',
+          body: '[/profile](/profile), 오직 나만 볼 수 있습니다. 위쪽 칩에서 캐릭터를 고르면 레벨, 보스, 컬렉션 로그, 이벤트를 볼 수 있습니다. 캡틴은 여기서 **Captain’s deck**도 봅니다.',
+        },
+        {
+          term: '캐릭터 페이지',
+          body: '`/p/<name>`: 공유되는 동안 링크를 가진 누구나 읽을 수 있는 캐릭터 하나. 스킬, 보스, 컬렉션 로그, 개인 최고 기록을 보여 주며, 일부러 클랜 순위, 이벤트 기록, Discord 이름은 빼 둡니다.',
+        },
+        {
+          term: '개인 페이지',
+          body: '`/u/…`: 공유된 캐릭터를 모두 한 페이지에 모아 보여 주며, 전시 진열대와 골라서 보여 주기로 한 스트리밍 계정이 함께 있습니다. **Show that my characters are one person**을 켰을 때만 존재합니다.',
+        },
+        {
+          term: '클랜의 멤버 페이지',
+          body: '`/c/<clan>/members/<name>`: 한 클랜이 보는 것과 같은 캐릭터 페이지로, 그 클랜의 **Members** 목록에서 들어갑니다. 비공개 클랜은 자기 구성원에게만 멤버를 보여 줍니다.',
+        },
+      ],
+    },
+    sharing: {
+      title: '누가 무엇을 볼 수 있나',
+      body: [
+        '모든 캐릭터는 처음에 **shared** 상태로 시작합니다. 페이지는 링크를 가진 누구에게나 열리며, 리더보드와 다른 클랜에도 나타날 수 있습니다. 설정의 **Who sees my characters**에서 끄면 나 말고는 모두에게 그 페이지가 _not found_로 나옵니다. 나에게는 **Private — only you can see this page.**와 **Share it →** 링크가 보입니다.',
+        '공유된 페이지에는 이름 아래 **Copy link**가 있습니다. 로그인한 방문자가 페이지가 악의적이라고 생각하면 **Report this profile**을 누를 수 있습니다.',
+        '캐릭터별로 설정에서 그 캐릭터가 속한 게임 내 클랜을 숨길 수도 있습니다(**Show my in-game clan**). 그러면 그 캐릭터의 페이지와 그 클랜의 Anvil 페이지에서 사라집니다.',
+      ],
+    },
+    wrapped: {
+      title: '월간 및 연간 Wrapped',
+      body: [
+        '매달 캐릭터마다 Wrapped 카드가 하나씩 생깁니다: **XP gained**, **Boss kills**, 컬렉션 로그의 **New slots**, **Efficient** 시간, **PBs**, 그리고 펫과 가장 큰 드롭. **다음 달 1일**(UTC)에 공개됩니다. 그 전까지는 나만 미리보기로 열 수 있습니다.',
+        '연간 카드도 있으며 `/p/<name>/wrapped/<year>`에서 **12월 1일**부터 볼 수 있습니다. `/p/<name>/wrapped`는 언제나 가장 최근 카드로 이동합니다.',
+        '**Copy link to your Wrapped**를 눌러 공유하세요. Discord에 붙여 넣으면 카드 그림으로 펼쳐집니다. 비공개 캐릭터의 Wrapped는 나만 열 수 있으며, 그 링크는 평범한 Anvil 카드로 미리보기됩니다.',
+      ],
+      note: {
+        tag: '빈 달',
+        body: '그 달에 Anvil에 아무것도 도착하지 않았다면(XP, 처치, 로그 슬롯, PB 없음) 카드에 0을 보여 주는 대신 그렇다고 알려 줍니다. 플러그인으로 플레이하거나 순위표가 여러분을 잡아 주면 다음 달에는 채워집니다.',
+      },
+    },
+    events: {
+      title: '이벤트 Wrapped',
+      body: [
+        '보드가 끝나면 모든 플레이어와 모든 팀이 카드를 받습니다. 이벤트의 **Wrapped** 페이지를 여세요. 맨 위에 **Your card**, 그다음 **Teams**(순위, 점수, 플레이어)와 **Players**가 있습니다. **Open and share your card**를 누른 뒤 **Copy share link**를 누르세요.',
+        '끝나기 전에는 **Cards aren’t out yet**이 보입니다. 운영진은 플레이어가 보기 전에 카드를 확인할 수 있도록 미리보기를 먼저 열 수 있습니다.',
+        '카드 그림은 초대 전용이 아닌 공개 클랜의 이벤트에서만 나옵니다. 그 밖의 이벤트는 해당 이벤트를 볼 수 있는 사람에게만 링크가 작동하며, 평범한 Anvil 카드로 미리보기됩니다.',
+      ],
+    },
+    compare: {
+      title: '캐릭터 두 개 비교',
+      body: [
+        '[Compare](/compare)를 열고 이름 두 개를 입력하세요. 스킬, 보스, 컬렉션 로그 페이지를 나란히 볼 수 있습니다. 각 항목에서 앞서는 쪽은 금색으로 표시됩니다. 그 아래에는 분석, 스킬별 XP, 둘 중 한 명이라도 잡은 모든 보스, 그리고 로그 페이지의 항목별 비교(둘 다 가짐, 둘 다 없음, 한 명만 가짐)가 있습니다. **Swap sides**로 좌우를 바꿉니다.',
+        '공유된 캐릭터만 비교할 수 있습니다. 비공개 캐릭터나 Anvil이 모르는 이름이면 _not on Anvil, or not shared_가 나옵니다. 로그인한 상태라면 내 비공개 캐릭터는 언제든 비교할 수 있습니다.',
+      ],
+    },
+  },
+  settings: {
+    metaTitle: '설정, 페이지별로 — Anvil',
+    metaDescription: 'Anvil 설정 아래의 모든 페이지: Discord 게시와 스크린샷 개인정보 보호, 게임 내 채팅 피드, 플러그인 연결과 기기, 직접 만든 웹후크, 누가 내 캐릭터를 볼 수 있는지, Supporter와 프로필 모양, 스트리밍 계정, 각 캐릭터, 소유권 주장.',
+    eyebrow: 'Anvil · 플레이어용',
+    title: '설정, 페이지별로',
+    dek: '[Settings](/settings)에는 내 선택이 모여 있습니다: 무엇을 게시할지, 게임에서 무엇을 볼지, 누가 내 캐릭터를 볼 수 있을지. 여기서 한 선택은 내가 플레이하는 모든 컴퓨터를 따라갑니다.',
+    facts: [
+      {
+        strong: '검색 상자',
+        rest: '첫 페이지에서 어떤 설정이든 찾습니다',
+      },
+      {
+        strong: '캐릭터마다 한 페이지',
+        rest: 'Characters 아래',
+      },
+      {
+        strong: '웹후크 10개',
+        rest: '직접 만든 것',
+      },
+    ],
+    footnote: '프로필 페이지는 [내 프로필, Wrapped와 Compare]({profileGuide})에서, 플러그인 자체 설정은 [RuneLite 플러그인 설정]({pluginGuide})에서 설명합니다.',
+    find: {
+      title: '설정 찾기',
+      body: [
+        '첫 페이지인 **Overview & search**에는 검색 상자가 있습니다. 원하는 것을 내 말로 입력하세요. 예: _private messages_, _rare drop value_, _death message_, _name colour_ 또는 _plugin token_. 맞는 스위치로 바로 이동합니다.',
+        '왼쪽 메뉴는 두 그룹입니다. **Account**에는 아래 페이지들이 있습니다. **Characters**에는 연결한 캐릭터마다 한 페이지가 있고(메인 캐릭터에는 **main** 표시), 그다음 **Add character**가 있습니다. **Add character**의 숫자는 Anvil이 아직 연결하지 않은 캐릭터로 플레이하는 것을 봤다는 뜻입니다.',
+      ],
+    },
+    posts: {
+      title: 'Discord 게시와 스크린샷',
+      intro: '플러그인이 내 클랜들의 Discord 채널에 나에 대해 무엇을 게시하는지, 그리고 스크린샷에서 무엇을 가리는지. 이 선택은 다음 플러그인 업데이트에서 읽힙니다. 그 전까지는 플러그인 자체 설정의 같은 스위치가 결정합니다.',
+      rows: [
+        {
+          term: '플러그인이 게시하는 것',
+          body: '**Rare drops**, **Pets**, **Deaths**, **Collection log slots**, **Level milestones**, **Diary completions**는 켜진 상태로 시작하고, **PvP kills**는 꺼진 상태로 시작합니다.',
+        },
+        {
+          term: '숫자들',
+          body: '**Min drop value** (기본 5m, 최소 1m, 0이면 끔), **Min drop rarity (1 in N)** (기본 1/10,000), **Loot key value** (1m), 최대 200자의 **Death message** (`{name}`은 내 이름으로 바뀜), 그리고 게시될 가장 낮은 **Combat task tier**와 **Quest tier** (기본 Master).',
+        },
+        {
+          term: '게시물이 가는 곳',
+          body: '**Keep my announcements out of clans I only guest in**, 그리고 클랜 채널의 **Level posts in clan channels**: **Clan rules**, **Only 99s & max** 또는 **Off**. **Per character**에는 캐릭터마다 목록이 있고, **Clans →** 링크로 한 클랜에 대해서만 게시를 끌 수 있습니다.',
+        },
+        {
+          term: '스크린샷 개인정보 보호',
+          body: '모든 스크린샷에서 제외할 채팅을 체크하세요. 플러그인이 찍는 것, 증명 사진, Discord 게시물 모두 해당됩니다: **Private messages**(기본 체크), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel**, **Group chat**. 게임 메시지와 Anvil 자체 줄은 항상 포함됩니다.',
+        },
+      ],
+      note: {
+        tag: '보드 타일은 절대 영향을 받지 않음',
+        body: '게시를 끄면 Discord 게시만 멈춥니다. 드롭, 처치, 업적은 여러분이 플레이하는 보드에서 계속 집계됩니다.',
+      },
+    },
+    chat: {
+      title: '게임 내 채팅 피드',
+      intro: '플러그인 설정 **Show feed in game chat**이 켜져 있을 때 채팅창에 출력되는 것.',
+      rows: [
+        {
+          term: '출처',
+          body: '**Boards I play on**, 그리고 **Clans I’m guesting in, and my clan’s guests**.',
+        },
+        {
+          term: '내용',
+          body: '내가 고른 금액 이상의 드롭, **Pets**, **New collection log slots**, **Other teams’ completed tiles**, **My team’s progress on item tiles**, **Leagues, Deadman and other game-mode unlocks**, 그리고 전투 업적, 레벨, 퀘스트, 다이어리.',
+        },
+        {
+          term: '로그인할 때',
+          body: '**A short brief in chat**: 자리를 비운 동안 일어난 일. 챔피언은 무엇을 포함할지 고를 수 있습니다.',
+        },
+        {
+          term: '색상',
+          body: '**Anvil lines in chat**: **By type (Anvil colours)**, **One colour (the plugin’s own)** 또는 Supporter를 위한 **My own colours**.',
+        },
+      ],
+    },
+    login: {
+      title: '플러그인 연결, 로그인과 기기',
+      intro: '플러그인과 웹사이트가 어디에 로그인되어 있는지, 그리고 어떻게 로그아웃하는지.',
+      rows: [
+        {
+          term: '플러그인 연결',
+          body: '플러그인 토큰. 직접 붙여 넣어야 하는 드문 경우를 위한 것입니다. 보통은 사이드 패널의 **Sign in with Discord**가 이를 대신합니다.',
+        },
+        {
+          term: '로그인과 기기',
+          body: '플러그인이 로그인된 모든 컴퓨터가 만들어진 시각과 마지막 사용 시각과 함께 **RuneLite sign-in 1**, **2**… 순서로 나열됩니다. **Revoke**는 한 대를 로그아웃합니다. 예: 판매한 컴퓨터. **Enter a code**는 다른 컴퓨터를 연결합니다. **Sessions**는 모든 곳에서 웹사이트 로그아웃을 합니다.',
+        },
+        {
+          term: '클랜 결제',
+          body: '클랜 소유자는 여기서 클랜 결제를 위해 **Open portal →**을 누를 수 있습니다.',
+        },
+      ],
+    },
+    webhooks: {
+      title: '내 Discord 웹후크',
+      body: [
+        '게시물을 나만의 Discord 서버로도 보낼 수 있습니다: 비공개 채널, 친구들의 서버, 웹후크를 만들 수 있는 어디든. 웹후크 링크를 붙여 넣고, 받을 항목을 체크하세요(**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**). 원하면 **Only drops worth at least … gp**를 설정하고 **Add webhook**을 누르세요.',
+        '최대 10개까지 가능합니다. Discord 웹후크 링크만 받으며, 저장된 링크는 일부가 가려져 보여서 이 페이지의 스크린샷으로 유출되지 않습니다. **Level posts on my webhooks**는 클랜과 별도로 웹후크용 레벨 규칙을 설정합니다.',
+      ],
+    },
+    privacy: {
+      title: '누가 내 캐릭터를 보나',
+      intro: '내 캐릭터는 처음에 공유됩니다. 세 가지 스위치로 바꿀 수 있습니다:',
+      rows: [
+        {
+          term: 'Show <name> publicly',
+          body: '캐릭터마다 스위치 하나. 켜면(시작 시 기본) 페이지가 **Public**이 됩니다. 끄면 **Only its clans**가 되어, 그 클랜들은 여전히 명단과 이벤트에서 보지만 다른 누구도 보지 못하고 리더보드에서도 빠집니다.',
+        },
+        {
+          term: 'Show that my characters are one person',
+          body: '캐릭터가 둘 이상일 때, 공유된 캐릭터들을 함께 나열하는 개인 페이지를 만듭니다. 끄면 그것들이 모두 나라는 사실을 아무도 알 수 없습니다.',
+        },
+        {
+          term: 'Show other clans’ boards',
+          body: '홈 페이지에 다른 클랜의 공개 보드를 보여 줄지 여부.',
+        },
+      ],
+    },
+    look: {
+      title: 'Supporter, 프로필 모양, 스트리밍과 부스트',
+      intro: 'Anvil에서 내가 어떻게 보이는지, 그리고 그 뒤의 계정과 혜택.',
+      rows: [
+        {
+          term: 'Supporter와 이름 색상',
+          body: '내 등급, 혜택, 초대 링크: 친구를 데려오면 무료 개월 수를 얻습니다. 등급은 [Anvil Supporter]({supporterGuide})에서 설명합니다.',
+        },
+        {
+          term: '프로필 모양',
+          body: '아바타와 배너(Champion부터 애니메이션), 원하면 캐릭터마다 다르게 설정할 수 있고, **Display case**: 등급에 따라 4, 8 또는 12개의 핀.',
+        },
+        {
+          term: '스트리밍 계정',
+          body: '**Twitch**, **YouTube**, **Kick**, **Medal**. 각각 인증 여부가 표시되며, 프로필에 보여 줄지 전환하는 스위치가 있습니다. 인증된 계정이 있어야 팔로워 및 구독자 이벤트에 들어갈 수 있습니다.',
+        },
+        {
+          term: '클랜 부스트',
+          body: '부스트할 수 있을 때만 보입니다: 내 슬롯, 배치 위치, 부스트할 수 있는 클랜. [클랜 부스트하기]({boostsGuide})를 보세요.',
+        },
+      ],
+    },
+    characters: {
+      title: '캐릭터별 설정',
+      intro: '**Characters** 아래에서 모든 캐릭터는 자기 페이지를 갖습니다. 유형, 인증 여부, 공개 페이지와 전체 프로필 링크가 있습니다.',
+      rows: [
+        {
+          term: '공개 범위',
+          body: '**Show to other clans and on leaderboards**와 **Show my in-game clan**.',
+        },
+        {
+          term: '클랜',
+          body: '그 캐릭터가 속한 각 클랜과 스페이스가 **member** 또는 **guest**로 표시되며, 클랜별 **Announce drops & achievements**와 **Leave**가 있습니다. Anvil이 엉뚱한 클랜에 넣어 두었다면, **Which clan is it really in?**으로 운영진에게 알릴 수 있습니다.',
+        },
+        {
+          term: '캐릭터',
+          body: '**Make main**, 이름 변경 후 이름 바꾸기 요청, 또는 내 계정에서 **Remove**. 지난 결과는 그대로 남습니다.',
+        },
+        {
+          term: '캐릭터 추가',
+          body: '플러그인이 로그인된 상태로 캐릭터를 한 번 플레이하면 스스로 연결됩니다. 모바일이나 공식 클라이언트에서는 이름으로 연결하세요. **We noticed you playing**은 Anvil이 본 캐릭터를 나열하고, **Not mine**은 하나를 치워 줍니다.',
+        },
+      ],
+    },
+    claims: {
+      title: '소유권 주장',
+      body: [
+        '캐릭터가 다른 사람의 Anvil 계정에 연결되어 있지만 실제로는 내 것이라면, 플러그인 사이드 패널의 **You** 탭에서 **This is my account**를 누르세요. 빠른 XP 확인으로 내가 플레이한다는 것을 증명하면, 현재 보유자에게 묻습니다. 나는 그 사람이 누구인지 알 수 없고, 그 사람도 내가 누구인지 알 수 없습니다.',
+        '내 주장은 **XP check**, **open**을 표시한 다음 어떻게 끝났는지 보여 줍니다: **moved to you**, **with Anvil staff**, **withdrawn**, **check timed out** 또는 **closed**. **Withdraw**는 하나를 취소합니다.',
+        '누군가 내 캐릭터 중 하나를 주장하면 **Claims on your characters** 아래에 **Approve** 또는 **Object — it’s mine**과 함께 표시됩니다. 인증되지 않은 캐릭터는 이의를 제기하지 않으면 7일 후에 옮겨집니다. 인증된 캐릭터는 내가 승인할 때만 옮겨집니다.',
+      ],
+    },
+  },
+  weekly: {
+    metaTitle: '주간 스킬과 보스 — Anvil',
+    metaDescription: 'Anvil에서 주간 스킬, 주간 보스 또는 효율 경쟁 실행하기: 예약, 반복과 순환, 시작 신호, 사람 추가와 제거, 상품, 조기 종료, 그리고 플레이어가 보는 화면.',
+    eyebrow: 'Anvil · 클랜 운영진과 플레이어용',
+    title: '주간 스킬과 보스',
+    dek: '주간 대회는 노력이 적게 드는 이벤트입니다. 작성할 타일도, 팀도, 참가 신청도 없습니다. 명단에 있는 모두가 시작할 때 자동으로 참가하며, 끝나기 전에 가장 많이 얻은 사람이 우승합니다.',
+    facts: [
+      {
+        strong: '타일도 팀도 없음',
+        rest: '리더보드 하나',
+      },
+      {
+        strong: '시작 시 자동 참가',
+        rest: '명단 전체, 자동으로',
+      },
+      {
+        strong: '상품 최대 10위',
+        rest: '클랜 금고에서 지급',
+      },
+    ],
+    footnote: '보드(빙고)는 [첫 이벤트 운영하기]({adminGuide})에, 상품과 금고는 [클랜 금고]({cofferGuide})에 있습니다.',
+    schedule: {
+      title: '하나 예약하기',
+      intro: '선택 사항은 다섯 가지이며, 대부분의 클랜에는 기본값으로 충분합니다:',
+      steps: [
+        '관리자 메뉴에서 **Schedule**을 열고 **+ Schedule event**를 누르세요 (중재자는 **Schedule a competition**을 쓸 수 있습니다).',
+        '종류를 고르세요: **Skill of the Week** (얻은 XP), **Boss of the Week** (얻은 처치 수) 또는 **Efficiency race** (얻은 EHP 또는 EHB).',
+        '**What is measured**에서 스킬이나 보스를 고르세요. 매주 바꾸고 싶다면 **Then rotate through**에 더 추가하세요. 비워 두면 같은 것을 반복합니다.',
+        '**Runs**에서 언제 진행할지 고르세요: **This weekend**, **One week** 또는 직접 정한 날짜. 시작과 끝 사이의 증가를 점수로 매기므로 끝나는 시점이 항상 필요합니다.',
+        '**Repeat every week**를 켜 두면 이것이 끝나는 순간 같은 길이와 상품으로 다음 대회가 시작됩니다. 클랜 게스트도 순위에 올라야 한다면 **Guests race too**를 체크하세요.',
+      ],
+      outro: '이 밖에 설정할 것은 없습니다. 시작 수치는 시작할 때 순위표에서 가져옵니다.',
+    },
+    counting: {
+      title: '집계 방식',
+      body: [
+        '각 플레이어의 증가량은 지금 스탯에서 대회가 시작되었을 때의 스탯(그들의 **starting line**)을 뺀 값입니다. 가장 많이 얻은 사람이 이기며, 동점은 이름으로 나열되고 상품은 동점 순위 사이에서 나눌 수 있습니다.',
+        '시작선은 순위표에서 가져옵니다. 그 뒤에는 플러그인의 실시간 업데이트가 순위표 확인 사이에도 보드를 최신으로 유지하므로, 플러그인을 쓰는 플레이어는 플레이하면서 보드에서 올라갑니다.',
+        '줄어드는 수치는 무시되고, 불가능해 보이는 증가는 집계하거나 깎는 대신 운영진에게 **flagged** 표시됩니다.',
+      ],
+      note: {
+        tag: '플레이어: 시작 전에 로그아웃하세요',
+        body: '순위표는 로그아웃할 때만 스탯을 저장합니다. 로그아웃하지 않고 시작 직전까지 사냥하면, 시작선은 그 사냥 전에 잡혀 있어서 사냥한 만큼이 증가로 집계됩니다. 운영진이 보통 잡아서 시작선을 고쳐 주지만, 시작 전에 한 번 로그아웃해 두세요.',
+      },
+    },
+    manage: {
+      title: '운영하기',
+      intro: '**Schedule** 또는 대시보드에서 대회를 여세요. 홈 페이지와 세 개의 탭이 있습니다:',
+      rows: [
+        {
+          term: '홈',
+          body: '**Leaderboard**(상위 25명, 몇 명이 점수를 얻는지 포함), **flagged** 증가, **left the clan** 상태인 사람, 그리고 상품. 끝나면 우승자와 **Final leaderboard**.',
+        },
+        {
+          term: '시작선',
+          body: '모든 플레이어의 **Started at**, **Now**, **Gained**. 대회 전 사냥이 집계되었을 때 시작선을 직접 고치면 순위표가 따라갑니다. **Pull current stats**는 모두를 새로 고치고, **Reset baselines**는 지금 순위표 기준으로 모두를 다시 시작시켜 모든 증가를 지웁니다.',
+        },
+        {
+          term: '참가자',
+          body: '명단 전체가 이미 들어가 있습니다. **Add someone**은 줄마다 이름 하나를 받아, 아직 명단에 없는 게스트나 계정을 추가합니다. 플레이어를 제거하면 그 순위도 제거되며, 다시 추가하면 새 시작선을 받습니다. **Leave one each**는 여러 캐릭터로 여러 번 들어간 사람을 정리합니다. 모든 게스트를 한꺼번에 뺄 수도 있습니다.',
+        },
+        {
+          term: '설정',
+          body: '이름, 날짜, **Repeat every week**, 그리고 **Status**(멈춘 것을 풀 때만 사용하며, 스스로 진행됩니다). 관리자는 참가자와 순위와 함께 **Delete**할 수 있습니다.',
+        },
+      ],
+    },
+    prizes: {
+      title: '상품과 종료',
+      body: [
+        '최대 10개 순위까지 상품을 설정하며, 클랜 금고에서 지급됩니다. 증가가 없는 플레이어에게도 줄지, 동점 순위가 상품을 나눌지 여부를 고릅니다. 돈이 어떻게 움직이는지는 [클랜 금고]({cofferGuide})에 있습니다.',
+        '설정한 시간에 스스로 끝납니다. **End now**는 일찍 멈춥니다. 그 즉시 증가는 집계되지 않고, 결과는 Discord에 게시되며 상품은 15분 안에 정산됩니다.',
+      ],
+    },
+    players: {
+      title: '플레이어를 위한 안내',
+      body: [
+        '따로 신청할 필요가 없습니다. 시작할 때 클랜 명단에 있다면 들어가 있습니다. 클랜의 **Events** 페이지, 플러그인 사이드 패널의 **Clan** 탭(현재 순위 포함), 그리고 시작과 끝을 알리는 Discord에서 찾을 수 있습니다.',
+        '각 대회에는 실시간 순위표와 날마다 경쟁이 어떻게 흘러갔는지 보여 주는 자체 페이지가 있습니다. 비공개 클랜은 그것을 자기 멤버에게만 보여 줍니다.',
+        '플러그인으로 플레이하면 내 수치가 실시간으로 유지됩니다. 플러그인이 없어도 집계되며, 순위표의 속도로만 반영됩니다.',
+      ],
+    },
+  },
+  clanEvents: {
+    metaTitle: '클랜 이벤트와 일정 — Anvil',
+    metaDescription: 'Anvil에서 클랜 이벤트 예약하기: 대규모 모임, 여행과 모임, 주간 반복, 자리와 질문과 참가비가 있는 “갑니다”와 참가 신청, Discord 게시와 알림, 지급, 설문, 그리고 빈 시간을 보여 주는 일정.',
+    eyebrow: 'Anvil · 클랜 운영진용',
+    title: '클랜 이벤트와 일정',
+    dek: '모든 것이 보드인 건 아닙니다. 클랜 이벤트는 대규모 모임, 레이드 나이트, 드롭 파티, 모임입니다: 시간과 장소가 있고, Discord에 게시되며 알림이 가고, 참가 신청은 원하는 만큼 많거나 적게 받을 수 있습니다.',
+    facts: [
+      {
+        strong: '한 번 또는 매주',
+        rest: '선택 종료일 포함',
+      },
+      {
+        strong: '참여 방식 세 가지',
+        rest: '정보, “갑니다”, 또는 참가 신청',
+      },
+      {
+        strong: '알림',
+        rest: '15분 전, 그다음 시작 시',
+      },
+    ],
+    footnote: '주간 대회는 [주간 스킬과 보스]({weeklyGuide})에, 참가비와 상품은 [참가비와 지급]({feesGuide})에 있습니다.',
+    create: {
+      title: '하나 예약하기',
+      intro: '관리자 메뉴에서 **Clan events**를 열고 양식을 채우세요:',
+      rows: [
+        {
+          term: '이름, 시간, 길이',
+          body: '**Name**, 내 시간대로 **Starts (your time)**, 그리고 **Minutes**.',
+        },
+        {
+          term: '반복',
+          body: '**Just once** 또는 **Every week**, 선택 사항 **Until** 날짜.',
+        },
+        {
+          term: '장소',
+          body: '**Where**, **World**, **Host**, 그리고 사진: 보스나 스킬을 고르거나 직접 업로드하세요.',
+        },
+        {
+          term: '세부 사항',
+          body: '장비, 요구 사항, 준비물.',
+        },
+        {
+          term: '누가 오나',
+          body: '**Just information**(버튼도 인원 수도 없음), **“I’m going”**(한 번 누르기, 인원 수 표시) 또는 **Sign-ups**(자리, 질문, 참가비).',
+        },
+        {
+          term: 'Discord',
+          body: '채널(또는 클랜 기본값)에 **Post to**, 선택적으로 연결할 **Chat**, **Guide**, **Voice** 채널, 그리고 공지, 알림, 시작 때 멤버 역할을 멘션할지 여부.',
+        },
+      ],
+      outro: '**Schedule it**을 누르세요. 지급과 설문은 그 뒤 이벤트 자체 페이지에서 추가합니다.',
+    },
+    discord: {
+      title: 'Discord가 보는 것',
+      body: [
+        '예약할 때 공지가 올라가고, 무엇을 바꾸든 그 게시물이 제자리에서 수정되므로 오래된 사본은 없습니다. 반복되는 이벤트에는 **every week** 표시가 붙습니다.',
+        '15분 전에는 **Starting in 15 minutes**가, 시작 시점에는 **Starting now**가 게시됩니다. 시간을 옮기면 알림도 함께 옮겨집니다. 취소(**Cancel**)하면 게시물에 **Cancelled**가 표시되어 아무도 오지 않습니다.',
+      ],
+    },
+    manage: {
+      title: '참가 신청, 참가비와 지급',
+      intro: '이벤트를 열어 무엇을 쓸지 바꾸세요. 모든 것이 처음에는 꺼져 있습니다:',
+      rows: [
+        {
+          term: '참가 신청',
+          body: '**Places**(제한 없으면 비움), **Sign-ups close** 시각, 그리고 **Sign-up questions**와 함께. **You approve each one**을 켜면 모든 참가 신청이 운영진의 승인을 기다립니다.',
+        },
+        {
+          term: '“I’m going” 버튼',
+          body: '끄면 정보만 표시됩니다: 사이트, 플러그인, Discord 어디에도 버튼이나 인원 수가 없습니다.',
+        },
+        {
+          term: '참가비',
+          body: '참가 신청을 켭니다. **Added to the pot** 아래에 내가 보탤 gp를 추가하세요.',
+        },
+        {
+          term: '지급',
+          body: '팟은 참가비와 내가 보탠 금액의 합입니다. **Who**가 받을 사람과 **For** 무엇인지 적고, 각각 **Paid**로 표시하세요. 팟보다 많이 지급하면 Anvil이 경고합니다.',
+        },
+        {
+          term: '이후 설문',
+          body: '끝나면 열립니다. 답변은 운영진만 봅니다. 참가 신청을 받았다면 신청한 사람에게만 묻습니다.',
+        },
+        {
+          term: '주간 이벤트',
+          body: '**Every week is…** 아래 **Its own**(매주 참가 신청, 팟, 설문 각각) 또는 **One run**(시리즈 전체에 참가 신청, 팟, 설문 한 번).',
+        },
+      ],
+    },
+    players: {
+      title: '멤버가 보는 것',
+      body: [
+        '이벤트 페이지에는 **When**, **Where**, **Host**, **Discord**, **Entry**, **Prizes**가 표시되며, 진행 중에는 **Live now**가 붙습니다. 멤버는 **I’m going** 또는 **Sign me up**을 누르고, 운영진이 하나씩 승인하는 경우에는 **Ask to sign up**을 누릅니다. 플러그인 사이드 패널의 **Clan** 탭에도 같은 버튼과 함께 있습니다.',
+        '클랜 멤버만 “갑니다”라고 하거나 참가 신청을 할 수 있습니다.',
+      ],
+    },
+    calendar: {
+      title: '일정',
+      body: [
+        '**Schedule**은 보드, 주간 대회, 클랜 이벤트를 하나의 달력에 모으며, 각각에 필터가 있습니다.',
+        '이틀 이상 아무것도 없는 구간은 빈 시간으로 표시되며, 그곳에 무언가를 예약하기 위한 **Fill the gap**이 있습니다. 큰 이벤트 사이에 클랜을 활발하게 유지하고, 한산한 2주가 그냥 지나가지 않게 하는 데 쓰세요.',
+      ],
+    },
+  },
+  challenges: {
+    metaTitle: '도전과 친구 이벤트 — Anvil',
+    metaDescription: 'Anvil의 1:1 도전(1시간, 24시간 또는 7일 안에 드롭 먼저, 처치 수 가장 많이, 또는 XP 가장 많이)과 Supporter 친구 이벤트: 초대 링크 하나로 친구들을 위한 비공개 보드.',
+    eyebrow: 'Anvil · 플레이어용',
+    title: '도전과 친구 이벤트',
+    dek: '클랜 이벤트 없이 아는 사람들과 겨루는 두 가지 방법: **도전**은 한 명 대 한 명이고, **친구 이벤트**는 초대 링크 뒤에 있는 그룹을 위한 비공개 보드입니다.',
+    facts: [
+      {
+        strong: '1시간에서 7일',
+        rest: '도전마다',
+      },
+      {
+        strong: '자랑거리',
+        rest: '걸린 것 없이, gp 없음',
+      },
+      {
+        strong: '친구 최대 50명',
+        rest: '친구 이벤트마다, 등급별',
+      },
+    ],
+    footnote: '등급과 각 등급이 호스트할 수 있는 것은 [Anvil Supporter: 등급과 혜택]({supporterGuide})에 있습니다.',
+    start: {
+      title: '누군가에게 도전하기',
+      intro: '인증된 캐릭터가 필요하며, 상대도 마찬가지입니다.',
+      steps: [
+        '[Challenges](/challenges)를 열거나, 플레이어의 프로필에서 **Challenge <name>**을 누르세요.',
+        '**Who**에서 상대 이름을 입력하고, **Playing as**에서 내 캐릭터를 고르세요. 인증된 캐릭터여야 합니다.',
+        '경쟁 방식을 고르세요: **First to a drop**(최대 5개 아이템, 모두 몬스터 드롭), 보스의 **Most kills**, 또는 한 스킬이나 전체의 **Most XP**.',
+        '제한 시간을 고르세요: **1 hour**, **24 hours** 또는 **7 days**. 결과가 공개되어도 괜찮다면 **OK to show the result publicly**를 체크하세요. 둘 다 체크해야만 공개됩니다.',
+      ],
+      outro: '상대는 알림과 Discord 메시지를 받고, 24시간 안에 **Accept**, **Decline** 또는 **Decline and block**을 할 수 있습니다. 시계는 수락할 때 시작됩니다.',
+    },
+    rules: {
+      title: '승부는 어떻게 정해지나',
+      intro: 'Anvil이 끝나고 1분 안에 스스로 판정합니다.',
+      rows: [
+        {
+          term: '처치 수와 XP',
+          body: '두 시작선은 수락될 때 잡힙니다. 끝날 때 더 많이 얻은 쪽이 이기며, 같으면 무승부입니다. 순위표와 플러그인 중 높은 쪽으로 집계됩니다.',
+        },
+        {
+          term: '먼저 드롭',
+          body: '아이템 중 하나를 먼저 얻은 쪽이 그 자리에서 이깁니다. 드롭은 플러그인만 보므로 두 사람 모두 플러그인이 실행 중이어야 합니다. 제한 시간 안에 아무도 얻지 못하면 무승부입니다.',
+        },
+        {
+          term: '취소',
+          body: '응답하기 전까지 내 도전을 철회할 수 있습니다. 진행 중이면 둘 다 동의할 때만 멈춥니다.',
+        },
+      ],
+    },
+    limits: {
+      title: '제한과 거절',
+      body: [
+        '열린 도전(대기 중이거나 진행 중, 보낸 것과 받은 것)은 등급에 따라 제한됩니다: 무료는 **1**개, Supporter는 **5**개, Champion과 Patron은 무제한. 누구나 하루에 20개까지 시작할 수 있으며, 같은 상대와는 한 번에 하나만 가능합니다.',
+        '원하지 않는다면 **Turn away all new challenges**를 쓰거나, 거절할 때 한 사람을 차단하세요. 도전을 보낸 쪽은 두 경우 모두 같은 거절을 보므로, 차단되었는지 알 수 없습니다.',
+        '페이지에는 **Your record**(승, 패, 무승부), 지금 **Open now**인 것, 그리고 **Your limit**이 표시됩니다.',
+      ],
+    },
+    friends: {
+      title: '친구 이벤트 호스트하기',
+      body: [
+        '모든 Supporter, Champion, Patron은 [Host](/host) → **Host for friends** → **New friends event**에서 친구들을 위한 비공개 보드를 열 수 있습니다. 빙고나 타일 경쟁인 완전한 보드이며, 플러그인이 추적하고 크리에이터 이벤트와 같은 설정을 씁니다.',
+        '**Invite link**를 보내세요. 그것이 유일한 입장 방법입니다. 친구들은 링크를 열고, Discord로 로그인한 뒤 **Open the event**를 누릅니다. 참가는 언제나 무료입니다. 링크가 새어 나가면 새 링크를 만드세요. 옛 링크는 작동을 멈추고, 이미 들어와 있는 사람은 그대로 남습니다.',
+        '친구 이벤트는 Anvil 어디에도 목록으로 나오지 않으며 클랜도 필요하지 않습니다.',
+      ],
+      table: {
+        areaLabel: '등급',
+        columns: [
+          '플레이어',
+          '동시 진행',
+        ],
+        rows: [
+          {
+            area: 'Supporter',
+            cells: [
+              '10',
+              '1',
+            ],
+          },
+          {
+            area: 'Champion',
+            cells: [
+              '25',
+              '1',
+            ],
+          },
+          {
+            area: 'Patron',
+            cells: [
+              '50',
+              '2',
+            ],
+          },
+        ],
+      },
+      note: {
+        tag: '등급이 끝나면',
+        body: '이미 들어온 친구는 그대로 남습니다. 새 친구는 새 한도를 넘으면 들어올 수 없으며, 한도 아래로 돌아오기 전까지 새 이벤트를 시작할 수 없습니다.',
+      },
+    },
+  },
+  clanHall: {
+    metaTitle: '클랜, 이벤트, 리더보드 찾기 — Anvil',
+    metaDescription: 'Anvil의 Clan Hall에서 OSRS 클랜 찾기, 두 클랜 비교, 주간 플레이어 및 클랜 리더보드, 공개 이벤트 목록, 그리고 Anvil에 없는 클랜의 게임 내 클랜 페이지.',
+    eyebrow: 'Anvil · 플레이어와 클랜용',
+    title: '클랜, 이벤트, 리더보드 찾기',
+    dek: '둘러보기 위한 Anvil의 공개 페이지: 클랜을 찾는 **Clan Hall**, 참여할 것을 찾는 **Events** 목록, 그리고 누가 가장 많이 얻고 있는지 보는 **Leaderboard**.',
+    facts: [
+      {
+        strong: 'Clan Hall',
+        rest: '공개 클랜만',
+      },
+      {
+        strong: 'Leaderboard',
+        rest: '이번 주, 30일, 전체',
+      },
+      {
+        strong: 'Events',
+        rest: '호스트가 홍보한 것만',
+      },
+    ],
+    footnote: '내 클랜을 목록에 올리려면 [클랜 시작하기]({clanGuide})를, 부스트된 클랜은 추천되며 [클랜 부스트하기]({boostsGuide})를 보세요.',
+    hall: {
+      title: 'Clan Hall',
+      body: [
+        '[Clan Hall](/clans)은 모든 공개 클랜을 나열합니다. 이름이나 한 줄 소개로 검색한 뒤 **Taking members** 또는 **Open to challenges**로 좁힐 수 있습니다. **Most active**(기본 정렬)는 이번 주 멤버가 가장 많이 얻은 클랜을 먼저 보여 주고, **Biggest**는 멤버 수로 정렬합니다.',
+        '각 카드에는 클랜이 **Recruiting** 중인지, 게스트를 어떻게 받는지가 나옵니다: **Guests welcome**, **Guests by approval** 또는 **No guests**. 부스트된 클랜은 맨 위에 추천 줄로 나오며, 크리에이터도 자기 줄이 있습니다.',
+      ],
+      note: {
+        tag: '목록에 없나요?',
+        body: '공개로 설정된 클랜만 나타나며, 클랜은 설정에서 목록 노출을 끌 수 있습니다. 비공개 클랜은 Clan Hall, 리더보드, 비교에 절대 나오지 않습니다.',
+      },
+    },
+    compare: {
+      title: '두 클랜 비교',
+      body: [
+        '[Compare clans](/compare/clans)는 목록에 있는 두 클랜을 나란히 보여 줍니다. 캐릭터 두 개를 비교하려면 [Compare](/compare)를 쓰세요.',
+      ],
+    },
+    board: {
+      title: '리더보드',
+      body: [
+        '[Leaderboard](/leaderboard)는 **This week**, **30 days** 또는 **All time** 기간에 경험치, 효율 시간, 보스 활동으로 플레이어와 클랜의 순위를 매깁니다. 플레이어는 **Regular**, **Ironman**, **Hardcore**, **Ultimate** 또는 **Group** 계정으로 좁힐 수 있습니다.',
+        '클랜은 멤버가 얻은 XP로 순위가 매겨집니다. Clan Hall에 나열된 인증된 클랜만 나옵니다. 게스트의 증가는 그가 게스트로 있는 클랜이 아니라 자기 클랜에 집계됩니다.',
+      ],
+    },
+    events: {
+      title: '참여할 이벤트 찾기',
+      body: [
+        '[Events](/events)는 Anvil 전역에서 진행 중이거나 곧 열릴 것을 보여 줍니다. **Live now**, **Open to join** 또는 **Starting this week**, 형식이나 **Solo**, **Anyone can join** 또는 **Ask or meet a rule**, **Clans** 또는 **Creators**로 필터링하세요. **Join**은 참가 신청 페이지로 데려갑니다.',
+        '호스트가 **Advertise on Anvil**을 켠 이벤트만 나옵니다. 멤버 전용과 초대 전용 이벤트는 절대 나오지 않습니다.',
+      ],
+    },
+    ghost: {
+      title: 'Anvil에 없는 게임 내 클랜',
+      body: [
+        '캐릭터 페이지에는 그 캐릭터가 속한 게임 내 클랜의 이름이 나옵니다. 그 클랜이 Anvil에 없다면, 링크는 그 클랜에 속해 있고 보여 주기로 한 Anvil 플레이어들을 나열하는 평범한 페이지를 엽니다. 그 클랜의 명단이 아니며, 그 페이지의 무엇도 누군가를 멤버로 만들지 않습니다.',
+        '우리 클랜이라면 **Bring your clan to Anvil**이 하나를 만들어 줍니다. 공개 Anvil 클랜이 되면 링크가 곧장 그곳으로 갑니다.',
+      ],
+    },
+  },
+  guideLibrary: {
+    metaTitle: '게임 내 공략: 읽기, 제안, 클랜 복사본 — Anvil',
+    metaDescription: 'Anvil 공략 라이브러리: 사이트, 게임 내, Discord에서 보는 레이드, 보스, 스킬링, 돈벌이 공략. 레벨별 읽기, 새 공략이나 수정 제안, 클랜이 라이브러리 공략을 복사하고 고치는 방법.',
+    eyebrow: 'Anvil · 플레이어와 클랜 운영진용',
+    title: '게임 내 공략',
+    dek: '이런 사용법 페이지 말고도 Anvil은 게임 공략 라이브러리를 갖고 있습니다: 레이드, 보스, 스킬링, 돈벌이. 누구나 읽을 수 있고, 로그인한 사람은 누구나 하나를 제안할 수 있으며, 클랜은 자체 복사본을 보관할 수 있습니다.',
+    facts: [
+      {
+        strong: '세 가지 레벨',
+        rest: '입문, 중급, 고급',
+      },
+      {
+        strong: '누구나 제안 가능',
+        rest: '운영진이 모두 검토',
+      },
+      {
+        strong: '/guide',
+        rest: 'Discord에 공략 하나를 게시',
+      },
+    ],
+    footnote: '슬래시 명령어는 [슬래시 명령어]({commandsGuide})에 있습니다.',
+    read: {
+      title: '공략 읽기',
+      body: [
+        '공략 페이지의 **In-game guides** 탭을 열거나, 클랜 사이트의 [/guides](/guides)를 여세요. 클랜 목록에는 자체 공략과 아직 복사하지 않은 라이브러리 공략이 함께 있습니다.',
+        '많은 공략은 맨 위에 레벨 전환이 있습니다: **Beginner**, **Intermediate**, **Advanced**. 다른 레벨의 부분은 접혀 있어서, 초보자와 스피드러너가 같은 페이지를 읽습니다.',
+        'Discord에서는 `/guide`와 공략 이름의 앞부분을 입력하면 공략 카드와 전체 페이지 링크가 게시됩니다.',
+      ],
+    },
+    propose: {
+      title: '공략이나 수정 제안하기',
+      body: [
+        '로그인한 상태에서 [Propose a guide](/guides/propose)를 열어 새 공략을 쓰거나, 기존 라이브러리 공략에 수정을 제안하세요. 검토자에게 무엇을 바꿨고 왜 바꿨는지 알려 주세요. 보내기 전에 현재 공략과 비교해 변경 사항을 볼 수 있습니다.',
+        '**Send for review**를 누르세요. [My guide proposals](/guides/proposals)에는 각 제안이 **pending**, **approved**, **rejected** 또는 **withdrawn**으로 표시되며, 답변이 오면 검토자의 메모가 붙습니다. 대기 중에는 수정하거나 **Withdraw**할 수 있습니다. 한 번에 5개까지 대기시킬 수 있습니다.',
+        'Anvil의 공략 편집자가 승인하기 전에는 아무것도 공개되지 않습니다. 승인된 수정은 바뀌지 않은 모든 클랜 복사본도 업데이트합니다.',
+      ],
+    },
+    clan: {
+      title: '우리 클랜의 공략',
+      intro: '관리자와 공략 작성이 허용된 중재자는 관리자 메뉴의 **Guides**에서 관리합니다.',
+      rows: [
+        {
+          term: '사이트에 라이브러리 공략 보이기',
+          body: '켜면, 복사하지 않은 라이브러리 공략도 우리 Guides 페이지에 함께 보이며 항상 최신입니다.',
+        },
+        {
+          term: '우리 공략으로 복사',
+          body: '클랜 복사본을 만듭니다. 편집하기 전까지는 **follows library** 상태로, 라이브러리의 모든 변경을 따라갑니다.',
+        },
+        {
+          term: '복사본 편집',
+          body: '**customised** 상태, 즉 클랜 고유의 것이 됩니다. 나중에 라이브러리 공략이 바뀌면 **update available**이 표시되며, 새 버전을 받거나 내 것을 유지할 수 있습니다.',
+        },
+        {
+          term: '새 공략',
+          body: '우리 클랜만 가진 공략을 씁니다. 예: 우리 클랜의 레이드 규칙이나 모임 공략.',
+        },
+      ],
+      note: {
+        tag: 'Discord 게시',
+        body: '공략은 Discord 채널에 게시할 수 있으며, 공략이 바뀌면 그 게시물은 제자리에서 수정됩니다.',
       },
     },
   },

@@ -212,6 +212,48 @@ const fi: PartialGuideDict = {
           'Boostin asettaminen ja siirtäminen, kolme tasoa ja mitä kukin avaa, klaanin nimen värit, lahjoitetut boostit sekä boostaajien merkit ja kunniamerkit.',
         minutes: '~5 min',
       },
+      profile: {
+        eyebrow: 'Pelaajille',
+        title: 'Profiilisi, Wrapped ja Compare',
+        blurb: 'Profiilisi, jokaisen hahmon julkinen sivu ja henkilösivusi, kuka niitä näkee, kuukausittaiset ja tapahtumakohtaiset Wrapped-kortit sekä kahden hahmon vertailu.',
+        minutes: '~4 min',
+      },
+      settings: {
+        eyebrow: 'Pelaajille',
+        title: 'Asetukset sivu kerrallaan',
+        blurb: 'Discord-julkaisut ja kuvakaappausten yksityisyys, pelin sisäinen chat-syöte, laitteet, omat webhookit, kuka näkee hahmosi, jokainen hahmo ja omistajuusvaateet.',
+        minutes: '~6 min',
+      },
+      challenges: {
+        eyebrow: 'Pelaajille',
+        title: 'Haasteet ja kaveritapahtumat',
+        blurb: 'Haasta yksi pelaaja drop-, tappo- tai XP-kisaan, ja isännöi yksityistä taulua kavereillesi yhden kutsulinkin takana.',
+        minutes: '~4 min',
+      },
+      clanHall: {
+        eyebrow: 'Pelaajille ja klaaneille',
+        title: 'Klaanien, tapahtumien ja tulostaulujen etsiminen',
+        blurb: 'Clan Hall, kahden klaanin vertailu, viikkotulostaulu, julkinen tapahtumalista ja sivut peliklaaneille, jotka eivät ole Anvilissa.',
+        minutes: '~3 min',
+      },
+      guideLibrary: {
+        eyebrow: 'Pelaajille ja klaanin henkilökunnalle',
+        title: 'Peliohjeet',
+        blurb: 'Ohjekirjaston selaaminen tason mukaan, uuden ohjeen tai muokkausehdotuksen tekeminen ja klaanisi omien kopioiden ylläpito.',
+        minutes: '~3 min',
+      },
+      weekly: {
+        eyebrow: 'Klaanin henkilökunnalle ja pelaajille',
+        title: 'Skill- ja Boss of the Week',
+        blurb: 'Viikoittaisen kilpailun ajastaminen, toistaminen ja kierrättäminen, aloituslukemat, palkinnot, lopettaminen ajoissa ja se, mitä pelaajat näkevät.',
+        minutes: '~4 min',
+      },
+      clanEvents: {
+        eyebrow: 'Klaanin henkilökunnalle',
+        title: 'Klaanitapahtumat ja aikataulu',
+        blurb: 'Massat, raidi-illat ja tapaamiset: viikkotoistot, “I’m going” ja ilmoittautumiset, Discord-muistutukset, maksut, kyselyt ja aikataulun aukkojen löytäminen.',
+        minutes: '~4 min',
+      },
     },
   },
 
@@ -409,6 +451,25 @@ const fi: PartialGuideDict = {
         tag: 'Vain ulkonäköä',
         body: 'Boostit muuttavat sitä, miltä klaani näyttää ja missä se listataan. Ne eivät koskaan muuta rankkia, pisteitä, paikkojasi tai tilaustasi.',
       },
+    },
+    features: {
+      title: 'Ominaisuudet ja paketti',
+      intro: 'Ylläpitäjät voivat kytkeä kokonaisia Anvilin osia päälle tai pois kohdassa **Features**. Pois päältä ne piiloutuvat valikoista, mitään ei poisteta.',
+      rows: [
+        {
+          term: 'Tapahtumat',
+          body: '**Skill & Boss of the Week** (päällä), **Surprise-task formats** (pois), **Missions** (pois), **Post-event survey** (pois).',
+        },
+        {
+          term: 'Raha',
+          body: '**Sign-up fees** (päällä), **Clan coffer** (pois).',
+        },
+        {
+          term: 'Discord ja lisäosa',
+          body: '**Post to Discord** (päällä), **Death & fun messages** (pois), **Clan Hall card**, joka näyttää kuka on paikalla Discordissasi julkisella klaanisivullasi (päällä).',
+        },
+      ],
+      outro: '**Plan and billing** näyttää pakettisi, kuinka monta jäsentä sinulla on sen kokoon nähden, ja isommat paketit. Jos maksat, myös **Manage subscription and invoices** on siellä.',
     },
   },
 
@@ -995,6 +1056,63 @@ const fi: PartialGuideDict = {
         },
       ],
     },
+    screen: {
+      title: 'Näytöllä pelatessa',
+      intro: 'Mitä lisäosa piirtää ja tulostaa pelatessasi, ja asetus jokaisen takana.',
+      rows: [
+        {
+          term: 'Kiinnitetyt ruudut',
+          body: 'avaa ruutu sivupaneelissa ja paina **Track on screen** (enintään 3). Kun **Pinned tiles in one panel** on päällä, ne jakavat yhden pienen paneelin: jokaisen ruudun nimi, tiimisi edistyminen ja rivit kuten _3/5 runs_ tai mitkä combon osat ovat valmiina. Pois päältä jokaisella on oma isompi widgetinsä tiimiläisillesi ja muille tiimeille. Siirrä Alt-vedolla. Napsauta oikealla **Unpin** tai **Unpin all**. Valmis ruutu näyttää **Done** ja irtoaa itsestään.',
+        },
+        {
+          term: 'Aloituslaukauskortti',
+          body: 'kun tapahtuma odottaa aloituslaukaustasi, ruudun yläreunassa oleva kortti **Starting shot needed** kertoo minne mennä ja näyttää jokaisen tarkistuksen vihreänä tai punaisena: uudelleenkirjautuminen, session kesto ja kuinka monta ruutua olet kohdasta. Vihjenuoli ja maailmakartan merkki (**Anvil starting shot**) johtavat sinne. Kun **Auto starting shot** on päällä, laukaus otetaan heti kun kaikki on vihreää; sitten kortissa lukee **You’re tracked** ja lähtö käynnistyy. Asetus: **Starting shot guide**.',
+        },
+        {
+          term: 'Bannerit',
+          body: '**Tile complete!** kun tiimisi valmistaa ruudun, oman dropin edistyminen ruudulla ja **New mission!**. Asetukset: **Team completion popups** ja **My tile popups**.',
+        },
+        {
+          term: 'Vestige-kierrokset',
+          body: 'Desert Treasure II -bosseissa jokainen uniikki tulostaa rivin, joka kertoo missä olet vestige-kierrossa, kuten _Roll 2 of 4_ tai _the next unique is the vestige_. Siinä lukee _(estimated)_, kunnes se on nähnyt sinun saavan vestigen. Ei asetusta; toimii tapahtumalla tai ilman.',
+        },
+        {
+          term: 'Lookup-ehdotukset',
+          body: 'kun kirjoitat **Lookup**-kenttään, nimi täydentyy viimeisimmistä hauistasi, kavereista, paikalla olevista klaanilaisista ja lähellä olevista pelaajista. **Enter** hyväksyy. Se lukee vain oman asiakkaasi tiedot; mitään ei lähetetä.',
+        },
+        {
+          term: 'Chat-värit',
+          body: '**[Anvil] tag colour** ja **Message colour** kohdassa **Chat messages**. Kunnes valitset, ne ovat tummankultaisia ja mustia läpinäkyvällä chat-laatikolla, jotta ne pysyvät luettavina. Vie hiiri Supporterin nimen päälle chatissa nähdäksesi tason, kuten _Anvil Patron_.',
+        },
+      ],
+    },
+    sync: {
+      title: 'Profiilin synkronointi ja muu, mitä se lähettää',
+      intro: '**Profile sync** -asetukset täyttävät Anvil-profiilisi. Kaikki neljä ovat alussa päällä:',
+      rows: [
+        {
+          term: 'Synkronoi kokoelmaloki',
+          body: 'jokainen avaamasi kokoelmalokin sivu lähetetään profiiliisi.',
+        },
+        {
+          term: 'Synkronoi koko loki avattaessa',
+          body: 'kokoelmalokin avaaminen lähettää kaiken, ei vain katsomaasi sivua. Halutessasi käsin paina kokoelmalokin otsikkopalkin **Anvil**-painiketta tai sivupaneelin **Sync profile** -painiketta lokin ollessa auki. Chat vahvistaa sen: _Profile synced — N collection log slots._',
+        },
+        {
+          term: 'Synkronoi henkilökohtaiset ennätykset',
+          body: 'boss- ja raidiajat lähetetään heti kun asetat ne.',
+        },
+        {
+          term: 'Tuo olemassa olevat ennätykset kerran',
+          body: 'kerran hahmoa kohden kopioi ennätykset, jotka RuneLite on jo tallentanut tietokoneellesi: _Imported N personal best(s) from RuneLite._',
+        },
+        {
+          term: 'Jaa kohokohdat klaanin kanssa',
+          body: 'lemmikkisi, isot dropit, kuolemat, taistelutehtävät, tasotavoitteet, uudet lokipaikat ja päiväkirjat ilmestyvät klaanisi sivuston syötteeseen ja niiden pelaajien chat-syötteeseen, jotka näkevät ne.',
+        },
+      ],
+      outro: 'Kolme asiaa lähetetään ilman omaa asetustaan. **Kuka tappoi sinut**: syötteessä nimetään hirviö tai pelaaja, joka oli kohdistettuna sinuun viimeisen 15 sekunnin aikana. **Pelin laskurit**: jotkin tapporuudut laskevat pelin pitämän luvun, kuten Tithe Farm -pisteet, Giants’ Foundry -maine, Doom-delvet tai slayer-putket; vain nousut lasketaan. **Leagues, Deadman ja muut moodit**: näillä maailmoilla pelin omat rivit reliikeistä, alueista ja tehtävistä lähetetään, jotta klaanisi voi julkaista ne moodikanavallaan.',
+    },
   },
 
   admin: {
@@ -1242,6 +1360,14 @@ const fi: PartialGuideDict = {
         'Federaation ollessa päällä jäsenet voivat myös yhdistää muihin Anvil-klaaneihin pluginista — kätevää klaanien välisiin tapahtumiin, ja täysin vapaaehtoista jäsenkohtaisesti.',
       outro: 'Ohjaa sitten jäsenesi [pelaajien käyttöönotto-oppaaseen]({pluginGuide}) ja ala suunnitella seuraavaa.',
     },
+    survey: {
+      title: 'Kysy pelaajilta',
+      intro: 'Kytke **Post-event survey** päälle kohdasta **Features** ja avaa sitten tapahtuman **Survey**-sivu.',
+      body: [
+        'Kohdassa **Build** lisää kysymyksiä: **Rating (1–5)**, **Free text**, **Choose one** tai **Choose many**, kukin valinnaisesti **Required**. Tai lataa malli: **Bingo wrap-up**, **Quick pulse**, **PvM mass**, **Raid team** tai **Skilling / social**. **Preview the participant view** näyttää sen niin kuin pelaaja sen näkee.',
+        'Se avautuu tapahtuman päättyessä vain hyväksytyille osallistujille, ja he voivat muuttaa vastauksiaan myöhemmin. **Results** näyttää vastaukset **By question** tai **By person**. Se ei ole anonyymi: henkilökunta näkee, kuka sanoi mitäkin.',
+      ],
+    },
   },
 
   clanVsClan: {
@@ -1461,6 +1587,28 @@ const fi: PartialGuideDict = {
         body: 'Sulje linkit ja poista paikat joukkueen henkilökunnasta. Kumpikaan ei vanhene itsestään, ja voimassa oleva linkki päättyneessä tapahtumassa on vain irtonainen lanka.',
       },
     },
+    cohost: {
+      title: 'Jos olet yhteisisäntä',
+      intro: 'Yllä oleva on isännän puoli. Vierailevan klaanin henkilökunta saa oman sivun tapahtumalle, **Co-hosted with <host>**. Isäntä pitää päivämäärät, luonnoksen, tiimit ja sen, kuka sen näkee.',
+      rows: [
+        {
+          term: 'Klaanisi ilmoittautumiset',
+          body: '**Approve**, **Reject** tai **Withdraw** oman klaanisi pelaajille. Et koskaan näe tai muokkaa isännän pelaajia.',
+        },
+        {
+          term: 'Taulu',
+          body: 'voit muokata vain jos isäntä antoi henkilökunnallesi luvan. Muuten voit **Suggest a tile**: ruudun, tiedot ja pisteet, enintään 25 odottamassa kerrallaan. Jokainen näkyy **waiting**, **accepted ✓** tai **turned down** isännän perusteluineen.',
+        },
+        {
+          term: 'Tiimisi',
+          body: '**Manage** klaanisi tiimi.',
+        },
+        {
+          term: 'Discord',
+          body: 'ylläpitäjäsi valitsevat, mikä pääsee omalle palvelimellesi: **Everything shared**, **Big moments** tai **Nothing**, mikä kanava, kuka saa maininnan ja saavatko pelaajasi roolin **@Bingo player**.',
+        },
+      ],
+    },
   },
 
   board: {
@@ -1653,6 +1801,36 @@ const fi: PartialGuideDict = {
         tag: 'Kuka saa tehdä tämän',
         body: 'Ruutujen laatiminen on se yksi ylläpitotehtävä jolla on oma roolinsa. **Editor** voi laatia ruutuja eikä mitään muuta, ja hänet voidaan rajata tiettyihin tauluihin — joten toisesta klaanista tuleva vieraileva taulunrakentaja saa täsmälleen sen tapahtuman jonka annoit hänelle, ilman pääsyä mihinkään muuhun mitä pyörität.',
       },
+    },
+    library: {
+      title: 'Tehtäväkirjasto ja ehdotukset',
+      body: [
+        'Ruudun muokkaajilla on **Task library** ylläpitovalikossa: klaanisi tallennetut tehtävät ja Anvilin oma kirjasto, josta kopioida. **⬇ Export pack** tallentaa tehtäväsi tiedostoon ja **⬆ Import pack** lataa sellaisen; näin taulu siirtyy klaanien välillä.',
+        'Löysitkö virheen Anvilin kirjastosta tai tehtävän, jota siltä puuttuu? Paina tehtävän kohdalla **Suggest a fix** tai **Suggest a new task**. Anvil tarkistaa sen ja vastaus näkyy kohdassa **Your suggestions**: **Waiting for review**, **Approved** tai **Not taken**, muistiinpanon kanssa. Voit olla 5 odottamassa. Hyväksytty korjaus tavoittaa jokaisen klaanikopion, joka yhä seuraa kirjastoa.',
+      ],
+    },
+    stats: {
+      title: 'Aloitustilastot ja myöhään liittyjät',
+      intro: 'XP- ja tappolaskuritaulut vertaavat jokaisen pelaajan tilastoja nyt niihin **starting stats** -lukemiin, jotka otettiin tapahtuman alkaessa. Tapahtuman **Stats**-sivulla tarkistat ja korjaat ne:',
+      rows: [
+        {
+          term: 'Ota aloitustilastot',
+          body: 'ennen alkua se vain lämmittää hiscoret; itse lähtölukema otetaan alussa. Alun jälkeen painike muuttuu **Capture late joiners** -painikkeeksi, lisätyille pelaajille. Sen voi ajaa kerran 30 minuutissa.',
+        },
+        {
+          term: 'Päivitä nyt',
+          body: 'päivittää tilanteen uusimmilla luvuilla. Ne päivittyvät myös joka tunti itsekseen.',
+        },
+        {
+          term: 'Korjaa lähtötaso',
+          body: 'pelaajakohtaisesti: muuta yhden taidon tai bossin lähtöluku käsin. Käytä, kun ennen tapahtumaa tehty grindi ei laskunut, koska pelaaja ei kirjautunut ulos ennen alkua.',
+        },
+        {
+          term: 'Nollaa kaikki aloitustilastot',
+          body: 'piilossa kohdassa **Danger zone**: ottaa kaikkien lähtörivin uudelleen nykyisistä tilastoista, pyyhkien kaikki tähänastiset kasvut. Vain tapahtumalle, joka alkoi vahingossa.',
+        },
+      ],
+      outro: 'Sen alla **Member breakdown** näyttää, kuka tiimissä teki mitä, ja **Stat tile standings** jokaisen pelaajan lähtö- ja nykyluvut jokaisella XP- tai tappoarvoisella ruudulla.',
     },
   },
 
@@ -2908,9 +3086,10 @@ const fi: PartialGuideDict = {
     viewers: {
       title: 'Mitä katsojat ovat',
       body: [
-        'Liittyvä katsoja on **event player**. He pelaavat vain sitä yhtä tapahtumaa.',
-        'He eivät ole klaanin jäseniä eivätkä vieraita. He eivät koskaan päädy klaanilistallesi, eikä heillä ole arvoa.',
-        'Näet kaikki tällä tavalla liittyneet kohdassa **People** → **Past viewers**.',
+        'Katsoja, joka liittyy, on **event player**. Hän pelaa vain sen yhden tapahtuman.',
+        'He eivät ole klaanijäseniä eivätkä vieraita. He eivät koskaan päädy klaanilistallesi, eikä heille anneta arvoa.',
+        'Kaikki näin liittyneet näet kohdasta **People** → **Past viewers**.',
+        'Vakituinen, jonka haluat pitää? **Make guest** hänen rivillään tekee hänestä klaanivieraan, joka voi liittyä mihin tahansa vieraille avoimeen tapahtumaasi, ei vain tähän. **Make a guest a viewer again** muuttaa vieraan takaisin yhden tapahtuman katsojaksi.',
       ],
     },
 
@@ -3310,6 +3489,13 @@ const fi: PartialGuideDict = {
           term: 'Discord-roolit ovat erillisiä',
           body: 'Anvilin roolisynkronointi yhdistää Discord-roolit **pelin arvonimiin**, ei sivuston rooleihin. Moderaattoriksi tekeminen täällä ei anna mitään Discord-palvelimellanne, ja Discordissa käsin antamaasi moderaattoriroolia ei kosketa. Ainoa bottikomento, joka muuttaa jotain, eli kassaan lisääminen komennolla `/coffer`, tarkistaa sivuston roolin: rahastonhoitaja, ylläpitäjä tai omistaja.',
         },
+      ],
+    },
+    log: {
+      title: 'Toimintaloki',
+      body: [
+        '**Activity log** ylläpitovalikossa listaa uusimmat 200 muutosta, ja jokainen henkilökunnan jäsen voi lukea sen: liittymiset, poistumiset, uudelleennimeämiset ja vahvistukset, omistajuuden siirrot, kapteenien lisäykset ja poistot, ilmoittautumiset hyväksytty tai hylätty, maksut vahvistettu, ominaisuudet kytketty ja asetukset muutettu. **Filter by event type** kaventaa sitä.',
+        'Myös kaksoiskappaleet siivotaan täällä. **Merge two members** yhdistää kaksoiskappaleen oikeaan, ja **Suspected renames** listaa nimenvaihdot, jotka Anvil huomasi, vahvistettavaksi tai hylättäväksi.',
       ],
     },
   },
@@ -3900,6 +4086,670 @@ const fi: PartialGuideDict = {
       note: {
         tag: 'Siirtäminen nollaa kellon',
         body: 'Aikaan perustuvat kunniamerkit lasketaan hahmon vanhimmasta yhä laskettavasta boostista, joten boostin siirtäminen tai poistaminen aloittaa ne alusta. Profiilisi listaa klaanit, joita boostaat, kerran klaania kohden.',
+      },
+    },
+  },
+
+  profile: {
+    metaTitle: 'Profiilisi, Wrapped ja Compare — Anvil',
+    metaDescription: 'Sivut, jotka Anvil pitää sinusta: profiilisi, jokaisen hahmon julkinen sivu, henkilösivusi, kuukausittainen ja vuosittainen Wrapped, tapahtuman Wrapped-kortit ja kahden hahmon vertailu rinnakkain.',
+    eyebrow: 'Anvil · pelaajille',
+    title: 'Profiilisi, Wrapped ja Compare',
+    dek: 'Anvil pitää yhden sivun **sinulle** ja yhden **jokaiselle hahmolle**, jolla pelaat. Tässä on, mitä niillä on, kuka niitä voi avata, ja Wrapped-kortit, jotka tulevat jokaisen kuukauden ja tapahtuman lopussa.',
+    facts: [
+      {
+        strong: 'Oletuksena jaettu',
+        rest: 'vaihda minkä tahansa hahmon yksityiseksi yhdellä kytkimellä',
+      },
+      {
+        strong: 'Kuukausittainen Wrapped',
+        rest: 'ilmestyy seuraavan kuukauden 1. päivänä',
+      },
+      {
+        strong: 'Tapahtuman Wrapped',
+        rest: 'ilmestyy tapahtuman päättyessä',
+      },
+    ],
+    footnote: 'Jokainen tässä mainittu kytkin on selitetty siellä, missä se sijaitsee kohdassa [Asetukset sivu kerrallaan]({settingsGuide}).',
+    pages: {
+      title: 'Sivusi',
+      intro: 'Neljä sivua, joista jokainen vastaa eri kysymykseen:',
+      rows: [
+        {
+          term: 'Profiilisi',
+          body: '[/profile](/profile), jonka vain sinä näet. Valitse hahmo ylhäältä olevista siruista nähdäksesi sen tasot, bossit, kokoelmalokin ja tapahtumat. Kapteenit saavat täällä myös **Captain’s deck** -osion.',
+        },
+        {
+          term: 'Hahmon sivu',
+          body: '`/p/<name>`: yksi hahmo, jonka kuka tahansa linkin omaava voi lukea, kun se on jaettu. Se näyttää taidot, bossit, kokoelmalokin ja henkilökohtaiset ennätykset, ja tarkoituksella jättää pois klaanisijoituksesi, tapahtumahistoriasi ja Discord-nimesi.',
+        },
+        {
+          term: 'Henkilösivusi',
+          body: '`/u/…`: kaikki jaetut hahmosi yhdellä sivulla, näyttelyhyllysi ja ne suoratoistotilit, jotka valitsit näytettäviksi. Se on olemassa vain, jos käytät **Show that my characters are one person** -asetusta.',
+        },
+        {
+          term: 'Klaanin jäsensivu',
+          body: '`/c/<clan>/members/<name>`: sama hahmo, sellaisena kuin yksi klaani sen näkee, avattuna klaanin **Members**-listasta. Yksityinen klaani näyttää jäsenensä vain omilleen.',
+        },
+      ],
+    },
+    sharing: {
+      title: 'Kuka näkee mitä',
+      body: [
+        'Jokainen hahmo alkaa **shared**-tilassa: sen sivu aukeaa kenelle tahansa linkin kanssa, ja se voi näkyä tulostauluilla ja muille klaaneille. Kytke yksi pois kohdasta **Who sees my characters** Asetuksissa, ja sen sivu vastaa kaikille muille _not found_ paitsi sinulle. Näet **Private — only you can see this page.** ja linkin **Share it →**.',
+        'Jaetulla sivulla on nimen alla **Copy link**. Kirjautuneet kävijät, jotka pitävät sivua väärinkäyttävänä, voivat painaa **Report this profile**.',
+        'Hahmokohtaisesti Asetuksissa voi myös piilottaa, minkä pelin klaanin jäsen hahmo on (**Show my in-game clan**), jolloin se poistuu hahmon sivulta ja kyseisen klaanin Anvil-sivulta.',
+      ],
+    },
+    wrapped: {
+      title: 'Kuukausittainen ja vuosittainen Wrapped',
+      body: [
+        'Joka kuukausi jokainen hahmo saa Wrapped-kortin: **XP gained**, **Boss kills**, **New slots** kokoelmalokissa, **Efficient**-tunnit, **PBs**, sekä lemmikit ja isoin drop. Se ilmestyy **seuraavan kuukauden 1. päivänä** (UTC). Siihen asti vain sinä voit avata sen esikatseluna.',
+        'Vuodesta tulee myös oma, osoitteessa `/p/<name>/wrapped/<year>`, **1. joulukuuta** alkaen. `/p/<name>/wrapped` vie aina uusimpaan.',
+        'Paina **Copy link to your Wrapped** jakaaksesi sen. Liitettynä Discordiin se avautuu kuvana kortista. Yksityisen hahmon Wrapped avautuu vain sinulle, ja sen linkin esikatselu näkyy tavallisena Anvil-korttina.',
+      ],
+      note: {
+        tag: 'Tyhjä kuukausi',
+        body: 'Jos Anvilille ei tullut kuukauden aikana mitään (ei XP:tä, tappoja, lokipaikkoja tai ennätyksiä), kortti kertoo sen nollien sijaan. Pelaa lisäosalla tai anna hiscoren tavoittaa sinut, ja seuraava kuukausi täyttyy.',
+      },
+    },
+    events: {
+      title: 'Tapahtuman Wrapped',
+      body: [
+        'Kun taulu päättyy, jokainen pelaaja ja jokainen tiimi saa kortin. Avaa tapahtuman **Wrapped**-sivu: **Your card** on ylhäällä, sitten **Teams** (sijoitus, pisteet ja pelaajat) ja **Players**. Paina **Open and share your card** ja sitten **Copy share link**.',
+        'Ennen loppua näet **Cards aren’t out yet**. Henkilökunta voi avata esikatselun ajoissa tarkistaakseen kortit ennen kuin pelaajat näkevät ne.',
+        'Kuvakortit näkyvät vain julkisen klaanin tapahtumalle, joka ei ollut vain kutsulla. Muille tapahtumille linkki toimii yhä niille, jotka näkevät tapahtuman, ja esikatselu näkyy tavallisena Anvil-korttina.',
+      ],
+    },
+    compare: {
+      title: 'Vertaile kahta hahmoa',
+      body: [
+        'Avaa [Compare](/compare) ja kirjoita kaksi nimeä. Saat taidot, bossit ja kokoelmalokisivut rinnakkain. Johtaja kussakin luvussa on kullalla. Sen alla ovat analyysi, XP per taito, jokainen boss, jonka kumpikin on tappanut, ja jokainen lokisivu kohde kohteelta: molemmilla on, kummallakaan ei, tai vain toisella teistä. **Swap sides** vaihtaa puolet.',
+        'Vain jaettuja hahmoja voi verrata. Yksityinen tai nimi, jota Anvil ei tunne, palauttaa _ei Anvilissa tai ei jaettu_. Voit aina verrata omia yksityisiä hahmojasi kirjautuneena.',
+      ],
+    },
+  },
+  settings: {
+    metaTitle: 'Asetukset sivu kerrallaan — Anvil',
+    metaDescription: 'Jokainen Anvil-asetusten sivu: Discord-julkaisut ja kuvakaappausten yksityisyys, pelin chat-syöte, lisäosayhteys ja laitteet, omat webhookit, kuka näkee hahmosi, Supporter- ja profiilin ulkoasu, suoratoistotilit, jokainen hahmo ja omistajuusvaateet.',
+    eyebrow: 'Anvil · pelaajille',
+    title: 'Asetukset sivu kerrallaan',
+    dek: '[Settings](/settings) on paikka, jossa omat valintasi asuvat: mitä julkaiset, mitä näet pelissä ja kuka näkee hahmosi. Täällä tehdyt valinnat seuraavat sinua jokaiselle koneelle, jolla pelaat.',
+    facts: [
+      {
+        strong: 'Hakukenttä',
+        rest: 'ensimmäisellä sivulla löytää minkä tahansa asetuksen',
+      },
+      {
+        strong: 'Yksi sivu hahmoa kohden',
+        rest: 'kohdassa Characters',
+      },
+      {
+        strong: '10 webhookia',
+        rest: 'omiasi',
+      },
+    ],
+    footnote: 'Profiilisivusi on selitetty kohdassa [Profiilisi, Wrapped ja Compare]({profileGuide}); lisäosan omat asetukset kohdassa [RuneLite-lisäosan asennus]({pluginGuide}).',
+    find: {
+      title: 'Asetuksen löytäminen',
+      body: [
+        'Ensimmäisellä sivulla, **Overview & search**, on hakukenttä. Kirjoita mitä haluat omin sanoin, kuten _private messages_, _rare drop value_, _death message_, _name colour_ tai _plugin token_, ja se vie oikean kytkimen luo.',
+        'Sivun sivupalkissa on kaksi ryhmää. **Account** sisältää alla olevat sivut. **Characters** sisältää yhden sivun jokaiselle linkittämällesi hahmolle (päähahmosi on merkitty **main**), sitten **Add character**. Numero **Add character** -kohdassa tarkoittaa, että Anvil on nähnyt sinun pelaavan hahmoja, joita et ole vielä linkittänyt.',
+      ],
+    },
+    posts: {
+      title: 'Discord-julkaisut ja kuvakaappaukset',
+      intro: 'Mitä lisäosa julkaisee sinusta klaaniesi Discord-kanaviin ja mitä se piilottaa kuvakaappauksissa. Seuraava lisäosapäivitys lukee nämä valinnat. Siihen asti lisäosan omien asetusten samat kytkimet päättävät.',
+      rows: [
+        {
+          term: 'Mitä lisäosasi julkaisee',
+          body: '**Rare drops**, **Pets**, **Deaths**, **Collection log slots**, **Level milestones** ja **Diary completions** ovat alussa päällä; **PvP kills** on alussa pois.',
+        },
+        {
+          term: 'Luvut',
+          body: '**Min drop value** (alussa 5m, vähintään 1m, 0 kytkee pois), **Min drop rarity (1 in N)** (alussa 1 / 10 000), **Loot key value** (1m), **Death message** enintään 200 merkkiä, jossa `{name}` muuttuu nimeksesi, sekä alin **Combat task tier** ja **Quest tier**, jotka julkaistaan (alussa Master).',
+        },
+        {
+          term: 'Minne julkaisusi menevät',
+          body: '**Keep my announcements out of clans I only guest in** ja **Level posts in clan channels**: **Clan rules**, **Only 99s & max** tai **Off**. **Per character** listaa jokaisen hahmon linkillä **Clans →**, jolla julkaisun voi kytkeä pois yhdeltä klaanilta.',
+        },
+        {
+          term: 'Kuvakaappausten yksityisyys',
+          body: 'rastita chat, joka jätetään pois jokaisesta lisäosan ottamasta kuvakaappauksesta, todisteista ja Discord-julkaisuista: **Private messages** (alussa rastitettuna), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** ja **Group chat**. Pelin viestit ja Anvilin omat rivit pysyvät aina mukana.',
+        },
+      ],
+      note: {
+        tag: 'Taulun ruudut eivät koskaan muutu',
+        body: 'Julkaisun kytkeminen pois pysäyttää vain Discord-julkaisun. Dropit, tapot ja saavutukset lasketaan yhä millä tahansa taululla, jolla pelaat.',
+      },
+    },
+    chat: {
+      title: 'Pelin sisäinen chat-syöte',
+      intro: 'Mitä lisäosa tulostaa chatiisi, kun lisäosan asetus **Show feed in game chat** on päällä.',
+      rows: [
+        {
+          term: 'Mistä',
+          body: '**Boards I play on** ja **Clans I’m guesting in, and my clan’s guests**.',
+        },
+        {
+          term: 'Mitä',
+          body: 'vähintään valitsemasi arvon arvoiset dropit, **Pets**, **New collection log slots**, **Other teams’ completed tiles**, **My team’s progress on item tiles**, **Leagues, Deadman and other game-mode unlocks**, sekä taistelusaavutukset, tasot, tehtävät ja päiväkirjat.',
+        },
+        {
+          term: 'Kirjautuessasi',
+          body: '**A short brief in chat**: mitä tapahtui, kun olit poissa. Championit valitsevat, mitä se kattaa.',
+        },
+        {
+          term: 'Värit',
+          body: '**Anvil lines in chat**: **By type (Anvil colours)**, **One colour (the plugin’s own)** tai **My own colours** Supportereille.',
+        },
+      ],
+    },
+    login: {
+      title: 'Lisäosayhteys, kirjautuminen ja laitteet',
+      intro: 'Missä lisäosa ja verkkosivusto ovat kirjautuneena ja miten ne kirjataan ulos.',
+      rows: [
+        {
+          term: 'Lisäosayhteys',
+          body: 'lisäosan tokenisi, siltä varalta että liität sen käsin. Yleensä sivupaneelin **Sign in with Discord** hoitaa tämän puolestasi.',
+        },
+        {
+          term: 'Kirjautuminen ja laitteet',
+          body: 'jokainen tietokone, jolla lisäosa on kirjautunut, nimellä **RuneLite sign-in 1**, **2**… ja tieto siitä, milloin se tehtiin ja milloin sitä viimeksi käytettiin. **Revoke** kirjaa yhden ulos, esimerkiksi myymäsi tietokoneen. **Enter a code** liittää toisen tietokoneen. **Sessions** kirjaa sinut ulos verkkosivustolta kaikkialta.',
+        },
+        {
+          term: 'Klaanin laskutus',
+          body: 'klaanin omistajat saavat täältä **Open portal →** klaanin laskutukseen.',
+        },
+      ],
+    },
+    webhooks: {
+      title: 'Omat Discord-webhookit',
+      body: [
+        'Julkaisusi voivat myös mennä omalle Discord-palvelimellesi: yksityiseen kanavaan, kavereiden palvelimelle, minne tahansa missä voit tehdä webhookin. Liitä webhook-linkki, rastita mitä se saa (**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**), aseta halutessasi **Only drops worth at least … gp** ja paina **Add webhook**.',
+        'Voit olla enintään 10. Vain Discord-webhook-linkit hyväksytään, ja tallennettu linkki näytetään peitettynä, joten tämän sivun kuvakaappaus ei vuoda sitä. **Level posts on my webhooks** asettaa omat tasosääntösi niille, erillään klaanistasi.',
+      ],
+    },
+    privacy: {
+      title: 'Kuka näkee hahmoni',
+      intro: 'Hahmosi ovat alussa jaettuja. Kolme kytkintä muuttaa sen:',
+      rows: [
+        {
+          term: 'Show <name> publicly',
+          body: 'yksi kytkin hahmoa kohden. Päällä (alussa) sen sivu on **Public**. Pois päältä se on **Only its clans**: sen klaanit näkevät sen yhä rostereissaan ja tapahtumissaan, muut eivät, ja se poistuu tulostauluilta.',
+        },
+        {
+          term: 'Show that my characters are one person',
+          body: 'kahdella tai useammalla hahmolla tämä tekee henkilösivustasi, joka listaa jaetut hahmosi yhdessä. Pois päältä kukaan ei voi tietää, että ne ovat kaikki sinun.',
+        },
+        {
+          term: 'Show other clans’ boards',
+          body: 'näkyvätkö etusivulla muiden klaanien avoimet taulut katseltavaksi.',
+        },
+      ],
+    },
+    look: {
+      title: 'Supporter, profiilin ulkoasu, suoratoisto ja boostit',
+      intro: 'Miltä näytät Anvilissa ja tilit ja edut sen takana.',
+      rows: [
+        {
+          term: 'Supporter- ja nimivärit',
+          body: 'tasosi, etusi ja kutsulinkkisi: tuo kavereita ja ansaitse ilmaisia kuukausia. Tasot on selitetty kohdassa [Anvil Supporter]({supporterGuide}).',
+        },
+        {
+          term: 'Profiilin ulkoasu',
+          body: 'avatar ja banneri (animoitu Championista alkaen), eri hahmoille eri jos haluat, sekä **Display case**: 4, 8 tai 12 pinssiä tason mukaan.',
+        },
+        {
+          term: 'Suoratoistotilit',
+          body: '**Twitch**, **YouTube**, **Kick** ja **Medal**. Jokaisesta näkyy, onko se vahvistettu, ja kytkin näyttää sen profiilissasi. Vahvistetut tilit ovat se, mikä päästää seuraaja- ja tilaajatapahtumiin.',
+        },
+        {
+          term: 'Klaaniboostit',
+          body: 'näkyy vain, kun voit boostata: slotisi, missä ne ovat ja klaanit, joita voit boostata. Katso [Boosting a clan]({boostsGuide}).',
+        },
+      ],
+    },
+    characters: {
+      title: 'Jokainen hahmo',
+      intro: 'Kohdassa **Characters** jokaisella hahmolla on oma sivunsa: sen tyyppi, onko se vahvistettu, sekä linkit julkiselle sivulle ja täyteen profiiliin.',
+      rows: [
+        {
+          term: 'Näkyvyys',
+          body: '**Show to other clans and on leaderboards** ja **Show my in-game clan**.',
+        },
+        {
+          term: 'Klaanit',
+          body: 'jokainen klaani ja tila, johon se kuuluu, **member**- tai **guest**-roolilla, kullekin klaanille **Announce drops & achievements** ja **Leave**. Jos Anvil on laittanut sen väärään klaaniin, **Which clan is it really in?** kertoo henkilökunnalle.',
+        },
+        {
+          term: 'Hahmo',
+          body: '**Make main**, pyydä uudelleennimeämistä nimenvaihdon jälkeen tai **Remove** se tililtäsi. Sen vanhat tulokset pysyvät paikoillaan.',
+        },
+        {
+          term: 'Add character',
+          body: 'pelaa hahmoa kerran lisäosa kirjautuneena, ja se linkittyy itse. Mobiilissa tai virallisella asiakkaalla linkitä se nimellä. **We noticed you playing** listaa ne, jotka Anvil on nähnyt; **Not mine** hylkää yhden.',
+        },
+      ],
+    },
+    claims: {
+      title: 'Omistajuusvaateet',
+      body: [
+        'Jos hahmo on linkitetty jonkun toisen Anvil-tiliin, mutta on oikeasti sinun, paina **This is my account** lisäosan sivupaneelin **You**-välilehdellä. Todistat pelaavasi sitä nopealla XP-tarkistuksella, ja nykyistä haltijaa kysytään. Et koskaan saa tietää, kuka hän on, eikä hän koskaan saa tietää, kuka sinä olet.',
+        'Vaatimuksesi näyttävät **XP check**, **open** ja sitten, miten ne päättyivät: **moved to you**, **with Anvil staff**, **withdrawn**, **check timed out** tai **closed**. **Withdraw** peruuttaa yhden.',
+        'Kun joku vaatii yhtä sinun hahmoistasi, se näkyy kohdassa **Claims on your characters** kanssa **Approve** tai **Object — it’s mine**. Vahvistamaton hahmo siirtyy 7 päivän jälkeen, ellet vastusta. Vahvistettu siirtyy vain, jos hyväksyt sen.',
+      ],
+    },
+  },
+  weekly: {
+    metaTitle: 'Skill- ja Boss of the Week — Anvil',
+    metaDescription: 'Skill of the Weekin, Boss of the Weekin tai tehokkuuskisan ajaminen Anvilissa: ajastus, toistaminen ja kierrättäminen, aloituslukemat, ihmisten lisääminen ja poistaminen, palkinnot, ajoissa lopettaminen ja se, mitä pelaajat näkevät.',
+    eyebrow: 'Anvil · klaanin henkilökunnalle ja pelaajille',
+    title: 'Skill- ja Boss of the Week',
+    dek: 'Viikoittainen kilpailu on vähän työtä vaativa tapahtuma: ei ruutuja kirjoitettavana, ei tiimejä eikä ilmoittautumisia. Kaikki rosterilla ovat mukana alkaessa, ja voittaja on se, joka kerää eniten ennen loppua.',
+    facts: [
+      {
+        strong: 'Ei ruutuja, ei tiimejä',
+        rest: 'yksi tulostaulu',
+      },
+      {
+        strong: 'Mukana alussa',
+        rest: 'koko rosteri automaattisesti',
+      },
+      {
+        strong: 'Enintään 10 palkintosijaa',
+        rest: 'maksetaan kassasta',
+      },
+    ],
+    footnote: 'Taulut (bingo) ovat kohdassa [Oman ensimmäisen tapahtuman ajaminen]({adminGuide}); palkinnot ja kassa kohdassa [Klaanin kassa]({cofferGuide}).',
+    schedule: {
+      title: 'Ajasta yksi',
+      intro: 'Viisi valintaa, ja oletukset käyvät useimmille klaaneille:',
+      steps: [
+        'Avaa **Schedule** ylläpitovalikosta ja paina **+ Schedule event** (moderaattorit voivat käyttää **Schedule a competition**).',
+        'Valitse laji: **Skill of the Week** (saadut XP), **Boss of the Week** (saadut tapot) tai **Efficiency race** (saatu EHP tai EHB).',
+        'Kohdassa **What is measured** valitse taito tai boss. Jos haluat vaihtaa sen joka viikko, lisää niitä kohtaan **Then rotate through**. Jätä se tyhjäksi toistaaksesi saman.',
+        'Valitse, milloin se **Runs**: **This weekend**, **One week** tai omat päivämäärät. Siinä on aina oltava loppu, koska se pisteyttää alun ja lopun välisen kasvun.',
+        'Pidä **Repeat every week** päällä, jolloin seuraava alkaa heti kun tämä päättyy, samalla pituudella ja palkinnoilla. Rastita **Guests race too**, jos klaanisi vieraiden pitäisi olla taulussa.',
+      ],
+      outro: 'Muuta ei tarvitse asettaa. Aloitusluvut tulevat hiscoreista, kun se alkaa.',
+    },
+    counting: {
+      title: 'Miten laskenta toimii',
+      body: [
+        'Jokaisen pelaajan kasvu on hänen tilastonsa nyt miinus hänen tilastonsa kilpailun alkaessa (hänen **starting line**). Suurin kasvu voittaa; tasatilanne listataan nimin, ja palkinnot voi jakaa tasapelisijoitusten kesken.',
+        'Aloitusluvut otetaan hiscoreista. Sen jälkeen lisäosan live-päivitykset pitävät taulun ajan tasalla hiscore-tarkistusten välillä, joten lisäosan kanssa pelaavat nousevat taulussa pelatessaan.',
+        'Luku, joka laskee, jätetään huomiotta, ja epäuskottava kasvu **flagged** henkilökunnalle sen sijaan, että se laskettaisiin tai leikattaisiin.',
+      ],
+      note: {
+        tag: 'Pelaajat: kirjautukaa ulos ennen alkua',
+        body: 'Hiscoret tallentavat tilastosi vain kun kirjaudut ulos. Jos grindaat aivan alkuun asti ulos kirjautumatta, aloitusrivisi otetaan ennen tuota grindiä ja grindi lasketaan kasvuksi. Henkilökunta yleensä huomaa sen ja korjaa aloitusrivisi, mutta kirjaudu silti kerran ulos ennen alkua.',
+      },
+    },
+    manage: {
+      title: 'Kilpailun ajaminen',
+      intro: 'Avaa kilpailu kohdasta **Schedule** tai hallintapaneelista. Siinä on etusivu ja kolme välilehteä:',
+      rows: [
+        {
+          term: 'Etusivu',
+          body: '**Leaderboard** (kärki 25, ja kuinka monta pisteyttää), **flagged** kasvut, kuka tahansa, joka **left the clan**, sekä palkinnot. Kun se päättyy, voittajat ja **Final leaderboard**.',
+        },
+        {
+          term: 'Aloitusrivit',
+          body: 'jokaisen pelaajan **Started at**, **Now** ja **Gained**. Korjaa aloitusrivi käsin, kun kilpailua edeltävä grindi laskettiin, ja taulu seuraa. **Pull current stats** päivittää kaikki; **Reset baselines** aloittaa kaikki uudelleen hiscoreistaan nyt ja pyyhkii kaikki kasvut.',
+        },
+        {
+          term: 'Osallistujat',
+          body: 'koko rosteri on jo mukana. **Add someone** ottaa yhden nimen per rivi, vieraalle tai tilille, joka ei ole vielä rosterilla. Pelaajan poistaminen poistaa hänen tuloksensa; lisääminen takaisin antaa uuden aloitusrivin. **Leave one each** siivoaa henkilön, joka on mukana useilla hahmoilla. Voit myös pudottaa kaikki vieraat kerralla.',
+        },
+        {
+          term: 'Asetukset',
+          body: 'nimi, päivämäärät, **Repeat every week** ja **Status** (vain jumiutuneen korjaamiseen; se etenee itsestään). Ylläpitäjät voivat **Delete** sen osallistujineen ja tuloksineen.',
+        },
+      ],
+    },
+    prizes: {
+      title: 'Palkinnot ja lopetus',
+      body: [
+        'Aseta palkinnot enintään 10 sijalle, maksettuna klaanin kassasta. Valitset, voidaanko palkita pelaaja ilman kasvua ja jakavatko tasapelisijat palkintonsa. Rahan kulku on kohdassa [Klaanin kassa]({cofferGuide}).',
+        'Se päättyy itsestään asettamaasi aikaan. **End now** pysäyttää sen aiemmin: kasvut lakkaavat heti laskemasta, ja tulokset julkaistaan Discordiin, palkinnot maksettuna 15 minuutin sisällä.',
+      ],
+    },
+    players: {
+      title: 'Pelaajille',
+      body: [
+        'Et ilmoittaudu. Jos olet klaanin rosterilla kun se alkaa, olet mukana. Löydät sen klaanisi **Events**-sivulta, lisäosan sivupaneelin **Clan**-välilehdeltä asemasi kanssa, ja Discordista kun se alkaa ja päättyy.',
+        'Jokaisella kilpailulla on oma sivu livetaulukolla ja siitä, miten kisa eteni päivittäin. Yksityinen klaani näyttää sen vain omille jäsenilleen.',
+        'Lisäosalla pelaaminen pitää lukemasi ajantasaisena. Ilman sitä sinä lasketaan yhä, vain hiscoren vauhdilla.',
+      ],
+    },
+  },
+  clanEvents: {
+    metaTitle: 'Klaanitapahtumat ja aikataulu — Anvil',
+    metaDescription: 'Klaanitapahtumien ajastaminen Anvilissa: massat, reissut ja tapaamiset, viikkotoistot, ”I’m going” ja ilmoittautumiset paikkoineen, kysymyksineen ja maksuineen, Discord-julkaisut ja muistutukset, maksut, kyselyt ja aikataulu, joka näyttää aukot.',
+    eyebrow: 'Anvil · klaanin henkilökunnalle',
+    title: 'Klaanitapahtumat ja aikataulu',
+    dek: 'Kaikki ei ole taulu. Klaanitapahtuma on massa, raidi-ilta, dropparty tai tapaaminen: aika ja paikka, julkaistu Discordiin ja muistutettu, niin paljon tai vähän ilmoittautumista kuin haluat.',
+    facts: [
+      {
+        strong: 'Kerran tai joka viikko',
+        rest: 'valinnainen loppupäivä',
+      },
+      {
+        strong: 'Kolme tapaa liittyä',
+        rest: 'tiedot, ”I’m going” tai ilmoittautumiset',
+      },
+      {
+        strong: 'Muistutus',
+        rest: '15 minuuttia ennen ja alussa',
+      },
+    ],
+    footnote: 'Viikkokilpailut ovat kohdassa [Skill- ja Boss of the Week]({weeklyGuide}); maksut ja palkinnot kohdassa [Maksut ja palkkaukset]({feesGuide}).',
+    create: {
+      title: 'Ajasta yksi',
+      intro: 'Avaa ylläpitovalikosta **Clan events** ja täytä lomake:',
+      rows: [
+        {
+          term: 'Nimi, aika, pituus',
+          body: '**Name**, **Starts (your time)** omassa aikavyöhykkeessäsi ja **Minutes**.',
+        },
+        {
+          term: 'Toistot',
+          body: '**Just once** tai **Every week**, valinnaisella **Until**-päivämäärällä.',
+        },
+        {
+          term: 'Missä',
+          body: '**Where**, **World** ja **Host**, sekä kuva: valitse boss tai taito, tai lataa oma.',
+        },
+        {
+          term: 'Tiedot',
+          body: 'varusteet, vaatimukset, mitä tuoda mukana.',
+        },
+        {
+          term: 'Kuka tulee',
+          body: '**Just information** (ei nappia, ei lukua), **“I’m going”** (yksi napautus, näyttää määrän) tai **Sign-ups** (paikat, kysymykset ja maksu).',
+        },
+        {
+          term: 'Discord',
+          body: '**Post to** kanavaan (tai klaanin oletukseen), valinnaisesti linkitettävät **Chat**-, **Guide**- ja **Voice**-kanavat sekä se, pingataanko jäsenrooli ilmoituksessa, muistutuksessa ja alussa.',
+        },
+      ],
+      outro: 'Paina **Schedule it**. Maksut ja kysely lisätään tapahtuman omalta sivulta myöhemmin.',
+    },
+    discord: {
+      title: 'Mitä Discord näkee',
+      body: [
+        'Ilmoitus nousee, kun ajastat sen, ja se muokataan paikallaan aina kun muutat jotain, joten vanhentunutta kopiota ei koskaan ole. Toistuva tapahtuma merkitään **every week**.',
+        'Viisitoista minuuttia ennen se julkaisee **Starting in 15 minutes**, ja alussa **Starting now**. Jos siirrät aikaa, muistutukset siirtyvät mukana. Kun peruutat sen (**Cancel**), julkaisu merkitään **Cancelled**, ettei kukaan tule paikalle.',
+      ],
+    },
+    manage: {
+      title: 'Ilmoittautumiset, maksut ja palkkaukset',
+      intro: 'Avaa tapahtuma muuttaaksesi, mitä se käyttää. Kaikki alkaa pois päältä:',
+      rows: [
+        {
+          term: 'Ilmoittautumiset',
+          body: '**Places**-kentällä (tyhjä = ei rajaa), kun **Sign-ups close**, ja **Sign-up questions**. **You approve each one** pakottaa jokaisen ilmoittautumisen odottamaan henkilökuntaa.',
+        },
+        {
+          term: '”I’m going”-painike',
+          body: 'pois päältä se on vain tieto: ei nappia eikä lukua sivustolla, lisäosassa tai Discordissa.',
+        },
+        {
+          term: 'Osallistumismaksu',
+          body: 'kytkee ilmoittautumiset päälle. Lisää omat gp potiin kohdassa **Added to the pot**.',
+        },
+        {
+          term: 'Maksut',
+          body: 'potti on maksut plus lisäämäsi. Nimeä **Who** saa mitä ja **For** mistä, ja merkitse kukin **Paid**. Anvil varoittaa, jos maksat enemmän kuin potissa on.',
+        },
+        {
+          term: 'Kysely jälkeenpäin',
+          body: 'avautuu, kun tapahtuma päättyy. Vain henkilökunta näkee vastaukset. Jos siinä oli ilmoittautumiset, kysytään vain ilmoittautuneilta.',
+        },
+        {
+          term: 'Viikoittainen tapahtuma',
+          body: '**Every week is…** **Its own** (ilmoittautumiset, potti ja kysely joka viikko) tai **One run** (yksi ilmoittautuminen, potti ja kysely koko sarjalle).',
+        },
+      ],
+    },
+    players: {
+      title: 'Mitä jäsenet näkevät',
+      body: [
+        'Tapahtumasivu näyttää **When**, **Where**, **Host**, **Discord**, **Entry** ja **Prizes**, ja **Live now** kun se on käynnissä. Jäsenet painavat **I’m going** tai **Sign me up**, tai **Ask to sign up**, kun henkilökunta hyväksyy jokaisen. Se on myös lisäosan sivupaneelin **Clan**-välilehdellä samoilla napeilla.',
+        'Vain klaanin jäsenet voivat ilmoittaa menevänsä tai ilmoittautua.',
+      ],
+    },
+    calendar: {
+      title: 'Aikataulu',
+      body: [
+        '**Schedule** laittaa taulut, viikkokilpailut ja klaanitapahtumat yhdelle kalenterille, jokaiselle oma suodatin.',
+        'Kaikki kahden tai useamman päivän jakso, jossa ei ole mitään, merkitään aukoksi, ja **Fill the gap** ajastaa jotain siihen. Käytä sitä pitämään klaani aktiivisena isojen tapahtumien välissä, ettei hiljainen kaksi viikkoa pääse liukumaan ohi.',
+      ],
+    },
+  },
+  challenges: {
+    metaTitle: 'Haasteet ja kaveritapahtumat — Anvil',
+    metaDescription: 'Kaksintaistohaasteet Anvilissa (ensin drop, eniten tappoja tai eniten XP 1 tunnissa, 24 tunnissa tai 7 päivässä) ja Supporter-kaveritapahtumat: yksityiset taulut kavereillesi yhden kutsulinkin takana.',
+    eyebrow: 'Anvil · pelaajille',
+    title: 'Haasteet ja kaveritapahtumat',
+    dek: 'Kaksi tapaa pelata ihmisiä vastaan, jotka tunnet ilman klaanitapahtumaa: **haaste** on yksi pelaaja yhtä vastaan, ja **kaveritapahtuma** on yksityinen taulu ryhmälle kutsulinkin takana.',
+    facts: [
+      {
+        strong: '1 tunnista 7 päivään',
+        rest: 'haastetta kohden',
+      },
+      {
+        strong: 'Kerskailuoikeudet',
+        rest: 'ei panoksia, ei gp:tä',
+      },
+      {
+        strong: 'Enintään 50 kaveria',
+        rest: 'kaveritapahtumaa kohden tason mukaan',
+      },
+    ],
+    footnote: 'Tasot ja mitä kukin isännöi ovat kohdassa [Anvil Supporter: tasot ja edut]({supporterGuide}).',
+    start: {
+      title: 'Haasta joku',
+      intro: 'Tarvitset vahvistetun hahmon, ja samoin hän.',
+      steps: [
+        'Avaa [Challenges](/challenges) tai paina **Challenge <name>** pelaajan profiilissa.',
+        'Kohdassa **Who** kirjoita hänen nimensä, ja kohdassa **Playing as** valitse oma hahmosi. Sen on oltava vahvistettu.',
+        'Valitse kilpailu: **First to a drop** (enintään 5 esinettä, kaikki hirviödropit), **Most kills** bossista tai **Most XP** yhdessä taidossa tai yleisesti.',
+        'Valitse aikaraja: **1 hour**, **24 hours** tai **7 days**. Rastita **OK to show the result publicly**, jos et välitä siitä, että se nähdään; se on julkinen vain, jos rastitte molemmat.',
+      ],
+      outro: 'He saavat ilmoituksen ja Discord-viestin, ja heillä on 24 tuntia valita **Accept**, **Decline** tai **Decline and block**. Kello alkaa, kun he hyväksyvät.',
+    },
+    rules: {
+      title: 'Miten ratkaistaan',
+      intro: 'Anvil ratkaisee sen itse, minuutin sisällä lopusta.',
+      rows: [
+        {
+          term: 'Tappot ja XP',
+          body: 'molemmat aloitusrivit otetaan, kun se hyväksytään; kumpi kasvaa enemmän loppuun mennessä, voittaa, ja tasainen kasvu on tasapeli. Hiscoret ja lisäosa lasketaan molemmat, kumpi tahansa on korkeampi.',
+        },
+        {
+          term: 'First to a drop',
+          body: 'ensimmäinen teistä, joka saa yhden esineistä, voittaa siinä ja silloin. Dropit näkee vain lisäosa, joten teidän molempien pitää pitää sitä käynnissä. Jos kukaan ei saa sitä ajoissa: tasapeli.',
+        },
+        {
+          term: 'Peruminen',
+          body: 'voit vetää oman haasteesi pois, kunnes siihen vastataan. Kun se on käynnissä, se pysähtyy vain, jos te molemmat olette samaa mieltä.',
+        },
+      ],
+    },
+    limits: {
+      title: 'Rajat ja kieltäytyminen',
+      body: [
+        'Avoimet haasteet (odottavat tai käynnissä, lähetetyt tai vastaanotetut) ovat rajattu tason mukaan: **1** ilmaiseksi, **5** Supportereille, rajaton Championeille ja Patroneille. Kuka tahansa voi aloittaa enintään 20 päivässä, ja vain yhden kerrallaan saman henkilön kanssa.',
+        'Etkö halua niitä? **Turn away all new challenges**, tai estä yksi henkilö, kun hylkäät. Joka haastaa sinut, näkee saman hylkäyksen kummassakin tapauksessa, joten hän ei voi tietää, että hänet estettiin.',
+        'Sivulla pidetään **Your record** (voitot, tappiot ja tasapelit), mikä on **Open now** ja **Your limit**.',
+      ],
+    },
+    friends: {
+      title: 'Isännöi kaveritapahtuma',
+      body: [
+        'Mikä tahansa Supporter, Champion tai Patron voi ajaa yksityisen taulun kavereille sivulta [Host](/host) → **Host for friends** → **New friends event**. Se on täysi taulu: bingo tai ruutukisa, lisäosan seuraama, samalla asetuksella kuin luojan tapahtuma.',
+        'Lähetä **Invite link**; se on ainoa tapa sisään. Kaverit avaavat sen, kirjautuvat Discordilla sisään ja painavat **Open the event**. Liittyminen on aina ilmaista. Jos linkki vuotaa, tee uusi: vanha lakkaa toimimasta, ja jo mukana olevat pysyvät mukana.',
+        'Kaveritapahtumaa ei koskaan listata missään Anvilissa, eikä se tarvitse klaania.',
+      ],
+      table: {
+        areaLabel: 'Taso',
+        columns: [
+          'Pelaajat',
+          'Käynnissä kerralla',
+        ],
+        rows: [
+          {
+            area: 'Supporter',
+            cells: [
+              '10',
+              '1',
+            ],
+          },
+          {
+            area: 'Champion',
+            cells: [
+              '25',
+              '1',
+            ],
+          },
+          {
+            area: 'Patron',
+            cells: [
+              '50',
+              '2',
+            ],
+          },
+        ],
+      },
+      note: {
+        tag: 'Jos tasosi päättyy',
+        body: 'Jo mukana olevat pysyvät mukana. Uudet kaverit eivät voi liittyä uuden rajan yli, eikä sinä voi aloittaa toista, ennen kuin olet alle rajan.',
+      },
+    },
+  },
+  clanHall: {
+    metaTitle: 'Klaanien, tapahtumien ja tulostaulujen etsiminen — Anvil',
+    metaDescription: 'OSRS-klaanin etsiminen Anvilin Clan Hallista, kahden klaanin vertailu, viikoittaiset pelaaja- ja klaanitulostaulut, julkinen tapahtumalista ja peliklaanien sivut klaaneille, jotka eivät ole Anvilissa.',
+    eyebrow: 'Anvil · pelaajille ja klaaneille',
+    title: 'Klaanien, tapahtumien ja tulostaulujen etsiminen',
+    dek: 'Anvilin julkiset sivut katselemiseen: **Clan Hall** klaanin löytämiseen, **Events**-lista, josta löytää liityttävää, ja **Leaderboard** nähdäksesi, kuka kasvaa eniten.',
+    facts: [
+      {
+        strong: 'Clan Hall',
+        rest: 'vain julkiset klaanit',
+      },
+      {
+        strong: 'Leaderboard',
+        rest: 'tämä viikko, 30 päivää, kaikki aika',
+      },
+      {
+        strong: 'Events',
+        rest: 'vain mitä isäntä mainosti',
+      },
+    ],
+    footnote: 'Oman klaanisi listaamiseen katso [Klaanin perustaminen]({clanGuide}); boostatut klaanit ovat esillä, katso [Klaanin boostaaminen]({boostsGuide}).',
+    hall: {
+      title: 'The Clan Hall',
+      body: [
+        '[Clan Hall](/clans) listaa jokaisen julkisen klaanin. Hae nimellä tai iskulauseella ja kavenna **Taking members** tai **Open to challenges**. **Most active** (järjestys, jossa se avautuu) asettaa ensin klaanit, joiden jäsenet kasvoivat eniten tällä viikolla; **Biggest** lajittelee jäsenmäärän mukaan.',
+        'Jokainen kortti kertoo, onko klaani **Recruiting**-tilassa ja miten se ottaa vieraita: **Guests welcome**, **Guests by approval** tai **No guests**. Boostatut klaanit saavat esillä-rivit ylhäälle, ja luojilla on oma rivinsä.',
+      ],
+      note: {
+        tag: 'Ei listattu?',
+        body: 'Vain julkisiksi asetetut klaanit näkyvät, ja klaani voi kytkeä listauksensa pois asetuksissaan. Yksityiset klaanit eivät koskaan ole Clan Hallissa, tulostaulussa tai vertailuissa.',
+      },
+    },
+    compare: {
+      title: 'Vertaile kahta klaania',
+      body: [
+        '[Compare clans](/compare/clans) asettaa kaksi listattua klaania rinnakkain. Jos haluat verrata kahta hahmoa, käytä [Compare](/compare)-sivua.',
+      ],
+    },
+    board: {
+      title: 'Tulostaulu',
+      body: [
+        '[Leaderboard](/leaderboard) järjestää pelaajat ja klaanit kokemuksen, tehokkaiden tuntien ja bossaamisen mukaan **This week**, **30 days** tai **All time**. Pelaajia voi kaventaa **Regular**-, **Ironman**-, **Hardcore**-, **Ultimate**- tai **Group**-tileihin.',
+        'Klaanit järjestetään jäsentensä saaman XP:n mukaan. Vain vahvistetut ja Clan Hallissa listatut klaanit näkyvät. Vieraan kasvu lasketaan hänen omalle klaanilleen, ei sille, jossa hän on vieraana.',
+      ],
+    },
+    events: {
+      title: 'Etsi liityttävä tapahtuma',
+      body: [
+        '[Events](/events) listaa Anvilissa käynnissä olevat ja tulevat tapahtumat. Suodata **Live now**, **Open to join** tai **Starting this week**, muodon tai **Solo**-tilan mukaan, **Anyone can join** tai **Ask or meet a rule** -ehdon mukaan sekä **Clans** tai **Creators** mukaan. **Join** vie ilmoittautumiseen.',
+        'Vain tapahtumat, joiden isäntä kytki **Advertise on Anvil** päälle, näkyvät. Vain jäsenille ja vain kutsulla olevat tapahtumat eivät koskaan näy.',
+      ],
+    },
+    ghost: {
+      title: 'Peliklaanit, jotka eivät ole Anvilissa',
+      body: [
+        'Hahmon sivu nimeää pelissä olevan klaanin. Jos se klaani ei ole Anvilissa, linkki avaa tavallisen sivun, jossa listataan Anvil-pelaajat, jotka ovat siinä ja päättivät näyttää sen. Se ei ole kyseisen klaanin rosteri, eikä mikään sivulla tee kenestäkään jäsentä.',
+        'Jos se on sinun klaanisi, **Bring your clan to Anvil** perustaa sellaisen. Kun se on julkinen Anvil-klaani, linkki vie suoraan siihen.',
+      ],
+    },
+  },
+  guideLibrary: {
+    metaTitle: 'Peliohjeet: lukeminen, ehdottaminen ja klaanikopiot — Anvil',
+    metaDescription: 'Anvilin ohjekirjasto: raidi-, boss-, skillaus- ja rahanteko-ohjeet sivustolla, pelissä ja Discordissa. Lukeminen tason mukaan, uuden ohjeen tai muokkauksen ehdottaminen sekä se, miten klaani kopioi ja muokkaa kirjaston ohjeita.',
+    eyebrow: 'Anvil · pelaajille ja klaanin henkilökunnalle',
+    title: 'Peliohjeet',
+    dek: 'Näiden ohjesivujen lisäksi Anvililla on kirjasto peliohjeita: raidit, bossit, skillaus ja rahanteko. Kuka tahansa voi lukea niitä, kirjautunut voi ehdottaa, ja klaani voi pitää omat kopionsa.',
+    facts: [
+      {
+        strong: 'Kolme tasoa',
+        rest: 'Beginner, Intermediate, Advanced',
+      },
+      {
+        strong: 'Kuka tahansa voi ehdottaa',
+        rest: 'henkilökunta tarkistaa jokaisen',
+      },
+      {
+        strong: '/guide',
+        rest: 'julkaisee yhden Discordissa',
+      },
+    ],
+    footnote: 'Kauttaviivakomennot ovat kohdassa [Kauttaviivakomennot]({commandsGuide}).',
+    read: {
+      title: 'Ohjeen lukeminen',
+      body: [
+        'Avaa **In-game guides** -välilehti ohjesivulla tai [/guides](/guides) klaanisi sivustolla. Klaanin listalla on sen omat ohjeet ja kaikki kirjaston ohjeet, joita se ei ole kopioinut.',
+        'Monissa ohjeissa on tasokytkin yläreunassa: **Beginner**, **Intermediate** ja **Advanced**. Muiden tasojen osat taittuvat kiinni, joten ensikertalainen ja nopeuspelaaja lukevat saman sivun.',
+        'Discordissa `/guide` ja nimen alku julkaisevat ohjeen kortin, jossa on linkki koko sivulle.',
+      ],
+    },
+    propose: {
+      title: 'Ehdota ohjetta tai muokkausta',
+      body: [
+        'Kirjautuneena avaa [Propose a guide](/guides/propose) kirjoittaaksesi uuden tai ehdottaaksesi muokkausta olemassa olevaan kirjastoohjeeseen. Kerro tarkistajalle, mitä muutit ja miksi; voit näyttää muutoksesi nykyistä ohjetta vasten ennen lähetystä.',
+        'Paina **Send for review**. [My guide proposals](/guides/proposals) näyttää jokaisen **pending**-, **approved**-, **rejected**- tai **withdrawn**-tilassa ja tarkistajan muistiinpanon, kun se on vastattu. Kun se odottaa, voit muokata sitä tai **Withdraw** sen. Voit olla 5 odottamassa kerrallaan.',
+        'Mikään ei mene julki ennen kuin Anvilin ohjetoimittajat hyväksyvät sen. Hyväksytty muokkaus päivittää myös jokaisen klaanikopion, jota ei ole muutettu.',
+      ],
+    },
+    clan: {
+      title: 'Klaanisi ohjeet',
+      intro: 'Ylläpitäjät ja ohjeiden kirjoittamiseen oikeutetut moderaattorit hallitsevat niitä ylläpitovalikon kohdassa **Guides**.',
+      rows: [
+        {
+          term: 'Show library guides on our site',
+          body: 'päällä: kirjaston ohjeet, joita et ole kopioinut, näkyvät myös Guides-sivullasi, aina ajantasaisina.',
+        },
+        {
+          term: 'Kopioi omiin ohjeisiin',
+          body: 'tekee klaanikopion. Se **seuraa kirjastoa**, kunnes muokkaat sitä, ja saa jokaisen kirjastomuutoksen.',
+        },
+        {
+          term: 'Kopion muokkaaminen',
+          body: 'tekee siitä **customised**-kopion, klaanin oman. Kun kirjastoohje muuttuu myöhemmin, se näyttää **update available**: ota uusi versio tai pidä oma.',
+        },
+        {
+          term: 'Uusi ohje',
+          body: 'kirjoittaa sellaisen, jonka vain klaanisi omistaa, kuten oma raidisääntösi tai massaohje.',
+        },
+      ],
+      note: {
+        tag: 'Ohjeiden julkaiseminen',
+        body: 'Ohjeita voi julkaista Discord-kanavalle, ja nämä julkaisut muokataan paikallaan, kun ohje muuttuu.',
       },
     },
   },

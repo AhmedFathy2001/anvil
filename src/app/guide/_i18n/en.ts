@@ -222,6 +222,48 @@ export const en = {
           'Placing and moving a boost, the three levels and what each one unlocks, the clan’s name colours, gifted boosts, and booster marks and badges.',
         minutes: '~5 min',
       },
+      profile: {
+        eyebrow: 'For players',
+        title: 'Your profile, Wrapped and Compare',
+        blurb: 'Your profile, each character’s public page and your person page, who can see them, monthly and event Wrapped cards, and comparing two characters.',
+        minutes: '~4 min',
+      },
+      settings: {
+        eyebrow: 'For players',
+        title: 'Settings, page by page',
+        blurb: 'Discord posts and screenshot privacy, the in-game chat feed, devices, your own webhooks, who sees your characters, each character, and ownership claims.',
+        minutes: '~6 min',
+      },
+      challenges: {
+        eyebrow: 'For players',
+        title: 'Challenges and friends events',
+        blurb: 'Challenge one player to a drop, kills or XP race, and host a private board for your friends behind one invite link.',
+        minutes: '~4 min',
+      },
+      clanHall: {
+        eyebrow: 'For players and clans',
+        title: 'Finding clans, events and leaderboards',
+        blurb: 'The Clan Hall, comparing two clans, the weekly leaderboard, the public events list, and pages for in-game clans not on Anvil.',
+        minutes: '~3 min',
+      },
+      guideLibrary: {
+        eyebrow: 'For players and clan staff',
+        title: 'In-game guides',
+        blurb: 'Reading the guide library by level, proposing a new guide or an edit, and keeping your clan’s own copies.',
+        minutes: '~3 min',
+      },
+      weekly: {
+        eyebrow: 'For clan staff and players',
+        title: 'Skill and Boss of the Week',
+        blurb: 'Scheduling a weekly competition, repeating and rotating it, starting lines, prizes, ending early, and what players see.',
+        minutes: '~4 min',
+      },
+      clanEvents: {
+        eyebrow: 'For clan staff',
+        title: 'Clan events and the schedule',
+        blurb: 'Masses, raid nights and meetups: weekly repeats, “I’m going” and sign-ups, Discord reminders, payouts, surveys, and finding gaps in the schedule.',
+        minutes: '~4 min',
+      },
     },
   },
 
@@ -423,7 +465,21 @@ export const en = {
         body: 'Boosts change how the clan looks and where it is listed. They never change a rank, a score, your seats or your plan.',
       },
     },
+
+    features: {
+      title: 'Features and plan',
+      intro:
+        'Admins can switch whole parts of Anvil on or off under **Features**. Off hides them from the menus; nothing is deleted.',
+      rows: [
+        { term: 'Events', body: '**Skill & Boss of the Week** (on), **Surprise-task formats** (off), **Missions** (off), **Post-event survey** (off).' },
+        { term: 'Money', body: '**Sign-up fees** (on), **Clan coffer** (off).' },
+        { term: 'Discord & plugin', body: '**Post to Discord** (on), **Death & fun messages** (off), **Clan Hall card**, showing who is online in your Discord on your public clan page (on).' },
+      ],
+      outro:
+        '**Plan and billing** shows your plan, how many members you have against its size, and the bigger plans. If you pay, **Manage subscription and invoices** is there too.',
+    },
   },
+
   discord: {
     metaTitle: 'Anvil in Discord — Anvil',
     metaDescription:
@@ -990,6 +1046,67 @@ export const en = {
         },
       ],
     },
+
+    screen: {
+      title: 'On screen while you play',
+      intro: 'What the plugin draws and prints while you play, and the setting behind each.',
+      rows: [
+        {
+          term: 'Pinned tiles',
+          body: 'open a tile in the side panel and press **Track on screen** (up to 3). With **Pinned tiles in one panel** on, they share one small panel: each tile’s name, your team’s progress, and lines like _3/5 runs_ or which parts of a combo are done. Off, each gets its own bigger widget with your teammates and the other teams. Alt-drag to move it. Right-click it for **Unpin** or **Unpin all**. A finished tile shows **Done**, then unpins itself.',
+        },
+        {
+          term: 'The starting shot card',
+          body: 'while an event is waiting for your starting shot, a **Starting shot needed** card at the top of the screen says where to go and shows each check in green or red: the relog, how long your session has been, how many squares you are from the spot. A hint arrow and a world map pin (**Anvil starting shot**) lead you there. With **Auto starting shot** on it is taken the moment everything is green; then the card says **You’re tracked** and goes. Setting: **Starting shot guide**.',
+        },
+        {
+          term: 'Banners',
+          body: '**Tile complete!** when your team finishes a tile, your own drop’s progress on a tile, and **New mission!**. Settings: **Team completion popups** and **My tile popups**.',
+        },
+        {
+          term: 'Vestige rolls',
+          body: 'at the Desert Treasure II bosses, each unique prints a line with where you are in the vestige rotation, like _Roll 2 of 4_ or _the next unique is the vestige_. It says _(estimated)_ until it has seen you get a vestige. No setting; it runs with or without an event.',
+        },
+        {
+          term: 'Lookup type-ahead',
+          body: 'typing in the **Lookup** box finishes the name for you, from your recent lookups, friends, clanmates online and players nearby. **Enter** accepts. It reads your own client only; nothing is sent.',
+        },
+        {
+          term: 'Chat colours',
+          body: '**[Anvil] tag colour** and **Message colour** under **Chat messages**. Until you pick, they turn dark gold and black on an opaque chatbox so they stay readable. Hover a Supporter’s name in chat to see their tier, like _Anvil Patron_.',
+        },
+      ],
+    },
+
+    sync: {
+      title: 'Profile sync, and what else it sends',
+      intro:
+        'The **Profile sync** settings fill your Anvil profile. All four are on to start:',
+      rows: [
+        {
+          term: 'Sync collection log',
+          body: 'each collection-log page you open is sent to your profile.',
+        },
+        {
+          term: 'Sync the whole log on open',
+          body: 'opening the collection log sends all of it, not just the page you look at. To do it on demand, press the **Anvil** button in the collection log’s title bar, or **Sync profile** in the side panel while the log is open. Chat confirms it: _Profile synced — N collection log slots._',
+        },
+        {
+          term: 'Sync personal bests',
+          body: 'boss and raid times are sent as you set them.',
+        },
+        {
+          term: 'Import existing bests once',
+          body: 'once per character, copies the personal bests RuneLite already saved on your computer: _Imported N personal best(s) from RuneLite._',
+        },
+        {
+          term: 'Share highlights with the clan',
+          body: 'your pets, big drops, deaths, combat tasks, level milestones, new log slots and diaries appear on your clan site’s feed, and in the chat feed of players who can see them.',
+        },
+      ],
+      outro:
+        'Three more things are sent without a setting of their own. **Who killed you**: the monster or player that had you targeted in your last 15 seconds is named on the feed. **Game counters**: some kill tiles count a number the game keeps, like Tithe Farm points, Giants’ Foundry reputation, Doom delves or slayer streaks; only rises count. **Leagues, Deadman and other modes**: on those worlds, the game’s own lines about relics, areas and tasks are sent so your clan can post them in its mode channel.',
+    },
   },
 
   admin: {
@@ -1228,6 +1345,16 @@ export const en = {
         'With federation on, members can also connect to other Anvil clans from the plugin — handy for cross-clan events, and entirely opt-in per member.',
       outro: 'Then point your members at the [player setup guide]({pluginGuide}) and start planning the next one.',
     },
+
+    survey: {
+      title: 'Ask the players',
+      intro:
+        'Switch on **Post-event survey** under **Features**, then open the event’s **Survey** page.',
+      body: [
+        'Under **Build**, add questions: **Rating (1–5)**, **Free text**, **Choose one** or **Choose many**, each optionally **Required**. Or load a template: **Bingo wrap-up**, **Quick pulse**, **PvM mass**, **Raid team** or **Skilling / social**. **Preview the participant view** shows it as a player will.',
+        'It opens when the event ends, to approved participants only, and they can change their answers later. **Results** shows answers **By question** or **By person**. It is not anonymous: staff see who said what.',
+      ],
+    },
   },
 
   clanVsClan: {
@@ -1445,7 +1572,32 @@ export const en = {
         body: 'Turn the links off and remove the staff seats. Neither expires on its own, and a live link on a finished event is just a loose end.',
       },
     },
+
+    cohost: {
+      title: 'If you are the co-host',
+      intro:
+        'Everything above is the host’s side. The visiting clan’s staff get their own page for the event, **Co-hosted with <host>**. The host keeps the dates, the draft, the teams and who can see it.',
+      rows: [
+        {
+          term: 'Your clan’s sign-ups',
+          body: '**Approve**, **Reject** or **Withdraw** your own clan’s players. You never see or touch the host’s.',
+        },
+        {
+          term: 'The board',
+          body: 'you can edit only if the host gave your staff that. Otherwise you can **Suggest a tile**: the tile, details and points, up to 25 waiting at once. Each shows as **waiting**, **accepted ✓** or **turned down** with the host’s reason.',
+        },
+        {
+          term: 'Your team',
+          body: '**Manage** your clan’s team.',
+        },
+        {
+          term: 'Discord',
+          body: 'your admins choose what reaches your own server: **Everything shared**, **Big moments** or **Nothing**, which channel, who gets pinged, and whether your players get the **@Bingo player** role.',
+        },
+      ],
+    },
   },
+
   board: {
     metaTitle: 'Building a board — Anvil tile-authoring guide',
     metaDescription:
@@ -1641,6 +1793,40 @@ export const en = {
         tag: 'Who can do this',
         body: 'Board authoring is the one admin job with its own role. An **editor** can author tiles and nothing else, and can be scoped to specific boards — so a guest board-builder from another clan gets exactly the event you handed them and no access to anything else you run.',
       },
+    },
+
+    library: {
+      title: 'The task library and suggestions',
+      body: [
+        'Tile editors have **Task library** in the admin menu: your clan’s saved tasks, and Anvil’s own library to copy from. **⬇ Export pack** saves your tasks as a file and **⬆ Import pack** loads one, which is how a board moves between clans.',
+        'Found a mistake in Anvil’s library, or a task it is missing? Press **Suggest a fix** on the task, or **Suggest a new task**. Anvil reviews it and the answer shows under **Your suggestions**: **Waiting for review**, **Approved** or **Not taken**, with a note. You can have 5 waiting. An approved fix reaches every clan copy that still follows the library.',
+      ],
+    },
+
+    stats: {
+      title: 'Starting stats and late joiners',
+      intro:
+        'XP and kill-count tiles compare each player’s stats now with their **starting stats**, taken when the event starts. The event’s **Stats** page is where you check and fix them:',
+      rows: [
+        {
+          term: 'Capture starting stats',
+          body: 'before the start it only warms up the hiscores; the starting line itself is taken at the start. After the start the button becomes **Capture late joiners**, for players added since. It can run once every 30 minutes.',
+        },
+        {
+          term: 'Update now',
+          body: 'refreshes the standings from the latest numbers. They also refresh every hour on their own.',
+        },
+        {
+          term: 'Fix baseline',
+          body: 'per player: change one skill or boss starting number by hand. Use it when a grind from before the event was counted, because the player didn’t log out before it started.',
+        },
+        {
+          term: 'Reset all starting stats',
+          body: 'tucked under **Danger zone**: takes everyone’s starting line again from their stats now, wiping every gain so far. Only for an event that started by mistake.',
+        },
+      ],
+      outro:
+        'Below that, **Member breakdown** shows who on each team did what, and **Stat tile standings** every player’s start and current numbers on each XP or kill tile.',
     },
   },
 
@@ -2911,6 +3097,7 @@ export const en = {
         'A viewer who joins is an **event player**. They play that one event.',
         'They are not clan members and not guests. They never land on your clan list, and they get no rank.',
         'You can see everyone who joined this way under **People** → **Past viewers**.',
+        'A regular you want to keep? **Make guest** on their row turns them into a clan guest, so they can join any of your events open to guests, not just this one. **Make a guest a viewer again** turns a guest back into a viewer of one event.',
       ],
     },
 
@@ -3312,7 +3499,16 @@ export const en = {
         },
       ],
     },
+
+    log: {
+      title: 'The activity log',
+      body: [
+        '**Activity log** in the admin menu lists the newest 200 changes, and every staff member can read it: joins, leaves, renames and verifications, ownership transfers, captains made and removed, sign-ups approved or turned down, fees confirmed, features switched and settings changed. **Filter by event type** narrows it.',
+        'It is also where duplicates get tidied. **Merge two members** folds a duplicate into the real one, and **Suspected renames** lists name changes Anvil spotted for you to confirm or reject.',
+      ],
+    },
   },
+
   supporter: {
     metaTitle: 'Anvil Supporter: tiers and perks — Anvil',
     metaDescription:
@@ -3899,6 +4095,646 @@ export const en = {
       note: {
         tag: 'Moving starts the clock again',
         body: 'Badges for time count from the character’s earliest boost that is still counting, so moving or removing a boost starts them over. Your profile lists the clans you boost, once per clan.',
+      },
+    },
+  },
+
+  profile: {
+    metaTitle: 'Your profile, Wrapped and Compare — Anvil',
+    metaDescription:
+      'The pages Anvil keeps about you: your profile, each character’s public page, your person page, monthly and yearly Wrapped, event Wrapped cards, and comparing two characters side by side.',
+    eyebrow: 'Anvil · for players',
+    title: 'Your profile, Wrapped and Compare',
+    dek: 'Anvil keeps one page for **you** and one for **each character** you play. This is what is on them, who can open them, and the Wrapped cards that come out at the end of every month and every event.',
+    facts: [
+      { strong: 'Shared by default', rest: 'turn any character private in one switch' },
+      { strong: 'Monthly Wrapped', rest: 'out on the 1st of the next month' },
+      { strong: 'Event Wrapped', rest: 'out when the event ends' },
+    ],
+    footnote:
+      'Every switch mentioned here is explained where it lives in [Settings, page by page]({settingsGuide}).',
+
+    pages: {
+      title: 'Your pages',
+      intro: 'Four pages, each answering a different question:',
+      rows: [
+        {
+          term: 'Your profile',
+          body: '[/profile](/profile), only ever seen by you. Pick a character from the chips at the top to see its levels, bosses, collection log and events. Captains also get a **Captain’s deck** here.',
+        },
+        {
+          term: 'A character’s page',
+          body: '`/p/<name>`: one character, readable by anyone with the link while it is shared. It shows skills, bosses, the collection log and personal bests, and on purpose leaves out your clan standings, your event history and your Discord name.',
+        },
+        {
+          term: 'Your person page',
+          body: '`/u/…`: all your shared characters on one page, with your display case and the streaming accounts you chose to show. It only exists if you turn on **Show that my characters are one person**.',
+        },
+        {
+          term: 'A clan’s member page',
+          body: '`/c/<clan>/members/<name>`: the same character as one clan sees it, reached from that clan’s **Members** list. A private clan shows its members only to its own people.',
+        },
+      ],
+    },
+
+    sharing: {
+      title: 'Who can see what',
+      body: [
+        'Every character starts **shared**: its page opens for anyone with the link, and it can appear on leaderboards and to other clans. Turn one off under **Who sees my characters** in Settings and its page answers _not found_ for everyone except you. You see **Private — only you can see this page.** with a **Share it →** link.',
+        'A shared page has **Copy link** under the name. Signed-in visitors who think a page is abusive can press **Report this profile**.',
+        'Per character, Settings also lets you hide which in-game clan it is in (**Show my in-game clan**), so it leaves that character’s page and that clan’s Anvil page.',
+      ],
+    },
+
+    wrapped: {
+      title: 'Your monthly and yearly Wrapped',
+      body: [
+        'Every month, each character gets a Wrapped card: **XP gained**, **Boss kills**, **New slots** in the collection log, **Efficient** hours, **PBs**, plus pets and the biggest drop. It comes out on the **1st of the following month** (UTC). Until then only you can open it, as a preview.',
+        'The year gets one too, at `/p/<name>/wrapped/<year>`, from **1 December**. `/p/<name>/wrapped` always takes you to the newest one there is.',
+        'Press **Copy link to your Wrapped** to share it. Pasted into Discord it unfurls as a picture of the card. A private character’s Wrapped opens only for you, and its link previews as a plain Anvil card.',
+      ],
+      note: {
+        tag: 'An empty month',
+        body: 'If nothing reached Anvil that month (no XP, kills, log slots or PBs), the card says so instead of showing zeros. Play with the plugin, or let the hiscores catch you, and next month fills in.',
+      },
+    },
+
+    events: {
+      title: 'Event Wrapped',
+      body: [
+        'When a board ends, every player and every team gets a card. Open the event’s **Wrapped** page: **Your card** is at the top, then **Teams** (rank, score and players) and **Players**. Press **Open and share your card**, then **Copy share link**.',
+        'Before the end you see **Cards aren’t out yet**. Staff can open a preview early, so they can check the cards before players see them.',
+        'The card pictures only show for a public clan’s event that wasn’t invite-only. For any other event the link still works for the people who can see that event, and previews as a plain Anvil card.',
+      ],
+    },
+
+    compare: {
+      title: 'Compare two characters',
+      body: [
+        'Open [Compare](/compare) and type two names. You get skills, bosses and collection-log pages side by side. The leader on each count is in gold. Below that are an analysis, per-skill XP, every boss either of you has killed, and each log page item by item: both have it, neither, or only one of you. **Swap sides** flips them.',
+        'Only shared characters can be compared. A private one, or a name Anvil doesn’t know, comes back as _not on Anvil, or not shared_. You can always compare your own private characters while signed in.',
+      ],
+    },
+  },
+
+  settings: {
+    metaTitle: 'Settings, page by page — Anvil',
+    metaDescription:
+      'Every page under Anvil Settings: Discord posts and screenshot privacy, the in-game chat feed, plugin connection and devices, your own webhooks, who sees your characters, Supporter and profile look, streaming accounts, each character, and ownership claims.',
+    eyebrow: 'Anvil · for players',
+    title: 'Settings, page by page',
+    dek: '[Settings](/settings) is where your own choices live: what you post, what you see in game, who can see your characters. Choices made here follow you to every computer you play on.',
+    facts: [
+      { strong: 'Search box', rest: 'on the first page finds any setting' },
+      { strong: 'One page per character', rest: 'under Characters' },
+      { strong: '10 webhooks', rest: 'of your own' },
+    ],
+    footnote:
+      'Your profile pages are explained in [Your profile, Wrapped and Compare]({profileGuide}); the plugin’s own settings in [RuneLite plugin setup]({pluginGuide}).',
+
+    find: {
+      title: 'Finding a setting',
+      body: [
+        'The first page, **Overview & search**, has a search box. Type what you want in your own words, like _private messages_, _rare drop value_, _death message_, _name colour_ or _plugin token_, and it takes you to the right switch.',
+        'The menu down the side has two groups. **Account** holds the pages below. **Characters** has one page per character you have linked (your main is marked **main**), then **Add character**. A number on **Add character** means Anvil has seen you play characters you haven’t linked yet.',
+      ],
+    },
+
+    posts: {
+      title: 'Discord posts & screenshots',
+      intro:
+        'What the plugin posts about you to your clans’ Discord channels, and what it hides in screenshots. These choices are read by the next plugin update. Until you have it, the same switches in the plugin’s own settings decide.',
+      rows: [
+        {
+          term: 'What your plugin posts',
+          body: '**Rare drops**, **Pets**, **Deaths**, **Collection log slots**, **Level milestones** and **Diary completions** start on; **PvP kills** starts off.',
+        },
+        {
+          term: 'The numbers',
+          body: '**Min drop value** (5m to start, at least 1m, 0 turns it off), **Min drop rarity (1 in N)** (1 in 10,000 to start), **Loot key value** (1m), a **Death message** of up to 200 characters where `{name}` becomes your name, and the lowest **Combat task tier** and **Quest tier** that post (Master to start).',
+        },
+        {
+          term: 'Where your posts go',
+          body: '**Keep my announcements out of clans I only guest in**, and **Level posts in clan channels**: **Clan rules**, **Only 99s & max** or **Off**. **Per character** lists each character with a **Clans →** link to switch posting off for one clan.',
+        },
+        {
+          term: 'Screenshot privacy',
+          body: 'tick the chat that is left out of every screenshot the plugin takes, proofs and Discord posts alike: **Private messages** (ticked to start), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** and **Group chat**. Game messages and Anvil’s own lines always stay in.',
+        },
+      ],
+      note: {
+        tag: 'Board tiles are never affected',
+        body: 'Switching a post off only stops the Discord post. Drops, kills and achievements still count on any board you are playing.',
+      },
+    },
+
+    chat: {
+      title: 'In-game chat feed',
+      intro:
+        'What the plugin prints in your chatbox when the plugin setting **Show feed in game chat** is on.',
+      rows: [
+        {
+          term: 'Where from',
+          body: '**Boards I play on**, and **Clans I’m guesting in, and my clan’s guests**.',
+        },
+        {
+          term: 'What',
+          body: 'drops worth at least an amount you pick, **Pets**, **New collection log slots**, **Other teams’ completed tiles**, **My team’s progress on item tiles**, **Leagues, Deadman and other game-mode unlocks**, and combat achievements, levels, quests and diaries.',
+        },
+        {
+          term: 'When you log in',
+          body: '**A short brief in chat**: what happened while you were away. Champions choose what it covers.',
+        },
+        {
+          term: 'Colours',
+          body: '**Anvil lines in chat**: **By type (Anvil colours)**, **One colour (the plugin’s own)**, or **My own colours** for Supporters.',
+        },
+      ],
+    },
+
+    login: {
+      title: 'Plugin connection, login & devices',
+      intro: 'Where the plugin and the website are signed in, and how to sign them out.',
+      rows: [
+        {
+          term: 'Plugin connection',
+          body: 'your plugin token, for the rare case you paste it by hand. Normally **Sign in with Discord** in the side panel does this for you.',
+        },
+        {
+          term: 'Login & devices',
+          body: 'every computer the plugin is signed in on, as **RuneLite sign-in 1**, **2**… with when it was made and last used. **Revoke** signs one out, for example a computer you sold. **Enter a code** links another computer. **Sessions** signs you out of the website everywhere.',
+        },
+        {
+          term: 'Clan billing',
+          body: 'clan owners get **Open portal →** here, for the clan’s billing.',
+        },
+      ],
+    },
+
+    webhooks: {
+      title: 'Your Discord webhooks',
+      body: [
+        'Your posts can also go to a Discord server of your own: a private channel, a friends’ server, anywhere you can make a webhook. Paste the webhook link, tick what it gets (**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**), optionally set **Only drops worth at least … gp**, and press **Add webhook**.',
+        'You can have up to 10. Only Discord webhook links are accepted, and a saved one is shown masked, so a screenshot of this page doesn’t leak it. **Level posts on my webhooks** sets your own level rules for them, separate from your clan’s.',
+      ],
+    },
+
+    privacy: {
+      title: 'Who sees my characters',
+      intro: 'Your characters are shared to start with. Three switches change that:',
+      rows: [
+        {
+          term: 'Show <name> publicly',
+          body: 'one switch per character. On (the start), its page is **Public**. Off, it is **Only its clans**: its clans still see it in their rosters and events, nobody else does, and it leaves leaderboards.',
+        },
+        {
+          term: 'Show that my characters are one person',
+          body: 'with two or more characters, this makes your person page, which lists your shared characters together. Off, nobody can tell they are all you.',
+        },
+        {
+          term: 'Show other clans’ boards',
+          body: 'whether the home page lists other clans’ open boards for you to look at.',
+        },
+      ],
+    },
+
+    look: {
+      title: 'Supporter, profile look, streaming and boosts',
+      intro: 'How you look on Anvil, and the accounts and perks behind it.',
+      rows: [
+        {
+          term: 'Supporter & name colours',
+          body: 'your tier, your perks and your invite link: bring friends and earn free months. Tiers are explained in [Anvil Supporter]({supporterGuide}).',
+        },
+        {
+          term: 'Profile look',
+          body: 'avatar and banner (animated from Champion), different ones per character if you like, and the **Display case**: 4, 8 or 12 pins by tier.',
+        },
+        {
+          term: 'Streaming accounts',
+          body: '**Twitch**, **YouTube**, **Kick** and **Medal**. Each shows whether it is verified, with a switch to show it on your profile. Verified accounts are what let you into follower and subscriber events.',
+        },
+        {
+          term: 'Clan boosts',
+          body: 'only shown once you can boost: your slots, where they are placed and the clans you can boost. See [Boosting a clan]({boostsGuide}).',
+        },
+      ],
+    },
+
+    characters: {
+      title: 'Each character',
+      intro:
+        'Under **Characters**, every character has its own page: its type, whether it is verified, and links to its public page and full profile.',
+      rows: [
+        {
+          term: 'Visibility',
+          body: '**Show to other clans and on leaderboards**, and **Show my in-game clan**.',
+        },
+        {
+          term: 'Clans',
+          body: 'each clan and space it is in, as **member** or **guest**, with **Announce drops & achievements** per clan and **Leave**. If Anvil has it in the wrong clan, **Which clan is it really in?** tells staff.',
+        },
+        {
+          term: 'Character',
+          body: '**Make main**, ask for a rename after a name change, or **Remove** it from your account. Its past results stay where they are.',
+        },
+        {
+          term: 'Add character',
+          body: 'play a character once with the plugin signed in and it links itself. On mobile or the official client, link it by name. **We noticed you playing** lists the ones Anvil has seen; **Not mine** dismisses one.',
+        },
+      ],
+    },
+
+    claims: {
+      title: 'Ownership claims',
+      body: [
+        'If a character is linked to someone else’s Anvil account but is really yours, press **This is my account** in the plugin side panel’s **You** tab. You prove you play it with a quick XP check, then the current holder is asked. You never learn who they are, and they never learn who you are.',
+        'Your claims show **XP check**, **open**, and then how they ended: **moved to you**, **with Anvil staff**, **withdrawn**, **check timed out** or **closed**. **Withdraw** cancels one.',
+        'When someone claims one of yours, it shows under **Claims on your characters** with **Approve** or **Object — it’s mine**. An unverified character moves after 7 days unless you object. A verified one only ever moves if you approve it.',
+      ],
+    },
+  },
+
+  weekly: {
+    metaTitle: 'Skill and Boss of the Week — Anvil',
+    metaDescription:
+      'Running a Skill of the Week, Boss of the Week or efficiency race on Anvil: scheduling one, repeating and rotating it, starting lines, adding and removing people, prizes, ending early, and what players see.',
+    eyebrow: 'Anvil · for clan staff and players',
+    title: 'Skill and Boss of the Week',
+    dek: 'A weekly competition is the low-effort event: no tiles to write, no teams and no sign-ups. Everyone on the roster is entered when it starts, and the winner is whoever gains the most before it ends.',
+    facts: [
+      { strong: 'No tiles, no teams', rest: 'one leaderboard' },
+      { strong: 'Entered at start', rest: 'the whole roster, automatically' },
+      { strong: 'Up to 10 prize places', rest: 'paid from the coffer' },
+    ],
+    footnote:
+      'Boards (bingo) are in [Running your first event]({adminGuide}); prizes and the coffer in [The clan coffer]({cofferGuide}).',
+
+    schedule: {
+      title: 'Schedule one',
+      intro: 'Five choices, and the defaults are fine for most clans:',
+      steps: [
+        'Open **Schedule** in the admin menu and press **+ Schedule event** (moderators can use **Schedule a competition**).',
+        'Pick the kind: **Skill of the Week** (XP gained), **Boss of the Week** (kills gained) or **Efficiency race** (EHP or EHB gained).',
+        'Under **What is measured**, pick the skill or boss. To change it every week, add more under **Then rotate through**. Leave that empty to repeat the same one.',
+        'Choose when it **Runs**: **This weekend**, **One week**, or your own dates. It always needs an end, because it scores the gains between start and end.',
+        'Leave **Repeat every week** on and the next one starts the moment this one ends, with the same length and prizes. Tick **Guests race too** if your clan’s guests should be on the board.',
+      ],
+      outro:
+        'There is nothing else to set up. Starting numbers come from the hiscores when it begins.',
+    },
+
+    counting: {
+      title: 'How it counts',
+      body: [
+        'Each player’s gain is their stat now minus their stat when the competition started (their **starting line**). Highest gain wins; a tie is listed by name, and prizes can be split between tied places.',
+        'Starting lines are taken from the hiscores. After that, the plugin’s live updates keep the board current between hiscore checks, so players with the plugin move up the board as they play.',
+        'A number that goes down is ignored, and a gain that looks impossible is **flagged** for staff rather than counted or cut.',
+      ],
+      note: {
+        tag: 'Players: log out before it starts',
+        body: 'The hiscores only save your stats when you log out. If you grind right up to the start without logging out, your starting line is taken from before that grind and the grind counts as gain. Staff will usually catch it and fix your starting line, so log out once before it starts.',
+      },
+    },
+
+    manage: {
+      title: 'Running it',
+      intro: 'Open the competition from **Schedule** or the dashboard. It has a home page and three tabs:',
+      rows: [
+        {
+          term: 'Home',
+          body: 'the **Leaderboard** (top 25, with how many are scoring), **flagged** gains, anyone who **left the clan**, and the prizes. When it ends, the winners and **Final leaderboard**.',
+        },
+        {
+          term: 'Starting lines',
+          body: 'every player’s **Started at**, **Now** and **Gained**. Correct a starting line by hand when a pre-competition grind was counted, and the leaderboard follows. **Pull current stats** refreshes everyone; **Reset baselines** starts everyone again from their hiscores now and wipes all gains.',
+        },
+        {
+          term: 'Participants',
+          body: 'the whole roster is already in. **Add someone** takes one name per line, for a guest or an account not on the roster yet. Removing a player removes their standing; adding them back gives them a new starting line. **Leave one each** cleans up a person entered on several characters. You can also drop every guest at once.',
+        },
+        {
+          term: 'Settings',
+          body: 'name, dates, **Repeat every week**, and **Status** (only to unstick one; it moves along on its own). Admins can **Delete** it, along with its participants and standings.',
+        },
+      ],
+    },
+
+    prizes: {
+      title: 'Prizes and ending',
+      body: [
+        'Set prizes for up to 10 places, paid from the clan coffer. You choose whether a player with no gain can be paid and whether tied places share their prizes. How the money moves is in [The clan coffer]({cofferGuide}).',
+        'It ends on its own at the time you set. **End now** stops it early: gains stop counting at once, and the results post to Discord with prizes settled within 15 minutes.',
+      ],
+    },
+
+    players: {
+      title: 'For players',
+      body: [
+        'You don’t sign up. If you are on the clan roster when it starts, you are in. Find it on your clan’s **Events** page, in the plugin side panel’s **Clan** tab with where you stand, and in Discord when it starts and ends.',
+        'Each competition has its own page with the live leaderboard and how the race went day by day. A private clan shows it only to its own members.',
+        'Playing with the plugin keeps your number live. Without it you still count, just at the speed of the hiscores.',
+      ],
+    },
+  },
+
+  clanEvents: {
+    metaTitle: 'Clan events and the schedule — Anvil',
+    metaDescription:
+      'Scheduling clan events on Anvil: masses, trips and meetups, weekly repeats, “I’m going” and sign-ups with places, questions and fees, Discord posts and reminders, payouts, surveys, and the schedule that shows gaps.',
+    eyebrow: 'Anvil · for clan staff',
+    title: 'Clan events and the schedule',
+    dek: 'Not everything is a board. A clan event is a mass, a raid night, a drop party or a meetup: a time and a place, posted to Discord and reminded, with as much or as little sign-up as you want.',
+    facts: [
+      { strong: 'Once or every week', rest: 'with an optional end date' },
+      { strong: 'Three ways to join', rest: 'info, “I’m going”, or sign-ups' },
+      { strong: 'Reminder', rest: '15 minutes before, then at the start' },
+    ],
+    footnote:
+      'Weekly competitions are in [Skill and Boss of the Week]({weeklyGuide}); fees and prizes in [Fees and payouts]({feesGuide}).',
+
+    create: {
+      title: 'Schedule one',
+      intro: 'Open **Clan events** in the admin menu and fill in the form:',
+      rows: [
+        {
+          term: 'Name, time, length',
+          body: '**Name**, **Starts (your time)** in your own time zone, and **Minutes**.',
+        },
+        {
+          term: 'Repeats',
+          body: '**Just once** or **Every week**, with an optional **Until** date.',
+        },
+        {
+          term: 'Where',
+          body: '**Where**, **World** and **Host**, plus a picture: pick a boss or skill, or upload your own.',
+        },
+        {
+          term: 'Details',
+          body: 'gear, requirements, what to bring.',
+        },
+        {
+          term: 'Who’s coming',
+          body: '**Just information** (no button, no count), **“I’m going”** (one tap, shows a count) or **Sign-ups** (places, questions and a fee).',
+        },
+        {
+          term: 'Discord',
+          body: '**Post to** a channel (or the clan default), optional **Chat**, **Guide** and **Voice** channels to link, and whether to ping the member role on the announcement, the reminder and the start.',
+        },
+      ],
+      outro: 'Press **Schedule it**. Payouts and a survey are added from the event’s own page afterwards.',
+    },
+
+    discord: {
+      title: 'What Discord sees',
+      body: [
+        'The announcement goes up when you schedule it and is edited in place whenever you change something, so there is never a stale copy. A repeating event is marked **every week**.',
+        'Fifteen minutes before, it posts **Starting in 15 minutes**, and at the start **Starting now**. If you move the time, the reminders move with it. Calling it off (**Cancel**) marks the post **Cancelled**, so nobody turns up.',
+      ],
+    },
+
+    manage: {
+      title: 'Sign-ups, fees and payouts',
+      intro: 'Open the event to change what it uses. Everything starts off:',
+      rows: [
+        {
+          term: 'Sign-ups',
+          body: 'with **Places** (blank for no limit), when **Sign-ups close**, and **Sign-up questions**. **You approve each one** makes every sign-up wait for staff.',
+        },
+        {
+          term: '“I’m going” button',
+          body: 'off makes it information only: no button or count on the site, in the plugin or in Discord.',
+        },
+        {
+          term: 'Entry fee',
+          body: 'turns sign-ups on. Add gp of your own to the pot under **Added to the pot**.',
+        },
+        {
+          term: 'Payouts',
+          body: 'the pot is the fees plus anything you added. Name **Who** gets what and **For** what, and mark each one **Paid**. Anvil warns you if you pay out more than the pot.',
+        },
+        {
+          term: 'Survey afterwards',
+          body: 'opens once it ends. Only staff see the answers. If it took sign-ups, only the people who signed up are asked.',
+        },
+        {
+          term: 'A weekly event',
+          body: '**Every week is…** **Its own** (sign-ups, pot and survey each week) or **One run** (one sign-up, pot and survey for the whole series).',
+        },
+      ],
+    },
+
+    players: {
+      title: 'What members see',
+      body: [
+        'The event page shows **When**, **Where**, **Host**, **Discord**, **Entry** and **Prizes**, with **Live now** while it is on. Members press **I’m going** or **Sign me up**, or **Ask to sign up** when staff approve each one. It is also in the plugin side panel’s **Clan** tab, with the same buttons.',
+        'Only members of the clan can say they are going or sign up.',
+      ],
+    },
+
+    calendar: {
+      title: 'The schedule',
+      body: [
+        '**Schedule** puts boards, weekly competitions and clan events on one calendar, with a filter for each.',
+        'Any stretch of two or more days with nothing on is marked as a gap, with **Fill the gap** to schedule something there. Use it to keep the clan busy between big events instead of letting a quiet fortnight slip by.',
+      ],
+    },
+  },
+
+  challenges: {
+    metaTitle: 'Challenges and friends events — Anvil',
+    metaDescription:
+      'Head-to-head challenges on Anvil (first to a drop, most kills or most XP in 1 hour, 24 hours or 7 days) and Supporter friends events: private boards for your friends behind one invite link.',
+    eyebrow: 'Anvil · for players',
+    title: 'Challenges and friends events',
+    dek: 'Two ways to play against people you know without a clan event: a **challenge** is one player against one other, and a **friends event** is a private board for a group, behind an invite link.',
+    facts: [
+      { strong: '1 hour to 7 days', rest: 'per challenge' },
+      { strong: 'Bragging rights', rest: 'no stakes, no gp' },
+      { strong: 'Up to 50 friends', rest: 'per friends event, by tier' },
+    ],
+    footnote:
+      'Tiers and what each one hosts are in [Anvil Supporter: tiers and perks]({supporterGuide}).',
+
+    start: {
+      title: 'Challenge someone',
+      intro: 'You need a verified character, and so do they.',
+      steps: [
+        'Open [Challenges](/challenges), or press **Challenge <name>** on a player’s profile.',
+        'Under **Who**, type their name, and under **Playing as**, pick your own character. It has to be verified.',
+        'Pick the race: **First to a drop** (up to 5 items, all monster drops), **Most kills** of a boss, or **Most XP** in one skill or overall.',
+        'Pick the time limit: **1 hour**, **24 hours** or **7 days**. Tick **OK to show the result publicly** if you don’t mind it being seen; it is only public if you both tick it.',
+      ],
+      outro:
+        'They get a notification and a Discord message, and have 24 hours to **Accept**, **Decline** or **Decline and block**. The clock starts when they accept.',
+    },
+
+    rules: {
+      title: 'How it is decided',
+      intro: 'Anvil settles it on its own, within a minute of the end.',
+      rows: [
+        {
+          term: 'Kills and XP',
+          body: 'both starting lines are taken when it is accepted; whoever gains more by the end wins, and equal gains are a tie. Hiscores and the plugin both count, whichever is higher.',
+        },
+        {
+          term: 'First to a drop',
+          body: 'the first of you to get one of the items wins, there and then. Drops are only seen by the plugin, so both of you need it running. Nobody gets one in time: a tie.',
+        },
+        {
+          term: 'Calling it off',
+          body: 'you can withdraw your own challenge until it is answered. Once it is running, it only stops if both of you agree.',
+        },
+      ],
+    },
+
+    limits: {
+      title: 'Limits and saying no',
+      body: [
+        'Open challenges (waiting or running, sent or received) are limited by tier: **1** free, **5** for Supporters, unlimited for Champions and Patrons. Anyone can start up to 20 a day, and only one at a time with the same person.',
+        'Don’t want any? **Turn away all new challenges**, or block one person when you decline. Whoever challenges you sees the same refusal either way, so they can’t tell they were blocked.',
+        'The page keeps **Your record** (wins, losses and ties), what is **Open now** and **Your limit**.',
+      ],
+    },
+
+    friends: {
+      title: 'Host a friends event',
+      body: [
+        'Any Supporter, Champion or Patron can run a private board for friends from [Host](/host) → **Host for friends** → **New friends event**. It is a full board: bingo or a tile race, tracked by the plugin, with the same setup as a creator’s event.',
+        'Send the **Invite link**; it is the only way in. Friends open it, sign in with Discord and press **Open the event**. Joining is always free. If the link leaks, make a new one: the old one stops working and everyone already in stays in.',
+        'A friends event is never listed anywhere on Anvil, and needs no clan.',
+      ],
+      table: {
+        areaLabel: 'Tier',
+        columns: ['Players', 'Running at once'],
+        rows: [
+          { area: 'Supporter', cells: ['10', '1'] },
+          { area: 'Champion', cells: ['25', '1'] },
+          { area: 'Patron', cells: ['50', '2'] },
+        ],
+      },
+      note: {
+        tag: 'If your tier ends',
+        body: 'Friends already in stay in. New friends can’t join past your new limit, and you can’t start another until you are back under it.',
+      },
+    },
+  },
+
+  clanHall: {
+    metaTitle: 'Finding clans, events and leaderboards — Anvil',
+    metaDescription:
+      'Finding an OSRS clan on Anvil’s Clan Hall, comparing two clans, the weekly player and clan leaderboards, the public events list, and in-game clan pages for clans not on Anvil.',
+    eyebrow: 'Anvil · for players and clans',
+    title: 'Finding clans, events and leaderboards',
+    dek: 'Anvil’s public pages for looking around: the **Clan Hall** to find a clan, the **Events** list to find something to join, and the **Leaderboard** to see who is gaining most.',
+    facts: [
+      { strong: 'Clan Hall', rest: 'public clans only' },
+      { strong: 'Leaderboard', rest: 'this week, 30 days, all time' },
+      { strong: 'Events', rest: 'only what the host advertised' },
+    ],
+    footnote:
+      'To get your own clan listed, see [Start a clan]({clanGuide}); boosted clans are featured, see [Boosting a clan]({boostsGuide}).',
+
+    hall: {
+      title: 'The Clan Hall',
+      body: [
+        '[Clan Hall](/clans) lists every public clan. Search by name or tagline, then narrow it to **Taking members** or **Open to challenges**. **Most active** (the order it opens in) puts clans whose members gained most this week first; **Biggest** sorts by members.',
+        'Each card says whether the clan is **Recruiting** and how it takes guests: **Guests welcome**, **Guests by approval** or **No guests**. Boosted clans get the featured rows at the top, and creators have a row of their own.',
+      ],
+      note: {
+        tag: 'Not listed?',
+        body: 'Only clans set to public appear, and a clan can turn off its listing in its settings. Private clans are never in the Clan Hall, the leaderboard or comparisons.',
+      },
+    },
+
+    compare: {
+      title: 'Compare two clans',
+      body: [
+        '[Compare clans](/compare/clans) puts any two listed clans side by side. To compare two characters instead, use [Compare](/compare).',
+      ],
+    },
+
+    board: {
+      title: 'The leaderboard',
+      body: [
+        '[Leaderboard](/leaderboard) ranks players and clans by experience, efficient hours and bossing over **This week**, **30 days** or **All time**. Players can be narrowed to **Regular**, **Ironman**, **Hardcore**, **Ultimate** or **Group** accounts.',
+        'Clans are ranked by the XP their members gained. Only verified clans listed in the Clan Hall appear. A guest’s gains count for their own clan, not the one they guest in.',
+      ],
+    },
+
+    events: {
+      title: 'Find an event to join',
+      body: [
+        '[Events](/events) lists what is live and coming up across Anvil. Filter by **Live now**, **Open to join** or **Starting this week**, by format or **Solo**, by **Anyone can join** or **Ask or meet a rule**, and by **Clans** or **Creators**. **Join** takes you to sign up.',
+        'Only events whose host turned on **Advertise on Anvil** appear. Members-only and invite-only events never do.',
+      ],
+    },
+
+    ghost: {
+      title: 'In-game clans not on Anvil',
+      body: [
+        'A character’s page names the in-game clan it is in. If that clan isn’t on Anvil, the link opens a plain page listing the Anvil players who are in it and chose to show it. It is not that clan’s roster, and nothing on it makes anyone a member.',
+        'If it is your clan, **Bring your clan to Anvil** sets one up. Once it is a public Anvil clan, the link goes straight to it.',
+      ],
+    },
+  },
+
+  guideLibrary: {
+    metaTitle: 'In-game guides: reading, proposing and clan copies — Anvil',
+    metaDescription:
+      'The Anvil guide library: raid, boss, skilling and money-making guides on the site, in game and in Discord. Reading by level, proposing a new guide or an edit, and how a clan copies and edits library guides.',
+    eyebrow: 'Anvil · for players and clan staff',
+    title: 'In-game guides',
+    dek: 'Besides these how-to pages, Anvil keeps a library of game guides: raids, bosses, skilling and money makers. Anyone can read them, anyone signed in can suggest one, and a clan can keep its own copies.',
+    facts: [
+      { strong: 'Three levels', rest: 'Beginner, Intermediate, Advanced' },
+      { strong: 'Anyone can propose', rest: 'staff review every one' },
+      { strong: '/guide', rest: 'posts one in Discord' },
+    ],
+    footnote: 'Slash commands are in [Slash commands]({commandsGuide}).',
+
+    read: {
+      title: 'Reading a guide',
+      body: [
+        'Open the **In-game guides** tab on the guides page, or [/guides](/guides) on your clan’s site. A clan’s list has its own guides plus any library guides it hasn’t copied.',
+        'Many guides have a level switch at the top: **Beginner**, **Intermediate** and **Advanced**. The parts for other levels fold away, so a first-timer and a speed-runner read the same page.',
+        'In Discord, `/guide` and the start of a name posts a guide’s card with a link to the full page.',
+      ],
+    },
+
+    propose: {
+      title: 'Suggest a guide or an edit',
+      body: [
+        'Signed in, open [Propose a guide](/guides/propose) to write a new one, or suggest an edit to an existing library guide. Tell the reviewer what you changed and why; you can show your changes against the current guide before sending.',
+        'Press **Send for review**. [My guide proposals](/guides/proposals) shows each one as **pending**, **approved**, **rejected** or **withdrawn**, with the reviewer’s note once it is answered. While it is pending you can edit or **Withdraw** it. You can have 5 waiting at a time.',
+        'Nothing goes live until Anvil’s guide editors approve it. An approved edit also updates every clan copy that hasn’t been changed.',
+      ],
+    },
+
+    clan: {
+      title: 'Your clan’s guides',
+      intro: 'Admins, and moderators allowed to write guides, manage them under **Guides** in the admin menu.',
+      rows: [
+        {
+          term: 'Show library guides on our site',
+          body: 'on: library guides you haven’t copied show on your Guides page too, always current.',
+        },
+        {
+          term: 'Copy to our guides',
+          body: 'makes a clan copy. It **follows library** until you edit it, picking up every library change.',
+        },
+        {
+          term: 'Editing a copy',
+          body: 'makes it **customised**, the clan’s own. When the library guide changes later, it shows **update available**: take the new version or keep yours.',
+        },
+        {
+          term: 'New guide',
+          body: 'writes one only your clan has, like your own raid rules or a mass guide.',
+        },
+      ],
+      note: {
+        tag: 'Posting them',
+        body: 'Guides can be posted to a Discord channel, and those posts are edited in place when the guide changes.',
       },
     },
   },
