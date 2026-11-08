@@ -1,5 +1,6 @@
 'use client';
 
+import { FLAG_TEXT } from '@/app/admin/events/[eventId]/EventNextStep';
 import { useCallback, useEffect, useState } from 'react';
 
 import { useRouter } from 'next/navigation';
@@ -230,7 +231,11 @@ export default function LabSessionClient({ eventId }: { eventId: number }) {
                 {s.durationSeconds != null && <span>{s.durationSeconds}s</span>}
                 {s.itemId != null && <span>item {s.itemId}</span>}
                 {s.note && <span className="text-text-muted">{s.note}</span>}
-                {s.flaggedReason && <span className="text-gold">⚑ {s.flaggedReason}</span>}
+                {s.flaggedReason && (
+                  <span className="text-gold" title={s.flaggedReason}>
+                    ⚑ {FLAG_TEXT[s.flaggedReason] ?? s.flaggedReason}
+                  </span>
+                )}
               </li>
             ))}
           </ul>
