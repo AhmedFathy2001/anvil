@@ -3196,7 +3196,7 @@ const ptBr: PartialGuideDict = {
       ],
       note: {
         tag: 'Passando o clã adiante',
-        body: 'Só o dono pode, e só para alguém que já é admin: a linha desse admin ganha a ação **Make owner**. Ele vira o dono e você vira um admin comum. Você não pode desfazer sozinho; só o novo dono pode transferir de volta.',
+        body: 'Só o dono pode, e só para alguém que já é admin: a linha desse admin ganha a ação **Make owner**. Por segurança leva 3 dias, como trocar o PIN do banco: um aviso em todas as páginas de administração diz quando acontece, até lá você pode cancelar com **Cancel**, a pessoa pode recusar com **Decline**, e a equipe do Anvil é avisada e pode impedir. Depois dos 3 dias ele vira o dono e você vira um admin comum. Só o novo dono pode transferir de volta.',
       },
     },
 

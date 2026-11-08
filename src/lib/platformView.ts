@@ -537,6 +537,7 @@ export const MODERATION_TYPES = [
   'platform_unbanned',
   'platform_role_changed',
   'platform_owner_appointed',
+  'platform_ownership_transfer_blocked',
   'platform_act_as_granted',
   'platform_act_as_revoked',
 ] as const;

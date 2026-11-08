@@ -103,6 +103,8 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         { href: '/staff/feedback', label: 'Feedback', icon: '💬', badge: pending.feedback, matchPrefix: true },
         // Characters clans raised: who owns a character is the platform's call (lib/characterReports).
         { href: '/staff/reports', label: 'Character reports', icon: '⚑', badge: pending.reports, matchPrefix: true },
+        // A clan owner handing the clan to an admin: a 3-day hold staff can block (lib/ownershipTransfers).
+        { href: '/staff/ownership', label: 'Ownership transfers', icon: '♛', badge: pending.ownershipTransfers, matchPrefix: true },
         // What viewers reported to Anvil (lib/platformReports): creator pages and panels, clans, events,
         // player profiles, stream highlights — plus the creator-page tools (hidden content, the link
         // blocklist, lib/spacePage). Anvil never promotes what Jagex's rules forbid.

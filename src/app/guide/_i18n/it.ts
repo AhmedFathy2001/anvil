@@ -3196,7 +3196,7 @@ const it: PartialGuideDict = {
       ],
       note: {
         tag: 'Cedere il clan',
-        body: 'Può farlo solo il proprietario, e solo a favore di qualcuno che è già admin: la riga di quell’admin ha un’azione **Make owner**. Lui diventa proprietario e tu diventi un admin qualunque. Non puoi annullarlo da solo; solo il nuovo proprietario può ritrasferirla.',
+        body: 'Può farlo solo il proprietario, e solo a favore di qualcuno che è già admin: la riga di quell’admin ha un’azione **Make owner**. Per sicurezza servono 3 giorni, come per cambiare il PIN della banca: un banner su ogni pagina di amministrazione dice quando avverrà, fino ad allora puoi annullare con **Cancel**, lui può rifiutare con **Decline**, e lo staff di Anvil viene avvisato e può fermarlo. Passati i 3 giorni lui diventa proprietario e tu diventi un admin qualunque. Solo il nuovo proprietario può ritrasferirla.',
       },
     },
 

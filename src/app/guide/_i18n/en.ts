@@ -3213,7 +3213,7 @@ export const en = {
       ],
       note: {
         tag: 'Handing over the clan',
-        body: 'Only the owner can, and only to someone who is already an admin: that admin’s row gets a **Make owner** action. They become the owner and you become an ordinary admin. You cannot undo it yourself; only the new owner can transfer it back.',
+        body: 'Only the owner can, and only to someone who is already an admin: that admin’s row gets a **Make owner** action. For safety it takes 3 days, like changing a bank PIN: a banner on every admin page says when it happens, you can **Cancel** until then, they can **Decline**, and Anvil staff are told and can stop it. When the 3 days are up they become the owner and you become an ordinary admin. Only the new owner can transfer it back.',
       },
     },
 

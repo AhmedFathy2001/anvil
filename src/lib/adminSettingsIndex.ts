@@ -1111,7 +1111,7 @@ const DETAILS: readonly SettingEntry[] = [
   {
     id: 'people-transfer',
     label: 'Make owner',
-    description: 'Hand the clan to another admin. Only the owner can do it.',
+    description: 'Hand the clan to another admin. Only the owner can do it, and it takes 3 days (you can cancel).',
     keywords: ['transfer ownership', 'owner', 'hand over', 'leave clan'],
     href: '/admin/people/staff',
     section: 'People → Staff & roles',

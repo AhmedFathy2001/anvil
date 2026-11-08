@@ -2073,6 +2073,39 @@ export const userNotices = pgTable('user_notices', {
 ]);
 
 /**
+ * A clan owner handing the clan to one of its admins — a REQUEST with a 3-day hold, like changing a
+ * bank PIN (lib/ownershipTransfers). During the hold the owner can cancel, the target can decline,
+ * and Anvil staff (who see every pending one in /staff/ownership) can block it. When the hold runs
+ * out the lifecycle tick moves ownership with lib/clanOwnership, if the target is still an admin.
+ *
+ * status: 'pending' | 'cancelled' | 'declined' | 'blocked' | 'completed'. One pending per clan.
+ * Timestamps are JS ISO strings (like account_ownership_claims).
+ */
+export const clanOwnershipTransfers = pgTable('clan_ownership_transfers', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  fromUserId: integer('from_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  toUserId: integer('to_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  status: text('status').notNull().default('pending'),
+  requestedAt: text('requested_at').notNull(),
+  completesAt: text('completes_at').notNull(),
+  /** When it left 'pending', and who moved it (null = the lifecycle tick). */
+  decidedAt: text('decided_at'),
+  decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  /** Why it was blocked / cancelled (a staff note, or the tick's own reason). */
+  reason: text('reason'),
+  /** Anvil staff looked and let it through: off the staff queue, but the hold still runs. */
+  staffClearedAt: text('staff_cleared_at'),
+  staffClearedByUserId: integer('staff_cleared_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  uniqueIndex('clan_ownership_transfers_pending_unique').on(table.clanId).where(sql`status = 'pending'`),
+  index('clan_ownership_transfers_status_idx').on(table.status, table.completesAt),
+  index('clan_ownership_transfers_to_user_idx').on(table.toUserId),
+]);
+
+/**
  * Which Anvil plugin build last played each character (the `X-Anvil-Plugin-Version` header), and when.
  *
  * A sidecar rather than columns on `accounts`: the plugin polls every 30 seconds and the accounts row

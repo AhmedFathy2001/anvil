@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { avatarUrl } from '@/lib/discord-oauth';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
@@ -62,6 +63,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const { confirm, ask, notify } = useDialog();
+  const router = useRouter();
   const [filter, setFilter] = useState<MainFilter>('all');
   const [search, setSearch] = useState('');
   const [savingRoleId, setSavingRoleId] = useState<number | null>(null);
@@ -254,18 +256,21 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
 
   async function handleTransferOwnership(user: User) {
     const ok = await confirm({
-      title: `Transfer ownership to "${user.displayName}"?`,
+      title: `Make "${user.displayName}" the owner?`,
       body:
-        'They become the protected owner and you become an ordinary admin. From then on only they can transfer it back — you cannot undo this yourself.',
-      confirmLabel: 'Transfer ownership',
+        'For safety this takes 3 days, like changing a bank PIN. Nothing changes until then: you can cancel any time, they can decline, and Anvil staff are told and can stop it. After 3 days they become the protected owner and you become an ordinary admin — from then on only they can transfer it back.',
+      confirmLabel: 'Start 3-day transfer',
     });
     if (!ok) return;
     const res = await clanFetch(`/api/admin/users/${user.id}/transfer-ownership`, { method: 'POST' });
     if (!res.ok) {
-      const data = await res.json();
-      notify(data.error || 'Failed to transfer ownership', 'error');
+      const data = await res.json().catch(() => ({}));
+      notify(data.error || 'Failed to start the transfer', 'error');
       return;
     }
+    notify(`Ownership moves to ${user.displayName} in 3 days unless you cancel`);
+    // The banner on every admin page comes from the server layout.
+    router.refresh();
     fetchUsers();
   }
 
@@ -287,7 +292,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
         label: 'Make owner',
         onClick: () => handleTransferOwnership(user),
         variant: 'gold',
-        title: 'Transfer ownership to this admin',
+        title: 'Hand ownership to this admin (takes 3 days; you can cancel)',
       });
     }
     // Board editing is a per-event grant; admins already edit every board, so skip it for them.

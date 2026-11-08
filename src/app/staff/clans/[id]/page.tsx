@@ -11,6 +11,8 @@ import { db } from '@/db';
 import { clanBoostState, clans } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import ClanBoostGift from './ClanBoostGift';
+import StaffTransferNow from './StaffTransferNow';
+import OwnershipTransfersClient from '../../ownership/OwnershipTransfersClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -150,6 +152,22 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
               </li>
             ))}
           </ul>
+        )}
+      </Section>
+
+      {/* Ownership transfer requests (lib/ownershipTransfers): block or let through (completes now), as on
+          /staff/ownership — and, for recovery, hand it to an admin now without a request. */}
+      <Section title="Ownership transfers">
+        <OwnershipTransfersClient canWrite={canWrite} clanId={clan.id} />
+        {canWrite && staff.some((s) => s.role === 'owner') && (
+          <div className="mt-4">
+            <p className="mb-2 text-xs text-text-muted">Recovery: hand it to an admin now, skipping the 3-day hold.</p>
+            <StaffTransferNow
+              clanId={clan.id}
+              clanName={clan.name}
+              admins={staff.filter((s) => s.role === 'admin').map((s) => ({ userId: s.userId, name: s.name ?? `#${s.userId}` }))}
+            />
+          </div>
         )}
       </Section>
 

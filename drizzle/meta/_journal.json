@@ -1191,6 +1191,13 @@
       "when": 1794059960668,
       "tag": "0229_user_notify_prefs",
       "breakpoints": true
+    },
+    {
+      "idx": 230,
+      "version": "7",
+      "when": 1794143948957,
+      "tag": "0230_clan_ownership_transfers",
+      "breakpoints": true
     }
   ]
 }

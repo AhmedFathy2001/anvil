@@ -3217,7 +3217,7 @@ const no: PartialGuideDict = {
       ],
       note: {
         tag: 'Overlevere klanen',
-        body: 'Det kan bare eieren, og bare til noen som allerede er admin: raden til den adminen får handlingen **Make owner**. De blir eier, og du blir en vanlig admin. Du kan ikke angre det selv; bare den nye eieren kan overføre den tilbake.',
+        body: 'Det kan bare eieren, og bare til noen som allerede er admin: raden til den adminen får handlingen **Make owner**. Av sikkerhetshensyn tar det 3 dager, som å bytte PIN-kode i banken: et banner på alle admin-sider viser når det skjer, du kan trykke **Cancel** fram til da, de kan trykke **Decline**, og Anvil-staben får beskjed og kan stoppe det. Når de 3 dagene er gått, blir de eier, og du blir en vanlig admin. Bare den nye eieren kan overføre den tilbake.',
       },
     },
 

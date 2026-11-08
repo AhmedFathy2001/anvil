@@ -3213,7 +3213,7 @@ const fi: PartialGuideDict = {
       ],
       note: {
         tag: 'Klaanin luovuttaminen',
-        body: 'Vain omistaja voi, ja vain jollekulle, joka on jo ylläpitäjä: sen ylläpitäjän riville tulee toiminto **Make owner**. Hänestä tulee omistaja ja sinusta tavallinen ylläpitäjä. Et voi itse perua sitä; vain uusi omistaja voi siirtää sen takaisin.',
+        body: 'Vain omistaja voi, ja vain jollekulle, joka on jo ylläpitäjä: sen ylläpitäjän riville tulee toiminto **Make owner**. Turvallisuuden vuoksi siirto kestää 3 päivää, kuin pankin PIN-koodin vaihto: jokaisen ylläpitosivun banneri kertoo, milloin se tapahtuu, siihen asti voit perua painamalla **Cancel**, hän voi kieltäytyä painamalla **Decline**, ja Anvilin henkilökunta saa tiedon ja voi pysäyttää sen. Kun 3 päivää on kulunut, hänestä tulee omistaja ja sinusta tavallinen ylläpitäjä. Vain uusi omistaja voi siirtää sen takaisin.',
       },
     },
 

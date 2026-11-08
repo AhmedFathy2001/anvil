@@ -33,6 +33,7 @@ import { endOfEventFacts, runDailyDigests, runHalfwayReports } from '@/lib/event
 import { runHourlySnapshots } from '@/lib/eventHourly';
 import { runFootprintChecks } from '@/lib/footprintCheck';
 import { settleOwnershipClaims } from '@/lib/ownershipClaims';
+import { settleOwnershipTransfers } from '@/lib/ownershipTransfers';
 import { closeFinishedEventSeats } from '@/lib/eventPlayers';
 import { queueWinnerHighlight } from '@/lib/highlights/store';
 
@@ -416,6 +417,8 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   await runFootprintChecks().catch((err) => log.warn('event-lifecycle.footprint-failed', { err: String(err) }));
   // "This is my account" claims: an objection window that ran out moves the character (lib/ownershipClaims).
   await settleOwnershipClaims(nowMs).catch((err) => log.warn('event-lifecycle.ownership-claims-failed', { err: String(err) }));
+  // Clan ownership transfers whose 3-day hold ran out move (or lapse) here (lib/ownershipTransfers).
+  await settleOwnershipTransfers(nowMs).catch((err) => log.warn('event-lifecycle.ownership-transfers-failed', { err: String(err) }));
   await runHalfwayReports().catch((err) => log.warn('event-lifecycle.halfway-failed', { err: String(err) }));
   await runDailyDigests().catch((err) => log.warn('event-lifecycle.digest-failed', { err: String(err) }));
   // Hidden standings (lib/standingsReveal): mark curtains that are down, and post the leaderboard

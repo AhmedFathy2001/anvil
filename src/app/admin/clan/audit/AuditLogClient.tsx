@@ -49,6 +49,13 @@ export interface JoinedMember {
 
 const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   joined: { label: 'Joined', color: 'text-accent-green-light' },
+  // Clan ownership transfer requests (lib/ownershipTransfers): the 3-day hold, start to finish.
+  ownership_transfer_requested: { label: 'Ownership transfer asked', color: 'text-gold' },
+  ownership_transfer_cancelled: { label: 'Ownership transfer cancelled', color: 'text-text-muted' },
+  ownership_transfer_declined: { label: 'Ownership transfer declined', color: 'text-text-muted' },
+  ownership_transfer_blocked: { label: 'Ownership transfer blocked by Anvil', color: 'text-red-400' },
+  ownership_transfer_lapsed: { label: 'Ownership transfer lapsed', color: 'text-text-muted' },
+  ownership_transferred: { label: 'Ownership transferred', color: 'text-gold' },
   boost_recruiting_line_set: { label: 'Recruiting line', color: 'text-gold' },
   boost_recruit_post_sent: { label: 'Discord recruitment post', color: 'text-gold' },
   left: { label: 'Left', color: 'text-red-400' },

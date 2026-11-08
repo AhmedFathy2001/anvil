@@ -770,7 +770,7 @@ export async function unreadNoticeCount(userId: number): Promise<number> {
  * Discord DM to a login, through Anvil's own bot or else the bot of a clan they sit in (a bot can
  * only DM someone it shares a server with). Best effort; the in-site notice is the record.
  */
-async function discordDm(userId: number, msg: { title: string; description: string }): Promise<boolean> {
+export async function discordDm(userId: number, msg: { title: string; description: string }, path = '/settings/claims'): Promise<boolean> {
   const user = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { discordId: true, playerId: true } });
   const { isRealDiscordId } = await import('@/lib/anvilDiscordRoles');
   if (!isRealDiscordId(user?.discordId)) return false;
@@ -794,7 +794,7 @@ async function discordDm(userId: number, msg: { title: string; description: stri
       {
         title: msg.title,
         description: msg.description,
-        url: absoluteUrl('/settings/claims'),
+        url: absoluteUrl(path),
         color: EMBED_COLOR.amber,
         footer: { text: POWERED_BY, icon_url: ANVIL_LOGO_URL },
       },
