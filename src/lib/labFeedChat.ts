@@ -41,7 +41,7 @@ export async function labSay(eventId: number, participantId: number, body: strin
   const access = await chatAccess(eventId, who.userId, { participantId });
   if (!access) return { ok: false, error: 'Session not found.' };
   if (!access.open) return { ok: false, error: access.closedWhy ?? 'Chat is off for this session.' };
-  const r = await sendChat(access, who.userId, body, teamOnly);
+  const r = await sendChat(access, who.userId, body, teamOnly ? 'team' : 'all');
   return r.ok ? { ok: true } : r;
 }
 

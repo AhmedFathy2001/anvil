@@ -86,14 +86,19 @@ async function readBoardUserIds(eventId: number, teamId: number | null): Promise
   const ids = new Set(rows.map((r) => r.id));
   // The whole board's rows also reach its clan's moderators and up: they read and moderate its chat
   // without a seat on it. A team's rows stay the team's.
-  if (teamId == null) {
-    const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true } });
-    if (ev) {
-      const staff = await db.select({ userId: clanStaff.userId, role: clanStaff.role }).from(clanStaff).where(eq(clanStaff.clanId, ev.clanId));
-      for (const st of staff) if (atLeast(st.role, 'moderator')) ids.add(st.userId);
-    }
-  }
+  if (teamId == null) for (const u of await eventStaffUserIds(eventId)) ids.add(u);
   return [...ids];
+}
+
+/**
+ * The host clan's moderators and up on a board: they read every channel of its chat, a team's too.
+ * Read fresh (a team channel's line goes to them by name, and a demoted mod must not hear the next).
+ */
+export async function eventStaffUserIds(eventId: number): Promise<number[]> {
+  const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true } });
+  if (!ev) return [];
+  const staff = await db.select({ userId: clanStaff.userId, role: clanStaff.role }).from(clanStaff).where(eq(clanStaff.clanId, ev.clanId));
+  return staff.filter((st) => atLeast(st.role, 'moderator')).map((st) => st.userId);
 }
 
 /** The people with a live member seat in a clan: who hears its Feed. Held a minute. */
@@ -118,13 +123,15 @@ function clanUserIds(clanId: number): Promise<number[]> {
  * name, so they arrive on whichever of a player's boards it is — a ticket's team room covers only its
  * first board. Read fresh every time, never cached: someone just moved off the team must not hear it.
  */
-export async function teamUserIds(teamId: number): Promise<number[]> {
+export async function teamUserIds(teamId: number, eventId?: number): Promise<number[]> {
+  // With the board named, a team id that isn't one of its teams reaches nobody (an event chat's
+  // `team:<id>` comes from a request: it must never reach another board's, or clan's, team).
   const rows = await db
     .selectDistinct({ id: users.id })
     .from(eventParticipants)
     .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
     .innerJoin(users, eq(users.playerId, accounts.playerId))
-    .where(eq(eventParticipants.teamId, teamId));
+    .where(eventId != null ? and(eq(eventParticipants.teamId, teamId), eq(eventParticipants.eventId, eventId)) : eq(eventParticipants.teamId, teamId));
   return rows.map((r) => r.id);
 }
 
@@ -264,7 +271,7 @@ export async function emitMomentRows(clanId: number, seatKind: string, list: New
       // A board hiding its standings keeps each team's haul to the team.
       if (await boardHidden(m.eventId, now)) {
         if (m.teamId != null) {
-          await sendMomentRow({ u: await teamUserIds(m.teamId) }, m, [`moments:event:${m.eventId}:team:${m.teamId}`], build, later(i));
+          await sendMomentRow({ u: await teamUserIds(m.teamId, m.eventId) }, m, [`moments:event:${m.eventId}:team:${m.teamId}`], build, later(i));
         }
         continue;
       }
@@ -436,7 +443,7 @@ export function emitReactionRows(momentId: number, userId: number): void {
       if (!ev) return;
       const who = await reactorNames([momentId], { eventId: m.eventId, hostClanId: ev.clanId });
       if (hidden) {
-        if (m.teamId != null) await send({ u: await teamUserIds(m.teamId) }, [momentsFeedId({ kind: 'event', id: m.eventId }, 'team', m.teamId)], who);
+        if (m.teamId != null) await send({ u: await teamUserIds(m.teamId, m.eventId) }, [momentsFeedId({ kind: 'event', id: m.eventId }, 'team', m.teamId)], who);
       } else {
         await send({ e: m.eventId }, momentFeedIds({ kind: 'event', id: m.eventId }, m.kind, m.teamId), who, { playersReact: true });
       }

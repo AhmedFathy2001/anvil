@@ -17,6 +17,8 @@ interface Line {
   body: string;
   teamId: number | null;
   teamOnly: boolean;
+  /** 'all' | 'team:<id>' | 'announce' (lib/eventChatRules ChatChannel). */
+  channel: string;
   fromStaff: boolean;
   createdAt: string;
   canSanction: boolean;
@@ -65,7 +67,7 @@ export default function ChatModClient({ eventId }: { eventId: number }) {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('every');
   const [q, setQ] = useState('');
   const [timeoutFor, setTimeoutFor] = useState<Line | null>(null);
   const [preset, setPreset] = useState<'5m' | '1h' | '24h' | 'custom'>('5m');
@@ -78,11 +80,7 @@ export default function ChatModClient({ eventId }: { eventId: number }) {
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
-    if (filter === 'staff') params.set('f', 'staff');
-    else if (filter.startsWith('team:')) {
-      params.set('f', 'team');
-      params.set('team', filter.slice(5));
-    }
+    if (filter !== 'every') params.set('ch', filter);
     if (q.trim()) params.set('q', q.trim());
     const key = params.toString();
     query.current = key;
@@ -188,9 +186,11 @@ export default function ChatModClient({ eventId }: { eventId: number }) {
 
   const teamName = new Map((data?.teams ?? []).map((t) => [t.id, t]));
   const filterOptions = [
-    { value: 'all', label: 'All messages' },
-    { value: 'staff', label: 'Host & mods' },
-    ...(data?.teams ?? []).map((t) => ({ value: `team:${t.id}`, label: `Team: ${t.name}`, dot: t.color ?? undefined })),
+    { value: 'every', label: 'Every channel' },
+    { value: 'all', label: 'All teams channel' },
+    { value: 'announce', label: 'Announcements' },
+    ...(data?.teams ?? []).map((t) => ({ value: `team:${t.id}`, label: `Team channel: ${t.name}`, dot: t.color ?? undefined })),
+    { value: 'staff', label: 'Said by host & mods' },
   ];
 
   return (
@@ -316,7 +316,7 @@ export default function ChatModClient({ eventId }: { eventId: number }) {
         {!data ? (
           <p className="text-sm text-text-muted">Loading…</p>
         ) : data.lines.length === 0 ? (
-          <p className="text-sm text-text-muted">{q.trim() || filter !== 'all' ? 'No messages match.' : 'Nobody has said anything yet.'}</p>
+          <p className="text-sm text-text-muted">{q.trim() || filter !== 'every' ? 'No messages match.' : 'Nobody has said anything yet.'}</p>
         ) : (
           <ul className="divide-y divide-card-border/60">
             {data.lines.map((l) => {
@@ -333,7 +333,8 @@ export default function ChatModClient({ eventId }: { eventId: number }) {
                           {team.name}
                         </span>
                       )}
-                      {l.teamOnly && <span className="rounded bg-card-border/60 px-1.5 text-[10px] font-semibold">TEAM ONLY</span>}
+                      {l.channel === 'announce' && <span className="rounded bg-sky-500/15 px-1.5 text-[10px] font-semibold text-sky-300">ANNOUNCEMENT</span>}
+                      {l.channel.startsWith('team:') && <span className="rounded bg-card-border/60 px-1.5 text-[10px] font-semibold">TEAM CHANNEL</span>}
                       <span>{clock(l.createdAt)}</span>
                     </div>
                     <p className="mt-0.5 break-words text-sm text-foreground/90">{l.body}</p>
