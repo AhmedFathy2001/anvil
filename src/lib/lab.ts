@@ -40,6 +40,7 @@ import { and, desc, eq, gt, inArray, isNull, lte, ne, or, sql, type SQL, type SQ
 import { NextResponse } from 'next/server';
 
 import { notifyBoardPeople } from '@/lib/pushNotify';
+import { modeKeyFor } from '@/lib/eventModes';
 import { db } from '@/db';
 import { labMomentRows } from '@/lib/labFeed';
 import type { MomentRow } from '@/lib/momentsStore';
@@ -526,6 +527,51 @@ export async function resetLabSession(eventId: number, opts: { keepLog?: boolean
       })
       .where(eq(eventParticipants.eventId, eventId));
   });
+}
+
+/**
+ * Swap a lab board's tiles for the real lab tile set (labTileSeeds), laid out on a race route —
+ * for sessions made before real tiles existed (placeholder "Step 1"…). Wipes all progress first
+ * (resetLabSession), then replaces the tiles in one transaction. False when it is not a lab event.
+ */
+export async function reseedLabTiles(eventId: number, opts: { route?: LabRouteTemplate } = {}): Promise<boolean> {
+  const event = await labEvent(eventId);
+  if (!event) return false;
+  // events.format is the stored format ('tilerace'); the lab formats are keyed by mode.
+  const fmt = labFormat(modeKeyFor(event.format, event.scoringMode, event.rules));
+  const startMs = Date.parse(event.startDate ?? '') || Date.now();
+  await db.transaction(async (tx) => {
+    // Progress first (the same wipe as Reset), inside this transaction so a failure leaves it all.
+    const teamIds = (await tx.select({ id: teams.id }).from(teams).where(eq(teams.eventId, eventId))).map((t) => t.id);
+    if (teamIds.length) {
+      await tx.delete(completions).where(inArray(completions.teamId, teamIds));
+      await tx.delete(submissions).where(inArray(submissions.teamId, teamIds));
+      await tx.delete(statTileProgress).where(inArray(statTileProgress.teamId, teamIds));
+    }
+    await tx.delete(tileClaims).where(eq(tileClaims.eventId, eventId));
+    // Sub-tiles point at their parents: children first.
+    await tx.delete(tiles).where(and(eq(tiles.eventId, eventId), sql`${tiles.parentTileId} is not null`));
+    await tx.delete(tiles).where(eq(tiles.eventId, eventId));
+    const made = await tx
+      .insert(tiles)
+      .values(labTileSeeds(fmt, event.boardSize, startMs).map((t) => ({ eventId, ...t })))
+      .returning({ id: tiles.id, position: tiles.position });
+    const route = opts.route ?? 'diamond';
+    if (fmt.format === 'tilerace' && LAB_RACE_ROUTES && route !== 'line') {
+      const ids = made.sort((a, b) => a.position - b.position).map((t) => t.id);
+      for (const entry of labRouteLayout(route, ids)) {
+        await tx
+          .update(tiles)
+          .set({ raceStep: entry.step, raceNext: entry.next } as unknown as Partial<typeof tiles.$inferInsert>)
+          .where(eq(tiles.id, entry.id));
+      }
+    }
+  });
+  // The rest of the wipe (snapshots, moments, log, participant counters).
+  await resetLabSession(eventId);
+  forgetLabSessions();
+  notifyBoardPeople(eventId);
+  return true;
 }
 
 export { LAB_KEEP_DAYS };
