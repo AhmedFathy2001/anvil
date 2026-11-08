@@ -561,13 +561,15 @@ async function homeView(request: Request, a: Args): Promise<View> {
     // Ranks as the event day began (lib/rankMoves), for "▲2" by the standings; a race ranks its own way.
     live && cfg.event && !cfg.event.race ? teamBaselineRanks(cfg.event.id).catch(() => null) : Promise.resolve(null),
   ]);
-  if (roster && roster.mode !== 'members' && dayRanks) withMoves(roster, dayRanks);
   // Hidden standings: the roster above came back unranked; say why where the table would be.
   // clan-scope: global -- the board this caller's own config just named.
   const curtainEvent = live && cfg.event ? await db.query.events.findFirst({ where: eq(events.id, cfg.event.id) }) : null;
   const curtain = curtainEvent
     ? curtainInfo(await standingsScopeForPlugin(curtainEvent, { userId: auth?.userId ?? null, teamId: auth?.teamId ?? null }))
     : null;
+  // Moves only beside standings this viewer may see: behind a curtain the daily baseline would leak
+  // how the hidden table has shifted.
+  if (roster && roster.mode !== 'members' && dayRanks && !curtain) withMoves(roster, dayRanks);
   const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
   const weekly: HomeData['weekly'] = new Map();
   for (const [id, b] of boards) {
