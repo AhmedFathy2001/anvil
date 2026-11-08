@@ -335,6 +335,8 @@ async function boardView(request: Request, a: Args, error: string | null = null)
     pins: a.track === '1' ? (a.pins ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0) : null,
     progress,
     boardPath: `${clan ? `/c/${encodeURIComponent(clan)}` : ''}/events/${scope.event.id}`,
+    // The feed opens in this tab: it needs the same way back this page has.
+    feedBack: { open: a.back || 'board', label: a.backLabel || 'Back' },
   };
   const tile = positive(a.tile) && a.list !== '1' ? (board.tiles as BoardTile[]).find((t) => t.tileId === Number(a.tile)) : undefined;
   const inner = boardRowsUi(board, state, ctx, tile, error);
