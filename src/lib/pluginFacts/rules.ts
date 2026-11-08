@@ -270,6 +270,15 @@ export function buildEventRules(cfg: RulesConfigIn): EventRule[] {
   return out;
 }
 
+/**
+ * Another board's row (tagged by lib/pluginBoardTiles) says which board in its chat line, so one drop
+ * on two boards reads as two lines that can be told apart. Plugin-judged kinds arrive suffixed already.
+ */
+function named(r: { label: string; board?: unknown }): string {
+  const name = (r.board as { name?: string } | null | undefined)?.name;
+  return name && !r.label.endsWith(` \u00b7 ${name}`) ? `${r.label} \u00b7 ${name}` : r.label;
+}
+
 function isSimpleDrop(d: DropTile): boolean {
   return !d.itemRequirements?.length && d.countMode !== 'distinct' && !(d.perKillCap ?? 0) && !(d.partySize ?? 0);
 }
@@ -284,7 +293,7 @@ export function buildRuleTable(cfg: RulesConfigIn): RuleTable {
     const ids = perItem ? d.itemRequirements!.map((r) => r.itemId) : d.itemIds ?? [];
     const rule: DropRule = {
       t: d.tileId,
-      label: d.label,
+      label: named(d),
       have: d.currentAmount,
       of: d.requiredAmount,
       simple: isSimpleDrop(d),
@@ -301,7 +310,7 @@ export function buildRuleTable(cfg: RulesConfigIn): RuleTable {
     if (cap && done.has(k.capOf!)) continue;
     const rule: KillRule = {
       t: k.tileId,
-      label: k.label,
+      label: named(k),
       have: k.currentAmount,
       of: k.requiredAmount,
       unit: k.unit?.trim() || 'kill',
@@ -319,7 +328,7 @@ export function buildRuleTable(cfg: RulesConfigIn): RuleTable {
       const total = (v.mode ?? '').toLowerCase() === 'total';
       return {
         t: v.tileId,
-        label: v.label,
+        label: named(v),
         min: total ? 0 : v.thresholdGp,
         have: total ? Math.min(v.currentGp ?? 0, v.thresholdGp) : 0,
         of: v.thresholdGp,

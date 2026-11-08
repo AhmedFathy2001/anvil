@@ -176,3 +176,59 @@ test('a tile fact files the plugin’s own credit on the tile’s board, as its 
   const drops = await db.select().from(s.submissions).where(eq(s.submissions.tileId, ids.aDrop));
   assert.equal(drops.length, 0);
 });
+
+// ── Every live board, fully tracked ──────────────────────────────────────────────────────────────
+// The rule table, the completions and the stat progress lines cover every board the character is on,
+// in one config and one rules fetch.
+
+async function rules() {
+  const { GET } = await import('../src/app/api/plugin/rules/route.ts');
+  const res = await GET(new Request('https://example.test/api/plugin/rules', { headers: headers('alpha', { 'X-Anvil-Boards': '1' }) }));
+  assert.equal(res.status, 200, await res.clone().text());
+  return (await res.json()) as { drops: Record<string, { t: number; label: string }[]>; kills: Record<string, { t: number }[]>; stats: { t: number; label: string }[] };
+}
+
+test('one rules fetch carries every live board’s rules; another board’s line names it', async () => {
+  const t = await rules();
+  assert.deepEqual(t.drops['4151'].map((r) => r.t), [ids.aDrop, ids.bDrop, ids.cDrop], 'one item, a rule per board');
+  assert.deepEqual(t.drops['4151'].map((r) => r.label), ['a drop', 'b drop · Board b', 'c drop · Board c']);
+  assert.deepEqual(t.kills.zulrah.map((r) => r.t).sort((x, y) => x - y), [ids.aKill, ids.bKill, ids.cKill].sort((x, y) => x - y));
+});
+
+test('another board’s completions and stat tiles are folded in, tagged and named', async () => {
+  const { db, schema: s } = await loadDb();
+  ids.bStat = (await db.insert(s.tiles).values({ eventId: ids.bEvent, position: 4, label: 'b fishing', tileType: 'stat', statType: 'skill', trackedStat: 'fishing', statGoal: 100000 }).returning())[0].id;
+  await db.insert(s.completions).values({ teamId: ids.bTeam, tileId: ids.bGain });
+  const cfg = (await config({ 'X-Anvil-Boards': '1' })) as unknown as {
+    completedTiles: { tileId: number; label: string; board?: { eventId: number } }[];
+    trackedStats: { tileId: number; board?: { eventId: number } }[];
+    tiles: { t: number }[];
+  };
+  const done = cfg.completedTiles.find((c) => c.tileId === ids.bGain);
+  assert.ok(done, 'board b’s completion is in the one config');
+  assert.equal(done!.board?.eventId, ids.bEvent);
+  assert.equal(done!.label, 'b sharks · Board b');
+  assert.ok(cfg.trackedStats.some((r) => r.tileId === ids.bStat && r.board?.eventId === ids.bEvent));
+  const t = await rules();
+  assert.ok(t.stats.some((r) => r.t === ids.bStat && r.label === 'b fishing · Board b'), 'its xp line is in the rule table');
+});
+
+test('one loot fact matches the drop on every board that tracks it', async () => {
+  // One fact from the plugin; the site fans it out. (A drop's submission waits for its screenshot,
+  // so without one each credit is held to retry: the matching is what is under test.)
+  const reply = await facts([{ k: 'loot', src: 'Abyssal demon', kind: 'npc', items: [[4151, 1]] }]);
+  assert.deepEqual(reply.credits.filter((c) => c.kind === 'drop').map((c) => c.t), [ids.aDrop, ids.bDrop, ids.cDrop]);
+});
+
+test('a tile pinned from another clan’s board polls its progress through the addressed clan', async () => {
+  const route = await import('../src/app/api/plugin/event/[id]/tile/[tileId]/progress/route.ts');
+  const get = (eventId: number, tileId: number) =>
+    route.GET(new Request(`https://example.test/api/plugin/event/${eventId}/tile/${tileId}/progress`, { headers: headers('alpha') }), {
+      params: Promise.resolve({ id: String(eventId), tileId: String(tileId) }),
+    });
+  const res = await get(ids.bEvent, ids.bKill);
+  assert.equal(res.status, 200, await res.clone().text());
+  const body = (await res.json()) as { teams: { teamId: number; mine?: boolean }[] };
+  assert.ok(body.teams.some((t) => t.teamId === ids.bTeam && t.mine), 'its own team marked');
+  assert.equal((await get(ids.sEvent, ids.sKill)).status, 404, 'a suspended clan’s board stays hidden, seat or not');
+});

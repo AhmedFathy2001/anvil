@@ -32,8 +32,7 @@ import { rankMove, teamBaselineRanks } from '@/lib/rankMoves';
 import type { StandingsWindow } from '@/lib/standingsWindow';
 import { rateLimit } from '@/lib/rate-limit';
 import { claimTile, cleanNote, unclaimTile } from '@/lib/tileClaims';
-import { normalizeRsn, pluginRsnHintOnly, resolvePluginClan, resolvePluginMember, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
-import { type BoardSummary, liveBoardsForCharacter, summarizeBoards } from '@/lib/pluginBoards';
+import { normalizeRsn, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { type SupporterInk, supporterForUser, supporterInksForRsns } from '@/lib/supporter';
 import { displayCaseSlots } from '@/lib/profileMediaRules';
 import { inkForSurface } from '@/lib/supporterStyle';
@@ -557,7 +556,9 @@ async function homeView(request: Request, a: Args): Promise<View> {
     !open && slug ? ownClanCard(request, slug) : Promise.resolve(null),
     // A creator space has no in-game clan events (lib/creatorSpaces).
     slug && cfg.activeClan?.kind !== 'creator' ? clanEventsFor(request, slug) : Promise.resolve([] as ClanEventView[]),
-    !open ? otherLiveBoards(request, cfg.event?.id ?? cfg.homeBoard?.eventId ?? null) : Promise.resolve([] as BoardSummary[]),
+    // Every live board this character is on rides the config (X-Anvil-Boards, lib/pluginBoards): the
+    // tab lists them without asking again.
+    Promise.resolve((cfg.boards ?? []).filter((b) => b.eventId !== (cfg.event?.id ?? cfg.homeBoard?.eventId))),
     // Ranks as the event day began (lib/rankMoves), for "▲2" by the standings; a race ranks its own way.
     live && cfg.event && !cfg.event.race ? teamBaselineRanks(cfg.event.id).catch(() => null) : Promise.resolve(null),
   ]);
@@ -622,21 +623,6 @@ function withMoves(roster: { teams?: RosterTeamOut[]; players?: RosterPersonOut[
   roster.teams?.forEach(mark);
   roster.players?.forEach(mark);
   for (const p of roster.window?.parts ?? []) if (p.kind === 'rows') p.rows.forEach(mark);
-}
-
-/**
- * Every other live board the played character is on, in any clan it may see (lib/pluginBoards) —
- * display only, so it works for a plugin that tracks one board as much as for one that tracks all.
- * Best effort: a failure here never takes the tab down.
- */
-async function otherLiveBoards(request: Request, shown: number | null): Promise<BoardSummary[]> {
-  try {
-    const member = await resolvePluginMember(request, { hintOnly: pluginRsnHintOnly(request) });
-    if (!member) return [];
-    return await summarizeBoards(await liveBoardsForCharacter(request, member.accountId, { except: shown, preferClanId: member.clanId }));
-  } catch {
-    return [];
-  }
 }
 
 /** The clan's events in the next fortnight, with the caller's own "going" marked. */

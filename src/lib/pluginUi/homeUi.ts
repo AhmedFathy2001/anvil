@@ -65,6 +65,8 @@ export interface HomeConfig {
   } | null;
   board?: { tilesComplete: number; tilesTotal: number; pointsScored: boolean } | null;
   homeBoard?: { eventId: number; eventName: string; tilesComplete: number; tilesTotal: number; pointsScored: boolean } | null;
+  /** Every live board this character is on, the addressed one first (X-Anvil-Boards, lib/pluginBoards). */
+  boards?: BoardSummary[];
   unlinkedActiveEvent?: string | null;
   startProof?: unknown;
   panel?: { tiles?: PanelTile[]; activeNow?: PanelActive[]; scheduled?: ScheduleBingo[]; weeklies?: ScheduleWeekly[] };
@@ -434,6 +436,7 @@ export function homeUi(d: HomeData): Node {
   }
 
   // Your live board: the gold card.
+  let playingHere: Node | null = null;
   if (b) {
     const kind = b.ladder ? 'Ladder' : d.cfg.event?.race ? 'Tile race' : d.cfg.event?.revealPolicy === 'bounty' ? 'Bounty hunt' : d.cfg.event?.revealPolicy ? 'Showdown' : b.points ? 'Bingo (points)' : 'Bingo';
     const lines: Node[] = [];
@@ -443,8 +446,20 @@ export function homeUi(d: HomeData): Node {
       lines.push(row(muted(`${count(b.done)} / ${count(b.total)} ${b.points ? 'pts' : 'tiles'}`), undefined, d.live && endOf(d) ? clock(endOf(d), 'Live · ends in ', 'Ended', d.now) : d.live ? small('Live', BLUE) : undefined));
     } else lines.push(muted(clip(statusLine(b, d), 34), { wrap: CARD_W }));
     const open = openRow(text(clip(titled(b.id, b.title), 24), 'white'), undefined, lines, home('board'), `Open ${b.title}`);
-    parts.push(d.live && !b.spectating ? goldCard('Your live board', [open]) : section([title('Board'), open]));
+    if (d.live && !b.spectating) playingHere = open;
+    else parts.push(section([title('Board'), open]));
   }
+  // Every live board you're on, side by side in one card, each with its own progress: no one of them
+  // is "the" tracked board — the plugin tracks them all (lib/pluginBoards).
+  const mineRows = mine.map((m) => {
+    const t = titled(m.eventId, m.name);
+    const lines: Node[] = [muted(clip(`${m.clanName} · ${m.teamName}`, 32))];
+    if (m.tilesTotal > 0) lines.push(tally(m.tilesComplete, m.tilesTotal, m.pointsScored), muted(`${count(m.tilesComplete)} / ${count(m.tilesTotal)} ${m.pointsScored ? 'pts' : 'tiles'}`));
+    else lines.push(muted('Board not revealed yet'));
+    return openRow(text(clip(t, 24), '#e6e6e6'), undefined, lines, boardFromList(m.eventId, t), `Open ${t}`);
+  });
+  const liveRows = [...(playingHere ? [playingHere] : []), ...mineRows];
+  if (liveRows.length) parts.push(goldCard(liveRows.length > 1 ? 'Your live boards' : 'Your live board', liveRows));
 
   const heading = (s: string) => title(s);
   if (running.length) parts.push(col([heading('Running'), ...running], { gap: 5 }));
@@ -452,15 +467,6 @@ export function homeUi(d: HomeData): Node {
     if (b || running.length) parts.push(col([heading('Coming up'), ...upcoming.map((u) => u.node)], { gap: 5 }));
     // Nothing live: the next things are the page, in one card — gold-edged when you're signed up to one.
     else parts.push(section([text('Coming up', upcoming.some((u) => u.yours) ? GOLD : 'white', { font: 'bold' }), ...upcoming.map((u) => u.node)], upcoming.some((u) => u.yours) ? { edge: GOLD } : {}));
-  }
-  if (mine.length) {
-    parts.push(col([heading('Your other boards'), ...mine.map((m) => {
-      const t = titled(m.eventId, m.name);
-      const lines: Node[] = [muted(clip(`${m.clanName} · ${m.teamName}`, 32))];
-      if (m.tilesTotal > 0) lines.push(tally(m.tilesComplete, m.tilesTotal, m.pointsScored), muted(`${count(m.tilesComplete)} / ${count(m.tilesTotal)} ${m.pointsScored ? 'pts' : 'tiles'}`));
-      else lines.push(muted('Board not revealed yet'));
-      return openRow(text(clip(t, 24), '#e6e6e6'), undefined, lines, boardFromList(m.eventId, t), `Open ${t}`);
-    })], { gap: 5 }));
   }
   if (others.length) {
     parts.push(col([heading('Also live'), ...others.map((c) => {
@@ -674,6 +680,8 @@ function boardPage(d: HomeData, b: Board, raceRest = false): Node[] {
   if (raceRest) return [...(feedChat ? [feedChat] : []), ...boardTail(d, b, tiles, event, true)];
   const k = kindOf(d, b);
   const parts: Node[] = [pageHead(home(), 'All events', kindWords(d, b, k), b.title)];
+  const other = switcher(d, b.id);
+  if (other) parts.push(other);
   // Not playing this board (an alt while the main is on a team): the whole board, read-only.
   if (b.spectating && b.total > 0) {
     const eventId = d.cfg.homeBoard?.eventId ?? 0;
@@ -691,6 +699,16 @@ function boardPage(d: HomeData, b: Board, raceRest = false): Node[] {
   parts.push(...standingsPart(d, b));
   parts.push(...boardTail(d, b, tiles, event, false));
   return parts;
+}
+
+/** On one board's page, the character's other live boards, one tap away (the board switcher). */
+function switcher(d: HomeData, current: number): Node | null {
+  const others = (d.cfg.boards ?? []).filter((m) => m.eventId !== current);
+  if (!others.length) return null;
+  return section([
+    muted('Your other live boards'),
+    ...others.map((m) => link(clip(m.tilesTotal > 0 ? `${m.name} · ${count(m.tilesComplete)} / ${count(m.tilesTotal)}` : m.name, 32), boardFromList(m.eventId, m.name), `Open ${m.name}`)),
+  ]);
 }
 
 /** Where you are: the tally, your place, a bar, and one quiet line with the clock. */
