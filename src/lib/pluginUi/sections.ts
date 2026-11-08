@@ -131,7 +131,7 @@ export function standingsCard(rows: Node[], count?: string, foot?: Node): Node {
 }
 
 /** Chip grounds for a feed row's picture: purple rare, green done, coral a death. */
-export const TINT = { purple: CHIP.purple[0], green: CHIP.green[0], coral: CHIP.coral[0] } as const;
+export const TINT = { purple: CHIP.purple[0], green: CHIP.green[0], coral: CHIP.coral[0], blue: CHIP.blue[0] } as const;
 
 /**
  * A segmented switch whose segments go somewhere (Feed | Chat, Players | Clans): the lit one is

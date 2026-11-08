@@ -13,6 +13,7 @@ import type { Action, Color, FeedRow, Node } from './nodes';
 import { button, col, gap, muted, row, text } from './nodes';
 import { BLUE, GREEN, CORAL, PURPLE, TINT, boxChip, openRow, section, segSwitch } from './sections';
 import { revisedMediaPath } from './mediaRevision';
+import { CLUE_ITEM, milestoneTitle } from '@/lib/milestoneMoments';
 
 // The plugin panel's Feed tab (view 'feed'): one live list per scope — the clan's moments, a board's
 // moments, a board's chat — drawn once and then grown by push rows (lib/panelRows). Pure: the view
@@ -25,13 +26,15 @@ import { revisedMediaPath } from './mediaRevision';
 //   moments:event:<event>:team:<team>    one team's moments on it
 //   chat:<event>:all · chat:<event>:team:<team> · chat:<event>:announce   (lib/eventChatRules ChatChannel)
 
-export type KindGroup = 'drops' | 'pets' | 'achievements' | 'deaths';
-export const KIND_GROUPS: KindGroup[] = ['drops', 'pets', 'achievements', 'deaths'];
+export type KindGroup = 'drops' | 'pets' | 'achievements' | 'deaths' | 'milestones';
+export const KIND_GROUPS: KindGroup[] = ['drops', 'pets', 'achievements', 'deaths', 'milestones'];
 
 export function kindGroup(kind: string): KindGroup | null {
   if (kind === 'unique' || kind === 'loot') return 'drops';
   if (kind === 'pet') return 'pets';
   if (kind === 'death') return 'deaths';
+  // Slayer, clues, speedruns, kill counts, BA gambles, clan patterns (lib/milestoneMoments).
+  if (kind === 'milestone') return 'milestones';
   // Combat tasks, level milestones, log slots, diaries, quests (lib/moments ACHIEVEMENT_KINDS).
   if (kind === 'ca' || kind === 'level' || kind === 'clog' || kind === 'diary' || kind === 'quest' || kind === 'mode') return 'achievements';
   return null;
@@ -165,6 +168,7 @@ function oneTitle(m: MomentLike): string {
   if (m.kind === 'clog') return name;
   if (m.kind === 'diary') return `${m.tier ? `${m.tier} ` : ''}${name}`;
   if (m.kind === 'quest') return m.sourceKind === 'cape' ? `Quest cape: ${name}` : name;
+  if (m.kind === 'milestone') return milestoneTitle(m);
   return m.quantity > 1 ? `${m.quantity} × ${name}` : name;
 }
 
@@ -235,6 +239,8 @@ function toneOf(m: MomentLike, totalLevel: boolean): Pick<FeedRow, 'textColor' |
   if (m.kind === 'death') return { textColor: CORAL, tint: TINT.coral };
   if (m.kind === 'pet' || m.kind === 'clog' || (m.kind === 'drop' && (m.valueGp ?? 0) >= RARE_GP)) return { textColor: PURPLE, tint: TINT.purple };
   if (m.kind === 'level' && (m.sourceKind === 'max' || (!totalLevel && m.quantity >= 99))) return { textColor: GREEN, tint: TINT.green };
+  // Milestones read as info (blue); a master clue as rare (purple).
+  if (m.kind === 'milestone') return m.sourceKind === 'clues' && m.tier === 'master' ? { textColor: PURPLE, tint: TINT.purple } : { textColor: BLUE, tint: TINT.blue };
   return {};
 }
 
@@ -250,6 +256,12 @@ export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
       ? { sprite: 'total' as const }
       : levelSkill
       ? { skill: levelSkill }
+      : m.kind === 'milestone' && m.sourceKind === 'slayer'
+      ? { skill: 'slayer' }
+      : m.kind === 'milestone' && m.sourceKind === 'clues' && m.tier && CLUE_ITEM[m.tier]
+      ? { item: CLUE_ITEM[m.tier] }
+      : m.kind === 'milestone'
+      ? { glyph: 'check' as const, glyphColor: BLUE as Color }
       : m.kind === 'clog'
         ? { sprite: 'collection-log' as const }
         : itemOf(m) != null
@@ -561,6 +573,8 @@ export function feedTabUi(o: FeedTabOptions): Node {
           ['achievements', 'Achievements'],
           // A board keeps every death; a clan its members' deaths unless it turned them off (Rules).
           ['deaths', 'Deaths'],
+          // Slayer, clues, speedruns, kill counts, BA gambles: kept by the clan, so not on a board's list.
+          ...(o.current.kind === 'clan' ? [['milestones', 'Milestones'] as [string, string]] : []),
           ...(o.current.kind === 'event' && o.teamId != null ? [['team', 'My team'] as [string, string]] : []),
         ];
   // Three to a row: the panel splits a row evenly, and "Achievements" is too wide for a quarter of it.
@@ -636,6 +650,7 @@ function emptyLine(pane: 'feed' | 'chat', filter: string): string {
   if (filter === 'pets') return 'No pets yet. The next one lands here.';
   if (filter === 'drops') return 'No big drops yet. The next one lands here.';
   if (filter === 'achievements') return 'No achievements yet. The next log slot, 99 or diary lands here.';
+  if (filter === 'milestones') return 'No milestones yet. Slayer tasks, clues, PBs, kill counts and BA gambles land here once members turn them on.';
   if (filter === 'team') return 'Nothing from your team yet.';
   return 'Nothing yet. The next pet, big drop or achievement lands here.';
 }

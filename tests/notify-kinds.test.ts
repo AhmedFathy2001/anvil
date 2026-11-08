@@ -178,3 +178,37 @@ test('the plugin gets watches, screenshot switches and private kinds in `me`', (
   const d = pluginMe(normalizeNotifyPrefs(null), {}, NO_CLAN_DROPS, null);
   assert.deepEqual([d.watch, d.noShot, d.on], [[], [], {}]);
 });
+
+test('feed rows: a shared kind that is on makes one; off, private or a personal pattern makes none', async () => {
+  const { milestoneForFeed } = await import('../src/lib/notifyKindsPost.ts');
+  const { momentRow, kindGroup } = await import('../src/lib/pluginUi/feedUi.ts');
+  const line = { rsn: 'Zezima', k: 'kc', line: 'Your Zulrah kill count is: 500.' };
+  const on = me({ kinds: { kc: { on: true } } });
+  const f = milestoneForFeed('line', line, on, NO_CLAN_KINDS);
+  assert.deepEqual(f, { sub: 'kc', itemName: 'Zulrah kill count', quantity: 500, tier: null });
+  // Off for this player (the clan default on, their own choice off): no row.
+  assert.equal(milestoneForFeed('line', line, me({ kinds: { kc: { on: false } } }), clan({ kinds: { kc: { on: true } } })), null);
+  assert.equal(milestoneForFeed('line', line, NO_PERSONAL_KINDS, NO_CLAN_KINDS), null);
+  // On through the clan default: a row.
+  assert.ok(milestoneForFeed('line', line, NO_PERSONAL_KINDS, clan({ kinds: { kc: { on: true } } })));
+  // Private kinds never make a row, even when on.
+  const all = me({ kinds: { ge: { on: true }, trade: { on: true }, storage: { on: true }, ext: { on: true } }, extSources: ['X'] });
+  assert.equal(milestoneForFeed('ge', { item: 'Twisted bow', qty: 1, value: 2e9 }, all, NO_CLAN_KINDS), null);
+  assert.equal(milestoneForFeed('trade', { items: [{ name: 'Coins', qty: 5, value: 5 }] }, all, NO_CLAN_KINDS), null);
+  assert.equal(milestoneForFeed('ext', { source: 'X', text: 'hi' }, all, NO_CLAN_KINDS), null);
+  // A player's own pattern stays on their webhooks; the clan's pattern is a feed row.
+  const c = clan({ kinds: { custom: { on: true } }, patterns: ['You feel something weird sneaking*'] });
+  const p = me({ patterns: ['You have a funny feeling*'] });
+  assert.equal(milestoneForFeed('line', { k: 'custom', line: 'You have a funny feeling like you would have been followed.' }, p, c), null);
+  assert.equal(milestoneForFeed('line', { k: 'custom', line: 'You feel something weird sneaking up on you.' }, p, c)?.sub, 'custom');
+
+  // The panel row: its own group, blue like other info rows, the stored facts as its title.
+  assert.equal(kindGroup('milestone'), 'milestones');
+  const row = momentRow({ id: 1, rsn: 'Zezima', kind: 'milestone', itemId: null, itemName: f!.itemName, quantity: f!.quantity, valueGp: null, source: null, teamId: null, occurredAt: '2026-11-08T10:00:00.000Z', sourceKind: 'kc', tier: null });
+  assert.equal(row.title, 'Zulrah kill count 500');
+  assert.equal(row.textColor, '#6fb6ff');
+  const slayer = milestoneForFeed('line', { k: 'slayer', line: "You've completed 50 tasks and received 15 points, giving you a total of 1,234; return to a Slayer master." }, me({ kinds: { slayer: { on: true } } }), NO_CLAN_KINDS)!;
+  const sr = momentRow({ id: 2, rsn: 'Zezima', kind: 'milestone', itemId: null, itemName: slayer.itemName, quantity: slayer.quantity, valueGp: null, source: null, teamId: null, occurredAt: '2026-11-08T10:00:00.000Z', sourceKind: 'slayer', tier: null });
+  assert.equal(sr.title, 'Slayer task · 50 streak');
+  assert.equal(sr.skill, 'slayer');
+});

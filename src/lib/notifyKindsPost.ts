@@ -9,6 +9,7 @@
  * Pure: the route loads the settings and routes the result.
  */
 
+import { milestoneOf, type MilestoneFacts } from '@/lib/milestoneMoments';
 import { clamp, LIMIT, type DiscordEmbed, type DiscordEmbedField } from '@/lib/discordEmbeds';
 import {
   isNewKind,
@@ -169,4 +170,15 @@ export function vetNewKindPost(postKind: string, rawFacts: unknown, personal: Pe
     }
   }
   return null;
+}
+
+/**
+ * The clan feed row a reported post makes, or null: only a shared line kind that the player has on
+ * right now (the same vetting as the Discord post), never a private kind or a player's own pattern.
+ */
+export function milestoneForFeed(postKind: string, rawFacts: unknown, personal: PersonalKinds, clan: ClanKinds): MilestoneFacts | null {
+  if (postKind !== 'line') return null;
+  const post = vetNewKindPost(postKind, rawFacts, personal, clan);
+  if (!post || post.personalOnly) return null;
+  return milestoneOf(post.kind, s(o(rawFacts).line, LINE_MAX));
 }

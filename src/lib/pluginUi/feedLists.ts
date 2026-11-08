@@ -18,7 +18,7 @@ import { kindGroup, type KindGroup } from './feedUi';
 
 // 'tasks' is the old name of 'achievements', for a panel still holding a chip from before.
 export const groupOf = (f: string): KindGroup | null =>
-  f === 'drops' || f === 'pets' || f === 'achievements' || f === 'deaths' ? f : f === 'tasks' ? 'achievements' : null;
+  f === 'drops' || f === 'pets' || f === 'achievements' || f === 'deaths' || f === 'milestones' ? f : f === 'tasks' ? 'achievements' : null;
 
 /** The stored moment kinds behind each Feed filter (feedUi kindGroup, the other way round). */
 export const KINDS_OF: Record<KindGroup, readonly string[]> = {
@@ -26,6 +26,7 @@ export const KINDS_OF: Record<KindGroup, readonly string[]> = {
   pets: ['pet'],
   deaths: ['death'],
   achievements: ['ca', 'level', 'clog', 'diary', 'quest', 'mode'],
+  milestones: ['milestone'],
 };
 
 /**

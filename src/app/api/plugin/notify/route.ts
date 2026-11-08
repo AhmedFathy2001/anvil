@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import { judgeDropRequest, withPetRarity } from '@/lib/notifyDropJudge';
 import type { DropVerdict } from '@/lib/notifyDrops';
 import { characterClanKinds, clanMainRarity } from '@/lib/notifyDefaults';
-import { isNewPostKind, vetNewKindPost, type NewKindPost } from '@/lib/notifyKindsPost';
+import { isNewPostKind, milestoneForFeed, vetNewKindPost, type NewKindPost } from '@/lib/notifyKindsPost';
+import { recordMilestoneMoment } from '@/lib/momentsStore';
+import { emitMomentRows } from '@/lib/panelRows';
 import { requirePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import {
   getDeathTaunts,
@@ -234,6 +236,17 @@ export async function POST(request: Request) {
     newPost = vetNewKindPost(kind, facts, prefs.announce, clanKinds);
     if (channel !== 'milestones') return NextResponse.json({ error: 'Unknown channel' }, { status: 400 });
     if (!newPost) return NextResponse.json({ ok: true, declined: 1 });
+    // A shared line kind also makes a clan feed row, in the member's clan (lib/milestoneMoments). Never a
+    // private kind or a player's own pattern: those stay on their own webhooks.
+    const milestone = member ? milestoneForFeed(kind, facts, prefs.announce, clanKinds) : null;
+    if (milestone && member) {
+      try {
+        const stored = await recordMilestoneMoment(member, milestone);
+        if (stored.length) await emitMomentRows(member.clanId, 'member', stored);
+      } catch (e) {
+        log.warn('plugin-notify.milestone-moment-failed', { error: String(e) });
+      }
+    }
   }
   // A death is facts only (what killed them); the words are the person's and the clan's, read here.
   let death: DeathWording | null = null;
