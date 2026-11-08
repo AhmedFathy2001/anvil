@@ -21,6 +21,8 @@ import { startingStatsFor } from '@/lib/startingStats';
 import { standingsScopeForSession } from '@/lib/standingsAccess';
 import { canSeeTeamProgress, curtainInfo } from '@/lib/standingsVisibility';
 import StandingsHiddenNotice from '@/components/StandingsHiddenNotice';
+import { isLabClan } from '@/lib/lab';
+import { withoutLabPins } from '@/lib/labRules';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +60,11 @@ export default async function TeamBoardPage({
   const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, eId));
   const rawEventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eId));
   // Owner per player so TeamBoardClient can roll a person's accounts into one contributor (per-person).
-  const eventPlayers = attachOwners(rawEventPlayers, await loadPlayerOwners(rawEventPlayers));
+  // A lab board pins stats with frozenAt — not a sub-out, so keep it off the roster's "Subbed out".
+  const eventPlayers = withoutLabPins(
+    attachOwners(rawEventPlayers, await loadPlayerOwners(rawEventPlayers)),
+    await isLabClan(event.clanId),
+  );
   // The HOST's bands — the tiles were authored against them, whichever clan's address this is.
   const tierBands = await getTierBands(event.clanId);
 

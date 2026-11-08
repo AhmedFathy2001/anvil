@@ -6,6 +6,8 @@ import { requireTeamManager } from '@/lib/teamStaff';
 import { enrolParticipant, participantForSeat } from '@/lib/participants';
 import { captureStartingStatsSoon, startingStatsFor } from '@/lib/startingStats';
 import { rosterSeatOpensEventSql } from '@/lib/seatScope';
+import { isLabClan } from '@/lib/lab';
+import { withoutLabPins } from '@/lib/labRules';
 
 /**
  * A team's own roster and its recent proof, for whoever runs that team.
@@ -58,7 +60,8 @@ export async function GET(
     .where(and(eq(eventParticipants.eventId, management.eventId), eq(eventParticipants.teamId, tId)));
   // Late joiners on a running event: are their starting stats in yet (lib/startingStats)?
   const startingStats = event ? await startingStatsFor(event, rosterRows.map((r) => ({ ...r, id: r.playerId }))) : {};
-  const roster = rosterRows.map((r) => ({
+  // A lab board pins stats with frozenAt (lib/labStats) — not a sub-out.
+  const roster = withoutLabPins(rosterRows, await isLabClan(event?.clanId)).map((r) => ({
     playerId: r.playerId,
     name: r.name,
     clanMemberId: r.clanMemberId,
