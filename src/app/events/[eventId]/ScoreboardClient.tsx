@@ -286,12 +286,22 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
   const refetchGains = useCallback(() => {
     const statTiles = tiles.filter((t) => t.trackedStat && t.statGoal);
     if (statTiles.length === 0) return;
-    // Fetch gains for all teams in parallel, aggregate by tile.
-    Promise.all(
-      teams.map(async (team) => {
-        const res = await clanFetch(`/api/events/${event.id}/gains?teamId=${team.id}`);
-        if (!res.ok) return null;
-        const data = await res.json();
+    // One event-wide read (the route without `teamId`: same auth, same hidden-standings cut), split by
+    // team here — a solo board of 170 used to make 170 requests on every refresh.
+    type GainRow = { teamId: number | null; playerName: string; baseline?: Record<string, number>; current?: Record<string, number>; gains?: Record<string, number>; tileGains?: Record<number, number> };
+    clanFetch(`/api/events/${event.id}/gains`)
+      .then((res) => (res.ok ? (res.json() as Promise<GainRow[]>) : null))
+      .then((rows) => {
+        if (!Array.isArray(rows)) return;
+        const byTeam = new Map<number, GainRow[]>();
+        for (const r of rows) {
+          if (r.teamId == null) continue;
+          const list = byTeam.get(r.teamId);
+          if (list) list.push(r);
+          else byTeam.set(r.teamId, [r]);
+        }
+        setTeamGains(teams.flatMap((team) => {
+        const data = byTeam.get(team.id) ?? [];
         const tileGains: Record<number, number> = {};
         const tileMembers: Record<number, { name: string; gained: number }[]> = {};
         for (const tile of statTiles) {
@@ -319,11 +329,10 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
           tileGains[tile.id] = tileTotal;
           tileMembers[tile.id] = members.sort((a, b) => b.gained - a.gained);
         }
-        return { teamId: team.id, totalGained: teamXpGained(statTiles, tileGains), tileGains, tileMembers };
+        return [{ teamId: team.id, totalGained: teamXpGained(statTiles, tileGains), tileGains, tileMembers }];
+        }));
       })
-    ).then((results) => {
-      setTeamGains(results.filter((r): r is TeamGains => r !== null));
-    }).catch(() => {});
+      .catch(() => {});
   }, [event.id, teams, tiles]);
 
   useEffect(() => { refetchSubmissions(); }, [refetchSubmissions]);
@@ -666,7 +675,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             </h2>
             {/* Multi-claim boards read very differently as "everyone" vs "us" — so let the viewer choose. */}
             {!liveDropBoard && (
-              <TeamLens teams={teams} value={lensTeamId} onChange={setLensTeamId} className="ml-auto" />
+              <TeamLens teams={teams} value={lensTeamId} onChange={setLensTeamId} className="ml-auto" compact={solo} mine={myTeamIds} />
             )}
           </div>
 
