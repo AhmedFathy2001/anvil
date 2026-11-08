@@ -60,11 +60,20 @@ export type Templates = Partial<Record<TemplateKind, string>>;
 
 /** Mentions defused and markdown links reduced to their text. Used on templates and on values. */
 export function defuse(s: string): string {
-  return s
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+  // Links: markdown links collapse to their text until none are left (nested ones can't survive),
+  // a stray "](" is broken, and bare or bracketed URLs are dropped — templates and values carry text only.
+  let out = s;
+  for (let prev = ''; prev !== out; ) {
+    prev = out;
+    out = out.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+  }
+  return out
+    .replace(/\]\(/g, '] (')
+    .replace(/<\s*[a-z][\w+.-]*:[^>]*>/gi, '')
+    .replace(/\b(?:https?|discord(?:app)?|steam|ftp):\/\/\S+/gi, '')
+    .replace(/\bwww\.\S+/gi, '')
     .replace(/<(@[!&]?|#)(\d+)>/g, '‹$1$2›')
-    .replace(/@(everyone|here)/gi, '@​$1')
-    .replace(/<\s*https?:[^>]*>/gi, '');
+    .replace(/@(everyone|here)/gi, '@​$1');
 }
 
 /** A value from game text: no markdown, no mentions, no line breaks. */

@@ -95,3 +95,12 @@ test('a template resolves player, then clan default, then Anvil; private kinds a
   assert.equal(resolveTemplate('ge', {}, { ge: 'forced' } as never).source, 'platform');
   assert.equal(resolveTemplate('ge', { ge: 'mine {item}' }, { ge: 'forced' } as never).template, 'mine {item}');
 });
+
+test('links never survive: nested markdown, stray brackets, bare and www URLs', async () => {
+  const { defuse } = await import('../src/lib/notifyTemplates');
+  const cases = ['[[a](x)](https://evil.example)', 'see https://evil.example/x now', 'go www.evil.example', '<https://evil.example>', 'x](https://evil.example)', 'discord://invite/abc'];
+  for (const c of cases) {
+    const out = defuse(c);
+    assert.ok(!/https?:\/\/|www\.|discord:\/\/|\]\(/i.test(out), `${c} -> ${out}`);
+  }
+});
