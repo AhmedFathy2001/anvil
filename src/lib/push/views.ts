@@ -7,6 +7,7 @@ import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { buildEnrolledConfig } from '@/lib/pluginConfigEnrolled';
 import { tileProgressView } from '@/lib/tileTrackerView';
 import { parseViewKey } from '@/lib/push/hub';
+import { withTileCounts } from '@/lib/pluginTileCounts';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // What the live push sends (push/server.ts asks api/internal/push/view for one key at a time):
@@ -61,6 +62,9 @@ async function teamView(event: typeof events.$inferSelect, teamId: number) {
   const ev = { ...(body.event as Record<string, unknown>) };
   for (const f of CALLER_EVENT_FIELDS) delete ev[f];
   config.event = ev;
+  // The counts the panel and tracker read (lib/pluginTileCounts); the plugin lays its own number from
+  // `members` over these rows as over the tracked lists.
+  withTileCounts(config);
   // `at`: a rebuild only happens because something on the board changed (a rival's tile, a claim), which
   // the team's own share may not show; stamped, it still goes out, and the panel refetches its view.
   return { t: 'team', eventId: event.id, teamId, config, members: built.members, at: new Date().toISOString() };

@@ -3,7 +3,7 @@ import ClanLink from '@/components/ClanLink';
 import SupporterName from '@/components/SupporterName';
 import { emissionSettingsView } from '@/lib/emissionSettings';
 import { supporterForUser } from '@/lib/supporter';
-import { AnnouncementsGeneral } from '../EmissionPanels';
+import { AnnouncementsGeneral, PluginPostsPanel } from '../EmissionPanels';
 import { NeedsCharacter } from '../_none';
 import { SettingsBlock, SettingsGroup, SettingsRow, SettingsTitle } from '../_ui';
 import { settingsSession } from '@/app/settings/settingsSession';
@@ -28,6 +28,11 @@ export default async function AnnouncementsSettingsPage() {
           <SettingsGroup title="Every character">
             <SettingsBlock>
               <AnnouncementsGeneral initial={view} />
+            </SettingsBlock>
+          </SettingsGroup>
+          <SettingsGroup title="What your plugin posts" note="Once RuneLite settings; they follow you to every clan.">
+            <SettingsBlock>
+              <PluginPostsPanel initial={view} />
             </SettingsBlock>
           </SettingsGroup>
           <SettingsGroup title="Per character" note="Which clans each character announces in is set on that character's page.">

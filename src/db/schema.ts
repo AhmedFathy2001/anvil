@@ -1485,6 +1485,9 @@ export const users = pgTable('users', {
   //   level_rules       JSON MilestoneRules for their OWN webhooks; NULL = the defaults.
   levelPostsClan: text('level_posts_clan').notNull().default('clan'),
   levelRules: text('level_rules'),
+  // What this person's plugin posts (lib/notifyPrefs): JSON NotifyPrefs, NULL = never set (the plugin
+  // uploads its old RuneLite settings once, then it's edited on /settings).
+  notifyPrefs: text('notify_prefs'),
   // Anvil Supporter checkout ref: the `?ref=` token on this person's Supporter checkout link. Gumroad
   // echoes it back on the sale, which is how a purchase finds its buyer. Same job as clans.gumroadRef,
   // for the personal subscription. Created on first checkout (lib/supporter).

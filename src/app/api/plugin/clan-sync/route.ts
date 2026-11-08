@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { rosterSyncSay } from '@/lib/rosterSyncLines';
 import { findOrCreateAccount, findOrCreateSeat, updateAccountOfSeat } from '@/lib/roster';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { memberSeatElsewhere } from '@/lib/guestAdmission';
@@ -889,6 +890,16 @@ export async function POST(request: Request) {
       oldRank: c.oldRank ?? null,
       newRank: c.newRank ?? null,
     })),
+    // The chat lines, ready to print (lib/rosterSyncLines); a plugin that reads `say` composes nothing.
+    say: rosterSyncSay({
+      added: toInsert.length,
+      updated: touched,
+      markedLeft: leftResult.length,
+      returned: changes.filter((c) => c.type === 'returned').length,
+      renamed: changes.filter((c) => c.type === 'renamed').length,
+      changes,
+      refusedNewMembers,
+    }),
   });
 }
 

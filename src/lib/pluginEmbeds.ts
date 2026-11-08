@@ -17,7 +17,10 @@
 //
 // Pure: no database, no network — the route validates and calls `buildPluginEmbed`.
 
-import { clamp, code, LIMIT, type DiscordEmbed, type DiscordEmbedField } from './discordEmbeds';
+import { clamp, code, EMBED_COLOR, LIMIT, type DiscordEmbed, type DiscordEmbedField } from './discordEmbeds';
+import { FUN_DEATH_MESSAGES } from './constants';
+import { foughtBoss, FOUGHT_SOURCE_KIND, shownKiller } from './deathSource';
+import { NOTIFY_DEFAULTS } from './notifyPrefs';
 import { absoluteAssetUrl, discordAssetUrl } from './seo';
 import { itemIconUrl as itemIconPath, skillIconUrl as skillIconPath, wikiImageUrl } from './tileIcons';
 
@@ -38,6 +41,9 @@ export const PLUGIN_EMBED_KINDS = [
   // Any skill level the member's rules post (capability 'level-rules'); 99 reads exactly like level99.
   'level',
   'totalLevel',
+  // The player's own death. The plugin says what killed them; the wording (their death message, now
+  // and then a fun line, and a reaction line) is resolved here from server-side data (BuildOptions.death).
+  'death',
 ] as const;
 export type PluginEmbedKind = (typeof PLUGIN_EMBED_KINDS)[number];
 
@@ -159,6 +165,26 @@ export interface TotalLevelFacts {
   milestone?: number | null;
 }
 
+export interface DeathFacts {
+  rsn?: string | null;
+  /** What killed them: an NPC or a player's name, or null when nothing can be named truthfully. */
+  source?: string | null;
+  /** 'npc' or 'player' once parsed ('pvp' is read as 'player'; 'fought' is settled to a boss or nothing). */
+  sourceKind?: 'npc' | 'player' | null;
+  /** Distinct players who attacked them in the last few seconds before the death (the plugin's attacker window). */
+  pile?: number | null;
+}
+
+/** The server-side half of a death post: what the route looked up for this person and clan. */
+export interface DeathWording {
+  /** The person's death message (notify prefs `deathMsg`); `{name}` = RSN. Empty → the default. */
+  message?: string | null;
+  /** The clan's fun death lines; empty → the shipped list. */
+  funLines?: readonly string[] | null;
+  /** The clan's death reaction lines; empty → the shipped list. */
+  taunts?: readonly string[] | null;
+}
+
 export type PluginEmbedFacts =
   | { kind: 'drop'; facts: DropFacts }
   | { kind: 'pet'; facts: PetFacts }
@@ -169,7 +195,8 @@ export type PluginEmbedFacts =
   | { kind: 'quest'; facts: QuestFacts }
   | { kind: 'level99'; facts: Level99Facts }
   | { kind: 'level'; facts: LevelFacts }
-  | { kind: 'totalLevel'; facts: TotalLevelFacts };
+  | { kind: 'totalLevel'; facts: TotalLevelFacts }
+  | { kind: 'death'; facts: DeathFacts };
 
 // ── Presentation constants (moved from the plugin) ──────────────────────────────────────────────
 
@@ -190,6 +217,33 @@ export const SPOON_LINES = [
   'No skill, all luck. Congrats. 🥄',
   'Hand it over — someone drier deserved that.',
 ] as const;
+
+/** Death reaction lines (were the plugin's anvil_text.json deathTaunts), one under every death message. */
+export const DEATH_TAUNT_LINES = [
+  'Sit. 🪑',
+  'L + ratio.',
+  'Skill issue.',
+  "Couldn't be me.",
+  'GG go next.',
+  'Have you tried eating?',
+  "That's gotta hurt.",
+  "Prayer was off, wasn't it?",
+  'Get good. 🤡',
+] as const;
+
+/** A pile-on: this many players on one person turns the reaction line into one of these ({n} = how many). */
+export const GANG_MIN = 3;
+export const GANG_LINES = [
+  'Ganged by {n} players. 🐺',
+  '{n}v1. Totally fair fight.',
+  'Took {n} of them to do it. Respect, honestly.',
+  'Needed a whole {n}-man team for that one.',
+  "{n} people woke up and chose violence.",
+  'Outnumbered {n} to 1. Never stood a chance.',
+] as const;
+
+/** How often a death reads as a fun line instead of the person's own message (the plugin's 1 in 100). */
+export const FUN_DEATH_CHANCE = 0.01;
 
 // ── Formatting helpers ──────────────────────────────────────────────────────────────────────────
 
@@ -284,11 +338,45 @@ export interface BuildOptions {
   imageFilename?: string | null;
   /** For the reaction line; injectable so tests are deterministic. */
   random?: () => number;
+  /** A death's wording, looked up by the route (the person's message, the clan's line lists). */
+  death?: DeathWording | null;
+}
+
+function pick<T>(pool: readonly T[], random: () => number): T {
+  return pool[Math.min(pool.length - 1, Math.max(0, Math.floor(random() * pool.length)))];
 }
 
 function spoonLine(random: () => number): string {
-  const i = Math.min(SPOON_LINES.length - 1, Math.max(0, Math.floor(random() * SPOON_LINES.length)));
-  return SPOON_LINES[i];
+  return pick(SPOON_LINES, random);
+}
+
+const lines = (pool: readonly string[] | null | undefined) => (pool ?? []).filter((l) => l.trim() !== '');
+
+/**
+ * The player's own death: their message (or, 1 time in 100, a fun line), a reaction line under it,
+ * and who did it when that is known. Reads like the plain-text death post it replaces.
+ */
+function deathEmbed(f: DeathFacts, wording: DeathWording, random: () => number): DiscordEmbed {
+  const name = f.rsn || 'Someone';
+  let template: string;
+  if (random() < FUN_DEATH_CHANCE) {
+    const fun = lines(wording.funLines);
+    template = pick(fun.length ? fun : FUN_DEATH_MESSAGES, random);
+  } else {
+    template = wording.message?.trim() || NOTIFY_DEFAULTS.deathMsg;
+  }
+  const taunts = lines(wording.taunts);
+  const pile = f.pile ?? 0;
+  const reaction = pile >= GANG_MIN
+    ? pick(GANG_LINES, random).replaceAll('{n}', String(pile))
+    : pick(taunts.length ? taunts : DEATH_TAUNT_LINES, random);
+  const desc = `${template.replaceAll('{name}', name)}\n${reaction}`;
+  const e = base(f.rsn, '💀 Death', desc, EMBED_COLOR.red);
+  if (f.source) {
+    const others = f.sourceKind === 'player' && pile > 1 ? ` + ${pile - 1} other${pile === 2 ? '' : 's'}` : '';
+    e.fields = [stat('Killed by', f.sourceKind === 'player' ? `${f.source} (PvP)${others}` : f.source)];
+  }
+  return e;
 }
 
 const itemLabel = (name: string, qty: number) => (qty > 1 ? `${name} ×${qty}` : name);
@@ -499,6 +587,7 @@ export function pluginEmbed(input: PluginEmbedFacts, opts: BuildOptions = {}): D
     case 'level99': e = level99Embed(input.facts); break;
     case 'level': e = levelEmbed(input.facts); break;
     case 'totalLevel': e = totalLevelEmbed(input.facts); break;
+    case 'death': e = deathEmbed(input.facts, opts.death ?? {}, random); break;
   }
   if (opts.imageFilename) e.image = { url: `attachment://${opts.imageFilename}` };
   return e;
@@ -637,6 +726,17 @@ function parseFacts(kind: PluginEmbedKind, raw: unknown): PluginEmbedFacts {
           max: optInt(o, 'max'), milestone: optInt(o, 'milestone'),
         },
       };
+    case 'death': {
+      // Same settling as the feed's death moment (lib/deathSource): a 'fought' guess survives only
+      // as a known boss, and a never-killer (Death in his domain) names nobody.
+      let source = shownKiller(optStr(o, 'source', 64)?.trim() || null);
+      const rawKind = optStr(o, 'sourceKind', 32)?.toLowerCase() ?? null;
+      let sourceKind: DeathFacts['sourceKind'] = rawKind === 'player' || rawKind === 'pvp' ? 'player' : 'npc';
+      if (rawKind === FOUGHT_SOURCE_KIND) source = foughtBoss(source);
+      if (!source) sourceKind = null;
+      const pile = optInt(o, 'pile');
+      return { kind, facts: { rsn: rsnOf(o), source, sourceKind, pile: pile == null ? null : Math.min(Math.max(pile, 0), 50) } };
+    }
   }
 }
 
