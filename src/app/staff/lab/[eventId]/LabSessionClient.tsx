@@ -21,6 +21,7 @@ import LabTeamsPanel from './LabTeamsPanel';
 import LabTileControlsPanel from './LabTileControlsPanel';
 import type { LabTeamsView } from '@/lib/labTeams';
 import Select from '@/components/Select';
+import { LAB_ROUTE_TEMPLATES, type LabRouteTemplate } from '@/lib/labPlan';
 
 const LAB_SLUG = 'anvil-lab';
 const POLL_MS = 5_000;
@@ -107,6 +108,7 @@ export default function LabSessionClient({ eventId }: { eventId: number }) {
   const { confirm } = useDialog();
   const [error, setError] = useState('');
   const [openLog, setOpenLog] = useState<number | null>(null);
+  const [reseedRoute, setReseedRoute] = useState<LabRouteTemplate>('diamond');
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/staff/lab/${eventId}`);
@@ -136,6 +138,17 @@ export default function LabSessionClient({ eventId }: { eventId: number }) {
     }
     setError((await res.json().catch(() => ({}))).error ?? 'That did not work.');
     setBusy('');
+  }
+
+  async function reseed(race: boolean) {
+    const routeLabel = LAB_ROUTE_TEMPLATES.find((t) => t.key === reseedRoute)?.label;
+    const ok = await confirm({
+      title: 'Replace the tiles with real ones?',
+      body: `Every tile on this board is deleted and replaced with the lab's real, creditable tile set${race ? ` on the ${routeLabel} route` : ''}. All progress is wiped too: completions, submissions, claims, stat progress and the log. Any tile edits you made are lost. This can’t be undone.`,
+      confirmLabel: 'Replace tiles',
+    });
+    if (!ok) return;
+    await act('reseed-tiles', race ? { route: reseedRoute } : {});
   }
 
   async function act(action: string, extra: Record<string, unknown> = {}) {
@@ -197,6 +210,20 @@ export default function LabSessionClient({ eventId }: { eventId: number }) {
           <button type="button" className={btn} disabled={!!busy} onClick={() => act('end')}>End now</button>
         )}
         <button type="button" className={btn} disabled={!!busy} onClick={() => act('reset')}>Reset progress</button>
+        <span className="inline-flex items-center gap-2">
+          {event.mode === 'race' && (
+            <Select
+              value={reseedRoute}
+              onChange={(v) => setReseedRoute(v as LabRouteTemplate)}
+              options={LAB_ROUTE_TEMPLATES.map((t) => ({ value: t.key, label: t.label }))}
+              ariaLabel="Route for the real tiles"
+              className="w-36"
+            />
+          )}
+          <button type="button" className={btn} disabled={!!busy} onClick={() => void reseed(event.mode === 'race')}>
+            {busy === 'reseed-tiles' ? 'Replacing…' : 'Use real tiles'}
+          </button>
+        </span>
         <button type="button" className={btn} disabled={!!busy} onClick={() => act('clear-log')}>Clear log</button>
         <button
           type="button"

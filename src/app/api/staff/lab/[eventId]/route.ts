@@ -4,7 +4,7 @@ import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { completions, eventParticipants, labLog, submissions, teams, tiles } from '@/db/schema';
 import { CAN_WRITE, requirePlatformApi } from '@/lib/platformAccess';
-import { deleteLabSession, forgetLabSessions, labEvent, MAX_LAB_HOURS, resetLabSession, setLabSessionEnd } from '@/lib/lab';
+import { deleteLabSession, forgetLabSessions, labEvent, MAX_LAB_HOURS, reseedLabTiles, resetLabSession, setLabSessionEnd } from '@/lib/lab';
 import { labClearTile, labCompleteTile, labSetTileProgress, LabTileError } from '@/lib/labTileControls';
 import { progressGoal, progressStore } from '@/lib/labTileProgress';
 import { addLabTeam, labTeams, moveLabParticipant, setLabTeamRole, type TeamRole } from '@/lib/labTeams';
@@ -20,7 +20,7 @@ import {
   setMissionPolicy,
 } from '@/lib/labMissions';
 import { parseEventRules, parseTileMissionRules, type MissionRules } from '@/lib/eventRules';
-import { labFormat, MAX_LAB_FIELD } from '@/lib/labPlan';
+import { LAB_ROUTE_TEMPLATES, labFormat, MAX_LAB_FIELD } from '@/lib/labPlan';
 import { modeKeyFor } from '@/lib/eventModes';
 import { placementOf } from '@/lib/teamPlacement';
 
@@ -173,6 +173,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     teamSize?: unknown;
     solo?: unknown;
     intensity?: unknown;
+    route?: unknown;
   };
   try {
     body = await request.json();
@@ -195,6 +196,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     case 'reset-keep-log':
       await resetLabSession(event.id, { keepLog: true });
       break;
+    case 'reseed-tiles': {
+      // Replace the tiles with the real lab set (wipes progress). Races take a route template.
+      const route = LAB_ROUTE_TEMPLATES.find((t) => t.key === body.route)?.key;
+      if (body.route !== undefined && !route) return NextResponse.json({ error: 'Unknown route' }, { status: 400 });
+      if (!(await reseedLabTiles(event.id, { route }))) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      break;
+    }
     case 'clear-log':
       // The simulated-field record stays: it is what marks those credits (lib/labField).
       await db.delete(labLog).where(and(eq(labLog.eventId, event.id), ne(labLog.endpoint, LAB_SIM_ENDPOINT)));
