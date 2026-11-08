@@ -19,7 +19,7 @@ import { absoluteUrl } from '@/lib/seo';
 // than in the dictionary: which audience a guide belongs to isn't a translation decision.
 const GROUPS: { key: 'playing' | 'running' | 'clan' | 'streamers'; pages: Exclude<GuidePage, ''>[] }[] = [
   { key: 'playing', pages: ['plugin', 'side-panel', 'profile', 'settings', 'supporter', 'challenges', 'tiles', 'captain', 'commands', 'clan-hall', 'in-game-guides'] },
-  { key: 'running', pages: ['admin', 'formats', 'board', 'weekly', 'clan-vs-clan'] },
+  { key: 'running', pages: ['admin', 'formats', 'board', 'weekly', 'team-competitions', 'clan-vs-clan'] },
   // Starting a clan comes first here on purpose: it is the only guide whose reader does not have one
   // yet, and the rest of this group is written for someone already running it.
   { key: 'clan', pages: ['switching', 'clan', 'discord', 'people', 'staff-roles', 'moderator', 'clan-events', 'fees', 'coffer', 'clan-boosts'] },
@@ -58,6 +58,7 @@ const CARD_KEY = {
   'clan-hall': 'clanHall',
   'in-game-guides': 'guideLibrary',
   weekly: 'weekly',
+  'team-competitions': 'teamComps',
   'clan-events': 'clanEvents',
 } as const;
 

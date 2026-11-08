@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import Checkbox from '@/components/Checkbox';
+import GuideLink from '@/components/GuideLink';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
 import { useDialog } from '@/components/Confirm';
@@ -148,7 +149,8 @@ export default function WeeklyFormatClient(props: {
         </div>
         <p className="mt-2 text-xs text-text-muted">
           Every player can opt out of a competition themselves. Individual standings always show. Teams and clan vs clan add a ranking of totals on top, with an average per player
-          so uneven sizes compare fairly.
+          so uneven sizes compare fairly.{' '}
+          <GuideLink href="/guide/team-competitions">How team competitions work</GuideLink>
         </p>
       </section>
 

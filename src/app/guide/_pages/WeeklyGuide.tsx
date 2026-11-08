@@ -20,7 +20,9 @@ export default async function WeeklyGuide({ lang }: { lang: string }) {
   const t = await getDict(lang);
   const g = t.weekly;
   const { locale, languages, notice } = localeChrome(lang, 'weekly', t.common);
-  const v = { adminGuide: guideHref(locale.code, 'admin'), cofferGuide: guideHref(locale.code, 'coffer') };
+  const v = { adminGuide: guideHref(locale.code, 'admin'), cofferGuide: guideHref(locale.code, 'coffer'),
+    teamCompsGuide: guideHref(locale.code, 'team-competitions'),
+  };
 
   const SECTIONS = WEEKLY_SECTIONS.map((id, i) => ({ id, n: i + 1, title: g[id].title }));
 
@@ -56,6 +58,7 @@ export default async function WeeklyGuide({ lang }: { lang: string }) {
 
       <Section id="players" n={5} title={g.players.title} labels={t.common}>
         <SectionBlocks s={g.players} v={v} />
+        <p className="text-text-muted">{rt(g.teamsLine, v)}</p>
       </Section>
     </GuideShell>
   );
