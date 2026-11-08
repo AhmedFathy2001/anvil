@@ -28,7 +28,7 @@ export function clogPageUi(rsn: string, p: ClogPageData, back: string, kc: numbe
       p.page,
       `${p.obtained}/${p.total}${kc ? ` · ${fmt(kc)} kc` : ''}`,
       p.total > 0 && p.obtained >= p.total,
-      { a: 'pane', into: 'log', pane: back },
+      { a: 'pane', into: 'prof', pane: back },
       `${profilePath(rsn)}?tab=collection&page=${seg(p.page)}`,
     ),
     gap(8),
@@ -278,16 +278,26 @@ export function goalsUi(goals: GoalView[], error: string | null): Node {
     if (due) runs.push({ s: due.days < 0 ? ` · ${due.text}` : ` · due ${due.when}`, color: due.days < 0 ? CORAL : FAINT });
     if (near && due.days >= 0) runs.push({ s: due.days === 0 ? ' · due today' : ` · ${due.days} day${due.days === 1 ? '' : 's'} left`, color: CORAL });
     const sub: Node = text('', FAINT, { font: 'small', wrap: true, runs });
-    const head = row(undefined, text(g.label, g.done ? 'done' : 'white', { wrap: true }), g.done ? chip('Done', 'green') : undefined, { gap: 6 });
+    const pic = g.kind === 'skill' ? icon({ skill: g.metric, w: 16, h: 16 }) : g.kind === 'boss' ? icon({ boss: g.metric, w: 16, h: 16 }) : undefined;
+    const key = `goal-rm:${g.id}`;
+    const ask = { a: 'flip' as const, key };
+    const x = icon({ glyph: 'close', w: 10, h: 10, color: 'muted', tip: 'Remove goal', on: ask });
+    const head = row(pic, text(g.label, g.done ? 'done' : 'white', { wrap: true }), row(g.done ? chip('Done', 'green') : undefined, undefined, x, { gap: 6 }), { gap: 6 });
     const bar: Node | null =
       g.current != null
         ? { t: 'bar', pct: g.done ? 100 : percent(Math.min(g.current, g.of), Math.max(1, g.of)), color: g.done ? 'done' : 'brand', h: 6, bg: 'panel' }
         : null;
+    // Remove asks first, in the row itself: Yes removes, No puts the goal back.
+    const sure = col([
+      text(`Remove ${g.label}?`, 'white', { wrap: true }),
+      row(button('Yes, remove', remove.on), undefined, button('No', ask), { gap: 6 }),
+    ], { gap: 4 });
     parts.push({
-      ...col([head, g.done ? null : sub, bar], { gap: 3 }),
-      menu: [remove],
-      tip: 'Right-click to remove',
-    } as Node);
+      t: 'toggle',
+      key,
+      off: { ...col([head, g.done ? null : sub, bar], { gap: 3 }), menu: [remove], tip: 'Right-click to remove' } as Node,
+      lit: sure,
+    });
   }
   parts.push(button('+ New goal', { a: 'load', v: 'goal-new', into: 'goals' }, 'A skill level, a boss kill count, or a whole log page'));
   return { t: 'slot', id: 'goals', c: section(parts) };

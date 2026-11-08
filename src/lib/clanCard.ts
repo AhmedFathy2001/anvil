@@ -1,3 +1,4 @@
+import { normalizeHex } from '@/lib/artPalette';
 import { inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -26,6 +27,8 @@ export interface ClanCard {
   logoUrl: string | null;
   bannerUrl?: string | null;
   bannerPosition?: number | null;
+  /** The clan's own colour (picked, else pulled from its art): the hero card's banner when it has none. */
+  accent?: string | null;
   boostLevel?: number;
   boostNameStyle?: ClanBoostNameStyle | null;
   members: number;
@@ -49,6 +52,11 @@ export interface ClanCard {
 }
 
 
+function clanAccent(clan: { accentColor?: string | null; artPalette?: unknown }): string | null {
+  const first = (clan.artPalette as { colors?: unknown[] } | null)?.colors?.[0];
+  return normalizeHex(clan.accentColor) ?? normalizeHex(first);
+}
+
 export async function loadClanCard(clan: {
   id: number;
   slug: string;
@@ -56,6 +64,8 @@ export async function loadClanCard(clan: {
   logoUrl: string | null;
   bannerUrl?: string | null;
   bannerPosition?: number | null;
+  accentColor?: string | null;
+  artPalette?: unknown;
   kind?: string | null;
 }): Promise<ClanCard> {
   const boost = await clanBoostLevel(clan.id).catch(() => null);
@@ -70,6 +80,7 @@ export async function loadClanCard(clan: {
       logoUrl: clan.logoUrl,
       bannerUrl: clan.bannerUrl ?? null,
       bannerPosition: clan.bannerPosition ?? null,
+      accent: clanAccent(clan),
       boostLevel,
       boostNameStyle,
       members: 0,
@@ -117,6 +128,7 @@ export async function loadClanCard(clan: {
     logoUrl: clan.logoUrl,
     bannerUrl: clan.bannerUrl ?? null,
     bannerPosition: clan.bannerPosition ?? null,
+      accent: clanAccent(clan),
     boostLevel,
     boostNameStyle,
     members: analytics.memberCount,

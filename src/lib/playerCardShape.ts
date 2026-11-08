@@ -78,6 +78,9 @@ export interface PlayerCard {
     source: string | null;
     /** A drop's or log item's KC and date, when known. */
     kc?: number | null;
+    qty?: number | null;
+    /** How the drop went against its wiki rate (lib/pinLuck), when a rate is known. */
+    luck?: { text: string; tone: 'green' | 'muted' } | null;
     when?: string | null;
   }[];
   accountType: string | null;

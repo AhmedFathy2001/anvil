@@ -14,6 +14,8 @@ import { mediaForCharacter } from '@/lib/profileMedia';
 import { clanSeat } from '@/lib/seatScope';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { displayCaseForPlayer } from '@/lib/displayCase';
+import { luckCandidates } from '@/lib/clogLuckBoard';
+import { pinLuck } from '@/lib/pinLuck';
 import { supporterForPlayer } from '@/lib/supporter';
 import { canUseProfileMedia } from '@/lib/profileMediaRules';
 import { mediaRevision } from '@/lib/pluginUi/mediaRevision';
@@ -74,7 +76,12 @@ export async function loadPanelPlayerCard(character: ApexCharacter): Promise<Pla
     // focal point is in it too, since the panel crops there.
     revision: mediaRevision(media.avatar?.src, media.banner?.src, media.banner ? `p${media.banner.position}` : null, discordAvatar?.src),
   };
-  card.displayCase = displayCase;
+  const cands = luckCandidates();
+  const kcOf = (key: string) => [...card.bosses, ...card.topBosses].find((b) => b.key === key)?.kc ?? 0;
+  card.displayCase = displayCase.map((p) => {
+    const luck = (p.kind === 'drop' || p.kind === 'clog') && p.itemId > 0 ? pinLuck({ itemId: p.itemId, source: p.source, kc: p.kc, qty: p.qty }, cands, kcOf) : null;
+    return luck ? { ...p, luck } : p;
+  });
   return card;
 }
 

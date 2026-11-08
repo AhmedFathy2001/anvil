@@ -10,7 +10,7 @@ import { inkForSurface } from '@/lib/supporterStyle';
 import type { ChatLock } from '@/lib/eventChatRules';
 
 import type { Action, Color, FeedRow, Node } from './nodes';
-import { button, col, gap, muted, row, text } from './nodes';
+import { badge, button, col, gap, hero, muted, nameTint, row, text } from './nodes';
 import { BLUE, GREEN, CORAL, PURPLE, TINT, boxChip, openRow, section, segSwitch } from './sections';
 import { revisedMediaPath } from './mediaRevision';
 import { CLUE_ITEM, milestoneTitle } from '@/lib/milestoneMoments';
@@ -474,17 +474,6 @@ export function feedTabUi(o: FeedTabOptions): Node {
   const key = scopeKey(o.current);
   const parts: Node[] = [];
 
-  if (o.images && o.current.kind === 'clan' && o.current.banner) {
-    const moving = (o.current.boostLevel ?? 0) >= 2;
-    parts.push({
-      t: 'img',
-      src: revisedMediaPath(`/api/plugin/media/clan/${encodeURIComponent(o.current.slug)}?kind=banner`, o.current.mediaRevision, o.current.boostLevel ?? 0),
-      w: 220,
-      h: 73,
-      ...(moving ? { motion: true } : {}),
-    }, gap(4));
-  }
-
   // The top card says where you are: which feed (a dropdown of every clan the viewer is in and every
   // board they're on; one scope is just its name), and what lands in it.
   const top: Node[] = [];
@@ -500,26 +489,29 @@ export function feedTabUi(o: FeedTabOptions): Node {
         on: load({}),
       } as Node,
     );
-  } else {
-    const sourceBoost = o.current.kind === 'clan' ? clanBoostInk(o.current.boostLevel ?? 0, o.current.boostNameStyle) : null;
+  }
+  const live = !o.mode?.active
+    ? text('', 'muted', { font: 'small', runs: [{ s: 'Live', color: BLUE }, { s: o.pane === 'chat' ? ' · your board’s chat' : o.current.kind === 'event' ? ' · drops, pets and finished tiles from every team' : ' · drops, pets and achievements from the clan', color: 'muted' }] })
+    : null;
+  const cur = o.current;
+  if (cur.kind === 'clan') {
+    // The clan's header is the shared hero card: banner, badge over it, the name, what lands here.
+    const sourceBoost = clanBoostInk(cur.boostLevel ?? 0, cur.boostNameStyle);
     const boost = sourceBoost ? inkForSurface(sourceBoost, 'dark') : null;
-    top.push(row(
-      o.images && o.current.kind === 'clan' && o.current.logo
-        ? { t: 'img', src: revisedMediaPath(`/api/plugin/media/clan/${encodeURIComponent(o.current.slug)}?kind=logo`, o.current.mediaRevision, o.current.boostLevel ?? 0), w: 28, h: 28, motion: true, round: true }
-        : undefined,
-      text(o.current.name, boost?.color ?? 'brand', {
-        font: 'bold',
-        ...(boost?.grad ? { grad: boost.grad } : {}),
-        ...(boost?.move ? { move: true } : {}),
-      }),
-      undefined,
-    ));
+    const slug = encodeURIComponent(cur.slug);
+    const rev = (kind: 'banner' | 'logo') => revisedMediaPath(`/api/plugin/media/clan/${slug}?kind=${kind}`, cur.mediaRevision, cur.boostLevel ?? 0);
+    parts.push(hero(
+      o.images && cur.banner ? { src: rev('banner'), motion: (cur.boostLevel ?? 0) >= 2 } : null,
+      nameTint(cur.name),
+      badge(o.images && cur.logo ? { t: 'img', src: rev('logo'), w: 32, h: 32, rad: 4, motion: true } : undefined, cur.name),
+      [text(cur.name, boost?.color ?? 'white', { font: 'bold', ...(boost?.grad ? { grad: boost.grad } : {}), ...(boost?.move ? { move: true } : {}) })],
+      live ? [live] : [],
+    ), gap(6));
+  } else {
+    if (o.scopes.length <= 1) top.push(text(o.current.name, 'brand', { font: 'bold' }));
+    if (live) top.push(live);
   }
-  if (!o.mode?.active) {
-    const what = o.pane === 'chat' ? ' · your board’s chat' : o.current.kind === 'event' ? ' · drops, pets and finished tiles from every team' : ' · drops, pets and achievements from the clan';
-    top.push(text('', 'muted', { font: 'small', runs: [{ s: 'Live', color: BLUE }, { s: what, color: 'muted' }] }));
-  }
-  parts.push(section(top), gap(6));
+  if (top.length) parts.push(section(top), gap(6));
 
   if (o.mode?.active) {
     parts.push(
