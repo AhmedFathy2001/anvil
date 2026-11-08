@@ -73,6 +73,19 @@ export async function bakeStamp(clean: Buffer, model: StampModel): Promise<Buffe
               ))}
             </div>
           ) : null}
+          {model.anvil?.length ? (
+            <div
+              style={{
+                display: 'flex', flexDirection: 'column', marginTop: 4 * s, paddingTop: 3 * s,
+                borderTop: `${0.75 * s}px solid rgba(212,160,23,0.5)`, color: '#f2c94c', fontSize: 7.5 * s,
+              }}
+            >
+              <div style={{ display: 'flex', color: '#a89b86', marginBottom: 1 * s }}>Anvil (shown whatever the chat filter)</div>
+              {model.anvil.map((l, i) => (
+                <div key={i} style={{ display: 'flex', whiteSpace: 'pre-wrap' }}>{l}</div>
+              ))}
+            </div>
+          ) : null}
           <div style={{ display: 'flex', marginTop: 3 * s, color: '#a89b86', fontSize: 7 * s }}>{model.footer}</div>
         </div>
         {splitY != null ? <Tag text="AT DROP" top={0} scale={s} /> : null}

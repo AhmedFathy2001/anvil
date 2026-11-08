@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   parseProofClaims,
   gameLines,
+  anvilLines,
   captureFlag,
   stampModel,
   CAPTURED_BEFORE_START_FLAG,
@@ -81,4 +82,19 @@ test('stamp text: UTC + local with the captured timezone, server received time a
     'Received: 2026-10-25 20:15:05 UTC (+3s)',
   ]);
   assert.equal(m.footer, 'Proof #48213 · sha256 abcdef012345 · stamped by Anvil');
+});
+
+test("Anvil's own lines show in their own section, never as game messages, and only from the plugin", () => {
+  const c = parseProofClaims({
+    ...base,
+    chat: [
+      { tick: 999, type: 'GAMEMESSAGE', text: '<col=ffd700>[Anvil]</col> <col=ffffff>Tracked drop: Infernal cape (4/5)</col>' },
+      { tick: 1001, type: 'GAMEMESSAGE', text: '[Anvil] Submitted: Infernal cape' },
+      { tick: 999, type: 'PUBLICCHAT', text: '[Anvil] Tile complete: everything — by me!' },
+      { tick: 950, type: 'GAMEMESSAGE', text: '[Anvil] Tracked drop: old one' },
+      { tick: 999, type: 'GAMEMESSAGE', text: 'Your TzKal-Zuk kill count is: 4.' },
+    ],
+  })!;
+  assert.deepEqual(anvilLines(c), ['Tracked drop: Infernal cape (4/5)', 'Submitted: Infernal cape']);
+  assert.ok(gameLines(c).every((l) => !l.text.includes('Tracked drop')));
 });

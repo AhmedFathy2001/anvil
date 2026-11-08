@@ -128,6 +128,26 @@ export function gameLines(claims: ProofClaims): { offset: number; text: string }
     .slice(-MAX_LINES);
 }
 
+/**
+ * What Anvil itself said about the credit ("[Anvil] Tracked drop: … (2/3)"), printed apart from the game's
+ * evidence so a proof shows it whatever the player's chat filter hides. The plugin reads every line,
+ * filtered or not; these are its own words, never Jagex's, so they never count as game messages.
+ */
+export function anvilLines(claims: ProofClaims): string[] {
+  const at = claims.tick;
+  if (at == null) return [];
+  return claims.chat
+    // GAMEMESSAGE only: what the plugin writes. A player typing "[Anvil] …" lands in a chat type.
+    .filter((c) => c.type === 'GAMEMESSAGE' && c.tick >= at - LINE_WINDOW_BEFORE && c.tick <= at + ANVIL_WINDOW_AFTER)
+    .map((c) => plainText(c.text))
+    .filter((t) => t.startsWith('[Anvil] '))
+    .map((t) => t.slice('[Anvil] '.length))
+    .slice(-MAX_ANVIL_LINES);
+}
+
+const ANVIL_WINDOW_AFTER = 4;
+const MAX_ANVIL_LINES = 3;
+
 /** Flag reasons this module can raise (submissions.flaggedReason). Flags never block a credit. */
 export const PROOF_IMAGE_MISMATCH_FLAG = 'proof_image_mismatch';
 export const CAPTURED_BEFORE_START_FLAG = 'captured_before_start';
@@ -183,6 +203,8 @@ export interface StampModel {
   detail: string;
   meta: string[];
   lines: string[];
+  /** Anvil's own lines about the credit, shown in their own section (anvilLines). */
+  anvil: string[];
   footer: string;
   split: number | null;
 }
@@ -216,6 +238,7 @@ export function stampModel(input: {
     detail: claims.detail,
     meta,
     lines,
+    anvil: anvilLines(claims),
     footer: `Proof #${input.submissionId}${hash} · stamped by Anvil`,
     split: claims.split,
   };
