@@ -45,6 +45,8 @@ export interface TileRaceBoardProps {
   matchedTileIds?: Set<number> | null;
   /** 'track' on the event page: the race track card only (its other sections are on the page). */
   raceLayout?: 'full' | 'track';
+  /** Scale the race map up to its box (fullscreen). */
+  raceFit?: boolean;
 }
 
 // How many tiles per row before the track snakes back the other way.

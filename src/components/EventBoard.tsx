@@ -75,6 +75,8 @@ interface EventBoardProps {
   tierBands?: import('@/lib/tileFilter').TierBand[];
   /** Tile race on the event page: the Race track card only (components/board/RaceEventSections has the rest). */
   raceLayout?: 'full' | 'track';
+  /** The race map scales up to fill its box (the race track's fullscreen overlay). */
+  raceFit?: boolean;
 }
 
 /**
@@ -89,6 +91,7 @@ export default function EventBoard({
   tiles,
   showStatusFilter = true,
   raceLayout,
+  raceFit,
   ...rest
 }: EventBoardProps) {
   const { completions, activeTeamId, dropProgress, statProgress, matchedTileIds } = rest;
@@ -144,7 +147,7 @@ export default function EventBoard({
   const boardRest = { ...rest, matchedTileIds: combinedMatched };
 
   const board = isTileRaceFormat(format) ? (
-    <TileRaceBoard tiles={iconedTiles} {...boardRest} raceLayout={raceLayout} />
+    <TileRaceBoard tiles={iconedTiles} {...boardRest} raceLayout={raceLayout} raceFit={raceFit} />
   ) : pointsMode ? (
     // Leagues-style (points scoring) renders as a task-list accordion, not a square grid —
     // so it isn't bound to a perfect-square tile count. The status map lets it sort
