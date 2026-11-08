@@ -1251,6 +1251,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             eventId={event.id}
             tiles={localTiles}
             eventStarted={eventStarted}
+            isAdmin={isAdmin}
             raceBank={eventRules.raceBank}
             raceRoad={eventRules.raceRoad}
             onTileCreated={(tile) => setLocalTiles((prev) => [...prev, tile])}

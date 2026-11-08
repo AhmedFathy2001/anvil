@@ -22,8 +22,11 @@ import {
   roadChoiceLine,
   raceTileInfo,
   raceFieldSize,
+  raceTileNeedsBaseline,
+  routeEditImpact,
 } from '../src/lib/raceRoutes.ts';
 import { raceTileState, missionTileState } from '../src/lib/tileState.ts';
+import { lockedMissionPreviews, visibleTiles, parseTileMissionRules, DEFAULT_EVENT_RULES } from '../src/lib/eventRules.ts';
 import { scoreTeams } from '../src/lib/boardScoring.ts';
 
 // A straight line: no steps stored anywhere.
@@ -258,13 +261,81 @@ test('display helpers: roads, step titles and what a pick does to your road', ()
   assert.equal(raceFieldSize(170), 'huge');
 });
 
-test('tile states: race and mission share one language', () => {
-  assert.equal(raceTileState('open')!.label, 'Next');
+test('tile states: the exact semantics (race and mission share one language)', () => {
+  // Race: unlocked = open now; ahead and off-your-road are both Locked, never Closed.
+  assert.deepEqual(raceTileState('open'), { kind: 'open', label: 'Unlocked' });
   assert.equal(raceTileState('ahead')!.kind, 'locked');
+  assert.equal(raceTileState('closed')!.kind, 'locked');
+  assert.equal(raceTileState('done')!.label, 'Done');
+
   const now = Date.parse('2026-11-08T12:00:00Z');
+  const rev = '2026-11-08 10:00:00';
+  // Locked: not announced.
   assert.equal(missionTileState({ revealedAt: null }, { now }).kind, 'locked');
-  assert.deepEqual(missionTileState({ revealedAt: '2026-11-08 10:00:00', expiryHours: 4 }, { now }), { kind: 'open', label: 'Live', detail: '2h left' });
-  assert.deepEqual(missionTileState({ revealedAt: '2026-11-08 10:00:00', closedAt: '2026-11-08 10:00:00' }, { now }), { kind: 'expired', label: 'Expired', detail: 'Expired 2h ago' });
-  assert.equal(missionTileState({ revealedAt: '2026-11-08 10:00:00', closedAt: '2026-11-08 11:00:00' }, { now, claimedBy: 'Team A' }).label, 'Claimed');
-  assert.deepEqual(missionTileState({ revealedAt: '2026-11-08 10:00:00' }, { now, done: true, doneBy: 'Alice' }), { kind: 'done', label: 'Done', detail: 'by Alice' });
+  // Live, with time left on a timed one.
+  assert.deepEqual(missionTileState({ revealedAt: rev, expiryHours: 4 }, { now }), { kind: 'open', label: 'Live', detail: '2h left' });
+  assert.deepEqual(missionTileState({ revealedAt: rev }, { now }), { kind: 'open', label: 'Live' });
+  // Done: the viewer's team.
+  assert.deepEqual(missionTileState({ revealedAt: rev }, { now, done: true, doneBy: 'Alice' }), { kind: 'done', label: 'Done', detail: 'by Alice' });
+  // Closed: someone else took a first-come mission — named, or not (hidden standings).
+  assert.deepEqual(missionTileState({ revealedAt: rev, closedAt: '2026-11-08 11:00:00' }, { now, claimedBy: 'Team A' }), { kind: 'closed', label: 'Closed', detail: 'by Team A' });
+  assert.deepEqual(missionTileState({ revealedAt: rev, closedAt: '2026-11-08 11:00:00' }, { now, claimed: true }), { kind: 'closed', label: 'Closed' });
+  // A timed mission taken before its timer ran out is Closed, not Expired.
+  assert.equal(missionTileState({ revealedAt: rev, closedAt: '2026-11-08 11:00:00', expiryHours: 4 }, { now }).kind, 'closed');
+  // Expired: ONLY a timed mission whose timer ran out.
+  assert.deepEqual(missionTileState({ revealedAt: '2026-11-08 06:00:00', closedAt: '2026-11-08 10:00:00', expiryHours: 4 }, { now }), { kind: 'expired', label: 'Expired', detail: 'Expired 2h ago' });
+  assert.equal(missionTileState({ revealedAt: '2026-11-08 06:00:00', expiryHours: 4 }, { now }).kind, 'expired');
+  // An untimed mission that closed is never "Expired".
+  assert.equal(missionTileState({ revealedAt: rev, closedAt: '2026-11-08 11:00:00' }, { now }).kind, 'closed');
+  // A rotating task that rotated out unclaimed is timed: Expired.
+  assert.equal(missionTileState({ revealedAt: rev, closedAt: '2026-11-08 11:00:00' }, { now, timed: true }).kind, 'expired');
+  assert.equal(missionTileState({ revealedAt: rev, closedAt: '2026-11-08 11:00:00' }, { now, timed: true, claimed: true }).kind, 'closed');
+});
+
+test('stat baselines: every race tile needs one when it opens, except those open from the whistle', () => {
+  const g = raceGraph(branch);
+  // Two starts: by achievement they are open from the start; choose-and-lock opens them at the pick.
+  assert.equal(raceTileNeedsBaseline(g, 10, 'achieve'), false);
+  assert.equal(raceTileNeedsBaseline(g, 10, 'choose'), true);
+  assert.equal(raceTileNeedsBaseline(g, 20, 'achieve'), true);
+  const flat = raceGraph(line);
+  assert.equal(raceTileNeedsBaseline(flat, 1, 'choose'), false);
+  assert.equal(raceTileNeedsBaseline(flat, 3, 'achieve'), true);
+});
+
+test('route edits: the impact lists finishes that no longer follow, with everything after them', () => {
+  const g = raceGraph(branch);
+  const done = new Map([[1, [10, 20, 30]], [2, [11]], [3, []]]);
+  // Unlink 20 -> 30: team 1's 30 no longer follows; team 2 untouched.
+  const edited = raceGraph(branch.map((t) => (t.id === 20 ? { ...t, raceNext: [31] } : t)));
+  assert.deepEqual(routeEditImpact(g, edited, done), [{ teamId: 1, invalid: [30] }]);
+  // Swapping the first two steps cuts team 1 at the start: all three go.
+  const swapped = raceGraph(branch.map((t) => (t.id === 20 ? { ...t, raceStep: 0, raceNext: [] } : t.id === 10 || t.id === 11 ? { ...t, raceStep: 1, raceNext: [] } : t)));
+  assert.deepEqual(routeEditImpact(g, swapped, done).find((i) => i.teamId === 1)!.invalid.sort(), [10, 20, 30].sort());
+  // No change, no impact.
+  assert.deepEqual(routeEditImpact(g, g, done), []);
+});
+
+test('kept finishes still hold their step after an edit ("whoever got it, got it")', () => {
+  const edited = raceGraph(branch.map((t) => (t.id === 20 ? { ...t, raceNext: [31] } : t)));
+  const kept = teamRoute(edited, [10, 20, 30]);
+  assert.deepEqual(kept.path, [10, 20, 30]);
+  assert.deepEqual(kept.open, [40]);
+  // The strict walk (used to detect the impact) stops at the broken link.
+  assert.deepEqual(teamRoute(edited, [10, 20, 30], null, { lenient: false }).path, [10, 20]);
+});
+
+test('hidden-until-drop missions: only "show as Locked" ones preview, with name and icon only', () => {
+  const tiles = [
+    { id: 1, label: 'Secret boss', icon: 'x.png', mission: 1, revealedAt: null, closedAt: null, rules: null },
+    { id: 2, label: 'Teaser', icon: 'y.png', mission: 1, revealedAt: null, closedAt: null, rules: JSON.stringify({ showLocked: true, expiryHours: 4 }) },
+    { id: 3, label: 'Live one', icon: null, mission: 1, revealedAt: '2026-11-08 10:00:00', closedAt: null, rules: JSON.stringify({ showLocked: true }) },
+    { id: 4, label: 'Board tile', icon: null, mission: 0, revealedAt: null, closedAt: null, rules: null },
+  ];
+  assert.deepEqual(lockedMissionPreviews(tiles), [{ id: 2, label: 'Teaser', icon: 'y.png' }]);
+  // The board-facing filter never carries an unannounced mission, shown-as-locked or not.
+  const visible = visibleTiles(DEFAULT_EVENT_RULES, tiles).map((t) => t.id);
+  assert.ok(!visible.includes(1) && !visible.includes(2));
+  assert.ok(visible.includes(3) && visible.includes(4));
+  assert.equal(parseTileMissionRules(null).showLocked, false);
 });

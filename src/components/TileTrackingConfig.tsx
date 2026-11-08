@@ -805,6 +805,8 @@ function TileTrackingEditor({
   const [missionExpiryHours, setMissionExpiryHours] = useState<string>(
     initial.missionRules?.expiryHours != null ? String(initial.missionRules.expiryHours) : "",
   );
+  // Before its drop: hidden entirely (default) or shown as "Locked" with its name only.
+  const [missionShowLocked, setMissionShowLocked] = useState<boolean>(!!initial.missionRules?.showLocked);
   // The placement ladder — points and/or coffer gp per finishing position. Null = flat scoring.
   const [missionReward, setMissionReward] = useState<MissionReward | null>(initial.missionRules?.reward ?? null);
   // Assemble the per-mission scoring the save sends (null when this tile isn't a mission).
@@ -822,6 +824,7 @@ function TileTrackingEditor({
       firstBonus: missionFirstBonus ? Math.max(0, parseInt(missionFirstBonus, 10) || 0) : 0,
       decay,
       expiryHours: missionExpiryHours ? Math.max(1, parseInt(missionExpiryHours, 10) || 6) : null,
+      showLocked: missionShowLocked,
     };
   };
   // Comma-separated source NPC names (drop kinds only) — e.g. "Tekton". Empty = any source.
@@ -4044,6 +4047,14 @@ function TileTrackingEditor({
                 />
                 <span>hours</span>
               </div>
+            </div>
+            <div className="sm:col-span-2">
+              <Checkbox
+                checked={missionShowLocked}
+                onChange={setMissionShowLocked}
+                label="Show it as Locked before it drops"
+                description="Off: hidden until its drop — no tile, name, icon or rules anywhere. On: players see its name as a Locked mission, nothing else, until it drops."
+              />
             </div>
           </div>
         )}

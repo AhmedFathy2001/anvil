@@ -147,6 +147,8 @@ interface Props {
    * standings, XP race, lens, line watch, race pace, per-team stat bars — narrows to those teams.
    */
   curtain?: StandingsCurtainInfo | null;
+  /** Missions set to show as Locked before they drop: name and icon only (lib/eventRules lockedMissionPreviews). */
+  lockedMissions?: { id: number; label: string; icon: string | null }[];
   /**
    * A players board (lib/standingsWindow isSoloLike): the standings read as a ranked list of players
    * — top five, the viewer's own line(s) with neighbours, the rest paged — not a card per team.
@@ -194,7 +196,7 @@ interface TeamGains {
   tileMembers: Record<number, { name: string; gained: number }[]>;
 }
 
-export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, creator = false, tileHighlights, solo = false, myTeamIds = [], manyTeams = false, teamMembers }: Props) {
+export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, lockedMissions = [], creator = false, tileHighlights, solo = false, myTeamIds = [], manyTeams = false, teamMembers }: Props) {
   // Solo-like and many-teams boards both draw the cut list and the compact lens.
   const windowed = solo || manyTeams;
   // Behind the curtain the teams whose progress this page deals in are the viewer's own; the rest
@@ -813,7 +815,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
               they expire. Their points are a BONUS — added to a team's score but never to the board
               total, so announcing one mid-event can't move the denominator under everyone at once
               (see lib/boardScoring). Interleaving them with the ordinary tiles buried the urgency. */}
-          {missions.length > 0 && (
+          {(missions.length > 0 || lockedMissions.length > 0) && (
             <div className="mb-4">
               <h3 className="text-sm font-bold mb-2 flex items-center gap-2">
                 <span className="w-1 h-4 bg-gold rounded-full" />
@@ -823,14 +825,22 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
                 </span>
               </h3>
               <div className="rounded-xl border border-gold/25 bg-gold/5 divide-y divide-gold/15 overflow-hidden">
+                {lockedMissions.map((m) => (
+                  <div key={`locked-${m.id}`} className="w-full px-3 py-2.5 flex items-center gap-3 opacity-70">
+                    <span aria-hidden className="text-base">⚡</span>
+                    <span className="flex-1 min-w-0 text-sm font-medium truncate text-text-muted">{m.label}</span>
+                    <TileStateChip view={{ kind: 'locked', label: 'Locked', detail: 'Not announced yet' }} withDetail className="shrink-0" />
+                  </div>
+                ))}
                 {missions.map((m) => {
-                  // The shared tile-state look (lib/tileState): Live (time left) / Done / Claimed / Expired.
+                  // The shared tile-state look (lib/tileState): Live (time left) / Done / Closed / Expired. Behind the
+                  // curtain `teams` is the viewer's own, so another team's claim reads "Closed" with no name.
                   const doneRow = completions.find((c) => c.tileId === m.id && (lensTeamId == null || c.teamId === lensTeamId));
                   const anyRow = completions.find((c) => c.tileId === m.id);
                   const teamName = (id: number) => teams.find((t) => t.id === id)?.name ?? null;
                   const view = missionTileState(
                     { revealedAt: m.revealedAt, closedAt: m.closedAt, expiryHours: parseTileMissionRules(m.rules ?? null).expiryHours },
-                    { done: !!doneRow, doneBy: doneRow ? teamName(doneRow.teamId) : null, claimedBy: !doneRow && anyRow ? teamName(anyRow.teamId) : null },
+                    { done: !!doneRow, doneBy: doneRow ? teamName(doneRow.teamId) : null, claimedBy: !doneRow && anyRow ? teamName(anyRow.teamId) : null, claimed: !doneRow && !!anyRow },
                   );
                   const faded = view.kind === 'expired' || view.kind === 'closed';
                   return (

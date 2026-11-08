@@ -35,7 +35,7 @@ export function useRacePicks(eventId: number | undefined, teamId: number | null 
 
 /**
  * A race tile's place on the route, at the top of its details (components/TileDetailModal): the
- * state banner (Locked / Next / Done / Closed, and why), where it leads and where it's reached from
+ * state banner (Unlocked / Locked / Done, and why), where it leads and where it's reached from
  * as chips that open those tiles, and who stands on it now.
  */
 export default function RaceTileDetail({ ctx, tileId }: { ctx: RaceDetailContext; tileId: number }) {
@@ -50,7 +50,7 @@ export default function RaceTileDetail({ ctx, tileId }: { ctx: RaceDetailContext
   const info = raceTileInfo(graph, route, tileId, label)!;
   const view = raceTileState(info.state) ?? { kind: 'locked' as const, label: info.stepLine };
   const doneRow = ctx.viewerTeamId != null ? ctx.completions.find((c) => c.teamId === ctx.viewerTeamId && c.tileId === tileId) : undefined;
-  const title = info.state === 'open' ? 'Next for your team' : info.state === 'done' ? 'Done' : info.state === 'closed' ? 'Closed' : info.state === 'ahead' ? 'Locked' : info.stepLine;
+  const title = info.state === 'open' ? 'Next for your team' : info.state === 'done' ? 'Done' : info.state === 'closed' ? 'Locked' : info.state === 'ahead' ? 'Locked' : info.stepLine;
   const standing = new Map(rankRaceTeams(graph, ctx.teams, ctx.completions).map((s) => [s.teamId, s]));
   const onIt = ctx.teams.filter((t) => {
     const r = teamRoute(graph, doneBy(t.id));
