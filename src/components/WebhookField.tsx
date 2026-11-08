@@ -59,6 +59,9 @@ export default function WebhookField({
     reason?: string;
   } | null>(null);
   const [checkingPerm, setCheckingPerm] = useState(false);
+  // Several webhooks here should all post to ONE channel (a pool, lib/webhookPool). Checked with Discord.
+  const [mixed, setMixed] = useState(false);
+  const [moreCount, setMoreCount] = useState('2');
 
   useEffect(() => {
     (async () => {
@@ -117,6 +120,21 @@ export default function WebhookField({
     };
   }, [channelId, botEnabled]);
 
+  // Pool check: only meaningful with two or more, and only the count changing re-asks Discord.
+  useEffect(() => {
+    if (urls.length < 2) return;
+    let cancelled = false;
+    clanFetch(`/api/admin/discord/webhooks?pool=${encodeURIComponent(settingKey)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) setMixed(!!d.mixed);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [settingKey, urls.length]);
+
   const canCreate = botEnabled && channels.length > 0;
   // Only block when the check is conclusively negative; a null check (error/loading) stays permissive.
   const blockedByPerm = !!permCheck && !permCheck.ok;
@@ -148,8 +166,8 @@ export default function WebhookField({
     }
   }
 
-  async function create(mode: 'replace' | 'append') {
-    if (!channelId) {
+  async function create(mode: 'replace' | 'append' | 'more') {
+    if (mode !== 'more' && !channelId) {
       setMessage({ type: 'error', text: 'Pick a channel first.' });
       return;
     }
@@ -159,7 +177,7 @@ export default function WebhookField({
       const res = await clanFetch('/api/admin/discord/webhooks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channelId, settingKey, mode, name: 'Anvil' }),
+        body: JSON.stringify({ channelId, settingKey, mode, name: 'Anvil', count: Number(moreCount) }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -167,7 +185,10 @@ export default function WebhookField({
         invalidateSettings();
         setMessage({
           type: 'success',
-          text: mode === 'replace' ? 'Done — Anvil will post there.' : 'Added — busy posts are shared across both.',
+          text:
+            mode === 'replace'
+              ? 'Done — Anvil will post there.'
+              : `Added — busy posts are now shared across ${Array.isArray(data.urls) ? data.urls.length : 'these'} webhooks in this channel.`,
         });
       } else {
         setMessage({
@@ -262,6 +283,39 @@ export default function WebhookField({
           Not set — {canCreate ? 'pick a channel below.' : 'paste a channel link below.'}
         </p>
       )}
+      {urls.length > 1 && !mixed && (
+        <p className="text-[11px] text-text-muted">
+          {urls.length} webhooks share this channel&apos;s posts, so a busy event never waits on one of them.
+        </p>
+      )}
+      {mixed && urls.length > 1 && (
+        <p className="text-[11px] text-yellow-400">
+          These webhooks post to different channels, so posts are split between them at random. Extra webhooks are meant
+          for the same channel: remove the ones in the other channel, or give that channel its own setting.
+        </p>
+      )}
+
+      {/* More webhooks for the same channel, made by the bot — the fix for Discord's speed limit. */}
+      {canCreate && urls.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-[12px]">
+          <span className="text-text-muted">Busy channel? Let the bot add</span>
+          <Select
+            value={moreCount}
+            onChange={setMoreCount}
+            options={['1', '2', '3', '5'].map((n) => ({ value: n, label: n }))}
+            ariaLabel="How many webhooks to add"
+            className="w-20"
+          />
+          <span className="text-text-muted">more webhooks to it</span>
+          <button
+            onClick={() => create('more')}
+            disabled={creating}
+            className="px-3 py-1.5 bg-card-bg-hover border border-card-border text-text font-semibold rounded-lg text-xs hover:border-gold/40 transition-colors disabled:opacity-50"
+          >
+            {creating ? 'Working…' : 'Add'}
+          </button>
+        </div>
+      )}
 
       {/* Create with the bot */}
       {canCreate && (
@@ -308,7 +362,7 @@ export default function WebhookField({
             {urls.length > 0 && (
               <>
                 {' '}
-                <strong>Add another</strong> shares busy posts across two channels.
+                <strong>Add another</strong> adds a second webhook in the same channel, so busy posts are shared between them.
               </>
             )}
           </p>

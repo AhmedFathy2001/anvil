@@ -4,7 +4,8 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { userWebhooks } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
-import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
+import { normalizeDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
+import { refuseBlockedWebhooks } from '@/lib/sharedWebhooks';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,13 +38,16 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Bad body' }, { status: 400 });
 
-  const url = typeof body.url === 'string' ? body.url.trim() : '';
-  if (!isDiscordWebhookUrl(url)) {
+  // Stored normalized (lib/discordWebhookUrl); a URL that doesn't normalize cleanly is refused.
+  const url = normalizeDiscordWebhookUrl(typeof body.url === 'string' ? body.url : '') ?? '';
+  if (!url) {
     return NextResponse.json(
       { error: 'That is not a Discord webhook URL. Copy it from a channel’s Integrations → Webhooks.' },
       { status: 400 },
     );
   }
+  const blocked = await refuseBlockedWebhooks([url]);
+  if (blocked) return NextResponse.json({ error: blocked }, { status: 400 });
 
   const kinds = Array.isArray(body.kinds)
     ? body.kinds.filter((k: unknown): k is string => typeof k === 'string' && (KINDS as readonly string[]).includes(k))

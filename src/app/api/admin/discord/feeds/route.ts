@@ -6,7 +6,8 @@ import { parseWebhookUrls } from '@/lib/discord';
 import { listBotChannels } from '@/lib/discord-broadcast';
 import { getBotCredentials } from '@/lib/discord-roles';
 import { findOrCreateAnvilWebhook } from '@/lib/discord-webhooks';
-import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
+import { isDiscordWebhookUrl, normalizeDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
+import { noteWebhookSave, refuseBlockedWebhooks } from '@/lib/sharedWebhooks';
 import { DISCORD_FEEDS, FEED_KEYS, FEEDS_OFF_KEY, GAME_CATCH_ALL, SITE_CATCH_ALL, feedById, parseFeedsOff } from '@/lib/discordFeeds';
 import { getSetting, getSettingMap, setSetting } from '@/lib/settings';
 import { CREATOR_NOT_AVAILABLE, creatorHidesSettingKey, isCreatorSpace } from '@/lib/creatorSpaces';
@@ -267,10 +268,14 @@ export async function PUT(request: Request) {
     return NextResponse.json(await view(clan.id));
   }
 
-  const url = typeof body.webhookUrl === 'string' ? body.webhookUrl.trim() : '';
-  if (!isDiscordWebhookUrl(url)) {
+  // Stored normalized (lib/discordWebhookUrl); a URL that doesn't normalize cleanly is refused.
+  const url = normalizeDiscordWebhookUrl(typeof body.webhookUrl === 'string' ? body.webhookUrl : '') ?? '';
+  if (!url) {
     return NextResponse.json({ error: 'That is not a Discord webhook URL (https://discord.com/api/webhooks/…).' }, { status: 400 });
   }
+  const blocked = await refuseBlockedWebhooks([url]);
+  if (blocked) return NextResponse.json({ error: blocked }, { status: 400 });
   await setSetting(clan.id, key, url);
+  noteWebhookSave([url]);
   return NextResponse.json(await view(clan.id));
 }

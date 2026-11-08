@@ -1226,6 +1226,13 @@
       "when": 1794340000000,
       "tag": "0236_event_chat_sanctions",
       "breakpoints": true
+    },
+    {
+      "idx": 237,
+      "version": "7",
+      "when": 1794350000000,
+      "tag": "0237_shared_webhooks",
+      "breakpoints": true
     }
   ]
 }

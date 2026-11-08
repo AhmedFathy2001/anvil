@@ -6,7 +6,8 @@ import { eventWebhooks, teams } from '@/db/schema';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
 import { eventInClan } from '@/lib/eventScope';
-import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
+import { normalizeDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
+import { noteWebhookSave, refuseBlockedWebhooks } from '@/lib/sharedWebhooks';
 import { isEventPostKind, parseEventPostKinds } from '@/lib/eventWebhookKinds';
 import { sendEventHookTest } from '@/lib/discord';
 
@@ -88,10 +89,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
       : NextResponse.json({ error: 'Discord did not accept the test post — check the webhook still exists.' }, { status: 502 });
   }
 
-  const url = typeof body.url === 'string' ? body.url.trim() : '';
-  if (!isDiscordWebhookUrl(url)) {
+  // Stored normalized (lib/discordWebhookUrl); a URL that doesn't normalize cleanly is refused.
+  const url = normalizeDiscordWebhookUrl(typeof body.url === 'string' ? body.url : '') ?? '';
+  if (!url) {
     return NextResponse.json({ error: 'That is not a Discord webhook URL (https://discord.com/api/webhooks/…).' }, { status: 400 });
   }
+  const blocked = await refuseBlockedWebhooks([url]);
+  if (blocked) return NextResponse.json({ error: blocked }, { status: 400 });
   const kinds = cleanKinds(body.kinds);
   if (!kinds) return NextResponse.json({ error: 'Pick at least one kind of post.' }, { status: 400 });
   const teamId = await cleanTeam(s.eventId, body.teamId);
@@ -107,6 +111,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     .insert(eventWebhooks)
     .values({ eventId: s.eventId, teamId, url, label, kinds: JSON.stringify(kinds), createdByUserId: s.user.userId })
     .returning();
+  noteWebhookSave([url]);
   return NextResponse.json({ hook: { id: row.id, label: row.label, teamId: row.teamId, kinds, url: mask(row.url) } });
 }
 

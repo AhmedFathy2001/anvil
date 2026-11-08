@@ -539,3 +539,25 @@ test('a big free clan hears about plans once, last, and can put it down', () => 
   const snoozed = attentionQueue(facts({ plan, snoozed: { plan: NOW + DAY } }));
   assert.equal(snoozed.find((i) => i.key === 'plan'), undefined, 'and a snooze holds');
 });
+
+test('a board too big for its webhooks gets a card: a forecast is snoozable, live 429s are not', () => {
+  const w = { eventId: 7, name: 'Mega Bingo', href: '/admin/events/7', webhooks: 1, recommended: 3, reasons: ['120 players'], rateLimited: false };
+  const forecast = attentionQueue(facts({ webhookCapacity: [w] })).find((i) => i.key === 'webhooks-7');
+  assert.ok(forecast);
+  assert.equal(forecast.severity, 'info');
+  assert.equal(forecast.snoozable, true);
+  assert.match(forecast.detail, /recommended: 3/);
+  assert.equal(forecast.href, '/admin/events/7/discord#event-discord-webhooks');
+  const live = attentionQueue(facts({ webhookCapacity: [{ ...w, rateLimited: true }] })).find((i) => i.key === 'webhooks-7');
+  assert.equal(live?.severity, 'warn');
+  assert.equal(live?.snoozable, false);
+});
+
+test('a webhook staff blocked is a critical, unsnoozable card naming where it is still set up', () => {
+  const item = attentionQueue(facts({ blockedWebhooks: ['Setting discord_webhook_bingo'] })).find((i) => i.key === 'blocked-webhooks');
+  assert.ok(item);
+  assert.equal(item.severity, 'critical');
+  assert.equal(item.snoozable, false);
+  assert.match(item.title, /disabled by Anvil staff/);
+  assert.match(item.detail, /discord_webhook_bingo/);
+});

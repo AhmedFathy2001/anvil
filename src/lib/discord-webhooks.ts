@@ -14,6 +14,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { discordRest } from '@/lib/discord-roles';
+import { fetchDiscordWebhook } from '@/lib/discordWebhookUrl';
 
 // Give a newly-created webhook the site's own favicon as its avatar, so its posts show the clan's
 // branding. Read once from public/ (the instance's own icon — self-hosters get theirs) and cached as
@@ -121,4 +122,61 @@ export async function findOrCreateAnvilWebhook(
     }
   }
   return createChannelWebhook(botToken, channelId, name);
+}
+
+/** Discord's cap on webhooks in one channel. */
+export const CHANNEL_WEBHOOK_CAP = 15;
+
+/**
+ * Make `count` MORE webhooks in a channel for a pool (lib/webhookPool), named "Anvil 2", "Anvil 3"…
+ * so they stay tellable apart in Discord. Stops at Discord's 15-per-channel cap; `capped` says so.
+ * Throws a human message when Discord refuses the first one (usually Manage Webhooks).
+ */
+export async function createMoreAnvilWebhooks(
+  botToken: string,
+  channelId: string,
+  count: number,
+  baseName: string = DEFAULT_WEBHOOK_NAME,
+): Promise<{ created: CreatedWebhook[]; capped: boolean }> {
+  const res = await discordRest(botToken, `/channels/${channelId}/webhooks`);
+  if (!res.ok) throw new Error(await describeWebhookError(res));
+  const list = (await res.json()) as RawWebhook[];
+  const taken = new Set(list.map((w) => w.name));
+  const room = Math.max(0, CHANNEL_WEBHOOK_CAP - list.length);
+  const want = Math.max(0, Math.min(count, room));
+  const created: CreatedWebhook[] = [];
+  let n = 2;
+  for (let i = 0; i < want; i++) {
+    while (taken.has(`${baseName} ${n}`)) n++;
+    const name = `${baseName} ${n}`;
+    taken.add(name);
+    try {
+      created.push(await createChannelWebhook(botToken, channelId, name));
+    } catch (e) {
+      // Keep what was made; only a refusal of the very first one is an error for the caller.
+      if (created.length === 0) throw e;
+      break;
+    }
+  }
+  return { created, capped: want < count };
+}
+
+/**
+ * Which channel (and server) a webhook posts to, asked of Discord with the webhook's own token, so it
+ * works for pasted webhooks and needs no bot. Null when Discord doesn't know it (deleted, bad token)
+ * or can't be reached, and for anything that isn't a Discord webhook URL.
+ */
+export async function lookupWebhookChannel(url: string): Promise<{ channelId: string; guildId: string | null } | null> {
+  // The URL is pasted by a person and the SERVER fetches it: only a real Discord webhook, and no
+  // redirects, so it can never be turned into a request to anywhere else (SSRF).
+  try {
+    const pending = fetchDiscordWebhook(url, { signal: AbortSignal.timeout(8_000) });
+    if (!pending) return null;
+    const res = await pending;
+    if (!res.ok) return null;
+    const body = (await res.json()) as { channel_id?: string; guild_id?: string | null };
+    return body.channel_id ? { channelId: body.channel_id, guildId: body.guild_id ?? null } : null;
+  } catch {
+    return null;
+  }
 }

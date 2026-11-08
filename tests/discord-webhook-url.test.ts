@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { isDiscordWebhookUrl } from '../src/lib/discordWebhookUrl.ts';
+import { fetchDiscordWebhook, isDiscordWebhookUrl } from '../src/lib/discordWebhookUrl.ts';
 
 test('accepts real Discord webhook URLs on every Discord host', () => {
   assert.equal(isDiscordWebhookUrl('https://discord.com/api/webhooks/123456789/abc-DEF_ghi'), true);
@@ -37,4 +37,36 @@ test('rejects everything that is not a Discord webhook — the SSRF surface', ()
   // Junk.
   assert.equal(isDiscordWebhookUrl('not a url'), false);
   assert.equal(isDiscordWebhookUrl(''), false);
+});
+
+test('the guarded fetch refuses anything but a Discord webhook and never follows a redirect', async () => {
+  const seen: { url: string; init: RequestInit }[] = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = (async (url: string, init: RequestInit) => {
+    seen.push({ url, init });
+    // What undici does with redirect: 'error' when the server answers 3xx.
+    if (init.redirect === 'error') throw new TypeError('fetch failed: redirect');
+    return new Response(null, { status: 302, headers: { location: 'http://169.254.169.254/' } });
+  }) as typeof fetch;
+  try {
+    for (const bad of [
+      'http://169.254.169.254/latest/meta-data',
+      'https://evil.example/api/webhooks/1/t',
+      'http://discord.com/api/webhooks/1/t',
+      'https://discord.com.evil.example/api/webhooks/1/t',
+      'https://discord.com/api/users/@me',
+    ]) {
+      assert.equal(fetchDiscordWebhook(bad), null, bad);
+    }
+    assert.equal(seen.length, 0, 'nothing refused was fetched');
+    // A /messages/<id> path only passes for the sender's looser check.
+    assert.equal(fetchDiscordWebhook('https://discord.com/api/webhooks/1/t/messages/2'), null);
+    await assert.rejects(fetchDiscordWebhook('https://discord.com/api/webhooks/1/t/messages/2', {}, { subpaths: true })!);
+    // A real webhook is fetched with redirects as an error, so a 3xx can't bounce it elsewhere.
+    await assert.rejects(fetchDiscordWebhook('https://discord.com/api/webhooks/1/t', { method: 'GET' })!);
+    assert.equal(seen.at(-1)?.init.redirect, 'error');
+    assert.equal(seen.at(-1)?.init.method, 'GET');
+  } finally {
+    globalThis.fetch = real;
+  }
 });

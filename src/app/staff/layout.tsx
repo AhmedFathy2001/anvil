@@ -105,6 +105,8 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         { href: '/staff/reports', label: 'Character reports', icon: '⚑', badge: pending.reports, matchPrefix: true },
         // A clan owner handing the clan to an admin: a 3-day hold staff can block (lib/ownershipTransfers).
         { href: '/staff/ownership', label: 'Ownership transfers', icon: '♛', badge: pending.ownershipTransfers, matchPrefix: true },
+        // One Discord webhook set up by more than one clan: block it platform-wide or leave it (lib/sharedWebhooks).
+        { href: '/staff/webhooks', label: 'Shared webhooks', icon: '⛓', badge: pending.sharedWebhooks, matchPrefix: true },
         // What viewers reported to Anvil (lib/platformReports): creator pages and panels, clans, events,
         // player profiles, stream highlights — plus the creator-page tools (hidden content, the link
         // blocklist, lib/spacePage). Anvil never promotes what Jagex's rules forbid.

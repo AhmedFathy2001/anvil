@@ -24,6 +24,7 @@ import {
 } from '@/lib/discordPostPolicy';
 import type { PartnerReadiness } from '@/lib/partnerDiscordReadiness';
 import { POSTS_LABEL } from '@/lib/partnerReadiness';
+import EventWebhookPool, { type Capacity, type PoolHook } from './EventWebhookPool';
 
 interface Channel {
   id: string;
@@ -34,6 +35,10 @@ interface Channel {
 interface View {
   prefs: EventDiscordPrefs;
   hasOwnChannel: boolean;
+  /** The event channel's webhooks, masked (lib/webhookPool). */
+  pool: PoolHook[];
+  /** Is the destination big enough for this event (lib/webhookCapacity)? */
+  capacity: Capacity;
   /** `create` is set when the bot may make a channel for this event; `name` is the one it would get. */
   channels: { enabled: boolean; channels: Channel[]; create: { name: string } | null };
   clanDefaults: {
@@ -237,6 +242,15 @@ export default function EventDiscordClient({ eventId, hasCohosts }: { eventId: n
 
         <Section title="Where it posts">
           <div className="space-y-4 text-[13px]">
+            {/* Ids are the settings search's anchors; the dashboard's "add webhooks" card links here. */}
+            <div id="event-discord-webhooks" className="scroll-mt-24">
+              <EventWebhookPool
+                eventId={eventId}
+                pool={view.pool}
+                capacity={view.capacity}
+                onChange={(pool, capacity) => setView((v) => (v ? { ...v, pool, capacity } : v))}
+              />
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {[
                 { own: false, name: 'Your clan’s bingo channel', desc: 'Set in Admin → Discord' },

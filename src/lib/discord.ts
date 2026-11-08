@@ -1,7 +1,16 @@
 import { webhookIdentity } from '@/lib/discordIdentity';
-import { isDiscordWebhookTarget } from '@/lib/discordWebhookUrl';
+import { fetchDiscordWebhook } from '@/lib/discordWebhookUrl';
 import { currentPostRef, recordDiscordPost, withPostRef } from '@/lib/discordPosts';
 import { safeError } from '@/lib/webhookRedact';
+import { blockedWebhookIds, hasBlockedWebhook } from '@/lib/sharedWebhooks';
+import {
+  ActivityMeter,
+  WebhookPoolState,
+  sendThroughPool,
+  webhookIdOf,
+  type PoolSendResult,
+  type WebhookDestination,
+} from '@/lib/webhookPool';
 import { eventHookTargets } from '@/lib/eventWebhooks';
 import { EVENT_POST_KINDS, type EventPostKind } from '@/lib/eventWebhookKinds';
 import { clanMarkUrl, eventMarkUrl } from '@/lib/clanMarkUrl';
@@ -114,17 +123,21 @@ export function parseWebhookUrls(raw: string | null | undefined): string[] {
     .filter((u) => /^https:\/\/\S+/i.test(u));
 }
 
-// Best-effort round-robin cursor per setting key. In-process only (serverless may reset it between
-// invocations), but within a single cron tick — where a burst of posts actually risks the limit —
-// it spreads load across the configured URLs. The random seed stops every cold start from hammering
-// url[0] first.
-const rrCursors = new Map<string, number>();
+// Webhook pools (lib/webhookPool): the round-robin cursor and each webhook's rest after a 429 live
+// here, in this process, for every sender in the app. Exported read-only for the advice on an
+// event's Discord tab (lib/webhookCapacity).
+const poolState = new WebhookPoolState();
+export const webhookActivity = new ActivityMeter();
+
+// Round-robin over a pool, skipping a webhook Discord has asked to wait. All resting: the next in turn
+// anyway, and the send path waits it out. The pool is remembered so a caller that only kept the one
+// URL (the plugin forwards) can still fail over to its siblings.
 function pickCycledUrl(urls: string[], key: string): string | null {
   if (urls.length === 0) return null;
   if (urls.length === 1) return urls[0];
-  const start = rrCursors.get(key) ?? Math.floor(Math.random() * urls.length);
-  rrCursors.set(key, start + 1);
-  return urls[start % urls.length];
+  poolState.remember(urls);
+  const choice = poolState.pick({ urls, cursorKey: key }, Date.now());
+  return choice && 'url' in choice ? choice.url : urls[0];
 }
 
 // Parse a raw multi-URL setting value and pick one round-robin. Exported for callers that already
@@ -151,75 +164,103 @@ async function resolveWebhookDestination(
   return null;
 }
 
-async function resolveWebhookUrl(clanId: number, ...keys: string[]): Promise<string | null> {
-  const destination = await resolveWebhookDestination(clanId, ...keys);
-  // Round-robin cursor is per (clan, key): two clans sharing a key must not share a cursor.
-  return destination ? pickCycledUrl(destination.urls, destination.cursorKey) : null;
+// The destination as a pool; the send path picks which webhook. Round-robin cursor is per (clan, key):
+// two clans sharing a key must not share a cursor.
+function resolveWebhookTarget(clanId: number, ...keys: string[]): Promise<WebhookDestination | null> {
+  return resolveWebhookDestination(clanId, ...keys);
 }
 
-const MAX_RETRY_MS = 5000;
+/** The webhooks of an event's own channel ("A channel just for this event"): its main one, then the pool. */
+export function eventChannelUrls(prefs: { webhookUrl?: string | null; extraWebhookUrls?: string[] }): string[] {
+  if (!prefs.webhookUrl) return [];
+  return [prefs.webhookUrl, ...(prefs.extraWebhookUrls ?? []).filter((u) => u !== prefs.webhookUrl)];
+}
+
+/** The meter key for an event's posts (lib/webhookCapacity reads it back). */
+export const eventActivityKey = (eventId: number) => `event:${eventId}`;
+/** The cursor key of an event's own channel pool. */
+export const eventPoolKey = (eventId: number) => `event-channel:${eventId}`;
 
 /**
  * Every webhook post leaves through here. Webhook URLs are typed in by clan staff and members, and
  * the server is the one that fetches them — so anything that is not a Discord webhook is refused
  * before a socket opens, whichever route stored or supplied it.
  */
-function webhookFetch(url: string, init: RequestInit): Promise<Response> {
-  if (!isDiscordWebhookTarget(url)) {
-    return Promise.resolve(new Response('not a Discord webhook', { status: 400 }));
+async function webhookFetch(url: string, init: RequestInit): Promise<Response> {
+  // A webhook platform staff blocked (lib/sharedWebhooks) posts nowhere, for any clan. The pool
+  // filters these out first; this is the backstop for every other exit (tests, edits, deletes).
+  if (await hasBlockedWebhook(url)) return new Response('webhook blocked by Anvil staff', { status: 403 });
+  // Refused unless it's a Discord webhook (or one of its /messages/<id>), and never follows a redirect.
+  return (await fetchDiscordWebhook(url, init, { subpaths: true })) ?? new Response('not a Discord webhook', { status: 400 });
+}
+
+/** A single URL, or a pool. A lone URL that was last seen in a pool fails over to that pool. */
+type WebhookTarget = string | WebhookDestination;
+
+function asDestination(target: WebhookTarget): WebhookDestination {
+  if (typeof target !== 'string') return target;
+  const urls = poolState.siblingsOf(target);
+  // Start the round-robin on the URL the caller chose; only a 429 moves it to a sibling.
+  return { urls: [target, ...urls.filter((u) => u !== target)], cursorKey: 'chosen', preferFirst: true };
+}
+
+/**
+ * THE transport. Every webhook post leaves through here: round-robin over the destination's pool,
+ * failover on a 429 (lib/webhookPool), and a bounded wait when every webhook is resting. `wait`
+ * asks Discord to answer with the created message (the result's `response`), and `webhookUrl` says
+ * which webhook owns it, for anything that later edits or deletes that post.
+ */
+export async function deliverWebhook(
+  target: WebhookTarget,
+  init: () => RequestInit,
+  opts: { wait?: boolean; messageId?: string } = {},
+): Promise<PoolSendResult> {
+  const asked = asDestination(target);
+  // Blocked webhooks (lib/sharedWebhooks) leave the pool; the rest carry the post.
+  const blocked = await blockedWebhookIds();
+  const urls = blocked.size ? asked.urls.filter((u) => !blocked.has(webhookIdOf(u) ?? '')) : asked.urls;
+  if (urls.length === 0) {
+    log.warn('discord.webhook-blocked', { cursorKey: asked.cursorKey, webhooks: asked.urls.length });
+    return { ok: false, status: 403, blocked: true };
   }
-  return fetch(url, init);
+  const dest = urls.length === asked.urls.length ? asked : { ...asked, urls };
+  return sendThroughPool(
+    dest,
+    init,
+    {
+      state: poolState,
+      fetch: webhookFetch,
+      warn: (event, meta) => log.warn(event, meta),
+      onRateLimited: (key) => webhookActivity.noteRateLimit(key),
+    },
+    (url) => (opts.wait || opts.messageId ? webhookRequestUrl(url, opts) : url),
+  );
 }
 
-async function postWebhook(
-  webhookUrl: string,
-  payload: DiscordWebhookPayload,
-): Promise<Response> {
-  return webhookFetch(webhookUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    // Brand every embed here rather than in each builder: this is the single JSON exit to Discord,
-    // so a post added later can't forget the footer.
-    body: JSON.stringify(stampEmbeds(payload)),
-  });
+function jsonInit(payload: DiscordWebhookPayload): () => RequestInit {
+  // Brand every embed here rather than in each builder: this is the single JSON exit to Discord,
+  // so a post added later can't forget the footer.
+  const body = JSON.stringify(stampEmbeds(payload));
+  return () => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
 }
 
-// Post to a specific webhook URL with Discord's 429 retry handling. Returns true on a 2xx.
-async function sendToWebhook(webhookUrl: string, payload: DiscordWebhookPayload, clanId?: number): Promise<boolean> {
+// Post to a webhook (or a pool of them) with Discord's 429 handling. Returns true on a 2xx.
+async function sendToWebhook(target: WebhookTarget, payload: DiscordWebhookPayload, clanId?: number): Promise<boolean> {
   // The clan's chosen name and icon (Anvil's by default, which sets nothing).
   if (clanId != null) payload = { ...(await webhookIdentity(clanId)), ...payload };
-  // A board post that may need editing later (lib/discordPosts): ask Discord for the message back.
+  // A board post that may need editing later (lib/discordPosts): ask Discord for the message back,
+  // and record it against the webhook that actually sent it (a pool may pick any of its webhooks).
   const ref = currentPostRef();
-  const target = ref ? webhookRequestUrl(webhookUrl, { wait: true }) : webhookUrl;
   try {
-    let response = await postWebhook(target, payload);
-
-    if (response.status === 429) {
-      // Discord sends Retry-After in seconds (sometimes fractional). Also check
-      // the JSON body's retry_after which can be more precise for route-specific
-      // buckets. Cap total wait so a hot bucket can't stall a cron job.
-      const headerVal = response.headers.get('retry-after');
-      let retryMs = headerVal ? Number(headerVal) * 1000 : 0;
-      if (!retryMs) {
-        try {
-          const body = (await response.clone().json()) as { retry_after?: number };
-          if (typeof body.retry_after === 'number') retryMs = body.retry_after * 1000;
-        } catch { /* body wasn't JSON */ }
-      }
-      retryMs = Math.max(250, Math.min(retryMs || 1000, MAX_RETRY_MS));
-      log.warn('discord.rate-limited', { retryMs });
-      await new Promise((r) => setTimeout(r, retryMs));
-      response = await postWebhook(target, payload);
+    const result = await deliverWebhook(target, jsonInit(payload), { wait: !!ref });
+    if (!result.ok && result.response && result.status !== 429) {
+      const text = await result.response.text().catch(() => '');
+      log.warn('discord.webhook-fail', { status: result.status, body: text.slice(0, 200) });
+    } else if (result.ok && ref && result.response && result.webhookUrl) {
+      const message = (await result.response.json().catch(() => ({}))) as { id?: unknown; channel_id?: unknown };
+      await recordDiscordPost(ref, result.webhookUrl, clanId, message);
     }
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      log.warn('discord.webhook-fail', { status: response.status, body: text.slice(0, 200) });
-    } else if (ref) {
-      const message = (await response.json().catch(() => ({}))) as { id?: unknown; channel_id?: unknown };
-      await recordDiscordPost(ref, webhookUrl, clanId, message);
-    }
-    return response.ok;
+    return result.ok;
   } catch (error) {
     // Safe fields only: a fetch error can echo the webhook URL, token included.
     log.warn('discord.webhook-exception', { error: safeError(error) });
@@ -263,20 +304,21 @@ export async function forwardPluginNotification(
   // path posts directly — which means it also has to stamp the brand footer itself (postWebhook
   // does it for every other exit).
   try {
-    const form = new FormData();
-    form.append(
-      'payload_json',
-      JSON.stringify(
-        stampEmbeds({ ...(clanId != null ? await webhookIdentity(clanId) : {}), content: content || undefined, embeds, allowed_mentions }),
-      ),
+    const payloadJson = JSON.stringify(
+      stampEmbeds({ ...(clanId != null ? await webhookIdentity(clanId) : {}), content: content || undefined, embeds, allowed_mentions }),
     );
-    form.append('files[0]', new Blob([attachment.bytes]), attachment.filename);
-    const response = await webhookFetch(webhookUrl, { method: 'POST', body: form });
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      log.warn('discord.plugin-notify-fail', { status: response.status, body: text.slice(0, 200) });
+    // A fresh form per attempt: a failover resends the file to the next webhook in the pool.
+    const result = await deliverWebhook(webhookUrl, () => {
+      const form = new FormData();
+      form.append('payload_json', payloadJson);
+      form.append('files[0]', new Blob([attachment.bytes]), attachment.filename);
+      return { method: 'POST', body: form };
+    });
+    if (!result.ok && result.response) {
+      const text = await result.response.text().catch(() => '');
+      log.warn('discord.plugin-notify-fail', { status: result.status, body: text.slice(0, 200) });
     }
-    return response.ok;
+    return result.ok;
   } catch (error) {
     log.warn('discord.plugin-notify-exception', {}, error);
     return false;
@@ -286,7 +328,7 @@ export async function forwardPluginNotification(
 /** The roster-sync summary: its own channel, else the main one. Off when the clan switched it off. */
 export async function sendRosterWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
   if (await feedOff(clanId, 'roster')) return false;
-  const webhookUrl = await resolveWebhookUrl(clanId, ROSTER_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  const webhookUrl = await resolveWebhookTarget(clanId, ROSTER_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload, clanId);
 }
@@ -299,7 +341,7 @@ async function feedOff(clanId: number, feedId: string): Promise<boolean> {
 // General / master channel — clan-roster sync summaries and other non-event posts. This is the
 // webhook every other destination falls back to.
 export async function sendDiscordWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
-  const webhookUrl = await resolveWebhookUrl(clanId, GENERAL_WEBHOOK_KEY);
+  const webhookUrl = await resolveWebhookTarget(clanId, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload, clanId);
 }
@@ -307,7 +349,7 @@ export async function sendDiscordWebhook(clanId: number, payload: DiscordWebhook
 /** Anvil release notes (lib/releases): only where the clan set an "Anvil updates" channel, never the main one. */
 export const ANVIL_UPDATES_WEBHOOK_KEY = 'discord_webhook_anvil_updates';
 export async function sendAnvilUpdatesWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
-  const webhookUrl = await resolveWebhookUrl(clanId, ANVIL_UPDATES_WEBHOOK_KEY);
+  const webhookUrl = await resolveWebhookTarget(clanId, ANVIL_UPDATES_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload, clanId);
 }
@@ -315,7 +357,7 @@ export async function sendAnvilUpdatesWebhook(clanId: number, payload: DiscordWe
 // Bingo-event channel; falls back to the master webhook so single-webhook clans keep getting bingo
 // posts until they split the channel.
 export async function sendBingoWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
-  const webhookUrl = await resolveWebhookUrl(clanId, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  const webhookUrl = await resolveWebhookTarget(clanId, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload, clanId);
 }
@@ -331,7 +373,7 @@ export async function sendCohostWebhook(
 ): Promise<'sent' | 'skipped' | 'failed'> {
   const enabled = (await getSettingUrl(clanId, COHOST_POSTS_KEY))?.trim();
   if (enabled === 'false' || enabled === '0') return 'skipped';
-  const url = await resolveWebhookUrl(clanId, COHOST_WEBHOOK_KEY, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  const url = await resolveWebhookTarget(clanId, COHOST_WEBHOOK_KEY, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!url) return 'skipped';
   return (await sendToWebhook(url, payload, clanId)) ? 'sent' : 'failed';
 }
@@ -340,7 +382,7 @@ export async function sendCohostWebhook(
 export async function cohostChannelReady(clanId: number): Promise<boolean> {
   const enabled = (await getSettingUrl(clanId, COHOST_POSTS_KEY))?.trim();
   if (enabled === 'false' || enabled === '0') return false;
-  return !!(await resolveWebhookUrl(clanId, COHOST_WEBHOOK_KEY, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY));
+  return !!(await resolveWebhookTarget(clanId, COHOST_WEBHOOK_KEY, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY));
 }
 
 /** A post into a clan's OWN bingo channel, saying why it didn't land. */
@@ -348,7 +390,7 @@ export async function sendBingoWebhookReport(
   clanId: number,
   payload: DiscordWebhookPayload,
 ): Promise<'sent' | 'skipped' | 'failed'> {
-  const url = await resolveWebhookUrl(clanId, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  const url = await resolveWebhookTarget(clanId, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!url) return 'skipped';
   return (await sendToWebhook(url, payload, clanId)) ? 'sent' : 'failed';
 }
@@ -368,26 +410,19 @@ function webhookRequestUrl(webhookUrl: string, opts: { messageId?: string; wait?
   return url.toString();
 }
 
+/**
+ * One request to ONE webhook (a read, edit or delete of a message it owns), through the pool transport
+ * so a 429 is waited out, the rest is shared with every other sender, and a blocked webhook is refused.
+ * Never fails over: a message belongs to the webhook that sent it.
+ */
 async function editableWebhookRequest(url: string, method: 'POST' | 'PATCH' | 'GET' | 'DELETE', payload?: DiscordWebhookPayload): Promise<Response> {
-  const send = () => webhookFetch(url, {
+  const body = payload ? JSON.stringify(payload) : undefined;
+  const result = await deliverWebhook({ urls: [url], cursorKey: 'edit' }, () => ({
     method,
-    ...(payload ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) } : {}),
+    ...(body ? { headers: { 'Content-Type': 'application/json' }, body } : {}),
     signal: AbortSignal.timeout(10_000),
-  });
-  const response = await send();
-  if (response.status !== 429) return response;
-
-  const headerVal = response.headers.get('retry-after');
-  let retryMs = headerVal ? Number(headerVal) * 1000 : 0;
-  if (!retryMs) {
-    try {
-      const body = (await response.clone().json()) as { retry_after?: number };
-      if (typeof body.retry_after === 'number') retryMs = body.retry_after * 1000;
-    } catch { /* body was not JSON */ }
-  }
-  retryMs = Math.max(250, Math.min(retryMs || 1000, MAX_RETRY_MS));
-  await new Promise((resolve) => setTimeout(resolve, retryMs));
-  return send();
+  }));
+  return result.response ?? new Response(null, { status: result.status || 502 });
 }
 
 /**
@@ -442,11 +477,16 @@ async function upsertWebhookMessage(
       // A destination may round-robin several webhooks. The message belongs to exactly one of
       // them, so try each configured token before deciding the old post disappeared.
       for (const webhookUrl of destination.urls) {
-        const edit = await editableWebhookRequest(
-          webhookRequestUrl(webhookUrl, { messageId: existingMessageId }),
-          'PATCH',
-          stamped,
-        );
+        // An edit must go to the webhook that owns the message, so this one never fails over.
+        const body = JSON.stringify(stamped);
+        const edit = (
+          await deliverWebhook(
+            { urls: [webhookUrl], cursorKey: 'edit' },
+            () => ({ method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body }),
+            { messageId: existingMessageId },
+          )
+        ).response;
+        if (!edit) return { status: 'failed' };
         if (edit.ok) return { status: 'sent', action: 'updated', messageId: existingMessageId };
         if (edit.status !== 404) {
           const body = await edit.text().catch(() => '');
@@ -456,14 +496,15 @@ async function upsertWebhookMessage(
       }
     }
 
-    const webhookUrl = pickCycledUrl(destination.urls, destination.cursorKey);
-    if (!webhookUrl) return { status: 'skipped' };
-    const createPayload = stampEmbeds({ ...(await webhookIdentity(clanId)), ...payload });
-    const create = await editableWebhookRequest(
-      webhookRequestUrl(webhookUrl, { wait: true }),
-      'POST',
-      createPayload,
+    if (destination.urls.length === 0) return { status: 'skipped' };
+    const createBody = JSON.stringify(stampEmbeds({ ...(await webhookIdentity(clanId)), ...payload }));
+    const created = await deliverWebhook(
+      destination,
+      () => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: createBody }),
+      { wait: true },
     );
+    const create = created.response;
+    if (!create) return { status: 'failed' };
     if (!create.ok) {
       const body = await create.text().catch(() => '');
       log.warn('discord.webhook-create-fail', { clanId, status: create.status, body: body.slice(0, 200) });
@@ -486,11 +527,12 @@ export async function upsertBingoWebhookReport(
   clanId: number,
   payload: DiscordWebhookPayload,
   existingMessageId?: string,
-  // An event's own channel, used in place of the clan's bingo channel.
-  overrideUrl?: string | null,
+  // An event's own channel (one URL, or its pool), used in place of the clan's bingo channel.
+  overrideUrl?: string | string[] | null,
 ): Promise<EditableWebhookResult> {
-  const destination = overrideUrl
-    ? { urls: [overrideUrl], cursorKey: `${clanId}:override` }
+  const override = typeof overrideUrl === 'string' ? [overrideUrl] : overrideUrl ?? [];
+  const destination = override.length
+    ? { urls: override, cursorKey: `${clanId}:override` }
     : await resolveWebhookDestination(clanId, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!destination) return { status: 'skipped' };
   return upsertWebhookMessage(destination, payload, clanId, existingMessageId);
@@ -616,10 +658,14 @@ export async function sendEventBingoWebhook(
     return sent.some(Boolean);
   }
 
-  // The event's own channel when it has one, else the clan's bingo channel.
+  // How busy this event is, for the "add more webhooks" advice (lib/webhookCapacity).
+  webhookActivity.notePost(eventActivityKey(eventId));
+
+  // The event's own channel (with its pool of webhooks) when it has one, else the clan's bingo channel.
+  const ownUrls = eventChannelUrls(prefs);
   const hostSend = pingFor(hostClanId, hostDecision.ping).then((ping) =>
-    prefs.webhookUrl
-      ? sendToWebhook(prefs.webhookUrl, { ...ping, ...payload }, hostClanId)
+    ownUrls.length
+      ? sendToWebhook({ urls: ownUrls, cursorKey: eventPoolKey(eventId) }, { ...ping, ...payload }, hostClanId)
       : sendBingoWebhook(hostClanId, { ...ping, ...payload }),
   );
 
@@ -655,7 +701,7 @@ export async function sendEventBingoWebhook(
 // Weekly-competition channel; falls back to the master webhook when no dedicated one is set.
 export async function sendWeeklyWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
   if (await feedOff(clanId, 'weekly')) return false;
-  const webhookUrl = await resolveWebhookUrl(clanId, WEEKLY_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  const webhookUrl = await resolveWebhookTarget(clanId, WEEKLY_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload, clanId);
 }
@@ -666,7 +712,7 @@ export async function sendWeeklyWebhook(clanId: number, payload: DiscordWebhookP
  */
 export async function sendCofferWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
   if (await feedOff(clanId, 'coffer')) return false;
-  const webhookUrl = await resolveWebhookUrl(clanId, COFFER_WEBHOOK_KEY);
+  const webhookUrl = await resolveWebhookTarget(clanId, COFFER_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload, clanId);
 }
@@ -674,7 +720,7 @@ export async function sendCofferWebhook(clanId: number, payload: DiscordWebhookP
 // Sign-up approvals channel; falls back to the master webhook when no dedicated one is set.
 export async function sendSignupWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
   if (await feedOff(clanId, 'signups')) return false;
-  const webhookUrl = await resolveWebhookUrl(clanId, SIGNUP_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  const webhookUrl = await resolveWebhookTarget(clanId, SIGNUP_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload, clanId);
 }
@@ -2017,7 +2063,7 @@ export async function deleteClanEventPost(clanId: number, messageId: string, pos
   const destination = await clanEventDestination(clanId, postWebhookUrl);
   for (const webhookUrl of destination?.urls ?? []) {
     try {
-      const res = await fetch(webhookRequestUrl(webhookUrl, { messageId }), { method: 'DELETE', signal: AbortSignal.timeout(8_000) });
+      const res = await webhookFetch(webhookRequestUrl(webhookUrl, { messageId }), { method: 'DELETE', signal: AbortSignal.timeout(8_000) });
       if (res.ok || res.status === 404) {
         if (res.ok) return;
         continue; // not this webhook's message: try the next configured one
@@ -2035,9 +2081,8 @@ export async function deleteClanEventPost(clanId: number, messageId: string, pos
 export async function sendClanEventPost(clanId: number, embed: DiscordEmbed, ping: boolean, postWebhookUrl?: string | null): Promise<boolean> {
   if (await feedOff(clanId, 'clanEvents')) return false;
   const destination = await clanEventDestination(clanId, postWebhookUrl);
-  const url = destination ? pickCycledUrl(destination.urls, destination.cursorKey) : null;
-  if (!url) return false;
-  return sendToWebhook(url, { ...(ping ? await memberPing(clanId) : {}), embeds: [await withClanCrest(clanId, embed)] }, clanId);
+  if (!destination?.urls.length) return false;
+  return sendToWebhook(destination, { ...(ping ? await memberPing(clanId) : {}), embeds: [await withClanCrest(clanId, embed)] }, clanId);
 }
 
 interface WeeklyStartParams {

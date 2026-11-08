@@ -96,6 +96,11 @@ export interface EventDiscordPrefs {
   /** The Discord channel that webhook posts into, when it was picked from the server (for display). */
   channelId?: string;
   /**
+   * More webhooks for that SAME channel (lib/webhookPool): posts round-robin across webhookUrl and
+   * these, so a busy event never waits on one webhook's rate limit. Secrets, never sent to a browser.
+   */
+  extraWebhookUrls?: string[];
+  /**
    * A channel Anvil's bot made for this event ("Create a channel"). Kept so a second press reuses it
    * instead of making another. Nothing deletes it: unlike team channels it holds the event's history.
    */
@@ -155,6 +160,9 @@ export function parseClanPostDefaults(raw: unknown): ClanPostDefaults {
   return { posts, pings };
 }
 
+/** An event channel's pool: its main webhook plus at most this many more (Discord allows 15 per channel). */
+export const MAX_EXTRA_EVENT_WEBHOOKS = 9;
+
 function isSnowflake(v: unknown): v is string {
   return typeof v === 'string' && /^\d{5,25}$/.test(v);
 }
@@ -176,6 +184,12 @@ export function parseEventDiscordPrefs(raw: unknown): EventDiscordPrefs {
   if (isHttpsUrl(o.webhookUrl)) out.webhookUrl = o.webhookUrl.trim();
   if (isSnowflake(o.channelId)) out.channelId = o.channelId;
   if (isSnowflake(o.createdChannelId)) out.createdChannelId = o.createdChannelId;
+  if (Array.isArray(o.extraWebhookUrls)) {
+    const extra = [...new Set(o.extraWebhookUrls.filter(isHttpsUrl).map((u) => u.trim()))]
+      .filter((u) => u !== out.webhookUrl)
+      .slice(0, MAX_EXTRA_EVENT_WEBHOOKS);
+    if (extra.length) out.extraWebhookUrls = extra;
+  }
   if (typeof o.cohosts === 'boolean') out.cohosts = o.cohosts;
   if (o.pausedUntil === 'indefinite' || (typeof o.pausedUntil === 'string' && !Number.isNaN(Date.parse(o.pausedUntil)))) {
     out.pausedUntil = o.pausedUntil;

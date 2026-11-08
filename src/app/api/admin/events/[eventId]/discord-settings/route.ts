@@ -15,6 +15,11 @@ import {
 } from '@/lib/eventDiscordPrefs';
 import { getSetting } from '@/lib/settings';
 import { partnerDiscordReadiness } from '@/lib/partnerDiscordReadiness';
+import { eventChannelUrls } from '@/lib/discord';
+import { noteWebhookSave } from '@/lib/sharedWebhooks';
+import { eventWebhookCapacity, poolView } from '@/lib/webhookCapacity';
+import { botCanManageWebhooks } from '@/lib/discord-permissions';
+import { getBotCredentials } from '@/lib/discord-roles';
 
 /**
  * One event's Discord tab (lib/discordPostPolicy): which posts go out, who they ping, its own
@@ -43,15 +48,30 @@ async function view(eventId: number, clanId: number, eventName: string) {
     loadEventRoleSettings(eventId, clanId),
     getSetting(clanId, 'discord_team_sync_enabled'),
   ]);
-  const { webhookUrl, ...rest } = prefs;
-  const [channels, partners] = await Promise.all([channelChoices(clanId), partnerDiscordReadiness(eventId, clanId)]);
+  const { webhookUrl, extraWebhookUrls, ...rest } = prefs;
+  void extraWebhookUrls;
+  const [channels, partners, capacity] = await Promise.all([
+    channelChoices(clanId),
+    partnerDiscordReadiness(eventId, clanId),
+    eventWebhookCapacity(eventId, clanId, prefs),
+  ]);
   // "Create a channel" only shows when the bot is in and may make one; the name is what it would get.
   // Hidden while the channel an earlier press made still exists: it is in the picker already.
   const madeOne = !!rest.createdChannelId && channels.channels.some((c) => c.id === rest.createdChannelId);
   const canCreate = channels.enabled && !madeOne && (await canCreateEventChannel(clanId));
+  // May the bot add webhooks to the event's own channel? Only asked when the advice is showing.
+  // A pasted webhook has no channel id here; the pool route finds its channel and says if it can't.
+  let botCanAddWebhooks = channels.enabled;
+  if (capacity.advice && channels.enabled && rest.channelId) {
+    const creds = await getBotCredentials(clanId).catch(() => null);
+    botCanAddWebhooks = !!creds && (await botCanManageWebhooks(creds.botToken, creds.guildId, rest.channelId).catch(() => ({ ok: false }))).ok;
+  }
   return {
     prefs: rest,
     hasOwnChannel: !!webhookUrl,
+    // The event channel's webhooks as masked ids, never URLs (lib/webhookPool).
+    pool: poolView(eventChannelUrls(prefs)),
+    capacity: { ...capacity, botCanAddWebhooks },
     channels: {
       ...channels,
       create: canCreate ? { name: freeChannelName(eventChannelSlug(eventName), channels.channels.map((c) => c.name)) } : null,
@@ -89,17 +109,22 @@ export async function PUT(request: Request, { params }: { params: Promise<{ even
   delete next.webhookUrl;
   delete next.channelId;
   delete next.createdChannelId;
+  // The pool is edited only by ./pool, and belongs to one channel: it survives a save that keeps the
+  // channel and is dropped with it when the channel changes.
+  delete next.extraWebhookUrls;
   // The channel Anvil made outlives a switch elsewhere, so switching back reuses it.
   const created = !channel.keep && channel.createdChannelId ? channel.createdChannelId : current.createdChannelId;
   if (created) next.createdChannelId = created;
   if (channel.keep) {
     if (current.webhookUrl) next.webhookUrl = current.webhookUrl;
     if (current.channelId) next.channelId = current.channelId;
+    if (current.extraWebhookUrls?.length) next.extraWebhookUrls = current.extraWebhookUrls;
   } else if (channel.webhookUrl) {
     next.webhookUrl = channel.webhookUrl;
     if (channel.channelId) next.channelId = channel.channelId;
   }
 
   await saveEventDiscordPrefs(s.eventId, next);
+  noteWebhookSave(eventChannelUrls(next));
   return NextResponse.json(await view(s.eventId, s.clanId, s.eventName));
 }
