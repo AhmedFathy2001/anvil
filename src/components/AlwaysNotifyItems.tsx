@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import Textarea from '@/components/Textarea';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { clanFetch } from '@/lib/clanFetch';
 
 const SETTING_KEY = 'always_notify_items';
@@ -73,6 +74,7 @@ export default function AlwaysNotifyItems() {
   }
 
   const hasChanges = value !== original;
+  useUnsavedChanges(hasChanges);
 
   if (loading) {
     return <div className="text-text-muted text-sm">Loading settings...</div>;
@@ -125,7 +127,7 @@ export default function AlwaysNotifyItems() {
           {saving ? 'Saving...' : 'Save'}
         </button>
         {original && !hasChanges && <span className="text-xs text-green-400">Saved</span>}
-        {hasChanges && <span className="text-xs text-yellow-400">Unsaved changes</span>}
+        <UnsavedIndicator dirty={hasChanges} />
       </div>
     </div>
   );

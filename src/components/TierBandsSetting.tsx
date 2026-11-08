@@ -5,6 +5,8 @@ import type { TierBand } from '@/lib/tileFilter';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 import { useDialog } from '@/components/Confirm';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
+import { valuesEqual } from '@/lib/unsavedChanges';
 
 // Admin editor for the difficulty-tier bands (points → tier). Backed by /api/admin/tier-bands.
 // Rows are { label, min }; the key is derived server-side from the label. The lowest band must
@@ -20,14 +22,17 @@ export default function TierBandsSetting() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savedRows, setSavedRows] = useState<Row[]>([]);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const dirty = !loading && !valuesEqual(rows, savedRows);
+  useUnsavedChanges(dirty);
 
   function load(bands: TierBand[]) {
-    setRows(
-      [...bands]
-        .sort((a, b) => a.min - b.min)
-        .map((b) => ({ label: b.label, min: String(b.min) })),
-    );
+    const next: Row[] = [...bands]
+      .sort((a, b) => a.min - b.min)
+      .map((b) => ({ label: b.label, min: String(b.min) }));
+    setRows(next);
+    setSavedRows(next);
   }
 
   useEffect(() => {
@@ -208,6 +213,7 @@ export default function TierBandsSetting() {
         >
           Reset to defaults
         </button>
+        <UnsavedIndicator dirty={dirty} />
       </div>
     </div>
   );

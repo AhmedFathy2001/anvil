@@ -10,6 +10,7 @@ import type { EmissionSettingsView, EmissionState } from '@/lib/emissionSettings
 import { CA_TIERS, QUEST_TIERS, NOTIFY_DEFAULTS, DROP_MINIMUMS, PLATFORM_DROP_DEFAULTS, type NotifyPrefs, type ShotHide } from '@/lib/notifyPrefs';
 import type { LevelPostsChoice, MilestoneRules } from '@/lib/levelRules';
 import { HOOK_KIND_LABELS } from '@/lib/webhookKinds';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import AnnounceKindsEditor from '@/components/AnnounceKindsEditor';
 import type { PersonalKinds } from '@/lib/notifyKinds';
 
@@ -391,6 +392,7 @@ function PersonalLevelRules({
 }) {
   const [rules, setRules] = useState(initial);
   const dirty = JSON.stringify(rules) !== JSON.stringify(initial);
+  useUnsavedChanges(dirty);
   return (
     <details className="group/lvl rounded-lg border border-card-border/60 bg-brown-dark/30">
       <summary className="flex cursor-pointer list-none select-none items-center gap-2 px-3.5 py-2.5 text-sm font-medium">
@@ -406,7 +408,7 @@ function PersonalLevelRules({
             : 'None of your webhooks takes “Levels & milestones” yet — these apply once one does.'}
         </p>
         <LevelRulesEditor value={rules} onChange={setRules} disabled={busy} />
-        <div>
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => onSave(rules)}
@@ -415,6 +417,7 @@ function PersonalLevelRules({
           >
             Save
           </button>
+          <UnsavedIndicator dirty={dirty} />
         </div>
       </div>
     </details>

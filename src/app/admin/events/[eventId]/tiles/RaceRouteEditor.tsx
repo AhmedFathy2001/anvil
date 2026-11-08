@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Select from '@/components/Select';
 import Checkbox from '@/components/Checkbox';
 import Radio from '@/components/Radio';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { useDialog } from '@/components/Confirm';
 import RaceRouteMap from '@/components/board/RaceRouteMap';
 import { clanFetch } from '@/lib/clanFetch';
@@ -66,6 +67,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
   const liveEdit = eventStarted && isAdmin;
   const [decision, setDecision] = useState<null | { preview: Preview; body: Record<string, unknown> }>(null);
   const branching = isBranchingRoute(board);
+  useUnsavedChanges(dirty);
 
   // Tiles added elsewhere (Cards, Quick build) join the editor as unplaced.
   const known = new Set(entries.map((e) => e.id));
@@ -377,6 +379,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
             <button type="button" className={goldBtn} onClick={save} disabled={saving || problems.length > 0 || (!dirty && !missing.length && !gone.length)}>
               {saving ? 'Saving…' : 'Save route'}
             </button>
+            <UnsavedIndicator dirty={dirty} />
             {dirty && (
               <button type="button" className={btn} onClick={() => { setEntries(stored); setDirty(false); setWarning(null); setSelected(null); }}>Discard changes</button>
             )}

@@ -6,6 +6,8 @@ import Select from '@/components/Select';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 import Input from '@/components/Input';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
+import { valuesEqual } from '@/lib/unsavedChanges';
 import { useDialog } from '@/components/Confirm';
 import { atLeast } from '@/lib/clanRoles';
 import CofferPoolCard from './CofferPoolCard';
@@ -88,6 +90,8 @@ function suggestAmounts(paidPlaces: number, basis: number): string[] {
   return splitPct(paidPlaces).map((pct) => String(Math.round((basis * pct) / 100)));
 }
 
+type SplitValues = { mode: 'share' | 'fixed'; paidPlaces: number; placePercents: string[]; placeAmounts: string[]; poolBasis: string };
+
 export default function PayoutsClient({ eventId, viewerRole }: Props) {
   const { confirm } = useDialog();
   const [data, setData] = useState<Payload | null>(null);
@@ -110,6 +114,12 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
   // Seed the editable inputs from the server exactly once (saved structure if any, else a pool split),
   // so live reloads after saving/generating don't clobber the admin's in-progress edits.
   const seededRef = useRef(false);
+  // Unsaved-changes guard for the prize split: dirty against what was seeded from the server or last saved.
+  const [splitSaved, setSplitSaved] = useState<SplitValues | null>(null);
+
+  const splitValues: SplitValues = { mode, paidPlaces, placePercents, placeAmounts, poolBasis };
+  const splitDirty = splitSaved !== null && !valuesEqual(splitValues, splitSaved);
+  useUnsavedChanges(splitDirty);
 
   const [newRsn, setNewRsn] = useState('');
   const [newAmount, setNewAmount] = useState('');
@@ -136,27 +146,44 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
       if (!seededRef.current) {
         seededRef.current = true;
         const maxPlaces = Math.max(1, payload.standings.length || 1);
-        setPoolBasis(String(payload.pool.total));
+        const poolTotal = String(payload.pool.total);
+        let seed: SplitValues;
         if (payload.placementSplitPct.length > 0) {
           // Already share-based: open in that mode with its own numbers.
           const places = Math.min(payload.placementSplitPct.length, maxPlaces);
-          setMode('share');
-          setPaidPlaces(places);
-          setPlacePercents(payload.placementSplitPct.slice(0, places).map(String));
-          setPlaceAmounts(payload.placementPrizes.slice(0, places).map(String));
+          seed = {
+            mode: 'share',
+            paidPlaces: places,
+            placePercents: payload.placementSplitPct.slice(0, places).map(String),
+            placeAmounts: payload.placementPrizes.slice(0, places).map(String),
+            poolBasis: poolTotal,
+          };
         } else if (payload.placementPrizes.length > 0) {
           // Fixed gp already saved — leave it alone; switching mode is the host's call.
           const places = Math.min(payload.placementPrizes.length, maxPlaces);
-          setMode('fixed');
-          setPaidPlaces(places);
-          setPlaceAmounts(payload.placementPrizes.slice(0, places).map(String));
-          setPlacePercents(defaultPercents(places));
+          seed = {
+            mode: 'fixed',
+            paidPlaces: places,
+            placePercents: defaultPercents(places),
+            placeAmounts: payload.placementPrizes.slice(0, places).map(String),
+            poolBasis: poolTotal,
+          };
         } else {
           const places = Math.min(3, maxPlaces);
-          setPaidPlaces(places);
-          setPlacePercents(defaultPercents(places));
-          setPlaceAmounts(suggestAmounts(places, payload.pool.total));
+          seed = {
+            mode: 'share',
+            paidPlaces: places,
+            placePercents: defaultPercents(places),
+            placeAmounts: suggestAmounts(places, payload.pool.total),
+            poolBasis: poolTotal,
+          };
         }
+        setPoolBasis(seed.poolBasis);
+        setMode(seed.mode);
+        setPaidPlaces(seed.paidPlaces);
+        setPlacePercents(seed.placePercents);
+        setPlaceAmounts(seed.placeAmounts);
+        setSplitSaved(seed);
       }
     } catch {
       setErr('Network error.');
@@ -196,6 +223,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
         setErr(d.error || 'Could not save the prize split.');
         return;
       }
+      setSplitSaved(splitValues);
       await load();
       setNotice('Prize split saved — it now shows on the event page and payouts auto-generate when the event ends.');
     } finally {
@@ -483,6 +511,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
               >
                 {savingSplit ? 'Saving…' : 'Save prize split'}
               </button>
+              <UnsavedIndicator dirty={splitDirty} />
               <button
                 onClick={generate}
                 disabled={generating || savingSplit}
@@ -650,6 +679,7 @@ function AmountCell({
   const [saving, setSaving] = useState(false);
   const dirty = value.replace(/[, ]/g, '') !== String(payout.amount);
   const locked = payout.status === 'paid' || !canManage;
+  useUnsavedChanges(!locked && dirty);
 
   async function save() {
     const amount = Number(value.replace(/[, ]/g, ''));
@@ -689,6 +719,7 @@ function AmountCell({
           {saving ? '…' : 'Save'}
         </button>
       )}
+      <UnsavedIndicator dirty={dirty} />
     </div>
   );
 }

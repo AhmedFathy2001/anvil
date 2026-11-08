@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import RoleSelect from '@/components/RoleSelect';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 
@@ -87,6 +88,7 @@ export default function DiscordTeamChannelSettings() {
     cohostRoleSync !== original.cohostRoleSync ||
     bingoRoleId.trim() !== original.bingoRoleId ||
     captainRoleId.trim() !== original.captainRoleId;
+  useUnsavedChanges(hasChanges);
 
   if (loading) {
     return <div className="text-text-muted text-sm">Loading settings…</div>;
@@ -167,7 +169,7 @@ export default function DiscordTeamChannelSettings() {
           {saving ? 'Saving…' : 'Save'}
         </button>
         {!hasChanges && <span className="text-xs text-green-400">Saved</span>}
-        {hasChanges && <span className="text-xs text-yellow-400">Unsaved changes</span>}
+        <UnsavedIndicator dirty={hasChanges} />
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ import { DEFAULT_TIER_BANDS } from '@/lib/tileFilter';
 import type { Tile } from '@/lib/types';
 import { clanFetch } from '@/lib/clanFetch';
 import Input from '@/components/Input';
+import { useDirtyForm, UnsavedIndicator } from '@/components/UnsavedChanges';
 
 /**
  * Mid-event mission control on the event Overview tab. Only renders when the board has mission tiles.
@@ -50,6 +51,9 @@ export default function MissionAdminPanel({
   const [saving, setSaving] = useState(false);
   const [announcing, setAnnouncing] = useState(false);
   const [msg, setMsg] = useState('');
+  // Unsaved-changes guard: dirty against the settings as loaded or last saved.
+  const configValues = { enabled, mode, order, intervalMinutes, daily, ramp };
+  const { dirty: configDirty, markSaved: markConfigSaved } = useDirtyForm(configValues);
 
   // Renders BEFORE any mission tile exists, because this is where missions get turned on and the
   // tile editor only offers its Mission flag once they are — gating this panel on mission tiles
@@ -83,6 +87,7 @@ export default function MissionAdminPanel({
         body: JSON.stringify({ rules: { mission } }),
       });
       if (res.ok) {
+        markConfigSaved(configValues);
         setMsg('Saved.');
         router.refresh();
       } else {
@@ -329,6 +334,7 @@ export default function MissionAdminPanel({
           >
             {saving ? 'Saving…' : 'Save mission settings'}
           </button>
+          <UnsavedIndicator dirty={configDirty} />
           <button
             type="button"
             onClick={announceNext}

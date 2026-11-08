@@ -6,10 +6,12 @@ import { useState } from 'react';
 import { BoostedClanName } from '@/components/ClanBoost';
 import { useDialog } from '@/components/Confirm';
 import Input from '@/components/Input';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { StopsEditor, SurfaceOverride, SurfacePreview } from '@/components/NameSurfaceLooks';
 import Textarea from '@/components/Textarea';
 import { clanBoostInk, type ClanBoostNameStyle } from '@/lib/clanBoostRules';
 import { clanFetch } from '@/lib/clanFetch';
+import { valuesEqual } from '@/lib/unsavedChanges';
 import { NAME_SURFACES, SURFACE_BACKGROUND, weakestContrast, type Hex, type NameSurface } from '@/lib/supporterStyle';
 
 const ANVIL_STOPS: Hex[] = ['#ff9a5a', '#e05ad0', '#7a8cff'];
@@ -66,6 +68,9 @@ export default function BoostsClient({
   const [lineMsg, setLineMsg] = useState<string | null>(null);
   const [postMsg, setPostMsg] = useState<string | null>(null);
   const [styleMsg, setStyleMsg] = useState<string | null>(null);
+  const [savedLine, setSavedLine] = useState(recruitingLine);
+  const lineDirty = line !== savedLine;
+  useUnsavedChanges(lineDirty);
 
   // What the editor would save; previews draw it at the clan's level (Level 1 when not boosted yet).
   const draft: ClanBoostNameStyle = {
@@ -79,6 +84,10 @@ export default function BoostsClient({
     const own = draftInk?.[surface];
     return own ? weakestContrast(own, SURFACE_BACKGROUND[surface]) : null;
   };
+  // The colours section's last saved palette (starts as what the page opened with).
+  const [savedStyle, setSavedStyle] = useState<ClanBoostNameStyle>(draft);
+  const styleDirty = !valuesEqual(draft, savedStyle);
+  useUnsavedChanges(styleDirty);
 
   async function saveStyle(value: ClanBoostNameStyle) {
     setBusy(true);
@@ -86,6 +95,7 @@ export default function BoostsClient({
     const r = await send('PUT', { nameStyle: value });
     setBusy(false);
     if (!r.ok) return setStyleMsg(r.data.error ?? 'Could not save.');
+    setSavedStyle(value);
     setStyleMsg('Saved. The panel picks it up on its next refresh.');
     router.refresh();
   }
@@ -96,6 +106,7 @@ export default function BoostsClient({
     const r = await send('PUT', { nameStyle: { stops: [] } });
     setBusy(false);
     if (!r.ok) return setStyleMsg(r.data.error ?? 'Could not reset.');
+    setSavedStyle({ stops: ANVIL_STOPS });
     setStops(ANVIL_STOPS);
     setOver({ dark: null, light: null });
     setStyleMsg('Reset to the Anvil palette.');
@@ -109,6 +120,7 @@ export default function BoostsClient({
     setBusy(false);
     if (!r.ok) return setLineMsg(r.data.error ?? 'Could not save.');
     setLine(value);
+    setSavedLine(value);
     setLineMsg(value.trim() ? 'Saved.' : 'Cleared.');
     router.refresh();
   }
@@ -167,6 +179,7 @@ export default function BoostsClient({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button type="button" disabled={busy || boostLevel < 1} onClick={() => void saveStyle(draft)} className={primary}>Save colours</button>
           <button type="button" disabled={busy || boostLevel < 1} onClick={() => void resetStyle()} className={quiet}>Reset to Anvil</button>
+          <UnsavedIndicator dirty={styleDirty} />
           {styleMsg && <span className="text-xs text-text-muted">{styleMsg}</span>}
         </div>
       </section>
@@ -198,6 +211,7 @@ export default function BoostsClient({
               Clear
             </button>
           )}
+          <UnsavedIndicator dirty={lineDirty} />
         </div>
         <p className="mt-1.5 text-xs text-text-dim">
           {line.length}/{lineMax}

@@ -12,6 +12,8 @@ import { CREATOR_HIDDEN_FEEDS, CREATOR_HIDDEN_FEED_TABS } from '@/lib/creatorSpa
 import { useRevealTarget } from '@/components/HashReveal';
 import { DEFAULT_LEVEL_RULES, DEFAULT_XP_RULES, levelHalf, type LevelRules, type MilestoneRules } from '@/lib/levelRules';
 import { MIN_MODE_DROP_FLOOR, MIN_MODE_DROP_VALUE } from '@/lib/modeFilters';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
+import { valuesEqual } from '@/lib/unsavedChanges';
 
 interface ModeRow {
   key: string;
@@ -55,6 +57,11 @@ function ModeFilters({ mode, put, disabled }: { mode: ModeRow; put: Put; disable
   const [levels, setLevels] = useState<MilestoneRules>({ ...DEFAULT_LEVEL_RULES, ...DEFAULT_XP_RULES, ...(mode.levels ?? {}) });
   const tag = `${mode.id}:filters`;
   const dropsChanged = clean(floor) !== clean(shown(mode.dropFloor)) || clean(value) !== clean(shown(mode.dropMinValue));
+  // Two independent Save buttons, so two guards. Drops compare against the server view (refreshed by put).
+  const [savedLevels, setSavedLevels] = useState<MilestoneRules>(levels);
+  const levelsDirty = mode.levels != null && !valuesEqual(levels, savedLevels);
+  useUnsavedChanges(dropsChanged);
+  useUnsavedChanges(levelsDirty);
 
   return (
     <div className="space-y-4">
@@ -109,6 +116,7 @@ function ModeFilters({ mode, put, disabled }: { mode: ModeRow; put: Put; disable
         >
           Save drop thresholds
         </button>
+        <UnsavedIndicator dirty={dropsChanged} />
         <p className="text-[11.5px] text-text-muted">
           Blank = same as the main game. A drop posts if it clears either bar; always-post items still post.
         </p>
@@ -125,15 +133,20 @@ function ModeFilters({ mode, put, disabled }: { mode: ModeRow; put: Put; disable
         {mode.levels != null && (
           <>
             <LevelRulesEditor value={levels} onChange={setLevels} disabled={disabled} levelsOnly />
-            <div>
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 disabled={disabled}
-                onClick={() => void put(mode.id, { mode: mode.key, levels: levelHalf(levels) })}
+                onClick={() =>
+                  void put(mode.id, { mode: mode.key, levels: levelHalf(levels) }).then((ok) => {
+                    if (ok) setSavedLevels(levels);
+                  })
+                }
                 className="rounded-lg bg-gold px-3.5 py-1.5 text-[13px] font-semibold text-brown-dark hover:bg-gold-light disabled:opacity-50"
               >
                 Save level milestones
               </button>
+              <UnsavedIndicator dirty={levelsDirty} />
             </div>
           </>
         )}
@@ -176,6 +189,9 @@ export default function DiscordFeedsPanel({
   const [pasting, setPasting] = useState<string | null>(null);
   const [pasted, setPasted] = useState('');
   const [open, setOpen] = useState<string | null>(null);
+  // A pasted webhook URL is an unsaved draft until its Save lands; Cancel closes the row and clears the flag.
+  const pasteDirty = !!pasting && pasted.trim() !== '';
+  useUnsavedChanges(pasteDirty);
 
   // Deep links (the settings search, other pages): #discord-feeds-<tab> opens that tab,
   // #discord-feed-<id> the tab holding that row, #discord-feed-<id>-filters its filters too, and
@@ -335,6 +351,7 @@ export default function DiscordFeedsPanel({
         >
           Save
         </button>
+        <UnsavedIndicator dirty={pasteDirty} />
         <button type="button" onClick={() => setPasting(null)} className="px-3 text-sm text-text-muted hover:text-foreground">
           Cancel
         </button>
@@ -552,6 +569,7 @@ export default function DiscordFeedsPanel({
           >
             Save
           </button>
+          <UnsavedIndicator dirty={pasteDirty} />
         </div>
       )}
     </div>

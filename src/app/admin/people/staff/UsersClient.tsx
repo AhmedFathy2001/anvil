@@ -10,6 +10,8 @@ import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
+import { valuesEqual } from '@/lib/unsavedChanges';
 import { ROLE_BLURB } from '@/lib/clanRoles';
 
 interface Character {
@@ -77,6 +79,10 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
   const [boardsLoading, setBoardsLoading] = useState(false);
   const [boardsSaving, setBoardsSaving] = useState(false);
   const [boardsError, setBoardsError] = useState('');
+  // The boards as last loaded or saved; the panel is dirty once the ticked set differs.
+  const [boardsBase, setBoardsBase] = useState<number[]>([]);
+  const boardsDirty = boardsUser != null && !boardsLoading && !boardsEditsAll && !valuesEqual([...boardsSel].sort((a, b) => a - b), boardsBase);
+  useUnsavedChanges(boardsDirty);
 
   async function openBoards(user: User) {
     setBoardsUser(user);
@@ -84,12 +90,14 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     setBoardsError('');
     setBoardsEvents([]);
     setBoardsSel(new Set());
+    setBoardsBase([]);
     try {
       const res = await clanFetch(`/api/admin/users/${user.id}/editor-events`);
       if (res.ok) {
         const d = await res.json();
         setBoardsEvents(d.events ?? []);
         setBoardsSel(new Set<number>(d.assignedEventIds ?? []));
+        setBoardsBase([...(d.assignedEventIds ?? [])].sort((a: number, b: number) => a - b));
         setBoardsEditsAll(!!d.editsAllBoards);
       } else {
         setBoardsError('Could not load boards.');
@@ -121,6 +129,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
         body: JSON.stringify({ eventIds: Array.from(boardsSel) }),
       });
       if (res.ok) {
+        setBoardsBase([...boardsSel].sort((a, b) => a - b));
         setBoardsUser(null);
         await fetchUsers();
       } else {
@@ -551,6 +560,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
             >
               {boardsSaving ? 'Saving…' : 'Save boards'}
             </button>
+            <UnsavedIndicator dirty={boardsDirty} />
           </div>
         </div>
       )}

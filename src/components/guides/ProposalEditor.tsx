@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import ClanLink from '@/components/ClanLink';
 import Textarea from '@/components/Textarea';
 import { useDialog } from '@/components/Confirm';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
+import { valuesEqual } from '@/lib/unsavedChanges';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { GuideFieldsEditor, GuidePreviewPane, type GuideFieldValues } from './GuideFields';
 import GuideDiffView from './GuideDiffView';
@@ -44,6 +46,10 @@ export default function ProposalEditor({
   const [error, setError] = useState<string | null>(null);
   const [showDiff, setShowDiff] = useState(false);
   const editable = !proposal?.id || proposal.status === 'pending';
+  // The text as loaded or last sent; the editor is dirty while the form differs from it.
+  const [saved, setSaved] = useState({ form: initial, note: proposal?.note ?? '' });
+  const dirty = editable && !valuesEqual({ form, note }, saved);
+  useUnsavedChanges(dirty);
 
   async function submit() {
     setBusy(true);
@@ -62,6 +68,7 @@ export default function ProposalEditor({
           });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) return setError(j.error ?? `Failed (${res.status})`);
+      setSaved({ form, note });
       notify(proposal?.id ? 'Proposal updated' : 'Sent for review — thank you!');
       router.push(clanUrl('/guides/proposals'));
       router.refresh();
@@ -111,6 +118,7 @@ export default function ProposalEditor({
             >
               {busy ? 'Sending…' : proposal?.id ? 'Save changes' : 'Send for review'}
             </button>
+            <UnsavedIndicator dirty={dirty} />
           </div>
         )}
       </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Input from '@/components/Input';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { invalidateSettings } from '@/lib/settingsClient';
 import { clanFetch } from '@/lib/clanFetch';
 import { useClanHref } from '@/lib/useClanPath';
@@ -151,6 +152,11 @@ export default function DiscordBotSettings() {
       setClearing(false);
     }
   }
+
+  // Unsaved edits only: the server ID or a typed token differs from what is stored. (hasChanges below
+  // also counts an unverified ID, which is a Save prompt, not an edit, so it must not block leaving.)
+  const dirty = !!status && (guildId.trim() !== status.guildId || tokenInput.trim() !== '');
+  useUnsavedChanges(dirty);
 
   if (loading || !status) {
     return <div className="text-text-muted text-sm">Loading bot status…</div>;
@@ -400,7 +406,7 @@ export default function DiscordBotSettings() {
           </button>
         )}
         {!hasChanges && <span className="text-xs text-green-400">Saved</span>}
-        {hasChanges && <span className="text-xs text-yellow-400">Unsaved changes</span>}
+        <UnsavedIndicator dirty={dirty} />
       </div>
       )}
     </div>

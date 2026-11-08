@@ -6,6 +6,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import { formatGp, parseGpInput } from '@/lib/adminEventsFormat';
 import Checkbox from '@/components/Checkbox';
 import GuideLink from '@/components/GuideLink';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 
 interface PoolState {
   funded: number;
@@ -60,6 +61,13 @@ export default function CofferPoolCard({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Unsaved-changes guard: the amount and hold box against what the server holds (none loaded = clean).
+  const poolDirty =
+    state !== null &&
+    state.status !== 'paid' &&
+    ((parseGpInput(input) ?? 0) !== state.funded || hold !== (state.funded > 0 ? state.held : true));
+  useUnsavedChanges(poolDirty);
 
   if (!state) return null;
 
@@ -144,6 +152,7 @@ export default function CofferPoolCard({
               Take it back
             </button>
           )}
+          <UnsavedIndicator dirty={poolDirty} />
           {msg && (
             <span className={`text-xs ${msg.type === 'error' ? 'text-red-400' : 'text-accent-green-light'}`}>
               {msg.text}

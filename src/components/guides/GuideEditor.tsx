@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { clanFetch } from '@/lib/clanFetch';
 import { GUIDE_LIMITS, readingMinutes, type CategoryView } from '@/lib/guideCategories';
 import { GuideFieldsEditor, GuidePreviewPane } from './GuideFields';
@@ -107,6 +108,7 @@ export default function GuideEditor({
     const base = pick(data.guide);
     return (Object.keys(base) as (keyof Form)[]).some((k) => (base[k] ?? '') !== (form[k] ?? ''));
   }, [data, form]);
+  useUnsavedChanges(dirty);
 
   // Leaving with unsaved edits loses them; say so.
   useEffect(() => {
@@ -256,6 +258,7 @@ export default function GuideEditor({
               {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
             </button>
           )}
+          <UnsavedIndicator dirty={dirty} />
         </div>
       </div>
 

@@ -6,6 +6,8 @@ import { formatGp } from '@/lib/adminEventsFormat';
 import WeeklyPrizeLadder from '@/components/WeeklyPrizeLadder';
 import GuideLink from '@/components/GuideLink';
 import { totalPrizeGp, type WeeklyPrizes } from '@/lib/weeklyPrizes';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
+import { valuesEqual } from '@/lib/unsavedChanges';
 
 /**
  * What a Skill or Boss of the Week pays, place by place, out of the clan coffer.
@@ -43,6 +45,10 @@ export default function WeeklyPrizeEditor({
   const [available, setAvailable] = useState(cofferAvailable);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  // What the server last kept (starts as what the page opened with): the ladder and hold are dirty against it.
+  const [saved, setSaved] = useState<{ prizes: WeeklyPrizes; hold: boolean }>({ prizes: initial, hold });
+  const dirty = !valuesEqual({ prizes, hold }, saved);
+  useUnsavedChanges(dirty);
 
   const locked = !canEdit || Boolean(settledAt);
 
@@ -60,6 +66,7 @@ export default function WeeklyPrizeEditor({
       // The server cleans the ladder — trailing empty places dropped, amounts clamped — so take its
       // answer rather than leaving the screen showing something that will not be paid.
       setPrizes(data.prizes);
+      setSaved({ prizes: data.prizes, hold });
       if (data.balance) setAvailable(data.balance.available + (data.held ? data.total : 0));
       setMessage({
         type: 'success',
@@ -123,6 +130,7 @@ export default function WeeklyPrizeEditor({
           >
             {saving ? 'Saving…' : 'Save prizes'}
           </button>
+          <UnsavedIndicator dirty={dirty} />
           {message && (
             <span className={`text-xs ${message.type === 'error' ? 'text-red-400' : 'text-accent-green-light'}`}>
               {message.text}

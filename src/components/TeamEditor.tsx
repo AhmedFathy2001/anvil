@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import ClanMemberPicker, { type PickableMember } from './ClanMemberPicker';
 import Input from '@/components/Input';
+import { useDirtyForm, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { clanFetch } from '@/lib/clanFetch';
 
 const PRESET_COLORS = [
@@ -45,6 +46,8 @@ export default function TeamEditor({ eventId, team, eventTeams, onClose, onSaved
   const [saving, setSaving] = useState(false);
 
   const customColor = !PRESET_COLORS.includes(color);
+  // Unsaved-changes guard: dirty against the values the editor opened with (it closes on save).
+  const { dirty } = useDirtyForm({ name, color, captainUserId: captainMember?.user?.id ?? null });
 
   const captainsElsewhere = useMemo(() => {
     const m = new Map<number, string>();
@@ -222,6 +225,7 @@ export default function TeamEditor({ eventId, team, eventTeams, onClose, onSaved
             >
               {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Team'}
             </button>
+            <UnsavedIndicator dirty={dirty} />
           </div>
         </form>
       </div>

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import Input from '@/components/Input';
+import { useDirtyForm, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { clanFetch } from '@/lib/clanFetch';
 import { parseEventRules } from '@/lib/eventRules';
 
@@ -29,6 +30,9 @@ export default function MonthEndPanel({
   const [roleId, setRoleId] = useState(rules.monthlyAward?.roleId ?? '');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
+  // Unsaved-changes guard: dirty against the settings as loaded or last saved.
+  const awardValues = { enabled, announce, roleId };
+  const { dirty: awardDirty, markSaved: markAwardSaved } = useDirtyForm(awardValues);
 
   if (!allowed) return null;
 
@@ -44,6 +48,7 @@ export default function MonthEndPanel({
         body: JSON.stringify({ rules: { monthlyAward } }),
       });
       if (res.ok) {
+        markAwardSaved(awardValues);
         setMsg('Saved.');
         router.refresh();
       } else {
@@ -123,6 +128,7 @@ export default function MonthEndPanel({
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
+          <UnsavedIndicator dirty={awardDirty} />
           {msg && <span className="text-xs text-text-muted">{msg}</span>}
         </div>
       </div>

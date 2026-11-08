@@ -8,6 +8,8 @@ import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
 import ColorSwatch from '@/components/ColorSwatch';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
+import { valuesEqual } from '@/lib/unsavedChanges';
 
 interface Channel {
   id: string;
@@ -56,6 +58,10 @@ export default function AnnounceClient() {
   // Editing a past post: its id, while the form holds its text.
   const [editingId, setEditingId] = useState<number | null>(null);
   const [history, setHistory] = useState<Broadcast[]>([]);
+  // The edited post as loaded; the edit form is dirty once it differs (only while editing a past post).
+  const [editBase, setEditBase] = useState<Record<string, unknown> | null>(null);
+  const editDirty = editingId != null && editBase != null && !valuesEqual({ title, body, asEmbed, colorHex, mentionRoleId }, editBase);
+  useUnsavedChanges(editDirty);
 
   async function loadHistory() {
     const res = await clanFetch('/api/admin/discord/broadcast?history=1');
@@ -82,6 +88,7 @@ export default function AnnounceClient() {
     setAsEmbed(b.asEmbed);
     if (b.colorHex) setColorHex(b.colorHex);
     setMentionRoleId(b.mentionRoleId ?? '');
+    setEditBase({ title: b.title ?? '', body: b.body, asEmbed: b.asEmbed, colorHex: b.colorHex || colorHex, mentionRoleId: b.mentionRoleId ?? '' });
     setMessage(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -328,6 +335,7 @@ export default function AnnounceClient() {
         >
           {editingId != null ? (busy ? 'Saving…' : 'Save changes') : busy ? 'Sending…' : 'Send message'}
         </button>
+        {editingId != null && <UnsavedIndicator dirty={editDirty} />}
 
         {message && (
           <span

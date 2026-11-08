@@ -9,6 +9,8 @@ import Radio from '@/components/Radio';
 import Select from '@/components/Select';
 import TimeSelect from '@/components/TimeSelect';
 import { clanFetch } from '@/lib/clanFetch';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
+import { valuesEqual } from '@/lib/unsavedChanges';
 import {
   BIO_MAX,
   minuteToHhMm,
@@ -190,6 +192,9 @@ function BioEditor({ initial }: { initial: string }) {
   const [bio, setBio] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
+  const [saved, setSaved] = useState(initial);
+  const dirty = bio !== saved;
+  useUnsavedChanges(dirty);
   return (
     <div id="page-bio" className="scroll-mt-24">
       <Heading lede="A few lines about you. Plain text; https links become clickable.">Bio</Heading>
@@ -201,13 +206,16 @@ function BioEditor({ initial }: { initial: string }) {
           className={btnGold}
           onClick={async () => {
             setBusy(true);
-            const r = await send(API, 'PATCH', { bio });
+            const sent = bio;
+            const r = await send(API, 'PATCH', { bio: sent });
+            if (r.ok) setSaved(sent);
             setMsg(r.ok ? { type: 'ok', text: 'Saved.' } : { type: 'err', text: errText(r.data) });
             setBusy(false);
           }}
         >
           {busy ? 'Saving…' : 'Save bio'}
         </button>
+        <UnsavedIndicator dirty={dirty} />
         <span className="text-[12px] text-text-dim">
           {bio.length}/{BIO_MAX}
         </span>
@@ -408,6 +416,10 @@ function PanelForm({ panel, onDone }: { panel: Panel | null; onDone: (saved: boo
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // What the form opened with (empty for a new panel): closing it with edits in it is what the guard is for.
+  const [baseline] = useState(() => ({ title: panel?.title ?? '', body: panel?.body ?? '', linkUrl: panel?.linkUrl ?? '', imageUrl: panel?.imageUrl ?? null }));
+  const dirty = !valuesEqual({ title, body, linkUrl, imageUrl }, baseline);
+  useUnsavedChanges(dirty);
 
   async function upload(file: File) {
     setUploading(true);
@@ -472,6 +484,7 @@ function PanelForm({ panel, onDone }: { panel: Panel | null; onDone: (saved: boo
         <button type="button" className="text-sm text-text-muted hover:text-foreground" onClick={() => void onDone(false)}>
           Cancel
         </button>
+        <UnsavedIndicator dirty={dirty} />
       </div>
     </div>
   );
@@ -490,6 +503,9 @@ function ScheduleEditor({ tz: initialTz, slots: initialSlots }: { tz: string | n
   const [slots, setSlots] = useState<Slot[]>(initialSlots);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
+  const [saved, setSaved] = useState({ tz, slots });
+  const dirty = !valuesEqual({ tz, slots }, saved);
+  useUnsavedChanges(dirty);
   const zones = useMemo(() => {
     try {
       const list = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.('timeZone') ?? [];
@@ -554,17 +570,25 @@ function ScheduleEditor({ tz: initialTz, slots: initialSlots }: { tz: string | n
           disabled={busy}
           onClick={async () => {
             setBusy(true);
+            const sent = { tz, slots };
             const r = await send(API, 'PATCH', { schedule: { tz, slots: slots.map((s) => ({ ...s, label: s.label?.trim() || null })) } });
+            if (r.ok) setSaved(sent);
             setMsg(r.ok ? { type: 'ok', text: 'Saved.' } : { type: 'err', text: errText(r.data) });
             setBusy(false);
           }}
         >
           {busy ? 'Saving…' : 'Save schedule'}
         </button>
+        <UnsavedIndicator dirty={dirty} />
         <Status msg={msg} />
       </div>
     </div>
   );
+}
+
+/** What the featured choice means on save: the mode plus only the fields that mode sends. */
+function featuredDraft(mode: 'none' | 'highlight' | 'clip', highlightId: number | null, clipUrl: string, title: string) {
+  return mode === 'highlight' ? { mode, highlightId } : mode === 'clip' ? { mode, clipUrl, title } : { mode };
 }
 
 function FeaturedEditor({ featured, highlights }: { featured: PageData['featured']; highlights: PageData['highlights'] }) {
@@ -575,6 +599,9 @@ function FeaturedEditor({ featured, highlights }: { featured: PageData['featured
   const [title, setTitle] = useState(featured && 'clipUrl' in featured ? featured.title : '');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
+  const [saved, setSaved] = useState(() => featuredDraft(mode, highlightId, clipUrl, title));
+  const dirty = !valuesEqual(featuredDraft(mode, highlightId, clipUrl, title), saved);
+  useUnsavedChanges(dirty);
 
   const radio = (value: typeof mode, label: string, disabled = false) => (
     <label className={`flex items-center gap-2 text-sm ${disabled ? 'opacity-50' : ''}`}>
@@ -613,14 +640,17 @@ function FeaturedEditor({ featured, highlights }: { featured: PageData['featured
           disabled={busy}
           onClick={async () => {
             setBusy(true);
+            const sent = featuredDraft(mode, highlightId, clipUrl, title);
             const featuredBody = mode === 'highlight' ? { highlightId } : mode === 'clip' ? { clipUrl, title } : null;
             const r = await send(API, 'PATCH', { featured: featuredBody });
+            if (r.ok) setSaved(sent);
             setMsg(r.ok ? { type: 'ok', text: 'Saved.' } : { type: 'err', text: errText(r.data) });
             setBusy(false);
           }}
         >
           {busy ? 'Saving…' : 'Save featured'}
         </button>
+        <UnsavedIndicator dirty={dirty} />
         <Status msg={msg} />
       </div>
     </div>

@@ -10,6 +10,7 @@ import WorldMapPicker from '@/components/WorldMapPicker';
 import { DEFAULT_START_RADIUS, START_LOCATIONS } from '@/lib/startLocations';
 import { clanFetch } from '@/lib/clanFetch';
 import { useDialog } from '@/components/Confirm';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import {
   parseEventRules,
   DEFAULT_START_PROOF,
@@ -127,6 +128,7 @@ export default function StartProofAdminPanel({
   const draftKey = JSON.stringify(draft);
   const [savedKey, setSavedKey] = useState(draftKey);
   const dirty = draftKey !== savedKey;
+  useUnsavedChanges(dirty);
   // A pinned spot with no name used to be dropped on save, and the event then drew a random
   // built-in town nobody had chosen. Refuse the save and point at the row instead.
   const unnamed = enabled
@@ -487,7 +489,7 @@ export default function StartProofAdminPanel({
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
-          {dirty && !saving && <span className="text-xs text-yellow-300">Unsaved changes</span>}
+          {!saving && <UnsavedIndicator dirty={dirty} />}
           {msg && <span className="text-xs text-text-muted">{msg}</span>}
         </div>
 

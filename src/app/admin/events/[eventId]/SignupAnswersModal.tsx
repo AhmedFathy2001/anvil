@@ -10,6 +10,7 @@ import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import { useDirtyForm, UnsavedIndicator } from '@/components/UnsavedChanges';
 
 // Admin modal for writing sign-up answers on a member's behalf. Two modes:
 //   add  → pick a clan member (must have a linked Discord user — sign-ups hang off the
@@ -145,6 +146,9 @@ export default function SignupAnswersModal({
   const [skillFilter, setSkillFilter] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Unsaved-changes guard: dirty against the values the form opened with.
+  const answerValues = { memberId, teamId, activeDailyMin, activeDailyMax, activeWeeklyMin, activeWeeklyMax, afkDailyMin, afkDailyMax, afkWeeklyMin, afkWeeklyMax, timezone, bosses, skills, notes };
+  const { dirty: answersDirty, markSaved: markAnswersSaved } = useDirtyForm(answerValues);
 
   const isEdit = editTarget !== null;
   // The two things the server would 409 on, flagged up-front so the admin reaches for "Edit answers"
@@ -220,6 +224,7 @@ export default function SignupAnswersModal({
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to save');
       }
+      markAnswersSaved(answerValues);
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save');
@@ -467,6 +472,7 @@ export default function SignupAnswersModal({
             >
               {submitting ? 'Saving…' : isEdit ? 'Save answers' : 'Add sign-up'}
             </button>
+            <UnsavedIndicator dirty={answersDirty} />
             <button
               type="button"
               onClick={onClose}

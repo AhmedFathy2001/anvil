@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { StopsEditor, SurfaceOverride, SurfacePreview } from '@/components/NameSurfaceLooks';
 import SupporterName from '@/components/SupporterName';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import {
   DEFAULT_PRESET,
   MIN_STOPS,
@@ -69,14 +70,6 @@ export default function SupporterStylePicker({
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
 
-  if (tier === 'supporter') {
-    return (
-      <p className="mt-3 text-[13px] text-text-muted">
-        Supporter names are gold. Champions pick a gradient, and Patrons mix their own.
-      </p>
-    );
-  }
-
   const lookOf = (d: LookDraft, keepDefault: boolean): SupporterLookStyle =>
     d.mode === 'custom' ? { stops: d.stops } : !keepDefault && d.preset === fallback ? {} : { preset: d.preset };
   const draft: SupporterStyle = { ...lookOf(main, false) };
@@ -85,6 +78,16 @@ export default function SupporterStylePicker({
     if (d) draft[surface] = lookOf(d, true);
   }
   const same = JSON.stringify(normal(draft)) === JSON.stringify(normal(saved));
+  useUnsavedChanges(!same);
+
+  if (tier === 'supporter') {
+    return (
+      <p className="mt-3 text-[13px] text-text-muted">
+        Supporter names are gold. Champions pick a gradient, and Patrons mix their own.
+      </p>
+    );
+  }
+
   const draftInk = supporterInk(tier, draft);
   const contrastOn = (surface: NameSurface) => {
     const own = draftInk[surface];
@@ -167,6 +170,7 @@ export default function SupporterStylePicker({
         >
           {busy ? 'Saving…' : applyAll ? 'Save for all characters' : 'Save'}
         </button>
+        <UnsavedIndicator dirty={!same} />
         <button
           type="button"
           disabled={busy || saved == null}

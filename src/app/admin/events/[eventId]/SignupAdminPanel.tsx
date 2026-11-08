@@ -18,6 +18,7 @@ import type { SignupProfile } from '@/lib/signup';
 import { formatHoursRange } from '@/lib/signup';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import { useDirtyForm, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { useDialog } from '@/components/Confirm';
 import type { SurveyQuestionView } from '@/lib/survey';
 import CopyLinkButton from '@/components/CopyLinkButton';
@@ -181,6 +182,9 @@ export default function SignupAdminPanel({
   const [placement, setPlacement] = useState<TeamPlacement>(storedPlacement);
   const [teamCount, setTeamCount] = useState(event.teamCount ?? DEFAULT_AUTO_TEAM_COUNT);
   const [teamCap, setTeamCap] = useState(event.teamCap ?? 0);
+  // Unsaved-changes guard for the sign-up settings card (manual Save below).
+  const configValues = { feeInput, guestFeeInput, addedPrizeInput, opensAt, signupDeadline, paymentDeadline, captainDeadline, teamChoice, placement, teamCount, teamCap };
+  const { dirty: configDirty, markSaved: markConfigSaved } = useDirtyForm(configValues);
 
   const load = useCallback(async () => {
     const res = await clanFetch(`/api/admin/events/${event.id}/signups`);
@@ -433,6 +437,7 @@ export default function SignupAdminPanel({
       const updated: Event = await res.json();
       onEventUpdated(updated);
       setConfigSaved(true);
+      markConfigSaved(configValues);
       // A fee change re-prices unpaid entries server-side; show the new amounts on their rows.
       load();
       router.refresh();
@@ -753,6 +758,7 @@ export default function SignupAdminPanel({
           >
             {savingConfig ? 'Saving…' : 'Save'}
           </button>
+          <UnsavedIndicator dirty={configDirty} />
           {configSaved && !configError && (
             <span className="text-xs text-accent-green-light">Saved.</span>
           )}

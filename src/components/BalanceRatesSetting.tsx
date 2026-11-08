@@ -6,6 +6,8 @@ import NumberInput from '@/components/NumberInput';
 import Select from '@/components/Select';
 import { clanFetch } from '@/lib/clanFetch';
 import { useDialog } from '@/components/Confirm';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
+import { valuesEqual } from '@/lib/unsavedChanges';
 
 // Admin editor for the board-balance effort rates (backed by /api/admin/balance-rates).
 // Renders the MERGED view (curated defaults + this clan's overrides); saving diffs the
@@ -71,6 +73,7 @@ function TripletInputs({
 export default function BalanceRatesSetting() {
   const [defaults, setDefaults] = useState<Rates | null>(null);
   const [merged, setMerged] = useState<Rates | null>(null);
+  const [savedMerged, setSavedMerged] = useState<Rates | null>(null);
   const [tab, setTab] = useState<'activities' | 'skills'>('activities');
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
@@ -85,13 +88,19 @@ export default function BalanceRatesSetting() {
       const data = await res.json();
       const d = data.defaults as Rates;
       const o = (data.overrides ?? {}) as Partial<Rates>;
-      setDefaults(d);
-      setMerged({
+      const loaded: Rates = {
         skills: { ...d.skills, ...(o.skills ?? {}) },
         activities: { ...d.activities, ...(o.activities ?? {}) },
-      });
+      };
+      setDefaults(d);
+      setMerged(loaded);
+      setSavedMerged(loaded);
     })();
   }, []);
+
+  // Dirty = the edited merged view differs from the last loaded/saved one (Save and Restore both move the baseline).
+  const dirty = !!merged && !!savedMerged && !valuesEqual(merged, savedMerged);
+  useUnsavedChanges(dirty);
 
   const isModified = useMemo(() => {
     if (!defaults || !merged) return () => false;
@@ -136,6 +145,7 @@ export default function BalanceRatesSetting() {
       body: JSON.stringify({ overrides }),
     });
     setSaving(false);
+    if (res.ok) setSavedMerged(merged);
     const count = Object.keys(overrides.skills).length + Object.keys(overrides.activities).length;
     setMsg(res.ok
       ? { ok: true, text: count ? `Saved ${count} override${count === 1 ? '' : 's'}.` : 'Saved — no rows differ from the defaults.' }
@@ -151,7 +161,9 @@ export default function BalanceRatesSetting() {
     if (!ok) return;
     const res = await clanFetch('/api/admin/balance-rates', { method: 'DELETE' });
     if (res.ok && defaults) {
-      setMerged(JSON.parse(JSON.stringify(defaults)));
+      const restored: Rates = JSON.parse(JSON.stringify(defaults));
+      setMerged(restored);
+      setSavedMerged(restored);
       setMsg({ ok: true, text: 'Restored the curated defaults.' });
     }
   }
@@ -305,6 +317,7 @@ export default function BalanceRatesSetting() {
         >
           {saving ? 'Saving…' : 'Save overrides'}
         </button>
+        <UnsavedIndicator dirty={dirty} />
         <button
           onClick={resetAll}
           className="text-xs px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"

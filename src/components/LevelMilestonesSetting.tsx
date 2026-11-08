@@ -3,25 +3,34 @@
 import { useEffect, useState } from 'react';
 
 import LevelRulesEditor from '@/components/LevelRulesEditor';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { clanFetch } from '@/lib/clanFetch';
 import { DEFAULT_MILESTONE_RULES, type MilestoneRules } from '@/lib/levelRules';
+import { valuesEqual } from '@/lib/unsavedChanges';
 
 // Admin editor for the clan's level / XP milestone rules (lib/levelRules), backed by
 // /api/admin/level-rules. Members can only be stricter for their own posts; the plugin picks the
 // rules up on its next config poll, and the site re-checks every level post against them.
 export default function LevelMilestonesSetting() {
   const [rules, setRules] = useState<MilestoneRules | null>(null);
+  const [savedRules, setSavedRules] = useState<MilestoneRules | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const dirty = !!rules && !!savedRules && !valuesEqual(rules, savedRules);
+  useUnsavedChanges(dirty);
 
   useEffect(() => {
     (async () => {
       try {
         const res = await clanFetch('/api/admin/level-rules');
         const data = res.ok ? await res.json() : null;
-        setRules(data?.rules ?? { ...DEFAULT_MILESTONE_RULES });
+        const loaded: MilestoneRules = data?.rules ?? { ...DEFAULT_MILESTONE_RULES };
+        setRules(loaded);
+        setSavedRules(loaded);
       } catch {
-        setRules({ ...DEFAULT_MILESTONE_RULES });
+        const loaded: MilestoneRules = { ...DEFAULT_MILESTONE_RULES };
+        setRules(loaded);
+        setSavedRules(loaded);
       }
     })();
   }, []);
@@ -39,6 +48,7 @@ export default function LevelMilestonesSetting() {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setRules(data.rules ?? next);
+        setSavedRules(data.rules ?? next);
         setMessage({ type: 'success', text: 'Saved. Plugins pick this up on their next refresh.' });
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to save' });
@@ -64,6 +74,7 @@ export default function LevelMilestonesSetting() {
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
+        <UnsavedIndicator dirty={dirty} />
         <button
           type="button"
           onClick={() => save({ ...DEFAULT_MILESTONE_RULES, skillXpM: [] })}

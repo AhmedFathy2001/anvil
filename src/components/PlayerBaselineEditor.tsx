@@ -5,6 +5,7 @@ import LocalTime from '@/components/LocalTime';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 import { useDialog } from '@/components/Confirm';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 
 interface StatData {
   stat: string;
@@ -32,6 +33,10 @@ export default function PlayerBaselineEditor({ eventId, playerId, playerName, on
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
   const { confirm } = useDialog();
+  // Unsaved-changes guard: only the row being edited can be dirty (its typed baseline vs the stored one).
+  const editingStat = editingIdx !== null ? stats[editingIdx] : undefined;
+  const baselineDirty = editingStat !== undefined && editValue !== String(editingStat.baseline);
+  useUnsavedChanges(baselineDirty);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -186,6 +191,7 @@ export default function PlayerBaselineEditor({ eventId, playerId, playerName, on
                       >
                         Cancel
                       </button>
+                      <UnsavedIndicator dirty={baselineDirty} />
                     </div>
                   ) : (
                     <button

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 
 // The event name shown as the page header on every event tab. Admins can rename in place
 // (PATCH /api/events/[id] { name }); everyone else sees a plain heading. Non-admins never
@@ -33,6 +34,10 @@ export default function EventTitle({
   useEffect(() => {
     if (editing) inputRef.current?.select();
   }, [editing]);
+
+  // Hooks above the canEdit early return. Only an open rename can be dirty; Cancel/Escape discards it.
+  const dirty = editing && draft.trim() !== name;
+  useUnsavedChanges(dirty);
 
   if (!canEdit) {
     return <h1 className="display display-lg text-3xl sm:text-[40px] font-semibold leading-tight">{name}</h1>;
@@ -113,6 +118,7 @@ export default function EventTitle({
           >
             Cancel
           </button>
+          <UnsavedIndicator dirty={dirty} />
         </div>
         {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
       </div>

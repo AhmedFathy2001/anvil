@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
+import { valuesEqual } from '@/lib/unsavedChanges';
 import { useRouter } from 'next/navigation';
 import Input from '@/components/Input';
 import ConnectDiscordStep from './ConnectDiscordStep';
@@ -82,6 +84,10 @@ export default function SetupWizardClient({ initial, channels, provisioned }: Pr
   const [inGameClanName, setInGameClanName] = useState(initial.inGameClanName);
   const [inGameTouched, setInGameTouched] = useState(!!initial.inGameClanName.trim());
   const [inviteUrl, setInviteUrl] = useState(initial.inviteUrl);
+  // The step-one fields as last saved with Continue; they are dirty while they differ.
+  const [savedStep0, setSavedStep0] = useState({ clanName: initial.clanName, inGameClanName: initial.inGameClanName, inviteUrl: initial.inviteUrl });
+  const step0Dirty = step === 0 && !valuesEqual({ clanName, inGameClanName, inviteUrl }, savedStep0);
+  useUnsavedChanges(step0Dirty);
 
   const [saving, setSaving] = useState(false);
   const [discordReady, setDiscordReady] = useState(() => discordDone(initial));
@@ -113,9 +119,10 @@ export default function SetupWizardClient({ initial, channels, provisioned }: Pr
     }
   }
 
-  async function next(keys: Record<string, string>) {
+  async function next(keys: Record<string, string>, onSaved?: () => void) {
     const ok = await saveKeys(keys);
     if (ok) {
+      onSaved?.();
       setMsg(null);
       setStep((s) => s + 1);
     }
@@ -304,16 +311,20 @@ export default function SetupWizardClient({ initial, channels, provisioned }: Pr
                 <PrimaryBtn
                   disabled={saving}
                   onClick={() =>
-                    next({
-                      clan_name: clanName.trim(),
-                      clan_ingame_name: inGameClanName.trim(),
-                      discord_invite_url: inviteUrl.trim(),
-                    })
+                    next(
+                      {
+                        clan_name: clanName.trim(),
+                        clan_ingame_name: inGameClanName.trim(),
+                        discord_invite_url: inviteUrl.trim(),
+                      },
+                      () => setSavedStep0({ clanName, inGameClanName, inviteUrl }),
+                    )
                   }
                 >
                   {saving ? 'Saving…' : 'Continue'}
                 </PrimaryBtn>
               )}
+              {step === 0 && <UnsavedIndicator dirty={step0Dirty} />}
               {step === 1 && (
                 <PrimaryBtn
                   disabled={saving}

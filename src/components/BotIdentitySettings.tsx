@@ -5,7 +5,9 @@ import { useEffect, useRef, useState } from 'react';
 import ClanCrest from '@/components/ClanCrest';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { clanFetch } from '@/lib/clanFetch';
+import { valuesEqual } from '@/lib/unsavedChanges';
 
 type Mode = 'anvil' | 'clan' | 'custom';
 
@@ -26,14 +28,22 @@ const ANVIL_LOGO = '/icon-48.png';
 export default function BotIdentitySettings() {
   const { notify } = useDialog();
   const [s, setS] = useState<State | null>(null);
+  const [saved, setSaved] = useState<State | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const dirty = !!s && !!saved && !valuesEqual(s, saved);
+  useUnsavedChanges(dirty);
 
   useEffect(() => {
     clanFetch('/api/admin/discord/identity')
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => j && setS({ mode: j.mode, name: j.name, avatarUrl: j.avatarUrl, clan: j.clan }));
+      .then((j) => {
+        if (!j) return;
+        const loaded: State = { mode: j.mode, name: j.name, avatarUrl: j.avatarUrl, clan: j.clan };
+        setS(loaded);
+        setSaved(loaded);
+      });
   }, []);
 
   async function save(next: State) {
@@ -47,6 +57,7 @@ export default function BotIdentitySettings() {
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) return notify(j.error ?? 'Could not save', 'error');
+      setSaved(next);
       setStatus(j.applied ? { ok: true, text: 'Updated in your Discord server.' } : { ok: false, text: `Saved, but Discord refused: ${j.error}` });
     } finally {
       setBusy(false);
@@ -131,6 +142,7 @@ export default function BotIdentitySettings() {
         <button type="button" onClick={() => save(s)} disabled={busy} className="rounded-lg bg-gold px-4 py-1.5 text-sm font-semibold text-brown-dark hover:bg-gold-light disabled:opacity-40">
           {busy ? 'Applying…' : 'Save'}
         </button>
+        <UnsavedIndicator dirty={dirty} />
       </div>
       {status && <p className={`text-xs ${status.ok ? 'text-emerald-300' : 'text-amber-200'}`}>{status.text}</p>}
     </div>

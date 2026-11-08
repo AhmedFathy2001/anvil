@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import Input from '@/components/Input';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 
@@ -67,6 +68,9 @@ export default function ClanNameSettings() {
     }
     setSaving(false);
   }
+
+  const dirty = loaded && (clanName !== clanNameOriginal || inGameClanName !== inGameNameOriginal);
+  useUnsavedChanges(dirty);
 
   if (!loaded) return null;
 
@@ -133,7 +137,7 @@ export default function ClanNameSettings() {
           </p>
         </div>
       </div>
-      <div className="mt-3 flex justify-end">
+      <div className="mt-3 flex items-center justify-end gap-3">
         <button
           onClick={save}
           disabled={saving || (clanName === clanNameOriginal && inGameClanName === inGameNameOriginal)}
@@ -141,6 +145,7 @@ export default function ClanNameSettings() {
         >
           {saving ? 'Saving...' : 'Save'}
         </button>
+        <UnsavedIndicator dirty={dirty} />
       </div>
       {message && (
         <p className={`mt-2 text-xs ${message.type === 'ok' ? 'text-accent-green-light' : 'text-red-400'}`}>

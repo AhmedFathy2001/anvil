@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
 import ClanMemberPicker from '@/components/ClanMemberPicker';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
+import { valuesEqual } from '@/lib/unsavedChanges';
 import { clanFetch } from '@/lib/clanFetch';
 
 interface Props {
@@ -37,12 +39,21 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
   const [pickedOwnerUserId, setPickedOwnerUserId] = useState<number | null | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Unsaved-changes baseline: the player as loaded, with the linked account that is current. Set once the
+  // linked-accounts lookup settles (success or failure), so the account preselect does not count as an edit.
+  const [saved, setSaved] = useState<{ name: string; discord: string; timezone: string; clanMemberId: number | null } | null>(null);
+  const playerDirty =
+    saved !== null &&
+    !valuesEqual({ name, discord, timezone, clanMemberId: selectedClanMemberId }, saved);
+  useUnsavedChanges(playerDirty);
 
   // Load the RuneScape accounts linked to this player's Discord owner — swap candidates for when an
   // RSN gets banned/renamed and they play on an alt.
   useEffect(() => {
     let cancelled = false;
+    const base = { name: player.name, discord: player.discord || '', timezone: player.timezone || '' };
     (async () => {
+      let clanMemberId: number | null = null;
       try {
         const res = await clanFetch(`/api/events/${eventId}/players/${player.id}/linked-accounts`);
         if (res.ok) {
@@ -52,12 +63,14 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
             setAccounts(list);
             setOwnerUserId(data.ownerUserId ?? null);
             const cur = list.find((a) => a.isCurrent);
-            setSelectedClanMemberId(cur ? cur.clanMemberId : null);
+            clanMemberId = cur ? cur.clanMemberId : null;
+            setSelectedClanMemberId(clanMemberId);
           }
         }
       } catch {
         /* ignore — the RSN text field still works without the account list */
       }
+      if (!cancelled) setSaved({ ...base, clanMemberId });
     })();
     return () => {
       cancelled = true;
@@ -236,6 +249,7 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
           >
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
+          <UnsavedIndicator dirty={playerDirty} />
         </div>
       </div>
     </div>

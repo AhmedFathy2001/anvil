@@ -5,6 +5,7 @@ import DiscordLinkMember from './DiscordLinkMember';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 
 // Booleans are stored as the string 'true' (on). For role sync / nickname sync, anything
 // other than 'true' = off. Auto-match defaults to ON, so it's stored as 'false' only when
@@ -108,6 +109,7 @@ export default function DiscordRoleSyncSettings() {
     nicknameSync !== original.nicknameSync ||
     nicknameOverwrite !== original.nicknameOverwrite ||
     autoMatch !== original.autoMatch;
+  useUnsavedChanges(hasChanges);
 
   if (loading) {
     return <div className="text-text-muted text-sm">Loading settings…</div>;
@@ -178,7 +180,7 @@ export default function DiscordRoleSyncSettings() {
           {saving ? 'Saving…' : 'Save'}
         </button>
         {!hasChanges && <span className="text-xs text-green-400">Saved</span>}
-        {hasChanges && <span className="text-xs text-yellow-400">Unsaved changes</span>}
+        <UnsavedIndicator dirty={hasChanges} />
       </div>
 
       {/* Force a full re-sync now — applies roles + nicknames to everyone and reports who was

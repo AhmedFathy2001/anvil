@@ -7,6 +7,7 @@ import { useDialog } from '@/components/Confirm';
 import { accentTokens, normalizeHex } from '@/lib/artPalette';
 import { clanFetch } from '@/lib/clanFetch';
 import ColorSwatch from '@/components/ColorSwatch';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 
 const API = '/api/admin/clan/look';
 /** What an unset accent means everywhere: the site's own gold. */
@@ -49,11 +50,14 @@ export default function LookSettings({ name }: { name: string }) {
     };
   }, []);
 
+  // Hooks above the early returns: the pick differs from the accent the server last returned.
+  const dirty = !!look && pick !== (look.accent ?? ANVIL_GOLD);
+  useUnsavedChanges(dirty);
+
   if (failed) return null;
   if (!look) return <section className="mb-6 h-40 animate-pulse rounded-xl border border-card-border bg-card-bg" aria-busy="true" />;
 
   const saved = look.accent ?? ANVIL_GOLD;
-  const dirty = pick !== saved;
   const t = accentTokens(pick);
   const noArt = !look.logoUrl && !look.bannerUrl;
   const where = look.space ? 'your space page, event pages, the join flow and your overlay' : 'your clan page and event pages';
@@ -147,7 +151,7 @@ export default function LookSettings({ name }: { name: string }) {
             Button text is {t.ink === '#ffffff' ? 'white' : 'dark'} on it.
           </p>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               disabled={!dirty || saving}
@@ -166,6 +170,7 @@ export default function LookSettings({ name }: { name: string }) {
                 Back to Anvil gold
               </button>
             )}
+            <UnsavedIndicator dirty={dirty} />
           </div>
         </div>
 

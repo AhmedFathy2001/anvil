@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import KickLinkCode from '@/components/KickLinkCode';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { clanFetch } from '@/lib/clanFetch';
 import { BTN } from '../_client';
 
@@ -37,6 +38,10 @@ async function post(body: Record<string, unknown>): Promise<string | null> {
 export function MedalProfileForm({ current }: { current: string | null }) {
   const router = useRouter();
   const [value, setValue] = useState(current ?? '');
+  // The profile as last saved; the field is dirty while it differs.
+  const [saved, setSaved] = useState(current ?? '');
+  const dirty = value.trim() !== saved.trim();
+  useUnsavedChanges(dirty);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -47,7 +52,10 @@ export function MedalProfileForm({ current }: { current: string | null }) {
     const err = await post({ action: 'set', profile: value.trim() });
     setBusy(false);
     if (err) setError(err);
-    else router.refresh();
+    else {
+      setSaved(value.trim());
+      router.refresh();
+    }
   }
 
   return (
@@ -63,6 +71,7 @@ export function MedalProfileForm({ current }: { current: string | null }) {
       <button type="submit" disabled={busy || !value.trim()} className={BTN}>
         {busy ? '…' : current ? 'Change' : 'Add'}
       </button>
+      <UnsavedIndicator dirty={dirty} />
       {error && <p className="w-full text-xs text-red-400">{error}</p>}
     </form>
   );

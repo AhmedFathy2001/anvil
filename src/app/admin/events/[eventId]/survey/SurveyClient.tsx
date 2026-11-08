@@ -8,6 +8,8 @@ import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { surveyTemplateById } from '@/lib/surveyTemplates';
 import ClanLink from '@/components/ClanLink';
 import Checkbox from '@/components/Checkbox';
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
+import { valuesEqual } from '@/lib/unsavedChanges';
 
 interface TemplateMeta {
   id: string;
@@ -81,6 +83,11 @@ export default function SurveyClient({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const newKey = useRef(0);
+  // Unsaved-changes guard: the builder is dirty against the last loaded/saved question set (keys ignored).
+  const [savedQuestions, setSavedQuestions] = useState<EditQuestion[]>(() => initialQuestions.map(toEdit));
+  const questionShape = (qs: EditQuestion[]) => qs.map((q) => ({ id: q.id, type: q.type, prompt: q.prompt, options: q.options, required: q.required }));
+  const questionsDirty = !valuesEqual(questionShape(questions), questionShape(savedQuestions));
+  useUnsavedChanges(questionsDirty);
 
   function update(key: string, patch: Partial<EditQuestion>) {
     setQuestions((qs) => qs.map((q) => (q.key === key ? { ...q, ...patch } : q)));
@@ -135,7 +142,9 @@ export default function SurveyClient({
         setError(data.error || 'Save failed');
         return;
       }
-      setQuestions((data.questions as SurveyQuestionView[]).map(toEdit));
+      const fresh = (data.questions as SurveyQuestionView[]).map(toEdit);
+      setQuestions(fresh);
+      setSavedQuestions(fresh);
       setNotice(stage === 'signup' ? 'Sign-up questions saved.' : 'Survey saved.');
     } finally {
       setSaving(false);
@@ -300,6 +309,7 @@ export default function SurveyClient({
             >
               {saving ? 'Saving…' : stage === 'signup' ? 'Save questions' : 'Save survey'}
             </button>
+            <UnsavedIndicator dirty={questionsDirty} />
             {notice && <span className="text-xs text-accent-green-light">{notice}</span>}
             {error && <span className="text-xs text-red-400">{error}</span>}
           </div>
