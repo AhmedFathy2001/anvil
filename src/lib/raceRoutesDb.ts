@@ -1,3 +1,6 @@
+import { markCompletionPostsRemoved } from '@/lib/discordPostActions';
+import { removalNote } from '@/lib/discordPostEdit';
+import { afterReply } from '@/lib/proofFinish';
 import { db } from '@/db';
 import { completions, events, eventParticipants, raceBankedCredits, raceRoadPicks, teams, tiles, tileAuditLog, userNotices } from '@/db/schema';
 import { and, eq, gte, inArray, isNull } from 'drizzle-orm';
@@ -239,7 +242,13 @@ export async function clearRaceRoadPick(teamId: number, step: number): Promise<b
 // ---- Mid-race route edits ---------------------------------------------------------------------
 
 export type RouteEditPolicy = 'keep' | 'rollback';
-export type RouteEditDiscord = 'keep' | 'correct';
+/**
+ * What happens to the Discord posts of rolled-back finishes (lib/discordPostActions): leave them,
+ * mark them rolled back (edit: struck title + "Rolled back by an admin"), or delete them. A post sent
+ * before message ids were kept — or one Discord refuses to change — gets a short correction post
+ * instead. 'correct' (the old choice) still posts only the correction.
+ */
+export type RouteEditDiscord = 'keep' | 'edit' | 'delete' | 'correct';
 
 export interface RouteEditPreview {
   teams: { teamId: number; teamName: string; tiles: { id: number; label: string; step: number }[] }[];
@@ -291,9 +300,9 @@ export async function previewRouteEdit(eventId: number, entries: RouteEntryIn[])
  *              from that step on and the team's baselines past it are cleared, so those tiles count
  *              afresh when they reopen.
  * After the commit (best-effort): baselines for what is open now, a plugin push so counts drop,
- * in-site notices to the affected teams, and — `discord: 'correct'` — a "rolled back by an admin"
- * post in the board's channel. Tile-complete posts aren't stored with their message ids, so the
- * original posts can't be edited or deleted; the correction is posted next to them instead.
+ * in-site notices to the affected teams, and the Discord choice (RouteEditDiscord): the posts that
+ * announced the rolled-back finishes are edited or deleted where their message ids were kept, with a
+ * correction post where they weren't.
  */
 export async function applyLiveRouteEdit(args: {
   event: EventRow;
@@ -361,10 +370,16 @@ export async function applyLiveRouteEdit(args: {
           createdAt: now,
         }).catch(() => {});
       }
-      if (discord === 'correct') {
+      const correction = () =>
         sendEventBingoWebhook(event.clanId, event.id, {
           embeds: [{ title: 'Rolled back by an admin', description: `The race route for **${event.name}** changed. ${t.teamName}: ${lines} no longer count${t.tiles.length === 1 ? 's' : ''}.`, color: 0x7a5f18 }],
         }, { post: 'tileComplete', teamId: t.teamId }).catch(() => false);
+      if (discord === 'correct') void correction();
+      else if (discord === 'edit' || discord === 'delete') {
+        // After the reply: the save never waits on Discord.
+        const teamId = t.teamId;
+        const tileIds = t.tiles.map((x) => x.id);
+        afterReply(() => markCompletionPostsRemoved({ eventId: event.id, teamId, tileIds, action: discord, note: removalNote('rolledBack'), fallback: correction }));
       }
     }
   }

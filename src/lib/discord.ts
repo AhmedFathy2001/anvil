@@ -1,5 +1,7 @@
 import { webhookIdentity } from '@/lib/discordIdentity';
 import { isDiscordWebhookTarget } from '@/lib/discordWebhookUrl';
+import { currentPostRef, recordDiscordPost, withPostRef } from '@/lib/discordPosts';
+import { safeError } from '@/lib/webhookRedact';
 import { eventHookTargets } from '@/lib/eventWebhooks';
 import { EVENT_POST_KINDS, type EventPostKind } from '@/lib/eventWebhookKinds';
 import { clanMarkUrl, eventMarkUrl } from '@/lib/clanMarkUrl';
@@ -186,8 +188,11 @@ async function postWebhook(
 async function sendToWebhook(webhookUrl: string, payload: DiscordWebhookPayload, clanId?: number): Promise<boolean> {
   // The clan's chosen name and icon (Anvil's by default, which sets nothing).
   if (clanId != null) payload = { ...(await webhookIdentity(clanId)), ...payload };
+  // A board post that may need editing later (lib/discordPosts): ask Discord for the message back.
+  const ref = currentPostRef();
+  const target = ref ? webhookRequestUrl(webhookUrl, { wait: true }) : webhookUrl;
   try {
-    let response = await postWebhook(webhookUrl, payload);
+    let response = await postWebhook(target, payload);
 
     if (response.status === 429) {
       // Discord sends Retry-After in seconds (sometimes fractional). Also check
@@ -204,16 +209,20 @@ async function sendToWebhook(webhookUrl: string, payload: DiscordWebhookPayload,
       retryMs = Math.max(250, Math.min(retryMs || 1000, MAX_RETRY_MS));
       log.warn('discord.rate-limited', { retryMs });
       await new Promise((r) => setTimeout(r, retryMs));
-      response = await postWebhook(webhookUrl, payload);
+      response = await postWebhook(target, payload);
     }
 
     if (!response.ok) {
       const text = await response.text().catch(() => '');
       log.warn('discord.webhook-fail', { status: response.status, body: text.slice(0, 200) });
+    } else if (ref) {
+      const message = (await response.json().catch(() => ({}))) as { id?: unknown; channel_id?: unknown };
+      await recordDiscordPost(ref, webhookUrl, clanId, message);
     }
     return response.ok;
   } catch (error) {
-    log.warn('discord.webhook-exception', {}, error);
+    // Safe fields only: a fetch error can echo the webhook URL, token included.
+    log.warn('discord.webhook-exception', { error: safeError(error) });
     return false;
   }
 }
@@ -359,11 +368,11 @@ function webhookRequestUrl(webhookUrl: string, opts: { messageId?: string; wait?
   return url.toString();
 }
 
-async function editableWebhookRequest(url: string, method: 'POST' | 'PATCH', payload: DiscordWebhookPayload): Promise<Response> {
+async function editableWebhookRequest(url: string, method: 'POST' | 'PATCH' | 'GET' | 'DELETE', payload?: DiscordWebhookPayload): Promise<Response> {
   const send = () => webhookFetch(url, {
     method,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    ...(payload ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) } : {}),
+    signal: AbortSignal.timeout(10_000),
   });
   const response = await send();
   if (response.status !== 429) return response;
@@ -379,6 +388,41 @@ async function editableWebhookRequest(url: string, method: 'POST' | 'PATCH', pay
   retryMs = Math.max(250, Math.min(retryMs || 1000, MAX_RETRY_MS));
   await new Promise((resolve) => setTimeout(resolve, retryMs));
   return send();
+}
+
+/**
+ * A message one of our webhooks sent, read back (to edit it in place) — null when it's gone or the
+ * webhook no longer works. 429s are waited out like every other webhook call.
+ */
+export async function getWebhookMessage(webhookUrl: string, messageId: string): Promise<{ embeds?: DiscordEmbed[]; content?: string | null } | null> {
+  try {
+    const res = await editableWebhookRequest(webhookRequestUrl(webhookUrl, { messageId }), 'GET');
+    if (!res.ok) return null;
+    return (await res.json()) as { embeds?: DiscordEmbed[]; content?: string | null };
+  } catch {
+    return null;
+  }
+}
+
+/** Edit a message one of our webhooks sent. True on success. */
+export async function editWebhookMessage(webhookUrl: string, messageId: string, payload: DiscordWebhookPayload): Promise<boolean> {
+  try {
+    const res = await editableWebhookRequest(webhookRequestUrl(webhookUrl, { messageId }), 'PATCH', payload);
+    if (!res.ok) log.warn('discord.webhook-edit-fail', { status: res.status });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Delete a message one of our webhooks sent. A message already gone (404) counts as deleted. */
+export async function deleteWebhookMessage(webhookUrl: string, messageId: string): Promise<boolean> {
+  try {
+    const res = await editableWebhookRequest(webhookRequestUrl(webhookUrl, { messageId }), 'DELETE');
+    return res.ok || res.status === 404;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -432,7 +476,7 @@ async function upsertWebhookMessage(
       ...(typeof body.id === 'string' && body.id ? { messageId: body.id } : {}),
     };
   } catch (error) {
-    log.warn('discord.webhook-upsert-exception', { clanId }, error);
+    log.warn('discord.webhook-upsert-exception', { clanId, error: safeError(error) });
     return { status: 'failed' };
   }
 }
@@ -790,6 +834,8 @@ interface SubmissionNotifyParams {
   eventId?: number | null;
   // The tile row, for its icon (the thumbnail). Optional — no icon, no thumbnail.
   tile?: LinkedTile | null;
+  /** The submission this post is about, so it can be found again (lib/discordPosts). */
+  submissionIds?: number[];
 }
 
 function formatClearTime(totalSeconds: number): string {
@@ -865,7 +911,7 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
   if (boardUrl) embed.url = boardUrl;
   if (imageUrl) embed.image = { url: imageUrl };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissions', teamId: params.teamId });
+  return withPostRef({ kind: params.completed ? 'submissionComplete' : 'submission', clanId: params.clanId, eventId: params.eventId, tileId: params.tile?.id ?? null, teamId: params.teamId, submissionIds: params.submissionIds }, () => sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissions', teamId: params.teamId }));
 }
 
 // Merged/debounced variant of notifySubmission. Several submissions for the same tile+team that
@@ -894,6 +940,8 @@ interface MergedSubmissionParams {
   milestonePct?: number | null;
   eventId?: number | null;
   tile?: LinkedTile | null;
+  /** The submissions merged into this post, so it can be found again (lib/discordPosts). */
+  submissionIds?: number[];
 }
 
 export async function notifyMergedSubmission(params: MergedSubmissionParams): Promise<boolean> {
@@ -937,7 +985,7 @@ export async function notifyMergedSubmission(params: MergedSubmissionParams): Pr
   if (boardUrl) embed.url = boardUrl;
   if (imageUrl) embed.image = { url: imageUrl };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissions', teamId: params.teamId });
+  return withPostRef({ kind: params.completed ? 'submissionComplete' : 'submission', clanId: params.clanId, eventId: params.eventId, tileId: params.tile?.id ?? null, teamId: params.teamId, submissionIds: params.submissionIds }, () => sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissions', teamId: params.teamId }));
 }
 
 interface SubmissionDeletedParams {
@@ -1083,7 +1131,10 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
   if (eventId != null && !partOf) {
     void emitTileCompletion({ eventId, teamId: params.teamId, teamName, tileLabel, finisher });
   }
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'tileComplete', teamId: params.teamId });
+  const send = () => sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'tileComplete', teamId: params.teamId });
+  // Kept (lib/discordPosts) so a rolled-back completion can find its post. A combo part's progress
+  // post isn't a completion; it isn't kept.
+  return partOf ? send() : withPostRef({ kind: 'tileComplete', clanId: params.clanId, eventId: params.eventId, tileId: tile?.id ?? null, teamId: params.teamId }, send);
 }
 
 interface TilesRevealedNotifyParams {
@@ -1462,7 +1513,7 @@ export async function notifyTeamWin(params: TeamWinNotifyParams): Promise<boolea
     color: teamColorToDecimal(teamColor),
   };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'teamWin', teamId: params.teamId });
+  return withPostRef({ kind: 'teamWin', clanId: params.clanId, eventId: params.eventId, teamId: params.teamId }, () => sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'teamWin', teamId: params.teamId }));
 }
 
 // Role pinged on event start/finish posts so the whole clan is notified. Clan-specific, so it's

@@ -17,7 +17,7 @@ import { routeOrder, validateRoute, type RouteEntry } from '@/lib/raceRoutes';
 //
 // Body: { route: { id, step, next: number[] }[] }  — every board tile exactly once, a valid route
 //    or { straight: true }                          — back to the classic line (board order = steps)
-//    + live only: preview: true (just the impact), policy: 'keep' | 'rollback', discord: 'keep' | 'correct'
+//    + live only: preview: true (just the impact), policy: 'keep' | 'rollback', discord: 'keep' | 'edit' | 'delete' | 'correct'
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
@@ -97,7 +97,7 @@ export async function PUT(
     // invalidates something without a decision, answers with the list instead of saving.
     const preview = await previewRouteEdit(eId, entries);
     const policy = body.policy === 'keep' || body.policy === 'rollback' ? body.policy : null;
-    const discord = body.discord === 'correct' ? 'correct' : 'keep';
+    const discord = body.discord === 'edit' || body.discord === 'delete' || body.discord === 'correct' ? body.discord : 'keep';
     if (body.preview === true) return NextResponse.json({ ok: true, preview });
     if (preview.teams.length && !policy) {
       return NextResponse.json({ error: 'This edit changes progress teams already made — choose what happens to it.', needsDecision: true, preview }, { status: 409 });
