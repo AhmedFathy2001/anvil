@@ -16,6 +16,7 @@ import {
 import { getSetting } from '@/lib/settings';
 import { partnerDiscordReadiness } from '@/lib/partnerDiscordReadiness';
 import { eventChannelUrls } from '@/lib/discord';
+import { noteWebhookSave } from '@/lib/sharedWebhooks';
 import { eventWebhookCapacity, poolView } from '@/lib/webhookCapacity';
 import { botCanManageWebhooks } from '@/lib/discord-permissions';
 import { getBotCredentials } from '@/lib/discord-roles';
@@ -124,5 +125,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ even
   }
 
   await saveEventDiscordPrefs(s.eventId, next);
+  noteWebhookSave(eventChannelUrls(next));
   return NextResponse.json(await view(s.eventId, s.clanId, s.eventName));
 }

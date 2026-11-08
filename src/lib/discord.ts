@@ -1,9 +1,11 @@
 import { webhookIdentity } from '@/lib/discordIdentity';
 import { fetchDiscordWebhook } from '@/lib/discordWebhookUrl';
+import { blockedWebhookIds, hasBlockedWebhook } from '@/lib/sharedWebhooks';
 import {
   ActivityMeter,
   WebhookPoolState,
   sendThroughPool,
+  webhookIdOf,
   type PoolSendResult,
   type WebhookDestination,
 } from '@/lib/webhookPool';
@@ -182,9 +184,12 @@ export const eventPoolKey = (eventId: number) => `event-channel:${eventId}`;
  * the server is the one that fetches them — so anything that is not a Discord webhook is refused
  * before a socket opens, whichever route stored or supplied it.
  */
-function webhookFetch(url: string, init: RequestInit): Promise<Response> {
+async function webhookFetch(url: string, init: RequestInit): Promise<Response> {
+  // A webhook platform staff blocked (lib/sharedWebhooks) posts nowhere, for any clan. The pool
+  // filters these out first; this is the backstop for every other exit (tests, edits, deletes).
+  if (await hasBlockedWebhook(url)) return new Response('webhook blocked by Anvil staff', { status: 403 });
   // Refused unless it's a Discord webhook (or one of its /messages/<id>), and never follows a redirect.
-  return fetchDiscordWebhook(url, init, { subpaths: true }) ?? Promise.resolve(new Response('not a Discord webhook', { status: 400 }));
+  return (await fetchDiscordWebhook(url, init, { subpaths: true })) ?? new Response('not a Discord webhook', { status: 400 });
 }
 
 /** A single URL, or a pool. A lone URL that was last seen in a pool fails over to that pool. */
@@ -208,7 +213,15 @@ export async function deliverWebhook(
   init: () => RequestInit,
   opts: { wait?: boolean; messageId?: string } = {},
 ): Promise<PoolSendResult> {
-  const dest = asDestination(target);
+  const asked = asDestination(target);
+  // Blocked webhooks (lib/sharedWebhooks) leave the pool; the rest carry the post.
+  const blocked = await blockedWebhookIds();
+  const urls = blocked.size ? asked.urls.filter((u) => !blocked.has(webhookIdOf(u) ?? '')) : asked.urls;
+  if (urls.length === 0) {
+    log.warn('discord.webhook-blocked', { cursorKey: asked.cursorKey, webhooks: asked.urls.length });
+    return { ok: false, status: 403, blocked: true };
+  }
+  const dest = urls.length === asked.urls.length ? asked : { ...asked, urls };
   return sendThroughPool(
     dest,
     init,

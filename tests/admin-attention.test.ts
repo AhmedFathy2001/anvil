@@ -552,3 +552,12 @@ test('a board too big for its webhooks gets a card: a forecast is snoozable, liv
   assert.equal(live?.severity, 'warn');
   assert.equal(live?.snoozable, false);
 });
+
+test('a webhook staff blocked is a critical, unsnoozable card naming where it is still set up', () => {
+  const item = attentionQueue(facts({ blockedWebhooks: ['Setting discord_webhook_bingo'] })).find((i) => i.key === 'blocked-webhooks');
+  assert.ok(item);
+  assert.equal(item.severity, 'critical');
+  assert.equal(item.snoozable, false);
+  assert.match(item.title, /disabled by Anvil staff/);
+  assert.match(item.detail, /discord_webhook_bingo/);
+});

@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { userWebhooks } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
+import { refuseBlockedWebhooks } from '@/lib/sharedWebhooks';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,6 +45,8 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+  const blocked = await refuseBlockedWebhooks([url]);
+  if (blocked) return NextResponse.json({ error: blocked }, { status: 400 });
 
   const kinds = Array.isArray(body.kinds)
     ? body.kinds.filter((k: unknown): k is string => typeof k === 'string' && (KINDS as readonly string[]).includes(k))

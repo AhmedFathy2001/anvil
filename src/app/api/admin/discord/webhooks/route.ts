@@ -13,6 +13,7 @@ import {
 } from '@/lib/discord-webhooks';
 import { poolChannels } from '@/lib/webhookCapacity';
 import { MAX_RECOMMENDED_WEBHOOKS } from '@/lib/webhookPool';
+import { noteWebhookSave } from '@/lib/sharedWebhooks';
 import { botCanManageWebhooks } from '@/lib/discord-permissions';
 import { parseWebhookUrls } from '@/lib/discord';
 import { WEBHOOK_SETTING_KEYS } from '@/lib/pluginConfig';
@@ -142,6 +143,7 @@ export async function POST(request: Request) {
       urls = [...existing, wh.url];
     }
     await setSetting(clan.id, settingKey, urls.length ? urls.join(' ') : null);
+    noteWebhookSave(urls);
     return NextResponse.json({ urls });
   } catch (err) {
     // Lib functions throw a human-readable message (missing perm, channel gone, 15-webhook cap…).

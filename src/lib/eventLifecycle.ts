@@ -37,6 +37,7 @@ import { runHourlySnapshots } from '@/lib/eventHourly';
 import { runFootprintChecks } from '@/lib/footprintCheck';
 import { settleOwnershipClaims } from '@/lib/ownershipClaims';
 import { settleOwnershipTransfers } from '@/lib/ownershipTransfers';
+import { runSharedWebhookScan } from '@/lib/sharedWebhooks';
 import { closeFinishedEventSeats } from '@/lib/eventPlayers';
 import { queueWinnerHighlight } from '@/lib/highlights/store';
 
@@ -430,6 +431,8 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   await settleOwnershipClaims(nowMs).catch((err) => log.warn('event-lifecycle.ownership-claims-failed', { err: String(err) }));
   // Clan ownership transfers whose 3-day hold ran out move (or lapse) here (lib/ownershipTransfers).
   await settleOwnershipTransfers(nowMs).catch((err) => log.warn('event-lifecycle.ownership-transfers-failed', { err: String(err) }));
+  // The same Discord webhook set up by two clans, raised to staff (lib/sharedWebhooks). Hourly, bounded.
+  await runSharedWebhookScan(nowMs).catch((err) => log.warn('event-lifecycle.shared-webhooks-failed', { err: String(err) }));
   await runHalfwayReports().catch((err) => log.warn('event-lifecycle.halfway-failed', { err: String(err) }));
   await runDailyDigests().catch((err) => log.warn('event-lifecycle.digest-failed', { err: String(err) }));
   // Hidden standings (lib/standingsReveal): mark curtains that are down, and post the leaderboard

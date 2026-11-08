@@ -26,6 +26,10 @@ const WHAT: Record<string, string> = {
   // Clan ownership transfer requests in their 3-day hold (/staff/ownership, lib/ownershipTransfers).
   platform_ownership_transfer_blocked: 'Ownership transfer blocked',
   platform_ownership_transfer_cleared: 'Ownership transfer let through',
+  // Shared Discord webhooks (/staff/webhooks, lib/sharedWebhooks).
+  platform_webhook_blocked: 'Shared webhook blocked',
+  platform_webhook_unblocked: 'Shared webhook unblocked',
+  platform_webhook_dismissed: 'Shared webhook left as it is',
   platform_clan_updated: 'Clan updated',
   platform_clan_deleted: 'Clan deleted',
   platform_act_as_granted: 'Borrowed a grant in this clan',

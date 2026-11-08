@@ -4975,3 +4975,36 @@ export const promoReports = pgTable('promo_reports', {
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('promo_reports_status_idx').on(t.status, t.createdAt), index('promo_reports_target_idx').on(t.targetType, t.targetId, t.status)]);
+
+/**
+ * Discord webhook ids platform staff blocked (/staff/webhooks, lib/sharedWebhooks): the send layer
+ * refuses them for every clan and saving one is refused. An id only, never a token (drizzle/0234).
+ */
+export const blockedWebhooks = pgTable('blocked_webhooks', {
+  webhookId: text('webhook_id').primaryKey(),
+  reason: text('reason'),
+  blockedByUserId: integer('blocked_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  blockedAt: timestamp('blocked_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** One webhook use as recorded on a finding: which clan, and where in its setup. */
+export interface SharedWebhookUse {
+  clanId: number;
+  where: string;
+}
+
+/**
+ * The same Discord webhook id configured by more than one clan (lib/sharedWebhooks), for staff.
+ * status: 'open' | 'dismissed' (a legitimate shared setup) | 'blocked'. An open finding that stops
+ * being shared is deleted by the next scan.
+ */
+export const sharedWebhooks = pgTable('shared_webhooks', {
+  webhookId: text('webhook_id').primaryKey(),
+  clanIds: jsonb('clan_ids').$type<number[]>().notNull().default([]),
+  uses: jsonb('uses').$type<SharedWebhookUse[]>().notNull().default([]),
+  status: text('status').notNull().default('open'),
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+  decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+}, (t) => [index('shared_webhooks_status_idx').on(t.status)]);

@@ -9,6 +9,7 @@ import { parsePartnerDiscordPrefs } from '@/lib/discordPostPolicy';
 import { cohostSignupClanFor } from '@/lib/eventEditors';
 import { getSetting } from '@/lib/settings';
 import { readEventDiscordPrefs, readPartnerDiscordPrefs, savePartnerDiscordPrefs } from '@/lib/eventDiscordPrefs';
+import { noteWebhookSave } from '@/lib/sharedWebhooks';
 
 /**
  * A co-host clan's side of a board's Discord (lib/discordPostPolicy decidePartnerPost): what its own
@@ -79,5 +80,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ even
   }
 
   await savePartnerDiscordPrefs(s.eventId, s.clanId, next);
+  noteWebhookSave([next.webhookUrl]);
   return NextResponse.json(await view(s.eventId, s.clanId));
 }

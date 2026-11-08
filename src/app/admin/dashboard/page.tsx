@@ -32,6 +32,7 @@ import ClanLink from '@/components/ClanLink';
 import { clanHref } from '@/lib/clanPath';
 import { openRequestCountForClan } from '@/lib/accountChangeRequests';
 import { capacityFrom, clanEventPool, eventParticipantCounts } from '@/lib/webhookCapacity';
+import { clanBlockedWebhookUses } from '@/lib/sharedWebhooks';
 import { parseEventDiscordPrefs } from '@/lib/discordPostPolicy';
 
 export const dynamic = 'force-dynamic';
@@ -390,6 +391,7 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
 
   const queue = attentionQueue({
     webhookCapacity,
+    blockedWebhooks: await clanBlockedWebhookUses(clan.id).catch(() => []),
     now,
     events: index.map((i) => {
       const row = i.kind === 'board' ? boardById.get(i.id) : undefined;

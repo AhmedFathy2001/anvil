@@ -11,6 +11,7 @@ import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
 import { eventChannelSlug, freeChannelName } from '@/lib/eventChannelName';
 import { log } from '@/lib/logger';
 import { getSetting } from '@/lib/settings';
+import { refuseBlockedWebhooks } from '@/lib/sharedWebhooks';
 
 export type ChannelInput = undefined | null | { channelId?: unknown; webhookUrl?: unknown; create?: unknown };
 
@@ -72,6 +73,8 @@ export async function resolveChannelInput(clanId: number, input: ChannelInput, c
   if (!isDiscordWebhookUrl(url)) {
     return { ok: false, error: 'That is not a Discord webhook URL (https://discord.com/api/webhooks/…).' };
   }
+  const blocked = await refuseBlockedWebhooks([url]);
+  if (blocked) return { ok: false, error: blocked };
   return { ok: true, keep: false, webhookUrl: url, channelId: null };
 }
 

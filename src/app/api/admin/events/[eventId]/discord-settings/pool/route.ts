@@ -12,6 +12,7 @@ import { readEventDiscordPrefs, saveEventDiscordPrefs } from '@/lib/eventDiscord
 import { eventInClan } from '@/lib/eventScope';
 import { log } from '@/lib/logger';
 import { setSetting } from '@/lib/settings';
+import { noteWebhookSave, refuseBlockedWebhooks } from '@/lib/sharedWebhooks';
 import { clanEventPool, eventWebhookCapacity, poolView } from '@/lib/webhookCapacity';
 import { MAX_RECOMMENDED_WEBHOOKS, webhookIdOf } from '@/lib/webhookPool';
 
@@ -58,6 +59,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   const urls = target === 'event' ? own : clanPool!.urls;
 
   async function save(next: string[]): Promise<void> {
+    noteWebhookSave(next);
     if (target === 'event') {
       const [main, ...extra] = next;
       await saveEventDiscordPrefs(eventId, { ...prefs, webhookUrl: main, extraWebhookUrls: extra });
@@ -87,6 +89,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
       return NextResponse.json({ error: 'That is not a Discord webhook URL (https://discord.com/api/webhooks/…).' }, { status: 400 });
     }
     if (urls.includes(url)) return reply(urls, 'That webhook is already in the list.');
+    const blocked = await refuseBlockedWebhooks([url]);
+    if (blocked) return NextResponse.json({ error: blocked }, { status: 400 });
     if (urls.length >= MAX_POOL) return NextResponse.json({ error: `That’s the most Anvil uses for one channel (${MAX_POOL}).` }, { status: 400 });
     const [channel, added] = await Promise.all([poolChannel(), lookupWebhookChannel(url)]);
     if (!added) return NextResponse.json({ error: 'Discord doesn’t know that webhook. Copy its URL again from the channel’s Integrations.' }, { status: 400 });

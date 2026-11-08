@@ -158,6 +158,11 @@ export interface AttentionFacts {
    * Live or imminent boards big enough to hit Discord's speed limit on the webhooks they post through
    * (lib/webhookPool webhookAdvice). Only the ones short of the recommended count are passed.
    */
+  /**
+   * Where this clan still has a Discord webhook that Anvil staff blocked for being shared with another
+   * clan (lib/sharedWebhooks). Nothing posts through it until it is replaced.
+   */
+  blockedWebhooks?: string[];
   webhookCapacity?: {
     eventId: number;
     name: string;
@@ -403,6 +408,19 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
       href: '/admin/guides',
       action: 'Review',
       at: 0,
+    });
+  }
+
+  if (facts.blockedWebhooks && facts.blockedWebhooks.length > 0) {
+    items.push({
+      key: 'blocked-webhooks',
+      snoozable: false,
+      severity: 'critical',
+      title: 'A webhook your clan used was disabled by Anvil staff',
+      detail: `It was shared with another clan, so nothing posts through it. Add a new one. Still set up in: ${facts.blockedWebhooks.join(', ')}.`,
+      href: '/admin/integrations',
+      action: 'Replace webhook',
+      at: -2,
     });
   }
 

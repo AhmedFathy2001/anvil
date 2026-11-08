@@ -9,6 +9,7 @@ import { pendingCount as pendingLibraryProposals } from '@/lib/libraryProposals'
 import { nameCollisions } from '@/lib/platformView';
 import { openPromoReportCount } from '@/lib/spacePage/store';
 import { unreviewedTransferCount } from '@/lib/ownershipTransfers';
+import { openSharedWebhookCount } from '@/lib/sharedWebhooks';
 
 // What is waiting on a platform operator, counted — so the number can sit on the Platform link
 // everywhere in the app instead of only inside /staff, where you had to already be to see it.
@@ -29,6 +30,8 @@ export interface StaffPending {
   promoReports: number;
   /** Clan ownership transfers in their 3-day hold that staff have not looked at (lib/ownershipTransfers). */
   ownershipTransfers: number;
+  /** The same Discord webhook set up by more than one clan, not yet decided (lib/sharedWebhooks). */
+  sharedWebhooks: number;
   total: number;
 }
 
@@ -52,7 +55,7 @@ async function billingNeedingALook(now: number): Promise<number> {
 
 async function compute(): Promise<StaffPending> {
   const now = Date.now();
-  const [reports, guideProposals, libraryProposals, [fb], [errs], billing, disputes, promoReports, ownershipTransfers] = await Promise.all([
+  const [reports, guideProposals, libraryProposals, [fb], [errs], billing, disputes, promoReports, ownershipTransfers, shared] = await Promise.all([
     openCharacterReportCount(),
     pendingGuideProposals(),
     pendingLibraryProposals(),
@@ -64,6 +67,7 @@ async function compute(): Promise<StaffPending> {
     nameCollisions(),
     openPromoReportCount(),
     unreviewedTransferCount(),
+    openSharedWebhookCount(),
   ]);
   const p = {
     reports,
@@ -75,6 +79,7 @@ async function compute(): Promise<StaffPending> {
     nameDisputes: disputes.length,
     promoReports,
     ownershipTransfers,
+    sharedWebhooks: shared,
   };
   return { ...p, total: Object.values(p).reduce((a, b) => a + b, 0) };
 }
@@ -106,6 +111,7 @@ export function pendingSummary(p: StaffPending): string {
     [p.nameDisputes, 'name disputes'],
     [p.promoReports, 'reports'],
     [p.ownershipTransfers, 'ownership transfers'],
+    [p.sharedWebhooks, 'shared webhooks'],
   ];
   return parts.filter(([n]) => n > 0).map(([n, l]) => `${n} ${l}`).join(' · ') || 'Nothing waiting';
 }

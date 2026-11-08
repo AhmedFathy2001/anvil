@@ -1,4 +1,5 @@
 import { URL_SETTINGS, checkSettingUrl } from '@/lib/settingUrls';
+import { noteWebhookSave, refuseBlockedWebhooks } from '@/lib/sharedWebhooks';
 import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 
@@ -173,6 +174,10 @@ export async function PUT(request: Request) {
     body[key] = checked.value;
   }
 
+  // A webhook platform staff blocked (lib/sharedWebhooks) can't be saved back in.
+  const blockedError = await refuseBlockedWebhooks(Object.values(body));
+  if (blockedError) return NextResponse.json({ error: blockedError }, { status: 400 });
+
   const changed: string[] = [];
   for (const key of EXPOSED_KEYS) {
     const raw = body[key];
@@ -181,6 +186,8 @@ export async function PUT(request: Request) {
     await setSetting(clan.id, key, value ? value : null);
     changed.push(key);
   }
+  // Is any webhook just saved also set up by another clan? Raised to staff, in the background.
+  noteWebhookSave(Object.values(body));
   // Into the Activity log: WHICH settings changed and who changed them — never the values, since
   // several are webhook URLs and tokens that the log's readers have no business seeing.
   if (changed.length > 0) {

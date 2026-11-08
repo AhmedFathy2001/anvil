@@ -222,6 +222,8 @@ export interface PoolSendResult {
   /** Which webhook the post went out on — the one that owns the message for a later edit. */
   webhookUrl?: string;
   dropped?: boolean;
+  /** Every webhook in the destination is on the platform blocklist (lib/sharedWebhooks). */
+  blocked?: boolean;
 }
 
 let queuedNow = 0;
