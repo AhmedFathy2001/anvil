@@ -56,6 +56,10 @@ async function storeImage(request: Request, file: File): Promise<{ url: string }
 }
 
 export async function POST(request: Request) {
+  // Where a proof's seconds go (config build, image store, each filing), logged while we tune it.
+  const t0 = Date.now();
+  const marks: Record<string, number> = {};
+  const mark = (k: string) => (marks[k] = Date.now() - t0);
   const rl = await rateLimit(request, 'plugin-facts', { limit: 240, windowMs: 60_000 });
   if (!rl.ok) return Response.json({ error: 'Too many requests' }, { status: 429 });
 
@@ -65,7 +69,9 @@ export async function POST(request: Request) {
   const overflow = Array.isArray(body?.facts) ? parseFacts((body.facts as unknown[]).slice(MAX_FACTS), Infinity) : [];
   if (facts.length === 0) return Response.json({ credits: [], notes: [], ...(overflow.length ? { retry: overflow } : {}) });
 
+  mark('read');
   const loaded = await loadTrackedConfig(request);
+  mark('config');
   if (!loaded.ok) return Response.json({ error: 'No config' }, { status: loaded.status });
   const cfg = loaded.cfg;
 
@@ -82,6 +88,7 @@ export async function POST(request: Request) {
     const stored = await storeImage(request, file);
     if ('error' in stored) return Response.json({ error: stored.error }, { status: stored.status });
     img = stored.url;
+    mark('image');
   }
   const proof = body?.proof && typeof body.proof === 'object' ? (body.proof as Record<string, unknown>) : null;
   const coop = body?.coop && typeof body.coop === 'object' ? (body.coop as Coop) : null;
@@ -120,7 +127,9 @@ export async function POST(request: Request) {
       results.push({ tileId: p.credit.tileId, ok: false, completed: false, error: 'Will retry' });
     }
     outcomes.set(p.credit, [...(outcomes.get(p.credit) ?? []), outcome]);
+    mark(`file${n}`);
   }
+  console.info('[plugin/facts] timing', { ms: Date.now() - t0, ...marks, facts: facts.length, filings: plans.length });
   const retry = [
     ...retryFacts(facts, credits, (c) => (outcomes.has(c) ? creditOutcome(outcomes.get(c)!) : undefined)),
     ...overflow,
