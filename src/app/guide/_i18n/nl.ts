@@ -4493,17 +4493,18 @@ const nl: PartialGuideDict = {
     },
     "clans": {
       "title": "Clan vs clan instellen",
-      "intro": "Met clan vs clan kunnen andere clans meedoen aan je wedstrijd. Jij bent de host, de andere clans zijn partners.",
+      "intro": "Met Clan vs clan kunnen andere clans meedoen aan je wedstrijd, zoveel als je wilt. Jij bent de host, de andere clans zijn partners.",
       "steps": [
-        "Als admin of hoger in de hostclan zet je **Format** op **Clan vs clan**.",
-        "Nodig de andere clans uit via hun adres. Doe dit op het aanmaakformulier, of later op de **Clans**-pagina van de wedstrijd.",
-        "De eigenaar of admin van de uitgenodigde clan opent hun **People**-pagina en accepteert of weigert. Een moderator kan dat niet.",
-        "Zodra een clan accepteert, wordt de volledige ledenlijst ingeschreven en aan die clan gekoppeld."
+        "Zet als admin of hoger in de hostclan **Format** op **Clan vs clan**.",
+        "Nodig de andere clans uit via hun adres. Doe dat op het aanmaakformulier, of later op de pagina **Clans** van de wedstrijd.",
+        "De eigenaar of admin van de uitgenodigde clan accepteert of weigert op hun pagina **People** of in de lijst **Events**. Een moderator kan dat niet. Niemand uit die clan wordt ingeschreven totdat die clan accepteert.",
+        "Bij acceptatie kiest de clan wie er meedoet: **All members** van de ledenlijst, of **Selected people** die zij zelf kiezen. Dit kan later worden aangepast vanaf dezelfde kaart.",
       ],
       "body": [
         "De partnerclan kan de stand volgen op de eigen site via `/c/<slug>/weekly/<id>`. Dat is alleen-lezen. Alleen de host bewerkt de wedstrijd.",
-        "Wil je een clan verwijderen, haal die dan weg op de **Clans**-pagina. Zijn spelers verdwijnen dan van het bord.",
-        "Een herhalende wedstrijd stuurt elke week nieuwe uitnodigingen, dus elke clan moet opnieuw ja zeggen."
+        "Wil je een clan verwijderen? Verwijder die dan op de pagina **Clans**. De spelers ervan verdwijnen van het bord.",
+        "Een terugkerende wedstrijd stuurt elke week nieuwe uitnodigingen, dus elke clan moet opnieuw ja zeggen.",
+        "Ongewenste uitnodigingen? Kies bij de uitnodiging **Decline & block this clan**. Latere uitnodigingen van die clan worden stilletjes geweigerd, en je kunt de clan weer deblokkeren via **Settings → Blocked clans**.",
       ],
       "note": {
         "tag": "Deel het adres",
@@ -4521,31 +4522,24 @@ const nl: PartialGuideDict = {
     "players": {
       "title": "Wat spelers zien",
       "body": [
-        "De wedstrijdpagina toont eerst de stand van de teams of clans. Open er een om de spelers te zien. Je eigen team of clan wordt gemarkeerd.",
-        "Discord-berichten bij de start, halverwege en aan het einde tonen de stand. Bij clan vs clan gaan ze naar het kanaal van elke clan, en dat van jou is gemarkeerd met **← you**.",
+        "De wedstrijdpagina toont eerst de stand van de teams of clans. Open er een om de spelers te zien. Je eigen team of clan is gemarkeerd.",
+        "Discord-berichten aan het begin, halverwege en aan het eind tonen de stand. Bij clan vs clan gaan ze naar het kanaal van elke clan, en dat van jou is gemarkeerd met **← you**.",
         "In het zijpaneel van de plugin zie je waar je team staat.",
-        "Je hoeft je nergens voor aan te melden. Sta je op de ledenlijst, dan doe je mee."
+        "Je hoeft je nergens voor aan te melden. Als je clan alle leden inschrijft en jij staat op de ledenlijst, doe je mee. Als de clan mensen kiest, doe je mee zodra je gekozen bent.",
+        "Wil je niet meedoen? Druk op **Opt out** naast **You’re in**, op de wedstrijdpagina, in de lijst Events of in de plugin. Je verdwijnt dan van het bord voor deze ene wedstrijd, en je kunt je weer aanmelden terwijl die loopt.",
       ]
     },
     "faq": {
       "title": "Vragen",
+      "intro": "De vragen die clanstaf en spelers het vaakst stellen:",
       "rows": [
-        {
-          "term": "Onze teams zijn verschillend groot. Is dat oneerlijk?",
-          "body": "Op zich niet. Totalen bepalen de ranglijst, maar elk team toont ook een gemiddelde per speler, zodat je ziet hoe een kleiner team er echt voor staat."
-        },
-        {
-          "term": "Hoe zit het met mensen die later instappen?",
-          "body": "Met de late-joiner-optie aan gaan ze naar het kleinste team. Staat die uit, dan tellen ze alleen mee op het individuele bord. Je kunt ze altijd met de hand verplaatsen op de **Teams**-pagina."
-        },
-        {
-          "term": "Kan de andere clan onze wedstrijd bewerken?",
-          "body": "Nee. Partnerclans zien de stand alleen-lezen. Alleen de hostclan kan de wedstrijd wijzigen."
-        },
-        {
-          "term": "Als we het één keer afspreken, staan we dan elke week ingeschreven?",
-          "body": "Nee. Een herhalende wedstrijd stuurt elke week nieuwe uitnodigingen, en een eigenaar of admin moet elke uitnodiging accepteren."
-        }
+        { term: "Onze teams zijn verschillend groot. Is dat niet eerlijk?", body: "Op zich niet. Totalen bepalen de ranglijst, maar elk team toont ook een gemiddelde per speler, zodat je ziet hoe een kleiner team er echt voor staat." },
+        { term: "En mensen die laat instappen?", body: "Met de schakelaar voor late instappers aan, gaan ze naar het kleinste team. Staat die uit, dan tellen ze alleen mee op het individuele bord. Je kunt ze altijd met de hand verplaatsen op de pagina **Teams**." },
+        { term: "Kan de andere clan onze wedstrijd bewerken?", body: "Nee. Partnerclans zien de stand alleen-lezen. Alleen de hostclan kan de wedstrijd wijzigen." },
+        { term: "Kan ik één wedstrijd overslaan?", body: "Ja. Druk op **Opt out** op de wedstrijdpagina, in de lijst Events of in de plugin. Alleen die ene wedstrijd wordt geraakt, en je kunt je weer aanmelden terwijl hij loopt." },
+        { term: "Hoeveel clans kunnen meedoen?", body: "Zoveel als je uitnodigt, tot 50 in één wedstrijd. Elke clan ziet zijn eigen kant gemarkeerd in de stand en in zijn Discord-berichten." },
+        { term: "Een andere clan blijft ons uitnodigen. Kunnen we dat stoppen?", body: "Ja. Een eigenaar of admin kiest bij de uitnodiging **Decline & block this clan**. Latere uitnodigingen worden geweigerd zonder dat de clan dat hoort. Deblokkeer hem op elk moment via **Settings → Blocked clans**." },
+        { term: "Als we één keer akkoord gaan, doen we dan elke week mee?", body: "Nee. Een terugkerende wedstrijd stuurt elke week nieuwe uitnodigingen, en een eigenaar of admin moet elke uitnodiging apart accepteren." },
       ]
     }
   },

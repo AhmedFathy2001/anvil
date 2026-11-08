@@ -4494,17 +4494,18 @@ const es: PartialGuideDict = {
     },
     "clans": {
       "title": "Configurar clan contra clan",
-      "intro": "Clan vs clan permite que otros clanes se unan a tu competición. Tú eres el anfitrión y los otros clanes son socios.",
+      "intro": "Clan vs clan permite que otros clanes se unan a tu competición, todos los que quieras. Tú eres el anfitrión y los demás clanes son socios.",
       "steps": [
         "Como admin o superior en el clan anfitrión, pon **Format** en **Clan vs clan**.",
-        "Invita a los otros clanes por su dirección. Hazlo en el formulario de creación o más tarde, en la página **Clans** de la competición.",
-        "El dueño o admin del clan invitado abre su página **People** y acepta o rechaza. Un moderador no puede hacerlo.",
-        "Cuando un clan acepta, toda su plantilla queda inscrita y etiquetada con ese clan."
+        "Invita a los otros clanes con su dirección. Hazlo en el formulario de creación o más tarde, en la página **Clans** de la competición.",
+        "El dueño o el admin del clan invitado acepta o rechaza en su página **People** o en la lista de **Events**. Un moderador no puede hacerlo. Nadie de ese clan entra hasta que acepte.",
+        "Cuando acepta, elige quién compite: **All members** de su plantilla, o **Selected people** que él escoja. Puede cambiarlo después desde la misma tarjeta.",
       ],
       "body": [
-        "El clan socio puede seguir la clasificación en su propia web en `/c/<slug>/weekly/<id>`. Es solo lectura. Solo el anfitrión edita la competición.",
+        "El clan socio puede seguir la clasificación en su propia web, en `/c/<slug>/weekly/<id>`. Es de solo lectura. Solo el anfitrión edita la competición.",
         "Para quitar un clan, elimínalo en la página **Clans**. Sus jugadores salen del tablero.",
-        "Una competición recurrente envía invitaciones nuevas cada semana, así que cada clan tiene que volver a aceptar."
+        "Una competición que se repite envía invitaciones nuevas cada semana, así que cada clan tiene que volver a aceptar.",
+        "¿Recibes invitaciones que no quieres? Elige **Decline & block this clan** en la invitación. Las invitaciones futuras de ese clan se rechazan en silencio, y puedes desbloquearlo en **Settings → Blocked clans**.",
       ],
       "note": {
         "tag": "Comparte la dirección",
@@ -4522,31 +4523,24 @@ const es: PartialGuideDict = {
     "players": {
       "title": "Lo que ven los jugadores",
       "body": [
-        "La página de la competición muestra primero la clasificación de equipos o clanes. Abre cualquiera para ver sus jugadores. Tu equipo o clan aparece resaltado.",
-        "Los avisos de Discord al inicio, a mitad y al final muestran la clasificación. En clan vs clan llegan al canal de cada clan, y el tuyo lleva la marca **← you**.",
+        "La página de la competición muestra primero la clasificación de equipos o clanes. Ábrela para ver a sus jugadores. Tu equipo o clan aparece resaltado.",
+        "Los mensajes de Discord al inicio, a mitad y al final muestran la clasificación. En clan vs clan llegan al canal de cada clan, y el tuyo aparece marcado con **← you**.",
         "En el panel lateral del plugin puedes ver en qué puesto queda tu equipo.",
-        "No hay nada en que inscribirse. Si estás en la plantilla, ya estás dentro."
+        "No hay nada que inscribirse. Si tu clan incluye a todos sus miembros y tú estás en la plantilla, estás dentro. Si elige personas, entras cuando te elijan.",
+        "¿No quieres participar? Pulsa **Opt out** junto a **You’re in**, en la página de la competición, en la lista de Events o en el plugin. Sales del tablero solo en esa competición, y puedes volver a unirte mientras siga en marcha.",
       ]
     },
     "faq": {
       "title": "Preguntas",
+      "intro": "Las que más preguntan el staff del clan y los jugadores:",
       "rows": [
-        {
-          "term": "Nuestros equipos tienen tamaños distintos. ¿Es injusto?",
-          "body": "No por sí mismo. Los totales deciden la clasificación, pero cada equipo también muestra un promedio por jugador, así puedes ver cómo va realmente un equipo más pequeño."
-        },
-        {
-          "term": "¿Y los que llegan tarde?",
-          "body": "Con la opción de llegadas tardías activada, entran en el equipo más pequeño. Desactivada, solo cuentan en el tablero individual. Siempre puedes moverlos a mano en la página **Teams**."
-        },
-        {
-          "term": "¿El otro clan puede editar nuestra competición?",
-          "body": "No. Los clanes socios solo ven la clasificación en modo lectura. Solo el clan anfitrión puede cambiar la competición."
-        },
-        {
-          "term": "Si acordamos una vez, ¿quedamos inscritos cada semana?",
-          "body": "No. Una competición recurrente envía invitaciones nuevas cada semana, y un owner o admin tiene que aceptar cada una."
-        }
+        { term: "Nuestros equipos tienen tamaños distintos. ¿Es injusto?", body: "No por sí mismo. Los totales deciden la clasificación, pero cada equipo también muestra un promedio por jugador, para que veas cómo le va realmente a un equipo más pequeño." },
+        { term: "¿Qué pasa con quienes se unen tarde?", body: "Con el interruptor de incorporación tardía activado, entran en el equipo más pequeño. Con él desactivado, solo cuentan en el tablero individual. Siempre puedes moverlos a mano en la página **Teams**." },
+        { term: "¿Puede el otro clan editar nuestra competición?", body: "No. Los clanes socios ven la clasificación en modo de solo lectura. Solo el clan anfitrión puede cambiar la competición." },
+        { term: "¿Puedo no participar en una competición?", body: "Sí. Pulsa **Opt out** en la página de la competición, en la lista de Events o en el plugin. Solo afecta a esa competición, y puedes volver a unirte mientras esté en marcha." },
+        { term: "¿Cuántos clanes pueden competir?", body: "Tantos como invites, hasta 50 en una competición. Cada clan ve su propio lado marcado en la clasificación y en sus mensajes de Discord." },
+        { term: "Otro clan no deja de invitarnos. ¿Podemos pararlo?", body: "Sí. Un dueño o admin elige **Decline & block this clan** en la invitación. Las invitaciones futuras se rechazan sin avisarles. Puedes desbloquearlo en cualquier momento en **Settings → Blocked clans**." },
+        { term: "Si aceptamos una vez, ¿quedamos inscritos cada semana?", body: "No. Una competición que se repite envía invitaciones nuevas cada semana, y un dueño o admin tiene que aceptar cada una." },
       ]
     }
   },

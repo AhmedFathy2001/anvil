@@ -4493,17 +4493,18 @@ const sv: PartialGuideDict = {
     },
     "clans": {
       "title": "Ställ in klan mot klan",
-      "intro": "Clan vs clan låter andra klaner gå med i din tävling. Du är värd, och de andra klanerna är partners.",
+      "intro": "Clan vs clan låter andra klaner gå med i din tävling, hur många som helst. Du är värd, och de andra klanerna är samarbetspartners.",
       "steps": [
         "Som admin eller högre i värdklanen, sätt **Format** till **Clan vs clan**.",
-        "Bjud in de andra klanerna med deras adress. Gör det i formuläret för skapande, eller senare på tävlingens sida **Clans**.",
-        "Den inbjudna klanens owner eller admin öppnar sin sida **People** och accepterar eller avböjer. En moderator kan inte.",
-        "När en klan accepterar registreras hela dess lista och märks med den klanen."
+        "Bjud in de andra klanerna med deras adress. Gör det i skapandeformuläret, eller senare på tävlingens **Clans**-sida.",
+        "Den inbjudna klanens ägare eller admin accepterar eller avböjer på sin **People**-sida eller i sin **Events**-lista. En moderator kan inte. Ingen från den klanen blir med förrän den accepterat.",
+        "När den accepterar väljer den vem som tävlar: **All members** i sin roster, eller **Selected people** som den plockar ut. Den kan ändra detta senare från samma kort.",
       ],
       "body": [
-        "Partnerklanen kan följa resultatlistan på sin egen sida på `/c/<slug>/weekly/<id>`. Den är skrivskyddad. Bara värden redigerar tävlingen.",
-        "För att ta bort en klan, ta bort den på sidan **Clans**. Dess spelare försvinner från listan.",
-        "En återkommande tävling skickar nya inbjudningar varje vecka, så varje klan måste säga ja igen."
+        "Samarbetsklanen kan följa resultatlistan på sin egen sida, på `/c/<slug>/weekly/<id>`. Det är skrivskyddat. Bara värden redigerar tävlingen.",
+        "För att ta bort en klan, ta bort den på sidan **Clans**. Dess spelare försvinner från brädet.",
+        "En återkommande tävling skickar nya inbjudningar varje vecka, så varje klan måste säga ja igen.",
+        "Får du oönskade inbjudningar? Välj **Decline & block this clan** på inbjudan. Den klanens senare inbjudningar avvisas tyst, och du kan avblockera den under **Settings → Blocked clans**.",
       ],
       "note": {
         "tag": "Dela adressen",
@@ -4521,31 +4522,24 @@ const sv: PartialGuideDict = {
     "players": {
       "title": "Vad spelarna ser",
       "body": [
-        "Tävlingssidan visar lag- eller klanresultaten först. Öppna någon för att se dess spelare. Ditt eget lag eller din klan är markerad.",
-        "Discord-inlägg vid start, halvvägs och slut visar resultatlistan. I clan vs clan går de till varje klans kanal, och din markeras med **← you**.",
-        "I plugin-sidopanelen kan du se var ditt lag placerar sig.",
-        "Det finns inget att anmäla sig till. Står du på listan är du med."
+        "Tävlingssidan visar lag- eller klanresultaten först. Öppna någon av dem för att se dess spelare. Ditt eget lag eller din egen klan är markerad.",
+        "Discord-inläggen vid start, halvvägs och slut visar resultatlistan. I klan vs klan går de till varje klans kanal, och din är markerad med **← you**.",
+        "I plugin-panelen på sidan kan du se var ditt lag placerar sig.",
+        "Det finns inget att anmäla sig till. Om din klan tar med alla medlemmar och du står i rostern, är du med. Om den väljer ut personer är du med när du blivit vald.",
+        "Vill du inte vara med? Tryck på **Opt out** bredvid **You’re in**, på tävlingssidan, i listan Events eller i pluginet. Du lämnar brädet för just den tävlingen, och du kan gå med igen medan den pågår.",
       ]
     },
     "faq": {
       "title": "Frågor",
+      "intro": "Det klanens stab och spelare frågar oftast om:",
       "rows": [
-        {
-          "term": "Våra lag har olika storlek. Är det orättvist?",
-          "body": "Inte i sig. Summorna avgör rankningen, men varje lag visar också ett medelvärde per spelare, så du kan se hur ett mindre lag faktiskt går."
-        },
-        {
-          "term": "Hur är det med folk som kommer sent?",
-          "body": "Med alternativet för sena deltagare på går de med i det minsta laget. Av räknas de bara på den individuella listan. Du kan alltid flytta dem för hand på sidan **Teams**."
-        },
-        {
-          "term": "Kan den andra klanen redigera vår tävling?",
-          "body": "Nej. Partnerklaner ser resultaten skrivskyddat. Bara värdklanen kan ändra tävlingen."
-        },
-        {
-          "term": "Om vi går med en gång, är vi anmälda varje vecka?",
-          "body": "Nej. En återkommande tävling skickar nya inbjudningar varje vecka, och en owner eller admin måste acceptera var och en."
-        }
+        { term: "Våra lag är olika stora. Är det orättvist?", body: "Inte i sig. Summorna avgör rankningen, men varje lag visar också ett medelvärde per spelare, så du kan se hur ett mindre lag faktiskt presterar." },
+        { term: "Hur är det med personer som går med sent?", body: "Med växlaren för sena deltagare på, går de till det minsta laget. Med den av, räknas de bara på den individuella listan. Du kan alltid flytta dem för hand på sidan **Teams**." },
+        { term: "Kan den andra klanen redigera vår tävling?", body: "Nej. Samarbetsklaner ser resultatlistan skrivskyddad. Bara värdklanen kan ändra tävlingen." },
+        { term: "Kan jag hoppa över en tävling?", body: "Ja. Tryck på **Opt out** på tävlingssidan, i listan Events eller i pluginet. Bara den tävlingen påverkas, och du kan gå med igen medan den pågår." },
+        { term: "Hur många klaner kan tävla?", body: "Så många du bjuder in, upp till 50 i en tävling. Varje klan ser sin egen sida markerad i resultatlistan och i sina Discord-inlägg." },
+        { term: "En annan klan bjuder in oss hela tiden. Kan vi stoppa det?", body: "Ja. En ägare eller admin väljer **Decline & block this clan** på inbjudan. Dess senare inbjudningar avvisas utan att de får veta det. Avblockera när som helst under **Settings → Blocked clans**." },
+        { term: "Om vi säger ja en gång, är vi anmälda varje vecka?", body: "Nej. En återkommande tävling skickar nya inbjudningar varje vecka, och en ägare eller admin måste acceptera varje en." },
       ]
     }
   },

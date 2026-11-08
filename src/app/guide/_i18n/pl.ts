@@ -4474,17 +4474,18 @@ const pl: PartialGuideDict = {
     },
     "clans": {
       "title": "Konfiguracja klan kontra klan",
-      "intro": "Klan kontra klan pozwala innym klanom dołączyć do twojej konkurencji. Ty jesteś gospodarzem, a pozostałe klany partnerami.",
+      "intro": "Clan vs clan pozwala innym klanom dołączyć do twojej konkurencji, ile tylko chcesz. Ty jesteś gospodarzem, a pozostałe klany są partnerami.",
       "steps": [
-        "Jako admin lub wyższa rola w klanie-gospodarzu ustaw **Format** na **Clan vs clan**.",
-        "Zaproś inne klany po ich adresie. Zrób to w formularzu tworzenia albo później na stronie **Clans** konkurencji.",
-        "Właściciel lub admin zaproszonego klanu otwiera swoją stronę **People** i akceptuje lub odrzuca. Moderator nie może tego zrobić.",
-        "Gdy klan zaakceptuje, cały jego skład zostaje zapisany i oznaczony tym klanem."
+        "Jako admin lub wyżej w klanie gospodarza ustaw **Format** na **Clan vs clan**.",
+        "Zaproś pozostałe klany, podając ich adres. Zrób to w formularzu tworzenia albo później na stronie **Clans** konkurencji.",
+        "Właściciel lub admin zaproszonego klanu akceptuje lub odrzuca na swojej stronie **People** albo na liście **Events**. Moderator tego nie może. Nikt z tego klanu nie zostaje zapisany, dopóki klan nie zaakceptuje.",
+        "Po akceptacji klan wybiera, kto się ściga: **All members** z jego listy członków albo **Selected people**, których sam wskaże. Może to później zmienić z tej samej karty.",
       ],
       "body": [
-        "Klan partnerski może śledzić wyniki na swojej stronie pod `/c/<slug>/weekly/<id>`. Jest to tylko do odczytu. Edytuje tylko gospodarz.",
-        "Aby usunąć klan, usuń go na stronie **Clans**. Jego gracze znikają z tablicy.",
-        "Powtarzająca się konkurencja wysyła nowe zaproszenia co tydzień, więc każdy klan musi znów się zgodzić."
+        "Klan partnerski może śledzić tabelę na własnej stronie pod adresem `/c/<slug>/weekly/<id>`. Jest ona tylko do odczytu. Konkurencję edytuje wyłącznie gospodarz.",
+        "Aby usunąć klan, usuń go na stronie **Clans**. Jego gracze znikną z planszy.",
+        "Cykliczna konkurencja wysyła nowe zaproszenia co tydzień, więc każdy klan musi znów się zgodzić.",
+        "Dostajesz niechciane zaproszenia? Wybierz **Decline & block this clan** przy zaproszeniu. Kolejne zaproszenia od tego klanu będą cicho odrzucane, a blokadę możesz zdjąć w **Settings → Blocked clans**.",
       ],
       "note": {
         "tag": "Udostępnij adres",
@@ -4502,31 +4503,24 @@ const pl: PartialGuideDict = {
     "players": {
       "title": "Co widzą gracze",
       "body": [
-        "Strona konkurencji pokazuje najpierw tabelę drużyn lub klanów. Otwórz dowolną, aby zobaczyć jej graczy. Twoja drużyna lub klan jest wyróżniona.",
-        "Posty na Discordzie na starcie, w połowie i na końcu pokazują wyniki. W klan kontra klan trafiają na kanał każdego klanu, a twój jest oznaczony **← you**.",
-        "W bocznym panelu pluginu widzisz, gdzie plasuje się twoja drużyna.",
-        "Nie ma się czego zapisywać. Jeśli jesteś na liście, już bierzesz udział."
+        "Strona konkurencji pokazuje najpierw tabelę drużyn lub klanów. Otwórz dowolną, by zobaczyć jej graczy. Twoja drużyna lub klan jest wyróżniony.",
+        "Wiadomości na Discordzie na starcie, w połowie i na końcu pokazują tabelę. W clan vs clan trafiają na kanał każdego klanu, a twój jest oznaczony jako **← you**.",
+        "W panelu bocznym pluginu zobaczysz, na którym miejscu jest twoja drużyna.",
+        "Nie ma się czego zapisywać. Jeśli twój klan wpisuje wszystkich członków, a ty jesteś na liście, bierzesz udział. Jeśli klan wybiera osoby, bierzesz udział po wybraniu.",
+        "Nie chcesz brać udziału? Naciśnij **Opt out** obok **You’re in** na stronie konkurencji, na liście Events lub w pluginie. Znikasz z planszy tylko w tej jednej konkurencji i możesz dołączyć z powrotem, gdy trwa.",
       ]
     },
     "faq": {
       "title": "Pytania",
+      "intro": "Pytania, które staff klanu i gracze zadają najczęściej:",
       "rows": [
-        {
-          "term": "Nasze drużyny mają różną wielkość. Czy to niesprawiedliwe?",
-          "body": "Samo w sobie nie. Ranking decydują sumy, ale każda drużyna pokazuje też średnią na gracza, więc widać, jak naprawdę radzi sobie mniejsza drużyna."
-        },
-        {
-          "term": "A co z osobami, które dołączą późno?",
-          "body": "Przy włączonej opcji późnych graczy trafiają do najmniejszej drużyny. Przy wyłączonej liczą się tylko na tablicy indywidualnej. Zawsze możesz przenieść ich ręcznie na stronie **Teams**."
-        },
-        {
-          "term": "Czy drugi klan może edytować naszą konkurencję?",
-          "body": "Nie. Klany partnerskie widzą wyniki tylko do odczytu. Zmieniać konkurencję może tylko klan gospodarz."
-        },
-        {
-          "term": "Jeśli zgodzimy się raz, czy jesteśmy zapisani co tydzień?",
-          "body": "Nie. Powtarzająca się konkurencja wysyła nowe zaproszenia co tydzień, a właściciel lub admin musi każde z nich zaakceptować."
-        }
+        { term: "Nasze drużyny mają różną liczbę osób. Czy to nie jest niesprawiedliwe?", body: "Samo w sobie nie. Ranking decydują sumy, ale każda drużyna pokazuje też średnią na gracza, dzięki czemu widać, jak naprawdę radzi sobie mniejsza drużyna." },
+        { term: "A co z osobami, które dołączają później?", body: "Przy włączonym przełączniku dla późno dołączających trafiają do najmniejszej drużyny. Przy wyłączonym liczą się tylko na tablicy indywidualnej. Zawsze możesz przenieść je ręcznie na stronie **Teams**." },
+        { term: "Czy drugi klan może edytować naszą konkurencję?", body: "Nie. Klany partnerskie widzą tabelę tylko do odczytu. Zmieniać konkurencję może wyłącznie klan gospodarza." },
+        { term: "Czy mogę opuścić jedną konkurencję?", body: "Tak. Naciśnij **Opt out** na stronie konkurencji, na liście Events lub w pluginie. Dotyczy to tylko tej konkurencji, a dołączyć z powrotem możesz, gdy trwa." },
+        { term: "Ile klanów może się ścigać?", body: "Tyle, ile zaprosisz, maksymalnie 50 w jednej konkurencji. Każdy klan widzi swoją stronę oznaczoną w tabeli i w swoich wiadomościach na Discordzie." },
+        { term: "Inny klan wciąż nas zaprasza. Możemy to zatrzymać?", body: "Tak. Właściciel lub admin wybiera przy zaproszeniu **Decline & block this clan**. Kolejne zaproszenia są odrzucane bez informowania klanu. Odblokować go można w dowolnym momencie w **Settings → Blocked clans**." },
+        { term: "Jeśli zgodzimy się raz, czy zapisujemy się co tydzień?", body: "Nie. Cykliczna konkurencja wysyła nowe zaproszenia co tydzień, a właściciel lub admin musi zaakceptować każde z nich." },
       ]
     }
   },

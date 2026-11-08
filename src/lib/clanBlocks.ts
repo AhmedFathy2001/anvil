@@ -94,7 +94,8 @@ export async function blockClan(clanId: number, blockedClanId: number, byUserId:
       and ${eventCohosts.eventId} in (select id from ${events} where clan_id = ${blockedClanId})`);
 }
 
-async function isAdminOf(clanId: number, userId: number): Promise<boolean> {
+/** Owner/admin of `clanId` (clan_staff) — the bar for every Blocked clans read and write. */
+export async function isAdminOf(clanId: number, userId: number): Promise<boolean> {
   const [staff] = await db
     .select({ role: clanStaff.role })
     .from(clanStaff)
@@ -122,4 +123,10 @@ export async function listBlockedClans(clanId: number): Promise<{ clanId: number
     .innerJoin(clans, eq(clans.id, clanBlocks.blockedClanId))
     .where(eq(clanBlocks.clanId, clanId))
     .orderBy(clans.name);
+}
+
+/** The Blocked clans list, for an owner/admin of `clanId` only; null for anyone else. */
+export async function listBlockedClansAsUser(clanId: number, userId: number) {
+  if (!(await isAdminOf(clanId, userId))) return null;
+  return listBlockedClans(clanId);
 }

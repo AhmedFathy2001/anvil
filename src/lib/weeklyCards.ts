@@ -6,6 +6,7 @@ import { competitionIconUrl } from '@/lib/tileIcons';
 import { dayRange, metricGain, type CompetitionType } from '@/lib/competitionInsights';
 import { countsTowardLeaderboard } from '@/lib/weekly';
 import { weeklyStage } from '@/lib/weeklyStage';
+import { competitionReadableBy } from '@/lib/competitionTeamsDb';
 
 /**
  * A weekly competition, reduced to what a card needs.
@@ -53,6 +54,10 @@ export interface LoadWeeklyCardsOptions {
   pastLimit?: number;
   /** Fetch the per-day shape for the weeks that are running. Off unless a surface draws it. */
   withDailyShape?: boolean;
+  /** Who is looking. A clan-vs-clan week hosted by ANOTHER clan shows its leader and headcount only
+      when this viewer may read that board (every racing clan's privacy — competitionReadableBy).
+      Absent = treated as a signed-out stranger. */
+  viewer?: { playerId: number | null; userId: number | null } | null;
 }
 
 const KIND: Record<string, WeeklyKind> = { skill: 'sotw', boss: 'botw', efficiency: 'eff' };
@@ -232,6 +237,14 @@ export async function loadWeeklyCards(
       : [],
   );
 
+  // A foreign clan-vs-clan board names players from clans this viewer may not be allowed to see.
+  const unreadable = new Set<number>();
+  for (const c of shown) {
+    if (c.clanId === clanId) continue;
+    const readable = await competitionReadableBy(c, { playerId: opts.viewer?.playerId ?? null, userId: opts.viewer?.userId ?? null });
+    if (!readable) unreadable.add(c.id);
+  }
+
   return shown.map((c) => {
     // The stage, not the raw status: a week stays 'active' until the lifecycle cron closes it, so a
     // Boss of the Week that ended yesterday sat under "On now" with a LIVE badge until then.
@@ -247,10 +260,10 @@ export async function loadWeeklyCards(
       state,
       startDate: c.startDate,
       endDate: c.endDate,
-      entrants: entrants.get(c.id) ?? 0,
+      entrants: unreadable.has(c.id) ? 0 : entrants.get(c.id) ?? 0,
       unit: unitFor(c.type),
-      top: leader && leader.gained > 0 ? { rsn: leader.rsn, value: leader.gained, tied: leader.tied } : null,
-      days: shapeFor.get(c.id) ?? [],
+      top: !unreadable.has(c.id) && leader && leader.gained > 0 ? { rsn: leader.rsn, value: leader.gained, tied: leader.tied } : null,
+      days: unreadable.has(c.id) ? [] : shapeFor.get(c.id) ?? [],
       hostName: hosts.get(c.clanId)?.name ?? null,
       hostSlug: hosts.get(c.clanId)?.slug ?? null,
     };

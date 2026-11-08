@@ -5,7 +5,7 @@ import { db } from '@/db';
 import { clans } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { resolveClanFromRequest } from '@/lib/clanContext';
-import { blockClanAsUser, listBlockedClans, unblockClan } from '@/lib/clanBlocks';
+import { blockClanAsUser, isAdminOf, listBlockedClans, listBlockedClansAsUser, unblockClan } from '@/lib/clanBlocks';
 
 /**
  * Settings → Blocked clans (lib/clanBlocks). Owner/admin of the addressed clan only — checked
@@ -18,15 +18,21 @@ async function scope(request: Request) {
   if (!session?.userId) return { error: NextResponse.json({ error: 'Sign in first.' }, { status: 401 }) };
   const clan = await resolveClanFromRequest(request);
   if (!clan) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) };
+  // Every method, reads included: who a clan has blocked is its owner/admins' business.
+  if (!(await isAdminOf(clan.id, session.userId))) return { error: forbidden() };
   return { clanId: clan.id, userId: session.userId };
 }
 
-const forbidden = () => NextResponse.json({ error: 'Only an owner or admin can manage blocked clans' }, { status: 403 });
+function forbidden() {
+  return NextResponse.json({ error: 'Only an owner or admin can manage blocked clans' }, { status: 403 });
+}
 
 export async function GET(request: Request) {
   const s = await scope(request);
   if ('error' in s) return s.error;
-  return NextResponse.json({ blocked: await listBlockedClans(s.clanId) });
+  const blocked = await listBlockedClansAsUser(s.clanId, s.userId);
+  if (!blocked) return forbidden();
+  return NextResponse.json({ blocked });
 }
 
 export async function POST(request: Request) {

@@ -33,7 +33,7 @@ async function seat(clanId: number, names: string[]) {
     const [p] = await db.insert(s.players).values({ displayName: n }).returning({ id: s.players.id });
     player[n] = p.id;
     const [a] = await db.insert(s.accounts).values({ playerId: p.id, rsn: n, rsnNormalized: n.toLowerCase() }).returning({ id: s.accounts.id });
-    await db.insert(s.clanMemberships).values({ clanId, accountId: a.id, rsn: n, rsnNormalized: n.toLowerCase(), status: 'active', kind: 'member' });
+    await db.insert(s.clanMemberships).values({ clanId, accountId: a.id, kind: 'member' });
   }
 }
 
@@ -206,6 +206,11 @@ test('blocking: a blocked clan\'s invite reaches nobody; unblock restores; owner
   assert.equal(await B.blockClanAsUser(clan.guest, clan.spammer, admin.host), false);
   assert.ok(await B.blockClanAsUser(clan.guest, clan.spammer, admin.guest));
   assert.deepEqual((await B.listBlockedClans(clan.guest)).map((b) => b.slug), ['spammer']);
+  // Reading the list is gated too (GET /api/admin/clan-blocks answers 403 on null).
+  assert.equal(await B.listBlockedClansAsUser(clan.guest, guestMod), null, 'moderator cannot read it');
+  assert.equal(await B.listBlockedClansAsUser(clan.guest, admin.host), null, 'another clan cannot read it');
+  assert.deepEqual((await B.listBlockedClansAsUser(clan.guest, admin.guest))!.map((b) => b.slug), ['spammer']);
+  assert.equal(await B.isAdminOf(clan.guest, guestMod), false);
 
   const c = await comp(clan.spammer, 'Spam war');
   const inv = await T.inviteClanToCompetition(c, clan.spammer, 'guest', admin.spammer);
@@ -277,4 +282,32 @@ test('a captain seated only in a clan that is not in the event is never entered 
   assert.ok((await C.acceptCoHostInvite(inv.id, admin.third)).ok);
   const r2 = await placeCaptainOnTeam(ev.id, team.id, u.id);
   assert.ok(r2.playerId != null);
+});
+
+test("events list: a foreign clan-vs-clan card hides its leader unless the viewer can read every racing clan", async () => {
+  const { loadWeeklyCards } = await import('../src/lib/weeklyCards.ts');
+  const c = await comp(clan.fourth, 'Card privacy');
+  const inv = await T.inviteClanToCompetition(c, clan.fourth, 'third', admin.fourth);
+  assert.ok(inv.ok);
+  await T.respondToCompetitionInvite(inv.id, admin.third, 'accept');
+  await enrollAllPlayers(c.id);
+  await db
+    .update(s.weeklyParticipants)
+    .set({ baselineValue: 0, currentValue: 999, gainAt: '2026-11-03T00:00:00Z' })
+    .where(and(eq(s.weeklyParticipants.competitionId, c.id), eq(s.weeklyParticipants.rsnNormalized, 'fay')));
+  await db.update(s.clans).set({ visibility: 'members' }).where(eq(s.clans.id, clan.fourth));
+  try {
+    const card = async (viewer: { playerId: number | null; userId: number | null } | null) =>
+      (await loadWeeklyCards(clan.third, { viewer })).find((w) => w.id === c.id)!;
+    const stranger = await card(null);
+    assert.ok(stranger, 'listed for the partner clan, hosted by the other clan');
+    assert.equal(stranger.hostSlug, 'fourth');
+    assert.equal(stranger.top, null, 'leader hidden: the host is private');
+    assert.equal(stranger.entrants, 0);
+    assert.equal((await card({ playerId: player.Tia, userId: null })).top, null, 'partner member who cannot see the host');
+    const insider = await card({ playerId: player.Fay, userId: null });
+    assert.equal(insider.top?.rsn, 'Fay', 'a host member sees it (the partner is public)');
+  } finally {
+    await db.update(s.clans).set({ visibility: 'public' }).where(eq(s.clans.id, clan.fourth));
+  }
 });

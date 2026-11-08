@@ -4493,17 +4493,18 @@ const de: PartialGuideDict = {
     },
     "clans": {
       "title": "Clan gegen Clan einrichten",
-      "intro": "Clan vs clan lässt andere Clans an deinem Wettbewerb teilnehmen. Du bist der Host, die anderen Clans sind Partner.",
+      "intro": "Clan vs clan lässt andere Clans an deinem Wettbewerb teilnehmen, so viele du willst. Du bist der Host, die anderen Clans sind Partner.",
       "steps": [
-        "Als Admin oder höher im Host-Clan stellst du **Format** auf **Clan vs clan**.",
-        "Lade die anderen Clans über ihre Adresse ein. Mach das im Erstellungsformular oder später auf der Seite **Clans** des Wettbewerbs.",
-        "Der Owner oder Admin des eingeladenen Clans öffnet seine Seite **People** und akzeptiert oder lehnt ab. Ein Moderator kann das nicht.",
-        "Wenn ein Clan akzeptiert, wird seine gesamte Mitgliederliste eingetragen und diesem Clan zugeordnet."
+        "Als Admin oder höher im Host-Clan setzt du **Format** auf **Clan vs clan**.",
+        "Lade die anderen Clans über ihre Adresse ein. Tu das im Erstellformular oder später auf der **Clans**-Seite des Wettbewerbs.",
+        "Der Owner oder Admin des eingeladenen Clans nimmt auf seiner **People**-Seite oder in der **Events**-Liste an oder lehnt ab. Ein Moderator kann das nicht. Niemand aus diesem Clan wird eingetragen, bis er annimmt.",
+        "Bei Annahme wählt er, wer antritt: **All members** seines Rosters oder **Selected people**, die er auswählt. Das kann er später auf derselben Karte ändern.",
       ],
       "body": [
         "Der Partner-Clan kann die Rangliste auf seiner eigenen Seite unter `/c/<slug>/weekly/<id>` verfolgen. Sie ist nur lesbar. Nur der Host bearbeitet den Wettbewerb.",
-        "Um einen Clan zu entfernen, nimm ihn auf der Seite **Clans** heraus. Seine Spieler verschwinden vom Board.",
-        "Ein wiederkehrender Wettbewerb verschickt jede Woche neue Einladungen, daher muss jeder Clan erneut zustimmen."
+        "Um einen Clan zu entfernen, nimm ihn auf der **Clans**-Seite heraus. Seine Spieler werden vom Board entfernt.",
+        "Ein wiederkehrender Wettbewerb verschickt jede Woche neue Einladungen, daher muss jeder Clan erneut zusagen.",
+        "Unerwünschte Einladungen? Wähle auf der Einladung **Decline & block this clan**. Spätere Einladungen dieses Clans werden still abgelehnt, und du kannst die Sperre unter **Settings → Blocked clans** wieder aufheben.",
       ],
       "note": {
         "tag": "Adresse teilen",
@@ -4521,31 +4522,24 @@ const de: PartialGuideDict = {
     "players": {
       "title": "Was Spieler sehen",
       "body": [
-        "Die Wettbewerbsseite zeigt zuerst die Team- oder Clan-Rangliste. Öffne einen Eintrag, um seine Spieler zu sehen. Dein eigenes Team oder dein Clan ist hervorgehoben.",
-        "Discord-Posts zu Start, Halbzeit und Ende zeigen die Rangliste. Bei Clan vs clan gehen sie an den Kanal jedes Clans, und deiner ist mit **← you** markiert.",
+        "Die Wettbewerbsseite zeigt zuerst die Rangliste der Teams oder Clans. Öffne eine davon, um deren Spieler zu sehen. Dein eigenes Team oder Clan ist hervorgehoben.",
+        "Discord-Posts zu Beginn, zur Halbzeit und am Ende zeigen die Rangliste. Bei Clan vs clan gehen sie an den Kanal jedes Clans, und deiner ist mit **← you** markiert.",
         "Im Seitenpanel des Plugins siehst du, wo dein Team steht.",
-        "Man muss sich nirgends anmelden. Wenn du auf der Liste stehst, bist du dabei."
+        "Du musst dich nicht anmelden. Wenn dein Clan alle Mitglieder einträgt und du auf dem Roster stehst, bist du dabei. Wenn er Personen auswählt, bist du dabei, sobald du ausgewählt wurdest.",
+        "Du willst nicht teilnehmen? Drücke **Opt out** neben **You’re in** auf der Wettbewerbsseite, in der Events-Liste oder im Plugin. Du verlässt das Board nur für diesen einen Wettbewerb und kannst während er läuft wieder beitreten.",
       ]
     },
     "faq": {
       "title": "Fragen",
+      "intro": "Die Fragen, die Clan-Staff und Spieler am häufigsten stellen:",
       "rows": [
-        {
-          "term": "Unsere Teams sind unterschiedlich groß. Ist das unfair?",
-          "body": "Nicht an sich. Summen entscheiden das Ranking, aber jedes Team zeigt außerdem einen Durchschnitt pro Spieler, damit du siehst, wie ein kleineres Team wirklich abschneidet."
-        },
-        {
-          "term": "Was ist mit Leuten, die später dazustoßen?",
-          "body": "Mit eingeschalteter Option für späte Teilnehmer kommen sie ins kleinste Team. Ausgeschaltet zählen sie nur auf dem individuellen Board. Du kannst sie jederzeit auf der Seite **Teams** von Hand verschieben."
-        },
-        {
-          "term": "Kann der andere Clan unseren Wettbewerb bearbeiten?",
-          "body": "Nein. Partner-Clans sehen die Rangliste nur lesend. Nur der Host-Clan kann den Wettbewerb ändern."
-        },
-        {
-          "term": "Wenn wir einmal zustimmen, sind wir dann jede Woche angemeldet?",
-          "body": "Nein. Ein wiederkehrender Wettbewerb verschickt jede Woche neue Einladungen, und ein Owner oder Admin muss jede einzelne annehmen."
-        }
+        { term: "Unsere Teams haben unterschiedliche Größen. Ist das unfair?", body: "Nicht an sich. Die Summen entscheiden über das Ranking, aber jedes Team zeigt außerdem einen Durchschnitt pro Spieler, damit du siehst, wie ein kleineres Team wirklich abschneidet." },
+        { term: "Was ist mit Spielern, die später dazukommen?", body: "Mit eingeschaltetem Schalter für späte Teilnehmer kommen sie ins kleinste Team. Ist er aus, zählen sie nur auf dem Einzel-Board. Du kannst sie jederzeit von Hand auf der **Teams**-Seite verschieben." },
+        { term: "Kann der andere Clan unseren Wettbewerb bearbeiten?", body: "Nein. Partner-Clans sehen die Rangliste nur lesend. Nur der Host-Clan kann den Wettbewerb ändern." },
+        { term: "Kann ich bei einem Wettbewerb aussetzen?", body: "Ja. Drücke **Opt out** auf der Wettbewerbsseite, in der Events-Liste oder im Plugin. Nur dieser Wettbewerb ist betroffen, und du kannst während er läuft wieder beitreten." },
+        { term: "Wie viele Clans können antreten?", body: "So viele du einlädst, bis zu 50 in einem Wettbewerb. Jeder Clan sieht seine eigene Seite in der Rangliste und in seinen Discord-Posts markiert." },
+        { term: "Ein anderer Clan lädt uns immer wieder ein. Können wir das stoppen?", body: "Ja. Ein Owner oder Admin wählt auf der Einladung **Decline & block this clan**. Spätere Einladungen werden abgelehnt, ohne dass der Clan etwas erfährt. Die Sperre kannst du jederzeit unter **Settings → Blocked clans** aufheben." },
+        { term: "Wenn wir einmal zusagen, sind wir dann jede Woche dabei?", body: "Nein. Ein wiederkehrender Wettbewerb verschickt jede Woche neue Einladungen, und ein Owner oder Admin muss jede einzelne annehmen." },
       ]
     }
   },

@@ -4493,17 +4493,18 @@ const fi: PartialGuideDict = {
     },
     "clans": {
       "title": "Klaani vs klaani -pystytys",
-      "intro": "Klaani vs klaani antaa muiden klaanien liittyä kilpailuun. Sinä olet isäntä ja muut klaanit kumppaneita.",
+      "intro": "Klaani vs klaani antaa muiden klaanien liittyä kilpailuun, niin monta kuin haluat. Sinä olet isäntä ja muut klaanit kumppaneita.",
       "steps": [
-        "Isäntäklaanin admin tai ylempi asettaa **Format** arvoon **Clan vs clan**.",
-        "Kutsu muut klaanit osoitteella. Tee se luontilomakkeella tai myöhemmin kilpailun **Clans**-sivulla.",
-        "Kutsutun klaanin owner tai admin avaa oman **People**-sivunsa ja hyväksyy tai hylkää. Moderaattori ei voi.",
-        "Kun klaani hyväksyy, koko sen kokoonpano ilmoittautuu ja merkitään kyseiseen klaaniin."
+        "Aseta isäntäklaanissa admin- tai sitä korkeampi oikeus ja valitse **Format** arvoon **Clan vs clan**.",
+        "Kutsu muut klaanit niiden osoitteella. Tee se luontilomakkeella tai myöhemmin kilpailun **Clans**-sivulla.",
+        "Kutsutun klaanin omistaja tai admin hyväksyy tai hylkää sen **People**-sivulla tai **Events**-listalla. Moderaattori ei voi. Klaanista ei oteta ketään mukaan ennen kuin se hyväksyy.",
+        "Hyväksyessään klaani valitsee, kuka kilpailee: joko kaikki sen kokoonpanon **All members** tai sen valitsemat **Selected people**. Sen voi muuttaa myöhemmin samasta kortista.",
       ],
       "body": [
-        "Kumppaniklaani voi seurata sijoituksia omalla sivustollaan osoitteessa `/c/<slug>/weekly/<id>`. Se on vain luku. Vain isäntä muokkaa kilpailua.",
+        "Kumppaniklaani voi seurata tilannetta omalla sivustollaan osoitteessa `/c/<slug>/weekly/<id>`. Se on vain luku -tilassa. Vain isäntä muokkaa kilpailua.",
         "Klaanin poistamiseksi poista se **Clans**-sivulla. Sen pelaajat poistuvat laudalta.",
-        "Toistuva kilpailu lähettää uudet kutsut joka viikko, joten jokaisen klaanin on sanottava kyllä uudelleen."
+        "Toistuva kilpailu lähettää uudet kutsut joka viikko, joten jokaisen klaanin täytyy vastata myöntävästi uudelleen.",
+        "Saatko ei-toivottuja kutsuja? Valitse kutsusta **Decline & block this clan**. Klaanin myöhemmät kutsut hylätään hiljaa, ja voit poistaa eston kohdasta **Settings → Blocked clans**.",
       ],
       "note": {
         "tag": "Jaa osoite",
@@ -4521,31 +4522,24 @@ const fi: PartialGuideDict = {
     "players": {
       "title": "Mitä pelaajat näkevät",
       "body": [
-        "Kilpailusivu näyttää ensin tiimien tai klaanien sijoitukset. Avaa mikä tahansa nähdäksesi sen pelaajat. Oma tiimisi tai klaanisi on korostettu.",
-        "Discord-viestit alussa, puolivälissä ja lopussa näyttävät sijoitukset. Klaani vs klaani -tilassa ne menevät jokaisen klaanin kanavalle, ja sinun kanavasi on merkitty **← you**.",
-        "Pluginin sivupaneelista näet, mihin sijoittuu oma tiimisi.",
-        "Ilmoittautumista ei tarvita. Jos olet kokoonpanossa, olet mukana."
+        "Kilpailusivulla näkyy ensin tiimien tai klaanien sijoitukset. Avaa jokin niistä nähdäksesi sen pelaajat. Oma tiimisi tai klaanisi on korostettu.",
+        "Discord-viestit alussa, puolivälissä ja lopussa näyttävät sijoitukset. Klaani vs klaani -tilassa ne menevät jokaisen klaanin kanavalle, ja omasi on merkitty **← you**.",
+        "RuneLiten sivupaneelissa näet, mihin tiimisi sijoittuu.",
+        "Ilmoittautumista ei tarvita. Jos klaanisi ottaa mukaan kaikki jäsenet ja olet kokoonpanossa, olet mukana. Jos klaani valitsee ihmisiä, olet mukana kun sinut valitaan.",
+        "Etkö halua osallistua? Paina **Opt out** kohdan **You’re in** vierestä kilpailusivulla, Events-listalla tai pluginissa. Poistut laudalta vain tästä kilpailusta, ja voit liittyä takaisin kilpailun ollessa käynnissä.",
       ]
     },
     "faq": {
       "title": "Kysymyksiä",
+      "intro": "Klaanin henkilökunnan ja pelaajien yleisimmät kysymykset:",
       "rows": [
-        {
-          "term": "Tiimimme ovat eri kokoisia. Onko se epäreilua?",
-          "body": "Ei sinänsä. Summat ratkaisevat sijoituksen, mutta jokainen tiimi näyttää myös keskiarvon per pelaaja, joten näet, miten pienempi tiimi todella pärjää."
-        },
-        {
-          "term": "Entä myöhään liittyvät?",
-          "body": "Kun myöhään liittyjien kytkin on päällä, he menevät pienimpään tiimiin. Kun se on pois, he lasketaan vain yksilölaudalle. Voit aina siirtää heidät käsin **Teams**-sivulla."
-        },
-        {
-          "term": "Voiko toinen klaani muokata kilpailuamme?",
-          "body": "Ei. Kumppaniklaanit näkevät sijoitukset vain lukuoikeudella. Vain isäntäklaani voi muuttaa kilpailua."
-        },
-        {
-          "term": "Jos sovimme kerran, ollaanko mukana joka viikko?",
-          "body": "Ei. Toistuva kilpailu lähettää uudet kutsut joka viikko, ja owner tai admin hyväksyy jokaisen."
-        }
+        { term: "Tiimimme ovat eri kokoisia. Onko se epäreilua?", body: "Ei sinänsä. Sijoitukset ratkaisevat yhteissummat, mutta jokainen tiimi näyttää myös keskiarvon pelaajaa kohden, joten näet, miten pienempi tiimi todella pärjää." },
+        { term: "Entä myöhään liittyvät?", body: "Kun myöhään liittyvien kytkin on päällä, he liittyvät pienimpään tiimiin. Kun se on pois päältä, he lasketaan vain yksilölaudalle. Voit aina siirtää heidät käsin **Teams**-sivulla." },
+        { term: "Voiko toinen klaani muokata kilpailuamme?", body: "Ei. Kumppaniklaanit näkevät sijoitukset vain luku -tilassa. Vain isäntäklaani voi muuttaa kilpailua." },
+        { term: "Voinko jättää yhden kilpailun väliin?", body: "Kyllä. Paina **Opt out** kilpailusivulla, Events-listalla tai pluginissa. Vain kyseinen kilpailu vaikuttuu, ja voit liittyä takaisin kilpailun ollessa käynnissä." },
+        { term: "Kuinka monta klaania voi kilpailla?", body: "Niin monta kuin kutsut, enintään 50 yhdessä kilpailussa. Jokainen klaani näkee oman puolensa merkittynä sijoituksissa ja omissa Discord-viesteissään." },
+        { term: "Toinen klaani kutsuu meitä jatkuvasti. Voimmeko estää sen?", body: "Kyllä. Omistaja tai admin valitsee kutsusta **Decline & block this clan**. Klaanin myöhemmät kutsut hylätään ilman ilmoitusta. Eston voi poistaa milloin tahansa kohdasta **Settings → Blocked clans**." },
+        { term: "Jos sovimme kerran, olemmeko ilmoittautuneet joka viikko?", body: "Emme. Toistuva kilpailu lähettää uudet kutsut joka viikko, ja omistajan tai adminin täytyy hyväksyä jokainen niistä." },
       ]
     }
   },

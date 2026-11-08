@@ -117,7 +117,7 @@ export default async function EventsIndexPage({
   const isStaff = isStaffRole(session?.role);
 
   const [view, calendar, clanEvents] = await Promise.all([
-    loadHubView(clan.id, { pastLimit }),
+    loadHubView(clan.id, { pastLimit, viewer: session ? { playerId: session.playerId, userId: session.userId } : null }),
     loadCalendar(clan.id),
     listClanEvents(clan.id, { withinDays: 30 }),
   ]);

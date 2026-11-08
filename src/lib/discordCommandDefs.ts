@@ -283,6 +283,7 @@ export const SETUP_TOPICS: { name: string; value: string }[] = [
   { name: 'The side panel, tab by tab', value: 'sidepanel' },
   { name: 'Boosting a clan', value: 'boosts' },
   { name: 'Skill & Boss of the Week', value: 'weekly' },
+  { name: 'Team competitions & clan vs clan weeklies', value: 'teamcomps' },
   { name: 'Clan events & the schedule', value: 'clanevents' },
   { name: 'Settings, page by page', value: 'settings' },
   { name: 'Your profile, Wrapped & Compare', value: 'profile' },

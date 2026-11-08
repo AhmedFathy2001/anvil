@@ -61,6 +61,8 @@ export interface HubView {
 export interface LoadHubOptions {
   /** How many finished competitions the record shows. Live and upcoming ignore it. */
   pastLimit?: number;
+  /** Who is looking — gates the leader/headcount of clan-vs-clan weeks another clan hosts. */
+  viewer?: { playerId: number | null; userId: number | null } | null;
 }
 
 const short = (n: number) =>
@@ -120,7 +122,7 @@ export async function loadHubView(clanId: number, opts: LoadHubOptions = {}, now
   // `pastLimit` across BOTH without reading either archive whole.
   const [boards, weeks, boardsPast, weeksPast] = await Promise.all([
     loadEventCards(clanId, { includeUpcoming: true, pastLimit }, now),
-    loadWeeklyCards(clanId, { pastLimit, withDailyShape: true }, now),
+    loadWeeklyCards(clanId, { pastLimit, withDailyShape: true, viewer: opts.viewer }, now),
     countPastEvents(clanId, now),
     db
       .select({ c: count() })

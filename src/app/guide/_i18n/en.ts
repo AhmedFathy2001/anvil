@@ -4487,17 +4487,18 @@ export const en = {
 
     clans: {
       title: 'Set up clan vs clan',
-      intro: 'Clan vs clan lets other clans join your competition. You are the host, and the other clans are partners.',
+      intro: 'Clan vs clan lets other clans join your competition, as many as you like. You are the host, and the other clans are partners.',
       steps: [
         'As an admin or higher in the host clan, set **Format** to **Clan vs clan**.',
         'Invite the other clans by their address. Do it on the create form, or later on the competition’s **Clans** page.',
-        'The invited clan’s owner or admin opens their **People** page and accepts or declines. A moderator can’t.',
-        'When a clan accepts, its whole roster is entered and tagged to that clan.',
+        'The invited clan’s owner or admin accepts or declines on their **People** page or **Events** list. A moderator can’t. Nobody from that clan is entered until it accepts.',
+        'When it accepts, it chooses who races: **All members** of its roster, or **Selected people** it picks. It can change this later from the same card.',
       ],
       body: [
         'The partner clan can follow the standings on its own site at `/c/<slug>/weekly/<id>`. It is read-only. Only the host edits the competition.',
         'To drop a clan, remove it on the **Clans** page. Its players come off the board.',
         'A repeating competition sends fresh invites every week, so each clan has to say yes again.',
+        'Getting unwanted invites? Choose **Decline & block this clan** on the invite. That clan’s later invites are turned away quietly, and you can unblock it in **Settings → Blocked clans**.',
       ],
       note: {
         tag: 'Share the address',
@@ -4520,12 +4521,14 @@ export const en = {
         'The competition page shows the team or clan standings first. Open any of them to see its players. Your own team or clan is highlighted.',
         'Discord posts at the start, halfway and end show the standings. In clan vs clan they go to every clan’s channel, and yours is marked **← you**.',
         'In the plugin side panel, you can see where your team places.',
-        'There is nothing to sign up for. If you are on the roster, you are in.',
+        'There is nothing to sign up for. If your clan enters all members and you are on the roster, you are in. If it picks people, you are in once picked.',
+        'Don’t want to take part? Press **Opt out** next to **You’re in**, on the competition page, the Events list or in the plugin. You come off the board for that one competition, and you can opt back in while it runs.',
       ],
     },
 
     faq: {
       title: 'Questions',
+      intro: 'The ones clan staff and players ask most:',
       rows: [
         {
           term: 'Our teams are different sizes. Is that unfair?',
@@ -4538,6 +4541,18 @@ export const en = {
         {
           term: 'Can the other clan edit our competition?',
           body: 'No. Partner clans see the standings read-only. Only the host clan can change the competition.',
+        },
+        {
+          term: 'Can I sit one competition out?',
+          body: 'Yes. Press **Opt out** on the competition page, the Events list or in the plugin. Only that competition is affected, and you can opt back in while it is running.',
+        },
+        {
+          term: 'How many clans can race?',
+          body: 'As many as you invite, up to 50 in one competition. Each clan sees its own side marked in the standings and in its Discord posts.',
+        },
+        {
+          term: 'Another clan keeps inviting us. Can we stop it?',
+          body: 'Yes. An owner or admin chooses **Decline & block this clan** on the invite. Its later invites are turned away without telling them. Unblock it any time in **Settings → Blocked clans**.',
         },
         {
           term: 'If we agree once, are we signed up every week?',

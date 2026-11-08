@@ -4502,17 +4502,18 @@ const da: PartialGuideDict = {
     },
     "clans": {
       "title": "Opsæt klan mod klan",
-      "intro": "Clan vs clan lader andre klaner deltage i din konkurrence. Du er vært, og de andre klaner er partnere.",
+      "intro": "Clan vs clan lader andre klaner deltage i din konkurrence, så mange du vil. Du er vært, og de andre klaner er partnere.",
       "steps": [
         "Som admin eller højere i værtsklanen sætter du **Format** til **Clan vs clan**.",
-        "Inviter de andre klaner med deres adresse. Gør det på oprettelsesformularen eller senere på konkurrencens **Clans**-side.",
-        "Den inviterede klans owner eller admin åbner deres **People**-side og accepterer eller afviser. En moderator kan ikke.",
-        "Når en klan accepterer, bliver hele dens roster tilmeldt og markeret med den klan."
+        "Inviter de andre klaner med deres adresse. Gør det på oprettelsesformularen, eller senere på konkurrencens **Clans**-side.",
+        "Den inviterede klans ejer eller admin accepterer eller afslår på sin **People**-side eller **Events**-liste. En moderator kan ikke. Ingen fra den klan bliver tilmeldt, før den har accepteret.",
+        "Når den accepterer, vælger den, hvem der deltager: **All members** på dens roster, eller **Selected people** den vælger. Den kan ændre det senere fra samme kort.",
       ],
       "body": [
-        "Partnerklanen kan følge stillingen på sin egen side på `/c/<slug>/weekly/<id>`. Den er skrivebeskyttet. Kun værten redigerer konkurrencen.",
-        "Vil du fjerne en klan, så fjern den på siden **Clans**. Dens spillere forsvinder fra tavlen.",
-        "En gentagen konkurrence sender nye invitationer hver uge, så hver klan skal sige ja igen."
+        "Partnerklanen kan følge stillingen på sin egen side på `/c/<slug>/weekly/<id>`. Det er skrivebeskyttet. Kun værten redigerer konkurrencen.",
+        "For at fjerne en klan fjerner du den på **Clans**-siden. Dens spillere forsvinder fra tavlen.",
+        "En gentagende konkurrence sender nye invitationer hver uge, så hver klan skal sige ja igen.",
+        "Får du uønskede invitationer? Vælg **Decline & block this clan** på invitationen. Den klans senere invitationer afvises stille, og du kan fjerne blokeringen under **Settings → Blocked clans**.",
       ],
       "note": {
         "tag": "Del adressen",
@@ -4530,31 +4531,24 @@ const da: PartialGuideDict = {
     "players": {
       "title": "Hvad spillerne ser",
       "body": [
-        "Konkurrencesiden viser hold- eller klanstillingen først. Åbn en af dem for at se dens spillere. Dit eget hold eller din klan er fremhævet.",
-        "Discord-opslag ved start, halvvejs og slut viser stillingen. I clan vs clan går de til hver klans kanal, og din er markeret med **← you**.",
+        "Konkurrencesiden viser først hold- eller klanstillingen. Åbn en af dem for at se dens spillere. Dit eget hold eller din egen klan er fremhævet.",
+        "Discord-opslag ved start, halvvejs og slut viser stillingen. I clan vs clan sendes de til hver klans kanal, og din er markeret med **← you**.",
         "I plugin-sidepanelet kan du se, hvor dit hold placerer sig.",
-        "Der er intet at tilmelde sig. Står du på rosteren, er du med."
+        "Der er intet at tilmelde sig. Hvis din klan tilmelder alle medlemmer, og du står på rosteret, er du med. Hvis den vælger personer, er du med, når du er valgt.",
+        "Vil du ikke være med? Tryk **Opt out** ved siden af **You’re in** på konkurrencesiden, i Events-listen eller i pluginnet. Du forlader tavlen for netop den konkurrence, og du kan melde dig til igen, mens den kører.",
       ]
     },
     "faq": {
       "title": "Spørgsmål",
+      "intro": "Dem, klanens staff og spillere oftest spørger om:",
       "rows": [
-        {
-          "term": "Vores hold er forskellig størrelse. Er det uretfærdigt?",
-          "body": "Ikke i sig selv. Totaler afgør rangeringen, men hvert hold viser også et gennemsnit pr. spiller, så du kan se, hvordan et mindre hold reelt klarer sig."
-        },
-        {
-          "term": "Hvad med folk, der kommer sent med?",
-          "body": "Med kontakten for sene tilmeldinger slået til går de ind i det mindste hold. Slået fra tæller de kun på den individuelle tavle. Du kan altid flytte dem manuelt på siden **Teams**."
-        },
-        {
-          "term": "Kan den anden klan redigere vores konkurrence?",
-          "body": "Nej. Partnerklaner ser stillingen skrivebeskyttet. Kun værtsklanen kan ændre konkurrencen."
-        },
-        {
-          "term": "Hvis vi siger ja én gang, er vi så tilmeldt hver uge?",
-          "body": "Nej. En gentagen konkurrence sender nye invitationer hver uge, og en owner eller admin skal acceptere hver enkelt."
-        }
+        { term: "Vores hold har forskellig størrelse. Er det unfair?", body: "Ikke i sig selv. Summerne afgør rangeringen, men hvert hold viser også et gennemsnit pr. spiller, så du kan se, hvordan et mindre hold reelt klarer sig." },
+        { term: "Hvad med folk, der melder sig sent?", body: "Med kontakten for sene tilmeldinger slået til, går de til det mindste hold. Slået fra tæller de kun på den individuelle tavle. Du kan altid flytte dem manuelt på siden **Teams**." },
+        { term: "Kan den anden klan redigere vores konkurrence?", body: "Nej. Partnerklaner ser stillingen skrivebeskyttet. Kun værtsklanen kan ændre konkurrencen." },
+        { term: "Kan jeg stå over en konkurrence?", body: "Ja. Tryk **Opt out** på konkurrencesiden, i Events-listen eller i pluginnet. Kun den konkurrence berøres, og du kan melde dig til igen, mens den kører." },
+        { term: "Hvor mange klaner kan deltage?", body: "Så mange du inviterer, op til 50 i én konkurrence. Hver klan ser sin egen side markeret i stillingen og i sine Discord-opslag." },
+        { term: "En anden klan bliver ved med at invitere os. Kan vi stoppe det?", body: "Ja. En ejer eller admin vælger **Decline & block this clan** på invitationen. Dens senere invitationer afvises uden besked til dem. Du kan fjerne blokeringen når som helst under **Settings → Blocked clans**." },
+        { term: "Hvis vi siger ja én gang, er vi så tilmeldt hver uge?", body: "Nej. En gentagende konkurrence sender nye invitationer hver uge, og en ejer eller admin skal acceptere hver enkelt." },
       ]
     }
   },

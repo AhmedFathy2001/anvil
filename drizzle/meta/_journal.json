@@ -1242,17 +1242,17 @@
       "breakpoints": true
     },
     {
-      "idx": 242,
+      "idx": 243,
       "version": "7",
-      "when": 1794400159469,
-      "tag": "0242_team_competitions",
+      "when": 1794420000000,
+      "tag": "0243_team_competitions",
       "breakpoints": true
     },
     {
-      "idx": 243,
+      "idx": 244,
       "version": "7",
-      "when": 1794410159469,
-      "tag": "0243_competition_entrants",
+      "when": 1794430000000,
+      "tag": "0244_competition_entrants",
       "breakpoints": true
     }
   ]

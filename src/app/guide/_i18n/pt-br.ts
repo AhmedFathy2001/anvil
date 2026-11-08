@@ -4476,17 +4476,18 @@ const ptBr: PartialGuideDict = {
     },
     "clans": {
       "title": "Montar clã contra clã",
-      "intro": "Clan vs clan permite que outros clãs entrem na sua competição. Você é o anfitrião, e os outros clãs são parceiros.",
+      "intro": "Clã contra clã permite que outros clãs entrem na sua competição, quantos quiserem. Você é o anfitrião, e os outros clãs são parceiros.",
       "steps": [
         "Como admin ou superior no clã anfitrião, defina **Format** como **Clan vs clan**.",
-        "Convide os outros clãs pelo endereço deles. Faça isso no formulário de criação ou depois, na página **Clans** da competição.",
-        "O dono ou admin do clã convidado abre a página **People** dele e aceita ou recusa. Um moderador não pode.",
-        "Quando um clã aceita, toda a lista dele é inscrita e marcada com esse clã."
+        "Convide os outros clãs pelo endereço deles. Faça isso no formulário de criação, ou depois, na página **Clans** da competição.",
+        "O dono ou admin do clã convidado aceita ou recusa na página **People** ou na lista de **Events** dele. Moderador não pode. Ninguém desse clã entra até que ele aceite.",
+        "Ao aceitar, ele escolhe quem disputa: **All members** do seu roster, ou **Selected people** que ele mesmo indicar. Ele pode mudar isso depois, pelo mesmo card.",
       ],
       "body": [
-        "O clã parceiro pode acompanhar a classificação no próprio site em `/c/<slug>/weekly/<id>`. É somente leitura. Só o anfitrião edita a competição.",
+        "O clã parceiro pode acompanhar a classificação no próprio site, em `/c/<slug>/weekly/<id>`. A visualização é somente leitura. Só o anfitrião edita a competição.",
         "Para remover um clã, exclua-o na página **Clans**. Os jogadores dele saem do tabuleiro.",
-        "Uma competição recorrente envia convites novos toda semana, então cada clã precisa aceitar de novo."
+        "Uma competição recorrente envia convites novos toda semana, então cada clã precisa aceitar de novo.",
+        "Recebendo convites indesejados? Escolha **Decline & block this clan** no convite. Os convites seguintes desse clã são recusados silenciosamente, e você pode desbloqueá-lo em **Settings → Blocked clans**.",
       ],
       "note": {
         "tag": "Compartilhe o endereço",
@@ -4504,31 +4505,24 @@ const ptBr: PartialGuideDict = {
     "players": {
       "title": "O que os jogadores veem",
       "body": [
-        "A página da competição mostra primeiro a classificação das equipes ou clãs. Abra qualquer uma para ver seus jogadores. Sua própria equipe ou clã fica destacada.",
-        "Os posts no Discord no início, na metade e no fim mostram a classificação. Em clan vs clan, eles vão para o canal de cada clã, e o seu é marcado com **← you**.",
-        "No painel lateral do plugin, você vê em que posição sua equipe está.",
-        "Não há nada para se inscrever. Se você está na lista, você está dentro."
+        "A página da competição mostra primeiro a classificação das equipes ou clãs. Abra qualquer uma para ver os jogadores. A sua equipe ou clã fica em destaque.",
+        "As postagens no Discord no início, na metade e no fim mostram a classificação. Em clã contra clã elas vão para o canal de cada clã, e o seu é marcado com **← you**.",
+        "No painel lateral do plugin, você pode ver em que posição sua equipe está.",
+        "Não há inscrição. Se o seu clã incluir todos os membros e você estiver no roster, você está dentro. Se ele escolher pessoas, você entra assim que for escolhido.",
+        "Não quer participar? Pressione **Opt out** ao lado de **You’re in**, na página da competição, na lista de Events ou no plugin. Você sai do tabuleiro só dessa competição, e pode voltar enquanto ela estiver em andamento.",
       ]
     },
     "faq": {
       "title": "Perguntas",
+      "intro": "As que a staff do clã e os jogadores mais perguntam:",
       "rows": [
-        {
-          "term": "Nossas equipes têm tamanhos diferentes. Isso é injusto?",
-          "body": "Não por si só. Os totais decidem a classificação, mas cada equipe também mostra uma média por jogador, então dá para ver como uma equipe menor está realmente indo."
-        },
-        {
-          "term": "E quem entra depois?",
-          "body": "Com a opção de late joiners ligada, eles entram na menor equipe. Desligada, eles contam só no tabuleiro individual. Você sempre pode movê-los manualmente na página **Teams**."
-        },
-        {
-          "term": "O outro clã pode editar nossa competição?",
-          "body": "Não. Clãs parceiros veem a classificação somente para leitura. Só o clã anfitrião pode mudar a competição."
-        },
-        {
-          "term": "Se concordarmos uma vez, estamos inscritos toda semana?",
-          "body": "Não. Uma competição recorrente envia convites novos toda semana, e um owner ou admin precisa aceitar cada um."
-        }
+        { term: "Nossas equipes têm tamanhos diferentes. Isso é injusto?", body: "Não por si só. Os totais decidem o ranking, mas cada equipe também mostra uma média por jogador, para você ver como uma equipe menor está realmente indo." },
+        { term: "E as pessoas que entram tarde?", body: "Com a opção de quem entra tarde ligada, elas vão para a menor equipe. Com ela desligada, contam apenas no ranking individual. Você sempre pode movê-las manualmente na página **Teams**." },
+        { term: "O outro clã pode editar nossa competição?", body: "Não. Os clãs parceiros veem a classificação somente para leitura. Só o clã anfitrião pode alterar a competição." },
+        { term: "Posso ficar de fora de uma competição?", body: "Pode. Pressione **Opt out** na página da competição, na lista de Events ou no plugin. Só essa competição é afetada, e você pode voltar enquanto ela estiver em andamento." },
+        { term: "Quantos clãs podem disputar?", body: "Quantos você convidar, até 50 em uma competição. Cada clã vê o próprio lado marcado na classificação e nas postagens do Discord." },
+        { term: "Outro clã não para de nos convidar. Dá para impedir?", body: "Dá. Um dono ou admin escolhe **Decline & block this clan** no convite. Os convites seguintes são recusados sem avisá-los. Desbloqueie a qualquer momento em **Settings → Blocked clans**." },
+        { term: "Se concordarmos uma vez, ficamos inscritos toda semana?", body: "Não. Uma competição recorrente envia novos convites toda semana, e um dono ou admin precisa aceitar cada um." },
       ]
     }
   },
