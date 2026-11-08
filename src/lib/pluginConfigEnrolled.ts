@@ -35,7 +35,7 @@ import {
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
 import { clogTileSpec, pluginClogEntry } from '@/lib/clogTiles';
-import { countProgress, memberProgress } from '@/lib/countProgress';
+import { caTaskKey, countProgress, memberProgress, submissionCreditKey } from '@/lib/countProgress';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { lapUnitNoun, metricKeys } from '@/lib/constants';
 import { ROLL_TABLES, rollItemIds } from '@/lib/rollTables';
@@ -968,14 +968,19 @@ export async function buildEnrolledConfig(args: {
   const clogTiles = trackedTiles.filter((t) => t.tileType === 'clog');
   const clogRows = clogTiles.length > 0
     ? await db
-        .select({ tileId: submissions.tileId, playerId: submissions.playerId, creditPlayerId: submissions.creditPlayerId, amount: submissions.amount, itemId: submissions.itemId })
+        .select({ tileId: submissions.tileId, playerId: submissions.playerId, creditPlayerId: submissions.creditPlayerId, amount: submissions.amount, itemId: submissions.itemId, imageUrl: submissions.imageUrl, proofKey: submissions.proofKey })
         .from(submissions)
         .where(and(eq(submissions.teamId, teamId), isNull(submissions.goal), inArray(submissions.tileId, clogTiles.map((t) => t.id))))
     : [];
   const trackedClog = clogTiles.map((t) => {
     const spec = clogTileSpec(t);
     const done = completedTileIdSet.has(t.id);
-    if (spec.mode === 'complete') return pluginClogEntry(t, done ? spec.required : 0, done);
+    if (spec.mode === 'complete') {
+      // The caller's page proof is live (an image, or one waiting for it): the plugin stops capturing
+      // this tile's pages. A deleted proof drops the flag, and the next config fetch asks again.
+      const proven = playerId != null && clogRows.some((r) => r.tileId === t.id && r.itemId == null && (r.imageUrl || r.proofKey) && submissionCreditKey(r) === playerId);
+      return { ...pluginClogEntry(t, done ? spec.required : 0, done), ...(proven ? { proven: true } : {}) };
+    }
     const rows = clogRows.filter((r) => r.tileId === t.id);
     if (!isIndividualMode(t.trackingMode)) return pluginClogEntry(t, countProgress(rows, t.trackingMode, 'slots').current, done);
     // Solo: the caller's own new slots; the team view carries each member's in `members`.
@@ -986,6 +991,24 @@ export async function buildEnrolledConfig(args: {
     }
     return pluginClogEntry(t, playerId != null ? memberProgress(rows, playerId, 'slots') : 0, done);
   });
+
+  // Combat task tiles: which tasks already count (lib/countProgress caTaskAlreadyCounted is the backstop).
+  const caTiles = trackedTiles.filter((t) => t.tileType === 'ca');
+  const caRows = caTiles.length > 0
+    ? await db
+        .select({ tileId: submissions.tileId, playerId: submissions.playerId, creditPlayerId: submissions.creditPlayerId, amount: submissions.amount, note: submissions.note })
+        .from(submissions)
+        .where(and(eq(submissions.teamId, teamId), isNull(submissions.goal), inArray(submissions.tileId, caTiles.map((t) => t.id))))
+    : [];
+  const caCounted = new Map<number, string[]>();
+  for (const t of caTiles) {
+    const solo = isIndividualMode(t.trackingMode);
+    const keys = caRows
+      .filter((r) => r.tileId === t.id && (!solo || (playerId != null && submissionCreditKey(r) === playerId)))
+      .map((r) => caTaskKey(r.note))
+      .filter((k): k is string => !!k);
+    caCounted.set(t.id, [...new Set(keys)].sort());
+  }
 
   const activeBoost = await clanBoostLevel(clan.id).catch(() => null);
   const body = {
@@ -1314,8 +1337,7 @@ export async function buildEnrolledConfig(args: {
     // column (reused per-tileType, like diary). Players who already own a task re-fire the
     // line via the in-game "Repeat completion" setting. Consumed by a future plugin release —
     // current plugins simply ignore the field.
-    trackedCombatTasks: trackedTiles
-      .filter((t) => t.tileType === 'ca')
+    trackedCombatTasks: caTiles
       .map((t) => {
         let tasks: string[] = [];
         if (t.targetNpcs) {
@@ -1333,6 +1355,9 @@ export async function buildEnrolledConfig(args: {
           points: t.points ?? 0,
           category: t.category ?? null,
           tasks,
+          // Tasks with a live credit here (the team's, or the caller's on a Solo tile), keyed like the
+          // plugin keys names: its rule skips them, so a "Repeat completion" re-fire sends nothing.
+          ...(caCounted.get(t.id)?.length ? { counted: caCounted.get(t.id) } : {}),
           requiredAmount: t.requiredAmount ?? 1,
           currentAmount: currentFor(t),
           trackingMode: t.trackingMode ?? 'team',

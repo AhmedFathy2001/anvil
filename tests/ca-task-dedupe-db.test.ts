@@ -30,11 +30,23 @@ async function inRequest<T>(req: Request, fn: () => Promise<T>): Promise<T> {
   return workAsyncStorage.run({ route: '/test' } as never, () => workUnitAsyncStorage.run(store as never, fn));
 }
 
+const auth = { Authorization: 'Bearer tok-ca', 'X-RSN': 'Tasker', 'X-Account-Hash': 'hash-Tasker', 'x-anvil-clan-slug': 'alpha' };
+
+/** The rule table the plugin runs on, with its ETag. */
+async function ruleTable() {
+  const { GET } = await import('../src/app/api/plugin/rules/route.ts');
+  const req = new Request('https://example.test/api/plugin/rules', { headers: auth });
+  const res = await inRequest(req, () => GET(req));
+  assert.equal(res.status, 200);
+  const body = (await res.json()) as { events: { t: number; on: string; keys?: string[]; no?: string[] }[] };
+  return { etag: res.headers.get('etag'), events: body.events };
+}
+
 async function task(what: string, fact: Record<string, unknown> = { t: ids.tile, tier: 'Elite' }) {
   const { POST } = await import('../src/app/api/plugin/facts/route.ts');
   const req = new Request('https://example.test/api/plugin/facts', {
     method: 'POST',
-    headers: { Authorization: 'Bearer tok-ca', 'X-RSN': 'Tasker', 'X-Account-Hash': 'hash-Tasker', 'x-anvil-clan-slug': 'alpha', 'Content-Type': 'application/json' },
+    headers: { ...auth, 'Content-Type': 'application/json' },
     // As the plugin sends it: credit first, the screenshot after (lib/proofAfter).
     body: JSON.stringify({ facts: [{ k: 'tile', n: 1, what, ...fact }], proofPending: true, proof: { tz: 'UTC', capturedAt: Date.now(), tick: 1 } }),
   });
@@ -87,10 +99,19 @@ test('a combat task counts once on a tile; a deleted proof frees it; different t
   assert.equal(again.have, 1, 'the refused credit never counted');
   assert.equal((await rows()).length, 1);
 
+  // The plugin's rule skips it, so a "Repeat completion" re-fire sends nothing at all.
+  const counted = await ruleTable();
+  const ca = counted.events.find((r) => r.t === ids.tile && r.on === 'ca');
+  assert.deepEqual(ca?.keys, ['anyelite']);
+  assert.deepEqual(ca?.no, ['whackamole']);
+
   // A staff member deletes the proof: the task is free again, no relog needed.
   const { db, schema: s } = await loadDb();
   const { eq } = await import('drizzle-orm');
   await db.delete(s.submissions).where(eq(s.submissions.id, (await rows())[0].id));
+  const freed = await ruleTable();
+  assert.notEqual(freed.etag, counted.etag, 'the next fetch is not a 304');
+  assert.equal(freed.events.find((r) => r.t === ids.tile && r.on === 'ca')?.no, undefined);
   const back = await task('Whack-a-Mole');
   assert.equal(back.ok, true, JSON.stringify(back));
 
@@ -99,11 +120,15 @@ test('a combat task counts once on a tile; a deleted proof frees it; different t
   assert.equal(other.ok, true, JSON.stringify(other));
   assert.equal((await task('whack a mole')).ok, false);
   assert.equal((await rows()).length, 2);
+  assert.deepEqual((await ruleTable()).events.find((r) => r.t === ids.tile && r.on === 'ca')?.no, ['hardhitter', 'whackamole']);
 });
 
 test('a finished-page proof from the plugin is taken once while it is live', async () => {
   const page = { t: ids.page, pg: true };
+  const pageRules = async () => (await ruleTable()).events.filter((r) => r.t === ids.page && r.on === 'page');
+  assert.equal((await pageRules()).length, 1, 'the plugin captures the finished page');
   assert.equal((await task('Zulrah', page)).ok, true);
+  assert.equal((await pageRules()).length, 0, 'proven: the plugin stops capturing it');
   // Opening the finished page again: the tile reads one proof per member, so a second is refused.
   const again = await task('Zulrah', page);
   assert.equal(again.ok, false);
@@ -111,6 +136,7 @@ test('a finished-page proof from the plugin is taken once while it is live', asy
   const { db, schema: s } = await loadDb();
   const { eq } = await import('drizzle-orm');
   await db.delete(s.submissions).where(eq(s.submissions.tileId, ids.page));
+  assert.equal((await pageRules()).length, 1, 'a deleted proof brings the page back');
   assert.equal((await task('Zulrah', page)).ok, true, 'a deleted proof can be taken again');
   assert.equal((await rows(ids.page)).length, 1);
 });

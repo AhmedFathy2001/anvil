@@ -37,8 +37,8 @@ export interface RulesConfigIn {
   pvpRoster?: { name: string; teamId: number }[] | null;
   team?: { id: number } | null;
   trackedDiaries?: (PlainTile & { diaries?: string[] })[] | null;
-  trackedCombatTasks?: (PlainTile & { tasks?: string[] })[] | null;
-  trackedClog?: (PlainTile & { mode?: string; items?: string[] | null; groups?: Record<string, number[]>; completed?: boolean })[] | null;
+  trackedCombatTasks?: (PlainTile & { tasks?: string[]; counted?: string[] })[] | null;
+  trackedClog?: (PlainTile & { mode?: string; items?: string[] | null; groups?: Record<string, number[]>; completed?: boolean; proven?: boolean })[] | null;
   trackedGains?: (PlainTile & { itemIds?: number[]; completed?: boolean })[] | null;
   trackedCombos?: { tileId: number; label: string }[] | null;
 }
@@ -57,6 +57,8 @@ export interface EventRule {
   of: number;
   on: 'timed' | 'deathless' | 'lms' | 'pvp' | 'pvpLoot' | 'diary' | 'ca' | 'clog' | 'page' | 'gain';
   keys?: string[];
+  /** Keys that never hit, even through a wildcard: a combat task already counted on the tile. */
+  no?: string[];
   /** The event's value must be at most this: a clear's seconds, the deaths in a run (0), an LMS place. */
   max?: number;
   /** ...and at least this: a PvP kill's loot (gp). */
@@ -245,8 +247,9 @@ export function buildEventRules(cfg: RulesConfigIn): EventRule[] {
     if (open(r) && keys.length) out.push({ ...base(r, 'diary'), keys });
   }
   for (const r of cfg.trackedCombatTasks ?? []) {
-    const keys = [...new Set((r.tasks ?? []).map((s) => statRuleName(s ?? '')).filter(Boolean))];
-    if (open(r) && keys.length) out.push({ ...base(r, 'ca'), keys });
+    const no = r.counted ?? [];
+    const keys = [...new Set((r.tasks ?? []).map((s) => statRuleName(s ?? '')).filter((k) => k && !no.includes(k)))];
+    if (open(r) && keys.length) out.push({ ...base(r, 'ca'), keys, ...(no.length ? { no } : {}) });
   }
   for (const r of cfg.trackedClog ?? []) {
     if (r.completed || done.has(r.tileId)) continue;
@@ -255,7 +258,8 @@ export function buildEventRules(cfg: RulesConfigIn): EventRule[] {
     if (r.mode === 'complete') {
       // A whole-page tile takes slots on its pages uncounted, and waits for a screenshot of each finished page.
       out.push({ ...base(r, 'clog'), label, have: 0, of: 0, keys, say: 'clog0' });
-      for (const [page, ids] of Object.entries(r.groups ?? {})) {
+      // The caller's page proof is live: nothing more to capture (a deleted one brings the pages back).
+      for (const [page, ids] of r.proven ? [] : Object.entries(r.groups ?? {})) {
         if (ids?.length) out.push({ ...base(r, 'page'), label, have: 0, of: 0, keys: [page], need: ids });
       }
     } else if (open(r)) out.push({ ...base(r, 'clog'), label, keys });
