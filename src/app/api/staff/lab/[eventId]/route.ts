@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { completions, eventParticipants, labLog, submissions, teams, tiles } from '@/db/schema';
@@ -8,6 +8,21 @@ import { deleteLabSession, forgetLabSessions, labEvent, MAX_LAB_HOURS, resetLabS
 import { labClearTile, labCompleteTile, labSetTileProgress, LabTileError } from '@/lib/labTileControls';
 import { progressGoal, progressStore } from '@/lib/labTileProgress';
 import { addLabTeam, labTeams, moveLabParticipant, setLabTeamRole, type TeamRole } from '@/lib/labTeams';
+import { addLabField, clearSimulatedField, LAB_SIM_ENDPOINT, simulateLabField, simulatedCompletionIds } from '@/lib/labField';
+import {
+  addLabMission,
+  announceLabMission,
+  expireLabMission,
+  LabMissionError,
+  markLabMission,
+  resetLabMission,
+  setLabMissionRules,
+  setMissionPolicy,
+} from '@/lib/labMissions';
+import { parseEventRules, parseTileMissionRules, type MissionRules } from '@/lib/eventRules';
+import { labFormat, MAX_LAB_FIELD } from '@/lib/labPlan';
+import { modeKeyFor } from '@/lib/eventModes';
+import { placementOf } from '@/lib/teamPlacement';
 
 // /api/staff/lab/<id> — one lab session: what is on it, what has been credited, and what its
 // characters pushed (the lab log: replays held back, and real play that also went through). PATCH runs the session controls; DELETE removes the session
@@ -58,6 +73,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
       : [],
     db.select().from(labLog).where(eq(labLog.eventId, event.id)).orderBy(desc(labLog.id)).limit(100),
   ]);
+  const simulated = await simulatedCompletionIds(event.id);
+  const rules = parseEventRules(event.rules);
+  const mode = event.teamPlacement === 'solo' && modeKeyFor(event.format, event.scoringMode, event.rules) === 'classic'
+    ? 'solo'
+    : modeKeyFor(event.format, event.scoringMode, event.rules);
 
   return NextResponse.json({
     event: {
@@ -67,6 +87,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
       endDate: event.endDate,
       forceEndedAt: event.forceEndedAt,
       boardSize: event.boardSize,
+      format: event.format,
+      scoringMode: event.scoringMode,
+      mode,
+      modeLabel: labFormat(mode).label,
+      placement: placementOf(event),
+      revealPolicy: rules.revealPolicy,
+      // The mission announce policy, or null when the board drops none.
+      mission: rules.mission ? { announceMode: rules.mission.announceMode, intervalMinutes: rules.mission.intervalMinutes, order: rules.mission.order } : null,
     },
     tiles: tileRows.map((t) => {
       // Where the tile keeps its progress, for the tile controls (lib/labTileProgress).
@@ -81,14 +109,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
         statGoal: t.statGoal,
         requiredAmount: t.requiredAmount,
         parentTileId: t.parentTileId,
+        points: t.points,
+        mission: !!t.mission,
+        revealedAt: t.revealedAt,
+        closedAt: t.closedAt,
+        missionRules: t.mission ? parseTileMissionRules(t.rules) : null,
         progressStore: store,
         progressGoal: progressGoal(t, store),
       };
     }),
     participants: participants.map((p) => ({ id: p.id, name: p.name, accountId: p.accountId, simulated: !!p.frozenAt })),
-    completions: done.map((c) => ({ tileId: c.tileId, teamId: c.teamId, completedAt: c.completedAt })),
+    completions: done.map((c) => ({ tileId: c.tileId, teamId: c.teamId, completedAt: c.completedAt, simulated: simulated.has(c.id) })),
     submissions: subs,
-    log: logRows,
+    log: logRows.filter((r) => r.endpoint !== LAB_SIM_ENDPOINT),
     teams: await labTeams(event.id, gate.actor.user.userId),
   });
 }
@@ -107,6 +140,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     value?: unknown;
     players?: unknown;
     role?: unknown;
+    label?: unknown;
+    on?: unknown;
+    rules?: unknown;
+    to?: unknown;
+    announceMode?: unknown;
+    intervalMinutes?: unknown;
+    order?: unknown;
+    teamSize?: unknown;
+    solo?: unknown;
+    intensity?: unknown;
   };
   try {
     body = await request.json();
@@ -130,8 +173,61 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
       await resetLabSession(event.id, { keepLog: true });
       break;
     case 'clear-log':
-      await db.delete(labLog).where(eq(labLog.eventId, event.id));
+      // The simulated-field record stays: it is what marks those credits (lib/labField).
+      await db.delete(labLog).where(and(eq(labLog.eventId, event.id), ne(labLog.endpoint, LAB_SIM_ENDPOINT)));
       break;
+    // The field (lib/labField): test players in bulk, random progress for them, and taking it back.
+    case 'add-field': {
+      const players = typeof body.players === 'number' && Number.isFinite(body.players) ? Math.min(body.players, MAX_LAB_FIELD) : 0;
+      if (players < 1) return NextResponse.json({ error: 'players must be 1 or more' }, { status: 400 });
+      const added = await addLabField(gate.actor.user.userId, event.id, {
+        players,
+        teamSize: typeof body.teamSize === 'number' ? body.teamSize : 3,
+        placement: body.solo === true ? 'solo' : 'team',
+      });
+      return NextResponse.json({ ok: true, added });
+    }
+    case 'simulate-field': {
+      const intensity = typeof body.intensity === 'number' && Number.isFinite(body.intensity) ? body.intensity : undefined;
+      const credited = await simulateLabField(event, { intensity });
+      return NextResponse.json({ ok: true, credited });
+    }
+    case 'clear-simulated':
+      return NextResponse.json({ ok: true, removed: await clearSimulatedField(event.id) });
+    // Missions (lib/labMissions): the real announce/close paths, on demand.
+    case 'mission-add':
+    case 'mission-mark':
+    case 'mission-rules':
+    case 'mission-announce':
+    case 'mission-expire':
+    case 'mission-reset':
+    case 'mission-policy': {
+      const tileId = Number.isInteger(body.tileId) ? (body.tileId as number) : undefined;
+      const needsTile = body.action !== 'mission-add' && body.action !== 'mission-announce' && body.action !== 'mission-policy';
+      if (needsTile && tileId == null) return NextResponse.json({ error: 'tileId' }, { status: 400 });
+      try {
+        if (body.action === 'mission-add') return NextResponse.json({ ok: true, tileId: await addLabMission(event, typeof body.label === 'string' ? body.label : undefined) });
+        if (body.action === 'mission-mark') await markLabMission(event, tileId!, body.on !== false);
+        if (body.action === 'mission-rules') {
+          if (!body.rules || typeof body.rules !== 'object' || Array.isArray(body.rules)) return NextResponse.json({ error: 'rules must be an object' }, { status: 400 });
+          return NextResponse.json({ ok: true, rules: await setLabMissionRules(event, tileId!, body.rules as Partial<MissionRules>) });
+        }
+        if (body.action === 'mission-announce') return NextResponse.json({ ok: true, announced: await announceLabMission(event, tileId) });
+        if (body.action === 'mission-expire') await expireLabMission(event, tileId!);
+        if (body.action === 'mission-reset') await resetLabMission(event, tileId!, body.to === 'live' ? 'live' : 'hidden');
+        if (body.action === 'mission-policy') {
+          await setMissionPolicy(event, {
+            announceMode: body.announceMode === 'interval' ? 'interval' : 'manual',
+            intervalMinutes: typeof body.intervalMinutes === 'number' ? Math.round(body.intervalMinutes) : undefined,
+            order: body.order === 'sequential' ? 'sequential' : body.order === 'random' ? 'random' : undefined,
+          });
+        }
+      } catch (e) {
+        if (e instanceof LabMissionError) return NextResponse.json({ error: e.message }, { status: 400 });
+        throw e;
+      }
+      break;
+    }
     case 'remove-character': {
       if (!Number.isInteger(body.participantId)) return NextResponse.json({ error: 'participantId' }, { status: 400 });
       await db
