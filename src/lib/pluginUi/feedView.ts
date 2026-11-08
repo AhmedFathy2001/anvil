@@ -20,7 +20,7 @@ import { hasPanelImages, visibleClan } from './load';
 import { boardCompletions, clanFeedList, eventFeedList, groupOf, KINDS_OF } from './feedLists';
 import { completionRow, feedTabUi, momentRow, reactRowAction, type RowReactKind, type Scope } from './feedUi';
 import type { FeedRow, View } from './nodes';
-import { backRow, col, gap, message, text } from './nodes';
+import { backRow, col, eventName, gap, message, text } from './nodes';
 import { mediaRevision } from './mediaRevision';
 
 // The Feed tab's data (view 'feed') and the event chat's actions. The look is lib/pluginUi/feedUi.
@@ -48,7 +48,9 @@ async function scopesFor(request: Request, userId: number | null): Promise<Scope
     if (ev) out.push({ kind: 'event', id: ev.id, name: ev.name });
   }
   if (userId != null) await addEverythingElse(request, out, userId);
-  return out;
+  // Two boards with one name ("Lab" twice): the picker and the header tell them apart by id.
+  const boards = out.filter((s) => s.kind === 'event');
+  return out.map((s) => (s.kind === 'event' ? { ...s, name: eventName(boards, s) } : s));
 }
 
 /**

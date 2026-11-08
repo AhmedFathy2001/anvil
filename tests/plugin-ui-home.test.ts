@@ -345,3 +345,18 @@ test('a board of many teams: the cut list worded as teams, your team picked out'
   assert.ok(!all.includes('Team 6'));
   assert.ok(walk(ui).some((x) => (x.on as { args?: { team?: string } } | undefined)?.args?.team === '18'), 'a row opens that team');
 });
+
+test('two live boards with one name: each card says its #id and opens by id, with a way back to the list', () => {
+  const lab = { id: 31, title: 'Summer Bingo', startDate: '2026-10-20T00:00:00Z', endDate: null, status: 'active', boardSize: 5, tileCount: 25, format: 'bingo', scoringMode: 'tiles' };
+  const d = base(liveCfg(), {
+    cfg: { ...liveCfg(), panel: { ...liveCfg().panel, scheduled: [lab as ScheduleBingo] } },
+    myBoards: [{ eventId: 31, name: 'Summer Bingo', clan: 'afk', clanName: 'AFK', teamId: 3, teamName: 'Ruby', tilesComplete: 1, tilesTotal: 9, pointsScored: false }],
+  } as never);
+  const all = texts(homeUi(d));
+  assert.ok(all.includes('Summer Bingo #5') && all.includes('Summer Bingo #31'));
+  const open = walk(homeUi(d)).map((n) => n.on as { a?: string; v?: string; args?: Record<string, string> } | undefined).find((on) => on?.v === 'board');
+  assert.deepEqual(open?.args, { event: '31', back: 'events', backLabel: 'All events', title: 'Summer Bingo #31' });
+  assert.ok(eventUi(d, 'events') === null, 'the Back lands on the list');
+  assert.ok(texts(eventUi(d, 'board')!).includes('Summer Bingo #5'), 'the live board’s own page says which one it is');
+  assert.ok(!texts(homeUi(base(liveCfg()))).some((t) => t.includes('#')), 'no tag while names differ');
+});

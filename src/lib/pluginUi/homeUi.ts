@@ -9,7 +9,7 @@ import type { RosterPersonOut, RosterTeamOut } from '@/lib/eventRoster';
 import type { StandingsWindow } from '@/lib/standingsWindow';
 import type { BoardSummary } from '@/lib/pluginBoards';
 
-import { type Action, type Color, type Node, backRow, button, card, col, count, exact, gap, icon, muted, nameText, percent, row, text } from './nodes';
+import { type Action, type Color, type Node, backRow, button, card, col, count, eventName, exact, gap, icon, muted, nameText, percent, row, text } from './nodes';
 import { missionTileState } from '@/lib/tileState';
 import { boardFeedLinks } from './feedUi';
 
@@ -256,6 +256,8 @@ export function revealNote(e: NonNullable<HomeConfig['event']>, now: number): st
 // ---- The board ----------------------------------------------------------------------------------
 
 interface Board {
+  /** The event's id; 0 when only its name is known (an unlinked character). */
+  id: number;
   title: string;
   /** Null when there's no tally (no live board); then `note` says why. */
   done: number;
@@ -271,10 +273,11 @@ function boardOf(d: HomeData): Board | null {
   if (d.live && c.event) {
     const tiles = c.panel?.tiles ?? [];
     const scored = c.board && c.board.tilesTotal > 0 ? c.board : { tilesComplete: tiles.filter((t) => t.complete).length, tilesTotal: tiles.length, pointsScored: false };
-    return { title: c.event.name, done: scored.tilesComplete, total: scored.tilesTotal, points: scored.pointsScored, note: null, ladder: isLadder(c.event.format), spectating: false };
+    return { id: c.event.id, title: c.event.name, done: scored.tilesComplete, total: scored.tilesTotal, points: scored.pointsScored, note: null, ladder: isLadder(c.event.format), spectating: false };
   }
   if (c.homeBoard) {
     return {
+      id: c.homeBoard.eventId,
       title: c.homeBoard.eventName,
       done: c.homeBoard.tilesComplete,
       total: c.homeBoard.tilesTotal,
@@ -284,7 +287,7 @@ function boardOf(d: HomeData): Board | null {
       spectating: d.inGame,
     };
   }
-  if (c.unlinkedActiveEvent) return { title: c.unlinkedActiveEvent, done: 0, total: 0, points: false, note: 'Log in in-game to load your board.', ladder: false, spectating: false };
+  if (c.unlinkedActiveEvent) return { id: 0, title: c.unlinkedActiveEvent, done: 0, total: 0, points: false, note: 'Log in in-game to load your board.', ladder: false, spectating: false };
   return null;
 }
 
@@ -308,6 +311,19 @@ function drillCard(title: string, lines: Node[], on: Action, tip = title): Node 
   return card([row(undefined, text(clip(title, 22), 'text', { font: 'regular' }), icon({ glyph: 'chevron-right', w: 12, h: 12, color: 'brand' })), ...lines], { on, tip });
 }
 
+/** Every event the tab lists, by id: a name two of them share gets its "#id" (nodes eventName). */
+function listed(d: HomeData): { id: number; name: string }[] {
+  const b = boardOf(d);
+  return [
+    ...(b?.id ? [{ id: b.id, name: b.title }] : []),
+    ...(d.cfg.panel?.scheduled ?? []).map((s) => ({ id: s.id, name: s.title || 'Bingo' })),
+    ...(d.myBoards ?? []).map((m) => ({ id: m.eventId, name: m.name })),
+  ];
+}
+
+/** A board opened from the list: its own page, with a way back to the list (eventUi has no page called 'events'). */
+const boardFromList = (id: number, title: string): Action => ({ a: 'load', v: 'board', args: { event: String(id), back: 'events', backLabel: 'All events', title } });
+
 const thickBar = (p: number): Node => ({ t: 'bar', pct: p, color: p >= 100 ? 'done' : 'brand', h: 6, bg: 'panel' });
 
 // ---- The list ------------------------------------------------------------------------------------
@@ -316,11 +332,13 @@ const thickBar = (p: number): Node => ({ t: 'bar', pct: p, color: p >= 100 ? 'do
 export function homeUi(d: HomeData): Node {
   const parts: Node[] = [];
   const b = boardOf(d);
+  const all = listed(d);
+  const titled = (id: number, title: string) => eventName(all, { id, name: title }, 22);
   const cards: Node[] = [];
   if (b) {
     const lines: Node[] = [text(b.ladder ? 'Ladder' : 'Bingo', LIGHT), muted(clip(statusLine(b, d), 30))];
     if (b.total > 0 && !b.ladder) lines.push(gap(4), thickBar(pct(b.done, b.total)));
-    cards.push(drillCard(b.title, lines, home('board')));
+    cards.push(drillCard(titled(b.id, b.title), lines, home('board')));
   }
   for (const w of d.cfg.panel?.weeklies ?? []) {
     const upcoming = w.status !== 'active';
@@ -342,10 +360,11 @@ export function homeUi(d: HomeData): Node {
       const lines: Node[] = [text(scheduledKind(s), LIGHT), muted(clip(timing ?? sizeLabel(s), 30)), text(clip(`On ${on.teamName}`, 30), 'brand')];
       if (on.tilesTotal > 0) lines.push(muted(`${on.tilesComplete} / ${on.tilesTotal} ${on.pointsScored ? 'points' : 'tiles'}`), gap(4), thickBar(percent(on.tilesComplete, on.tilesTotal)));
       else lines.push(muted('Board not revealed yet'));
-      cards.push(drillCard(s.title || on.name, lines, { a: 'load', v: 'board', args: { event: String(s.id) } }, `Open ${s.title || on.name}`));
+      const title = titled(s.id, s.title || on.name);
+      cards.push(drillCard(title, lines, boardFromList(s.id, title), `Open ${title}`));
       continue;
     }
-    cards.push(drillCard(s.title || 'Bingo', [text(scheduledKind(s), LIGHT), muted(clip(timing ?? sizeLabel(s), 30)), muted(clip(live ? 'Running — you’re not in it' : sizeLabel(s), 30)), ...gateLine(s)], home(`event:${s.id}`)));
+    cards.push(drillCard(titled(s.id, s.title || 'Bingo'), [text(scheduledKind(s), LIGHT), muted(clip(timing ?? sizeLabel(s), 30)), muted(clip(live ? 'Running — you’re not in it' : sizeLabel(s), 30)), ...gateLine(s)], home(`event:${s.id}`)));
   }
   for (const ce of d.clanEvents ?? []) cards.push(drillCard(ce.title, clanEventLines(ce), home(`clan-event:${ce.id}`)));
   if (cards.length) parts.push(...heading('Events'), ...cards.flatMap((c, i) => (i ? [gap(8), c] : [c])));
@@ -357,8 +376,8 @@ export function homeUi(d: HomeData): Node {
   // on gets a card of its own here (several in one clan included), which is what "+ N more" hinted at.
   const inAlsoLive = new Set(others.flatMap((c) => (c.live && (!c.live.kind || c.live.kind === 'bingo') ? [c.live.eventId] : [])));
   const shownBoard = d.cfg.event?.id ?? d.cfg.homeBoard?.eventId ?? null;
-  const listed = new Set((d.cfg.panel?.scheduled ?? []).map((x) => x.id));
-  const mine = (d.myBoards ?? []).filter((m) => m.eventId !== shownBoard && !inAlsoLive.has(m.eventId) && !listed.has(m.eventId));
+  const onList = new Set((d.cfg.panel?.scheduled ?? []).map((x) => x.id));
+  const mine = (d.myBoards ?? []).filter((m) => m.eventId !== shownBoard && !inAlsoLive.has(m.eventId) && !onList.has(m.eventId));
   if (mine.length) {
     parts.push(...heading('Your other boards'));
     mine.forEach((m, i) => {
@@ -366,7 +385,8 @@ export function homeUi(d: HomeData): Node {
       if (m.tilesTotal > 0) {
         lines.push(muted(`${m.tilesComplete} / ${m.tilesTotal} ${m.pointsScored ? 'points' : 'tiles'}`), gap(4), thickBar(percent(m.tilesComplete, m.tilesTotal)));
       } else lines.push(muted('Board not revealed yet'));
-      parts.push(...(i ? [gap(6)] : []), drillCard(m.name, lines, { a: 'load', v: 'board', args: { event: String(m.eventId) } }, `Open ${m.name}`));
+      const title = titled(m.eventId, m.name);
+      parts.push(...(i ? [gap(6)] : []), drillCard(title, lines, boardFromList(m.eventId, title), `Open ${title}`));
     });
     parts.push(gap(12));
   }
@@ -426,9 +446,10 @@ export function otherBoards(cfg: HomeConfig): NonNullable<HomeConfig['clans']> {
 /** One event's page: the board, a weekly, or a bingo on the schedule. Null when `open` names nothing. */
 export function eventUi(d: HomeData, open: string): Node | null {
   const back = backRow('All events', home());
+  const all = listed(d);
   if (open === 'board') {
     const b = boardOf(d);
-    return b ? col([back, gap(8), ...boardPage(d, b)]) : null;
+    return b ? col([back, gap(8), ...boardPage(d, { ...b, title: eventName(all, { id: b.id, name: b.title }) })]) : null;
   }
   const weekly = /^weekly:(\d+)$/.exec(open);
   if (weekly) {
@@ -443,7 +464,7 @@ export function eventUi(d: HomeData, open: string): Node | null {
   const event = /^event:(\d+)$/.exec(open);
   if (event) {
     const s = d.cfg.panel?.scheduled?.find((x) => x.id === Number(event[1]));
-    return s ? col([back, gap(8), ...scheduledPage(d, s)]) : null;
+    return s ? col([back, gap(8), ...scheduledPage(d, { ...s, title: eventName(all, { id: s.id, name: s.title || 'Bingo' }) })]) : null;
   }
   return null;
 }

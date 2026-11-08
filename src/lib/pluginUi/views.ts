@@ -291,7 +291,8 @@ const positive = (v: string | undefined) => {
 
 function boardState(a: Args): BoardState {
   const status = STATUSES.some((x) => x.v === a.status) ? (a.status as Status) : 'all';
-  return { event: positive(a.event) ?? 0, pre: a.pre === '1', q: (a.q ?? '').slice(0, 80), status, page: Math.max(0, Number(a.page) || 0) };
+  const nav = Object.fromEntries((['back', 'backLabel', 'title'] as const).flatMap((k) => (a[k] ? [[k, a[k]]] : [])));
+  return { event: positive(a.event) ?? 0, pre: a.pre === '1', q: (a.q ?? '').slice(0, 80), status, page: Math.max(0, Number(a.page) || 0), nav };
 }
 
 /**
@@ -344,7 +345,7 @@ async function boardView(request: Request, a: Args, error: string | null = null)
   };
   const tile = positive(a.tile) && a.list !== '1' ? (board.tiles as BoardTile[]).find((t) => t.tileId === Number(a.tile)) : undefined;
   const inner = boardRowsUi(board, state, ctx, tile, error);
-  return { ui: a.part === 'rows' ? inner : withBack(a, 'All tiles', boardUi(board, state, ctx, inner)) };
+  return { ui: a.part === 'rows' ? inner : withBack(a, a.title || 'All tiles', boardUi(board, state, ctx, inner)) };
 }
 
 async function claimAct(request: Request, act: 'claim' | 'unclaim', a: Args, note: string | undefined): Promise<View> {

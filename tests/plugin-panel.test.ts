@@ -134,19 +134,19 @@ test('active now is capped', () => {
   assert.deepEqual(out.map((a) => a.tileId), [6, 5, 4, 3]);
 });
 
-test('the schedule hides the shown board and lists live first, then soonest', () => {
+test('the schedule hides the shown board by id (never by name) and lists live first, then soonest', () => {
   const bingo = (id: number, status: 'active' | 'upcoming', startDate: string, title = `Bingo ${id}`) =>
     ({ id, title, startDate, endDate: null, status, boardSize: null, tileCount: null, format: 'bingo', scoringMode: 'tiles' });
   const weekly = (id: number, status: string, startDate: string) =>
     ({ id, title: `W${id}`, type: 'sotw', metric: 'mining', metricLabel: 'Mining', status, startDate, endDate: '2099-01-01' });
   const { scheduled, weeklies } = panelSchedule(
     {
-      bingos: [bingo(1, 'upcoming', '2026-11-02'), bingo(2, 'active', '2026-10-01'), bingo(3, 'upcoming', '2026-11-01'), bingo(4, 'active', '2026-10-20', 'Mine')],
+      bingos: [bingo(1, 'upcoming', '2026-11-02'), bingo(2, 'active', '2026-10-01'), bingo(3, 'upcoming', '2026-11-01'), bingo(4, 'active', '2026-10-20', 'Bingo 2')],
       weeklies: [weekly(1, 'upcoming', '2026-11-01'), weekly(2, 'active', '2026-10-24')],
     },
-    { ids: [2], title: 'Mine' },
+    { ids: [2] },
   );
-  assert.deepEqual(scheduled.map((b) => b.id), [3, 1]);
+  assert.deepEqual(scheduled.map((b) => b.id), [4, 3, 1], 'board 4 shares the shown board\'s name and still lists');
   assert.deepEqual(weeklies.map((w) => w.id), [2, 1]);
 });
 
