@@ -104,3 +104,13 @@ test('roles: event beats clan beats the old behaviour', async () => {
   assert.equal(resolveEventRoles(clan, { cleanup: { mode: 'end' } }, true).cleanup.mode, 'end');
   assert.equal(cleanupDueAt(resolveEventRoles(none, {}, true), '2026-11-01T00:00:00Z'), null);
 });
+
+test('an event channel pool keeps https URLs only, deduped, without the main one, capped', () => {
+  const main = 'https://discord.com/api/webhooks/1/a';
+  const extra = Array.from({ length: 12 }, (_, i) => `https://discord.com/api/webhooks/${i + 2}/t`);
+  const p = parseEventDiscordPrefs({ webhookUrl: main, extraWebhookUrls: [main, 'http://nope', extra[0], extra[0], ...extra] });
+  assert.equal(p.extraWebhookUrls?.[0], extra[0]);
+  assert.ok(!p.extraWebhookUrls?.includes(main));
+  assert.equal(p.extraWebhookUrls?.length, 9);
+  assert.equal(parseEventDiscordPrefs({ extraWebhookUrls: 'x' }).extraWebhookUrls, undefined);
+});

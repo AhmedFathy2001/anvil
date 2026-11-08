@@ -122,3 +122,56 @@ export async function findOrCreateAnvilWebhook(
   }
   return createChannelWebhook(botToken, channelId, name);
 }
+
+/** Discord's cap on webhooks in one channel. */
+export const CHANNEL_WEBHOOK_CAP = 15;
+
+/**
+ * Make `count` MORE webhooks in a channel for a pool (lib/webhookPool), named "Anvil 2", "Anvil 3"…
+ * so they stay tellable apart in Discord. Stops at Discord's 15-per-channel cap; `capped` says so.
+ * Throws a human message when Discord refuses the first one (usually Manage Webhooks).
+ */
+export async function createMoreAnvilWebhooks(
+  botToken: string,
+  channelId: string,
+  count: number,
+  baseName: string = DEFAULT_WEBHOOK_NAME,
+): Promise<{ created: CreatedWebhook[]; capped: boolean }> {
+  const res = await discordRest(botToken, `/channels/${channelId}/webhooks`);
+  if (!res.ok) throw new Error(await describeWebhookError(res));
+  const list = (await res.json()) as RawWebhook[];
+  const taken = new Set(list.map((w) => w.name));
+  const room = Math.max(0, CHANNEL_WEBHOOK_CAP - list.length);
+  const want = Math.max(0, Math.min(count, room));
+  const created: CreatedWebhook[] = [];
+  let n = 2;
+  for (let i = 0; i < want; i++) {
+    while (taken.has(`${baseName} ${n}`)) n++;
+    const name = `${baseName} ${n}`;
+    taken.add(name);
+    try {
+      created.push(await createChannelWebhook(botToken, channelId, name));
+    } catch (e) {
+      // Keep what was made; only a refusal of the very first one is an error for the caller.
+      if (created.length === 0) throw e;
+      break;
+    }
+  }
+  return { created, capped: want < count };
+}
+
+/**
+ * Which channel (and server) a webhook posts to, asked of Discord with the webhook's own token, so it
+ * works for pasted webhooks and needs no bot. Null when Discord doesn't know it (deleted, bad token)
+ * or can't be reached. The URL must already have passed isDiscordWebhookUrl.
+ */
+export async function lookupWebhookChannel(url: string): Promise<{ channelId: string; guildId: string | null } | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { channel_id?: string; guild_id?: string | null };
+    return body.channel_id ? { channelId: body.channel_id, guildId: body.guild_id ?? null } : null;
+  } catch {
+    return null;
+  }
+}

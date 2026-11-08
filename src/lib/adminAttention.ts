@@ -154,6 +154,20 @@ export interface AttentionFacts {
    * passes it right after something finished, so the card turns up on a good day, not every day.
    */
   plan?: { members: number; freeCap: number; justFinished: string } | null;
+  /**
+   * Live or imminent boards big enough to hit Discord's speed limit on the webhooks they post through
+   * (lib/webhookPool webhookAdvice). Only the ones short of the recommended count are passed.
+   */
+  webhookCapacity?: {
+    eventId: number;
+    name: string;
+    href: string;
+    webhooks: number;
+    recommended: number;
+    reasons: string[];
+    /** Discord has already said slow down: a problem now, not a forecast. */
+    rateLimited: boolean;
+  }[];
 }
 
 const DAY = 86_400_000;
@@ -389,6 +403,20 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
       href: '/admin/guides',
       action: 'Review',
       at: 0,
+    });
+  }
+
+  for (const w of facts.webhookCapacity ?? []) {
+    items.push({
+      key: `webhooks-${w.eventId}`,
+      // A forecast may be put down; once Discord is actually refusing posts it may not.
+      snoozable: !w.rateLimited,
+      severity: w.rateLimited ? 'warn' : 'info',
+      title: `${w.name} is big enough to hit Discord's speed limit`,
+      detail: `${w.reasons.join(' · ')}. It posts through ${plural(w.webhooks, 'webhook')}; add more to that channel (recommended: ${w.recommended}) or let the bot create them.`,
+      href: `${w.href}/discord#event-discord-webhooks`,
+      action: 'Add webhooks',
+      at: w.rateLimited ? -1 : 0,
     });
   }
 

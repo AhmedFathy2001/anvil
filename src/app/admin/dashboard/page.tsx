@@ -31,6 +31,8 @@ import { dayKey, daysSince, parseStamp } from '@/lib/dbTime';
 import ClanLink from '@/components/ClanLink';
 import { clanHref } from '@/lib/clanPath';
 import { openRequestCountForClan } from '@/lib/accountChangeRequests';
+import { capacityFrom, clanEventPool, eventParticipantCounts } from '@/lib/webhookCapacity';
+import { parseEventDiscordPrefs } from '@/lib/discordPostPolicy';
 
 export const dynamic = 'force-dynamic';
 
@@ -353,7 +355,41 @@ export default async function AdminDashboardPage({ searchParams }: { searchParam
   const runwaySpans = dated.map((i) => ({ start: dayOf(i.startDate!), end: endDayOf(i, runwayEnd) }));
   const gap = findGaps(runwaySpans, today, runwayEnd, 2).find((g) => g.end >= today) ?? null;
 
+  // Boards live now or opening within a week, checked against the webhooks they post through
+  // (lib/webhookCapacity). Only the ones short of the recommendation become a card.
+  const liveBoards = index.filter(
+    (i) =>
+      i.kind === 'board' &&
+      (i.status === 'running' || (i.status === 'upcoming' && i.startDate && Date.parse(i.startDate) - now < 7 * 86_400_000)),
+  );
+  const [participantsById, clanPool] = liveBoards.length
+    ? await Promise.all([eventParticipantCounts(liveBoards.map((i) => i.id)), clanEventPool(clan.id)])
+    : [new Map<number, number>(), null];
+  const webhookCapacity = liveBoards.flatMap((i) => {
+    const row = boardById.get(i.id);
+    const cap = capacityFrom({
+      eventId: i.id,
+      clanId: clan.id,
+      prefs: parseEventDiscordPrefs(row?.discordPrefs ?? {}),
+      participants: participantsById.get(i.id) ?? 0,
+      clanPool,
+      now,
+    });
+    return cap.advice
+      ? [{
+          eventId: i.id,
+          name: i.title,
+          href: i.href,
+          webhooks: cap.webhooks,
+          recommended: cap.advice.recommended,
+          reasons: cap.advice.reasons,
+          rateLimited: cap.recentRateLimits > 0,
+        }]
+      : [];
+  });
+
   const queue = attentionQueue({
+    webhookCapacity,
     now,
     events: index.map((i) => {
       const row = i.kind === 'board' ? boardById.get(i.id) : undefined;

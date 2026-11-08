@@ -7,7 +7,7 @@
 
 import { acceptedCohostClanIds } from '@/lib/coHost';
 import { clanMarkUrl } from '@/lib/clanMarkUrl';
-import { upsertBingoWebhookReport, upsertCohostWebhook } from '@/lib/discord';
+import { eventChannelUrls, upsertBingoWebhookReport, upsertCohostWebhook } from '@/lib/discord';
 import { clanContextById, contextLine, loadEvent } from '@/lib/discordContext';
 import { LIMIT, clamp, field, statField } from '@/lib/discordEmbeds';
 import { getDiscordDict, resolveLocale } from '@/lib/discordI18n';
@@ -91,7 +91,7 @@ export async function postEventRules(
         });
         let delivery;
         if (clanId === hostClanId) {
-          delivery = await upsertBingoWebhookReport(clanId, { embeds }, priorMessageIds[String(clanId)], prefs.webhookUrl);
+          delivery = await upsertBingoWebhookReport(clanId, { embeds }, priorMessageIds[String(clanId)], eventChannelUrls(prefs));
         } else {
           const partner = await readPartnerDiscordPrefs(eventId, clanId);
           if (!decidePartnerPost('rules', hostDecision, prefs, partner).send) return { clanId, clanName: clan.name, status: 'skipped' };
