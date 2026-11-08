@@ -1,5 +1,6 @@
 'use client';
 
+import YourRaceCard from '@/components/board/YourRaceCard';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
@@ -848,6 +849,10 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             />
           )}
 
+          {event.format === 'tilerace' && (
+            <YourRaceCard ctx={{ tiles: board, completions, teams, viewerTeamId: lensTeamId ?? myTeamIds[0] ?? null, onOpenTile: (id: number) => setSelectedTileId(id) }} />
+          )}
+
           <EventBoard
             format={event.format}
             tiles={board}
@@ -896,6 +901,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
       {selectedTile && (
         <TileDetailModal
           tile={selectedTile as unknown as FullTile}
+          race={event.format === 'tilerace' ? { tiles: board, completions: completions, teams: teams, viewerTeamId: lensTeamId, onOpenTile: (id: number) => setSelectedTileId(id) } : null}
           partCompletedBy={partCompletedBy}
           dropProgress={lensCombo ? { current: lensCombo.done, required: lensCombo.needed, note: comboProgressLine(lensCombo), combo: lensCombo } : undefined}
           submissions={proofForOpenTile ?? []}

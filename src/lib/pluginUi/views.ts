@@ -1,3 +1,4 @@
+import { mayPickRoad, pickRaceRoad } from '@/lib/raceRoutesDb';
 import { and, eq, ilike, or } from 'drizzle-orm';
 
 import { buildBoard, pluginBoardScope } from '@/app/api/plugin/board/route';
@@ -361,6 +362,24 @@ async function claimAct(request: Request, act: 'claim' | 'unclaim', a: Args, not
   return boardView(request, a, error);
 }
 
+/** "Pick your road" at a fork on a "Choose and lock in" race (lib/raceRoutesDb). */
+async function racePickAct(request: Request, a: Args): Promise<View> {
+  const event = positive(a.event);
+  const tileId = positive(a.tile);
+  const c = await pluginClaimCaller(request, event ?? undefined);
+  let error: string | null = c.ok ? null : c.error;
+  if (c.ok && tileId) {
+    const ev = await db.query.events.findFirst({ where: eq(events.id, c.auth.eventId) });
+    if (!ev) error = 'Event not found';
+    else if (!(await mayPickRoad(c.auth.teamId, c.userId, true))) error = 'Your team’s captain picks the road.';
+    else {
+      const r = await pickRaceRoad(ev, c.auth.teamId, tileId, c.userId);
+      if (!r.ok) error = r.error;
+    }
+  }
+  return boardView(request, { ...a, tile: '' }, error);
+}
+
 // ---- A tile's proofs ------------------------------------------------------------------------------
 
 /** Who is looking at proofs on board `ev`: the token's seat there, or just its login (staff, spectators). */
@@ -721,6 +740,7 @@ async function actFor(request: Request, act: string, args: Args, fields: Args): 
   const foreign = await pluginCharacterRefusal(request, { allowUnclaimed: true }).catch(() => null);
   if (foreign) return message(foreign.error);
   if (act === 'claim' || act === 'unclaim') return claimAct(request, act, args, fields.note);
+  if (act === 'race-pick') return racePickAct(request, args);
   if (act === 'proof-delete') return proofDeleteAct(request, args, fields.note);
   if (act === 'clan-event-going') return clanEventGoingAct(request, args);
   if (act === 'react') return reactAct(request, args);

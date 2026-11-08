@@ -27,6 +27,7 @@ interface Props {
   tiles: Tile[];
   eventStarted: boolean;
   raceBank: boolean;
+  raceRoad: 'achieve' | 'choose';
   /** A tile was created straight into a step (already saved as a blank tile). */
   onTileCreated: (tile: Tile) => void;
   /** The route was saved: each tile's new step / links / position. */
@@ -45,7 +46,7 @@ const goldBtn = 'text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border 
  * step or be added straight into one. Templates fill steps and links for the current tiles (their
  * content is untouched). Nothing is stored until Save, and Save refuses a route that can't be played.
  */
-export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank, onTileCreated, onSaved, onRaceBankChanged, onOpenTile }: Props) {
+export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank, raceRoad, onTileCreated, onSaved, onRaceBankChanged, onOpenTile }: Props) {
   const { confirm, notify } = useDialog();
   const board = useMemo(() => tiles.filter((t) => t.parentTileId == null && !t.mission).sort((a, b) => a.position - b.position), [tiles]);
   const stored = useMemo(() => routeEntries(board), [board]);
@@ -56,6 +57,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
   const [saving, setSaving] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
   const [bank, setBank] = useState(raceBank);
+  const [road, setRoad] = useState(raceRoad);
   const branching = isBranchingRoute(board);
 
   // Tiles added elsewhere (Cards, Quick build) join the editor as unplaced.
@@ -147,6 +149,18 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
     setSelected(data.id);
   }
 
+  async function changeRoad(next: 'achieve' | 'choose') {
+    const prev = road;
+    setRoad(next);
+    const res = await clanFetch(`/api/events/${eventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { raceRoad: next } }) });
+    if (!res.ok) {
+      setRoad(prev);
+      const data = await res.json().catch(() => ({}));
+      return notify(data.error || 'Could not save that setting.', 'error');
+    }
+    onRaceBankChanged(bank);
+  }
+
   async function toggleBank(on: boolean) {
     setBank(on);
     const res = await clanFetch(`/api/events/${eventId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { raceBank: on } }) });
@@ -169,7 +183,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
             <h3 className="text-sm font-bold flex items-center gap-2"><span className="w-1 h-4 bg-gold rounded-full" />Route</h3>
             <p className="text-xs text-text-muted mt-1 max-w-2xl">
               {branching || dirty
-                ? 'Tiles sit on numbered steps; each links to tiles on the next step. Teams pick a route by playing it — finishing a tile closes the other options at that step. Every route has the same number of steps, so the team with the most steps done is closest to the end.'
+                ? 'Tiles sit on numbered steps; each links to tiles on the next step. A team’s road is set at each fork (see “At a fork”), and the other options at that step close for it. Every route has the same number of steps, so the team with the most steps done is closest to the end.'
                 : 'This race is a straight line: every tile leads to the next. Pick a template or click a tile and link it to lay out branching routes.'}
             </p>
           </div>
@@ -182,6 +196,26 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
           )}
         </div>
         {!eventStarted && <p className="text-[11px] text-text-muted">{ROUTE_TEMPLATES.find((t) => t.key === template)?.help} Templates set steps and links only.</p>}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium">At a fork</span>
+          <div className="w-60">
+            <Select
+              value={road}
+              onChange={(v) => void changeRoad(v as 'achieve' | 'choose')}
+              disabled={eventStarted}
+              ariaLabel="How a team's road is set at a fork"
+              options={[
+                { value: 'achieve', label: 'By achievement' },
+                { value: 'choose', label: 'Choose and lock in' },
+              ]}
+            />
+          </div>
+          <p className="text-[11px] text-text-muted basis-full">
+            {road === 'achieve'
+              ? 'Every linked next tile is open; whichever the team finishes first sets its road and the others close.'
+              : 'The team’s captain (or team staff; any member if the team has neither) picks the next tile before it counts. Only the pick is open and it can’t be changed — an admin can reset it.'}
+          </p>
+        </div>
         <Checkbox
           checked={bank}
           onChange={(on) => void toggleBank(on)}

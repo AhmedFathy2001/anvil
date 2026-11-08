@@ -1120,6 +1120,19 @@ export const raceBankedCredits = pgTable('race_banked_credits', {
   uniqueIndex('race_banked_credits_team_tile_unique').on(table.teamId, table.tileId),
 ]);
 
+// TILE RACE "Choose and lock in" (events.rules.raceRoad = 'choose', lib/raceRoutes): the tile a team
+// picked at a fork, one per step. Final once made; only an admin removes one.
+export const raceRoadPicks = pgTable('race_road_picks', {
+  id: serial('id').primaryKey(),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  step: integer('step').notNull(),
+  tileId: integer('tile_id').notNull().references(() => tiles.id, { onDelete: 'cascade' }),
+  pickedByUserId: integer('picked_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  pickedAt: text('picked_at').notNull(),
+}, (table) => [
+  uniqueIndex('race_road_picks_team_step_unique').on(table.teamId, table.step),
+]);
+
 export const eventParticipants = pgTable('event_participants', {
   id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),

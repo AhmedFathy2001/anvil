@@ -1,4 +1,5 @@
-import { raceGraph, teamRoute } from '@/lib/raceRoutes';
+import { raceGraph, teamRoute, rankRaceTeams, roadOf } from '@/lib/raceRoutes';
+import { loadRacePicks } from '@/lib/raceRoutePicks';
 import { NextResponse } from 'next/server';
 import { primaryCredit } from '@/lib/comboSql';
 import { clogTileLooseSpec, clogTileRule } from '@/lib/clogTileWords';
@@ -456,7 +457,8 @@ export async function buildBoard(
   // Absent on every other board, so their payloads and ETags are unchanged.
   const routeGraph = event.format === 'tilerace' ? raceGraph(eventTiles) : null;
   const raceOn = !!routeGraph?.branching;
-  const callerRoute = raceOn && yourCompleted ? teamRoute(routeGraph!, yourCompleted) : null;
+  const callerPicks = raceOn && callerTeamId != null ? await loadRacePicks(event, callerTeamId) : null;
+  const callerRoute = raceOn && yourCompleted ? teamRoute(routeGraph!, yourCompleted, callerPicks) : null;
 
   return {
     eventId: event.id,
@@ -479,12 +481,27 @@ export async function buildBoard(
       : {}),
     ...(raceOn
       ? {
-          race: {
-            steps: routeGraph!.lastStep + 1,
-            path: callerRoute?.path ?? [],
-            open: callerRoute?.open ?? [],
-            finished: callerRoute?.finished ?? false,
-          },
+          race: (() => {
+            // The field, from what the caller may see (hidden standings already cut it to their team):
+            // teams per steps-done, the leader's steps and the caller's rank.
+            const ranked = rankRaceTeams(routeGraph!, eventTeams, [...completionsByTeam].flatMap(([teamId, ids]) => ids.map((tileId) => ({ teamId, tileId }))))
+              .filter((r) => completionsByTeam.has(r.teamId) || !standingsScope.hidden);
+            const field = Array.from({ length: routeGraph!.lastStep + 2 }, () => 0);
+            for (const r of ranked) field[r.stepsDone]++;
+            const mine = ranked.find((r) => r.teamId === callerTeamId);
+            return {
+              steps: routeGraph!.lastStep + 1,
+              mode: rules.raceRoad,
+              path: callerRoute?.path ?? [],
+              open: callerRoute?.open ?? [],
+              pickFrom: callerRoute?.pickFrom ?? [],
+              finished: callerRoute?.finished ?? false,
+              rank: mine?.rank ?? null,
+              entrants: ranked.length,
+              leaderSteps: ranked[0]?.stepsDone ?? 0,
+              field,
+            };
+          })(),
         }
       : {}),
     tiles: sortedTiles.map((t, index) => {
@@ -580,6 +597,8 @@ export async function buildBoard(
           ? {
               raceStep: routeGraph!.byId.get(t.id)!.step,
               raceNext: routeGraph!.byId.get(t.id)!.next,
+              raceFrom: routeGraph!.prev.get(t.id) ?? [],
+              raceRoad: roadOf(routeGraph!, t.id),
               ...(callerRoute ? { raceState: callerRoute.state.get(t.id) ?? null } : {}),
             }
           : {}),

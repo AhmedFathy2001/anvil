@@ -1,8 +1,10 @@
 import { db } from '@/db';
-import { completions, events, eventParticipants, raceBankedCredits, teams, tiles } from '@/db/schema';
+import { completions, events, eventParticipants, raceBankedCredits, raceRoadPicks, teams, tiles } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
-import { raceGraph, rankRaceTeams, teamRoute } from '@/lib/raceRoutes';
+import { raceGraph, rankRaceTeams, teamRoute, canPickRaceTile } from '@/lib/raceRoutes';
+import { teamManagerIds } from '@/lib/teamStaff';
 import { parseEventRules } from '@/lib/eventRules';
+import { loadRacePicks } from '@/lib/raceRoutePicks';
 import { evaluateCompletionGate } from '@/lib/completionGate';
 import { emitCompletionRow } from '@/lib/panelRows';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
@@ -47,7 +49,7 @@ export async function bankRaceCredit(event: EventRow, tileId: number, teamId: nu
   // clan-scope: global -- the event row came from a caller that already scoped it.
   const board = await db.select().from(tiles).where(and(eq(tiles.eventId, event.id), isNull(tiles.parentTileId)));
   const done = (await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, teamId))).map((r) => r.tileId);
-  const route = teamRoute(raceGraph(board), done);
+  const route = teamRoute(raceGraph(board), done, await loadRacePicks(event, teamId));
   if (route.state.get(tileId) !== 'ahead') return false;
   const inserted = await db
     .insert(raceBankedCredits)
@@ -72,11 +74,12 @@ export async function releaseBankedRaceCredits(eventId: number, teamId: number):
   if (!event || event.format !== 'tilerace' || !parseEventRules(event.rules).raceBank) return 0;
   const board = await db.select().from(tiles).where(and(eq(tiles.eventId, event.id), isNull(tiles.parentTileId)));
   const graph = raceGraph(board);
+  const picks = await loadRacePicks(event, teamId);
   const pending = banked.filter((b) => graph.byId.has(b.tileId)).sort((a, b) => a.bankedAt.localeCompare(b.bankedAt));
   let released = 0;
   for (let guard = 0; guard <= graph.lastStep + 1 && pending.length; guard++) {
     const done = (await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, teamId))).map((r) => r.tileId);
-    const route = teamRoute(graph, done);
+    const route = teamRoute(graph, done, picks);
     // Drop what can never land: done already, or closed off by the route the team took.
     const dead = pending.filter((b) => route.state.get(b.tileId) === 'done' || route.state.get(b.tileId) === 'closed');
     if (dead.length) {
@@ -143,4 +146,55 @@ export async function releaseBankedRaceCredits(eventId: number, teamId: number):
 export function afterRaceCompletion(event: { id: number; format: string | null }, teamId: number): void {
   if (event.format !== 'tilerace') return;
   releaseBankedRaceCredits(event.id, teamId).catch(() => {});
+}
+
+/**
+ * Who may pick a team's road ("Choose and lock in"): its captain or a team staff seat; on a team
+ * with neither, any member. `isMember` = the caller plays on the team.
+ */
+export async function mayPickRoad(teamId: number, userId: number, isMember: boolean): Promise<boolean> {
+  const managers = await teamManagerIds(teamId);
+  return managers.has(userId) || (managers.size === 0 && isMember);
+}
+
+/**
+ * Record a team's pick at its current fork. Final: a second pick at the same step is refused (only
+ * an admin clears one, see clearRaceRoadPick). The caller has already checked who may pick.
+ */
+export async function pickRaceRoad(
+  event: EventRow,
+  teamId: number,
+  tileId: number,
+  userId: number | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (event.format !== 'tilerace' || parseEventRules(event.rules).raceRoad !== 'choose') {
+    return { ok: false, error: 'This race doesn’t use road picks.' };
+  }
+  // clan-scope: global -- the event row came from a caller that already scoped it.
+  const board = await db.select().from(tiles).where(and(eq(tiles.eventId, event.id), isNull(tiles.parentTileId)));
+  const graph = raceGraph(board);
+  const done = (await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, teamId))).map((r) => r.tileId);
+  const picks = (await loadRacePicks(event, teamId)) ?? new Map<number, number>();
+  if (!canPickRaceTile(graph, done, picks, tileId)) {
+    return { ok: false, error: 'That tile isn’t one of your team’s choices right now.' };
+  }
+  const step = graph.byId.get(tileId)!.step;
+  const inserted = await db
+    .insert(raceRoadPicks)
+    .values({ teamId, step, tileId, pickedByUserId: userId, pickedAt: new Date().toISOString() })
+    .onConflictDoNothing()
+    .returning({ id: raceRoadPicks.id });
+  if (!inserted.length) return { ok: false, error: 'Your team already picked its road here.' };
+  // A banked finish on the picked tile can land now.
+  afterRaceCompletion(event, teamId);
+  return { ok: true };
+}
+
+/** Admin: undo a team's pick at a step. */
+export async function clearRaceRoadPick(teamId: number, step: number): Promise<boolean> {
+  const removed = await db
+    .delete(raceRoadPicks)
+    .where(and(eq(raceRoadPicks.teamId, teamId), eq(raceRoadPicks.step, step)))
+    .returning({ id: raceRoadPicks.id });
+  return removed.length > 0;
 }

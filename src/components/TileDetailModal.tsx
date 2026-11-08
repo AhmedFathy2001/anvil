@@ -1,5 +1,6 @@
 'use client';
 
+import RaceTileDetail, { type RaceDetailContext } from '@/components/board/RaceTileDetail';
 import { useState, useEffect, type ReactNode } from 'react';
 import ImageUpload from './ImageUpload';
 import LocalTime from '@/components/LocalTime';
@@ -124,6 +125,8 @@ interface Props {
   highlights?: ShownHighlight[];
   /** Surface-specific content shown first in the body — the team page's planning (claims) section. */
   extra?: ReactNode;
+  /** A branching tile race (lib/raceRoutes): the tile's route banner, links and who is on it. */
+  race?: RaceDetailContext | null;
 }
 
 /** Contributor rows shown before "Show all" — enough to see the shape of a board without a wall. */
@@ -153,6 +156,7 @@ export default function TileDetailModal({
   pointsMode,
   teamNameById,
   extra,
+  race,
   highlights,
 }: Props) {
   // Public board's Team Progress: which team's row is opened into its members.
@@ -749,6 +753,7 @@ export default function TileDetailModal({
         </div>
 
         <div className="p-4 space-y-4">
+          {race && <RaceTileDetail ctx={race} tileId={tile.id} />}
           {extra}
           {/* What the tile tracks — the admin-configured items/NPCs/raid. Item lists are
               suppressed when the per-item progress section below already names them. */}

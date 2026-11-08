@@ -458,6 +458,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
       {selectedTile && (
         <TileDetailModal
           tile={selectedTile}
+          race={event.format === 'tilerace' ? { tiles: tiles, completions: completions, teams: [team], viewerTeamId: team.id, onOpenTile: (id: number) => setSelectedTileId(id) } : null}
           submissions={selectedTileSubmissions}
           completedBy={selectedTileCompletedBy}
           canSubmit={eventStarted}

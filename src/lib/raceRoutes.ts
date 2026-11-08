@@ -127,6 +127,10 @@ export interface TeamRoute {
   finished: boolean;
   /** Per board tile on the route. */
   state: Map<number, RaceTileState>;
+  /** "Choose and lock in": the fork the team must pick from before anything opens (else empty). */
+  pickFrom: number[];
+  /** "Choose and lock in": the tile picked at the current fork, if any. */
+  picked: number | null;
 }
 
 /** Pick the tile that carries the team on: the most links, then board order. */
@@ -138,7 +142,13 @@ function pickCommitted(graph: RaceGraph, candidates: number[]): number {
   })[0];
 }
 
-export function teamRoute(graph: RaceGraph, doneIds: Iterable<number>): TeamRoute {
+/**
+ * `picks` switches on "Choose and lock in" (events.rules.raceRoad = 'choose'): step → the tile the
+ * team picked there. At a fork (more than one next tile) nothing is open until the team picks; then
+ * only the pick is open and the other options close. Omit (or null) for "By achievement", the
+ * default: every linked next tile is open and the first one finished sets the road.
+ */
+export function teamRoute(graph: RaceGraph, doneIds: Iterable<number>, picks?: Map<number, number> | null): TeamRoute {
   const done = new Set(doneIds);
   const path: number[] = [];
   let options = graph.steps[0] ?? [];
@@ -151,10 +161,24 @@ export function teamRoute(graph: RaceGraph, doneIds: Iterable<number>): TeamRout
   }
   const current = path.length ? graph.byId.get(path[path.length - 1])! : null;
   const isFinished = current != null && current.step === graph.lastStep;
-  const open = isFinished ? [] : current ? current.next.filter((id) => !done.has(id)) : (graph.steps[0] ?? []).filter((id) => !done.has(id));
+  const candidates = isFinished ? [] : current ? current.next.filter((id) => !done.has(id)) : (graph.steps[0] ?? []).filter((id) => !done.has(id));
+  let open = candidates;
+  let pickFrom: number[] = [];
+  let picked: number | null = null;
+  if (picks && candidates.length > 1) {
+    const step = graph.byId.get(candidates[0])!.step;
+    const p = picks.get(step);
+    if (p != null && candidates.includes(p)) {
+      picked = p;
+      open = [p];
+    } else {
+      open = [];
+      pickFrom = candidates;
+    }
+  }
 
-  const ahead = new Set<number>();
-  const queue = [...open];
+  const ahead = new Set<number>(pickFrom);
+  const queue = [...open, ...pickFrom];
   while (queue.length) {
     const id = queue.shift()!;
     for (const to of graph.byId.get(id)?.next ?? []) {
@@ -177,16 +201,21 @@ export function teamRoute(graph: RaceGraph, doneIds: Iterable<number>): TeamRout
       closed.add(n.id);
     }
   }
-  return { path, stepsDone: path.length, open, ahead, closed, finished: isFinished, state };
+  return { path, stepsDone: path.length, open, ahead, closed, finished: isFinished, state, pickFrom, picked };
 }
 
 /**
  * May this team credit this tile now? Only an open tile (the race guard). A tile that isn't on the
  * route at all (a mission) isn't the race's to refuse; an unplaced tile on a laid-out board is.
  */
-export function canCreditRaceTile(graph: RaceGraph, doneIds: Iterable<number>, tileId: number): boolean {
+export function canCreditRaceTile(graph: RaceGraph, doneIds: Iterable<number>, tileId: number, picks?: Map<number, number> | null): boolean {
   if (!graph.byId.has(tileId)) return !graph.unplaced.includes(tileId);
-  return teamRoute(graph, doneIds).open.includes(tileId);
+  return teamRoute(graph, doneIds, picks).open.includes(tileId);
+}
+
+/** May the team pick this tile now ("Choose and lock in")? Only from the fork it stands at. */
+export function canPickRaceTile(graph: RaceGraph, doneIds: Iterable<number>, picks: Map<number, number>, tileId: number): boolean {
+  return teamRoute(graph, doneIds, picks).pickFrom.includes(tileId);
 }
 
 /** May this team un-finish this tile? Only when nothing at a later step is finished. */
@@ -442,4 +471,111 @@ export function routeOrder(entries: RouteEntry[], positionOf: (id: number) => nu
   return [...entries]
     .sort((a, b) => (a.step ?? 1e9) - (b.step ?? 1e9) || positionOf(a.id) - positionOf(b.id))
     .map((e) => e.id);
+}
+
+// ---- Display helpers (the board map, tile lists, tile details, the panel) ---------------------
+
+/** Road letter for a tile: its place in its step's column, top to bottom (A, B, C…). */
+export function roadOf(graph: RaceGraph, tileId: number): string {
+  const n = graph.byId.get(tileId);
+  if (!n) return '';
+  const i = graph.steps[n.step].indexOf(tileId);
+  return i < 0 ? '' : i < 26 ? String.fromCharCode(65 + i) : String(i + 1);
+}
+
+/** Where routes meet: a tile with several ways in and out. */
+export function tileShape(graph: RaceGraph, tileId: number): 'junction' | 'split' | 'merge' | null {
+  const ins = graph.prev.get(tileId)?.length ?? 0;
+  const outs = graph.byId.get(tileId)?.next.length ?? 0;
+  return ins > 1 && outs > 1 ? 'junction' : outs > 1 ? 'split' : ins > 1 ? 'merge' : null;
+}
+
+/** "Start" / "Tile 4" / "Junction" / "Finish" — the label over a step's column. */
+export function stepTitle(graph: RaceGraph, step: number): string {
+  if (step === 0) return graph.lastStep === 0 ? 'Start · finish' : 'Start';
+  if (step === graph.lastStep) return 'Finish';
+  if ((graph.steps[step] ?? []).some((id) => tileShape(graph, id) === 'junction')) return 'Junction';
+  return `Tile ${step + 1}`;
+}
+
+/** "Tile 4 of 10", or the step's shape word where routes meet. */
+export function stepLine(graph: RaceGraph, tileId: number): string {
+  const n = graph.byId.get(tileId);
+  if (!n) return '';
+  const shape = tileShape(graph, tileId);
+  const base = `Tile ${n.step + 1} of ${graph.lastStep + 1}`;
+  return shape === 'junction' ? `${base} · junction` : base;
+}
+
+/** What finishing an open tile does to the team's road. */
+export function roadChoiceLine(graph: RaceGraph, route: TeamRoute, tileId: number): string {
+  const to = roadOf(graph, tileId);
+  const at = route.path.length ? roadOf(graph, route.path[route.path.length - 1]) : null;
+  if (at == null) return `Starts you on road ${to}`;
+  return at === to ? `Keeps you on road ${to}` : `Switches you to road ${to}`;
+}
+
+export interface RaceTileInfo {
+  state: RaceTileState | null;
+  road: string;
+  step: number;
+  stepLine: string;
+  /** One sentence for the state banner. */
+  why: string;
+  leadsTo: number[];
+  reachedFrom: number[];
+}
+
+/** Everything a tile's detail view says about its place on the route, for the viewer's team. */
+export function raceTileInfo(graph: RaceGraph, route: TeamRoute | null, tileId: number, labelOf: (id: number) => string): RaceTileInfo | null {
+  const n = graph.byId.get(tileId);
+  if (!n) return null;
+  const state = route?.state.get(tileId) ?? null;
+  const reachedFrom = graph.prev.get(tileId) ?? [];
+  let why = '';
+  const road = route ? roadChoiceLine(graph, route, tileId).replace(/^\w/, (c) => c.toLowerCase()) : '';
+  if (route && state === 'open') {
+    why = route.open.length > 1
+      ? `Up next — whichever your team finishes first sets your road. This one ${road}.`
+      : `Next for your team — finishing this ${road}.`;
+  } else if (route && route.pickFrom.includes(tileId)) {
+    why = `Fork — your team picks its road before anything here counts. Picking this ${road}; a pick can’t be changed.`;
+  }
+  else if (route && state === 'done') why = 'Done — on your team’s route.';
+  else if (route && state === 'ahead') {
+    const from = reachedFrom.length ? reachedFrom : [];
+    why = n.step === 0 ? 'Locked.' : `Locked — finish one of: ${from.map(labelOf).join(', ')} to open this.`;
+  } else if (route && state === 'closed') {
+    const taken = route.path.find((id) => graph.byId.get(id)!.step === n.step);
+    const branch = route.path.find((id) => graph.byId.get(id)!.step >= Math.max(0, n.step - 1) && graph.byId.get(id)!.step <= n.step);
+    why = taken != null
+      ? `Closed — your team took road ${roadOf(graph, taken)} at step ${n.step + 1}.`
+      : branch != null
+        ? `Closed — your team’s road doesn’t lead here (road ${roadOf(graph, branch)}).`
+        : 'Closed — your team’s road doesn’t lead here.';
+  }
+  return { state, road: roadOf(graph, tileId), step: n.step, stepLine: stepLine(graph, tileId), why, leadsTo: n.next, reachedFrom };
+}
+
+/** Each team's current tile (its path's last), and how many teams travelled each link. */
+export function raceCrowd(graph: RaceGraph, routes: Map<number, TeamRoute>): { at: Map<number, number[]>; traffic: Map<string, number>; atStart: number[] } {
+  const at = new Map<number, number[]>();
+  const traffic = new Map<string, number>();
+  const atStart: number[] = [];
+  for (const [teamId, r] of routes) {
+    const cur = r.path[r.path.length - 1];
+    if (cur == null) atStart.push(teamId);
+    else at.set(cur, [...(at.get(cur) ?? []), teamId]);
+    for (let i = 0; i + 1 < r.path.length; i++) {
+      const k = `${r.path[i]}-${r.path[i + 1]}`;
+      traffic.set(k, (traffic.get(k) ?? 0) + 1);
+    }
+  }
+  return { at, traffic, atStart };
+}
+
+export type RaceFieldSize = 'few' | 'medium' | 'huge';
+/** Which board variant fits the field: a handful of teams, a crowd, or a solo-sized field. */
+export function raceFieldSize(entrants: number): RaceFieldSize {
+  return entrants <= 6 ? 'few' : entrants <= 30 ? 'medium' : 'huge';
 }

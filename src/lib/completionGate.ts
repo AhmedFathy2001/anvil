@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { completions, events, tiles } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { raceGraph, canCreditRaceTile } from '@/lib/raceRoutes';
+import { loadRacePicks } from '@/lib/raceRoutePicks';
 import {
   completionAward,
   hasRevealPolicy,
@@ -148,7 +149,8 @@ export async function evaluateCompletionGate(args: {
   if (event.format === 'tilerace' && !forPart && !isMission && tile.parentTileId == null) {
     const board = await db.select().from(tiles).where(and(eq(tiles.eventId, event.id), isNull(tiles.parentTileId)));
     const done = (await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, teamId))).map((r) => r.tileId);
-    if (!done.includes(tile.id) && !canCreditRaceTile(raceGraph(board), done, tile.id)) {
+    const picks = await loadRacePicks(event, teamId);
+    if (!done.includes(tile.id) && !canCreditRaceTile(raceGraph(board), done, tile.id, picks)) {
       return { allowed: false, reason: 'That tile isn’t open on your team’s route yet.', awardedPoints: null, bounty, rules, raceLocked: true };
     }
   }

@@ -16,7 +16,14 @@ import {
   validateRoute,
   routeEntries,
   type RouteEntry,
+  canPickRaceTile,
+  roadOf,
+  stepTitle,
+  roadChoiceLine,
+  raceTileInfo,
+  raceFieldSize,
 } from '../src/lib/raceRoutes.ts';
+import { raceTileState, missionTileState } from '../src/lib/tileState.ts';
 import { scoreTeams } from '../src/lib/boardScoring.ts';
 
 // A straight line: no steps stored anywhere.
@@ -208,4 +215,56 @@ test('editor helpers: toggle links, move tiles, add/remove/swap steps drop broke
   const swapped = swapSteps(applyRouteTemplate('line', [1, 2, 3]), 0, 1);
   assert.equal(swapped.entries.find((e) => e.id === 1)!.step, 1);
   assert.ok(swapped.dropped > 0);
+});
+
+test('choose and lock in: nothing at a fork opens until the team picks, then only the pick', () => {
+  const g = raceGraph(branch);
+  // Two starts = a fork at step 0.
+  const none = teamRoute(g, [], new Map());
+  assert.deepEqual(none.open, []);
+  assert.deepEqual(none.pickFrom, [10, 11]);
+  assert.equal(none.state.get(10), 'ahead');
+  assert.equal(canCreditRaceTile(g, [], 10, new Map()), false);
+  assert.equal(canPickRaceTile(g, [], new Map(), 10), true);
+
+  const picked = teamRoute(g, [], new Map([[0, 11]]));
+  assert.deepEqual(picked.open, [11]);
+  assert.equal(picked.state.get(10), 'closed');
+  assert.equal(canCreditRaceTile(g, [], 11, new Map([[0, 11]])), true);
+  assert.equal(canCreditRaceTile(g, [], 10, new Map([[0, 11]])), false);
+  // A single next tile is no fork: open without a pick.
+  assert.deepEqual(teamRoute(g, [11], new Map([[0, 11]])).open, [20]);
+  // By achievement (no picks map): every linked tile is open.
+  assert.deepEqual(teamRoute(g, [11, 20]).open, [30, 31]);
+});
+
+test('display helpers: roads, step titles and what a pick does to your road', () => {
+  const g = raceGraph(branch);
+  assert.equal(roadOf(g, 30), 'A');
+  assert.equal(roadOf(g, 31), 'B');
+  assert.equal(stepTitle(g, 0), 'Start');
+  assert.equal(stepTitle(g, 3), 'Finish');
+  assert.equal(stepTitle(g, 1), 'Junction');
+  const r = teamRoute(g, [10, 20, 31]);
+  assert.equal(roadChoiceLine(g, r, 41), 'Keeps you on road B');
+  assert.equal(roadChoiceLine(g, r, 40), 'Switches you to road A');
+  const info = raceTileInfo(g, teamRoute(g, [11, 20, 30]), 31, (id) => `T${id}`)!;
+  assert.equal(info.state, 'closed');
+  assert.match(info.why, /road A at step 3/);
+  const locked = raceTileInfo(g, teamRoute(g, [11]), 30, (id) => `T${id}`)!;
+  assert.match(locked.why, /finish one of: T20/);
+  assert.equal(raceFieldSize(4), 'few');
+  assert.equal(raceFieldSize(12), 'medium');
+  assert.equal(raceFieldSize(170), 'huge');
+});
+
+test('tile states: race and mission share one language', () => {
+  assert.equal(raceTileState('open')!.label, 'Next');
+  assert.equal(raceTileState('ahead')!.kind, 'locked');
+  const now = Date.parse('2026-11-08T12:00:00Z');
+  assert.equal(missionTileState({ revealedAt: null }, { now }).kind, 'locked');
+  assert.deepEqual(missionTileState({ revealedAt: '2026-11-08 10:00:00', expiryHours: 4 }, { now }), { kind: 'open', label: 'Live', detail: '2h left' });
+  assert.deepEqual(missionTileState({ revealedAt: '2026-11-08 10:00:00', closedAt: '2026-11-08 10:00:00' }, { now }), { kind: 'expired', label: 'Expired', detail: 'Expired 2h ago' });
+  assert.equal(missionTileState({ revealedAt: '2026-11-08 10:00:00', closedAt: '2026-11-08 11:00:00' }, { now, claimedBy: 'Team A' }).label, 'Claimed');
+  assert.deepEqual(missionTileState({ revealedAt: '2026-11-08 10:00:00' }, { now, done: true, doneBy: 'Alice' }), { kind: 'done', label: 'Done', detail: 'by Alice' });
 });
