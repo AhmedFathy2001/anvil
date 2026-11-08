@@ -86,14 +86,19 @@ async function readBoardUserIds(eventId: number, teamId: number | null): Promise
   const ids = new Set(rows.map((r) => r.id));
   // The whole board's rows also reach its clan's moderators and up: they read and moderate its chat
   // without a seat on it. A team's rows stay the team's.
-  if (teamId == null) {
-    const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true } });
-    if (ev) {
-      const staff = await db.select({ userId: clanStaff.userId, role: clanStaff.role }).from(clanStaff).where(eq(clanStaff.clanId, ev.clanId));
-      for (const st of staff) if (atLeast(st.role, 'moderator')) ids.add(st.userId);
-    }
-  }
+  if (teamId == null) for (const u of await eventStaffUserIds(eventId)) ids.add(u);
   return [...ids];
+}
+
+/**
+ * The host clan's moderators and up on a board: they read every channel of its chat, a team's too.
+ * Read fresh (a team channel's line goes to them by name, and a demoted mod must not hear the next).
+ */
+export async function eventStaffUserIds(eventId: number): Promise<number[]> {
+  const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true } });
+  if (!ev) return [];
+  const staff = await db.select({ userId: clanStaff.userId, role: clanStaff.role }).from(clanStaff).where(eq(clanStaff.clanId, ev.clanId));
+  return staff.filter((st) => atLeast(st.role, 'moderator')).map((st) => st.userId);
 }
 
 /** The people with a live member seat in a clan: who hears its Feed. Held a minute. */

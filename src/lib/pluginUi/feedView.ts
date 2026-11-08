@@ -4,8 +4,8 @@ import { db } from '@/db';
 import { accounts, clanMemberships, clans, eventParticipants, events, teams, users } from '@/db/schema';
 import { completionAt } from '@/lib/panelRows';
 import { normalizeRsn, pluginRsnHintOnly, pluginViewerRsn, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
-import { boardChatSlow, chatBlockOf, myChatNames, chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess, type ChatSeatPick } from '@/lib/eventChat';
-import { chatPaceHint, sanctionMessage } from '@/lib/eventChatRules';
+import { boardChatSlow, chatBlockOf, myChatNames, chatAccess, chatHistory, chatUnread, deleteChat, markChannelRead, muteChat, pauseChat, sendChat, type ChatAccess, type ChatSeatPick, type ChatTarget } from '@/lib/eventChat';
+import { canReadChannel, chatPaceHint, lockFor, parseChannel, type ChatChannel } from '@/lib/eventChatRules';
 import { NO_REACTIONS, isClanMember, reactionSummaries, reactorNames, tallyOf } from '@/lib/momentReactions';
 import { modeMomentModesForClan, modeMomentsForClan, recentModeMomentCount, type MomentRow } from '@/lib/momentsStore';
 import type { WithRun } from '@/lib/feedRuns';
@@ -18,7 +18,7 @@ import { clanBoostLevels } from '@/lib/clanBoosts';
 
 import { hasPanelImages, visibleClan } from './load';
 import { boardCompletions, clanFeedList, eventFeedList, groupOf, KINDS_OF } from './feedLists';
-import { completionRow, feedTabUi, momentRow, reactRowAction, type RowReactKind, type Scope } from './feedUi';
+import { chatFeedId, completionRow, feedTabUi, momentRow, reactRowAction, type ChatChan, type RowReactKind, type Scope } from './feedUi';
 import type { FeedRow, View } from './nodes';
 import { backRow, col, eventName, gap, message, text } from './nodes';
 import { mediaRevision } from './mediaRevision';
@@ -293,8 +293,7 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
   const teamId = access?.teamId ?? null;
 
   if (pane === 'chat' && access && viewer) {
-    const f = filter === 'team' ? 'team' : filter === 'mods' && access.staff ? 'mods' : 'all';
-    const [rows, block] = await Promise.all([chatHistory(access, viewer.userId, f), chatBlockOf(current.id, viewer.userId)]);
+    const chat = await chatPane(access, viewer.userId, current.id, a);
     return {
       ui: feedTabUi({
         scopes,
@@ -302,23 +301,27 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
         pane,
         chatAvailable,
         chatClosed,
-        filter: f,
+        filter: chat.channel,
         teamId,
-        rows,
+        rows: chat.rows,
         images: hasPanelImages(request),
         mine: await myChatNames(viewer.userId),
+        chans: chat.chans,
+        teamPicks: chat.teamPicks,
+        feedId: chatFeedId(current.id, chat.channel),
         send: {
           act: 'chat-send',
-          args: { e: String(current.id), to: f === 'team' ? 'team' : 'all' },
+          args: { e: String(current.id), to: chat.channel },
           // The viewer's own pace (Supporter tier) or the board's slow mode, so nobody is surprised by it.
-          hint: `${f === 'team' ? 'Message your team' : 'Message the event'} · ${chatPaceHint({
+          hint: `${chat.channel.startsWith('team:') ? 'Message your team' : chat.channel === 'announce' ? 'Announce to everyone' : 'Message all teams'} · ${chatPaceHint({
             tier: access.staff ? null : ((await supporterForUser(viewer.userId).catch(() => null))?.tier.id ?? null),
             slow: boardChatSlow(current.id),
             staff: access.staffKind ?? false,
           })}`,
         },
-        // Where the message box would be: their own timeout or ban first (with how long is left), then the pause.
-        locked: block ? sanctionMessage(block) : access.paused && !access.staff ? 'The host has paused chat.' : null,
+        // In place of the message box: their own timeout or ban (coral, with how long is left), a
+        // read-only Announcements, or the board's pause.
+        lock: chat.lock,
         staff: access.staff,
         paused: access.paused,
       }),
@@ -354,6 +357,62 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
   };
 }
 
+// ── The chat pane: My team | All teams | Announcements ─────────────────────────────────────────
+
+/**
+ * Which channel is open and what the switch over it says. `f`: 'team' | 'all' | 'announce' ('mods',
+ * from before channels, is Announcements); `tm`: the team a staff member reads (they read every
+ * team's); `rd`: the channel just left, marked read to its newest line (lines arrived live there).
+ * A solo board, or a player with no team, has no team segment.
+ */
+async function chatPane(access: ChatAccess, userId: number, eventId: number, a: Args) {
+  const teamList = access.solo
+    ? []
+    : access.staff
+      ? await db.select({ id: teams.id, name: teams.name }).from(teams).where(eq(teams.eventId, eventId)).orderBy(teams.name)
+      : [];
+  const pickedTeam = Number(a.tm) || null;
+  const myTeam: number | null = access.solo
+    ? null
+    : access.staff
+      ? (teamList.find((t) => t.id === pickedTeam)?.id ?? (access.teamId != null && teamList.some((t) => t.id === access.teamId) ? access.teamId : (teamList[0]?.id ?? null)))
+      : access.teamId;
+  const teamCh: ChatChannel | null = myTeam != null ? `team:${myTeam}` : null;
+  const want = a.f === 'mods' ? 'announce' : a.f;
+  const channel: ChatChannel = want === 'team' && teamCh ? teamCh : want === 'announce' ? 'announce' : 'all';
+
+  const left = parseChannel(a.rd);
+  if (left && left !== channel && canReadChannel(access, left)) await markChannelRead(eventId, userId, left);
+
+  const all: ChatChannel[] = [...(teamCh ? [teamCh] : []), 'all', 'announce'];
+  const [rows, block, unread] = await Promise.all([
+    chatHistory(access, userId, channel),
+    chatBlockOf(eventId, userId),
+    chatUnread(access, userId, all.filter((c) => c !== channel)),
+  ]);
+  const go = (f: string, extra: Record<string, string> = {}) => ({
+    a: 'load' as const,
+    v: 'feed',
+    args: { s: `event:${eventId}`, p: 'chat', f, rd: channel, ...extra },
+  });
+  const chans: ChatChan[] = all.map((c) => ({
+    label: c === 'all' ? 'All teams' : c === 'announce' ? 'Announcements' : access.staff && access.teamId !== myTeam ? 'Teams' : 'My team',
+    on: c === channel,
+    act: go(c === 'all' ? 'all' : c === 'announce' ? 'announce' : 'team', teamCh && c === teamCh && myTeam != null ? { tm: String(myTeam) } : {}),
+    feed: chatFeedId(eventId, c),
+    n: unread.get(c) ?? 0,
+    // All teams is the busy one: its count reads as info, the others' as gold.
+    ...(c === 'all' ? { blue: true } : {}),
+  }));
+  // Staff on a team channel: which team's, as chips under the switch.
+  const teamPicks =
+    access.staff && channel.startsWith('team:') && teamList.length > 1
+      ? teamList.map((t) => ({ label: t.name, on: t.id === myTeam, act: go('team', { tm: String(t.id) }) }))
+      : null;
+  const lock = lockFor(channel, { block, paused: access.paused, staff: access.staff, rank: access.rank });
+  return { channel, rows, chans, teamPicks, lock };
+}
+
 // ── Actions (no redraw: the plugin reads an error line, or nothing) ─────────────────────────────
 
 async function accessFor(request: Request, a: Args): Promise<{ access: ChatAccess; userId: number } | View> {
@@ -363,6 +422,11 @@ async function accessFor(request: Request, a: Args): Promise<{ access: ChatAcces
   const access = await chatAccess(e, viewer.userId, chatCharacter(request));
   if (!access || !access.member) return err('Only this event’s players can use its chat.');
   return { access, userId: viewer.userId };
+}
+
+/** A send's `to`: a channel, or 'team' (the sender's own) from a box drawn before channels. */
+function sendTarget(to: string | undefined): ChatTarget {
+  return to === 'team' ? 'team' : (parseChannel(to) ?? 'all');
 }
 
 export async function chatAct(request: Request, act: string, a: Args, fields: Args): Promise<View | null> {
@@ -375,7 +439,7 @@ export async function chatAct(request: Request, act: string, a: Args, fields: Ar
   const id = Number(a.id);
   const r =
     act === 'chat-send'
-      ? await sendChat(access, userId, fields.msg ?? '', a.to === 'team')
+      ? await sendChat(access, userId, fields.msg ?? '', sendTarget(a.to))
       : act === 'chat-del'
         ? await deleteChat(access, userId, id)
         : act === 'chat-mute'
@@ -383,6 +447,6 @@ export async function chatAct(request: Request, act: string, a: Args, fields: Ar
           : await pauseChat(access, a.on === '1', userId);
   if (!r.ok) return err(r.error);
   // Pausing redraws the tab so the switch flips; everything else changes nothing on the sender's screen.
-  if (act === 'chat-pause') return feedView(request, { s: a.s ?? `event:${access.eventId}`, p: 'chat' });
+  if (act === 'chat-pause') return feedView(request, { s: a.s ?? `event:${access.eventId}`, p: 'chat', ...(a.f ? { f: a.f } : {}) });
   return OK;
 }

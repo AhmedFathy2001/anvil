@@ -1240,6 +1240,13 @@
       "when": 1794360159469,
       "tag": "0238_participants_team_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 241,
+      "version": "7",
+      "when": 1794400000000,
+      "tag": "0241_event_chat_channels",
+      "breakpoints": true
     }
   ]
 }

@@ -9,7 +9,7 @@
 import { and, desc, eq, ilike, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanAuditLog, clanStaff, eventChatMessages, eventChatMutes, eventParticipants, events, teams, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanStaff, eventChatMessages, eventChatMutes, eventChatReads, eventParticipants, events, teams, users } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { clanGrant, platformRoleOf } from '@/lib/clanGrants';
 import { atLeast, hasPlatformRole, rankOf } from '@/lib/clanRoles';
@@ -33,11 +33,18 @@ import {
   recordSend,
   waitFor,
   type BoardPace,
+  type ChatChannel,
+  type ChatLock,
+  canPostChannel,
+  canReadChannel,
+  channelTeam,
+  pausedFor,
+  sanctionLock,
 } from '@/lib/eventChatRules';
 import { log } from '@/lib/logger';
-import { notifyRows, teamUserIds } from '@/lib/panelRows';
+import { eventStaffUserIds, notifyRows, teamUserIds, type RowsTarget } from '@/lib/panelRows';
 import { getPlatformSetting, setPlatformSetting } from '@/lib/platformSettings';
-import { chatFeedIds, chatRow, type ChatRowOptions } from '@/lib/pluginUi/feedUi';
+import { chatFeedId, chatLockFeeds, chatRow, type ChatRowOptions } from '@/lib/pluginUi/feedUi';
 import type { Action, Color, FeedRow } from '@/lib/pluginUi/nodes';
 import { inkForSurface, supporterForUser, supporterForUsers, supporterInk } from '@/lib/supporter';
 
@@ -75,9 +82,14 @@ export async function setPlatformChat(on: boolean): Promise<void> {
   // clan-scope: global -- the platform switch reaches every board with chat on, across clans
   const boards = await db.select({ id: events.id, paused: events.chatPaused }).from(events).where(eq(events.chatEnabled, true));
   for (const b of boards) {
-    const locked = !on ? 'Event chat is switched off on Anvil right now.' : b.paused ? 'The host has paused chat.' : null;
-    await notifyRows({ e: b.id }, { t: 'rowslock', feeds: [`chat:${b.id}`], locked });
+    if (!on) await notifyRows({ e: b.id }, lockPush(chatLockFeeds(b.id, 'every'), { locked: 'Event chat is switched off on Anvil right now.' }));
+    else await notifyRows({ e: b.id }, lockPush(chatLockFeeds(b.id, 'talk'), b.paused ? { locked: 'The host has paused chat.' } : null));
   }
+}
+
+/** A `rowslock` push: the box's line(s), or null to reopen it. */
+function lockPush(feeds: string[], lock: ChatLock | null): Record<string, unknown> {
+  return { t: 'rowslock', feeds, locked: lock?.locked ?? null, ...(lock?.sub ? { sub: lock.sub } : {}), ...(lock?.warn ? { warn: 1 } : {}) };
 }
 
 // ── Who's in ─────────────────────────────────────────────────────────────────────────────────────
@@ -103,6 +115,8 @@ export interface ChatAccess {
   rsn: string | null;
   /** How many seats this person holds on the board: with more than one, "mine" is by character. */
   seats: number;
+  /** A solo board (every player their own team): no team channels. */
+  solo: boolean;
 }
 
 /**
@@ -177,7 +191,7 @@ async function participantOf(
 export async function chatAccess(eventId: number, userId: number, pick?: ChatSeatPick | null): Promise<ChatAccess | null> {
   const ev = await db.query.events.findFirst({
     where: eq(events.id, eventId),
-    columns: { id: true, clanId: true, chatEnabled: true, chatPaused: true },
+    columns: { id: true, clanId: true, chatEnabled: true, chatPaused: true, teamPlacement: true },
   });
   if (!ev) return null;
   const [platformOn, part, grant, platformRole] = await Promise.all([
@@ -205,6 +219,7 @@ export async function chatAccess(eventId: number, userId: number, pick?: ChatSea
     teamId: part?.teamId ?? null,
     rsn: part?.rsn ?? null,
     seats: part?.seats ?? 0,
+    solo: ev.teamPlacement === 'solo',
   };
 }
 
@@ -230,6 +245,7 @@ interface StoredLine {
   body: string;
   teamId: number | null;
   teamOnly: boolean;
+  channel: string;
   fromStaff: boolean;
   createdAt: string;
 }
@@ -275,7 +291,7 @@ async function rowsFor(
       ...(ink ? { whoColor: ink.color as Color, ...(ink.grad ? { grad: ink.grad as `#${string}`[], ...(ink.move ? { move: true } : {}) } : {}) } : {}),
       modActions: canMod(l.userId) ? { del: modAct(eventId, l.id, 'chat-del'), mute: modAct(eventId, l.id, 'chat-mute') } : null,
     };
-    return chatRow({ id: l.id, rsn: l.rsn, body: l.body, teamOnly: l.teamOnly, createdAt: l.createdAt }, o);
+    return chatRow({ id: l.id, rsn: l.rsn, body: l.body, createdAt: l.createdAt }, o);
   });
 }
 
@@ -299,23 +315,88 @@ const LINE_COLUMNS = {
   body: eventChatMessages.body,
   teamId: eventChatMessages.teamId,
   teamOnly: eventChatMessages.teamOnly,
+  channel: eventChatMessages.channel,
   fromStaff: eventChatMessages.fromStaff,
   createdAt: eventChatMessages.createdAt,
 };
 
-/** The latest lines for one filter, newest first: everyone's, one team's, or the host's staff's. */
-export async function chatHistory(
-  access: ChatAccess,
-  viewerUserId: number,
-  filter: 'all' | 'team' | 'mods',
-  limit = 100,
-): Promise<FeedRow[]> {
-  const where = [eq(eventChatMessages.eventId, access.eventId), isNull(eventChatMessages.deletedAt)];
-  if (filter === 'team' && access.teamId != null) where.push(eq(eventChatMessages.teamId, access.teamId));
-  else if (filter === 'mods') where.push(eq(eventChatMessages.fromStaff, true), eq(eventChatMessages.teamOnly, false));
-  else where.push(eq(eventChatMessages.teamOnly, false));
-  const lines = await db.select(LINE_COLUMNS).from(eventChatMessages).where(and(...where)).orderBy(desc(eventChatMessages.id)).limit(limit);
+/**
+ * The latest lines in one channel, newest first, for someone allowed to read it (nothing otherwise),
+ * and that channel counts as read up to the newest of them.
+ */
+export async function chatHistory(access: ChatAccess, viewerUserId: number, channel: ChatChannel, limit = 100): Promise<FeedRow[]> {
+  if (!canReadChannel(access, channel)) return [];
+  const lines = await db
+    .select(LINE_COLUMNS)
+    .from(eventChatMessages)
+    .where(and(eq(eventChatMessages.eventId, access.eventId), eq(eventChatMessages.channel, channel), isNull(eventChatMessages.deletedAt)))
+    .orderBy(desc(eventChatMessages.id))
+    .limit(limit);
+  if (lines.length) await markChannelRead(access.eventId, viewerUserId, channel, lines[0].id);
   return rowsFor(access.eventId, lines, { userId: viewerUserId, staff: access.staff, rsn: access.seats > 1 ? access.rsn : null, access });
+}
+
+/**
+ * Move someone's read marker on a channel forward (never back): to `lastId`, or with none to the
+ * channel's newest line (leaving a channel whose lines arrived live while it was open).
+ */
+export async function markChannelRead(eventId: number, userId: number, channel: ChatChannel, lastId?: number): Promise<void> {
+  let upTo = lastId;
+  if (upTo == null) {
+    const [top] = await db
+      .select({ id: sql<number>`max(${eventChatMessages.id})` })
+      .from(eventChatMessages)
+      .where(and(eq(eventChatMessages.eventId, eventId), eq(eventChatMessages.channel, channel)));
+    upTo = top?.id ?? 0;
+  }
+  if (!upTo) return;
+  await db
+    .insert(eventChatReads)
+    .values({ eventId, userId, channel, lastId: upTo })
+    .onConflictDoUpdate({
+      target: [eventChatReads.eventId, eventChatReads.userId, eventChatReads.channel],
+      set: { lastId: sql`greatest(${eventChatReads.lastId}, excluded.last_id)` },
+    });
+}
+
+/**
+ * Unread lines per channel for one person: lines after their marker, not their own, not removed.
+ * Channels they may not read count nothing. One grouped read over the board's recent chat.
+ */
+export async function chatUnread(access: ChatAccess, userId: number, channels: ChatChannel[]): Promise<Map<ChatChannel, number>> {
+  const out = new Map<ChatChannel, number>(channels.map((c) => [c, 0]));
+  const readable = channels.filter((c) => canReadChannel(access, c));
+  if (!readable.length) return out;
+  const rows = await db
+    .select({ channel: eventChatMessages.channel, n: sql<number>`count(*)::int` })
+    .from(eventChatMessages)
+    .leftJoin(
+      eventChatReads,
+      and(eq(eventChatReads.eventId, eventChatMessages.eventId), eq(eventChatReads.userId, userId), eq(eventChatReads.channel, eventChatMessages.channel)),
+    )
+    .where(
+      and(
+        eq(eventChatMessages.eventId, access.eventId),
+        inArray(eventChatMessages.channel, readable),
+        isNull(eventChatMessages.deletedAt),
+        sql`${eventChatMessages.userId} <> ${userId}`,
+        sql`${eventChatMessages.id} > coalesce(${eventChatReads.lastId}, 0)`,
+      ),
+    )
+    .groupBy(eventChatMessages.channel);
+  for (const r of rows) out.set(r.channel as ChatChannel, Number(r.n));
+  return out;
+}
+
+/**
+ * Who a channel's lines are pushed to: a team's channel to that team's players and the host's staff
+ * by name (never the board's room, which also holds watchers); 'all' and 'announce' to the board.
+ */
+export async function channelTarget(eventId: number, channel: ChatChannel): Promise<RowsTarget> {
+  const team = channelTeam(channel);
+  if (team == null) return { e: eventId };
+  const [players, staff] = await Promise.all([teamUserIds(team), eventStaffUserIds(eventId)]);
+  return { u: [...new Set([...players, ...staff])] };
 }
 
 /**
@@ -342,14 +423,21 @@ export function boardChatSlow(eventId: number, now = Date.now()): boolean {
 
 export type SendResult = { ok: true } | { ok: false; error: string };
 
-export async function sendChat(access: ChatAccess, userId: number, raw: string, teamOnly: boolean, now = Date.now()): Promise<SendResult> {
+/** Where a send goes: a channel, or 'team' for the sender's own team. */
+export type ChatTarget = ChatChannel | 'team';
+
+export async function sendChat(access: ChatAccess, userId: number, raw: string, target: ChatTarget, now = Date.now()): Promise<SendResult> {
   if (!access.member) return { ok: false, error: 'Only this event’s players can chat here.' };
   if (!access.open) return { ok: false, error: access.closedWhy ?? 'Chat is off.' };
-  // A timeout or ban binds whoever it's on, staff included (only higher staff can impose one).
+  // A timeout or ban binds whoever it's on, staff included (only higher staff can impose one), on every channel.
   const block = await chatBlockOf(access.eventId, userId, now);
   if (block) return { ok: false, error: sanctionMessage(block) };
-  if (access.paused && !access.staff) return { ok: false, error: 'The host has paused chat.' };
-  if (teamOnly && access.teamId == null) return { ok: false, error: 'You’re not on a team yet.' };
+  if (target === 'team' && access.teamId == null) return { ok: false, error: 'You’re not on a team yet.' };
+  const channel: ChatChannel = target === 'team' ? `team:${access.teamId!}` : target;
+  if (!canPostChannel(access, channel)) {
+    return { ok: false, error: channel === 'announce' ? 'Only the host and mods post here.' : 'That’s another team’s channel.' };
+  }
+  if (pausedFor(channel, access.paused, access.staff)) return { ok: false, error: 'The host has paused chat.' };
 
   const checked = checkBody(raw, { staff: access.staff });
   if (!checked.ok) return { ok: false, error: checked.reason };
@@ -374,12 +462,11 @@ export async function sendChat(access: ChatAccess, userId: number, raw: string, 
   const rsn = cleanName(access.rsn ?? (await db.query.users.findFirst({ where: eq(users.id, userId), columns: { displayName: true } }))?.displayName ?? 'Staff');
   const [line] = await db
     .insert(eventChatMessages)
-    .values({ eventId: access.eventId, teamId: access.teamId, teamOnly, userId, fromStaff: access.staff, rsn, body: checked.body })
+    .values({ eventId: access.eventId, teamId: access.teamId, teamOnly: channelTeam(channel) != null, channel, userId, fromStaff: access.staff, rsn, body: checked.body })
     .returning(LINE_COLUMNS);
   // Pushed rows carry no "mine" and no mod menu: those are per viewer, and the same text goes to all.
   const [row] = await rowsFor(access.eventId, [line], null);
-  const feeds = chatFeedIds(access.eventId, { teamId: line.teamId, teamOnly, staff: line.fromStaff });
-  await notifyRows(teamOnly ? { u: await teamUserIds(line.teamId!) } : { e: access.eventId }, { t: 'rows', feeds, rows: [row] });
+  await notifyRows(await channelTarget(access.eventId, channel), { t: 'rows', feeds: [chatFeedId(access.eventId, channel)], rows: [row] });
   return { ok: true };
 }
 
@@ -420,8 +507,8 @@ export async function deleteChat(access: ChatAccess, byUserId: number, id: numbe
     .update(eventChatMessages)
     .set({ deletedAt: sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`, deletedBy: byUserId })
     .where(eq(eventChatMessages.id, id));
-  const feeds = chatFeedIds(access.eventId, { teamId: line.teamId, teamOnly: line.teamOnly, staff: line.fromStaff });
-  await notifyRows({ e: access.eventId }, { t: 'rowsdel', feeds, ids: [`c${id}`] });
+  const channel = (line.channel as ChatChannel) ?? 'all';
+  await notifyRows(await channelTarget(access.eventId, channel), { t: 'rowsdel', feeds: [chatFeedId(access.eventId, channel)], ids: [`c${id}`] });
   await audit(access, byUserId, 'event_chat_message_deleted', {
     old: { eventId: access.eventId, messageId: id, userId: line.userId, rsn: line.rsn, body: line.body },
   });
@@ -482,10 +569,13 @@ async function knownOnBoard(eventId: number, userId: number): Promise<boolean> {
   return !!seat;
 }
 
-/** The lock a person's message box shows: their own sanction, else the board's pause. */
-function lockFor(block: ChatBlock | null, paused: boolean, staff: boolean): string | null {
-  if (block) return sanctionMessage(block);
-  return paused && !staff ? 'The host has paused chat.' : null;
+/**
+ * A sanction ended: the person's boxes reopen, or show the board's pause. Staff's Announcements box
+ * reopens too; a player's keeps its read-only line (it's left out of the push).
+ */
+async function notifyReopen(eventId: number, userId: number, paused: boolean, staff: boolean): Promise<void> {
+  await notifyRows({ u: [userId] }, lockPush(chatLockFeeds(eventId, 'talk'), pausedFor('all', paused, staff) ? { locked: 'The host has paused chat.' } : null));
+  if (staff) await notifyRows({ u: [userId] }, lockPush([chatFeedId(eventId, 'announce')], null));
 }
 
 export interface SanctionInput {
@@ -516,7 +606,8 @@ export async function sanctionChat(access: ChatAccess, byUserId: number, targetU
     .onConflictDoUpdate({ target: [eventChatMutes.eventId, eventChatMutes.userId], set });
 
   const block = sanctionBlock({ kind: input.kind, until }, now, parseStamp);
-  await notifyRows({ u: [targetUserId] }, { t: 'rowslock', feeds: [`chat:${access.eventId}`], locked: lockFor(block, access.paused, false) });
+  // Every channel's box, Announcements too: a timeout or ban closes them all.
+  if (block) await notifyRows({ u: [targetUserId] }, lockPush(chatLockFeeds(access.eventId, 'every'), sanctionLock(block)));
   await audit(access, byUserId, input.kind === 'ban' ? 'event_chat_banned' : 'event_chat_timed_out', {
     new: { eventId: access.eventId, userId: targetUserId, until, minutes: input.minutes ?? null, reason },
   });
@@ -535,8 +626,7 @@ export async function liftChatSanction(access: ChatAccess, byUserId: number, tar
     return { ok: false, error: 'Only someone above them on staff can do that.' };
   }
   await db.delete(eventChatMutes).where(and(eq(eventChatMutes.eventId, access.eventId), eq(eventChatMutes.userId, targetUserId)));
-  const targetStaff = targetRank >= 1;
-  await notifyRows({ u: [targetUserId] }, { t: 'rowslock', feeds: [`chat:${access.eventId}`], locked: lockFor(null, access.paused, targetStaff) });
+  await notifyReopen(access.eventId, targetUserId, access.paused, targetRank >= 1);
   await audit(access, byUserId, 'event_chat_sanction_lifted', {
     old: { eventId: access.eventId, userId: targetUserId, kind: row.kind, until: row.until, reason: row.reason, byUserId: row.byUserId },
   });
@@ -552,6 +642,7 @@ export interface ModLine {
   body: string;
   teamId: number | null;
   teamOnly: boolean;
+  channel: string;
   fromStaff: boolean;
   createdAt: string;
 }
@@ -572,16 +663,17 @@ export interface ModSanction {
 const likeText = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
 /**
- * Every recent line on the board for its staff: team-only ones included, removed ones not. `filter`:
- * 'team' with a team id, 'staff' (said by the host's staff), or 'all'. `q` searches the text and name.
+ * Every recent line on the board for its staff, every channel (teams' included), removed ones not.
+ * `filter`: one channel, 'staff' (said by the host's staff, any channel), or 'every' (the default).
+ * `q` searches the text and name.
  */
 export async function chatModLines(
   eventId: number,
-  opts: { filter?: 'all' | 'team' | 'staff'; teamId?: number | null; q?: string; limit?: number } = {},
+  opts: { filter?: 'every' | 'staff' | ChatChannel; q?: string; limit?: number } = {},
 ): Promise<ModLine[]> {
   const where = [eq(eventChatMessages.eventId, eventId), isNull(eventChatMessages.deletedAt)];
-  if (opts.filter === 'team' && opts.teamId != null) where.push(eq(eventChatMessages.teamId, opts.teamId));
   if (opts.filter === 'staff') where.push(eq(eventChatMessages.fromStaff, true));
+  else if (opts.filter && opts.filter !== 'every') where.push(eq(eventChatMessages.channel, opts.filter));
   const q = opts.q?.trim().slice(0, 100);
   if (q) where.push(or(ilike(eventChatMessages.body, likeText(q)), ilike(eventChatMessages.rsn, likeText(q)))!);
   return db
@@ -669,7 +761,12 @@ export async function pauseChat(access: ChatAccess, paused: boolean, byUserId?: 
  */
 export async function setEventChatPaused(eventId: number, paused: boolean, by?: { clanId: number; byUserId: number }): Promise<void> {
   await db.update(events).set({ chatPaused: paused }).where(eq(events.id, eventId));
-  await notifyRows({ e: eventId }, { t: 'rowslock', feeds: [`chat:${eventId}`], locked: paused ? 'The host has paused chat.' : null });
+  await notifyRows({ e: eventId }, lockPush(chatLockFeeds(eventId, 'talk'), paused ? { locked: 'The host has paused chat.' } : null));
+  // The board's room took the pause, staff included; they keep talking, so their boxes reopen after it.
+  if (paused) {
+    const staff = await eventStaffUserIds(eventId);
+    if (staff.length) await notifyRows({ u: staff }, lockPush(chatLockFeeds(eventId, 'talk'), null));
+  }
   if (by) {
     await db
       .insert(clanAuditLog)
@@ -681,7 +778,7 @@ export async function setEventChatPaused(eventId: number, paused: boolean, by?: 
 /** The host's switch (admin events page). Turning it off closes every open chat pane at once. */
 export async function setEventChat(eventId: number, enabled: boolean): Promise<void> {
   await db.update(events).set({ chatEnabled: enabled, ...(enabled ? {} : { chatPaused: false }) }).where(eq(events.id, eventId));
-  if (!enabled) await notifyRows({ e: eventId }, { t: 'rowslock', feeds: [`chat:${eventId}`], locked: 'The host turned chat off.' });
+  if (!enabled) await notifyRows({ e: eventId }, lockPush(chatLockFeeds(eventId, 'every'), { locked: 'The host turned chat off.' }));
 }
 
 /**
@@ -705,9 +802,9 @@ export async function sweepExpiredChatTimeouts(now = Date.now()): Promise<number
         .where(and(eq(eventChatMutes.eventId, d.eventId), eq(eventChatMutes.userId, d.userId), eq(eventChatMutes.kind, 'timeout'), eq(eventChatMutes.until, d.until!)))
         .returning({ userId: eventChatMutes.userId });
       if (!gone.length) continue;
-      const grant = d.paused ? await clanGrant(d.clanId, d.userId).catch(() => null) : null;
+      const grant = await clanGrant(d.clanId, d.userId).catch(() => null);
       const staff = !!grant && atLeast(grant.role, 'moderator');
-      await notifyRows({ u: [d.userId] }, { t: 'rowslock', feeds: [`chat:${d.eventId}`], locked: lockFor(null, d.paused, staff) });
+      await notifyReopen(d.eventId, d.userId, d.paused, staff);
       done++;
     }
     return done;
