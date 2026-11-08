@@ -428,9 +428,10 @@ function PrefRow({ title, hint, children }: { title: string; hint: string; child
   );
 }
 
-function PrefGroup({ title, children }: { title: string; children: React.ReactNode }) {
+function PrefGroup({ title, id, children }: { title: string; id?: string; children: React.ReactNode }) {
+  // `id` is a /settings search target (lib/memberSettingsIndex), so it scrolls clear of the header.
   return (
-    <div className="grid gap-4">
+    <div id={id} className="grid scroll-mt-24 gap-4 rounded-lg">
       <h3 className="flex items-center gap-2 text-sm font-semibold">
         <span className="h-4 w-1 bg-gold" aria-hidden />
         {title}
@@ -471,7 +472,7 @@ export function PluginPostsPanel({ initial }: { initial: EmissionSettingsView })
       </p>
       <ErrorLine error={error} />
 
-      <PrefGroup title="Drops & pets">
+      <PrefGroup title="Drops & pets" id="posts-drops">
         {toggle('drops', 'Rare drops', 'Post valuable or very rare drops to the clan drops channel.')}
         <PrefRow title="Min drop value" hint="Post drops worth at least this, in gp (min 1,000,000; 0 = off).">
           <CommitNumber value={p.dropMin} min={1_000_000} disabled={busy} ariaLabel="Min drop value" onCommit={(n) => save({ dropMin: n })} />
@@ -485,7 +486,7 @@ export function PluginPostsPanel({ initial }: { initial: EmissionSettingsView })
         {toggle('pets', 'Pets', 'Post to the clan drops channel when you get a pet.')}
       </PrefGroup>
 
-      <PrefGroup title="Deaths & PvP">
+      <PrefGroup title="Deaths & PvP" id="posts-deaths">
         {toggle('deaths', 'Deaths', 'Post a screenshot to the clan deaths channel when you die.')}
         <PrefRow title="Death message" hint="Use {name} for your RSN.">
           <Input
@@ -502,7 +503,7 @@ export function PluginPostsPanel({ initial }: { initial: EmissionSettingsView })
         {toggle('pvp', 'PvP kills', 'Post a screenshot to the clan PvP channel when you kill a player.')}
       </PrefGroup>
 
-      <PrefGroup title="Achievements">
+      <PrefGroup title="Achievements" id="posts-achievements">
         {toggle('clog', 'Collection log slots', 'Post every new collection-log slot to the clan achievements channel.')}
         {toggle('levels', 'Level milestones', 'Post level milestones (your clan’s rules) to the clan and your own webhooks.')}
         {toggle('diaries', 'Diary completions')}
@@ -528,9 +529,9 @@ export function PluginPostsPanel({ initial }: { initial: EmissionSettingsView })
         </PrefRow>
       </PrefGroup>
 
-      <PrefGroup title="Screenshot privacy">
+      <PrefGroup title="Screenshot privacy" id="screenshot-privacy">
         <p className="max-w-[70ch] text-[12.5px] text-text-muted">
-          Chat left out of every screenshot your plugin takes, bingo proofs and Discord posts alike. Game messages, broadcasts and Anvil&rsquo;s own lines always stay in.
+          Ticked chat is left out of every screenshot your plugin takes, bingo proofs and Discord posts alike. Game messages, broadcasts and Anvil&rsquo;s own lines always stay in.
         </p>
         {hide('pm', 'Private messages', 'Hide the split private-message box and “From / To” lines in the chatbox.')}
         {hide('public', 'Public chat', 'Hide what people around you say.')}

@@ -875,7 +875,7 @@ export const en = {
     notifications: {
       title: 'Discord notifications',
       intro:
-        'These fire whether or not a bingo is running, and they post to the clan’s channels. Which channel is set up here by the admins — you only choose _what_ you post. In the next plugin update these choices move to the website, under **Settings → Announcements**, and follow you to every computer. The plugin keeps two switches under **Notifications**: **Share clan posts** pauses every main-game post at once, and **Share seasonal activity** does the same on Leagues, Deadman and other seasonal worlds.',
+        'These fire whether or not a bingo is running, and they post to the clan’s channels. Which channel is set up here by the admins — you only choose _what_ you post. In the next plugin update these choices move to the website, under **Settings → Discord posts & screenshots**, and follow you to every computer. On the same page, **Screenshot privacy** picks which chat (private messages, public chat, clan chat) is hidden in every screenshot the plugin takes. The plugin keeps two switches under **Notifications**: **Share clan posts** pauses every main-game post at once, and **Share seasonal activity** does the same on Leagues, Deadman and other seasonal worlds.',
       examplesFigure: {
         caption: 'What a post looks like',
         alt: 'Two Discord posts from Anvil: a Grandmaster combat task with points and progress to the next unlock, and a death with its message, each with a screenshot of the moment',

@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import Checkbox from '@/components/Checkbox';
 import NumberInput from '@/components/NumberInput';
 import Select from '@/components/Select';
@@ -52,9 +54,14 @@ export default function LevelRulesEditor({
   levelsOnly?: boolean;
 }) {
   const set = (patch: Partial<MilestoneRules>) => onChange({ ...value, ...patch });
-  const preset = presetOf(value);
+  // Picking "Custom…" is remembered: the numbers it starts from often equal a preset's (every 5 from 5),
+  // and reading the choice back from the numbers alone snapped straight back to that preset — the
+  // custom fields never showed. Stays custom until another preset is picked.
+  const [customPicked, setCustomPicked] = useState(false);
+  const preset: SkillPreset = customPicked && value.skillStep !== 0 ? 'custom' : presetOf(value);
 
   function pickPreset(p: string) {
+    setCustomPicked(p === 'custom');
     if (p === 'off') set({ skillStep: 0 });
     else if (p === 'every5') set({ skillStep: 5, skillFrom: 5 });
     else if (p === 'from90') set({ skillStep: 1, skillFrom: 90 });

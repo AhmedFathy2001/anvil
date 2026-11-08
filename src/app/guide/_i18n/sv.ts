@@ -869,7 +869,7 @@ const sv: PartialGuideDict = {
     notifications: {
       title: 'Discord-notiser',
       intro:
-        'De skickas oavsett om en bingo pågår eller inte, och de postas i klanens kanaler. Vilken kanal bestämmer administratörerna här — du väljer bara _vad_ du postar. I nästa pluginuppdatering flyttar de här valen till webbplatsen, under **Settings → Announcements**, och följer med dig till varje dator. Pluginet behåller två reglage under **Notifications**: **Share clan posts** pausar alla inlägg från huvudspelet på en gång, och **Share seasonal activity** gör samma sak på Leagues, Deadman och andra säsongsvärldar.',
+        'De skickas oavsett om en bingo pågår eller inte, och de postas i klanens kanaler. Vilken kanal bestämmer administratörerna här — du väljer bara _vad_ du postar. I nästa pluginuppdatering flyttar de här valen till webbplatsen, under **Settings → Discord posts & screenshots**, och följer med dig till varje dator. På samma sida väljer **Screenshot privacy** vilken chatt (privata meddelanden, offentlig chatt, klanchatt) som döljs på varje skärmdump pluginet tar. Pluginet behåller två reglage under **Notifications**: **Share clan posts** pausar alla inlägg från huvudspelet på en gång, och **Share seasonal activity** gör samma sak på Leagues, Deadman och andra säsongsvärldar.',
       examplesFigure: {
         caption: 'Så ser en post ut',
         alt: 'Två Discord-poster från Anvil: en Grandmaster combat task med poäng och framsteg mot nästa upplåsning, och en död med sitt meddelande, båda med en skärmbild av ögonblicket',

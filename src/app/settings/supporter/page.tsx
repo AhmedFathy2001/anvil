@@ -67,7 +67,7 @@ export default async function SupporterSettingsPage() {
         </ClanLink>
       )}
 
-      <SettingsGroup title="Perks">
+      <SettingsGroup title="Perks" id="perks">
         {PERKS.map((p) => {
           const mine = atLeast(tier, p.tier);
           return (
@@ -83,6 +83,7 @@ export default async function SupporterSettingsPage() {
         })}
       </SettingsGroup>
 
+      <div id="name-colours" className="scroll-mt-24">
       <SupporterSection
         bare
         supporter={supporterView(supporter)}
@@ -96,6 +97,7 @@ export default async function SupporterSettingsPage() {
             : null
         }
       />
+      </div>
     </>
   );
 }

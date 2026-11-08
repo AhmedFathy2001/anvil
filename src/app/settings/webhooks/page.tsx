@@ -10,14 +10,14 @@ export default async function WebhooksSettingsPage() {
 
   return (
     <>
-      <SettingsTitle title="Discord webhooks">
+      <SettingsTitle title="Your Discord webhooks">
         Send copies of your notifications to your own Discord channels, separate from any clan. Paste a webhook from a
         channel&rsquo;s Integrations → Webhooks.
       </SettingsTitle>
       {!view || view.accounts.length === 0 ? (
         <NeedsCharacter what="Webhooks" />
       ) : (
-        <SettingsGroup title="Your webhooks">
+        <SettingsGroup title="Your webhooks" id="your-webhooks">
           <SettingsBlock>
             <WebhooksPanel initial={view} />
           </SettingsBlock>

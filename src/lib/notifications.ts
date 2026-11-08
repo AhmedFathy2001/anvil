@@ -47,6 +47,8 @@ interface QueueParams {
   note: string | null;
   creditPlayerName: string | null;
   completed: boolean;
+  /** The submission(s) this adds, so the merged post can be found from them later (lib/discordPosts). */
+  submissionIds?: number[];
 }
 
 /**
@@ -69,6 +71,7 @@ export async function queueSubmissionNotification(p: QueueParams): Promise<void>
       latestNote: p.note,
       latestCreditName: p.creditPlayerName,
       completed: p.completed ? 1 : 0,
+      submissionIds: p.submissionIds ?? [],
       firstQueuedAt: now,
       lastEventAt: now,
     })
@@ -84,6 +87,7 @@ export async function queueSubmissionNotification(p: QueueParams): Promise<void>
         latestNote: p.note ?? sql`${pendingNotifications.latestNote}`,
         latestCreditName: p.creditPlayerName ?? sql`${pendingNotifications.latestCreditName}`,
         completed: p.completed ? 1 : sql`${pendingNotifications.completed}`,
+        submissionIds: sql`${pendingNotifications.submissionIds} || ${JSON.stringify(p.submissionIds ?? [])}::jsonb`,
         lastEventAt: now,
       },
     });
@@ -151,6 +155,7 @@ async function flushBucket(tileId: number, teamId: number): Promise<boolean> {
     milestonePct,
     eventId: event.id,
     tile,
+    submissionIds: row.submissionIds ?? [],
   }).catch(() => {});
   return true;
 }

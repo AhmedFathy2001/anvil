@@ -869,7 +869,7 @@ const nl: PartialGuideDict = {
     notifications: {
       title: 'Discord-meldingen',
       intro:
-        'Die gaan af of er nu een bingo loopt of niet, en ze verschijnen in de kanalen van de clan. Welk kanaal, bepalen de admins hier — jij kiest alleen _wat_ je post. Met de volgende plugin-update verhuizen deze keuzes naar de website, onder **Settings → Announcements**, en volgen ze je naar elke computer. In de plugin blijven twee schakelaars onder **Notifications**: **Share clan posts** pauzeert in één keer alle posts uit het hoofdspel, en **Share seasonal activity** doet hetzelfde op Leagues, Deadman en andere seizoenswerelden.',
+        'Die gaan af of er nu een bingo loopt of niet, en ze verschijnen in de kanalen van de clan. Welk kanaal, bepalen de admins hier — jij kiest alleen _wat_ je post. Met de volgende plugin-update verhuizen deze keuzes naar de website, onder **Settings → Discord posts & screenshots**, en volgen ze je naar elke computer. Op dezelfde pagina kies je bij **Screenshot privacy** welke chat (privéberichten, openbare chat, clanchat) verborgen wordt op elke screenshot die de plugin maakt. In de plugin blijven twee schakelaars onder **Notifications**: **Share clan posts** pauzeert in één keer alle posts uit het hoofdspel, en **Share seasonal activity** doet hetzelfde op Leagues, Deadman en andere seizoenswerelden.',
       examplesFigure: {
         caption: 'Zo ziet een post eruit',
         alt: 'Twee Discord-posts van Anvil: een Grandmaster-combat task met punten en de voortgang naar de volgende unlock, en een dood met het bijbehorende bericht, elk met een screenshot van het moment',

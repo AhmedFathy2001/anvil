@@ -55,6 +55,7 @@ export default async function BoostsSettingsPage() {
       {(mine.slots > 0 || mine.placements.length > 0) && (
         <SettingsGroup
           title="Your boosts"
+          id="your-boosts"
           note={
             paused > 0
               ? `${paused === 1 ? 'One boost is' : `${paused} boosts are`} paused: your tier has fewer slots than you've placed. The oldest keep counting; the rest come back if your slots do.`
@@ -112,6 +113,7 @@ export default async function BoostsSettingsPage() {
       {(mine.slots > 0 || mine.placements.length > 0) && (
         <SettingsGroup
           title="Clans you can boost"
+          id="boostable-clans"
           note={`Boosts are yours, not a character's. Each one rides on a member seat one of your characters holds in the in-game clan, ${SEAT_MIN_DAYS} days old or more; we pick it for you (your main where it can). The clan sees that character, never your others. Up to ${PER_PERSON_CAP} of yours count toward one clan's level; levels at ${LEVEL_AT.join(', ')}. A placed boost can move once every ${MOVE_COOLDOWN_DAYS} days.`}
         >
           {mine.candidates.length === 0 && (
