@@ -260,3 +260,11 @@ test('board Feed/Chat: on the Feed tab for a plugin that can, in place (with a w
   const closed = JSON.stringify(feedTabUi({ scopes: [board], current: board, pane: 'feed', chatAvailable: false, chatClosed: 'The host hasn’t turned chat on for this event.', filter: 'all', teamId: 4, rows: [], floorNote: 'x' }));
   assert.match(closed, /turned chat on/);
 });
+
+test('a board with chat off gets only the Feed button', async () => {
+  const { boardFeedLinks } = await import('../src/lib/pluginUi/feedUi.ts');
+  const off = JSON.stringify(boardFeedLinks(9, undefined, true, false));
+  assert.doesNotMatch(off, /Chat/);
+  assert.match(off, /"label":"Feed"|Feed/);
+  assert.match(JSON.stringify(boardFeedLinks(9, undefined, true, true)), /This board’s chat/);
+});
