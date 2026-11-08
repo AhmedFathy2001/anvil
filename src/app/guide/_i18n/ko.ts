@@ -4232,6 +4232,10 @@ const ko: PartialGuideDict = {
           body: '**Grand Exchange** (설정한 금액 이상 가치의 완료된 거래), **Player trades** (내가 준 것과 받은 것), **Group storage** (넣거나 뺀 것), **Other plugins** (지정한 RuneLite 플러그인이 Anvil을 통해 게시할 수 있음). 모두 처음에는 꺼져 있고 나만 켤 수 있으며, 클랜은 나를 대신해 켤 수 없습니다. 게시는 내 웹훅으로만 이뤄지므로, 받고 싶은 웹훅에서 해당 항목을 체크하세요.',
         },
         {
+          term: '메시지 템플릿',
+          body: '모든 게시물의 첫 줄을 바꿉니다: **Loot**, **Pet**, **Collection log**, **Combat tasks**, **Achievement diary**, **Quests**, **Levels**, **Death**, **Player kills**, **Slayer**, **Clue scrolls**, **Speedruns**, **Kill count**, **BA gambles**, 그리고 본인에게만 **Grand Exchange**, **Player trades**, **Group storage**. `{player}` 또는 `{item}` 같은 자리 표시자를 클릭하면 추가되며, 미리보기에는 샘플 값이 채워집니다. 종류마다 고유한 자리 표시자가 있고, 중괄호 안의 다른 내용은 입력한 그대로 유지됩니다. 최대 200자; 멘션과 링크는 절대 게시되지 않습니다. 변경하지 않으면 게시물은 늘 그랬던 것처럼 보입니다. 클랜이 자체 설정을 지정할 수 있고, **Reset to clan default**를 누르면 클랜 기본값으로 돌아갑니다.',
+        },
+        {
           term: '스크린샷 개인정보 보호',
           body: '모든 스크린샷에서 제외할 채팅을 체크하세요. 플러그인이 찍는 것, 증명 사진, Discord 게시물 모두 해당됩니다: **Private messages**(기본 체크), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel**, **Group chat**. 게임 메시지와 Anvil 자체 줄은 항상 포함됩니다.',
         },

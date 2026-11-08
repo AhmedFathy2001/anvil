@@ -4234,6 +4234,10 @@ const fi: PartialGuideDict = {
           body: '**Grand Exchange** (päättyneet tarjoukset, jotka ovat vähintään asettamasi summan arvoisia), **Player trades** (mitä annoit ja sait), **Group storage** (mitä laitoit varastoon tai otit sieltä) ja **Other plugins** (nimeämäsi RuneLite-lisäosat voivat julkaista Anvilin kautta). Ne ovat alussa pois, vain sinä voit kytkeä ne päälle, klaanisi ei koskaan voi kytkeä niitä puolestasi, ja ne julkaistaan vain omiin webhookeihisi: rastita tyyppi siinä webhookissa, johon haluat ne.',
         },
         {
+          term: 'Viestipohjat',
+          body: 'muuttaa minkä tahansa viestin ensimmäisen rivin: **Loot**, **Pet**, **Collection log**, **Combat tasks**, **Achievement diary**, **Quests**, **Levels**, **Death**, **Player kills**, **Slayer**, **Clue scrolls**, **Speedruns**, **Kill count**, **BA gambles** ja vain sinulle **Grand Exchange**, **Player trades** ja **Group storage**. Napsauta paikanvarainta, kuten `{player}` tai `{item}`, lisätäksesi sen; esikatselu täyttää esimerkkiarvot. Jokaisella tyypillä on omat paikanvarauksensa, ja muu aaltosulkeissa oleva teksti säilyy kirjoittamassasi muodossa. Enintään 200 merkkiä; maininnat ja linkit eivät koskaan julkaistu. Muuttamattomana viesti näkyy kuten ennen; klaanisi voi asettaa oman, ja **Reset to clan default** palauttaa sen.',
+        },
+        {
           term: 'Kuvakaappausten yksityisyys',
           body: 'rastita chat, joka jätetään pois jokaisesta lisäosan ottamasta kuvakaappauksesta, todisteista ja Discord-julkaisuista: **Private messages** (alussa rastitettuna), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** ja **Group chat**. Pelin viestit ja Anvilin omat rivit pysyvät aina mukana.',
         },

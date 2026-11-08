@@ -18,6 +18,8 @@
  * Pure: no database.
  */
 
+import { normalizeTemplates, type Templates } from '@/lib/notifyTemplates';
+
 export type Source = 'custom' | 'clan' | 'platform';
 
 /** Kinds read off a game line. */
@@ -75,6 +77,8 @@ export interface PersonalKinds {
   patterns: string[];
   /** Plugins allowed to post through Anvil, by the name they send. */
   extSources: string[];
+  /** Their own message templates per kind (lib/notifyTemplates); absent = inherit. */
+  templates?: Templates;
 }
 
 /** A clan's defaults for its members (setting notify_kind_defaults). Private kinds are never kept. */
@@ -83,10 +87,12 @@ export interface ClanKinds {
   shots: Partial<Record<ShotKind, boolean | null>>;
   /** The clan's chat-line patterns: they post to its channels. */
   patterns: string[];
+  /** Message templates for its members (never the private kinds'). */
+  templates?: Templates;
 }
 
-export const NO_PERSONAL_KINDS: PersonalKinds = { kinds: {}, shots: {}, patterns: [], extSources: [] };
-export const NO_CLAN_KINDS: ClanKinds = { kinds: {}, shots: {}, patterns: [] };
+export const NO_PERSONAL_KINDS: PersonalKinds = { kinds: {}, shots: {}, patterns: [], extSources: [], templates: {} };
+export const NO_CLAN_KINDS: ClanKinds = { kinds: {}, shots: {}, patterns: [], templates: {} };
 
 /** Anvil's own defaults. Every new kind is off; the numbers apply once someone turns one on. */
 export const PLATFORM_KINDS: Record<NewKind, { on: boolean; shot: boolean; every?: number; tier?: ClueTier; pbOnly?: boolean; min?: number }> = {
@@ -187,7 +193,7 @@ export function normalizePersonalKinds(raw: unknown): PersonalKinds {
     const s = normalizeKind(kind, k[kind]);
     if (!isBlank(s)) kinds[kind] = s;
   }
-  return { kinds, shots: normalizeShots(o.shots), patterns: normalizePatterns(o.patterns), extSources: normalizeSources(o.extSources) };
+  return { kinds, shots: normalizeShots(o.shots), patterns: normalizePatterns(o.patterns), extSources: normalizeSources(o.extSources), templates: normalizeTemplates(o.templates, 'personal') };
 }
 
 /** A clan's defaults. A private kind is dropped here, so no clan value can ever reach it. */
@@ -199,7 +205,7 @@ export function normalizeClanKinds(raw: unknown): ClanKinds {
     const s = normalizeKind(kind, k[kind]);
     if (!isBlank(s)) kinds[kind] = s;
   }
-  return { kinds, shots: normalizeShots(o.shots), patterns: normalizePatterns(o.patterns) };
+  return { kinds, shots: normalizeShots(o.shots), patterns: normalizePatterns(o.patterns), templates: normalizeTemplates(o.templates, 'clan') };
 }
 
 export function parseClanKinds(raw: string | null | undefined): ClanKinds {

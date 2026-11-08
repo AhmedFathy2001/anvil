@@ -4231,6 +4231,10 @@ const zhHans: PartialGuideDict = {
           body: '**Grand Exchange**（已完成且价值不低于你设定金额的交易）、**Player trades**（你给出和获得的物品）、**Group storage**（你存入或取出的物品）以及 **Other plugins**（你指定的 RuneLite 插件可通过 Anvil 发布）。这些默认关闭，只有你自己能开启，你的氏族永远无法替你开启，并且它们只会发布到你自己的 webhook：在你希望它们出现的 webhook 上勾选该类型即可。',
         },
         {
+          term: '消息模板',
+          body: '更改任何消息的第一行：**Loot**、**Pet**、**Collection log**、**Combat tasks**、**Achievement diary**、**Quests**、**Levels**、**Death**、**Player kills**、**Slayer**、**Clue scrolls**、**Speedruns**、**Kill count**、**BA gambles**，以及仅对你自己可用的 **Grand Exchange**、**Player trades** 和 **Group storage**。点击 `{player}` 或 `{item}` 等占位符即可添加；预览会填入示例值。每种类型都有自己的占位符，花括号中的其他内容将保持你输入的样子。最多 200 个字符；提及和链接永远不会发布。保持不变时，消息与以往一样；你的战队可以设置自己的模板，**Reset to clan default** 会恢复为战队默认值。',
+        },
+        {
           term: '截图隐私',
           body: '勾选在插件拍摄的每张截图中（包括证明截图和 Discord 帖子）都会被遮掉的聊天：**Private messages**（默认勾选）、**Public chat**、**Clan chat: others’ messages**、**Clan chat: your own messages**、**Chat channel** 和 **Group chat**。游戏消息和 Anvil 自己的行始终保留。',
         },

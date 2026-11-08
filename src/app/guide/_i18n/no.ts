@@ -4237,6 +4237,10 @@ const no: PartialGuideDict = {
           body: '**Grand Exchange** (fullførte tilbud verdt minst beløpet du setter), **Player trades** (det du ga og fikk), **Group storage** (det du la inn eller tok ut) og **Other plugins** (RuneLite-plugins du navngir kan legge ut via Anvil). De er av fra start, bare du kan slå dem på, klanen din kan aldri slå dem på for deg, og de legges bare ut i dine egne webhooks: kryss av typen på webhooken du vil ha dem i.',
         },
         {
+          term: 'Meldingsmaler',
+          body: 'endrer første linje i ethvert innlegg: **Loot**, **Pet**, **Collection log**, **Combat tasks**, **Achievement diary**, **Quests**, **Levels**, **Death**, **Player kills**, **Slayer**, **Clue scrolls**, **Speedruns**, **Kill count**, **BA gambles** og bare for deg **Grand Exchange**, **Player trades** og **Group storage**. Klikk på en plassholder som `{player}` eller `{item}` for å legge den til; forhåndsvisningen fyller inn eksempelverdier. Hver type har egne plassholdere, og alt annet i klammeparenteser står slik du skrev det. Opptil 200 tegn; omtaler og lenker blir aldri postet. Uendret leses et innlegg som alltid; klanen din kan sette sin egen, og **Reset to clan default** går tilbake til den.',
+        },
+        {
           term: 'Personvern for skjermbilder',
           body: 'kryss av for chatten som utelates fra hvert skjermbilde plugin-en tar, både bevis og Discord-innlegg: **Private messages** (krysset av til å begynne med), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** og **Group chat**. Spillmeldinger og Anvils egne linjer blir alltid med.',
         },

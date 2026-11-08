@@ -4215,6 +4215,10 @@ const pl: PartialGuideDict = {
           body: '**Grand Exchange** (zakończone oferty warte co najmniej ustaloną kwotę), **Player trades** (co oddałeś i co dostałeś), **Group storage** (co włożyłeś lub wyjąłeś) oraz **Other plugins** (wtyczki RuneLite, które wskażesz, mogą publikować przez Anvil). Są domyślnie wyłączone, tylko Ty możesz je włączyć, klan nigdy nie może włączyć ich za Ciebie, i trafiają wyłącznie do Twoich własnych webhooków: zaznacz dany typ przy webhooku, w którym chcesz je widzieć.',
         },
         {
+          term: 'Szablony wiadomości',
+          body: 'zmienia pierwszy wiersz dowolnego wpisu: **Loot**, **Pet**, **Collection log**, **Combat tasks**, **Achievement diary**, **Quests**, **Levels**, **Death**, **Player kills**, **Slayer**, **Clue scrolls**, **Speedruns**, **Kill count**, **BA gambles** oraz tylko dla ciebie **Grand Exchange**, **Player trades** i **Group storage**. Kliknij symbol zastępczy, np. `{player}` lub `{item}`, aby go dodać; podgląd wypełnia przykładowe wartości. Każdy rodzaj ma własne symbole zastępcze, a cokolwiek innego w nawiasach klamrowych pozostaje tak, jak wpisano. Do 200 znaków; wzmianki i linki nigdy nie są publikowane. Bez zmian wpis wygląda jak zawsze; twój klan może ustawić własny, a **Reset to clan default** przywraca jego wersję.',
+        },
+        {
           term: 'Prywatność zrzutów ekranu',
           body: 'zaznacz czat, który zostaje pominięty na każdym zrzucie ekranu zrobionym przez plugin, zarówno dowodach, jak i postach na Discordzie: **Private messages** (zaznaczone na start), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** i **Group chat**. Wiadomości z gry i linie samego Anvil zawsze zostają.',
         },

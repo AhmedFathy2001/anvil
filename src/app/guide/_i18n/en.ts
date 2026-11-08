@@ -4238,6 +4238,10 @@ export const en = {
           body: '**Grand Exchange** (finished offers worth at least the amount you set), **Player trades** (what you gave and got), **Group storage** (what you put in or took out) and **Other plugins** (RuneLite plugins you name may post through Anvil). They start off, only you can turn them on, your clan can never turn them on for you, and they only post to your own webhooks: tick the kind on the webhook you want them in.',
         },
         {
+          term: 'Message templates',
+          body: 'change the first line of any post: **Loot**, **Pet**, **Collection log**, **Combat tasks**, **Achievement diary**, **Quests**, **Levels**, **Death**, **Player kills**, **Slayer**, **Clue scrolls**, **Speedruns**, **Kill count**, **BA gambles**, and for you alone **Grand Exchange**, **Player trades** and **Group storage**. Click a placeholder such as `{player}` or `{item}` to add it; the preview fills in sample values. Each kind has its own placeholders, and anything else in braces stays as you typed it. Up to 200 characters; mentions and links are never posted. Untouched, a post reads as it always has; your clan can set its own, and **Reset to clan default** goes back to it.',
+        },
+        {
           term: 'Screenshot privacy',
           body: 'tick the chat that is left out of every screenshot the plugin takes, proofs and Discord posts alike: **Private messages** (ticked to start), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** and **Group chat**. Game messages and Anvil’s own lines always stay in.',
         },

@@ -4234,6 +4234,10 @@ const de: PartialGuideDict = {
           body: '**Grand Exchange** (abgeschlossene Angebote im Wert von mindestens dem Betrag, den du festlegst), **Player trades** (was du gegeben und bekommen hast), **Group storage** (was du eingelagert oder entnommen hast) und **Other plugins** (RuneLite-Plugins, die du benennst, dürfen über Anvil posten). Sie sind zu Beginn aus, nur du kannst sie einschalten, dein Clan kann sie nie für dich einschalten, und sie posten nur in deine eigenen Webhooks: setze den Haken bei der Art auf dem Webhook, in den sie sollen.',
         },
         {
+          term: 'Nachrichtenvorlagen',
+          body: 'ändert die erste Zeile jedes Beitrags: **Loot**, **Pet**, **Collection log**, **Combat tasks**, **Achievement diary**, **Quests**, **Levels**, **Death**, **Player kills**, **Slayer**, **Clue scrolls**, **Speedruns**, **Kill count**, **BA gambles** und nur für dich **Grand Exchange**, **Player trades** und **Group storage**. Klicke auf einen Platzhalter wie `{player}` oder `{item}`, um ihn einzufügen; die Vorschau füllt Beispielwerte ein. Jede Art hat eigene Platzhalter, und alles andere in geschweiften Klammern bleibt so, wie du es eingegeben hast. Bis zu 200 Zeichen; Erwähnungen und Links werden nie gepostet. Unverändert liest sich ein Beitrag wie immer; dein Clan kann eine eigene festlegen, und **Reset to clan default** setzt sie darauf zurück.',
+        },
+        {
           term: 'Screenshot-Datenschutz',
           body: 'hake den Chat an, der aus jedem Screenshot herausgelassen wird, den das Plugin macht, Beweise und Discord-Posts gleichermaßen: **Private messages** (zu Beginn angehakt), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** und **Group chat**. Spielnachrichten und Anvils eigene Zeilen bleiben immer drin.',
         },
