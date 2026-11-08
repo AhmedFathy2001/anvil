@@ -247,3 +247,16 @@ test('a live moment row carries its reaction chip, with the action the opened li
   ]);
   assert.equal(freshReacts({ e: 9 }, -3), undefined, 'a lab row has nothing to react to');
 });
+
+test('board Feed/Chat: on the Feed tab for a plugin that can, in place (with a way back) otherwise', async () => {
+  const { boardFeedLinks, feedTabUi } = await import('../src/lib/pluginUi/feedUi.ts');
+  const tab = JSON.stringify(boardFeedLinks(9, { open: 'board', label: 'Lab' }, true));
+  assert.match(tab, /"a":"tab","tab":"feed","args":\{"s":"event:9","p":"chat"\}/);
+  assert.doesNotMatch(tab, /backLabel/);
+  const inPlace = JSON.stringify(boardFeedLinks(9, { open: 'board', label: 'Lab' }));
+  assert.match(inPlace, /"a":"load","v":"feed"/);
+  assert.match(inPlace, /"backLabel":"Lab"/);
+  const board = { kind: 'event' as const, id: 9, name: 'Lab' };
+  const closed = JSON.stringify(feedTabUi({ scopes: [board], current: board, pane: 'feed', chatAvailable: false, chatClosed: 'The host hasn’t turned chat on for this event.', filter: 'all', teamId: 4, rows: [], floorNote: 'x' }));
+  assert.match(closed, /turned chat on/);
+});

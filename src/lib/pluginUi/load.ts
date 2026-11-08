@@ -146,7 +146,12 @@ export function hasFeedTab(request: Request): boolean {
 
 /** The plugin can open its own tabs from a panel row (`{ a: 'tab' }`): the Feed pointer becomes a link. */
 export function hasTabLinks(request: Request): boolean {
-  return request.headers.get('X-Anvil-Tab-Links') === '1';
+  return Number(request.headers.get('X-Anvil-Tab-Links')) >= 1;
+}
+
+/** ...and open the Feed tab ON a given list (`{ a: 'tab', tab: 'feed', args }`): a board's feed or chat. */
+export function hasTabArgs(request: Request): boolean {
+  return Number(request.headers.get('X-Anvil-Tab-Links')) >= 2;
 }
 
 /** The plugin draws `img` nodes (capability 'panel-images'): proof thumbnails in a tile's detail. */
