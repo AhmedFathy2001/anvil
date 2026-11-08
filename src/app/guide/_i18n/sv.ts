@@ -28,6 +28,9 @@ const sv: PartialGuideDict = {
       lead: 'Fastnat, eller ser något fel ut?',
       link: 'Fråga i Anvils support-Discord',
     },
+    legalPaid: 'Frågor om pengar: [Återbetalningar](/legal/refunds) och [Villkor](/legal/terms).',
+    legalPrivacy: 'Så hanteras dina uppgifter: [Integritetspolicy](/legal/privacy).',
+    aboutLine: 'Vem står bakom Anvil? Läs [Om](/about).',
   },
 
   index: {
@@ -259,6 +262,13 @@ const sv: PartialGuideDict = {
         title: 'Klanevent och schemat',
         blurb: 'Massor, raidkvällar och träffar: veckovisa upprepningar, “jag är med” och anmälningar, Discord-påminnelser, utbetalningar, enkäter och att hitta luckor i schemat.',
         minutes: '~4 min',
+      },
+      luckRecords: {
+        eyebrow: 'För spelare',
+        title: 'Dropchanser, tur och rekord',
+        blurb:
+          'Vad oddsen på en droppruta betyder, hur turen räknas ut och var din bästa dag, vecka, månad och år visas.',
+        minutes: '~3 min',
       },
     },
   },
@@ -567,16 +577,24 @@ const sv: PartialGuideDict = {
       ],
       feeds: [
         {
-          term: 'Catch-all channel',
-          body: 'Den viktigaste, på fliken **Clan & events**. Event som startar och slutar, anmälan som öppnar, ställningar, veckoresultat — allt som sajten postar utan en egen kanal. Ange bara den, så har du en fungerande klan.',
+          term: 'Huvudkanalen',
+          body:
+            'Den främsta, på fliken **Clan & events**. Eventstarter och slut, anmälningar som öppnar, ställningar, veckoresultat: allt som sajten publicerar utan en egen kanal. Ställ in bara den här så har du en fungerande klan.',
         },
         {
-          term: 'In-game catch-all',
-          body: 'På fliken **In-game (plugin)**: dit allt från spelet går när det inte har en egen kanal. Ange den som nummer två.',
+          term: 'Spelets huvudkanal',
+          body:
+            'På fliken **In-game (plugin)**: dit allt från spelet hamnar när det inte har en egen kanal. Ställ in den här som nästa.',
         },
         {
-          term: 'De uppdelade flödena',
-          body: 'Eventinlägg, bräden du är medarrangör för, Skill & boss of the week och händelser i klankalendern kan delas av från samlingskanalen; sällsynta drops, pets, collection log, nivåer, combat achievements, quests, diaries, dödsfall och PvP-kills kan delas av från spelets samlingskanal. Ändringar i medlemslistan, godkännanden av anmälningar och kassaboken ligger på **Staff only**. Tomma uppdelade flöden faller tillbaka till sin samlingskanal. Kassan är undantaget: tomt betyder inga inlägg om pengar alls. Leagues och andra spellägen har en egen flik, **Game modes**.',
+          term: 'Milstolpar och mer',
+          body:
+            'På fliken **In-game (plugin)**. Slayer, clues, speedruns, bossräkningar, BA-gambles och egna chattmeddelanden postas här när spelarna slår på dem. Knappen **Filters** anger vad din klan ger medlemmar som standard. Spelarnas egna mallar och privata typer finns i [Settings, page by page]({settingsGuide}).',
+        },
+        {
+          term: 'De delade flödena',
+          body:
+            'Eventinlägg, boards du är medvärd för, Skill & boss of the week och klanens kalenderhändelser kan delas från huvudkanalen; sällsynta drops, pets, collection log, nivåer, combat achievements, quests, diaries, dödsfall och PvP-dödanden kan delas från spelets huvudkanal. Ändringar i medlemslistan, godkännanden av anmälningar och kassaboken ligger under **Staff only**. Tomma delade flöden faller tillbaka på sin huvudkanal. Kassan är undantaget: tom betyder att inga pengar postas alls. Leagues och andra spellägen har sin egen flik **Game modes**.',
         },
       ],
       note: {
@@ -630,9 +648,9 @@ const sv: PartialGuideDict = {
     modes: {
       title: 'Leagues, Deadman och andra spellägen',
       body: [
-        'Leagues, Deadman, hardcore och andra spellägen körs på egna världar med egna karaktärer. Deras inlägg är alltid märkta och räknas aldrig mot bräden eller tävlingar. De har en egen flik: **Admin → Discord → What goes where → Game modes**. Ett spelläge dyker upp där första gången en medlem spelar det.',
-        'Varje spelläge har en brytare och en **To**-kanal. Slå på **Send game-mode posts to their own channels** för att använda de kanalerna; lämna den av så postar varje spelläge i de vanliga kanalerna, fortfarande märkt. Knappen **Posts** på ett spelläges rad listar varje sorts inlägg det skickar — de vanliga och spellägets egna händelser — var och en med sin egen brytare.',
-        'Under den listan får du med **Custom filters** ett spelläge att posta mindre än huvudspelet. **Post drops rarer than 1 in…** sätter en egen sällsynthetsgräns (tomt = samma som huvudspelet): föremål som alltid postas postas ändå, men drops som bara räknas för sitt värde gör det inte. **Use its own level milestones** postar en nivåhöjning bara om den uppfyller båda regeluppsättningarna.',
+        'Leagues, Deadman, hardcore och andra spellägen körs på egna världar med egna karaktärer. Deras inlägg är alltid märkta och räknas aldrig mot tabeller eller tävlingar. De har en egen flik: **Admin → Discord → What goes where → Game modes**. Ett läge dyker upp där första gången en medlem spelar det.',
+        'Varje spelläge har en brytare och en kanal **To**. Slå på **Send game-mode posts to their own channels** för att använda de kanalerna; lämnas den av postas alla spellägen i de vanliga kanalerna, fortfarande märkta. Knappen **Posts** på ett spellägets rad visar alla typer det skickar (de vanliga och spellägets egna händelser), var och en med sin egen brytare.',
+        'Under listan gör **Custom thresholds** att ett spelläge postar mindre än huvudspelet. **Post drops rarer than 1 in…** (minst 2) och **Post drops worth at least (gp)** (minst 1,000) sätter egna golv (tomt = samma som huvudspelet). Tryck sedan på **Save drop thresholds**: föremål som alltid postas gör det fortfarande, men drops som bara räknas på sitt värde gör det inte. **Use its own level milestones** postar en nivåhöjning bara om den uppfyller båda uppsättningarna regler.',
       ],
       note: {
         tag: 'Striktare, aldrig lösare',
@@ -689,6 +707,32 @@ const sv: PartialGuideDict = {
       note: {
         tag: 'Den kan inte hälsa nya välkomna',
         body: 'Discord rapporterar bara anslutningar över en gateway-koppling, som en delad bot inte håller öppen för varje server. Det finns därför inget ”välkommen”-inlägg — lägg anmälningslänken i en #roller- eller #börja-här-kanal i stället, där folk ändå tittar.',
+      },
+    },
+    drops: {
+      title: 'Gränser för drops',
+      body: [
+        'Anvil börjar på **1m gp** eller **1 in 1,000**. Ett drop postas när det uppfyller något av dem. Ingen kan ange egna tal under dessa, och 0 stänger av ett av dem.',
+        'Ställ in klanens standarder under **Admin → Discord → What goes where → Drops**: **Default minimum drop value (gp)**, **Default: post drops rarer than 1 in…** och **Require both**. Slå på **Require both** och ett drop måste uppfylla värdet **and** sällsyntheten.',
+        'Varje karaktär följer standarden för klanen den är medlem i, och Anvils standard om den inte har någon. Spelare kan välja egna tal i **Settings**. Där visas **Using clan default** eller **Custom**, och **Reset** går tillbaka.',
+        '**Hard floor: never post drops more common than 1 in…** är den strikta. Medlemmar kan inte gå mjukare än detta i klanens kanaler. Deras egna webhooks kan det.',
+      ],
+      note: {
+        tag: 'Mer om spelarens sida',
+        body: 'Spelarnas egna tal, mallar och webhooks finns i [Settings, page by page]({settingsGuide}).',
+      },
+    },
+    pools: {
+      title: 'Fler webhooks för upptagna kanaler',
+      body: [
+        'En webhook kan bara skicka så snabbt. För en upptagen händelse, lägg till fler webhooks till samma kanal. Tryck på **Busy channel? Let the bot add … more webhooks** (kräver **Manage Webhooks**), eller klistra in flera webhook-länkar i kanalens ruta. Anvil föreslår fler när du har 50 eller fler spelare, många inlägg per minut, eller när Discord nyligen sagt “slow down”. Upp till 10 räcker gott.',
+        'Anvil turas om mellan dem. Om Discord säger “slow down” till en, vilar den webhooken en stund och nästa tar inlägget. Om en tas bort eller slutar fungera hoppas den över i 10 minuter. Inläggen flödar på så länge en webhook fungerar.',
+        'Alla måste peka mot samma kanal. Anvil varnar dig om de inte gör det. Använd **Test** för att kontrollera en, eller **Stop posting here** för att ta bort den.',
+      ],
+      note: {
+        tag: 'Samma kanal, samma inlägg',
+        body:
+          'Fler webhooks postar aldrig två gånger. De delar bara på arbetet. Samma idé finns i [Gränser för drops](#drops) ovan, och adminsidan i [Running the event]({adminGuide}).',
       },
     },
   },
@@ -945,25 +989,36 @@ const sv: PartialGuideDict = {
             label: 'Notify on death',
             body: 'postar i klanens dödskanal med en skärmbild av ögonblicket du dog.',
           },
-          { label: 'Death message', body: 'din egen rad. `{name}` byts ut mot ditt RSN.' },
+          {
+            label: 'Death message',
+            body: 'din egen rad. `{name}` ersätts med ditt RSN.',
+          },
           {
             label: 'Notify on PvP kill',
-            body: 'en skärmbild av ticket då ditt mål når 0 HP. Av som standard; på här.',
+            body: 'en skärmbild av ticken då ditt mål når 0 HP. Av som standard; på här.',
           },
-          { label: 'Notify on rare drops', body: 'huvudströmbrytaren för drop-inlägg.' },
+          {
+            label: 'Notify on rare drops',
+            body: 'huvudbrytaren för dropinlägg.',
+          },
           {
             label: 'Min drop value / Min drop rarity',
-            body: 'ett drop postas när det är värt minst så här mycket (GE eller high alch, det som är högst) eller är ovanligare än 1 på N. Anvil startar på 1m och 1/1,000. Din klan kan sätta egna standardvärden för sina medlemmar, och tills du väljer ett tal själv följer du klanens; **Återställ till klanens standard** (eller **Återställ till Anvils standard** om du inte har någon klan) går tillbaka till att följa den. En klan kan också sätta ett hårt sällsynthetsgolv för sina egna kanaler, som ditt tal inte kan gå under. Sätt något av talen till 0 för att stänga av det.',
+            body:
+              'ett drop postas när det är värt minst detta (GE eller high alch, det som är högst) eller sällsyntare än 1-av-N. Anvil börjar på 1m och 1/1,000. Din klan kan ställa in egna standarder för sina medlemmar, och tills du själv anger ett tal följer du klanens; **Reset to clan default** (eller **Reset to Anvil default** om du inte har någon klan) går tillbaka till att följa den. En klan kan också sätta ett hårt sällsyntegolv, som bara gäller inlägg i just den klanens egna kanaler. Ditt tal kan inte vara mjukare än så där, och det ändrar aldrig värdegränsen. Sätt något av talen till 0 för att stänga av det.',
           },
           {
-            label: 'Värde och sällsynthet tillsammans',
-            body: 'som standard postas ett drop när det uppfyller värdet **eller** sällsyntheten. Slå på **Kräv båda** så måste det uppfylla värdet **och** sällsyntheten. Din klan kan välja den här standarden för sina medlemmar; tills du väljer själv följer du den, och utan klan gäller ett av alternativen. Var och en av dina egna webhooks kan också sätta sitt eget minimivärde, sällsynthet och antingen/båda; det den lämnar tomt följer dina inställningar.',
+            label: 'Value and rarity together',
+            body:
+              'som standard postas ett drop när det uppfyller värdet **or** sällsyntheten. Slå på **Require both** så måste det uppfylla värdet **and** sällsyntheten. Din klan kan välja den här standarden för sina medlemmar; tills du väljer följer du den, och utan klan gäller ett av dem. Var och en av dina egna webhooks kan också ange sitt eget minimivärde, sällsynthet och either/both; det som lämnas tomt följer dina inställningar.',
           },
           {
             label: 'Loot key value',
-            body: 'en loot key postas en gång, som en enda notis, när hela innehållet passerar det här talet.',
+            body: 'en lootnyckel postas en gång, som en enda notis, när hela innehållet når detta tal.',
           },
-          { label: 'Notify on pets', body: 'pets postas i kanalen för sällsynta drops.' },
+          {
+            label: 'Notify on pets',
+            body: 'pets postas i kanalen för sällsynta drops.',
+          },
         ],
       },
       caFigure: {
@@ -1841,6 +1896,15 @@ const sv: PartialGuideDict = {
       ],
       outro: 'Under det visar **Member breakdown** vem i varje lag som gjorde vad, och **Stat tile standings** varje spelares start- och aktuella siffror på varje XP- eller dödsantalsbricka.',
     },
+    race: {
+      title: 'Tile-kapplöpningsbanor',
+      intro:
+        'På ett tile-kapplöpningsboard bygger du en bana i stället för ett rutnät. Rutor ligger på numrerade steg, och ett lag rör sig längs dem.',
+      body: [
+        'Öppna **Tiles** och använd sektionen **Route**. Välj en mall (**Diamond** är standard), lägg till dina rutor på stegen och tryck på **Save route**. Varje ruta du länkar måste ligga på nästa steg.',
+        'Vägar kan dela sig och mötas igen, men det finns bara ett mål. Vid en förgrening väljer du om det att slutföra en ruta bestämmer vägen, eller om kaptenen väljer och låser den. Hela listan över val, och vad spelarna ser, finns i [Formats, and how tiles open]({formatsGuide}).',
+      ],
+    },
   },
 
   captain: {
@@ -2060,6 +2124,40 @@ const sv: PartialGuideDict = {
       ],
       outro:
         'Vad du än väljer är rutorna själva samma jobb: se [Bygg en bräda som spårar sig själv]({boardGuide}).',
+    },
+    race: {
+      title: 'Rutt för tile-kapplöpning',
+      intro:
+        'En tile-kapplöpning är en bana med numrerade steg. Lagen flyttar sig steg för steg, och den som kommer längst vinner. Hosten kan göra banan till en karta med vägar som delar sig och förenas.',
+      body: [
+        'Varje rutt har en start, vägar som kan dela sig och mötas, och ett mål. Varje väg är lika lång. Ett lags framsteg är den väg det hittills gått.',
+      ],
+      rows: [
+        {
+          term: 'Med prestation',
+          body:
+            'varje ruta efter din nuvarande är öppen. Den första ett lag slutför sätter sin väg, och de andra stängs för det laget.',
+        },
+        {
+          term: 'Välj och lås',
+          body:
+            'kaptenen (eller lagets staff) väljer nästa ruta med **Pick this road** innan något räknas. Bara valet är öppet. Ett val kan inte ångras, förutom genom en admin-återställning.',
+        },
+        {
+          term: 'Spara tidiga slutföranden',
+          body:
+            'är av som standard, så bara rutor som öppnats på ett lags väg räknas. Slå på det så sparas ett slutförande på en ruta laget ännu inte nått. Det slutförs när vägen dit kommer fram. Det hoppar aldrig över ett lag som ligger före eller öppnar något i förtid.',
+        },
+      ],
+      steps: [
+        'Öppna eventets **Tiles**-sida och hitta **Route**.',
+        'Välj en **Route template** och tryck på **Apply template**. **Diamond** är standard: en start, två vägar, ett mål. **Two roads**, **Braid**, **Straight line** och **Free** (inga länkar) finns också.',
+        'Välj **How a team’s road is set at a fork**: med prestation, eller välj och lås.',
+        'Lägg till eller flytta steg med **+ Step before**, **Move step earlier/later** och **Remove step**, tryck sedan på **Save route**.',
+        'Om eventet redan är igång frågar Anvil vad som ska göras med slutföranden som den nya rutten skär bort: **Keep** dem eller **Roll back**.',
+      ],
+      outro:
+        'Spelarna ser en **Race track** på eventsidan, med en guldmarkering **You** på sitt lags ruta. **Fullscreen board** gör den stor, och **Esc** stänger den. I pluginet visar sidpanelen **Your road** och **After that**.',
     },
   },
 
@@ -3756,19 +3854,32 @@ const sv: PartialGuideDict = {
         'Dina event och din klan. I en kreatörs space heter fliken **Space**.',
       rows: [
         {
-          term: 'Klanmenyn',
-          body: 'visas när du spelar i mer än en klan eller space. **All clans** (standard) visar allt du spelar, med pågående event först. Väljer du en klan smalnas panelen av till den, och dina inskick hamnar där.',
+          term: 'Klanväljaren',
+          body:
+            'visas när du spelar i fler än en klan eller ett utrymme. **All clans** (standard) visar allt du spelar, med livehändelsen först. Att välja en klan begränsar panelen till den och arkiverar dina bidrag där.',
         },
         {
-          term: 'Event',
-          body: 'varje pågående och kommande bräda, Skill eller Boss of the Week och klanevent, med var du står. Sedan **Your other boards**, **Also live** och **Your clan**.',
+          term: 'Gör detta härnäst',
+          body:
+            'ett guldkort överst som pekar på det enda som är värt att göra nu, till exempel att gå med i ett event, svara på en enkät eller ta ditt startskott.',
         },
         {
-          term: 'En bräda',
-          body: 'öppna en för ställningen, lagen, uppdragen, senaste aktiviteten, de närmaste rutorna och **View all tiles**. Dess knappar **Feed** och **Chat** öppnar brädan på Feed-fliken.',
+          term: 'Händelser',
+          body:
+            'varje live- och kommande board, Skill eller Boss of the Week och klanhändelse, med var du står. Sedan **Your other boards**, **Also live** och **Your clan**.',
         },
         {
-          term: 'Ett klanevent',
+          term: 'Ett board',
+          body:
+            'öppna ett för dess ställning (de tre främsta och dina egna rader, med **View all** för resten), lag, uppdrag, senaste aktivitet, de närmaste rutorna och **View all tiles**. Knapparna **Feed** och **Chat** öppnar det boardet i fliken Feed.',
+        },
+        {
+          term: 'Rankningsrörelser',
+          body:
+            'ett grönt **▲** eller korallfärgat **▼** med ett tal bredvid ett namn visar hur långt det flyttat sig sedan dagen började.',
+        },
+        {
+          term: 'En klanhändelse',
           body: '**I’m going**, **Sign me up** eller **Answer the survey**, beroende på eventet.',
         },
       ],
@@ -3781,15 +3892,17 @@ const sv: PartialGuideDict = {
       rows: [
         {
           term: 'Vems flöde',
-          body: 'menyn överst listar **Clan ·** för varje klan du är medlem i och **Event ·** för varje pågående bräda du är med på. Den öppnas på din bräda om du har en, annars på din klan.',
+          body:
+            'rullgardinen överst listar **Clan ·** varje klan du är medlem i och **Event ·** varje live-board du är med på. Den öppnas på ditt board om du har ett, annars på din klan.',
         },
         {
           term: 'Filter',
-          body: '**All**, **Tiles** (bara brädor), **Drops**, **Pets**, **Achievements**, **Deaths**, och **My team** på en bräda där du är med i ett lag. Ett klanflöde har också en knapp för aktivitet i spellägen som Leagues och andra lägen.',
+          body:
+            '**All**, **Tiles** (bara boards), **Drops**, **Pets**, **Achievements**, **Deaths**, **Milestones** (slayer, clues, bossräkningar och liknande, när spelarna slagit på dem) och **My team** på ett board där du är i ett lag. Ett klanflöde har också en aktivitetsknapp för spelläge för Leagues och andra spellägen.',
         },
         {
           term: 'Nya rader',
-          body: 'kommer av sig själva. Har du scrollat iväg tar en **↑ N new**-knapp dig tillbaka till dem.',
+          body: 'dyker upp av sig själva. Om du har scrollat bort tar en **↑ N new**-pill dig tillbaka till dem.',
         },
       ],
       note: {
@@ -3832,23 +3945,28 @@ const sv: PartialGuideDict = {
       rows: [
         {
           term: 'Alla eller ditt lag',
-          body: '**All** skriver till hela brädan, **My team** bara till ditt lag (de raderna är märkta **TEAM**). Staben ser också **Host & mods**, och deras rader är märkta **HOST** eller **MOD**.',
+          body:
+            'Välj en kanal med chipsen överst: **All teams** för hela boardet, **My team** bara för ditt lag, och **Announcements**, där bara hosten och moderatorerna kan skriva. Varje chip visar ett antal rader du inte läst. Rader från hosten och moderatorerna märks **HOST** eller **MOD**.',
         },
         {
           term: 'Skicka',
-          body: 'skriv i rutan och tryck på Enter. Rader får vara upp till 200 tecken, och bara värden och moddarna kan posta länkar.',
+          body:
+            'skriv i rutan och tryck Enter. Rader får vara upp till 200 tecken, och bara hosten och moderatorerna kan posta länkar.',
         },
         {
           term: 'Hur ofta',
-          body: 'väntan mellan dina rader följer din Supporter-nivå: 5 sekunder utan nivå, 3 för Supporters, 1 för Champions, ingen för Patrons. Raden under rutan säger vad som gäller för dig. Staben väntar aldrig.',
+          body:
+            'väntetiden mellan dina rader följer din Supporter-nivå: 5 sekunder utan en, 3 för Supporters, 1 för Champions, ingen för Patrons. Raden under rutan visar din. Staff väntar aldrig.',
         },
         {
-          term: 'Slow mode',
-          body: 'när en brädas chatt blir väldigt livlig väntar alla minst 10 sekunder i en minut, Patrons inräknade. Ingen kan skicka fler än 10 rader på 10 sekunder.',
+          term: 'Långsamt läge',
+          body:
+            'när ett boards chatt blir mycket livlig får alla vänta minst 10 sekunder under en minut, även Patrons. Ingen kan skicka fler än 10 rader på 10 sekunder.',
         },
         {
           term: 'Moderering',
-          body: 'värden och moddarna kan högerklicka på en rad för att välja **Delete message** eller **Mute** någon, och pausa hela chatten med **Pause chat**.',
+          body:
+            'hosten och moderatorerna kan högerklicka på en rad för att **Delete message** eller **Mute** någon, och pausa chatten med **Pause chat**. En paus stoppar alla utom staff från att posta, utom i **Announcements**. **Mute** i panelen är ett utestängning som gäller tills den hävs på moderationssidan. Där kan du också ge en timeout på 5 minuter, 1 timme eller 24 timmar (eller vilken tid som helst från 1 minut till 30 dagar), som stänger alla kanaler för personen, och filtrera chatten per kanal.',
         },
       ],
       outro:
@@ -3860,16 +3978,19 @@ const sv: PartialGuideDict = {
       intro: 'Två flikar för spelarkort: ditt eget och alla andras.',
       rows: [
         {
-          term: 'You',
-          body: 'ditt eget kort för karaktären du är inloggad på: banner och avatar, **Display case**, collection log ner till varje sidas föremål, och **Skills**, **Bosses**, **Clues**, **Times** och **CAs**. Under det finns en eventuell **Head-to-head**-utmaning som väntar på dig (**Accept** eller **Decline**) och dina **Goals**, med **+ Add goal**.',
+          term: 'Du',
+          body:
+            'ditt eget kort för karaktären du är inloggad på: banner och avatar, **Display case**, och flikarna **Stats**, **Bosses** och **Log** (collection log ner till varje sidas föremål, samt clues, tider och combat achievements). Under det, alla **Head-to-head**-utmaningar som väntar på dig (**Accept** eller **Decline**) och dina **Goals**, med **+ Add goal**.',
         },
         {
-          term: 'Lookup',
-          body: 'växla mellan **Players** och **Clans**, skriv ett namn och tryck på Enter. **Recent** listar dina senaste. Högerklicka på vem som helst i spelet och välj **Anvil** för att hamna här.',
+          term: 'Sökning',
+          body:
+            'växla mellan **Players** och **Clans**, skriv ett namn och tryck Enter. **Recent** listar dina senaste. Högerklicka på vem som helst i spelet och välj **Anvil** för att hamna här.',
         },
         {
           term: 'Jämför',
-          body: 'på någon annans kort ställer **Compare with me** upp er två färdighet för färdighet, boss för boss och sida för sida. En klans kort har **Compare with my clan**.',
+          body:
+            'på någon annans kort lägger **Compare with me** upp er två skill för skill, boss för boss och sida för sida. En klans kort har **Compare with my clan**.',
         },
       ],
     },
@@ -4176,6 +4297,14 @@ const sv: PartialGuideDict = {
         'Bara delade karaktärer kan jämföras. En privat, eller ett namn Anvil inte känner till, returneras som _not on Anvil, or not shared_. Du kan alltid jämföra dina egna privata karaktärer medan du är inloggad.',
       ],
     },
+    news: {
+      title: 'Nytt och ändringslogg',
+      body: [
+        '[What’s new](/whats-new) visar vad som ändrats på Anvil, nyast först. När du är inloggad börjar den med **For you**, nyheterna som gäller din nivå och din klan, och sedan **Everything new**. Saker som kräver en pluginuppdatering säger **Coming in the next plugin update**.',
+        '[Ändringsloggen](/changelog) listar varje version med sina nyheter, höjdpunkter och vad som är **New**, **Improved** och **Fixed**.',
+        'När en version går ut postas dess nyheter i Anvils Discord och i din klans Anvil-uppdateringar, och pluginet visar en rad när du loggar in. Små rättningar samlas i nästa inlägg.',
+      ],
+    },
   },
   settings: {
     metaTitle: 'Inställningar, sida för sida — Anvil',
@@ -4290,8 +4419,8 @@ const sv: PartialGuideDict = {
     webhooks: {
       title: 'Dina Discord-webhooks',
       body: [
-        'Dina inlägg kan också gå till en egen Discord-server: en privat kanal, en vänners server, var som helst du kan skapa en webhook. Klistra in webhook-länken, bocka i vad den tar emot (**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**), eventuellt ställ in **Only drops worth at least … gp**, och tryck på **Add webhook**.',
-        'Du kan ha upp till 10. Bara Discord-webhook-länkar godkänns, och en sparad visas maskerad, så en skärmbild av den här sidan läcker inte den. **Level posts on my webhooks** ställer in dina egna nivåregler för dem, separata från din klans.',
+        'Dina inlägg kan också gå till en egen Discord-server: en privat kanal, en kompisserver, var som helst där du kan skapa en webhook. Klistra in webhook-länken, bocka för vad den får (**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**), ange eventuellt ett minsta dropvärde och sällsynthet bara för den, och tryck på **Add webhook**. På en webhook som tar emot **Rare drops** kan du ändra det senare och välja **Value or rarity: my setting**, **either** eller **both**. Det som lämnas tomt följer dina egna inställningar, och en webhook får vara mjukare än klanens hårda golv.',
+        'Du kan ha upp till 10. Bara Discord-webhook-länkar godkänns, och en sparad visas maskerad, så en skärmbild av den här sidan läcker inte den. **Level posts on my webhooks** anger dina egna nivåregler för dem, separat från klanens.',
       ],
     },
     privacy: {
@@ -4580,7 +4709,8 @@ const sv: PartialGuideDict = {
         rest: '15 minuter före, sedan vid start',
       },
     ],
-    footnote: 'Veckotävlingar finns i [Skill och Boss of the Week]({weeklyGuide}); avgifter och priser i [Avgifter och utbetalningar]({feesGuide}).',
+    footnote:
+      'Veckotävlingar finns i [Skill and Boss of the Week]({weeklyGuide}); avgifter och utbetalningar i [Fees and payouts]({feesGuide}). Påminnelseinlägg använder din klans meddelandemallar, förklarade i [Settings, page by page]({settingsGuide}).',
     create: {
       title: 'Schemalägg ett',
       intro: 'Öppna **Clan events** i admin-menyn och fyll i formuläret:',
@@ -4887,6 +5017,83 @@ const sv: PartialGuideDict = {
         tag: 'Att posta dem',
         body: 'Guider kan postas i en Discord-kanal, och de inläggen redigeras på plats när guiden ändras.',
       },
+    },
+  },
+  luckRecords: {
+    metaTitle: 'Dropchanser, tur och rekord — Anvil',
+    metaDescription:
+      'Vad oddsraden på en droppruta betyder, hur Anvil räknar ut tur (spooned, dry eller on rate), vad effektiva timmar är och var dina bästa dag, vecka, månad och år sparas.',
+    eyebrow: 'Anvil · för spelare',
+    title: 'Dropchanser, tur och rekord',
+    dek:
+      'Anvil kan visa hur sällsynt ett drop är, hur lång tid det brukar ta och hur lyckosam du har varit. Den kan också komma ihåg dina bästa dagar. Den här sidan förklarar siffrorna.',
+    facts: [
+      {
+        strong: 'Sannolikheter',
+        rest: 'kommer från OSRS Wiki',
+      },
+      {
+        strong: 'Tur',
+        rest: 'förväntade dödanden mot dina verkliga',
+      },
+      {
+        strong: 'Rekord',
+        rest: 'börjar från lanseringen, utan efterhandsfyllnad',
+      },
+    ],
+    footnote:
+      'Dina egna sidor finns i [Your profile, Wrapped and Compare]({profileGuide}). Brytarna finns i [Settings, page by page]({settingsGuide}).',
+    odds: {
+      title: 'Oddsen på en droppruta',
+      intro: 'Öppna en droppruta så ser du upp till åtta rader, en per föremål med kända odds. En rad ser ut så här:',
+      body: [
+        '`Item: 1 in 512 from Boss · ~512 kills ≈ 9.4 h at 55/h`',
+        'Om föremålet kan rullas mer än en gång per dödande står det också **(×2 rolls)**. Om Anvil inte vet hur snabbt folk dödar bossen utelämnas timmardelen.',
+      ],
+      rows: [
+        {
+          term: '1 av N',
+          body: 'chansen för dropet på ett dödande, från källan som är snabbast att få det ifrån.',
+        },
+        {
+          term: 'Förväntade dödanden',
+          body: 'det genomsnittliga antalet dödanden det tar. Det räknas ut från oddsen och antalet rullningar.',
+        },
+        {
+          term: 'Timmar',
+          body:
+            'förväntade dödanden delat med hur många dödanden folk brukar hinna per timme. Det är en vägledning, inte ett löfte.',
+        },
+      ],
+      note: {
+        tag: 'Genomsnitt, inte en gräns',
+        body:
+          'Hälften av alla spelare får den före de förväntade dödandena, och några behöver långt fler. Använd det för att bedöma hur stor en ruta är, inte för att säga när den kommer.',
+      },
+    },
+    luck: {
+      title: 'Tur: spooned, dry eller on rate',
+      body: [
+        'Tur jämför de dödanden du gjort med de dödanden det borde ta. Om du fått drop på färre dödanden än förväntat är du **spooned**. Om du gjort många dödanden och ändå inte har något är du **dry**. Däremellan är du **on rate**.',
+        'Anvil markerar dig **dry** eller **spooned** bara när det är ovanligt: ungefär en chans på tjugo eller sällsyntare. Det visar hur många du har mot hur många som förväntades, och hur långt före eller efter du ligger.',
+        'Fliken **Luck** på sidan Members listar de torraste och mest lyckosamma i din klan. Pluginets inlägg för sällsynta drops kan också ha en turrad, till exempel en topprocent eller hur många spelare som hunnit få det vid det här laget.',
+      ],
+    },
+    source: {
+      title: 'Varifrån siffrorna kommer',
+      body: [
+        'Droprater kommer från OSRS Wiki och uppdateras varje dag. Dödningsrater för timmarna kommer från Wikins pengaguider. När en rate är en noggrann uppskattning behandlar Anvil den så.',
+        'Om en rate verkar fel är Wikin rätt ställe att rätta den. Anvil plockar upp ändringen.',
+      ],
+    },
+    records: {
+      title: 'Rekord och effektiva timmar',
+      body: [
+        'Anvil sparar din bästa **day**, **week**, **month** och **year** för skill-XP, bossdödanden och effektiva timmar. Dagar är i UTC och veckor börjar på måndag.',
+        'Rekord räknas från det ögonblick detta lanserades. Det finns inget äldre, och Anvil fyller aldrig i det förflutna. Ett rekord sparas bara när du slår ditt gamla bästa.',
+        'Du ser dina egna på din karaktärs sida, under **Records**. Din klans rekordinnehavare finns under **Members → Records**.',
+        '**Efficient hours played** är hur lång tid dina vinster skulle ta med bra träningsmetoder, så en snabb och en långsam skill kan jämföras. **Efficient hours bossed** gör samma sak för dödanden. Raterna kommer från OSRS Wiki, och ironman-konton använder egna rater.',
+      ],
     },
   },
 };

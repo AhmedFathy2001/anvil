@@ -29,6 +29,9 @@ const es: PartialGuideDict = {
       lead: '¿Atascado o algo no cuadra?',
       link: 'Pregunta en el Discord de soporte de Anvil',
     },
+    legalPaid: 'Preguntas sobre pagos: [Reembolsos](/legal/refunds) y [Condiciones](/legal/terms).',
+    legalPrivacy: 'Cómo se tratan tus datos: [Política de privacidad](/legal/privacy).',
+    aboutLine: '¿Quién está detrás de Anvil? Lee [Acerca de](/about).',
   },
 
   index: {
@@ -260,6 +263,13 @@ const es: PartialGuideDict = {
         title: 'Eventos del clan y el calendario',
         blurb: 'Masivos, noches de raid y quedadas: repeticiones semanales, «Voy» e inscripciones, recordatorios en Discord, pagos, encuestas y encontrar huecos en el calendario.',
         minutes: '~4 min',
+      },
+      luckRecords: {
+        eyebrow: 'Para jugadores',
+        title: 'Probabilidades de drop, suerte y récords',
+        blurb:
+          'Qué significan las probabilidades de una casilla de drop, cómo se calcula la suerte y dónde aparecen tu mejor día, semana, mes y año.',
+        minutes: '~3 min',
       },
     },
   },
@@ -567,16 +577,24 @@ const es: PartialGuideDict = {
       ],
       feeds: [
         {
-          term: 'Canal general (Catch-all channel)',
-          body: 'El principal, en la pestaña **Clan & events**. Inicios y finales de evento, apertura de inscripciones, clasificaciones, resultados semanales — todo lo que el sitio publica sin un canal propio. Pon este y nada más y ya tienes un clan funcionando.',
+          term: 'Canal general',
+          body:
+            'El principal, en la pestaña **Clan & events**. Inicios y finales de eventos, apertura de inscripciones, clasificaciones y resultados semanales: todo lo que el sitio publica sin canal propio. Si configuras solo este, ya tienes un clan funcionando.',
         },
         {
-          term: 'General del juego (In-game catch-all)',
-          body: 'En la pestaña **In-game (plugin)**: adonde va todo lo que viene del juego y no tiene canal propio. Ponlo en segundo lugar.',
+          term: 'Canal general del juego',
+          body:
+            'En la pestaña **In-game (plugin)**: aquí va todo lo del juego que no tiene canal propio. Configúralo en segundo lugar.',
         },
         {
-          term: 'Los flujos separados',
-          body: 'Las publicaciones de evento, los tableros que coorganizas, Skill & boss of the week y los eventos del calendario del clan pueden separarse del canal general; los drops raros, mascotas, collection log, niveles, combat achievements, quests, diaries, muertes y kills de PvP pueden separarse del general del juego. Los cambios en la lista de miembros, las aprobaciones de inscripción y el libro de la caja están en **Staff only**. Los flujos separados que dejes vacíos vuelven a su canal general. La caja es la excepción: vacío significa que no se publica nada de dinero. Leagues y los demás modos tienen su propia pestaña **Game modes**.',
+          term: 'Hitos y más',
+          body:
+            'En la pestaña **In-game (plugin)**. Slayer, pistas, speedruns, kills, apuestas de BA y mensajes de chat personalizados se publican aquí, una vez que los jugadores los activen. Su botón **Filters** define lo que tu clan da a sus miembros por defecto. Las plantillas propias de los jugadores y los tipos privados están en [Settings, page by page]({settingsGuide}).',
+        },
+        {
+          term: 'Los canales divididos',
+          body:
+            'Las publicaciones de eventos, los tableros que co-organizas, Skill y Boss de la semana y los eventos del calendario del clan pueden separarse del canal general. Los drops raros, mascotas, collection log, niveles, logros de combate, misiones, diarios, muertes y kills en PvP pueden separarse del canal general del juego. Los cambios de plantilla, las aprobaciones de inscripciones y el libro del cofre se quedan en **Staff only**. Los canales divididos vacíos vuelven a su canal general. El cofre es la excepción: vacío significa que no se publica dinero. Leagues y otros modos tienen su propia pestaña **Game modes**.',
         },
       ],
       note: {
@@ -630,9 +648,9 @@ const es: PartialGuideDict = {
     modes: {
       title: 'Leagues, Deadman y otros modos',
       body: [
-        'Leagues, Deadman, hardcore y otros modos se juegan en sus propios mundos con sus propios personajes. Sus publicaciones siempre van etiquetadas y nunca cuentan para tableros ni competiciones. Tienen su propia pestaña: **Admin → Discord → What goes where → Game modes**. Un modo aparece ahí la primera vez que un miembro lo juega.',
-        'Cada modo tiene un interruptor y un canal **To**. Activa **Send game-mode posts to their own channels** para usar esos canales; si lo dejas apagado, todos los modos publican en los canales normales, etiquetados igualmente. El botón **Posts** de la fila de un modo lista todo lo que envía — lo habitual y los eventos propios del modo — cada cosa con su propio interruptor.',
-        'Bajo esa lista, los **Custom filters** hacen que un modo publique menos que el juego principal. **Post drops rarer than 1 in…** fija su propio umbral de rareza (vacío = igual que el juego principal): los objetos que siempre se publican se siguen publicando, pero los drops que solo cuentan por su valor no. **Use its own level milestones** publica una subida de nivel solo si cumple los dos conjuntos de reglas.',
+        'Leagues, Deadman, hardcore y otros modos funcionan en sus propios mundos y con sus propios personajes. Sus publicaciones siempre van etiquetadas y nunca cuentan para tableros ni competiciones. Tienen su propia pestaña: **Admin → Discord → What goes where → Game modes**. Un modo aparece allí la primera vez que un miembro lo juega.',
+        'Cada modo tiene un interruptor y un canal **To**. Activa **Send game-mode posts to their own channels** para usar esos canales. Si lo dejas desactivado, todos los modos publican en los canales normales, igualmente etiquetados. El botón **Posts** de la fila de un modo muestra cada tipo que envía, tanto los habituales como los eventos propios del modo, cada uno con su propio interruptor.',
+        'Debajo de esa lista, **Custom thresholds** hace que un modo publique menos que el juego principal. **Post drops rarer than 1 in…** (mínimo 2) y **Post drops worth at least (gp)** (mínimo 1,000) fijan sus propios mínimos (vacío = igual que el juego principal). Luego pulsa **Save drop thresholds**: los objetos marcados para publicar siempre seguirán publicándose, pero los drops que solo cuentan por su valor no. **Use its own level milestones** publica una subida de nivel solo si cumple ambos conjuntos de reglas.',
       ],
       note: {
         tag: 'Más estricto, nunca más laxo',
@@ -689,6 +707,33 @@ const es: PartialGuideDict = {
       note: {
         tag: 'No puede dar la bienvenida a quien entra',
         body: 'Discord solo informa de las entradas por una conexión gateway, que un bot compartido no mantiene abierta para cada servidor. Por eso no hay publicación de bienvenida — pon el enlace de inscripción en un canal #roles o #empieza-aquí, que es donde la gente mira de todas formas.',
+      },
+    },
+    drops: {
+      title: 'Umbrales de drops',
+      body: [
+        'Anvil empieza en **1m gp** o **1 in 1,000**. Un drop se publica cuando cumple cualquiera de los dos. Nadie puede poner sus propios números por debajo de esos, y 0 apaga uno.',
+        'Define los valores por defecto de tu clan en **Admin → Discord → What goes where → Drops**: **Default minimum drop value (gp)**, **Default: post drops rarer than 1 in…** y **Require both**. Activa **Require both** y un drop debe cumplir el valor **and** la rareza.',
+        'Cada personaje sigue el valor por defecto del clan al que pertenece, y el de Anvil si no tiene ninguno. Los jugadores pueden elegir sus propios números en **Settings**. Muestra **Using clan default** o **Custom**, y **Reset** vuelve atrás.',
+        '**Hard floor: never post drops more common than 1 in…** es la regla estricta. Los miembros no pueden ir más allá de ella en los canales de tu clan. Sus propios webhooks sí pueden.',
+      ],
+      note: {
+        tag: 'Más sobre el lado del jugador',
+        body:
+          'Los números, plantillas y webhooks propios de los jugadores están en [Settings, page by page]({settingsGuide}).',
+      },
+    },
+    pools: {
+      title: 'Más webhooks para canales concurridos',
+      body: [
+        'Un webhook solo puede enviar a cierta velocidad. Para un evento concurrido, añade más webhooks al mismo canal. Pulsa **Busy channel? Let the bot add … more webhooks** (necesita **Manage Webhooks**) o pega varios enlaces de webhook en el cuadro del canal. Anvil sugiere más cuando tienes 50 o más jugadores, muchas publicaciones por minuto o cuando Discord ha dicho recientemente “slow down”. Con 10 basta de sobra.',
+        'Anvil alterna entre ellos. Si Discord dice “slow down” a uno, ese webhook descansa un momento y el siguiente toma la publicación. Si uno se borra o deja de funcionar, se omite durante 10 minutos. Las publicaciones siguen fluyendo mientras funcione al menos un webhook.',
+        'Todos deben apuntar al mismo canal. Anvil te avisa si no es así. Usa **Test** para comprobar uno, o **Stop posting here** para quitarlo.',
+      ],
+      note: {
+        tag: 'Mismo canal, mismas publicaciones',
+        body:
+          'Más webhooks nunca publican dos veces. Solo reparten el trabajo. La misma idea aparece en [Umbrales de drops](#drops) más arriba y, en el lado de administración, en [Running the event]({adminGuide}).',
       },
     },
   },
@@ -943,27 +988,39 @@ const es: PartialGuideDict = {
         legend: [
           {
             label: 'Notify on death',
-            body: 'publica en el canal de muertes del clan, con una captura del momento en que moriste.',
+            body: 'publica en el canal de muertes del clan con una captura del momento en que moriste.',
           },
-          { label: 'Death message', body: 'tu propia frase. `{name}` se sustituye por tu RSN.' },
+          {
+            label: 'Death message',
+            body: 'tu propia frase. `{name}` se reemplaza por tu RSN.',
+          },
           {
             label: 'Notify on PvP kill',
-            body: 'una captura del tick en que tu objetivo llega a 0 PV. Desactivado por defecto; activado aquí.',
+            body: 'una captura del tick en que tu objetivo llega a 0 HP. Desactivado por defecto; activado aquí.',
           },
-          { label: 'Notify on rare drops', body: 'el interruptor principal de las publicaciones de drops.' },
+          {
+            label: 'Notify on rare drops',
+            body: 'el interruptor principal de las publicaciones de drops.',
+          },
           {
             label: 'Min drop value / Min drop rarity',
-            body: 'un drop se publica cuando vale al menos esta cantidad (GE o high alch, lo que sea mayor) o es más raro que 1 entre N. Anvil empieza en 1m y 1/1,000. Tu clan puede fijar sus propios valores por defecto para sus miembros, y hasta que pongas un número tú mismo sigues el de tu clan; **Restablecer al valor del clan** (o **Restablecer al valor de Anvil** si no tienes clan) vuelve a seguirlo. Un clan también puede fijar un mínimo de rareza estricto para sus propios canales, por debajo del cual tu número no puede bajar. Pon cualquiera de los dos números a 0 para apagarlo.',
+            body:
+              'un drop se publica si vale al menos esta cantidad (GE o high alch, lo que sea más alto) o si es más raro que 1 entre N. Anvil empieza en 1m y 1/1,000. Tu clan puede definir sus propios valores por defecto para sus miembros, y hasta que pongas un número tú sigues el de tu clan. **Reset to clan default** (o **Reset to Anvil default** si no tienes clan) vuelve a seguirlo. Un clan también puede fijar un mínimo de rareza estricto, que solo se aplica a las publicaciones en los canales propios de ese clan. Tu número no puede ser más permisivo allí, y nunca cambia el límite de valor. Pon cualquiera de los dos números en 0 para apagarlo.',
           },
           {
-            label: 'Valor y rareza juntos',
-            body: 'por defecto, un drop se publica cuando cumple el valor **o** la rareza. Activa **Exigir ambos** y debe cumplir el valor **y** la rareza. Tu clan puede elegir este valor por defecto para sus miembros; hasta que elijas, lo sigues, y sin clan es uno u otro. Cada uno de tus propios webhooks también puede fijar su propio valor mínimo, rareza y uno/ambos; lo que deje en blanco sigue tus ajustes.',
+            label: 'Value and rarity together',
+            body:
+              'por defecto, un drop se publica si cumple el valor **or** la rareza. Activa **Require both** y debe cumplir el valor **and** la rareza. Tu clan puede elegir este valor por defecto para sus miembros; hasta que elijas, sigues el suyo, y sin clan basta con uno de los dos. Cada uno de tus propios webhooks también puede fijar su propio mínimo de valor y de rareza, y elegir entre either o both; lo que deje en blanco sigue tus ajustes.',
           },
           {
             label: 'Loot key value',
-            body: 'una loot key se publica una vez, como una sola notificación, cuando todo su contenido supera esta cifra.',
+            body:
+              'una llave de botín se publica una sola vez, como una única notificación, cuando todo su contenido supera este número.',
           },
-          { label: 'Notify on pets', body: 'las mascotas van al canal de drops raros.' },
+          {
+            label: 'Notify on pets',
+            body: 'las mascotas se publican en el canal de drops raros.',
+          },
         ],
       },
       caFigure: {
@@ -1841,6 +1898,15 @@ const es: PartialGuideDict = {
       ],
       outro: 'Debajo, **Member breakdown** muestra quién hizo qué en cada equipo, y **Stat tile standings** muestra el inicio y el número actual de cada jugador en cada casilla de XP o kills.',
     },
+    race: {
+      title: 'Pistas de carrera por tiles',
+      intro:
+        'En un tablero de carrera de tiles construyes una pista en lugar de una cuadrícula. Los tiles se colocan en pasos numerados, y un equipo avanza por ellos.',
+      body: [
+        'Abre **Tiles** y usa la sección **Route**. Elige una plantilla (**Diamond** es la predeterminada), añade tus tiles a los pasos y pulsa **Save route**. Cada tile que enlaces debe estar en el paso siguiente.',
+        'Las rutas pueden dividirse y unirse, pero hay una sola meta. En una bifurcación eliges si terminar un tile fija el camino o si el capitán lo elige y lo bloquea. La lista completa de opciones, y lo que ven los jugadores, está en [Formats, and how tiles open]({formatsGuide}).',
+      ],
+    },
   },
 
   captain: {
@@ -2060,6 +2126,40 @@ const es: PartialGuideDict = {
       ],
       outro:
         'Elijas lo que elijas, las casillas en sí son el mismo trabajo: mira [Monta un tablero que se registra solo]({boardGuide}).',
+    },
+    race: {
+      title: 'Rutas de carrera por tiles',
+      intro:
+        'Una carrera de tiles es una pista de pasos numerados. Los equipos avanzan de paso en paso, y gana quien llegue más lejos. El anfitrión puede convertir la pista en un mapa con caminos que se dividen y se unen.',
+      body: [
+        'Cada ruta tiene un solo inicio, caminos que pueden dividirse y unirse, y una sola meta. Todos los caminos tienen la misma longitud. El progreso de un equipo es el camino que ha recorrido hasta ahora.',
+      ],
+      rows: [
+        {
+          term: 'Por logro',
+          body:
+            'cada tile posterior al actual está abierto. El primero que un equipo termina fija su camino, y los demás se cierran para ese equipo.',
+        },
+        {
+          term: 'Elegir y bloquear',
+          body:
+            'el capitán (o el staff del equipo) elige el siguiente tile con **Pick this road** antes de que cuente nada. Solo la elección está abierta. Una elección no se puede deshacer, salvo con un reinicio de admin.',
+        },
+        {
+          term: 'Guardar terminaciones anticipadas',
+          body:
+            'desactivado por defecto, así que solo cuentan los tiles abiertos en el camino de un equipo. Actívalo y una terminación en un tile que el equipo aún no ha alcanzado se guarda. Se completa cuando el camino llega allí. Nunca salta a un equipo que va por delante ni abre nada antes de tiempo.',
+        },
+      ],
+      steps: [
+        'Abre la página **Tiles** del evento y busca **Route**.',
+        'Elige una **Route template** y pulsa **Apply template**. **Diamond** es la predeterminada: un inicio, dos caminos, una meta. También están **Two roads**, **Braid**, **Straight line** y **Free** (sin enlaces).',
+        'Elige **How a team’s road is set at a fork**: por logro, o elegir y bloquear.',
+        'Añade o mueve pasos con **+ Step before**, **Move step earlier/later** y **Remove step**, y luego pulsa **Save route**.',
+        'Si el evento ya está en vivo, Anvil pregunta qué hacer con las terminaciones que la nueva ruta corta: **Keep** o **Roll back**.',
+      ],
+      outro:
+        'Los jugadores ven un **Race track** en la página del evento, con un marcador dorado **You** en el tile de su propio equipo. **Fullscreen board** lo amplía, y **Esc** lo cierra. En el plugin, el panel lateral muestra **Your road** y **After that**.',
     },
   },
 
@@ -3757,16 +3857,29 @@ const es: PartialGuideDict = {
         'Tus eventos y tu clan. En el espacio de un creador, la pestaña dice **Space**.',
       rows: [
         {
-          term: 'El desplegable de clan',
-          body: 'aparece cuando juegas en más de un clan o espacio. **All clans** (el valor por defecto) muestra todo lo que estás jugando, con el evento en curso primero. Elegir un clan acota el panel a ese clan y envía allí tus envíos.',
+          term: 'El desplegable de clanes',
+          body:
+            'aparece cuando juegas en más de un clan o espacio. **All clans** (el predeterminado) muestra todo lo que juegas, con el evento en vivo primero. Elegir un clan reduce el panel a ese clan y guarda allí tus envíos.',
+        },
+        {
+          term: 'Haz esto ahora',
+          body:
+            'una tarjeta dorada arriba que señala lo más útil que puedes hacer ahora, como unirte a un evento, responder una encuesta o registrar tu primer resultado inicial.',
         },
         {
           term: 'Eventos',
-          body: 'cada tablero, Skill o Boss of the Week y evento de clan, en curso o próximo, con tu posición. Después, **Your other boards**, **Also live** y **Your clan**.',
+          body:
+            'cada tablero en vivo y próximo, Skill o Boss de la semana y evento de clan, con tu posición en cada uno. Luego **Your other boards**, **Also live** y **Your clan**.',
         },
         {
           term: 'Un tablero',
-          body: 'ábrelo para ver su clasificación, equipos, misiones, actividad reciente, las casillas más cercanas y **View all tiles**. Sus botones **Feed** y **Chat** abren ese tablero en la pestaña Feed.',
+          body:
+            'ábrelo para ver su clasificación (los tres primeros y tus propias líneas, con **View all** para el resto), equipos, misiones, actividad reciente, los tiles más cercanos y **View all tiles**. Sus botones **Feed** y **Chat** abren ese tablero en la pestaña Feed.',
+        },
+        {
+          term: 'Movimientos de posición',
+          body:
+            'un **▲** verde o un **▼** coral con un número junto a un nombre muestra cuánto ha subido o bajado desde que empezó el día.',
         },
         {
           term: 'Un evento de clan',
@@ -3782,15 +3895,17 @@ const es: PartialGuideDict = {
       rows: [
         {
           term: 'De quién es el feed',
-          body: 'el desplegable de arriba lista **Clan ·** cada clan del que eres miembro y **Event ·** cada tablero en curso en el que estás. Se abre en tu tablero si tienes uno; si no, en tu clan.',
+          body:
+            'el desplegable de arriba enumera **Clan ·** cada clan del que eres miembro y **Event ·** cada tablero en vivo en el que estás. Se abre en tu tablero si tienes uno, si no en tu clan.',
         },
         {
           term: 'Filtros',
-          body: '**All**, **Tiles** (solo tableros), **Drops**, **Pets**, **Achievements**, **Deaths**, y **My team** en un tablero en el que estés en un equipo. El feed de un clan también tiene un botón de actividad de modos de juego para Leagues y otros modos.',
+          body:
+            '**All**, **Tiles** (solo tableros), **Drops**, **Pets**, **Achievements**, **Deaths**, **Milestones** (slayer, pistas, kills y similares, una vez que los jugadores los activen) y **My team** en un tablero donde estás en un equipo. Un feed de clan también tiene un botón de actividad de modos de juego para Leagues y otros modos.',
         },
         {
           term: 'Filas nuevas',
-          body: 'llegan solas. Si te has desplazado, una píldora **↑ N new** te devuelve a ellas.',
+          body: 'llegan solas. Si te has desplazado hacia abajo, una píldora **↑ N new** te lleva de vuelta a ellas.',
         },
       ],
       note: {
@@ -3833,23 +3948,28 @@ const es: PartialGuideDict = {
       rows: [
         {
           term: 'Todos o tu equipo',
-          body: '**All** escribe a todo el tablero, **My team** solo a tu equipo (esas líneas van marcadas con **TEAM**). El staff ve además **Host & mods**, y sus líneas van marcadas con **HOST** o **MOD**.',
+          body:
+            'elige un canal con los botones de arriba: **All teams** para todo el tablero, **My team** solo para tu equipo y **Announcements**, donde solo el host y los mods pueden publicar. Cada botón muestra un contador de líneas que no has leído. Las líneas del host y de los mods están marcadas como **HOST** o **MOD**.',
         },
         {
           term: 'Enviar',
-          body: 'escribe en la caja y pulsa Enter. Las líneas tienen hasta 200 caracteres, y solo el organizador y los mods pueden publicar enlaces.',
+          body:
+            'escribe en el cuadro y pulsa Enter. Las líneas tienen hasta 200 caracteres, y solo el host y los mods pueden publicar enlaces.',
         },
         {
-          term: 'Cada cuánto',
-          body: 'la espera entre tus líneas sigue tu nivel de Supporter: 5 segundos sin nivel, 3 para Supporters, 1 para Champions, nada para Patrons. La línea bajo la caja te dice cuál es la tuya. El staff nunca espera.',
+          term: 'Frecuencia',
+          body:
+            'la espera entre tus líneas depende de tu nivel de Supporter: 5 segundos sin uno, 3 para Supporters, 1 para Champions y ninguna para Patrons. La línea debajo del cuadro indica cuál es la tuya. El staff nunca espera.',
         },
         {
           term: 'Modo lento',
-          body: 'cuando el chat de un tablero se llena mucho, todos esperan al menos 10 segundos durante un minuto, Patrons incluidos. Nadie puede enviar más de 10 líneas en 10 segundos.',
+          body:
+            'cuando el chat de un tablero se llena mucho, todos esperan al menos 10 segundos durante un minuto, incluidos los Patrons. Nadie puede enviar más de 10 líneas en 10 segundos.',
         },
         {
           term: 'Moderación',
-          body: 'el organizador y los mods pueden hacer clic derecho en una línea para **Delete message** o para **Mute** a alguien, y pausar todo el chat con **Pause chat**.',
+          body:
+            'el host y los mods pueden hacer clic derecho en una línea para **Delete message** o **Mute** a alguien, y pausar el chat con **Pause chat**. Una pausa impide publicar a todos excepto al staff, salvo en **Announcements**. **Mute** en el panel es un baneo que dura hasta que se levanta en la página de moderación. Allí también puedes poner un timeout de 5 minutos, 1 hora o 24 horas (o cualquier tiempo entre 1 minuto y 30 días), que cierra todos los canales para esa persona, y filtrar el chat por canal.',
         },
       ],
       outro:
@@ -3861,16 +3981,19 @@ const es: PartialGuideDict = {
       intro: 'Dos pestañas para tarjetas de jugador: la tuya y la de cualquier otro.',
       rows: [
         {
-          term: 'You',
-          body: 'tu propia tarjeta, del personaje con el que has iniciado sesión: banner y avatar, **Display case**, Collection Log hasta los objetos de cada página, y **Skills**, **Bosses**, **Clues**, **Times** y **CAs**. Debajo, cualquier reto **Head-to-head** que te espere (**Accept** o **Decline**) y tus **Goals**, con **+ Add goal**.',
+          term: 'Tú',
+          body:
+            'tu propia tarjeta del personaje con el que has iniciado sesión: banner y avatar, **Display case**, y las pestañas **Stats**, **Bosses** y **Log** (el collection log hasta los objetos de cada página, además de pistas, tiempos y logros de combate). Debajo, cualquier desafío **Head-to-head** que te espere (**Accept** o **Decline**) y tus **Goals**, con **+ Add goal**.',
         },
         {
-          term: 'Lookup',
-          body: 'cambia entre **Players** y **Clans**, escribe un nombre y pulsa Enter. **Recent** lista tus últimas búsquedas. Haz clic derecho sobre cualquiera en el juego y elige **Anvil** para llegar aquí.',
+          term: 'Búsqueda',
+          body:
+            'cambia entre **Players** y **Clans**, escribe un nombre y pulsa Enter. **Recent** muestra tus últimas búsquedas. Haz clic derecho en cualquiera dentro del juego y elige **Anvil** para llegar aquí.',
         },
         {
           term: 'Comparar',
-          body: 'en la tarjeta de otro, **Compare with me** pone a los dos lado a lado, habilidad por habilidad, jefe por jefe y página por página. La tarjeta de un clan tiene **Compare with my clan**.',
+          body:
+            'en la tarjeta de otra persona, **Compare with me** alinea a ambos habilidad por habilidad, jefe por jefe y página por página. La tarjeta de un clan tiene **Compare with my clan**.',
         },
       ],
     },
@@ -4177,6 +4300,14 @@ const es: PartialGuideDict = {
         'Solo se pueden comparar personajes compartidos. Uno privado, o un nombre que Anvil no conoce, devuelve _not on Anvil, or not shared_. Siempre puedes comparar tus propios personajes privados si tienes sesión iniciada.',
       ],
     },
+    news: {
+      title: 'Novedades y registro de cambios',
+      body: [
+        '[Novedades](/whats-new) muestra lo que cambió en Anvil, de lo más nuevo a lo más antiguo. Si has iniciado sesión, empieza con **For you**, las noticias que importan para tu nivel y tu clan, y luego **Everything new**. Las cosas que requieren una actualización del plugin dicen **Coming in the next plugin update**.',
+        'El [registro de cambios](/changelog) enumera cada versión con sus noticias, destacados y lo que es **New**, **Improved** y **Fixed**.',
+        'Cuando sale una versión, sus noticias se publican en el Discord de Anvil y en las actualizaciones de Anvil de tu clan, y el plugin muestra una línea al iniciar sesión. Las correcciones pequeñas se agrupan en la siguiente publicación.',
+      ],
+    },
   },
   settings: {
     metaTitle: 'Ajustes, página por página — Anvil',
@@ -4291,8 +4422,8 @@ const es: PartialGuideDict = {
     webhooks: {
       title: 'Tus webhooks de Discord',
       body: [
-        'Tus publicaciones también pueden ir a un servidor de Discord propio: un canal privado, el servidor de tus amigos, donde sea que puedas crear un webhook. Pega el enlace del webhook, marca lo que recibe (**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**), opcionalmente fija **Only drops worth at least … gp**, y pulsa **Add webhook**.',
-        'Puedes tener hasta 10. Solo se aceptan enlaces de webhooks de Discord, y un enlace guardado se muestra enmascarado, para que una captura de esta página no lo filtre. **Level posts on my webhooks** fija tus propias reglas de nivel para ellos, separadas de las de tu clan.',
+        'Tus publicaciones también pueden ir a un servidor de Discord propio: un canal privado, un servidor de amigos o cualquier lugar donde puedas crear un webhook. Pega el enlace del webhook, marca lo que recibe (**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**), opcionalmente pon un valor y una rareza mínimos solo para él, y pulsa **Add webhook**. En un webhook que recibe **Rare drops**, puedes cambiarlos después y elegir **Value or rarity: my setting**, **either** o **both**. Lo que quede en blanco sigue tus propios ajustes, y un webhook puede ser más permisivo que el mínimo estricto de tu clan.',
+        'Puedes tener hasta 10. Solo se aceptan enlaces de webhooks de Discord, y uno guardado se muestra enmascarado, así que una captura de esta página no filtra el enlace. **Level posts on my webhooks** define tus propias reglas de nivel para ellos, separadas de las de tu clan.',
       ],
     },
     privacy: {
@@ -4581,7 +4712,8 @@ const es: PartialGuideDict = {
         rest: '15 minutos antes, y luego al empezar',
       },
     ],
-    footnote: 'Las competiciones semanales están en [Skill y Boss of the Week]({weeklyGuide}); las cuotas y los premios en [Cuotas y pagos]({feesGuide}).',
+    footnote:
+      'Las competiciones semanales están en [Skill and Boss of the Week]({weeklyGuide}); las tasas y premios en [Fees and payouts]({feesGuide}). Los recordatorios usan las plantillas de mensaje de tu clan, explicadas en [Settings, page by page]({settingsGuide}).',
     create: {
       title: 'Programar uno',
       intro: 'Abre **Clan events** en el menú de admin y rellena el formulario:',
@@ -4888,6 +5020,85 @@ const es: PartialGuideDict = {
         tag: 'Publicarlas',
         body: 'Las guías se pueden publicar en un canal de Discord, y esas publicaciones se editan en el sitio cuando cambia la guía.',
       },
+    },
+  },
+  luckRecords: {
+    metaTitle: 'Probabilidades de drop, suerte y récords — Anvil',
+    metaDescription:
+      'Qué significa la línea de probabilidad de una casilla de drop, cómo calcula Anvil la suerte (spooned, dry u on rate), qué son las horas eficientes y dónde se guardan tu mejor día, semana, mes y año.',
+    eyebrow: 'Anvil · para jugadores',
+    title: 'Probabilidades de drop, suerte y récords',
+    dek:
+      'Anvil puede decirte qué tan raro es un drop, cuánto suele tardar y lo afortunado que has sido. También puede recordar tus mejores días. Esta página explica los números.',
+    facts: [
+      {
+        strong: 'Tasas',
+        rest: 'vienen de la OSRS Wiki',
+      },
+      {
+        strong: 'Suerte',
+        rest: 'kills esperadas frente a tus kills reales',
+      },
+      {
+        strong: 'Récords',
+        rest: 'empiezan desde el lanzamiento, sin datos retroactivos',
+      },
+    ],
+    footnote:
+      'Tus páginas propias están en [Your profile, Wrapped and Compare]({profileGuide}). Los interruptores están en [Settings, page by page]({settingsGuide}).',
+    odds: {
+      title: 'Las probabilidades en una casilla de drop',
+      intro:
+        'Abre una casilla de drop y verás hasta ocho líneas, una por cada objeto con probabilidades conocidas. Una línea se ve así:',
+      body: [
+        '`Item: 1 in 512 from Boss · ~512 kills ≈ 9.4 h at 55/h`',
+        'Si el objeto puede obtenerse más de una vez por kill, también dice **(×2 rolls)**. Si Anvil no sabe qué tan rápido mata la gente a ese jefe, se omite la parte de las horas.',
+      ],
+      rows: [
+        {
+          term: '1 in N',
+          body: 'la probabilidad del drop en una kill, según la fuente que lo consiga más rápido.',
+        },
+        {
+          term: 'Kills esperadas',
+          body:
+            'el número medio de kills que se necesitan. Se calcula a partir de las probabilidades y del número de tiradas.',
+        },
+        {
+          term: 'Horas',
+          body:
+            'kills esperadas divididas entre las kills por hora que la gente suele conseguir. Es una guía, no una promesa.',
+        },
+      ],
+      note: {
+        tag: 'Un promedio, no un límite',
+        body:
+          'La mitad de los jugadores lo consigue antes de las kills esperadas, y algunos necesitan muchas más. Úsalo para juzgar lo grande que es una casilla, no para decir cuándo caerá.',
+      },
+    },
+    luck: {
+      title: 'Suerte: spooned, dry u on rate',
+      body: [
+        'La suerte compara las kills que has hecho con las que debería tomar. Si has conseguido el drop en menos kills de las esperadas, estás **spooned**. Si has hecho muchas kills y aún no tienes nada, estás **dry**. Entre medias, estás **on rate**.',
+        'Anvil te marca **dry** o **spooned** solo cuando es inusual: aproximadamente una probabilidad de una entre veinte o menos. Muestra cuántas tienes frente a cuántas se esperaban, y cuánto vas por delante o por detrás.',
+        'La pestaña **Luck** de la página Members enumera a las personas más secas y más afortunadas de tu clan. Las publicaciones del plugin para drops raros también pueden incluir una línea de suerte, como un porcentaje superior o cuántos jugadores lo habrían tenido ya.',
+      ],
+    },
+    source: {
+      title: 'De dónde salen los números',
+      body: [
+        'Las tasas de drop vienen de la OSRS Wiki y se actualizan cada día. Las tasas de kills para las horas vienen de las guías de ganancias de la Wiki. Cuando una tasa es una estimación cuidadosa, Anvil la trata como tal.',
+        'Si una tasa parece incorrecta, la Wiki es el lugar para corregirla. Anvil recoge el cambio.',
+      ],
+    },
+    records: {
+      title: 'Récords y horas eficientes',
+      body: [
+        'Anvil guarda tu mejor **day**, **week**, **month** y **year** en XP de habilidades, kills de jefes y horas eficientes. Los días son UTC y las semanas empiezan el lunes.',
+        'Los récords cuentan desde el momento en que se lanzó esto. No hay nada anterior, y Anvil nunca rellena el pasado. Un récord solo se guarda cuando superas tu mejor marca anterior.',
+        'Ves los tuyos en la página de tu personaje, bajo **Records**. Los poseedores de récords de tu clan están en **Members → Records**.',
+        '**Efficient hours played** es cuánto tardarían tus ganancias con buenos métodos de entrenamiento, así puedes comparar una habilidad rápida con una lenta. **Efficient hours bossed** hace lo mismo con las kills. Las tasas vienen de la OSRS Wiki, y las cuentas ironman usan sus propias tasas.',
+      ],
     },
   },
 };

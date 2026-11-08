@@ -33,6 +33,7 @@ export default async function DiscordGuide({ lang }: { lang: string }) {
     clanGuide: guideHref(locale.code, 'clan'),
     moderatorGuide: guideHref(locale.code, 'moderator'),
     commandsGuide: guideHref(locale.code, 'commands'),
+    settingsGuide: guideHref(locale.code, 'settings'),
   };
 
   const SECTIONS = [
@@ -44,8 +45,10 @@ export default async function DiscordGuide({ lang }: { lang: string }) {
     { id: 'roles', n: 6, title: c.roles.title },
     { id: 'commands', n: 7, title: c.commands.title },
     { id: 'posts', n: 8, title: c.posts.title },
-    { id: 'announce', n: 9, title: c.announce.title },
-    { id: 'quiet', n: 10, title: c.quiet.title },
+    { id: 'drops', n: 9, title: c.drops.title },
+    { id: 'pools', n: 10, title: c.pools.title },
+    { id: 'announce', n: 11, title: c.announce.title },
+    { id: 'quiet', n: 12, title: c.quiet.title },
   ];
 
   return (
@@ -115,14 +118,23 @@ export default async function DiscordGuide({ lang }: { lang: string }) {
         <Note tag={c.posts.note.tag}>{rt(c.posts.note.body, v)}</Note>
       </Section>
 
-      {/* ---------------------------------------------------------------- 9 */}
-      <Section id="announce" n={9} title={c.announce.title} labels={t.common}>
+      <Section id="drops" n={9} title={c.drops.title} labels={t.common}>
+        {paragraphs(c.drops.body, v)}
+        <Note tag={c.drops.note.tag}>{rt(c.drops.note.body, v)}</Note>
+      </Section>
+
+      <Section id="pools" n={10} title={c.pools.title} labels={t.common}>
+        {paragraphs(c.pools.body, v)}
+        <Note tag={c.pools.note.tag}>{rt(c.pools.note.body, v)}</Note>
+      </Section>
+
+      <Section id="announce" n={11} title={c.announce.title} labels={t.common}>
         {paragraphs(c.announce.body, v)}
         <Note tag={c.announce.note.tag}>{rt(c.announce.note.body, v)}</Note>
       </Section>
 
       {/* ---------------------------------------------------------------- 10 */}
-      <Section id="quiet" n={10} title={c.quiet.title} labels={t.common}>
+      <Section id="quiet" n={12} title={c.quiet.title} labels={t.common}>
         {paragraphs(c.quiet.body, v)}
         <Rows rows={rows(c.quiet.checks, v)} />
         <Note tag={c.quiet.note.tag}>{rt(c.quiet.note.body, v)}</Note>

@@ -39,7 +39,7 @@ export default async function FeesGuide({ lang }: { lang: string }) {
       notice={notice}
       dek={rt(f.dek)}
       facts={f.facts}
-      footnote={rt(f.footnote)}
+      footnote={rt(`${f.footnote} ${t.common.legalPaid}`)}
     >
       <Section id="set" n={1} title={f.set.title} labels={t.common}>
         {paragraphs(f.set.body)}

@@ -28,6 +28,9 @@ const ko: PartialGuideDict = {
       lead: '막히거나 뭔가 이상한가요?',
       link: 'Anvil 지원 Discord에 문의하기',
     },
+    legalPaid: '결제 관련 문의: [환불](/legal/refunds) 및 [이용약관](/legal/terms).',
+    legalPrivacy: '데이터 처리 방식: [개인정보처리방침](/legal/privacy).',
+    aboutLine: 'Anvil 운영 주체가 궁금하다면 [About](/about)을 읽어 보세요.',
   },
 
   index: {
@@ -259,6 +262,12 @@ const ko: PartialGuideDict = {
         title: '클랜 이벤트와 일정',
         blurb: '대규모 모임, 레이드 나이트, 모임: 주간 반복, “갑니다”와 참가 신청, Discord 알림, 지급, 설문, 그리고 일정의 빈 시간 찾기.',
         minutes: '~4분',
+      },
+      luckRecords: {
+        eyebrow: '플레이어를 위한',
+        title: '드롭 확률, 행운, 기록',
+        blurb: '드롭 타일의 확률이 무엇을 뜻하는지, 행운이 어떻게 계산되는지, 그리고 최고의 하루, 주, 달, 해가 어디에 표시되는지 알려 줍니다.',
+        minutes: '약 3분',
       },
     },
   },
@@ -566,16 +575,23 @@ const ko: PartialGuideDict = {
       ],
       feeds: [
         {
-          term: 'Catch-all channel',
-          body: '가장 중요한 하나로, **Clan & events** 탭에 있습니다. 이벤트 시작과 종료, 신청 개시, 순위, 주간 결과 — 사이트가 올리는 것 중 전용 채널이 없는 모든 것. 이것만 설정해도 작동하는 클랜이 됩니다.',
+          term: '전체 채널',
+          body:
+            '기본 채널로, **Clan & events** 탭에 있습니다. 이벤트 시작과 종료, 참가 신청 열림, 순위, 주간 결과 등 자체 채널이 없는 사이트의 모든 게시물이 여기에 올라옵니다. 이것만 설정해도 클랜이 정상적으로 작동합니다.',
         },
         {
-          term: 'In-game catch-all',
-          body: '**In-game (plugin)** 탭에 있습니다. 게임에서 오는 것 중 전용 채널이 없는 것들이 가는 곳입니다. 두 번째로 설정하세요.',
+          term: '인게임 전체 채널',
+          body: '**In-game (plugin)** 탭에 있습니다. 자체 채널이 없는 게임 내 항목이 여기로 옵니다. 두 번째로 설정하세요.',
         },
         {
-          term: '나눠둔 피드들',
-          body: '이벤트 게시물, 공동 주최하는 보드, Skill & boss of the week, 클랜 캘린더 이벤트는 catch-all에서 떼어낼 수 있고, 희귀 드롭, 펫, 컬렉션 로그, 레벨, 컴뱃 어치브먼트, 퀘스트, 다이어리, 사망, PvP 킬은 게임 내 catch-all에서 떼어낼 수 있습니다. 명단 변경, 신청 승인, 금고 장부는 **Staff only**에 있습니다. 비워 둔 분리 피드는 각자의 catch-all로 되돌아갑니다. 예외는 금고입니다. 비워 두면 돈에 관한 게시물은 아예 올라가지 않습니다. Leagues와 다른 모드에는 전용 **Game modes** 탭이 있습니다.',
+          term: '마일스톤 및 기타',
+          body:
+            '**In-game (plugin)** 탭에 있습니다. 플레이어가 켜면 슬레이어, 클루, 스피드런, 처치 횟수, BA 도박, 사용자 지정 채팅 메시지가 여기에 게시됩니다. **Filters** 버튼은 클랜이 멤버에게 기본으로 주는 설정을 정합니다. 플레이어 개인 템플릿과 비공개 종류는 [Settings, page by page]({settingsGuide})에 있습니다.',
+        },
+        {
+          term: '분리된 피드',
+          body:
+            '이벤트 게시물, 함께 운영하는 보드, Skill & boss of the week, 클랜 캘린더 이벤트는 전체 채널에서 분리할 수 있습니다. 희귀 드롭, 펫, 컬렉션 로그, 레벨, 전투 업적, 퀘스트, 일지, 사망, PvP 킬은 인게임 전체 채널에서 분리할 수 있습니다. 로스터 변경, 참가 승인, 금고 장부는 **Staff only**에 있습니다. 비어 있는 분리 피드는 해당 전체 채널을 사용합니다. 금고는 예외로, 비어 있으면 돈 관련 게시물이 전혀 올라가지 않습니다. Leagues 및 기타 모드는 자체 **Game modes** 탭을 사용합니다.',
         },
       ],
       note: {
@@ -629,9 +645,9 @@ const ko: PartialGuideDict = {
     modes: {
       title: 'Leagues, Deadman 등 다른 모드',
       body: [
-        'Leagues, Deadman, 하드코어 등 다른 모드는 전용 월드에서 전용 캐릭터로 돌아갑니다. 이 모드들의 게시물에는 항상 라벨이 붙고, 보드나 대회에 집계되는 일은 없습니다. 전용 탭이 있습니다: **Admin → Discord → What goes where → Game modes**. 모드는 멤버가 처음 그 모드를 플레이할 때 거기에 나타납니다.',
-        '각 모드에는 스위치와 **To** 채널이 있습니다. 그 채널들을 쓰려면 **Send game-mode posts to their own channels**를 켜세요. 꺼 두면 모든 모드가 일반 채널에 게시하며, 라벨은 그대로 붙습니다. 모드 줄의 **Posts** 버튼은 그 모드가 보내는 모든 종류를 보여 줍니다 — 평소의 것들과 그 모드만의 이벤트 — 각각 자기 스위치가 있습니다.',
-        '그 목록 아래의 **Custom filters**로 모드의 게시를 메인 게임보다 줄일 수 있습니다. **Post drops rarer than 1 in…**은 모드만의 희귀도 하한을 정합니다(비우면 메인 게임과 같음): 항상 게시하는 아이템은 그대로 올라가지만, 가치 때문에만 집계되는 드롭은 올라가지 않습니다. **Use its own level milestones**는 두 규칙에 모두 맞을 때만 레벨업을 게시합니다.',
+        'Leagues, Deadman, hardcore 등 다른 모드는 자체 월드와 자체 캐릭터로 진행됩니다. 이 모드의 게시물은 항상 라벨이 붙으며, 보드나 대회에는 포함되지 않습니다. 전용 탭이 있습니다: **Admin → Discord → What goes where → Game modes**. 멤버가 해당 모드를 처음 플레이하면 그곳에 나타납니다.',
+        '각 모드에는 스위치와 **To** 채널이 있습니다. 전용 채널을 사용하려면 **Send game-mode posts to their own channels**를 켜세요. 끄면 모든 모드가 일반 채널에 라벨과 함께 게시됩니다. 모드 행의 **Posts** 버튼을 누르면 해당 모드가 보내는 모든 종류(일반 종류와 모드 전용 이벤트)가 나오고, 각각 개별 스위치가 있습니다.',
+        '그 목록 아래의 **Custom thresholds**로 모드가 메인 게임보다 적게 게시하도록 설정할 수 있습니다. **Post drops rarer than 1 in…**(2 이상)과 **Post drops worth at least (gp)**(1,000 이상)로 자체 하한을 정하고(비워 두면 메인 게임과 동일), **Save drop thresholds**를 누르세요. 항상 게시되는 아이템은 계속 게시되지만, 가치로만 조건을 충족하는 드롭은 게시되지 않습니다. **Use its own level milestones**는 두 규칙 세트를 모두 만족하는 경우에만 레벨업을 게시합니다.',
       ],
       note: {
         tag: '더 엄격하게만, 느슨하게는 안 됨',
@@ -688,6 +704,32 @@ const ko: PartialGuideDict = {
       note: {
         tag: '새로 들어온 사람을 맞이할 수는 없습니다',
         body: 'Discord는 입장 사실을 gateway 연결로만 알려주는데, 공유 봇은 모든 서버에 대해 그 연결을 유지하지 않습니다. 그래서 "환영" 게시물은 없습니다 — 대신 신청 링크를 #역할이나 #시작하기 채널에 두세요. 어차피 사람들이 보는 곳이 거깁니다.',
+      },
+    },
+    drops: {
+      title: '드롭 기준',
+      body: [
+        'Anvil은 **1m gp** 또는 **1 in 1,000**에서 시작합니다. 드롭은 둘 중 하나를 충족하면 게시됩니다. 누구도 이보다 낮게 설정할 수 없으며, 0으로 하면 해당 기준을 끕니다.',
+        '**Admin → Discord → What goes where → Drops**에서 클랜 기본값을 설정하세요: **Default minimum drop value (gp)**, **Default: post drops rarer than 1 in…**, **Require both**. **Require both**를 켜면 드롭은 가치 **and** 희귀도를 모두 충족해야 합니다.',
+        '각 캐릭터는 소속 클랜의 기본값을 따르며, 클랜이 없으면 Anvil 기본값을 따릅니다. 플레이어는 **Settings**에서 자신의 수치를 고를 수 있습니다. **Using clan default** 또는 **Custom**이 표시되며, **Reset**을 누르면 기본값으로 돌아갑니다.',
+        '**Hard floor: never post drops more common than 1 in…**는 엄격한 기준입니다. 멤버는 클랜 채널에서 이보다 느슨하게 설정할 수 없습니다. 개인 webhook은 가능합니다.',
+      ],
+      note: {
+        tag: '플레이어 쪽 자세한 내용',
+        body: '플레이어 자신의 수치, 템플릿, webhook은 [Settings, page by page]({settingsGuide})에 있습니다.',
+      },
+    },
+    pools: {
+      title: '바쁜 채널을 위한 추가 webhook',
+      body: [
+        'webhook 하나가 보낼 수 있는 속도에는 한계가 있습니다. 바쁜 이벤트에서는 같은 채널에 webhook을 더 추가하세요. **Busy channel? Let the bot add … more webhooks**(**Manage Webhooks** 권한 필요)를 누르거나, 채널 상자에 webhook 링크를 여러 개 붙여 넣으세요. Anvil은 플레이어가 50명 이상이거나, 분당 게시가 많거나, Discord가 최근 “slow down”을 보냈을 때 더 추가하라고 제안합니다. 최대 10개면 충분합니다.',
+        'Anvil은 webhook들을 번갈아 사용합니다. 한 webhook에 Discord가 “slow down”을 보내면 그 webhook은 잠시 쉬고 다음 webhook이 게시합니다. 삭제되었거나 작동하지 않는 webhook은 10분 동안 건너뜁니다. 작동하는 webhook이 하나라도 있으면 게시는 계속됩니다.',
+        '모든 webhook은 같은 채널을 가리켜야 합니다. 그렇지 않으면 Anvil이 경고합니다. 하나를 확인하려면 **Test**를, 제거하려면 **Stop posting here**를 사용하세요.',
+      ],
+      note: {
+        tag: '같은 채널, 같은 게시물',
+        body:
+          'webhook을 더 추가해도 같은 게시물이 두 번 올라가지 않습니다. 작업만 나눠 맡습니다. 같은 개념이 위의 [Drop thresholds](#drops)와 관리자 측 [Running the event]({adminGuide})에도 있습니다.',
       },
     },
   },
@@ -942,27 +984,38 @@ const ko: PartialGuideDict = {
         legend: [
           {
             label: 'Notify on death',
-            body: '죽은 순간의 스크린샷과 함께 클랜의 사망 채널에 올립니다.',
+            body: '사망 순간의 스크린샷과 함께 클랜 사망 채널에 게시됩니다.',
           },
-          { label: 'Death message', body: '당신만의 문구. `{name}`은(는) RSN으로 바뀝니다.' },
+          {
+            label: 'Death message',
+            body: '직접 작성하는 문구입니다. `{name}`은 RSN으로 바뀝니다.',
+          },
           {
             label: 'Notify on PvP kill',
-            body: '상대의 HP가 0이 되는 틱의 스크린샷. 기본값은 꺼짐이며, 여기서는 켜져 있습니다.',
+            body: '대상의 HP가 0이 되는 틱의 스크린샷입니다. 기본값은 꺼짐이며, 여기서는 켜져 있습니다.',
           },
-          { label: 'Notify on rare drops', body: '드롭 게시의 대문 스위치.' },
+          {
+            label: 'Notify on rare drops',
+            body: '드롭 게시의 전체 스위치입니다.',
+          },
           {
             label: 'Min drop value / Min drop rarity',
-            body: '드롭은 가치가 이 금액 이상(GE 또는 high alch 중 높은 쪽)이거나 N분의 1보다 희귀하면 게시됩니다. Anvil 기본값은 1m와 1/1,000입니다. 클랜은 멤버를 위해 자체 기본값을 정할 수 있으며, 직접 숫자를 정하기 전까지는 클랜 값을 따릅니다. **클랜 기본값으로 재설정** (클랜이 없으면 **Anvil 기본값으로 재설정**)을 누르면 다시 그 값을 따르게 됩니다. 클랜은 자체 채널에 대해 희귀도 하한을 정할 수도 있으며, 당신의 숫자는 그 아래로 내려갈 수 없습니다. 둘 중 하나를 0으로 설정하면 해당 기능이 꺼집니다.',
+            body:
+              '드롭은 이 금액 이상의 가치(GE 또는 high alch 중 더 높은 값)가 있거나 1-in-N보다 희귀하면 게시됩니다. Anvil은 1m과 1/1,000에서 시작합니다. 클랜은 멤버용 기본값을 설정할 수 있으며, 직접 숫자를 정하기 전까지는 클랜 값을 따릅니다. **Reset to clan default**(클랜이 없으면 **Reset to Anvil default**)를 누르면 다시 클랜 값을 따릅니다. 클랜은 클랜 채널 게시물에만 적용되는 엄격한 희귀도 하한도 설정할 수 있습니다. 그곳에서는 자신의 숫자를 그보다 느슨하게 설정할 수 없으며, 가치 상한은 바뀌지 않습니다. 두 숫자 모두 0으로 설정하면 끌 수 있습니다.',
           },
           {
-            label: '가치와 희귀도 함께',
-            body: '기본적으로 드롭은 가치 **또는** 희귀도 중 하나를 충족하면 게시됩니다. **둘 다 필요** 를 켜면 가치 **그리고** 희귀도를 모두 충족해야 합니다. 클랜은 멤버를 위해 이 기본값을 정할 수 있으며, 직접 고르기 전까지는 그 값을 따르고, 클랜이 없으면 둘 중 하나입니다. 각자의 웹훅마다 최소 가치, 희귀도, 둘 중 하나/둘 다를 따로 설정할 수 있으며, 비워 둔 항목은 당신의 설정을 따릅니다.',
+            label: 'Value and rarity together',
+            body:
+              '기본적으로 드롭은 가치 **or** 희귀도를 충족하면 게시됩니다. **Require both**를 켜면 가치 **and** 희귀도를 모두 충족해야 합니다. 클랜은 멤버용으로 이 기본값을 선택할 수 있습니다. 직접 선택하기 전까지는 클랜을 따르며, 클랜이 없으면 둘 중 하나입니다. 개인 webhook마다 자체 최소 가치, 희귀도, either/both를 설정할 수도 있으며, 비워 둔 항목은 개인 설정을 따릅니다.',
           },
           {
             label: 'Loot key value',
-            body: 'loot key는 내용물 전체가 이 수치를 넘을 때 한 번, 하나의 알림으로 올라갑니다.',
+            body: '루트 키는 전체 내용물의 합계가 이 숫자를 넘으면 한 번, 단일 알림으로 게시됩니다.',
           },
-          { label: 'Notify on pets', body: '펫은 희귀 드롭 채널에 올라갑니다.' },
+          {
+            label: 'Notify on pets',
+            body: '펫은 희귀 드롭 채널에 게시됩니다.',
+          },
         ],
       },
       caFigure: {
@@ -1840,6 +1893,14 @@ const ko: PartialGuideDict = {
       ],
       outro: '그 아래 **Member breakdown**에서는 각 팀에서 누가 무엇을 했는지 보여 주고, **Stat tile standings**에서는 XP 또는 처치 타일마다 모든 플레이어의 시작 수치와 현재 수치를 보여 줍니다.',
     },
+    race: {
+      title: '타일 레이스 트랙',
+      intro: '타일 레이스 보드에서는 그리드 대신 트랙을 만듭니다. 타일은 번호가 매겨진 단계에 놓이고, 팀은 그 단계를 따라 이동합니다.',
+      body: [
+        '**Tiles**를 열고 **Route** 섹션을 사용하세요. 템플릿을 고르고(기본값은 **Diamond**), 타일을 단계에 추가한 뒤 **Save route**를 누르세요. 연결하는 모든 타일은 다음 단계에 있어야 합니다.',
+        '길은 나뉘었다가 합쳐질 수 있지만 결승선은 하나입니다. 갈림길에서는 타일 완료 시 길이 정해질지, 아니면 캡틴이 골라서 확정할지 선택합니다. 전체 선택지와 플레이어가 보는 내용은 [Formats, and how tiles open]({formatsGuide})에 있습니다.',
+      ],
+    },
   },
 
   captain: {
@@ -2059,6 +2120,36 @@ const ko: PartialGuideDict = {
       ],
       outro:
         '무엇을 고르든 칸 자체를 만드는 일은 똑같습니다: [스스로 기록하는 보드 만들기]({boardGuide}) 참고.',
+    },
+    race: {
+      title: '타일 레이스 경로',
+      intro: '타일 레이스는 번호가 매겨진 단계로 이루어진 트랙입니다. 팀은 단계별로 이동하며, 가장 멀리 간 팀이 이깁니다. 호스트는 트랙을 길이 나뉘고 합쳐지는 지도로 바꿀 수 있습니다.',
+      body: ['모든 경로에는 시작점 하나, 나뉘고 합쳐질 수 있는 길, 결승선 하나가 있습니다. 모든 길의 길이는 같습니다. 팀의 진행 상황은 지금까지 걸은 길입니다.'],
+      rows: [
+        {
+          term: '달성 순서',
+          body: '현재 타일 이후의 모든 타일이 열립니다. 팀이 처음 완료한 타일이 그 팀의 길을 정하고, 나머지는 그 팀에게 닫힙니다.',
+        },
+        {
+          term: '선택 후 확정',
+          body:
+            '캡틴(또는 팀 스태프)이 아무것도 집계되기 전에 **Pick this road**로 다음 타일을 고릅니다. 열리는 것은 선택뿐입니다. 선택은 관리자 초기화를 제외하고 되돌릴 수 없습니다.',
+        },
+        {
+          term: '이른 완료 보관',
+          body:
+            '기본적으로 꺼져 있어, 팀의 길 위에 열린 타일만 집계됩니다. 켜면 팀이 아직 도달하지 않은 타일에서의 완료가 보관됩니다. 길이 그곳에 도달하면 완료 처리됩니다. 앞서 있는 팀을 건너뛰거나 무언가를 미리 열지는 않습니다.',
+        },
+      ],
+      steps: [
+        '이벤트의 **Tiles** 페이지를 열고 **Route**를 찾으세요.',
+        '**Route template**을 고르고 **Apply template**을 누르세요. 기본값은 **Diamond**로, 시작점 하나, 길 두 개, 결승선 하나입니다. **Two roads**, **Braid**, **Straight line**, **Free**(링크 없음)도 있습니다.',
+        '**How a team’s road is set at a fork**를 고르세요: 달성 순서, 또는 선택 후 확정.',
+        '**+ Step before**, **Move step earlier/later**, **Remove step**으로 단계를 추가하거나 옮긴 뒤 **Save route**를 누르세요.',
+        '이벤트가 이미 진행 중이면 Anvil이 새 경로에서 잘려 나가는 완료를 어떻게 할지 묻습니다: **Keep**(유지) 또는 **Roll back**(되돌리기).',
+      ],
+      outro:
+        '플레이어는 이벤트 페이지에서 **Race track**을 보며, 자기 팀 타일에 금색 **You** 마커가 표시됩니다. **Fullscreen board**로 크게 볼 수 있고, **Esc**로 닫습니다. 플러그인에서는 사이드 패널에 **Your road**와 **After that**이 표시됩니다.',
     },
   },
 
@@ -3755,19 +3846,30 @@ const ko: PartialGuideDict = {
       rows: [
         {
           term: '클랜 드롭다운',
-          body: '둘 이상의 클랜이나 스페이스에서 플레이할 때 보입니다. **All clans**(기본값)는 내가 플레이하는 모든 것을 진행 중인 이벤트부터 보여 줍니다. 클랜 하나를 고르면 패널이 그 클랜으로 좁혀지고, 제출도 그 클랜으로 들어갑니다.',
+          body:
+            '두 개 이상의 클랜이나 스페이스에서 플레이할 때 표시됩니다. **All clans**(기본값)는 라이브 이벤트를 먼저 보여 주며 플레이 중인 모든 것을 표시합니다. 한 클랜을 고르면 패널이 그 클랜으로 좁혀지고 제출 내용도 그곳에 저장됩니다.',
+        },
+        {
+          term: '다음에 할 일',
+          body: '맨 위의 금색 카드로, 지금 하면 가장 좋은 한 가지를 알려 줍니다. 예: 이벤트 참가, 설문 응답, 첫 시작 샷.',
         },
         {
           term: '이벤트',
-          body: '진행 중이거나 예정된 모든 보드, Skill of the Week나 Boss of the Week, 클랜 이벤트와 그 안에서의 내 순위. 그다음 **Your other boards**, **Also live**, **Your clan**이 이어집니다.',
+          body:
+            '라이브 및 예정된 모든 보드, Skill 또는 Boss of the Week, 클랜 이벤트와 현재 순위를 보여 줍니다. 그다음 **Your other boards**, **Also live**, **Your clan**이 나옵니다.',
         },
         {
           term: '보드',
-          body: '하나를 열면 순위, 팀, 미션, 최근 활동, 가장 가까운 타일, 그리고 **View all tiles**가 나옵니다. **Feed**와 **Chat** 버튼은 그 보드를 Feed 탭에서 엽니다.',
+          body:
+            '열면 순위(상위 3명과 내 줄, 나머지는 **View all**), 팀, 미션, 최근 활동, 가까운 타일, **View all tiles**를 볼 수 있습니다. **Feed**와 **Chat** 버튼은 그 보드를 Feed 탭에서 엽니다.',
+        },
+        {
+          term: '순위 변동',
+          body: '이름 옆의 초록색 **▲** 또는 산호색 **▼**와 숫자는 그날이 시작된 이후 얼마나 움직였는지를 보여 줍니다.',
         },
         {
           term: '클랜 이벤트',
-          body: '이벤트에 따라 **I’m going**, **Sign me up**, 또는 **Answer the survey**.',
+          body: '이벤트에 따라 **I’m going**, **Sign me up**, **Answer the survey**가 표시됩니다.',
         },
       ],
     },
@@ -3778,16 +3880,17 @@ const ko: PartialGuideDict = {
         '클랜과 보드의 큰 순간을 실시간으로: 드롭, 펫, 업적, 퀘스트, 죽음, 완료한 타일.',
       rows: [
         {
-          term: '누구의 피드인가',
-          body: '위쪽 드롭다운에는 내가 멤버인 각 클랜이 **Clan ·**으로, 내가 참가 중인 진행 중 보드가 **Event ·**으로 나열됩니다. 보드가 있으면 내 보드로, 없으면 클랜으로 열립니다.',
+          term: '누구의 피드',
+          body: '상단 드롭다운에는 소속된 각 클랜의 **Clan ·**와 참여 중인 각 라이브 보드의 **Event ·**가 나옵니다. 자신의 보드가 있으면 그곳을, 없으면 클랜을 엽니다.',
         },
         {
           term: '필터',
-          body: '**All**, **Tiles**(보드만), **Drops**, **Pets**, **Achievements**, **Deaths**, 그리고 내가 팀에 속한 보드에서는 **My team**. 클랜 피드에는 Leagues 등 게임 모드 활동을 보는 버튼도 있습니다.',
+          body:
+            '**All**, **Tiles**(보드만), **Drops**, **Pets**, **Achievements**, **Deaths**, **Milestones**(슬레이어, 클루, 처치 횟수 등. 플레이어가 켠 경우), 보드에서 팀에 속한 경우 **My team**. 클랜 피드에는 Leagues 및 기타 모드를 위한 게임 모드 활동 버튼도 있습니다.',
         },
         {
-          term: '새 줄',
-          body: '저절로 들어옵니다. 스크롤해서 벗어나 있으면 **↑ N new** 알약이 나타나 새 줄로 데려다 줍니다.',
+          term: '새 행',
+          body: '자동으로 나타납니다. 스크롤해서 멀어졌다면 **↑ N new** 알약 모양 버튼이 다시 그곳으로 데려갑니다.',
         },
       ],
       note: {
@@ -3829,24 +3932,27 @@ const ko: PartialGuideDict = {
         '채팅이 켜진 보드에는 Feed 탭 위쪽에 **Feed / Chat** 전환이 있고, 그 보드의 플레이어와 주최 측 스태프가 쓸 수 있습니다. Clan 탭의 보드 페이지에도 **Chat** 버튼이 있습니다.',
       rows: [
         {
-          term: '모두에게 또는 우리 팀에게',
-          body: '**All**은 보드 전체에, **My team**은 우리 팀에게만 씁니다(그런 줄에는 **TEAM** 표시가 붙습니다). 스태프에게는 **Host & mods**도 보이고, 스태프의 줄에는 **HOST** 또는 **MOD** 표시가 붙습니다.',
+          term: '모두 또는 내 팀',
+          body:
+            '상단 칩으로 채널을 고르세요: 보드 전체는 **All teams**, 내 팀만은 **My team**, 호스트와 모드만 글을 쓸 수 있는 **Announcements**. 각 칩에는 읽지 않은 줄 수가 표시됩니다. 호스트와 모드의 줄에는 **HOST** 또는 **MOD**가 붙습니다.',
         },
         {
           term: '보내기',
-          body: '입력란에 쓰고 Enter를 누르세요. 한 줄은 200자까지이고, 링크는 주최자와 관리자만 올릴 수 있습니다.',
+          body: '상자에 입력하고 Enter를 누르세요. 줄은 최대 200자이며, 링크는 호스트와 모드만 게시할 수 있습니다.',
         },
         {
-          term: '얼마나 자주',
-          body: '줄 사이 대기 시간은 Supporter 등급을 따릅니다: 등급 없음 5초, Supporter 3초, Champion 1초, Patron은 대기 없음. 입력란 아래 줄에 내 대기 시간이 나옵니다. 스태프는 기다리지 않습니다.',
+          term: '전송 간격',
+          body:
+            '내 줄 사이의 대기 시간은 Supporter 등급에 따릅니다. 등급이 없으면 5초, Supporter는 3초, Champion은 1초, Patron은 대기가 없습니다. 상자 아래 줄에 내 값이 표시됩니다. 스태프는 기다리지 않습니다.',
         },
         {
-          term: '슬로 모드',
-          body: '보드 채팅이 아주 붐비면, 1분 동안 Patron을 포함한 모두가 최소 10초를 기다립니다. 누구도 10초 안에 10줄보다 많이 보낼 수 없습니다.',
+          term: '저속 모드',
+          body: '보드 채팅이 매우 붐비면, Patron을 포함해 모두 1분 동안 최소 10초를 기다립니다. 10초 안에 10줄을 넘게 보낼 수 없습니다.',
         },
         {
           term: '관리',
-          body: '주최자와 관리자는 줄을 우클릭해 **Delete message**나 **Mute**를 할 수 있고, **Pause chat**으로 채팅 전체를 멈출 수 있습니다.',
+          body:
+            '호스트와 모드는 줄을 우클릭해 **Delete message**를 하거나 누군가를 **Mute**할 수 있고, **Pause chat**으로 채팅을 일시 중지할 수 있습니다. 일시 중지하면 스태프를 제외한 모두가 글을 쓸 수 없으며, **Announcements**는 예외입니다. 패널의 **Mute**는 관리 페이지에서 해제할 때까지 유지되는 차단입니다. 그곳에서는 5분, 1시간, 24시간(또는 1분에서 30일 사이의 아무 시간) 타임아웃도 줄 수 있으며, 이는 그 사람의 모든 채널을 닫습니다. 채팅을 채널별로 필터링할 수도 있습니다.',
         },
       ],
       outro:
@@ -3858,16 +3964,19 @@ const ko: PartialGuideDict = {
       intro: '플레이어 카드 탭 두 개: 내 것, 그리고 다른 누구의 것.',
       rows: [
         {
-          term: 'You',
-          body: '로그인한 캐릭터의 내 카드: 배너와 아바타, **Display case**, 각 페이지의 아이템까지 보이는 컬렉션 로그, 그리고 **Skills**, **Bosses**, **Clues**, **Times**, **CAs**. 그 아래에는 나를 기다리는 **Head-to-head** 도전(**Accept** 또는 **Decline**)과 **+ Add goal**이 있는 **Goals**.',
+          term: '나',
+          body:
+            '로그인한 캐릭터의 내 카드입니다: 배너와 아바타, **Display case**, 그리고 **Stats**, **Bosses**, **Log** 탭(각 페이지 아이템까지의 컬렉션 로그, 그리고 클루, 시간, 전투 업적). 그 아래에는 나를 기다리는 **Head-to-head** 도전(**Accept** 또는 **Decline**)과 **+ Add goal**이 있는 **Goals**가 있습니다.',
         },
         {
-          term: 'Lookup',
-          body: '**Players**와 **Clans** 사이를 전환하고, 이름을 입력한 뒤 Enter를 누르세요. **Recent**에 최근 몇 개가 나열됩니다. 게임에서 누구든 우클릭해 **Anvil**을 고르면 여기로 옵니다.',
+          term: '검색',
+          body:
+            '**Players**와 **Clans** 사이를 전환하고, 이름을 입력한 뒤 Enter를 누르세요. **Recent**에는 최근 사용한 항목이 나옵니다. 게임 안에서 누구든 우클릭하고 **Anvil**을 고르면 여기로 옵니다.',
         },
         {
           term: '비교',
-          body: '다른 사람의 카드에서 **Compare with me**를 누르면 두 사람을 스킬별, 보스별, 페이지별로 나란히 비교합니다. 클랜 카드에는 **Compare with my clan**이 있습니다.',
+          body:
+            '다른 사람의 카드에서 **Compare with me**를 누르면 스킬별, 보스별, 페이지별로 나와 비교할 수 있습니다. 클랜 카드에는 **Compare with my clan**이 있습니다.',
         },
       ],
     },
@@ -4174,6 +4283,14 @@ const ko: PartialGuideDict = {
         '공유된 캐릭터만 비교할 수 있습니다. 비공개 캐릭터나 Anvil이 모르는 이름이면 _not on Anvil, or not shared_가 나옵니다. 로그인한 상태라면 내 비공개 캐릭터는 언제든 비교할 수 있습니다.',
       ],
     },
+    news: {
+      title: '새 소식과 변경 기록',
+      body: [
+        '[What’s new](/whats-new)는 Anvil의 변경 사항을 최신순으로 보여 줍니다. 로그인하면 내 등급과 클랜에 중요한 소식인 **For you**가 먼저 나오고, 그다음 **Everything new**가 나옵니다. 플러그인 업데이트가 필요한 항목에는 **Coming in the next plugin update**라고 표시됩니다.',
+        '[changelog](/changelog)에는 모든 릴리스의 소식, 주요 내용, 그리고 **New**, **Improved**, **Fixed** 항목이 나옵니다.',
+        '릴리스가 나가면 그 소식은 Anvil Discord와 클랜의 Anvil updates에 게시되며, 플러그인은 로그인할 때 한 줄을 표시합니다. 작은 수정은 다음 게시물에 묶입니다.',
+      ],
+    },
   },
   settings: {
     metaTitle: '설정, 페이지별로 — Anvil',
@@ -4288,8 +4405,8 @@ const ko: PartialGuideDict = {
     webhooks: {
       title: '내 Discord 웹후크',
       body: [
-        '게시물을 나만의 Discord 서버로도 보낼 수 있습니다: 비공개 채널, 친구들의 서버, 웹후크를 만들 수 있는 어디든. 웹후크 링크를 붙여 넣고, 받을 항목을 체크하세요(**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**). 원하면 **Only drops worth at least … gp**를 설정하고 **Add webhook**을 누르세요.',
-        '최대 10개까지 가능합니다. Discord 웹후크 링크만 받으며, 저장된 링크는 일부가 가려져 보여서 이 페이지의 스크린샷으로 유출되지 않습니다. **Level posts on my webhooks**는 클랜과 별도로 웹후크용 레벨 규칙을 설정합니다.',
+        '게시물을 내가 만든 Discord 서버로도 보낼 수 있습니다. 비공개 채널, 친구들의 서버, webhook을 만들 수 있는 어디든 가능합니다. webhook 링크를 붙여 넣고, 받을 항목을 체크한 뒤(**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**), 원하면 이 webhook만의 최소 드롭 가치와 희귀도를 설정하고 **Add webhook**을 누르세요. **Rare drops**를 받는 webhook에서는 나중에 그 설정을 바꿔 **Value or rarity: my setting**, **either**, **both** 중에서 고를 수 있습니다. 비워 둔 항목은 내 설정을 따르며, webhook은 클랜의 엄격한 하한보다 느슨할 수 있습니다.',
+        '최대 10개까지 가능합니다. Discord webhook 링크만 허용되며, 저장된 링크는 가려서 표시되므로 이 페이지의 스크린샷으로 유출되지 않습니다. **Level posts on my webhooks**는 클랜과 별도로 이 webhook들에 대한 내 레벨 규칙을 설정합니다.',
       ],
     },
     privacy: {
@@ -4578,7 +4695,8 @@ const ko: PartialGuideDict = {
         rest: '15분 전, 그다음 시작 시',
       },
     ],
-    footnote: '주간 대회는 [주간 스킬과 보스]({weeklyGuide})에, 참가비와 상품은 [참가비와 지급]({feesGuide})에 있습니다.',
+    footnote:
+      '주간 대회는 [Skill and Boss of the Week]({weeklyGuide})에, 참가비와 상금은 [Fees and payouts]({feesGuide})에 있습니다. 알림 게시물은 클랜의 메시지 템플릿을 사용하며, 이는 [Settings, page by page]({settingsGuide})에서 설명합니다.',
     create: {
       title: '하나 예약하기',
       intro: '관리자 메뉴에서 **Clan events**를 열고 양식을 채우세요:',
@@ -4885,6 +5003,80 @@ const ko: PartialGuideDict = {
         tag: 'Discord 게시',
         body: '공략은 Discord 채널에 게시할 수 있으며, 공략이 바뀌면 그 게시물은 제자리에서 수정됩니다.',
       },
+    },
+  },
+  luckRecords: {
+    metaTitle: '드롭 확률, 행운, 기록 — Anvil',
+    metaDescription:
+      '드롭 타일의 확률 줄이 무엇을 뜻하는지, Anvil이 행운(spooned, dry, on rate)을 어떻게 계산하는지, 효율 시간이 무엇인지, 그리고 최고의 하루, 주, 달, 해가 어디에 저장되는지 설명합니다.',
+    eyebrow: 'Anvil · 플레이어를 위한',
+    title: '드롭 확률, 행운, 기록',
+    dek: 'Anvil은 드롭이 얼마나 희귀한지, 보통 얼마나 걸리는지, 그리고 당신이 얼마나 운이 좋았는지 알려 줄 수 있습니다. 최고의 날도 기억할 수 있습니다. 이 페이지는 그 숫자들을 설명합니다.',
+    facts: [
+      {
+        strong: '레이트',
+        rest: 'OSRS Wiki에서 가져옴',
+      },
+      {
+        strong: '행운',
+        rest: '예상 킬 수와 실제 킬 수 비교',
+      },
+      {
+        strong: '기록',
+        rest: '출시 시점부터 시작, 과거 데이터 없음',
+      },
+    ],
+    footnote:
+      '내 페이지는 [Your profile, Wrapped and Compare]({profileGuide})에 있습니다. 스위치는 [Settings, page by page]({settingsGuide})에 있습니다.',
+    odds: {
+      title: '드롭 타일의 확률',
+      intro: '드롭 타일을 열면 확률이 알려진 아이템마다 한 줄씩, 최대 8줄이 보입니다. 줄은 다음과 같습니다:',
+      body: [
+        '`Item: 1 in 512 from Boss · ~512 kills ≈ 9.4 h at 55/h`',
+        '한 번의 킬에서 여러 번 굴릴 수 있는 아이템에는 **(×2 rolls)**도 표시됩니다. Anvil이 그 보스를 사람들이 얼마나 빨리 잡는지 모르면, 시간 부분은 빠집니다.',
+      ],
+      rows: [
+        {
+          term: '1 in N',
+          body: '한 번의 킬에서 그 드롭이 나올 확률이며, 가장 빨리 얻을 수 있는 출처를 기준으로 합니다.',
+        },
+        {
+          term: '예상 킬 수',
+          body: '필요한 킬 수의 평균입니다. 확률과 굴림 횟수로 계산합니다.',
+        },
+        {
+          term: '시간',
+          body: '예상 킬 수를 사람들이 보통 한 시간에 해내는 킬 수로 나눈 값입니다. 참고용이지 약속이 아닙니다.',
+        },
+      ],
+      note: {
+        tag: '상한이 아닌 평균',
+        body: '모든 플레이어의 절반은 예상 킬 수 이전에 얻고, 일부는 훨씬 더 많이 필요합니다. 타일이 얼마나 큰지 판단하는 데 쓰세요. 언제 나올지 알려 주는 것은 아닙니다.',
+      },
+    },
+    luck: {
+      title: '행운: spooned, dry, on rate',
+      body: [
+        '행운은 내가 한 킬 수와 나와야 했던 킬 수를 비교합니다. 예상보다 적은 킬에서 드롭을 얻었다면 **spooned**입니다. 많은 킬을 했는데도 아무것도 없다면 **dry**입니다. 그 사이는 **on rate**입니다.',
+        'Anvil은 드물 때만, 즉 약 20분의 1 확률이거나 그보다 희귀할 때만 **dry** 또는 **spooned**로 표시합니다. 예상 대비 몇 번인지, 얼마나 앞서 있거나 밀려 있는지 보여 줍니다.',
+        'Members 페이지의 **Luck** 탭에는 클랜에서 가장 운이 없는 사람과 가장 운이 좋은 사람이 나열됩니다. 희귀 드롭의 플러그인 게시물에는 상위 몇 퍼센트인지, 지금쯤 몇 명이 이미 얻었을지 같은 행운 줄도 포함될 수 있습니다.',
+      ],
+    },
+    source: {
+      title: '숫자의 출처',
+      body: [
+        '드롭 확률은 OSRS Wiki에서 가져오며 매일 갱신됩니다. 시간 계산에 쓰는 킬 속도는 Wiki의 돈벌이 가이드에서 가져옵니다. 확률이 신중한 추정치라면 Anvil도 그렇게 취급합니다.',
+        '확률이 틀려 보인다면 고칠 곳은 Wiki입니다. Anvil은 그 변경 사항을 반영합니다.',
+      ],
+    },
+    records: {
+      title: '기록과 효율 시간',
+      body: [
+        'Anvil은 스킬 XP, 보스 킬, 효율 시간에 대해 내 최고의 **day**, **week**, **month**, **year**를 저장합니다. 날짜는 UTC 기준이며, 주는 월요일에 시작합니다.',
+        '기록은 이 기능이 출시된 순간부터 집계됩니다. 그 이전 데이터는 없으며, Anvil이 과거를 채우는 일은 없습니다. 기록은 기존 최고 기록을 넘었을 때만 저장됩니다.',
+        '내 기록은 캐릭터 페이지의 **Records**에서 볼 수 있습니다. 클랜의 기록 보유자는 **Members → Records**에 있습니다.',
+        '**Efficient hours played**는 내 성장이 좋은 훈련 방법으로 얼마나 걸릴지를 보여 주므로, 빠른 스킬과 느린 스킬을 비교할 수 있습니다. **Efficient hours bossed**는 킬에 대해 같은 일을 합니다. 확률은 OSRS Wiki에서 가져오며, 아이언맨 계정은 자체 확률을 사용합니다.',
+      ],
     },
   },
 };

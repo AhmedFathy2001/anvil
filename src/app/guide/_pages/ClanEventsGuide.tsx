@@ -20,7 +20,7 @@ export default async function ClanEventsGuide({ lang }: { lang: string }) {
   const t = await getDict(lang);
   const g = t.clanEvents;
   const { locale, languages, notice } = localeChrome(lang, 'clan-events', t.common);
-  const v = { weeklyGuide: guideHref(locale.code, 'weekly'), feesGuide: guideHref(locale.code, 'fees') };
+  const v = { weeklyGuide: guideHref(locale.code, 'weekly'), feesGuide: guideHref(locale.code, 'fees'), settingsGuide: guideHref(locale.code, 'settings') };
 
   const SECTIONS = CLAN_EVENT_SECTIONS.map((id, i) => ({ id, n: i + 1, title: g[id].title }));
 

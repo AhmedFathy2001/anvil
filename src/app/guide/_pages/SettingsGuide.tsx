@@ -37,7 +37,7 @@ export default async function SettingsGuide({ lang }: { lang: string }) {
       notice={notice}
       dek={rt(g.dek, v)}
       facts={g.facts}
-      footnote={rt(g.footnote, v)}
+      footnote={rt(`${g.footnote} ${t.common.legalPrivacy}`, v)}
     >
       <Section id="find" n={1} title={g.find.title} labels={t.common}>
         <SectionBlocks s={g.find} v={v} />

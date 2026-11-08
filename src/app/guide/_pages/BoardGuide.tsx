@@ -41,6 +41,7 @@ export default async function BoardGuide({ lang }: { lang: string }) {
     { id: 'check', n: 7, title: b.check.title },
     { id: 'library', n: 8, title: b.library.title },
     { id: 'stats', n: 9, title: b.stats.title },
+    { id: 'race', n: 10, title: b.race.title },
   ];
 
   return (
@@ -111,6 +112,10 @@ export default async function BoardGuide({ lang }: { lang: string }) {
 
       <Section id="stats" n={9} title={b.stats.title} labels={t.common}>
         <SectionBlocks s={b.stats} v={v} />
+      </Section>
+
+      <Section id="race" n={10} title={b.race.title} labels={t.common}>
+        <SectionBlocks s={b.race} v={v} />
       </Section>
     </GuideShell>
   );

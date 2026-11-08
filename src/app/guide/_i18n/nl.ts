@@ -29,6 +29,9 @@ const nl: PartialGuideDict = {
       lead: 'Vastgelopen, of klopt er iets niet?',
       link: 'Vraag het in de Anvil-support-Discord',
     },
+    legalPaid: 'Vragen over geld: [Terugbetalingen](/legal/refunds) en [Voorwaarden](/legal/terms).',
+    legalPrivacy: 'Zo gaan we met je gegevens om: [Privacybeleid](/legal/privacy).',
+    aboutLine: 'Wie zit achter Anvil? Lees [Over](/about).',
   },
 
   index: {
@@ -260,6 +263,13 @@ const nl: PartialGuideDict = {
         title: 'Clanevents en de planning',
         blurb: 'Massa\'s, raidavonden en meetups: wekelijkse herhalingen, “Ik ga” en aanmeldingen, Discord-herinneringen, uitbetalingen, enquêtes, en gaten in de planning vinden.',
         minutes: '~4 min',
+      },
+      luckRecords: {
+        eyebrow: 'Voor spelers',
+        title: 'Droportes, geluk en records',
+        blurb:
+          'Wat de kansen op een droptegel betekenen, hoe geluk wordt berekend en waar je beste dag, week, maand en jaar te zien zijn.',
+        minutes: '~3 min',
       },
     },
   },
@@ -567,16 +577,24 @@ const nl: PartialGuideDict = {
       ],
       feeds: [
         {
-          term: 'Catch-all channel',
-          body: 'De belangrijkste, op het tabblad **Clan & events**. Starts en eindes van events, aanmeldingen die opengaan, standen, weekresultaten — alles wat de site post zonder eigen kanaal. Stel alleen deze in en je hebt een werkende clan.',
+          term: 'Catch-all-kanaal',
+          body:
+            'Het belangrijkste kanaal, op het tabblad **Clan & events**. Start en einde van events, inschrijvingen die openen, standen, wekelijkse resultaten — alles wat de site post zonder eigen kanaal. Stel alleen dit in en je hebt een werkende clan.',
         },
         {
-          term: 'In-game catch-all',
-          body: 'Op het tabblad **In-game (plugin)**: waar alles uit het spel heen gaat dat geen eigen kanaal heeft. Stel deze als tweede in.',
+          term: 'Catch-all in het spel',
+          body:
+            'Op het tabblad **In-game (plugin)**: hier komt alles uit de game terecht dat geen eigen kanaal heeft. Stel dit als tweede in.',
+        },
+        {
+          term: 'Mijlpalen en meer',
+          body:
+            'Op het tabblad **In-game (plugin)**. Slayer, clues, speedruns, killcounts, BA-gambles en eigen chatberichten worden hier geplaatst zodra spelers ze aanzetten. Met de knop **Filters** bepaal je wat je clan standaard aan leden geeft. Eigen sjablonen en privésoorten van spelers staan in [Settings, page by page]({settingsGuide}).',
         },
         {
           term: 'De gesplitste feeds',
-          body: 'Eventposts, borden die je samen met andere clans organiseert, Skill & boss of the week en activiteiten uit de clanagenda kunnen afsplitsen van de catch-all; zeldzame drops, pets, collection log, levels, combat achievements, quests, diaries, doden en PvP-kills kunnen afsplitsen van de in-game catch-all. Wijzigingen in de ledenlijst, goedgekeurde aanmeldingen en het kasboek staan op **Staff only**. Lege gesplitste feeds vallen terug op hun catch-all. De kas is de uitzondering: leeg betekent helemaal geen posts over geld. Leagues en andere modi hebben hun eigen tabblad **Game modes**.',
+          body:
+            'Eventberichten, boards die je samen host, Skill & boss of the week en clan-kalenderevents kunnen worden afgesplitst van het catch-all-kanaal; rare drops, pets, collection log, levels, combat achievements, quests, diaries, deaths en PvP-kills kunnen worden afgesplitst van het catch-all-kanaal in het spel. Wijzigingen in de ledenlijst, goedkeuringen van inschrijvingen en het kassaboek staan onder **Staff only**. Lege gesplitste feeds vallen terug op hun catch-all-kanaal. De kas is de uitzondering: leeg betekent dat er geen geld wordt geplaatst. Leagues en andere modi hebben hun eigen tabblad **Game modes**.',
         },
       ],
       note: {
@@ -630,9 +648,9 @@ const nl: PartialGuideDict = {
     modes: {
       title: 'Leagues, Deadman en andere modi',
       body: [
-        'Leagues, Deadman, hardcore en andere modi draaien op hun eigen werelden met hun eigen personages. Hun posts zijn altijd gelabeld en tellen nooit mee voor borden of competities. Ze hebben hun eigen tabblad: **Admin → Discord → What goes where → Game modes**. Een modus verschijnt daar zodra een lid hem voor het eerst speelt.',
-        'Elke modus heeft een schakelaar en een **To**-kanaal. Zet **Send game-mode posts to their own channels** aan om die kanalen te gebruiken; laat het uit en elke modus post in de gewone kanalen, nog steeds gelabeld. De knop **Posts** op de rij van een modus toont elk soort post dat hij verstuurt — de gebruikelijke en de eigen events van de modus — elk met een eigen schakelaar.',
-        'Onder die lijst laten **Custom filters** een modus minder posten dan het hoofdspel. **Post drops rarer than 1 in…** stelt een eigen zeldzaamheidsgrens in (leeg = hetzelfde als het hoofdspel): items die altijd gepost worden, worden nog steeds gepost, maar drops die alleen om hun waarde meetellen niet. **Use its own level milestones** post een level-up alleen als die aan beide sets regels voldoet.',
+        'Leagues, Deadman, hardcore en andere modi draaien op hun eigen werelden met hun eigen personages. Hun berichten worden altijd gelabeld en tellen nooit mee voor boards of competities. Ze hebben een eigen tabblad: **Admin → Discord → What goes where → Game modes**. Een modus verschijnt daar de eerste keer dat een lid hem speelt.',
+        'Elke modus heeft een schakelaar en een kanaal **To**. Zet **Send game-mode posts to their own channels** aan om die kanalen te gebruiken; laat je het uit, dan gaan alle modi naar de gewone kanalen, wel gelabeld. Met de knop **Posts** in de rij van een modus zie je alle soorten die hij stuurt — de gebruikelijke en de eigen events van de modus — elk met een eigen schakelaar.',
+        'Onder die lijst maken **Custom thresholds** dat een modus minder plaatst dan het hoofdspel. **Post drops rarer than 1 in…** (minstens 2) en **Post drops worth at least (gp)** (minstens 1,000) stellen hun eigen ondergrens in (leeg = hetzelfde als het hoofdspel). Druk daarna op **Save drop thresholds**: items die altijd worden geplaatst, worden nog steeds geplaatst, maar drops die alleen op waarde tellen niet. **Use its own level milestones** plaatst een level-up alleen als die aan beide regelsets voldoet.',
       ],
       note: {
         tag: 'Strenger, nooit losser',
@@ -689,6 +707,33 @@ const nl: PartialGuideDict = {
       note: {
         tag: 'Hij kan mensen die binnenkomen niet begroeten',
         body: 'Discord meldt binnenkomsten alleen via een gateway-verbinding, die een gedeelde bot niet voor elke server openhoudt. Er is dus geen „welkom”-post — zet de aanmeldlink in plaats daarvan in een #rollen- of #begin-hier-kanaal, waar mensen toch al kijken.',
+      },
+    },
+    drops: {
+      title: 'Dropterskels',
+      body: [
+        'Anvil begint bij **1m gp** of **1 in 1,000**. Een drop wordt geplaatst als hij aan een van beide voldoet. Niemand kan eigen getallen lager zetten dan die, en 0 schakelt er een uit.',
+        'Stel de standaarden van je clan in onder **Admin → Discord → What goes where → Drops**: **Default minimum drop value (gp)**, **Default: post drops rarer than 1 in…** en **Require both**. Zet **Require both** aan en een drop moet zowel aan de waarde **and** aan de zeldzaamheid voldoen.',
+        'Elk personage volgt de standaard van de clan waarvan het lid is, en de standaard van Anvil als er geen is. Spelers kunnen eigen getallen kiezen in **Settings**. Er staat **Using clan default** of **Custom**, en met **Reset** ga je terug.',
+        '**Hard floor: never post drops more common than 1 in…** is de strikte. Leden kunnen in de kanalen van je clan niet losser gaan dan dat. Hun eigen webhooks kunnen dat wel.',
+      ],
+      note: {
+        tag: 'Meer over de kant van de speler',
+        body:
+          'De eigen getallen, sjablonen en webhooks van spelers staan in [Settings, page by page]({settingsGuide}).',
+      },
+    },
+    pools: {
+      title: 'Meer webhooks voor drukke kanalen',
+      body: [
+        'Eén webhook kan maar zo snel verzenden. Voor een drukke event voeg je meer webhooks toe aan hetzelfde kanaal. Druk op **Busy channel? Let the bot add … more webhooks** (dat vereist **Manage Webhooks**), of plak meerdere webhooklinks in het vak van het kanaal. Anvil stelt meer voor als je 50 of meer spelers hebt, veel berichten per minuut, of als Discord recent “slow down” heeft gezegd. Tot 10 is ruim genoeg.',
+        'Anvil wisselt af tussen ze. Als Discord voor één webhook “slow down” zegt, rust die even en pakt de volgende het bericht. Als er één wordt verwijderd of stopt met werken, wordt die 10 minuten overgeslagen. Berichten blijven doorstromen zolang één webhook werkt.',
+        'Ze moeten allemaal naar hetzelfde kanaal wijzen. Anvil waarschuwt je als dat niet zo is. Gebruik **Test** om er een te controleren, of **Stop posting here** om er een te verwijderen.',
+      ],
+      note: {
+        tag: 'Zelfde kanaal, zelfde berichten',
+        body:
+          'Extra webhooks plaatsen nooit iets dubbel. Ze verdelen alleen het werk. Hetzelfde idee staat bij [Drop thresholds](#drops) hierboven en de beheerkant in [Running the event]({adminGuide}).',
       },
     },
   },
@@ -942,28 +987,39 @@ const nl: PartialGuideDict = {
         alt: 'De meldingsonderdelen Deaths and kills en Drops and pets met elke instelling omkaderd en genummerd',
         legend: [
           {
-            label: 'Notify on death',
-            body: 'post in het sterfkanaal van de clan, met een schermafbeelding van het moment dat je stierf.',
+            label: 'Melding bij dood',
+            body: 'stuurt naar het kanaal voor clan-sterfgevallen met een screenshot van het moment dat je stierf.',
           },
-          { label: 'Death message', body: 'je eigen regel. `{name}` wordt vervangen door je RSN.' },
           {
-            label: 'Notify on PvP kill',
-            body: 'een schermafbeelding van de tick waarop je doelwit op 0 HP komt. Standaard uit; hier aan.',
+            label: 'Doodsbericht',
+            body: 'je eigen tekst. `{name}` wordt vervangen door je RSN.',
           },
-          { label: 'Notify on rare drops', body: 'de hoofdschakelaar voor drop-berichten.' },
           {
-            label: 'Min drop value / Min drop rarity',
-            body: 'een drop wordt geplaatst wanneer hij minstens zoveel waard is (GE of high alch, welke hoger is) of zeldzamer is dan 1 op N. Anvil begint bij 1m en 1/1,000. Je clan kan eigen standaardwaarden instellen voor zijn leden; totdat jij zelf een getal instelt, volg je die van de clan. **Terug naar clanstandaard** (of **Terug naar Anvil-standaard** als je geen clan hebt) zet je weer op volgen. Een clan kan ook een harde zeldzaamheidsgrens instellen voor de eigen kanalen, waar jouw getal niet onder kan. Zet een van beide getallen op 0 om het uit te schakelen.',
+            label: 'Melding bij PvP-kill',
+            body: 'een screenshot van de tick waarop je doelwit 0 HP bereikt. Standaard uit; hier aan.',
+          },
+          {
+            label: 'Melding bij zeldzame drops',
+            body: 'de hoofdschakelaar voor dropberichten.',
+          },
+          {
+            label: 'Min. dropwaarde / Min. dropzeldzaamheid',
+            body:
+              'een drop wordt geplaatst als het minstens zoveel waard is (GE of high alch, wat het hoogst is) of zeldzamer is dan 1 op N. Anvil begint bij 1m en 1/1,000. Je clan kan eigen standaarden voor zijn leden instellen, en totdat jij zelf een getal kiest, volg je die van je clan; **Reset to clan default** (of **Reset to Anvil default** als je geen clan hebt) zet je terug op volgen. Een clan kan ook een harde zeldzaamheidsgrens instellen, die alleen geldt voor berichten in de eigen kanalen van die clan. Jouw getal kan daar niet losser zijn, en het verandert nooit de waardelimiet. Zet een van beide getallen op 0 om het uit te schakelen.',
           },
           {
             label: 'Waarde en zeldzaamheid samen',
-            body: 'standaard wordt een drop geplaatst als hij aan de waarde **of** de zeldzaamheid voldoet. Zet **Beide vereist** aan en hij moet aan de waarde **en** de zeldzaamheid voldoen. Je clan kan deze standaard kiezen voor zijn leden; totdat jij kiest, volg je die, en zonder clan is het een van de twee. Elk van je eigen webhooks kan ook zijn eigen minimumwaarde, zeldzaamheid en een van beide/beide instellen; wat leeg blijft volgt jouw instellingen.',
+            body:
+              'standaard wordt een drop geplaatst als hij aan de waarde **or** aan de zeldzaamheid voldoet. Zet **Require both** aan en hij moet aan de waarde **and** aan de zeldzaamheid voldoen. Je clan kan deze standaard voor zijn leden kiezen; totdat jij kiest, volg je hem, en zonder clan geldt een van beide. Elk van je eigen webhooks kan ook zijn eigen minimumwaarde, zeldzaamheid en either/both instellen; wat het leeg laat, volgt jouw instellingen.',
           },
           {
-            label: 'Loot key value',
-            body: 'een loot key wordt één keer gepost, als één melding, wanneer de hele inhoud boven dit getal uitkomt.',
+            label: 'Lootkey-waarde',
+            body: 'een lootkey wordt één keer geplaatst, als één melding, zodra de hele inhoud dit getal haalt.',
           },
-          { label: 'Notify on pets', body: 'pets komen in het kanaal voor zeldzame drops.' },
+          {
+            label: 'Melding bij pets',
+            body: 'pets worden in het kanaal voor zeldzame drops geplaatst.',
+          },
         ],
       },
       caFigure: {
@@ -1841,6 +1897,15 @@ const nl: PartialGuideDict = {
       ],
       outro: 'Daaronder toont **Member breakdown** wie er in elk team wat heeft gedaan, en **Stat tile standings** de start- en huidige cijfers van elke speler op elk XP- of killvakje.',
     },
+    race: {
+      title: 'Tegelrace-banen',
+      intro:
+        'Op een tegelrace-board bouw je een baan in plaats van een raster. Tegels liggen op genummerde stappen, en een team beweegt er langs.',
+      body: [
+        'Open **Tiles** en gebruik de sectie **Route**. Kies een sjabloon (**Diamond** is de standaard), voeg je tegels toe aan de stappen en druk op **Save route**. Elke tegel die je koppelt moet op de volgende stap liggen.',
+        'Wegen kunnen splitsen en samenkomen, maar er is één finish. Bij een splitsing kies je of het afronden van een tegel de weg bepaalt, of dat de captain die kiest en vastzet. De volledige lijst met keuzes, en wat spelers zien, staat in [Formats, and how tiles open]({formatsGuide}).',
+      ],
+    },
   },
 
   captain: {
@@ -2060,6 +2125,40 @@ const nl: PartialGuideDict = {
       ],
       outro:
         'Wat je ook kiest, de vakjes zelf zijn hetzelfde werk: zie [Bouw een bord dat zichzelf bijhoudt]({boardGuide}).',
+    },
+    race: {
+      title: 'Routes voor tegelrace',
+      intro:
+        'Een tegelrace is een baan met genummerde stappen. Teams bewegen van stap naar stap, en wie het verst komt wint. De host kan de baan omzetten in een kaart met wegen die splitsen en samenkomen.',
+      body: [
+        'Elke route heeft één start, wegen die kunnen splitsen en samenkomen, en één finish. Elke weg is even lang. De voortgang van een team is de weg die het tot nu toe heeft afgelegd.',
+      ],
+      rows: [
+        {
+          term: 'Op prestatie',
+          body:
+            'elke tegel na je huidige is open. De eerste die een team afrondt bepaalt zijn weg, en de andere sluiten voor dat team.',
+        },
+        {
+          term: 'Kiezen en vastzetten',
+          body:
+            'de captain (of teamstaff) kiest de volgende tegel met **Pick this road** voordat iets telt. Alleen de keuze is open. Een keuze kan niet ongedaan worden gemaakt, behalve door een admin-reset.',
+        },
+        {
+          term: 'Vroege afrondingen bewaren',
+          body:
+            'standaard uit, dus alleen tegels die op de weg van een team open zijn tellen. Zet je het aan, dan blijft een afronding op een tegel die het team nog niet heeft bereikt, bewaard. Ze wordt voltooid zodra de weg daar komt. Het slaat nooit een team voorbij en opent niets te vroeg.',
+        },
+      ],
+      steps: [
+        'Open de **Tiles**-pagina van het event en zoek **Route**.',
+        'Kies een **Route template** en druk op **Apply template**. **Diamond** is de standaard: één start, twee wegen, één finish. **Two roads**, **Braid**, **Straight line** en **Free** (zonder koppelingen) zijn er ook.',
+        'Kies **How a team’s road is set at a fork**: op prestatie, of kiezen en vastzetten.',
+        'Voeg stappen toe of verplaats ze met **+ Step before**, **Move step earlier/later** en **Remove step**, en druk daarna op **Save route**.',
+        'Als het event al live is, vraagt Anvil wat er moet gebeuren met afrondingen die de nieuwe route afsnijdt: **Keep** ze of **Roll back**.',
+      ],
+      outro:
+        'Spelers zien een **Race track** op de eventpagina, met een gouden **You**-markering op de tegel van hun eigen team. **Fullscreen board** maakt het groot, en **Esc** sluit het. In de plugin toont het zijpaneel **Your road** en **After that**.',
     },
   },
 
@@ -3756,19 +3855,32 @@ const nl: PartialGuideDict = {
         'Je events en je clan. In de space van een creator heet het tabblad **Space**.',
       rows: [
         {
-          term: 'De clankeuzelijst',
-          body: 'verschijnt als je in meer dan één clan of space speelt. **All clans** (de standaard) toont alles waarin je speelt, lopend event eerst. Kies je één clan, dan beperkt het paneel zich daartoe en gaan je inzendingen daarheen.',
+          term: 'Het clan-keuzemenu',
+          body:
+            'wordt getoond als je in meer dan één clan of space speelt. **All clans** (de standaard) toont alles wat je speelt, met live events eerst. Kies je één clan, dan beperkt het paneel zich daartoe en worden je inzendingen daar opgeslagen.',
+        },
+        {
+          term: 'Doe dit nu',
+          body:
+            'een gouden kaart bovenaan die wijst naar het ene ding dat je nu het beste kunt doen, zoals meedoen aan een event, een enquête invullen of je startschot nemen.',
         },
         {
           term: 'Events',
-          body: 'elk lopend en komend bord, Skill of Boss of the Week en clanevent, met waar je staat. Daarna **Your other boards**, **Also live** en **Your clan**.',
+          body:
+            'elk live en komend board, Skill of Boss of the Week en clan-event, met waar je staat. Daarna **Your other boards**, **Also live** en **Your clan**.',
         },
         {
-          term: 'Een bord',
-          body: 'open er een voor de stand, teams, missies, recente activiteit, de dichtstbijzijnde tiles en **View all tiles**. De knoppen **Feed** en **Chat** openen dat bord in het Feed-tabblad.',
+          term: 'Een board',
+          body:
+            'open er één voor de standen (de top drie en je eigen regels, met **View all** voor de rest), teams, missies, recente activiteit, de dichtstbijzijnde tegels en **View all tiles**. De knoppen **Feed** en **Chat** openen dat board in het tabblad Feed.',
         },
         {
-          term: 'Een clanevent',
+          term: 'Ranglijstbewegingen',
+          body:
+            'een groene **▲** of koraalkleurige **▼** met een getal naast een naam laat zien hoeveel plaatsen die is gestegen of gedaald sinds het begin van de dag.',
+        },
+        {
+          term: 'Een clan-event',
           body: '**I’m going**, **Sign me up** of **Answer the survey**, afhankelijk van het event.',
         },
       ],
@@ -3781,15 +3893,17 @@ const nl: PartialGuideDict = {
       rows: [
         {
           term: 'Wiens feed',
-          body: 'de keuzelijst bovenaan toont **Clan ·** voor elke clan waarvan je lid bent en **Event ·** voor elk lopend bord waarop je zit. Hij opent op je bord als je er een hebt, anders op je clan.',
+          body:
+            'de keuzelijst bovenaan toont **Clan ·** elke clan waar je lid van bent en **Event ·** elk live board waarop je zit. Het opent op je eigen board als je er een hebt, anders op je clan.',
         },
         {
           term: 'Filters',
-          body: '**All**, **Tiles** (alleen borden), **Drops**, **Pets**, **Achievements**, **Deaths**, en **My team** op een bord waar je in een team zit. Een clanfeed heeft ook een knop voor spelmodusactiviteit, voor Leagues en andere modi.',
+          body:
+            '**All**, **Tiles** (alleen boards), **Drops**, **Pets**, **Achievements**, **Deaths**, **Milestones** (slayer, clues, killcounts en dergelijke, zodra spelers ze aanzetten) en **My team** op een board waar je in een team zit. Een clanfeed heeft ook een knop voor gamemodus-activiteit voor Leagues en andere modi.',
         },
         {
           term: 'Nieuwe regels',
-          body: 'komen vanzelf binnen. Ben je weggescrold, dan brengt een **↑ N new**-pil je er weer naartoe.',
+          body: 'verschijnen vanzelf. Als je bent weggescrold, brengt een **↑ N new**-pil je terug naar ze.',
         },
       ],
       note: {
@@ -3832,23 +3946,28 @@ const nl: PartialGuideDict = {
       rows: [
         {
           term: 'Iedereen of je team',
-          body: '**All** schrijft naar het hele bord, **My team** alleen naar je team (die regels zijn gemarkeerd met **TEAM**). De staf ziet ook **Host & mods**, en hun regels zijn gemarkeerd met **HOST** of **MOD**.',
+          body:
+            'kies een kanaal met de chips bovenaan: **All teams** voor het hele board, **My team** alleen voor je eigen team, en **Announcements**, waar alleen de host en mods kunnen posten. Elke chip toont het aantal regels dat je nog niet hebt gelezen. Regels van de host en mods zijn gemarkeerd met **HOST** of **MOD**.',
         },
         {
-          term: 'Versturen',
-          body: 'typ in het vak en druk op Enter. Regels zijn tot 200 tekens, en alleen de organisator en mods kunnen links plaatsen.',
+          term: 'Verzenden',
+          body:
+            'typ in het vak en druk op Enter. Regels zijn maximaal 200 tekens, en alleen de host en mods kunnen links plaatsen.',
         },
         {
           term: 'Hoe vaak',
-          body: 'de wachttijd tussen je regels volgt je Supporter-niveau: 5 seconden zonder niveau, 3 voor Supporters, 1 voor Champions, geen voor Patrons. De regel onder het vak zegt wat de jouwe is. De staf wacht nooit.',
+          body:
+            'de wachttijd tussen je regels volgt je Supporter-niveau: 5 seconden zonder niveau, 3 voor Supporters, 1 voor Champions, geen voor Patrons. De regel onder het vak zegt wat die van jou is. Staff wacht nooit.',
         },
         {
-          term: 'Slow mode',
-          body: 'wordt de chat van een bord heel druk, dan wacht iedereen een minuut lang minstens 10 seconden, Patrons ook. Niemand kan meer dan 10 regels in 10 seconden versturen.',
+          term: 'Langzame modus',
+          body:
+            'als de chat van een board heel druk wordt, moet iedereen een minuut lang minstens 10 seconden wachten, ook Patrons. Niemand kan meer dan 10 regels in 10 seconden sturen.',
         },
         {
           term: 'Moderatie',
-          body: 'de organisator en mods kunnen met rechts op een regel klikken voor **Delete message**, of voor **Mute** om iemand het zwijgen op te leggen, en de hele chat pauzeren met **Pause chat**.',
+          body:
+            'de host en mods kunnen met rechtermuisklik op een regel **Delete message** of **Mute** kiezen, en de chat pauzeren met **Pause chat**. Een pauze houdt iedereen behalve staff tegen van posten, behalve in **Announcements**. **Mute** in het paneel is een ban die blijft tot die wordt opgeheven op de moderatiepagina. Daar kun je ook een timeout geven van 5 minuten, 1 uur of 24 uur (of elke tijd van 1 minuut tot 30 dagen), die alle kanalen voor die persoon sluit, en de chat filteren op kanaal.',
         },
       ],
       outro:
@@ -3860,16 +3979,19 @@ const nl: PartialGuideDict = {
       intro: 'Twee tabbladen voor spelerskaarten: die van jou en die van iedereen anders.',
       rows: [
         {
-          term: 'You',
-          body: 'je eigen kaart voor het character waarmee je bent ingelogd: banner en avatar, **Display case**, collection log tot op de items van elke pagina, en **Skills**, **Bosses**, **Clues**, **Times** en **CAs**. Daaronder elke **Head-to-head**-uitdaging die op je wacht (**Accept** of **Decline**) en je **Goals**, met **+ Add goal**.',
+          term: 'Jij',
+          body:
+            'je eigen kaart voor het personage waarmee je bent ingelogd: banner en avatar, **Display case**, en de tabbladen **Stats**, **Bosses** en **Log** (het collection log tot op de items van elke pagina, plus clues, tijden en combat achievements). Daaronder staat elke **Head-to-head**-uitdaging die op je wacht (**Accept** of **Decline**) en je **Goals**, met **+ Add goal**.',
         },
         {
-          term: 'Lookup',
-          body: 'wissel tussen **Players** en **Clans**, typ een naam en druk op Enter. **Recent** toont je laatste paar. Klik in het spel met rechts op iemand en kies **Anvil** om hier uit te komen.',
+          term: 'Zoeken',
+          body:
+            'wissel tussen **Players** en **Clans**, typ een naam en druk op Enter. **Recent** toont je laatste paar. Klik met rechts op iemand in het spel en kies **Anvil** om hier te komen.',
         },
         {
           term: 'Vergelijken',
-          body: 'op de kaart van iemand anders zet **Compare with me** jullie twee naast elkaar, skill voor skill, boss voor boss en pagina voor pagina. De kaart van een clan heeft **Compare with my clan**.',
+          body:
+            'op de kaart van iemand anders lijnt **Compare with me** jullie twee naast elkaar, skill voor skill, boss voor boss en pagina voor pagina. De kaart van een clan heeft **Compare with my clan**.',
         },
       ],
     },
@@ -4176,6 +4298,14 @@ const nl: PartialGuideDict = {
         'Alleen gedeelde characters kunnen worden vergeleken. Een privécharacter, of een naam die Anvil niet kent, komt terug als _not on Anvil, or not shared_. Je kunt je eigen privécharacters altijd vergelijken als je bent ingelogd.',
       ],
     },
+    news: {
+      title: 'Wat is er nieuw en de changelog',
+      body: [
+        '[Wat is er nieuw](/whats-new) toont wat er op Anvil is veranderd, het nieuwste eerst. Als je bent ingelogd, begint het met **For you**, het nieuws dat telt voor je niveau en je clan, daarna **Everything new**. Dingen die een pluginupdate nodig hebben, zeggen **Coming in the next plugin update**.',
+        'De [changelog](/changelog) toont elke release met het nieuws, de hoogtepunten en wat **New**, **Improved** en **Fixed** is.',
+        'Als een release uitkomt, wordt het nieuws geplaatst in de Anvil Discord en in de Anvil-updates van je clan, en de plugin toont een regel als je inlogt. Kleine fixes worden in het volgende bericht gebundeld.',
+      ],
+    },
   },
   settings: {
     metaTitle: 'Instellingen, pagina voor pagina — Anvil',
@@ -4290,8 +4420,8 @@ const nl: PartialGuideDict = {
     webhooks: {
       title: 'Je Discord-webhooks',
       body: [
-        'Je berichten kunnen ook naar een eigen Discord-server: een privékanaal, een vriendenserver, overal waar je een webhook kunt maken. Plak de webhooklink, vink aan wat hij krijgt (**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**), stel eventueel **Only drops worth at least … gp** in, en druk op **Add webhook**.',
-        'Je kunt er tot 10 hebben. Alleen Discord-webhooklinks worden geaccepteerd, en een opgeslagen link wordt gemaskeerd getoond, zodat een screenshot van deze pagina hem niet lekt. **Level posts on my webhooks** stelt je eigen levelregels voor hen in, los van die van je clan.',
+        'Je berichten kunnen ook naar een Discord-server van jezelf: een privékanaal, een vriendenserver, overal waar je een webhook kunt maken. Plak de webhooklink, vink aan wat die krijgt (**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**), stel eventueel een minimale dropwaarde en zeldzaamheid alleen voor deze in, en druk op **Add webhook**. Bij een webhook die **Rare drops** krijgt, kun je die later wijzigen en **Value or rarity: my setting**, **either** of **both** kiezen. Wat leeg blijft, volgt je eigen instellingen, en een webhook mag losser zijn dan de harde ondergrens van je clan.',
+        'Je kunt er maximaal 10 hebben. Alleen Discord-webhooklinks worden geaccepteerd, en een opgeslagen link wordt gemaskeerd getoond, dus een screenshot van deze pagina lekt hem niet. **Level posts on my webhooks** stelt je eigen levelregels voor die webhooks in, los van die van je clan.',
       ],
     },
     privacy: {
@@ -4580,7 +4710,8 @@ const nl: PartialGuideDict = {
         rest: '15 minuten vooraf, daarna bij de start',
       },
     ],
-    footnote: 'Wekelijkse wedstrijden staan in [Skill en Boss of the Week]({weeklyGuide}); kosten en prijzen in [Kosten en uitbetalingen]({feesGuide}).',
+    footnote:
+      'Wekelijkse competities staan in [Skill and Boss of the Week]({weeklyGuide}); kosten en prijzen in [Fees and payouts]({feesGuide}). Herinneringsberichten gebruiken de berichtsjablonen van je clan, uitgelegd in [Settings, page by page]({settingsGuide}).',
     create: {
       title: 'Er één inplannen',
       intro: 'Open **Clan events** in het admin-menu en vul het formulier in:',
@@ -4887,6 +5018,84 @@ const nl: PartialGuideDict = {
         tag: 'Ze posten',
         body: 'Gidsen kunnen naar een Discord-kanaal worden gepost, en die berichten worden ter plekke bewerkt wanneer de gids verandert.',
       },
+    },
+  },
+  luckRecords: {
+    metaTitle: 'Droportes, geluk en records — Anvil',
+    metaDescription:
+      'Wat de kanslijn op een droptegel betekent, hoe Anvil geluk berekent (spooned, dry of on rate), wat efficiënte uren zijn en waar je beste dag, week, maand en jaar worden bewaard.',
+    eyebrow: 'Anvil · voor spelers',
+    title: 'Droportes, geluk en records',
+    dek:
+      'Anvil kan je vertellen hoe zeldzaam een drop is, hoe lang die meestal duurt en hoe veel geluk je hebt gehad. Het kan ook je beste dagen onthouden. Deze pagina legt de cijfers uit.',
+    facts: [
+      {
+        strong: 'Kansen',
+        rest: 'komen van de OSRS Wiki',
+      },
+      {
+        strong: 'Geluk',
+        rest: 'verwachte kills tegenover je echte',
+      },
+      {
+        strong: 'Records',
+        rest: 'beginnen bij de lancering, zonder terugvullen',
+      },
+    ],
+    footnote:
+      'Je eigen pagina’s staan in [Your profile, Wrapped and Compare]({profileGuide}). Schakelaars staan in [Settings, page by page]({settingsGuide}).',
+    odds: {
+      title: 'De kansen op een droptegel',
+      intro:
+        'Open een droptegel en je ziet maximaal acht regels, één per item met bekende kansen. Een regel ziet er zo uit:',
+      body: [
+        '`Item: 1 in 512 from Boss · ~512 kills ≈ 9.4 h at 55/h`',
+        'Als het item meer dan één keer per kill kan vallen, staat er ook **(×2 rolls)**. Als Anvil niet weet hoe snel mensen die boss doodt, wordt het uurdeel weggelaten.',
+      ],
+      rows: [
+        {
+          term: '1 in N',
+          body: 'de kans op het drop bij één kill, van de bron waar het het snelst te krijgen is.',
+        },
+        {
+          term: 'Expected kills',
+          body: 'het gemiddelde aantal kills dat het kost. Het wordt berekend uit de kansen en het aantal rolls.',
+        },
+        {
+          term: 'Hours',
+          body:
+            'verwachte kills gedeeld door het aantal kills per uur dat mensen gewoonlijk halen. Het is een richtlijn, geen belofte.',
+        },
+      ],
+      note: {
+        tag: 'Gemiddelde, geen grens',
+        body:
+          'De helft van alle spelers krijgt hem vóór de verwachte kills, en sommigen hebben er veel meer nodig. Gebruik het om te beoordelen hoe groot een tegel is, niet om te zeggen wanneer hij valt.',
+      },
+    },
+    luck: {
+      title: 'Geluk: spooned, dry of on rate',
+      body: [
+        'Geluk vergelijkt de kills die je hebt gedaan met de kills die het zou moeten kosten. Als je de drop in minder kills hebt dan verwacht, ben je **spooned**. Als je veel kills hebt gedaan en nog steeds niets hebt, ben je **dry**. Daartussen ben je **on rate**.',
+        'Anvil markeert je alleen als **dry** of **spooned** wanneer het ongewoon is: ongeveer één kans op twintig of zeldzamer. Het toont hoeveel je er hebt tegenover hoeveel er werden verwacht, en hoe ver je voor of achter ligt.',
+        'Het tabblad **Luck** op de Members-pagina toont de droogste en gelukkigste mensen in je clan. Plugin-berichten voor zeldzame drops kunnen ook een geluksregel bevatten, zoals een topprocent of hoeveel spelers het nu al zouden hebben gehad.',
+      ],
+    },
+    source: {
+      title: 'Waar de cijfers vandaan komen',
+      body: [
+        'Dropkansen komen van de OSRS Wiki en worden elke dag ververst. Killsnelheden voor de uren komen van de geldverdienende gidsen van de Wiki. Waar een kans een zorgvuldige schatting is, behandelt Anvil die ook zo.',
+        'Als een kans fout lijkt, is de Wiki de plek om hem te repareren. Anvil neemt de wijziging dan over.',
+      ],
+    },
+    records: {
+      title: 'Records en efficiënte uren',
+      body: [
+        'Anvil bewaart je beste **day**, **week**, **month** en **year** voor skill-XP, bosskills en efficiënte uren. Dagen zijn in UTC en weken beginnen op maandag.',
+        'Records tellen vanaf het moment dat dit is gelanceerd. Er is niets ouder, en Anvil vult het verleden nooit aan. Een record wordt alleen opgeslagen als je je oude beste verslaat.',
+        'Je ziet je eigen records op de pagina van je personage, onder **Records**. De recordhouders van je clan staan onder **Members → Records**.',
+        '**Efficient hours played** is hoe lang je winst zou duren met goede trainingsmethoden, zodat een snelle en een trage skill vergeleken kunnen worden. **Efficient hours bossed** doet hetzelfde voor kills. De tarieven komen van de OSRS Wiki, en ironman-accounts gebruiken hun eigen tarieven.',
+      ],
     },
   },
 };

@@ -285,6 +285,7 @@ export const SETUP_TOPICS: { name: string; value: string }[] = [
   { name: 'Skill & Boss of the Week', value: 'weekly' },
   { name: 'Team competitions & clan vs clan weeklies', value: 'teamcomps' },
   { name: 'Clan events & the schedule', value: 'clanevents' },
+  { name: 'Drop odds, luck & records', value: 'luckrecords' },
   { name: 'Settings, page by page', value: 'settings' },
   { name: 'Your profile, Wrapped & Compare', value: 'profile' },
   { name: 'Challenges & friends events', value: 'challenges' },
