@@ -23,7 +23,7 @@ import { log } from '@/lib/logger';
 import { GUIDE_LIMITS, isCategoryKey, slugify } from '@/lib/guideCategories';
 import { coverage } from '@/lib/guideTiers';
 import { categoryRequiresLevels, categoryUsable } from '@/lib/guideCategoryStore';
-import { safeImageSrc } from '@/lib/guideMarkdown';
+import { guideImageProblem, guideImageProblems } from '@/lib/guideMarkdown';
 
 export const SHOW_LIBRARY_SETTING = 'guides_show_library';
 
@@ -242,6 +242,9 @@ export function cleanInput(input: GuideInput, partial: boolean): GuideInput {
   if (input.body !== undefined) {
     const body = String(input.body).replace(/\r\n?/g, '\n');
     if (body.length > GUIDE_LIMITS.body) throw new GuideInputError('That guide is too long — split it into two.');
+    // Images only from GUIDE_IMAGE_HOSTS (lib/guideMarkdown): say which one isn't allowed.
+    const bad = guideImageProblems(body)[0];
+    if (bad) throw new GuideInputError(bad.problem);
     out.body = body;
   }
   if (input.category !== undefined) {
@@ -250,7 +253,8 @@ export function cleanInput(input: GuideInput, partial: boolean): GuideInput {
   }
   if (input.coverUrl !== undefined) {
     const c = input.coverUrl ? String(input.coverUrl).trim() : '';
-    if (c && !safeImageSrc(c)) throw new GuideInputError('The cover must be an https:// image link.');
+    const problem = c ? guideImageProblem(c) : null;
+    if (problem) throw new GuideInputError(`Cover: ${problem}`);
     out.coverUrl = c || null;
   }
   if (input.status !== undefined) {

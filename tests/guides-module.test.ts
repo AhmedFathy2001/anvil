@@ -16,7 +16,7 @@ import {
 } from '../src/lib/guideDiscord.ts';
 import { diffLines, diffStats, withContext } from '../src/lib/guideDiff.ts';
 import { slugify, readingMinutes } from '../src/lib/guideCategories.ts';
-import { renderGuide, guideHeadings, safeImageSrc } from '../src/lib/guideMarkdown.tsx';
+import { renderGuide, guideHeadings, safeImageSrc, guideImageProblem, guideImageProblems, GUIDE_IMAGE_HOSTS } from '../src/lib/guideMarkdown.tsx';
 
 const G = (body: string, extra: Record<string, unknown> = {}) => ({ title: 'Vorkath', summary: 'A dragon', body, ...extra });
 
@@ -117,7 +117,7 @@ function collect(node: ReactNode, out: { type: string; props: Record<string, unk
 
 test('site renderer: headings, subtext, lists, spoilers, images', () => {
   const tree = collect(
-    renderGuide('## Gear\n-# small\n- one\n  - nested\n1. first\n||secret||\n![alt](https://img.test/a.png)'),
+    renderGuide('## Gear\n-# small\n- one\n  - nested\n1. first\n||secret||\n![alt](https://oldschool.runescape.wiki/images/a.png)'),
   );
   const types = tree.map((t) => t.type);
   for (const t of ['h3', 'ul', 'ol', 'li', 'img']) assert.ok(types.includes(t), `renders ${t}`);
@@ -132,16 +132,51 @@ test('site renderer never links a javascript: url and never emits raw HTML', () 
   assert.ok(!tree.some((t) => t.type === 'img'));
 });
 
-test('guide images: https or a site path only — never http, protocol-relative or backslash hosts', () => {
-  assert.equal(safeImageSrc('https://img.test/a.png'), 'https://img.test/a.png');
-  assert.equal(safeImageSrc('/uploads/a.png'), '/uploads/a.png');
-  for (const bad of ['http://img.test/a.png', '//evil.test/t.png', '/\\evil.test/t.png', 'javascript:alert(1)', 'data:image/svg+xml,<svg/>', '/a b.png', '/a\n.png']) {
+test('guide images: only allow-listed hosts or a site path; others are a link-free placeholder', () => {
+  for (const ok of [
+    '/uploads/a.png',
+    'https://anvilosrs.com/a.png',
+    'https://beta.anvilosrs.com/a.png',
+    'https://oldschool.runescape.wiki/images/Twisted_bow.png',
+    'https://cdn.runescape.com/a.png',
+    'https://i.imgur.com/a.png',
+    'https://cdn.discordapp.com/attachments/1/2/a.png',
+    'https://media.discordapp.net/a.png',
+    'https://i.ytimg.com/vi/x/hqdefault.jpg',
+  ]) {
+    assert.equal(safeImageSrc(ok), ok, ok);
+    assert.ok(GUIDE_IMAGE_HOSTS.length > 0);
+  }
+  for (const bad of [
+    'https://tracker.test/pixel.png',
+    'https://anvilosrs.com.evil.test/a.png',
+    'https://evilanvilosrs.com/a.png',
+    'http://i.imgur.com/a.png',
+    '//evil.test/t.png',
+    '/\\evil.test/t.png',
+    'https://user@i.imgur.com/a.png',
+    'javascript:alert(1)',
+    'data:image/svg+xml,<svg/>',
+    '/a b.png',
+  ]) {
     assert.equal(safeImageSrc(bad), null, bad);
   }
-  const tree = collect(renderGuide('![t](/\\evil.test/t.png)\n![h](http://img.test/a.png)\n![ok](https://img.test/ok.png)'));
+  assert.match(guideImageProblem('https://tracker.test/p.png') ?? '', /tracker\.test/, 'the reason names the host');
+
+  const tree = collect(renderGuide('![t](https://tracker.test/p.png)\n![ok](https://i.imgur.com/ok.png)'));
   const imgs = tree.filter((t) => t.type === 'img');
-  assert.deepEqual(imgs.map((i) => i.props.src), ['https://img.test/ok.png']);
-  assert.equal(imgs[0].props.referrerPolicy, 'no-referrer', 'a guide image never sends the reader page as referrer');
+  assert.deepEqual(imgs.map((i) => i.props.src), ['https://i.imgur.com/ok.png']);
+  assert.equal(imgs[0].props.referrerPolicy, 'no-referrer');
+  assert.ok(!tree.some((t) => t.type === 'a' && String(t.props.href).includes('tracker.test')), 'no link to a blocked host');
+  assert.ok(JSON.stringify(renderGuide('![t](https://tracker.test/p.png)')).includes('Image not shown'), 'a placeholder stands in');
+});
+
+test('guideImageProblems lists blocked image lines, skipping code fences', () => {
+  const body = 'intro\n![a](https://tracker.test/a.png)\n```\n![b](https://other.test/b.png)\n```\n> ![c](https://quoted.test/c.png)\n![ok](https://i.imgur.com/ok.png)';
+  assert.deepEqual(
+    guideImageProblems(body).map((p) => p.src),
+    ['https://tracker.test/a.png', 'https://quoted.test/c.png'],
+  );
 });
 
 test('headings for the table of contents get unique ids, and skip code blocks', () => {

@@ -10,7 +10,7 @@
 // double-grants a staff seat, so a retried accept is safe.
 
 import { parseBoardAccess, staffCanEditFrom, type BoardAccess } from '@/lib/cohostBoardAccess';
-import { blockClan, inviteGate } from '@/lib/clanBlocks';
+import { blockClan, inviteGate, reinvitedAt } from '@/lib/clanBlocks';
 import { CREATOR_NOT_AVAILABLE, clanKindOf } from '@/lib/creatorSpaces';
 import { and, eq, inArray } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
@@ -150,7 +150,7 @@ export async function inviteCoHost(
     if (existing.status === 'declined') {
       await db
         .update(eventCohosts)
-        .set({ status: 'pending', decidedAt: null, invitedByUserId: byUserId })
+        .set({ status: 'pending', decidedAt: null, invitedByUserId: byUserId, createdAt: reinvitedAt() })
         .where(eq(eventCohosts.id, existing.id));
       return { id: existing.id, created: true };
     }

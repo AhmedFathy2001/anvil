@@ -360,3 +360,91 @@ test('plugin weekly-leaderboard: a clan-vs-clan board at a public partner’s ad
     await db.delete(s.users).where(eq(s.users.id, hanaUser.id));
   }
 });
+
+test('re-opening a declined invite counts toward the 24h limit and the per-target pending cap', async () => {
+  const mk = async (slug: string) => {
+    const [c] = await db.insert(s.clans).values({ slug, name: slug }).returning({ id: s.clans.id });
+    return c.id;
+  };
+  const sender = await mk('resender');
+  const target = await mk('retarget');
+  const OLD = '2020-01-01 00:00:00';
+
+  // A decline from long ago, asked again today.
+  const c0 = await comp(sender, 'Re-ask');
+  const first = await T.inviteClanToCompetition(c0, sender, 'retarget', null);
+  assert.ok(first.ok);
+  await db.update(s.weeklyCompetitionClans).set({ status: 'declined', createdAt: OLD }).where(eq(s.weeklyCompetitionClans.id, first.id));
+  // MAX - 1 other invites sent today (answered, so the pending cap stays clear).
+  for (let i = 0; i < B.MAX_INVITES_PER_DAY - 1; i++) {
+    const c = await comp(sender, `Day ${i}`);
+    await db.insert(s.weeklyCompetitionClans).values({ competitionId: c.id, clanId: clan.third, status: 'declined' });
+  }
+  const again = await T.inviteClanToCompetition(c0, sender, 'retarget', null);
+  assert.ok(again.ok, 'the re-ask itself is within the limit');
+  const row = await db.query.weeklyCompetitionClans.findFirst({ where: eq(s.weeklyCompetitionClans.id, first.id) });
+  assert.equal(row?.status, 'pending');
+  assert.notEqual(row?.createdAt, OLD, 're-asking stamps the invite as sent now');
+  const next = await T.inviteClanToCompetition(await comp(sender, 'One more'), sender, 'fourth', null);
+  assert.equal(next.ok, false, 'the re-ask used the last invite of the day');
+  if (!next.ok) assert.equal(next.status, 429);
+
+  // Per target: with MAX pending already out to a clan, a declined one can't be re-opened either.
+  const sender2 = await mk('resender2');
+  const target2 = await mk('retarget2');
+  const cd = await comp(sender2, 'Declined one');
+  const d = await T.inviteClanToCompetition(cd, sender2, 'retarget2', null);
+  assert.ok(d.ok);
+  await db.update(s.weeklyCompetitionClans).set({ status: 'declined' }).where(eq(s.weeklyCompetitionClans.id, d.id));
+  for (let i = 0; i < B.MAX_PENDING_INVITES_PER_TARGET; i++) {
+    assert.ok((await T.inviteClanToCompetition(await comp(sender2, `P${i}`), sender2, 'retarget2', null)).ok);
+  }
+  const reopen = await T.inviteClanToCompetition(cd, sender2, 'retarget2', null);
+  assert.equal(reopen.ok, false);
+  if (!reopen.ok) assert.equal(reopen.status, 429);
+  void target;
+  void target2;
+});
+
+test('re-opening a declined co-host invite is stamped as sent now (it counts toward the 24h limit)', async () => {
+  const [ev] = await db.insert(s.events).values({ clanId: clan.host, name: 'Re-ask bingo', boardSize: 25 }).returning({ id: s.events.id });
+  const inv = await C.inviteCoHost(ev.id, clan.fourth, admin.host);
+  const OLD = '2020-01-01 00:00:00';
+  await db.update(s.eventCohosts).set({ status: 'declined', createdAt: OLD }).where(eq(s.eventCohosts.id, inv.id));
+  await C.inviteCoHost(ev.id, clan.fourth, admin.host);
+  const row = await db.query.eventCohosts.findFirst({ where: eq(s.eventCohosts.id, inv.id) });
+  assert.equal(row?.status, 'pending');
+  assert.notEqual(row?.createdAt, OLD);
+});
+
+test('plugin weekly-leaderboard: a private clan’s own solo board needs a member’s token; public stays open', async () => {
+  const { tokenHash } = await import('./helpers/tokenHash.ts');
+  const { GET } = await import('../src/app/api/plugin/weekly-leaderboard/route.ts');
+  const c = await comp(clan.host, 'Private solo', { mode: 'solo' });
+  await enrollAllPlayers(c.id);
+  const [hana] = await db
+    .insert(s.users)
+    .values({ displayName: 'Hana2', discordId: 'd-hana-solo', pluginTokenHash: tokenHash('tok-hana-solo'), playerId: player.Hana })
+    .returning({ id: s.users.id });
+  const [tia] = await db
+    .insert(s.users)
+    .values({ displayName: 'Tia2', discordId: 'd-tia-solo', pluginTokenHash: tokenHash('tok-tia-solo'), playerId: player.Tia })
+    .returning({ id: s.users.id });
+  const ask = async (token?: string) => {
+    const headers: Record<string, string> = { 'x-anvil-clan-slug': 'host' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await GET(new Request(`https://example.test/api/plugin/weekly-leaderboard?id=${c.id}`, { headers }));
+    return (await res.json()) as { competition: unknown; total: number; entries: { rsn: string }[] };
+  };
+  try {
+    assert.ok((await ask()).entries.some((e) => e.rsn === 'Hana'), 'public clan: open without a token');
+    await db.update(s.clans).set({ visibility: 'members' }).where(eq(s.clans.id, clan.host));
+    assert.deepEqual(await ask(), { competition: null, total: 0, entries: [] }, 'private, no token: the empty answer');
+    assert.deepEqual((await ask('tok-tia-solo')).entries, [], 'private, a non-member’s token: nothing');
+    assert.ok((await ask('tok-hana-solo')).entries.some((e) => e.rsn === 'Hana'), 'private, a member’s token: the board');
+  } finally {
+    await db.update(s.clans).set({ visibility: 'public' }).where(eq(s.clans.id, clan.host));
+    await db.delete(s.users).where(eq(s.users.id, hana.id));
+    await db.delete(s.users).where(eq(s.users.id, tia.id));
+  }
+});

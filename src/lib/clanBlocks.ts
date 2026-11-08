@@ -36,6 +36,13 @@ async function blocked(clanId: number, blockedClanId: number): Promise<boolean> 
   return !!row;
 }
 
+/**
+ * The stamp a RE-OPENED invite (a decline asked again) takes as its created_at: asking again is a new
+ * invite for the rate limit, so it counts toward MAX_INVITES_PER_DAY like a fresh row. The pending
+ * cap already counts it (it is pending again). Same text format as the column default.
+ */
+export const reinvitedAt = () => sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`;
+
 /** Invites `senderClanId` has sent, pending to `targetClanId` and in the last day — both tables. */
 async function sentCounts(senderClanId: number, targetClanId: number): Promise<{ pendingToTarget: number; lastDay: number }> {
   const dayAgo = sql`to_char((now() - interval '1 day') at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`;

@@ -10,6 +10,7 @@
 import { log } from '@/lib/logger';
 import { discordRest, getBotCredentials } from '@/lib/discord-roles';
 import { stampEmbeds } from '@/lib/discordEmbeds';
+import { buildMessages } from '@/lib/broadcastMessages';
 
 // Discord channel types (https://discord.com/developers/docs/resources/channel#channel-object-channel-types).
 const CHANNEL_TEXT = 0;
@@ -18,11 +19,6 @@ const POSTABLE_TYPES = new Set([CHANNEL_TEXT, CHANNEL_ANNOUNCEMENT]);
 const CHANNEL_CATEGORY = 4;
 
 // Discord message limits. We stay a little under each to leave headroom.
-const EMBED_DESC_MAX = 3900; // hard cap is 4096
-const MESSAGE_EMBED_CHARS_MAX = 5500; // hard cap is 6000 across all embeds in a message
-const EMBEDS_PER_MESSAGE = 10;
-const CONTENT_MAX = 1950; // hard cap is 2000
-const TITLE_MAX = 256;
 
 export interface BroadcastChannel {
   id: string;
@@ -175,35 +171,6 @@ export interface SendReport {
   messageIds?: string[];
 }
 
-/** '#rrggbb' → the integer Discord wants for an embed colour. Falls back to a gold accent. */
-function hexToInt(hex: string | null | undefined): number {
-  const DEFAULT = 0xe0b341;
-  if (!hex) return DEFAULT;
-  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
-  return m ? parseInt(m[1], 16) : DEFAULT;
-}
-
-/**
- * Split text into <= `size` chunks, preferring paragraph, then line, then word boundaries
- * so a long message breaks cleanly rather than mid-sentence. Falls back to a hard cut only
- * when a single run has no whitespace.
- */
-function chunkText(text: string, size: number): string[] {
-  const chunks: string[] = [];
-  let rest = text.trim();
-  while (rest.length > size) {
-    const window = rest.slice(0, size);
-    let cut = window.lastIndexOf('\n\n');
-    if (cut < size * 0.5) cut = window.lastIndexOf('\n');
-    if (cut < size * 0.5) cut = window.lastIndexOf(' ');
-    if (cut < size * 0.5) cut = size; // no good boundary — hard cut
-    chunks.push(rest.slice(0, cut).trim());
-    rest = rest.slice(cut).trim();
-  }
-  if (rest.length > 0) chunks.push(rest);
-  return chunks;
-}
-
 // Human-readable reason for a failed message POST, naming the likely fix.
 async function describeSendError(res: Response): Promise<string> {
   let message = '';
@@ -244,66 +211,6 @@ async function channelInGuild(botToken: string, guildId: string, channelId: stri
 }
 
 const NOT_YOUR_CHANNEL = 'That channel is not in your server.';
-
-/** The Discord messages one broadcast becomes: long text split across embeds or messages. */
-function buildMessages(opts: Omit<SendOpts, 'clanId' | 'channelId'>, guildId: string): Record<string, unknown>[] {
-  const body = (opts.body ?? '').trim();
-
-  // Mention content + allowed_mentions ride on the FIRST message only. @everyone (role id ==
-  // guild id) needs the `everyone` parse flag; a normal role needs its id allow-listed, else
-  // Discord renders the mention without actually pinging.
-  let mentionContent = '';
-  let allowedMentions: Record<string, unknown> | undefined;
-  if (opts.mentionRoleId) {
-    if (opts.mentionRoleId === guildId) {
-      mentionContent = '@everyone';
-      allowedMentions = { parse: ['everyone'] };
-    } else {
-      mentionContent = `<@&${opts.mentionRoleId}>`;
-      allowedMentions = { roles: [opts.mentionRoleId] };
-    }
-  }
-
-  const color = hexToInt(opts.colorHex);
-  const messages: Record<string, unknown>[] = [];
-
-  if (opts.asEmbed) {
-    type Embed = { title?: string; description: string; color: number };
-    const embeds: Embed[] = chunkText(body, EMBED_DESC_MAX).map((desc, i) => ({
-      ...(i === 0 && opts.title ? { title: opts.title.slice(0, TITLE_MAX) } : {}),
-      description: desc,
-      color,
-    }));
-    // Pack embeds into messages under Discord's per-message caps.
-    let cur: Embed[] = [];
-    let curChars = 0;
-    for (const e of embeds) {
-      const len = e.description.length + (e.title?.length ?? 0);
-      if (cur.length >= EMBEDS_PER_MESSAGE || (cur.length > 0 && curChars + len > MESSAGE_EMBED_CHARS_MAX)) {
-        messages.push({ embeds: cur });
-        cur = [];
-        curChars = 0;
-      }
-      cur.push(e);
-      curChars += len;
-    }
-    if (cur.length) messages.push({ embeds: cur });
-    if (mentionContent && messages.length) {
-      messages[0].content = mentionContent;
-      messages[0].allowed_mentions = allowedMentions;
-    }
-  } else {
-    // Plain text: fold the mention into the first chunk so it pings once, up top.
-    const full = mentionContent ? `${mentionContent}\n\n${body}` : body;
-    chunkText(full, CONTENT_MAX).forEach((content, i) => {
-      messages.push({
-        content,
-        ...(i === 0 && allowedMentions ? { allowed_mentions: allowedMentions } : {}),
-      });
-    });
-  }
-  return messages;
-}
 
 /**
  * Post a message to a channel as the bot, splitting long text across multiple embeds /

@@ -5,6 +5,7 @@ import { users, weeklyCompetitions } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { rankMove, weeklyBaselineRanks, weeklyBoard } from '@/lib/rankMoves';
 import { weeklyMetricLabel } from '@/lib/constants';
+import { canSeeClan } from '@/lib/clanAccess';
 import { weeklyRsnKey } from '@/lib/weeklyRsn';
 import { buildGroupStandings, competitionForClan, competitionReadableBy, entryStatus, partnerCompetitions } from '@/lib/competitionTeamsDb';
 import { weeklyGroupsPayload } from '@/lib/pluginUi/teamStandingsUi';
@@ -71,10 +72,17 @@ export async function GET(request: Request) {
   if (!comp) {
     return NextResponse.json({ competition: null, total: 0, entries: [] });
   }
-  // A clan-vs-clan board lists every racing clan's players, so it is read under every racing clan's
-  // privacy — the same gate as the site's /weekly/[id] (competitionReadableBy). Without it, a public
-  // partner's address served a private host's (or another partner's) members to anyone.
-  if (!(await competitionReadableBy(comp, await pluginViewer(request)))) {
+  // PRIVACY, the same rules as the site. The addressed clan first (the site's layout gate, canSeeClan):
+  // a private clan's board is for its members — the panel always sends its token, so a member still
+  // reads it; a token-less call gets the empty answer, as for a clan with no competition. Then a
+  // clan-vs-clan board lists every racing clan's players, so it is read under every racing clan's
+  // privacy (competitionReadableBy, as /weekly/[id]): a public partner's address must not serve a
+  // private host's members.
+  const viewer = await pluginViewer(request);
+  if (
+    !(await canSeeClan({ clanId: clan.id, visibility: clan.visibility, playerId: viewer.playerId, userId: viewer.userId })) ||
+    !(await competitionReadableBy(comp, viewer))
+  ) {
     return NextResponse.json({ competition: null, total: 0, entries: [] });
   }
 

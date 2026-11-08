@@ -4,7 +4,7 @@ import { keepDropDestinations, type DropVerdict } from '@/lib/notifyDrops';
 import { characterClanKinds, clanMainRarity } from '@/lib/notifyDefaults';
 import { renderTemplate, resolveTemplate, templateKindOf, templateValues, withTemplate } from '@/lib/notifyTemplates';
 import { NOTIFY_DEFAULTS } from '@/lib/notifyPrefs';
-import { factsAsPoster, isNewPostKind, milestoneForFeed, vetNewKindPost, type NewKindPost } from '@/lib/notifyKindsPost';
+import { factsAsPoster, withPosterAuthor, isNewPostKind, milestoneForFeed, vetNewKindPost, type NewKindPost } from '@/lib/notifyKindsPost';
 import { liveBoardRows, recordMilestoneMoment } from '@/lib/momentsStore';
 import { emitMomentRows } from '@/lib/panelRows';
 import { pluginParticipantScope, requirePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
@@ -230,13 +230,18 @@ export async function POST(request: Request) {
     dropVerdict = judged;
   }
   if (kind === 'pet') facts = await withPetRarity(facts);
+  // WHO POSTED IS THE TOKEN'S CHARACTER, for every kind: the `rsn` a body names is ignored and replaced
+  // by the character the token resolved (its seat's name; else the poster lookup). A body name let a
+  // client post a drop, pet or level under someone else's name into clan channels.
+  const poster = member?.rsn ?? (await posterRsn(request, auth.userId));
+  if (kind !== undefined && facts && typeof facts === 'object' && !Array.isArray(facts)) facts = factsAsPoster(facts, poster);
   // The newer kinds (lib/notifyKinds): re-checked against the person's settings in force, so a client
   // can't post a line nobody turned on. Private kinds and own patterns go to own webhooks only.
   let newPost: NewKindPost | null = null;
   if (isNewPostKind(kind)) {
     // The name on the post is the token's own character's, never the `rsn` the body names: a shared
     // line kind reaches clan channels, where a body name would put words in someone else's mouth.
-    facts = factsAsPoster(facts, member?.rsn ?? (await posterRsn(request, auth.userId)));
+    facts = factsAsPoster(facts, poster);
     const [prefs, clanKinds] = await Promise.all([getNotifyPrefs(auth.userId), characterClanKinds(member?.accountId ?? null, clan.id)]);
     newPost = vetNewKindPost(kind, facts, prefs.announce, clanKinds);
     if (channel !== 'milestones') return NextResponse.json({ error: 'Unknown channel' }, { status: 400 });
@@ -285,7 +290,8 @@ export async function POST(request: Request) {
   // strips Jagex's @tag@ colour codes (lib/chatTags) one can be anywhere in one — a title, a field,
   // the wiki URL built from a task name. Cleaned here so a post reads right today rather than on the
   // plugin-hub's schedule; on a client that already strips them this is a no-op.
-  let finalEmbed: Record<string, unknown> | null = embed ? stripChatTagsDeep(embed) : null;
+  // An older plugin's finished embed names its author itself: that name is the token's character's too.
+  let finalEmbed: Record<string, unknown> | null = embed ? withPosterAuthor(stripChatTagsDeep(embed), poster) : null;
   let finalContent = stripChatTags(content);
   if (newPost) {
     finalEmbed = stripChatTagsDeep(newPost.embed as unknown as Record<string, unknown>);

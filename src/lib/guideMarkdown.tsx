@@ -29,16 +29,83 @@ const BULLET_RE = /^(\s*)[-*•]\s+(.*)$/;
 const NUMBER_RE = /^(\s*)(\d{1,3})[.)]\s+(.*)$/;
 
 /**
- * An image source a guide may show: https only (an http image is mixed content and readable on the
- * wire), or a path on this site. A path must not start `//` or `/\` — browsers read both as another
- * host (protocol-relative), which is how a "local" path became an off-site tracker.
+ * WHERE A GUIDE'S IMAGES MAY COME FROM. Every image a reader's browser loads tells that host who is
+ * reading, so a guide shows images only from these hosts (and any subdomain of an entry), or from a
+ * path on this site. Anything else renders as a link-free placeholder, and saving a guide with one
+ * names the host (lib/guides cleanInput). Edit this list to allow a host.
  */
-export function safeImageSrc(raw: string): string | null {
+export const GUIDE_IMAGE_HOSTS = [
+  // Anvil itself, and its managed media store (S3_PUBLIC_BASE_URL — keep in step if it moves).
+  'anvilosrs.com',
+  'pub-c7108815ed6346e081b781eaf6e4954f.r2.dev',
+  // The OSRS wiki serves its images from its own host (/images/...).
+  'oldschool.runescape.wiki',
+  'runescape.com',
+  'secure.runescape.com',
+  'cdn.runescape.com',
+  // Common image hosts.
+  'i.imgur.com',
+  'cdn.discordapp.com',
+  'media.discordapp.net',
+  'i.ytimg.com',
+] as const;
+
+function hostAllowed(host: string): boolean {
+  const h = host.toLowerCase().replace(/\.$/, '');
+  return GUIDE_IMAGE_HOSTS.some((a) => h === a || h.endsWith(`.${a}`));
+}
+
+/**
+ * Why an image source can't be shown, or null when it can. The reason names the host when it is
+ * just not on the list, so the editor knows what to change.
+ */
+export function guideImageProblem(raw: string): string | null {
   const url = raw.trim();
-  if (/[\u0000-\u001f\s]/.test(url)) return null;
-  if (/^https:\/\//i.test(url)) return url;
-  if (url.startsWith('/') && !/^\/[\/\\]/.test(url)) return url;
+  if (!url || /[\u0000-\u001f\s]/.test(url)) return 'That image link is not valid.';
+  // A path on this site. Never `//` or `/\` — browsers read both as another host (protocol-relative).
+  if (url.startsWith('/')) return /^\/[\/\\]/.test(url) ? 'That image link is not valid.' : null;
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return 'That image link is not valid.';
+  }
+  if (u.protocol !== 'https:') return 'Images must be https:// links.';
+  if (u.username || u.password) return 'That image link is not valid.';
+  if (!hostAllowed(u.hostname)) return `Images from ${u.hostname} aren't allowed — upload the image, or use an allowed host.`;
   return null;
+}
+
+/** The source to render, or null when the image may not be shown (see GUIDE_IMAGE_HOSTS). */
+export function safeImageSrc(raw: string): string | null {
+  return guideImageProblem(raw) ? null : raw.trim();
+}
+
+/** The host an image link names (for the placeholder), or null for a site path or junk. */
+function imageHost(raw: string): string | null {
+  try {
+    return new URL(raw.trim()).hostname || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Every image line in a guide body that may not be shown, with why — code fences aside. */
+export function guideImageProblems(body: string): { src: string; problem: string }[] {
+  const out: { src: string; problem: string }[] = [];
+  let inFence = false;
+  for (const line of body.split('\n')) {
+    if (FENCE_RE.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    const img = IMAGE_LINE_RE.exec(line.replace(/^>\s?/, ''));
+    if (!img) continue;
+    const problem = guideImageProblem(img[2]);
+    if (problem) out.push({ src: img[2], problem });
+  }
+  return out;
 }
 
 /** Same slug rule for heading anchors everywhere (the TOC reads it too). */
@@ -293,7 +360,7 @@ export function renderGuide(source: string | null | undefined, opts: GuideRender
   let para: string[] = [];
   let list: { ordered: boolean; start: number; items: ListItem[] } | null = null;
   let quote: string[] | null = null;
-  let images: { alt: string; src: string }[] = [];
+  let images: { alt: string; src: string | null; host: string | null }[] = [];
 
   const flushPara = () => {
     if (para.length) {
@@ -328,7 +395,16 @@ export function renderGuide(source: string | null | undefined, opts: GuideRender
     const imgs = images;
     out.push(
       <div key={key} className={`my-3 grid gap-2 ${imgs.length > 1 ? 'sm:grid-cols-2' : ''}`}>
-        {imgs.map((im, i) => (
+        {imgs.map((im, i) =>
+          im.src == null ? (
+            // Not on GUIDE_IMAGE_HOSTS: no request to that host, and no link to it either.
+            <div
+              key={`${key}-${i}`}
+              className="flex min-h-24 items-center justify-center rounded-lg border border-dashed border-card-border bg-black/20 p-4 text-center text-xs text-white/50"
+            >
+              Image not shown{im.host ? ` (${im.host} isn't an allowed image host)` : ''}
+            </div>
+          ) : (
           <a key={`${key}-${i}`} href={im.src} target="_blank" rel="noopener noreferrer nofollow ugc" className="block">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -339,7 +415,8 @@ export function renderGuide(source: string | null | undefined, opts: GuideRender
               className="max-h-[520px] w-auto max-w-full rounded-lg border border-card-border bg-black/30"
             />
           </a>
-        ))}
+          ),
+        )}
       </div>,
     );
     images = [];
@@ -401,7 +478,7 @@ export function renderGuide(source: string | null | undefined, opts: GuideRender
       flushPara();
       flushList();
       const src2 = safeImageSrc(img[2]);
-      if (src2) images.push({ alt: img[1], src: src2 });
+      images.push({ alt: img[1], src: src2, host: src2 ? null : imageHost(img[2]) });
       continue;
     }
     if (images.length && line.trim()) flushImages();

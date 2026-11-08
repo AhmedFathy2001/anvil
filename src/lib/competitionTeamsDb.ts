@@ -23,7 +23,7 @@ import {
 import { normalizeRsn } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
 import { canSeeClan } from '@/lib/clanAccess';
-import { blockClan, inviteGate } from '@/lib/clanBlocks';
+import { blockClan, inviteGate, reinvitedAt } from '@/lib/clanBlocks';
 import { rosterClanSeat } from '@/lib/seatScope';
 import { countsTowardLeaderboard } from '@/lib/weekly';
 import { readMetricFromSnapshot } from '@/lib/weeklyMetric';
@@ -345,7 +345,7 @@ export async function inviteClanToCompetition(
     if (existing.status === 'declined') {
       await db
         .update(weeklyCompetitionClans)
-        .set({ status: 'pending', invitedByUserId: byUserId, decidedAt: null, decidedByUserId: null })
+        .set({ status: 'pending', invitedByUserId: byUserId, decidedAt: null, decidedByUserId: null, createdAt: reinvitedAt() })
         .where(eq(weeklyCompetitionClans.id, existing.id));
     }
     return { ok: true, id: existing.id };

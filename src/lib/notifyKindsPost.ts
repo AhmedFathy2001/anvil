@@ -30,6 +30,21 @@ export function factsAsPoster(rawFacts: unknown, rsn: string | null | undefined)
   return { ...o(rawFacts), rsn: rsn ?? '' };
 }
 
+/**
+ * A finished embed (older plugins send one) with its author line naming the poster: the token's
+ * character when known, else no author at all — never the name the client wrote.
+ */
+export function withPosterAuthor<E extends Record<string, unknown>>(embed: E, rsn: string | null | undefined): E {
+  const author = o(embed.author);
+  if (!embed.author) return embed;
+  if (!rsn) {
+    const { author: _drop, ...rest } = embed;
+    void _drop;
+    return rest as E;
+  }
+  return { ...embed, author: { ...author, name: rsn } };
+}
+
 /** Kinds the plugin may send for these posts. */
 export const NEW_POST_KINDS = ['line', 'ge', 'trade', 'storage', 'ext'] as const;
 export const isNewPostKind = (k: unknown): k is (typeof NEW_POST_KINDS)[number] =>
