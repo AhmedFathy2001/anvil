@@ -875,7 +875,7 @@ const da: PartialGuideDict = {
     notifications: {
       title: 'Discord-beskeder',
       intro:
-        'De sendes, uanset om der kører en bingo eller ej, og de lander i klanens kanaler. Hvilken kanal bestemmer administratorerne her — du vælger kun _hvad_ du poster.',
+        'De sendes, uanset om der kører en bingo eller ej, og de lander i klanens kanaler. Hvilken kanal bestemmer administratorerne her — du vælger kun _hvad_ du poster. I den næste plugin-opdatering flytter disse valg til hjemmesiden, under **Settings → Announcements**, og følger dig til hver computer. Pluginet beholder to kontakter under **Notifications**: **Share clan posts** sætter alle opslag fra hovedspillet på pause på én gang, og **Share seasonal activity** gør det samme på Leagues, Deadman og andre sæsonverdener.',
       examplesFigure: {
         caption: 'Sådan ser et opslag ud',
         alt: 'To Discord-opslag fra Anvil: en Grandmaster combat task med point og fremskridt mod næste unlock, og et dødsfald med dets besked, hver med et skærmbillede af øjeblikket',

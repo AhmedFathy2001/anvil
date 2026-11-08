@@ -458,7 +458,7 @@ export function PluginPostsPanel({ initial }: { initial: EmissionSettingsView })
   return (
     <div className="grid gap-6">
       <p className="max-w-[70ch] text-[12.5px] text-text-muted">
-        Your clan&rsquo;s own channel switches still apply on top of these. Changes reach your plugin within about a minute.
+        Your clan&rsquo;s own channel switches still apply on top of these. Changes reach your plugin within about a minute. To pause everything at once, untick <strong>Share clan posts</strong> in the Anvil plugin&rsquo;s RuneLite settings; your choices here stay as they are.
       </p>
       <ErrorLine error={error} />
 

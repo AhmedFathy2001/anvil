@@ -867,7 +867,7 @@ const zhHans: PartialGuideDict = {
     notifications: {
       title: 'Discord 通知',
       intro:
-        '无论是否有宾果在进行，这些都会发出，并且发到氏族的频道里。发到哪个频道由管理员在这里决定 —— 你只选择_发什么_。',
+        '无论是否有宾果在进行，这些都会发出，并且发到氏族的频道里。发到哪个频道由管理员在这里决定 —— 你只选择_发什么_。下一次插件更新后，这些选择会移到网站的 **Settings → Announcements**，在任何电脑上都一样。插件在 **Notifications** 下保留两个开关：**Share clan posts** 一次性暂停所有主游戏的帖子，**Share seasonal activity** 在 Leagues、Deadman 等季节性世界做同样的事。',
       examplesFigure: {
         caption: '一条帖子的样子',
         alt: 'Anvil 发出的两条 Discord 帖子：一条是 Grandmaster 战斗任务，附有积分和距下一次解锁的进度；一条是死亡记录及其消息，各自附有当时的截图',

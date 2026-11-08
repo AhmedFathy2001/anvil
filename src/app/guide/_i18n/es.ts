@@ -869,7 +869,7 @@ const es: PartialGuideDict = {
     notifications: {
       title: 'Notificaciones de Discord',
       intro:
-        'Estas se envían haya bingo en marcha o no, y se publican en los canales del clan. En qué canal lo deciden aquí los administradores — tú solo eliges _qué_ publicas.',
+        'Estas se envían haya bingo en marcha o no, y se publican en los canales del clan. En qué canal lo deciden aquí los administradores — tú solo eliges _qué_ publicas. En la próxima actualización del plugin estas opciones pasan a la web, en **Settings → Announcements**, y te siguen en cualquier ordenador. El plugin conserva dos interruptores en **Notifications**: **Share clan posts** pausa de golpe todas las publicaciones del juego principal, y **Share seasonal activity** hace lo mismo en Leagues, Deadman y otros mundos de temporada.',
       examplesFigure: {
         caption: 'Así se ve una publicación',
         alt: 'Dos publicaciones de Discord de Anvil: una tarea de combate Grandmaster con sus puntos y el progreso hasta el siguiente desbloqueo, y una muerte con su mensaje, cada una con una captura del momento',
