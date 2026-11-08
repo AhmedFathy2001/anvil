@@ -3,9 +3,9 @@ import { judgeDropRequest, withPetRarity } from '@/lib/notifyDropJudge';
 import { keepDropDestinations, type DropVerdict } from '@/lib/notifyDrops';
 import { characterClanKinds, clanMainRarity } from '@/lib/notifyDefaults';
 import { isNewPostKind, milestoneForFeed, vetNewKindPost, type NewKindPost } from '@/lib/notifyKindsPost';
-import { recordMilestoneMoment } from '@/lib/momentsStore';
+import { liveBoardRows, recordMilestoneMoment } from '@/lib/momentsStore';
 import { emitMomentRows } from '@/lib/panelRows';
-import { requirePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
+import { pluginParticipantScope, requirePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import {
   getDeathTaunts,
   getFunDeathMessages,
@@ -241,8 +241,12 @@ export async function POST(request: Request) {
     const milestone = member ? milestoneForFeed(kind, facts, prefs.announce, clanKinds) : null;
     if (milestone && member) {
       try {
-        const stored = await recordMilestoneMoment(member, milestone);
-        if (stored.length) await emitMomentRows(member.clanId, 'member', stored);
+        // Every live board they're drafted onto too, co-hosted and clan-v-clan included (lab boards aside).
+        const boards = await liveBoardRows(member.clanMemberId, new Date(), await pluginParticipantScope(member, { lab: false }));
+        const stored = await recordMilestoneMoment(member, milestone, boards);
+        if (stored.clan.length) await emitMomentRows(member.clanId, 'member', stored.clan);
+        // The board copies go to the boards' lists only: 'guest' skips the clan push, which has its own copy.
+        if (stored.boards.length) await emitMomentRows(member.clanId, 'guest', stored.boards);
       } catch (e) {
         log.warn('plugin-notify.milestone-moment-failed', { error: String(e) });
       }

@@ -18,6 +18,11 @@ let loner: number;
 let seat: number;
 let S: typeof import('../src/lib/momentsStore.ts');
 let F: typeof import('../src/lib/pluginUi/feedLists.ts');
+let boardA: number;
+let boardB: number;
+let ended: number;
+let teamA: number;
+let teamB: number;
 
 before(async () => {
   await resetDatabase(DB);
@@ -40,6 +45,18 @@ before(async () => {
   inA = await mk('InKinds');
   loner = await mk('Loner');
   seat = (await db.insert(s.clanMemberships).values({ clanId: clanA, accountId: inA, kind: 'member' }).returning())[0].id;
+  // Two live boards the member is drafted onto, and one that already ended.
+  const past = new Date(Date.now() - 86_400_000).toISOString();
+  const future = new Date(Date.now() + 86_400_000).toISOString();
+  const board = async (name: string, endDate: string) => {
+    const [ev] = await db.insert(s.events).values({ clanId: clanA, name, boardSize: 3, tilesRevealed: 1, startDate: past, endDate }).returning();
+    const [team] = await db.insert(s.teams).values({ eventId: ev.id, name: 'Red', color: '#f00' }).returning();
+    await db.insert(s.eventParticipants).values({ eventId: ev.id, teamId: team.id, clanMemberId: seat, name: 'InKinds' });
+    return [ev.id, team.id];
+  };
+  [boardA, teamA] = await board('Board A', future);
+  [boardB, teamB] = await board('Board B', future);
+  [ended] = await board('Old board', past);
 });
 after(async () => {
   await dropDatabase(DB);
@@ -62,11 +79,32 @@ test('a character with no member seat gets Anvil defaults: nothing new', async (
 
 test('a milestone row lands in the clan feed, under All and Milestones, not Achievements', async () => {
   const stored = await S.recordMilestoneMoment({ clanMemberId: seat, rsn: 'InKinds' }, { sub: 'kc', itemName: 'Zulrah kill count', quantity: 500, tier: null });
-  assert.equal(stored.length, 1);
+  assert.equal(stored.clan.length, 1);
   // The outbox resending the same post within the minute: no second row.
-  assert.equal((await S.recordMilestoneMoment({ clanMemberId: seat, rsn: 'InKinds' }, { sub: 'kc', itemName: 'Zulrah kill count', quantity: 500, tier: null })).length, 0);
+  assert.equal((await S.recordMilestoneMoment({ clanMemberId: seat, rsn: 'InKinds' }, { sub: 'kc', itemName: 'Zulrah kill count', quantity: 500, tier: null })).clan.length, 0);
   const names = async (f: string) => (await F.clanFeedList(clanA, f)).list.map((m) => `${m.kind}:${m.itemName}`);
   assert.deepEqual(await names('milestones'), ['milestone:Zulrah kill count']);
   assert.deepEqual(await names('all'), ['milestone:Zulrah kill count']);
   assert.deepEqual(await names('achievements'), []);
+});
+
+test('a milestone is filed on every live board too, once per board, and the clan feed keeps one copy', async () => {
+  const boards = await S.liveBoardRows(seat);
+  assert.deepEqual(boards.map((b) => b.eventId).sort(), [boardA, boardB].sort());
+  const f = { sub: 'slayer' as const, itemName: 'Slayer task', quantity: 50, tier: null };
+  const stored = await S.recordMilestoneMoment({ clanMemberId: seat, rsn: 'InKinds' }, f, boards);
+  assert.equal(stored.clan.length, 1);
+  assert.deepEqual(stored.boards.map((m) => [m.eventId, m.teamId]).sort(), [[boardA, teamA], [boardB, teamB]].sort());
+  // A resend: nothing new anywhere.
+  const again = await S.recordMilestoneMoment({ clanMemberId: seat, rsn: 'InKinds' }, f, boards);
+  assert.deepEqual([again.clan.length, again.boards.length], [0, 0]);
+  const board = async (e: number, filter: string) => (await F.eventFeedList(e, filter, teamA)).items.filter((i) => i.m).map((i) => `${i.m!.kind}:${i.m!.itemName}`);
+  assert.deepEqual(await board(boardA, 'milestones'), ['milestone:Slayer task']);
+  assert.deepEqual(await board(boardB, 'all'), ['milestone:Slayer task']);
+  assert.deepEqual(await board(ended, 'milestones'), []);
+  assert.deepEqual(await board(boardA, 'achievements'), []);
+  // The clan's list: its own copy once, not the boards' copies as well.
+  const clanRows = (await F.clanFeedList(clanA, 'milestones')).list.filter((m) => m.itemName === 'Slayer task');
+  assert.equal(clanRows.length, 1);
+  assert.equal(clanRows[0].eventId, null);
 });

@@ -573,8 +573,8 @@ export function feedTabUi(o: FeedTabOptions): Node {
           ['achievements', 'Achievements'],
           // A board keeps every death; a clan its members' deaths unless it turned them off (Rules).
           ['deaths', 'Deaths'],
-          // Slayer, clues, speedruns, kill counts, BA gambles: kept by the clan, so not on a board's list.
-          ...(o.current.kind === 'clan' ? [['milestones', 'Milestones'] as [string, string]] : []),
+          // Slayer, clues, speedruns, kill counts, BA gambles: the clan's and each live board's.
+          ['milestones', 'Milestones'],
           ...(o.current.kind === 'event' && o.teamId != null ? [['team', 'My team'] as [string, string]] : []),
         ];
   // Three to a row: the panel splits a row evenly, and "Achievements" is too wide for a quarter of it.

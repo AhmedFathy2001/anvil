@@ -86,6 +86,19 @@ export async function activeScopesFor(
       r.type === 'skill' || r.type === 'boss' || r.type === 'efficiency')
     .map((r) => ({ id: r.id, type: r.type, metric: r.metric }));
 
+  const active = (await liveBoardRows(clanMemberId, now, participantScope))[0];
+
+  // The team comes from the same row that decided the event is theirs, so the stamp and the scope
+  // can never disagree about which side they were on.
+  const event = active ? await eventScope(active.eventId, active.teamId, clanId, active.startDate!) : null;
+  return { weeklies, event, clan: await clanScope(clanId) };
+}
+
+/**
+ * Every live board this member is drafted onto (participantScope: lib/auth pluginParticipantScope, so a
+ * co-hosted or clan-v-clan board they're entered in counts), oldest row first.
+ */
+export async function liveBoardRows(clanMemberId: number, now: Date = new Date(), participantScope?: SQL) {
   // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const playerRows = await db
     .select({
@@ -101,18 +114,13 @@ export async function activeScopesFor(
   // STARTED, not merely un-ended. A revealed board is still only a preview until the whistle. Use
   // the shared parser rather than comparing timestamp strings: Postgres defaults use a space while
   // browser-authored dates use ISO `T`, and lexicographic comparisons disagree on same-day times.
-  const active = playerRows.find(
-    (p) =>
-      p.teamId &&
+  return playerRows.filter(
+    (p): p is typeof p & { teamId: number } =>
+      !!p.teamId &&
       !p.forceEndedAt &&
       eventHasStarted(p, now.getTime()) &&
       (!p.endDate || (parseStamp(p.endDate) ?? 0) > now.getTime()),
   );
-
-  // The team comes from the same row that decided the event is theirs, so the stamp and the scope
-  // can never disagree about which side they were on.
-  const event = active ? await eventScope(active.eventId, active.teamId, clanId, active.startDate!) : null;
-  return { weeklies, event, clan: await clanScope(clanId) };
 }
 
 /**
@@ -429,27 +437,38 @@ export async function recordModeLineMoments(
  * after vetting the line against the player's own settings in force, so an off kind makes no row.
  * Deduped within the minute (the outbox may resend a post).
  */
-export async function recordMilestoneMoment(member: { clanMemberId: number; rsn: string }, f: MilestoneFacts): Promise<StoredMoment[]> {
+export async function recordMilestoneMoment(
+  member: { clanMemberId: number; rsn: string },
+  f: MilestoneFacts,
+  boards: readonly { eventId: number; teamId: number }[] = [],
+): Promise<{ clan: StoredMoment[]; boards: StoredMoment[] }> {
   // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan
   const seat = await db.query.clanMemberships.findFirst({ where: eq(clanMemberships.id, member.clanMemberId), columns: { kind: true } });
-  if (seat?.kind !== 'member') return [];
   const occurredAt = new Date().toISOString();
-  const key = f.itemName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60);
-  const [row] = await db
-    .insert(moments)
-    .values({
-      clanMemberId: member.clanMemberId, rsn: member.rsn, kind: MILESTONE_KIND, weeklyCompetitionId: null, eventId: null, teamId: null,
-      itemId: null, itemName: f.itemName, quantity: f.quantity, valueGp: null, source: null, sourceKind: f.sub, kc: null,
-      rarityDenominator: null, tier: f.tier, occurredAt,
-      dedupKey: `milestone:${f.sub}:${key}:${f.quantity}:${Math.floor(Date.now() / 60_000)}`,
-    })
-    .onConflictDoNothing()
-    .returning({ id: moments.id });
-  if (!row) return [];
-  return [{
-    id: row.id, rsn: member.rsn, kind: MILESTONE_KIND, itemId: null, itemName: f.itemName, quantity: f.quantity, valueGp: null,
-    source: null, sourceKind: f.sub, teamId: null, eventId: null, tier: f.tier, worldMode: null, worldModeLabel: null, kc: null, occurredAt,
-  }];
+  const key = `milestone:${f.sub}:${f.itemName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60)}:${f.quantity}:${Math.floor(Date.now() / 60_000)}`;
+  // One row for the clan (a member seat only) and one per live board, each deduped on its own scope.
+  const scopes = [
+    ...(seat?.kind === 'member' ? [{ eventId: null, teamId: null, suffix: 'clan' }] : []),
+    ...[...new Map(boards.map((b) => [b.eventId, b])).values()].map((b) => ({ eventId: b.eventId, teamId: b.teamId, suffix: `e${b.eventId}` })),
+  ];
+  const out = { clan: [] as StoredMoment[], boards: [] as StoredMoment[] };
+  for (const sc of scopes) {
+    const [row] = await db
+      .insert(moments)
+      .values({
+        clanMemberId: member.clanMemberId, rsn: member.rsn, kind: MILESTONE_KIND, weeklyCompetitionId: null, eventId: sc.eventId, teamId: sc.teamId,
+        itemId: null, itemName: f.itemName, quantity: f.quantity, valueGp: null, source: null, sourceKind: f.sub, kc: null,
+        rarityDenominator: null, tier: f.tier, occurredAt, dedupKey: `${key}:${sc.suffix}`,
+      })
+      .onConflictDoNothing()
+      .returning({ id: moments.id });
+    if (!row) continue;
+    (sc.eventId == null ? out.clan : out.boards).push({
+      id: row.id, rsn: member.rsn, kind: MILESTONE_KIND, itemId: null, itemName: f.itemName, quantity: f.quantity, valueGp: null,
+      source: null, sourceKind: f.sub, teamId: sc.teamId, eventId: sc.eventId, tier: f.tier, worldMode: null, worldModeLabel: null, kc: null, occurredAt,
+    });
+  }
+  return out;
 }
 
 /**
@@ -685,6 +704,8 @@ export async function momentsForClan(clanId: number, limit = 20, kinds?: readonl
           ? or(isNull(moments.worldMode), and(eq(moments.worldMode, 'hardcore'), eq(moments.kind, 'death')))
           : isNull(moments.worldMode),
         kinds && kinds.length ? inArray(moments.kind, [...kinds]) : undefined,
+        // A milestone has its own clan copy; its board copies are the boards' (recordMilestoneMoment).
+        or(ne(moments.kind, MILESTONE_KIND), isNull(moments.eventId)),
       ),
     )
     .orderBy(desc(moments.occurredAt))
