@@ -31,21 +31,20 @@ import { TileStateChip } from './TileState';
  * the fork to pick, on a choose-and-lock race), and the tile list with the same state language.
  */
 
-type PickInfo = { mode: 'achieve' | 'choose'; picks: Map<number, number>; canPick: boolean };
+export type PickInfo = { mode: 'achieve' | 'choose'; picks: Map<number, number>; canPick: boolean };
 
-export default function BranchingRaceBoard({ tiles, completions, teams, activeTeamId, onTileClick, dropProgress, statProgress, expanded, matchedTileIds }: TileRaceBoardProps) {
-  const graph = useMemo(() => raceGraph(tiles), [tiles]);
-  const steps = graph.lastStep + 1;
-  const eventId = (tiles[0] as { eventId?: number } | undefined)?.eventId;
-  const viewer = activeTeamId ?? null;
-
+/**
+ * A team's road picks on a "Choose and lock in" race, whether the viewer may pick, and `pick` to
+ * lock one in (GET/POST /api/events/:id/race-pick). Null info off that mode.
+ */
+export function useRacePick(eventId: number | undefined, teamId: number | null, graph: RaceGraph) {
   const [pickInfo, setPickInfo] = useState<PickInfo | null>(null);
   const [pickError, setPickError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   useEffect(() => {
-    if (viewer == null || eventId == null) return;
+    if (teamId == null || eventId == null) return;
     let gone = false;
-    clanFetch(`/api/events/${eventId}/race-pick?teamId=${viewer}`)
+    clanFetch(`/api/events/${eventId}/race-pick?teamId=${teamId}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!gone && d) setPickInfo({ mode: d.mode, picks: new Map(Object.entries(d.picks ?? {}).map(([k, v]) => [Number(k), Number(v)])), canPick: !!d.canPick });
@@ -54,7 +53,34 @@ export default function BranchingRaceBoard({ tiles, completions, teams, activeTe
     return () => {
       gone = true;
     };
-  }, [viewer, eventId]);
+  }, [teamId, eventId]);
+  async function pick(tileId: number) {
+    if (eventId == null || teamId == null) return;
+    setPicking(true);
+    setPickError(null);
+    try {
+      const res = await clanFetch(`/api/events/${eventId}/race-pick`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teamId, tileId }) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) return setPickError(d.error || 'Could not pick that road.');
+      const step = graph.byId.get(tileId)!.step;
+      setPickInfo((p) => (p ? { ...p, picks: new Map(p.picks).set(step, tileId) } : p));
+    } finally {
+      setPicking(false);
+    }
+  }
+  return { pickInfo, pickError, picking, pick };
+}
+
+export default function BranchingRaceBoard({ tiles, completions, teams, activeTeamId, onTileClick, dropProgress, statProgress, expanded, matchedTileIds, raceLayout = 'full' }: TileRaceBoardProps) {
+  // 'track': the event page's Race track card — strip, map, legend, tiles. Up next and the standings
+  // are page sections there (components/board/RaceEventSections). 'full': everything in one card.
+  const full = raceLayout !== 'track';
+  const graph = useMemo(() => raceGraph(tiles), [tiles]);
+  const steps = graph.lastStep + 1;
+  const eventId = (tiles[0] as { eventId?: number } | undefined)?.eventId;
+  const viewer = activeTeamId ?? null;
+
+  const { pickInfo, pickError, picking, pick } = useRacePick(eventId, viewer, graph);
 
   const doneBy = useMemo(() => {
     const m = new Map<number, number[]>();
@@ -80,26 +106,11 @@ export default function BranchingRaceBoard({ tiles, completions, teams, activeTe
   const nodes = graph.nodes.map((n) => ({ id: n.id, step: n.step, next: n.next, label: tileById.get(n.id)?.label ?? `Tile ${n.id}`, icon: tileById.get(n.id)?.icon ?? null }));
   const mapTeams = teams.map((t) => ({ ...t, path: routes.get(t.id)?.path ?? [] }));
 
-  async function pick(tileId: number) {
-    if (eventId == null || viewer == null) return;
-    setPicking(true);
-    setPickError(null);
-    try {
-      const res = await clanFetch(`/api/events/${eventId}/race-pick`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teamId: viewer, tileId }) });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) return setPickError(d.error || 'Could not pick that road.');
-      const step = graph.byId.get(tileId)!.step;
-      setPickInfo((p) => (p ? { ...p, picks: new Map(p.picks).set(step, tileId) } : p));
-    } finally {
-      setPicking(false);
-    }
-  }
-
   return (
     <div className={cn('w-full mx-auto p-3 sm:p-4 bg-brown-dark/50 rounded-xl border border-card-border space-y-4 min-w-0', expanded ? 'max-w-6xl' : 'max-w-4xl')}>
       <FieldStrip variant={variant} standings={standings} steps={steps} teamById={teamById} viewer={viewer} />
 
-      {route && !route.finished && (route.open.length > 0 || route.pickFrom.length > 0) && (
+      {full && route && !route.finished && (route.open.length > 0 || route.pickFrom.length > 0) && (
         <NextCards
           graph={graph}
           route={route}
@@ -111,7 +122,7 @@ export default function BranchingRaceBoard({ tiles, completions, teams, activeTe
           error={pickError}
         />
       )}
-      {route?.finished && (
+      {full && route?.finished && (
         <p className="rounded-xl border border-gold/50 bg-gold/10 px-3 py-2 text-sm text-gold font-semibold">🏁 Your team reached the finish.</p>
       )}
 
@@ -129,8 +140,8 @@ export default function BranchingRaceBoard({ tiles, completions, teams, activeTe
       />
       <RouteMapLegend withTeam={!!route} />
 
-      {variant === 'medium' && <FrontAndAround standings={standings} teamById={teamById} viewer={viewer} steps={steps} />}
-      {variant === 'huge' && eventId != null && (
+      {full && variant === 'medium' && <FrontAndAround standings={standings} teamById={teamById} viewer={viewer} steps={steps} />}
+      {full && variant === 'huge' && eventId != null && (
         <div>
           <h3 className="text-sm font-bold flex items-center gap-2 mb-2"><span className="w-1 h-4 bg-gold rounded-full" />Standings</h3>
           <SoloStandings
@@ -142,7 +153,18 @@ export default function BranchingRaceBoard({ tiles, completions, teams, activeTe
         </div>
       )}
 
-      <RaceTileList graph={graph} route={route} tileById={tileById} onTileClick={onTileClick} teamName={viewerTeam?.name} />
+      {full ? (
+        <RaceTileList graph={graph} route={route} tileById={tileById} onTileClick={onTileClick} teamName={viewerTeam?.name} />
+      ) : (
+        <details className="group">
+          <summary className="cursor-pointer list-none text-xs text-text-muted hover:text-foreground flex items-center gap-1.5">
+            <span className="transition-transform group-open:rotate-90">▸</span> Every tile, step by step
+          </summary>
+          <div className="mt-3">
+            <RaceTileList graph={graph} route={route} tileById={tileById} onTileClick={onTileClick} teamName={viewerTeam?.name} />
+          </div>
+        </details>
+      )}
     </div>
   );
 }
@@ -152,27 +174,32 @@ export default function BranchingRaceBoard({ tiles, completions, teams, activeTe
 function FieldStrip({ variant, standings, steps, teamById, viewer }: { variant: 'few' | 'medium' | 'huge'; standings: RaceStanding[]; steps: number; teamById: Map<number, { id: number; name: string; color: string }>; viewer: number | null }) {
   if (!standings.length) return null;
   if (variant === 'few') {
+    // One track, Start to Finish, each team a marker at its step (stacked where they share one).
+    const at = new Map<number, RaceStanding[]>();
+    for (const st of standings) at.set(st.stepsDone, [...(at.get(st.stepsDone) ?? []), st]);
     return (
       <section aria-label="Distance to the finish">
         <h3 className="text-xs font-semibold text-text-muted mb-2">Distance to the finish</h3>
-        <div className="space-y-2">
-          {standings.map((s) => {
-            const t = teamById.get(s.teamId)!;
-            const pct = steps ? (s.stepsDone / steps) * 100 : 0;
-            return (
-              <div key={s.teamId} className="flex items-center gap-2 min-w-0">
-                <span className="w-4 text-right text-[11px] text-text-muted tabular-nums">{s.rank}</span>
-                <div className="relative flex-1 h-2 rounded-full bg-[#251e18]">
-                  <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${pct}%`, backgroundColor: `${t.color}88` }} />
-                  <span className={cn('absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full border-2 border-[#141010]', s.teamId === viewer && 'ring-2 ring-gold')} style={{ left: `${pct}%`, backgroundColor: t.color }} />
-                </div>
-                <span className={cn('w-36 sm:w-44 truncate text-xs', s.teamId === viewer ? 'text-gold font-semibold' : 'text-foreground/90')}>
-                  {t.name} <span className="text-text-muted font-normal">· {s.finished ? '🏁 finished' : `${s.stepsDone} of ${steps}`}</span>
-                </span>
-              </div>
-            );
-          })}
+        <div className="relative mx-3 sm:mx-6" style={{ height: 22 + Math.max(1, ...[...at.values()].map((v) => v.length)) * 22 }}>
+          <div className="absolute left-0 right-0 bottom-3 h-2 rounded-full bg-[#251e18]" />
+          {Array.from({ length: steps + 1 }, (_, i) => (
+            <span key={i} className="absolute bottom-2.5 w-px h-3 bg-[#4a3d30]" style={{ left: `${(i / steps) * 100}%` }} aria-hidden />
+          ))}
+          {[...at].map(([step, group]) => (
+            <div key={step} className="absolute flex flex-col-reverse items-center gap-1 -translate-x-1/2" style={{ left: `${(step / steps) * 100}%`, bottom: 18 }}>
+              {group.map((st) => {
+                const t = teamById.get(st.teamId)!;
+                return (
+                  <span key={st.teamId} title={`${t.name} · ${st.stepsDone} of ${steps}`} className={cn('flex items-center gap-1 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-white shadow', st.teamId === viewer && 'ring-2 ring-gold')} style={{ backgroundColor: t.color }}>
+                    <span className="max-w-[84px] truncate">{t.name}</span>
+                    <span className="tabular-nums opacity-90">{st.finished ? '🏁' : st.stepsDone}</span>
+                  </span>
+                );
+              })}
+            </div>
+          ))}
         </div>
+        <div className="flex justify-between text-[10px] text-text-muted mt-0.5"><span>Start</span><span>Finish · {steps}</span></div>
       </section>
     );
   }
@@ -222,7 +249,7 @@ function FieldStrip({ variant, standings, steps, teamById, viewer }: { variant: 
 
 // ---- Up next / pick your road ---------------------------------------------------------------------
 
-function NextCards({ graph, route, tileById, onTileClick, canPick, picking, onPick, error }: {
+export function NextCards({ graph, route, tileById, onTileClick, canPick, picking, onPick, error }: {
   graph: RaceGraph; route: TeamRoute; tileById: Map<number, { id: number; label: string; icon?: string | null }>;
   onTileClick?: (id: number) => void; canPick: boolean; picking: boolean; onPick: (id: number) => void; error: string | null;
 }) {

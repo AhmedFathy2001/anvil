@@ -461,8 +461,13 @@ export async function buildBoard(
   // whether it is open next, done, still ahead or closed. The panel draws the route from these.
   // Absent on every other board, so their payloads and ETags are unchanged.
   const routeGraph = event.format === 'tilerace' ? raceGraph(eventTiles) : null;
-  const raceOn = !!routeGraph?.branching;
+  // Every tile race (a straight line too): the panel reads it as an ordered step list (lib/pluginUi).
+  const raceOn = !!routeGraph && routeGraph.nodes.length > 0;
   const callerPicks = raceOn && callerTeamId != null ? await loadRacePicks(event, callerTeamId) : null;
+  // Completion times on the visible route, for the race order's tie-break (who got there first).
+  const raceTimes = raceOn && tileIds.length
+    ? await db.select({ teamId: completions.teamId, tileId: completions.tileId, completedAt: completions.completedAt }).from(completions).where(inArray(completions.tileId, routeGraph!.nodes.map((n) => n.id)))
+    : [];
   const callerRoute = raceOn && yourCompleted ? teamRoute(routeGraph!, yourCompleted, callerPicks) : null;
 
   return {
@@ -488,8 +493,9 @@ export async function buildBoard(
       ? {
           race: (() => {
             // The field, from what the caller may see (hidden standings already cut it to their team):
-            // teams per steps-done, the leader's steps and the caller's rank.
-            const ranked = rankRaceTeams(routeGraph!, eventTeams, [...completionsByTeam].flatMap(([teamId, ids]) => ids.map((tileId) => ({ teamId, tileId }))))
+            // teams per steps-done, the leader's steps and the caller's rank — ranked by the same rule
+            // and with the same completion times as the site (raceTimes, below).
+            const ranked = rankRaceTeams(routeGraph!, eventTeams, raceTimes.filter((c) => completionsByTeam.has(c.teamId)))
               .filter((r) => completionsByTeam.has(r.teamId) || !standingsScope.hidden);
             const field = Array.from({ length: routeGraph!.lastStep + 2 }, () => 0);
             for (const r of ranked) field[r.stepsDone]++;
@@ -505,6 +511,8 @@ export async function buildBoard(
               entrants: ranked.length,
               leaderSteps: ranked[0]?.stepsDone ?? 0,
               field,
+              // The race order itself (rank, steps), so the panel never re-sorts by name.
+              standings: ranked.map((r) => ({ teamId: r.teamId, rank: r.rank, stepsDone: r.stepsDone, finished: r.finished })),
             };
           })(),
         }
@@ -615,6 +623,8 @@ export async function buildBoard(
               raceNext: routeGraph!.byId.get(t.id)!.next,
               raceFrom: routeGraph!.prev.get(t.id) ?? [],
               raceRoad: roadOf(routeGraph!, t.id),
+              // How many tiles share its step (lane letters only mean something past one).
+              raceLanes: routeGraph!.steps[routeGraph!.byId.get(t.id)!.step].length,
               ...(callerRoute ? { raceState: callerRoute.state.get(t.id) ?? null } : {}),
             }
           : {}),

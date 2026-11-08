@@ -1,3 +1,4 @@
+import { raceStandingsForEvent } from '@/lib/raceRoutesDb';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -73,14 +74,18 @@ export async function pluginRoster(
     }
   }
 
+  // A tile race ranks by the race's own order (lib/raceRoutesDb), the same ranks the site shows.
+  const race = scored && !individuals ? await raceStandingsForEvent(event) : null;
+  const raceBy = new Map((race?.standings ?? []).map((s) => [s.teamId, s]));
   const input: RosterInput = {
     teams: teamRows.map((t) => ({
       teamId: t.id,
       name: t.name,
       color: t.color,
-      score: scoreByTeam.get(t.id)?.score ?? null,
-      scoreText: scoreByTeam.get(t.id)?.text ?? null,
+      score: race ? raceBy.get(t.id)?.stepsDone ?? 0 : scoreByTeam.get(t.id)?.score ?? null,
+      scoreText: race ? (raceBy.get(t.id)?.finished ? 'finished' : `${raceBy.get(t.id)?.stepsDone ?? 0}/${race.steps} steps`) : scoreByTeam.get(t.id)?.text ?? null,
       captainPlayerId: t.captainPlayerId ?? null,
+      ...(race ? { rank: raceBy.get(t.id)?.rank ?? null } : {}),
     })),
     people,
     viewerPlayerId,

@@ -39,6 +39,7 @@ export default function SoloStandings({
   myTeamIds = [],
   noun = 'players',
   members = {},
+  ranked,
 }: {
   teams: Entrant[];
   /** Per-team scores from lib/boardScoring, the same the cards use. */
@@ -51,17 +52,28 @@ export default function SoloStandings({
   noun?: 'players' | 'teams';
   /** Teams wording: each team's member names (count on the row, names for the search). */
   members?: Record<number, string[]>;
+  /**
+   * An order and ranks already worked out on the server (a tile race: first to the finish, then
+   * steps, then who got there first). Given, the list follows it instead of sorting by score/name.
+   */
+  ranked?: { id: number; rank: number }[];
 }) {
   const teamsMode = noun === 'teams';
   // Ranked once: best first, ties share a rank and read by name (the plugin's order too).
   const rows = useMemo<Row[]>(() => {
     const scoreOf = (t: Entrant) => scores.get(t.id) ?? ZERO;
+    if (ranked) {
+      const byId = new Map(teams.map((t) => [t.id, t]));
+      const listed = ranked.flatMap((r) => (byId.has(r.id) ? [{ ...byId.get(r.id)!, rank: r.rank, score: scoreOf(byId.get(r.id)!) }] : []));
+      const rest = teams.filter((t) => !ranked.some((r) => r.id === t.id)).map((t) => ({ ...t, rank: listed.length + 1, score: scoreOf(t) }));
+      return [...listed, ...rest];
+    }
     const sorted = [...teams].sort(
       (a, b) => scoreOf(b).score - scoreOf(a).score || a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }),
     );
     const rank = competitionRanks(sorted, (t) => scoreOf(t).score);
     return sorted.map((t) => ({ ...t, rank: rank.get(t) ?? sorted.length, score: scoreOf(t) }));
-  }, [teams, scores]);
+  }, [teams, scores, ranked]);
   const mine = useMemo(() => new Set(myTeamIds), [myTeamIds]);
   const cut = useMemo(() => standingsWindow(rows, (r) => mine.has(r.id)), [rows, mine]);
 

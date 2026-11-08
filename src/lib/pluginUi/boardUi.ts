@@ -2,7 +2,8 @@ import type { buildBoard } from '@/app/api/plugin/board/route';
 
 import { type Action, type Color, type Node, button, card, col, count, exact, gap, muted, percent, row, text } from './nodes';
 import { boardFeedLinks } from './feedUi';
-import { raceGraph, raceTileInfo, roadChoiceLine, stepTitle, type RaceGraph, type TeamRoute, type RaceTileState } from '@/lib/raceRoutes';
+import { raceGraph, raceTileInfo, roadChoiceLine, type RaceGraph, type TeamRoute, type RaceTileState } from '@/lib/raceRoutes';
+import { orderLinesBy, panelSteps, raceLines, raceSummaryLine } from '@/lib/raceSummary';
 
 // The board's "All tiles" page in the plugin's side panel (was the catalogue in AnvilSidebarPanel):
 // search, a status filter, fifteen rows a page, and a tile's detail with claiming and pinning. Pure;
@@ -285,6 +286,7 @@ export function joinToClaimLine(gate: string | null): string {
 type RacePayload = {
   steps: number; mode: 'achieve' | 'choose'; path: number[]; open: number[]; pickFrom: number[]; finished: boolean;
   rank: number | null; entrants: number; leaderSteps: number; field: number[];
+  standings?: { teamId: number; rank: number; stepsDone: number; finished: boolean }[];
 };
 const racePayload = (board: Board): RacePayload | null => ('race' in board && board.race ? (board.race as RacePayload) : null);
 
@@ -337,10 +339,12 @@ function raceDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: BoardConte
 }
 
 /**
- * "Your race": a compact step list for the caller's team (lib/raceRoutes) in a 240px panel — where
- * they are and their rank, the leader, each step's state (done / up next / locked) with the open
- * tiles named, a "Pick your road" choice at a fork on a choose-and-lock race, and how many teams
- * stand at each step. Null on every other board.
+ * The race as an ORDERED list for a 240px panel (lib/raceSummary panelSteps): a one-line summary
+ * ("Lab · step 3 of 10 · 2nd, 3 behind Iron Lads"), then every step numbered — "Step 1 of 10 ·
+ * Start", "Step 2 of 10", … "Junction", "Finish" — with its tile(s) and their lane letters where a
+ * step has several. Done steps are ticked, the current step's open tiles say Next (gold), later steps
+ * are muted behind a padlock, alternatives off the team's road are dimmed, and a "you are
+ * here" line marks the current step. A crowd shows how many stand at each step. Null off a race.
  */
 export function raceRouteUi(board: Board, s?: BoardState): Node | null {
   const race = racePayload(board);
@@ -351,36 +355,36 @@ export function raceRouteUi(board: Board, s?: BoardState): Node | null {
     const l = tiles.find((t) => t.tileId === id)?.label?.trim() || `Tile ${id}`;
     return l.length > 24 ? `${l.slice(0, 23)}…` : l;
   };
-  const head = race.finished ? 'Finished' : `${race.path.length} of ${race.steps}`;
-  const lines: Node[] = [
-    row(text('Your race', 'brand'), undefined, text(head, race.finished ? 'done' : 'text'), { gap: 6 }),
-    muted(`${race.rank != null ? `Rank ${race.rank} of ${race.entrants} · ` : ''}leader ${race.leaderSteps} of ${race.steps}`),
-    gap(4),
-  ];
-  for (let step = 0; step < race.steps; step++) {
-    const at = race.field[step + 1] ?? 0;
-    const crowd = at ? ` · ${at} ${race.entrants > 30 ? 'here' : `team${at === 1 ? '' : 's'}`}` : '';
-    const doneId = race.path[step];
-    if (doneId != null) {
-      lines.push(text(`✓ ${name(doneId)}${crowd}`, 'done', { tip: stepTitle(m.graph, step) }));
-    } else if (step === race.path.length && !board.readOnly && m.route) {
-      if (race.pickFrom.length) {
-        lines.push(text(`Pick your road (step ${step + 1}):`, 'brand'));
-        for (const id of race.pickFrom) {
-          lines.push(s && !board.readOnly
-            ? ({ ...button(`${name(id)} — ${roadChoiceLine(m.graph, m.route, id).toLowerCase()}`, { a: 'post', act: 'race-pick', args: { event: String(s.event), tile: String(id), q: s.q, status: s.status, page: String(s.page), pre: s.pre ? '1' : '' } }, 'Lock in this tile for your team — a pick can’t be changed') } as Node)
-            : text(`· ${name(id)}`, 'white'));
-        }
-      } else {
-        lines.push(text(race.open.length > 1 ? 'Up next — whichever you get first sets your road:' : 'Up next:', 'brand', { wrap: true }));
-        for (const id of race.open) lines.push(text(`▸ ${name(id)} · ${roadChoiceLine(m.graph, m.route, id).toLowerCase()}`, 'white', { wrap: true }));
-      }
-    } else {
-      const options = (m.graph.steps[step] ?? []).filter((id) => !m.route || m.route.state.get(id) !== 'closed').length;
-      lines.push(muted(`🔒 ${stepTitle(m.graph, step)} · ${options} option${options === 1 ? '' : 's'}${crowd}`));
+  const teams = board.teams.map((tm) => ({ id: tm.teamId, name: tm.name ?? 'Team', color: tm.color ?? '#989898' }));
+  const completions = board.teams.flatMap((tm) => tm.completedTileIds.map((tileId) => ({ teamId: tm.teamId, tileId })));
+  // The server's race order (completion times break ties), never a local re-sort by name.
+  const lines = orderLinesBy(raceLines(m.graph, teams, completions), race.standings ?? []);
+  const viewer = board.readOnly ? null : board.yourTeamId;
+  const steps = panelSteps(m.graph, m.route, name, lines);
+  const crowdWord = race.entrants > 30 ? 'here' : null;
+  const out: Node[] = [text(raceSummaryLine(m.graph, lines, viewer), 'brand', { wrap: true, font: 'bold' }), gap(6)];
+  for (const st of steps) {
+    if (st.phase === 'current' && !race.finished) {
+      out.push(gap(2), text('▸ You are here', 'brand', { font: 'small' }), { t: 'bar', pct: 100, color: 'brand', h: 2, bg: 'panel' } as Node, gap(3));
+    }
+    const crowd = st.crowd > 0 && race.entrants > 6 ? ` · ${st.crowd} ${crowdWord ?? `team${st.crowd === 1 ? '' : 's'}`}` : '';
+    const mark = st.phase === 'done' ? '✓ ' : st.phase === 'later' ? '🔒 ' : '';
+    out.push(text(`${mark}${st.heading}${crowd}`, st.phase === 'done' ? 'done' : st.phase === 'current' ? 'text' : 'muted', { font: st.phase === 'current' ? 'bold' : 'small' }));
+    for (const t of st.tiles) {
+      const lane = t.road ? `${t.road}: ` : '';
+      if (t.state === 'done') out.push(text(`   ✓ ${lane}${t.label}`, 'done', { on: pane(`t:${t.id}`), tip: 'Done — open this tile' }));
+      else if (t.state === 'open') {
+        const choice = m.route ? ` · ${roadChoiceLine(m.graph, m.route, t.id).toLowerCase()}` : '';
+        out.push(text(`   Next ▸ ${lane}${t.label}${st.tiles.length > 1 ? choice : ''}`, 'brand', { wrap: true, on: pane(`t:${t.id}`), tip: 'Open this tile' }));
+      } else if (m.route?.pickFrom.includes(t.id) && s && !board.readOnly) {
+        out.push({ ...button(`Pick ${lane}${t.label}`, { a: 'post', act: 'race-pick', args: { event: String(s.event), tile: String(t.id), q: s.q, status: s.status, page: String(s.page), pre: s.pre ? '1' : '' } }, 'Lock in this tile for your team — a pick can’t be changed') } as Node);
+      } else if (t.state === 'closed') out.push(muted(`   ${lane}${t.label}`, { tip: 'Not on your team’s road' }));
+      else out.push(muted(`   ${lane}${t.label}`));
     }
   }
-  return card(lines);
+  if (m.route?.pickFrom.length) out.push(gap(4), muted('A fork: your team picks its road before any tile here counts.', { wrap: true }));
+  else if (m.route && m.route.open.length > 1) out.push(gap(4), muted('Up next — whichever you get first sets your road.', { wrap: true }));
+  return card(out);
 }
 
 /** The whole page: counts, the search and the filter, then the list — or `inner` — in slot `tiles`. */
@@ -473,8 +477,10 @@ function tileRow(t: BoardTile, s: BoardState, ctx: BoardContext): Node {
     ? text(state, done ? 'done' : started != null ? IN_PROGRESS : isManual(t) ? MANUAL : 'muted', done ? { icon: { t: 'icon', glyph: 'check', w: 11, h: 11, color: 'done' } } : p && !closedUndone(t) ? { live: { tile: t.tileId, cur: p.current, goal: p.goal } } : {})
     : undefined;
   const race = raceStateOf(t);
-  const head = row(undefined, text(name.length > 28 ? `${name.slice(0, 27)}…` : name, done ? 'done' : race === 'open' ? 'brand' : race === 'closed' || race === 'ahead' ? 'muted' : 'text'), right, { gap: 6 });
-  const raceLine = 'raceStep' in t ? muted(`${race === 'open' ? '▸ ' : race === 'ahead' || race === 'closed' ? '🔒 ' : ''}Tile ${(t.raceStep as number) + 1} · road ${'raceRoad' in t ? t.raceRoad : ''}`) : null;
+  // A race tile's row leads with its step, so the list reads in race order.
+  const shown = 'raceStep' in t ? `Step ${(t.raceStep as number) + 1} · ${name}` : name;
+  const head = row(undefined, text(shown.length > 28 ? `${shown.slice(0, 27)}…` : shown, done ? 'done' : race === 'open' ? 'brand' : race === 'closed' || race === 'ahead' ? 'muted' : 'text'), right, { gap: 6 });
+  const raceLine = 'raceStep' in t && 'raceLanes' in t && (t.raceLanes as number) > 1 ? muted(`${race === 'open' ? '▸ ' : race === 'ahead' || race === 'closed' ? '🔒 ' : ''}Road ${'raceRoad' in t ? t.raceRoad : ''}`) : null;
   return col([head, ...(raceLine ? [raceLine] : []), ...(planning ? [text(planning.length > 36 ? `${planning.slice(0, 35)}…` : planning, mine(t.claims) ? 'brand' : 'claim', { tip: claimWho(t.claims) })] : [])], {
     bg: 'card',
     inset: 7,

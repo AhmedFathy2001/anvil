@@ -1,3 +1,4 @@
+import { raceViewData } from '@/lib/raceSummary';
 import { feeLabel, paidEntriesLabel, standardFee } from '@/lib/entryFeeMath';
 import CohostTileSuggest from '@/components/CohostTileSuggest';
 import { parseBoardAccess } from '@/lib/cohostBoardAccess';
@@ -474,6 +475,18 @@ export default async function EventScoreboardPage({
       ? await getEventLuck(event.id).catch(() => null)
       : null;
   const boardTiles = visibleTiles(rules, eventTiles);
+  // A TILE RACE's own data — built from the VISIBLE board only (this viewer's boardTiles) and the
+  // completions on it, so a hidden tile's label, a hidden mission or an unopened slot can't leak
+  // through the route, the firsts, the feed or the step count. Nothing before the reveal.
+  const raceView = event.format === 'tilerace' && event.tilesRevealed
+    ? raceViewData({ visibleBoardTiles: boardTiles, teams: safeTeams, completions: eventCompletions, withFirsts: !curtain })
+    : null;
+  const raceRouteGraph = raceView?.graph ?? null;
+  const raceStandings = raceView?.standings ?? null;
+  const raceEmoji: Record<string, string> = { 'off-the-line': '🏁', junction: '⇄', 'road-switch': '↪' };
+  for (const f of raceView?.firsts ?? []) {
+    firsts.push({ key: `race-${f.key}`, emoji: raceEmoji[f.key], title: f.title, blurb: f.title, who: f.team.name, teamName: f.team.name, teamColor: f.team.color, tileLabel: f.detail, at: f.at ?? '' });
+  }
   // Board tiles only: a mission hidden until its drop isn't even a number in "N still hidden".
   const hiddenTileCount = hasRevealPolicy(rules)
     ? eventTiles.filter((t) => !isMissionTile(t)).length - visibleTiles(rules, eventTiles).filter((t) => !isMissionTile(t)).length
@@ -599,7 +612,7 @@ export default async function EventScoreboardPage({
             closedAt: t.closedAt,
           }))}
         view={ladderView}
-        shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.tilesRevealed ? event.boardSize : null, event.rules)}
+        shapeBadge={raceRouteGraph && event.tilesRevealed ? `Race · ${raceRouteGraph.lastStep + 1} steps` : eventShapeBadge(event.format, event.scoringMode, event.tilesRevealed ? event.boardSize : null, event.rules)}
         hiddenTileCount={hiddenTileCount}
         nextRevealAt={upcomingRevealAt}
         prizePool={prizePool}
@@ -706,7 +719,7 @@ export default async function EventScoreboardPage({
         // A creator space's event names its host in words, not with a clan crest's say-so.
         // A friends event (lib/friendEventRules) too: "Ahmed’s friends".
         hostedBy={isCreatorSpace(hostClan) || isFriendsHost(hostClan) ? hostClan?.name ?? null : null}
-        shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.tilesRevealed ? event.boardSize : null, event.rules)}
+        shapeBadge={raceRouteGraph && event.tilesRevealed ? `Race · ${raceRouteGraph.lastStep + 1} steps` : eventShapeBadge(event.format, event.scoringMode, event.tilesRevealed ? event.boardSize : null, event.rules)}
         pointsOnBoard={pointsOnBoard}
         teamsCount={safeTeams.length}
         prizePool={prizePool}
@@ -939,6 +952,7 @@ export default async function EventScoreboardPage({
           event={event}
           tiles={withSearchText(boardTiles)}
           lockedMissions={lockedMissionPreviews(eventTiles)}
+          raceStandings={raceStandings}
           teams={safeTeams}
           completions={eventCompletions}
           tierBands={tierBands}

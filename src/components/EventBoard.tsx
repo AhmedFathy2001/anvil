@@ -73,6 +73,8 @@ interface EventBoardProps {
   neededPositions?: Set<number> | null;
   /** Difficulty bands, so a long points list can group under them. */
   tierBands?: import('@/lib/tileFilter').TierBand[];
+  /** Tile race on the event page: the Race track card only (components/board/RaceEventSections has the rest). */
+  raceLayout?: 'full' | 'track';
 }
 
 /**
@@ -86,6 +88,7 @@ export default function EventBoard({
   pointsMode,
   tiles,
   showStatusFilter = true,
+  raceLayout,
   ...rest
 }: EventBoardProps) {
   const { completions, activeTeamId, dropProgress, statProgress, matchedTileIds } = rest;
@@ -141,7 +144,7 @@ export default function EventBoard({
   const boardRest = { ...rest, matchedTileIds: combinedMatched };
 
   const board = isTileRaceFormat(format) ? (
-    <TileRaceBoard tiles={iconedTiles} {...boardRest} />
+    <TileRaceBoard tiles={iconedTiles} {...boardRest} raceLayout={raceLayout} />
   ) : pointsMode ? (
     // Leagues-style (points scoring) renders as a task-list accordion, not a square grid —
     // so it isn't bound to a perfect-square tile count. The status map lets it sort

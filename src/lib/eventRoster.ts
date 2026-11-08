@@ -27,6 +27,11 @@ export interface RosterTeamIn {
   scoreText: string | null;
   /** players.id of the captain, when the team has one. */
   captainPlayerId: number | null;
+  /**
+   * A rank already worked out on the server (a tile race: first to the finish, then steps, then who
+   * got there first — lib/raceRoutesDb raceStandingsForEvent). Set, it replaces the score ranking.
+   */
+  rank?: number | null;
 }
 
 export interface RosterPersonIn {
@@ -143,7 +148,10 @@ class Roster {
 
   constructor(private readonly input: RosterInput) {
     for (const t of input.teams) this.teamById.set(t.teamId, t);
-    this.teamRank = ranks(input.teams, (t) => t.score);
+    // A race hands its ranks in, so the roster never re-ranks by score and then by name.
+    this.teamRank = input.teams.some((t) => t.rank != null)
+      ? new Map(input.teams.filter((t) => t.rank != null).map((t) => [t, t.rank!]))
+      : ranks(input.teams, (t) => t.score);
     for (const p of input.people) {
       if (p.teamId == null || !this.teamById.has(p.teamId)) continue;
       const list = this.membersOf.get(p.teamId) ?? [];

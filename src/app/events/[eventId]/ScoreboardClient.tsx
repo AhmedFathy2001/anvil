@@ -1,6 +1,9 @@
 'use client';
 
-import YourRaceCard from '@/components/board/YourRaceCard';
+import { raceGraph, raceFieldSize } from '@/lib/raceRoutes';
+import { gapWatch, orderLinesBy, raceFeed, raceLines, raceStatCards } from '@/lib/raceSummary';
+import { useRacePick } from '@/components/board/BranchingRaceBoard';
+import { RaceFeedList, RaceGapWatch, RaceSectionTitle, RaceStandings, RaceStatCardsRow, RaceUpNext } from '@/components/board/RaceEventSections';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
@@ -149,6 +152,8 @@ interface Props {
   curtain?: StandingsCurtainInfo | null;
   /** Missions set to show as Locked before they drop: name and icon only (lib/eventRules lockedMissionPreviews). */
   lockedMissions?: { id: number; label: string; icon: string | null }[];
+  /** A tile race's order, ranked once on the server (first to the finish, steps, who got there first). */
+  raceStandings?: { teamId: number; rank: number; stepsDone: number; finished: boolean }[] | null;
   /**
    * A players board (lib/standingsWindow isSoloLike): the standings read as a ranked list of players
    * — top five, the viewer's own line(s) with neighbours, the rest paged — not a card per team.
@@ -196,7 +201,7 @@ interface TeamGains {
   tileMembers: Record<number, { name: string; gained: number }[]>;
 }
 
-export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, lockedMissions = [], creator = false, tileHighlights, solo = false, myTeamIds = [], manyTeams = false, teamMembers }: Props) {
+export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, lockedMissions = [], raceStandings = null, creator = false, tileHighlights, solo = false, myTeamIds = [], manyTeams = false, teamMembers }: Props) {
   // Solo-like and many-teams boards both draw the cut list and the compact lens.
   const windowed = solo || manyTeams;
   // Behind the curtain the teams whose progress this page deals in are the viewer's own; the rest
@@ -581,6 +586,197 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
   const showTierFilter = pointsMode && tierBands.length > 0;
   const showFilters = categories.length > 0 || showTierFilter || showTypeFilter;
 
+  // ---- Tile race: its own page layout (components/board/RaceEventSections) ----------------------
+  // Stat cards, the Race track (strip + road map), the MVP, standings next to "Up next" and the gap
+  // watch, then the race feed — the same route everywhere, the viewer's team from the lens or the
+  // viewer's own seat.
+  const isRace = event.format === 'tilerace';
+  const raceViewer = isRace ? (lensTeamId ?? myTeamIds[0] ?? null) : null;
+  const raceG = useMemo(() => (isRace ? raceGraph(board) : null), [isRace, board]);
+  const racePick = useRacePick(isRace ? event.id : undefined, raceViewer, raceG ?? raceGraph([]));
+  const raceLineList = useMemo(
+    () => {
+      if (!raceG) return [];
+      const local = raceLines(raceG, teams, completions, (id) => (id === raceViewer && racePick.pickInfo?.mode === 'choose' ? racePick.pickInfo.picks : null));
+      // The server's order and ranks — the same the plugin shows — never a local re-sort.
+      return raceStandings ? orderLinesBy(local, raceStandings) : local;
+    },
+    [raceG, teams, completions, raceViewer, racePick.pickInfo, raceStandings],
+  );
+  const [raceNow, setRaceNow] = useState<number | null>(null);
+  useEffect(() => {
+    if (!isRace) return;
+    setRaceNow(Date.now());
+    const t = setInterval(() => setRaceNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, [isRace]);
+
+  const tileModal = selectedTile ? (
+        <TileDetailModal
+          tile={selectedTile as unknown as FullTile}
+          race={event.format === 'tilerace' ? { tiles: board, completions: completions, teams: teams, viewerTeamId: raceViewer ?? lensTeamId, onOpenTile: (id: number) => setSelectedTileId(id) } : null}
+          partCompletedBy={partCompletedBy}
+          dropProgress={lensCombo ? { current: lensCombo.done, required: lensCombo.needed, note: comboProgressLine(lensCombo), combo: lensCombo } : undefined}
+          submissions={proofForOpenTile ?? []}
+          submissionsLoading={proofForOpenTile === null}
+          completedBy={selectedTileCompletions
+            .filter((c) => lensTeamId == null || c.teamId === lensTeamId)
+            .map((c) => {
+            const team = teams.find((t) => t.id === c.teamId);
+            return { teamId: c.teamId, teamName: team?.name || 'Unknown', color: team?.color || '#888' };
+          })}
+          canSubmit={false}
+          canManage={false}
+          canToggle={false}
+          onClose={() => setSelectedTileId(null)}
+          eventId={event.id}
+          teamStatProgress={
+            selectedTile.trackedStat && selectedTile.statGoal
+              ? teamGains.map((tg) => {
+                  const team = teams.find((t) => t.id === tg.teamId);
+                  return {
+                    teamId: tg.teamId,
+                    teamName: team?.name || 'Unknown',
+                    color: team?.color || '#888',
+                    gained: tg.tileGains[selectedTile.id] || 0,
+                    members: tg.tileMembers[selectedTile.id] ?? [],
+                  };
+                })
+              : undefined
+          }
+          pointsMode={pointsMode}
+          highlights={tileHighlights?.[selectedTile.id]}
+        />
+  ) : null;
+
+  if (isRace && raceG) {
+    const steps = raceG.lastStep + 1;
+    const tileById = new Map(board.map((t) => [t.id, { ...t, icon: t.icon ?? deriveTileIcon(t) }]));
+    const labelOf = (id: number) => tileById.get(id)?.label ?? `Tile ${id}`;
+    const me = raceViewer != null ? raceLineList.find((l) => l.team.id === raceViewer) : undefined;
+    const progressFor = (tileId: number) => {
+      const tile = tileById.get(tileId);
+      if (!tile || raceViewer == null) return null;
+      if (tile.trackedStat && tile.statGoal) {
+        const g = teamGains.find((tg) => tg.teamId === raceViewer)?.tileGains[tileId] ?? 0;
+        return { current: Math.min(g, tile.statGoal), goal: tile.statGoal };
+      }
+      if (tile.requiredAmount && tile.requiredAmount > 1) {
+        const cur = submissions.filter((x) => x.tileId === tileId && x.teamId === raceViewer && x.goal == null).reduce((n, x) => n + x.amount, 0);
+        return { current: Math.min(cur, tile.requiredAmount), goal: tile.requiredAmount };
+      }
+      return null;
+    };
+    const racersFor = (tileId: number) =>
+      raceLineList.filter((l) => l.team.id !== raceViewer && l.route.open.includes(tileId)).map((l) => ({ name: l.team.name, color: l.team.color }));
+    const variant = raceFieldSize(teams.length);
+    return (
+      <div>
+        {draftActive && (
+          <div className="mb-6">
+            <ClanLink
+              href={`/events/${event.id}/draft`}
+              className="inline-flex items-center gap-2 text-sm font-medium bg-accent-green/15 text-accent-green-light border border-accent-green/25 px-3 py-1.5 rounded-lg hover:bg-accent-green/25 transition-colors"
+            >
+              <span className="w-2 h-2 rounded-full bg-accent-green-light animate-pulse" />
+              Draft in Progress — Watch Live
+            </ClanLink>
+          </div>
+        )}
+
+        {!curtain && <RaceStatCardsRow cards={raceStatCards(raceG, raceLineList, raceViewer)} />}
+
+        <section className="mb-8 min-w-0">
+          <RaceSectionTitle
+            aside={
+              <>
+                <span className="text-xs font-normal text-text-muted">click a tile for details</span>
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                  <TeamLens teams={teams} value={lensTeamId} onChange={setLensTeamId} compact={windowed} mine={myTeamIds} noun={solo ? 'player' : 'team'} />
+                  <button
+                    onClick={() => setFullscreen(!fullscreen)}
+                    className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${fullscreen ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50 hover:text-gold'}`}
+                  >
+                    {fullscreen ? 'Show standings' : 'Fullscreen board'}
+                  </button>
+                </div>
+              </>
+            }
+          >
+            Race track
+          </RaceSectionTitle>
+          <EventBoard
+            format={event.format}
+            tiles={board}
+            boardSize={event.boardSize}
+            completions={completions}
+            teams={teams}
+            activeTeamId={raceViewer ?? undefined}
+            onTileClick={setSelectedTileId}
+            statProgress={statProgressMap}
+            expanded
+            pointsMode={pointsMode}
+            matchedTileIds={null}
+            staffOnlyTileIds={staffOnlySet}
+            showStatusFilter={false}
+            raceLayout="track"
+          />
+        </section>
+
+        {(mvpToday || mvp) && (
+          <div className={`mb-8 grid gap-3 ${mvpToday && mvp ? 'sm:grid-cols-2' : ''}`}>
+            {mvpToday && <MvpHighlight label="MVP of the day" emoji="🔥" name={mvpToday.name} points={mvpToday.points} tasks={mvpToday.tasks} pointsMode={pointsMode} teamName={mvpToday.teamName} teamColor={mvpToday.teamColor} />}
+            {mvp && <MvpHighlight label="Event MVP" emoji="🏆" name={mvp.name} points={mvp.points} tasks={mvp.tasks} pointsMode={pointsMode} teamName={mvp.teamName} teamColor={mvp.teamColor} />}
+          </div>
+        )}
+
+        {!fullscreen && (
+          <div className="grid gap-8 items-start lg:grid-cols-2">
+            <div className="min-w-0">
+              <RaceSectionTitle>{curtain ? (teams.length > 0 ? 'Your team' : 'Standings') : 'Standings'}</RaceSectionTitle>
+              {curtain && <StandingsHiddenNotice curtain={curtain} ownTeamNames={teams.map((t) => t.name)} className="mb-4" />}
+              {variant === 'huge' && !curtain ? (
+                <SoloStandings
+                  teams={teams}
+                  scores={new Map(raceLineList.map((l) => [l.team.id, { teamId: l.team.id, boardScore: l.stepsDone, bonusScore: 0, score: l.stepsDone, total: steps, unit: 'tiles' as const, pct: steps ? Math.round((l.stepsDone / steps) * 100) : 0 }]))}
+                  eventId={event.id}
+                  myTeamIds={myTeamIds}
+                  noun={solo ? 'players' : 'teams'}
+                  members={teamMembers}
+                  ranked={raceLineList.map((l) => ({ id: l.team.id, rank: l.rank }))}
+                />
+              ) : (
+                <RaceStandings lines={raceLineList} steps={steps} labelOf={labelOf} teamMvps={teamMvps} eventId={event.id} viewerTeamId={raceViewer} compact={variant === 'medium'} />
+              )}
+            </div>
+            <div className="min-w-0 space-y-6">
+              {me && (
+                <RaceUpNext
+                  graph={raceG}
+                  route={me.route}
+                  teamName={me.team.name}
+                  tileById={tileById}
+                  progressFor={progressFor}
+                  racersFor={racersFor}
+                  onTileClick={setSelectedTileId}
+                  canPick={!!racePick.pickInfo?.canPick}
+                  picking={racePick.picking}
+                  onPick={racePick.pick}
+                  pickError={racePick.pickError}
+                />
+              )}
+              {!curtain && <RaceGapWatch sentences={gapWatch(raceLineList, raceG)} />}
+            </div>
+          </div>
+        )}
+
+        {!curtain && <RaceFeedList items={raceFeed(raceG, teams, completions, labelOf)} now={raceNow} onTileClick={setSelectedTileId} />}
+
+        {tileModal}
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* Identity, prize and countdown now live in the EventHero above the board; this row keeps just
@@ -875,10 +1071,6 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             />
           )}
 
-          {event.format === 'tilerace' && (
-            <YourRaceCard ctx={{ tiles: board, completions, teams, viewerTeamId: lensTeamId ?? myTeamIds[0] ?? null, onOpenTile: (id: number) => setSelectedTileId(id) }} />
-          )}
-
           <EventBoard
             format={event.format}
             tiles={board}
@@ -924,43 +1116,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
       {/* Read-only tile detail — the same rich modal members and captains see, now shown to
           public/logged-out viewers. Cross-team submission proof is withheld (submissions=[]);
           per-team stat comparison is passed through so the scoreboard keeps its team race view. */}
-      {selectedTile && (
-        <TileDetailModal
-          tile={selectedTile as unknown as FullTile}
-          race={event.format === 'tilerace' ? { tiles: board, completions: completions, teams: teams, viewerTeamId: lensTeamId, onOpenTile: (id: number) => setSelectedTileId(id) } : null}
-          partCompletedBy={partCompletedBy}
-          dropProgress={lensCombo ? { current: lensCombo.done, required: lensCombo.needed, note: comboProgressLine(lensCombo), combo: lensCombo } : undefined}
-          submissions={proofForOpenTile ?? []}
-          submissionsLoading={proofForOpenTile === null}
-          completedBy={selectedTileCompletions
-            .filter((c) => lensTeamId == null || c.teamId === lensTeamId)
-            .map((c) => {
-            const team = teams.find((t) => t.id === c.teamId);
-            return { teamId: c.teamId, teamName: team?.name || 'Unknown', color: team?.color || '#888' };
-          })}
-          canSubmit={false}
-          canManage={false}
-          canToggle={false}
-          onClose={() => setSelectedTileId(null)}
-          eventId={event.id}
-          teamStatProgress={
-            selectedTile.trackedStat && selectedTile.statGoal
-              ? teamGains.map((tg) => {
-                  const team = teams.find((t) => t.id === tg.teamId);
-                  return {
-                    teamId: tg.teamId,
-                    teamName: team?.name || 'Unknown',
-                    color: team?.color || '#888',
-                    gained: tg.tileGains[selectedTile.id] || 0,
-                    members: tg.tileMembers[selectedTile.id] ?? [],
-                  };
-                })
-              : undefined
-          }
-          pointsMode={pointsMode}
-          highlights={tileHighlights?.[selectedTile.id]}
-        />
-      )}
+      {tileModal}
     </div>
   );
 }
