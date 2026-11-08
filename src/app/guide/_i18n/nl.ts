@@ -3213,7 +3213,7 @@ const nl: PartialGuideDict = {
       ],
       note: {
         tag: 'De clan overdragen',
-        body: 'Alleen de eigenaar kan dat, en alleen aan iemand die al admin is: de rij van die admin krijgt een actie **Make owner**. Hij wordt eigenaar en jij wordt een gewone admin. Zelf terugdraaien kan niet; alleen de nieuwe eigenaar kan het terug overdragen.',
+        body: 'Alleen de eigenaar kan dat, en alleen aan iemand die al admin is: de rij van die admin krijgt een actie **Make owner**. Voor de veiligheid duurt het 3 dagen, zoals het wijzigen van een bankpincode: een banner op elke adminpagina zegt wanneer het gebeurt, tot dan kun jij het met **Cancel** annuleren, kan de ander het met **Decline** weigeren, en het Anvil-team krijgt bericht en kan het tegenhouden. Na de 3 dagen wordt hij eigenaar en word jij een gewone admin. Alleen de nieuwe eigenaar kan het terug overdragen.',
       },
     },
 

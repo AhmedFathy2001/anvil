@@ -11,6 +11,7 @@ import { db } from '@/db';
 import { clanBoostState, clans } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import ClanBoostGift from './ClanBoostGift';
+import OwnershipTransfersClient from '../../ownership/OwnershipTransfersClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -151,6 +152,13 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
             ))}
           </ul>
         )}
+      </Section>
+
+      {/* Ownership transfer requests (lib/ownershipTransfers): block or let through, as on /staff/ownership.
+          There is deliberately no "transfer now" here — owners wait out the 3-day hold, and the only
+          immediate staff path is appointing an owner for a clan that has none (directory). */}
+      <Section title="Ownership transfers">
+        <OwnershipTransfersClient canWrite={canWrite} clanId={clan.id} />
       </Section>
 
       <Section title="Recent events">

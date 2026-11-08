@@ -3194,7 +3194,7 @@ const pl: PartialGuideDict = {
       ],
       note: {
         tag: 'Przekazanie klanu',
-        body: 'Może to zrobić tylko właściciel i tylko komuś, kto już jest adminem: wiersz tego admina dostaje akcję **Make owner**. On zostaje właścicielem, a ty zwykłym adminem. Sam tego nie cofniesz; przekazać klan z powrotem może tylko nowy właściciel.',
+        body: 'Może to zrobić tylko właściciel i tylko komuś, kto już jest adminem: wiersz tego admina dostaje akcję **Make owner**. Dla bezpieczeństwa trwa to 3 dni, jak zmiana PIN-u w banku: baner na każdej stronie administracji mówi, kiedy to nastąpi, do tego czasu możesz anulować przyciskiem **Cancel**, ta osoba może odmówić przyciskiem **Decline**, a zespół Anvil dostaje powiadomienie i może to zatrzymać. Po 3 dniach on zostaje właścicielem, a ty zwykłym adminem. Przekazać klan z powrotem może tylko nowy właściciel.',
       },
     },
 

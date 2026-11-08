@@ -3223,7 +3223,7 @@ const da: PartialGuideDict = {
       ],
       note: {
         tag: 'Overdrag klanen',
-        body: 'Det kan kun ejeren, og kun til en, der allerede er admin: den admins række får handlingen **Make owner**. De bliver ejer, og du bliver almindelig admin. Du kan ikke selv gøre det om; kun den nye ejer kan overdrage den tilbage.',
+        body: 'Det kan kun ejeren, og kun til en, der allerede er admin: den admins række får handlingen **Make owner**. Af sikkerhedshensyn tager det 3 dage, ligesom når man skifter bank-PIN: et banner på alle admin-sider viser, hvornår det sker, du kan trykke **Cancel** indtil da, de kan trykke **Decline**, og Anvils staff får besked og kan stoppe det. Når de 3 dage er gået, bliver de ejer, og du bliver almindelig admin. Kun den nye ejer kan overdrage den tilbage.',
       },
     },
 

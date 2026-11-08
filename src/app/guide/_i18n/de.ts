@@ -3213,7 +3213,7 @@ const de: PartialGuideDict = {
       ],
       note: {
         tag: 'Den Clan übergeben',
-        body: 'Das kann nur der Eigentümer, und nur an jemanden, der schon Admin ist: Die Zeile dieses Admins bekommt die Aktion **Make owner**. Er wird Eigentümer, und du wirst ein normaler Admin. Selbst rückgängig machen kannst du das nicht; nur der neue Eigentümer kann es zurückübertragen.',
+        body: 'Das kann nur der Eigentümer, und nur an jemanden, der schon Admin ist: Die Zeile dieses Admins bekommt die Aktion **Make owner**. Aus Sicherheitsgründen dauert es 3 Tage, wie das Ändern einer Bank-PIN: Ein Banner auf jeder Admin-Seite zeigt, wann es passiert, bis dahin kannst du mit **Cancel** abbrechen, er kann mit **Decline** ablehnen, und das Anvil-Team wird informiert und kann es stoppen. Nach den 3 Tagen wird er Eigentümer, und du wirst ein normaler Admin. Nur der neue Eigentümer kann es zurückübertragen.',
       },
     },
 

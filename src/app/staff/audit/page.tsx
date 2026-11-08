@@ -23,6 +23,9 @@ const WHAT: Record<string, string> = {
   platform_unbanned: 'Platform ban lifted',
   platform_role_changed: 'Platform role changed',
   platform_owner_appointed: 'Clan owner appointed',
+  // Clan ownership transfer requests in their 3-day hold (/staff/ownership, lib/ownershipTransfers).
+  platform_ownership_transfer_blocked: 'Ownership transfer blocked',
+  platform_ownership_transfer_cleared: 'Ownership transfer let through',
   platform_clan_updated: 'Clan updated',
   platform_clan_deleted: 'Clan deleted',
   platform_act_as_granted: 'Borrowed a grant in this clan',

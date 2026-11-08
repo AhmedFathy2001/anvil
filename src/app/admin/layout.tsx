@@ -23,6 +23,8 @@ import { pendingUpdateCount } from '@/lib/guides';
 import { coHostedBoardLinks } from '@/lib/coHost';
 import { getClanFeatures } from '@/lib/clanFeatures';
 import { flaggedProofBoards } from '@/lib/flaggedProofs';
+import { pendingTransferForClan } from '@/lib/ownershipTransfers';
+import OwnershipTransferBanner from './_components/OwnershipTransferBanner';
 
 // Admin shell — wraps every page under /admin (including the login page).
 // On the login page there's no session yet, so the sidebar is skipped and the
@@ -381,6 +383,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       ? { href: '/admin/weekly', label: '+ New competition' }
       : undefined;
 
+  // A pending ownership transfer (lib/ownershipTransfers) is said on every admin page while it waits.
+  const pendingTransfer = isAdmin ? await pendingTransferForClan(clan.id) : null;
+
   const user = {
     displayName: userRow?.displayName ?? session.username ?? 'Admin',
     role: session.role,
@@ -407,6 +412,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             see it in their history.
           </div>
         )}
+        {pendingTransfer && <OwnershipTransferBanner viewerUserId={session.userId} transfer={pendingTransfer} />}
         {children}
       </div>
     </div>

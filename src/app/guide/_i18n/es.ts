@@ -3214,7 +3214,7 @@ const es: PartialGuideDict = {
       ],
       note: {
         tag: 'Traspasar el clan',
-        body: 'Solo puede hacerlo el propietario, y solo a alguien que ya sea admin: la fila de ese admin tiene una acción **Make owner**. Pasa a ser el propietario y tú pasas a ser un admin normal. No puedes deshacerlo tú; solo el nuevo propietario puede devolvértelo.',
+        body: 'Solo puede hacerlo el propietario, y solo a alguien que ya sea admin: la fila de ese admin tiene una acción **Make owner**. Por seguridad tarda 3 días, como cambiar el PIN del banco: un aviso en todas las páginas de administración dice cuándo ocurre, hasta entonces puedes pulsar **Cancel**, esa persona puede pulsar **Decline**, y el equipo de Anvil recibe aviso y puede detenerlo. Pasados los 3 días pasa a ser el propietario y tú pasas a ser un admin normal. Solo el nuevo propietario puede devolvértelo.',
       },
     },
 

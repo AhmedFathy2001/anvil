@@ -3214,7 +3214,7 @@ const sv: PartialGuideDict = {
       ],
       note: {
         tag: 'Lämna över klanen',
-        body: 'Det kan bara ägaren, och bara till någon som redan är admin: den adminens rad får åtgärden **Make owner**. Hen blir ägare och du blir en vanlig admin. Du kan inte ångra det själv; bara den nya ägaren kan överlåta den tillbaka.',
+        body: 'Det kan bara ägaren, och bara till någon som redan är admin: den adminens rad får åtgärden **Make owner**. Av säkerhetsskäl tar det 3 dagar, som att byta PIN-kod hos banken: en banderoll på varje adminsida visar när det sker, fram till dess kan du trycka **Cancel**, hen kan trycka **Decline**, och Anvils personal får veta och kan stoppa det. När de 3 dagarna har gått blir hen ägare och du en vanlig admin. Bara den nya ägaren kan överlåta den tillbaka.',
       },
     },
 
