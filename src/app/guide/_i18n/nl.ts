@@ -3654,7 +3654,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Moderatie',
-          body: 'de organisator en mods kunnen met rechts op een regel klikken voor **Delete message**, of voor **Mute** om iemand het zwijgen op te leggen, en de hele chat pauzeren met **Pause chat (read-only for everyone)**.',
+          body: 'de organisator en mods kunnen met rechts op een regel klikken voor **Delete message**, of voor **Mute** om iemand het zwijgen op te leggen, en de hele chat pauzeren met **Pause chat**.',
         },
       ],
       outro:

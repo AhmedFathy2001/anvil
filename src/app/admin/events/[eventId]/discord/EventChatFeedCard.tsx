@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import Checkbox from '@/components/Checkbox';
+import ClanLink from '@/components/ClanLink';
 import { clanFetch } from '@/lib/clanFetch';
 
 /**
@@ -72,13 +73,23 @@ export default function EventChatFeedCard({ eventId, creator = false }: { eventI
       )}
       {state?.chatPlatformOn && (
         <div className="mt-5 border-t border-card-border/60 pt-4">
-          <h3 className="mb-2 text-sm font-semibold text-foreground">Event chat</h3>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-foreground">Event chat</h3>
+            {state.chatEnabled && (
+              <ClanLink
+                href={`/events/${eventId}/chat`}
+                className="text-xs font-medium px-2.5 py-1 rounded-md border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
+              >
+                Moderate chat →
+              </ClanLink>
+            )}
+          </div>
           <Checkbox
             checked={state.chatEnabled}
             disabled={saving}
             onChange={(v) => save({ chatEnabled: v })}
             label="Let this board's players chat in the plugin's Feed tab"
-            description="A private channel for this event only: its players, plus your clan's mods and admins. Players can also talk to just their team. Mods can delete messages and mute people by right-clicking a line; links and gold adverts are blocked, and the chat slows itself down when it gets busy. Messages are deleted a week after the event ends."
+            description="A private channel for this event only: its players, plus your clan's mods and admins. Players can also talk to just their team. Mods can delete messages and mute people by right-clicking a line, or time out and ban people from the moderation page; links and gold adverts are blocked, and the chat slows itself down when it gets busy. Messages are deleted a week after the event ends."
           />
           {state.chatEnabled && (
             <div className="mt-3">

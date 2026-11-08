@@ -1212,6 +1212,13 @@
       "when": 1794322266000,
       "tag": "0232_tile_race_routes",
       "breakpoints": true
+    },
+    {
+      "idx": 236,
+      "version": "7",
+      "when": 1794340000000,
+      "tag": "0236_event_chat_sanctions",
+      "breakpoints": true
     }
   ]
 }

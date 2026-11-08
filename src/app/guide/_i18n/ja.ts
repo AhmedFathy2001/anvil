@@ -3652,7 +3652,7 @@ const ja: PartialGuideDict = {
         },
         {
           term: 'モデレーション',
-          body: '主催者とモデレーターは、行を右クリックして **Delete message** や **Mute** ができ、**Pause chat (read-only for everyone)** でチャット全体を止められます。',
+          body: '主催者とモデレーターは、行を右クリックして **Delete message** や **Mute** ができ、**Pause chat** でチャット全体を止められます。',
         },
       ],
       outro:

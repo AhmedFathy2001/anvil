@@ -3654,7 +3654,7 @@ const ar: PartialGuideDict = {
         },
         {
           term: 'الإشراف',
-          body: 'يستطيع المستضيف والمشرفون النقر بالزر الأيمن على سطر لاختيار **Delete message** أو **Mute** لشخص ما، وإيقاف الدردشة كلها مؤقتًا عبر **Pause chat (read-only for everyone)**.',
+          body: 'يستطيع المستضيف والمشرفون النقر بالزر الأيمن على سطر لاختيار **Delete message** أو **Mute** لشخص ما، وإيقاف الدردشة كلها مؤقتًا عبر **Pause chat**.',
         },
       ],
       outro:

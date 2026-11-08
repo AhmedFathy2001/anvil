@@ -3635,7 +3635,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Moderacja',
-          body: 'gospodarz i modzi mogą kliknąć wiadomość prawym przyciskiem, żeby wybrać **Delete message** albo **Mute** dla kogoś, i wstrzymać cały czat przez **Pause chat (read-only for everyone)**.',
+          body: 'gospodarz i modzi mogą kliknąć wiadomość prawym przyciskiem, żeby wybrać **Delete message** albo **Mute** dla kogoś, i wstrzymać cały czat przez **Pause chat**.',
         },
       ],
       outro:

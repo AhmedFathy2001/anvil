@@ -17,6 +17,7 @@ let s: Awaited<ReturnType<typeof loadDb>>['schema'];
 let C: typeof import('../src/lib/eventChat.ts');
 
 let eventId: number;
+let clanId: number;
 let ruby: number;
 let jade: number;
 const u: Record<string, number> = {};
@@ -38,8 +39,9 @@ before(async () => {
   const [clan] = await db.insert(s.clans).values({ slug: 'forge', name: 'Forge' }).returning();
   const [ev] = await db.insert(s.events).values({ clanId: clan.id, name: 'Winter Bingo', boardSize: 5, chatEnabled: true }).returning();
   eventId = ev.id;
+  clanId = clan.id;
   [{ id: ruby }, { id: jade }] = await db.insert(s.teams).values([{ eventId, name: 'Ruby', color: '#cf4a3e' }, { eventId, name: 'Jade', color: '#3ecf62' }]).returning();
-  const names = ['Rikkert', 'Pkpingu', 'Saltbeard', 'Kev', 'Stranger'];
+  const names = ['Rikkert', 'Pkpingu', 'Saltbeard', 'Kev', 'Stranger', 'Ada', 'Opal'];
   for (const [i, n] of names.entries()) {
     const p = await person(n, i);
     u[n] = p.userId;
@@ -48,6 +50,9 @@ before(async () => {
   }
   // Kev is the clan's moderator, not playing.
   await db.insert(s.clanStaff).values({ clanId: clan.id, userId: u.Kev, role: 'moderator' });
+  // Ada is the clan's admin; Opal is Anvil platform staff with no job in the clan.
+  await db.insert(s.clanStaff).values({ clanId: clan.id, userId: u.Ada, role: 'admin' });
+  await db.update(s.users).set({ platformRole: 'staff' }).where(eq(s.users.id, u.Opal));
   // Off until staff turn it on (it needs the plugin's Feed tab).
   assert.equal(await C.platformChatOn(true), false);
   await C.setPlatformChat(true);
@@ -113,7 +118,8 @@ test('a mod deletes a line and mutes its sender; staff see the menu, players don
   const rik = (await C.chatHistory(await access('Kev'), u.Kev, 'all')).find((r) => r.who === 'Rikkert')!;
   assert.deepEqual(await C.muteChat(await access('Kev'), u.Kev, Number(rik.id.slice(1))), { ok: true });
   const r = await C.sendChat(await access('Rikkert'), u.Rikkert, 'why', false, later());
-  assert.deepEqual(r, { ok: false, error: 'You’re muted in this event’s chat.' });
+  // The plugin's "Mute" is a ban until lifted, in the same model as the moderation page.
+  assert.deepEqual(r, { ok: false, error: 'You’ve been removed from this event’s chat.' });
 });
 
 test('pause makes it read-only for players, not for staff', async () => {
@@ -122,6 +128,72 @@ test('pause makes it read-only for players, not for staff', async () => {
   assert.equal((await C.sendChat(await access('Kev'), u.Kev, 'back in 5', false, later())).ok, true);
   await C.pauseChat(await access('Kev'), false);
   assert.equal((await C.sendChat(await access('Pkpingu'), u.Pkpingu, 'hello again', false, later())).ok, true);
+});
+
+test('moderation page model: delete, timeout, ban and lift, all audited', async () => {
+  // Rikkert's ban from the plugin's right-click shows on the page, and a mod may lift it.
+  let list = await C.chatSanctions(await access('Kev'), u.Kev, later());
+  assert.deepEqual(list.map((x) => [x.name, x.kind, x.canLift, x.byName]), [['Rikkert', 'ban', true, 'Kev']]);
+  assert.deepEqual(await C.liftChatSanction(await access('Kev'), u.Kev, u.Rikkert), { ok: true });
+  assert.equal((await C.sendChat(await access('Rikkert'), u.Rikkert, 'thanks', false, later())).ok, true);
+  assert.deepEqual(await C.liftChatSanction(await access('Kev'), u.Kev, u.Rikkert), { ok: false, error: 'They aren’t timed out or banned.' });
+
+  // Search and filters see every line, team-only ones included.
+  assert.equal((await C.sendChat(await access('Saltbeard'), u.Saltbeard, 'jade team, regroup at tile 4', true, later())).ok, true);
+  const found = await C.chatModLines(eventId, { q: 'REGROUP' });
+  assert.deepEqual(found.map((l) => [l.rsn, l.teamOnly]), [['Saltbeard', true]]);
+  assert.ok((await C.chatModLines(eventId, { filter: 'team', teamId: jade })).every((l) => l.teamId === jade));
+  assert.ok((await C.chatModLines(eventId, { filter: 'staff' })).every((l) => l.fromStaff));
+  assert.equal((await C.chatModLines(eventId, { q: '100%_' })).length, 0, 'wildcards are text');
+
+  // Delete through the shared path: gone from the page and the plugin's history.
+  assert.deepEqual(await C.deleteChat(await access('Kev'), u.Kev, found[0].id), { ok: true });
+  assert.equal((await C.chatModLines(eventId, { q: 'regroup' })).length, 0);
+  assert.equal((await C.deleteChat(await access('Kev'), u.Kev, found[0].id)).ok, false, 'already gone');
+
+  // A 5-minute timeout: refused with the time left, then free once it runs out.
+  const t0 = later();
+  assert.deepEqual(await C.sanctionChat(await access('Kev'), u.Kev, u.Saltbeard, { kind: 'timeout', minutes: 5, reason: 'spam' }, t0), { ok: true });
+  assert.deepEqual(await C.sendChat(await access('Saltbeard'), u.Saltbeard, 'hey', false, t0 + 60_000), {
+    ok: false,
+    error: 'You’re timed out of this event’s chat for 4 more minutes.',
+  });
+  list = await C.chatSanctions(await access('Kev'), u.Kev, t0 + 60_000);
+  assert.deepEqual(list.map((x) => [x.name, x.kind, x.reason]), [['Saltbeard', 'timeout', 'spam']]);
+  assert.equal((await C.chatSanctions(await access('Kev'), u.Kev, t0 + 6 * 60_000)).length, 0, 'expired timeouts leave the list');
+  t = t0 + 6 * 60_000;
+  assert.equal((await C.sendChat(await access('Saltbeard'), u.Saltbeard, 'back', false, later())).ok, true);
+
+  // Ranks: a mod can't touch the admin; the admin can time out the mod, whose staff seat doesn't
+  // exempt them; Anvil staff outrank the clan's admin; nobody can lift their own.
+  assert.equal((await C.sendChat(await access('Ada'), u.Ada, 'admin here', false, later())).ok, true);
+  assert.equal((await C.sanctionChat(await access('Kev'), u.Kev, u.Ada, { kind: 'ban' })).ok, false);
+  assert.equal((await C.sanctionChat(await access('Kev'), u.Kev, u.Kev, { kind: 'ban' })).ok, false);
+  assert.equal((await C.sanctionChat(await access('Kev'), u.Kev, u.Stranger, { kind: 'ban' })).ok, false, 'not on this chat');
+  const t1 = later();
+  assert.deepEqual(await C.sanctionChat(await access('Ada'), u.Ada, u.Kev, { kind: 'timeout', minutes: 60 }, t1), { ok: true });
+  assert.equal((await C.sendChat(await access('Kev'), u.Kev, 'hm', false, t1 + 1_000)).ok, false, 'staff aren’t exempt from a timeout');
+  assert.equal((await C.chatSanctions(await access('Kev'), u.Kev, t1 + 1_000))[0].canLift, false, 'not their own');
+  assert.equal((await C.liftChatSanction(await access('Kev'), u.Kev, u.Kev)).ok, false);
+  assert.deepEqual(await C.liftChatSanction(await access('Ada'), u.Ada, u.Kev), { ok: true });
+
+  assert.equal((await access('Opal')).staffKind, 'platform');
+  assert.equal((await access('Kev')).staffKind, 'event');
+  assert.deepEqual(await C.sanctionChat(await access('Opal'), u.Opal, u.Ada, { kind: 'ban', reason: 'test' }), { ok: true });
+  assert.deepEqual(await C.sendChat(await access('Ada'), u.Ada, 'oi', false, later()), { ok: false, error: 'You’ve been removed from this event’s chat.' });
+  assert.equal((await C.liftChatSanction(await access('Ada'), u.Ada, u.Ada)).ok, false);
+  assert.deepEqual(await C.liftChatSanction(await access('Opal'), u.Opal, u.Ada), { ok: true });
+
+  // Pause from the page is audited too.
+  await C.pauseChat(await access('Kev'), true, u.Kev);
+  await C.pauseChat(await access('Kev'), false, u.Kev);
+
+  const log = await db.select({ type: s.clanAuditLog.eventType, actor: s.clanAuditLog.actorUserId }).from(s.clanAuditLog).where(eq(s.clanAuditLog.clanId, clanId));
+  const types = log.map((l) => l.type);
+  for (const k of ['event_chat_banned', 'event_chat_timed_out', 'event_chat_sanction_lifted', 'event_chat_message_deleted', 'event_chat_paused', 'event_chat_resumed']) {
+    assert.ok(types.includes(k), `${k} logged`);
+  }
+  assert.equal(types.filter((k) => k === 'event_chat_sanction_lifted').length, 3);
 });
 
 test('the host’s switch and the platform’s each close it', async () => {

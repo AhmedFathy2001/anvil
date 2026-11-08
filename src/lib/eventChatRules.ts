@@ -121,9 +121,20 @@ export function waitFor(lastSentAt: number | undefined, now: number, slow: boole
   return Math.max(0, lastSentAt + gap - now);
 }
 
-/** The line under the message box: the viewer's own wait, or the board's slow mode when it's on. */
-export function chatPaceHint(opts: { tier: SupporterTierId | null | undefined; slow: boolean; staff: boolean }): string {
-  if (opts.staff) return 'no slow mode for staff';
+/**
+ * Who a chat "staff" is, for the words under the message box: the event's own staff (the host
+ * clan's moderators and up) or Anvil's platform staff who hold no job in that clan.
+ */
+export type ChatStaffKind = 'event' | 'platform';
+
+/**
+ * The line under the message box: the viewer's own wait, or the board's slow mode when it's on.
+ * `staff`: false for a player; `true` / 'event' for the host clan's moderators and up; 'platform' for
+ * Anvil staff who aren't staff of the host clan.
+ */
+export function chatPaceHint(opts: { tier: SupporterTierId | null | undefined; slow: boolean; staff: boolean | ChatStaffKind }): string {
+  if (opts.staff === 'platform') return 'no slow mode (Anvil staff)';
+  if (opts.staff) return 'no slow mode for event staff';
   if (opts.slow) return `slow mode ${Math.round(Math.max(SLOW_GAP_MS, personGapMs(opts.tier)) / 1000)}s (busy chat)`;
   const gap = personGapMs(opts.tier);
   if (gap === 0) return 'no slow mode (Patron)';
@@ -140,4 +151,91 @@ export function muteActive(until: string | null | undefined, now: number, parse:
   if (until == null) return true;
   const t = parse(until);
   return t == null || t > now;
+}
+
+// ── Timeouts and bans ────────────────────────────────────────────────────────────────────────────
+//
+// One model for the plugin's right-click "Ban" and the site's moderation page (lib/eventChat
+// sanctionChat): one event_chat_mutes row per person per board, a 'timeout' with an expiry or a 'ban'
+// until lifted.
+//
+// WHO MAY SANCTION WHOM. Staff are exempt from slow mode and the flood guard, but NOT from bans:
+// a sanction binds whoever it is on, staff included. What protects staff is who may impose it: only
+// someone who strictly outranks them in this event's chat (chatRank). So a moderator can time out a
+// player but not another moderator; an admin can time out a moderator; the clan owner can sanction
+// its admins; Anvil platform staff outrank everyone in the clan. Peers can't sanction each other and
+// nobody can sanction (or un-sanction) themselves. Lifting follows the same rule as imposing.
+
+export type ChatSanctionKind = 'timeout' | 'ban';
+
+export interface ChatSanction {
+  kind: string;
+  /** A timeout's expiry, as stored; null for a ban. */
+  until: string | null;
+}
+
+export type ChatBlock = { kind: 'ban' } | { kind: 'timeout'; msLeft: number };
+
+/**
+ * Does this sanction stop the person talking right now? A timeout whose expiry has passed no longer
+ * blocks (the row may linger until lifted or swept; it means nothing). A ban blocks until lifted. An
+ * unreadable expiry, or a "timeout" with none, is treated as a ban: when in doubt, keep them out.
+ */
+export function sanctionBlock(s: ChatSanction | null | undefined, now: number, parse: (v: string) => number | null): ChatBlock | null {
+  if (!s) return null;
+  if (s.kind !== 'timeout' || s.until == null) return { kind: 'ban' };
+  const t = parse(s.until);
+  if (t == null) return { kind: 'ban' };
+  return t > now ? { kind: 'timeout', msLeft: t - now } : null;
+}
+
+/** "12 minutes", "3 hours", "2 days": the time left on a timeout, rounded up. */
+export function timeLeftText(ms: number): string {
+  const min = Math.max(1, Math.ceil(ms / 60_000));
+  const plural = (n: number, unit: string) => `${n} more ${unit}${n === 1 ? '' : 's'}`;
+  if (min < 60) return plural(min, 'minute');
+  const hours = Math.ceil(min / 60);
+  if (hours < 48) return plural(hours, 'hour');
+  return plural(Math.ceil(hours / 24), 'day');
+}
+
+/** What a blocked person is told, by sendChat and in place of the plugin's message box. */
+export function sanctionMessage(b: ChatBlock): string {
+  if (b.kind === 'ban') return 'You’ve been removed from this event’s chat.';
+  return `You’re timed out of this event’s chat for ${timeLeftText(b.msLeft)}.`;
+}
+
+/** The moderation page's quick timeouts. */
+export const TIMEOUT_PRESETS_MIN = { '5m': 5, '1h': 60, '24h': 1_440 } as const;
+/** The longest custom timeout: past this, it's a ban. */
+export const MAX_TIMEOUT_MIN = 30 * 1_440;
+
+/** A timeout's length in minutes, from a preset or a custom number; null when it isn't one. */
+export function timeoutMinutes(raw: unknown): number | null {
+  if (typeof raw === 'string' && raw in TIMEOUT_PRESETS_MIN) return TIMEOUT_PRESETS_MIN[raw as keyof typeof TIMEOUT_PRESETS_MIN];
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() ? Number(raw) : NaN;
+  if (!Number.isFinite(n)) return null;
+  const m = Math.round(n);
+  return m >= 1 && m <= MAX_TIMEOUT_MIN ? m : null;
+}
+
+/** A moderator's reason, as stored: cleaned like a chat line, capped. */
+export const MAX_REASON = 200;
+export function cleanReason(raw: unknown): string | null {
+  const r = clean(typeof raw === 'string' ? raw : '').slice(0, MAX_REASON);
+  return r || null;
+}
+
+/**
+ * Standing in one event's chat: 0 a player, then the host clan's rank (moderator and treasurer 1,
+ * admin 2, owner 3, from lib/clanRoles rankOf), and Anvil platform staff above all of them (4).
+ */
+export const PLATFORM_CHAT_RANK = 4;
+export function chatRank(clanRank: number, platformStaff: boolean): number {
+  return Math.max(clanRank >= 1 ? clanRank : 0, platformStaff ? PLATFORM_CHAT_RANK : 0);
+}
+
+/** May someone at `actorRank` time out, ban or lift someone at `targetRank`? Staff only, strictly above. */
+export function canSanction(actorRank: number, targetRank: number): boolean {
+  return actorRank >= 1 && actorRank > targetRank;
 }

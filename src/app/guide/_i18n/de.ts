@@ -3654,7 +3654,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Moderation',
-          body: 'der Ausrichter und die Mods können per Rechtsklick auf eine Zeile **Delete message** oder jemanden mit **Mute** stummschalten, und den ganzen Chat mit **Pause chat (read-only for everyone)** anhalten.',
+          body: 'der Ausrichter und die Mods können per Rechtsklick auf eine Zeile **Delete message** oder jemanden mit **Mute** stummschalten, und den ganzen Chat mit **Pause chat** anhalten.',
         },
       ],
       outro:

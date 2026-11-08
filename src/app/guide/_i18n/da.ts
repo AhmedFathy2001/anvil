@@ -3663,7 +3663,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Moderering',
-          body: 'værten og mods kan højreklikke på en linje for at vælge **Delete message** eller **Mute** nogen, og sætte hele chatten på pause med **Pause chat (read-only for everyone)**.',
+          body: 'værten og mods kan højreklikke på en linje for at vælge **Delete message** eller **Mute** nogen, og sætte hele chatten på pause med **Pause chat**.',
         },
       ],
       outro:

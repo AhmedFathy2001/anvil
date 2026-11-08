@@ -3654,7 +3654,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Moderointi',
-          body: 'isäntä ja modit voivat napsauttaa riviä hiiren oikealla painikkeella ja valita **Delete message** tai **Mute** jollekulle, ja keskeyttää koko chatin kohdasta **Pause chat (read-only for everyone)**.',
+          body: 'isäntä ja modit voivat napsauttaa riviä hiiren oikealla painikkeella ja valita **Delete message** tai **Mute** jollekulle, ja keskeyttää koko chatin kohdasta **Pause chat**.',
         },
       ],
       outro:

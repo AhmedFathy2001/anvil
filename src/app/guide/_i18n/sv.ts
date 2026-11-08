@@ -3654,7 +3654,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Moderering',
-          body: 'värden och moddarna kan högerklicka på en rad för att välja **Delete message** eller **Mute** någon, och pausa hela chatten med **Pause chat (read-only for everyone)**.',
+          body: 'värden och moddarna kan högerklicka på en rad för att välja **Delete message** eller **Mute** någon, och pausa hela chatten med **Pause chat**.',
         },
       ],
       outro:

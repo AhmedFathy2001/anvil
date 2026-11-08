@@ -3651,7 +3651,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '管理',
-          body: '主办方和管理员可以右键某一行来 **Delete message** 或 **Mute** 某人，也可以用 **Pause chat (read-only for everyone)** 暂停整个聊天。',
+          body: '主办方和管理员可以右键某一行来 **Delete message** 或 **Mute** 某人，也可以用 **Pause chat** 暂停整个聊天。',
         },
       ],
       outro:

@@ -6,13 +6,13 @@
 // per-event `chat_enabled`, and the host's `chat_paused` (read-only at once). The rules for what may be
 // said and how fast are pure, in lib/eventChatRules.
 
-import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, eventChatMessages, eventChatMutes, eventParticipants, events, teams, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanStaff, eventChatMessages, eventChatMutes, eventParticipants, events, teams, users } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { clanGrant, platformRoleOf } from '@/lib/clanGrants';
-import { atLeast, hasPlatformRole } from '@/lib/clanRoles';
+import { atLeast, hasPlatformRole, rankOf } from '@/lib/clanRoles';
 import { parseStamp } from '@/lib/dbTime';
 import {
   KEEP_DAYS,
@@ -21,8 +21,14 @@ import {
   BURST_MAX,
   BURST_WINDOW_MS,
   isSlow,
-  muteActive,
+  canSanction,
+  chatRank,
   personGapMs,
+  sanctionBlock,
+  sanctionMessage,
+  type ChatBlock,
+  type ChatSanctionKind,
+  type ChatStaffKind,
   newPace,
   recordSend,
   waitFor,
@@ -56,6 +62,7 @@ export async function platformChatOn(fresh = false): Promise<boolean> {
 export async function boardChatOn(eventId: number): Promise<boolean> {
   const [platformOn, ev] = await Promise.all([
     platformChatOn(),
+    // clan-scope: global -- a yes/no about one board by id; nothing of the clan's is returned
     db.query.events.findFirst({ where: eq(events.id, eventId), columns: { chatEnabled: true } }),
   ]);
   return platformOn && !!ev?.chatEnabled;
@@ -77,6 +84,8 @@ export async function setPlatformChat(on: boolean): Promise<void> {
 
 export interface ChatAccess {
   eventId: number;
+  /** The host clan: the one whose audit log a moderation action goes in. */
+  clanId: number;
   /** The board has chat at all (platform + host), paused or not. */
   open: boolean;
   paused: boolean;
@@ -85,6 +94,10 @@ export interface ChatAccess {
   /** May read: a participant, or the host's staff. */
   member: boolean;
   staff: boolean;
+  /** Which staff: the host clan's moderators and up ('event'), or Anvil staff with no job there. */
+  staffKind: ChatStaffKind | null;
+  /** Standing in this chat (lib/eventChatRules chatRank), read live: who they may time out or ban. */
+  rank: number;
   role: 'host' | 'mod' | null;
   teamId: number | null;
   rsn: string | null;
@@ -174,16 +187,20 @@ export async function chatAccess(eventId: number, userId: number, pick?: ChatSea
     platformRoleOf(userId),
   ]);
   const clanStaff = grant != null && atLeast(grant.role, 'moderator');
-  const staff = clanStaff || hasPlatformRole(platformRole, 'staff');
+  const platformStaff = hasPlatformRole(platformRole, 'staff');
+  const staff = clanStaff || platformStaff;
   const role = grant && atLeast(grant.role, 'admin') ? 'host' : clanStaff ? 'mod' : null;
   const open = platformOn && ev.chatEnabled;
   return {
     eventId,
+    clanId: ev.clanId,
     open,
     paused: ev.chatPaused,
     closedWhy: !platformOn ? 'Event chat is switched off on Anvil right now.' : !ev.chatEnabled ? 'The host hasn’t turned chat on for this event.' : null,
     member: part != null || staff,
     staff,
+    staffKind: clanStaff ? 'event' : platformStaff ? 'platform' : null,
+    rank: chatRank(clanStaff ? rankOf(grant!.role) : 0, platformStaff),
     role,
     teamId: part?.teamId ?? null,
     rsn: part?.rsn ?? null,
@@ -324,16 +341,14 @@ export type SendResult = { ok: true } | { ok: false; error: string };
 export async function sendChat(access: ChatAccess, userId: number, raw: string, teamOnly: boolean, now = Date.now()): Promise<SendResult> {
   if (!access.member) return { ok: false, error: 'Only this event’s players can chat here.' };
   if (!access.open) return { ok: false, error: access.closedWhy ?? 'Chat is off.' };
+  // A timeout or ban binds whoever it's on, staff included (only higher staff can impose one).
+  const block = await chatBlockOf(access.eventId, userId, now);
+  if (block) return { ok: false, error: sanctionMessage(block) };
   if (access.paused && !access.staff) return { ok: false, error: 'The host has paused chat.' };
   if (teamOnly && access.teamId == null) return { ok: false, error: 'You’re not on a team yet.' };
 
   const checked = checkBody(raw, { staff: access.staff });
   if (!checked.ok) return { ok: false, error: checked.reason };
-
-  const mute = await db.query.eventChatMutes.findFirst({
-    where: and(eq(eventChatMutes.eventId, access.eventId), eq(eventChatMutes.userId, userId)),
-  });
-  if (mute && muteActive(mute.until, now, parseStamp)) return { ok: false, error: 'You’re muted in this event’s chat.' };
 
   const pace = paceOf(access.eventId);
   const key = `${access.eventId}:${userId}`;
@@ -370,42 +385,286 @@ async function lineOf(eventId: number, id: number) {
   return db.query.eventChatMessages.findFirst({ where: and(eq(eventChatMessages.id, id), eq(eventChatMessages.eventId, eventId)) });
 }
 
+/** One moderation action in the host clan's audit log. Never fails the action itself. */
+async function audit(access: ChatAccess, byUserId: number, eventType: string, value: { old?: unknown; new?: unknown }, notes?: string): Promise<void> {
+  await db
+    .insert(clanAuditLog)
+    .values({
+      clanId: access.clanId,
+      eventType,
+      actorUserId: byUserId,
+      oldValue: value.old === undefined ? null : JSON.stringify(value.old),
+      newValue: value.new === undefined ? null : JSON.stringify(value.new),
+      notes: notes ?? null,
+    })
+    .catch((err) => log.warn('event-chat.audit-failed', { eventType, message: (err as Error).message }));
+}
+
+/**
+ * Remove a line (the plugin's right-click "Delete message" and the moderation page's Delete). The row
+ * stays for a report; every open feed drops it at once (a `rowsdel` push), and history stops serving it.
+ */
 export async function deleteChat(access: ChatAccess, byUserId: number, id: number): Promise<SendResult> {
   if (!access.staff) return { ok: false, error: 'Only the host and mods can do that.' };
   const line = await lineOf(access.eventId, id);
-  if (!line) return { ok: false, error: 'That message is gone.' };
+  if (!line || line.deletedAt) return { ok: false, error: 'That message is gone.' };
   await db
     .update(eventChatMessages)
     .set({ deletedAt: sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`, deletedBy: byUserId })
     .where(eq(eventChatMessages.id, id));
   const feeds = chatFeedIds(access.eventId, { teamId: line.teamId, teamOnly: line.teamOnly, staff: line.fromStaff });
   await notifyRows({ e: access.eventId }, { t: 'rowsdel', feeds, ids: [`c${id}`] });
+  await audit(access, byUserId, 'event_chat_message_deleted', {
+    old: { eventId: access.eventId, messageId: id, userId: line.userId, rsn: line.rsn, body: line.body },
+  });
   return { ok: true };
 }
 
-/** Mute a line's sender for the rest of the event (staff can't be muted). */
+// ── Timeouts and bans (one model: lib/eventChatRules sanctionBlock, canSanction) ────────────────
+
+const stampOf = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
+
+/** What, if anything, stops this person talking on this board right now. */
+export async function chatBlockOf(eventId: number, userId: number, now = Date.now()): Promise<ChatBlock | null> {
+  const row = await db.query.eventChatMutes.findFirst({
+    where: and(eq(eventChatMutes.eventId, eventId), eq(eventChatMutes.userId, userId)),
+    columns: { kind: true, until: true },
+  });
+  return sanctionBlock(row, now, parseStamp);
+}
+
+/** Someone's standing in this board's chat, read live (their clan job on the host and platform role). */
+async function rankIn(access: ChatAccess, userId: number): Promise<number> {
+  const [grant, platformRole] = await Promise.all([clanGrant(access.clanId, userId), platformRoleOf(userId)]);
+  return chatRank(grant && atLeast(grant.role, 'moderator') ? rankOf(grant.role) : 0, hasPlatformRole(platformRole, 'staff'));
+}
+
+/** rankIn for many people at once (the moderation page's rows): two reads, not two per person. */
+async function ranksIn(access: ChatAccess, userIds: number[]): Promise<Map<number, number>> {
+  const ids = [...new Set(userIds)];
+  const out = new Map<number, number>(ids.map((u) => [u, 0]));
+  if (!ids.length) return out;
+  const [grants, people] = await Promise.all([
+    db.select({ userId: clanStaff.userId, role: clanStaff.role }).from(clanStaff).where(and(eq(clanStaff.clanId, access.clanId), inArray(clanStaff.userId, ids))),
+    db.select({ id: users.id, platformRole: users.platformRole }).from(users).where(inArray(users.id, ids)),
+  ]);
+  const roleOf = new Map(grants.map((g) => [g.userId, g.role]));
+  for (const p of people) {
+    const role = roleOf.get(p.id);
+    out.set(p.id, chatRank(role && atLeast(role, 'moderator') ? rankOf(role) : 0, hasPlatformRole(p.platformRole, 'staff')));
+  }
+  return out;
+}
+
+/** Is this person on this board's chat at all: seated on it, or has said something in it. */
+async function knownOnBoard(eventId: number, userId: number): Promise<boolean> {
+  const [said] = await db
+    .select({ id: eventChatMessages.id })
+    .from(eventChatMessages)
+    .where(and(eq(eventChatMessages.eventId, eventId), eq(eventChatMessages.userId, userId)))
+    .limit(1);
+  if (said) return true;
+  const [seat] = await db
+    .select({ id: eventParticipants.id })
+    .from(eventParticipants)
+    .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
+    .innerJoin(users, eq(users.playerId, accounts.playerId))
+    .where(and(eq(eventParticipants.eventId, eventId), eq(users.id, userId)))
+    .limit(1);
+  return !!seat;
+}
+
+/** The lock a person's message box shows: their own sanction, else the board's pause. */
+function lockFor(block: ChatBlock | null, paused: boolean, staff: boolean): string | null {
+  if (block) return sanctionMessage(block);
+  return paused && !staff ? 'The host has paused chat.' : null;
+}
+
+export interface SanctionInput {
+  kind: ChatSanctionKind;
+  /** A timeout's length (lib/eventChatRules timeoutMinutes). */
+  minutes?: number;
+  reason?: string | null;
+}
+
+/**
+ * Time out or ban someone from this board's chat. Replaces whatever sanction they had (a ban over a
+ * timeout, a fresh timeout over an old one). Their open chat boxes lock at once with the reason.
+ */
+export async function sanctionChat(access: ChatAccess, byUserId: number, targetUserId: number, input: SanctionInput, now = Date.now()): Promise<SendResult> {
+  if (!access.staff) return { ok: false, error: 'Only the host and mods can do that.' };
+  if (targetUserId === byUserId) return { ok: false, error: 'You can’t do that to yourself.' };
+  if (input.kind === 'timeout' && !(input.minutes && input.minutes > 0)) return { ok: false, error: 'Pick how long the timeout lasts.' };
+  if (!(await knownOnBoard(access.eventId, targetUserId))) return { ok: false, error: 'They aren’t on this event’s chat.' };
+  const targetRank = await rankIn(access, targetUserId);
+  if (!canSanction(access.rank, targetRank)) return { ok: false, error: 'Only someone above them on staff can do that.' };
+
+  const until = input.kind === 'timeout' ? stampOf(now + input.minutes! * 60_000) : null;
+  const reason = input.reason ?? null;
+  const set = { kind: input.kind, until, reason, byUserId, createdAt: stampOf(now) };
+  await db
+    .insert(eventChatMutes)
+    .values({ eventId: access.eventId, userId: targetUserId, ...set })
+    .onConflictDoUpdate({ target: [eventChatMutes.eventId, eventChatMutes.userId], set });
+
+  const block = sanctionBlock({ kind: input.kind, until }, now, parseStamp);
+  await notifyRows({ u: [targetUserId] }, { t: 'rowslock', feeds: [`chat:${access.eventId}`], locked: lockFor(block, access.paused, false) });
+  await audit(access, byUserId, input.kind === 'ban' ? 'event_chat_banned' : 'event_chat_timed_out', {
+    new: { eventId: access.eventId, userId: targetUserId, until, minutes: input.minutes ?? null, reason },
+  });
+  return { ok: true };
+}
+
+/** Lift someone's timeout or ban. Their chat boxes reopen (unless the board is paused). */
+export async function liftChatSanction(access: ChatAccess, byUserId: number, targetUserId: number): Promise<SendResult> {
+  if (!access.staff) return { ok: false, error: 'Only the host and mods can do that.' };
+  const row = await db.query.eventChatMutes.findFirst({
+    where: and(eq(eventChatMutes.eventId, access.eventId), eq(eventChatMutes.userId, targetUserId)),
+  });
+  if (!row) return { ok: false, error: 'They aren’t timed out or banned.' };
+  const targetRank = await rankIn(access, targetUserId);
+  if (targetUserId === byUserId || !canSanction(access.rank, targetRank)) {
+    return { ok: false, error: 'Only someone above them on staff can do that.' };
+  }
+  await db.delete(eventChatMutes).where(and(eq(eventChatMutes.eventId, access.eventId), eq(eventChatMutes.userId, targetUserId)));
+  const targetStaff = targetRank >= 1;
+  await notifyRows({ u: [targetUserId] }, { t: 'rowslock', feeds: [`chat:${access.eventId}`], locked: lockFor(null, access.paused, targetStaff) });
+  await audit(access, byUserId, 'event_chat_sanction_lifted', {
+    old: { eventId: access.eventId, userId: targetUserId, kind: row.kind, until: row.until, reason: row.reason, byUserId: row.byUserId },
+  });
+  return { ok: true };
+}
+
+// ── The moderation page (app/events/[eventId]/chat) ─────────────────────────────────────────────
+
+export interface ModLine {
+  id: number;
+  userId: number;
+  rsn: string;
+  body: string;
+  teamId: number | null;
+  teamOnly: boolean;
+  fromStaff: boolean;
+  createdAt: string;
+}
+
+export interface ModSanction {
+  userId: number;
+  name: string;
+  kind: ChatSanctionKind;
+  until: string | null;
+  reason: string | null;
+  byName: string | null;
+  createdAt: string;
+  /** Whether the viewer may lift it (they outrank the person). */
+  canLift: boolean;
+}
+
+/** `%` and `_` typed into the search box are text, not wildcards. */
+const likeText = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
+/**
+ * Every recent line on the board for its staff: team-only ones included, removed ones not. `filter`:
+ * 'team' with a team id, 'staff' (said by the host's staff), or 'all'. `q` searches the text and name.
+ */
+export async function chatModLines(
+  eventId: number,
+  opts: { filter?: 'all' | 'team' | 'staff'; teamId?: number | null; q?: string; limit?: number } = {},
+): Promise<ModLine[]> {
+  const where = [eq(eventChatMessages.eventId, eventId), isNull(eventChatMessages.deletedAt)];
+  if (opts.filter === 'team' && opts.teamId != null) where.push(eq(eventChatMessages.teamId, opts.teamId));
+  if (opts.filter === 'staff') where.push(eq(eventChatMessages.fromStaff, true));
+  const q = opts.q?.trim().slice(0, 100);
+  if (q) where.push(or(ilike(eventChatMessages.body, likeText(q)), ilike(eventChatMessages.rsn, likeText(q)))!);
+  return db
+    .select(LINE_COLUMNS)
+    .from(eventChatMessages)
+    .where(and(...where))
+    .orderBy(desc(eventChatMessages.id))
+    .limit(Math.min(Math.max(opts.limit ?? 200, 1), 500));
+}
+
+/** The timeouts still running and the bans not yet lifted, newest first. */
+export async function chatSanctions(access: ChatAccess, viewerUserId: number, now = Date.now()): Promise<ModSanction[]> {
+  const rows = await db
+    .select({
+      userId: eventChatMutes.userId,
+      kind: eventChatMutes.kind,
+      until: eventChatMutes.until,
+      reason: eventChatMutes.reason,
+      byUserId: eventChatMutes.byUserId,
+      createdAt: eventChatMutes.createdAt,
+      displayName: users.displayName,
+    })
+    .from(eventChatMutes)
+    .innerJoin(users, eq(users.id, eventChatMutes.userId))
+    .where(eq(eventChatMutes.eventId, access.eventId))
+    .orderBy(desc(eventChatMutes.createdAt));
+  const live = rows.filter((r) => sanctionBlock(r, now, parseStamp));
+  if (!live.length) return [];
+  const ids = [...new Set(live.flatMap((r) => [r.userId, r.byUserId]).filter((x): x is number => x != null))];
+  const [names, lastSaid] = await Promise.all([
+    db.select({ id: users.id, name: users.displayName }).from(users).where(inArray(users.id, ids)),
+    // The name they talk under on this board, which is what a moderator saw.
+    db
+      .select({ userId: eventChatMessages.userId, rsn: sql<string>`max(${eventChatMessages.rsn})` })
+      .from(eventChatMessages)
+      .where(and(eq(eventChatMessages.eventId, access.eventId), inArray(eventChatMessages.userId, live.map((r) => r.userId))))
+      .groupBy(eventChatMessages.userId),
+  ]);
+  const nameOf = new Map(names.map((n) => [n.id, n.name]));
+  const rsnOf = new Map(lastSaid.map((l) => [l.userId, l.rsn]));
+  const ranks = await ranksIn(access, live.map((r) => r.userId));
+  return live.map((r) => {
+    const block = sanctionBlock(r, now, parseStamp)!;
+    return {
+      userId: r.userId,
+      name: rsnOf.get(r.userId) ?? r.displayName ?? 'Player',
+      kind: block.kind,
+      until: block.kind === 'timeout' ? r.until : null,
+      reason: r.reason,
+      byName: r.byUserId != null ? (nameOf.get(r.byUserId) ?? null) : null,
+      createdAt: r.createdAt,
+      canLift: r.userId !== viewerUserId && canSanction(access.rank, ranks.get(r.userId) ?? 0),
+    };
+  });
+}
+
+/** Of these people, the ones this viewer may time out or ban (they outrank them). */
+export async function sanctionableUsers(access: ChatAccess, viewerUserId: number, userIds: number[]): Promise<Set<number>> {
+  const ranks = await ranksIn(access, userIds);
+  return new Set([...ranks].filter(([u, r]) => u !== viewerUserId && canSanction(access.rank, r)).map(([u]) => u));
+}
+
+/** The plugin's right-click on a line: ban its sender from this board's chat until lifted. */
 export async function muteChat(access: ChatAccess, byUserId: number, id: number): Promise<SendResult> {
   if (!access.staff) return { ok: false, error: 'Only the host and mods can do that.' };
   const line = await lineOf(access.eventId, id);
   if (!line) return { ok: false, error: 'That message is gone.' };
-  if (line.fromStaff) return { ok: false, error: 'Staff can’t be muted here.' };
-  await db
-    .insert(eventChatMutes)
-    .values({ eventId: access.eventId, userId: line.userId, byUserId, until: null })
-    .onConflictDoUpdate({ target: [eventChatMutes.eventId, eventChatMutes.userId], set: { until: null, byUserId } });
-  return { ok: true };
+  return sanctionChat(access, byUserId, line.userId, { kind: 'ban' });
 }
 
-export async function pauseChat(access: ChatAccess, paused: boolean): Promise<SendResult> {
+export async function pauseChat(access: ChatAccess, paused: boolean, byUserId?: number): Promise<SendResult> {
   if (!access.staff) return { ok: false, error: 'Only the host and mods can do that.' };
-  await setEventChatPaused(access.eventId, paused);
+  await setEventChatPaused(access.eventId, paused, byUserId != null ? { clanId: access.clanId, byUserId } : undefined);
   return { ok: true };
 }
 
-/** Pause or resume: every open chat box on the board greys out (or reopens) at once. */
-export async function setEventChatPaused(eventId: number, paused: boolean): Promise<void> {
+/**
+ * Pause or resume: every open chat box on the board greys out (or reopens) at once. `by`: who did it,
+ * for the host clan's audit log. A timed-out or banned person's box keeps its own lock on resume:
+ * the board-wide unlock reaches them too, but sendChat still refuses them with the reason, and their
+ * pane redraws locked on the next load.
+ */
+export async function setEventChatPaused(eventId: number, paused: boolean, by?: { clanId: number; byUserId: number }): Promise<void> {
   await db.update(events).set({ chatPaused: paused }).where(eq(events.id, eventId));
   await notifyRows({ e: eventId }, { t: 'rowslock', feeds: [`chat:${eventId}`], locked: paused ? 'The host has paused chat.' : null });
+  if (by) {
+    await db
+      .insert(clanAuditLog)
+      .values({ clanId: by.clanId, eventType: paused ? 'event_chat_paused' : 'event_chat_resumed', actorUserId: by.byUserId, newValue: JSON.stringify({ eventId }) })
+      .catch(() => {});
+  }
 }
 
 /** The host's switch (admin events page). Turning it off closes every open chat pane at once. */

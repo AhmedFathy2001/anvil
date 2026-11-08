@@ -3653,7 +3653,7 @@ export const en = {
         },
         {
           term: 'Moderation',
-          body: 'the host and mods can right-click a line to **Delete message** or **Mute** someone, and pause the whole chat with **Pause chat (read-only for everyone)**.',
+          body: 'the host and mods can right-click a line to **Delete message** or **Mute** someone, and pause the whole chat with **Pause chat**.',
         },
       ],
       outro:

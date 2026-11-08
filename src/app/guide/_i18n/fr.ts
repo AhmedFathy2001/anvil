@@ -3656,7 +3656,7 @@ const fr: PartialGuideDict = {
         },
         {
           term: 'Modération',
-          body: 'l’organisateur et les mods peuvent faire un clic droit sur une ligne pour **Delete message** ou **Mute** quelqu’un, et mettre tout le chat en pause avec **Pause chat (read-only for everyone)**.',
+          body: 'l’organisateur et les mods peuvent faire un clic droit sur une ligne pour **Delete message** ou **Mute** quelqu’un, et mettre tout le chat en pause avec **Pause chat**.',
         },
       ],
       outro:

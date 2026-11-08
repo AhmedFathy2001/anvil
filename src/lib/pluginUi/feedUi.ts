@@ -575,10 +575,11 @@ export function feedTabUi(o: FeedTabOptions): Node {
   if (o.pane === 'chat' && o.staff && o.current.kind === 'event') {
     parts.push(
       gap(4),
-      text(o.paused ? 'Resume chat' : 'Pause chat (read-only for everyone)', o.paused ? 'done' : 'muted', {
-        font: 'small',
-        on: { a: 'post', act: 'chat-pause', args: { e: String(o.current.id), on: o.paused ? '0' : '1', s: key } },
-      }),
+      button(
+        o.paused ? 'Resume chat' : 'Pause chat',
+        { a: 'post', act: 'chat-pause', args: { e: String(o.current.id), on: o.paused ? '0' : '1', s: key } },
+        o.paused ? 'Let everyone talk again' : 'Read-only for everyone until resumed',
+      ),
     );
   }
   if (o.floorNote && o.pane === 'feed') parts.push(gap(4), muted(o.floorNote, { font: 'small' }));

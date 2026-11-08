@@ -3652,7 +3652,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '관리',
-          body: '주최자와 관리자는 줄을 우클릭해 **Delete message**나 **Mute**를 할 수 있고, **Pause chat (read-only for everyone)**으로 채팅 전체를 멈출 수 있습니다.',
+          body: '주최자와 관리자는 줄을 우클릭해 **Delete message**나 **Mute**를 할 수 있고, **Pause chat**으로 채팅 전체를 멈출 수 있습니다.',
         },
       ],
       outro:

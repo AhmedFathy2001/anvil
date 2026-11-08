@@ -4483,11 +4483,17 @@ export const eventChatMessages = pgTable('event_chat_messages', {
   index('event_chat_messages_team_idx').on(table.eventId, table.teamId, table.id),
 ]);
 
-// Who may not talk in an event's chat, until when (null = the rest of the event).
+// Who may not talk in an event's chat (lib/eventChat sanctionChat): a 'timeout' until `until`, or a
+// 'ban' until a moderator lifts it (`until` null). One row per person per board; lifting deletes it
+// (clan_audit_log keeps the history).
 export const eventChatMutes = pgTable('event_chat_mutes', {
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** 'timeout' | 'ban' (lib/eventChatRules ChatSanctionKind). */
+  kind: text('kind').notNull().default('ban'),
+  /** A timeout's expiry ('YYYY-MM-DD HH:MM:SS' UTC); null for a ban. */
   until: text('until'),
+  reason: text('reason'),
   byUserId: integer('by_user_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [primaryKey({ columns: [table.eventId, table.userId] })]);

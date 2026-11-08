@@ -15,7 +15,17 @@ import {
   personGapMs,
   recordSend,
   waitFor,
+  sanctionBlock,
+  sanctionMessage,
+  timeLeftText,
+  timeoutMinutes,
+  chatRank,
+  canSanction,
+  cleanReason,
+  PLATFORM_CHAT_RANK,
 } from '../src/lib/eventChatRules.ts';
+import { parseStamp } from '../src/lib/dbTime.ts';
+import { rankOf } from '../src/lib/clanRoles.ts';
 
 test('a message is cleaned and length-checked', () => {
   assert.deepEqual(checkBody('  gz   on the​ pet \n ', { staff: false }), { ok: true, body: 'gz on the pet' });
@@ -115,5 +125,81 @@ test('the message box says what the wait is', () => {
   assert.equal(chatPaceHint({ tier: 'champion', slow: false, staff: false }), 'slow mode 1s');
   assert.equal(chatPaceHint({ tier: 'patron', slow: false, staff: false }), 'no slow mode (Patron)');
   assert.equal(chatPaceHint({ tier: 'patron', slow: true, staff: false }), 'slow mode 10s (busy chat)');
-  assert.equal(chatPaceHint({ tier: null, slow: true, staff: true }), 'no slow mode for staff');
+  // Who "staff" means: the event's own (the host clan's mods and up), or Anvil staff who aren't.
+  assert.equal(chatPaceHint({ tier: null, slow: true, staff: true }), 'no slow mode for event staff');
+  assert.equal(chatPaceHint({ tier: null, slow: false, staff: 'event' }), 'no slow mode for event staff');
+  assert.equal(chatPaceHint({ tier: null, slow: false, staff: 'platform' }), 'no slow mode (Anvil staff)');
+});
+
+// ── Timeouts and bans ────────────────────────────────────────────────────────────────────────────
+
+const at = Date.parse('2026-11-08T12:00:00Z');
+
+test('a timeout blocks until it runs out, then no longer does', () => {
+  const timeout = { kind: 'timeout', until: '2026-11-08 12:12:00' };
+  assert.deepEqual(sanctionBlock(timeout, at, parseStamp), { kind: 'timeout', msLeft: 12 * 60_000 });
+  assert.equal(sanctionMessage(sanctionBlock(timeout, at, parseStamp)!), 'You’re timed out of this event’s chat for 12 more minutes.');
+  assert.equal(sanctionBlock(timeout, Date.parse('2026-11-08T12:12:00Z'), parseStamp), null, 'expired at the stroke');
+  assert.equal(sanctionBlock(timeout, at + 3_600_000, parseStamp), null, 'an hour later');
+  // Either stored timestamp shape reads the same.
+  assert.equal(sanctionBlock({ kind: 'timeout', until: '2026-11-08T12:12:00.000Z' }, at, parseStamp)?.kind, 'timeout');
+});
+
+test('a ban blocks until lifted, whenever it is asked', () => {
+  const ban = { kind: 'ban', until: null };
+  assert.deepEqual(sanctionBlock(ban, at, parseStamp), { kind: 'ban' });
+  assert.deepEqual(sanctionBlock(ban, at + 365 * 86_400_000, parseStamp), { kind: 'ban' });
+  assert.equal(sanctionMessage({ kind: 'ban' }), 'You’ve been removed from this event’s chat.');
+  // Lifted = the row is gone.
+  assert.equal(sanctionBlock(null, at, parseStamp), null);
+  // When in doubt, keep them out: a timeout with no readable expiry is a ban.
+  assert.deepEqual(sanctionBlock({ kind: 'timeout', until: null }, at, parseStamp), { kind: 'ban' });
+  assert.deepEqual(sanctionBlock({ kind: 'timeout', until: 'soon' }, at, parseStamp), { kind: 'ban' });
+});
+
+test('time left reads in minutes, hours or days, rounded up', () => {
+  assert.equal(timeLeftText(30_000), '1 more minute');
+  assert.equal(timeLeftText(12 * 60_000 - 1), '12 more minutes');
+  assert.equal(timeLeftText(90 * 60_000), '2 more hours');
+  assert.equal(timeLeftText(24 * 3_600_000), '24 more hours');
+  assert.equal(timeLeftText(3 * 86_400_000), '3 more days');
+});
+
+test('timeout lengths: the presets, or a custom number of minutes up to 30 days', () => {
+  assert.equal(timeoutMinutes('5m'), 5);
+  assert.equal(timeoutMinutes('1h'), 60);
+  assert.equal(timeoutMinutes('24h'), 1_440);
+  assert.equal(timeoutMinutes(90), 90);
+  assert.equal(timeoutMinutes('45'), 45);
+  assert.equal(timeoutMinutes(0), null);
+  assert.equal(timeoutMinutes(-5), null);
+  assert.equal(timeoutMinutes(30 * 1_440 + 1), null);
+  assert.equal(timeoutMinutes('forever'), null);
+  assert.equal(timeoutMinutes(undefined), null);
+  assert.equal(cleanReason('  <b>spam</b>  '), 'spam');
+  assert.equal(cleanReason(''), null);
+  assert.equal(cleanReason(42), null);
+});
+
+test('staff skip slow mode but not bans: only higher staff can sanction them', () => {
+  const player = chatRank(rankOf('member'), false);
+  const mod = chatRank(rankOf('moderator'), false);
+  const treasurer = chatRank(rankOf('treasurer'), false);
+  const admin = chatRank(rankOf('admin'), false);
+  const owner = chatRank(rankOf('owner'), false);
+  const anvil = chatRank(0, true);
+  assert.equal(anvil, PLATFORM_CHAT_RANK);
+  assert.equal(chatRank(rankOf('admin'), true), PLATFORM_CHAT_RANK, 'the higher of the two');
+  // Exempt from waiting…
+  assert.equal(waitFor(at, at, true, true), 0);
+  // …but a sanction binds whoever it is on; the guard is who may impose it.
+  assert.equal(canSanction(mod, player), true);
+  assert.equal(canSanction(mod, mod), false, 'peers can’t');
+  assert.equal(canSanction(mod, treasurer), false, 'same tier');
+  assert.equal(canSanction(admin, mod), true);
+  assert.equal(canSanction(admin, admin), false);
+  assert.equal(canSanction(owner, admin), true);
+  assert.equal(canSanction(admin, owner), false);
+  assert.equal(canSanction(anvil, owner), true, 'Anvil staff outrank the clan');
+  assert.equal(canSanction(player, player), false, 'players can’t sanction anyone');
 });

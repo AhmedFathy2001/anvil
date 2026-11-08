@@ -4,8 +4,8 @@ import { db } from '@/db';
 import { accounts, clanMemberships, clans, eventParticipants, events, teams, users } from '@/db/schema';
 import { completionAt } from '@/lib/panelRows';
 import { normalizeRsn, pluginRsnHintOnly, pluginViewerRsn, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
-import { boardChatSlow, myChatNames, chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess, type ChatSeatPick } from '@/lib/eventChat';
-import { chatPaceHint } from '@/lib/eventChatRules';
+import { boardChatSlow, chatBlockOf, myChatNames, chatAccess, chatHistory, deleteChat, muteChat, pauseChat, sendChat, type ChatAccess, type ChatSeatPick } from '@/lib/eventChat';
+import { chatPaceHint, sanctionMessage } from '@/lib/eventChatRules';
 import { NO_REACTIONS, isClanMember, reactionSummaries, reactorNames, tallyOf } from '@/lib/momentReactions';
 import { modeMomentModesForClan, modeMomentsForClan, recentModeMomentCount, type MomentRow } from '@/lib/momentsStore';
 import type { WithRun } from '@/lib/feedRuns';
@@ -292,7 +292,7 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
 
   if (pane === 'chat' && access && viewer) {
     const f = filter === 'team' ? 'team' : filter === 'mods' && access.staff ? 'mods' : 'all';
-    const rows = await chatHistory(access, viewer.userId, f);
+    const [rows, block] = await Promise.all([chatHistory(access, viewer.userId, f), chatBlockOf(current.id, viewer.userId)]);
     return {
       ui: feedTabUi({
         scopes,
@@ -312,10 +312,11 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
           hint: `${f === 'team' ? 'Message your team' : 'Message the event'} · ${chatPaceHint({
             tier: access.staff ? null : ((await supporterForUser(viewer.userId).catch(() => null))?.tier.id ?? null),
             slow: boardChatSlow(current.id),
-            staff: access.staff,
+            staff: access.staffKind ?? false,
           })}`,
         },
-        locked: access.paused && !access.staff ? 'The host has paused chat.' : null,
+        // Where the message box would be: their own timeout or ban first (with how long is left), then the pause.
+        locked: block ? sanctionMessage(block) : access.paused && !access.staff ? 'The host has paused chat.' : null,
         staff: access.staff,
         paused: access.paused,
       }),
@@ -377,7 +378,7 @@ export async function chatAct(request: Request, act: string, a: Args, fields: Ar
         ? await deleteChat(access, userId, id)
         : act === 'chat-mute'
           ? await muteChat(access, userId, id)
-          : await pauseChat(access, a.on === '1');
+          : await pauseChat(access, a.on === '1', userId);
   if (!r.ok) return err(r.error);
   // Pausing redraws the tab so the switch flips; everything else changes nothing on the sender's screen.
   if (act === 'chat-pause') return feedView(request, { s: a.s ?? `event:${access.eventId}`, p: 'chat' });

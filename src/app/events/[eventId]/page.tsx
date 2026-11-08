@@ -70,6 +70,7 @@ import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/
 import { isEventEnded } from '@/lib/survey';
 import { eventHasStarted as boardHasStarted } from '@/lib/completionGate';
 import { atLeast } from '@/lib/clanRoles';
+import { chatAccess } from '@/lib/eventChat';
 import ClanLink from '@/components/ClanLink';
 import { canEnterEvent } from '@/lib/eventAccess';
 import { accentStyle } from '@/lib/accentStyle';
@@ -516,6 +517,9 @@ export default async function EventScoreboardPage({
   const showRecapCta = isEventEnded(event) && !!mvp;
   // The stats page counts from the start; before it there's nothing to show.
   const showStatsLink = boardHasStarted(event);
+  // The chat moderation page, for the host clan's mods and up and Anvil staff (lib/eventChat chatAccess),
+  // only at the host's own address: a co-host's role says nothing about this event.
+  const canModerateChat = !apiPrefix && event.chatEnabled && session ? !!(await chatAccess(event.id, session.userId))?.staff : false;
 
   // The pot counts fees actually in (lib/prizePool countPaidEntries), not every approved sign-up.
   const [paid, cofferFunded] = await Promise.all([countPaidEntries(id), eventPoolGp(id)]);
@@ -830,6 +834,19 @@ export default async function EventScoreboardPage({
           <span className="min-w-0 flex-1">
             <span className="block font-semibold">Live event stats</span>
             <span className="block text-sm text-text-muted">Drops, deaths, XP and tiles per player — by day and hour by hour.</span>
+          </span>
+          <span className="text-sm text-gold shrink-0">Open →</span>
+        </ClanLink>
+      )}
+      {canModerateChat && (
+        <ClanLink
+          href={`/events/${id}/chat`}
+          className="mb-6 flex items-center gap-3 rounded-xl border border-card-border bg-card-bg p-4 hover:border-gold/40 transition-colors"
+        >
+          <span className="text-xl leading-none" aria-hidden>🛡️</span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">Moderate event chat</span>
+            <span className="block text-sm text-text-muted">Staff only: delete messages, time out or ban players, pause the chat.</span>
           </span>
           <span className="text-sm text-gold shrink-0">Open →</span>
         </ClanLink>

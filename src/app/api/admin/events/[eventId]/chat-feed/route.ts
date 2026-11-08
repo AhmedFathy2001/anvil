@@ -3,7 +3,8 @@ import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { events } from '@/db/schema';
-import { verifyAdmin } from '@/lib/auth';
+import { verifyUser } from '@/lib/auth';
+import { atLeast } from '@/lib/clanRoles';
 import { platformChatOn, setEventChat, setEventChatPaused } from '@/lib/eventChat';
 import { requireClan } from '@/lib/clanContext';
 import { eventInClan } from '@/lib/eventScope';
@@ -17,10 +18,11 @@ import { standingsHidden } from '@/lib/standingsVisibility';
 async function scope(raw: string) {
   const eventId = Number(raw);
   if (!Number.isInteger(eventId)) return null;
-  if (!(await verifyAdmin())) return 'forbidden' as const;
+  const session = await verifyUser();
+  if (!session || !atLeast(session.role, 'admin')) return 'forbidden' as const;
   const clan = await requireClan();
   const event = await eventInClan(clan.id, eventId);
-  return event ? { eventId } : null;
+  return event ? { eventId, clanId: clan.id, userId: session.userId } : null;
 }
 
 async function view(eventId: number) {
@@ -57,6 +59,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ even
   // clan-scope: this clan -- scope() checked the event is this clan's (eventInClan).
   if (typeof body.chatFeed === 'boolean') await db.update(events).set({ chatFeed: body.chatFeed }).where(eq(events.id, s.eventId));
   if (typeof body.chatEnabled === 'boolean') await setEventChat(s.eventId, body.chatEnabled);
-  if (typeof body.chatPaused === 'boolean') await setEventChatPaused(s.eventId, body.chatPaused);
+  if (typeof body.chatPaused === 'boolean') await setEventChatPaused(s.eventId, body.chatPaused, { clanId: s.clanId, byUserId: s.userId });
   return NextResponse.json(await view(s.eventId));
 }
