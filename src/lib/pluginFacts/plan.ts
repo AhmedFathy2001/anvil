@@ -93,10 +93,11 @@ export function tileText(c: Credit, withImage: boolean): { title: string; detail
 }
 
 /** The submission body for a `tile` credit — what the plugin's own POST carried for that kind. */
-function tileBody(c: Credit, board: FactBoard, img: string | null, proof: Record<string, unknown> | null, coop: Coop | null): Record<string, unknown> {
+function tileBody(c: Credit, board: FactBoard, img: string | null, proof: Record<string, unknown> | null, coop: Coop | null, pendingKey: string | null): Record<string, unknown> {
   const f = c.fact!;
+  const shot = !!img || !!pendingKey;
   const legacy = f.note != null;
-  const text = legacy ? null : tileText(c, !!img);
+  const text = legacy ? null : tileText(c, shot);
   const row = c.row;
   const coopNeeded = legacy || (c.tileKind === 'deathless' && ((row?.coopCredit ?? '').toLowerCase() === 'per-kill' || (row?.coopMinMembers ?? 0) > 0));
   return {
@@ -106,6 +107,7 @@ function tileBody(c: Credit, board: FactBoard, img: string | null, proof: Record
     amount: c.amount,
     note: legacy ? f.note : text!.note,
     imageUrl: img,
+    ...(!img && pendingKey ? { proofKey: pendingKey } : {}),
     ...(f.sec != null ? { durationSeconds: f.sec } : {}),
     ...(f.item != null ? { itemId: f.item } : {}),
     ...(f.inf ? { inferred: f.inf } : {}),
@@ -115,7 +117,7 @@ function tileBody(c: Credit, board: FactBoard, img: string | null, proof: Record
           ...((coop.partySize ?? 0) > 1 ? { coopPartySize: coop.partySize } : {}),
         }
       : {}),
-    ...(img && proof ? { proof: text ? { ...proof, title: text.title, detail: text.detail } : proof } : {}),
+    ...(shot && proof ? { proof: text ? { ...proof, title: text.title, detail: text.detail } : proof } : {}),
   };
 }
 
@@ -129,6 +131,8 @@ function note(c: Credit, unit: string): string {
  * @param img  the batch's screenshot (already uploaded), or null
  * @param proof the client's proof metadata (tz, capturedAt, tick, chat, split); title/detail are set per credit
  * @param units kill tile id → its noun ("kill", "lap")
+ * @param pendingKey the batch's screenshot is on its way (lib/proofAfter): every body that would have
+ *   carried it carries this key instead, and is filed as if it had it
  */
 export function planSubmissions(
   credits: Credit[],
@@ -137,13 +141,15 @@ export function planSubmissions(
   proof: Record<string, unknown> | null,
   coop: Coop | null,
   units: Map<number, string> = new Map(),
+  pendingKey: string | null = null,
 ): PlannedSubmission[] {
   const out: PlannedSubmission[] = [];
+  const shot = !!img || !!pendingKey;
   for (const c of credits) {
     const board = boardOf(c);
     if (!board) continue;
     if (c.kind === 'tile') {
-      out.push({ board, credit: c, body: tileBody(c, board, img, proof, coop) });
+      out.push({ board, credit: c, body: tileBody(c, board, img, proof, coop, pendingKey) });
       continue;
     }
     const unit = units.get(c.tileId) ?? 'kill';
@@ -167,13 +173,14 @@ export function planSubmissions(
       ...base,
       amount,
       imageUrl: img,
+      ...(!img && pendingKey ? { proofKey: pendingKey } : {}),
       ...(proof ? { proof: { ...proof, title: BANNER[c.kind as keyof typeof BANNER], detail } } : {}),
     });
     if (c.kind !== 'kill') {
       out.push({ board, credit: c, body: withProof(c.amount) });
       continue;
     }
-    if (img && killWantsProof(c)) {
+    if (shot && killWantsProof(c)) {
       out.push({ board, credit: c, body: withProof(c.amount) });
       continue;
     }

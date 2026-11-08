@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { eventParticipants, events, submissions, teams, tiles } from '@/db/schema';
@@ -22,6 +22,12 @@ export async function removeSubmission(opts: {
   deletedBy: string;
   deletedByRole: string;
   reason: string;
+  /**
+   * A credit reversed for want of its screenshot (lib/proofFinish): removed only while it is STILL
+   * waiting (an upload that attached it a moment ago wins), and Discord hears nothing — it was never
+   * posted. False when it was no longer waiting, and nothing else happens.
+   */
+  awaitingProof?: boolean;
 }) {
   const { submission, tile } = opts;
   // clan-scope: global -- the submission was already matched to an event of the caller's clan.
@@ -33,10 +39,13 @@ export async function removeSubmission(opts: {
       : Promise.resolve(null),
   ]);
 
-  await db.delete(submissions).where(and(eq(submissions.id, submission.id), eq(submissions.tileId, tile.id)));
+  const gone = await db.delete(submissions)
+    .where(and(eq(submissions.id, submission.id), eq(submissions.tileId, tile.id), ...(opts.awaitingProof ? [isNotNull(submissions.proofDueAt)] : [])))
+    .returning({ id: submissions.id });
+  if (opts.awaitingProof && gone.length === 0) return false;
   const sync = await syncDropTileCompletion(submission.tileId, submission.teamId);
 
-  if (team && event) {
+  if (team && event && !opts.awaitingProof) {
     notifySubmissionDeleted({
       clanId: opts.clanId,
       eventName: event.name,

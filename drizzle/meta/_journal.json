@@ -1198,6 +1198,13 @@
       "when": 1794143948957,
       "tag": "0230_clan_ownership_transfers",
       "breakpoints": true
+    },
+    {
+      "idx": 231,
+      "version": "7",
+      "when": 1794147548957,
+      "tag": "0231_submission_proof_after",
+      "breakpoints": true
     }
   ]
 }

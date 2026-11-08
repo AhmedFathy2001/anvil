@@ -1,9 +1,11 @@
 import { POST as submitRoute } from '@/app/api/events/[eventId]/submissions/route';
-import { POST as uploadRoute } from '@/app/api/upload/route';
 import { boardFor, loadTrackedConfig } from '@/lib/pluginFacts/load';
 import { coalesce, matchFacts, type Credit } from '@/lib/pluginFacts/match';
 import { MAX_FACTS, parseFacts } from '@/lib/pluginFacts/parse';
 import { creditOutcome, planSubmissions, retryFacts, type Coop, type Outcome } from '@/lib/pluginFacts/plan';
+import { readBody, storeImage } from '@/lib/pluginFacts/request';
+import { newProofKey } from '@/lib/proofAfter';
+import { afterReply, sweepOverdueProofs } from '@/lib/proofFinish';
 import { rateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -24,36 +26,14 @@ const MAX_SUBMISSIONS = 40;
 // The screenshot can ride along (multipart: `body` = the JSON, `file` = the image) instead of a separate
 // POST /api/upload first: one round trip, stored by that same route in-process, and only when a fact
 // actually credits something.
-
-/** The request's JSON, and its image when it came as multipart. */
-async function readBody(request: Request): Promise<{ body: Record<string, unknown> | null; file: File | null }> {
-  if (!(request.headers.get('content-type') ?? '').startsWith('multipart/form-data')) {
-    return { body: (await request.json().catch(() => null)) as Record<string, unknown> | null, file: null };
-  }
-  const form = await request.formData().catch(() => null);
-  const raw = form?.get('body');
-  let body: Record<string, unknown> | null = null;
-  try {
-    body = typeof raw === 'string' ? (JSON.parse(raw) as Record<string, unknown>) : null;
-  } catch {
-    body = null;
-  }
-  const file = form?.get('file');
-  return { body, file: file instanceof File ? file : null };
-}
-
-/** Store the image through /api/upload (same auth, recompression and provenance), or say why not. */
-async function storeImage(request: Request, file: File): Promise<{ url: string } | { status: number; error: string }> {
-  const headers = new Headers(request.headers);
-  headers.delete('content-type');
-  headers.delete('content-length');
-  const form = new FormData();
-  form.append('file', file, file.name || 'proof.jpg');
-  const res = await uploadRoute(new Request(new URL('/api/upload', request.url), { method: 'POST', headers, body: form }));
-  const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-  if (res.ok && json.url) return { url: json.url };
-  return { status: res.status >= 500 || res.status === 429 ? 503 : res.status, error: json.error ?? 'Image upload failed' };
-}
+//
+// CREDIT FIRST, PROOF AFTER (lib/proofAfter). A current plugin sends the screenshot-worthy facts with
+// no image and `proofPending: true` (its `proof` meta as before), the moment they happen. Everything
+// files as if the picture were there; each submission that would have carried it is marked as
+// waiting, and the reply adds `proofKey` (and `proofFor`, those tiles' labels) when at least one was
+// filed. The plugin uploads the picture to POST /api/plugin/facts/proof under that key; a credit
+// still waiting a minute after filing is reversed (lib/proofFinish sweepOverdueProofs). No stamp and
+// no Discord post until the picture lands. Without `proofPending` nothing changes.
 
 export async function POST(request: Request) {
   // Where a proof's seconds go (config build, image store, each filing), logged while we tune it.
@@ -83,6 +63,8 @@ export async function POST(request: Request) {
   });
   const credits = coalesce(matched.credits);
   let img = typeof body?.img === 'string' && body.img.length <= 512 ? body.img : null;
+  // The picture follows: only when none came with this request (an older plugin's shapes win).
+  const pendingKey = body?.proofPending === true && !file && !img && credits.length ? newProofKey() : null;
   if (file && !img && credits.length) {
     // A passing failure answers 503, so the plugin keeps the proof and sends it again.
     const stored = await storeImage(request, file);
@@ -93,7 +75,7 @@ export async function POST(request: Request) {
   const proof = body?.proof && typeof body.proof === 'object' ? (body.proof as Record<string, unknown>) : null;
   const coop = body?.coop && typeof body.coop === 'object' ? (body.coop as Coop) : null;
   const units = new Map((cfg.trackedKills ?? []).map((k) => [k.tileId, k.unit?.trim() || 'kill']));
-  const plans = planSubmissions(credits, (c: Credit) => boardFor(cfg, c.board), img, proof, coop, units);
+  const plans = planSubmissions(credits, (c: Credit) => boardFor(cfg, c.board), img, proof, coop, units, pendingKey);
 
   // One at a time, and a bounded number per request: same-tile credits must land in order (the
   // completion check reads the previous one), and one request must not fan out without limit.
@@ -101,6 +83,8 @@ export async function POST(request: Request) {
   const results: { tileId: number; ok: boolean; completed: boolean; error?: string }[] = [];
   const outcomes = new Map<Credit, Outcome[]>();
   let failing = false;
+  // The tiles whose filed submission now waits for the picture (named in the reply).
+  const waiting = new Set<string>();
   for (const [n, p] of plans.entries()) {
     let outcome: Outcome = 'retry';
     if (n < MAX_SUBMISSIONS && !failing) {
@@ -113,7 +97,9 @@ export async function POST(request: Request) {
         const res = await submitRoute(new Request(url, { method: 'POST', headers, body: JSON.stringify(p.body) }), {
           params: Promise.resolve({ eventId: String(p.board.eventId) }),
         });
-        const json = (await res.json().catch(() => ({}))) as { completed?: boolean; error?: string };
+        const json = (await res.json().catch(() => ({}))) as { completed?: boolean; error?: string; submission?: { proofKey?: string | null } };
+        // Only a row actually stored with the key waits (a replay outside the lab answers ok, files nothing).
+        if (res.ok && pendingKey && json.submission?.proofKey === pendingKey) waiting.add(p.credit.label);
         outcome = res.ok ? 'ok' : res.status >= 500 || res.status === 429 ? 'retry' : 'refused';
         if (outcome !== 'retry') results.push({ tileId: p.credit.tileId, ok: res.ok, completed: !!json.completed, error: res.ok ? undefined : json.error });
         // A refusal used to vanish: the plugin had already said the line. Leave a trace to debug it by.
@@ -146,7 +132,9 @@ export async function POST(request: Request) {
   }
   // A proof the plugin filed for one tile used to end on "Submitted: <tile>"; it is said from here now.
   const notes = [...matched.notes];
-  for (const c of credits) if (c.kind === 'tile' && img && byTile.get(c.tileId)?.ok) notes.push(`Submitted: ${c.label}`);
+  for (const c of credits) if (c.kind === 'tile' && (img || pendingKey) && byTile.get(c.tileId)?.ok) notes.push(`Submitted: ${c.label}`);
+  // Credits whose picture never came, reversed on the way out (the lifecycle tick does it too).
+  afterReply(() => sweepOverdueProofs(Date.now(), 10));
   return Response.json({
     // A replayed older proof on a drop/kill/value tile has no count of the plugin's rule to correct.
     credits: credits.filter((c) => !(c.kind === 'tile' && (c.tileKind === 'drop' || c.tileKind === 'kill' || c.tileKind === 'value'))).map((c) => ({
@@ -162,5 +150,6 @@ export async function POST(request: Request) {
     })),
     notes,
     ...(retry.length ? { retry } : {}),
+    ...(waiting.size ? { proofKey: pendingKey, proofFor: [...waiting] } : {}),
   });
 }
