@@ -40,6 +40,9 @@ const RELEASE = `---
 version: 9.9.9
 title: A sample release
 ---
+## News
+A sentence or two on what players and clan leaders will notice, why it matters and where to try it.
+
 ## Highlights
 - One line about the biggest thing in this release.
 

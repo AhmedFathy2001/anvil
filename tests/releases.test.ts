@@ -51,24 +51,26 @@ test("each login hears about a release once", async () => {
   assert.equal(await R.unseenReleaseLine(u.id), null);
 });
 
-test('a backlog posts oldest first, and the login line is the newest by version', async () => {
+test('a backlog posts as one bundled post, and the login line is the newest by version', async () => {
   const R = await import('../src/lib/releases.ts');
   const { db, schema: s } = await loadDb();
   await writeFile(path.join(dir, '1.15.1.md'), '---\nversion: 1.15.1\ntitle: Fix\n---\n## Fixed\n- A fix.\n');
   await writeFile(path.join(dir, '1.16.0.md'), '---\nversion: 1.16.0\ntitle: Minor\n---\n## New\n- A thing.\n');
   const posted: string[] = [];
+  const descriptions: string[] = [];
   const realFetch = globalThis.fetch;
   globalThis.fetch = (async (_u: unknown, init?: RequestInit) => {
     const e = JSON.parse(String(init?.body)).embeds[0];
     posted.push(e.title);
     assert.equal(e.footer?.text, 'Powered by Anvil', 'the same footer as every Anvil post');
-    assert.match(e.description, /-# Live on anvilosrs\.com now$/);
+    descriptions.push(e.description);
     return new Response(null, { status: 204 });
   }) as typeof fetch;
   assert.deepEqual(await R.publishShippedReleases(dir), ['1.15.1', '1.16.0'], 'oldest first');
   globalThis.fetch = realFetch;
-  assert.match(posted[0], /1\.15\.1/);
-  assert.match(posted[1], /1\.16\.0/);
+  assert.deepEqual(posted, ['Anvil 1.16.0: Minor'], 'one post for the batch, headed by the newest version');
+  assert.match(descriptions[0], /-# Live on anvilosrs\.com now\.\nFull changelog: https:\/\/anvilosrs\.com\/changelog#v1\.16\.0$/);
+  assert.doesNotMatch(descriptions[0], /A fix/, 'the Fixed list never goes out');
 
   // A user who last saw 1.15.0 is told about 1.16.0, once.
   const [u] = await db.insert(s.users).values({ displayName: 'Q', discordId: 'd-rel-2' }).returning();

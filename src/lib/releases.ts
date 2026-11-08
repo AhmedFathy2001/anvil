@@ -19,8 +19,12 @@ import { stampEmbeds } from '@/lib/discordEmbeds';
 import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
 import { log } from '@/lib/logger';
 import { getPlatformSetting, isPreview } from '@/lib/platformSettings';
-import { VERSION_RE, compareVersions, parseReleaseNote, releaseBriefLine, releaseEmbed, releaseIsDue, type ReleaseNote } from '@/lib/releaseNotes';
+import { VERSION_RE, announcementBriefLine, announcementEmbed, bundleReleases, compareVersions, parseReleaseNote, releaseIsDue, type ReleaseBundle, type ReleaseNote } from '@/lib/releaseNotes';
 import { apexOrigin } from '@/lib/seo';
+
+// What goes out is ONE post per batch: every release since the last announced version, its News
+// merged (lib/releaseNotes bundleReleases) plus a link to the newest card on /changelog. The detailed
+// sections stay on /changelog.
 
 // Moved to lib/platformSettings; re-exported so existing imports keep working.
 export { getPlatformSetting, setPlatformSetting } from '@/lib/platformSettings';
@@ -59,8 +63,8 @@ export async function loadReleaseFiles(dir = path.join(process.cwd(), 'releases'
 
 // The "Powered by Anvil" footer every Anvil post carries: the clan copies get it from
 // sendAnvilUpdatesWebhook, and this direct post stamps it the same way.
-async function announce(note: ReleaseNote): Promise<void> {
-  const embed = releaseEmbed(note, apexOrigin());
+async function announce(bundle: ReleaseBundle): Promise<void> {
+  const embed = announcementEmbed(bundle, apexOrigin());
   const hook = await getPlatformSetting(ANNOUNCEMENTS_WEBHOOK_KEY);
   if (hook && isDiscordWebhookUrl(hook)) {
     try {
@@ -90,20 +94,24 @@ export async function publishShippedReleases(dir?: string): Promise<string[]> {
   // order things shipped, and each release's row is newer than the one before it.
   const notes = [...(await loadReleaseFiles(dir))].reverse();
   const announceNow = new Set(parseVersionList(await getPlatformSetting(ANNOUNCE_NOW_KEY)));
-  const done: string[] = [];
+  // The newest version players have seen announced: the bundle is written against it.
+  const shipped = await db.select({ version: releases.version }).from(releases);
+  const lastAnnounced = shipped.map((r) => r.version).sort(compareVersions)[0] ?? null;
+  const done: ReleaseNote[] = [];
   for (const note of notes) {
     // A silent release waits (lib/releaseNotes releaseIsDue): no row yet, so nothing shows anywhere.
     if (!releaseIsDue(note, notes, announceNow)) continue;
+    const stored: ReleaseNote = { ...note, announcedSince: lastAnnounced };
     const [claimed] = await db
       .insert(releases)
-      .values({ version: note.version, title: note.title, note, pluginVersion: note.pluginVersion })
+      .values({ version: note.version, title: note.title, note: stored, pluginVersion: note.pluginVersion })
       .onConflictDoNothing()
       .returning({ id: releases.id });
-    if (!claimed) continue;
-    await announce(note);
-    done.push(note.version);
+    if (claimed) done.push(note);
   }
-  return done;
+  // One post for the whole batch, so 1.19.1–1.19.3 read as what changed since players last looked.
+  if (done.length) await announce(bundleReleases(done, lastAnnounced));
+  return done.map((n) => n.version);
 }
 
 export interface PublishedRelease {
@@ -134,5 +142,12 @@ export async function unseenReleaseLine(userId: number): Promise<string | null> 
   // Seen = the line shown last was this release (not "an id at least this high", for the same reason).
   if (me?.seenReleaseId === latest.id) return null;
   await db.update(users).set({ seenReleaseId: latest.id }).where(eq(users.id, userId));
-  return releaseBriefLine(latest.note as ReleaseNote);
+  // Everything since what this login last saw (or, for a first line, the batch the newest release was
+  // announced with), bundled the same way the Discord post was.
+  const seenVersion = rows.find((r) => r.id === me?.seenReleaseId)?.version;
+  const stamped = (latest.note as ReleaseNote).announcedSince;
+  // Rows stored before batches existed carry no stamp: just the newest release then.
+  const since = seenVersion ?? (stamped === undefined ? latest.version : stamped);
+  const batch = rows.filter((r) => r.id === latest.id || since == null || compareVersions(r.version, since) < 0).map((r) => r.note as ReleaseNote);
+  return announcementBriefLine(bundleReleases(batch, since), apexOrigin());
 }
