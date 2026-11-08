@@ -26,6 +26,7 @@ export function GET(): Response {
     `- [Admin guide](${absoluteUrl('/guide/admin')}): setting up a clan and running its first event`,
     `- [Event formats](${absoluteUrl('/guide/formats')}): every format and how it scores`,
     `- [Clan vs clan](${absoluteUrl('/guide/clan-vs-clan')}): hosting a visiting clan`,
+    `- [Drop odds, luck and records](${absoluteUrl('/guide/luck-and-records')}): what drop odds mean, luck, and best day/week/month/year records`,
     `- [Team competitions](${absoluteUrl('/guide/team-competitions')}): skill and boss competitions as teams or clan vs clan`,
     `- [Discord](${absoluteUrl('/guide/discord')}): the bot, channels and slash commands`,
     '',

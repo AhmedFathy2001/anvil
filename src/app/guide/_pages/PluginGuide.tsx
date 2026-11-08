@@ -101,7 +101,7 @@ export default async function PluginGuide({ lang }: { lang: string }) {
       notice={notice}
       dek={rt(p.dek, v)}
       facts={p.facts}
-      footnote={rt(p.footnote, v)}
+      footnote={rt(`${p.footnote} ${t.common.legalPrivacy}`, v)}
     >
       {/* ---------------------------------------------------------------- 1 */}
       <Section id="install" n={1} title={p.install.title} labels={t.common}>

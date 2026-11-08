@@ -58,6 +58,10 @@ export default async function ProfileGuide({ lang }: { lang: string }) {
       <Section id="compare" n={5} title={g.compare.title} labels={t.common}>
         <SectionBlocks s={g.compare} v={v} />
       </Section>
+
+      <Section id="news" n={6} title={g.news.title} labels={t.common}>
+        <SectionBlocks s={g.news} v={v} />
+      </Section>
     </GuideShell>
   );
 }

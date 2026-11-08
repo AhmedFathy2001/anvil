@@ -18,7 +18,7 @@ import { absoluteUrl } from '@/lib/seo';
 // their own page doesn't have to read the treasurer's blurb first. The grouping lives here rather
 // than in the dictionary: which audience a guide belongs to isn't a translation decision.
 const GROUPS: { key: 'playing' | 'running' | 'clan' | 'streamers'; pages: Exclude<GuidePage, ''>[] }[] = [
-  { key: 'playing', pages: ['plugin', 'side-panel', 'profile', 'settings', 'supporter', 'challenges', 'tiles', 'captain', 'commands', 'clan-hall', 'in-game-guides'] },
+  { key: 'playing', pages: ['plugin', 'side-panel', 'profile', 'luck-and-records', 'settings', 'supporter', 'challenges', 'tiles', 'captain', 'commands', 'clan-hall', 'in-game-guides'] },
   { key: 'running', pages: ['admin', 'formats', 'board', 'weekly', 'team-competitions', 'clan-vs-clan'] },
   // Starting a clan comes first here on purpose: it is the only guide whose reader does not have one
   // yet, and the rest of this group is written for someone already running it.
@@ -60,6 +60,7 @@ const CARD_KEY = {
   weekly: 'weekly',
   'team-competitions': 'teamComps',
   'clan-events': 'clanEvents',
+  'luck-and-records': 'luckRecords',
 } as const;
 
 export async function guideIndexMetadata(lang: string, tab: GuideTab = 'anvil'): Promise<Metadata> {
@@ -215,6 +216,7 @@ export default async function GuideIndex({ lang, tab = 'anvil' }: { lang: string
         anvil={anvilPanel}
         ingame={ingamePanel}
       />
+      <p className="mt-8 text-sm text-text-muted">{rt(t.common.aboutLine)}</p>
     </div>
   );
 }

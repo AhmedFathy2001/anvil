@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { EVENT_MODES } from '@/lib/eventModes';
 import { GuideShell, Note, Rows, Section } from '../_components/GuideUI';
+import { SectionBlocks } from '../_components/SectionBlocks';
 import { localeChrome } from '../_components/LanguageBar';
 import { getDict, guideHref } from '../_i18n';
 import { guideMetadata } from '../_i18n/meta';
@@ -32,7 +33,8 @@ export default async function FormatsGuide({ lang }: { lang: string }) {
     { id: 'reveal', n: 2, title: f.reveal.title },
     { id: 'scoring', n: 3, title: f.scoring.title },
     { id: 'missions', n: 4, title: f.missions.title },
-    { id: 'choose', n: 5, title: f.choose.title },
+    { id: 'race', n: 5, title: f.race.title },
+    { id: 'choose', n: 6, title: f.choose.title },
   ];
 
   return (
@@ -74,7 +76,11 @@ export default async function FormatsGuide({ lang }: { lang: string }) {
         {paragraphs(f.missions.body, v)}
       </Section>
 
-      <Section id="choose" n={5} title={f.choose.title} labels={t.common}>
+      <Section id="race" n={5} title={f.race.title} labels={t.common}>
+        <SectionBlocks s={f.race} v={v} />
+      </Section>
+
+      <Section id="choose" n={6} title={f.choose.title} labels={t.common}>
         <p className="text-text-muted">{rt(f.choose.intro, v)}</p>
         <Rows rows={rows(f.choose.rows, v)} />
         <p className="text-text-muted">{rt(f.choose.outro, v)}</p>

@@ -26,6 +26,9 @@ const zhHans: PartialGuideDict = {
       lead: '卡住了,或者有什么不对?',
       link: '在 Anvil 支持 Discord 中提问',
     },
+    legalPaid: '关于款项：请见 [退款政策](/legal/refunds) 和 [服务条款](/legal/terms)。',
+    legalPrivacy: '数据如何处理：见 [隐私政策](/legal/privacy)。',
+    aboutLine: '谁在运营 Anvil？请阅读 [关于](/about)。',
   },
 
   index: {
@@ -257,6 +260,12 @@ const zhHans: PartialGuideDict = {
         title: '氏族活动与日程',
         blurb: '集合、团本夜和聚会：每周重复、“I’m going”与报名、Discord 提醒、奖金发放、问卷，以及找出日程中的空档。',
         minutes: '约 4 分钟',
+      },
+      luckRecords: {
+        eyebrow: '面向玩家',
+        title: '掉落概率、运气与记录',
+        blurb: '了解掉落格的概率含义、运气如何计算，以及你的最佳日、周、月、年在哪里显示。',
+        minutes: '约 3 分钟',
       },
     },
   },
@@ -565,16 +574,22 @@ const zhHans: PartialGuideDict = {
       ],
       feeds: [
         {
-          term: 'Catch-all channel',
-          body: '最主要的一个，在 **Clan & events** 标签页上。活动的开始与结束、报名开放、排名、每周结果——网站发布的、没有专属频道的一切内容。只设这一个，你就有了一个能用的氏族。',
+          term: '总频道',
+          body: '主频道，位于 **Clan & events** 标签页。活动开始与结束、报名开放、排名、每周结果，凡是网站发布且没有专属频道的内容都在这里。只设置这一个，你的团队就能正常运作。',
         },
         {
-          term: 'In-game catch-all',
-          body: '在 **In-game (plugin)** 标签页上：来自游戏、又没有专属频道的内容都去那里。第二个设它。',
+          term: '游戏内总频道',
+          body: '位于 **In-game (plugin)** 标签页：游戏内内容若没有专属频道，就发到这里。第二个设置这个。',
         },
         {
-          term: '拆分出来的信息流',
-          body: '活动帖子、你联合主办的板、Skill & boss of the week 和氏族日历活动可以从总频道拆出去；稀有掉落、宠物、收集日志、等级、战斗成就、任务、日记、死亡和 PvP 击杀可以从游戏内总频道拆出去。名单变动、报名审批和金库账本在 **Staff only** 上。留空的拆分信息流会回落到各自的总频道。金库是例外：留空就意味着完全不发任何关于钱的帖子。Leagues 和其他模式有自己的 **Game modes** 标签页。',
+          term: '里程碑等',
+          body:
+            '位于 **In-game (plugin)** 标签页。玩家开启后，Slayer、clues、速通、击杀数、BA gambles 和自定义聊天消息会发到这里。其 **Filters** 按钮设置你的团队默认给成员哪些内容。玩家自己的模板和私密类型见 [Settings, page by page]({settingsGuide})。',
+        },
+        {
+          term: '拆分的推送源',
+          body:
+            '活动帖子、你共同主办的 boards、Skill & boss of the week 和团队日历活动可以从总频道拆分出来；稀有掉落、宠物、collection log、等级、combat achievements、任务、日记、死亡和 PvP 击杀可以从游戏内总频道拆分出来。成员变动、报名审批和团队金库账本位于 **Staff only**。留空的拆分推送源会回落到其总频道。金库是例外：留空意味着不发布任何金额。Leagues 及其他模式有各自的 **Game modes** 标签页。',
         },
       ],
       note: {
@@ -628,9 +643,9 @@ const zhHans: PartialGuideDict = {
     modes: {
       title: 'Leagues、Deadman 及其他模式',
       body: [
-        'Leagues、Deadman、hardcore 及其他模式运行在各自的世界里，使用各自的角色。它们的帖子总会带有标注，而且从不计入板或竞赛。它们有自己的标签页：**Admin → Discord → What goes where → Game modes**。某个模式会在成员第一次玩它时出现在那里。',
-        '每个模式都有一个开关和一个 **To** 频道。打开 **Send game-mode posts to their own channels** 就会使用这些频道；关着的话，每个模式都发到普通频道，仍然带标注。模式那一行上的 **Posts** 按钮会列出它发送的每一类帖子——常规的那些和该模式自己的事件——每一类都有自己的开关。',
-        '在这个列表下面，**Custom filters** 可以让某个模式发得比主游戏更少。**Post drops rarer than 1 in…** 设定它自己的稀有度下限（留空 = 与主游戏相同）：总是发布的物品照样发布，但只因价值才算数的掉落不会发布。**Use its own level milestones** 只有在升级同时符合两套规则时才会发帖。',
+        'Leagues、Deadman、hardcore 及其他模式运行在各自的世界中，使用各自的角色。它们的帖子始终带有标识，且从不计入排行榜或比赛。它们有自己的标签页：**Admin → Discord → What goes where → Game modes**。成员首次游玩某模式后，该模式会出现在那里。',
+        '每个模式都有一个开关和一个 **To** 频道。开启 **Send game-mode posts to their own channels** 即可使用这些频道；关闭则所有模式都发到普通频道，但仍带有标识。模式行上的 **Posts** 按钮会列出它发送的每种类型（常规类型以及该模式自己的活动），每种都有自己的开关。',
+        '在该列表下方，**Custom thresholds** 可让某模式发布的内容少于主游戏。**Post drops rarer than 1 in…**（至少 2）和 **Post drops worth at least (gp)**（至少 1,000）设定各自的下限（留空 = 与主游戏相同），然后按 **Save drop thresholds**：总是发布的物品仍会发布，但只因价值而计入的掉落则不会。**Use its own level milestones** 仅当升级同时符合两套规则时才发布。',
       ],
       note: {
         tag: '只会更严，不会更松',
@@ -687,6 +702,31 @@ const zhHans: PartialGuideDict = {
       note: {
         tag: '它无法欢迎新加入的人',
         body: 'Discord 只通过 gateway 连接上报加入事件，而共享机器人不会为每个服务器都保持这种连接。因此没有“欢迎”帖——把报名链接放进 #身份组 或 #从这里开始 频道即可，反正大家本来就看那里。',
+      },
+    },
+    drops: {
+      title: '掉落阈值',
+      body: [
+        'Anvil 默认为 **1m gp** 或 **1 in 1,000**。掉落满足其中任一条件即发布。任何人都不能将数值设得低于这些，设为 0 则关闭该项。',
+        '在 **Admin → Discord → What goes where → Drops** 下设置团队默认值：**Default minimum drop value (gp)**、**Default: post drops rarer than 1 in…** 和 **Require both**。开启 **Require both** 后，掉落必须同时满足价值**and**稀有度。',
+        '每个角色都遵循其所属团队的默认值，若无团队则遵循 Anvil 的默认值。玩家可以在 **Settings** 中自行设置数值。页面显示 **Using clan default** 或 **Custom**，**Reset** 可恢复默认。',
+        '**Hard floor: never post drops more common than 1 in…** 是严格的限制。成员在你团队的频道中不能设得比它更宽松。他们自己的 webhook 则不受此限。',
+      ],
+      note: {
+        tag: '玩家端的更多内容',
+        body: '玩家自己的数值、模板和 webhook 见 [Settings, page by page]({settingsGuide})。',
+      },
+    },
+    pools: {
+      title: '为繁忙频道添加更多 webhook',
+      body: [
+        '单个 webhook 的发送速度有限。对于繁忙的活动，请为同一频道添加更多 webhook。按 **Busy channel? Let the bot add … more webhooks**（需要 **Manage Webhooks** 权限），或将多个 webhook 链接粘贴到频道的输入框中。当你有 50 名或以上玩家、每分钟大量发帖，或 Discord 最近提示过 “slow down” 时，Anvil 会建议你添加更多。最多 10 个就足够了。',
+        'Anvil 会在它们之间轮流发送。如果 Discord 对某个 webhook 提示 “slow down”，该 webhook 会暂停片刻，由下一个接手发帖。如果某个 webhook 被删除或失效，它会被跳过 10 分钟。只要有一个 webhook 可用，帖子就会持续发出。',
+        '所有 webhook 都必须指向同一频道。如果不是，Anvil 会警告你。使用 **Test** 检测某个 webhook，或使用 **Stop posting here** 将其移除。',
+      ],
+      note: {
+        tag: '同一频道，同样的帖子',
+        body: '更多 webhook 绝不会重复发帖，它们只是分担工作。相同理念见上方的 [掉落阈值](#drops)，管理员端见 [Running the event]({adminGuide})。',
       },
     },
   },
@@ -941,27 +981,38 @@ const zhHans: PartialGuideDict = {
         legend: [
           {
             label: 'Notify on death',
-            body: '发到氏族的死亡频道，并附上你死亡那一刻的截图。',
+            body: '在你死亡的那一刻，附带截图发送到团队死亡频道。',
           },
-          { label: 'Death message', body: '你自己的那句话。`{name}` 会被替换成你的 RSN。' },
+          {
+            label: 'Death message',
+            body: '你自己的文字。`{name}` 会被替换为你的 RSN。',
+          },
           {
             label: 'Notify on PvP kill',
-            body: '目标血量归零那一 tick 的截图。默认关闭；这里是开的。',
+            body: '目标生命值降至 0 的那一 tick 的截图。默认关闭；此处已开启。',
           },
-          { label: 'Notify on rare drops', body: '掉落播报的总开关。' },
+          {
+            label: 'Notify on rare drops',
+            body: '掉落帖子的总开关。',
+          },
           {
             label: 'Min drop value / Min drop rarity',
-            body: '掉落在价值至少达到这个数（GE 价与 high alch 取高者）或稀有度高于 1/N 时发布。Anvil 默认为 1m 和 1/1,000。你的氏族可以为成员设置自己的默认值；在你自己设定数字之前，你将跟随氏族的设置；**重置为氏族默认值**（若你没有氏族则为 **重置为 Anvil 默认值**）即可恢复跟随。氏族还可以为其自身频道设定一个硬性稀有度下限，你的数字不能低于它。将任一数字设为 0 即可关闭该项。',
+            body:
+              '掉落物价值不低于此数（GE 或高价炼金中较高者）或稀有度高于 1/N 时发布。Anvil 默认为 1m 和 1/1,000。你的团队可以为成员设置自己的默认值，在你自己设置数值之前，你会遵循团队的设置；**Reset to clan default**（若无团队则为 **Reset to Anvil default**）可恢复为遵循团队设置。团队还可以设置硬性稀有度下限，它只作用于该团队自己频道中的帖子。你的数值在那里不能比它更宽松，并且它从不改变价值限制。将任一数值设为 0 即可关闭。',
           },
           {
-            label: '价值和稀有度组合',
-            body: '默认情况下，掉落满足价值**或**稀有度之一即发布。开启 **同时要求** 后，必须同时满足价值**和**稀有度。你的氏族可以为成员选择这一默认设置；在你自行选择之前，你将跟随氏族的设置；没有氏族时则为二者之一。你自己的每个 webhook 也可以单独设置最低价值、稀有度以及满足其一或同时满足；未填写的项目跟随你的设置。',
+            label: 'Value and rarity together',
+            body:
+              '默认情况下，掉落满足价值**or**稀有度即发布。开启 **Require both** 后，必须同时满足价值**and**稀有度。你的团队可以为成员选择此默认值；在你自行选择之前，你会遵循它，若无团队则满足其中一项即可。你自己的每个 webhook 也可以设置各自的最低价值、稀有度以及 either/both（任一/两者）；留空的项遵循你的设置。',
           },
           {
             label: 'Loot key value',
-            body: '当一把 loot key 的全部内容超过这个数值时，作为单条通知一次性发出。',
+            body: '当一把 loot key 的全部内容达到此数值时，它会作为一条通知发布一次。',
           },
-          { label: 'Notify on pets', body: '宠物发到稀有掉落频道。' },
+          {
+            label: 'Notify on pets',
+            body: '宠物发布到稀有掉落频道。',
+          },
         ],
       },
       caFigure: {
@@ -1839,6 +1890,14 @@ const zhHans: PartialGuideDict = {
       ],
       outro: '在此之下，**Member breakdown** 会显示每个队伍中谁做了什么，**Stat tile standings** 则会显示每位玩家在每个经验或击杀格子上的起始与当前数字。',
     },
+    race: {
+      title: 'Tile 竞速赛道',
+      intro: '在 tile 竞速面板上，你要搭建赛道而不是网格。Tile 位于编号的步骤上，队伍沿着它们前进。',
+      body: [
+        '打开 **Tiles**，使用 **Route** 部分。选择一个模板（默认为 **Diamond**），将你的 tile 添加到各步骤上，然后按 **Save route**。你链接的每个 tile 都必须位于下一步上。',
+        '道路可以分叉和合并，但终点只有一个。在分叉处，你可以选择完成一个 tile 是否决定道路，还是由队长选择并锁定。完整的选项列表，以及玩家看到的内容，见 [Formats, and how tiles open]({formatsGuide})。',
+      ],
+    },
   },
 
   captain: {
@@ -2058,6 +2117,34 @@ const zhHans: PartialGuideDict = {
       ],
       outro:
         '无论你选哪一种，格子本身都是同一份活：见[做一块会自己记账的棋盘]({boardGuide})。',
+    },
+    race: {
+      title: 'Tile 竞速路线',
+      intro: 'Tile 竞速是一条编号步骤的赛道。队伍逐步前进，走得最远的获胜。主办方可以将赛道变成带有分叉与汇合道路的地图。',
+      body: ['每条路线都有一个起点、可以分叉和合并的道路，以及一个终点。每条道路长度相同。队伍的进度就是它已经走过的道路。'],
+      rows: [
+        {
+          term: '按成就',
+          body: '你当前 tile 之后的每个 tile 都是开放的。队伍第一个完成的 tile 会确定它的道路，其他的则对该队伍关闭。',
+        },
+        {
+          term: '选择并锁定',
+          body: '在任何内容计入之前，队长（或团队工作人员）使用 **Pick this road** 选择下一个 tile。只有选择是开放的。选择无法撤销，除非由管理员重置。',
+        },
+        {
+          term: '保留提前完成',
+          body: '默认关闭，因此只有队伍道路上已开放的 tile 才计入。开启后，对队伍尚未到达的 tile 的完成会被保留，并在道路到达该处时完成。它从不跳过领先的队伍，也不会提前开放任何内容。',
+        },
+      ],
+      steps: [
+        '打开活动的 **Tiles** 页面，找到 **Route**。',
+        '选择 **Route template**，然后按 **Apply template**。**Diamond** 为默认：一个起点、两条道路、一个终点。**Two roads**、**Braid**、**Straight line** 和 **Free**（无链接）也可以选择。',
+        '选择 **How a team’s road is set at a fork**：按成就，或选择并锁定。',
+        '使用 **+ Step before**、**Move step earlier/later** 和 **Remove step** 添加或移动步骤，然后按 **Save route**。',
+        '如果活动已经开始，Anvil 会询问如何处理新路线切断的完成记录：**Keep**（保留）或 **Roll back**（回滚）。',
+      ],
+      outro:
+        '玩家会在活动页面看到 **Race track**，其所在队伍的 tile 上带有金色 **You** 标记。**Fullscreen board** 可将其放大，**Esc** 关闭。在插件中，侧边面板显示 **Your road** 和 **After that**。',
     },
   },
 
@@ -3753,20 +3840,30 @@ const zhHans: PartialGuideDict = {
         '你的活动和你的氏族。在创作者空间里，这个标签页显示为 **Space**。',
       rows: [
         {
-          term: '氏族下拉菜单',
-          body: '当你在不止一个氏族或空间里游玩时显示。**All clans**（默认）显示你参与的一切，进行中的活动排在最前。选择一个氏族会把面板限定到它，并把你的提交归到那里。',
+          term: '团队下拉菜单',
+          body: '当你在多个团队或空间中游玩时显示。**All clans**（默认）显示你正在游玩的所有内容，实时活动排在最前。选择某个团队会将面板缩小到该团队，并将你的提交归入其中。',
+        },
+        {
+          term: '接下来做什么',
+          body: '顶部的金色卡片，指向现在最值得做的一件事，例如加入活动、回答问卷或开始你的起始射击。',
         },
         {
           term: '活动',
-          body: '每一块进行中和即将开始的棋盘、Skill of the Week 或 Boss of the Week，以及氏族活动，还有你所处的位置。接着是 **Your other boards**、**Also live** 和 **Your clan**。',
+          body:
+            '每个实时和即将开始的 board、Skill 或 Boss of the Week 以及团队活动，并显示你的位置。然后是 **Your other boards**、**Also live** 和 **Your clan**。',
         },
         {
-          term: '一块棋盘',
-          body: '打开一块棋盘，可以看到排名、队伍、任务、最近动态、最近的格子和 **View all tiles**。它的 **Feed** 和 **Chat** 按钮会在 Feed 标签页里打开那块棋盘。',
+          term: '一个 board',
+          body:
+            '打开它可查看排名（前三名和你自己的行，其余可点 **View all**）、队伍、任务、最近活动、最近的 tile 以及 **View all tiles**。其 **Feed** 和 **Chat** 按钮会在 Feed 标签页中打开该 board。',
         },
         {
-          term: '一场氏族活动',
-          body: '视活动而定，是 **I’m going**、**Sign me up** 或 **Answer the survey**。',
+          term: '排名变动',
+          body: '名字旁边带数字的绿色 **▲** 或珊瑚色 **▼**，表示自当天开始以来的移动幅度。',
+        },
+        {
+          term: '团队活动',
+          body: '根据活动不同，显示 **I’m going**、**Sign me up** 或 **Answer the survey**。',
         },
       ],
     },
@@ -3777,16 +3874,17 @@ const zhHans: PartialGuideDict = {
         '你的氏族和棋盘上的大事，实时呈现：掉落、宠物、成就、任务、死亡和完成的格子。',
       rows: [
         {
-          term: '谁的动态',
-          body: '顶部的下拉菜单列出你所在的每个氏族（**Clan ·**）和你参加的每块进行中的棋盘（**Event ·**）。如果你有棋盘就打开你的棋盘，否则打开你的氏族。',
+          term: '谁的 feed',
+          body: '顶部的下拉菜单列出你所属的每个团队 **Clan ·** 以及你参与的每个实时 board **Event ·**。若你有 board，则默认打开你的 board，否则打开你的团队。',
         },
         {
           term: '筛选',
-          body: '**All**、**Tiles**（仅棋盘）、**Drops**、**Pets**、**Achievements**、**Deaths**，以及在你有所属队伍的棋盘上的 **My team**。氏族动态还有一个查看 Leagues 等游戏模式活动的按钮。',
+          body:
+            '**All**、**Tiles**（仅 boards）、**Drops**、**Pets**、**Achievements**、**Deaths**、**Milestones**（slayer、clues、击杀数等，玩家开启后）以及你在某个 board 中有队伍时的 **My team**。团队 feed 还有用于 Leagues 及其他模式的游戏模式活动按钮。',
         },
         {
-          term: '新的行',
-          body: '会自动出现。如果你已经滚动离开，一个 **↑ N new** 小标签会带你回到它们。',
+          term: '新行',
+          body: '会自动出现。如果你已经滚动离开，**↑ N new** 标签会带你回到它们。',
         },
       ],
       note: {
@@ -3829,23 +3927,26 @@ const zhHans: PartialGuideDict = {
       rows: [
         {
           term: '所有人或你的队伍',
-          body: '**All** 发给整块棋盘，**My team** 只发给你的队伍（这些行标有 **TEAM**）。管理团队还能看到 **Host & mods**，他们的行标有 **HOST** 或 **MOD**。',
+          body:
+            '使用顶部的标签选择频道：**All teams** 为整个 board，**My team** 仅你的队伍，**Announcements** 仅主办方和版主可以发言。每个标签都显示你尚未阅读的行数。来自主办方和版主的行标记为 **HOST** 或 **MOD**。',
         },
         {
           term: '发送',
-          body: '在输入框里输入，按 Enter。每行最多 200 个字符，只有主办方和管理员能发链接。',
+          body: '在输入框中输入后按 Enter。每行最多 200 个字符，只有主办方和版主可以发送链接。',
         },
         {
-          term: '多久一句',
-          body: '你两句之间的等待取决于你的 Supporter 档位：没有档位 5 秒，Supporter 3 秒，Champion 1 秒，Patron 无需等待。输入框下面那一行会写着你的等待时间。管理团队从不需要等待。',
+          term: '频率',
+          body:
+            '你两行之间的等待时间取决于你的 Supporter 等级：没有等级为 5 秒，Supporter 为 3 秒，Champion 为 1 秒，Patron 无等待。输入框下方的文字会说明你的等待时间。工作人员从不等待。',
         },
         {
           term: '慢速模式',
-          body: '当某块棋盘的聊天非常繁忙时，所有人在一分钟内每句至少要等 10 秒，Patron 也不例外。任何人在 10 秒内都不能发超过 10 行。',
+          body: '当 board 的聊天变得非常繁忙时，所有人（包括 Patron）每分钟至少要等待 10 秒。任何人 10 秒内发送的行数都不能超过 10 行。',
         },
         {
           term: '管理',
-          body: '主办方和管理员可以右键某一行来 **Delete message** 或 **Mute** 某人，也可以用 **Pause chat** 暂停整个聊天。',
+          body:
+            '主办方和版主可以右键单击某行以 **Delete message** 或 **Mute** 某人，并用 **Pause chat** 暂停聊天。暂停会阻止除工作人员以外的所有人发言，**Announcements** 除外。面板中的 **Mute** 是一种禁言，持续到在管理页面解除为止。在那里你还可以给予 5 分钟、1 小时或 24 小时（或从 1 分钟到 30 天的任意时长）的禁言，这会关闭该人在所有频道的发言，并可按频道筛选聊天。',
         },
       ],
       outro:
@@ -3857,16 +3958,17 @@ const zhHans: PartialGuideDict = {
       intro: '两个玩家卡片标签页：你自己的，和其他任何人的。',
       rows: [
         {
-          term: 'You',
-          body: '你当前登录角色的卡片：横幅和头像、**Display case**、细到每一页物品的 collection log，以及 **Skills**、**Bosses**、**Clues**、**Times** 和 **CAs**。下面是等你回应的 **Head-to-head** 挑战（**Accept** 或 **Decline**），以及带 **+ Add goal** 的 **Goals**。',
+          term: '你',
+          body:
+            '你登录的角色的个人卡片：横幅和头像、**Display case**，以及 **Stats**、**Bosses** 和 **Log** 标签（collection log 可细化到每页的物品，另有 clues、时间和 combat achievements）。其下是等待你的 **Head-to-head** 挑战（**Accept** 或 **Decline**）和你的 **Goals**，可用 **+ Add goal** 添加。',
         },
         {
-          term: 'Lookup',
-          body: '在 **Players** 和 **Clans** 之间切换，输入名字并按 Enter。**Recent** 列出你最近查过的几个。在游戏里右键任何人并选择 **Anvil**，就会跳到这里。',
+          term: '查找',
+          body: '在 **Players** 和 **Clans** 之间切换，输入名字后按 Enter。**Recent** 会列出你最近的几项。在游戏中右键单击任何人并选择 **Anvil** 即可进入此处。',
         },
         {
-          term: '对比',
-          body: '在别人的卡片上，**Compare with me** 会把你们两人按技能、按 Boss、按页面逐项对比。氏族的卡片上有 **Compare with my clan**。',
+          term: '比较',
+          body: '在别人的卡片上，**Compare with me** 会将你们两人逐项对比技能、逐个 boss、逐页比较。团队的卡片上有 **Compare with my clan**。',
         },
       ],
     },
@@ -4173,6 +4275,14 @@ const zhHans: PartialGuideDict = {
         '只有已公开分享的角色才能被对比。私人角色或 Anvil 不认识的名字，会返回 _not on Anvil, or not shared_。登录后，你永远可以对比你自己的私人角色。',
       ],
     },
+    news: {
+      title: '最新动态与更新日志',
+      body: [
+        '[What’s new](/whats-new) 按最新优先显示 Anvil 的变更。登录后，它先显示 **For you**（对你的等级和团队重要的新闻），然后是 **Everything new**。需要插件更新的内容会标注 **Coming in the next plugin update**。',
+        '[更新日志](/changelog) 列出每个版本及其新闻、亮点，以及 **New**、**Improved** 和 **Fixed** 的内容。',
+        '发布新版本时，其新闻会发布到 Anvil Discord 以及你团队的 Anvil 更新中，玩家登录时插件会显示一行提示。小修复会合并到下一篇帖子中。',
+      ],
+    },
   },
   settings: {
     metaTitle: '设置，逐页讲解 — Anvil',
@@ -4287,8 +4397,8 @@ const zhHans: PartialGuideDict = {
     webhooks: {
       title: '你的 Discord webhook',
       body: [
-        '你的帖子也可以发送到你自己的 Discord 服务器：私人频道、朋友的服务器，任何你能创建 webhook 的地方。粘贴 webhook 链接，勾选它要接收的内容（**Rare drops**、**Pets**、**Deaths**、**Combat achievements**、**Levels & milestones**、**Quests**、**Achievement diaries**、**Collection log**、**PvP kills**），可选择设置 **Only drops worth at least … gp**，然后按 **Add webhook**。',
-        '最多可以有 10 个。只接受 Discord webhook 链接，已保存的链接会被遮掩显示，因此这个页面的截图不会泄露它。**Level posts on my webhooks** 为它们设置你自己的等级规则，与你氏族的规则分开。',
+        '你的帖子也可以发送到你自己的 Discord 服务器：私人频道、朋友的服务器，或任何你能创建 webhook 的地方。粘贴 webhook 链接，勾选它要接收的内容（**Rare drops**、**Pets**、**Deaths**、**Combat achievements**、**Levels & milestones**、**Quests**、**Achievement diaries**、**Collection log**、**PvP kills**），还可以仅为它设置最低掉落价值和稀有度，然后按 **Add webhook**。对于接收 **Rare drops** 的 webhook，你之后可以更改这些设置，并选择 **Value or rarity: my setting**、**either** 或 **both**。留空的项遵循你自己的设置，而且 webhook 可以比你团队的硬性下限更宽松。',
+        '最多可以添加 10 个。只接受 Discord webhook 链接，已保存的链接会被遮盖显示，因此此页面的截图不会泄露它。**Level posts on my webhooks** 为它们设置你自己的等级规则，与团队的规则分开。',
       ],
     },
     privacy: {
@@ -4577,7 +4687,8 @@ const zhHans: PartialGuideDict = {
         rest: '开始前 15 分钟，然后开始时',
       },
     ],
-    footnote: '每周比赛见 [Skill 与 Boss of the Week]({weeklyGuide})；费用与奖金见 [费用与奖金发放]({feesGuide})。',
+    footnote:
+      '每周比赛见 [Skill and Boss of the Week]({weeklyGuide})；费用和奖金见 [Fees and payouts]({feesGuide})。提醒帖子使用你团队的消息模板，详见 [Settings, page by page]({settingsGuide})。',
     create: {
       title: '安排一场',
       intro: '在管理菜单中打开 **Clan events**，填写表单：',
@@ -4884,6 +4995,79 @@ const zhHans: PartialGuideDict = {
         tag: '发布它们',
         body: '攻略可以发布到 Discord 频道，攻略更改时，这些帖子会原地编辑。',
       },
+    },
+  },
+  luckRecords: {
+    metaTitle: '掉落概率、运气与记录 — Anvil',
+    metaDescription: '说明掉落格上概率行的含义、Anvil 如何计算运气（spooned、dry 或 on rate）、什么是高效时长，以及你的最佳日、周、月、年保存在哪里。',
+    eyebrow: 'Anvil · 面向玩家',
+    title: '掉落概率、运气与记录',
+    dek: 'Anvil 可以告诉你某个掉落有多稀有、通常需要多久，以及你有多幸运。它还能记住你的最佳日子。本页解释这些数字。',
+    facts: [
+      {
+        strong: '概率',
+        rest: '来自 OSRS Wiki',
+      },
+      {
+        strong: '运气',
+        rest: '预期击杀数与你的实际击杀数对比',
+      },
+      {
+        strong: '记录',
+        rest: '从上线之日开始，不回溯补录',
+      },
+    ],
+    footnote:
+      '你自己的页面见 [Your profile, Wrapped and Compare]({profileGuide})。开关见 [Settings, page by page]({settingsGuide})。',
+    odds: {
+      title: '掉落格上的概率',
+      intro: '打开一个掉落格，你会看到最多八行，每个已知概率的物品一行。一行看起来像这样：',
+      body: [
+        '`Item: 1 in 512 from Boss · ~512 kills ≈ 9.4 h at 55/h`',
+        '如果该物品每次击杀可以掷出多次，还会显示 **(×2 rolls)**。如果 Anvil 不知道玩家击杀该 boss 的速度，则省略时长部分。',
+      ],
+      rows: [
+        {
+          term: '1 in N',
+          body: '单次击杀获得该掉落的几率，取自获得它最快的来源。',
+        },
+        {
+          term: '预期击杀数',
+          body: '平均需要的击杀次数。根据概率和掷骰次数计算得出。',
+        },
+        {
+          term: '时长',
+          body: '预期击杀数除以玩家通常每小时能完成的击杀数。它只是一个参考，而非承诺。',
+        },
+      ],
+      note: {
+        tag: '平均值，而非上限',
+        body: '一半的玩家会在预期击杀数之前拿到它，也有些人需要多得多。用它来判断一个格子有多大，而不是预测它何时出现。',
+      },
+    },
+    luck: {
+      title: '运气：spooned、dry 或 on rate',
+      body: [
+        '运气会将你已完成的击杀与它应该需要的击杀进行比较。如果你用比预期更少的击杀拿到了掉落，你就是 **spooned**。如果你击杀了很多次仍一无所获，你就是 **dry**。介于两者之间则是 **on rate**。',
+        '只有当情况罕见（大约二十分之一或更低的几率）时，Anvil 才会标记你为 **dry** 或 **spooned**。它会显示你的击杀数与预期数的对比，以及你领先或落后多少。',
+        'Members 页面上的 **Luck** 标签列出团队中最倒霉和最幸运的成员。插件发布的稀有掉落帖子也可以附带一行运气信息，例如前百分之几，或者到现在为止有多少玩家本该已经拿到。',
+      ],
+    },
+    source: {
+      title: '数据来源',
+      body: [
+        '掉落率来自 OSRS Wiki，每天更新。计算时长所用的击杀率来自 Wiki 的赚钱指南。如果某个概率只是谨慎的估计，Anvil 也会这样对待。',
+        '如果某个概率看起来不对，应该去 Wiki 修正它，Anvil 会同步这一改动。',
+      ],
+    },
+    records: {
+      title: '记录与高效时长',
+      body: [
+        'Anvil 会保存你在技能经验、boss 击杀和高效时长方面的最佳 **day**、**week**、**month** 和 **year**。天按 UTC 计算，周从周一开始。',
+        '记录从本功能上线的那一刻开始计算。之前没有任何数据，Anvil 也从不补填过去。只有当你超过旧的最佳成绩时，记录才会保存。',
+        '你可以在角色页面的 **Records** 下看到自己的记录。团队的记录保持者在 **Members → Records**。',
+        '**Efficient hours played** 是你的收益按优良训练方式需要多长时间，以便比较快速技能与慢速技能。**Efficient hours bossed** 对击杀做同样的事情。比率来自 OSRS Wiki，ironman 账号使用各自的比率。',
+      ],
     },
   },
 };

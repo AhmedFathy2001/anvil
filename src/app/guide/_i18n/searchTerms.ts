@@ -171,6 +171,11 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
     'auto-balance', 'balance teams', 'rebalance', 'late joiner', 'late joiners', 'average per player',
     'team total', 'clan total', 'move a player', 'rename team', 'team colour', 'team color',
   ],
+  'luck-and-records': [
+    'drop odds', 'odds', 'drop rate', 'expected kills', 'luck', 'lucky', 'spooned', 'dry', 'dry streak', 'on rate',
+    'records', 'best day', 'best week', 'best month', 'best year', 'efficient hours', 'ehp', 'ehb',
+    'hours played', 'hours bossed', 'wiki', 'whats new', "what's new", 'changelog', 'release notes',
+  ],
   'clan-events': [
     'clan event', 'clan events', 'mass', 'masses', 'raid night', 'drop party', 'meetup', 'rsvp', "i'm going",
     'going', 'schedule', 'calendar', 'fill the gap', 'reminder', 'recurring', 'every week', 'sign-ups', 'spots',

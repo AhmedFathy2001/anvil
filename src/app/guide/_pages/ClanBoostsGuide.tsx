@@ -38,7 +38,7 @@ export default async function ClanBoostsGuide({ lang }: { lang: string }) {
       notice={notice}
       dek={rt(g.dek, v)}
       facts={g.facts}
-      footnote={rt(g.footnote, v)}
+      footnote={rt(`${g.footnote} ${t.common.legalPaid}`, v)}
     >
       <Section id="what" n={1} title={g.what.title} labels={t.common}>
         <SectionBlocks s={g.what} v={v} />

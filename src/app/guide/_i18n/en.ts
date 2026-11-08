@@ -23,6 +23,9 @@ export const en = {
     copyLink: 'Copy a link to this section',
     linkCopied: 'Link copied',
     language: 'Language',
+    legalPaid: 'Money questions: [Refunds](/legal/refunds) and [Terms](/legal/terms).',
+    legalPrivacy: 'How your data is handled: [Privacy policy](/legal/privacy).',
+    aboutLine: 'Who is behind Anvil? Read [About](/about).',
     partialNotice:
       'This guide is only partly translated into {language}. Anything not yet translated is shown in English.',
     backToGuides: 'All guides',
@@ -264,6 +267,12 @@ export const en = {
         blurb: 'Skill and boss competitions as teams or clan vs clan: setting them up, inviting clans, how totals and averages work, and what players see.',
         minutes: '~4 min',
       },
+      luckRecords: {
+        eyebrow: 'For players',
+        title: 'Drop odds, luck and records',
+        blurb: 'What the odds on a drop tile mean, how luck is worked out, and where your best day, week, month and year show up.',
+        minutes: '~3 min',
+      },
       clanEvents: {
         eyebrow: 'For clan staff',
         title: 'Clan events and the schedule',
@@ -271,6 +280,7 @@ export const en = {
         minutes: '~4 min',
       },
     },
+
   },
 
   switching: {
@@ -578,6 +588,10 @@ export const en = {
           body: 'On the **In-game (plugin)** tab: where anything from the game goes when it has no channel of its own. Set this second.',
         },
         {
+          term: 'Milestones & more',
+          body: 'On the **In-game (plugin)** tab. Slayer, clues, speedruns, kill counts, BA gambles and custom chat messages post here, once players switch them on. Its **Filters** button sets what your clan gives members by default. Players’ own templates and private kinds are in [Settings, page by page]({settingsGuide}).',
+        },
+        {
           term: 'The split feeds',
           body: 'Event posts, boards you co-host, Skill & boss of the week and clan calendar events can split from the catch-all; rare drops, pets, collection log, levels, combat achievements, quests, diaries, deaths and PvP kills can split from the in-game catch-all. Roster changes, sign-up approvals and the coffer ledger sit on **Staff only**. Blank split feeds fall back to their catch-all. The coffer is the exception: blank means no money posts at all. Leagues and other modes have their own **Game modes** tab.',
         },
@@ -639,7 +653,7 @@ export const en = {
       body: [
         'Leagues, Deadman, hardcore and other modes run on their own worlds with their own characters. Their posts are always labelled and never count toward boards or competitions. They have their own tab: **Admin → Discord → What goes where → Game modes**. A mode appears there the first time a member plays it.',
         'Each mode has a switch and a **To** channel. Turn on **Send game-mode posts to their own channels** to use those channels; leave it off and every mode posts to the normal channels, still labelled. The **Posts** button on a mode’s row lists every kind it sends — the usual ones and the mode’s own events — each with its own switch.',
-        'Under that list, **Custom filters** make a mode post less than the main game. **Post drops rarer than 1 in…** sets its own rarity floor (blank = same as the main game): always-post items still post, but drops that only count for their value don’t. **Use its own level milestones** posts a level-up only if it matches both sets of rules.',
+        'Under that list, **Custom thresholds** make a mode post less than the main game. **Post drops rarer than 1 in…** (at least 2) and **Post drops worth at least (gp)** (at least 1,000) set their own floors (blank = same as the main game), then press **Save drop thresholds**: always-post items still post, but drops that only count for their value don’t. **Use its own level milestones** posts a level-up only if it matches both sets of rules.',
       ],
       note: {
         tag: 'Stricter, never looser',
@@ -657,6 +671,33 @@ export const en = {
       note: {
         tag: 'Needs Manage Webhooks',
         body: 'The bot reads your server’s webhooks to find them. Without _Manage Webhooks_ on its role, the page says it can’t see them.',
+      },
+    },
+
+    drops: {
+      title: 'Drop thresholds',
+      body: [
+        'Anvil starts at **1m gp** or **1 in 1,000**. A drop posts when it meets either one. Nobody can set their own numbers below those, and 0 switches one off.',
+        'Set your clan’s defaults under **Admin → Discord → What goes where → Drops**: **Default minimum drop value (gp)**, **Default: post drops rarer than 1 in…** and **Require both**. Turn on **Require both** and a drop must meet the value **and** the rarity.',
+        'Each character follows the default of the clan it is a member of, and Anvil’s default if it has none. Players can pick their own numbers in **Settings**. It shows **Using clan default** or **Custom**, and **Reset** goes back.',
+        '**Hard floor: never post drops more common than 1 in…** is the strict one. Members can’t go looser than it in your clan’s channels. Their own webhooks can.',
+      ],
+      note: {
+        tag: 'More on the player side',
+        body: 'Players’ own numbers, templates and webhooks are in [Settings, page by page]({settingsGuide}).',
+      },
+    },
+
+    pools: {
+      title: 'More webhooks for busy channels',
+      body: [
+        'One webhook can only send so fast. For a busy event, add more webhooks to the same channel. Press **Busy channel? Let the bot add … more webhooks** (it needs **Manage Webhooks**), or paste several webhook links into the channel’s box. Anvil suggests more when you have 50 or more players, a lot of posts per minute, or Discord has recently said “slow down”. Up to 10 is plenty.',
+        'Anvil takes turns between them. If Discord says “slow down” for one, that webhook rests for a moment and the next one takes the post. If one is deleted or stops working, it is skipped for 10 minutes. Posts keep flowing, as long as one webhook works.',
+        'All of them must point at the same channel. Anvil warns you if they don’t. Use **Test** to check one, or **Stop posting here** to remove it.',
+      ],
+      note: {
+        tag: 'Same channel, same posts',
+        body: 'More webhooks never post twice. They only share the work. The same idea is in [Drop thresholds](#drops) above and the admin side in [Running the event]({adminGuide}).',
       },
     },
 
@@ -948,7 +989,7 @@ export const en = {
           { label: 'Notify on rare drops', body: 'the master switch for drop posts.' },
           {
             label: 'Min drop value / Min drop rarity',
-            body: 'a drop posts when it is worth at least this much (GE or high alch, whichever is higher) or rarer than 1-in-N. Anvil starts at 1m and 1/1,000. Your clan can set its own defaults for its members, and until you set a number yourself you follow your clan\'s; **Reset to clan default** (or **Reset to Anvil default** if you have no clan) goes back to following it. A clan can also set a hard rarity floor for its own channels, which your number cannot go below. Set either number to 0 to switch it off.',
+            body: 'a drop posts when it is worth at least this much (GE or high alch, whichever is higher) or rarer than 1-in-N. Anvil starts at 1m and 1/1,000. Your clan can set its own defaults for its members, and until you set a number yourself you follow your clan\'s; **Reset to clan default** (or **Reset to Anvil default** if you have no clan) goes back to following it. A clan can also set a hard rarity floor, which only applies to posts in that clan’s own channels. Your number can’t go looser than it there, and it never changes the value limit. Set either number to 0 to switch it off.',
           },
           {
             label: 'Value and rarity together',
@@ -1836,6 +1877,15 @@ export const en = {
       outro:
         'Below that, **Member breakdown** shows who on each team did what, and **Stat tile standings** every player’s start and current numbers on each XP or kill tile.',
     },
+
+    race: {
+      title: 'Tile race tracks',
+      intro: 'On a tile race board you build a track instead of a grid. Tiles sit on numbered steps, and a team moves along them.',
+      body: [
+        'Open **Tiles** and use the **Route** section. Pick a template (**Diamond** is the default), add your tiles to the steps and press **Save route**. Every tile you link must sit on the next step.',
+        'Roads can split and merge, but there is one finish. At a fork you choose whether finishing a tile sets the road, or the captain picks it and locks it in. The full list of choices, and what players see, is in [Formats, and how tiles open]({formatsGuide}).',
+      ],
+    },
   },
 
   captain: {
@@ -2040,6 +2090,27 @@ export const en = {
         'Drop them by hand when the board goes quiet, on a fixed interval, or on a per-mission schedule. Each mission carries its own scoring: its own lockout, bonus, decay and expiry, set per tile rather than for the event.',
         'They are the cheapest way to wake a board up on day five, which is the day every long event needs waking up.',
       ],
+    },
+
+    race: {
+      title: 'Tile race routes',
+      intro: 'A tile race is a track of numbered steps. Teams move from step to step, and whoever gets furthest wins. The host can turn the track into a map with roads that split and join.',
+      body: [
+        'Every route has one start, roads that can split and merge, and one finish. Every road is the same length. A team’s progress is the road it has walked so far.',
+      ],
+      rows: [
+        { term: 'By achievement', body: 'every tile after your current one is open. The first one a team finishes sets its road, and the others close for that team.' },
+        { term: 'Choose and lock in', body: 'the captain (or team staff) picks the next tile with **Pick this road** before anything counts. Only the pick is open. A pick can’t be undone, except by an admin reset.' },
+        { term: 'Bank early finishes', body: 'off by default, so only tiles open on a team’s road count. Turn it on and a finish on a tile the team hasn’t reached yet is kept. It completes when the road gets there. It never skips a team ahead or opens anything early.' },
+      ],
+      steps: [
+        'Open the event’s **Tiles** page and find **Route**.',
+        'Pick a **Route template** and press **Apply template**. **Diamond** is the default: one start, two roads, one finish. **Two roads**, **Braid**, **Straight line** and **Free** (no links) are there too.',
+        'Choose **How a team’s road is set at a fork**: by achievement, or choose and lock in.',
+        'Add or move steps with **+ Step before**, **Move step earlier/later** and **Remove step**, then press **Save route**.',
+        'If the event is already live, Anvil asks what to do with finishes the new route cuts off: **Keep** them or **Roll back**.',
+      ],
+      outro: 'Players see a **Race track** on the event page, with a gold **You** marker on their own team’s tile. **Fullscreen board** makes it big, and **Esc** closes it. In the plugin, the side panel shows **Your road** and **After that**.',
     },
 
     choose: {
@@ -3769,12 +3840,20 @@ export const en = {
           body: 'shown when you play in more than one clan or space. **All clans** (the default) shows everything you are playing, live event first. Picking one clan narrows the panel to it and files your submissions there.',
         },
         {
+          term: 'Do this next',
+          body: 'a gold card at the top that points at the one thing worth doing now, such as joining an event, answering a survey or taking your starting shot.',
+        },
+        {
           term: 'Events',
           body: 'every live and upcoming board, Skill or Boss of the Week and clan event, with where you stand. Then **Your other boards**, **Also live** and **Your clan**.',
         },
         {
           term: 'A board',
-          body: 'open one for its standings, teams, missions, recent activity, the nearest tiles and **View all tiles**. Its **Feed** and **Chat** buttons open that board in the Feed tab.',
+          body: 'open one for its standings (the top three and your own lines, with **View all** for the rest), teams, missions, recent activity, the nearest tiles and **View all tiles**. Its **Feed** and **Chat** buttons open that board in the Feed tab.',
+        },
+        {
+          term: 'Rank moves',
+          body: 'a green **▲** or coral **▼** with a number next to a name shows how far it has moved since the day began.',
         },
         {
           term: 'A clan event',
@@ -3794,7 +3873,7 @@ export const en = {
         },
         {
           term: 'Filters',
-          body: '**All**, **Tiles** (boards only), **Drops**, **Pets**, **Achievements**, **Deaths**, and **My team** on a board where you are on a team. A clan feed also has a game-mode activity button for Leagues and other modes.',
+          body: '**All**, **Tiles** (boards only), **Drops**, **Pets**, **Achievements**, **Deaths**, **Milestones** (slayer, clues, kill counts and the like, once players switch them on), and **My team** on a board where you are on a team. A clan feed also has a game-mode activity button for Leagues and other modes.',
         },
         {
           term: 'New rows',
@@ -3841,7 +3920,7 @@ export const en = {
       rows: [
         {
           term: 'Everyone or your team',
-          body: '**All** writes to the whole board, **My team** only to your team (those lines are marked **TEAM**). Staff also see **Host & mods**, and their lines are marked **HOST** or **MOD**.',
+          body: 'Pick a channel with the chips at the top: **All teams** for the whole board, **My team** for your team only, and **Announcements**, where only the host and mods can post. Each chip shows a count of lines you haven’t read. Lines from the host and mods are marked **HOST** or **MOD**.',
         },
         {
           term: 'Sending',
@@ -3857,7 +3936,7 @@ export const en = {
         },
         {
           term: 'Moderation',
-          body: 'the host and mods can right-click a line to **Delete message** or **Mute** someone, and pause the whole chat with **Pause chat**.',
+          body: 'the host and mods can right-click a line to **Delete message** or **Mute** someone, and pause the chat with **Pause chat**. A pause stops everyone but staff from posting, except in **Announcements**. **Mute** in the panel is a ban that lasts until it is lifted on the moderation page. There you can also give a timeout of 5 minutes, 1 hour or 24 hours (or any time from 1 minute to 30 days), which closes every channel for that person, and filter the chat by channel.',
         },
       ],
       outro:
@@ -3870,7 +3949,7 @@ export const en = {
       rows: [
         {
           term: 'You',
-          body: 'your own card for the character you are logged in on: banner and avatar, **Display case**, collection log down to each page’s items, and **Skills**, **Bosses**, **Clues**, **Times** and **CAs**. Below it, any **Head-to-head** challenge waiting for you (**Accept** or **Decline**) and your **Goals**, with **+ Add goal**.',
+          body: 'your own card for the character you are logged in on: banner and avatar, **Display case**, and the **Stats**, **Bosses** and **Log** tabs (the collection log down to each page’s items, plus clues, times and combat achievements). Below it, any **Head-to-head** challenge waiting for you (**Accept** or **Decline**) and your **Goals**, with **+ Add goal**.',
         },
         {
           term: 'Lookup',
@@ -4183,6 +4262,14 @@ export const en = {
         'Only shared characters can be compared. A private one, or a name Anvil doesn’t know, comes back as _not on Anvil, or not shared_. You can always compare your own private characters while signed in.',
       ],
     },
+    news: {
+      title: 'What’s new and the changelog',
+      body: [
+        '[What’s new](/whats-new) shows what changed on Anvil, newest first. When you are signed in it starts with **For you**, the news that matters for your tier and your clan, then **Everything new**. Things that need a plugin update say **Coming in the next plugin update**.',
+        'The [changelog](/changelog) lists every release with its news, highlights, and what is **New**, **Improved** and **Fixed**.',
+        'When a release goes out, its news is posted in the Anvil Discord and in your clan’s Anvil updates, and the plugin shows a line when you log in. Small fixes are bundled into the next post.',
+      ],
+    },
   },
 
   settings: {
@@ -4298,7 +4385,7 @@ export const en = {
     webhooks: {
       title: 'Your Discord webhooks',
       body: [
-        'Your posts can also go to a Discord server of your own: a private channel, a friends’ server, anywhere you can make a webhook. Paste the webhook link, tick what it gets (**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**), optionally set **Only drops worth at least … gp**, and press **Add webhook**.',
+        'Your posts can also go to a Discord server of your own: a private channel, a friends’ server, anywhere you can make a webhook. Paste the webhook link, tick what it gets (**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**), optionally set a minimum drop value and rarity just for it, and press **Add webhook**. On a webhook that takes **Rare drops**, you can change those later and pick **Value or rarity: my setting**, **either** or **both**. Anything left blank follows your own settings, and a webhook may be looser than your clan’s hard floor.',
         'You can have up to 10. Only Discord webhook links are accepted, and a saved one is shown masked, so a screenshot of this page doesn’t leak it. **Level posts on my webhooks** sets your own level rules for them, separate from your clan’s.',
       ],
     },
@@ -4578,6 +4665,67 @@ export const en = {
     },
   },
 
+  luckRecords: {
+    metaTitle: 'Drop odds, luck and records — Anvil',
+    metaDescription:
+      'What the odds line on a drop tile means, how Anvil works out luck (spooned, dry or on rate), what efficient hours are, and where your best day, week, month and year are kept.',
+    eyebrow: 'Anvil · for players',
+    title: 'Drop odds, luck and records',
+    dek: 'Anvil can tell you how rare a drop is, how long it usually takes and how lucky you have been. It can also remember your best days. This page explains the numbers.',
+    facts: [
+      { strong: 'Rates', rest: 'come from the OSRS Wiki' },
+      { strong: 'Luck', rest: 'expected kills against your real ones' },
+      { strong: 'Records', rest: 'start from launch, no backfill' },
+    ],
+    footnote:
+      'Your own pages are in [Your profile, Wrapped and Compare]({profileGuide}). Switches are in [Settings, page by page]({settingsGuide}).',
+
+    odds: {
+      title: 'The odds on a drop tile',
+      intro: 'Open a drop tile and you see up to eight lines, one per item that has known odds. A line looks like this:',
+      body: [
+        '`Item: 1 in 512 from Boss · ~512 kills ≈ 9.4 h at 55/h`',
+        'If the item can be rolled more than once per kill, it also says **(×2 rolls)**. If Anvil doesn’t know how fast people kill that boss, the hours part is left out.',
+      ],
+      rows: [
+        { term: '1 in N', body: 'the chance of the drop on one kill, from the source that is quickest to get it.' },
+        { term: 'Expected kills', body: 'the average number of kills it takes. It is worked out from the odds and the number of rolls.' },
+        { term: 'Hours', body: 'expected kills divided by how many kills an hour people usually manage. It is a guide, not a promise.' },
+      ],
+      note: {
+        tag: 'Average, not a limit',
+        body: 'Half of all players get it before the expected kills, and some need far more. Use it to judge how big a tile is, not to say when it will land.',
+      },
+    },
+
+    luck: {
+      title: 'Luck: spooned, dry or on rate',
+      body: [
+        'Luck compares the kills you have done with the kills it should take. If you have the drop in fewer kills than expected, you are **spooned**. If you have done a lot of kills and still have nothing, you are **dry**. In between, you are **on rate**.',
+        'Anvil marks you **dry** or **spooned** only when it is unusual: about a one in twenty chance or rarer. It shows how many you have against how many were expected, and how far ahead or owed you are.',
+        'The **Luck** tab on the Members page lists the driest and luckiest people in your clan. Plugin posts for rare drops can also carry a luck line, such as a top percentage or how many players would have had it by now.',
+      ],
+    },
+
+    source: {
+      title: 'Where the numbers come from',
+      body: [
+        'Drop rates come from the OSRS Wiki and are refreshed every day. Kill rates for the hours come from the Wiki’s money-making guides. Where a rate is a careful estimate, Anvil treats it as one.',
+        'If a rate looks wrong, the Wiki is the place to fix it. Anvil picks up the change.',
+      ],
+    },
+
+    records: {
+      title: 'Records and efficient hours',
+      body: [
+        'Anvil keeps your best **day**, **week**, **month** and **year** for skill XP, boss kills and efficient hours. Days are UTC and weeks start on Monday.',
+        'Records count from the moment this was launched. There is nothing older, and Anvil never fills in the past. A record is saved only when you beat your old best.',
+        'You see your own on your character’s page, under **Records**. Your clan’s record holders are on **Members → Records**.',
+        '**Efficient hours played** is how long your gains would take at good training methods, so a fast skill and a slow one can be compared. **Efficient hours bossed** does the same for kills. The rates come from the OSRS Wiki, and ironman accounts use their own rates.',
+      ],
+    },
+  },
+
   clanEvents: {
     metaTitle: 'Clan events and the schedule — Anvil',
     metaDescription:
@@ -4591,7 +4739,7 @@ export const en = {
       { strong: 'Reminder', rest: '15 minutes before, then at the start' },
     ],
     footnote:
-      'Weekly competitions are in [Skill and Boss of the Week]({weeklyGuide}); fees and prizes in [Fees and payouts]({feesGuide}).',
+      'Weekly competitions are in [Skill and Boss of the Week]({weeklyGuide}); fees and prizes in [Fees and payouts]({feesGuide}). Reminder posts use your clan’s message templates, explained in [Settings, page by page]({settingsGuide}).',
 
     create: {
       title: 'Schedule one',

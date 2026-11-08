@@ -48,12 +48,12 @@ function sectionDict(g: Record<string, unknown>, outline: GuideOutline, id: stri
 // exactly these keys.
 export const GUIDE_OUTLINES: Record<string, GuideOutline> = {
   plugin: { ns: 'plugin', page: 'plugin', sections: ['install', 'connect', 'accounts', 'working', 'bingo', 'notifications', 'screen', 'sync', 'trouble'] },
-  discord: { ns: 'discord', page: 'discord', sections: ['bot', 'connect', 'channels', 'roles', 'commands', 'posts', 'quiet'] },
-  board: { ns: 'board', page: 'board', sections: ['kinds', 'pick', 'bulk', 'traps', 'points', 'reveal', 'check', 'library', 'stats'] },
+  discord: { ns: 'discord', page: 'discord', sections: ['bot', 'connect', 'channels', 'roles', 'commands', 'posts', 'drops', 'pools', 'quiet'] },
+  board: { ns: 'board', page: 'board', sections: ['kinds', 'pick', 'bulk', 'traps', 'points', 'reveal', 'check', 'library', 'stats', 'race'] },
   clan: { ns: 'clan', page: 'clan', sections: ['before', 'create', 'live', 'setup', 'members', 'first', 'together', 'boosts', 'features'] },
   fees: { ns: 'fees', page: 'fees', sections: ['set', 'collect', 'sign', 'pay', 'disputes'] },
   coffer: { ns: 'coffer', page: 'coffer', sections: ['what', 'in', 'out', 'who', 'short'], keys: { in: 'inbound' } },
-  formats: { ns: 'formats', page: 'formats', sections: ['shape', 'reveal', 'scoring', 'missions', 'choose'] },
+  formats: { ns: 'formats', page: 'formats', sections: ['shape', 'reveal', 'scoring', 'missions', 'race', 'choose'] },
   captain: { ns: 'captain', page: 'captain', sections: ['before', 'warroom', 'draft', 'roster', 'during'] },
   admin: { ns: 'admin', page: 'admin', sections: ['access', 'setup', 'channels', 'roster', 'board', 'tiles', 'teams', 'launch', 'after', 'survey'] },
   moderator: { ns: 'moderator', page: 'moderator', sections: ['what', 'queue', 'submissions', 'verify', 'roster', 'startshot', 'judgement'] },
@@ -78,13 +78,14 @@ export const GUIDE_OUTLINES: Record<string, GuideOutline> = {
   sidepanel: { ns: 'sidePanel', page: 'side-panel', sections: ['header', 'clan', 'feed', 'reactions', 'chat', 'you', 'gear', 'settings'] },
   boosts: { ns: 'clanBoosts', page: 'clan-boosts', sections: ['what', 'place', 'levels', 'perks', 'colours', 'staff', 'boosters'] },
   // Mirror the *_SECTIONS lists in _pages/{Profile,Settings,Challenges,ClanHall,GuideLibrary,Weekly,ClanEvents}Guide.
-  profile: { ns: 'profile', page: 'profile', sections: ['pages', 'sharing', 'wrapped', 'events', 'compare'] },
+  profile: { ns: 'profile', page: 'profile', sections: ['pages', 'sharing', 'wrapped', 'events', 'compare', 'news'] },
   settings: { ns: 'settings', page: 'settings', sections: ['find', 'posts', 'chat', 'login', 'webhooks', 'privacy', 'look', 'characters', 'claims'] },
   challenges: { ns: 'challenges', page: 'challenges', sections: ['start', 'rules', 'limits', 'friends'] },
   clanhall: { ns: 'clanHall', page: 'clan-hall', sections: ['hall', 'compare', 'board', 'events', 'ghost'] },
   guidelibrary: { ns: 'guideLibrary', page: 'in-game-guides', sections: ['read', 'propose', 'clan'] },
   weekly: { ns: 'weekly', page: 'weekly', sections: ['schedule', 'counting', 'manage', 'prizes', 'players'] },
   // Mirrors TEAM_COMPS_SECTIONS in _pages/TeamCompsGuide.
+  luckrecords: { ns: 'luckRecords', page: 'luck-and-records', sections: ['odds', 'luck', 'source', 'records'] },
   teamcomps: { ns: 'teamComps', page: 'team-competitions', sections: ['teams', 'clans', 'scoring', 'players', 'faq'] },
   clanevents: { ns: 'clanEvents', page: 'clan-events', sections: ['create', 'discord', 'manage', 'players', 'calendar'] },
   // Mirrors TilesGuide: one section per registry group that has entries.

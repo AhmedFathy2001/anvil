@@ -28,6 +28,9 @@ const fi: PartialGuideDict = {
       lead: 'Jumissa, tai näyttääkö jokin väärältä?',
       link: 'Kysy Anvilin tuki-Discordissa',
     },
+    legalPaid: 'Maksukysymykset: [Palautukset](/legal/refunds) ja [Ehdot](/legal/terms).',
+    legalPrivacy: 'Tietojesi käsittely: [Tietosuojaseloste](/legal/privacy).',
+    aboutLine: 'Kuka Anvilin takana on? Lue [Tietoa](/about).',
   },
 
   index: {
@@ -259,6 +262,13 @@ const fi: PartialGuideDict = {
         title: 'Klaanitapahtumat ja aikataulu',
         blurb: 'Massat, raidi-illat ja tapaamiset: viikkotoistot, “I’m going” ja ilmoittautumiset, Discord-muistutukset, maksut, kyselyt ja aikataulun aukkojen löytäminen.',
         minutes: '~4 min',
+      },
+      luckRecords: {
+        eyebrow: 'Pelaajille',
+        title: 'Droppien todennäköisyydet, onni ja ennätykset',
+        blurb:
+          'Mitä drop-ruudun todennäköisyydet tarkoittavat, miten onni lasketaan ja missä näkyvät parhaat päiväsi, viikkosi, kuukautesi ja vuotesi.',
+        minutes: '~3 min',
       },
     },
   },
@@ -566,16 +576,24 @@ const fi: PartialGuideDict = {
       ],
       feeds: [
         {
-          term: 'Yleiskanava (Catch-all channel)',
-          body: 'Tärkein, välilehdellä **Clan & events**. Tapahtumien alut ja loput, ilmoittautumisen avautuminen, tilanteet, viikkotulokset — kaikki mitä sivusto julkaisee ilman omaa kanavaa. Aseta tämä äläkä mitään muuta, niin sinulla on toimiva klaani.',
+          term: 'Yleiskanava',
+          body:
+            'Pääkanava, välilehdellä **Clan & events**. Tapahtumien alkamiset ja päättymiset, ilmoittautumisten avautumiset, sijoitukset ja viikkotulokset: kaikki, mitä sivusto julkaisee ilman omaa kanavaa. Pelkällä tällä kanavalla klaanisi toimii.',
         },
         {
-          term: 'Pelin yleiskanava (In-game catch-all)',
-          body: 'Välilehdellä **In-game (plugin)**: minne kaikki pelistä tuleva menee kun sillä ei ole omaa kanavaa. Aseta tämä toisena.',
+          term: 'Pelin yleiskanava',
+          body:
+            'Välilehdellä **In-game (plugin)**: sinne menee kaikki pelistä, jolla ei ole omaa kanavaa. Aseta tämä toisena.',
         },
         {
-          term: 'Eriytetyt syötteet',
-          body: 'Tapahtumajulkaisut, yhdessä isännöimäsi taulut, Skill & boss of the week ja klaanikalenterin tapahtumat voi erottaa yleiskanavasta; harvinaiset dropit, lemmikit, collection log, tasot, combat achievementit, questit, diaryt, kuolemat ja PvP-tapot voi erottaa pelin yleiskanavasta. Jäsenlistan muutokset, ilmoittautumisten hyväksynnät ja kassan kirjanpito ovat välilehdellä **Staff only**. Tyhjiksi jätetyt erilliset syötteet putoavat takaisin omaan yleiskanavaansa. Kassa on poikkeus: tyhjä tarkoittaa, ettei rahasta julkaista mitään. Leaguesilla ja muilla pelimuodoilla on oma välilehtensä **Game modes**.',
+          term: 'Virstanpylväät ja muut',
+          body:
+            'Välilehdellä **In-game (plugin)**. Slayer, clue-tehtävät, speedrunit, kill-laskurit, BA-vedot ja omat chat-viestit julkaistaan tänne, kun pelaajat ovat ne päälle kytkeneet. Sen painike **Filters** määrittää, mitä klaanisi antaa jäsenille oletuksena. Pelaajien omat mallit ja yksityiset tyypit ovat kohdassa [Settings, page by page]({settingsGuide}).',
+        },
+        {
+          term: 'Jaetut syötteet',
+          body:
+            'Tapahtumajulkaisut, yhteisohjaamasi taulukot, Skill & Boss of the Week ja klaanikalenterin tapahtumat voivat erota yleiskanavasta. Harvinaiset dropit, petit, collection log, tasot, combat achievementit, questit, päiväkirjat, kuolemat ja PvP-tapot voivat erota pelin yleiskanavasta. Jäsenmuutokset, ilmoittautumisten hyväksynnät ja kassakirja ovat kohdassa **Staff only**. Tyhjä jaettu syöte käyttää yleiskanavaansa. Kassa on poikkeus: tyhjä tarkoittaa, että rahaa ei julkaista lainkaan. Leagues ja muut moodit saavat oman välilehden **Game modes**.',
         },
       ],
       note: {
@@ -629,9 +647,9 @@ const fi: PartialGuideDict = {
     modes: {
       title: 'Leagues, Deadman ja muut pelimuodot',
       body: [
-        'Leagues, Deadman, hardcore ja muut pelimuodot pyörivät omilla maailmoillaan omilla hahmoillaan. Niiden julkaisut on aina merkitty, eivätkä ne koskaan laske tauluihin tai kilpailuihin. Niillä on oma välilehtensä: **Admin → Discord → What goes where → Game modes**. Pelimuoto ilmestyy sinne, kun joku jäsen pelaa sitä ensimmäisen kerran.',
-        'Jokaisella pelimuodolla on kytkin ja **To**-kanava. Laita **Send game-mode posts to their own channels** päälle käyttääksesi noita kanavia; jos jätät sen pois päältä, jokainen pelimuoto julkaisee tavallisille kanaville, yhä merkittynä. Pelimuodon rivin **Posts**-painike listaa kaikki sen lähettämät julkaisutyypit — tavalliset ja pelimuodon omat tapahtumat — ja jokaisella on oma kytkimensä.',
-        'Listan alla **Custom filters** saavat pelimuodon julkaisemaan vähemmän kuin pääpeli. **Post drops rarer than 1 in…** asettaa oman harvinaisuusrajan (tyhjä = sama kuin pääpelissä): aina julkaistavat esineet julkaistaan silti, mutta dropit, jotka lasketaan vain arvonsa vuoksi, eivät. **Use its own level milestones** julkaisee tason nousun vain, jos se täyttää molemmat sääntökokonaisuudet.',
+        'Leagues, Deadman, hardcore ja muut moodit toimivat omissa maailmoissaan omilla hahmoillaan. Niiden julkaisut on aina merkitty, eivätkä ne koskaan lasketa tauluihin tai kilpailuihin. Niillä on oma välilehti: **Admin → Discord → What goes where → Game modes**. Moodi ilmestyy sinne, kun jäsen pelaa sitä ensimmäisen kerran.',
+        'Jokaisessa moodissa on kytkin ja **To**-kanava. Kytke **Send game-mode posts to their own channels** päälle, jos haluat käyttää niiden omia kanavia. Jos se on pois päältä, kaikki moodit julkaisevat tavallisiin kanaviin, silti merkittyinä. Moodin rivin painike **Posts** listaa kaikki sen lähettämät tyypit, sekä tavalliset että moodin omat tapahtumat, kullakin oma kytkin.',
+        'Tämän listan alla **Custom thresholds** saa moodin julkaisemaan vähemmän kuin pääpeli. **Post drops rarer than 1 in…** (vähintään 2) ja **Post drops worth at least (gp)** (vähintään 1,000) asettavat omat rajansa (tyhjä = sama kuin pääpeli). Paina sitten **Save drop thresholds**: aina julkaistavat esineet julkaistaan edelleen, mutta dropit, jotka lasketaan vain arvonsa perusteella, eivät. **Use its own level milestones** julkaisee tasonnousun vain, jos se täyttää molemmat sääntösarjat.',
       ],
       note: {
         tag: 'Tiukempi, ei koskaan löysempi',
@@ -688,6 +706,32 @@ const fi: PartialGuideDict = {
       note: {
         tag: 'Se ei voi toivottaa liittyviä tervetulleiksi',
         body: 'Discord ilmoittaa liittymisistä vain gateway-yhteyden kautta, jota jaettu botti ei pidä auki jokaiselle palvelimelle. Siksi ei ole ”tervetuloa”-julkaisua — laita ilmoittautumislinkki sen sijaan #roolit- tai #aloita-tästä-kanavalle, josta ihmiset joka tapauksessa katsovat.',
+      },
+    },
+    drops: {
+      title: 'Drop-rajat',
+      body: [
+        'Anvil alkaa **1m gp** tai **1 in 1,000**. Drop julkaistaan, kun se täyttää jommankumman. Kukaan ei voi asettaa omia lukujaan näitä alemmas, ja 0 kytkee rajan pois.',
+        'Aseta klaanisi oletukset kohdassa **Admin → Discord → What goes where → Drops**: **Default minimum drop value (gp)**, **Default: post drops rarer than 1 in…** ja **Require both**. Kun kytket **Require both** päälle, dropin on täytettävä arvo **and** harvinaisuus.',
+        'Jokainen hahmo seuraa sen klaanin oletusta, jonka jäsen se on, ja Anvilin oletusta, jos klaania ei ole. Pelaajat voivat valita omat lukunsa kohdassa **Settings**. Siinä näkyy **Using clan default** tai **Custom**, ja **Reset** palauttaa oletukseen.',
+        '**Hard floor: never post drops more common than 1 in…** on tiukka raja. Jäsenet eivät voi mennä sen yli klaanisi kanavilla. Heidän omat webhookinsa voivat.',
+      ],
+      note: {
+        tag: 'Lisätietoja pelaajan puolelta',
+        body: 'Pelaajien omat luvut, mallit ja webhookit ovat kohdassa [Settings, page by page]({settingsGuide}).',
+      },
+    },
+    pools: {
+      title: 'Lisää webhookeja vilkkaisiin kanaviin',
+      body: [
+        'Yksi webhook voi lähettää vain tietyn nopeasti. Vilkkaaseen tapahtumaan lisää samaan kanavaan lisää webhookeja. Paina **Busy channel? Let the bot add … more webhooks** (tarvitaan **Manage Webhooks**) tai liitä useita webhook-linkkejä kanavan kenttään. Anvil ehdottaa lisää, kun pelaajia on 50 tai enemmän, julkaisuja on paljon minuutissa tai Discord on äskettäin sanonut ”slow down”. Jopa 10 riittää hyvin.',
+        'Anvil vuorottelee niiden välillä. Jos Discord sanoo yhdelle ”slow down”, se lepää hetken ja seuraava ottaa julkaisun. Jos yksi poistetaan tai lakkaa toimimasta, sitä ohitetaan 10 minuuttia. Julkaisut jatkuvat niin kauan kuin yksi webhook toimii.',
+        'Kaikkien on osoitettava samaan kanavaan. Anvil varoittaa, jos ne eivät ole. Käytä **Test** tarkistaaksesi yhden tai **Stop posting here** poistaaksesi sen.',
+      ],
+      note: {
+        tag: 'Sama kanava, samat julkaisut',
+        body:
+          'Lisää webhookeja ei koskaan julkaista kahdesti. Ne vain jakavat työn. Sama ajatus on kohdassa [Drop-rajat](#drops) yllä ja ylläpitäjän puolella kohdassa [Running the event]({adminGuide}).',
       },
     },
   },
@@ -942,27 +986,38 @@ const fi: PartialGuideDict = {
         legend: [
           {
             label: 'Notify on death',
-            body: 'julkaisee klaanin kuolemakanavaan kuvakaappauksen siitä hetkestä jolloin kuolit.',
+            body: 'lähetetään klaanin kuolemakanavalle kuvakaappauksen kanssa hetkestä, jolloin kuolit.',
           },
-          { label: 'Death message', body: 'oma rivisi. `{name}` korvataan RSN:lläsi.' },
+          {
+            label: 'Death message',
+            body: 'oma rivisi. `{name}` korvataan RSN:lläsi.',
+          },
           {
             label: 'Notify on PvP kill',
-            body: 'kuvakaappaus siitä tickistä jolloin kohteesi osuu 0 HP:hen. Pois päältä oletuksena; päällä tässä.',
+            body: 'kuvakaappaus tikistä, jolloin kohteesi putoaa 0 HP:hen. Oletuksena pois; täällä päällä.',
           },
-          { label: 'Notify on rare drops', body: 'droppi-julkaisujen pääkytkin.' },
+          {
+            label: 'Notify on rare drops',
+            body: 'drop-julkaisujen pääkytkin.',
+          },
           {
             label: 'Min drop value / Min drop rarity',
-            body: 'pudotus julkaistaan, kun sen arvo on vähintään tämä (GE tai high alch, kumpi on korkeampi) tai se on harvinaisempi kuin 1/N. Anvil alkaa arvosta 1m ja 1/1,000. Klaanisi voi asettaa omat oletuksensa jäsenilleen, ja kunnes asetat oman numeron, seuraat klaanisi numeroa; **Palauta klaanin oletus** (tai **Palauta Anvilin oletus**, jos sinulla ei ole klaania) palauttaa seuraamisen. Klaani voi myös asettaa kovan harvinaisuusrajan omille kanavilleen, jonka alle oma numerosi ei voi mennä. Aseta jompikumpi numero nollaan kytkeäksesi sen pois.',
+            body:
+              'drop julkaistaan, kun sen arvo on vähintään tämän verran (GE tai high alch, kumpi on suurempi) tai harvinaisempi kuin 1-in-N. Anvil alkaa arvoista 1m ja 1/1,000. Klaanisi voi asettaa omat oletuksensa jäsenilleen, ja kunnes asetat oman lukusi, seuraat klaanisi lukua. **Reset to clan default** (tai **Reset to Anvil default**, jos sinulla ei ole klaania) palauttaa seurannan. Klaani voi myös asettaa kovan harvinaisuusrajan, joka koskee vain sen omien kanavien julkaisuja. Lukusi ei voi olla siellä löysempi, eikä se koskaan muuta arvorajaa. Aseta kumpi tahansa luku 0:ksi kytkeäksesi sen pois.',
           },
           {
-            label: 'Arvo ja harvinaisuus yhdessä',
-            body: 'oletuksena pudotus julkaistaan, kun se täyttää arvoehdon **tai** harvinaisuusehdon. Kytke päälle **Vaadi molemmat**, jolloin sen on täytettävä arvoehto **ja** harvinaisuusehto. Klaanisi voi valita tämän oletuksen jäsenilleen; kunnes valitset itse, seuraat sitä, ja ilman klaania se on jompikumpi. Jokainen omista webhookeistasi voi myös asettaa oman vähimmäisarvonsa, harvinaisuutensa ja joko/molemmat-valintansa; kaikki mitä se jättää tyhjäksi, seuraa asetuksiasi.',
+            label: 'Value and rarity together',
+            body:
+              'oletuksena drop julkaistaan, kun se täyttää arvon **or** harvinaisuuden. Kytke **Require both** päälle, jolloin sen on täytettävä arvo **and** harvinaisuus. Klaanisi voi valita tämän oletuksen jäsenilleen. Kunnes valitset itse, seuraat sitä, ja ilman klaania riittää jompikumpi. Jokainen omista webhookeistasi voi myös asettaa oman vähimmäisarvonsa ja harvinaisuutensa sekä valita jompikumpi tai molemmat. Kaikki tyhjäksi jätetty seuraa asetuksiasi.',
           },
           {
             label: 'Loot key value',
-            body: 'loot key julkaistaan kerran, yhtenä ilmoituksena, kun sen koko sisältö ylittää tämän luvun.',
+            body: 'saaliisavain julkaistaan kerran yhtenä ilmoituksena, kun koko sisältö ylittää tämän luvun.',
           },
-          { label: 'Notify on pets', body: 'petit julkaistaan harvinaisten droppien kanavaan.' },
+          {
+            label: 'Notify on pets',
+            body: 'petit julkaistaan harvinaisten dropien kanavalle.',
+          },
         ],
       },
       caFigure: {
@@ -1840,6 +1895,15 @@ const fi: PartialGuideDict = {
       ],
       outro: 'Sen alla **Member breakdown** näyttää, kuka tiimissä teki mitä, ja **Stat tile standings** jokaisen pelaajan lähtö- ja nykyluvut jokaisella XP- tai tappoarvoisella ruudulla.',
     },
+    race: {
+      title: 'Tile-kilpailun radat',
+      intro:
+        'Tile-kilpailutaululla rakennat radan ruudukon sijaan. Tiilet ovat numeroiduilla askelmilla, ja tiimi etenee niitä pitkin.',
+      body: [
+        'Avaa **Tiles** ja käytä osiota **Route**. Valitse malli (oletus **Diamond**), lisää tilesi askelmille ja paina **Save route**. Jokaisen linkittämäsi tilen on oltava seuraavalla askelmalla.',
+        'Reitit voivat haarautua ja yhdistyä, mutta maali on yksi. Haarautumassa valitset, asettaako tilen suorittaminen reitin vai valitseeko kapteeni sen ja lukitsee sen. Täydellinen lista valinnoista ja siitä, mitä pelaajat näkevät, on kohdassa [Formats, and how tiles open]({formatsGuide}).',
+      ],
+    },
   },
 
   captain: {
@@ -2059,6 +2123,40 @@ const fi: PartialGuideDict = {
       ],
       outro:
         'Valitsitpa minkä tahansa, itse ruudut ovat sama työ: katso [Rakenna taulu, joka seuraa itse itseään]({boardGuide}).',
+    },
+    race: {
+      title: 'Tile-kilpailun reitit',
+      intro:
+        'Tile-kilpailu on numeroitujen askelmien rata. Tiimit etenevät askelmalta toiselle, ja voittaa se, joka pääsee pisimmälle. Isäntä voi muuttaa radan kartaksi, jossa reitit haarautuvat ja yhdistyvät.',
+      body: [
+        'Jokaisella reitillä on yksi lähtö, reittejä, jotka voivat haarautua ja yhdistyä, sekä yksi maali. Jokainen reitti on yhtä pitkä. Tiimin edistyminen on reitti, jonka se on tähän mennessä kulkenut.',
+      ],
+      rows: [
+        {
+          term: 'Saavutuksella',
+          body:
+            'jokainen nykyisen jälkeinen tile on auki. Ensimmäinen, jonka tiimi suorittaa, asettaa sen reitin, ja muut sulkeutuvat tiimiltä.',
+        },
+        {
+          term: 'Valitse ja lukitse',
+          body:
+            'kapteeni (tai tiimin henkilökunta) valitsee seuraavan tilen painikkeella **Pick this road** ennen kuin mikään lasketaan. Vain valinta on auki. Valintaa ei voi perua, paitsi ylläpitäjän nollauksella.',
+        },
+        {
+          term: 'Tallenna aikaiset suoritukset',
+          body:
+            'oletuksena pois, joten vain tiimin reitillä auenneet tilet lasketaan. Kun kytket sen päälle, suoritus tilelle, jonne tiimi ei ole vielä päässyt, tallennetaan. Se valmistuu, kun reitti saavuttaa sen. Se ei koskaan ohita johtavaa tiimiä eikä avaa mitään etuajassa.',
+        },
+      ],
+      steps: [
+        'Avaa tapahtuman **Tiles**-sivu ja etsi **Route**.',
+        'Valitse **Route template** ja paina **Apply template**. **Diamond** on oletus: yksi lähtö, kaksi reittiä, yksi maali. Mukana ovat myös **Two roads**, **Braid**, **Straight line** ja **Free** (ei linkkejä).',
+        'Valitse **How a team’s road is set at a fork**: saavutuksella tai valitse ja lukitse.',
+        'Lisää tai siirrä askelmia painikkeilla **+ Step before**, **Move step earlier/later** ja **Remove step**, ja paina sitten **Save route**.',
+        'Jos tapahtuma on jo käynnissä, Anvil kysyy, mitä tehdään uuden reitin katkaisemille suorituksille: **Keep** tai **Roll back**.',
+      ],
+      outro:
+        'Pelaajat näkevät tapahtumasivulla **Race track**-radan, jossa on kultainen **You**-merkki oman tiiminsä tilessä. **Fullscreen board** suurentaa sen, ja **Esc** sulkee sen. Pelissä sivupaneeli näyttää **Your road** ja **After that**.',
     },
   },
 
@@ -3756,20 +3854,33 @@ const fi: PartialGuideDict = {
         'Tapahtumasi ja klaanisi. Sisällöntuottajan tilassa välilehden nimi on **Space**.',
       rows: [
         {
-          term: 'Klaanin pudotusvalikko',
-          body: 'näkyy, kun pelaat useammassa kuin yhdessä klaanissa tai tilassa. **All clans** (oletus) näyttää kaiken, missä pelaat, käynnissä oleva tapahtuma ensin. Yhden klaanin valitseminen rajaa paneelin siihen ja ohjaa lähetyksesi sinne.',
+          term: 'Klaanipudotusvalikko',
+          body:
+            'näkyy, kun pelaat useassa klaanissa tai tilassa. **All clans** (oletus) näyttää kaiken, mitä pelaat, ensin live-tapahtuman. Yhden klaanin valinta rajaa paneelin siihen ja tallentaa lähetyksesi sinne.',
+        },
+        {
+          term: 'Seuraavaksi',
+          body:
+            'kultainen kortti ylhäällä, joka osoittaa yhden asian, jonka kannattaa tehdä juuri nyt, kuten tapahtumaan liittyminen, kyselyyn vastaaminen tai ensimmäinen lähtöpisteesi.',
         },
         {
           term: 'Tapahtumat',
-          body: 'jokainen käynnissä oleva ja tuleva taulu, Skill tai Boss of the Week ja klaanitapahtuma sijoituksinesi. Sen jälkeen **Your other boards**, **Also live** ja **Your clan**.',
+          body:
+            'jokainen käynnissä oleva ja tuleva taulukko, Skill tai Boss of the Week ja klaanitapahtuma sekä missä asemassa olet. Sen jälkeen **Your other boards**, **Also live** ja **Your clan**.',
         },
         {
-          term: 'Taulu',
-          body: 'avaa taulu nähdäksesi sijoitukset, joukkueet, tehtävät, viimeaikaisen toiminnan, lähimmät ruudut ja **View all tiles**. Sen **Feed**- ja **Chat**-painikkeet avaavat taulun Feed-välilehdellä.',
+          term: 'Taulukko',
+          body:
+            'avaa se nähdäksesi sijoitukset (kolme parasta ja omat rivisi, muille **View all**), tiimit, tehtävät, viimeaikainen toiminta, lähimmät tilet ja **View all tiles**. Sen painikkeet **Feed** ja **Chat** avaavat taulukon Feed-välilehdessä.',
+        },
+        {
+          term: 'Sijoitusmuutokset',
+          body:
+            'vihreä **▲** tai korallinvärinen **▼** numeron kanssa nimen vieressä näyttää, kuinka paljon se on liikkunut päivän alusta.',
         },
         {
           term: 'Klaanitapahtuma',
-          body: '**I’m going**, **Sign me up** tai **Answer the survey**, tapahtumasta riippuen.',
+          body: '**I’m going**, **Sign me up** tai **Answer the survey** tapahtumasta riippuen.',
         },
       ],
     },
@@ -3781,15 +3892,17 @@ const fi: PartialGuideDict = {
       rows: [
         {
           term: 'Kenen syöte',
-          body: 'yläreunan pudotusvalikko listaa **Clan ·** jokaiselle klaanille, jonka jäsen olet, ja **Event ·** jokaiselle käynnissä olevalle taululle, jolla olet. Se avautuu taulullesi, jos sinulla on sellainen, muuten klaaniisi.',
+          body:
+            'yläreunan valikko listaa **Clan ·** jokaisen klaanin, jonka jäsen olet, ja **Event ·** jokaisen käynnissä olevan taulukon, jolla olet. Se avautuu omaan taulukkoosi, jos sinulla on sellainen, muuten klaaniisi.',
         },
         {
           term: 'Suodattimet',
-          body: '**All**, **Tiles** (vain taulut), **Drops**, **Pets**, **Achievements**, **Deaths**, ja **My team** taululla, jolla olet joukkueessa. Klaanin syötteessä on lisäksi pelitilojen toiminnan painike Leaguesia ja muita tiloja varten.',
+          body:
+            '**All**, **Tiles** (vain taulukot), **Drops**, **Pets**, **Achievements**, **Deaths**, **Milestones** (slayer, clue-tehtävät, kill-laskurit ja muut, kun pelaajat ovat ne päälle kytkeneet) sekä **My team** taulukolla, jossa olet tiimissä. Klaanisyötteessä on myös pelimoodin toimintapainike Leagues- ja muille moodeille.',
         },
         {
           term: 'Uudet rivit',
-          body: 'tulevat itsestään. Jos olet vierittänyt pois, **↑ N new** -pilleri vie sinut takaisin niihin.',
+          body: 'tulevat itsestään. Jos olet vierittänyt pois, pilleri **↑ N new** vie sinut takaisin niihin.',
         },
       ],
       note: {
@@ -3831,24 +3944,29 @@ const fi: PartialGuideDict = {
         'Taululla, jonka chat on päällä, on Feed-välilehden yläreunassa **Feed / Chat** -kytkin taulun pelaajille ja isännän henkilökunnalle. Clan-välilehden taulusivulla on myös **Chat**-painike.',
       rows: [
         {
-          term: 'Kaikki tai oma joukkue',
-          body: '**All** kirjoittaa koko taululle, **My team** vain joukkueellesi (ne rivit on merkitty **TEAM**). Henkilökunta näkee lisäksi kohdan **Host & mods**, ja sen rivit on merkitty **HOST** tai **MOD**.',
+          term: 'Kaikki vai oma tiimi',
+          body:
+            'valitse kanava ylhäällä olevilla painikkeilla: **All teams** koko taulukolle, **My team** vain omalle tiimillesi ja **Announcements**, jonne vain isäntä ja moderaattorit voivat kirjoittaa. Jokaisessa painikkeessa on lukemattomien rivien määrä. Isännän ja moderaattorien rivit on merkitty **HOST** tai **MOD**.',
         },
         {
           term: 'Lähettäminen',
-          body: 'kirjoita kenttään ja paina Enter. Rivit ovat enintään 200 merkkiä, ja vain isäntä ja modit voivat julkaista linkkejä.',
+          body:
+            'kirjoita laatikkoon ja paina Enter. Rivit voivat olla enintään 200 merkkiä pitkiä, ja vain isäntä ja moderaattorit voivat lähettää linkkejä.',
         },
         {
           term: 'Kuinka usein',
-          body: 'odotus rivien välillä määräytyy Supporter-tasosi mukaan: 5 sekuntia ilman tasoa, 3 Supportereille, 1 Championeille, ei lainkaan Patroneille. Kentän alla oleva rivi kertoo, mikä sinun odotuksesi on. Henkilökunta ei koskaan odota.',
+          body:
+            'rivien välinen odotusaika riippuu Supporter-tasostasi: ilman sitä 5 sekuntia, Supporterit 3, Championit 1 ja Patronit ei lainkaan. Laatikon alla oleva rivi kertoo, mikä sinun on. Henkilökunta ei odota koskaan.',
         },
         {
           term: 'Hidas tila',
-          body: 'kun taulun chat ruuhkautuu kovasti, kaikki odottavat minuutin ajan vähintään 10 sekuntia, Patronit mukaan lukien. Kukaan ei voi lähettää yli 10 riviä 10 sekunnissa.',
+          body:
+            'kun taulukon chat vilkastuu paljon, kaikkien on odotettava vähintään 10 sekuntia minuutin ajan, myös Patronit. Kukaan ei voi lähettää yli 10 riviä 10 sekunnissa.',
         },
         {
           term: 'Moderointi',
-          body: 'isäntä ja modit voivat napsauttaa riviä hiiren oikealla painikkeella ja valita **Delete message** tai **Mute** jollekulle, ja keskeyttää koko chatin kohdasta **Pause chat**.',
+          body:
+            'isäntä ja moderaattorit voivat napsauttaa riviä hiiren oikealla ja valita **Delete message** tai **Mute** jollekulle sekä keskeyttää chatin painikkeella **Pause chat**. Tauko estää kaikkia muita paitsi henkilökuntaa kirjoittamasta, paitsi **Announcements**-kanavalla. Paneelin **Mute** on porttikielto, joka kestää, kunnes se poistetaan moderointisivulla. Siellä voi myös antaa 5 minuutin, 1 tunnin tai 24 tunnin timeoutin (tai minkä tahansa ajan 1 minuutista 30 päivään), joka sulkee kaikki kanavat kyseiseltä henkilöltä, sekä suodattaa chatin kanavittain.',
         },
       ],
       outro:
@@ -3860,16 +3978,19 @@ const fi: PartialGuideDict = {
       intro: 'Kaksi välilehteä pelaajakorteille: sinun omasi ja kenen tahansa muun.',
       rows: [
         {
-          term: 'You',
-          body: 'oma korttisi hahmolle, jolla olet kirjautuneena: banneri ja avatar, **Display case**, Collection Log jokaisen sivun esineisiin asti, sekä **Skills**, **Bosses**, **Clues**, **Times** ja **CAs**. Sen alla mahdollinen sinua odottava **Head-to-head**-haaste (**Accept** tai **Decline**) ja tavoitteesi (**Goals**), painikkeella **+ Add goal**.',
+          term: 'Sinä',
+          body:
+            'oma korttisi kirjautumasi hahmon kohdalta: banneri ja avatar, **Display case** sekä välilehdet **Stats**, **Bosses** ja **Log** (collection log jokaisen sivun esineisiin asti sekä clue-tehtävät, ajat ja combat achievementit). Sen alla on odottava **Head-to-head**-haaste (**Accept** tai **Decline**) ja **Goals**, joihin voi lisätä **+ Add goal**.',
         },
         {
-          term: 'Lookup',
-          body: 'vaihda **Players**- ja **Clans**-näkymän välillä, kirjoita nimi ja paina Enter. **Recent** listaa viimeisimmät hakusi. Napsauta ketä tahansa pelissä hiiren oikealla ja valitse **Anvil** päätyäksesi tänne.',
+          term: 'Haku',
+          body:
+            'vaihda **Players**- ja **Clans**-välillä, kirjoita nimi ja paina Enter. **Recent** näyttää viimeisimmät. Napsauta kenen tahansa kohdalla pelissä hiiren oikealla ja valitse **Anvil** päästäksesi tänne.',
         },
         {
           term: 'Vertailu',
-          body: 'jonkun toisen kortilla **Compare with me** asettaa teidät rinnakkain taito taidolta, bossi bossilta ja sivu sivulta. Klaanin kortilla on **Compare with my clan**.',
+          body:
+            'toisen henkilön kortilla **Compare with me** asettaa teidät vierekkäin taito taidolta, boss bossilta ja sivu sivulta. Klaanin kortissa on **Compare with my clan**.',
         },
       ],
     },
@@ -4176,6 +4297,14 @@ const fi: PartialGuideDict = {
         'Vain jaettuja hahmoja voi verrata. Yksityinen tai nimi, jota Anvil ei tunne, palauttaa _ei Anvilissa tai ei jaettu_. Voit aina verrata omia yksityisiä hahmojasi kirjautuneena.',
       ],
     },
+    news: {
+      title: 'Uutiset ja muutoshistoria',
+      body: [
+        '[Mitä uutta](/whats-new) näyttää, mitä Anvilissa on muuttunut, uusimmasta vanhimpaan. Kirjautuneena se alkaa osiolla **For you**, eli sinun tasosi ja klaanisi kannalta tärkeillä uutisilla, ja sen jälkeen **Everything new**. Asiat, jotka vaativat pluginin päivityksen, sanovat **Coming in the next plugin update**.',
+        '[Muutoshistoria](/changelog) listaa jokaisen julkaisun uutisineen ja kohokohtineen sekä kohdat **New**, **Improved** ja **Fixed**.',
+        'Kun julkaisu tulee, sen uutiset julkaistaan Anvil-Discordissa ja klaanisi Anvil-päivityksissä, ja plugin näyttää rivin kirjautuessasi. Pienet korjaukset kootaan seuraavaan julkaisuun.',
+      ],
+    },
   },
   settings: {
     metaTitle: 'Asetukset sivu kerrallaan — Anvil',
@@ -4290,8 +4419,8 @@ const fi: PartialGuideDict = {
     webhooks: {
       title: 'Omat Discord-webhookit',
       body: [
-        'Julkaisusi voivat myös mennä omalle Discord-palvelimellesi: yksityiseen kanavaan, kavereiden palvelimelle, minne tahansa missä voit tehdä webhookin. Liitä webhook-linkki, rastita mitä se saa (**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**), aseta halutessasi **Only drops worth at least … gp** ja paina **Add webhook**.',
-        'Voit olla enintään 10. Vain Discord-webhook-linkit hyväksytään, ja tallennettu linkki näytetään peitettynä, joten tämän sivun kuvakaappaus ei vuoda sitä. **Level posts on my webhooks** asettaa omat tasosääntösi niille, erillään klaanistasi.',
+        'Julkaisusi voivat mennä myös omalle Discord-palvelimellesi: yksityiselle kanavalle, ystävien palvelimelle tai mihin tahansa, minne voit luoda webhookin. Liitä webhook-linkki, valitse mitä se saa (**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**), aseta halutessasi vain sille vähimmäisarvo ja harvinaisuus ja paina **Add webhook**. Webhookissa, joka saa **Rare drops**-julkaisuja, voit muuttaa niitä myöhemmin ja valita **Value or rarity: my setting**, **either** tai **both**. Kaikki tyhjäksi jätetty seuraa omia asetuksiasi, ja webhook voi olla löysempi kuin klaanisi kova raja.',
+        'Voit saada enintään 10. Vain Discord-webhook-linkit hyväksytään, ja tallennettu linkki näkyy peitettynä, joten tämän sivun kuvakaappaus ei vuoda sitä. **Level posts on my webhooks** asettaa niille omat tasosääntösi, erillään klaanisi säännöistä.',
       ],
     },
     privacy: {
@@ -4580,7 +4709,8 @@ const fi: PartialGuideDict = {
         rest: '15 minuuttia ennen ja alussa',
       },
     ],
-    footnote: 'Viikkokilpailut ovat kohdassa [Skill- ja Boss of the Week]({weeklyGuide}); maksut ja palkinnot kohdassa [Maksut ja palkkaukset]({feesGuide}).',
+    footnote:
+      'Viikkokilpailut ovat kohdassa [Skill and Boss of the Week]({weeklyGuide}), maksut ja palkinnot kohdassa [Fees and payouts]({feesGuide}). Muistutusviestit käyttävät klaanisi viestipohjia, jotka on selitetty kohdassa [Settings, page by page]({settingsGuide}).',
     create: {
       title: 'Ajasta yksi',
       intro: 'Avaa ylläpitovalikosta **Clan events** ja täytä lomake:',
@@ -4887,6 +5017,84 @@ const fi: PartialGuideDict = {
         tag: 'Ohjeiden julkaiseminen',
         body: 'Ohjeita voi julkaista Discord-kanavalle, ja nämä julkaisut muokataan paikallaan, kun ohje muuttuu.',
       },
+    },
+  },
+  luckRecords: {
+    metaTitle: 'Droppien todennäköisyydet, onni ja ennätykset — Anvil',
+    metaDescription:
+      'Mitä drop-ruudun todennäköisyysrivi tarkoittaa, miten Anvil laskee onnen (spooned, dry tai on rate), mitä tehokkaat tunnit ovat ja missä parhaat päiväsi, viikkosi, kuukautesi ja vuotesi säilytetään.',
+    eyebrow: 'Anvil · pelaajille',
+    title: 'Droppien todennäköisyydet, onni ja ennätykset',
+    dek:
+      'Anvil kertoo, kuinka harvinainen drop on, kuinka kauan se yleensä kestää ja kuinka onnekas olet ollut. Se voi myös muistaa parhaat päiväsi. Tämä sivu selittää luvut.',
+    facts: [
+      {
+        strong: 'Todennäköisyydet',
+        rest: 'tulevat OSRS Wikistä',
+      },
+      {
+        strong: 'Onni',
+        rest: 'odotetut tapot verrattuna todellisiin',
+      },
+      {
+        strong: 'Ennätykset',
+        rest: 'alkavat julkaisusta, ei taannehtivasti',
+      },
+    ],
+    footnote:
+      'Omat sivusi ovat kohdassa [Your profile, Wrapped and Compare]({profileGuide}). Kytkimet ovat kohdassa [Settings, page by page]({settingsGuide}).',
+    odds: {
+      title: 'Drop-ruudun todennäköisyydet',
+      intro:
+        'Avaa drop-ruutu, niin näet enintään kahdeksan riviä, yhden jokaiselle esineelle, jonka todennäköisyys tunnetaan. Rivi näyttää tältä:',
+      body: [
+        '`Item: 1 in 512 from Boss · ~512 kills ≈ 9.4 h at 55/h`',
+        'Jos esine voidaan saada useammin kuin kerran per tappo, siinä lukee myös **(×2 rolls)**. Jos Anvil ei tiedä, kuinka nopeasti ihmiset tappavat kyseisen bossin, tuntiosa jätetään pois.',
+      ],
+      rows: [
+        {
+          term: '1 in N',
+          body: 'esineen todennäköisyys yhdellä tapolla nopeimman saantilähteen mukaan.',
+        },
+        {
+          term: 'Odotetut tapot',
+          body: 'keskimääräinen tappomäärä, joka tarvitaan. Se lasketaan todennäköisyyksistä ja arpojen määrästä.',
+        },
+        {
+          term: 'Tunnit',
+          body:
+            'odotetut tapot jaettuna sillä, kuinka monta tappoa ihmiset tyypillisesti tekevät tunnissa. Se on suuntaa-antava arvio, ei lupaus.',
+        },
+      ],
+      note: {
+        tag: 'Keskiarvo, ei raja',
+        body:
+          'Puolet pelaajista saa sen ennen odotettuja tappoja, ja jotkut tarvitsevat paljon enemmän. Käytä sitä arvioidaksesi ruudun kokoa, älä ennustaaksesi, milloin se tippuu.',
+      },
+    },
+    luck: {
+      title: 'Onni: spooned, dry tai on rate',
+      body: [
+        'Onni vertaa tekemiäsi tappoja niihin, joita sen pitäisi vaatia. Jos sait dropin vähemmillä tapoilla kuin odotettiin, olet **spooned**. Jos olet tehnyt paljon tappoja eikä mitään ole tullut, olet **dry**. Näiden välissä olet **on rate**.',
+        'Anvil merkitsee sinut **dry**- tai **spooned**-tilaan vain, kun se on epätavallista: noin yhden kerran kahdestakymmenestä tai harvemmin. Se näyttää, kuinka monta sinulla on verrattuna odotettuun määrään, ja kuinka paljon olet edellä tai velkaa.',
+        'Members-sivun **Luck**-välilehti listaa klaanisi kuivimmat ja onnekkaimmat jäsenet. Harvinaisten dropien pluginjulkaisuissa voi myös olla onnirivi, kuten prosenttiosuus tai kuinka monella pelaajalla sen olisi jo pitänyt olla.',
+      ],
+    },
+    source: {
+      title: 'Mistä luvut tulevat',
+      body: [
+        'Droppien todennäköisyydet tulevat OSRS Wikistä ja päivittyvät joka päivä. Tuntien tappotodennäköisyydet tulevat Wikin rahantekoppaista. Kun todennäköisyys on huolellinen arvio, Anvil käsittelee sitä arviona.',
+        'Jos todennäköisyys näyttää väärältä, Wiki on paikka korjata se. Anvil poimii muutoksen.',
+      ],
+    },
+    records: {
+      title: 'Ennätykset ja tehokkaat tunnit',
+      body: [
+        'Anvil säilyttää parhaan **day**-, **week**-, **month**- ja **year**-tuloksesi taitojen XP:lle, bossitappoille ja tehokkaille tunneille. Päivät ovat UTC-aikaa ja viikot alkavat maanantaina.',
+        'Ennätykset lasketaan siitä hetkestä, kun tämä otettiin käyttöön. Mitään sitä vanhempaa ei ole, eikä Anvil koskaan täytä menneisyyttä. Ennätys tallennetaan vain, kun ylität vanhan parhaasi.',
+        'Näet omasi hahmosi sivulla kohdassa **Records**. Klaanisi ennätyshaltijat ovat kohdassa **Members → Records**.',
+        '**Efficient hours played** kertoo, kuinka kauan saamasi kehitys kestäisi hyvillä harjoitusmenetelmillä, jotta nopeaa ja hidasta taitoa voidaan verrata. **Efficient hours bossed** tekee saman tappojen kohdalla. Todennäköisyydet tulevat OSRS Wikistä, ja ironman-tilit käyttävät omia tasojaan.',
+      ],
     },
   },
 };
