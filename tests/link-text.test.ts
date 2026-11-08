@@ -87,7 +87,7 @@ test('a weekly reads as a race while it runs and a result once it ends', () => {
 
 test('a member line leads with what they are and falls back before the first sweep', () => {
   const base = { totalLevel: 2_100, combatLevel: 126, accountType: 'ironman', rank: 'Captain', isGuest: false, efficiency: { ehp: 1940.4, ehb: 0 } };
-  assert.equal(memberLinkDescription(base, 'The AFK Spot'), 'Ironman · Captain of The AFK Spot · 2,100 total · 126 combat · 1,940 EHP');
+  assert.equal(memberLinkDescription(base, 'The AFK Spot'), 'Ironman · Captain of The AFK Spot · 2,100 total · 126 combat · 1,940 hours played');
   assert.equal(
     memberLinkDescription({ ...base, totalLevel: 0, isGuest: true }, 'The AFK Spot'),
     'Guest of The AFK Spot · skills, bosses, efficient hours and competition history.',
@@ -98,7 +98,7 @@ test('a head-to-head counts only rows both sides have, and says who leads', () =
   const rows: HeadToHeadRow[] = [
     { label: 'Total level', a: 2277, b: 1980, leader: 'a', format: 'int' },
     { label: 'Total XP', a: 482_000_000, b: 120_500_000, leader: 'a', format: 'xp' },
-    { label: 'EHB', a: 300.4, b: 880, leader: 'b', format: 'hours' },
+    { label: 'Hours bossed', a: 300.4, b: 880, leader: 'b', format: 'hours' },
     { label: 'Log slots', a: 900, b: null, leader: null, format: 'int' },
   ];
   assert.equal(headToHeadVerdict('Drenvox', 'Downurthrot', rows), 'Drenvox leads 2 of 3');
@@ -106,7 +106,7 @@ test('a head-to-head counts only rows both sides have, and says who leads', () =
   assert.equal(headToHeadValue(880, 'hours'), '880h');
   assert.equal(
     headToHeadDescription('Drenvox', 'Downurthrot', rows, 'On Anvil.'),
-    'Drenvox leads 2 of 3. Total level 2,277 vs 1,980 · Total XP 482.0M vs 120.5M · EHB 300h vs 880h. On Anvil.',
+    'Drenvox leads 2 of 3. Total level 2,277 vs 1,980 · Total XP 482.0M vs 120.5M · Hours bossed 300h vs 880h. On Anvil.',
   );
   assert.equal(headToHeadVerdict('A', 'B', [{ label: 'x', a: 1, b: 1, leader: 'tie', format: 'int' }]), 'Dead level on every number');
   assert.equal(headToHeadVerdict('A', 'B', [rows[3]]), null);

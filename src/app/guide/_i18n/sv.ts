@@ -2462,8 +2462,8 @@ const sv: PartialGuideDict = {
         tip: 'Varje aktiv Boss of the Week och dess aktuella ställning.',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: 'Klanens effektivitetstopplista och din placering på den. EHP (efficient hours played) som standard; välj EHB för bossing.',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: 'Klanens effektivitetstopplista och din placering på den. spelade timmar som standard; välj bosstimmar för bossing.',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2479,7 +2479,7 @@ const sv: PartialGuideDict = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: 'Ett konto i en överblick: combat- och totalnivå, EHP och EHB, antal i collection log och personbästan.',
+        tip: 'Ett konto i en överblick: combat- och totalnivå, spelade timmar och bosstimmar, antal i collection log och personbästan.',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2487,7 +2487,7 @@ const sv: PartialGuideDict = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP och EHB, och vilka skills och bossar de kommer från.',
+        tip: 'Spelade timmar och bosstimmar, och vilka skills och bossar de kommer från.',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4363,7 +4363,7 @@ const sv: PartialGuideDict = {
       intro: 'Fem val, och standardvärdena duger för de flesta klaner:',
       steps: [
         'Öppna **Schedule** i admin-menyn och tryck på **+ Schedule event** (moderatorer kan använda **Schedule a competition**).',
-        'Välj typen: **Skill of the Week** (vunnen XP), **Boss of the Week** (vunna dödsantal) eller **Efficiency race** (vunna EHP eller EHB).',
+        'Välj typen: **Skill of the Week** (vunnen XP), **Boss of the Week** (vunna dödsantal) eller **Efficiency race** (vunna spelade timmar eller bosstimmar).',
         'Under **What is measured**, välj färdighet eller boss. För att byta varje vecka, lägg till fler under **Then rotate through**. Lämna det tomt för att upprepa samma.',
         'Välj när den **Runs**: **This weekend**, **One week**, eller egna datum. Den behöver alltid ett slut, eftersom den poängsätter vinsterna mellan start och slut.',
         'Lämna **Repeat every week** på, så startar nästa i samma ögonblick som den här slutar, med samma längd och priser. Bocka i **Guests race too** om din klans gäster ska vara med på listan.',

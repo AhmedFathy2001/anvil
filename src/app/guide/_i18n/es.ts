@@ -2462,8 +2462,8 @@ const es: PartialGuideDict = {
         tip: 'Cada Boss of the Week activo y su clasificación en directo.',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: 'La clasificación de eficiencia del clan y tu puesto en ella. EHP (efficient hours played) por defecto; elige EHB para jefes.',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: 'La clasificación de eficiencia del clan y tu puesto en ella. horas jugadas por defecto; elige horas de jefes para jefes.',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2479,7 +2479,7 @@ const es: PartialGuideDict = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: 'Una cuenta de un vistazo: nivel de combate y total, EHP y EHB, número de entradas del collection log y récords personales.',
+        tip: 'Una cuenta de un vistazo: nivel de combate y total, horas jugadas y horas de jefes, número de entradas del collection log y récords personales.',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2487,7 +2487,7 @@ const es: PartialGuideDict = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP y EHB, y de qué habilidades y jefes salen.',
+        tip: 'Horas jugadas y horas de jefes, y de qué habilidades y jefes salen.',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4364,7 +4364,7 @@ const es: PartialGuideDict = {
       intro: 'Cinco elecciones, y los valores por defecto sirven para la mayoría de clanes:',
       steps: [
         'Abre **Schedule** en el menú de admin y pulsa **+ Schedule event** (los moderadores pueden usar **Schedule a competition**).',
-        'Elige el tipo: **Skill of the Week** (XP ganada), **Boss of the Week** (kills ganadas) o **Efficiency race** (EHP o EHB ganadas).',
+        'Elige el tipo: **Skill of the Week** (XP ganada), **Boss of the Week** (kills ganadas) o **Efficiency race** (horas jugadas o horas de jefes ganadas).',
         'Bajo **What is measured**, elige la skill o el boss. Para cambiarlo cada semana, añade más en **Then rotate through**. Déjalo vacío para repetir el mismo.',
         'Elige cuándo **Runs**: **This weekend**, **One week**, o tus propias fechas. Siempre necesita un final, porque puntúa las ganancias entre el inicio y el final.',
         'Deja **Repeat every week** activado y la siguiente empieza en cuanto termina esta, con la misma duración y los mismos premios. Marca **Guests race too** si los invitados de tu clan deben estar en el tablero.',

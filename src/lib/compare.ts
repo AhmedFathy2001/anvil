@@ -105,8 +105,8 @@ export function comparePlayers(a: PlayerCard, b: PlayerCard): PlayerComparison {
     row('Total level', a.totalLevel > 0 ? a.totalLevel : null, b.totalLevel > 0 ? b.totalLevel : null),
     row('Combat', a.combatLevel, b.combatLevel),
     row('Total XP', totalXp(a), totalXp(b), 'xp'),
-    row('EHP', a.ehp, b.ehp, 'hours'),
-    row('EHB', a.ehb, b.ehb, 'hours'),
+    row('Hours played', a.ehp, b.ehp, 'hours'),
+    row('Hours bossed', a.ehb, b.ehb, 'hours'),
     row('Log slots', a.clog?.obtained ?? null, b.clog?.obtained ?? null),
   ];
 
@@ -196,8 +196,8 @@ export function compareClans(a: ClanCard, b: ClanCard): ClanComparison {
     headline: [
       row('Members', a.members, b.members),
       row('Active this week', a.activeThisWeek, b.activeThisWeek),
-      row('Total EHP', a.totalEhp, b.totalEhp, 'hours'),
-      row('Total EHB', a.totalEhb, b.totalEhb, 'hours'),
+      row('Total hours played', a.totalEhp, b.totalEhp, 'hours'),
+      row('Total hours bossed', a.totalEhb, b.totalEhb, 'hours'),
       // Null when nobody in the clan has synced — no average, not an average of zero.
       row('Average log', a.clog?.average ?? null, b.clog?.average ?? null),
     ],

@@ -59,10 +59,10 @@ export default function Persona({
         </span>
         <span className="ml-auto flex items-center gap-4 text-sm tabular-nums">
           <span className="text-text-muted">
-            <span className="text-foreground">{Math.round(persona.totalEhp).toLocaleString()}</span> EHP
+            <span className="text-foreground">{Math.round(persona.totalEhp).toLocaleString()}</span> hours played
           </span>
           <span className="text-text-muted">
-            <span className="text-foreground">{Math.round(persona.totalEhb).toLocaleString()}</span> EHB
+            <span className="text-foreground">{Math.round(persona.totalEhb).toLocaleString()}</span> hours bossed
           </span>
           <span className="hidden sm:inline text-text-muted">
             <span className="text-foreground">{fmtXp(persona.totalXp)}</span> XP

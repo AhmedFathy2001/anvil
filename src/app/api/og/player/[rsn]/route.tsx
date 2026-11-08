@@ -49,8 +49,8 @@ async function load(_request: Request, { params }: { params: Promise<{ rsn: stri
   const stats = [
     card.totalLevel > 0 ? { value: card.totalLevel.toLocaleString('en-US'), label: 'Total', icon: totalIcon } : null,
     card.combatLevel ? { value: String(card.combatLevel), label: 'Combat', icon: combatIcon } : null,
-    card.ehp && card.ehp > 0 ? { value: compact(Math.round(card.ehp)), label: 'EHP', icon: null } : null,
-    card.ehb && card.ehb > 0 ? { value: compact(Math.round(card.ehb)), label: 'EHB', icon: null } : null,
+    card.ehp && card.ehp > 0 ? { value: compact(Math.round(card.ehp)), label: 'Hours played', icon: null } : null,
+    card.ehb && card.ehb > 0 ? { value: compact(Math.round(card.ehb)), label: 'Hours bossed', icon: null } : null,
   ].filter((s): s is NonNullable<typeof s> => s !== null);
 
   const res = await memberCard({

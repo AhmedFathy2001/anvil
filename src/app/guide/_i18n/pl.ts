@@ -2442,8 +2442,8 @@ const pl: PartialGuideDict = {
         tip: 'Każdy aktywny Boss of the Week i jego ranking na żywo.',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: 'Klanowy ranking efektywności i twoje miejsce w nim. Domyślnie EHP (efficient hours played); wybierz EHB dla bossowania.',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: 'Klanowy ranking efektywności i twoje miejsce w nim. Domyślnie godziny gry; wybierz godziny bossów dla bossowania.',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2459,7 +2459,7 @@ const pl: PartialGuideDict = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: 'Jedno konto w skrócie: poziom bojowy i całkowity, EHP i EHB, liczba wpisów w collection logu i rekordy osobiste.',
+        tip: 'Jedno konto w skrócie: poziom bojowy i całkowity, godziny gry i godziny bossów, liczba wpisów w collection logu i rekordy osobiste.',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2467,7 +2467,7 @@ const pl: PartialGuideDict = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP i EHB oraz z jakich umiejętności i bossów pochodzą.',
+        tip: 'Godziny gry i godziny bossów oraz z jakich umiejętności i bossów pochodzą.',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4344,7 +4344,7 @@ const pl: PartialGuideDict = {
       intro: 'Pięć wyborów, a domyślne ustawienia wystarczą większości klanów:',
       steps: [
         'Otwórz **Schedule** w menu administratora i naciśnij **+ Schedule event** (moderatorzy mogą użyć **Schedule a competition**).',
-        'Wybierz rodzaj: **Skill of the Week** (zdobyte XP), **Boss of the Week** (zdobyte zabójstwa) albo **Efficiency race** (zdobyte EHP lub EHB).',
+        'Wybierz rodzaj: **Skill of the Week** (zdobyte XP), **Boss of the Week** (zdobyte zabójstwa) albo **Efficiency race** (zdobyte godziny gry lub godziny bossów).',
         'Pod **What is measured** wybierz umiejętność albo bossa. Żeby zmieniać co tydzień, dodaj więcej pod **Then rotate through**. Zostaw puste, by powtarzać to samo.',
         'Wybierz, kiedy **Runs**: **This weekend**, **One week** albo własne daty. Zawsze potrzebuje końca, bo punktuje zyski między startem a końcem.',
         'Zostaw **Repeat every week** włączone, a następny zacznie się w chwili, gdy ten się skończy, z tą samą długością i nagrodami. Zaznacz **Guests race too**, jeśli goście klanu mają być na tabeli.',

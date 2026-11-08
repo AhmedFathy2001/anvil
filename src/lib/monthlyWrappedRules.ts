@@ -166,9 +166,9 @@ function milestoneLine(m: MonthMilestoneRow): string | null {
     case 'totalxp':
       return `${m.threshold.toLocaleString('en-US')}M total XP`;
     case 'ehp':
-      return `${m.threshold.toLocaleString('en-US')} EHP`;
+      return `${m.threshold.toLocaleString('en-US')} hours played`;
     case 'ehb':
-      return `${m.threshold.toLocaleString('en-US')} EHB`;
+      return `${m.threshold.toLocaleString('en-US')} hours bossed`;
     default:
       return null;
   }

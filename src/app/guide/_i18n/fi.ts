@@ -2594,8 +2594,8 @@ const fi: PartialGuideDict = {
         tip: 'Jokainen aktiivinen Boss of the Week ja sen reaaliaikainen tilanne.',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: 'Klaanin tehokkuuslista ja sijoituksesi siinä. Oletuksena EHP (efficient hours played); valitse EHB bossaukseen.',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: 'Klaanin tehokkuuslista ja sijoituksesi siinä. Oletuksena pelatut tunnit; valitse bossitunnit bossaukseen.',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2611,7 +2611,7 @@ const fi: PartialGuideDict = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: 'Yksi tili yhdellä silmäyksellä: combat- ja kokonaistaso, EHP ja EHB, collection login määrä ja ennätykset.',
+        tip: 'Yksi tili yhdellä silmäyksellä: combat- ja kokonaistaso, pelatut tunnit ja bossitunnit, collection login määrä ja ennätykset.',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2619,7 +2619,7 @@ const fi: PartialGuideDict = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP ja EHB, ja mistä skilleistä ja bosseista ne tulevat.',
+        tip: 'Pelatut tunnit ja bossitunnit, ja mistä skilleistä ja bosseista ne tulevat.',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4363,7 +4363,7 @@ const fi: PartialGuideDict = {
       intro: 'Viisi valintaa, ja oletukset käyvät useimmille klaaneille:',
       steps: [
         'Avaa **Schedule** ylläpitovalikosta ja paina **+ Schedule event** (moderaattorit voivat käyttää **Schedule a competition**).',
-        'Valitse laji: **Skill of the Week** (saadut XP), **Boss of the Week** (saadut tapot) tai **Efficiency race** (saatu EHP tai EHB).',
+        'Valitse laji: **Skill of the Week** (saadut XP), **Boss of the Week** (saadut tapot) tai **Efficiency race** (saatu pelatut tunnit tai bossitunnit).',
         'Kohdassa **What is measured** valitse taito tai boss. Jos haluat vaihtaa sen joka viikko, lisää niitä kohtaan **Then rotate through**. Jätä se tyhjäksi toistaaksesi saman.',
         'Valitse, milloin se **Runs**: **This weekend**, **One week** tai omat päivämäärät. Siinä on aina oltava loppu, koska se pisteyttää alun ja lopun välisen kasvun.',
         'Pidä **Repeat every week** päällä, jolloin seuraava alkaa heti kun tämä päättyy, samalla pituudella ja palkinnoilla. Rastita **Guests race too**, jos klaanisi vieraiden pitäisi olla taulussa.',

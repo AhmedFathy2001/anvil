@@ -259,7 +259,7 @@ export const WEBHOOK_SECTIONS = [
         kind: 'toggle',
         key: 'members_count_guests',
         label: "Count guests in your clan's activity",
-        help: "Off by default. The Members page headline, the week's podium and your clan EHP/EHB are your members' — a guest is somebody we have seen who is not on your roster, and their hours are not your clan's. Turn this on if your regulars never formally join and you want them counted. Guests appear in the member list either way.",
+        help: "Off by default. The Members page headline, the week's podium and your clan hours played and hours bossed are your members' — a guest is somebody we have seen who is not on your roster, and their hours are not your clan's. Turn this on if your regulars never formally join and you want them counted. Guests appear in the member list either way.",
       },
     ],
   },

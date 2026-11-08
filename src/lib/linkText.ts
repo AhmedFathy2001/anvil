@@ -197,8 +197,8 @@ export function memberLinkDescription(
     role,
     p.totalLevel > 0 ? `${p.totalLevel.toLocaleString('en-US')} total` : null,
     p.combatLevel ? `${p.combatLevel} combat` : null,
-    p.efficiency && p.efficiency.ehp > 0 ? `${Math.round(p.efficiency.ehp).toLocaleString('en-US')} EHP` : null,
-    p.efficiency && p.efficiency.ehb > 0 ? `${Math.round(p.efficiency.ehb).toLocaleString('en-US')} EHB` : null,
+    p.efficiency && p.efficiency.ehp > 0 ? `${Math.round(p.efficiency.ehp).toLocaleString('en-US')} hours played` : null,
+    p.efficiency && p.efficiency.ehb > 0 ? `${Math.round(p.efficiency.ehb).toLocaleString('en-US')} hours bossed` : null,
   ]
     .filter(Boolean)
     .join(' · ');

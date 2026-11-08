@@ -3785,7 +3785,7 @@ function TileTrackingEditor({
               />
               <p className="text-[10px] text-text-muted mt-0.5">
                 End-to-end average including setup and failed attempts. Use this for bespoke CAs,
-                PvP, or anything the automatic EHP/EHB/drop model cannot measure well.
+                PvP, or anything the automatic hours played, hours bossed and drop model cannot measure well.
               </p>
             </div>
 

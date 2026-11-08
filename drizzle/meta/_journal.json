@@ -1253,6 +1253,12 @@
       "version": "7",
       "when": 1794400000000,
       "tag": "0241_event_chat_channels",
+    },
+    {
+      "idx": 242,
+      "version": "7",
+      "when": 1794410000000,
+      "tag": "0242_account_records",
       "breakpoints": true
     }
   ]

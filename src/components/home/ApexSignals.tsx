@@ -419,9 +419,9 @@ function milestoneLine(m: RecentMilestone): { badge: string; text: string } {
     case 'kc':
       return { badge: 'KC', text: `${m.threshold.toLocaleString()} ${metric}` };
     case 'ehp':
-      return { badge: 'EHP', text: `${m.threshold.toLocaleString()} efficient hours` };
+      return { badge: 'Hours played', text: `${m.threshold.toLocaleString()} efficient hours` };
     case 'ehb':
-      return { badge: 'EHB', text: `${m.threshold.toLocaleString()} efficient boss hours` };
+      return { badge: 'Hours bossed', text: `${m.threshold.toLocaleString()} efficient boss hours` };
     case 'totalxp':
       return { badge: totalXpLabel(m.threshold), text: `${totalXpLabel(m.threshold)} total XP` };
     default:

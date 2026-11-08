@@ -604,7 +604,7 @@ async function statProfileResult(ctx: ClanCommandCtx, picked: { accountId: numbe
           statField(t.stats.combat, profile.combatLevel ?? '—'),
           statField(t.stats.total, profile.totalLevel),
           statField('XP', compactNum(totalXp)),
-          ...(profile.efficiency ? [statField('EHP', profile.efficiency.ehp.toFixed(1)), statField('EHB', profile.efficiency.ehb.toFixed(1))] : []),
+          ...(profile.efficiency ? [statField('Hours played', profile.efficiency.ehp.toFixed(1)), statField('Hours bossed', profile.efficiency.ehb.toFixed(1))] : []),
           ...(clogHeader ? [statField(t.stats.clogField, `${clogHeader.obtained}/${clogHeader.total}`)] : []),
           ...(pbRows.length ? [statField(t.stats.pbsField, pbRows.length)] : []),
         ],

@@ -1,246 +1,475 @@
-// Regenerates src/data/activityRates.json — the kill-rate half of the board-balance effort model,
-// sourced from two community datasets instead of from memory.
+// Builds Anvil's own rate tables from the OSRS Wiki, and nothing else:
 //
-// Why this exists: src/data/balanceRates.json was hand-written in one sitting and never checked
-// against anything ("Rough by design" — its own header). That matters more than it sounds, because
-// a drop tile costs `1/dropRate × killTime`: the wiki-sourced drop rates get multiplied by an
-// invented kill time, so one bad rate misprices every tile that shares that source. Bryophyta was
-// out by ~9x (the fight is quick; getting the key is not).
+//   src/data/hourRates.json      XP per hour per skill by level band, and kills per hour per boss,
+//                                for main and ironman accounts. Feeds efficient hours played /
+//                                bossed (lib/efficiency), clog hours (lib/clogRarity) and tile
+//                                balance (lib/balanceEffort).
+//   src/data/activityRates.json  Kill-time triplets [fast, average, slow] in seconds for the balance
+//                                engine, derived from the same boss kill rates.
 //
-// Sources, and what each one actually measures:
+// Sources (every rate records the wiki page it came from in `source`):
+//   - Kills per hour: the wiki's money-making guides, read through the Bucket API
+//     (bucket `money_making_guide`, json.prices.default_kph where kph_text is "Kills per hour").
+//     Which guide stands for which hiscores boss is our own map, BOSS_SOURCES below.
+//   - XP per hour: the wiki's skill training guides ("Pay-to-play <Skill> training", "<Skill>
+//     training", "Ironman Guide/<Skill>"), read as wikitext via the MediaWiki parse API. Any table
+//     with a level column and an XP/h column is read; the best rate stated at each level becomes a
+//     band, and bands never go down as level goes up.
 //
-//   A third-party EHB table  — kills/hour at efficient play, 68 bosses. MIT licensed
-//     (attribution in THIRD_PARTY_NOTICES.md; EHB_EFFICIENT_URL below is the functional fetch).
-//     This is the FAST band: best gear, best method, no banking waste.
+// Gaps: where the wiki has no number we can read, the rate comes from FALLBACK_* below — round,
+// deliberately conservative figures — and is marked `estimated: true` with `source: null`. Ironman
+// rates the wiki doesn't state are the main rate scaled down by IRONMAN_FACTOR, also estimated.
 //
-//   The OSRS Wiki's money-making guides — kills/hour for a documented profitable method, ~149
-//     combat entries including ordinary NPCs (which EHB doesn't rate at all). This is the SLOW
-//     band: someone banking loot with a realistic setup.
+// Etiquette: descriptive User-Agent, one request at a time with a pause between, and every response
+// cached under .cache/wiki-rates/ (gitignored). Delete that folder to force a fresh pull.
 //
-// The two agree on a spread rather than a number: across the bosses both cover, WOM is faster in
-// 27 of 28 cases, median 2.0x — which is close to the 2.33x fast:slow spread the curated file used.
-// So they bracket the triplet naturally, and the AVERAGE band is their geometric mean.
-//
-// What this does NOT source: accessibility floors (community data has no notion of "can an average
-// clan member do this"), Gauntlet-style success rates, raid party-size scaling, and the superior
-// slayer encounter cost. Those stay curated in balanceRates.json — a dozen numbers you can reason
-// about, rather than 83 you can't.
-//
-// Run:  node scripts/build-rates-dataset.mjs        (or: npm run data:rates)
-// The output is committed; nothing fetches at runtime. Re-run when the game changes.
+// Run:  node scripts/build-rates-dataset.mjs      (or: npm run data:rates)
 
-import { writeFileSync, readFileSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const OUT_PATH = resolve(HERE, '../src/data/activityRates.json');
-const CURATED_PATH = resolve(HERE, '../src/data/balanceRates.json');
+const ROOT = resolve(HERE, '..');
+const CACHE_DIR = resolve(ROOT, '.cache/wiki-rates');
+const HOUR_RATES_PATH = resolve(ROOT, 'src/data/hourRates.json');
+const ACTIVITY_RATES_PATH = resolve(ROOT, 'src/data/activityRates.json');
+const API = 'https://oldschool.runescape.wiki/api.php';
+const USER_AGENT = 'AnvilBot/1.0 (+https://anvilosrs.com)';
+const PAUSE_MS = 1200;
 
-const USER_AGENT = 'anvil-bingo rates dataset builder (contact: clan admin)';
+/** Bump when the JSON shape changes. */
+const SCHEMA_VERSION = 2;
 
-const EHB_EFFICIENT_URL =
-  'https://raw.githubusercontent.com/wise-old-man/wise-old-man/master/server/src/api/modules/efficiency/configs/ehb/main.ehb.ts';
-const WIKI_API = 'https://oldschool.runescape.wiki/api.php';
-const WIKI_QUERY = 'bucket("money_making_guide").select("value","json").limit(2000).run()';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Median WOM/wiki ratio measured across the bosses both cover — used to synthesise the missing end
-// when only one source has an opinion.
-const SPREAD = 2.0;
-// A wider gap than this isn't a capability spread, it's two different activities wearing one name
-// (Corporeal Beast solo vs mass reads 6x; Callisto with a specific setup reads 5.7x). Clamp toward
-// the FAST anchor, which is the better-defined number, and record that we did.
-const MAX_SPREAD = 3.0;
+async function wikiGet(params) {
+  const qs = new URLSearchParams({ format: 'json', ...params }).toString();
+  const key = createHash('sha1').update(qs).digest('hex');
+  const file = resolve(CACHE_DIR, `${key}.json`);
+  if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8'));
+  await sleep(PAUSE_MS);
+  const res = await fetch(`${API}?${qs}`, { headers: { 'User-Agent': USER_AGENT } });
+  if (!res.ok) throw new Error(`wiki ${res.status} for ${qs}`);
+  const body = await res.json();
+  mkdirSync(CACHE_DIR, { recursive: true });
+  writeFileSync(file, JSON.stringify(body));
+  return body;
+}
+
+// ── Kills per hour ─────────────────────────────────────────────────────────────────────────────
+
+async function moneyMakingRows() {
+  const rows = [];
+  for (let offset = 0; offset < 5000; offset += 500) {
+    const q = `bucket('money_making_guide').select('page_name','json').limit(500).offset(${offset}).run()`;
+    const body = await wikiGet({ action: 'bucket', query: q });
+    const page = body.bucket ?? [];
+    rows.push(...page);
+    if (page.length < 500) break;
+  }
+  const kph = new Map();
+  for (const r of rows) {
+    let j = r.json;
+    if (typeof j === 'string') {
+      try { j = JSON.parse(j); } catch { continue; }
+    }
+    const p = j?.prices;
+    if (!p || p.kph_text !== 'Kills per hour') continue;
+    const n = Number(p.default_kph);
+    if (Number.isFinite(n) && n > 0) kph.set(r.page_name, n);
+  }
+  return kph;
+}
+
+const G = (s) => `Money making guide/${s}`;
 
 /**
- * Key normalisation, deliberately more aggressive than the app's `normName` so that punctuation
- * differences between three independent naming schemes collapse on their own: apostrophes
- * (`k'ril` / `kril`), hyphens (`tzkal-zuk` / `tzkal zuk`), colons and a leading "the".
+ * Hiscores boss key → money-making guides that measure it, best match first. `ironman` lists guides
+ * written for ironmen where they exist. `perKill` scales a guide's rate into hiscores kills (e.g. one
+ * Dagannoth Kings trip kills all three kings; one Nex kill is one KC regardless of team).
  */
-function norm(s) {
-  return s
-    .toLowerCase()
-    .replace(/\[\[([^\]|]*\|)?/g, '')
-    .replace(/\]\]/g, '')
-    .replace(/^killing (the )?/, '')
-    .replace(/^the\s+/, '')
-    .replace(/[':\-–]/g, '')
-    .replace(/[^a-z0-9 ]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+const BOSS_SOURCES = {
+  abyssalSire: { main: [G('Killing the Abyssal Sire')] },
+  alchemicalHydra: { main: [G('Killing the Alchemical Hydra')] },
+  amoxliatl: { main: [G('Killing Amoxliatl')] },
+  araxxor: { main: [G('Killing Araxxor')] },
+  artio: { main: [G('Killing Artio')] },
+  barrows: { main: [G('Barrows')] },
+  bryophyta: { main: [G('Killing Bryophyta (free-to-play)')] },
+  callisto: { main: [G('Killing Callisto')] },
+  calvarion: { main: [G("Killing Calvar'ion")] },
+  cerberus: { main: [G('Killing Cerberus')] },
+  chambersOfXeric: { main: [G('Chambers of Xeric (Normal Mode)')] },
+  chambersOfXericChallengeMode: { main: [G('Chambers of Xeric (Challenge Mode)')] },
+  chaosElemental: { main: [G('Killing Chaos Elemental')] },
+  chaosFanatic: { main: [G('Killing the Chaos Fanatic')] },
+  commanderZilyana: { main: [G('Killing Commander Zilyana')] },
+  corporealBeast: { main: [G('Killing the Corporeal Beast')] },
+  corruptedGauntlet: { main: [G('Completing The Corrupted Gauntlet')] },
+  crazyArchaeologist: { main: [G('Killing the Crazy archaeologist')] },
+  dagannothRex: { main: [G('Killing Dagannoth Kings (Rex only)'), G('Killing Dagannoth Kings (Solo tribrid)')] },
+  dagannothPrime: { main: [G('Killing Dagannoth Kings (Solo tribrid)')] },
+  dagannothSupreme: { main: [G('Killing Dagannoth Kings (Solo tribrid)')] },
+  doomOfMokhaiotl: { main: [G('Killing the Doom of Mokhaiotl (Delve 1-8)')] },
+  dukeSucellus: { main: [G('Killing Duke Sucellus')] },
+  fracturedArchive: { main: [G('The Fractured Archive (Trio)'), G('The Fractured Archive(Duo)')] },
+  gauntlet: { main: [G('Completing The Gauntlet')] },
+  generalGraardor: { main: [G('Killing General Graardor')] },
+  giantMole: { main: [G('Killing the Giant Mole (Twisted bow)'), G("Killing the Giant Mole (Dharok's)")] },
+  grotesqueGuardians: { main: [G('Killing the Grotesque Guardians')] },
+  hueycoatl: { main: [G('Killing Hueycoatl (Solo)')] },
+  kalphiteQueen: { main: [G('Killing the Kalphite Queen')] },
+  kingBlackDragon: { main: [G('Killing the King Black Dragon')] },
+  kraken: { main: [G('Killing the Kraken')] },
+  kreeArra: { main: [G("Killing Kree'arra")] },
+  krilTsutsaroth: { main: [G("Killing K'ril Tsutsaroth")] },
+  leviathan: { main: [G('Killing The Leviathan')] },
+  lunarChests: { main: [G('Moons of Peril')] },
+  madAngel: { main: [G('Killing the Mad Angel')] },
+  maggotKing: { main: [G('Killing the Maggot King'), G('Killing the Maggot King (Ranged)')] },
+  nex: { main: [G('Killing Nex (Team)'), G('Killing Nex (Duo)')] },
+  nightmare: { main: [G('Killing The Nightmare')] },
+  phantomMuspah: { main: [G('Killing Phantom Muspah (Twisted bow)')] },
+  phosanisNightmare: { main: [G("Killing Phosani's Nightmare")] },
+  sarachnis: { main: [G('Killing Sarachnis')] },
+  scorpia: { main: [G('Killing Scorpia')] },
+  scurrius: { main: [G('Killing Scurrius'), G('Killing Scurrius (solo)')] },
+  solHeredit: { main: [G('Completing the Fortis Colosseum (Wave 12)')] },
+  spindel: { main: [G('Killing Spindel')] },
+  theatreOfBlood: { main: [G('Theatre of Blood')] },
+  thermonuclearSmokeDevil: { main: [G('Killing the Thermonuclear smoke devil')] },
+  tombsOfAmascutExpertMode: { main: [G('Tombs of Amascut (Expert)'), G('Tombs of Amascut (solo 450 raid level)')] },
+  vardorvis: { main: [G('Killing Vardorvis')] },
+  venenatis: { main: [G('Killing Venenatis')] },
+  vetion: { main: [G("Killing Vet'ion")] },
+  vorkath: { main: [G('Killing Vorkath (Dragon hunter lance)'), G('Killing Vorkath (Dragon hunter crossbow)'), G('Killing Vorkath (Toxic blowpipe)')], ironman: [G('Killing Vorkath (Toxic blowpipe)')] },
+  whisperer: { main: [G('Killing The Whisperer')] },
+  yama: { main: [G('Killing Yama (solo)')] },
+  zulrah: { main: [G('Killing Zulrah')] },
+};
+
+/**
+ * Bosses the money-making guides don't rate. Kills per hour, round and on the slow side of what a
+ * prepared player manages. These are OUR estimates and are flagged as such.
+ */
+const FALLBACK_KPH = {
+  brutus: 20,
+  derangedArchaeologist: 40,
+  hespori: 25,
+  mimic: 4,
+  obor: 20,
+  royalTitans: 15,
+  shellbaneGryphon: 20,
+  skotizo: 15,
+  tempoross: 4,
+  theatreOfBloodHardMode: 1.5,
+  tombsOfAmascut: 2.5,
+  tzKalZuk: 0.5,
+  tzTokJad: 1,
+  wintertodt: 5,
+  zalcano: 12,
+};
+
+/** Ironman kill rates the wiki doesn't state: main × this, estimated. Worse gear, slower trips. */
+const IRONMAN_FACTOR = 0.8;
+
+// ── XP per hour ────────────────────────────────────────────────────────────────────────────────
+
+const SKILL_PAGES = {
+  attack: { main: ['Pay-to-play Melee training'], ironman: ['Ironman Guide/Melee'] },
+  strength: { main: ['Pay-to-play Melee training'], ironman: ['Ironman Guide/Melee'] },
+  defence: { main: ['Pay-to-play Melee training'], ironman: ['Ironman Guide/Defence', 'Ironman Guide/Melee'] },
+  ranged: { main: ['Pay-to-play Ranged training'], ironman: ['Ironman Guide/Ranged'] },
+  prayer: { main: ['Pay-to-play Prayer training'], ironman: ['Ironman Guide/Prayer'] },
+  magic: { main: ['Pay-to-play Magic training'], ironman: ['Ironman Guide/Magic'] },
+  cooking: { main: ['Pay-to-play Cooking training'], ironman: ['Ironman Guide/Cooking'] },
+  woodcutting: { main: ['Pay-to-play Woodcutting training'], ironman: ['Ironman Guide/Woodcutting'] },
+  fletching: { main: ['Fletching training'], ironman: ['Ironman Guide/Fletching'] },
+  fishing: { main: ['Pay-to-play Fishing training'], ironman: ['Ironman Guide/Fishing'] },
+  firemaking: { main: ['Pay-to-play Firemaking training'], ironman: ['Ironman Guide/Firemaking'] },
+  crafting: { main: ['Pay-to-play Crafting training'], ironman: ['Ironman Guide/Crafting'] },
+  smithing: { main: ['Pay-to-play Smithing training'], ironman: ['Ironman Guide/Smithing'] },
+  mining: { main: ['Pay-to-play Mining training'], ironman: ['Ironman Guide/Mining'] },
+  herblore: { main: ['Herblore training'], ironman: ['Ironman Guide/Herblore'] },
+  agility: { main: ['Pay-to-play Agility training'], ironman: ['Ironman Guide/Agility'] },
+  thieving: { main: ['Thieving training'], ironman: ['Ironman Guide/Thieving'] },
+  slayer: { main: ['Slayer training'], ironman: ['Ironman Guide/Slayer'] },
+  farming: { main: ['Farming training'], ironman: ['Ironman Guide/Farming'] },
+  runecraft: { main: ['Pay-to-play Runecraft training'], ironman: ['Ironman Guide/Runecraft'] },
+  hunter: { main: ['Hunter training'], ironman: ['Ironman Guide/Hunter'] },
+  construction: { main: ['Construction training'], ironman: ['Ironman Guide/Construction'] },
+  sailing: { main: ['Sailing training'], ironman: ['Ironman Guide/Sailing'] },
+};
+
+/**
+ * Conservative XP/h bands for when no guide table can be read: [fromLevel, xpPerHour]. Round
+ * numbers at the slow end of ordinary methods. OUR estimates, flagged as such.
+ */
+const FALLBACK_BANDS = {
+  attack: [[1, 15000], [40, 45000], [70, 80000], [90, 100000]],
+  strength: [[1, 15000], [40, 45000], [70, 80000], [90, 100000]],
+  defence: [[1, 15000], [40, 45000], [70, 80000], [90, 100000]],
+  ranged: [[1, 20000], [40, 60000], [70, 100000], [90, 130000]],
+  prayer: [[1, 50000], [43, 200000], [70, 400000]],
+  magic: [[1, 20000], [55, 70000], [75, 100000], [94, 150000]],
+  cooking: [[1, 30000], [35, 120000], [68, 200000]],
+  woodcutting: [[1, 15000], [35, 50000], [60, 75000], [90, 90000]],
+  fletching: [[1, 20000], [40, 100000], [70, 200000]],
+  fishing: [[1, 10000], [40, 30000], [70, 45000], [90, 55000]],
+  firemaking: [[1, 30000], [45, 150000], [75, 250000]],
+  crafting: [[1, 30000], [54, 150000], [77, 250000]],
+  smithing: [[1, 20000], [40, 70000], [70, 150000], [88, 200000]],
+  mining: [[1, 10000], [40, 35000], [70, 55000], [90, 70000]],
+  herblore: [[1, 30000], [38, 150000], [72, 250000]],
+  agility: [[1, 8000], [40, 30000], [70, 50000], [90, 60000]],
+  thieving: [[1, 15000], [45, 60000], [80, 120000], [91, 150000]],
+  slayer: [[1, 5000], [50, 20000], [80, 40000], [90, 50000]],
+  farming: [[1, 15000], [35, 60000], [70, 150000], [85, 200000]],
+  runecraft: [[1, 8000], [44, 30000], [77, 45000], [90, 55000]],
+  hunter: [[1, 10000], [40, 40000], [63, 80000], [80, 110000]],
+  construction: [[1, 20000], [33, 150000], [52, 350000], [74, 450000]],
+  sailing: [[1, 10000], [40, 30000], [70, 50000], [90, 60000]],
+};
+
+const XP_MIN = 1000;
+const XP_MAX = 2_000_000;
+
+async function pageWikitext(title) {
+  const body = await wikiGet({ action: 'parse', page: title, prop: 'wikitext', redirects: '1' });
+  if (body.error) return null;
+  return { title: body.parse?.title ?? title, text: body.parse?.wikitext?.['*'] ?? '' };
 }
 
-// What normalisation can't fix: genuinely different names for the same content. Left → the source's
-// name, right → the key the app already uses (also normalised on both sides).
-const ALIASES = new Map(
-  Object.entries({
-    'barrows chests': 'barrows',
-    'chambers of xeric cm': 'chambers of xeric challenge mode',
-    'theatre of blood hard mode': 'theatre of blood hard mode',
-    'tombs of amascut expert': 'tombs of amascut expert mode',
-    'lunar chests': 'lunar chest',
-    'tzkal zuk': 'inferno',
-    'tztok jad': 'fight caves',
-    'the gauntlet': 'gauntlet',
-    'crystalline hunllef': 'gauntlet',
-    'corrupted hunllef': 'corrupted gauntlet',
-  }).map(([k, v]) => [norm(k), norm(v)]),
-);
-
-const alias = (k) => ALIASES.get(k) ?? k;
-
-async function fetchWomRates() {
-  const res = await fetch(EHB_EFFICIENT_URL, { headers: { 'User-Agent': USER_AGENT } });
-  if (!res.ok) throw new Error(`WOM EHB fetch failed: HTTP ${res.status} ${res.statusText}`);
-  const src = await res.text();
-  const rates = new Map();
-  for (const [, name, rate] of src.matchAll(/boss: Boss\.(\w+), rate: ([\d.]+)/g)) {
-    const kph = Number(rate);
-    if (!Number.isFinite(kph) || kph <= 0) continue;
-    rates.set(alias(norm(name.replace(/_/g, ' '))), kph);
-  }
-  if (rates.size < 40) throw new Error(`WOM EHB parse returned only ${rates.size} bosses — format changed?`);
-  return rates;
+/** Strip links, files, refs and templates down to plain text, keeping template arguments. */
+function plain(cell) {
+  let s = cell;
+  s = s.replace(/<ref[^>]*\/>/g, '').replace(/<ref[\s\S]*?<\/ref>/g, '');
+  s = s.replace(/\[\[File:[^\]]*\]\]/gi, '');
+  s = s.replace(/\[\[([^\]|]*\|)?([^\]]*)\]\]/g, '$2');
+  // Repeatedly unwrap innermost templates into their arguments.
+  for (let i = 0; i < 5 && s.includes('{{'); i++) s = s.replace(/\{\{([^{}]*)\}\}/g, (_, inner) => ` ${inner.split('|').slice(1).join(' ')} `);
+  s = s.replace(/<[^>]+>/g, ' ');
+  return s;
 }
 
-async function fetchWikiRates() {
-  const url = `${WIKI_API}?action=bucket&format=json&query=${encodeURIComponent(WIKI_QUERY)}`;
-  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
-  if (!res.ok) throw new Error(`Wiki fetch failed: HTTP ${res.status} ${res.statusText}`);
-  const payload = await res.json();
-  const rows = payload?.bucket;
-  if (!Array.isArray(rows) || rows.length === 0) {
-    throw new Error('Unexpected payload: expected a non-empty "bucket" array of money-making guides.');
-  }
+/** Drop a leading `style="..." |` attribute block from a cell. */
+function cellContent(raw) {
+  const m = raw.match(/^\s*[a-z-]+\s*=\s*"[^"]*"(\s+[a-z-]+\s*=\s*"[^"]*")*\s*\|(?!\|)(.*)$/is);
+  return m ? m[2] : raw;
+}
 
-  const rates = new Map();
-  for (const row of rows) {
-    let guide;
-    try {
-      guide = JSON.parse(row.json);
-    } catch {
-      continue; // a malformed guide shouldn't sink the dataset
+function firstNumber(text) {
+  const m = plain(text).match(/(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(k\b|K\b)?/);
+  if (!m) return null;
+  let n = Number(m[1].replace(/,/g, ''));
+  if (m[2]) n *= 1000;
+  return Number.isFinite(n) ? n : null;
+}
+
+/** All (level, xp/h) points from tables that have a level column and an XP/h column. */
+function tablePoints(wikitext) {
+  const points = [];
+  const tables = wikitext.split(/\n\{\|/).slice(1).map((t) => t.split(/\n\|\}/)[0]);
+  for (const table of tables) {
+    const rows = table.split(/\n\|-[^\n]*/);
+    let header = null;
+    for (const row of rows) {
+      const lines = row.split('\n').map((l) => l.trim()).filter(Boolean);
+      const headLines = lines.filter((l) => l.startsWith('!'));
+      if (!header && headLines.length) {
+        header = headLines.flatMap((l) => l.slice(1).split('!!')).map((c) => plain(cellContent(c)).trim().toLowerCase());
+        continue;
+      }
+      if (!header) continue;
+      const levelCol = header.findIndex((h) => /\blevel|\blvl/.test(h));
+      const xpCol = header.findIndex((h) => /xp\s*\/\s*h|xp\s*per\s*hour|experience\s*(per|\/)\s*h|xp\/hr|exp\/h/.test(h));
+      if (levelCol < 0 || xpCol < 0) break;
+      const cells = lines
+        .filter((l) => l.startsWith('|') || l.startsWith('!'))
+        .flatMap((l) => l.slice(1).split(/\|\||!!/))
+        .map(cellContent);
+      if (cells.length <= Math.max(levelCol, xpCol)) continue;
+      const level = firstNumber(cells[levelCol]);
+      const xp = firstNumber(cells[xpCol]);
+      if (level == null || xp == null) continue;
+      if (level < 1 || level > 99 || xp < XP_MIN || xp > XP_MAX) continue;
+      points.push([Math.round(level), Math.round(xp)]);
     }
-    const prices = guide?.prices ?? {};
-    // Only rows whose rate is literally kills per hour. The same field carries "Trips per hour"
-    // and "Leather made per hour" elsewhere, and those are not kill times.
-    if (prices.kph_text !== 'Kills per hour') continue;
-    const kph = Number(prices.default_kph);
-    if (!Number.isFinite(kph) || kph <= 0) continue;
-
-    const key = alias(norm(String(guide.activity ?? '')));
-    if (!key) continue;
-    // Several guides cover one monster at different levels of investment. Keep the best documented
-    // rate: the slow band should be "a realistic method", not "the worst method anyone wrote up".
-    rates.set(key, Math.max(rates.get(key) ?? 0, kph));
   }
-  if (rates.size < 50) throw new Error(`Wiki parse returned only ${rates.size} kill rates — format changed?`);
-  return rates;
+  return points;
 }
 
-/** kills/hour → seconds/kill, at a sane precision for a JSON file humans will read. */
-const toSeconds = (kph) => Math.round((3600 / kph) * 10) / 10;
-
-function buildTriplet(wom, wiki) {
-  let fast = wom ?? (wiki != null ? wiki * SPREAD : null);
-  let slow = wiki ?? (wom != null ? wom / SPREAD : null);
-  if (fast == null || slow == null) return null;
-
-  let clamped = false;
-  if (fast / slow > MAX_SPREAD) {
-    slow = fast / MAX_SPREAD;
-    clamped = true;
+/** Points → bands: best rate stated at each level, never decreasing with level. */
+function pointsToBands(points) {
+  const best = new Map();
+  for (const [lvl, xp] of points) best.set(lvl, Math.max(best.get(lvl) ?? 0, xp));
+  const levels = [...best.keys()].sort((a, b) => a - b);
+  const bands = [];
+  let running = 0;
+  for (const lvl of levels) {
+    const xp = best.get(lvl);
+    if (xp > running) {
+      running = xp;
+      bands.push({ fromLevel: lvl, xpPerHour: xp });
+    }
   }
-  // Geometric mean, not arithmetic: these are rates, and it lands at 0.71x of fast when the spread
-  // is 2x — almost exactly the 1.5x fast:avg relationship the curated file used.
-  const avg = Math.sqrt(fast * slow);
-  return {
-    killSeconds: [toSeconds(fast), toSeconds(avg), toSeconds(slow)],
-    source: wom != null && wiki != null ? 'wom+wiki' : wom != null ? 'wom' : 'wiki',
-    womKph: wom ?? null,
-    wikiKph: wiki ?? null,
-    ...(clamped ? { clamped: true } : {}),
-  };
+  // Below the first stated level the guide says nothing. Fill from our conservative fallback bands,
+  // never above the first stated rate, and mark those estimated.
+  return { bands, fill: (fallback) => {
+    if (!bands.length || bands[0].fromLevel === 1) return bands;
+    const first = bands[0];
+    const below = fallback
+      .filter(([lvl]) => lvl < first.fromLevel)
+      .map(([fromLevel, xp]) => ({ fromLevel, xpPerHour: Math.min(xp, first.xpPerHour), estimated: true }));
+    if (!below.length || below[0].fromLevel !== 1) below.unshift({ fromLevel: 1, xpPerHour: Math.min(fallback[0][1], first.xpPerHour), estimated: true });
+    return [...below, ...bands];
+  } };
 }
+
+async function skillBands(skill, type) {
+  const titles = SKILL_PAGES[skill]?.[type] ?? [];
+  for (const title of titles) {
+    const page = await pageWikitext(title);
+    if (!page) continue;
+    const points = tablePoints(page.text);
+    // A rate table worth trusting states at least three different levels.
+    if (new Set(points.map(([lvl]) => lvl)).size >= 3) {
+      const built = pointsToBands(points);
+      // One band means the "levels" never climbed with the rate — not a level→XP/h table.
+      if (built.bands.length < 2) continue;
+      const bands = built.fill(FALLBACK_BANDS[skill]).map((b) => ({ ...b, source: b.estimated ? null : page.title, estimated: b.estimated === true }));
+      return { bands, gap: false };
+    }
+  }
+  return { bands: null, gap: true };
+}
+
+// ── Build ──────────────────────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('Fetching Wise Old Man EHB rates…');
-  const wom = await fetchWomRates();
-  console.log(`  ${wom.size} boss rates`);
+  const kph = await moneyMakingRows();
+  console.log(`money-making guides with kills/hour: ${kph.size}`);
 
-  console.log('Querying the wiki money-making guides for kill rates…');
-  const wiki = await fetchWikiRates();
-  console.log(`  ${wiki.size} kills-per-hour entries`);
+  const bosses = { main: {}, ironman: {} };
+  const missingGuides = [];
+  for (const [boss, src] of Object.entries(BOSS_SOURCES)) {
+    const pick = (titles) => titles.map((t) => [t, kph.get(t)]).find(([, v]) => v);
+    const main = pick(src.main);
+    if (!main) {
+      missingGuides.push(boss);
+      continue;
+    }
+    bosses.main[boss] = { killsPerHour: main[1], source: main[0], estimated: false };
+    const iron = src.ironman ? pick(src.ironman) : null;
+    bosses.ironman[boss] = iron
+      ? { killsPerHour: iron[1], source: iron[0], estimated: false }
+      : { killsPerHour: round2(main[1] * IRONMAN_FACTOR), source: main[0], estimated: true };
+  }
+  for (const boss of missingGuides) {
+    if (!FALLBACK_KPH[boss]) console.warn(`no guide and no fallback for ${boss}`);
+  }
+  for (const [boss, v] of Object.entries(FALLBACK_KPH)) {
+    if (bosses.main[boss]) continue;
+    bosses.main[boss] = { killsPerHour: v, source: null, estimated: true };
+    bosses.ironman[boss] = { killsPerHour: round2(v * IRONMAN_FACTOR), source: null, estimated: true };
+  }
 
-  const curated = JSON.parse(readFileSync(CURATED_PATH, 'utf8'));
-  // Only rate activities the app already knows about. A rate for content no tile can reference is
-  // dead weight, and a floor we'd have to invent for it is exactly the guessing this replaces.
-  const activities = {};
-  const report = [];
-  for (const curatedKey of Object.keys(curated.activities)) {
-    // Only the flat kill-time shape. Gauntlet-likes and raids are modelled as attempt length over a
-    // per-band success rate (and divided by party size), which carries information a single
-    // kills/hour figure cannot — replacing it with one would be a downgrade dressed as a sourcing.
-    if (!Array.isArray(curated.activities[curatedKey]?.killSeconds)) continue;
-    // Alias BOTH sides: our own file carries "inferno" and "tzkal-zuk" (and "fight caves" /
-    // "tztok-jad") as separate keys because tiles get authored either way, so both must resolve to
-    // the single rate the sources publish.
-    const normKey = alias(norm(curatedKey));
-    const built = buildTriplet(wom.get(normKey), wiki.get(normKey));
-    if (!built) continue;
-    const before = curated.activities[curatedKey]?.killSeconds ?? null;
-    const ratio = before ? before[0] / built.killSeconds[0] : 1;
-    activities[curatedKey] = {
-      ...built,
-      // Keep the number this replaced wherever it moved a lot. Some of these corrections are the
-      // point (Bryophyta ignored key acquisition); others mean the sources are timing a MASS of the
-      // boss where we timed a solo. Both deserve a human glance, and neither can be told apart
-      // mechanically — so the old value travels with the new one instead of being overwritten
-      // silently.
-      ...(before && (ratio > 2 || ratio < 0.5) ? { curatedFastSeconds: before[0], review: true } : {}),
-    };
-    if (before) {
-      report.push({ key: curatedKey, beforeFast: before[0], afterFast: built.killSeconds[0], ratio, source: built.source });
+  const skills = { main: {}, ironman: {} };
+  const gaps = { main: [], ironman: [] };
+  for (const skill of Object.keys(SKILL_PAGES)) {
+    const main = await skillBands(skill, 'main');
+    skills.main[skill] = main.bands ?? FALLBACK_BANDS[skill].map(([fromLevel, xpPerHour]) => ({ fromLevel, xpPerHour, source: null, estimated: true }));
+    if (main.gap) gaps.main.push(skill);
+    const iron = await skillBands(skill, 'ironman');
+    if (iron.bands) skills.ironman[skill] = iron.bands;
+    else {
+      gaps.ironman.push(skill);
+      skills.ironman[skill] = skills.main[skill].map((b) => ({
+        fromLevel: b.fromLevel,
+        xpPerHour: Math.round((b.xpPerHour * IRONMAN_FACTOR) / 1000) * 1000,
+        source: b.source,
+        estimated: true,
+      }));
     }
   }
 
-  const uncovered = Object.keys(curated.activities).filter((k) => !(k in activities));
-
-  const out = {
-    source:
-      'Third-party EHB rates (MIT) for the fast band; ' +
-      'OSRS Wiki money-making guides (Bucket: money_making_guide) for the slow band. See THIRD_PARTY_NOTICES.md.',
-    generatedAt: new Date().toISOString(),
-    note:
-      'Kill-rate triplets [fast, average, slow] in seconds per kill. Layered UNDER the admin ' +
-      '`balance_rates` override and OVER the curated defaults in balanceRates.json, which still ' +
-      'owns accessibility floors, success rates, party sizes and the superior-slayer cost.',
-    spread: { assumed: SPREAD, maxSpread: MAX_SPREAD },
-    activityCount: Object.keys(activities).length,
-    activities,
+  const count = (obj) => Object.values(obj).filter((v) => !v.estimated).length;
+  const countSkills = (obj) => Object.values(obj).filter((bands) => bands.some((b) => !b.estimated)).length;
+  const coverage = {
+    skills: {
+      main: { wiki: countSkills(skills.main), total: Object.keys(skills.main).length },
+      ironman: { wiki: countSkills(skills.ironman), total: Object.keys(skills.ironman).length },
+    },
+    bosses: {
+      main: { wiki: count(bosses.main), total: Object.keys(bosses.main).length },
+      ironman: { wiki: count(bosses.ironman), total: Object.keys(bosses.ironman).length },
+    },
   };
 
-  mkdirSync(dirname(OUT_PATH), { recursive: true });
-  writeFileSync(OUT_PATH, `${JSON.stringify(out, null, 2)}\n`);
+  const out = {
+    version: SCHEMA_VERSION,
+    generatedAt: new Date().toISOString(),
+    source: 'OSRS Wiki (oldschool.runescape.wiki): money-making guides via the Bucket API for kills per hour; skill training guides via the parse API for XP per hour. Each rate names its page in `source`; `estimated: true` marks our own conservative fill for gaps.',
+    coverage,
+    gaps,
+    skills,
+    bosses,
+  };
+  writeFileSync(HOUR_RATES_PATH, JSON.stringify(out, null, 2) + '\n');
 
-  const bySource = report.reduce((acc, r) => ({ ...acc, [r.source]: (acc[r.source] ?? 0) + 1 }), {});
-  console.log(`\nWrote ${Object.keys(activities).length} activities → ${OUT_PATH}`);
-  console.log(`  by source: ${JSON.stringify(bySource)}`);
-  console.log(`  still curated (no community rate): ${uncovered.length}`);
-  if (uncovered.length) console.log(`    ${uncovered.sort().join(', ')}`);
-
-  const drift = report.filter((r) => r.ratio > 2 || r.ratio < 0.5).sort((a, b) => b.ratio - a.ratio);
-  console.log(`\n${drift.length} rows where the hand-written rate was off by >2x:`);
-  for (const d of drift) {
-    const dir = d.ratio > 1 ? 'we were SLOWER' : 'we were FASTER';
-    console.log(
-      `  ${d.key.padEnd(28)} ${String(d.beforeFast).padStart(6)}s → ${String(d.afterFast).padStart(6)}s  ` +
-        `(x${d.ratio.toFixed(2)}, ${dir}, ${d.source})`,
-    );
+  // Balance-engine kill-time triplets. The guide rate is a realistic method, so it is the AVERAGE
+  // band; fast and slow sit SPREAD either side of it.
+  // Keyed the way the curated balanceRates.json keys its activities (lower-case display names,
+  // sometimes with "the"), so the engine can lay these over the curated entries.
+  const SPREAD = 1.5;
+  const curatedKeys = new Set(Object.keys(JSON.parse(readFileSync(resolve(ROOT, 'src/data/balanceRates.json'), 'utf8')).activities ?? {}));
+  const labels = bossLabels();
+  const activities = {};
+  for (const [boss, v] of Object.entries(bosses.main)) {
+    const label = (labels[boss] ?? boss).toLowerCase();
+    const key = [label, `the ${label}`, label.replace(/^the /, '')].find((k) => curatedKeys.has(k));
+    if (!key) continue;
+    const avg = 3600 / v.killsPerHour;
+    activities[key] = {
+      killSeconds: [round1(avg / SPREAD), round1(avg), round1(avg * SPREAD)],
+      source: v.source,
+      estimated: v.estimated,
+    };
   }
+  writeFileSync(
+    ACTIVITY_RATES_PATH,
+    JSON.stringify(
+      {
+        source: 'Derived from src/data/hourRates.json (OSRS Wiki money-making guides). Average = the guide rate; fast/slow = ×/÷ spread.',
+        generatedAt: out.generatedAt,
+        spread: SPREAD,
+        activityCount: Object.keys(activities).length,
+        activities,
+      },
+      null,
+      2,
+    ) + '\n',
+  );
+
+  console.log(JSON.stringify(coverage));
+  console.log('skill gaps (main):', gaps.main.join(', ') || 'none');
+  console.log('skill gaps (ironman):', gaps.ironman.join(', ') || 'none');
+  console.log('bosses on estimates:', Object.entries(bosses.main).filter(([, v]) => v.estimated).map(([k]) => k).join(', '));
 }
 
+/** Hiscores boss key → display label, read from lib/constants so the two never drift. */
+function bossLabels() {
+  const src = readFileSync(resolve(ROOT, 'src/lib/constants.ts'), 'utf8');
+  const block = src.match(/export const BOSSES[^=]*=\s*\[([\s\S]*?)\];/)?.[1] ?? '';
+  return Object.fromEntries([...block.matchAll(/key:\s*"(\w+)",\s*label:\s*"([^"]+)"/g)].map((m) => [m[1], m[2]]));
+}
+
+const round1 = (n) => Math.round(n * 10) / 10;
+const round2 = (n) => Math.round(n * 100) / 100;
+
 main().catch((err) => {
-  console.error(err.message || err);
+  console.error(err);
   process.exit(1);
 });

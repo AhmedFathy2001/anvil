@@ -21,12 +21,13 @@ import type { MemberSortKey } from '@/lib/memberSort';
 //
 // Both tabs render from data the server already sent, so switching costs nothing.
 
-type Tab = 'roster' | 'activities' | 'luck' | 'lately';
+type Tab = 'roster' | 'activities' | 'luck' | 'records' | 'lately';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'roster', label: 'Roster' },
   { key: 'activities', label: 'Clues & minigames' },
   { key: 'luck', label: 'Luck' },
+  { key: 'records', label: 'Records' },
   { key: 'lately', label: 'Lately' },
 ];
 
@@ -41,6 +42,7 @@ export default function MembersTabs({
   supporterLooks,
   boosters = {},
   lately,
+  records,
   initialSort = 'week',
 }: {
   /** This clan's boosting characters by name, for the Booster mark (lib/clanBoosts boosterMarks). */
@@ -65,6 +67,8 @@ export default function MembersTabs({
    * account-progress card down.
    */
   lately: React.ReactNode;
+  /** Clan record holders (components/records). */
+  records: React.ReactNode;
   initialSort?: MemberSortKey;
 }) {
   const [tab, setTab] = useState<Tab>('roster');
@@ -100,6 +104,7 @@ export default function MembersTabs({
 
       {tab === 'luck' && <ClanLuck {...luck} />}
 
+      {tab === 'records' && records}
       {tab === 'lately' && lately}
     </>
   );

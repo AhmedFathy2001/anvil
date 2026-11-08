@@ -448,7 +448,7 @@ const PAGES: readonly SettingEntry[] = [
   {
     id: 'clan-requirements',
     label: 'Requirements to join',
-    description: 'Total level, EHP, region and timezone a recruit needs, shown on your public clan page.',
+    description: 'Total level, hours played, region and timezone a recruit needs, shown on your public clan page.',
     keywords: ['requirements', 'reqs', 'recruit', 'total level', 'ehp', 'region', 'timezone', 'clan profile'],
     href: `${CLAN}#clan-requirements`,
     section: S.profile,

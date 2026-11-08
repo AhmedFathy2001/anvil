@@ -2594,8 +2594,8 @@ const ko: PartialGuideDict = {
         tip: '진행 중인 모든 Boss of the Week와 실시간 순위.',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: '클랜 효율 순위표와 그 안에서의 내 순위. 기본은 EHP(efficient hours played)이고, 보스는 EHB를 고르세요.',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: '클랜 효율 순위표와 그 안에서의 내 순위. 기본은 플레이 시간이고, 보스는 보스 시간를 고르세요.',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2611,7 +2611,7 @@ const ko: PartialGuideDict = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: '계정 하나를 한눈에: 전투 레벨과 총 레벨, EHP와 EHB, 컬렉션 로그 수, 개인 최고 기록.',
+        tip: '계정 하나를 한눈에: 전투 레벨과 총 레벨, 플레이 시간와 보스 시간, 컬렉션 로그 수, 개인 최고 기록.',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2619,7 +2619,7 @@ const ko: PartialGuideDict = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP와 EHB, 그리고 그것이 어느 스킬과 보스에서 나오는지.',
+        tip: '플레이 시간와 보스 시간, 그리고 그것이 어느 스킬과 보스에서 나오는지.',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4361,7 +4361,7 @@ const ko: PartialGuideDict = {
       intro: '선택 사항은 다섯 가지이며, 대부분의 클랜에는 기본값으로 충분합니다:',
       steps: [
         '관리자 메뉴에서 **Schedule**을 열고 **+ Schedule event**를 누르세요 (중재자는 **Schedule a competition**을 쓸 수 있습니다).',
-        '종류를 고르세요: **Skill of the Week** (얻은 XP), **Boss of the Week** (얻은 처치 수) 또는 **Efficiency race** (얻은 EHP 또는 EHB).',
+        '종류를 고르세요: **Skill of the Week** (얻은 XP), **Boss of the Week** (얻은 처치 수) 또는 **Efficiency race** (얻은 플레이 시간 또는 보스 시간).',
         '**What is measured**에서 스킬이나 보스를 고르세요. 매주 바꾸고 싶다면 **Then rotate through**에 더 추가하세요. 비워 두면 같은 것을 반복합니다.',
         '**Runs**에서 언제 진행할지 고르세요: **This weekend**, **One week** 또는 직접 정한 날짜. 시작과 끝 사이의 증가를 점수로 매기므로 끝나는 시점이 항상 필요합니다.',
         '**Repeat every week**를 켜 두면 이것이 끝나는 순간 같은 길이와 상품으로 다음 대회가 시작됩니다. 클랜 게스트도 순위에 올라야 한다면 **Guests race too**를 체크하세요.',

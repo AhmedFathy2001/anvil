@@ -582,9 +582,9 @@ export function milestoneSentence(kind: string, metric: string | null, threshold
     case 'totalxp':
       return `passed ${totalXpLabel(threshold)} total XP`;
     case 'ehp':
-      return `passed ${threshold.toLocaleString()} EHP`;
+      return `passed ${threshold.toLocaleString()} hours played`;
     case 'ehb':
-      return `passed ${threshold.toLocaleString()} EHB`;
+      return `passed ${threshold.toLocaleString()} hours bossed`;
     default:
       return `crossed ${threshold.toLocaleString()}`;
   }

@@ -206,7 +206,7 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
             <Input value={form.requirements.minTotal?.toString() ?? ''} onChange={(e) => setReq('minTotal', numOrUndef(e.target.value))} inputMode="numeric" placeholder="any" className="mt-1" />
           </div>
           <div>
-            <label className="text-[13px] font-medium text-text-muted">Min EHP</label>
+            <label className="text-[13px] font-medium text-text-muted">Min hours played</label>
             <Input value={form.requirements.minEhp?.toString() ?? ''} onChange={(e) => setReq('minEhp', numOrUndef(e.target.value))} inputMode="numeric" placeholder="any" className="mt-1" />
           </div>
           <div>

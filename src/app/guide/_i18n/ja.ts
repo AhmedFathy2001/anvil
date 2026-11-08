@@ -2594,8 +2594,8 @@ const ja: PartialGuideDict = {
         tip: '開催中のすべての Boss of the Week と、その現在の順位。',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: 'クランの効率ランキングと、その中でのあなたの順位。既定は EHP（efficient hours played）で、ボス狩りなら EHB を選びます。',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: 'クランの効率ランキングと、その中でのあなたの順位。既定は プレイ時間で、ボス狩りなら ボス時間 を選びます。',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2611,7 +2611,7 @@ const ja: PartialGuideDict = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: 'ひとつのアカウントをひと目で：戦闘レベルと合計レベル、EHP と EHB、コレクションログの数、自己ベスト。',
+        tip: 'ひとつのアカウントをひと目で：戦闘レベルと合計レベル、プレイ時間 と ボス時間、コレクションログの数、自己ベスト。',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2619,7 +2619,7 @@ const ja: PartialGuideDict = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP と EHB、そしてそれがどのスキルとボスから来ているか。',
+        tip: 'プレイ時間 と ボス時間、そしてそれがどのスキルとボスから来ているか。',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4361,7 +4361,7 @@ const ja: PartialGuideDict = {
       intro: '選択は 5 つ。多くのクランにとって、デフォルトで十分です：',
       steps: [
         '管理メニューの **Schedule** を開き、**+ Schedule event** を押します（モデレーターは **Schedule a competition** を使えます）。',
-        '種類を選びます：**Skill of the Week**（獲得 XP）、**Boss of the Week**（獲得キル数）、または **Efficiency race**（獲得 EHP または EHB）。',
+        '種類を選びます：**Skill of the Week**（獲得 XP）、**Boss of the Week**（獲得キル数）、または **Efficiency race**（獲得 プレイ時間 または ボス時間）。',
         '**What is measured** で、スキルまたはボスを選びます。毎週変えたい場合は、**Then rotate through** に追加してください。空のままにすると、同じものを繰り返します。',
         '**Runs** のタイミングを選びます：**This weekend**、**One week**、または任意の日付。開始と終了の間の増加を集計するため、必ず終了日時が必要です。',
         '**Repeat every week** をオンのままにすると、今回が終わった瞬間に次回が、同じ期間と賞品で始まります。クランのゲストもボードに参加させたい場合は **Guests race too** にチェックを入れてください。',

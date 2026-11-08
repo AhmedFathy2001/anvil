@@ -157,17 +157,17 @@ const CLAN_DEFINITIONS = [
   { name: 'botw', description: 'Boss of the Week — live standings', contexts: [0], options: [LANGUAGE_OPTION] },
   {
     name: 'eff',
-    description: 'Efficiency (EHP/EHB) leaderboard, and where you rank',
+    description: 'Efficiency (hours played/hours bossed) leaderboard, and where you rank',
     contexts: [0],
     options: [
       {
         name: 'metric',
-        description: 'EHP or EHB (default EHP)',
+        description: 'Hours played or hours bossed (default hours played)',
         type: OPTION_TYPE.STRING,
         required: false,
         choices: [
-          { name: 'EHP', value: 'ehp' },
-          { name: 'EHB', value: 'ehb' },
+          { name: 'Hours played', value: 'ehp' },
+          { name: 'Hours bossed', value: 'ehb' },
         ],
       },
       LANGUAGE_OPTION,
@@ -206,9 +206,9 @@ const CLAN_DEFINITIONS = [
     description: "A player's stats — levels, efficiency, collection log, PBs, luck",
     contexts: [0],
     options: [
-      { name: 'profile', description: 'Overview — levels, EHP/EHB, collection log, PBs', type: OPTION_TYPE.SUB_COMMAND, options: [PLAYER_OPTION, LANGUAGE_OPTION] },
+      { name: 'profile', description: 'Overview — levels, hours played/bossed, collection log, PBs', type: OPTION_TYPE.SUB_COMMAND, options: [PLAYER_OPTION, LANGUAGE_OPTION] },
       { name: 'levels', description: 'Skill levels and XP', type: OPTION_TYPE.SUB_COMMAND, options: [PLAYER_OPTION, LANGUAGE_OPTION] },
-      { name: 'efficiency', description: 'EHP and EHB, and where each comes from', type: OPTION_TYPE.SUB_COMMAND, options: [PLAYER_OPTION, LANGUAGE_OPTION] },
+      { name: 'efficiency', description: 'Hours played and hours bossed, and where each comes from', type: OPTION_TYPE.SUB_COMMAND, options: [PLAYER_OPTION, LANGUAGE_OPTION] },
       { name: 'clog', description: "Collection log — overall, or one boss's page", type: OPTION_TYPE.SUB_COMMAND, options: [PAGE_OPTION, PLAYER_OPTION, LANGUAGE_OPTION] },
       { name: 'pbs', description: 'Personal bests — all, or one activity', type: OPTION_TYPE.SUB_COMMAND, options: [PAGE_OPTION, PB_MODE_OPTION, PB_SIZE_OPTION, PLAYER_OPTION, LANGUAGE_OPTION] },
       { name: 'luck', description: 'Drop luck across tracked drops', type: OPTION_TYPE.SUB_COMMAND, options: [PLAYER_OPTION, LANGUAGE_OPTION] },

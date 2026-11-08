@@ -229,7 +229,7 @@ const pl: PartialDiscordDict = {
   commands: {
     sotw: 'Skill of the Week — wyniki na żywo',
     botw: 'Boss of the Week — wyniki na żywo',
-    eff: 'Ranking wydajności (EHP/EHB) i twoje miejsce',
+    eff: 'Ranking wydajności (godziny gry/godziny bossów) i twoje miejsce',
     coffer: 'Skarbiec klanu — stan, darczyńcy, staff dodaje/odejmuje',
     clog: 'Collection log — liczba osoby i najlepsi zbieracze klanu',
     luck: 'Szczęście w dropach — najbardziej pechowi i szczęśliwi w klanie lub osoba',

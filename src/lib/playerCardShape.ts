@@ -175,9 +175,9 @@ export function milestoneLabel(m: { kind: string; metric: string | null; thresho
     case 'totalxp':
       return `${totalXpLabel(m.threshold)} total XP`;
     case 'ehp':
-      return `${m.threshold.toLocaleString('en-US')} EHP`;
+      return `${m.threshold.toLocaleString('en-US')} hours played`;
     case 'ehb':
-      return `${m.threshold.toLocaleString('en-US')} EHB`;
+      return `${m.threshold.toLocaleString('en-US')} hours bossed`;
     default:
       return null;
   }
