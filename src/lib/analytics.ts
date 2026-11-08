@@ -41,7 +41,16 @@ export type ActionName =
   | 'plugin.linked'
   | 'profile.synced'
   // A Join button pressed on a Discord card (props.src: which surface — api/discord/join).
-  | 'discord.join';
+  | 'discord.join'
+  // Funnel steps recorded where the action happens (server routes/webhooks), for the owner funnels.
+  | 'discord.connected'
+  | 'roster.synced'
+  | 'supporter.viewed'
+  | 'supporter.checkout'
+  | 'supporter.purchased'
+  | 'clan.purchased'
+  | 'invite.opened'
+  | 'invite.joined';
 
 interface Who {
   clanId?: number | null;
@@ -119,12 +128,32 @@ export function track(name: ActionName, who: Who = {}): void {
   })().catch((err: unknown) => log.warn('analytics.track-failed', { name }, err));
 }
 
+/**
+ * A step worth recording once per subject per day, however often the route runs — the plugin pushes a
+ * roster every few minutes and the funnel only needs to know it happened. In memory, like the plugin
+ * dedup below: a restart can write a second row, and every read counts distinct clans.
+ */
+const onceSeen = new Set<string>();
+let onceDay = '';
+export function trackOnce(name: ActionName, subject: number | string, who: Who = {}): void {
+  const day = new Date().toISOString().slice(0, 10);
+  if (day !== onceDay || onceSeen.size > 50_000) {
+    onceSeen.clear();
+    onceDay = day;
+  }
+  const key = `${name}:${subject}`;
+  if (onceSeen.has(key)) return;
+  onceSeen.add(key);
+  track(name, who);
+}
+
 /** One page view. The pattern must already be scrubbed (lib/analyticsPattern.scrubPattern). */
 export function trackPage(input: {
   pattern: string;
   clanId: number | null;
   userId: number | null;
   sessionId: string;
+  props?: Record<string, string | number | boolean | null> | null;
 }): void {
   try {
     insert({
@@ -133,6 +162,7 @@ export function trackPage(input: {
       clanId: input.clanId,
       userId: input.userId,
       sessionId: input.sessionId,
+      props: input.props ?? null,
     });
   } catch (err) {
     log.warn('analytics.page-failed', {}, err);
@@ -199,10 +229,16 @@ export function trackPluginRoute(clanId: number | null, accountId: number | null
   }
 }
 
+/** Time on a page: one row when the visitor leaves it. `ms` is clamped by the collector. */
+export function trackLeave(input: { pattern: string; clanId: number | null; sessionId: string; ms: number }): void {
+  insert({ kind: 'leave', name: input.pattern, clanId: input.clanId, sessionId: input.sessionId, props: { ms: input.ms } });
+}
+
 // ── Retention ───────────────────────────────────────────────────────────────────────────────────
 
 /** Just over a year, so "this month against the same month last year" always has both months. */
 export const RETENTION_DAYS = 400;
+export const LEAVE_RETENTION_DAYS = 90;
 
 /**
  * Drop rows past retention, a bounded batch at a time.
@@ -212,21 +248,25 @@ export const RETENTION_DAYS = 400;
  * backlog within a day and costs one index range scan when there is nothing to do.
  */
 export async function pruneAnalyticsEvents(olderThanDays = RETENTION_DAYS): Promise<number> {
-  const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString().replace('T', ' ').slice(0, 19);
+  const stamp = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString().replace('T', ' ').slice(0, 19);
+  const cutoff = stamp(olderThanDays);
+  // Time-on-page rows are only ever averaged over a quarter at most, so they go sooner.
+  const leaveCutoff = stamp(Math.min(olderThanDays, LEAVE_RETENTION_DAYS));
   let total = 0;
-  for (let batch = 0; batch < 10; batch++) {
-    // clan-scope: global -- retention spans the platform; it is not one clan's decision.
-    const victims = db
-      .select({ id: analyticsEvents.id })
-      .from(analyticsEvents)
-      .where(lt(analyticsEvents.ts, cutoff))
-      .limit(5_000);
-    const deleted = await db
-      .delete(analyticsEvents)
-      .where(inArray(analyticsEvents.id, victims))
-      .returning({ id: sql<number>`1` });
-    total += deleted.length;
-    if (deleted.length < 5_000) break;
+  for (const where of [
+    and(eq(analyticsEvents.kind, 'leave'), lt(analyticsEvents.ts, leaveCutoff)),
+    lt(analyticsEvents.ts, cutoff),
+  ]) {
+    for (let batch = 0; batch < 10; batch++) {
+      // clan-scope: global -- retention spans the platform; it is not one clan's decision.
+      const victims = db.select({ id: analyticsEvents.id }).from(analyticsEvents).where(where).limit(5_000);
+      const deleted = await db
+        .delete(analyticsEvents)
+        .where(inArray(analyticsEvents.id, victims))
+        .returning({ id: sql<number>`1` });
+      total += deleted.length;
+      if (deleted.length < 5_000) break;
+    }
   }
   return total;
 }

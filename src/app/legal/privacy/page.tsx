@@ -211,6 +211,20 @@ export default function PrivacyPage() {
         their privacy notice.
       </p>
 
+      <p className="font-semibold text-gray-200">Visit statistics</p>
+      <p>
+        To see how the site is used and where people get stuck, we count page views ourselves, in our
+        own database. We record the kind of page (for example &ldquo;an event page&rdquo;, never the
+        address you typed or a player name), the website you arrived from (the site name only), whether
+        your screen is a phone, tablet or desktop, and roughly how long you stayed on a page. A random
+        number held in your browser tab, which disappears when you close it, links one visit&rsquo;s
+        pages together; it is not a cookie and is not stored on your device afterwards. When you sign
+        in or take a step such as creating a clan or linking the plugin, we may attach your account to
+        that step, and when you create an account we note once where you first came from. No third
+        parties receive any of this, nothing is used for advertising, and we keep it for up to 400
+        days. If your browser sends Do Not Track or Global Privacy Control, we do not count your visits.
+      </p>
+
       <h2>9. Children</h2>
       <p>
         The service is not directed to children under 16. We do not knowingly collect personal data

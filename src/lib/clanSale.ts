@@ -9,6 +9,7 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
+import { track } from '@/lib/analytics';
 import { clanAuditLog, clans } from '@/db/schema';
 import { nextChargeDue, trialEndWithGumroad, TRIAL_DAYS, type GumroadEvent } from '@/lib/gumroad';
 import { logBilling } from '@/lib/billingLapse';
@@ -151,5 +152,7 @@ export async function applyClanSale(
     })
     .where(eq(clans.id, clan.id));
   await logBilling(clan.id, 'billing_subscribed', { plan: plan.id, subscription: ev.subscriptionId }, notes);
+  // Credited to the clan's creator's first-touch source at read time (lib/analyticsAttribution).
+  track('clan.purchased', { clanId: clan.id, userId: null, props: { plan: plan.id } });
   return { received: true, plan: plan.id };
 }

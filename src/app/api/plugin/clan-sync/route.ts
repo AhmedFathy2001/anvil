@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { trackOnce } from '@/lib/analytics';
 import { rosterSyncSay } from '@/lib/rosterSyncLines';
 import { findOrCreateAccount, findOrCreateSeat, updateAccountOfSeat } from '@/lib/roster';
 import { isBannedFromClan } from '@/lib/clanBans';
@@ -857,6 +858,8 @@ export async function POST(request: Request) {
     });
   }
 
+  // The funnel's "roster synced" step: once a day per clan is plenty, the plugin pushes all day.
+  trackOnce('roster.synced', clan.id, { clanId: clan.id, userId: null });
   // Detailed change list for the plugin to render as in-game chat lines (one per
   // event), in addition to the count summary it has always returned.
   return NextResponse.json({

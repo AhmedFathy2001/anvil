@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { buildAuthorizeUrl, getOAuthMode } from '@/lib/discord-oauth';
 import { safeReturnPath } from '@/lib/safe-redirect';
+import { isSessionId } from '@/lib/analyticsPattern';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import {
   apexDomain,
@@ -14,6 +15,9 @@ import {
 const STATE_COOKIE = 'discord_oauth_state';
 const RETURN_COOKIE = 'discord_oauth_return';
 const RETURN_HOST_COOKIE = 'discord_oauth_return_host';
+// The tab's analytics session id, kept only until the callback (lib/analyticsAttribution): ten minutes,
+// httpOnly, deleted on arrival. It credits a NEW account to where its visit began; nothing reads it after.
+const SID_COOKIE = 'discord_oauth_sid';
 const STATE_TTL_SECONDS = 600; // 10 minutes
 
 // GET /api/auth/discord/start?return=/profile
@@ -52,6 +56,8 @@ export async function GET(request: Request) {
     apexStart.searchParams.set('return', returnTo);
     apexStart.searchParams.set('clan', clan.host);
     if (url.searchParams.get('join') === '1') apexStart.searchParams.set('join', '1');
+    const hopSid = url.searchParams.get('sid');
+    if (isSessionId(hopSid)) apexStart.searchParams.set('sid', hopSid);
     return NextResponse.redirect(apexStart);
   }
 
@@ -81,5 +87,7 @@ export async function GET(request: Request) {
   res.cookies.set(STATE_COOKIE, state, cookie);
   if (returnTo !== '/') res.cookies.set(RETURN_COOKIE, returnTo, cookie);
   if (requestedClanHost) res.cookies.set(RETURN_HOST_COOKIE, requestedClanHost, cookie);
+  const sid = url.searchParams.get('sid');
+  if (isSessionId(sid)) res.cookies.set(SID_COOKIE, sid, cookie);
   return res;
 }

@@ -1289,6 +1289,13 @@
       "when": 1794450000000,
       "tag": "0246_records_backfilled",
       "breakpoints": true
+    },
+    {
+      "idx": 247,
+      "version": "7",
+      "when": 1794480000000,
+      "tag": "0247_user_first_touch",
+      "breakpoints": true
     }
   ]
 }

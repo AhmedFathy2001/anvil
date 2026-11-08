@@ -65,7 +65,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
 
   const row = await db.query.users.findFirst({
     where: eq(users.id, actor.user.userId),
-    columns: { displayName: true, discordId: true, discordAvatar: true },
+    columns: { displayName: true, discordId: true, discordAvatar: true, isOwner: true },
   });
 
   const canWrite = hasPlatformRole(actor.role, 'staff');
@@ -77,8 +77,8 @@ export default async function StaffLayout({ children }: { children: React.ReactN
       label: 'Platform',
       items: [
         { href: '/staff', label: 'Overview', icon: '◎', badge: pending.nameDisputes, attn: true },
-        // Visits, feature use and where onboarding stalls (lib/analytics). Read-only, so support too.
-        { href: '/staff/analytics', label: 'Analytics', icon: '📈', matchPrefix: true },
+        // Visits, where people come from and where onboarding stalls (lib/analytics). Owner only.
+        ...(row?.isOwner ? [{ href: '/staff/analytics', label: 'Analytics', icon: '📈', matchPrefix: true }] : []),
         // Read-only, and shown to support too: seeing what was done is the least dangerous thing an
         // operator can do, and the one most often needed when somebody asks why.
         { href: '/staff/audit', label: 'Operator log', icon: '⧉', matchPrefix: true },
