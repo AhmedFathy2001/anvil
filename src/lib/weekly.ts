@@ -94,6 +94,16 @@ export async function enrollAllPlayers(competitionId: number) {
       // Skip on conflict/error — keep counting what we could add
     }
   }
+  // Team competitions (lib/competitionTeamsDb): clan vs clan enrols the partner clans' rosters too,
+  // and a teams competition drops late joiners into the smallest team. Both no-op in solo mode.
+  // Imported lazily — that module reads countsTowardLeaderboard from this one.
+  try {
+    const teams = await import('@/lib/competitionTeamsDb');
+    enrolled += await teams.enrollPartnerClans(competitionId);
+    await teams.placeLateJoiners(competitionId);
+  } catch (err) {
+    log.warn('weekly.team-enroll-fail', { competitionId }, err);
+  }
   return enrolled;
 }
 
@@ -231,6 +241,9 @@ export async function applyWeeklyValue(u: WeeklyValueUpdate): Promise<{ outcome:
     currentValue: sql`greatest(coalesce(${weeklyParticipants.currentValue}, 0), ${u.value})`,
     lastUpdated: nowIso,
   };
+  // The gain moved: stamp when, for the team/clan "who reached the total first" tie-break
+  // (lib/competitionTeams). A re-read of the same value leaves it alone.
+  if (u.currentValue === null || u.value > u.currentValue) updates.gainAt = nowIso;
 
   // Flag an implausible CUMULATIVE gain — one that couldn't be earned in the elapsed comp time (a
   // stale baseline that swept pre-event XP into the gain). Measured over the comp, NOT the sweep

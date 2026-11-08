@@ -21,6 +21,9 @@ import { idOrNull, idParam } from '@/lib/routeIds';
 import { weeklyLinkDescription } from '@/lib/linkText';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
+import { competitionMode } from '@/lib/competitionTeams';
+import { buildGroupStandings, competitionForClan, racingClans } from '@/lib/competitionTeamsDb';
+import GroupStandings from '@/components/weekly/GroupStandings';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,15 +95,21 @@ export default async function WeeklyLeaderboardPage({
   // page would happily render another clan's competition under its own banner.
   const clan = await requireClan();
   await creatorPublicAway('/weekly', clan);
-  const [competition] = await db
-    .select()
-    .from(weeklyCompetitions)
-    .where(and(eq(weeklyCompetitions.clanId, clan.id), eq(weeklyCompetitions.id, compId)));
-  if (!competition) notFound();
+  // Its own competition — or a clan-vs-clan one this clan accepted an invite into (read-only here).
+  const scoped = await competitionForClan(clan.id, compId);
+  if (!scoped) notFound();
+  const competition = scoped.comp;
 
   const session = await verifyUser();
-  const myMemberIds = await viewerMemberIds(clan.id, session);
+  const mode = competitionMode(competition.mode);
+  // Clan vs clan: the viewer may be seated in any racing clan, so "you" looks across all of them.
+  const myMemberIds =
+    mode === 'clans'
+      ? (await Promise.all((await racingClans(competition)).map((c) => viewerMemberIds(c.id, session)))).flat()
+      : await viewerMemberIds(clan.id, session);
   const view = await buildCompetitionView(competition, myMemberIds);
+  const groups = mode === 'solo' ? null : await buildGroupStandings(competition, { memberIds: myMemberIds });
+  const myRsns = new Set(view.entries.filter((e) => e.isMe).map((e) => e.rsn.toLowerCase()));
 
   const leader = view.entries[0]?.gained > 0
     ? {
@@ -150,6 +159,8 @@ export default async function WeeklyLeaderboardPage({
       {view.me && (
         <YouStrip me={view.me} type={view.type} unit={view.unit} elapsed={view.elapsed} showDaily={showDaily} started={started} />
       )}
+
+      {groups && <GroupStandings view={groups} type={view.type} unit={view.unit} myRsns={myRsns} />}
 
       <Podium
         entries={view.entries}

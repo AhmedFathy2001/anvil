@@ -5,7 +5,9 @@ import { requireClan } from '@/lib/clanContext';
 import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, count } from 'drizzle-orm';
 import { enrollAllPlayers } from '@/lib/weekly';
-import { notifyWeeklyStart } from '@/lib/discord';
+import { parseCompetitionMode } from '@/lib/competitionTeams';
+import { MAX_TEAMS, autoBalanceTeams, createTeam, inviteClanToCompetition } from '@/lib/competitionTeamsDb';
+import { announceCompetitionStart } from '@/lib/competitionTeamsPosts';
 import { EFFICIENCY_METRICS } from '@/lib/constants';
 import { verifyFeeCollector } from '@/lib/auth';
 import { parseWeeklyPrizes, serializeWeeklyPrizes, totalPrizeGp } from '@/lib/weeklyPrizes';
@@ -53,7 +55,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { type, metric, title, startDate, endDate, includeGuests, prizes, prizeHold, repeat } = await request.json();
+  const body = await request.json();
+  const { type, metric, title, startDate, endDate, includeGuests, prizes, prizeHold, repeat } = body;
+  // Team competitions (lib/competitionTeams): solo (default) | teams | clans.
+  const mode = body.mode === undefined ? 'solo' : parseCompetitionMode(body.mode);
+  if (!mode) return NextResponse.json({ error: 'Mode must be solo, teams or clans' }, { status: 400 });
+  const teamNames: { name: string; colour?: string }[] = Array.isArray(body.teams)
+    ? body.teams
+        .filter((t: unknown): t is { name: string; colour?: string } => !!t && typeof (t as { name?: unknown }).name === 'string')
+        .slice(0, MAX_TEAMS)
+    : [];
+  const inviteSlugs: string[] = Array.isArray(body.inviteClans)
+    ? body.inviteClans.filter((x: unknown): x is string => typeof x === 'string' && x.trim().length > 0).slice(0, 20)
+    : [];
 
   if (!type || !metric || !title || !startDate || !endDate) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -103,6 +117,8 @@ export async function POST(request: Request) {
     // seat; a clan's weekly is its own members' race by default.
     includeGuests: includeGuests === true ? 1 : 0,
     prizes: prizesJson,
+    mode,
+    teamLateJoin: body.teamLateJoin !== false,
   }).returning();
 
   const comp = result[0];
@@ -144,17 +160,35 @@ export async function POST(request: Request) {
     }
   }
 
+  // Teams mode: the teams typed on the form exist before enrolment, so everyone lands on one.
+  if (mode === 'teams') {
+    for (const t of teamNames) await createTeam(comp.id, t.name, t.colour);
+  }
+
   // Auto-enroll all registered players
   const enrolled = await enrollAllPlayers(comp.id);
+
+  // ...and then split them evenly by current level/KC rather than by enrolment order.
+  if (mode === 'teams' && teamNames.length >= 2) await autoBalanceTeams(comp);
+
+  // Clan vs clan: invite each clan named on the form; an admin of each accepts from their side.
+  const inviteErrors: string[] = [];
+  if (mode === 'clans') {
+    for (const slug of inviteSlugs) {
+      const r = await inviteClanToCompetition(comp, clan.id, slug, user.userId > 0 ? user.userId : null);
+      if (!r.ok) inviteErrors.push(`${slug}: ${r.error}`);
+    }
+  }
 
   // A comp created to start immediately is born 'active', so the weekly cron's upcoming→active
   // transition never fires for it — announce the start here instead. Future-dated ('upcoming')
   // comps are announced by the cron when it flips them. Fire-and-forget so a webhook hiccup
   // never fails creation.
   if (status === 'active') {
-    notifyWeeklyStart({ clanId: clan.id, type: comp.type, title: comp.title, metric: comp.metric, endDate: comp.endDate }).catch(() => {});
+    // Team standings ride along for a teams competition (lib/competitionTeamsPosts).
+    announceCompetitionStart(comp).catch(() => {});
   }
 
   track('weekly.created', { clanId: clan.id, userId: user.userId, props: { type: comp.type } });
-  return NextResponse.json({ ...comp, enrolled, prizesHeld });
+  return NextResponse.json({ ...comp, enrolled, prizesHeld, inviteErrors });
 }

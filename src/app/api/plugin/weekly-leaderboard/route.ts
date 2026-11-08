@@ -6,6 +6,8 @@ import { and, eq } from 'drizzle-orm';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { weeklyMetricLabel } from '@/lib/constants';
 import { weeklyRsnKey } from '@/lib/weeklyRsn';
+import { buildGroupStandings, competitionForClan, partnerCompetitions } from '@/lib/competitionTeamsDb';
+import { weeklyGroupsPayload } from '@/lib/pluginUi/teamStandingsUi';
 
 // GET /api/plugin/weekly-leaderboard[?id=<competitionId>]
 // Returns the ranked standings for a weekly competition (the active one when no id is given),
@@ -28,16 +30,13 @@ export async function GET(request: Request) {
   const clan = await resolvePluginClan(request);
   if (!clan) return NextResponse.json({ competition: null, total: 0, entries: [] });
 
+  // The clan's own competition — or, clan vs clan, one it accepted an invite into (read-only there).
+  // competitionForClan refuses anything else, so the IDOR stays closed.
   const comp = idParam
-    ? await db.query.weeklyCompetitions.findFirst({
-        where: and(
-          eq(weeklyCompetitions.clanId, clan.id),
-          eq(weeklyCompetitions.id, parseInt(idParam, 10)),
-        ),
-      })
-    : await db.query.weeklyCompetitions.findFirst({
+    ? (await competitionForClan(clan.id, parseInt(idParam, 10)))?.comp
+    : ((await db.query.weeklyCompetitions.findFirst({
         where: and(eq(weeklyCompetitions.clanId, clan.id), eq(weeklyCompetitions.status, 'active')),
-      });
+      })) ?? (await partnerCompetitions(clan.id, 'active'))[0]);
 
   if (!comp) {
     return NextResponse.json({ competition: null, total: 0, entries: [] });
@@ -85,9 +84,13 @@ export async function GET(request: Request) {
       metricLabel: weeklyMetricLabel(comp.type, comp.metric),
       startDate: comp.startDate,
       endDate: comp.endDate,
+      mode: comp.mode,
     },
     total: board.length,
     entries,
     you,
+    // Team / clan-vs-clan standings (null on a solo competition) — lib/pluginUi/teamStandingsUi.
+    // `groups.you.line` is the ready-to-print "Your team: 2nd of 4 · +1.2M XP".
+    groups: weeklyGroupsPayload(comp.type, await buildGroupStandings(comp, { rsn: searchParams.get('rsn') })),
   });
 }

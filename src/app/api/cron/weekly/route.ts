@@ -10,7 +10,7 @@ import {
   computeLeaderboard,
   getEffectiveParticipants,
 } from '@/lib/weekly';
-import { notifyWeeklyStart, notifyWeeklyResults } from '@/lib/discord';
+import { announceCompetitionResults, announceCompetitionStart, announceHalfwayIfDue } from '@/lib/competitionTeamsPosts';
 import { log } from '@/lib/logger';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { rollWeeklySeries } from '@/lib/weeklyRepeat';
@@ -40,18 +40,20 @@ async function buildWeeklyStandings(competitionId: number): Promise<{ rsn: strin
 }
 
 // Weekly Discord posts are best-effort: a webhook failure must never break the cron sweep.
-async function announceWeeklyStart(comp: { clanId: number; type: string; title: string; metric: string; endDate: string }) {
+// Team / clan-vs-clan competitions carry their group standings, and clan vs clan posts to every
+// racing clan (lib/competitionTeamsPosts).
+async function announceWeeklyStart(comp: typeof weeklyCompetitions.$inferSelect) {
   try {
-    await notifyWeeklyStart({ clanId: comp.clanId, type: comp.type, title: comp.title, metric: comp.metric, endDate: comp.endDate });
+    await announceCompetitionStart(comp);
   } catch (err) {
     log.warn('weekly-cron.notify-start-fail', {}, err);
   }
 }
 
-async function announceWeeklyResults(comp: { id: number; clanId: number; type: string; title: string; metric: string }) {
+async function announceWeeklyResults(comp: typeof weeklyCompetitions.$inferSelect) {
   try {
     const standings = await buildWeeklyStandings(comp.id);
-    await notifyWeeklyResults({ clanId: comp.clanId, type: comp.type, title: comp.title, metric: comp.metric, standings });
+    await announceCompetitionResults(comp, standings);
   } catch (err) {
     log.warn('weekly-cron.notify-results-fail', {}, err);
   }
@@ -107,6 +109,16 @@ export async function GET(request: Request) {
       // After the results post, so the reserved prize is a consequence of a standing everybody has
       // already been shown rather than a number that appears first and is explained later.
       await settleWeeklyPrizes(comp.id);
+    }
+  }
+
+  // Halfway post for team / clan-vs-clan competitions (solo ones never had one). Once each.
+  for (const comp of allComps) {
+    if (comp.status !== 'active') continue;
+    try {
+      await announceHalfwayIfDue(comp);
+    } catch (err) {
+      log.warn('weekly-cron.notify-halfway-fail', { competitionId: comp.id }, err);
     }
   }
 

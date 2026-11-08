@@ -1,7 +1,7 @@
 import { FEEDS_OFF_KEY, parseFeedsOff } from '@/lib/discordFeeds';
 import { db } from '@/db';
 import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
-import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventParticipants, eventSignups, events, tiles, users, weeklyCompetitions } from '@/db/schema';
+import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventParticipants, eventSignups, events, tiles, users, weeklyCompetitionClans, weeklyCompetitions } from '@/db/schema';
 import { and, count, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { inAcceptedCohostClan, invitedToEvent } from '@/lib/eventAccess';
 import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel, COUNTER_TARGETS, metricKeys } from '@/lib/constants';
@@ -59,6 +59,8 @@ export interface ScheduleWeekly {
   status: string;
   startDate: string;
   endDate: string;
+  /** 'solo' | 'teams' | 'clans' — teams/clans add `groups` to the weekly-leaderboard payload. */
+  mode?: string;
 }
 
 export interface PluginSchedule {
@@ -148,7 +150,25 @@ export async function buildSchedule(
       const [allEvents, allWeeklies] = await Promise.all([
         // clan-scope: this clan -- its own events, plus the ones it holds an accepted co-host seat on.
         db.select().from(events).where(cohostedIds.length ? or(eq(events.clanId, clanId), inArray(events.id, cohostedIds)) : eq(events.clanId, clanId)),
-        db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.clanId, clanId)),
+        // clan-scope: this clan -- its own weeklies, plus clan-vs-clan ones it accepted an invite into.
+        db
+          .select()
+          .from(weeklyCompetitions)
+          .where(
+            or(
+              eq(weeklyCompetitions.clanId, clanId),
+              and(
+                eq(weeklyCompetitions.mode, 'clans'),
+                inArray(
+                  weeklyCompetitions.id,
+                  db
+                    .select({ id: weeklyCompetitionClans.competitionId })
+                    .from(weeklyCompetitionClans)
+                    .where(and(eq(weeklyCompetitionClans.clanId, clanId), eq(weeklyCompetitionClans.status, 'accepted'))),
+                ),
+              ),
+            ),
+          ),
       ]);
       return { cohostedIds, allEvents, allWeeklies };
     },
@@ -242,6 +262,7 @@ export async function buildSchedule(
       status: w.status,
       startDate: w.startDate,
       endDate: w.endDate,
+      mode: w.mode,
     }));
 
   const sortByStart = (a: { startDate: string }, b: { startDate: string }) =>

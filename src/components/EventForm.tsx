@@ -18,6 +18,7 @@ import TileLibraryDraw from '@/components/TileLibraryDraw';
 import type { LibraryTask } from '@/lib/tileLibrary';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import WeeklyModeFields, { DEFAULT_WEEKLY_MODE, type WeeklyModeValue } from '@/components/weekly/WeeklyModeFields';
 import { useDialog } from '@/components/Confirm';
 import { DEFAULT_AUTO_TEAM_COUNT, MAX_AUTO_TEAMS, MIN_AUTO_TEAMS, PLACEMENT_META, TEAM_PLACEMENTS, type TeamPlacement } from '@/lib/teamPlacement';
 
@@ -203,6 +204,8 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   const [weeklyMetric, setWeeklyMetric] = useState(chosenWeekly?.defaultMetric ?? 'attack');
   // Members only by default: guests are visitors on an event seat, and a clan's weekly is its own.
   const [includeGuests, setIncludeGuests] = useState(false);
+  // Solo, teams or clan vs clan (lib/competitionTeams).
+  const [weeklyMode, setWeeklyMode] = useState<WeeklyModeValue>(DEFAULT_WEEKLY_MODE);
   // "Repeat every week" (lib/weeklyRepeat): on by default — a weekly that has to be re-made by hand
   // every week is the chore this exists to remove. `rotation` is what comes AFTER the chosen metric.
   const [repeatWeekly, setRepeatWeekly] = useState(true);
@@ -404,6 +407,11 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
             startDate,
             endDate,
             includeGuests,
+            mode: weeklyMode.mode,
+            ...(weeklyMode.mode === 'teams'
+              ? { teams: weeklyMode.teams.map((n) => ({ name: n })), teamLateJoin: weeklyMode.teamLateJoin }
+              : {}),
+            ...(weeklyMode.mode === 'clans' ? { inviteClans: weeklyMode.clans } : {}),
             ...(repeatWeekly ? { repeat: { rotation: rotation.length > 0 ? [weeklyMetric, ...rotation] : null } } : {}),
           }),
         });
@@ -866,6 +874,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                 />
               </div>
               <Checkbox checked={includeGuests} onChange={setIncludeGuests} label="Guests race too" className="text-sm text-foreground/80" />
+              <WeeklyModeFields value={weeklyMode} onChange={setWeeklyMode} />
               <div className="rounded-lg border border-gold/25 bg-gold/[0.05] p-3 space-y-3">
                 <Checkbox
                   checked={repeatWeekly}

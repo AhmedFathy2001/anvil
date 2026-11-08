@@ -2085,6 +2085,27 @@ export async function sendClanEventPost(clanId: number, embed: DiscordEmbed, pin
   return sendToWebhook(destination, { ...(ping ? await memberPing(clanId) : {}), embeds: [await withClanCrest(clanId, embed)] }, clanId);
 }
 
+/**
+ * Team or clan standings carried by a weekly post (lib/competitionTeams). `you` marks the group the
+ * receiving clan is (clans mode: the clan itself), so each server sees its own side called out.
+ */
+export interface WeeklyGroupPost {
+  mode: 'teams' | 'clans';
+  groups: { name: string; total: number; average: number; members: number; key: number }[];
+  you?: number | null;
+}
+
+function weeklyGroupField(type: string, g: WeeklyGroupPost, label: string) {
+  const fmt = (n: number) => (type === 'efficiency' ? formatEfficiencyHours(Math.round(n)) : Math.round(n).toLocaleString());
+  const unit = type === 'efficiency' ? 'h' : type === 'skill' ? 'XP' : 'KC';
+  const lines = g.groups.slice(0, 10).map((x, i) => {
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+    const mine = g.you != null && x.key === g.you ? ' ← you' : '';
+    return `${medal} **${x.name}** — +${fmt(x.total)} ${unit} · ${fmt(x.average)} avg · ${x.members} ${x.members === 1 ? 'player' : 'players'}${mine}`;
+  });
+  return field(label, lines.join('\n') || 'No teams yet', false);
+}
+
 interface WeeklyStartParams {
   /** The clan this posts for — decides which webhook it lands in. */
   clanId: number;
@@ -2092,6 +2113,8 @@ interface WeeklyStartParams {
   title: string;
   metric: string; // e.g. 'attack', 'zulrah'
   endDate: string;
+  /** Teams / clan-vs-clan line-up. Absent on a solo competition. */
+  groups?: WeeklyGroupPost | null;
 }
 
 export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<boolean> {
@@ -2112,9 +2135,39 @@ export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<bool
     fields: [
       // Exact end time + a live countdown that ticks down in everyone's client.
       field('Ends', `${discordTime(endDate)}\n${discordTime(endDate, 'R')}`),
+      ...(params.groups ? [weeklyGroupField(type, params.groups, params.groups.mode === 'clans' ? 'Clans racing' : 'Teams')] : []),
     ],
   };
+  if (params.groups?.mode === 'clans') {
+    embed.description = 'Clan vs clan — live now. Every clan on the line-up races its whole roster; clan totals decide it.';
+  } else if (params.groups) {
+    embed.description = 'Team competition — live now. Your gains count for your team; team totals decide it.';
+  }
 
+  return sendWeeklyWebhook(params.clanId, { embeds: [await withClanCrest(params.clanId, embed)] });
+}
+
+/** Halfway through a team / clan-vs-clan competition: the standings so far. Solo comps don't post one. */
+export async function notifyWeeklyHalfway(params: {
+  clanId: number;
+  type: string;
+  title: string;
+  metric: string;
+  endDate: string;
+  groups: WeeklyGroupPost;
+}): Promise<boolean> {
+  const { type, title, metric, endDate, groups } = params;
+  const leader = groups.groups[0];
+  const embed: DiscordEmbed = {
+    author: { name: `${weeklyKind(type)} · halfway` },
+    ...weeklyThumbnail(type, metric),
+    title: clamp(`⏳ ${title}`, LIMIT.title),
+    description: leader && leader.total > 0
+      ? `Halfway there — **${leader.name}** leads. Ends ${discordTime(endDate, 'R')}.`
+      : `Halfway there and it's still level. Ends ${discordTime(endDate, 'R')}.`,
+    color: EMBED_COLOR.gold,
+    fields: [weeklyGroupField(type, groups, groups.mode === 'clans' ? 'Clan standings' : 'Team standings')],
+  };
   return sendWeeklyWebhook(params.clanId, { embeds: [await withClanCrest(params.clanId, embed)] });
 }
 
@@ -2126,6 +2179,8 @@ interface WeeklyResultsParams {
   metric: string;
   // Pre-ranked, gains floored at 0. First entry is the winner.
   standings: { rsn: string; gained: number }[];
+  /** Teams / clan-vs-clan final standings — lead the post when present. */
+  groups?: WeeklyGroupPost | null;
 }
 
 // Fired when a weekly competition ends — announces the winner and the final standings (top 10).
@@ -2158,6 +2213,17 @@ export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<
     color: EMBED_COLOR.gold,
     fields: [field('Final standings', standingsText || 'No participants', false)],
   };
+  // Team / clan competitions: the group result is the headline, the players are the detail.
+  if (params.groups && params.groups.groups.length) {
+    const top = params.groups.groups[0];
+    embed.description = top.total > 0
+      ? `🏆 **${top.name}** wins with **+${fmt(top.total)}** ${unit}.` + (winner ? `\nTop player: **${winner.rsn}** (+${fmt(winner.gained)}).` : '')
+      : 'It has ended — nobody posted a gain.';
+    embed.fields = [
+      weeklyGroupField(type, params.groups, params.groups.mode === 'clans' ? 'Clan standings' : 'Team standings'),
+      field('Top players', standingsText || 'No participants', false),
+    ];
+  }
 
   return sendWeeklyWebhook(params.clanId, { embeds: [await withClanCrest(params.clanId, embed)] });
 }

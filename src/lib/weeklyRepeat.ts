@@ -13,7 +13,9 @@ import { settings, weeklyCompetitions } from '@/db/schema';
 import { getSetting, setSetting } from '@/lib/settings';
 import { setWeeklyPool } from '@/lib/coffer';
 import { enrollAllPlayers } from '@/lib/weekly';
-import { notifyWeeklyStart } from '@/lib/discord';
+import { announceCompetitionStart } from '@/lib/competitionTeamsPosts';
+import { competitionMode } from '@/lib/competitionTeams';
+import { autoBalanceTeams, carryOverTeamSetup } from '@/lib/competitionTeamsDb';
 import { parseWeeklyPrizes, totalPrizeGp } from '@/lib/weeklyPrizes';
 import { defaultWeeklyTitle, nextMetric, nextWindow, parseRepeat, type RepeatConfig } from '@/lib/weeklyRepeatPlan';
 import { log } from '@/lib/logger';
@@ -70,6 +72,8 @@ export async function rollWeeklySeries(now: number = Date.now()): Promise<number
           status,
           includeGuests: prev.includeGuests,
           prizes: prev.prizes,
+          mode: prev.mode,
+          teamLateJoin: prev.teamLateJoin,
         })
         .returning();
       // Claim the successor slot first, so a crash below can never make a second one.
@@ -84,9 +88,12 @@ export async function rollWeeklySeries(now: number = Date.now()): Promise<number
         if (!held.ok) await setWeeklyPool({ clanId: prev.clanId, competitionId: comp.id, amount: total, hold: false, userId: null });
       }
 
+      // Same format as last week: teams carried over (then re-balanced), clans re-invited.
+      await carryOverTeamSetup(prev, comp);
       await enrollAllPlayers(comp.id);
+      if (competitionMode(comp.mode) === 'teams') await autoBalanceTeams(comp).catch(() => null);
       if (status === 'active') {
-        await notifyWeeklyStart({ clanId: comp.clanId, type: comp.type, title: comp.title, metric: comp.metric, endDate: comp.endDate }).catch(() => {});
+        await announceCompetitionStart(comp).catch(() => {});
       }
       started += 1;
       log.info('weekly.repeat.started', { clanId: prev.clanId, from: prev.id, to: comp.id, metric });
