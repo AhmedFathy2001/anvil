@@ -10,6 +10,7 @@ import type { StandingsWindow } from '@/lib/standingsWindow';
 import type { BoardSummary } from '@/lib/pluginBoards';
 
 import { type Action, type Color, type Node, backRow, button, card, col, count, exact, gap, icon, muted, nameText, percent, row, text } from './nodes';
+import { missionTileState } from '@/lib/tileState';
 import { boardFeedLinks } from './feedUi';
 
 // The plugin's Clan tab, built here (was the event list and event page in AnvilSidebarPanel, fed by
@@ -691,7 +692,14 @@ function missionRows(d: HomeData, e: NonNullable<HomeConfig['event']>, title: st
   return (e.missions ?? []).map((m) => {
     const val = liveValue(m.points, m.revealedAt, e.decay ?? null, d.now);
     const color: Color = val === m.points ? 'muted' : val > m.points ? 'done' : 'brand';
-    const parts: Node[] = [row(undefined, text(clip(m.label, 22)), text(val === m.points ? String(m.points) : `${m.points} -> ${val}`, color, { align: 'r' }), { bg: 'card' })];
+    const p0 = tiles.get(m.tileId);
+    // The shared tile-state words (lib/tileState): Live with time left, or Done.
+    const hours = m.expiresAt && m.revealedAt ? (Date.parse(m.expiresAt) - Date.parse(m.revealedAt.includes('T') ? m.revealedAt : `${m.revealedAt.replace(' ', 'T')}Z`)) / 3_600_000 : null;
+    const st = missionTileState({ revealedAt: m.revealedAt, expiryHours: hours != null && Number.isFinite(hours) ? hours : null }, { done: !!p0?.complete, now: d.now });
+    const parts: Node[] = [
+      row(undefined, text(clip(m.label, 22)), text(val === m.points ? String(m.points) : `${m.points} -> ${val}`, color, { align: 'r' }), { bg: 'card' }),
+      text(`${st.kind === 'done' ? '✓' : st.kind === 'expired' ? '⌛' : '▸'} ${st.label}${st.detail ? ` · ${st.detail}` : ''}`, st.kind === 'done' ? 'done' : st.kind === 'open' ? 'brand' : 'muted'),
+    ];
     if (m.expiresAt) parts.push({ t: 'countdown', at: m.expiresAt, prefix: 'Expires in ', due: 'Expired', none: '', color: 'brand' });
     const p = tiles.get(m.tileId);
     if (p && p.goal > 0) {

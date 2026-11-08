@@ -270,7 +270,10 @@ function stateText(t: BoardTile, pre: boolean): string | null {
   if (pre) return isManual(t) ? '(manual)' : null;
   const race = raceStateOf(t);
   const open = race === 'open' ? 'Next' : race === 'ahead' ? 'Locked' : 'Open';
-  return `${t.complete ? 'Done' : closedUndone(t) ? 'Closed' : open}${isManual(t) ? ' (manual)' : ''}`;
+  // A closed mission / bounty in the shared tile-state words (lib/tileState): claimed by someone, or
+  // expired unclaimed (hourglass). A closed-off race tile stays "Closed".
+  const closedWord = t.closedAt ? (t.finishedBy?.length || t.teamsDone ? 'Claimed' : '⌛ Expired') : 'Closed';
+  return `${t.complete ? 'Done' : closedUndone(t) ? closedWord : open}${isManual(t) ? ' (manual)' : ''}`;
 }
 
 /** A read-only board's claim block: who may join, when the host gates entry ("… · Subs only (Twitch)"). */

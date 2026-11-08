@@ -592,6 +592,8 @@ export async function buildBoard(
         // stopped accepting completions. Sent on reveal-mode events, and for missions on any board —
         // without it an expired or locked-out mission sat in the plugin's "Not done" list as Open.
         ...(revealMode || isMissionTile(t) ? { revealedAt: t.revealedAt ?? null, closedAt: t.closedAt ?? null } : {}),
+        // A closed one: claimed by a team, or expired unclaimed (the panel's ⌛ Expired).
+        ...(t.closedAt && (revealMode || isMissionTile(t)) ? { teamsDone: anyCompleted.has(t.id) } : {}),
         ...(itemRequirements ? { itemRequirements } : {}),
         ...(raceOn && routeGraph!.byId.has(t.id)
           ? {

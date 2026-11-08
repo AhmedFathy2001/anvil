@@ -1,6 +1,8 @@
 'use client';
 
 import RaceTileDetail, { type RaceDetailContext } from '@/components/board/RaceTileDetail';
+import { TileStateBanner } from '@/components/board/TileState';
+import { missionTileState } from '@/lib/tileState';
 import { useState, useEffect, type ReactNode } from 'react';
 import ImageUpload from './ImageUpload';
 import LocalTime from '@/components/LocalTime';
@@ -754,6 +756,16 @@ export default function TileDetailModal({
 
         <div className="p-4 space-y-4">
           {race && <RaceTileDetail ctx={race} tileId={tile.id} />}
+          {tile.mission ? (() => {
+            // Missions speak the shared tile-state language (lib/tileState): Locked / Live / Done / Claimed / Expired.
+            const mine = teamId != null ? completedBy.find((c) => c.teamId === teamId) : undefined;
+            const view = missionTileState(
+              { revealedAt: tile.revealedAt ?? null, closedAt: tile.closedAt ?? null, expiryHours: missionRules.expiryHours },
+              { done: !!mine, doneBy: mine?.teamName ?? null, claimedBy: !mine && completedBy.length ? completedBy[0].teamName : null },
+            );
+            const title = view.kind === 'open' ? 'Live mission' : view.kind === 'locked' ? 'Not announced yet' : view.kind === 'done' ? 'Done' : view.label;
+            return <TileStateBanner view={view} title={title} className="mb-4" />;
+          })() : null}
           {extra}
           {/* What the tile tracks — the admin-configured items/NPCs/raid. Item lists are
               suppressed when the per-item progress section below already names them. */}
