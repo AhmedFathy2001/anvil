@@ -145,7 +145,8 @@ export async function POST(request: Request) {
       kind: c.kind,
       label: c.label,
       amount: c.amount,
-      have: c.have,
+      // A refused credit never counted: the count from before it, not the one it would have made.
+      have: byTile.get(c.tileId)?.ok === false && byTile.get(c.tileId)?.error !== 'Will retry' ? Math.max(0, c.have - c.amount) : c.have,
       of: c.of,
       ...(c.quiet ? { quiet: true } : {}),
       ...byTile.get(c.tileId),
