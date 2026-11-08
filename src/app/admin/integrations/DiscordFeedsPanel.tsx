@@ -126,7 +126,12 @@ function ModeFilters({ mode, put, disabled }: { mode: ModeRow; put: Put; disable
         <Checkbox
           checked={mode.levels != null}
           disabled={disabled}
-          onChange={(on) => void put(mode.id, { mode: mode.key, levels: on ? levelHalf(levels) : null })}
+          onChange={(on) =>
+            void put(mode.id, { mode: mode.key, levels: on ? levelHalf(levels) : null }).then((ok) => {
+              // Switching on saves the milestones as edited, so that is the new baseline.
+              if (ok && on) setSavedLevels(levels);
+            })
+          }
           label={`Post level-ups from ${mode.label}`}
           description={`Off = none: ${mode.label} is a separate character, so its levels never post by default. On = the milestones below, instead of the main game's. Members who turned level posts off stay off.`}
         />
