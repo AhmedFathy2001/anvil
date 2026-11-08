@@ -15,6 +15,8 @@ import { getTierBands } from '@/lib/pluginConfig';
 import { parseContributionSnapshot } from '@/lib/statTracking';
 import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { loadPlayerOwners, attachOwners, loadEventProfiles } from '@/lib/draftProfiles';
+import { isLabClan } from '@/lib/lab';
+import { withoutLabPins } from '@/lib/labRules';
 import { coverageGaps, rosterShape } from '@/lib/rosterShape';
 import RosterShapePanel from '@/components/RosterShapePanel';
 import type { Completion } from '@/lib/types';
@@ -162,7 +164,11 @@ export default async function MyTeamPage({
   const eventTiles = boardHidden ? [] : visibleTiles(parseEventRules(event.rules), allEventTiles);
   // Attach each player's owner so MyTeamClient can roll a person's accounts into one contributor
   // for MVP + team size when the event is 'per-person' scored (no-op at maxAccounts=1).
-  const eventPlayers = attachOwners(rawEventPlayers, await loadPlayerOwners(rawEventPlayers));
+  // A lab board pins stats with frozenAt — not a sub-out, so keep it off the roster's "Subbed out".
+  const eventPlayers = withoutLabPins(
+    attachOwners(rawEventPlayers, await loadPlayerOwners(rawEventPlayers)),
+    await isLabClan(event.clanId),
+  );
 
   const tileIds = new Set(eventTiles.map((t) => t.id));
   const teamCompletions: Completion[] = tileIds.size

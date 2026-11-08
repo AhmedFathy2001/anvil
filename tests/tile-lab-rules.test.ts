@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 
 import { CHAT_PATTERN_CATALOG, checkOverride, testLine } from '../src/lib/chatPatternRules.ts';
 import { checkScenario } from '../src/lib/labScenarios.ts';
+import { withoutLabPins } from '../src/lib/labRules.ts';
 import templates from '../src/data/labScenarioTemplates.json' with { type: 'json' };
 
 test('every built-in pattern matches its own samples in JavaScript too, captures and all', () => {
@@ -55,4 +56,16 @@ test('a scenario the harness would skip is refused', () => {
   assert.match(checkScenario('ok', [{ loot: { kind: 'npc', name: 'X', items: [{}] } }]).join(' '), /id or a name/);
   assert.match(checkScenario('ok', [{ wait: 1 }], { kc: 5 }).join(' '), /string defaults/);
   assert.deepEqual(checkScenario('ok', [{ wait: '${t}' }, { chat: { message: 'hi ${me}' } }]), []);
+});
+
+test('a lab stat pin is not shown as a sub-out; a real bench elsewhere still is', () => {
+  // lib/labStats freezes the participant who is pushing stats, so on a lab board frozenAt means
+  // "pinned", and the most active member was rendering struck through as "Subbed out".
+  const rows = [
+    { id: 1, name: 'Drenvox', frozenAt: '2026-11-08T10:00:00.000Z' },
+    { id: 2, name: 'Other', frozenAt: null },
+  ];
+  assert.deepEqual(withoutLabPins(rows, true).map((r) => r.frozenAt), [null, null]);
+  assert.equal(rows[0].frozenAt, '2026-11-08T10:00:00.000Z', 'the input rows are not mutated');
+  assert.equal(withoutLabPins(rows, false), rows, 'off the lab the rows pass through untouched');
 });
