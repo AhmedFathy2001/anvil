@@ -50,6 +50,8 @@ import {
   parseEventRules,
   hasRevealPolicy,
   visibleTiles,
+  isMissionTile,
+  lockedMissionPreviews,
   isTileRevealed,
   nextRevealAt,
   rotationExpiries,
@@ -471,7 +473,10 @@ export default async function EventScoreboardPage({
       ? await getEventLuck(event.id).catch(() => null)
       : null;
   const boardTiles = visibleTiles(rules, eventTiles);
-  const hiddenTileCount = hasRevealPolicy(rules) ? eventTiles.length - visibleTiles(rules, eventTiles).length : 0;
+  // Board tiles only: a mission hidden until its drop isn't even a number in "N still hidden".
+  const hiddenTileCount = hasRevealPolicy(rules)
+    ? eventTiles.filter((t) => !isMissionTile(t)).length - visibleTiles(rules, eventTiles).filter((t) => !isMissionTile(t)).length
+    : 0;
   // Nothing here is staff-only any more: this page shows one board, the member's. The "which tiles
   // can't they see" overlay lives on the admin team boards, which is where a host checks that.
   const staffOnlyTileIds: number[] = [];
@@ -484,7 +489,8 @@ export default async function EventScoreboardPage({
   const hiddenSchedule =
     rules.revealPolicy === 'scheduled'
       ? eventTiles
-          .filter((t) => !isTileRevealed(rules, t))
+          // A mission is never a schedule slot: one hidden until its drop shows nothing at all.
+          .filter((t) => !isTileRevealed(rules, t) && !isMissionTile(t))
           .map((t) => ({ revealAt: t.revealAt, points: t.points }))
       : [];
 
@@ -915,6 +921,7 @@ export default async function EventScoreboardPage({
           curtain={curtain}
           event={event}
           tiles={withSearchText(boardTiles)}
+          lockedMissions={lockedMissionPreviews(eventTiles)}
           teams={safeTeams}
           completions={eventCompletions}
           tierBands={tierBands}

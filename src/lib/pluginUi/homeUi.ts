@@ -49,6 +49,8 @@ export interface HomeConfig {
     decay?: { hours: number; targetPct: number } | null;
     missions?: Mission[];
     missionsLeft?: number;
+    /** Missions shown as Locked before they drop — their names only. */
+    lockedMissions?: { label: string }[];
     standings?: { yourRank: number } | null;
     monthlyStandings?: { yourRank: number; yourPoints: number } | null;
     /** A branching tile race (lib/raceRoutes): the "Your race" card. */
@@ -608,8 +610,8 @@ function boardPage(d: HomeData, b: Board): Node[] {
     parts.push(gap(12));
   }
 
-  const ladder = event && (b.ladder || event.missions?.length) ? event : null;
-  if (d.live && ladder && !b.ladder && ladder.missions?.length) parts.push(...heading('Missions'), card([countdown(ladder, false), gap(4), ...missionRows(d, ladder, b.title)]), gap(12));
+  const ladder = event && (b.ladder || event.missions?.length || event.lockedMissions?.length) ? event : null;
+  if (d.live && ladder && !b.ladder && (ladder.missions?.length || ladder.lockedMissions?.length)) parts.push(...heading('Missions'), card([countdown(ladder, false), gap(4), ...missionRows(d, ladder, b.title)]), gap(12));
 
   const feed = foldFeed(d.feed);
   const actions = feed.filter((e) => e.kind !== 'reveal');
@@ -702,7 +704,7 @@ function summary(d: HomeData, b: Board): Node {
       gap(6),
       countdown(e, true),
       gap(6),
-      ...(e.missions?.length ? [text('Active missions', LIGHT), gap(2), ...missionRows(d, e, b.title)] : [text('Waiting for the next mission…', LIGHT)]),
+      ...(e.missions?.length || e.lockedMissions?.length ? [text('Active missions', LIGHT), gap(2), ...missionRows(d, e, b.title)] : [text('Waiting for the next mission…', LIGHT)]),
       ...(d.boardPath ? [gap(6), siteLink('View standings', 'Open the full standings on the Anvil site', d.boardPath)] : []),
     ]);
   }
@@ -719,7 +721,7 @@ function summary(d: HomeData, b: Board): Node {
 
 /** "Next mission in 12:34", ticking in the plugin. */
 function countdown(e: NonNullable<HomeConfig['event']>, ladder: boolean): Node {
-  const none = ladder ? 'Next mission drops on a claim' : e.missionsLeft === 0 ? 'No more missions to come' : 'Next mission: whenever staff drop it';
+  const none = ladder ? 'Next mission drops on a claim' : 'Next mission: whenever staff drop it';
   return { t: 'countdown', at: e.nextRevealAt ?? null, prefix: 'Next mission in ', due: 'New mission dropping…', none, font: 'bold', color: 'brand' };
 }
 
@@ -742,7 +744,7 @@ function missionRows(d: HomeData, e: NonNullable<HomeConfig['event']>, title: st
       parts.push(gap(2), row(undefined, { t: 'bar', pct: p.complete ? 100 : percent(p.current, p.goal), color: p.complete ? 'done' : IN_PROGRESS, h: 6, bg: 'panel', ...(p.complete ? {} : { live: { tile: m.tileId, cur: p.current, goal: p.goal } }) }, muted(p.complete ? 'Done' : `${count(p.current)} / ${count(p.goal)}`, p.complete ? {} : { tip: exact(p.current, p.goal), live: { tile: m.tileId, cur: p.current, goal: p.goal } })));
     }
     return col(parts, { on: openTile(m.tileId, title) });
-  });
+  }).concat((e.lockedMissions ?? []).map((m) => row(undefined, text(clip(m.label, 22), 'muted'), text('🔒 Locked', 'muted', { align: 'r', tip: 'Not announced yet' }), { bg: 'card' })));
 }
 
 /** A tile's line: name and count, a "who" byline, a bar; a click opens it on the board page. */

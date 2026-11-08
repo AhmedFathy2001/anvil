@@ -1,7 +1,8 @@
 import { db } from '@/db';
-import { completions, events, tiles } from '@/db/schema';
+import { completions, eventParticipants, events, tiles } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
-import { raceGraph, canCreditRaceTile } from '@/lib/raceRoutes';
+import { raceGraph, canCreditRaceTile, raceTileNeedsBaseline } from '@/lib/raceRoutes';
+import { parseRevealStats } from '@/lib/revealStats';
 import { loadRacePicks } from '@/lib/raceRoutePicks';
 import {
   completionAward,
@@ -150,8 +151,21 @@ export async function evaluateCompletionGate(args: {
     const board = await db.select().from(tiles).where(and(eq(tiles.eventId, event.id), isNull(tiles.parentTileId)));
     const done = (await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, teamId))).map((r) => r.tileId);
     const picks = await loadRacePicks(event, teamId);
-    if (!done.includes(tile.id) && !canCreditRaceTile(raceGraph(board), done, tile.id, picks)) {
+    const graph = raceGraph(board);
+    if (!done.includes(tile.id) && !canCreditRaceTile(graph, done, tile.id, picks)) {
       return { allowed: false, reason: 'That tile isn’t open on your team’s route yet.', awardedPoints: null, bounty, rules, raceLocked: true };
+    }
+    // A stat (XP / KC) race tile counts only what the team gains AFTER it opened for them: its
+    // baseline is captured at the open (lib/raceRoutesDb). Missing one — a capture that hasn't landed
+    // yet, or a race already running when this shipped — take it now and count from here.
+    if (!done.includes(tile.id) && tile.trackedStat && tile.statType && raceTileNeedsBaseline(graph, tile.id, eventRules.raceRoad)) {
+      const stats = parseRevealStats(tile.revealStats);
+      const mine = await db.select({ id: eventParticipants.id }).from(eventParticipants).where(and(eq(eventParticipants.eventId, event.id), eq(eventParticipants.teamId, teamId)));
+      if (mine.length && !mine.some((p) => stats?.[p.id] != null)) {
+        const { captureRaceOpenStats } = await import('@/lib/revealStatsCapture');
+        await captureRaceOpenStats(event.id, teamId, [tile.id]);
+        return { allowed: false, reason: 'This tile counts from when it opened for your team — counting starts now.', awardedPoints: null, bounty, rules };
+      }
     }
   }
 

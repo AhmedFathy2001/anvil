@@ -757,13 +757,14 @@ export default function TileDetailModal({
         <div className="p-4 space-y-4">
           {race && <RaceTileDetail ctx={race} tileId={tile.id} />}
           {tile.mission ? (() => {
-            // Missions speak the shared tile-state language (lib/tileState): Locked / Live / Done / Claimed / Expired.
+            // Missions speak the shared tile-state language (lib/tileState): Locked / Live / Done / Closed / Expired.
+            // completedBy is already cut to the viewer's own team behind hidden standings, so a taker is never named there.
             const mine = teamId != null ? completedBy.find((c) => c.teamId === teamId) : undefined;
             const view = missionTileState(
               { revealedAt: tile.revealedAt ?? null, closedAt: tile.closedAt ?? null, expiryHours: missionRules.expiryHours },
               { done: !!mine, doneBy: mine?.teamName ?? null, claimedBy: !mine && completedBy.length ? completedBy[0].teamName : null },
             );
-            const title = view.kind === 'open' ? 'Live mission' : view.kind === 'locked' ? 'Not announced yet' : view.kind === 'done' ? 'Done' : view.label;
+            const title = view.kind === 'open' ? 'Live' : view.kind === 'locked' ? 'Locked' : view.kind === 'closed' ? 'Closed — someone else took it' : view.label;
             return <TileStateBanner view={view} title={title} className="mb-4" />;
           })() : null}
           {extra}
