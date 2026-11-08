@@ -39,10 +39,22 @@ export async function enrollAllPlayers(competitionId: number) {
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const comp = await db.query.weeklyCompetitions.findFirst({
     where: eq(weeklyCompetitions.id, competitionId),
-    columns: { includeGuests: true, clanId: true },
+    columns: { includeGuests: true, clanId: true, hostEntrants: true },
   });
   // A comp that vanished between scheduling and this call has nobody to enroll.
   if (!comp) return 0;
+  // 'selected': the host enters only the people an admin adds — no roster sweep for the host side.
+  if (comp.hostEntrants === 'selected') {
+    try {
+      const teams = await import('@/lib/competitionTeamsDb');
+      const n = await teams.enrollPartnerClans(competitionId);
+      await teams.placeLateJoiners(competitionId);
+      return n;
+    } catch (err) {
+      log.warn('weekly.team-enroll-fail', { competitionId }, err);
+      return 0;
+    }
+  }
   const trackGuests = comp.includeGuests === 1;
   // Skip unranked/banned/archived members — re-enrolling them just re-creates rows the
   // cron will immediately quarantine. They become eligible again when a re-probe job
@@ -532,11 +544,15 @@ function detectNegativeGains(
  * every leaderboard/headcount surface so the plugin, website, and public pages agree on who's in.
  */
 export const countsTowardLeaderboard = () =>
-  or(
-    isNull(weeklyParticipants.clanMemberId),
-    isNull(clanRoster.leftAt),
-    eq(weeklyParticipants.keepIfLeft, 1),
-  );
+  and(
+    // Opted out of this competition (lib/competitionTeamsDb setOptOut): off every board.
+    eq(weeklyParticipants.optedOut, false),
+    or(
+      isNull(weeklyParticipants.clanMemberId),
+      isNull(clanRoster.leftAt),
+      eq(weeklyParticipants.keepIfLeft, 1),
+    ),
+  )!;
 
 /**
  * Participants whose standings should count for a competition — everyone enrolled minus those

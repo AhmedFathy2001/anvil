@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { clanRoster, memberDailyStats, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { and, count, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { clanRoster, clans, memberDailyStats, weeklyCompetitionClans, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { and, count, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm';
 import { EFFICIENCY_LABELS, SKILL_LABELS, bossMetricLabel } from '@/lib/constants';
 import { competitionIconUrl } from '@/lib/tileIcons';
 import { dayRange, metricGain, type CompetitionType } from '@/lib/competitionInsights';
@@ -42,6 +42,10 @@ export interface WeeklyCard {
   top: { rsn: string; value: number; tied: boolean } | null;
   /** Clan-wide gain per day, for the sparkline. Empty unless the caller asked and it's drawable. */
   days: number[];
+  /** Clan vs clan this clan RACES in but another clan hosts (lib/competitionTeamsDb) — its name and
+      address, for a "hosted by" hint. Null on this clan's own competitions. */
+  hostName?: string | null;
+  hostSlug?: string | null;
 }
 
 export interface LoadWeeklyCardsOptions {
@@ -70,7 +74,26 @@ export async function loadWeeklyCards(
     const q = db
       .select()
       .from(weeklyCompetitions)
-      .where(and(eq(weeklyCompetitions.clanId, clanId), eq(weeklyCompetitions.status, status)))
+      .where(
+        and(
+          // This clan's own weeklies, plus clan-vs-clan ones it ACCEPTED an invite into (any number of
+          // clans may race one). Pending invites are not listed here — they are invite cards.
+          or(
+            eq(weeklyCompetitions.clanId, clanId),
+            and(
+              eq(weeklyCompetitions.mode, 'clans'),
+              inArray(
+                weeklyCompetitions.id,
+                db
+                  .select({ id: weeklyCompetitionClans.competitionId })
+                  .from(weeklyCompetitionClans)
+                  .where(and(eq(weeklyCompetitionClans.clanId, clanId), eq(weeklyCompetitionClans.status, 'accepted'))),
+              ),
+            ),
+          ),
+          eq(weeklyCompetitions.status, status),
+        ),
+      )
       .orderBy(desc(weeklyCompetitions.startDate));
     return take != null ? q.limit(take) : q;
   };
@@ -201,6 +224,14 @@ export async function loadWeeklyCards(
     }
   }
 
+  // Hosts of the clan-vs-clan competitions this clan races in but doesn't own, for "hosted by".
+  const foreign = [...new Set(shown.filter((c) => c.clanId !== clanId).map((c) => c.clanId))];
+  const hosts = new Map(
+    foreign.length
+      ? (await db.select({ id: clans.id, name: clans.name, slug: clans.slug }).from(clans).where(inArray(clans.id, foreign))).map((h) => [h.id, h])
+      : [],
+  );
+
   return shown.map((c) => {
     // The stage, not the raw status: a week stays 'active' until the lifecycle cron closes it, so a
     // Boss of the Week that ended yesterday sat under "On now" with a LIVE badge until then.
@@ -220,6 +251,8 @@ export async function loadWeeklyCards(
       unit: unitFor(c.type),
       top: leader && leader.gained > 0 ? { rsn: leader.rsn, value: leader.gained, tied: leader.tied } : null,
       days: shapeFor.get(c.id) ?? [],
+      hostName: hosts.get(c.clanId)?.name ?? null,
+      hostSlug: hosts.get(c.clanId)?.slug ?? null,
     };
   });
 }

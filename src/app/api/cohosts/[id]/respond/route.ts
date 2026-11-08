@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { verifyUser } from '@/lib/auth';
-import { acceptCoHostInvite, declineCoHostInvite } from '@/lib/coHost';
+import { acceptCoHostInvite, declineAndBlockCoHost, declineCoHostInvite } from '@/lib/coHost';
 import { CREATOR_NOT_AVAILABLE } from '@/lib/creatorSpaces';
 
 /**
@@ -18,8 +18,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const body = await request.json().catch(() => null);
   const action = body?.action;
-  if (action !== 'accept' && action !== 'decline') {
-    return NextResponse.json({ error: 'action must be accept or decline' }, { status: 400 });
+  if (action !== 'accept' && action !== 'decline' && action !== 'block') {
+    return NextResponse.json({ error: 'action must be accept, decline or block' }, { status: 400 });
+  }
+  // "Decline & block this clan" (lib/clanBlocks): its later invites are refused silently.
+  if (action === 'block') {
+    const r = await declineAndBlockCoHost(id, session.userId);
+    if (!r.ok) return NextResponse.json({ error: r.error }, { status: 403 });
+    return NextResponse.json({ ok: true });
   }
 
   if (action === 'accept') {

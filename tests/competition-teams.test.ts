@@ -161,3 +161,11 @@ test('panel payload: your team line, compact standings, nodes', () => {
   assert.equal(none.you, null);
   assert.equal(yourGroupCard('boss', none), null);
 });
+
+test('only an owner/admin may invite clans from the create form', async () => {
+  const { inviteOnCreateRefused } = await import('../src/lib/competitionTeams.ts');
+  assert.equal(inviteOnCreateRefused('clans', 2, false), true, 'moderator inviting: refused');
+  assert.equal(inviteOnCreateRefused('clans', 2, true), false);
+  assert.equal(inviteOnCreateRefused('clans', 0, false), false, 'creating without invites is fine');
+  assert.equal(inviteOnCreateRefused('teams', 2, false), false);
+});

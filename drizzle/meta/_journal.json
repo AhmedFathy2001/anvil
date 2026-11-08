@@ -1247,6 +1247,13 @@
       "when": 1794400159469,
       "tag": "0242_team_competitions",
       "breakpoints": true
+    },
+    {
+      "idx": 243,
+      "version": "7",
+      "when": 1794410159469,
+      "tag": "0243_competition_entrants",
+      "breakpoints": true
     }
   ]
 }

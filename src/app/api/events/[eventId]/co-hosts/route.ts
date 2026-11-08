@@ -116,6 +116,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   const kindRefusal = await coHostKindRefusal(eventId, target.id);
   if (kindRefusal) return NextResponse.json({ error: kindRefusal }, { status: 400 });
 
-  const { id, created } = await inviteCoHost(eventId, target.id, session.userId);
+  const { id, created, refused: gate } = await inviteCoHost(eventId, target.id, session.userId);
+  if (gate) return NextResponse.json({ error: gate.error }, { status: gate.status });
   return NextResponse.json({ ok: true, id, created });
 }

@@ -10,6 +10,7 @@
 // double-grants a staff seat, so a retried accept is safe.
 
 import { parseBoardAccess, staffCanEditFrom, type BoardAccess } from '@/lib/cohostBoardAccess';
+import { blockClan, inviteGate } from '@/lib/clanBlocks';
 import { CREATOR_NOT_AVAILABLE, clanKindOf } from '@/lib/creatorSpaces';
 import { and, eq, inArray } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
@@ -109,12 +110,34 @@ export async function coHostKindRefusal(eventId: number, clanId: number): Promis
 }
 
 /** Invite a clan to co-host an event. Returns the (possibly pre-existing) co-host row's id. */
-export async function inviteCoHost(eventId: number, clanId: number, byUserId: number | null): Promise<{ id: number; created: boolean }> {
+export async function inviteCoHost(
+  eventId: number,
+  clanId: number,
+  byUserId: number | null,
+): Promise<{ id: number; created: boolean; refused?: { error: string; status: number } }> {
   const existing = await db
     .select({ id: eventCohosts.id, status: eventCohosts.status })
     .from(eventCohosts)
     .where(and(eq(eventCohosts.eventId, eventId), eq(eventCohosts.clanId, clanId)))
     .then((r) => r[0]);
+
+  // Blocks + the invite rate limit (lib/clanBlocks), before any NEW question is asked — a fresh row
+  // or a re-opened decline. A clan that blocked the host is refused silently: the row reads
+  // declined to the host and never reaches the blocker.
+  if (!existing || existing.status === 'declined') {
+    // clan-scope: this clan -- the event's own host clan, read to name the sender.
+    const ev = await db.select({ clanId: events.clanId }).from(events).where(eq(events.id, eventId)).then((r) => r[0]);
+    const gate = ev ? await inviteGate(ev.clanId, clanId) : ({ kind: 'ok' } as const);
+    if (gate.kind === 'refused') return { id: existing?.id ?? 0, created: false, refused: { error: gate.error, status: gate.status } };
+    if (gate.kind === 'silent') {
+      if (existing) return { id: existing.id, created: false };
+      const [row] = await db
+        .insert(eventCohosts)
+        .values({ eventId, clanId, status: 'declined', invitedByUserId: byUserId, decidedAt: new Date().toISOString() })
+        .returning({ id: eventCohosts.id });
+      return { id: row.id, created: true };
+    }
+  }
 
   if (existing) {
     // A DECLINE IS NOT PERMANENT. This used to hand the existing row straight back, so re-inviting a
@@ -391,6 +414,18 @@ export async function acceptCoHostInvite(
   }
 
   return { ok: true, teamId };
+}
+
+/** Decline a co-host invite AND block the host clan (lib/clanBlocks). Same authority as declining. */
+export async function declineAndBlockCoHost(cohostId: number, byUserId: number): Promise<{ ok: boolean; error?: string }> {
+  const row = await db.query.eventCohosts.findFirst({ where: eq(eventCohosts.id, cohostId) });
+  if (!row) return { ok: false, error: 'Invite not found' };
+  const r = await declineCoHostInvite(cohostId, byUserId);
+  if (!r.ok) return r;
+  // clan-scope: this clan -- the event's host, read to name whom to block.
+  const ev = await db.select({ clanId: events.clanId }).from(events).where(eq(events.id, row.eventId)).then((x) => x[0]);
+  if (ev) await blockClan(row.clanId, ev.clanId, byUserId);
+  return { ok: true };
 }
 
 /** Decline a co-host invite. Only an admin+ of the invited clan may. */

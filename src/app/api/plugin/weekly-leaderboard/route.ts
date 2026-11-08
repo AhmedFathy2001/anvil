@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { resolvePluginClan } from '@/lib/auth';
-import { weeklyCompetitions } from '@/db/schema';
+import { normalizeRsn, resolvePluginClan } from '@/lib/auth';
+import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { weeklyMetricLabel } from '@/lib/constants';
@@ -22,6 +22,28 @@ import { weeklyGroupsPayload } from '@/lib/pluginUi/teamStandingsUi';
 // picked whichever active competition came back first, so a clan between competitions showed a
 // stranger's standings in its own side panel.
 const MAX_ENTRIES = 50;
+
+async function pluginEntry(competitionId: number, status: string, rsn: string | null) {
+  if (!rsn || status === 'completed') return null;
+  const rows = await db
+    .select({ optedOut: weeklyParticipants.optedOut })
+    .from(weeklyParticipants)
+    .where(and(eq(weeklyParticipants.competitionId, competitionId), eq(weeklyParticipants.rsnNormalized, normalizeRsn(rsn))));
+  if (!rows.length) return null;
+  const optedOut = rows.every((r) => r.optedOut);
+  return {
+    entered: true,
+    optedOut,
+    // "You're in · Opt out" / "You've opted out · Opt back in"
+    label: optedOut ? "You've opted out" : "You're in",
+    action: {
+      label: optedOut ? 'Opt back in' : 'Opt out',
+      method: 'POST',
+      path: '/api/plugin/weekly/opt-out',
+      body: { competitionId, optOut: !optedOut },
+    },
+  };
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -92,5 +114,8 @@ export async function GET(request: Request) {
     // Team / clan-vs-clan standings (null on a solo competition) — lib/pluginUi/teamStandingsUi.
     // `groups.you.line` is the ready-to-print "Your team: 2nd of 4 · +1.2M XP".
     groups: weeklyGroupsPayload(comp.type, await buildGroupStandings(comp, { rsn: searchParams.get('rsn') })),
+    // "You're in · Opt out" for the panel: this RSN's entry, and the call that flips it. The call is
+    // token-authenticated (it acts on the logged-in character, not on this RSN).
+    entry: await pluginEntry(comp.id, comp.status, searchParams.get('rsn')),
   });
 }

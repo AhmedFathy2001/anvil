@@ -7,7 +7,7 @@
  *    visibility rule: a clan sees a competition it owns, or one it ACCEPTED an invite into — and an
  *    accepted partner only reads; every write stays with the owning clan.
  */
-import { and, asc, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, or } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -22,6 +22,8 @@ import {
 } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
+import { canSeeClan } from '@/lib/clanAccess';
+import { blockClan, inviteGate } from '@/lib/clanBlocks';
 import { rosterClanSeat } from '@/lib/seatScope';
 import { countsTowardLeaderboard } from '@/lib/weekly';
 import { readMetricFromSnapshot } from '@/lib/weeklyMetric';
@@ -41,6 +43,9 @@ import {
 type Competition = typeof weeklyCompetitions.$inferSelect;
 
 export const MAX_TEAMS = 16;
+/** Clans in one clan-vs-clan competition, host included. A sanity cap, not a design limit — the
+ *  standings, posts, lists and visibility checks all take any number. */
+export const MAX_RACING_CLANS = 50;
 
 // ── visibility ──────────────────────────────────────────────────────────────────────────────────
 
@@ -69,15 +74,36 @@ export async function competitionForClan(
 }
 
 /** The clans racing a clans-mode competition: the host, then accepted partners (by acceptance). */
-export async function racingClans(comp: Pick<Competition, 'id' | 'clanId'>): Promise<{ id: number; name: string; slug: string }[]> {
-  const host = await db.query.clans.findFirst({ where: eq(clans.id, comp.clanId), columns: { id: true, name: true, slug: true } });
+export async function racingClans(
+  comp: Pick<Competition, 'id' | 'clanId'>,
+): Promise<{ id: number; name: string; slug: string; visibility: string | null }[]> {
+  const host = await db.query.clans.findFirst({
+    where: eq(clans.id, comp.clanId),
+    columns: { id: true, name: true, slug: true, visibility: true },
+  });
   const partners = await db
-    .select({ id: clans.id, name: clans.name, slug: clans.slug })
+    .select({ id: clans.id, name: clans.name, slug: clans.slug, visibility: clans.visibility })
     .from(weeklyCompetitionClans)
     .innerJoin(clans, eq(clans.id, weeklyCompetitionClans.clanId))
     .where(and(eq(weeklyCompetitionClans.competitionId, comp.id), eq(weeklyCompetitionClans.status, 'accepted')))
     .orderBy(asc(weeklyCompetitionClans.decidedAt), asc(weeklyCompetitionClans.id));
   return [...(host ? [host] : []), ...partners];
+}
+
+/**
+ * May this viewer read a competition's standings? A clan-vs-clan board shows every racing clan's
+ * players, so it is readable only when EVERY racing clan's privacy lets the viewer in — however many
+ * clans race. Solo/teams boards hold one clan, whose page layout already gates it.
+ */
+export async function competitionReadableBy(
+  comp: Pick<Competition, 'id' | 'clanId' | 'mode'>,
+  viewer: { playerId: number | null; userId: number | null },
+): Promise<boolean> {
+  if (competitionMode(comp.mode) !== 'clans') return true;
+  for (const c of await racingClans(comp)) {
+    if (!(await canSeeClan({ clanId: c.id, visibility: c.visibility, playerId: viewer.playerId, userId: viewer.userId }))) return false;
+  }
+  return true;
 }
 
 /** Active clans-mode competitions `clanId` is a partner in (not the host) — for the plugin and lists. */
@@ -290,6 +316,31 @@ export async function inviteClanToCompetition(
   const existing = await db.query.weeklyCompetitionClans.findFirst({
     where: and(eq(weeklyCompetitionClans.competitionId, comp.id), eq(weeklyCompetitionClans.clanId, target.id)),
   });
+  if (existing && existing.status !== 'declined') return { ok: true, id: existing.id };
+
+  // Any number of clans may race — capped only for sanity (MAX_RACING_CLANS, host included).
+  const racing = await db
+    .select({ id: weeklyCompetitionClans.id })
+    .from(weeklyCompetitionClans)
+    .where(and(eq(weeklyCompetitionClans.competitionId, comp.id), inArray(weeklyCompetitionClans.status, ['pending', 'accepted'])));
+  if (racing.length + 1 >= MAX_RACING_CLANS) {
+    return { ok: false, error: `At most ${MAX_RACING_CLANS} clans can race one competition`, status: 400 };
+  }
+
+  // Blocks and the invite rate limit (lib/clanBlocks). A clan that blocked us is refused SILENTLY:
+  // the row is written already declined, so they never see it and we see "declined" — no "you're
+  // blocked" message to probe with.
+  const gate = await inviteGate(hostClanId, target.id);
+  if (gate.kind === 'refused') return { ok: false, error: gate.error, status: gate.status };
+  if (gate.kind === 'silent') {
+    if (existing) return { ok: true, id: existing.id };
+    const [row] = await db
+      .insert(weeklyCompetitionClans)
+      .values({ competitionId: comp.id, clanId: target.id, invitedByUserId: byUserId, status: 'declined', decidedAt: new Date().toISOString() })
+      .returning({ id: weeklyCompetitionClans.id });
+    return { ok: true, id: row.id };
+  }
+
   if (existing) {
     if (existing.status === 'declined') {
       await db
@@ -306,44 +357,183 @@ export async function inviteClanToCompetition(
   return { ok: true, id: row.id };
 }
 
+async function isClanAdmin(clanId: number, userId: number): Promise<boolean> {
+  const staff = await db
+    .select({ role: clanStaff.role })
+    .from(clanStaff)
+    .where(and(eq(clanStaff.clanId, clanId), eq(clanStaff.userId, userId)))
+    .then((r) => r[0]);
+  return !!staff && atLeast(staff.role, 'admin');
+}
+
+export type EntrantsChoice = { entrants: 'all' } | { entrants: 'selected'; rsns: string[] };
+
+export function parseEntrantsChoice(raw: unknown): EntrantsChoice | null {
+  const o = raw as { entrants?: unknown; rsns?: unknown } | null;
+  if (!o || o.entrants === undefined || o.entrants === 'all') return { entrants: 'all' };
+  if (o.entrants === 'selected') {
+    const rsns = Array.isArray(o.rsns) ? o.rsns.filter((x): x is string => typeof x === 'string' && x.trim().length > 0).slice(0, 500) : [];
+    return { entrants: 'selected', rsns };
+  }
+  return null;
+}
+
 /**
  * The invited clan answers. Only an admin+ (clan_staff) of the INVITED clan may — the same bar as
- * accepting an event co-host invite. Accepting enrols that clan's roster straight away.
+ * accepting an event co-host invite. Nobody from that clan is entered until it accepts; on accept its
+ * side is entered per its choice — every member ('all', the default) or the people it picks
+ * ('selected'). Each player can then opt out (setOptOut).
+ *
+ * 'block' declines AND blocks the sending clan (lib/clanBlocks): its later invites are refused silently.
  */
 export async function respondToCompetitionInvite(
   inviteId: number,
   byUserId: number,
-  action: 'accept' | 'decline',
-): Promise<{ ok: true; competitionId: number } | { ok: false; error: string }> {
+  action: 'accept' | 'decline' | 'block',
+  choice: EntrantsChoice = { entrants: 'all' },
+): Promise<{ ok: true; competitionId: number; unknown?: string[] } | { ok: false; error: string }> {
   const row = await db.query.weeklyCompetitionClans.findFirst({ where: eq(weeklyCompetitionClans.id, inviteId) });
   if (!row) return { ok: false, error: 'Invite not found' };
-  const staff = await db
-    .select({ role: clanStaff.role })
-    .from(clanStaff)
-    .where(and(eq(clanStaff.clanId, row.clanId), eq(clanStaff.userId, byUserId)))
-    .then((r) => r[0]);
-  if (!staff || !atLeast(staff.role, 'admin')) return { ok: false, error: 'Only an owner or admin of the invited clan can answer' };
-  // clan-scope: this clan -- the invite row names the clan; the competition is read for its status only.
+  if (!(await isClanAdmin(row.clanId, byUserId))) return { ok: false, error: 'Only an owner or admin of the invited clan can answer' };
+  // clan-scope: this clan -- the invite row names the clan; the competition is read for its status and host only.
   const comp = await db.query.weeklyCompetitions.findFirst({ where: eq(weeklyCompetitions.id, row.competitionId) });
-  if (!comp || comp.status === 'completed') return { ok: false, error: 'This competition has ended' };
+  if (!comp) return { ok: false, error: 'Invite not found' };
 
-  if (action === 'decline') {
-    if (row.status === 'accepted') return { ok: false, error: 'Already accepted — ask the host to remove your clan' };
+  if (action === 'decline' || action === 'block') {
+    if (row.status === 'accepted') return { ok: false, error: 'Already racing — ask the host to remove your clan' };
     await db
       .update(weeklyCompetitionClans)
       .set({ status: 'declined', decidedByUserId: byUserId, decidedAt: new Date().toISOString() })
       .where(eq(weeklyCompetitionClans.id, inviteId));
+    if (action === 'block') await blockClan(row.clanId, comp.clanId, byUserId);
     return { ok: true, competitionId: row.competitionId };
   }
+  if (comp.status === 'completed') return { ok: false, error: 'This competition has ended' };
   if (row.status === 'declined') return { ok: false, error: 'This invite was declined' };
   if (row.status !== 'accepted') {
     await db
       .update(weeklyCompetitionClans)
-      .set({ status: 'accepted', decidedByUserId: byUserId, decidedAt: new Date().toISOString() })
+      .set({ status: 'accepted', entrants: choice.entrants, decidedByUserId: byUserId, decidedAt: new Date().toISOString() })
       .where(eq(weeklyCompetitionClans.id, inviteId));
   }
-  await enrollPartnerClans(row.competitionId);
-  return { ok: true, competitionId: row.competitionId };
+  const unknown = await applyClanEntrants(row.competitionId, row.clanId, choice);
+  return { ok: true, competitionId: row.competitionId, unknown };
+}
+
+/**
+ * A partner clan changes its side later: all members, or a picked list. Owner/admin of THAT clan
+ * only, on an accepted invite of a running or upcoming competition.
+ */
+export async function setPartnerEntrants(
+  inviteId: number,
+  byUserId: number,
+  choice: EntrantsChoice,
+): Promise<{ ok: true; unknown: string[] } | { ok: false; error: string }> {
+  const row = await db.query.weeklyCompetitionClans.findFirst({ where: eq(weeklyCompetitionClans.id, inviteId) });
+  if (!row || row.status !== 'accepted') return { ok: false, error: 'Invite not found' };
+  if (!(await isClanAdmin(row.clanId, byUserId))) return { ok: false, error: 'Only an owner or admin of your clan can choose who races' };
+  // clan-scope: this clan -- read by the invite's competition id for its status only.
+  const comp = await db.query.weeklyCompetitions.findFirst({ where: eq(weeklyCompetitions.id, row.competitionId) });
+  if (!comp || comp.status === 'completed') return { ok: false, error: 'This competition has ended' };
+  await db.update(weeklyCompetitionClans).set({ entrants: choice.entrants }).where(eq(weeklyCompetitionClans.id, inviteId));
+  return { ok: true, unknown: await applyClanEntrants(row.competitionId, row.clanId, choice) };
+}
+
+/**
+ * Put one partner clan's side in line with its choice. 'all' enters every eligible member (the same
+ * seat rules as the host's sweep). 'selected' enters exactly the picked RSNs that are seats in THAT
+ * clan, and takes off anyone of that clan not picked. Returns picked names that matched no seat.
+ * Opt-outs survive: a re-entered row keeps opted_out.
+ */
+async function applyClanEntrants(competitionId: number, clanId: number, choice: EntrantsChoice): Promise<string[]> {
+  if (choice.entrants === 'all') {
+    await enrollPartnerClans(competitionId);
+    return [];
+  }
+  const wanted = new Map(choice.rsns.map((r) => [normalizeRsn(r), r]));
+  const seats = wanted.size
+    ? await db
+        .select({ id: clanRoster.id, rsn: clanRoster.rsn, rsnNormalized: clanRoster.rsnNormalized })
+        .from(clanRoster)
+        .where(
+          and(
+            eq(clanRoster.clanId, clanId),
+            isNull(clanRoster.leftAt),
+            rosterClanSeat(),
+            inArray(clanRoster.rsnNormalized, [...wanted.keys()]),
+          ),
+        )
+    : [];
+  const seatIds = seats.map((x) => x.id);
+  // Off the board: this clan's entrants who weren't picked.
+  await db
+    .delete(weeklyParticipants)
+    .where(
+      and(
+        eq(weeklyParticipants.competitionId, competitionId),
+        eq(weeklyParticipants.clanId, clanId),
+        seatIds.length ? notInArray(weeklyParticipants.clanMemberId, seatIds) : undefined,
+      ),
+    );
+  for (const seat of seats) {
+    await db
+      .insert(weeklyParticipants)
+      .values({ competitionId, clanMemberId: seat.id, clanId, rsn: seat.rsn, rsnNormalized: normalizeRsn(seat.rsn) })
+      .onConflictDoNothing();
+  }
+  const found = new Set(seats.map((x) => x.rsnNormalized));
+  return [...wanted].filter(([k]) => !found.has(k)).map(([, v]) => v);
+}
+
+// ── opting out ──────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A player opts out of (or back into) one competition. Every row of theirs in it — any of their
+ * characters — flips; the row stays so the roster sweep doesn't re-enter them. Refused once the
+ * competition has ended. `by` is the person (site session) or one account (plugin token).
+ */
+export async function setOptOut(
+  competitionId: number,
+  by: { playerId: number } | { accountId: number },
+  optedOut: boolean,
+): Promise<{ ok: true; changed: number } | { ok: false; error: string }> {
+  // clan-scope: this clan -- the caller resolved the competition through competitionForClan.
+  const comp = await db.query.weeklyCompetitions.findFirst({ where: eq(weeklyCompetitions.id, competitionId), columns: { status: true } });
+  if (!comp) return { ok: false, error: 'Not found' };
+  if (comp.status === 'completed') return { ok: false, error: 'This competition has ended' };
+  const seatIds = await mySeatIds(by);
+  if (!seatIds.length) return { ok: false, error: 'You are not entered in this competition' };
+  const r = await db
+    .update(weeklyParticipants)
+    .set({ optedOut })
+    .where(and(eq(weeklyParticipants.competitionId, competitionId), inArray(weeklyParticipants.clanMemberId, seatIds)))
+    .returning({ id: weeklyParticipants.id });
+  if (!r.length) return { ok: false, error: 'You are not entered in this competition' };
+  return { ok: true, changed: r.length };
+}
+
+async function mySeatIds(by: { playerId: number } | { accountId: number }): Promise<number[]> {
+  // clan-scope: global -- the subject is one person's (or one account's) own seats, across clans by design.
+  const rows = await db
+    .select({ id: clanRoster.id })
+    .from(clanRoster)
+    .where('playerId' in by ? eq(clanRoster.playerId, by.playerId) : eq(clanRoster.accountId, by.accountId));
+  return rows.map((r) => r.id);
+}
+
+/** Is this person entered, and opted out? For "You're in · Opt out" on the site and in the panel. */
+export async function entryStatus(
+  competitionId: number,
+  by: { playerId: number } | { accountId: number },
+): Promise<{ entered: boolean; optedOut: boolean }> {
+  const seatIds = await mySeatIds(by);
+  if (!seatIds.length) return { entered: false, optedOut: false };
+  const rows = await db
+    .select({ optedOut: weeklyParticipants.optedOut })
+    .from(weeklyParticipants)
+    .where(and(eq(weeklyParticipants.competitionId, competitionId), inArray(weeklyParticipants.clanMemberId, seatIds)));
+  if (!rows.length) return { entered: false, optedOut: false };
+  return { entered: true, optedOut: rows.every((r) => r.optedOut) };
 }
 
 /** Host removes a partner (any status). Its participants leave the board with it. */
@@ -389,6 +579,10 @@ export interface CompetitionInviteRow {
   endDate: string;
   hostName: string;
   hostSlug: string;
+  /** This clan's side: 'all' members or 'selected' people. */
+  entrants: string;
+  /** Who this clan entered, when 'selected' (to prefill the picker). */
+  picked: string[];
 }
 
 /** Invites addressed to `clanId` that are pending, plus accepted ones still running (for the admin list). */
@@ -397,6 +591,8 @@ export async function competitionInvitesForClan(clanId: number): Promise<Competi
     .select({
       id: weeklyCompetitionClans.id,
       status: weeklyCompetitionClans.status,
+      entrants: weeklyCompetitionClans.entrants,
+      clanId: weeklyCompetitionClans.clanId,
       competitionId: weeklyCompetitions.id,
       title: weeklyCompetitions.title,
       type: weeklyCompetitions.type,
@@ -417,13 +613,27 @@ export async function competitionInvitesForClan(clanId: number): Promise<Competi
       ),
     )
     .orderBy(desc(weeklyCompetitions.startDate));
-  return rows
-    .filter((r) => r.compStatus !== 'completed')
-    .map(({ compStatus, ...r }) => (void compStatus, r));
+  const live = rows.filter((r) => r.compStatus !== 'completed');
+  const out: CompetitionInviteRow[] = [];
+  for (const { compStatus, clanId: cid, ...r } of live) {
+    void compStatus;
+    const picked =
+      r.status === 'accepted' && r.entrants === 'selected'
+        ? (
+            await db
+              .select({ rsn: weeklyParticipants.rsn })
+              .from(weeklyParticipants)
+              .where(and(eq(weeklyParticipants.competitionId, r.competitionId), eq(weeklyParticipants.clanId, cid)))
+          ).map((p) => p.rsn)
+        : [];
+    out.push({ ...r, picked });
+  }
+  return out;
 }
 
 /**
- * Enrol every accepted partner clan's roster into a clans-mode competition, tagged with its clan.
+ * Enrol every accepted partner clan that chose 'all' members, tagged with its clan. Pending invites
+ * enter nobody.
  * Same seat rules as lib/weekly enrollAllPlayers (active, not left, not an event seat, guests per
  * the competition's own flag). Idempotent: someone already entered (e.g. in both clans) keeps the
  * row they have.
@@ -435,7 +645,14 @@ export async function enrollPartnerClans(competitionId: number): Promise<number>
   const partners = await db
     .select({ clanId: weeklyCompetitionClans.clanId })
     .from(weeklyCompetitionClans)
-    .where(and(eq(weeklyCompetitionClans.competitionId, competitionId), eq(weeklyCompetitionClans.status, 'accepted')));
+    .where(
+      and(
+        eq(weeklyCompetitionClans.competitionId, competitionId),
+        eq(weeklyCompetitionClans.status, 'accepted'),
+        // 'selected' clans enter only the people they pick (applyClanEntrants) — never swept.
+        eq(weeklyCompetitionClans.entrants, 'all'),
+      ),
+    );
   let enrolled = 0;
   for (const { clanId } of partners) {
     const seats = await db

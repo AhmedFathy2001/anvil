@@ -22,7 +22,8 @@ import { weeklyLinkDescription } from '@/lib/linkText';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { competitionMode } from '@/lib/competitionTeams';
-import { buildGroupStandings, competitionForClan, racingClans } from '@/lib/competitionTeamsDb';
+import { buildGroupStandings, competitionForClan, competitionReadableBy, entryStatus, racingClans } from '@/lib/competitionTeamsDb';
+import OptOutToggle from '@/components/weekly/OptOutToggle';
 import GroupStandings from '@/components/weekly/GroupStandings';
 
 export const dynamic = 'force-dynamic';
@@ -102,6 +103,19 @@ export default async function WeeklyLeaderboardPage({
 
   const session = await verifyUser();
   const mode = competitionMode(competition.mode);
+  // A clan-vs-clan board lists every racing clan's players, so it shows only when EVERY racing clan's
+  // privacy lets this viewer in — the host's included when a partner's page is the one asking.
+  if (!(await competitionReadableBy(competition, { playerId: session?.playerId ?? null, userId: session?.userId ?? null }))) {
+    return (
+      <div className="mx-auto max-w-xl rounded-xl border border-card-border bg-card-bg p-6 text-center">
+        <h1 className="mb-2 text-lg font-bold text-gold">{competition.title}</h1>
+        <p className="text-sm text-text-muted">
+          This is a clan vs clan competition, and at least one of the clans racing keeps its members private. Its
+          standings show only to people who can see every clan racing.
+        </p>
+      </div>
+    );
+  }
   // Clan vs clan: the viewer may be seated in any racing clan, so "you" looks across all of them.
   const myMemberIds =
     mode === 'clans'
@@ -110,6 +124,8 @@ export default async function WeeklyLeaderboardPage({
   const view = await buildCompetitionView(competition, myMemberIds);
   const groups = mode === 'solo' ? null : await buildGroupStandings(competition, { memberIds: myMemberIds });
   const myRsns = new Set(view.entries.filter((e) => e.isMe).map((e) => e.rsn.toLowerCase()));
+  // "You're in · Opt out" — every competition, any clan's side. Opted-out players are off the board.
+  const entry = session?.playerId && competition.status !== 'completed' ? await entryStatus(compId, { playerId: session.playerId }) : null;
 
   const leader = view.entries[0]?.gained > 0
     ? {
@@ -159,6 +175,8 @@ export default async function WeeklyLeaderboardPage({
       {view.me && (
         <YouStrip me={view.me} type={view.type} unit={view.unit} elapsed={view.elapsed} showDaily={showDaily} started={started} />
       )}
+
+      {entry?.entered && <OptOutToggle competitionId={compId} initialOptedOut={entry.optedOut} />}
 
       {groups && <GroupStandings view={groups} type={view.type} unit={view.unit} myRsns={myRsns} />}
 

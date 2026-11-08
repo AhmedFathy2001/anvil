@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { verifyAdminOrModerator } from '@/lib/auth';
+import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, count } from 'drizzle-orm';
 import { enrollAllPlayers } from '@/lib/weekly';
-import { parseCompetitionMode } from '@/lib/competitionTeams';
-import { MAX_TEAMS, autoBalanceTeams, createTeam, inviteClanToCompetition } from '@/lib/competitionTeamsDb';
+import { inviteOnCreateRefused, parseCompetitionMode } from '@/lib/competitionTeams';
+import { MAX_RACING_CLANS, MAX_TEAMS, autoBalanceTeams, createTeam, inviteClanToCompetition } from '@/lib/competitionTeamsDb';
 import { announceCompetitionStart } from '@/lib/competitionTeamsPosts';
 import { EFFICIENCY_METRICS } from '@/lib/constants';
 import { verifyFeeCollector } from '@/lib/auth';
@@ -66,8 +66,15 @@ export async function POST(request: Request) {
         .slice(0, MAX_TEAMS)
     : [];
   const inviteSlugs: string[] = Array.isArray(body.inviteClans)
-    ? body.inviteClans.filter((x: unknown): x is string => typeof x === 'string' && x.trim().length > 0).slice(0, 20)
+    ? body.inviteClans.filter((x: unknown): x is string => typeof x === 'string' && x.trim().length > 0).slice(0, MAX_RACING_CLANS - 1)
     : [];
+  // Inviting other clans speaks for this one: owner/admin only, the same bar as the Clans page. A
+  // moderator may still create a clan-vs-clan competition and leave the inviting to an admin.
+  if (inviteOnCreateRefused(mode, inviteSlugs.length, await verifyAdmin())) {
+    return NextResponse.json({ error: 'Only an owner or admin can invite other clans.' }, { status: 403 });
+  }
+  // Who from this clan races: everyone (default) or only the people an admin adds.
+  const hostEntrants = body.hostEntrants === 'selected' ? 'selected' : 'all';
 
   if (!type || !metric || !title || !startDate || !endDate) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -119,6 +126,7 @@ export async function POST(request: Request) {
     prizes: prizesJson,
     mode,
     teamLateJoin: body.teamLateJoin !== false,
+    hostEntrants,
   }).returning();
 
   const comp = result[0];

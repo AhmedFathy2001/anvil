@@ -67,6 +67,7 @@ export default function WeekFrame({ weeks }: { weeks: WeeklyCard[] }) {
                   startDate={w.startDate}
                   endDate={w.endDate}
                   entrants={`${w.entrants} entered`}
+                  chips={w.hostName ? [`clan vs clan · ${w.hostName} hosts`] : []}
                   top={
                     w.top
                       ? {

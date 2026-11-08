@@ -178,3 +178,8 @@ export function pastHalfway(startIso: string, endIso: string, nowMs: number): bo
   if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return false;
   return nowMs >= a + (b - a) / 2 && nowMs < b;
 }
+
+/** The create form may invite clans only for an owner/admin (a moderator may still create the competition). */
+export function inviteOnCreateRefused(mode: CompetitionMode, inviteCount: number, isAdmin: boolean): boolean {
+  return mode === 'clans' && inviteCount > 0 && !isAdmin;
+}

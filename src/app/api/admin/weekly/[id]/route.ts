@@ -99,6 +99,8 @@ export async function PUT(
   // the ones already entered (that is "Drop all guests"). Turning it on enters them on the next tick.
   if (typeof includeGuests === 'boolean') updates.includeGuests = includeGuests ? 1 : 0;
   if (!modeChanged && typeof body.teamLateJoin === 'boolean') updates.teamLateJoin = body.teamLateJoin;
+  // Who from this clan races: 'all' (roster swept in) or 'selected' (only the people an admin adds).
+  if (body.hostEntrants === 'all' || body.hostEntrants === 'selected') updates.hostEntrants = body.hostEntrants;
 
   if (Object.keys(updates).length === 0 && modeChanged) {
     return NextResponse.json((await db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId)))[0]);

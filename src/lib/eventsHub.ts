@@ -108,7 +108,8 @@ function weekItem(w: WeeklyCard): HubItem {
     entrants: w.entrants,
     entrantLabel: 'entered',
     top: w.top ? { name: w.top.rsn, text: weeklyValueText(w.unit, w.top.value) } : null,
-    hostSlug: null,
+    // Clan vs clan hosted by another clan this one races in.
+    hostSlug: w.hostSlug ?? null,
   };
 }
 

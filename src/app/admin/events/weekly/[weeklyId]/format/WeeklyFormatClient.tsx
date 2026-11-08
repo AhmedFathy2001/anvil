@@ -42,6 +42,7 @@ export default function WeeklyFormatClient(props: {
   ended: boolean;
   initialMode: CompetitionMode;
   initialLateJoin: boolean;
+  initialHostEntrants: 'all' | 'selected';
   initialTeams: Team[];
   initialParticipants: Participant[];
   initialInvites: Invite[];
@@ -53,6 +54,7 @@ export default function WeeklyFormatClient(props: {
   const dialog = useDialog();
   const [mode, setMode] = useState<CompetitionMode>(props.initialMode);
   const [lateJoin, setLateJoin] = useState(props.initialLateJoin);
+  const [hostEntrants, setHostEntrants] = useState(props.initialHostEntrants);
   const [teams, setTeams] = useState(props.initialTeams);
   const [participants, setParticipants] = useState(props.initialParticipants);
   const [invites, setInvites] = useState(props.initialInvites);
@@ -128,8 +130,24 @@ export default function WeeklyFormatClient(props: {
             disabled={busy || ended}
           />
         </div>
+        <div className="mt-3 max-w-md">
+          <label className="mb-1.5 block text-sm font-medium text-foreground/70">Who from your clan races</label>
+          <Select
+            value={hostEntrants}
+            onChange={async (v) => {
+              const next = v === 'selected' ? 'selected' : 'all';
+              if (await call(base, { method: 'PUT', body: JSON.stringify({ hostEntrants: next }) })) setHostEntrants(next);
+            }}
+            ariaLabel="Who from your clan races"
+            options={[
+              { value: 'all', label: 'All members — the roster is entered automatically' },
+              { value: 'selected', label: 'Selected people — only the ones you add on Participants' },
+            ]}
+            disabled={busy || ended}
+          />
+        </div>
         <p className="mt-2 text-xs text-text-muted">
-          Individual standings always show. Teams and clan vs clan add a ranking of totals on top, with an average per player
+          Every player can opt out of a competition themselves. Individual standings always show. Teams and clan vs clan add a ranking of totals on top, with an average per player
           so uneven sizes compare fairly.
         </p>
       </section>

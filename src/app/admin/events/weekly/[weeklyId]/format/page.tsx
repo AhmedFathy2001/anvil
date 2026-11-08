@@ -41,6 +41,7 @@ export default async function WeeklyFormatPage({ params }: { params: Promise<{ w
       ended={comp.status === 'completed'}
       initialMode={mode}
       initialLateJoin={comp.teamLateJoin}
+      initialHostEntrants={comp.hostEntrants === 'selected' ? 'selected' : 'all'}
       initialTeams={teams.map((t) => ({ id: t.id, name: t.name, colour: t.colour }))}
       initialParticipants={participants}
       initialInvites={invites.map((i) => ({ id: i.id, status: i.status, name: i.name, slug: i.slug }))}

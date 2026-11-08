@@ -61,6 +61,8 @@ export interface ScheduleWeekly {
   endDate: string;
   /** 'solo' | 'teams' | 'clans' — teams/clans add `groups` to the weekly-leaderboard payload. */
   mode?: string;
+  /** Set when another clan hosts this clan-vs-clan competition and this clan races in it. */
+  hostedBy?: string;
 }
 
 export interface PluginSchedule {
@@ -251,6 +253,13 @@ export async function buildSchedule(
     };
   });
 
+  // Clan vs clan competitions another clan hosts and this one races in: name the host.
+  const foreignHosts = [...new Set(allWeeklies.filter((w) => w.clanId !== clanId).map((w) => w.clanId))];
+  const hostNames = new Map(
+    foreignHosts.length
+      ? (await db.select({ id: clans.id, name: clans.name }).from(clans).where(inArray(clans.id, foreignHosts))).map((h) => [h.id, h.name])
+      : [],
+  );
   const weeklies: ScheduleWeekly[] = allWeeklies
     .filter((w) => w.endDate > nowIso && w.status !== 'completed')
     .map((w) => ({
@@ -263,6 +272,7 @@ export async function buildSchedule(
       startDate: w.startDate,
       endDate: w.endDate,
       mode: w.mode,
+      ...(w.clanId !== clanId ? { hostedBy: hostNames.get(w.clanId) ?? 'another clan' } : {}),
     }));
 
   const sortByStart = (a: { startDate: string }, b: { startDate: string }) =>

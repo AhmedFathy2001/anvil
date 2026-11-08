@@ -24,7 +24,7 @@ export default function PendingCoHostInvites({ initial }: { initial: CohostRow[]
 
   if (invites.length === 0) return null;
 
-  async function respond(id: number, action: 'accept' | 'decline') {
+  async function respond(id: number, action: 'accept' | 'decline' | 'block') {
     setBusyId(id);
     setError(null);
     try {
@@ -81,7 +81,7 @@ export default function PendingCoHostInvites({ initial }: { initial: CohostRow[]
                 Look at the board first →
               </a>
             </div>
-            <div className="flex shrink-0 gap-2">
+            <div className="flex shrink-0 flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => respond(i.id, 'accept')}
@@ -97,6 +97,16 @@ export default function PendingCoHostInvites({ initial }: { initial: CohostRow[]
                 className="rounded-lg border border-card-border px-3.5 py-1.5 text-[13px] text-text-muted transition-colors hover:border-accent-red/40 hover:text-accent-red disabled:opacity-50"
               >
                 Decline
+              </button>
+              {/* Anti-spam (lib/clanBlocks): decline, and refuse every later invite from this clan. */}
+              <button
+                type="button"
+                onClick={() => respond(i.id, 'block')}
+                disabled={busyId === i.id}
+                title="Decline, and refuse every future invite from this clan. Undo in Settings → Blocked clans."
+                className="rounded-lg border border-card-border px-3.5 py-1.5 text-[13px] text-text-muted transition-colors hover:border-accent-red/40 hover:text-accent-red disabled:opacity-50"
+              >
+                Decline &amp; block this clan
               </button>
             </div>
           </li>

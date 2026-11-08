@@ -1,7 +1,7 @@
 import { verifyUser } from '@/lib/auth';
 import ClanRosterClient from './ClanRosterClient';
 import PendingCoHostInvites from './PendingCoHostInvites';
-import CompetitionInvites from './CompetitionInvites';
+import CompetitionInvites from '@/components/weekly/CompetitionInvites';
 import { competitionInvitesForClan } from '@/lib/competitionTeamsDb';
 import JoinRequests from './JoinRequests';
 import { atLeast, canGrantRole, holdsModeratorTier } from '@/lib/clanRoles';
