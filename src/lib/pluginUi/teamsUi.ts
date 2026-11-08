@@ -16,6 +16,7 @@ export interface TeamsState {
   back: number;
 }
 
+const YOURS_SHOWN = 3;
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
 const swatch = (color: string | null, size: number): Node => icon({ glyph: 'swatch', color: (/^#[0-9a-f]{6}$/i.test(color ?? '') ? color : '#989898') as Color, w: size, h: size });
 const load = (s: Partial<TeamsState> & { event: number }, q = ''): Action => ({
@@ -35,7 +36,7 @@ export function teamsUi(data: RosterPage | null, s: TeamsState, q: string): Node
   return col([
     muted('Search players'),
     gap(2),
-    { t: 'input', name: 'q', kind: 'search', value: q, tip: 'Find a player on any team', on: load({ event: s.event }) },
+    { t: 'input', name: 'q', kind: 'search', value: q, tip: data && (data.mode === 'players' || (data.mode === 'search' && data.ranked)) ? 'Find a player by name' : 'Find a player on any team', on: load({ event: s.event }) },
     gap(8),
     { t: 'slot', id: 'roster', c: rosterUi(data, s) },
   ]);
@@ -58,7 +59,16 @@ export function rosterUi(data: RosterPage | null, s: TeamsState): Node {
   } else if (data.mode === 'players') {
     if (!data.players.length) parts.push(muted('Nobody has signed up yet.'));
     else {
-      if (data.you && !data.players.some((p) => p.you)) parts.push(header('You'), gap(3), personRow(data.you, true, false, s), gap(8));
+      // Your line(s) off this page — one per account of yours on the board, three at most.
+      if (!data.players.some((p) => p.you)) {
+        const yours = data.yours ?? (data.you ? [data.you] : []);
+        if (yours.length) {
+          parts.push(header(yours.length > 1 ? 'Your accounts' : 'You'), gap(3));
+          yours.slice(0, YOURS_SHOWN).forEach((p) => parts.push(personRow(p, true, false, s), gap(2)));
+          if (yours.length > YOURS_SHOWN) parts.push(muted(`+${yours.length - YOURS_SHOWN} more`));
+          parts.push(gap(6));
+        }
+      }
       parts.push(header(plural(data.total, 'player')), gap(3));
       data.players.forEach((p) => parts.push(personRow(p, true, false, s), gap(2)));
     }
@@ -76,7 +86,8 @@ export function rosterUi(data: RosterPage | null, s: TeamsState): Node {
     if (!data.players.length) parts.push(muted(`No players match "${data.query}".`));
     else {
       parts.push(header(plural(data.total, 'match', 'matches')), gap(3));
-      data.players.forEach((p) => parts.push(personRow(p, false, true, s), gap(2)));
+      // A players board: each hit with its standing; a team board: each with its team.
+      data.players.forEach((p) => parts.push(data.ranked ? personRow(p, true, false, s) : personRow(p, false, true, s), gap(2)));
     }
   }
   if (data.pages > 1) {

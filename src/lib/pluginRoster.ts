@@ -14,6 +14,7 @@ import { teamMemberPoints } from '@/lib/teamMemberPoints';
 import { isPointsMode } from '@/lib/utils';
 import { standingsScopeForRequest } from '@/lib/standingsAccess';
 import { canSeeTeamProgress } from '@/lib/standingsVisibility';
+import { placementOf } from '@/lib/teamPlacement';
 
 /**
  * One page of an event's roster for a plugin (lib/eventRoster): the teams ranked (or the players, when
@@ -26,7 +27,8 @@ import { canSeeTeamProgress } from '@/lib/standingsVisibility';
 export async function pluginRoster(
   request: Request,
   eventId: number,
-  opts: { query: string; team: number | null; page: number; pageSize: number },
+  /** `window`: a players board also comes back cut to the top and the caller's neighbours (lib/standingsWindow). */
+  opts: { query: string; team: number | null; page: number; pageSize: number; window?: boolean },
 ): Promise<RosterOverview | RosterTeamPage | RosterSearchPage | null> {
   const { query, page, pageSize } = opts;
   const event = (await eventForPluginRequest(request, eventId))?.event;
@@ -83,6 +85,7 @@ export async function pluginRoster(
     people,
     viewerPlayerId,
     individuals,
+    solo: placementOf(event) === 'solo',
   };
 
   if (query.trim()) return rosterSearch(input, query.slice(0, 40), page, pageSize);
@@ -100,5 +103,5 @@ export async function pluginRoster(
     const { allTime } = await getLadderBoards(event);
     input.individualPoints = allTime.map((s) => ({ participantId: s.playerId, name: s.name, points: s.points }));
   }
-  return rosterOverview(input, page, pageSize);
+  return rosterOverview(input, page, pageSize, opts.window ? {} : undefined);
 }

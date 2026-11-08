@@ -5,10 +5,11 @@ import { takesNames } from '@/lib/clanEventModules';
 import { SKILLS } from '@/lib/constants';
 import type { PanelActive, PanelTile } from '@/lib/pluginPanel';
 import type { ScheduleBingo, ScheduleWeekly } from '@/lib/pluginConfig';
-import type { RosterTeamOut } from '@/lib/eventRoster';
+import type { RosterPersonOut, RosterTeamOut } from '@/lib/eventRoster';
+import type { StandingsWindow } from '@/lib/standingsWindow';
 import type { BoardSummary } from '@/lib/pluginBoards';
 
-import { type Action, type Color, type Node, backRow, button, card, col, count, exact, gap, icon, muted, percent, row, text } from './nodes';
+import { type Action, type Color, type Node, backRow, button, card, col, count, exact, gap, icon, muted, nameText, percent, row, text } from './nodes';
 import { boardFeedLinks } from './feedUi';
 
 // The plugin's Clan tab, built here (was the event list and event page in AnvilSidebarPanel, fed by
@@ -83,6 +84,12 @@ export interface HomeData {
   inGame: boolean;
   feed: ActivityEntry[];
   standings: RosterTeamOut[];
+  /**
+   * A players board (solo placement, or a big board of one-person teams — lib/standingsWindow): the
+   * standings cut to the top five and the caller's own line(s) with two either side, never the
+   * whole list. Set, it replaces `standings`; "View all players" pages the rest with a search.
+   */
+  soloStandings?: StandingsWindow<RosterPersonOut> | null;
   /** Set while the host keeps the standings hidden (lib/standingsVisibility): the notice to show. */
   standingsNotice?: string | null;
   /** Live weeklies' boards by competition id: the caller's line and the top. */
@@ -513,7 +520,12 @@ function boardPage(d: HomeData, b: Board): Node[] {
   if (d.live && d.standingsNotice) {
     parts.push(...heading('Standings'), muted(d.standingsNotice, { wrap: true }), gap(8));
   }
-  if (d.live && d.standings.length) {
+  // A ladder keeps its own monthly line; a solo board of many players gets the cut list.
+  const solo = d.live && !b.ladder ? d.soloStandings ?? null : null;
+  if (solo) {
+    parts.push(...soloStandingRows(solo), gap(6));
+    parts.push(button(solo.complete ? 'Players' : `View all ${solo.total.toLocaleString('en-US')} players`, teams(b.title), 'Every player, a page at a time, with a search by name'), gap(12));
+  } else if (d.live && d.standings.length) {
     parts.push(...heading('Standings'));
     let shown = 0;
     for (const t of d.standings) {
@@ -529,7 +541,7 @@ function boardPage(d: HomeData, b: Board): Node[] {
     if (d.standings.length > shown) parts.push(gap(3), muted(`+${d.standings.length - shown} more teams`));
     parts.push(gap(8));
   }
-  if (d.live) parts.push(button(d.standings.length ? 'All teams & members' : 'Teams', teams(b.title), 'Who’s on which team'), gap(12));
+  if (d.live && !solo) parts.push(button(d.standings.length ? 'All teams & members' : 'Teams', teams(b.title), 'Who’s on which team'), gap(12));
 
   // The starting shot is this client's own: where it stands, its checks, its capture button.
   if (d.live && d.cfg.startProof) parts.push({ t: 'native', name: 'start-proof' }, gap(12));
@@ -579,6 +591,33 @@ function boardPage(d: HomeData, b: Board): Node[] {
 }
 
 const frac = (t: PanelTile) => (t.goal > 0 ? Math.min(1, t.current / t.goal) : 0);
+/**
+ * A players board's standings: the top, a "· · ·" over each stretch left out, and the caller's own
+ * line(s) with their neighbours. A row looks the player up.
+ */
+export function soloStandingRows(w: StandingsWindow<RosterPersonOut>): Node[] {
+  const out: Node[] = [...heading('Standings'), muted(`${w.total.toLocaleString('en-US')} players`), gap(4)];
+  let first = true;
+  for (const part of w.parts) {
+    if (!first) out.push(gap(3));
+    first = false;
+    if (part.kind === 'gap') {
+      out.push(muted(`· · ·  ${part.skipped.toLocaleString('en-US')} more`, { align: 'c' }));
+      continue;
+    }
+    part.rows.forEach((p, i) => {
+      if (i) out.push(gap(3));
+      const ink: Color = p.you ? 'brand' : 'text';
+      out.push(row(text(p.rank == null ? '–' : `${p.rank}.`, ink, { w: 30 }), nameText(p.name, ink), text(p.score ?? '', p.you ? 'brand' : 'muted'), {
+        tip: `Look up ${p.name}`,
+        on: { a: 'lookup', rsn: p.name },
+      }));
+    });
+  }
+  if (w.mineMore > 0) out.push(gap(3), muted(`+${w.mineMore} more of your accounts`));
+  return out;
+}
+
 const teams = (title: string): Action => ({ a: 'load', v: 'teams', args: { event: '0', back: 'board', backLabel: title } });
 
 /** The board's headline card: the event, its tally and bar, the reveal note, the site link. */

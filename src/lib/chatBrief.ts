@@ -13,7 +13,8 @@ export interface BriefLine {
 }
 
 export interface BriefFacts {
-  bingo: { name: string; rank: number | null; teams: number; nearly: string[] } | null;
+  /** `solo`: a players board — the rank is yours, `teams` counts players. */
+  bingo: { name: string; rank: number | null; teams: number; nearly: string[]; solo?: boolean } | null;
   weeklies: { label: string; unit: 'XP' | 'KC' | 'h'; rank: number | null; gained: number; ahead: number | null }[];
   clanEvents: { title: string; startsInMin: number }[];
   goal: { text: string; pct: number } | null;
@@ -49,7 +50,7 @@ export function composeBrief(items: BriefItem[], f: BriefFacts): BriefLine[] {
 
   if (want.has('bingo') && f.bingo) {
     const b = f.bingo;
-    const parts = [b.rank != null ? `your team is ${ord(b.rank)}${b.teams > 1 ? ` of ${b.teams}` : ''}` : null];
+    const parts = [b.rank != null ? `${b.solo ? 'you’re' : 'your team is'} ${ord(b.rank)}${b.teams > 1 ? ` of ${b.teams}` : ''}` : null];
     if (b.nearly.length) parts.push(`${b.nearly.length} tile${b.nearly.length === 1 ? '' : 's'} nearly done`);
     first.push(`${b.name} is live${parts.some(Boolean) ? `: ${parts.filter(Boolean).join(', ')}` : ''}`);
     if (b.nearly.length) tone = 'near';

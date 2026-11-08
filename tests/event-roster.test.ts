@@ -156,3 +156,46 @@ test("a scored team's members: best share first, ranked within the team, ties by
     [['Cap', 1, '12 pts'], ['zed', 1, '12 pts'], ['Me', 3, '6 pts'], ['Amy', 4, '0 pts']],
   );
 });
+
+test('a solo board of 170: the window is the top five and each of your accounts with neighbours', () => {
+  const teams = Array.from({ length: 170 }, (_, i) => team(i + 1, 170 - i));
+  // Ranks 2 and 3 tie: both rank 2, the next is 4.
+  teams[2] = team(3, 169);
+  const people = teams.map((t) => person(`P${t.teamId}`, t.teamId, t.teamId === 60 || t.teamId === 120 ? 7 : null));
+  const input: RosterInput = { teams, people, viewerPlayerId: 7, individuals: false, solo: true };
+  const o = rosterOverview(input, 1, 25, {});
+  if (o.mode !== 'players') return assert.fail('players mode');
+  assert.deepEqual(o.yours.map((p) => p.name), ['P60', 'P120'], 'every account of yours, in standing order');
+  assert.deepEqual(o.players.slice(0, 4).map((p) => p.rank), [1, 2, 2, 4]);
+  const w = o.window!;
+  const shape = w.parts.map((p) => (p.kind === 'gap' ? `|${p.skipped}|` : p.rows.map((r) => r.name).join(','))).join(' ');
+  assert.equal(shape, 'P1,P2,P3,P4,P5 |52| P58,P59,P60,P61,P62 |55| P118,P119,P120,P121,P122 |48|');
+  assert.equal(rosterOverview(input, 1, 25).mode === 'players' && (rosterOverview(input, 1, 25) as { window?: unknown }).window, undefined, 'only when asked');
+});
+
+test('solo placement ranks players even when the host doubled someone up', () => {
+  const input: RosterInput = {
+    teams: [team(1, 5), team(2, 3)],
+    people: [person('A', 1), person('B', 1), person('C', 2)],
+    viewerPlayerId: null,
+    individuals: false,
+    solo: true,
+  };
+  assert.equal(rosterOverview(input, 1, 25).mode, 'players');
+  assert.equal(rosterOverview({ ...input, solo: false }, 1, 25).mode, 'teams');
+});
+
+test('search on a players board carries each hit’s standing, not its team', () => {
+  const input: RosterInput = {
+    teams: [team(1, 9), team(2, 4), team(3, 4)],
+    people: [person('Zezima', 1), person('Iron Zez', 2), person('Other', 3)],
+    viewerPlayerId: null,
+    individuals: false,
+  };
+  const r = rosterSearch(input, 'zez', 1, 25);
+  assert.equal(r.ranked, true);
+  assert.deepEqual(r.players.map((p) => [p.name, p.rank, p.score]), [['Zezima', 1, '9 tiles'], ['Iron Zez', 2, '4 tiles']]);
+  const teamsBoard = rosterSearch({ ...input, people: [...input.people, person('Mate', 1)] }, 'zez', 1, 25);
+  assert.equal(teamsBoard.ranked, undefined);
+  assert.equal(teamsBoard.players[0].rank, null);
+});

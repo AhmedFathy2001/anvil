@@ -420,7 +420,8 @@ async function teamsView(request: Request, a: Args): Promise<View> {
   const state = { event, team: positive(a.team) ?? 0, page: positive(a.page) ?? 1, back: positive(a.back) ?? 1 };
   const q = (a.q ?? '').trim().slice(0, 40);
   const data = event ? await pluginRoster(request, event, { query: q, team: state.team || null, page: state.page, pageSize: 25 }) : null;
-  return { ui: a.part === 'list' ? rosterUi(data, state) : withBack(a, 'Teams', teamsUi(data, state, q)) };
+  const players = !!data && (data.mode === 'players' || (data.mode === 'search' && !!data.ranked));
+  return { ui: a.part === 'list' ? rosterUi(data, state) : withBack(a, players ? 'Players' : 'Teams', teamsUi(data, state, q)) };
 }
 
 /** A page opened from the Clan tab: "‹ <event>" back to it, then the page's title over it. */
@@ -463,7 +464,7 @@ async function homeView(request: Request, a: Args): Promise<View> {
     auth
       ? buildActivity({ teamId: auth.teamId, eventId: auth.eventId, selfPlayerId: auth.playerId, selfRsn: auth.rsn, since: { sub: 0, comp: 0, rev: 0 } }).then((p) => p.activity)
       : Promise.resolve([]),
-    live && cfg.event ? pluginRoster(request, cfg.event.id, { query: '', team: null, page: 1, pageSize: 50 }) : Promise.resolve(null),
+    live && cfg.event ? pluginRoster(request, cfg.event.id, { query: '', team: null, page: 1, pageSize: 50, window: true }) : Promise.resolve(null),
     Promise.all(
       liveWeeklies.map(async (w) => {
         const url = new URL(request.url);
@@ -505,6 +506,8 @@ async function homeView(request: Request, a: Args): Promise<View> {
     inGame: !!me,
     feed,
     standings: roster && roster.mode === 'teams' ? roster.teams.filter((t) => t.rank != null).sort((x, y) => x.rank! - y.rank!) : [],
+    // A players board: the cut list, once anyone is ranked (hidden standings come back unranked).
+    soloStandings: roster && roster.mode === 'players' && roster.window && roster.players.some((p) => p.rank != null) ? roster.window : null,
     // Plain UTC: the panel has no browser locale to format with.
     standingsNotice: curtain
       ? standingsHiddenNotice(curtain, (iso) => new Date(iso).toUTCString().replace(':00 GMT', ' UTC'))
