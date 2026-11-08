@@ -869,7 +869,7 @@ const de: PartialGuideDict = {
     notifications: {
       title: 'Discord-Benachrichtigungen',
       intro:
-        'Die werden verschickt, egal ob gerade ein Bingo läuft, und landen in den Kanälen des Clans. Welcher Kanal, legen die Admins hier fest — du wählst nur, _was_ du postest.',
+        'Die werden verschickt, egal ob gerade ein Bingo läuft, und landen in den Kanälen des Clans. Welcher Kanal, legen die Admins hier fest — du wählst nur, _was_ du postest. Mit dem nächsten Plugin-Update ziehen diese Einstellungen auf die Website, unter **Settings → Announcements**, und folgen dir auf jeden Rechner. Im Plugin bleiben zwei Schalter unter **Notifications**: **Share clan posts** pausiert alle Posts aus dem Hauptspiel auf einmal, **Share seasonal activity** tut dasselbe auf Leagues, Deadman und anderen saisonalen Welten.',
       examplesFigure: {
         caption: 'So sieht ein Post aus',
         alt: 'Zwei Discord-Posts von Anvil: eine Grandmaster-Kampfaufgabe mit Punkten und dem Fortschritt bis zur nächsten Freischaltung und ein Tod mit seiner Nachricht, jeweils mit einem Screenshot des Moments',

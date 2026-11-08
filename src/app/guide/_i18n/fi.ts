@@ -868,7 +868,7 @@ const fi: PartialGuideDict = {
     notifications: {
       title: 'Discord-ilmoitukset',
       intro:
-        'Nämä lähtevät riippumatta siitä onko bingo käynnissä, ja ne julkaistaan klaanin kanaviin. Minkä kanavan ylläpitäjät määrittävät täällä — sinä valitset vain _mitä_ julkaiset.',
+        'Nämä lähtevät riippumatta siitä onko bingo käynnissä, ja ne julkaistaan klaanin kanaviin. Minkä kanavan ylläpitäjät määrittävät täällä — sinä valitset vain _mitä_ julkaiset. Seuraavassa lisäosan päivityksessä nämä valinnat siirtyvät verkkosivulle kohtaan **Settings → Announcements**, ja ne seuraavat sinua jokaiselle tietokoneelle. Lisäosaan jää kaksi kytkintä kohtaan **Notifications**: **Share clan posts** keskeyttää kaikki pääpelin julkaisut kerralla, ja **Share seasonal activity** tekee saman Leaguesissa, Deadmanissa ja muissa kausimaailmoissa.',
       examplesFigure: {
         caption: 'Tältä julkaisu näyttää',
         alt: 'Kaksi Anvilin Discord-julkaisua: Grandmaster-taistelutehtävä pisteineen ja edistyminen seuraavaan avaukseen sekä kuolema viesteineen, kummassakin kuvakaappaus hetkestä',

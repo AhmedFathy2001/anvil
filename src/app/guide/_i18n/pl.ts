@@ -866,7 +866,7 @@ const pl: PartialGuideDict = {
     notifications: {
       title: 'Powiadomienia na Discordzie',
       intro:
-        'Działają niezależnie od tego, czy trwa bingo, i trafiają na kanały klanu. Który kanał, ustawiają adminowie —— ty wybierasz tylko _co_ publikujesz.',
+        'Działają niezależnie od tego, czy trwa bingo, i trafiają na kanały klanu. Który kanał, ustawiają adminowie —— ty wybierasz tylko _co_ publikujesz. W następnej aktualizacji wtyczki te ustawienia przenoszą się na stronę, do **Settings → Announcements**, i działają na każdym komputerze. We wtyczce zostają dwa przełączniki w **Notifications**: **Share clan posts** wstrzymuje naraz wszystkie posty z głównej gry, a **Share seasonal activity** robi to samo na Leagues, Deadman i innych światach sezonowych.',
       examplesFigure: {
         caption: 'Jak wygląda post',
         alt: 'Dwa posty Anvil na Discordzie: zadanie Grandmaster z combat achievements z punktami i postępem do następnego odblokowania oraz śmierć z wiadomością, każdy ze zrzutem ekranu z tej chwili',
