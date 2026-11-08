@@ -93,7 +93,7 @@ export default async function ConnectedAccountsPage({ searchParams }: { searchPa
 
   return (
     <>
-      <SettingsTitle title="Connected accounts">
+      <SettingsTitle title="Streaming accounts">
         Link where you stream and clip. Anvil only learns who you are on each one — it never posts as you or keeps a key to your
         account. Linked accounts also get you into streamers’ follower and subscriber events without linking again.
       </SettingsTitle>
@@ -110,7 +110,7 @@ export default async function ConnectedAccountsPage({ searchParams }: { searchPa
         </p>
       ))}
 
-      <SettingsGroup title="Twitch">
+      <SettingsGroup title="Twitch" id="twitch">
         {tw ? (
           <>
             {linkedRow(tw, <>Linked as <b className="text-foreground">{tw.handle}</b></>)}
@@ -133,7 +133,7 @@ export default async function ConnectedAccountsPage({ searchParams }: { searchPa
         )}
       </SettingsGroup>
 
-      <SettingsGroup title="YouTube">
+      <SettingsGroup title="YouTube" id="youtube">
         {yt ? (
           <>
             {linkedRow(yt, <>Linked as <b className="text-foreground">{yt.handle}</b></>)}
@@ -155,7 +155,7 @@ export default async function ConnectedAccountsPage({ searchParams }: { searchPa
         )}
       </SettingsGroup>
 
-      <SettingsGroup title="Kick">
+      <SettingsGroup title="Kick" id="kick">
         {kick ? (
           <>
             {linkedRow(kick, <>Linked as <b className="text-foreground">{kick.handle}</b></>)}
@@ -176,6 +176,7 @@ export default async function ConnectedAccountsPage({ searchParams }: { searchPa
 
       <SettingsGroup
         title="Medal"
+        id="medal"
         note="A link to your Medal profile, shown on your profile like any link you add. Medal has no sign-in, so it isn’t verified."
       >
         {md ? (

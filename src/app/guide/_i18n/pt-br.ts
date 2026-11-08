@@ -868,7 +868,7 @@ const ptBr: PartialGuideDict = {
     notifications: {
       title: 'Notificações no Discord',
       intro:
-        'Elas disparam havendo ou não um bingo rolando, e publicam nos canais do clã. Qual canal é decisão dos admins —— você só escolhe _o que_ publica. Na próxima atualização do plugin essas escolhas vão para o site, em **Settings → Announcements**, e acompanham você em qualquer computador. O plugin mantém dois interruptores em **Notifications**: **Share clan posts** pausa de uma vez todas as publicações do jogo principal, e **Share seasonal activity** faz o mesmo em Leagues, Deadman e outros mundos sazonais.',
+        'Elas disparam havendo ou não um bingo rolando, e publicam nos canais do clã. Qual canal é decisão dos admins —— você só escolhe _o que_ publica. Na próxima atualização do plugin essas escolhas vão para o site, em **Settings → Discord posts & screenshots**, e acompanham você em qualquer computador. Na mesma página, **Screenshot privacy** escolhe qual chat (mensagens privadas, chat público, chat do clã) fica oculto em toda captura de tela que o plugin tira. O plugin mantém dois interruptores em **Notifications**: **Share clan posts** pausa de uma vez todas as publicações do jogo principal, e **Share seasonal activity** faz o mesmo em Leagues, Deadman e outros mundos sazonais.',
       examplesFigure: {
         caption: 'Como fica uma publicação',
         alt: 'Duas publicações do Anvil no Discord: uma combat task Grandmaster com pontos e o progresso até o próximo desbloqueio, e uma morte com a sua mensagem, cada uma com uma captura de tela do momento',

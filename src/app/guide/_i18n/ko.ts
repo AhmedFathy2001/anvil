@@ -868,7 +868,7 @@ const ko: PartialGuideDict = {
     notifications: {
       title: 'Discord 알림',
       intro:
-        '이 알림들은 빙고가 진행 중이든 아니든 나가며, 클랜 채널에 올라갑니다. 어느 채널인지는 관리자가 여기서 정합니다 —— 당신은 _무엇을_ 올릴지만 고릅니다. 다음 플러그인 업데이트부터 이 선택들은 웹사이트의 **Settings → Announcements** 로 옮겨지고, 어느 컴퓨터에서든 그대로 따라옵니다. 플러그인에는 **Notifications** 아래 스위치 두 개가 남습니다: **Share clan posts** 는 메인 게임 게시물을 한꺼번에 멈추고, **Share seasonal activity** 는 Leagues, Deadman 등 시즌 월드에서 같은 일을 합니다.',
+        '이 알림들은 빙고가 진행 중이든 아니든 나가며, 클랜 채널에 올라갑니다. 어느 채널인지는 관리자가 여기서 정합니다 —— 당신은 _무엇을_ 올릴지만 고릅니다. 다음 플러그인 업데이트부터 이 선택들은 웹사이트의 **Settings → Discord posts & screenshots** 로 옮겨지고, 어느 컴퓨터에서든 그대로 따라옵니다. 같은 페이지의 **Screenshot privacy** 에서는 플러그인이 찍는 모든 스크린샷에서 숨길 채팅(개인 메시지, 공개 채팅, 클랜 채팅)을 고를 수 있습니다. 플러그인에는 **Notifications** 아래 스위치 두 개가 남습니다: **Share clan posts** 는 메인 게임 게시물을 한꺼번에 멈추고, **Share seasonal activity** 는 Leagues, Deadman 등 시즌 월드에서 같은 일을 합니다.',
       examplesFigure: {
         caption: '게시물은 이렇게 보입니다',
         alt: 'Anvil이 올린 Discord 게시물 두 개. 점수와 다음 해금까지의 진행도가 표시된 Grandmaster 전투 과제, 그리고 메시지가 담긴 사망 알림. 둘 다 그 순간의 스크린샷이 붙어 있음',

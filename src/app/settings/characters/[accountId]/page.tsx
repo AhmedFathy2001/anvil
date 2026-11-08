@@ -121,7 +121,7 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
         </div>
       )}
 
-      <SettingsGroup title="Visibility">
+      <SettingsGroup title="Visibility" id="visibility">
         <SettingsRow
           label="Show to other clans and on leaderboards"
           description="When off, only the clans it’s a member or guest of can see it."
@@ -238,7 +238,7 @@ export default async function CharacterSettingsPage({ params }: { params: Promis
         )}
       </SettingsGroup>
 
-      <SettingsGroup title="Character">
+      <SettingsGroup title="Character" id="character">
         {characters.length > 1 && (
           <SettingsRow label="Main character" description="Names your team in solo events and leads your Discord nickname.">
             {c.isPrimary ? (

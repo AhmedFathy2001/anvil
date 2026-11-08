@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import ClanLink from '@/components/ClanLink';
 
 import { db } from '@/db';
 import { players } from '@/db/schema';
@@ -21,14 +22,18 @@ export default async function PrivacySettingsPage() {
 
   return (
     <>
-      <SettingsTitle title="Privacy">
+      <SettingsTitle title="Who sees my characters">
         What people outside your clans can see. A clan always sees the characters on its own roster; these choices are about everyone
-        else.
+        else. Hiding chat in screenshots is under{' '}
+        <ClanLink href="/settings/announcements#screenshot-privacy" className="text-gold hover:text-gold-light">
+          Discord posts &amp; screenshots →
+        </ClanLink>
       </SettingsTitle>
 
       {characters.length > 0 && (
         <SettingsGroup
           title="Who can see each character"
+          id="character-visibility"
           note="On: the character has its own public page and shows on the cross-clan leaderboards."
         >
           {characters.map((c) => (
@@ -47,7 +52,7 @@ export default async function PrivacySettingsPage() {
         </SettingsGroup>
       )}
 
-      <SettingsGroup title="Across Anvil">
+      <SettingsGroup title="Across Anvil" id="across-anvil">
         {characters.length >= 2 && (
           <SettingsRow
             label="Show that my characters are one person"
