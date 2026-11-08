@@ -307,7 +307,20 @@ test("events list: a foreign clan-vs-clan card hides its leader unless the viewe
     assert.equal((await card({ playerId: player.Tia, userId: null })).top, null, 'partner member who cannot see the host');
     const insider = await card({ playerId: player.Fay, userId: null });
     assert.equal(insider.top?.rsn, 'Fay', 'a host member sees it (the partner is public)');
+
+    // The HOST's own card follows the same rule: with the partner private, a host-only viewer can't
+    // read the board, so the host's events list hides its leader too.
+    await db.update(s.clans).set({ visibility: 'public' }).where(eq(s.clans.id, clan.fourth));
+    await db.update(s.clans).set({ visibility: 'members' }).where(eq(s.clans.id, clan.third));
+    const hostCard = async (viewer: { playerId: number | null; userId: number | null } | null) =>
+      (await loadWeeklyCards(clan.fourth, { viewer })).find((w) => w.id === c.id)!;
+    assert.equal((await hostCard(null)).top, null, 'host list, stranger: partner private');
+    assert.equal((await hostCard({ playerId: player.Fay, userId: null })).top, null, 'host member who cannot see the partner');
+    assert.equal((await hostCard({ playerId: player.Tia, userId: null })).top?.rsn, 'Fay', 'a partner member sees both clans: shown');
+    await db.update(s.clans).set({ visibility: 'public' }).where(eq(s.clans.id, clan.third));
+    assert.equal((await hostCard(null)).top?.rsn, 'Fay', 'both public: shown');
   } finally {
     await db.update(s.clans).set({ visibility: 'public' }).where(eq(s.clans.id, clan.fourth));
+    await db.update(s.clans).set({ visibility: 'public' }).where(eq(s.clans.id, clan.third));
   }
 });

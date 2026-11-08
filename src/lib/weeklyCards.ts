@@ -237,10 +237,12 @@ export async function loadWeeklyCards(
       : [],
   );
 
-  // A foreign clan-vs-clan board names players from clans this viewer may not be allowed to see.
+  // A clan-vs-clan board names players from every racing clan, so its card follows the same rule as
+  // /weekly/[id] — whichever clan hosts it, this one included: readable only when every racing
+  // clan's privacy lets this viewer in. Solo/teams cards hold one clan, gated by its own pages.
   const unreadable = new Set<number>();
   for (const c of shown) {
-    if (c.clanId === clanId) continue;
+    if (c.mode !== 'clans') continue;
     const readable = await competitionReadableBy(c, { playerId: opts.viewer?.playerId ?? null, userId: opts.viewer?.userId ?? null });
     if (!readable) unreadable.add(c.id);
   }
