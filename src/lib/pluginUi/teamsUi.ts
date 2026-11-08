@@ -83,9 +83,16 @@ export function rosterUi(data: RosterPage | null, s: TeamsState): Node {
       data.players.forEach((p) => parts.push(personRow(p, p.rank != null, false, s), gap(2)));
     }
   } else {
-    if (!data.players.length) parts.push(muted(`No players match "${data.query}".`));
-    else {
-      parts.push(header(plural(data.total, 'match', 'matches')), gap(3));
+    // A team board: teams named like the search come first, then the players.
+    if (data.teams?.length) {
+      parts.push(header(plural(data.teams.length, 'team')), gap(3));
+      data.teams.forEach((t) => parts.push(teamRow(t, s), gap(2)));
+      if (data.players.length) parts.push(gap(6));
+    }
+    if (!data.players.length) {
+      if (!data.teams?.length) parts.push(muted(`No players match "${data.query}".`));
+    } else {
+      parts.push(header(data.teams?.length ? plural(data.total, 'player match', 'player matches') : plural(data.total, 'match', 'matches')), gap(3));
       // A players board: each hit with its standing; a team board: each with its team.
       data.players.forEach((p) => parts.push(data.ranked ? personRow(p, true, false, s) : personRow(p, false, true, s), gap(2)));
     }

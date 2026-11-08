@@ -7,8 +7,10 @@ import assert from 'node:assert/strict';
 
 import {
   competitionRanks,
+  isManyTeams,
   isSoloLike,
   SOLO_MIN_TEAMS,
+  standingsLayout,
   standingsPage,
   standingsWindow,
   type StandingsWindow,
@@ -111,4 +113,37 @@ test('search: loose on case, spaces, underscores and dashes; keeps standing orde
   const paged = standingsPage(rows, (r) => r.name, { query: 'z', pageSize: 2, page: 2 });
   assert.deepEqual([paged.rows.map((r) => r.id), paged.pages, paged.matched], [[4], 2, 3]);
   assert.equal(standingsPage(rows, (r) => r.name, { query: 'nobody' }).matched, 0);
+});
+
+test('many teams: 12+ teams of any size get the cut, worded as teams; small boards keep cards', () => {
+  const thirty = Array.from({ length: 30 }, (_, i) => 2 + (i % 2));
+  assert.equal(isManyTeams('auto', thirty), true);
+  assert.equal(standingsLayout('auto', thirty), 'teams');
+  assert.equal(standingsLayout('draft', Array(11).fill(3)), 'cards', '2–11 teams stay as today');
+  assert.equal(standingsLayout('draft', [5, 5]), 'cards');
+  assert.equal(standingsLayout('draft', Array(12).fill(3)), 'teams');
+  // Solo-like wins: players wording, not teams.
+  assert.equal(standingsLayout('solo', thirty), 'players');
+  assert.equal(standingsLayout('draft', Array(20).fill(1)), 'players');
+  assert.equal(isManyTeams('draft', Array(20).fill(1)), false);
+  // A big board mixing one-person and bigger teams is a team board.
+  assert.equal(standingsLayout('draft', [...Array(15).fill(1), 2]), 'teams');
+});
+
+test('many teams: your team with neighbours; on two teams, each shows', () => {
+  assert.equal(shape(standingsWindow(field(30), mineIs(18))), '1,2,3,4,5 |10| 16,17,18,19,20 |10|');
+  assert.equal(shape(standingsWindow(field(30), mineIs(12, 25))), '1,2,3,4,5 |4| 10,11,12,13,14 |8| 23,24,25,26,27 |3|');
+});
+
+test('search by team name or any member name', () => {
+  const teams = [
+    { id: 1, name: 'Red Raiders', members: ['Zezima', 'B0aty'] },
+    { id: 2, name: 'Blue Moon', members: ['Lynx_Titan'] },
+    { id: 3, name: 'Zez Squad', members: ['Other'] },
+  ];
+  const by = (q: string) => standingsPage(teams, (t) => [t.name, ...t.members], { query: q }).rows.map((t) => t.id);
+  assert.deepEqual(by('zez'), [1, 3], 'a member on one, the team name on the other, standing order kept');
+  assert.deepEqual(by('lynx titan'), [2]);
+  assert.deepEqual(by('moon'), [2]);
+  assert.deepEqual(by('nobody'), []);
 });

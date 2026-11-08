@@ -317,3 +317,31 @@ test('a solo board: the cut standings, your lines picked out, and a way to every
   const ladder = eventUi(base(liveCfg({ event: { id: 5, name: 'L', format: 'ladder' } }), { soloStandings: { total: 3, complete: true, mineMore: 0, parts: [{ kind: 'rows', rows: [p(1)] }] } }), 'board')!;
   assert.ok(!texts(ladder).includes('3 players'));
 });
+
+test('a board of many teams: the cut list worded as teams, your team picked out', () => {
+  const t = (rank: number, yours = false) => ({ teamId: rank, name: `Team ${rank}`, color: '#ff0000', rank, score: `${100 - rank} tiles`, members: 3, yours });
+  const ui = eventUi(
+    base(liveCfg(), {
+      teamStandings: {
+        total: 30,
+        complete: false,
+        mineMore: 0,
+        parts: [
+          { kind: 'rows', rows: [t(1), t(2), t(3), t(4), t(5)] },
+          { kind: 'gap', skipped: 10 },
+          { kind: 'rows', rows: [t(16), t(17), t(18, true), t(19), t(20)] },
+          { kind: 'gap', skipped: 10 },
+        ],
+      },
+    }),
+    'board',
+  )!;
+  const all = texts(ui);
+  assert.ok(all.includes('30 teams'));
+  assert.ok(all.includes('3 members · your team'));
+  assert.ok(all.includes('View all 30 teams'));
+  assert.ok(!all.includes('All teams & members'));
+  assert.ok(!all.some((s) => /players/.test(s)));
+  assert.ok(!all.includes('Team 6'));
+  assert.ok(walk(ui).some((x) => (x.on as { args?: { team?: string } } | undefined)?.args?.team === '18'), 'a row opens that team');
+});

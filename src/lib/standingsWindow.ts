@@ -8,6 +8,10 @@
 // teams early in an auto-balanced board aren't a player list, so the size floor keeps those as
 // teams; solo placement always is one, however few have joined.
 //
+// MANY TEAMS: any other board with at least MANY_TEAMS_MIN teams (30 teams of 2–3, say) gets the
+// same cut, worded as teams: the top five, the viewer's team(s) with two either side, the rest paged
+// and searchable by team name or member name. Boards of 2–11 teams keep a card per team.
+//
 // Ranks are competition ranks (ties share a rank, the next skips: 1, 2, 2, 4) and are worked out
 // ONCE, by the caller, before anything here cuts the list; within a tie the order is the caller's
 // (best first, then name, the order lib/eventRoster uses).
@@ -25,6 +29,19 @@ export const STANDINGS_PAGE_SIZE = 25;
 export function isSoloLike(placement: string | null | undefined, teamSizes: number[]): boolean {
   if (placement === 'solo') return true;
   return teamSizes.length >= SOLO_MIN_TEAMS && teamSizes.every((n) => n <= 1);
+}
+
+export const MANY_TEAMS_MIN = SOLO_MIN_TEAMS;
+
+/** Not a players board, but too many teams for a card each. */
+export function isManyTeams(placement: string | null | undefined, teamSizes: number[]): boolean {
+  return !isSoloLike(placement, teamSizes) && teamSizes.length >= MANY_TEAMS_MIN;
+}
+
+/** How a board's standings are drawn: a card per team, or the cut list worded as players or teams. */
+export type StandingsLayout = 'cards' | 'players' | 'teams';
+export function standingsLayout(placement: string | null | undefined, teamSizes: number[]): StandingsLayout {
+  return isSoloLike(placement, teamSizes) ? 'players' : isManyTeams(placement, teamSizes) ? 'teams' : 'cards';
 }
 
 /** Competition ranking over rows already sorted best first: ties share a rank. Null scores rank nothing. */
@@ -114,15 +131,22 @@ export interface StandingsPage<T> {
   matched: number;
 }
 
-/** One page of the full list, in standing order, narrowed to names containing `query`. */
+/**
+ * One page of the full list, in standing order, narrowed to rows with a name containing `query`.
+ * `nameOf` may give several names (a team's own and its members'): any of them matching counts.
+ */
 export function standingsPage<T>(
   rows: T[],
-  nameOf: (r: T) => string,
+  nameOf: (r: T) => string | string[],
   opts: { page?: number; pageSize?: number; query?: string } = {},
 ): StandingsPage<T> {
   const size = Math.max(1, opts.pageSize ?? STANDINGS_PAGE_SIZE);
   const q = looseName(opts.query ?? '');
-  const hits = q ? rows.filter((r) => looseName(nameOf(r)).includes(q)) : rows;
+  const names = (r: T) => {
+    const n = nameOf(r);
+    return typeof n === 'string' ? [n] : n;
+  };
+  const hits = q ? rows.filter((r) => names(r).some((n) => looseName(n).includes(q))) : rows;
   const pages = Math.max(1, Math.ceil(hits.length / size));
   const page = Math.min(Math.max(1, Math.floor(opts.page ?? 1) || 1), pages);
   return { rows: hits.slice((page - 1) * size, page * size), page, pages, matched: hits.length };

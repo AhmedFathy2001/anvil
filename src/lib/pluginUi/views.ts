@@ -508,6 +508,8 @@ async function homeView(request: Request, a: Args): Promise<View> {
     standings: roster && roster.mode === 'teams' ? roster.teams.filter((t) => t.rank != null).sort((x, y) => x.rank! - y.rank!) : [],
     // A players board: the cut list, once anyone is ranked (hidden standings come back unranked).
     soloStandings: roster && roster.mode === 'players' && roster.window && roster.players.some((p) => p.rank != null) ? roster.window : null,
+    // 12+ teams of any size: the cut list worded as teams, once anyone is ranked.
+    teamStandings: roster && roster.mode === 'teams' && roster.window && roster.teams.some((t) => t.rank != null) ? roster.window : null,
     // Plain UTC: the panel has no browser locale to format with.
     standingsNotice: curtain
       ? standingsHiddenNotice(curtain, (iso) => new Date(iso).toUTCString().replace(':00 GMT', ' UTC'))

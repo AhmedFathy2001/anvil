@@ -13,8 +13,8 @@ import Select from '@/components/Select';
  * touched); picking a team redraws the board as that team's own — their fills, their progress,
  * their next tile.
  *
- * A players board (solo, or a big board of one-person teams — lib/standingsWindow) would be a wall of
- * 170 buttons, so `compact` draws "Everyone", the viewer's own entrants, and a searchable picker for
+ * A players board (solo, or a big board of one-person teams) or a board of many teams
+ * (lib/standingsWindow) would be a wall of buttons, so `compact` draws "Everyone", the viewer's own entrants, and a searchable picker for
  * anyone else.
  */
 export default function TeamLens({
@@ -24,6 +24,7 @@ export default function TeamLens({
   className = '',
   compact = false,
   mine = [],
+  noun = 'player',
 }: {
   teams: { id: number; name: string; color: string }[];
   /** null = all teams. */
@@ -34,9 +35,11 @@ export default function TeamLens({
   compact?: boolean;
   /** The viewer's own teams, drawn as buttons in compact mode. */
   mine?: number[];
+  /** Compact mode's wording: a players board says "You", a many-teams board "Your team". */
+  noun?: 'player' | 'team';
 }) {
   if (teams.length < 2) return null;
-  if (compact) return <CompactLens teams={teams} value={value} onChange={onChange} className={className} mine={mine} />;
+  if (compact) return <CompactLens teams={teams} value={value} onChange={onChange} className={className} mine={mine} noun={noun} />;
   return (
     <div className={`inline-flex flex-wrap items-center gap-1 ${className}`}>
       <span className="mr-1 text-[11px] uppercase tracking-wider text-text-muted">Show progress for</span>
@@ -80,12 +83,14 @@ function CompactLens({
   onChange,
   className,
   mine,
+  noun,
 }: {
   teams: { id: number; name: string; color: string }[];
   value: number | null;
   onChange: (teamId: number | null) => void;
   className: string;
   mine: number[];
+  noun: 'player' | 'team';
 }) {
   const own = new Set(mine);
   const yours = teams.filter((t) => own.has(t.id));
@@ -102,7 +107,7 @@ function CompactLens({
       {yours.map((t) => (
         <button key={t.id} type="button" onClick={() => onChange(t.id)} aria-pressed={value === t.id} className={chip(value === t.id)}>
           <span className="h-2 w-2 rounded-full" style={{ backgroundColor: t.color }} />
-          {yours.length > 1 ? t.name : 'You'}
+          {yours.length > 1 ? t.name : noun === 'team' ? 'Your team' : 'You'}
         </button>
       ))}
       {others.length > 0 && (
@@ -110,8 +115,8 @@ function CompactLens({
           value={otherPicked ? String(value) : ''}
           onChange={(v) => onChange(v ? Number(v) : null)}
           options={others.map((t) => ({ value: String(t.id), label: t.name, dot: t.color }))}
-          placeholder={yours.length ? 'Someone else…' : 'Pick a player…'}
-          ariaLabel="Show progress for a player"
+          placeholder={yours.length ? (noun === 'team' ? 'Another team…' : 'Someone else…') : `Pick a ${noun}…`}
+          ariaLabel={`Show progress for a ${noun}`}
           searchable
           className="w-44"
         />
