@@ -562,6 +562,14 @@ if (process.env.RACE_FIXTURES) {
     topWeek: [], topPlayers: [], clog: { average: 612, synced: 120 }, highlights: [], competitions: [{ type: 'boss', metric: 'vorkath', label: 'Vorkath' }],
   } as unknown as Parameters<typeof clanCardUi>[0];
   write('lookup-clan-img', clanCardUi(ironLads, true, false, false, true));
+  write('lookup-clan-long', clanCardUi({
+    ...ironLads, name: 'The Very Long Named Iron Clan of Gielinor and Beyond',
+    competitions: [{ type: 'boss', metric: 'a', label: 'Chambers of Xeric Challenge Mode' }, { type: 'skill', metric: 'b', label: 'Runecrafting' }, { type: 'boss', metric: 'c', label: 'Theatre of Blood Hard Mode' }],
+  } as unknown as Parameters<typeof clanCardUi>[0], true, false, false, true));
+  write('feed-clan', feedTabUi({
+    scopes: [scopes[0]], current: { ...scopes[0], banner: true, logo: true, mediaRevision: 'x' } as unknown as (typeof scopes)[0], pane: 'feed', chatAvailable: false, filter: 'all', teamId: null, images: true,
+    rows: [m(1, 'Lab~Field4', 'drop', { itemId: 20997, itemName: 'Twisted bow', valueGp: 1_400_000_000 })],
+  } as unknown as Parameters<typeof feedTabUi>[0]));
   write('lookup-clan-plain', clanCardUi({ ...ironLads, logoUrl: null, bannerUrl: null }, true, false, false, true));
 }
 
@@ -581,6 +589,9 @@ test('display case: every pin kind shows its value, items keep a full-size icon'
   for (const want of ['1,204 KC', '17:42.6', 'ToB · 4 players', '312 KC', 'Twisted bow', 'Nov 2026', 'Vorki', '×3 owned', 'Armadyl godsword']) assert.ok(t.includes(want), want);
   const ui = playerCardUi(shown, { sectionKey: 'you', cas: false });
   assert.ok(walk(ui).some((n) => n.t === 'icon' && n.item === 20997 && n.w === 36 && n.h === 32));
+  const lucky = playerCardUi({ ...shown, displayCase: [{ ...shown.displayCase![2], luck: { text: 'Spooned · 54 KC (1/1,200)', tone: 'green' } }] }, { sectionKey: 'you', cas: false });
+  assert.ok(texts(lucky).includes('Spooned · 54 KC (1/1,200)') && !texts(lucky).includes('312 KC'), 'the luck line outranks a bare KC');
+  assert.ok(walk(lucky).some((n) => n.t === 'text' && n.s?.startsWith('Spooned') && n.color === '#5fd35f'), 'spooned is green');
   assert.ok(!t.includes('Obtained') && !t.some((x) => x.startsWith('Obtained')), 'never the word Obtained');
 });
 

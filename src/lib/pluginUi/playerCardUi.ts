@@ -264,9 +264,10 @@ function identity(c: PlayerCard, anvil: boolean, images: boolean, own: boolean, 
  */
 function displayCase(c: PlayerCard, slots?: number): Node {
   const pins = c.displayCase ?? [];
-  /** What the pin says big: a headline, else the KC it came at, else a count owned, else the month it came; null when none is known. */
+  /** What the pin says big: a headline, else the luck line, else the KC it came at, else a count owned, else the month it came; null when none is known. */
   const value = (p: NonNullable<PlayerCard['displayCase']>[number]): string | null => {
     if (p.headline) return p.headline;
+    if (p.luck) return p.luck.text;
     if (p.kc) return `${fmt(p.kc)} KC`;
     if (p.qty && p.qty > 1) return `×${fmt(p.qty)} owned`;
     const d = p.when ? new Date(p.when) : null;
@@ -291,7 +292,7 @@ function displayCase(c: PlayerCard, slots?: number): Node {
           [
             picture(p),
             ...(value(p)
-              ? [small(value(p)!, item ? PURPLE : GOLD, { font: 'bold', wrap: true }), small(p.name, item ? PURPLE : 'muted', { wrap: true, tip: p.name })]
+              ? [small(value(p)!, p.luck ? (p.luck.tone === 'green' ? GREEN : 'muted') : item ? PURPLE : GOLD, { font: 'bold', wrap: true }), small(p.name, item ? PURPLE : 'muted', { wrap: true, tip: p.name })]
               : [small(p.name, item ? PURPLE : GOLD, { font: 'bold', wrap: true })]),
           ],
           { bg: 'panel', inset: 4, gap: 2, tip: [p.name, p.source].filter(Boolean).join(' · ') },
