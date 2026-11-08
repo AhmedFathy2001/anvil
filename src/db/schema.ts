@@ -4421,6 +4421,20 @@ export const analyticsEvents = pgTable('analytics_events', {
 ]);
 export type AnalyticsEvent = typeof analyticsEvents.$inferSelect;
 
+// Where a person first found Anvil, written once when their account is created (lib/analyticsAttribution).
+// A readable source key (`google`, `discord`, `ref:<creator>`, `direct`), the standard campaign tags and
+// the referrer HOST — never a URL. One row per user; `unknown` when the visit could not be seen
+// (browser sent nothing, or the sign-in did not start from a page we counted).
+export const userFirstTouch = pgTable('user_first_touch', {
+  userId: integer('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  source: text('source').notNull(),
+  medium: text('medium'),
+  campaign: text('campaign'),
+  referrerHost: text('referrer_host'),
+  ref: text('ref'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (t) => [index('user_first_touch_source_idx').on(t.source)]);
+
 // ── Tile lab ──────────────────────────────────────────────────────────────────────────────────
 // Platform staff test any tile kind against a real account without a real bingo (lib/lab). A lab
 // session is an ordinary event owned by the hidden lab clan, so every clan-scoped surface misses it

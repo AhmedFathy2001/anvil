@@ -1,7 +1,9 @@
 import ClanLink from '@/components/ClanLink';
 import { notFound } from 'next/navigation';
 
-import { requirePlatformPage } from '@/lib/platformAccess';
+import { requireOwnerPage } from '@/lib/ownerAccess';
+import { ownerOverview, CONVERSION_KINDS, type ConversionKind } from '@/lib/analyticsAttribution';
+import { conversionRate, sourceLabel } from '@/lib/analyticsSource';
 import { analyticsOverview, type DailyPoint } from '@/lib/analyticsRead';
 import { parseWindow, worstStep, WINDOWS, type FunnelRow } from '@/lib/analyticsFunnels';
 
@@ -20,10 +22,10 @@ export default async function StaffAnalyticsPage({
 }: {
   searchParams: Promise<{ days?: string }>;
 }) {
-  // The shell gates this too; a page that can show every clan's activity checks for itself.
-  if (!(await requirePlatformPage('support'))) notFound();
+  // OWNER ONLY, checked here and on /api/staff/analytics — not just by the shell, which lets support in.
+  if (!(await requireOwnerPage())) notFound();
   const days = parseWindow((await searchParams).days);
-  const a = await analyticsOverview(days);
+  const [a, o] = await Promise.all([analyticsOverview(days), ownerOverview(days)]);
 
   return (
     <div>
@@ -31,8 +33,8 @@ export default async function StaffAnalyticsPage({
         <div>
           <h1 className="display text-2xl font-semibold text-gold">Analytics</h1>
           <p className="mt-1 max-w-[70ch] text-sm text-text-muted">
-            Visits, the features people reach for, and where they stop. Paths are stored as routes, never
-            as URLs; visitors are a per-tab random id, with no cookie.
+            Visits, where people come from, the features they reach for and where they stop. Paths are
+            stored as routes, never as URLs; visitors are a per-tab random id, with no cookie. Owner only.
           </p>
         </div>
         <nav className="flex gap-2 text-sm" aria-label="Window">
@@ -79,8 +81,8 @@ export default async function StaffAnalyticsPage({
               <Empty />
             ) : (
               <RankTable
-                head={['Route', 'Views', 'Sessions']}
-                rows={a.topRoutes.map((r) => [r.name, r.views, r.sessions])}
+                head={['Route', 'Views', 'Sessions', 'Avg time']}
+                rows={a.topRoutes.map((r) => [r.name, r.views, r.sessions, o.avgSeconds[r.name] != null ? `${o.avgSeconds[r.name]}s` : '—'])}
                 max={a.topRoutes[0].views}
               />
             )}
@@ -100,6 +102,145 @@ export default async function StaffAnalyticsPage({
           </Card>
         </Section>
       </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Section title="Entry pages">
+          <Card>
+            {o.entryPages.length === 0 ? <Empty /> : <RankTable head={['Route', 'Visits']} rows={o.entryPages.map((r) => [r.name, r.count])} max={o.entryPages[0].count} />}
+          </Card>
+        </Section>
+        <Section title="Exit pages">
+          <Card>
+            {o.exitPages.length === 0 ? <Empty /> : <RankTable head={['Route', 'Visits']} rows={o.exitPages.map((r) => [r.name, r.count])} max={o.exitPages[0].count} />}
+          </Card>
+        </Section>
+        <Section title="Referrers">
+          <Card>
+            {o.referrers.length === 0 ? <Empty /> : <RankTable head={['Host', 'Views', 'Sessions']} rows={o.referrers.map((r) => [r.name, r.count, r.sessions ?? 0])} max={o.referrers[0].count} />}
+          </Card>
+        </Section>
+        <Section title="Devices">
+          <Card>
+            {o.devices.length === 0 ? <Empty /> : <RankTable head={['Device', 'Views', 'Sessions']} rows={o.devices.map((r) => [r.name, r.count, r.sessions ?? 0])} max={o.devices[0].count} />}
+          </Card>
+        </Section>
+      </div>
+
+      <Section title="Conversions by first-touch source">
+        <Card>
+          <p className="mb-3 text-xs text-text-muted">
+            Each conversion is credited to the source of the person&apos;s first visit (set once, when the account was
+            created); rate is conversions per visit from that source. People who signed up before this was tracked
+            read Unknown.
+          </p>
+          {o.sources.length === 0 ? (
+            <Empty />
+          ) : (
+            <div className="overflow-x-auto overflow-y-hidden">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs text-text-muted">
+                  <tr>
+                    <th className="py-1.5 pr-4 font-medium">Source</th>
+                    <th className="py-1.5 pr-3 text-right font-medium">Visits</th>
+                    {CONVERSION_KINDS.map((k) => (
+                      <th key={k} className="py-1.5 pr-3 text-right font-medium">{KIND_LABEL[k]}</th>
+                    ))}
+                    <th className="py-1.5 text-right font-medium">Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {o.sources.map((r) => (
+                    <tr key={r.source} className="border-t border-card-border">
+                      <td className="py-1.5 pr-4 text-gray-200">{sourceLabel(r.source)}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{r.visits.toLocaleString()}</td>
+                      {CONVERSION_KINDS.map((k) => (
+                        <td key={k} className="py-1.5 pr-3 text-right tabular-nums">{r.conversions[k].toLocaleString()}</td>
+                      ))}
+                      <td className="py-1.5 text-right tabular-nums text-gold">
+                        {r.visits > 0 ? `${(conversionRate(r.total, r.visits) * 100).toFixed(1)}%` : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </Section>
+
+      <Section title="Latest conversions">
+        <Card>
+          {o.latest.length === 0 ? (
+            <Empty />
+          ) : (
+            <ul className="divide-y divide-card-border text-sm">
+              {o.latest.map((c, i) => (
+                <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-4 py-1.5">
+                  <span className="text-gray-200">
+                    {KIND_LABEL[c.kind] ?? c.kind}
+                    {c.clan ? <span className="ml-2 text-text-muted">{c.clan}</span> : null}
+                  </span>
+                  <span className="text-xs text-text-muted">
+                    {sourceLabel(c.source)} · {c.ts.slice(0, 16)} UTC
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </Section>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Section title="Clan owner journey">
+          <Funnel rows={o.clanOwner} actor={`clans created in the last ${days} days`} />
+        </Section>
+        <Section title="Player journey">
+          <Funnel rows={o.player} actor={`people who signed in during the last ${days} days`} />
+        </Section>
+        <Section title="Supporter">
+          <Funnel rows={o.supporter} actor="views of /supporter" />
+        </Section>
+        <Section title="Invite links">
+          <Funnel rows={o.invite} actor="invite links opened" />
+        </Section>
+      </div>
+
+      <Section title="Clan owner journey, per clan">
+        <Card>
+          {o.clanJourney.length === 0 ? (
+            <Empty />
+          ) : (
+            <div className="overflow-x-auto overflow-y-hidden">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs text-text-muted">
+                  <tr>
+                    <th className="py-1.5 pr-4 font-medium">Clan</th>
+                    <th className="py-1.5 pr-3 font-medium">Created</th>
+                    {JOURNEY_COLS.map(([, label]) => (
+                      <th key={label} className="py-1.5 pr-3 font-medium">{label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {o.clanJourney.map((c) => (
+                    <tr key={c.id} className="border-t border-card-border">
+                      <td className="py-1.5 pr-4">
+                        <ClanLink href={`/staff/clans/${c.id}`} className="text-gold-light hover:text-gold">{c.name}</ClanLink>
+                      </td>
+                      <td className="py-1.5 pr-3 text-xs text-text-muted">{c.created.slice(0, 10)}</td>
+                      {JOURNEY_COLS.map(([key]) => (
+                        <td key={key} className={`py-1.5 pr-3 text-xs ${c.steps[key] ? 'text-gray-200' : 'text-amber-400'}`}>
+                          {c.steps[key] ? c.steps[key]!.slice(0, 10) : 'not yet'}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </Section>
 
       <Section title="Discord joins">
         <Card>
@@ -184,6 +325,15 @@ export default async function StaffAnalyticsPage({
     </div>
   );
 }
+
+const KIND_LABEL: Record<ConversionKind, string> = {
+  'clan.created': 'Clan created',
+  'creator.created': 'Creator space',
+  'clan.purchased': 'Clan plan',
+  'supporter.purchased': 'Supporter',
+  'plugin.linked': 'Plugin linked',
+};
+const JOURNEY_COLS: [string, string][] = [['discord', 'Discord'], ['roster', 'Roster'], ['event', 'First event'], ['started', 'Started']];
 
 const sum = (s: DailyPoint[]) => s.reduce((n, p) => n + p.count, 0);
 const pct = (n: number, of: number) => (of > 0 ? `${Math.round((n / of) * 100)}%` : '—');
@@ -270,7 +420,7 @@ function RankTable({ head, rows, max }: { head: string[]; rows: (string | number
             </td>
             {r.slice(1).map((v, i) => (
               <td key={i} className="py-1.5 pl-3 text-right tabular-nums">
-                {Number(v).toLocaleString()}
+                {typeof v === 'number' ? v.toLocaleString() : v}
               </td>
             ))}
           </tr>

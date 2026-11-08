@@ -9,6 +9,7 @@
 // Unlike a clan, nobody is suspended: a refunded Supporter just stops being one.
 
 import { eq } from 'drizzle-orm';
+import { track } from '@/lib/analytics';
 
 import { db } from '@/db';
 import { supporterSubscriptions, users } from '@/db/schema';
@@ -66,6 +67,7 @@ export async function startSupporterMembership(userId: number, ev: GumroadEvent,
     currentPeriodEnd: periodEnd,
     startedAt: nowIso(),
   }).returning({ id: supporterSubscriptions.id });
+  if (created) track('supporter.purchased', { userId, clanId: null, props: { tier } });
   if (created) afterSupporterChange(userId, { announceRowId: isTrial ? null : created.id });
   // Bought through somebody's invite link: their reward is held until the money has settled.
   if (created && ev.urlParams.via) {

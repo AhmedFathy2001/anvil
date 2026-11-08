@@ -130,3 +130,71 @@ export function densifyDays(
   }
   return out;
 }
+
+/**
+ * A funnel whose steps were counted separately rather than per actor — the Supporter page, where a
+ * view may carry no sign-in, and an invite link opened by someone who never signs in. The same rows
+ * as computeFunnel, but a later step is not capped at the one before: a count that exceeds it (a
+ * purchase whose view predates the window) reads as no drop rather than a negative one.
+ */
+export function funnelFromCounts(def: FunnelDef, counts: number[]): FunnelRow[] {
+  const start = counts[0] ?? 0;
+  return def.steps.map((step, k) => {
+    const c = counts[k] ?? 0;
+    const prev = k === 0 ? c : (counts[k - 1] ?? 0);
+    return {
+      key: step.key,
+      label: step.label,
+      hint: step.hint,
+      count: c,
+      ofStart: start > 0 ? Math.min(1, c / start) : 0,
+      dropFromPrev: k === 0 || prev === 0 ? 0 : Math.max(0, 1 - c / prev),
+    };
+  });
+}
+
+export const CLAN_OWNER_JOURNEY: FunnelDef = {
+  key: 'clan-owner',
+  title: 'Clan owner journey',
+  actor: 'clans created in the window',
+  steps: [
+    { key: 'created', label: 'Clan created', hint: 'clan.created' },
+    { key: 'discord', label: 'Discord connected', hint: 'the bot was added to their server' },
+    { key: 'roster', label: 'Roster synced', hint: 'the plugin pushed the in-game roster' },
+    { key: 'event', label: 'First event created', hint: 'event.created' },
+    { key: 'started', label: 'Event started', hint: 'event.started' },
+  ],
+};
+
+export const PLAYER_JOURNEY: FunnelDef = {
+  key: 'player',
+  title: 'Player journey',
+  actor: 'people who signed in during the window',
+  steps: [
+    { key: 'signedIn', label: 'Signed in', hint: 'auth.login' },
+    { key: 'plugin', label: 'Plugin linked', hint: 'their first plugin token' },
+    { key: 'credit', label: 'First credit', hint: 'a tile credited or a proof submitted' },
+    { key: 'joined', label: 'Joined an event', hint: 'signed up for an event' },
+  ],
+};
+
+export const SUPPORTER_JOURNEY: FunnelDef = {
+  key: 'supporter',
+  title: 'Supporter',
+  actor: 'views of /supporter',
+  steps: [
+    { key: 'viewed', label: 'Viewed /supporter', hint: 'the page was opened' },
+    { key: 'checkout', label: 'Started checkout', hint: 'pressed the buy button' },
+    { key: 'purchased', label: 'Purchased', hint: 'Gumroad confirmed the sale' },
+  ],
+};
+
+export const INVITE_JOURNEY: FunnelDef = {
+  key: 'invite',
+  title: 'Invite links',
+  actor: 'invite links opened',
+  steps: [
+    { key: 'opened', label: 'Link opened', hint: 'a friends-event invite page loaded' },
+    { key: 'joined', label: 'Joined', hint: 'the invite was accepted' },
+  ],
+};

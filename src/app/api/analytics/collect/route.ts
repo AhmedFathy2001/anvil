@@ -1,5 +1,6 @@
-import { forgetSession, isOperatorPattern, isPlatformStaff, trackPage } from '@/lib/analytics';
-import { clanSlugOf, isBotUserAgent, isSessionId, scrubPattern } from '@/lib/analyticsPattern';
+import { forgetSession, isOperatorPattern, isPlatformStaff, trackLeave, trackPage } from '@/lib/analytics';
+import { boundProps, clanSlugOf, isBotUserAgent, isSessionId, scrubPattern } from '@/lib/analyticsPattern';
+import { classifyFirstTouch, clampLeaveMs, isViewportClass } from '@/lib/analyticsSource';
 import { sessionUserIdForAnalytics } from '@/lib/auth';
 import { resolveClanByHost, resolveClanBySlug } from '@/lib/clanContext';
 import { getClientIp } from '@/lib/clientIp';
@@ -20,7 +21,7 @@ const MAX_BODY = 2_048;
 // request, which would double the writes this route exists to make. Per-process is enough — the aim
 // is to stop one client inflating a chart, not to enforce a contract.
 const WINDOW_MS = 60_000;
-const PER_WINDOW = 60;
+const PER_WINDOW = 120; // a view and a leave per navigation
 let windowStartedAt = 0;
 const hits = new Map<string, number>();
 
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
 
     const raw = await request.text();
     if (raw.length > MAX_BODY) return done();
-    const body = JSON.parse(raw) as { p?: unknown; s?: unknown; c?: unknown };
+    const body = JSON.parse(raw) as { p?: unknown; s?: unknown; c?: unknown; w?: unknown; f?: unknown; l?: unknown };
 
     const pattern = scrubPattern(body.p);
     if (!pattern || !isSessionId(body.s)) return done();
@@ -60,11 +61,26 @@ export async function POST(request: Request) {
     const slug = typeof body.c === 'string' ? clanSlugOf(`/c/${body.c}`) : null;
     const clan = (slug ? await resolveClanBySlug(slug) : null) ?? (await resolveClanByHost(request.headers.get('host')));
 
+    // Time on page: a leave beacon names the page and how long it was open. Nothing else.
+    const ms = clampLeaveMs(body.l);
+    if (body.l !== undefined) {
+      if (ms != null) trackLeave({ pattern, clanId: clan?.id ?? null, sessionId: body.s, ms });
+      return done();
+    }
+
+    // First touch: only the tab's first view carries it (`f`), and only the HOST of the referrer plus
+    // the standard campaign tags — all re-cleaned here, since a beacon is a request anybody can forge.
+    const f = body.f && typeof body.f === 'object' ? (body.f as Record<string, unknown>) : null;
+    const touch = f ? classifyFirstTouch({ host: f.r as string, source: f.s as string, medium: f.m as string, campaign: f.c as string, ref: f.f as string }) : null;
     trackPage({
       pattern,
       clanId: clan?.id ?? null,
       userId,
       sessionId: body.s,
+      props: boundProps({
+        vp: isViewportClass(body.w) ? body.w : null,
+        ...(touch ? { src: touch.source, rh: touch.host, um: touch.medium, uc: touch.campaign, rf: touch.ref } : {}),
+      }),
     });
   } catch {
     // A bad body is a dropped view, not an error.

@@ -8,6 +8,7 @@ import { joinPendingEventServersNow } from '@/lib/eventDiscord';
 import { scopeAllowsJoin } from '@/lib/eventDiscordPlan';
 import { log } from '@/lib/logger';
 import { safeReturnPath } from '@/lib/safe-redirect';
+import { track } from '@/lib/analytics';
 import { completeDiscordLogin, loginFailPage } from '@/lib/discord-login';
 import { apexDomain, originForHost, resolveReturnHost, sessionCookieDomain } from '@/lib/clanContext';
 import { BOT_CONNECT_COOKIE } from '@/lib/discordGuildBinding';
@@ -16,6 +17,7 @@ import { finishBotConnect } from '@/lib/discordBotConnect';
 const STATE_COOKIE = 'discord_oauth_state';
 const RETURN_COOKIE = 'discord_oauth_return';
 const RETURN_HOST_COOKIE = 'discord_oauth_return_host';
+const SID_COOKIE = 'discord_oauth_sid';
 
 function parseCookies(request: Request): Map<string, string> {
   const cookieHeader = request.headers.get('cookie') || '';
@@ -80,7 +82,8 @@ export async function GET(request: Request) {
       returnTo,
       returnHost,
       request,
-      clearCookies: [STATE_COOKIE, RETURN_COOKIE, RETURN_HOST_COOKIE],
+      analyticsSid: cookieMap.get(SID_COOKIE) ?? null,
+      clearCookies: [STATE_COOKIE, RETURN_COOKIE, RETURN_HOST_COOKIE, SID_COOKIE],
     });
     // The event page's auto-join opt-in (start?join=1). Only kept when Discord actually granted
     // guilds.join; a plain login carries no such scope and stores nothing. Best-effort: failing to
@@ -144,6 +147,7 @@ async function handleBotConnect(
     const tokenSet = await exchangeCodeForTokenSet(q.code);
     const discordUser = await fetchDiscordUser(tokenSet.accessToken);
     const result = await finishBotConnect({ clanIdCookie, tokenSet, discordUserId: discordUser.id });
+    if (result.ok) track('discord.connected', { clanId: Number(clanIdCookie) });
     return back(result.clanSlug, result.ok ? 'connected' : result.error);
   } catch (e) {
     log.warn('oauth.bot-connect-fail', {}, e);

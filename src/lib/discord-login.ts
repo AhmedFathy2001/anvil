@@ -12,6 +12,7 @@ import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { log } from '@/lib/logger';
 import { claimAccountForPerson } from '@/lib/accountClaim';
 import { track } from '@/lib/analytics';
+import { recordFirstTouch } from '@/lib/analyticsAttribution';
 import { rosterClanSeat } from '@/lib/seatScope';
 import { firstLoginDestination, spaceSlugOf } from '@/lib/firstLogin';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
@@ -105,7 +106,7 @@ export async function seedPlatformRoot(userId: number, discordId: string): Promi
 
 export async function completeDiscordLogin(
   discordUser: DiscordUser,
-  opts: { returnTo: string; returnHost?: string; request: Request; clearCookies?: string[] },
+  opts: { returnTo: string; returnHost?: string; request: Request; clearCookies?: string[]; analyticsSid?: string | null },
 ): Promise<NextResponse> {
   const { returnTo, returnHost, request, clearCookies = [] } = opts;
   const nowIso = new Date().toISOString();
@@ -189,6 +190,8 @@ export async function completeDiscordLogin(
   if (!user) throw new Error('Could not load or create user.');
   // Every sign-in, with the first one flagged: "new people per week" and "people coming back" are
   // both read off this one action.
+  // A new account is credited to where its visit began, once (lib/analyticsAttribution).
+  if (isNewUser) recordFirstTouch(user.id, opts.analyticsSid);
   track('auth.login', { clanId: loginClan?.id ?? null, userId: user.id, props: { newUser: isNewUser } });
 
   // The bootstrap grant, on every sign-in rather than only the first. This is the escape hatch that
