@@ -166,8 +166,8 @@ export const LAB_TILE_SET: LabTileSpec[] = [
   spec("2 Seers' rooftop laps", 'lap', 'Agility', { requiredAmount: 2, targetNpcs: list("Seers' Village Rooftop") }),
   // The scenario's raid is Expert Mode, and the game names the mode in its count line.
   spec('Tombs of Amascut', 'kill', 'Raids', { targetNpcs: list('Tombs of Amascut', 'Tombs of Amascut: Expert Mode'), coopCredit: 'per-kill' }),
-  // A drop tile, not a "clue opens" kill tile: the open is counted under "Clue Scroll (Hard)", whose
-  // tier qualifier the kill index drops, so a tier-named kill tile is never credited (see the test).
+  // The casket's loot under "Clue Scroll (Hard)"; a "clue opens" kill tile on that name is credited too
+  // (tests/lab-tiles-credit).
   spec('Robin Hood hat (hard clue)', 'drop', 'Clues', { trackedItemIds: list(2581), sourceNpcs: list('Clue Scroll (Hard)') }),
   spec('Slayer task', 'kill', 'Slayer', { targetNpcs: list('Slayer tasks: any master') }),
   spec('2 Vorkath kills', 'kill', 'Bosses', { requiredAmount: 2, targetNpcs: list('Vorkath') }),

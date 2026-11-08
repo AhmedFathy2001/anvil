@@ -6,6 +6,8 @@ import assert from 'node:assert/strict';
 import {
   coalesce,
   crossesProofMilestone,
+  killTargetKey,
+  killTargetKeys,
   matchFacts,
   matchLoot,
   planPings,
@@ -333,7 +335,34 @@ test('buildRuleTable kills: keyed by killTargetKey (lowercase, wiki qualifier st
   });
   assert.ok(table.kills['armoured zombie'], `keys: ${Object.keys(table.kills).join(', ')}`);
   assert.ok(table.kills['vardorvis (awakened)']);
+  assert.equal(table.kills['vardorvis'], undefined, 'the awakened mode never keys the base boss');
   assert.equal(table.kills['armoured zombie'][0].t, 1);
+});
+
+test('killTargetKeys: clue tiers fold to the plugin name, game-named qualifiers stay, wiki ones also key bare', () => {
+  assert.deepEqual(killTargetKeys('Clue Scroll (Hard)'), ['clue scroll (hard)']);
+  assert.deepEqual(killTargetKeys('Clue Scroll (beginner)'), ['clue scroll (beginner)']);
+  assert.deepEqual(killTargetKeys('Reward casket (master)'), ['clue scroll (master)']);
+  assert.deepEqual(killTargetKeys('Vardorvis (awakened)'), ['vardorvis (awakened)']);
+  assert.deepEqual(killTargetKeys('Casket (Tempoross)'), ['casket (tempoross)']);
+  assert.deepEqual(killTargetKeys('Supply crate (Wintertodt)'), ['supply crate (wintertodt)']);
+  assert.deepEqual(killTargetKeys("Armoured zombie (Zemouregal's Fort)"), ['armoured zombie', "armoured zombie (zemouregal's fort)"]);
+  assert.deepEqual(killTargetKeys('Vorkath'), ['vorkath']);
+  assert.deepEqual(killTargetKeys('Tombs of Amascut: Expert Mode'), ['tombs of amascut: expert mode']);
+  assert.deepEqual(killTargetKeys('  '), []);
+  assert.equal(killTargetKey('Clue Scroll (Elite)'), 'clue scroll (elite)');
+});
+
+test('buildRuleTable kills: a clue tile keys its tier only, the plugin lowercases "Clue Scroll (Hard)" onto it', () => {
+  const table = buildRuleTable({ trackedKills: [kill({ tileId: 7, targetNpcs: ['Clue Scroll (Hard)'] })] });
+  assert.deepEqual(Object.keys(table.kills), ['clue scroll (hard)']);
+  assert.equal(table.kills['Clue Scroll (Hard)'.toLowerCase()][0].t, 7);
+});
+
+test('kill index: a Tempoross casket tile is not credited by a fished "Casket" open', () => {
+  const t = { trackedKills: [{ tileId: 1, label: 'Tempoross caskets', requiredAmount: 5, currentAmount: 0, targetNpcs: ['Casket (Tempoross)'] }] };
+  assert.equal(matchFacts([{ k: 'kill', n: { Casket: 1 } }], t).credits.length, 0);
+  assert.equal(matchFacts([{ k: 'kill', n: { 'Casket (Tempoross)': 1 } }], t).credits.length, 1);
 });
 
 test('buildRuleTable stats: a skill rides xp with active gating, a boss rides kc under its names', () => {

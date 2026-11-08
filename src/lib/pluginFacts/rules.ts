@@ -10,7 +10,7 @@
  */
 import { statKeys } from '@/lib/tileKinds';
 import { kcNamesForKey } from '@/lib/pluginStats';
-import { killTargetKey, type DropTile, type KillTile, type PlainTile, type ValueTile } from '@/lib/pluginFacts/match';
+import { killTargetKeys, type DropTile, type KillTile, type PlainTile, type ValueTile } from '@/lib/pluginFacts/match';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { DIARY_AREAS } from '@/lib/constants';
 
@@ -309,8 +309,7 @@ export function buildRuleTable(cfg: RulesConfigIn): RuleTable {
       ...((k.coopCredit ?? '').toLowerCase() === 'per-kill' || (k.coopMinMembers ?? 0) > 0 ? { coop: true } : {}),
     };
     for (const target of k.targetNpcs ?? []) {
-      const key = killTargetKey(target);
-      if (key && !(kills[key] ??= []).includes(rule)) kills[key].push(rule);
+      for (const key of killTargetKeys(target)) if (!(kills[key] ??= []).includes(rule)) kills[key].push(rule);
     }
   }
 
