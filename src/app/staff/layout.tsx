@@ -65,8 +65,10 @@ export default async function StaffLayout({ children }: { children: React.ReactN
 
   const row = await db.query.users.findFirst({
     where: eq(users.id, actor.user.userId),
-    columns: { displayName: true, discordId: true, discordAvatar: true },
+    columns: { displayName: true, discordId: true, discordAvatar: true, isOwner: true },
   });
+  // The Money page is the owner's alone (lib/ownerAccess); the link is only drawn for them.
+  const isOwner = row?.isOwner === true;
 
   const canWrite = hasPlatformRole(actor.role, 'staff');
   // The same counts the Platform link wears everywhere else, broken out by where each is cleared.
@@ -82,6 +84,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         // Read-only, and shown to support too: seeing what was done is the least dangerous thing an
         // operator can do, and the one most often needed when somebody asks why.
         { href: '/staff/audit', label: 'Operator log', icon: '⧉', matchPrefix: true },
+        ...(isOwner ? [{ href: '/staff/money', label: 'Money', icon: '$', matchPrefix: true }] : []),
       ],
     },
     {

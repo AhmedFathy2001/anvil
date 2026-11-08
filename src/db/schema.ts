@@ -5211,3 +5211,62 @@ export const sharedWebhooks = pgTable('shared_webhooks', {
   decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   decidedAt: timestamp('decided_at', { withTimezone: true }),
 }, (t) => [index('shared_webhooks_status_idx').on(t.status)]);
+
+// OWNER MONEY (lib/money, /staff/money; platform owner only).
+//
+// billing_ledger: one row per Gumroad notification that carries money or a lifecycle change, written
+// by the webhook as it arrives (lib/moneyLedger). Before this table nothing kept an amount: the
+// clan and Supporter handlers only changed a plan or a status. Rows older than the table are
+// ESTIMATED from the catalogue prices (lib/moneyRules) and marked as such. `fee_cents` stays null
+// unless Gumroad sent `gumroad_fee`; a null fee is "not known", never "zero".
+export const billingLedger = pgTable('billing_ledger', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+  /** 'sale' | 'recurring_charge' | 'refund' | 'dispute' | 'cancellation' | 'subscription_ended' | 'restarted' */
+  kind: text('kind').notNull(),
+  /** 'supporter' | 'hosted' | 'creator' | 'other' — decided from the product when it arrived. */
+  product: text('product').notNull(),
+  tier: text('tier'),
+  saleId: text('sale_id'),
+  subscriptionId: text('subscription_id'),
+  amountCents: integer('amount_cents'),
+  feeCents: integer('fee_cents'),
+  currency: text('currency'),
+  recurrence: text('recurrence'),
+  /** A partial refund: the amount is the sale's price, not what was given back. */
+  partial: boolean('partial').notNull().default(false),
+  buyerEmail: text('buyer_email'),
+}, (t) => [
+  uniqueIndex('billing_ledger_sale_kind_unique').on(t.saleId, t.kind),
+  index('billing_ledger_occurred_idx').on(t.occurredAt),
+  index('billing_ledger_sub_idx').on(t.subscriptionId, t.occurredAt),
+]);
+
+// owner_trials: a free Supporter tier or clan boost level the owner granted for N days. The
+// entitlement itself is an ordinary time-limited row (a supporter gift row, or the clan's gift
+// level + expiry), so resolution needs no trial-specific code and expiry is enforced at read time.
+// This table is the pipeline: who, what, until when, and whether they later bought.
+export const ownerTrials = pgTable('owner_trials', {
+  id: serial('id').primaryKey(),
+  /** 'supporter' | 'boost' */
+  kind: text('kind').notNull(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'cascade' }),
+  /** supporter tier id, or boost level 1-3 as text. */
+  tier: text('tier').notNull(),
+  days: integer('days').notNull(),
+  note: text('note'),
+  startsAt: timestamp('starts_at', { withTimezone: true }).notNull().defaultNow(),
+  endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+  /** supporter_subscriptions.id of the gift row that carries the entitlement (supporter trials). */
+  entitlementId: integer('entitlement_id'),
+  grantedBy: integer('granted_by').references(() => users.id, { onDelete: 'set null' }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  revokedBy: integer('revoked_by').references(() => users.id, { onDelete: 'set null' }),
+  convertedAt: timestamp('converted_at', { withTimezone: true }),
+}, (t) => [
+  index('owner_trials_ends_idx').on(t.endsAt),
+  index('owner_trials_user_idx').on(t.userId),
+  index('owner_trials_clan_idx').on(t.clanId),
+  check('owner_trials_one_target', sql`(${t.userId} is null) <> (${t.clanId} is null)`),
+]);

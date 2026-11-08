@@ -8,6 +8,7 @@ import { endMembership, logBilling } from '@/lib/billingLapse';
 import { billingTierOf, catalogOfKind, endedTierFor, entryTierFor, freeTierFor, gumroadPurchase, withYearlyRecurrence, type BillingTier } from '@/lib/billingCatalog';
 import { applyClanSale, chargedAt, purchasedPlan } from '@/lib/clanSale';
 import { log } from '@/lib/logger';
+import { recordLedger } from '@/lib/moneyLedger';
 import { handleSupporterEvent, isSupporterEvent } from '@/lib/supporterBilling';
 import { planKindOf } from '@/lib/unmatchedPurchaseRules';
 import { recordUnmatchedPurchase } from '@/lib/unmatchedPurchases';
@@ -132,6 +133,10 @@ export async function POST(req: NextRequest) {
   if (!verifySeller(ev.sellerId)) {
     return new Response('Invalid seller', { status: 401 });
   }
+
+  // Keep the money (owner page, lib/moneyLedger). Best-effort and before dispatch, so a notification
+  // is recorded once whichever branch handles it; a replay is a no-op.
+  await recordLedger(ev, raw);
 
   // The personal Supporter subscription rides the same webhook but is about a person, not a clan.
   if (isSupporterEvent(ev)) {

@@ -1289,6 +1289,13 @@
       "when": 1794450000000,
       "tag": "0246_records_backfilled",
       "breakpoints": true
+    },
+    {
+      "idx": 248,
+      "version": "7",
+      "when": 1794470000000,
+      "tag": "0248_owner_money",
+      "breakpoints": true
     }
   ]
 }
