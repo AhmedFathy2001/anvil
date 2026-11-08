@@ -58,7 +58,8 @@ export async function pluginPanelImage(url: string, width: number, height: numbe
     const still = () => sharp(input, { animated: false, limitInputPixels: 4096 * 4096 })
       .resize(crop.rw, crop.rh, { fit: 'fill' })
       .extract(cut)
-      .jpeg({ quality: 82 })
+      // PNG, not JPEG: a transparent logo flattened onto black vanishes against the dark panel.
+      .png({ palette: true, quality: 90, effort: 7 })
       .toBuffer();
     if (motion) {
       const animated = await sharp(input, { animated: true, limitInputPixels: 80_000_000 })
@@ -75,7 +76,7 @@ export async function pluginPanelImage(url: string, width: number, height: numbe
       }
     }
     const image = await still();
-    return new Response(new Uint8Array(image), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': CACHE } });
+    return new Response(new Uint8Array(image), { headers: { 'Content-Type': 'image/png', 'Cache-Control': CACHE } });
   } catch {
     return new Response('Not found', { status: 404 });
   }
