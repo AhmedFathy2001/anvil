@@ -33,13 +33,20 @@ function withoutStamp(v) {
   return rest;
 }
 
+// Key order is not content: the rate builders write sorted keys, so compare in canonical form.
+function canonical(v) {
+  if (Array.isArray(v)) return v.map(canonical);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonical(v[k])]));
+  return v;
+}
+
 let failed = false;
 for (const file of changed) {
   const oldText = execFileSync('git', ['show', `HEAD:${file}`], { encoding: 'utf8' });
   const oldData = withoutStamp(JSON.parse(oldText));
   const newData = withoutStamp(JSON.parse(readFileSync(file, 'utf8')));
 
-  if (JSON.stringify(oldData) === JSON.stringify(newData)) {
+  if (JSON.stringify(canonical(oldData)) === JSON.stringify(canonical(newData))) {
     writeFileSync(file, oldText);
     console.log(`${file}: only the timestamp moved — restored`);
     continue;

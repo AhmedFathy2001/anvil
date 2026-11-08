@@ -157,8 +157,9 @@ test('milestones follow the account too', async () => {
   assert.equal((await P.getMilestones(alice.seat)).length, 0, 'the seat id names nobody here');
 });
 
-test('records are derived from the account series', async () => {
-  const records = await P.getRecords(alice.account);
+test('records follow the account too (backfilled from its series)', async () => {
+  const R = await import('../src/lib/records.ts');
+  const records = await R.getAccountRecords(alice.account);
   assert.ok(records.length > 0, 'Alice gained XP today, so she has a day record');
-  assert.equal((await P.getRecords(bob.seat)).length, 0);
+  assert.equal((await R.getAccountRecords(bob.seat)).length, 0);
 });

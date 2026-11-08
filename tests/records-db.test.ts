@@ -99,3 +99,42 @@ test('clan holders: best member per metric', async () => {
   const board = await R.getClanRecordBoard(ids.clan, 'zulrah', 'day');
   assert.deepEqual(board.map((b) => b.rsn), ['Bob', 'Alice']);
 });
+
+test('first read backfills from daily rows; live records beat it only when higher', async () => {
+  const c = await character('Cara');
+  const day = (d: string, xp: number, zul: number) =>
+    db.insert(s.memberDailyStats).values({
+      accountId: c, day: d, overallXp: 1000, xpGained: xp,
+      deltas: JSON.stringify({ skills: { attack: xp }, bosses: { zulrah: zul } }),
+    });
+  await day('2025-05-05', 400, 30);
+  await day('2025-05-06', 100, 10);
+
+  let got = await rec(c);
+  assert.equal(got['attack|day'], 400);
+  assert.equal(got['zulrah|week'], 40);
+  assert.equal(got['overall|year'], 500);
+  const [acct] = await db.select().from(s.accounts).where(eq(s.accounts.id, c));
+  assert.ok(acct.recordsBackfilledAt);
+
+  // Live: a smaller gain leaves the backfilled best; a larger one raises it.
+  await R.updateRecords({ accountId: c, previous: snap(0, 0), snapshot: snap(50, 5), now: at('2026-11-02T10:00:00Z') });
+  got = await rec(c);
+  assert.equal(got['attack|day'], 400);
+  await R.updateRecords({ accountId: c, previous: snap(50, 5), snapshot: snap(700, 5), now: at('2026-11-02T11:00:00Z') });
+  got = await rec(c);
+  assert.equal(got['attack|day'], 700);
+  assert.equal(got['zulrah|week'], 40);
+
+  // Running again does not reseed or lower anything.
+  await R.ensureRecordsBackfilled(c);
+  assert.equal((await rec(c))['attack|day'], 700);
+});
+
+test('clan holders include backfilled history', async () => {
+  const d = await character('Dan');
+  await db.insert(s.clanMemberships).values({ clanId: ids.clan, accountId: d, kind: 'member', joinedAt: '2026-01-01T00:00:00Z' });
+  await db.insert(s.memberDailyStats).values({ accountId: d, day: '2025-01-01', overallXp: 1, xpGained: 5, deltas: JSON.stringify({ bosses: { vorkath: 77 } }) });
+  const holders = await R.getClanRecordHolders(ids.clan, 'day');
+  assert.equal(holders.find((h) => h.metric === 'vorkath')?.rsn, 'Dan');
+});

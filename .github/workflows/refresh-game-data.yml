@@ -19,8 +19,10 @@ name: Refresh game data
 # few years), not a wiki fetch. Quests aren't here either — there is no quest catalogue yet; that
 # needs building before it can be refreshed.
 #
-# Efficiency/rate tables are deliberately excluded too: those derive from a third-party source, and
-# re-fetching them weekly would churn that dependency for no real benefit (the rates are stable).
+# Efficiency/rate tables (src/data/hourRates.json, activityRates.json) are wiki-sourced too: kills per
+# hour from the money-making guides, XP per hour from the skill training guides. They are rebuilt daily
+# by `data:rates` and fail-soft: a wiki outage or an empty table keeps the previous values for that
+# boss/skill rather than failing the job or shipping a blank table.
 
 on:
   schedule:
@@ -56,6 +58,9 @@ jobs:
           npm run data:clog
           npm run data:drops
           npm run data:slayer
+          # Fail-soft: a wiki outage must not fail the job. The builder keeps previous values itself;
+          # this only guards against a crash, which leaves the files as they were.
+          npm run data:rates || echo "::warning::data:rates failed; rate tables kept at their previous values"
 
       - name: Drop timestamp-only changes, refuse shrunken catalogues
         run: node scripts/check-data-refresh.mjs
@@ -82,7 +87,7 @@ jobs:
           # it used to be swallowed by `|| echo`, and every weekly run since went nowhere.
           if [ -z "$(gh pr list --head "$BRANCH" --base beta --state open --json number --jq '.[].number')" ]; then
             gh pr create --base beta --head "$BRANCH" \
-              --title "chore(data): refresh CA / clog / drops / slayer catalogues" \
+              --title "chore(data): refresh CA / clog / drops / slayer / rates catalogues" \
               --body "Automated wiki refresh of the wiki-sourced datasets (timestamp-only rewrites dropped, shrunken catalogues refused). **Review the diff** before merging."
           fi
 

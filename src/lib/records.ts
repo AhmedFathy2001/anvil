@@ -7,12 +7,13 @@
 // rows, once per period) or a best improves.
 
 import { db } from '@/db';
-import { accountPeriodBaselines, accountRecords, accounts, clanRoster } from '@/db/schema';
+import { accountPeriodBaselines, accountRecords, accounts, clanRoster, memberDailyStats } from '@/db/schema';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { computeEfficientHours } from '@/lib/efficiency';
 import {
   RECORD_PERIODS,
+  backfillRecords,
   baselinesToRoll,
   improvements,
   metricValues,
@@ -59,6 +60,7 @@ export async function updateRecords(input: RecordsUpdateInput): Promise<{ rolled
 }
 
 async function updateRecordsInner(input: RecordsUpdateInput): Promise<{ rolled: number; improved: number }> {
+  await ensureRecordsBackfilled(input.accountId);
   const now = input.now ?? new Date();
   const nowIso = now.toISOString();
   const current = metricValues(input.snapshot, hoursOf(input.snapshot));
@@ -124,6 +126,64 @@ async function updateRecordsInner(input: RecordsUpdateInput): Promise<{ rolled: 
   return { rolled: rolled.length, improved: better.length };
 }
 
+// ── Backfill ─────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Seed an account's records from its stored daily history, once. Records otherwise count from the
+ * launch; the daily rows reach back to when Anvil started tracking the account. The higher value
+ * wins per (metric, period) — a live record already above the history is left alone — so nothing
+ * shown ever goes down. Marked on the account so later reads cost one tiny indexed read.
+ * Never throws.
+ */
+export async function ensureRecordsBackfilled(accountId: number): Promise<void> {
+  try {
+    const [acct] = await db.select({ done: accounts.recordsBackfilledAt }).from(accounts).where(eq(accounts.id, accountId));
+    if (!acct || acct.done) return;
+    await backfillAccount(accountId);
+  } catch (err) {
+    log.warn('records.backfill_failed', { accountId, error: String(err) });
+  }
+}
+
+async function backfillAccount(accountId: number): Promise<void> {
+  const rows = await db
+    .select({
+      day: memberDailyStats.day,
+      xpGained: memberDailyStats.xpGained,
+      ehpMilliGained: memberDailyStats.ehpMilliGained,
+      ehbMilliGained: memberDailyStats.ehbMilliGained,
+      deltas: memberDailyStats.deltas,
+    })
+    .from(memberDailyStats)
+    .where(eq(memberDailyStats.accountId, accountId));
+  const found = backfillRecords(rows);
+  for (let i = 0; i < found.length; i += 500) {
+    await db
+      .insert(accountRecords)
+      .values(found.slice(i, i + 500).map((c) => ({ accountId, metric: c.metric, period: c.period, value: c.value, startedAt: c.startedAt, endedAt: c.endedAt })))
+      .onConflictDoUpdate({
+        target: [accountRecords.accountId, accountRecords.metric, accountRecords.period],
+        set: { value: sql`excluded.value`, startedAt: sql`excluded.started_at`, endedAt: sql`excluded.ended_at` },
+        setWhere: sql`excluded.value > ${accountRecords.value}`,
+      });
+  }
+  await db.update(accounts).set({ recordsBackfilledAt: new Date().toISOString() }).where(eq(accounts.id, accountId));
+}
+
+/** Seed any not-yet-seeded current members of a clan (bounded per call; the rest follow next read). */
+async function ensureClanBackfilled(clanId: number, limit = 100): Promise<void> {
+  try {
+    const todo = await db
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(and(isNull(accounts.recordsBackfilledAt), inArray(accounts.id, clanMemberAccounts(clanId))))
+      .limit(limit);
+    for (const a of todo) await ensureRecordsBackfilled(a.id);
+  } catch (err) {
+    log.warn('records.clan_backfill_failed', { clanId, error: String(err) });
+  }
+}
+
 // ── Reads ────────────────────────────────────────────────────────────────────────────────────────
 
 export interface AccountRecord {
@@ -136,6 +196,7 @@ export interface AccountRecord {
 
 /** Every record an account holds. At most (metrics × 4) small rows. */
 export async function getAccountRecords(accountId: number): Promise<AccountRecord[]> {
+  await ensureRecordsBackfilled(accountId);
   const rows = await db
     .select({
       metric: accountRecords.metric,
@@ -159,6 +220,7 @@ export interface ClanRecordHolder extends AccountRecord {
  * current roster accounts.
  */
 export async function getClanRecordHolders(clanId: number, period: RecordPeriod): Promise<ClanRecordHolder[]> {
+  await ensureClanBackfilled(clanId);
   const rows = await db
     .selectDistinctOn([accountRecords.metric], {
       metric: accountRecords.metric,
@@ -185,6 +247,7 @@ const clanMemberAccounts = (clanId: number) =>
 
 /** Top N accounts in a clan for one metric and period. */
 export async function getClanRecordBoard(clanId: number, metric: string, period: RecordPeriod, limit = 10) {
+  await ensureClanBackfilled(clanId);
   return db
     .select({ accountId: accountRecords.accountId, rsn: accounts.rsn, value: accountRecords.value, startedAt: accountRecords.startedAt, endedAt: accountRecords.endedAt })
     .from(accountRecords)
