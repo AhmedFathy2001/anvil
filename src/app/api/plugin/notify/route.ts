@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { judgeDropRequest, withPetRarity } from '@/lib/notifyDropJudge';
 import { keepDropDestinations, type DropVerdict } from '@/lib/notifyDrops';
 import { characterClanKinds, clanMainRarity } from '@/lib/notifyDefaults';
+import { renderTemplate, resolveTemplate, templateKindOf, templateValues, withTemplate } from '@/lib/notifyTemplates';
+import { NOTIFY_DEFAULTS } from '@/lib/notifyPrefs';
 import { isNewPostKind, milestoneForFeed, vetNewKindPost, type NewKindPost } from '@/lib/notifyKindsPost';
 import { recordMilestoneMoment } from '@/lib/momentsStore';
 import { emitMomentRows } from '@/lib/panelRows';
@@ -258,7 +260,13 @@ export async function POST(request: Request) {
       getFunDeathMessages(clan.id),
       getDeathTaunts(clan.id),
     ]);
-    death = { message: prefs.deathMsg, funLines, taunts };
+    // The death line: their own template, else their old Death message if they changed it, else the
+    // clan's template, else Anvil's (lib/notifyTemplates). {player} / {name} and {killer}.
+    const clanTemplates = (await characterClanKinds(member?.accountId ?? null, clan.id)).templates;
+    const own = prefs.announce.templates?.deaths ?? (prefs.deathMsg !== NOTIFY_DEFAULTS.deathMsg ? prefs.deathMsg : undefined);
+    const t = resolveTemplate('deaths', own ? { deaths: own } : {}, clanTemplates);
+    const message = t.source === 'platform' ? prefs.deathMsg : renderTemplate('deaths', t.template, templateValues('deaths', facts, null));
+    death = { message, funLines, taunts };
   }
 
   // ── Build the message once, then fan it out ─────────────────────────────────────────────────
@@ -292,6 +300,17 @@ export async function POST(request: Request) {
     }) as unknown as Record<string, unknown>;
     // The message moves into the embed's description, so don't also post it as content.
     finalContent = undefined;
+  }
+  // A message template someone set (lib/notifyTemplates) replaces the post's first line. Unset, the
+  // builder's own wording stands untouched. Deaths are worded above.
+  const tKind = templateKindOf(kind, channel, facts);
+  if (tKind && tKind !== 'deaths' && finalEmbed) {
+    const [prefs, clanKinds] = await Promise.all([getNotifyPrefs(auth.userId), characterClanKinds(member?.accountId ?? null, clan.id)]);
+    const t = resolveTemplate(tKind, prefs.announce.templates, clanKinds.templates);
+    if (t.source !== 'platform' && t.template) {
+      const rsn = tKind === 'pvp' ? await posterRsn(request, auth.userId) : null;
+      finalEmbed.description = withTemplate(finalEmbed.description as string | undefined, renderTemplate(tKind, t.template, templateValues(tKind, facts, rsn)));
+    }
   }
 
   // Game-mode stamp ("[Deadman] …") — server-side, so every kind gets it without the plugin knowing

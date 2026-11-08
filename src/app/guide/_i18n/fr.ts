@@ -4236,6 +4236,10 @@ const fr: PartialGuideDict = {
           body: '**Grand Exchange** (offres terminées d’une valeur au moins égale au montant que vous avez défini), **Player trades** (ce que vous avez donné et reçu), **Group storage** (ce que vous avez déposé ou retiré) et **Other plugins** (les plugins RuneLite que vous nommez peuvent publier via Anvil). Ils sont désactivés au départ, vous seul pouvez les activer, votre clan ne peut jamais les activer pour vous, et ils ne publient que dans vos propres webhooks : cochez le type sur le webhook où vous voulez le recevoir.',
         },
         {
+          term: 'Modèles de messages',
+          body: 'modifie la première ligne de n’importe quel message : **Loot**, **Pet**, **Collection log**, **Combat tasks**, **Achievement diary**, **Quests**, **Levels**, **Death**, **Player kills**, **Slayer**, **Clue scrolls**, **Speedruns**, **Kill count**, **BA gambles** et, pour vous seul, **Grand Exchange**, **Player trades** et **Group storage**. Cliquez sur un espace réservé comme `{player}` ou `{item}` pour l’ajouter ; l’aperçu remplit des valeurs d’exemple. Chaque type a ses propres espaces réservés, et tout le reste entre accolades reste tel que vous l’avez tapé. 200 caractères maximum ; les mentions et les liens ne sont jamais publiés. Sans modification, un message reste comme il l’a toujours été ; votre clan peut en définir un autre, et **Reset to clan default** y revient.',
+        },
+        {
           term: 'Confidentialité des captures d’écran',
           body: 'coche le chat qui est retiré de chaque capture d’écran prise par le plugin, preuves et publications Discord comprises : **Private messages** (coché au départ), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** et **Group chat**. Les messages du jeu et les lignes d’Anvil restent toujours.',
         },

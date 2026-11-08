@@ -5,6 +5,7 @@ import { useState } from 'react';
 import Checkbox from '@/components/Checkbox';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
+import TemplatesEditor from '@/components/TemplatesEditor';
 import {
   CLUE_TIERS,
   EXT_SOURCE_LIMITS,
@@ -77,7 +78,7 @@ export default function AnnounceKindsEditor({
 }) {
   const personal: PersonalKinds = mode === 'personal' ? (value as PersonalKinds) : NO_PERSONAL_KINDS;
   const clan: ClanKinds = mode === 'personal' ? inherited : (value as ClanKinds);
-  const hasClan = mode === 'personal' && (Object.keys(inherited.kinds).length > 0 || Object.keys(inherited.shots).length > 0 || inherited.patterns.length > 0);
+  const hasClan = mode === 'personal' && (Object.keys(inherited.kinds).length > 0 || Object.keys(inherited.shots).length > 0 || inherited.patterns.length > 0 || Object.keys(inherited.templates ?? {}).length > 0);
   const own = (s: Source) => (mode === 'personal' ? s === 'custom' : s === 'clan');
   const status = (custom: boolean) => (custom ? 'Custom' : mode === 'clan' ? "Using Anvil's default" : hasClan ? 'Using clan default' : "Using Anvil's default");
   const resetLabel = mode === 'personal' && hasClan ? 'Reset to clan default' : "Reset to Anvil's default";
@@ -192,6 +193,16 @@ export default function AnnounceKindsEditor({
             );
           })}
         </div>
+      </Group>
+      <Group title="Message templates" id="posts-templates">
+        <TemplatesEditor
+          mode={mode}
+          value={value.templates ?? {}}
+          inherited={clan.templates ?? {}}
+          hasClan={hasClan}
+          busy={busy}
+          onSave={(templates) => onSave({ ...value, templates } as Value)}
+        />
       </Group>
       <Group title="More to announce" id="posts-more">
         <p className="max-w-[70ch] text-[12.5px] text-text-muted">

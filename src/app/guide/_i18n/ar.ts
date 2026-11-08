@@ -4234,6 +4234,10 @@ const ar: PartialGuideDict = {
           body: '**Grand Exchange** (العروض المنتهية التي تساوي على الأقل المبلغ الذي تحدده)، **Player trades** (ما أعطيته وما أخذته)، **Group storage** (ما وضعته أو أخذته) و**Other plugins** (إضافات RuneLite التي تسميها قد تنشر عبر Anvil). كلها تبدأ متوقفة، ولا يمكن تفعيلها إلا من قبلك، ولا يمكن لعشيرتك تفعيلها لك أبدًا، وتُنشر فقط في webhooks الخاصة بك: فعّل النوع على الـwebhook الذي تريده.',
         },
         {
+          term: 'قوالب الرسائل',
+          body: 'غيّر السطر الأول من أي منشور: **Loot**، **Pet**، **Collection log**، **Combat tasks**، **Achievement diary**، **Quests**، **Levels**، **Death**، **Player kills**، **Slayer**، **Clue scrolls**، **Speedruns**، **Kill count**، **BA gambles**، ولك وحدك **Grand Exchange**، **Player trades** و**Group storage**. انقر على عنصر نائب مثل `{player}` أو `{item}` لإضافته؛ المعاينة تملأ قيماً نموذجية. لكل نوع عناصره النائبة الخاصة، وأي شيء آخر بين الأقواس المعقوفة يبقى كما كتبته. حتى 200 حرف؛ لا تُنشر الإشارات والروابط أبداً. إن لم تغيّر شيئاً، يبقى المنشور كما كان دائماً؛ يمكن لعشيرتك تعيين قالبها الخاص، و**Reset to clan default** يعيدك إليه.',
+        },
+        {
           term: 'خصوصية لقطات الشاشة',
           body: 'ضع علامة على الدردشة التي تُحذف من كل لقطة تلتقطها الإضافة، من الإثباتات ومنشورات Discord على حد سواء: **Private messages** (معلّمة في البداية)، و**Public chat**، و**Clan chat: others’ messages**، و**Clan chat: your own messages**، و**Chat channel** و**Group chat**. رسائل اللعبة وأسطر Anvil الخاصة تبقى دائمًا.',
         },

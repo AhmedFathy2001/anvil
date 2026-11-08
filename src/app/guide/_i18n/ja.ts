@@ -4232,6 +4232,10 @@ const ja: PartialGuideDict = {
           body: '**Grand Exchange**（設定した金額以上の価値がある完了したオファー）、**Player trades**（渡したものと受け取ったもの）、**Group storage**（入れたものと取り出したもの）、**Other plugins**（指定した RuneLite プラグインは Anvil 経由で投稿できます）。すべて最初はオフで、オンにできるのは本人だけです。クランが代わりにオンにすることはできません。投稿先は自分の webhook のみなので、受け取りたい webhook でその種類にチェックを入れてください。',
         },
         {
+          term: 'メッセージテンプレート',
+          body: '任意の投稿の1行目を変更します: **Loot**、**Pet**、**Collection log**、**Combat tasks**、**Achievement diary**、**Quests**、**Levels**、**Death**、**Player kills**、**Slayer**、**Clue scrolls**、**Speedruns**、**Kill count**、**BA gambles**、そしてあなただけに **Grand Exchange**、**Player trades**、**Group storage**。`{player}` や `{item}` などのプレースホルダーをクリックすると追加され、プレビューにはサンプル値が入ります。種類ごとに独自のプレースホルダーがあり、中括弧内のその他の文字列は入力したとおりに残ります。200文字まで。メンションとリンクは投稿されません。変更しなければ投稿は従来どおりです。クランも独自に設定でき、**Reset to clan default** でクランの設定に戻せます。',
+        },
+        {
           term: 'スクリーンショットのプライバシー',
           body: 'プラグインが撮影するすべてのスクリーンショット（証明と Discord 投稿の両方）から除外するチャットにチェックを入れます：**Private messages**（最初からチェック）、**Public chat**、**Clan chat: others’ messages**、**Clan chat: your own messages**、**Chat channel**、**Group chat**。ゲームのメッセージと Anvil 自身の行は、常に含まれます。',
         },

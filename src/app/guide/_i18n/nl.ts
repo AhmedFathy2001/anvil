@@ -4234,6 +4234,10 @@ const nl: PartialGuideDict = {
           body: '**Grand Exchange** (afgeronde aanbiedingen ter waarde van ten minste het bedrag dat je instelt), **Player trades** (wat je gaf en kreeg), **Group storage** (wat je erin stopte of eruit haalde) en **Other plugins** (RuneLite-plugins die je noemt, mogen via Anvil plaatsen). Ze staan standaard uit, alleen jij kunt ze aanzetten, je clan kan ze nooit namens jou aanzetten, en ze plaatsen alleen in je eigen webhooks: vink het soort aan op de webhook waarin je ze wilt.',
         },
         {
+          term: 'Berichtsjablonen',
+          body: 'verandert de eerste regel van elk bericht: **Loot**, **Pet**, **Collection log**, **Combat tasks**, **Achievement diary**, **Quests**, **Levels**, **Death**, **Player kills**, **Slayer**, **Clue scrolls**, **Speedruns**, **Kill count**, **BA gambles** en voor jou alleen **Grand Exchange**, **Player trades** en **Group storage**. Klik op een plaatshouder zoals `{player}` of `{item}` om hem toe te voegen; de voorvertoning vult voorbeeldwaarden in. Elke soort heeft eigen plaatshouders, en al het andere tussen accolades blijft staan zoals je het typte. Maximaal 200 tekens; vermeldingen en links worden nooit geplaatst. Ongewijzigd leest een bericht zoals altijd; je clan kan er een eigen instellen, en **Reset to clan default** zet het daarop terug.',
+        },
+        {
           term: 'Privacy van screenshots',
           body: 'vink de chat aan die wordt weggelaten uit elke screenshot die de plugin maakt, zowel bewijzen als Discord-berichten: **Private messages** (standaard aangevinkt), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** en **Group chat**. Spelberichten en de eigen regels van Anvil blijven altijd erin.',
         },

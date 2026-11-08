@@ -25,7 +25,7 @@ export async function PUT(request: Request) {
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Bad body' }, { status: 400 });
   const next = normalizeClanKinds(body);
-  const empty = !Object.keys(next.kinds).length && !Object.keys(next.shots).length && !next.patterns.length;
+  const empty = !Object.keys(next.kinds).length && !Object.keys(next.shots).length && !next.patterns.length && !Object.keys(next.templates ?? {}).length;
   await setSetting(clan.id, NOTIFY_KIND_DEFAULTS_SETTING_KEY, empty ? null : JSON.stringify(next));
   return NextResponse.json(next);
 }

@@ -4234,6 +4234,10 @@ const sv: PartialGuideDict = {
           body: '**Grand Exchange** (avslutade erbjudanden värda minst det belopp du anger), **Player trades** (vad du gav och fick), **Group storage** (vad du lade in eller tog ut) och **Other plugins** (RuneLite-plugins du namnger kan posta via Anvil). De är avstängda från start, bara du kan slå på dem, din klan kan aldrig slå på dem åt dig, och de postas bara till dina egna webhooks: bocka för typen på den webhook du vill ha dem i.',
         },
         {
+          term: 'Meddelandemallar',
+          body: 'ändrar första raden i varje inlägg: **Loot**, **Pet**, **Collection log**, **Combat tasks**, **Achievement diary**, **Quests**, **Levels**, **Death**, **Player kills**, **Slayer**, **Clue scrolls**, **Speedruns**, **Kill count**, **BA gambles** och bara för dig **Grand Exchange**, **Player trades** och **Group storage**. Klicka på en platshållare som `{player}` eller `{item}` för att lägga till den; förhandsvisningen fyller i exempelvärden. Varje typ har egna platshållare, och allt annat inom klammerparenteser står kvar som du skrev det. Upp till 200 tecken; omnämnanden och länkar publiceras aldrig. Oförändrat ser ett inlägg ut som alltid; din klan kan ställa in en egen, och **Reset to clan default** går tillbaka till den.',
+        },
+        {
           term: 'Skärmbildsintegritet',
           body: 'bocka i den chatt som lämnas bort från varje skärmbild pluginet tar, bevis och Discord-inlägg likaså: **Private messages** (ibockad från start), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** och **Group chat**. Spelmeddelanden och Anvils egna rader finns alltid kvar.',
         },
