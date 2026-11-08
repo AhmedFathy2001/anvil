@@ -319,6 +319,8 @@ export const accounts = pgTable('accounts', {
   playerId: integer('player_id').notNull().references(() => players.id, { onDelete: 'cascade' }),
   rsn: text('rsn').notNull(),
   rsnNormalized: text('rsn_normalized').notNull(),
+  /** ISO time the account's records were seeded from daily history (lib/records). Null = not yet. */
+  recordsBackfilledAt: text('records_backfilled_at'),
   // Jagex's stable per-account id from the client. Survives renames, which is why it outranks the
   // RSN when resolving who is playing — but it comes from a client we do not control, so it anchors
   // rather than proves.

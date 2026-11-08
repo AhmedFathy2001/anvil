@@ -1,5 +1,6 @@
 import { formatJoinDate } from '@/lib/clanJoinDate';
 import RecordsCard from '@/components/records/RecordsCard';
+import { getAccountRecords, type AccountRecord } from '@/lib/records';
 import Persona from '@/app/members/[rsn]/Persona';
 import ProfileTabs from '@/app/members/[rsn]/ProfileTabs';
 import ProfileShare from '@/app/p/[rsn]/ProfileShare';
@@ -15,13 +16,11 @@ import {
   listMembers,
   getMilestones,
   getTrackingSince,
-  getRecords,
   getStandings,
   type AccountProfile,
   type ActivityStanding,
   type CompetitionHistory,
   type MemberProfile,
-  type PeriodRecord,
   type Standing,
 } from '@/lib/memberProfile';
 import type { ApexCharacter } from '@/lib/apexProfiles';
@@ -239,7 +238,7 @@ export default async function CharacterProfile({
     gameClanRow, myCharacters,
   ] = await Promise.all([
     getMilestones(accountId, 50),
-    getRecords(accountId),
+    getAccountRecords(accountId),
     getDailySeries(accountId, 365),
     getCollectionLog(accountId, rsn, clanCtx?.clanId ?? null),
     getMemberProgress(accountId),
@@ -573,7 +572,6 @@ export default async function CharacterProfile({
         initial={progressTab && !link.tab ? { ...link, tab: 'collection' } : link}
         profile={profile}
         series={series}
-        records={records}
         milestones={milestones}
         history={history}
         upcoming={upcoming}
@@ -605,7 +603,7 @@ const BEST_LABEL: Record<string, string> = { day: 'Best day', week: 'Best week',
  * The embedded line's extra chips: combat and total level (the hero's shield and dial), and the
  * best XP day / week / month — the numbers /profile's old "Personal bests" card carried.
  */
-function EmbeddedFacts({ profile, records }: { profile: AccountProfile; records: PeriodRecord[] }) {
+function EmbeddedFacts({ profile, records }: { profile: AccountProfile; records: AccountRecord[] }) {
   const chip = 'text-xs border border-card-border rounded-full px-3 py-1 bg-brown-dark text-text-muted';
   return (
     <>
@@ -620,10 +618,10 @@ function EmbeddedFacts({ profile, records }: { profile: AccountProfile; records:
         </span>
       )}
       {(['day', 'week', 'month'] as const).map((period) => {
-        const r = records.find((x) => x.period === period && x.metric === 'xp');
+        const r = records.find((x) => x.period === period && x.metric === 'overall');
         if (!r) return null;
         return (
-          <span key={period} className={chip} title={`Ending ${r.endedOn}`}>
+          <span key={period} className={chip} title={`Ending ${r.endedAt.slice(0, 10)}`}>
             {BEST_LABEL[period]} <span className="text-gold font-semibold tabular-nums">{fmtXp(r.value)}</span> XP
           </span>
         );

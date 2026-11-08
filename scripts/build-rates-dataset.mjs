@@ -21,7 +21,14 @@
 // rates the wiki doesn't state are the main rate scaled down by IRONMAN_FACTOR, also estimated.
 //
 // Etiquette: descriptive User-Agent, one request at a time with a pause between, and every response
-// cached under .cache/wiki-rates/ (gitignored). Delete that folder to force a fresh pull.
+// cached under .cache/wiki-rates/ (gitignored). Delete that folder to force a fresh pull. In CI
+// (process.env.CI) the cache is not read, so every run fetches fresh; responses are still written.
+//
+// Fail-soft (run daily by .github/workflows/refresh-game-data.yml): the previous JSON is loaded
+// first, and any boss or skill the wiki failed to return, or returned empty, keeps its last
+// wiki-sourced value. If no request succeeds at all, nothing is written and the script exits 0.
+// Output is deterministic: keys sorted recursively, and `generatedAt` only moves when the content
+// (ignoring that stamp) changes.
 //
 // Run:  node scripts/build-rates-dataset.mjs      (or: npm run data:rates)
 
@@ -44,15 +51,23 @@ const SCHEMA_VERSION = 2;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** Wiki responses that came back this run (fresh or cached). Zero means the wiki was unreachable. */
+let wikiOk = 0;
+
 async function wikiGet(params) {
   const qs = new URLSearchParams({ format: 'json', ...params }).toString();
   const key = createHash('sha1').update(qs).digest('hex');
   const file = resolve(CACHE_DIR, `${key}.json`);
-  if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8'));
+  // CI always fetches fresh: a cache left on a runner must never pin rates for a later run.
+  if (!process.env.CI && existsSync(file)) {
+    wikiOk++;
+    return JSON.parse(readFileSync(file, 'utf8'));
+  }
   await sleep(PAUSE_MS);
   const res = await fetch(`${API}?${qs}`, { headers: { 'User-Agent': USER_AGENT } });
   if (!res.ok) throw new Error(`wiki ${res.status} for ${qs}`);
   const body = await res.json();
+  wikiOk++;
   mkdirSync(CACHE_DIR, { recursive: true });
   writeFileSync(file, JSON.stringify(body));
   return body;
@@ -237,7 +252,13 @@ const XP_MIN = 1000;
 const XP_MAX = 2_000_000;
 
 async function pageWikitext(title) {
-  const body = await wikiGet({ action: 'parse', page: title, prop: 'wikitext', redirects: '1' });
+  let body;
+  try {
+    body = await wikiGet({ action: 'parse', page: title, prop: 'wikitext', redirects: '1' });
+  } catch (err) {
+    console.warn(`  ${title}: ${err.message}`);
+    return null;
+  }
   if (body.error) return null;
   return { title: body.parse?.title ?? title, text: body.parse?.wikitext?.['*'] ?? '' };
 }
@@ -348,24 +369,79 @@ async function skillBands(skill, type) {
 
 // ── Build ──────────────────────────────────────────────────────────────────────────────────────
 
+/** Canonical form: object keys sorted recursively, so output never depends on insertion order. */
+function sortDeep(v) {
+  if (Array.isArray(v)) return v.map(sortDeep);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortDeep(v[k])]));
+  return v;
+}
+
+function readJson(path) {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+const withoutStamp = (v) => {
+  const { generatedAt: _stamp, ...rest } = v;
+  return rest;
+};
+
+/**
+ * Write a dataset with a stable `generatedAt`: the previous stamp is reused unless the content
+ * (ignoring the stamp) changed, so an unchanged wiki yields a byte-identical file.
+ */
+function writeDataset(path, body, prev) {
+  const content = sortDeep(body);
+  const same = prev && JSON.stringify(sortDeep(withoutStamp(prev))) === JSON.stringify(content);
+  const generatedAt = same && typeof prev.generatedAt === 'string' ? prev.generatedAt : new Date().toISOString();
+  writeFileSync(path, JSON.stringify(sortDeep({ ...content, generatedAt }), null, 2) + '\n');
+}
+
+/** A previous value is only kept if it came from the wiki; our own estimates are always recomputed. */
+const keepWiki = (entry) => (entry && entry.estimated === false ? entry : null);
+const keepWikiBands = (bands) => (Array.isArray(bands) && bands.some((b) => b.estimated === false) ? bands : null);
+const derivedIronman = (main) => ({ killsPerHour: round2(main.killsPerHour * IRONMAN_FACTOR), source: main.source, estimated: true });
+
 async function main() {
-  const kph = await moneyMakingRows();
-  console.log(`money-making guides with kills/hour: ${kph.size}`);
+  // Previous outputs first: anything the wiki fails to return this run keeps its last good value.
+  const hourPrev = readJson(HOUR_RATES_PATH);
+  const activityPrev = readJson(ACTIVITY_RATES_PATH);
+  const prevBosses = { main: hourPrev?.bosses?.main ?? {}, ironman: hourPrev?.bosses?.ironman ?? {} };
+  const prevSkills = { main: hourPrev?.skills?.main ?? {}, ironman: hourPrev?.skills?.ironman ?? {} };
+
+  let kph = null;
+  try {
+    kph = await moneyMakingRows();
+  } catch (err) {
+    console.warn(`money-making guides unavailable: ${err.message}`);
+  }
+  if (kph && kph.size === 0) {
+    console.warn('money-making guides parsed empty');
+    kph = null;
+  }
+  console.log(`money-making guides with kills/hour: ${kph ? kph.size : 0}`);
 
   const bosses = { main: {}, ironman: {} };
   const missingGuides = [];
   for (const [boss, src] of Object.entries(BOSS_SOURCES)) {
-    const pick = (titles) => titles.map((t) => [t, kph.get(t)]).find(([, v]) => v);
+    const pick = (titles) => titles.map((t) => [t, kph?.get(t)]).find(([, v]) => v);
     const main = pick(src.main);
     if (!main) {
-      missingGuides.push(boss);
+      // No number from the wiki this run: keep the last wiki-sourced value, if there is one.
+      const kept = keepWiki(prevBosses.main[boss]);
+      if (kept) {
+        bosses.main[boss] = kept;
+        bosses.ironman[boss] = keepWiki(prevBosses.ironman[boss]) ?? derivedIronman(kept);
+      } else missingGuides.push(boss);
       continue;
     }
     bosses.main[boss] = { killsPerHour: main[1], source: main[0], estimated: false };
     const iron = src.ironman ? pick(src.ironman) : null;
-    bosses.ironman[boss] = iron
-      ? { killsPerHour: iron[1], source: iron[0], estimated: false }
-      : { killsPerHour: round2(main[1] * IRONMAN_FACTOR), source: main[0], estimated: true };
+    if (iron) bosses.ironman[boss] = { killsPerHour: iron[1], source: iron[0], estimated: false };
+    else bosses.ironman[boss] = keepWiki(prevBosses.ironman[boss]) ?? derivedIronman(bosses.main[boss]);
   }
   for (const boss of missingGuides) {
     if (!FALLBACK_KPH[boss]) console.warn(`no guide and no fallback for ${boss}`);
@@ -380,19 +456,27 @@ async function main() {
   const gaps = { main: [], ironman: [] };
   for (const skill of Object.keys(SKILL_PAGES)) {
     const main = await skillBands(skill, 'main');
-    skills.main[skill] = main.bands ?? FALLBACK_BANDS[skill].map(([fromLevel, xpPerHour]) => ({ fromLevel, xpPerHour, source: null, estimated: true }));
-    if (main.gap) gaps.main.push(skill);
+    if (main.bands) skills.main[skill] = main.bands;
+    else {
+      gaps.main.push(skill);
+      skills.main[skill] = keepWikiBands(prevSkills.main[skill]) ?? FALLBACK_BANDS[skill].map(([fromLevel, xpPerHour]) => ({ fromLevel, xpPerHour, source: null, estimated: true }));
+    }
     const iron = await skillBands(skill, 'ironman');
     if (iron.bands) skills.ironman[skill] = iron.bands;
     else {
       gaps.ironman.push(skill);
-      skills.ironman[skill] = skills.main[skill].map((b) => ({
+      skills.ironman[skill] = keepWikiBands(prevSkills.ironman[skill]) ?? skills.main[skill].map((b) => ({
         fromLevel: b.fromLevel,
         xpPerHour: Math.round((b.xpPerHour * IRONMAN_FACTOR) / 1000) * 1000,
         source: b.source,
         estimated: true,
       }));
     }
+  }
+
+  if (wikiOk === 0) {
+    console.warn('OSRS Wiki unreachable: no request succeeded. Leaving src/data/hourRates.json and src/data/activityRates.json untouched.');
+    return;
   }
 
   const count = (obj) => Object.values(obj).filter((v) => !v.estimated).length;
@@ -410,14 +494,13 @@ async function main() {
 
   const out = {
     version: SCHEMA_VERSION,
-    generatedAt: new Date().toISOString(),
     source: 'OSRS Wiki (oldschool.runescape.wiki): money-making guides via the Bucket API for kills per hour; skill training guides via the parse API for XP per hour. Each rate names its page in `source`; `estimated: true` marks our own conservative fill for gaps.',
     coverage,
     gaps,
     skills,
     bosses,
   };
-  writeFileSync(HOUR_RATES_PATH, JSON.stringify(out, null, 2) + '\n');
+  writeDataset(HOUR_RATES_PATH, out, hourPrev);
 
   // Balance-engine kill-time triplets. The guide rate is a realistic method, so it is the AVERAGE
   // band; fast and slow sit SPREAD either side of it.
@@ -438,19 +521,15 @@ async function main() {
       estimated: v.estimated,
     };
   }
-  writeFileSync(
+  writeDataset(
     ACTIVITY_RATES_PATH,
-    JSON.stringify(
-      {
-        source: 'Derived from src/data/hourRates.json (OSRS Wiki money-making guides). Average = the guide rate; fast/slow = ×/÷ spread.',
-        generatedAt: out.generatedAt,
-        spread: SPREAD,
-        activityCount: Object.keys(activities).length,
-        activities,
-      },
-      null,
-      2,
-    ) + '\n',
+    {
+      source: 'Derived from src/data/hourRates.json (OSRS Wiki money-making guides). Average = the guide rate; fast/slow = ×/÷ spread.',
+      spread: SPREAD,
+      activityCount: Object.keys(activities).length,
+      activities,
+    },
+    activityPrev,
   );
 
   console.log(JSON.stringify(coverage));

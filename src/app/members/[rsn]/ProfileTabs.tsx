@@ -26,7 +26,6 @@ import type {
   DailyPoint,
   AccountProfile,
   MilestoneRow,
-  PeriodRecord,
 } from '@/lib/memberProfile';
 import { totalXpLabel } from '@/lib/totalXpMilestones';
 
@@ -198,7 +197,6 @@ function Section({ title, aside, children }: { title: string; aside?: string; ch
 export default function ProfileTabs({
   profile,
   series,
-  records,
   milestones,
   history,
   upcoming,
@@ -217,7 +215,6 @@ export default function ProfileTabs({
    */
   profile: AccountProfile;
   series: DailyPoint[];
-  records: PeriodRecord[];
   milestones: MilestoneRow[];
   history: CompetitionHistory;
   upcoming: UpcomingMilestone[];
@@ -754,62 +751,6 @@ export default function ProfileTabs({
             )}
           </Section>
         )}
-
-        <Section title="Best days" aside="the biggest stretch we've recorded">
-          {records.length === 0 ? (
-            <p className="text-sm text-text-muted border border-card-border rounded-xl bg-card-bg p-6 text-center">
-              Nothing yet. Records build from daily history, so they appear once they&rsquo;ve played a
-              few days with tracking on.
-            </p>
-          ) : (
-            // One small table: periods down, measures across. Nine identical cards made the reader do
-            // the grid in their head; this IS the grid, and the best of each reads at a glance.
-            <div className="overflow-hidden rounded-xl border border-card-border bg-card-bg">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-tile-bg text-xs text-text-muted">
-                    <th className="px-4 py-2 text-left font-normal">Best</th>
-                    {(['xp', 'ehp', 'ehb'] as const).map((m) => (
-                      <th key={m} className="px-4 py-2 text-right font-normal">
-                        {m === 'xp' ? 'XP' : m.toUpperCase()}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-card-border">
-                  {(['day', 'week', 'month'] as const).map((period) => (
-                    <tr key={period}>
-                      <td className="px-4 py-3 capitalize text-text-muted">{period}</td>
-                      {(['xp', 'ehp', 'ehb'] as const).map((metric) => {
-                        const r = records.find((x) => x.period === period && x.metric === metric);
-                        return (
-                          <td key={metric} className="px-4 py-3 text-right">
-                            {r ? (
-                              <>
-                                <span className="block font-semibold tabular-nums text-gold">
-                                  {r.metric === 'xp' ? fmtXp(r.value) : `${r.value.toFixed(1)}h`}
-                                </span>
-                                <span className="block text-[11px] text-text-dim">ending {r.endedOn}</span>
-                              </>
-                            ) : (
-                              <span className="text-text-dim">—</span>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {history.totalPoints > 0 && (
-                <p className="border-t border-card-border px-4 py-2.5 text-sm text-text-muted">
-                  <span className="font-semibold tabular-nums text-gold">{history.totalPoints.toLocaleString()}</span> event
-                  points across {history.events.length} {history.events.length === 1 ? 'event' : 'events'}
-                </p>
-              )}
-            </div>
-          )}
-        </Section>
 
           {/* Times, from the synced profile. They belong beside the other bests rather than under
               the collection log grid, which is where they were and where nobody would look. */}

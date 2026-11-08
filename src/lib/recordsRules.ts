@@ -166,3 +166,80 @@ export function formatRecordValue(metric: string, value: number): string {
   }
   return `${Math.round(value).toLocaleString('en-US')} ${value === 1 ? 'kill' : 'kills'}`;
 }
+
+// ── Backfill from daily history ──────────────────────────────────────────────────────────────────
+
+/** The slice of a member_daily_stats row the backfill reads. */
+export interface DailyHistoryRow {
+  day: string; // 'YYYY-MM-DD' (UTC)
+  xpGained: number;
+  ehpMilliGained: number;
+  ehbMilliGained: number;
+  /** JSON `{ skills: { slayer: 412000 }, bosses: { zulrah: 140 } }`, or null. */
+  deltas: string | null;
+}
+
+export interface BackfillRecord extends RecordCandidate {
+  /** ISO of the last day with gains inside the best period. */
+  endedAt: string;
+}
+
+function dayMetrics(row: DailyHistoryRow): MetricValues {
+  const out: MetricValues = {};
+  if (row.xpGained > 0) out.overall = row.xpGained;
+  if (row.ehpMilliGained > 0) out[HOURS_PLAYED] = row.ehpMilliGained / 1000;
+  if (row.ehbMilliGained > 0) out[HOURS_BOSSED] = row.ehbMilliGained / 1000;
+  if (row.deltas) {
+    try {
+      const d = JSON.parse(row.deltas) as { skills?: MetricValues; bosses?: MetricValues };
+      for (const group of [d.skills, d.bosses]) {
+        for (const [k, v] of Object.entries(group ?? {})) {
+          if (Number.isFinite(v) && v > 0) out[k] = (out[k] ?? 0) + v;
+        }
+      }
+    } catch {
+      // A corrupt blob loses that day's per-metric detail, not the whole backfill.
+    }
+  }
+  return out;
+}
+
+/**
+ * Best day / week / month / year per metric from stored daily rows, bucketed on the SAME calendar
+ * periods the live records use (UTC days, Monday weeks, months, years) so the two sources compare
+ * like with like. Pure: the caller reads the rows and writes the result.
+ */
+export function backfillRecords(rows: DailyHistoryRow[]): BackfillRecord[] {
+  // period → bucket start → metric → { sum, lastDay }
+  const buckets = new Map<string, Map<string, { sum: number; lastDay: string }>>();
+  for (const row of rows) {
+    const at = new Date(`${row.day}T00:00:00Z`);
+    if (Number.isNaN(at.getTime())) continue;
+    const metrics = dayMetrics(row);
+    for (const period of RECORD_PERIODS) {
+      const start = periodStart(period, at);
+      for (const [metric, value] of Object.entries(metrics)) {
+        const key = `${period}|${start}|${metric}`;
+        let perPeriod = buckets.get(period);
+        if (!perPeriod) buckets.set(period, (perPeriod = new Map()));
+        const have = perPeriod.get(key);
+        if (have) {
+          have.sum += value;
+          if (row.day > have.lastDay) have.lastDay = row.day;
+        } else perPeriod.set(key, { sum: value, lastDay: row.day });
+      }
+    }
+  }
+  const best = new Map<string, BackfillRecord>();
+  for (const [period, perPeriod] of buckets) {
+    for (const [key, { sum, lastDay }] of perPeriod) {
+      const [, start, metric] = key.split('|');
+      const id = `${metric}|${period}`;
+      const have = best.get(id);
+      if (!have || sum > have.value) {
+        best.set(id, { metric, period: period as RecordPeriod, value: sum, startedAt: start, endedAt: `${lastDay}T00:00:00.000Z` });
+      }
+    }
+  }
+  return [...best.values()].sort((a, b) => (a.metric + a.period).localeCompare(b.metric + b.period));
+}

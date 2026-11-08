@@ -5,6 +5,7 @@ import { runTooltip, type WithRun } from '@/lib/feedRuns';
 import { MomentStreamLinks } from '@/components/HighlightsStrip';
 import type { SiteReactions } from '@/lib/siteReactions';
 import MomentReactions from './MomentReactions';
+import MomentRows from './MomentRows';
 
 /**
  * What actually happened — the pets, the drops, the deaths.
@@ -62,26 +63,30 @@ export default function MomentsFeed({
       )}
 
       {moments.length > 0 && (
-      <div className="divide-y divide-card-border/60 rounded-xl border border-card-border bg-card-bg px-4">
-        {moments.map((m) => (
-          <div key={m.id} className="flex items-center gap-2.5 py-2 text-[13px]">
-            <span aria-hidden className="text-base leading-none">
-              {MOMENT_EMOJI[m.kind] ?? '⭐'}
-            </span>
-            <span className="min-w-0 flex-1 truncate text-text-muted" title={runTooltip(m.run, m.occurredAt)}>
-              <b className="font-semibold text-foreground">{m.rsn}</b>
-              {boosters?.[m.rsn] ? <span className="mx-1 inline-flex align-[-2px]"><BoosterMark count={boosters[m.rsn]} /></span> : ' '}
-              {momentSentence(m)}
-            </span>
-            {detail(m) && <span className="shrink-0 text-[11px] text-text-muted/80">{detail(m)}</span>}
-            <MomentStreamLinks links={streamLinks?.[m.id]} />
-            {reactions?.byMoment[m.id] && (
-              <MomentReactions momentId={m.id} chips={reactions.byMoment[m.id]} canReact={reactions.canReact} target={reactions.target} />
-            )}
-            <span className="shrink-0 font-mono text-[10.5px] text-text-muted">{when(m.occurredAt)}</span>
-          </div>
-        ))}
-      </div>
+        <MomentRows
+          items={moments.map((m) => ({
+            id: m.id,
+            kind: m.kind,
+            node: (
+              <div className="flex items-center gap-2.5 py-2 text-[13px]">
+                <span aria-hidden className="text-base leading-none">
+                  {MOMENT_EMOJI[m.kind] ?? '⭐'}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-text-muted" title={runTooltip(m.run, m.occurredAt)}>
+                  <b className="font-semibold text-foreground">{m.rsn}</b>
+                  {boosters?.[m.rsn] ? <span className="mx-1 inline-flex align-[-2px]"><BoosterMark count={boosters[m.rsn]} /></span> : ' '}
+                  {momentSentence(m)}
+                </span>
+                {detail(m) && <span className="shrink-0 text-[11px] text-text-muted/80">{detail(m)}</span>}
+                <MomentStreamLinks links={streamLinks?.[m.id]} />
+                {reactions?.byMoment[m.id] && (
+                  <MomentReactions momentId={m.id} chips={reactions.byMoment[m.id]} canReact={reactions.canReact} target={reactions.target} />
+                )}
+                <span className="shrink-0 font-mono text-[10.5px] text-text-muted">{when(m.occurredAt)}</span>
+              </div>
+            ),
+          }))}
+        />
       )}
     </section>
   );
