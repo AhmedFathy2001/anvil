@@ -430,6 +430,7 @@ export async function recordModeLineMoments(
  * Deduped within the minute (the outbox may resend a post).
  */
 export async function recordMilestoneMoment(member: { clanMemberId: number; rsn: string }, f: MilestoneFacts): Promise<StoredMoment[]> {
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan
   const seat = await db.query.clanMemberships.findFirst({ where: eq(clanMemberships.id, member.clanMemberId), columns: { kind: true } });
   if (seat?.kind !== 'member') return [];
   const occurredAt = new Date().toISOString();
