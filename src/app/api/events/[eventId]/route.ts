@@ -1,3 +1,4 @@
+import { notifyBoardPeople } from '@/lib/pushNotify';
 import { NextResponse } from 'next/server';
 import { isTeamPlacement, normaliseTeamCap, normaliseTeamCount } from '@/lib/teamPlacement';
 import { eventForRequest } from '@/lib/eventScope';
@@ -360,6 +361,7 @@ export async function PATCH(
       .returning({ id: events.id });
 
     if (flipped.length > 0) {
+      notifyBoardPeople(id);
       track('event.started', { clanId: updated.clanId, props: { via: 'start-now', format: updated.format } });
       // Starting shot (lib/startProof): draw the location now, before the announcement that carries it.
       const startProof = await drawStartProof(updated).catch(() => null);

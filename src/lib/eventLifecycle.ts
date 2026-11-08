@@ -1,3 +1,4 @@
+import { notifyBoardPeople } from '@/lib/pushNotify';
 import { db } from '@/db';
 import { events, teams, tiles, completions, eventParticipants } from '@/db/schema';
 import { eventBoardTiles } from '@/lib/comboSql';
@@ -286,6 +287,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       .returning({ id: events.id });
     if (flipped.length > 0) {
       log.info('event-lifecycle.start', { eventId: event.id });
+      notifyBoardPeople(event.id);
       // No session here — the cron starts it — so the user is recorded as nobody, on purpose.
       track('event.started', { clanId: event.clanId, userId: null, props: { via: 'schedule', format: event.format } });
       // Draw BEFORE announcing so the embed can carry the location players have to be at.
@@ -321,6 +323,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
         .where(and(eq(events.id, event.id), eq(events.endNotified, 0)))
         .returning({ id: events.id });
       if (flipped.length === 0) continue;
+      notifyBoardPeople(event.id);
 
       const eventTeams = await db.select().from(teams).where(eq(teams.eventId, event.id));
       const eventTiles = await db.select().from(tiles).where(eventBoardTiles(event.id));
