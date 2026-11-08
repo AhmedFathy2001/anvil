@@ -73,7 +73,7 @@ const zhHans: PartialGuideDict = {
       },
       switching: {
         eyebrow: '迁移到 Anvil',
-        title: '从 Dink 或 Wise Old Man 切换过来',
+        title: '从其他插件和追踪工具切换过来',
         blurb:
           'Anvil 会把你的掉落发到 Discord，还会运行每周比赛。管理员五步，玩家两步。',
         minutes: '约 3 分钟',
@@ -256,21 +256,21 @@ const zhHans: PartialGuideDict = {
   },
 
   switching: {
-    metaTitle: '从 Dink 或 Wise Old Man 切换过来 — Anvil',
+    metaTitle: '从其他插件和追踪工具切换过来 — Anvil',
     metaDescription:
-      '把你的公会从 Dink 和 Wise Old Man 迁到 Anvil：设置 Discord 频道、同步公会名单、开始 Skill 或 Boss of the Week，并通知成员。',
+      '把你的公会迁到 Anvil：设置 Discord 频道、同步公会名单、开始 Skill 或 Boss of the Week，并通知成员。',
     eyebrow: '迁移到 Anvil',
-    title: '从 Dink 或 Wise Old Man 切换过来',
-    dek: 'Anvil 两件事都能做。它把公会的掉落和成就发到 Discord，还会维护公会名单并运行每周比赛。',
+    title: '从其他插件和追踪工具切换过来',
+    dek: 'Anvil 把公会的掉落和成就发到 Discord，还会维护公会名单并运行每周比赛。',
 
     staff: {
       title: '如果你负责管理公会',
       body: [
-        '**让机器人帮你设置频道。** 前往 Admin → Discord → **Set it up for me**。选一个频道或几个都行。如果 Dink 之前在某个频道发消息，就勾选 _Use the same channels_。成员那边不会有任何变化。',
-        '**同步公会名单。** 在 RuneLite 里打开 Anvil 插件的设置，开启 **Keep the clan roster in sync**。由一位管理员在游戏里操作一次即可。这会取代你的 Wise Old Man 小组。',
-        '**开始一场 Skill 或 Boss of the Week。** 前往 Admin → All events → **+ New event**，选择 Skill of the Week 或 Boss of the Week。公会名单里的所有人会自动参加。这会取代 Wise Old Man 的比赛。',
+        '**让机器人帮你设置频道。** 前往 Admin → Discord → **Set it up for me**。选一个频道或几个都行。如果其他插件之前在某个频道发消息，就勾选 _Use the same channels_。成员那边不会有任何变化。',
+        '**同步公会名单。** 在 RuneLite 里打开 Anvil 插件的设置，开启 **Keep the clan roster in sync**。由一位管理员在游戏里操作一次即可。这会取代你在其他地方维护的公会名单。',
+        '**开始一场 Skill 或 Boss of the Week。** 前往 Admin → All events → **+ New event**，选择 Skill of the Week 或 Boss of the Week。公会名单里的所有人会自动参加。这会取代你在其他地方举办的比赛。',
         '**通知你的成员。** 前往 Admin → Discord → **Tell your members** → **Post it**。机器人会替你发布玩家要做的步骤。',
-        '**一周后，清理一下。** 前往 Admin → Discord → **Remove Dink’s old webhooks**，勾选要删掉的那些，按 **Remove … webhooks**，再按 **Yes, remove them**。之后就不会再有重复发布了。想保留的，就在它上面按 **Keep**。',
+        '**一周后，清理一下。** 前往 Admin → Discord → **Remove old webhooks from other plugins**，勾选要删掉的那些，按 **Remove … webhooks**，再按 **Yes, remove them**。之后就不会再有重复发布了。想保留的，就在它上面按 **Keep**。',
       ],
     },
 
@@ -278,8 +278,8 @@ const zhHans: PartialGuideDict = {
       title: '如果你是玩家',
       body: [
         '**安装 Anvil。** 在 RuneLite 里打开 Plugin Hub，搜索 Anvil，点 **Install**。然后在 Anvil 侧边面板里用 Discord 登录。',
-        '**关掉 Dink 的通知。** 如果不用它做别的事，也可以直接卸载 Dink。',
-        '**就这些。** Wise Old Man 那边你什么都不用做。',
+        '**关掉旧插件的通知**，避免重复发布。如果不用它做别的事，也可以直接卸载。',
+        '**就这些。** 没有其他需要设置的了。',
       ],
     },
 
@@ -288,12 +288,8 @@ const zhHans: PartialGuideDict = {
       intro: '公会问得最多的几个：',
       rows: [
         {
-          term: '有些功能我们还能继续用 Dink 吗？',
-          body: '可以。Anvil 不会发布击杀数、Slayer 任务或速通记录。在 Dink 里只保留这些开启即可。',
-        },
-        {
-          term: '我们还需要 Wise Old Man 吗？',
-          body: '只有查看历史总记录和 EHP / EHB 排名时才需要。',
+          term: 'Anvil 会追踪击杀数、Slayer 任务和个人最佳记录吗？',
+          body: '会。Anvil 自己就能追踪击杀数、Slayer 任务和个人最佳记录，所以无需再运行其他工具。',
         },
         {
           term: '玩家需要在哪里粘贴 webhook 吗？',
@@ -636,11 +632,11 @@ const zhHans: PartialGuideDict = {
       },
     },
     cleanup: {
-      title: '来自 Dink 或其他机器人的旧 Webhook',
+      title: '来自其他插件或机器人的旧 Webhook',
       body: [
-        '机器人在你的服务器里时，Discord 页面会列出服务器里所有不属于 Anvil 的 Webhook。**Coming from Dink?** 提供 **Use the same channels**，这样 **Set it up for me** 会发到你旧信息流原来发的地方，你的成员那边什么都不用变。',
-        '等你的成员都用上 Anvil 之后，前往 **Remove Dink’s old webhooks**，勾选要删掉的那些，按 **Remove … webhooks**，再按 **Yes, remove them**。这会在 Discord 里把它们永久删除——无法撤销。',
-        '这个列表包含任何不属于 Anvil 的 Webhook，而不只是 Dink 的。有想保留的，比如另一个机器人的信息流？按 **Keep**，它就离开列表；**Show kept** 和 **Put back** 可以把它找回来。保留只是在这里隐藏它——Discord 里什么都不会变。',
+        '机器人在你的服务器里时，Discord 页面会列出服务器里所有不属于 Anvil 的 Webhook。**Coming from other plugins?** 提供 **Use the same channels**，这样 **Set it up for me** 会发到你旧信息流原来发的地方，你的成员那边什么都不用变。',
+        '等你的成员都用上 Anvil 之后，前往 **Remove old webhooks from other plugins**，勾选要删掉的那些，按 **Remove … webhooks**，再按 **Yes, remove them**。这会在 Discord 里把它们永久删除——无法撤销。',
+        '这个列表包含任何不属于 Anvil 的 Webhook，而不只是其他插件的。有想保留的，比如另一个机器人的信息流？按 **Keep**，它就离开列表；**Show kept** 和 **Put back** 可以把它找回来。保留只是在这里隐藏它——Discord 里什么都不会变。',
       ],
       note: {
         tag: '需要“管理 Webhook”权限',
@@ -831,7 +827,7 @@ const zhHans: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        '你还会看到 **Anvil 侧边栏**填入你的氏族、正在进行的活动、你的名次以及同步按钮，并且游戏内 Collection Log 的标题栏上会出现一个 **Anvil** 按钮，就在 WikiSync 和 RuneProfile 旁边。',
+        '你还会看到 **Anvil 侧边栏**填入你的氏族、正在进行的活动、你的名次以及同步按钮，并且游戏内 Collection Log 的标题栏上会出现一个 **Anvil** 按钮。',
       guestNote: {
         tag: '访客与成员之别',
         body: '如果聊天里显示 _Tracked as a guest_，说明你已被记录，但还没进入氏族成员名单。管理员同步一次游戏内成员名单即可解决 —— 去{discordLink}问一声。',
@@ -851,7 +847,7 @@ const zhHans: PartialGuideDict = {
         '右键点击一名玩家 —— 无论是在你身边，还是聊天、好友列表或氏族面板里的名字 —— 选择 **Anvil**，即可在侧边面板的 **Lookup** 标签页中打开其卡片。你自己的就在 **You** 标签页。',
       lookupFigure: {
         caption: '右键点击名字 → Anvil',
-        alt: '游戏内玩家右键菜单，Lookup 和 RuneProfile 下方有一个 Anvil 选项',
+        alt: '游戏内玩家右键菜单，Lookup 下方有一个 Anvil 选项',
       },
       lookupSettingNote:
         '在插件设置的 **Player lookup** 中选择 **Anvil** 选项出现在哪些地方。在聊天里的名字上，它永远不会成为左键默认选项，所以点击名字仍然执行游戏原本的操作。',

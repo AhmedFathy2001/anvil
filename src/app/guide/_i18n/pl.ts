@@ -75,7 +75,7 @@ const pl: PartialGuideDict = {
       },
       switching: {
         eyebrow: 'Przejście na Anvil',
-        title: 'Przejście z Dinka lub Wise Old Man',
+        title: 'Przejście z innych wtyczek i trackerów',
         blurb:
           'Anvil publikuje Twoje dropy na Discordzie i prowadzi cotygodniowe konkursy. Pięć kroków dla staffu, dwa dla graczy.',
         minutes: '~3 min',
@@ -258,21 +258,21 @@ const pl: PartialGuideDict = {
   },
 
   switching: {
-    metaTitle: 'Przejście z Dinka lub Wise Old Man — Anvil',
+    metaTitle: 'Przejście z innych wtyczek i trackerów — Anvil',
     metaDescription:
-      'Przenieś klan z Dinka i Wise Old Man do Anvil: skonfiguruj kanały Discorda, zsynchronizuj listę klanu, wystartuj Skill lub Boss of the Week i powiedz o tym członkom.',
+      'Przenieś klan do Anvil: skonfiguruj kanały Discorda, zsynchronizuj listę klanu, wystartuj Skill lub Boss of the Week i powiedz o tym członkom.',
     eyebrow: 'Przejście na Anvil',
-    title: 'Przejście z Dinka lub Wise Old Man',
-    dek: 'Anvil robi obie rzeczy. Publikuje dropy i osiągnięcia klanu na Discordzie. Prowadzi też listę klanu i cotygodniowe konkursy.',
+    title: 'Przejście z innych wtyczek i trackerów',
+    dek: 'Anvil publikuje dropy i osiągnięcia klanu na Discordzie. Prowadzi też listę klanu i cotygodniowe konkursy.',
 
     staff: {
       title: 'Jeśli prowadzisz klan',
       body: [
-        '**Pozwól botowi skonfigurować kanały.** Wejdź w Admin → Discord → **Set it up for me**. Wybierz jeden kanał albo kilka. Jeśli Dink coś gdzieś publikował, zaznacz _Use the same channels_. Dla członków nic się nie zmienia.',
-        '**Zsynchronizuj listę klanu.** W RuneLite otwórz ustawienia wtyczki Anvil. Włącz **Keep the clan roster in sync**. Robi to jeden admin, raz, w grze. To zastępuje Twoją grupę w Wise Old Man.',
-        '**Wystartuj Skill lub Boss of the Week.** Wejdź w Admin → All events → **+ New event** i wybierz Skill of the Week albo Boss of the Week. Wszyscy z listy klanu biorą udział automatycznie. To zastępuje konkursy z Wise Old Man.',
+        '**Pozwól botowi skonfigurować kanały.** Wejdź w Admin → Discord → **Set it up for me**. Wybierz jeden kanał albo kilka. Jeśli inna wtyczka coś gdzieś publikowała, zaznacz _Use the same channels_. Dla członków nic się nie zmienia.',
+        '**Zsynchronizuj listę klanu.** W RuneLite otwórz ustawienia wtyczki Anvil. Włącz **Keep the clan roster in sync**. Robi to jeden admin, raz, w grze. To zastępuje listę klanu, którą prowadziłeś gdzie indziej.',
+        '**Wystartuj Skill lub Boss of the Week.** Wejdź w Admin → All events → **+ New event** i wybierz Skill of the Week albo Boss of the Week. Wszyscy z listy klanu biorą udział automatycznie. To zastępuje konkursy, które prowadziłeś gdzie indziej.',
         '**Powiedz o tym członkom.** Wejdź w Admin → Discord → **Tell your members** → **Post it**. Bot opublikuje kroki dla graczy za Ciebie.',
-        '**Tydzień później: posprzątaj.** Wejdź w Admin → Discord → **Remove Dink’s old webhooks**, zaznacz te do usunięcia, kliknij **Remove … webhooks**, a potem **Yes, remove them**. Po tym nic nie opublikuje się dwa razy. Kliknij **Keep** przy każdym, który chcesz zostawić w spokoju.',
+        '**Tydzień później: posprzątaj.** Wejdź w Admin → Discord → **Remove old webhooks from other plugins**, zaznacz te do usunięcia, kliknij **Remove … webhooks**, a potem **Yes, remove them**. Po tym nic nie opublikuje się dwa razy. Kliknij **Keep** przy każdym, który chcesz zostawić w spokoju.',
       ],
     },
 
@@ -280,8 +280,8 @@ const pl: PartialGuideDict = {
       title: 'Jeśli jesteś graczem',
       body: [
         '**Zainstaluj Anvil.** W RuneLite otwórz Plugin Hub, wyszukaj Anvil i kliknij **Install**. Potem zaloguj się przez Discord w panelu bocznym Anvil.',
-        '**Wyłącz powiadomienia Dinka.** Albo odinstaluj Dinka, jeśli nie używasz go do niczego innego.',
-        '**To wszystko.** W sprawie Wise Old Man nie musisz nic robić.',
+        '**Wyłącz powiadomienia starej wtyczki**, żeby nic nie publikowało się dwa razy. Albo odinstaluj ją, jeśli nie używasz jej do niczego innego.',
+        '**To wszystko.** Nie ma nic więcej do skonfigurowania.',
       ],
     },
 
@@ -290,12 +290,8 @@ const pl: PartialGuideDict = {
       intro: 'Te, o które klany pytają najczęściej:',
       rows: [
         {
-          term: 'Czy możemy zostawić Dinka do niektórych rzeczy?',
-          body: 'Tak. Anvil nie publikuje kill countów, zadań slayera ani speedrunów. Zostaw w Dinku włączone tylko je.',
-        },
-        {
-          term: 'Czy nadal potrzebujemy Wise Old Man?',
-          body: 'Tylko do rekordów wszech czasów i rang EHP / EHB.',
+          term: 'Czy Anvil śledzi kill county, zadania slayera i rekordy osobiste?',
+          body: 'Tak. Anvil śledzi kill county, zadania slayera i rekordy osobiste sam, więc nie trzeba niczego innego utrzymywać w działaniu.',
         },
         {
           term: 'Czy gracze muszą gdzieś wklejać webhook?',
@@ -637,11 +633,11 @@ const pl: PartialGuideDict = {
       },
     },
     cleanup: {
-      title: 'Stare webhooki od Dinka lub innych botów',
+      title: 'Stare webhooki od innych wtyczek lub botów',
       body: [
-        'Gdy bot jest na twoim serwerze, strona Discord wymienia każdy webhook na nim, który nie należy do Anvila. **Coming from Dink?** proponuje **Use the same channels**, żeby **Set it up for me** publikowało tam, gdzie twoje stare strumienie, i żeby dla członków nic się nie przesunęło.',
-        'Gdy członkowie przejdą już na Anvil, wejdź w **Remove Dink’s old webhooks**, zaznacz te do usunięcia i naciśnij **Remove … webhooks**, a potem **Yes, remove them**. To usuwa je z Discorda na dobre — nie da się tego cofnąć.',
-        'Lista obejmuje każdy webhook, który nie należy do Anvila, nie tylko te od Dinka. Chcesz jakiś zachować, na przykład strumień innego bota? Naciśnij **Keep**, a zniknie z listy; **Show kept** i **Put back** go przywracają. Zachowanie tylko ukrywa go tutaj — na Discordzie nic się nie zmienia.',
+        'Gdy bot jest na twoim serwerze, strona Discord wymienia każdy webhook na nim, który nie należy do Anvila. **Coming from other plugins?** proponuje **Use the same channels**, żeby **Set it up for me** publikowało tam, gdzie twoje stare strumienie, i żeby dla członków nic się nie przesunęło.',
+        'Gdy członkowie przejdą już na Anvil, wejdź w **Remove old webhooks from other plugins**, zaznacz te do usunięcia i naciśnij **Remove … webhooks**, a potem **Yes, remove them**. To usuwa je z Discorda na dobre — nie da się tego cofnąć.',
+        'Lista obejmuje każdy webhook, który nie należy do Anvila, nie tylko te od innych wtyczek. Chcesz jakiś zachować, na przykład strumień innego bota? Naciśnij **Keep**, a zniknie z listy; **Show kept** i **Put back** go przywracają. Zachowanie tylko ukrywa go tutaj — na Discordzie nic się nie zmienia.',
       ],
       note: {
         tag: 'Wymaga uprawnienia Zarządzanie webhookami',
@@ -830,7 +826,7 @@ const pl: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'Zobaczysz też, jak **panel boczny Anvil** wypełnia się twoimi klanami, trwającymi wydarzeniami, twoją pozycją i przyciskami synchronizacji — a na pasku tytułu Collection Log w grze pojawia się przycisk **Anvil**, obok WikiSync i RuneProfile.',
+        'Zobaczysz też, jak **panel boczny Anvil** wypełnia się twoimi klanami, trwającymi wydarzeniami, twoją pozycją i przyciskami synchronizacji — a na pasku tytułu Collection Log w grze pojawia się przycisk **Anvil**.',
       guestNote: {
         tag: 'Gość a członek',
         body: 'Jeśli czat mówi _Tracked as a guest_, jesteś śledzony, ale nie ma cię jeszcze na składzie klanu. Admin naprawia to, synchronizując skład klanu z gry —— poproś {discordLink}.',
@@ -850,7 +846,7 @@ const pl: PartialGuideDict = {
         'Kliknij prawym przyciskiem gracza —— obok siebie albo jego nick na czacie, liście znajomych lub w panelu klanu —— i wybierz **Anvil**, aby otworzyć jego kartę w zakładce **Lookup** panelu bocznego. Twoja własna to zakładka **You**.',
       lookupFigure: {
         caption: 'Prawy klik na nicku → Anvil',
-        alt: 'Menu prawego przycisku gracza w grze z pozycją Anvil pod Lookup i RuneProfile',
+        alt: 'Menu prawego przycisku gracza w grze z pozycją Anvil pod Lookup',
       },
       lookupSettingNote:
         'W sekcji **Player lookup** ustawień pluginu wybierz, gdzie ma się pojawiać pozycja **Anvil**. Na nicku na czacie nigdy nie jest to opcja lewego kliknięcia, więc kliknięcie w nick nadal robi to, co zwykle robi gra.',

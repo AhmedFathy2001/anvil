@@ -75,7 +75,7 @@ const ja: PartialGuideDict = {
       },
       switching: {
         eyebrow: 'Anvil への移行',
-        title: 'Dink や Wise Old Man から切り替える',
+        title: '他のプラグインやトラッカーから切り替える',
         blurb:
           'Anvil は、あなたのドロップを Discord に投稿し、毎週のコンペも運営します。運営側は 5 ステップ、プレイヤー側は 2 ステップです。',
         minutes: '約 3 分',
@@ -258,21 +258,21 @@ const ja: PartialGuideDict = {
   },
 
   switching: {
-    metaTitle: 'Dink や Wise Old Man から切り替える — Anvil',
+    metaTitle: '他のプラグインやトラッカーから切り替える — Anvil',
     metaDescription:
-      'クランを Dink と Wise Old Man から Anvil に移しましょう。Discord チャンネルの設定、クランリストの同期、Skill または Boss of the Week の開始、そしてメンバーへのお知らせまで。',
+      'クランを Anvil に移しましょう。Discord チャンネルの設定、クランリストの同期、Skill または Boss of the Week の開始、そしてメンバーへのお知らせまで。',
     eyebrow: 'Anvil への移行',
-    title: 'Dink や Wise Old Man から切り替える',
-    dek: 'Anvil はどちらの役目も担います。クランのドロップや実績を Discord に投稿します。さらに、クランリストを最新に保ち、毎週のコンペも運営します。',
+    title: '他のプラグインやトラッカーから切り替える',
+    dek: 'Anvil は、クランのドロップと実績を Discord に投稿します。クランリストの管理と、毎週のコンペの運営も行います。',
 
     staff: {
       title: 'クランを運営している場合',
       body: [
-        '**ボットにチャンネルを設定してもらいます。** Admin → Discord → **Set it up for me** を開きます。チャンネルを 1 つ、または複数選びます。Dink がどこかに投稿していた場合は、_Use the same channels_ にチェックを入れてください。メンバー側は何も変わりません。',
-        '**クランリストを同期します。** RuneLite で Anvil プラグインの設定を開き、**Keep the clan roster in sync** をオンにします。これはゲーム内で、管理者 1 人が 1 回行うだけです。Wise Old Man のグループの代わりになります。',
-        '**Skill または Boss of the Week を始めます。** Admin → All events → **+ New event** を開き、Skill of the Week か Boss of the Week を選びます。クランリストの全員が自動的に参加します。Wise Old Man のコンペの代わりになります。',
+        '**ボットにチャンネルを設定してもらいます。** Admin → Discord → **Set it up for me** を開きます。チャンネルを 1 つ、または複数選びます。ほかのプラグインがどこかに投稿していた場合は、_Use the same channels_ にチェックを入れてください。メンバー側は何も変わりません。',
+        '**クランリストを同期します。** RuneLite で Anvil プラグインの設定を開き、**Keep the clan roster in sync** をオンにします。これはゲーム内で、管理者 1 人が 1 回行うだけです。ほかで管理していたクランリストは不要になります。',
+        '**Skill または Boss of the Week を始めます。** Admin → All events → **+ New event** を開き、Skill of the Week か Boss of the Week を選びます。クランリストの全員が自動的に参加します。ほかで行っていたコンペは不要になります。',
         '**メンバーに知らせます。** Admin → Discord → **Tell your members** → **Post it** を開きます。プレイヤー向けの手順はボットが投稿してくれます。',
-        '**1 週間後に片づけます。** Admin → Discord → **Remove Dink’s old webhooks** を開き、消すものにチェックを入れて **Remove … webhooks**、続けて **Yes, remove them** を押します。これで二重投稿は起こらなくなります。残しておきたいものには **Keep** を押してください。',
+        '**1 週間後に片づけます。** Admin → Discord → **Remove old webhooks from other plugins** を開き、消すものにチェックを入れて **Remove … webhooks**、続けて **Yes, remove them** を押します。これで二重投稿は起こらなくなります。残しておきたいものには **Keep** を押してください。',
       ],
     },
 
@@ -280,8 +280,8 @@ const ja: PartialGuideDict = {
       title: 'プレイヤーの場合',
       body: [
         '**Anvil をインストールします。** RuneLite で Plugin Hub を開き、Anvil を検索して **Install** を押します。そのあと Anvil のサイドパネルから Discord でサインインします。',
-        '**Dink の通知をオフにします。** ほかに使っていなければ、Dink をアンインストールしても構いません。',
-        '**以上です。** Wise Old Man については何もする必要はありません。',
+        '**古いプラグインの通知をオフにします。** 二重投稿を防ぐためです。ほかに使っていなければ、アンインストールしても構いません。',
+        '**以上です。** ほかに設定することはありません。',
       ],
     },
 
@@ -290,12 +290,8 @@ const ja: PartialGuideDict = {
       intro: 'クランからよく聞かれる質問です。',
       rows: [
         {
-          term: '一部の用途でDinkを使い続けられますか？',
-          body: 'はい。Anvil はキルカウント、スレイヤータスク、スピードランは投稿しません。Dink ではそれらだけをオンのままにしてください。',
-        },
-        {
-          term: 'まだ Wise Old Man は必要ですか？',
-          body: '通算記録と EHP / EHB ランクのためだけです。',
+          term: 'Anvil はキルカウント、スレイヤータスク、自己ベストを記録しますか？',
+          body: 'はい。Anvil はキルカウント、スレイヤータスク、自己ベストを自分で記録するので、ほかに動かし続けるものはありません。',
         },
         {
           term: 'プレイヤーはどこかに Webhook を貼る必要がありますか？',
@@ -637,11 +633,11 @@ const ja: PartialGuideDict = {
       },
     },
     cleanup: {
-      title: 'Dink や他のボットの古い Webhook',
+      title: '他のプラグインやボットからの古い Webhook',
       body: [
-        'ボットがサーバーにいれば、Discord ページには Anvil のものではない Webhook がすべて並びます。**Coming from Dink?** には **Use the same channels** があり、これを使うと **Set it up for me** が古いフィードと同じ場所に投稿するので、メンバーにとっては何も変わりません。',
-        'メンバーが Anvil に移ったら **Remove Dink’s old webhooks** を開き、消すものにチェックを入れて **Remove … webhooks** を押し、続けて **Yes, remove them** を押します。これで Discord から完全に削除されます——元には戻せません。',
-        'この一覧には Dink のものに限らず、Anvil のものではない Webhook がすべて入ります。別のボットのフィードなど、残したいものがある？ **Keep** を押せば一覧から外れます。**Show kept** と **Put back** で戻せます。Keep はここで隠すだけです——Discord では何も変わりません。',
+        'ボットがサーバーにいれば、Discord ページには Anvil のものではない Webhook がすべて並びます。**Coming from other plugins?** には **Use the same channels** があり、これを使うと **Set it up for me** が古いフィードと同じ場所に投稿するので、メンバーにとっては何も変わりません。',
+        'メンバーが Anvil に移ったら **Remove old webhooks from other plugins** を開き、消すものにチェックを入れて **Remove … webhooks** を押し、続けて **Yes, remove them** を押します。これで Discord から完全に削除されます——元には戻せません。',
+        'この一覧には、他のプラグインのものに限らず、Anvil のものではない Webhook がすべて入ります。別のボットのフィードなど、残したいものがある？ **Keep** を押せば一覧から外れます。**Show kept** と **Put back** で戻せます。Keep はここで隠すだけです——Discord では何も変わりません。',
       ],
       note: {
         tag: '「ウェブフックの管理」権限が必要',
@@ -832,7 +828,7 @@ const ja: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        '**Anvil サイドパネル**にも、所属クラン・進行中のイベント・自分の順位・同期ボタンが表示されます。さらにゲーム内 Collection Log のタイトルバーに、WikiSync や RuneProfile と並んで **Anvil** ボタンが現れます。',
+        '**Anvil サイドパネル**にも、所属クラン・進行中のイベント・自分の順位・同期ボタンが表示されます。さらにゲーム内 Collection Log のタイトルバーに **Anvil** ボタンが現れます。',
       guestNote: {
         tag: 'ゲストとメンバーの違い',
         body: 'チャットに _Tracked as a guest_ と出る場合、記録はされていますがまだクランのメンバー名簿に載っていません。管理者がゲーム内のクラン名簿を同期すれば解決します —— {discordLink}で聞いてみてください。',
@@ -852,7 +848,7 @@ const ja: PartialGuideDict = {
         'プレイヤーを右クリック（すぐ隣にいる相手でも、チャット・フレンドリスト・クランパネルの名前でも OK）して **Anvil** を選ぶと、そのプレイヤーのカードがサイドパネルの **Lookup** タブで開きます。自分のものは **You** タブです。',
       lookupFigure: {
         caption: '名前を右クリック → Anvil',
-        alt: 'ゲーム内のプレイヤー右クリックメニュー。Lookup と RuneProfile の下に Anvil の項目がある',
+        alt: 'ゲーム内のプレイヤー右クリックメニュー。Lookup の下に Anvil の項目がある',
       },
       lookupSettingNote:
         'プラグイン設定の **Player lookup** で、**Anvil** の項目をどこに出すかを選べます。チャット上の名前では左クリックの動作には決してならないので、名前をクリックすればこれまでどおりゲーム本来の動作になります。',

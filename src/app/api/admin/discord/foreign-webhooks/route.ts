@@ -6,7 +6,7 @@ import { currentRouting, foreignWebhooksOf, readGuildWebhooks } from '@/lib/disc
 import { KEPT_WEBHOOKS_KEY, parseKept } from '@/lib/keptWebhooks';
 import { getSetting } from '@/lib/settings';
 
-// GET — the server's webhooks that aren't Anvil's (Dink's, usually), plus where Anvil's plugin
+// GET — the server's webhooks that aren't Anvil's (another plugin's, usually), plus where Anvil's plugin
 // routing points now.
 //   200 { enabled: true, ok: true, webhooks: [{ id, name, channelId, channelName }], current: [{ settingKey, channelId, channelName }] }
 //   200 { enabled: false }                       — no bot / server connected

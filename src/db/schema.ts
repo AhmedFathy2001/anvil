@@ -439,7 +439,7 @@ export const accountStatSnapshots = pgTable('account_stat_snapshots', {
  * An in-game OSRS clan, as the characters in it describe it — whether or not that clan uses Anvil.
  *
  * A "ghost" clan: nobody created it, nobody owns it, and it grants nothing. It exists because a
- * player's plugin said "I'm in Iron Foundry, rank Dragonstone", the way WOM and RuneProfile show a
+ * player's plugin said "I'm in Iron Foundry, rank Dragonstone", the way a profile page shows a
  * player's clan. Built member by member from each player's OWN row (lib/gameClans) — never from a
  * roster push, so it only ever holds what Anvil users said about themselves.
  *

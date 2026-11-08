@@ -81,7 +81,7 @@ const da: PartialGuideDict = {
       },
       switching: {
         eyebrow: 'Skift til Anvil',
-        title: 'Skift fra Dink eller Wise Old Man',
+        title: 'Skift fra andre plugins og trackere',
         blurb:
           'Anvil poster dine drops på Discord og kører jeres ugentlige konkurrencer. Fem trin for staben, to for spillerne.',
         minutes: '~3 min',
@@ -264,21 +264,21 @@ const da: PartialGuideDict = {
   },
 
   switching: {
-    metaTitle: 'Skift fra Dink eller Wise Old Man — Anvil',
+    metaTitle: 'Skift fra andre plugins og trackere — Anvil',
     metaDescription:
-      'Flyt din klan fra Dink og Wise Old Man til Anvil: sæt Discord-kanalerne op, synkronisér medlemslisten, start Skill eller Boss of the Week, og fortæl det til dine medlemmer.',
+      'Flyt din klan over til Anvil: sæt Discord-kanalerne op, synkronisér medlemslisten, start Skill eller Boss of the Week, og fortæl det til dine medlemmer.',
     eyebrow: 'Skift til Anvil',
-    title: 'Skift fra Dink eller Wise Old Man',
-    dek: 'Anvil klarer begge jobs. Den poster klanens drops og bedrifter på Discord. Den holder også styr på medlemslisten og kører ugentlige konkurrencer.',
+    title: 'Skift fra andre plugins og trackere',
+    dek: 'Anvil poster din klans drops og bedrifter på Discord. Den holder også styr på medlemslisten og kører ugentlige konkurrencer.',
 
     staff: {
       title: 'Hvis du driver klanen',
       body: [
-        '**Lad botten sætte jeres kanaler op.** Gå til Admin → Discord → **Set it up for me**. Vælg én kanal eller flere. Hvis Dink postede et sted, så sæt kryds ved _Use the same channels_. Intet flytter sig for dine medlemmer.',
-        '**Synkronisér medlemslisten.** Åbn Anvil-pluginnets indstillinger i RuneLite. Slå **Keep the clan roster in sync** til. Én admin gør det én gang i spillet. Det erstatter din Wise Old Man-gruppe.',
-        '**Start en Skill eller Boss of the Week.** Gå til Admin → All events → **+ New event**, og vælg Skill of the Week eller Boss of the Week. Alle på medlemslisten er automatisk med. Det erstatter Wise Old Man-konkurrencer.',
+        '**Lad botten sætte jeres kanaler op.** Gå til Admin → Discord → **Set it up for me**. Vælg én kanal eller flere. Hvis et andet plugin postede et sted, så sæt kryds ved _Use the same channels_. Intet flytter sig for dine medlemmer.',
+        '**Synkronisér medlemslisten.** Åbn Anvil-pluginnets indstillinger i RuneLite. Slå **Keep the clan roster in sync** til. Én admin gør det én gang i spillet. Det erstatter enhver medlemsliste, du har ført andre steder.',
+        '**Start en Skill eller Boss of the Week.** Gå til Admin → All events → **+ New event**, og vælg Skill of the Week eller Boss of the Week. Alle på medlemslisten er automatisk med. Det erstatter konkurrencer, du har kørt andre steder.',
         '**Fortæl det til dine medlemmer.** Gå til Admin → Discord → **Tell your members** → **Post it**. Botten poster spillertrinnene for dig.',
-        '**En uge senere: ryd op.** Gå til Admin → Discord → **Remove Dink’s old webhooks**, sæt kryds ved dem, der skal væk, tryk på **Remove … webhooks** og derefter **Yes, remove them**. Derefter kan intet blive postet to gange. Tryk **Keep** ved dem, du vil lade være i fred.',
+        '**En uge senere: ryd op.** Gå til Admin → Discord → **Remove old webhooks from other plugins**, sæt kryds ved dem, der skal væk, tryk på **Remove … webhooks** og derefter **Yes, remove them**. Derefter kan intet blive postet to gange. Tryk **Keep** ved dem, du vil lade være.',
       ],
     },
 
@@ -286,8 +286,8 @@ const da: PartialGuideDict = {
       title: 'Hvis du er spiller',
       body: [
         '**Installér Anvil.** Åbn Plugin Hub i RuneLite, søg efter Anvil og tryk på **Install**. Log så ind med Discord fra Anvil-sidepanelet.',
-        '**Slå Dinks notifikationer fra.** Eller afinstallér Dink, hvis du ikke bruger det til andet.',
-        '**Det var det.** Du skal ikke gøre noget for Wise Old Man.',
+        '**Slå dit gamle plugins notifikationer fra**, så intet bliver postet to gange. Eller afinstallér det, hvis du ikke bruger det til andet.',
+        '**Det var det.** Der er ikke noget andet at sætte op.',
       ],
     },
 
@@ -296,12 +296,8 @@ const da: PartialGuideDict = {
       intro: 'Dem, klaner oftest spørger om:',
       rows: [
         {
-          term: 'Kan vi beholde Dink til nogle ting?',
-          body: 'Ja. Anvil poster ikke kill counts, slayer-opgaver eller speedruns. Lad kun dem være slået til i Dink.',
-        },
-        {
-          term: 'Har vi stadig brug for Wise Old Man?',
-          body: 'Kun til rekorder gennem tiden og EHP / EHB-rangeringer.',
+          term: 'Registrerer Anvil kill counts, slayer-opgaver og personlige rekorder?',
+          body: 'Ja. Anvil registrerer selv kill counts, slayer-opgaver og personlige rekorder, så der er ikke noget andet, der skal køre.',
         },
         {
           term: 'Skal spillerne indsætte en webhook et sted?',
@@ -643,11 +639,11 @@ const da: PartialGuideDict = {
       },
     },
     cleanup: {
-      title: 'Gamle webhooks fra Dink eller andre bots',
+      title: 'Gamle webhooks fra andre plugins eller bots',
       body: [
-        'Med botten på din server viser Discord-siden hver webhook på den, der ikke er Anvils. **Coming from Dink?** tilbyder **Use the same channels**, så **Set it up for me** skriver, hvor dine gamle feeds gjorde, og intet flytter sig for dine medlemmer.',
-        'Når dine medlemmer er på Anvil, så gå til **Remove Dink’s old webhooks**, sæt kryds ved dem, der skal væk, og tryk **Remove … webhooks**, derefter **Yes, remove them**. Det sletter dem i Discord for altid — det kan ikke fortrydes.',
-        'Listen rummer enhver webhook, der ikke er Anvils, ikke kun Dinks. Er der én, du vil beholde, som en anden bots feed? Tryk **Keep**, så forsvinder den fra listen; **Show kept** og **Put back** henter den tilbage. At beholde skjuler den kun her — intet ændrer sig i Discord.',
+        'Med botten på din server viser Discord-siden hver webhook på den, der ikke er Anvils. **Coming from other plugins?** tilbyder **Use the same channels**, så **Set it up for me** skriver, hvor dine gamle feeds gjorde, og intet flytter sig for dine medlemmer.',
+        'Når dine medlemmer er på Anvil, så gå til **Remove old webhooks from other plugins**, sæt kryds ved dem, der skal væk, og tryk **Remove … webhooks**, derefter **Yes, remove them**. Det sletter dem i Discord for altid — det kan ikke fortrydes.',
+        'Listen rummer enhver webhook, der ikke er Anvils, ikke kun dem fra andre plugins. Er der én, du vil beholde, som en anden bots feed? Tryk **Keep**, så forsvinder den fra listen; **Show kept** og **Put back** henter den tilbage. At beholde skjuler den kun her — intet ændrer sig i Discord.',
       ],
       note: {
         tag: 'Kræver „Administrer webhooks“',
@@ -839,7 +835,7 @@ const da: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'Du bør også se **Anvil-sidepanelet** fyldes ud med dine klaner, dine igangværende events, din placering og synkroniseringsknapperne — og en **Anvil**-knap dukke op i titellinjen på din Collection Log i spillet, ved siden af WikiSync og RuneProfile.',
+        'Du bør også se **Anvil-sidepanelet** fyldes ud med dine klaner, dine igangværende events, din placering og synkroniseringsknapperne — og en **Anvil**-knap dukke op i titellinjen på din Collection Log i spillet.',
       guestNote: {
         tag: 'Gæst kontra medlem',
         body: 'Står der _Tracked as a guest_ i chatten, bliver du tracket, men du står endnu ikke på klanens medlemsliste. Det retter en admin ved at synkronisere medlemslisten fra spillet — spørg {discordLink}.',
@@ -859,7 +855,7 @@ const da: PartialGuideDict = {
         'Højreklik på en spiller — lige ved siden af dig, eller på navnet i chatten, din venneliste eller klanpanelet — og vælg **Anvil** for at åbne deres kort under sidepanelets **Lookup**-fane. Din egen er **You**-fanen.',
       lookupFigure: {
         caption: 'Højreklik på et navn → Anvil',
-        alt: 'En spillers højreklikmenu i spillet med et Anvil-punkt under Lookup og RuneProfile',
+        alt: 'En spillers højreklikmenu i spillet med et Anvil-punkt under Lookup',
       },
       lookupSettingNote:
         'Vælg, hvor **Anvil**-punktet vises, under **Player lookup** i pluginets indstillinger. På et navn i chatten er det aldrig venstreklik-valget, så et klik på et navn gør stadig det, spillet plejer.',
