@@ -1,13 +1,16 @@
 import { db } from '@/db';
-import { completions, events, eventParticipants, raceBankedCredits, raceRoadPicks, teams, tiles } from '@/db/schema';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
-import { raceGraph, rankRaceTeams, teamRoute, canPickRaceTile } from '@/lib/raceRoutes';
+import { completions, events, eventParticipants, raceBankedCredits, raceRoadPicks, teams, tiles, tileAuditLog, userNotices } from '@/db/schema';
+import { and, eq, gte, inArray, isNull } from 'drizzle-orm';
+import { raceGraph, rankRaceTeams, teamRoute, canPickRaceTile, raceTileNeedsBaseline, routeEditImpact } from '@/lib/raceRoutes';
+import { notifyTeamTiles } from '@/lib/pushNotify';
+import { teamUserIds } from '@/lib/panelRows';
+import { captureRaceOpenStats, clearRaceOpenStats } from '@/lib/revealStatsCapture';
 import { teamManagerIds } from '@/lib/teamStaff';
 import { parseEventRules } from '@/lib/eventRules';
 import { loadRacePicks } from '@/lib/raceRoutePicks';
 import { evaluateCompletionGate } from '@/lib/completionGate';
 import { emitCompletionRow } from '@/lib/panelRows';
-import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
+import { notifyTileCompletion, notifyTeamWin, sendEventBingoWebhook } from '@/lib/discord';
 
 /**
  * The win check on a BRANCHING tile race (lib/raceRoutes): the first team to finish an end tile wins
@@ -145,7 +148,41 @@ export async function releaseBankedRaceCredits(eventId: number, teamId: number):
 /** After a completion lands on a race board: release any banked finishes it unlocked. */
 export function afterRaceCompletion(event: { id: number; format: string | null }, teamId: number): void {
   if (event.format !== 'tilerace') return;
-  releaseBankedRaceCredits(event.id, teamId).catch(() => {});
+  // Baselines first (the tiles that just opened count from now), then any banked finishes.
+  ensureRaceBaselines(event.id, [teamId])
+    .catch(() => 0)
+    .then(() => releaseBankedRaceCredits(event.id, teamId))
+    .catch(() => {});
+}
+
+/**
+ * STRICT STAT COUNTING ON RACES: capture a baseline (lib/revealStatsCapture captureRaceOpenStats) for
+ * every stat tile open for each team that doesn't have one yet — the tiles that just opened, and,
+ * the first time this runs on a race already under way, the ones open at that moment (so nothing
+ * jumps retroactively). Parts of an open combo are captured with it. Returns tiles captured.
+ */
+export async function ensureRaceBaselines(eventId: number, teamIds?: number[]): Promise<number> {
+  // clan-scope: global -- reached from an already-scoped event id.
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event || event.format !== 'tilerace') return 0;
+  const all = await db.select().from(tiles).where(eq(tiles.eventId, eventId));
+  const graph = raceGraph(all.filter((t) => t.parentTileId == null));
+  const mode = parseEventRules(event.rules).raceRoad;
+  const statIds = new Set(all.filter((t) => t.trackedStat && t.statType).map((t) => t.id));
+  if (!statIds.size) return 0;
+  const partsOf = new Map<number, number[]>();
+  for (const t of all) if (t.parentTileId != null && statIds.has(t.id)) partsOf.set(t.parentTileId, [...(partsOf.get(t.parentTileId) ?? []), t.id]);
+  const ids = teamIds ?? (await db.select({ id: teams.id }).from(teams).where(eq(teams.eventId, eventId))).map((t) => t.id);
+  let captured = 0;
+  for (const teamId of ids) {
+    const done = (await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, teamId))).map((r) => r.tileId);
+    const route = teamRoute(graph, done, await loadRacePicks(event, teamId));
+    const want = route.open
+      .filter((id) => raceTileNeedsBaseline(graph, id, mode))
+      .flatMap((id) => [...(statIds.has(id) ? [id] : []), ...(partsOf.get(id) ?? [])]);
+    if (want.length) captured += await captureRaceOpenStats(eventId, teamId, want);
+  }
+  return captured;
 }
 
 /**
@@ -197,4 +234,140 @@ export async function clearRaceRoadPick(teamId: number, step: number): Promise<b
     .where(and(eq(raceRoadPicks.teamId, teamId), eq(raceRoadPicks.step, step)))
     .returning({ id: raceRoadPicks.id });
   return removed.length > 0;
+}
+
+// ---- Mid-race route edits ---------------------------------------------------------------------
+
+export type RouteEditPolicy = 'keep' | 'rollback';
+export type RouteEditDiscord = 'keep' | 'correct';
+
+export interface RouteEditPreview {
+  teams: { teamId: number; teamName: string; tiles: { id: number; label: string; step: number }[] }[];
+  totalTiles: number;
+}
+
+type RouteEntryIn = { id: number; step: number | null; next: number[] };
+
+async function loadRouteState(eventId: number) {
+  const all = await db.select().from(tiles).where(and(eq(tiles.eventId, eventId), isNull(tiles.parentTileId)));
+  const board = all.filter((t) => !(t.mission === 1));
+  const ids = board.map((t) => t.id);
+  const done = ids.length
+    ? await db.select({ teamId: completions.teamId, tileId: completions.tileId }).from(completions).where(inArray(completions.tileId, ids))
+    : [];
+  const eventTeams = await db.select({ id: teams.id, name: teams.name }).from(teams).where(eq(teams.eventId, eventId));
+  const doneByTeam = new Map<number, number[]>(eventTeams.map((t) => [t.id, []]));
+  for (const c of done) doneByTeam.get(c.teamId)?.push(c.tileId);
+  return { board, doneByTeam, eventTeams };
+}
+
+/**
+ * What saving this route mid-race would do to progress already made (lib/raceRoutes
+ * routeEditImpact): every team with finishes that no longer follow, and those tiles. Empty teams =
+ * the edit touches nobody, and saving needs no decision.
+ */
+export async function previewRouteEdit(eventId: number, entries: RouteEntryIn[]): Promise<RouteEditPreview> {
+  const { board, doneByTeam, eventTeams } = await loadRouteState(eventId);
+  const oldGraph = raceGraph(board);
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  const newGraph = raceGraph(board.map((t) => ({ ...t, raceStep: byId.get(t.id)?.step ?? null, raceNext: byId.get(t.id)?.next ?? [] })));
+  const impact = routeEditImpact(oldGraph, newGraph, doneByTeam);
+  const label = new Map(board.map((t) => [t.id, t.label]));
+  const teamsOut = impact.map((i) => ({
+    teamId: i.teamId,
+    teamName: eventTeams.find((t) => t.id === i.teamId)?.name ?? `Team ${i.teamId}`,
+    tiles: i.invalid.map((id) => ({ id, label: label.get(id) ?? `Tile ${id}`, step: (newGraph.byId.get(id) ?? oldGraph.byId.get(id))?.step ?? 0 })),
+  }));
+  return { teams: teamsOut, totalTiles: teamsOut.reduce((n, t) => n + t.tiles.length, 0) };
+}
+
+/**
+ * Save a route on a race that's under way (admin only — the route caller checks). One transaction:
+ * the new steps / links / board order, the chosen policy for invalidated progress, and the tile
+ * history rows naming it.
+ *   keep     — whoever got it, got it: completions stay (they still hold their steps) and the route
+ *              applies from now on.
+ *   rollback — the invalidated finishes go, with every later finish that hung off them; road picks
+ *              from that step on and the team's baselines past it are cleared, so those tiles count
+ *              afresh when they reopen.
+ * After the commit (best-effort): baselines for what is open now, a plugin push so counts drop,
+ * in-site notices to the affected teams, and — `discord: 'correct'` — a "rolled back by an admin"
+ * post in the board's channel. Tile-complete posts aren't stored with their message ids, so the
+ * original posts can't be edited or deleted; the correction is posted next to them instead.
+ */
+export async function applyLiveRouteEdit(args: {
+  event: EventRow;
+  entries: RouteEntryIn[];
+  order: number[];
+  policy: RouteEditPolicy;
+  discord: RouteEditDiscord;
+  actorUserId: number | null;
+}): Promise<RouteEditPreview> {
+  const { event, entries, order, policy, discord, actorUserId } = args;
+  const preview = await previewRouteEdit(event.id, entries);
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  const now = new Date().toISOString();
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < order.length; i++) {
+      const e = byId.get(order[i])!;
+      await tx.update(tiles).set({ raceStep: e.step, raceNext: e.next, position: i }).where(eq(tiles.id, e.id));
+      await tx.update(tiles).set({ position: i }).where(eq(tiles.parentTileId, e.id));
+    }
+    if (policy === 'rollback') {
+      for (const t of preview.teams) {
+        const ids = t.tiles.map((x) => x.id);
+        await tx.delete(completions).where(and(eq(completions.teamId, t.teamId), inArray(completions.tileId, ids)));
+        const fromStep = Math.min(...t.tiles.map((x) => x.step));
+        await tx.delete(raceRoadPicks).where(and(eq(raceRoadPicks.teamId, t.teamId), gte(raceRoadPicks.step, fromStep)));
+      }
+    }
+    await tx.insert(tileAuditLog).values({
+      eventId: event.id,
+      action: 'reordered',
+      newValue: JSON.stringify({ raceRoute: 'steps', live: true, policy, discord: policy === 'rollback' ? discord : 'keep', teams: preview.teams.length, tiles: preview.totalTiles }),
+      actorUserId,
+    });
+    for (const t of preview.teams) {
+      for (const x of t.tiles) {
+        await tx.insert(tileAuditLog).values({
+          eventId: event.id,
+          tileId: x.id,
+          tileLabel: x.label,
+          action: 'updated',
+          changedFields: JSON.stringify([{ field: 'raceRoute', label: 'Race route (live edit)', from: `${t.teamName}: finished`, to: policy === 'rollback' ? 'rolled back by an admin' : 'kept (whoever got it, got it)' }]),
+          newValue: JSON.stringify({ liveOverride: true, policy, teamId: t.teamId }),
+          actorUserId,
+        });
+      }
+    }
+  });
+
+  if (policy === 'rollback' && preview.teams.length) {
+    // Locked again: forget the baselines past the cut so those tiles count afresh when they reopen.
+    const graph = raceGraph(await db.select().from(tiles).where(and(eq(tiles.eventId, event.id), isNull(tiles.parentTileId))));
+    for (const t of preview.teams) {
+      const fromStep = Math.min(...t.tiles.map((x) => x.step));
+      const later = graph.nodes.filter((n) => n.step >= fromStep).map((n) => n.id);
+      await clearRaceOpenStats(event.id, t.teamId, later).catch(() => {});
+      notifyTeamTiles(event.id, t.teamId, t.tiles.map((x) => x.id));
+      const lines = t.tiles.map((x) => x.label).join(', ');
+      for (const userId of await teamUserIds(t.teamId).catch(() => [] as number[])) {
+        await db.insert(userNotices).values({
+          userId,
+          kind: 'race-rollback',
+          refId: event.id,
+          title: `${event.name}: route changed`,
+          body: `An admin changed the race route and rolled back ${t.tiles.length === 1 ? 'a finish' : `${t.tiles.length} finishes`} for ${t.teamName}: ${lines}.`,
+          createdAt: now,
+        }).catch(() => {});
+      }
+      if (discord === 'correct') {
+        sendEventBingoWebhook(event.clanId, event.id, {
+          embeds: [{ title: 'Rolled back by an admin', description: `The race route for **${event.name}** changed. ${t.teamName}: ${lines} no longer count${t.tiles.length === 1 ? 's' : ''}.`, color: 0x7a5f18 }],
+        }, { post: 'tileComplete', teamId: t.teamId }).catch(() => false);
+      }
+    }
+  }
+  await ensureRaceBaselines(event.id).catch(() => 0);
+  return preview;
 }

@@ -1,5 +1,4 @@
-import { afterRaceCompletion } from '@/lib/raceRoutesDb';
-import { branchingRaceWin } from '@/lib/raceRoutesDb';
+import { afterRaceCompletion, ensureRaceBaselines, branchingRaceWin } from '@/lib/raceRoutesDb';
 import { saveStatSnapshot, updateAccount } from '@/lib/roster';
 import { emitCompletionRow } from '@/lib/panelRows';
 import { db } from '@/db';
@@ -218,6 +217,9 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
   const ctxList: EventCtx[] = [];
   for (const event of activeEvents) {
     const eventPlayers = await db.query.eventParticipants.findMany({ where: eq(eventParticipants.eventId, event.id) });
+    // A race's stat tiles count from when they opened for each team (lib/raceRoutesDb): make sure
+    // every open one has its baseline before this sweep reads the tiles. Cheap once they're taken.
+    if (event.format === 'tilerace') await ensureRaceBaselines(event.id).catch(() => 0);
     const eventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, event.id) });
     // Skip tiles an admin flipped to manual (autoTrackDisabled) — never auto-credit those.
     const statTiles = eventTiles.filter((t) => t.trackedStat && t.statType && t.statGoal && !t.autoTrackDisabled);

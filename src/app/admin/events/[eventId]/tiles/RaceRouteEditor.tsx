@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import Select from '@/components/Select';
 import Checkbox from '@/components/Checkbox';
+import Radio from '@/components/Radio';
 import { useDialog } from '@/components/Confirm';
 import RaceRouteMap from '@/components/board/RaceRouteMap';
 import { clanFetch } from '@/lib/clanFetch';
@@ -26,6 +27,8 @@ interface Props {
   eventId: number;
   tiles: Tile[];
   eventStarted: boolean;
+  /** Admins may edit the route mid-race (with a decision when it invalidates progress). */
+  isAdmin?: boolean;
   raceBank: boolean;
   raceRoad: 'achieve' | 'choose';
   /** A tile was created straight into a step (already saved as a blank tile). */
@@ -46,7 +49,7 @@ const goldBtn = 'text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border 
  * step or be added straight into one. Templates fill steps and links for the current tiles (their
  * content is untouched). Nothing is stored until Save, and Save refuses a route that can't be played.
  */
-export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank, raceRoad, onTileCreated, onSaved, onRaceBankChanged, onOpenTile }: Props) {
+export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin = false, raceBank, raceRoad, onTileCreated, onSaved, onRaceBankChanged, onOpenTile }: Props) {
   const { confirm, notify } = useDialog();
   const board = useMemo(() => tiles.filter((t) => t.parentTileId == null && !t.mission).sort((a, b) => a.position - b.position), [tiles]);
   const stored = useMemo(() => routeEntries(board), [board]);
@@ -58,6 +61,10 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
   const [warning, setWarning] = useState<string | null>(null);
   const [bank, setBank] = useState(raceBank);
   const [road, setRoad] = useState(raceRoad);
+  // Mid-race only an admin edits, and an edit that invalidates finishes asks what to do first.
+  const locked = eventStarted && !isAdmin;
+  const liveEdit = eventStarted && isAdmin;
+  const [decision, setDecision] = useState<null | { preview: Preview; body: Record<string, unknown> }>(null);
   const branching = isBranchingRoute(board);
 
   // Tiles added elsewhere (Cards, Quick build) join the editor as unplaced.
@@ -88,7 +95,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
   }
 
   function clickTile(id: number) {
-    if (eventStarted) return onOpenTile(id);
+    if (locked) return onOpenTile(id);
     if (selected == null || selected === id) return setSelected(selected === id ? null : id);
     if (linkable.has(id)) return change(toggleRouteLink(live, selected, id));
     setSelected(id);
@@ -105,7 +112,8 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
     if (!(await confirm({ title: 'Make it a straight line?', body: 'Every tile leads to the next one in board order — the classic tile race. Steps and links are cleared.', confirmLabel: 'Straight line' }))) return;
     setSaving(true);
     try {
-      const res = await clanFetch(`/api/events/${eventId}/race-route`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ straight: true }) });
+      if (liveEdit && !(await decideIfNeeded({ straight: true }))) return;
+      const res = await clanFetch(`/api/events/${eventId}/race-route`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ straight: true, policy: 'keep' }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return notify(data.error || 'Could not save the route.', 'error');
       const update = new Map(board.map((t) => [t.id, { raceStep: null, raceNext: null }]));
@@ -123,10 +131,12 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
     if (problems.length) return;
     setSaving(true);
     try {
+      const routeBody = { route: live.map((e) => ({ id: e.id, step: e.step, next: e.next })) };
+      if (liveEdit && !(await decideIfNeeded(routeBody))) return;
       const res = await clanFetch(`/api/events/${eventId}/race-route`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ route: live.map((e) => ({ id: e.id, step: e.step, next: e.next })) }),
+        body: JSON.stringify({ ...routeBody, policy: 'keep' }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return notify(data.error || 'Could not save the route.', 'error');
@@ -135,6 +145,44 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
       onSaved(update);
       setDirty(false);
       setWarning(null);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /**
+   * Mid-race: ask the server what this edit does to progress already made. Nothing affected → go
+   * ahead (true). Otherwise open the decision dialog, which saves with the chosen policy itself, and
+   * stop here (false).
+   */
+  async function decideIfNeeded(body: Record<string, unknown>): Promise<boolean> {
+    const res = await clanFetch(`/api/events/${eventId}/race-route`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, preview: true }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      notify(data.error || 'Could not check the edit.', 'error');
+      return false;
+    }
+    const preview = data.preview as Preview;
+    if (!preview?.teams?.length) return true;
+    setDecision({ preview, body });
+    return false;
+  }
+
+  async function applyDecision(policy: 'keep' | 'rollback', discord: 'keep' | 'correct') {
+    if (!decision) return;
+    setSaving(true);
+    try {
+      const res = await clanFetch(`/api/events/${eventId}/race-route`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...decision.body, policy, discord }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return notify(data.error || 'Could not save the route.', 'error');
+      const order: number[] = data.order ?? [];
+      const saved = decision.body.straight ? routeEntries(board.map((t) => ({ ...t, raceStep: null, raceNext: null }))) : live;
+      onSaved(new Map(saved.map((e) => [e.id, { raceStep: e.step, raceNext: e.next, position: order.indexOf(e.id) }])));
+      setEntries(saved);
+      setDirty(false);
+      setWarning(null);
+      setDecision(null);
+      notify(policy === 'rollback' ? `Route saved. ${decision.preview.totalTiles} finish${decision.preview.totalTiles === 1 ? '' : 'es'} rolled back.` : 'Route saved. Finishes already made were kept.');
     } finally {
       setSaving(false);
     }
@@ -187,7 +235,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
                 : 'This race is a straight line: every tile leads to the next. Pick a template or click a tile and link it to lay out branching routes.'}
             </p>
           </div>
-          {!eventStarted && (
+          {!locked && (
             <div className="flex flex-wrap items-center gap-2">
               <div className="w-44"><Select value={template} onChange={(v) => setTemplate(v as RouteTemplate)} options={ROUTE_TEMPLATES.map((t) => ({ value: t.key, label: t.label }))} ariaLabel="Route template" /></div>
               <button type="button" className={btn} onClick={applyTemplate} title={ROUTE_TEMPLATES.find((t) => t.key === template)?.help}>Apply template</button>
@@ -195,7 +243,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
             </div>
           )}
         </div>
-        {!eventStarted && <p className="text-[11px] text-text-muted">{ROUTE_TEMPLATES.find((t) => t.key === template)?.help} Templates set steps and links only.</p>}
+        {!locked && <p className="text-[11px] text-text-muted">{ROUTE_TEMPLATES.find((t) => t.key === template)?.help} Templates set steps and links only.</p>}
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">At a fork</span>
           <div className="w-60">
@@ -225,8 +273,13 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
         />
       </div>
 
-      {eventStarted && <p className="text-xs text-text-muted">The route is locked once the race starts. Click a tile to open it.</p>}
-      {!eventStarted && (
+      {locked && <p className="text-xs text-text-muted">The route is locked once the race starts — only an admin can change it. Click a tile to open it.</p>}
+      {liveEdit && (
+        <p className="text-xs rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-300 px-3 py-2">
+          The race is live. Changes apply as soon as you save, and are recorded in the tile history. If an edit undoes progress a team already made, you’ll choose what happens to it before anything is saved.
+        </p>
+      )}
+      {!locked && (
         <p className="text-xs text-text-muted">
           {sel
             ? <>Linking from <span className="text-gold">{labelOf(sel.id)}</span>: click a dashed tile on the step before or after to link it, a linked one to unlink. Click the tile again to let go.</>
@@ -236,7 +289,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
 
       <RaceRouteMap nodes={nodes} onTileClick={clickTile} selectedId={selected} linkable={linkable} problemIds={problemIds} />
 
-      {!eventStarted && sel && (
+      {!locked && sel && (
         <div className="border border-gold/30 rounded-xl bg-card-bg p-3 flex flex-wrap items-center gap-2">
           <span className="text-xs text-foreground font-medium truncate max-w-[14rem]">{labelOf(sel.id)}</span>
           <span className="text-xs text-text-muted">on</span>
@@ -257,7 +310,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
         </div>
       )}
 
-      {!eventStarted && unplaced.length > 0 && (
+      {!locked && unplaced.length > 0 && (
         <div className="border border-card-border rounded-xl bg-card-bg p-3">
           <p className="text-xs text-text-muted mb-2">Not on the route yet — click one, then pick its step:</p>
           <div className="flex flex-wrap gap-1.5">
@@ -270,7 +323,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
         </div>
       )}
 
-      {!eventStarted && stepCount > 0 && (
+      {!locked && stepCount > 0 && (
         <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
           {Array.from({ length: stepCount }, (_, s) => {
             const n = placed.filter((e) => e.step === s).length;
@@ -282,22 +335,24 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
                   <button type="button" className={btn} disabled={s === 0} onClick={() => { const r = swapSteps(live, s, -1); change(r.entries, r.dropped, 'Moving the step'); }} aria-label={`Move step ${s + 1} earlier`}>◀</button>
                   <button type="button" className={btn} disabled={s === lastStep} onClick={() => { const r = swapSteps(live, s, 1); change(r.entries, r.dropped, 'Moving the step'); }} aria-label={`Move step ${s + 1} later`}>▶</button>
                   <button type="button" className={btn} onClick={() => { const before = live; const next = insertStep(live, s); const lost = before.reduce((a, e) => a + e.next.length, 0) - next.reduce((a, e) => a + e.next.length, 0); change(next, lost, 'Adding the step'); }}>+ Step before</button>
-                  <button type="button" className={btn} onClick={() => void addTileToStep(s)}>+ Tile here</button>
+                  {!eventStarted && <button type="button" className={btn} onClick={() => void addTileToStep(s)}>+ Tile here</button>}
                   <button type="button" className={btn} onClick={() => { const r = removeStep(live, s); change(r.entries, r.dropped, 'Removing the step'); }}>Remove step</button>
                 </div>
               </div>
             );
           })}
-          <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+          {!eventStarted && <div className="flex flex-wrap items-center gap-2 px-3 py-2">
             <span className="text-xs text-text-muted">After the finish:</span>
             <button type="button" className={btn} onClick={() => void addTileToStep(stepCount)}>+ Tile on a new last step</button>
-          </div>
+          </div>}
         </div>
       )}
 
       {warning && <p className="text-xs text-amber-400">{warning}</p>}
 
-      {!eventStarted && (
+      {decision && <LiveEditDecision preview={decision.preview} saving={saving} onCancel={() => setDecision(null)} onApply={applyDecision} />}
+
+      {!locked && (
         <div className="border border-card-border rounded-xl bg-card-bg p-3 space-y-2">
           {problems.length > 0 ? (
             <>
@@ -329,5 +384,64 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, raceBank
         </div>
       )}
     </div>
+  );
+}
+
+type Preview = { teams: { teamId: number; teamName: string; tiles: { id: number; label: string; step: number }[] }[]; totalTiles: number };
+
+/**
+ * The decision a mid-race edit needs when it undoes progress: every affected team and tile across
+ * the whole edit, then Keep (whoever got it, got it) or Roll back, and what to do in Discord.
+ */
+function LiveEditDecision({ preview, saving, onCancel, onApply }: { preview: Preview; saving: boolean; onCancel: () => void; onApply: (p: 'keep' | 'rollback', d: 'keep' | 'correct') => void }) {
+  const [policy, setPolicy] = useState<'keep' | 'rollback'>('keep');
+  const [discord, setDiscord] = useState<'keep' | 'correct'>('keep');
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="live-edit-title">
+      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-card-border bg-card-bg p-4 space-y-4">
+        <div>
+          <h3 id="live-edit-title" className="text-base font-bold flex items-center gap-2"><span className="w-1 h-5 bg-gold rounded-full" />This edit changes progress already made</h3>
+          <p className="text-xs text-text-muted mt-1">
+            {preview.totalTiles} finish{preview.totalTiles === 1 ? '' : 'es'} across {preview.teams.length} team{preview.teams.length === 1 ? '' : 's'} no longer follow the new route:
+          </p>
+        </div>
+        <ul className="space-y-2 max-h-56 overflow-y-auto">
+          {preview.teams.map((t) => (
+            <li key={t.teamId} className="text-sm">
+              <span className="font-semibold">{t.teamName}</span>
+              <span className="block text-xs text-text-muted">{t.tiles.map((x) => `${x.label} (step ${x.step + 1})`).join(' · ')}</span>
+            </li>
+          ))}
+        </ul>
+        <fieldset className="space-y-2">
+          <legend className="text-xs font-semibold text-text-muted mb-1">What happens to those finishes</legend>
+          <Choice checked={policy === 'keep'} onSelect={() => setPolicy('keep')} title="Keep" body="Whoever got it, got it. The finishes stay and the new route applies from now on." />
+          <Choice checked={policy === 'rollback'} onSelect={() => setPolicy('rollback')} title="Roll back" body="Remove these finishes (and anything after them on that team’s road). Scores and standings update, and the affected players are told on the site and in the plugin." />
+        </fieldset>
+        {policy === 'rollback' && (
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-semibold text-text-muted mb-1">Their Discord posts</legend>
+            <Choice checked={discord === 'keep'} onSelect={() => setDiscord('keep')} title="Leave them" body="The original “tile complete” posts stay as they are." />
+            <Choice checked={discord === 'correct'} onSelect={() => setDiscord('correct')} title="Post a correction" body="Posts “rolled back by an admin” in the board’s channel. Tile-complete posts aren’t stored with their message ids, so the originals can’t be edited or deleted." />
+          </fieldset>
+        )}
+        <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" className={btn} onClick={onCancel} disabled={saving}>Cancel</button>
+          <button type="button" className={goldBtn} onClick={() => onApply(policy, discord)} disabled={saving}>{saving ? 'Saving…' : policy === 'rollback' ? 'Roll back and save' : 'Keep and save'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Choice({ checked, onSelect, title, body }: { checked: boolean; onSelect: () => void; title: string; body: string }) {
+  return (
+    <label className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 cursor-pointer ${checked ? 'border-gold/60 bg-gold/10' : 'border-card-border'}`}>
+      <Radio checked={checked} onChange={onSelect} className="mt-0.5" />
+      <span className="min-w-0">
+        <span className="block text-sm font-medium">{title}</span>
+        <span className="block text-xs text-text-muted">{body}</span>
+      </span>
+    </label>
   );
 }

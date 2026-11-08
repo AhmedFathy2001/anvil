@@ -268,7 +268,7 @@ export function RouteMapLegend({ withTeam }: { withTeam: boolean }) {
           <span className="flex items-center gap-1.5"><span className="inline-block w-6 h-1.5 rounded-full" style={{ backgroundColor: GOLD }} />Your road so far</span>
           <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-4 rounded-full border-2 border-dashed border-gold shadow-[0_0_8px_rgba(224,170,30,0.6)]" />Open next</span>
           <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-4 rounded-full border-2 border-gold" />Done</span>
-          <span className="flex items-center gap-1.5 opacity-60"><TileStateIcon kind="locked" />Locked / closed for you</span>
+          <span className="flex items-center gap-1.5 opacity-60"><TileStateIcon kind="locked" />Locked — not open, or not on your road</span>
         </>
       )}
       <span className="flex items-center gap-1.5"><span className="inline-block w-6 h-2.5 rounded-full" style={{ backgroundColor: ROAD, outline: '1px solid #332a22' }} />Road — where roads meet you can switch lanes</span>

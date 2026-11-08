@@ -53,7 +53,7 @@ import { serverInfo } from '@/lib/serverInfo';
 import { pluginClansFor } from '@/lib/pluginClans';
 import { boardPointsPool, scoreTeam } from '@/lib/boardScoring';
 import { countedModes, statGainWithModes } from '@/lib/modeStats';
-import { parseEventRules, hasRevealPolicy, nextRevealAt, nextMissionAt, isMissionTile, parseTileMissionRules, missionPrizeSummary } from '@/lib/eventRules';
+import { lockedMissionPreviews, parseEventRules, hasRevealPolicy, nextRevealAt, nextMissionAt, isMissionTile, parseTileMissionRules, missionPrizeSummary } from '@/lib/eventRules';
 import { startProofState } from '@/lib/startProof';
 import { combatTaskVarps } from '@/lib/combatTasks';
 import { isLadderFormat } from '@/lib/utils';
@@ -1034,8 +1034,13 @@ export async function buildEnrolledConfig(args: {
       ...(missions ? { missions } : {}),
       // Missions not yet announced. With no scheduled drop (nextRevealAt null) this is what tells "no
       // more missions" apart from "staff drop the next one by hand".
+      // Only missions set to show as Locked before their drop count, and only those are named: one
+      // hidden until its drop is not even a number here (lib/eventRules lockedMissionPreviews).
       ...(missions && !revealMode
-        ? { missionsLeft: fullEventTiles.filter((t) => isMissionTile(t) && t.revealedAt == null).length }
+        ? (() => {
+            const locked = lockedMissionPreviews(fullEventTiles);
+            return { missionsLeft: locked.length, lockedMissions: locked.map((m) => ({ label: m.label })) };
+          })()
         : {}),
       ...(cofferAvailable != null ? { cofferAvailable } : {}),
       // Ladder standings: all-time + this-month individual leaderboards with the caller's rank.

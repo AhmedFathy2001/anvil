@@ -308,6 +308,8 @@ export interface TileMissionRules {
   expiryHours: number | null;
   /** The placement ladder: what each finishing position wins, in points and in coffer gp. */
   reward: MissionReward | null;
+  /** Show it as "Locked" (name only) before it drops; off = hidden until its drop. */
+  showLocked?: boolean;
 }
 
 export interface PlayerGain {

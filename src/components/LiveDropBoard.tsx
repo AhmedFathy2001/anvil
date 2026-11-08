@@ -356,11 +356,12 @@ export default function LiveDropBoard({
             {closed.map((t) => (
               <li key={t.id} className="flex items-center gap-2 text-xs text-text-muted">
                 <span className={`truncate ${completedTileIds.has(t.id) ? '' : 'opacity-70'}`}>{t.label}</span>
-                {/* The shared tile-state look (lib/tileState): Done for your side, else Expired with how long ago. */}
+                {/* The shared tile-state look (lib/tileState): Done for your side; Closed when another side took
+                    it (never named here); Expired only when a rotating task's timer ran out. */}
                 <TileStateChip
                   className="shrink-0"
                   withDetail
-                  view={missionTileState({ revealedAt: t.revealedAt ?? null, closedAt: t.closedAt ?? null }, { done: completedTileIds.has(t.id), claimedBy: (claimsByTile?.[t.id] ?? 0) > 0 ? 'another side' : null })}
+                  view={missionTileState({ revealedAt: t.revealedAt ?? null, closedAt: t.closedAt ?? null }, { done: completedTileIds.has(t.id), claimed: (claimsByTile?.[t.id] ?? 0) > 0, timed: rules.revealPolicy === 'rotating' })}
                 />
               </li>
             ))}

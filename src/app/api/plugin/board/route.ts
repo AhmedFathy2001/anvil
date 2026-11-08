@@ -1,3 +1,5 @@
+import { missionTileState } from '@/lib/tileState';
+import { parseTileMissionRules } from '@/lib/eventRules';
 import { raceGraph, teamRoute, rankRaceTeams, roadOf } from '@/lib/raceRoutes';
 import { loadRacePicks } from '@/lib/raceRoutePicks';
 import { NextResponse } from 'next/server';
@@ -274,7 +276,8 @@ export async function buildBoard(
   const boardRows = withoutParts(allEventTiles);
   const partsOf = partsByParent(allEventTiles);
   const eventTiles = visibleTiles(rules, boardRows);
-  const hiddenTileCount = boardRows.length - eventTiles.length;
+  // Board tiles only: a mission hidden until its drop isn't even a number here.
+  const hiddenTileCount = boardRows.filter((t) => !isMissionTile(t)).length - eventTiles.filter((t) => !isMissionTile(t)).length;
 
   // Raw tracked_item_ids predate per-item requirements, so they carry ids but no display names.
   // Resolve them once per server cache window and ship the names with the board: the in-game detail
@@ -321,6 +324,8 @@ export async function buildBoard(
   // HIDDEN STANDINGS (lib/standingsVisibility): other teams' completions are their progress. Cut to
   // the caller's own team(s) before anything below reads them — the race pips, "Teams done", and the
   // read-only board's "complete" (which was the union across every team). Staff see all of it.
+  // Before the curtain cuts it: was a closed tile TAKEN, or did it run out? Only that bit leaves here.
+  const takenAny = new Set(anyCompleted);
   const standingsScope = await standingsScopeForPlugin(event, { userId: curtainUserId, teamId: callerTeamId });
   if (standingsScope.hidden) {
     for (const teamId of [...completionsByTeam.keys()]) {
@@ -593,7 +598,16 @@ export async function buildBoard(
         // without it an expired or locked-out mission sat in the plugin's "Not done" list as Open.
         ...(revealMode || isMissionTile(t) ? { revealedAt: t.revealedAt ?? null, closedAt: t.closedAt ?? null } : {}),
         // A closed one: claimed by a team, or expired unclaimed (the panel's ⌛ Expired).
-        ...(t.closedAt && (revealMode || isMissionTile(t)) ? { teamsDone: anyCompleted.has(t.id) } : {}),
+        // A closed one: taken ('claimed') or a timed one that ran out ('expired') — the shared tile-state
+        // rule (lib/tileState). Never who took it, so hidden standings stay hidden.
+        ...(t.closedAt && (revealMode || isMissionTile(t))
+          ? {
+              closedReason: missionTileState(
+                { revealedAt: t.revealedAt, closedAt: t.closedAt, expiryHours: isMissionTile(t) ? parseTileMissionRules(t.rules).expiryHours : null },
+                { claimed: takenAny.has(t.id), timed: rules.revealPolicy === 'rotating' },
+              ).kind === 'expired' ? ('expired' as const) : ('claimed' as const),
+            }
+          : {}),
         ...(itemRequirements ? { itemRequirements } : {}),
         ...(raceOn && routeGraph!.byId.has(t.id)
           ? {

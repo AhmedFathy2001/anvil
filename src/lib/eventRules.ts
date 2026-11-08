@@ -936,6 +936,19 @@ export function visibleTiles<T extends RevealStateTile>(rules: EventRules, tiles
   return tiles.filter((t) => isTileRevealed(rules, t));
 }
 
+/**
+ * The missions a viewer may see BEFORE they drop: only those set to show as "Locked", and only their
+ * name and icon — never their rules, target or count. Every other unannounced mission stays out of
+ * every viewer-facing payload (visibleTiles drops them).
+ */
+export function lockedMissionPreviews<T extends RevealStateTile & { id: number; label: string; icon?: string | null; rules?: string | null; parentTileId?: number | null }>(
+  tiles: T[],
+): { id: number; label: string; icon: string | null }[] {
+  return tiles
+    .filter((t) => isMissionTile(t) && t.parentTileId == null && t.revealedAt == null && t.closedAt == null && parseTileMissionRules(t.rules ?? null).showLocked)
+    .map((t) => ({ id: t.id, label: t.label, icon: t.icon ?? null }));
+}
+
 /** True when a tile can still accept completions under the rules (revealed and not claimed/expired). */
 export function isTileOpen(rules: EventRules, tile: RevealStateTile): boolean {
   if (!isTileRevealed(rules, tile)) return false;
@@ -1212,6 +1225,12 @@ export interface MissionRules {
   multiplier: number;
   /** The same, for the gp prize. Separate because doubling points is free and doubling gp is not. */
   prizeMultiplier: number;
+  /**
+   * Show this mission as "Locked" (its name only) before it drops. Off — the default, and every
+   * mission stored before this existed — it is hidden until its drop: no tile, name, icon, rules or
+   * count anywhere a viewer can reach.
+   */
+  showLocked: boolean;
 }
 
 // ---- The placement ladder ----------------------------------------------------------------------
@@ -1266,6 +1285,7 @@ export const DEFAULT_MISSION_RULES: MissionRules = {
   reward: null,
   multiplier: 1,
   prizeMultiplier: 1,
+  showLocked: false,
 };
 
 /** Tolerant parse of a tile's `rules` JSON. Anything missing/malformed → the no-modifier default. */
@@ -1292,6 +1312,7 @@ export function parseTileMissionRules(raw: string | null | undefined): MissionRu
     reward: parseMissionReward(o.reward),
     multiplier: clampMultiplier(o.multiplier),
     prizeMultiplier: clampMultiplier(o.prizeMultiplier),
+    showLocked: o.showLocked === true,
   };
 }
 
@@ -1457,6 +1478,7 @@ export function serializeTileMissionRules(input: Partial<MissionRules> | null | 
     m.expiryHours === null &&
     m.reward === null &&
     m.multiplier === 1 &&
-    m.prizeMultiplier === 1;
+    m.prizeMultiplier === 1 &&
+    !m.showLocked;
   return isDefault ? null : JSON.stringify(m);
 }

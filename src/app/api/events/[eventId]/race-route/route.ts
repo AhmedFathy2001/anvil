@@ -3,18 +3,21 @@ import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
 import { eq, and, isNull } from 'drizzle-orm';
-import { verifyTileEditorForEvent } from '@/lib/auth';
+import { verifyAdmin, verifyTileEditorForEvent } from '@/lib/auth';
+import { applyLiveRouteEdit, previewRouteEdit } from '@/lib/raceRoutesDb';
 import { logTileAudit } from '@/lib/tile-audit';
 import { assertEventEditable } from '@/lib/eventLock';
 import { isMissionTile } from '@/lib/eventRules';
 import { routeOrder, validateRoute, type RouteEntry } from '@/lib/raceRoutes';
 
 // Saves a tile race's route (lib/raceRoutes): every board tile's step and its links to the next step.
-// Pre-start only, like the board order — moving the route under a race in progress would strand
-// teams mid-path. Board order is rewritten to follow the steps, so every list reads in race order.
+// Board order is rewritten to follow the steps, so every list reads in race order. Once the race has
+// started only an admin may edit it; an edit that invalidates finishes already made needs a policy
+// ('keep' or 'rollback', plus what to do in Discord) — see lib/raceRoutesDb applyLiveRouteEdit.
 //
 // Body: { route: { id, step, next: number[] }[] }  — every board tile exactly once, a valid route
 //    or { straight: true }                          — back to the classic line (board order = steps)
+//    + live only: preview: true (just the impact), policy: 'keep' | 'rollback', discord: 'keep' | 'correct'
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
@@ -35,11 +38,13 @@ export async function PUT(
   if (event.format !== 'tilerace') {
     return NextResponse.json({ error: 'Routes are for tile races only.' }, { status: 400 });
   }
-  if (event.startDate && new Date(event.startDate) <= new Date()) {
-    return NextResponse.json({ error: 'The route is locked once the race starts.' }, { status: 400 });
+  // Mid-race edits are an admin's call, and recorded (lib/raceRoutesDb applyLiveRouteEdit).
+  const live = !!event.startDate && new Date(event.startDate) <= new Date();
+  if (live && !(await verifyAdmin())) {
+    return NextResponse.json({ error: 'Only an admin can change the route once the race has started.' }, { status: 403 });
   }
 
-  let body: { route?: unknown; straight?: unknown };
+  let body: { route?: unknown; straight?: unknown; preview?: unknown; policy?: unknown; discord?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -49,7 +54,11 @@ export async function PUT(
   const rows = await db.select().from(tiles).where(and(eq(tiles.eventId, eId), isNull(tiles.parentTileId)));
   const board = rows.filter((t) => !isMissionTile(t));
 
-  if (body.straight === true) {
+  if (body.straight === true && live) {
+    // Mid-race, the straight line goes through the same decision as any other edit.
+    const line = [...board].sort((a, b) => a.position - b.position);
+    body.route = line.map((t, i) => ({ id: t.id, step: i, next: i + 1 < line.length ? [line[i + 1].id] : [] }));
+  } else if (body.straight === true) {
     await db.update(tiles).set({ raceStep: null, raceNext: null }).where(eq(tiles.eventId, eId));
     logTileAudit({ eventId: eId, action: 'reordered', newValue: { raceRoute: 'straight' }, actorUserId: editor.userId });
     return NextResponse.json({ ok: true, straight: true });
@@ -82,6 +91,21 @@ export async function PUT(
   const order = routeOrder(entries, (id) => positionOf.get(id) ?? 0);
   const missions = rows.filter((t) => isMissionTile(t)).sort((a, b) => a.position - b.position);
   const byId = new Map(entries.map((e) => [e.id, e]));
+
+  if (live) {
+    // What the edit does to progress already made, across the whole edit. A preview, or a save that
+    // invalidates something without a decision, answers with the list instead of saving.
+    const preview = await previewRouteEdit(eId, entries);
+    const policy = body.policy === 'keep' || body.policy === 'rollback' ? body.policy : null;
+    const discord = body.discord === 'correct' ? 'correct' : 'keep';
+    if (body.preview === true) return NextResponse.json({ ok: true, preview });
+    if (preview.teams.length && !policy) {
+      return NextResponse.json({ error: 'This edit changes progress teams already made — choose what happens to it.', needsDecision: true, preview }, { status: 409 });
+    }
+    await applyLiveRouteEdit({ event, entries, order, policy: policy ?? 'keep', discord, actorUserId: editor.userId });
+    return NextResponse.json({ ok: true, order, preview, policy: policy ?? 'keep' });
+  }
+
   await db.transaction(async (tx) => {
     for (let i = 0; i < order.length; i++) {
       const e = byId.get(order[i])!;

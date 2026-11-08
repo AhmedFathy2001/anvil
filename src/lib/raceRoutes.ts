@@ -148,12 +148,23 @@ function pickCommitted(graph: RaceGraph, candidates: number[]): number {
  * only the pick is open and the other options close. Omit (or null) for "By achievement", the
  * default: every linked next tile is open and the first one finished sets the road.
  */
-export function teamRoute(graph: RaceGraph, doneIds: Iterable<number>, picks?: Map<number, number> | null): TeamRoute {
+export function teamRoute(
+  graph: RaceGraph,
+  doneIds: Iterable<number>,
+  picks?: Map<number, number> | null,
+  opts: { lenient?: boolean } = {},
+): TeamRoute {
   const done = new Set(doneIds);
   const path: number[] = [];
   let options = graph.steps[0] ?? [];
   for (;;) {
-    const finished = options.filter((id) => done.has(id));
+    let finished = options.filter((id) => done.has(id));
+    // "Whoever got it, got it": a finish an admin kept through a route edit may no longer follow the
+    // links; it still holds its step (the linked finish is preferred when there is one).
+    if (!finished.length && opts.lenient !== false) {
+      const step = path.length;
+      finished = (graph.steps[step] ?? []).filter((id) => done.has(id));
+    }
     if (!finished.length) break;
     const pick = pickCommitted(graph, finished);
     path.push(pick);
@@ -549,10 +560,10 @@ export function raceTileInfo(graph: RaceGraph, route: TeamRoute | null, tileId: 
     const taken = route.path.find((id) => graph.byId.get(id)!.step === n.step);
     const branch = route.path.find((id) => graph.byId.get(id)!.step >= Math.max(0, n.step - 1) && graph.byId.get(id)!.step <= n.step);
     why = taken != null
-      ? `Closed — your team took road ${roadOf(graph, taken)} at step ${n.step + 1}.`
+      ? `Locked — your team took road ${roadOf(graph, taken)} at step ${n.step + 1}.`
       : branch != null
-        ? `Closed — your team’s road doesn’t lead here (road ${roadOf(graph, branch)}).`
-        : 'Closed — your team’s road doesn’t lead here.';
+        ? `Locked — your team’s road doesn’t lead here (road ${roadOf(graph, branch)}).`
+        : 'Locked — your team’s road doesn’t lead here.';
   }
   return { state, road: roadOf(graph, tileId), step: n.step, stepLine: stepLine(graph, tileId), why, leadsTo: n.next, reachedFrom };
 }
@@ -578,4 +589,58 @@ export type RaceFieldSize = 'few' | 'medium' | 'huge';
 /** Which board variant fits the field: a handful of teams, a crowd, or a solo-sized field. */
 export function raceFieldSize(entrants: number): RaceFieldSize {
   return entrants <= 6 ? 'few' : entrants <= 30 ? 'medium' : 'huge';
+}
+
+/**
+ * Does a stat (XP / KC) race tile need a baseline taken when it opens for a team? Every tile does,
+ * except one open from the whistle — a step-0 tile on a "By achievement" race, or the only start —
+ * which counts from the event start like any board tile.
+ */
+export function raceTileNeedsBaseline(graph: RaceGraph, tileId: number, mode: 'achieve' | 'choose'): boolean {
+  const n = graph.byId.get(tileId);
+  if (!n) return false;
+  if (n.step > 0) return true;
+  return mode === 'choose' && (graph.steps[0]?.length ?? 0) > 1;
+}
+
+// ---- Mid-race route edits ---------------------------------------------------------------------
+
+export interface RouteEditImpact {
+  teamId: number;
+  /** Finishes that no longer follow on the new route, earliest step first (they and everything after). */
+  invalid: number[];
+}
+
+/**
+ * What a route edit does to progress already made: for every team, the finishes on its committed
+ * path under the OLD route that don't follow on the NEW one (strictly, link by link), plus every
+ * later finish that hung off them. Empty = the edit touches nobody's progress.
+ */
+export function routeEditImpact(
+  oldGraph: RaceGraph,
+  newGraph: RaceGraph,
+  doneByTeam: Map<number, number[]>,
+): RouteEditImpact[] {
+  const out: RouteEditImpact[] = [];
+  for (const [teamId, done] of doneByTeam) {
+    const oldPath = teamRoute(oldGraph, done, null, { lenient: false }).path;
+    const onRoute = new Set(oldGraph.nodes.map((n) => n.id));
+    const routeDone = done.filter((id) => onRoute.has(id) || newGraph.byId.has(id));
+    const strictNew = new Set(teamRoute(newGraph, oldPath, null, { lenient: false }).path);
+    // The first old-path finish that doesn't survive cuts the path; everything from there is invalid.
+    const cut = oldPath.findIndex((id) => !strictNew.has(id));
+    const invalid = new Set<number>(cut < 0 ? [] : oldPath.slice(cut));
+    // Finishes off the old path that still count somewhere ahead of the cut go with it.
+    if (cut >= 0) {
+      for (const id of routeDone) {
+        const n = newGraph.byId.get(id) ?? oldGraph.byId.get(id);
+        if (n && n.step >= cut && !strictNew.has(id)) invalid.add(id);
+      }
+    }
+    if (invalid.size) {
+      const stepOf = (id: number) => newGraph.byId.get(id)?.step ?? oldGraph.byId.get(id)?.step ?? 0;
+      out.push({ teamId, invalid: [...invalid].sort((a, b) => stepOf(a) - stepOf(b) || a - b) });
+    }
+  }
+  return out;
 }

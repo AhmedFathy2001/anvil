@@ -271,8 +271,9 @@ function stateText(t: BoardTile, pre: boolean): string | null {
   const race = raceStateOf(t);
   const open = race === 'open' ? 'Next' : race === 'ahead' ? 'Locked' : 'Open';
   // A closed mission / bounty in the shared tile-state words (lib/tileState): claimed by someone, or
-  // expired unclaimed (hourglass). A closed-off race tile stays "Closed".
-  const closedWord = t.closedAt ? (t.finishedBy?.length || t.teamsDone ? 'Claimed' : '⌛ Expired') : 'Closed';
+  // expired (hourglass, timed ones only — the site decides which, so hidden standings never name or
+  // leak a taker). A race tile off the team's road is "Locked", not closed.
+  const closedWord = t.closedAt ? ('closedReason' in t && t.closedReason === 'expired' ? '⌛ Expired' : 'Closed') : '🔒 Locked';
   return `${t.complete ? 'Done' : closedUndone(t) ? closedWord : open}${isManual(t) ? ' (manual)' : ''}`;
 }
 
@@ -312,7 +313,7 @@ function raceDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: BoardConte
   const label = (id: number) => tiles.find((x) => x.tileId === id)?.label?.trim() || `Tile ${id}`;
   const info = raceTileInfo(m.graph, m.route, t.tileId, label)!;
   const color: Color = info.state === 'open' ? 'brand' : info.state === 'done' ? 'done' : 'muted';
-  const head = info.state === 'open' ? '▸ Next for your team' : info.state === 'done' ? '✓ Done' : info.state === 'closed' ? '🔒 Closed' : info.state === 'ahead' ? '🔒 Locked' : info.stepLine;
+  const head = info.state === 'open' ? '▸ Next for your team' : info.state === 'done' ? '✓ Done' : info.state === 'closed' ? '🔒 Locked' : info.state === 'ahead' ? '🔒 Locked' : info.stepLine;
   const chips = (ids: number[]) => ids.map((id) => text(`· ${label(id)}`, 'white', { tip: 'Open this tile', on: pane(`t:${id}`) }));
   const out: Node[] = [
     card([
