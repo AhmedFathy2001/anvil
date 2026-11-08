@@ -17,7 +17,7 @@ import {
   type Tracked,
   type ValueTile,
 } from '@/lib/pluginFacts/match';
-import { buildRuleTable, statStep } from '@/lib/pluginFacts/rules';
+import { buildEventRules, buildRuleTable, diaryKeys, pvpKeys, statStep } from '@/lib/pluginFacts/rules';
 import { creditOutcome, planSubmissions, retryFacts, tileText, type Outcome } from '@/lib/pluginFacts/plan';
 import { appendBoardTiles } from '@/lib/pluginBoardTiles';
 import { parseFacts } from '@/lib/pluginFacts/parse';
@@ -625,4 +625,60 @@ test('parseFacts: keeps a re-sent fact\'s done tiles and takes a larger cap when
   const many = Array.from({ length: 60 }, () => ({ k: 'value', src: null, kind: 'npc', gp: 5 }));
   assert.equal(parseFacts(many).length, 50);
   assert.equal(parseFacts(many.slice(50), Infinity).length, 10);
+});
+
+test('diaryKeys: concrete "<area> <tier>" keys, * for Any, an area taking every diary area containing it', () => {
+  assert.deepEqual(diaryKeys(['Ardougne Elite']), ['ardougne elite']);
+  assert.deepEqual(diaryKeys(['Any Elite', 'Wilderness Any', 'Any Any']), ['* elite', 'wilderness *', '* *']);
+  assert.deepEqual(diaryKeys(['Lumbridge Any']), ['lumbridge *', 'lumbridgedraynor *']);
+  assert.deepEqual(diaryKeys(['Kourend & Kebos Hard', 'bad']), ['kourendkebos hard']);
+});
+
+test('pvpKeys: any is *, team:other every rival on the roster, rsn:<name> that name, folded like the client', () => {
+  const roster = [{ name: 'Mate One', teamId: 1 }, { name: 'Rival_Two', teamId: 2 }, { name: 'Rival  Three', teamId: 3 }];
+  assert.deepEqual(pvpKeys(['team:other'], roster, 1), ['rival two', 'rival three']);
+  assert.deepEqual(pvpKeys(['team:other'], roster, null), []);
+  assert.deepEqual(pvpKeys(['ANY', 'rsn: Bounty_Guy '], roster, 1), ['*', 'bounty guy']);
+});
+
+test('buildEventRules: each plugin-judged kind becomes an event rule the client only checks for equality', () => {
+  const rules = buildEventRules({
+    team: { id: 1 },
+    completedTiles: [{ tileId: 99 }],
+    pvpRoster: [{ name: 'Foe', teamId: 2 }],
+    trackedCombos: [{ tileId: 50, label: 'Log or pet ' }],
+    trackedTimed: [
+      { tileId: 1, label: 'Inferno', activity: 'Inferno', thresholdSeconds: 3600, partySize: 0, minRaidLevel: 0, requiredAmount: 1, currentAmount: 0 },
+      { tileId: 2, label: 'Marlin', activity: 'Gwenith Glide \u2014 Marlin', thresholdSeconds: null, requiredAmount: 5, currentAmount: 3 },
+      { tileId: 99, label: 'Done', activity: 'Zulrah', thresholdSeconds: 60 },
+    ],
+    trackedDeathless: [{ tileId: 3, label: 'ToB', activity: 'Theatre of Blood', requiredAmount: 2, currentAmount: 1, partySize: 4, partyTeamOnly: true, coopCredit: 'per-kill', minRaidLevel: 0 }],
+    trackedLms: [{ tileId: 4, label: 'Win LMS', placementCap: 1, requiredAmount: 3, currentAmount: 0 }],
+    trackedPvp: [
+      { tileId: 5, label: 'PK', targets: ['team:other'], requiredAmount: 2, currentAmount: 0, minLootValue: 0 },
+      { tileId: 6, label: 'Rich PK', targets: ['any'], requiredAmount: 1, currentAmount: 0, minLootValue: 100_000 },
+    ],
+    trackedDiaries: [{ tileId: 7, label: 'Elite', diaries: ['Any Elite'], requiredAmount: 1, currentAmount: 0 }],
+    trackedCombatTasks: [{ tileId: 8, label: 'CA', tasks: ['Whack-a-Mole', 'Any Master'], requiredAmount: 2, currentAmount: 0 }],
+    trackedClog: [
+      { tileId: 9, label: '2 slots', mode: 'slots', items: null, requiredAmount: 2, currentAmount: 0, partOf: 50 },
+      { tileId: 10, label: 'Pages', mode: 'complete', items: ['ahrim s hood'], groups: { Barrows: [1, 2], Empty: [] }, requiredAmount: 1, currentAmount: 0 },
+    ],
+    trackedGains: [{ tileId: 11, label: 'Sharks', itemIds: [383, 385], requiredAmount: 100, currentAmount: 100 }, { tileId: 12, label: 'Lobsters', itemIds: [377], requiredAmount: 10, currentAmount: 2 }],
+  });
+  const by = (t: number) => rules.filter((r) => r.t === t);
+  assert.deepEqual(by(1), [{ t: 1, label: 'Inferno', have: 0, of: 0, on: 'timed', keys: ['Inferno'], max: 3600, party: 0, lvl: 0 }]);
+  assert.deepEqual(by(2), [{ t: 2, label: 'Marlin', have: 3, of: 5, on: 'timed', keys: ['Gwenith Glide \u2014 Marlin'], lvl: 0, say: 'timedRuns' }]);
+  assert.deepEqual(by(99), []);
+  assert.deepEqual(by(3), [{ t: 3, label: 'ToB', have: 1, of: 2, on: 'deathless', keys: ['Theatre of Blood'], max: 0, party: 4, lvl: 0, team: true, coop: true }]);
+  assert.deepEqual(by(4), [{ t: 4, label: 'Win LMS', have: 0, of: 3, on: 'lms', max: 1 }]);
+  assert.deepEqual(by(5).map((r) => [r.on, r.keys]), [['pvp', ['foe']]]);
+  assert.deepEqual(by(6).map((r) => [r.on, r.keys, r.min]), [['pvpLoot', ['*'], 100_000]]);
+  assert.equal(by(7)[0].keys!.includes('* elite'), true);
+  assert.deepEqual(by(8)[0].keys, ['whackamole', 'anymaster']);
+  assert.deepEqual(by(9), [{ t: 9, label: 'Log or pet \u2014 2 slots', have: 0, of: 2, on: 'clog', keys: ['*'] }]);
+  assert.deepEqual(by(10).map((r) => [r.on, r.of, r.keys, r.need, r.say]), [['clog', 0, ['ahrimshood'], undefined, 'clog0'], ['page', 0, ['Barrows'], [1, 2], undefined]]);
+  assert.deepEqual(by(11), []);
+  assert.deepEqual(by(12)[0].keys, ['377']);
+  assert.ok(buildRuleTable({ trackedGains: [{ tileId: 12, label: 'L', itemIds: [1], requiredAmount: 2, currentAmount: 0 }] }).events.length === 1);
 });
