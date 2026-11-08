@@ -46,7 +46,7 @@ export default async function WeeklyLayout({
         ? { label: 'Active', cls: 'bg-accent-green/15 text-accent-green-light border-accent-green/25' }
         : { label: 'Upcoming', cls: 'bg-blue-500/15 text-blue-400 border-blue-500/25' };
 
-  const rail = weeklyRailGroups({ weeklyId: id, stage, counts });
+  const rail = weeklyRailGroups({ weeklyId: id, stage, counts, mode: comp.mode });
 
   return (
     <div className="lg:flex lg:gap-6">

@@ -183,8 +183,11 @@ export function weeklyRailGroups(opts: {
   weeklyId: number;
   stage: EventStage;
   counts: WeeklyCounts;
+  /** 'solo' | 'teams' | 'clans' — names the format item (lib/competitionTeams). */
+  mode?: string;
 }): SidebarGroup[] {
   const { weeklyId, stage, counts } = opts;
+  const formatLabel = opts.mode === 'teams' ? 'Teams' : opts.mode === 'clans' ? 'Clans' : 'Format';
   const base = `/admin/events/weekly/${weeklyId}`;
   const missingBaselines = Math.max(0, counts.participants - counts.withBaseline);
 
@@ -208,6 +211,8 @@ export function weeklyRailGroups(opts: {
           attn: counts.flagged > 0 || missingBaselines > 0,
           matchPrefix: true,
         },
+        // Solo / teams / clan vs clan, and the teams or invited clans that go with it.
+        { href: `${base}/format`, label: formatLabel, icon: '⚑', matchPrefix: true },
         // Name, dates, status and delete — a board has these on its Settings tab, and a competition
         // had them in a modal on a list page that no longer exists.
         { href: `${base}/settings`, label: 'Settings', icon: '⚙', matchPrefix: true },

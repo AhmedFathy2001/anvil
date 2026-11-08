@@ -249,6 +249,12 @@ const no: PartialGuideDict = {
         blurb: 'Planlegge en ukentlig konkurranse, gjenta og rotere den, startlinjer, premier, avslutte tidlig og hva spillerne ser.',
         minutes: '~4 min',
       },
+      teamComps: {
+        "eyebrow": "For klanledere og spillere",
+        "title": "Lagkonkurranser",
+        "blurb": "Ferdighets- og bosskonkurranser som lag eller klan mot klan: oppsett, invitere klaner, hvordan totaler og snitt fungerer, og hva spillerne ser.",
+        "minutes": "~4 min"
+      },
       clanEvents: {
         eyebrow: 'For klanstab',
         title: 'Klanevent og planleggingen',
@@ -1381,6 +1387,8 @@ const no: PartialGuideDict = {
     ],
     footnote:
       'Skjermbildene er fra et ekte oppsett på et testbrett — invitasjonstokens og Discord-navn er sladdet. En ekte lenke er verdt å passe på: alle som har den, kan ta en plass på det laget så lenge den er aktiv.',
+
+    teamCompsLine: "Vil du at klaner skal konkurrere på ferdigheter eller bosser i stedet? Se [Lagkonkurranser]({teamCompsGuide}).",
 
     shape: {
       title: 'Det du setter opp',
@@ -4422,7 +4430,119 @@ const no: PartialGuideDict = {
         'Å spille med plugin-en holder tallet ditt oppdatert. Uten den teller du fortsatt, bare i hiscores-tempo.',
       ],
     },
+    teamsLine: "Vil du ha lag, eller klaner som konkurrerer mot hverandre, på en ferdighet eller boss? Sett **Format** når du planlegger den. Se [Lagkonkurranser]({teamCompsGuide}).",
   },
+  teamComps: {
+    "metaTitle": "Lagkonkurranser — Anvil",
+    "metaDescription": "Kjør en Skill eller Boss of the Week som lag eller klan mot klan på Anvil: del spillere inn i lag, inviter andre klaner, hvordan totaler og snitt gir poeng, sene deltakere og hva spillerne ser.",
+    "eyebrow": "Anvil · for klanledere og spillere",
+    "title": "Lagkonkurranser",
+    "dek": "Hver ferdighets- eller bosskonkurranse har et Format. Solo er standard og fungerer som før. Velg Teams for å dele klanen i lag, eller Clan vs clan for å la andre klaner konkurrere på samme ferdighet eller boss.",
+    "facts": [
+      {
+        "strong": "Tre formater",
+        "rest": "Solo, Teams, Clan vs clan"
+      },
+      {
+        "strong": "Totaler avgjør",
+        "rest": "med et snitt per spiller"
+      },
+      {
+        "strong": "Én vert redigerer",
+        "rest": "partnerklaner følger med"
+      }
+    ],
+    "footnote": "Grunnleggende om Skill and Boss of the Week finner du i [Skill and Boss of the Week]({weeklyGuide}). Vil du at klaner skal konkurrere på bingobrett i stedet? Se [Være vertskap for en besøkende klan]({clanVsClanGuide}).",
+    "teams": {
+      "title": "Sett opp lag",
+      "intro": "Lag deler din egen klan i sider. Det tar omtrent ett minutt:",
+      "steps": [
+        "Planlegg en konkurranse som vanlig. Sett **Format** til **Teams**.",
+        "Skriv inn lagnavnene dine. Alle som er lagt inn, fordeles jevnt etter nåværende nivå eller KC, slik at sidene starter rettferdig.",
+        "La **Late joiners go into the smallest team** være på hvis folk kan komme etter start. Slå den av for å holde lagene faste.",
+        "For å endre noe senere, åpne konkurransen og velg **Teams** i admin-sidemenyen. Der kan du:"
+      ],
+      "rows": [
+        {
+          "term": "Gi nytt navn og endre farge",
+          "body": "gi hvert lag et navn og en farge spillerne kjenner igjen."
+        },
+        {
+          "term": "Legg til og slett lag",
+          "body": "start med to og legg til et tredje, eller fjern et du ikke trenger lenger."
+        },
+        {
+          "term": "Flytt en spiller",
+          "body": "send noen til et annet lag. Nyttig for venner som vil spille sammen."
+        },
+        {
+          "term": "Auto-balance",
+          "body": "trykk **Auto-balance by current level/KC** for å fordele alle jevnt på nytt."
+        },
+        {
+          "term": "Late joiners",
+          "body": "slå valget for sene deltakere på eller av. Når det er på, havner nye spillere i det minste laget."
+        }
+      ],
+      "note": {
+        "tag": "Ingen lag, ikke noe problem",
+        "body": "En spiller uten lag teller fortsatt på den individuelle tavlen. De bidrar bare ikke til noen lagtotal."
+      },
+      "outro": "En gjentakende konkurranse tar med seg lagene til neste uke og balanserer dem på nytt."
+    },
+    "clans": {
+      "title": "Sett opp klan mot klan",
+      "intro": "Clan vs clan lar andre klaner bli med i konkurransen din, så mange du vil. Du er vert, og de andre klanene er partnere.",
+      "steps": [
+        "Som admin eller høyere i vertsklanen, sett **Format** til **Clan vs clan**.",
+        "Inviter de andre klanene med adressen deres. Gjør det i skjemaet for opprettelse, eller senere på konkurransens side **Clans**.",
+        "Eieren eller adminen i den inviterte klanen godtar eller avslår på siden **People** eller i listen **Events**. En moderator kan ikke. Ingen fra den klanen blir påmeldt før klanen godtar.",
+        "Når den godtar, velger den hvem som konkurrerer: **All members** på lista, eller **Selected people** som den plukker ut. Den kan endre dette senere fra samme kort.",
+      ],
+      "body": [
+        "Partnerklanen kan følge stillingen på sin egen side på `/c/<slug>/weekly/<id>`. Den er skrivebeskyttet. Bare verten redigerer konkurransen.",
+        "For å fjerne en klan, fjern den på siden **Clans**. Spillerne deres forsvinner fra brettet.",
+        "En gjentakende konkurranse sender nye invitasjoner hver uke, så hver klan må si ja på nytt.",
+        "Får du uønskede invitasjoner? Velg **Decline & block this clan** på invitasjonen. Senere invitasjoner fra den klanen avvises stille, og du kan oppheve blokkeringen under **Settings → Blocked clans**.",
+      ],
+      "note": {
+        "tag": "Del adressen",
+        "body": "En klans adresse er det korte navnet i nettadressen. Be admin i den andre klanen om den før du inviterer."
+      }
+    },
+    "scoring": {
+      "title": "Slik scorer det",
+      "body": [
+        "Totalen for et lag eller en klan er summen av medlemmenes gains. Gains telles på samme måte som på den individuelle tavlen.",
+        "Ved siden av hver total ser du også et **average per player**, så et lag på 8 og et lag på 12 kan fortsatt sammenlignes.",
+        "Hvis to totaler er like, rangeres den som nådde dit først høyere."
+      ]
+    },
+    "players": {
+      "title": "Hva spillerne ser",
+      "body": [
+        "Konkurransesiden viser lag- eller klanstillingen først. Åpne en av dem for å se spillerne. Ditt eget lag eller din egen klan er uthevet.",
+        "Discord-meldinger ved start, halvveis og slutt viser stillingen. I clan vs clan går de til hver klans kanal, og din er merket **← you**.",
+        "I sidepanelet i plugin-en kan du se hvor laget ditt havner.",
+        "Det er ingenting å melde seg på. Hvis klanen din legger inn alle medlemmer og du står på lista, er du med. Hvis den velger ut personer, er du med når du er valgt.",
+        "Vil du ikke delta? Trykk **Opt out** ved siden av **You’re in**, på konkurransesiden, i listen Events eller i plugin-en. Du forsvinner fra brettet for akkurat denne konkurransen, og du kan melde deg på igjen mens den pågår.",
+      ]
+    },
+    "faq": {
+      "title": "Spørsmål",
+      "intro": "Det klanens stab og spillere spør oftest om:",
+      "rows": [
+        { term: "Lagene våre er ulike store. Er det urettferdig?", body: "Ikke i seg selv. Totaler avgjør rangeringen, men hvert lag viser også et snitt per spiller, slik at du ser hvordan et mindre lag faktisk gjør det." },
+        { term: "Hva med folk som blir med sent?", body: "Med bryteren for sene deltakere på, havner de i det minste laget. Med den av, teller de bare på det individuelle brettet. Du kan alltid flytte dem manuelt på siden **Teams**." },
+        { term: "Kan den andre klanen redigere konkurransen vår?", body: "Nei. Partnerklaner ser stillingen skrivebeskyttet. Bare vertsklanen kan endre konkurransen." },
+        { term: "Kan jeg hoppe over én konkurranse?", body: "Ja. Trykk **Opt out** på konkurransesiden, i listen Events eller i plugin-en. Bare den konkurransen påvirkes, og du kan melde deg på igjen mens den pågår." },
+        { term: "Hvor mange klaner kan konkurrere?", body: "Så mange du inviterer, opptil 50 i én konkurranse. Hver klan ser sin egen side merket i stillingen og i sine Discord-meldinger." },
+        { term: "En annen klan inviterer oss stadig. Kan vi stoppe det?", body: "Ja. En eier eller admin velger **Decline & block this clan** på invitasjonen. Senere invitasjoner avvises uten at de får vite det. Opphev blokkeringen når som helst under **Settings → Blocked clans**." },
+        { term: "Hvis vi sier ja én gang, er vi påmeldt hver uke?", body: "Nei. En gjentakende konkurranse sender nye invitasjoner hver uke, og en eier eller admin må godta hver enkelt." },
+      ]
+    }
+  },
+
   clanEvents: {
     metaTitle: 'Klanevent og planleggingen — Anvil',
     metaDescription: 'Planlegge klanevent på Anvil: massemøter, turer og treff, ukentlige gjentakelser, “Jeg er med” og påmeldinger med plasser, spørsmål og avgifter, Discord-innlegg og påminnelser, utbetalinger, spørreundersøkelser, og planleggingen som viser hull.',

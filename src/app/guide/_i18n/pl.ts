@@ -248,6 +248,12 @@ const pl: PartialGuideDict = {
         blurb: 'Planowanie cotygodniowego konkursu, powtarzanie i rotowanie go, linie startowe, nagrody, wcześniejsze kończenie i to, co widzą gracze.',
         minutes: '~4 min',
       },
+      teamComps: {
+        "eyebrow": "Dla staffu klanu i graczy",
+        "title": "Konkurencje drużynowe",
+        "blurb": "Konkurencje w umiejętnościach i na bossów jako drużyny lub klan kontra klan: konfiguracja, zapraszanie klanów, jak liczą się sumy i średnie oraz co widzą gracze.",
+        "minutes": "~4 min"
+      },
       clanEvents: {
         eyebrow: 'Dla sztabu klanu',
         title: 'Wydarzenia klanowe i harmonogram',
@@ -1363,6 +1369,8 @@ const pl: PartialGuideDict = {
     ],
     footnote:
       'Zrzuty pochodzą z działającej konfiguracji na testowej planszy —— tokeny zaproszeń i nazwy z Discorda są zamazane. Prawdziwego linku warto pilnować: każdy, kto go ma, może zająć miejsce w tej drużynie, dopóki link żyje.',
+
+    teamCompsLine: "Chcesz, żeby klany ścigały się w umiejętnościach lub na bossach? Zobacz [Konkurencje drużynowe]({teamCompsGuide}).",
 
     shape: {
       title: 'Co właściwie przygotowujesz',
@@ -4400,7 +4408,119 @@ const pl: PartialGuideDict = {
         'Granie z pluginem utrzymuje twój wynik na żywo. Bez niego nadal się liczysz, tylko w tempie hiscores.',
       ],
     },
+    teamsLine: "Chcesz drużyny albo klany ścigające się w umiejętnościach lub na bossach? Ustaw **Format** przy planowaniu. Zobacz [Konkurencje drużynowe]({teamCompsGuide}).",
   },
+  teamComps: {
+    "metaTitle": "Konkurencje drużynowe — Anvil",
+    "metaDescription": "Uruchom Skill lub Boss of the Week jako drużyny albo klan kontra klan na Anvil: podział graczy na drużyny, zapraszanie innych klanów, jak sumy i średnie dają punkty, późno dołączający i co widzą gracze.",
+    "eyebrow": "Anvil · dla staffu klanu i graczy",
+    "title": "Konkurencje drużynowe",
+    "dek": "Każda konkurencja w umiejętnościach lub na bossa ma Format. Solo jest domyślne i działa jak zawsze. Wybierz Teams, aby podzielić klan na strony, albo Clan vs clan, aby ścigać się z innymi klanami w tej samej umiejętności lub na tego samego bossa.",
+    "facts": [
+      {
+        "strong": "Trzy formaty",
+        "rest": "Solo, Teams, Clan vs clan"
+      },
+      {
+        "strong": "Decydują sumy",
+        "rest": "ze średnią na gracza"
+      },
+      {
+        "strong": "Jeden gospodarz edytuje",
+        "rest": "klany partnerskie obserwują"
+      }
+    ],
+    "footnote": "Podstawy Skill and Boss of the Week są w [Skill and Boss of the Week]({weeklyGuide}). Chcesz, żeby klany ścigały się na planszach bingo? Zobacz [Goszczenie klanu gościa]({clanVsClanGuide}).",
+    "teams": {
+      "title": "Konfiguracja drużyn",
+      "intro": "Drużyny dzielą twój własny klan na strony. Zajmuje to około minuty:",
+      "steps": [
+        "Zaplanuj konkurencję jak zwykle. Ustaw **Format** na **Teams**.",
+        "Wpisz nazwy drużyn. Wszyscy wpisani zostaną równo podzieleni według obecnego poziomu lub KC, tak aby strony zaczęły uczciwie.",
+        "Zostaw **Late joiners go into the smallest team** włączone, jeśli gracze mogą dołączyć po starcie. Wyłącz, aby utrzymać stałe drużyny.",
+        "Aby coś zmienić później, otwórz konkurencję i wybierz **Teams** w panelu admina. Tam możesz:"
+      ],
+      "rows": [
+        {
+          "term": "Zmienić nazwę i kolor",
+          "body": "nadaj każdej drużynie nazwę i kolor, które gracze rozpoznają."
+        },
+        {
+          "term": "Dodawać i usuwać drużyny",
+          "body": "zacznij od dwóch i dodaj trzecią albo usuń tę, której już nie potrzebujesz."
+        },
+        {
+          "term": "Przenieść gracza",
+          "body": "przenieś kogoś do innej drużyny. Przydatne dla znajomych, którzy chcą grać razem."
+        },
+        {
+          "term": "Auto-balance",
+          "body": "naciśnij **Auto-balance by current level/KC**, aby ponownie równo rozdzielić wszystkich."
+        },
+        {
+          "term": "Późno dołączający",
+          "body": "włącz lub wyłącz opcję późnych graczy. Gdy jest włączona, nowi gracze dołączają do najmniejszej drużyny."
+        }
+      ],
+      "note": {
+        "tag": "Brak drużyny, brak problemu",
+        "body": "Gracz bez drużyny nadal liczy się na tablicy indywidualnej. Po prostu nie dodaje się do sumy żadnej drużyny."
+      },
+      "outro": "Powtarzająca się konkurencja przenosi drużyny na następny tydzień i równoważy je na nowo."
+    },
+    "clans": {
+      "title": "Konfiguracja klan kontra klan",
+      "intro": "Clan vs clan pozwala innym klanom dołączyć do twojej konkurencji, ile tylko chcesz. Ty jesteś gospodarzem, a pozostałe klany są partnerami.",
+      "steps": [
+        "Jako admin lub wyżej w klanie gospodarza ustaw **Format** na **Clan vs clan**.",
+        "Zaproś pozostałe klany, podając ich adres. Zrób to w formularzu tworzenia albo później na stronie **Clans** konkurencji.",
+        "Właściciel lub admin zaproszonego klanu akceptuje lub odrzuca na swojej stronie **People** albo na liście **Events**. Moderator tego nie może. Nikt z tego klanu nie zostaje zapisany, dopóki klan nie zaakceptuje.",
+        "Po akceptacji klan wybiera, kto się ściga: **All members** z jego listy członków albo **Selected people**, których sam wskaże. Może to później zmienić z tej samej karty.",
+      ],
+      "body": [
+        "Klan partnerski może śledzić tabelę na własnej stronie pod adresem `/c/<slug>/weekly/<id>`. Jest ona tylko do odczytu. Konkurencję edytuje wyłącznie gospodarz.",
+        "Aby usunąć klan, usuń go na stronie **Clans**. Jego gracze znikną z planszy.",
+        "Cykliczna konkurencja wysyła nowe zaproszenia co tydzień, więc każdy klan musi znów się zgodzić.",
+        "Dostajesz niechciane zaproszenia? Wybierz **Decline & block this clan** przy zaproszeniu. Kolejne zaproszenia od tego klanu będą cicho odrzucane, a blokadę możesz zdjąć w **Settings → Blocked clans**.",
+      ],
+      "note": {
+        "tag": "Udostępnij adres",
+        "body": "Adres klanu to krótka nazwa w jego adresie internetowym. Zapytaj admina drugiego klanu o nią, zanim go zaprosisz."
+      }
+    },
+    "scoring": {
+      "title": "Jak liczymy punkty",
+      "body": [
+        "Suma drużyny lub klanu to suma zdobyczy jej członków. Zdobycze liczy się tak samo jak na tablicy indywidualnej.",
+        "Obok każdej sumy widzisz też **average per player**, dzięki czemu drużynę z 8 osobami można porównać z drużyną z 12.",
+        "Jeśli dwie sumy są równe, wyżej w rankingu jest ta, która osiągnęła wynik wcześniej."
+      ]
+    },
+    "players": {
+      "title": "Co widzą gracze",
+      "body": [
+        "Strona konkurencji pokazuje najpierw tabelę drużyn lub klanów. Otwórz dowolną, by zobaczyć jej graczy. Twoja drużyna lub klan jest wyróżniony.",
+        "Wiadomości na Discordzie na starcie, w połowie i na końcu pokazują tabelę. W clan vs clan trafiają na kanał każdego klanu, a twój jest oznaczony jako **← you**.",
+        "W panelu bocznym pluginu zobaczysz, na którym miejscu jest twoja drużyna.",
+        "Nie ma się czego zapisywać. Jeśli twój klan wpisuje wszystkich członków, a ty jesteś na liście, bierzesz udział. Jeśli klan wybiera osoby, bierzesz udział po wybraniu.",
+        "Nie chcesz brać udziału? Naciśnij **Opt out** obok **You’re in** na stronie konkurencji, na liście Events lub w pluginie. Znikasz z planszy tylko w tej jednej konkurencji i możesz dołączyć z powrotem, gdy trwa.",
+      ]
+    },
+    "faq": {
+      "title": "Pytania",
+      "intro": "Pytania, które staff klanu i gracze zadają najczęściej:",
+      "rows": [
+        { term: "Nasze drużyny mają różną liczbę osób. Czy to nie jest niesprawiedliwe?", body: "Samo w sobie nie. Ranking decydują sumy, ale każda drużyna pokazuje też średnią na gracza, dzięki czemu widać, jak naprawdę radzi sobie mniejsza drużyna." },
+        { term: "A co z osobami, które dołączają później?", body: "Przy włączonym przełączniku dla późno dołączających trafiają do najmniejszej drużyny. Przy wyłączonym liczą się tylko na tablicy indywidualnej. Zawsze możesz przenieść je ręcznie na stronie **Teams**." },
+        { term: "Czy drugi klan może edytować naszą konkurencję?", body: "Nie. Klany partnerskie widzą tabelę tylko do odczytu. Zmieniać konkurencję może wyłącznie klan gospodarza." },
+        { term: "Czy mogę opuścić jedną konkurencję?", body: "Tak. Naciśnij **Opt out** na stronie konkurencji, na liście Events lub w pluginie. Dotyczy to tylko tej konkurencji, a dołączyć z powrotem możesz, gdy trwa." },
+        { term: "Ile klanów może się ścigać?", body: "Tyle, ile zaprosisz, maksymalnie 50 w jednej konkurencji. Każdy klan widzi swoją stronę oznaczoną w tabeli i w swoich wiadomościach na Discordzie." },
+        { term: "Inny klan wciąż nas zaprasza. Możemy to zatrzymać?", body: "Tak. Właściciel lub admin wybiera przy zaproszeniu **Decline & block this clan**. Kolejne zaproszenia są odrzucane bez informowania klanu. Odblokować go można w dowolnym momencie w **Settings → Blocked clans**." },
+        { term: "Jeśli zgodzimy się raz, czy zapisujemy się co tydzień?", body: "Nie. Cykliczna konkurencja wysyła nowe zaproszenia co tydzień, a właściciel lub admin musi zaakceptować każde z nich." },
+      ]
+    }
+  },
+
   clanEvents: {
     metaTitle: 'Wydarzenia klanowe i harmonogram — Anvil',
     metaDescription: 'Planowanie wydarzeń klanowych na Anvil: masówki, wyjazdy i spotkania, cotygodniowe powtórki, „I’m going” i zapisy z miejscami, pytaniami i opłatami, posty i przypomnienia na Discordzie, wypłaty, ankiety oraz harmonogram pokazujący luki.',

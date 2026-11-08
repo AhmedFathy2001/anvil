@@ -249,6 +249,12 @@ const es: PartialGuideDict = {
         blurb: 'Programar una competición semanal, repetirla y rotarla, las líneas de salida, los premios, terminarla antes de tiempo y lo que ven los jugadores.',
         minutes: '~4 min',
       },
+      teamComps: {
+        "eyebrow": "Para staff de clanes y jugadores",
+        "title": "Competiciones por equipos",
+        "blurb": "Competiciones de skills y bosses por equipos o clan contra clan: cómo montarlas, invitar clanes, cómo funcionan los totales y promedios, y qué ve cada jugador.",
+        "minutes": "~4 min"
+      },
       clanEvents: {
         eyebrow: 'Para staff de clan',
         title: 'Eventos del clan y el calendario',
@@ -1381,6 +1387,8 @@ const es: PartialGuideDict = {
     ],
     footnote:
       'Las capturas son de una instalación real sobre un tablero de pruebas — los tokens de invitación y los nombres de Discord están tapados. Un enlace real merece cuidarse: cualquiera que lo tenga puede ocupar un puesto en ese equipo mientras siga activo.',
+
+    teamCompsLine: "¿Quieres que los clanes compitan en skills o bosses? Mira [Competiciones por equipos]({teamCompsGuide}).",
 
     shape: {
       title: 'Lo que estás montando',
@@ -4420,7 +4428,119 @@ const es: PartialGuideDict = {
         'Jugar con el plugin mantiene tu número en vivo. Sin él sigues contando, solo a la velocidad de las hiscores.',
       ],
     },
+    teamsLine: "¿Quieres equipos, o clanes compitiendo entre sí, en una skill o boss? Elige el **Format** al programarla. Mira [Competiciones por equipos]({teamCompsGuide}).",
   },
+  teamComps: {
+    "metaTitle": "Competiciones por equipos — Anvil",
+    "metaDescription": "Organiza una Skill o Boss of the Week por equipos o clan contra clan en Anvil: repartir jugadores en equipos, invitar a otros clanes, cómo puntúan los totales y promedios, jugadores que se unen tarde y lo que ven los jugadores.",
+    "eyebrow": "Anvil · para staff de clanes y jugadores",
+    "title": "Competiciones por equipos",
+    "dek": "Cada competición de skill o boss tiene un Format. Solo es el valor por defecto y funciona como siempre. Elige Teams para dividir tu clan en bandos, o Clan vs clan para competir contra otros clanes en la misma skill o boss.",
+    "facts": [
+      {
+        "strong": "Tres formatos",
+        "rest": "Solo, Teams, Clan vs clan"
+      },
+      {
+        "strong": "Los totales deciden",
+        "rest": "con un promedio por jugador"
+      },
+      {
+        "strong": "Solo el anfitrión edita",
+        "rest": "los clanes socios miran"
+      }
+    ],
+    "footnote": "Las bases de Skill and Boss of the Week están en [Skill and Boss of the Week]({weeklyGuide}). ¿Quieres que los clanes compitan en tableros de bingo? Mira [Alojar a un clan visitante]({clanVsClanGuide}).",
+    "teams": {
+      "title": "Configurar equipos",
+      "intro": "Los equipos dividen tu propio clan en bandos. Tarda cerca de un minuto:",
+      "steps": [
+        "Programa una competición como de costumbre. Pon **Format** en **Teams**.",
+        "Escribe los nombres de los equipos. Todos los inscritos se reparten por igual según su nivel actual o su KC, para que los bandos empiecen equilibrados.",
+        "Deja **Late joiners go into the smallest team** activado si la gente puede llegar después del inicio. Desactívalo para mantener los equipos fijos.",
+        "Para cambiar algo más tarde, abre la competición y elige **Teams** en su barra lateral de admin. Ahí puedes:"
+      ],
+      "rows": [
+        {
+          "term": "Renombrar y cambiar color",
+          "body": "pon un nombre a cada equipo y un color que los jugadores reconozcan."
+        },
+        {
+          "term": "Añadir y eliminar equipos",
+          "body": "empieza con dos y añade un tercero, o elimina uno que ya no necesites."
+        },
+        {
+          "term": "Mover a un jugador",
+          "body": "envía a alguien a otro equipo. Útil para amigos que quieren jugar juntos."
+        },
+        {
+          "term": "Auto-balance",
+          "body": "pulsa **Auto-balance by current level/KC** para volver a repartir a todos por igual."
+        },
+        {
+          "term": "Late joiners",
+          "body": "activa o desactiva la opción de llegadas tardías. Si está activa, los nuevos jugadores entran en el equipo más pequeño."
+        }
+      ],
+      "note": {
+        "tag": "Sin equipo, sin problema",
+        "body": "Un jugador sin equipo sigue contando en el tablero individual. Simplemente no suma al total de ningún equipo."
+      },
+      "outro": "Una competición recurrente traslada sus equipos a la semana siguiente y los vuelve a equilibrar."
+    },
+    "clans": {
+      "title": "Configurar clan contra clan",
+      "intro": "Clan vs clan permite que otros clanes se unan a tu competición, todos los que quieras. Tú eres el anfitrión y los demás clanes son socios.",
+      "steps": [
+        "Como admin o superior en el clan anfitrión, pon **Format** en **Clan vs clan**.",
+        "Invita a los otros clanes con su dirección. Hazlo en el formulario de creación o más tarde, en la página **Clans** de la competición.",
+        "El dueño o el admin del clan invitado acepta o rechaza en su página **People** o en la lista de **Events**. Un moderador no puede hacerlo. Nadie de ese clan entra hasta que acepte.",
+        "Cuando acepta, elige quién compite: **All members** de su plantilla, o **Selected people** que él escoja. Puede cambiarlo después desde la misma tarjeta.",
+      ],
+      "body": [
+        "El clan socio puede seguir la clasificación en su propia web, en `/c/<slug>/weekly/<id>`. Es de solo lectura. Solo el anfitrión edita la competición.",
+        "Para quitar un clan, elimínalo en la página **Clans**. Sus jugadores salen del tablero.",
+        "Una competición que se repite envía invitaciones nuevas cada semana, así que cada clan tiene que volver a aceptar.",
+        "¿Recibes invitaciones que no quieres? Elige **Decline & block this clan** en la invitación. Las invitaciones futuras de ese clan se rechazan en silencio, y puedes desbloquearlo en **Settings → Blocked clans**.",
+      ],
+      "note": {
+        "tag": "Comparte la dirección",
+        "body": "La dirección de un clan es el nombre corto de su URL. Pide al admin del otro clan que te la dé antes de invitarlo."
+      }
+    },
+    "scoring": {
+      "title": "Cómo puntúa",
+      "body": [
+        "El total de un equipo o clan es la suma de las ganancias de sus miembros. Las ganancias se cuentan igual que en el tablero individual.",
+        "Junto a cada total también ves un **promedio por jugador**, así que un equipo de 8 y uno de 12 siguen siendo comparables.",
+        "Si dos totales empatan, el que llegó antes a esa cifra queda por encima."
+      ]
+    },
+    "players": {
+      "title": "Lo que ven los jugadores",
+      "body": [
+        "La página de la competición muestra primero la clasificación de equipos o clanes. Ábrela para ver a sus jugadores. Tu equipo o clan aparece resaltado.",
+        "Los mensajes de Discord al inicio, a mitad y al final muestran la clasificación. En clan vs clan llegan al canal de cada clan, y el tuyo aparece marcado con **← you**.",
+        "En el panel lateral del plugin puedes ver en qué puesto queda tu equipo.",
+        "No hay nada que inscribirse. Si tu clan incluye a todos sus miembros y tú estás en la plantilla, estás dentro. Si elige personas, entras cuando te elijan.",
+        "¿No quieres participar? Pulsa **Opt out** junto a **You’re in**, en la página de la competición, en la lista de Events o en el plugin. Sales del tablero solo en esa competición, y puedes volver a unirte mientras siga en marcha.",
+      ]
+    },
+    "faq": {
+      "title": "Preguntas",
+      "intro": "Las que más preguntan el staff del clan y los jugadores:",
+      "rows": [
+        { term: "Nuestros equipos tienen tamaños distintos. ¿Es injusto?", body: "No por sí mismo. Los totales deciden la clasificación, pero cada equipo también muestra un promedio por jugador, para que veas cómo le va realmente a un equipo más pequeño." },
+        { term: "¿Qué pasa con quienes se unen tarde?", body: "Con el interruptor de incorporación tardía activado, entran en el equipo más pequeño. Con él desactivado, solo cuentan en el tablero individual. Siempre puedes moverlos a mano en la página **Teams**." },
+        { term: "¿Puede el otro clan editar nuestra competición?", body: "No. Los clanes socios ven la clasificación en modo de solo lectura. Solo el clan anfitrión puede cambiar la competición." },
+        { term: "¿Puedo no participar en una competición?", body: "Sí. Pulsa **Opt out** en la página de la competición, en la lista de Events o en el plugin. Solo afecta a esa competición, y puedes volver a unirte mientras esté en marcha." },
+        { term: "¿Cuántos clanes pueden competir?", body: "Tantos como invites, hasta 50 en una competición. Cada clan ve su propio lado marcado en la clasificación y en sus mensajes de Discord." },
+        { term: "Otro clan no deja de invitarnos. ¿Podemos pararlo?", body: "Sí. Un dueño o admin elige **Decline & block this clan** en la invitación. Las invitaciones futuras se rechazan sin avisarles. Puedes desbloquearlo en cualquier momento en **Settings → Blocked clans**." },
+        { term: "Si aceptamos una vez, ¿quedamos inscritos cada semana?", body: "No. Una competición que se repite envía invitaciones nuevas cada semana, y un dueño o admin tiene que aceptar cada una." },
+      ]
+    }
+  },
+
   clanEvents: {
     metaTitle: 'Eventos del clan y el calendario — Anvil',
     metaDescription: 'Programar eventos de clan en Anvil: masivos, viajes y quedadas, repeticiones semanales, «Voy» e inscripciones con plazas, preguntas y cuotas, publicaciones y recordatorios en Discord, pagos, encuestas, y el calendario que muestra los huecos.',

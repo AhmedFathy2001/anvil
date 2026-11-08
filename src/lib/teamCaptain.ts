@@ -8,6 +8,7 @@ import { rosterSeatOpensEventSql } from '@/lib/seatScope';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { PlanLimitError } from '@/lib/creatorPlansDb';
 import { withHostEventRoom } from '@/lib/friendEvents';
+import { acceptedCohostClanIds } from '@/lib/coHost';
 
 /**
  * Seat a team's captain on their own team.
@@ -86,7 +87,13 @@ export async function placeCaptainOnTeam(
   // roster player ids against the user id found nobody, or the wrong person, whenever the two differ.
   const captain = await db.query.users.findFirst({ where: eq(users.id, captainUserId), columns: { playerId: true } });
   if (captain?.playerId == null) return { playerId: null, reason: 'no-account' };
-  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
+  // ONLY SEATS IN A CLAN THAT IS IN THIS EVENT: the host, or a clan that ACCEPTED a co-host seat. The
+  // read used to take any seat this person holds anywhere, so naming a captain who also sits in some
+  // third clan could enter that clan's seat on the board — a clan that never agreed to the event.
+  const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true } });
+  if (!ev) return { playerId: null, reason: 'no-team' };
+  const eventClanIds = [ev.clanId, ...(await acceptedCohostClanIds(eventId))];
+  // clan-scope: this clan -- the person's seats, limited to the clans running this event (eventClanIds).
   const memberRows = await db
     .select({
       id: clanRoster.id,
@@ -97,7 +104,7 @@ export async function placeCaptainOnTeam(
     })
     .from(clanRoster)
     // Seats that may play THIS event: an event player's seat only for its own event.
-    .where(and(eq(clanRoster.playerId, captain.playerId), isNull(clanRoster.leftAt), rosterSeatOpensEventSql(eventId)))
+    .where(and(eq(clanRoster.playerId, captain.playerId), inArray(clanRoster.clanId, eventClanIds), isNull(clanRoster.leftAt), rosterSeatOpensEventSql(eventId)))
     .orderBy(desc(clanRoster.isPrimary), desc(clanRoster.verifiedAt));
   if (memberRows.length === 0) return { playerId: null, reason: 'no-account' };
   const memberIds = memberRows.map((m) => m.id);

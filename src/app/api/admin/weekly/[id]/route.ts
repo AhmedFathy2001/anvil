@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { parseCompetitionMode } from '@/lib/competitionTeams';
+import { setCompetitionMode } from '@/lib/competitionTeamsDb';
 import { releaseWeeklyPool } from '@/lib/coffer';
 import { competitionForRequest } from '@/lib/eventScope';
 import { verifyAdminOrModerator, verifyFeeCollector } from '@/lib/auth';
@@ -57,7 +59,17 @@ export async function PUT(
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  const { title, startDate, endDate, status, includeGuests, repeat } = await request.json();
+  const body = await request.json();
+  const { title, startDate, endDate, status, includeGuests, repeat } = body;
+
+  // Team competitions: mode (solo | teams | clans) and the teams-mode late-join switch.
+  let modeChanged = false;
+  if (body.mode !== undefined) {
+    const mode = parseCompetitionMode(body.mode);
+    if (!mode) return NextResponse.json({ error: 'Mode must be solo, teams or clans' }, { status: 400 });
+    await setCompetitionMode(scoped, mode, typeof body.teamLateJoin === 'boolean' ? body.teamLateJoin : undefined);
+    modeChanged = true;
+  }
 
   // Repeat on (with an optional rotation) or off. Off on the current week stops the series: the cron
   // only ever makes the next one from a week that still says repeat.
@@ -86,7 +98,13 @@ export async function PUT(
   // Reversible after creation: turning it off stops the cron re-entering guests; it does not remove
   // the ones already entered (that is "Drop all guests"). Turning it on enters them on the next tick.
   if (typeof includeGuests === 'boolean') updates.includeGuests = includeGuests ? 1 : 0;
+  if (!modeChanged && typeof body.teamLateJoin === 'boolean') updates.teamLateJoin = body.teamLateJoin;
+  // Who from this clan races: 'all' (roster swept in) or 'selected' (only the people an admin adds).
+  if (body.hostEntrants === 'all' || body.hostEntrants === 'selected') updates.hostEntrants = body.hostEntrants;
 
+  if (Object.keys(updates).length === 0 && modeChanged) {
+    return NextResponse.json((await db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId)))[0]);
+  }
   if (Object.keys(updates).length === 0) {
     if (repeat !== undefined) return NextResponse.json({ ok: true, repeat: await getWeeklyRepeat(scoped.clanId, compId) });
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });

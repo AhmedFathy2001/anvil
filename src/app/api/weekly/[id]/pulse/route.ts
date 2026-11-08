@@ -1,5 +1,12 @@
 import { db } from '@/db';
 import { competitionForRequest } from '@/lib/eventScope';
+import { resolveClanFromRequest } from '@/lib/clanContext';
+import { competitionForClan } from '@/lib/competitionTeamsDb';
+
+async function partnerScoped(request: Request, compId: number) {
+  const clan = await resolveClanFromRequest(request);
+  return clan ? (await competitionForClan(clan.id, compId))?.comp ?? null : null;
+}
 import { moments, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { jsonWithEtag } from '@/lib/httpEtag';
@@ -26,7 +33,8 @@ export async function GET(
 }
 
 async function computeWeeklyToken(_request: Request, compId: number): Promise<string> {
-  const comp = await competitionForRequest(_request, compId);
+  // Own competition, or a clan-vs-clan one this clan accepted (lib/competitionTeamsDb).
+  const comp = (await competitionForRequest(_request, compId)) ?? (await partnerScoped(_request, compId));
   if (!comp) {
     return 'none';
   }

@@ -7,6 +7,8 @@ import { clanHref } from '@/lib/clanPath';
 import ProfileClient from './ProfileClient';
 import ClanNameSettings from './ClanNameSettings';
 import DeleteClan from './DeleteClan';
+import BlockedClans from './BlockedClans';
+import { listBlockedClans } from '@/lib/clanBlocks';
 import LookSettings from './LookSettings';
 import MovedToSpace from './MovedToSpace';
 import StreamingSettings from './StreamSettings';
@@ -45,6 +47,8 @@ export default async function ClanProfilePage() {
       <LookSettings name={clan.name} />
       {/* "Streaming": viewers from the clan's stream can join its events as event players. */}
       <StreamingSettings />
+      {/* Anti-spam: clans whose invites are refused (lib/clanBlocks). */}
+      <BlockedClans initial={await listBlockedClans(clan.id)} />
       <DeleteClan slug={clan.slug} isOwner={!!grant?.isOwner} />
     </>
   );

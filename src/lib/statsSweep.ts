@@ -282,6 +282,8 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
         and(
           eq(weeklyParticipants.competitionId, comp.id),
           or(isNull(weeklyParticipants.clanMemberId), eq(clanRoster.status, 'active')),
+          // Opted out of this competition: nothing to track.
+          eq(weeklyParticipants.optedOut, false),
         ),
       )
       .orderBy(asc(weeklyParticipants.lastUpdated));

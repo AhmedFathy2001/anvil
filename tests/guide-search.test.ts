@@ -43,6 +43,7 @@ const CARD_KEY = {
   'clan-hall': 'clanHall',
   'in-game-guides': 'guideLibrary',
   weekly: 'weekly',
+  'team-competitions': 'teamComps',
   'clan-events': 'clanEvents',
 } as const;
 

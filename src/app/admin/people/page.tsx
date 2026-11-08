@@ -1,6 +1,8 @@
 import { verifyUser } from '@/lib/auth';
 import ClanRosterClient from './ClanRosterClient';
 import PendingCoHostInvites from './PendingCoHostInvites';
+import CompetitionInvites from '@/components/weekly/CompetitionInvites';
+import { competitionInvitesForClan } from '@/lib/competitionTeamsDb';
 import JoinRequests from './JoinRequests';
 import { atLeast, canGrantRole, holdsModeratorTier } from '@/lib/clanRoles';
 import { requireClan } from '@/lib/clanContext';
@@ -22,9 +24,11 @@ export default async function AdminClanPage() {
   // different reads rather than one `isStaff`.
   // Moderator TIER: a clan treasurer is in it, a board-only grant is not (lib/clanRoles).
   const isModerator = holdsModeratorTier(session);
-  const [pending, requests] = await Promise.all([
+  const [pending, requests, compInvites] = await Promise.all([
     isAdmin ? pendingCoHostInvites(clan.id) : Promise.resolve([]),
     isModerator ? pendingRequests(clan.id) : Promise.resolve([]),
+    // Clan vs clan competition invites — an owner/admin answers, same bar as co-hosting.
+    isAdmin ? competitionInvitesForClan(clan.id) : Promise.resolve([]),
   ]);
   if (isCreatorSpace(clan)) {
     return (
@@ -39,6 +43,7 @@ export default async function AdminClanPage() {
     <>
       {requests.length > 0 && <JoinRequests initial={requests} />}
       {pending.length > 0 && <PendingCoHostInvites initial={pending} />}
+      {compInvites.length > 0 && <CompetitionInvites initial={compInvites} />}
       {/* Only the owner can hand out Admin (Staff & roles' rule), so only they are offered it. */}
       <ClanRosterClient isAdmin={isAdmin} canGrantAdmin={canGrantRole(session?.role, 'admin')} />
     </>

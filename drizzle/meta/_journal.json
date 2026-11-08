@@ -1261,6 +1261,20 @@
       "when": 1794410000000,
       "tag": "0242_account_records",
       "breakpoints": true
+    },
+    {
+      "idx": 243,
+      "version": "7",
+      "when": 1794420000000,
+      "tag": "0243_team_competitions",
+      "breakpoints": true
+    },
+    {
+      "idx": 244,
+      "version": "7",
+      "when": 1794430000000,
+      "tag": "0244_competition_entrants",
+      "breakpoints": true
     }
   ]
 }

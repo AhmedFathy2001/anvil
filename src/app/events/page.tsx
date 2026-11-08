@@ -2,6 +2,10 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 
+import CompetitionInvites from '@/components/weekly/CompetitionInvites';
+import OptOutToggle from '@/components/weekly/OptOutToggle';
+import { competitionInvitesForClan, entryStatus } from '@/lib/competitionTeamsDb';
+import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
 import { listClanEvents } from '@/lib/clanEvents';
 import { takesNames } from '@/lib/clanEventModules';
@@ -109,14 +113,27 @@ export default async function EventsIndexPage({
   const requested = Number.parseInt(show ?? '', 10);
   const pastLimit = Number.isFinite(requested) ? Math.min(Math.max(requested, PAGE), 500) : PAGE;
   // Players have no Admin tab, so the empty state only points staff at one.
-  const isStaff = isStaffRole((await verifyUser())?.role);
+  const session = await verifyUser();
+  const isStaff = isStaffRole(session?.role);
 
   const [view, calendar, clanEvents] = await Promise.all([
-    loadHubView(clan.id, { pastLimit }),
+    loadHubView(clan.id, { pastLimit, viewer: session ? { playerId: session.playerId, userId: session.userId } : null }),
     loadCalendar(clan.id),
     listClanEvents(clan.id, { withinDays: 30 }),
   ]);
   const liveCount = view.live.boards.length + view.live.weeks.length;
+  // Clan vs clan invites waiting on this clan — an owner/admin answers them right here.
+  const compInvites = atLeast(session?.role, 'admin')
+    ? (await competitionInvitesForClan(clan.id)).filter((i) => i.status === 'pending')
+    : [];
+  // "You're in · Opt out" for each running or upcoming week the viewer is entered in.
+  const myEntries = session?.playerId
+    ? (
+        await Promise.all(
+          [...view.live.weeks, ...view.upcoming.weeks].map(async (w) => ({ w, e: await entryStatus(w.id, { playerId: session.playerId }) })),
+        )
+      ).filter((x) => x.e.entered)
+    : [];
   const nextUp = [
     ...view.upcoming.boards.map((b) => ({
       key: `e${b.id}`,
@@ -137,7 +154,7 @@ export default async function EventsIndexPage({
       href: `/weekly/${w.id}`,
       startDate: w.startDate,
       endDate: w.endDate,
-      foot: `${w.metricLabel} · everyone on the roster`,
+      foot: w.hostName ? `${w.metricLabel} · clan vs clan · ${w.hostName} hosts` : `${w.metricLabel} · everyone on the roster`,
     })),
   ].sort((a, b) => (a.startDate ?? '').localeCompare(b.startDate ?? ''));
 
@@ -176,6 +193,28 @@ export default async function EventsIndexPage({
           and everything already finished.
         </p>
       </header>
+
+      {compInvites.length > 0 && <CompetitionInvites initial={compInvites} />}
+
+      {myEntries.length > 0 && (
+        <section className="mb-6 rounded-xl border border-card-border bg-card-bg p-4">
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
+            <span className="h-4 w-1 rounded-full bg-gold" />
+            Your competitions
+          </h2>
+          <ul className="space-y-1.5">
+            {myEntries.map(({ w, e }) => (
+              <li key={w.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                <ClanLink href={`/weekly/${w.id}`} className="min-w-0 flex-1 truncate text-foreground hover:text-gold">
+                  {w.name}
+                  {w.hostName && <span className="text-text-muted"> · {w.hostName} hosts</span>}
+                </ClanLink>
+                <OptOutToggle competitionId={w.id} initialOptedOut={e.optedOut} compact />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* ---- on now ------------------------------------------------------------------ */}
       <SectionHead

@@ -84,6 +84,8 @@ export const GUIDE_OUTLINES: Record<string, GuideOutline> = {
   clanhall: { ns: 'clanHall', page: 'clan-hall', sections: ['hall', 'compare', 'board', 'events', 'ghost'] },
   guidelibrary: { ns: 'guideLibrary', page: 'in-game-guides', sections: ['read', 'propose', 'clan'] },
   weekly: { ns: 'weekly', page: 'weekly', sections: ['schedule', 'counting', 'manage', 'prizes', 'players'] },
+  // Mirrors TEAM_COMPS_SECTIONS in _pages/TeamCompsGuide.
+  teamcomps: { ns: 'teamComps', page: 'team-competitions', sections: ['teams', 'clans', 'scoring', 'players', 'faq'] },
   clanevents: { ns: 'clanEvents', page: 'clan-events', sections: ['create', 'discord', 'manage', 'players', 'calendar'] },
   // Mirrors TilesGuide: one section per registry group that has entries.
   tiles: {
@@ -117,10 +119,16 @@ function renderCopy(raw: string, origin: string | null, clanName: string): strin
   return out;
 }
 
-/** The visible text of one section: its `body` paragraphs, or its `intro`, whichever it has. */
+/** The visible text of one section: its `body` paragraphs, or its `intro` followed by any question
+ *  rows as "**question**: answer". */
 function sectionBody(section: Record<string, unknown>, origin: string | null, clanName: string): string {
   const body = asStringArray(section.body);
-  const text = body ? body.join('\n\n') : (asString(section.intro) ?? '');
+  const rows = Array.isArray(section.rows)
+    ? (section.rows as { term?: unknown; body?: unknown }[])
+        .filter((r) => typeof r?.term === 'string' && typeof r?.body === 'string')
+        .map((r) => `**${r.term}**: ${r.body}`)
+    : [];
+  const text = body ? body.join('\n\n') : [asString(section.intro), ...rows].filter(Boolean).join('\n\n');
   return text ? renderCopy(text, origin, clanName) : '';
 }
 

@@ -1609,7 +1609,84 @@ export const weeklyCompetitions = pgTable('weekly_competitions', {
    * a second set of awards — this is the flag that makes it idempotent.
    */
   prizesSettledAt: text('prizes_settled_at'),
+  /**
+   * How the competition is scored (lib/competitionTeams):
+   *  - 'solo'  — everyone for themselves, the original SOTW/BOTW;
+   *  - 'teams' — participants are split into weekly_competition_teams and team totals are ranked;
+   *  - 'clans' — clan vs clan: the host plus every clan that accepted an invite
+   *              (weekly_competition_clans) race, and clan totals are ranked.
+   * Individual standings still exist in every mode; teams/clans add a ranking on top.
+   */
+  mode: text('mode').notNull().default('solo'),
+  /**
+   * Teams mode only: a participant enrolled after the teams were set (a late joiner, or someone the
+   * roster sweep picks up mid-week) is dropped into the smallest team. Off leaves them unassigned
+   * for an admin to place; unassigned players count individually but for no team.
+   */
+  teamLateJoin: boolean('team_late_join').notNull().default(true),
+  // Stamped once the halfway Discord post (team/clan standings) has gone out — makes it idempotent.
+  halfwayPostedAt: text('halfway_posted_at'),
+  /**
+   * Who from the HOST clan is entered: 'all' (every roster member, swept in automatically — the
+   * default) or 'selected' (only the people an admin adds). Each partner clan makes the same choice
+   * for its own side on weekly_competition_clans.entrants.
+   */
+  hostEntrants: text('host_entrants').notNull().default('all'),
 });
+
+/** A team inside a teams-mode weekly competition. Members are weekly_participants.team_id. */
+export const weeklyCompetitionTeams = pgTable('weekly_competition_teams', {
+  id: serial('id').primaryKey(),
+  competitionId: integer('competition_id').notNull().references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  // Hex colour, e.g. '#d4a017'. Shown as the team's chip on the site and in Discord.
+  colour: text('colour').notNull().default('#d4a017'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  index('weekly_competition_teams_comp_idx').on(table.competitionId),
+]);
+export type WeeklyCompetitionTeam = typeof weeklyCompetitionTeams.$inferSelect;
+
+/**
+ * Clan vs clan: a clan invited into another clan's weekly competition. Same shape and rules as
+ * event_cohosts — the host invites by slug, an admin+ (clan_staff) of the INVITED clan accepts or
+ * declines. The host clan itself has no row; it is weekly_competitions.clan_id.
+ */
+export const weeklyCompetitionClans = pgTable('weekly_competition_clans', {
+  id: serial('id').primaryKey(),
+  competitionId: integer('competition_id').notNull().references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  // 'pending' | 'accepted' | 'declined'
+  status: text('status').notNull().default('pending'),
+  // This clan's side: 'all' members (entered automatically once accepted) or 'selected' people its
+  // owner/admin picks. Nobody is entered while the invite is pending.
+  entrants: text('entrants').notNull().default('all'),
+  invitedByUserId: integer('invited_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  decidedAt: text('decided_at'),
+}, (table) => [
+  uniqueIndex('weekly_competition_clans_comp_clan_unique').on(table.competitionId, table.clanId),
+  index('weekly_competition_clans_clan_status_idx').on(table.clanId, table.status),
+]);
+export type WeeklyCompetitionClan = typeof weeklyCompetitionClans.$inferSelect;
+
+/**
+ * Anti-spam: clan `clanId` blocked clan `blockedClanId` (lib/clanBlocks). Every cross-clan invite
+ * from the blocked clan — weekly clan-vs-clan and event co-host — is refused silently; the blocker
+ * can't invite the blocked clan either until it unblocks.
+ */
+export const clanBlocks = pgTable('clan_blocks', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  blockedClanId: integer('blocked_clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  blockedByUserId: integer('blocked_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  uniqueIndex('clan_blocks_pair_unique').on(table.clanId, table.blockedClanId),
+  index('clan_blocks_blocked_idx').on(table.blockedClanId),
+]);
 
 export const weeklyParticipants = pgTable('weekly_participants', {
   id: serial('id').primaryKey(),
@@ -1635,7 +1712,19 @@ export const weeklyParticipants = pgTable('weekly_participants', {
   // has left the CC. Default 0 means a leaver is dropped from the standings (and the headcount)
   // for the rest of the comp. Lets mods re-include someone who left by accident.
   keepIfLeft: integer('keep_if_left').notNull().default(0),
+  // Teams mode: the team this participant scores for (null = unassigned).
+  teamId: integer('team_id').references(() => weeklyCompetitionTeams.id, { onDelete: 'set null' }),
+  // Clans mode: the clan this participant scores for. Null = the host clan (and always null in
+  // solo/teams mode), so every pre-existing row stays correct without a backfill.
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'cascade' }),
+  // When this participant's gain last went UP (not merely re-read). Drives the "who reached the
+  // total first" tie-break: a team's total was reached at the latest of its members' gainAt.
+  gainAt: text('gain_at'),
+  // The player opted out of THIS competition. The row stays (so the roster sweep doesn't put them
+  // back) but they are off every board and headcount; opting back in clears it.
+  optedOut: boolean('opted_out').notNull().default(false),
 }, (table) => [
+  index('weekly_participants_team_idx').on(table.teamId),
   uniqueIndex('weekly_participant_unique').on(table.competitionId, table.rsnNormalized),
   index('weekly_participants_comp_id_idx').on(table.competitionId),
   index('weekly_participants_clan_member_id_idx').on(table.clanMemberId),

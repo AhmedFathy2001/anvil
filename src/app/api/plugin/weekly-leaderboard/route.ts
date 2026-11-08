@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { resolvePluginClan } from '@/lib/auth';
-import { weeklyCompetitions } from '@/db/schema';
+import { normalizeRsn, resolvePluginClan } from '@/lib/auth';
+import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { rankMove, weeklyBaselineRanks, weeklyBoard } from '@/lib/rankMoves';
 import { weeklyMetricLabel } from '@/lib/constants';
 import { weeklyRsnKey } from '@/lib/weeklyRsn';
+import { buildGroupStandings, competitionForClan, partnerCompetitions } from '@/lib/competitionTeamsDb';
+import { weeklyGroupsPayload } from '@/lib/pluginUi/teamStandingsUi';
 
 // GET /api/plugin/weekly-leaderboard[?id=<competitionId>]
 // Returns the ranked standings for a weekly competition (the active one when no id is given),
@@ -21,6 +23,28 @@ import { weeklyRsnKey } from '@/lib/weeklyRsn';
 // stranger's standings in its own side panel.
 const MAX_ENTRIES = 50;
 
+async function pluginEntry(competitionId: number, status: string, rsn: string | null) {
+  if (!rsn || status === 'completed') return null;
+  const rows = await db
+    .select({ optedOut: weeklyParticipants.optedOut })
+    .from(weeklyParticipants)
+    .where(and(eq(weeklyParticipants.competitionId, competitionId), eq(weeklyParticipants.rsnNormalized, normalizeRsn(rsn))));
+  if (!rows.length) return null;
+  const optedOut = rows.every((r) => r.optedOut);
+  return {
+    entered: true,
+    optedOut,
+    // "You're in · Opt out" / "You've opted out · Opt back in"
+    label: optedOut ? "You've opted out" : "You're in",
+    action: {
+      label: optedOut ? 'Opt back in' : 'Opt out',
+      method: 'POST',
+      path: '/api/plugin/weekly/opt-out',
+      body: { competitionId, optOut: !optedOut },
+    },
+  };
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const idParam = searchParams.get('id');
@@ -28,16 +52,13 @@ export async function GET(request: Request) {
   const clan = await resolvePluginClan(request);
   if (!clan) return NextResponse.json({ competition: null, total: 0, entries: [] });
 
+  // The clan's own competition — or, clan vs clan, one it accepted an invite into (read-only there).
+  // competitionForClan refuses anything else, so the IDOR stays closed.
   const comp = idParam
-    ? await db.query.weeklyCompetitions.findFirst({
-        where: and(
-          eq(weeklyCompetitions.clanId, clan.id),
-          eq(weeklyCompetitions.id, parseInt(idParam, 10)),
-        ),
-      })
-    : await db.query.weeklyCompetitions.findFirst({
+    ? (await competitionForClan(clan.id, parseInt(idParam, 10)))?.comp
+    : ((await db.query.weeklyCompetitions.findFirst({
         where: and(eq(weeklyCompetitions.clanId, clan.id), eq(weeklyCompetitions.status, 'active')),
-      });
+      })) ?? (await partnerCompetitions(clan.id, 'active'))[0]);
 
   if (!comp) {
     return NextResponse.json({ competition: null, total: 0, entries: [] });
@@ -72,9 +93,16 @@ export async function GET(request: Request) {
       metricLabel: weeklyMetricLabel(comp.type, comp.metric),
       startDate: comp.startDate,
       endDate: comp.endDate,
+      mode: comp.mode,
     },
     total: board.length,
     entries,
     you,
+    // Team / clan-vs-clan standings (null on a solo competition) — lib/pluginUi/teamStandingsUi.
+    // `groups.you.line` is the ready-to-print "Your team: 2nd of 4 · +1.2M XP".
+    groups: weeklyGroupsPayload(comp.type, await buildGroupStandings(comp, { rsn: searchParams.get('rsn') })),
+    // "You're in · Opt out" for the panel: this RSN's entry, and the call that flips it. The call is
+    // token-authenticated (it acts on the logged-in character, not on this RSN).
+    entry: await pluginEntry(comp.id, comp.status, searchParams.get('rsn')),
   });
 }

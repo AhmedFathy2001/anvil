@@ -248,6 +248,12 @@ const sv: PartialGuideDict = {
         blurb: 'Schemalägga en veckotävling, upprepa och rotera den, startlinjer, priser, avsluta i förtid och vad spelarna ser.',
         minutes: '~4 min',
       },
+      teamComps: {
+        "eyebrow": "För klanledare och spelare",
+        "title": "Lagtävlingar",
+        "blurb": "Skill- och bosstävlingar som lag eller klan mot klan: så ställer du in dem, bjuder in klaner, hur summor och medelvärden räknas och vad spelarna ser.",
+        "minutes": "~4 min"
+      },
       clanEvents: {
         eyebrow: 'För klanstab',
         title: 'Klanevent och schemat',
@@ -1381,6 +1387,8 @@ const sv: PartialGuideDict = {
     ],
     footnote:
       'Skärmbilderna kommer från en riktig uppsättning på en testbräda — inbjudningstoken och Discord-namn är maskade. En riktig länk är värd att vakta: alla som har den kan ta en plats i det laget så länge den är aktiv.',
+
+    teamCompsLine: "Vill du att klaner tävlar i skills eller bosses istället? Se [Lagtävlingar]({teamCompsGuide}).",
 
     shape: {
       title: 'Det du håller på att sätta upp',
@@ -4419,7 +4427,119 @@ const sv: PartialGuideDict = {
         'Att spela med pluginet håller din siffra levande. Utan det räknas du fortfarande, bara i hiscores takt.',
       ],
     },
+    teamsLine: "Vill ha lag, eller klaner som tävlar mot varandra, i en skill eller boss? Sätt **Format** när du schemalägger den. Se [Lagtävlingar]({teamCompsGuide}).",
   },
+  teamComps: {
+    "metaTitle": "Lagtävlingar — Anvil",
+    "metaDescription": "Kör en skill- eller boss-tävling för veckan som lag eller klan mot klan på Anvil: dela upp spelare i lag, bjud in andra klaner, hur summor och medelvärden ger poäng, sena deltagare och vad spelarna ser.",
+    "eyebrow": "Anvil · för klanledare och spelare",
+    "title": "Lagtävlingar",
+    "dek": "Varje skill- eller bosstävling har ett Format. Solo är standard och fungerar som tidigare. Välj Teams för att dela upp din klan i sidor, eller Clan vs clan för att tävla mot andra klaner i samma skill eller boss.",
+    "facts": [
+      {
+        "strong": "Tre format",
+        "rest": "Solo, Teams, Clan vs clan"
+      },
+      {
+        "strong": "Summorna avgör",
+        "rest": "med ett medelvärde per spelare"
+      },
+      {
+        "strong": "En värd redigerar",
+        "rest": "samarbetande klaner följer med"
+      }
+    ],
+    "footnote": "Grunderna om Skill och Boss of the Week finns i [Skill och Boss of the Week]({weeklyGuide}). Vill du att klaner tävlar på bingobrädor istället? Se [Ta emot en besökande klan]({clanVsClanGuide}).",
+    "teams": {
+      "title": "Ställ in lag",
+      "intro": "Teams delar upp din egen klan i sidor. Det tar cirka en minut:",
+      "steps": [
+        "Schemalägg en tävling som vanligt. Sätt **Format** till **Teams**.",
+        "Skriv in lagnamnen. Alla som anmälts delas jämnt efter nuvarande nivå eller antal kills, så att sidorna börjar rättvist.",
+        "Låt **Late joiners go into the smallest team** vara på om folk kan komma efter start. Stäng av för att hålla lagen fasta.",
+        "För att ändra något senare, öppna tävlingen och välj **Teams** i dess adminsidofält. Där kan du:"
+      ],
+      "rows": [
+        {
+          "term": "Byt namn och färg",
+          "body": "ge varje lag ett namn och en färg som spelarna känner igen."
+        },
+        {
+          "term": "Lägg till och ta bort lag",
+          "body": "börja med två och lägg till ett tredje, eller ta bort ett du inte behöver längre."
+        },
+        {
+          "term": "Flytta en spelare",
+          "body": "skicka någon till ett annat lag. Bra för vänner som vill spela ihop."
+        },
+        {
+          "term": "Auto-balance",
+          "body": "tryck på **Auto-balance by current level/KC** för att fördela alla jämnt igen."
+        },
+        {
+          "term": "Late joiners",
+          "body": "slå på eller av alternativet för sena deltagare. När det är på går nya spelare med i det minsta laget."
+        }
+      ],
+      "note": {
+        "tag": "Inget lag, inga problem",
+        "body": "En spelare utan lag räknas fortfarande på den individuella listan. Den bidrar bara inte till någon lagsumma."
+      },
+      "outro": "En återkommande tävling tar med sina lag till nästa vecka och balanserar dem igen."
+    },
+    "clans": {
+      "title": "Ställ in klan mot klan",
+      "intro": "Clan vs clan låter andra klaner gå med i din tävling, hur många som helst. Du är värd, och de andra klanerna är samarbetspartners.",
+      "steps": [
+        "Som admin eller högre i värdklanen, sätt **Format** till **Clan vs clan**.",
+        "Bjud in de andra klanerna med deras adress. Gör det i skapandeformuläret, eller senare på tävlingens **Clans**-sida.",
+        "Den inbjudna klanens ägare eller admin accepterar eller avböjer på sin **People**-sida eller i sin **Events**-lista. En moderator kan inte. Ingen från den klanen blir med förrän den accepterat.",
+        "När den accepterar väljer den vem som tävlar: **All members** i sin roster, eller **Selected people** som den plockar ut. Den kan ändra detta senare från samma kort.",
+      ],
+      "body": [
+        "Samarbetsklanen kan följa resultatlistan på sin egen sida, på `/c/<slug>/weekly/<id>`. Det är skrivskyddat. Bara värden redigerar tävlingen.",
+        "För att ta bort en klan, ta bort den på sidan **Clans**. Dess spelare försvinner från brädet.",
+        "En återkommande tävling skickar nya inbjudningar varje vecka, så varje klan måste säga ja igen.",
+        "Får du oönskade inbjudningar? Välj **Decline & block this clan** på inbjudan. Den klanens senare inbjudningar avvisas tyst, och du kan avblockera den under **Settings → Blocked clans**.",
+      ],
+      "note": {
+        "tag": "Dela adressen",
+        "body": "En klans adress är det korta namnet i dess webbadress. Fråga den andra klanens admin om den innan du bjuder in dem."
+      }
+    },
+    "scoring": {
+      "title": "Så poängsätts det",
+      "body": [
+        "En lag- eller klansumma är summan av medlemmarnas vinster. Vinster räknas på samma sätt som på den individuella listan.",
+        "Bredvid varje summa ser du också ett **average per player**, så ett lag på 8 och ett på 12 kan ändå jämföras.",
+        "Om två summor är lika rankas den som nådde dit först högre."
+      ]
+    },
+    "players": {
+      "title": "Vad spelarna ser",
+      "body": [
+        "Tävlingssidan visar lag- eller klanresultaten först. Öppna någon av dem för att se dess spelare. Ditt eget lag eller din egen klan är markerad.",
+        "Discord-inläggen vid start, halvvägs och slut visar resultatlistan. I klan vs klan går de till varje klans kanal, och din är markerad med **← you**.",
+        "I plugin-panelen på sidan kan du se var ditt lag placerar sig.",
+        "Det finns inget att anmäla sig till. Om din klan tar med alla medlemmar och du står i rostern, är du med. Om den väljer ut personer är du med när du blivit vald.",
+        "Vill du inte vara med? Tryck på **Opt out** bredvid **You’re in**, på tävlingssidan, i listan Events eller i pluginet. Du lämnar brädet för just den tävlingen, och du kan gå med igen medan den pågår.",
+      ]
+    },
+    "faq": {
+      "title": "Frågor",
+      "intro": "Det klanens stab och spelare frågar oftast om:",
+      "rows": [
+        { term: "Våra lag är olika stora. Är det orättvist?", body: "Inte i sig. Summorna avgör rankningen, men varje lag visar också ett medelvärde per spelare, så du kan se hur ett mindre lag faktiskt presterar." },
+        { term: "Hur är det med personer som går med sent?", body: "Med växlaren för sena deltagare på, går de till det minsta laget. Med den av, räknas de bara på den individuella listan. Du kan alltid flytta dem för hand på sidan **Teams**." },
+        { term: "Kan den andra klanen redigera vår tävling?", body: "Nej. Samarbetsklaner ser resultatlistan skrivskyddad. Bara värdklanen kan ändra tävlingen." },
+        { term: "Kan jag hoppa över en tävling?", body: "Ja. Tryck på **Opt out** på tävlingssidan, i listan Events eller i pluginet. Bara den tävlingen påverkas, och du kan gå med igen medan den pågår." },
+        { term: "Hur många klaner kan tävla?", body: "Så många du bjuder in, upp till 50 i en tävling. Varje klan ser sin egen sida markerad i resultatlistan och i sina Discord-inlägg." },
+        { term: "En annan klan bjuder in oss hela tiden. Kan vi stoppa det?", body: "Ja. En ägare eller admin väljer **Decline & block this clan** på inbjudan. Dess senare inbjudningar avvisas utan att de får veta det. Avblockera när som helst under **Settings → Blocked clans**." },
+        { term: "Om vi säger ja en gång, är vi anmälda varje vecka?", body: "Nej. En återkommande tävling skickar nya inbjudningar varje vecka, och en ägare eller admin måste acceptera varje en." },
+      ]
+    }
+  },
+
   clanEvents: {
     metaTitle: 'Klanevent och schemat — Anvil',
     metaDescription: 'Schemalägga klanevent på Anvil: massor, resor och träffar, veckovisa upprepningar, “jag är med” och anmälningar med platser, frågor och avgifter, Discord-inlägg och påminnelser, utbetalningar, enkäter, och schemat som visar luckor.',

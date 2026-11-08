@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { placeLateJoiners } from '@/lib/competitionTeamsDb';
 import { db } from '@/db';
 import { resolvePluginClan } from '@/lib/auth';
 import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
@@ -117,6 +118,8 @@ export async function POST(request: Request) {
   if (inserted.length === 0) {
     return NextResponse.json({ enrolled: true, alreadyEnrolled: true, compId: active.id });
   }
+  // A teams competition puts a late joiner straight onto the smallest team (when late-join is on).
+  await placeLateJoiners(active.id).catch(() => 0);
 
   return NextResponse.json({
     enrolled: true,

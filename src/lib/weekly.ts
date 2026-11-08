@@ -39,10 +39,22 @@ export async function enrollAllPlayers(competitionId: number) {
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const comp = await db.query.weeklyCompetitions.findFirst({
     where: eq(weeklyCompetitions.id, competitionId),
-    columns: { includeGuests: true, clanId: true },
+    columns: { includeGuests: true, clanId: true, hostEntrants: true },
   });
   // A comp that vanished between scheduling and this call has nobody to enroll.
   if (!comp) return 0;
+  // 'selected': the host enters only the people an admin adds — no roster sweep for the host side.
+  if (comp.hostEntrants === 'selected') {
+    try {
+      const teams = await import('@/lib/competitionTeamsDb');
+      const n = await teams.enrollPartnerClans(competitionId);
+      await teams.placeLateJoiners(competitionId);
+      return n;
+    } catch (err) {
+      log.warn('weekly.team-enroll-fail', { competitionId }, err);
+      return 0;
+    }
+  }
   const trackGuests = comp.includeGuests === 1;
   // Skip unranked/banned/archived members — re-enrolling them just re-creates rows the
   // cron will immediately quarantine. They become eligible again when a re-probe job
@@ -93,6 +105,16 @@ export async function enrollAllPlayers(competitionId: number) {
     } catch {
       // Skip on conflict/error — keep counting what we could add
     }
+  }
+  // Team competitions (lib/competitionTeamsDb): clan vs clan enrols the partner clans' rosters too,
+  // and a teams competition drops late joiners into the smallest team. Both no-op in solo mode.
+  // Imported lazily — that module reads countsTowardLeaderboard from this one.
+  try {
+    const teams = await import('@/lib/competitionTeamsDb');
+    enrolled += await teams.enrollPartnerClans(competitionId);
+    await teams.placeLateJoiners(competitionId);
+  } catch (err) {
+    log.warn('weekly.team-enroll-fail', { competitionId }, err);
   }
   return enrolled;
 }
@@ -231,6 +253,9 @@ export async function applyWeeklyValue(u: WeeklyValueUpdate): Promise<{ outcome:
     currentValue: sql`greatest(coalesce(${weeklyParticipants.currentValue}, 0), ${u.value})`,
     lastUpdated: nowIso,
   };
+  // The gain moved: stamp when, for the team/clan "who reached the total first" tie-break
+  // (lib/competitionTeams). A re-read of the same value leaves it alone.
+  if (u.currentValue === null || u.value > u.currentValue) updates.gainAt = nowIso;
 
   // Flag an implausible CUMULATIVE gain — one that couldn't be earned in the elapsed comp time (a
   // stale baseline that swept pre-event XP into the gain). Measured over the comp, NOT the sweep
@@ -519,11 +544,15 @@ function detectNegativeGains(
  * every leaderboard/headcount surface so the plugin, website, and public pages agree on who's in.
  */
 export const countsTowardLeaderboard = () =>
-  or(
-    isNull(weeklyParticipants.clanMemberId),
-    isNull(clanRoster.leftAt),
-    eq(weeklyParticipants.keepIfLeft, 1),
-  );
+  and(
+    // Opted out of this competition (lib/competitionTeamsDb setOptOut): off every board.
+    eq(weeklyParticipants.optedOut, false),
+    or(
+      isNull(weeklyParticipants.clanMemberId),
+      isNull(clanRoster.leftAt),
+      eq(weeklyParticipants.keepIfLeft, 1),
+    ),
+  )!;
 
 /**
  * Participants whose standings should count for a competition — everyone enrolled minus those

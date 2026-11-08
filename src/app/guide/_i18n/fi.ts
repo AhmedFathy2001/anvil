@@ -248,6 +248,12 @@ const fi: PartialGuideDict = {
         blurb: 'Viikoittaisen kilpailun ajastaminen, toistaminen ja kierrättäminen, aloituslukemat, palkinnot, lopettaminen ajoissa ja se, mitä pelaajat näkevät.',
         minutes: '~4 min',
       },
+      teamComps: {
+        "eyebrow": "Klaanin ylläpitäjille ja pelaajille",
+        "title": "Tiimikilpailut",
+        "blurb": "Taito- ja bossikilpailut tiimeinä tai klaani vs klaani: pystytys, muiden klaanien kutsuminen, yhteissummat ja keskiarvot sekä mitä pelaajat näkevät.",
+        "minutes": "~4 min"
+      },
       clanEvents: {
         eyebrow: 'Klaanin henkilökunnalle',
         title: 'Klaanitapahtumat ja aikataulu',
@@ -1380,6 +1386,8 @@ const fi: PartialGuideDict = {
     ],
     footnote:
       'Kuvakaappaukset ovat oikeasta asennuksesta testitaululla — kutsu-tokenit ja Discord-nimet on peitetty. Oikea linkki kannattaa pitää tallessa: kuka tahansa jolla se on, voi ottaa paikan siitä joukkueesta niin kauan kuin se on voimassa.',
+
+    teamCompsLine: "Haluatko klaanien kilpailevan taidoilla tai bosseilla? Katso [Tiimikilpailut]({teamCompsGuide}).",
 
     shape: {
       title: 'Mitä olet pystyttämässä',
@@ -4419,7 +4427,119 @@ const fi: PartialGuideDict = {
         'Lisäosalla pelaaminen pitää lukemasi ajantasaisena. Ilman sitä sinä lasketaan yhä, vain hiscoren vauhdilla.',
       ],
     },
+    teamsLine: "Haluatko tiimejä tai klaanien kilpailevan keskenään taidolla tai bossilla? Aseta **Format** ajastaessasi. Katso [Tiimikilpailut]({teamCompsGuide}).",
   },
+  teamComps: {
+    "metaTitle": "Tiimikilpailut — Anvil",
+    "metaDescription": "Aja Skill tai Boss of the Week tiimeinä tai klaani vs klaani Anvilissa: pelaajien jako tiimeihin, muiden klaanien kutsuminen, yhteissummien ja keskiarvojen pisteytys, myöhään liittyvät ja mitä pelaajat näkevät.",
+    "eyebrow": "Anvil · klaanin ylläpitäjille ja pelaajille",
+    "title": "Tiimikilpailut",
+    "dek": "Jokaisella taito- tai bossikilpailulla on Format. Solo on oletus ja toimii kuten ennenkin. Valitse Teams jakaaksesi klaanisi joukkueisiin tai Clan vs clan kilpaillaksesi muita klaaneja vastaan samassa taidossa tai bossissa.",
+    "facts": [
+      {
+        "strong": "Kolme formaattia",
+        "rest": "Solo, Teams, Clan vs clan"
+      },
+      {
+        "strong": "Summat ratkaisevat",
+        "rest": "keskiarvo per pelaaja mukana"
+      },
+      {
+        "strong": "Yksi isäntä muokkaa",
+        "rest": "kumppaniklaanit seuraavat"
+      }
+    ],
+    "footnote": "Skill and Boss of the Week -perusteet löytyvät kohdasta [Skill and Boss of the Week]({weeklyGuide}). Haluatko klaanien kilpailevan bingolaudoilla? Katso [Vieraan klaanin isännöinti]({clanVsClanGuide}).",
+    "teams": {
+      "title": "Tiimien pystytys",
+      "intro": "Tiimit jakavat oman klaanisi joukkueisiin. Se vie noin minuutin:",
+      "steps": [
+        "Ajasta kilpailu normaalisti. Aseta **Format** arvoon **Teams**.",
+        "Kirjoita tiimien nimet. Kaikki syötetyt jaetaan tasan nykyisen tason tai KC:n mukaan, jotta joukkueet alkavat reilusti.",
+        "Pidä **Late joiners go into the smallest team** päällä, jos ihmiset voivat saapua alun jälkeen. Kytke pois, jos haluat pitää tiimit kiinteinä.",
+        "Jos haluat muuttaa jotain myöhemmin, avaa kilpailu ja valitse **Teams** sen admin-sivupalkista. Siellä voit:"
+      ],
+      "rows": [
+        {
+          "term": "Nimetä ja värittää uudelleen",
+          "body": "anna jokaiselle tiimille nimi ja väri, jonka pelaajat tunnistavat."
+        },
+        {
+          "term": "Lisätä ja poistaa tiimejä",
+          "body": "aloita kahdella ja lisää kolmas tai poista tarpeeton."
+        },
+        {
+          "term": "Siirtää pelaaja",
+          "body": "lähetä joku toiseen tiimiin. Hyvä ystäville, jotka haluavat pelata yhdessä."
+        },
+        {
+          "term": "Auto-balance",
+          "body": "paina **Auto-balance by current level/KC** jakaaksesi kaikki uudelleen tasan."
+        },
+        {
+          "term": "Myöhään liittyjät",
+          "body": "kytke myöhään liittyjien asetus päälle tai pois. Kun se on päällä, uudet pelaajat liittyvät pienimpään tiimiin."
+        }
+      ],
+      "note": {
+        "tag": "Ei tiimiä, ei ongelmaa",
+        "body": "Pelaaja ilman tiimiä lasketaan silti yksilölaudalla. Hän vain ei lisää mitään tiimin summaan."
+      },
+      "outro": "Toistuva kilpailu siirtää tiimit seuraavalle viikolle ja tasapainottaa ne uudelleen."
+    },
+    "clans": {
+      "title": "Klaani vs klaani -pystytys",
+      "intro": "Klaani vs klaani antaa muiden klaanien liittyä kilpailuun, niin monta kuin haluat. Sinä olet isäntä ja muut klaanit kumppaneita.",
+      "steps": [
+        "Aseta isäntäklaanissa admin- tai sitä korkeampi oikeus ja valitse **Format** arvoon **Clan vs clan**.",
+        "Kutsu muut klaanit niiden osoitteella. Tee se luontilomakkeella tai myöhemmin kilpailun **Clans**-sivulla.",
+        "Kutsutun klaanin omistaja tai admin hyväksyy tai hylkää sen **People**-sivulla tai **Events**-listalla. Moderaattori ei voi. Klaanista ei oteta ketään mukaan ennen kuin se hyväksyy.",
+        "Hyväksyessään klaani valitsee, kuka kilpailee: joko kaikki sen kokoonpanon **All members** tai sen valitsemat **Selected people**. Sen voi muuttaa myöhemmin samasta kortista.",
+      ],
+      "body": [
+        "Kumppaniklaani voi seurata tilannetta omalla sivustollaan osoitteessa `/c/<slug>/weekly/<id>`. Se on vain luku -tilassa. Vain isäntä muokkaa kilpailua.",
+        "Klaanin poistamiseksi poista se **Clans**-sivulla. Sen pelaajat poistuvat laudalta.",
+        "Toistuva kilpailu lähettää uudet kutsut joka viikko, joten jokaisen klaanin täytyy vastata myöntävästi uudelleen.",
+        "Saatko ei-toivottuja kutsuja? Valitse kutsusta **Decline & block this clan**. Klaanin myöhemmät kutsut hylätään hiljaa, ja voit poistaa eston kohdasta **Settings → Blocked clans**.",
+      ],
+      "note": {
+        "tag": "Jaa osoite",
+        "body": "Klaanin osoite on sen verkko-osoitteen lyhyt nimi. Kysy toisen klaanin adminilta se ennen kutsumista."
+      }
+    },
+    "scoring": {
+      "title": "Pisteytys",
+      "body": [
+        "Tiimin tai klaanin summa on jäsentensä ansioiden summa. Ansiot lasketaan samalla tavalla kuin yksilölaudalla.",
+        "Jokaisen summan vieressä näet myös **keskiarvon per pelaaja**, joten 8 hengen ja 12 hengen tiimiä voi silti verrata.",
+        "Jos kaksi summaa on tasan, ensin siihen päässyt sijoittuu korkeammalle."
+      ]
+    },
+    "players": {
+      "title": "Mitä pelaajat näkevät",
+      "body": [
+        "Kilpailusivulla näkyy ensin tiimien tai klaanien sijoitukset. Avaa jokin niistä nähdäksesi sen pelaajat. Oma tiimisi tai klaanisi on korostettu.",
+        "Discord-viestit alussa, puolivälissä ja lopussa näyttävät sijoitukset. Klaani vs klaani -tilassa ne menevät jokaisen klaanin kanavalle, ja omasi on merkitty **← you**.",
+        "RuneLiten sivupaneelissa näet, mihin tiimisi sijoittuu.",
+        "Ilmoittautumista ei tarvita. Jos klaanisi ottaa mukaan kaikki jäsenet ja olet kokoonpanossa, olet mukana. Jos klaani valitsee ihmisiä, olet mukana kun sinut valitaan.",
+        "Etkö halua osallistua? Paina **Opt out** kohdan **You’re in** vierestä kilpailusivulla, Events-listalla tai pluginissa. Poistut laudalta vain tästä kilpailusta, ja voit liittyä takaisin kilpailun ollessa käynnissä.",
+      ]
+    },
+    "faq": {
+      "title": "Kysymyksiä",
+      "intro": "Klaanin henkilökunnan ja pelaajien yleisimmät kysymykset:",
+      "rows": [
+        { term: "Tiimimme ovat eri kokoisia. Onko se epäreilua?", body: "Ei sinänsä. Sijoitukset ratkaisevat yhteissummat, mutta jokainen tiimi näyttää myös keskiarvon pelaajaa kohden, joten näet, miten pienempi tiimi todella pärjää." },
+        { term: "Entä myöhään liittyvät?", body: "Kun myöhään liittyvien kytkin on päällä, he liittyvät pienimpään tiimiin. Kun se on pois päältä, he lasketaan vain yksilölaudalle. Voit aina siirtää heidät käsin **Teams**-sivulla." },
+        { term: "Voiko toinen klaani muokata kilpailuamme?", body: "Ei. Kumppaniklaanit näkevät sijoitukset vain luku -tilassa. Vain isäntäklaani voi muuttaa kilpailua." },
+        { term: "Voinko jättää yhden kilpailun väliin?", body: "Kyllä. Paina **Opt out** kilpailusivulla, Events-listalla tai pluginissa. Vain kyseinen kilpailu vaikuttuu, ja voit liittyä takaisin kilpailun ollessa käynnissä." },
+        { term: "Kuinka monta klaania voi kilpailla?", body: "Niin monta kuin kutsut, enintään 50 yhdessä kilpailussa. Jokainen klaani näkee oman puolensa merkittynä sijoituksissa ja omissa Discord-viesteissään." },
+        { term: "Toinen klaani kutsuu meitä jatkuvasti. Voimmeko estää sen?", body: "Kyllä. Omistaja tai admin valitsee kutsusta **Decline & block this clan**. Klaanin myöhemmät kutsut hylätään ilman ilmoitusta. Eston voi poistaa milloin tahansa kohdasta **Settings → Blocked clans**." },
+        { term: "Jos sovimme kerran, olemmeko ilmoittautuneet joka viikko?", body: "Emme. Toistuva kilpailu lähettää uudet kutsut joka viikko, ja omistajan tai adminin täytyy hyväksyä jokainen niistä." },
+      ]
+    }
+  },
+
   clanEvents: {
     metaTitle: 'Klaanitapahtumat ja aikataulu — Anvil',
     metaDescription: 'Klaanitapahtumien ajastaminen Anvilissa: massat, reissut ja tapaamiset, viikkotoistot, ”I’m going” ja ilmoittautumiset paikkoineen, kysymyksineen ja maksuineen, Discord-julkaisut ja muistutukset, maksut, kyselyt ja aikataulu, joka näyttää aukot.',
