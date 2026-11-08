@@ -116,7 +116,7 @@ test('a moment row reads as item, who, value, time', () => {
   assert.equal(r.value, '4.1m');
   assert.equal(r.tag, 'Ruby');
   assert.equal(r.item, 22877);
-  const stack = momentRow(drop(1_000_000, { quantity: 3, itemName: 'Zulrah scales' }));
+  const stack = momentRow(drop(3_000_000, { quantity: 3, itemName: 'Zulrah scales' }));
   assert.equal(stack.title, '3 × Zulrah scales');
   assert.equal(stack.value, '3.0m', 'the stack’s worth');
 });
@@ -267,4 +267,10 @@ test('a board with chat off gets only the Feed button', async () => {
   assert.doesNotMatch(off, /Chat/);
   assert.match(off, /"label":"Feed"|Feed/);
   assert.match(JSON.stringify(boardFeedLinks(9, undefined, true, true)), /This board’s chat/);
+});
+
+test("a stack's value is shown once, not times its quantity", async () => {
+  const { momentRow } = await import('../src/lib/pluginUi/feedUi.ts');
+  const row = momentRow({ id: 9, rsn: 'Drenvox', kind: 'drop', itemId: 995, itemName: 'Coins', quantity: 100_000_000, valueGp: 100_000_000, source: 'Loot Chest', occurredAt: 'x', teamId: null } as never);
+  assert.equal(row.value, '100m');
 });
