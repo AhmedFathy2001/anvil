@@ -88,6 +88,10 @@ interface Detail {
   tiles: Tile[];
   participants: Participant[];
   completions: { tileId: number; teamId: number; completedAt: string | null; simulated: boolean }[];
+  tileCounts: { tileId: number; real: number; sim: number }[];
+  completionsTotal: number;
+  simulatedTotal: number;
+  completionsPartial: boolean;
   submissions: Submission[];
   log: LogRow[];
   teams: LabTeamsView;
@@ -150,13 +154,7 @@ export default function LabSessionClient({ eventId }: { eventId: number }) {
   if (!data) return <p className="text-sm text-text-muted">Loading…</p>;
   const { event } = data;
   const live = sessionLive(event);
-  const doneBy = new Map<number, { real: number; sim: number }>();
-  for (const c of data.completions) {
-    const n = doneBy.get(c.tileId) ?? { real: 0, sim: 0 };
-    if (c.simulated) n.sim++;
-    else n.real++;
-    doneBy.set(c.tileId, n);
-  }
+  const doneBy = new Map(data.tileCounts.map((c) => [c.tileId, c]));
   const teamCount = data.teams.teams.length;
   const testTeams = data.teams.teams.filter((t) => t.members.length > 0 && t.members.every((m) => m.test)).length;
   const square = event.mode === 'classic' || event.mode === 'solo';
@@ -255,6 +253,12 @@ export default function LabSessionClient({ eventId }: { eventId: number }) {
       </section>
 
       <LabTileControlsPanel eventId={eventId} tiles={data.tiles} teams={data.teams} completions={data.completions} onDone={load} />
+      {data.completionsPartial && (
+        <p className="-mt-4 text-xs text-text-muted">
+          {data.completionsTotal.toLocaleString()} credits on this board — too many to load whole, so the controls only
+          show done/not-done for your own teams. Actions on test teams still work and report the result.
+        </p>
+      )}
 
       <LabMissionsPanel
         tiles={data.tiles}
@@ -269,13 +273,14 @@ export default function LabSessionClient({ eventId }: { eventId: number }) {
         solo={event.placement === 'solo'}
         teams={teamCount}
         testTeams={testTeams}
-        simulated={data.completions.filter((c) => c.simulated).length}
-        credits={data.completions.length}
+        simulated={data.simulatedTotal}
+        credits={data.completionsTotal}
         busy={!!busy}
         act={act}
       />
 
-      <StatSimulator eventId={eventId} tiles={data.tiles} participants={data.participants} onDone={load} />
+      {/* Your own characters only: a big field would make this a 1000-entry list, and tile controls cover test players. */}
+      <StatSimulator eventId={eventId} tiles={data.tiles} participants={own} onDone={load} />
 
       <section>
         <h2 className="mb-3 flex items-center gap-2 font-semibold text-gold"><span className="h-5 w-1 bg-gold" />Characters</h2>

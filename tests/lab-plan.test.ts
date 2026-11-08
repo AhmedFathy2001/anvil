@@ -10,6 +10,8 @@ import assert from 'node:assert/strict';
 import { EVENT_MODES } from '../src/lib/eventModes.ts';
 import {
   LAB_FORMATS,
+  MAX_LAB_FIELD,
+  fieldPlayerName,
   fieldPlayerNames,
   labBoardSize,
   labFormat,
@@ -93,8 +95,13 @@ test('teams: solo puts every entrant on their own, named after them, around exis
   });
   assert.deepEqual(planned.map((t) => t.name), ['Lab~Field1 (2)', 'Lab~Field2']);
   assert.ok(planned.every((t) => t.members.length === 1 && t.color !== '#dc2626'));
-  assert.equal(fieldPlayerNames(500).length, 200, 'field capped');
-  assert.ok(fieldPlayerNames(200).every((n) => n.length <= 8), 'fits a test-user name');
+  assert.equal(fieldPlayerNames(MAX_LAB_FIELD + 50).length, MAX_LAB_FIELD, 'field capped');
+  const names = fieldPlayerNames(MAX_LAB_FIELD);
+  assert.ok(names.every((n) => n.length <= 8), 'fits a test-user name');
+  assert.equal(new Set(names).size, names.length, 'all distinct');
+  assert.equal(names[998], 'Field999', 'earlier sessions\' rows are reused');
+  assert.equal(fieldPlayerName(1000), 'F1000');
+  assert.equal(fieldPlayerName(9_999_999).length, 8);
 });
 
 test('route layouts: every link goes to the next step; line stores nothing', () => {

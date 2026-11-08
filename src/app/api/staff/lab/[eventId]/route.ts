@@ -28,6 +28,9 @@ import { placementOf } from '@/lib/teamPlacement';
 // characters pushed (the lab log: replays held back, and real play that also went through). PATCH runs the session controls; DELETE removes the session
 // and everything on it (the sweep in lib/lab does the same a week after a session ends).
 
+/** Completion rows sent whole up to this many; past it, counts plus your own teams' rows. */
+const MAX_COMPLETION_ROWS = 3000;
+
 export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const gate = await requirePlatformApi('support');
   if ('response' in gate) return gate.response;
@@ -74,6 +77,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
     db.select().from(labLog).where(eq(labLog.eventId, event.id)).orderBy(desc(labLog.id)).limit(100),
   ]);
   const simulated = await simulatedCompletionIds(event.id);
+  const teamsView = await labTeams(event.id, gate.actor.user.userId);
+  const ownTeamIds = new Set(teamsView.teams.filter((t) => t.members.some((m) => !m.test)).map((t) => t.id));
+  const countByTile = new Map<number, { real: number; sim: number }>();
+  for (const c of done) {
+    const n = countByTile.get(c.tileId) ?? { real: 0, sim: 0 };
+    if (simulated.has(c.id)) n.sim++;
+    else n.real++;
+    countByTile.set(c.tileId, n);
+  }
   const rules = parseEventRules(event.rules);
   const mode = event.teamPlacement === 'solo' && modeKeyFor(event.format, event.scoringMode, event.rules) === 'classic'
     ? 'solo'
@@ -119,10 +131,21 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
       };
     }),
     participants: participants.map((p) => ({ id: p.id, name: p.name, accountId: p.accountId, simulated: !!p.frozenAt })),
-    completions: done.map((c) => ({ tileId: c.tileId, teamId: c.teamId, completedAt: c.completedAt, simulated: simulated.has(c.id) })),
+    // Per-tile counts always; the rows themselves only while they are few (a simulated 1000-player
+    // field is far too many to poll every 5s) — past that, only your own teams' rows.
+    tileCounts: [...countByTile.entries()].map(([tileId, n]) => ({ tileId, ...n })),
+    completionsTotal: done.length,
+    simulatedTotal: done.filter((c) => simulated.has(c.id)).length,
+    completionsPartial: done.length > MAX_COMPLETION_ROWS,
+    completions: (done.length > MAX_COMPLETION_ROWS ? done.filter((c) => ownTeamIds.has(c.teamId)) : done).map((c) => ({
+      tileId: c.tileId,
+      teamId: c.teamId,
+      completedAt: c.completedAt,
+      simulated: simulated.has(c.id),
+    })),
     submissions: subs,
     log: logRows.filter((r) => r.endpoint !== LAB_SIM_ENDPOINT),
-    teams: await labTeams(event.id, gate.actor.user.userId),
+    teams: teamsView,
   });
 }
 

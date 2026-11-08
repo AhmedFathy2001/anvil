@@ -189,3 +189,36 @@ test('"Test in lab" keeps a mission as a mission only when asked', async () => {
   assert.equal(JSON.parse(kept.rules!).expiryHours, 5);
   assert.equal(JSON.parse((await L.labEvent(keptId))!.rules!).mission.announceMode, 'manual');
 });
+
+test('a full-size field fills in bulk, reuses its test users, and never adopts a real name', async () => {
+  const { MAX_LAB_FIELD, fieldPlayerName } = await import('../src/lib/labPlan.ts');
+  const C = await import('../src/lib/labCast.ts');
+  // A REAL character already holds the 950th field name: it must be left out, never taken over.
+  const [realPerson] = await db.insert(s.players).values({ displayName: 'Real' }).returning();
+  await db.insert(s.accounts).values({ playerId: realPerson.id, rsn: 'Lab~Field950', rsnNormalized: 'lab~field950' });
+
+  const usersBefore = (await db.select({ id: s.users.id }).from(s.users).where(like(s.users.discordId, 'lab-dummy-%'))).length;
+  const first = await L.createLabSession(userId, { name: 'Huge', hours: 1, boardSize: 20, accounts: me(), format: 'leagues' });
+  const started = Date.now();
+  const added = await F.addLabField(userId, first, { players: MAX_LAB_FIELD, teamSize: 1, placement: 'solo' });
+  const took = Date.now() - started;
+  assert.equal(added, MAX_LAB_FIELD - 1, 'every name but the real one');
+  assert.ok(took < 20_000, `bulk fill is quick (${took}ms)`);
+  const people = await db.select().from(s.eventParticipants).where(eq(s.eventParticipants.eventId, first));
+  assert.equal(people.length, MAX_LAB_FIELD); // the field minus one, plus your character
+  assert.ok(people.some((p) => p.name === `Lab~${fieldPlayerName(MAX_LAB_FIELD)}`));
+  assert.ok(!people.some((p) => p.name === 'Lab~Field950'));
+
+  const usersMid = (await db.select({ id: s.users.id }).from(s.users).where(like(s.users.discordId, 'lab-dummy-%'))).length;
+  const second = await L.createLabSession(userId, { name: 'Huge again', hours: 1, boardSize: 20, accounts: me(), format: 'leagues' });
+  await F.addLabField(userId, second, { players: MAX_LAB_FIELD, teamSize: 4, placement: 'team' });
+  const usersAfter = (await db.select({ id: s.users.id }).from(s.users).where(like(s.users.discordId, 'lab-dummy-%'))).length;
+  assert.ok(usersMid > usersBefore);
+  assert.equal(usersAfter, usersMid, 'the second fill reuses every test user');
+  const reused = await C.ensureTestUsers(userId, ['Field1', 'Field950']);
+  assert.deepEqual(reused.map((u) => u.rsn), ['Lab~Field1']);
+
+  const credited = await F.simulateLabField((await L.labEvent(first))!, { intensity: 0.5, seed: 4 });
+  assert.ok(credited > 0);
+  assert.equal((await F.simulatedCompletionIds(first)).size, credited);
+});

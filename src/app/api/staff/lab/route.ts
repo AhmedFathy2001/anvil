@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, like, notLike, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { eventParticipants, events } from '@/db/schema';
+import { accounts, eventParticipants, events, users } from '@/db/schema';
+import { LAB_DUMMY_LOGIN } from '@/lib/labRules';
 import { CAN_WRITE, requirePlatformApi } from '@/lib/platformAccess';
 import { createLabSession, LAB_RACE_ROUTES, labClanId, labEvent, MAX_LAB_HOURS, ownLabCharacters } from '@/lib/lab';
 import { addLabField, simulateLabField } from '@/lib/labField';
@@ -29,14 +30,32 @@ export async function GET() {
         .where(eq(events.clanId, labId))
         .orderBy(desc(events.id))
         .limit(50);
-  const people = sessions.length
+  // Your characters by name, the field only as a count: a 1000-player session must not ship 1000
+  // names to a list row. Test players are told apart by the login mark only (lib/labCast).
+  const ids = sessions.map((s) => s.id);
+  const people = ids.length
     ? await db
         .select({ eventId: eventParticipants.eventId, name: eventParticipants.name })
         .from(eventParticipants)
-        .where(inArray(eventParticipants.eventId, sessions.map((s) => s.id)))
+        .leftJoin(accounts, eq(accounts.id, eventParticipants.accountId))
+        .leftJoin(users, eq(users.playerId, accounts.playerId))
+        .where(and(inArray(eventParticipants.eventId, ids), or(isNull(users.discordId), notLike(users.discordId, `${LAB_DUMMY_LOGIN}%`))))
+    : [];
+  const fieldCounts = ids.length
+    ? await db
+        .select({ eventId: eventParticipants.eventId, n: sql<number>`count(distinct ${eventParticipants.id})::int` })
+        .from(eventParticipants)
+        .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
+        .innerJoin(users, eq(users.playerId, accounts.playerId))
+        .where(and(inArray(eventParticipants.eventId, ids), like(users.discordId, `${LAB_DUMMY_LOGIN}%`)))
+        .groupBy(eventParticipants.eventId)
     : [];
   return NextResponse.json({
-    sessions: sessions.map((s) => ({ ...s, characters: people.filter((p) => p.eventId === s.id).map((p) => p.name) })),
+    sessions: sessions.map((s) => ({
+      ...s,
+      characters: [...new Set(people.filter((p) => p.eventId === s.id).map((p) => p.name))],
+      testPlayers: fieldCounts.find((f) => f.eventId === s.id)?.n ?? 0,
+    })),
     characters: await ownLabCharacters(gate.actor.user.userId),
     maxHours: MAX_LAB_HOURS,
     // Route templates only where tiles can carry a route (lib/lab LAB_RACE_ROUTES).

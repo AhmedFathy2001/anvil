@@ -29,6 +29,8 @@ interface Session {
   endDate: string | null;
   forceEndedAt: string | null;
   characters: string[];
+  /** How many lab test players the session holds (counted, not listed). */
+  testPlayers: number;
 }
 
 interface Character {
@@ -242,7 +244,7 @@ export default function LabClient() {
               {placement === 'solo'
                 ? `every entrant on their own (${picked.length + fieldPlayers} entrants)`
                 : `your characters on "Lab"${fieldPlayers > 0 ? `, ${Math.ceil(fieldPlayers / Math.max(1, teamSize))} test teams of up to ${teamSize}` : ''}`}
-              . Test players are lab users (Lab~Field…), never real people.
+              . Test players are lab users (Lab~Field…), never real people; up to {MAX_LAB_FIELD.toLocaleString()}.
             </p>
             {fieldPlayers > 0 && (
               <Checkbox
@@ -292,6 +294,7 @@ export default function LabClient() {
                     <span className="text-sm text-text-muted">
                       {s.characters.slice(0, 4).join(', ')}
                       {s.characters.length > 4 ? ` +${s.characters.length - 4} more` : ''}
+                      {s.testPlayers > 0 ? ` · ${s.testPlayers.toLocaleString()} test player${s.testPlayers === 1 ? '' : 's'}` : ''}
                     </span>
                     <span className="ml-auto text-xs text-text-muted">
                       {live ? 'ends ' : 'ended '}

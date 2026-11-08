@@ -204,8 +204,12 @@ export function labRouteLayout(kind: LabRouteTemplate, ids: number[]): RouteEntr
 
 // ── Who plays for whom ───────────────────────────────────────────────────────────────────────
 
-/** Most test players one session may be filled with: a big public event, previewed. */
-export const MAX_LAB_FIELD = 200;
+/**
+ * Most test players one session may be filled with: a big creator event, previewed. ONE constant —
+ * raise it here and the API, the pickers and the name scheme (fieldPlayerName) all follow. The fill
+ * and the simulation are bulk writes in chunks (lib/labField), so the size costs rows, not round trips.
+ */
+export const MAX_LAB_FIELD = 1000;
 export const MAX_LAB_TEAM_SIZE = 10;
 
 export interface LabEntrant {
@@ -222,10 +226,19 @@ export interface PlannedTeam {
   members: string[];
 }
 
-/** "Field1"… — the test players a session is filled with (lib/labCast makes them Lab~Field1…). */
+/**
+ * The n-th field player's name (1-based), as lib/labCast's testUserName takes it. A test-user name
+ * body holds at most 8 characters, so "Field1"…"Field999" (the names every earlier session made, and
+ * so the rows reused), then "F1000"… which fits up to F9999999 — far past any cap.
+ */
+export function fieldPlayerName(n: number): string {
+  return n < 1000 ? `Field${n}` : `F${n}`;
+}
+
+/** The first `count` field players (lib/labCast makes them Lab~Field1…, Lab~F1000…). */
 export function fieldPlayerNames(count: number): string[] {
   const n = Math.max(0, Math.min(MAX_LAB_FIELD, Math.round(count)));
-  return Array.from({ length: n }, (_, i) => `Field${i + 1}`);
+  return Array.from({ length: n }, (_, i) => fieldPlayerName(i + 1));
 }
 
 /**

@@ -1,5 +1,7 @@
 import ClanLink from '@/components/ClanLink';
 
+import { MAX_LAB_FIELD } from '@/lib/labPlan';
+
 import LabClient from './LabClient';
 
 export const dynamic = 'force-dynamic';
@@ -22,7 +24,7 @@ export default function StaffLabPage() {
       </h1>
       <p className="mb-2 text-sm text-text-muted">
         Start a private board of any event type on one of your own characters, build the tiles you want to test, and
-        play — or replay a scripted event from the dev client. Fill it with up to 200 test players, solo or in teams,
+        play — or replay a scripted event from the dev client. Fill it with up to {MAX_LAB_FIELD.toLocaleString()} test players, solo or in teams,
         and simulate their progress to preview big boards, tile races and many-team standings. Missions can be added,
         dropped and expired on demand from the session page.
       </p>

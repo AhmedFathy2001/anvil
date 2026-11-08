@@ -3,7 +3,9 @@
 //
 // Test players are the lab cast (lib/labCast ensureTestUser): logins found by the LAB_DUMMY_LOGIN
 // mark only, each with a member seat in the hidden lab clan, swept with the clan like every other
-// lab trace. A field player is "Lab~Field<n>", reused across sessions.
+// lab trace. A field player is "Lab~Field<n>" (then "Lab~F<n>" from 1000), reused across sessions.
+// Filling and simulating are bulk inserts in chunks of CHUNK rows, so a 1000-player field is a few
+// round trips, not thousands.
 //
 // SIMULATED CREDITS ARE MARKED. Each "Simulate the field" run writes one lab_log row
 // (LAB_SIM_ENDPOINT) listing the completion ids it made, so the lab page can tag those rows and
@@ -16,13 +18,16 @@ import { db } from '@/db';
 import { completions, eventParticipants, events, labLog, teams, tiles } from '@/db/schema';
 import { parseEventRules, parseTileMissionRules, missionClaimCap } from '@/lib/eventRules';
 import { forgetLabSessions } from '@/lib/lab';
-import { ensureTestUser } from '@/lib/labCast';
+import { ensureTestUsers } from '@/lib/labCast';
 import { labTeams } from '@/lib/labTeams';
 import { fieldPlayerNames, planLabTeams, planSimulatedField, type LabPlacement, type SimTile } from '@/lib/labPlan';
 import { handleBountyClaim } from '@/lib/revealEngine';
 import { isTileRaceFormat } from '@/lib/utils';
 
 type EventRow = typeof events.$inferSelect;
+
+/** Rows per bulk insert. */
+const CHUNK = 500;
 
 /** The lab_log endpoint a simulated run is recorded under. */
 export const LAB_SIM_ENDPOINT = 'lab · simulated field';
@@ -43,11 +48,10 @@ export async function addLabField(
       .map((r) => r.accountId)
       .filter((n): n is number => n != null),
   );
-  const cast: { accountId: number; rsn: string }[] = [];
-  for (const n of names) {
-    const user = await ensureTestUser(actorUserId, n);
-    if (user && !onBoard.has(user.accountId)) cast.push({ accountId: user.accountId, rsn: user.rsn });
-  }
+  // One bulk pass over the whole list (lib/labCast ensureTestUsers), never a query per player.
+  const cast = (await ensureTestUsers(actorUserId, names))
+    .filter((u) => !onBoard.has(u.accountId))
+    .map((u) => ({ accountId: u.accountId, rsn: u.rsn }));
   if (!cast.length) return 0;
   const existing = await db.select({ name: teams.name, color: teams.color }).from(teams).where(eq(teams.eventId, eventId));
   const planned = planLabTeams({
@@ -56,19 +60,23 @@ export async function addLabField(
     teamSize: opts.teamSize,
     existing,
   });
+  const byKey = new Map(cast.map((c) => [String(c.accountId), c]));
   await db.transaction(async (tx) => {
-    const made = await tx
-      .insert(teams)
-      .values(planned.map((p) => ({ eventId, name: p.name, color: p.color })))
-      .returning({ id: teams.id, name: teams.name });
-    const rows = planned.flatMap((p) => {
-      const teamId = made.find((m) => m.name === p.name)!.id;
-      return p.members.map((key) => {
-        const c = cast.find((x) => String(x.accountId) === key)!;
-        return { eventId, accountId: c.accountId, name: c.rsn, teamId };
-      });
-    });
-    if (rows.length) await tx.insert(eventParticipants).values(rows);
+    const teamIdByName = new Map<string, number>();
+    for (let i = 0; i < planned.length; i += CHUNK) {
+      const made = await tx
+        .insert(teams)
+        .values(planned.slice(i, i + CHUNK).map((p) => ({ eventId, name: p.name, color: p.color })))
+        .returning({ id: teams.id, name: teams.name });
+      for (const m of made) teamIdByName.set(m.name, m.id);
+    }
+    const rows = planned.flatMap((p) =>
+      p.members.map((key) => {
+        const c = byKey.get(key)!;
+        return { eventId, accountId: c.accountId, name: c.rsn, teamId: teamIdByName.get(p.name)! };
+      }),
+    );
+    for (let i = 0; i < rows.length; i += CHUNK) await tx.insert(eventParticipants).values(rows.slice(i, i + CHUNK));
   });
   forgetLabSessions();
   return cast.length;
@@ -128,11 +136,11 @@ export async function simulateLabField(event: EventRow, opts: { intensity?: numb
   });
   if (!plan.length) return 0;
   const ids: number[] = [];
-  // Chunked: a 200-player field on a big board is thousands of rows.
-  for (let i = 0; i < plan.length; i += 500) {
+  // Chunked: a 1000-player field on a big board is thousands of rows.
+  for (let i = 0; i < plan.length; i += CHUNK) {
     const rows = await db
       .insert(completions)
-      .values(plan.slice(i, i + 500))
+      .values(plan.slice(i, i + CHUNK))
       .onConflictDoNothing()
       .returning({ id: completions.id, tileId: completions.tileId });
     ids.push(...rows.map((r) => r.id));
@@ -162,11 +170,11 @@ export async function clearSimulatedField(eventId: number): Promise<number> {
   const ids = [...(await simulatedCompletionIds(eventId))];
   let removed = 0;
   const teamIds = (await db.select({ id: teams.id }).from(teams).where(eq(teams.eventId, eventId))).map((t) => t.id);
-  for (let i = 0; i < ids.length && teamIds.length; i += 500) {
+  for (let i = 0; i < ids.length && teamIds.length; i += CHUNK) {
     const gone = await db
       .delete(completions)
       // Pinned to this session's teams, whatever the log row claims.
-      .where(and(inArray(completions.id, ids.slice(i, i + 500)), inArray(completions.teamId, teamIds)))
+      .where(and(inArray(completions.id, ids.slice(i, i + CHUNK)), inArray(completions.teamId, teamIds)))
       .returning({ id: completions.id });
     removed += gone.length;
   }
