@@ -365,6 +365,8 @@ export async function createLabSession(actorUserId: number, input: LabSessionInp
         endDate: end.toISOString(),
         // Tiles visible from the first poll: the lab tests the tiles, not the reveal.
         tilesRevealed: 1,
+        // The board's chat on too, so the plugin's Feed tab can be tested here like any board's.
+        chatEnabled: true,
         draftStatus: 'complete',
         // Nothing to announce, and nothing that may announce it: latch every lifecycle post as done.
         startNotified: 1,

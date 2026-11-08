@@ -95,6 +95,8 @@ export interface HomeData {
   ownClan: Node | null;
   /** Site path of the live board's page. */
   boardPath: string | null;
+  /** The plugin opens a board's Feed / Chat on its Feed tab (load hasTabArgs). */
+  feedTab?: boolean;
   /** Site path prefix for this clan (`/c/<slug>`), for weekly and event links. */
   clanPath: string;
   now: number;
@@ -504,7 +506,7 @@ function boardPage(d: HomeData, b: Board): Node[] {
 
   parts.push(summary(d, b), gap(8));
   // Straight to this board's feed or chat, with a way back here.
-  if (event?.id) parts.push(boardFeedLinks(event.id, { open: 'board', label: b.title }), gap(12));
+  if (event?.id) parts.push(boardFeedLinks(event.id, { open: 'board', label: b.title }, d.feedTab), gap(12));
   else parts.push(gap(4));
   if (d.live && d.standingsNotice) {
     parts.push(...heading('Standings'), muted(d.standingsNotice, { wrap: true }), gap(8));

@@ -282,6 +282,8 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
 
   const access: ChatAccess | null = current.kind === 'event' && viewer ? await chatAccess(current.id, viewer.userId, chatCharacter(request)) : null;
   const chatAvailable = !!access && access.member && access.open;
+  // Say why there's no Chat chip rather than leave it missing: off for the board, or not a player on it.
+  const chatClosed = !access || chatAvailable ? null : !access.open ? access.closedWhy : 'Chat is for the players on this board.';
   const pane = a.p === 'chat' && chatAvailable ? 'chat' : 'feed';
   const modeActive = pane === 'feed' && a.m === '1' && current.kind === 'clan';
   const requestedFilter = a.f || 'all';
@@ -297,6 +299,7 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
         current,
         pane,
         chatAvailable,
+        chatClosed,
         filter: f,
         teamId,
         rows,
@@ -336,6 +339,7 @@ async function feedViewInner(request: Request, a: Args): Promise<View> {
       current,
       pane,
       chatAvailable,
+      chatClosed,
       filter,
       teamId,
       rows,

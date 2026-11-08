@@ -47,7 +47,7 @@ import { gatesForEvent } from '@/lib/entryGatesDb';
 import { gatesShortLabel } from '@/lib/entryGates';
 import { deleteTileProof, listTileProofs } from '@/lib/tileProofs';
 import { PROOFS_MAX, PROOFS_STEP, type ProofRow, proofsUi } from './proofsUi';
-import { hasFeedTab, hasPanelImages, hasTabLinks, loadPanelPlayerCard, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
+import { hasFeedTab, hasPanelImages, hasTabArgs, hasTabLinks, loadPanelPlayerCard, lookupPlayerCard, pluginStaff, viewerPlayerId, visibleClan } from './load';
 import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { clanBoostLevels } from '@/lib/clanBoosts';
@@ -337,6 +337,7 @@ async function boardView(request: Request, a: Args, error: string | null = null)
     boardPath: `${clan ? `/c/${encodeURIComponent(clan)}` : ''}/events/${scope.event.id}`,
     // The feed opens in this tab: it needs the same way back this page has.
     feedBack: { open: a.back || 'board', label: a.backLabel || 'Back' },
+    feedTab: hasTabArgs(request),
   };
   const tile = positive(a.tile) && a.list !== '1' ? (board.tiles as BoardTile[]).find((t) => t.tileId === Number(a.tile)) : undefined;
   const inner = boardRowsUi(board, state, ctx, tile, error);
@@ -493,6 +494,7 @@ async function homeView(request: Request, a: Args): Promise<View> {
   const viewer = await verifyPluginTokenUser(request).catch(() => null);
   const supportCta = !(viewer && (await supporterForUser(viewer.userId).catch(() => null)));
   const data: HomeData = {
+    feedTab: hasTabArgs(request),
     cfg,
     supportCta,
     live,

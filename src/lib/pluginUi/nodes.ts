@@ -41,7 +41,8 @@ export type Action =
   | { a: 'pin'; event: number; /** 0 with `on: false` = every pin on the event. */ tile: number; on: boolean; then?: Action }
   | { a: 'switch'; slug: string }
   /** Open one of the panel's own tabs. Only sent to a plugin that says it knows it (X-Anvil-Tab-Links). */
-  | { a: 'tab'; tab: 'feed' };
+  /** `args`: the list to open it on (a board's feed or chat); only to a plugin with hasTabArgs. */
+  | { a: 'tab'; tab: 'feed'; args?: Record<string, string> };
 
 interface Common {
   /** Tooltip, plain text. */

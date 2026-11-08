@@ -398,6 +398,8 @@ export interface FeedTabOptions {
   /** 'feed' or 'chat' on a board whose chat is on and the viewer plays in. */
   pane: 'feed' | 'chat';
   chatAvailable: boolean;
+  /** A board whose chat is closed to this viewer: why, said where the Chat chip would be. */
+  chatClosed?: string | null;
   /** The filter chip that's lit. */
   filter: string;
   /** The viewer's team on this board, for "My team". */
@@ -508,6 +510,8 @@ export function feedTabUi(o: FeedTabOptions): Node {
       ]),
       gap(4),
     );
+  } else if (o.chatClosed) {
+    parts.push(muted(o.chatClosed, { wrap: true }), gap(4));
   }
 
   const filters: [string, string][] =
@@ -606,14 +610,18 @@ function rowOf(items: Node[], maxCols = 5): Node {
 
 /**
  * "Feed" and "Chat" for one board, side by side: straight to its list or its chat on the Feed view.
+ * `tab`: the plugin opens it on its own Feed tab (hasTabArgs). Otherwise it loads in this tab, and
  * `back` (a Clan-tab page, e.g. 'board') puts a way back over the feed.
  */
-export function boardFeedLinks(eventId: number, back?: { open: string; label: string }): Node {
-  const go = (p: 'feed' | 'chat'): Action => ({
-    a: 'load',
-    v: 'feed',
-    args: { s: `event:${eventId}`, p, ...(back ? { back: back.open, backLabel: back.label } : {}) },
-  });
+export function boardFeedLinks(eventId: number, back?: { open: string; label: string }, tab = false): Node {
+  const go = (p: 'feed' | 'chat'): Action =>
+    tab
+      ? { a: 'tab', tab: 'feed', args: { s: `event:${eventId}`, p } }
+      : {
+          a: 'load',
+          v: 'feed',
+          args: { s: `event:${eventId}`, p, ...(back ? { back: back.open, backLabel: back.label } : {}) },
+        };
   return {
     t: 'grid',
     cols: 2,
