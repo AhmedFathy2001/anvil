@@ -58,6 +58,31 @@ test('a scenario the harness would skip is refused', () => {
   assert.deepEqual(checkScenario('ok', [{ wait: '${t}' }, { chat: { message: 'hi ${me}' } }]), []);
 });
 
+test('the var, attribution and player-loot steps are checked like the harness reads them', () => {
+  assert.deepEqual(checkScenario('ok', [
+    { varbit: { name: 'SLAYER_TASKS_COMPLETED', add: 1 } },
+    { varbit: { name: 'CA_POINTS', base: 'CA_THRESHOLD_ELITE', add: 0 } },
+    { varp: { name: 'DOM_LEVEL_3_COMPLETIONS', add: '${n}' } },
+    { restore: {} },
+    { stat: { skill: 'Fishing', addXp: '5000' } },
+    { death: { who: 'player', name: 'Raid buddy' } },
+    { attacked: { by: 'Vorkath', npc: true, damage: 40 } },
+    { playerSpawn: { name: 'Raid buddy' } },
+    { playerLoot: { victim: 'Some Pker', items: [{ id: 13652 }] } },
+  ]), []);
+  assert.match(checkScenario('ok', [{ varp: { name: 'X' } }]).join(' '), /value or an add/);
+  assert.match(checkScenario('ok', [{ stat: { skill: 'Fishing', xp: 5 } }]).join(' '), /addXp/);
+  assert.match(checkScenario('ok', [{ death: { who: 'player' } }]).join(' '), /who:"player"/);
+  assert.match(checkScenario('ok', [{ attacked: {} }]).join(' '), /attacked/);
+  assert.match(checkScenario('ok', [{ playerLoot: { victim: 'X', items: [{}] } }]).join(' '), /id or a name/);
+});
+
+test('the templates are the plugin\'s bundled set, one per name', () => {
+  const names = (templates as { name: string }[]).map((t) => t.name);
+  assert.equal(new Set(names).size, names.length);
+  for (const n of ['loot-key', 'toa-raid', 'slayer-task', 'pvp-loot', 'gang-death', 'lms-win']) assert.ok(names.includes(n), n);
+});
+
 test('a lab stat pin is not shown as a sub-out; a real bench elsewhere still is', () => {
   // lib/labStats freezes the participant who is pushing stats, so on a lab board frozenAt means
   // "pinned", and the most active member was rendering struck through as "Subbed out".

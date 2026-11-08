@@ -15,6 +15,66 @@
   ]
  },
  {
+  "name": "barracuda-trial",
+  "description": "Sailing Barracuda Trial: completion count, course + rank line, and the Time: line (timed rank tiles)",
+  "params": {
+   "course": "Gwenith Glide",
+   "rank": "Marlin",
+   "kc": "49",
+   "time": "6:04.20"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "Your ${course} completion count is: ${kc}."
+    }
+   },
+   {
+    "chat": {
+     "message": "You have completed the ${course} and achieved the ${rank} rank."
+    }
+   },
+   {
+    "chat": {
+     "message": "Time: ${time} (new personal best)."
+    }
+   }
+  ]
+ },
+ {
+  "name": "barrows-chest",
+  "description": "Barrows chest: the chest count line plus the chest loot (source 'Barrows')",
+  "params": {
+   "kc": "310",
+   "item": "4718",
+   "coins": "5000"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "Your Barrows chest count is: ${kc}."
+    }
+   },
+   {
+    "loot": {
+     "kind": "generic",
+     "lootType": "EVENT",
+     "name": "Barrows",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": 1
+      },
+      {
+       "id": 995,
+       "qty": "${coins}"
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
   "name": "boss-kc",
   "description": "One boss kill credited off the Jagex KC line alone (kill tiles for corpse-loot bosses)",
   "params": {
@@ -139,6 +199,82 @@
   ]
  },
  {
+  "name": "ca-tier-clear",
+  "description": "Combat task that clears a tier: the task line + CA_POINTS raised to that tier's threshold, then put back (pick a tier you haven't reached)",
+  "params": {
+   "tier": "Master",
+   "task": "Phantom Muspah Speed-Chaser"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "Congratulations, you've completed a ${tier} combat task: ${task}."
+    }
+   },
+   {
+    "varbit": {
+     "name": "CA_POINTS",
+     "base": "CA_THRESHOLD_${tier}",
+     "add": 0
+    }
+   },
+   {
+    "wait": 3
+   },
+   {
+    "restore": {}
+   }
+  ]
+ },
+ {
+  "name": "champion-scroll-duplicate",
+  "description": "Champion's scroll when the challenge is done: a kill of that champion's monster, then the 'would have received' line",
+  "params": {
+   "npc": "Imp",
+   "item": "592"
+  },
+  "steps": [
+   {
+    "death": {
+     "who": "npc",
+     "name": "${npc}"
+    }
+   },
+   {
+    "loot": {
+     "kind": "server",
+     "name": "${npc}",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": 1
+      }
+     ]
+    }
+   },
+   {
+    "chat": {
+     "message": "You have a funny feeling that you would have received a Champion's scroll."
+    }
+   },
+   {
+    "wait": 1
+   },
+   {
+    "loot": {
+     "kind": "npc",
+     "name": "${npc}",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": 1
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
   "name": "clog-clan-broadcast",
   "description": "The clan's copy of a clog unlock, naming you \u2014 the only sighting when the personal setting is off",
   "params": {
@@ -164,6 +300,72 @@
    {
     "chat": {
      "message": "New item added to your collection log: ${item}"
+    }
+   }
+  ]
+ },
+ {
+  "name": "clue-casket",
+  "description": "Clue casket opened: the casket loot as 'Clue Scroll (<tier>)' (tier: beginner..master). The game's Treasure Trails count line isn't parsed, so it's left out",
+  "params": {
+   "tier": "hard",
+   "item": "2581"
+  },
+  "steps": [
+   {
+    "loot": {
+     "kind": "generic",
+     "lootType": "EVENT",
+     "name": "Clue Scroll (${tier})",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": 1
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "name": "colosseum-clear",
+  "description": "Fortis Colosseum: Sol Heredit death, Colosseum duration + KC lines, then the reward chest loot",
+  "params": {
+   "kc": "100",
+   "time": "24:11",
+   "item": "28947"
+  },
+  "steps": [
+   {
+    "death": {
+     "who": "npc",
+     "name": "Sol Heredit"
+    }
+   },
+   {
+    "chat": {
+     "message": "Colosseum duration: ${time} (new personal best)."
+    }
+   },
+   {
+    "chat": {
+     "message": "Your Sol Heredit kill count is: ${kc}."
+    }
+   },
+   {
+    "wait": 3
+   },
+   {
+    "loot": {
+     "kind": "generic",
+     "lootType": "EVENT",
+     "name": "Fortis Colosseum",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": 1
+      }
+     ]
     }
    }
   ]
@@ -237,6 +439,30 @@
   ]
  },
  {
+  "name": "death-to-boss",
+  "description": "A boss targets and hits you, then you die (the feed's 'died to X')",
+  "params": {
+   "boss": "Vorkath"
+  },
+  "steps": [
+   {
+    "attacked": {
+     "by": "${boss}",
+     "npc": true,
+     "damage": 40
+    }
+   },
+   {
+    "wait": 1
+   },
+   {
+    "death": {
+     "who": "self"
+    }
+   }
+  ]
+ },
+ {
   "name": "diary-tier",
   "description": "Achievement diary tier completion line",
   "params": {
@@ -248,6 +474,264 @@
     "chat": {
      "message": "Congratulations! You have completed all of the ${tier} tasks in the ${area} area. Speak to the diary NPC to claim your reward."
     }
+   }
+  ]
+ },
+ {
+  "name": "doom-delve",
+  "description": "Doom of Mokhaiotl delve cleared: the delve duration line + that level's completion varp +1, then put back (level 1-8)",
+  "params": {
+   "level": "3",
+   "time": "1:12"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "Delve level: ${level} duration: ${time} (new personal best)"
+    }
+   },
+   {
+    "varp": {
+     "name": "DOM_LEVEL_${level}_COMPLETIONS",
+     "add": 1
+    }
+   },
+   {
+    "wait": 3
+   },
+   {
+    "restore": {}
+   }
+  ]
+ },
+ {
+  "name": "drop-clan-broadcast",
+  "description": "The clan's valuable-drop broadcast naming you (the fallback when your own loot line is off)",
+  "params": {
+   "item": "Elder venator fang",
+   "value": "50,000,000",
+   "boss": "Maggot King"
+  },
+  "steps": [
+   {
+    "chat": {
+     "type": "CLAN_MESSAGE",
+     "message": "${me} received a drop: ${item} (${value} coins) from ${boss}."
+    }
+   }
+  ]
+ },
+ {
+  "name": "egg-offering",
+  "description": "Bird's egg offered at the Woodcutting Guild shrine (one line, one credit)",
+  "params": {
+   "count": "7"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "You have made ${count} offerings."
+    }
+   }
+  ]
+ },
+ {
+  "name": "fight-caves-cape",
+  "description": "Fight Caves completion: duration, then the Jad KC line (credits a repeat Fire cape via the KC line)",
+  "params": {
+   "kc": "5",
+   "time": "25:33"
+  },
+  "steps": [
+   {
+    "death": {
+     "who": "npc",
+     "name": "TzTok-Jad"
+    }
+   },
+   {
+    "chat": {
+     "message": "Duration: ${time} (new personal best)"
+    }
+   },
+   {
+    "chat": {
+     "message": "Your TzTok-Jad kill count is: ${kc}."
+    }
+   }
+  ]
+ },
+ {
+  "name": "gang-death",
+  "description": "Several players pile on you, then you die (death post names a killer and the pile size)",
+  "params": {
+   "p1": "Pker one",
+   "p2": "Pker two",
+   "p3": "Pker three"
+  },
+  "steps": [
+   {
+    "attacked": {
+     "by": "${p1}"
+    }
+   },
+   {
+    "attacked": {
+     "by": "${p2}"
+    }
+   },
+   {
+    "attacked": {
+     "by": "${p3}",
+     "damage": 30
+    }
+   },
+   {
+    "wait": 1
+   },
+   {
+    "death": {
+     "who": "self"
+    }
+   }
+  ]
+ },
+ {
+  "name": "gauntlet-clear",
+  "description": "Gauntlet completion: duration line then completion count (label=Challenge gauntlet=Gauntlet for the normal one)",
+  "params": {
+   "gauntlet": "Corrupted Gauntlet",
+   "label": "Corrupted challenge",
+   "kc": "4",
+   "time": "6:12"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "${label} duration: ${time} (new personal best)."
+    }
+   },
+   {
+    "chat": {
+     "message": "Your ${gauntlet} completion count is: ${kc}."
+    }
+   }
+  ]
+ },
+ {
+  "name": "giants-foundry",
+  "description": "Giants' Foundry reputation earned (game counter, a varp): up by rep, then put back. Needs a non-zero balance first",
+  "params": {
+   "rep": "150"
+  },
+  "steps": [
+   {
+    "varp": {
+     "name": "GIANTS_FOUNDRY_REWARD_SHOP_POINTS",
+     "add": "${rep}"
+    }
+   },
+   {
+    "wait": 3
+   },
+   {
+    "restore": {}
+   }
+  ]
+ },
+ {
+  "name": "gotr-game",
+  "description": "Guardians of the Rift game end: the energy-attuned line (elemental / catalytic / total counters), then a rewards-guardian search",
+  "params": {
+   "elemental": "1204",
+   "catalytic": "987",
+   "item": "26798"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "Elemental energy attuned: ${elemental}. Catalytic energy attuned: ${catalytic}."
+    }
+   },
+   {
+    "wait": 3
+   },
+   {
+    "loot": {
+     "kind": "generic",
+     "lootType": "EVENT",
+     "name": "Guardians of the Rift",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": 1
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "name": "hunter-rumour",
+  "description": "Hunter Guild rumour handed in (one line, one credit)",
+  "params": {
+   "count": "42"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "You have completed ${count} rumours for the Hunter Guild."
+    }
+   }
+  ]
+ },
+ {
+  "name": "inferno-cape",
+  "description": "Inferno completion: duration first, then the Zuk KC line (credits a repeat Infernal cape via the KC line)",
+  "params": {
+   "kc": "1",
+   "time": "59:00"
+  },
+  "steps": [
+   {
+    "death": {
+     "who": "npc",
+     "name": "TzKal-Zuk"
+    }
+   },
+   {
+    "chat": {
+     "message": "Duration: ${time} (new personal best)"
+    }
+   },
+   {
+    "chat": {
+     "message": "Your TzKal-Zuk kill count is: ${kc}."
+    }
+   }
+  ]
+ },
+ {
+  "name": "larran-chest",
+  "description": "Larran's chest with no loot event (looting-bag case): the plain drop line + the chest line; credited a few ticks later",
+  "params": {
+   "size": "big",
+   "count": "12",
+   "item": "Dagon'hai robe top"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "${me} received a drop: ${item}"
+    }
+   },
+   {
+    "chat": {
+     "message": "You have opened Larran's ${size} chest ${count} times."
+    }
+   },
+   {
+    "wait": 5
    }
   ]
  },
@@ -270,6 +754,149 @@
    {
     "chat": {
      "message": "Congratulations, you've just advanced your ${skill} level. You are now level 99."
+    }
+   }
+  ]
+ },
+ {
+  "name": "level-up",
+  "description": "A non-99 level-up: the StatChanged plus the level-up line (only levels a skill really below the level)",
+  "params": {
+   "skill": "Agility",
+   "level": "70",
+   "xp": "737627"
+  },
+  "steps": [
+   {
+    "stat": {
+     "skill": "${skill}",
+     "xp": "${xp}",
+     "level": "${level}"
+    }
+   },
+   {
+    "chat": {
+     "message": "Congratulations, you've just advanced your ${skill} level. You are now level ${level}."
+    }
+   }
+  ]
+ },
+ {
+  "name": "lms-win",
+  "description": "Last Man Standing win: in-game + kills varbits, the victory line, then the game ends",
+  "params": {
+   "kills": "4"
+  },
+  "steps": [
+   {
+    "varbit": {
+     "name": "BR_INGAME",
+     "value": 1
+    }
+   },
+   {
+    "varbit": {
+     "name": "BR_KILLCOUNT",
+     "value": "${kills}"
+    }
+   },
+   {
+    "wait": 2
+   },
+   {
+    "chat": {
+     "message": "You are victorious!"
+    }
+   },
+   {
+    "wait": 2
+   },
+   {
+    "restore": {}
+   }
+  ]
+ },
+ {
+  "name": "loot-key",
+  "description": "Open a Wilderness loot key (Loot Chest): PvP loot for value / PvP tiles, never PvM drop tiles",
+  "params": {
+   "item": "11832",
+   "qty": "1",
+   "coins": "250000"
+  },
+  "steps": [
+   {
+    "loot": {
+     "kind": "generic",
+     "lootType": "EVENT",
+     "name": "Loot Chest",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": "${qty}"
+      },
+      {
+       "id": 995,
+       "qty": "${coins}"
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "name": "nightmare-kill",
+  "description": "Nightmare kill: KC line, team-size + fight-duration line, then the drop (server + client loot events)",
+  "params": {
+   "boss": "Nightmare",
+   "npc": "The Nightmare",
+   "kc": "11",
+   "team": "5",
+   "time": "6:21",
+   "item": "24422"
+  },
+  "steps": [
+   {
+    "death": {
+     "who": "npc",
+     "name": "${npc}"
+    }
+   },
+   {
+    "chat": {
+     "message": "Your ${boss} kill count is: ${kc}."
+    }
+   },
+   {
+    "chat": {
+     "message": "Team size: ${team} players Fight duration: ${time} (new personal best)."
+    }
+   },
+   {
+    "loot": {
+     "kind": "server",
+     "name": "${npc}",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": 1
+      }
+     ]
+    }
+   },
+   {
+    "wait": 1
+   },
+   {
+    "loot": {
+     "kind": "npc",
+     "name": "${npc}",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": 1
+      }
+     ]
     }
    }
   ]
@@ -326,6 +953,103 @@
   ]
  },
  {
+  "name": "pet-backpack",
+  "description": "Pet that lands in your backpack (follower already out): the backpack line, then the clog line naming it",
+  "params": {
+   "pet": "Heron"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "You feel something weird sneaking into your backpack."
+    }
+   },
+   {
+    "wait": 1
+   },
+   {
+    "chat": {
+     "message": "New item added to your collection log: ${pet}"
+    }
+   }
+  ]
+ },
+ {
+  "name": "pet-clan-broadcast",
+  "description": "New pet named only by the clan broadcast (personal clog line off): KC, pet line, then the clan's line naming you",
+  "params": {
+   "boss": "Vorkath",
+   "kc": "1999",
+   "pet": "Vorki"
+  },
+  "steps": [
+   {
+    "death": {
+     "who": "npc",
+     "name": "${boss}"
+    }
+   },
+   {
+    "chat": {
+     "message": "Your ${boss} kill count is: ${kc}."
+    }
+   },
+   {
+    "chat": {
+     "message": "You have a funny feeling like you're being followed."
+    }
+   },
+   {
+    "chat": {
+     "type": "CLAN_MESSAGE",
+     "message": "${me} has a funny feeling like he's being followed: ${pet} at ${kc} killcount."
+    }
+   }
+  ]
+ },
+ {
+  "name": "pickpocket",
+  "description": "A pickpocket: the pocket line and its loot in one tick (pickpocket loot, never a kill)",
+  "params": {
+   "target": "master farmer",
+   "npc": "Master Farmer",
+   "item": "5295",
+   "qty": "1"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "You pick the ${target}'s pocket."
+    }
+   },
+   {
+    "loot": {
+     "kind": "server",
+     "name": "${npc}",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": "${qty}"
+      }
+     ]
+    }
+   },
+   {
+    "loot": {
+     "kind": "generic",
+     "lootType": "PICKPOCKET",
+     "name": "${npc}",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": "${qty}"
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
   "name": "pvp-kill",
   "description": "A PK: Wilderness varbit on, our hitsplat on a fake player, their death (damage->death attribution)",
   "params": {
@@ -355,6 +1079,113 @@
      "name": "INSIDE_WILDERNESS",
      "value": 0
     }
+   }
+  ]
+ },
+ {
+  "name": "pvp-loot",
+  "description": "A PK with its loot pile (PvP min-loot / PvP value tiles): Wilderness on, hit + death, then the player-loot event",
+  "params": {
+   "victim": "Some Pker",
+   "item": "13652",
+   "coins": "100000"
+  },
+  "steps": [
+   {
+    "varbit": {
+     "name": "INSIDE_WILDERNESS",
+     "value": 1
+    }
+   },
+   {
+    "wait": 1
+   },
+   {
+    "pvpKill": {
+     "victim": "${victim}",
+     "damage": 25
+    }
+   },
+   {
+    "wait": 1
+   },
+   {
+    "playerLoot": {
+     "victim": "${victim}",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": 1
+      },
+      {
+       "id": 995,
+       "qty": "${coins}"
+      }
+     ]
+    }
+   },
+   {
+    "wait": 2
+   },
+   {
+    "restore": {}
+   }
+  ]
+ },
+ {
+  "name": "raid-party-death",
+  "description": "A failed deathless CoX: a teammate dies, then the raid completes. Stand in an instance first (your POH), or the death isn't counted",
+  "params": {
+   "teammate": "Raid buddy",
+   "party": "2",
+   "kc": "126",
+   "time": "16:02"
+  },
+  "steps": [
+   {
+    "varbit": {
+     "name": "RAIDS_CLIENT_INDUNGEON",
+     "value": 1
+    }
+   },
+   {
+    "varbit": {
+     "name": "RAIDS_CLIENT_PARTYSIZE",
+     "value": "${party}"
+    }
+   },
+   {
+    "playerSpawn": {
+     "name": "${teammate}"
+    }
+   },
+   {
+    "wait": 2
+   },
+   {
+    "death": {
+     "who": "player",
+     "name": "${teammate}"
+    }
+   },
+   {
+    "wait": 2
+   },
+   {
+    "chat": {
+     "message": "Congratulations - your raid is complete! Duration: ${time}"
+    }
+   },
+   {
+    "chat": {
+     "message": "Your completed Chambers of Xeric count is: ${kc}."
+    }
+   },
+   {
+    "wait": 3
+   },
+   {
+    "restore": {}
    }
   ]
  },
@@ -426,6 +1257,27 @@
   ]
  },
  {
+  "name": "slayer-task",
+  "description": "Slayer task done: +1 on the task-streak varbit (game counter), then put back (counter: SLAYER_TASKS_COMPLETED or SLAYER_WILDERNESS_TASKS_COMPLETED)",
+  "params": {
+   "counter": "SLAYER_TASKS_COMPLETED"
+  },
+  "steps": [
+   {
+    "varbit": {
+     "name": "${counter}",
+     "add": 1
+    }
+   },
+   {
+    "wait": 3
+   },
+   {
+    "restore": {}
+   }
+  ]
+ },
+ {
   "name": "spill-drop",
   "description": "Drop-attribution line for drops with no loot event (Maggot King spill-outs); names you",
   "params": {
@@ -441,14 +1293,212 @@
   ]
  },
  {
+  "name": "sunstone-golem",
+  "description": "Sunstone golem completed on Wyrmscraig (one line, one golem)",
+  "params": {
+   "qty": "3"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "As you complete the golem it leaves a gift on the ground for you: ${qty} x Sunstone."
+    }
+   }
+  ]
+ },
+ {
+  "name": "tempoross-game",
+  "description": "Tempoross: KC line, then the reward pool loot",
+  "params": {
+   "kc": "52",
+   "item": "25580"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "Your Tempoross kill count is: ${kc}."
+    }
+   },
+   {
+    "wait": 3
+   },
+   {
+    "loot": {
+     "kind": "generic",
+     "lootType": "EVENT",
+     "name": "Reward pool (Tempoross)",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": 1
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "name": "tithe-farm",
+  "description": "Tithe Farm points earned (game counter): the points varbit up by points, then put back. Needs a non-zero balance first",
+  "params": {
+   "points": "30"
+  },
+  "steps": [
+   {
+    "varbit": {
+     "name": "HOSIDIUS_TITHE_REWARDPOINTS",
+     "add": "${points}"
+    }
+   },
+   {
+    "wait": 3
+   },
+   {
+    "restore": {}
+   }
+  ]
+ },
+ {
+  "name": "toa-raid",
+  "description": "ToA completion: raid level + party-slot varbits, challenge + total time lines, KC line, then the chest (where a level-floor tile is judged)",
+  "params": {
+   "raid": "Tombs of Amascut: Expert Mode",
+   "kc": "8",
+   "level": "300",
+   "p1": "1",
+   "p2": "0",
+   "p3": "0",
+   "challenge": "30:16",
+   "time": "34:50",
+   "item": "27277"
+  },
+  "steps": [
+   {
+    "varbit": {
+     "name": "TOA_CLIENT_RAID_LEVEL",
+     "value": "${level}"
+    }
+   },
+   {
+    "varbit": {
+     "name": "TOA_CLIENT_P0",
+     "value": 1
+    }
+   },
+   {
+    "varbit": {
+     "name": "TOA_CLIENT_P1",
+     "value": "${p1}"
+    }
+   },
+   {
+    "varbit": {
+     "name": "TOA_CLIENT_P2",
+     "value": "${p2}"
+    }
+   },
+   {
+    "varbit": {
+     "name": "TOA_CLIENT_P3",
+     "value": "${p3}"
+    }
+   },
+   {
+    "wait": 2
+   },
+   {
+    "chat": {
+     "type": "FRIENDSCHATNOTIFICATION",
+     "message": "${raid} challenge completion time: ${challenge}. Personal best: ${challenge}"
+    }
+   },
+   {
+    "chat": {
+     "type": "FRIENDSCHATNOTIFICATION",
+     "message": "${raid} total completion time: ${time} (new personal best)"
+    }
+   },
+   {
+    "chat": {
+     "message": "Your completed ${raid} count is: ${kc}."
+    }
+   },
+   {
+    "wait": 5
+   },
+   {
+    "loot": {
+     "kind": "generic",
+     "lootType": "EVENT",
+     "name": "Tombs of Amascut",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": 1
+      }
+     ]
+    }
+   },
+   {
+    "wait": 3
+   },
+   {
+    "restore": {}
+   }
+  ]
+ },
+ {
   "name": "tob-raid",
-  "description": "ToB completion: KC line, total-time line (on FRIENDSCHATNOTIFICATION, as the game sends it), chest loot",
+  "description": "ToB completion: party status + slot varbits, KC line, total-time line (on FRIENDSCHATNOTIFICATION, as the game sends it), chest loot",
   "params": {
    "kc": "5",
    "time": "1:02:30",
-   "item": "22477"
+   "item": "22477",
+   "p1": "1",
+   "p2": "1",
+   "p3": "0",
+   "p4": "0"
   },
   "steps": [
+   {
+    "varbit": {
+     "name": "TOB_CLIENT_PARTYSTATUS",
+     "value": 2
+    }
+   },
+   {
+    "varbit": {
+     "name": "TOB_CLIENT_P0",
+     "value": 1
+    }
+   },
+   {
+    "varbit": {
+     "name": "TOB_CLIENT_P1",
+     "value": "${p1}"
+    }
+   },
+   {
+    "varbit": {
+     "name": "TOB_CLIENT_P2",
+     "value": "${p2}"
+    }
+   },
+   {
+    "varbit": {
+     "name": "TOB_CLIENT_P3",
+     "value": "${p3}"
+    }
+   },
+   {
+    "varbit": {
+     "name": "TOB_CLIENT_P4",
+     "value": "${p4}"
+    }
+   },
+   {
+    "wait": 2
+   },
    {
     "chat": {
      "message": "Your completed Theatre of Blood count is: ${kc}."
@@ -474,6 +1524,87 @@
        "qty": 1
       }
      ]
+    }
+   },
+   {
+    "wait": 3
+   },
+   {
+    "restore": {}
+   }
+  ]
+ },
+ {
+  "name": "vale-offerings",
+  "description": "Vale Totems offerings searched (one research point)",
+  "params": {},
+  "steps": [
+   {
+    "chat": {
+     "message": "You rummage through the offerings."
+    }
+   }
+  ]
+ },
+ {
+  "name": "wintertodt-game",
+  "description": "Wintertodt: subdued count line, rewards banked in the cart (WINT_REWARD_POOL up), then a cart search (loot + pool back down = claimed)",
+  "params": {
+   "kc": "200",
+   "rewards": "3",
+   "item": "20716"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "Your subdued Wintertodt count is: ${kc}."
+    }
+   },
+   {
+    "varbit": {
+     "name": "WINT_REWARD_POOL",
+     "add": "${rewards}"
+    }
+   },
+   {
+    "wait": 3
+   },
+   {
+    "loot": {
+     "kind": "generic",
+     "lootType": "EVENT",
+     "name": "Reward cart (Wintertodt)",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": 1
+      }
+     ]
+    }
+   },
+   {
+    "varbit": {
+     "name": "WINT_REWARD_POOL",
+     "add": "-${rewards}"
+    }
+   },
+   {
+    "wait": 2
+   }
+  ]
+ },
+ {
+  "name": "xp-drop",
+  "description": "An XP gain on top of your real XP (skill-XP tiles); the level follows from the XP",
+  "params": {
+   "skill": "Fishing",
+   "xp": "5000"
+  },
+  "steps": [
+   {
+    "stat": {
+     "skill": "${skill}",
+     "addXp": "${xp}"
     }
    }
   ]
