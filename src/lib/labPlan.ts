@@ -102,6 +102,8 @@ export interface LabTileSeed {
   targetNpcs: string | null;
   /** JSON array of item ids (drop / clog tiles). */
   trackedItemIds: string | null;
+  /** JSON array: a drop tile's "only from" sources. */
+  sourceNpcs: string | null;
   timedActivity: string | null;
   timeThresholdSeconds: number | null;
   coopCredit: string | null;
@@ -116,6 +118,7 @@ const spec = (label: string, tileType: string, category: string, extra: Partial<
   requiredAmount: 1,
   targetNpcs: null,
   trackedItemIds: null,
+  sourceNpcs: null,
   timedActivity: null,
   timeThresholdSeconds: null,
   coopCredit: null,
@@ -124,15 +127,35 @@ const spec = (label: string, tileType: string, category: string, extra: Partial<
 const list = (...v: (string | number)[]) => JSON.stringify(v);
 
 /**
- * Real tiles for a lab board — one of every kind the bundled lab scenarios
- * (src/data/labScenarioTemplates.json) can credit, so a session is judged on a believable board and
- * every tile can be finished from the lab's own buttons. Order matters for a race: the first is the
- * single start (an easy opener) and the last the single finish (a raid to close it out); the rest
- * fill the roads in between, never repeating within one board.
+ * Real tiles for a lab board — each one finished by a bundled lab scenario (the plugin's
+ * `::anvil run <name>`, src/data/labScenarioTemplates.json), with names, counter names, item ids and
+ * selectors taken from what that scenario actually produces (tests/lab-tiles-credit.test.ts runs
+ * each one through the site's matcher). Order matters for a race: the first is the single start
+ * (an easy opener) and the last the single finish (a raid to close it out); the rest fill the roads.
+ *
+ *   tile                      scenario (defaults unless noted)
+ *   Wintertodt crate          wintertodt-game   — "Your subdued Wintertodt count is" → Wintertodt
+ *   2 Araxxor kills           boss-kc           — "Your Araxxor kill count is" (run twice)
+ *   Tanzanite fang            zulrah-unique     — loot item 12922 from Zulrah
+ *   1m+ loot haul             loot-key          — a Bandos chestplate + 250k from a loot key
+ *   Vorkath under 2:00        boss-pb           — "Fight duration: 1:36" on Vorkath
+ *   PK Some Pker              pvp-kill          — victim "Some Pker"
+ *   Hard Ardougne diary       diary-tier        — "all of the hard tasks in the Ardougne area"
+ *   Whack-a-Mole (Elite CA)   ca-task           — "an Elite combat task: Whack-a-Mole"
+ *   Fighter torso slot        clog-unlock       — "New item added to your collection log: Fighter torso"
+ *   2 Seers' rooftop laps     agility-lap       — "Your Seers' Village Rooftop lap count is" (twice)
+ *   Tombs of Amascut          toa-raid          — "Your completed Tombs of Amascut: Expert Mode count is"
+ *   Robin Hood hat (hard clue) clue-casket      — casket loot item 2581 from "Clue Scroll (Hard)"
+ *   Slayer task               slayer-task       — SLAYER_TASKS_COMPLETED +1 → "Slayer tasks: any master"
+ *   2 Vorkath kills           boss-kc boss=Vorkath (twice)
+ *   Theatre of Blood          tob-raid          — "Your completed Theatre of Blood count is"
+ *   Hallowed Sepulchre run    sepulchre-run     — "You have opened the Grand Hallowed Coffin"
+ *   2 Zulrah kills            zulrah-unique     — "Your Zulrah kill count is" (twice)
+ *   Chambers of Xeric         cox-raid          — "Your completed Chambers of Xeric count is"
  */
 export const LAB_TILE_SET: LabTileSpec[] = [
   spec('Wintertodt crate', 'kill', 'Skilling', { targetNpcs: list('Wintertodt') }),
-  spec('3 Araxxor kills', 'kill', 'Bosses', { requiredAmount: 3, targetNpcs: list('Araxxor') }),
+  spec('2 Araxxor kills', 'kill', 'Bosses', { requiredAmount: 2, targetNpcs: list('Araxxor') }),
   spec('Tanzanite fang', 'drop', 'Bosses', { trackedItemIds: list(12922) }),
   spec('1m+ loot haul', 'value', 'Loot', { requiredAmount: 1_000_000 }),
   spec('Vorkath under 2:00', 'timed', 'Bosses', { timedActivity: 'Vorkath', timeThresholdSeconds: 120 }),
@@ -140,14 +163,17 @@ export const LAB_TILE_SET: LabTileSpec[] = [
   spec('Hard Ardougne diary', 'diary', 'Diaries', { targetNpcs: list('Ardougne Hard') }),
   spec('Whack-a-Mole (Elite CA)', 'ca', 'Combat achievements', { targetNpcs: list('Whack-a-Mole') }),
   spec('Fighter torso slot', 'clog', 'Collection log', { trackedItemIds: list(10551) }),
-  spec("5 Seers' rooftop laps", 'lap', 'Agility', { requiredAmount: 5, targetNpcs: list("Seers' Village Rooftop") }),
-  spec('Tombs of Amascut', 'kill', 'Raids', { targetNpcs: list('Tombs of Amascut'), coopCredit: 'per-kill' }),
-  spec('Hard clue casket', 'kill', 'Clues', { targetNpcs: list('Clue Scroll (hard)') }),
+  spec("2 Seers' rooftop laps", 'lap', 'Agility', { requiredAmount: 2, targetNpcs: list("Seers' Village Rooftop") }),
+  // The scenario's raid is Expert Mode, and the game names the mode in its count line.
+  spec('Tombs of Amascut', 'kill', 'Raids', { targetNpcs: list('Tombs of Amascut', 'Tombs of Amascut: Expert Mode'), coopCredit: 'per-kill' }),
+  // A drop tile, not a "clue opens" kill tile: the open is counted under "Clue Scroll (Hard)", whose
+  // tier qualifier the kill index drops, so a tier-named kill tile is never credited (see the test).
+  spec('Robin Hood hat (hard clue)', 'drop', 'Clues', { trackedItemIds: list(2581), sourceNpcs: list('Clue Scroll (Hard)') }),
   spec('Slayer task', 'kill', 'Slayer', { targetNpcs: list('Slayer tasks: any master') }),
-  spec('5 Vorkath kills', 'kill', 'Bosses', { requiredAmount: 5, targetNpcs: list('Vorkath') }),
+  spec('2 Vorkath kills', 'kill', 'Bosses', { requiredAmount: 2, targetNpcs: list('Vorkath') }),
   spec('Theatre of Blood', 'kill', 'Raids', { targetNpcs: list('Theatre of Blood'), coopCredit: 'per-kill' }),
   spec('Hallowed Sepulchre run', 'lap', 'Agility', { targetNpcs: list('Grand Hallowed Coffin') }),
-  spec('25 Zulrah kills', 'kill', 'Bosses', { requiredAmount: 25, targetNpcs: list('Zulrah') }),
+  spec('2 Zulrah kills', 'kill', 'Bosses', { requiredAmount: 2, targetNpcs: list('Zulrah') }),
   spec('Chambers of Xeric', 'kill', 'Raids', { targetNpcs: list('Chambers of Xeric'), coopCredit: 'per-kill' }),
 ];
 

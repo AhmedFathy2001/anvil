@@ -75,7 +75,7 @@ test('tile seeds: points boards get spread values, showdown tiles get staggered 
   assert.ok(Date.parse(show[2].revealAt!) > Date.parse(show[1].revealAt!));
   // Real tiles, not "Step 1": the opener first, the raid last.
   const race = labTileSeeds(labFormat('race'), 3, start);
-  assert.deepEqual(race.map((t) => t.label), ['Wintertodt crate', '3 Araxxor kills', 'Chambers of Xeric']);
+  assert.deepEqual(race.map((t) => t.label), ['Wintertodt crate', '2 Araxxor kills', 'Chambers of Xeric']);
 });
 
 test('lab tiles: real, creditable kinds; never the same tile twice; one start and one finish', () => {
