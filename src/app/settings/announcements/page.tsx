@@ -8,6 +8,20 @@ import { NeedsCharacter } from '../_none';
 import { SettingsBlock, SettingsGroup, SettingsRow, SettingsTitle } from '../_ui';
 import { settingsSession } from '@/app/settings/settingsSession';
 
+/** The page's sections, as the strip under the title links them (ids also used by lib/memberSettingsIndex). */
+const JUMPS = [
+  { id: 'posts-drops', label: 'Drops & pets' },
+  { id: 'posts-deaths', label: 'Deaths & PvP' },
+  { id: 'posts-achievements', label: 'Achievements' },
+  { id: 'screenshot-privacy', label: 'Screenshot privacy' },
+  { id: 'where-posts-go', label: 'Which clans' },
+  { id: 'per-character', label: 'Per character' },
+];
+
+/**
+ * Discord posts & screenshots (the URL stays /settings/announcements: the plugin and old links use
+ * it). Was titled "Announcements", which said nothing about screenshot privacy living here too.
+ */
 export default async function AnnouncementsSettingsPage() {
   const session = await settingsSession();
   const [view, supporter] = await Promise.all([
@@ -17,25 +31,41 @@ export default async function AnnouncementsSettingsPage() {
 
   return (
     <>
-      <SettingsTitle title="Announcements">
-        Where your drops, pets, deaths and combat achievements get posted in your clans&rsquo; Discords. Bingo submissions
-        aren&rsquo;t affected: those always reach the clan running the board.
+      <SettingsTitle title="Discord posts & screenshots">
+        What your plugin posts to your clans&rsquo; Discords (drops, pets, deaths, combat achievements and the rest) and which chat is
+        hidden in its screenshots. Bingo submissions aren&rsquo;t affected: those always reach the clan running the board.
       </SettingsTitle>
       {!view || view.accounts.length === 0 ? (
-        <NeedsCharacter what="Announcements" />
+        <NeedsCharacter what="Discord posts" />
       ) : (
         <>
-          <SettingsGroup title="Every character">
-            <SettingsBlock>
-              <AnnouncementsGeneral initial={view} />
-            </SettingsBlock>
-          </SettingsGroup>
-          <SettingsGroup title="What your plugin posts" note="Once RuneLite settings; they follow you to every clan.">
+          <nav aria-label="On this page" className="mb-6 flex flex-wrap items-center gap-x-1 gap-y-2 text-[13px]">
+            <span className="mr-1 text-text-dim">On this page:</span>
+            {JUMPS.map((j) => (
+              <a
+                key={j.id}
+                href={`#${j.id}`}
+                className="rounded-full border border-card-border bg-card-bg px-2.5 py-0.5 text-text-muted transition-colors hover:border-gold/40 hover:text-foreground"
+              >
+                {j.label}
+              </a>
+            ))}
+          </nav>
+          <SettingsGroup
+            title="What your plugin posts"
+            id="plugin-posts"
+            note="These used to be in RuneLite: they now follow you to every computer, and to every clan."
+          >
             <SettingsBlock>
               <PluginPostsPanel initial={view} />
             </SettingsBlock>
           </SettingsGroup>
-          <SettingsGroup title="Per character" note="Which clans each character announces in is set on that character's page.">
+          <SettingsGroup title="Where your posts go" id="where-posts-go">
+            <SettingsBlock>
+              <AnnouncementsGeneral initial={view} />
+            </SettingsBlock>
+          </SettingsGroup>
+          <SettingsGroup title="Per character" id="per-character" note="Which clans each character announces in is set on that character's page.">
             {view.accounts.map((a) => (
               <SettingsRow
                 key={a.accountId}

@@ -171,16 +171,19 @@ export interface NavCharacter {
   isPrimary: boolean;
 }
 
+// Labels say what the page controls, not what it was once called: "Announcements" held screenshot
+// privacy too, and "Privacy" (who sees a character) read as the same thing as screenshot privacy.
+// The URLs never change: the plugin links to /settings and /settings/announcements.
 const ACCOUNT_ITEMS: { href: string; label: string; icon: string }[] = [
+  { href: '/settings/announcements', label: 'Discord posts & screenshots', icon: '📣' },
+  { href: '/settings/chat', label: 'In-game chat feed', icon: '💬' },
+  { href: '/settings/plugin', label: 'Plugin connection', icon: '⚿' },
   { href: '/settings/account', label: 'Login & devices', icon: '⏻' },
-  { href: '/settings/plugin', label: 'Plugin token', icon: '⚿' },
-  { href: '/settings/announcements', label: 'Announcements', icon: '📣' },
-  { href: '/settings/webhooks', label: 'Discord webhooks', icon: '⌁' },
-  { href: '/settings/chat', label: 'In-game chat', icon: '💬' },
-  { href: '/settings/connections', label: 'Connected accounts', icon: '⇄' },
-  { href: '/settings/privacy', label: 'Privacy', icon: '◐' },
+  { href: '/settings/webhooks', label: 'Your Discord webhooks', icon: '⌁' },
+  { href: '/settings/privacy', label: 'Who sees my characters', icon: '◐' },
+  { href: '/settings/supporter', label: 'Supporter & name colours', icon: '★' },
   { href: '/settings/look', label: 'Profile look', icon: '▣' },
-  { href: '/settings/supporter', label: 'Supporter', icon: '★' },
+  { href: '/settings/connections', label: 'Streaming accounts', icon: '⇄' },
 ];
 /** Only for Supporters (and anyone with a boost placed): never a pitch to everyone else. */
 const BOOSTS_ITEM = { href: '/settings/boosts', label: 'Clan boosts', icon: '◆' };
@@ -229,6 +232,7 @@ export function SettingsNav({
 
   return (
     <nav aria-label="Settings" className="-mx-4 flex gap-1 overflow-x-auto overflow-y-hidden scroll-quiet px-4 pb-2 lg:sticky lg:top-20 lg:mx-0 lg:block lg:overflow-visible lg:px-0 lg:pb-0">
+      {item('/settings', path === '/settings', <>{icon('⌂')}Overview & search</>)}
       {heading('Account')}
       {[...ACCOUNT_ITEMS, ...(boosts || path === BOOSTS_ITEM.href ? [BOOSTS_ITEM] : [])].map((i) => item(i.href, path === i.href, <>{icon(i.icon)}{i.label}</>))}
       {item(

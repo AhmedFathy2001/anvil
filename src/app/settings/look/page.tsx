@@ -51,6 +51,7 @@ export default async function LookSettingsPage() {
 
       <SettingsGroup
         title="Avatar & banner"
+        id="avatar-banner"
         note="Shown on your card, your person page and every character of yours, on the site and in the plugin."
       >
         <SettingsBlock>
@@ -66,6 +67,7 @@ export default async function LookSettingsPage() {
       {showPerCharacter && (
         <SettingsGroup
           title="Per character"
+          id="look-per-character"
           note="Give a character its own banner or avatar (or both). It replaces your default on that character’s pages and plugin card only."
         >
           <SettingsBlock>
@@ -75,6 +77,7 @@ export default async function LookSettingsPage() {
       )}
 
       <SettingsGroup
+        id="display-case"
         title={`Display case${slots ? ` · ${slots} slots` : ''}`}
         note="Your best drops, kill counts and times pinned to your profile. Pins from characters you don’t share stay private."
       >

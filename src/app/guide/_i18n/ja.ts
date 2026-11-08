@@ -868,7 +868,7 @@ const ja: PartialGuideDict = {
     notifications: {
       title: 'Discord 通知',
       intro:
-        'これらはビンゴが進行中かどうかに関係なく飛び、クランのチャンネルに投稿されます。どのチャンネルかは管理者がここで決めます —— あなたが選ぶのは_何を_投稿するかだけです。 次のプラグイン更新で、これらの設定はウェブサイトの **Settings → Announcements** に移り、どのパソコンでも同じ設定になります。プラグインには **Notifications** に2つのスイッチが残ります：**Share clan posts** はメインゲームの投稿をまとめて一時停止し、**Share seasonal activity** は Leagues、Deadman などのシーズンワールドで同じことをします。',
+        'これらはビンゴが進行中かどうかに関係なく飛び、クランのチャンネルに投稿されます。どのチャンネルかは管理者がここで決めます —— あなたが選ぶのは_何を_投稿するかだけです。 次のプラグイン更新で、これらの設定はウェブサイトの **Settings → Discord posts & screenshots** に移り、どのパソコンでも同じ設定になります。同じページの **Screenshot privacy** では、プラグインが撮るすべてのスクリーンショットで隠すチャット（プライベートメッセージ、公開チャット、クランチャット）を選べます。プラグインには **Notifications** に2つのスイッチが残ります：**Share clan posts** はメインゲームの投稿をまとめて一時停止し、**Share seasonal activity** は Leagues、Deadman などのシーズンワールドで同じことをします。',
       examplesFigure: {
         caption: '投稿の見た目',
         alt: 'Anvil による 2 つの Discord 投稿。ポイントと次のアンロックまでの進捗つきの Grandmaster 戦闘タスクと、メッセージつきの死亡。どちらにもその瞬間のスクリーンショットが付いている',
