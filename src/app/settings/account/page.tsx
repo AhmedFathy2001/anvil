@@ -37,7 +37,8 @@ export default async function AccountSettingsPage() {
 
       <SettingsGroup
         title="Plugin sign-ins"
-        note="Your main plugin token is on Plugin token. These are extra sign-ins made with “Sign in with Discord” from the panel."
+        id="plugin-sign-ins"
+        note="Your main plugin token is on Plugin connection. These are extra sign-ins made with “Sign in with Discord” from the panel."
       >
         {links.length === 0 && <SettingsRow label="No extra sign-ins" description="Only your plugin token is in use." />}
         {links.map((l, i) => (
@@ -70,7 +71,7 @@ export default async function AccountSettingsPage() {
         </SettingsRow>
       </SettingsGroup>
 
-      <SettingsGroup title="Sessions">
+      <SettingsGroup title="Sessions" id="sessions">
         <SettingsBlock>
           <SignOutEverywhereClient />
         </SettingsBlock>
@@ -78,7 +79,7 @@ export default async function AccountSettingsPage() {
 
       {/* Only for clan owners: subscriptions are per hosted clan, and a player never pays for one. */}
       {ownsAClan && (
-        <SettingsGroup title="Clan billing">
+        <SettingsGroup title="Clan billing" id="clan-billing">
           <SettingsRow label="Billing & your clan plan" description="Subscription, invoices and the tier each clan you host is on.">
             <ClanLink href="/portal" className="rounded-lg border border-card-border bg-card-bg-hover px-3 py-1.5 text-[13px] hover:border-gold/40">
               Open portal →

@@ -23,7 +23,7 @@ export default async function AddCharacterPage({ searchParams }: { searchParams:
       </SettingsTitle>
 
       {detected.pending.length > 0 && (
-        <SettingsGroup title="We noticed you playing">
+        <SettingsGroup title="We noticed you playing" id="detected">
           <SettingsBlock>
             <DetectedAccountsClient initial={detected.pending} />
           </SettingsBlock>

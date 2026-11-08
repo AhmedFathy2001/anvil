@@ -117,6 +117,7 @@ export async function stampAndPost(i: StampAndPost): Promise<void> {
         completed: i.completed,
         eventId: i.event.id,
         tile: i.tile,
+        submissionIds: [i.submissionId],
       }).catch(() => {}); // Silently ignore errors
     } else if (i.superseded && !i.completed) {
       // The slot was already announced when the live unlock push credited it; this only added its proof.
@@ -135,6 +136,7 @@ export async function stampAndPost(i: StampAndPost): Promise<void> {
         note: i.note,
         creditPlayerName: i.creditPlayerName,
         completed: i.completed,
+        submissionIds: [i.submissionId],
       });
       flushPendingNotifications().catch(() => {});
     }

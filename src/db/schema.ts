@@ -2428,11 +2428,42 @@ export const pendingNotifications = pgTable('pending_notifications', {
   latestCreditName: text('latest_credit_name'),
   // 1 once a buffered submission completed the tile — forces an immediate flush.
   completed: integer('completed').notNull().default(0),
+  // The submissions buffered into this bucket, so the post it becomes can be found again when one of
+  // them is removed (discord_posts.submission_ids).
+  submissionIds: jsonb('submission_ids').$type<number[]>().notNull().default([]),
   firstQueuedAt: text('first_queued_at').notNull(),
   lastEventAt: text('last_event_at').notNull(),
 }, (table) => [
   primaryKey({ columns: [table.tileId, table.teamId] }),
   index('pending_notifications_last_event_idx').on(table.lastEventAt),
+]);
+
+/**
+ * Every board post Anvil sent with a webhook, kept so it can be found, edited or deleted later
+ * (lib/discordPosts): a submission post (one or a merged bucket of several), a tile-complete post, a
+ * team-win post. One row per destination it went to (host channel, co-host, extra hooks).
+ * Only the webhook's public id is kept, never its token: editing or deleting needs the same webhook,
+ * so lib/discordPostActions finds its URL again where the token already lives (the clan's channel
+ * settings, the event's / co-host's Discord prefs, the event's extra hooks) by matching that id.
+ * `clan_id` is the clan whose destination it went to. Nothing here is returned by any API.
+ */
+export const discordPosts = pgTable('discord_posts', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id'),
+  kind: text('kind').notNull(),
+  eventId: integer('event_id').references(() => events.id, { onDelete: 'cascade' }),
+  tileId: integer('tile_id'),
+  teamId: integer('team_id'),
+  submissionIds: jsonb('submission_ids').$type<number[]>().notNull().default([]),
+  webhookId: text('webhook_id').notNull(),
+  messageId: text('message_id').notNull(),
+  channelId: text('channel_id'),
+  createdAt: text('created_at').notNull(),
+  editedAt: text('edited_at'),
+  deletedAt: text('deleted_at'),
+}, (table) => [
+  index('discord_posts_tile_team_idx').on(table.tileId, table.teamId),
+  index('discord_posts_event_idx').on(table.eventId),
 ]);
 
 // Admin-saved event templates. Capturing an existing event's shape (format/scoring/size) plus its
@@ -4978,7 +5009,7 @@ export const promoReports = pgTable('promo_reports', {
 
 /**
  * Discord webhook ids platform staff blocked (/staff/webhooks, lib/sharedWebhooks): the send layer
- * refuses them for every clan and saving one is refused. An id only, never a token (drizzle/0234).
+ * refuses them for every clan and saving one is refused. An id only, never a token (drizzle/0237).
  */
 export const blockedWebhooks = pgTable('blocked_webhooks', {
   webhookId: text('webhook_id').primaryKey(),

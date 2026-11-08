@@ -1,5 +1,7 @@
 import { webhookIdentity } from '@/lib/discordIdentity';
 import { fetchDiscordWebhook } from '@/lib/discordWebhookUrl';
+import { currentPostRef, recordDiscordPost, withPostRef } from '@/lib/discordPosts';
+import { safeError } from '@/lib/webhookRedact';
 import { blockedWebhookIds, hasBlockedWebhook } from '@/lib/sharedWebhooks';
 import {
   ActivityMeter,
@@ -246,15 +248,22 @@ function jsonInit(payload: DiscordWebhookPayload): () => RequestInit {
 async function sendToWebhook(target: WebhookTarget, payload: DiscordWebhookPayload, clanId?: number): Promise<boolean> {
   // The clan's chosen name and icon (Anvil's by default, which sets nothing).
   if (clanId != null) payload = { ...(await webhookIdentity(clanId)), ...payload };
+  // A board post that may need editing later (lib/discordPosts): ask Discord for the message back,
+  // and record it against the webhook that actually sent it (a pool may pick any of its webhooks).
+  const ref = currentPostRef();
   try {
-    const result = await deliverWebhook(target, jsonInit(payload));
+    const result = await deliverWebhook(target, jsonInit(payload), { wait: !!ref });
     if (!result.ok && result.response && result.status !== 429) {
       const text = await result.response.text().catch(() => '');
       log.warn('discord.webhook-fail', { status: result.status, body: text.slice(0, 200) });
+    } else if (result.ok && ref && result.response && result.webhookUrl) {
+      const message = (await result.response.json().catch(() => ({}))) as { id?: unknown; channel_id?: unknown };
+      await recordDiscordPost(ref, result.webhookUrl, clanId, message);
     }
     return result.ok;
   } catch (error) {
-    log.warn('discord.webhook-exception', {}, error);
+    // Safe fields only: a fetch error can echo the webhook URL, token included.
+    log.warn('discord.webhook-exception', { error: safeError(error) });
     return false;
   }
 }
@@ -402,6 +411,56 @@ function webhookRequestUrl(webhookUrl: string, opts: { messageId?: string; wait?
 }
 
 /**
+ * One request to ONE webhook (a read, edit or delete of a message it owns), through the pool transport
+ * so a 429 is waited out, the rest is shared with every other sender, and a blocked webhook is refused.
+ * Never fails over: a message belongs to the webhook that sent it.
+ */
+async function editableWebhookRequest(url: string, method: 'POST' | 'PATCH' | 'GET' | 'DELETE', payload?: DiscordWebhookPayload): Promise<Response> {
+  const body = payload ? JSON.stringify(payload) : undefined;
+  const result = await deliverWebhook({ urls: [url], cursorKey: 'edit' }, () => ({
+    method,
+    ...(body ? { headers: { 'Content-Type': 'application/json' }, body } : {}),
+    signal: AbortSignal.timeout(10_000),
+  }));
+  return result.response ?? new Response(null, { status: result.status || 502 });
+}
+
+/**
+ * A message one of our webhooks sent, read back (to edit it in place) — null when it's gone or the
+ * webhook no longer works. 429s are waited out like every other webhook call.
+ */
+export async function getWebhookMessage(webhookUrl: string, messageId: string): Promise<{ embeds?: DiscordEmbed[]; content?: string | null } | null> {
+  try {
+    const res = await editableWebhookRequest(webhookRequestUrl(webhookUrl, { messageId }), 'GET');
+    if (!res.ok) return null;
+    return (await res.json()) as { embeds?: DiscordEmbed[]; content?: string | null };
+  } catch {
+    return null;
+  }
+}
+
+/** Edit a message one of our webhooks sent. True on success. */
+export async function editWebhookMessage(webhookUrl: string, messageId: string, payload: DiscordWebhookPayload): Promise<boolean> {
+  try {
+    const res = await editableWebhookRequest(webhookRequestUrl(webhookUrl, { messageId }), 'PATCH', payload);
+    if (!res.ok) log.warn('discord.webhook-edit-fail', { status: res.status });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Delete a message one of our webhooks sent. A message already gone (404) counts as deleted. */
+export async function deleteWebhookMessage(webhookUrl: string, messageId: string): Promise<boolean> {
+  try {
+    const res = await editableWebhookRequest(webhookRequestUrl(webhookUrl, { messageId }), 'DELETE');
+    return res.ok || res.status === 404;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Edit an earlier webhook post when its message id is known; otherwise post once with `wait=true`
  * so Discord returns the new id. A missing old message (or a replaced destination webhook) falls
  * back to a fresh post, while other edit failures do not risk creating a duplicate.
@@ -458,7 +517,7 @@ async function upsertWebhookMessage(
       ...(typeof body.id === 'string' && body.id ? { messageId: body.id } : {}),
     };
   } catch (error) {
-    log.warn('discord.webhook-upsert-exception', { clanId }, error);
+    log.warn('discord.webhook-upsert-exception', { clanId, error: safeError(error) });
     return { status: 'failed' };
   }
 }
@@ -821,6 +880,8 @@ interface SubmissionNotifyParams {
   eventId?: number | null;
   // The tile row, for its icon (the thumbnail). Optional — no icon, no thumbnail.
   tile?: LinkedTile | null;
+  /** The submission this post is about, so it can be found again (lib/discordPosts). */
+  submissionIds?: number[];
 }
 
 function formatClearTime(totalSeconds: number): string {
@@ -896,7 +957,7 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
   if (boardUrl) embed.url = boardUrl;
   if (imageUrl) embed.image = { url: imageUrl };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissions', teamId: params.teamId });
+  return withPostRef({ kind: params.completed ? 'submissionComplete' : 'submission', clanId: params.clanId, eventId: params.eventId, tileId: params.tile?.id ?? null, teamId: params.teamId, submissionIds: params.submissionIds }, () => sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissions', teamId: params.teamId }));
 }
 
 // Merged/debounced variant of notifySubmission. Several submissions for the same tile+team that
@@ -925,6 +986,8 @@ interface MergedSubmissionParams {
   milestonePct?: number | null;
   eventId?: number | null;
   tile?: LinkedTile | null;
+  /** The submissions merged into this post, so it can be found again (lib/discordPosts). */
+  submissionIds?: number[];
 }
 
 export async function notifyMergedSubmission(params: MergedSubmissionParams): Promise<boolean> {
@@ -968,7 +1031,7 @@ export async function notifyMergedSubmission(params: MergedSubmissionParams): Pr
   if (boardUrl) embed.url = boardUrl;
   if (imageUrl) embed.image = { url: imageUrl };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissions', teamId: params.teamId });
+  return withPostRef({ kind: params.completed ? 'submissionComplete' : 'submission', clanId: params.clanId, eventId: params.eventId, tileId: params.tile?.id ?? null, teamId: params.teamId, submissionIds: params.submissionIds }, () => sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissions', teamId: params.teamId }));
 }
 
 interface SubmissionDeletedParams {
@@ -1114,7 +1177,10 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
   if (eventId != null && !partOf) {
     void emitTileCompletion({ eventId, teamId: params.teamId, teamName, tileLabel, finisher });
   }
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'tileComplete', teamId: params.teamId });
+  const send = () => sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'tileComplete', teamId: params.teamId });
+  // Kept (lib/discordPosts) so a rolled-back completion can find its post. A combo part's progress
+  // post isn't a completion; it isn't kept.
+  return partOf ? send() : withPostRef({ kind: 'tileComplete', clanId: params.clanId, eventId: params.eventId, tileId: tile?.id ?? null, teamId: params.teamId }, send);
 }
 
 interface TilesRevealedNotifyParams {
@@ -1493,7 +1559,7 @@ export async function notifyTeamWin(params: TeamWinNotifyParams): Promise<boolea
     color: teamColorToDecimal(teamColor),
   };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'teamWin', teamId: params.teamId });
+  return withPostRef({ kind: 'teamWin', clanId: params.clanId, eventId: params.eventId, teamId: params.teamId }, () => sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'teamWin', teamId: params.teamId }));
 }
 
 // Role pinged on event start/finish posts so the whole clan is notified. Clan-specific, so it's

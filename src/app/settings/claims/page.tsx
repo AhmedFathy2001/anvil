@@ -44,6 +44,7 @@ export default async function OwnershipClaimsPage() {
 
       <SettingsGroup
         title="Claims on your characters"
+        id="claims-on-yours"
         note={
           onMine.length > 0
             ? `A character you never verified moves after ${OBJECTION_DAYS} days unless you object. One you verified moves only if you approve. Saying no hands it to Anvil staff.`
@@ -99,7 +100,7 @@ export default async function OwnershipClaimsPage() {
         ))}
       </SettingsGroup>
 
-      <SettingsGroup title="Your claims">
+      <SettingsGroup title="Your claims" id="your-claims">
         {mine.length === 0 && (
           <SettingsRow
             label="You haven’t claimed any character."

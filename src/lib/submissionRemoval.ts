@@ -1,10 +1,13 @@
 import { and, eq, isNotNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { eventParticipants, events, submissions, teams, tiles } from '@/db/schema';
+import { completions, eventParticipants, events, submissions, teams, tiles } from '@/db/schema';
 import { track } from '@/lib/analytics';
 import { notifySubmissionDeleted } from '@/lib/discord';
 import { syncDropTileCompletion } from '@/lib/submissions';
+import { afterReply } from '@/lib/proofFinish';
+import { removalNote } from '@/lib/discordPostEdit';
+import { markCompletionPostsRemoved, markSubmissionPostsRemoved } from '@/lib/discordPostActions';
 
 /**
  * Remove one submission the caller has already been cleared to remove, and do what follows it: the
@@ -39,6 +42,8 @@ export async function removeSubmission(opts: {
       : Promise.resolve(null),
   ]);
 
+  // Was the tile complete before? If the removal undoes it, its completion post is marked too.
+  const wasComplete = !!(await db.query.completions.findFirst({ where: and(eq(completions.teamId, submission.teamId), eq(completions.tileId, tile.id)) }));
   const gone = await db.delete(submissions)
     .where(and(eq(submissions.id, submission.id), eq(submissions.tileId, tile.id), ...(opts.awaitingProof ? [isNotNull(submissions.proofDueAt)] : [])))
     .returning({ id: submissions.id });
@@ -46,7 +51,11 @@ export async function removeSubmission(opts: {
   const sync = await syncDropTileCompletion(submission.tileId, submission.teamId);
 
   if (team && event && !opts.awaitingProof) {
-    notifySubmissionDeleted({
+    // The post that announced it (lib/discordPosts) is edited to say it was removed and why, image
+    // kept; one sent before posts were kept — or an edit Discord refuses — gets the short correction
+    // post instead. After the reply: the removal never waits on Discord.
+    const note = removalNote('removed', opts.reason);
+    const correction = () => notifySubmissionDeleted({
       clanId: opts.clanId,
       eventName: event.name,
       tileLabel: tile.label,
@@ -60,7 +69,12 @@ export async function removeSubmission(opts: {
       reason: opts.reason,
       eventId: event.id,
       tile,
-    }).catch(() => {}); // a Discord hiccup never undoes a removal
+    });
+    const undone = wasComplete && !(await db.query.completions.findFirst({ where: and(eq(completions.teamId, submission.teamId), eq(completions.tileId, tile.id)) }));
+    afterReply(async () => {
+      await markSubmissionPostsRemoved(submission.id, note, correction);
+      if (undone) await markCompletionPostsRemoved({ eventId: event.id, teamId: team.id, tileIds: [tile.id], action: 'edit', note });
+    });
   }
 
   track('submission.removed', { clanId: opts.clanId, props: { by: opts.deletedByRole } });

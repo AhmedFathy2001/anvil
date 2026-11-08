@@ -168,7 +168,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
     return false;
   }
 
-  async function applyDecision(policy: 'keep' | 'rollback', discord: 'keep' | 'correct') {
+  async function applyDecision(policy: 'keep' | 'rollback', discord: 'keep' | 'edit' | 'delete') {
     if (!decision) return;
     setSaving(true);
     try {
@@ -393,9 +393,9 @@ type Preview = { teams: { teamId: number; teamName: string; tiles: { id: number;
  * The decision a mid-race edit needs when it undoes progress: every affected team and tile across
  * the whole edit, then Keep (whoever got it, got it) or Roll back, and what to do in Discord.
  */
-function LiveEditDecision({ preview, saving, onCancel, onApply }: { preview: Preview; saving: boolean; onCancel: () => void; onApply: (p: 'keep' | 'rollback', d: 'keep' | 'correct') => void }) {
+function LiveEditDecision({ preview, saving, onCancel, onApply }: { preview: Preview; saving: boolean; onCancel: () => void; onApply: (p: 'keep' | 'rollback', d: 'keep' | 'edit' | 'delete') => void }) {
   const [policy, setPolicy] = useState<'keep' | 'rollback'>('keep');
-  const [discord, setDiscord] = useState<'keep' | 'correct'>('keep');
+  const [discord, setDiscord] = useState<'keep' | 'edit' | 'delete'>('edit');
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="live-edit-title">
       <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-card-border bg-card-bg p-4 space-y-4">
@@ -422,7 +422,9 @@ function LiveEditDecision({ preview, saving, onCancel, onApply }: { preview: Pre
           <fieldset className="space-y-2">
             <legend className="text-xs font-semibold text-text-muted mb-1">Their Discord posts</legend>
             <Choice checked={discord === 'keep'} onSelect={() => setDiscord('keep')} title="Leave them" body="The original “tile complete” posts stay as they are." />
-            <Choice checked={discord === 'correct'} onSelect={() => setDiscord('correct')} title="Post a correction" body="Posts “rolled back by an admin” in the board’s channel. Tile-complete posts aren’t stored with their message ids, so the originals can’t be edited or deleted." />
+            <Choice checked={discord === 'edit'} onSelect={() => setDiscord('edit')} title="Mark them as rolled back" body="Edits each post: the title struck through and “Rolled back by an admin” added; the picture stays." />
+            <Choice checked={discord === 'delete'} onSelect={() => setDiscord('delete')} title="Delete them" body="Removes the posts from the channel." />
+            <p className="text-[11px] text-text-muted">Posts sent before Anvil kept their message ids can’t be changed — those get a short “rolled back by an admin” correction post instead.</p>
           </fieldset>
         )}
         <div className="flex flex-wrap justify-end gap-2">
