@@ -9,7 +9,7 @@
  */
 import crypto from 'crypto';
 
-import { gameLines, parseProofClaims, type ProofClaims } from '@/lib/proofStamp';
+import { anvilLines, gameLines, parseProofClaims, type ProofClaims } from '@/lib/proofStamp';
 
 /** How long a credit waits for its screenshot before it is reversed. */
 export const PROOF_WINDOW_MS = 60_000;
@@ -81,7 +81,7 @@ export function encodePendingProof(p: PendingProof): string {
  * lib/proofStamp gameLines) — the rest of the player's chat is never stored while a credit waits.
  */
 export function stampOnlyClaims(claims: ProofClaims): ProofClaims {
-  return { ...claims, chat: claims.chat.filter((c) => gameLines({ ...claims, chat: [c] }).length > 0) };
+  return { ...claims, chat: claims.chat.filter((c) => gameLines({ ...claims, chat: [c] }).length > 0 || anvilLines({ ...claims, chat: [c] }).length > 0) };
 }
 
 /** A submission row as any API may show it: the waiting-proof bookkeeping (key, stored claims) never leaves. */

@@ -15,7 +15,7 @@ import { clans, eventParticipants, events, proofUploads, submissions, teams, til
 import { notifySubmission } from '@/lib/discord';
 import { flushPendingNotifications, queueSubmissionNotification } from '@/lib/notifications';
 import { PROOF_REVERSAL_REASON } from '@/lib/proofAfter';
-import { gameLines, stampModel, type ProofClaims } from '@/lib/proofStamp';
+import { anvilLines, gameLines, stampModel, type ProofClaims } from '@/lib/proofStamp';
 import { bakeStamp } from '@/lib/proofStampImage';
 import { clanMediaKey, put } from '@/lib/storage';
 import { removeSubmission } from '@/lib/submissionRemoval';
@@ -63,7 +63,7 @@ export async function stampAndPost(i: StampAndPost): Promise<void> {
   let imageUrl = i.imageUrl;
   try {
     if (i.claims && imageUrl) {
-      const facts = { ...i.claims, chat: undefined, lines: gameLines(i.claims), receivedAt: i.receivedAt };
+      const facts = { ...i.claims, chat: undefined, lines: gameLines(i.claims), anvil: anvilLines(i.claims), receivedAt: i.receivedAt };
       try {
         // Only a picture this site stored itself (a proof_uploads row on a managed host), and no
         // redirects — the URL is client-supplied, so it must never become a fetch of somewhere else.
