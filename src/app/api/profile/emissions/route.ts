@@ -65,7 +65,9 @@ export async function PATCH(request: Request) {
   if ('notifyPrefs' in body) {
     const current = await getNotifyPrefs(session.userId);
     const patch = body.notifyPrefs && typeof body.notifyPrefs === 'object' ? body.notifyPrefs : {};
-    await setNotifyPrefs(session.userId, normalizeNotifyPrefs({ ...current, ...patch }));
+    // Screenshot privacy is a nested set: merge it key by key so one checkbox doesn't reset the rest.
+    const hide = patch.hide && typeof patch.hide === 'object' ? { ...current.hide, ...patch.hide } : current.hide;
+    await setNotifyPrefs(session.userId, normalizeNotifyPrefs({ ...current, ...patch, hide }));
     return NextResponse.json(await emissionSettingsView(session.userId, session.playerId));
   }
 
