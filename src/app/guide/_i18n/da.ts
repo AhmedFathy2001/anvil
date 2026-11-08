@@ -218,6 +218,48 @@ const da: PartialGuideDict = {
           'At placere og flytte et boost, de tre niveauer og hvad hvert af dem låser op for, klanens navnefarver, boosts i gave, og booster-mærker og badges.',
         minutes: '~5 min',
       },
+      profile: {
+        eyebrow: 'Til spillere',
+        title: 'Din profil, Wrapped og Compare',
+        blurb: 'Din profil, hver karakters offentlige side og din personside, hvem der kan se dem, månedlige og event-baserede Wrapped-kort samt sammenligning af to karakterer.',
+        minutes: '~4 min',
+      },
+      settings: {
+        eyebrow: 'Til spillere',
+        title: 'Indstillinger, side for side',
+        blurb: 'Discord-opslag og skærmbilledefortrolighed, chatfeedet i spillet, enheder, dine egne webhooks, hvem der ser dine karakterer, hver karakter og ejerskabskrav.',
+        minutes: '~6 min',
+      },
+      challenges: {
+        eyebrow: 'Til spillere',
+        title: 'Udfordringer og venne-events',
+        blurb: 'Udfordr en spiller til et drop-, kill- eller XP-væddeløb, og vær vært for et privat bræt for dine venner bag ét invitationslink.',
+        minutes: '~4 min',
+      },
+      clanHall: {
+        eyebrow: 'Til spillere og klaner',
+        title: 'Find klaner, events og ranglister',
+        blurb: 'Clan Hall, sammenligning af to klaner, den ugentlige rangliste, listen over offentlige events og sider for klaner i spillet, der ikke er på Anvil.',
+        minutes: '~3 min',
+      },
+      guideLibrary: {
+        eyebrow: 'Til spillere og klanstaben',
+        title: 'Guides i spillet',
+        blurb: 'Læs guidebiblioteket efter niveau, foreslå en ny guide eller en ændring, og hold din klans egne kopier.',
+        minutes: '~3 min',
+      },
+      weekly: {
+        eyebrow: 'Til klanstaben og spillere',
+        title: 'Skill og Boss of the Week',
+        blurb: 'Planlæg en ugentlig konkurrence, gentag og roter den, startlinjer, præmier, afslutning før tid og hvad spillerne ser.',
+        minutes: '~4 min',
+      },
+      clanEvents: {
+        eyebrow: 'Til klanstaben',
+        title: 'Klanevents og kalenderen',
+        blurb: 'Masser, raidaftener og samlinger: ugentlige gentagelser, “I’m going” og tilmeldinger, Discord-påmindelser, udbetalinger, undersøgelser og huller i kalenderen.',
+        minutes: '~4 min',
+      },
     },
   },
 
@@ -415,6 +457,25 @@ const da: PartialGuideDict = {
         tag: 'Kun udseende',
         body: 'Boosts ændrer, hvordan klanen ser ud, og hvor den bliver vist. De ændrer aldrig en rang, en score, jeres pladser eller jeres abonnement.',
       },
+    },
+    features: {
+      title: 'Funktioner og abonnement',
+      intro: 'Admins kan slå hele dele af Anvil til eller fra under **Features**. Fra skjuler dem i menuerne; intet slettes.',
+      rows: [
+        {
+          term: 'Events',
+          body: '**Skill & Boss of the Week** (til), **Surprise-task formats** (fra), **Missions** (fra), **Post-event survey** (fra).',
+        },
+        {
+          term: 'Penge',
+          body: '**Sign-up fees** (til), **Clan coffer** (fra).',
+        },
+        {
+          term: 'Discord og plugin',
+          body: '**Post to Discord** (til), **Death & fun messages** (fra), **Clan Hall card**, der viser, hvem der er online i din Discord, på din offentlige klanside (til).',
+        },
+      ],
+      outro: '**Plan and billing** viser dit abonnement, hvor mange medlemmer du har i forhold til dets størrelse, og de større abonnementer. Betaler du, er **Manage subscription and invoices** der også.',
     },
   },
 
@@ -1002,6 +1063,63 @@ const da: PartialGuideDict = {
         },
       ],
     },
+    screen: {
+      title: 'På skærmen, mens du spiller',
+      intro: 'Hvad pluginnet tegner og skriver, mens du spiller, og indstillingen bag hver.',
+      rows: [
+        {
+          term: 'Fastgjorte felter',
+          body: 'åbn et felt i sidepanelet og tryk **Track on screen** (op til 3). Med **Pinned tiles in one panel** til deler de ét lille panel: hvert felts navn, dit holds fremskridt og linjer som _3/5 runs_ eller hvilke dele af en kombination der er færdige. Fra får hvert sit eget større widget med dine holdkammerater og de andre hold. Alt-træk for at flytte det. Højreklik for **Unpin** eller **Unpin all**. Et færdigt felt viser **Done** og fjerner sig selv bagefter.',
+        },
+        {
+          term: 'Startskud-kortet',
+          body: 'mens et event venter på dit startskud, siger et kort **Starting shot needed** øverst på skærmen, hvor du skal hen, og viser hvert tjek med grønt eller rødt: relog, hvor længe din session har varet, og hvor mange felter du er fra stedet. En pejlepil og et verdenskortpin (**Anvil starting shot**) fører dig derhen. Med **Auto starting shot** til tages skuddet, så snart alt er grønt; så siger kortet **You’re tracked** og går. Indstilling: **Starting shot guide**.',
+        },
+        {
+          term: 'Bannere',
+          body: '**Tile complete!** når dit hold færdiggør et felt, dit eget drops fremskridt på et felt, og **New mission!**. Indstillinger: **Team completion popups** og **My tile popups**.',
+        },
+        {
+          term: 'Vestige-ruller',
+          body: 'ved Desert Treasure II-bosserne skriver hver unik en linje med, hvor du er i vestige-rotationen, f.eks. _Roll 2 of 4_ eller _the next unique is the vestige_. Den siger _(estimated)_, indtil den har set dig få en vestige. Ingen indstilling; den kører med eller uden event.',
+        },
+        {
+          term: 'Lookup-autofuldførelse',
+          body: 'når du skriver i **Lookup**-feltet, fuldfører den navnet for dig ud fra dine seneste opslag, venner, klanfolk online og spillere i nærheden. **Enter** accepterer. Den læser kun din egen klient; intet sendes.',
+        },
+        {
+          term: 'Chatfarver',
+          body: '**[Anvil] tag colour** og **Message colour** under **Chat messages**. Indtil du vælger, bliver de mørkt guld og sort på en uigennemsigtig chatboks, så de forbliver læselige. Hold musen over en Supporters navn i chatten for at se niveauet, f.eks. _Anvil Patron_.',
+        },
+      ],
+    },
+    sync: {
+      title: 'Profilsynkronisering, og hvad den ellers sender',
+      intro: 'Indstillingerne **Profile sync** udfylder din Anvil-profil. Alle fire er slået til fra start:',
+      rows: [
+        {
+          term: 'Synkronisér samlingslog',
+          body: 'hver samlingslogside du åbner, sendes til din profil.',
+        },
+        {
+          term: 'Synkronisér hele loggen ved åbning',
+          body: 'åbning af samlingsloggen sender hele den, ikke kun den side, du kigger på. For at gøre det på forespørgsel, tryk på knappen **Anvil** i samlingsloggens titellinje, eller **Sync profile** i sidepanelet mens loggen er åben. Chatten bekræfter det: _Profile synced — N collection log slots._',
+        },
+        {
+          term: 'Synkronisér personlige rekorder',
+          body: 'boss- og raidtider sendes, så snart du sætter dem.',
+        },
+        {
+          term: 'Importér eksisterende rekorder én gang',
+          body: 'én gang pr. karakter kopieres de personlige rekorder, RuneLite allerede har gemt på din computer: _Imported N personal best(s) from RuneLite._',
+        },
+        {
+          term: 'Del højdepunkter med klanen',
+          body: 'dine kæledyr, store drops, dødsfald, kampopgaver, levelmilepæle, nye logpladser og dagbøger vises i din klans feed på siden og i chatfeedet hos spillere, der kan se dem.',
+        },
+      ],
+      outro: 'Tre ting mere sendes uden en indstilling af egen. **Hvem dræbte dig**: monsteret eller spilleren, der havde dig som mål de sidste 15 sekunder, nævnes i feedet. **Spiltællere**: nogle felter tæller et tal, spillet selv holder, som Tithe Farm-point, Giants’ Foundry-omdømme, Doom-delves eller slayer-serier; kun stigninger tæller. **Leagues, Deadman og andre modes**: på de verdener sendes spillets egne linjer om relikvier, områder og opgaver, så din klan kan poste dem i sin mode-kanal.',
+    },
   },
 
   admin: {
@@ -1250,6 +1368,14 @@ const da: PartialGuideDict = {
         'Med federation slået til kan medlemmerne også forbinde sig til andre Anvil-klaner fra pluginnet — praktisk til events på tværs af klaner, og helt frivilligt for det enkelte medlem.',
       outro: 'Send så dine medlemmer videre til [opsætningsguiden til spillere]({pluginGuide}), og begynd at planlægge den næste.',
     },
+    survey: {
+      title: 'Spørg spillerne',
+      intro: 'Slå **Post-event survey** til under **Features**, og åbn så eventets **Survey**-side.',
+      body: [
+        'Under **Build** tilføjer du spørgsmål: **Rating (1–5)**, **Free text**, **Choose one** eller **Choose many**, hver især valgfrit **Required**. Eller indlæs en skabelon: **Bingo wrap-up**, **Quick pulse**, **PvM mass**, **Raid team** eller **Skilling / social**. **Preview the participant view** viser den, sådan som en spiller ser den.',
+        'Den åbner, når eventet slutter, kun for godkendte deltagere, og de kan ændre deres svar senere. **Results** viser svar **By question** eller **By person**. Den er ikke anonym: staben ser, hvem der sagde hvad.',
+      ],
+    },
   },
 
   clanVsClan: {
@@ -1469,6 +1595,28 @@ const da: PartialGuideDict = {
         body: 'Sluk linkene og fjern pladserne i holdstaben. Ingen af delene udløber af sig selv, og et aktivt link på et afsluttet event er bare en løs ende.',
       },
     },
+    cohost: {
+      title: 'Hvis du er medvært',
+      intro: 'Alt ovenfor er værtens side. Den besøgende klans stab får deres egen side for eventet, **Co-hosted with <host>**. Værten beholder datoerne, kladden, holdene og hvem der kan se det.',
+      rows: [
+        {
+          term: 'Jeres klans tilmeldinger',
+          body: '**Approve**, **Reject** eller **Withdraw** din egen klans spillere. Du ser eller rører aldrig værtens.',
+        },
+        {
+          term: 'Brættet',
+          body: 'du kan kun redigere, hvis værten gav din stab det. Ellers kan du **Suggest a tile**: feltet, detaljer og point, op til 25 ventende ad gangen. Hvert vises som **waiting**, **accepted ✓** eller **turned down** med værtens begrundelse.',
+        },
+        {
+          term: 'Dit hold',
+          body: '**Manage** din klans hold.',
+        },
+        {
+          term: 'Discord',
+          body: 'dine admins vælger, hvad der når din egen server: **Everything shared**, **Big moments** eller **Nothing**, hvilken kanal, hvem der får en ping, og om dine spillere får rollen **@Bingo player**.',
+        },
+      ],
+    },
   },
   board: {
     metaTitle: 'Byg et bræt — Anvils vejledning til feltopsætning',
@@ -1660,6 +1808,36 @@ const da: PartialGuideDict = {
         tag: 'Hvem må det her',
         body: 'Brætopsætning er det ene adminjob, der har sin egen rolle. En **editor** kan oprette felter og intet andet, og kan afgrænses til bestemte brætter — så en gæstebrætbygger fra en anden klan får præcis det event, du har givet dem, og ingen adgang til noget andet, du kører.',
       },
+    },
+    library: {
+      title: 'Opgavebiblioteket og forslag',
+      body: [
+        'Felt-redaktører har **Task library** i admin-menuen: din klans gemte opgaver, og Anvils eget bibliotek at kopiere fra. **⬇ Export pack** gemmer dine opgaver som en fil, og **⬆ Import pack** indlæser en. Sådan flytter et bræt sig mellem klaner.',
+        'Fundet en fejl i Anvils bibliotek, eller en opgave der mangler? Tryk **Suggest a fix** på opgaven, eller **Suggest a new task**. Anvil gennemgår det, og svaret vises under **Your suggestions**: **Waiting for review**, **Approved** eller **Not taken**, med en note. Du kan have 5 ventende. En godkendt rettelse når alle klankopier, der stadig følger biblioteket.',
+      ],
+    },
+    stats: {
+      title: 'Startstatistik og sene deltagere',
+      intro: 'XP- og drabstællerfelter sammenligner hver spillers statistik nu med deres **startstatistik**, taget når eventet starter. Eventets **Stats**-side er der, du kontrollerer og retter dem:',
+      rows: [
+        {
+          term: 'Tag startstatistik',
+          body: 'før start varmer den kun hiscores op; selve startlinjen tages ved start. Efter start bliver knappen til **Capture late joiners**, for spillere, der er tilføjet siden. Den kan køre én gang hvert 30. minut.',
+        },
+        {
+          term: 'Update now',
+          body: 'opdaterer stillingerne fra de seneste tal. De opdateres også hver time af sig selv.',
+        },
+        {
+          term: 'Fix baseline',
+          body: 'pr. spiller: ret et skills- eller bossstartnummer i hånden. Brug det, når et grind fra før eventet ikke blev talt, fordi spilleren ikke logget ud, før det startede.',
+        },
+        {
+          term: 'Nulstil al startstatistik',
+          body: 'gemt under **Danger zone**: tager alles startlinje igen fra deres nuværende stats og fjerner alle gevinster indtil nu. Kun til et event, der startede ved en fejl.',
+        },
+      ],
+      outro: 'Nedenunder viser **Member breakdown**, hvem der på hvert hold gjorde hvad, og **Stat tile standings** hver spillers start- og nuværende tal på hvert XP- eller drabsfelt.',
     },
   },
 
@@ -2918,9 +3096,10 @@ const da: PartialGuideDict = {
     viewers: {
       title: 'Hvad seere er',
       body: [
-        'En seer, der kommer med, er en **event player**. De spiller det ene event.',
-        'De er ikke klanmedlemmer og ikke gæster. De havner aldrig på din klanliste, og de får ingen rang.',
-        'Du kan se alle, der kom med på den måde, under **People** → **Past viewers**.',
+        'En seer, der deltager, er en **event player**. De spiller det ene event.',
+        'De er ikke klanmedlemmer og ikke gæster. De kommer aldrig på din klanliste, og de får ingen rang.',
+        'Du kan se alle, der er kommet ind på den måde, under **People** → **Past viewers**.',
+        'En stamgæst du gerne vil beholde? **Make guest** på deres række gør dem til en klangæst, så de kan deltage i alle dine events, der er åbne for gæster, ikke kun dette. **Make a guest a viewer again** gør en gæst til en seer af ét event igen.',
       ],
     },
 
@@ -3320,6 +3499,13 @@ const da: PartialGuideDict = {
           term: 'Discord-roller er noget andet',
           body: 'Anvils rollesynkronisering matcher Discord-roller med **rang i spillet**, ikke med roller på siden. At gøre nogen til moderator her giver dem intet på jeres Discord-server, og en moderatorrolle, du har givet i hånden i Discord, bliver ladet i fred. Den ene botkommando, der ændrer noget, at lægge til kassen med `/coffer`, tjekker rollen på siden: kasserer, admin eller ejer.',
         },
+      ],
+    },
+    log: {
+      title: 'Aktivitetsloggen',
+      body: [
+        '**Activity log** i admin-menuen viser de nyeste 200 ændringer, og alle stabsmedlemmer kan læse den: tilslutninger, afgange, omdøbninger og verifikationer, ejerskabsoverdragelser, kaptajner tilføjet og fjernet, tilmeldinger godkendt eller afvist, gebyrer bekræftet, funktioner slået til eller fra og indstillinger ændret. **Filter by event type** indsnævrer den.',
+        'Det er også der, dubletter bliver ryddet op. **Merge two members** slår en dublet ind i den rigtige, og **Suspected renames** viser navneændringer, Anvil har set, som du kan bekræfte eller afvise.',
       ],
     },
   },
@@ -3909,6 +4095,670 @@ const da: PartialGuideDict = {
       note: {
         tag: 'At flytte starter uret forfra',
         body: 'Badges for tid tæller fra karakterens tidligste boost, der stadig tæller, så at flytte eller fjerne et boost starter dem forfra. Din profil viser de klaner, du booster, én gang pr. klan.',
+      },
+    },
+  },
+
+  profile: {
+    metaTitle: 'Din profil, Wrapped og Compare — Anvil',
+    metaDescription: 'De sider Anvil har om dig: din profil, hver karakters offentlige side, din personside, månedlig og årlig Wrapped, event-Wrapped-kort og sammenligning af to karakterer side om side.',
+    eyebrow: 'Anvil · til spillere',
+    title: 'Din profil, Wrapped og Compare',
+    dek: 'Anvil har én side for **dig** og én for **hver karakter**, du spiller. Her er, hvad der står på dem, hvem der kan åbne dem, og Wrapped-kortene, der kommer ved udgangen af hver måned og hvert event.',
+    facts: [
+      {
+        strong: 'Delt som standard',
+        rest: 'slå enhver karakter privat med ét skifte',
+      },
+      {
+        strong: 'Monthly Wrapped',
+        rest: 'kommer den 1. i den følgende måned',
+      },
+      {
+        strong: 'Event Wrapped',
+        rest: 'kommer, når eventet slutter',
+      },
+    ],
+    footnote: 'Alle skift, der nævnes her, forklares, hvor de findes, i [Indstillinger, side for side]({settingsGuide}).',
+    pages: {
+      title: 'Dine sider',
+      intro: 'Fire sider, der hver svarer på et forskelligt spørgsmål:',
+      rows: [
+        {
+          term: 'Din profil',
+          body: '[/profile](/profile), kun synlig for dig. Vælg en karakter fra brikkerne øverst for at se dens niveauer, bosser, samlingslog og events. Kaptajner får også et **Captain’s deck** her.',
+        },
+        {
+          term: 'En karakters side',
+          body: '`/p/<name>`: én karakter, læsbar for alle med linket, mens den er delt. Den viser skills, bosser, samlingsloggen og personlige rekorder, og udelader med vilje dine klanplaceringer, din eventhistorik og dit Discord-navn.',
+        },
+        {
+          term: 'Din personside',
+          body: '`/u/…`: alle dine delte karakterer på én side, med din udstillingsvitrine og de streamingkonti, du valgte at vise. Den findes kun, hvis du slår **Show that my characters are one person** til.',
+        },
+        {
+          term: 'En klans medlemsside',
+          body: '`/c/<clan>/members/<name>`: den samme karakter, som én klan ser den, nået fra den klans **Members**-liste. En privat klan viser kun sine medlemmer til sine egne.',
+        },
+      ],
+    },
+    sharing: {
+      title: 'Hvem der kan se hvad',
+      body: [
+        'Hver karakter starter **shared**: dens side åbner for alle med linket, og den kan optræde på ranglister og over for andre klaner. Slå en fra under **Who sees my characters** i Indstillinger, og dens side svarer _not found_ for alle undtagen dig. Du ser **Private — only you can see this page.** med et **Share it →**-link.',
+        'En delt side har **Copy link** under navnet. Indloggede besøgende, der synes en side er krænkende, kan trykke **Report this profile**.',
+        'Pr. karakter lader Indstillinger dig også skjule, hvilken klan i spillet den er i (**Show my in-game clan**), så den forlader karakterens side og den klans Anvil-side.',
+      ],
+    },
+    wrapped: {
+      title: 'Din månedlige og årlige Wrapped',
+      body: [
+        'Hver måned får hver karakter et Wrapped-kort: **XP gained**, **Boss kills**, **New slots** i samlingsloggen, **Efficient**-timer, **PBs**, samt kæledyr og det største drop. Det kommer den **1. i den følgende måned** (UTC). Indtil da kan kun du åbne det, som en forhåndsvisning.',
+        'Året får også ét, på `/p/<name>/wrapped/<year>`, fra **1. december**. `/p/<name>/wrapped` fører altid til det nyeste, der findes.',
+        'Tryk **Copy link to your Wrapped** for at dele det. Sat ind i Discord vises det som et billede af kortet. En privat karakters Wrapped åbner kun for dig, og dens link forhåndsvises som et almindeligt Anvil-kort.',
+      ],
+      note: {
+        tag: 'En tom måned',
+        body: 'Hvis intet nåede Anvil den måned (ingen XP, drab, logpladser eller PBs), siger kortet det i stedet for at vise nuller. Spil med pluginnet, eller lad hiscores fange dig, og næste måned udfyldes.',
+      },
+    },
+    events: {
+      title: 'Event Wrapped',
+      body: [
+        'Når et bræt slutter, får hver spiller og hvert hold et kort. Åbn eventets **Wrapped**-side: **Your card** står øverst, derefter **Teams** (rang, score og spillere) og **Players**. Tryk **Open and share your card**, og så **Copy share link**.',
+        'Før slutningen ser du **Cards aren’t out yet**. Staff kan åbne en forhåndsvisning tidligt, så de kan tjekke kortene, før spillerne ser dem.',
+        'Kortbillederne vises kun for et offentligt klans event, der ikke var kun for inviterede. For alle andre events virker linket stadig for dem, der kan se eventet, og forhåndsvises som et almindeligt Anvil-kort.',
+      ],
+    },
+    compare: {
+      title: 'Sammenlign to karakterer',
+      body: [
+        'Åbn [Compare](/compare) og skriv to navne. Du får skills-, boss- og samlingslogsider side om side. Lederen på hver optælling er i guld. Nedenunder er en analyse, XP pr. skill, hver boss I begge har dræbt, og hver logside punkt for punkt: I har begge det, ingen af jer har det, eller kun en af jer. **Swap sides** vender dem om.',
+        'Kun delte karakterer kan sammenlignes. En privat, eller et navn Anvil ikke kender, giver _not on Anvil, or not shared_. Du kan altid sammenligne dine egne private karakterer, når du er logget ind.',
+      ],
+    },
+  },
+  settings: {
+    metaTitle: 'Indstillinger, side for side — Anvil',
+    metaDescription: 'Hver side under Anvil-indstillinger: Discord-opslag og skærmbilledefortrolighed, chatfeedet i spillet, pluginforbindelse og enheder, dine egne webhooks, hvem der ser dine karakterer, Supporter- og profiludseende, streamingkonti, hver karakter og ejerskabskrav.',
+    eyebrow: 'Anvil · til spillere',
+    title: 'Indstillinger, side for side',
+    dek: '[Settings](/settings) er der, dine egne valg bor: hvad du poster, hvad du ser i spillet, og hvem der kan se dine karakterer. Valg, du træffer her, følger dig til hver computer, du spiller på.',
+    facts: [
+      {
+        strong: 'Søgefelt',
+        rest: 'på første side finder enhver indstilling',
+      },
+      {
+        strong: 'Én side pr. karakter',
+        rest: 'under Characters',
+      },
+      {
+        strong: '10 webhooks',
+        rest: 'af dine egne',
+      },
+    ],
+    footnote: 'Dine profilsider forklares i [Din profil, Wrapped og Compare]({profileGuide}); pluginnets egne indstillinger i [Opsætning af RuneLite-pluginnet]({pluginGuide}).',
+    find: {
+      title: 'Find en indstilling',
+      body: [
+        'Den første side, **Overview & search**, har et søgefelt. Skriv det, du vil have, med egne ord, som _private messages_, _rare drop value_, _death message_, _name colour_ eller _plugin token_, og det fører dig til det rette skifte.',
+        'Menuen ned ad siden har to grupper. **Account** rummer siderne nedenfor. **Characters** har én side pr. karakter, du har koblet (din hovedkarakter er markeret **main**), og så **Add character**. Et tal på **Add character** betyder, at Anvil har set dig spille karakterer, du ikke har koblet endnu.',
+      ],
+    },
+    posts: {
+      title: 'Discord-opslag og skærmbilleder',
+      intro: 'Hvad pluginnet poster om dig i dine klans Discord-kanaler, og hvad det skjuler på skærmbilleder. Disse valg læses af den næste pluginopdatering. Indtil du har den, bestemmer de samme skift i pluginnets egne indstillinger.',
+      rows: [
+        {
+          term: 'Hvad dit plugin poster',
+          body: '**Rare drops**, **Pets**, **Deaths**, **Collection log slots**, **Level milestones** og **Diary completions** er slået til fra start; **PvP kills** er slået fra.',
+        },
+        {
+          term: 'Tallene',
+          body: '**Min drop value** (5m fra start, mindst 1m, 0 slår det fra), **Min drop rarity (1 in N)** (1 pr. 10.000 fra start), **Loot key value** (1m), en **Death message** på op til 200 tegn, hvor `{name}` bliver til dit navn, og den laveste **Combat task tier** og **Quest tier**, der poster (Master fra start).',
+        },
+        {
+          term: 'Hvor dine opslag går',
+          body: '**Keep my announcements out of clans I only guest in**, og **Level posts in clan channels**: **Clan rules**, **Only 99s & max** eller **Off**. **Per character** lister hver karakter med et **Clans →**-link, så du kan slå opslag fra for én klan.',
+        },
+        {
+          term: 'Skærmbilledefortrolighed',
+          body: 'sæt kryds ved den chat, der udelades fra hvert skærmbillede pluginnet tager, både beviser og Discord-opslag: **Private messages** (sat til fra start), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** og **Group chat**. Spilbeskeder og Anvils egne linjer bliver altid med.',
+        },
+      ],
+      note: {
+        tag: 'Brætfelter berøres aldrig',
+        body: 'At slå et opslag fra stopper kun Discord-opslaget. Drops, drab og bedrifter tæller stadig på ethvert bræt, du spiller.',
+      },
+    },
+    chat: {
+      title: 'Chatfeed i spillet',
+      intro: 'Hvad pluginnet skriver i din chatboks, når pluginindstillingen **Show feed in game chat** er slået til.',
+      rows: [
+        {
+          term: 'Hvorfra',
+          body: '**Boards I play on**, og **Clans I’m guesting in, and my clan’s guests**.',
+        },
+        {
+          term: 'Hvad',
+          body: 'drops til mindst et beløb du vælger, **Pets**, **New collection log slots**, **Other teams’ completed tiles**, **My team’s progress on item tiles**, **Leagues, Deadman and other game-mode unlocks**, og kampopgaver, niveauer, quests og dagbøger.',
+        },
+        {
+          term: 'Når du logger ind',
+          body: '**A short brief in chat**: hvad der skete, mens du var væk. Champions vælger, hvad det dækker.',
+        },
+        {
+          term: 'Farver',
+          body: '**Anvil lines in chat**: **By type (Anvil colours)**, **One colour (the plugin’s own)**, eller **My own colours** for Supporters.',
+        },
+      ],
+    },
+    login: {
+      title: 'Pluginforbindelse, login og enheder',
+      intro: 'Hvor pluginnet og hjemmesiden er logget ind, og hvordan du logger dem ud.',
+      rows: [
+        {
+          term: 'Pluginforbindelse',
+          body: 'dit plugin-token, til det sjældne tilfælde hvor du indsætter det i hånden. Normalt gør **Sign in with Discord** i sidepanelet det for dig.',
+        },
+        {
+          term: 'Login og enheder',
+          body: 'hver computer pluginnet er logget ind på, som **RuneLite sign-in 1**, **2** … med hvornår den blev lavet og sidst brugt. **Revoke** logger en ud, f.eks. en computer du har solgt. **Enter a code** kobler en anden computer til. **Sessions** logger dig ud af hjemmesiden alle steder.',
+        },
+        {
+          term: 'Klanfakturering',
+          body: 'klanejere får **Open portal →** her, til klanens fakturering.',
+        },
+      ],
+    },
+    webhooks: {
+      title: 'Dine Discord-webhooks',
+      body: [
+        'Dine opslag kan også gå til en Discord-server, du selv har: en privat kanal, en venneserver, hvor som helst du kan lave en webhook. Indsæt webhook-linket, sæt kryds ved hvad den får (**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**), sæt evt. **Only drops worth at least … gp**, og tryk **Add webhook**.',
+        'Du kan have op til 10. Kun Discord-webhook-links accepteres, og et gemt vises maskeret, så et skærmbillede af siden ikke lækker det. **Level posts on my webhooks** sætter dine egne niveauregler for dem, adskilt fra din klans.',
+      ],
+    },
+    privacy: {
+      title: 'Hvem der ser mine karakterer',
+      intro: 'Dine karakterer er delt fra start. Tre skift ændrer det:',
+      rows: [
+        {
+          term: 'Show <name> publicly',
+          body: 'ét skift pr. karakter. Til (fra start), er dens side **Public**. Fra, er den **Only its clans**: dens klaner ser den stadig i deres lister og events, ingen andre gør, og den forlader ranglisterne.',
+        },
+        {
+          term: 'Show that my characters are one person',
+          body: 'med to eller flere karakterer laver dette din personside, der samler dine delte karakterer. Fra kan ingen se, at de alle er dig.',
+        },
+        {
+          term: 'Show other clans’ boards',
+          body: 'om forsiden viser andre klaners åbne bræt, som du kan kigge på.',
+        },
+      ],
+    },
+    look: {
+      title: 'Supporter, profiludseende, streaming og boosts',
+      intro: 'Sådan ser du ud på Anvil, og kontiene og fordelene bag det.',
+      rows: [
+        {
+          term: 'Supporter og navnefarver',
+          body: 'dit niveau, dine fordele og dit invitationslink: tag venner med og optjen gratis måneder. Niveauerne forklares i [Anvil Supporter]({supporterGuide}).',
+        },
+        {
+          term: 'Profilens udseende',
+          body: 'avatar og banner (animeret fra Champion), forskellige pr. karakter hvis du vil, og **Display case**: 4, 8 eller 12 pins efter niveau.',
+        },
+        {
+          term: 'Streamingkonti',
+          body: '**Twitch**, **YouTube**, **Kick** og **Medal**. Hver viser, om den er verificeret, med et skift til at vise den på din profil. Verificerede konti er det, der lukker dig ind til følger- og abonnentevents.',
+        },
+        {
+          term: 'Klan-boosts',
+          body: 'vises først, når du kan booste: dine pladser, hvor de er placeret, og de klaner du kan booste. Se [Sådan booster du en klan]({boostsGuide}).',
+        },
+      ],
+    },
+    characters: {
+      title: 'Hver karakter',
+      intro: 'Under **Characters** har hver karakter sin egen side: dens type, om den er verificeret, og links til dens offentlige side og fulde profil.',
+      rows: [
+        {
+          term: 'Synlighed',
+          body: '**Show to other clans and on leaderboards**, og **Show my in-game clan**.',
+        },
+        {
+          term: 'Klaner',
+          body: 'hver klan og hvert rum den er i, som **member** eller **guest**, med **Announce drops & achievements** pr. klan og **Leave**. Hvis Anvil har den i den forkerte klan, fortæller **Which clan is it really in?** staff det.',
+        },
+        {
+          term: 'Karakter',
+          body: '**Make main**, bed om et navneskift efter en navneændring, eller **Remove** den fra din konto. Dens tidligere resultater bliver, hvor de er.',
+        },
+        {
+          term: 'Add character',
+          body: 'spil en karakter én gang med pluginnet logget ind, så kobler den sig selv. På mobil eller den officielle klient kobler du den med navn. **We noticed you playing** lister dem, Anvil har set; **Not mine** afviser en.',
+        },
+      ],
+    },
+    claims: {
+      title: 'Ejerskabskrav',
+      body: [
+        'Hvis en karakter er koblet til en andens Anvil-konto, men egentlig er din, så tryk **This is my account** i pluginets sidepanel under fanen **You**. Du beviser, at du spiller den med et hurtigt XP-tjek, og så bliver den nuværende ejer spurgt. Du får aldrig at vide, hvem de er, og de får aldrig at vide, hvem du er.',
+        'Dine krav viser **XP check**, **open**, og derefter hvordan de endte: **moved to you**, **with Anvil staff**, **withdrawn**, **check timed out** eller **closed**. **Withdraw** annullerer et.',
+        'Når nogen gør krav på en af dine, vises den under **Claims on your characters** med **Approve** eller **Object — it’s mine**. En ikke-verificeret karakter flytter sig efter 7 dage, medmindre du gør indsigelse. En verificeret flytter sig kun, hvis du godkender det.',
+      ],
+    },
+  },
+  weekly: {
+    metaTitle: 'Skill og Boss of the Week — Anvil',
+    metaDescription: 'Sådan kører du en Skill of the Week, Boss of the Week eller et effektivitetsløb på Anvil: planlægning, gentagelse og rotation, startlinjer, tilføjelse og fjernelse af folk, præmier, afslutning før tid og hvad spillerne ser.',
+    eyebrow: 'Anvil · til klanstaben og spillere',
+    title: 'Skill og Boss of the Week',
+    dek: 'Et ugentligt væddeløb er det lavindsats-event: ingen felter at skrive, ingen hold og ingen tilmeldinger. Alle på listen er med, når det starter, og vinderen er den, der får mest, før det slutter.',
+    facts: [
+      {
+        strong: 'Ingen felter, ingen hold',
+        rest: 'ét ranglisteskema',
+      },
+      {
+        strong: 'Med fra start',
+        rest: 'hele listen, automatisk',
+      },
+      {
+        strong: 'Op til 10 præmiepladser',
+        rest: 'udbetalt fra kassen',
+      },
+    ],
+    footnote: 'Bræt (bingo) står i [Kør dit første event]({adminGuide}); præmier og kassen i [Klanens kasse]({cofferGuide}).',
+    schedule: {
+      title: 'Planlæg en',
+      intro: 'Fem valg, og standardindstillingerne er fine for de fleste klaner:',
+      steps: [
+        'Åbn **Schedule** i admin-menuen, og tryk **+ Schedule event** (moderatorer kan bruge **Schedule a competition**).',
+        'Vælg typen: **Skill of the Week** (XP optjent), **Boss of the Week** (drab optjent) eller **Efficiency race** (EHP eller EHB optjent).',
+        'Under **What is measured** vælger du skillen eller bossen. For at skifte den hver uge tilføjer du flere under **Then rotate through**. Lad det stå tomt for at gentage den samme.',
+        'Vælg hvornår den **Runs**: **This weekend**, **One week** eller dine egne datoer. Den skal altid have en slutning, fordi den scorer gevinsterne mellem start og slut.',
+        'Lad **Repeat every week** være til, og den næste starter i det øjeblik, denne slutter, med samme længde og præmier. Sæt kryds ved **Guests race too**, hvis din klans gæster skal være på brættet.',
+      ],
+      outro: 'Der er intet andet at sætte op. Startnumrene hentes fra hiscores, når den begynder.',
+    },
+    counting: {
+      title: 'Sådan tælles det',
+      body: [
+        'Hver spillers gevinst er deres stat nu minus deres stat, da konkurrencen startede (deres **startlinje**). Den højeste gevinst vinder; uafgjort står med navn på, og præmier kan deles mellem lige placeringer.',
+        'Startlinjerne tages fra hiscores. Derefter holder pluginnets live-opdateringer brættet opdateret mellem hiscores-tjekkene, så spillere med pluginnet rykker op på brættet, mens de spiller.',
+        'Et tal, der går ned, ignoreres, og en gevinst, der ser umulig ud, bliver **flagged** til staff i stedet for at blive talt eller skåret ned.',
+      ],
+      note: {
+        tag: 'Spillere: log ud, før det starter',
+        body: 'Hiscores gemmer kun dine stats, når du logger ud. Hvis du grinder helt op til starten uden at logge ud, tages din startlinje fra før det grind, og grindet tæller som gevinst. Staff fanger det som regel og retter din startlinje, så log ud en gang, før det starter.',
+      },
+    },
+    manage: {
+      title: 'Sådan kører du den',
+      intro: 'Åbn konkurrencen fra **Schedule** eller dashboardet. Den har en forside og tre faner:',
+      rows: [
+        {
+          term: 'Home',
+          body: '**Leaderboard** (top 25, med hvor mange der scorer), **flagged** gevinster, alle der **left the clan**, og præmierne. Når den slutter, vinderne og **Final leaderboard**.',
+        },
+        {
+          term: 'Starting lines',
+          body: 'hver spillers **Started at**, **Now** og **Gained**. Ret en startlinje i hånden, når et grind før konkurrencen blev talt, og ranglisten følger med. **Pull current stats** opdaterer alle; **Reset baselines** starter alle forfra fra deres hiscores nu og fjerner alle gevinster.',
+        },
+        {
+          term: 'Participants',
+          body: 'hele listen er allerede med. **Add someone** tager ét navn pr. linje, til en gæst eller en konto, der ikke står på listen endnu. Fjerner du en spiller, fjernes deres placering; tilføjer du dem igen, får de en ny startlinje. **Leave one each** rydder op i en person, der er tilmeldt på flere karakterer. Du kan også fjerne alle gæster på én gang.',
+        },
+        {
+          term: 'Settings',
+          body: 'navn, datoer, **Repeat every week**, og **Status** (kun til at løsne én, der sidder fast; den flytter sig selv). Admins kan **Delete** den, sammen med dens deltagere og placeringer.',
+        },
+      ],
+    },
+    prizes: {
+      title: 'Præmier og afslutning',
+      body: [
+        'Sæt præmier for op til 10 pladser, udbetalt fra klanens kasse. Du vælger, om en spiller uden gevinst kan få præmie, og om lige placeringer deler deres præmier. Hvordan pengene flytter sig, står i [Klanens kasse]({cofferGuide}).',
+        'Den slutter af sig selv på det tidspunkt, du har sat. **End now** stopper den før tid: gevinster tæller ikke længere med det samme, og resultaterne poster til Discord, med præmier afregnet inden for 15 minutter.',
+      ],
+    },
+    players: {
+      title: 'Til spillere',
+      body: [
+        'Du skal ikke tilmelde dig. Hvis du er på klanlisten, når den starter, er du med. Find den på din klans **Events**-side, i pluginets sidepanels fane **Clan** med hvor du står, og i Discord, når den starter og slutter.',
+        'Hver konkurrence har sin egen side med den live-rangliste og hvordan løbet gik dag for dag. En privat klan viser den kun til sine egne medlemmer.',
+        'At spille med pluginnet holder dit tal live. Uden det tæller du stadig, bare i hiscores’ tempo.',
+      ],
+    },
+  },
+  clanEvents: {
+    metaTitle: 'Klanevents og kalenderen — Anvil',
+    metaDescription: 'Planlægning af klanevents på Anvil: masser, ture og samlinger, ugentlige gentagelser, “I’m going” og tilmeldinger med pladser, spørgsmål og gebyrer, Discord-opslag og påmindelser, udbetalinger, undersøgelser og kalenderen, der viser huller.',
+    eyebrow: 'Anvil · til klanstaben',
+    title: 'Klanevents og kalenderen',
+    dek: 'Ikke alt er et bræt. Et klanevent er en masse, en raidaften, en drop-fest eller en samling: et tidspunkt og et sted, opslået på Discord og påmindet, med så meget eller så lidt tilmelding, du vil have.',
+    facts: [
+      {
+        strong: 'Én gang eller hver uge',
+        rest: 'med valgfri slutdato',
+      },
+      {
+        strong: 'Tre måder at deltage',
+        rest: 'info, “I’m going” eller tilmeldinger',
+      },
+      {
+        strong: 'Påmindelse',
+        rest: '15 minutter før, og så ved start',
+      },
+    ],
+    footnote: 'Ugentlige konkurrencer står i [Skill og Boss of the Week]({weeklyGuide}); gebyrer og præmier i [Gebyrer og udbetalinger]({feesGuide}).',
+    create: {
+      title: 'Planlæg en',
+      intro: 'Åbn **Clan events** i admin-menuen, og udfyld formularen:',
+      rows: [
+        {
+          term: 'Navn, tidspunkt, længde',
+          body: '**Name**, **Starts (your time)** i din egen tidszone, og **Minutes**.',
+        },
+        {
+          term: 'Gentagelser',
+          body: '**Just once** eller **Every week**, med en valgfri **Until**-dato.',
+        },
+        {
+          term: 'Hvor',
+          body: '**Where**, **World** og **Host**, plus et billede: vælg en boss eller skill, eller upload dit eget.',
+        },
+        {
+          term: 'Detaljer',
+          body: 'udstyr, krav, hvad man skal medbringe.',
+        },
+        {
+          term: 'Hvem kommer',
+          body: '**Just information** (ingen knap, ingen tælling), **“I’m going”** (ét tryk, viser en tælling) eller **Sign-ups** (pladser, spørgsmål og et gebyr).',
+        },
+        {
+          term: 'Discord',
+          body: '**Post to** en kanal (eller klanens standard), valgfri **Chat**-, **Guide**- og **Voice**-kanaler at linke, og om medlemsrollen skal pinges på opslaget, påmindelsen og ved start.',
+        },
+      ],
+      outro: 'Tryk **Schedule it**. Udbetalinger og en undersøgelse tilføjes bagefter fra eventets egen side.',
+    },
+    discord: {
+      title: 'Hvad Discord ser',
+      body: [
+        'Opslaget går op, når du planlægger det, og redigeres på stedet, hver gang du ændrer noget, så der aldrig er en forældet kopi. Et gentagende event er markeret **every week**.',
+        'Femten minutter før poster det **Starting in 15 minutes**, og ved start **Starting now**. Flytter du tidspunktet, flytter påmindelserne med. Aflyser du (**Cancel**), markeres opslaget **Cancelled**, så ingen møder op.',
+      ],
+    },
+    manage: {
+      title: 'Tilmeldinger, gebyrer og udbetalinger',
+      intro: 'Åbn eventet for at ændre, hvad det bruger. Alt starter slået fra:',
+      rows: [
+        {
+          term: 'Sign-ups',
+          body: 'med **Places** (tomt for ingen grænse), hvornår **Sign-ups close**, og **Sign-up questions**. **You approve each one** får hver tilmelding til at vente på staff.',
+        },
+        {
+          term: '“I’m going”-knap',
+          body: 'fra gør det kun til information: ingen knap eller tælling på siden, i pluginnet eller på Discord.',
+        },
+        {
+          term: 'Deltagergebyr',
+          body: 'slår tilmeldinger til. Læg gp af dit eget i puljen under **Added to the pot**.',
+        },
+        {
+          term: 'Udbetalinger',
+          body: 'puljen er gebyrerne plus det, du har lagt til. Navngiv **Who** der får hvad og **For** hvad, og markér hver **Paid**. Anvil advarer dig, hvis du udbetaler mere end puljen.',
+        },
+        {
+          term: 'Undersøgelse bagefter',
+          body: 'åbner, når den slutter. Kun staff ser svarene. Tog den tilmeldinger, bliver kun dem, der tilmeldte sig, spurgt.',
+        },
+        {
+          term: 'Et ugentligt event',
+          body: '**Every week is…** **Its own** (tilmeldinger, pulje og undersøgelse hver uge) eller **One run** (én tilmelding, pulje og undersøgelse for hele serien).',
+        },
+      ],
+    },
+    players: {
+      title: 'Hvad medlemmer ser',
+      body: [
+        'Eventsiden viser **When**, **Where**, **Host**, **Discord**, **Entry** og **Prizes**, med **Live now**, mens det kører. Medlemmer trykker **I’m going** eller **Sign me up**, eller **Ask to sign up**, når staff godkender hver enkelt. Det står også i pluginnets sidepanels fane **Clan**, med de samme knapper.',
+        'Kun medlemmer af klanen kan sige, at de kommer, eller tilmelde sig.',
+      ],
+    },
+    calendar: {
+      title: 'Kalenderen',
+      body: [
+        '**Schedule** samler brætter, ugentlige konkurrencer og klanevents på én kalender, med et filter for hver.',
+        'Et stykke på to eller flere dage uden noget markeres som et hul, med **Fill the gap** for at planlægge noget der. Brug det til at holde klanen i gang mellem store events, i stedet for at lade en stille fjortendag glide forbi.',
+      ],
+    },
+  },
+  challenges: {
+    metaTitle: 'Udfordringer og venne-events — Anvil',
+    metaDescription: 'Head-to-head-udfordringer på Anvil (først til et drop, flest drab eller mest XP på 1 time, 24 timer eller 7 dage) og Supporter-venne-events: private bræt for dine venner bag ét invitationslink.',
+    eyebrow: 'Anvil · til spillere',
+    title: 'Udfordringer og venne-events',
+    dek: 'To måder at spille mod folk, du kender, uden et klanevent: en **udfordring** er én spiller mod én anden, og et **venne-event** er et privat bræt for en gruppe, bag et invitationslink.',
+    facts: [
+      {
+        strong: '1 time til 7 dage',
+        rest: 'pr. udfordring',
+      },
+      {
+        strong: 'Prestige',
+        rest: 'ingen indsats, ingen gp',
+      },
+      {
+        strong: 'Op til 50 venner',
+        rest: 'pr. venne-event, efter niveau',
+      },
+    ],
+    footnote: 'Niveauerne og hvad hvert enkelt er vært for, står i [Anvil Supporter: niveauer og fordele]({supporterGuide}).',
+    start: {
+      title: 'Udfordr nogen',
+      intro: 'Du skal have en verificeret karakter, og det skal de også.',
+      steps: [
+        'Åbn [Challenges](/challenges), eller tryk **Challenge <name>** på en spillers profil.',
+        'Under **Who** skriver du deres navn, og under **Playing as** vælger du din egen karakter. Den skal være verificeret.',
+        'Vælg løbet: **First to a drop** (op til 5 genstande, alle monsterdrops), **Most kills** af en boss, eller **Most XP** i én skill eller samlet.',
+        'Vælg tidsgrænsen: **1 hour**, **24 hours** eller **7 days**. Sæt kryds ved **OK to show the result publicly**, hvis du ikke har noget imod, at det ses; det er kun offentligt, hvis I begge sætter kryds.',
+      ],
+      outro: 'De får en notifikation og en Discord-besked og har 24 timer til at **Accept**, **Decline** eller **Decline and block**. Uret starter, når de accepterer.',
+    },
+    rules: {
+      title: 'Sådan afgøres det',
+      intro: 'Anvil afgør det selv, inden for et minut efter slutningen.',
+      rows: [
+        {
+          term: 'Drab og XP',
+          body: 'begge startlinjer tages, når den accepteres; den, der får mest i gevinst ved slutningen, vinder, og lige gevinster er uafgjort. Hiscores og pluginnet tæller begge, den af dem der er højest.',
+        },
+        {
+          term: 'Først til et drop',
+          body: 'den første af jer, der får en af genstandene, vinder med det samme. Drops ses kun af pluginnet, så I skal begge have det kørende. Ingen får en i tide: uafgjort.',
+        },
+        {
+          term: 'Aflysning',
+          body: 'du kan trække din egen udfordring tilbage, indtil den er besvaret. Når den kører, stopper den kun, hvis I begge er enige.',
+        },
+      ],
+    },
+    limits: {
+      title: 'Grænser og at sige nej',
+      body: [
+        'Åbne udfordringer (ventende eller i gang, sendte eller modtagne) er begrænset efter niveau: **1** gratis, **5** for Supporters, ubegrænset for Champions og Patrons. Alle kan starte op til 20 om dagen, og kun én ad gangen med den samme person.',
+        'Vil du ingen have? **Turn away all new challenges**, eller bloker én person, når du afviser. Den, der udfordrer dig, ser den samme afvisning uanset hvad, så de ikke kan se, at de blev blokeret.',
+        'Siden holder **Your record** (sejre, nederlag og uafgjorte), hvad der er **Open now** og **Your limit**.',
+      ],
+    },
+    friends: {
+      title: 'Vært for et venne-event',
+      body: [
+        'Enhver Supporter, Champion eller Patron kan køre et privat bræt for venner fra [Host](/host) → **Host for friends** → **New friends event**. Det er et helt bræt: bingo eller et felt-løb, fulgt af pluginnet, med samme opsætning som en creators event.',
+        'Send **Invite link**; det er den eneste vej ind. Venner åbner det, logger ind med Discord og trykker **Open the event**. At deltage er altid gratis. Lækker linket, så lav et nyt: det gamle holder op med at virke, og alle, der allerede er med, bliver med.',
+        'Et venne-event står aldrig opført noget sted på Anvil, og kræver ingen klan.',
+      ],
+      table: {
+        areaLabel: 'Niveau',
+        columns: [
+          'Spillere',
+          'Kører samtidig',
+        ],
+        rows: [
+          {
+            area: 'Supporter',
+            cells: [
+              '10',
+              '1',
+            ],
+          },
+          {
+            area: 'Champion',
+            cells: [
+              '25',
+              '1',
+            ],
+          },
+          {
+            area: 'Patron',
+            cells: [
+              '50',
+              '2',
+            ],
+          },
+        ],
+      },
+      note: {
+        tag: 'Hvis dit niveau stopper',
+        body: 'Venner, der allerede er med, bliver med. Nye venner kan ikke komme ind over din nye grænse, og du kan ikke starte et nyt, før du er under den igen.',
+      },
+    },
+  },
+  clanHall: {
+    metaTitle: 'Find klaner, events og ranglister — Anvil',
+    metaDescription: 'Find en OSRS-klan på Anvils Clan Hall, sammenlign to klaner, de ugentlige spiller- og klanranglister, listen over offentlige events og klansider i spillet for klaner, der ikke er på Anvil.',
+    eyebrow: 'Anvil · til spillere og klaner',
+    title: 'Find klaner, events og ranglister',
+    dek: 'Anvils offentlige sider til at kigge rundt: **Clan Hall** til at finde en klan, **Events**-listen til at finde noget at deltage i, og **Leaderboard** til at se, hvem der får mest.',
+    facts: [
+      {
+        strong: 'Clan Hall',
+        rest: 'kun offentlige klaner',
+      },
+      {
+        strong: 'Leaderboard',
+        rest: 'denne uge, 30 dage, nogensinde',
+      },
+      {
+        strong: 'Events',
+        rest: 'kun det værten har annonceret',
+      },
+    ],
+    footnote: 'For at få din egen klan opført, se [Start en klan]({clanGuide}); boostede klaner fremhæves, se [Sådan booster du en klan]({boostsGuide}).',
+    hall: {
+      title: 'Clan Hall',
+      body: [
+        '[Clan Hall](/clans) lister hver offentlig klan. Søg efter navn eller slogan, og indsnævr så til **Taking members** eller **Open to challenges**. **Most active** (den rækkefølge den åbner i) sætter klaner, hvis medlemmer fik mest denne uge, først; **Biggest** sorterer efter medlemmer.',
+        'Hvert kort siger, om klanen er **Recruiting**, og hvordan den tager gæster: **Guests welcome**, **Guests by approval** eller **No guests**. Boostede klaner får de fremhævede rækker øverst, og creators har en række for sig selv.',
+      ],
+      note: {
+        tag: 'Ikke listet?',
+        body: 'Kun klaner sat til offentlig vises, og en klan kan slå sin listning fra i sine indstillinger. Private klaner står aldrig i Clan Hall, på ranglisten eller i sammenligninger.',
+      },
+    },
+    compare: {
+      title: 'Sammenlign to klaner',
+      body: [
+        '[Compare clans](/compare/clans) sætter to vilkårlige listede klaner side om side. Vil du sammenligne to karakterer i stedet, brug [Compare](/compare).',
+      ],
+    },
+    board: {
+      title: 'Ranglisten',
+      body: [
+        '[Leaderboard](/leaderboard) rangerer spillere og klaner efter erfaring, effektive timer og bossing over **This week**, **30 days** eller **All time**. Spillere kan indsnævres til **Regular**, **Ironman**, **Hardcore**, **Ultimate** eller **Group**-konti.',
+        'Klaner rangeres efter den XP deres medlemmer fik. Kun verificerede klaner, der står i Clan Hall, vises. En gæsts gevinster tæller for deres egen klan, ikke den de er gæst i.',
+      ],
+    },
+    events: {
+      title: 'Find et event at deltage i',
+      body: [
+        '[Events](/events) lister, hvad der kører og kommer op på tværs af Anvil. Filtrér efter **Live now**, **Open to join** eller **Starting this week**, efter format eller **Solo**, efter **Anyone can join** eller **Ask or meet a rule**, og efter **Clans** eller **Creators**. **Join** fører dig til at tilmelde dig.',
+        'Kun events, hvis vært slog **Advertise on Anvil** til, vises. Medlemsbegrænsede og inviteringsbegrænsede events gør aldrig.',
+      ],
+    },
+    ghost: {
+      title: 'Klaner i spillet, der ikke er på Anvil',
+      body: [
+        'En karakters side nævner den klan i spillet, den er i. Hvis den klan ikke er på Anvil, åbner linket en almindelig side, der lister de Anvil-spillere, der er i den, og valgte at vise det. Det er ikke den klans liste, og intet på den gør nogen til medlem.',
+        'Er det din klan, sætter **Bring your clan to Anvil** en op. Når den er en offentlig Anvil-klan, går linket direkte til den.',
+      ],
+    },
+  },
+  guideLibrary: {
+    metaTitle: 'Guides i spillet: læsning, forslag og klankopier — Anvil',
+    metaDescription: 'Anvils guidebibliotek: raid-, boss-, skilling- og pengeguides på siden, i spillet og i Discord. Læsning efter niveau, forslag til en ny guide eller en ændring, og hvordan en klan kopierer og redigerer bibliotekets guides.',
+    eyebrow: 'Anvil · til spillere og klanstaben',
+    title: 'Guides i spillet',
+    dek: 'Ud over disse vejledningssider har Anvil et bibliotek af spilguides: raids, bosser, skilling og pengetjening. Alle kan læse dem, enhver der er logget ind kan foreslå en, og en klan kan beholde sine egne kopier.',
+    facts: [
+      {
+        strong: 'Tre niveauer',
+        rest: 'Beginner, Intermediate, Advanced',
+      },
+      {
+        strong: 'Alle kan foreslå',
+        rest: 'staff gennemgår hver enkelt',
+      },
+      {
+        strong: '/guide',
+        rest: 'poster en i Discord',
+      },
+    ],
+    footnote: 'Slash-kommandoer står i [Slash-kommandoer]({commandsGuide}).',
+    read: {
+      title: 'Læs en guide',
+      body: [
+        'Åbn fanen **In-game guides** på guidesiden, eller [/guides](/guides) på din klans side. En klans liste har sine egne guides plus de bibliotek-guides, den ikke har kopieret.',
+        'Mange guides har et niveauskifte øverst: **Beginner**, **Intermediate** og **Advanced**. Delene for andre niveauer klapper sammen, så en nybegynder og en speed-runner læser den samme side.',
+        'I Discord poster `/guide` og begyndelsen af et navn et guide-kort med et link til hele siden.',
+      ],
+    },
+    propose: {
+      title: 'Foreslå en guide eller en ændring',
+      body: [
+        'Når du er logget ind, åbn [Propose a guide](/guides/propose) for at skrive en ny, eller foreslå en ændring til en eksisterende bibliotek-guide. Fortæl gennemgangspersonen, hvad du har ændret og hvorfor; du kan vise dine ændringer mod den nuværende guide, før du sender.',
+        'Tryk **Send for review**. [My guide proposals](/guides/proposals) viser hver enkelt som **pending**, **approved**, **rejected** eller **withdrawn**, med gennemgangspersonens note, når den er besvaret. Mens den er pending, kan du redigere den eller **Withdraw** den. Du kan have 5 ventende ad gangen.',
+        'Intet kommer live, før Anvils guide-redaktører godkender det. En godkendt ændring opdaterer også hver klankopi, der ikke er ændret.',
+      ],
+    },
+    clan: {
+      title: 'Din klans guides',
+      intro: 'Admins og moderatorer, der må skrive guides, styrer dem under **Guides** i admin-menuen.',
+      rows: [
+        {
+          term: 'Show library guides on our site',
+          body: 'til: bibliotek-guides, du ikke har kopieret, vises også på din Guides-side, altid opdaterede.',
+        },
+        {
+          term: 'Copy to our guides',
+          body: 'laver en klankopi. Den **follows library**, indtil du redigerer den, og henter hver bibliotek-ændring.',
+        },
+        {
+          term: 'Redigering af en kopi',
+          body: 'gør den **customised**, klanens egen. Når bibliotek-guiden senere ændres, vises **update available**: tag den nye version, eller behold din.',
+        },
+        {
+          term: 'Ny guide',
+          body: 'skriver én, kun din klan har, som jeres egne raid-regler eller en masse-guide.',
+        },
+      ],
+      note: {
+        tag: 'Opslag af dem',
+        body: 'Guides kan postes i en Discord-kanal, og de opslag redigeres på stedet, når guiden ændres.',
       },
     },
   },

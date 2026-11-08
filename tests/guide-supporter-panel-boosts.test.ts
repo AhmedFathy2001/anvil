@@ -143,10 +143,10 @@ test('the boost levels in the guide match the rules', () => {
   assert.deepEqual(levels, [...LEVEL_AT]);
 });
 
-test('/setup offers every topic and stays within Discord’s 25 choices', () => {
+test('/setup offers every topic', () => {
+  // More guides than Discord's 25 static choices, so /setup type-aheads over SETUP_TOPICS.
   const src = read('src/lib/discordCommandDefs.ts');
-  const setup = src.slice(src.indexOf("name: 'setup'"), src.indexOf("name: 'step'"));
-  const values = [...setup.matchAll(/value: '([a-z]+)'/g)].map((m) => m[1]);
-  assert.ok(values.length <= 25, `${values.length} choices`);
+  const list = src.slice(src.indexOf('export const SETUP_TOPICS'), src.indexOf('];', src.indexOf('export const SETUP_TOPICS')));
+  const values = [...list.matchAll(/value: '([a-z]+)'/g)].map((m) => m[1]);
   for (const p of PAGES) assert.ok(values.includes(p.topic), `/setup offers ${p.topic}`);
 });

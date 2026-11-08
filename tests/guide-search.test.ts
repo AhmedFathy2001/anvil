@@ -37,6 +37,13 @@ const CARD_KEY = {
   supporter: 'supporter',
   'side-panel': 'sidePanel',
   'clan-boosts': 'clanBoosts',
+  profile: 'profile',
+  settings: 'settings',
+  challenges: 'challenges',
+  'clan-hall': 'clanHall',
+  'in-game-guides': 'guideLibrary',
+  weekly: 'weekly',
+  'clan-events': 'clanEvents',
 } as const;
 
 const ITEMS = (Object.keys(SEARCH_TERMS) as (keyof typeof SEARCH_TERMS)[]).map((page) => {

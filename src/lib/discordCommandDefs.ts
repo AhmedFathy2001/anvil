@@ -226,31 +226,9 @@ const CLAN_DEFINITIONS = [
         description: 'Which guide',
         type: OPTION_TYPE.STRING,
         required: true,
-        // Values MUST match GUIDE_OUTLINES keys in lib/discordGuides (asserted in the tests).
-        choices: [
-          { name: 'Plugin setup', value: 'plugin' },
-          { name: 'Discord setup', value: 'discord' },
-          { name: 'Boards & tiles', value: 'board' },
-          { name: 'Start a clan', value: 'clan' },
-          { name: 'Fees & prizes', value: 'fees' },
-          { name: 'Clan coffer', value: 'coffer' },
-          { name: 'Event formats', value: 'formats' },
-          { name: 'Captain & draft', value: 'captain' },
-          { name: 'Running an event', value: 'admin' },
-          { name: 'Moderating proof', value: 'moderator' },
-          { name: 'Clan vs clan', value: 'clanvsclan' },
-          { name: 'Slash commands', value: 'commands' },
-          { name: 'Switching from Dink / WOM', value: 'switching' },
-          { name: 'Tile rules & limitations', value: 'tiles' },
-          { name: 'Hosting as a streamer', value: 'creators' },
-          { name: 'Joining a streamer event', value: 'joining' },
-          { name: 'Streaming for clans', value: 'streamingclans' },
-          { name: 'Roster, guests & who can join', value: 'people' },
-          { name: 'Staff roles: who can do what', value: 'staffroles' },
-          { name: 'Anvil Supporter: tiers & perks', value: 'supporter' },
-          { name: 'The side panel, tab by tab', value: 'sidepanel' },
-          { name: 'Boosting a clan', value: 'boosts' },
-        ],
+        // More guides than Discord's 25-choice cap, so it type-aheads over SETUP_TOPICS
+        // (lib/discordCommands handleAutocomplete). Values MUST match GUIDE_OUTLINES keys (asserted in the tests).
+        autocomplete: true,
       },
       {
         name: 'step',
@@ -278,6 +256,40 @@ const CLAN_DEFINITIONS = [
     ],
   },
 ] as const;
+
+/** /setup's topics, in menu order: the type-ahead's list (English names; the guide itself answers in
+ * the reader's language). One per GUIDE_OUTLINES key in lib/discordGuides. */
+export const SETUP_TOPICS: { name: string; value: string }[] = [
+  { name: 'Plugin setup', value: 'plugin' },
+  { name: 'Discord setup', value: 'discord' },
+  { name: 'Boards & tiles', value: 'board' },
+  { name: 'Start a clan', value: 'clan' },
+  { name: 'Fees & prizes', value: 'fees' },
+  { name: 'Clan coffer', value: 'coffer' },
+  { name: 'Event formats', value: 'formats' },
+  { name: 'Captain & draft', value: 'captain' },
+  { name: 'Running an event', value: 'admin' },
+  { name: 'Moderating proof', value: 'moderator' },
+  { name: 'Clan vs clan', value: 'clanvsclan' },
+  { name: 'Slash commands', value: 'commands' },
+  { name: 'Switching from Dink / WOM', value: 'switching' },
+  { name: 'Tile rules & limitations', value: 'tiles' },
+  { name: 'Hosting as a streamer', value: 'creators' },
+  { name: 'Joining a streamer event', value: 'joining' },
+  { name: 'Streaming for clans', value: 'streamingclans' },
+  { name: 'Roster, guests & who can join', value: 'people' },
+  { name: 'Staff roles: who can do what', value: 'staffroles' },
+  { name: 'Anvil Supporter: tiers & perks', value: 'supporter' },
+  { name: 'The side panel, tab by tab', value: 'sidepanel' },
+  { name: 'Boosting a clan', value: 'boosts' },
+  { name: 'Skill & Boss of the Week', value: 'weekly' },
+  { name: 'Clan events & the schedule', value: 'clanevents' },
+  { name: 'Settings, page by page', value: 'settings' },
+  { name: 'Your profile, Wrapped & Compare', value: 'profile' },
+  { name: 'Challenges & friends events', value: 'challenges' },
+  { name: 'Finding clans, events & leaderboards', value: 'clanhall' },
+  { name: 'In-game guides', value: 'guidelibrary' },
+];
 
 export const COMMAND_DEFINITIONS = [BINGO_DEFINITION, ...CLAN_DEFINITIONS] as const;
 

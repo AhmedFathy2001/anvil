@@ -47,17 +47,17 @@ function sectionDict(g: Record<string, unknown>, outline: GuideOutline, id: stri
 // Mirrors src/app/guide/_pages/*Guide.tsx section order. The choice values in the command def are
 // exactly these keys.
 export const GUIDE_OUTLINES: Record<string, GuideOutline> = {
-  plugin: { ns: 'plugin', page: 'plugin', sections: ['install', 'connect', 'accounts', 'working', 'bingo', 'notifications', 'trouble'] },
+  plugin: { ns: 'plugin', page: 'plugin', sections: ['install', 'connect', 'accounts', 'working', 'bingo', 'notifications', 'screen', 'sync', 'trouble'] },
   discord: { ns: 'discord', page: 'discord', sections: ['bot', 'connect', 'channels', 'roles', 'commands', 'posts', 'quiet'] },
-  board: { ns: 'board', page: 'board', sections: ['kinds', 'pick', 'bulk', 'traps', 'points', 'reveal', 'check'] },
-  clan: { ns: 'clan', page: 'clan', sections: ['before', 'create', 'live', 'setup', 'members', 'first', 'together'] },
+  board: { ns: 'board', page: 'board', sections: ['kinds', 'pick', 'bulk', 'traps', 'points', 'reveal', 'check', 'library', 'stats'] },
+  clan: { ns: 'clan', page: 'clan', sections: ['before', 'create', 'live', 'setup', 'members', 'first', 'together', 'boosts', 'features'] },
   fees: { ns: 'fees', page: 'fees', sections: ['set', 'collect', 'sign', 'pay', 'disputes'] },
   coffer: { ns: 'coffer', page: 'coffer', sections: ['what', 'in', 'out', 'who', 'short'], keys: { in: 'inbound' } },
   formats: { ns: 'formats', page: 'formats', sections: ['shape', 'reveal', 'scoring', 'missions', 'choose'] },
   captain: { ns: 'captain', page: 'captain', sections: ['before', 'warroom', 'draft', 'roster', 'during'] },
-  admin: { ns: 'admin', page: 'admin', sections: ['access', 'setup', 'channels', 'roster', 'board', 'tiles', 'teams', 'launch', 'after'] },
+  admin: { ns: 'admin', page: 'admin', sections: ['access', 'setup', 'channels', 'roster', 'board', 'tiles', 'teams', 'launch', 'after', 'survey'] },
   moderator: { ns: 'moderator', page: 'moderator', sections: ['what', 'queue', 'submissions', 'verify', 'roster', 'startshot', 'judgement'] },
-  clanvsclan: { ns: 'clanVsClan', page: 'clan-vs-clan', sections: ['shape', 'team', 'staff', 'link', 'captains', 'player', 'dead'] },
+  clanvsclan: { ns: 'clanVsClan', page: 'clan-vs-clan', sections: ['shape', 'team', 'staff', 'link', 'captains', 'player', 'dead', 'cohost'] },
   // Mirrors COMMANDS_SECTIONS in _pages/CommandsGuide.
   commands: { ns: 'commands', page: 'commands', sections: ['using', 'bingo', 'clan', 'options', 'who', 'trouble'] },
   switching: { ns: 'switching', page: 'switching', sections: ['staff', 'player', 'questions'] },
@@ -71,12 +71,20 @@ export const GUIDE_OUTLINES: Record<string, GuideOutline> = {
   streamingclans: { ns: 'streamingClans', page: 'streaming-for-clans', sections: ['on', 'event', 'viewers', 'tools', 'faq'] },
   // Mirror PEOPLE_SECTIONS in _pages/PeopleGuide and STAFF_SECTIONS in _pages/StaffRolesGuide.
   people: { ns: 'people', page: 'people', sections: ['roster', 'filters', 'review', 'policy', 'manual', 'removing', 'faq'] },
-  staffroles: { ns: 'staffRoles', page: 'staff-roles', sections: ['roles', 'assign', 'who', 'table', 'event', 'safety'] },
+  staffroles: { ns: 'staffRoles', page: 'staff-roles', sections: ['roles', 'assign', 'who', 'table', 'event', 'safety', 'log'] },
   // Mirror SUPPORTER_SECTIONS, PANEL_SECTIONS and BOOSTS_SECTIONS in _pages/SupporterGuide,
   // SidePanelGuide and ClanBoostsGuide.
   supporter: { ns: 'supporter', page: 'supporter', sections: ['tiers', 'compare', 'names', 'where', 'profile', 'hosting', 'billing', 'lapse'] },
   sidepanel: { ns: 'sidePanel', page: 'side-panel', sections: ['header', 'clan', 'feed', 'reactions', 'chat', 'you', 'gear', 'settings'] },
   boosts: { ns: 'clanBoosts', page: 'clan-boosts', sections: ['what', 'place', 'levels', 'perks', 'colours', 'staff', 'boosters'] },
+  // Mirror the *_SECTIONS lists in _pages/{Profile,Settings,Challenges,ClanHall,GuideLibrary,Weekly,ClanEvents}Guide.
+  profile: { ns: 'profile', page: 'profile', sections: ['pages', 'sharing', 'wrapped', 'events', 'compare'] },
+  settings: { ns: 'settings', page: 'settings', sections: ['find', 'posts', 'chat', 'login', 'webhooks', 'privacy', 'look', 'characters', 'claims'] },
+  challenges: { ns: 'challenges', page: 'challenges', sections: ['start', 'rules', 'limits', 'friends'] },
+  clanhall: { ns: 'clanHall', page: 'clan-hall', sections: ['hall', 'compare', 'board', 'events', 'ghost'] },
+  guidelibrary: { ns: 'guideLibrary', page: 'in-game-guides', sections: ['read', 'propose', 'clan'] },
+  weekly: { ns: 'weekly', page: 'weekly', sections: ['schedule', 'counting', 'manage', 'prizes', 'players'] },
+  clanevents: { ns: 'clanEvents', page: 'clan-events', sections: ['create', 'discord', 'manage', 'players', 'calendar'] },
   // Mirrors TilesGuide: one section per registry group that has entries.
   tiles: {
     ns: 'tiles',

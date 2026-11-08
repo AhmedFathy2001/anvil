@@ -134,4 +134,40 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
     'options', 'parameters', 'params', 'usage', 'syntax', 'pbs', 'personal best', 'clog', 'luck',
     'ehp', 'ehb', 'leaderboard', 'standings', 'autocomplete', 'share', 'help',
   ],
+  profile: [
+    'profile', 'my profile', 'character page', 'public page', 'person page', 'share profile', 'private profile',
+    'wrapped', 'monthly wrapped', 'year in review', 'recap card', 'event wrapped', 'share card', 'compare',
+    'compare players', 'side by side', 'report profile',
+  ],
+  settings: [
+    'settings', 'preferences', 'screenshot privacy', 'private messages', 'pms', 'hide chat', 'death message',
+    'rare drop value', 'drop value', 'webhook', 'my webhook', 'personal webhook', 'devices', 'revoke',
+    'sign out everywhere', 'who sees my characters', 'hide character', 'privacy', 'main character', 'make main',
+    'remove character', 'ownership claim', 'claims', 'object', 'this is my account', 'login brief', 'chat feed',
+  ],
+  challenges: [
+    'challenge', 'challenges', 'head-to-head', 'h2h', '1v1', 'duel', 'race a friend', 'first to a drop',
+    'most kills', 'most xp', 'friends event', 'friend event', 'host friends', 'private board', 'invite link',
+    'block challenges',
+  ],
+  'clan-hall': [
+    'clan hall', 'find a clan', 'find clan', 'clan list', 'directory', 'recruiting', 'join a clan',
+    'compare clans', 'leaderboard', 'leaderboards', 'top clans', 'ranking', 'events list', 'find an event',
+    'public events', 'ghost clan', 'in-game clan', 'not on anvil', 'listed',
+  ],
+  'in-game-guides': [
+    'in-game guides', 'game guides', 'guide library', 'library guide', 'propose a guide', 'write a guide',
+    'suggest an edit', 'proposal', 'proposals', 'clan guides', 'copy guide', 'follows library', 'customised',
+    'update available', '/guide', 'beginner', 'advanced', 'raid guide', 'boss guide', 'money making',
+  ],
+  weekly: [
+    'skill of the week', 'boss of the week', 'sotw', 'botw', 'weekly', 'weekly competition', 'competition',
+    'efficiency race', 'ehp', 'ehb', 'rotate', 'rotation', 'repeat every week', 'starting line', 'baseline',
+    'baselines', 'end now', 'weekly prizes', 'xp race',
+  ],
+  'clan-events': [
+    'clan event', 'clan events', 'mass', 'masses', 'raid night', 'drop party', 'meetup', 'rsvp', "i'm going",
+    'going', 'schedule', 'calendar', 'fill the gap', 'reminder', 'recurring', 'every week', 'sign-ups', 'spots',
+    'event survey', 'cancel event',
+  ],
 };

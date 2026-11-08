@@ -213,6 +213,48 @@ const de: PartialGuideDict = {
           'Einen Boost setzen und verschieben, die drei Stufen und was jede freischaltet, die Namensfarben des Clans, geschenkte Boosts, und Booster-Zeichen und Abzeichen.',
         minutes: '~5 Min.',
       },
+      profile: {
+        eyebrow: 'Für Spieler',
+        title: 'Dein Profil, Wrapped und Vergleich',
+        blurb: 'Dein Profil, die öffentliche Seite jedes Charakters und deine Personenseite, wer sie sehen kann, monatliche und Event-Wrapped-Karten sowie der Vergleich zweier Charaktere.',
+        minutes: '~4 Min.',
+      },
+      settings: {
+        eyebrow: 'Für Spieler',
+        title: 'Einstellungen, Seite für Seite',
+        blurb: 'Discord-Posts und Screenshot-Datenschutz, der Chat-Feed im Spiel, Geräte, deine eigenen Webhooks, wer deine Charaktere sieht, jeder einzelne Charakter und Besitzansprüche.',
+        minutes: '~6 Min.',
+      },
+      challenges: {
+        eyebrow: 'Für Spieler',
+        title: 'Challenges und Friends-Events',
+        blurb: 'Fordere einen Spieler zu einem Drop-, Kill- oder XP-Rennen heraus und richte ein privates Board für deine Freunde hinter einem Einladungslink ein.',
+        minutes: '~4 Min.',
+      },
+      clanHall: {
+        eyebrow: 'Für Spieler und Clans',
+        title: 'Clans, Events und Ranglisten finden',
+        blurb: 'Die Clan Hall, der Vergleich zweier Clans, die wöchentliche Rangliste, die öffentliche Event-Liste und Seiten für Ingame-Clans, die nicht auf Anvil sind.',
+        minutes: '~3 Min.',
+      },
+      guideLibrary: {
+        eyebrow: 'Für Spieler und Clan-Staff',
+        title: 'Ingame-Guides',
+        blurb: 'Die Guide-Bibliothek nach Level durchstöbern, einen neuen Guide oder eine Änderung vorschlagen und die eigenen Kopien deines Clans pflegen.',
+        minutes: '~3 Min.',
+      },
+      weekly: {
+        eyebrow: 'Für Clan-Staff und Spieler',
+        title: 'Skill und Boss der Woche',
+        blurb: 'Einen wöchentlichen Wettbewerb planen, wiederholen und rotieren lassen, Startlinien, Preise, vorzeitiges Beenden und was Spieler sehen.',
+        minutes: '~4 Min.',
+      },
+      clanEvents: {
+        eyebrow: 'Für Clan-Staff',
+        title: 'Clan-Events und der Terminplan',
+        blurb: 'Massen, Raid-Abende und Treffen: wöchentliche Wiederholungen, „Ich bin dabei“ und Anmeldungen, Discord-Erinnerungen, Auszahlungen, Umfragen und das Finden von Lücken im Terminplan.',
+        minutes: '~4 Min.',
+      },
     },
   },
 
@@ -410,6 +452,25 @@ const de: PartialGuideDict = {
         tag: 'Nur die Optik',
         body: 'Boosts ändern, wie der Clan aussieht und wo er gelistet wird. Sie ändern nie einen Rang, eine Wertung, deine Sitze oder deinen Tarif.',
       },
+    },
+    features: {
+      title: 'Funktionen und Tarif',
+      intro: 'Admins können ganze Bereiche von Anvil unter **Features** ein- oder ausschalten. Ausgeschaltet verschwinden sie aus den Menüs; nichts wird gelöscht.',
+      rows: [
+        {
+          term: 'Events',
+          body: '**Skill & Boss of the Week** (an), **Überraschungsaufgaben-Formate** (aus), **Missions** (aus), **Umfrage nach dem Event** (aus).',
+        },
+        {
+          term: 'Geld',
+          body: '**Anmeldegebühren** (an), **Clan-Kasse** (aus).',
+        },
+        {
+          term: 'Discord & Plugin',
+          body: '**Auf Discord posten** (an), **Tod- & Spaßnachrichten** (aus), **Clan-Hall-Karte**, die auf deiner öffentlichen Clan-Seite zeigt, wer in deinem Discord online ist (an).',
+        },
+      ],
+      outro: '**Tarif und Abrechnung** zeigt deinen Tarif, wie viele Mitglieder du im Verhältnis zu dessen Größe hast, und die größeren Tarife. Wenn du zahlst, findest du dort auch **Abo und Rechnungen verwalten**.',
     },
   },
 
@@ -996,6 +1057,63 @@ const de: PartialGuideDict = {
         },
       ],
     },
+    screen: {
+      title: 'Auf dem Bildschirm, während du spielst',
+      intro: 'Was das Plugin während des Spielens zeichnet und ausgibt, und die Einstellung dahinter.',
+      rows: [
+        {
+          term: 'Angeheftete Kacheln',
+          body: 'öffne eine Kachel im Seitenpanel und drücke **Track on screen** (bis zu 3). Ist **Pinned tiles in one panel** an, teilen sie sich ein kleines Panel: der Name jeder Kachel, der Fortschritt deines Teams und Zeilen wie _3/5 runs_ oder welche Teile einer Combo erledigt sind. Ist es aus, bekommt jede ein eigenes größeres Widget mit deinen Teammitgliedern und den anderen Teams. Mit Alt-Ziehen verschiebst du es. Rechtsklick darauf für **Unpin** oder **Unpin all**. Eine abgeschlossene Kachel zeigt **Done** und löst sich danach selbst.',
+        },
+        {
+          term: 'Die Starting-Shot-Karte',
+          body: 'solange ein Event auf deinen Starting Shot wartet, zeigt eine Karte **Starting shot needed** oben am Bildschirm, wohin du gehen musst, und jede Prüfung in Grün oder Rot: das Relog, wie lange deine Session läuft, wie viele Felder du vom Startpunkt entfernt bist. Ein Richtungspfeil und ein Pin auf der Weltkarte (**Anvil starting shot**) führen dich dorthin. Mit **Auto starting shot** an wird er ausgelöst, sobald alles grün ist; dann zeigt die Karte **You’re tracked** und verschwindet. Einstellung: **Starting shot guide**.',
+        },
+        {
+          term: 'Banner',
+          body: '**Tile complete!**, wenn dein Team eine Kachel abschließt, der Fortschritt deines eigenen Drops auf einer Kachel und **New mission!**. Einstellungen: **Team completion popups** und **My tile popups**.',
+        },
+        {
+          term: 'Vestige-Würfe',
+          body: 'bei den Desert-Treasure-II-Bossen schreibt jedes Unique eine Zeile, wo du in der Vestige-Rotation stehst, etwa _Roll 2 of 4_ oder _the next unique is the vestige_. Es steht _(estimated)_, bis es gesehen hat, dass du ein Vestige bekommst. Keine Einstellung; es läuft mit oder ohne Event.',
+        },
+        {
+          term: 'Namensvervollständigung bei der Suche',
+          body: 'wenn du im Feld **Lookup** tippst, ergänzt es den Namen aus deinen letzten Suchen, Freunden, Clanmitgliedern, die online sind, und Spielern in der Nähe. **Enter** übernimmt. Es liest nur deinen eigenen Client; nichts wird gesendet.',
+        },
+        {
+          term: 'Chatfarben',
+          body: '**[Anvil] tag colour** und **Message colour** unter **Chat messages**. Bis du etwas wählst, sind sie dunkelgold und schwarz auf einer undurchsichtigen Chatbox, damit sie lesbar bleiben. Fährst du im Chat über den Namen eines Supporters, siehst du seine Stufe, etwa _Anvil Patron_.',
+        },
+      ],
+    },
+    sync: {
+      title: 'Profilsynchronisierung und was sonst gesendet wird',
+      intro: 'Die Einstellungen von **Profile sync** füllen dein Anvil-Profil. Zum Start sind alle vier an:',
+      rows: [
+        {
+          term: 'Collection Log synchronisieren',
+          body: 'jede Collection-Log-Seite, die du öffnest, wird an dein Profil gesendet.',
+        },
+        {
+          term: 'Ganzes Log beim Öffnen synchronisieren',
+          body: 'das Öffnen des Collection Logs sendet alles, nicht nur die Seite, die du ansiehst. Um es auf Abruf zu tun, drücke den Button **Anvil** in der Titelleiste des Collection Logs oder **Sync profile** im Seitenpanel, während das Log offen ist. Der Chat bestätigt es: _Profile synced — N collection log slots._',
+        },
+        {
+          term: 'Persönliche Bestzeiten synchronisieren',
+          body: 'Boss- und Raid-Zeiten werden gesendet, sobald du sie aufstellst.',
+        },
+        {
+          term: 'Vorhandene Bestzeiten einmalig importieren',
+          body: 'einmal pro Charakter werden die persönlichen Bestzeiten kopiert, die RuneLite bereits auf deinem Computer gespeichert hat: _Imported N personal best(s) from RuneLite._',
+        },
+        {
+          term: 'Highlights mit dem Clan teilen',
+          body: 'deine Pets, großen Drops, Tode, Combat-Tasks, Level-Meilensteine, neuen Log-Slots und Tagebücher erscheinen im Feed der Clan-Seite und im Chat-Feed der Spieler, die sie sehen können.',
+        },
+      ],
+      outro: 'Drei weitere Dinge werden ohne eigene Einstellung gesendet. **Wer dich getötet hat**: Das Monster oder der Spieler, das/der dich in deinen letzten 15 Sekunden anvisiert hatte, wird im Feed genannt. **Spielzähler**: Manche Kill-Kacheln zählen eine Zahl, die das Spiel führt, etwa Tithe-Farm-Punkte, Giants’-Foundry-Ruf, Doom-Delves oder Slayer-Serien; nur Anstiege zählen. **Leagues, Deadman und andere Modi**: Auf diesen Welten werden die eigenen Meldungen des Spiels zu Relikten, Gebieten und Aufgaben gesendet, damit dein Clan sie in seinem Modus-Kanal posten kann.',
+    },
   },
 
   admin: {
@@ -1243,6 +1361,14 @@ const de: PartialGuideDict = {
         'Mit aktivierter Föderation können Mitglieder sich aus dem Plugin heraus auch mit anderen Anvil-Clans verbinden — praktisch für clanübergreifende Events, und pro Mitglied vollkommen freiwillig.',
       outro: 'Verweise deine Mitglieder dann auf die [Einrichtungsanleitung für Spieler]({pluginGuide}) und plane das nächste.',
     },
+    survey: {
+      title: 'Die Spieler befragen',
+      intro: 'Aktiviere **Post-event survey** unter **Features** und öffne dann die Seite **Survey** des Events.',
+      body: [
+        'Unter **Build** fügst du Fragen hinzu: **Rating (1–5)**, **Free text**, **Choose one** oder **Choose many**, jeweils optional **Required**. Oder lade eine Vorlage: **Bingo wrap-up**, **Quick pulse**, **PvM mass**, **Raid team** oder **Skilling / social**. **Preview the participant view** zeigt sie so, wie ein Spieler sie sieht.',
+        'Sie öffnet sich, wenn das Event endet, nur für genehmigte Teilnehmer, und sie können ihre Antworten später ändern. **Results** zeigt die Antworten **By question** oder **By person**. Sie ist nicht anonym: Staff sieht, wer was gesagt hat.',
+      ],
+    },
   },
 
   clanVsClan: {
@@ -1462,6 +1588,28 @@ const de: PartialGuideDict = {
         body: 'Schalte die Links ab und entferne die Plätze im Teamstab. Beides läuft nicht von selbst aus, und ein aktiver Link auf einem beendeten Event ist bloß ein loses Ende.',
       },
     },
+    cohost: {
+      title: 'Wenn du der Co-Host bist',
+      intro: 'Alles oben ist die Seite des Gastgebers. Das Staff des Gastclans bekommt eine eigene Seite für das Event, **Co-hosted with <host>**. Der Gastgeber behält die Termine, den Entwurf, die Teams und wer es sehen darf.',
+      rows: [
+        {
+          term: 'Die Anmeldungen deines Clans',
+          body: '**Approve**, **Reject** oder **Withdraw** für die Spieler deines eigenen Clans. Die des Gastgebers siehst oder bearbeitest du nie.',
+        },
+        {
+          term: 'Das Board',
+          body: 'du kannst es nur bearbeiten, wenn der Gastgeber dem Staff deines Clans das erlaubt hat. Sonst kannst du **Suggest a tile** vorschlagen: die Kachel, Details und Punkte, bis zu 25 gleichzeitig wartend. Jede wird als **waiting**, **accepted ✓** oder **turned down** mit dem Grund des Gastgebers angezeigt.',
+        },
+        {
+          term: 'Dein Team',
+          body: '**Manage** das Team deines Clans.',
+        },
+        {
+          term: 'Discord',
+          body: 'deine Admins wählen, was auf deinen eigenen Server gelangt: **Everything shared**, **Big moments** oder **Nothing**, welcher Kanal, wer angepingt wird und ob deine Spieler die Rolle **@Bingo player** bekommen.',
+        },
+      ],
+    },
   },
 
   board: {
@@ -1654,6 +1802,36 @@ const de: PartialGuideDict = {
         tag: 'Wer darf das',
         body: 'Das Anlegen von Feldern ist die eine Adminaufgabe mit einer eigenen Rolle. Ein **Editor** kann Felder anlegen und sonst nichts, und lässt sich auf bestimmte Boards begrenzen — ein eingeladener Board-Bauer aus einem anderen Clan bekommt also genau das Event, das du ihm übergeben hast, ohne Zugriff auf irgendetwas anderes, das du betreibst.',
       },
+    },
+    library: {
+      title: 'Die Aufgabenbibliothek und Vorschläge',
+      body: [
+        'Kachel-Editoren haben **Task library** im Admin-Menü: die gespeicherten Aufgaben deines Clans und Anvils eigene Bibliothek, aus der du kopieren kannst. **⬇ Export pack** speichert deine Aufgaben als Datei und **⬆ Import pack** lädt eine, so wandert ein Board zwischen Clans.',
+        'Einen Fehler in Anvils Bibliothek gefunden oder fehlt dort eine Aufgabe? Drücke **Suggest a fix** bei der Aufgabe oder **Suggest a new task**. Anvil prüft es, und die Antwort erscheint unter **Your suggestions**: **Waiting for review**, **Approved** oder **Not taken**, mit einer Notiz. Du kannst 5 gleichzeitig wartend haben. Eine genehmigte Korrektur erreicht jede Clan-Kopie, die noch der Bibliothek folgt.',
+      ],
+    },
+    stats: {
+      title: 'Startwerte und späte Teilnehmer',
+      intro: 'XP- und Kill-Count-Kacheln vergleichen die aktuellen Werte jedes Spielers mit seinen **starting stats**, die beim Start des Events festgehalten werden. Auf der Seite **Stats** des Events prüfst und korrigierst du sie:',
+      rows: [
+        {
+          term: 'Startwerte erfassen',
+          body: 'vor dem Start wärmt es nur die Hiscores auf; die eigentliche Startlinie wird beim Start genommen. Nach dem Start wird der Button zu **Capture late joiners** für Spieler, die seitdem hinzugekommen sind. Er kann alle 30 Minuten einmal laufen.',
+        },
+        {
+          term: 'Jetzt aktualisieren',
+          body: 'frischt die Rangliste mit den neuesten Zahlen auf. Sie aktualisiert sich außerdem jede Stunde von selbst.',
+        },
+        {
+          term: 'Ausgangswert korrigieren',
+          body: 'pro Spieler: ändere einen Skill- oder Boss-Startwert von Hand. Nutze das, wenn ein Grind von vor dem Event mitgezählt wurde, weil der Spieler sich vor dem Start nicht ausgeloggt hat.',
+        },
+        {
+          term: 'Alle Startwerte zurücksetzen',
+          body: 'versteckt unter **Danger zone**: nimmt die Startlinie aller Spieler neu aus ihren aktuellen Werten und löscht alle bisherigen Gewinne. Nur für ein Event, das versehentlich gestartet wurde.',
+        },
+      ],
+      outro: 'Darunter zeigt **Member breakdown**, wer im jeweiligen Team was getan hat, und **Stat tile standings** die Start- und aktuellen Werte jedes Spielers auf jeder XP- oder Kill-Kachel.',
     },
   },
 
@@ -2908,9 +3086,10 @@ const de: PartialGuideDict = {
     viewers: {
       title: 'Was Zuschauer sind',
       body: [
-        'Ein Zuschauer, der beitritt, ist ein **Event-Spieler**. Er spielt dieses eine Event.',
-        'Er ist kein Clan-Mitglied und kein Gast. Er landet nie auf deiner Clan-Liste und bekommt keinen Rang.',
+        'Ein Zuschauer, der beitritt, ist ein **Event-Spieler**. Er spielt nur dieses eine Event.',
+        'Er ist weder Clanmitglied noch Gast. Er landet nie auf deiner Clanliste und bekommt keinen Rang.',
         'Alle, die so beigetreten sind, siehst du unter **People** → **Past viewers**.',
+        'Ein Stammzuschauer, den du behalten willst? **Make guest** in seiner Zeile macht ihn zum Clan-Gast, sodass er jedem deiner Events beitreten kann, die für Gäste offen sind, nicht nur diesem. **Make a guest a viewer again** macht einen Gast wieder zu einem Zuschauer eines einzelnen Events.',
       ],
     },
 
@@ -3310,6 +3489,13 @@ const de: PartialGuideDict = {
           term: 'Discord-Rollen sind etwas anderes',
           body: 'Anvils Rollen-Synchronisierung ordnet Discord-Rollen den **Rängen im Spiel** zu, nicht den Rollen auf der Seite. Wer hier Moderator wird, bekommt dadurch nichts auf eurem Discord-Server, und eine Moderatorenrolle, die du in Discord von Hand vergeben hast, bleibt unangetastet. Der eine Bot-Befehl, der etwas ändert, eine Einzahlung in die Kasse mit `/coffer`, prüft die Rolle auf der Seite: Kassenwart, Admin oder Eigentümer.',
         },
+      ],
+    },
+    log: {
+      title: 'Das Aktivitätsprotokoll',
+      body: [
+        '**Activity log** im Admin-Menü listet die neuesten 200 Änderungen, und jedes Staff-Mitglied kann es lesen: Beitritte, Austritte, Umbenennungen und Verifizierungen, Eigentümerwechsel, ernannte und entfernte Captains, genehmigte oder abgelehnte Anmeldungen, bestätigte Gebühren, geschaltete Funktionen und geänderte Einstellungen. **Filter by event type** grenzt es ein.',
+        'Hier werden auch Duplikate aufgeräumt. **Merge two members** fasst ein Duplikat in das echte Mitglied zusammen, und **Suspected renames** listet Namensänderungen, die Anvil für dich erkannt hat, damit du sie bestätigen oder ablehnen kannst.',
       ],
     },
   },
@@ -3900,6 +4086,670 @@ const de: PartialGuideDict = {
       note: {
         tag: 'Verschieben startet die Uhr neu',
         body: 'Zeit-Abzeichen zählen ab dem frühesten Boost des Charakters, der noch zählt, also setzt Verschieben oder Entfernen eines Boosts sie zurück. Dein Profil listet die Clans, die du boostest, einmal pro Clan.',
+      },
+    },
+  },
+
+  profile: {
+    metaTitle: 'Dein Profil, Wrapped und Vergleich — Anvil',
+    metaDescription: 'Die Seiten, die Anvil über dich führt: dein Profil, die öffentliche Seite jedes Charakters, deine Personenseite, monatliches und jährliches Wrapped, Event-Wrapped-Karten und der Vergleich zweier Charaktere nebeneinander.',
+    eyebrow: 'Anvil · für Spieler',
+    title: 'Dein Profil, Wrapped und Vergleich',
+    dek: 'Anvil führt eine Seite für **dich** und eine für **jeden Charakter**, den du spielst. Hier steht, was darauf zu finden ist, wer sie öffnen kann und welche Wrapped-Karten am Ende jedes Monats und jedes Events erscheinen.',
+    facts: [
+      {
+        strong: 'Standardmäßig geteilt',
+        rest: 'jeden Charakter mit einem Schalter privat stellen',
+      },
+      {
+        strong: 'Monatliches Wrapped',
+        rest: 'erscheint am 1. des nächsten Monats',
+      },
+      {
+        strong: 'Event-Wrapped',
+        rest: 'erscheint, wenn das Event endet',
+      },
+    ],
+    footnote: 'Jeder Schalter, der hier erwähnt wird, ist dort erklärt, wo er steht, in [Einstellungen, Seite für Seite]({settingsGuide}).',
+    pages: {
+      title: 'Deine Seiten',
+      intro: 'Vier Seiten, die jeweils eine andere Frage beantworten:',
+      rows: [
+        {
+          term: 'Dein Profil',
+          body: '[/profile](/profile), nur du siehst sie. Wähle oben über die Chips einen Charakter aus, um seine Level, Bosse, sein Collection Log und seine Events zu sehen. Captains bekommen hier außerdem ein **Captain’s deck**.',
+        },
+        {
+          term: 'Die Seite eines Charakters',
+          body: '`/p/<name>`: ein Charakter, lesbar für jeden mit dem Link, solange er geteilt ist. Sie zeigt Skills, Bosse, das Collection Log und persönliche Bestzeiten und lässt bewusst deine Clan-Platzierungen, deine Event-Historie und deinen Discord-Namen weg.',
+        },
+        {
+          term: 'Deine Personenseite',
+          body: '`/u/…`: alle deine geteilten Charaktere auf einer Seite, mit deiner Vitrine und den Streaming-Konten, die du zeigen willst. Sie existiert nur, wenn du **Show that my characters are one person** einschaltest.',
+        },
+        {
+          term: 'Die Mitgliederseite eines Clans',
+          body: '`/c/<clan>/members/<name>`: derselbe Charakter so, wie ein Clan ihn sieht, erreichbar über die Liste **Members** dieses Clans. Ein privater Clan zeigt seine Mitglieder nur den eigenen Leuten.',
+        },
+      ],
+    },
+    sharing: {
+      title: 'Wer was sehen kann',
+      body: [
+        'Jeder Charakter startet als **geteilt**: Seine Seite öffnet sich für jeden mit dem Link, und er kann in Ranglisten und bei anderen Clans auftauchen. Schalte einen unter **Who sees my characters** in den Einstellungen aus, und seine Seite zeigt für alle außer dir _not found_. Du siehst **Private — only you can see this page.** mit einem Link **Share it →**.',
+        'Eine geteilte Seite hat **Copy link** unter dem Namen. Angemeldete Besucher, die eine Seite für missbräuchlich halten, können **Report this profile** drücken.',
+        'Für jeden Charakter erlauben die Einstellungen außerdem, zu verbergen, in welchem Ingame-Clan er ist (**Show my in-game clan**), sodass er von der Seite dieses Charakters und der Anvil-Seite dieses Clans verschwindet.',
+      ],
+    },
+    wrapped: {
+      title: 'Dein monatliches und jährliches Wrapped',
+      body: [
+        'Jeden Monat bekommt jeder Charakter eine Wrapped-Karte: **XP gained**, **Boss kills**, **New slots** im Collection Log, **Efficient**-Stunden, **PBs**, dazu Pets und der größte Drop. Sie erscheint am **1. des Folgemonats** (UTC). Bis dahin kannst nur du sie als Vorschau öffnen.',
+        'Das Jahr bekommt auch eine, unter `/p/<name>/wrapped/<year>`, ab dem **1. Dezember**. `/p/<name>/wrapped` führt dich immer zur neuesten vorhandenen.',
+        'Drücke **Copy link to your Wrapped**, um sie zu teilen. In Discord eingefügt wird daraus ein Bild der Karte. Das Wrapped eines privaten Charakters öffnet sich nur für dich, und sein Link zeigt in der Vorschau eine schlichte Anvil-Karte.',
+      ],
+      note: {
+        tag: 'Ein leerer Monat',
+        body: 'Wenn in diesem Monat nichts bei Anvil ankam (keine XP, Kills, Log-Slots oder PBs), sagt die Karte das, statt Nullen zu zeigen. Spiele mit dem Plugin oder lass dich von den Hiscores erfassen, und der nächste Monat füllt sich.',
+      },
+    },
+    events: {
+      title: 'Event-Wrapped',
+      body: [
+        'Wenn ein Board endet, bekommt jeder Spieler und jedes Team eine Karte. Öffne die Seite **Wrapped** des Events: oben steht **Your card**, dann **Teams** (Rang, Punktzahl und Spieler) und **Players**. Drücke **Open and share your card** und dann **Copy share link**.',
+        'Vor dem Ende siehst du **Cards aren’t out yet**. Staff kann früh eine Vorschau öffnen, damit es die Karten prüfen kann, bevor die Spieler sie sehen.',
+        'Die Kartenbilder erscheinen nur bei einem Event eines öffentlichen Clans, das nicht nur auf Einladung war. Bei jedem anderen Event funktioniert der Link weiterhin für die Leute, die dieses Event sehen können, und zeigt in der Vorschau eine schlichte Anvil-Karte.',
+      ],
+    },
+    compare: {
+      title: 'Zwei Charaktere vergleichen',
+      body: [
+        'Öffne [Compare](/compare) und tippe zwei Namen ein. Du bekommst Skills, Bosse und Collection-Log-Seiten nebeneinander. Der Führende in jeder Zählung steht in Gold. Darunter folgen eine Analyse, XP pro Skill, jeder Boss, den einer von euch beiden getötet hat, und jede Log-Seite Gegenstand für Gegenstand: beide haben ihn, keiner oder nur einer von euch. **Swap sides** dreht die Seiten um.',
+        'Nur geteilte Charaktere können verglichen werden. Ein privater oder ein Name, den Anvil nicht kennt, kommt als _not on Anvil, or not shared_ zurück. Deine eigenen privaten Charaktere kannst du immer vergleichen, solange du angemeldet bist.',
+      ],
+    },
+  },
+  settings: {
+    metaTitle: 'Einstellungen, Seite für Seite — Anvil',
+    metaDescription: 'Jede Seite unter den Anvil-Einstellungen: Discord-Posts und Screenshot-Datenschutz, der Chat-Feed im Spiel, Plugin-Verbindung und Geräte, deine eigenen Webhooks, wer deine Charaktere sieht, Supporter- und Profil-Look, Streaming-Konten, jeder Charakter und Besitzansprüche.',
+    eyebrow: 'Anvil · für Spieler',
+    title: 'Einstellungen, Seite für Seite',
+    dek: '[Settings](/settings) ist der Ort für deine eigenen Entscheidungen: was du postest, was du im Spiel siehst, wer deine Charaktere sehen kann. Was du hier wählst, begleitet dich auf jedem Computer, auf dem du spielst.',
+    facts: [
+      {
+        strong: 'Suchfeld',
+        rest: 'auf der ersten Seite findet jede Einstellung',
+      },
+      {
+        strong: 'Eine Seite pro Charakter',
+        rest: 'unter Characters',
+      },
+      {
+        strong: '10 Webhooks',
+        rest: 'eigene',
+      },
+    ],
+    footnote: 'Deine Profilseiten werden in [Dein Profil, Wrapped und Vergleich]({profileGuide}) erklärt; die eigenen Einstellungen des Plugins in [RuneLite-Plugin einrichten]({pluginGuide}).',
+    find: {
+      title: 'Eine Einstellung finden',
+      body: [
+        'Die erste Seite, **Overview & search**, hat ein Suchfeld. Tippe ein, was du willst, in deinen eigenen Worten, etwa _private messages_, _rare drop value_, _death message_, _name colour_ oder _plugin token_, und es bringt dich zum richtigen Schalter.',
+        'Das Menü an der Seite hat zwei Gruppen. **Account** enthält die Seiten unten. **Characters** hat eine Seite pro Charakter, den du verknüpft hast (dein Haupt-Charakter ist mit **main** markiert), dann **Add character**. Eine Zahl bei **Add character** bedeutet, dass Anvil dich mit Charakteren spielen gesehen hat, die du noch nicht verknüpft hast.',
+      ],
+    },
+    posts: {
+      title: 'Discord-Posts & Screenshots',
+      intro: 'Was das Plugin über dich in die Discord-Kanäle deiner Clans postet und was es in Screenshots verbirgt. Diese Entscheidungen liest das nächste Plugin-Update. Bis du es hast, entscheiden die gleichen Schalter in den eigenen Einstellungen des Plugins.',
+      rows: [
+        {
+          term: 'Was dein Plugin postet',
+          body: '**Rare drops**, **Pets**, **Deaths**, **Collection log slots**, **Level milestones** und **Diary completions** sind von Anfang an an; **PvP kills** ist zu Beginn aus.',
+        },
+        {
+          term: 'Die Zahlen',
+          body: '**Min drop value** (zu Beginn 5m, mindestens 1m, 0 schaltet es ab), **Min drop rarity (1 in N)** (zu Beginn 1 in 10.000), **Loot key value** (1m), eine **Death message** mit bis zu 200 Zeichen, in der `{name}` zu deinem Namen wird, sowie die niedrigste **Combat task tier** und **Quest tier**, die gepostet werden (zu Beginn Master).',
+        },
+        {
+          term: 'Wohin deine Posts gehen',
+          body: '**Keep my announcements out of clans I only guest in**, und **Level posts in clan channels**: **Clan rules**, **Only 99s & max** oder **Off**. **Per character** listet jeden Charakter mit einem Link **Clans →**, um das Posten für einen einzelnen Clan abzuschalten.',
+        },
+        {
+          term: 'Screenshot-Datenschutz',
+          body: 'hake den Chat an, der aus jedem Screenshot herausgelassen wird, den das Plugin macht, Beweise und Discord-Posts gleichermaßen: **Private messages** (zu Beginn angehakt), **Public chat**, **Clan chat: others’ messages**, **Clan chat: your own messages**, **Chat channel** und **Group chat**. Spielnachrichten und Anvils eigene Zeilen bleiben immer drin.',
+        },
+      ],
+      note: {
+        tag: 'Board-Kacheln sind nie betroffen',
+        body: 'Einen Post abzuschalten stoppt nur den Discord-Post. Drops, Kills und Erfolge zählen weiterhin auf jedem Board, auf dem du spielst.',
+      },
+    },
+    chat: {
+      title: 'Chat-Feed im Spiel',
+      intro: 'Was das Plugin in deine Chatbox schreibt, wenn die Plugin-Einstellung **Show feed in game chat** an ist.',
+      rows: [
+        {
+          term: 'Woher',
+          body: '**Boards I play on**, und **Clans I’m guesting in, and my clan’s guests**.',
+        },
+        {
+          term: 'Was',
+          body: 'Drops, die mindestens einen Betrag wert sind, den du wählst, **Pets**, **New collection log slots**, **Other teams’ completed tiles**, **My team’s progress on item tiles**, **Leagues, Deadman and other game-mode unlocks** sowie Kampfaufgaben, Level, Quests und Tagebücher.',
+        },
+        {
+          term: 'Wenn du dich einloggst',
+          body: '**A short brief in chat**: was passiert ist, während du weg warst. Champions wählen, was es umfasst.',
+        },
+        {
+          term: 'Farben',
+          body: '**Anvil lines in chat**: **By type (Anvil colours)**, **One colour (the plugin’s own)** oder **My own colours** für Supporter.',
+        },
+      ],
+    },
+    login: {
+      title: 'Plugin-Verbindung, Login & Geräte',
+      intro: 'Wo das Plugin und die Website angemeldet sind und wie du sie abmeldest.',
+      rows: [
+        {
+          term: 'Plugin-Verbindung',
+          body: 'dein Plugin-Token, für den seltenen Fall, dass du ihn von Hand einfügst. Normalerweise erledigt das **Sign in with Discord** im Seitenpanel für dich.',
+        },
+        {
+          term: 'Login & Geräte',
+          body: 'jeder Computer, auf dem das Plugin angemeldet ist, als **RuneLite sign-in 1**, **2**… mit dem Datum der Erstellung und der letzten Nutzung. **Revoke** meldet einen ab, etwa einen Computer, den du verkauft hast. **Enter a code** verknüpft einen anderen Computer. **Sessions** meldet dich überall von der Website ab.',
+        },
+        {
+          term: 'Clan-Abrechnung',
+          body: 'Clan-Besitzer finden hier **Open portal →** für die Abrechnung des Clans.',
+        },
+      ],
+    },
+    webhooks: {
+      title: 'Deine Discord-Webhooks',
+      body: [
+        'Deine Posts können auch auf einen eigenen Discord-Server gehen: einen privaten Kanal, den Server von Freunden, überall, wo du einen Webhook anlegen kannst. Füge den Webhook-Link ein, hake an, was er bekommt (**Rare drops**, **Pets**, **Deaths**, **Combat achievements**, **Levels & milestones**, **Quests**, **Achievement diaries**, **Collection log**, **PvP kills**), setze optional **Only drops worth at least … gp** und drücke **Add webhook**.',
+        'Du kannst bis zu 10 haben. Akzeptiert werden nur Discord-Webhook-Links, und ein gespeicherter wird verdeckt angezeigt, damit ein Screenshot dieser Seite ihn nicht verrät. **Level posts on my webhooks** legt deine eigenen Level-Regeln für sie fest, getrennt von denen deines Clans.',
+      ],
+    },
+    privacy: {
+      title: 'Wer meine Charaktere sieht',
+      intro: 'Deine Charaktere sind zu Beginn geteilt. Drei Schalter ändern das:',
+      rows: [
+        {
+          term: 'Show <name> publicly',
+          body: 'ein Schalter pro Charakter. An (der Start), ist seine Seite **Public**. Aus ist sie **Only its clans**: seine Clans sehen ihn weiterhin in ihren Listen und Events, sonst niemand, und er verschwindet aus den Ranglisten.',
+        },
+        {
+          term: 'Show that my characters are one person',
+          body: 'bei zwei oder mehr Charakteren erstellt das deine Personenseite, die deine geteilten Charaktere gemeinsam auflistet. Aus, kann niemand erkennen, dass sie alle dir gehören.',
+        },
+        {
+          term: 'Show other clans’ boards',
+          body: 'ob die Startseite offene Boards anderer Clans für dich zum Ansehen auflistet.',
+        },
+      ],
+    },
+    look: {
+      title: 'Supporter, Profil-Look, Streaming und Boosts',
+      intro: 'Wie du auf Anvil aussiehst und welche Konten und Vorteile dahinterstecken.',
+      rows: [
+        {
+          term: 'Supporter & Namensfarben',
+          body: 'deine Stufe, deine Vorteile und dein Einladungslink: bring Freunde mit und verdiene kostenlose Monate. Die Stufen werden in [Anvil Supporter]({supporterGuide}) erklärt.',
+        },
+        {
+          term: 'Profil-Look',
+          body: 'Avatar und Banner (ab Champion animiert), auf Wunsch verschieden für jeden Charakter, und die **Display case**: 4, 8 oder 12 Pins je nach Stufe.',
+        },
+        {
+          term: 'Streaming-Konten',
+          body: '**Twitch**, **YouTube**, **Kick** und **Medal**. Jedes zeigt, ob es verifiziert ist, mit einem Schalter, um es auf deinem Profil zu zeigen. Verifizierte Konten sind es, die dich in Follower- und Abonnenten-Events lassen.',
+        },
+        {
+          term: 'Clan-Boosts',
+          body: 'nur sichtbar, sobald du boosten kannst: deine Slots, wo sie platziert sind und welche Clans du boosten kannst. Siehe [Einen Clan boosten]({boostsGuide}).',
+        },
+      ],
+    },
+    characters: {
+      title: 'Jeder Charakter',
+      intro: 'Unter **Characters** hat jeder Charakter seine eigene Seite: seinen Typ, ob er verifiziert ist, und Links zu seiner öffentlichen Seite und dem vollständigen Profil.',
+      rows: [
+        {
+          term: 'Sichtbarkeit',
+          body: '**Show to other clans and on leaderboards** und **Show my in-game clan**.',
+        },
+        {
+          term: 'Clans',
+          body: 'jeder Clan und jeder Space, in dem er ist, als **member** oder **guest**, mit **Announce drops & achievements** pro Clan und **Leave**. Hat Anvil ihn im falschen Clan, sagt **Which clan is it really in?** dem Staff Bescheid.',
+        },
+        {
+          term: 'Charakter',
+          body: '**Make main**, eine Umbenennung nach einem Namenswechsel anfordern oder ihn aus deinem Konto **Remove**n. Seine bisherigen Ergebnisse bleiben, wo sie sind.',
+        },
+        {
+          term: 'Charakter hinzufügen',
+          body: 'spiele einen Charakter einmal mit angemeldetem Plugin, dann verknüpft er sich selbst. Auf dem Handy oder dem offiziellen Client verknüpfe ihn über den Namen. **We noticed you playing** listet die, die Anvil gesehen hat; **Not mine** blendet eine aus.',
+        },
+      ],
+    },
+    claims: {
+      title: 'Besitzansprüche',
+      body: [
+        'Wenn ein Charakter mit dem Anvil-Konto eines anderen verknüpft ist, aber wirklich dir gehört, drücke im Reiter **You** des Seitenpanels des Plugins auf **This is my account**. Du beweist, dass du ihn spielst, mit einer kurzen XP-Prüfung, dann wird der aktuelle Inhaber gefragt. Du erfährst nie, wer er ist, und er erfährt nie, wer du bist.',
+        'Deine Ansprüche zeigen **XP check**, **open** und dann, wie sie endeten: **moved to you**, **with Anvil staff**, **withdrawn**, **check timed out** oder **closed**. **Withdraw** bricht einen ab.',
+        'Wenn jemand einen deiner Charaktere beansprucht, erscheint er unter **Claims on your characters** mit **Approve** oder **Object — it’s mine**. Ein unverifizierter Charakter wechselt nach 7 Tagen, außer du widersprichst. Ein verifizierter wechselt nur, wenn du ihn genehmigst.',
+      ],
+    },
+  },
+  weekly: {
+    metaTitle: 'Skill und Boss der Woche — Anvil',
+    metaDescription: 'Einen Skill der Woche, Boss der Woche oder Effizienzrennen auf Anvil führen: einen planen, wiederholen und rotieren lassen, Startlinien, Personen hinzufügen und entfernen, Preise, vorzeitiges Beenden und was Spieler sehen.',
+    eyebrow: 'Anvil · für Clan-Staff und Spieler',
+    title: 'Skill und Boss der Woche',
+    dek: 'Ein wöchentlicher Wettbewerb ist das Event mit wenig Aufwand: keine Kacheln zu schreiben, keine Teams und keine Anmeldungen. Jeder auf der Liste ist beim Start dabei, und der Sieger ist, wer vor dem Ende am meisten gewinnt.',
+    facts: [
+      {
+        strong: 'Keine Kacheln, keine Teams',
+        rest: 'eine Rangliste',
+      },
+      {
+        strong: 'Beim Start dabei',
+        rest: 'die ganze Liste, automatisch',
+      },
+      {
+        strong: 'Bis zu 10 Preisplätze',
+        rest: 'aus der Kasse bezahlt',
+      },
+    ],
+    footnote: 'Boards (Bingo) stehen in [Dein erstes Event durchführen]({adminGuide}); Preise und die Kasse in [Die Clan-Kasse]({cofferGuide}).',
+    schedule: {
+      title: 'Einen planen',
+      intro: 'Fünf Entscheidungen, und die Standardwerte passen für die meisten Clans:',
+      steps: [
+        'Öffne **Schedule** im Admin-Menü und drücke **+ Schedule event** (Moderatoren können **Schedule a competition** nutzen).',
+        'Wähle die Art: **Skill of the Week** (gewonnene XP), **Boss of the Week** (gewonnene Kills) oder **Efficiency race** (gewonnene EHP oder EHB).',
+        'Unter **What is measured** wählst du den Skill oder Boss. Um ihn jede Woche zu wechseln, füge unter **Then rotate through** weitere hinzu. Lass das leer, um denselben zu wiederholen.',
+        'Wähle, wann er **Runs**: **This weekend**, **One week** oder eigene Termine. Er braucht immer ein Ende, weil er die Gewinne zwischen Start und Ende wertet.',
+        'Lass **Repeat every week** an, dann beginnt der nächste genau in dem Moment, in dem dieser endet, mit gleicher Dauer und gleichen Preisen. Hake **Guests race too** an, wenn die Gäste deines Clans auf dem Board stehen sollen.',
+      ],
+      outro: 'Mehr musst du nicht einrichten. Die Startwerte kommen beim Beginn aus den Hiscores.',
+    },
+    counting: {
+      title: 'So wird gezählt',
+      body: [
+        'Der Gewinn jedes Spielers ist sein Wert jetzt minus sein Wert beim Start des Wettbewerbs (seine **starting line**). Der höchste Gewinn gewinnt; ein Gleichstand wird mit Namen aufgelistet, und Preise können unter gleichplatzierten aufgeteilt werden.',
+        'Startlinien kommen aus den Hiscores. Danach halten die Live-Updates des Plugins das Board zwischen den Hiscore-Abfragen aktuell, sodass Spieler mit Plugin auf dem Board nach oben klettern, während sie spielen.',
+        'Eine Zahl, die sinkt, wird ignoriert, und ein Gewinn, der unmöglich aussieht, wird für das Staff **markiert**, statt gezählt oder gekürzt zu werden.',
+      ],
+      note: {
+        tag: 'Spieler: vor dem Start ausloggen',
+        body: 'Die Hiscores speichern deine Werte nur, wenn du dich ausloggst. Wenn du bis kurz vor dem Start grindest, ohne dich auszuloggen, wird deine Startlinie von vor diesem Grind genommen, und der Grind zählt als Gewinn. Das Staff fängt es meist ab und korrigiert deine Startlinie, aber logge dich trotzdem einmal vor dem Start aus.',
+      },
+    },
+    manage: {
+      title: 'Den Wettbewerb führen',
+      intro: 'Öffne den Wettbewerb über **Schedule** oder das Dashboard. Er hat eine Startseite und drei Reiter:',
+      rows: [
+        {
+          term: 'Startseite',
+          body: 'die **Leaderboard** (Top 25, mit der Anzahl derer, die punkten), **markierte** Gewinne, alle, die den **Clan verlassen** haben, und die Preise. Wenn er endet, die Gewinner und das **Final leaderboard**.',
+        },
+        {
+          term: 'Startlinien',
+          body: '**Started at**, **Now** und **Gained** jedes Spielers. Korrigiere eine Startlinie von Hand, wenn ein Grind vor dem Wettbewerb mitgezählt wurde, und die Rangliste folgt. **Pull current stats** aktualisiert alle; **Reset baselines** startet alle neu aus ihren jetzigen Hiscores und löscht alle Gewinne.',
+        },
+        {
+          term: 'Teilnehmer',
+          body: 'die ganze Liste ist schon drin. **Add someone** nimmt einen Namen pro Zeile, für einen Gast oder ein Konto, das noch nicht auf der Liste steht. Einen Spieler zu entfernen löscht seine Wertung; ihn wieder hinzuzufügen gibt ihm eine neue Startlinie. **Leave one each** räumt eine Person auf, die auf mehreren Charakteren eingetragen ist. Du kannst außerdem alle Gäste auf einmal entfernen.',
+        },
+        {
+          term: 'Einstellungen',
+          body: 'Name, Termine, **Repeat every week** und **Status** (nur um einen festhängenden zu lösen; er läuft von selbst weiter). Admins können ihn **Delete**n, zusammen mit seinen Teilnehmern und Wertungen.',
+        },
+      ],
+    },
+    prizes: {
+      title: 'Preise und Ende',
+      body: [
+        'Lege Preise für bis zu 10 Plätze fest, bezahlt aus der Clan-Kasse. Du wählst, ob ein Spieler ohne Gewinn ausgezahlt werden kann und ob gleichplatzierte Plätze ihre Preise teilen. Wie sich das Geld bewegt, steht in [Die Clan-Kasse]({cofferGuide}).',
+        'Er endet von selbst zu der Zeit, die du gesetzt hast. **End now** stoppt ihn früher: Gewinne zählen sofort nicht mehr, und die Ergebnisse werden auf Discord gepostet, wobei die Preise innerhalb von 15 Minuten beglichen werden.',
+      ],
+    },
+    players: {
+      title: 'Für Spieler',
+      body: [
+        'Du meldest dich nicht an. Wenn du beim Start auf der Clanliste stehst, bist du dabei. Finde ihn auf der Seite **Events** deines Clans, im Reiter **Clan** des Seitenpanels des Plugins mit deinem aktuellen Stand, und auf Discord, wenn er beginnt und endet.',
+        'Jeder Wettbewerb hat eine eigene Seite mit der Live-Rangliste und dem Verlauf des Rennens Tag für Tag. Ein privater Clan zeigt ihn nur den eigenen Mitgliedern.',
+        'Wenn du mit dem Plugin spielst, bleibt deine Zahl live. Ohne das Plugin zählst du trotzdem, nur im Tempo der Hiscores.',
+      ],
+    },
+  },
+  clanEvents: {
+    metaTitle: 'Clan-Events und der Terminplan — Anvil',
+    metaDescription: 'Clan-Events auf Anvil planen: Massen, Ausflüge und Treffen, wöchentliche Wiederholungen, „Ich bin dabei“ und Anmeldungen mit Plätzen, Fragen und Gebühren, Discord-Posts und Erinnerungen, Auszahlungen, Umfragen und der Terminplan, der Lücken zeigt.',
+    eyebrow: 'Anvil · für Clan-Staff',
+    title: 'Clan-Events und der Terminplan',
+    dek: 'Nicht alles ist ein Board. Ein Clan-Event ist eine Masse, ein Raid-Abend, eine Drop-Party oder ein Treffen: eine Zeit und ein Ort, auf Discord gepostet und erinnert, mit so viel oder so wenig Anmeldung, wie du willst.',
+    facts: [
+      {
+        strong: 'Einmal oder jede Woche',
+        rest: 'mit optionalem Enddatum',
+      },
+      {
+        strong: 'Drei Wege mitzumachen',
+        rest: 'Info, „Ich bin dabei“ oder Anmeldungen',
+      },
+      {
+        strong: 'Erinnerung',
+        rest: '15 Minuten vorher, dann beim Start',
+      },
+    ],
+    footnote: 'Wöchentliche Wettbewerbe stehen in [Skill und Boss der Woche]({weeklyGuide}); Gebühren und Preise in [Gebühren und Auszahlungen]({feesGuide}).',
+    create: {
+      title: 'Einen planen',
+      intro: 'Öffne **Clan events** im Admin-Menü und fülle das Formular aus:',
+      rows: [
+        {
+          term: 'Name, Zeit, Dauer',
+          body: '**Name**, **Starts (your time)** in deiner eigenen Zeitzone, und **Minutes**.',
+        },
+        {
+          term: 'Wiederholungen',
+          body: '**Just once** oder **Every week**, mit optionalem Datum **Until**.',
+        },
+        {
+          term: 'Wo',
+          body: '**Where**, **World** und **Host**, dazu ein Bild: wähle einen Boss oder Skill oder lade dein eigenes hoch.',
+        },
+        {
+          term: 'Details',
+          body: 'Ausrüstung, Anforderungen, was mitzubringen ist.',
+        },
+        {
+          term: 'Wer kommt',
+          body: '**Just information** (kein Button, keine Zählung), **„I’m going“** (ein Tippen, zeigt eine Zählung) oder **Sign-ups** (Plätze, Fragen und eine Gebühr).',
+        },
+        {
+          term: 'Discord',
+          body: '**Post to** einen Kanal (oder den Standardkanal des Clans), optional die Kanäle **Chat**, **Guide** und **Voice** zum Verlinken, und ob die Mitgliedsrolle bei der Ankündigung, der Erinnerung und dem Start angepingt wird.',
+        },
+      ],
+      outro: 'Drücke **Schedule it**. Auszahlungen und eine Umfrage fügst du danach über die eigene Seite des Events hinzu.',
+    },
+    discord: {
+      title: 'Was Discord sieht',
+      body: [
+        'Die Ankündigung erscheint, wenn du sie planst, und wird an Ort und Stelle bearbeitet, sobald du etwas änderst, damit es nie eine veraltete Kopie gibt. Ein sich wiederholendes Event ist mit **every week** markiert.',
+        'Fünfzehn Minuten vorher postet es **Starting in 15 minutes**, und beim Start **Starting now**. Wenn du die Zeit verschiebst, wandern die Erinnerungen mit. Wird es abgesagt (**Cancel**), markiert der Post **Cancelled**, damit niemand auftaucht.',
+      ],
+    },
+    manage: {
+      title: 'Anmeldungen, Gebühren und Auszahlungen',
+      intro: 'Öffne das Event, um zu ändern, was es nutzt. Alles beginnt ausgeschaltet:',
+      rows: [
+        {
+          term: 'Anmeldungen',
+          body: 'mit **Places** (leer für kein Limit), wann **Sign-ups close**, und **Sign-up questions**. **You approve each one** lässt jede Anmeldung auf das Staff warten.',
+        },
+        {
+          term: 'Button „I’m going“',
+          body: 'aus macht es zu reiner Information: kein Button oder keine Zählung auf der Seite, im Plugin oder auf Discord.',
+        },
+        {
+          term: 'Teilnahmegebühr',
+          body: 'schaltet Anmeldungen ein. Füge eigene Gold unter **Added to the pot** zum Topf hinzu.',
+        },
+        {
+          term: 'Auszahlungen',
+          body: 'der Topf sind die Gebühren plus alles, was du hinzugefügt hast. Benenne **Who** was bekommt und **For** wofür, und markiere jede als **Paid**. Anvil warnt dich, wenn du mehr auszahlst als im Topf ist.',
+        },
+        {
+          term: 'Umfrage danach',
+          body: 'öffnet sich, sobald es endet. Nur das Staff sieht die Antworten. Hatte es Anmeldungen, werden nur die Angemeldeten gefragt.',
+        },
+        {
+          term: 'Ein wöchentliches Event',
+          body: '**Every week is…** **Its own** (Anmeldungen, Topf und Umfrage jede Woche) oder **One run** (eine Anmeldung, ein Topf und eine Umfrage für die ganze Reihe).',
+        },
+      ],
+    },
+    players: {
+      title: 'Was Mitglieder sehen',
+      body: [
+        'Die Eventseite zeigt **When**, **Where**, **Host**, **Discord**, **Entry** und **Prizes**, mit **Live now**, solange es läuft. Mitglieder drücken **I’m going** oder **Sign me up**, oder **Ask to sign up**, wenn das Staff jede Anmeldung genehmigt. Es steht auch im Reiter **Clan** des Seitenpanels des Plugins, mit denselben Buttons.',
+        'Nur Mitglieder des Clans können sagen, dass sie kommen, oder sich anmelden.',
+      ],
+    },
+    calendar: {
+      title: 'Der Terminplan',
+      body: [
+        '**Schedule** legt Boards, wöchentliche Wettbewerbe und Clan-Events auf einen Kalender, mit einem Filter für jeden.',
+        'Jeder Zeitraum von zwei oder mehr Tagen ohne etwas darin wird als Lücke markiert, mit **Fill the gap**, um dort etwas zu planen. Nutze es, damit der Clan zwischen großen Events beschäftigt bleibt, statt dass eine ruhige Zeit von zwei Wochen verstreicht.',
+      ],
+    },
+  },
+  challenges: {
+    metaTitle: 'Challenges und Friends-Events — Anvil',
+    metaDescription: 'Duelle auf Anvil (wer zuerst einen Drop hat, die meisten Kills oder die meisten XP in 1 Stunde, 24 Stunden oder 7 Tagen) und Friends-Events für Supporter: private Boards für deine Freunde hinter einem Einladungslink.',
+    eyebrow: 'Anvil · für Spieler',
+    title: 'Challenges und Friends-Events',
+    dek: 'Zwei Wege, gegen Leute zu spielen, die du kennst, ohne ein Clan-Event: eine **Challenge** ist ein Spieler gegen einen anderen, und ein **Friends-Event** ist ein privates Board für eine Gruppe, hinter einem Einladungslink.',
+    facts: [
+      {
+        strong: '1 Stunde bis 7 Tage',
+        rest: 'pro Challenge',
+      },
+      {
+        strong: 'Prahlrechte',
+        rest: 'kein Einsatz, kein Gold',
+      },
+      {
+        strong: 'Bis zu 50 Freunde',
+        rest: 'pro Friends-Event, je nach Stufe',
+      },
+    ],
+    footnote: 'Stufen und was jede davon ausrichtet, stehen in [Anvil Supporter: Stufen und Vorteile]({supporterGuide}).',
+    start: {
+      title: 'Jemanden herausfordern',
+      intro: 'Du brauchst einen verifizierten Charakter, und der andere ebenso.',
+      steps: [
+        'Öffne [Challenges](/challenges) oder drücke auf dem Profil eines Spielers auf **Challenge <name>**.',
+        'Tippe unter **Who** seinen Namen ein und wähle unter **Playing as** deinen eigenen Charakter. Er muss verifiziert sein.',
+        'Wähle das Rennen: **First to a drop** (bis zu 5 Gegenstände, alles Monster-Drops), **Most kills** eines Bosses oder **Most XP** in einem Skill oder insgesamt.',
+        'Wähle das Zeitlimit: **1 hour**, **24 hours** oder **7 days**. Hake **OK to show the result publicly** an, wenn es dir nichts ausmacht, gesehen zu werden; öffentlich ist es nur, wenn ihr beide es anhakt.',
+      ],
+      outro: 'Sie bekommen eine Benachrichtigung und eine Discord-Nachricht und haben 24 Stunden, um **Accept**, **Decline** oder **Decline and block** zu wählen. Die Uhr startet, sobald sie annehmen.',
+    },
+    rules: {
+      title: 'So wird entschieden',
+      intro: 'Anvil entscheidet es selbst, innerhalb einer Minute nach dem Ende.',
+      rows: [
+        {
+          term: 'Kills und XP',
+          body: 'beide Startlinien werden genommen, wenn es angenommen wird; wer bis zum Ende mehr gewinnt, gewinnt, und gleiche Gewinne sind ein Unentschieden. Hiscores und das Plugin zählen beide, je nachdem, welcher höher ist.',
+        },
+        {
+          term: 'Erster Drop',
+          body: 'wer von euch zuerst einen der Gegenstände bekommt, gewinnt, sofort. Drops sieht nur das Plugin, also muss es bei euch beiden laufen. Wenn niemand rechtzeitig einen bekommt: ein Unentschieden.',
+        },
+        {
+          term: 'Absagen',
+          body: 'du kannst deine eigene Challenge zurückziehen, solange sie nicht beantwortet ist. Sobald sie läuft, endet sie nur, wenn ihr beide zustimmt.',
+        },
+      ],
+    },
+    limits: {
+      title: 'Limits und Nein sagen',
+      body: [
+        'Offene Challenges (wartend oder laufend, gesendet oder empfangen) sind nach Stufe begrenzt: **1** kostenlos, **5** für Supporter, unbegrenzt für Champions und Patrons. Jeder kann bis zu 20 am Tag starten, und nur eine gleichzeitig mit derselben Person.',
+        'Du willst keine? **Turn away all new challenges** ablehnen oder eine Person blockieren, wenn du ablehnst. Wer dich herausfordert, sieht in beiden Fällen dieselbe Absage, sodass er nicht erkennen kann, dass er blockiert wurde.',
+        'Die Seite behält **Your record** (Siege, Niederlagen und Unentschieden), was **Open now** ist und dein **Your limit**.',
+      ],
+    },
+    friends: {
+      title: 'Ein Friends-Event ausrichten',
+      body: [
+        'Jeder Supporter, Champion oder Patron kann ein privates Board für Freunde über [Host](/host) → **Host for friends** → **New friends event** führen. Es ist ein vollständiges Board: Bingo oder ein Kachelrennen, vom Plugin erfasst, mit derselben Einrichtung wie beim Event eines Creators.',
+        'Schicke den **Invite link**; er ist der einzige Zugang. Freunde öffnen ihn, melden sich mit Discord an und drücken **Open the event**. Beitreten ist immer kostenlos. Wenn der Link durchsickert, erstelle einen neuen: der alte hört auf zu funktionieren, und alle, die schon drin sind, bleiben drin.',
+        'Ein Friends-Event wird nirgends auf Anvil gelistet und braucht keinen Clan.',
+      ],
+      table: {
+        areaLabel: 'Stufe',
+        columns: [
+          'Spieler',
+          'Gleichzeitig laufend',
+        ],
+        rows: [
+          {
+            area: 'Supporter',
+            cells: [
+              '10',
+              '1',
+            ],
+          },
+          {
+            area: 'Champion',
+            cells: [
+              '25',
+              '1',
+            ],
+          },
+          {
+            area: 'Patron',
+            cells: [
+              '50',
+              '2',
+            ],
+          },
+        ],
+      },
+      note: {
+        tag: 'Wenn deine Stufe endet',
+        body: 'Freunde, die schon drin sind, bleiben drin. Neue Freunde können nicht über dein neues Limit hinaus beitreten, und du kannst kein weiteres starten, bis du wieder darunter liegst.',
+      },
+    },
+  },
+  clanHall: {
+    metaTitle: 'Clans, Events und Ranglisten finden — Anvil',
+    metaDescription: 'Einen OSRS-Clan in der Clan Hall von Anvil finden, zwei Clans vergleichen, die wöchentlichen Spieler- und Clan-Ranglisten, die öffentliche Event-Liste und Ingame-Clan-Seiten für Clans, die nicht auf Anvil sind.',
+    eyebrow: 'Anvil · für Spieler und Clans',
+    title: 'Clans, Events und Ranglisten finden',
+    dek: 'Anvils öffentliche Seiten zum Stöbern: die **Clan Hall**, um einen Clan zu finden, die Liste **Events**, um etwas zum Mitmachen zu finden, und das **Leaderboard**, um zu sehen, wer am meisten gewinnt.',
+    facts: [
+      {
+        strong: 'Clan Hall',
+        rest: 'nur öffentliche Clans',
+      },
+      {
+        strong: 'Rangliste',
+        rest: 'diese Woche, 30 Tage, insgesamt',
+      },
+      {
+        strong: 'Events',
+        rest: 'nur was der Gastgeber beworben hat',
+      },
+    ],
+    footnote: 'Um deinen eigenen Clan eintragen zu lassen, siehe [Einen Clan gründen]({clanGuide}); geboostete Clans werden hervorgehoben, siehe [Einen Clan boosten]({boostsGuide}).',
+    hall: {
+      title: 'Die Clan Hall',
+      body: [
+        '[Clan Hall](/clans) listet jeden öffentlichen Clan. Suche nach Name oder Slogan und grenze dann auf **Taking members** oder **Open to challenges** ein. **Most active** (die Reihenfolge, in der sie sich öffnet) stellt Clans, deren Mitglieder diese Woche am meisten gewonnen haben, nach vorn; **Biggest** sortiert nach Mitgliederzahl.',
+        'Jede Karte zeigt, ob der Clan **Recruiting** ist und wie er Gäste aufnimmt: **Guests welcome**, **Guests by approval** oder **No guests**. Geboostete Clans bekommen die hervorgehobenen Reihen oben, und Creators haben eine eigene Reihe.',
+      ],
+      note: {
+        tag: 'Nicht gelistet?',
+        body: 'Nur Clans, die auf öffentlich gestellt sind, erscheinen, und ein Clan kann seine Listung in seinen Einstellungen abschalten. Private Clans stehen nie in der Clan Hall, der Rangliste oder Vergleichen.',
+      },
+    },
+    compare: {
+      title: 'Zwei Clans vergleichen',
+      body: [
+        '[Compare clans](/compare/clans) stellt zwei beliebige gelistete Clans nebeneinander. Um stattdessen zwei Charaktere zu vergleichen, nutze [Compare](/compare).',
+      ],
+    },
+    board: {
+      title: 'Die Rangliste',
+      body: [
+        '[Leaderboard](/leaderboard) reiht Spieler und Clans nach Erfahrung, effizienten Stunden und Bossing über **This week**, **30 days** oder **All time**. Spieler lassen sich auf **Regular**-, **Ironman**-, **Hardcore**-, **Ultimate**- oder **Group**-Konten eingrenzen.',
+        'Clans werden nach der XP gereiht, die ihre Mitglieder gewonnen haben. Nur verifizierte Clans, die in der Clan Hall gelistet sind, erscheinen. Die Gewinne eines Gasts zählen für seinen eigenen Clan, nicht für den, in dem er Gast ist.',
+      ],
+    },
+    events: {
+      title: 'Ein Event zum Mitmachen finden',
+      body: [
+        '[Events](/events) listet, was auf Anvil gerade läuft und bald kommt. Filtere nach **Live now**, **Open to join** oder **Starting this week**, nach Format oder **Solo**, nach **Anyone can join** oder **Ask or meet a rule**, und nach **Clans** oder **Creators**. **Join** bringt dich zur Anmeldung.',
+        'Nur Events, deren Gastgeber **Advertise on Anvil** eingeschaltet hat, erscheinen. Events nur für Mitglieder oder nur auf Einladung tauchen nie auf.',
+      ],
+    },
+    ghost: {
+      title: 'Ingame-Clans, die nicht auf Anvil sind',
+      body: [
+        'Die Seite eines Charakters nennt den Ingame-Clan, in dem er ist. Ist dieser Clan nicht auf Anvil, öffnet der Link eine schlichte Seite, die die Anvil-Spieler auflistet, die darin sind und es zu zeigen gewählt haben. Es ist nicht die Mitgliederliste dieses Clans, und nichts darauf macht jemanden zum Mitglied.',
+        'Ist es dein Clan, richtet **Bring your clan to Anvil** einen ein. Sobald er ein öffentlicher Anvil-Clan ist, führt der Link direkt dorthin.',
+      ],
+    },
+  },
+  guideLibrary: {
+    metaTitle: 'Ingame-Guides: lesen, vorschlagen und Clan-Kopien — Anvil',
+    metaDescription: 'Die Guide-Bibliothek von Anvil: Raid-, Boss-, Skilling- und Geldmacher-Guides auf der Seite, im Spiel und auf Discord. Nach Level lesen, einen neuen Guide oder eine Änderung vorschlagen und wie ein Clan Bibliotheks-Guides kopiert und bearbeitet.',
+    eyebrow: 'Anvil · für Spieler und Clan-Staff',
+    title: 'Ingame-Guides',
+    dek: 'Neben diesen Anleitungen führt Anvil eine Bibliothek mit Spiel-Guides: Raids, Bosse, Skilling und Geldmacher. Jeder kann sie lesen, jeder Angemeldete kann einen vorschlagen, und ein Clan kann eigene Kopien behalten.',
+    facts: [
+      {
+        strong: 'Drei Level',
+        rest: 'Beginner, Intermediate, Advanced',
+      },
+      {
+        strong: 'Jeder kann vorschlagen',
+        rest: 'das Staff prüft jeden',
+      },
+      {
+        strong: '/guide',
+        rest: 'postet einen auf Discord',
+      },
+    ],
+    footnote: 'Slash-Befehle stehen in [Slash-Befehle]({commandsGuide}).',
+    read: {
+      title: 'Einen Guide lesen',
+      body: [
+        'Öffne den Reiter **In-game guides** auf der Guide-Seite oder [/guides](/guides) auf der Seite deines Clans. Die Liste eines Clans enthält seine eigenen Guides plus alle Bibliotheks-Guides, die er nicht kopiert hat.',
+        'Viele Guides haben oben einen Level-Schalter: **Beginner**, **Intermediate** und **Advanced**. Die Teile für andere Level klappen zu, sodass ein Neuling und ein Speedrunner dieselbe Seite lesen.',
+        'Auf Discord postet `/guide` und der Anfang eines Namens die Karte eines Guides mit einem Link zur vollständigen Seite.',
+      ],
+    },
+    propose: {
+      title: 'Einen Guide oder eine Änderung vorschlagen',
+      body: [
+        'Angemeldet, öffne [Propose a guide](/guides/propose), um einen neuen zu schreiben oder eine Änderung an einem bestehenden Bibliotheks-Guide vorzuschlagen. Sag dem Prüfer, was du geändert hast und warum; du kannst deine Änderungen vor dem Absenden gegen den aktuellen Guide vergleichen.',
+        'Drücke **Send for review**. [My guide proposals](/guides/proposals) zeigt jeden als **pending**, **approved**, **rejected** oder **withdrawn**, mit der Notiz des Prüfers, sobald er antwortet. Solange er wartet, kannst du ihn bearbeiten oder **Withdraw**n. Du kannst 5 gleichzeitig wartend haben.',
+        'Nichts geht live, bis die Guide-Editoren von Anvil es genehmigen. Eine genehmigte Änderung aktualisiert auch jede Clan-Kopie, die nicht verändert wurde.',
+      ],
+    },
+    clan: {
+      title: 'Die Guides deines Clans',
+      intro: 'Admins und Moderatoren, die Guides schreiben dürfen, verwalten sie unter **Guides** im Admin-Menü.',
+      rows: [
+        {
+          term: 'Bibliotheks-Guides auf unserer Seite zeigen',
+          body: 'an: Bibliotheks-Guides, die du nicht kopiert hast, erscheinen auch auf deiner Seite Guides, immer aktuell.',
+        },
+        {
+          term: 'In unsere Guides kopieren',
+          body: 'erstellt eine Clan-Kopie. Sie **folgt der Bibliothek**, bis du sie bearbeitest, und übernimmt jede Änderung der Bibliothek.',
+        },
+        {
+          term: 'Eine Kopie bearbeiten',
+          body: 'macht sie **customised**, also eigen für den Clan. Ändert sich der Bibliotheks-Guide später, zeigt sie **update available**: nimm die neue Version oder behalte deine.',
+        },
+        {
+          term: 'Neuer Guide',
+          body: 'schreibt einen, den nur dein Clan hat, etwa eigene Raid-Regeln oder einen Massen-Guide.',
+        },
+      ],
+      note: {
+        tag: 'Sie posten',
+        body: 'Guides können in einen Discord-Kanal gepostet werden, und diese Posts werden an Ort und Stelle bearbeitet, wenn sich der Guide ändert.',
       },
     },
   },

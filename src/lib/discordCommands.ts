@@ -72,7 +72,7 @@ import {
   type ClanCommand,
   type ClanCommandCtx,
 } from '@/lib/discordClanCommands';
-import { COMMAND_NAME, SUBCOMMAND_ORDER } from '@/lib/discordCommandDefs';
+import { COMMAND_NAME, SETUP_TOPICS, SUBCOMMAND_ORDER } from '@/lib/discordCommandDefs';
 import {
   embedReply,
   textReply,
@@ -1256,14 +1256,27 @@ export async function handleComponent(interaction: Interaction): Promise<Interac
  * most 25 choices — falling back to an empty list for anything it doesn't recognise.
  *
  *   page    → collection-log pages matching what's typed (there are ~125, too many for static choices)
+ *   topic   → /setup's guides whose name or key matches what's typed
  *   player  → RSNs matching what's typed: the invoker's own accounts first, then the clan roster
  *   account → (retired from /stats; kept answering until Discord drops the old registration)
  */
+/** /setup topics matching `q` (name or key, case-insensitive); everything, in menu order, when empty. */
+export function suggestSetupTopics(q: string): { name: string; value: string }[] {
+  const needle = q.trim().toLowerCase();
+  const hits = needle
+    ? SETUP_TOPICS.filter((t) => t.name.toLowerCase().includes(needle) || t.value.includes(needle.replace(/[^a-z]/g, '')))
+    : SETUP_TOPICS;
+  return hits.slice(0, 25);
+}
+
 export async function handleAutocomplete(interaction: Interaction): Promise<InteractionResponse> {
   const focused = readFocusedOption(interaction);
   if (!focused) return autocompleteReply([]);
 
   if (focused.name === 'page') return autocompleteReply(suggestClogPages(focused.value));
+
+  // /setup's guides: more than Discord's 25 static choices, so matched on what's typed.
+  if (focused.name === 'topic') return autocompleteReply(suggestSetupTopics(focused.value));
 
   if (focused.name === 'guide') {
     const clan =

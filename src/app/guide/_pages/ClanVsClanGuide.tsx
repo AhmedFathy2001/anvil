@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { GuideShell, Figure, Note, Rows, Section } from '../_components/GuideUI';
+import { SectionBlocks } from '../_components/SectionBlocks';
 import { localeChrome } from '../_components/LanguageBar';
 import { getDict } from '../_i18n';
 import { guideMetadata } from '../_i18n/meta';
@@ -51,6 +52,7 @@ export default async function ClanVsClanGuide({ lang }: { lang: string }) {
     { id: 'captains', n: 5, title: c.captains.title },
     { id: 'player', n: 6, title: c.player.title },
     { id: 'dead', n: 7, title: c.dead.title },
+    { id: 'cohost', n: 8, title: c.cohost.title },
   ];
 
   return (
@@ -171,6 +173,10 @@ export default async function ClanVsClanGuide({ lang }: { lang: string }) {
         <Note tag={c.dead.note.tag}>
           <p>{rt(c.dead.note.body, v)}</p>
         </Note>
+      </Section>
+
+      <Section id="cohost" n={8} title={c.cohost.title} labels={t.common}>
+        <SectionBlocks s={c.cohost} v={v} />
       </Section>
     </GuideShell>
   );

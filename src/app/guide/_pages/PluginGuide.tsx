@@ -7,6 +7,7 @@ import { getOAuthMode } from '@/lib/discord-oauth';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { currentClan } from '@/lib/clanContext';
 import { Chat, Figure, GuideShell, Note, Rows, Section } from '../_components/GuideUI';
+import { SectionBlocks } from '../_components/SectionBlocks';
 import { localeChrome } from '../_components/LanguageBar';
 import { getDict, guideHref } from '../_i18n';
 import { guideMetadata } from '../_i18n/meta';
@@ -82,8 +83,10 @@ export default async function PluginGuide({ lang }: { lang: string }) {
     { id: 'working', n: 4, title: p.working.title },
     { id: 'bingo', n: 5, title: p.bingo.title },
     { id: 'notifications', n: 6, title: p.notifications.title },
-    { id: 'trouble', n: 7, title: p.trouble.title },
-    { id: 'limits', n: 8, title: p.limits.title },
+    { id: 'screen', n: 7, title: p.screen.title },
+    { id: 'sync', n: 8, title: p.sync.title },
+    { id: 'trouble', n: 9, title: p.trouble.title },
+    { id: 'limits', n: 10, title: p.limits.title },
   ];
 
   return (
@@ -304,8 +307,18 @@ export default async function PluginGuide({ lang }: { lang: string }) {
         />
       </Section>
 
-      {/* ---------------------------------------------------------------- 7 */}
-      <Section id="trouble" n={7} title={p.trouble.title} labels={t.common}>
+      {/* ---------------------------------------------------------------- 7, 8 */}
+      {/* What the plugin draws and sends beyond the settings screenshots above (live plugin, origin/main). */}
+      <Section id="screen" n={7} title={p.screen.title} labels={t.common}>
+        <SectionBlocks s={p.screen} v={v} />
+      </Section>
+
+      <Section id="sync" n={8} title={p.sync.title} labels={t.common}>
+        <SectionBlocks s={p.sync} v={v} />
+      </Section>
+
+      {/* ---------------------------------------------------------------- 9 */}
+      <Section id="trouble" n={9} title={p.trouble.title} labels={t.common}>
         <p className="text-text-muted">{rt(p.trouble.intro, v)}</p>
         <Rows rows={rows(p.trouble.rows, v)} />
 
@@ -316,10 +329,10 @@ export default async function PluginGuide({ lang }: { lang: string }) {
         </Note>
       </Section>
 
-      {/* ---------------------------------------------------------------- 8 */}
+      {/* ---------------------------------------------------------------- 10 */}
       {/* Things the GAME doesn't report, so nothing can track them. A list meant to grow: add a row
           to `plugin.limits.rows` (every locale) as new ones turn up. */}
-      <Section id="limits" n={8} title={p.limits.title} labels={t.common}>
+      <Section id="limits" n={10} title={p.limits.title} labels={t.common}>
         <p className="text-text-muted">{rt(p.limits.intro, v)}</p>
         <Rows rows={rows(p.limits.rows, v)} />
       </Section>
