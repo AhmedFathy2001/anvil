@@ -284,3 +284,36 @@ test('a creator space: the card under the events is headed by the space, not "Yo
   assert.ok(clan.includes('Your clan'));
   assert.equal(ownHeading({ activeClan: { slug: 'afk' } }), 'Your clan');
 });
+
+test('a solo board: the cut standings, your lines picked out, and a way to every player', () => {
+  const p = (rank: number, you = false) => ({ name: `P${rank}`, teamId: rank, teamName: `P${rank}`, teamColor: '#fff', rank, score: `${200 - rank} tiles`, captain: false, you });
+  const ui = eventUi(
+    base(liveCfg(), {
+      soloStandings: {
+        total: 170,
+        complete: false,
+        mineMore: 1,
+        parts: [
+          { kind: 'rows', rows: [p(1), p(2), p(3), p(4), p(5)] },
+          { kind: 'gap', skipped: 42 },
+          { kind: 'rows', rows: [p(48), p(49), p(50, true), p(51), p(52)] },
+          { kind: 'gap', skipped: 118 },
+        ],
+      },
+    }),
+    'board',
+  )!;
+  const all = texts(ui);
+  assert.ok(all.includes('170 players'));
+  assert.ok(all.includes('50.') && all.includes('P50'), 'your line, ranked');
+  assert.ok(all.includes('· · ·  42 more'));
+  assert.ok(all.includes('+1 more of your accounts'));
+  assert.ok(all.includes('View all 170 players'));
+  assert.ok(!all.some((s) => /teams/i.test(s)), 'no "teams" copy on a players board');
+  assert.ok(!all.includes('P6'), 'the default view never ships the whole field');
+  const view = walk(ui).find((x) => x.t === 'button' && x.label === 'View all 170 players') as { on: { v: string } };
+  assert.equal(view.on.v, 'teams', 'opens the paged, searchable list');
+  // A ladder keeps its own standings line.
+  const ladder = eventUi(base(liveCfg({ event: { id: 5, name: 'L', format: 'ladder' } }), { soloStandings: { total: 3, complete: true, mineMore: 0, parts: [{ kind: 'rows', rows: [p(1)] }] } }), 'board')!;
+  assert.ok(!texts(ladder).includes('3 players'));
+});

@@ -412,6 +412,26 @@ test('teams: the ranked list opens a team; a team page goes back; search rows op
   assert.ok(texts(members).includes('Captain'));
 });
 
+test('players board: your accounts off the page show (three, then +N), and search hits carry their rank', () => {
+  const pl = (name: string, rank: number, you = false) => ({ name, teamId: rank, teamName: name, teamColor: '#fff', rank, score: `${rank} tiles`, captain: false, you });
+  const yours = [pl('Alt1', 40, true), pl('Alt2', 41, true), pl('Alt3', 90, true), pl('Alt4', 99, true)];
+  const page = rosterUi(
+    { mode: 'players', page: 1, pageSize: 25, total: 170, pages: 7, players: [pl('Top', 1)], you: yours[0], yours },
+    { event: 7, team: 0, page: 1, back: 1 },
+  );
+  const t = texts(page);
+  assert.ok(t.includes('Your accounts'));
+  assert.ok(t.includes('Alt3') && !t.includes('Alt4'));
+  assert.ok(t.includes('+1 more'));
+  assert.ok(t.includes('170 players'));
+  const search = rosterUi(
+    { mode: 'search', query: 'zez', page: 1, pageSize: 25, total: 1, pages: 1, ranked: true, players: [pl('Zezima', 12)] },
+    { event: 7, team: 0, page: 1, back: 1 },
+  );
+  assert.ok(texts(search).includes('#12'), 'ranked on a players board');
+  assert.ok(!texts(search).some((s) => s.includes('Not on a team')));
+});
+
 test('clan search: a boosted name wears its own dark look as-is on the panel, else the adapted main look', () => {
   const textOf = (n: Node): Record<string, unknown> | null => {
     const found = JSON.stringify(n).match(/\{"t":"text","s":"Dim Clan"[^}]*\}/);

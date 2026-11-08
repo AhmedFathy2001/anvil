@@ -12,6 +12,8 @@
 //
 // Pure, no `@/` import, so it is tested directly (tests/event-roster.test.ts); the route loads rows.
 
+import { competitionRanks, standingsWindow, type StandingsWindow, type WindowOpts } from './standingsWindow';
+
 export const ROSTER_PAGE_SIZE = 25;
 export const ROSTER_MAX_PAGE_SIZE = 50;
 
@@ -42,6 +44,8 @@ export interface RosterInput {
   viewerPlayerId: number | null;
   /** The event ranks individuals (a ladder) rather than teams. */
   individuals: boolean;
+  /** Solo placement (lib/standingsWindow isSoloLike): the people are what is ranked, whatever the team sizes. */
+  solo?: boolean;
   /** Individual events: points per participant, best first. Ranked players lead the list in this order. */
   individualPoints?: { participantId: number; name: string; points: number }[];
   /** A team's page: each member's share of the team's score (participantId → points), and its unit. */
@@ -79,10 +83,19 @@ interface Paged {
 
 export type RosterOverview =
   | (Paged & { mode: 'teams'; teams: RosterTeamOut[]; yourTeam: RosterTeamOut | null; unplaced: number })
-  | (Paged & { mode: 'players'; players: RosterPersonOut[]; you: RosterPersonOut | null });
+  | (Paged & {
+      mode: 'players';
+      players: RosterPersonOut[];
+      you: RosterPersonOut | null;
+      /** Every line of the viewer's (one per account on the board), in standing order. */
+      yours: RosterPersonOut[];
+      /** Asked for: the top, then the viewer's lines with their neighbours (lib/standingsWindow). */
+      window?: StandingsWindow<RosterPersonOut>;
+    });
 
 export type RosterTeamPage = Paged & { mode: 'members'; team: RosterTeamOut; players: RosterPersonOut[] };
-export type RosterSearchPage = Paged & { mode: 'search'; query: string; players: RosterPersonOut[] };
+/** `ranked`: a players board — each hit carries its standing rather than its (one-person) team. */
+export type RosterSearchPage = Paged & { mode: 'search'; query: string; players: RosterPersonOut[]; ranked?: boolean };
 
 /** A 1-based page number and a size, from untrusted query params. */
 export function pageParams(page: string | null, size: string | null): { page: number; pageSize: number } {
@@ -104,15 +117,7 @@ const byName = (a: { name: string }, b: { name: string }) =>
   a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
 
 /** Competition ranking: ties share a rank, the next rank skips ("1, 2, 2, 4"). Null scores rank nothing. */
-function ranks<T>(rows: T[], score: (r: T) => number | null): Map<T, number> {
-  const out = new Map<T, number>();
-  const scored = rows.filter((r) => score(r) != null).sort((a, b) => score(b)! - score(a)!);
-  scored.forEach((r, i) => {
-    const prev = scored[i - 1];
-    out.set(r, prev && score(prev) === score(r) ? out.get(prev)! : i + 1);
-  });
-  return out;
-}
+const ranks = competitionRanks;
 
 class Roster {
   private readonly teamById = new Map<number, RosterTeamIn>();
@@ -176,9 +181,21 @@ class Roster {
 
   /** One-person teams, or an individual event: the people are what is ranked. */
   playersMode(): boolean {
-    if (this.input.individuals) return true;
+    if (this.input.individuals || this.input.solo) return true;
     if (this.input.teams.length === 0) return false;
     return [...this.membersOf.values()].every((m) => m.length <= 1);
+  }
+
+  /** One player with their standing: their own on a ladder, their (one-person) team's otherwise. */
+  standing(p: RosterPersonIn): RosterPersonOut {
+    if (this.input.individuals) {
+      const standings = this.input.individualPoints ?? [];
+      const s = standings.find((x) => x.participantId === p.participantId);
+      if (!s) return this.person(p);
+      return this.person(p, ranks(standings, (x) => x.points).get(s) ?? null, `${Math.round(s.points)} pts`);
+    }
+    const t = p.teamId != null ? this.teamById.get(p.teamId) : undefined;
+    return t ? this.person(p, this.teamRank.get(t) ?? null, t.scoreText) : this.person(p);
   }
 
   /** Every player in standing order: ranked first, then the rest by name. */
@@ -209,11 +226,19 @@ class Roster {
     return withTeam.map(({ p, t }) => this.person(p, this.teamRank.get(t) ?? null, t.scoreText));
   }
 
-  overview(page: number, pageSize: number): RosterOverview {
+  overview(page: number, pageSize: number, window?: WindowOpts): RosterOverview {
     if (this.playersMode()) {
       const all = this.rankedPlayers();
       const { items, ...paged } = slice(all, page, pageSize);
-      return { mode: 'players', ...paged, players: items, you: all.find((p) => p.you) ?? null };
+      const yours = all.filter((p) => p.you);
+      return {
+        mode: 'players',
+        ...paged,
+        players: items,
+        you: yours[0] ?? null,
+        yours,
+        ...(window ? { window: standingsWindow(all, (p) => p.you, window) } : {}),
+      };
     }
     const ordered = [...this.input.teams].sort(
       (a, b) => (this.teamRank.get(a) ?? Infinity) - (this.teamRank.get(b) ?? Infinity) || byName(a, b),
@@ -267,13 +292,19 @@ class Roster {
             return sa - sb || byName(a, b);
           })
       : [];
+    // A players board: each hit with its standing (a one-person team's name is the player's own).
+    if (this.playersMode()) {
+      const { items, ...paged } = slice(hits, page, pageSize);
+      return { mode: 'search', query: query.trim(), ...paged, ranked: true, players: items.map((p) => this.standing(p)) };
+    }
     const { items, ...paged } = slice(hits, page, pageSize);
     return { mode: 'search', query: query.trim(), ...paged, players: items.map((p) => this.person(p)) };
   }
 }
 
-export function rosterOverview(input: RosterInput, page: number, pageSize: number): RosterOverview {
-  return new Roster(input).overview(page, pageSize);
+/** `window`: also cut the players list to the top and the viewer's neighbourhood (players boards only). */
+export function rosterOverview(input: RosterInput, page: number, pageSize: number, window?: WindowOpts): RosterOverview {
+  return new Roster(input).overview(page, pageSize, window);
 }
 
 export function rosterTeam(input: RosterInput, teamId: number, page: number, pageSize: number): RosterTeamPage | null {

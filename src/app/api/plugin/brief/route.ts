@@ -51,12 +51,15 @@ export async function GET(request: Request) {
   if (live && ev && (items.includes('bingo') || items.includes('tiles'))) {
     const roster = await pluginRoster(request, ev.id, { query: '', team: null, page: 1, pageSize: 50 }).catch(() => null);
     const teams = roster && roster.mode === 'teams' ? roster.teams : [];
-    const mine = teams.find((t) => t.yours) ?? null;
+    // A players board (solo, or one-person teams): your best line among however many entrants.
+    const playersBoard = roster && roster.mode === 'players' ? roster : null;
+    const mine = playersBoard ? { rank: playersBoard.you?.rank ?? null } : teams.find((t) => t.yours) ?? null;
     const flat = (cfg?.panel?.tiles ?? []).flatMap((t) => [t, ...(t.parts ?? [])]);
     facts.bingo = {
       name: ev.name,
       rank: mine?.rank ?? null,
-      teams: teams.length,
+      teams: playersBoard ? playersBoard.total : teams.length,
+      solo: !!playersBoard,
       nearly: flat.filter(nearlyDone).map((t) => t.label),
     };
   }

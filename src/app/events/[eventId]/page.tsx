@@ -77,6 +77,8 @@ import LocalTime from '@/components/LocalTime';
 import { isCreatorSpace, seatsEventPlayers, streamedEvent } from '@/lib/creatorSpaces';
 import { isFriendsHost } from '@/lib/friendEventRules';
 import { withSearchText } from '@/lib/tileSearchText';
+import { isSoloLike } from '@/lib/standingsWindow';
+import { placementOf } from '@/lib/teamPlacement';
 import { supporterLooksByName } from '@/lib/supporter';
 import { standingsScopeForSession } from '@/lib/standingsAccess';
 import { canSeeTeamProgress, curtainInfo, filterToVisibleTeams, standingsHidden, standingsRevealAt } from '@/lib/standingsVisibility';
@@ -364,6 +366,24 @@ export default async function EventScoreboardPage({
   const myPlayerIds = myMemberIds.length
     ? eventPlayers.filter((p) => p.clanMemberId != null && myMemberIds.includes(p.clanMemberId)).map((p) => p.id)
     : [];
+
+  // A players board (lib/standingsWindow): solo placement, or a big board of one-person teams. Its
+  // standings read as a ranked list with the viewer's own line(s) picked out — every account of theirs
+  // entered, matched by roster seat or by the account itself (a guest from another clan has no seat here).
+  const membersPerTeam = new Map<number, number>(eventTeams.map((t) => [t.id, 0]));
+  for (const p of eventPlayers) if (p.teamId != null && membersPerTeam.has(p.teamId)) membersPerTeam.set(p.teamId, membersPerTeam.get(p.teamId)! + 1);
+  const soloBoard = !isLadder && isSoloLike(placementOf(event), [...membersPerTeam.values()]);
+  let myTeamIds: number[] = [];
+  if (soloBoard && session?.playerId != null) {
+    const myAccountIds = new Set(
+      (await db.select({ id: accounts.id }).from(accounts).where(eq(accounts.playerId, session.playerId))).map((a) => a.id),
+    );
+    myTeamIds = [...new Set(
+      eventPlayers
+        .filter((p) => p.teamId != null && (myPlayerIds.includes(p.id) || (p.accountId != null && myAccountIds.has(p.accountId))))
+        .map((p) => p.teamId!),
+    )];
+  }
 
   // Playing, but the plugin hasn't been heard from since the start? Then drop, kill and lap tiles
   // are silently not counting for them, and nothing on the board said so.
@@ -900,6 +920,8 @@ export default async function EventScoreboardPage({
           boardPointsTotal={pointsOnBoard}
           initialTileId={Number.isInteger(initialTileId) && initialTileId > 0 ? initialTileId : null}
           tileHighlights={tileHighlights}
+          solo={soloBoard}
+          myTeamIds={myTeamIds}
         />
         {luck && <EventLuck luck={luck} />}
         </>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
+import SoloStandings from '@/components/SoloStandings';
 import Select from '@/components/Select';
 import TileDetailModal from '@/components/TileDetailModal';
 import type { ShownHighlight } from '@/lib/highlights/rules';
@@ -141,6 +142,13 @@ interface Props {
    * standings, XP race, lens, line watch, race pace, per-team stat bars — narrows to those teams.
    */
   curtain?: StandingsCurtainInfo | null;
+  /**
+   * A players board (lib/standingsWindow isSoloLike): the standings read as a ranked list of players
+   * — top five, the viewer's own line(s) with neighbours, the rest paged — not a card per team.
+   */
+  solo?: boolean;
+  /** The viewer's own teams on this board (one per account of theirs entered). */
+  myTeamIds?: number[];
   /** A streamed board's tile clips by tile id (lib/highlights), already cut to what this viewer may see. */
   tileHighlights?: Record<number, ShownHighlight[]>;
 }
@@ -151,6 +159,8 @@ interface Props {
  * top) and added boss kill counts to it as "XP". A total-XP tile already IS the answer; without one,
  * each tracked skill counts once and kill counts stay out.
  */
+const SOLO_XP_SHOWN = 10;
+
 function teamXpGained(
   statTiles: Array<{ id: number; trackedStat?: string | null; statType?: string | null; statBasis?: string | null }>,
   tileGains: Record<number, number>,
@@ -173,7 +183,7 @@ interface TeamGains {
   tileMembers: Record<number, { name: string; gained: number }[]>;
 }
 
-export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, creator = false, tileHighlights }: Props) {
+export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, creator = false, tileHighlights, solo = false, myTeamIds = [] }: Props) {
   // Behind the curtain the teams whose progress this page deals in are the viewer's own; the rest
   // are names on a roster. Everything below that scores, ranks, fetches or draws per team uses this.
   const teams = useMemo(
@@ -276,12 +286,22 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
   const refetchGains = useCallback(() => {
     const statTiles = tiles.filter((t) => t.trackedStat && t.statGoal);
     if (statTiles.length === 0) return;
-    // Fetch gains for all teams in parallel, aggregate by tile.
-    Promise.all(
-      teams.map(async (team) => {
-        const res = await clanFetch(`/api/events/${event.id}/gains?teamId=${team.id}`);
-        if (!res.ok) return null;
-        const data = await res.json();
+    // One event-wide read (the route without `teamId`: same auth, same hidden-standings cut), split by
+    // team here — a solo board of 170 used to make 170 requests on every refresh.
+    type GainRow = { teamId: number | null; playerName: string; baseline?: Record<string, number>; current?: Record<string, number>; gains?: Record<string, number>; tileGains?: Record<number, number> };
+    clanFetch(`/api/events/${event.id}/gains`)
+      .then((res) => (res.ok ? (res.json() as Promise<GainRow[]>) : null))
+      .then((rows) => {
+        if (!Array.isArray(rows)) return;
+        const byTeam = new Map<number, GainRow[]>();
+        for (const r of rows) {
+          if (r.teamId == null) continue;
+          const list = byTeam.get(r.teamId);
+          if (list) list.push(r);
+          else byTeam.set(r.teamId, [r]);
+        }
+        setTeamGains(teams.flatMap((team) => {
+        const data = byTeam.get(team.id) ?? [];
         const tileGains: Record<number, number> = {};
         const tileMembers: Record<number, { name: string; gained: number }[]> = {};
         for (const tile of statTiles) {
@@ -309,11 +329,10 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
           tileGains[tile.id] = tileTotal;
           tileMembers[tile.id] = members.sort((a, b) => b.gained - a.gained);
         }
-        return { teamId: team.id, totalGained: teamXpGained(statTiles, tileGains), tileGains, tileMembers };
+        return [{ teamId: team.id, totalGained: teamXpGained(statTiles, tileGains), tileGains, tileMembers }];
+        }));
       })
-    ).then((results) => {
-      setTeamGains(results.filter((r): r is TeamGains => r !== null));
-    }).catch(() => {});
+      .catch(() => {});
   }, [event.id, teams, tiles]);
 
   useEffect(() => { refetchSubmissions(); }, [refetchSubmissions]);
@@ -592,7 +611,9 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
               {curtain ? (teams.length > 0 ? 'Your team' : 'Standings') : 'Standings'}
             </h2>
             {curtain && <StandingsHiddenNotice curtain={curtain} ownTeamNames={teams.map((t) => t.name)} className="mb-4" />}
-            {(!curtain || teams.length > 0) && <Scoreboard
+            {solo && !curtain ? (
+              <SoloStandings teams={teams} scores={scores} eventId={event.id} pointsMode={pointsMode} myTeamIds={myTeamIds} />
+            ) : (!curtain || teams.length > 0) && <Scoreboard
               teams={teams}
               scores={scores}
               eventId={event.id}
@@ -608,10 +629,15 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
                 <h3 className="text-md font-bold mb-3 text-foreground flex items-center gap-2">
                   <span className="w-1 h-4 bg-blue-400 rounded-full" />
                   XP gained
+                  {solo && teamGains.length > SOLO_XP_SHOWN && (
+                    <span className="text-xs font-normal text-text-muted">top {SOLO_XP_SHOWN} of {teamGains.length.toLocaleString()} players</span>
+                  )}
                 </h3>
                 <div className="space-y-2">
                   {[...teamGains]
                     .sort((a, b) => b.totalGained - a.totalGained)
+                    // A players board: the leaders, not one row per player.
+                    .slice(0, solo ? SOLO_XP_SHOWN : undefined)
                     .map((tg, index) => {
                       const team = teams.find((t) => t.id === tg.teamId);
                       return (
@@ -649,7 +675,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             </h2>
             {/* Multi-claim boards read very differently as "everyone" vs "us" — so let the viewer choose. */}
             {!liveDropBoard && (
-              <TeamLens teams={teams} value={lensTeamId} onChange={setLensTeamId} className="ml-auto" />
+              <TeamLens teams={teams} value={lensTeamId} onChange={setLensTeamId} className="ml-auto" compact={solo} mine={myTeamIds} />
             )}
           </div>
 
