@@ -3,7 +3,7 @@ import { BOSSES, SKILLS } from '@/lib/constants';
 import type { GoalView } from '@/lib/goalProgress';
 import type { PlayerCard } from '@/lib/playerCardShape';
 
-import { type Action, type Node, backRow, button, card, col, count, fmt, gap, header, icon, muted, percent, row, seg, text } from './nodes';
+import { type Action, type Color, type Node, backRow, button, card, col, count, fmt, gap, header, icon, muted, percent, row, seg, text } from './nodes';
 import { SKILL_GRID, backHeader, profilePath } from './playerCardUi';
 import { CORAL, FAINT, chip, progressRow, section, small, title } from './sections';
 
@@ -269,16 +269,22 @@ export function goalsUi(goals: GoalView[], error: string | null): Node {
   if (error) parts.push(text(error, 'error', { wrap: true }));
   if (!goals.length) parts.push(muted('Nothing set yet — 99 a skill, a KC to hit, a log page to finish.', { wrap: true }));
   for (const g of goals) {
-    const due = g.done ? null : g.due;
-    const right = g.done
-      ? chip('Done', 'green')
-      : small(due ? `${g.text} · ${due.text}` : g.text, due && due.tone !== 'ok' ? CORAL : FAINT);
     const remove = { label: 'Remove this goal', on: { a: 'post' as const, act: 'goal-remove', args: { id: String(g.id) }, into: 'goals' } };
-    const name = text(g.label, g.done ? 'done' : 'white');
+    // The name on its own wrapped line; under it "2 / 11" and "due 12 Nov 2027" muted, the days left
+    // only in coral and only when it's close (a week) or overdue; then the bar; a green chip when done.
+    const due = g.done ? null : g.due;
+    const near = due && due.days <= 7;
+    const runs: { s: string; color?: Color }[] = [{ s: g.text, color: FAINT }];
+    if (due) runs.push({ s: due.days < 0 ? ` · ${due.text}` : ` · due ${due.when}`, color: due.days < 0 ? CORAL : FAINT });
+    if (near && due.days >= 0) runs.push({ s: due.days === 0 ? ' · due today' : ` · ${due.days} day${due.days === 1 ? '' : 's'} left`, color: CORAL });
+    const sub: Node = text('', FAINT, { font: 'small', wrap: true, runs });
+    const head = row(undefined, text(g.label, g.done ? 'done' : 'white', { wrap: true }), g.done ? chip('Done', 'green') : undefined, { gap: 6 });
+    const bar: Node | null =
+      g.current != null
+        ? { t: 'bar', pct: g.done ? 100 : percent(Math.min(g.current, g.of), Math.max(1, g.of)), color: g.done ? 'done' : 'brand', h: 6, bg: 'panel' }
+        : null;
     parts.push({
-      ...(g.current != null && !g.done
-        ? progressRow(name, right, percent(Math.min(g.current, g.of), Math.max(1, g.of)))
-        : row(undefined, name, right, { gap: 6 })),
+      ...col([head, g.done ? null : sub, bar], { gap: 3 }),
       menu: [remove],
       tip: 'Right-click to remove',
     } as Node);

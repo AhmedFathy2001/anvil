@@ -25,6 +25,10 @@ export interface GoalDue {
   /** "on pace", or "needs 45K/day · doing 30K" — null when there's no rate to judge by. */
   pace: string | null;
   tone: 'ok' | 'behind' | 'overdue';
+  /** Whole days to the deadline (negative once past it). */
+  days: number;
+  /** "12 Nov 2027". */
+  when: string;
 }
 
 export interface GoalView extends GoalRow {
@@ -82,20 +86,22 @@ export function goalDue(view: GoalView, rates: GoalRates | undefined, now: Date)
   });
   if (daysLeft < 0) {
     const late = -daysLeft;
-    return { text: `overdue by ${late} day${late === 1 ? '' : 's'}`, pace: null, tone: 'overdue' };
+    return { text: `overdue by ${late} day${late === 1 ? '' : 's'}`, pace: null, tone: 'overdue', days: daysLeft, when };
   }
   const text = daysLeft === 0 ? 'due today' : `by ${when} · ${daysLeft} day${daysLeft === 1 ? '' : 's'} left`;
-  if (view.current == null || (view.kind !== 'skill' && view.kind !== 'boss')) return { text, pace: null, tone: 'ok' };
+  if (view.current == null || (view.kind !== 'skill' && view.kind !== 'boss')) return { text, pace: null, tone: 'ok', days: daysLeft, when };
   const rate = view.kind === 'skill' ? rates?.skills[view.metric] : rates?.bosses[view.metric];
-  if (rates == null) return { text, pace: null, tone: 'ok' };
+  if (rates == null) return { text, pace: null, tone: 'ok', days: daysLeft, when };
   const need = (view.of - view.current) / Math.max(1, daysLeft);
   const have = rate ?? 0;
   const unit = view.kind === 'skill' ? ' XP' : ' kills';
-  if (have >= need) return { text, pace: 'on pace', tone: 'ok' };
+  if (have >= need) return { text, pace: 'on pace', tone: 'ok', days: daysLeft, when };
   return {
     text,
     pace: `needs ${fmtRate(need, view.kind)}${unit}/day · doing ${fmtRate(have, view.kind)}`,
     tone: 'behind',
+    days: daysLeft,
+    when,
   };
 }
 
