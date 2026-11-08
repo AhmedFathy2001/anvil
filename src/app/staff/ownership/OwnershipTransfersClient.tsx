@@ -64,9 +64,9 @@ export default function OwnershipTransfersClient({ canWrite, clanId }: { canWrit
       if (!reason) return;
     } else {
       const ok = await confirm({
-        title: 'Let this transfer through?',
-        body: `It leaves this queue. Ownership still moves to ${t.toName} only when the 3-day hold runs out, unless someone cancels it.`,
-        confirmLabel: 'Let it through',
+        title: `Let this transfer through now?`,
+        body: `Ownership of ${t.clanName} moves to ${t.toName} right away, without waiting out the rest of the 3-day hold. ${t.fromName} becomes an ordinary admin, and both are told.`,
+        confirmLabel: 'Let it through now',
       });
       if (!ok) return;
     }
@@ -77,7 +77,7 @@ export default function OwnershipTransfersClient({ canWrite, clanId }: { canWrit
       body: JSON.stringify({ id: t.id, action, reason }),
     });
     if (!res.ok) notify((await res.json().catch(() => null))?.error ?? 'That did not work.', 'error');
-    else notify(action === 'block' ? 'Blocked' : 'Let through');
+    else notify(action === 'block' ? 'Blocked' : `${t.toName} now owns ${t.clanName}`);
     await load(filter);
     setBusy(null);
   }

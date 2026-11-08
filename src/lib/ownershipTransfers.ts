@@ -18,7 +18,7 @@
 import { and, asc, desc, eq, inArray, isNull, lte } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanAuditLog, clanOwnershipTransfers, clans, userNotices, users } from '@/db/schema';
+import { clanAuditLog, clanOwnershipTransfers, clanStaff, clans, userNotices, users } from '@/db/schema';
 import { isRealDiscordId } from '@/lib/anvilDiscordRoles';
 import { clanGrant } from '@/lib/clanGrants';
 import { moveClanOwnership } from '@/lib/clanOwnership';
@@ -169,13 +169,16 @@ export async function actOnOwnershipTransfer(input: {
   if (!check.ok) return { ok: false, error: check.error, status: check.code };
   const reason = input.reason?.trim().slice(0, 500) || null;
 
+  // Staff letting it through: it completes now, through the same guarded move as the end of the hold.
+  if (input.action === 'clear') {
+    const done = await completeTransfer(t, nowIso, input.actorUserId);
+    if (!done.ok) return { ok: false, error: done.error, status: 409 };
+    return { ok: true, transfer: done.transfer };
+  }
+
   const [updated] = await db
     .update(clanOwnershipTransfers)
-    .set(
-      input.action === 'clear'
-        ? { staffClearedAt: nowIso, staffClearedByUserId: input.actorUserId, updatedAt: nowIso }
-        : { status: check.next, decidedAt: nowIso, decidedByUserId: input.actorUserId, reason, updatedAt: nowIso },
-    )
+    .set({ status: check.next, decidedAt: nowIso, decidedByUserId: input.actorUserId, reason, updatedAt: nowIso })
     // Only from pending — a tick completing it at the same instant wins, and this one says so.
     .where(and(eq(clanOwnershipTransfers.id, t.id), eq(clanOwnershipTransfers.status, 'pending')))
     .returning();
@@ -183,12 +186,6 @@ export async function actOnOwnershipTransfer(input: {
 
   const { clan, name } = await names(t.clanId, [t.fromUserId, t.toUserId, input.actorUserId]);
   const clanName = clan?.name ?? 'the clan';
-  if (input.action === 'clear') {
-    // An operator action: the platform's log (/staff/audit reads `platform_*`), with the clan set.
-    await audit(t.clanId, 'platform_ownership_transfer_cleared', input.actorUserId, updated, {}, `Let through: ${name(t.fromUserId)} → ${name(t.toUserId)}; it still waits out the hold`);
-    return { ok: true, transfer: updated };
-  }
-
   const eventType = `ownership_transfer_${check.next}`;
   const lines: Record<Exclude<TransferStatus, 'pending' | 'completed'>, { title: string; description: string; notes: string }> = {
     cancelled: {
@@ -244,6 +241,24 @@ export async function settleOwnershipTransfers(nowMs = Date.now()): Promise<numb
 }
 
 async function settleOne(t: TransferRow, nowIso: string): Promise<'completed' | 'cancelled' | 'skipped'> {
+  const done = await completeTransfer(t, nowIso, null);
+  if (done.ok) return 'completed';
+  if (done.superseded) return 'skipped';
+  const { clan, name } = await names(t.clanId, [t.fromUserId, t.toUserId]);
+  return cancelLapsed(t, nowIso, done.error, clan?.slug, clan?.name ?? 'the clan', name);
+}
+
+/**
+ * Move ownership for a pending request now: at the end of its hold (`staffUserId` null) or because
+ * Anvil staff let it through. The checks the hold ends on, then the move and the row's 'completed' in
+ * one transaction guarded on 'pending'. On failure nothing changes; the caller decides (the tick
+ * cancels with the reason, staff just hear it).
+ */
+async function completeTransfer(
+  t: TransferRow,
+  nowIso: string,
+  staffUserId: number | null,
+): Promise<{ ok: true; transfer: TransferRow } | { ok: false; error: string; superseded?: boolean }> {
   const [fromGrant, toGrant, target] = await Promise.all([
     clanGrant(t.clanId, t.fromUserId),
     clanGrant(t.clanId, t.toUserId),
@@ -254,36 +269,96 @@ async function settleOne(t: TransferRow, nowIso: string): Promise<'completed' | 
     targetRole: toGrant?.role ?? null,
     targetVerified: isRealDiscordId(target?.discordId),
   });
-  const { clan, name } = await names(t.clanId, [t.fromUserId, t.toUserId]);
-  const clanName = clan?.name ?? 'the clan';
-
-  if (decision.complete) {
-    let finished: TransferRow | undefined;
-    const res = await moveClanOwnership(t.clanId, t.fromUserId, t.toUserId, async (tx) => {
-      [finished] = await tx
-        .update(clanOwnershipTransfers)
-        .set({ status: 'completed', decidedAt: nowIso, decidedByUserId: null, updatedAt: nowIso })
-        .where(and(eq(clanOwnershipTransfers.id, t.id), eq(clanOwnershipTransfers.status, 'pending')))
-        .returning();
-      return finished != null;
-    });
-    if (res.ok && finished) {
-      // Same event type the instant transfer always wrote, so history reads the same.
-      await audit(t.clanId, 'ownership_transferred', t.fromUserId, finished, {}, `Ownership transferred from ${name(t.fromUserId)} to ${name(t.toUserId)} after the 3-day hold`);
-      const msg = {
-        title: `${name(t.toUserId)} now owns ${clanName}`,
-        description: `The 3-day hold ran out: ${name(t.toUserId)} is the owner of ${clanName}, and ${name(t.fromUserId)} is an ordinary admin. Only the new owner can transfer it again.`,
-      };
-      for (const uid of [t.fromUserId, t.toUserId]) await tell(uid, finished, clan?.slug, msg);
-      return 'completed';
-    }
-    if (!res.ok && res.reason === 'superseded') return 'skipped';
-    // The seats changed between the read and the move: fall through and cancel with why.
-    return cancelLapsed(t, nowIso, res.ok ? 'It could not be completed.' : res.reason === 'from-not-owner'
-      ? 'The person who asked is no longer the owner.'
-      : 'They are no longer an admin of this clan.', clan?.slug, clanName, name);
+  if (!decision.complete) return { ok: false, error: decision.reason };
+  let finished: TransferRow | undefined;
+  const res = await moveClanOwnership(t.clanId, t.fromUserId, t.toUserId, async (tx) => {
+    [finished] = await tx
+      .update(clanOwnershipTransfers)
+      .set({
+        status: 'completed',
+        decidedAt: nowIso,
+        decidedByUserId: staffUserId,
+        ...(staffUserId != null ? { staffClearedAt: nowIso, staffClearedByUserId: staffUserId } : {}),
+        updatedAt: nowIso,
+      })
+      .where(and(eq(clanOwnershipTransfers.id, t.id), eq(clanOwnershipTransfers.status, 'pending')))
+      .returning();
+    return finished != null;
+  });
+  if (!res.ok || !finished) {
+    if (!res.ok && res.reason === 'superseded') return { ok: false, error: 'That transfer is no longer pending.', superseded: true };
+    return { ok: false, error: !res.ok && res.reason === 'from-not-owner' ? 'The person who asked is no longer the owner.' : 'They are no longer an admin of this clan.' };
   }
-  return cancelLapsed(t, nowIso, decision.reason, clan?.slug, clanName, name);
+  const { clan, name } = await names(t.clanId, [t.fromUserId, t.toUserId, ...(staffUserId != null ? [staffUserId] : [])]);
+  const clanName = clan?.name ?? 'the clan';
+  const early = staffUserId != null;
+  // Same event type the instant transfer always wrote, so history reads the same.
+  await audit(t.clanId, 'ownership_transferred', early ? staffUserId : t.fromUserId, finished, {},
+    `Ownership transferred from ${name(t.fromUserId)} to ${name(t.toUserId)} ${early ? `(by Anvil staff, ${name(staffUserId as number)})` : 'after the 3-day hold'}`);
+  if (early) {
+    await audit(t.clanId, 'platform_ownership_transfer_cleared', staffUserId, finished, {}, `${name(t.fromUserId)} → ${name(t.toUserId)}, completed now`);
+  }
+  const msg = {
+    title: `${name(t.toUserId)} now owns ${clanName}`,
+    description: `${early ? 'Anvil staff completed it' : 'The 3-day hold ran out'}: ${name(t.toUserId)} is the owner of ${clanName}, and ${name(t.fromUserId)} is an ordinary admin. Only the new owner can transfer it again.`,
+  };
+  for (const uid of [t.fromUserId, t.toUserId]) await tell(uid, finished, clan?.slug, msg);
+  return { ok: true, transfer: finished };
+}
+
+/**
+ * Anvil staff, for recovery (a hijacked or vanished owner): hand the clan to one of its admins NOW, no
+ * request or hold. A reason is required and both people are told. A pending request is superseded.
+ * A clan with no owner at all is the directory's "appoint an owner" instead.
+ */
+export async function staffTransferNow(input: {
+  clanId: number;
+  toUserId: number;
+  actorUserId: number;
+  reason: string;
+  nowMs?: number;
+}): Promise<{ ok: true; transfer: TransferRow } | { ok: false; error: string; status: number }> {
+  const reason = input.reason.trim().slice(0, 500);
+  if (!reason) return { ok: false, error: 'Say why — both people are told.', status: 400 };
+  const nowIso = new Date(input.nowMs ?? Date.now()).toISOString();
+  // clan-scope: platform staff acting on one named clan.
+  const owner = await db.query.clanStaff.findFirst({
+    where: and(eq(clanStaff.clanId, input.clanId), eq(clanStaff.role, 'owner')),
+    columns: { userId: true },
+  });
+  if (!owner) return { ok: false, error: 'This clan has no owner — appoint one from the directory instead.', status: 409 };
+  if (owner.userId === input.toUserId) return { ok: false, error: 'They already own this clan.', status: 400 };
+
+  // Any pending request makes way first (one pending per clan).
+  await db
+    .update(clanOwnershipTransfers)
+    .set({ status: 'cancelled', decidedAt: nowIso, decidedByUserId: input.actorUserId, reason: 'Superseded by an Anvil staff transfer', updatedAt: nowIso })
+    .where(and(eq(clanOwnershipTransfers.clanId, input.clanId), eq(clanOwnershipTransfers.status, 'pending')));
+  const [row] = await db
+    .insert(clanOwnershipTransfers)
+    .values({
+      clanId: input.clanId,
+      fromUserId: owner.userId,
+      toUserId: input.toUserId,
+      status: 'pending',
+      requestedAt: nowIso,
+      completesAt: nowIso,
+      reason,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    })
+    .onConflictDoNothing()
+    .returning();
+  if (!row) return { ok: false, error: 'Another transfer started at the same moment — try again.', status: 409 };
+  const done = await completeTransfer(row, nowIso, input.actorUserId);
+  if (!done.ok) {
+    await db
+      .update(clanOwnershipTransfers)
+      .set({ status: 'cancelled', decidedAt: nowIso, decidedByUserId: input.actorUserId, reason: done.error, updatedAt: nowIso })
+      .where(and(eq(clanOwnershipTransfers.id, row.id), eq(clanOwnershipTransfers.status, 'pending')));
+    return { ok: false, error: done.error, status: 409 };
+  }
+  return { ok: true, transfer: done.transfer };
 }
 
 async function cancelLapsed(

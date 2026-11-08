@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { CAN_WRITE, requirePlatformApi } from '@/lib/platformAccess';
-import { actOnOwnershipTransfer, listOwnershipTransfers } from '@/lib/ownershipTransfers';
+import { actOnOwnershipTransfer, listOwnershipTransfers, staffTransferNow } from '@/lib/ownershipTransfers';
 
 /** Clan ownership transfers waiting out their 3-day hold (and, with ?status=all, history). Support may read. */
 export async function GET(request: Request) {
@@ -16,12 +16,24 @@ export async function GET(request: Request) {
 
 /**
  * POST { id, action: 'block' | 'clear', reason? } — block stops the transfer (a reason is required,
- * and both people are told it); clear lets it through: off the queue, and it still waits out the hold.
+ * and both people are told it); clear lets it through, completing it now.
+ * POST { action: 'transfer-now', clanId, toUserId, reason } — recovery: hand the clan to one of its
+ * admins now, no request or hold.
  */
 export async function POST(request: Request) {
   const gate = await requirePlatformApi(CAN_WRITE);
   if ('response' in gate) return gate.response;
   const body = await request.json().catch(() => null);
+  if (body?.action === 'transfer-now') {
+    const clanId = Number(body.clanId);
+    const toUserId = Number(body.toUserId);
+    if (!Number.isInteger(clanId) || !Number.isInteger(toUserId)) {
+      return NextResponse.json({ error: 'clanId and toUserId are required' }, { status: 400 });
+    }
+    const res = await staffTransferNow({ clanId, toUserId, actorUserId: gate.actor.user.userId, reason: typeof body.reason === 'string' ? body.reason : '' });
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
+    return NextResponse.json({ ok: true, status: res.transfer.status });
+  }
   const id = Number(body?.id);
   const action = body?.action;
   if (!Number.isInteger(id) || (action !== 'block' && action !== 'clear')) {

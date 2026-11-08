@@ -146,16 +146,29 @@ test('the owner cancels, the target declines, staff block — each on their own 
   const d = await T.actOnOwnershipTransfer({ action: 'decline', actorUserId: adm, isPlatformStaff: false, clanId: clan });
   assert.ok(d.ok && d.transfer.status === 'declined');
 
-  // Ask again: staff let it through (still pending), then block it with a reason.
+  // Ask again: staff block it with a reason.
   const r = await T.requestOwnershipTransfer({ clanId: clan, fromUserId: own, toUserId: adm, nowMs: t0 });
   assert.ok(r.ok);
-  const cl = await T.actOnOwnershipTransfer({ action: 'clear', actorUserId: staffer, isPlatformStaff: true, clanId: null, transferId: r.transfer.id });
-  assert.ok(cl.ok && cl.transfer.status === 'pending' && cl.transfer.staffClearedAt);
-  assert.equal(await T.unreviewedTransferCount(), 0);
   const b = await T.actOnOwnershipTransfer({ action: 'block', actorUserId: staffer, isPlatformStaff: true, clanId: null, transferId: r.transfer.id, reason: 'Owner login reported stolen' });
   assert.ok(b.ok && b.transfer.status === 'blocked' && b.transfer.reason === 'Owner login reported stolen');
   assert.equal(await T.settleOwnershipTransfers(t0 + 100 * HOUR), 0);
   assert.equal(await roleOf(clan, own), 'owner');
+
+  // Ask again: staff let it through — it completes now, not after the hold.
+  const r2 = await T.requestOwnershipTransfer({ clanId: clan, fromUserId: own, toUserId: adm, nowMs: t0 });
+  assert.ok(r2.ok);
+  const cl = await T.actOnOwnershipTransfer({ action: 'clear', actorUserId: staffer, isPlatformStaff: true, clanId: null, transferId: r2.transfer.id });
+  assert.ok(cl.ok && cl.transfer.status === 'completed' && cl.transfer.staffClearedAt);
+  assert.equal(await roleOf(clan, adm), 'owner');
+  assert.equal(await roleOf(clan, own), 'admin');
+  assert.equal(await T.unreviewedTransferCount(), 0);
+
+  // Recovery: staff hand it straight back, no request; a reason is required.
+  assert.equal((await T.staffTransferNow({ clanId: clan, toUserId: own, actorUserId: staffer, reason: ' ' })).ok, false);
+  const now = await T.staffTransferNow({ clanId: clan, toUserId: own, actorUserId: staffer, reason: 'Recovered account' });
+  assert.ok(now.ok && now.transfer.status === 'completed');
+  assert.equal(await roleOf(clan, own), 'owner');
+  assert.equal(await roleOf(clan, adm), 'admin');
 
   const types = await auditTypes(clan);
   for (const t of ['ownership_transfer_cancelled', 'ownership_transfer_declined', 'ownership_transfer_blocked', 'platform_ownership_transfer_blocked', 'platform_ownership_transfer_cleared']) {
