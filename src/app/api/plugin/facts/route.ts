@@ -35,6 +35,11 @@ export async function POST(request: Request) {
   const cfg = loaded.cfg;
 
   const matched = matchFacts(facts, cfg);
+  // A fact that matched nothing on the site (the plugin thought it did): worth a trace while rules settle.
+  const hit = new Set(matched.credits.flatMap((c) => c.fi ?? []));
+  facts.forEach((f, i) => {
+    if (!hit.has(i)) console.warn('[plugin/facts] unmatched', { k: f.k, t: (f as { t?: number }).t ?? null });
+  });
   const credits = coalesce(matched.credits);
   const img = typeof body?.img === 'string' && body.img.length <= 512 ? body.img : null;
   const proof = body?.proof && typeof body.proof === 'object' ? (body.proof as Record<string, unknown>) : null;
@@ -63,6 +68,8 @@ export async function POST(request: Request) {
         const json = (await res.json().catch(() => ({}))) as { completed?: boolean; error?: string };
         outcome = res.ok ? 'ok' : res.status >= 500 || res.status === 429 ? 'retry' : 'refused';
         if (outcome !== 'retry') results.push({ tileId: p.credit.tileId, ok: res.ok, completed: !!json.completed, error: res.ok ? undefined : json.error });
+        // A refusal used to vanish: the plugin had already said the line. Leave a trace to debug it by.
+        if (outcome === 'refused') console.warn('[plugin/facts] refused', { event: p.board.eventId, tile: p.credit.tileId, kind: p.credit.kind, status: res.status, error: json.error });
       } catch (e) {
         console.error('[plugin/facts] filing failed', e);
       }
