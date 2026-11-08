@@ -16,7 +16,7 @@ import {
   sanctionableUsers,
   type ChatAccess,
 } from '@/lib/eventChat';
-import { cleanReason, timeoutMinutes } from '@/lib/eventChatRules';
+import { cleanReason, parseChannel, timeoutMinutes } from '@/lib/eventChatRules';
 import { eventInClan } from '@/lib/eventScope';
 import { rateLimit } from '@/lib/rate-limit';
 
@@ -28,7 +28,7 @@ import { rateLimit } from '@/lib/rate-limit';
 // from the database on every request. WHOSE EVENT: the one this address's clan hosts (eventInClan) —
 // never a co-host's address, where a clan role would be the co-host's, not the host's.
 //
-// GET  ?f=all|team|staff&team=<id>&q=<text>  → { chat, lines, teams, sanctions }
+// GET  ?ch=every|staff|all|announce|team:<id>&q=<text>  → { chat, lines, teams, sanctions }
 // POST { action: 'delete', id } | { action: 'timeout', userId, minutes | preset, reason? }
 //      | { action: 'ban', userId, reason? } | { action: 'lift', userId } | { action: 'pause', paused }
 
@@ -50,11 +50,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   if (s instanceof NextResponse) return s;
   const { access, userId } = s;
   const url = new URL(request.url);
-  const f = url.searchParams.get('f');
-  const filter = f === 'team' || f === 'staff' ? f : 'all';
-  const teamId = Number(url.searchParams.get('team')) || null;
+  // ?ch=every (default) | staff | all | announce | team:<id>
+  const ch = url.searchParams.get('ch') ?? 'every';
+  const filter = ch === 'staff' ? 'staff' : (parseChannel(ch) ?? 'every');
   const [lines, teamRows, sanctions] = await Promise.all([
-    chatModLines(access.eventId, { filter, teamId, q: url.searchParams.get('q') ?? '' }),
+    chatModLines(access.eventId, { filter, q: url.searchParams.get('q') ?? '' }),
     db.select({ id: teams.id, name: teams.name, color: teams.color }).from(teams).where(eq(teams.eventId, access.eventId)).orderBy(teams.name),
     chatSanctions(access, userId),
   ]);

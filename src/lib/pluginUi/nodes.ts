@@ -213,7 +213,7 @@ export type Node =
    */
   | (Common & {
       t: 'feed';
-      /** What push messages address it by: `moments:clan:<id>`, `chat:<event>`, `chat:<event>:team:<t>`. */
+      /** What push messages address it by: `moments:clan:<id>`, `chat:<event>:all`, `chat:<event>:team:<t>`. */
       id: string;
       /** Newest first. */
       rows: FeedRow[];
@@ -227,8 +227,18 @@ export type Node =
       send?: { act: string; args?: Record<string, string>; hint?: string; max?: number };
       /** Chat: names whose lines are the viewer's own (per person), for live rows. */
       mine?: string[];
-      /** 'paused' / 'closed' grey the box out with this line instead. */
+      /** 'paused' / 'closed' / read-only: a box with this line in place of the message box. */
       locked?: string;
+      /** A second, muted line under `locked`. */
+      lockSub?: string;
+      /** The lock is the viewer's own timeout or ban: drawn coral. */
+      lockWarn?: boolean;
+      /**
+       * Chat: the channel switch over the list (My team | All teams | Announcements). Each segment loads
+       * its channel; `feed` is that channel's list id, so a push row for it while another is open adds
+       * one to its `n` (unread). `blue`: the badge in the info colour rather than gold.
+       */
+      chans?: { label: string; on: boolean; act: Action; feed: string; n?: number; blue?: boolean }[];
     });
 
 /**

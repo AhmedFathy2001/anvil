@@ -4515,6 +4515,8 @@ export const eventChatMessages = pgTable('event_chat_messages', {
   /** The sender's team when they said it; null for host staff with no team. */
   teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
   teamOnly: boolean('team_only').notNull().default(false),
+  /** Where it was said (lib/eventChatRules ChatChannel): 'all' | 'team:<id>' | 'announce'. */
+  channel: text('channel').notNull().default('all'),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   /** Said by the host's staff: the "Host & mods" filter reads this. */
   fromStaff: boolean('from_staff').notNull().default(false),
@@ -4526,7 +4528,17 @@ export const eventChatMessages = pgTable('event_chat_messages', {
 }, (table) => [
   index('event_chat_messages_event_idx').on(table.eventId, table.id),
   index('event_chat_messages_team_idx').on(table.eventId, table.teamId, table.id),
+  index('event_chat_messages_channel_idx').on(table.eventId, table.channel, table.id),
 ]);
+
+// How far each person has read each channel of a board's chat (lib/eventChat markChannelRead): the
+// newest line id they had on screen. Unread counts are the lines after it. One row per channel seen.
+export const eventChatReads = pgTable('event_chat_reads', {
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  channel: text('channel').notNull(),
+  lastId: integer('last_id').notNull().default(0),
+}, (table) => [primaryKey({ columns: [table.eventId, table.userId, table.channel] })]);
 
 // Who may not talk in an event's chat (lib/eventChat sanctionChat): a 'timeout' until `until`, or a
 // 'ban' until a moderator lifts it (`until` null). One row per person per board; lifting deletes it

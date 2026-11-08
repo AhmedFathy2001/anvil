@@ -239,3 +239,86 @@ export function chatRank(clanRank: number, platformStaff: boolean): number {
 export function canSanction(actorRank: number, targetRank: number): boolean {
   return actorRank >= 1 && actorRank > targetRank;
 }
+
+// ── Channels ─────────────────────────────────────────────────────────────────────────────────────
+//
+// A board's chat has three kinds of channel, one per line (event_chat_messages.channel):
+//   'all'        everyone on the board (and its staff) reads and talks
+//   'team:<id>'  one team's own channel: its players, plus the host's staff and Anvil staff
+//   'announce'   the host's staff post, everyone reads
+// Timeouts and bans close every channel; a pause closes 'all' and the teams' (staff still talk).
+
+export type ChatChannel = 'all' | 'announce' | `team:${number}`;
+
+/** A channel as stored or asked for; null when it isn't one. */
+export function parseChannel(raw: unknown): ChatChannel | null {
+  if (raw === 'all' || raw === 'announce') return raw;
+  const m = typeof raw === 'string' ? /^team:([1-9]\d{0,9})$/.exec(raw) : null;
+  return m ? `team:${Number(m[1])}` : null;
+}
+
+export function channelTeam(ch: ChatChannel): number | null {
+  return ch.startsWith('team:') ? Number(ch.slice(5)) : null;
+}
+
+/** Who's asking, as far as the channel rules care (lib/eventChat ChatAccess carries these). */
+export interface ChannelViewer {
+  member: boolean;
+  /** The host's staff (moderator and up) or Anvil staff. */
+  staff: boolean;
+  /** Standing in the chat (chatRank): 1 and up is staff. */
+  rank: number;
+  teamId: number | null;
+}
+
+/** Reading: 'all' and 'announce' for anyone on the board; a team's channel for that team and staff. */
+export function canReadChannel(v: ChannelViewer, ch: ChatChannel): boolean {
+  if (!v.member) return false;
+  const team = channelTeam(ch);
+  return team == null || v.staff || v.teamId === team;
+}
+
+/** Posting: announcements need staff rank; a team's channel its own players (staff may answer there). */
+export function canPostChannel(v: ChannelViewer, ch: ChatChannel): boolean {
+  if (ch === 'announce') return v.member && v.rank >= 1;
+  return canReadChannel(v, ch);
+}
+
+/** Does the host's pause close this channel for this person? Never staff; never announcements. */
+export function pausedFor(ch: ChatChannel, paused: boolean, staff: boolean): boolean {
+  return paused && !staff && ch !== 'announce';
+}
+
+/** The read-only line in place of the box on Announcements, for everyone below staff. */
+export const ANNOUNCE_READ_ONLY = 'Only the host and mods post here';
+export const ANNOUNCE_READ_ONLY_SUB = 'Reply in My team or All teams.';
+
+/** What stands in place of the plugin's message box: a line, an optional second one, coral when it's theirs. */
+export interface ChatLock {
+  locked: string;
+  sub?: string;
+  /** Their own timeout or ban (coral), not the board's pause or a read-only channel (grey). */
+  warn?: boolean;
+}
+
+/** "9m", "3h", "2d": a timeout's time left, rounded up, for the box. */
+export function shortLeft(ms: number): string {
+  const min = Math.max(1, Math.ceil(ms / 60_000));
+  if (min < 60) return `${min}m`;
+  const hours = Math.ceil(min / 60);
+  return hours < 48 ? `${hours}h` : `${Math.ceil(hours / 24)}d`;
+}
+
+export function sanctionLock(b: ChatBlock): ChatLock {
+  return b.kind === 'ban'
+    ? { locked: 'You’ve been removed from this event’s chat', sub: 'You can still read along.', warn: true }
+    : { locked: `You’re timed out · ${shortLeft(b.msLeft)} left`, sub: 'You can still read along.', warn: true };
+}
+
+/** The box's lock for one person on one channel: their sanction first, then a read-only channel, then the pause. */
+export function lockFor(ch: ChatChannel, o: { block: ChatBlock | null; paused: boolean; staff: boolean; rank: number }): ChatLock | null {
+  if (o.block) return sanctionLock(o.block);
+  if (ch === 'announce' && o.rank < 1) return { locked: ANNOUNCE_READ_ONLY, sub: ANNOUNCE_READ_ONLY_SUB };
+  if (pausedFor(ch, o.paused, o.staff)) return { locked: 'The host has paused chat.' };
+  return null;
+}
