@@ -38,7 +38,8 @@ export default async function ClanProfilePage() {
   if (isCreatorSpace(clan)) return <MovedToSpace />;
 
   return (
-    <>
+    // Each section is its own card; space them so a save button never butts against the next card.
+    <div className="space-y-6">
       <ClanNameSettings />
       {/* The name is passed so the image field's fallback crest is this clan's real one, rather than
           a generic letter that changes the moment the page saves. */}
@@ -50,6 +51,6 @@ export default async function ClanProfilePage() {
       {/* Anti-spam: clans whose invites are refused (lib/clanBlocks). */}
       <BlockedClans initial={await listBlockedClans(clan.id)} />
       <DeleteClan slug={clan.slug} isOwner={!!grant?.isOwner} />
-    </>
+    </div>
   );
 }
