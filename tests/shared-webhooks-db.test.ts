@@ -39,6 +39,9 @@ before(async () => {
   alpha = await mk('alpha');
   beta = await mk('beta');
   junkClan = await mk('junk');
+  // Two more junk clans: the made-up token now has MORE clans than the real one.
+  const junk2 = await mk('junk2');
+  const junk3 = await mk('junk3');
   const us = await db.insert(s.users).values([{ discordId: '1', displayName: 'Staff' }, { discordId: '2', displayName: 'Alpha admin' }]).returning();
   staffId = us[0].id;
   alphaAdmin = us[1].id;
@@ -47,6 +50,8 @@ before(async () => {
     { clanId: alpha, key: 'discord_webhook_bingo', value: `${SHARED} ${OWN}` },
     { clanId: beta, key: 'discord_webhook_url', value: SHARED_PADDED },
     { clanId: junkClan, key: 'discord_webhook_url', value: JUNK },
+    { clanId: junk2, key: 'discord_webhook_url', value: JUNK },
+    { clanId: junk3, key: 'discord_webhook_url', value: JUNK },
   ]);
   // Discord: the real token exists, the made-up one does not. Posts answer 204.
   globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
@@ -64,7 +69,7 @@ after(async () => {
   await dropDatabase(DB);
 });
 
-test('a junk-token paste of a real id, alone, creates no finding', async () => {
+test('junk-token pastes of a real id, even from three clans, create no finding', async () => {
   const { scanSharedWebhooks, listSharedWebhooks } = await import('../src/lib/sharedWebhooks.ts');
   // Only alpha (real) and the junk clan hold the id at first: beta's row is hidden for this check.
   await db.delete(s.settings).where(eq(s.settings.clanId, beta));
@@ -81,7 +86,8 @@ test('a scan raises the same webhook (id AND token, padded id or not) held by tw
   assert.equal(f.webhookId, '987654321');
   assert.equal(f.verified, true);
   assert.deepEqual(f.clans.map((c) => c.id).sort(), [alpha, beta].sort(), 'the junk paster is not one of the clans');
-  assert.deepEqual(f.uses.filter((u) => !u.tokenMatches).map((u) => u.clanId), [junkClan], 'shown apart');
+  // Three junk clans outnumber the two real holders, and the real webhook is still found and confirmed.
+  assert.deepEqual([...new Set(f.uses.filter((u) => !u.tokenMatches).map((u) => u.clanId))].length, 3, 'shown apart');
   assert.equal(f.masked, '…4321');
   assert.ok(!JSON.stringify(f).includes('Token'), 'no token reaches the staff view');
 });
@@ -158,4 +164,33 @@ test('unblock lets it post again; dismiss takes it off the queue until a new cla
   await db.insert(s.settings).values({ clanId: third.id, key: 'discord_webhook_weekly', value: SHARED });
   await scanSharedWebhooks(['987654321']);
   assert.equal((await listSharedWebhooks('open')).length, 1, 'a new clan reopens it');
+});
+
+test('a cut-off scan drops nothing; a complete one drops what is no longer shared', async () => {
+  const { scanSharedWebhooks, listSharedWebhooks } = await import('../src/lib/sharedWebhooks.ts');
+  assert.equal((await listSharedWebhooks('open')).length, 1);
+  // Only alpha still holds the real webhook now: it is no longer shared.
+  await db.delete(s.settings).where(eq(s.settings.key, 'discord_webhook_weekly'));
+  await db.delete(s.settings).where(eq(s.settings.clanId, beta));
+  const cut = await scanSharedWebhooks(undefined, { limit: 1 });
+  assert.equal(cut.truncated, true);
+  assert.equal((await listSharedWebhooks('open')).length, 1, 'absence in a cut-off scan proves nothing');
+  const full = await scanSharedWebhooks();
+  assert.equal(full.truncated, false);
+  assert.equal((await listSharedWebhooks('open')).length, 0);
+});
+
+test('a save-time scan finds a padded spelling of the id (SQL prefilter is loose, the parser decides)', async () => {
+  const { scanSharedWebhooks, listSharedWebhooks } = await import('../src/lib/sharedWebhooks.ts');
+  await db.insert(s.settings).values({ clanId: beta, key: 'discord_webhook_url', value: SHARED_PADDED });
+  await scanSharedWebhooks(['987654321']);
+  const [f] = await listSharedWebhooks('open');
+  assert.deepEqual(f?.clans.map((c) => c.id).sort(), [alpha, beta].sort());
+});
+
+test('a forum thread_id survives the event channel save, normalized', async () => {
+  const { resolveChannelInput } = await import('../src/lib/eventDiscordChannel.ts');
+  const r = await resolveChannelInput(alpha, { webhookUrl: 'https://discordapp.com/api/webhooks/0555555/tok?thread_id=00777' });
+  assert.equal(r.ok, true);
+  assert.equal((r as { webhookUrl: string }).webhookUrl, 'https://discord.com/api/webhooks/555555/tok?thread_id=777');
 });

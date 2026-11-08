@@ -21,8 +21,13 @@ export interface ParsedWebhook {
   /** Canonical id: digits, no leading zeros (BigInt round-trip). */
   id: string;
   token: string;
-  /** The normalized webhook URL, https://discord.com/api/webhooks/<id>/<token>. This is what is stored. */
+  /**
+   * The normalized webhook URL, https://discord.com/api/webhooks/<id>/<token>, plus `?thread_id=<id>`
+   * when it posts into a forum thread. This is what is stored.
+   */
   url: string;
+  /** The forum thread it posts into, canonical, or null. */
+  threadId: string | null;
   /** What a sender fetches: the normalized URL plus any /messages/<id> and query it was given. */
   requestUrl: string;
 }
@@ -32,8 +37,9 @@ const MAX_SNOWFLAKE = BigInt('18446744073709551615');
 
 /**
  * Parse a webhook URL, or null. `target` is the senders' form: it may address a message
- * (`/messages/<id>`) and carry a query (`?wait=true`). Without it the URL must be exactly a webhook,
- * no query or fragment. Encoded characters, credentials, ports and non-Discord hosts are refused.
+ * (`/messages/<id>`) and carry any query (`?wait=true`). Without it the URL must be exactly a webhook:
+ * no fragment, and no query except `?thread_id=<digits>` (posting into a forum thread). Encoded
+ * characters, credentials, ports and non-Discord hosts are refused.
  */
 export function parseDiscordWebhook(raw: string, opts: { target?: boolean } = {}): ParsedWebhook | null {
   if (typeof raw !== 'string') return null;
@@ -49,7 +55,13 @@ export function parseDiscordWebhook(raw: string, opts: { target?: boolean } = {}
   if (!DISCORD_HOSTS.has(u.hostname.toLowerCase())) return null;
   // Anything percent-encoded could decode differently somewhere else: refuse rather than guess.
   if (u.pathname.includes('%')) return null;
-  if (!opts.target && (u.search || u.hash)) return null;
+  if (u.hash && !opts.target) return null;
+  // The one query a saved webhook may carry: the forum thread it posts into.
+  const params = [...u.searchParams];
+  const threadParam = u.searchParams.get('thread_id');
+  if (!opts.target && params.some(([k]) => k !== 'thread_id')) return null;
+  if (params.filter(([k]) => k === 'thread_id').length > 1) return null;
+  if (threadParam !== null && !/^\d{1,25}$/.test(threadParam)) return null;
   const m = WEBHOOK_PATH.exec(u.pathname);
   if (!m) return null;
   if (m[3] && !opts.target) return null;
@@ -57,8 +69,23 @@ export function parseDiscordWebhook(raw: string, opts: { target?: boolean } = {}
   // A snowflake is a positive 64-bit integer.
   if (big === BigInt(0) || big > MAX_SNOWFLAKE) return null;
   const id = big.toString();
-  const url = `https://discord.com/api/webhooks/${id}/${m[2]}`;
-  return { id, token: m[2], url, requestUrl: `${url}${m[3] ?? ''}${opts.target ? u.search : ''}` };
+  let threadId: string | null = null;
+  if (threadParam !== null) {
+    const t = BigInt(threadParam);
+    if (t === BigInt(0) || t > MAX_SNOWFLAKE) return null;
+    threadId = t.toString();
+  }
+  const base = `https://discord.com/api/webhooks/${id}/${m[2]}`;
+  const url = threadId ? `${base}?thread_id=${threadId}` : base;
+  let requestUrl = url;
+  if (opts.target) {
+    // The sender's own query (wait, the thread) rides along on the normalized base.
+    const q = new URLSearchParams(u.search);
+    if (threadId) q.set('thread_id', threadId);
+    const qs = q.toString();
+    requestUrl = `${base}${m[3] ?? ''}${qs ? `?${qs}` : ''}`;
+  }
+  return { id, token: m[2], url, threadId, requestUrl };
 }
 
 /** The normalized form of a webhook URL, or null when it doesn't normalize cleanly. Store this. */

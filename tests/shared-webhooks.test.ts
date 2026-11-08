@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { groupSharedWebhooks, nextFindingStatus, webhookIdsIn, webhookUsesIn } from '../src/lib/sharedWebhookRules.ts';
+import { finalizeGroup, groupSharedWebhooks, nextFindingStatus, webhookIdsIn, webhookUsesIn } from '../src/lib/sharedWebhookRules.ts';
 import { normalizeDiscordWebhookUrl, normalizeWebhookList, parseDiscordWebhook } from '../src/lib/discordWebhookUrl.ts';
 import { webhookIdOf, webhookIdentity } from '../src/lib/webhookPool.ts';
 
@@ -33,12 +33,18 @@ test('only a webhook (id AND token) held by two DIFFERENT clans is shared; one c
   ]);
   assert.equal(groups.length, 1);
   assert.equal(groups[0].webhookId, '111111');
-  assert.deepEqual(groups[0].clanIds, [1, 2]);
-  assert.deepEqual(groups[0].uses, [
-    { clanId: 1, where: 'Setting discord_webhook_url', tokenMatches: true },
-    { clanId: 2, where: 'Setting discord_webhook_bingo', tokenMatches: true },
-  ]);
-  assert.ok(!JSON.stringify(groups[0].uses).includes('realToken'), 'what gets stored carries no token');
+  assert.equal(groups[0].candidates.length, 1);
+  assert.deepEqual(groups[0].candidates[0].clanIds, [1, 2]);
+  const f = finalizeGroup(groups[0], new Set([groups[0].candidates[0].identity]));
+  assert.deepEqual(f, {
+    clanIds: [1, 2],
+    uses: [
+      { clanId: 1, where: 'Setting discord_webhook_url', tokenMatches: true },
+      { clanId: 2, where: 'Setting discord_webhook_bingo', tokenMatches: true },
+    ],
+  });
+  assert.ok(!JSON.stringify(f).includes('realToken'), 'what gets stored carries no token');
+  assert.equal(finalizeGroup(groups[0], new Set()), null, 'nothing confirmed, no finding');
 });
 
 test('a junk-token paste of a real id raises nothing; beside a real share it is shown apart', () => {
@@ -49,8 +55,25 @@ test('a junk-token paste of a real id raises nothing; beside a real share it is 
     use(2, 'Setting discord_webhook_bingo', R),
     use(9, 'Setting discord_webhook_url', 'https://discord.com/api/webhooks/111111/junk'),
   ]);
-  assert.deepEqual(g.clanIds, [1, 2], 'the junk paster is not one of the clans');
-  assert.deepEqual(g.uses.find((u) => u.clanId === 9), { clanId: 9, where: 'Setting discord_webhook_url', tokenMatches: false });
+  const f = finalizeGroup(g, new Set([webhookIdentity(R)]))!;
+  assert.deepEqual(f.clanIds, [1, 2], 'the junk paster is not one of the clans');
+  assert.deepEqual(f.uses.find((u) => u.clanId === 9), { clanId: 9, where: 'Setting discord_webhook_url', tokenMatches: false });
+});
+
+test('junk-token clans outnumbering the real holders can not hide them: every 2+ identity is a candidate', () => {
+  const JUNK = 'https://discord.com/api/webhooks/111111/junk';
+  const [g] = groupSharedWebhooks([
+    use(1, 'a', R),
+    use(2, 'a', R),
+    use(7, 'a', JUNK),
+    use(8, 'a', JUNK),
+    use(9, 'a', JUNK),
+  ]);
+  assert.equal(g.candidates.length, 2, 'both identities are checked, not just the bigger one');
+  // Discord confirms only the real token: the finding is the real holders.
+  const f = finalizeGroup(g, new Set([webhookIdentity(R)]))!;
+  assert.deepEqual(f.clanIds, [1, 2]);
+  assert.deepEqual(f.uses.filter((u) => !u.tokenMatches).map((u) => u.clanId), [7, 8, 9]);
 });
 
 test('a leading-zero id is the same webhook as the plain one, everywhere', () => {
@@ -62,7 +85,7 @@ test('a leading-zero id is the same webhook as the plain one, everywhere', () =>
   assert.equal(webhookIdOf(padded), '111111');
   assert.equal(webhookIdentity(padded), webhookIdentity(plain));
   const [g] = groupSharedWebhooks([use(1, 'a', plain), use(2, 'b', padded)]);
-  assert.deepEqual(g.clanIds, [1, 2]);
+  assert.deepEqual(g.candidates.map((c) => c.clanIds), [[1, 2]]);
 });
 
 test('variants that could parse differently elsewhere are refused, not guessed at', () => {
@@ -87,6 +110,23 @@ test('variants that could parse differently elsewhere are refused, not guessed a
   );
   assert.equal(normalizeWebhookList('https://discord.com/api/webhooks/0111/a, https://discord.com/api/webhooks/111/a https://discord.com/api/webhooks/2222/b'), 'https://discord.com/api/webhooks/111/a https://discord.com/api/webhooks/2222/b');
   assert.equal(normalizeWebhookList('https://discord.com/api/webhooks/111/a https://example.com/x'), null);
+});
+
+test('a forum thread_id (and only that) survives normalization, canonical; anything else is refused', () => {
+  const base = 'https://discord.com/api/webhooks/111/tok';
+  assert.equal(normalizeDiscordWebhookUrl(`${base}?thread_id=0042`), `${base}?thread_id=42`);
+  assert.equal(parseDiscordWebhook(`${base}?thread_id=42`)?.threadId, '42');
+  assert.equal(normalizeWebhookList(`${base}?thread_id=42 https://discord.com/api/webhooks/0222/b`), `${base}?thread_id=42 https://discord.com/api/webhooks/222/b`);
+  for (const bad of [`${base}?thread_id=abc`, `${base}?thread_id=1&wait=true`, `${base}?thread_id=1&thread_id=2`, `${base}?thread_id=0`, `${base}?foo=1`]) {
+    assert.equal(normalizeDiscordWebhookUrl(bad), null, bad);
+  }
+  // Same webhook, thread or not: one identity, one id.
+  assert.equal(webhookIdentity(`${base}?thread_id=42`), webhookIdentity(base));
+  // A sender adding ?wait=true keeps the thread.
+  assert.equal(
+    parseDiscordWebhook(`${base}?thread_id=42&wait=true`, { target: true })?.requestUrl,
+    `${base}?thread_id=42&wait=true`,
+  );
 });
 
 test('status: new is open; dismissed stays dismissed unless a new clan joins; blocked stays blocked', () => {

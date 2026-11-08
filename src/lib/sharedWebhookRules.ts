@@ -21,16 +21,26 @@ export interface WebhookUse {
   url: string;
 }
 
+/** One identity (id + token hash) held by two or more clans: a candidate for "really shared". */
+export interface SharedCandidate {
+  identity: string;
+  clanIds: number[];
+  /** One URL with this identity, for the Discord check. In memory only. */
+  sampleUrl: string;
+}
+
+/** Every use of one id that two or more clans hold under at least one identity. */
 export interface SharedGroup {
   webhookId: string;
-  /** The identity two or more clans share. */
-  identity: string;
-  /** The clans holding that exact webhook (id AND token). */
+  /** EVERY identity with 2+ distinct clans, each to be checked with Discord on its own. */
+  candidates: SharedCandidate[];
+  uses: { clanId: number; where: string; identity: string }[];
+}
+
+/** What a finding records once the scan knows which identities Discord confirmed. No token hash. */
+export interface FinalFinding {
   clanIds: number[];
-  /** Every use of the id; `tokenMatches` false = another (possibly junk) token, shown apart to staff. */
   uses: { clanId: number; where: string; tokenMatches: boolean }[];
-  /** One URL with the shared identity, for the Discord check. In memory only. */
-  sampleUrl: string;
 }
 
 /** Every webhook id in a blob of text (a setting holding several URLs, a JSON prefs column), canonical. */
@@ -44,43 +54,61 @@ export function webhookUsesIn(text: string | null | undefined, clanId: number, w
 }
 
 /**
- * The webhooks held by two or more DIFFERENT clans. "The same webhook" means the same id AND token:
- * pasting another clan's id with a made-up token proves nothing and must never put the real owner's
- * webhook in front of staff, so a use counts only when its identity matches. The other uses of the id
- * ride along marked `tokenMatches: false`.
+ * The ids held by two or more DIFFERENT clans under the same identity. "The same webhook" means the
+ * same id AND token: pasting another clan's id with a made-up token proves nothing. Every identity
+ * with 2+ clans is a candidate and is checked on its own, so junk-token clans can't outnumber (or tie
+ * and out-sort) the real holders and hide them.
  */
 export function groupSharedWebhooks(uses: WebhookUse[]): SharedGroup[] {
   const byId = new Map<string, WebhookUse[]>();
   for (const u of uses) byId.set(u.webhookId, [...(byId.get(u.webhookId) ?? []), u]);
   const out: SharedGroup[] = [];
   for (const [webhookId, list] of byId) {
-    const clansByIdentity = new Map<string, Set<number>>();
-    for (const u of list) clansByIdentity.set(u.identity, (clansByIdentity.get(u.identity) ?? new Set()).add(u.clanId));
-    let identity = '';
-    let best = 0;
-    for (const [ident, set] of [...clansByIdentity].sort((a, b) => a[0].localeCompare(b[0]))) {
-      if (set.size > best) [identity, best] = [ident, set.size];
+    const byIdentity = new Map<string, { clans: Set<number>; sampleUrl: string }>();
+    for (const u of list) {
+      const e = byIdentity.get(u.identity) ?? { clans: new Set<number>(), sampleUrl: u.url };
+      e.clans.add(u.clanId);
+      byIdentity.set(u.identity, e);
     }
-    if (best < 2) continue;
+    const candidates = [...byIdentity]
+      .filter(([, e]) => e.clans.size >= 2)
+      .map(([identity, e]) => ({ identity, clanIds: [...e.clans].sort((a, b) => a - b), sampleUrl: e.sampleUrl }))
+      .sort((a, b) => a.identity.localeCompare(b.identity));
+    if (candidates.length === 0) continue;
     const seen = new Set<string>();
     const shaped = list
       .filter((u) => {
-        const k = `${u.clanId}|${u.where}|${u.identity === identity}`;
+        const k = `${u.clanId}|${u.where}|${u.identity}`;
         if (seen.has(k)) return false;
         seen.add(k);
         return true;
       })
-      .map((u) => ({ clanId: u.clanId, where: u.where, tokenMatches: u.identity === identity }))
-      .sort((a, b) => a.clanId - b.clanId || a.where.localeCompare(b.where) || Number(b.tokenMatches) - Number(a.tokenMatches));
-    out.push({
-      webhookId,
-      identity,
-      clanIds: [...clansByIdentity.get(identity)!].sort((a, b) => a - b),
-      uses: shaped,
-      sampleUrl: list.find((u) => u.identity === identity)!.url,
-    });
+      .map((u) => ({ clanId: u.clanId, where: u.where, identity: u.identity }))
+      .sort((a, b) => a.clanId - b.clanId || a.where.localeCompare(b.where) || a.identity.localeCompare(b.identity));
+    out.push({ webhookId, candidates, uses: shaped });
   }
   return out.sort((a, b) => a.webhookId.localeCompare(b.webhookId));
+}
+
+/**
+ * The finding for a group, given the identities Discord confirmed real: the clans holding a confirmed
+ * identity, and every use marked by whether it holds one. Null when none was confirmed.
+ */
+export function finalizeGroup(group: SharedGroup, confirmed: ReadonlySet<string>): FinalFinding | null {
+  const real = group.candidates.filter((c) => confirmed.has(c.identity));
+  if (real.length === 0) return null;
+  const clanIds = [...new Set(real.flatMap((c) => c.clanIds))].sort((a, b) => a - b);
+  const seen = new Set<string>();
+  const uses = group.uses
+    .map((u) => ({ clanId: u.clanId, where: u.where, tokenMatches: confirmed.has(u.identity) }))
+    .filter((u) => {
+      const k = `${u.clanId}|${u.where}|${u.tokenMatches}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .sort((a, b) => a.clanId - b.clanId || a.where.localeCompare(b.where) || Number(b.tokenMatches) - Number(a.tokenMatches));
+  return { clanIds, uses };
 }
 
 export type FindingStatus = 'open' | 'dismissed' | 'blocked';
