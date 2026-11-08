@@ -79,6 +79,10 @@ test('a submission post is sent with wait=true and its message id is kept', asyn
   assert.equal(rows[0].channelId, 'c1');
   assert.deepEqual(rows[0].submissionIds, [41]);
   assert.equal(rows[0].tileId, tileId);
+  // The webhook's public id only — its token is never stored.
+  assert.equal(rows[0].webhookId, '123456');
+  assert.equal(rows[0].clanId, clanId);
+  assert.ok(!JSON.stringify(rows).includes('secret-token'));
 });
 
 test('removing that submission edits the post: struck title, the reason, image kept', async () => {
@@ -95,6 +99,16 @@ test('removing that submission edits the post: struck title, the reason, image k
   assert.equal(embed.image.url, 'https://x/p.png');
   const [row] = await db.select().from(s.discordPosts);
   assert.ok(row.editedAt);
+});
+
+test('a post whose webhook was since replaced can\'t be found again: correction instead', async () => {
+  const { markSubmissionPostsRemoved } = await import('../src/lib/discordPostActions.ts');
+  await db.update(s.settings).set({ value: 'https://discord.com/api/webhooks/999/other-token' }).where(eq(s.settings.key, 'discord_webhook_bingo'));
+  let fellBack = 0;
+  await markSubmissionPostsRemoved(41, 'Removed by an admin', async () => { fellBack++; });
+  assert.equal(fellBack, 1);
+  assert.ok(!calls.some((c) => c.method === 'PATCH'), 'never edited through another webhook');
+  await db.update(s.settings).set({ value: HOOK }).where(eq(s.settings.key, 'discord_webhook_bingo'));
 });
 
 test('no stored post, or an edit Discord refuses: the correction post runs instead', async () => {
@@ -127,5 +141,4 @@ test('a post without a ref is sent as before (no wait, nothing kept)', async () 
   const post = calls.find((c) => c.method === 'POST')!;
   assert.ok(!post.url.includes('wait=true'));
   assert.equal((await db.select().from(s.discordPosts)).length, before);
-  void eq;
 });

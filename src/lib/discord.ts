@@ -1,6 +1,7 @@
 import { webhookIdentity } from '@/lib/discordIdentity';
 import { isDiscordWebhookTarget } from '@/lib/discordWebhookUrl';
 import { currentPostRef, recordDiscordPost, withPostRef } from '@/lib/discordPosts';
+import { safeError } from '@/lib/webhookRedact';
 import { eventHookTargets } from '@/lib/eventWebhooks';
 import { EVENT_POST_KINDS, type EventPostKind } from '@/lib/eventWebhookKinds';
 import { clanMarkUrl, eventMarkUrl } from '@/lib/clanMarkUrl';
@@ -216,11 +217,12 @@ async function sendToWebhook(webhookUrl: string, payload: DiscordWebhookPayload,
       log.warn('discord.webhook-fail', { status: response.status, body: text.slice(0, 200) });
     } else if (ref) {
       const message = (await response.json().catch(() => ({}))) as { id?: unknown; channel_id?: unknown };
-      await recordDiscordPost(ref, webhookUrl, message);
+      await recordDiscordPost(ref, webhookUrl, clanId, message);
     }
     return response.ok;
   } catch (error) {
-    log.warn('discord.webhook-exception', {}, error);
+    // Safe fields only: a fetch error can echo the webhook URL, token included.
+    log.warn('discord.webhook-exception', { error: safeError(error) });
     return false;
   }
 }
@@ -474,7 +476,7 @@ async function upsertWebhookMessage(
       ...(typeof body.id === 'string' && body.id ? { messageId: body.id } : {}),
     };
   } catch (error) {
-    log.warn('discord.webhook-upsert-exception', { clanId }, error);
+    log.warn('discord.webhook-upsert-exception', { clanId, error: safeError(error) });
     return { status: 'failed' };
   }
 }

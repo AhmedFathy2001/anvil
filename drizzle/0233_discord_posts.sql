@@ -1,5 +1,6 @@
--- Board posts kept so they can be edited or deleted later (lib/discordPosts): which webhook sent
--- which message for which submission / tile completion / team win.
+-- Board posts kept so they can be edited or deleted later (lib/discordPosts): which webhook (its
+-- public id only — the token stays where it already lives) sent which message for which submission /
+-- tile completion / team win.
 CREATE TABLE IF NOT EXISTS "discord_posts" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"clan_id" integer,
@@ -8,7 +9,7 @@ CREATE TABLE IF NOT EXISTS "discord_posts" (
 	"tile_id" integer,
 	"team_id" integer,
 	"submission_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
-	"webhook_url" text NOT NULL,
+	"webhook_id" text NOT NULL,
 	"message_id" text NOT NULL,
 	"channel_id" text,
 	"created_at" text NOT NULL,

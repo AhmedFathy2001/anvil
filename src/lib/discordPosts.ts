@@ -4,6 +4,7 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { discordPosts } from '@/db/schema';
 import { log } from '@/lib/logger';
+import { safeError, webhookIdOf } from '@/lib/webhookRedact';
 
 /**
  * WHICH BOARD POST WAS WHICH. A webhook post is sent with `?wait=true` while a post ref is set
@@ -33,25 +34,30 @@ export function currentPostRef(): DiscordPostRef | undefined {
   return store.getStore();
 }
 
-/** Store one sent message. Best-effort: a failure here never fails the post. */
-export async function recordDiscordPost(ref: DiscordPostRef, webhookUrl: string, message: { id?: unknown; channel_id?: unknown }): Promise<void> {
+/**
+ * Store one sent message: the webhook's public id and the clan whose destination it was — never the
+ * URL (its token is a secret). Best-effort: a failure here never fails the post.
+ */
+export async function recordDiscordPost(ref: DiscordPostRef, webhookUrl: string, destinationClanId: number | null | undefined, message: { id?: unknown; channel_id?: unknown }): Promise<void> {
   if (typeof message.id !== 'string' || !message.id) return;
+  const webhookId = webhookIdOf(webhookUrl);
+  if (!webhookId) return;
   try {
     await db.insert(discordPosts).values({
-      clanId: ref.clanId ?? null,
+      clanId: destinationClanId ?? ref.clanId ?? null,
       kind: ref.kind,
       eventId: ref.eventId ?? null,
       tileId: ref.tileId ?? null,
       teamId: ref.teamId ?? null,
       submissionIds: ref.submissionIds ?? [],
-      webhookUrl,
+      webhookId,
       messageId: message.id,
       channelId: typeof message.channel_id === 'string' ? message.channel_id : null,
       createdAt: new Date().toISOString(),
     });
   } catch (error) {
-    // Never the webhook URL: its token is a secret.
-    log.warn('discord-posts.record-fail', { kind: ref.kind, eventId: ref.eventId ?? null }, error);
+    // Safe fields only: a database error can echo the values it was given.
+    log.warn('discord-posts.record-fail', { kind: ref.kind, eventId: ref.eventId ?? null, error: safeError(error) });
   }
 }
 

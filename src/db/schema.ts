@@ -2442,8 +2442,10 @@ export const pendingNotifications = pgTable('pending_notifications', {
  * Every board post Anvil sent with a webhook, kept so it can be found, edited or deleted later
  * (lib/discordPosts): a submission post (one or a merged bucket of several), a tile-complete post, a
  * team-win post. One row per destination it went to (host channel, co-host, extra hooks).
- * `webhook_url` holds the webhook it was sent with (its token is a secret: never logged, never sent
- * to a client) — editing or deleting a webhook message needs that same webhook.
+ * Only the webhook's public id is kept, never its token: editing or deleting needs the same webhook,
+ * so lib/discordPostActions finds its URL again where the token already lives (the clan's channel
+ * settings, the event's / co-host's Discord prefs, the event's extra hooks) by matching that id.
+ * `clan_id` is the clan whose destination it went to. Nothing here is returned by any API.
  */
 export const discordPosts = pgTable('discord_posts', {
   id: serial('id').primaryKey(),
@@ -2453,7 +2455,7 @@ export const discordPosts = pgTable('discord_posts', {
   tileId: integer('tile_id'),
   teamId: integer('team_id'),
   submissionIds: jsonb('submission_ids').$type<number[]>().notNull().default([]),
-  webhookUrl: text('webhook_url').notNull(),
+  webhookId: text('webhook_id').notNull(),
   messageId: text('message_id').notNull(),
   channelId: text('channel_id'),
   createdAt: text('created_at').notNull(),
