@@ -11,6 +11,7 @@ import { isApexHost } from '@/lib/clanContext';
 import { FRIENDS_CAPS } from '@/lib/friendEventRules';
 import { verifyUser } from '@/lib/auth';
 import { track } from '@/lib/analytics';
+import { isBotUserAgent } from '@/lib/analyticsPattern';
 import { ensureSupporterRef, supporterCheckoutUrl, supporterForUser } from '@/lib/supporter';
 import { BOOST_SLOTS, boostSlotsFor } from '@/lib/clanBoosts';
 import { SUPPORTER_TIERS, SUPPORTER_TIER_ORDER, type SupporterTierId } from '@/lib/supporterTiers';
@@ -71,7 +72,8 @@ export default async function SupporterPage() {
   // Pressing a buy button goes through /api/supporter/checkout, which records the step and then hands
   // off to the hosted checkout — the click is counted where it happens, on the server.
   const checkout = session && supporterCheckoutUrl(await ensureSupporterRef(session.userId), via) ? '/api/supporter/checkout' : null;
-  track('supporter.viewed', { userId: session?.userId ?? null, clanId: null });
+  // Crawlers and link previews load this page too; count people only.
+  if (!isBotUserAgent((await headers()).get('user-agent'))) track('supporter.viewed', { userId: session?.userId ?? null, clanId: null });
   // The name people see on their card, for the preview (the session's username is a login handle).
   const me = session
     ? (await db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { displayName: true } }))?.displayName ?? null

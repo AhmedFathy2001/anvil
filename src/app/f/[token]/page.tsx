@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
 import { track } from '@/lib/analytics';
+import { isBotUserAgent } from '@/lib/analyticsPattern';
 import { verifyUser } from '@/lib/auth';
 import { isApexHost } from '@/lib/clanContext';
 import { canSeeEvent } from '@/lib/eventAccess';
@@ -30,7 +31,8 @@ export default async function FriendsInvitePage({ params }: { params: Promise<{ 
   const { token } = await params;
   const target = isInviteToken(token) ? await inviteTarget(token) : null;
   const session = await verifyUser();
-  if (target) track('invite.opened', { userId: session?.userId ?? null, clanId: null });
+  // A pasted invite is fetched by Discord's link preview before anyone clicks it; count people only.
+  if (target && !isBotUserAgent((await headers()).get('user-agent'))) track('invite.opened', { userId: session?.userId ?? null, clanId: null });
 
   if (target && session?.playerId != null && (await canSeeEvent({ eventId: target.eventId, playerId: session.playerId }))) {
     redirect(`/c/${target.hostSlug}/events/${target.eventId}`);
