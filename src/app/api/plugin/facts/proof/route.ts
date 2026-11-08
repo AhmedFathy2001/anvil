@@ -7,7 +7,8 @@ import { readBody, storeImage } from '@/lib/pluginFacts/request';
 import { attachedKeyMark, claimsWithSplit, decodePendingProof, parseProofKey, proofOverdue, PROOF_TOO_LATE } from '@/lib/proofAfter';
 import { afterReply, participantName, stampAndPost, sweepOverdueProofs } from '@/lib/proofFinish';
 import { rateLimit } from '@/lib/rate-limit';
-import { countTileProgress } from '@/lib/submissions';
+import { emitTeamProgress, TEAM_PROGRESS_TILE_TYPES } from '@/lib/chatFeed';
+import { announceHeldCompletion, countTileProgress } from '@/lib/submissions';
 import { claimUploads } from '@/lib/uploadClaims';
 
 export const dynamic = 'force-dynamic';
@@ -120,6 +121,20 @@ export async function POST(request: Request) {
           note: s.note,
           durationSeconds: s.durationSeconds,
         });
+        // What the credit held back until now (lib/proofAfter): its completion's announcements, or the
+        // team-progress line with the count as it stands now. A reversed credit never gets here.
+        if (pending.announce != null) await announceHeldCompletion(pending.announce, s.teamId);
+        else if (!pending.cap && !pending.completed && TEAM_PROGRESS_TILE_TYPES.has(tile.tileType) && tile.requiredAmount && current.current < tile.requiredAmount) {
+          await emitTeamProgress({
+            eventId: event.id,
+            teamId: team.id,
+            senderUserId: pending.sender,
+            who: creditPlayerName ?? pending.rsn ?? team.name,
+            tileLabel: tile.label,
+            current: current.current,
+            required: tile.requiredAmount,
+          });
+        }
       } catch (e) {
         console.error('[plugin/facts/proof] after attach', e);
       }

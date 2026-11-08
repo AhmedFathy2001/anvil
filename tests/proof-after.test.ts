@@ -47,7 +47,7 @@ test('proofDueAt / proofOverdue: a minute after filing, inclusive; a row with no
 
 test('pending proof JSON: round-trips, and anything malformed decodes to safe defaults', () => {
   const claims = parseProofClaims({ title: 'BINGO DROP', detail: 'Twisted bow', tz: 'UTC', capturedAt: 5, tick: 9, chat: [{ tick: 9, type: 'GAMEMESSAGE', text: 'Valuable drop: Twisted bow (1,000,000,000 coins)' }] });
-  const p = { claims, receivedAt: 123, completed: true, superseded: false, cap: false, rsn: 'Zezima', clan: 'alpha' };
+  const p = { claims, receivedAt: 123, completed: true, superseded: false, cap: false, rsn: 'Zezima', clan: 'alpha', announce: 7, sender: 3 };
   assert.deepEqual(decodePendingProof(encodePendingProof(p)), p);
 
   const junk = decodePendingProof('{not json');
@@ -75,7 +75,7 @@ test('stampOnlyClaims: only game lines the stamp prints survive; typed chat is d
     { tick: 100, type: 'PRIVATECHATIN', text: 'my address is' },
   ] })!;
   assert.deepEqual(stampOnlyClaims(claims).chat.map((c) => c.type), ['GAMEMESSAGE']);
-  assert.deepEqual(decodePendingProof(encodePendingProof({ claims, receivedAt: 1, completed: false, superseded: false, cap: false, rsn: null, clan: null })).claims!.chat.length, 1);
+  assert.deepEqual(decodePendingProof(encodePendingProof({ claims, receivedAt: 1, completed: false, superseded: false, cap: false, rsn: null, clan: null, announce: null, sender: null })).claims!.chat.length, 1);
 });
 
 test('attachedKeyMark / publicSubmission: the tombstone is not the key; rows lose the bookkeeping', () => {

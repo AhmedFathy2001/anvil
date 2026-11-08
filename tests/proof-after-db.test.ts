@@ -8,6 +8,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
+import pg from 'pg';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { EventEmitter } from 'node:events';
 import https from 'node:https';
@@ -19,6 +20,10 @@ const DB = useTestDatabase('proofafter');
 // Next's request storage wants the runtime's AsyncLocalStorage on globalThis (the server sets it).
 (globalThis as { AsyncLocalStorage?: unknown }).AsyncLocalStorage ??= AsyncLocalStorage;
 let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
+// The live push channel: a board Feed completion row (lib/panelRows emitCompletionRow) is a 'rows' NOTIFY.
+let listener: pg.Client;
+const feedRows: string[] = [];
+const settle = (ms = 400) => new Promise((r) => setTimeout(r, ms));
 const ids = {} as Record<string, number>;
 const day = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
 
@@ -109,6 +114,12 @@ async function expire(tileId: number) {
 before(async () => {
   jpeg = await sharp({ create: { width: 320, height: 200, channels: 3, background: '#335' } }).jpeg().toBuffer();
   await resetDatabase(DB);
+  listener = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  await listener.connect();
+  listener.on('notification', (n) => {
+    if (n.payload && (JSON.parse(n.payload) as { k?: string }).k === 'rows') feedRows.push(n.payload);
+  });
+  await listener.query('LISTEN anvil_push');
   const loaded = await loadDb();
   pool = loaded.pool;
   const { db, schema: s } = loaded;
@@ -134,6 +145,7 @@ before(async () => {
 
 after(async () => {
   await new Promise((r) => setTimeout(r, 300)); // let the after-reply work settle
+  await listener.end();
   globalThis.fetch = realFetch;
   (https as { request: unknown }).request = realRequest;
   await pool.end();
@@ -163,6 +175,10 @@ test('a pending credit counts at once with no image, says it completed, and name
   const body = await listed.text();
   assert.ok(!body.includes(whipKey) && !body.includes('proofPending') && !body.includes('proofKey'), body.slice(0, 300));
   assert.ok(await completed(ids.whip));
+  // Complete, but not announced: no Feed row until the picture lands; the owed announcement is noted.
+  await settle();
+  assert.equal(feedRows.length, 0, 'no completion Feed row for a credit still waiting');
+  assert.equal((JSON.parse(row.proofPending ?? '{}') as { announce?: number }).announce, ids.whip);
 });
 
 test('someone else’s token cannot attach to it', async () => {
@@ -189,6 +205,10 @@ test('the screenshot attaches, gets stamped, and a repeat upload is a no-op', as
   }
   assert.ok(row.cleanImageUrl, 'stamped');
   assert.match(row.imageUrl ?? '', /-stamped\.webp$/);
+  // The held completion is announced now: its board Feed row goes out.
+  for (let i = 0; i < 30 && feedRows.length === 0; i++) await settle(100);
+  assert.equal(feedRows.length, 1, 'the Feed row follows the attach');
+  assert.ok(feedRows[0].includes('Whip'));
   assert.equal((JSON.parse(row.proofFacts ?? '{}') as { split?: number }).split, 0.5);
 
   const again = await upload(whipKey);
@@ -209,6 +229,8 @@ test('a credit whose screenshot never came is reversed by the sweep, and its key
   const res = await upload(reply.proofKey!);
   assert.equal(res.status, 410);
   assert.match((await res.json()).error, /Too late/);
+  await settle();
+  assert.equal(feedRows.length, 1, 'a reversed completion was never announced');
 });
 
 test('an upload that arrives after the minute reverses the credit itself and answers 410', async () => {
