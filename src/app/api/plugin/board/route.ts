@@ -461,7 +461,8 @@ export async function buildBoard(
   // whether it is open next, done, still ahead or closed. The panel draws the route from these.
   // Absent on every other board, so their payloads and ETags are unchanged.
   const routeGraph = event.format === 'tilerace' ? raceGraph(eventTiles) : null;
-  const raceOn = !!routeGraph?.branching;
+  // Every tile race (a straight line too): the panel reads it as an ordered step list (lib/pluginUi).
+  const raceOn = !!routeGraph && routeGraph.nodes.length > 0;
   const callerPicks = raceOn && callerTeamId != null ? await loadRacePicks(event, callerTeamId) : null;
   const callerRoute = raceOn && yourCompleted ? teamRoute(routeGraph!, yourCompleted, callerPicks) : null;
 
@@ -615,6 +616,8 @@ export async function buildBoard(
               raceNext: routeGraph!.byId.get(t.id)!.next,
               raceFrom: routeGraph!.prev.get(t.id) ?? [],
               raceRoad: roadOf(routeGraph!, t.id),
+              // How many tiles share its step (lane letters only mean something past one).
+              raceLanes: routeGraph!.steps[routeGraph!.byId.get(t.id)!.step].length,
               ...(callerRoute ? { raceState: callerRoute.state.get(t.id) ?? null } : {}),
             }
           : {}),

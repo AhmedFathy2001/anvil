@@ -1,3 +1,5 @@
+import { raceGraph } from '@/lib/raceRoutes';
+import { raceFirsts } from '@/lib/raceSummary';
 import { feeLabel, paidEntriesLabel, standardFee } from '@/lib/entryFeeMath';
 import CohostTileSuggest from '@/components/CohostTileSuggest';
 import { parseBoardAccess } from '@/lib/cohostBoardAccess';
@@ -445,6 +447,15 @@ export default async function EventScoreboardPage({
   // recomputation of the standings.
   // Hidden standings: the firsts name whichever team got there first, so they wait for the reveal.
   const firsts = curtain ? [] : await loadEventFirsts(event.id, event.startDate);
+  // A tile race adds its own (lib/raceSummary): off the line, first to the junction, first road switch.
+  const raceRouteGraph = event.format === 'tilerace' ? raceGraph(allTileRows) : null;
+  if (raceRouteGraph && !curtain) {
+    const labelOfTile = new Map(allTileRows.map((t) => [t.id, t.label]));
+    const emoji: Record<string, string> = { 'off-the-line': '🏁', junction: '⇄', 'road-switch': '↪' };
+    for (const f of raceFirsts(raceRouteGraph, eventTeams, eventCompletions, (tid) => labelOfTile.get(tid) ?? `Tile ${tid}`)) {
+      firsts.push({ key: `race-${f.key}`, emoji: emoji[f.key], title: f.title, blurb: f.title, who: f.team.name, teamName: f.team.name, teamColor: f.team.color, tileLabel: f.detail, at: f.at ?? '' });
+    }
+  }
   // The week's colour: pets, clog slots, 1M+ drops and deaths that happened while the board ran
   // (lib/moments isEventFeedWorthy) — never any part of the scoring.
   // Back-to-back repeats (someone's run of deaths) collapse to one line with a count (lib/feedRuns)
@@ -595,7 +606,7 @@ export default async function EventScoreboardPage({
             closedAt: t.closedAt,
           }))}
         view={ladderView}
-        shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.tilesRevealed ? event.boardSize : null, event.rules)}
+        shapeBadge={raceRouteGraph && event.tilesRevealed ? `Race · ${raceRouteGraph.lastStep + 1} steps` : eventShapeBadge(event.format, event.scoringMode, event.tilesRevealed ? event.boardSize : null, event.rules)}
         hiddenTileCount={hiddenTileCount}
         nextRevealAt={upcomingRevealAt}
         prizePool={prizePool}
@@ -702,7 +713,7 @@ export default async function EventScoreboardPage({
         // A creator space's event names its host in words, not with a clan crest's say-so.
         // A friends event (lib/friendEventRules) too: "Ahmed’s friends".
         hostedBy={isCreatorSpace(hostClan) || isFriendsHost(hostClan) ? hostClan?.name ?? null : null}
-        shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.tilesRevealed ? event.boardSize : null, event.rules)}
+        shapeBadge={raceRouteGraph && event.tilesRevealed ? `Race · ${raceRouteGraph.lastStep + 1} steps` : eventShapeBadge(event.format, event.scoringMode, event.tilesRevealed ? event.boardSize : null, event.rules)}
         pointsOnBoard={pointsOnBoard}
         teamsCount={safeTeams.length}
         prizePool={prizePool}

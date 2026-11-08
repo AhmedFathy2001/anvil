@@ -43,6 +43,8 @@ export interface TileRaceBoardProps {
   statProgress?: Map<number, { current: number; goal: number; statType?: string }>;
   expanded?: boolean;
   matchedTileIds?: Set<number> | null;
+  /** 'track' on the event page: the race track card only (its other sections are on the page). */
+  raceLayout?: 'full' | 'track';
 }
 
 // How many tiles per row before the track snakes back the other way.
@@ -50,7 +52,8 @@ const COLS = 5;
 
 export default function TileRaceBoard(props: TileRaceBoardProps) {
   // A board with steps laid out is a branching route (lib/raceRoutes): drawn as a map, not a track.
-  if (isBranchingRoute(props.tiles)) return <BranchingRaceBoard {...props} />;
+  // The event page's Race track draws every race as roads, a straight line included.
+  if (isBranchingRoute(props.tiles) || props.raceLayout === 'track') return <BranchingRaceBoard {...props} />;
   return <LinearRaceBoard {...props} />;
 }
 
