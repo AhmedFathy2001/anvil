@@ -49,7 +49,7 @@ export default function LabClient() {
   const [formatKey, setFormatKey] = useState<LabFormatKey>('classic');
   const [boardSize, setBoardSize] = useState(3);
   const [placement, setPlacement] = useState<LabPlacement>('team');
-  const [route, setRoute] = useState<LabRouteTemplate>('line');
+  const [route, setRoute] = useState<LabRouteTemplate>('diamond');
   const [raceRoutes, setRaceRoutes] = useState(false);
   const [fieldPlayers, setFieldPlayers] = useState(0);
   const [teamSize, setTeamSize] = useState(3);

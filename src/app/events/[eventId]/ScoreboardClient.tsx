@@ -604,6 +604,18 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
     [raceG, teams, completions, raceViewer, racePick.pickInfo, raceStandings],
   );
   const [raceNow, setRaceNow] = useState<number | null>(null);
+  // The race's fullscreen is an overlay: Esc closes it, and the page behind doesn't scroll.
+  useEffect(() => {
+    if (!isRace || !fullscreen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullscreen(false); };
+    window.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [isRace, fullscreen]);
   useEffect(() => {
     if (!isRace) return;
     setRaceNow(Date.now());
@@ -650,6 +662,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
   ) : null;
 
   if (isRace && raceG) {
+    // (Esc closes the race's fullscreen overlay — see the effect below.)
     const steps = raceG.lastStep + 1;
     const tileById = new Map(board.map((t) => [t.id, { ...t, icon: t.icon ?? deriveTileIcon(t) }]));
     const labelOf = (id: number) => tileById.get(id)?.label ?? `Tile ${id}`;
@@ -686,7 +699,14 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
 
         {!curtain && <RaceStatCardsRow cards={raceStatCards(raceG, raceLineList, raceViewer)} />}
 
-        <section className="mb-8 min-w-0">
+        {/* Fullscreen on a race is a full-viewport overlay (Esc or Close), and the map scales up to
+            use the room — on the page the board already fills its card. */}
+        <section
+          className={fullscreen ? 'fixed inset-0 z-50 overflow-auto bg-background p-4 sm:p-6' : 'mb-8 min-w-0'}
+          role={fullscreen ? 'dialog' : undefined}
+          aria-modal={fullscreen ? true : undefined}
+          aria-label={fullscreen ? 'Race track, fullscreen' : undefined}
+        >
           <RaceSectionTitle
             aside={
               <>
@@ -697,7 +717,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
                     onClick={() => setFullscreen(!fullscreen)}
                     className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${fullscreen ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50 hover:text-gold'}`}
                   >
-                    {fullscreen ? 'Show standings' : 'Fullscreen board'}
+                    {fullscreen ? 'Close fullscreen' : 'Fullscreen board'}
                   </button>
                 </div>
               </>
@@ -720,6 +740,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             staffOnlyTileIds={staffOnlySet}
             showStatusFilter={false}
             raceLayout="track"
+            raceFit={fullscreen}
           />
         </section>
 
@@ -730,7 +751,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
           </div>
         )}
 
-        {!fullscreen && (
+        {(
           <div className="grid gap-8 items-start lg:grid-cols-2">
             <div className="min-w-0">
               <RaceSectionTitle>{curtain ? (teams.length > 0 ? 'Your team' : 'Standings') : 'Standings'}</RaceSectionTitle>

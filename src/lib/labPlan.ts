@@ -9,6 +9,7 @@
 // / Boss of the Week, efficiency races) are not boards — they have no tiles to test — so the lab
 // leaves them out.
 
+import { applyRouteTemplate } from '@/lib/raceRoutes';
 import { EVENT_MODES, type EventMode } from '@/lib/eventModes';
 import type { RevealPolicy } from '@/lib/eventRules';
 import { nextTeamColour, nextTeamName, soloTeamName } from '@/lib/teamPlacement';
@@ -95,15 +96,119 @@ export interface LabTileSeed {
   points: number;
   /** Showdown only: when this tile opens. */
   revealAt: string | null;
+  tileType: string;
+  requiredAmount: number;
+  /** JSON array, per kind: kill/lap counters, PK victims, diary or CA selectors. */
+  targetNpcs: string | null;
+  /** JSON array of item ids (drop / clog tiles). */
+  trackedItemIds: string | null;
+  /** JSON array: a drop tile's "only from" sources. */
+  sourceNpcs: string | null;
+  timedActivity: string | null;
+  timeThresholdSeconds: number | null;
+  coopCredit: string | null;
+  category: string;
 }
 
-/** The blank tiles of a new session, in board order. */
+type LabTileSpec = Omit<LabTileSeed, 'position' | 'points' | 'revealAt'>;
+const spec = (label: string, tileType: string, category: string, extra: Partial<LabTileSpec> = {}): LabTileSpec => ({
+  label,
+  tileType,
+  category,
+  requiredAmount: 1,
+  targetNpcs: null,
+  trackedItemIds: null,
+  sourceNpcs: null,
+  timedActivity: null,
+  timeThresholdSeconds: null,
+  coopCredit: null,
+  ...extra,
+});
+const list = (...v: (string | number)[]) => JSON.stringify(v);
+
+/**
+ * Real tiles for a lab board — each one finished by a bundled lab scenario (the plugin's
+ * `::anvil run <name>`, src/data/labScenarioTemplates.json), with names, counter names, item ids and
+ * selectors taken from what that scenario actually produces (tests/lab-tiles-credit.test.ts runs
+ * each one through the site's matcher). Order matters for a race: the first is the single start
+ * (an easy opener) and the last the single finish (a raid to close it out); the rest fill the roads.
+ *
+ *   tile                      scenario (defaults unless noted)
+ *   Wintertodt crate          wintertodt-game   — "Your subdued Wintertodt count is" → Wintertodt
+ *   2 Araxxor kills           boss-kc           — "Your Araxxor kill count is" (run twice)
+ *   Tanzanite fang            zulrah-unique     — loot item 12922 from Zulrah
+ *   1m+ loot haul             loot-key          — a Bandos chestplate + 250k from a loot key
+ *   Vorkath under 2:00        boss-pb           — "Fight duration: 1:36" on Vorkath
+ *   PK Some Pker              pvp-kill          — victim "Some Pker"
+ *   Hard Ardougne diary       diary-tier        — "all of the hard tasks in the Ardougne area"
+ *   Whack-a-Mole (Elite CA)   ca-task           — "an Elite combat task: Whack-a-Mole"
+ *   Fighter torso slot        clog-unlock       — "New item added to your collection log: Fighter torso"
+ *   2 Seers' rooftop laps     agility-lap       — "Your Seers' Village Rooftop lap count is" (twice)
+ *   Tombs of Amascut          toa-raid          — "Your completed Tombs of Amascut: Expert Mode count is"
+ *   Robin Hood hat (hard clue) clue-casket      — casket loot item 2581 from "Clue Scroll (Hard)"
+ *   Slayer task               slayer-task       — SLAYER_TASKS_COMPLETED +1 → "Slayer tasks: any master"
+ *   2 Vorkath kills           boss-kc boss=Vorkath (twice)
+ *   Theatre of Blood          tob-raid          — "Your completed Theatre of Blood count is"
+ *   Hallowed Sepulchre run    sepulchre-run     — "You have opened the Grand Hallowed Coffin"
+ *   2 Zulrah kills            zulrah-unique     — "Your Zulrah kill count is" (twice)
+ *   Chambers of Xeric         cox-raid          — "Your completed Chambers of Xeric count is"
+ */
+export const LAB_TILE_SET: LabTileSpec[] = [
+  spec('Wintertodt crate', 'kill', 'Skilling', { targetNpcs: list('Wintertodt') }),
+  spec('2 Araxxor kills', 'kill', 'Bosses', { requiredAmount: 2, targetNpcs: list('Araxxor') }),
+  spec('Tanzanite fang', 'drop', 'Bosses', { trackedItemIds: list(12922) }),
+  spec('1m+ loot haul', 'value', 'Loot', { requiredAmount: 1_000_000 }),
+  spec('Vorkath under 2:00', 'timed', 'Bosses', { timedActivity: 'Vorkath', timeThresholdSeconds: 120 }),
+  spec('PK Some Pker', 'pvp', 'PvP', { targetNpcs: list('Some Pker') }),
+  spec('Hard Ardougne diary', 'diary', 'Diaries', { targetNpcs: list('Ardougne Hard') }),
+  spec('Whack-a-Mole (Elite CA)', 'ca', 'Combat achievements', { targetNpcs: list('Whack-a-Mole') }),
+  spec('Fighter torso slot', 'clog', 'Collection log', { trackedItemIds: list(10551) }),
+  spec("2 Seers' rooftop laps", 'lap', 'Agility', { requiredAmount: 2, targetNpcs: list("Seers' Village Rooftop") }),
+  // The scenario's raid is Expert Mode, and the game names the mode in its count line.
+  spec('Tombs of Amascut', 'kill', 'Raids', { targetNpcs: list('Tombs of Amascut', 'Tombs of Amascut: Expert Mode'), coopCredit: 'per-kill' }),
+  // A drop tile, not a "clue opens" kill tile: the open is counted under "Clue Scroll (Hard)", whose
+  // tier qualifier the kill index drops, so a tier-named kill tile is never credited (see the test).
+  spec('Robin Hood hat (hard clue)', 'drop', 'Clues', { trackedItemIds: list(2581), sourceNpcs: list('Clue Scroll (Hard)') }),
+  spec('Slayer task', 'kill', 'Slayer', { targetNpcs: list('Slayer tasks: any master') }),
+  spec('2 Vorkath kills', 'kill', 'Bosses', { requiredAmount: 2, targetNpcs: list('Vorkath') }),
+  spec('Theatre of Blood', 'kill', 'Raids', { targetNpcs: list('Theatre of Blood'), coopCredit: 'per-kill' }),
+  spec('Hallowed Sepulchre run', 'lap', 'Agility', { targetNpcs: list('Grand Hallowed Coffin') }),
+  spec('2 Zulrah kills', 'kill', 'Bosses', { requiredAmount: 2, targetNpcs: list('Zulrah') }),
+  spec('Chambers of Xeric', 'kill', 'Raids', { targetNpcs: list('Chambers of Xeric'), coopCredit: 'per-kill' }),
+];
+
+/**
+ * The tiles a board of `count` gets, in board order: the set's opener first and its closer last
+ * (a race's single start and single finish), the rest in between. A board bigger than the set takes
+ * harder variants of the count tiles ("6 Araxxor kills") rather than the same tile twice.
+ */
+export function labTilePlan(count: number): LabTileSpec[] {
+  if (count <= 0) return [];
+  const opener = LAB_TILE_SET[0];
+  const closer = LAB_TILE_SET[LAB_TILE_SET.length - 1];
+  if (count === 1) return [closer];
+  const middle = LAB_TILE_SET.slice(1, -1);
+  const fill: LabTileSpec[] = [];
+  for (let round = 0; fill.length < count - 2; round++) {
+    for (const t of middle) {
+      if (fill.length >= count - 2) break;
+      if (round === 0) fill.push(t);
+      else {
+        // A harder copy: the counted tiles scale up, so no two tiles on a board read the same.
+        const n = Math.max(1, t.requiredAmount) * (round + 1);
+        fill.push({ ...t, requiredAmount: t.tileType === 'kill' || t.tileType === 'lap' ? n : t.requiredAmount, label: `${t.label} ×${round + 1}` });
+      }
+    }
+  }
+  return [opener, ...fill, closer];
+}
+
+/** The tiles of a new session, in board order — real, creditable tiles (labTilePlan). */
 export function labTileSeeds(fmt: LabFormat, size: number, startMs: number): LabTileSeed[] {
   const count = labTileCount(fmt, size);
-  const noun = fmt.format === 'tilerace' ? 'Step' : fmt.format === 'ladder' ? 'Task' : 'Lab tile';
-  return Array.from({ length: count }, (_, i) => ({
+  return labTilePlan(count).map((t, i) => ({
+    ...t,
     position: i,
-    label: `${noun} ${i + 1}`,
     points: fmt.scoringMode === 'points' ? POINT_STEPS[i % POINT_STEPS.length] : 1,
     // Showdown: one opens at the start, then one every few minutes, so a short session sees several.
     revealAt: fmt.revealPolicy === 'scheduled' ? new Date(startMs + i * LAB_REVEAL_MINUTES * 60_000).toISOString() : null,
@@ -135,71 +240,22 @@ export function labRules(fmt: LabFormat): Record<string, unknown> | null {
 export type LabRouteTemplate = 'line' | 'lanes2' | 'diamond' | 'braid3';
 
 export const LAB_ROUTE_TEMPLATES: { key: LabRouteTemplate; label: string; help: string }[] = [
+  { key: 'diamond', label: 'Diamond', help: 'One start tile splits into two roads that merge again at one finish tile.' },
+  { key: 'lanes2', label: 'Two roads', help: 'One start, two side-by-side roads that never meet, one finish.' },
+  { key: 'braid3', label: 'Braid', help: 'One start, three roads that can swap at every other step, one finish.' },
   { key: 'line', label: 'Straight line', help: 'One tile per step (no steps stored — the classic race).' },
-  { key: 'lanes2', label: 'Two lanes', help: 'Two side-by-side routes that never meet.' },
-  { key: 'diamond', label: 'Diamond', help: 'One start splits into two lanes that merge at the end.' },
-  { key: 'braid3', label: 'Braid', help: 'Three lanes that can swap at every other step.' },
 ];
 
-export interface RouteEntry {
-  id: number;
-  step: number;
-  next: number[];
-}
-
-function connect(from: number[], to: number[], cross: boolean): Map<number, number[]> {
-  const out = new Map<number, Set<number>>(from.map((id) => [id, new Set<number>()]));
-  if (!to.length) return new Map(from.map((id) => [id, []]));
-  if (from.length === to.length) {
-    from.forEach((id, i) => {
-      out.get(id)!.add(to[i]);
-      if (cross) {
-        if (i > 0) out.get(id)!.add(to[i - 1]);
-        if (i < to.length - 1) out.get(id)!.add(to[i + 1]);
-      }
-    });
-  } else {
-    from.forEach((id, i) => out.get(id)!.add(to[Math.min(to.length - 1, Math.floor((i * to.length) / from.length))]));
-    to.forEach((id, j) => out.get(from[Math.min(from.length - 1, Math.floor((j * from.length) / to.length))])!.add(id));
-  }
-  return new Map([...out].map(([k, v]) => [k, [...v]]));
-}
-
-function fromWidths(ids: number[], widths: number[], crossAt: (step: number) => boolean): RouteEntry[] {
-  const steps: number[][] = [];
-  let i = 0;
-  for (const w of widths) {
-    steps.push(ids.slice(i, i + w));
-    i += w;
-  }
-  const entries: RouteEntry[] = [];
-  steps.forEach((row, s) => {
-    const links = s + 1 < steps.length ? connect(row, steps[s + 1], crossAt(s)) : new Map<number, number[]>();
-    for (const id of row) entries.push({ id, step: s, next: links.get(id) ?? [] });
-  });
-  return entries;
-}
+export type RouteEntry = { id: number; step: number; next: number[] };
 
 /**
- * Steps and links for a route template over these tile ids (board order), in the shape
- * lib/raceRoutes reads: every link goes to the next step, so every route has the same length.
- * Mirrors applyRouteTemplate on the race-branches work; 'line' returns [] (store nothing).
+ * Steps and links for a route template over these tile ids (board order) — the route editor's own
+ * templates (lib/raceRoutes applyRouteTemplate), so a lab race is laid out exactly as a host's would
+ * be. 'line' returns [] (store nothing: the classic straight race).
  */
 export function labRouteLayout(kind: LabRouteTemplate, ids: number[]): RouteEntry[] {
-  const n = ids.length;
-  if (!n || kind === 'line') return [];
-  if (kind === 'lanes2' || kind === 'braid3') {
-    const lanes = kind === 'lanes2' ? 2 : 3;
-    const widths: number[] = [];
-    for (let left = n; left > 0; left -= lanes) widths.push(Math.min(lanes, left));
-    return fromWidths(ids, widths, (s) => kind === 'braid3' && s % 2 === 1);
-  }
-  if (n <= 3) return fromWidths(ids, ids.map(() => 1), () => false);
-  const middle = n - 2;
-  const pairs = Math.floor(middle / 2);
-  const widths = [1, ...Array<number>(pairs).fill(2), 1];
-  if (middle % 2 === 1) widths.splice(1 + Math.ceil(pairs / 2), 0, 1);
-  return fromWidths(ids, widths, () => false);
+  if (!ids.length || kind === 'line') return [];
+  return applyRouteTemplate(kind, ids).map((e) => ({ id: e.id, step: e.step ?? 0, next: e.next }));
 }
 
 // ── Who plays for whom ───────────────────────────────────────────────────────────────────────

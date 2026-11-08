@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { RaceTileState } from '@/lib/raceRoutes';
 import { TileStateIcon } from './TileState';
@@ -49,6 +50,13 @@ interface Props {
   progress?: Map<number, string>;
   matched?: Set<number> | null;
   stepLabel?: (step: number, last: number) => string;
+  /** Tiles locked in a way that matters to the viewer (a fork waiting for the team's pick): padlocked. */
+  lockedIds?: Set<number>;
+  /** The viewer team's own marker: on the tile it stands on, or "Not started" by the start. */
+  youTileId?: number | null;
+  youNotStarted?: boolean;
+  /** Scale the map up to the width of its box (up to 1.75×) — the fullscreen overlay. */
+  fit?: boolean;
 }
 
 const ROAD = '#251e18';
@@ -57,13 +65,26 @@ const COL = 168;
 const ROW = 138;
 const HEAD = 30;
 const PAD_X = 70;
+/** Room for the road names down the left edge, when the map has roads. */
+const LANE_W = 58;
 const R = 33;
 const R_FINISH = 42;
 
 export function defaultStepLabel(step: number, last: number): string {
   if (step === 0) return last === 0 ? 'Start · finish' : 'Start';
   if (step === last) return 'Finish';
-  return `Tile ${step + 1}`;
+  return `Step ${step + 1}`;
+}
+
+/** What a node shows when its tile has no sprite: the tile's initials, never a number. */
+export function tileInitials(label: string): string {
+  const words = label.replace(/[^\p{L}\p{N} ]/gu, ' ').trim().split(/\s+/).filter(Boolean);
+  return (words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? '?').slice(0, 2)).toUpperCase();
+}
+
+/** A short form of a tile name for under its node (the full name is the tooltip). */
+export function shortLabel(label: string, max = 22): string {
+  return label.length > max ? `${label.slice(0, max - 1).trimEnd()}…` : label;
 }
 
 function curve(a: { x: number; y: number }, b: { x: number; y: number }, dy = 0): string {
@@ -85,18 +106,39 @@ export default function RaceRouteMap({
   progress,
   matched,
   stepLabel = defaultStepLabel,
+  lockedIds,
+  youTileId = null,
+  youNotStarted = false,
+  fit = false,
 }: Props) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [boxWidth, setBoxWidth] = useState(0);
+  useEffect(() => {
+    if (!fit || !boxRef.current) return;
+    const el = boxRef.current;
+    const ro = new ResizeObserver(() => setBoxWidth(el.clientWidth));
+    ro.observe(el);
+    setBoxWidth(el.clientWidth);
+    return () => ro.disconnect();
+  }, [fit]);
   const last = nodes.reduce((m, n) => Math.max(m, n.step), 0);
   const columns: RouteMapNode[][] = Array.from({ length: last + 1 }, () => []);
   for (const n of nodes) columns[n.step]?.push(n);
   const tallest = Math.max(1, ...columns.map((c) => c.length));
-  const height = HEAD + tallest * ROW + 10;
-  const width = PAD_X * 2 + last * COL;
+  // Roads keep their row: a step with several tiles puts road A in the top row, B under it, and so
+  // on, so "Road C at step 2" is the third row of column 2 — named down the left edge. A single-tile
+  // step (a start, a merge, the finish) belongs to no road and sits in the middle.
+  const roads = tallest > 1;
+  const left = PAD_X + (roads ? LANE_W : 0);
+  const multiStart = (columns[0]?.length ?? 0) > 1;
+  const head = HEAD + (multiStart || youNotStarted ? 16 : 0);
+  const height = head + tallest * ROW + 10;
+  const width = left + PAD_X + last * COL;
+  const rowY = (i: number) => head + i * ROW + 48;
 
   const pos = new Map<number, { x: number; y: number }>();
   columns.forEach((col, s) => {
-    const top = HEAD + ((tallest - col.length) * ROW) / 2;
-    col.forEach((n, i) => pos.set(n.id, { x: PAD_X + s * COL, y: top + i * ROW + 48 }));
+    col.forEach((n, i) => pos.set(n.id, { x: left + s * COL, y: col.length === 1 ? head + ((tallest - 1) * ROW) / 2 + 48 : rowY(i) }));
   });
 
   // Crowd: each team's current tile, and how many teams travelled each link.
@@ -118,19 +160,29 @@ export default function RaceRouteMap({
   const current = path[path.length - 1];
   const openIds = state ? nodes.filter((n) => state.get(n.id) === 'open').map((n) => n.id) : [];
   const links = nodes.flatMap((n) => n.next.filter((to) => pos.has(to)).map((to) => ({ from: n.id, to })));
+  const scale = fit && boxWidth > 0 ? Math.min(1.75, Math.max(1, (boxWidth - 8) / width)) : 1;
 
   return (
-    <div className="w-full overflow-x-auto overscroll-x-contain rounded-xl border border-card-border bg-[#141010] pb-2" role="group" aria-label="Race route map">
-      <div className="relative mx-auto" style={{ width, height, minWidth: width }}>
-        {columns.map((_, s) => (
+    <div ref={boxRef} className="w-full overflow-x-auto overscroll-x-contain rounded-xl border border-card-border bg-[#141010] pb-2" role="group" aria-label="Race route map">
+      <div style={scale > 1 ? { width: width * scale, height: height * scale, margin: '0 auto' } : undefined}>
+      <div className="relative mx-auto" style={{ width, height, minWidth: width, ...(scale > 1 ? { transform: `scale(${scale})`, transformOrigin: 'top left' } : {}) }}>
+        {columns.map((col, s) => (
           <div
             key={`h${s}`}
-            className="absolute top-2 text-[10px] uppercase tracking-wide text-text-muted text-center font-semibold"
-            style={{ left: PAD_X + s * COL - COL / 2, width: COL }}
+            className="absolute top-2 text-center"
+            style={{ left: left + s * COL - COL / 2, width: COL }}
           >
-            {stepLabel(s, last)}
+            <span className="block text-[10px] uppercase tracking-wide text-text-muted font-semibold">{stepLabel(s, last)}</span>
+            {s === 0 && col.length > 1 && <span className="block text-[10px] text-gold/90">pick any of these {col.length} to begin</span>}
+            {s === 0 && youNotStarted && <span className="inline-block mt-0.5 rounded-full bg-gold px-1.5 text-[9px] font-bold text-brown-dark">You · not started</span>}
           </div>
         ))}
+        {roads &&
+          Array.from({ length: tallest }, (_, i) => (
+            <div key={`road${i}`} className="absolute text-[10px] font-semibold uppercase tracking-wide text-text-muted/80" style={{ left: 8, top: rowY(i) - 7, width: LANE_W }}>
+              Road {String.fromCharCode(65 + i)}
+            </div>
+          ))}
         <svg className="absolute inset-0 pointer-events-none" width={width} height={height} aria-hidden>
           {links.map(({ from, to }) => (
             <path key={`r${from}-${to}`} d={curve(pos.get(from)!, pos.get(to)!)} fill="none" stroke={ROAD} strokeWidth={22} strokeLinecap="round"
@@ -183,9 +235,10 @@ export default function RaceRouteMap({
               className={cn('absolute flex flex-col items-center', matched && !matched.has(n.id) && 'opacity-30')}
               style={{ left: p.x - 64, top: p.y - r, width: 128 }}
             >
-              {variant === 'few' && here.length > 0 && (
-                <div className="absolute flex flex-col items-center gap-0.5" style={{ bottom: 2 * r + 4 }}>
-                  {here.slice(0, 3).map((t) => (
+              {variant === 'few' && here.some((t) => t.id !== viewerTeamId) && (
+                <div className="absolute bottom-full mb-1 z-10 flex flex-col-reverse items-center gap-0.5">
+                  {/* The viewer's own team is the gold "You" marker on the tile, not a pennant. */}
+                  {here.filter((t) => t.id !== viewerTeamId).slice(0, 3).map((t) => (
                     <span key={t.id} className={cn('text-[9px] font-semibold px-1.5 py-0.5 rounded-sm max-w-[120px] truncate text-white shadow', t.id === viewerTeamId && 'ring-1 ring-gold')} style={{ backgroundColor: t.color }}>
                       ⚑ {t.name}
                     </span>
@@ -205,7 +258,7 @@ export default function RaceRouteMap({
                   !onTileClick && 'cursor-default',
                   st === 'done' && 'border-gold',
                   st === 'open' && 'border-dashed border-gold shadow-[0_0_18px_rgba(224,170,30,0.55)]',
-                  st === 'ahead' && 'opacity-80',
+                  st === 'ahead' && !lockedIds?.has(n.id) && 'opacity-60',
                   st === 'closed' && 'opacity-35 grayscale',
                   isSelected && 'border-gold ring-4 ring-gold/40',
                   !isSelected && isLinkable && (linked ? 'border-gold' : 'border-dashed border-gold/50'),
@@ -217,21 +270,26 @@ export default function RaceRouteMap({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={n.icon} alt="" className="object-contain" style={{ width: r * 1.1, height: r * 1.1, imageRendering: 'pixelated' }} loading="lazy" />
                 ) : (
-                  <span className="text-xs text-text-muted font-bold">{n.step + 1}</span>
+                  <span className="text-xs text-text-muted font-bold">{tileInitials(n.label)}</span>
                 )}
                 {st === 'done' && (
                   <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gold text-brown-dark flex items-center justify-center shadow">
                     <TileStateIcon kind="done" />
                   </span>
                 )}
-                {(st === 'closed' || st === 'ahead') && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-brown-dark text-text-muted flex items-center justify-center border border-card-border">
+                {/* A padlock only where it means something to the viewer: a fork waiting for the
+                    team's pick. Everything else not open yet is simply dimmed. */}
+                {lockedIds?.has(n.id) && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-brown-dark text-gold flex items-center justify-center border border-gold/50" title="Locked until your team picks its road">
                     <TileStateIcon kind="locked" />
                   </span>
                 )}
+                {youTileId === n.id && (
+                  <span className="absolute -top-2 -left-3 rounded-full bg-gold px-1.5 text-[9px] font-bold text-brown-dark shadow ring-2 ring-[#141010]">You</span>
+                )}
               </button>
-              <span className={cn('mt-1 text-[11px] leading-tight text-center line-clamp-2 px-1', st === 'closed' ? 'text-text-muted/60' : st === 'open' || st === 'done' ? 'text-foreground' : 'text-text-muted')}>
-                {n.label}
+              <span title={n.label} className={cn('mt-1 text-[11px] leading-tight text-center line-clamp-2 px-1', st === 'closed' ? 'text-text-muted/60' : st === 'open' || st === 'done' ? 'text-foreground' : 'text-text-muted')}>
+                {shortLabel(n.label)}
               </span>
               <span className="flex items-center gap-1 mt-0.5 min-h-[14px]">
                 {st === 'open' && <span className="text-[9px] font-bold px-1.5 rounded bg-gold text-brown-dark">Next</span>}
@@ -255,6 +313,7 @@ export default function RaceRouteMap({
           );
         })}
       </div>
+      </div>
     </div>
   );
 }
@@ -268,7 +327,8 @@ export function RouteMapLegend({ withTeam }: { withTeam: boolean }) {
           <span className="flex items-center gap-1.5"><span className="inline-block w-6 h-1.5 rounded-full" style={{ backgroundColor: GOLD }} />Your road so far</span>
           <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-4 rounded-full border-2 border-dashed border-gold shadow-[0_0_8px_rgba(224,170,30,0.6)]" />Open next</span>
           <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-4 rounded-full border-2 border-gold" />Done</span>
-          <span className="flex items-center gap-1.5 opacity-60"><TileStateIcon kind="locked" />Locked — not open, or not on your road</span>
+          <span className="flex items-center gap-1.5"><span className="inline-block w-4 h-4 rounded-full border-2 border-[#332a22] opacity-50" />Dimmed — not open yet, or not on your road</span>
+          <span className="flex items-center gap-1.5"><span className="rounded-full bg-gold px-1.5 text-[9px] font-bold text-brown-dark">You</span>Where your team is</span>
         </>
       )}
       <span className="flex items-center gap-1.5"><span className="inline-block w-6 h-2.5 rounded-full" style={{ backgroundColor: ROAD, outline: '1px solid #332a22' }} />Road — where roads meet you can switch lanes</span>

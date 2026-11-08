@@ -56,7 +56,7 @@ export default function RaceRouteEditor({ eventId, tiles, eventStarted, isAdmin 
   const [entries, setEntries] = useState<RouteEntry[]>(stored);
   const [dirty, setDirty] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
-  const [template, setTemplate] = useState<RouteTemplate>('lanes2');
+  const [template, setTemplate] = useState<RouteTemplate>('diamond');
   const [saving, setSaving] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
   const [bank, setBank] = useState(raceBank);

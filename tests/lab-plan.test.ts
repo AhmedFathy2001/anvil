@@ -19,6 +19,8 @@ import {
   labRules,
   labTileCount,
   labTileSeeds,
+  labTilePlan,
+  LAB_TILE_SET,
   planLabTeams,
   planSimulatedField,
   raceNextOptions,
@@ -71,7 +73,30 @@ test('tile seeds: points boards get spread values, showdown tiles get staggered 
   const show = labTileSeeds(labFormat('showdown'), 3, start);
   assert.equal(show[0].revealAt, '2026-11-08T12:00:00.000Z');
   assert.ok(Date.parse(show[2].revealAt!) > Date.parse(show[1].revealAt!));
-  assert.match(labTileSeeds(labFormat('race'), 3, start)[0].label, /^Step 1/);
+  // Real tiles, not "Step 1": the opener first, the raid last.
+  const race = labTileSeeds(labFormat('race'), 3, start);
+  assert.deepEqual(race.map((t) => t.label), ['Wintertodt crate', '2 Araxxor kills', 'Chambers of Xeric']);
+});
+
+test('lab tiles: real, creditable kinds; never the same tile twice; one start and one finish', () => {
+  const kinds = new Set(LAB_TILE_SET.map((t) => t.tileType));
+  for (const k of ['kill', 'drop', 'value', 'timed', 'pvp', 'diary', 'ca', 'clog', 'lap']) assert.ok(kinds.has(k), k);
+  for (const n of [4, 10, 18, 25, 40]) {
+    const plan = labTilePlan(n);
+    assert.equal(plan.length, n);
+    assert.equal(new Set(plan.map((t) => t.label)).size, n, `no repeats in ${n}`);
+    assert.equal(plan[0].label, 'Wintertodt crate');
+    assert.equal(plan[n - 1].label, 'Chambers of Xeric');
+  }
+  // A race laid out from them has one start and one finish (the diamond / two roads / braid).
+  const ids = labTilePlan(10).map((_, i) => i + 1);
+  for (const kind of ['diamond', 'lanes2', 'braid3'] as const) {
+    const route = labRouteLayout(kind, ids);
+    const last = Math.max(...route.map((e) => e.step));
+    assert.equal(route.filter((e) => e.step === 0).length, 1, `${kind}: one start`);
+    assert.equal(route.filter((e) => e.step === last).length, 1, `${kind}: one finish`);
+  }
+  assert.deepEqual(labRouteLayout('line', ids), []);
 });
 
 test('teams: own characters share "Lab"; the field is dealt into teams of the asked size', () => {

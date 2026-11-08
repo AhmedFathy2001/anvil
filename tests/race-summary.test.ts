@@ -45,7 +45,7 @@ test('the panel summary line', () => {
 test('panel steps: numbered, lanes only where a step has several, phases and crowds', () => {
   const route = teamRoute(g, [11]);
   const steps = panelSteps(g, route, label, lines);
-  assert.deepEqual(steps.map((s) => s.heading), ['Step 1 of 4 · Start', 'Step 2 of 4 · Junction', 'Step 3 of 4', 'Step 4 of 4 · Finish']);
+  assert.deepEqual(steps.map((s) => s.heading), ['Step 1 of 4', 'Step 2 of 4', 'Step 3 of 4', 'Step 4 of 4 · Finish']);
   assert.deepEqual(steps.map((s) => s.phase), ['done', 'current', 'later', 'later']);
   assert.deepEqual(steps[0].tiles.map((t) => [t.road, t.state]), [['A', 'closed'], ['B', 'done']]);
   assert.equal(steps[1].tiles[0].road, null, 'a single tile has no lane letter');
@@ -131,4 +131,14 @@ test('race page data never carries a hidden tile', () => {
   assert.equal(v.steps, 1, 'the step count is the visible route');
   assert.ok(!JSON.stringify(v).includes('SecretTile'));
   assert.deepEqual(v.completions.map((c) => c.tileId), [1]);
+});
+
+import { bucketLabel } from '../src/components/board/BranchingRaceBoard.tsx';
+import { shortLabel, tileInitials } from '../src/components/board/RaceRouteMap.tsx';
+
+test('one vocabulary: chart buckets match the columns, nodes show names not numbers', () => {
+  assert.deepEqual([0, 1, 2, 4].map((i) => bucketLabel(i, 4)), ['Not started', 'Step 1', 'Step 2', 'Finished']);
+  assert.equal(tileInitials('Twisted bow'), 'TB');
+  assert.equal(tileInitials('Zulrah'), 'ZU');
+  assert.equal(shortLabel('Abyssal whip from the Abyssal demon'), 'Abyssal whip from the…');
 });
