@@ -1090,7 +1090,7 @@ const fi: PartialGuideDict = {
         },
         race: {
           label: 'Ruutukisa',
-          blurb: 'Järjestetty rata — joukkueet saavuttavat ruudut peräkkäin; pisimmälle päässyt voittaa.',
+          blurb: 'Järjestetty rata — joukkueet saavuttavat ruudut peräkkäin; pisimmälle päässyt voittaa. Järjestäjä voi haarauttaa sen reiteiksi, jotka jakautuvat ja yhtyvät — suorittamanne ruutu valitsee reittinne.',
         },
         showdown: {
           label: 'Showdown',

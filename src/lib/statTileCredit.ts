@@ -1,3 +1,4 @@
+import { afterRaceCompletion } from '@/lib/raceRoutesDb';
 import { db } from '@/db';
 import { emitCompletionRow } from '@/lib/panelRows';
 import { queueTileHighlight } from '@/lib/highlights/store';
@@ -213,6 +214,7 @@ export async function creditStatTilesForTeam(opts: {
     if (inserted.length === 0) continue;
     // The board's Feed shows it at once (a combo part is skipped there).
     emitCompletionRow(tile.id, teamId);
+    if (event && tile.parentTileId == null) afterRaceCompletion(event, teamId);
     if (opts.clip) queueTileHighlight(tile.id, teamId);
     if (gate?.bounty) handleBountyClaim(eventId, tile.id).catch(() => {});
     done.add(tile.id);

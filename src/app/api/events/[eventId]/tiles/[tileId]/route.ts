@@ -94,6 +94,11 @@ export async function DELETE(
 
   await db.transaction(async (tx) => {
     await tx.delete(tiles).where(eq(tiles.id, tId));
+    // A race route's links to it go too (lib/raceRoutes); the editor then flags any tile left leading nowhere.
+    await tx
+      .update(tiles)
+      .set({ raceNext: sql`(SELECT COALESCE(jsonb_agg(x), '[]'::jsonb) FROM jsonb_array_elements(${tiles.raceNext}) x WHERE x <> to_jsonb(${tId}::int))` })
+      .where(and(eq(tiles.eventId, eId), sql`${tiles.raceNext} @> to_jsonb(${tId}::int)`));
     // Close the gap: every tile after the removed one shifts down a position.
     await tx
       .update(tiles)

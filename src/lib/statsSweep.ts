@@ -1,3 +1,5 @@
+import { afterRaceCompletion } from '@/lib/raceRoutesDb';
+import { branchingRaceWin } from '@/lib/raceRoutesDb';
 import { saveStatSnapshot, updateAccount } from '@/lib/roster';
 import { emitCompletionRow } from '@/lib/panelRows';
 import { db } from '@/db';
@@ -769,6 +771,7 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
           ctx.completionSet.add(key);
           if (inserted.length > 0) {
             emitCompletionRow(tile.id, f.player.teamId);
+            if (tile.parentTileId == null) afterRaceCompletion(ctx.event, f.player.teamId);
             if (gate.bounty) handleBountyClaim(ctx.event.id, tile.id).catch(() => {});
             const team = ctx.teamMap.get(f.player.teamId);
             ctx.result.tilesCompleted.push({ tileLabel: tile.label, teamName: team?.name || 'Unknown', playerName: f.player.name });
@@ -833,10 +836,11 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
           if (!key.startsWith(`${team.id}-`)) return false;
           return requiredTileIds.has(parseInt(key.split('-')[1], 10));
         }).length;
-        if (teamCompletionCount >= totalRequiredTiles && totalRequiredTiles > 0) {
-          if (ctx.result.tilesCompleted.some((tc) => tc.teamName === team.name)) {
-            notifyTeamWin({ clanId: ctx.event.clanId, eventName: ctx.event.name, teamName: team.name, teamId: team.id, teamColor: team.color, totalTiles: totalRequiredTiles, eventId: ctx.event.id }).catch(() => {});
-          }
+        if (!ctx.result.tilesCompleted.some((tc) => tc.teamName === team.name)) continue;
+        // A branching race is won by the first team to finish an end tile instead (lib/raceRoutesDb).
+        const race = await branchingRaceWin(ctx.event, team.id);
+        if (race ? race.won : teamCompletionCount >= totalRequiredTiles && totalRequiredTiles > 0) {
+          notifyTeamWin({ clanId: ctx.event.clanId, eventName: ctx.event.name, teamName: team.name, teamId: team.id, teamColor: team.color, totalTiles: race ? race.steps : totalRequiredTiles, eventId: ctx.event.id }).catch(() => {});
         }
       }
     }

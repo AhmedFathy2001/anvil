@@ -11,6 +11,7 @@
 //
 // Every write is pinned to the lab event the route already resolved (lib/lab labEvent).
 
+import { branchingRaceWin } from '@/lib/raceRoutesDb';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -116,14 +117,15 @@ async function forceComplete(event: EventRow, tile: TileRow, team: TeamRow, play
   const boardTiles = await db.select({ id: tiles.id }).from(tiles).where(and(eq(tiles.eventId, event.id), isNull(tiles.parentTileId)));
   const done = await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, team.id));
   const doneIds = new Set(done.map((d) => d.tileId));
-  if (boardTiles.length > 0 && boardTiles.every((t) => doneIds.has(t.id))) {
+  const race = await branchingRaceWin(event, team.id);
+  if (race ? race.won : boardTiles.length > 0 && boardTiles.every((t) => doneIds.has(t.id))) {
     notifyTeamWin({
       clanId: event.clanId,
       eventName: event.name,
       teamName: team.name,
       teamId: team.id,
       teamColor: team.color,
-      totalTiles: boardTiles.length,
+      totalTiles: race ? race.steps : boardTiles.length,
       eventId: event.id,
     }).catch(() => {});
   }

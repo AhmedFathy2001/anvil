@@ -1,3 +1,4 @@
+import { raceGraph, teamRoute } from '@/lib/raceRoutes';
 import { NextResponse } from 'next/server';
 import { primaryCredit } from '@/lib/comboSql';
 import { clogTileLooseSpec, clogTileRule } from '@/lib/clogTileWords';
@@ -450,6 +451,13 @@ export async function buildBoard(
   const sortedTiles = [...eventTiles].sort((a, b) => a.position - b.position);
   const cols = event.boardSize > 0 ? event.boardSize : 1;
 
+  // A BRANCHING tile race (lib/raceRoutes): each tile's step and links, and — for the caller's team —
+  // whether it is open next, done, still ahead or closed. The panel draws the route from these.
+  // Absent on every other board, so their payloads and ETags are unchanged.
+  const routeGraph = event.format === 'tilerace' ? raceGraph(eventTiles) : null;
+  const raceOn = !!routeGraph?.branching;
+  const callerRoute = raceOn && yourCompleted ? teamRoute(routeGraph!, yourCompleted) : null;
+
   return {
     eventId: event.id,
     name: event.name,
@@ -467,6 +475,16 @@ export async function buildBoard(
           revealPolicy: rules.revealPolicy,
           hiddenTileCount,
           nextRevealAt: nextRevealAt(event, rules, allEventTiles),
+        }
+      : {}),
+    ...(raceOn
+      ? {
+          race: {
+            steps: routeGraph!.lastStep + 1,
+            path: callerRoute?.path ?? [],
+            open: callerRoute?.open ?? [],
+            finished: callerRoute?.finished ?? false,
+          },
         }
       : {}),
     tiles: sortedTiles.map((t, index) => {
@@ -558,6 +576,13 @@ export async function buildBoard(
         // without it an expired or locked-out mission sat in the plugin's "Not done" list as Open.
         ...(revealMode || isMissionTile(t) ? { revealedAt: t.revealedAt ?? null, closedAt: t.closedAt ?? null } : {}),
         ...(itemRequirements ? { itemRequirements } : {}),
+        ...(raceOn && routeGraph!.byId.has(t.id)
+          ? {
+              raceStep: routeGraph!.byId.get(t.id)!.step,
+              raceNext: routeGraph!.byId.get(t.id)!.next,
+              ...(callerRoute ? { raceState: callerRoute.state.get(t.id) ?? null } : {}),
+            }
+          : {}),
         ...(claimsByTile.has(t.id) ? { claims: claimsByTile.get(t.id) } : {}),
         ...(finishersByTile.get(t.id) ?? {}),
         ...(contributorsByTile.get(t.id) ?? {}),

@@ -1097,7 +1097,7 @@ const da: PartialGuideDict = {
         },
         race: {
           label: 'Feltræs',
-          blurb: 'En ordnet bane — holdene når felterne i rækkefølge; den, der når længst, vinder.',
+          blurb: 'En ordnet bane — holdene når felterne i rækkefølge; den, der når længst, vinder. Værten kan dele den i ruter, der deler sig og mødes — det felt, I klarer, vælger jeres vej.',
         },
         showdown: {
           label: 'Showdown',

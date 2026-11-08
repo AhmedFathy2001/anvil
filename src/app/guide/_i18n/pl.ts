@@ -1074,7 +1074,7 @@ const pl: PartialGuideDict = {
       formats: {
         classic: { label: 'Klasyczne bingo', blurb: 'Kwadratowa siatka N×N —— drużyny kończą pola w dowolnej kolejności, każde warte 1.' },
         leagues: { label: 'Bingo w stylu Leagues', blurb: 'Lista zadań, gdzie każde pole ma własną wartość punktową —— dowolna liczba pól.' },
-        race: { label: 'Wyścig po polach', blurb: 'Uporządkowana trasa —— drużyny sięgają pól po kolei; wygrywa ta, która zajdzie najdalej.' },
+        race: { label: 'Wyścig po polach', blurb: 'Uporządkowana trasa —— drużyny sięgają pól po kolei; wygrywa ta, która zajdzie najdalej. Gospodarz może rozgałęzić ją na trasy, które się rozdzielają i łączą — ukończone pole wybiera waszą drogę.' },
         showdown: {
           label: 'Showdown',
           blurb:

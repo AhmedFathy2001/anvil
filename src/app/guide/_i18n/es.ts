@@ -1091,7 +1091,7 @@ const es: PartialGuideDict = {
         },
         race: {
           label: 'Carrera de casillas',
-          blurb: 'Un recorrido ordenado — los equipos alcanzan las casillas en secuencia; gana quien llega más lejos.',
+          blurb: 'Un recorrido ordenado — los equipos alcanzan las casillas en secuencia; gana quien llega más lejos. El anfitrión puede ramificarlo en rutas que se separan y se unen: la casilla que completas elige tu camino.',
         },
         showdown: {
           label: 'Showdown',

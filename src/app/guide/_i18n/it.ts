@@ -1076,7 +1076,7 @@ const it: PartialGuideDict = {
       formats: {
         classic: { label: 'Bingo classico', blurb: 'Una griglia quadrata N×N —— le squadre completano le caselle nell’ordine che vogliono, ognuna vale 1.' },
         leagues: { label: 'Bingo Leagues', blurb: 'Una lista di compiti dove ogni casella porta un valore in punti —— quante caselle vuoi.' },
-        race: { label: 'Corsa a caselle', blurb: 'Un percorso ordinato —— le squadre raggiungono le caselle in sequenza; vince chi arriva più lontano.' },
+        race: { label: 'Corsa a caselle', blurb: 'Un percorso ordinato —— le squadre raggiungono le caselle in sequenza; vince chi arriva più lontano. L’organizzatore può ramificarlo in percorsi che si dividono e si riuniscono: la casella che completi sceglie la tua strada.' },
         showdown: {
           label: 'Showdown',
           blurb:

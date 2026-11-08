@@ -1,3 +1,6 @@
+import { afterRaceCompletion } from '@/lib/raceRoutesDb';
+import { branchingRaceWin } from '@/lib/raceRoutesDb';
+import { raceGraph, canCreditRaceTile, canUndoRaceTile } from '@/lib/raceRoutes';
 import { NextResponse } from 'next/server';
 import { emitCompletionRow } from '@/lib/panelRows';
 import { eventForRequest } from '@/lib/eventScope';
@@ -134,28 +137,27 @@ export async function POST(
     );
   }
 
-  // Tile race: completions are an ordered track. A team may only complete the tile
-  // immediately after its current frontier, and may only un-complete the frontier
-  // tile itself. Admins bypass so they can correct the board out of order.
+  // Tile race: completions follow the route (lib/raceRoutes). A team may only complete a tile that
+  // is open for it — a start before it has finished anything, else a link from its committed tile —
+  // and may only un-complete a tile with nothing finished at a later step. On a board with no steps
+  // laid out that is exactly the old straight line. Admins bypass so they can correct the board.
   // A combo PART (lib/combo) has no place in the race — its combo does.
   const isPart = tile.parentTileId != null;
   if (event.format === 'tilerace' && !isAdmin && !isPart) {
     const raceTiles = await db.query.tiles.findMany({ where: and(eq(tiles.eventId, eId), isNull(tiles.parentTileId)) });
     const teamDone = await db.query.completions.findMany({ where: eq(completions.teamId, teamId) });
     const doneTileIds = new Set(teamDone.map((c) => c.tileId));
+    const graph = raceGraph(raceTiles);
 
     if (!doneTileIds.has(tileId)) {
-      // Adding — every earlier tile in the sequence must already be done.
-      const earlierUndone = raceTiles.some((t) => t.position < tile.position && !doneTileIds.has(t.id));
-      if (earlierUndone) {
-        return NextResponse.json({ error: 'Complete the earlier tiles in the race first' }, { status: 400 });
+      if (!canCreditRaceTile(graph, doneTileIds, tileId)) {
+        return NextResponse.json(
+          { error: graph.branching ? 'That tile isn’t open on your team’s route' : 'Complete the earlier tiles in the race first' },
+          { status: 400 },
+        );
       }
-    } else {
-      // Removing — only the furthest tile can be undone.
-      const laterDone = raceTiles.some((t) => t.position > tile.position && doneTileIds.has(t.id));
-      if (laterDone) {
-        return NextResponse.json({ error: 'Un-complete the later tiles in the race first' }, { status: 400 });
-      }
+    } else if (!canUndoRaceTile(graph, doneTileIds, tileId)) {
+      return NextResponse.json({ error: 'Un-complete the later tiles in the race first' }, { status: 400 });
     }
   }
 
@@ -198,6 +200,7 @@ export async function POST(
       return NextResponse.json({ action: 'added', ...completion });
     }
     emitCompletionRow(tileId, teamId);
+    afterRaceCompletion(event, teamId);
 
     // Bounty rotation: close the claimed tile and draw the next immediately (cron backstops).
     if (gate.bounty) handleBountyClaim(eId, tileId).catch(() => {});
@@ -227,14 +230,16 @@ export async function POST(
     const eventTileIds = new Set(eventTiles.map(t => t.id));
     const completedTileIds = new Set(teamCompletions.map(c => c.tileId).filter(id => eventTileIds.has(id)));
 
-    if (completedTileIds.size === eventTiles.length && eventTiles.length > 0) {
+    // A branching race is won by the first team to finish an end tile instead (lib/raceRoutesDb).
+    const race = await branchingRaceWin(event, teamId);
+    if (race ? race.won : completedTileIds.size === eventTiles.length && eventTiles.length > 0) {
       notifyTeamWin({
         clanId: clan.id,
         eventName: event.name,
         teamName: team.name,
         teamId: team.id,
         teamColor: team.color,
-        totalTiles: eventTiles.length,
+        totalTiles: race ? race.steps : eventTiles.length,
         eventId: eId,
       }).catch(() => {}); // Silently ignore errors
     }

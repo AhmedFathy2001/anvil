@@ -1,3 +1,4 @@
+import { branchingRaceWin, afterRaceCompletion } from '@/lib/raceRoutesDb';
 import { db } from '@/db';
 import { emitCompletionRow } from '@/lib/panelRows';
 import { queueTileHighlight } from '@/lib/highlights/store';
@@ -188,21 +189,7 @@ export async function syncComboParent(
   const event = await db.query.events.findFirst({ where: eq(events.id, parent.eventId) });
   if (!event) return { ...evaluation, parentComplete: false, inserted: false };
 
-  // Tile race: the combo waits for every earlier BOARD tile, like any race tile.
-  if (event.format === 'tilerace') {
-    const earlier = await db
-      .select({ id: tiles.id })
-      .from(tiles)
-      .where(and(eq(tiles.eventId, event.id), isNull(tiles.parentTileId), sql`${tiles.position} < ${parent.position}`));
-    if (earlier.length > 0) {
-      const doneRows = await db
-        .select({ tileId: completions.tileId })
-        .from(completions)
-        .where(and(eq(completions.teamId, teamId), inArray(completions.tileId, earlier.map((t) => t.id))));
-      if (doneRows.length < earlier.length) return { ...evaluation, parentComplete: false, inserted: false };
-    }
-  }
-
+  // Tile race: the gate below holds a combo that isn't open on the team's route (lib/completionGate).
   // Event rules (reveal / lockout / first bonus / decay / bounty) — the combo's own, as any board tile.
   const gate = await evaluateCompletionGate({ event, tile: parent, teamId });
   if (!gate.allowed) return { ...evaluation, parentComplete: false, inserted: false };
@@ -214,6 +201,7 @@ export async function syncComboParent(
     .returning({ id: completions.id });
   if (!inserted) return { ...evaluation, parentComplete: true, inserted: false };
   emitCompletionRow(parentId, teamId);
+  afterRaceCompletion(event, teamId);
   if (!opts.silent) queueTileHighlight(parentId, teamId);
 
   if (gate.bounty) handleBountyClaim(parent.eventId, parentId).catch(() => {});
@@ -255,14 +243,16 @@ async function announceCombo(
     .select({ tileId: completions.tileId })
     .from(completions)
     .where(and(eq(completions.teamId, teamId), inArray(completions.tileId, board.map((t) => t.id))));
-  if (new Set(doneRows.map((r) => r.tileId)).size === board.length) {
+  // A branching race is won by the first team to finish an end tile instead (lib/raceRoutesDb).
+  const race = await branchingRaceWin(event, teamId);
+  if (race ? race.won : new Set(doneRows.map((r) => r.tileId)).size === board.length) {
     await notifyTeamWin({
       clanId: event.clanId,
       eventName: event.name,
       teamName: team.name,
       teamId: team.id,
       teamColor: team.color,
-      totalTiles: board.length,
+      totalTiles: race ? race.steps : board.length,
       eventId: event.id,
     });
   }

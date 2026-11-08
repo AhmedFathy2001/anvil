@@ -118,7 +118,9 @@ export function isManual(t: BoardTile): boolean {
   return !TRACKED_TYPES.has(type);
 }
 
-const closedUndone = (t: BoardTile) => !t.complete && !!t.closedAt;
+// A closed bounty/mission, or a branching race tile this team passed up (lib/raceRoutes).
+const closedUndone = (t: BoardTile) => !t.complete && (!!t.closedAt || ('raceState' in t && t.raceState === 'closed'));
+const raceStateOf = (t: BoardTile): string | null => ('raceState' in t ? (t.raceState as string | null) ?? null : null);
 
 /** The words a player might type for this tile's TYPE ("boss", "kc" and "boss kc" are one thing). */
 export function kindWords(t: BoardTile): Set<string> {
@@ -251,12 +253,45 @@ const list = (s: BoardState, extra: Record<string, string> = {}): Action => ({ a
 
 function stateText(t: BoardTile, pre: boolean): string | null {
   if (pre) return isManual(t) ? '(manual)' : null;
-  return `${t.complete ? 'Done' : closedUndone(t) ? 'Closed' : 'Open'}${isManual(t) ? ' (manual)' : ''}`;
+  const race = raceStateOf(t);
+  const open = race === 'open' ? 'Next' : race === 'ahead' ? 'Locked' : 'Open';
+  return `${t.complete ? 'Done' : closedUndone(t) ? 'Closed' : open}${isManual(t) ? ' (manual)' : ''}`;
 }
 
 /** A read-only board's claim block: who may join, when the host gates entry ("… · Subs only (Twitch)"). */
 export function joinToClaimLine(gate: string | null): string {
   return gate ? `Join this event to claim tiles · ${gate}` : 'Join this event to claim tiles.';
+}
+
+/**
+ * A branching tile race's route for the caller's team (lib/raceRoutes), in a 240px panel: how far
+ * along, the tiles open NEXT (more than one = a crossing, finish any to take that lane), and how many
+ * options each later step still holds for them. Null on every other board.
+ */
+export function raceRouteUi(board: Board): Node | null {
+  if (!('race' in board) || !board.race) return null;
+  const race = board.race as { steps: number; path: number[]; open: number[]; finished: boolean };
+  const tiles = board.tiles as BoardTile[];
+  const byId = new Map(tiles.map((t) => [t.tileId, t]));
+  const name = (id: number) => {
+    const l = byId.get(id)?.label?.trim() || `Tile ${id}`;
+    return l.length > 26 ? `${l.slice(0, 25)}…` : l;
+  };
+  const lines: Node[] = [row(text('Route', 'brand'), undefined, text(race.finished ? 'Finished' : `${race.path.length} / ${race.steps} steps`, race.finished ? 'done' : 'text'), { gap: 6 })];
+  if (board.readOnly) {
+    lines.push(muted(`${race.steps} steps · routes split and merge`, { wrap: true }));
+    return card(lines);
+  }
+  if (race.path.length) lines.push(text(`✓ ${race.path.map(name).join(' → ')}`, 'done', { wrap: true }));
+  if (!race.finished && race.open.length) {
+    lines.push(gap(3), text(race.open.length > 1 ? (race.path.length ? 'Crossing — next, pick one:' : 'Pick your start:') : 'Next:', 'brand'));
+    for (const id of race.open) lines.push(text(`▸ ${name(id)}`, 'white', { tip: race.open.length > 1 ? 'Finish this one and your route goes this way; the other options close for your team' : 'Open for your team' }));
+  }
+  const ahead = new Map<number, number>();
+  for (const t of tiles) if (raceStateOf(t) === 'ahead' && 'raceStep' in t) ahead.set(t.raceStep as number, (ahead.get(t.raceStep as number) ?? 0) + 1);
+  const later = [...ahead].sort((a, b) => a[0] - b[0]);
+  if (later.length) lines.push(gap(3), muted(later.map(([step, n]) => `Step ${step + 1}: ${n} option${n === 1 ? '' : 's'}`).join(' · '), { wrap: true }));
+  return card(lines);
 }
 
 /** The whole page: counts, the search and the filter, then the list — or `inner` — in slot `tiles`. */
@@ -277,6 +312,7 @@ export function boardUi(board: Board, s: BoardState, ctx: BoardContext, inner: N
     // This board's feed and chat, one click away (any board, not only the one the plugin tracks).
     boardFeedLinks(ctx.eventId, ctx.feedBack, ctx.feedTab, ctx.chatOn ?? true),
     gap(8),
+    ...(raceRouteUi(board) ? [raceRouteUi(board), gap(7)] : []),
     text(`${tiles.length} visible tile${tiles.length === 1 ? '' : 's'}${hidden}`, '#cdcdcd'),
     gap(2),
     muted(hint),

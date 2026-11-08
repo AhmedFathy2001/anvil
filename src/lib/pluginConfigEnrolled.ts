@@ -1,3 +1,4 @@
+import { raceGraph, teamRoute } from '@/lib/raceRoutes';
 import { pluginGameCounters } from '@/lib/gameCounters';
 import { pluginLevelRules } from '@/lib/levelRulesStore';
 import { standingsHidden } from '@/lib/standingsVisibility';
@@ -235,8 +236,22 @@ export async function buildEnrolledConfig(args: {
   // The tiles the plugin may track: board tiles are policy-gated (revealed + open on a reveal board,
   // all on classic); MISSION tiles are always hidden until announced, so a hidden mission never leaks
   // into the tracked lists even on a classic board.
+  // A BRANCHING tile race (lib/raceRoutes) narrows the board to the team's route: the tiles open
+  // for it now, plus the ones it finished. Locked tiles ahead and the alternatives it passed up
+  // would only be refused by the site, so the rule table never watches them. Combo parts follow
+  // their combo. (A straight-line race keeps today's config: every tile, the site holds the order.)
+  const raceGraphRows = event.format === 'tilerace' ? raceGraph(fullEventTiles) : null;
+  let raceVisible: Set<number> | null = null;
+  if (raceGraphRows?.branching) {
+    const doneRows = await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, teamId));
+    const route = teamRoute(raceGraphRows, doneRows.map((r) => r.tileId));
+    raceVisible = new Set([...route.open, ...[...route.state].filter(([, st]) => st === 'done').map(([id]) => id)]);
+  }
+  const onRoute = (t: (typeof fullEventTiles)[number]) =>
+    raceVisible == null || isMissionTile(t) || raceVisible.has(t.parentTileId ?? t.id);
   const allEventTiles = fullEventTiles.filter((t) => {
     if (isMissionTile(t)) return t.revealedAt != null && t.closedAt == null;
+    if (!onRoute(t)) return false;
     return !revealMode || (t.revealedAt != null && t.closedAt == null);
   });
   // What the plugin may WATCH: the same, minus tiles an admin switched to complete-by-hand. The site

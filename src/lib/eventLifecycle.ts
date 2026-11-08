@@ -14,6 +14,7 @@ import { boardRevealIsDue } from '@/lib/eventBoardReveal';
 import { settleLadderMonths } from '@/lib/monthlyChampion';
 import { parseEventRules, isTileRevealed, visibleTiles } from '@/lib/eventRules';
 import { scoreTeams } from '@/lib/boardScoring';
+import { raceGraph, rankRaceTeams } from '@/lib/raceRoutes';
 import { drawStartLocation } from '@/lib/startProof';
 import { runStandingsReveals } from '@/lib/standingsReveal';
 import { log } from '@/lib/logger';
@@ -338,13 +339,19 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       // bonus / decay) score their frozen awardedPoints; reveal-policy events count only
       // tiles that actually went live in the total (never-revealed tiles were never in play).
       const rules = parseEventRules(event.rules);
-      const scored = scoreTeams({
+      let scored = scoreTeams({
         scoringMode: event.scoringMode,
         rules,
         tiles: eventTiles,
         completions: eventCompletions,
         teams: eventTeams,
       });
+      // A tile race ranks by the race's own order (lib/raceRoutes): first to finish an end tile, then
+      // steps done, then who got there first — so the end post and the winner clip lead with it.
+      if (event.format === 'tilerace') {
+        const order = rankRaceTeams(raceGraph(eventTiles), eventTeams, eventCompletions).map((s) => s.teamId);
+        scored = [...scored].sort((a, b) => order.indexOf(a.teamId) - order.indexOf(b.teamId));
+      }
       const totalScore = scored[0]?.total ?? 0;
       const standings = scored.map((s) => ({
         teamName: eventTeams.find((t) => t.id === s.teamId)?.name ?? '',

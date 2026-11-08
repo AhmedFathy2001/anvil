@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { completions, events, tiles } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
+import { raceGraph, canCreditRaceTile } from '@/lib/raceRoutes';
 import {
   completionAward,
   hasRevealPolicy,
@@ -37,6 +38,8 @@ export interface CompletionGateResult {
    * board-surgery reason to mark a tile done before the event exists in time.
    */
   beforeStart?: boolean;
+  /** Blocked only because the tile isn't open on the team's race route (lib/raceRoutes). */
+  raceLocked?: boolean;
   rules: EventRules;
   /**
    * Set when the completion is landing on a mission that pays a placement ladder: where in the
@@ -90,15 +93,17 @@ export async function evaluateCompletionGate(args: {
   event: EventRow;
   tile: TileRow;
   teamId: number;
+  /** Internal: the gate is running for a combo part's parent (see below). */
+  forPart?: boolean;
 }): Promise<CompletionGateResult> {
-  const { event, tile, teamId } = args;
+  const { event, tile, teamId, forPart = false } = args;
   // A COMBO PART (lib/combo) runs on its combo's gate — a part of a hidden, claimed or locked-out combo
   // must not progress — but its own row is only progress: no award to freeze, no bounty to claim, no
   // mission place to take. The combo's completion (lib/comboCompletion) goes through the gate for real.
   if (tile.parentTileId != null) {
     const parent = await db.query.tiles.findFirst({ where: eq(tiles.id, tile.parentTileId) });
     if (!parent) return { allowed: false, reason: 'This part has no combo.', awardedPoints: null, bounty: false, rules: parseEventRules(event.rules) };
-    const g = await evaluateCompletionGate({ event, tile: parent, teamId });
+    const g = await evaluateCompletionGate({ event, tile: parent, teamId, forPart: true });
     return { allowed: g.allowed, reason: g.reason, beforeStart: g.beforeStart, rules: g.rules, awardedPoints: null, bounty: false };
   }
   const eventRules = parseEventRules(event.rules);
@@ -134,6 +139,18 @@ export async function evaluateCompletionGate(args: {
         ? 'This task has expired.'
         : 'This tile has already been claimed.';
     return { allowed: false, reason, awardedPoints: null, bounty, rules };
+  }
+
+  // Tile race: only a tile OPEN on the team's route credits (lib/raceRoutes) — the next tile on a
+  // straight line, a link from the committed tile on a branching board. Every insert path runs this
+  // gate, so the hiscores sweep and live stat pushes can't credit a locked or closed-off race tile
+  // either. A combo part's own progress isn't held (forPart); its combo is, when it completes.
+  if (event.format === 'tilerace' && !forPart && !isMission && tile.parentTileId == null) {
+    const board = await db.select().from(tiles).where(and(eq(tiles.eventId, event.id), isNull(tiles.parentTileId)));
+    const done = (await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, teamId))).map((r) => r.tileId);
+    if (!done.includes(tile.id) && !canCreditRaceTile(raceGraph(board), done, tile.id)) {
+      return { allowed: false, reason: 'That tile isn’t open on your team’s route yet.', awardedPoints: null, bounty, rules, raceLocked: true };
+    }
   }
 
   // A mission's placement ladder needs to know the finishing ORDER, so it joins lockout and the

@@ -1089,7 +1089,7 @@ const zhHans: PartialGuideDict = {
         },
         race: {
           label: '格子竞速',
-          blurb: '一条有序赛道 —— 队伍按顺序抵达各格；走得最远的获胜。',
+          blurb: '一条有序赛道 —— 队伍按顺序抵达各格；走得最远的获胜。 主办方可以把它分成会分岔和汇合的路线 —— 完成哪一格就走哪条路。',
         },
         showdown: {
           label: 'Showdown',

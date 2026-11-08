@@ -1011,6 +1011,9 @@ export async function POST(
             closedAt: _closedAt,
             revealStats: _revealStats,
             updatedAt: _updatedAt,
+            // A copy joins no route until the host places it (the Route view).
+            raceStep: _raceStep,
+            raceNext: _raceNext,
             ...config
           } = source;
           return { ...config, eventId: eId, position: nextPosition, label, mission: asMission ? 1 : config.mission };

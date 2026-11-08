@@ -23,6 +23,7 @@
 
 import { DEFAULT_EVENT_RULES, boardTiles, isMissionTile, visibleTiles, type EventRules } from '@/lib/eventRules';
 import { tileWeight } from '@/lib/utils';
+import { isBranchingRoute, raceGraph, teamRoute } from '@/lib/raceRoutes';
 
 /** The tile fields scoring reads. A superset of this (the full row) is always fine to pass. */
 export interface ScoringTile {
@@ -35,6 +36,10 @@ export interface ScoringTile {
   revealAt?: string | null;
   revealedAt?: string | null;
   closedAt?: string | null;
+  /** Tile race route (lib/raceRoutes). A board with steps laid out scores in steps, not tiles. */
+  position?: number;
+  raceStep?: number | null;
+  raceNext?: unknown;
 }
 
 /** The completion fields scoring reads. */
@@ -129,6 +134,32 @@ export function scoreTeams(args: {
     } else if (missionWeight.has(c.tileId)) {
       bonusByTeam.set(c.teamId, (bonusByTeam.get(c.teamId) ?? 0) + earned(c, missionWeight, pointsMode));
     }
+  }
+
+  // A BRANCHING tile race (lib/raceRoutes) is scored in steps: a team walks ONE route, so the board
+  // total is the number of steps and a team's score is the steps on its committed path. Counting
+  // tiles would put every team under 100% forever (the alternatives it passed up are tiles too).
+  const raceTiles = !pointsMode && board.some((t) => t.raceStep != null)
+    ? board.map((t) => ({ ...t, position: t.position ?? 0 }))
+    : null;
+  if (raceTiles && isBranchingRoute(raceTiles)) {
+    const graph = raceGraph(raceTiles);
+    const steps = graph.lastStep + 1;
+    const doneByTeam = new Map<number, number[]>();
+    for (const c of completions) doneByTeam.set(c.teamId, [...(doneByTeam.get(c.teamId) ?? []), c.tileId]);
+    return teams.map((team) => {
+      const boardScore = teamRoute(graph, doneByTeam.get(team.id) ?? []).stepsDone;
+      const bonusScore = bonusByTeam.get(team.id) ?? 0;
+      return {
+        teamId: team.id,
+        boardScore,
+        bonusScore,
+        score: boardScore + bonusScore,
+        total: steps,
+        unit: 'tiles' as const,
+        pct: steps > 0 ? Math.min(100, Math.round((boardScore / steps) * 100)) : 0,
+      };
+    });
   }
 
   return teams.map((team) => {

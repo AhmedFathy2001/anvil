@@ -23,6 +23,8 @@ import { eventAxes, taskNoun, type AxesInput, type EventAxes } from './eventAxes
 export type AuthoringView =
   /** The board itself — a grid to click, or a track in running order. */
   | 'board'
+  /** A tile race's route: steps, links, junctions (lib/raceRoutes). */
+  | 'routes'
   /** A card per task: the general-purpose list, with search, filters and bulk edits. */
   | 'cards'
   /** The spreadsheet-style two-pane bulk builder. */
@@ -81,7 +83,7 @@ export function authoringModel(event: AxesInput): AuthoringModel {
   // Content first, always: you cannot schedule a reveal for a task nobody has written yet. The
   // format's own view sits next to it rather than behind a drawer, and the page nudges you to it
   // once there's something to schedule (see TilesClient's unfinished-job banner).
-  const views: AuthoringView[] = axes.shape === 'list' ? ['cards'] : ['board', 'cards'];
+  const views: AuthoringView[] = axes.shape === 'list' ? ['cards'] : axes.shape === 'track' ? ['board', 'routes', 'cards'] : ['board', 'cards'];
   if (schedulesReveals) views.push('schedule');
   if (drawsFromPool) views.push('rotation');
   views.push('grid');
