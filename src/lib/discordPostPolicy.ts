@@ -95,6 +95,11 @@ export interface EventDiscordPrefs {
   webhookUrl?: string | null;
   /** The Discord channel that webhook posts into, when it was picked from the server (for display). */
   channelId?: string;
+  /**
+   * A channel Anvil's bot made for this event ("Create a channel"). Kept so a second press reuses it
+   * instead of making another. Nothing deletes it: unlike team channels it holds the event's history.
+   */
+  createdChannelId?: string;
   /** false = keep this event's posts out of the co-hosts' servers. */
   cohosts?: boolean;
   /** ISO time posting resumes, or 'indefinite'. Absent / past = not paused. */
@@ -170,6 +175,7 @@ export function parseEventDiscordPrefs(raw: unknown): EventDiscordPrefs {
   if (Object.keys(pings).length) out.pings = pings;
   if (isHttpsUrl(o.webhookUrl)) out.webhookUrl = o.webhookUrl.trim();
   if (isSnowflake(o.channelId)) out.channelId = o.channelId;
+  if (isSnowflake(o.createdChannelId)) out.createdChannelId = o.createdChannelId;
   if (typeof o.cohosts === 'boolean') out.cohosts = o.cohosts;
   if (o.pausedUntil === 'indefinite' || (typeof o.pausedUntil === 'string' && !Number.isNaN(Date.parse(o.pausedUntil)))) {
     out.pausedUntil = o.pausedUntil;

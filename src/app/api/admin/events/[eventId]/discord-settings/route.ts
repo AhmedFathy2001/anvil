@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
 import { eventInClan } from '@/lib/eventScope';
-import { channelChoices, resolveChannelInput, type ChannelInput } from '@/lib/eventDiscordChannel';
+import { canCreateEventChannel, channelChoices, resolveChannelInput, type ChannelInput } from '@/lib/eventDiscordChannel';
+import { eventChannelSlug, freeChannelName } from '@/lib/eventChannelName';
 import { parseEventDiscordPrefs } from '@/lib/discordPostPolicy';
 import {
   loadClanEventRoleDefaults,
@@ -31,10 +32,10 @@ async function scope(eventIdRaw: string) {
   const clan = await requireClan();
   const event = await eventInClan(clan.id, eventId);
   if (!event) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) } as const;
-  return { eventId, clanId: clan.id } as const;
+  return { eventId, clanId: clan.id, eventName: event.name } as const;
 }
 
-async function view(eventId: number, clanId: number) {
+async function view(eventId: number, clanId: number, eventName: string) {
   const [prefs, clanPosts, clanRoles, roles, teamSync] = await Promise.all([
     readEventDiscordPrefs(eventId),
     loadClanPostDefaults(clanId),
@@ -44,10 +45,17 @@ async function view(eventId: number, clanId: number) {
   ]);
   const { webhookUrl, ...rest } = prefs;
   const [channels, partners] = await Promise.all([channelChoices(clanId), partnerDiscordReadiness(eventId, clanId)]);
+  // "Create a channel" only shows when the bot is in and may make one; the name is what it would get.
+  // Hidden while the channel an earlier press made still exists: it is in the picker already.
+  const madeOne = !!rest.createdChannelId && channels.channels.some((c) => c.id === rest.createdChannelId);
+  const canCreate = channels.enabled && !madeOne && (await canCreateEventChannel(clanId));
   return {
     prefs: rest,
     hasOwnChannel: !!webhookUrl,
-    channels,
+    channels: {
+      ...channels,
+      create: canCreate ? { name: freeChannelName(eventChannelSlug(eventName), channels.channels.map((c) => c.name)) } : null,
+    },
     clanDefaults: { ...clanPosts, roles: clanRoles, teamChannels: teamSync === 'true' },
     roles,
     // Each co-host's side, as facts (lib/partnerDiscordReadiness) — never its ids.
@@ -58,12 +66,13 @@ async function view(eventId: number, clanId: number) {
 export async function GET(_req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const s = await scope((await params).eventId);
   if ('error' in s) return s.error;
-  return NextResponse.json(await view(s.eventId, s.clanId));
+  return NextResponse.json(await view(s.eventId, s.clanId, s.eventName));
 }
 
 /**
  * Replaces the event's choices with the body's `prefs`. `channel` (lib/eventDiscordChannel): absent
- * keeps the event's own channel, null goes back to the clan's, { channelId } or { webhookUrl } sets one.
+ * keeps the event's own channel, null goes back to the clan's, { channelId } or { webhookUrl } sets one,
+ * { create: true } has the bot make a channel named for the event and sets that.
  */
 export async function PUT(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const s = await scope((await params).eventId);
@@ -72,10 +81,17 @@ export async function PUT(request: Request, { params }: { params: Promise<{ even
 
   const current = await readEventDiscordPrefs(s.eventId);
   const next = parseEventDiscordPrefs(body.prefs ?? {});
-  const channel = await resolveChannelInput(s.clanId, body.channel);
+  const channel = await resolveChannelInput(s.clanId, body.channel, {
+    eventName: s.eventName,
+    createdChannelId: current.createdChannelId,
+  });
   if (!channel.ok) return NextResponse.json({ error: channel.error }, { status: 400 });
   delete next.webhookUrl;
   delete next.channelId;
+  delete next.createdChannelId;
+  // The channel Anvil made outlives a switch elsewhere, so switching back reuses it.
+  const created = !channel.keep && channel.createdChannelId ? channel.createdChannelId : current.createdChannelId;
+  if (created) next.createdChannelId = created;
   if (channel.keep) {
     if (current.webhookUrl) next.webhookUrl = current.webhookUrl;
     if (current.channelId) next.channelId = current.channelId;
@@ -85,5 +101,5 @@ export async function PUT(request: Request, { params }: { params: Promise<{ even
   }
 
   await saveEventDiscordPrefs(s.eventId, next);
-  return NextResponse.json(await view(s.eventId, s.clanId));
+  return NextResponse.json(await view(s.eventId, s.clanId, s.eventName));
 }

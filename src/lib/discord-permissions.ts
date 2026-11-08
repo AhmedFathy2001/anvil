@@ -302,6 +302,15 @@ export async function botAccess(botToken: string, guildId: string): Promise<BotA
   return { inGuild: true, botId, guildId, base, roleIds, admin: (base & ADMINISTRATOR) !== NONE };
 }
 
+/**
+ * May the bot make channels in this server (Manage Channels, or Administrator)? Guild-level only:
+ * a new channel's own permissions come from its category. False when Discord couldn't be asked.
+ */
+export async function botCanManageChannels(botToken: string, guildId: string): Promise<boolean> {
+  const access = await botAccess(botToken, guildId);
+  return access.inGuild === true && (access.admin || (access.base & MANAGE_CHANNELS) !== NONE);
+}
+
 /** The bot's effective permissions in one channel, given that channel's overwrites. */
 export function channelPermissions(access: BotAccess, overwrites: RawOverwrite[] | undefined): bigint {
   if (access.admin) return ~NONE;
