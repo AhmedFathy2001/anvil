@@ -25,6 +25,26 @@ SILENT=""
 [ "${2:-}" = "--silent" ] && SILENT=1
 
 REMOTE="${ANVIL_REMOTE:-origin}"
+
+# What will be announced, word for word, then the full changelog. Releases since the last ANNOUNCED
+# version go out as one post (lib/releaseNotes bundleReleases), so this reads the last announced
+# version off the live /changelog (each card is id="v<version>"); if that can't be reached, the newest
+# tagged release that wasn't silent stands in, and the preview says which it used.
+release_preview() {
+  tmp="$(mktemp -d)"
+  git archive "$BETA" releases | tar -x -C "$tmp"
+  last="$(curl -sS -m 10 https://anvilosrs.com/changelog 2>/dev/null | grep -o 'id="v[0-9]*\.[0-9]*\.[0-9]*"' | sed 's/id="v\(.*\)"/\1/' | sort -t. -k1,1nr -k2,2nr -k3,3nr | head -1 || true)"
+  if [ -z "$last" ]; then
+    for v in $(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sed 's/^v//' | sort -t. -k1,1nr -k2,2nr -k3,3nr); do
+      if [ -f "$tmp/releases/$v.md" ] && ! grep -qiE '^silent:[[:space:]]*(true|yes|1)' "$tmp/releases/$v.md"; then last="$v"; break; fi
+    done
+    echo "(could not read anvilosrs.com/changelog; assuming $last was the last announced release)" >&2
+  fi
+  node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-release.mts "$tmp/releases" "$RELEASE" $last
+  rc=$?
+  rm -rf "$tmp"
+  return $rc
+}
 git fetch -q "$REMOTE" main beta
 
 BETA="$(git rev-parse "$REMOTE/beta")"
@@ -66,9 +86,9 @@ if [ -z "$SILENT" ]; then
     echo "  Write releases/<next version>.md on beta (see releases/README.md), get it approved, then promote." >&2
     exit 1
   fi
-  NOTE="$(git show "$BETA:releases/$RELEASE.md" | node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-release.mts)" || exit 1
+  NOTE="$(release_preview)" || exit 1
 
-  echo "Release $RELEASE — this is what players will read:"
+  echo "Release $RELEASE — approve exactly this (the announcement, then the full changelog):"
   echo
   echo "$NOTE" | sed 's/^/  /'
   echo
@@ -157,9 +177,9 @@ else
 fi
 
 if [ -z "$SILENT" ]; then
-  NOTE="$(git show "$BETA:releases/$RELEASE.md" | node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-release.mts)" || exit 1
+  NOTE="$(release_preview)" || exit 1
 
-  echo "Release $RELEASE — this is what players will read:"
+  echo "Release $RELEASE — approve exactly this (the announcement, then the full changelog):"
   echo
   echo "$NOTE" | sed 's/^/  /'
   echo

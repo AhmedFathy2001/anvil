@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
 import { isApexHost } from '@/lib/clanContext';
+import { splitMarker } from '@/lib/releaseNotes';
 import { listPublishedReleases } from '@/lib/releases';
 import { SITE } from '@/lib/site';
 
@@ -20,7 +21,10 @@ const SECTIONS = [
   ['fixed', 'Fixed'],
 ] as const;
 
-/** Every Anvil release, newest first: site and plugin together, in players' words. */
+/**
+ * Every Anvil release, newest first: site and plugin together, in players' words. The in-depth record:
+ * Discord and the plugin only get each batch's News (lib/releaseNotes bundleReleases), linking here.
+ */
 export default async function ChangelogPage() {
   if (!isApexHost((await headers()).get('host'))) notFound();
   const releases = await listPublishedReleases(100);
@@ -48,10 +52,15 @@ export default async function ChangelogPage() {
                 </h2>
                 <span className="text-[13px] text-text-dim">{r.publishedAt.slice(0, 10)}</span>
               </div>
+              {(r.note.news ?? []).map((p) => (
+                <p key={p} className="mt-3 text-[14.5px] text-text-muted">
+                  {p}
+                </p>
+              ))}
               {r.note.highlights.length > 0 && (
                 <ul className="mt-3 grid gap-1 text-[14.5px]">
                   {r.note.highlights.map((h) => (
-                    <li key={h}>{h}</li>
+                    <li key={h}>{splitMarker(h).text}</li>
                   ))}
                 </ul>
               )}
@@ -60,9 +69,15 @@ export default async function ChangelogPage() {
                   <section key={key} className="mt-4">
                     <h3 className="font-mono text-[11px] uppercase tracking-[0.16em] text-text-dim">{label}</h3>
                     <ul className="mt-1.5 grid list-disc gap-1 pl-5 text-[14px] text-text-muted">
-                      {r.note[key].map((x) => (
-                        <li key={x}>{x}</li>
-                      ))}
+                      {r.note[key].map((x) => {
+                        const { text, from } = splitMarker(x);
+                        return (
+                          <li key={x}>
+                            {text}
+                            {from && <span className="ml-1.5 text-[12px] text-text-dim">follow-up to {from}</span>}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </section>
                 ) : null,
