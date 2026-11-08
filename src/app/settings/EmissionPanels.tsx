@@ -7,7 +7,7 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import LevelRulesEditor from '@/components/LevelRulesEditor';
 import type { EmissionSettingsView, EmissionState } from '@/lib/emissionSettings';
-import { CA_TIERS, QUEST_TIERS, NOTIFY_DEFAULTS, type NotifyPrefs } from '@/lib/notifyPrefs';
+import { CA_TIERS, QUEST_TIERS, NOTIFY_DEFAULTS, type NotifyPrefs, type ShotHide } from '@/lib/notifyPrefs';
 import type { LevelPostsChoice, MilestoneRules } from '@/lib/levelRules';
 
 const KIND_LABELS: Record<string, string> = {
@@ -448,6 +448,15 @@ export function PluginPostsPanel({ initial }: { initial: EmissionSettingsView })
   const toggle = (key: 'drops' | 'pets' | 'deaths' | 'pvp' | 'clog' | 'levels' | 'diaries', label: string, description?: string) => (
     <Checkbox checked={p[key]} onChange={(v) => save({ [key]: v })} disabled={busy} label={label} description={description} />
   );
+  const hide = (key: keyof ShotHide, label: string, description?: string) => (
+    <Checkbox
+      checked={p.hide[key]}
+      onChange={(v) => save({ hide: { ...p.hide, [key]: v } })}
+      disabled={busy}
+      label={label}
+      description={description}
+    />
+  );
   const [deathMsg, setDeathMsg] = useState<string | null>(null);
   function commitDeathMsg() {
     if (deathMsg === null) return;
@@ -517,6 +526,18 @@ export function PluginPostsPanel({ initial }: { initial: EmissionSettingsView })
             className="w-48 shrink-0"
           />
         </PrefRow>
+      </PrefGroup>
+
+      <PrefGroup title="Screenshot privacy">
+        <p className="max-w-[70ch] text-[12.5px] text-text-muted">
+          Chat left out of every screenshot your plugin takes, bingo proofs and Discord posts alike. Game messages, broadcasts and Anvil&rsquo;s own lines always stay in.
+        </p>
+        {hide('pm', 'Private messages', 'Hide the split private-message box and “From / To” lines in the chatbox.')}
+        {hide('public', 'Public chat', 'Hide what people around you say.')}
+        {hide('clanOthers', 'Clan chat: others’ messages')}
+        {hide('clanSelf', 'Clan chat: your own messages')}
+        {hide('channel', 'Chat channel', 'Hide friends chat (the chat channel) lines.')}
+        {hide('group', 'Group chat', 'Hide your group ironman channel.')}
       </PrefGroup>
     </div>
   );

@@ -33,7 +33,30 @@ export interface NotifyPrefs {
   ca: CaTier;
   /** Quests at or above this difficulty; OFF posts none. */
   quests: QuestTier;
+  /** Screenshot privacy: chat kinds blanked out of every screenshot the plugin takes (proofs and posts). */
+  hide: ShotHide;
 }
+
+/**
+ * Chat rows left out of this person's screenshots, by kind. Game messages, broadcasts and the plugin's
+ * own lines have no sender, so they're always kept.
+ */
+export interface ShotHide {
+  /** Private messages: the split-PM box and "From/To Name:" chatbox rows. */
+  pm: boolean;
+  public: boolean;
+  /** Clan chat lines from other people. */
+  clanOthers: boolean;
+  /** Your own clan chat lines. */
+  clanSelf: boolean;
+  /** The chat channel (friends chat). */
+  channel: boolean;
+  /** The group ironman channel. */
+  group: boolean;
+}
+
+export const SHOT_HIDE_DEFAULTS: ShotHide = { pm: true, public: false, clanOthers: false, clanSelf: false, channel: false, group: false };
+const SHOT_HIDE_KEYS = Object.keys(SHOT_HIDE_DEFAULTS) as (keyof ShotHide)[];
 
 /** The plugin's old defaults, so nobody's posts change by moving. */
 export const NOTIFY_DEFAULTS: NotifyPrefs = {
@@ -50,6 +73,7 @@ export const NOTIFY_DEFAULTS: NotifyPrefs = {
   diaries: true,
   ca: 'MASTER',
   quests: 'MASTER',
+  hide: SHOT_HIDE_DEFAULTS,
 };
 
 const MAX_GP = 2_147_483_647;
@@ -82,7 +106,14 @@ export function normalizeNotifyPrefs(raw: unknown): NotifyPrefs {
     diaries: bool(o.diaries, d.diaries),
     ca: oneOf(o.ca, [...CA_TIERS, 'OFF'] as const, d.ca),
     quests: oneOf(o.quests, [...QUEST_TIERS, 'OFF'] as const, d.quests),
+    hide: normalizeShotHide(o.hide),
   };
+}
+
+/** Anything → a complete ShotHide; each missing or junk key keeps its default. */
+export function normalizeShotHide(raw: unknown): ShotHide {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  return Object.fromEntries(SHOT_HIDE_KEYS.map((k) => [k, bool(o[k], SHOT_HIDE_DEFAULTS[k])])) as unknown as ShotHide;
 }
 
 /** A stored users.notify_prefs value (JSON text, or NULL for never set) → NotifyPrefs. */
@@ -161,6 +192,8 @@ export interface PluginMe {
   ca: string[];
   /** Quest difficulties that post; "*" = every quest, listed or not. */
   quests: string[];
+  /** Screenshot privacy (every screenshot, not gated by any clan switch). */
+  hide: ShotHide;
 }
 
 export function pluginMe(
@@ -190,5 +223,6 @@ export function pluginMe(
     ca: f.combatAchievements && caFrom >= 0 ? CA_TIERS.slice(caFrom) : [],
     // "ALL" is rank 0: every quest, including one the difficulty list doesn't know.
     quests: !f.quests || questFrom < 0 ? [] : questFrom === 0 ? ['*'] : QUEST_TIERS.slice(questFrom),
+    hide: { ...prefs.hide },
   };
 }
