@@ -1,5 +1,5 @@
 // Ghost clans: which in-game clan each character is in, built member by member from what each
-// player's own plugin reports — the way WOM and RuneProfile show a player's clan, for clans that
+// player's own plugin reports, for clans that
 // have never heard of Anvil.
 //
 // WHAT IT IS. A fact about a CHARACTER (Anvil owns characters), surfaced on the character's profile

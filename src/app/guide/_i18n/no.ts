@@ -296,7 +296,7 @@ const no: PartialGuideDict = {
         },
         {
           term: 'Trenger vi fortsatt Wise Old Man?',
-          body: 'Bare til rekorder gjennom tidene og EHP / EHB-rangeringer.',
+          body: 'Bare til rekorder gjennom tidene og spilte timer/bosstimer-rangeringer.',
         },
         {
           term: 'Må spillerne lime inn en webhook noe sted?',
@@ -2466,8 +2466,8 @@ const no: PartialGuideDict = {
         tip: 'Hver aktive Boss of the Week og den aktuelle stillingen.',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: 'Klanens effektivitetsliste og plasseringen din på den. EHP (efficient hours played) som standard; velg EHB for bossing.',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: 'Klanens effektivitetsliste og plasseringen din på den. spilte timer som standard; velg bosstimer for bossing.',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2483,7 +2483,7 @@ const no: PartialGuideDict = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: 'Én konto i et blikk: combat- og totalnivå, EHP og EHB, antall i collection log og personlige rekorder.',
+        tip: 'Én konto i et blikk: combat- og totalnivå, spilte timer og bosstimer, antall i collection log og personlige rekorder.',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2491,7 +2491,7 @@ const no: PartialGuideDict = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP og EHB, og hvilke skills og bosser de kommer fra.',
+        tip: 'Spilte timer og bosstimer, og hvilke skills og bosser de kommer fra.',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4370,7 +4370,7 @@ const no: PartialGuideDict = {
       intro: 'Fem valg, og standardverdiene er fine for de fleste klaner:',
       steps: [
         'Åpne **Schedule** i adminmenyen og trykk **+ Schedule event** (moderatorer kan bruke **Schedule a competition**).',
-        'Velg typen: **Skill of the Week** (XP vunnet), **Boss of the Week** (drap vunnet) eller **Efficiency race** (EHP eller EHB vunnet).',
+        'Velg typen: **Skill of the Week** (XP vunnet), **Boss of the Week** (drap vunnet) eller **Efficiency race** (spilte timer eller bosstimer vunnet).',
         'Under **What is measured** velger du ferdigheten eller bossen. For å endre den hver uke, legg til flere under **Then rotate through**. La den stå tom for å gjenta den samme.',
         'Velg når den **Runs**: **This weekend**, **One week**, eller egne datoer. Den trenger alltid en slutt, fordi den teller gevinsten mellom start og slutt.',
         'La **Repeat every week** være på, så starter den neste i det øyeblikket denne slutter, med samme lengde og premier. Kryss av **Guests race too** hvis klanens gjester skal være på ledertavlen.',

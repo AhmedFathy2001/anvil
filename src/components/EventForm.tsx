@@ -69,7 +69,7 @@ const POOL_PRESETS: { mode: Mode; label: string; blurb: string }[] = [
 const WEEKLY_KINDS = [
   { type: 'skill' as const, label: 'Skill of the Week', chips: 'everyone · xp gained', defaultMetric: 'attack' },
   { type: 'boss' as const, label: 'Boss of the Week', chips: 'everyone · kills gained', defaultMetric: 'zulrah' },
-  { type: 'efficiency' as const, label: 'Efficiency race', chips: 'everyone · EHP / EHB', defaultMetric: 'ehp' },
+  { type: 'efficiency' as const, label: 'Efficiency race', chips: 'everyone · Hours played / Hours bossed', defaultMetric: 'ehp' },
 ];
 
 /** One "this costs you" row in the panel. */
@@ -1379,7 +1379,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                   <SpecRow label="Tiles to author" value="none — it scores itself" />
                   <SpecRow
                     label="Scoring"
-                    value={weeklyType === 'skill' ? 'xp gained' : weeklyType === 'boss' ? 'kills gained' : 'EHP / EHB gained'}
+                    value={weeklyType === 'skill' ? 'xp gained' : weeklyType === 'boss' ? 'kills gained' : 'hours played / hours bossed gained'}
                   />
                   <SpecRow label="Teams" value="none — one leaderboard" />
                   <SpecRow label="Who's in" value={includeGuests ? 'roster + guests' : 'full members only'} />

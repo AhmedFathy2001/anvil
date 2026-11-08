@@ -177,8 +177,8 @@ export function compareUi(me: PlayerCard, them: PlayerCard): Node {
       vsRow('Total level', me.totalLevel, them.totalLevel),
       vsRow('Combat', nz(me.combatLevel), nz(them.combatLevel), String),
       vsRow('Total XP', nz(me.overallXp), nz(them.overallXp), count),
-      vsRow('EHP', Math.round(me.ehp ?? 0), Math.round(them.ehp ?? 0), (n) => `${n}h`),
-      vsRow('EHB', Math.round(me.ehb ?? 0), Math.round(them.ehb ?? 0), (n) => `${n}h`),
+      vsRow('Hours played', Math.round(me.ehp ?? 0), Math.round(them.ehp ?? 0), (n) => `${n}h`),
+      vsRow('Hours bossed', Math.round(me.ehb ?? 0), Math.round(them.ehb ?? 0), (n) => `${n}h`),
       vsRow('Log slots', me.clog?.obtained ?? -1, them.clog?.obtained ?? -1),
     ]),
   ];

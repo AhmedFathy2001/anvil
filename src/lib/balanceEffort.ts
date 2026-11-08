@@ -173,9 +173,9 @@ export interface EffortReport {
 // ---- Rates access -------------------------------------------------------------------
 
 /**
- * Kill times, sourced. `npm run data:rates` derives these from a third-party EHB rate table (efficient
- * play → the fast band) and the wiki's money-making guides (a documented realistic method → the
- * slow band); see scripts/build-rates-dataset.mjs and THIRD_PARTY_NOTICES.md.
+ * Kill times, sourced. `npm run data:rates` derives these from the OSRS Wiki's money-making guides
+ * (kills per hour for a documented method = the average band, with fast/slow a fixed spread either
+ * side); see scripts/build-rates-dataset.mjs.
  *
  * They replace ONLY `killSeconds`, and only where the curated entry was that shape to begin with.
  * Accessibility floors stay curated because neither source has a notion of "can an average clan

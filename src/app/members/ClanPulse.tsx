@@ -71,7 +71,7 @@ function headline(
       lead: 'Quiet week on the hiscores —',
       hours: null,
       tail: 'nobody has banked an efficient hour yet.',
-      sub: allTimeLeader ? `${allTimeLeader.rsn} still leads all-time with ${Math.round(allTimeLeader.ehp ?? 0)} EHP.` : null,
+      sub: allTimeLeader ? `${allTimeLeader.rsn} still leads all-time with ${Math.round(allTimeLeader.ehp ?? 0)} hours played.` : null,
     };
   }
 
@@ -81,7 +81,7 @@ function headline(
 
   const sub =
     allTimeLeader && allTimeLeader.rsn !== first.rsn
-      ? `${allTimeLeader.rsn} still owns the all-time board at ${Math.round(allTimeLeader.ehp ?? 0)} EHP.`
+      ? `${allTimeLeader.rsn} still owns the all-time board at ${Math.round(allTimeLeader.ehp ?? 0)} hours played.`
       : second
         ? `${second.rsn} is second on ${second.hours.toFixed(1)}h.`
         : null;
@@ -149,8 +149,8 @@ export default function ClanPulse({
           <div className="flex flex-wrap gap-2.5">
             <Chip value={(memberCount + guestCount).toLocaleString()} label="tracked" />
             <Chip value={activeThisWeek.toLocaleString()} label="active 7d" />
-            <Chip value={Math.round(totalEhp).toLocaleString()} label="clan EHP" />
-            <Chip value={Math.round(totalEhb).toLocaleString()} label="clan EHB" />
+            <Chip value={Math.round(totalEhp).toLocaleString()} label="clan hours played" />
+            <Chip value={Math.round(totalEhb).toLocaleString()} label="clan hours bossed" />
           </div>
         </div>
       </div>

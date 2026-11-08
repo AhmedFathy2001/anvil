@@ -408,12 +408,12 @@ export const EFFICIENCY_SCALE = 1000;
 export const EFFICIENCY_METRICS: { key: string; label: string; blurb: string }[] = [
   {
     key: "ehp",
-    label: "EHP",
+    label: "Hours played",
     blurb: "Efficient hours played — XP converted to time at the best known rates, so a slow skill counts for more than a fast one.",
   },
   {
     key: "ehb",
-    label: "EHB",
+    label: "Hours bossed",
     blurb: "Efficient hours bossed — boss kills converted to time, so 22 Barrows chests and 3.5 Chambers both read as an hour.",
   },
 ];

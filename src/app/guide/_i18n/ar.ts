@@ -295,7 +295,7 @@ const ar: PartialGuideDict = {
         },
         {
           term: 'هل ما زلنا بحاجة إلى Wise Old Man؟',
-          body: 'فقط للأرقام القياسية على مر الزمن وترتيبات EHP / EHB.',
+          body: 'فقط للأرقام القياسية على مر الزمن وترتيبات ساعات اللعب/ساعات الزعماء.',
         },
         {
           term: 'هل يلصق اللاعبون webhook في أي مكان؟',
@@ -2465,8 +2465,8 @@ const ar: PartialGuideDict = {
         tip: 'كل Boss of the Week نشط وترتيبه المباشر.',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: 'لوحة كفاءة العشيرة وترتيبك فيها. EHP (ساعات اللعب الفعّالة) افتراضياً؛ واختر EHB لقتال الزعماء.',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: 'لوحة كفاءة العشيرة وترتيبك فيها. ساعات اللعب افتراضياً؛ واختر ساعات الزعماء لقتال الزعماء.',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2482,7 +2482,7 @@ const ar: PartialGuideDict = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: 'حساب واحد بلمحة: مستوى القتال والمستوى الكلي، وEHP وEHB، وعدد خانات الـ collection log، والأرقام الشخصية.',
+        tip: 'حساب واحد بلمحة: مستوى القتال والمستوى الكلي، وساعات اللعب وساعات الزعماء، وعدد خانات الـ collection log، والأرقام الشخصية.',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2490,7 +2490,7 @@ const ar: PartialGuideDict = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP وEHB، ومن أي المهارات والزعماء يأتيان.',
+        tip: 'ساعات اللعب وساعات الزعماء، ومن أي المهارات والزعماء يأتيان.',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4367,7 +4367,7 @@ const ar: PartialGuideDict = {
       intro: 'خمسة اختيارات، والإعدادات الافتراضية مناسبة لمعظم العشائر:',
       steps: [
         'افتح **Schedule** في قائمة الإدارة واضغط **+ Schedule event** (يستطيع المشرفون استخدام **Schedule a competition**).',
-        'اختر النوع: **Skill of the Week** (XP المكتسب)، أو **Boss of the Week** (القتلى المكتسبة)، أو **Efficiency race** (EHP أو EHB المكتسبة).',
+        'اختر النوع: **Skill of the Week** (XP المكتسب)، أو **Boss of the Week** (القتلى المكتسبة)، أو **Efficiency race** (ساعات اللعب أو ساعات الزعماء المكتسبة).',
         'تحت **What is measured**، اختر المهارة أو الزعيم. لتغييرها كل أسبوع، أضف المزيد تحت **Then rotate through**. اتركها فارغة لتكرار الواحدة نفسها.',
         'اختر متى **Runs**: **This weekend** أو **One week** أو تواريخك الخاصة. تحتاج دائمًا إلى نهاية، لأنها تحسب المكاسب بين البداية والنهاية.',
         'اترك **Repeat every week** مفعّلًا، وتبدأ التالية لحظة انتهاء هذه، بالمدة نفسها والجوائز نفسها. ضع علامة على **Guests race too** إذا كان ضيوف عشيرتك يجب أن يكونوا على اللوحة.',

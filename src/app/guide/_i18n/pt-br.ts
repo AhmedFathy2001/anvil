@@ -296,7 +296,7 @@ const ptBr: PartialGuideDict = {
         },
         {
           term: 'Ainda precisamos do Wise Old Man?',
-          body: 'Só para recordes de todos os tempos e rankings de EHP / EHB.',
+          body: 'Só para recordes de todos os tempos e rankings de horas jogadas/horas de chefes.',
         },
         {
           term: 'Os jogadores colam um webhook em algum lugar?',
@@ -2448,8 +2448,8 @@ const ptBr: PartialGuideDict = {
         tip: 'Todo Boss of the Week ativo e a classificação ao vivo dele.',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: 'O ranking de eficiência do clã e a sua posição nele. EHP (horas eficientes jogadas) por padrão; escolha EHB para chefes.',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: 'O ranking de eficiência do clã e a sua posição nele. horas jogadas por padrão; escolha horas de chefes para chefes.',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2465,7 +2465,7 @@ const ptBr: PartialGuideDict = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: 'Uma conta num relance: nível de combate e total, EHP e EHB, contagem do collection log e recordes pessoais.',
+        tip: 'Uma conta num relance: nível de combate e total, horas jogadas e horas de chefes, contagem do collection log e recordes pessoais.',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2473,7 +2473,7 @@ const ptBr: PartialGuideDict = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP e EHB, e de quais skills e chefes eles vêm.',
+        tip: 'Horas jogadas e horas de chefes, e de quais skills e chefes eles vêm.',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4350,7 +4350,7 @@ const ptBr: PartialGuideDict = {
       intro: 'Cinco escolhas, e os padrões servem para a maioria dos clãs:',
       steps: [
         'Abra **Schedule** no menu admin e aperte **+ Schedule event** (moderadores podem usar **Schedule a competition**).',
-        'Escolha o tipo: **Skill of the Week** (XP ganho), **Boss of the Week** (kills ganhos) ou **Efficiency race** (EHP ou EHB ganhos).',
+        'Escolha o tipo: **Skill of the Week** (XP ganho), **Boss of the Week** (kills ganhos) ou **Efficiency race** (horas jogadas ou horas de chefes ganhos).',
         'Em **What is measured**, escolha a skill ou o boss. Para mudar toda semana, adicione mais em **Then rotate through**. Deixe vazio para repetir o mesmo.',
         'Escolha quando ela **Runs**: **This weekend**, **One week** ou suas próprias datas. Sempre precisa de um fim, porque pontua os ganhos entre início e fim.',
         'Deixe **Repeat every week** ligado e a próxima começa no instante em que esta termina, com a mesma duração e prêmios. Marque **Guests race too** se os convidados do seu clã devem estar no ranking.',

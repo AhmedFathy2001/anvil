@@ -293,7 +293,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '我们还需要 Wise Old Man 吗？',
-          body: '只有查看历史总记录和 EHP / EHB 排名时才需要。',
+          body: '只有查看历史总记录和 游戏时长/首领时长 排名时才需要。',
         },
         {
           term: '玩家需要在哪里粘贴 webhook 吗？',
@@ -2597,8 +2597,8 @@ const zhHans: PartialGuideDict = {
         tip: '所有进行中的 Boss of the Week 及其实时排名。',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: '氏族的效率排行榜以及你在其中的名次。默认是 EHP（efficient hours played）；打首领就选 EHB。',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: '氏族的效率排行榜以及你在其中的名次。默认是 游戏时长；打首领就选 首领时长。',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2614,7 +2614,7 @@ const zhHans: PartialGuideDict = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: '一眼看清一个账号：战斗等级与总等级、EHP 与 EHB、收藏日志数量和个人最佳。',
+        tip: '一眼看清一个账号：战斗等级与总等级、游戏时长 与 首领时长、收藏日志数量和个人最佳。',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2622,7 +2622,7 @@ const zhHans: PartialGuideDict = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP 和 EHB，以及它们分别来自哪些技能和首领。',
+        tip: '游戏时长 和 首领时长，以及它们分别来自哪些技能和首领。',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4364,7 +4364,7 @@ const zhHans: PartialGuideDict = {
       intro: '五个选择，多数氏族使用默认值即可：',
       steps: [
         '打开管理菜单中的 **Schedule**，按 **+ Schedule event**（管理员可以使用 **Schedule a competition**）。',
-        '选择类型：**Skill of the Week**（获得的经验）、**Boss of the Week**（获得的击杀）或 **Efficiency race**（获得的 EHP 或 EHB）。',
+        '选择类型：**Skill of the Week**（获得的经验）、**Boss of the Week**（获得的击杀）或 **Efficiency race**（获得的 游戏时长 或 首领时长）。',
         '在 **What is measured** 下选择技能或首领。若要每周更换，请在 **Then rotate through** 下添加更多项。留空则重复同一项。',
         '选择 **Runs** 的时间：**This weekend**、**One week**，或你自己的日期。它总是需要一个结束时间，因为它要计算开始与结束之间的增长。',
         '保持 **Repeat every week** 开启，下一场会在这一场结束的那一刻开始，长度和奖品相同。如果你的氏族访客也应该参赛，请勾选 **Guests race too**。',

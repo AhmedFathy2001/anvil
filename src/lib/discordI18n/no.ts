@@ -226,7 +226,7 @@ const no: PartialDiscordDict = {
   commands: {
     sotw: 'Skill of the Week — livestilling',
     botw: 'Boss of the Week — livestilling',
-    eff: 'Effektivitet (EHP/EHB) — topplisten og din plassering',
+    eff: 'Effektivitet (spilte timer/bosstimer) — topplisten og din plassering',
     coffer: 'Klankisten — saldo, givere og staff legger til/fjerner',
     clog: 'Collection log — et medlems antall og klanens fremste samlere',
     luck: 'Drop-flaks — klanens tørreste og heldigste, eller et medlems',

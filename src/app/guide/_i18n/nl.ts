@@ -296,7 +296,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Hebben we Wise Old Man nog nodig?',
-          body: 'Alleen voor records aller tijden en EHP / EHB-ranglijsten.',
+          body: 'Alleen voor records aller tijden en gespeelde uren/bossuren-ranglijsten.',
         },
         {
           term: 'Moeten spelers ergens een webhook plakken?',
@@ -2599,8 +2599,8 @@ const nl: PartialGuideDict = {
         tip: 'Elke actieve Boss of the Week en de live stand ervan.',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: 'De efficiëntieranglijst van de clan en jouw plek erin. Standaard EHP (efficient hours played); kies EHB voor bossen.',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: 'De efficiëntieranglijst van de clan en jouw plek erin. Standaard gespeelde uren; kies bossuren voor bossen.',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2616,7 +2616,7 @@ const nl: PartialGuideDict = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: 'Eén account in één oogopslag: combat- en totaallevel, EHP en EHB, aantal in het collection log en persoonlijke records.',
+        tip: 'Eén account in één oogopslag: combat- en totaallevel, gespeelde uren en bossuren, aantal in het collection log en persoonlijke records.',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2624,7 +2624,7 @@ const nl: PartialGuideDict = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP en EHB, en uit welke skills en bosses ze komen.',
+        tip: 'Gespeelde uren en bossuren, en uit welke skills en bosses ze komen.',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4367,7 +4367,7 @@ const nl: PartialGuideDict = {
       intro: 'Vijf keuzes, en de standaardinstellingen zijn voor de meeste clans prima:',
       steps: [
         'Open **Schedule** in het admin-menu en druk op **+ Schedule event** (moderators kunnen **Schedule a competition** gebruiken).',
-        'Kies de soort: **Skill of the Week** (XP gewonnen), **Boss of the Week** (kills gewonnen) of **Efficiency race** (EHP of EHB gewonnen).',
+        'Kies de soort: **Skill of the Week** (XP gewonnen), **Boss of the Week** (kills gewonnen) of **Efficiency race** (gespeelde uren of bossuren gewonnen).',
         'Kies onder **What is measured** de skill of boss. Wil je hem elke week veranderen, voeg dan meer toe onder **Then rotate through**. Laat dat leeg om steeds dezelfde te herhalen.',
         'Kies wanneer het **Runs**: **This weekend**, **One week**, of je eigen data. Er moet altijd een einde zijn, want het telt de winst tussen start en einde.',
         'Laat **Repeat every week** aan en de volgende begint op het moment dat deze eindigt, met dezelfde lengte en prijzen. Vink **Guests race too** aan als de gasten van je clan op het bord moeten staan.',

@@ -1,4 +1,5 @@
 import { formatJoinDate } from '@/lib/clanJoinDate';
+import RecordsCard from '@/components/records/RecordsCard';
 import Persona from '@/app/members/[rsn]/Persona';
 import ProfileTabs from '@/app/members/[rsn]/ProfileTabs';
 import ProfileShare from '@/app/p/[rsn]/ProfileShare';
@@ -425,8 +426,8 @@ export default async function CharacterProfile({
 
       {(eff || totalXp > 0 || embedded) && (
         <div className="flex flex-wrap gap-2 mt-3">
-          {eff && <Placing label="EHP" value={eff.ehp.toFixed(1)} standing={standings.ehp} />}
-          {eff && <Placing label="EHB" value={eff.ehb.toFixed(1)} standing={standings.ehb} />}
+          {eff && <Placing label="Hours played" value={eff.ehp.toFixed(1)} standing={standings.ehp} />}
+          {eff && <Placing label="Hours bossed" value={eff.ehb.toFixed(1)} standing={standings.ehb} />}
           <Placing label="XP" value={fmtXp(totalXp)} standing={standings.xp} />
           {eff && (
             <span className="text-xs border border-card-border rounded-full px-3 py-1 bg-brown-dark text-text-muted">
@@ -561,6 +562,8 @@ export default async function CharacterProfile({
       {show.h2h && <H2hCard accountId={accountId} rsn={rsn} viewerPlayerId={viewerPlayerId} />}
 
       <GoalsCard accountId={accountId} goals={goals.goals} editable={show.ownerControls} options={goals.options} />
+
+      <RecordsCard accountId={accountId} />
 
       <ProfileTabs
         // A same-profile display-case link changes only the query. Keying its destination remounts

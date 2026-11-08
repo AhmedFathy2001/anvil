@@ -9,6 +9,7 @@ import {
   smallint,
   boolean,
   real,
+  doublePrecision,
   jsonb,
   timestamp,
   uniqueIndex,
@@ -439,7 +440,7 @@ export const accountStatSnapshots = pgTable('account_stat_snapshots', {
  * An in-game OSRS clan, as the characters in it describe it — whether or not that clan uses Anvil.
  *
  * A "ghost" clan: nobody created it, nobody owns it, and it grants nothing. It exists because a
- * player's plugin said "I'm in Iron Foundry, rank Dragonstone", the way WOM and RuneProfile show a
+ * player's plugin said "I'm in Iron Foundry, rank Dragonstone". It shows a
  * player's clan. Built member by member from each player's OWN row (lib/gameClans) — never from a
  * roster push, so it only ever holds what Anvil users said about themselves.
  *
@@ -2743,6 +2744,44 @@ export const memberDailyStats = pgTable('member_daily_stats', {
 }, (table) => [
   uniqueIndex('member_daily_stats_account_day_idx').on(table.accountId, table.day),
   index('member_daily_stats_day_idx').on(table.day),
+]);
+
+/**
+ * Records: an account's best gain per metric (skill XP, boss KC, hours played / bossed) in a
+ * calendar day, ISO week, month and year, all UTC. Written only when a best improves — see
+ * lib/records. Records start at deploy; there is no backfill from history.
+ */
+export const accountRecords = pgTable('account_records', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  /** Skill or boss hiscores key, or 'hours_played' / 'hours_bossed'. */
+  metric: text('metric').notNull(),
+  /** 'day' | 'week' | 'month' | 'year'. */
+  period: text('period').notNull(),
+  /** Best gain: XP, kills, or hours. */
+  value: doublePrecision('value').notNull(),
+  /** ISO start of the period the record was set in. */
+  startedAt: text('started_at').notNull(),
+  /** ISO time of the update that set (or last raised) it. */
+  endedAt: text('ended_at').notNull(),
+}, (table) => [
+  uniqueIndex('account_records_account_metric_period_idx').on(table.accountId, table.metric, table.period),
+  index('account_records_metric_period_value_idx').on(table.metric, table.period, table.value),
+]);
+
+/**
+ * One baseline per account and period: the totals at the start of the current day / week / month /
+ * year. Replaced (not appended) when the period rolls over, so this stays at four rows per account.
+ * `values` is JSON `{ metric: value }`.
+ */
+export const accountPeriodBaselines = pgTable('account_period_baselines', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  period: text('period').notNull(),
+  periodStart: text('period_start').notNull(),
+  values: text('values').notNull(),
+}, (table) => [
+  uniqueIndex('account_period_baselines_account_period_idx').on(table.accountId, table.period),
 ]);
 
 /**

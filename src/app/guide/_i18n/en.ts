@@ -305,7 +305,7 @@ export const en = {
         },
         {
           term: 'Do we still need Wise Old Man?',
-          body: 'Only for all-time records and EHP / EHB ranks.',
+          body: 'Only for all-time records and hours played/hours bossed ranks.',
         },
         {
           term: 'Do players paste a webhook anywhere?',
@@ -2598,8 +2598,8 @@ export const en = {
         tip: 'Every active Boss of the Week and its live standings.',
       },
       eff: {
-        examples: ['/eff', '/eff metric:EHB'],
-        tip: 'The clan’s efficiency leaderboard and your rank in it. EHP (efficient hours played) by default; pick EHB for bossing.',
+        examples: ['/eff', '/eff metric:Hours bossed'],
+        tip: 'The clan’s efficiency leaderboard and your rank in it. Efficient hours played by default; pick hours bossed for bossing.',
       },
       'coffer balance': {
         examples: ['/coffer balance'],
@@ -2615,7 +2615,7 @@ export const en = {
       },
       'stats profile': {
         examples: ['/stats profile', '/stats profile player:Zezima'],
-        tip: 'One account at a glance: combat and total level, EHP and EHB, collection log count and personal bests.',
+        tip: 'One account at a glance: combat and total level, hours played and hours bossed, collection log count and personal bests.',
       },
       'stats levels': {
         examples: ['/stats levels', '/stats levels player:My Iron'],
@@ -2623,7 +2623,7 @@ export const en = {
       },
       'stats efficiency': {
         examples: ['/stats efficiency'],
-        tip: 'EHP and EHB, and which skills and bosses they come from.',
+        tip: 'Hours played and hours bossed, and which skills and bosses they come from.',
       },
       'stats clog': {
         examples: ['/stats clog', '/stats clog page:Zulrah'],
@@ -4375,7 +4375,7 @@ export const en = {
       intro: 'Five choices, and the defaults are fine for most clans:',
       steps: [
         'Open **Schedule** in the admin menu and press **+ Schedule event** (moderators can use **Schedule a competition**).',
-        'Pick the kind: **Skill of the Week** (XP gained), **Boss of the Week** (kills gained) or **Efficiency race** (EHP or EHB gained).',
+        'Pick the kind: **Skill of the Week** (XP gained), **Boss of the Week** (kills gained) or **Efficiency race** (hours played or hours bossed gained).',
         'Under **What is measured**, pick the skill or boss. To change it every week, add more under **Then rotate through**. Leave that empty to repeat the same one.',
         'Choose when it **Runs**: **This weekend**, **One week**, or your own dates. It always needs an end, because it scores the gains between start and end.',
         'Leave **Repeat every week** on and the next one starts the moment this one ends, with the same length and prizes. Tick **Guests race too** if your clan’s guests should be on the board.',

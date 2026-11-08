@@ -226,7 +226,7 @@ const nl: PartialDiscordDict = {
   commands: {
     sotw: 'Skill of the Week — live stand',
     botw: 'Boss of the Week — live stand',
-    eff: 'Efficiëntie-ranglijst (EHP/EHB) en waar jij staat',
+    eff: 'Efficiëntie-ranglijst (gespeelde uren/bossuren) en waar jij staat',
     coffer: 'De clankas — saldo, donateurs, en staff voegt toe/haalt weg',
     clog: 'Collectielogboek — het aantal van een lid en de topverzamelaars van de clan',
     luck: 'Drop-geluk — de droogste en gelukkigste van de clan, of van een lid',

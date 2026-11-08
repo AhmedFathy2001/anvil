@@ -1,5 +1,5 @@
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
-import efficiencyRates from '@/data/efficiencyRates.json'; // third-party EHB rates, kills per hour (THIRD_PARTY_NOTICES.md)
+import hourRates from '@/data/hourRates.json'; // our wiki-built kill rates; regenerate with `npm run data:rates`
 import clogTabs from '@/data/clogTabs.json'; // the game's own log tabs; regenerate with `npm run data:clog`
 import { BOSSES } from '@/lib/constants';
 import { clogItemNames, clogPageNames, clogPageOfItem } from '@/lib/clogDataset';
@@ -24,12 +24,11 @@ export interface ItemRarity {
   /** The source those odds belong to — "1 in 5,000 from Zulrah" is the sentence. */
   source: string;
   /**
-   * EFFICIENT hours to see one: the rate over the third-party kills-per-hour table for that content. Null
+   * EFFICIENT hours to see one: the rate over our kills-per-hour table (src/data/hourRates.json, from the wiki's money-making guides) for that content. Null
    * where we have no rate for the source.
    *
-   * Efficient, not expected. Those rates are the theoretical maximum — 3.7 Tombs of Amascut an hour
-   * is a max-efficiency eight-man, not anybody's Tuesday — so this is a yardstick for COMPARING two
-   * drops, not a promise about somebody's evening. It's the right yardstick precisely because it's
+   * A yardstick for COMPARING two drops, not a promise about somebody's evening: the guide rates
+   * assume a prepared player with a decent setup. It's the right yardstick precisely because it's
    * consistent: the same optimism applies to every piece of content, so the ordering survives it.
    *
    * And it's the ordering that was wrong before: 1 in 2,160 at a boss killed 39 times an hour is a
@@ -39,10 +38,10 @@ export interface ItemRarity {
   hours: number | null;
 }
 
-/** Kills per hour by hiscores boss key, from the same table the site's EHB already uses. */
+/** Kills per hour by hiscores boss key, from the same table efficient hours bossed uses. */
 function killsPerHour(): Record<string, number> {
-  return (efficiencyRates as { algorithms?: { main?: { bosses?: Record<string, number> } } })
-    .algorithms?.main?.bosses ?? {};
+  const bosses = (hourRates as { bosses?: { main?: Record<string, { killsPerHour: number }> } }).bosses?.main ?? {};
+  return Object.fromEntries(Object.entries(bosses).map(([k, v]) => [k, v.killsPerHour]));
 }
 
 /**

@@ -74,11 +74,11 @@ test('headline rows name the leader of each number', () => {
   const by = Object.fromEntries(r.headline.map((h) => [h.label, h]));
   assert.deepEqual(
     r.headline.map((h) => h.label),
-    ['Total level', 'Combat', 'Total XP', 'EHP', 'EHB', 'Log slots'],
+    ['Total level', 'Combat', 'Total XP', 'Hours played', 'Hours bossed', 'Log slots'],
   );
   assert.equal(by['Total level'].leader, 'a');
   assert.equal(by['Combat'].leader, 'tie');
-  assert.equal(by['EHP'].leader, 'b');
+  assert.equal(by['Hours played'].leader, 'b');
   assert.equal(by['Total XP'].format, 'xp');
 });
 
@@ -92,7 +92,7 @@ test('missing data never leads: unsynced log, no hiscores, null efficiency', () 
   assert.equal(by['Log slots'].leader, null);
   assert.equal(by['Total level'].a, null, 'a total of 0 is "no hiscores", not a real total');
   assert.equal(by['Total level'].leader, null);
-  assert.equal(by['EHB'].leader, null);
+  assert.equal(by['Hours bossed'].leader, null);
   assert.equal(by['Combat'].leader, null);
 });
 
@@ -190,11 +190,11 @@ test('clans: headline rows with leaders; no synced logs means no average and no 
   const by = Object.fromEntries(r.headline.map((h) => [h.label, h]));
   assert.deepEqual(
     r.headline.map((h) => h.label),
-    ['Members', 'Active this week', 'Total EHP', 'Total EHB', 'Average log'],
+    ['Members', 'Active this week', 'Total hours played', 'Total hours bossed', 'Average log'],
   );
   assert.equal(by['Members'].leader, 'a');
   assert.equal(by['Active this week'].leader, 'tie');
-  assert.equal(by['Total EHB'].leader, 'tie');
+  assert.equal(by['Total hours bossed'].leader, 'tie');
   assert.equal(by['Average log'].b, null);
   assert.equal(by['Average log'].leader, null);
 });
