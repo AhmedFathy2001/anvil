@@ -12,7 +12,7 @@
 //
 // Pure, no `@/` import, so it is tested directly (tests/event-roster.test.ts); the route loads rows.
 
-import { competitionRanks, standingsWindow, type StandingsWindow, type WindowOpts } from './standingsWindow';
+import { competitionRanks, isManyTeams, standingsWindow, type StandingsWindow, type WindowOpts } from './standingsWindow';
 
 export const ROSTER_PAGE_SIZE = 25;
 export const ROSTER_MAX_PAGE_SIZE = 50;
@@ -82,7 +82,14 @@ interface Paged {
 }
 
 export type RosterOverview =
-  | (Paged & { mode: 'teams'; teams: RosterTeamOut[]; yourTeam: RosterTeamOut | null; unplaced: number })
+  | (Paged & {
+      mode: 'teams';
+      teams: RosterTeamOut[];
+      yourTeam: RosterTeamOut | null;
+      unplaced: number;
+      /** Asked for, on a board of many teams (lib/standingsWindow isManyTeams): the top, then the viewer's team(s) with neighbours. */
+      window?: StandingsWindow<RosterTeamOut>;
+    })
   | (Paged & {
       mode: 'players';
       players: RosterPersonOut[];
@@ -95,7 +102,17 @@ export type RosterOverview =
 
 export type RosterTeamPage = Paged & { mode: 'members'; team: RosterTeamOut; players: RosterPersonOut[] };
 /** `ranked`: a players board — each hit carries its standing rather than its (one-person) team. */
-export type RosterSearchPage = Paged & { mode: 'search'; query: string; players: RosterPersonOut[]; ranked?: boolean };
+export type RosterSearchPage = Paged & {
+  mode: 'search';
+  query: string;
+  players: RosterPersonOut[];
+  ranked?: boolean;
+  /** A many-teams board: teams whose own name matches too (the first few, best first). */
+  teams?: RosterTeamOut[];
+};
+
+/** Teams matched by name that a search shows above the players it found. */
+export const SEARCH_TEAMS_SHOWN = 5;
 
 /** A 1-based page number and a size, from untrusted query params. */
 export function pageParams(page: string | null, size: string | null): { page: number; pageSize: number } {
@@ -153,6 +170,15 @@ class Roster {
     return this.yours;
   }
 
+  private yourSet: Set<number> | undefined;
+  /** Every team the viewer has an account on (rarely more than one). */
+  yourTeamIds(): Set<number> {
+    this.yourSet ??= new Set(
+      this.input.people.filter((p) => this.isYou(p) && p.teamId != null && this.teamById.has(p.teamId)).map((p) => p.teamId!),
+    );
+    return this.yourSet;
+  }
+
   team(t: RosterTeamIn): RosterTeamOut {
     return {
       teamId: t.teamId,
@@ -161,7 +187,7 @@ class Roster {
       rank: this.teamRank.get(t) ?? null,
       score: t.scoreText,
       members: this.membersOf.get(t.teamId)?.length ?? 0,
-      yours: this.yourTeamId() === t.teamId,
+      yours: this.yourTeamIds().has(t.teamId),
     };
   }
 
@@ -177,6 +203,11 @@ class Roster {
       captain: this.isCaptain(p),
       you: this.isYou(p),
     };
+  }
+
+  /** 12+ teams with people sharing them (lib/standingsWindow isManyTeams): cut, and searchable by team name. */
+  manyTeams(): boolean {
+    return !this.playersMode() && isManyTeams(null, this.input.teams.map((t) => this.membersOf.get(t.teamId)?.length ?? 0));
   }
 
   /** One-person teams, or an individual event: the people are what is ranked. */
@@ -252,6 +283,9 @@ class Roster {
       teams: items.map((t) => this.team(t)),
       yourTeam: yours != null ? this.team(this.teamById.get(yours)!) : null,
       unplaced,
+      ...(window && this.manyTeams()
+        ? { window: standingsWindow(ordered.map((x) => this.team(x)), (x) => x.yours, window) }
+        : {}),
     };
   }
 
@@ -298,7 +332,15 @@ class Roster {
       return { mode: 'search', query: query.trim(), ...paged, ranked: true, players: items.map((p) => this.standing(p)) };
     }
     const { items, ...paged } = slice(hits, page, pageSize);
-    return { mode: 'search', query: query.trim(), ...paged, players: items.map((p) => this.person(p)) };
+    // A team board: a team's own name finds it too (on the first page only, so paging stays by player).
+    const teams = q && paged.page === 1 && this.manyTeams()
+      ? this.input.teams
+          .filter((t) => t.name.toLowerCase().replace(/[\s_-]+/g, ' ').includes(q))
+          .sort((a, b) => (this.teamRank.get(a) ?? Infinity) - (this.teamRank.get(b) ?? Infinity) || byName(a, b))
+          .slice(0, SEARCH_TEAMS_SHOWN)
+          .map((t) => this.team(t))
+      : [];
+    return { mode: 'search', query: query.trim(), ...paged, players: items.map((p) => this.person(p)), ...(teams.length ? { teams } : {}) };
   }
 }
 
