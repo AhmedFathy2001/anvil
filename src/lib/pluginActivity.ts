@@ -110,8 +110,9 @@ export async function buildActivity(args: {
   const firstCall = since.sub === 0 && since.comp === 0;
   const limit = firstCall ? BACKFILL : PAGE;
 
+  // The three reads below are independent, so they go out together.
   // --- submissions since cursor (attributed) -------------------------------------------------
-  const subRows = await db
+  const subRowsQ = db
     .select({
       id: submissions.id,
       tileId: submissions.tileId,
@@ -124,11 +125,9 @@ export async function buildActivity(args: {
     .where(and(eq(submissions.teamId, teamId), gt(submissions.id, since.sub), primaryCredit()))
     .orderBy(firstCall ? sql`${submissions.id} desc` : submissions.id)
     .limit(limit);
-  // First call pulls the newest N desc for recency; normalise to ascending-by-id like the delta path.
-  if (firstCall) subRows.reverse();
 
   // --- completions since cursor --------------------------------------------------------------
-  const compRows = await db
+  const compRowsQ = db
     .select({
       id: completions.id,
       tileId: completions.tileId,
@@ -141,19 +140,26 @@ export async function buildActivity(args: {
     .where(and(eq(completions.teamId, teamId), gt(completions.id, since.comp), boardCompletion()))
     .orderBy(firstCall ? sql`${completions.id} desc` : completions.id)
     .limit(limit);
-  if (firstCall) compRows.reverse();
-
-  const truncated = subRows.length >= limit || compRows.length >= limit;
 
   // --- reveal-policy events: fold "tile revealed" entries in ------------------------------------
   // Reveals are monotonic (revealedAt never un-sets), so the cursor's `rev` component is simply
   // the count of revealed tiles the client has already seen — order by (revealedAt, id) and skip
   // that many. Classic events skip the queries entirely and keep the legacy cursor shape.
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
-  const eventRow = await db.query.events.findFirst({
-    where: eq(events.id, eventId),
-    columns: { rules: true },
-  });
+  const [subRows, compRows, eventRow] = await Promise.all([
+    subRowsQ,
+    compRowsQ,
+    db.query.events.findFirst({
+      where: eq(events.id, eventId),
+      columns: { rules: true },
+    }),
+  ]);
+  // First call pulls the newest N desc for recency; normalise to ascending-by-id like the delta path.
+  if (firstCall) {
+    subRows.reverse();
+    compRows.reverse();
+  }
+  const truncated = subRows.length >= limit || compRows.length >= limit;
   const rules = parseEventRules(eventRow?.rules);
   const revealMode = hasRevealPolicy(rules);
   let revealRows: { id: number; label: string; revealedAt: string | null }[] = [];

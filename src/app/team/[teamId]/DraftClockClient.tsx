@@ -6,6 +6,7 @@ import type { WarRoom, WarRoomPerson } from '@/lib/warRoom';
 import PlayerDrawer, { DOMAIN_LABEL, TierChip } from './applicants/PlayerDrawer';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import { useVisiblePoll } from '@/hooks/useVisiblePoll';
 
 // The captain's pick surface. Two polls with different costs: the draft state is cheap and drives
 // the clock, so it runs on a short interval; the pool carries ratings and answers (a profile sweep)
@@ -84,11 +85,7 @@ export default function DraftClockClient({ teamId, eventId }: { teamId: number; 
     }
   }, [eventId, fetchPool]);
 
-  useEffect(() => {
-    void fetchDraft();
-    const id = setInterval(fetchDraft, DRAFT_POLL_MS);
-    return () => clearInterval(id);
-  }, [fetchDraft]);
+  useVisiblePoll(fetchDraft, DRAFT_POLL_MS);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);

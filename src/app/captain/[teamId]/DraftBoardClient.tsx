@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import DraftPlayerPool from '@/components/DraftPlayerPool';
 import DraftStatus from '@/components/DraftStatus';
 import DraftRosters from '@/components/DraftRosters';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import type { SignupProfile } from '@/lib/signup';
 import { clanFetch } from '@/lib/clanFetch';
+import { useVisiblePoll } from '@/hooks/useVisiblePoll';
 
 interface Team {
   id: number;
@@ -66,11 +67,7 @@ export default function DraftBoardClient({ event, team }: Props) {
     }
   }, [event.id]);
 
-  useEffect(() => {
-    fetchDraft();
-    const interval = setInterval(fetchDraft, 2500);
-    return () => clearInterval(interval);
-  }, [fetchDraft]);
+  useVisiblePoll(fetchDraft, 2500);
 
   async function pickPlayer(playerId: number) {
     setPicking(true);

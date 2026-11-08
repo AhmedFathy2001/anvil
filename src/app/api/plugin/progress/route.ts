@@ -3,7 +3,7 @@ import { foreignOr } from '@/lib/pluginForeign';
 import { db } from '@/db';
 import { accounts, memberProgress, memberProgressItems } from '@/db/schema';
 import { accountTypeFromVarbit } from '@/lib/accountType';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { resolvePluginMember } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { cleanProgress, progressUpdates } from '@/lib/memberProgress';
@@ -91,22 +91,31 @@ export async function POST(request: Request) {
     ...(Array.isArray(body?.items) ? body.items : []),
     ...(decodedTasks ? [{ category: 'ca', items: decodedTasks }] : []),
   ];
+  // One list per category (a repeat in the same body: the last one wins, as it did when each was stored in turn).
+  const byCategory = new Map<string, ReturnType<typeof cleanItems>>();
   for (const raw of itemSets) {
     if (!raw || typeof raw !== 'object') continue;
     const set = raw as { category?: unknown; items?: unknown };
     if (!isItemCategory(set.category)) continue;
     const items = cleanItems(set.items);
-    if (items.length === 0) continue;
+    if (items.length > 0) byCategory.set(set.category, items);
+  }
+  const sets = [...byCategory].map(([category, items]) => ({ category, items }));
+  // What's held for every sent category, in one read. ACCOUNT id — the same key the INSERT below
+  // writes (reading by the SEAT never matched the stored row, so every push re-inserted).
+  const heldItems = sets.length === 0 ? [] : await db
+    .select({ id: memberProgressItems.id, category: memberProgressItems.category, payload: memberProgressItems.payload })
+    .from(memberProgressItems)
+    .where(and(
+      eq(memberProgressItems.accountId, member.accountId),
+      inArray(memberProgressItems.category, sets.map((x) => x.category)),
+    ));
+  const heldByCategory = new Map(heldItems.map((r) => [r.category, r]));
+  for (const set of sets) {
+    const items = set.items;
     const payload = serializeItems(items);
     const done = countDone(items);
-    const existing = await db.query.memberProgressItems.findFirst({
-      where: and(
-        // ACCOUNT id — the same key the INSERT below writes. This read used member.clanMemberId (the
-        // SEAT), so it never matched the stored row and every push re-inserted / hit the unique index.
-        eq(memberProgressItems.accountId, member.accountId),
-        eq(memberProgressItems.category, set.category),
-      ),
-    });
+    const existing = heldByCategory.get(set.category);
     if (existing?.payload === payload) continue;
     const now = new Date().toISOString();
     if (existing) {
@@ -140,15 +149,14 @@ export async function POST(request: Request) {
   if (updates.size === 0) return NextResponse.json({ ok: true, updated: 0, itemsStored, accountTypeStored, combatTasks: decodeReport(decode) });
 
   const now = new Date().toISOString();
-  for (const [key, value] of updates) {
-    await db
-      .insert(memberProgress)
-      .values({ accountId: member.accountId, key, value, updatedAt: now })
-      .onConflictDoUpdate({
-        target: [memberProgress.accountId, memberProgress.key],
-        set: { value, updatedAt: now },
-      });
-  }
+  // One upsert for every changed key, not a round trip each.
+  await db
+    .insert(memberProgress)
+    .values([...updates].map(([key, value]) => ({ accountId: member.accountId, key, value, updatedAt: now })))
+    .onConflictDoUpdate({
+      target: [memberProgress.accountId, memberProgress.key],
+      set: { value: sql`excluded.value`, updatedAt: now },
+    });
 
   return NextResponse.json({ ok: true, updated: updates.size, itemsStored, accountTypeStored, combatTasks: decodeReport(decode) });
 }

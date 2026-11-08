@@ -298,52 +298,55 @@ export async function buildEnrolledConfig(args: {
   // for these — match on the presence of a trackedStat field instead.
   const statTilesRaw = trackedTiles.filter((t) => t.trackedStat && t.trackedStat.length > 0);
 
-  // Get current submission totals per tile for this team
-  const teamSubmissions = await db
-    .select({
-      tileId: submissions.tileId,
-      total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
-    })
-    .from(submissions)
-    // The tiles' own credits — a capped tile's cap counters (lib/tileCaps) are another counter.
-    .where(and(eq(submissions.teamId, teamId), isNull(submissions.goal)))
-    .groupBy(submissions.tileId);
-
-  const submissionMap = Object.fromEntries(teamSubmissions.map(s => [s.tileId, s.total]));
-
-  // The CALLER's own totals per tile (credit follows creditPlayerId when a captain uploaded on their
-  // behalf). Solo ("any one member") tiles complete on one member's count, so the progress the plugin
-  // shows in-game — and counts up against locally — has to be theirs, not the team's. Mirrors what
-  // trackedStats already does for individual-mode hiscores tiles by filtering `sources` to the caller.
-  const soloSubmissionMap: Record<number, number> = {};
-  let soloByMember: { tileId: number; who: number | null; total: number }[] = [];
-  if (playerId != null) {
-    const own = await db
-      .select({
-        tileId: submissions.tileId,
-        total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
-      })
+  // Every read of this team's submission totals, in one round: the team's per tile, the caller's own
+  // (or, for the team view, every member's), and per item. Independent reads, so not one after another.
+  const sumAmount = sql<number>`COALESCE(SUM(${submissions.amount}), 0)`;
+  const teamOwnCredits = and(eq(submissions.teamId, teamId), isNull(submissions.goal));
+  const creditedTo = sql<number>`COALESCE(${submissions.creditPlayerId}, ${submissions.playerId})`;
+  const [teamSubmissions, ownRows, memberRows, perItemSubmissions] = await Promise.all([
+    db
+      .select({ tileId: submissions.tileId, total: sumAmount })
       .from(submissions)
-      .where(and(
-        eq(submissions.teamId, teamId),
-        isNull(submissions.goal),
-        sql`COALESCE(${submissions.creditPlayerId}, ${submissions.playerId}) = ${playerId}`,
-      ))
-      .groupBy(submissions.tileId);
-    for (const r of own) soloSubmissionMap[r.tileId] = r.total;
-  } else {
+      // The tiles' own credits — a capped tile's cap counters (lib/tileCaps) are another counter.
+      .where(teamOwnCredits)
+      .groupBy(submissions.tileId),
+    // The CALLER's own totals per tile (credit follows creditPlayerId when a captain uploaded on
+    // their behalf). Solo ("any one member") tiles complete on one member's count, so the progress the
+    // plugin shows in-game — and counts up against locally — has to be theirs, not the team's.
+    // Mirrors what trackedStats already does for individual-mode hiscores tiles.
+    playerId != null
+      ? db
+        .select({ tileId: submissions.tileId, total: sumAmount })
+        .from(submissions)
+        .where(and(teamOwnCredits, sql`${creditedTo} = ${playerId}`))
+        .groupBy(submissions.tileId)
+      : Promise.resolve([] as { tileId: number; total: number }[]),
     // The TEAM view: everyone's own totals, so each teammate's plugin picks out its own — on exactly
     // the tiles currentFor() below answers per member (filled in once the body is built).
-    soloByMember = await db
+    playerId == null
+      ? db
+        .select({ tileId: submissions.tileId, who: creditedTo, total: sumAmount })
+        .from(submissions)
+        .where(teamOwnCredits)
+        .groupBy(submissions.tileId, creditedTo)
+      : Promise.resolve([] as { tileId: number; who: number | null; total: number }[]),
+    // Per-item totals for tiles with itemRequirements.
+    db
       .select({
         tileId: submissions.tileId,
-        who: sql<number>`COALESCE(${submissions.creditPlayerId}, ${submissions.playerId})`,
-        total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
+        itemId: submissions.itemId,
+        total: sumAmount,
+        lastAt: sql<string>`MAX(${submissions.createdAt})`,
       })
       .from(submissions)
-      .where(and(eq(submissions.teamId, teamId), isNull(submissions.goal)))
-      .groupBy(submissions.tileId, sql`COALESCE(${submissions.creditPlayerId}, ${submissions.playerId})`);
-  }
+      .where(teamOwnCredits)
+      .groupBy(submissions.tileId, submissions.itemId),
+  ]);
+
+  const submissionMap = Object.fromEntries(teamSubmissions.map(s => [s.tileId, s.total]));
+  const soloSubmissionMap: Record<number, number> = {};
+  for (const r of ownRows) soloSubmissionMap[r.tileId] = r.total;
+  const soloByMember: { tileId: number; who: number | null; total: number }[] = memberRows;
   // Progress to advertise for a count tile: the caller's own on a Solo tile, the team's otherwise.
   const perMemberTiles = new Set<number>();
   const currentFor = (t: { id: number; trackingMode: string | null }) => {
@@ -351,18 +354,6 @@ export async function buildEnrolledConfig(args: {
     perMemberTiles.add(t.id);
     return soloSubmissionMap[t.id] ?? 0;
   };
-
-  // Get per-item submission totals for tiles with itemRequirements
-  const perItemSubmissions = await db
-    .select({
-      tileId: submissions.tileId,
-      itemId: submissions.itemId,
-      total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
-      lastAt: sql<string>`MAX(${submissions.createdAt})`,
-    })
-    .from(submissions)
-    .where(and(eq(submissions.teamId, teamId), isNull(submissions.goal)))
-    .groupBy(submissions.tileId, submissions.itemId);
 
   // Build a map: tileId -> { itemId -> total }
   const perItemMap = new Map<number, Map<number, number>>();
