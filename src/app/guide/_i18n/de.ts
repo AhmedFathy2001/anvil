@@ -5040,7 +5040,7 @@ const de: PartialGuideDict = {
       },
       {
         strong: 'Rekorde',
-        rest: 'beginnen mit dem Start, ohne Nachtrag',
+        rest: 'enthalten den Verlauf ab dem Zeitpunkt, an dem Anvil dein Konto zu erfassen begann',
       },
     ],
     footnote:
@@ -5094,7 +5094,7 @@ const de: PartialGuideDict = {
       title: 'Rekorde und effiziente Stunden',
       body: [
         'Anvil speichert deinen besten **day**, deine beste **week**, deinen besten **month** und dein bestes **year** für XP, Bosskills und effiziente Stunden. Tage sind UTC, und Wochen beginnen am Montag.',
-        'Rekorde zählen ab dem Moment, in dem dies gestartet wurde. Davor gibt es nichts, und Anvil füllt nie die Vergangenheit auf. Ein Rekord wird nur gespeichert, wenn du deine alte Bestleistung schlägst.',
+        'Rekorde reichen zurück bis zu dem Zeitpunkt, an dem Anvil dein Konto zu erfassen begann: Beim ersten Öffnen füllt Anvil sie aus deinem täglichen Verlauf auf und hält sie danach aktuell. Ein Rekord ändert sich nur, wenn du deine alte Bestleistung schlägst.',
         'Deine eigenen siehst du auf der Seite deines Charakters unter **Records**. Die Rekordhalter deines Clans findest du unter **Members → Records**.',
         '**Efficient hours played** ist, wie lange deine Gewinne mit guten Trainingsmethoden dauern würden, damit ein schneller Skill und ein langsamer verglichen werden können. **Efficient hours bossed** macht dasselbe für Kills. Die Raten stammen aus dem OSRS Wiki, und Ironman-Accounts nutzen ihre eigenen Raten.',
       ],

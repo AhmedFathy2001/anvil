@@ -5028,7 +5028,7 @@ const it: PartialGuideDict = {
       },
       {
         strong: 'Record',
-        rest: 'partono dal lancio, senza recupero del passato',
+        rest: 'includono lo storico da quando Anvil ha iniziato a tracciarti',
       },
     ],
     footnote:
@@ -5081,7 +5081,7 @@ const it: PartialGuideDict = {
       title: 'Record e ore efficienti',
       body: [
         'Anvil conserva il tuo miglior **day**, **week**, **month** e **year** per XP delle skill, uccisioni di boss e ore efficienti. I giorni sono in UTC e le settimane iniziano il lunedì.',
-        'I record contano dal momento in cui è stato lanciato questo. Non esiste nulla di precedente, e Anvil non riempie mai il passato. Un record viene salvato solo quando superi il tuo vecchio migliore.',
+        'I record risalgono a quando Anvil ha iniziato a tracciare il tuo account: la prima volta che li apri, Anvil li completa dal tuo storico giornaliero, poi li tiene aggiornati. Un record cambia solo quando superi il tuo vecchio migliore.',
         'Vedi i tuoi sulla pagina del tuo personaggio, sotto **Records**. I detentori di record del tuo clan sono in **Members → Records**.',
         '**Efficient hours played** indica quanto tempo ci vorrebbe ai tuoi guadagni con buoni metodi di allenamento, così si possono confrontare una skill veloce e una lenta. **Efficient hours bossed** fa lo stesso per le uccisioni. I tassi provengono dall\'OSRS Wiki, e gli account ironman usano i propri tassi.',
       ],

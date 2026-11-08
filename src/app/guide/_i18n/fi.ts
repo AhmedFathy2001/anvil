@@ -5038,7 +5038,7 @@ const fi: PartialGuideDict = {
       },
       {
         strong: 'Ennätykset',
-        rest: 'alkavat julkaisusta, ei taannehtivasti',
+        rest: 'sisältävät historian siitä lähtien, kun Anvil alkoi seurata sinua',
       },
     ],
     footnote:
@@ -5091,7 +5091,7 @@ const fi: PartialGuideDict = {
       title: 'Ennätykset ja tehokkaat tunnit',
       body: [
         'Anvil säilyttää parhaan **day**-, **week**-, **month**- ja **year**-tuloksesi taitojen XP:lle, bossitappoille ja tehokkaille tunneille. Päivät ovat UTC-aikaa ja viikot alkavat maanantaina.',
-        'Ennätykset lasketaan siitä hetkestä, kun tämä otettiin käyttöön. Mitään sitä vanhempaa ei ole, eikä Anvil koskaan täytä menneisyyttä. Ennätys tallennetaan vain, kun ylität vanhan parhaasi.',
+        'Ennätykset ulottuvat siihen hetkeen, jolloin Anvil alkoi seurata tiliäsi: kun avaat ne ensimmäisen kerran, Anvil täyttää ne päivittäisestä historiastasi ja pitää ne sen jälkeen ajan tasalla. Ennätys muuttuu vain, kun ylität vanhan parhaasi.',
         'Näet omasi hahmosi sivulla kohdassa **Records**. Klaanisi ennätyshaltijat ovat kohdassa **Members → Records**.',
         '**Efficient hours played** kertoo, kuinka kauan saamasi kehitys kestäisi hyvillä harjoitusmenetelmillä, jotta nopeaa ja hidasta taitoa voidaan verrata. **Efficient hours bossed** tekee saman tappojen kohdalla. Todennäköisyydet tulevat OSRS Wikistä, ja ironman-tilit käyttävät omia tasojaan.',
       ],

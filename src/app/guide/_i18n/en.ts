@@ -4675,7 +4675,7 @@ export const en = {
     facts: [
       { strong: 'Rates', rest: 'come from the OSRS Wiki' },
       { strong: 'Luck', rest: 'expected kills against your real ones' },
-      { strong: 'Records', rest: 'start from launch, no backfill' },
+      { strong: 'Records', rest: 'include history from when Anvil started tracking you' },
     ],
     footnote:
       'Your own pages are in [Your profile, Wrapped and Compare]({profileGuide}). Switches are in [Settings, page by page]({settingsGuide}).',
@@ -4719,7 +4719,7 @@ export const en = {
       title: 'Records and efficient hours',
       body: [
         'Anvil keeps your best **day**, **week**, **month** and **year** for skill XP, boss kills and efficient hours. Days are UTC and weeks start on Monday.',
-        'Records count from the moment this was launched. There is nothing older, and Anvil never fills in the past. A record is saved only when you beat your old best.',
+        'Records go back to when Anvil started tracking your account: the first time you open them, Anvil fills them in from your daily history, then keeps them up to date. A record only changes when you beat your old best.',
         'You see your own on your character’s page, under **Records**. Your clan’s record holders are on **Members → Records**.',
         '**Efficient hours played** is how long your gains would take at good training methods, so a fast skill and a slow one can be compared. **Efficient hours bossed** does the same for kills. The rates come from the OSRS Wiki, and ironman accounts use their own rates.',
       ],

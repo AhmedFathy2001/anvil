@@ -5014,7 +5014,7 @@ const zhHans: PartialGuideDict = {
       },
       {
         strong: '记录',
-        rest: '从上线之日开始，不回溯补录',
+        rest: '包含 Anvil 开始追踪你时起的历史',
       },
     ],
     footnote:
@@ -5064,7 +5064,7 @@ const zhHans: PartialGuideDict = {
       title: '记录与高效时长',
       body: [
         'Anvil 会保存你在技能经验、boss 击杀和高效时长方面的最佳 **day**、**week**、**month** 和 **year**。天按 UTC 计算，周从周一开始。',
-        '记录从本功能上线的那一刻开始计算。之前没有任何数据，Anvil 也从不补填过去。只有当你超过旧的最佳成绩时，记录才会保存。',
+        '记录可追溯到 Anvil 开始追踪你账号的时候：你第一次打开记录时，Anvil 会根据你的每日历史将其补全，之后保持更新。只有当你超过旧的最佳成绩时，记录才会改变。',
         '你可以在角色页面的 **Records** 下看到自己的记录。团队的记录保持者在 **Members → Records**。',
         '**Efficient hours played** 是你的收益按优良训练方式需要多长时间，以便比较快速技能与慢速技能。**Efficient hours bossed** 对击杀做同样的事情。比率来自 OSRS Wiki，ironman 账号使用各自的比率。',
       ],

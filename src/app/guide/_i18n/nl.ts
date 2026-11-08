@@ -5039,7 +5039,7 @@ const nl: PartialGuideDict = {
       },
       {
         strong: 'Records',
-        rest: 'beginnen bij de lancering, zonder terugvullen',
+        rest: 'omvatten de geschiedenis vanaf het moment dat Anvil je bijhield',
       },
     ],
     footnote:
@@ -5092,7 +5092,7 @@ const nl: PartialGuideDict = {
       title: 'Records en efficiënte uren',
       body: [
         'Anvil bewaart je beste **day**, **week**, **month** en **year** voor skill-XP, bosskills en efficiënte uren. Dagen zijn in UTC en weken beginnen op maandag.',
-        'Records tellen vanaf het moment dat dit is gelanceerd. Er is niets ouder, en Anvil vult het verleden nooit aan. Een record wordt alleen opgeslagen als je je oude beste verslaat.',
+        'Records gaan terug tot het moment waarop Anvil je account is gaan bijhouden: de eerste keer dat je ze opent, vult Anvil ze aan vanuit je dagelijkse geschiedenis en houdt ze daarna up-to-date. Een record verandert alleen als je je oude beste verslaat.',
         'Je ziet je eigen records op de pagina van je personage, onder **Records**. De recordhouders van je clan staan onder **Members → Records**.',
         '**Efficient hours played** is hoe lang je winst zou duren met goede trainingsmethoden, zodat een snelle en een trage skill vergeleken kunnen worden. **Efficient hours bossed** doet hetzelfde voor kills. De tarieven komen van de OSRS Wiki, en ironman-accounts gebruiken hun eigen tarieven.',
       ],

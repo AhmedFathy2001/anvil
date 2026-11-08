@@ -5026,7 +5026,7 @@ const pl: PartialGuideDict = {
       },
       {
         strong: 'Rekordy',
-        rest: 'liczą się od startu, bez uzupełniania wstecz',
+        rest: 'obejmują historię od momentu, gdy Anvil zaczął śledzić Twoje konto',
       },
     ],
     footnote:
@@ -5079,7 +5079,7 @@ const pl: PartialGuideDict = {
       title: 'Rekordy i efektywne godziny',
       body: [
         'Anvil zapisuje Twój najlepszy **day**, **week**, **month** i **year** dla XP umiejętności, zabójstw bossów i efektywnych godzin. Dni są w UTC, a tygodnie zaczynają się w poniedziałek.',
-        'Rekordy liczą się od chwili uruchomienia. Nie ma nic starszego, a Anvil nigdy nie uzupełnia przeszłości. Rekord zapisuje się tylko wtedy, gdy pobijesz swój stary najlepszy wynik.',
+        'Rekordy sięgają do momentu, gdy Anvil zaczął śledzić Twoje konto: za pierwszym otwarciem Anvil uzupełnia je na podstawie Twojej dziennej historii, a potem utrzymuje na bieżąco. Rekord zmienia się tylko wtedy, gdy pobijesz swój stary najlepszy wynik.',
         'Swoje zobaczysz na stronie postaci, w sekcji **Records**. Posiadacze rekordów Twojego klanu są w **Members → Records**.',
         '**Efficient hours played** to czas, w jakim Twoje zyski zajęłyby przy dobrych metodach treningu, dzięki czemu można porównać szybką i wolną umiejętność. **Efficient hours bossed** robi to samo dla zabójstw. Stawki pochodzą z OSRS Wiki, a konta ironman używają własnych stawek.',
       ],

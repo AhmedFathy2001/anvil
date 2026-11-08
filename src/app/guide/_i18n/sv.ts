@@ -5038,7 +5038,7 @@ const sv: PartialGuideDict = {
       },
       {
         strong: 'Rekord',
-        rest: 'börjar från lanseringen, utan efterhandsfyllnad',
+        rest: 'inkluderar historik från när Anvil började spåra dig',
       },
     ],
     footnote:
@@ -5090,7 +5090,7 @@ const sv: PartialGuideDict = {
       title: 'Rekord och effektiva timmar',
       body: [
         'Anvil sparar din bästa **day**, **week**, **month** och **year** för skill-XP, bossdödanden och effektiva timmar. Dagar är i UTC och veckor börjar på måndag.',
-        'Rekord räknas från det ögonblick detta lanserades. Det finns inget äldre, och Anvil fyller aldrig i det förflutna. Ett rekord sparas bara när du slår ditt gamla bästa.',
+        'Rekord räknas tillbaka till när Anvil började spåra ditt konto: första gången du öppnar dem fyller Anvil i dem från din dagliga historik och håller dem sedan uppdaterade. Ett rekord ändras bara när du slår ditt gamla bästa.',
         'Du ser dina egna på din karaktärs sida, under **Records**. Din klans rekordinnehavare finns under **Members → Records**.',
         '**Efficient hours played** är hur lång tid dina vinster skulle ta med bra träningsmetoder, så en snabb och en långsam skill kan jämföras. **Efficient hours bossed** gör samma sak för dödanden. Raterna kommer från OSRS Wiki, och ironman-konton använder egna rater.',
       ],
