@@ -39,6 +39,7 @@
 import { and, desc, eq, gt, inArray, isNull, lte, ne, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
+import { notifyBoardPeople } from '@/lib/pushNotify';
 import { db } from '@/db';
 import { labMomentRows } from '@/lib/labFeed';
 import type { MomentRow } from '@/lib/momentsStore';
@@ -412,6 +413,7 @@ export async function setLabSessionEnd(eventId: number, endIso: string | null): 
     .set(ended ? { forceEndedAt: new Date().toISOString(), endNotified: 1 } : { endDate: endIso, forceEndedAt: null })
     .where(eq(events.id, eventId));
   forgetLabSessions();
+  notifyBoardPeople(eventId);
 }
 
 /**
