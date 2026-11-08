@@ -429,3 +429,38 @@ test('channels: pushes reach only who may read; unread counts move', async () =>
   // Staff's count for a team's channel moves like anyone's.
   assert.ok(((await C.chatUnread(await access('Ada'), u.Ada, [`team:${ruby}`])).get(`team:${ruby}`) ?? 0) >= 1);
 });
+
+test('a team channel is only ever one of this board’s teams: staff of one board can’t reach another’s', async () => {
+  const [otherClan] = await db.insert(s.clans).values({ slug: 'elsewhere', name: 'Elsewhere' }).returning();
+  const [otherEv] = await db.insert(s.events).values({ clanId: otherClan.id, name: 'Other Bingo', boardSize: 5, chatEnabled: true }).returning();
+  const [{ id: foreign }] = await db.insert(s.teams).values({ eventId: otherEv.id, name: 'Foreign', color: '#888888' }).returning();
+  await db.insert(s.eventChatMessages).values({ eventId: otherEv.id, teamId: foreign, teamOnly: true, channel: `team:${foreign}`, userId: u.Stranger, rsn: 'Stranger', body: 'their secret' });
+  // Even a line wrongly filed on this board under the other board's team id stays unreadable here.
+  await db.insert(s.eventChatMessages).values({ eventId, teamId: foreign, teamOnly: true, channel: `team:${foreign}`, userId: u.Stranger, rsn: 'Stranger', body: 'misfiled' });
+  for (const who of ['Kev', 'Ada', 'Opal']) {
+    const a = await access(who);
+    assert.deepEqual(await C.chatHistory(a, u[who], `team:${foreign}`), [], `${who} can’t read another board’s team`);
+    assert.equal((await C.chatUnread(a, u[who], [`team:${foreign}`])).get(`team:${foreign}`), 0);
+    assert.deepEqual(await C.sendChat(a, u[who], 'hello there', `team:${foreign}`, later()), { ok: false, error: 'That’s another team’s channel.' });
+  }
+  assert.equal((await db.select().from(s.eventChatMessages).where(eq(s.eventChatMessages.body, 'hello there'))).length, 0);
+  const target = await C.channelTarget(eventId, `team:${foreign}`);
+  assert.ok('u' in target && !target.u.includes(u.Stranger), 'a push for another board’s team reaches none of its players');
+});
+
+test('a team-only line whose team is gone never shows in All teams (0241 backfill)', async () => {
+  // As a pre-0241 row: team-only, its team deleted (team_id null), channel left at the default.
+  const [row] = await db.insert(s.eventChatMessages).values({ eventId, teamId: null, teamOnly: true, userId: u.Rikkert, rsn: 'Rikkert', body: 'orphaned team secret' }).returning();
+  assert.equal(row.channel, 'all');
+  const hidden = async () => !(await C.chatHistory(await access('Saltbeard'), u.Saltbeard, 'all')).some((r) => r.text === 'orphaned team secret');
+  assert.ok(await hidden(), 'All teams never serves a team-only line, even one filed under all');
+  // The migration's backfill, re-run (its updates are idempotent), files it under the staff-only 'team:0'.
+  const sqlText = (await import('node:fs')).readFileSync(new URL('../drizzle/0241_event_chat_channels.sql', import.meta.url), 'utf8');
+  for (const stmt of sqlText.split('--> statement-breakpoint').map((x) => x.trim()).filter((x) => /^UPDATE|\nUPDATE/.test(x))) {
+    await pool.query(stmt.replace(/^(--.*\n)+/, ''));
+  }
+  const [after] = await db.select({ channel: s.eventChatMessages.channel }).from(s.eventChatMessages).where(eq(s.eventChatMessages.id, row.id));
+  assert.equal(after.channel, 'team:0');
+  assert.ok(await hidden());
+  assert.ok((await C.chatModLines(eventId, { q: 'orphaned' })).length === 1, 'staff still see it on the moderation page');
+});

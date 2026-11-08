@@ -1,9 +1,13 @@
 -- Event chat channels (lib/eventChat): every line is in one channel, 'all' (everyone on the board),
 -- 'team:<id>' (one team and the host's staff) or 'announce' (staff post, everyone reads). Lines said
--- team-only before this go to their team's channel. event_chat_reads: how far each person has read
--- each channel, for the unread counts on the plugin's channel switch.
+-- team-only before this go to their team's channel (or 'team:0', staff only, when the team is gone).
+-- event_chat_reads: how far each person has read each channel, for the unread counts on the plugin's
+-- channel switch.
 ALTER TABLE "event_chat_messages" ADD COLUMN IF NOT EXISTS "channel" text DEFAULT 'all' NOT NULL;--> statement-breakpoint
 UPDATE "event_chat_messages" SET "channel" = 'team:' || "team_id" WHERE "team_only" AND "team_id" IS NOT NULL;--> statement-breakpoint
+-- A team-only line whose team is gone (team_id set null) must not fall through to 'all': 'team:0'
+-- names no team, so only staff read it (the moderation page).
+UPDATE "event_chat_messages" SET "channel" = 'team:0' WHERE "team_only" AND "team_id" IS NULL;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "event_chat_messages_channel_idx" ON "event_chat_messages" USING btree ("event_id","channel","id");--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "event_chat_reads" (
 	"event_id" integer NOT NULL,

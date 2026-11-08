@@ -123,13 +123,15 @@ function clanUserIds(clanId: number): Promise<number[]> {
  * name, so they arrive on whichever of a player's boards it is — a ticket's team room covers only its
  * first board. Read fresh every time, never cached: someone just moved off the team must not hear it.
  */
-export async function teamUserIds(teamId: number): Promise<number[]> {
+export async function teamUserIds(teamId: number, eventId?: number): Promise<number[]> {
+  // With the board named, a team id that isn't one of its teams reaches nobody (an event chat's
+  // `team:<id>` comes from a request: it must never reach another board's, or clan's, team).
   const rows = await db
     .selectDistinct({ id: users.id })
     .from(eventParticipants)
     .innerJoin(accounts, eq(accounts.id, eventParticipants.accountId))
     .innerJoin(users, eq(users.playerId, accounts.playerId))
-    .where(eq(eventParticipants.teamId, teamId));
+    .where(eventId != null ? and(eq(eventParticipants.teamId, teamId), eq(eventParticipants.eventId, eventId)) : eq(eventParticipants.teamId, teamId));
   return rows.map((r) => r.id);
 }
 
@@ -269,7 +271,7 @@ export async function emitMomentRows(clanId: number, seatKind: string, list: New
       // A board hiding its standings keeps each team's haul to the team.
       if (await boardHidden(m.eventId, now)) {
         if (m.teamId != null) {
-          await sendMomentRow({ u: await teamUserIds(m.teamId) }, m, [`moments:event:${m.eventId}:team:${m.teamId}`], build, later(i));
+          await sendMomentRow({ u: await teamUserIds(m.teamId, m.eventId) }, m, [`moments:event:${m.eventId}:team:${m.teamId}`], build, later(i));
         }
         continue;
       }
@@ -441,7 +443,7 @@ export function emitReactionRows(momentId: number, userId: number): void {
       if (!ev) return;
       const who = await reactorNames([momentId], { eventId: m.eventId, hostClanId: ev.clanId });
       if (hidden) {
-        if (m.teamId != null) await send({ u: await teamUserIds(m.teamId) }, [momentsFeedId({ kind: 'event', id: m.eventId }, 'team', m.teamId)], who);
+        if (m.teamId != null) await send({ u: await teamUserIds(m.teamId, m.eventId) }, [momentsFeedId({ kind: 'event', id: m.eventId }, 'team', m.teamId)], who);
       } else {
         await send({ e: m.eventId }, momentFeedIds({ kind: 'event', id: m.eventId }, m.kind, m.teamId), who, { playersReact: true });
       }

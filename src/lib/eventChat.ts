@@ -325,15 +325,37 @@ const LINE_COLUMNS = {
  * and that channel counts as read up to the newest of them.
  */
 export async function chatHistory(access: ChatAccess, viewerUserId: number, channel: ChatChannel, limit = 100): Promise<FeedRow[]> {
-  if (!canReadChannel(access, channel)) return [];
+  if (!(await mayRead(access, channel))) return [];
   const lines = await db
     .select(LINE_COLUMNS)
     .from(eventChatMessages)
-    .where(and(eq(eventChatMessages.eventId, access.eventId), eq(eventChatMessages.channel, channel), isNull(eventChatMessages.deletedAt)))
+    .where(and(eq(eventChatMessages.eventId, access.eventId), ...channelWhere(channel), isNull(eventChatMessages.deletedAt)))
     .orderBy(desc(eventChatMessages.id))
     .limit(limit);
   if (lines.length) await markChannelRead(access.eventId, viewerUserId, channel, lines[0].id);
   return rowsFor(access.eventId, lines, { userId: viewerUserId, staff: access.staff, rsn: access.seats > 1 ? access.rsn : null, access });
+}
+
+/** A team channel names one of THIS board's teams (staff read any team's, but only on their board). */
+async function teamOnBoard(eventId: number, teamId: number): Promise<boolean> {
+  const [t] = await db.select({ id: teams.id }).from(teams).where(and(eq(teams.id, teamId), eq(teams.eventId, eventId))).limit(1);
+  return !!t;
+}
+
+/** canReadChannel, and a team channel is one of this board's teams. */
+export async function mayRead(access: ChatAccess, channel: ChatChannel): Promise<boolean> {
+  if (!canReadChannel(access, channel)) return false;
+  const team = channelTeam(channel);
+  return team == null || team === access.teamId || (await teamOnBoard(access.eventId, team));
+}
+
+/**
+ * The rows of one channel. 'all' and 'announce' also never hold a team-only line, whatever its
+ * channel says (belt and braces over the 0241 backfill, which sent team-less team-only lines to 'team:0').
+ */
+function channelWhere(channel: ChatChannel) {
+  const by = eq(eventChatMessages.channel, channel);
+  return channelTeam(channel) == null ? [by, eq(eventChatMessages.teamOnly, false)] : [by];
 }
 
 /**
@@ -365,7 +387,8 @@ export async function markChannelRead(eventId: number, userId: number, channel: 
  */
 export async function chatUnread(access: ChatAccess, userId: number, channels: ChatChannel[]): Promise<Map<ChatChannel, number>> {
   const out = new Map<ChatChannel, number>(channels.map((c) => [c, 0]));
-  const readable = channels.filter((c) => canReadChannel(access, c));
+  const readable: ChatChannel[] = [];
+  for (const c of channels) if (await mayRead(access, c)) readable.push(c);
   if (!readable.length) return out;
   const rows = await db
     .select({ channel: eventChatMessages.channel, n: sql<number>`count(*)::int` })
@@ -378,6 +401,7 @@ export async function chatUnread(access: ChatAccess, userId: number, channels: C
       and(
         eq(eventChatMessages.eventId, access.eventId),
         inArray(eventChatMessages.channel, readable),
+        or(sql`${eventChatMessages.channel} like 'team:%'`, eq(eventChatMessages.teamOnly, false)),
         isNull(eventChatMessages.deletedAt),
         sql`${eventChatMessages.userId} <> ${userId}`,
         sql`${eventChatMessages.id} > coalesce(${eventChatReads.lastId}, 0)`,
@@ -395,7 +419,7 @@ export async function chatUnread(access: ChatAccess, userId: number, channels: C
 export async function channelTarget(eventId: number, channel: ChatChannel): Promise<RowsTarget> {
   const team = channelTeam(channel);
   if (team == null) return { e: eventId };
-  const [players, staff] = await Promise.all([teamUserIds(team), eventStaffUserIds(eventId)]);
+  const [players, staff] = await Promise.all([teamUserIds(team, eventId), eventStaffUserIds(eventId)]);
   return { u: [...new Set([...players, ...staff])] };
 }
 
@@ -434,7 +458,7 @@ export async function sendChat(access: ChatAccess, userId: number, raw: string, 
   if (block) return { ok: false, error: sanctionMessage(block) };
   if (target === 'team' && access.teamId == null) return { ok: false, error: 'You’re not on a team yet.' };
   const channel: ChatChannel = target === 'team' ? `team:${access.teamId!}` : target;
-  if (!canPostChannel(access, channel)) {
+  if (!canPostChannel(access, channel) || !(await mayRead(access, channel))) {
     return { ok: false, error: channel === 'announce' ? 'Only the host and mods post here.' : 'That’s another team’s channel.' };
   }
   if (pausedFor(channel, access.paused, access.staff)) return { ok: false, error: 'The host has paused chat.' };
@@ -673,7 +697,7 @@ export async function chatModLines(
 ): Promise<ModLine[]> {
   const where = [eq(eventChatMessages.eventId, eventId), isNull(eventChatMessages.deletedAt)];
   if (opts.filter === 'staff') where.push(eq(eventChatMessages.fromStaff, true));
-  else if (opts.filter && opts.filter !== 'every') where.push(eq(eventChatMessages.channel, opts.filter));
+  else if (opts.filter && opts.filter !== 'every') where.push(...channelWhere(opts.filter));
   const q = opts.q?.trim().slice(0, 100);
   if (q) where.push(or(ilike(eventChatMessages.body, likeText(q)), ilike(eventChatMessages.rsn, likeText(q)))!);
   return db

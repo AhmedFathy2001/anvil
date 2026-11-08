@@ -4,8 +4,8 @@ import { db } from '@/db';
 import { accounts, clanMemberships, clans, eventParticipants, events, teams, users } from '@/db/schema';
 import { completionAt } from '@/lib/panelRows';
 import { normalizeRsn, pluginRsnHintOnly, pluginViewerRsn, resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
-import { boardChatSlow, chatBlockOf, myChatNames, chatAccess, chatHistory, chatUnread, deleteChat, markChannelRead, muteChat, pauseChat, sendChat, type ChatAccess, type ChatSeatPick, type ChatTarget } from '@/lib/eventChat';
-import { canReadChannel, chatPaceHint, lockFor, parseChannel, type ChatChannel } from '@/lib/eventChatRules';
+import { boardChatSlow, chatBlockOf, myChatNames, chatAccess, chatHistory, chatUnread, deleteChat, markChannelRead, mayRead, muteChat, pauseChat, sendChat, type ChatAccess, type ChatSeatPick, type ChatTarget } from '@/lib/eventChat';
+import { chatPaceHint, lockFor, parseChannel, type ChatChannel } from '@/lib/eventChatRules';
 import { NO_REACTIONS, isClanMember, reactionSummaries, reactorNames, tallyOf } from '@/lib/momentReactions';
 import { modeMomentModesForClan, modeMomentsForClan, recentModeMomentCount, type MomentRow } from '@/lib/momentsStore';
 import type { WithRun } from '@/lib/feedRuns';
@@ -382,7 +382,7 @@ async function chatPane(access: ChatAccess, userId: number, eventId: number, a: 
   const channel: ChatChannel = want === 'team' && teamCh ? teamCh : want === 'announce' ? 'announce' : 'all';
 
   const left = parseChannel(a.rd);
-  if (left && left !== channel && canReadChannel(access, left)) await markChannelRead(eventId, userId, left);
+  if (left && left !== channel && (await mayRead(access, left))) await markChannelRead(eventId, userId, left);
 
   const all: ChatChannel[] = [...(teamCh ? [teamCh] : []), 'all', 'announce'];
   const [rows, block, unread] = await Promise.all([
