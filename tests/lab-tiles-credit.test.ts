@@ -141,13 +141,38 @@ test('Fighter torso slot ← ::anvil run clog-unlock', () => {
   assert.equal(matchFacts([{ k: 'tile', t: idOf('Fighter torso slot'), n: 1, what: g.item, item: 10551 }], t).credits.length, 1);
 });
 
-// Why the clue tile is a drop tile: the plugin counts a casket open under "Clue Scroll (Hard)", but
-// the kill index keys a target by its name without the "(…)" qualifier, so a tier-named kill tile
-// ("Clue Scroll (hard)") is never reached. The starter library's "Clue Scroll (beginner)" kill tile
-// has the same gap.
-test('a tier-named clue kill tile is not credited by the casket open (the gap the drop tile avoids)', () => {
-  const t: Tracked = { trackedKills: [{ tileId: 1, label: 'Hard clue casket', requiredAmount: 1, currentAmount: 0, targetNpcs: ['Clue Scroll (Hard)'] }] };
-  assert.equal(matchFacts([{ k: 'kill', n: { 'Clue Scroll (Hard)': 1 } }], t).credits.length, 0);
+// A casket open is counted under "Clue Scroll (<Tier>)" (AnvilPlugin.normalizeClueSource). The kill
+// index keeps a clue target's tier, so a tier-named kill tile (the starter library's "Clue Scroll
+// (beginner)", a "Clue Scroll (Hard)" tile) is credited by that tier's open, and only by it.
+const clueTile = (target: string): Tracked => ({ trackedKills: [{ tileId: 1, label: 'Clue casket', requiredAmount: 3, currentAmount: 0, targetNpcs: [target] }] });
+
+test('a tier-named clue kill tile is credited by the casket open', () => {
+  assert.equal(matchFacts([{ k: 'kill', n: { 'Clue Scroll (Hard)': 1 } }], clueTile('Clue Scroll (Hard)')).credits.length, 1);
+});
+
+for (const tier of ['Beginner', 'Easy', 'Medium', 'Hard', 'Elite', 'Master']) {
+  test(`a ${tier.toLowerCase()} clue kill tile is credited by a ${tier.toLowerCase()} casket open, whatever the target's spelling`, () => {
+    for (const target of [`Clue Scroll (${tier})`, `Clue scroll (${tier.toLowerCase()})`, `Reward casket (${tier.toLowerCase()})`]) {
+      const credits = matchFacts([{ k: 'kill', n: { [`Clue Scroll (${tier})`]: 1 } }], clueTile(target)).credits;
+      assert.equal(credits.length, 1, target);
+      assert.equal(credits[0].amount, 1);
+    }
+  });
+}
+
+test('a clue kill tile is not credited by a different tier', () => {
+  for (const other of ['Beginner', 'Easy', 'Medium', 'Elite', 'Master']) {
+    assert.equal(matchFacts([{ k: 'kill', n: { [`Clue Scroll (${other})`]: 1 } }], clueTile('Clue Scroll (Hard)')).credits.length, 0, other);
+  }
+  // Nor by a tierless name the bare target would have reached.
+  assert.equal(matchFacts([{ k: 'kill', n: { 'Clue Scroll': 1 } }], clueTile('Clue Scroll (Hard)')).credits.length, 0);
+});
+
+test("the starter library's beginner clue kill tile is credited by a beginner casket open", () => {
+  const seed = JSON.parse(readFileSync(new URL('../src/data/tileLibrarySeed.json', import.meta.url), 'utf8'));
+  const found = JSON.stringify(seed).match(/"targetNpcs":\["(Clue Scroll \(beginner\))"\]/);
+  assert.ok(found, 'starter tile troll-clue-beginner targets "Clue Scroll (beginner)"');
+  assert.equal(matchFacts([{ k: 'kill', n: { 'Clue Scroll (Beginner)': 1 } }], clueTile(found[1])).credits.length, 1);
 });
 
 test('every lab tile has a scenario', () => {

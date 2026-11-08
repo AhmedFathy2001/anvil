@@ -658,7 +658,7 @@ function boardTail(d: HomeData, b: Board, tiles: Map<number, PanelTile>, event: 
   const missionStrip = !!ladder && (b.ladder || !!ladder.missions?.length);
   if (d.live && reveals.length && !missionStrip) parts.push(...heading('Just opened'), feedList(reveals, tiles, b.title), gap(12));
 
-  if (d.live && b.total > 0 && race) parts.push(button(`View all ${b.total} tiles`, allTiles(b.title), 'Every tile on the route, with search'));
+  if (d.live && tiles.size > 0 && race) parts.push(button(`View all ${tiles.size} tiles`, allTiles(b.title), 'Every tile on the route, with search'));
   else if (d.live && b.total > 0) {
     const nearest = [...tiles.values()]
       .filter((t) => !t.complete)

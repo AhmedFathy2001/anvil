@@ -225,19 +225,52 @@ export interface MatchResult {
 // Names
 
 const WIKI_QUALIFIER = /\s*\([^)]*\)\s*$/;
-const MODE_QUALIFIER = /\(awakened\)\s*$/i;
+/**
+ * Qualifiers that are part of the name the plugin reports, not wiki disambiguation: the awakened
+ * DT2 bosses' count lines, and RuneLite's Tempoross / Wintertodt reward event names. Their bare
+ * name would reach a different source ("Casket" is a fished casket), so it is never a key.
+ */
+const GAME_QUALIFIER = /\((awakened|tempoross|wintertodt)\)\s*$/i;
+const CLUE_TIERS = ['beginner', 'easy', 'medium', 'hard', 'elite', 'master'];
 
 /** The in-game name for a wiki NPC name ("Armoured zombie (Zemouregal's Fort)" → "Armoured zombie"). */
 export function inGameNpcName(wikiName: string): string {
   return wikiName.replace(WIKI_QUALIFIER, '').trim();
 }
 
-/** Kill-index key: lowercased, wiki qualifier dropped — except a mode the game names itself. */
-export function killTargetKey(target: string | null | undefined): string | null {
-  if (target == null) return null;
+/**
+ * A clue-ish name folded to the plugin's "clue scroll (<tier>)" (AnvilPlugin.normalizeClueSource,
+ * which every casket open is counted under), or null. "Reward casket (hard)" and "Clue Scroll
+ * (Hard)" both land on "clue scroll (hard)"; a tierless name is not a clue key.
+ */
+function clueKey(lower: string): string | null {
+  if (!(lower.includes('clue') || lower.includes('treasure trail') || lower.includes('casket'))) return null;
+  const tier = CLUE_TIERS.find((t) => lower.includes(t));
+  return tier ? `clue scroll (${tier})` : null;
+}
+
+/**
+ * Every kill-index key a tile target answers to, lowercased:
+ *  - a clue tier → only the plugin's "clue scroll (<tier>)" (a tier never reaches another tier);
+ *  - a game-named qualifier ("Vardorvis (awakened)", "Supply crate (Wintertodt)") → the full name only;
+ *  - otherwise the in-game name without a wiki qualifier ("Armoured zombie (Zemouregal's Fort)" →
+ *    "armoured zombie") plus the name as written, for any other event name that carries "(…)".
+ */
+export function killTargetKeys(target: string | null | undefined): string[] {
+  if (target == null) return [];
   const trimmed = target.trim();
-  const name = MODE_QUALIFIER.test(trimmed) ? trimmed : inGameNpcName(trimmed);
-  return name ? name.toLowerCase() : null;
+  if (!trimmed) return [];
+  const lower = trimmed.toLowerCase();
+  const clue = clueKey(lower);
+  if (clue) return [clue];
+  if (GAME_QUALIFIER.test(trimmed)) return [lower];
+  const stripped = inGameNpcName(trimmed).toLowerCase();
+  return !stripped || stripped === lower ? [lower] : [stripped, lower];
+}
+
+/** The primary kill-index key for a target (see killTargetKeys). */
+export function killTargetKey(target: string | null | undefined): string | null {
+  return killTargetKeys(target)[0] ?? null;
 }
 
 /** The reported loot source is one of a tile's configured (wiki-named) NPCs. */
@@ -427,11 +460,11 @@ export function killIndex(t: Tracked): Map<string, KillTile[]> {
   const idx = new Map<string, KillTile[]>();
   for (const k of t.trackedKills ?? []) {
     for (const target of k.targetNpcs ?? []) {
-      const key = killTargetKey(target);
-      if (!key) continue;
-      const list = idx.get(key) ?? [];
-      if (!list.includes(k)) list.push(k);
-      idx.set(key, list);
+      for (const key of killTargetKeys(target)) {
+        const list = idx.get(key) ?? [];
+        if (!list.includes(k)) list.push(k);
+        idx.set(key, list);
+      }
     }
   }
   return idx;
