@@ -28,10 +28,16 @@ const SUBTEXT_RE = /^-#\s+(.+)$/;
 const BULLET_RE = /^(\s*)[-*•]\s+(.*)$/;
 const NUMBER_RE = /^(\s*)(\d{1,3})[.)]\s+(.*)$/;
 
+/**
+ * An image source a guide may show: https only (an http image is mixed content and readable on the
+ * wire), or a path on this site. A path must not start `//` or `/\` — browsers read both as another
+ * host (protocol-relative), which is how a "local" path became an off-site tracker.
+ */
 export function safeImageSrc(raw: string): string | null {
   const url = raw.trim();
-  if (SAFE_LINK.test(url)) return url;
-  if (url.startsWith('/') && !url.startsWith('//')) return url;
+  if (/[\u0000-\u001f\s]/.test(url)) return null;
+  if (/^https:\/\//i.test(url)) return url;
+  if (url.startsWith('/') && !/^\/[\/\\]/.test(url)) return url;
   return null;
 }
 
@@ -323,11 +329,12 @@ export function renderGuide(source: string | null | undefined, opts: GuideRender
     out.push(
       <div key={key} className={`my-3 grid gap-2 ${imgs.length > 1 ? 'sm:grid-cols-2' : ''}`}>
         {imgs.map((im, i) => (
-          <a key={`${key}-${i}`} href={im.src} target="_blank" rel="noopener noreferrer" className="block">
+          <a key={`${key}-${i}`} href={im.src} target="_blank" rel="noopener noreferrer nofollow ugc" className="block">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={im.src}
               alt={im.alt}
+              referrerPolicy="no-referrer"
               loading="lazy"
               className="max-h-[520px] w-auto max-w-full rounded-lg border border-card-border bg-black/30"
             />

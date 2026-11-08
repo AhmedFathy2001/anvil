@@ -1,3 +1,4 @@
+import { safeImageSrc } from '@/lib/guideMarkdown';
 import type { Metadata } from 'next';
 
 import ClanLink from '@/components/ClanLink';
@@ -95,9 +96,9 @@ export default async function GuidesPage({ searchParams }: { searchParams: Promi
                     href={`/guides/${g.slug}`}
                     className="group flex flex-col overflow-hidden rounded-xl border border-card-border bg-card-bg transition-colors hover:border-gold/40"
                   >
-                    {g.coverUrl ? (
+                    {g.coverUrl && safeImageSrc(g.coverUrl) ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={g.coverUrl} alt="" loading="lazy" className="h-32 w-full object-cover opacity-90 transition-opacity group-hover:opacity-100" />
+                      <img src={g.coverUrl} alt="" referrerPolicy="no-referrer" loading="lazy" className="h-32 w-full object-cover opacity-90 transition-opacity group-hover:opacity-100" />
                     ) : (
                       <div className="flex h-20 items-center justify-center bg-gradient-to-br from-brown-light/30 to-transparent text-3xl opacity-60">
                         {categoryOf(g.category, allCats).icon}

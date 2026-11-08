@@ -23,6 +23,7 @@ import { log } from '@/lib/logger';
 import { GUIDE_LIMITS, isCategoryKey, slugify } from '@/lib/guideCategories';
 import { coverage } from '@/lib/guideTiers';
 import { categoryRequiresLevels, categoryUsable } from '@/lib/guideCategoryStore';
+import { safeImageSrc } from '@/lib/guideMarkdown';
 
 export const SHOW_LIBRARY_SETTING = 'guides_show_library';
 
@@ -249,7 +250,7 @@ export function cleanInput(input: GuideInput, partial: boolean): GuideInput {
   }
   if (input.coverUrl !== undefined) {
     const c = input.coverUrl ? String(input.coverUrl).trim() : '';
-    if (c && !/^https:\/\//i.test(c) && !c.startsWith('/')) throw new GuideInputError('The cover must be an https:// image link.');
+    if (c && !safeImageSrc(c)) throw new GuideInputError('The cover must be an https:// image link.');
     out.coverUrl = c || null;
   }
   if (input.status !== undefined) {

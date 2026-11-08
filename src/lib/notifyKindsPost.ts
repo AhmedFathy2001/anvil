@@ -21,6 +21,15 @@ import {
   type PersonalKinds,
 } from '@/lib/notifyKinds';
 
+/**
+ * The reported facts with the poster's name put in from the TOKEN's character (the route resolves it),
+ * whatever `rsn` the body carried: a shared line kind reaches clan channels, so a body name would let a
+ * client post a milestone under someone else's name.
+ */
+export function factsAsPoster(rawFacts: unknown, rsn: string | null | undefined): Record<string, unknown> {
+  return { ...o(rawFacts), rsn: rsn ?? '' };
+}
+
 /** Kinds the plugin may send for these posts. */
 export const NEW_POST_KINDS = ['line', 'ge', 'trade', 'storage', 'ext'] as const;
 export const isNewPostKind = (k: unknown): k is (typeof NEW_POST_KINDS)[number] =>

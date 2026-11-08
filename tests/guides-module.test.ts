@@ -16,7 +16,7 @@ import {
 } from '../src/lib/guideDiscord.ts';
 import { diffLines, diffStats, withContext } from '../src/lib/guideDiff.ts';
 import { slugify, readingMinutes } from '../src/lib/guideCategories.ts';
-import { renderGuide, guideHeadings } from '../src/lib/guideMarkdown.tsx';
+import { renderGuide, guideHeadings, safeImageSrc } from '../src/lib/guideMarkdown.tsx';
 
 const G = (body: string, extra: Record<string, unknown> = {}) => ({ title: 'Vorkath', summary: 'A dragon', body, ...extra });
 
@@ -130,6 +130,18 @@ test('site renderer never links a javascript: url and never emits raw HTML', () 
   assert.ok(!tree.some((t) => t.type === 'a'));
   assert.ok(!tree.some((t) => t.type === 'script' || 'dangerouslySetInnerHTML' in t.props));
   assert.ok(!tree.some((t) => t.type === 'img'));
+});
+
+test('guide images: https or a site path only — never http, protocol-relative or backslash hosts', () => {
+  assert.equal(safeImageSrc('https://img.test/a.png'), 'https://img.test/a.png');
+  assert.equal(safeImageSrc('/uploads/a.png'), '/uploads/a.png');
+  for (const bad of ['http://img.test/a.png', '//evil.test/t.png', '/\\evil.test/t.png', 'javascript:alert(1)', 'data:image/svg+xml,<svg/>', '/a b.png', '/a\n.png']) {
+    assert.equal(safeImageSrc(bad), null, bad);
+  }
+  const tree = collect(renderGuide('![t](/\\evil.test/t.png)\n![h](http://img.test/a.png)\n![ok](https://img.test/ok.png)'));
+  const imgs = tree.filter((t) => t.type === 'img');
+  assert.deepEqual(imgs.map((i) => i.props.src), ['https://img.test/ok.png']);
+  assert.equal(imgs[0].props.referrerPolicy, 'no-referrer', 'a guide image never sends the reader page as referrer');
 });
 
 test('headings for the table of contents get unique ids, and skip code blocks', () => {

@@ -4,7 +4,7 @@ import { keepDropDestinations, type DropVerdict } from '@/lib/notifyDrops';
 import { characterClanKinds, clanMainRarity } from '@/lib/notifyDefaults';
 import { renderTemplate, resolveTemplate, templateKindOf, templateValues, withTemplate } from '@/lib/notifyTemplates';
 import { NOTIFY_DEFAULTS } from '@/lib/notifyPrefs';
-import { isNewPostKind, milestoneForFeed, vetNewKindPost, type NewKindPost } from '@/lib/notifyKindsPost';
+import { factsAsPoster, isNewPostKind, milestoneForFeed, vetNewKindPost, type NewKindPost } from '@/lib/notifyKindsPost';
 import { liveBoardRows, recordMilestoneMoment } from '@/lib/momentsStore';
 import { emitMomentRows } from '@/lib/panelRows';
 import { pluginParticipantScope, requirePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
@@ -234,6 +234,9 @@ export async function POST(request: Request) {
   // can't post a line nobody turned on. Private kinds and own patterns go to own webhooks only.
   let newPost: NewKindPost | null = null;
   if (isNewPostKind(kind)) {
+    // The name on the post is the token's own character's, never the `rsn` the body names: a shared
+    // line kind reaches clan channels, where a body name would put words in someone else's mouth.
+    facts = factsAsPoster(facts, member?.rsn ?? (await posterRsn(request, auth.userId)));
     const [prefs, clanKinds] = await Promise.all([getNotifyPrefs(auth.userId), characterClanKinds(member?.accountId ?? null, clan.id)]);
     newPost = vetNewKindPost(kind, facts, prefs.announce, clanKinds);
     if (channel !== 'milestones') return NextResponse.json({ error: 'Unknown channel' }, { status: 400 });

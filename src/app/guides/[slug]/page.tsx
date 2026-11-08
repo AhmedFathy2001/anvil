@@ -1,3 +1,4 @@
+import { safeImageSrc } from '@/lib/guideMarkdown';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
@@ -53,9 +54,9 @@ export default async function GuideReadPage({ params }: Props) {
         <ClanLink href="/guides" className="text-xs text-text-muted hover:text-gold">
           ← All guides
         </ClanLink>
-        {g.coverUrl && (
+        {g.coverUrl && safeImageSrc(g.coverUrl) && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={g.coverUrl} alt="" className="mt-3 max-h-80 w-full rounded-xl border border-card-border object-cover" />
+          <img src={g.coverUrl} alt="" referrerPolicy="no-referrer" className="mt-3 max-h-80 w-full rounded-xl border border-card-border object-cover" />
         )}
         <header className="mt-4 mb-5 border-b border-card-border pb-4">
           <div className="mb-1 text-[11px] uppercase tracking-widest text-gold/80">

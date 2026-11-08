@@ -19,7 +19,7 @@ import {
   watchesFor,
   NEW_KINDS,
 } from '../src/lib/notifyKinds.ts';
-import { vetNewKindPost } from '../src/lib/notifyKindsPost.ts';
+import { factsAsPoster, vetNewKindPost } from '../src/lib/notifyKindsPost.ts';
 import { NO_CLAN_DROPS, NOTIFY_DEFAULTS, normalizeNotifyPrefs, pluginMe } from '../src/lib/notifyPrefs.ts';
 
 const me = (raw: unknown) => normalizePersonalKinds(raw);
@@ -135,6 +135,20 @@ test('each line kind’s watch reads the real game line, gate included', () => {
   assert.ok(matchWatch('Fight duration: 1:30.00. Personal best: 1:23.40', 'speedruns', watchesFor(on('speedruns', { pbOnly: false }))));
   // Slayer every 10th task.
   assert.equal(matchWatch(lines.slayer.replace('50', '51'), 'slayer', watchesFor(on('slayer', { every: 10 }))), null);
+});
+
+test('a newer-kind post carries the token character’s name, never the body’s rsn', () => {
+  const kcOn = me({ kinds: { kc: { on: true } } });
+  const body = { rsn: 'Zezima', k: 'kc', line: 'Your Zulrah kill count is: 500.' };
+  const post = vetNewKindPost('line', factsAsPoster(body, 'Realme'), kcOn, NO_CLAN_KINDS);
+  assert.ok(post);
+  assert.equal(post.embed.author?.name, 'Realme');
+  assert.doesNotMatch(post.embed.description ?? '', /Zezima/);
+  // No resolvable character: no name at all, rather than the body's.
+  const anon = vetNewKindPost('line', factsAsPoster(body, null), kcOn, NO_CLAN_KINDS);
+  assert.ok(anon);
+  assert.equal(anon.embed.author, undefined);
+  assert.deepEqual(factsAsPoster('junk', 'Realme'), { rsn: 'Realme' });
 });
 
 test('a reported line posts only if one of the person’s own watches matches it now', () => {

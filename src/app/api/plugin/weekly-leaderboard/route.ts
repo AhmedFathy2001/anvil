@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { normalizeRsn, resolvePluginClan } from '@/lib/auth';
-import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { resolvePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
+import { users, weeklyCompetitions } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { rankMove, weeklyBaselineRanks, weeklyBoard } from '@/lib/rankMoves';
 import { weeklyMetricLabel } from '@/lib/constants';
 import { weeklyRsnKey } from '@/lib/weeklyRsn';
-import { buildGroupStandings, competitionForClan, partnerCompetitions } from '@/lib/competitionTeamsDb';
+import { buildGroupStandings, competitionForClan, competitionReadableBy, entryStatus, partnerCompetitions } from '@/lib/competitionTeamsDb';
 import { weeklyGroupsPayload } from '@/lib/pluginUi/teamStandingsUi';
 
 // GET /api/plugin/weekly-leaderboard[?id=<competitionId>]
@@ -23,14 +23,14 @@ import { weeklyGroupsPayload } from '@/lib/pluginUi/teamStandingsUi';
 // stranger's standings in its own side panel.
 const MAX_ENTRIES = 50;
 
-async function pluginEntry(competitionId: number, status: string, rsn: string | null) {
-  if (!rsn || status === 'completed') return null;
-  const rows = await db
-    .select({ optedOut: weeklyParticipants.optedOut })
-    .from(weeklyParticipants)
-    .where(and(eq(weeklyParticipants.competitionId, competitionId), eq(weeklyParticipants.rsnNormalized, normalizeRsn(rsn))));
-  if (!rows.length) return null;
-  const optedOut = rows.every((r) => r.optedOut);
+// The entry is the TOKEN's own character's, never the ?rsn= the request names: a name in the query is
+// anyone's, and whether someone opted out is theirs to know (the opt-out call acts on the token too).
+async function pluginEntry(request: Request, competitionId: number, status: string) {
+  if (status === 'completed') return null;
+  const member = await resolvePluginMember(request).catch(() => null);
+  if (!member) return null;
+  const { entered, optedOut } = await entryStatus(competitionId, { accountId: member.accountId });
+  if (!entered) return null;
   return {
     entered: true,
     optedOut,
@@ -43,6 +43,14 @@ async function pluginEntry(competitionId: number, status: string, rsn: string | 
       body: { competitionId, optOut: !optedOut },
     },
   };
+}
+
+/** The plugin token's person, for the privacy gate; nobody when no (valid) token is sent. */
+async function pluginViewer(request: Request): Promise<{ playerId: number | null; userId: number | null }> {
+  const auth = await verifyPluginTokenUser(request).catch(() => null);
+  if (!auth) return { playerId: null, userId: null };
+  const row = await db.query.users.findFirst({ where: eq(users.id, auth.userId), columns: { playerId: true } });
+  return { playerId: row?.playerId ?? null, userId: auth.userId };
 }
 
 export async function GET(request: Request) {
@@ -61,6 +69,12 @@ export async function GET(request: Request) {
       })) ?? (await partnerCompetitions(clan.id, 'active'))[0]);
 
   if (!comp) {
+    return NextResponse.json({ competition: null, total: 0, entries: [] });
+  }
+  // A clan-vs-clan board lists every racing clan's players, so it is read under every racing clan's
+  // privacy — the same gate as the site's /weekly/[id] (competitionReadableBy). Without it, a public
+  // partner's address served a private host's (or another partner's) members to anyone.
+  if (!(await competitionReadableBy(comp, await pluginViewer(request)))) {
     return NextResponse.json({ competition: null, total: 0, entries: [] });
   }
 
@@ -103,6 +117,6 @@ export async function GET(request: Request) {
     groups: weeklyGroupsPayload(comp.type, await buildGroupStandings(comp, { rsn: searchParams.get('rsn') })),
     // "You're in · Opt out" for the panel: this RSN's entry, and the call that flips it. The call is
     // token-authenticated (it acts on the logged-in character, not on this RSN).
-    entry: await pluginEntry(comp.id, comp.status, searchParams.get('rsn')),
+    entry: await pluginEntry(request, comp.id, comp.status),
   });
 }

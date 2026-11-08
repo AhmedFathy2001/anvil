@@ -324,3 +324,39 @@ test("events list: a foreign clan-vs-clan card hides its leader unless the viewe
     await db.update(s.clans).set({ visibility: 'public' }).where(eq(s.clans.id, clan.third));
   }
 });
+
+test('plugin weekly-leaderboard: a clan-vs-clan board at a public partner’s address keeps a private host’s players private', async () => {
+  const { tokenHash } = await import('./helpers/tokenHash.ts');
+  const { GET } = await import('../src/app/api/plugin/weekly-leaderboard/route.ts');
+  const c = await comp(clan.host, 'Plugin privacy');
+  const inv = await T.inviteClanToCompetition(c, clan.host, 'third', admin.host);
+  assert.ok(inv.ok);
+  await T.respondToCompetitionInvite(inv.id, admin.third, 'accept');
+  await enrollAllPlayers(c.id);
+  assert.ok((await rsnsOf(c.id)).includes('Hana'), 'host players are on the board');
+  const [hanaUser] = await db
+    .insert(s.users)
+    .values({ displayName: 'Hana', discordId: 'd-hana-lb', pluginTokenHash: tokenHash('tok-hana-lb'), playerId: player.Hana })
+    .returning({ id: s.users.id });
+  const ask = async (token?: string) => {
+    const headers: Record<string, string> = { 'x-anvil-clan-slug': 'third' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await GET(new Request(`https://example.test/api/plugin/weekly-leaderboard?id=${c.id}&rsn=Hana`, { headers }));
+    return (await res.json()) as { competition: unknown; entries: { rsn: string }[]; entry?: unknown };
+  };
+  try {
+    assert.ok((await ask()).entries.some((e) => e.rsn === 'Hana'), 'both public: anyone reads it');
+    await db.update(s.clans).set({ visibility: 'members' }).where(eq(s.clans.id, clan.host));
+    const stranger = await ask();
+    assert.equal(stranger.competition, null, 'host private: an anonymous caller gets nothing');
+    assert.deepEqual(stranger.entries, []);
+    const member = await ask('tok-hana-lb');
+    assert.ok(member.entries.some((e) => e.rsn === 'Hana'), 'a host member (token) still reads it');
+    // ?rsn= names Hana, but an anonymous call never learns her entry / opt-out state.
+    await db.update(s.clans).set({ visibility: 'public' }).where(eq(s.clans.id, clan.host));
+    assert.equal((await ask()).entry ?? null, null, 'no token: no entry for the named rsn');
+  } finally {
+    await db.update(s.clans).set({ visibility: 'public' }).where(eq(s.clans.id, clan.host));
+    await db.delete(s.users).where(eq(s.users.id, hanaUser.id));
+  }
+});
