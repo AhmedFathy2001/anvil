@@ -1,4 +1,5 @@
 import { POST as submitRoute } from '@/app/api/events/[eventId]/submissions/route';
+import { POST as uploadRoute } from '@/app/api/upload/route';
 import { boardFor, loadTrackedConfig } from '@/lib/pluginFacts/load';
 import { coalesce, matchFacts, type Credit } from '@/lib/pluginFacts/match';
 import { MAX_FACTS, parseFacts } from '@/lib/pluginFacts/parse';
@@ -19,12 +20,46 @@ const MAX_SUBMISSIONS = 40;
 // A credit whose filing failed for a passing reason (a 5xx, a throw, a rate limit, or past this
 // request's cap) is not lost: its facts come back in `retry`, with the tiles they did land on in
 // `done`, and the plugin keeps the proof (or the queued facts) and sends exactly those again.
+//
+// The screenshot can ride along (multipart: `body` = the JSON, `file` = the image) instead of a separate
+// POST /api/upload first: one round trip, stored by that same route in-process, and only when a fact
+// actually credits something.
+
+/** The request's JSON, and its image when it came as multipart. */
+async function readBody(request: Request): Promise<{ body: Record<string, unknown> | null; file: File | null }> {
+  if (!(request.headers.get('content-type') ?? '').startsWith('multipart/form-data')) {
+    return { body: (await request.json().catch(() => null)) as Record<string, unknown> | null, file: null };
+  }
+  const form = await request.formData().catch(() => null);
+  const raw = form?.get('body');
+  let body: Record<string, unknown> | null = null;
+  try {
+    body = typeof raw === 'string' ? (JSON.parse(raw) as Record<string, unknown>) : null;
+  } catch {
+    body = null;
+  }
+  const file = form?.get('file');
+  return { body, file: file instanceof File ? file : null };
+}
+
+/** Store the image through /api/upload (same auth, recompression and provenance), or say why not. */
+async function storeImage(request: Request, file: File): Promise<{ url: string } | { status: number; error: string }> {
+  const headers = new Headers(request.headers);
+  headers.delete('content-type');
+  headers.delete('content-length');
+  const form = new FormData();
+  form.append('file', file, file.name || 'proof.jpg');
+  const res = await uploadRoute(new Request(new URL('/api/upload', request.url), { method: 'POST', headers, body: form }));
+  const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+  if (res.ok && json.url) return { url: json.url };
+  return { status: res.status >= 500 || res.status === 429 ? 503 : res.status, error: json.error ?? 'Image upload failed' };
+}
 
 export async function POST(request: Request) {
   const rl = await rateLimit(request, 'plugin-facts', { limit: 240, windowMs: 60_000 });
   if (!rl.ok) return Response.json({ error: 'Too many requests' }, { status: 429 });
 
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const { body, file } = await readBody(request);
   const facts = parseFacts(body?.facts);
   // Past the per-request cap: not looked at, sent back to try again.
   const overflow = Array.isArray(body?.facts) ? parseFacts((body.facts as unknown[]).slice(MAX_FACTS), Infinity) : [];
@@ -41,7 +76,13 @@ export async function POST(request: Request) {
     if (!hit.has(i)) console.warn('[plugin/facts] unmatched', { k: f.k, t: (f as { t?: number }).t ?? null });
   });
   const credits = coalesce(matched.credits);
-  const img = typeof body?.img === 'string' && body.img.length <= 512 ? body.img : null;
+  let img = typeof body?.img === 'string' && body.img.length <= 512 ? body.img : null;
+  if (file && !img && credits.length) {
+    // A passing failure answers 503, so the plugin keeps the proof and sends it again.
+    const stored = await storeImage(request, file);
+    if ('error' in stored) return Response.json({ error: stored.error }, { status: stored.status });
+    img = stored.url;
+  }
   const proof = body?.proof && typeof body.proof === 'object' ? (body.proof as Record<string, unknown>) : null;
   const coop = body?.coop && typeof body.coop === 'object' ? (body.coop as Coop) : null;
   const units = new Map((cfg.trackedKills ?? []).map((k) => [k.tileId, k.unit?.trim() || 'kill']));

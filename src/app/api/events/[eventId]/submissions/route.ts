@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { refuseForeignCharacter } from '@/lib/pluginForeign';
 
 import { eventForPluginRequest, eventForRequest } from '@/lib/eventScope';
@@ -720,41 +720,6 @@ export async function POST(
   let submission = inserted;
   let completed = false;
   try {
-    // SITE-DRAWN STAMP. A current plugin uploads the clean frame and says what the banner should read;
-    // draw it here, after the insert, so it can carry the proof id. The stamped copy becomes imageUrl,
-    // so every view and Discord post shows it unchanged; the clean frame stays for "Hide stamp". Any
-    // failure leaves the clean frame as the proof — a missing banner never costs a credit.
-    if (claims && imageUrlValue) {
-      const facts = { ...claims, chat: undefined, lines: gameLines(claims), receivedAt };
-      try {
-        // Only a picture this site stored itself (a proof_uploads row on a managed host), and no
-        // redirects — the URL is client-supplied, so it must never become a fetch of somewhere else.
-        if (!upload) throw new Error('no upload record for this image');
-        const res = await fetch(imageUrlValue, { redirect: 'error' });
-        if (!res.ok) throw new Error(`clean frame fetch ${res.status}`);
-        const clean = Buffer.from(await res.arrayBuffer());
-        const stamped = await bakeStamp(clean, stampModel({
-          claims, rsn: pluginAuth?.rsn ?? null, team: team.name, event: event.name,
-          receivedAt, submissionId: inserted.id, sha256: upload?.sha256 ?? null,
-        }));
-        const slug = (await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { slug: true } }))?.slug;
-        const { url } = await put(clanMediaKey(slug, `submissions/${crypto.randomUUID()}-stamped.webp`), stamped, 'image/webp');
-        // Registered as a stamp, so posting this copy back as a fresh proof reads as foreign above.
-        await db.insert(proofUploads).values({
-          url, sha256: crypto.createHash('sha256').update(stamped).digest('hex'), via: 'stamp', userId: upload.userId, eventId: eId,
-        }).onConflictDoNothing();
-        [submission] = await db.update(submissions)
-          .set({ imageUrl: url, cleanImageUrl: imageUrlValue, proofFacts: JSON.stringify(facts) })
-          .where(eq(submissions.id, inserted.id)).returning();
-        imageUrlValue = url;
-      } catch (e) {
-        console.error('[submissions] stamp failed; keeping the clean frame', e);
-        [submission] = await db.update(submissions)
-          .set({ proofFacts: JSON.stringify(facts) })
-          .where(eq(submissions.id, inserted.id)).returning();
-      }
-    }
-
     // Current progress for the Discord "x / y" line — mode-aware, so a Solo tile's post reads the
     // finisher's own count rather than a team sum that isn't what completes the tile.
     const currentTotal = (await countTileProgress(tileId, teamId, tile.trackingMode, tile)).current;
@@ -788,53 +753,98 @@ export async function POST(
       });
     }
 
-    if (isCap) {
-      // A cap counter's credits (energy) aren't the tile's progress: no per-ping post of their own. The
-      // ping that lifts the cap far enough to finish the tile posts nothing either — the tile's own
-      // proof-carrying search does, once it lands (lib/submissions holds the credit until then).
-      flushPendingNotifications().catch(() => {});
-    } else if (tile.tileType === 'timed') {
-      // Timed clears are discrete, rare, and carry a clear-time the merged embed can't express — post
-      // them immediately, unchanged.
-      notifySubmission({
-        clanId: clan.id,
-        eventName: event?.name || 'Unknown Event',
-        tileLabel: tile.label,
-        teamName: team.name,
-        teamId: team.id,
-        teamColor: team.color,
-        creditPlayerName,
-        amount: amount || 1,
-        currentTotal,
-        requiredAmount: tile.requiredAmount,
-        note: note || null,
-        imageUrl: imageUrlValue,
-        tileType: tile.tileType,
-        durationSeconds: durationSecondsValue,
-        completed: syncResult?.isComplete ?? false,
-        eventId: eId,
-        tile,
-      }).catch(() => {}); // Silently ignore errors
-    } else if (clogSuperseded && !syncResult?.isComplete) {
-      // The slot was already announced when the live unlock push credited it; this only added its proof.
-    } else {
-      // Drop/kill: debounce. Buffer into the (tile,team) bucket — a completing submission flushes its
-      // own bucket inside queueSubmissionNotification; the opportunistic flush posts any *other* buckets
-      // that have gone quiet. Both fire-and-forget so the response isn't held on Discord.
-      await queueSubmissionNotification({
-        eventId: eId,
-        tileId,
-        teamId,
-        amount: creditedAmount,
-        currentTotal,
-        requiredAmount: tile.requiredAmount,
-        imageUrl: imageUrlValue,
-        note: note || null,
-        creditPlayerName,
-        completed: syncResult?.isComplete ?? false,
-      });
-      flushPendingNotifications().catch(() => {});
-    }
+    // After the reply: the stamp (fetch the clean frame, draw, store) and the Discord post that shows it
+    // take seconds the plugin needn't wait for — the row is in and completion is settled above. The post
+    // follows the stamp so it carries the stamped picture.
+    after(async () => {
+      try {
+        // SITE-DRAWN STAMP. A current plugin uploads the clean frame and says what the banner should read;
+        // draw it here, after the insert, so it can carry the proof id. The stamped copy becomes imageUrl,
+        // so every view and Discord post shows it unchanged; the clean frame stays for "Hide stamp". Any
+        // failure leaves the clean frame as the proof — a missing banner never costs a credit.
+        if (claims && imageUrlValue) {
+          const facts = { ...claims, chat: undefined, lines: gameLines(claims), receivedAt };
+          try {
+            // Only a picture this site stored itself (a proof_uploads row on a managed host), and no
+            // redirects — the URL is client-supplied, so it must never become a fetch of somewhere else.
+            if (!upload) throw new Error('no upload record for this image');
+            const res = await fetch(imageUrlValue, { redirect: 'error' });
+            if (!res.ok) throw new Error(`clean frame fetch ${res.status}`);
+            const clean = Buffer.from(await res.arrayBuffer());
+            const stamped = await bakeStamp(clean, stampModel({
+              claims, rsn: pluginAuth?.rsn ?? null, team: team.name, event: event.name,
+              receivedAt, submissionId: inserted.id, sha256: upload?.sha256 ?? null,
+            }));
+            const slug = (await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { slug: true } }))?.slug;
+            const { url } = await put(clanMediaKey(slug, `submissions/${crypto.randomUUID()}-stamped.webp`), stamped, 'image/webp');
+            // Registered as a stamp, so posting this copy back as a fresh proof reads as foreign above.
+            await db.insert(proofUploads).values({
+              url, sha256: crypto.createHash('sha256').update(stamped).digest('hex'), via: 'stamp', userId: upload.userId, eventId: eId,
+            }).onConflictDoNothing();
+            [submission] = await db.update(submissions)
+              .set({ imageUrl: url, cleanImageUrl: imageUrlValue, proofFacts: JSON.stringify(facts) })
+              .where(eq(submissions.id, inserted.id)).returning();
+            imageUrlValue = url;
+          } catch (e) {
+            console.error('[submissions] stamp failed; keeping the clean frame', e);
+            [submission] = await db.update(submissions)
+              .set({ proofFacts: JSON.stringify(facts) })
+              .where(eq(submissions.id, inserted.id)).returning();
+          }
+        }
+
+        if (isCap) {
+          // A cap counter's credits (energy) aren't the tile's progress: no per-ping post of their own. The
+          // ping that lifts the cap far enough to finish the tile posts nothing either — the tile's own
+          // proof-carrying search does, once it lands (lib/submissions holds the credit until then).
+          flushPendingNotifications().catch(() => {});
+        } else if (tile.tileType === 'timed') {
+          // Timed clears are discrete, rare, and carry a clear-time the merged embed can't express — post
+          // them immediately, unchanged.
+          notifySubmission({
+            clanId: clan.id,
+            eventName: event?.name || 'Unknown Event',
+            tileLabel: tile.label,
+            teamName: team.name,
+            teamId: team.id,
+            teamColor: team.color,
+            creditPlayerName,
+            amount: amount || 1,
+            currentTotal,
+            requiredAmount: tile.requiredAmount,
+            note: note || null,
+            imageUrl: imageUrlValue,
+            tileType: tile.tileType,
+            durationSeconds: durationSecondsValue,
+            completed: syncResult?.isComplete ?? false,
+            eventId: eId,
+            tile,
+          }).catch(() => {}); // Silently ignore errors
+        } else if (clogSuperseded && !syncResult?.isComplete) {
+          // The slot was already announced when the live unlock push credited it; this only added its proof.
+        } else {
+          // Drop/kill: debounce. Buffer into the (tile,team) bucket — a completing submission flushes its
+          // own bucket inside queueSubmissionNotification; the opportunistic flush posts any *other* buckets
+          // that have gone quiet. Both fire-and-forget so the response isn't held on Discord.
+          await queueSubmissionNotification({
+            eventId: eId,
+            tileId,
+            teamId,
+            amount: creditedAmount,
+            currentTotal,
+            requiredAmount: tile.requiredAmount,
+            imageUrl: imageUrlValue,
+            note: note || null,
+            creditPlayerName,
+            completed: syncResult?.isComplete ?? false,
+          });
+          flushPendingNotifications().catch(() => {});
+        }
+
+      } catch (e) {
+        console.error('[submissions] after the reply', e);
+      }
+    });
 
     // How it arrived says which surface people actually use to submit: the plugin, the team page, or staff.
     track('submission.created', {
