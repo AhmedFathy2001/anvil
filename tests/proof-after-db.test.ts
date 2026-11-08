@@ -70,12 +70,12 @@ async function inRequest<T>(req: Request, fn: () => Promise<T>): Promise<T> {
 
 const headers = (tok = 'tok-pa', rsn = 'Proofer') => ({ Authorization: `Bearer ${tok}`, 'X-RSN': rsn, 'X-Account-Hash': `hash-${rsn}`, 'x-anvil-clan-slug': 'alpha' });
 
-async function credit(item: number, extra: Record<string, unknown> = { proofPending: true }) {
+async function credit(item: number, extra: Record<string, unknown> = { proofPending: true }, facts?: unknown[]) {
   const { POST } = await import('../src/app/api/plugin/facts/route.ts');
   const req = new Request('https://example.test/api/plugin/facts', {
     method: 'POST',
     headers: { ...headers(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ facts: [{ k: 'loot', src: 'Zulrah', kind: 'npc', items: [[item, 1]] }], proof: { tz: 'UTC', capturedAt: Date.now(), tick: 7, chat: [{ tick: 7, type: 'GAMEMESSAGE', text: 'Valuable drop: Abyssal whip (1,500,000 coins)' }, { tick: 7, type: 'PUBLICCHAT', text: 'my secret' }, { tick: 7, type: 'PRIVATECHATIN', text: 'dm text' }] }, ...extra }),
+    body: JSON.stringify({ facts: facts ?? [{ k: 'loot', src: 'Zulrah', kind: 'npc', items: [[item, 1]] }], proof: { tz: 'UTC', capturedAt: Date.now(), tick: 7, chat: [{ tick: 7, type: 'GAMEMESSAGE', text: 'Valuable drop: Abyssal whip (1,500,000 coins)' }, { tick: 7, type: 'PUBLICCHAT', text: 'my secret' }, { tick: 7, type: 'PRIVATECHATIN', text: 'dm text' }] }, ...extra }),
   });
   const res = await inRequest(req, () => POST(req));
   assert.equal(res.status, 200, await res.clone().text());
@@ -141,6 +141,7 @@ before(async () => {
   ids.whip = await tile(1, 'Whip', 4151);
   ids.fang = await tile(2, 'Fang', 26219);
   ids.bow = await tile(3, 'Bow', 20997);
+  ids.haul = (await db.insert(s.tiles).values({ eventId: ids.event, position: 4, label: 'Big haul', tileType: 'value', requiredAmount: 1_000_000 }).returning())[0].id;
 });
 
 after(async () => {
@@ -247,4 +248,16 @@ test('without proofPending an image-less drop is refused exactly as before (no k
   assert.equal(reply.proofKey, undefined);
   assert.equal(reply.credits[0].ok, false);
   assert.equal((await rows(ids.bow)).length, 0);
+});
+
+test('a tile that needs a screenshot to complete (value) completes while its proof is on the way', async () => {
+  const reply = await credit(0, { proofPending: true }, [{ k: 'value', src: 'Loot Chest', kind: 'pvp', gp: 12_700_000 }]);
+  const c = reply.credits.find((x) => x.t === ids.haul);
+  assert.ok(c, JSON.stringify(reply));
+  assert.equal(c!.completed, true, 'completed at once, not stuck until some later recheck');
+  assert.ok(await completed(ids.haul));
+  assert.ok(reply.proofKey);
+  const res = await upload(reply.proofKey!);
+  assert.equal(res.status, 200, await res.clone().text());
+  assert.ok(await completed(ids.haul), 'still complete once the picture lands');
 });
