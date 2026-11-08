@@ -1,5 +1,6 @@
 'use client';
 
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { useEffect, useState } from 'react';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
@@ -19,6 +20,9 @@ import CreatorPageEditor from './CreatorPageEditor';
 export default function CreatorSettings() {
   const [loaded, setLoaded] = useState(false);
   const [name, setName] = useState('');
+  const [savedName, setSavedName] = useState('');
+  const nameDirty = loaded && name !== savedName;
+  useUnsavedChanges(nameDirty);
   const [advertised, setAdvertised] = useState(false);
   const [chatJoin, setChatJoin] = useState(false);
   const [twitchLinked, setTwitchLinked] = useState<{ login: string } | null>(null);
@@ -36,6 +40,7 @@ export default function CreatorSettings() {
       .then((d) => {
         if (!alive || !d) return;
         setName(d.name ?? '');
+        setSavedName(d.name ?? '');
         setAdvertised(!!d.advertised);
         setChatJoin(!!d.chatJoin);
         setTwitchLinked(d.twitchLinked && typeof d.twitchLinked.login === 'string' ? { login: d.twitchLinked.login } : null);
@@ -95,11 +100,14 @@ export default function CreatorSettings() {
             <button
               type="button"
               disabled={saving || !name.trim()}
-              onClick={() => patch({ name })}
+              onClick={async () => {
+                if (await patch({ name })) setSavedName(name);
+              }}
               className="rounded-xl bg-gold px-4 py-2 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
             >
               {saving ? 'Saving…' : 'Save'}
             </button>
+            <UnsavedIndicator dirty={nameDirty} />
             <a href="#channels" className="text-sm text-gold hover:text-gold-light">
               Connect your Twitch, YouTube or Kick channel
             </a>

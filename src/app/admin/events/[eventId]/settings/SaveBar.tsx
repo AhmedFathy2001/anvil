@@ -1,5 +1,6 @@
 'use client';
 
+import { useUnsavedChanges } from '@/components/UnsavedChanges';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 /**
@@ -39,16 +40,8 @@ export function SaveBarProvider({ children }: { children: ReactNode }) {
   const pending = [...entries.values()];
   const dirty = pending.length > 0;
 
-  // Leaving (closing the tab, reloading, an outside link) with edits pending asks first.
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = '';
-    };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
+  // Leaving (closing the tab, reloading, any in-site link) with edits pending asks first.
+  useUnsavedChanges(dirty);
 
   async function saveAll() {
     setSaving(true);
@@ -75,7 +68,8 @@ export function SaveBarProvider({ children }: { children: ReactNode }) {
           className="sticky bottom-4 z-30 mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-card-border bg-card-bg-hover/95 py-3 pl-5 pr-3 shadow-[0_18px_44px_rgba(0,0,0,.55)] backdrop-blur"
         >
           <div className="min-w-0 text-sm">
-            <span className="text-text-muted">You changed </span>
+            <span className="mr-2 inline-block h-2 w-2 rounded-full bg-gold align-middle" aria-hidden />
+            <span className="text-text-muted">You have unsaved changes: </span>
             {pending.map((e, i) => (
               <span key={e.label}>
                 {i > 0 && <span className="text-text-muted">{i === pending.length - 1 ? ' and ' : ', '}</span>}

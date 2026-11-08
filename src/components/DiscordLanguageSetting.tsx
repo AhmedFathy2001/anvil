@@ -1,5 +1,6 @@
 'use client';
 
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { useState, useEffect } from 'react';
 import ClanLink from '@/components/ClanLink';
 import Select from '@/components/Select';
@@ -65,6 +66,7 @@ export default function DiscordLanguageSetting() {
   }
 
   const hasChanges = value !== original;
+  useUnsavedChanges(hasChanges);
   const chosen = DISCORD_LOCALES.find((l) => l.code === value);
 
   if (loading) return <div className="text-text-muted text-sm">Loading…</div>;
@@ -133,7 +135,7 @@ export default function DiscordLanguageSetting() {
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
-        {hasChanges && <span className="text-xs text-yellow-400">Unsaved changes</span>}
+        <UnsavedIndicator dirty={hasChanges} />
       </div>
     </div>
   );

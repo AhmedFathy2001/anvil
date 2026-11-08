@@ -1,5 +1,7 @@
 'use client';
 
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
+import { valuesEqual } from '@/lib/unsavedChanges';
 import { useEffect, useState } from 'react';
 
 import { clanFetch } from '@/lib/clanFetch';
@@ -41,6 +43,9 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
   const [form, setForm] = useState<Form | null>(null);
   // The clan's boost level (lib/clanBoosts): an animated banner only plays from Level 2.
   const [boostLevel, setBoostLevel] = useState(0);
+  const [savedForm, setSavedForm] = useState<Form | null>(null); // last loaded/saved values
+  const dirty = !!form && !!savedForm && !valuesEqual(form, savedForm);
+  useUnsavedChanges(dirty);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +55,7 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('Could not load'))))
       .then((d) => {
         setBoostLevel(Number(d.boostLevel) || 0);
-        setForm({
+        const loaded: Form = {
           logoUrl: d.logoUrl ?? null,
           bannerUrl: d.bannerUrl ?? null,
           bannerPosition: d.bannerPosition ?? null,
@@ -60,7 +65,9 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
           recruiting: !!d.recruiting,
           openToChallenges: !!d.openToChallenges,
           requirements: d.requirements ?? {},
-        });
+        };
+        setForm(loaded);
+        setSavedForm(loaded);
       })
       .catch((e: Error) => setError(e.message));
   }, []);
@@ -96,6 +103,7 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
         throw new Error(body?.error ?? 'Could not save');
       }
       setSaved(true);
+      setSavedForm(form);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -229,7 +237,8 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
         >
           {saving ? 'Saving…' : 'Save profile'}
         </button>
-        {!saving && saved && <span className="text-[13px] text-accent-green-light">Saved</span>}
+        <UnsavedIndicator dirty={dirty && !saving} />
+        {!saving && saved && !dirty && <span className="text-[13px] text-accent-green-light">Saved</span>}
         {error && <span className="text-[13px] text-accent-red">{error}</span>}
       </div>
     </div>

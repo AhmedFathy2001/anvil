@@ -45,6 +45,7 @@ import "./globals.css";
 import ClanLink, { ClanPrefixProvider } from '@/components/ClanLink';
 import { NavProgressProvider } from '@/components/NavProgress';
 import { DialogProvider } from '@/components/Confirm';
+import { UnsavedChangesProvider } from '@/components/UnsavedChanges';
 import { adminLanding } from '@/lib/adminAccess';
 
 const geistSans = Geist({
@@ -313,6 +314,7 @@ export default async function RootLayout({
             chrome rather than the browser's. Mounted at the root because the admin area is not the
             only place that asks; see components/Confirm. */}
         <DialogProvider>
+        <UnsavedChangesProvider>
         {/* Catches a shell left over from the clan you were in a moment ago — see ShellGuard. */}
         <ShellGuard prefix={prefix} />
         {/* Staff viewing as a lab test user: said on every page, with the way back. */}
@@ -397,6 +399,7 @@ export default async function RootLayout({
         {clan && <SiteFooter />}
         <AnalyticsBeacon />
         <NumberInputGuard />
+        </UnsavedChangesProvider>
         </DialogProvider>
         </NavProgressProvider>
         </ClanPrefixProvider>

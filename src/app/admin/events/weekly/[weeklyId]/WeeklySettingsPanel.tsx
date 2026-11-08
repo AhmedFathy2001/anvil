@@ -1,5 +1,6 @@
 'use client';
 
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -43,6 +44,8 @@ export default function WeeklySettingsPanel({
     startDate !== comp.startDate ||
     endDate !== comp.endDate ||
     status !== comp.status;
+
+  useUnsavedChanges(dirty);
 
   async function save() {
     setSaving(true);
@@ -151,7 +154,8 @@ export default function WeeklySettingsPanel({
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
-          {message && (
+          <UnsavedIndicator dirty={dirty && !saving} />
+          {message && !dirty && (
             <span className={`text-xs ${message.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>
               {message.text}
             </span>

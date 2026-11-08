@@ -1,5 +1,6 @@
 'use client';
 
+import { useUnsavedChanges, UnsavedIndicator } from '@/components/UnsavedChanges';
 import { useState, useEffect } from 'react';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import { clanFetch } from '@/lib/clanFetch';
@@ -55,6 +56,7 @@ export default function DropModeToggle() {
   }
 
   const hasChanges = both !== original;
+  useUnsavedChanges(hasChanges);
   if (loading) return <div className="text-text-muted text-sm">Loading settings...</div>;
 
   return (
@@ -85,7 +87,7 @@ export default function DropModeToggle() {
           {saving ? 'Saving...' : 'Save'}
         </button>
         {!hasChanges && <span className="text-xs text-green-400">Saved</span>}
-        {hasChanges && <span className="text-xs text-yellow-400">Unsaved changes</span>}
+        <UnsavedIndicator dirty={hasChanges} />
       </div>
     </div>
   );
