@@ -10,6 +10,7 @@ import type { StandingsWindow } from '@/lib/standingsWindow';
 import type { BoardSummary } from '@/lib/pluginBoards';
 
 import { type Action, type Color, type Node, backRow, button, card, col, count, exact, gap, icon, muted, nameText, percent, row, text } from './nodes';
+import { missionTileState } from '@/lib/tileState';
 import { boardFeedLinks } from './feedUi';
 
 // The plugin's Clan tab, built here (was the event list and event page in AnvilSidebarPanel, fed by
@@ -50,6 +51,12 @@ export interface HomeConfig {
     missionsLeft?: number;
     standings?: { yourRank: number } | null;
     monthlyStandings?: { yourRank: number; yourPoints: number } | null;
+    /** A branching tile race (lib/raceRoutes): the "Your race" card. */
+    race?: {
+      steps: number; stepsDone: number; finished: boolean; mode: 'achieve' | 'choose';
+      open: { tileId: number; label: string; road: string }[]; pickFrom: { tileId: number; label: string; road: string }[];
+      rank: number | null; entrants: number; leaderSteps: number; atYourStep: number; ahead: number;
+    } | null;
   } | null;
   board?: { tilesComplete: number; tilesTotal: number; pointsScored: boolean } | null;
   homeBoard?: { eventId: number; eventName: string; tilesComplete: number; tilesTotal: number; pointsScored: boolean } | null;
@@ -508,6 +515,29 @@ function clanEventPage(d: HomeData, ce: ClanEventView): Node[] {
   return [card(parts, { inset: 9 })];
 }
 
+/**
+ * "Your race" on a branching tile race: where the team stands (n of N, rank), the leader, the tiles
+ * up next (each opens its detail) — or the fork to pick on a choose-and-lock race — and, on a bigger
+ * field, how many are level and ahead.
+ */
+function raceCard(d: HomeData, b: Board): Node | null {
+  const r = d.cfg.event?.race;
+  if (!r) return null;
+  const lines: Node[] = [
+    row(text('Your race', 'brand'), undefined, text(r.finished ? 'Finished' : `${r.stepsDone} of ${r.steps}`, r.finished ? 'done' : 'text'), { gap: 6 }),
+    muted(`${r.rank != null ? `Rank ${r.rank} of ${r.entrants} · ` : ''}leader ${r.leaderSteps} of ${r.steps}`),
+  ];
+  if (r.entrants > 6 && r.rank != null) lines.push(muted(`${r.ahead} ahead · ${r.atYourStep} level with you`));
+  if (!r.finished && r.pickFrom.length) {
+    lines.push(gap(4), text('Pick your road — open the board:', 'brand', { wrap: true }));
+    for (const t of r.pickFrom) lines.push(text(`· ${clip(t.label, 24)} (road ${t.road})`, 'white', { on: openTile(t.tileId, b.title), tip: 'Open this tile' }));
+  } else if (!r.finished && r.open.length) {
+    lines.push(gap(4), text(r.open.length > 1 ? 'Up next — whichever you get first sets your road:' : 'Up next:', 'brand', { wrap: true }));
+    for (const t of r.open) lines.push(text(`▸ ${clip(t.label, 24)} (road ${t.road})`, 'white', { on: openTile(t.tileId, b.title), tip: 'Open this tile' }));
+  }
+  return card(lines);
+}
+
 function boardPage(d: HomeData, b: Board): Node[] {
   const parts: Node[] = [];
   const tiles = new Map((d.cfg.panel?.tiles ?? []).map((t) => [t.tileId, t]));
@@ -519,6 +549,8 @@ function boardPage(d: HomeData, b: Board): Node[] {
   }
 
   parts.push(summary(d, b), gap(8));
+  const race = d.live ? raceCard(d, b) : null;
+  if (race) parts.push(race, gap(8));
   // Straight to this board's feed or chat, with a way back here.
   if (event?.id) parts.push(boardFeedLinks(event.id, { open: 'board', label: b.title }, d.feedTab, d.chatOn ?? true), gap(12));
   else parts.push(gap(4));
@@ -696,7 +728,14 @@ function missionRows(d: HomeData, e: NonNullable<HomeConfig['event']>, title: st
   return (e.missions ?? []).map((m) => {
     const val = liveValue(m.points, m.revealedAt, e.decay ?? null, d.now);
     const color: Color = val === m.points ? 'muted' : val > m.points ? 'done' : 'brand';
-    const parts: Node[] = [row(undefined, text(clip(m.label, 22)), text(val === m.points ? String(m.points) : `${m.points} -> ${val}`, color, { align: 'r' }), { bg: 'card' })];
+    const p0 = tiles.get(m.tileId);
+    // The shared tile-state words (lib/tileState): Live with time left, or Done.
+    const hours = m.expiresAt && m.revealedAt ? (Date.parse(m.expiresAt) - Date.parse(m.revealedAt.includes('T') ? m.revealedAt : `${m.revealedAt.replace(' ', 'T')}Z`)) / 3_600_000 : null;
+    const st = missionTileState({ revealedAt: m.revealedAt, expiryHours: hours != null && Number.isFinite(hours) ? hours : null }, { done: !!p0?.complete, now: d.now });
+    const parts: Node[] = [
+      row(undefined, text(clip(m.label, 22)), text(val === m.points ? String(m.points) : `${m.points} -> ${val}`, color, { align: 'r' }), { bg: 'card' }),
+      text(`${st.kind === 'done' ? '✓' : st.kind === 'expired' ? '⌛' : '▸'} ${st.label}${st.detail ? ` · ${st.detail}` : ''}`, st.kind === 'done' ? 'done' : st.kind === 'open' ? 'brand' : 'muted'),
+    ];
     if (m.expiresAt) parts.push({ t: 'countdown', at: m.expiresAt, prefix: 'Expires in ', due: 'Expired', none: '', color: 'brand' });
     const p = tiles.get(m.tileId);
     if (p && p.goal > 0) {

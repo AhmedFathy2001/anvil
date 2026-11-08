@@ -1076,7 +1076,7 @@ const ptBr: PartialGuideDict = {
       formats: {
         classic: { label: 'Bingo clássico', blurb: 'Uma grade quadrada N×N —— os times completam as casas em qualquer ordem, cada uma vale 1.' },
         leagues: { label: 'Bingo Leagues', blurb: 'Uma lista de tarefas em que cada casa carrega um valor em pontos —— qualquer quantidade de casas.' },
-        race: { label: 'Corrida de casas', blurb: 'Um percurso ordenado —— os times alcançam as casas em sequência; vence quem chegar mais longe.' },
+        race: { label: 'Corrida de casas', blurb: 'Um percurso ordenado —— os times alcançam as casas em sequência; vence quem chegar mais longe. O anfitrião pode ramificá-lo em rotas que se separam e se juntam — a casa que vocês concluem escolhe o caminho.' },
         showdown: {
           label: 'Showdown',
           blurb:

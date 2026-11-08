@@ -1077,7 +1077,7 @@ export const en = {
       formats: {
         classic: { label: 'Classic bingo', blurb: 'A square N×N grid — teams complete tiles in any order, each worth 1.' },
         leagues: { label: 'Leagues bingo', blurb: 'A task list where each tile carries a point value — any number of tiles.' },
-        race: { label: 'Tile race', blurb: 'An ordered track — teams reach tiles in sequence; furthest reached wins.' },
+        race: { label: 'Tile race', blurb: 'An ordered track — teams reach tiles in sequence; furthest reached wins. The host can branch it into routes that split and merge — finishing a tile picks your way.' },
         showdown: {
           label: 'Showdown',
           blurb:

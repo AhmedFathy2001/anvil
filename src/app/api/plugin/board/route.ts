@@ -1,3 +1,5 @@
+import { raceGraph, teamRoute, rankRaceTeams, roadOf } from '@/lib/raceRoutes';
+import { loadRacePicks } from '@/lib/raceRoutePicks';
 import { NextResponse } from 'next/server';
 import { primaryCredit } from '@/lib/comboSql';
 import { clogTileLooseSpec, clogTileRule } from '@/lib/clogTileWords';
@@ -450,6 +452,14 @@ export async function buildBoard(
   const sortedTiles = [...eventTiles].sort((a, b) => a.position - b.position);
   const cols = event.boardSize > 0 ? event.boardSize : 1;
 
+  // A BRANCHING tile race (lib/raceRoutes): each tile's step and links, and — for the caller's team —
+  // whether it is open next, done, still ahead or closed. The panel draws the route from these.
+  // Absent on every other board, so their payloads and ETags are unchanged.
+  const routeGraph = event.format === 'tilerace' ? raceGraph(eventTiles) : null;
+  const raceOn = !!routeGraph?.branching;
+  const callerPicks = raceOn && callerTeamId != null ? await loadRacePicks(event, callerTeamId) : null;
+  const callerRoute = raceOn && yourCompleted ? teamRoute(routeGraph!, yourCompleted, callerPicks) : null;
+
   return {
     eventId: event.id,
     name: event.name,
@@ -467,6 +477,31 @@ export async function buildBoard(
           revealPolicy: rules.revealPolicy,
           hiddenTileCount,
           nextRevealAt: nextRevealAt(event, rules, allEventTiles),
+        }
+      : {}),
+    ...(raceOn
+      ? {
+          race: (() => {
+            // The field, from what the caller may see (hidden standings already cut it to their team):
+            // teams per steps-done, the leader's steps and the caller's rank.
+            const ranked = rankRaceTeams(routeGraph!, eventTeams, [...completionsByTeam].flatMap(([teamId, ids]) => ids.map((tileId) => ({ teamId, tileId }))))
+              .filter((r) => completionsByTeam.has(r.teamId) || !standingsScope.hidden);
+            const field = Array.from({ length: routeGraph!.lastStep + 2 }, () => 0);
+            for (const r of ranked) field[r.stepsDone]++;
+            const mine = ranked.find((r) => r.teamId === callerTeamId);
+            return {
+              steps: routeGraph!.lastStep + 1,
+              mode: rules.raceRoad,
+              path: callerRoute?.path ?? [],
+              open: callerRoute?.open ?? [],
+              pickFrom: callerRoute?.pickFrom ?? [],
+              finished: callerRoute?.finished ?? false,
+              rank: mine?.rank ?? null,
+              entrants: ranked.length,
+              leaderSteps: ranked[0]?.stepsDone ?? 0,
+              field,
+            };
+          })(),
         }
       : {}),
     tiles: sortedTiles.map((t, index) => {
@@ -557,7 +592,18 @@ export async function buildBoard(
         // stopped accepting completions. Sent on reveal-mode events, and for missions on any board —
         // without it an expired or locked-out mission sat in the plugin's "Not done" list as Open.
         ...(revealMode || isMissionTile(t) ? { revealedAt: t.revealedAt ?? null, closedAt: t.closedAt ?? null } : {}),
+        // A closed one: claimed by a team, or expired unclaimed (the panel's ⌛ Expired).
+        ...(t.closedAt && (revealMode || isMissionTile(t)) ? { teamsDone: anyCompleted.has(t.id) } : {}),
         ...(itemRequirements ? { itemRequirements } : {}),
+        ...(raceOn && routeGraph!.byId.has(t.id)
+          ? {
+              raceStep: routeGraph!.byId.get(t.id)!.step,
+              raceNext: routeGraph!.byId.get(t.id)!.next,
+              raceFrom: routeGraph!.prev.get(t.id) ?? [],
+              raceRoad: roadOf(routeGraph!, t.id),
+              ...(callerRoute ? { raceState: callerRoute.state.get(t.id) ?? null } : {}),
+            }
+          : {}),
         ...(claimsByTile.has(t.id) ? { claims: claimsByTile.get(t.id) } : {}),
         ...(finishersByTile.get(t.id) ?? {}),
         ...(contributorsByTile.get(t.id) ?? {}),

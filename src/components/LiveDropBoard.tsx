@@ -1,5 +1,7 @@
 'use client';
 
+import { TileStateChip } from '@/components/board/TileState';
+import { missionTileState } from '@/lib/tileState';
 import { useEffect, useState } from 'react';
 import { decayedPoints, decayProgress, type EventRules } from '@/lib/eventRules';
 import { formatNumber } from '@/lib/utils';
@@ -353,8 +355,13 @@ export default function LiveDropBoard({
           <ul className="mt-2 space-y-1">
             {closed.map((t) => (
               <li key={t.id} className="flex items-center gap-2 text-xs text-text-muted">
-                <span className="truncate">{t.label}</span>
-                {completedTileIds.has(t.id) && <span className="shrink-0 text-accent-green-light">claimed</span>}
+                <span className={`truncate ${completedTileIds.has(t.id) ? '' : 'opacity-70'}`}>{t.label}</span>
+                {/* The shared tile-state look (lib/tileState): Done for your side, else Expired with how long ago. */}
+                <TileStateChip
+                  className="shrink-0"
+                  withDetail
+                  view={missionTileState({ revealedAt: t.revealedAt ?? null, closedAt: t.closedAt ?? null }, { done: completedTileIds.has(t.id), claimedBy: (claimsByTile?.[t.id] ?? 0) > 0 ? 'another side' : null })}
+                />
               </li>
             ))}
           </ul>

@@ -1,5 +1,6 @@
 'use client';
 
+import YourRaceCard from '@/components/board/YourRaceCard';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLiveRefresh } from '@/hooks/useLiveRefresh';
@@ -11,7 +12,9 @@ import TileDetailModal from '@/components/TileDetailModal';
 import type { ShownHighlight } from '@/lib/highlights/rules';
 import { exactTitle, formatNumber, isPointsMode } from '@/lib/utils';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
-import { boardTiles, missionTiles, parseEventRules } from '@/lib/eventRules';
+import { boardTiles, missionTiles, parseEventRules, parseTileMissionRules } from '@/lib/eventRules';
+import { missionTileState } from '@/lib/tileState';
+import { TileStateChip } from '@/components/board/TileState';
 import { scoreTeams } from '@/lib/boardScoring';
 import { statKeys, tileKindFilterKey, tileKindOptions } from '@/lib/tileKinds';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
@@ -64,6 +67,8 @@ interface Tile {
   mission?: number | null;
   revealedAt?: string | null;
   closedAt?: string | null;
+  /** Per-mission scoring JSON (lib/eventRules MissionRules) — its expiry drives the state chip. */
+  rules?: string | null;
 }
 
 interface Team {
@@ -819,23 +824,27 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
               </h3>
               <div className="rounded-xl border border-gold/25 bg-gold/5 divide-y divide-gold/15 overflow-hidden">
                 {missions.map((m) => {
-                  const done = completions.some((c) => c.tileId === m.id);
-                  const closed = !!m.closedAt;
+                  // The shared tile-state look (lib/tileState): Live (time left) / Done / Claimed / Expired.
+                  const doneRow = completions.find((c) => c.tileId === m.id && (lensTeamId == null || c.teamId === lensTeamId));
+                  const anyRow = completions.find((c) => c.tileId === m.id);
+                  const teamName = (id: number) => teams.find((t) => t.id === id)?.name ?? null;
+                  const view = missionTileState(
+                    { revealedAt: m.revealedAt, closedAt: m.closedAt, expiryHours: parseTileMissionRules(m.rules ?? null).expiryHours },
+                    { done: !!doneRow, doneBy: doneRow ? teamName(doneRow.teamId) : null, claimedBy: !doneRow && anyRow ? teamName(anyRow.teamId) : null },
+                  );
+                  const faded = view.kind === 'expired' || view.kind === 'closed';
                   return (
                     <button
                       key={m.id}
                       type="button"
                       onClick={() => setSelectedTileId(m.id)}
-                      className="w-full text-left px-3 py-2.5 flex items-center gap-3 hover:bg-gold/10 transition-colors"
+                      className={`w-full text-left px-3 py-2.5 flex items-center gap-3 hover:bg-gold/10 transition-colors ${faded ? 'opacity-60 grayscale' : ''}`}
                     >
                       <span aria-hidden className="text-base">⚡</span>
-                      <span className={`flex-1 min-w-0 text-sm font-medium truncate ${done ? 'text-accent-green-light' : closed ? 'text-text-muted line-through' : 'text-foreground'}`}>
+                      <span className={`flex-1 min-w-0 text-sm font-medium truncate ${view.kind === 'done' ? 'text-gold' : faded ? 'text-text-muted' : 'text-foreground'}`}>
                         {m.label}
                       </span>
-                      {done && <span className="text-accent-green-light text-xs shrink-0">✓</span>}
-                      {closed && !done && (
-                        <span className="text-[10px] uppercase tracking-wide text-text-muted shrink-0">closed</span>
-                      )}
+                      <TileStateChip view={view} withDetail className="shrink-0" />
                       {pointsMode && m.points != null && (
                         <span className="text-xs shrink-0 rounded px-1.5 py-0.5 bg-purple-500/20 text-purple-200 border border-purple-400/30">
                           {m.points} pts
@@ -854,6 +863,10 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
               lensName={lensTeamId == null ? (creator ? 'everyone' : 'the clan') : (teams.find((t) => t.id === lensTeamId)?.name ?? 'your team')}
               onTileClick={setSelectedTileId}
             />
+          )}
+
+          {event.format === 'tilerace' && (
+            <YourRaceCard ctx={{ tiles: board, completions, teams, viewerTeamId: lensTeamId ?? myTeamIds[0] ?? null, onOpenTile: (id: number) => setSelectedTileId(id) }} />
           )}
 
           <EventBoard
@@ -904,6 +917,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
       {selectedTile && (
         <TileDetailModal
           tile={selectedTile as unknown as FullTile}
+          race={event.format === 'tilerace' ? { tiles: board, completions: completions, teams: teams, viewerTeamId: lensTeamId, onOpenTile: (id: number) => setSelectedTileId(id) } : null}
           partCompletedBy={partCompletedBy}
           dropProgress={lensCombo ? { current: lensCombo.done, required: lensCombo.needed, note: comboProgressLine(lensCombo), combo: lensCombo } : undefined}
           submissions={proofForOpenTile ?? []}

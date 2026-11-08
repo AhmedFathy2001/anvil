@@ -43,6 +43,7 @@ import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_B
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
+import RaceRouteEditor from './RaceRouteEditor';
 import GuideLink from '@/components/GuideLink';
 import { parseTileEffortConfig } from '@/lib/tileEffortConfig';
 import { parseComboRule } from '@/lib/combo';
@@ -1245,12 +1246,35 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             }}
             onRevealStateChanged={handleRevealStateChanged}
           />
+        ) : viewMode === 'routes' ? (
+          <RaceRouteEditor
+            eventId={event.id}
+            tiles={localTiles}
+            eventStarted={eventStarted}
+            raceBank={eventRules.raceBank}
+            raceRoad={eventRules.raceRoad}
+            onTileCreated={(tile) => setLocalTiles((prev) => [...prev, tile])}
+            onSaved={(update) => {
+              setLocalTiles((prev) =>
+                prev
+                  .map((t) => {
+                    const u = update.get(t.id);
+                    if (!u) return t;
+                    return { ...t, raceStep: u.raceStep, raceNext: u.raceNext, ...(u.position != null && u.position >= 0 ? { position: u.position } : {}) };
+                  })
+                  .sort((a, b) => a.position - b.position),
+              );
+              router.refresh();
+            }}
+            onRaceBankChanged={() => router.refresh()}
+            onOpenTile={(id) => setEditingTileId(id)}
+          />
         ) : viewMode === 'board' ? (
           <div className="min-w-0">
             <p className="text-xs text-text-muted mb-3">
               {boardShape === 'grid'
                 ? `Click any square to configure that ${model.noun}. This is exactly the board members will see.`
-                : `Click any ${model.noun} to configure it. They are reached in this order — drag to change it from Cards.`}
+                : `Click any ${model.noun} to configure it. Lay out branching routes (splits, merges, junctions) on the Route tab.`}
             </p>
             <EventBoard
               format={event.format}
@@ -1979,6 +2003,7 @@ const VIEW_LABELS: Record<AuthoringView, (shape: 'grid' | 'track' | 'list') => {
     shape === 'grid'
       ? { label: 'Grid', title: 'Edit tiles on the grid itself' }
       : { label: 'Track', title: 'Edit tiles along the track, in running order' },
+  routes: () => ({ label: '⇄ Route', title: 'Steps and links: lay out branching routes, splits and junctions' }),
   cards: () => ({ label: 'Cards', title: 'Every task as a card — search, filter and bulk edits' }),
   schedule: () => ({ label: '🕑 Schedule', title: 'The reveal plan: when each one opens' }),
   rotation: () => ({ label: '🎲 Rotation', title: 'The draw pool, in the order the engine pulls from it' }),

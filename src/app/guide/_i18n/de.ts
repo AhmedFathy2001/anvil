@@ -1091,7 +1091,7 @@ const de: PartialGuideDict = {
         },
         race: {
           label: 'Feldrennen',
-          blurb: 'Eine geordnete Strecke — Teams erreichen die Felder der Reihe nach; wer am weitesten kommt, gewinnt.',
+          blurb: 'Eine geordnete Strecke — Teams erreichen die Felder der Reihe nach; wer am weitesten kommt, gewinnt. Der Host kann sie in Routen verzweigen, die sich teilen und wieder treffen — das Feld, das ihr schafft, wählt euren Weg.',
         },
         showdown: {
           label: 'Showdown',

@@ -66,6 +66,9 @@ export interface Tile extends TileRevealState {
   eventId: number;
   position: number;
   label: string;
+  /** Tile race route (lib/raceRoutes): the tile's step and the next-step tile ids it leads to. */
+  raceStep?: number | null;
+  raceNext?: number[] | null;
   icon?: string | null;
   description?: string | null;
   tileType: string;

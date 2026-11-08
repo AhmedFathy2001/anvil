@@ -1,3 +1,5 @@
+import { raceGraph, teamRoute, rankRaceTeams, roadOf } from '@/lib/raceRoutes';
+import { loadRacePicks } from '@/lib/raceRoutePicks';
 import { pluginGameCounters } from '@/lib/gameCounters';
 import { pluginLevelRules } from '@/lib/levelRulesStore';
 import { standingsHidden } from '@/lib/standingsVisibility';
@@ -235,8 +237,52 @@ export async function buildEnrolledConfig(args: {
   // The tiles the plugin may track: board tiles are policy-gated (revealed + open on a reveal board,
   // all on classic); MISSION tiles are always hidden until announced, so a hidden mission never leaks
   // into the tracked lists even on a classic board.
+  // A BRANCHING tile race (lib/raceRoutes) narrows the board to the team's route: the tiles open
+  // for it now, plus the ones it finished. Locked tiles ahead and the alternatives it passed up
+  // would only be refused by the site, so the rule table never watches them. Combo parts follow
+  // their combo. (A straight-line race keeps today's config: every tile, the site holds the order.)
+  const raceGraphRows = event.format === 'tilerace' ? raceGraph(fullEventTiles) : null;
+  let raceVisible: Set<number> | null = null;
+  // The panel's "Your race" card (lib/pluginUi homeUi): position, rank, the leader and the tiles up next.
+  let raceSummary: {
+    steps: number; stepsDone: number; finished: boolean; mode: 'achieve' | 'choose';
+    open: { tileId: number; label: string; road: string }[]; pickFrom: { tileId: number; label: string; road: string }[];
+    rank: number | null; entrants: number; leaderSteps: number; atYourStep: number; ahead: number;
+  } | null = null;
+  if (raceGraphRows?.branching) {
+    const doneRows = await db.select({ tileId: completions.tileId }).from(completions).where(eq(completions.teamId, teamId));
+    const route = teamRoute(raceGraphRows, doneRows.map((r) => r.tileId), await loadRacePicks(event, teamId));
+    raceVisible = new Set([...route.open, ...[...route.state].filter(([, st]) => st === 'done').map(([id]) => id)]);
+    const ids = raceGraphRows.nodes.map((n) => n.id);
+    const everyone = ids.length
+      ? await db.select({ teamId: completions.teamId, tileId: completions.tileId, completedAt: completions.completedAt }).from(completions).where(inArray(completions.tileId, ids))
+      : [];
+    const eventTeamRows = await db.select({ id: teams.id, name: teams.name }).from(teams).where(eq(teams.eventId, event.id));
+    // Hidden standings (lib/standingsVisibility): the card shows the team's own line only.
+    const curtained = standingsHidden(event);
+    const ranked = rankRaceTeams(raceGraphRows, curtained ? eventTeamRows.filter((t) => t.id === teamId) : eventTeamRows, everyone);
+    const mine = ranked.find((r) => r.teamId === teamId);
+    const labelOf = (id: number) => fullEventTiles.find((t) => t.id === id)?.label ?? `Tile ${id}`;
+    const chip = (id: number) => ({ tileId: id, label: labelOf(id), road: roadOf(raceGraphRows, id) });
+    raceSummary = {
+      steps: raceGraphRows.lastStep + 1,
+      stepsDone: route.stepsDone,
+      finished: route.finished,
+      mode: parseEventRules(event.rules).raceRoad,
+      open: route.open.map(chip),
+      pickFrom: route.pickFrom.map(chip),
+      rank: curtained ? null : mine?.rank ?? null,
+      entrants: ranked.length,
+      leaderSteps: ranked[0]?.stepsDone ?? 0,
+      atYourStep: ranked.filter((r) => r.teamId !== teamId && r.stepsDone === route.stepsDone).length,
+      ahead: ranked.filter((r) => r.stepsDone > route.stepsDone).length,
+    };
+  }
+  const onRoute = (t: (typeof fullEventTiles)[number]) =>
+    raceVisible == null || isMissionTile(t) || raceVisible.has(t.parentTileId ?? t.id);
   const allEventTiles = fullEventTiles.filter((t) => {
     if (isMissionTile(t)) return t.revealedAt != null && t.closedAt == null;
+    if (!onRoute(t)) return false;
     return !revealMode || (t.revealedAt != null && t.closedAt == null);
   });
   // What the plugin may WATCH: the same, minus tiles an admin switched to complete-by-hand. The site
@@ -971,6 +1017,8 @@ export async function buildEnrolledConfig(args: {
       // for the player's own active event straight from these two fields.
       format: event.format,
       scoringMode: event.scoringMode,
+      // A branching tile race: the "Your race" card. Absent everywhere else.
+      ...(raceSummary ? { race: raceSummary } : {}),
       // Reveal-policy board extras (absent on classic events). Old plugins ignore unknown fields.
       ...(revealMode
         ? {

@@ -990,6 +990,10 @@ export const tiles = pgTable('tiles', {
   // expiryHours? } — parsed by lib/eventRules.parseTileMissionRules and merged over the event rules in
   // the completion gate. Decay/first-bonus only bite in a points-scoring event; lockout works anywhere.
   rules: text('rules'),
+  // TILE RACE ROUTES (lib/raceRoutes). The step this board tile sits on (0 = a start) and the tile
+  // ids on step+1 it leads to. Both null on every tile = the classic straight line (position order).
+  raceStep: integer('race_step'),
+  raceNext: jsonb('race_next').$type<number[]>(),
 }, (table) => [
   index('tiles_event_id_idx').on(table.eventId),
   index('tiles_parent_tile_id_idx').on(table.parentTileId),
@@ -1101,6 +1105,32 @@ export const completions = pgTable('completions', {
   uniqueIndex('team_tile_unique').on(table.teamId, table.tileId),
   index('completions_tile_id_idx').on(table.tileId),
   index('completions_team_id_idx').on(table.teamId),
+]);
+
+// TILE RACE "Bank early finishes" (events.rules.raceBank, lib/raceRoutesDb): a valid finish on a race
+// tile the team hasn't reached yet, kept until the route reaches it — then it becomes a completion
+// and this row goes. Never consulted with the rule off.
+export const raceBankedCredits = pgTable('race_banked_credits', {
+  id: serial('id').primaryKey(),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  tileId: integer('tile_id').notNull().references(() => tiles.id, { onDelete: 'cascade' }),
+  creditPlayerId: integer('credit_player_id').references(() => eventParticipants.id, { onDelete: 'set null' }),
+  bankedAt: text('banked_at').notNull(),
+}, (table) => [
+  uniqueIndex('race_banked_credits_team_tile_unique').on(table.teamId, table.tileId),
+]);
+
+// TILE RACE "Choose and lock in" (events.rules.raceRoad = 'choose', lib/raceRoutes): the tile a team
+// picked at a fork, one per step. Final once made; only an admin removes one.
+export const raceRoadPicks = pgTable('race_road_picks', {
+  id: serial('id').primaryKey(),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  step: integer('step').notNull(),
+  tileId: integer('tile_id').notNull().references(() => tiles.id, { onDelete: 'cascade' }),
+  pickedByUserId: integer('picked_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  pickedAt: text('picked_at').notNull(),
+}, (table) => [
+  uniqueIndex('race_road_picks_team_step_unique').on(table.teamId, table.step),
 ]);
 
 export const eventParticipants = pgTable('event_participants', {

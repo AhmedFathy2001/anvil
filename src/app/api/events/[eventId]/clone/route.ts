@@ -137,12 +137,19 @@ export async function POST(
         revealAt: null,
         revealedAt: null,
         closedAt: null,
+        // The race route (lib/raceRoutes): the step copies; links are re-pointed at the copies below.
+        raceStep: t.raceStep,
+        raceNext: null,
       });
     // Board tiles first, then each combo's parts pointed at the copy of their parent.
     const board = sourceTiles.filter((t) => t.parentTileId == null);
     const parts = sourceTiles.filter((t) => t.parentTileId != null);
     const inserted = await db.insert(tiles).values(board.map(copyOf)).returning({ id: tiles.id });
     const newIdOf = new Map(board.map((t, i) => [t.id, inserted[i].id]));
+    for (const t of board) {
+      const links = Array.isArray(t.raceNext) ? t.raceNext.map((id) => newIdOf.get(id)).filter((id): id is number => id != null) : null;
+      if (links && links.length) await db.update(tiles).set({ raceNext: links }).where(eq(tiles.id, newIdOf.get(t.id)!));
+    }
     const partRows = parts
       .filter((p) => newIdOf.has(p.parentTileId!))
       .map((p) => ({ ...copyOf(p), parentTileId: newIdOf.get(p.parentTileId!)! }));

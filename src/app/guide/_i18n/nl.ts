@@ -1091,7 +1091,7 @@ const nl: PartialGuideDict = {
         },
         race: {
           label: 'Vakjesrace',
-          blurb: 'Een geordend parcours — teams bereiken de vakjes op volgorde; wie het verst komt, wint.',
+          blurb: 'Een geordend parcours — teams bereiken de vakjes op volgorde; wie het verst komt, wint. De host kan het vertakken in routes die splitsen en samenkomen — het vakje dat je haalt, kiest je weg.',
         },
         showdown: {
           label: 'Showdown',

@@ -3,6 +3,8 @@
 import { Fragment } from 'react';
 import { cn, exactTitle, formatNumber } from '@/lib/utils';
 import { isManualTile } from '@/lib/clogManual';
+import { isBranchingRoute } from '@/lib/raceRoutes';
+import BranchingRaceBoard from '@/components/board/BranchingRaceBoard';
 
 interface Tile {
   id: number;
@@ -11,11 +13,16 @@ interface Tile {
   icon?: string | null;
   tileType?: string;
   optional?: number | null;
+  raceStep?: number | null;
+  raceNext?: number[] | null;
+  parentTileId?: number | null;
+  mission?: number | boolean | null;
 }
 
 interface Completion {
   teamId: number;
   tileId: number;
+  completedAt?: string | null;
 }
 
 interface Team {
@@ -24,7 +31,7 @@ interface Team {
   color: string;
 }
 
-interface TileRaceBoardProps {
+export interface TileRaceBoardProps {
   tiles: Tile[];
   completions: Completion[];
   teams: Team[];
@@ -41,7 +48,13 @@ interface TileRaceBoardProps {
 // How many tiles per row before the track snakes back the other way.
 const COLS = 5;
 
-export default function TileRaceBoard({
+export default function TileRaceBoard(props: TileRaceBoardProps) {
+  // A board with steps laid out is a branching route (lib/raceRoutes): drawn as a map, not a track.
+  if (isBranchingRoute(props.tiles)) return <BranchingRaceBoard {...props} />;
+  return <LinearRaceBoard {...props} />;
+}
+
+function LinearRaceBoard({
   tiles,
   completions,
   teams,

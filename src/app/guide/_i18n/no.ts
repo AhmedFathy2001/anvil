@@ -1091,7 +1091,7 @@ const no: PartialGuideDict = {
         },
         race: {
           label: 'Ruteløp',
-          blurb: 'En ordnet bane — lagene når rutene i rekkefølge; den som kommer lengst, vinner.',
+          blurb: 'En ordnet bane — lagene når rutene i rekkefølge; den som kommer lengst, vinner. Verten kan dele den i stier som deler seg og møtes — ruta dere fullfører, velger veien deres.',
         },
         showdown: {
           label: 'Showdown',

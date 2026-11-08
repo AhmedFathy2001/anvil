@@ -1091,7 +1091,7 @@ const sv: PartialGuideDict = {
         },
         race: {
           label: 'Rutrace',
-          blurb: 'En ordnad bana — lagen når rutorna i följd; den som kommer längst vinner.',
+          blurb: 'En ordnad bana — lagen når rutorna i följd; den som kommer längst vinner. Värden kan dela upp den i vägar som delar sig och möts — rutan ni klarar väljer er väg.',
         },
         showdown: {
           label: 'Showdown',

@@ -1092,7 +1092,7 @@ const fr: PartialGuideDict = {
         },
         race: {
           label: 'Course de cases',
-          blurb: 'Un parcours ordonné — les équipes atteignent les cases dans l’ordre ; qui va le plus loin gagne.',
+          blurb: 'Un parcours ordonné — les équipes atteignent les cases dans l’ordre ; qui va le plus loin gagne. L’hôte peut le ramifier en routes qui se séparent et se rejoignent : la case que vous terminez choisit votre chemin.',
         },
         showdown: {
           label: 'Showdown',

@@ -1,3 +1,4 @@
+import { branchingRaceWin, bankRaceCredit, afterRaceCompletion } from '@/lib/raceRoutesDb';
 import { db } from '@/db';
 import { emitCompletionRow } from '@/lib/panelRows';
 import { queueTileHighlight } from '@/lib/highlights/store';
@@ -262,21 +263,16 @@ export async function syncDropTileCompletion(
   // its combo is both. Its own row is progress; lib/comboCompletion recomputes the combo after it.
   const isPart = tile.parentTileId != null;
 
-  // Tile race: a drop tile can't auto-complete until the team has finished every
-  // earlier tile in the sequence. Until then we leave it pending so the ordered
-  // track stays strict, exactly like manual completions in the completions route.
-  let raceBlocked = false;
+  // Tile race: a tile can't auto-complete until it is open on the team's route (lib/raceRoutes) —
+  // the gate below refuses it (gate.raceLocked) and the evidence stays pending, as before. With
+  // "Bank early finishes" on, a finish that is otherwise valid is banked and lands when the route
+  // reaches the tile (lib/raceRoutesDb).
+  // A credit awaiting its screenshot (held) completes but announces nothing yet (lib/proofAfter).
   let heldTileId: number | null = null;
   let tileEvent: typeof events.$inferSelect | undefined;
   if (isComplete) {
     // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
     tileEvent = await db.query.events.findFirst({ where: eq(events.id, tile.eventId) });
-    if (tileEvent?.format === 'tilerace' && !isPart) {
-      const raceTiles = await db.query.tiles.findMany({ where: and(eq(tiles.eventId, tile.eventId), isNull(tiles.parentTileId)) });
-      const teamDone = await db.query.completions.findMany({ where: eq(completions.teamId, teamId) });
-      const doneTileIds = new Set(teamDone.map((c) => c.tileId));
-      raceBlocked = raceTiles.some((t) => t.position < tile.position && !doneTileIds.has(t.id));
-    }
   }
 
   // Event-rules gate (lib/completionGate): unrevealed/claimed tiles and lockout losses stay
@@ -285,9 +281,11 @@ export async function syncDropTileCompletion(
   let ruleBlocked = false;
   let awardedPoints: number | null = null;
   let bountyEvent = false;
-  if (isComplete && !raceBlocked && tileEvent) {
+  let raceLocked = false;
+  if (isComplete && tileEvent) {
     const gate = await evaluateCompletionGate({ event: tileEvent, tile, teamId });
     ruleBlocked = !gate.allowed;
+    raceLocked = !!gate.raceLocked;
     awardedPoints = gate.awardedPoints;
     bountyEvent = gate.bounty;
   }
@@ -301,9 +299,9 @@ export async function syncDropTileCompletion(
   // counter's proof (energy) shows no searches. A combo part proves itself from its own rows — the
   // combo needs nothing more, each part it completed on already had to. Whole collection-log pages
   // have their own rule (lib/clogTiles clogPageProof): a screenshot from a member who finished a page.
-  if (isComplete && !raceBlocked && !ruleBlocked && clogPageProofOk != null) {
+  if (isComplete && (!ruleBlocked || raceLocked) && clogPageProofOk != null) {
     proofBlocked = !clogPageProofOk;
-  } else if (isComplete && !raceBlocked && !ruleBlocked && PROOF_ON_COMPLETION_KINDS.has(tile.tileType)) {
+  } else if (isComplete && (!ruleBlocked || raceLocked) && PROOF_ON_COMPLETION_KINDS.has(tile.tileType)) {
     const [withImage] = await db
       .select({ id: submissions.id })
       .from(submissions)
@@ -320,7 +318,12 @@ export async function syncDropTileCompletion(
     proofBlocked = !withImage;
   }
 
-  if (isComplete && !raceBlocked && !ruleBlocked && !proofBlocked) {
+  // Valid in every way but the route: keep it for when the team gets there (rule on only).
+  if (isComplete && raceLocked && !proofBlocked && tileEvent && !isPart) {
+    await bankRaceCredit(tileEvent, tile.id, teamId, finisherPlayerId).catch(() => false);
+  }
+
+  if (isComplete && !ruleBlocked && !proofBlocked) {
     // Auto-complete — use onConflictDoNothing to avoid race condition. A Solo tile names its
     // finisher (the one member who reached the count alone) the way stat tiles do, so the activity
     // feed reads "Kayle completed 10 CoX raids" instead of attributing it to the team.
@@ -333,6 +336,8 @@ export async function syncDropTileCompletion(
       heldTileId = tileId;
     } else if (inserted && !isPart) {
       emitCompletionRow(tileId, teamId);
+      // A race step taken may reach tiles the team banked earlier (lib/raceRoutesDb).
+      if (tileEvent) afterRaceCompletion(tileEvent, teamId);
       // A streamed board clips it on the finisher's (or the host's) live channel (lib/highlights).
       if (!silent) queueTileHighlight(tileId, teamId);
     }
@@ -401,11 +406,15 @@ export async function syncDropTileCompletion(
   // A 'mix' combo (lib/combo) counts its parts' partial progress, so any move on a part re-checks it.
   if (isPart) await afterPartProgress(tile, teamId, { silent });
 
-  return { totalAmount, requiredAmount: tile.requiredAmount, isComplete: isComplete && !raceBlocked && !ruleBlocked && !proofBlocked, heldTileId };
+  return { totalAmount, requiredAmount: tile.requiredAmount, isComplete: isComplete && !ruleBlocked && !proofBlocked, heldTileId };
 }
 
-/** The team-win post, when this team now holds every board tile (combo parts aren't cells). */
+/**
+ * The team-win post, when this team now holds every board tile (combo parts aren't cells) — or, on a
+ * BRANCHING tile race, when it is the first to finish an end tile (lib/raceRoutesDb).
+ */
 async function postBlackoutIfWon(team: typeof teams.$inferSelect, event: typeof events.$inferSelect): Promise<void> {
+  const race = await branchingRaceWin(event, team.id);
   const eventTiles = await db.query.tiles.findMany({
     where: and(eq(tiles.eventId, event.id), isNull(tiles.parentTileId)),
   });
@@ -414,14 +423,14 @@ async function postBlackoutIfWon(team: typeof teams.$inferSelect, event: typeof 
   });
   const eventTileIds = new Set(eventTiles.map(t => t.id));
   const completedTileIds = new Set(teamCompletions.map(c => c.tileId).filter(id => eventTileIds.has(id)));
-  if (completedTileIds.size === eventTiles.length && eventTiles.length > 0) {
+  if (race ? race.won : completedTileIds.size === eventTiles.length && eventTiles.length > 0) {
     notifyTeamWin({
       clanId: event.clanId,
       eventName: event.name,
       teamName: team.name,
       teamId: team.id,
       teamColor: team.color,
-      totalTiles: eventTiles.length,
+      totalTiles: race ? race.steps : eventTiles.length,
       eventId: event.id,
     }).catch(() => {});
   }
@@ -444,6 +453,9 @@ export async function announceHeldCompletion(tileId: number, teamId: number): Pr
   if (!tile || !team || !event || tile.parentTileId != null) return;
   emitCompletionRow(tileId, teamId);
   queueTileHighlight(tileId, teamId);
+  // The race step stands now: release finishes the team banked beyond it (lib/raceRoutesDb). Held
+  // until here so a credit that loses its screenshot never lets banked tiles past it land.
+  afterRaceCompletion(event, teamId);
   if (isComboTile(tile)) await announceCombo(tile, teamId, event, undefined, done.creditPlayerId ?? null).catch(() => {});
   else await postBlackoutIfWon(team, event);
 }

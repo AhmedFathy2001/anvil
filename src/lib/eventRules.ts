@@ -295,6 +295,19 @@ export interface EventRules {
    * are shown — a check people know about is half the deterrent.
    */
   sharingChecks: boolean;
+  /**
+   * Tile race "Bank early finishes" (lib/raceRoutesDb). OFF by default: only a tile open on the
+   * team's route credits. ON: a valid finish on a tile the team hasn't reached yet is kept, and the
+   * tile completes the moment the route reaches it — never skipping ahead, never opening it early.
+   */
+  raceBank: boolean;
+  /**
+   * Tile race: how a team's road is set at a fork (lib/raceRoutes). 'achieve' (default): every
+   * linked next tile is open and the first one finished sets the road. 'choose': the team picks the
+   * next tile first (captain / team staff, or any member without a captain), only the pick is open,
+   * and the pick is final (an admin can reset it). Stored in race_road_picks.
+   */
+  raceRoad: 'achieve' | 'choose';
 }
 
 /** The optional halves of the sign-up form. The account picker and the fee are never optional. */
@@ -360,6 +373,8 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   teamChoice: false,
   rulesAtStart: true,
   sharingChecks: false,
+  raceBank: false,
+  raceRoad: 'achieve',
 };
 
 /**
@@ -605,6 +620,8 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     // Only an explicit false turns it off; every board stored before this existed posts.
     rulesAtStart: obj.rulesAtStart !== false,
     sharingChecks: obj.sharingChecks === true,
+    raceBank: obj.raceBank === true,
+    raceRoad: obj.raceRoad === 'choose' ? 'choose' : 'achieve',
   };
 }
 
@@ -744,6 +761,12 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   if (o.sharingChecks !== undefined && typeof o.sharingChecks !== 'boolean') {
     return { error: 'rules.sharingChecks must be a boolean' };
   }
+  if (o.raceBank !== undefined && typeof o.raceBank !== 'boolean') {
+    return { error: 'rules.raceBank must be a boolean' };
+  }
+  if (o.raceRoad !== undefined && o.raceRoad !== 'achieve' && o.raceRoad !== 'choose') {
+    return { error: "rules.raceRoad must be 'achieve' or 'choose'" };
+  }
   if (o.startProof !== undefined && o.startProof !== null) {
     const s = o.startProof as {
       onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; pick?: unknown; maxSessionMinutes?: unknown;
@@ -802,6 +825,8 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     !canonical.teamChoice &&
     canonical.rulesAtStart &&
     !canonical.sharingChecks &&
+    !canonical.raceBank &&
+    canonical.raceRoad === 'achieve' &&
     // WITHOUT THIS the toggles are wiped by any other rules edit. "Default" here means "storing
     // nothing loses nothing", and a board that has switched a sign-up section on or off has said
     // something that null cannot hold — so it has to be asked about like every other key.
