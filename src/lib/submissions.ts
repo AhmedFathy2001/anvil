@@ -13,7 +13,8 @@ import { isIndividualMode } from '@/lib/statTracking';
 import { parseJsonArray } from '@/lib/tileKinds';
 import { evaluateCollection, type CollectionRequirement } from '@/lib/collectionSets';
 import { parseCapBy } from '@/lib/tileCaps';
-import { afterPartCompletion, afterPartProgress } from '@/lib/comboCompletion';
+import { afterPartCompletion, afterPartProgress, announceCombo } from '@/lib/comboCompletion';
+import { isComboTile } from '@/lib/combo';
 import { clogPageProof, clogTileSpec, CLOG_UNVERIFIED_FLAG } from '@/lib/clogTiles';
 import { clogPagesProgress } from '@/lib/clogTileCredit';
 
@@ -115,7 +116,11 @@ export async function syncDropTileCompletion(
   // notifyCompletion=false: the caller folds the "tile completed" post into its own submission message
   // (one webhook, not two); the team-win post still fires. silent=true: suppress BOTH posts — for a bulk
   // maintenance recompute that heals already-full tiles, which shouldn't re-announce old completions.
-  { notifyCompletion = true, silent = false }: { notifyCompletion?: boolean; silent?: boolean } = {},
+  // held=true: a credit still waiting for its screenshot (lib/proofAfter). The completion row is stored
+  // (so the plugin hears "complete" at once) but nothing announces it — no feed row, no clip, no blackout
+  // post, no combo announcement. `heldTileId` names the board tile whose announcements are owed:
+  // lib/proofFinish announceHeldCompletion fires them when the picture lands, or nothing ever does.
+  { notifyCompletion = true, silent = false, held = false }: { notifyCompletion?: boolean; silent?: boolean; held?: boolean } = {},
 ) {
   // Get the tile to check its completion criteria
   const tile = await db.query.tiles.findFirst({
@@ -261,6 +266,7 @@ export async function syncDropTileCompletion(
   // earlier tile in the sequence. Until then we leave it pending so the ordered
   // track stays strict, exactly like manual completions in the completions route.
   let raceBlocked = false;
+  let heldTileId: number | null = null;
   let tileEvent: typeof events.$inferSelect | undefined;
   if (isComplete) {
     // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
@@ -320,7 +326,9 @@ export async function syncDropTileCompletion(
       .returning();
 
     // A finished board tile shows in its board's Feed at once (lib/panelRows); a part's combo does instead.
-    if (inserted && !isPart) {
+    if (inserted && !isPart && held) {
+      heldTileId = tileId;
+    } else if (inserted && !isPart) {
       emitCompletionRow(tileId, teamId);
       // A streamed board clips it on the finisher's (or the host's) live channel (lib/highlights).
       if (!silent) queueTileHighlight(tileId, teamId);
@@ -329,7 +337,8 @@ export async function syncDropTileCompletion(
     // Only notify if we actually inserted (not a duplicate)
     if (inserted && isPart) {
       // notifyCompletion=false: the caller's submission post already says this part is done.
-      await afterPartCompletion(tile, teamId, { change: 'added', silent, progressPost: notifyCompletion });
+      const combo = await afterPartCompletion(tile, teamId, { change: 'added', silent, held, progressPost: notifyCompletion });
+      if (held && combo?.inserted) heldTileId = tile.parentTileId;
     } else if (inserted) {
       // Bounty rotation: close the claimed tile and draw the next one right away (the cron
       // tick is the backstop). Fire-and-forget — a draw hiccup must never fail the credit.
@@ -344,7 +353,7 @@ export async function syncDropTileCompletion(
       }) : null;
 
       if (team && event) {
-        if (notifyCompletion && !silent) {
+        if (notifyCompletion && !silent && !held) {
           notifyTileCompletion({
             clanId: event.clanId,
             eventName: event.name,
@@ -361,26 +370,7 @@ export async function syncDropTileCompletion(
         }
 
         // Check for blackout win — board tiles only (combo parts aren't cells).
-        const eventTiles = await db.query.tiles.findMany({
-          where: and(eq(tiles.eventId, event.id), isNull(tiles.parentTileId)),
-        });
-        const teamCompletions = await db.query.completions.findMany({
-          where: eq(completions.teamId, teamId),
-        });
-        const eventTileIds = new Set(eventTiles.map(t => t.id));
-        const completedTileIds = new Set(teamCompletions.map(c => c.tileId).filter(id => eventTileIds.has(id)));
-
-        if (!silent && completedTileIds.size === eventTiles.length && eventTiles.length > 0) {
-          notifyTeamWin({
-            clanId: event.clanId,
-            eventName: event.name,
-            teamName: team.name,
-            teamId: team.id,
-            teamColor: team.color,
-            totalTiles: eventTiles.length,
-            eventId: event.id,
-          }).catch(() => {});
-        }
+        if (!silent && !held) await postBlackoutIfWon(team, event);
       }
     }
   } else if (!isComplete && !soloShortfall) {
@@ -408,5 +398,49 @@ export async function syncDropTileCompletion(
   // A 'mix' combo (lib/combo) counts its parts' partial progress, so any move on a part re-checks it.
   if (isPart) await afterPartProgress(tile, teamId, { silent });
 
-  return { totalAmount, requiredAmount: tile.requiredAmount, isComplete: isComplete && !raceBlocked && !ruleBlocked && !proofBlocked };
+  return { totalAmount, requiredAmount: tile.requiredAmount, isComplete: isComplete && !raceBlocked && !ruleBlocked && !proofBlocked, heldTileId };
+}
+
+/** The team-win post, when this team now holds every board tile (combo parts aren't cells). */
+async function postBlackoutIfWon(team: typeof teams.$inferSelect, event: typeof events.$inferSelect): Promise<void> {
+  const eventTiles = await db.query.tiles.findMany({
+    where: and(eq(tiles.eventId, event.id), isNull(tiles.parentTileId)),
+  });
+  const teamCompletions = await db.query.completions.findMany({
+    where: eq(completions.teamId, team.id),
+  });
+  const eventTileIds = new Set(eventTiles.map(t => t.id));
+  const completedTileIds = new Set(teamCompletions.map(c => c.tileId).filter(id => eventTileIds.has(id)));
+  if (completedTileIds.size === eventTiles.length && eventTiles.length > 0) {
+    notifyTeamWin({
+      clanId: event.clanId,
+      eventName: event.name,
+      teamName: team.name,
+      teamId: team.id,
+      teamColor: team.color,
+      totalTiles: eventTiles.length,
+      eventId: event.id,
+    }).catch(() => {});
+  }
+}
+
+/**
+ * The announcements a credit awaiting its screenshot held back (syncDropTileCompletion held:true), now
+ * that the picture is in: the board Feed row, the stream clip, a combo's own post, the team-win post.
+ * Only while the completion still stands — a reversed credit took it with it, and nothing was said.
+ * The tile's own "complete" line rides on the submission's Discord post (lib/proofFinish), as ever.
+ */
+export async function announceHeldCompletion(tileId: number, teamId: number): Promise<void> {
+  // clan-scope: global -- ids from a submission row the caller already checked is the uploader's own.
+  const done = await db.query.completions.findFirst({ where: and(eq(completions.tileId, tileId), eq(completions.teamId, teamId)) });
+  if (!done) return;
+  const tile = await db.query.tiles.findFirst({ where: eq(tiles.id, tileId) });
+  const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
+  // clan-scope: global -- the event of a tile id the caller already scoped.
+  const event = tile ? await db.query.events.findFirst({ where: eq(events.id, tile.eventId) }) : null;
+  if (!tile || !team || !event || tile.parentTileId != null) return;
+  emitCompletionRow(tileId, teamId);
+  queueTileHighlight(tileId, teamId);
+  if (isComboTile(tile)) await announceCombo(tile, teamId, event, undefined, done.creditPlayerId ?? null).catch(() => {});
+  else await postBlackoutIfWon(team, event);
 }

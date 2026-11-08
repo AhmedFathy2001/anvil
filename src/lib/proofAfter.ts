@@ -66,6 +66,10 @@ export interface PendingProof {
   rsn: string | null;
   /** The clan address the credit was filed under (x-anvil-clan-slug), so the upload is checked the same way. */
   clan: string | null;
+  /** The board tile whose completion announcements this credit held (lib/submissions announceHeldCompletion). */
+  announce: number | null;
+  /** The plugin user who filed it: the team-progress line's sender. */
+  sender: number | null;
 }
 
 export function encodePendingProof(p: PendingProof): string {
@@ -103,6 +107,8 @@ export function decodePendingProof(raw: string | null | undefined): PendingProof
     superseded: o.superseded === true,
     cap: o.cap === true,
     rsn: typeof o.rsn === 'string' ? o.rsn.slice(0, 12) : null,
+    announce: Number.isInteger(o.announce) ? (o.announce as number) : null,
+    sender: Number.isInteger(o.sender) ? (o.sender as number) : null,
     clan: typeof o.clan === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(o.clan) ? o.clan : null,
   };
 }

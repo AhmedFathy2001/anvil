@@ -54,6 +54,8 @@ export async function afterPartCompletion(
     change: 'added' | 'removed';
     /** Suppress every post (bulk maintenance recomputes). */
     silent?: boolean;
+    /** A credit awaiting its screenshot: store the combo's completion, announce nothing (announceHeldCompletion does). */
+    held?: boolean;
     /** Whose webhooks announce it — the pushing member's clan on a live push; the host otherwise. */
     notifyClanId?: number;
     /** The part's finisher, for the "part done" progress post. */
@@ -67,10 +69,11 @@ export async function afterPartCompletion(
     const res = await syncComboParent(part.parentTileId, teamId, {
       allowRevert: opts.change === 'removed',
       silent: opts.silent,
+      held: opts.held,
       notifyClanId: opts.notifyClanId,
     });
     // A part landing without finishing its combo posts as progress ("🧩 Combo — 1 of 2").
-    if (res && opts.change === 'added' && !opts.silent && opts.progressPost !== false && !res.inserted && !res.parentComplete) {
+    if (res && opts.change === 'added' && !opts.silent && !opts.held && opts.progressPost !== false && !res.inserted && !res.parentComplete) {
       await postPartProgress(part, teamId, res, opts).catch(() => {});
     }
     return res;
@@ -154,7 +157,7 @@ export async function afterPartProgress(
 export async function syncComboParent(
   parentId: number,
   teamId: number,
-  opts: { allowRevert?: boolean; silent?: boolean; notifyClanId?: number } = {},
+  opts: { allowRevert?: boolean; silent?: boolean; held?: boolean; notifyClanId?: number } = {},
 ): Promise<ComboSyncResult | null> {
   const parent = await db.query.tiles.findFirst({ where: eq(tiles.id, parentId) });
   if (!parent || !isComboTile(parent) || parent.parentTileId != null) return null;
@@ -213,15 +216,15 @@ export async function syncComboParent(
     .onConflictDoNothing()
     .returning({ id: completions.id });
   if (!inserted) return { ...evaluation, parentComplete: true, inserted: false };
-  emitCompletionRow(parentId, teamId);
-  if (!opts.silent) queueTileHighlight(parentId, teamId);
+  if (!opts.held) emitCompletionRow(parentId, teamId);
+  if (!opts.silent && !opts.held) queueTileHighlight(parentId, teamId);
 
   if (gate.bounty) handleBountyClaim(parent.eventId, parentId).catch(() => {});
-  if (!opts.silent) await announceCombo(parent, teamId, event, opts.notifyClanId, evaluation.finisherPlayerId).catch(() => {});
+  if (!opts.silent && !opts.held) await announceCombo(parent, teamId, event, opts.notifyClanId, evaluation.finisherPlayerId).catch(() => {});
   return { ...evaluation, parentComplete: true, inserted: true };
 }
 
-async function announceCombo(
+export async function announceCombo(
   parent: TileRow,
   teamId: number,
   event: typeof events.$inferSelect,
