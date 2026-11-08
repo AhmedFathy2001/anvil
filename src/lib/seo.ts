@@ -26,7 +26,7 @@ export const APEX_TITLE = 'Anvil OSRS — Clan Bingo, SOTW & BOTW Events';
 
 /** The one-line pitch, used wherever a page has nothing more specific to say about itself. */
 export const DEFAULT_DESCRIPTION =
-  'Run clan bingos, Skill and Boss of the Week, and your whole roster from one place. Built for Old School RuneScape clans.';
+  'Run clan bingos, tile races, Skill and Boss of the Week and clan-vs-clan events, with a RuneLite side panel, Discord posts and your whole roster in one place. Built for Old School RuneScape clans.';
 
 /** `https://anvilosrs.com` — or `http://localhost` in development, per `originForHost`. */
 export function apexOrigin(): string {

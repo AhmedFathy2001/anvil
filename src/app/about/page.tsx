@@ -13,7 +13,13 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'About — Anvil',
-  description: 'What Anvil is, who it is for, and how it runs your clan’s events without running you.',
+  description:
+    'What Anvil is: a website, a RuneLite plugin and a Discord bot that run Old School RuneScape clan events and competitions. Who it is for and how it works.',
+  openGraph: {
+    title: 'About Anvil',
+    description:
+      'A website, a RuneLite plugin and a Discord bot for Old School RuneScape clan events. For clan owners, players and streamers.',
+  },
 };
 
 /**
@@ -53,31 +59,76 @@ export default async function AboutPage() {
 
       <div className="flex flex-col gap-9">
         <Section title="What it is">
-          A platform for running RuneScape clan events — bingos, tile races, ladders, skill and boss
-          weeks, clan against clan. It is not a bingo tool that grew a few extras: every format is a
-          first-class citizen, and the same plugin that tracks a bingo drop tracks a boss KC, an
-          agility lap, a collection-log unlock or a PvP kill.
+          Anvil is a home for Old School RuneScape clan events. Bingos, tile races, ladders, Skill and
+          Boss of the Week and clan-versus-clan competitions all run on the same platform, and the
+          same plugin that credits a bingo drop also tracks a boss kill count, a level, a collection
+          log slot or a PvP kill.
         </Section>
 
         <Section title="Who it is for">
-          The person who <em>organises</em>. Running an event by hand is spreadsheets, screenshots and
-          chasing people for proof while everyone else enjoys the thing you built. Anvil does the
-          collecting so the organiser gets to play too — and the members just install one plugin and
-          forget it exists.
+          <ul className="m-0 list-none space-y-2 p-0">
+            <li>
+              <b className="text-text">Clan owners and staff.</b> Run events without the spreadsheets,
+              keep the roster in step with the game, and manage the coffer, prizes and clan events.
+            </li>
+            <li>
+              <b className="text-text">Players.</b> Install one plugin, play, and get credit for what
+              you do. Your profile, collection log and personal bests follow you into every clan.
+            </li>
+            <li>
+              <b className="text-text">Streamers and creators.</b> Host events for your viewers with no
+              in-game clan needed, with a page of your own for your community.
+            </li>
+          </ul>
         </Section>
 
         <Section title="How it works">
-          Members link their RuneScape account once and install the Anvil plugin from the RuneLite
-          hub. From then on it reports drops, kills, XP and personal bests to whichever of your clan&rsquo;s
-          boards are live, credits the right person automatically, and posts the highlights to Discord.
-          One account follows a person across every clan they ever join — so a guest in your event
-          brings their own history, and their proof is theirs everywhere.
+          Three parts work together. The <b className="text-text">website</b> holds the boards, rosters,
+          competitions and clan pages. The <b className="text-text">RuneLite plugin</b> watches the
+          game, credits the right player with a screenshot as proof, and puts your team in a side
+          panel with a feed, chat, lookup and a &ldquo;Do this next&rdquo; card. The{' '}
+          <b className="text-text">Discord bot</b> posts the highlights to the channels you choose and
+          can set those channels up for you.
+        </Section>
+
+        <Section title="What you can do">
+          Run eight event formats, including Tile race with branching roads, Showdown and Lucky draw.
+          Spring missions mid-event, co-host with other clans, and run clan-versus-clan competitions.
+          Check tile balance from real drop rates and kill speeds, see who is spooned or dry, and
+          review flagged proof. Every setup guide comes in 16 languages.
+        </Section>
+
+        <Section title="What we believe">
+          Rules are decided once, when you build the event, and the game does the counting. Nobody
+          should lose a drop because they posted it at 3am. The organiser should get to play too.
+          One account follows a player across every clan, so a guest in your event brings their own
+          history, and their proof is theirs everywhere.
         </Section>
 
         <Section title="Where it runs">
-          Every clan gets its own space at <code className="text-gold">/c/your-clan</code>, its own
-          roster, its own boards and its own Discord — all on one platform, so people move between
-          clans without leaving the app or re-linking anything. Bring your own domain on the top tier.
+          Every clan gets its own space at <code className="text-gold">/c/your-clan</code>, with its own
+          roster, boards and Discord, all on one platform so people move between clans without
+          re-linking anything. Bring your own domain on the top tier.
+        </Section>
+
+        <Section title="Read more">
+          <span className="flex flex-wrap gap-x-5 gap-y-2">
+            {[
+              ['/guide', 'All guides'],
+              ['/guide/plugin', 'Install the plugin'],
+              ['/guide/side-panel', 'Side panel'],
+              ['/guide/team-competitions', 'Team competitions'],
+              ['/guide/discord', 'Discord'],
+              ['/guide/admin', 'Admin guide'],
+              ['/legal/terms', 'Terms'],
+              ['/legal/privacy', 'Privacy'],
+              ['/legal/refunds', 'Refunds'],
+            ].map(([href, label]) => (
+              <ClanLink key={href} href={href} className="text-gold hover:text-gold-light">
+                {label}
+              </ClanLink>
+            ))}
+          </span>
         </Section>
       </div>
 
@@ -86,7 +137,19 @@ export default async function AboutPage() {
           href="/clans/new"
           className="rounded-lg bg-gold px-5 py-3 font-semibold text-brown-dark transition-colors hover:bg-gold-light"
         >
-          Start your clan
+          Create your clan
+        </ClanLink>
+        <ClanLink
+          href="/guide/plugin"
+          className="rounded-lg border border-card-border px-5 py-3 transition-colors hover:border-gold-dark hover:bg-card-bg"
+        >
+          Install the plugin
+        </ClanLink>
+        <ClanLink
+          href="/clans"
+          className="rounded-lg border border-card-border px-5 py-3 transition-colors hover:border-gold-dark hover:bg-card-bg"
+        >
+          Browse clans
         </ClanLink>
         <ClanLink
           href="/pricing"
@@ -123,7 +186,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         <span className="molten h-5 w-1 shrink-0 rounded-sm" />
         <h2 className="text-[17px] font-semibold">{title}</h2>
       </div>
-      <p className="ml-4 max-w-[64ch] text-[14.5px] leading-relaxed text-text-muted">{children}</p>
+      <div className="ml-4 max-w-[64ch] text-[14.5px] leading-relaxed text-text-muted">{children}</div>
     </section>
   );
 }

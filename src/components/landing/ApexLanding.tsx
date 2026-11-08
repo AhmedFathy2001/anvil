@@ -2,6 +2,7 @@ import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 import HeroShowcase from '@/components/landing/HeroShowcase';
 import TileKinds, { TILE_KIND_COUNT } from '@/components/landing/TileKinds';
+import FeatureGroups from '@/components/landing/FeatureGroups';
 import Faq from '@/components/landing/Faq';
 import { FEATURE_PAGES, GENERAL_FAQ } from '@/lib/answers';
 import { EVENT_MODES } from '@/lib/eventModes';
@@ -70,7 +71,7 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
             .
           </h1>
           <p className="mt-5 max-w-[48ch] text-[16.5px] leading-relaxed text-text-muted">
-            Bingos, tile races, ladders, skill and boss weeks, clan against clan. Anvil holds the
+            Bingos, tile races, ladders, skill and boss weeks, clan against clan, with Discord posts, a RuneLite side panel and a home for your clan. Anvil holds the
             board and the roster; the RuneLite plugin watches the game and fills them in. Set it up
             once — then go play it like everybody else.
           </p>
@@ -79,13 +80,19 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
               href="/clans/new"
               className="rounded-lg bg-gold px-5 py-3 font-semibold text-brown-dark transition-colors hover:bg-gold-light"
             >
-              Start your clan
+              Create your clan
+            </ClanLink>
+            <ClanLink
+              href="/guide/plugin"
+              className="rounded-lg border border-card-border px-5 py-3 transition-colors hover:border-gold-dark hover:bg-card-bg"
+            >
+              Install the plugin
             </ClanLink>
             <ClanLink
               href="/clans"
-              className="rounded-lg border border-card-border px-5 py-3 transition-colors hover:border-gold-dark hover:bg-card-bg"
+              className="px-2 py-3 text-text-muted transition-colors hover:text-gold-light"
             >
-              See a live event
+              Browse clans
             </ClanLink>
           </div>
           {/* The second audience: somebody with viewers or friends and no in-game clan. */}
@@ -141,30 +148,6 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
         </Section>
 
         <Section
-          title="And it remembers, between events."
-          lede="The plugin syncs the parts of your account that events are built from, so a board can ask for a first Quiver rather than one more Colosseum."
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Feature
-              title="Collection log"
-              body="Whole-log sync, per item, with rarity. Clan luck boards, spoons and droughts."
-            />
-            <Feature
-              title="Personal bests"
-              body="Every timed activity, imported from RuneLite and kept current."
-            />
-            <Feature
-              title="Quests, diaries, CAs"
-              body="Quest points, diary tiers, and combat achievement points and tier."
-            />
-            <Feature
-              title="Moments"
-              body="Pets, uniques and deaths captured as they happen."
-            />
-          </div>
-        </Section>
-
-        <Section
           title="The person running the event never gets to play it."
           lede="Whatever the format, the organiser spends it doing data entry. Anyone who has run one recognises the left-hand column."
         >
@@ -212,45 +195,7 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
           </div>
         </Section>
 
-        <Section
-          title="Where your clan already talks."
-          lede={`The bot posts drops, deaths, standings and winners into the channels you choose — and answers questions in ${DISCORD_LOCALES.length} languages.`}
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Feature
-              title="/bingo board"
-              body="The live board, in chat, without anybody leaving Discord."
-            />
-            <Feature
-              title="Roles and nicknames"
-              body="Synced from the roster, so your server matches the game."
-            />
-            <Feature
-              title="Per-channel routing"
-              body="Rare drops, deaths and standings each to their own home."
-            />
-            <Feature
-              title="Private team channels"
-              body="Built when the draft lands and torn down when the event ends."
-            />
-          </div>
-        </Section>
-
-        <Section
-          title="And when you want a rival."
-          lede="The one thing you cannot do alone — and the reason every clan sits on one platform rather than one site each."
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Feature
-              title="Play another clan"
-              body="Post an open challenge, or invite a clan you already know. Both rosters play one board. Their players are in for the event and nothing more — no joining, no Discord swap, no shared spreadsheet."
-            />
-            <Feature
-              title="Or find people"
-              body="Clans looking for members, players looking for clans. Applications arrive in the same queue as everything else, with the person’s account and stats already attached."
-            />
-          </div>
-        </Section>
+        <FeatureGroups />
 
         {/* The plain-words half of the page. Everything above argues; this states — what it is,
             what it costs, what it needs — in sentences a search engine or an AI answer can quote
@@ -298,7 +243,13 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
               href="/clans/new"
               className="rounded-lg bg-gold px-5 py-3 font-semibold text-brown-dark transition-colors hover:bg-gold-light"
             >
-              Start your clan
+              Create your clan
+            </ClanLink>
+            <ClanLink
+              href="/guide/plugin"
+              className="rounded-lg border border-card-border px-5 py-3 transition-colors hover:border-gold-dark hover:bg-card-bg"
+            >
+              Install the plugin
             </ClanLink>
             <ClanLink
               href="/guide/admin"
@@ -357,15 +308,6 @@ function Figure({ n, k }: { n: string; k: string }) {
       <div className="mt-1.5 font-mono text-[10.5px] uppercase tracking-[0.15em] text-text-muted">
         {k}
       </div>
-    </div>
-  );
-}
-
-function Feature({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-xl border border-card-border bg-card-bg p-4 sm:p-5">
-      <b className="mb-1.5 block text-[14.5px] font-semibold">{title}</b>
-      <span className="block text-[13.5px] leading-relaxed text-text-muted">{body}</span>
     </div>
   );
 }
