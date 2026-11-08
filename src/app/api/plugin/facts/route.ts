@@ -1,8 +1,8 @@
 import { POST as submitRoute } from '@/app/api/events/[eventId]/submissions/route';
 import { boardFor, loadTrackedConfig } from '@/lib/pluginFacts/load';
 import { coalesce, matchFacts, type Credit } from '@/lib/pluginFacts/match';
-import { parseFacts } from '@/lib/pluginFacts/parse';
-import { planSubmissions, type Coop } from '@/lib/pluginFacts/plan';
+import { MAX_FACTS, parseFacts } from '@/lib/pluginFacts/parse';
+import { creditOutcome, planSubmissions, retryFacts, type Coop, type Outcome } from '@/lib/pluginFacts/plan';
 import { rateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -15,6 +15,10 @@ const MAX_SUBMISSIONS = 40;
 // submissions route exactly as the plugin's own POST used to, so caps, completions, the live push and
 // staff review are unchanged. The reply carries each touched tile's corrected count, which the
 // client adopts over its instant local guess.
+//
+// A credit whose filing failed for a passing reason (a 5xx, a throw, a rate limit, or past this
+// request's cap) is not lost: its facts come back in `retry`, with the tiles they did land on in
+// `done`, and the plugin keeps the proof (or the queued facts) and sends exactly those again.
 
 export async function POST(request: Request) {
   const rl = await rateLimit(request, 'plugin-facts', { limit: 240, windowMs: 60_000 });
@@ -22,7 +26,9 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const facts = parseFacts(body?.facts);
-  if (facts.length === 0) return Response.json({ credits: [], notes: [] });
+  // Past the per-request cap: not looked at, sent back to try again.
+  const overflow = Array.isArray(body?.facts) ? parseFacts((body.facts as unknown[]).slice(MAX_FACTS), Infinity) : [];
+  if (facts.length === 0) return Response.json({ credits: [], notes: [], ...(overflow.length ? { retry: overflow } : {}) });
 
   const loaded = await loadTrackedConfig(request);
   if (!loaded.ok) return Response.json({ error: 'No config' }, { status: loaded.status });
@@ -38,21 +44,39 @@ export async function POST(request: Request) {
 
   // One at a time, and a bounded number per request: same-tile credits must land in order (the
   // completion check reads the previous one), and one request must not fan out without limit.
+  // After the first passing failure (the database is likely down) the rest are not tried: they retry.
   const results: { tileId: number; ok: boolean; completed: boolean; error?: string }[] = [];
-  for (const p of plans.slice(0, MAX_SUBMISSIONS)) {
-    results.push(await (async () => {
-      const headers = new Headers(request.headers);
-      headers.set('content-type', 'application/json');
-      headers.delete('content-length');
-      if (p.board.clan) headers.set('x-anvil-clan-slug', p.board.clan);
-      const url = new URL(`/api/events/${p.board.eventId}/submissions`, request.url);
-      const res = await submitRoute(new Request(url, { method: 'POST', headers, body: JSON.stringify(p.body) }), {
-        params: Promise.resolve({ eventId: String(p.board.eventId) }),
-      });
-      const json = (await res.json().catch(() => ({}))) as { completed?: boolean; error?: string };
-      return { tileId: p.credit.tileId, ok: res.ok, completed: !!json.completed, error: res.ok ? undefined : json.error };
-    })());
+  const outcomes = new Map<Credit, Outcome[]>();
+  let failing = false;
+  for (const [n, p] of plans.entries()) {
+    let outcome: Outcome = 'retry';
+    if (n < MAX_SUBMISSIONS && !failing) {
+      try {
+        const headers = new Headers(request.headers);
+        headers.set('content-type', 'application/json');
+        headers.delete('content-length');
+        if (p.board.clan) headers.set('x-anvil-clan-slug', p.board.clan);
+        const url = new URL(`/api/events/${p.board.eventId}/submissions`, request.url);
+        const res = await submitRoute(new Request(url, { method: 'POST', headers, body: JSON.stringify(p.body) }), {
+          params: Promise.resolve({ eventId: String(p.board.eventId) }),
+        });
+        const json = (await res.json().catch(() => ({}))) as { completed?: boolean; error?: string };
+        outcome = res.ok ? 'ok' : res.status >= 500 || res.status === 429 ? 'retry' : 'refused';
+        if (outcome !== 'retry') results.push({ tileId: p.credit.tileId, ok: res.ok, completed: !!json.completed, error: res.ok ? undefined : json.error });
+      } catch (e) {
+        console.error('[plugin/facts] filing failed', e);
+      }
+    }
+    if (outcome === 'retry') {
+      failing = true;
+      results.push({ tileId: p.credit.tileId, ok: false, completed: false, error: 'Will retry' });
+    }
+    outcomes.set(p.credit, [...(outcomes.get(p.credit) ?? []), outcome]);
   }
+  const retry = [
+    ...retryFacts(facts, credits, (c) => (outcomes.has(c) ? creditOutcome(outcomes.get(c)!) : undefined)),
+    ...overflow,
+  ];
 
   const byTile = new Map<number, { ok: boolean; completed: boolean; error?: string }>();
   for (const r of results) {
@@ -79,5 +103,6 @@ export async function POST(request: Request) {
       ...byTile.get(c.tileId),
     })),
     notes,
+    ...(retry.length ? { retry } : {}),
   });
 }

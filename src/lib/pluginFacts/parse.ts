@@ -1,19 +1,20 @@
 import type { Fact, SourceKind } from '@/lib/pluginFacts/match';
 
 const KINDS = new Set<SourceKind>(['npc', 'event', 'pvp', 'pickpocket', 'clog']);
-const MAX_FACTS = 50;
+export const MAX_FACTS = 50;
 const MAX_ITEMS = 100;
 const str = (v: unknown, max = 96) => (typeof v === 'string' && v.length <= max ? v : null);
 const int = (v: unknown, max = 2_147_483_647) => (Number.isInteger(v) && (v as number) >= 0 && (v as number) <= max ? (v as number) : null);
 const opt = <T>(v: T | null): T | undefined => (v == null ? undefined : v);
 
 /** Only well-formed facts survive; anything else is dropped, never trusted. */
-export function parseFacts(raw: unknown): Fact[] {
+export function parseFacts(raw: unknown, max = MAX_FACTS): Fact[] {
   if (!Array.isArray(raw)) return [];
   const out: Fact[] = [];
-  for (const f of raw.slice(0, MAX_FACTS)) {
+  for (const f of raw.slice(0, max)) {
     if (!f || typeof f !== 'object') continue;
     const o = f as Record<string, unknown>;
+    const n = out.length;
     const kind = KINDS.has(o.kind as SourceKind) ? (o.kind as SourceKind) : null;
     if (o.k === 'loot' && kind && Array.isArray(o.items)) {
       const items = (o.items as unknown[])
@@ -49,6 +50,11 @@ export function parseFacts(raw: unknown): Fact[] {
         inf: opt(str(o.inf, 48)),
         note: opt(str(o.note, 500)),
       });
+    }
+    // A re-sent fact: the tiles it already landed on.
+    if (out.length > n && Array.isArray(o.done)) {
+      const done = (o.done as unknown[]).filter((t): t is number => Number.isInteger(t) && Math.abs(t as number) <= 2_147_483_647).slice(0, 100);
+      if (done.length) out[n].done = done;
     }
   }
   return out;

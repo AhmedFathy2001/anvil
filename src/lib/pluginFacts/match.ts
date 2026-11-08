@@ -178,7 +178,11 @@ export interface TileFact {
   note?: string;
 }
 
-export type Fact = LootFact | ValueFact | KillFact | TileFact;
+/**
+ * `done`: a fact the plugin re-sends after a transient filing failure carries the tiles it already
+ * landed on (or was refused by), so only the ones that failed are filed again.
+ */
+export type Fact = (LootFact | ValueFact | KillFact | TileFact) & { done?: number[] };
 
 export type CreditKind = 'drop' | 'value' | 'kill' | 'tile';
 
@@ -207,6 +211,8 @@ export interface Credit {
   fact?: TileFact;
   tileKind?: TileKind | 'drop' | 'kill' | 'value';
   row?: PlainTile;
+  /** Indices (in the posted array) of the facts this credit came from. */
+  fi?: number[];
 }
 
 export interface MatchResult {
@@ -331,13 +337,14 @@ function completedSet(t: Tracked): Set<number> {
 }
 
 /** Drops: processLoot. Every tile tracking an item is credited (a sunfire piece on two tiles counts on both). */
-export function matchLoot(fact: LootFact, t: Tracked, out: MatchResult): void {
+export function matchLoot(fact: LootFact, t: Tracked, out: MatchResult, skip?: Set<number>): void {
   const drops = t.trackedDrops ?? [];
   if (drops.length === 0 || fact.items.length === 0) return;
   const done = completedSet(t);
   const creditedThisKill = new Map<number, number>();
   for (const [itemId, qty] of fact.items) {
     for (const drop of drops) {
+      if (skip?.has(drop.tileId)) continue;
       const tracks = drop.itemRequirements?.length
         ? drop.itemRequirements.some((r) => r.itemId === itemId)
         : (drop.itemIds ?? []).includes(itemId);
@@ -397,10 +404,10 @@ export function matchLoot(fact: LootFact, t: Tracked, out: MatchResult): void {
 }
 
 /** Loot-value tiles: processValueTiles. Single-haul completes once; "total" sums every qualifying haul. */
-export function matchValue(fact: ValueFact, t: Tracked, out: MatchResult): void {
+export function matchValue(fact: ValueFact, t: Tracked, out: MatchResult, skip?: Set<number>): void {
   if (fact.gp <= 0) return;
   for (const v of t.trackedValues ?? []) {
-    if (v.completed) continue;
+    if (v.completed || skip?.has(v.tileId)) continue;
     const total = (v.mode ?? '').toLowerCase() === 'total';
     if (!total && fact.gp < v.thresholdGp) continue;
     if (!valueSourceMatches(v.sources, fact.src, fact.kind)) continue;
@@ -431,7 +438,7 @@ export function killIndex(t: Tracked): Map<string, KillTile[]> {
 }
 
 /** Kills: creditOncePerTile + creditKillTiles. A tile reached by several moved names takes the largest, once. */
-export function matchKill(fact: KillFact, t: Tracked, out: MatchResult, index = killIndex(t)): void {
+export function matchKill(fact: KillFact, t: Tracked, out: MatchResult, index = killIndex(t), skip?: Set<number>): void {
   const done = completedSet(t);
   const unverified = new Set((fact.unv ?? []).map((n) => n.toLowerCase()));
   const amountByTile = new Map<KillTile, number>();
@@ -444,7 +451,7 @@ export function matchKill(fact: KillFact, t: Tracked, out: MatchResult, index = 
     }
   }
   for (const [kill, moved] of amountByTile) {
-    if (kill.currentAmount >= kill.requiredAmount) continue;
+    if (kill.currentAmount >= kill.requiredAmount || skip?.has(kill.tileId)) continue;
     // Never more than the tile still needs: an inflated count must not fan out into a flood of pings.
     const amount = Math.min(moved, kill.requiredAmount - kill.currentAmount);
     const cap = kill.capOf != null && kill.capOf > 0;
@@ -472,7 +479,8 @@ export function matchKill(fact: KillFact, t: Tracked, out: MatchResult, index = 
  * may file this way (a replayed older proof may name any tracked tile). The submissions route still
  * does every check it always did.
  */
-export function matchTile(fact: TileFact, t: Tracked, out: MatchResult): void {
+export function matchTile(fact: TileFact, t: Tracked, out: MatchResult, skip?: Set<number>): void {
+  if (skip?.has(fact.t)) return;
   const lists: [string, PlainTile[] | null | undefined][] = Object.keys(TILE_LISTS).map((k) => [k, t[k as keyof typeof TILE_LISTS]]);
   if (fact.note != null) {
     lists.push(['drop', t.trackedDrops], ['kill', t.trackedKills], ['value', t.trackedValues as PlainTile[] | null | undefined]);
@@ -498,12 +506,15 @@ export const UNVERIFIED_COUNTER = 'unverified_counter';
 export function matchFacts(facts: Fact[], t: Tracked): MatchResult {
   const out: MatchResult = { credits: [], notes: [] };
   const index = killIndex(t);
-  for (const f of facts) {
-    if (f.k === 'loot') matchLoot(f, t, out);
-    else if (f.k === 'value') matchValue(f, t, out);
-    else if (f.k === 'kill') matchKill(f, t, out, index);
-    else if (f.k === 'tile') matchTile(f, t, out);
-  }
+  facts.forEach((f, i) => {
+    const from = out.credits.length;
+    const skip = f.done?.length ? new Set(f.done) : undefined;
+    if (f.k === 'loot') matchLoot(f, t, out, skip);
+    else if (f.k === 'value') matchValue(f, t, out, skip);
+    else if (f.k === 'kill') matchKill(f, t, out, index, skip);
+    else if (f.k === 'tile') matchTile(f, t, out, skip);
+    for (const c of out.credits.slice(from)) c.fi = [i];
+  });
   return out;
 }
 
@@ -555,7 +566,7 @@ export function coalesce(credits: Credit[]): Credit[] {
     const key = `${c.kind}:${c.tileId}:${c.itemId ?? '-'}`;
     const had = byKey.get(key);
     if (!had || c.kind === 'value' || c.kind === 'tile') {
-      const copy = { ...c, parts: c.parts ? [...c.parts] : undefined };
+      const copy = { ...c, parts: c.parts ? [...c.parts] : undefined, fi: c.fi ? [...c.fi] : undefined };
       if (!had) byKey.set(key, copy);
       out.push(copy);
       continue;
@@ -565,6 +576,7 @@ export function coalesce(credits: Credit[]): Credit[] {
     had.of = c.of;
     if (c.parts) had.parts = [...(had.parts ?? []), ...c.parts];
     if (c.inferred) had.inferred = c.inferred;
+    for (const i of c.fi ?? []) if (!had.fi?.includes(i)) (had.fi ??= []).push(i);
   }
   return out;
 }

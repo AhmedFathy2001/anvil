@@ -18,7 +18,7 @@ import {
   type ValueTile,
 } from '@/lib/pluginFacts/match';
 import { buildRuleTable, statStep } from '@/lib/pluginFacts/rules';
-import { planSubmissions, tileText } from '@/lib/pluginFacts/plan';
+import { creditOutcome, planSubmissions, retryFacts, tileText, type Outcome } from '@/lib/pluginFacts/plan';
 import { appendBoardTiles } from '@/lib/pluginBoardTiles';
 import { parseFacts } from '@/lib/pluginFacts/parse';
 import { pluginTileCounts, withTileCounts } from '@/lib/pluginTileCounts';
@@ -581,4 +581,48 @@ test('appendBoardTiles: another board\'s plugin-judged tiles say which board in 
   appendBoardTiles(body, { trackedGains: [{ tileId: 1, label: 'Sharks' }, { tileId: 2, label: 'Logs · Spring' }], trackedDrops: [{ tileId: 3, label: 'Whip' }] }, lb);
   assert.deepEqual((body.trackedGains as { label: string }[]).map((g) => g.label), ['Sharks · Spring', 'Logs · Spring']);
   assert.deepEqual((body.trackedDrops as { label: string }[]).map((g) => g.label), ['Whip']);
+});
+
+test('retryFacts: only facts with a passing failure come back, carrying the tiles they landed on', () => {
+  const t: Tracked = {
+    trackedDrops: [drop({ tileId: 1, itemIds: [10] }), drop({ tileId: 2, itemIds: [10] }), drop({ tileId: 3, itemIds: [30] })],
+    trackedKills: [kill({ tileId: 4, targetNpcs: ['Zulrah'] })],
+  };
+  const facts = parseFacts([
+    { k: 'loot', src: 'Tekton', kind: 'npc', items: [[10, 1]] },
+    { k: 'loot', src: 'Tekton', kind: 'npc', items: [[30, 1]] },
+    { k: 'kill', n: { zulrah: 1 } },
+    { k: 'kill', n: { zulrah: 1 } },
+  ]);
+  const credits = coalesce(matchFacts(facts, t).credits);
+  assert.deepEqual(credits.map((c) => [c.tileId, c.fi]), [[1, [0]], [2, [0]], [3, [1]], [4, [2, 3]]]);
+  // Tile 2 failed (5xx), tile 1 landed, tile 3 was refused, the kill failed.
+  const by: Record<number, Outcome> = { 1: 'ok', 2: 'retry', 3: 'refused', 4: 'retry' };
+  const retry = retryFacts(facts, credits, (c) => by[c.tileId]);
+  assert.deepEqual(retry.map((f) => [f.k, f.done]), [['loot', [1]], ['kill', undefined], ['kill', undefined]]);
+  // Re-sent: the landed tile is skipped, only the failed one is filed.
+  const again = matchFacts(parseFacts(JSON.parse(JSON.stringify(retry))), {
+    trackedDrops: [drop({ tileId: 1, itemIds: [10], currentAmount: 1 }), drop({ tileId: 2, itemIds: [10] })],
+    trackedKills: [kill({ tileId: 4, targetNpcs: ['Zulrah'] })],
+  });
+  assert.deepEqual(again.credits.map((c) => [c.tileId, c.amount]), [[2, 1], [4, 1], [4, 1]]);
+  // Everything in, or no board to file on: nothing comes back. A second failure keeps the earlier done.
+  assert.deepEqual(retryFacts(facts, credits, () => 'ok'), []);
+  assert.deepEqual(retryFacts(facts, credits, () => undefined), []);
+  const second = retryFacts(parseFacts(JSON.parse(JSON.stringify(retry))), coalesce(again.credits), (c) => (c.tileId === 2 ? 'retry' : 'ok'));
+  assert.deepEqual(second.map((f) => f.done), [[1]]);
+});
+
+test('creditOutcome: any landed submission lands the credit; else a passing failure retries it', () => {
+  assert.equal(creditOutcome(['retry', 'ok']), 'ok');
+  assert.equal(creditOutcome(['refused', 'retry']), 'retry');
+  assert.equal(creditOutcome(['refused']), 'refused');
+});
+
+test('parseFacts: keeps a re-sent fact\'s done tiles and takes a larger cap when asked', () => {
+  const [f] = parseFacts([{ k: 'tile', t: 7, n: 1, done: [3, 'x', -4] }]);
+  assert.deepEqual(f.done, [3, -4]);
+  const many = Array.from({ length: 60 }, () => ({ k: 'value', src: null, kind: 'npc', gp: 5 }));
+  assert.equal(parseFacts(many).length, 50);
+  assert.equal(parseFacts(many.slice(50), Infinity).length, 10);
 });

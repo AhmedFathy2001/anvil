@@ -3,7 +3,7 @@
  * ping, so the submissions route (validation, caps, completions, live push) stays the only writer.
  * Pure — the facts route sends what this returns.
  */
-import { killWantsProof, MAX_PING_AMOUNT, planPings, type Credit, type FactBoard } from '@/lib/pluginFacts/match';
+import { killWantsProof, MAX_PING_AMOUNT, planPings, type Credit, type Fact, type FactBoard } from '@/lib/pluginFacts/match';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
 
 export interface Coop {
@@ -189,4 +189,38 @@ function chunk(total: number, size: number): number[] {
   const out: number[] = [];
   for (let left = total; left > 0; left -= size) out.push(Math.min(size, left));
   return out;
+}
+
+/** How one credit's filing went: in, refused for good (a 4xx), or failed for a passing reason. */
+export type Outcome = 'ok' | 'refused' | 'retry';
+
+/** A credit's outcome from its submissions': in if any landed, else retry if any failed for a passing reason. */
+export function creditOutcome(plans: Outcome[]): Outcome {
+  return plans.includes('ok') ? 'ok' : plans.includes('retry') ? 'retry' : 'refused';
+}
+
+/**
+ * The facts the plugin must send again: each fact one of whose credits failed for a passing reason
+ * (a 5xx, a throw, a rate limit, or never sent), with the tiles it did land on or was refused by in
+ * `done`, so the re-send files only what failed and never credits a tile twice. A credit with no
+ * outcome (no board to file on) is not retried: nothing about it would change.
+ */
+export function retryFacts(facts: Fact[], credits: Credit[], outcome: (c: Credit) => Outcome | undefined): Fact[] {
+  const retry = new Set<number>();
+  const done = new Map<number, Set<number>>();
+  for (const c of credits) {
+    const o = outcome(c);
+    if (!o) continue;
+    for (const i of c.fi ?? []) {
+      if (o === 'retry') retry.add(i);
+      else {
+        if (!done.has(i)) done.set(i, new Set());
+        done.get(i)!.add(c.tileId);
+      }
+    }
+  }
+  return [...retry].sort((a, b) => a - b).map((i) => {
+    const d = new Set([...(facts[i].done ?? []), ...(done.get(i) ?? [])]);
+    return d.size ? { ...facts[i], done: [...d] } : facts[i];
+  });
 }
