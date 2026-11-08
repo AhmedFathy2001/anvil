@@ -157,3 +157,30 @@ export function itemAlreadyCounted(
     (s) => isPrimaryCredit(s) && s.amount > 0 && s.itemId === itemId && (!solo || submissionCreditKey(s) === (creditKey ?? UNATTRIBUTED_CREDIT)),
   );
 }
+
+/**
+ * The combat task a CA submission names, keyed as the plugin keys names (RuleEngine.key: lowercase
+ * letters and digits). Read off the note the facts route writes (lib/pluginFacts/plan tileText):
+ * `… combat task "Whack-a-Mole" completed …`. Null when the note names no task (a web upload).
+ */
+export function caTaskKey(note: string | null | undefined): string | null {
+  const m = note?.match(/combat task "(.+?)" completed/i);
+  return m?.[1].toLowerCase().replace(/[^a-z0-9]/g, '') || null;
+}
+
+/**
+ * Has this team (or, on a Solo tile, this member) a live credit for this combat task on this tile?
+ * The in-game "Repeat completion" setting re-fires a task on every re-meet, so "any 5 Elite tasks"
+ * must count five DIFFERENT tasks. Live rows only: a deleted proof frees its task again.
+ */
+export function caTaskAlreadyCounted(
+  subs: (CountedSubmission & { note?: string | null })[],
+  task: string,
+  trackingMode: string | null | undefined,
+  creditKey: number | null,
+): boolean {
+  const solo = isIndividualMode(trackingMode);
+  return subs.some(
+    (s) => isPrimaryCredit(s) && caTaskKey(s.note) === task && (!solo || submissionCreditKey(s) === (creditKey ?? UNATTRIBUTED_CREDIT)),
+  );
+}

@@ -12,7 +12,7 @@ import { resolveTeamManagement } from '@/lib/teamStaff';
 import { syncDropTileCompletion, countTileProgress } from '@/lib/submissions';
 import { capEligible, capGoalForSlot, capIndex, decodeCapTileId, parseCapBy } from '@/lib/tileCaps';
 import { decidePing, tilePingMax } from '@/lib/pingMax';
-import { countProgress, itemAlreadyCounted, memberProgress } from '@/lib/countProgress';
+import { caTaskAlreadyCounted, caTaskKey, countProgress, itemAlreadyCounted, memberProgress } from '@/lib/countProgress';
 import { itemCap, parseCountMode } from '@/lib/collectionSets';
 import { clogItemFromProof, clogSlotRefusal, clogTileSpec, decideClogSlot, decideClogSlotByName } from '@/lib/clogTiles';
 import { clogOwnedBefore } from '@/lib/clogTileCredit';
@@ -47,6 +47,9 @@ const INFERRED_FLAGS = new Set(['inferred_duplicate_pet', 'inferred_duplicate_sc
 
 /** Kinds whose ping counts kills/laps/games one at a time. Gains and loot values are not counts. */
 const PING_CAPPED_KINDS = new Set(['kill', 'lap', 'pvp', 'deathless', 'lms']);
+
+// The same combat task or finished-page proof again (the plugin says it as "Not counted: <tile> — …").
+const ALREADY_COUNTED = 'already counted for this tile';
 
 export async function GET(
   request: Request,
@@ -537,7 +540,7 @@ export async function POST(
     const spec = clogTileSpec(tile);
     const creditKey = submitterCreditId ?? 0;
     const tileSubs = await db
-      .select({ id: submissions.id, playerId: submissions.playerId, creditPlayerId: submissions.creditPlayerId, amount: submissions.amount, itemId: submissions.itemId, imageUrl: submissions.imageUrl })
+      .select({ id: submissions.id, playerId: submissions.playerId, creditPlayerId: submissions.creditPlayerId, amount: submissions.amount, itemId: submissions.itemId, imageUrl: submissions.imageUrl, proofKey: submissions.proofKey })
       .from(submissions)
       .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId), isNull(submissions.goal)));
     const mine = tileSubs.filter((r) => (r.creditPlayerId ?? r.playerId ?? 0) === creditKey && r.itemId != null);
@@ -559,6 +562,11 @@ export async function POST(
     const pageProof = spec.mode === 'complete' && hasShot && !itemId
       && !(name && decideClogSlotByName(name, spec, new Set(), new Set()).ok);
     if (pageProof) {
+      // One page proof per member is all the tile ever reads, and the plugin captures a finished page
+      // each time it is opened: a second one from the plugin while the first is live is refused.
+      if (pluginAuth && tileSubs.some((r) => (r.creditPlayerId ?? r.playerId ?? 0) === creditKey && r.itemId == null && (r.imageUrl || r.proofKey))) {
+        return NextResponse.json({ error: ALREADY_COUNTED }, { status: 400 });
+      }
       itemId = null;
       creditedAmount = 1;
     } else {
@@ -604,10 +612,16 @@ export async function POST(
         creditPlayerId: submissions.creditPlayerId,
         amount: submissions.amount,
         itemId: submissions.itemId,
+        note: submissions.note,
       })
       .from(submissions)
       .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId), isNull(submissions.goal)));
     const soloTile = isIndividualMode(tile.trackingMode);
+    // A combat task counts once per tile (per member on a Solo tile): "Repeat completion" re-fires it.
+    const caTask = tile.tileType === 'ca' ? caTaskKey(creditNote) : null;
+    if (caTask && caTaskAlreadyCounted(tileSubs, caTask, tile.trackingMode, submitterCreditId ?? null)) {
+      return NextResponse.json({ error: ALREADY_COUNTED }, { status: 400 });
+    }
     // "Different items only" pool: a repeat adds nothing, so refuse it rather than store a drop
     // that silently doesn't count. Needs the item to tell; an itemless upload counts as new.
     const distinctPool = tile.tileType === 'drop' && parseCountMode(tile.countMode) === 'distinct';
