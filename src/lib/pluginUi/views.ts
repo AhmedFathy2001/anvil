@@ -53,7 +53,9 @@ import { hasFeedTab, hasPanelImages, hasTabArgs, hasTabLinks, loadPanelPlayerCar
 import { LAB_CLAN_SLUG } from '@/lib/lab';
 import { isCreatorSpace } from '@/lib/creatorSpaces';
 import { clanBoostLevels } from '@/lib/clanBoosts';
-import { type Node, type View, applyFlair, backRow, button, card, col, gap, message, muted, namesIn, text } from './nodes';
+import { racePageUi } from './raceUi';
+import { boardFeedLinks } from './feedUi';
+import { type Action, type Node, type View, applyFlair, backRow, button, card, col, gap, message, muted, namesIn, text } from './nodes';
 import { notFoundUi, playerCardUi } from './playerCardUi';
 import { casUi, clogPageUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from './playerMoreUi';
 import { rosterUi, teamsUi } from './teamsUi';
@@ -344,6 +346,27 @@ async function boardView(request: Request, a: Args, error: string | null = null)
     chatOn: await boardChatOn(scope.event.id).catch(() => true),
   };
   const tile = positive(a.tile) && a.list !== '1' ? (board.tiles as BoardTile[]).find((t) => t.tileId === Number(a.tile)) : undefined;
+  // A tile race opened from the event list is its race page (lib/pluginUi/raceUi); its "View all
+  // tiles", and the home board page's tile links (back 'board'), keep the searchable list.
+  if (!error && a.part !== 'rows' && a.tiles !== '1' && a.back !== 'board' && !tile) {
+    const back: Action = { a: 'load', v: 'home', args: a.back ? { open: a.back } : {} };
+    const nav = { back: a.back ?? '', backLabel: a.backLabel ?? '' };
+    const page = racePageUi(board, {
+      title: a.title || scope.event.name,
+      back,
+      backLabel: a.backLabel || 'All events',
+      rest: [
+        boardFeedLinks(ctx.eventId, ctx.feedBack, ctx.feedTab, ctx.chatOn ?? true),
+        gap(12),
+        button(`View all ${board.tiles.length} tiles`, { a: 'load', v: 'board', args: { ...a, tiles: '1', title: 'All tiles' } }, 'Every tile on the route, with search'),
+      ],
+      ctx,
+      teams: { a: 'load', v: 'teams', args: { event: String(scope.event.id), ...nav } },
+      reload: { a: 'load', v: 'board', args: { ...a, tile: '' } },
+      pick: { ...a, tile: '' },
+    });
+    if (page) return { ui: page };
+  }
   const inner = boardRowsUi(board, state, ctx, tile, error);
   return { ui: a.part === 'rows' ? inner : withBack(a, a.title || 'All tiles', boardUi(board, state, ctx, inner)) };
 }
@@ -378,7 +401,32 @@ async function racePickAct(request: Request, a: Args): Promise<View> {
       if (!r.ok) error = r.error;
     }
   }
+  // Picked from the race page on the Clan tab: back to that page (its pick is drawn there).
+  if (a.home && !error) return homeView(request, { open: a.home });
   return boardView(request, { ...a, tile: '' }, error);
+}
+
+/**
+ * A tile race's page needs the whole board (every road, who's done what): gathered only when the race
+ * is the page being opened. Best effort: without it the plain board page shows.
+ */
+async function raceBoardFor(request: Request, a: Args, boardPath: string | null): Promise<HomeData['raceBoard']> {
+  try {
+    const scope = await pluginBoardScope(request, null);
+    if (!scope || scope.teamId == null) return null;
+    const [board, progress] = await Promise.all([buildBoard(scope.event, scope.teamId, scope.userId, scope.curtainUserId ?? scope.userId), teamProgress(request)]);
+    if (board.readOnly || !('race' in board) || !board.race) return null;
+    const ctx: BoardContext = {
+      eventId: scope.event.id,
+      claimBlock: playedCharacter(request) ? null : 'Log in to claim tiles.',
+      pins: a.track === '1' ? (a.pins ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0) : null,
+      progress,
+      boardPath,
+    };
+    return { board, ctx };
+  } catch {
+    return null;
+  }
 }
 
 // ---- A tile's proofs ------------------------------------------------------------------------------
@@ -543,6 +591,7 @@ async function homeView(request: Request, a: Args): Promise<View> {
     now,
     clanEvents,
     myBoards,
+    raceBoard: open === 'board' && live && cfg.event?.race ? await raceBoardFor(request, a, cfg.event ? `${clanPath}/events/${cfg.event.id}` : null) : null,
   };
   return { ui: (open && eventUi(data, open)) || homeUi(data) };
 }
