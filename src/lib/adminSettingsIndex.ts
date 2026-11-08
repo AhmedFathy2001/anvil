@@ -7,8 +7,8 @@
 // ringed (components/HashReveal).
 //
 // ONE ENTRY PER SETTING, not per page: the line an admin is looking for is a field ("Keep deaths
-// too"), a switch ("Send game-mode posts to their own channels") or a card ("Remove Dink's old
-// webhooks"), and a result that only names the page leaves them reading it top to bottom again.
+// too"), a switch ("Send game-mode posts to their own channels") or a card ("Remove old webhooks
+// from other plugins"), and a result that only names the page leaves them reading it top to bottom again.
 //
 // PURE, and relative imports only: the shell's client component and a node:test suite both read it,
 // and neither should need a database or the `@/` resolver. Who may SEE an entry is decided by the
@@ -785,19 +785,19 @@ const PAGES: readonly SettingEntry[] = [
     fallbackAnchor: 'discord-connection',
   },
   {
-    id: 'discord-from-dink',
-    label: 'Coming from Dink?',
+    id: 'discord-from-other-plugins',
+    label: 'Coming from other plugins?',
     description: 'Anvil found other bots’ webhooks in your server: reuse the same channels for Anvil’s posts.',
-    keywords: ['dink', 'old bot', 'migrate', 'switching', 'same channels', 'webhooks'],
-    href: `${DISCORD}#discord-from-dink`,
+    keywords: ['other plugins', 'old plugin', 'old bot', 'migrate', 'switching', 'same channels', 'webhooks'],
+    href: `${DISCORD}#discord-from-other-plugins`,
     section: S.quick,
     fallbackAnchor: 'discord-quick-setup',
   },
   {
     id: 'discord-old-webhooks',
     label: 'Keep or remove old webhooks',
-    description: 'Delete Dink’s and other bots’ webhooks for good, or keep the ones that still feed something else. Shows when Anvil finds any.',
-    keywords: ['dink', 'webhook', 'webhooks', 'old bot', 'remove webhooks', 'keep webhooks', 'delete webhooks', 'clean up', 'put back', 'duplicate posts'],
+    description: 'Delete other plugins’ and bots’ webhooks for good, or keep the ones that still feed something else. Shows when Anvil finds any.',
+    keywords: ['other plugins', 'webhook', 'webhooks', 'old bot', 'remove webhooks', 'keep webhooks', 'delete webhooks', 'clean up', 'put back', 'duplicate posts'],
     href: `${DISCORD}#discord-old-webhooks`,
     section: S.quick,
     fallbackAnchor: 'discord-quick-setup',
@@ -1496,7 +1496,7 @@ export const GUIDE_SECTIONS: readonly GuideSectionRef[] = [
   { guide: 'discord', guideTitle: 'Anvil in Discord', dict: 'discord', key: 'connect', anchor: 'connect', title: 'Connecting it', keywords: ['bot', 'invite', 'connect'] },
   { guide: 'discord', guideTitle: 'Anvil in Discord', dict: 'discord', key: 'channels', anchor: 'channels', title: 'Set up webhooks', keywords: ['webhooks', 'channels', 'what goes where', 'game modes'] },
   { guide: 'discord', guideTitle: 'Anvil in Discord', dict: 'discord', key: 'modes', anchor: 'modes', title: 'Leagues, Deadman and other modes', keywords: ['game modes', 'leagues', 'deadman', 'hardcore', 'seasonal', 'threshold', 'rarity'], only: 'clan' },
-  { guide: 'discord', guideTitle: 'Anvil in Discord', dict: 'discord', key: 'cleanup', anchor: 'cleanup', title: 'Old webhooks from Dink or other bots', keywords: ['dink', 'old webhooks', 'remove webhooks', 'keep webhooks'] },
+  { guide: 'discord', guideTitle: 'Anvil in Discord', dict: 'discord', key: 'cleanup', anchor: 'cleanup', title: 'Old webhooks from other plugins or bots', keywords: ['other plugins', 'old webhooks', 'remove webhooks', 'keep webhooks'] },
   { guide: 'discord', guideTitle: 'Anvil in Discord', dict: 'discord', key: 'roles', anchor: 'roles', title: 'Roles and nicknames', keywords: ['role sync', 'nicknames', 'rank rules'] },
   { guide: 'discord', guideTitle: 'Anvil in Discord', dict: 'discord', key: 'announce', anchor: 'announce', title: 'Post to Discord', keywords: ['announce', 'announcement', 'embed', 'ping'] },
   { guide: 'discord', guideTitle: 'Anvil in Discord', dict: 'discord', key: 'commands', anchor: 'commands', title: 'Slash commands', keywords: ['commands', 'slash'] },
@@ -1514,7 +1514,7 @@ export const GUIDE_SECTIONS: readonly GuideSectionRef[] = [
   { guide: 'clan', guideTitle: 'Start a clan', dict: 'clan', key: 'setup', anchor: 'setup', title: 'The setup wizard', keywords: ['setup', 'wizard'], only: 'clan' },
   { guide: 'clan', guideTitle: 'Start a clan', dict: 'clan', key: 'boosts', anchor: 'boosts', title: 'Clan boosts', keywords: ['boost', 'boosts', 'level', 'nitro', 'recruiting line', 'recruitment post'], only: 'clan' },
   { guide: 'commands', guideTitle: 'Slash commands', dict: 'commands', key: 'who', anchor: 'who', title: 'Who can use what', keywords: ['commands', 'permissions'] },
-  { guide: 'switching', guideTitle: 'Switching from Dink or Wise Old Man', dict: 'switching', key: 'staff', anchor: 'staff', title: 'If you run the clan', keywords: ['dink', 'wom', 'wise old man', 'migrate', 'old webhooks'] },
+  { guide: 'switching', guideTitle: 'Switching from other plugins and trackers', dict: 'switching', key: 'staff', anchor: 'staff', title: 'If you run the clan', keywords: ['other plugins', 'switching', 'migrate', 'old webhooks'] },
   { guide: 'streaming-for-clans', guideTitle: 'Streaming for clans', dict: 'streamingClans', key: 'on', anchor: 'on', title: 'Turn on Streaming', keywords: ['stream', 'streaming', 'twitch'], only: 'clan' },
   { guide: 'streaming-for-clans', guideTitle: 'Streaming for clans', dict: 'streamingClans', key: 'tools', anchor: 'tools', title: 'Your stream tools', keywords: ['overlay', 'obs', 'join'], only: 'clan' },
   { guide: 'creators', guideTitle: 'Hosting events for your viewers', dict: 'creators', key: 'who', anchor: 'who', title: 'Choose who can join', keywords: ['followers', 'subs', 'gate'], only: 'space' },

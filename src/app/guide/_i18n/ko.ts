@@ -75,7 +75,7 @@ const ko: PartialGuideDict = {
       },
       switching: {
         eyebrow: 'Anvil로 옮기기',
-        title: 'Dink나 Wise Old Man에서 갈아타기',
+        title: '다른 플러그인과 트래커에서 갈아타기',
         blurb:
           'Anvil은 드롭을 Discord에 올리고 주간 대회도 운영합니다. 운영진은 5단계, 플레이어는 2단계면 됩니다.',
         minutes: '약 3분',
@@ -258,21 +258,21 @@ const ko: PartialGuideDict = {
   },
 
   switching: {
-    metaTitle: 'Dink나 Wise Old Man에서 갈아타기 — Anvil',
+    metaTitle: '다른 플러그인과 트래커에서 갈아타기 — Anvil',
     metaDescription:
-      '클랜을 Dink와 Wise Old Man에서 Anvil로 옮겨 보세요. Discord 채널 설정, 클랜 명단 동기화, Skill 또는 Boss of the Week 시작, 그리고 멤버 안내까지.',
+      '클랜을 Anvil로 옮겨 보세요. Discord 채널 설정, 클랜 명단 동기화, Skill 또는 Boss of the Week 시작, 그리고 멤버 안내까지.',
     eyebrow: 'Anvil로 옮기기',
-    title: 'Dink나 Wise Old Man에서 갈아타기',
-    dek: 'Anvil은 두 가지 일을 모두 합니다. 클랜의 드롭과 업적을 Discord에 올립니다. 또 클랜 명단을 최신으로 유지하고 주간 대회를 운영합니다.',
+    title: '다른 플러그인과 트래커에서 갈아타기',
+    dek: 'Anvil은 클랜의 드롭과 업적을 Discord에 올립니다. 또 클랜 명단을 최신으로 유지하고 주간 대회를 운영합니다.',
 
     staff: {
       title: '클랜을 운영한다면',
       body: [
-        '**봇이 채널을 설정하게 하세요.** Admin → Discord → **Set it up for me**로 가세요. 채널을 하나 또는 여러 개 고르세요. Dink가 어딘가에 올리고 있었다면 _Use the same channels_를 체크하세요. 멤버들에게는 달라지는 게 없습니다.',
-        '**클랜 명단을 동기화하세요.** RuneLite에서 Anvil 플러그인 설정을 열고 **Keep the clan roster in sync**를 켜세요. 관리자 한 명이 게임 안에서 한 번만 하면 됩니다. Wise Old Man 그룹을 대신합니다.',
-        '**Skill 또는 Boss of the Week를 시작하세요.** Admin → All events → **+ New event**로 가서 Skill of the Week나 Boss of the Week를 고르세요. 클랜 명단의 모든 사람이 자동으로 참여합니다. Wise Old Man 대회를 대신합니다.',
+        '**봇이 채널을 설정하게 하세요.** Admin → Discord → **Set it up for me**로 가세요. 채널을 하나 또는 여러 개 고르세요. 다른 플러그인이 어딘가에 올리고 있었다면 _Use the same channels_를 체크하세요. 멤버들에게는 달라지는 게 없습니다.',
+        '**클랜 명단을 동기화하세요.** RuneLite에서 Anvil 플러그인 설정을 열고 **Keep the clan roster in sync**를 켜세요. 관리자 한 명이 게임 안에서 한 번만 하면 됩니다. 다른 곳에서 관리하던 클랜 명단을 대신합니다.',
+        '**Skill 또는 Boss of the Week를 시작하세요.** Admin → All events → **+ New event**로 가서 Skill of the Week나 Boss of the Week를 고르세요. 클랜 명단의 모든 사람이 자동으로 참여합니다. 다른 곳에서 열던 대회를 대신합니다.',
         '**멤버들에게 알리세요.** Admin → Discord → **Tell your members** → **Post it**로 가세요. 플레이어용 안내 단계를 봇이 대신 올려 줍니다.',
-        '**일주일 뒤에 정리하세요.** Admin → Discord → **Remove Dink’s old webhooks**에서 지울 웹훅을 체크하고 **Remove … webhooks**를 누른 다음 **Yes, remove them**을 누르세요. 그 뒤로는 중복 게시가 생기지 않습니다. 그대로 두고 싶은 웹훅에는 **Keep**을 누르세요.',
+        '**일주일 뒤에 정리하세요.** Admin → Discord → **Remove old webhooks from other plugins**에서 지울 웹훅을 체크하고 **Remove … webhooks**를 누른 다음 **Yes, remove them**을 누르세요. 그 뒤로는 중복 게시가 생기지 않습니다. 그대로 두고 싶은 웹훅에는 **Keep**을 누르세요.',
       ],
     },
 
@@ -280,8 +280,8 @@ const ko: PartialGuideDict = {
       title: '플레이어라면',
       body: [
         '**Anvil을 설치하세요.** RuneLite에서 Plugin Hub를 열고 Anvil을 검색해 **Install**을 누르세요. 그런 다음 Anvil 사이드 패널에서 Discord로 로그인하세요.',
-        '**Dink 알림을 끄세요.** 다른 용도로 쓰지 않는다면 Dink를 삭제해도 됩니다.',
-        '**끝입니다.** Wise Old Man은 따로 할 일이 없습니다.',
+        '**이전 플러그인의 알림을 끄세요.** 아무것도 두 번 올라가지 않도록 끄세요. 다른 용도로 쓰지 않는다면 삭제해도 됩니다.',
+        '**끝입니다.** 따로 설정할 것은 없습니다.',
       ],
     },
 
@@ -290,12 +290,8 @@ const ko: PartialGuideDict = {
       intro: '클랜들이 가장 많이 묻는 질문입니다.',
       rows: [
         {
-          term: '일부 기능은 Dink를 계속 써도 되나요?',
-          body: '네. Anvil은 킬 카운트, 슬레이어 과제, 스피드런은 올리지 않습니다. Dink에서는 그것들만 켜 두세요.',
-        },
-        {
-          term: '아직 Wise Old Man이 필요한가요?',
-          body: '역대 기록과 EHP / EHB 순위에만 필요합니다.',
+          term: 'Anvil이 킬 카운트, 슬레이어 과제, 개인 최고 기록을 추적하나요?',
+          body: '네. Anvil이 킬 카운트, 슬레이어 과제, 개인 최고 기록을 직접 추적하므로 따로 계속 돌려야 할 것이 없습니다.',
         },
         {
           term: '플레이어가 어딘가에 웹훅을 붙여 넣어야 하나요?',
@@ -637,11 +633,11 @@ const ko: PartialGuideDict = {
       },
     },
     cleanup: {
-      title: 'Dink나 다른 봇의 예전 웹훅',
+      title: '다른 플러그인이나 봇의 예전 웹훅',
       body: [
-        '봇이 서버에 있으면 Discord 페이지에 Anvil 것이 아닌 웹훅이 전부 나열됩니다. **Coming from Dink?**에는 **Use the same channels**가 있어서, **Set it up for me**가 예전 피드가 올리던 곳에 그대로 게시하고 멤버 입장에서는 아무것도 바뀌지 않습니다.',
-        '멤버들이 Anvil로 옮겨 왔다면 **Remove Dink’s old webhooks**로 가서 지울 것을 체크하고 **Remove … webhooks**를 누른 다음 **Yes, remove them**을 누르세요. Discord에서 영구히 삭제됩니다 — 되돌릴 수 없습니다.',
-        '이 목록에는 Dink 것만이 아니라 Anvil 것이 아닌 웹훅이 모두 들어갑니다. 다른 봇의 피드처럼 남겨 두고 싶은 게 있나요? **Keep**을 누르면 목록에서 빠지고, **Show kept**와 **Put back**으로 다시 돌려놓을 수 있습니다. Keep은 여기서 숨기기만 할 뿐 — Discord에서는 아무것도 바뀌지 않습니다.',
+        '봇이 서버에 있으면 Discord 페이지에 Anvil 것이 아닌 웹훅이 전부 나열됩니다. **Coming from other plugins?**에는 **Use the same channels**가 있어서, **Set it up for me**가 예전 피드가 올리던 곳에 그대로 게시하고 멤버 입장에서는 아무것도 바뀌지 않습니다.',
+        '멤버들이 Anvil로 옮겨 왔다면 **Remove old webhooks from other plugins**로 가서 지울 것을 체크하고 **Remove … webhooks**를 누른 다음 **Yes, remove them**을 누르세요. Discord에서 영구히 삭제됩니다 — 되돌릴 수 없습니다.',
+        '이 목록에는 다른 플러그인 것만이 아니라 Anvil 것이 아닌 웹훅이 모두 들어갑니다. 다른 봇의 피드처럼 남겨 두고 싶은 게 있나요? **Keep**을 누르면 목록에서 빠지고, **Show kept**와 **Put back**으로 다시 돌려놓을 수 있습니다. Keep은 여기서 숨기기만 할 뿐 — Discord에서는 아무것도 바뀌지 않습니다.',
       ],
       note: {
         tag: '웹후크 관리 권한 필요',
@@ -832,7 +828,7 @@ const ko: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        '**Anvil 사이드 패널**도 소속 클랜, 진행 중인 이벤트, 내 순위, 동기화 버튼으로 채워집니다. 그리고 게임 내 Collection Log 제목 표시줄에 WikiSync·RuneProfile 옆으로 **Anvil** 버튼이 나타납니다.',
+        '**Anvil 사이드 패널**도 소속 클랜, 진행 중인 이벤트, 내 순위, 동기화 버튼으로 채워집니다. 그리고 게임 내 Collection Log 제목 표시줄에 **Anvil** 버튼이 나타납니다.',
       guestNote: {
         tag: '게스트와 멤버의 차이',
         body: '채팅에 _Tracked as a guest_ 라고 뜨면 기록은 되고 있지만 아직 클랜 멤버 명단에는 없다는 뜻입니다. 관리자가 게임 내 클랜 명단을 동기화하면 해결됩니다 —— {discordLink} 물어보세요.',
@@ -852,7 +848,7 @@ const ko: PartialGuideDict = {
         '플레이어를 우클릭하세요 — 바로 옆에 있는 플레이어든, 채팅·친구 목록·클랜 패널의 이름이든 상관없습니다. **Anvil**을 고르면 그 플레이어의 카드가 사이드 패널의 **Lookup** 탭에서 열립니다. 내 것은 **You** 탭입니다.',
       lookupFigure: {
         caption: '이름 우클릭 → Anvil',
-        alt: '게임 속 플레이어 우클릭 메뉴. Lookup과 RuneProfile 아래에 Anvil 항목이 있다',
+        alt: '게임 속 플레이어 우클릭 메뉴. Lookup 아래에 Anvil 항목이 있다',
       },
       lookupSettingNote:
         '플러그인 설정의 **Player lookup**에서 **Anvil** 항목이 어디에 나타날지 고르세요. 채팅 속 이름에서는 절대 좌클릭 기본 동작이 되지 않으므로, 이름을 클릭하면 여전히 게임 본래의 동작이 실행됩니다.',

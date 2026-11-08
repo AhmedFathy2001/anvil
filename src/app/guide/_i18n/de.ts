@@ -76,7 +76,7 @@ const de: PartialGuideDict = {
       },
       switching: {
         eyebrow: 'Umstieg auf Anvil',
-        title: 'Umstieg von Dink oder Wise Old Man',
+        title: 'Umstieg von anderen Plugins und Trackern',
         blurb:
           'Anvil postet deine Drops auf Discord und führt eure Wochenwettbewerbe durch. Fünf Schritte für die Leitung, zwei für Spieler.',
         minutes: '~3 Min.',
@@ -259,21 +259,21 @@ const de: PartialGuideDict = {
   },
 
   switching: {
-    metaTitle: 'Umstieg von Dink oder Wise Old Man — Anvil',
+    metaTitle: 'Umstieg von anderen Plugins und Trackern — Anvil',
     metaDescription:
-      'Hol deinen Clan von Dink und Wise Old Man zu Anvil: Discord-Kanäle einrichten, Clanliste synchronisieren, Skill oder Boss of the Week starten und deine Mitglieder informieren.',
+      'Hol deinen Clan zu Anvil: Discord-Kanäle einrichten, Clanliste synchronisieren, Skill oder Boss of the Week starten und deine Mitglieder informieren.',
     eyebrow: 'Umstieg auf Anvil',
-    title: 'Umstieg von Dink oder Wise Old Man',
-    dek: 'Anvil übernimmt beide Aufgaben. Es postet die Drops und Erfolge deines Clans auf Discord. Außerdem pflegt es die Clanliste und führt Wochenwettbewerbe durch.',
+    title: 'Umstieg von anderen Plugins und Trackern',
+    dek: 'Anvil postet die Drops und Erfolge deines Clans auf Discord. Außerdem pflegt es die Clanliste und führt Wochenwettbewerbe durch.',
 
     staff: {
       title: 'Wenn du den Clan leitest',
       body: [
-        '**Lass den Bot deine Kanäle einrichten.** Gehe zu Admin → Discord → **Set it up for me**. Wähle einen oder mehrere Kanäle. Falls Dink irgendwo gepostet hat, hake _Use the same channels_ an. Für deine Mitglieder ändert sich nichts.',
-        '**Synchronisiere die Clanliste.** Öffne in RuneLite die Einstellungen des Anvil-Plugins. Schalte **Keep the clan roster in sync** ein. Ein Admin macht das einmal, im Spiel. Das ersetzt deine Wise-Old-Man-Gruppe.',
-        '**Starte einen Skill oder Boss of the Week.** Gehe zu Admin → All events → **+ New event** und wähle Skill of the Week oder Boss of the Week. Alle auf der Clanliste sind automatisch dabei. Das ersetzt die Wise-Old-Man-Wettbewerbe.',
+        '**Lass den Bot deine Kanäle einrichten.** Gehe zu Admin → Discord → **Set it up for me**. Wähle einen oder mehrere Kanäle. Falls ein anderes Plugin irgendwo gepostet hat, hake _Use the same channels_ an. Für deine Mitglieder ändert sich nichts.',
+        '**Synchronisiere die Clanliste.** Öffne in RuneLite die Einstellungen des Anvil-Plugins. Schalte **Keep the clan roster in sync** ein. Ein Admin macht das einmal, im Spiel. Das ersetzt jede Clanliste, die du anderswo geführt hast.',
+        '**Starte einen Skill oder Boss of the Week.** Gehe zu Admin → All events → **+ New event** und wähle Skill of the Week oder Boss of the Week. Alle auf der Clanliste sind automatisch dabei. Das ersetzt Wettbewerbe, die du anderswo veranstaltet hast.',
         '**Informiere deine Mitglieder.** Gehe zu Admin → Discord → **Tell your members** → **Post it**. Der Bot postet die Schritte für Spieler für dich.',
-        '**Eine Woche später: aufräumen.** Gehe zu Admin → Discord → **Remove Dink’s old webhooks**, hake die an, die weg sollen, klicke auf **Remove … webhooks** und dann auf **Yes, remove them**. Danach kann nichts mehr doppelt gepostet werden. Klicke bei allen, die du in Ruhe lassen willst, auf **Keep**.',
+        '**Eine Woche später: aufräumen.** Gehe zu Admin → Discord → **Remove old webhooks from other plugins**, hake die an, die weg sollen, klicke auf **Remove … webhooks** und dann auf **Yes, remove them**. Danach kann nichts mehr doppelt gepostet werden. Klicke bei allen, die du in Ruhe lassen willst, auf **Keep**.',
       ],
     },
 
@@ -281,8 +281,8 @@ const de: PartialGuideDict = {
       title: 'Wenn du Spieler bist',
       body: [
         '**Installiere Anvil.** Öffne in RuneLite den Plugin Hub, suche nach Anvil und klicke auf **Install**. Melde dich dann im Anvil-Seitenpanel mit Discord an.',
-        '**Schalte die Benachrichtigungen von Dink aus.** Oder deinstalliere Dink, falls du es für nichts anderes brauchst.',
-        '**Das war’s.** Für Wise Old Man musst du nichts tun.',
+        '**Schalte die Benachrichtigungen deines alten Plugins aus**, damit nichts doppelt gepostet wird. Oder deinstalliere es, falls du es für nichts anderes brauchst.',
+        '**Das war’s.** Du musst nichts weiter einrichten.',
       ],
     },
 
@@ -291,12 +291,8 @@ const de: PartialGuideDict = {
       intro: 'Die, die Clans am häufigsten stellen:',
       rows: [
         {
-          term: 'Können wir Dink für manche Dinge behalten?',
-          body: 'Ja. Anvil postet keine Kill Counts, Slayer-Aufgaben oder Speedruns. Lass in Dink nur diese eingeschaltet.',
-        },
-        {
-          term: 'Brauchen wir Wise Old Man noch?',
-          body: 'Nur für Allzeit-Rekorde und EHP- / EHB-Ränge.',
+          term: 'Erfasst Anvil Kill Counts, Slayer-Aufgaben und persönliche Bestleistungen?',
+          body: 'Ja. Anvil erfasst Kill Counts, Slayer-Aufgaben und persönliche Bestleistungen selbst, daher muss nichts anderes weiterlaufen.',
         },
         {
           term: 'Müssen Spieler irgendwo einen Webhook einfügen?',
@@ -638,11 +634,11 @@ const de: PartialGuideDict = {
       },
     },
     cleanup: {
-      title: 'Alte Webhooks von Dink oder anderen Bots',
+      title: 'Alte Webhooks von anderen Plugins oder Bots',
       body: [
-        'Ist der Bot auf deinem Server, listet die Discord-Seite jeden Webhook dort auf, der nicht von Anvil ist. **Coming from Dink?** bietet **Use the same channels** an, damit **Set it up for me** dorthin postet, wo deine alten Feeds gepostet haben, und sich für deine Mitglieder nichts verschiebt.',
-        'Sobald deine Mitglieder auf Anvil sind, geh zu **Remove Dink’s old webhooks**, hake die an, die weg sollen, und drück **Remove … webhooks**, dann **Yes, remove them**. Das löscht sie in Discord endgültig — rückgängig machen lässt sich das nicht.',
-        'Die Liste enthält jeden Webhook, der nicht von Anvil ist, nicht nur die von Dink. Einen willst du behalten, etwa den Feed eines anderen Bots? Drück **Keep**, und er verschwindet aus der Liste; **Show kept** und **Put back** holen ihn zurück. Behalten blendet ihn nur hier aus — in Discord ändert sich nichts.',
+        'Ist der Bot auf deinem Server, listet die Discord-Seite jeden Webhook dort auf, der nicht von Anvil ist. **Coming from other plugins?** bietet **Use the same channels** an, damit **Set it up for me** dorthin postet, wo deine alten Feeds gepostet haben, und sich für deine Mitglieder nichts ändert.',
+        'Sobald deine Mitglieder auf Anvil sind, geh zu **Remove old webhooks from other plugins**, hake die an, die weg sollen, und drück **Remove … webhooks**, dann **Yes, remove them**. Das löscht sie in Discord endgültig — rückgängig machen lässt sich das nicht.',
+        'Die Liste enthält jeden Webhook, der nicht von Anvil ist, nicht nur die von anderen Plugins. Einen willst du behalten, etwa den Feed eines anderen Bots? Drück **Keep**, und er verschwindet aus der Liste; **Show kept** und **Put back** holen ihn zurück. Behalten blendet ihn nur hier aus — in Discord ändert sich nichts.',
       ],
       note: {
         tag: 'Braucht „Webhooks verwalten“',
@@ -833,7 +829,7 @@ const de: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'Außerdem füllt sich das **Anvil-Seitenpanel** mit deinen Clans, den laufenden Events, deiner Platzierung und den Sync-Schaltflächen — und in der Titelleiste deines Collection Log im Spiel erscheint eine **Anvil**-Schaltfläche, neben WikiSync und RuneProfile.',
+        'Außerdem füllt sich das **Anvil-Seitenpanel** mit deinen Clans, den laufenden Events, deiner Platzierung und den Sync-Schaltflächen — und in der Titelleiste deines Collection Log im Spiel erscheint eine **Anvil**-Schaltfläche.',
       guestNote: {
         tag: 'Gast oder Mitglied',
         body: 'Sagt der Chat _Tracked as a guest_, wirst du erfasst, stehst aber noch nicht auf der Clan-Mitgliederliste. Das behebt ein Admin, indem er die Mitgliederliste aus dem Spiel synchronisiert — frag {discordLink}.',
@@ -853,7 +849,7 @@ const de: PartialGuideDict = {
         'Rechtsklicke einen Spieler — direkt neben dir oder per Name im Chat, in deiner Freundesliste oder im Clan-Panel — und wähle **Anvil**, um seine Karte im **Lookup**-Tab des Seitenpanels zu öffnen. Deine eigene ist der **You**-Tab.',
       lookupFigure: {
         caption: 'Rechtsklick auf einen Namen → Anvil',
-        alt: 'Das Rechtsklick-Menü eines Spielers im Spiel mit einem Anvil-Eintrag unter Lookup und RuneProfile',
+        alt: 'Das Rechtsklick-Menü eines Spielers im Spiel mit einem Anvil-Eintrag unter Lookup',
       },
       lookupSettingNote:
         'Unter **Player lookup** in den Plugin-Einstellungen legst du fest, wo der **Anvil**-Eintrag erscheint. Auf einem Namen im Chat ist er nie die Linksklick-Option, ein Klick auf einen Namen tut also weiterhin, was das Spiel tut.',

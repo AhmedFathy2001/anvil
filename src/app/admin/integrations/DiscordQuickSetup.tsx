@@ -103,7 +103,7 @@ function openByHand() {
 }
 
 /**
- * The simple path through Admin → Discord: find Dink's webhooks, set up channels in one click, tell
+ * The simple path through Admin → Discord: find the old webhooks other plugins left, set up channels in one click, tell
  * members, then clean up. Everything here is also reachable by hand below it.
  */
 export default function DiscordQuickSetup({
@@ -187,7 +187,7 @@ export default function DiscordQuickSetup({
 
   // ---- Tell your members ----
   const announceTitle = 'We’re moving our Discord posts to Anvil';
-  const announceBody = `Install the Anvil plugin and sign in with Discord. Then turn off Dink’s notifications so nothing posts twice. Two minutes: ${siteUrl}/guide/switching`;
+  const announceBody = `Install the Anvil plugin and sign in with Discord. Then turn off your old plugin’s notifications so nothing posts twice. Two minutes: ${siteUrl}/guide/switching`;
   const [announceChannel, setAnnounceChannel] = useState('');
   const [posting, setPosting] = useState(false);
   const [postMsg, setPostMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -288,7 +288,7 @@ export default function DiscordQuickSetup({
       )}
 
       {foreign.length > 0 && (
-        <Card id="discord-from-dink" title="Coming from Dink?">
+        <Card id="discord-from-other-plugins" title="Coming from other plugins?">
           <p className="text-sm text-text-muted">
             The bot found {foreign.length} {foreign.length === 1 ? 'webhook' : 'webhooks'} that{' '}
             {foreign.length === 1 ? 'isn’t' : 'aren’t'} Anvil’s in{' '}
@@ -437,7 +437,7 @@ export default function DiscordQuickSetup({
       </Card>
 
       {(removable.length > 0 || keptHooks.length > 0 || removeMsg) && (
-        <Card id="discord-old-webhooks" title="Remove Dink’s old webhooks">
+        <Card id="discord-old-webhooks" title="Remove old webhooks from other plugins">
           {removable.length > 0 ? (
             <>
               <p className="text-sm text-text-muted">

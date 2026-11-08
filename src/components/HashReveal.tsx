@@ -37,8 +37,8 @@ export function flashElement(el: HTMLElement) {
 
 /**
  * Find `#id` (waiting for it to render), open its folds, scroll to it and ring it. `fallback` is
- * another id to land on if `id` never shows — a card that only renders sometimes ("Remove Dink's old
- * webhooks" appears only when there are some), so the jump still ends somewhere that explains it.
+ * another id to land on if `id` never shows — a card that only renders sometimes ("Remove old
+ * webhooks from other plugins" appears only when there are some), so the jump still ends somewhere that explains it.
  */
 export function revealHash(hash: string, fallback?: string) {
   let id = hash.replace(/^#/, '');

@@ -57,7 +57,7 @@ For each class (plugin, web) the summary gives:
 **Never against prod or beta.** Both run on one box, and a ramp would hit real clans and the shared
 Postgres. The k6 script refuses `*.anvilosrs.com` unless `ALLOW_LIVE=1` is set. Point it at a copy of
 the box (`Anvil/deploy/migrate/export-box.sh` → `restore-box.sh` on a throwaway server) or a local
-build. The target should run **without** Discord/WOM credentials, so a write can't post anywhere and
+build. The target should run **without** Discord or hiscores-tracker credentials, so a write can't post anywhere and
 the hiscores budget isn't spent.
 
 ```sh

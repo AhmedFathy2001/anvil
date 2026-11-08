@@ -195,7 +195,7 @@ test('typos: one slip in a word of four letters or more, never in short words', 
   assert.ok(!withinEdits('fees', 'feeds', 0));
   assert.ok(adminIds('deths').includes('rules-feed-deaths'));
   assert.ok(adminIds('webhok').some((id) => id.startsWith('webhook-') || id === 'discord-by-hand'));
-  assert.ok(adminIds('dinck').includes('discord-old-webhooks'));
+  assert.ok(adminIds('webhoks').includes('discord-old-webhooks'));
   assert.ok(adminIds('recrutment').includes('boost-recruitment-post'));
   assert.ok(adminIds('boots').includes('boosts'));
   // "rka" is too short to forgive; and a clean match beats every forgiven one.
@@ -214,7 +214,7 @@ test('the things admins actually ask for land on the right setting', () => {
   assert.equal(top('house rules')?.href, '/admin/rules#house-rules');
   assert.equal(top('keep deaths')?.id, 'rules-feed-deaths');
   for (const q of ['died', 'rip', 'death feed']) assert.ok(adminIds(q).slice(0, 5).includes('rules-feed-deaths'), q);
-  assert.equal(top('dink')?.section.startsWith('Discord'), true);
+  assert.equal(top('other plugins')?.section.startsWith('Discord'), true);
   assert.ok(adminIds('old bot').includes('discord-old-webhooks'));
   assert.ok(adminIds('keep webhooks').slice(0, 3).includes('discord-old-webhooks'));
   assert.equal(top('nitro')?.id, 'boosts');

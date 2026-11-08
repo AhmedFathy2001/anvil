@@ -1,5 +1,5 @@
 /**
- * The bot's view of a clan's Discord webhooks, for clans moving off Dink: which webhooks in the
+ * The bot's view of a clan's Discord webhooks, for clans moving off another plugin: which webhooks in the
  * server are someone else's (listed, optionally removed), and where Anvil's own routing points.
  *
  * Needs Manage Webhooks at the server level (GET /guilds/{id}/webhooks). Pure rules live in

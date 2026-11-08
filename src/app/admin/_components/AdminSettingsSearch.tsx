@@ -289,7 +289,7 @@ export default function AdminSettingsSearch({
         <p className="border-t border-card-border px-4 py-2.5 text-[12px] text-text-dim">
           {typed
             ? 'Arrows to move, Enter to open. It opens on the setting itself.'
-            : 'Type what you are after: a setting, a channel, a role, a word like “deaths” or “dink”.'}
+            : 'Type what you are after: a setting, a channel, a role, a word like “deaths” or “webhooks”.'}
         </p>
       </div>
     </div>

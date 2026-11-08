@@ -3,7 +3,7 @@
  * imported by the client.
  *
  * Quick setup routes every plugin post kind into one of three layouts, and can reuse the channels
- * a clan's old webhooks (Dink, usually) already post into, so nothing moves for members.
+ * a clan's old webhooks (another plugin's, usually) already post into, so nothing moves for members.
  *
  * The routing it writes leans on the fallbacks in lib/pluginConfig (getNotificationWebhooks): an
  * unset kind asks the catch-all (`webhook_plugin_default`), then its old home (pets → drops;
@@ -220,7 +220,7 @@ export interface RawGuildWebhook {
 
 /**
  * Is this a webhook Anvil should treat as someone else's? Only incoming webhooks (type 1) count —
- * channel-follower and application webhooks are never Dink's. One made by our bot, or one whose
+ * channel-follower and application webhooks are never another plugin's. One made by our bot, or one whose
  * URL any Anvil setting or destination uses (a pasted URL is ours even though a person made it),
  * is not foreign. `botIds` holds our bot's user id and application id (usually the same).
  */

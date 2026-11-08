@@ -76,7 +76,7 @@ const nl: PartialGuideDict = {
       },
       switching: {
         eyebrow: 'Overstappen naar Anvil',
-        title: 'Overstappen van Dink of Wise Old Man',
+        title: 'Overstappen van andere plugins en trackers',
         blurb:
           'Anvil post je drops op Discord en draait jullie wekelijkse wedstrijden. Vijf stappen voor het bestuur, twee voor spelers.',
         minutes: '~3 min',
@@ -259,21 +259,21 @@ const nl: PartialGuideDict = {
   },
 
   switching: {
-    metaTitle: 'Overstappen van Dink of Wise Old Man — Anvil',
+    metaTitle: 'Overstappen van andere plugins en trackers — Anvil',
     metaDescription:
-      'Verhuis je clan van Dink en Wise Old Man naar Anvil: stel de Discord-kanalen in, synchroniseer de clanlijst, start Skill of Boss of the Week en vertel het je leden.',
+      'Verhuis je clan naar Anvil: stel de Discord-kanalen in, synchroniseer de clanlijst, start Skill of Boss of the Week en vertel het je leden.',
     eyebrow: 'Overstappen naar Anvil',
-    title: 'Overstappen van Dink of Wise Old Man',
-    dek: 'Anvil doet beide taken. Het post de drops en prestaties van je clan op Discord. Het houdt ook je clanlijst bij en draait wekelijkse wedstrijden.',
+    title: 'Overstappen van andere plugins en trackers',
+    dek: 'Anvil post de drops en prestaties van je clan op Discord. Het houdt ook je clanlijst bij en draait wekelijkse wedstrijden.',
 
     staff: {
       title: 'Als je de clan leidt',
       body: [
-        '**Laat de bot je kanalen instellen.** Ga naar Admin → Discord → **Set it up for me**. Kies één kanaal of meerdere. Als Dink ergens postte, vink dan _Use the same channels_ aan. Voor je leden verandert er niets.',
-        '**Synchroniseer je clanlijst.** Open in RuneLite de instellingen van de Anvil-plugin. Zet **Keep the clan roster in sync** aan. Eén admin doet dit één keer, in het spel. Dit vervangt je Wise Old Man-groep.',
-        '**Start een Skill of Boss of the Week.** Ga naar Admin → All events → **+ New event** en kies Skill of the Week of Boss of the Week. Iedereen op de clanlijst doet automatisch mee. Dit vervangt de Wise Old Man-wedstrijden.',
+        '**Laat de bot je kanalen instellen.** Ga naar Admin → Discord → **Set it up for me**. Kies één kanaal of meerdere. Als een andere plugin ergens postte, vink dan _Use the same channels_ aan. Voor je leden verandert er niets.',
+        '**Synchroniseer je clanlijst.** Open in RuneLite de instellingen van de Anvil-plugin. Zet **Keep the clan roster in sync** aan. Eén admin doet dit één keer, in het spel. Dit vervangt een clanlijst die je ergens anders bijhield.',
+        '**Start een Skill of Boss of the Week.** Ga naar Admin → All events → **+ New event** en kies Skill of the Week of Boss of the Week. Iedereen op de clanlijst doet automatisch mee. Dit vervangt wedstrijden die je ergens anders hield.',
         '**Vertel het je leden.** Ga naar Admin → Discord → **Tell your members** → **Post it**. De bot post de stappen voor spelers voor je.',
-        '**Een week later: opruimen.** Ga naar Admin → Discord → **Remove Dink’s old webhooks**, vink aan welke weg mogen, klik op **Remove … webhooks** en daarna op **Yes, remove them**. Daarna kan niets meer dubbel posten. Klik op **Keep** bij elke webhook die je met rust wilt laten.',
+        '**Een week later: opruimen.** Ga naar Admin → Discord → **Remove old webhooks from other plugins**, vink aan welke weg mogen, klik op **Remove … webhooks** en daarna op **Yes, remove them**. Daarna kan niets meer dubbel posten. Klik op **Keep** bij elke webhook die je met rust wilt laten.',
       ],
     },
 
@@ -281,8 +281,8 @@ const nl: PartialGuideDict = {
       title: 'Als je speler bent',
       body: [
         '**Installeer Anvil.** Open in RuneLite de Plugin Hub, zoek naar Anvil en klik op **Install**. Log daarna in met Discord via het Anvil-zijpaneel.',
-        '**Zet de meldingen van Dink uit.** Of verwijder Dink, als je het voor niets anders gebruikt.',
-        '**Dat is alles.** Voor Wise Old Man hoef je niets te doen.',
+        '**Zet de meldingen van je oude plugin uit** zodat niets dubbel wordt gepost. Of verwijder de plugin, als je hem voor niets anders gebruikt.',
+        '**Dat is alles.** Er is verder niets in te stellen.',
       ],
     },
 
@@ -291,12 +291,8 @@ const nl: PartialGuideDict = {
       intro: 'De vragen die clans het vaakst stellen:',
       rows: [
         {
-          term: 'Kunnen we Dink voor sommige dingen houden?',
-          body: 'Ja. Anvil post geen kill counts, slayer-taken of speedruns. Laat in Dink alleen die aanstaan.',
-        },
-        {
-          term: 'Hebben we Wise Old Man nog nodig?',
-          body: 'Alleen voor records aller tijden en EHP / EHB-ranglijsten.',
+          term: 'Houdt Anvil kill counts, slayer-taken en persoonlijke records bij?',
+          body: 'Ja. Anvil houdt kill counts, slayer-taken en persoonlijke records zelf bij, dus er is niets anders dat je moet blijven draaien.',
         },
         {
           term: 'Moeten spelers ergens een webhook plakken?',
@@ -638,11 +634,11 @@ const nl: PartialGuideDict = {
       },
     },
     cleanup: {
-      title: 'Oude webhooks van Dink of andere bots',
+      title: 'Oude webhooks van andere plugins of bots',
       body: [
-        'Zit de bot in je server, dan toont de Discord-pagina elke webhook daarin die niet van Anvil is. **Coming from Dink?** biedt **Use the same channels** aan, zodat **Set it up for me** post waar je oude feeds postten en er voor je leden niets verschuift.',
-        'Zodra je leden op Anvil zitten, ga je naar **Remove Dink’s old webhooks**, vink je aan welke weg mogen en druk je op **Remove … webhooks**, daarna op **Yes, remove them**. Dat verwijdert ze voorgoed in Discord — het kan niet ongedaan worden gemaakt.',
-        'De lijst bevat elke webhook die niet van Anvil is, niet alleen die van Dink. Wil je er een houden, zoals de feed van een andere bot? Druk op **Keep** en hij verdwijnt uit de lijst; met **Show kept** en **Put back** haal je hem terug. Houden verbergt hem alleen hier — in Discord verandert er niets.',
+        'Zit de bot in je server, dan toont de Discord-pagina elke webhook daarin die niet van Anvil is. **Coming from other plugins?** biedt **Use the same channels** aan, zodat **Set it up for me** post waar je oude feeds postten en er voor je leden niets verschuift.',
+        'Zodra je leden op Anvil zitten, ga je naar **Remove old webhooks from other plugins**, vink je aan welke weg mogen en druk je op **Remove … webhooks**, daarna op **Yes, remove them**. Dat verwijdert ze voorgoed in Discord — het kan niet ongedaan worden gemaakt.',
+        'De lijst bevat elke webhook die niet van Anvil is, niet alleen die van een andere plugin. Wil je er een houden, zoals de feed van een andere bot? Druk op **Keep** en hij verdwijnt uit de lijst; met **Show kept** en **Put back** haal je hem terug. Houden verbergt hem alleen hier — in Discord verandert er niets.',
       ],
       note: {
         tag: 'Vereist Webhooks beheren',
@@ -833,7 +829,7 @@ const nl: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'Je ziet ook het **Anvil-zijpaneel** zich vullen met je clans, je lopende events, je positie en de sync-knoppen — en er verschijnt een **Anvil**-knop in de titelbalk van je Collection Log in het spel, naast WikiSync en RuneProfile.',
+        'Je ziet ook het **Anvil-zijpaneel** zich vullen met je clans, je lopende events, je positie en de sync-knoppen — en er verschijnt een **Anvil**-knop in de titelbalk van je Collection Log in het spel.',
       guestNote: {
         tag: 'Gast of lid',
         body: 'Zegt de chat _Tracked as a guest_, dan word je bijgehouden maar sta je nog niet op de ledenlijst van de clan. Dat lost een admin op door de ledenlijst vanuit het spel te synchroniseren — vraag het {discordLink}.',
@@ -853,7 +849,7 @@ const nl: PartialGuideDict = {
         'Klik met rechts op een speler — naast je, of op zijn naam in de chat, je vriendenlijst of het clanpaneel — en kies **Anvil** om zijn kaart te openen in het **Lookup**-tabblad van het zijpaneel. Je eigen kaart is het **You**-tabblad.',
       lookupFigure: {
         caption: 'Rechtsklik op een naam → Anvil',
-        alt: 'Het rechtsklikmenu van een speler in het spel met een Anvil-optie onder Lookup en RuneProfile',
+        alt: 'Het rechtsklikmenu van een speler in het spel met een Anvil-optie onder Lookup',
       },
       lookupSettingNote:
         'Kies onder **Player lookup** in de plugin-instellingen waar het **Anvil**-item verschijnt. Op een naam in de chat is het nooit de linkerklikoptie, dus op een naam klikken doet nog steeds wat het spel doet.',

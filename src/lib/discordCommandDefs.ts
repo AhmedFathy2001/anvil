@@ -272,7 +272,7 @@ export const SETUP_TOPICS: { name: string; value: string }[] = [
   { name: 'Moderating proof', value: 'moderator' },
   { name: 'Clan vs clan', value: 'clanvsclan' },
   { name: 'Slash commands', value: 'commands' },
-  { name: 'Switching from Dink / WOM', value: 'switching' },
+  { name: 'Switching from other plugins', value: 'switching' },
   { name: 'Tile rules & limitations', value: 'tiles' },
   { name: 'Hosting as a streamer', value: 'creators' },
   { name: 'Joining a streamer event', value: 'joining' },
