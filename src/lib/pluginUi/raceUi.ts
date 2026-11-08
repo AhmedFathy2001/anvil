@@ -11,16 +11,16 @@ import { ordinal, raceLines } from '@/lib/raceSummary';
 
 /** Road letter badge colours (ground, letter), A first; the mockup's three, then two more. */
 const ROADS: [Color, Color][] = [
-  ['#5a4a2a', '#ffd27a'],
-  ['#2a4a5a', '#9fd8ff'],
-  ['#4a2a5a', '#e0b0ff'],
-  ['#2a5a3a', '#9fe0a8'],
-  ['#5a2a2a', '#ff9f9f'],
+  ['#7a6230', '#ffe2a0'],
+  ['#2f6680', '#c4e8ff'],
+  ['#6a3a80', '#f0d4ff'],
+  ['#2f7046', '#c4f0cc'],
+  ['#7a3434', '#ffc4c4'],
 ];
 const GREEN: Color = '#5fd35f';
 const GOLD: Color = '#ff981f';
-const LATER: Color = '#444444';
-const FAINT: Color = '#888888';
+const LATER: Color = '#4a4a4a';
+const FAINT: Color = '#a0a0a0';
 const SOFT: Color = '#c8c8c8';
 const PROGRESS: Color = '#ffd27a';
 /** Wrap widths (pt): text straight in a card, and beside a track's dots. */

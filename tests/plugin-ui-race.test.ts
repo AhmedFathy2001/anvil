@@ -93,7 +93,7 @@ test('at the start fork: Not started, every road open, the road ahead unknown, y
   assert.ok(s.includes('Roads cross here: you can switch'));
   assert.ok(s.includes('Hard Ardougne diary · same for everyone'));
   const segs = walk(main).find((x) => x.t === 'segs') as { c: string[] };
-  assert.deepEqual(segs.c, ['#444444', '#444444', '#444444', '#444444']);
+  assert.deepEqual(segs.c, ['#4a4a4a', '#4a4a4a', '#4a4a4a', '#4a4a4a']);
   assert.deepEqual(walk(main).filter((x) => x.t === 'step').map((x) => x.dot), ['todo', 'todo', 'end']);
   // Exactly one way back on the page.
   assert.equal(s.filter((x) => /all events|back/i.test(x)).length, 1);
@@ -113,7 +113,7 @@ test('mid-race on road B: one tile, its count, the road with names and the switc
   assert.ok(s.includes('PK Some Pker'));
   assert.ok(s.includes("C: 3 Seers' laps"));
   const segs = walk(main).find((x) => x.t === 'segs') as { c: string[] };
-  assert.deepEqual(segs.c, ['#5fd35f', '#ff981f', '#444444', '#444444']);
+  assert.deepEqual(segs.c, ['#5fd35f', '#ff981f', '#4a4a4a', '#4a4a4a']);
   assert.ok(s.includes('· · ·'));
   assert.ok(s.some((x) => /^\d+ {2}You$/.test(x)));
 });
