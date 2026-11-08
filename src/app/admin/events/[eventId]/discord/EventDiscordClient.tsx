@@ -34,7 +34,8 @@ interface Channel {
 interface View {
   prefs: EventDiscordPrefs;
   hasOwnChannel: boolean;
-  channels: { enabled: boolean; channels: Channel[] };
+  /** `create` is set when the bot may make a channel for this event; `name` is the one it would get. */
+  channels: { enabled: boolean; channels: Channel[]; create: { name: string } | null };
   clanDefaults: {
     posts: Partial<Record<DiscordPostType, boolean>>;
     pings: Partial<Record<DiscordPostType, PingChoice>>;
@@ -123,7 +124,7 @@ export default function EventDiscordClient({ eventId, hasCohosts }: { eventId: n
     })();
   }, [base, apply]);
 
-  async function save(prefs: EventDiscordPrefs, channel?: { channelId?: string; webhookUrl?: string } | null) {
+  async function save(prefs: EventDiscordPrefs, channel?: { channelId?: string; webhookUrl?: string; create?: true } | null) {
     if (!view) return;
     const before = view;
     setView({ ...view, prefs }); // optimistic
@@ -239,7 +240,11 @@ export default function EventDiscordClient({ eventId, hasCohosts }: { eventId: n
             <div className="grid gap-3 sm:grid-cols-2">
               {[
                 { own: false, name: 'Your clan’s bingo channel', desc: 'Set in Admin → Discord' },
-                { own: true, name: 'A channel just for this event', desc: 'Pick one in your server, or paste a webhook' },
+                {
+                  own: true,
+                  name: 'A channel just for this event',
+                  desc: view.channels.create ? 'Pick or create one in your server, or paste a webhook' : 'Pick one in your server, or paste a webhook',
+                },
               ].map((o) => (
                 <button
                   key={String(o.own)}
@@ -295,6 +300,24 @@ export default function EventDiscordClient({ eventId, hasCohosts }: { eventId: n
                     </button>
                   </div>
                 </div>
+                {view.channels.enabled && view.channels.create && (
+                  <div className="flex w-full flex-wrap items-center gap-3 rounded-xl border border-dashed border-card-border px-3.5 py-3">
+                    <div className="min-w-48 flex-1">
+                      <p className="font-semibold text-foreground">Or create a channel</p>
+                      <p className="text-[12px] text-text-muted">
+                        The bot makes #{view.channels.create.name} next to your bingo channel, and this event posts there.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => void save(prefs, { create: true })}
+                      className="shrink-0 rounded-lg border border-gold/60 px-4 py-2 text-sm font-semibold text-gold transition-colors hover:bg-gold/10 disabled:opacity-50"
+                    >
+                      {saving ? 'Working…' : `Create #${view.channels.create.name}`}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             {hasCohosts && (
