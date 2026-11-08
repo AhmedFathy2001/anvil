@@ -134,15 +134,6 @@ export interface CardOptions {
 export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
   const anvil = c.source !== 'hiscores';
   const parts: Node[] = [];
-  if (anvil && opts.images && c.panelMedia?.banner) {
-    parts.push({
-      t: 'img',
-      src: revisedMediaPath(`/api/plugin/media/player/${seg(c.rsn)}?kind=banner`, c.panelMedia.revision),
-      w: 220,
-      h: 73,
-      ...(c.panelMedia.bannerAnimated ? { motion: true } : {}),
-    });
-  }
   parts.push(identity(c, anvil, !!opts.images, !!opts.own));
   // "Compare with me" is the one action, right under who this is. Between Anvil profiles only.
   if (anvil && opts.me && opts.me.trim().toLowerCase() !== c.rsn.trim().toLowerCase()) {
@@ -177,31 +168,43 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
   if (anvil && c.clog && c.clog.total > 0) sections.push({ label: 'Log', c: logTab(c, kills) });
   else if (anvil) sections.push({ label: 'Log', c: card([muted('No collection log synced yet. Sync profile (⚙) sends it.', { wrap: true })]) });
 
-  const more: { label: string; c: Node }[] = [];
-  if (c.activities.length) {
-    const cells = c.activities.map((a) => {
-      const name = a.shortLabel || a.label;
-      const pic = CLUE_ITEMS[a.key] ? icon({ item: CLUE_ITEMS[a.key] }) : icon({ boss: HISCORE_NAMES[a.key] ?? a.key });
-      return countCell(pic, name, a.score, `${a.label} — ${fmt(a.score)}`, opens(cluePage(a.key)));
-    });
-    more.push({ label: 'Clues', c: card([{ t: 'grid', cols: 3, gap: 2, vgap: 2, c: cells }]) });
+  const more: { label: string; summary?: string; c: Node }[] = [];
+  const isClue = (key: string) => key.startsWith('clues');
+  const activityCell = (a: PlayerCard['activities'][number]) => {
+    const name = a.shortLabel || a.label;
+    const pic = CLUE_ITEMS[a.key] ? icon({ item: CLUE_ITEMS[a.key] }) : icon({ boss: HISCORE_NAMES[a.key] ?? a.key });
+    return countCell(pic, name, a.score, `${a.label} — ${fmt(a.score)}`, opens(cluePage(a.key)));
+  };
+  const clues = c.activities.filter((a) => isClue(a.key));
+  const minigames = c.activities.filter((a) => !isClue(a.key));
+  const grid = (cells: Node[]): Node => card([{ t: 'grid', cols: 3, gap: 2, vgap: 2, c: cells }]);
+  if (clues.length) {
+    const all = clues.find((a) => a.key === 'cluesAll')?.score ?? clues.reduce((t, a) => t + a.score, 0);
+    more.push({ label: 'Clues', summary: fmt(all), c: grid(clues.map(activityCell)) });
   }
-  if (anvil && c.times.length) more.push({ label: 'Times', c: times(c) });
+  if (minigames.length) more.push({ label: 'Minigames & activities', summary: String(minigames.length), c: grid(minigames.map(activityCell)) });
+  if (anvil && c.times.length) more.push({ label: 'Times', summary: `${c.times.length} PB${c.times.length === 1 ? '' : 's'}`, c: times(c) });
   if (anvil && opts.cas) {
     more.push({
-      label: 'CAs',
+      label: 'Combat tasks',
       c: card([
         { t: 'slot', id: 'cas', c: muted('Loading combat achievements…'), load: { a: 'load', v: 'cas', args: { rsn: c.rsn }, into: 'cas' } },
       ]),
     });
   }
   if (sections.length) parts.push({ t: 'tabs', key: opts.sectionKey, tabs: sections });
-  if (more.length) {
-    parts.push({
-      t: 'fold',
-      head: muted(`${more.map((m) => m.label).join(' · ')} ▾`, { font: 'small', align: 'r' }),
-      c: { t: 'tabs', key: `${opts.sectionKey}:more`, tabs: more },
-    });
+  // An accordion: a raised header per section (chevron, name, a short summary), its body opening in
+  // place. A toggle builds only the open face, so the combat tasks fetch only once opened.
+  for (const m of more) {
+    const key = `acc:${opts.sectionKey}:${m.label}`;
+    const head = (open: boolean): Node =>
+      row(
+        text(open ? '▾' : '›', 'muted', { w: 10 }),
+        text(m.label, 'white'),
+        m.summary ? muted(m.summary, { font: 'small' }) : undefined,
+        { bg: 'raised', pad: 5, inset: 6, gap: 6, on: { a: 'flip', key } },
+      );
+    parts.push({ t: 'toggle', key, off: head(false), lit: col([head(true), gap(2), m.c]) });
   }
   if (anvil && c.latest.length) parts.push(latest(c));
   return col(parts, { gap: 8 });
@@ -213,41 +216,41 @@ export function notFoundUi(rsn: string): Node {
 }
 
 function identity(c: PlayerCard, anvil: boolean, images: boolean, own: boolean): Node {
-  const details: Node[] = [
-    row(
-      anvil ? nameText(c.rsn, 'white', { font: 'bold' }) : text(c.rsn, 'white', { font: 'bold' }),
-      undefined,
-      anvil ? icon({ glyph: 'external', w: 12, h: 12, color: 'muted', tip: 'Open on the Anvil website', on: { a: 'site', path: profilePath(c.rsn) } }) : undefined,
-    ),
-  ];
-  // "Iron Forge · Ironman": the clan opens in clan lookup.
-  const who = [c.accountType ? accountTypeLabel(c.accountType) : null, anvil ? null : 'from the hiscores'].filter(Boolean).join(' · ');
-  if (c.clan?.name) {
-    const clanMediaRev = mediaRevision(c.clan.logoUrl);
-    details.push(row(
-      images && c.clan.logoUrl
-        ? { t: 'img', src: revisedMediaPath(`/api/plugin/media/clan/${seg(c.clan.slug)}?kind=logo`, clanMediaRev), w: 16, h: 16, motion: true, round: true }
-        : undefined,
-      row(text(c.clan.name, 'brand', { font: 'small', tip: `Open ${c.clan.name} in clan lookup`, on: { a: 'clan', slug: c.clan.slug } }), who ? muted(`· ${who}`, { font: 'small' }) : undefined, undefined, { gap: 4 }),
-      undefined,
-      { gap: 4 },
-    ));
-  } else if (who) details.push(muted(who, { font: 'small' }));
-  if (!anvil && c.fetchedAt) details.push(muted('', { at: c.fetchedAt, font: 'small' }));
+  // The mockup's header: a banner strip (their banner, else a plain dark one), then the avatar badge
+  // beside the name in large bold, "Clan · Main · on Anvil" muted, "2,277 total · cb 126" white.
+  const banner: Node =
+    anvil && images && c.panelMedia?.banner
+      ? {
+          t: 'img',
+          src: revisedMediaPath(`/api/plugin/media/player/${seg(c.rsn)}?kind=banner`, c.panelMedia.revision),
+          w: 220,
+          h: 36,
+          ...(c.panelMedia.bannerAnimated ? { motion: true } : {}),
+        }
+      : col([gap(36)], { bg: 'panel' });
+  const initials = c.rsn.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).replace(/^./, (x) => x.toUpperCase());
+  const avatar: Node =
+    anvil && images && c.panelMedia?.avatar
+      ? { t: 'img', src: revisedMediaPath(`/api/plugin/media/player/${seg(c.rsn)}?kind=avatar`, c.panelMedia.revision), w: 28, h: 28, round: true, ...(c.panelMedia.avatarAnimated ? { motion: true } : {}) }
+      : text(initials, 'brand', { font: 'bold', chip: '#3a3a3a', w: 28, align: 'c' });
+  const name = anvil ? nameText(c.rsn, 'white', { font: 'bold' }) : text(c.rsn, 'white', { font: 'bold' });
+  const who = [c.clan?.name ?? null, c.accountType ? accountTypeLabel(c.accountType) : null, anvil ? 'on Anvil' : 'from the hiscores'].filter(Boolean).join(' · ');
   const totals = [c.totalLevel > 0 ? `${fmt(c.totalLevel)} total` : null, c.combatLevel != null ? `cb ${c.combatLevel}` : null].filter(Boolean);
-  const avatar = anvil && images && c.panelMedia?.avatar
-    ? { t: 'img' as const, src: revisedMediaPath(`/api/plugin/media/player/${seg(c.rsn)}?kind=avatar`, c.panelMedia.revision), w: 40, h: 40, round: true, ...(c.panelMedia.avatarAnimated ? { motion: true } : {}) }
-    : undefined;
-  const parts: Node[] = [row(avatar, col(details, { gap: 2 }), undefined, { gap: 7 })];
-  if (totals.length) parts.push(text(totals.join(' · '), 'white'));
+  const clanOn = c.clan?.name ? { tip: `Open ${c.clan.name} in clan lookup`, on: { a: 'clan' as const, slug: c.clan.slug } } : {};
+  const inner: Node[] = [
+    row(avatar, name, anvil ? icon({ glyph: 'external', w: 12, h: 12, color: 'muted', tip: 'Open on the Anvil website', on: { a: 'site', path: profilePath(c.rsn) } }) : undefined, { gap: 8 }),
+    muted(who, { font: 'small', ...clanOn }),
+  ];
+  if (!anvil && c.fetchedAt) inner.push(muted('', { at: c.fetchedAt, font: 'small' }));
+  if (totals.length) inner.push(text(totals.join(' · '), 'white'));
   if (own && anvil && c.clog && c.clog.total > 0) {
     const pct = percent(c.clog.obtained, c.clog.total);
-    parts.push(row(undefined, muted('Collection log', { font: 'small' }), muted(`${fmt(c.clog.obtained)} / ${fmt(c.clog.total)} · ${pct}%`, { font: 'small' })), { t: 'bar', pct, color: 'done', h: 6, bg: 'panel' });
+    inner.push(row(undefined, muted('Collection log', { font: 'small' }), muted(`${fmt(c.clog.obtained)} / ${fmt(c.clog.total)} · ${pct}%`, { font: 'small' })), { t: 'bar', pct, color: 'done', h: 6, bg: 'panel' });
   }
   const empty =
     c.totalLevel <= 0 && (!c.clog || c.clog.total <= 0) && !c.latest.length && !c.skills.length && !c.bosses.length && !c.topBosses.length;
-  if (empty) parts.push(muted('No stats tracked yet.'));
-  return section(parts);
+  if (empty) inner.push(muted('No stats tracked yet.'));
+  return card([banner, col(inner, { inset: 10, gap: 6 }), gap(4)], { gap: 0 });
 }
 
 /**
@@ -256,10 +259,21 @@ function identity(c: PlayerCard, anvil: boolean, images: boolean, own: boolean):
  */
 function displayCase(c: PlayerCard, slots?: number): Node {
   const pins = c.displayCase ?? [];
+  const day = (iso: string | null | undefined) => {
+    const d = iso ? new Date(iso) : null;
+    return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : null;
+  };
+  /** What the pin says big: a KC, a time, or for an item when and where it came. */
+  const value = (p: NonNullable<PlayerCard['displayCase']>[number]): string => {
+    if (p.headline) return p.headline;
+    const at = p.kc ? `${fmt(p.kc)} KC` : day(p.when);
+    return p.kind === 'drop' ? (at ? `at ${at}` : 'Drop') : at ? `Obtained · ${at}` : 'Obtained';
+  };
   const picture = (p: NonNullable<PlayerCard['displayCase']>[number]): Node => {
-    if ((p.kind === 'drop' || p.kind === 'clog') && p.itemId > 0) return icon({ item: p.itemId, w: 22, h: 20 });
+    // An item sprite is 36x32: the box is made for it so it's never cut.
+    if ((p.kind === 'drop' || p.kind === 'clog') && p.itemId > 0) return icon({ item: p.itemId, w: 36, h: 32 });
     const key = p.kind === 'pb' ? (p.statKey?.replace(/^\d+:/, '') ?? '') : (p.statKey ?? '');
-    return icon({ boss: key, w: 20, h: 20, or: icon({ glyph: 'star', color: 'brand', w: 12, h: 12 }) });
+    return icon({ boss: key, w: 32, h: 32, or: icon({ glyph: 'star', color: 'brand', w: 14, h: 14 }) });
   };
   return section([
     row(undefined, title('Display case'), slots ? muted(`${Math.min(pins.length, slots)} of ${slots} slots`, { font: 'small' }) : undefined),
@@ -268,14 +282,17 @@ function displayCase(c: PlayerCard, slots?: number): Node {
       cols: 2,
       gap: 4,
       vgap: 4,
-      c: pins.map((p) => row(
-        picture(p),
-        p.headline
-          ? col([small(p.headline, GOLD, { tip: p.name }), muted(p.name, { font: 'small' })])
-          : small(p.name, PURPLE, { wrap: true }),
-        undefined,
-        { bg: 'panel', pad: 4, gap: 4, tip: [p.name, p.source].filter(Boolean).join(' · ') },
-      )),
+      c: pins.map((p) => {
+        const item = p.kind === 'drop' || p.kind === 'clog';
+        return col(
+          [
+            picture(p),
+            small(value(p), item ? PURPLE : GOLD, { font: 'bold', wrap: true }),
+            small(p.name, item ? PURPLE : 'muted', { wrap: true }),
+          ],
+          { bg: 'panel', inset: 4, gap: 2, tip: [p.name, p.source].filter(Boolean).join(' · ') },
+        );
+      }),
     },
   ]);
 }

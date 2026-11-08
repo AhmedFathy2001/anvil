@@ -79,8 +79,16 @@ test('a card: identity, then Stats | Bosses | Collection log, the rest folded un
   const tabs = walk(ui).filter((x) => x.t === 'tabs') as Extract<Node, { t: 'tabs' }>[];
   assert.deepEqual(tabs[0].tabs.map((t) => t.label), ['Stats', 'Bosses', 'Log']);
   assert.equal(tabs[0].key, 'lookup');
-  assert.deepEqual(tabs[1].tabs.map((t) => t.label), ['Clues', 'Times', 'CAs']);
-  assert.ok(all.includes('Clues · Times · CAs ▾'));
+  // Clues, Minigames & activities, Times and Combat tasks are an accordion: one toggle each, a raised
+  // header (chevron, name, summary) with a flip action, and a body with real content.
+  const acc = walk(ui).filter((x) => x.t === 'toggle') as Extract<Node, { t: 'toggle' }>[];
+  const named = acc.filter((a) => a.key.startsWith('acc:lookup:'));
+  assert.deepEqual(named.map((a) => a.key.slice('acc:lookup:'.length)), ['Clues', 'Times', 'Combat tasks']);
+  for (const a of named) {
+    assert.ok(walk(a.off).some((x) => x.on?.a === 'flip' && x.on.key === a.key), `${a.key} header flips`);
+    assert.ok(walk(a.lit).some((x) => x.on?.a === 'flip' && x.on.key === a.key), `${a.key} header shuts it again`);
+    assert.ok(walk(a.lit).length > walk(a.off).length, `${a.key} has a body`);
+  }
   // Lookup keeps the log out of the top card; your own card carries its progress there.
   const own = texts(playerCardUi(card, { sectionKey: 'you', cas: false, own: true }));
   assert.ok(own.includes('Collection log'));
@@ -97,9 +105,9 @@ test('panel media, clan mark and this character’s display case are part of the
   const images = walk(ui).filter((n): n is Extract<Node, { t: 'img' }> => n.t === 'img');
   assert.ok(images.some((n) => n.src.includes('kind=banner') && n.motion));
   assert.ok(images.some((n) => n.src.includes('kind=avatar') && n.motion && n.round));
-  assert.ok(images.some((n) => n.src.includes('kind=logo') && n.motion && n.round));
   assert.ok(texts(ui).includes('Display case'));
   assert.ok(texts(ui).includes("Tumeken's shadow"));
+  assert.ok(texts(ui).includes('The AFK Spot · Ironman · on Anvil'), 'the muted line');
   assert.ok(!JSON.stringify(ui).includes('stored-but-never-sent-directly'));
 });
 
@@ -505,7 +513,7 @@ if (process.env.RACE_FIXTURES) {
   const goals: GoalView[] = [
     { id: 1, kind: 'skill', metric: 'slayer', target: 99, label: '99 Slayer', current: 10_200_000, of: 13_034_431, text: '96 · 4.2m xp left', done: false, due: null },
     { id: 2, kind: 'boss', metric: 'vorkath', target: 500, label: '500 Vorkath', current: 312, of: 500, text: '312 / 500', done: false, due: null },
-    { id: 3, kind: 'clog', metric: 'Barrows', target: 25, label: 'Barrows log', current: 22, of: 25, text: '22 / 25', done: false, due: { text: 'due in 2d', pace: null, tone: 'behind' } },
+    { id: 3, kind: 'clog', metric: 'Barrows', target: 25, label: 'Barrows log', current: 22, of: 25, text: '22 / 25', done: false, due: { text: 'due in 2d', pace: null, tone: 'behind', days: 2, when: '14 Nov 2026' } },
     { id: 4, kind: 'clog', metric: 'Fight Caves', target: 1, label: 'Fire cape', current: 1, of: 1, text: '1 / 1', done: true, due: null },
   ] as GoalView[];
   write('you', col([
@@ -529,3 +537,33 @@ if (process.env.RACE_FIXTURES) {
     } as unknown as Parameters<typeof clanCardUi>[0], true),
   ], { gap: 8 }));
 }
+
+test('display case: every pin kind shows its value, items keep a full-size icon', () => {
+  const shown: PlayerCard = {
+    ...card,
+    displayCase: [
+      { id: 1, kind: 'kc', itemId: 0, statKey: 'vorkath', headline: '1,204 KC', name: 'Vorkath', source: null },
+      { id: 2, kind: 'pb', itemId: 0, statKey: '1:tob', headline: '17:42.6', name: 'ToB · 4 players', source: null },
+      { id: 3, kind: 'drop', itemId: 20997, statKey: null, headline: null, name: 'Twisted bow', source: 'CoX', kc: 312, when: null },
+      { id: 4, kind: 'clog', itemId: 21992, statKey: null, headline: null, name: 'Vorki', source: 'Vorkath', kc: null, when: '2026-11-01T10:00:00Z' },
+    ],
+  };
+  const t = texts(playerCardUi(shown, { sectionKey: 'you', cas: false }));
+  for (const want of ['1,204 KC', '17:42.6', 'ToB · 4 players', 'at 312 KC', 'Twisted bow', 'Obtained · 1 Nov 2026', 'Vorki']) assert.ok(t.includes(want), want);
+  const ui = playerCardUi(shown, { sectionKey: 'you', cas: false });
+  assert.ok(walk(ui).some((n) => n.t === 'icon' && n.item === 20997 && n.w === 36 && n.h === 32));
+});
+
+test('goals: name on its own line, progress and due muted, days left only when close', () => {
+  const g = (id: number, label: string, days: number): GoalView => ({
+    id, kind: 'skill', metric: 'slayer', target: 99, label, current: 2, of: 11, text: '2 / 11', done: false,
+    due: { text: 'x', pace: null, tone: 'ok', days, when: '12 Nov 2027' },
+  }) as GoalView;
+  const runsOf = (ui: Node) => walk(ui).flatMap((n) => (n.t === 'text' && n.runs ? n.runs.map((r) => r.s) : []));
+  const far = goalsUi([g(1, '99 Slayer', 369)], null);
+  assert.ok(texts(far).includes('99 Slayer'));
+  assert.ok(runsOf(far).join('').includes('2 / 11 · due 12 Nov 2027') && !runsOf(far).join('').includes('days left'));
+  assert.ok(runsOf(goalsUi([g(2, 'Barrows', 3)], null)).join('').includes('3 days left'));
+  const done = goalsUi([{ ...g(3, 'Fire cape', 0), done: true } as GoalView], null);
+  assert.ok(walk(done).some((n) => n.t === 'text' && n.s === 'Done' && n.chip));
+});

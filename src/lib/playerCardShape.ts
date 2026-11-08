@@ -76,6 +76,9 @@ export interface PlayerCard {
     headline: string | null;
     name: string;
     source: string | null;
+    /** A drop's or log item's KC and date, when known. */
+    kc?: number | null;
+    when?: string | null;
   }[];
   accountType: string | null;
   /** `logoUrl` is the clan's own image; absent/null = the crest. */
