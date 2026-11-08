@@ -129,3 +129,31 @@ export function compactStandings<T>(rows: T[], mine: (r: T) => boolean, line: (r
 export function standingsCard(rows: Node[], count?: string, foot?: Node): Node {
   return section([row(undefined, title('Standings'), count ? muted(count) : undefined), ...rows, ...(foot ? [foot] : [])], { gap: 5 });
 }
+
+/** Chip grounds for a feed row's picture: purple rare, green done, coral a death. */
+export const TINT = { purple: CHIP.purple[0], green: CHIP.green[0], coral: CHIP.coral[0] } as const;
+
+/**
+ * A segmented switch whose segments go somewhere (Feed | Chat, Players | Clans): the lit one is
+ * `on`. Drawn by the plugin's `tabs` node; a plugin from before link segments shows nothing.
+ */
+export function segSwitch(key: string, items: { label: string; on: boolean; act: Action }[]): Node {
+  return { t: 'tabs', key, tabs: items.map((i) => ({ label: i.label, on: i.act, ...(i.on ? { sel: true } : {}) })) };
+}
+
+/** A filter chip in a grid: grey outline, the lit one raised with a gold edge. */
+export function boxChip(label: string, on: boolean, act: Action, tip?: string): Node {
+  // A row, so the label's centre stretches the full cell and centres in it.
+  return row(undefined, text(label, on ? 'white' : FAINT, { font: 'small', align: 'c' }), undefined, {
+    bg: on ? 'raised' : 'panel',
+    edge: on ? GOLD : LATER,
+    pad: 3,
+    on: act,
+    ...(tip ? { tip } : {}),
+  });
+}
+
+/** "Name ........ 312 / 500" over a progress bar: a goal, a log category, anything with a target. */
+export function progressRow(name: Node, right: Node, pct: number, done = false, color?: Color): Node {
+  return col([row(undefined, name, right, { gap: 6 }), { t: 'bar', pct, color: color ?? (done ? 'done' : 'brand'), h: 6, bg: 'panel' }], { gap: 3 });
+}

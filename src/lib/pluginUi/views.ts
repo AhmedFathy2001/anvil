@@ -35,6 +35,7 @@ import { claimTile, cleanNote, unclaimTile } from '@/lib/tileClaims';
 import { normalizeRsn, pluginRsnHintOnly, resolvePluginClan, resolvePluginMember, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { type BoardSummary, liveBoardsForCharacter, summarizeBoards } from '@/lib/pluginBoards';
 import { type SupporterInk, supporterForUser, supporterInksForRsns } from '@/lib/supporter';
+import { displayCaseSlots } from '@/lib/profileMediaRules';
 import { inkForSurface } from '@/lib/supporterStyle';
 import { momentsForClan } from '@/lib/momentsStore';
 import { NO_REACTIONS, isClanMember, momentInClan, reactionSummaries, toggleReaction } from '@/lib/momentReactions';
@@ -158,14 +159,22 @@ async function youView(request: Request, note: string | null = null): Promise<Vi
   if (!me) return message('Log in to a character to see your card.');
   const ownership = await ownershipCard(request, note).catch(() => null);
   const character = await apexCharacter(me.rsn, await viewerPlayerId(request));
-  const cardUi = character
-    ? playerCardUi(await loadPanelPlayerCard(character), { sectionKey: 'you', cas: true, images: hasPanelImages(request) })
-    : notFoundUi(me.rsn);
-  // Head-to-head only when something is open: an empty card on everybody's tab is noise.
+  // Head-to-head only when something is open: an empty card on everybody's tab is noise. A
+  // challenge to answer is the tab's gold card, right under the top card.
   const owner = await ownedAccount(request);
   const challenges = owner ? await challengesForAccount(owner.accountId).catch(() => []) : [];
-  const h2h = challenges.length ? [h2hUi(challenges), gap(6)] : [];
-  return { ui: col([...(ownership ? [ownership, gap(6)] : []), cardUi, gap(6), ...h2h, (await goalsView(request)).ui]) };
+  const slots = owner ? displayCaseSlots((await supporterForUser(owner.userId).catch(() => null))?.tier.id) : 0;
+  const cardUi = character
+    ? playerCardUi(await loadPanelPlayerCard(character), {
+        sectionKey: 'you',
+        cas: true,
+        images: hasPanelImages(request),
+        own: true,
+        ...(slots ? { slots } : {}),
+        afterTop: challenges.length ? [h2hUi(challenges)] : [],
+      })
+    : notFoundUi(me.rsn);
+  return { ui: col([...(ownership ? [ownership] : []), cardUi, (await goalsView(request)).ui], { gap: 8 }) };
 }
 
 /** The played character's head-to-head challenges (lib/h2h), when it is yours. */
