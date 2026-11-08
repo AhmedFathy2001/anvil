@@ -225,7 +225,8 @@ function itemOf(m: { kind: string; itemId?: number | null; itemName?: string | n
 }
 
 export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
-  const value = m.valueGp != null && m.valueGp > 0 ? formatGp(m.valueGp * Math.max(1, m.quantity)) : undefined;
+  // valueGp is the whole stack's worth (the plugin prices quantity × each), so it is shown as is.
+  const value = m.valueGp != null && m.valueGp > 0 ? formatGp(m.valueGp) : undefined;
   const totalLevel = (m.kind === 'level' && (m.sourceKind === 'total' || m.sourceKind === 'max')) || rawTotalLevel(m) != null;
   const levelSkill = m.kind === 'level' && !totalLevel ? m.itemName?.trim().toLowerCase() : null;
   return {
