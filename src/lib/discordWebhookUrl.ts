@@ -43,3 +43,18 @@ export function isDiscordWebhookTarget(raw: string): boolean {
     /^\/api\/(v\d+\/)?webhooks\/\d+\/[\w-]+(\/|$)/.test(u.pathname)
   );
 }
+
+/**
+ * The one guarded way the server fetches a webhook URL somebody typed in: refused (null, nothing
+ * fetched) unless it is a Discord webhook, and redirects are an error rather than followed, so a
+ * vetted URL can never be bounced somewhere else. `subpaths` allows the sender's `/messages/<id>`.
+ */
+export function fetchDiscordWebhook(
+  raw: string,
+  init: RequestInit = {},
+  opts: { subpaths?: boolean } = {},
+): Promise<Response> | null {
+  const ok = opts.subpaths ? isDiscordWebhookTarget(raw) : isDiscordWebhookUrl(raw);
+  if (!ok) return null;
+  return fetch(raw.trim(), { ...init, redirect: 'error' });
+}

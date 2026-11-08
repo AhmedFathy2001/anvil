@@ -5,7 +5,11 @@ import { useState } from 'react';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
-import { DISCORD_WEBHOOK_HELP_URL, type WebhookAdvice } from '@/lib/webhookPool';
+// Types only: lib/webhookPool is server code (it hashes tokens with node:crypto).
+import type { WebhookAdvice } from '@/lib/webhookPool';
+
+/** Discord's own steps for making a webhook by hand, for clans without the bot. */
+const DISCORD_WEBHOOK_HELP_URL = 'https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks';
 
 export interface PoolHook {
   id: string;

@@ -13,7 +13,15 @@
 //
 // State lives in memory: one process serves a clan's posts, and losing it on a restart only means
 // the first post after it learns the limits again. Pure on purpose (no `@/` imports), so the
-// selection, cooldown and failover logic run under the pure tests with fetch stubbed.
+// selection, cooldown and failover logic run under the pure tests with fetch stubbed. Server-only:
+// it hashes tokens with node:crypto, so a client component may import its TYPES only.
+//
+// TENANT SAFETY. A webhook URL is typed in by clan staff, so two clans can hold URLs with the same
+// id and different tokens: one real, one bogus. All state is therefore keyed by the webhook's full
+// identity (id + a hash of the token, never the raw token), and a 401/404 "dead webhook" rest is
+// scoped to the pool that saw it, so nobody can rest another clan's real webhook by pasting its id.
+
+import { createHash } from 'node:crypto';
 
 /** Where a post goes: one or more webhook URLs for one channel, and the key its round-robin turns on. */
 export interface WebhookDestination {
@@ -28,6 +36,16 @@ const WEBHOOK_PATH = /\/api\/(?:v\d+\/)?webhooks\/(\d+)\/([\w-]+)/;
 /** The webhook's id (a snowflake, not a secret), or null for a URL that isn't a webhook. */
 export function webhookIdOf(url: string): string | null {
   return WEBHOOK_PATH.exec(url)?.[1] ?? null;
+}
+
+/**
+ * The state key for one webhook: its id plus a short hash of its token. Same id with another token is
+ * another identity. Never the raw token, so nothing secret sits in a map key or a log line.
+ */
+export function webhookIdentity(url: string): string {
+  const m = WEBHOOK_PATH.exec(url);
+  if (!m) return `url:${createHash('sha256').update(url).digest('hex').slice(0, 24)}`;
+  return `${m[1]}:${createHash('sha256').update(m[2]).digest('hex').slice(0, 24)}`;
 }
 
 /** A URL safe to log or show: the token replaced. Never log a webhook URL without this. */
@@ -57,10 +75,13 @@ export interface PoolCounters {
 type PickResult = { url: string } | { waitMs: number } | null;
 
 export class WebhookPoolState {
-  /** webhook id → epoch ms it may be used again. Keyed by id so no token sits in a map key. */
+  /**
+   * identity (lib webhookIdentity) → epoch ms it may be used again. A pool-scoped rest (a dead
+   * webhook) is keyed `<cursorKey>|<identity>` and only that pool sees it.
+   */
   private readonly restUntil = new Map<string, number>();
   private readonly cursors = new Map<string, number>();
-  /** webhook id → the pool it was last seen in, so a caller holding one URL can still fail over. */
+  /** identity → the pool it was last seen in, so a caller holding one URL can still fail over. */
   private readonly siblings = new Map<string, string[]>();
   readonly counters: PoolCounters = { sent: 0, rateLimited: 0, failovers: 0, queued: 0, dropped: 0 };
 
@@ -69,42 +90,51 @@ export class WebhookPoolState {
   /** Remember that these URLs form one pool (see siblingsOf). */
   remember(urls: string[]): void {
     if (urls.length < 2) return;
-    for (const u of urls) {
-      const id = webhookIdOf(u);
-      if (id) this.siblings.set(id, urls);
-    }
+    for (const u of urls) this.siblings.set(webhookIdentity(u), urls);
     if (this.siblings.size > 5000) this.siblings.clear();
   }
 
   /** The pool a URL was last seen in, or just the URL. */
   siblingsOf(url: string): string[] {
-    const id = webhookIdOf(url);
-    const pool = id ? this.siblings.get(id) : undefined;
+    const pool = this.siblings.get(webhookIdentity(url));
     return pool && pool.includes(url) ? pool : [url];
   }
 
-  isResting(url: string, now: number): boolean {
-    const id = webhookIdOf(url) ?? url;
-    const until = this.restUntil.get(id);
-    if (until == null) return false;
-    if (until <= now) {
-      this.restUntil.delete(id);
-      return false;
-    }
-    return true;
+  private keyOf(url: string, scope?: string): string {
+    return scope ? `${scope}|${webhookIdentity(url)}` : webhookIdentity(url);
   }
 
-  rest(url: string, ms: number, now: number): void {
-    const id = webhookIdOf(url) ?? url;
+  private left(key: string, now: number): number {
+    const until = this.restUntil.get(key);
+    if (until == null) return 0;
+    if (until <= now) {
+      this.restUntil.delete(key);
+      return 0;
+    }
+    return until - now;
+  }
+
+  /** Is this webhook resting — everywhere (a 429 on that identity), or in this pool (`scope`)? */
+  isResting(url: string, now: number, scope?: string): boolean {
+    return this.restLeft(url, now, scope) > 0;
+  }
+
+  /**
+   * Rest a webhook. Without `scope` the rest is the identity's (Discord's bucket for that exact
+   * webhook, shared by every pool holding the same id AND token). With `scope` only that pool sees it.
+   */
+  rest(url: string, ms: number, now: number, scope?: string): void {
+    const key = this.keyOf(url, scope);
     const until = now + Math.max(0, ms);
     // Never shorten a rest Discord already asked for.
-    if ((this.restUntil.get(id) ?? 0) < until) this.restUntil.set(id, until);
+    if ((this.restUntil.get(key) ?? 0) < until) this.restUntil.set(key, until);
+    if (this.restUntil.size > 20_000) for (const k of [...this.restUntil.keys()]) this.left(k, now);
   }
 
-  /** ms until this webhook may be used again (0 when it may be used now). */
-  restLeft(url: string, now: number): number {
-    const until = this.restUntil.get(webhookIdOf(url) ?? url);
-    return until && until > now ? until - now : 0;
+  /** ms until this webhook may be used again (0 when it may be used now), in pool `scope` if given. */
+  restLeft(url: string, now: number, scope?: string): number {
+    const own = this.left(this.keyOf(url), now);
+    return scope ? Math.max(own, this.left(this.keyOf(url, scope), now)) : own;
   }
 
   /**
@@ -118,13 +148,13 @@ export class WebhookPoolState {
     const start = dest.preferFirst ? 0 : (this.cursors.get(dest.cursorKey) ?? Math.floor(this.random() * urls.length));
     for (let i = 0; i < urls.length; i++) {
       const url = urls[(start + i) % urls.length];
-      if (exclude.has(url) || this.isResting(url, now)) continue;
+      if (exclude.has(url) || this.isResting(url, now, dest.cursorKey)) continue;
       if (!dest.preferFirst) this.cursors.set(dest.cursorKey, start + i + 1);
       return { url };
     }
     const candidates = urls.filter((u) => !exclude.has(u));
     if (candidates.length === 0) return null;
-    return { waitMs: Math.min(...candidates.map((u) => this.restLeft(u, now))) };
+    return { waitMs: Math.min(...candidates.map((u) => this.restLeft(u, now, dest.cursorKey))) };
   }
 
   /** Learn from a response: a drained bucket rests the webhook until Discord says it refills. */
@@ -283,7 +313,8 @@ export async function sendThroughPool(
 
     if ((res.status === 404 || res.status === 401) && dest.urls.length > 1) {
       // One pooled webhook deleted in Discord shouldn't silence the channel: rest it, use the rest.
-      state.rest(url, DEAD_WEBHOOK_REST_MS, now());
+      // Scoped to THIS pool: the 404 proves only that this exact URL is dead for this caller.
+      state.rest(url, DEAD_WEBHOOK_REST_MS, now(), dest.cursorKey);
       dead.add(url);
       state.counters.failovers++;
       warn('discord.pool-webhook-gone', { cursorKey: dest.cursorKey, webhookId: webhookIdOf(url), status: res.status });
@@ -385,6 +416,3 @@ export function webhookAdvice(input: {
   if (missing === 0) return null;
   return { recommended, missing, reasons };
 }
-
-/** Discord's own steps for making a webhook by hand, for clans without the bot. */
-export const DISCORD_WEBHOOK_HELP_URL = 'https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks';

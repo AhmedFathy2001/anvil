@@ -18,6 +18,7 @@ import {
   redactWebhookUrl,
   sendThroughPool,
   webhookAdvice,
+  webhookIdentity,
   type WebhookDestination,
 } from '../src/lib/webhookPool.ts';
 
@@ -202,7 +203,8 @@ test('a deleted webhook in a pool (404) rests long and the post goes to the next
   const h = harness({ [A]: [json(404, { message: 'Unknown Webhook', code: 10015 })], [B]: [json(204, {})] });
   const r = await sendThroughPool(pool(), init, h.deps);
   assert.equal(r.ok, true);
-  assert.equal(h.state.restLeft(A, 0), DEAD_WEBHOOK_REST_MS);
+  assert.equal(h.state.restLeft(A, 0, 'k'), DEAD_WEBHOOK_REST_MS, 'rested in this pool');
+  assert.equal(h.state.restLeft(A, 0), 0, 'but not for anyone else');
 });
 
 test('other failures are returned as they are, not retried', async () => {
@@ -253,4 +255,45 @@ test('activity meter: posts a minute over 10 minutes, 429s over an hour', () => 
   m.noteRateLimit('e', 0);
   assert.equal(m.recentRateLimits('e', 30 * 60_000), 1);
   assert.equal(m.recentRateLimits('e', 61 * 60_000), 0);
+});
+
+// ── Tenant safety: state is keyed by id + token hash ─────────────────────────────────────────────
+
+const REAL = 'https://discord.com/api/webhooks/5005/realToken';
+const BOGUS = 'https://discord.com/api/webhooks/5005/wrongToken';
+
+test('identity is id + a token hash: same id, other token, other identity; no raw token', () => {
+  assert.notEqual(webhookIdentity(REAL), webhookIdentity(BOGUS));
+  assert.equal(webhookIdentity(REAL), webhookIdentity(REAL));
+  assert.match(webhookIdentity(REAL), /^5005:[0-9a-f]{24}$/);
+  assert.ok(!webhookIdentity(REAL).includes('realToken'));
+});
+
+test("a wrong-token 404 in one clan's pool never rests the right-token webhook elsewhere", async () => {
+  const h = harness({
+    [BOGUS]: [json(404, { message: 'Unknown Webhook', code: 10015 })],
+    [B]: [json(204, {})],
+  });
+  // Clan X pasted a bogus URL with clan Y's webhook id into its pool.
+  await sendThroughPool({ urls: [BOGUS, B], cursorKey: 'clanX:bingo', preferFirst: true }, init, h.deps);
+  assert.ok(h.state.isResting(BOGUS, 0, 'clanX:bingo'), 'the bogus URL rests in its own pool');
+  assert.equal(h.state.restLeft(REAL, 0), 0);
+  assert.equal(h.state.restLeft(REAL, 0, 'clanY:bingo'), 0);
+  assert.equal(h.state.restLeft(BOGUS, 0, 'clanZ:other'), 0, 'not even the same URL in another pool');
+  const y = h.state.pick({ urls: [REAL], cursorKey: 'clanY:bingo' }, 0);
+  assert.deepEqual(y, { url: REAL });
+});
+
+test('a 429 on a wrong-token URL rests only that identity, not the real webhook', async () => {
+  const h = harness({ [BOGUS]: [json(429, { retry_after: 30 })], [B]: [json(204, {})] });
+  await sendThroughPool({ urls: [BOGUS, B], cursorKey: 'clanX', preferFirst: true }, init, h.deps);
+  assert.equal(h.state.restLeft(BOGUS, 0), 30_000);
+  assert.equal(h.state.restLeft(REAL, 0), 0);
+});
+
+test('a bogus URL with the same id does not hijack the real pool siblings', () => {
+  const s = new WebhookPoolState();
+  s.remember([REAL, B]);
+  s.remember([BOGUS, C]);
+  assert.deepEqual(s.siblingsOf(REAL), [REAL, B]);
 });

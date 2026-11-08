@@ -14,6 +14,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { discordRest } from '@/lib/discord-roles';
+import { fetchDiscordWebhook } from '@/lib/discordWebhookUrl';
 
 // Give a newly-created webhook the site's own favicon as its avatar, so its posts show the clan's
 // branding. Read once from public/ (the instance's own icon — self-hosters get theirs) and cached as
@@ -163,11 +164,15 @@ export async function createMoreAnvilWebhooks(
 /**
  * Which channel (and server) a webhook posts to, asked of Discord with the webhook's own token, so it
  * works for pasted webhooks and needs no bot. Null when Discord doesn't know it (deleted, bad token)
- * or can't be reached. The URL must already have passed isDiscordWebhookUrl.
+ * or can't be reached, and for anything that isn't a Discord webhook URL.
  */
 export async function lookupWebhookChannel(url: string): Promise<{ channelId: string; guildId: string | null } | null> {
+  // The URL is pasted by a person and the SERVER fetches it: only a real Discord webhook, and no
+  // redirects, so it can never be turned into a request to anywhere else (SSRF).
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
+    const pending = fetchDiscordWebhook(url, { signal: AbortSignal.timeout(8_000) });
+    if (!pending) return null;
+    const res = await pending;
     if (!res.ok) return null;
     const body = (await res.json()) as { channel_id?: string; guild_id?: string | null };
     return body.channel_id ? { channelId: body.channel_id, guildId: body.guild_id ?? null } : null;

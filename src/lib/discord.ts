@@ -1,5 +1,5 @@
 import { webhookIdentity } from '@/lib/discordIdentity';
-import { isDiscordWebhookTarget } from '@/lib/discordWebhookUrl';
+import { fetchDiscordWebhook } from '@/lib/discordWebhookUrl';
 import {
   ActivityMeter,
   WebhookPoolState,
@@ -183,10 +183,8 @@ export const eventPoolKey = (eventId: number) => `event-channel:${eventId}`;
  * before a socket opens, whichever route stored or supplied it.
  */
 function webhookFetch(url: string, init: RequestInit): Promise<Response> {
-  if (!isDiscordWebhookTarget(url)) {
-    return Promise.resolve(new Response('not a Discord webhook', { status: 400 }));
-  }
-  return fetch(url, init);
+  // Refused unless it's a Discord webhook (or one of its /messages/<id>), and never follows a redirect.
+  return fetchDiscordWebhook(url, init, { subpaths: true }) ?? Promise.resolve(new Response('not a Discord webhook', { status: 400 }));
 }
 
 /** A single URL, or a pool. A lone URL that was last seen in a pool fails over to that pool. */
@@ -1986,7 +1984,7 @@ export async function deleteClanEventPost(clanId: number, messageId: string, pos
   const destination = await clanEventDestination(clanId, postWebhookUrl);
   for (const webhookUrl of destination?.urls ?? []) {
     try {
-      const res = await fetch(webhookRequestUrl(webhookUrl, { messageId }), { method: 'DELETE', signal: AbortSignal.timeout(8_000) });
+      const res = await webhookFetch(webhookRequestUrl(webhookUrl, { messageId }), { method: 'DELETE', signal: AbortSignal.timeout(8_000) });
       if (res.ok || res.status === 404) {
         if (res.ok) return;
         continue; // not this webhook's message: try the next configured one
