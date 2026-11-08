@@ -148,7 +148,13 @@ export type Node =
    */
   | (Common & { t: 'img'; src: string; w: number; h: number; /** Animated image; client may freeze it. */ motion?: boolean; /** Clip to a circle (avatars and clan marks). */ round?: boolean })
   | (Common & { t: 'bar'; pct: number; color?: Color; h?: number; label?: string; bg?: 'card' | 'panel' })
-  | (Common & { t: 'tabs'; key: string; tabs: { label: string; c: Node }[]; open?: string })
+  | (Common & {
+      t: 'tabs';
+      key: string;
+      /** A body per tab — or `on` with no body: a link segment (Feed | Chat), lit when `sel`. */
+      tabs: ({ label: string; c: Node } | { label: string; on: Action; sel?: boolean })[];
+      open?: string;
+    })
   | (Common & { t: 'fold'; head: Node; c: Node; open?: boolean; /** A chevron at the head's right that turns when open. */ chev?: boolean })
   | (Common & {
       t: 'filter';
@@ -257,6 +263,8 @@ export interface FeedRow {
   skill?: string;
   glyph?: 'check' | 'star' | 'chevron-right';
   glyphColor?: Color;
+  /** A tile of this colour behind the picture: purple rare, green done, coral a death (sections TINT). */
+  tint?: Color;
   /** Bold line. A chat row leaves it out and uses `who` + `text` on one line. */
   title?: string;
   who?: string;
@@ -374,7 +382,7 @@ function eachChild(n: Node, f: (c: Node) => void): void {
     if (Array.isArray(v)) v.forEach((x) => x && typeof x === 'object' && f(x as Node));
     else if (v && typeof v === 'object' && 't' in (v as object)) f(v as Node);
   }
-  if (n.t === 'tabs') n.tabs.forEach((t) => f(t.c));
+  if (n.t === 'tabs') n.tabs.forEach((t) => { if ('c' in t) f(t.c); });
   if (n.t === 'slot' && n.panes) Object.values(n.panes).forEach(f);
 }
 

@@ -44,7 +44,7 @@ test('game modes stay behind one quiet doorway, then reuse the familiar filters'
     rows: [], mode: { active: false, count: 6 },
   }));
   assert.match(ordinary, /Game-mode activity · 6/);
-  assert.match(ordinary, /"t":"button"/, 'the mode doorway is a visible full-width button');
+  assert.match(ordinary, /"bg":"raised"[^}]*"on":\{"a":"load","v":"feed","args":\{"s":"clan:afk","p":"feed","m":"1"/, 'the mode doorway is a raised row that opens it');
   assert.doesNotMatch(ordinary, /moments:clan:3:modes/);
 
   const modes = JSON.stringify(feedTabUi({
@@ -170,7 +170,9 @@ test('more than one clan or board: a dropdown of all of them, on the one showing
     { kind: 'event' as const, id: 12, name: 'Summer Bingo' },
   ];
   const ui = feedTabUi({ scopes, current: scopes[3], pane: 'feed', chatAvailable: false, filter: 'all', teamId: null, rows: [], floorNote: 'x' }) as unknown as { c: Record<string, unknown>[] };
-  const select = ui.c.find((n) => n.t === 'input') as { kind: string; name: string; value: string; options: { v: string; label: string }[] };
+  const top = ui.c[0] as unknown as { card: boolean; c: Record<string, unknown>[] };
+  assert.ok(top.card, 'the scope picker sits in the top card');
+  const select = top.c.find((n) => n.t === 'input') as { kind: string; name: string; value: string; options: { v: string; label: string }[] };
   assert.equal(select.kind, 'select');
   assert.equal(select.name, 's', 'the choice rides the load as the scope');
   assert.equal(select.value, 'event:12');

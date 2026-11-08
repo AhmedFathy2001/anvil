@@ -11,6 +11,7 @@ import type { ChatLock } from '@/lib/eventChatRules';
 
 import type { Action, Color, FeedRow, Node } from './nodes';
 import { button, col, gap, muted, row, text } from './nodes';
+import { BLUE, GREEN, CORAL, PURPLE, TINT, boxChip, openRow, section, segSwitch } from './sections';
 import { revisedMediaPath } from './mediaRevision';
 
 // The plugin panel's Feed tab (view 'feed'): one live list per scope — the clan's moments, a board's
@@ -123,7 +124,9 @@ export interface MomentLike {
   run?: { n: number; mixed?: boolean } | null;
 }
 
-const PET = '#ff7f27';
+const PET = PURPLE;
+/** A drop worth this much reads as rare: purple, like a pet. */
+const RARE_GP = 10_000_000;
 const ACHIEVEMENT = '#ffd35c';
 export function momentTitle(m: MomentLike): string {
   const run = m.run && m.run.n > 1 ? m.run : null;
@@ -224,6 +227,17 @@ function itemOf(m: { kind: string; itemId?: number | null; itemName?: string | n
   return m.kind === 'pet' ? clogItemIdByName(m.itemName) : null;
 }
 
+/**
+ * The row's colour by kind, on its title and the tile behind its picture: purple for a pet, a log
+ * slot or a rare drop; green for a 99 or a max; coral for a death. Everything else stays plain.
+ */
+function toneOf(m: MomentLike, totalLevel: boolean): Pick<FeedRow, 'textColor' | 'tint'> {
+  if (m.kind === 'death') return { textColor: CORAL, tint: TINT.coral };
+  if (m.kind === 'pet' || m.kind === 'clog' || (m.kind === 'drop' && (m.valueGp ?? 0) >= RARE_GP)) return { textColor: PURPLE, tint: TINT.purple };
+  if (m.kind === 'level' && (m.sourceKind === 'max' || (!totalLevel && m.quantity >= 99))) return { textColor: GREEN, tint: TINT.green };
+  return {};
+}
+
 export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
   // valueGp is the whole stack's worth (the plugin prices quantity × each), so it is shown as is.
   const value = m.valueGp != null && m.valueGp > 0 ? formatGp(m.valueGp) : undefined;
@@ -259,7 +273,7 @@ export function momentRow(m: MomentLike, o: MomentRowOptions = {}): FeedRow {
         : {}),
     at: m.occurredAt,
     ...(value ? { value } : {}),
-    ...(m.kind === 'pet' ? { textColor: PET as Color } : m.kind === 'death' ? { textColor: 'error' as Color } : {}),
+    ...toneOf(m, totalLevel),
     ...(o.mine ? { mine: true } : {}),
     ...reactsOf(m.kind, o),
   };
@@ -311,10 +325,11 @@ export function completionRow(c: {
     id: `t${c.tileId}:${c.teamId}`,
     glyph: 'check',
     glyphColor: 'done',
-    // The green check says "complete"; the line is the tile.
+    // The green check on a green tile says "complete"; the line is the tile, green too. The team
+    // is the row's tag, in its own colour.
     title: c.label,
-    // In the team's colour, so each team's finishes read at a glance (green when it has none).
-    textColor: ((c.team?.color && /^#[0-9a-f]{6}$/i.test(c.team.color) ? c.team.color : 'done') as Color),
+    textColor: GREEN,
+    tint: TINT.green,
     // Who, then the team as the row's tag (the panel prints it after the name). No finisher: the team
     // is the name, untagged, so it never reads "Jade · Jade".
     who: c.who ?? c.team?.name ?? '',
@@ -385,13 +400,6 @@ export function chatRow(m: ChatLike, o: ChatRowOptions = {}): FeedRow {
 }
 
 // ── The tab ──────────────────────────────────────────────────────────────────────────────────────
-
-const ON = 'brand';
-const OFF = 'muted';
-
-function chip(label: string, on: boolean, act: Action): Node {
-  return text(label, on ? ON : OFF, { font: on ? 'bold' : 'small', on: act });
-}
 
 /** One segment of the chat's channel switch (nodes feed `chans`). */
 export interface ChatChan {
@@ -465,10 +473,11 @@ export function feedTabUi(o: FeedTabOptions): Node {
     }, gap(4));
   }
 
-  // Which feed: a dropdown of every clan the viewer is in and every board they're on (chips ran out
-  // of room past two). One scope is just a heading.
+  // The top card says where you are: which feed (a dropdown of every clan the viewer is in and every
+  // board they're on; one scope is just its name), and what lands in it.
+  const top: Node[] = [];
   if (o.scopes.length > 1) {
-    parts.push(
+    top.push(
       {
         t: 'input',
         name: 's',
@@ -478,12 +487,11 @@ export function feedTabUi(o: FeedTabOptions): Node {
         tip: 'Whose feed to show',
         on: load({}),
       } as Node,
-      gap(4),
     );
   } else {
     const sourceBoost = o.current.kind === 'clan' ? clanBoostInk(o.current.boostLevel ?? 0, o.current.boostNameStyle) : null;
     const boost = sourceBoost ? inkForSurface(sourceBoost, 'dark') : null;
-    parts.push(row(
+    top.push(row(
       o.images && o.current.kind === 'clan' && o.current.logo
         ? { t: 'img', src: revisedMediaPath(`/api/plugin/media/clan/${encodeURIComponent(o.current.slug)}?kind=logo`, o.current.mediaRevision, o.current.boostLevel ?? 0), w: 28, h: 28, motion: true, round: true }
         : undefined,
@@ -493,8 +501,13 @@ export function feedTabUi(o: FeedTabOptions): Node {
         ...(boost?.move ? { move: true } : {}),
       }),
       undefined,
-    ), gap(4));
+    ));
   }
+  if (!o.mode?.active) {
+    const what = o.pane === 'chat' ? ' · your board’s chat' : o.current.kind === 'event' ? ' · drops, pets and finished tiles from every team' : ' · drops, pets and achievements from the clan';
+    top.push(text('', 'muted', { font: 'small', runs: [{ s: 'Live', color: BLUE }, { s: what, color: 'muted' }] }));
+  }
+  parts.push(section(top), gap(6));
 
   if (o.mode?.active) {
     parts.push(
@@ -522,18 +535,18 @@ export function feedTabUi(o: FeedTabOptions): Node {
     }
   } else if (o.chatAvailable) {
     parts.push(
-      rowOf([
-        chip('Feed', o.pane === 'feed', load({ s: key, p: 'feed' })),
-        chip('Chat', o.pane === 'chat', load({ s: key, p: 'chat' })),
+      segSwitch(`feed-pane:${key}`, [
+        { label: 'Feed', on: o.pane === 'feed', act: load({ s: key, p: 'feed' }) },
+        { label: 'Chat', on: o.pane === 'chat', act: load({ s: key, p: 'chat' }) },
       ]),
-      gap(4),
+      gap(6),
     );
   } else if (o.chatClosed) {
     parts.push(muted(o.chatClosed, { wrap: true }), gap(4));
   }
 
   // The chat's channels are a switch on the list itself (`chans`); staff pick a team's under it.
-  if (o.pane === 'chat' && o.teamPicks?.length) parts.push(rowOf(o.teamPicks.map((t) => chip(t.label, t.on, t.act)), 3), gap(4));
+  if (o.pane === 'chat' && o.teamPicks?.length) parts.push(rowOf(o.teamPicks.map((t) => boxChip(t.label, t.on, t.act)), 3), gap(4));
   const filters: [string, string][] =
     o.pane === 'chat'
       ? []
@@ -551,12 +564,12 @@ export function feedTabUi(o: FeedTabOptions): Node {
           ...(o.current.kind === 'event' && o.teamId != null ? [['team', 'My team'] as [string, string]] : []),
         ];
   // Three to a row: the panel splits a row evenly, and "Achievements" is too wide for a quarter of it.
-  if (filters.length) parts.push(rowOf(filters.map(([id, label]) => chip(label, o.filter === id, load({
+  if (filters.length) parts.push(rowOf(filters.map(([id, label]) => boxChip(label, o.filter === id, load({
     s: key,
     p: o.pane,
     f: id,
     ...(o.mode?.active ? { m: '1', ...(o.mode.selected && o.mode.selected !== 'all' ? { wm: o.mode.selected } : {}) } : {}),
-  }))), 3), gap(4));
+  }))), 3), gap(6));
 
   const id =
     o.mode?.active && o.current.kind === 'clan'
@@ -584,9 +597,11 @@ export function feedTabUi(o: FeedTabOptions): Node {
 
   if (!o.mode?.active && o.mode && o.mode.count > 0 && o.pane === 'feed' && o.current.kind === 'clan') {
     parts.push(
-      gap(4),
-      button(
-        `Game-mode activity · ${o.mode.count}`,
+      gap(6),
+      openRow(
+        text(`Game-mode activity · ${o.mode.count}`),
+        undefined,
+        [],
         load({ s: key, p: 'feed', m: '1', f: 'all', wm: 'all' }),
         'Leagues, Hardcore Worlds, Deadman and other separate saves',
       ),
@@ -627,7 +642,7 @@ function emptyLine(pane: 'feed' | 'chat', filter: string): string {
 
 /** A row of chips with a little space between, wrapping is the plugin's business. */
 function rowOf(items: Node[], maxCols = 5): Node {
-  return { t: 'grid', cols: Math.min(items.length, maxCols), c: items, gap: 4, vgap: 2 };
+  return { t: 'grid', cols: Math.min(items.length, maxCols), c: items, gap: 4, vgap: 4 };
 }
 
 /**
