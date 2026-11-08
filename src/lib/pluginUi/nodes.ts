@@ -146,7 +146,13 @@ export type Node =
    * X-Anvil-Panel-Images): `src` is a PATH here, never a URL, drawn fitted inside w×h with a
    * placeholder until it arrives. Only the proof thumbnails use it (lib/proofImage).
    */
-  | (Common & { t: 'img'; src: string; w: number; h: number; /** Animated image; client may freeze it. */ motion?: boolean; /** Clip to a circle (avatars and clan marks). */ round?: boolean })
+  | (Common & { t: 'img'; src: string; w: number; h: number; /** Animated image; client may freeze it. */ motion?: boolean; /** Clip to a circle (avatars and clan marks). */ round?: boolean; /** Clip to a rounded square of this corner radius (the hero badge). */ rad?: number })
+  /**
+   * A header card: the banner (`src`, else a plain strip) fills the top edge to edge under the card's
+   * rounded corners, and `c` starts level with the banner's bottom edge minus half a badge, so a 36px
+   * badge in its first row overlaps the banner. The client sizes the banner (220x56) and the overlap.
+   */
+  | (Common & { t: 'hero'; c: Node[]; src?: string; motion?: boolean; /** No banner: a soft left-to-right gradient of these two colours. */ grad?: string[] })
   | (Common & { t: 'bar'; pct: number; color?: Color; h?: number; label?: string; bg?: 'card' | 'panel' })
   | (Common & {
       t: 'tabs';
@@ -425,3 +431,31 @@ export function applyFlair(root: Node, ink: (name: string) => Ink | null): Node 
   walk(root);
   return root;
 }
+
+/** The hero badge: a 2px card-coloured ring round a 32px logo/avatar (`pic`, rounded square) or initials. */
+export const badge = (pic: Node | undefined, initials: string): Node =>
+  col([pic ?? text(initials.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).replace(/^./, (x) => x.toUpperCase()), 'brand', { font: 'bold', chip: '#3a3a3a', w: 32, align: 'c' })], { card: true, inset: 2 });
+/** One rounded card: banner, the badge beside the name just under it, then the muted lines. */
+const mix = (hex: string, k: number): string => {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (sh: number) => Math.round(((n >> sh) & 255) * k + 30 * (1 - k)).toString(16).padStart(2, '0');
+  return `#${ch(16)}${ch(8)}${ch(0)}`;
+};
+/** A colour's soft banner gradient, kept dark enough for the white name and the badge. */
+export const tintGrad = (hex: string): string[] => [mix(hex, 0.55), mix(hex, 0.25)];
+/** A stable, muted colour from a name. */
+export function nameTint(name: string): string {
+  let h = 0;
+  for (const ch of name.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const v = 0.5 - 0.2 * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return Math.round(v * 255).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+export const hero = (banner: { src: string; motion?: boolean } | null, tint: string, badgeNode: Node, name: [Node, Node?], lines: Node[]): Node => ({
+  t: 'hero',
+  ...(banner ? { src: banner.src, ...(banner.motion ? { motion: true } : {}) } : { grad: tintGrad(tint) }),
+  c: [row(badgeNode, col([gap(20), row(undefined, name[0], name[1], { gap: 6 })]), undefined, { gap: 8 }), ...lines],
+});

@@ -71,6 +71,8 @@ export interface DisplayCaseEntry {
   /** When it happened, if known: the drop's time, when the log first showed it, when the time was set. */
   when: string | null;
   kc: number | null;
+  /** A log item: how many they own. */
+  qty?: number | null;
   /** GE value (the drop's own price, else today's mid). Null for untradeables. */
   valueGp: number | null;
   /** Where it came from: the log page or the drop's source. */
@@ -193,6 +195,7 @@ export async function readDisplayCase(userId: number, playerId: number | null): 
           pageName: memberClogItems.pageName,
           firstSeenAt: memberClogItems.firstSeenAt,
           kc: memberClogItems.kcAtUnlock,
+          quantity: memberClogItems.quantity,
         })
         .from(memberClogItems)
         .where(
@@ -310,6 +313,7 @@ export async function readDisplayCase(userId: number, playerId: number | null): 
         icon: itemIconUrl(p.itemId),
         when: row.firstSeenAt ?? dropped?.occurredAt ?? null,
         kc: row.kc ?? dropped?.kc ?? null,
+        qty: row.quantity,
         valueGp: prices.get(p.itemId) ?? null,
         source: row.pageName,
         proofHref,

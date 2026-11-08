@@ -83,7 +83,7 @@ test('a card: identity, then Stats | Bosses | Collection log, the rest folded un
   // header (chevron, name, summary) with a flip action, and a body with real content.
   const acc = walk(ui).filter((x) => x.t === 'toggle') as Extract<Node, { t: 'toggle' }>[];
   const named = acc.filter((a) => a.key.startsWith('acc:lookup:'));
-  assert.deepEqual(named.map((a) => a.key.slice('acc:lookup:'.length)), ['Clues', 'Times', 'Combat tasks']);
+  assert.deepEqual(named.map((a) => a.key.slice('acc:lookup:'.length)), ['Minigames & activities', 'Times', 'Combat tasks']);
   for (const a of named) {
     assert.ok(walk(a.off).some((x) => x.on?.a === 'flip' && x.on.key === a.key), `${a.key} header flips`);
     assert.ok(walk(a.lit).some((x) => x.on?.a === 'flip' && x.on.key === a.key), `${a.key} header shuts it again`);
@@ -103,26 +103,42 @@ test('panel media, clan mark and this character’s display case are part of the
   };
   const ui = playerCardUi(shown, { sectionKey: 'lookup', cas: false, images: true });
   const images = walk(ui).filter((n): n is Extract<Node, { t: 'img' }> => n.t === 'img');
-  assert.ok(images.some((n) => n.src.includes('kind=banner') && n.motion));
-  assert.ok(images.some((n) => n.src.includes('kind=avatar') && n.motion && n.round));
+  assert.ok(walk(ui).some((n) => n.t === 'hero' && n.src?.includes('kind=banner') && n.motion));
+  assert.ok(images.some((n) => n.src.includes('kind=avatar') && n.motion && n.rad === 4));
   assert.ok(texts(ui).includes('Display case'));
   assert.ok(texts(ui).includes("Tumeken's shadow"));
   assert.ok(texts(ui).includes('The AFK Spot · Ironman · on Anvil'), 'the muted line');
   assert.ok(!JSON.stringify(ui).includes('stored-but-never-sent-directly'));
 });
 
-test('the log opens in place: categories, then pages, then a fetched page', () => {
+test('the log is pages of one nav slot: categories, then pages, then a fetched page, searchable by item', () => {
   const ui = playerCardUi(card, { sectionKey: 'lookup', cas: false });
-  const log = walk(ui).find((x) => x.t === 'slot' && x.id === 'log') as Extract<Node, { t: 'slot' }>;
-  assert.ok(log.panes?.root && log.panes['cat:Bosses']);
-  const loads = actions(log.panes['cat:Bosses']).filter((a): a is Extract<Action, { a: 'load' }> => a.a === 'load');
+  assert.ok(ui.t === 'slot' && ui.nav && ui.id === 'prof' && ui.open === 'main');
+  const panes = ui.panes!;
+  assert.ok(panes.main && panes['cat:Bosses']);
+  const loads = actions(panes['cat:Bosses']).filter((a): a is Extract<Action, { a: 'load' }> => a.a === 'load');
   assert.deepEqual(
     loads.map((a) => [a.v, a.args?.page, a.args?.back, a.args?.kc, a.into]),
     [
-      ['clog-page', 'Vorkath', 'cat:Bosses', '1240', 'log'],
-      ['clog-page', 'Zulrah', 'cat:Bosses', '812', 'log'],
+      ['clog-page', 'Vorkath', 'cat:Bosses', '1240', 'prof'],
+      ['clog-page', 'Zulrah', 'cat:Bosses', '812', 'prof'],
     ],
   );
+  assert.ok(actions(panes['cat:Bosses']).some((a) => a.a === 'pane' && a.pane === 'main'), 'one Back to the profile');
+  // The Log tab's search lists pages by their own name or an item on them, each opening its page.
+  const search = walk(panes.main).filter((x): x is Extract<Node, { t: 'filter' }> => x.t === 'filter').find((f) => f.hint === 'Search pages and items…')!;
+  const rows = (search.c[0] as Extract<Node, { t: 'grid' }>).c.filter((r) => r.q);
+  const vork = rows.find((r) => r.k?.startsWith('Vorkath'))!;
+  assert.ok(/vorkath/i.test(vork.k!) && vork.on && (vork.on as Extract<Action, { a: 'load' }>).v === 'clog-page');
+});
+
+test('hero card: banner or tint, badge ringed over it, name beside the badge', () => {
+  const ui = playerCardUi({ ...card, panelMedia: { avatar: true, avatarAnimated: false, banner: false, bannerAnimated: false } }, { sectionKey: 'lookup', cas: false, images: true });
+  const h = walk(ui).find((n) => n.t === 'hero') as Extract<Node, { t: 'hero' }>;
+  assert.ok(h && !h.src && h.grad?.length === 2, 'no banner: a gradient, not a plain strip');
+  assert.ok(texts(h).includes(card.rsn));
+  const withBanner = walk(playerCardUi({ ...card, panelMedia: { avatar: false, avatarAnimated: false, banner: true, bannerAnimated: false } }, { sectionKey: 'lookup', cas: false, images: true })).find((n) => n.t === 'hero') as Extract<Node, { t: 'hero' }>;
+  assert.ok(withBanner.src?.includes('kind=banner') && !withBanner.grad);
 });
 
 test('a boss cell opens its log page; a never-killed boss shows only while searching', () => {
@@ -130,7 +146,7 @@ test('a boss cell opens its log page; a never-killed boss shows only while searc
   const filter = walk(ui).find((x) => x.t === 'filter') as Extract<Node, { t: 'filter' }>;
   const cells = (filter.c[0] as Extract<Node, { t: 'grid' }>).c;
   const vork = cells.find((c) => c.k === 'Vorkath')!;
-  assert.deepEqual(vork.on, { a: 'load', v: 'clog-page', args: { rsn: 'Drenvox mdps', page: 'Vorkath', back: 'root', kc: '1240' }, into: 'log' });
+  assert.deepEqual(vork.on, { a: 'load', v: 'clog-page', args: { rsn: 'Drenvox mdps', page: 'Vorkath', back: 'main', kc: '1240' }, into: 'prof' });
   const zero = cells.find((c) => c.k?.startsWith('Kraken'));
   assert.equal(zero?.q, true);
   assert.equal(filter.box, false, 'two bosses need no search box');
@@ -223,6 +239,8 @@ test('goals: remove posts the id, and the form only offers log pages once the lo
   const ui = goalsUi(goals, null);
   const menus = walk(ui).flatMap((n) => (n as { menu?: { on: Action }[] }).menu ?? []);
   assert.ok(menus.some((m) => m.on.a === 'post' && m.on.act === 'goal-remove' && m.on.args?.id === '4'), 'remove is on the row menu');
+  assert.ok(walk(ui).some((n) => n.t === 'icon' && n.glyph === 'close' && n.tip === 'Remove goal' && (n.on as Action).a === 'flip'), 'a visible remove x');
+  assert.ok(texts(ui).includes('Remove 99 Slayer?') && walk(ui).some((n) => n.t === 'button' && n.label === 'No'), 'asks inline first');
   assert.ok(JSON.stringify(ui).includes('+ New goal'));
   const kinds = (pages: string[]) =>
     texts(goalFormUi('skill', pages)).filter((s) => ['Skill level', 'Boss kills', 'Log page'].includes(s));
@@ -258,7 +276,7 @@ test('clans: members open in Lookup, compare only when offered, search rows open
   assert.ok(!walk(ui).some((x) => x.t === 'button'));
   assert.ok(texts(ui).includes('Running:') && texts(ui).includes('BOTW Vorkath'));
   const mark = walk(ui).find((n) => n.t === 'img' && n.src.includes('kind=logo')) as Extract<Node, { t: 'img' }>;
-  assert.equal(mark.round, true);
+  assert.equal(mark.rad, 4);
   assert.equal(mark.motion, true, 'an uploaded clan logo may animate without the banner boost gate');
   assert.ok(actions(clanSearchUi('afk', [{ slug: 'theafkspot', name: 'The AFK Spot' }])).some((a) => a.a === 'load' && a.v === 'clan'));
 });
@@ -523,6 +541,9 @@ if (process.env.RACE_FIXTURES) {
 
   const them: PlayerCard = { ...card, rsn: 'Lab~Field146' };
   write('lookup-player', playerCardUi(them, { sectionKey: 'lookup', cas: true, me: 'Drenvox' }));
+  const media = { avatar: true, avatarAnimated: false, banner: true, bannerAnimated: false, revision: 'x' };
+  write('lookup-player-img', playerCardUi({ ...them, panelMedia: media }, { sectionKey: 'lookup', cas: true, me: 'Drenvox', images: true }));
+  write('you-img', col([playerCardUi({ ...rich, panelMedia: media }, { sectionKey: 'you', cas: true, own: true, slots: 4, images: true, tint: '#c58cff' })], { gap: 8 }));
   const clog = playerCardUi(them, { sectionKey: 'lookup-clog', cas: true, me: 'Drenvox' });
   const tabs = walk(clog).find((x) => x.t === 'tabs') as Extract<Node, { t: 'tabs' }>;
   tabs.open = 'Log';
@@ -530,12 +551,18 @@ if (process.env.RACE_FIXTURES) {
   write('lookup-clan', col([
     clanSearchUi('iron', [{ slug: 'iron-lads', name: 'Iron Lads', boostLevel: 2 }, { slug: 'iron-forge', name: 'Iron Forge' }, { slug: 'ironside', name: 'Ironside' }]),
     clanCardUi({
-      slug: 'iron-lads', name: 'Iron Lads', logoUrl: null, members: 212, activeThisWeek: 97, weekHours: 2010, totalEhp: 9000, totalEhb: 4000,
+      slug: 'iron-lads', accent: '#d9822b', bannerUrl: null, name: 'Iron Lads', logoUrl: null, members: 212, activeThisWeek: 97, weekHours: 2010, totalEhp: 9000, totalEhb: 4000,
       topWeek: [{ rsn: 'Lab~Field9', hours: 52.1 }, { rsn: 'Lab~Field57', hours: 40.4 }, { rsn: 'Lab~Field24', hours: 38.8 }],
       topPlayers: [], clog: { average: 612, synced: 120 }, highlights: [],
       competitions: [{ type: 'boss', metric: 'vorkath', label: 'Vorkath' }],
     } as unknown as Parameters<typeof clanCardUi>[0], true),
   ], { gap: 8 }));
+  const ironLads = {
+    slug: 'iron-lads', name: 'Iron Lads', logoUrl: 'x', bannerUrl: 'x', members: 212, activeThisWeek: 97, weekHours: 2010, totalEhp: 9000, totalEhb: 4000,
+    topWeek: [], topPlayers: [], clog: { average: 612, synced: 120 }, highlights: [], competitions: [{ type: 'boss', metric: 'vorkath', label: 'Vorkath' }],
+  } as unknown as Parameters<typeof clanCardUi>[0];
+  write('lookup-clan-img', clanCardUi(ironLads, true, false, false, true));
+  write('lookup-clan-plain', clanCardUi({ ...ironLads, logoUrl: null, bannerUrl: null }, true, false, false, true));
 }
 
 test('display case: every pin kind shows its value, items keep a full-size icon', () => {
@@ -546,12 +573,15 @@ test('display case: every pin kind shows its value, items keep a full-size icon'
       { id: 2, kind: 'pb', itemId: 0, statKey: '1:tob', headline: '17:42.6', name: 'ToB · 4 players', source: null },
       { id: 3, kind: 'drop', itemId: 20997, statKey: null, headline: null, name: 'Twisted bow', source: 'CoX', kc: 312, when: null },
       { id: 4, kind: 'clog', itemId: 21992, statKey: null, headline: null, name: 'Vorki', source: 'Vorkath', kc: null, when: '2026-11-01T10:00:00Z' },
+      { id: 5, kind: 'clog', itemId: 4151, statKey: null, headline: null, name: 'Abyssal whip', source: 'Abyssal Demon', kc: null, qty: 3, when: '2026-10-01T10:00:00Z' },
+      { id: 6, kind: 'clog', itemId: 11802, statKey: null, headline: null, name: 'Armadyl godsword', source: 'Kree', kc: null, when: null },
     ],
   };
   const t = texts(playerCardUi(shown, { sectionKey: 'you', cas: false }));
-  for (const want of ['1,204 KC', '17:42.6', 'ToB · 4 players', 'at 312 KC', 'Twisted bow', 'Obtained · 1 Nov 2026', 'Vorki']) assert.ok(t.includes(want), want);
+  for (const want of ['1,204 KC', '17:42.6', 'ToB · 4 players', '312 KC', 'Twisted bow', 'Nov 2026', 'Vorki', '×3 owned', 'Armadyl godsword']) assert.ok(t.includes(want), want);
   const ui = playerCardUi(shown, { sectionKey: 'you', cas: false });
   assert.ok(walk(ui).some((n) => n.t === 'icon' && n.item === 20997 && n.w === 36 && n.h === 32));
+  assert.ok(!t.includes('Obtained') && !t.some((x) => x.startsWith('Obtained')), 'never the word Obtained');
 });
 
 test('goals: name on its own line, progress and due muted, days left only when close', () => {

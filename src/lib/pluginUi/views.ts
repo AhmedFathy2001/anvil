@@ -93,7 +93,7 @@ async function playerView(request: Request, rsn: string): Promise<View> {
   const retry = button('Try again', { a: 'load', v: 'player', args: { rsn } });
   switch (found.kind) {
     case 'card':
-      return { ui: playerCardUi(found.card, { sectionKey: 'lookup', cas: true, me: playedCharacter(request)?.rsn ?? null, images: hasPanelImages(request) }) };
+      return { ui: playerCardUi(found.card, { tint: (await supporterInksForRsns([found.card.rsn]).catch(() => null))?.get(found.card.rsn)?.color ?? null, sectionKey: 'lookup', cas: true, me: playedCharacter(request)?.rsn ?? null, images: hasPanelImages(request) }) };
     case 'busy':
       return message('Hiscores busy — try again in a moment.', [gap(6), retry]);
     case 'limited':
@@ -163,6 +163,7 @@ async function youView(request: Request, note: string | null = null): Promise<Vi
   const owner = await ownedAccount(request);
   const challenges = owner ? await challengesForAccount(owner.accountId).catch(() => []) : [];
   const slots = owner ? displayCaseSlots((await supporterForUser(owner.userId).catch(() => null))?.tier.id) : 0;
+  const goalsNode = (await goalsView(request)).ui;
   const cardUi = character
     ? playerCardUi(await loadPanelPlayerCard(character), {
         sectionKey: 'you',
@@ -171,9 +172,12 @@ async function youView(request: Request, note: string | null = null): Promise<Vi
         own: true,
         ...(slots ? { slots } : {}),
         afterTop: challenges.length ? [h2hUi(challenges)] : [],
+        tint: (await supporterInksForRsns([me.rsn]).catch(() => null))?.get(me.rsn)?.color ?? null,
+        above: ownership ? [ownership] : [],
+        below: [goalsNode],
       })
     : notFoundUi(me.rsn);
-  return { ui: col([...(ownership ? [ownership] : []), cardUi, (await goalsView(request)).ui], { gap: 8 }) };
+  return { ui: character ? cardUi : col([...(ownership ? [ownership] : []), cardUi, goalsNode], { gap: 8 }) };
 }
 
 /** The played character's head-to-head challenges (lib/h2h), when it is yours. */
@@ -226,7 +230,7 @@ async function clogPageView(request: Request, a: Args): Promise<View> {
   const items = clogPageItems(page).map((i) => ({ id: i.id, name: i.name, owned: qty.has(i.id), quantity: qty.get(i.id) ?? 0 }));
   const kc = Number(a.kc);
   return {
-    ui: clogPageUi(character.rsn, { page, obtained: items.filter((i) => i.owned).length, total: items.length, items }, a.back || 'root', kc > 0 ? kc : null),
+    ui: clogPageUi(character.rsn, { page, obtained: items.filter((i) => i.owned).length, total: items.length, items }, a.back || 'main', kc > 0 ? kc : null),
   };
 }
 

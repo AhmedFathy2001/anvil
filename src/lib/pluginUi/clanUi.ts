@@ -3,7 +3,7 @@ import { clanBoostInk } from '@/lib/clanBoostRules';
 import { inkForSurface } from '@/lib/supporterStyle';
 
 import { FEED_STEP, dropLine } from './momentsUi';
-import { type Node, backRow, button, card, col, count, fmt, gap, icon, message, muted, nameText, row, seg, text } from './nodes';
+import { type Node, backRow, badge, hero, nameTint, button, card, col, count, fmt, gap, icon, message, muted, nameText, row, seg, text } from './nodes';
 import { namesRow, vsRow } from './playerMoreUi';
 import { mediaRevision, revisedMediaPath } from './mediaRevision';
 import { BLUE, chip, section, small, title } from './sections';
@@ -38,30 +38,14 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
   const sourceBoost = clanBoostInk(c.boostLevel ?? 0, c.boostNameStyle);
   const boost = sourceBoost ? inkForSurface(sourceBoost, 'dark') : null;
   const mediaRev = mediaRevision(c.logoUrl, c.bannerUrl);
-  if (images && c.bannerUrl) {
-    parts.push({
-      t: 'img',
-      src: revisedMediaPath(`/api/plugin/media/clan/${seg(c.slug)}?kind=banner`, mediaRev, c.boostLevel ?? 0),
-      w: 220,
-      h: 73,
-      ...(boost?.move ? { motion: true } : {}),
-    }, gap(4));
-  }
+  const rev = (kind: 'banner' | 'logo') => revisedMediaPath(`/api/plugin/media/clan/${seg(c.slug)}?kind=${kind}`, mediaRev, c.boostLevel ?? 0);
+  const nm = text(c.name, boost?.color ?? 'white', {
+    font: 'bold',
+    ...(boost?.grad ? { grad: boost.grad } : {}),
+    ...(boost?.move ? { move: true } : {}),
+  });
+  const link = icon({ glyph: 'external', w: 12, h: 12, color: 'muted', tip: 'Open the clan on the Anvil website', on: { a: 'site', path: `/c/${seg(c.slug)}` } });
   const id: Node[] = [
-    row(images && c.logoUrl
-      ? { t: 'img', src: revisedMediaPath(`/api/plugin/media/clan/${seg(c.slug)}?kind=logo`, mediaRev, c.boostLevel ?? 0), w: 36, h: 36, motion: true, round: true }
-      : undefined, text(c.name, boost?.color ?? 'white', {
-      font: 'bold',
-      ...(boost?.grad ? { grad: boost.grad } : {}),
-      ...(boost?.move ? { move: true } : {}),
-    }), icon({
-      glyph: 'external',
-      w: 12,
-      h: 12,
-      color: 'muted',
-      tip: 'Open the clan on the Anvil website',
-      on: { a: 'site', path: `/c/${seg(c.slug)}` },
-    })),
     row(muted(`${fmt(c.members)} members ·`), small(`${fmt(c.activeThisWeek)} active this week`, BLUE), undefined, { gap: 4 }),
   ];
   if (c.clog) id.push(muted(`Avg log ${fmt(c.clog.average)} slots · ${fmt(c.clog.synced)} synced`));
@@ -71,7 +55,13 @@ export function clanCardUi(c: ClanCard, compare: boolean, feedTab = false, tabLi
       .join(' · ');
     id.push(row(text('Running:', 'white', { font: 'small' }), small(running, BLUE, { wrap: true }), undefined, { gap: 4 }));
   }
-  parts.push(section(id, { gap: 4 }));
+  parts.push(hero(
+    images && c.bannerUrl ? { src: rev('banner'), motion: !!boost?.move } : null,
+    c.accent ?? nameTint(c.name),
+    badge(images && c.logoUrl ? { t: 'img', src: rev('logo'), w: 32, h: 32, rad: 4, motion: true } : undefined, c.name),
+    [nm, link],
+    id,
+  ));
   // "Compare with my clan" is the one action, right under who the clan is.
   if (compare) parts.push(button('Compare with my clan', { a: 'load', v: 'clan-compare', args: { slug: c.slug } }));
 

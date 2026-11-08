@@ -78,6 +78,7 @@ export interface PlayerCard {
     source: string | null;
     /** A drop's or log item's KC and date, when known. */
     kc?: number | null;
+    qty?: number | null;
     when?: string | null;
   }[];
   accountType: string | null;

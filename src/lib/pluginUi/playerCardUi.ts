@@ -1,17 +1,21 @@
 import { BOSSES } from '@/lib/constants';
 import type { PlayerCard, PlayerCardPage } from '@/lib/playerCardShape';
+import { clogPageItems } from '@/lib/clogDataset';
 import { XP_TABLE } from '@/lib/xp';
 
 import {
   type Action,
   type Node,
+  badge,
   button,
   card,
   col,
   count,
   fmt,
   gap,
+  hero,
   icon,
+  nameTint,
   muted,
   nameText,
   percent,
@@ -104,13 +108,13 @@ export function pageKills(card: PlayerCard): Map<string, number> {
 
 export const profilePath = (rsn: string) => `/p/${seg(rsn)}`;
 
-/** Where a log page opens: the page view in the card's `log` slot, with a way back to `back`. */
+/** Where a log page opens: a page of its own in the profile's nav slot, with Back to the pane `back`. */
 export function openPage(rsn: string, page: string, back: string, kc?: number): Action {
   return {
     a: 'load',
     v: 'clog-page',
     args: { rsn, page, back, ...(kc ? { kc: String(kc) } : {}) },
-    into: 'log',
+    into: 'prof',
   };
 }
 
@@ -129,12 +133,18 @@ export interface CardOptions {
   slots?: number;
   /** Cards that go right under the top card (You: a challenge to answer, running head-to-heads). */
   afterTop?: Node[];
+  /** Their Supporter name colour: the banner's gradient when they have no banner (else one from the name). */
+  tint?: string | null;
+  /** Cards under the profile that a log page replaces along with it (You: goals). */
+  below?: Node[];
+  /** Cards over the profile, inside the same page. */
+  above?: Node[];
 }
 
 export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
   const anvil = c.source !== 'hiscores';
   const parts: Node[] = [];
-  parts.push(identity(c, anvil, !!opts.images, !!opts.own));
+  parts.push(identity(c, anvil, !!opts.images, !!opts.own, opts.tint));
   // "Compare with me" is the one action, right under who this is. Between Anvil profiles only.
   if (anvil && opts.me && opts.me.trim().toLowerCase() !== c.rsn.trim().toLowerCase()) {
     parts.push(button('Compare with me', { a: 'load', v: 'compare', args: { rsn: c.rsn } }, 'Side by side: levels, bosses and the log'));
@@ -147,7 +157,7 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
   const sections: { label: string; c: Node }[] = [];
   const pages = new Set(anvil ? c.clogPages.map((p) => p.name.toLowerCase()) : []);
   const opens = (page: string | null | undefined, kc?: number): Action | undefined =>
-    page && pages.has(page.toLowerCase()) ? openPage(c.rsn, page, 'root', kc) : undefined;
+    page && pages.has(page.toLowerCase()) ? openPage(c.rsn, page, 'main', kc) : undefined;
 
   if (c.skills.length) sections.push({ label: 'Stats', c: skills(c) });
   const bosses = c.bosses.length ? c.bosses : c.topBosses;
@@ -177,12 +187,19 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
   };
   const clues = c.activities.filter((a) => isClue(a.key));
   const minigames = c.activities.filter((a) => !isClue(a.key));
-  const grid = (cells: Node[]): Node => card([{ t: 'grid', cols: 3, gap: 2, vgap: 2, c: cells }]);
-  if (clues.length) {
+  // One section: the clue tiers first under a small "Clues" heading, then the other activities.
+  if (clues.length || minigames.length) {
     const all = clues.find((a) => a.key === 'cluesAll')?.score ?? clues.reduce((t, a) => t + a.score, 0);
-    more.push({ label: 'Clues', summary: fmt(all), c: grid(clues.map(activityCell)) });
+    more.push({
+      label: 'Minigames & activities',
+      summary: clues.length ? `Clues ${fmt(all)}` : String(minigames.length),
+      c: card([
+        ...(clues.length ? [small('Clues', 'muted', { font: 'bold' }), { t: 'grid' as const, cols: 3, gap: 2, vgap: 2, c: clues.map(activityCell) }] : []),
+        ...(clues.length && minigames.length ? [gap(4)] : []),
+        ...(minigames.length ? [{ t: 'grid' as const, cols: 3, gap: 2, vgap: 2, c: minigames.map(activityCell) }] : []),
+      ]),
+    });
   }
-  if (minigames.length) more.push({ label: 'Minigames & activities', summary: String(minigames.length), c: grid(minigames.map(activityCell)) });
   if (anvil && c.times.length) more.push({ label: 'Times', summary: `${c.times.length} PB${c.times.length === 1 ? '' : 's'}`, c: times(c) });
   if (anvil && opts.cas) {
     more.push({
@@ -207,7 +224,9 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
     parts.push({ t: 'toggle', key, off: head(false), lit: col([head(true), gap(2), m.c]) });
   }
   if (anvil && c.latest.length) parts.push(latest(c));
-  return col(parts, { gap: 8 });
+  const main = col([...(opts.above ?? []), ...parts, ...(opts.below ?? [])], { gap: 8 });
+  // The log's categories and pages are pages of their own over the whole view (one ‹ Back at the top).
+  return anvil && c.clogPages.length ? { t: 'slot', id: 'prof', nav: true, open: 'main', panes: { main, ...logPanes(c, kills) }, c: gap(0) } : main;
 }
 
 /** "Not on Anvil" — the same words whether the name is unknown or simply not shared. */
@@ -215,30 +234,16 @@ export function notFoundUi(rsn: string): Node {
   return card([text(rsn, 'white', { font: 'bold' }), gap(4), muted('Not on Anvil yet — or they haven’t shared their profile.', { wrap: true })]);
 }
 
-function identity(c: PlayerCard, anvil: boolean, images: boolean, own: boolean): Node {
-  // The mockup's header: a banner strip (their banner, else a plain dark one), then the avatar badge
-  // beside the name in large bold, "Clan · Main · on Anvil" muted, "2,277 total · cb 126" white.
-  const banner: Node =
-    anvil && images && c.panelMedia?.banner
-      ? {
-          t: 'img',
-          src: revisedMediaPath(`/api/plugin/media/player/${seg(c.rsn)}?kind=banner`, c.panelMedia.revision),
-          w: 220,
-          h: 36,
-          ...(c.panelMedia.bannerAnimated ? { motion: true } : {}),
-        }
-      : col([gap(36)], { bg: 'panel' });
-  const initials = c.rsn.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).replace(/^./, (x) => x.toUpperCase());
-  const avatar: Node =
-    anvil && images && c.panelMedia?.avatar
-      ? { t: 'img', src: revisedMediaPath(`/api/plugin/media/player/${seg(c.rsn)}?kind=avatar`, c.panelMedia.revision), w: 28, h: 28, round: true, ...(c.panelMedia.avatarAnimated ? { motion: true } : {}) }
-      : text(initials, 'brand', { font: 'bold', chip: '#3a3a3a', w: 28, align: 'c' });
+function identity(c: PlayerCard, anvil: boolean, images: boolean, own: boolean, tint?: string | null): Node {
+  // The mockup's header: one hero card (banner, badge overlapping it, name beside the badge).
+  const media = anvil && images ? c.panelMedia : undefined;
+  const pic = (kind: 'banner' | 'avatar') => revisedMediaPath(`/api/plugin/media/player/${seg(c.rsn)}?kind=${kind}`, media!.revision);
+  const avatar = badge(media?.avatar ? { t: 'img', src: pic('avatar'), w: 32, h: 32, rad: 4, ...(media.avatarAnimated ? { motion: true } : {}) } : undefined, c.rsn);
   const name = anvil ? nameText(c.rsn, 'white', { font: 'bold' }) : text(c.rsn, 'white', { font: 'bold' });
   const who = [c.clan?.name ?? null, c.accountType ? accountTypeLabel(c.accountType) : null, anvil ? 'on Anvil' : 'from the hiscores'].filter(Boolean).join(' · ');
   const totals = [c.totalLevel > 0 ? `${fmt(c.totalLevel)} total` : null, c.combatLevel != null ? `cb ${c.combatLevel}` : null].filter(Boolean);
   const clanOn = c.clan?.name ? { tip: `Open ${c.clan.name} in clan lookup`, on: { a: 'clan' as const, slug: c.clan.slug } } : {};
   const inner: Node[] = [
-    row(avatar, name, anvil ? icon({ glyph: 'external', w: 12, h: 12, color: 'muted', tip: 'Open on the Anvil website', on: { a: 'site', path: profilePath(c.rsn) } }) : undefined, { gap: 8 }),
     muted(who, { font: 'small', ...clanOn }),
   ];
   if (!anvil && c.fetchedAt) inner.push(muted('', { at: c.fetchedAt, font: 'small' }));
@@ -250,7 +255,7 @@ function identity(c: PlayerCard, anvil: boolean, images: boolean, own: boolean):
   const empty =
     c.totalLevel <= 0 && (!c.clog || c.clog.total <= 0) && !c.latest.length && !c.skills.length && !c.bosses.length && !c.topBosses.length;
   if (empty) inner.push(muted('No stats tracked yet.'));
-  return card([banner, col(inner, { inset: 10, gap: 6 }), gap(4)], { gap: 0 });
+  return hero(media?.banner ? { src: pic('banner'), motion: !!media.bannerAnimated } : null, tint || nameTint(c.rsn), avatar, [name, anvil ? icon({ glyph: 'external', w: 12, h: 12, color: 'muted', tip: 'Open on the Anvil website', on: { a: 'site', path: profilePath(c.rsn) } }) : undefined], inner);
 }
 
 /**
@@ -259,15 +264,13 @@ function identity(c: PlayerCard, anvil: boolean, images: boolean, own: boolean):
  */
 function displayCase(c: PlayerCard, slots?: number): Node {
   const pins = c.displayCase ?? [];
-  const day = (iso: string | null | undefined) => {
-    const d = iso ? new Date(iso) : null;
-    return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : null;
-  };
-  /** What the pin says big: a KC, a time, or for an item when and where it came. */
-  const value = (p: NonNullable<PlayerCard['displayCase']>[number]): string => {
+  /** What the pin says big: a headline, else the KC it came at, else a count owned, else the month it came; null when none is known. */
+  const value = (p: NonNullable<PlayerCard['displayCase']>[number]): string | null => {
     if (p.headline) return p.headline;
-    const at = p.kc ? `${fmt(p.kc)} KC` : day(p.when);
-    return p.kind === 'drop' ? (at ? `at ${at}` : 'Drop') : at ? `Obtained · ${at}` : 'Obtained';
+    if (p.kc) return `${fmt(p.kc)} KC`;
+    if (p.qty && p.qty > 1) return `×${fmt(p.qty)} owned`;
+    const d = p.when ? new Date(p.when) : null;
+    return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' }) : null;
   };
   const picture = (p: NonNullable<PlayerCard['displayCase']>[number]): Node => {
     // An item sprite is 36x32: the box is made for it so it's never cut.
@@ -287,8 +290,9 @@ function displayCase(c: PlayerCard, slots?: number): Node {
         return col(
           [
             picture(p),
-            small(value(p), item ? PURPLE : GOLD, { font: 'bold', wrap: true }),
-            small(p.name, item ? PURPLE : 'muted', { wrap: true }),
+            ...(value(p)
+              ? [small(value(p)!, item ? PURPLE : GOLD, { font: 'bold', wrap: true }), small(p.name, item ? PURPLE : 'muted', { wrap: true, tip: p.name })]
+              : [small(p.name, item ? PURPLE : GOLD, { font: 'bold', wrap: true })]),
           ],
           { bg: 'panel', inset: 4, gap: 2, tip: [p.name, p.source].filter(Boolean).join(' · ') },
         );
@@ -310,7 +314,7 @@ function logTab(c: PlayerCard, kills: Map<string, number>): Node {
     { t: 'bar', pct, color: 'done', h: 6, bg: 'panel' },
     ...(slot ? [row(undefined, small(`Latest: ${slot.label}`, PURPLE), muted('', { at: slot.at, font: 'small' }))] : []),
   ]);
-  if (c.clogPages.length) return col([head, logSlot(c, kills)], { gap: 8 });
+  if (c.clogPages.length) return col([head, logIndex(c)], { gap: 8 });
   return col([head, ...clog.groups.map((g) => categoryRow(g.name, g.obtained, g.total))], { gap: 5 });
 }
 
@@ -323,32 +327,35 @@ function categoryRow(name: string, got: number, of: number, on?: Action): Node {
   ], { bg: 'raised', inset: 8, gap: 4, ...(on ? { on, tip: `${name}: its pages` } : {}) });
 }
 
-/**
- * The log as three levels, each obviously clickable: categories as tiles → that category's pages →
- * a page's items (fetched). The first two are panes already in hand; the third replaces the slot.
- */
-function logSlot(c: PlayerCard, kills: Map<string, number>): Node {
-  const byGroup = new Map<string, PlayerCardPage[]>();
-  for (const p of c.clogPages) {
-    const g = p.group ?? 'Other';
-    byGroup.set(g, [...(byGroup.get(g) ?? []), p]);
-  }
+const groupsOf = (c: PlayerCard): Map<string, PlayerCardPage[]> => {
+  const by = new Map<string, PlayerCardPage[]>();
+  for (const p of c.clogPages) by.set(p.group ?? 'Other', [...(by.get(p.group ?? 'Other') ?? []), p]);
+  return by;
+};
+const toMain: Action = { a: 'pane', into: 'prof', pane: 'main' };
+
+/** The Log tab's list: a row per category, searchable — a name or an item ("sire", "tbow") lists the pages that hold it. */
+function logIndex(c: PlayerCard): Node {
+  const cats = [...groupsOf(c)].map(([group, pages]) =>
+    categoryRow(group, pages.reduce((t, p) => t + p.obtained, 0), pages.reduce((t, p) => t + p.total, 0), { a: 'pane', into: 'prof', pane: `cat:${group}` }),
+  );
+  const found = c.clogPages.map((p) => ({
+    ...pageRow(c.rsn, p, undefined, 'main'),
+    k: `${p.name} ${clogPageItems(p.name).map((i) => i.name).join(' ')}`,
+    q: true,
+  }));
+  return card([{ t: 'filter', hint: 'Search pages and items…', box: true, none: 'Nothing matches.', max: 12, more: 'Keep typing to narrow it.', c: [{ t: 'grid', cols: 1, vgap: 4, c: [...cats, ...found] }] }]);
+}
+
+/** One pane per category: its pages, each opening its items. */
+function logPanes(c: PlayerCard, kills: Map<string, number>): Record<string, Node> {
   const panes: Record<string, Node> = {};
-  const tiles: Node[] = [];
-  for (const [group, pages] of byGroup) {
-    const got = pages.reduce((s, p) => s + p.obtained, 0);
-    const of = pages.reduce((s, p) => s + p.total, 0);
-    const pane = `cat:${group}`;
-    tiles.push(categoryRow(group, got, of, { a: 'pane', into: 'log', pane }));
-    panes[pane] = col([
-      backHeader(group, `${got}/${of}`, got >= of, { a: 'pane', into: 'log', pane: 'root' }),
-      gap(6),
-      ...pages.flatMap((p) => [pageRow(c.rsn, p, kills.get(p.name.toLowerCase()), pane), gap(2)]),
-    ]);
+  for (const [group, pages] of groupsOf(c)) {
+    const got = pages.reduce((t, p) => t + p.obtained, 0);
+    const of = pages.reduce((t, p) => t + p.total, 0);
+    panes[`cat:${group}`] = col([backHeader(group, `${got}/${of}`, got >= of, toMain), gap(6), ...pages.flatMap((p) => [pageRow(c.rsn, p, kills.get(p.name.toLowerCase()), `cat:${group}`), gap(2)])]);
   }
-  const root: Node = col(tiles, { gap: 5 });
-  panes.root = root;
-  return { t: 'slot', id: 'log', c: root, panes };
+  return panes;
 }
 
 function pageRow(rsn: string, p: PlayerCardPage, kc: number | undefined, back: string): Node {
