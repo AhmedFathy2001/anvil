@@ -286,6 +286,16 @@ export const icon = (spec: Omit<Extract<Node, { t: 'icon' }>, 't'>): Node => ({ 
 /** A "‹ Back to …" line. */
 export const backRow = (label: string, on: Action): Node =>
   row(undefined, text(label, 'muted', { icon: icon({ glyph: 'chevron-left', w: 9, h: 9, color: 'muted' }) }), undefined, { on, pad: 4 });
+/**
+ * An event's name in a list or header, with " #id" after it only where another event in `all` shares
+ * the name (two lab sessions both called "Lab"), so the two stay apart. `max` clips the name, never the tag.
+ */
+export function eventName(all: readonly { id: number; name: string }[], it: { id: number; name: string }, max = Infinity): string {
+  const key = it.name.trim().toLowerCase();
+  const tag = it.id > 0 && all.some((o) => o.id !== it.id && o.name.trim().toLowerCase() === key) ? ` #${it.id}` : '';
+  const room = max - tag.length;
+  return (it.name.length <= room ? it.name : `${it.name.slice(0, room - 1).trim()}…`) + tag;
+}
 /** A full-width message card: loading, nothing found, couldn't reach. */
 export const message = (s: string, extra: Node[] = []): View => ({ ui: card([muted(s, { wrap: true }), ...extra]) });
 export const button = (label: string, on: Action, tip?: string): Node => ({ t: 'button', label, on, ...(tip ? { tip } : {}) });

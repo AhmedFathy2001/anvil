@@ -394,11 +394,11 @@ function scheduleOrder(a: { status: string; startDate: string | null }, b: { sta
  * The schedule as the panel lists it: never the board the panel already shows (by id, or by name
  * for a board the caller can see but isn't resolved on), live first then soonest.
  */
-export function panelSchedule(schedule: PluginSchedule, shown: { ids: number[]; title?: string | null }): Pick<PanelView, 'scheduled' | 'weeklies'> {
+export function panelSchedule(schedule: PluginSchedule, shown: { ids: number[] }): Pick<PanelView, 'scheduled' | 'weeklies'> {
   const hidden = new Set(shown.ids.filter((id) => id > 0));
   return {
     scheduled: schedule.bingos
-      .filter((b) => !hidden.has(b.id) && (!shown.title || b.title !== shown.title))
+      .filter((b) => !hidden.has(b.id))
       .sort(scheduleOrder),
     weeklies: [...schedule.weeklies].sort(scheduleOrder),
   };

@@ -45,7 +45,7 @@ import { getNotifyPrefs } from '@/lib/notifyPrefsStore';
  * account isn't linked to it (unverified RSN, or the player row belongs to another user). Returns
  * that event's name so the plugin can warn them; null when the RSN isn't in any live event.
  */
-async function activeEventForUnlinkedRsn(request: Request, clanId: number): Promise<string | null> {
+async function activeEventForUnlinkedRsn(request: Request, clanId: number): Promise<{ id: number; name: string } | null> {
   const rsnHeader = request.headers.get('X-RSN')?.trim();
   if (!rsnHeader) return null;
   const norm = normalizeRsn(rsnHeader);
@@ -60,6 +60,7 @@ async function activeEventForUnlinkedRsn(request: Request, clanId: number): Prom
   const rows = await db
     .select({
       name: eventParticipants.name,
+      eventId: events.id,
       eventName: events.name,
       startDate: events.startDate,
       endDate: events.endDate,
@@ -72,7 +73,7 @@ async function activeEventForUnlinkedRsn(request: Request, clanId: number): Prom
   for (const r of rows) {
     if (normalizeRsn(r.name) !== norm) continue; // exact (nbsp-normalised) match
     if (eventTimeState({ startDate: r.startDate, endDate: r.endDate, forceEndedAt: r.forceEndedAt, now }).phase === 'active') {
-      return r.eventName;
+      return { id: r.eventId, name: r.eventName };
     }
   }
   return null;
@@ -110,7 +111,7 @@ export async function GET(request: Request) {
       // Valid token, no live event: still resolve the read-bootstrap (schedule, weekly,
       // notification webhooks, fun-death pool) so deaths/rare-drops post and the side
       // panel shows the schedule even when the player isn't enrolled anywhere.
-      const [schedule, clanSettings, unlinkedActiveEvent, homeBoard, switchableClans] =
+      const [schedule, clanSettings, unlinked, homeBoard, switchableClans] =
         await Promise.all([
           pluginScheduleViewer(clan.id, userOnly.userId).then((v) => buildSchedule(clan.id, { ...v, viewerRsn: pluginViewerRsn(request), viewerAccountHash: request.headers.get('x-account-hash') })),
           clanPluginSettings(clan.id),
@@ -159,7 +160,7 @@ export async function GET(request: Request) {
         homeBoard,
         // Non-null when the logged-in RSN IS a player in a live bingo but this token/account isn't
         // linked to it — the plugin surfaces a "verify your RSN" warning so tracking isn't silently off.
-        unlinkedActiveEvent,
+        unlinkedActiveEvent: unlinked?.name ?? null,
         codeword: null,
         // No event resolved → nothing to prove (lib/startProof). Present for shape parity.
         startProof: null,
@@ -220,7 +221,7 @@ export async function GET(request: Request) {
         panel: {
           tiles: [],
           activeNow: [],
-          ...panelSchedule(schedule, { ids: [homeBoard?.eventId ?? -1], title: homeBoard ? null : unlinkedActiveEvent }),
+          ...panelSchedule(schedule, { ids: [homeBoard?.eventId ?? unlinked?.id ?? -1] }),
         },
       };
       // What this person's posts do (lib/notifyPrefs): their /settings choices AND the clan's channel

@@ -49,6 +49,8 @@ export interface BoardState {
   q: string;
   status: Status;
   page: number;
+  /** The page's way back (back, backLabel, title), carried on every action so a redraw keeps its Back row. */
+  nav?: Record<string, string>;
 }
 
 /** What the caller may do here, and the team's counts per tile (the live board only). */
@@ -261,6 +263,7 @@ const args = (s: BoardState, extra: Record<string, string> = {}): Record<string,
   q: s.q,
   status: s.status,
   page: String(s.page),
+  ...s.nav,
   ...extra,
 });
 
@@ -323,7 +326,7 @@ function raceDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: BoardConte
       muted(`${info.stepLine} · road ${info.road}`),
       ...(info.why ? [text(info.why, info.state === 'open' ? 'text' : 'muted', { wrap: true })] : []),
       ...(m.route?.pickFrom.includes(t.tileId) && !ctx.claimBlock
-        ? [gap(4), button('Pick this road', { a: 'post', act: 'race-pick', args: { event: String(s.event), tile: String(t.tileId), q: s.q, status: s.status, page: String(s.page), pre: s.pre ? '1' : '' } }, 'Lock in this tile for your team — a pick can’t be changed')]
+        ? [gap(4), button('Pick this road', { a: 'post', act: 'race-pick', args: args(s, { tile: String(t.tileId) }) }, 'Lock in this tile for your team — a pick can’t be changed')]
         : []),
     ]),
     gap(6),
@@ -377,7 +380,7 @@ export function raceRouteUi(board: Board, s?: BoardState): Node | null {
         const choice = m.route ? ` · ${roadChoiceLine(m.graph, m.route, t.id).toLowerCase()}` : '';
         out.push(text(`   Next ▸ ${lane}${t.label}${st.tiles.length > 1 ? choice : ''}`, 'brand', { wrap: true, on: pane(`t:${t.id}`), tip: 'Open this tile' }));
       } else if (m.route?.pickFrom.includes(t.id) && s && !board.readOnly) {
-        out.push({ ...button(`Pick ${lane}${t.label}`, { a: 'post', act: 'race-pick', args: { event: String(s.event), tile: String(t.id), q: s.q, status: s.status, page: String(s.page), pre: s.pre ? '1' : '' } }, 'Lock in this tile for your team — a pick can’t be changed') } as Node);
+        out.push({ ...button(`Pick ${lane}${t.label}`, { a: 'post', act: 'race-pick', args: args(s, { tile: String(t.id) }) }, 'Lock in this tile for your team — a pick can’t be changed') } as Node);
       } else if (t.state === 'closed') out.push(muted(`   ${lane}${t.label}`, { tip: 'Not on your team’s road' }));
       else out.push(muted(`   ${lane}${t.label}`));
     }
