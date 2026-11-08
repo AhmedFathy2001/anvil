@@ -942,7 +942,11 @@ export const en = {
           { label: 'Notify on rare drops', body: 'the master switch for drop posts.' },
           {
             label: 'Min drop value / Min drop rarity',
-            body: 'two independent routes to a post: worth at least this much (GE or high alch, whichever is higher), or rarer than 1-in-N (1/10,000 by default — looser settings fill the channel with herb rolls). Your clan can set a rarity floor that applies to everyone; yours still applies when it is stricter. Set either to 0 to switch that route off.',
+            body: 'a drop posts when it is worth at least this much (GE or high alch, whichever is higher) or rarer than 1-in-N. Anvil starts at 1m and 1/1,000. Your clan can set its own defaults for its members, and until you set a number yourself you follow your clan\'s; **Reset to clan default** (or **Reset to Anvil default** if you have no clan) goes back to following it. A clan can also set a hard rarity floor for its own channels, which your number cannot go below. Set either number to 0 to switch it off.',
+          },
+          {
+            label: 'Value and rarity together',
+            body: 'by default a drop posts when it meets the value **or** the rarity. Turn on **Require both** and it must meet the value **and** the rarity. Your clan can choose this default for its members; until you choose, you follow it, and with no clan it is either one. Each of your own webhooks can also set its own minimum value, rarity and either/both; anything it leaves blank follows your settings.',
           },
           {
             label: 'Loot key value',
@@ -4207,7 +4211,7 @@ export const en = {
         },
         {
           term: 'The numbers',
-          body: '**Min drop value** (5m to start, at least 1m, 0 turns it off), **Min drop rarity (1 in N)** (1 in 10,000 to start), **Loot key value** (1m), a **Death message** of up to 200 characters where `{name}` becomes your name, and the lowest **Combat task tier** and **Quest tier** that post (Master to start).',
+          body: '**Min drop value** (1m to start, at least 1m, 0 turns it off), **Min drop rarity (1 in N)** (1 in 1,000 to start), **Value and rarity together** (either one to start, or require both), **Loot key value** (1m), a **Death message** of up to 200 characters where `{name}` becomes your name, and the lowest **Combat task tier** and **Quest tier** that post (Master to start). The value, the rarity and the either/both choice follow your clan\'s defaults until you set your own; **Reset to clan default** goes back to following them.',
         },
         {
           term: 'Where your posts go',

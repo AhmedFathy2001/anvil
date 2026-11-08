@@ -940,7 +940,11 @@ const ptBr: PartialGuideDict = {
           { label: 'Notify on rare drops', body: 'a chave geral das publicações de drop.' },
           {
             label: 'Min drop value / Min drop rarity',
-            body: 'dois caminhos independentes até uma publicação: valer pelo menos tanto (GE ou high alch, o que for maior), ou ser mais raro que 1 em N (1/10.000 por padrão —— ajustes mais frouxos enchem o canal de ervas). Seu clã pode fixar um piso de raridade válido para todos; o seu ainda vale quando for mais rígido. Ponha 0 para desligar um dos caminhos.',
+            body: 'um drop é publicado quando vale pelo menos isto (GE ou high alch, o que for maior) ou é mais raro que 1 em N. A Anvil começa em 1m e 1/1,000. Seu clã pode definir padrões próprios para os membros, e até você definir um número seu, segue o do clã; **Redefinir para o padrão do clã** (ou **Redefinir para o padrão da Anvil**, se você não tiver clã) volta a segui-lo. Um clã também pode definir um piso rígido de raridade para os próprios canais, que o seu número não pode ultrapassar. Coloque 0 em qualquer um dos números para desligá-lo.',
+          },
+          {
+            label: 'Valor e raridade juntos',
+            body: 'por padrão, um drop é publicado quando atinge o valor **ou** a raridade. Ative **Exigir ambos** e ele precisa atingir o valor **e** a raridade. Seu clã pode escolher esse padrão para os membros; até você escolher, você segue o dele, e sem clã vale uma das duas. Cada um dos seus próprios webhooks também pode definir o próprio valor mínimo, raridade e ou/ambos; o que ele deixar em branco segue as suas configurações.',
           },
           {
             label: 'Loot key value',
@@ -4186,7 +4190,7 @@ const ptBr: PartialGuideDict = {
         },
         {
           term: 'Os números',
-          body: '**Min drop value** (5m para começar, no mínimo 1m; 0 desliga), **Min drop rarity (1 in N)** (1 em 10.000 para começar), **Loot key value** (1m), uma **Death message** de até 200 caracteres, onde `{name}` vira o seu nome, e o menor **Combat task tier** e **Quest tier** que são postados (Master para começar).',
+          body: '**Min drop value** (1m para começar, no mínimo 1m; 0 desliga), **Min drop rarity (1 in N)** (1 em 1,000 para começar), **Valor e raridade juntos** (um dos dois para começar, ou exigir ambos), **Loot key value** (1m), uma **Death message** de até 200 caracteres, onde `{name}` vira o seu nome, e o menor **Combat task tier** e **Quest tier** que são postados (Master para começar). Valor, raridade e a escolha entre um ou ambos seguem os padrões do clã até você definir os seus; **Redefinir para o padrão do clã** volta a segui-los.',
         },
         {
           term: 'Para onde vão os seus posts',

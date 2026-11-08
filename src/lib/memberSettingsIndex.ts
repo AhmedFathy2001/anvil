@@ -116,8 +116,8 @@ export const MEMBER_SETTINGS: readonly MemberSettingEntry[] = [
   {
     id: 'posts-drops',
     label: 'Rare drop posts',
-    description: 'Post valuable or very rare drops, with a minimum gp value, a 1-in-N rarity floor and a loot key value.',
-    keywords: ['drops', 'rare drop value', 'min drop value', 'rarity', 'drop rarity', 'loot key', 'gp', 'loot', 'notify', 'notifications', 'announcements'],
+    description: 'Post valuable or very rare drops, with a minimum gp value, a 1-in-N rarity and a loot key value; they follow the clan default until you set your own.',
+    keywords: ['drops', 'rare drop value', 'min drop value', 'rarity', 'default', 'clan default', 'reset', 'both', 'and', 'drop rarity', 'loot key', 'gp', 'loot', 'notify', 'notifications', 'announcements'],
     href: `${POSTS}#posts-drops`,
     section: POSTS_SECTION,
   },

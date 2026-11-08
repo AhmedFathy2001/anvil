@@ -947,7 +947,11 @@ const de: PartialGuideDict = {
           { label: 'Notify on rare drops', body: 'der Hauptschalter für Drop-Posts.' },
           {
             label: 'Min drop value / Min drop rarity',
-            body: 'zwei unabhängige Wege zu einem Post: mindestens so viel wert (GE oder High Alch, was höher ist), oder seltener als 1 zu N (standardmäßig 1/10.000 — lockerere Werte füllen den Kanal mit Kräuterwürfen). Dein Clan kann eine Seltenheitsgrenze setzen, die für alle gilt; deine eigene greift trotzdem, wenn sie strenger ist. Setze einen der beiden auf 0, um diesen Weg abzuschalten.',
+            body: 'ein Drop wird gepostet, wenn er mindestens so viel wert ist (GE oder High Alch, je nachdem, was höher ist) oder seltener als 1 zu N ist. Anvil startet bei 1m und 1/1,000. Dein Clan kann eigene Standardwerte für seine Mitglieder setzen, und solange du selbst keine Zahl festlegst, folgst du denen deines Clans; **Auf Clan-Standard zurücksetzen** (oder **Auf Anvil-Standard zurücksetzen**, wenn du keinen Clan hast) bringt dich wieder dazu, ihnen zu folgen. Ein Clan kann außerdem eine harte Seltenheitsgrenze für seine eigenen Kanäle festlegen, unter die deine Zahl nicht gehen kann. Setze eine der beiden Zahlen auf 0, um sie abzuschalten.',
+          },
+          {
+            label: 'Wert und Seltenheit zusammen',
+            body: 'standardmäßig wird ein Drop gepostet, wenn er den Wert **oder** die Seltenheit erfüllt. Aktiviere **Beides erforderlich**, dann muss er den Wert **und** die Seltenheit erfüllen. Dein Clan kann diesen Standard für seine Mitglieder wählen; bis du selbst wählst, folgst du ihm, und ohne Clan gilt eins von beidem. Jeder deiner eigenen Webhooks kann außerdem seinen eigenen Mindestwert, seine Seltenheit und das Entweder/Beides festlegen; was er leer lässt, folgt deinen Einstellungen.',
           },
           {
             label: 'Loot key value',
@@ -4203,7 +4207,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Die Zahlen',
-          body: '**Min drop value** (zu Beginn 5m, mindestens 1m, 0 schaltet es ab), **Min drop rarity (1 in N)** (zu Beginn 1 in 10.000), **Loot key value** (1m), eine **Death message** mit bis zu 200 Zeichen, in der `{name}` zu deinem Namen wird, sowie die niedrigste **Combat task tier** und **Quest tier**, die gepostet werden (zu Beginn Master).',
+          body: '**Min drop value** (zu Beginn 1m, mindestens 1m, 0 schaltet es ab), **Min drop rarity (1 in N)** (zu Beginn 1 zu 1.000), **Wert und Seltenheit zusammen** (zu Beginn eins von beiden, oder **Beides erforderlich**), **Loot key value** (1m), eine **Death message** mit bis zu 200 Zeichen, in der `{name}` zu deinem Namen wird, sowie die niedrigste **Combat task tier** und **Quest tier**, die gepostet werden (zu Beginn Master). Wert, Seltenheit und die Wahl zwischen eins oder beidem folgen den Standards deines Clans, bis du eigene setzt; **Auf Clan-Standard zurücksetzen** bringt dich wieder dazu, ihnen zu folgen.',
         },
         {
           term: 'Wohin deine Posts gehen',

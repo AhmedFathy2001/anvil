@@ -947,7 +947,11 @@ const nl: PartialGuideDict = {
           { label: 'Notify on rare drops', body: 'de hoofdschakelaar voor drop-berichten.' },
           {
             label: 'Min drop value / Min drop rarity',
-            body: 'twee onafhankelijke routes naar een bericht: minstens zoveel waard (GE of high alch, welke hoger is), of zeldzamer dan 1 op N (standaard 1/10.000 — lossere waarden vullen het kanaal met kruidenrollen). Je clan kan een zeldzaamheidsdrempel zetten die voor iedereen geldt; die van jou telt nog steeds als hij strenger is. Zet er een op 0 om die route uit te schakelen.',
+            body: 'een drop wordt geplaatst wanneer hij minstens zoveel waard is (GE of high alch, welke hoger is) of zeldzamer is dan 1 op N. Anvil begint bij 1m en 1/1,000. Je clan kan eigen standaardwaarden instellen voor zijn leden; totdat jij zelf een getal instelt, volg je die van de clan. **Terug naar clanstandaard** (of **Terug naar Anvil-standaard** als je geen clan hebt) zet je weer op volgen. Een clan kan ook een harde zeldzaamheidsgrens instellen voor de eigen kanalen, waar jouw getal niet onder kan. Zet een van beide getallen op 0 om het uit te schakelen.',
+          },
+          {
+            label: 'Waarde en zeldzaamheid samen',
+            body: 'standaard wordt een drop geplaatst als hij aan de waarde **of** de zeldzaamheid voldoet. Zet **Beide vereist** aan en hij moet aan de waarde **en** de zeldzaamheid voldoen. Je clan kan deze standaard kiezen voor zijn leden; totdat jij kiest, volg je die, en zonder clan is het een van de twee. Elk van je eigen webhooks kan ook zijn eigen minimumwaarde, zeldzaamheid en een van beide/beide instellen; wat leeg blijft volgt jouw instellingen.',
           },
           {
             label: 'Loot key value',
@@ -4203,7 +4207,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'De getallen',
-          body: '**Min drop value** (standaard 5m, minimaal 1m, 0 zet het uit), **Min drop rarity (1 in N)** (standaard 1 op 10.000), **Loot key value** (1m), een **Death message** van maximaal 200 tekens waarin `{name}` je naam wordt, en de laagste **Combat task tier** en **Quest tier** die worden geplaatst (standaard Master).',
+          body: '**Min drop value** (standaard 1m, minimaal 1m, 0 zet het uit), **Min drop rarity (1 in N)** (standaard 1 op 1,000), **Waarde en zeldzaamheid samen** (standaard een van beide, of beide vereist), **Loot key value** (1m), een **Death message** van maximaal 200 tekens waarin `{name}` je naam wordt, en de laagste **Combat task tier** en **Quest tier** die worden geplaatst (standaard Master). De waarde, de zeldzaamheid en de keuze van een van beide of beide volgen de standaarden van je clan totdat jij ze zelf instelt; **Terug naar clanstandaard** zet je weer op volgen.',
         },
         {
           term: 'Waar je berichten naartoe gaan',

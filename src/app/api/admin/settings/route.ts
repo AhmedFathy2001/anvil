@@ -55,8 +55,13 @@ const EXPOSED_KEYS = [
   // spoon. See lib/dropFacts — most guarantees come from the drop dataset without being typed here.
   'guaranteed_drops',
   'show_kill_count',
-  // Clan-wide floor (1-in-N) on rarity-triggered drop posts; members can be stricter, not looser.
+  // Clan hard floor (1-in-N) on rarity-triggered drop posts: no member goes looser. Optional.
   'drop_rarity_floor',
+  // The clan's default minimum drop value (gp) and rarity (1-in-N) for members who haven't set their own.
+  'drop_default_value',
+  'drop_default_rarity',
+  // 'and' = members' drops need the value AND the rarity; blank = either.
+  'drop_default_mode',
   'fun_death_messages',
   'death_taunts',
   'spoon_taunts',

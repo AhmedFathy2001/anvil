@@ -945,7 +945,11 @@ const zhHans: PartialGuideDict = {
           { label: 'Notify on rare drops', body: '掉落播报的总开关。' },
           {
             label: 'Min drop value / Min drop rarity',
-            body: '两条相互独立的触发路径：价值至少达到这个数（GE 价与 high alch 取高者），或者稀有度高于 N 分之一（默认 1/10,000 —— 阈值放得太松，频道会被草药类掉落刷屏）。你的氏族可以设一个对所有人生效的稀有度下限；当你自己的更严格时依然以你的为准。把其中任一项设为 0 即可关闭该路径。',
+            body: '掉落在价值至少达到这个数（GE 价与 high alch 取高者）或稀有度高于 1/N 时发布。Anvil 默认为 1m 和 1/1,000。你的氏族可以为成员设置自己的默认值；在你自己设定数字之前，你将跟随氏族的设置；**重置为氏族默认值**（若你没有氏族则为 **重置为 Anvil 默认值**）即可恢复跟随。氏族还可以为其自身频道设定一个硬性稀有度下限，你的数字不能低于它。将任一数字设为 0 即可关闭该项。',
+          },
+          {
+            label: '价值和稀有度组合',
+            body: '默认情况下，掉落满足价值**或**稀有度之一即发布。开启 **同时要求** 后，必须同时满足价值**和**稀有度。你的氏族可以为成员选择这一默认设置；在你自行选择之前，你将跟随氏族的设置；没有氏族时则为二者之一。你自己的每个 webhook 也可以单独设置最低价值、稀有度以及满足其一或同时满足；未填写的项目跟随你的设置。',
           },
           {
             label: 'Loot key value',
@@ -4200,7 +4204,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '数值',
-          body: '**Min drop value**（默认 5m，至少 1m，0 则关闭）、**Min drop rarity (1 in N)**（默认 1 in 10,000）、**Loot key value**（1m）、一条最多 200 个字符的 **Death message**，其中 `{name}` 会变成你的名字，以及允许发布的最低 **Combat task tier** 和 **Quest tier**（默认 Master）。',
+          body: '**Min drop value**（默认 1m，至少 1m，0 则关闭）、**Min drop rarity (1 in N)**（默认 1/1,000）、**价值和稀有度组合**（默认满足其一，或同时要求）、**Loot key value**（1m）、一条最多 200 个字符的 **Death message**，其中 `{name}` 会变成你的名字，以及允许发布的最低 **Combat task tier** 和 **Quest tier**（默认 Master）。价值、稀有度以及满足其一或同时满足的选择，在你自行设定之前跟随氏族默认值；**重置为氏族默认值** 即可恢复跟随。',
         },
         {
           term: '你的发布去向',

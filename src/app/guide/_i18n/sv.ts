@@ -947,7 +947,11 @@ const sv: PartialGuideDict = {
           { label: 'Notify on rare drops', body: 'huvudströmbrytaren för drop-inlägg.' },
           {
             label: 'Min drop value / Min drop rarity',
-            body: 'två oberoende vägar till ett inlägg: värt minst så här mycket (GE eller high alch, det som är högst), eller ovanligare än 1 på N (1/10 000 som standard — lösare inställningar fyller kanalen med örtrullar). Din klan kan sätta en sällsynthetsgräns som gäller alla; din egen gäller ändå när den är strängare. Sätt någon av dem till 0 för att stänga av den vägen.',
+            body: 'ett drop postas när det är värt minst så här mycket (GE eller high alch, det som är högst) eller är ovanligare än 1 på N. Anvil startar på 1m och 1/1,000. Din klan kan sätta egna standardvärden för sina medlemmar, och tills du väljer ett tal själv följer du klanens; **Återställ till klanens standard** (eller **Återställ till Anvils standard** om du inte har någon klan) går tillbaka till att följa den. En klan kan också sätta ett hårt sällsynthetsgolv för sina egna kanaler, som ditt tal inte kan gå under. Sätt något av talen till 0 för att stänga av det.',
+          },
+          {
+            label: 'Värde och sällsynthet tillsammans',
+            body: 'som standard postas ett drop när det uppfyller värdet **eller** sällsyntheten. Slå på **Kräv båda** så måste det uppfylla värdet **och** sällsyntheten. Din klan kan välja den här standarden för sina medlemmar; tills du väljer själv följer du den, och utan klan gäller ett av alternativen. Var och en av dina egna webhooks kan också sätta sitt eget minimivärde, sällsynthet och antingen/båda; det den lämnar tomt följer dina inställningar.',
           },
           {
             label: 'Loot key value',
@@ -4203,7 +4207,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Siffrorna',
-          body: '**Min drop value** (5 m från start, minst 1 m, 0 stänger av den), **Min drop rarity (1 in N)** (1 av 10 000 från start), **Loot key value** (1 m), ett **Death message** på upp till 200 tecken där `{name}` blir ditt namn, och den lägsta **Combat task tier** och **Quest tier** som postas (Master från start).',
+          body: '**Min drop value** (1m från start, minst 1m, 0 stänger av den), **Min drop rarity (1 in N)** (1 av 1,000 från start), **Värde och sällsynthet tillsammans** (endera från start, eller kräv båda), **Loot key value** (1m), en **Death message** på upp till 200 tecken där `{name}` blir ditt namn, och den lägsta **Combat task tier** och **Quest tier** som postas (Master från start). Värdet, sällsyntheten och valet mellan endera eller båda följer din klans standard tills du väljer själv; **Återställ till klanens standard** går tillbaka till att följa den.',
         },
         {
           term: 'Vart dina inlägg går',

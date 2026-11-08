@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { userWebhooks } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
+import { filterMode, filterNumber } from '@/lib/webhookFilters';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +39,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Bad body' }, { status: 400 });
 
-  const set: { kinds?: string; minRarity?: number | null; label?: string | null } = {};
+  const set: { kinds?: string; minValue?: number | null; minDropRarity?: number | null; minDropMode?: 'or' | 'and' | null; label?: string | null } = {};
   if (Array.isArray(body.kinds)) {
     const kinds = body.kinds.filter(
       (k: unknown): k is string => typeof k === 'string' && (KINDS as readonly string[]).includes(k),
@@ -46,9 +47,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (kinds.length === 0) return NextResponse.json({ error: 'Pick at least one kind.' }, { status: 400 });
     set.kinds = JSON.stringify(kinds);
   }
-  if ('minRarity' in body) {
-    set.minRarity = body.minRarity == null || body.minRarity === '' ? null : Math.max(0, Math.floor(Number(body.minRarity) || 0));
-  }
+  if ('minValue' in body) set.minValue = filterNumber(body.minValue);
+  if ('minDropRarity' in body) set.minDropRarity = filterNumber(body.minDropRarity);
+  if ('minDropMode' in body) set.minDropMode = filterMode(body.minDropMode);
   if ('label' in body) {
     set.label = typeof body.label === 'string' && body.label.trim() ? body.label.trim().slice(0, 60) : null;
   }

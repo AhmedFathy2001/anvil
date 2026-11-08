@@ -938,7 +938,11 @@ const pl: PartialGuideDict = {
           { label: 'Notify on rare drops', body: 'główny przełącznik wpisów o dropach.' },
           {
             label: 'Min drop value / Min drop rarity',
-            body: 'dwie niezależne drogi do wpisu: wart co najmniej tyle (GE albo high alch, co większe) albo rzadszy niż 1 na N (domyślnie 1/10 000 —— luźniejsze ustawienia zapychają kanał ziołami). Twój klan może ustawić próg rzadkości obowiązujący wszystkich; twój i tak obowiązuje, gdy jest ostrzejszy. Wpisz 0, żeby wyłączyć jedną z dróg.',
+            body: 'drop zostaje opublikowany, gdy jest wart co najmniej tyle (GE lub high alch, co wyższe) albo jest rzadszy niż 1 na N. Anvil zaczyna od 1m i 1/1,000. Twój klan może ustawić własne domyślne wartości dla swoich członków, a dopóki sam nie wpiszesz liczby, obowiązują klanowe; **Przywróć domyślne klanu** (lub **Przywróć domyślne Anvil**, jeśli nie masz klanu) przywraca ich śledzenie. Klan może też ustawić twardy próg rzadkości dla swoich kanałów, poniżej którego twoja liczba nie zejdzie. Wpisz 0 przy którejkolwiek liczbie, żeby ją wyłączyć.',
+          },
+          {
+            label: 'Wartość i rzadkość razem',
+            body: 'domyślnie drop jest publikowany, gdy spełnia wartość **lub** rzadkość. Włącz **Wymagaj obu** i musi spełniać wartość **oraz** rzadkość. Twój klan może wybrać tę wartość domyślną dla swoich członków; dopóki sam nie wybierzesz, obowiązuje klanowa, a bez klanu jest to jedna z opcji. Każdy z twoich własnych webhooków może też ustawić własną minimalną wartość, rzadkość i tryb lub/oraz; wszystko, co zostawi puste, idzie według twoich ustawień.',
           },
           {
             label: 'Loot key value',
@@ -4184,7 +4188,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Liczby',
-          body: '**Min drop value** (na start 5m, co najmniej 1m, 0 wyłącza), **Min drop rarity (1 in N)** (na start 1 na 10 000), **Loot key value** (1m), **Death message** do 200 znaków, gdzie `{name}` staje się twoją nazwą, oraz najniższy **Combat task tier** i **Quest tier**, które się publikują (na start Master).',
+          body: '**Min drop value** (na start 1m, co najmniej 1m, 0 wyłącza), **Min drop rarity (1 in N)** (na start 1 na 1,000), **Wartość i rzadkość razem** (na start jedno z nich, albo obie), **Loot key value** (1m), **Death message** do 200 znaków, gdzie `{name}` staje się twoją nazwą, oraz najniższy **Combat task tier** i **Quest tier**, które się publikują (na start Master). Wartość, rzadkość i wybór lub/oraz idą za domyślnymi klanu, dopóki sam nie ustawisz swoich; **Przywróć domyślne klanu** wraca do ich śledzenia.',
         },
         {
           term: 'Gdzie trafiają twoje posty',

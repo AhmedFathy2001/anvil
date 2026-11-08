@@ -940,7 +940,11 @@ const it: PartialGuideDict = {
           { label: 'Notify on rare drops', body: 'l’interruttore principale per i post sui drop.' },
           {
             label: 'Min drop value / Min drop rarity',
-            body: 'due strade indipendenti verso un post: vale almeno tanto (GE o high alch, il maggiore dei due) oppure è più raro di 1 su N (1/10.000 di base —— impostazioni più larghe riempiono il canale di erbe). Il tuo clan può fissare una soglia di rarità valida per tutti; la tua vale comunque quando è più severa. Metti 0 per disattivare una delle due strade.',
+            body: 'un drop viene pubblicato quando vale almeno questa cifra (GE o high alch, il maggiore dei due) oppure è più raro di 1 su N. Anvil parte da 1m e 1/1,000. Il tuo clan può impostare valori predefiniti propri per i suoi membri, e finché non ne scegli uno tu segui quello del clan; **Ripristina il default del clan** (o **Ripristina il default Anvil** se non hai un clan) ti riporta a seguirlo. Un clan può anche fissare una soglia minima di rarità per i propri canali, sotto la quale il tuo numero non può scendere. Metti a 0 uno dei due numeri per disattivarlo.',
+          },
+          {
+            label: 'Valore e rarità insieme',
+            body: 'di base un drop viene pubblicato se raggiunge il valore **o** la rarità. Attiva **Richiedi entrambi** e deve raggiungere il valore **e** la rarità. Il tuo clan può scegliere questo default per i suoi membri; finché non scegli tu, lo segui, e senza clan è uno dei due. Ognuno dei tuoi webhook può impostare anche il proprio valore minimo, la rarità e la scelta o/e; ciò che lascia vuoto segue le tue impostazioni.',
           },
           {
             label: 'Loot key value',
@@ -4186,7 +4190,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'I valori',
-          body: '**Min drop value** (5m all’inizio, almeno 1m, 0 lo disattiva), **Min drop rarity (1 in N)** (1 su 10.000 all’inizio), **Loot key value** (1m), un **Death message** fino a 200 caratteri dove `{name}` diventa il tuo nome, e la **Combat task tier** e la **Quest tier** più basse che vengono pubblicate (Master all’inizio).',
+          body: '**Min drop value** (1m all’inizio, almeno 1m, 0 lo disattiva), **Min drop rarity (1 in N)** (1 su 1,000 all’inizio), **Valore e rarità insieme** (uno dei due all’inizio, oppure richiedi entrambi), **Loot key value** (1m), un **Death message** fino a 200 caratteri dove `{name}` diventa il tuo nome, e la **Combat task tier** e la **Quest tier** più basse che vengono pubblicate (Master all’inizio). Il valore, la rarità e la scelta tra uno o entrambi seguono i default del tuo clan finché non imposti i tuoi; **Ripristina il default del clan** ti riporta a seguirli.',
         },
         {
           term: 'Dove vanno i tuoi post',
