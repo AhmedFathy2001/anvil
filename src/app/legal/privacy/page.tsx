@@ -167,6 +167,51 @@ export default function PrivacyPage() {
         , including its Limited Use requirements.
       </p>
 
+      <h2>4b. How we protect your data</h2>
+      <p>
+        We treat the access tokens and account details from connected accounts (including data
+        received from Google APIs) as sensitive data, and protect them as follows:
+      </p>
+      <ul>
+        <li>
+          <strong>Encryption in transit:</strong> all traffic to {SITE.name} uses HTTPS (TLS), with HSTS
+          enforced, and every request we make to Google, Twitch and Kick is made over HTTPS.
+        </li>
+        <li>
+          <strong>Encryption at rest:</strong> the only tokens we store (a host&rsquo;s connected channel)
+          are encrypted with AES-256-GCM before they are written to the database. The encryption key is
+          kept separately from the database, so a copy of the database or its backups alone cannot be
+          used to read them.
+        </li>
+        <li>
+          <strong>Minimal data, minimal time:</strong> we request only read-only access
+          (<code>youtube.readonly</code> for YouTube). A viewer&rsquo;s token is used for a single check
+          and revoked straight away, never stored. A subscription or membership check is trusted for one
+          day and then checked again. Disconnecting an account deletes its stored ID, name, tokens and
+          checks.
+        </li>
+        <li>
+          <strong>Restricted access:</strong> our servers are not reachable directly from the internet:
+          web traffic arrives only through Cloudflare, and a firewall blocks every other inbound
+          connection except restricted administrative access. The database is reachable only from our own
+          application. Only the operator of {SITE.name} has administrative access to production systems.
+        </li>
+        <li>
+          <strong>No human reading:</strong> no person reads data received from Google APIs unless you ask
+          us to (for example, for support), it is needed for security purposes such as investigating
+          abuse, or the law requires it.
+        </li>
+        <li>
+          <strong>No other use:</strong> data received from Google APIs is never sold, used for
+          advertising, transferred to other parties, or used to develop or train AI or machine-learning
+          models.
+        </li>
+        <li>
+          <strong>Incidents:</strong> if a security breach affects your data, we will revoke the affected
+          tokens and notify you and, where required, the relevant authorities without undue delay.
+        </li>
+      </ul>
+
       <h2>5. International transfers</h2>
       <p>
         Our servers are located in the EU. Some providers above may process data in other countries;
