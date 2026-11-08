@@ -4,7 +4,7 @@ import { signupFees } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyEventTreasurer, verifyFeeCollector } from '@/lib/auth';
 import { feeEventForRequest } from '@/lib/eventScope';
-import { markFeeCollected } from '@/lib/feeConfirmations';
+import { FeeChangedError, markFeeCollected } from '@/lib/feeConfirmations';
 import { currentClan } from '@/lib/clanContext';
 import { isClanMediaUrl } from '@/lib/storage';
 
@@ -65,10 +65,17 @@ export async function POST(
 
   // The dispute rule, the settle-on-collect rule and the audit line live in lib/feeConfirmations,
   // shared with the team-staff route so the two can't drift apart.
-  const { fee: updated, settled } = await markFeeCollected(fee, session.userId, {
+  let collected;
+  try {
+    collected = await markFeeCollected(fee, session.userId, {
     proofUrl,
     notes: body?.notes ?? null,
   });
+  } catch (e) {
+    if (e instanceof FeeChangedError) return NextResponse.json({ error: e.message }, { status: 409 });
+    throw e;
+  }
+  const { fee: updated, settled } = collected;
 
   return NextResponse.json({ fee: updated, settled });
 }

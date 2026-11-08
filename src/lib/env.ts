@@ -9,6 +9,12 @@ const IS_PROD_RUNTIME = process.env.NODE_ENV === 'production' && !IS_BUILD;
 
 export function requireSecret(name: string, devDefault: string): string {
   const raw = process.env[name];
+  // A signing secret's dev default is public — it is in the source, in a public repo. Set to it in
+  // production, it signs sessions anyone can forge, so it is refused exactly like a missing one.
+  // (Only the *_SECRET signing keys: an S3 bucket or endpoint can legitimately equal its default.)
+  if (raw && raw.length > 0 && IS_PROD_RUNTIME && name.endsWith('_SECRET') && raw === devDefault) {
+    throw new Error(`Env var "${name}" is set to its public development default. Set a real secret.`);
+  }
   if (raw && raw.length > 0) return raw;
   if (IS_PROD_RUNTIME) {
     throw new Error(

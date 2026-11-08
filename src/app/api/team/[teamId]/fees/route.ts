@@ -3,7 +3,7 @@ import { chargesFee, feeLabel } from '@/lib/entryFeeMath';
 import { db } from '@/db';
 import { clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
-import { markFeeCollected } from '@/lib/feeConfirmations';
+import { FeeChangedError, markFeeCollected } from '@/lib/feeConfirmations';
 import { canTeamUndoCollection } from '@/lib/feeRules';
 import { requireTeamManager, teamManagerIds } from '@/lib/teamStaff';
 import { del } from '@/lib/storage';
@@ -185,9 +185,22 @@ export async function POST(
   if (fee.status === 'confirmed') {
     return NextResponse.json({ error: 'That fee is already settled' }, { status: 409 });
   }
+  // Not your own. A team manager recording their own entry fee as paid — settled outright on a
+  // one-confirmation clan — is paying themselves; somebody else has to take it.
+  const owner = await db.query.eventSignups.findFirst({ where: eq(eventSignups.id, fee.signupId), columns: { userId: true } });
+  if (owner?.userId === management.userId) {
+    return NextResponse.json({ error: 'Someone else has to record your own fee.' }, { status: 403 });
+  }
 
   const notes = typeof body?.notes === 'string' && body.notes.trim() ? body.notes.trim().slice(0, 300) : null;
-  const { fee: updated, settled } = await markFeeCollected(fee, management.userId, { notes });
+  let collected;
+  try {
+    collected = await markFeeCollected(fee, management.userId, { notes });
+  } catch (e) {
+    if (e instanceof FeeChangedError) return NextResponse.json({ error: e.message }, { status: 409 });
+    throw e;
+  }
+  const { fee: updated, settled } = collected;
 
   return NextResponse.json({ fee: updated, settled });
 }
@@ -276,10 +289,6 @@ export async function DELETE(
     );
   }
 
-  // Their own proof, of a collection they are withdrawing. Best-effort — a failed delete must not
-  // block the record being corrected.
-  if (fee.proofBlobUrl) del(fee.proofBlobUrl).catch(() => {});
-
   const nextStatus = fee.reportedCollectorUserId !== null ? 'reported' : 'pending';
   const [updated] = await db
     .update(signupFees)
@@ -292,8 +301,17 @@ export async function DELETE(
       confirmedAt: null,
       confirmations: null,
     })
-    .where(eq(signupFees.id, fee.id))
+    // From the state canTeamUndoCollection judged, or not at all: a treasurer signing it off in the
+    // meantime is exactly what that check exists to protect, and an id-only write wiped it.
+    .where(and(eq(signupFees.id, fee.id), eq(signupFees.status, fee.status)))
     .returning();
+  if (!updated) {
+    return NextResponse.json({ error: 'That fee just changed — refresh and try again.' }, { status: 409 });
+  }
+
+  // Their own proof, of a collection they are withdrawing — only once the withdrawal is recorded.
+  // Best-effort: a failed delete must not block the record being corrected.
+  if (fee.proofBlobUrl) del(fee.proofBlobUrl).catch(() => {});
 
   return NextResponse.json({ fee: updated });
 }

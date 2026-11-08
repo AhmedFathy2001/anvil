@@ -206,15 +206,37 @@ export async function POST(
   }
 
   // Make the pick — the picked player and every grouped sibling share teamId + pickNumber.
+  //
+  // ONE PICK PER TURN. Everything above read a snapshot, so two picks sent together by the team on
+  // the clock both passed the turn check and both wrote pickNumber = pickedCount — two players for
+  // one turn. The event row is locked for the write, and the turn is re-counted under the lock: if a
+  // pick landed in between, this one is stale and refused.
   const now = new Date().toISOString();
-  await db
-    .update(eventParticipants)
-    .set({
-      teamId: expectedTeamId,
-      pickNumber: pickedCount,
-      pickedAt: now,
-    })
-    .where(and(inArray(eventParticipants.id, groupIds), eq(eventParticipants.eventId, eId), isNull(eventParticipants.teamId)));
+  const outcome = await db.transaction(async (tx) => {
+    // clan-scope: this clan -- eId came through eventForRequest above; this only takes the row lock.
+    await tx.select({ id: events.id }).from(events).where(eq(events.id, eId)).for('update');
+    const fresh = await tx
+      .select({ pickNumber: eventParticipants.pickNumber })
+      .from(eventParticipants)
+      .where(eq(eventParticipants.eventId, eId));
+    if (countPicksTaken(fresh) !== pickedCount) return 'stale' as const;
+    const moved = await tx
+      .update(eventParticipants)
+      .set({
+        teamId: expectedTeamId,
+        pickNumber: pickedCount,
+        pickedAt: now,
+      })
+      .where(and(inArray(eventParticipants.id, groupIds), eq(eventParticipants.eventId, eId), isNull(eventParticipants.teamId)))
+      .returning({ id: eventParticipants.id });
+    return moved.length > 0 ? ('ok' as const) : ('taken' as const);
+  });
+  if (outcome !== 'ok') {
+    return NextResponse.json(
+      { error: outcome === 'stale' ? 'A pick was just made — refresh to see whose turn it is.' : 'That player was just picked.' },
+      { status: 409 },
+    );
+  }
   // A pick made after the start (a late draft) takes the player's starting stats now.
   captureStartingStatsSoon(eId, groupIds);
 

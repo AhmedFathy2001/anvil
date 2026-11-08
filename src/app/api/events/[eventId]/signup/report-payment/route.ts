@@ -4,7 +4,6 @@ import { db } from '@/db';
 import { clanStaff, eventSignups, signupFees, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
-import { atLeast } from '@/lib/clanRoles';
 
 // Returns the list of staff who can collect fees, plus the authenticated user's
 // own existing payment report (if any) so the form can pre-populate.
@@ -66,7 +65,8 @@ export async function POST(
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, id))) {
+  const event = await eventForRequest(request, id);
+  if (!event) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   if (!Number.isFinite(id)) {
@@ -97,8 +97,18 @@ export async function POST(
   }
 
   if (body.collectorUserId !== null) {
-    const collector = await db.query.users.findFirst({ where: eq(users.id, body.collectorUserId) });
-    if (!collector || (!atLeast(collector.role, 'admin') && collector.role !== 'treasurer')) {
+    // A collector is staff of THIS event's clan — the same set the picker above lists. It used to ask
+    // users.role, which is global and says nothing about this clan.
+    const [collector] = await db
+      .select({ id: clanStaff.userId })
+      .from(clanStaff)
+      .where(and(
+        eq(clanStaff.clanId, event.clanId),
+        eq(clanStaff.userId, body.collectorUserId),
+        inArray(clanStaff.role, ['admin', 'owner', 'treasurer']),
+      ))
+      .limit(1);
+    if (!collector) {
       return NextResponse.json(
         { error: 'Selected user is not authorized to collect fees' },
         { status: 400 },
@@ -132,8 +142,11 @@ export async function POST(
       reportedAt: body.collectorUserId === null ? null : now,
       status: nextStatus,
     })
-    .where(eq(signupFees.id, fee.id))
+    // From the status this was worked out from: a collector marking it paid in the meantime must not
+    // be turned back into a bare "reported".
+    .where(and(eq(signupFees.id, fee.id), eq(signupFees.status, fee.status)))
     .returning();
+  if (!updated) return NextResponse.json({ error: 'That fee just changed — refresh and try again.' }, { status: 409 });
 
   return NextResponse.json({ fee: updated });
 }

@@ -257,10 +257,9 @@ test('every plugin write family refuses a foreign character, and nothing is writ
     assert.equal(res.status, 403);
     assert.equal((await res.json()).error, FOREIGN, 'tile claims');
   }
-  // Roster sync, hello, weekly enrol: through the character, by name in the body.
+  // Roster sync, hello: through the character, by name in the body. (Weekly enrol is retired — 410.)
   await call('clan-sync', '/api/plugin/clan-sync', '../src/app/api/plugin/clan-sync/route.ts', { clanName: 'AFK', members: [{ rsn: 'Main Guy', rank: 'owner', accountHash: 'h-main' }] });
   await call('hello', '/api/plugin/hello', '../src/app/api/plugin/hello/route.ts', { rsn: 'Main Guy' });
-  await call('weekly-enroll', '/api/plugin/weekly/enroll', '../src/app/api/plugin/weekly/enroll/route.ts', { rsn: 'Main Guy' });
 
   // The panel's actions: every one answers with the refusal, none acts.
   const ui = await import('../src/app/api/plugin/ui/route.ts');

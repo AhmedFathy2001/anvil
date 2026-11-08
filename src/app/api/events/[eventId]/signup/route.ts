@@ -3,7 +3,7 @@ import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { eventSignups, events, signupFees, teamInvites, teams } from '@/db/schema';
 import { signupSeatsFor } from '@/lib/eventSeats';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull, lt, or, sql } from 'drizzle-orm';
 import { generatePlayerToken, verifyUser } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { parseProfile, sanitizeProfile, serializeProfile, signupWindowState, signupEditState } from '@/lib/signup';
@@ -374,6 +374,33 @@ export async function POST(
     requestedTeamId = wanted.id;
   }
 
+  // SPEND THE INVITE'S SEAT FIRST, atomically. It was `uses = invite.uses + 1` after everything else,
+  // from the read above — so sign-ups racing through a one-seat link all passed checkInvite on the
+  // same count and all got in, approved. The conditional bump lets exactly the seats there are
+  // through; a later refusal below hands its seat back (releaseInviteSeat).
+  //
+  // Once per PERSON, not per account and not per edit: someone entering two accounts through one
+  // link takes one seat, and coming back to fix an answer takes none. `isEditingActive` is exactly
+  // "they were already in before this request".
+  const inviteSeatTaken = !!invite && !isEditingActive;
+  if (inviteSeatTaken) {
+    const [took] = await db
+      .update(teamInvites)
+      .set({ uses: sql`${teamInvites.uses} + 1` })
+      .where(and(eq(teamInvites.id, invite!.id), or(isNull(teamInvites.maxUses), lt(teamInvites.uses, teamInvites.maxUses))))
+      .returning({ id: teamInvites.id });
+    if (!took) {
+      return NextResponse.json({ error: 'That invite link has been used up. Ask whoever sent it for a new one.', reason: 'used-up' }, { status: 403 });
+    }
+  }
+  const releaseInviteSeat = async () => {
+    if (!inviteSeatTaken) return;
+    await db
+      .update(teamInvites)
+      .set({ uses: sql`greatest(${teamInvites.uses} - 1, 0)` })
+      .where(eq(teamInvites.id, invite!.id));
+  };
+
   // 2) Upsert each selected account (profile only on the primary), reactivating a withdrawn row.
   //    One transaction (lib/creatorPlansDb withEventRoom): on a metered creator event it holds the
   //    host's lock from before the write to the re-count after it, so two sign-ups racing for the
@@ -424,6 +451,7 @@ export async function POST(
       }
     });
   } catch (e) {
+    await releaseInviteSeat();
     if (e instanceof PlanLimitError) return NextResponse.json({ error: e.message, reason: 'full' }, { status: 403 });
     throw e;
   }
@@ -444,6 +472,7 @@ export async function POST(
     poolOnly: !invite && activeRows.some(({ row }) => row.status === 'pending'),
   });
   if (!seated.ok) {
+    await releaseInviteSeat();
     return NextResponse.json(
       seated.reason === 'full'
         ? { error: 'That team just filled up. Pick another team.', reason: 'team-full' }
@@ -468,16 +497,6 @@ export async function POST(
         await db.delete(signupFees).where(eq(signupFees.id, existingFee.id));
       }
     }
-  }
-
-  // Spend a seat once per PERSON, not per account and not per edit: someone entering two accounts
-  // through one link took one of the seats the host offered, and coming back to fix an answer took
-  // none. `isEditingActive` is exactly "they were already in before this request".
-  if (invite && !isEditingActive) {
-    await db
-      .update(teamInvites)
-      .set({ uses: invite.uses + 1 })
-      .where(eq(teamInvites.id, invite.id));
   }
 
   if (!isEditingActive) {

@@ -7,6 +7,7 @@ import { emitCompletionRow } from '@/lib/panelRows';
 import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
+import { tilesForViewer } from '@/lib/tilesForViewer';
 import { completions, tiles, teams, events } from '@/db/schema';
 import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, resolveTeamMembership } from '@/lib/auth';
@@ -32,9 +33,8 @@ export async function GET(
   if (!scopedEvent) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
-  const eventTiles = await db.query.tiles.findMany({
-    where: eq(tiles.eventId, id),
-  });
+  // Only tiles this caller may see — a completion names its tile and when it fell.
+  const eventTiles = await tilesForViewer(scopedEvent, await db.query.tiles.findMany({ where: eq(tiles.eventId, id) }));
   const tileIds = eventTiles.map((t) => t.id);
 
   let eventCompletions: Completion[] = [];

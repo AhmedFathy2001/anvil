@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { pluginDeviceCodes, users } from '@/db/schema';
 import { hashDeviceCode } from '@/lib/pluginDeviceAuth';
@@ -72,8 +72,16 @@ export async function POST(request: Request) {
       // A token of its own for this client. Tokens are stored only as hashes, so an existing one
       // cannot be handed out again — and per-client tokens are better anyway: signing in here signs
       // nobody else out, and each client can be revoked alone.
+      //
+      // REDEEM FIRST, and only from 'approved': two polls racing in both read 'approved', and minting
+      // before the flip let each walk away with a token. Exactly one flips it; the other is expired.
+      const [redeemed] = await db
+        .update(pluginDeviceCodes)
+        .set({ status: 'redeemed' })
+        .where(and(eq(pluginDeviceCodes.id, row.id), eq(pluginDeviceCodes.status, 'approved')))
+        .returning({ id: pluginDeviceCodes.id });
+      if (!redeemed) return NextResponse.json({ status: 'expired' });
       const token = await mintDeviceToken(user.id);
-      await db.update(pluginDeviceCodes).set({ status: 'redeemed' }).where(eq(pluginDeviceCodes.id, row.id));
       track('plugin.linked', { userId: user.id, props: { via: 'device' } });
       return NextResponse.json({ status: 'complete', token });
     }

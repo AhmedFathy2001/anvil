@@ -45,6 +45,8 @@ import { refuseForeignCharacter } from '@/lib/pluginForeign';
 // Screenshots are small PNGs. Cap well under the platform request-body limit so an oversized upload
 // can't tie up the function.
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+/** A death / PvP-kill line is one game message; nothing longer is a real one. */
+const MAX_LINE_CHARS = 300;
 
 // Clips are the one channel that never arrives here (multi-MB video goes to /api/plugin/clip), so
 // the accepted set is every channel minus that one. Older plugins post "combatAchievements" for
@@ -243,8 +245,16 @@ export async function POST(request: Request) {
   // strips Jagex's @tag@ colour codes (lib/chatTags) one can be anywhere in one — a title, a field,
   // the wiki URL built from a task name. Cleaned here so a post reads right today rather than on the
   // plugin-hub's schedule; on a client that already strips them this is a no-op.
-  let finalEmbed: Record<string, unknown> | null = embed ? stripChatTagsDeep(embed) : null;
-  let finalContent = stripChatTags(content);
+  //
+  // A plugin-built `embed`, and free `content` on any other channel, are no longer posted. Both went
+  // straight from the request body into the clan's Discord, so any member's token could put whatever
+  // it liked there — links, a fake "announcement" — under the site's webhook. Every current client
+  // sends `kind` + `facts`, which the site composes; free text survives only as a death / PvP-kill
+  // line, folded into the site's own embed below, and capped.
+  void embed;
+  let finalEmbed: Record<string, unknown> | null = null;
+  const finalContent: string | undefined = undefined;
+  const lineText = typeof content === 'string' ? stripChatTags(content).slice(0, MAX_LINE_CHARS) : '';
   if (kind !== undefined) {
     const built = buildPluginEmbed(kind, facts, { imageFilename: image?.filename ?? null, death });
     if (!built.ok) {
@@ -253,15 +263,16 @@ export async function POST(request: Request) {
     // Same tag scrub as a passed-through embed: names in facts come straight off game text.
     finalEmbed = stripChatTagsDeep(built.embed as unknown as Record<string, unknown>);
   }
-  if (!finalEmbed && content && (channel === 'deaths' || channel === 'pvpKills')) {
+  if (!finalEmbed && lineText && (channel === 'deaths' || channel === 'pvpKills')) {
     finalEmbed = playerEventEmbed({
       kind: channel === 'deaths' ? 'death' : 'pvp_kill',
       rsn: await posterRsn(request, auth.userId),
-      message: content,
+      message: lineText,
       imageFilename: image?.filename ?? null,
     }) as unknown as Record<string, unknown>;
-    // The message moves into the embed's description, so don't also post it as content.
-    finalContent = undefined;
+  }
+  if (!finalEmbed) {
+    return NextResponse.json({ error: 'Nothing to post — send kind and facts.' }, { status: 400 });
   }
 
   // Game-mode stamp ("[Deadman] …") — server-side, so every kind gets it without the plugin knowing

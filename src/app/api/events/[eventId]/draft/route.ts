@@ -4,7 +4,8 @@ import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanRoster, events, eventParticipants, teams } from '@/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
-import { verifyAdmin } from '@/lib/auth';
+import { verifyAdmin, verifyAdminOrModerator, verifyCaptain, verifyUser } from '@/lib/auth';
+import { staffedTeamIds } from '@/lib/teamStaff';
 import { seatEventCaptains } from '@/lib/teamCaptain';
 import { getTeamForPick, getRoundForPick, getPickInRound, countPicksTaken } from '@/lib/draft';
 import { parseEventRules } from '@/lib/eventRules';
@@ -57,11 +58,24 @@ export async function GET(
     ? await db.select({ id: clanRoster.id, userId: clanRoster.playerId }).from(clanRoster).where(inArray(clanRoster.id, memberIds))
     : [];
   const ownerByMember = new Map(ownerRows.map((r) => [r.id, r.userId]));
-  // Surface each player's frozen sign-up answers so captains read them while drafting.
-  const eventPlayers = attachProfiles(safeRaw, await loadEventProfiles(id)).map((p) => ({
-    ...p,
-    ownerUserId: p.clanMemberId != null ? ownerByMember.get(p.clanMemberId) ?? null : null,
-  }));
+  // Surface each player's frozen sign-up answers so captains read them while drafting — captains and
+  // staff only. This read is public (spectators watch the draft), and it handed every visitor each
+  // player's Discord handle, timezone, sign-up answers and login id.
+  const insider = await draftInsider(id);
+  const profiles = insider ? await loadEventProfiles(id) : new Map();
+  // Spectators keep a per-person key (a multi-account pool still groups into one card) that is not the
+  // login id behind it: a negative ordinal, the same for every account of one person in this reply.
+  const ordinals = new Map<number, number>();
+  const eventPlayers = attachProfiles(safeRaw, profiles).map((p) => {
+    const ownerUserId = p.clanMemberId != null ? ownerByMember.get(p.clanMemberId) ?? null : null;
+    if (insider) return { ...p, ownerUserId };
+    let key: number | null = null;
+    if (ownerUserId != null) {
+      if (!ordinals.has(ownerUserId)) ordinals.set(ownerUserId, -(ordinals.size + 1));
+      key = ordinals.get(ownerUserId)!;
+    }
+    return { ...p, discord: null, timezone: null, ownerUserId: key };
+  });
 
   const eventTeams = await db
     .select({
@@ -430,4 +444,26 @@ export async function POST(
     default:
       return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
   }
+}
+
+/**
+ * Is the caller someone the draft's private details are for: staff of this clan, or a captain or
+ * team staffer on THIS event (by captain cookie, team captaincy or a team_staff seat)?
+ */
+async function draftInsider(eventId: number): Promise<boolean> {
+  if (await verifyAdminOrModerator()) return true;
+  const teamIds = new Set(
+    (await db.select({ id: teams.id }).from(teams).where(eq(teams.eventId, eventId))).map((t) => t.id),
+  );
+  const captain = await verifyCaptain();
+  if (captain && teamIds.has(captain.teamId)) return true;
+  const user = await verifyUser();
+  if (!user) return false;
+  const captains = await db
+    .select({ id: teams.id })
+    .from(teams)
+    .where(and(eq(teams.eventId, eventId), eq(teams.captainUserId, user.userId)))
+    .limit(1);
+  if (captains.length > 0) return true;
+  return (await staffedTeamIds(user.userId)).some((t) => teamIds.has(t));
 }

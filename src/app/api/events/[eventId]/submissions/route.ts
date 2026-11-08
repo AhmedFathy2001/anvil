@@ -4,6 +4,7 @@ import { refuseForeignCharacter } from '@/lib/pluginForeign';
 import { eventForPluginRequest, eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
+import { tilesForViewer } from '@/lib/tilesForViewer';
 import { submissions, tiles, teams, eventParticipants, events, users, eventStartProofs, proofUploads, completions } from '@/db/schema';
 import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin, verifyAdminOrModerator, verifyUser, verifyCaptain, verifyPlayer, verifyPluginTokenOnEvent, resolveTeamMembership } from '@/lib/auth';
@@ -72,10 +73,11 @@ export async function GET(
   const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '0', 10) || 0, 0), 500);
   const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0);
 
-  // Get all tiles for event
-  const eventTiles = await db.query.tiles.findMany({
-    where: eq(tiles.eventId, eId),
-  });
+  // The tiles this caller may see — proofs of a hidden tile are as much a leak as the tile itself.
+  const eventTiles = await tilesForViewer(
+    scopedEvent,
+    await db.query.tiles.findMany({ where: eq(tiles.eventId, eId) }),
+  );
   const tileIds = eventTiles.map((t) => t.id);
 
   if (tileIds.length === 0) {

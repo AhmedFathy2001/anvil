@@ -286,6 +286,13 @@ function appendNote(existing: string | null, line: string): string {
   return prev ? `${prev}\n${line}` : line;
 }
 
+/** The fee moved after the caller read it; nothing was written. Callers answer 409. */
+export class FeeChangedError extends Error {
+  constructor() {
+    super('That fee just changed — refresh and try again.');
+  }
+}
+
 /**
  * Mark a fee paid, whoever is doing it.
  *
@@ -301,12 +308,6 @@ export async function markFeeCollected(
   opts: { proofUrl?: string | null; notes?: string | null } = {},
 ): Promise<{ fee: typeof signupFees.$inferSelect; settled: boolean }> {
   const proofUrl = opts.proofUrl ?? null;
-
-  // Replacing a proof leaves the old blob orphaned otherwise. Best-effort: a failed delete must not
-  // block the money being recorded.
-  if (fee.proofBlobUrl && proofUrl && fee.proofBlobUrl !== proofUrl) {
-    del(fee.proofBlobUrl).catch(() => {});
-  }
 
   // A dispute is the player naming a different collector — that needs a human either way.
   const disputed = fee.reportedCollectorUserId !== null && fee.reportedCollectorUserId !== actorUserId;
@@ -329,8 +330,18 @@ export async function markFeeCollected(
       confirmedAt: settleNow ? now : null,
       notes: opts.notes ?? fee.notes,
     })
-    .where(eq(signupFees.id, fee.id))
+    // ONLY FROM THE STATE THE CALLER CHECKED. Both callers read the fee, judged it, then wrote it by
+    // id alone — so a treasurer's confirm landing in between was silently overwritten. Written from
+    // the status they saw or not at all; FeeChangedError tells them to refresh.
+    .where(and(eq(signupFees.id, fee.id), eq(signupFees.status, fee.status)))
     .returning();
+  if (!updated) throw new FeeChangedError();
+
+  // Replacing a proof leaves the old blob orphaned otherwise — deleted only once the new one is
+  // recorded. Best-effort: a failed delete must not block the money being recorded.
+  if (fee.proofBlobUrl && proofUrl && fee.proofBlobUrl !== proofUrl) {
+    del(fee.proofBlobUrl).catch(() => {});
+  }
 
   if (settleNow) {
     await recordFeeSettled(fee.id, fee.signupId, fee.amount, actorUserId, actorUserId, {

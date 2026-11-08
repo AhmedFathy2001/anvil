@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
-import { CAN_WRITE, requirePlatformApi } from '@/lib/platformAccess';
+import { CAN_GRANT, CAN_WRITE, requirePlatformApi } from '@/lib/platformAccess';
+import { hasPlatformRole } from '@/lib/clanRoles';
 import { LAB_TIERS, clearLabDrops, labSupporterState, seedLabDrops, setLabTier } from '@/lib/labSupporter';
 
 // /api/staff/lab/supporter — the Supporter test bench (lib/labSupporter). GET: your lab tier, the
@@ -24,6 +25,11 @@ export async function POST(request: Request) {
   }
   const userId = gate.actor.user.userId;
   if (body.action === 'tier') {
+    // A lab tier is a real Supporter row, seen by everyone, on the caller's own login. Handing out what
+    // people otherwise pay for is root's call (staff/people/[id]/supporter), so the bench is too.
+    if (!hasPlatformRole(gate.actor.role, CAN_GRANT)) {
+      return NextResponse.json({ error: 'Only root can set a lab Supporter tier.' }, { status: 403 });
+    }
     const tier = LAB_TIERS.find((t) => t === body.tier) ?? null;
     if (body.tier != null && !tier) return NextResponse.json({ error: 'Unknown tier' }, { status: 400 });
     await setLabTier(userId, tier, typeof body.months === 'number' ? body.months : 0);
