@@ -62,7 +62,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   return NextResponse.json({
     chat: { open: access.open, closedWhy: access.closedWhy, paused: access.paused },
     teams: teamRows,
-    lines: lines.map((l) => ({ ...l, canSanction: actOn.has(l.userId) })),
+    // Delete: their own lines, or a sender they outrank (lib/eventChat deleteChat checks it again).
+    lines: lines.map((l) => ({ ...l, canSanction: actOn.has(l.userId), canDelete: l.userId === userId || actOn.has(l.userId) })),
     sanctions,
   });
 }

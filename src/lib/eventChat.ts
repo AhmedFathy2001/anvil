@@ -247,7 +247,7 @@ const modAct = (eventId: number, id: number, act: 'chat-del' | 'chat-mute'): Act
 async function rowsFor(
   eventId: number,
   lines: StoredLine[],
-  viewer: { userId: number; staff: boolean; rsn?: string | null } | null,
+  viewer: { userId: number; staff: boolean; rsn?: string | null; access?: ChatAccess } | null,
 ): Promise<FeedRow[]> {
   if (!lines.length) return [];
   const userIds = [...new Set(lines.map((l) => l.userId))];
@@ -258,6 +258,10 @@ async function rowsFor(
     staffRoles(eventId, userIds),
   ]);
   const teamById = new Map(teamRows.map((t) => [t.id, t]));
+  // The right-click menu only on lines whose sender the viewer outranks (the same rule as the page).
+  const ranks = viewer?.staff && viewer.access ? await ranksIn(viewer.access, userIds) : null;
+  const canMod = (senderId: number) =>
+    !!viewer?.staff && viewer.userId !== senderId && (!ranks || canSanction(viewer.access!.rank, ranks.get(senderId) ?? 0));
   return lines.map((l) => {
     const s = supporters.get(l.userId);
     // The panel is dark: their own dark look as-is when set, else the main look (the plugin adapts it).
@@ -269,7 +273,7 @@ async function rowsFor(
       role: l.fromStaff ? (hosts.get(l.userId) ?? 'mod') : null,
       team: team ? { name: team.name, color: team.color } : null,
       ...(ink ? { whoColor: ink.color as Color, ...(ink.grad ? { grad: ink.grad as `#${string}`[], ...(ink.move ? { move: true } : {}) } : {}) } : {}),
-      modActions: viewer?.staff && viewer.userId !== l.userId ? { del: modAct(eventId, l.id, 'chat-del'), mute: modAct(eventId, l.id, 'chat-mute') } : null,
+      modActions: canMod(l.userId) ? { del: modAct(eventId, l.id, 'chat-del'), mute: modAct(eventId, l.id, 'chat-mute') } : null,
     };
     return chatRow({ id: l.id, rsn: l.rsn, body: l.body, teamOnly: l.teamOnly, createdAt: l.createdAt }, o);
   });
@@ -311,7 +315,7 @@ export async function chatHistory(
   else if (filter === 'mods') where.push(eq(eventChatMessages.fromStaff, true), eq(eventChatMessages.teamOnly, false));
   else where.push(eq(eventChatMessages.teamOnly, false));
   const lines = await db.select(LINE_COLUMNS).from(eventChatMessages).where(and(...where)).orderBy(desc(eventChatMessages.id)).limit(limit);
-  return rowsFor(access.eventId, lines, { userId: viewerUserId, staff: access.staff, rsn: access.seats > 1 ? access.rsn : null });
+  return rowsFor(access.eventId, lines, { userId: viewerUserId, staff: access.staff, rsn: access.seats > 1 ? access.rsn : null, access });
 }
 
 /**
@@ -408,6 +412,10 @@ export async function deleteChat(access: ChatAccess, byUserId: number, id: numbe
   if (!access.staff) return { ok: false, error: 'Only the host and mods can do that.' };
   const line = await lineOf(access.eventId, id);
   if (!line || line.deletedAt) return { ok: false, error: 'That message is gone.' };
+  // Their own line, or one from someone they strictly outrank: a mod can't remove an admin's words.
+  if (line.userId !== byUserId && !canSanction(access.rank, await rankIn(access, line.userId))) {
+    return { ok: false, error: 'Only someone above them on staff can remove that.' };
+  }
   await db
     .update(eventChatMessages)
     .set({ deletedAt: sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`, deletedBy: byUserId })
@@ -630,7 +638,10 @@ export async function chatSanctions(access: ChatAccess, viewerUserId: number, no
   });
 }
 
-/** Of these people, the ones this viewer may time out or ban (they outrank them). */
+/**
+ * Of these people, the ones this viewer may time out or ban (they outrank them). Deleting follows the
+ * same rule, plus the viewer's own lines.
+ */
 export async function sanctionableUsers(access: ChatAccess, viewerUserId: number, userIds: number[]): Promise<Set<number>> {
   const ranks = await ranksIn(access, userIds);
   return new Set([...ranks].filter(([u, r]) => u !== viewerUserId && canSanction(access.rank, r)).map(([u]) => u));
@@ -671,6 +682,39 @@ export async function setEventChatPaused(eventId: number, paused: boolean, by?: 
 export async function setEventChat(eventId: number, enabled: boolean): Promise<void> {
   await db.update(events).set({ chatEnabled: enabled, ...(enabled ? {} : { chatPaused: false }) }).where(eq(events.id, eventId));
   if (!enabled) await notifyRows({ e: eventId }, { t: 'rowslock', feeds: [`chat:${eventId}`], locked: 'The host turned chat off.' });
+}
+
+/**
+ * Timeouts that have run out: the row goes and the person's open chat boxes unlock (or show the
+ * board's pause), so nobody sits behind a stale "timed out" line. Runs every minute with the event
+ * lifecycle tick; the delete names the expiry it read, so a fresh timeout set meanwhile survives.
+ */
+export async function sweepExpiredChatTimeouts(now = Date.now()): Promise<number> {
+  try {
+    const due = await db
+      .select({ eventId: eventChatMutes.eventId, userId: eventChatMutes.userId, until: eventChatMutes.until, paused: events.chatPaused, clanId: events.clanId })
+      .from(eventChatMutes)
+      .innerJoin(events, eq(events.id, eventChatMutes.eventId))
+      // clan-scope: global -- expiry housekeeping across every clan's boards
+      .where(and(eq(eventChatMutes.kind, 'timeout'), lt(eventChatMutes.until, stampOf(now + 1_000))))
+      .limit(500);
+    let done = 0;
+    for (const d of due) {
+      const gone = await db
+        .delete(eventChatMutes)
+        .where(and(eq(eventChatMutes.eventId, d.eventId), eq(eventChatMutes.userId, d.userId), eq(eventChatMutes.kind, 'timeout'), eq(eventChatMutes.until, d.until!)))
+        .returning({ userId: eventChatMutes.userId });
+      if (!gone.length) continue;
+      const grant = d.paused ? await clanGrant(d.clanId, d.userId).catch(() => null) : null;
+      const staff = !!grant && atLeast(grant.role, 'moderator');
+      await notifyRows({ u: [d.userId] }, { t: 'rowslock', feeds: [`chat:${d.eventId}`], locked: lockFor(null, d.paused, staff) });
+      done++;
+    }
+    return done;
+  } catch (err) {
+    log.warn('event-chat.timeout-sweep-failed', { message: (err as Error).message });
+    return 0;
+  }
 }
 
 /** Drop chat from events that ended more than KEEP_DAYS ago. Runs with the event lifecycle sweep. */

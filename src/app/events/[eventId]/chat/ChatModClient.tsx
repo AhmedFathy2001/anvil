@@ -20,6 +20,7 @@ interface Line {
   fromStaff: boolean;
   createdAt: string;
   canSanction: boolean;
+  canDelete: boolean;
 }
 
 interface Sanction {
@@ -338,9 +339,11 @@ export default function ChatModClient({ eventId }: { eventId: number }) {
                     <p className="mt-0.5 break-words text-sm text-foreground/90">{l.body}</p>
                   </div>
                   <div className="flex shrink-0 gap-1.5">
-                    <button type="button" disabled={busy} onClick={() => remove(l)} className={quietBtn}>
-                      Delete
-                    </button>
+                    {l.canDelete && (
+                      <button type="button" disabled={busy} onClick={() => remove(l)} className={quietBtn}>
+                        Delete
+                      </button>
+                    )}
                     {l.canSanction && (
                       <>
                         <button

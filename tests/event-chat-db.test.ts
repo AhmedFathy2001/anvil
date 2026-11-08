@@ -196,6 +196,57 @@ test('moderation page model: delete, timeout, ban and lift, all audited', async 
   assert.equal(types.filter((k) => k === 'event_chat_sanction_lifted').length, 3);
 });
 
+test('deleting follows rank: own lines, or a sender strictly below you', async () => {
+  const say = async (who: string, text: string) => {
+    assert.equal((await C.sendChat(await access(who), u[who], text, false, later())).ok, true);
+    return (await C.chatModLines(eventId, { q: text }))[0].id;
+  };
+  const adaLine = await say('Ada', 'admin words');
+  assert.deepEqual(await C.deleteChat(await access('Kev'), u.Kev, adaLine), { ok: false, error: 'Only someone above them on staff can remove that.' });
+  // The plugin's menu doesn't offer it either.
+  const kevView = await C.chatHistory(await access('Kev'), u.Kev, 'all');
+  assert.equal(kevView.find((r) => r.text === 'admin words')?.menu, undefined);
+  assert.equal((await C.chatHistory(await access('Ada'), u.Ada, 'all')).find((r) => r.text === 'admin words')?.menu, undefined, 'own line: no menu');
+
+  const kevLine = await say('Kev', 'mod words');
+  assert.deepEqual(await C.deleteChat(await access('Ada'), u.Ada, kevLine), { ok: true }, 'an admin can remove a mod’s line');
+  assert.deepEqual(await C.deleteChat(await access('Opal'), u.Opal, adaLine), { ok: true }, 'Anvil staff can remove anyone’s');
+  const ownLine = await say('Kev', 'oops typo');
+  assert.deepEqual(await C.deleteChat(await access('Kev'), u.Kev, ownLine), { ok: true }, 'their own line');
+  const rikLine = await say('Rikkert', 'player words');
+  assert.equal((await C.deleteChat(await access('Rikkert'), u.Rikkert, rikLine)).ok, false, 'players can’t delete, even their own (as before)');
+  assert.deepEqual(await C.deleteChat(await access('Kev'), u.Kev, rikLine), { ok: true });
+});
+
+test('a timeout that runs out is swept and the person’s box unlocks', async () => {
+  const listener = new (await import('pg')).default.Client({ connectionString: process.env.DATABASE_URL });
+  await listener.connect();
+  const locks: { u?: number[]; m: { t: string; locked: string | null } }[] = [];
+  listener.on('notification', (n) => {
+    const p = JSON.parse(n.payload!);
+    if (p.k === 'rows' && p.m?.t === 'rowslock') locks.push(p);
+  });
+  await listener.query('LISTEN anvil_push');
+
+  const t0 = Date.now();
+  // Earlier tests ran on a fake clock: their timeouts are long expired. Clear them first.
+  await C.sweepExpiredChatTimeouts(t0);
+  assert.deepEqual(await C.sanctionChat(await access('Kev'), u.Kev, u.Pkpingu, { kind: 'timeout', minutes: 5 }, t0), { ok: true });
+  assert.equal(await C.sweepExpiredChatTimeouts(t0 + 60_000), 0, 'still running');
+  assert.equal(await C.sweepExpiredChatTimeouts(t0 + 6 * 60_000), 1);
+  assert.equal(await C.chatBlockOf(eventId, u.Pkpingu, t0 + 6 * 60_000), null);
+  assert.equal((await db.select().from(s.eventChatMutes).where(eq(s.eventChatMutes.userId, u.Pkpingu))).length, 0);
+  // A ban is never swept.
+  await C.sanctionChat(await access('Kev'), u.Kev, u.Pkpingu, { kind: 'ban' }, t0);
+  assert.equal(await C.sweepExpiredChatTimeouts(t0 + 365 * 86_400_000), 0);
+  await C.liftChatSanction(await access('Kev'), u.Kev, u.Pkpingu);
+
+  await new Promise((r) => setTimeout(r, 150));
+  await listener.end();
+  const mine = locks.filter((l) => l.u?.includes(u.Pkpingu)).map((l) => l.m.locked);
+  assert.deepEqual(mine.slice(0, 2), ['You’re timed out of this event’s chat for 5 more minutes.', null], 'locked with the reason, then unlocked at expiry');
+});
+
 test('the host’s switch and the platform’s each close it', async () => {
   await C.setEventChat(eventId, false);
   assert.equal((await access('Pkpingu')).open, false);

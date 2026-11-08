@@ -24,7 +24,7 @@ import { sweepEndedLabSessions } from '@/lib/lab';
 import { sweepLabTestDrops } from '@/lib/labSupporter';
 import { sweepChatFeed } from '@/lib/chatFeed';
 import { sweepClanAchievements } from '@/lib/momentsStore';
-import { sweepEventChat } from '@/lib/eventChat';
+import { sweepEventChat, sweepExpiredChatTimeouts } from '@/lib/eventChat';
 import { sweepOverdueProofs } from '@/lib/proofFinish';
 import { publishShippedReleases } from '@/lib/releases';
 import { grantDueReferrals } from '@/lib/referrals';
@@ -458,6 +458,8 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   // The chat feed's old dedup keys and lapsed guest presence (lib/chatFeed).
   await sweepChatFeed().catch((err) => log.warn('event-lifecycle.chat-feed-sweep-failed', { err: String(err) }));
   await sweepEventChat();
+  // Event chat timeouts that ran out: unlock those players' plugin message boxes (lib/eventChat).
+  await sweepExpiredChatTimeouts(nowMs);
   // Credits whose screenshot never came within the minute (lib/proofAfter): reversed, a batch a tick.
   await sweepOverdueProofs(nowMs, 100).catch((err) => log.warn('event-lifecycle.proof-sweep-failed', { err: String(err) }));
   // A release this production build carries that hasn't been announced yet (lib/releases).
