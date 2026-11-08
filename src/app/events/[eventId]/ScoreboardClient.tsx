@@ -1,7 +1,7 @@
 'use client';
 
 import { raceGraph, raceFieldSize } from '@/lib/raceRoutes';
-import { gapWatch, raceFeed, raceLines, raceStatCards } from '@/lib/raceSummary';
+import { gapWatch, orderLinesBy, raceFeed, raceLines, raceStatCards } from '@/lib/raceSummary';
 import { useRacePick } from '@/components/board/BranchingRaceBoard';
 import { RaceFeedList, RaceGapWatch, RaceSectionTitle, RaceStandings, RaceStatCardsRow, RaceUpNext } from '@/components/board/RaceEventSections';
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -152,6 +152,8 @@ interface Props {
   curtain?: StandingsCurtainInfo | null;
   /** Missions set to show as Locked before they drop: name and icon only (lib/eventRules lockedMissionPreviews). */
   lockedMissions?: { id: number; label: string; icon: string | null }[];
+  /** A tile race's order, ranked once on the server (first to the finish, steps, who got there first). */
+  raceStandings?: { teamId: number; rank: number; stepsDone: number; finished: boolean }[] | null;
   /**
    * A players board (lib/standingsWindow isSoloLike): the standings read as a ranked list of players
    * — top five, the viewer's own line(s) with neighbours, the rest paged — not a card per team.
@@ -199,7 +201,7 @@ interface TeamGains {
   tileMembers: Record<number, { name: string; gained: number }[]>;
 }
 
-export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, lockedMissions = [], creator = false, tileHighlights, solo = false, myTeamIds = [], manyTeams = false, teamMembers }: Props) {
+export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, lockedMissions = [], raceStandings = null, creator = false, tileHighlights, solo = false, myTeamIds = [], manyTeams = false, teamMembers }: Props) {
   // Solo-like and many-teams boards both draw the cut list and the compact lens.
   const windowed = solo || manyTeams;
   // Behind the curtain the teams whose progress this page deals in are the viewer's own; the rest
@@ -593,8 +595,13 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
   const raceG = useMemo(() => (isRace ? raceGraph(board) : null), [isRace, board]);
   const racePick = useRacePick(isRace ? event.id : undefined, raceViewer, raceG ?? raceGraph([]));
   const raceLineList = useMemo(
-    () => (raceG ? raceLines(raceG, teams, completions, (id) => (id === raceViewer && racePick.pickInfo?.mode === 'choose' ? racePick.pickInfo.picks : null)) : []),
-    [raceG, teams, completions, raceViewer, racePick.pickInfo],
+    () => {
+      if (!raceG) return [];
+      const local = raceLines(raceG, teams, completions, (id) => (id === raceViewer && racePick.pickInfo?.mode === 'choose' ? racePick.pickInfo.picks : null));
+      // The server's order and ranks — the same the plugin shows — never a local re-sort.
+      return raceStandings ? orderLinesBy(local, raceStandings) : local;
+    },
+    [raceG, teams, completions, raceViewer, racePick.pickInfo, raceStandings],
   );
   const [raceNow, setRaceNow] = useState<number | null>(null);
   useEffect(() => {
@@ -736,6 +743,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
                   myTeamIds={myTeamIds}
                   noun={solo ? 'players' : 'teams'}
                   members={teamMembers}
+                  ranked={raceLineList.map((l) => ({ id: l.team.id, rank: l.rank }))}
                 />
               ) : (
                 <RaceStandings lines={raceLineList} steps={steps} labelOf={labelOf} teamMvps={teamMvps} eventId={event.id} viewerTeamId={raceViewer} compact={variant === 'medium'} />

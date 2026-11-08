@@ -1,5 +1,4 @@
-import { raceGraph } from '@/lib/raceRoutes';
-import { raceFirsts } from '@/lib/raceSummary';
+import { raceViewData } from '@/lib/raceSummary';
 import { feeLabel, paidEntriesLabel, standardFee } from '@/lib/entryFeeMath';
 import CohostTileSuggest from '@/components/CohostTileSuggest';
 import { parseBoardAccess } from '@/lib/cohostBoardAccess';
@@ -447,15 +446,6 @@ export default async function EventScoreboardPage({
   // recomputation of the standings.
   // Hidden standings: the firsts name whichever team got there first, so they wait for the reveal.
   const firsts = curtain ? [] : await loadEventFirsts(event.id, event.startDate);
-  // A tile race adds its own (lib/raceSummary): off the line, first to the junction, first road switch.
-  const raceRouteGraph = event.format === 'tilerace' ? raceGraph(allTileRows) : null;
-  if (raceRouteGraph && !curtain) {
-    const labelOfTile = new Map(allTileRows.map((t) => [t.id, t.label]));
-    const emoji: Record<string, string> = { 'off-the-line': '🏁', junction: '⇄', 'road-switch': '↪' };
-    for (const f of raceFirsts(raceRouteGraph, eventTeams, eventCompletions, (tid) => labelOfTile.get(tid) ?? `Tile ${tid}`)) {
-      firsts.push({ key: `race-${f.key}`, emoji: emoji[f.key], title: f.title, blurb: f.title, who: f.team.name, teamName: f.team.name, teamColor: f.team.color, tileLabel: f.detail, at: f.at ?? '' });
-    }
-  }
   // The week's colour: pets, clog slots, 1M+ drops and deaths that happened while the board ran
   // (lib/moments isEventFeedWorthy) — never any part of the scoring.
   // Back-to-back repeats (someone's run of deaths) collapse to one line with a count (lib/feedRuns)
@@ -484,6 +474,18 @@ export default async function EventScoreboardPage({
       ? await getEventLuck(event.id).catch(() => null)
       : null;
   const boardTiles = visibleTiles(rules, eventTiles);
+  // A TILE RACE's own data — built from the VISIBLE board only (this viewer's boardTiles) and the
+  // completions on it, so a hidden tile's label, a hidden mission or an unopened slot can't leak
+  // through the route, the firsts, the feed or the step count. Nothing before the reveal.
+  const raceView = event.format === 'tilerace' && event.tilesRevealed
+    ? raceViewData({ visibleBoardTiles: boardTiles, teams: safeTeams, completions: eventCompletions, withFirsts: !curtain })
+    : null;
+  const raceRouteGraph = raceView?.graph ?? null;
+  const raceStandings = raceView?.standings ?? null;
+  const raceEmoji: Record<string, string> = { 'off-the-line': '🏁', junction: '⇄', 'road-switch': '↪' };
+  for (const f of raceView?.firsts ?? []) {
+    firsts.push({ key: `race-${f.key}`, emoji: raceEmoji[f.key], title: f.title, blurb: f.title, who: f.team.name, teamName: f.team.name, teamColor: f.team.color, tileLabel: f.detail, at: f.at ?? '' });
+  }
   // Board tiles only: a mission hidden until its drop isn't even a number in "N still hidden".
   const hiddenTileCount = hasRevealPolicy(rules)
     ? eventTiles.filter((t) => !isMissionTile(t)).length - visibleTiles(rules, eventTiles).filter((t) => !isMissionTile(t)).length
@@ -933,6 +935,7 @@ export default async function EventScoreboardPage({
           event={event}
           tiles={withSearchText(boardTiles)}
           lockedMissions={lockedMissionPreviews(eventTiles)}
+          raceStandings={raceStandings}
           teams={safeTeams}
           completions={eventCompletions}
           tierBands={tierBands}

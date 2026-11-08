@@ -78,3 +78,57 @@ test('race firsts and the feed', () => {
   assert.equal(feed[0].line, 'T31 — step 3 of 4 · road B');
   assert.equal(feed.length, 4);
 });
+
+import { orderLinesBy, raceViewData } from '../src/lib/raceSummary.ts';
+import { rankRaceTeams } from '../src/lib/raceRoutes.ts';
+import { rosterOverview } from '../src/lib/eventRoster.ts';
+import { visibleTiles, parseEventRules } from '../src/lib/eventRules.ts';
+
+test('ties go to who got there first, not to the name', () => {
+  const line = raceGraph([{ id: 1, position: 0 }, { id: 2, position: 1 }, { id: 3, position: 2 }]);
+  const field = [{ id: 1, name: 'Aardvarks' }, { id: 2, name: 'Zebras' }, { id: 3, name: 'Mid' }];
+  const done = [
+    { teamId: 1, tileId: 1, completedAt: '2026-11-01 10:00:00' },
+    { teamId: 2, tileId: 1, completedAt: '2026-11-01 09:00:00' }, // Zebras got there first
+    { teamId: 3, tileId: 1, completedAt: '2026-11-01 09:00:00' }, // …at the same second as Mid
+  ];
+  const r = rankRaceTeams(line, field, done);
+  assert.deepEqual(r.map((x) => [x.teamId, x.rank]), [[3, 1], [2, 1], [1, 3]], 'identical steps and time share a rank; name orders within it only');
+  // The server order is applied as given — the panel and the page never re-sort by name.
+  const local = raceLines(line, field.map((t) => ({ ...t, color: '#fff' })), done.map(({ teamId, tileId }) => ({ teamId, tileId })));
+  assert.deepEqual(local.map((l) => l.team.id), [1, 3, 2], 'without times, a local sort falls back to names');
+  const ordered = orderLinesBy(local, r);
+  assert.deepEqual(ordered.map((l) => [l.team.id, l.rank]), [[3, 1], [2, 1], [1, 3]]);
+});
+
+test('the plugin roster follows the ranks it is handed, not score then name', () => {
+  const out = rosterOverview({
+    teams: [
+      { teamId: 1, name: 'Aardvarks', color: '#fff', score: 1, scoreText: '1/3 steps', captainPlayerId: null, rank: 2 },
+      { teamId: 2, name: 'Zebras', color: '#fff', score: 1, scoreText: '1/3 steps', captainPlayerId: null, rank: 1 },
+    ],
+    people: [1, 2, 3, 4].map((i) => ({ participantId: i, name: `P${i}`, teamId: i <= 2 ? 1 : 2, playerId: null })),
+    viewerPlayerId: null,
+    individuals: false,
+  }, 1, 25);
+  assert.equal(out.mode, 'teams');
+  const teams = (out as { teams: { teamId: number; rank: number | null }[] }).teams;
+  assert.deepEqual(teams.map((t) => [t.teamId, t.rank]), [[2, 1], [1, 2]]);
+});
+
+test('race page data never carries a hidden tile', () => {
+  const rules = parseEventRules(JSON.stringify({ revealPolicy: 'scheduled' }));
+  const all = [
+    { id: 1, position: 0, label: 'Open start', revealedAt: '2026-11-01 08:00:00', closedAt: null, revealAt: null, mission: 0, parentTileId: null },
+    { id: 2, position: 1, label: 'SecretTile', revealedAt: null, closedAt: null, revealAt: '2026-12-01 00:00:00', mission: 0, parentTileId: null },
+  ];
+  const v = raceViewData({
+    visibleBoardTiles: visibleTiles(rules, all),
+    teams: [{ id: 1, name: 'Lab', color: '#fff' }],
+    completions: [{ teamId: 1, tileId: 1, completedAt: '2026-11-01 09:00:00' }, { teamId: 1, tileId: 2, completedAt: '2026-11-01 10:00:00' }],
+    withFirsts: true,
+  });
+  assert.equal(v.steps, 1, 'the step count is the visible route');
+  assert.ok(!JSON.stringify(v).includes('SecretTile'));
+  assert.deepEqual(v.completions.map((c) => c.tileId), [1]);
+});

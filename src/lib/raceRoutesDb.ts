@@ -6,7 +6,7 @@ import { notifyTeamTiles } from '@/lib/pushNotify';
 import { teamUserIds } from '@/lib/panelRows';
 import { captureRaceOpenStats, clearRaceOpenStats } from '@/lib/revealStatsCapture';
 import { teamManagerIds } from '@/lib/teamStaff';
-import { parseEventRules } from '@/lib/eventRules';
+import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { loadRacePicks } from '@/lib/raceRoutePicks';
 import { evaluateCompletionGate } from '@/lib/completionGate';
 import { emitCompletionRow } from '@/lib/panelRows';
@@ -370,4 +370,28 @@ export async function applyLiveRouteEdit(args: {
   }
   await ensureRaceBaselines(event.id).catch(() => 0);
   return preview;
+}
+
+/**
+ * A race's standings, computed ONCE on the server from what this viewer may see — visible board
+ * tiles only, completions on them with their times — so the event page, the plugin panel and the
+ * plugin roster rank the same way: first to an end tile, then steps done, then who reached that
+ * step count first (lib/raceRoutes rankRaceTeams); identical steps and time share a rank. Null off
+ * a race. `teamIds` narrows to the teams the viewer may see (hidden standings).
+ */
+export async function raceStandingsForEvent(
+  event: { id: number; format: string | null; rules: string | null },
+  teamIds?: number[],
+): Promise<{ standings: import('@/lib/raceRoutes').RaceStanding[]; steps: number } | null> {
+  if (event.format !== 'tilerace') return null;
+  // clan-scope: global -- the event row came from a caller that already scoped it.
+  const board = visibleTiles(parseEventRules(event.rules), await db.select().from(tiles).where(and(eq(tiles.eventId, event.id), isNull(tiles.parentTileId))));
+  const graph = raceGraph(board);
+  const ids = graph.nodes.map((n) => n.id);
+  const done = ids.length
+    ? await db.select({ teamId: completions.teamId, tileId: completions.tileId, completedAt: completions.completedAt }).from(completions).where(inArray(completions.tileId, ids))
+    : [];
+  let eventTeams = await db.select({ id: teams.id, name: teams.name }).from(teams).where(eq(teams.eventId, event.id));
+  if (teamIds) eventTeams = eventTeams.filter((t) => teamIds.includes(t.id));
+  return { standings: rankRaceTeams(graph, eventTeams, done), steps: graph.lastStep + 1 };
 }

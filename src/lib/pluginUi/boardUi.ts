@@ -3,7 +3,7 @@ import type { buildBoard } from '@/app/api/plugin/board/route';
 import { type Action, type Color, type Node, button, card, col, count, exact, gap, muted, percent, row, text } from './nodes';
 import { boardFeedLinks } from './feedUi';
 import { raceGraph, raceTileInfo, roadChoiceLine, type RaceGraph, type TeamRoute, type RaceTileState } from '@/lib/raceRoutes';
-import { panelSteps, raceLines, raceSummaryLine } from '@/lib/raceSummary';
+import { orderLinesBy, panelSteps, raceLines, raceSummaryLine } from '@/lib/raceSummary';
 
 // The board's "All tiles" page in the plugin's side panel (was the catalogue in AnvilSidebarPanel):
 // search, a status filter, fifteen rows a page, and a tile's detail with claiming and pinning. Pure;
@@ -286,6 +286,7 @@ export function joinToClaimLine(gate: string | null): string {
 type RacePayload = {
   steps: number; mode: 'achieve' | 'choose'; path: number[]; open: number[]; pickFrom: number[]; finished: boolean;
   rank: number | null; entrants: number; leaderSteps: number; field: number[];
+  standings?: { teamId: number; rank: number; stepsDone: number; finished: boolean }[];
 };
 const racePayload = (board: Board): RacePayload | null => ('race' in board && board.race ? (board.race as RacePayload) : null);
 
@@ -342,7 +343,7 @@ function raceDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: BoardConte
  * ("Lab · step 3 of 10 · 2nd, 3 behind Iron Lads"), then every step numbered — "Step 1 of 10 ·
  * Start", "Step 2 of 10", … "Junction", "Finish" — with its tile(s) and their lane letters where a
  * step has several. Done steps are ticked, the current step's open tiles say Next (gold), later steps
- * are muted behind a padlock, alternatives off the team's road are dimmed with a cross, and a "you are
+ * are muted behind a padlock, alternatives off the team's road are dimmed, and a "you are
  * here" line marks the current step. A crowd shows how many stand at each step. Null off a race.
  */
 export function raceRouteUi(board: Board, s?: BoardState): Node | null {
@@ -356,7 +357,8 @@ export function raceRouteUi(board: Board, s?: BoardState): Node | null {
   };
   const teams = board.teams.map((tm) => ({ id: tm.teamId, name: tm.name ?? 'Team', color: tm.color ?? '#989898' }));
   const completions = board.teams.flatMap((tm) => tm.completedTileIds.map((tileId) => ({ teamId: tm.teamId, tileId })));
-  const lines = raceLines(m.graph, teams, completions);
+  // The server's race order (completion times break ties), never a local re-sort by name.
+  const lines = orderLinesBy(raceLines(m.graph, teams, completions), race.standings ?? []);
   const viewer = board.readOnly ? null : board.yourTeamId;
   const steps = panelSteps(m.graph, m.route, name, lines);
   const crowdWord = race.entrants > 30 ? 'here' : null;
@@ -376,7 +378,7 @@ export function raceRouteUi(board: Board, s?: BoardState): Node | null {
         out.push(text(`   Next ▸ ${lane}${t.label}${st.tiles.length > 1 ? choice : ''}`, 'brand', { wrap: true, on: pane(`t:${t.id}`), tip: 'Open this tile' }));
       } else if (m.route?.pickFrom.includes(t.id) && s && !board.readOnly) {
         out.push({ ...button(`Pick ${lane}${t.label}`, { a: 'post', act: 'race-pick', args: { event: String(s.event), tile: String(t.id), q: s.q, status: s.status, page: String(s.page), pre: s.pre ? '1' : '' } }, 'Lock in this tile for your team — a pick can’t be changed') } as Node);
-      } else if (t.state === 'closed') out.push(muted(`   ✕ ${lane}${t.label}`, { tip: 'Not on your team’s road' }));
+      } else if (t.state === 'closed') out.push(muted(`   ${lane}${t.label}`, { tip: 'Not on your team’s road' }));
       else out.push(muted(`   ${lane}${t.label}`));
     }
   }

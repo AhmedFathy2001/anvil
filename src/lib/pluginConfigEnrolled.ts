@@ -53,7 +53,7 @@ import { serverInfo } from '@/lib/serverInfo';
 import { pluginClansFor } from '@/lib/pluginClans';
 import { boardPointsPool, scoreTeam } from '@/lib/boardScoring';
 import { countedModes, statGainWithModes } from '@/lib/modeStats';
-import { lockedMissionPreviews, parseEventRules, hasRevealPolicy, nextRevealAt, nextMissionAt, isMissionTile, parseTileMissionRules, missionPrizeSummary } from '@/lib/eventRules';
+import { lockedMissionPreviews, visibleTiles, parseEventRules, hasRevealPolicy, nextRevealAt, nextMissionAt, isMissionTile, parseTileMissionRules, missionPrizeSummary } from '@/lib/eventRules';
 import { startProofState } from '@/lib/startProof';
 import { combatTaskVarps } from '@/lib/combatTasks';
 import { isLadderFormat } from '@/lib/utils';
@@ -241,7 +241,8 @@ export async function buildEnrolledConfig(args: {
   // for it now, plus the ones it finished. Locked tiles ahead and the alternatives it passed up
   // would only be refused by the site, so the rule table never watches them. Combo parts follow
   // their combo. (A straight-line race keeps today's config: every tile, the site holds the order.)
-  const raceGraphRows = event.format === 'tilerace' ? raceGraph(fullEventTiles) : null;
+  // Visible tiles only: a tile the board hasn't revealed never reaches the panel, not even as a label.
+  const raceGraphRows = event.format === 'tilerace' ? raceGraph(visibleTiles(rules, fullEventTiles)) : null;
   let raceVisible: Set<number> | null = null;
   // The panel's "Your race" card (lib/pluginUi homeUi): position, rank, the leader and the tiles up next.
   let raceSummary: {

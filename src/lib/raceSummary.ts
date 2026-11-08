@@ -6,6 +6,7 @@
  * and the plugin say the same thing.
  */
 import {
+  raceGraph as raceGraphOf,
   rankRaceTeams,
   roadOf,
   stepTitle,
@@ -276,4 +277,44 @@ export function panelSteps(graph: RaceGraph, route: TeamRoute | null, labelOf: (
       crowd: lines.filter((l) => !l.finished && l.stepsDone === step).length,
     };
   });
+}
+
+/**
+ * Put lines in a race order computed elsewhere (the server's, with completion times) — ranks and
+ * order come from `standings`, never from a local re-sort. Teams the standings don't list keep
+ * their place at the end.
+ */
+export function orderLinesBy(lines: RaceTeamLine[], standings: { teamId: number; rank: number }[]): RaceTeamLine[] {
+  const pos = new Map(standings.map((s, i) => [s.teamId, i]));
+  const rank = new Map(standings.map((s) => [s.teamId, s.rank]));
+  const ordered = [...lines].sort((a, b) => (pos.get(a.team.id) ?? 1e9) - (pos.get(b.team.id) ?? 1e9));
+  const leader = ordered[0]?.stepsDone ?? 0;
+  return ordered.map((l) => ({ ...l, rank: rank.get(l.team.id) ?? l.rank, behind: Math.max(0, leader - l.stepsDone) }));
+}
+
+/**
+ * Everything the event page derives about a race, from the VISIBLE board only: pass the tiles this
+ * viewer may see (visibleTiles) and every completion — completions on tiles outside the visible
+ * route are dropped, so a hidden tile's label, step or finish can't surface in the route, the
+ * firsts, the feed or the step count. The standings are ranked here once and handed to the board.
+ */
+export function raceViewData(args: {
+  visibleBoardTiles: (Parameters<typeof raceGraphOf>[0][number] & { label: string })[];
+  teams: RaceTeamIn[];
+  completions: RaceCompletionIn[];
+  withFirsts: boolean;
+}) {
+  const graph = raceGraphOf(args.visibleBoardTiles);
+  const ids = new Set(graph.nodes.map((n) => n.id));
+  const completions = args.completions.filter((c) => ids.has(c.tileId));
+  const label = new Map(args.visibleBoardTiles.map((t) => [t.id, t.label]));
+  const labelOf = (id: number) => label.get(id) ?? `Tile ${id}`;
+  const standings = rankRaceTeams(graph, args.teams, completions).map((r) => ({ teamId: r.teamId, rank: r.rank, stepsDone: r.stepsDone, finished: r.finished }));
+  return {
+    graph,
+    steps: graph.lastStep + 1,
+    completions,
+    standings,
+    firsts: args.withFirsts ? raceFirsts(graph, args.teams, completions, labelOf) : [],
+  };
 }
