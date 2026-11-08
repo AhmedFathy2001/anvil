@@ -229,14 +229,15 @@ test('a clan event: a card under Events, and its page says "I\'m going" for the 
   assert.ok(walk(page).some((x) => x.t === 'icon' && x.boss === 'nex'), 'its picture is a game key');
 });
 
-test('every other live board the character is on gets its own card, opening that board', () => {
+test('every live board the character is on sits in one card with its own progress, each opening that board', () => {
   const summary = (eventId: number, name: string, clan: string, done: number, total: number) => ({ eventId, name, clan, clanName: clan.toUpperCase(), teamId: eventId * 10, teamName: `Team ${eventId}`, tilesComplete: done, tilesTotal: total, pointsScored: false });
   const ui = homeUi(base(liveCfg(), {
     // Two more boards: one in this same clan, one in another; the active board (5) is not repeated.
     myBoards: [summary(5, 'Summer Bingo', 'afk', 3, 25), summary(7, 'Side Bingo', 'afk', 2, 9), summary(8, 'Clan Wars', 'rivals', 0, 16)],
   }));
   const all = texts(ui);
-  assert.ok(all.includes('Your other boards'));
+  assert.ok(all.includes('Your live boards'));
+  assert.ok(!all.includes('Your live board'), 'no single “the” board');
   assert.ok(all.includes('Side Bingo') && all.includes('Clan Wars'));
   assert.ok(all.includes('2 / 9 tiles') && all.includes('0 / 16 tiles'));
   const opens = walk(ui).flatMap((n) => {
@@ -246,8 +247,23 @@ test('every other live board the character is on gets its own card, opening that
   assert.deepEqual(opens, ['7', '8']);
 });
 
-test('no extra boards: no "Your other boards" heading', () => {
-  assert.ok(!texts(homeUi(base(liveCfg(), { myBoards: [] }))).includes('Your other boards'));
+test('one live board: the card is singular', () => {
+  const all = texts(homeUi(base(liveCfg(), { myBoards: [] })));
+  assert.ok(all.includes('Your live board') && !all.includes('Your live boards'));
+});
+
+test('a board’s page offers the character’s other live boards (the board switcher)', () => {
+  const summary = (eventId: number, name: string, done: number, total: number) => ({ eventId, name, clan: 'afk', clanName: 'AFK', teamId: 1, teamName: 'T', tilesComplete: done, tilesTotal: total, pointsScored: false });
+  const d = base(liveCfg({ boards: [summary(5, 'Summer Bingo', 3, 25), summary(8, 'Clan Wars', 4, 16)] }));
+  const page = eventUi(d, 'board')!;
+  assert.ok(texts(page).includes('Your other live boards'));
+  assert.ok(texts(page).includes('Clan Wars · 4 / 16'));
+  const opens = walk(page).flatMap((n) => {
+    const on = n.on as { v?: string; args?: { event?: string } } | undefined;
+    return on?.v === 'board' && on.args?.event && on.args.event !== '0' ? [on.args.event] : [];
+  });
+  assert.deepEqual(opens, ['8'], 'not the board already open');
+  assert.ok(!texts(eventUi(base(liveCfg({ boards: [summary(5, 'Summer Bingo', 3, 25)] })), 'board')!).includes('Your other live boards'));
 });
 
 test('a clan board you are seated on shows once, under Events, with your team', () => {
@@ -258,7 +274,7 @@ test('a clan board you are seated on shows once, under Events, with your team', 
   const all = texts(ui);
   assert.ok(all.includes('On Ruby'));
   assert.ok(!all.some((t) => /not in it/.test(t)), 'not "you’re not in it" for a board you are on');
-  assert.ok(!all.includes('Your other boards'), 'and not a second card for it');
+  assert.ok(!all.includes('Your live boards'), 'and not a second card for it');
 });
 
 test('a gated event says who may join, in a few words, on its card and its page — not once you are in', async () => {

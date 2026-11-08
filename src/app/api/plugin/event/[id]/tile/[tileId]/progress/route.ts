@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { standingsScopeForPlugin } from '@/lib/standingsAccess';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { tiles, users } from '@/db/schema';
-import { verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
+import { clans, events, tiles, users } from '@/db/schema';
+import { verifyPluginTokenOnEvent, verifyPluginTokenUser } from '@/lib/auth';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { eventForPluginRequest } from '@/lib/eventScope';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
@@ -25,7 +25,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!Number.isInteger(eventId) || eventId <= 0 || !Number.isInteger(tileId) || tileId <= 0) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
   }
-  const event = (await eventForPluginRequest(request, eventId))?.event;
+  // The caller's own seat in THIS event, when they play in it — marks "your team" and "you". A board
+  // the character is seated on is theirs to read through any clan address: a tile pinned from a second
+  // board (another clan's) polls here like the first one's.
+  const seat = await verifyPluginTokenOnEvent(request, eventId);
+  const mine = seat && seat.eventId === eventId ? seat : null;
+  const event =
+    (await eventForPluginRequest(request, eventId))?.event ??
+    (mine ? await seatedEvent(eventId) : undefined);
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const viewer = await verifyPluginTokenUser(request);
@@ -45,13 +52,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  // The caller's own seat in THIS event, when they play in it — marks "your team" and "you".
-  const seat = await verifyPluginToken(request);
-  const mine = seat && seat.eventId === eventId ? seat : null;
-
   // The widget counts down to the start itself and drops its pins once the event is over. Both are
   // stable values, so the ETag still only moves when a phase or a number does.
   // Hidden standings: the caller's own team's line only, unless they're staff (lib/standingsAccess).
   const scope = await standingsScopeForPlugin(event, { userId: viewer?.userId ?? null, teamId: mine?.teamId ?? null });
   return jsonWithEtag(request, await tileProgressView(event, tile, mine, scope));
+}
+
+/** A board the caller is seated on, unless its host clan is suspended (lib/pluginBoards' rule). */
+async function seatedEvent(eventId: number) {
+  // clan-scope: global -- the caller is seated on this event (verifyPluginTokenOnEvent).
+  const [row] = await db
+    .select({ event: events })
+    .from(events)
+    .innerJoin(clans, eq(clans.id, events.clanId))
+    .where(and(eq(events.id, eventId), ne(clans.status, 'suspended')))
+    .limit(1);
+  return row?.event;
 }

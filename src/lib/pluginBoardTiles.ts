@@ -2,9 +2,10 @@
 import type { LiveBoard } from '@/lib/pluginBoards';
 
 /**
- * The tracked lists another board's entries are appended to. Only lists of TILE entries: the name
- * lists (trackedKcNames, trackedSkillNames, trackedActivityKeys) and trackedStats feed the stat push,
- * which the server credits per board from hiscores on its own.
+ * The lists another board's entries are appended to: its TILE entries, and its completions, so the
+ * plugin's rule table, "Tile complete" banners and counts cover every board. Not the name lists
+ * (trackedKcNames, trackedSkillNames, trackedActivityKeys): those feed the stat push, which the server
+ * credits per board from hiscores on its own. trackedStats rides along for the rules' progress lines.
  */
 export const TRACKED_TILE_LISTS = [
   'trackedDrops',
@@ -19,10 +20,13 @@ export const TRACKED_TILE_LISTS = [
   'trackedDiaries',
   'trackedCombatTasks',
   'trackedCombos',
+  'trackedStats',
+  'completedTiles',
 ] as const;
 
 const LABELLED_LISTS = new Set<string>([
   'trackedPvp', 'trackedTimed', 'trackedLms', 'trackedGains', 'trackedDeathless', 'trackedDiaries', 'trackedCombatTasks', 'trackedClog', 'trackedCombos',
+  'trackedStats', 'completedTiles',
 ]);
 
 /**
