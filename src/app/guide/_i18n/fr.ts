@@ -3341,11 +3341,11 @@ const fr: PartialGuideDict = {
         },
         {
           term: 'Champion',
-          body: '$2 par mois ou $20 par an. Des couleurs de nom en dégradé que vous choisissez, votre propre avatar et votre propre bannière (animés si vous le souhaitez), 8 emplacements de vitrine, un chat d’événement plus rapide et 1 boost de clan.',
+          body: '$2 par mois ou $20 par an. Un nom en dégradé parmi nos modèles (ou une couleur de votre choix), votre propre avatar et votre propre bannière (animés si vous le souhaitez), 8 emplacements de vitrine, un chat d’événement plus rapide et 1 boost de clan.',
         },
         {
           term: 'Patron',
-          body: '$5 par mois ou $50 par an. Les couleurs de votre choix, avec un dégradé qui bouge, 12 emplacements de vitrine, aucune attente dans le chat d’événement, 2 événements entre amis à la fois et 2 boosts de clan.',
+          body: '$5 par mois ou $50 par an. Votre propre dégradé de 4 couleurs au plus, qui bouge, 12 emplacements de vitrine, aucune attente dans le chat d’événement, 2 événements entre amis à la fois et 2 boosts de clan.',
         },
       ],
       note: {

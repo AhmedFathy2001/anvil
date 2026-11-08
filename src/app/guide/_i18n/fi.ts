@@ -3339,11 +3339,11 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Champion',
-          body: '$2 kuussa tai $20 vuodessa. Itse valitsemasi liukuvärit nimeen, oma avatar ja banneri (halutessasi animoituna), 8 vitriinipaikkaa, nopeampi tapahtumachat ja 1 klaaniboosti.',
+          body: '$2 kuussa tai $20 vuodessa. Nimen liukuväri valmiista vaihtoehdoistamme (tai yksi oma väri), oma avatar ja banneri (halutessasi animoituna), 8 vitriinipaikkaa, nopeampi tapahtumachat ja 1 klaaniboosti.',
         },
         {
           term: 'Patron',
-          body: '$5 kuussa tai $50 vuodessa. Mitkä tahansa värit, liikkuvalla liukuvärillä, 12 vitriinipaikkaa, ei odotusta tapahtumachatissa, 2 kaveritapahtumaa kerralla ja 2 klaaniboostia.',
+          body: '$5 kuussa tai $50 vuodessa. Oma liikkuva liukuväri enintään 4 väristä, 12 vitriinipaikkaa, ei odotusta tapahtumachatissa, 2 kaveritapahtumaa kerralla ja 2 klaaniboostia.',
         },
       ],
       note: {

@@ -3322,11 +3322,11 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Champion',
-          body: '$2 al mese o $20 all’anno. Colori del nome sfumati scelti da te, il tuo avatar e il tuo banner (animati, se vuoi), 8 spazi in vetrina, una chat dell’evento più veloce e 1 boost del clan.',
+          body: '$2 al mese o $20 all’anno. Un nome sfumato tra i nostri predefiniti (o un tuo colore), il tuo avatar e il tuo banner (animati, se vuoi), 8 spazi in vetrina, una chat dell’evento più veloce e 1 boost del clan.',
         },
         {
           term: 'Patron',
-          body: '$5 al mese o $50 all’anno. I colori che vuoi, con una sfumatura in movimento, 12 spazi in vetrina, nessuna attesa nella chat dell’evento, 2 eventi tra amici alla volta e 2 boost del clan.',
+          body: '$5 al mese o $50 all’anno. La tua sfumatura personale fino a 4 colori, in movimento, 12 spazi in vetrina, nessuna attesa nella chat dell’evento, 2 eventi tra amici alla volta e 2 boost del clan.',
         },
       ],
       note: {

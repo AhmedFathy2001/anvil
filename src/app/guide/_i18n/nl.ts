@@ -3339,11 +3339,11 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Champion',
-          body: '$2 per maand of $20 per jaar. Naamkleuren met een kleurverloop naar keuze, je eigen avatar en banner (geanimeerd als je wilt), 8 vitrineplekken, snellere eventchat en 1 clanboost.',
+          body: '$2 per maand of $20 per jaar. Een naam met een kleurverloop uit onze voorinstellingen (of één eigen kleur), je eigen avatar en banner (geanimeerd als je wilt), 8 vitrineplekken, snellere eventchat en 1 clanboost.',
         },
         {
           term: 'Patron',
-          body: '$5 per maand of $50 per jaar. Elke kleur die je wilt, met een kleurverloop dat beweegt, 12 vitrineplekken, geen wachttijd in eventchat, 2 vriendenevents tegelijk en 2 clanboosts.',
+          body: '$5 per maand of $50 per jaar. Je eigen kleurverloop van maximaal 4 kleuren, dat beweegt, 12 vitrineplekken, geen wachttijd in eventchat, 2 vriendenevents tegelijk en 2 clanboosts.',
         },
       ],
       note: {

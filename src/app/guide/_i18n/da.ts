@@ -3348,11 +3348,11 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Champion',
-          body: '$2 om måneden eller $20 om året. Navnefarver som gradient, du selv vælger, din egen avatar og dit eget banner (animeret, hvis du vil), 8 pladser i vitrinen, hurtigere eventchat og 1 klan-boost.',
+          body: '$2 om måneden eller $20 om året. Et gradientnavn fra vores forvalg (eller én farve efter eget valg), din egen avatar og dit eget banner (animeret, hvis du vil), 8 pladser i vitrinen, hurtigere eventchat og 1 klan-boost.',
         },
         {
           term: 'Patron',
-          body: '$5 om måneden eller $50 om året. Lige de farver, du vil, med en gradient, der bevæger sig, 12 pladser i vitrinen, ingen ventetid i eventchatten, 2 vennevents ad gangen og 2 klan-boosts.',
+          body: '$5 om måneden eller $50 om året. Din egen gradient med op til 4 farver, der bevæger sig, 12 pladser i vitrinen, ingen ventetid i eventchatten, 2 vennevents ad gangen og 2 klan-boosts.',
         },
       ],
       note: {

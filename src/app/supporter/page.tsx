@@ -32,9 +32,8 @@ type Cell = string | { text: string; soon?: boolean };
  * buyer can't use today. Flip `soon` off as each phase ships.
  */
 const ROWS: { label: string; hint?: string; cells: [Cell, Cell, Cell, Cell] }[] = [
-  { label: 'Name flair on Anvil', cells: ['—', 'Gold name + star', 'Pick a gradient', 'Animated, any colours you like'] },
+  { label: 'Name flair on Anvil', cells: ['—', 'Gold name + star', 'One of our gradients, or one colour', 'Your own gradient of up to 4 colours, animated'] },
   { label: 'Flair in the plugin panel and on Discord', cells: ['—', 'Gold name + star', 'Gradient name + star', 'Gradient name + star'] },
-  { label: 'Gold GZ on clanmates’ drops (plugin)', cells: ['GZ', 'Gold GZ', 'Gold GZ', 'Gold GZ'] },
   { label: 'Animated avatar and banner', cells: ['—', '—', 'Yes', 'Yes'] },
   { label: 'Display case of your best drops', cells: ['—', '4 slots', '8 slots', '12 slots'] },
   {

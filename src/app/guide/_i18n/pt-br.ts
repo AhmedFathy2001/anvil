@@ -3322,11 +3322,11 @@ const ptBr: PartialGuideDict = {
         },
         {
           term: 'Champion',
-          body: '$2 por mês ou $20 por ano. Cores de nome em gradiente escolhidas por você, seu próprio avatar e banner (animados, se quiser), 8 espaços na vitrine, chat do evento mais rápido e 1 boost de clã.',
+          body: '$2 por mês ou $20 por ano. Um nome em gradiente entre nossas predefinições (ou uma cor sua), seu próprio avatar e banner (animados, se quiser), 8 espaços na vitrine, chat do evento mais rápido e 1 boost de clã.',
         },
         {
           term: 'Patron',
-          body: '$5 por mês ou $50 por ano. As cores que você quiser, com um gradiente que se move, 12 espaços na vitrine, nenhuma espera no chat do evento, 2 eventos entre amigos ao mesmo tempo e 2 boosts de clã.',
+          body: '$5 por mês ou $50 por ano. Seu próprio gradiente de até 4 cores, que se move, 12 espaços na vitrine, nenhuma espera no chat do evento, 2 eventos entre amigos ao mesmo tempo e 2 boosts de clã.',
         },
       ],
       note: {

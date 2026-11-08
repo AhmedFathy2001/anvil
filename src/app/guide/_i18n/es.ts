@@ -3340,11 +3340,11 @@ const es: PartialGuideDict = {
         },
         {
           term: 'Champion',
-          body: '$2 al mes o $20 al año. Colores del nombre en degradado que eliges tú, tu propio avatar y banner (animados si quieres), 8 huecos en la vitrina, chat de eventos más rápido y 1 boost de clan.',
+          body: '$2 al mes o $20 al año. Un nombre en degradado de nuestros predefinidos (o un color propio), tu propio avatar y banner (animados si quieres), 8 huecos en la vitrina, chat de eventos más rápido y 1 boost de clan.',
         },
         {
           term: 'Patron',
-          body: '$5 al mes o $50 al año. Los colores que quieras, con un degradado en movimiento, 12 huecos en la vitrina, sin espera en el chat de eventos, 2 eventos con amigos a la vez y 2 boosts de clan.',
+          body: '$5 al mes o $50 al año. Tu propio degradado de hasta 4 colores, en movimiento, 12 huecos en la vitrina, sin espera en el chat de eventos, 2 eventos con amigos a la vez y 2 boosts de clan.',
         },
       ],
       note: {
