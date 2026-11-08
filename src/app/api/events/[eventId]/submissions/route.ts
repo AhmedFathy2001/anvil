@@ -4,7 +4,7 @@ import { refuseForeignCharacter } from '@/lib/pluginForeign';
 import { eventForPluginRequest, eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { submissions, tiles, teams, eventParticipants, events, users, eventStartProofs, proofUploads, clans, completions } from '@/db/schema';
+import { submissions, tiles, teams, eventParticipants, events, users, eventStartProofs, proofUploads, completions } from '@/db/schema';
 import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin, verifyAdminOrModerator, verifyUser, verifyCaptain, verifyPlayer, verifyPluginTokenOnEvent, resolveTeamMembership } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
@@ -20,10 +20,8 @@ import { parseJsonArray } from '@/lib/tileKinds';
 import { parseCoopCredit } from '@/lib/coopRuns';
 import { isIndividualMode } from '@/lib/statTracking';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
-import { notifySubmission } from '@/lib/discord';
 import { removeSubmission } from '@/lib/submissionRemoval';
 import { TEAM_PROGRESS_TILE_TYPES, emitTeamProgress } from '@/lib/chatFeed';
-import { queueSubmissionNotification, flushPendingNotifications } from '@/lib/notifications';
 import { isManagedMediaUrl } from '@/lib/storage';
 import { isDraftInProgress } from '@/lib/eventReadiness';
 import { assertEventEditable } from '@/lib/eventLock';
@@ -32,11 +30,10 @@ import { startProofGate, NO_START_PROOF_FLAG, START_PROOF_REQUIRED_CODE } from '
 import { eventHasStarted } from '@/lib/completionGate';
 import { track } from '@/lib/analytics';
 import { replayOutsideLab } from '@/lib/lab';
-import { parseProofClaims, captureFlag, gameLines, stampModel, PROOF_IMAGE_MISMATCH_FLAG, PROVENANCE_REQUIRED_FROM } from '@/lib/proofStamp';
-import { bakeStamp } from '@/lib/proofStampImage';
-import { put, clanMediaKey } from '@/lib/storage';
+import { parseProofClaims, captureFlag, PROOF_IMAGE_MISMATCH_FLAG, PROVENANCE_REQUIRED_FROM } from '@/lib/proofStamp';
+import { encodePendingProof, parseProofKey, proofDueAt, publicSubmission } from '@/lib/proofAfter';
+import { stampAndPost } from '@/lib/proofFinish';
 import { parseStamp } from '@/lib/dbTime';
-import crypto from 'crypto';
 import { standingsScopeForRequest } from '@/lib/standingsAccess';
 import { parseAttachments } from '@/lib/proofAttachments';
 import { addAttachments, adoptDrafts, attachmentsFor, ownsAttachmentImages } from '@/lib/proofAttachmentsDb';
@@ -110,7 +107,7 @@ export async function GET(
 
   const extras = await attachmentsFor(filtered.map((s) => s.id));
   const result = filtered.map((s) => ({
-    ...s,
+    ...publicSubmission(s),
     attachments: extras.get(s.id) ?? [],
     uploaderName: s.playerId ? playerMap.get(s.playerId) || 'Unknown' : null,
     creditPlayerName: s.creditPlayerId ? playerMap.get(s.creditPlayerId) || 'Unknown' : null,
@@ -155,7 +152,7 @@ export async function POST(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId: rawTileId, teamId, amount, imageUrl, note, creditPlayerId, itemId: rawItemId, durationSeconds, coopGroup, coopPartySize, inferred, proof, attachments: rawAttachments } = await request.json();
+  const { tileId: rawTileId, teamId, amount, imageUrl, note, creditPlayerId, itemId: rawItemId, durationSeconds, coopGroup, coopPartySize, inferred, proof, attachments: rawAttachments, proofKey: rawProofKey } = await request.json();
 
   // CAPPED counter tiles (lib/tileCaps): the plugin config hands out VIRTUAL negative tile ids for a
   // tile's cap counters (slots 1..n). Every plugin build credits them like any kill tile, so they
@@ -271,6 +268,10 @@ export async function POST(
   // captain submissions still require proof. When present, an image must be one of our managed
   // media hosts (the configured R2/S3 base or Vercel Blob) to keep Discord embeds off phishy hosts.
   const isPluginKillPing = !!pluginAuth && ( tile.tileType === 'kill' || tile.tileType === 'lap' || tile.tileType === 'pvp' || tile.tileType === 'gain' || tile.tileType === 'deathless' || tile.tileType === 'lms' || tile.tileType === 'value' || tile.tileType === 'valuetotal');
+  // CREDIT FIRST, PROOF AFTER (lib/proofAfter): a plugin credit whose screenshot follows under this
+  // key counts as one with a screenshot for every rule below — and is reversed if it never arrives
+  // (lib/proofFinish sweepOverdueProofs), so the client gains nothing by never sending it.
+  const pendingKey = pluginAuth && !(typeof imageUrl === 'string' && imageUrl.trim()) ? parseProofKey(rawProofKey) : null;
   let imageUrlValue: string | null = null;
   if (imageUrl != null && typeof imageUrl === 'string' && imageUrl.trim()) {
     let imageUrlParsed: URL;
@@ -286,9 +287,10 @@ export async function POST(
       );
     }
     imageUrlValue = imageUrl.trim();
-  } else if (!isPluginKillPing) {
+  } else if (!isPluginKillPing && !pendingKey) {
     return NextResponse.json({ error: 'Image is required for submissions' }, { status: 400 });
   }
+  const hasShot = !!imageUrlValue || !!pendingKey;
 
   // Shared-kill fingerprint: what the client could see of its company at kill time (lib/coopRuns
   // correlates reports of the SAME kill from it). Plugin-only — a web submitter has nothing to
@@ -427,7 +429,7 @@ export async function POST(
       return NextResponse.json({ error: 'Upload the screenshot through Anvil, then submit it' }, { status: 403 });
     }
   }
-  const claims = pluginAuth && imageUrlValue ? parseProofClaims(proof) : null;
+  const claims = pluginAuth && hasShot ? parseProofClaims(proof) : null;
   if (pluginAuth && imageUrlValue) {
     const foreign = upload
       ? upload.via !== 'plugin' || upload.userId == null || upload.userId !== pluginAuth.userId
@@ -453,7 +455,7 @@ export async function POST(
   let creditedAmount: number = tile.tileType === 'timed' ? 1 : amount || 1;
   let creditNote: string | null = note || null;
   // A cap counter's ping follows the same rule, its ceiling off that one counter.
-  if (isPluginKillPing && !imageUrlValue && PING_CAPPED_KINDS.has(tile.tileType)) {
+  if (isPluginKillPing && !hasShot && PING_CAPPED_KINDS.has(tile.tileType)) {
     const capAt = capIndex(goalValue);
     const pingTargets: string[] = !isCap
       ? (tile.tileType === 'kill' || tile.tileType === 'lap' ? parseJsonArray<string>(tile.targetNpcs) : [])
@@ -554,7 +556,7 @@ export async function POST(
     // WHOLE-PAGE PROOF: on a 'complete' tile, a screenshot that names no slot (a web upload of the
     // finished page, or the plugin's capture of the page opened in game) is the proof a finished page
     // waits for (lib/clogTiles clogPageProof). It counts no slot itself.
-    const pageProof = spec.mode === 'complete' && !!imageUrlValue && !itemId
+    const pageProof = spec.mode === 'complete' && hasShot && !itemId
       && !(name && decideClogSlotByName(name, spec, new Set(), new Set()).ok);
     if (pageProof) {
       itemId = null;
@@ -573,7 +575,7 @@ export async function POST(
         // The screenshot that follows it is the same slot's proof: it replaces that row, not adds one.
         const uncounted = itemId ? null : decideClogSlotByName(name!, spec, before, new Set());
         const resolved = itemId ? Number(itemId) : uncounted?.ok ? uncounted.itemId : null;
-        const bare = verdict.reason === 'already-counted' && imageUrlValue && resolved != null
+        const bare = verdict.reason === 'already-counted' && hasShot && resolved != null
           ? mine.find((r) => r.itemId === resolved && !r.imageUrl)
           : undefined;
         if (!bare) return NextResponse.json({ error: clogSlotRefusal(verdict.reason) }, { status: 400 });
@@ -639,7 +641,7 @@ export async function POST(
       const capped = soloTile
         ? memberProgress(all, submitterCreditId, null, capBy)
         : countProgress(all, tile.trackingMode, null, capBy).current;
-      if (capped >= tile.requiredAmount && !imageUrlValue) {
+      if (capped >= tile.requiredAmount && !hasShot) {
         return NextResponse.json(
           { error: soloTile ? 'You have already reached this tile’s count' : 'Tile already complete' },
           { status: 400 },
@@ -700,6 +702,13 @@ export async function POST(
       source: pluginAuth ? 'plugin' : 'web',
       imageSha256: upload?.sha256 ?? null,
       goal: goalValue,
+      ...(pendingKey
+        ? {
+            proofKey: pendingKey,
+            proofDueAt: proofDueAt(receivedAt),
+            proofPending: encodePendingProof({ claims, receivedAt, completed: false, superseded: clogSuperseded, cap: isCap, rsn: pluginAuth?.rsn ?? null, clan: request.headers.get('x-anvil-clan-slug') }),
+          }
+        : {}),
     })
     .returning();
 
@@ -756,95 +765,39 @@ export async function POST(
     // After the reply: the stamp (fetch the clean frame, draw, store) and the Discord post that shows it
     // take seconds the plugin needn't wait for — the row is in and completion is settled above. The post
     // follows the stamp so it carries the stamped picture.
-    after(async () => {
-      try {
-        // SITE-DRAWN STAMP. A current plugin uploads the clean frame and says what the banner should read;
-        // draw it here, after the insert, so it can carry the proof id. The stamped copy becomes imageUrl,
-        // so every view and Discord post shows it unchanged; the clean frame stays for "Hide stamp". Any
-        // failure leaves the clean frame as the proof — a missing banner never costs a credit.
-        if (claims && imageUrlValue) {
-          const facts = { ...claims, chat: undefined, lines: gameLines(claims), receivedAt };
-          try {
-            // Only a picture this site stored itself (a proof_uploads row on a managed host), and no
-            // redirects — the URL is client-supplied, so it must never become a fetch of somewhere else.
-            if (!upload) throw new Error('no upload record for this image');
-            const res = await fetch(imageUrlValue, { redirect: 'error' });
-            if (!res.ok) throw new Error(`clean frame fetch ${res.status}`);
-            const clean = Buffer.from(await res.arrayBuffer());
-            const stamped = await bakeStamp(clean, stampModel({
-              claims, rsn: pluginAuth?.rsn ?? null, team: team.name, event: event.name,
-              receivedAt, submissionId: inserted.id, sha256: upload?.sha256 ?? null,
-            }));
-            const slug = (await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { slug: true } }))?.slug;
-            const { url } = await put(clanMediaKey(slug, `submissions/${crypto.randomUUID()}-stamped.webp`), stamped, 'image/webp');
-            // Registered as a stamp, so posting this copy back as a fresh proof reads as foreign above.
-            await db.insert(proofUploads).values({
-              url, sha256: crypto.createHash('sha256').update(stamped).digest('hex'), via: 'stamp', userId: upload.userId, eventId: eId,
-            }).onConflictDoNothing();
-            [submission] = await db.update(submissions)
-              .set({ imageUrl: url, cleanImageUrl: imageUrlValue, proofFacts: JSON.stringify(facts) })
-              .where(eq(submissions.id, inserted.id)).returning();
-            imageUrlValue = url;
-          } catch (e) {
-            console.error('[submissions] stamp failed; keeping the clean frame', e);
-            [submission] = await db.update(submissions)
-              .set({ proofFacts: JSON.stringify(facts) })
-              .where(eq(submissions.id, inserted.id)).returning();
-          }
-        }
-
-        if (isCap) {
-          // A cap counter's credits (energy) aren't the tile's progress: no per-ping post of their own. The
-          // ping that lifts the cap far enough to finish the tile posts nothing either — the tile's own
-          // proof-carrying search does, once it lands (lib/submissions holds the credit until then).
-          flushPendingNotifications().catch(() => {});
-        } else if (tile.tileType === 'timed') {
-          // Timed clears are discrete, rare, and carry a clear-time the merged embed can't express — post
-          // them immediately, unchanged.
-          notifySubmission({
-            clanId: clan.id,
-            eventName: event?.name || 'Unknown Event',
-            tileLabel: tile.label,
-            teamName: team.name,
-            teamId: team.id,
-            teamColor: team.color,
-            creditPlayerName,
-            amount: amount || 1,
-            currentTotal,
-            requiredAmount: tile.requiredAmount,
-            note: note || null,
-            imageUrl: imageUrlValue,
-            tileType: tile.tileType,
-            durationSeconds: durationSecondsValue,
-            completed: syncResult?.isComplete ?? false,
-            eventId: eId,
-            tile,
-          }).catch(() => {}); // Silently ignore errors
-        } else if (clogSuperseded && !syncResult?.isComplete) {
-          // The slot was already announced when the live unlock push credited it; this only added its proof.
-        } else {
-          // Drop/kill: debounce. Buffer into the (tile,team) bucket — a completing submission flushes its
-          // own bucket inside queueSubmissionNotification; the opportunistic flush posts any *other* buckets
-          // that have gone quiet. Both fire-and-forget so the response isn't held on Discord.
-          await queueSubmissionNotification({
-            eventId: eId,
-            tileId,
-            teamId,
-            amount: creditedAmount,
-            currentTotal,
-            requiredAmount: tile.requiredAmount,
-            imageUrl: imageUrlValue,
-            note: note || null,
-            creditPlayerName,
-            completed: syncResult?.isComplete ?? false,
-          });
-          flushPendingNotifications().catch(() => {});
-        }
-
-      } catch (e) {
-        console.error('[submissions] after the reply', e);
+    if (pendingKey) {
+      // Waiting for its screenshot: the stamp and the post run when it lands (POST /api/plugin/facts/proof),
+      // and never if it doesn't. The post will need to know this credit finished the tile.
+      if (syncResult?.isComplete) {
+        [submission] = await db.update(submissions)
+          .set({ proofPending: encodePendingProof({ claims, receivedAt, completed: true, superseded: clogSuperseded, cap: isCap, rsn: pluginAuth?.rsn ?? null, clan: request.headers.get('x-anvil-clan-slug') }) })
+          .where(eq(submissions.id, inserted.id)).returning();
       }
-    });
+    } else {
+      // After the reply: the stamp (fetch the clean frame, draw, store) and the Discord post that shows it
+      // take seconds the plugin needn't wait for — the row is in and completion is settled above. The post
+      // follows the stamp so it carries the stamped picture (lib/proofFinish).
+      after(() => stampAndPost({
+        submissionId: inserted.id,
+        clanId: clan.id,
+        event: { id: eId, name: event.name },
+        tile,
+        team,
+        claims,
+        imageUrl: imageUrlValue,
+        upload: upload ? { userId: upload.userId, sha256: upload.sha256 } : null,
+        rsn: pluginAuth?.rsn ?? null,
+        receivedAt,
+        isCap,
+        superseded: clogSuperseded,
+        completed: syncResult?.isComplete ?? false,
+        creditPlayerName,
+        currentTotal,
+        amount: tile.tileType === 'timed' ? amount || 1 : creditedAmount,
+        note: note || null,
+        durationSeconds: durationSecondsValue,
+      }));
+    }
 
     // How it arrived says which surface people actually use to submit: the plugin, the team page, or staff.
     track('submission.created', {
@@ -858,7 +811,9 @@ export async function POST(
 
   // `completed`: this submission finished the tile, so the plugin can say so at once instead of
   // waiting for its next config fetch.
-  return NextResponse.json({ submission, completed }, { status: 201 });
+  // `awaitingProof`: this credit waits for its screenshot under the key it was filed with (the facts
+  // route names that key to the plugin). The key itself never goes back out with the row.
+  return NextResponse.json({ submission: publicSubmission(submission), completed, ...(submission.proofDueAt ? { awaitingProof: true } : {}) }, { status: 201 });
 }
 
 export async function DELETE(

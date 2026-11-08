@@ -1243,6 +1243,13 @@ export const submissions = pgTable('submissions', {
   // 'cap:1'… = one of the tile's CAP counters by index (energy behind "searches paid for with event
   // energy"). A row with a goal NEVER counts toward the tile's own requirement and never proves it.
   goal: text('goal'),
+  // CREDIT FIRST, PROOF AFTER (lib/proofAfter). A plugin credit filed before its screenshot: the key
+  // the upload names it by (POST /api/plugin/facts/proof), the ISO moment it is reversed if none came,
+  // and what the stamp and Discord post will be drawn from (JSON). All NULL once attached, and on
+  // every row that never waited.
+  proofKey: text('proof_key'),
+  proofDueAt: text('proof_due_at'),
+  proofPending: text('proof_pending'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   index('submissions_tile_id_idx').on(table.tileId),

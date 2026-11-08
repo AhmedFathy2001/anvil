@@ -24,6 +24,7 @@ import { sweepLabTestDrops } from '@/lib/labSupporter';
 import { sweepChatFeed } from '@/lib/chatFeed';
 import { sweepClanAchievements } from '@/lib/momentsStore';
 import { sweepEventChat } from '@/lib/eventChat';
+import { sweepOverdueProofs } from '@/lib/proofFinish';
 import { publishShippedReleases } from '@/lib/releases';
 import { grantDueReferrals } from '@/lib/referrals';
 import { sweepAnvilSupporterRoles } from '@/lib/anvilDiscord';
@@ -450,6 +451,8 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   // The chat feed's old dedup keys and lapsed guest presence (lib/chatFeed).
   await sweepChatFeed().catch((err) => log.warn('event-lifecycle.chat-feed-sweep-failed', { err: String(err) }));
   await sweepEventChat();
+  // Credits whose screenshot never came within the minute (lib/proofAfter): reversed, a batch a tick.
+  await sweepOverdueProofs(nowMs, 100).catch((err) => log.warn('event-lifecycle.proof-sweep-failed', { err: String(err) }));
   // A release this production build carries that hasn't been announced yet (lib/releases).
   await publishShippedReleases().catch((err) => log.warn('event-lifecycle.release-publish-failed', { err: String(err) }));
   // Invite rewards whose two-week hold is over (lib/referrals).

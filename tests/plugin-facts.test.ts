@@ -682,3 +682,27 @@ test('buildEventRules: each plugin-judged kind becomes an event rule the client 
   assert.deepEqual(by(12)[0].keys, ['377']);
   assert.ok(buildRuleTable({ trackedGains: [{ tileId: 12, label: 'L', itemIds: [1], requiredAmount: 2, currentAmount: 0 }] }).events.length === 1);
 });
+
+// ---------------------------------------------------------------------------------------------
+// plan: credit first, proof after (lib/proofAfter)
+
+test('planSubmissions pending: bodies that would carry the image carry the key instead, filed as with one', () => {
+  const drop: Credit = { kind: 'drop', tileId: 1, label: 'Drop', amount: 1, have: 1, of: 3 };
+  const bigKill: Credit = { kind: 'kill', tileId: 2, label: 'Kill', amount: 1, have: 25, of: 100, parts: [1] };
+  const smallKill: Credit = { kind: 'kill', tileId: 3, label: 'Kill', amount: 1, have: 5, of: 100, parts: [1] };
+  const bodies = planSubmissions([drop, bigKill, smallKill], () => board, null, { tz: 'UTC' }, null, new Map(), 'k'.repeat(24));
+  assert.deepEqual(bodies.map((b) => [b.body.imageUrl, b.body.proofKey ?? null]), [[null, 'k'.repeat(24)], [null, 'k'.repeat(24)], [null, null]]);
+  assert.equal((bodies[1].body.proof as { title: string }).title, 'BINGO KILL', 'the banner is settled with the credit');
+  // An image in hand wins: no key.
+  const withImage = planSubmissions([drop], () => board, 'u', null, null, new Map(), 'k'.repeat(24));
+  assert.equal(withImage[0].body.imageUrl, 'u');
+  assert.equal('proofKey' in withImage[0].body, false);
+});
+
+test('planSubmissions pending tile: a gain proof reads "detected" and carries its banner and the key', () => {
+  const tracked: Tracked = { trackedGains: [{ tileId: 1, label: 'Sharks', currentAmount: 0, requiredAmount: 20, board }] };
+  const out = planSubmissions(run(tracked, [{ k: 'tile', t: 1, n: 20 }]).credits, (c) => c.board ?? null, null, { tz: 'UTC' }, null, new Map(), 'key-key-key-key-key');
+  assert.equal(out[0].body.note, '[Auto] Sharks gain(s) detected by RuneLite plugin');
+  assert.equal(out[0].body.proofKey, 'key-key-key-key-key');
+  assert.equal((out[0].body.proof as { detail: string }).detail, 'Sharks  ×20  (20/20)');
+});
