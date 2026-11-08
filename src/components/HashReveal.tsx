@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
+import { hashTargetId } from '@/lib/hashTarget';
 
 /**
  * Arriving at `#some-setting` should leave no doubt which line on the page that was: scroll to it,
@@ -41,12 +42,7 @@ export function flashElement(el: HTMLElement) {
  * webhooks from other plugins" appears only when there are some), so the jump still ends somewhere that explains it.
  */
 export function revealHash(hash: string, fallback?: string) {
-  let id = hash.replace(/^#/, '');
-  try {
-    id = decodeURIComponent(id);
-  } catch {
-    // A malformed escape: look for it as typed.
-  }
+  const id = hashTargetId(hash);
   if (pending) clearTimeout(pending);
   pending = null;
   if (!id) return;
@@ -113,7 +109,26 @@ export default function HashReveal() {
   useEffect(() => {
     const onHash = () => revealHash(window.location.hash);
     window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
+    // Next's <Link> changes the hash with history.pushState, which fires no hashchange — so a link
+    // from one section of a page to another (or to the same page from its own rail) never scrolled
+    // the admin pane. Watch the history calls too; the pathname effect above covers cross-page moves.
+    const origPush = history.pushState;
+    const origReplace = history.replaceState;
+    const wrap = (orig: typeof history.pushState): typeof history.pushState =>
+      function (this: History, ...args) {
+        const before = window.location.href;
+        const out = orig.apply(this, args);
+        const after = window.location.href;
+        if (before !== after && window.location.hash) setTimeout(() => revealHash(window.location.hash), 0);
+        return out;
+      };
+    history.pushState = wrap(origPush);
+    history.replaceState = wrap(origReplace);
+    return () => {
+      window.removeEventListener('hashchange', onHash);
+      if (history.pushState !== origPush) history.pushState = origPush;
+      if (history.replaceState !== origReplace) history.replaceState = origReplace;
+    };
   }, []);
 
   return null;

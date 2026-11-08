@@ -71,12 +71,14 @@ test('combat tasks at or above the clan’s tier', () => {
   assert.deepEqual(kept(obs('ca', { taskName: 'Some new task', tier: 'Hard' })), []);
 });
 
-test('a board or week never claims a log slot, diary or quest — only the clan keeps them', () => {
+test('a week never claims a log slot, diary or quest; each live board gets a copy and the clan keeps one', () => {
   const event = { id: 5, teamId: 2, sources: ['Vorkath'], itemIds: [], minLootGp: 1_000_000 };
   const weekly = { id: 7, type: 'boss' as const, metric: 'vorkath' };
   for (const o of [obs('clog', { itemName: 'Draconic visage', source: 'Vorkath' }), obs('diary', { itemName: 'Varrock', tier: 'Hard' }), obs('quest', { itemName: 'Dragon Slayer II' })]) {
     const rows = classifyObservation(o, { weeklies: [weekly], event, clan });
-    assert.deepEqual(rows.map((r) => [r.eventId, r.weeklyCompetitionId]), [[null, null]], o.kind);
+    assert.deepEqual(rows.map((r) => [r.eventId, r.weeklyCompetitionId]), [[5, null], [null, null]], o.kind);
+    const two = classifyObservation(o, { weeklies: [weekly], event, boards: [event, { ...event, id: 6, teamId: 3 }], clan });
+    assert.deepEqual(two.map((r) => r.eventId), [5, 6, null], o.kind);
   }
   // A level the board keeps is not stored again for the clan (the backstop only catches leftovers).
   const level = classifyObservation(obs('level', { quantity: 99, sourceKind: 'skill', itemName: 'Slayer' }), { weeklies: [], event, clan });

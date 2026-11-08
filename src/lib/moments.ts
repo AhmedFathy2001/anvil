@@ -50,6 +50,13 @@ export function isAchievementKind(kind: string): boolean {
 // 'milestone': Slayer, clues, speedruns, kill counts, BA gambles, clan patterns (lib/milestoneMoments).
 const CLAN_ONLY_KINDS = new Set<string>(['clog', 'diary', 'quest', 'milestone']);
 
+/**
+ * Once-per-account achievements that are filed TWICE over: one copy in the clan feed and one on every
+ * live board the player is drafted onto (never on a competition week). Each scope dedupes on its own.
+ * The clan feed lists only the clan copy; a board's feed lists its own.
+ */
+export const BOARD_COPY_KINDS: ReadonlySet<string> = new Set(['clog', 'diary', 'quest']);
+
 /** Achievement diary tiers, as the completion line names them. */
 export const DIARY_TIERS = ['Easy', 'Medium', 'Hard', 'Elite'] as const;
 
@@ -555,7 +562,13 @@ export function mappedPetNames(): string[] {
  */
 export function classifyObservation(
   obs: Observation,
-  scopes: { weeklies: WeeklyScope[]; event: EventScope | null; clan?: ClanScope | null },
+  scopes: {
+    weeklies: WeeklyScope[];
+    event: EventScope | null;
+    /** Every live board the player is on (the first is `event`). Only log slots, diaries and quests use the rest. */
+    boards?: EventScope[];
+    clan?: ClanScope | null;
+  },
 ): PlannedMoment[] {
   const planned: PlannedMoment[] = [];
   // A combat task has no item and no loot source, so it borrows the two columns that mean "what
@@ -613,7 +626,27 @@ export function classifyObservation(
   // happened — the clan feed reads across every scope, so one row is enough to appear in all of
   // them. What this adds is the moment that would otherwise have been thrown away for happening on
   // a quiet Tuesday.
-  if (planned.length === 0 && scopes.clan) {
+  // A log slot, diary or quest is the exception: every live board the player is on gets its own copy
+  // (so each board's feed tells it) AND the clan keeps one, whatever the boards did.
+  if (BOARD_COPY_KINDS.has(obs.kind)) {
+    const kind = clanKindFor(obs, scopes.clan ?? ({} as ClanScope), null);
+    if (kind) {
+      const boards = scopes.boards ?? (scopes.event ? [scopes.event] : []);
+      for (const board of new Map(boards.map((b) => [b.id, b])).values()) {
+        planned.push({
+          ...base,
+          kind,
+          weeklyCompetitionId: null,
+          eventId: board.id,
+          teamId: board.teamId,
+          rarityDenominator: null,
+          dedupKey: `${obs.dedupKey}:e${board.id}`,
+        });
+      }
+    }
+  }
+
+  if ((planned.length === 0 || BOARD_COPY_KINDS.has(obs.kind)) && scopes.clan) {
     const kind = clanKindFor(obs, scopes.clan, info);
     if (kind) {
       planned.push({

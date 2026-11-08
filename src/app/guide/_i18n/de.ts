@@ -1171,7 +1171,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Highlights mit dem Clan teilen',
-          body: 'deine Pets, großen Drops, Tode, Combat-Tasks, Level-Meilensteine, neuen Log-Slots und Tagebücher erscheinen im Feed der Clan-Seite und im Chat-Feed der Spieler, die sie sehen können.',
+          body: 'deine Pets, großen Drops, Tode, Combat-Tasks, Level-Meilensteine, neuen Log-Slots, Tagebücher und Quests erscheinen im Feed der Clan-Seite und im Chat-Feed der Spieler, die sie sehen können. Neue Log-Slots, Tagebücher und Quests erscheinen außerdem im Feed jedes Live-Boards, auf dem du bist.',
         },
       ],
       outro: 'Drei weitere Dinge werden ohne eigene Einstellung gesendet. **Wer dich getötet hat**: Das Monster oder der Spieler, das/der dich in deinen letzten 15 Sekunden anvisiert hatte, wird im Feed genannt. **Spielzähler**: Manche Kill-Kacheln zählen eine Zahl, die das Spiel führt, etwa Tithe-Farm-Punkte, Giants’-Foundry-Ruf, Doom-Delves oder Slayer-Serien; nur Anstiege zählen. **Leagues, Deadman und andere Modi**: Auf diesen Welten werden die eigenen Meldungen des Spiels zu Relikten, Gebieten und Aufgaben gesendet, damit dein Clan sie in seinem Modus-Kanal posten kann.',

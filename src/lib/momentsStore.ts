@@ -6,7 +6,7 @@ import { getSetting, getSettingMap } from '@/lib/settings';
 // Setting names only; pluginConfig is a heavy module, but momentsStore is server-side already.
 import { DROP_RARITY_FLOOR_SETTING_KEY } from '@/lib/pluginConfig';
 import { clanMemberships, events, moments, eventParticipants, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { type SQL, and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, like, lt, ne, or } from 'drizzle-orm';
+import { type SQL, and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, like, lt, ne, notInArray, or } from 'drizzle-orm';
 import { LEVEL_RULES_SETTING_KEY } from '@/lib/levelRulesStore';
 import { parseMilestoneRules } from '@/lib/levelRules';
 import { eventHasStarted } from '@/lib/completionGate';
@@ -16,6 +16,7 @@ import {
   ACHIEVEMENT_KINDS,
   DEFAULT_CLAN_SCOPE,
   isAchievementKind,
+  BOARD_COPY_KINDS,
   isClanWorthy,
   isEventFeedWorthy,
   type ClanScope,
@@ -47,6 +48,8 @@ export const CLAN_DEATHS_SETTING_KEY = 'moments_clan_deaths';
 export interface ActiveScopes {
   weeklies: WeeklyScope[];
   event: EventScope | null;
+  /** Every live board the member is on, `event` first. Log slots, diaries and quests file a copy on each. */
+  boards?: EventScope[];
   /** The always-on backstop. Never null in practice — it is what catches a quiet week. */
   clan: ClanScope;
 }
@@ -86,12 +89,20 @@ export async function activeScopesFor(
       r.type === 'skill' || r.type === 'boss' || r.type === 'efficiency')
     .map((r) => ({ id: r.id, type: r.type, metric: r.metric }));
 
-  const active = (await liveBoardRows(clanMemberId, now, participantScope))[0];
+  const liveRows = await liveBoardRows(clanMemberId, now, participantScope);
+  const active = liveRows[0];
 
   // The team comes from the same row that decided the event is theirs, so the stamp and the scope
   // can never disagree about which side they were on.
   const event = active ? await eventScope(active.eventId, active.teamId, clanId, active.startDate!) : null;
-  return { weeklies, event, clan: await clanScope(clanId) };
+  // The rest of the live boards (one row per board): only their id, team and start are used, by the
+  // once-per-account achievements that every board the player is on gets a copy of.
+  const seen = new Set<number>(active ? [active.eventId] : []);
+  const others = liveRows.filter((r) => !seen.has(r.eventId) && seen.add(r.eventId));
+  const boards = event
+    ? [event, ...others.map((r): EventScope => ({ id: r.eventId, startedAt: r.startDate ?? undefined, teamId: r.teamId, sources: [], itemIds: [], minLootGp: 0 }))]
+    : [];
+  return { weeklies, event, boards, clan: await clanScope(clanId) };
 }
 
 /**
@@ -302,7 +313,12 @@ export async function recordMoments(
     const eventStart = scopes.event?.startedAt ? parseStamp(scopes.event.startedAt) : null;
     const occurred = parseStamp(obs.occurredAt);
     const event = eventStart != null && (occurred == null || occurred < eventStart) ? null : scopes.event;
-    planned.push(...classifyObservation(obs, { ...scopes, event }));
+    // The same pre-start rule for every board the achievement copies would land on.
+    const boards = (scopes.boards ?? []).filter((b) => {
+      const start = b.startedAt ? parseStamp(b.startedAt) : null;
+      return !(start != null && (occurred == null || occurred < start));
+    });
+    planned.push(...classifyObservation(obs, { ...scopes, event, boards }));
   }
   if (planned.length === 0) return { stored: 0, matched: 0, inserted: [] };
 
@@ -313,7 +329,7 @@ export async function recordMoments(
     // clan's own copy (':clan') is skipped when a board or week already holds it, and a board's or
     // week's when the clan already has it — a 99 reported during a week and replayed after it ended
     // would otherwise read twice. (A week and a board both keeping it is their own business.)
-    if (!mode && isAchievementKind(row.kind) && (await achievementHeld(member.clanMemberId, row.dedupKey))) continue;
+    if (!mode && isAchievementKind(row.kind) && !BOARD_COPY_KINDS.has(row.kind) && (await achievementHeld(member.clanMemberId, row.dedupKey))) continue;
     const dedupKey = mode ? `mode:${mode.key}:${row.dedupKey}` : row.dedupKey;
     const rows = await db
       .insert(moments)
@@ -705,7 +721,8 @@ export async function momentsForClan(clanId: number, limit = 20, kinds?: readonl
           : isNull(moments.worldMode),
         kinds && kinds.length ? inArray(moments.kind, [...kinds]) : undefined,
         // A milestone has its own clan copy; its board copies are the boards' (recordMilestoneMoment).
-        or(ne(moments.kind, MILESTONE_KIND), isNull(moments.eventId)),
+        // Log slots, diaries and quests likewise file a copy on each live board (BOARD_COPY_KINDS).
+        or(notInArray(moments.kind, [MILESTONE_KIND, ...BOARD_COPY_KINDS]), isNull(moments.eventId)),
       ),
     )
     .orderBy(desc(moments.occurredAt))

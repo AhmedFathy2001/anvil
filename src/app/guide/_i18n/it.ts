@@ -1170,7 +1170,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Share highlights with the clan',
-          body: 'i tuoi pet, i drop importanti, le morti, i task di combattimento, i traguardi di livello, i nuovi slot del log e i diari compaiono nel feed del sito del tuo clan, e nel feed della chat dei giocatori che possono vederli.',
+          body: 'i tuoi pet, i drop importanti, le morti, i task di combattimento, i traguardi di livello, i nuovi slot del log, i diari e le quest compaiono nel feed del sito del tuo clan, e nel feed della chat dei giocatori che possono vederli. I nuovi slot del log, i diari e le quest compaiono anche nel feed di ogni board live a cui partecipi.',
         },
       ],
       outro: 'Altre tre cose vengono inviate senza un’impostazione propria. **Chi ti ha ucciso**: il mostro o il giocatore che ti aveva come bersaglio negli ultimi 15 secondi viene nominato nel feed. **Contatori di gioco**: alcune caselle di uccisione contano un numero che il gioco tiene, come i punti Tithe Farm, la reputazione della Giants’ Foundry, i delve di Doom o le serie di slayer; contano solo gli aumenti. **Leagues, Deadman e altre modalità**: su quei mondi vengono inviate le righe del gioco su reliquie, aree e task, così il tuo clan può pubblicarle nel canale della modalità.',

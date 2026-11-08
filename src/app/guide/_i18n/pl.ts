@@ -1168,7 +1168,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Udostępnianie najciekawszych momentów klanowi',
-          body: 'twoje pety, duże dropy, zgony, zadania bojowe, kamienie milowe poziomów, nowe sloty dziennika i dzienniczki pojawiają się w feedzie strony twojego klanu oraz w feedzie czatu graczy, którzy je widzą.',
+          body: 'twoje pety, duże dropy, zgony, zadania bojowe, kamienie milowe poziomów, nowe sloty dziennika, dzienniki i questy pojawiają się w feedzie strony twojego klanu oraz w feedzie czatu graczy, którzy je widzą. Nowe sloty dziennika, dzienniki i questy pojawiają się też w feedzie każdej aktywnej tablicy, na której jesteś.',
         },
       ],
       outro: 'Trzy kolejne rzeczy są wysyłane bez własnego ustawienia. **Who killed you**: potwór albo gracz, który miał cię na celowniku w ostatnich 15 sekundach, jest wymieniony w feedzie. **Game counters**: niektóre kafelki zabójstw liczą wartość, którą trzyma gra, jak punkty Tithe Farm, reputację Giants’ Foundry, delwy Doom czy serie slayera; liczą się tylko wzrosty. **Leagues, Deadman and other modes**: na tych światach linie gry o relikwiach, obszarach i zadaniach są wysyłane, by twój klan mógł je opublikować na kanale trybu.',

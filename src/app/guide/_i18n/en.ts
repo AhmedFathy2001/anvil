@@ -1148,7 +1148,7 @@ export const en = {
         },
         {
           term: 'Share highlights with the clan',
-          body: 'your pets, big drops, deaths, combat tasks, level milestones, new log slots and diaries appear on your clan site’s feed, and in the chat feed of players who can see them.',
+          body: 'your pets, big drops, deaths, combat tasks, level milestones, new log slots, diaries and quests appear on your clan site’s feed, and in the chat feed of players who can see them. New log slots, diaries and quests also appear on the feed of every live board you are on.',
         },
       ],
       outro:

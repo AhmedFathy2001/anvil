@@ -1172,7 +1172,7 @@ const es: PartialGuideDict = {
         },
         {
           term: 'Compartir momentos destacados con el clan',
-          body: 'tus mascotas, drops grandes, muertes, tareas de combate, hitos de nivel, nuevas casillas del log y diarios aparecen en el feed de la web pública de tu clan, y en el feed del chat de los jugadores que pueden verlos.',
+          body: 'tus mascotas, drops grandes, muertes, tareas de combate, hitos de nivel, nuevas casillas del log, diarios y misiones aparecen en el feed de la web pública de tu clan, y en el feed del chat de los jugadores que pueden verlos. Las nuevas casillas del log, los diarios y las misiones también aparecen en el feed de cada tablero en vivo en el que estés.',
         },
       ],
       outro: 'Otras tres cosas se envían sin ajuste propio. **Quién te mató**: el monstruo o jugador que te tenía como objetivo en tus últimos 15 segundos aparece nombrado en el feed. **Contadores del juego**: algunas casillas de kills cuentan un número que lleva el juego, como los puntos de Tithe Farm, la reputación de Giants’ Foundry, los delves de Doom o las rachas de slayer; solo se envían los aumentos. **Leagues, Deadman y otros modos**: en esos mundos se envían las líneas propias del juego sobre reliquias, zonas y tareas para que tu clan las publique en su canal de modo.',

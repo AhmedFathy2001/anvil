@@ -1169,7 +1169,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Jaa kohokohdat klaanin kanssa',
-          body: 'lemmikkisi, isot dropit, kuolemat, taistelutehtävät, tasotavoitteet, uudet lokipaikat ja päiväkirjat ilmestyvät klaanisi sivuston syötteeseen ja niiden pelaajien chat-syötteeseen, jotka näkevät ne.',
+          body: 'lemmikkisi, isot dropit, kuolemat, taistelutehtävät, tasotavoitteet, uudet lokipaikat, päiväkirjat ja questit ilmestyvät klaanisi sivuston syötteeseen ja niiden pelaajien chat-syötteeseen, jotka näkevät ne. Uudet lokipaikat, päiväkirjat ja questit ilmestyvät myös jokaisen aktiivisen taulun syötteeseen, jolla olet mukana.',
         },
       ],
       outro: 'Kolme asiaa lähetetään ilman omaa asetustaan. **Kuka tappoi sinut**: syötteessä nimetään hirviö tai pelaaja, joka oli kohdistettuna sinuun viimeisen 15 sekunnin aikana. **Pelin laskurit**: jotkin tapporuudut laskevat pelin pitämän luvun, kuten Tithe Farm -pisteet, Giants’ Foundry -maine, Doom-delvet tai slayer-putket; vain nousut lasketaan. **Leagues, Deadman ja muut moodit**: näillä maailmoilla pelin omat rivit reliikeistä, alueista ja tehtävistä lähetetään, jotta klaanisi voi julkaista ne moodikanavallaan.',

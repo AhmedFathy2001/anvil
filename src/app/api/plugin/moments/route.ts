@@ -5,7 +5,7 @@ import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { pluginParticipantScope, resolvePluginMember } from '@/lib/auth';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { activeScopesFor, recordModeMoments, recordSeatMoments } from '@/lib/momentsStore';
-import { achievementDedupKey, caTierRank, diaryTier, type Observation } from '@/lib/moments';
+import { achievementDedupKey, BOARD_COPY_KINDS, caTierRank, diaryTier, type Observation } from '@/lib/moments';
 import { stripChatTags } from '@/lib/chatTags';
 import { labQuarantine } from '@/lib/lab';
 import { worldModeOf } from '@/lib/worldModeRequest';
@@ -243,14 +243,20 @@ export async function POST(request: Request) {
   // clan's feed. The lab board's Feed reads its moments from the lab log instead (lib/lab).
   const found = await activeScopesFor(member.clanMemberId, clan.id, new Date(now), await pluginParticipantScope(member, { lab: false }));
   // A fallen character's death is the clan's news, never a death on a main-game board or week.
-  const scopes = fallen ? { ...found, weeklies: [], event: null } : found;
+  const scopes = fallen ? { ...found, weeklies: [], event: null, boards: [] } : found;
   // Nothing running still keeps the clan's achievements (momentsStore recordSeatMoments); `scoped:
   // false` tells a client's log that was the case.
   const { inserted, seatKind, idle, ...result } = mode
     ? await recordModeMoments(member, observations, found.clan, mode)
     : await recordSeatMoments(member, observations, scopes);
   // The panel's live Feed lists (lib/panelRows). Not awaited past a failure: the reply is the plugin's.
-  if (inserted.length) await emitMomentRows(clan.id, seatKind, inserted);
+  // A log slot, diary or quest copy filed on a board goes to that board's list only: 'guest' skips the
+  // clan push, which has the clan's own copy.
+  const boardCopy = (m: (typeof inserted)[number]) => m.eventId != null && BOARD_COPY_KINDS.has(m.kind);
+  if (inserted.length) {
+    await emitMomentRows(clan.id, seatKind, inserted.filter((m) => !boardCopy(m)));
+    await emitMomentRows(clan.id, 'guest', inserted.filter(boardCopy));
+  }
   // Stream highlights (lib/highlights): a big drop or pet on a STREAMED board is clipped on a live
   // channel that wants it. Queued, never awaited: Twitch is nobody's reason to hold this reply.
   if (!mode && inserted.length) queueMomentHighlights(member.clanMemberId, inserted);

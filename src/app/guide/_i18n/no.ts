@@ -1170,7 +1170,7 @@ const no: PartialGuideDict = {
         },
         {
           term: 'Del høydepunkter med klanen',
-          body: 'kjæledyrene dine, store drops, dødsfall, kampoppgaver, nivåmilepæler, nye loggplasser og dagbøker dukker opp i klansidens feed, og i chatfeeden til spillere som kan se dem.',
+          body: 'kjæledyrene dine, store drops, dødsfall, kampoppgaver, nivåmilepæler, nye loggplasser, dagbøker og quester dukker opp i klansidens feed, og i chatfeeden til spillere som kan se dem. Nye loggplasser, dagbøker og quester vises også i feeden til hvert live-brett du er med på.',
         },
       ],
       outro: 'Tre ting til sendes uten en egen innstilling. **Hvem som drepte deg**: monsteret eller spilleren som hadde deg som mål de siste 15 sekundene, nevnes i feeden. **Spilltellere**: noen rute-drepetellere teller et tall spillet selv holder styr på, som Tithe Farm-poeng, Giants’ Foundry-omdømme, Doom-delves eller slayer-serier; bare økninger teller. **Leagues, Deadman og andre modi**: på de verdenene sendes spillets egne linjer om relikvier, områder og oppgaver, slik at klanen din kan legge dem ut i sin modus-kanal.',

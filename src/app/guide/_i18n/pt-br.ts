@@ -1170,7 +1170,7 @@ const ptBr: PartialGuideDict = {
         },
         {
           term: 'Compartilhar destaques com o clã',
-          body: 'seus pets, drops grandes, mortes, tarefas de combate, marcos de nível, novos slots do log e diários aparecem no feed do site do seu clã, e no feed de chat dos jogadores que podem vê-los.',
+          body: 'seus pets, drops grandes, mortes, tarefas de combate, marcos de nível, novos slots do log, diários e quests aparecem no feed do site do seu clã, e no feed de chat dos jogadores que podem vê-los. Novos slots do log, diários e quests também aparecem no feed de todo quadro ao vivo em que você estiver.',
         },
       ],
       outro: 'Mais três coisas são enviadas sem configuração própria. **Quem te matou**: o monstro ou jogador que estava com você como alvo nos seus últimos 15 segundos é citado no feed. **Contadores do jogo**: algumas casas de kill contam um número que o jogo mantém, como pontos do Tithe Farm, reputação da Giants’ Foundry, delves do Doom ou sequências de slayer; só aumentos contam. **Leagues, Deadman e outros modos**: nesses mundos, as linhas do próprio jogo sobre relíquias, áreas e tarefas são enviadas para que seu clã possa postá-las no canal do modo.',

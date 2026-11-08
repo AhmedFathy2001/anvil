@@ -1171,7 +1171,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Highlights met de clan delen',
-          body: 'je pets, grote drops, doden, combattaken, levelmijlpalen, nieuwe logplekken en dagboeken verschijnen op de feed van de site van je clan, en in de chatfeed van spelers die ze kunnen zien.',
+          body: 'je pets, grote drops, doden, combattaken, levelmijlpalen, nieuwe logplekken, dagboeken en quests verschijnen op de feed van de site van je clan, en in de chatfeed van spelers die ze kunnen zien. Nieuwe logplekken, dagboeken en quests verschijnen ook op de feed van elk live bord waar je op zit.',
         },
       ],
       outro: 'Drie dingen worden verstuurd zonder eigen instelling. **Wie jou heeft gedood**: het monster of de speler die je in je laatste 15 seconden had getarget, wordt in de feed genoemd. **Spel-tellers**: sommige kill-vakjes tellen een getal dat het spel bijhoudt, zoals Tithe Farm-punten, Giants’ Foundry-reputatie, Doom delves of slayer-reeksen; alleen stijgingen tellen mee. **Leagues, Deadman en andere modi**: op die werelden worden de eigen regels van het spel over relics, gebieden en taken verstuurd, zodat je clan ze in het modekanaal kan plaatsen.',

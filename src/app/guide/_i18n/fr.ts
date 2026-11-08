@@ -1173,7 +1173,7 @@ const fr: PartialGuideDict = {
         },
         {
           term: 'Partager les faits marquants avec le clan',
-          body: 'tes pets, gros drops, morts, tâches de combat, paliers de niveau, nouvelles cases du journal et journaux de succès apparaissent sur le fil de ta page de clan, et dans le fil de chat des joueurs qui peuvent les voir.',
+          body: 'tes pets, gros drops, morts, tâches de combat, paliers de niveau, nouvelles cases du journal, journaux de succès et quêtes apparaissent sur le fil de ta page de clan, et dans le fil de chat des joueurs qui peuvent les voir. Les nouvelles cases du journal, journaux de succès et quêtes apparaissent aussi sur le fil de chaque grille en direct à laquelle tu participes.',
         },
       ],
       outro: 'Trois autres éléments sont envoyés sans réglage propre. **Qui t’a tué** : le monstre ou le joueur que tu avais ciblé dans les 15 dernières secondes est nommé dans le fil. **Compteurs de jeu** : certaines cases de kills comptent un nombre que le jeu tient à jour, comme les points de Tithe Farm, la réputation de Giants’ Foundry, les delves de Doom ou les séries de slayer ; seules les hausses comptent. **Leagues, Deadman et autres modes** : sur ces mondes, les messages du jeu sur les reliques, les zones et les tâches sont envoyés pour que ton clan puisse les publier dans son canal de mode.',

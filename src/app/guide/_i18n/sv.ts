@@ -1170,7 +1170,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Dela höjdpunkter med klanen',
-          body: 'dina husdjur, stora drops, dödsfall, stridsuppgifter, nivåmilstolpar, nya loggplatser och dagböcker visas i flödet på din klans sajt, och i chattflödet för spelare som kan se dem.',
+          body: 'dina husdjur, stora drops, dödsfall, stridsuppgifter, nivåmilstolpar, nya loggplatser, dagböcker och quests visas i flödet på din klans sajt, och i chattflödet för spelare som kan se dem. Nya loggplatser, dagböcker och quests visas även i flödet för varje live-bräde du är med på.',
         },
       ],
       outro: 'Tre saker till skickas utan en egen inställning. **Vem som dödade dig**: monstret eller spelaren som hade dig som mål de sista 15 sekunderna namnges i flödet. **Spelräknare**: vissa dödsantalsbrickor räknar ett tal som spelet själv håller, som Tithe Farm-poäng, Giants’ Foundry-rykte, Doom-delves eller slayer-streaks; bara ökningar räknas. **Leagues, Deadman och andra lägen**: på de världarna skickas spelets egna rader om relikter, områden och uppgifter så att din klan kan posta dem i sin lägeskanal.',
