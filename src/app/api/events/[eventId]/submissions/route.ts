@@ -31,7 +31,7 @@ import { eventHasStarted } from '@/lib/completionGate';
 import { track } from '@/lib/analytics';
 import { replayOutsideLab } from '@/lib/lab';
 import { parseProofClaims, captureFlag, PROOF_IMAGE_MISMATCH_FLAG, PROVENANCE_REQUIRED_FROM } from '@/lib/proofStamp';
-import { encodePendingProof, parseProofKey, proofDueAt } from '@/lib/proofAfter';
+import { encodePendingProof, parseProofKey, proofDueAt, publicSubmission } from '@/lib/proofAfter';
 import { stampAndPost } from '@/lib/proofFinish';
 import { parseStamp } from '@/lib/dbTime';
 import { standingsScopeForRequest } from '@/lib/standingsAccess';
@@ -107,7 +107,7 @@ export async function GET(
 
   const extras = await attachmentsFor(filtered.map((s) => s.id));
   const result = filtered.map((s) => ({
-    ...s,
+    ...publicSubmission(s),
     attachments: extras.get(s.id) ?? [],
     uploaderName: s.playerId ? playerMap.get(s.playerId) || 'Unknown' : null,
     creditPlayerName: s.creditPlayerId ? playerMap.get(s.creditPlayerId) || 'Unknown' : null,
@@ -811,7 +811,9 @@ export async function POST(
 
   // `completed`: this submission finished the tile, so the plugin can say so at once instead of
   // waiting for its next config fetch.
-  return NextResponse.json({ submission, completed }, { status: 201 });
+  // `awaitingProof`: this credit waits for its screenshot under the key it was filed with (the facts
+  // route names that key to the plugin). The key itself never goes back out with the row.
+  return NextResponse.json({ submission: publicSubmission(submission), completed, ...(submission.proofDueAt ? { awaitingProof: true } : {}) }, { status: 201 });
 }
 
 export async function DELETE(

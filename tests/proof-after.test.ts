@@ -8,7 +8,10 @@ import {
   claimsWithSplit,
   decodePendingProof,
   encodePendingProof,
+  attachedKeyMark,
   newProofKey,
+  publicSubmission,
+  stampOnlyClaims,
   parseProofKey,
   PROOF_WINDOW_MS,
   proofDueAt,
@@ -43,7 +46,7 @@ test('proofDueAt / proofOverdue: a minute after filing, inclusive; a row with no
 });
 
 test('pending proof JSON: round-trips, and anything malformed decodes to safe defaults', () => {
-  const claims = parseProofClaims({ title: 'BINGO DROP', detail: 'Twisted bow', tz: 'UTC', capturedAt: 5, tick: 9, chat: [{ tick: 9, type: 'GAMEMESSAGE', text: 'Valuable drop' }] });
+  const claims = parseProofClaims({ title: 'BINGO DROP', detail: 'Twisted bow', tz: 'UTC', capturedAt: 5, tick: 9, chat: [{ tick: 9, type: 'GAMEMESSAGE', text: 'Valuable drop: Twisted bow (1,000,000,000 coins)' }] });
   const p = { claims, receivedAt: 123, completed: true, superseded: false, cap: false, rsn: 'Zezima', clan: 'alpha' };
   assert.deepEqual(decodePendingProof(encodePendingProof(p)), p);
 
@@ -63,4 +66,22 @@ test('claimsWithSplit: only the frame split comes from the upload; the banner st
   assert.equal(claimsWithSplit(claims, { split: 2 })!.split, null, 'an absurd split is ignored');
   assert.equal(claimsWithSplit(claims, null), claims);
   assert.equal(claimsWithSplit(null, { split: 0.5 }), null, 'no claims, no stamp');
+});
+
+test('stampOnlyClaims: only game lines the stamp prints survive; typed chat is dropped', () => {
+  const claims = parseProofClaims({ tick: 100, chat: [
+    { tick: 100, type: 'GAMEMESSAGE', text: 'Valuable drop: Abyssal whip (1,500,000 coins)' },
+    { tick: 100, type: 'PUBLICCHAT', text: 'Valuable drop: fake' },
+    { tick: 100, type: 'PRIVATECHATIN', text: 'my address is' },
+  ] })!;
+  assert.deepEqual(stampOnlyClaims(claims).chat.map((c) => c.type), ['GAMEMESSAGE']);
+  assert.deepEqual(decodePendingProof(encodePendingProof({ claims, receivedAt: 1, completed: false, superseded: false, cap: false, rsn: null, clan: null })).claims!.chat.length, 1);
+});
+
+test('attachedKeyMark / publicSubmission: the tombstone is not the key; rows lose the bookkeeping', () => {
+  const k = newProofKey();
+  assert.notEqual(attachedKeyMark(k), k);
+  assert.equal(attachedKeyMark(k), attachedKeyMark(k));
+  assert.equal(parseProofKey(attachedKeyMark(k)), null, 'a tombstone is never accepted as a key');
+  assert.deepEqual(publicSubmission({ id: 1, proofKey: k, proofPending: '{}', imageUrl: null }), { id: 1, imageUrl: null });
 });

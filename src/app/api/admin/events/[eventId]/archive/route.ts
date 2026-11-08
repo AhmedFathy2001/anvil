@@ -21,6 +21,7 @@ import { log } from '@/lib/logger';
 import { csvOf, safeName, archiveIndexHtml, type ArchiveProof } from '@/lib/eventArchive';
 import { isExpiredProof } from '@/lib/eventMediaRetentionRules';
 import { isManagedMediaUrl } from '@/lib/storage';
+import { publicSubmission } from '@/lib/proofAfter';
 
 // The whole event as one zip, for the clan's own records: the board, teams, every completion and
 // submission with who, when and for what, the payouts and fees — and every proof image, filed by tile
@@ -177,7 +178,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
       participants: players,
       tiles: tileRows,
       completions: completionRows.map((r) => r.completions),
-      submissions: subRows.map((s) => ({ ...s, image: proofs.find((p) => p.kind === 'submission' && p.url === s.imageUrl)?.file ?? null })),
+      submissions: subRows.map((s) => ({ ...publicSubmission(s), image: proofs.find((p) => p.kind === 'submission' && p.url === s.imageUrl)?.file ?? null })),
       payouts: payoutRows,
       signups: signupRows,
       fees: feeRows,

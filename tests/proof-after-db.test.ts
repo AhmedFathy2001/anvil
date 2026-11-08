@@ -70,7 +70,7 @@ async function credit(item: number, extra: Record<string, unknown> = { proofPend
   const req = new Request('https://example.test/api/plugin/facts', {
     method: 'POST',
     headers: { ...headers(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ facts: [{ k: 'loot', src: 'Zulrah', kind: 'npc', items: [[item, 1]] }], proof: { tz: 'UTC', capturedAt: Date.now(), tick: 7, chat: [] }, ...extra }),
+    body: JSON.stringify({ facts: [{ k: 'loot', src: 'Zulrah', kind: 'npc', items: [[item, 1]] }], proof: { tz: 'UTC', capturedAt: Date.now(), tick: 7, chat: [{ tick: 7, type: 'GAMEMESSAGE', text: 'Valuable drop: Abyssal whip (1,500,000 coins)' }, { tick: 7, type: 'PUBLICCHAT', text: 'my secret' }, { tick: 7, type: 'PRIVATECHATIN', text: 'dm text' }] }, ...extra }),
   });
   const res = await inRequest(req, () => POST(req));
   assert.equal(res.status, 200, await res.clone().text());
@@ -154,6 +154,14 @@ test('a pending credit counts at once with no image, says it completed, and name
   assert.equal(row.imageUrl, null);
   assert.equal(row.proofKey, whipKey);
   assert.ok(row.proofDueAt && Date.parse(row.proofDueAt) > Date.now() + 50_000);
+  // Only the lines the stamp would print are kept while it waits; the rest of the chat never is.
+  assert.deepEqual((JSON.parse(row.proofPending ?? '{}') as { claims: { chat: { text: string }[] } }).claims.chat.map((c) => c.text), ['Valuable drop: Abyssal whip (1,500,000 coins)']);
+  // No API shows the key or the stored claims.
+  const { GET } = await import('../src/app/api/events/[eventId]/submissions/route.ts');
+  const req = new Request(`https://example.test/api/events/${ids.event}/submissions`, { headers: headers() });
+  const listed = (await inRequest(req, () => GET(req, { params: Promise.resolve({ eventId: String(ids.event) }) }))) as Response;
+  const body = await listed.text();
+  assert.ok(!body.includes(whipKey) && !body.includes('proofPending') && !body.includes('proofKey'), body.slice(0, 300));
   assert.ok(await completed(ids.whip));
 });
 
@@ -171,6 +179,8 @@ test('the screenshot attaches, gets stamped, and a repeat upload is a no-op', as
   assert.ok(row.imageUrl?.startsWith('http://localhost:9000/'));
   assert.equal(row.proofDueAt, null);
   assert.equal(row.proofPending, null);
+  assert.notEqual(row.proofKey, whipKey, 'the key is gone once attached');
+  assert.match(row.proofKey ?? '', /^done:/);
   assert.ok(row.imageSha256);
   // The stamp runs after the reply: the clean frame moves to cleanImageUrl, the stamped copy shows.
   for (let i = 0; i < 50 && !row.cleanImageUrl; i++) {

@@ -9,7 +9,7 @@
  */
 import crypto from 'crypto';
 
-import { parseProofClaims, type ProofClaims } from '@/lib/proofStamp';
+import { gameLines, parseProofClaims, type ProofClaims } from '@/lib/proofStamp';
 
 /** How long a credit waits for its screenshot before it is reversed. */
 export const PROOF_WINDOW_MS = 60_000;
@@ -28,6 +28,15 @@ export function newProofKey(): string {
 /** A key as a client may send it back, or null. Client-supplied, so shape-checked before any query. */
 export function parseProofKey(raw: unknown): string | null {
   return typeof raw === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(raw) ? raw : null;
+}
+
+/**
+ * What an ATTACHED row keeps in place of its key: a one-way tombstone, so a repeat upload of the same
+ * screenshot (the plugin never heard the first answer) is still answered ok — while the key itself is
+ * gone and nothing can be attached with it again.
+ */
+export function attachedKeyMark(key: string): string {
+  return `done:${crypto.createHash('sha256').update(key).digest('base64url')}`;
 }
 
 /** When a credit filed at `filedAt` (epoch ms) is reversed, as stored (ISO). */
@@ -60,7 +69,22 @@ export interface PendingProof {
 }
 
 export function encodePendingProof(p: PendingProof): string {
-  return JSON.stringify(p);
+  return JSON.stringify({ ...p, claims: p.claims ? stampOnlyClaims(p.claims) : null });
+}
+
+/**
+ * The claims with only the chat lines the stamp would print (game messages around the credit's tick,
+ * lib/proofStamp gameLines) — the rest of the player's chat is never stored while a credit waits.
+ */
+export function stampOnlyClaims(claims: ProofClaims): ProofClaims {
+  return { ...claims, chat: claims.chat.filter((c) => gameLines({ ...claims, chat: [c] }).length > 0) };
+}
+
+/** A submission row as any API may show it: the waiting-proof bookkeeping (key, stored claims) never leaves. */
+export function publicSubmission<T extends { proofKey?: unknown; proofPending?: unknown }>(row: T): Omit<T, 'proofKey' | 'proofPending'> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { proofKey, proofPending, ...rest } = row;
+  return rest;
 }
 
 /** The stored JSON back, tolerant of anything malformed (a missing stamp never costs a credit). */

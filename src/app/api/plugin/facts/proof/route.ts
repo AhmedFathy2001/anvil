@@ -4,7 +4,7 @@ import { db } from '@/db';
 import { events, proofUploads, submissions, teams, tiles } from '@/db/schema';
 import { verifyPluginTokenOnEvent } from '@/lib/auth';
 import { readBody, storeImage } from '@/lib/pluginFacts/request';
-import { claimsWithSplit, decodePendingProof, parseProofKey, proofOverdue, PROOF_TOO_LATE } from '@/lib/proofAfter';
+import { attachedKeyMark, claimsWithSplit, decodePendingProof, parseProofKey, proofOverdue, PROOF_TOO_LATE } from '@/lib/proofAfter';
 import { afterReply, participantName, stampAndPost, sweepOverdueProofs } from '@/lib/proofFinish';
 import { rateLimit } from '@/lib/rate-limit';
 import { countTileProgress } from '@/lib/submissions';
@@ -18,7 +18,9 @@ export const dynamic = 'force-dynamic';
 // `body` (optional) = JSON `{ proof: { split } }` — where the two stacked frames meet; the banner's
 // words were settled with the credit. Answers:
 //   200 { ok: true, attached: n }            stored, the stamp and the Discord post follow
-//   200 { ok: true, attached: 0 }            already attached (a repeat upload): nothing to do
+//   200 { ok: true, attached: 0 }            already attached (a repeat upload): nothing to do. On attach
+//                                            the key is replaced by a one-way tombstone (attachedKeyMark),
+//                                            so it can never attach anything again; reversal deletes the row
 //   410 { error }                            too late: those credits were reversed (or never existed)
 //   400 / 401 / 404                          a bad key, no token, or not this caller's credits — for good
 //   503                                      a passing failure (storage): send it again
@@ -38,12 +40,13 @@ export async function POST(request: Request) {
 
   // clan-scope: global -- found by an unguessable key, then every row is checked against the caller below.
   const rows = await db.select().from(submissions).where(eq(submissions.proofKey, key));
-  if (rows.length === 0) return Response.json({ error: PROOF_TOO_LATE }, { status: 410 });
-
+  if (rows.length === 0) {
+    // Already attached (a retry whose first answer was lost): the key was swapped for its tombstone, so
+    // this is answered ok and nothing is stored twice. No row either way: reversed, too late.
+    const done = await db.select({ id: submissions.id }).from(submissions).where(eq(submissions.proofKey, attachedKeyMark(key))).limit(1);
+    return done.length ? Response.json({ ok: true, attached: 0 }) : Response.json({ error: PROOF_TOO_LATE }, { status: 410 });
+  }
   const waiting = rows.filter((r) => r.proofDueAt != null);
-  // Already attached (a retry whose first try landed): answered ok, nothing stored twice — and nothing
-  // learnt by whoever holds the key, which only its filer was ever given.
-  if (waiting.length === 0) return Response.json({ ok: true, attached: 0 });
 
   // WHOSE ROWS. One facts request can file on several boards; each board's rows are checked under the
   // clan address they were filed with, and must be the caller's own seat and team there.
@@ -80,7 +83,7 @@ export async function POST(request: Request) {
 
   // Attach: only rows STILL waiting (a sweep that got there first wins, and the row is gone).
   const attached = await db.update(submissions)
-    .set({ imageUrl: stored.url, imageSha256: upload?.sha256 ?? null, proofDueAt: null, proofPending: null })
+    .set({ imageUrl: stored.url, imageSha256: upload?.sha256 ?? null, proofKey: attachedKeyMark(key), proofDueAt: null, proofPending: null })
     .where(and(inArray(submissions.id, live.map((r) => r.id)), isNotNull(submissions.proofDueAt)))
     .returning();
   if (attached.length === 0) return Response.json({ error: PROOF_TOO_LATE }, { status: 410 });

@@ -97,9 +97,9 @@ export async function POST(request: Request) {
         const res = await submitRoute(new Request(url, { method: 'POST', headers, body: JSON.stringify(p.body) }), {
           params: Promise.resolve({ eventId: String(p.board.eventId) }),
         });
-        const json = (await res.json().catch(() => ({}))) as { completed?: boolean; error?: string; submission?: { proofKey?: string | null } };
+        const json = (await res.json().catch(() => ({}))) as { completed?: boolean; error?: string; awaitingProof?: boolean };
         // Only a row actually stored with the key waits (a replay outside the lab answers ok, files nothing).
-        if (res.ok && pendingKey && json.submission?.proofKey === pendingKey) waiting.add(p.credit.label);
+        if (res.ok && pendingKey && json.awaitingProof) waiting.add(p.credit.label);
         outcome = res.ok ? 'ok' : res.status >= 500 || res.status === 429 ? 'retry' : 'refused';
         if (outcome !== 'retry') results.push({ tileId: p.credit.tileId, ok: res.ok, completed: !!json.completed, error: res.ok ? undefined : json.error });
         // A refusal used to vanish: the plugin had already said the line. Leave a trace to debug it by.
