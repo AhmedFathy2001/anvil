@@ -348,11 +348,12 @@ export function routeEntries(tiles: RouteTileIn[]): RouteEntry[] {
 
 export type RouteTemplate = 'line' | 'lanes2' | 'braid3' | 'diamond' | 'free';
 
+/** The templates, the default first: one start, lanes in between, one finish. */
 export const ROUTE_TEMPLATES: { key: RouteTemplate; label: string; help: string }[] = [
+  { key: 'diamond', label: 'Diamond', help: 'One start tile splits into two roads that merge again at one finish tile.' },
+  { key: 'lanes2', label: 'Two roads', help: 'One start, two side-by-side roads that never meet, one finish.' },
+  { key: 'braid3', label: 'Braid', help: 'One start, three roads that can swap at every other step, one finish.' },
   { key: 'line', label: 'Straight line', help: 'One tile per step, each leading to the next.' },
-  { key: 'lanes2', label: 'Two lanes', help: 'Two side-by-side routes that never meet.' },
-  { key: 'braid3', label: 'Braid', help: 'Three lanes that can swap at every other step.' },
-  { key: 'diamond', label: 'Diamond', help: 'One start splits into two lanes that merge at the end.' },
   { key: 'free', label: 'Free', help: 'One tile per step and no links — draw every link yourself.' },
 ];
 
@@ -401,10 +402,13 @@ export function applyRouteTemplate(kind: RouteTemplate, ids: number[]): RouteEnt
   if (kind === 'line') return fromWidths(ids, ids.map(() => 1), () => false);
   if (kind === 'lanes2' || kind === 'braid3') {
     const lanes = kind === 'lanes2' ? 2 : 3;
-    const widths: number[] = [];
-    for (let left = n; left > 0; left -= lanes) widths.push(Math.min(lanes, left));
-    // Braid: lanes run straight out of even steps and may swap out of odd ones.
-    return fromWidths(ids, widths, (s) => kind === 'braid3' && s % 2 === 1);
+    // One fixed start and one fixed finish around the roads, once there are tiles for both.
+    const framed = n >= lanes + 2;
+    const widths: number[] = framed ? [1] : [];
+    for (let left = framed ? n - 2 : n; left > 0; left -= lanes) widths.push(Math.min(lanes, left));
+    if (framed) widths.push(1);
+    // Braid: roads run straight out of one step and may swap out of the next, alternately.
+    return fromWidths(ids, widths, (s) => kind === 'braid3' && (framed ? s % 2 === 0 && s > 0 : s % 2 === 1));
   }
   // Diamond: one start, two lanes, one finish (an odd tile out becomes a single junction mid-way).
   if (n <= 3) return fromWidths(ids, ids.map(() => 1), () => false);
@@ -502,19 +506,22 @@ export function tileShape(graph: RaceGraph, tileId: number): 'junction' | 'split
 }
 
 /** "Start" / "Tile 4" / "Junction" / "Finish" — the label over a step's column. */
+/**
+ * A step's column name — the ONE vocabulary every race view uses: "Start" (a single start tile) or
+ * "Step 1", then "Step 2" … and "Finish". Where routes meet is shown on the tile, not the column.
+ */
 export function stepTitle(graph: RaceGraph, step: number): string {
-  if (step === 0) return graph.lastStep === 0 ? 'Start · finish' : 'Start';
+  if (step === 0) return graph.lastStep === 0 ? 'Start · finish' : (graph.steps[0]?.length ?? 0) > 1 ? 'Step 1' : 'Start';
   if (step === graph.lastStep) return 'Finish';
-  if ((graph.steps[step] ?? []).some((id) => tileShape(graph, id) === 'junction')) return 'Junction';
-  return `Tile ${step + 1}`;
+  return `Step ${step + 1}`;
 }
 
-/** "Tile 4 of 10", or the step's shape word where routes meet. */
+/** "Step 4 of 10", plus "junction" where routes meet. */
 export function stepLine(graph: RaceGraph, tileId: number): string {
   const n = graph.byId.get(tileId);
   if (!n) return '';
   const shape = tileShape(graph, tileId);
-  const base = `Tile ${n.step + 1} of ${graph.lastStep + 1}`;
+  const base = `Step ${n.step + 1} of ${graph.lastStep + 1}`;
   return shape === 'junction' ? `${base} · junction` : base;
 }
 

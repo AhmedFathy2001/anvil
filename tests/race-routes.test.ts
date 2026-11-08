@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyRouteTemplate,
+  ROUTE_TEMPLATES,
   canCreditRaceTile,
   canUndoRaceTile,
   isBranchingRoute,
@@ -183,10 +184,18 @@ test('templates produce valid routes for many sizes', () => {
       assert.deepEqual(validateRoute(route), [], `${kind} ${n}`);
     }
   }
-  // Braid: lanes swap out of odd steps only.
-  const braid = applyRouteTemplate('braid3', [1, 2, 3, 4, 5, 6, 7, 8, 9]);
-  assert.deepEqual(braid.find((e) => e.id === 2)!.next, [5]);
-  assert.deepEqual([...braid.find((e) => e.id === 5)!.next].sort(), [7, 8, 9]);
+  // Braid: ONE start tile, three roads that swap at every other step, ONE finish tile.
+  const braid = applyRouteTemplate('braid3', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  assert.deepEqual(braid.filter((e) => e.step === 0).map((e) => e.id), [1], 'a single start');
+  assert.deepEqual([...braid.find((e) => e.id === 1)!.next].sort(), [2, 3, 4], 'it branches into three roads');
+  assert.deepEqual(braid.find((e) => e.id === 2)!.next, [5], 'roads run straight…');
+  assert.deepEqual([...braid.find((e) => e.id === 5)!.next].sort(), [8, 9], '…then may swap to a neighbour');
+  assert.deepEqual(braid.filter((e) => e.step === 4).map((e) => e.id), [11], 'a single finish');
+  // Two roads: one start, one finish too.
+  const two = applyRouteTemplate('lanes2', [1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(two.map((e) => e.step), [0, 1, 1, 2, 2, 3]);
+  // Diamond is the default template (listed first).
+  assert.equal(ROUTE_TEMPLATES[0].key, 'diamond');
   // Diamond: one start, one end.
   const d = applyRouteTemplate('diamond', [1, 2, 3, 4, 5, 6]);
   assert.equal(d.filter((e) => e.step === 0).length, 1);
@@ -245,9 +254,11 @@ test('display helpers: roads, step titles and what a pick does to your road', ()
   const g = raceGraph(branch);
   assert.equal(roadOf(g, 30), 'A');
   assert.equal(roadOf(g, 31), 'B');
-  assert.equal(stepTitle(g, 0), 'Start');
+  // One vocabulary: two starts are "Step 1" (a single start tile would be "Start"), then "Step n", "Finish".
+  assert.equal(stepTitle(g, 0), 'Step 1');
   assert.equal(stepTitle(g, 3), 'Finish');
-  assert.equal(stepTitle(g, 1), 'Junction');
+  assert.equal(stepTitle(g, 1), 'Step 2');
+  assert.equal(stepTitle(raceGraph(line), 0), 'Start');
   const r = teamRoute(g, [10, 20, 31]);
   assert.equal(roadChoiceLine(g, r, 41), 'Keeps you on road B');
   assert.equal(roadChoiceLine(g, r, 40), 'Switches you to road A');

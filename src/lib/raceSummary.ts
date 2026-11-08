@@ -267,7 +267,7 @@ export function panelSteps(graph: RaceGraph, route: TeamRoute | null, labelOf: (
   const at = route ? (route.finished ? steps : route.path.length) : -1;
   return graph.steps.map((ids, step) => {
     const title = stepTitle(graph, step);
-    const heading = `Step ${step + 1} of ${steps}${title.startsWith('Tile') ? '' : ` · ${title}`}`;
+    const heading = `Step ${step + 1} of ${steps}${title === 'Start' || title === 'Finish' ? ` · ${title}` : ''}`;
     return {
       step,
       title,

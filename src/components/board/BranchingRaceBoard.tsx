@@ -21,7 +21,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import type { TileRaceBoardProps } from '@/components/TileRaceBoard';
 import Select from '@/components/Select';
 import SoloStandings from '@/components/SoloStandings';
-import RaceRouteMap, { RouteMapLegend } from './RaceRouteMap';
+import RaceRouteMap, { RouteMapLegend, tileInitials } from './RaceRouteMap';
 import { TileStateChip } from './TileState';
 
 /**
@@ -71,7 +71,7 @@ export function useRacePick(eventId: number | undefined, teamId: number | null, 
   return { pickInfo, pickError, picking, pick };
 }
 
-export default function BranchingRaceBoard({ tiles, completions, teams, activeTeamId, onTileClick, dropProgress, statProgress, expanded, matchedTileIds, raceLayout = 'full' }: TileRaceBoardProps) {
+export default function BranchingRaceBoard({ tiles, completions, teams, activeTeamId, onTileClick, dropProgress, statProgress, expanded, matchedTileIds, raceLayout = 'full', raceFit = false }: TileRaceBoardProps) {
   // 'track': the event page's Race track card — strip, map, legend, tiles. Up next and the standings
   // are page sections there (components/board/RaceEventSections). 'full': everything in one card.
   const full = raceLayout !== 'track';
@@ -107,7 +107,7 @@ export default function BranchingRaceBoard({ tiles, completions, teams, activeTe
   const mapTeams = teams.map((t) => ({ ...t, path: routes.get(t.id)?.path ?? [] }));
 
   return (
-    <div className={cn('w-full mx-auto p-3 sm:p-4 bg-brown-dark/50 rounded-xl border border-card-border space-y-4 min-w-0', expanded ? 'max-w-6xl' : 'max-w-4xl')}>
+    <div className={cn('w-full mx-auto p-3 sm:p-4 bg-brown-dark/50 rounded-xl border border-card-border space-y-4 min-w-0', raceLayout === 'track' ? 'max-w-none' : expanded ? 'max-w-6xl' : 'max-w-4xl')}>
       <FieldStrip variant={variant} standings={standings} steps={steps} teamById={teamById} viewer={viewer} />
 
       {full && route && !route.finished && (route.open.length > 0 || route.pickFrom.length > 0) && (
@@ -137,6 +137,10 @@ export default function BranchingRaceBoard({ tiles, completions, teams, activeTe
         progress={progress}
         matched={matchedTileIds ?? null}
         stepLabel={(s) => stepTitle(graph, s)}
+        lockedIds={route ? new Set(route.pickFrom) : undefined}
+        youTileId={route && route.path.length ? route.path[route.path.length - 1] : null}
+        youNotStarted={!!route && route.path.length === 0}
+        fit={raceFit}
       />
       <RouteMapLegend withTeam={!!route} />
 
@@ -171,6 +175,16 @@ export default function BranchingRaceBoard({ tiles, completions, teams, activeTe
 
 // ---- The field strip ------------------------------------------------------------------------------
 
+/**
+ * The field's buckets in the map's own words: a team that has done i steps has finished "Step i"
+ * (0 = not started yet; all of them = finished).
+ */
+export function bucketLabel(i: number, steps: number): string {
+  if (i === 0) return 'Not started';
+  if (i >= steps) return 'Finished';
+  return `Step ${i}`;
+}
+
 function FieldStrip({ variant, standings, steps, teamById, viewer }: { variant: 'few' | 'medium' | 'huge'; standings: RaceStanding[]; steps: number; teamById: Map<number, { id: number; name: string; color: string }>; viewer: number | null }) {
   if (!standings.length) return null;
   if (variant === 'few') {
@@ -199,7 +213,7 @@ function FieldStrip({ variant, standings, steps, teamById, viewer }: { variant: 
             </div>
           ))}
         </div>
-        <div className="flex justify-between text-[10px] text-text-muted mt-0.5"><span>Start</span><span>Finish · {steps}</span></div>
+        <div className="flex justify-between text-[10px] text-text-muted mt-0.5"><span>Not started</span><span>Finished · {steps} steps</span></div>
       </section>
     );
   }
@@ -212,14 +226,14 @@ function FieldStrip({ variant, standings, steps, teamById, viewer }: { variant: 
         <div className="overflow-x-auto">
           <div className="flex items-end gap-1.5 min-w-max">
             {columns.map((col, i) => (
-              <div key={i} className="flex flex-col items-center gap-1 w-9">
+              <div key={i} className="flex flex-col items-center gap-1 w-16">
                 <div className="flex flex-col-reverse items-center gap-0.5 min-h-[20px]">
                   {col.map((s) => {
                     const t = teamById.get(s.teamId)!;
                     return <span key={s.teamId} title={t.name} className={cn('w-3 h-3 rounded-full border border-[#141010]', s.teamId === viewer && 'ring-2 ring-gold')} style={{ backgroundColor: t.color }} />;
                   })}
                 </div>
-                <span className="text-[10px] text-text-muted tabular-nums">{i === 0 ? 'Start' : i}</span>
+                <span className="text-[10px] text-text-muted whitespace-nowrap">{bucketLabel(i, steps)}</span>
               </div>
             ))}
           </div>
@@ -235,10 +249,10 @@ function FieldStrip({ variant, standings, steps, teamById, viewer }: { variant: 
       <div className="overflow-x-auto">
         <div className="flex items-end gap-1 min-w-max h-28">
           {columns.map((col, i) => (
-            <div key={i} className="flex flex-col items-center justify-end gap-1 w-10 h-full">
+            <div key={i} className="flex flex-col items-center justify-end gap-1 w-16 h-full">
               <span className={cn('text-[10px] tabular-nums', i === mineAt ? 'text-gold font-semibold' : 'text-text-muted')}>{col.length}{i === mineAt ? ' · you' : ''}</span>
               <div className={cn('w-6 rounded-t', i === mineAt ? 'bg-gold' : 'bg-[#4a3d30]')} style={{ height: `${Math.max(2, (col.length / max) * 72)}px` }} />
-              <span className="text-[10px] text-text-muted">{i === 0 ? 'Start' : i}</span>
+              <span className="text-[10px] text-text-muted whitespace-nowrap">{bucketLabel(i, steps)}</span>
             </div>
           ))}
         </div>
@@ -383,7 +397,7 @@ export function RaceTileList({ graph, route, tileById, onTileClick, teamName }: 
               >
                 <span className={cn('w-8 h-8 rounded-full bg-[#1c1714] border-2 flex items-center justify-center shrink-0', st === 'open' ? 'border-dashed border-gold' : st === 'done' ? 'border-gold' : 'border-[#332a22]')}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {t?.icon ? <img src={t.icon} alt="" className="w-5 h-5 object-contain" style={{ imageRendering: 'pixelated' }} /> : <span className="text-[10px] text-text-muted">{n.step + 1}</span>}
+                  {t?.icon ? <img src={t.icon} alt="" className="w-5 h-5 object-contain" style={{ imageRendering: 'pixelated' }} /> : <span className="text-[10px] text-text-muted">{tileInitials(t?.label ?? '')}</span>}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className={cn('block text-sm truncate', st === 'open' || st === 'done' ? 'text-foreground' : 'text-text-muted')}>{t?.label ?? `Tile ${n.id}`}</span>
