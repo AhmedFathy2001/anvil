@@ -382,12 +382,30 @@ function ReadyRow({
         <span className="block text-sm font-medium">{title}</span>
         <span className="block text-xs text-text-muted">{detail}</span>
       </span>
-      <ClanLink
-        href={href}
-        className="px-2.5 py-1 text-xs rounded-lg border border-card-border hover:border-gold/50 hover:text-gold transition-colors whitespace-nowrap"
-      >
-        {action}
-      </ClanLink>
+      {href.includes('#') ? (
+        // A section on this same page: a router link to the URL we're already on only changes the
+        // hash and scrolls nothing (the admin shell scrolls its own pane), so jump to it directly.
+        <a
+          href={`#${href.split('#')[1]}`}
+          onClick={(e) => {
+            const el = document.getElementById(href.split('#')[1]);
+            if (!el) return;
+            e.preventDefault();
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            history.replaceState(null, '', `#${href.split('#')[1]}`);
+          }}
+          className="px-2.5 py-1 text-xs rounded-lg border border-card-border hover:border-gold/50 hover:text-gold transition-colors whitespace-nowrap"
+        >
+          {action}
+        </a>
+      ) : (
+        <ClanLink
+          href={href}
+          className="px-2.5 py-1 text-xs rounded-lg border border-card-border hover:border-gold/50 hover:text-gold transition-colors whitespace-nowrap"
+        >
+          {action}
+        </ClanLink>
+      )}
     </div>
   );
 }
