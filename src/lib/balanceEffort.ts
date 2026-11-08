@@ -22,6 +22,10 @@ import { expectedCollectionHours, type DropEffortAction, type DropEffortRequirem
 import { parseTileEffortConfig, type TileRaidEffortConfig } from '@/lib/tileEffortConfig';
 import { isMissionTile } from '@/lib/eventRules';
 import { trialRankLevel } from '@/lib/barracudaTrials';
+import { xpPerHourAt } from '@/lib/efficiency';
+import { expectedKillsForAll, itemChance } from '@/lib/dropOdds';
+import { clogTileGroups, clogTileItemIds, clogTileSpec } from '@/lib/clogTiles';
+import { clogItemNames } from '@/lib/clogDataset';
 
 export type Triplet = [number, number, number]; // fast, average, slow
 export type Floor = 'anyone' | 'mid' | 'high' | 'elite';
@@ -199,11 +203,32 @@ const SOURCED_ACTIVITIES: Record<string, ActivityRate> = (() => {
   return out;
 })();
 
+/**
+ * XP rates, sourced: each skill's [fast, average, slow] XP/hour is our wiki-built band rate
+ * (src/data/hourRates.json) at the level a fast / average / slow player is likely training at.
+ * A skill tile asks for an amount of XP, not a level, so the band stands in for "where on the curve
+ * the team is". Floors stay curated; the admin override still wins over both.
+ */
+const LIKELY_LEVELS: Triplet = [90, 75, 60];
+const SOURCED_SKILLS: Record<string, SkillRate> = (() => {
+  const curated = (defaultRates as unknown as BalanceRates).skills;
+  const out: Record<string, SkillRate> = {};
+  for (const [skill, base] of Object.entries(curated)) {
+    const key = skill === 'runecrafting' ? 'runecraft' : skill;
+    const triplet = LIKELY_LEVELS.map((lvl) => xpPerHourAt(key, lvl)) as (number | null)[];
+    if (triplet.some((r) => r == null || !(r > 0))) continue;
+    // Sorted descending: fast ≥ average ≥ slow, whatever the bands do.
+    out[skill] = { ...base, xpPerHour: (triplet as number[]).slice().sort((a, b) => b - a) as Triplet };
+  }
+  return out;
+})();
+
 /** Shallow-merge admin overrides (settings `balance_rates`) over the sourced + curated defaults. */
 export function mergeRates(overrides: unknown): BalanceRates {
   const curatedBase = defaultRates as unknown as BalanceRates;
   const base: BalanceRates = {
     ...curatedBase,
+    skills: { ...curatedBase.skills, ...SOURCED_SKILLS },
     activities: { ...curatedBase.activities, ...SOURCED_ACTIVITIES },
   };
   if (!overrides || typeof overrides !== 'object') return base;
@@ -803,6 +828,8 @@ function estimateTile(
     };
   }
 
+  if (type === 'collection') return estimateClogTile(tile, rates, resolveDrops, raidConfig);
+
   if (type === 'lms') {
     const cap = Math.max(1, tile.timeThresholdSeconds ?? 1);
     const games = Math.max(1, tile.requiredAmount ?? 1);
@@ -824,6 +851,84 @@ function estimateTile(
     valuetotal: 'haul-value odds not modelled yet',
   };
   return { hours: null, floor: 'anyone', note: UNMODELLED[type] ?? 'not modelled' };
+}
+
+/**
+ * Collection-log tiles, priced from drop rates. Each candidate item takes its best source (the one
+ * with the lowest expected player-hours per drop, from the drop rate ÷ kill rate). Then:
+ *   slots     the N cheapest items;
+ *   complete  the cheapest `required` pages, every item on each.
+ * Items sharing a source are farmed together, so a source's cost is the expected kills until ALL of
+ * its chosen items have dropped (lib/dropOdds expectedKillsForAll) × its time per kill; sources add.
+ * It prices a fresh log — anything already owned only makes the tile cheaper, which the note says.
+ */
+const MAX_CLOG_PRICED_ITEMS = 2000;
+function estimateClogTile(
+  tile: Tile,
+  rates: BalanceRates,
+  resolveDrops: DropResolver,
+  raidConfig: TileRaidEffortConfig | null,
+): { hours: Triplet | null; floor: Floor; note: string | null; campers?: number } {
+  const spec = clogTileSpec(tile);
+  type Priced = { id: number; source: DropSource; kt: KillTriplet; q: number; perKill: Triplet; avgHours: number };
+  const priced = new Map<number, Priced>();
+  const price = (id: number): Priced | null => {
+    if (priced.has(id)) return priced.get(id)!;
+    let best: Priced | null = null;
+    for (const source of sourcesForItem(id, null, resolveDrops, raidConfig)) {
+      const kt = killTripletForDropSource(rates, source, raidConfig);
+      const { party, typical } = raidParty(source, tile, kt);
+      const q = partyHitChance(itemChance({ denominator: source.d, rolls: source.rolls }), typical);
+      if (!(q > 0)) continue;
+      const perKill = kt.sec.map((sec) => (sec / 3600) * party * kt.lootSplit) as Triplet;
+      const avgHours = perKill[1] / q;
+      if (!best || avgHours < best.avgHours) best = { id, source, kt, q, perKill, avgHours };
+    }
+    if (best) priced.set(id, best);
+    return best;
+  };
+
+  let chosen: Priced[] = [];
+  if (spec.mode === 'complete') {
+    const groups = clogTileGroups(spec)
+      .map((g) => {
+        const items = g.items.map(price);
+        return items.every(Boolean) ? (items as Priced[]) : null;
+      })
+      .filter((g): g is Priced[] => !!g)
+      .sort((a, b) => a.reduce((t, i) => t + i.avgHours, 0) - b.reduce((t, i) => t + i.avgHours, 0));
+    if (groups.length < spec.required) {
+      return { hours: null, floor: 'anyone', note: 'some pages hold items without a known drop rate' };
+    }
+    chosen = groups.slice(0, spec.required).flat();
+  } else {
+    const pool = clogTileItemIds(spec) ?? new Set(clogItemNames().keys());
+    const items = [...pool].slice(0, MAX_CLOG_PRICED_ITEMS).map(price).filter((p): p is Priced => !!p);
+    if (items.length < spec.required) {
+      return { hours: null, floor: 'anyone', note: 'not enough of these items have a known drop rate' };
+    }
+    chosen = items.sort((a, b) => a.avgHours - b.avgHours).slice(0, spec.required);
+  }
+
+  const bySource = new Map<string, Priced[]>();
+  for (const item of chosen) {
+    const key = `${item.source.bossKey ?? ''}\u0000${item.source.source.toLowerCase()}`;
+    bySource.set(key, [...(bySource.get(key) ?? []), item]);
+  }
+  const hours: Triplet = [0, 0, 0];
+  let floor: Floor = 'anyone';
+  let defaulted = false;
+  let campers = 1;
+  for (const items of bySource.values()) {
+    // Per-kill chances are already final (rolls and party applied): feed them back as 1-in-(1/q).
+    const kills = expectedKillsForAll(items.map((i) => ({ denominator: 1 / i.q })));
+    for (let b = 0; b < 3; b++) hours[b] += kills * items[0].perKill[b];
+    floor = maxFloor(floor, items[0].kt.floor);
+    defaulted = defaulted || items[0].kt.defaulted;
+    campers = Math.max(campers, raidParty(items[0].source, tile, items[0].kt).party);
+  }
+  const notes = ['priced for a fresh log; owned slots make it cheaper', defaulted ? 'generic kill time used for some sources' : null].filter(Boolean);
+  return { hours, floor, note: notes.join('; '), campers };
 }
 
 // P(X ≥ n) for X ~ Poisson(lambda): the chance a tile needing n successes lands inside the

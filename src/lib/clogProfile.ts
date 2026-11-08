@@ -1,5 +1,7 @@
 import { clogItemNames, clogPageItems, clogPageNames, clogTotalSlots } from '@/lib/clogDataset';
 import { assessLuckAt, chancePerKill, type LuckAssessment } from '@/lib/clogLuck';
+import { unlockLuck } from '@/lib/clogRarity';
+import type { KillLuckRead } from '@/lib/dropOdds';
 
 /** Centiseconds → the way the game writes a time: 1:23.40, or 12:04:31.20 for a long one. */
 export function formatPersonalBest(centis: number): string {
@@ -55,6 +57,8 @@ export interface RecentUnlock {
   pageName: string;
   at: string;
   kcAtUnlock: number | null;
+  /** Expected vs actual kills for a rare unlock (lib/clogRarity unlockLuck). */
+  luck: KillLuckRead | null;
 }
 
 export interface ClogProfileView {
@@ -109,6 +113,7 @@ export function buildClogProfile(args: {
       pageName: i.pageName,
       at: i.firstSeenAt,
       kcAtUnlock: i.kcAtUnlock,
+      luck: unlockLuck(i.itemId, i.kcAtUnlock),
     }));
 
   return {

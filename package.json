@@ -179,6 +179,7 @@
     "test:weeklymetric": "npx tsx --test tests/weekly-metric.test.ts",
     "test:records": "npx tsx --test --test-concurrency=1 tests/records-rules.test.ts tests/records-db.test.ts",
     "test:efficienthours": "npx tsx --test tests/efficient-hours.test.ts",
+    "test:dropodds": "npx tsx --test tests/drop-odds.test.ts",
     "test:weekly": "node --experimental-strip-types --test tests/competition-insights.test.ts",
     "test:cards": "npx tsx --test tests/event-cards.test.ts",
     "test:awards": "node --experimental-strip-types --test tests/competition-awards.test.ts",
