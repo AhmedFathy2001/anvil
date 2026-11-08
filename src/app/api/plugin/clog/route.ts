@@ -479,22 +479,17 @@ async function ingestWholeLog(
   // SQLite takes a bounded number of bound parameters per statement, so a first sync — the one case
   // that really is ~1,700 rows — still goes up in chunks. The conflict clause covers a row we didn't
   // know we held: one duplicate must not throw away the whole sync.
-  for (let i = 0; i < added.length; i += INSERT_CHUNK) {
+  // Changed rows ride the same upsert: on conflict it sets exactly page and quantity, which is all a
+  // change is — one statement per chunk instead of one UPDATE per row.
+  const upserts = [...added, ...changed];
+  for (let i = 0; i < upserts.length; i += INSERT_CHUNK) {
     await db
       .insert(memberClogItems)
-      .values(added.slice(i, i + INSERT_CHUNK))
+      .values(upserts.slice(i, i + INSERT_CHUNK))
       .onConflictDoUpdate({
         target: [memberClogItems.accountId, memberClogItems.itemId],
         set: { pageName: sql`excluded.page_name`, quantity: sql`excluded.quantity` },
       });
-  }
-  for (const row of changed) {
-    await db
-      .update(memberClogItems)
-      .set({ pageName: row.pageName, quantity: row.quantity })
-      .where(
-        and(eq(memberClogItems.accountId, member.accountId), eq(memberClogItems.itemId, row.itemId)),
-      );
   }
 
   // Persist any counters this push carried. They're the freshest reading of the game's own counter

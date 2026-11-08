@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import DraftPlayerPool from '@/components/DraftPlayerPool';
 import DraftStatus from '@/components/DraftStatus';
 import DraftRosters from '@/components/DraftRosters';
 import PlayerStatsPanel from '@/components/PlayerStatsPanel';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import { useVisiblePoll } from '@/hooks/useVisiblePoll';
 
 interface Event {
   id: number;
@@ -61,11 +62,7 @@ export default function DraftSpectatorClient({ event }: Props) {
     }
   }, [event.id]);
 
-  useEffect(() => {
-    fetchDraft();
-    const interval = setInterval(fetchDraft, 2500);
-    return () => clearInterval(interval);
-  }, [fetchDraft]);
+  useVisiblePoll(fetchDraft, 2500);
 
   if (!draft) {
     return (

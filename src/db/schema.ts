@@ -1224,6 +1224,7 @@ export const eventParticipants = pgTable('event_participants', {
     .where(sql`account_id is not null`),
   index('players_event_id_idx').on(table.eventId),
   index('players_event_team_idx').on(table.eventId, table.teamId),
+  index('players_team_id_idx').on(table.teamId),
   index('players_clan_member_id_idx').on(table.clanMemberId),
 ]);
 

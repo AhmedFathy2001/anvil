@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ControlTeam, DraftControl } from '@/lib/draftControl';
 import { clanFetch } from '@/lib/clanFetch';
+import { useVisiblePoll } from '@/hooks/useVisiblePoll';
 
 // Staff steering for a draft that's already running.
 //
@@ -69,11 +70,7 @@ export default function DraftControlPanel({
     }
   }, [eventId]);
 
-  useEffect(() => {
-    void load();
-    const id = setInterval(load, POLL_MS);
-    return () => clearInterval(id);
-  }, [load]);
+  useVisiblePoll(load, POLL_MS);
 
   const act = useCallback(
     async (key: string, body: Record<string, unknown>) => {

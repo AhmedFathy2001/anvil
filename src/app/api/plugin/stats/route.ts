@@ -5,7 +5,7 @@ import { foreignOr } from '@/lib/pluginForeign';
 import { db } from '@/db';
 import { eventParticipants, tiles, events, clanRoster, weeklyParticipants } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { pluginParticipantScope, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import { applyAccountPush, isEmptyPush, readPushed, type PushBody } from '@/lib/accountPush';
 import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
@@ -182,13 +182,17 @@ export async function POST(request: Request) {
     const activeComps = (
       await ttlMemo(`active-weekly-metrics:${clan.id}`, () => getActiveWeeklyMetrics(clan.id), 15_000)
     ).filter((c) => metricKeys(c.metric).some((k) => updatedKeys.has(k)));
+    // This member's seat in every matching comp, in one read.
+    const seats = activeComps.length === 0 ? [] : await db
+      .select()
+      .from(weeklyParticipants)
+      .where(and(
+        inArray(weeklyParticipants.competitionId, activeComps.map((c) => c.id)),
+        eq(weeklyParticipants.clanMemberId, member.clanMemberId),
+      ));
+    const seatByComp = new Map(seats.map((p) => [p.competitionId, p]));
     for (const comp of activeComps) {
-      const participant = await db.query.weeklyParticipants.findFirst({
-        where: and(
-          eq(weeklyParticipants.competitionId, comp.id),
-          eq(weeklyParticipants.clanMemberId, member.clanMemberId),
-        ),
-      });
+      const participant = seatByComp.get(comp.id);
       if (!participant) continue; // not enrolled yet — the lifecycle cron enrolls + the sweep baselines
       // A raid across its modes needs every mode in the overlay to be whole; otherwise the sweep has it.
       const value = liveMetricValue(comp.type as CompetitionType, comp.metric, live);

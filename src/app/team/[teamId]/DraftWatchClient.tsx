@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
+import { useVisiblePoll } from '@/hooks/useVisiblePoll';
 
 // What a player sees while the draft runs.
 //
@@ -47,12 +48,7 @@ export default function DraftWatchClient({
     }
   }, [eventId]);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- polling an external system
-    void fetchDraft();
-    const id = setInterval(fetchDraft, POLL_MS);
-    return () => clearInterval(id);
-  }, [fetchDraft]);
+  useVisiblePoll(fetchDraft, POLL_MS);
 
   const me = useMemo(
     () => (myPlayerId != null ? draft?.players.find((p) => p.id === myPlayerId) ?? null : null),

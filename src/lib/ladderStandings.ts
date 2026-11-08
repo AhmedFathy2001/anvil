@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { tiles, teams, completions, submissions, eventParticipants, players } from '@/db/schema';
+import { tiles, teams, completions, submissions, eventParticipants } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import {
   computeIndividualStandings,
@@ -45,9 +45,11 @@ export async function getLadderBoards(
    */
   window?: { start: string; end: string },
 ): Promise<LadderBoards> {
-  const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
-  const eventTeams = await db.select().from(teams).where(eq(teams.eventId, event.id));
-  const eventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, event.id));
+  const [eventTiles, eventTeams, eventPlayers] = await Promise.all([
+    db.select().from(tiles).where(eq(tiles.eventId, event.id)),
+    db.select().from(teams).where(eq(teams.eventId, event.id)),
+    db.select().from(eventParticipants).where(eq(eventParticipants.eventId, event.id)),
+  ]);
   const ownerByPlayerId = await loadPlayerOwners(eventPlayers);
   const perPerson = event.accountSlotMode === 'per-person';
   const tileIds = eventTiles.map((t) => t.id);
@@ -55,9 +57,23 @@ export async function getLadderBoards(
     return { allTime: [], monthly: [], ownerByPlayerId, perPerson };
   }
 
-  const tileIdSet = new Set(tileIds);
-  const allCompletions = (await db.select().from(completions))
-    .filter((c) => tileIdSet.has(c.tileId))
+  // This event's completions only (completions_tile_id_idx): this runs on every ladder config read
+  // and every live-push team view, so it must never scan the whole table.
+  const [completionRows, eventSubmissions, statStandings] = await Promise.all([
+    db.select().from(completions).where(inArray(completions.tileId, tileIds)),
+    db
+      .select({
+        tileId: submissions.tileId,
+        teamId: submissions.teamId,
+        creditPlayerId: submissions.creditPlayerId,
+        goal: submissions.goal,
+        amount: submissions.amount,
+      })
+      .from(submissions)
+      .where(inArray(submissions.tileId, tileIds)),
+    getStatStandings(event.id),
+  ]);
+  const allCompletions = completionRows
     .map((c) => ({
       id: c.id,
       teamId: c.teamId,
@@ -67,18 +83,6 @@ export async function getLadderBoards(
       awardedPoints: c.awardedPoints,
     }));
 
-  const eventSubmissions = await db
-    .select({
-      tileId: submissions.tileId,
-      teamId: submissions.teamId,
-      creditPlayerId: submissions.creditPlayerId,
-      goal: submissions.goal,
-      amount: submissions.amount,
-    })
-    .from(submissions)
-    .where(inArray(submissions.tileId, tileIds));
-
-  const statStandings = await getStatStandings(event.id);
   const statGains: StatGainMap = {};
   for (const s of statStandings) {
     statGains[s.tileId] = s.players.map((pl) => ({ playerId: pl.playerId, gained: pl.gained }));
