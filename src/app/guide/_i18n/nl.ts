@@ -249,6 +249,12 @@ const nl: PartialGuideDict = {
         blurb: 'Een wekelijkse wedstrijd inplannen, herhalen en laten roteren, startlijnen, prijzen, vroegtijdig stoppen, en wat spelers zien.',
         minutes: '~4 min',
       },
+      teamComps: {
+        "eyebrow": "Voor clanstaff en spelers",
+        "title": "Teamwedstrijden",
+        "blurb": "Skill- en bosswedstrijden als teams of clan tegen clan: opzetten, clans uitnodigen, hoe totalen en gemiddelden werken en wat spelers zien.",
+        "minutes": "~4 min"
+      },
       clanEvents: {
         eyebrow: 'Voor clanstaf',
         title: 'Clanevents en de planning',
@@ -1385,6 +1391,8 @@ const nl: PartialGuideDict = {
     ],
     footnote:
       'De schermafbeeldingen komen uit een echte opzet op een testbord — uitnodigingstokens en Discord-namen zijn onleesbaar gemaakt. Een echte link is het bewaken waard: iedereen die hem heeft, kan een plek in dat team pakken zolang hij actief is.',
+
+    teamCompsLine: "Wil je dat clans juist op skills of bosses racen? Zie [Teamwedstrijden]({teamCompsGuide}).",
 
     shape: {
       title: 'Wat je hier opzet',
@@ -4423,7 +4431,125 @@ const nl: PartialGuideDict = {
         'Met de plugin spelen houdt je getal live. Zonder de plugin tel je ook mee, alleen in het tempo van de hiscores.',
       ],
     },
+    teamsLine: "Wil je teams, of clans die tegen elkaar racen, op een skill of boss? Zet de **Format** wanneer je het plant. Zie [Teamwedstrijden]({teamCompsGuide}).",
   },
+  teamComps: {
+    "metaTitle": "Teamwedstrijden — Anvil",
+    "metaDescription": "Laat een Skill- of Boss of the Week spelen als teams of clan tegen clan op Anvil: spelers in teams verdelen, andere clans uitnodigen, hoe totalen en gemiddelden scoren, late deelnemers en wat spelers zien.",
+    "eyebrow": "Anvil · voor clanstaff en spelers",
+    "title": "Teamwedstrijden",
+    "dek": "Elke skill- of bosswedstrijd heeft een Format. Solo is de standaard en werkt zoals altijd. Kies Teams om je clan in groepen te splitsen, of Clan vs clan om andere clans te laten racen op dezelfde skill of boss.",
+    "facts": [
+      {
+        "strong": "Drie formats",
+        "rest": "Solo, Teams, Clan vs clan"
+      },
+      {
+        "strong": "Totalen beslissen",
+        "rest": "met een gemiddelde per speler"
+      },
+      {
+        "strong": "Eén host bewerkt",
+        "rest": "partnerclans kijken mee"
+      }
+    ],
+    "footnote": "De basis van Skill and Boss of the Week staat in [Skill and Boss of the Week]({weeklyGuide}). Wil je dat clans op bingoborden racen? Zie dan [Een bezoekende clan hosten]({clanVsClanGuide}).",
+    "teams": {
+      "title": "Teams instellen",
+      "intro": "Teams verdelen je eigen clan in groepen. Het duurt ongeveer een minuut:",
+      "steps": [
+        "Plan een wedstrijd zoals gewoonlijk. Zet **Format** op **Teams**.",
+        "Typ je teamnamen. Iedereen die is ingevoerd, wordt gelijkmatig verdeeld op basis van huidig level of KC, zodat de teams eerlijk beginnen.",
+        "Laat **Late joiners go into the smallest team** aan als spelers later kunnen instappen. Zet het uit om de teams vast te houden.",
+        "Wil je later iets wijzigen, open dan de wedstrijd en kies **Teams** in de admin-zijbalk. Daar kun je:"
+      ],
+      "rows": [
+        {
+          "term": "Hernoemen en van kleur veranderen",
+          "body": "geef elk team een naam en een kleur die spelers herkennen."
+        },
+        {
+          "term": "Teams toevoegen en verwijderen",
+          "body": "begin met twee en voeg een derde toe, of verwijder er een die je niet meer nodig hebt."
+        },
+        {
+          "term": "Een speler verplaatsen",
+          "body": "stuur iemand naar een ander team. Handig voor vrienden die samen willen spelen."
+        },
+        {
+          "term": "Auto-balance",
+          "body": "druk op **Auto-balance by current level/KC** om iedereen opnieuw gelijkmatig te verdelen."
+        },
+        {
+          "term": "Late joiners",
+          "body": "zet de optie voor late deelnemers aan of uit. Staat die aan, dan gaan nieuwe spelers naar het kleinste team."
+        }
+      ],
+      "note": {
+        "tag": "Geen team, geen probleem",
+        "body": "Een speler zonder team telt nog mee op het individuele bord. Die telt alleen niet mee in een teamtotaal."
+      },
+      "outro": "Een herhalende wedstrijd neemt zijn teams mee naar de volgende week en verdeelt ze opnieuw."
+    },
+    "clans": {
+      "title": "Clan vs clan instellen",
+      "intro": "Met clan vs clan kunnen andere clans meedoen aan je wedstrijd. Jij bent de host, de andere clans zijn partners.",
+      "steps": [
+        "Als admin of hoger in de hostclan zet je **Format** op **Clan vs clan**.",
+        "Nodig de andere clans uit via hun adres. Doe dit op het aanmaakformulier, of later op de **Clans**-pagina van de wedstrijd.",
+        "De eigenaar of admin van de uitgenodigde clan opent hun **People**-pagina en accepteert of weigert. Een moderator kan dat niet.",
+        "Zodra een clan accepteert, wordt de volledige ledenlijst ingeschreven en aan die clan gekoppeld."
+      ],
+      "body": [
+        "De partnerclan kan de stand volgen op de eigen site via `/c/<slug>/weekly/<id>`. Dat is alleen-lezen. Alleen de host bewerkt de wedstrijd.",
+        "Wil je een clan verwijderen, haal die dan weg op de **Clans**-pagina. Zijn spelers verdwijnen dan van het bord.",
+        "Een herhalende wedstrijd stuurt elke week nieuwe uitnodigingen, dus elke clan moet opnieuw ja zeggen."
+      ],
+      "note": {
+        "tag": "Deel het adres",
+        "body": "Het adres van een clan is de korte naam in zijn webadres. Vraag die aan de admin van de andere clan voordat je ze uitnodigt."
+      }
+    },
+    "scoring": {
+      "title": "Hoe er gescoord wordt",
+      "body": [
+        "Het totaal van een team of clan is de som van de gains van de leden. Gains worden op dezelfde manier geteld als op het individuele bord.",
+        "Naast elk totaal zie je ook een **average per player**, zodat een team van 8 en een team van 12 toch vergeleken kunnen worden.",
+        "Staan twee totalen gelijk, dan staat degene die het eerst bereikte hoger."
+      ]
+    },
+    "players": {
+      "title": "Wat spelers zien",
+      "body": [
+        "De wedstrijdpagina toont eerst de stand van de teams of clans. Open er een om de spelers te zien. Je eigen team of clan wordt gemarkeerd.",
+        "Discord-berichten bij de start, halverwege en aan het einde tonen de stand. Bij clan vs clan gaan ze naar het kanaal van elke clan, en dat van jou is gemarkeerd met **← you**.",
+        "In het zijpaneel van de plugin zie je waar je team staat.",
+        "Je hoeft je nergens voor aan te melden. Sta je op de ledenlijst, dan doe je mee."
+      ]
+    },
+    "faq": {
+      "title": "Vragen",
+      "rows": [
+        {
+          "term": "Onze teams zijn verschillend groot. Is dat oneerlijk?",
+          "body": "Op zich niet. Totalen bepalen de ranglijst, maar elk team toont ook een gemiddelde per speler, zodat je ziet hoe een kleiner team er echt voor staat."
+        },
+        {
+          "term": "Hoe zit het met mensen die later instappen?",
+          "body": "Met de late-joiner-optie aan gaan ze naar het kleinste team. Staat die uit, dan tellen ze alleen mee op het individuele bord. Je kunt ze altijd met de hand verplaatsen op de **Teams**-pagina."
+        },
+        {
+          "term": "Kan de andere clan onze wedstrijd bewerken?",
+          "body": "Nee. Partnerclans zien de stand alleen-lezen. Alleen de hostclan kan de wedstrijd wijzigen."
+        },
+        {
+          "term": "Als we het één keer afspreken, staan we dan elke week ingeschreven?",
+          "body": "Nee. Een herhalende wedstrijd stuurt elke week nieuwe uitnodigingen, en een eigenaar of admin moet elke uitnodiging accepteren."
+        }
+      ]
+    }
+  },
+
   clanEvents: {
     metaTitle: 'Clanevents en de planning — Anvil',
     metaDescription: 'Clanevents op Anvil plannen: massa’s, trips en meetups, wekelijkse herhalingen, “Ik ga” en aanmeldingen met plaatsen, vragen en kosten, Discord-berichten en herinneringen, uitbetalingen, enquêtes, en de planning die gaten toont.',

@@ -3,6 +3,7 @@
 import ChipsInput from '@/components/ChipsInput';
 import Checkbox from '@/components/Checkbox';
 import Select from '@/components/Select';
+import GuideLink from '@/components/GuideLink';
 import type { CompetitionMode } from '@/lib/competitionTeams';
 
 export interface WeeklyModeValue {
@@ -32,7 +33,10 @@ export default function WeeklyModeFields({ value, onChange }: { value: WeeklyMod
   return (
     <div className="space-y-3">
       <div>
-        <label className="block text-sm font-medium text-foreground/70 mb-1.5">Format</label>
+        <div className="mb-1.5 flex items-baseline justify-between gap-3">
+          <label className="block text-sm font-medium text-foreground/70">Format</label>
+          <GuideLink href="/guide/team-competitions">How team competitions work</GuideLink>
+        </div>
         <Select
           value={value.mode}
           onChange={(v) => onChange({ ...value, mode: (v as CompetitionMode) || 'solo' })}

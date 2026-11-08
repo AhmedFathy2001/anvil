@@ -246,6 +246,12 @@ const zhHans: PartialGuideDict = {
         blurb: '安排每周比赛、重复与轮换、起跑线、奖品、提前结束，以及玩家看到的内容。',
         minutes: '约 4 分钟',
       },
+      teamComps: {
+        "eyebrow": "面向 clan 管理员与玩家",
+        "title": "团队竞赛",
+        "blurb": "以团队或 clan 对 clan 形式进行的技能与 Boss 竞赛：如何设置、邀请其他 clan、总分与平均值如何计算，以及玩家能看到什么。",
+        "minutes": "~4 分钟"
+      },
       clanEvents: {
         eyebrow: '面向氏族工作人员',
         title: '氏族活动与日程',
@@ -1383,6 +1389,8 @@ const zhHans: PartialGuideDict = {
     ],
     footnote:
       '截图取自测试棋盘上的真实设置 —— 邀请令牌和 Discord 用户名都已打码。真正的链接值得看紧：只要它还有效，拿到它的任何人都能在那支队伍里占一个位置。',
+
+    teamCompsLine: "想让 clan 改为在技能或 Boss 上竞争？请参阅 [团队竞赛]({teamCompsGuide})。",
 
     shape: {
       title: '你正在搭建的东西',
@@ -4420,7 +4428,125 @@ const zhHans: PartialGuideDict = {
         '使用插件游玩会让你的数字保持实时。不使用插件，你仍然会被计入，只是速度与 hiscores 同步。',
       ],
     },
+    teamsLine: "想在技能或 Boss 上组队，或让 clan 相互竞争？安排时设置 **Format** 即可。请参阅 [团队竞赛]({teamCompsGuide})。",
   },
+  teamComps: {
+    "metaTitle": "团队竞赛 — Anvil",
+    "metaDescription": "在 Anvil 上以团队或 clan 对 clan 形式举办技能或 Boss 周赛：如何把玩家分成团队、邀请其他 clan、总分与平均值如何计分、迟到加入的玩家，以及玩家能看到什么。",
+    "eyebrow": "Anvil · 面向 clan 管理员与玩家",
+    "title": "团队竞赛",
+    "dek": "每个技能或 Boss 竞赛都有一个 Format。Solo 是默认选项，与以前一样运作。选择 Teams 可将你的 clan 分为几方，或选择 Clan vs clan，与其他 clan 在同一技能或 Boss 上比拼。",
+    "facts": [
+      {
+        "strong": "三种格式",
+        "rest": "Solo, Teams, Clan vs clan"
+      },
+      {
+        "strong": "总分决定胜负",
+        "rest": "并附每位玩家的平均值"
+      },
+      {
+        "strong": "一位主办方编辑",
+        "rest": "合作 clan 只能观看"
+      }
+    ],
+    "footnote": "技能与 Boss 周赛的基础内容见 [技能与 Boss 周赛]({weeklyGuide})。想让 clan 改在 bingo 面板上竞争？请参阅 [接待来访 clan]({clanVsClanGuide})。",
+    "teams": {
+      "title": "设置团队",
+      "intro": "Teams 会把你自己的 clan 分成几方。大约需要一分钟：",
+      "steps": [
+        "像平常一样安排竞赛。将 **Format** 设为 **Teams**。",
+        "输入团队名称。所有报名者会按当前等级或击杀数平均分配，使各方起点公平。",
+        "如果玩家可能在开始后加入，请保持 **Late joiners go into the smallest team** 开启。关闭则团队保持固定。",
+        "之后如需更改，请打开竞赛，并在其管理侧栏中选择 **Teams**。在那里你可以："
+      ],
+      "rows": [
+        {
+          "term": "重命名和更换颜色",
+          "body": "为每个团队设置名称和玩家能认出的颜色。"
+        },
+        {
+          "term": "添加和删除团队",
+          "body": "从两个开始，可添加第三个，或删除不再需要的团队。"
+        },
+        {
+          "term": "移动玩家",
+          "body": "把某人调到另一个团队。适合想一起玩的朋友。"
+        },
+        {
+          "term": "Auto-balance",
+          "body": "按 **Auto-balance by current level/KC** 重新平均分配所有人。"
+        },
+        {
+          "term": "Late joiners",
+          "body": "开启或关闭迟到加入选项。开启后，新玩家会加入人数最少的团队。"
+        }
+      ],
+      "note": {
+        "tag": "没有团队也没关系",
+        "body": "没有团队的玩家仍计入个人排行榜，只是不计入任何团队总分。"
+      },
+      "outro": "周期性竞赛会把团队延续到下一周，并重新平衡。"
+    },
+    "clans": {
+      "title": "设置 clan 对 clan",
+      "intro": "Clan 对 clan 允许其他 clan 加入你的竞赛。你是主办方，其他 clan 是合作方。",
+      "steps": [
+        "在主办 clan 中以管理员或更高权限，将 **Format** 设为 **Clan vs clan**。",
+        "通过地址邀请其他 clan。可在创建表单中操作，也可之后在竞赛的 **Clans** 页面操作。",
+        "受邀 clan 的 owner 或 admin 打开其 **People** 页面，接受或拒绝。版主不能操作。",
+        "clan 接受后，其全部名单都会被录入并标记为该 clan。"
+      ],
+      "body": [
+        "合作 clan 可在自己的网站上查看排名，地址为 `/c/<slug>/weekly/<id>`。该页面为只读，只有主办方可以编辑竞赛。",
+        "要移除某个 clan，请在 **Clans** 页面将其删除。其玩家会从面板上移除。",
+        "周期性竞赛每周都会发送新邀请，因此每个 clan 都必须重新同意。"
+      ],
+      "note": {
+        "tag": "分享地址",
+        "body": "clan 的地址是其网址中的简短名称。邀请之前，请向对方 clan 的管理员索取。"
+      }
+    },
+    "scoring": {
+      "title": "计分方式",
+      "body": [
+        "团队或 clan 总分是其成员收益之和。收益的统计方式与个人排行榜相同。",
+        "每个总分旁边还会显示 **average per player**，因此 8 人团队与 12 人团队仍可比较。",
+        "若两个总分相同，先达到该分数的一方排名更高。"
+      ]
+    },
+    "players": {
+      "title": "玩家能看到什么",
+      "body": [
+        "竞赛页面首先显示团队或 clan 排名。点开任意一个即可查看其玩家。你自己的团队或 clan 会被高亮显示。",
+        "开始、中途和结束时的 Discord 消息会显示排名。在 clan 对 clan 中，消息会发送到每个 clan 的频道，你的频道会标注 **← you**。",
+        "在插件侧边栏中，你可以看到自己团队的排名位置。",
+        "无需报名。只要在名单上，你就参加了。"
+      ]
+    },
+    "faq": {
+      "title": "常见问题",
+      "rows": [
+        {
+          "term": "我们的团队人数不同，这公平吗？",
+          "body": "本身并不影响。排名由总分决定，但每个团队也会显示每位玩家的平均值，因此你能看出人数较少的团队实际表现如何。"
+        },
+        {
+          "term": "迟到加入的人怎么办？",
+          "body": "开启迟到加入选项时，他们会加入人数最少的团队；关闭时，他们只计入个人排行榜。你随时可以在 **Teams** 页面手动调整。"
+        },
+        {
+          "term": "其他 clan 能编辑我们的竞赛吗？",
+          "body": "不能。合作 clan 只能只读查看排名，只有主办 clan 能更改竞赛。"
+        },
+        {
+          "term": "如果我们只同意一次，每周都会自动报名吗？",
+          "body": "不会。周期性竞赛每周都会发送新邀请，owner 或 admin 必须逐一接受。"
+        }
+      ]
+    }
+  },
+
   clanEvents: {
     metaTitle: '氏族活动与日程 — Anvil',
     metaDescription: '在 Anvil 上安排氏族活动：集合、旅行与聚会，每周重复，“I’m going”与带名额、问题和费用的报名，Discord 帖子与提醒，奖金发放，问卷，以及显示空档的日程。',

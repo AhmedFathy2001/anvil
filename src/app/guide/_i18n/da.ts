@@ -254,6 +254,12 @@ const da: PartialGuideDict = {
         blurb: 'Planlæg en ugentlig konkurrence, gentag og roter den, startlinjer, præmier, afslutning før tid og hvad spillerne ser.',
         minutes: '~4 min',
       },
+      teamComps: {
+        "eyebrow": "Til klanstaff og spillere",
+        "title": "Holdkonkurrencer",
+        "blurb": "Færdigheds- og bosskonkurrencer som hold eller klan mod klan: opsætning, invitation af klaner, hvordan summer og gennemsnit virker, og hvad spillerne ser.",
+        "minutes": "~4 min"
+      },
       clanEvents: {
         eyebrow: 'Til klanstaben',
         title: 'Klanevents og kalenderen',
@@ -1392,6 +1398,8 @@ const da: PartialGuideDict = {
     ],
     footnote:
       'Skærmbillederne er fra en rigtig opsætning på et testbræt — invitationstokens og Discord-navne er slørede. Et rigtigt link er værd at passe på: alle, der har det, kan tage en plads på det hold, så længe det er aktivt.',
+
+    teamCompsLine: "Vil du have klaner til at konkurrere på færdigheder eller bosser i stedet? Se [Holdkonkurrencer]({teamCompsGuide}).",
 
     shape: {
       title: 'Det, du er ved at sætte op',
@@ -4432,7 +4440,125 @@ const da: PartialGuideDict = {
         'At spille med pluginnet holder dit tal live. Uden det tæller du stadig, bare i hiscores’ tempo.',
       ],
     },
+    teamsLine: "Vil du have hold, eller klaner der konkurrerer mod hinanden, på en færdighed eller boss? Sæt **Format**, når du planlægger den. Se [Holdkonkurrencer]({teamCompsGuide}).",
   },
+  teamComps: {
+    "metaTitle": "Holdkonkurrencer — Anvil",
+    "metaDescription": "Kør en Skill eller Boss of the Week som hold eller klan mod klan på Anvil: opdel spillere i hold, inviter andre klaner, hvordan summer og gennemsnit giver point, sene tilmeldinger og hvad spillerne ser.",
+    "eyebrow": "Anvil · til klanstaff og spillere",
+    "title": "Holdkonkurrencer",
+    "dek": "Hver færdigheds- eller bosskonkurrence har et Format. Solo er standard og virker, som den altid har gjort. Vælg Teams for at dele din klan i sider, eller Clan vs clan for at konkurrere mod andre klaner om samme færdighed eller boss.",
+    "facts": [
+      {
+        "strong": "Tre formater",
+        "rest": "Solo, Teams, Clan vs clan"
+      },
+      {
+        "strong": "Summer afgør det",
+        "rest": "med et gennemsnit pr. spiller"
+      },
+      {
+        "strong": "Én vært redigerer",
+        "rest": "partnerklaner følger med"
+      }
+    ],
+    "footnote": "Grundlæggende om Skill and Boss of the Week findes i [Skill and Boss of the Week]({weeklyGuide}). Vil du have klaner til at konkurrere på bingobrætter i stedet? Se [Være vært for en besøgende klan]({clanVsClanGuide}).",
+    "teams": {
+      "title": "Opsæt hold",
+      "intro": "Teams deler din egen klan i sider. Det tager cirka et minut:",
+      "steps": [
+        "Planlæg en konkurrence som sædvanligt. Sæt **Format** til **Teams**.",
+        "Skriv dine holdnavne. Alle indtastede fordeles jævnt efter deres nuværende level eller KC, så siderne starter fair.",
+        "Lad **Late joiners go into the smallest team** være slået til, hvis folk må komme efter start. Slå den fra for at holde holdene faste.",
+        "Vil du ændre noget senere, så åbn konkurrencen og vælg **Teams** i dens admin-sidepanel. Der kan du:"
+      ],
+      "rows": [
+        {
+          "term": "Omdøb og skift farve",
+          "body": "giv hvert hold et navn og en farve, spillerne kan genkende."
+        },
+        {
+          "term": "Tilføj og slet hold",
+          "body": "start med to og tilføj et tredje, eller fjern et, du ikke længere har brug for."
+        },
+        {
+          "term": "Flyt en spiller",
+          "body": "send nogen til et andet hold. Praktisk for venner, der vil spille sammen."
+        },
+        {
+          "term": "Auto-balance",
+          "body": "tryk **Auto-balance by current level/KC** for at fordele alle jævnt igen."
+        },
+        {
+          "term": "Late joiners",
+          "body": "slå muligheden for sene tilmeldinger til eller fra. Når den er til, går nye spillere ind i det mindste hold."
+        }
+      ],
+      "note": {
+        "tag": "Intet hold, intet problem",
+        "body": "En spiller uden hold tæller stadig på den individuelle tavle. De lægger bare ikke noget til en holdtotal."
+      },
+      "outro": "En gentagen konkurrence overfører sine hold til næste uge og balancerer dem igen."
+    },
+    "clans": {
+      "title": "Opsæt klan mod klan",
+      "intro": "Clan vs clan lader andre klaner deltage i din konkurrence. Du er vært, og de andre klaner er partnere.",
+      "steps": [
+        "Som admin eller højere i værtsklanen sætter du **Format** til **Clan vs clan**.",
+        "Inviter de andre klaner med deres adresse. Gør det på oprettelsesformularen eller senere på konkurrencens **Clans**-side.",
+        "Den inviterede klans owner eller admin åbner deres **People**-side og accepterer eller afviser. En moderator kan ikke.",
+        "Når en klan accepterer, bliver hele dens roster tilmeldt og markeret med den klan."
+      ],
+      "body": [
+        "Partnerklanen kan følge stillingen på sin egen side på `/c/<slug>/weekly/<id>`. Den er skrivebeskyttet. Kun værten redigerer konkurrencen.",
+        "Vil du fjerne en klan, så fjern den på siden **Clans**. Dens spillere forsvinder fra tavlen.",
+        "En gentagen konkurrence sender nye invitationer hver uge, så hver klan skal sige ja igen."
+      ],
+      "note": {
+        "tag": "Del adressen",
+        "body": "En klans adresse er det korte navn i dens webadresse. Spørg den anden klans admin om det, før du inviterer dem."
+      }
+    },
+    "scoring": {
+      "title": "Sådan scorer det",
+      "body": [
+        "En hold- eller klantotal er summen af medlemmernes gevinster. Gevinster tælles på samme måde som på den individuelle tavle.",
+        "Ved siden af hver total ser du også et **average per player**, så et hold på 8 og et hold på 12 stadig kan sammenlignes.",
+        "Hvis to totaler er ens, rangerer den, der nåede dertil først, højere."
+      ]
+    },
+    "players": {
+      "title": "Hvad spillerne ser",
+      "body": [
+        "Konkurrencesiden viser hold- eller klanstillingen først. Åbn en af dem for at se dens spillere. Dit eget hold eller din klan er fremhævet.",
+        "Discord-opslag ved start, halvvejs og slut viser stillingen. I clan vs clan går de til hver klans kanal, og din er markeret med **← you**.",
+        "I plugin-sidepanelet kan du se, hvor dit hold placerer sig.",
+        "Der er intet at tilmelde sig. Står du på rosteren, er du med."
+      ]
+    },
+    "faq": {
+      "title": "Spørgsmål",
+      "rows": [
+        {
+          "term": "Vores hold er forskellig størrelse. Er det uretfærdigt?",
+          "body": "Ikke i sig selv. Totaler afgør rangeringen, men hvert hold viser også et gennemsnit pr. spiller, så du kan se, hvordan et mindre hold reelt klarer sig."
+        },
+        {
+          "term": "Hvad med folk, der kommer sent med?",
+          "body": "Med kontakten for sene tilmeldinger slået til går de ind i det mindste hold. Slået fra tæller de kun på den individuelle tavle. Du kan altid flytte dem manuelt på siden **Teams**."
+        },
+        {
+          "term": "Kan den anden klan redigere vores konkurrence?",
+          "body": "Nej. Partnerklaner ser stillingen skrivebeskyttet. Kun værtsklanen kan ændre konkurrencen."
+        },
+        {
+          "term": "Hvis vi siger ja én gang, er vi så tilmeldt hver uge?",
+          "body": "Nej. En gentagen konkurrence sender nye invitationer hver uge, og en owner eller admin skal acceptere hver enkelt."
+        }
+      ]
+    }
+  },
+
   clanEvents: {
     metaTitle: 'Klanevents og kalenderen — Anvil',
     metaDescription: 'Planlægning af klanevents på Anvil: masser, ture og samlinger, ugentlige gentagelser, “I’m going” og tilmeldinger med pladser, spørgsmål og gebyrer, Discord-opslag og påmindelser, udbetalinger, undersøgelser og kalenderen, der viser huller.',

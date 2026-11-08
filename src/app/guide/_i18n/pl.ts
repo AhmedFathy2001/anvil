@@ -248,6 +248,12 @@ const pl: PartialGuideDict = {
         blurb: 'Planowanie cotygodniowego konkursu, powtarzanie i rotowanie go, linie startowe, nagrody, wcześniejsze kończenie i to, co widzą gracze.',
         minutes: '~4 min',
       },
+      teamComps: {
+        "eyebrow": "Dla staffu klanu i graczy",
+        "title": "Konkurencje drużynowe",
+        "blurb": "Konkurencje w umiejętnościach i na bossów jako drużyny lub klan kontra klan: konfiguracja, zapraszanie klanów, jak liczą się sumy i średnie oraz co widzą gracze.",
+        "minutes": "~4 min"
+      },
       clanEvents: {
         eyebrow: 'Dla sztabu klanu',
         title: 'Wydarzenia klanowe i harmonogram',
@@ -1367,6 +1373,8 @@ const pl: PartialGuideDict = {
     ],
     footnote:
       'Zrzuty pochodzą z działającej konfiguracji na testowej planszy —— tokeny zaproszeń i nazwy z Discorda są zamazane. Prawdziwego linku warto pilnować: każdy, kto go ma, może zająć miejsce w tej drużynie, dopóki link żyje.',
+
+    teamCompsLine: "Chcesz, żeby klany ścigały się w umiejętnościach lub na bossach? Zobacz [Konkurencje drużynowe]({teamCompsGuide}).",
 
     shape: {
       title: 'Co właściwie przygotowujesz',
@@ -4404,7 +4412,125 @@ const pl: PartialGuideDict = {
         'Granie z pluginem utrzymuje twój wynik na żywo. Bez niego nadal się liczysz, tylko w tempie hiscores.',
       ],
     },
+    teamsLine: "Chcesz drużyny albo klany ścigające się w umiejętnościach lub na bossach? Ustaw **Format** przy planowaniu. Zobacz [Konkurencje drużynowe]({teamCompsGuide}).",
   },
+  teamComps: {
+    "metaTitle": "Konkurencje drużynowe — Anvil",
+    "metaDescription": "Uruchom Skill lub Boss of the Week jako drużyny albo klan kontra klan na Anvil: podział graczy na drużyny, zapraszanie innych klanów, jak sumy i średnie dają punkty, późno dołączający i co widzą gracze.",
+    "eyebrow": "Anvil · dla staffu klanu i graczy",
+    "title": "Konkurencje drużynowe",
+    "dek": "Każda konkurencja w umiejętnościach lub na bossa ma Format. Solo jest domyślne i działa jak zawsze. Wybierz Teams, aby podzielić klan na strony, albo Clan vs clan, aby ścigać się z innymi klanami w tej samej umiejętności lub na tego samego bossa.",
+    "facts": [
+      {
+        "strong": "Trzy formaty",
+        "rest": "Solo, Teams, Clan vs clan"
+      },
+      {
+        "strong": "Decydują sumy",
+        "rest": "ze średnią na gracza"
+      },
+      {
+        "strong": "Jeden gospodarz edytuje",
+        "rest": "klany partnerskie obserwują"
+      }
+    ],
+    "footnote": "Podstawy Skill and Boss of the Week są w [Skill and Boss of the Week]({weeklyGuide}). Chcesz, żeby klany ścigały się na planszach bingo? Zobacz [Goszczenie klanu gościa]({clanVsClanGuide}).",
+    "teams": {
+      "title": "Konfiguracja drużyn",
+      "intro": "Drużyny dzielą twój własny klan na strony. Zajmuje to około minuty:",
+      "steps": [
+        "Zaplanuj konkurencję jak zwykle. Ustaw **Format** na **Teams**.",
+        "Wpisz nazwy drużyn. Wszyscy wpisani zostaną równo podzieleni według obecnego poziomu lub KC, tak aby strony zaczęły uczciwie.",
+        "Zostaw **Late joiners go into the smallest team** włączone, jeśli gracze mogą dołączyć po starcie. Wyłącz, aby utrzymać stałe drużyny.",
+        "Aby coś zmienić później, otwórz konkurencję i wybierz **Teams** w panelu admina. Tam możesz:"
+      ],
+      "rows": [
+        {
+          "term": "Zmienić nazwę i kolor",
+          "body": "nadaj każdej drużynie nazwę i kolor, które gracze rozpoznają."
+        },
+        {
+          "term": "Dodawać i usuwać drużyny",
+          "body": "zacznij od dwóch i dodaj trzecią albo usuń tę, której już nie potrzebujesz."
+        },
+        {
+          "term": "Przenieść gracza",
+          "body": "przenieś kogoś do innej drużyny. Przydatne dla znajomych, którzy chcą grać razem."
+        },
+        {
+          "term": "Auto-balance",
+          "body": "naciśnij **Auto-balance by current level/KC**, aby ponownie równo rozdzielić wszystkich."
+        },
+        {
+          "term": "Późno dołączający",
+          "body": "włącz lub wyłącz opcję późnych graczy. Gdy jest włączona, nowi gracze dołączają do najmniejszej drużyny."
+        }
+      ],
+      "note": {
+        "tag": "Brak drużyny, brak problemu",
+        "body": "Gracz bez drużyny nadal liczy się na tablicy indywidualnej. Po prostu nie dodaje się do sumy żadnej drużyny."
+      },
+      "outro": "Powtarzająca się konkurencja przenosi drużyny na następny tydzień i równoważy je na nowo."
+    },
+    "clans": {
+      "title": "Konfiguracja klan kontra klan",
+      "intro": "Klan kontra klan pozwala innym klanom dołączyć do twojej konkurencji. Ty jesteś gospodarzem, a pozostałe klany partnerami.",
+      "steps": [
+        "Jako admin lub wyższa rola w klanie-gospodarzu ustaw **Format** na **Clan vs clan**.",
+        "Zaproś inne klany po ich adresie. Zrób to w formularzu tworzenia albo później na stronie **Clans** konkurencji.",
+        "Właściciel lub admin zaproszonego klanu otwiera swoją stronę **People** i akceptuje lub odrzuca. Moderator nie może tego zrobić.",
+        "Gdy klan zaakceptuje, cały jego skład zostaje zapisany i oznaczony tym klanem."
+      ],
+      "body": [
+        "Klan partnerski może śledzić wyniki na swojej stronie pod `/c/<slug>/weekly/<id>`. Jest to tylko do odczytu. Edytuje tylko gospodarz.",
+        "Aby usunąć klan, usuń go na stronie **Clans**. Jego gracze znikają z tablicy.",
+        "Powtarzająca się konkurencja wysyła nowe zaproszenia co tydzień, więc każdy klan musi znów się zgodzić."
+      ],
+      "note": {
+        "tag": "Udostępnij adres",
+        "body": "Adres klanu to krótka nazwa w jego adresie internetowym. Zapytaj admina drugiego klanu o nią, zanim go zaprosisz."
+      }
+    },
+    "scoring": {
+      "title": "Jak liczymy punkty",
+      "body": [
+        "Suma drużyny lub klanu to suma zdobyczy jej członków. Zdobycze liczy się tak samo jak na tablicy indywidualnej.",
+        "Obok każdej sumy widzisz też **average per player**, dzięki czemu drużynę z 8 osobami można porównać z drużyną z 12.",
+        "Jeśli dwie sumy są równe, wyżej w rankingu jest ta, która osiągnęła wynik wcześniej."
+      ]
+    },
+    "players": {
+      "title": "Co widzą gracze",
+      "body": [
+        "Strona konkurencji pokazuje najpierw tabelę drużyn lub klanów. Otwórz dowolną, aby zobaczyć jej graczy. Twoja drużyna lub klan jest wyróżniona.",
+        "Posty na Discordzie na starcie, w połowie i na końcu pokazują wyniki. W klan kontra klan trafiają na kanał każdego klanu, a twój jest oznaczony **← you**.",
+        "W bocznym panelu pluginu widzisz, gdzie plasuje się twoja drużyna.",
+        "Nie ma się czego zapisywać. Jeśli jesteś na liście, już bierzesz udział."
+      ]
+    },
+    "faq": {
+      "title": "Pytania",
+      "rows": [
+        {
+          "term": "Nasze drużyny mają różną wielkość. Czy to niesprawiedliwe?",
+          "body": "Samo w sobie nie. Ranking decydują sumy, ale każda drużyna pokazuje też średnią na gracza, więc widać, jak naprawdę radzi sobie mniejsza drużyna."
+        },
+        {
+          "term": "A co z osobami, które dołączą późno?",
+          "body": "Przy włączonej opcji późnych graczy trafiają do najmniejszej drużyny. Przy wyłączonej liczą się tylko na tablicy indywidualnej. Zawsze możesz przenieść ich ręcznie na stronie **Teams**."
+        },
+        {
+          "term": "Czy drugi klan może edytować naszą konkurencję?",
+          "body": "Nie. Klany partnerskie widzą wyniki tylko do odczytu. Zmieniać konkurencję może tylko klan gospodarz."
+        },
+        {
+          "term": "Jeśli zgodzimy się raz, czy jesteśmy zapisani co tydzień?",
+          "body": "Nie. Powtarzająca się konkurencja wysyła nowe zaproszenia co tydzień, a właściciel lub admin musi każde z nich zaakceptować."
+        }
+      ]
+    }
+  },
+
   clanEvents: {
     metaTitle: 'Wydarzenia klanowe i harmonogram — Anvil',
     metaDescription: 'Planowanie wydarzeń klanowych na Anvil: masówki, wyjazdy i spotkania, cotygodniowe powtórki, „I’m going” i zapisy z miejscami, pytaniami i opłatami, posty i przypomnienia na Discordzie, wypłaty, ankiety oraz harmonogram pokazujący luki.',

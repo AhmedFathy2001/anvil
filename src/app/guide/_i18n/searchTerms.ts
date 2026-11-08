@@ -165,6 +165,12 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
     'efficiency race', 'ehp', 'ehb', 'rotate', 'rotation', 'repeat every week', 'starting line', 'baseline',
     'baselines', 'end now', 'weekly prizes', 'xp race',
   ],
+  'team-competitions': [
+    'team competition', 'team competitions', 'teams', 'team sotw', 'team botw', 'team skill of the week',
+    'solo', 'invite a clan', 'invite clans', 'partner clan',
+    'auto-balance', 'balance teams', 'rebalance', 'late joiner', 'late joiners', 'average per player',
+    'team total', 'clan total', 'move a player', 'rename team', 'team colour', 'team color',
+  ],
   'clan-events': [
     'clan event', 'clan events', 'mass', 'masses', 'raid night', 'drop party', 'meetup', 'rsvp', "i'm going",
     'going', 'schedule', 'calendar', 'fill the gap', 'reminder', 'recurring', 'every week', 'sign-ups', 'spots',

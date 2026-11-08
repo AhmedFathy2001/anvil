@@ -249,6 +249,12 @@ const ptBr: PartialGuideDict = {
         blurb: 'Agendando uma competição semanal, repetindo e rotacionando, linhas de largada, prêmios, encerramento antecipado e o que os jogadores veem.',
         minutes: '~4 min',
       },
+      teamComps: {
+        "eyebrow": "Para a equipe do clã e jogadores",
+        "title": "Competições em equipe",
+        "blurb": "Competições de skill e de boss em equipes ou clã contra clã: como montar, convidar clãs, como funcionam os totais e as médias, e o que os jogadores veem.",
+        "minutes": "~4 min"
+      },
       clanEvents: {
         eyebrow: 'Para staff do clã',
         title: 'Eventos do clã e a agenda',
@@ -1369,6 +1375,8 @@ const ptBr: PartialGuideDict = {
     ],
     footnote:
       'As capturas vêm de uma instalação real num tabuleiro de teste —— os tokens de convite e os nomes do Discord estão borrados. Um link de verdade merece cuidado: quem estiver com ele pode ocupar um lugar naquele time enquanto ele viver.',
+
+    teamCompsLine: "Quer que clãs disputem em skills ou bosses? Veja [Competições em equipe]({teamCompsGuide}).",
 
     shape: {
       title: 'O que você está preparando',
@@ -4406,7 +4414,125 @@ const ptBr: PartialGuideDict = {
         'Jogar com o plugin mantém seu número ao vivo. Sem ele você ainda conta, só que na velocidade dos hiscores.',
       ],
     },
+    teamsLine: "Quer equipes, ou clãs disputando entre si, em um skill ou boss? Defina o **Format** ao agendar. Veja [Competições em equipe]({teamCompsGuide}).",
   },
+  teamComps: {
+    "metaTitle": "Competições em equipe — Anvil",
+    "metaDescription": "Rode um Skill ou Boss da Semana em equipes ou clã contra clã no Anvil: dividindo jogadores em equipes, convidando outros clãs, como os totais e as médias pontuam, quem entra atrasado e o que os jogadores veem.",
+    "eyebrow": "Anvil · para a equipe do clã e jogadores",
+    "title": "Competições em equipe",
+    "dek": "Toda competição de skill ou boss tem um Format. Solo é o padrão e funciona como sempre funcionou. Escolha Teams para dividir seu clã em lados, ou Clan vs clan para disputar com outros clãs no mesmo skill ou boss.",
+    "facts": [
+      {
+        "strong": "Três formatos",
+        "rest": "Solo, Teams, Clan vs clan"
+      },
+      {
+        "strong": "Os totais decidem",
+        "rest": "com uma média por jogador"
+      },
+      {
+        "strong": "Um anfitrião edita",
+        "rest": "clãs parceiros acompanham"
+      }
+    ],
+    "footnote": "Os básicos de Skill e Boss da Semana estão em [Skill e Boss da Semana]({weeklyGuide}). Quer que clãs disputem em tabuleiros de bingo? Veja [Recebendo um clã visitante]({clanVsClanGuide}).",
+    "teams": {
+      "title": "Montar equipes",
+      "intro": "Teams divide o seu próprio clã em lados. Leva cerca de um minuto:",
+      "steps": [
+        "Agende uma competição como de costume. Defina **Format** como **Teams**.",
+        "Digite os nomes das equipes. Todos os inscritos são divididos igualmente pelo nível atual ou pelo número de abates, para que os lados comecem equilibrados.",
+        "Deixe **Late joiners go into the smallest team** ligado se as pessoas puderem chegar depois do início. Desligue para manter as equipes fixas.",
+        "Para mudar algo depois, abra a competição e escolha **Teams** na barra lateral de admin. Lá você pode:"
+      ],
+      "rows": [
+        {
+          "term": "Renomear e mudar a cor",
+          "body": "dê a cada equipe um nome e uma cor que os jogadores reconheçam."
+        },
+        {
+          "term": "Adicionar e excluir equipes",
+          "body": "comece com duas e adicione uma terceira, ou remova uma que não precise mais."
+        },
+        {
+          "term": "Mover um jogador",
+          "body": "envie alguém para outra equipe. Útil para amigos que querem jogar juntos."
+        },
+        {
+          "term": "Auto-balance",
+          "body": "pressione **Auto-balance by current level/KC** para redistribuir todos igualmente."
+        },
+        {
+          "term": "Late joiners",
+          "body": "ligue ou desligue a opção de quem chega depois. Com ela ligada, novos jogadores entram na menor equipe."
+        }
+      ],
+      "note": {
+        "tag": "Sem equipe, sem problema",
+        "body": "Um jogador sem equipe continua contando no tabuleiro individual. Ele só não soma no total de nenhuma equipe."
+      },
+      "outro": "Uma competição recorrente leva suas equipes para a próxima semana e as equilibra de novo."
+    },
+    "clans": {
+      "title": "Montar clã contra clã",
+      "intro": "Clan vs clan permite que outros clãs entrem na sua competição. Você é o anfitrião, e os outros clãs são parceiros.",
+      "steps": [
+        "Como admin ou superior no clã anfitrião, defina **Format** como **Clan vs clan**.",
+        "Convide os outros clãs pelo endereço deles. Faça isso no formulário de criação ou depois, na página **Clans** da competição.",
+        "O dono ou admin do clã convidado abre a página **People** dele e aceita ou recusa. Um moderador não pode.",
+        "Quando um clã aceita, toda a lista dele é inscrita e marcada com esse clã."
+      ],
+      "body": [
+        "O clã parceiro pode acompanhar a classificação no próprio site em `/c/<slug>/weekly/<id>`. É somente leitura. Só o anfitrião edita a competição.",
+        "Para remover um clã, exclua-o na página **Clans**. Os jogadores dele saem do tabuleiro.",
+        "Uma competição recorrente envia convites novos toda semana, então cada clã precisa aceitar de novo."
+      ],
+      "note": {
+        "tag": "Compartilhe o endereço",
+        "body": "O endereço de um clã é o nome curto no endereço web dele. Peça ao admin do outro clã antes de convidá-lo."
+      }
+    },
+    "scoring": {
+      "title": "Como pontua",
+      "body": [
+        "O total de uma equipe ou clã é a soma dos ganhos dos membros. Os ganhos são contados do mesmo jeito que no tabuleiro individual.",
+        "Ao lado de cada total você também vê uma **average per player**, para que uma equipe de 8 e uma de 12 ainda possam ser comparadas.",
+        "Se dois totais empatarem, quem chegou lá primeiro fica em posição mais alta."
+      ]
+    },
+    "players": {
+      "title": "O que os jogadores veem",
+      "body": [
+        "A página da competição mostra primeiro a classificação das equipes ou clãs. Abra qualquer uma para ver seus jogadores. Sua própria equipe ou clã fica destacada.",
+        "Os posts no Discord no início, na metade e no fim mostram a classificação. Em clan vs clan, eles vão para o canal de cada clã, e o seu é marcado com **← you**.",
+        "No painel lateral do plugin, você vê em que posição sua equipe está.",
+        "Não há nada para se inscrever. Se você está na lista, você está dentro."
+      ]
+    },
+    "faq": {
+      "title": "Perguntas",
+      "rows": [
+        {
+          "term": "Nossas equipes têm tamanhos diferentes. Isso é injusto?",
+          "body": "Não por si só. Os totais decidem a classificação, mas cada equipe também mostra uma média por jogador, então dá para ver como uma equipe menor está realmente indo."
+        },
+        {
+          "term": "E quem entra depois?",
+          "body": "Com a opção de late joiners ligada, eles entram na menor equipe. Desligada, eles contam só no tabuleiro individual. Você sempre pode movê-los manualmente na página **Teams**."
+        },
+        {
+          "term": "O outro clã pode editar nossa competição?",
+          "body": "Não. Clãs parceiros veem a classificação somente para leitura. Só o clã anfitrião pode mudar a competição."
+        },
+        {
+          "term": "Se concordarmos uma vez, estamos inscritos toda semana?",
+          "body": "Não. Uma competição recorrente envia convites novos toda semana, e um owner ou admin precisa aceitar cada um."
+        }
+      ]
+    }
+  },
+
   clanEvents: {
     metaTitle: 'Eventos do clã e a agenda — Anvil',
     metaDescription: 'Como agendar eventos de clã no Anvil: massas, viagens e encontros, repetições semanais, “I’m going” e inscrições com vagas, perguntas e taxas, posts e lembretes no Discord, pagamentos, pesquisas e a agenda que mostra as lacunas.',

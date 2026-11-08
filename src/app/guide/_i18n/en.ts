@@ -258,6 +258,12 @@ export const en = {
         blurb: 'Scheduling a weekly competition, repeating and rotating it, starting lines, prizes, ending early, and what players see.',
         minutes: '~4 min',
       },
+      teamComps: {
+        eyebrow: 'For clan staff and players',
+        title: 'Team competitions',
+        blurb: 'Skill and boss competitions as teams or clan vs clan: setting them up, inviting clans, how totals and averages work, and what players see.',
+        minutes: '~4 min',
+      },
       clanEvents: {
         eyebrow: 'For clan staff',
         title: 'Clan events and the schedule',
@@ -1371,6 +1377,8 @@ export const en = {
     ],
     footnote:
       'Screenshots are from a live setup on a test board — invite tokens and Discord names are blanked out. A real link is worth guarding: anyone holding it can take a seat on that team while it is live.',
+
+    teamCompsLine: 'Want clans to race on skills or bosses instead? See [Team competitions]({teamCompsGuide}).',
 
     shape: {
       title: 'What you’re setting up',
@@ -4434,6 +4442,107 @@ export const en = {
         'You don’t sign up. If you are on the clan roster when it starts, you are in. Find it on your clan’s **Events** page, in the plugin side panel’s **Clan** tab with where you stand, and in Discord when it starts and ends.',
         'Each competition has its own page with the live leaderboard and how the race went day by day. A private clan shows it only to its own members.',
         'Playing with the plugin keeps your number live. Without it you still count, just at the speed of the hiscores.',
+      ],
+    },
+    teamsLine: 'Want teams, or clans racing each other, on a skill or boss? Set the **Format** when you schedule it. See [Team competitions]({teamCompsGuide}).',
+  },
+
+  teamComps: {
+    metaTitle: 'Team competitions — Anvil',
+    metaDescription:
+      'Run a Skill or Boss of the Week as teams or clan vs clan on Anvil: splitting players into teams, inviting other clans, how totals and averages score, late joiners, and what players see.',
+    eyebrow: 'Anvil · for clan staff and players',
+    title: 'Team competitions',
+    dek: 'Every skill or boss competition has a Format. Solo is the default and works as it always did. Pick Teams to split your clan into sides, or Clan vs clan to race other clans on the same skill or boss.',
+    facts: [
+      { strong: 'Three formats', rest: 'Solo, Teams, Clan vs clan' },
+      { strong: 'Totals decide it', rest: 'with an average per player' },
+      { strong: 'One host edits', rest: 'partner clans watch' },
+    ],
+    footnote:
+      'Skill and Boss of the Week basics are in [Skill and Boss of the Week]({weeklyGuide}). Want clans to race on bingo boards instead? See [Hosting a visiting clan]({clanVsClanGuide}).',
+
+    teams: {
+      title: 'Set up teams',
+      intro: 'Teams split your own clan into sides. It takes about a minute:',
+      steps: [
+        'Schedule a competition as usual. Set **Format** to **Teams**.',
+        'Type your team names. Everyone entered is split evenly by their current level or kill count, so the sides start fair.',
+        'Leave **Late joiners go into the smallest team** on if people may arrive after the start. Turn it off to keep teams fixed.',
+        'To change anything later, open the competition and choose **Teams** in its admin sidebar. There you can:',
+      ],
+      rows: [
+        { term: 'Rename and recolour', body: 'give each team a name and a colour players will recognise.' },
+        { term: 'Add and delete teams', body: 'start with two and add a third, or remove one you no longer need.' },
+        { term: 'Move a player', body: 'send someone to another team. Handy for friends who want to play together.' },
+        { term: 'Auto-balance', body: 'press **Auto-balance by current level/KC** to re-split everyone evenly.' },
+        { term: 'Late joiners', body: 'switch the late-joiner option on or off. With it on, new players join the smallest team.' },
+      ],
+      note: {
+        tag: 'No team, no problem',
+        body: 'A player with no team still counts on the individual board. They just don’t add to any team total.',
+      },
+      outro: 'A repeating competition carries its teams over to the next week and balances them again.',
+    },
+
+    clans: {
+      title: 'Set up clan vs clan',
+      intro: 'Clan vs clan lets other clans join your competition. You are the host, and the other clans are partners.',
+      steps: [
+        'As an admin or higher in the host clan, set **Format** to **Clan vs clan**.',
+        'Invite the other clans by their address. Do it on the create form, or later on the competition’s **Clans** page.',
+        'The invited clan’s owner or admin opens their **People** page and accepts or declines. A moderator can’t.',
+        'When a clan accepts, its whole roster is entered and tagged to that clan.',
+      ],
+      body: [
+        'The partner clan can follow the standings on its own site at `/c/<slug>/weekly/<id>`. It is read-only. Only the host edits the competition.',
+        'To drop a clan, remove it on the **Clans** page. Its players come off the board.',
+        'A repeating competition sends fresh invites every week, so each clan has to say yes again.',
+      ],
+      note: {
+        tag: 'Share the address',
+        body: 'A clan’s address is the short name in its web address. Ask the other clan’s admin for it before you invite them.',
+      },
+    },
+
+    scoring: {
+      title: 'How it scores',
+      body: [
+        'A team or clan total is the sum of its members’ gains. Gains are counted the same way as on the individual board.',
+        'Next to each total you also see an **average per player**, so a team of 8 and a team of 12 can still be compared.',
+        'If two totals tie, the one that reached it first ranks higher.',
+      ],
+    },
+
+    players: {
+      title: 'What players see',
+      body: [
+        'The competition page shows the team or clan standings first. Open any of them to see its players. Your own team or clan is highlighted.',
+        'Discord posts at the start, halfway and end show the standings. In clan vs clan they go to every clan’s channel, and yours is marked **← you**.',
+        'In the plugin side panel, you can see where your team places.',
+        'There is nothing to sign up for. If you are on the roster, you are in.',
+      ],
+    },
+
+    faq: {
+      title: 'Questions',
+      rows: [
+        {
+          term: 'Our teams are different sizes. Is that unfair?',
+          body: 'Not by itself. Totals decide the ranking, but each team also shows an average per player, so you can see how a smaller team is really doing.',
+        },
+        {
+          term: 'What about people who join late?',
+          body: 'With the late-joiner switch on, they join the smallest team. With it off, they count only on the individual board. You can always move them by hand on the **Teams** page.',
+        },
+        {
+          term: 'Can the other clan edit our competition?',
+          body: 'No. Partner clans see the standings read-only. Only the host clan can change the competition.',
+        },
+        {
+          term: 'If we agree once, are we signed up every week?',
+          body: 'No. A repeating competition sends new invites each week, and an owner or admin has to accept each one.',
+        },
       ],
     },
   },

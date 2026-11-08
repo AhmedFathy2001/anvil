@@ -110,6 +110,7 @@ export const GUIDE_PAGES = [
   'clan-hall',
   'in-game-guides',
   'weekly',
+  'team-competitions',
   'clan-events',
 ] as const;
 

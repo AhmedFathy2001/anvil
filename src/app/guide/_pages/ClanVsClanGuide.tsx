@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import { GuideShell, Figure, Note, Rows, Section } from '../_components/GuideUI';
 import { SectionBlocks } from '../_components/SectionBlocks';
 import { localeChrome } from '../_components/LanguageBar';
-import { getDict } from '../_i18n';
+import { getDict, guideHref } from '../_i18n';
 import { guideMetadata } from '../_i18n/meta';
 import { items, legend, paragraphs, rows, rt } from '../_i18n/rich';
 
@@ -42,7 +42,7 @@ export default async function ClanVsClanGuide({ lang }: { lang: string }) {
 
   // Shape-of-the-URL and banner examples. Deliberately fake: a real token in a public guide would be
   // a live seat on someone's team, and the point here is the shape, not a working link.
-  const v = { origin, eventId: '12', token: 'k7m2qp4rt9wx3n6b', teamExample: 'Ironforge' };
+  const v = { origin, eventId: '12', token: 'k7m2qp4rt9wx3n6b', teamExample: 'Ironforge', teamCompsGuide: guideHref(locale.code, 'team-competitions') };
 
   const SECTIONS = [
     { id: 'shape', n: 1, title: c.shape.title },
@@ -76,6 +76,7 @@ export default async function ClanVsClanGuide({ lang }: { lang: string }) {
         <Note tag={c.shape.note.tag}>
           <p>{rt(c.shape.note.body, v)}</p>
         </Note>
+        <p className="text-text-muted">{rt(c.teamCompsLine, v)}</p>
       </Section>
 
       {/* ------------------------------------------------------------------ 2 */}
