@@ -310,13 +310,15 @@ export function completionRow(c: {
     id: `t${c.tileId}:${c.teamId}`,
     glyph: 'check',
     glyphColor: 'done',
-    title: `Tile complete: ${c.label}`,
+    // The green check says "complete"; the line is the tile.
+    title: c.label,
     // In the team's colour, so each team's finishes read at a glance (green when it has none).
     textColor: ((c.team?.color && /^#[0-9a-f]{6}$/i.test(c.team.color) ? c.team.color : 'done') as Color),
-    // Who AND which team on the line itself: the plugin puts a row's tag only in its tooltip.
-    who: c.who && c.team ? `${c.who} · ${c.team.name}` : c.who ?? c.team?.name ?? '',
+    // Who, then the team as the row's tag (the panel prints it after the name). No finisher: the team
+    // is the name, untagged, so it never reads "Jade · Jade".
+    who: c.who ?? c.team?.name ?? '',
     whoColor: 'muted',
-    ...(c.team ? { tag: c.team.name, tagColor: (c.team.color as Color | null) ?? 'muted' } : {}),
+    ...(c.team && c.who ? { tag: c.team.name, tagColor: (c.team.color as Color | null) ?? 'muted' } : {}),
     at: c.at,
     ...(c.mine ? { mine: true } : {}),
   };

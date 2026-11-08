@@ -54,6 +54,8 @@ export interface BoardContext {
   progress: Map<number, { current: number; goal: number; sets?: string }>;
   /** The board's page on the site, for "Open on Anvil". */
   boardPath: string | null;
+  /** Where the board's Feed / Chat (opened in the same tab) go back to. */
+  feedBack?: { open: string; label: string };
 }
 
 const MANUAL: Color = '#e8b83a';
@@ -269,7 +271,7 @@ export function boardUi(board: Board, s: BoardState, ctx: BoardContext, inner: N
   const reload = list({ ...s, page: 0 });
   return col([
     // This board's feed and chat, one click away (any board, not only the one the plugin tracks).
-    boardFeedLinks(ctx.eventId),
+    boardFeedLinks(ctx.eventId, ctx.feedBack),
     gap(8),
     text(`${tiles.length} visible tile${tiles.length === 1 ? '' : 's'}${hidden}`, '#cdcdcd'),
     gap(2),
