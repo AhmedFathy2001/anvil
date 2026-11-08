@@ -706,7 +706,7 @@ export async function POST(
         ? {
             proofKey: pendingKey,
             proofDueAt: proofDueAt(receivedAt),
-            proofPending: encodePendingProof({ claims, receivedAt, completed: false, superseded: clogSuperseded, cap: isCap, rsn: pluginAuth?.rsn ?? null, clan: request.headers.get('x-anvil-clan-slug') }),
+            proofPending: encodePendingProof({ claims, receivedAt, completed: false, superseded: clogSuperseded, cap: isCap, rsn: pluginAuth?.rsn ?? null, clan: request.headers.get('x-anvil-clan-slug'), announce: null, sender: pluginAuth?.userId ?? null }),
           }
         : {}),
     })
@@ -746,11 +746,13 @@ export async function POST(
     // serverless function can freeze before running) so the completion is reliably persisted and we can
     // fold "tile completed" into the single submission post — one bingo-webhook request, not two. The
     // separate completion announcement is suppressed; the team-win post still fires from inside sync.
-    const syncResult = await syncDropTileCompletion(tileId, teamId, { notifyCompletion: false });
+    // A credit awaiting its screenshot completes now (the plugin hears it) but announces nothing yet.
+    const syncResult = await syncDropTileCompletion(tileId, teamId, { notifyCompletion: false, held: !!pendingKey });
 
     // A plugin drop that moved an item tile along without finishing it: the rest of the team hears it
-    // in game chat (lib/chatFeed). Item tiles only; a finished tile has its own announcement.
-    if (pluginAuth && !isCap && !syncResult?.isComplete && TEAM_PROGRESS_TILE_TYPES.has(tile.tileType) && tile.requiredAmount) {
+    // in game chat (lib/chatFeed). Item tiles only; a finished tile has its own announcement. One
+    // awaiting its screenshot is heard when that lands (lib/proofFinish), never if it is reversed.
+    if (pluginAuth && !pendingKey && !isCap && !syncResult?.isComplete && TEAM_PROGRESS_TILE_TYPES.has(tile.tileType) && tile.requiredAmount) {
       void emitTeamProgress({
         eventId: eId,
         teamId,
@@ -768,11 +770,14 @@ export async function POST(
     if (pendingKey) {
       // Waiting for its screenshot: the stamp and the post run when it lands (POST /api/plugin/facts/proof),
       // and never if it doesn't. The post will need to know this credit finished the tile.
-      if (syncResult?.isComplete) {
-        [submission] = await db.update(submissions)
-          .set({ proofPending: encodePendingProof({ claims, receivedAt, completed: true, superseded: clogSuperseded, cap: isCap, rsn: pluginAuth?.rsn ?? null, clan: request.headers.get('x-anvil-clan-slug') }) })
-          .where(eq(submissions.id, inserted.id)).returning();
-      }
+      // What it held back rides along: the completion it made (announced on attach) and who sent it
+      // (the team-progress line's sender).
+      [submission] = await db.update(submissions)
+        .set({ proofPending: encodePendingProof({
+          claims, receivedAt, completed: !!syncResult?.isComplete, superseded: clogSuperseded, cap: isCap, rsn: pluginAuth?.rsn ?? null,
+          clan: request.headers.get('x-anvil-clan-slug'), announce: syncResult?.heldTileId ?? null, sender: pluginAuth?.userId ?? null,
+        }) })
+        .where(eq(submissions.id, inserted.id)).returning();
     } else {
       // After the reply: the stamp (fetch the clean frame, draw, store) and the Discord post that shows it
       // take seconds the plugin needn't wait for — the row is in and completion is settled above. The post

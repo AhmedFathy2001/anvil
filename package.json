@@ -52,7 +52,7 @@
     "test:identityhusks": "npx tsx --test tests/identity-husks-migration.test.ts",
     "test:lintview": "npx tsx --test tests/lint-view-writes.test.ts",
     "test:eventscope": "npx tsx --test tests/event-scope.test.ts",
-    "test:lab": "npx tsx --test tests/tile-lab-rules.test.ts tests/tile-lab.test.ts",
+    "test:lab": "npx tsx --test tests/tile-lab-rules.test.ts tests/tile-lab.test.ts tests/lab-plan.test.ts tests/lab-event-types-db.test.ts",
     "test:labtiles": "npx tsx --test tests/lab-tile-progress.test.ts tests/lab-tile-controls-db.test.ts",
     "test:eventdiscord": "npx tsx --test tests/event-discord-plan.test.ts",
     "test:eventdiscordflow": "npx tsx --test tests/event-discord-flow.test.ts",

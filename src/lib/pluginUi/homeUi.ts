@@ -97,6 +97,11 @@ export interface HomeData {
    * whole list. Set, it replaces `standings`; "View all players" pages the rest with a search.
    */
   soloStandings?: StandingsWindow<RosterPersonOut> | null;
+  /**
+   * A board of many teams of any size (12+, lib/standingsWindow isManyTeams): the same cut, worded as
+   * teams — top five, the caller's team(s) with two either side. Set, it replaces `standings`.
+   */
+  teamStandings?: StandingsWindow<RosterTeamOut> | null;
   /** Set while the host keeps the standings hidden (lib/standingsVisibility): the notice to show. */
   standingsNotice?: string | null;
   /** Live weeklies' boards by competition id: the caller's line and the top. */
@@ -554,9 +559,13 @@ function boardPage(d: HomeData, b: Board): Node[] {
   }
   // A ladder keeps its own monthly line; a solo board of many players gets the cut list.
   const solo = d.live && !b.ladder ? d.soloStandings ?? null : null;
+  const many = d.live && !b.ladder && !solo ? d.teamStandings ?? null : null;
   if (solo) {
     parts.push(...soloStandingRows(solo), gap(6));
     parts.push(button(solo.complete ? 'Players' : `View all ${solo.total.toLocaleString('en-US')} players`, teams(b.title), 'Every player, a page at a time, with a search by name'), gap(12));
+  } else if (many) {
+    parts.push(...teamStandingRows(many, b.title), gap(6));
+    parts.push(button(many.complete ? 'All teams & members' : `View all ${many.total.toLocaleString('en-US')} teams`, teams(b.title), 'Every team, a page at a time, with a search by team or player name'), gap(12));
   } else if (d.live && d.standings.length) {
     parts.push(...heading('Standings'));
     let shown = 0;
@@ -573,7 +582,7 @@ function boardPage(d: HomeData, b: Board): Node[] {
     if (d.standings.length > shown) parts.push(gap(3), muted(`+${d.standings.length - shown} more teams`));
     parts.push(gap(8));
   }
-  if (d.live && !solo) parts.push(button(d.standings.length ? 'All teams & members' : 'Teams', teams(b.title), 'Who’s on which team'), gap(12));
+  if (d.live && !solo && !many) parts.push(button(d.standings.length ? 'All teams & members' : 'Teams', teams(b.title), 'Who’s on which team'), gap(12));
 
   // The starting shot is this client's own: where it stands, its checks, its capture button.
   if (d.live && d.cfg.startProof) parts.push({ t: 'native', name: 'start-proof' }, gap(12));
@@ -647,6 +656,33 @@ export function soloStandingRows(w: StandingsWindow<RosterPersonOut>): Node[] {
     });
   }
   if (w.mineMore > 0) out.push(gap(3), muted(`+${w.mineMore} more of your accounts`));
+  return out;
+}
+
+/** A many-teams board's standings: like the players cut, each row a team with its colour and size. */
+export function teamStandingRows(w: StandingsWindow<RosterTeamOut>, title: string): Node[] {
+  const out: Node[] = [...heading('Standings'), muted(`${w.total.toLocaleString('en-US')} teams`), gap(4)];
+  let first = true;
+  for (const part of w.parts) {
+    if (!first) out.push(gap(3));
+    first = false;
+    if (part.kind === 'gap') {
+      out.push(muted(`· · ·  ${part.skipped.toLocaleString('en-US')} more`, { align: 'c' }));
+      continue;
+    }
+    part.rows.forEach((t, i) => {
+      if (i) out.push(gap(3));
+      const ink: Color = t.yours ? 'brand' : 'text';
+      const swatch = icon({ glyph: 'swatch', color: (/^#[0-9a-f]{6}$/i.test(t.color) ? t.color : '#989898') as Color, w: 8, h: 8 });
+      out.push(row(
+        text(t.rank == null ? '–' : `${t.rank}.`, ink, { w: 30 }),
+        col([text(clip(t.name, 22), ink, { icon: swatch }), muted(`${t.members} member${t.members === 1 ? '' : 's'}${t.yours ? ' · your team' : ''}`)]),
+        text(t.score ?? '', t.yours ? 'brand' : 'muted'),
+        { tip: `${t.name} — ${t.members} member${t.members === 1 ? '' : 's'}. Click for the roster.`, on: { a: 'load', v: 'teams', args: { event: '0', team: String(t.teamId), back: 'board', backLabel: title } } },
+      ));
+    });
+  }
+  if (w.mineMore > 0) out.push(gap(3), muted(`+${w.mineMore} more of your teams`));
   return out;
 }
 

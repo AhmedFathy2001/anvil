@@ -166,3 +166,21 @@ test('notable items post past every gate; earned and guaranteed ones get no spoo
   assert.equal(shard?.spoon, true);
   assert.equal(judgeDrop({ items: [{ id: 5, name: 'Blood shard', qty: 1, value: 0 }], notable: 'loot' }, ctx({ prefs: { ...NOTIFY_DEFAULTS, drops: false } })), null);
 });
+
+test('screenshot privacy: PMs hidden by default, old rows and junk keys get the defaults', () => {
+  assert.deepEqual(NOTIFY_DEFAULTS.hide, { pm: true, public: false, clanOthers: false, clanSelf: false, channel: false, group: false });
+  // A row stored before the setting existed.
+  assert.deepEqual(parseNotifyPrefs(JSON.stringify({ drops: false })).hide, NOTIFY_DEFAULTS.hide);
+  const p = normalizeNotifyPrefs({ hide: { pm: false, clanSelf: 'true', group: 7, bogus: true } });
+  assert.deepEqual(p.hide, { pm: false, public: false, clanOthers: false, clanSelf: true, channel: false, group: false });
+  assert.equal('bogus' in p.hide, false);
+  assert.deepEqual(normalizeNotifyPrefs({ hide: 'all' }).hide, NOTIFY_DEFAULTS.hide);
+});
+
+test('pluginMe sends screenshot privacy whatever the clan switches', () => {
+  const prefs = normalizeNotifyPrefs({ hide: { public: true, channel: true } });
+  const me = pluginMe(prefs, null, 0, null);
+  assert.deepEqual(me.hide, { pm: true, public: true, clanOthers: false, clanSelf: false, channel: true, group: false });
+  assert.notEqual(me.hide, prefs.hide);
+  assert.deepEqual(pluginMe(NOTIFY_DEFAULTS, ALL_ON, 0, null).hide, NOTIFY_DEFAULTS.hide);
+});

@@ -77,7 +77,7 @@ import LocalTime from '@/components/LocalTime';
 import { isCreatorSpace, seatsEventPlayers, streamedEvent } from '@/lib/creatorSpaces';
 import { isFriendsHost } from '@/lib/friendEventRules';
 import { withSearchText } from '@/lib/tileSearchText';
-import { isSoloLike } from '@/lib/standingsWindow';
+import { standingsLayout } from '@/lib/standingsWindow';
 import { placementOf } from '@/lib/teamPlacement';
 import { supporterLooksByName } from '@/lib/supporter';
 import { standingsScopeForSession } from '@/lib/standingsAccess';
@@ -372,9 +372,17 @@ export default async function EventScoreboardPage({
   // entered, matched by roster seat or by the account itself (a guest from another clan has no seat here).
   const membersPerTeam = new Map<number, number>(eventTeams.map((t) => [t.id, 0]));
   for (const p of eventPlayers) if (p.teamId != null && membersPerTeam.has(p.teamId)) membersPerTeam.set(p.teamId, membersPerTeam.get(p.teamId)! + 1);
-  const soloBoard = !isLadder && isSoloLike(placementOf(event), [...membersPerTeam.values()]);
+  // 12+ teams of any size (lib/standingsWindow isManyTeams): the same cut list, worded as teams.
+  const layout = isLadder ? 'cards' : standingsLayout(placementOf(event), [...membersPerTeam.values()]);
+  const soloBoard = layout === 'players';
+  const manyTeamsBoard = layout === 'teams';
+  let teamMembers: Record<number, string[]> | undefined;
+  if (manyTeamsBoard) {
+    teamMembers = Object.fromEntries(eventTeams.map((t) => [t.id, [] as string[]]));
+    for (const p of eventPlayers) if (p.teamId != null && teamMembers[p.teamId]) teamMembers[p.teamId].push(p.name);
+  }
   let myTeamIds: number[] = [];
-  if (soloBoard && session?.playerId != null) {
+  if ((soloBoard || manyTeamsBoard) && session?.playerId != null) {
     const myAccountIds = new Set(
       (await db.select({ id: accounts.id }).from(accounts).where(eq(accounts.playerId, session.playerId))).map((a) => a.id),
     );
@@ -921,6 +929,8 @@ export default async function EventScoreboardPage({
           initialTileId={Number.isInteger(initialTileId) && initialTileId > 0 ? initialTileId : null}
           tileHighlights={tileHighlights}
           solo={soloBoard}
+          manyTeams={manyTeamsBoard}
+          teamMembers={teamMembers}
           myTeamIds={myTeamIds}
         />
         {luck && <EventLuck luck={luck} />}

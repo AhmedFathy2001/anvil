@@ -1,11 +1,14 @@
 import ClanLink from '@/components/ClanLink';
 
+import { MAX_LAB_FIELD } from '@/lib/labPlan';
+
 import LabClient from './LabClient';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * The tile lab: run any tile kind, with any constraint, on your own account, without a real bingo.
+ * The tile lab: run any tile kind, on any event type, with any constraint, on your own account, without
+ * a real event. Test players (lib/labField) fill big and many-team boards; missions drop on demand.
  *
  * A session is an ordinary board in a hidden clan (lib/lab), so the tile editor, the plugin, and the
  * whole scoring engine are the real ones. What changes is everything that would reach the outside:
@@ -20,8 +23,10 @@ export default function StaffLabPage() {
         Tile lab
       </h1>
       <p className="mb-2 text-sm text-text-muted">
-        Start a private board on one of your own characters, build the tiles you want to test, and play — or replay a
-        scripted event from the dev client.
+        Start a private board of any event type on one of your own characters, build the tiles you want to test, and
+        play — or replay a scripted event from the dev client. Fill it with up to {MAX_LAB_FIELD.toLocaleString()} test players, solo or in teams,
+        and simulate their progress to preview big boards, tile races and many-team standings. Missions can be added,
+        dropped and expired on demand from the session page.
       </p>
       <p className="mb-6 text-sm text-text-muted">
         <ClanLink href="/staff/lab/scenarios" className="text-gold hover:underline">Replay scenarios</ClanLink>

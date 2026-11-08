@@ -2347,7 +2347,7 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
           />
           )}
 
-          {canLab && <TestInLabButton tileId={tile.id} />}
+          {canLab && <TestInLabButton tileId={tile.id} mission={!!tile.mission} />}
 
           {canDelete && onDelete && (
             <div className="mt-5 pt-4 border-t border-card-border">

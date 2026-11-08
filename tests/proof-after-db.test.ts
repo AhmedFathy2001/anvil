@@ -8,6 +8,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
+import pg from 'pg';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { EventEmitter } from 'node:events';
 import https from 'node:https';
@@ -19,6 +20,10 @@ const DB = useTestDatabase('proofafter');
 // Next's request storage wants the runtime's AsyncLocalStorage on globalThis (the server sets it).
 (globalThis as { AsyncLocalStorage?: unknown }).AsyncLocalStorage ??= AsyncLocalStorage;
 let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
+// The live push channel: a board Feed completion row (lib/panelRows emitCompletionRow) is a 'rows' NOTIFY.
+let listener: pg.Client;
+const feedRows: string[] = [];
+const settle = (ms = 400) => new Promise((r) => setTimeout(r, ms));
 const ids = {} as Record<string, number>;
 const day = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
 
@@ -65,12 +70,12 @@ async function inRequest<T>(req: Request, fn: () => Promise<T>): Promise<T> {
 
 const headers = (tok = 'tok-pa', rsn = 'Proofer') => ({ Authorization: `Bearer ${tok}`, 'X-RSN': rsn, 'X-Account-Hash': `hash-${rsn}`, 'x-anvil-clan-slug': 'alpha' });
 
-async function credit(item: number, extra: Record<string, unknown> = { proofPending: true }) {
+async function credit(item: number, extra: Record<string, unknown> = { proofPending: true }, facts?: unknown[]) {
   const { POST } = await import('../src/app/api/plugin/facts/route.ts');
   const req = new Request('https://example.test/api/plugin/facts', {
     method: 'POST',
     headers: { ...headers(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ facts: [{ k: 'loot', src: 'Zulrah', kind: 'npc', items: [[item, 1]] }], proof: { tz: 'UTC', capturedAt: Date.now(), tick: 7, chat: [{ tick: 7, type: 'GAMEMESSAGE', text: 'Valuable drop: Abyssal whip (1,500,000 coins)' }, { tick: 7, type: 'PUBLICCHAT', text: 'my secret' }, { tick: 7, type: 'PRIVATECHATIN', text: 'dm text' }] }, ...extra }),
+    body: JSON.stringify({ facts: facts ?? [{ k: 'loot', src: 'Zulrah', kind: 'npc', items: [[item, 1]] }], proof: { tz: 'UTC', capturedAt: Date.now(), tick: 7, chat: [{ tick: 7, type: 'GAMEMESSAGE', text: 'Valuable drop: Abyssal whip (1,500,000 coins)' }, { tick: 7, type: 'PUBLICCHAT', text: 'my secret' }, { tick: 7, type: 'PRIVATECHATIN', text: 'dm text' }] }, ...extra }),
   });
   const res = await inRequest(req, () => POST(req));
   assert.equal(res.status, 200, await res.clone().text());
@@ -109,6 +114,12 @@ async function expire(tileId: number) {
 before(async () => {
   jpeg = await sharp({ create: { width: 320, height: 200, channels: 3, background: '#335' } }).jpeg().toBuffer();
   await resetDatabase(DB);
+  listener = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  await listener.connect();
+  listener.on('notification', (n) => {
+    if (n.payload && (JSON.parse(n.payload) as { k?: string }).k === 'rows') feedRows.push(n.payload);
+  });
+  await listener.query('LISTEN anvil_push');
   const loaded = await loadDb();
   pool = loaded.pool;
   const { db, schema: s } = loaded;
@@ -130,10 +141,12 @@ before(async () => {
   ids.whip = await tile(1, 'Whip', 4151);
   ids.fang = await tile(2, 'Fang', 26219);
   ids.bow = await tile(3, 'Bow', 20997);
+  ids.haul = (await db.insert(s.tiles).values({ eventId: ids.event, position: 4, label: 'Big haul', tileType: 'value', requiredAmount: 1_000_000 }).returning())[0].id;
 });
 
 after(async () => {
   await new Promise((r) => setTimeout(r, 300)); // let the after-reply work settle
+  await listener.end();
   globalThis.fetch = realFetch;
   (https as { request: unknown }).request = realRequest;
   await pool.end();
@@ -163,6 +176,10 @@ test('a pending credit counts at once with no image, says it completed, and name
   const body = await listed.text();
   assert.ok(!body.includes(whipKey) && !body.includes('proofPending') && !body.includes('proofKey'), body.slice(0, 300));
   assert.ok(await completed(ids.whip));
+  // Complete, but not announced: no Feed row until the picture lands; the owed announcement is noted.
+  await settle();
+  assert.equal(feedRows.length, 0, 'no completion Feed row for a credit still waiting');
+  assert.equal((JSON.parse(row.proofPending ?? '{}') as { announce?: number }).announce, ids.whip);
 });
 
 test('someone else’s token cannot attach to it', async () => {
@@ -189,6 +206,10 @@ test('the screenshot attaches, gets stamped, and a repeat upload is a no-op', as
   }
   assert.ok(row.cleanImageUrl, 'stamped');
   assert.match(row.imageUrl ?? '', /-stamped\.webp$/);
+  // The held completion is announced now: its board Feed row goes out.
+  for (let i = 0; i < 30 && feedRows.length === 0; i++) await settle(100);
+  assert.equal(feedRows.length, 1, 'the Feed row follows the attach');
+  assert.ok(feedRows[0].includes('Whip'));
   assert.equal((JSON.parse(row.proofFacts ?? '{}') as { split?: number }).split, 0.5);
 
   const again = await upload(whipKey);
@@ -209,6 +230,8 @@ test('a credit whose screenshot never came is reversed by the sweep, and its key
   const res = await upload(reply.proofKey!);
   assert.equal(res.status, 410);
   assert.match((await res.json()).error, /Too late/);
+  await settle();
+  assert.equal(feedRows.length, 1, 'a reversed completion was never announced');
 });
 
 test('an upload that arrives after the minute reverses the credit itself and answers 410', async () => {
@@ -225,4 +248,16 @@ test('without proofPending an image-less drop is refused exactly as before (no k
   assert.equal(reply.proofKey, undefined);
   assert.equal(reply.credits[0].ok, false);
   assert.equal((await rows(ids.bow)).length, 0);
+});
+
+test('a tile that needs a screenshot to complete (value) completes while its proof is on the way', async () => {
+  const reply = await credit(0, { proofPending: true }, [{ k: 'value', src: 'Loot Chest', kind: 'pvp', gp: 12_700_000 }]);
+  const c = reply.credits.find((x) => x.t === ids.haul);
+  assert.ok(c, JSON.stringify(reply));
+  assert.equal(c!.completed, true, 'completed at once, not stuck until some later recheck');
+  assert.ok(await completed(ids.haul));
+  assert.ok(reply.proofKey);
+  const res = await upload(reply.proofKey!);
+  assert.equal(res.status, 200, await res.clone().text());
+  assert.ok(await completed(ids.haul), 'still complete once the picture lands');
 });

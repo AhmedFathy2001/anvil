@@ -12,6 +12,11 @@ import { LAB_KEEP_DAYS } from '@/lib/labRules';
 
 import { sessionLive } from '../sessionLive';
 import LabFeedChatPanel from './LabFeedChatPanel';
+import LabFieldPanel from './LabFieldPanel';
+import LabMissionsPanel from './LabMissionsPanel';
+import type { MissionRules } from '@/lib/eventRules';
+import Input from '@/components/Input';
+import NumberInput from '@/components/NumberInput';
 import LabTeamsPanel from './LabTeamsPanel';
 import LabTileControlsPanel from './LabTileControlsPanel';
 import type { LabTeamsView } from '@/lib/labTeams';
@@ -30,6 +35,11 @@ interface Tile {
   statGoal: number | null;
   requiredAmount: number | null;
   parentTileId: number | null;
+  points: number;
+  mission: boolean;
+  revealedAt: string | null;
+  closedAt: string | null;
+  missionRules: MissionRules | null;
   progressStore: string | null;
   progressGoal: number | null;
 }
@@ -60,10 +70,28 @@ interface LogRow {
 }
 
 interface Detail {
-  event: { id: number; name: string; startDate: string | null; endDate: string | null; forceEndedAt: string | null; boardSize: number };
+  event: {
+    id: number;
+    name: string;
+    startDate: string | null;
+    endDate: string | null;
+    forceEndedAt: string | null;
+    boardSize: number;
+    format: string;
+    scoringMode: string;
+    mode: string;
+    modeLabel: string;
+    placement: string;
+    revealPolicy: string;
+    mission: { announceMode: string; intervalMinutes: number; order: string } | null;
+  };
   tiles: Tile[];
   participants: Participant[];
-  completions: { tileId: number; teamId: number; completedAt: string | null }[];
+  completions: { tileId: number; teamId: number; completedAt: string | null; simulated: boolean }[];
+  tileCounts: { tileId: number; real: number; sim: number }[];
+  completionsTotal: number;
+  simulatedTotal: number;
+  completionsPartial: boolean;
   submissions: Submission[];
   log: LogRow[];
   teams: LabTeamsView;
@@ -126,7 +154,15 @@ export default function LabSessionClient({ eventId }: { eventId: number }) {
   if (!data) return <p className="text-sm text-text-muted">Loading…</p>;
   const { event } = data;
   const live = sessionLive(event);
-  const doneIds = new Set(data.completions.map((c) => c.tileId));
+  const doneBy = new Map(data.tileCounts.map((c) => [c.tileId, c]));
+  const teamCount = data.teams.teams.length;
+  const testTeams = data.teams.teams.filter((t) => t.members.length > 0 && t.members.every((m) => m.test)).length;
+  const square = event.mode === 'classic' || event.mode === 'solo';
+  const testIds = new Set(
+    [...data.teams.teams.flatMap((t) => t.members), ...data.teams.unplaced].filter((m) => m.test).map((m) => m.participantId),
+  );
+  const own = data.participants.filter((p) => !testIds.has(p.id));
+  const testPlayers = data.participants.length - own.length;
   const tileById = new Map(data.tiles.map((t) => [t.id, t]));
   const btn = 'rounded-lg border border-card-border px-3 py-1.5 text-sm text-gray-200 hover:border-gold/60 disabled:opacity-50';
 
@@ -142,7 +178,10 @@ export default function LabSessionClient({ eventId }: { eventId: number }) {
         </h1>
         <p className="text-sm text-text-muted">
           {live ? 'Ends ' : 'Ended '}
-          <LocalTime date={event.forceEndedAt ?? event.endDate ?? ''} /> · {data.participants.map((p) => p.name).join(', ')}
+          <LocalTime date={event.forceEndedAt ?? event.endDate ?? ''} /> · {event.modeLabel}
+          {event.placement === 'solo' ? ' · solo' : ''} · {data.tiles.filter((t) => t.parentTileId == null).length} tiles ·{' '}
+          {own.map((p) => p.name).join(', ')}
+          {testPlayers > 0 ? ` + ${testPlayers} test player${testPlayers === 1 ? '' : 's'}` : ''}
         </p>
       </div>
 
@@ -177,31 +216,76 @@ export default function LabSessionClient({ eventId }: { eventId: number }) {
 
       <section>
         <h2 className="mb-3 flex items-center gap-2 font-semibold text-gold"><span className="h-5 w-1 bg-gold" />Board</h2>
-        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.max(1, event.boardSize)}, minmax(0, 1fr))` }}>
-          {data.tiles.map((t) => (
-            <div
-              key={t.id}
-              className={`rounded-lg border p-2 text-xs ${doneIds.has(t.id) ? 'border-accent-green bg-accent-green/10' : 'border-card-border bg-card-bg'}`}
-            >
-              <div className="font-medium text-gray-100">{t.label}</div>
-              <div className="text-text-muted">
-                {t.tileType ?? 'standard'}
-                {t.trackedStat ? ` · ${t.trackedStat} ${t.statGoal ?? ''}` : ''}
+        <div
+          className="grid gap-2"
+          style={{ gridTemplateColumns: square ? `repeat(${Math.max(1, event.boardSize)}, minmax(0, 1fr))` : 'repeat(auto-fill, minmax(9rem, 1fr))' }}
+        >
+          {data.tiles.filter((t) => t.parentTileId == null).map((t) => {
+            const done = doneBy.get(t.id);
+            const any = !!done && done.real + done.sim > 0;
+            return (
+              <div
+                key={t.id}
+                className={`rounded-lg border p-2 text-xs ${any ? 'border-accent-green bg-accent-green/10' : 'border-card-border bg-card-bg'} ${t.mission && !t.revealedAt ? 'border-dashed opacity-70' : ''}`}
+              >
+                <div className="font-medium text-gray-100">{t.label}</div>
+                <div className="text-text-muted">
+                  {t.tileType ?? 'standard'}
+                  {t.trackedStat ? ` · ${t.trackedStat} ${t.statGoal ?? ''}` : ''}
+                  {event.scoringMode === 'points' ? ` · ${t.points} pts` : ''}
+                </div>
+                {t.mission && (
+                  <div className="mt-1 text-gold">mission · {t.closedAt ? 'closed' : t.revealedAt ? 'live' : 'hidden'}</div>
+                )}
+                {!t.mission && event.revealPolicy !== 'all' && (
+                  <div className="mt-1 text-text-muted">{t.closedAt ? 'closed' : t.revealedAt ? 'open' : 'not drawn yet'}</div>
+                )}
+                {any && (
+                  <div className="mt-1 text-accent-green-light">
+                    ✓ {teamCount > 1 ? `${done!.real + done!.sim} team${done!.real + done!.sim === 1 ? '' : 's'}` : 'complete'}
+                    {done!.sim > 0 && <span className="ml-1 rounded bg-gold/15 px-1 text-gold">{done!.sim} simulated</span>}
+                  </div>
+                )}
               </div>
-              {doneIds.has(t.id) && <div className="mt-1 text-accent-green-light">✓ complete</div>}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
       <LabTileControlsPanel eventId={eventId} tiles={data.tiles} teams={data.teams} completions={data.completions} onDone={load} />
+      {data.completionsPartial && (
+        <p className="-mt-4 text-xs text-text-muted">
+          {data.completionsTotal.toLocaleString()} credits on this board — too many to load whole, so the controls only
+          show done/not-done for your own teams. Actions on test teams still work and report the result.
+        </p>
+      )}
 
-      <StatSimulator eventId={eventId} tiles={data.tiles} participants={data.participants} onDone={load} />
+      <LabMissionsPanel
+        tiles={data.tiles}
+        policy={event.mission}
+        pointsMode={event.scoringMode === 'points'}
+        teamPlay={event.placement !== 'solo'}
+        busy={!!busy}
+        act={act}
+      />
+
+      <LabFieldPanel
+        solo={event.placement === 'solo'}
+        teams={teamCount}
+        testTeams={testTeams}
+        simulated={data.simulatedTotal}
+        credits={data.completionsTotal}
+        busy={!!busy}
+        act={act}
+      />
+
+      {/* Your own characters only: a big field would make this a 1000-entry list, and tile controls cover test players. */}
+      <StatSimulator eventId={eventId} tiles={data.tiles} participants={own} onDone={load} />
 
       <section>
         <h2 className="mb-3 flex items-center gap-2 font-semibold text-gold"><span className="h-5 w-1 bg-gold" />Characters</h2>
         <ul className="space-y-1 text-sm">
-          {data.participants.map((p) => (
+          {own.map((p) => (
             <li key={p.id} className="flex items-center gap-3">
               <span className="text-gray-100">{p.name}</span>
               {p.simulated && <span className="rounded bg-gold/15 px-2 py-0.5 text-xs text-gold">stats simulated</span>}
@@ -337,7 +421,6 @@ function StatSimulator({
     await onDone();
   }
 
-  const field = 'mt-1 w-full rounded-lg border border-card-border bg-brown-dark px-3 py-2 text-sm';
   return (
     <section className="rounded-xl border border-card-border bg-card-bg p-5">
       <h2 className="mb-1 flex items-center gap-2 font-semibold text-gold"><span className="h-5 w-1 bg-gold" />Simulate a stat gain</h2>
@@ -388,15 +471,15 @@ function StatSimulator({
         </label>
         <label className="text-sm text-gray-300">
           Hiscores key
-          <input className={field} value={key} onChange={(e) => setKey(e.target.value)} placeholder="vorkath / slayer / overall" />
+          <Input className="mt-1" value={key} onChange={(e) => setKey(e.target.value)} placeholder="vorkath / slayer / overall" />
         </label>
         <label className="text-sm text-gray-300">
           Add
-          <input className={field} type="number" min={0} value={gain} onChange={(e) => setGain(Number(e.target.value))} />
+          <NumberInput className="mt-1" min={0} value={gain} onChange={setGain} fallback={0} aria-label="Add" />
         </label>
         <label className="text-sm text-gray-300">
           Starting value (optional)
-          <input className={field} value={baseline} onChange={(e) => setBaseline(e.target.value)} placeholder="keep current" />
+          <Input className="mt-1" value={baseline} onChange={(e) => setBaseline(e.target.value)} placeholder="keep current" />
         </label>
         <div className="flex items-end">
           <button

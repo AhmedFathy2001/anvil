@@ -154,6 +154,12 @@ interface Props {
   solo?: boolean;
   /** The viewer's own teams on this board (one per account of theirs entered). */
   myTeamIds?: number[];
+  /**
+   * A board of many teams of any size (lib/standingsWindow isManyTeams): the same cut list as `solo`,
+   * worded as teams. `teamMembers` carries each team's member names for the row count and the search.
+   */
+  manyTeams?: boolean;
+  teamMembers?: Record<number, string[]>;
   /** A streamed board's tile clips by tile id (lib/highlights), already cut to what this viewer may see. */
   tileHighlights?: Record<number, ShownHighlight[]>;
 }
@@ -188,7 +194,9 @@ interface TeamGains {
   tileMembers: Record<number, { name: string; gained: number }[]>;
 }
 
-export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, creator = false, tileHighlights, solo = false, myTeamIds = [] }: Props) {
+export default function ScoreboardClient({ event, tiles, teams: allTeams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null, curtain = null, creator = false, tileHighlights, solo = false, myTeamIds = [], manyTeams = false, teamMembers }: Props) {
+  // Solo-like and many-teams boards both draw the cut list and the compact lens.
+  const windowed = solo || manyTeams;
   // Behind the curtain the teams whose progress this page deals in are the viewer's own; the rest
   // are names on a roster. Everything below that scores, ranks, fetches or draws per team uses this.
   const teams = useMemo(
@@ -616,8 +624,8 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
               {curtain ? (teams.length > 0 ? 'Your team' : 'Standings') : 'Standings'}
             </h2>
             {curtain && <StandingsHiddenNotice curtain={curtain} ownTeamNames={teams.map((t) => t.name)} className="mb-4" />}
-            {solo && !curtain ? (
-              <SoloStandings teams={teams} scores={scores} eventId={event.id} pointsMode={pointsMode} myTeamIds={myTeamIds} />
+            {windowed && !curtain ? (
+              <SoloStandings teams={teams} scores={scores} eventId={event.id} pointsMode={pointsMode} myTeamIds={myTeamIds} noun={solo ? 'players' : 'teams'} members={teamMembers} />
             ) : (!curtain || teams.length > 0) && <Scoreboard
               teams={teams}
               scores={scores}
@@ -634,15 +642,15 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
                 <h3 className="text-md font-bold mb-3 text-foreground flex items-center gap-2">
                   <span className="w-1 h-4 bg-blue-400 rounded-full" />
                   XP gained
-                  {solo && teamGains.length > SOLO_XP_SHOWN && (
-                    <span className="text-xs font-normal text-text-muted">top {SOLO_XP_SHOWN} of {teamGains.length.toLocaleString()} players</span>
+                  {windowed && teamGains.length > SOLO_XP_SHOWN && (
+                    <span className="text-xs font-normal text-text-muted">top {SOLO_XP_SHOWN} of {teamGains.length.toLocaleString()} {solo ? 'players' : 'teams'}</span>
                   )}
                 </h3>
                 <div className="space-y-2">
                   {[...teamGains]
                     .sort((a, b) => b.totalGained - a.totalGained)
                     // A players board: the leaders, not one row per player.
-                    .slice(0, solo ? SOLO_XP_SHOWN : undefined)
+                    .slice(0, windowed ? SOLO_XP_SHOWN : undefined)
                     .map((tg, index) => {
                       const team = teams.find((t) => t.id === tg.teamId);
                       return (
@@ -680,7 +688,7 @@ export default function ScoreboardClient({ event, tiles, teams: allTeams, comple
             </h2>
             {/* Multi-claim boards read very differently as "everyone" vs "us" — so let the viewer choose. */}
             {!liveDropBoard && (
-              <TeamLens teams={teams} value={lensTeamId} onChange={setLensTeamId} className="ml-auto" compact={solo} mine={myTeamIds} />
+              <TeamLens teams={teams} value={lensTeamId} onChange={setLensTeamId} className="ml-auto" compact={windowed} mine={myTeamIds} noun={solo ? 'player' : 'team'} />
             )}
           </div>
 

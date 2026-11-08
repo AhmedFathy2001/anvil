@@ -9,7 +9,7 @@
  */
 import crypto from 'crypto';
 
-import { gameLines, parseProofClaims, type ProofClaims } from '@/lib/proofStamp';
+import { anvilLines, gameLines, parseProofClaims, type ProofClaims } from '@/lib/proofStamp';
 
 /** How long a credit waits for its screenshot before it is reversed. */
 export const PROOF_WINDOW_MS = 60_000;
@@ -66,6 +66,10 @@ export interface PendingProof {
   rsn: string | null;
   /** The clan address the credit was filed under (x-anvil-clan-slug), so the upload is checked the same way. */
   clan: string | null;
+  /** The board tile whose completion announcements this credit held (lib/submissions announceHeldCompletion). */
+  announce: number | null;
+  /** The plugin user who filed it: the team-progress line's sender. */
+  sender: number | null;
 }
 
 export function encodePendingProof(p: PendingProof): string {
@@ -77,7 +81,7 @@ export function encodePendingProof(p: PendingProof): string {
  * lib/proofStamp gameLines) — the rest of the player's chat is never stored while a credit waits.
  */
 export function stampOnlyClaims(claims: ProofClaims): ProofClaims {
-  return { ...claims, chat: claims.chat.filter((c) => gameLines({ ...claims, chat: [c] }).length > 0) };
+  return { ...claims, chat: claims.chat.filter((c) => gameLines({ ...claims, chat: [c] }).length > 0 || anvilLines({ ...claims, chat: [c] }).length > 0) };
 }
 
 /** A submission row as any API may show it: the waiting-proof bookkeeping (key, stored claims) never leaves. */
@@ -103,6 +107,8 @@ export function decodePendingProof(raw: string | null | undefined): PendingProof
     superseded: o.superseded === true,
     cap: o.cap === true,
     rsn: typeof o.rsn === 'string' ? o.rsn.slice(0, 12) : null,
+    announce: Number.isInteger(o.announce) ? (o.announce as number) : null,
+    sender: Number.isInteger(o.sender) ? (o.sender as number) : null,
     clan: typeof o.clan === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(o.clan) ? o.clan : null,
   };
 }

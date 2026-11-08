@@ -199,3 +199,22 @@ test('search on a players board carries each hit’s standing, not its team', ()
   assert.equal(teamsBoard.ranked, undefined);
   assert.equal(teamsBoard.players[0].rank, null);
 });
+
+test('30 teams of 2–3: the window cuts teams around yours, and search finds teams by name', () => {
+  const teams = Array.from({ length: 30 }, (_, i) => ({ ...team(i + 1, 300 - i * 10), name: i === 19 ? 'Zez Squad' : `Team ${i + 1}` }));
+  const people = teams.flatMap((t) => [person(`A${t.teamId}`, t.teamId, t.teamId === 18 ? 9 : null), person(`B${t.teamId}`, t.teamId)]);
+  const input: RosterInput = { teams, people, viewerPlayerId: 9, individuals: false };
+  const o = rosterOverview(input, 1, 25, {});
+  if (o.mode !== 'teams') return assert.fail('teams mode');
+  const w = o.window!;
+  const shape = w.parts.map((p) => (p.kind === 'gap' ? `|${p.skipped}|` : p.rows.map((r) => r.teamId).join(','))).join(' ');
+  assert.equal(shape, '1,2,3,4,5 |10| 16,17,18,19,20 |10|');
+  assert.ok(w.parts.some((p) => p.kind === 'rows' && p.rows.some((r) => r.teamId === 18 && r.yours && r.members === 2)));
+  const hit = rosterSearch(input, 'zez', 1, 25);
+  assert.deepEqual(hit.teams?.map((t) => t.name), ['Zez Squad']);
+  // Eleven teams: no window, no team-name hits — a small board stays as it was.
+  const small: RosterInput = { ...input, teams: teams.slice(0, 11), people: people.filter((p) => p.teamId! <= 11) };
+  const so = rosterOverview(small, 1, 25, {});
+  assert.equal(so.mode === 'teams' && so.window, undefined);
+  assert.equal(rosterSearch({ ...small, teams: [...small.teams.slice(0, 10), { ...team(11, 1), name: 'Zez' }] }, 'zez', 1, 25).teams, undefined);
+});
